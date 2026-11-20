@@ -1,3 +1,4 @@
+import { AdminApiError } from '@jini-ai/core/admin-runtime';
 import { reactModuleUi } from '../../../core/react/module-ui.js';
 import { describe, expect, it, vi, afterEach } from 'vitest';
 import { act, cleanup, fireEvent, render, renderHook, screen, waitFor } from '../../../__tests__/fetch-query-support.js';
@@ -70,7 +71,7 @@ describe('media components', () => {
     await memory.upload(input);
     await memory.upload({ ...input, filename: 'other.png' });
     let fail = true;
-    const list = vi.fn((query: Parameters<MediaApiPort['list']>[0], options?: Parameters<MediaApiPort['list']>[1]) => (fail ? Promise.reject(new Error('Library offline')) : memory.list(query, options)));
+    const list = vi.fn((query: Parameters<MediaApiPort['list']>[0], options?: Parameters<MediaApiPort['list']>[1]) => (fail ? Promise.reject(new AdminApiError({ message: 'Library offline', status: 500 })) : memory.list(query, options)));
     render(<MediaPicker api={{ ...memory, list }} accept={['image/*']} onChoose={vi.fn()} onClose={vi.fn()} />);
     expect(await screen.findByRole('alert')).toHaveTextContent('Library offline');
     fail = false;

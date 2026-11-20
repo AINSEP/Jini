@@ -1,3 +1,4 @@
+import { AdminApiError } from '@jini-ai/core/admin-runtime';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, renderHook, screen, waitFor } from '../../../__tests__/fetch-query-support.js';
 import { EditMediaPanel } from '../components/EditMediaPanel.js';
@@ -129,7 +130,7 @@ describe('legacy server-authoritative save failures', () => {
     // Regression: an early return on the hint prevented ANY patch from reaching the server,
     // including independently edited title/alt. The server owns atomic rejection.
     const context = fixture();
-    context.update.mockRejectedValueOnce(new Error('400: onerror is not allowed; nothing was written'));
+    context.update.mockRejectedValueOnce(new AdminApiError({ message: '400: onerror is not allowed; nothing was written', status: 400 }));
     render(<EditMediaPanel {...context} />, { wrapper: EmbedPolicyScope });
     fireEvent.change(screen.getByLabelText('HTML attributes (optional)'), { target: { value: 'onerror="alert(1)"' } });
     fireEvent.change(screen.getByLabelText('Title'), { target: { value: 'Dirty title' } });
@@ -151,7 +152,7 @@ describe('legacy server-authoritative save failures', () => {
     '503: metadata service unavailable',
   ])('shows full server error %s for client-valid metadata', async (message) => {
     const context = fixture();
-    context.update.mockRejectedValueOnce(new Error(message));
+    context.update.mockRejectedValueOnce(new AdminApiError({ message: message, status: 500 }));
     render(<EditMediaPanel {...context} />, { wrapper: EmbedPolicyScope });
     fireEvent.change(screen.getByLabelText('Slug'), { target: { value: 'other-slug' } });
     fireEvent.change(screen.getByLabelText('HTML attributes (optional)'), { target: { value: 'data-motion="fade-in"' } });

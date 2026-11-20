@@ -1,3 +1,4 @@
+import { AdminApiError } from '@jini-ai/core/admin-runtime';
 // @vitest-environment jsdom
 import { act, render, renderHook, waitFor } from './fetch-query-support.js';
 import { describe, expect, it } from 'vitest';
@@ -22,12 +23,12 @@ import { realEmbedPolicy } from '../media/__tests__/fakes/embed-policy.js';
 it('clears a media failure after successful cache settlement, including an empty library', () => {
   const controller = createLibraryController({ api: createMemoryMediaApi({}) });
   try {
-    controller.settleLibrary({ error: new Error('Library unavailable') });
+    controller.settleLibrary({ error: new AdminApiError({ message: 'Library unavailable', status: 500 }) });
     expect(controller.getSnapshot().error).toBe('Library unavailable');
     controller.settleLibrary({ all: [] });
     expect(controller.getSnapshot().items).toEqual([]);
     expect(controller.getSnapshot().error).toBeNull();
-    controller.settleLibrary({ all: [], error: new Error('Latest read failed') });
+    controller.settleLibrary({ all: [], error: new AdminApiError({ message: 'Latest read failed', status: 500 }) });
     expect(controller.getSnapshot().error).toBe('Latest read failed');
   } finally { controller.dispose(); }
 });

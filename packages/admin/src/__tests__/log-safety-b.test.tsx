@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, renderHook, waitFor } from './fetch-query-support.js';
 import { AdminApiError } from '@jini-ai/core/admin-runtime';
