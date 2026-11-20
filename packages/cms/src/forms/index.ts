@@ -57,3 +57,5 @@ export type {
 
 /** `content_duplicate`'s `"form"` implementation, over the same deps as the tools. */
 export { duplicateFormDefinition, type DuplicateFormRequired } from "./duplicate-form.js";
+
+export { buildFormDestinationRegistry } from "./destination-registry.js";
