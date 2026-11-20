@@ -72,6 +72,12 @@ function resolveBoundedRange({ startText, endText, totalLength }: { startText: s
   return { kind: "range", start, end };
 }
 
+/** The two bound texts of a single `bytes=<start>-<end>` spec (each possibly empty), or undefined. */
+function readRangeBounds({ header }: { header: string }, _optional: Record<string, never> = {}): { startText: string; endText: string } | undefined {
+  const match = SINGLE_RANGE_PATTERN.exec(header.trim());
+  return match ? { startText: match[1] ?? "", endText: match[2] ?? "" } : undefined;
+}
+
 /**
  * @complexity O(1) — one regex match against a bounded-shape string and a handful of comparisons;
  * no work proportional to `totalLength` or to the header's length beyond the regex engine's own
@@ -89,10 +95,10 @@ export function parseRangeHeader(
   // rather than build a multipart/byteranges response — see file header.
   if (header.includes(",")) return { kind: "none" };
 
-  const match = SINGLE_RANGE_PATTERN.exec(header.trim());
-  if (!match) return { kind: "none" };
+  const bounds = readRangeBounds({ header });
+  if (!bounds) return { kind: "none" };
 
-  const [, startText, endText] = match;
+  const { startText, endText } = bounds;
   if (startText === "" && endText === "") return { kind: "none" }; // "bytes=-" — no bound at all.
 
   // Nothing in an empty (or negative-length, which cannot occur for a real byte count but is

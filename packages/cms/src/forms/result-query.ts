@@ -95,6 +95,12 @@ function readFieldErrorsFromQuery({ raw }: { raw: unknown }, _optional = {}): Ar
   return errors;
 }
 
+/** A `retry-after` query value as whole positive seconds; anything else reads as 0. */
+function positiveSeconds({ raw }: { raw: unknown }, _optional: Record<string, never> = {}): number {
+  const seconds = Number.parseInt(queryStringValue({ value: raw }), 10);
+  return Number.isFinite(seconds) && seconds > 0 ? seconds : 0;
+}
+
 /** Reads a {@link FormSubmissionRedirectResult} back off `query` (an Express `req.query`, or any
  *  plain string-keyed record — kept framework-agnostic per this module's own doc). Every value is
  *  untrusted, the same way `readFieldErrorsFromQuery` already treats `form_errors`: an unrecognized/
@@ -112,10 +118,7 @@ export function decodeFormSubmissionResultFromQuery(
   if (status === "success") return { kind: "success", slug };
   if (status === "error") return { kind: "error", slug };
   if (status === "too-fast") return { kind: "too-fast", slug };
-  if (status === "rate_limited") {
-    const retryAfterSeconds = Number.parseInt(queryStringValue({ value: query[keys.retryAfter] }), 10);
-    return { kind: "rate-limited", slug, retryAfterSeconds: Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0 ? retryAfterSeconds : 0 };
-  }
+  if (status === "rate_limited") return { kind: "rate-limited", slug, retryAfterSeconds: positiveSeconds({ raw: query[keys.retryAfter] }) };
   if (status === "validation") return { kind: "validation", slug, fieldErrors: readFieldErrorsFromQuery({ raw: query[keys.errors] }) };
   return undefined;
 }

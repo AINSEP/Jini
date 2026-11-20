@@ -15,7 +15,7 @@ const MARK_CASES: Record<string, JsonObject[]> = {
   textStyle: [{ type: "textStyle", attrs: { color: "#ff0000", fontFamily: "Georgia, serif", fontSize: "18px" } }],
   "textStyle-hostile": [{ type: "textStyle", attrs: { color: "red;background:url(x)", fontFamily: "a;b", fontSize: "1em;x" } }],
   highlight: [{ type: "highlight", attrs: { color: "#ffee00" } }],
-  link: [{ type: "link", attrs: { href: "https://tovu.dev/a?b=c&d=e" } }],
+  link: [{ type: "link", attrs: { href: "https://site.example/a?b=c&d=e" } }],
   "link-hostile": [{ type: "link", attrs: { href: "javascript:alert(1)" } }],
   "bold+link+italic": [{ type: "bold" }, { type: "link", attrs: { href: "/x" } }, { type: "italic" }],
   "unknown-mark": [{ type: "wiggle" }],
@@ -27,7 +27,7 @@ const EXPECTED: Record<string, string> = {
   superscript: "<sup>m &lt;x&gt;</sup>",
   textStyle: '<span style="color:#ff0000;font-family:Georgia, serif;font-size:18px">m &lt;x&gt;</span>',
   "textStyle-hostile": "m &lt;x&gt;", highlight: '<mark style="background-color:#ffee00">m &lt;x&gt;</mark>',
-  link: '<a href="https://tovu.dev/a?b=c&amp;d=e">m &lt;x&gt;</a>', "link-hostile": '<a href="#">m &lt;x&gt;</a>',
+  link: '<a href="https://site.example/a?b=c&amp;d=e">m &lt;x&gt;</a>', "link-hostile": '<a href="#">m &lt;x&gt;</a>',
   "bold+link+italic": '<em><a href="/x"><strong>m &lt;x&gt;</strong></a></em>', "unknown-mark": "m &lt;x&gt;",
 };
 

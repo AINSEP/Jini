@@ -904,6 +904,50 @@
     {
       "id": "8fab9c710b44",
       "reason": "xd-admin (combine-6): the consent React panel moved from admin to @jini-ai/cookie-consent/react, which cannot read admin's theme kit; the look section now takes its fallback palette as an explicit prop, so notes about the kit provider and the kit-render test wrapper no longer apply."
+    },
+    {
+      "id": "1a07d732e6b3",
+      "reason": "xd5-render (combine-6): the render extraction moved the page-head contract, form-result transport and media-ref shape check into Jini as their canonical home (cms presentation/page-head, forms, widgets markers); the comments describing them as duplicates of a host file, or as mirroring the host renderer, no longer apply and were rewritten for the new ownership."
+    },
+    {
+      "id": "74fca3b67df0",
+      "reason": "xd5-render (combine-6): the render extraction moved the page-head contract, form-result transport and media-ref shape check into Jini as their canonical home (cms presentation/page-head, forms, widgets markers); the comments describing them as duplicates of a host file, or as mirroring the host renderer, no longer apply and were rewritten for the new ownership."
+    },
+    {
+      "id": "11ab545c00a7",
+      "reason": "xd5-render (combine-6): the render extraction moved the page-head contract, form-result transport and media-ref shape check into Jini as their canonical home (cms presentation/page-head, forms, widgets markers); the comments describing them as duplicates of a host file, or as mirroring the host renderer, no longer apply and were rewritten for the new ownership."
+    },
+    {
+      "id": "cfae2c8bc0be",
+      "reason": "xd5-render (combine-6): the render extraction moved the page-head contract, form-result transport and media-ref shape check into Jini as their canonical home (cms presentation/page-head, forms, widgets markers); the comments describing them as duplicates of a host file, or as mirroring the host renderer, no longer apply and were rewritten for the new ownership."
+    },
+    {
+      "id": "f8f6f80dbe63",
+      "reason": "xd5-render (combine-6): the render extraction moved the page-head contract, form-result transport and media-ref shape check into Jini as their canonical home (cms presentation/page-head, forms, widgets markers); the comments describing them as duplicates of a host file, or as mirroring the host renderer, no longer apply and were rewritten for the new ownership."
+    },
+    {
+      "id": "58f5c04d74f9",
+      "reason": "xd5-render (combine-6): the render extraction moved the page-head contract, form-result transport and media-ref shape check into Jini as their canonical home (cms presentation/page-head, forms, widgets markers); the comments describing them as duplicates of a host file, or as mirroring the host renderer, no longer apply and were rewritten for the new ownership."
+    },
+    {
+      "id": "03bf8f33df32",
+      "reason": "xd5-render (combine-6): the render extraction moved the page-head contract, form-result transport and media-ref shape check into Jini as their canonical home (cms presentation/page-head, forms, widgets markers); the comments describing them as duplicates of a host file, or as mirroring the host renderer, no longer apply and were rewritten for the new ownership."
+    },
+    {
+      "id": "41e62c69b679",
+      "reason": "xd5-render (combine-6): the render extraction moved the page-head contract, form-result transport and media-ref shape check into Jini as their canonical home (cms presentation/page-head, forms, widgets markers); the comments describing them as duplicates of a host file, or as mirroring the host renderer, no longer apply and were rewritten for the new ownership."
+    },
+    {
+      "id": "655a03e95e9e",
+      "reason": "xd5-render (combine-6): the render extraction moved the page-head contract, form-result transport and media-ref shape check into Jini as their canonical home (cms presentation/page-head, forms, widgets markers); the comments describing them as duplicates of a host file, or as mirroring the host renderer, no longer apply and were rewritten for the new ownership."
+    },
+    {
+      "id": "6b0fb2571bda",
+      "reason": "xd5-render (combine-6): the render extraction moved the page-head contract, form-result transport and media-ref shape check into Jini as their canonical home (cms presentation/page-head, forms, widgets markers); the comments describing them as duplicates of a host file, or as mirroring the host renderer, no longer apply and were rewritten for the new ownership."
+    },
+    {
+      "id": "e0bde041038d",
+      "reason": "xd5-render (combine-6): the render extraction moved the page-head contract, form-result transport and media-ref shape check into Jini as their canonical home (cms presentation/page-head, forms, widgets markers); the comments describing them as duplicates of a host file, or as mirroring the host renderer, no longer apply and were rewritten for the new ownership."
     }
   ]
 }

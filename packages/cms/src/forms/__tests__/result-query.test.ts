@@ -26,8 +26,8 @@ test("encode: validation writes at most 20 field errors — the first 20, in ord
 
   const written = JSON.parse(params.get("form_errors") ?? "null") as Array<{ field: string }>;
   assert.equal(written.length, 20);
-  assert.equal(written[0].field, "f0");
-  assert.equal(written[19].field, "f19");
+  assert.equal(written[0]?.field, "f0");
+  assert.equal(written[19]?.field, "f19");
   assert.equal(params.get("form_status"), "validation");
   assert.equal(params.has("form_retry_after"), false);
 });

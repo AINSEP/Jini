@@ -11,15 +11,16 @@ import { markOffSiteLinksOpenInNewTab, isFullHtmlDocument, injectExtraHeadIntoSt
  * an existing `target`, `mailto:`/`tel:`, and bare `#anchor` hrefs.
  */
 
-const SITE_HOST = "tovu.example";
+const SITE_HOST = "site.example";
 
 test("quoted and uppercase off-site anchors, subdomains and lookalike hosts receive the full link attributes", () => {
-  for (const [html, expected] of [
+  const cases: Array<[string, string]> = [
     ["<a href='https://other.example/x'>Other</a>", "<a href='https://other.example/x' rel=\"noopener noreferrer\" target=\"_blank\">Other</a>"],
     ['<A HREF="https://other.example/x">Other</A>', '<A HREF="https://other.example/x" rel="noopener noreferrer" target="_blank">Other</A>'],
-    ['<a href="https://blog.tovu.example/x">Blog</a>', '<a href="https://blog.tovu.example/x" rel="noopener noreferrer" target="_blank">Blog</a>'],
-    ['<a href="https://nottovu.example/x">Lookalike</a>', '<a href="https://nottovu.example/x" rel="noopener noreferrer" target="_blank">Lookalike</a>'],
-  ]) assert.equal(markOffSiteLinksOpenInNewTab({ html, siteHost: SITE_HOST }), expected);
+    ['<a href="https://blog.site.example/x">Blog</a>', '<a href="https://blog.site.example/x" rel="noopener noreferrer" target="_blank">Blog</a>'],
+    ['<a href="https://notsite.example/x">Lookalike</a>', '<a href="https://notsite.example/x" rel="noopener noreferrer" target="_blank">Lookalike</a>'],
+  ];
+  for (const [html, expected] of cases) assert.equal(markOffSiteLinksOpenInNewTab({ html, siteHost: SITE_HOST }), expected);
 });
 
 test("protocol-relative hrefs stay unchanged under the absolute-http-only policy", () => {
@@ -49,15 +50,15 @@ test("same-site relative link is left byte-identical", () => {
 });
 
 test("absolute link to the site's own host is left byte-identical", () => {
-  const html = `<a href="https://tovu.example/about">About</a>`;
+  const html = `<a href="https://site.example/about">About</a>`;
   assert.equal(markOffSiteLinksOpenInNewTab({ html, siteHost: SITE_HOST }), html);
 });
 
 test("absolute link to the site's own host under a www. prefix mismatch is still same-site", () => {
-  const html = `<a href="https://www.tovu.example/about">About</a>`;
+  const html = `<a href="https://www.site.example/about">About</a>`;
   assert.equal(markOffSiteLinksOpenInNewTab({ html, siteHost: SITE_HOST }), html);
-  const reverse = `<a href="https://tovu.example/about">About</a>`;
-  assert.equal(markOffSiteLinksOpenInNewTab({ html: reverse, siteHost: "www.tovu.example" }), reverse);
+  const reverse = `<a href="https://site.example/about">About</a>`;
+  assert.equal(markOffSiteLinksOpenInNewTab({ html: reverse, siteHost: "www.site.example" }), reverse);
 });
 
 test("off-site link with an existing rel merges noopener/noreferrer instead of overwriting", () => {
@@ -102,7 +103,7 @@ test("a page mixing off-site, same-site, and anchor links only rewrites the off-
     `<a href="/pricing">Pricing</a>`,
     `<a href="https://agent-plugins.org/specification">Spec</a>`,
     `<a href="#top">Top</a>`,
-    `<a href="mailto:hi@tovu.example">Contact</a>`,
+    `<a href="mailto:hi@site.example">Contact</a>`,
   ].join("");
   const result = markOffSiteLinksOpenInNewTab({ html, siteHost: SITE_HOST });
   assert.match(result, /<a href="\/pricing">Pricing<\/a>/);

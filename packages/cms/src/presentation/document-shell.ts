@@ -27,13 +27,17 @@ export function renderBareDocument(
 ): string {
   if (authoredHtml !== undefined && isFullHtmlDocument({ html: authoredHtml })) return body;
   const assets = documentAssets ?? { head: "", body: "" };
-  const foldHasTitle = extraHead?.includes("<title>") ?? false;
-  const titleTag = foldHasTitle ? "" : `<title>${escapeHtml({ text: title })}</title>`;
+  const titleTag = fallbackTitleTag({ title, extraHead });
   return (
     `<!doctype html><html lang="en"><head><meta charset="utf-8"/>` +
     `<meta name="viewport" content="width=device-width, initial-scale=1"/>${titleTag}${extraHead ?? ""}${assets.head}` +
     `</head><body>${body}${assets.body}</body></html>`
   );
+}
+
+/** The fallback `<title>`, or nothing when the pre-built head fold already carries one. */
+function fallbackTitleTag({ title, extraHead }: { title: string; extraHead: string | undefined }, _optional: Record<string, never> = {}): string {
+  return extraHead?.includes("<title>") ? "" : `<title>${escapeHtml({ text: title })}</title>`;
 }
 
 /**
@@ -51,8 +55,7 @@ export function renderDocumentShell(
 ): string {
   const assets = documentAssets ?? { head: "", body: "" };
   const leading = leadingAssets ?? { head: "", body: "" };
-  const foldHasTitle = extraHead?.includes("<title>") ?? false;
-  const titleTag = foldHasTitle ? "" : `<title>${escapeHtml({ text: title })}</title>`;
+  const titleTag = fallbackTitleTag({ title, extraHead });
   const themeAttr = themeId !== undefined ? ` data-theme="${escapeHtml({ text: themeId })}"` : "";
   return `<!doctype html>
 <html lang="en">

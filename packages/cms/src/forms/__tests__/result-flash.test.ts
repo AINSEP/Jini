@@ -33,7 +33,7 @@ test("encodeFormFlashCookieValue: a value longer than the per-field bound is tru
   const json = encodeFormFlashCookieValue({ payload: { slug: "contact", values: { message: longValue } } });
   assert.ok(json);
   const decoded = decodeFormFlashCookieValue({ raw: json });
-  assert.equal(decoded?.values.message.length, 300);
+  assert.equal(decoded?.values.message?.length, 300);
   assert.equal(decoded?.values.message, "begin:" + "x".repeat(294));
   assert.ok(longValue.startsWith(decoded!.values.message), "the truncated preview must be a real prefix of what was typed");
 });
