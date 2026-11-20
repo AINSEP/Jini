@@ -81,12 +81,13 @@ function errorName(cause: unknown): unknown {
 }
 
 function requestTimeoutError(
-  { cause, timeoutMs }: { readonly cause: unknown; readonly timeoutMs: number },
+  { timeoutMs }: { readonly timeoutMs: number },
   _optional: Record<string, never> = {},
 ): AdminApiError {
   const message = `the API did not respond within ${timeoutMs / 1000}s — the browser may be out of free connections for this origin (try closing other admin tabs) or the server is unresponsive`;
   return new AdminApiError({ message, status: 0 }, {
-    code: 'REQUEST_TIMEOUT', body: { cause: describeErrorForLog({ err: cause }) },
+    // Reached only for a cause named TimeoutError (any realm), so the name is the whole label.
+    code: 'REQUEST_TIMEOUT', body: { cause: 'TimeoutError' },
   });
 }
 
@@ -96,7 +97,7 @@ function throwTranslatedFetchFailure(
 ): never {
   const name = errorName(cause);
   if (name === 'AbortError') throw cause;
-  if (name === 'TimeoutError') throw requestTimeoutError({ cause, timeoutMs });
+  if (name === 'TimeoutError') throw requestTimeoutError({ timeoutMs });
   // Only fetch's TypeError proves a network failure. Adapter bugs retain their original type.
   if (!(cause instanceof TypeError)) throw cause;
   if (isPageUnloading?.()) throw new DOMException('request cancelled: the page is unloading', 'AbortError');

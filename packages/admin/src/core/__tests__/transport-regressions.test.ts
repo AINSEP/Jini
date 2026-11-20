@@ -48,7 +48,7 @@ it('recognizes a timeout from another realm by name', async () => {
   const cause = { name: 'TimeoutError', toString: () => 'TimeoutError: deadline reached' };
   const transport = createHttpTransport({ baseUrl: '/api', fetch: async () => { throw cause; } });
   await expect(transport.request({ path: '/x' })).rejects.toMatchObject({
-    status: 0, code: 'REQUEST_TIMEOUT', body: { cause: 'Error' },
+    status: 0, code: 'REQUEST_TIMEOUT', body: { cause: 'TimeoutError' },
   });
 });
 

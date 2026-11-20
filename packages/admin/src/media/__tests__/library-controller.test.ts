@@ -123,7 +123,7 @@ describe('library controller settleLibrary', () => {
   it('reports the error after accepting data when both arrive together', async () => {
     const { api, item } = await seeded();
     const controller = createLibraryController({ api });
-    controller.settleLibrary({ all: [item], error: new AdminApiError({ message: 'Latest read failed', status: 500 }) });
+    controller.settleLibrary({ all: [item], error: new Error('Latest read failed') });
     expect(controller.getSnapshot()).toMatchObject({ error: 'Failed to load media', hasUntyped: false });
     expect(controller.getSnapshot().items).toHaveLength(1);
   });
