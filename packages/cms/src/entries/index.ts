@@ -48,6 +48,7 @@ export {
   EntryFieldValidationError,
   entryVersionConflictError,
 } from "./errors.js";
+export { entryWriteErrorStatus } from "./write-error-status.js";
 
 export type { EntryLifecycleOp, EntryLifecycleHandler } from "./lifecycle-dispatch.js";
 export {
@@ -100,6 +101,7 @@ export {
  */
 export {
   buildEntriesRegistrations,
+  entriesDeps,
   entriesDerivedRisk,
   type EntriesToolDeps,
 } from "./tool-registrations.js";

@@ -64,6 +64,7 @@ export {
   ContentTypeLifecycleError,
   CleanupNotEligibleError,
 } from "./errors.js";
+export { contentTypeWriteErrorStatus } from "./write-error-status.js";
 
 /**
  * The queryable-field index machinery. `IDENTIFIER_GRAMMAR_PATTERN` is exported because it is the

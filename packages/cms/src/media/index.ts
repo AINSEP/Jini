@@ -41,6 +41,8 @@ export type {
   TransformDefinitionRepoPort,
 } from "./ports.js";
 
+export { parseOptionalStringField, parseOptionalTitleField, parseOptionalSlugField } from "./metadata-fields.js";
+
 export { computeBlobStorageKey } from "./blob-key.js";
 export { preserveMediaCreator, mediaRepoWithCreator } from "./created-by.js";
 
