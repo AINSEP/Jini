@@ -159,8 +159,8 @@ async function snapshot(sourceDir: string, limits: PluginSnapshotLimits = {}): P
 const DECLARATIVE_DATA_FILE = /(?:^|\/)(?:LICENSE|[^/]+\.(?:json|md|txt|png|jpe?g|gif|webp))$/;
 
 /**
- * Tier rules for a sideloaded package. Tier-1 (AW-7, 2026-10-04) is the manifest-only tier ADR-024
- * §1 defines — "zero executable code", so it is safe from any publisher: it may not ship a single
+ * Tier rules for a sideloaded package. Tier-1 (AW-7, 2026-10-04) is the manifest-only tier:
+ * "zero executable code", so it is safe from any publisher: it may not ship a single
  * code file (its declarations — no code surface, parseable `contentTypes` — are already checked by
  * `validateManifest`). Anything else must
  * still be tier-3 with `server/index.mjs`, because a sideloaded manifest cannot grant itself a

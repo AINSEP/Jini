@@ -1,14 +1,14 @@
 import { collectManifestKeyErrors } from "../core/manifest-keys.js";
 /**
  * @file `PluginManifest` type + `validateManifest()` — static, collect-all manifest validation
- * (SPEC-005 REQ-01, BR-02/BR-03; ADR-024 `tier`, 1.1.1 fix).
+ * (including the required trust tier).
  *
  * Purpose:
  * Pure, no-I/O validation of an already-parsed `jini.plugin.json` object against the v1 required-
  * field set, id/folder match, capability vocabulary, hook vocabulary, and field-declaration rules.
  * Consumed by both `discovery.ts` (list-time, every discovery pass) and `loader.ts` (enable-time
- * re-validation, BR-05) — one validator, two call sites, never diverging (mirrors SPEC-004's theme
- * validator shape, per feature.spec.md's own Article IV note).
+ * re-validation) — one validator, two call sites, never diverging (mirrors the theme
+ * validator shape, per the feature specification's own Article IV note).
  *
  * Division of labor (a TDD design decision, not itself a spec requirement): BR-02 step (1),
  * "package-level (size, disallowed files, server/index.mjs presence)", requires a directory
@@ -242,7 +242,7 @@ function validateEngine(raw: Readonly<Record<string, unknown>>): PluginValidatio
   return [];
 }
 
-/** tier (BR-02 step 2, ADR-024 §1 / 1.1.1 fix). */
+/** Trust-tier validation (step 2). */
 function validateTier(raw: Readonly<Record<string, unknown>>): PluginValidationError[] {
   if (raw.tier === undefined) {
     return [];

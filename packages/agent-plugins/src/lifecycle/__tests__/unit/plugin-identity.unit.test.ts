@@ -19,10 +19,10 @@ const manifest = (name: string, id?: string) => ({
 
 describe('plugin identity (owner 2026-10-09)', () => {
   it('parses the shared identity contract and keeps portable fields and version separate', () => {
-    const result = parseAgentPluginManifest({ value: manifest('github', 'tovu/github') });
+    const result = parseAgentPluginManifest({ value: manifest('github', 'jini/github') });
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error(result.errors.join(' '));
-    expect(result.manifest.id).toBe('tovu/github');
+    expect(result.manifest.id).toBe('jini/github');
     expect(result.manifest.name).toBe('github');
     expect(result.manifest.version).toBe('1.0.0');
     expect(result.manifest.provides).toEqual(['source-control']);
@@ -36,14 +36,14 @@ describe('plugin identity (owner 2026-10-09)', () => {
     expect(result.manifest.id).toBe('unknown/github');
     expect(result.warnings).toEqual(["Plugin 'github' has no publisher-qualified id; using 'unknown/github'."]);
     expect(parseAgentPluginManifest({ value: manifest('github', '../github') })).toEqual({ ok: false, errors: ['Plugin id must have the form publisher/name (lowercase letters, digits, dots and hyphens).'] });
-    expect(parseAgentPluginManifest({ value: { ...manifest('github'), extensions: { tovu: { id: 'tovu/github', provides: ['ok', 1] } } } })).toEqual({ ok: false, errors: ['Plugin provides must be an array of capability names.'] });
+    expect(parseAgentPluginManifest({ value: { ...manifest('github'), extensions: { tovu: { id: 'jini/github', provides: ['ok', 1] } } } })).toEqual({ ok: false, errors: ['Plugin provides must be an array of capability names.'] });
   });
 
   it('ranks capability-only and publisher-id queries using the existing ranker', () => {
-    const candidate = { pluginId: 'bridge', id: 'tovu/github', provides: ['source-control'], keywords: ['repository'], version: '1.0.0', enabled: false, skills: [], mcpServerIds: [] };
+    const candidate = { pluginId: 'bridge', id: 'jini/github', provides: ['source-control'], keywords: ['repository'], version: '1.0.0', enabled: false, skills: [], mcpServerIds: [] };
     const search = createSearchModule(ports);
     expect(search.rankInstalledAgentPlugins('source-control', [candidate], 10)).toEqual([{ ...candidate, score: 4 }]);
-    expect(search.rankInstalledAgentPlugins('tovu/github', [candidate], 10)).toEqual([{ ...candidate, score: 5 }]);
+    expect(search.rankInstalledAgentPlugins('jini/github', [candidate], 10)).toEqual([{ ...candidate, score: 5 }]);
     expect(search.rankInstalledAgentPlugins('unrelated', [candidate], 10)).toEqual([]);
   });
 
@@ -66,14 +66,14 @@ describe('plugin identity (owner 2026-10-09)', () => {
 
   it('refuses duplicate publisher ids under different names, retaining the first install', async () => {
     const { layout, install } = await fixture();
-    const first = await install('github', 'tovu/github');
-    expect(first.id).toBe('tovu/github');
+    const first = await install('github', 'jini/github');
+    expect(first.id).toBe('jini/github');
     expect(first.provides).toEqual(['source-control']);
-    await expect(install('alias', 'tovu/github')).rejects.toMatchObject({ code: 'PLUGIN_ID_CONFLICT' });
+    await expect(install('alias', 'jini/github')).rejects.toMatchObject({ code: 'PLUGIN_ID_CONFLICT' });
     expect(JSON.parse(await readFile(path.join(first.packageRoot, 'plugin.json'), 'utf8')).name).toBe('github');
     const workspace = layout.forWorkspace({ workspaceId: 'site' });
     await expect(readdir(workspace.pluginPackagesDir({ pluginId: 'alias' }))).rejects.toMatchObject({ code: 'ENOENT' });
-    expect((await install('alias', 'tovu/github', 'other-site')).id).toBe('tovu/github');
+    expect((await install('alias', 'jini/github', 'other-site')).id).toBe('jini/github');
   });
 
   it('serializes competing names and rejects a publisher takeover of the existing slot', async () => {
@@ -88,14 +88,14 @@ describe('plugin identity (owner 2026-10-09)', () => {
 
   it('prunes superseded frozen revisions after successful publication while preserving workspace memory and other plugins', async () => {
     const { layout, install } = await fixture();
-    const first = await install('github', 'tovu/github');
+    const first = await install('github', 'jini/github');
     const unrelated = await install('bridge', 'vendor/bridge');
-    const otherSite = await install('github', 'tovu/github', 'other-site');
+    const otherSite = await install('github', 'jini/github', 'other-site');
     const workspace = layout.forWorkspace({ workspaceId: 'site' });
     const notes = path.join(workspace.pluginMemoryDir({ pluginId: 'github', kind: 'notes' }), 'keep.md');
     await writeFile(notes, 'Operator notes survive upgrades.');
-    const second = await install('github', 'tovu/github', 'site', { version: '2.0.0' });
-    const third = await install('github', 'tovu/github', 'site', { version: '3.0.0' });
+    const second = await install('github', 'jini/github', 'site', { version: '2.0.0' });
+    const third = await install('github', 'jini/github', 'site', { version: '3.0.0' });
     expect(await readdir(workspace.pluginPackagesDir({ pluginId: 'github' }))).toEqual([third.archiveDigest]);
     await expect(readFile(path.join(first.packageRoot, 'plugin.json'), 'utf8')).rejects.toMatchObject({ code: 'ENOENT' });
     await expect(readFile(path.join(second.packageRoot, 'plugin.json'), 'utf8')).rejects.toMatchObject({ code: 'ENOENT' });
@@ -107,9 +107,9 @@ describe('plugin identity (owner 2026-10-09)', () => {
 
   it('does not prune during preview or a rejected publication', async () => {
     const { layout, install } = await fixture();
-    const first = await install('github', 'tovu/github');
-    await install('github', 'tovu/github', 'site', { version: '2.0.0', previewOnly: true });
-    await expect(install('github', 'tovu/github', 'site', { version: '2.0.0', publishGuard: async () => { throw new Error('Publication refused.'); } })).rejects.toThrow('Publication refused.');
+    const first = await install('github', 'jini/github');
+    await install('github', 'jini/github', 'site', { version: '2.0.0', previewOnly: true });
+    await expect(install('github', 'jini/github', 'site', { version: '2.0.0', publishGuard: async () => { throw new Error('Publication refused.'); } })).rejects.toThrow('Publication refused.');
     expect(await readdir(layout.forWorkspace({ workspaceId: 'site' }).pluginPackagesDir({ pluginId: 'github' }))).toEqual([first.archiveDigest]);
     expect(JSON.parse(await readFile(path.join(first.packageRoot, 'plugin.json'), 'utf8')).version).toBe('1.0.0');
   });
@@ -120,8 +120,8 @@ describe('plugin identity (owner 2026-10-09)', () => {
       return ports.filesystem.rename(...args);
     } };
     const { install, events } = await fixture({ filesystem });
-    const first = await install('github', 'tovu/github');
-    const second = await install('github', 'tovu/github', 'site', { version: '2.0.0' });
+    const first = await install('github', 'jini/github');
+    const second = await install('github', 'jini/github', 'site', { version: '2.0.0' });
     expect(JSON.parse(await readFile(path.join(first.packageRoot, 'plugin.json'), 'utf8')).version).toBe('1.0.0');
     expect(JSON.parse(await readFile(path.join(second.packageRoot, 'plugin.json'), 'utf8')).version).toBe('2.0.0');
     expect(events).toEqual([

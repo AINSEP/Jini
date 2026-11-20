@@ -1,18 +1,18 @@
 /** SDK version, hashing and executable import are required host ports. The importer must retain
  * the fresh snapshot and containment guarantees described below. */
 /**
- * @file `loadPlugin()` — BR-01's ordered load pipeline (SPEC-005 REQ-03).
- * The signature and JSDoc are design-frozen under implementation outline C-008.
- * Host-supplied SDK versions respect ADR-005's public-export boundary; do not deep-import the
+ * @file `loadPlugin()` — the ordered load pipeline.
+ * The signature and JSDoc are design-frozen under the implementation outline.
+ * Host-supplied SDK versions respect the public-export boundary; do not deep-import the
  * SDK's package.json to discover a version.
  * Verify packaged-file integrity, check the host SDK version against manifest.sdkRange, then
  * import executable code, validate its export and run setup with a capability-scoped SDK.
  * Hook attachment is composition-owned: see the successful return path and attachLoadedPlugin.
  *
- * CIC U-001 (Binding, ESCALATE_SECURITY): integrity and SDK compatibility MUST both pass before
+ * Binding, ESCALATE_SECURITY: integrity and SDK compatibility MUST both pass before
  * any plugin code is evaluated, even at module-evaluation time. Deviating from that ordering
  * requires a recorded [CIC_DEVIATION_APPROVED] entry under
- * reports/pipeline/005-plugin-system/critical-internal-constraints.md U-001.
+ * reports/pipeline/005-plugin-system/critical-internal-constraints.md.
  *
  * Injectable import and digest ports let checks observe that rejected code was never imported,
  * without depending on real module resolution (CIC Verification Surface Rule).
@@ -35,7 +35,7 @@ import type { PluginSdkBinding, PluginModuleImportPort, VerifyDigestPort, Plugin
 import type { HookPoints } from "@jini-ai/core/contracts/plugin-sdk";
 export { attachLoadedPlugin } from "../attach-loaded-plugin.js";
 
-/** A packaged artifact's file layout is fixed (ADR-004): `jini.plugin.json` + `server/index.mjs` at
+/** A packaged artifact's file layout is fixed: `jini.plugin.json` + `server/index.mjs` at
  * the plugin root. `entryPath` is always `<pluginRoot>/server/index.mjs`, so the root two
  * directories up from it is where `manifest.integrity`'s relative file paths resolve from. */
 function derivePluginRoot(entryPath: string): string {
@@ -168,7 +168,7 @@ async function importPluginModule(required: {
 }, _optional: Record<string, never> = {}): Promise<{ moduleValue: unknown } | { reason: PluginLoadFailureReason }> {
   try {
     // Same-version replacement must evaluate the reviewed package again. Build this URL only at
-    // step (3), after integrity and SDK compatibility have passed (CIC U-001 order unchanged).
+    // step (3), after integrity and SDK compatibility have passed (order unchanged).
     // Injected import seams keep their original path contract. A fresh filesystem graph refreshes
     // ALL packaged helpers (including nested/dynamic imports and CommonJS require caches).
     const imported = await required.importModule({ plugin: { pluginId: required.record.id, packageRoot: required.pluginRoot }, modulePath: required.entryPath });
@@ -220,16 +220,16 @@ function publishProviderCapture(required: {
   return undefined;
 }
 
-/** Integrity and SDK compatibility remain ordered before any executable importer (CIC U-001). */
+/** Integrity and SDK compatibility remain ordered before any executable importer. */
 async function admitPluginPackage<H extends HookPoints>(required: LoadPluginRequired<H>): Promise<
   { pluginRoot: string; loaded: LoadPluginResult } | { failure: PluginLoadFailureReason }
 > {
   const { record, manifest, entryPath } = required;
   const pluginRoot = derivePluginRoot(entryPath);
   const computeFileHash = (absoluteFilePath: string) => required.verifyDigest({ absoluteFilePath });
-  // --- CIC U-001-ORD1: step (1), integrity, MUST complete successfully before step (2)/(3). ---
+  // --- Step (1), integrity, MUST complete successfully before step (2)/(3). ---
   if (!await verifyIntegrity({ record, manifest, pluginRoot, entryPath, computeFileHash })) return { failure: 'INTEGRITY_FAILED' };
-  // --- CIC U-001-ORD1: step (2), sdkRange, MUST complete successfully before step (3). ---
+  // --- Step (2), sdkRange, MUST complete successfully before step (3). ---
   if (!semver.satisfies(required.pluginSdkBinding.runtimeSdkVersion, manifest.sdkRange)) return { failure: 'SDK_RANGE_UNSATISFIED' };
   const admission = await admitDeclaredBrowserProviders({ record, manifest, pluginRoot, approvals: required.browserProviderApprovals });
   if (!admission.admitted) return { failure: admission.reason };
@@ -246,7 +246,7 @@ function isProviderSelected<H extends HookPoints>(required: LoadPluginRequired<H
 }
 
 /**
- * Executes BR-01's 5-step ordered pipeline for one plugin. See CIC U-001 above for the binding
+ * Executes the 5-step ordered pipeline for one plugin. See above for the binding
  * ordering constraint this function's statement order must never invert.
  *
  * @throws Never for an expected pipeline failure (those are reported via the returned `reason`);

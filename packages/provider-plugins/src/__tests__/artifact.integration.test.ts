@@ -34,7 +34,7 @@ const binding: PluginSdkBinding = {
   },
 };
 const host: ManifestHostPorts = {
-  identityNamespace: 'tovu', pluginSdkBinding: binding, capabilityVocabulary: ['providers.register'], coreOwnerName: 'host',
+  identityNamespace: 'jini', pluginSdkBinding: binding, capabilityVocabulary: ['providers.register'], coreOwnerName: 'host',
   declarativeContentTypes: {
     validateManifest: () => ({ errors: [] }), parse: () => ({ decls: [], errors: [] }),
     plan: async () => ({ conflicts: [], items: [] }), apply: async () => {},
@@ -224,7 +224,7 @@ it.each(SERVER_IDS)('%s: packs, installs and loads identical standalone bytes wi
     await resource.dispose({});
   `], { cwd: root, env: { ...process.env, NODE_PATH: '' } });
   expect(standalone.stderr).toBe('');
-  for (const [namespace, runtimeSdkVersion] of [['tovu', '0.1.0'], ['com.example.host', '1.0.0']] as const) {
+  for (const [namespace, runtimeSdkVersion] of [['jini', '0.1.0'], ['com.example.host', '1.0.0']] as const) {
     const { registry } = await installAndLoad({ pluginId, artifact, manifest, namespace, runtimeSdkVersion });
     const providerHost = createPluginProviderHost({ contributions: registry, contracts: [{ contract: spec.contract, validate: ({ provider }) => spec.validate(provider) ? undefined : 'invalid port',
       ...(spec.context ? { context: spec.context } : {}) }] });
@@ -358,7 +358,7 @@ it.each(BROWSER_IDS)('%s: packs, installs, loads and admits identical browser-on
     plugin.definition.setup({providers: {register() { throw new Error('browser provider registered a server provider'); }}});
   `], { cwd: root, env: { ...process.env, NODE_PATH: '' } });
   expect(standalone.stderr).toBe('');
-  for (const [namespace, runtimeSdkVersion] of [['tovu', '0.1.0'], ['com.example.host', '1.0.0']] as const) {
+  for (const [namespace, runtimeSdkVersion] of [['jini', '0.1.0'], ['com.example.host', '1.0.0']] as const) {
     const { registry, installedRoot } = await installAndLoad({ pluginId, artifact, manifest, namespace, runtimeSdkVersion }, { reviewedBrowserProvider: true });
     expect(registry.list({}).flatMap(row => row.providers ?? [])).toEqual([]);
     // Host admission of the retained bytes, with an approval pinning the packaged declaration and full integrity map.

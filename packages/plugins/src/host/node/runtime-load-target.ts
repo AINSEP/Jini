@@ -26,7 +26,7 @@ export interface PluginLoadTarget {
  * `siteEntryPath()`'s REQ-02 layout convention.
  *
  * Deliberately does not itself touch integrity/`sdkRange`/`import()` — those stay exactly where
- * CIC U-001 requires them, inside `loadPlugin()`'s own fixed step order. This function only decides
+ * they are required, inside `loadPlugin()`'s own fixed step order. This function only decides
  * WHICH manifest/entryPath/import-hook `loadPlugin()` is handed; it never calls `import()` itself
  * and never lets a caller reach one without going through `loadPlugin()`'s ordering first.
  *

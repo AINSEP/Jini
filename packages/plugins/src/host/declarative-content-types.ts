@@ -3,10 +3,10 @@
  * plan against what the site already has, and apply through the host's ONE content-type write path
  * (behind {@link DeclaredContentTypeWritePorts}). AW-7 Tier 1, 2026-10-04.
  *
- * Why this exists: ADR-024 §1 defines Tier-1 as a manifest-only plugin whose first contribution is
+ * Why this exists: Tier-1 is defined as a manifest-only plugin whose first contribution is
  * "content types & fields", but `manifest.ts` only ever parsed-and-stored `contentTypes` (state.spec
  * §2: "UNUSED in v1"). This module is the missing half: a bounded, closed declaration grammar
- * (ADR-024 §5 — Tier-1 is only safe while its surface is non-Turing-complete and bounded) and an
+ * (Tier-1 is only safe while its surface is non-Turing-complete and bounded) and an
  * idempotent provisioner that runs at enable time.
  *
  * Rules the provisioner keeps (and why):
@@ -16,7 +16,7 @@
  *   refused before anything is written, rather than silently reshaping someone's content.
  * - **A tombstoned type is skipped.** The owner deleted it on purpose; tombstone is terminal and the
  *   key can never be reused (content-types INV-06), so re-enabling the plugin does not resurrect it.
- * - **Retain on disable/uninstall** (ADR-023/ADR-024 retain-by-default): nothing here ever removes a
+ * - **Retain on disable/uninstall** (retain-by-default): nothing here ever removes a
  *   type. The entries are the owner's content, not the plugin's.
  *
  * Pure parsing; the plan/apply halves do I/O only through the injected ports.
@@ -33,10 +33,10 @@ import { PluginInvalidError } from "./activation.js";
 import type { PluginValidationError } from "./manifest-types.js";
 import type { DeclaredContentType, DeclaredContentTypePlan } from "./ports.js";
 
-/** ADR-024 §5 bound: how many content types one plugin may declare.
+/** Bound: how many content types one plugin may declare.
  *  @agent-note Plugin-domain bound, not a host option; a longer list is refused whole at parse. */
 export const MAX_DECLARED_CONTENT_TYPES = 20;
-/** ADR-024 §5 bound: how many fields one declared content type may carry.
+/** Bound: how many fields one declared content type may carry.
  *  @agent-note Plugin-domain bound, not a host option. */
 export const MAX_DECLARED_FIELDS = 50;
 /** Core's own per-type queryable-field cap (`QUERYABLE_FIELD_CAP` in `@jini-ai/cms`'s
@@ -273,7 +273,7 @@ export interface DeclarativeContentTypes {
   /**
    * The declarative half of a manifest's validation: its `contentTypes`, plus — for a `tier-1`
    * plugin — the rule that it declares no code surface. Hooks, capability grants and `ext` fields
-   * all exist to be used by plugin code, and a Tier-1 plugin is never imported (ADR-024 §1: "zero
+   * all exist to be used by plugin code, and a Tier-1 plugin is never imported ("zero
    * executable code"), so declaring one is either a mistake or an attempt to look like something it
    * is not. `validateManifest()` calls this, so discovery lists a bad declaration as `invalid`
    * instead of it failing only at enable. A surface that is not an array is left to

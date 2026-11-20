@@ -10,7 +10,7 @@ import { capabilityToolIdFor } from "./plugin-claims.js";
 
 /**
  * @file Projects each ENABLED plugin-runtime plugin's own declared `fields[]` (manifest.ts,
- * SPEC-005 REQ-06) into one real, `search_tools`-discoverable tool per plugin — the fix for the
+ * the manifest contract) into one real, `search_tools`-discoverable tool per plugin — the fix for the
  * 2026-08-26 registration-gap audit (`ADS-memory/reports/2026-08-26-plugin-discoverability-audit.md`):
  * a live, valid, tier-3 Word Count plugin was computing and storing a real per-post word count on
  * every save, yet no agent-callable tool anywhere ever exposed it, so `search_tools` correctly

@@ -1,5 +1,5 @@
 /**
- * @file The Tier-2 plugin ABI wire protocol (ADR-024 §3/§4): what the server sends a fresh worker
+ * @file The Tier-2 plugin ABI wire protocol: what the server sends a fresh worker
  * for one call, and what the worker replies. Both directions are structured-clone-only data — no
  * functions, no class instances, no live core objects — because they cross a `worker_threads`
  * boundary, and because the same messages must later cross a real process sandbox unchanged.

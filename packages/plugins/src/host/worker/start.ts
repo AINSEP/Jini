@@ -1,6 +1,6 @@
 /**
  * @file `startTier2Worker()` — the per-call wiring of ONE Tier-2 plugin call inside a
- * `worker_threads` worker (ADR-024 §3/§4). The host spawns its own worker entry file by path in a
+ * `worker_threads` worker. The host spawns its own worker entry file by path in a
  * fresh, heap-limited worker per call, and terminates it after the first reply or the timeout; that
  * entry calls this function with its own message port, request and product binding.
  *
@@ -57,7 +57,7 @@ export async function startTier2Worker(required: StartTier2WorkerRequired, optio
 
   let importModule = optional.importModule;
   if (!importModule) {
-    // CIC U-002, per worker: main-thread `module.register()` hooks do not reach a worker spawned
+    // Per worker: main-thread `module.register()` hooks do not reach a worker spawned
     // with `execArgv: []` (measured, Node v24.2.0), so without this a site plugin's
     // SDK imports (including the legacy alias) fail, or resolve to a copy planted next to the plugin. Registered
     // before the plugin's first import.

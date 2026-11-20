@@ -1,14 +1,13 @@
 /**
  * @file `createHookRegistry()` / `runBeforeSave()` — composes enabled plugins' `content.entry.
- * beforeSave` filters, merges `ext`, fail-closed (SPEC-005 REQ-05/REQ-06; BR-04/BR-06/BR-07;
- * CIC U-004, no escalation marker).
+ * beforeSave` filters, merges `ext`, fail-closed (no escalation marker).
  *
  * Purpose:
  * The concrete adapter for `BeforeSaveHookPort` (`src/features/post/post.ts`'s contract). Keeping
  * this composition logic here — not in `post.ts` — is what keeps `post.ts` plugin-ignorant
  * (Module Map). `activation.ts` calls `.detach()` on disable.
  *
- * **Corrected 2026-08-04 (ADR-057 Decision 2.1):** this comment previously claimed `loader.ts`
+ * **Corrected 2026-08-04:** this comment previously claimed `loader.ts`
  * calls `.attach()` on this registry as each plugin's `setup()` runs. That was false — `loadPlugin()`
  * (`loader.ts`) has never called `.attach()`; steps 4-5 of BR-01 were left unwired, documented but
  * dead, and no other production code called it either (verified: `grep -rn "hookRegistry\.attach"
@@ -16,10 +15,10 @@
  * `loader.ts` exports `attachLoadedPlugin()`, the real (not stub) extraction of that dead logic's
  * attach half, widened to accept a `"glue"` source. Site Glue's content-lifecycle attachment point
  * is `attachLoadedPlugin`'s first production caller; `loadPlugin()` itself still does not call it —
- * a future SPEC-005 fix for its own activation path is expected to call the same function, per
- * ADR-057 Decision 2.1, rather than re-inventing this wiring a second time.
+ * a future fix for its own activation path is expected to call the same function,
+ * rather than re-inventing this wiring a second time.
  *
- * **CIC U-004 (Binding, no escalation marker — bounded blast radius via SPEC-001's revert):**
+ * **Binding, no escalation marker — bounded blast radius via revert:**
  * `runBeforeSave()` must fully resolve (returning the merged patch) or throw before its caller
  * (`post.ts`) constructs the final `PostRecord` passed to `deps.repo.save()`. There is exactly one
  * `repo.save()` call per `createPost`/`updatePost` invocation, and it must never be reached if
@@ -34,7 +33,7 @@
  * earlier filters' already-merged `ext` values on the entry snapshot they receive.
  *
  * Architectural role:
- * TDD-certified implementation (implementation outline C-010, CIC U-004). Signature and JSDoc are
+ * TDD-certified implementation. Signature and JSDoc are
  * design-frozen; `runBeforeSave()` orders attached filters, gives each an isolated entry snapshot,
  * validates each declared-field patch, and returns the merged per-plugin `ext` object fail-closed.
  */
@@ -48,7 +47,7 @@ import type {
 } from "@jini-ai/core/contracts/plugin-sdk";
 import { PluginHookFailedError } from "./errors.js";
 
-/** Who attached a given filter — extended by ADR-057 Decision 3 with `"glue"`, ranked after
+/** Who attached a given filter — extended with `"glue"`, ranked after
  * `"site"` in {@link compareTb01}. Exported so `loader.ts`'s `attachLoadedPlugin()` and any other
  * caller share this one source of truth for the vocabulary rather than re-declaring the union. */
 export type AttachmentSource = "built-in" | "site" | "glue";
@@ -107,7 +106,7 @@ interface Attachment {
   readonly declaredFields: readonly HookRegistryFieldDecl[];
 }
 
-/** TB-01's rank per source, ADR-057 Decision 3's additive third stage: built-ins (0), then site
+/** Source rank with an additive third stage: built-ins (0), then site
  * plugins (1), then glue modules (2) — id-ascending within each rank (`compareTb01` below). */
 const SOURCE_RANK: Readonly<Record<AttachmentSource, number>> = { "built-in": 0, site: 1, glue: 2 };
 
@@ -115,7 +114,7 @@ const SOURCE_RANK: Readonly<Record<AttachmentSource, number>> = { "built-in": 0,
  * TB-01 comparator: built-ins before site plugins before glue modules, id-ascending within each
  * group. Shared with `discovery.ts`'s own ordering rule for the `built-in`/`site` ranks (PLUGINS_LIST
  * uses the same order) so those two never diverge; the `glue` rank has no discovery-time analogue
- * since glue modules are never listed by `discovery.ts` (ADR-057 Decision 6 — a separate tier).
+ * since glue modules are never listed by `discovery.ts` (a separate tier).
  */
 function compareTb01(a: readonly [string, Attachment], b: readonly [string, Attachment]): number {
   const rankDiff = SOURCE_RANK[a[1].source] - SOURCE_RANK[b[1].source];

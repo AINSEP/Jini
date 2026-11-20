@@ -179,7 +179,7 @@ export function createPluginContributionRegistry(_required: Record<string, never
 
 /** Resolves only named public fragments, isolating failures and bounding the awaited work.
  * Validation is an injected host renderer port; plugins cannot substitute their own validator.
- * Client enhancement JS is still pending: it waits for an ADR-025 owner amendment. */
+ * Client enhancement JS is still pending: it waits for an owner amendment. */
 export async function renderPluginWidgetFragments(required: {
   registry: PluginContributionRegistry; names: readonly string[]; workspaceId: string;
   isEnabled: (required: { pluginId: string }, optional?: Record<string, never>) => Promise<boolean>;

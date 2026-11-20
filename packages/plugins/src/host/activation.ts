@@ -1,7 +1,6 @@
 import { nowIso as clockNowIso } from "@jini-ai/core/primitives";
 /**
  * @file `setPluginEnabled()` / `getActivation()` — gateway-backed enable/disable feature functions
- * (SPEC-005 REQ-07; BR-05; AC-02/AC-13; INV-03/INV-05).
  *
  * Purpose:
  * Mirrors `packages/cms/src/presentation/presentation.ts`'s `setActiveTheme`/`getPresentationSettings`
@@ -32,7 +31,7 @@ import type { PluginDiscoveryRecord } from "./discovery-types.js";
 export interface PluginActivationRecord {
   readonly pluginId: string;
   readonly workspaceId: UUID;
-  /** The active (enabled) installed version — the "active pointer" (ADR-004). */
+  /** The active (enabled) installed version — the "active pointer". */
   readonly version: string;
   readonly enabled: boolean;
   readonly updatedAt: string;

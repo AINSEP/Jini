@@ -1,6 +1,5 @@
 /**
  * @file `toAdminPluginResponse()` — DTO mapping for the admin plugin list / set-enabled wire shape
- * (SPEC-005 REQ-10, api.spec.md §5; C-017).
  *
  * Purpose:
  * Projects a `PluginDiscoveryRecord` plus its (possibly absent) `PluginActivationRecord` into the
@@ -30,8 +29,8 @@ export interface AdminPluginEnvelope {
   readonly version: string;
   readonly source: "built-in" | "site";
   /** (1.1.2, REQ-10/REQ-18) Projected verbatim from `PluginDiscoveryRecord.tier`, itself projected
-   * verbatim from the plugin's already-required `PluginManifest.tier` (REQ-01/ADR-024 §1) — the
-   * same additive-field mechanism REQ-10's revision note describes ("mirroring how `enabled` is
+   * verbatim from the plugin's already-required `PluginManifest.tier` — the
+   * same additive-field mechanism described by the revision note ("mirroring how `enabled` is
    * already projected"). Required at this wire-contract layer (api.spec.md §5 lists it as a plain,
    * always-present field, consumed by REQ-18's per-row badge, AC-26).
    *
