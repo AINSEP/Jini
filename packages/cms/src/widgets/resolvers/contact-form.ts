@@ -93,7 +93,7 @@ async function contactFormProps({ definition, successMessage, providers, consent
     // Closes this file's own previously-disclosed deferral ("the actual submission still
     // posts to Forms' existing public route unmodified... that is a render-component/route
     // concern, out of this resolver's scope") — the render component built for SPEC-043's
-    // routes/UI slice (the host app's `src/server/inbound/public-http/http/site/render.ts`'s `renderWidgetContactForm`) needs the
+    // routes/UI slice (the host app's `renderWidgetContactForm`) needs the
     // definition's `slug` to build `POST /forms/:slug/submit`'s URL (REQ-37's second half).
     slug: definition.slug,
     // REQ-37: Forms' own declared field vocabulary, passed through verbatim — never a

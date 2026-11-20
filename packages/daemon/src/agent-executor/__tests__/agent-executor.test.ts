@@ -1653,23 +1653,8 @@ interface AcpHarness {
   onCleanupFailure: ReturnType<typeof vi.fn>;
 }
 
-/** Builds an `AgentExecutor` wired to an `acp-json-rpc` def and a fully fake `attachAcpSession` — no real ACP handshake, matching `createHarness`'s JSON-stream-path precedent above. */
-function createAcpHarness(options: AcpHarnessOptions = {}): AcpHarness {
-  const eventLog = createInMemoryEventLog({});
-  const lifecycle = createRunLifecycle({ eventLog });
-  const child = createFakeChild(5100);
-  const def = createFakeDef({ streamFormat: 'acp-json-rpc', ...options.def });
-  const attachCalls: FakeAcpAttachCall[] = [];
-  const abort = vi.fn();
-  const stopProcessesCalls: Array<Array<number | null | undefined>> = [];
-  const onCleanupFailure = vi.fn();
-
-  const fakeSpawn = (() => {
-    queueMicrotask(() => child.emit('spawn'));
-    return child as unknown as ChildProcess;
-  }) as unknown as typeof nodeSpawn;
-
-  const fakeAttachAcpSession = ((requiredAttachOptions: {
+function createFakeAttachAcpSession({ options, attachCalls, abort }: { options: AcpHarnessOptions; attachCalls: FakeAcpAttachCall[]; abort: ReturnType<typeof vi.fn> }): typeof attachAcpSession {
+  return ((requiredAttachOptions: {
     prompt: string;
     cwd: string;
     permissionMode?: 'bypass' | 'restricted';
@@ -1708,8 +1693,15 @@ function createAcpHarness(options: AcpHarnessOptions = {}): AcpHarness {
     };
     return controller;
   }) as unknown as typeof attachAcpSession;
+}
 
-  const executor = createAgentExecutor({ lifecycle }, { resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (def.id === id ? def : null), resolveAgentLaunch: () =>
+function createAcpExecutor({ options, lifecycle, def, child, attachAcpSession: fakeAttachAcpSession, stopProcessesCalls, onCleanupFailure }: { options: AcpHarnessOptions; lifecycle: RunLifecycle; def: ReturnType<typeof createFakeDef>; child: FakeChild; attachAcpSession: typeof attachAcpSession; stopProcessesCalls: Array<Array<number | null | undefined>>; onCleanupFailure: ReturnType<typeof vi.fn> }): AgentExecutor {
+  const fakeSpawn = (() => {
+    queueMicrotask(() => child.emit('spawn'));
+    return child as unknown as ChildProcess;
+  }) as unknown as typeof nodeSpawn;
+
+  return createAgentExecutor({ lifecycle }, { resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (def.id === id ? def : null), resolveAgentLaunch: () =>
       ({
         selectedPath: '/fake/acp-bin',
         pathResolvedPath: '/fake/acp-bin',
@@ -1730,6 +1722,22 @@ function createAcpHarness(options: AcpHarnessOptions = {}): AcpHarness {
       const numericPids = pids.filter((pid): pid is number => typeof pid === 'number');
       return { alreadyStopped: false, forcedPids: [], matchedPids: numericPids, remainingPids: [], stoppedPids: numericPids };
     }, onCleanupFailure, ...(options.journal !== undefined ? { journal: options.journal } : {}), ...(options.classifyFailure !== undefined ? { classifyFailure: options.classifyFailure } : {}), ...(options.prepareAgentLogFile !== undefined ? { prepareAgentLogFile: options.prepareAgentLogFile } : {}), ...(options.mcpJsonInjection !== undefined ? { mcpJsonInjection: options.mcpJsonInjection } : {}) });
+}
+
+/** Builds an `AgentExecutor` wired to an `acp-json-rpc` def and a fully fake `attachAcpSession` — no real ACP handshake, matching `createHarness`'s JSON-stream-path precedent above. */
+function createAcpHarness(options: AcpHarnessOptions = {}): AcpHarness {
+  const eventLog = createInMemoryEventLog({});
+  const lifecycle = createRunLifecycle({ eventLog });
+  const child = createFakeChild(5100);
+  const def = createFakeDef({ streamFormat: 'acp-json-rpc', ...options.def });
+  const attachCalls: FakeAcpAttachCall[] = [];
+  const abort = vi.fn();
+  const stopProcessesCalls: Array<Array<number | null | undefined>> = [];
+  const onCleanupFailure = vi.fn();
+
+  const fakeAttachAcpSession = createFakeAttachAcpSession({ options, attachCalls, abort });
+
+  const executor = createAcpExecutor({ options, lifecycle, def, child, attachAcpSession: fakeAttachAcpSession, stopProcessesCalls, onCleanupFailure });
 
   return { lifecycle, executor, child, attachCalls, abort, stopProcessesCalls, onCleanupFailure };
 }

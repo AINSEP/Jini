@@ -59,6 +59,9 @@ jobs:
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
+      - name: Dependency audit (report-only)
+        run: pnpm audit
+        continue-on-error: true
 
       # Every workspace package's package.json resolves its `@jini-ai/*` siblings through its own
       # gitignored `dist/` (`types`/`main` both point there — see e.g. packages/daemon/package.json),
