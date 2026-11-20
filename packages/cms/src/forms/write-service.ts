@@ -1,5 +1,5 @@
 /**
- * @file `write-service.ts` — the admin-CRUD write chokepoint (SPEC-010 REQ-01..04, ADR-PIPE-010).
+ * @file `write-service.ts` — the admin-CRUD write chokepoint.
  *
  * Purpose:
  * `createFormDefinition`/`updateFormDefinition`/`setFormDefinitionStatus`, each wrapping the
@@ -373,7 +373,7 @@ async function updateAuthoredFormDefinition(
   // Authorize BEFORE the authoring pre-read below, so a denied caller is refused before any
   // lookup and the refusal never discloses whether the form exists (5e9f338f6 put the read
   // first). The gateway then replays this one decision instead of evaluating a second time —
-  // ADR-021 §2 "one evaluator". Its only authorize() caller is executeCommand's single gate,
+   // "one evaluator". Its only authorize() caller is executeCommand's single gate,
   // pinned to FORMS_PERMISSION by packageDeps; prepareFormAuthoring keeps the real authorize.
   const decision = await deps.authorize({
     principalId: input.actor.id,

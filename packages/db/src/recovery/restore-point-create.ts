@@ -1,14 +1,14 @@
 import type { PrincipalKind, Result } from "./recovery-orchestrator.js";
 
 /**
- * @file SPEC-019 C-304 / REQ-05 — `createRestorePoint`, an ordinary `authorize()`-gated mutation
- * (ADR-045 §3, "backup.create" independent of any migration).
+ * @file `createRestorePoint`, an ordinary `authorize()`-gated mutation
+ * ("backup.create" independent of any migration).
  *
  * Purpose:
  * Structurally distinct from the gated restore ceremony (`recovery-orchestrator.ts`): this never
  * calls the gateway's `plan()`/`confirm()`/`execute()` at all (AC-10) — it mints a restore point
  * directly once `authorize()` and the shared-lock "no operation in flight" check both pass.
- * `authorize()` runs on EVERY call, before the idempotency short-circuit (AC-11, SPEC-016 REQ-14)
+ * `authorize()` runs on EVERY call, before the idempotency short-circuit
  * — a repeated idempotency key never skips re-authorization, only re-creation.
  *
  * How it relates to the project:

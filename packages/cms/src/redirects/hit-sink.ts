@@ -1,6 +1,6 @@
 /**
  * @file `RedirectHitSink` implementation + `registerRedirectHitOutboxHandler`
- * (SPEC-009 REQ-21; ADR-PIPE-009 C-009/C-010).
+ *
  *
  * Purpose:
  * Off-hot-path hit aggregation. `phase-handler.ts` enqueues a `redirect.hit`
@@ -18,7 +18,7 @@
  * against this in-memory sink.
  *
  * Architectural role:
- * INTERNAL SEAM (not an ADR-006 port, see `ports.ts`'s file header) + a thin
+ * INTERNAL SEAM (not a rule-of-two port, see `ports.ts`'s file header) + a thin
  * composition-root registration function.
  */
 import type { EventBusPort } from "@jini-ai/core/contracts/events";

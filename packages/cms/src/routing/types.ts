@@ -1,12 +1,12 @@
 /**
- * @file Core type definitions for the host `routing` Tier-2 library (ADR-039 v0).
+ * @file Core type definitions for the host `routing` Tier-2 library (v0).
  *
  * Purpose:
  * Declares the `RouteTarget` vocabulary, the workspace-scoped resolve context,
  * the inverse-resolver result shape, the forward resolution pipeline's phase
  * vocabulary, and the `SlugChangeCapture` slot's payload shape. This is the one
  * place `entryRef | termRef | url | route` is defined — promoted from
- * Menus-local (ADR-029 §3) to routing-owned per ADR-039 §3, so Menus/SEO/
+ * Menus-local to routing-owned, so Menus/SEO/
  * Redirects share one vocabulary instead of inventing three.
  *
  * How it relates to the project:
@@ -16,14 +16,14 @@
  * - `routing/routing.ts` implements the resolve functions against these types.
  *
  * Architectural role:
- * INTERFACES + TYPES ONLY (no feature logic). ADR-039 v0 is deliberately the
+ * INTERFACES + TYPES ONLY (no feature logic). v0 is deliberately the
  * minimal shape three other sections depend on; full permalink-structure
- * design is explicitly deferred (ADR-039 "Open").
+ * design is explicitly deferred (an open design decision).
  */
 import type { JsonObject, UUID } from "@jini-ai/core/primitives";
 
 // ---------------------------------------------------------------------------
-// RouteTarget vocabulary (ADR-039 §3)
+// RouteTarget vocabulary
 // ---------------------------------------------------------------------------
 
 /** Discriminant values for {@link RouteTarget}. */
@@ -31,7 +31,7 @@ export type RouteTargetKind = "entryRef" | "termRef" | "url" | "route";
 
 /**
  * A link to a content entry by id. Only `post` has a real resolver in this
- * repo today (ADR-039 v0); `contentType` is accepted for forward-compat with
+ * repo today (v0); `contentType` is accepted for forward-compat with
  * future content types but is not required to resolve a post reference.
  */
 export interface EntryRefTarget {
@@ -43,9 +43,9 @@ export interface EntryRefTarget {
 /**
  * A link to a taxonomy term (category/tag archive).
  *
- * NOT resolvable today: taxonomy isn't implemented in this repo, and ADR-029's
+ * NOT resolvable today: taxonomy isn't implemented in this repo, and the
  * Round-3 audit fold promoted "term-link schema" from an Open item to an
- * explicit Wave-1 acceptance blocker — ADR-022 §5's `entry_refs` covers
+ * explicit Wave-1 acceptance blocker — `entry_refs` covers
  * entry-to-entry references only, with no term-target schema yet (content-lib
  * sign-off owed). `urlFor`/`isActive` resolve every `termRef` target to `null`
  * until that schema lands; see the stub in `routing.ts`.
@@ -74,19 +74,19 @@ export interface RouteRefTarget {
   readonly params?: JsonObject;
 }
 
-/** v0 discriminated union of route targets (ADR-039 §3). */
+/** v0 discriminated union of route targets. */
 export type RouteTarget = EntryRefTarget | TermRefTarget | UrlTarget | RouteRefTarget;
 
 // ---------------------------------------------------------------------------
-// Resolve context + inverse-resolver result (ADR-039 §2, Round-2 amendment 4)
+// Resolve context + inverse-resolver result (Round-2 amendment 4)
 // ---------------------------------------------------------------------------
 
 /**
  * Workspace-scoped context threaded through every resolve call. `siteId`/
- * `locale`/`originKey` are reserved for multi-site/i18n v0.1 work (ADR-039
- * "Open"); only `workspaceId` is load-bearing today.
+ * `locale`/`originKey` are reserved for multi-site/i18n v0.1 work (an open
+ * design decision); only `workspaceId` is load-bearing today.
  *
- * `originOverride` is a stand-in for `core/origin` (ADR-040), which is being
+ * `originOverride` is a stand-in for `core/origin`, which is being
  * built in parallel and does not exist yet. Once it lands, `canonicalUrl`
  * composition should read the verified origin from
  * `OriginRegistryPort.canonicalOrigin(ctx)` instead of this field.
@@ -97,7 +97,7 @@ export interface RouteResolveContext {
   readonly locale?: string;
   readonly originKey?: string;
   /**
-   * TODO(ADR-040): compose canonicalUrl from OriginRegistryPort.canonicalOrigin(ctx)
+   * TODO: compose canonicalUrl from OriginRegistryPort.canonicalOrigin(ctx)
    * once src/origin exists. Until then, a caller that knows the verified origin
    * may pass it here; absent, canonicalUrl falls back to the relative path.
    */
@@ -111,14 +111,14 @@ export interface RouteUrl {
 }
 
 // ---------------------------------------------------------------------------
-// Forward resolution pipeline (ADR-039 §1) — registration vocabulary
+// Forward resolution pipeline — registration vocabulary
 // ---------------------------------------------------------------------------
 
 /**
  * The two registerable phases of the forward pipeline
  * (`normalize → pre_content → content-resolve → post_content → 404`).
  * `content-resolve` is fixed core content lookup and is not a registerable
- * phase of this library; it is out of scope for ADR-039 v0's registration
+ * phase of this library; it is out of scope for v0's registration
  * mechanism.
  */
 export type RouteResolvePhaseName = "pre_content" | "post_content";
@@ -132,7 +132,7 @@ export type RouteResolvePhaseOutcome =
 /**
  * A single phase resolver. Returns `null` to fall through to the next
  * registered resolver in the same phase (and eventually the next phase);
- * returns an outcome to short-circuit the pipeline (ADR-039 §1 invariant:
+ * returns an outcome to short-circuit the pipeline (invariant:
  * `pre_content` may only redirect/gone, never turn a resolvable live path
  * into a 404 — Round-2 amendment 5).
  */
@@ -151,7 +151,7 @@ export type RouteResolveResult =
     };
 
 // ---------------------------------------------------------------------------
-// SlugChangeCapture slot (ADR-039 §4 + Round-2/Round-3 amendments)
+// SlugChangeCapture slot (Round-2/Round-3 amendments)
 // ---------------------------------------------------------------------------
 
 /** Payload handed to the bound {@link SlugChangeCapture} inside the rename transaction. */
@@ -166,7 +166,7 @@ export interface SlugChangeCaptureInput {
 
 /**
  * The single named slot content's write chokepoint calls inside the rename
- * transaction (ADR-039 §4). Declared here by routing (content knows nothing of
+ * transaction. Declared here by routing (content knows nothing of
  * redirects); implemented by the redirects library; wired by the composition
  * root. **No slot implementation may be plugin-supplied** (Round-2 amendment 1
  * — the slot is core-resident by definition).

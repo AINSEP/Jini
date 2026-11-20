@@ -8,7 +8,7 @@ import type { FormDefinitionRepoPort, FormSubmissionRepoPort } from "./ports.js"
 import type { FormDefinitionRecord, FormSubmissionPage, FormSubmissionRecord } from "./types.js";
 
 /**
- * @file In-memory adapters for `forms` (rule-of-two half #1, ADR-006).
+ * @file In-memory adapters for `forms` (rule-of-two half #1).
  *
  * Purpose:
  * Test/dev-default implementations of `FormDefinitionRepoPort`/`FormSubmissionRepoPort`. Emulates

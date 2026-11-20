@@ -32,7 +32,7 @@ export interface CreateFormSubmitHandlerRequired {
 }
 
 /**
- * @file Public submission route for `forms` (SPEC-010 `FORMS_POST_SUBMIT`, REQ-05).
+ * @file Public submission route for `forms` (`FORMS_POST_SUBMIT`).
  *
  * Mirrors `routes/site/analytics-ingest.ts`'s public-route shape: no session required, registered
  * before the site `/:slug` catch-all (see the host app's `src/server/runtime/composition/app.ts`'s wiring). Reuses `resolveClientIp`

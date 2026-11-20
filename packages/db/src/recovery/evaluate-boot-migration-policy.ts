@@ -1,8 +1,8 @@
 import type { MigrationRunsRepoPort, SiteStatusPort } from "./reconcile-interrupted-migration.js";
 
 /**
- * @file SPEC-017 C-107 / CIC U-004 / INV-08 / REQ-28 / REQ-29 — cost-gated `SERVE_SITE` auto-
- * migrate policy (ADR-041 §10, amends SPEC-003).
+ * @file Cost-gated `SERVE_SITE` auto-
+ * migrate policy (amends the original policy).
  *
  * Purpose:
  * Routes serve-time migration through the same snapshot-anchored ceremony as an interactive
@@ -14,9 +14,9 @@ import type { MigrationRunsRepoPort, SiteStatusPort } from "./reconcile-interrup
  *
  * How it relates to the project:
  * Must only ever run AFTER `reconcile-interrupted-migration.ts`'s `reconcileInterruptedMigrationOnBoot`
- * has resolved for this boot cycle (U-004-ORD1) — the boot composition root's own call-site
+ * has resolved for this boot cycle — the boot composition root's own call-site
  * ordering is what actually enforces that sequencing; this function additionally refuses,
- * defense-in-depth, if it ever observes a still-non-terminal `migration_runs` row itself (U-004-B1),
+ * defense-in-depth, if it ever observes a still-non-terminal `migration_runs` row itself,
  * so an out-of-order wiring bug fails closed rather than silently auto-migrating over an unresolved
  * crash.
  *
@@ -24,7 +24,7 @@ import type { MigrationRunsRepoPort, SiteStatusPort } from "./reconcile-interrup
  * `features/database` domain logic. Depends only on the injected ports.
  */
 
-/** Thrown when a non-terminal `migration_runs` row still exists — defense-in-depth against out-of-order boot wiring (U-004-B1). */
+/** Thrown when a non-terminal `migration_runs` row still exists — defense-in-depth against out-of-order boot wiring. */
 export class UnresolvedInterruptedMigrationError extends Error {
   constructor(message: string) {
     super(message);

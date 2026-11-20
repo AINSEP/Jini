@@ -24,7 +24,7 @@ export interface DuplicateFormRequired {
  * No separate upfront read check, unlike `duplicatePostOrPage`'s `content.read` one: reading a form
  * definition IS `admin.forms.manage` in this domain (`forms_list_definitions` gates on exactly that
  * permission), which `content_duplicate`'s own outer gate has already established before this runs.
- * A second identical check would be the duplicate evaluator ADR-021 §2 forbids.
+ * A second identical check would be a forbidden duplicate evaluator.
  *
  * What is copied: `name` (defaulting to the source's own name with a numeric suffix — see
  * the host's numeric-suffix name search (`deps.deriveDuplicateName`) for the owner's ruling — never

@@ -1,5 +1,5 @@
 /**
- * @file SEO's half of ADR-049 Decision 4: maps `agent-tools.ts`'s 6 catalog entries onto the
+ * @file SEO's tool-registration wiring: maps `agent-tools.ts`'s 6 catalog entries onto the
  * per-entry meta/analyze/override and site-wide settings/sitemap operations `server/routes/admin/
  * seo/*.ts` expose, as `ToolRegistration`s. The entire catalog is wired — see `agent-tools.ts`'s own
  * file header for why nothing in this domain is withheld.
@@ -13,7 +13,7 @@
  *    `requireToolPermission` themselves, mirroring those routes' identical check.
  *  - `setEntrySeoOverrides` (`write-service.ts`) and `setSeoSettings` (`settings.ts`, via the
  *    settings write-service's own `set()`) ARE self-enforcing chokepoints — each calls
- *    `authorize()` internally. Per ADR-021 §2's single-evaluator rule, the 2 matching handlers below
+ *    `authorize()` internally. Per the single-evaluator rule, the 2 matching handlers below
  *    do NOT also call `requireToolPermission` — that would be a second evaluation of the same
  *    permission. Exception: `seo_set_settings` does gate first (2026-10-05), because
  *    `setSeoSettings`' `defaultOgImage` image check reads the media library ahead of its own

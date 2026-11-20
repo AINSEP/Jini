@@ -1,9 +1,9 @@
 import { nowIso as clockNowIso } from "@jini-ai/core/primitives";
 /**
- * @file ADR-031 §3/§8 — the moderation write-service: wraps `CommentRepoPort.applyModeration`/
+ * @file The moderation write-service: wraps `CommentRepoPort.applyModeration`/
  * `purge` with outbox event emission and the `comments.statusChanged` action hook. Routes call
- * `authorize()` first (ADR-021 flat `comments.*` strings), then this service, never the repo
- * directly — the same "typed, core-owned write, no side-door" discipline ADR-023 §7 requires of
+ * `authorize()` first (flat `comments.*` strings), then this service, never the repo
+ * directly — the same "typed, core-owned write, no side-door" discipline required of
  * the repo itself, one layer up.
  */
 import type { Clock as ClockPort, IdGenerator as IdGeneratorPort, UUID } from "@jini-ai/core/primitives";

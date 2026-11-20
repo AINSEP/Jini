@@ -1,5 +1,5 @@
 /**
- * @file ADR-023 §2 (T3 fix) — the durable, fsynced phase-marker journal for the dataModule
+ * @file (T3 fix) — the durable, fsynced phase-marker journal for the dataModule
  * engine. Every DDL attempt writes phase transitions here, in strict sequence:
  * `PREPARED_SNAPSHOT → DDL_IN_PROGRESS → VERIFYING → COMMITTED` (success) or `→ ROLLED_BACK`
  * (failure). Each transition is checkpointed (forced WAL fsync) before the corresponding DB

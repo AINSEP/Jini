@@ -4,8 +4,8 @@ import type { GatedMutationHooks } from "@jini-ai/core/gated-mutations";
 import type { RecoveryHookPolicy } from "./hook-policy.js";
 
 /**
- * @file Database's `GatedMutationHooks` factory for the `migrate-forward` ceremony (SPEC-017
- * C-103/C-105) — the domain-specific quarter of what used to be
+ * @file Database's `GatedMutationHooks` factory for the `migrate-forward` ceremony
+ * — the domain-specific quarter of what used to be
  * `server/gated-mutations-composition.ts`, split out so Database no longer needs a back-edge into
  * `server/` for its own hook builder. The generic pieces every ceremony shares (`buildGatewayDeps`,
  * `planHashOf`, `resolveActorClassIdentity`, `buildConfirmOnlyHooks`) stayed in
@@ -56,13 +56,13 @@ export interface BuildMigrateForwardHooksInput extends RecoveryHookPolicy {
 }
 
 /**
- * SPEC-017 C-103/C-105 — the Database `migrate-forward` ceremony's `GatedMutationHooks`.
+ * The Database `migrate-forward` ceremony's `GatedMutationHooks`.
  *
  * `computePlan()` reads live `dbOps.getCapabilities()` every call (never cached) — a site whose
  * capability changes between plan and execute (e.g. `cheap` -> `unavailable`) correctly produces a
  * different plan hash.
  *
- * `executeMutation()` performs the two safe, real, ADR-041 §2/§3-mandated actions this composition
+ * `executeMutation()` performs the two safe, real, mandated actions this composition
  * root can perform without inventing an unreviewed live-schema-swap mechanism: it captures a real
  * restore point (`dbOps.captureRestorePoint` — an online-backup file copy in the real SQLite
  * composition, a deterministic double in the hermetic one) and appends a `core.migration`
@@ -106,7 +106,7 @@ export function buildMigrateForwardHooks(input: BuildMigrateForwardHooksInput, _
       return { planHash: input.planHashOf({ details }, {}), details };
     },
     executeMutation: async () => {
-      // Read fresh, not the `computePlan()` value — CIC U-003: a capability check cached across the
+      // Read fresh, not the `computePlan()` value — a capability check cached across the
       // plan/execute boundary can go stale, and the saved row must reflect what was ACTUALLY captured.
       const capabilities = await input.dbOps.getCapabilities();
       const captured = await input.dbOps.captureRestorePoint({ scopeId: input.workspaceId });

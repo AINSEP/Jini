@@ -5,8 +5,8 @@ import type { DomainEvent, OutboxPort, OutboxRecord } from "@jini-ai/core/contra
 import type { OutboxEventsTable } from "./repo.rows.js";
 
 /**
- * @file THE `OutboxPort` adapter over `outbox_events` (ADR-046 Phase 1): one Kysely query body for
- * every dialect (storage plan §4, ADR-066). ADR-006 rule-of-two "second adapter" half;
+ * @file THE `OutboxPort` adapter over `outbox_events` (Phase 1): one Kysely query body for
+ * every dialect (storage plan). Rule-of-two "second adapter" half;
  * `core/events/memory-bus.ts`'s `InMemoryOutbox` is the first. The host's binding is the thin class that
  * builds it from the content db handle: its kernel, its table name and its claim lease.
  *
@@ -15,7 +15,7 @@ import type { OutboxEventsTable } from "./repo.rows.js";
  * path for callers outside `executeCommand()`.
  *
  * `claimPending()` selects and marks rows `processing` inside one kernel transaction under
- * `lockKey("outbox_events:claim")` (ADR-046's "claim rows atomically"): two concurrent claims can
+ * `lockKey("outbox_events:claim")` ("claim rows atomically"): two concurrent claims can
  * never both walk away with the same row — on Postgres too, where a transaction alone would not
  * serialize the select-then-update.
  *

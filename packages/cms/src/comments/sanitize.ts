@@ -1,6 +1,6 @@
 /**
- * @file A comments-scoped body sanitizer (SPEC-033 Non-Goals — no shared core `text` library
- * exists anywhere in this codebase for this to extract into; ADR-031 §2/§4's "core `text`
+ * @file A comments-scoped body sanitizer (no shared core `text` library
+ * exists anywhere in this codebase for this to extract into; the "core `text`
  * library" reference is design-forward, not something this spec can reuse). Strips HTML tags
  * entirely (comments render as plain text, never `dangerouslySetInnerHTML`-equivalent raw HTML on
  * any read path this spec builds) and collapses excess whitespace. Bounded, non-Turing-complete —

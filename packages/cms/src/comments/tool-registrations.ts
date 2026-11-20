@@ -1,5 +1,5 @@
 /**
- * @file Comments' half of ADR-049 Decision 4 (ADR-031/SPEC-033/SPEC-035): maps `agent-tools.ts`'s
+ * @file Comments' tool-registration wiring: maps `agent-tools.ts`'s
  * seven catalog entries onto the moderation queue, the four moderation transitions, and the two
  * settings operations, as `ToolRegistration`s. The entire catalog is wired.
  *
@@ -7,7 +7,7 @@
  * write-service.ts`'s own file header records that "Routes call authorize() first ... then this
  * service, never the repo directly" — the domain functions carry no `authorize()` call to inherit.
  * Six of the seven handlers here therefore perform that check themselves, via the kit's
- * `requireToolPermission`, mirroring each route's exact sequence. That is still ADR-021 §2's "one
+ * `requireToolPermission`, mirroring each route's exact sequence. That is still "one
  * evaluator": for those six, the single evaluation happens at the handler because that is where the
  * real admin route performs it. The seventh, `comments_update_settings`, is the exception and is
  * documented at its own handler.
@@ -350,7 +350,7 @@ const commentsUpdateSettingsHandler = ({ deps }: CommentsHandlerArgs): ToolHandl
   const patch = requireCommentsSettingsPatch(requireInputRecord({ input: ctx.input }));
 
   // No explicit pre-check here, unlike every other Comments handler: the host's settings port
-  // self-enforces the configure permission inside its own write, which is ADR-021 §2's "one
+  // self-enforces the configure permission inside its own write, which is "one
   // evaluator" reached the domain-function way Forms/Identity use, not the explicit-handler way the
   // rest of this file uses. The host binding documents that override beside the port it supplies.
   await deps.commentsSettingsReady;

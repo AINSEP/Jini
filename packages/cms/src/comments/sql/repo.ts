@@ -7,7 +7,7 @@ import type { Kysely } from "kysely";
 
 /**
  * @file THE comments repository: one Kysely query body for every database the storage kernel
- * drives, over the host's comments tables declared through dataModule (ADR-023 §2/§7). Those tables are not in
+ * drives, over the host's comments tables declared through dataModule. Those tables are not in
  * the migrated core schema, so each query starts from `db.withTables<CommentTables>()`.
  *
  * Every statement goes through `kernel.run` and is awaited. A write that spans the comment row and
@@ -123,7 +123,7 @@ export class SqlCommentRepo implements CommentRepoPort {
     return Number(row!.n);
   }
 
-  /** OQ-3 (SPEC-035): the comment and its `submit` log row land as ONE atomic transaction.
+  /** The comment and its `submit` log row land as ONE atomic transaction.
    * Storage errors propagate; with a log, either both inserts commit or neither does.
    * @complexity O(1) queries and application space; storage costs depend on the kernel.
    * @example repo.create({ record }, { submitLog })

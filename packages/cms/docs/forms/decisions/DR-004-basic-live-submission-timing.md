@@ -12,7 +12,7 @@ Keep honeypot responses, 5/60-second host rate policy, 60-second dedupe, failure
 
 ## Counting and scope
 
-Tovu's events job already binds visitor provenance at ingress and counts only committed `form.submission.received` events. Preserve that owner; do not add a parallel `onPersisted` callback or conversion capture. Discards, retries and duplicates emit no new committed event.
+The host’s existing committed-event visitor integration already binds visitor provenance at ingress and counts only committed `form.submission.received` events. Preserve that owner; do not add a parallel `onPersisted` callback or conversion capture. Discards, retries and duplicates emit no new committed event.
 
 Static receivers retain their existing controls. Phase 1B requires a separate additive D1 receipt/migration decision for atomic dedupe, safe retry, scoped retention, cap parity and edge timing; no receiver implementation is authorized here. Phase 2 `bot_check`, browser admission and vendors remain excluded.
 

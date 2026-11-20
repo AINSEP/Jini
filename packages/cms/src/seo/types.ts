@@ -1,8 +1,8 @@
 /**
- * @file SEO core type definitions (SPEC-008, ADR-PIPE-008).
+ * @file SEO core type definitions.
  *
- * Types ONLY — no feature logic. Fills in the ADR-032 design-only stub with
- * the shapes ADR-PIPE-008 actually commits to. Deviations from the original
+ * Types ONLY — no feature logic. Fills in the original design-only stub with
+ * the shapes the original plan actually commits to. Deviations from the original
  * stub (state.spec.md §5 + ADR-PIPE-008 Context, all disclosed there):
  *  - No `baseUrl`/`seo.base_url` anywhere (INV-07 — single-origin-authority;
  *    every absolute URL comes from `routing.urlFor`'s `canonicalUrl`).
@@ -10,7 +10,7 @@
  *    only `robotsRules: RobotsRule[]` is stored.
  *  - `SeoPermission`'s 5-string vocabulary is replaced by the single string
  *    `"admin.seo.manage"`, used directly at call sites (no type needed).
- *  - `SeoFieldDecl`/`SeoExpressionIndexDecl` (ADR-022 generic-entries-model
+ *  - `SeoFieldDecl`/`SeoExpressionIndexDecl` (generic-entries-model
  *    registration vocabulary) are dropped — this feature stores overrides on
  *    the bespoke `posts.seo_ext_json` column (state.spec.md §0), not a
  *    generic ext-bag with a content-type field registry.
@@ -118,7 +118,7 @@ export type OpenGraphType = "website" | "article" | "profile";
  * this interface is the registered, validated shape.
  *
  * `ogImage`/`twitterImage` hold a media *ref* (`"{assetId}:{transformName}"`)
- * or an absolute URL — never a frozen `/m/` URL directly (ADR-027 §4: internal
+ * or an absolute URL — never a frozen `/m/` URL directly (internal
  * content stores refs, not URLs) — resolved to a URL at read time by `media.ts`.
  */
 export interface SeoExtFields {

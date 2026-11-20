@@ -9,7 +9,7 @@ import type {
 import type { RevertRegistry, EntityReverter } from "./appliers.js";
 
 /**
- * @file Revert executor (ADR-018 C-004).
+ * @file Revert executor.
  *
  * Undoes an applied change set by walking its items in descending `position`
  * and applying each inverse through the inverse-applier registry, under a strict

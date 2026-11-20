@@ -1,6 +1,6 @@
 /**
  * @file In-memory `RedirectRepoPort` adapter (rule-of-two adapter #1,
- * ADR-006). Test/dev double — no persistence beyond process lifetime.
+ * test/dev). No persistence beyond process lifetime.
  *
  * Also satisfies `RedirectDbHandle` (`ports.internal.ts`) directly — `save()`
  * is implemented as the same two-step write (`insertRedirect` then

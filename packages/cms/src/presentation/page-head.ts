@@ -6,10 +6,10 @@ import type { HeadElement, HeadElementKey, JsonLd, PageHeadContext, PageHeadHook
  * @file The `page.head` render seam (ADR-PIPE-008 Decision §2).
  *
  * Purpose:
- * Owned by the render layer, NOT by the `seo` feature module (ADR-032's own
- * Open item 3 named this exact gap and deferred seam ownership to "the theme-
+ * Owned by the render layer, NOT by the `seo` feature module (an
+ * open design item named this exact gap and deferred seam ownership to "the theme-
  * contract owner" — this file takes that role). A small, core-owned, in-module
- * ordered fold over explicitly supplied contributors, not a port (ADR-006/ADR-009 §3 — hooks/registries are exempt
+ * ordered fold over explicitly supplied contributors, not a port (hooks/registries are exempt
  * from rule-of-two).
  *
  * `HeadElement` is the canonical render IR (never raw HTML strings — the

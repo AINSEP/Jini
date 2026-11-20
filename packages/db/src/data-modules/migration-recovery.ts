@@ -1,5 +1,5 @@
 /**
- * @file ADR-023 §2 — boot-time crash recovery for the dataModule engine, on the storage kernel.
+ * @file Boot-time crash recovery for the dataModule engine, on the storage kernel.
  * The site opener calls {@link recoverIncompleteDataModuleMigrations} right after it opens the
  * content database and before anything else reads it — before the SQLite migrations run.
  *

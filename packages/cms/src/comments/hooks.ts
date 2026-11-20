@@ -1,6 +1,6 @@
 /**
  * @file `hooks.ts` — fixed-order, fail-closed hook dispatch for the two typed hook points
- * `ports.ts#CommentHookPoints` declares (ADR-009 §3, ADR-024 §7). Mirrors
+ * `ports.ts#CommentHookPoints` declares. Mirrors
  * `newsletter/hooks.ts`'s factory-not-singleton shape (`createHookRegistry`) — avoids a hidden
  * cross-test/cross-instance module-level singleton.
  *

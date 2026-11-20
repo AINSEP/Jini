@@ -12,7 +12,7 @@ import type { SeoEventSubscriptions, SitemapCollectHook } from "./ports.js";
  * `invalidateSitemapCache` (ADR-PIPE-008 Decision §5/§7, C-008..C-011) — a
  * cache-backed sitemap/robots build over an in-module `Map<string,string>`
  * (no new `CachePort` — none exists in this codebase and none is warranted
- * for a single workspace-keyed value, ADR-006). Never leaks non-published or
+ * for a single workspace-keyed value). Never leaks non-published or
  * `noindex` entries (INV-04/05). The empty `seo.sitemap.collect` registry
  * (OQ-01) ships live-but-empty — a real seam, zero real registrants in v1.
  */
@@ -50,7 +50,7 @@ export interface IndexableEntry {
 /**
  * The single publish/visibility/indexability filter every public SEO document is built from
  * (INV-04/05): never a non-`published` post, never a members/paid/tiers-gated one
- * ({@link isPubliclyVisible}, ADR-030 §4), never an effective-`noindex` one. Returns the full
+ * ({@link isPubliclyVisible}), never an effective-`noindex` one. Returns the full
  * resolved `SeoMeta` per entry (not just `loc`/`lastmod`) so a consumer that needs a title or
  * description — `llms.txt` (`routes/site/llms.ts`), which `SitemapEntry` can't supply one for —
  * reads it from the same evaluator `sitemap.xml` does, instead of re-deriving a second, subtly
@@ -96,7 +96,7 @@ function isPublicCandidate(required: { deps: SeoSitemapDeps; post: PostRecord; n
   // `!isTrashed(post)` filter — this is that same filter, applied at this domain function's own
   // trash-aware read boundary rather than widening the shared repo port.
   if (deps.postRepo.isTrashed({ post })) return false;
-  // ADR-030 §4 (2026-09-03 sweep): a members/paid/tiers-gated post must not advertise its
+  // The 2026-09-03 sweep: a members/paid/tiers-gated post must not advertise its
   // canonical URL or existence to crawlers here, the same way it was already excluded from the
   // ungated home-page listing (`pages.ts`'s `filterVisiblePosts`).
   return deps.isPubliclyAccessible({ post });
@@ -110,7 +110,7 @@ function isPublicCandidate(required: { deps: SeoSitemapDeps; post: PostRecord; n
  * 2026-09-04 fix: the advertised sitemap URL is joined onto the workspace's
  * verified origin ({@link toAbsoluteUrl}, via {@link resolveWorkspaceOrigin}),
  * the same wiring `getEntryMeta`'s `canonical`/`og:url` already use (the
- * `ADR-040` origin-resolution source this doc used to say didn't exist yet —
+ * origin-resolution source this doc used to say didn't exist yet —
  * `features/origin`'s `OriginRegistryPort` — landed on 2026-09-03). Google
  * ignores a relative `Sitemap:` directive, so a bare `/sitemap.xml` made the
  * sitemap undiscoverable to crawlers even though `<loc>` entries inside it
@@ -222,7 +222,7 @@ function createScheduledGoLiveFinder(deps: SeoSitemapDeps) {
 function createSeoSubscriptionsFactory(invalidateSitemapCache: (input: { workspaceId: UUID }) => void) {
   /**
    * REQ-10 — the 3 outbox-event subscription handlers (idempotent per
-   * ADR-009): any `entry.published`/`entry.updated`/`entry.unpublished`
+   * the outbox contract): any `entry.published`/`entry.updated`/`entry.unpublished`
    * delivery invalidates that workspace's sitemap cache entry. Wired to
    * `bus.subscribe` at the host app's `src/server/runtime/composition/app.ts` boot (T038).
    */

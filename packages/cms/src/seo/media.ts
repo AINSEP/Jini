@@ -36,7 +36,7 @@ function isAbsoluteUrl(value: string): boolean {
   return ABSOLUTE_URL_PATTERN.test(value) || value.startsWith("//");
 }
 
-/** Cosmetic only (ADR-027 §4 — never participates in the rendition lookup itself). */
+/** Cosmetic only (never participates in the rendition lookup itself). */
 const EXT_BY_TRANSFORM_FORMAT: Record<TransformFormat, string> = {
   jpeg: "jpg",
   png: "png",
@@ -81,7 +81,7 @@ async function resolveLatestTransformVersion(
   return versions.reduce((a, b) => (b.version > a.version ? b : a));
 }
 
-/** The `/m/{key}/{transformName}.v{version}/image.{ext}` URL contract (ADR-027 §4), keyed by the
+/** The `/m/{key}/{transformName}.v{version}/image.{ext}` URL contract, keyed by the
  *  asset's current slug when it has a valid one (readable-slugs S4), otherwise its id. */
 function buildSeoImageUrl(deps: ResolveSeoImageRefDeps, asset: MediaRecord, transformName: string, latest: TransformDefinitionRecord): string {
   // No fallback for an unknown format: `params.format` is a `TransformFormat`, and the transform
@@ -93,7 +93,7 @@ function buildSeoImageUrl(deps: ResolveSeoImageRefDeps, asset: MediaRecord, tran
 /**
  * Resolves an `ogImage`/`twitterImage` field to a URL, or `undefined` on any
  * miss. Returns `ref` unchanged when it is already an absolute URL; otherwise
- * returns the site-relative `/m/{key}/...` URL contract (ADR-027 §4), keyed by the asset's current
+ * returns the site-relative `/m/{key}/...` URL contract, keyed by the asset's current
  * slug when it has a valid one (readable-slugs S4), otherwise its id —
  * NOT necessarily absolute (this function has no origin to join, by design;
  * `seo.ts`'s `resolveShareImages` is the one caller and absolutizes the

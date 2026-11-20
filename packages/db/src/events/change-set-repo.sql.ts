@@ -19,14 +19,14 @@ import {
 } from "./repo.rows.js";
 
 /**
- * @file SPEC-023 / ADR-046 Phase 1 — THE `ChangeSetRepoPort` adapter: one Kysely query body for every
- * dialect (storage plan §4, ADR-066). ADR-006 rule-of-two "second adapter" half;
+ * @file Phase 1 — THE `ChangeSetRepoPort` adapter: one Kysely query body for every
+ * dialect (storage plan). Rule-of-two "second adapter" half;
  * Jini `@jini-ai/cms/core/commands`'s `InMemoryChangeSetRepo` is the first.
  * The host's binding is the thin class that builds it from the content db handle.
  *
  * Purpose:
- * Change-set mutation history (ADR-008's audit/undo trail) previously lived only in-memory in the
- * real running server, lost on every restart — ADR-046's Context section names
+ * Change-set mutation history (the audit/undo trail) previously lived only in-memory in the
+ * real running server, lost on every restart — the original design's context names
  * this explicitly as unacceptable for user-visible state. This adapter closes that gap.
  *
  * Transaction-participation scope (disclosed, deliberate): `insert()` writes the change-set header,
@@ -35,7 +35,7 @@ import {
  * its optional outbox event, as ONE atomic kernel transaction — none of the three rows can ever
  * partially land. This does NOT extend to wrapping the *domain* mutation's own write in the same
  * transaction as this repo's insert — `core/commands/command.ts`'s `executeCommand()` keeps its
- * existing capture-then-compensating-rollback design unchanged for the domain write (ADR-046 Phase
+ * existing capture-then-compensating-rollback design unchanged for the domain write (Phase
  * 1's own instruction for this row: "migrate existing local semantics without changing route
  * contracts"). Unifying the domain write and this repo's write into one shared transaction would
  * mean threading a transaction handle through every `CommandMutation.execute()` across the whole
@@ -72,7 +72,7 @@ export class SqlChangeSetRepo implements ChangeSetRepoPort {
   }
 
   /** Header + items + (when supplied) the outbox event land as one atomic transaction — never a
-   * partial write (ADR-046 Phase 1's "transaction participation" requirement, and BR-04's
+   * partial write (the "transaction participation" requirement, and the
    * resolution for the outbox event specifically; see this file's header). */
   async insert(
     { record, items }: { record: ChangeSetRecord; items: ChangeSetItemRecord[] },

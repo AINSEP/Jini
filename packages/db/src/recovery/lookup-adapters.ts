@@ -15,7 +15,7 @@ import type { RestorePointListPort } from "../tools/restore-points.js";
  * per-category write-count tracker exists anywhere in this codebase yet (a real one would need to
  * diff `database_write_watermark` against each covered write path's own row-level attribution,
  * which is future work, not something safe to fabricate). Reporting `available: true` with a
- * stubbed-zero count would be the exact false-reassurance failure mode ADR-045's Failure modes
+ * stubbed-zero count would be the exact false-reassurance failure mode the original design's Failure modes
  * section names as this feature's highest-stakes UX risk — this class deliberately does not do
  * that.
  */

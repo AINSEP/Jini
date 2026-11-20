@@ -5,7 +5,7 @@ import { OG_TYPE_VALUES, STRING_FIELD_MAX_LENGTH, TWITTER_CARD_VALUES, URL_FIELD
 const MANAGE_SEO_PERMISSION = "admin.seo.manage";
 
 /**
- * @file The SEO domain's agent-tool catalog, instantiating SPEC-016 REQ-22's naming/callability
+ * @file The SEO domain's agent-tool catalog, instantiating the naming/callability
  * convention (the same shape `features/workspace/agent-tools.ts`, `newsletter/agent-tools.ts`, and
  * every other domain catalog already use).
  *
@@ -45,8 +45,8 @@ const MANAGE_SEO_PERMISSION = "admin.seo.manage";
  * `campaign-write-service.ts`'s `SUBJECT_MAX`/`SUBJECT_MIN`/`PREHEADER_MAX`.
  *
  * How it relates to the project:
- * The server-side tool filter (ADR-014) consumes this catalog to decide which tool names an agent
- * session may even see; `authorize()` (ADR-021 §2) enforces the actual permission checks at call
+ * The server-side tool filter consumes this catalog to decide which tool names an agent
+ * session may even see; `authorize()` enforces the actual permission checks at call
  * time — this module only declares the catalog shape, it performs no I/O and no enforcement itself.
  *
  * Architectural role:
@@ -203,7 +203,7 @@ const SET_SETTINGS_SCHEMA = {
 } as const;
 
 /**
- * The SEO domain's fixed agent-tool catalog (SPEC-008). Every entry is wired — see this file's
+ * The SEO domain's fixed agent-tool catalog. Every entry is wired — see this file's
  * header for why nothing here is withheld.
  *
  * @complexity O(1) — a fixed, statically-defined list.

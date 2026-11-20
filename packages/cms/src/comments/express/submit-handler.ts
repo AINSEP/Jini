@@ -7,7 +7,7 @@ import type { CommentRateLimiter } from "../ingress.js";
 import type { CommentSubmission } from "../types.js";
 
 /**
- * @file ADR-031 §4 (SPEC-033) — the public, unauthenticated comment submission route. The ONLY
+ * @file The public, unauthenticated comment submission route. The ONLY
  * route a hostile visitor can reach into the Comments plugin; everything downstream of this file
  * is `CommentIngressPolicy` (rate-limit, honeypot, sanitize, spam-classify — see `comments/ingress.ts`).
  *

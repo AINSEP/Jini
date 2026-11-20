@@ -1,19 +1,19 @@
 import { nowIso as readNowIso, type Clock as ClockPort } from "@jini-ai/core/primitives";
 
 /**
- * @file CIC U-001 (SPEC-019 `critical-internal-constraints.md`) — site-wide gated-operation
- * mutual exclusion (C-309; REQ-13, INV-03; GOV-ADR-002).
+ * @file Site-wide gated-operation
+ * mutual exclusion.
  *
  * Purpose:
- * The single, shared primitive both `features/database` (SPEC-017, migrate-forward) and
- * `features/recovery` (SPEC-019, restore) MUST consult before starting a gated operation. Two
+ * The single, shared primitive both `features/database` (migrate-forward) and
+ * `features/recovery` (restore) MUST consult before starting a gated operation. Two
  * domains racing to mutate the same site's `content.db` must never both be "in flight" — the
  * primitive tracks in-flight state per `siteId` only, never per-domain, so it cannot be defeated
- * by two domain-local checks that happen to look similar (U-001-B1).
+ * by two domain-local checks that happen to look similar.
  *
  * How it relates to the project:
  * `executeMigrateForward` and `executeRestore` both call `acquireOperationLock` as the provably
- * first side-effecting step of their own orchestration (U-001-ORD1), and `releaseOperationLock`
+ * first side-effecting step of their own orchestration, and `releaseOperationLock`
  * once the operation concludes (success or failure).
  *
  * Architectural role:
@@ -21,12 +21,12 @@ import { nowIso as readNowIso, type Clock as ClockPort } from "@jini-ai/core/pri
  * serialized to a single process by `content.db`'s own single-writer model; this primitive adds
  * the cross-domain intent-level guard on top of that.
  *
- * ADR-041/043/044/045 re-audit (2026-07-16, TM-adr041-043-044-045-audit-001, Finding 3):
+ * Recovery re-audit (2026-07-16, TM-adr041-043-044-045-audit-001, Finding 3):
  * the internal verifier's original claim — "never wired into any composition root" — is false,
  * disproven by direct evidence: a host module and
  * a host module both import `acquireOperationLock`/
  * `releaseOperationLock` from this file directly and pass them into `executeMigrateForward`/
- * `executeRestore` (their `execute` endpoints only). The mutual-exclusion guarantee (U-001) is
+ * `executeRestore` (their `execute` endpoints only). The mutual-exclusion guarantee is
  * real and live for both gated ceremonies today. The actual, narrower gap the re-audit surfaced:
  * this module had no read-only query, so a host module's capability bar
  * could not reflect live lock state and stubbed `operationInFlight: false` unconditionally.
@@ -59,11 +59,11 @@ export interface SharedOperationLockPort {
 
 /** Create one shared lock for all gated-operation domains in a host; separate hosts get isolated state. */
 export function createOperationLock(_required: Record<string, never>, _optional: Record<string, never> = {}): SharedOperationLockPort {
-  /** Instance-owned in-flight registry — one entry per `siteId` (CIC U-001-B1). */
+  /** Instance-owned in-flight registry — one entry per `siteId`. */
   const activeLocksBySiteId = new Map<string, OperationLockHandle>();
 
   /**
-   * Atomic check-and-set (U-001-B2): the presence check and the registry write happen in the same
+   * Atomic check-and-set: the presence check and the registry write happen in the same
    * synchronous span with no intervening `await`, so concurrent callers on Node's single-threaded
    * event loop (see the cross-domain property tests) cannot race a read-then-write gap — exactly
    * one caller ever observes an empty slot for a given `siteId`.
@@ -113,7 +113,7 @@ export function createOperationLock(_required: Record<string, never>, _optional:
    * Read-only peek at whether `siteId` currently holds a lock — never acquires, never mutates the
    * registry. For display/status surfaces only (e.g. Recovery's capability bar); gated ceremonies
    * must keep using `acquireOperationLock`'s atomic check-and-set, never this function, to decide
-   * whether they may proceed (a peek-then-acquire pair would reintroduce the TOCTOU gap U-001-B2
+   * whether they may proceed (a peek-then-acquire pair would reintroduce the TOCTOU gap this primitive
    * exists to prevent).
    *
    * @complexity O(1).
