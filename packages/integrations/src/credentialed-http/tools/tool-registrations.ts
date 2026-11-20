@@ -53,7 +53,7 @@ function withCardApp<Spec extends { readonly app?: SurfaceCardApp }>({ spec, app
  * - `CredentialedRequestValidationError` — a bad `method`/`url`/`headers`/`body` shape, OR a `url`
  *   whose origin is not one of the credential's own saved hosts (`resolveAllowedRequestUrl`'s
  *   allowlist refusal — the "off-allowlist host" case).
- * - `EgressRefusedError` — the shared `HttpClientPort` (ADR-038) refused the target before ever
+ * - `EgressRefusedError` — the shared `HttpClientPort` refused the target before ever
  *   connecting: a non-public resolved address on the first hop or any re-verified redirect hop, a
  *   disallowed scheme, or credentials embedded in the URL.
  *

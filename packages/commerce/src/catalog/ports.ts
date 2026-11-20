@@ -38,7 +38,7 @@ export interface CommercePriceProviderRefRepoPort {
 }
 
 /**
- * @file Port contracts for the Commerce first vertical slice (dependency-inversion seams, ADR-006
+ * @file Port contracts for the Commerce first vertical slice (dependency-inversion seams,
  * rule-of-two). Interfaces only — no feature logic. Mirrors the host app's `src/features/members/ports.ts`'s shape.
  *
  * Only a SQLite adapter exists this pass (`repo.sqlite.ts`) — Postgres/MySQL have no live driver

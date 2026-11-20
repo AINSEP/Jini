@@ -30,7 +30,7 @@
 
 ## 0.6.20
 
-- `electron` is a classified opt-in peer (`jini.optionalPeers`): only `@jini-ai/devops/local-dev`'s `selectNodeRuntime` loads it. A host that packages a server importing `local-dev` (listen/retirement helpers) no longer fails its staged-closure audit on that dev-only runtime picker (Tovu desktop 0.1.27).
+- `electron` is a classified opt-in peer (`jini.optionalPeers`): only `@jini-ai/devops/local-dev`'s `selectNodeRuntime` loads it. A host that packages a server importing `local-dev` (listen/retirement helpers) no longer fails its staged-closure audit on that dev-only runtime picker (the first host's desktop 0.1.27).
 
 ## 0.6.19
 
@@ -100,7 +100,7 @@
 
 ### Patch Changes
 
-- Tovu clean-up release (2026-10-08): code Tovu moved into Jini, plus the Jini clean-up (see the commit log since 0.5.1).
+- Host clean-up release (2026-10-08): code the first host moved into Jini, plus the Jini clean-up (see the commit log since 0.5.1).
 
 ## 0.5.1 — 2026-10-04
 

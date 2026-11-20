@@ -79,17 +79,17 @@
 
 ## 0.2.2 — 2026-10-22
 
-- 2026-10-22: Vendor forwarder contract, keyed registry, fan-out sink and in-flight cap; provider-load TTL memo moved in from Tovu.
+- 2026-10-22: Vendor forwarder contract, keyed registry, fan-out sink and in-flight cap; provider-load TTL memo moved in from the first host.
 
 ### Minor Changes
 
-- Vendor forwarding (`forwarding.ts`): `AnalyticsForwarder` provider contract + `createAnalyticsForwarderRegistry` (shared `@jini-ai/core/provider-registry`), `selectAnalyticsForwarder`, minimised `toForwardedHit` (no region/sessionId), `createFanOutAnalyticsSink` (primary awaited, forwarders detached and isolated), `composeBeforeIngestHooks` (ordered chain; a throwing handler is skipped and reported). Shared `createAnalyticsForwardLimiter` caps vendor calls in flight (over the cap: dropped + reported, local hits unaffected). `AnalyticsSinkKind` widens to `"local" | string` (forwarder id). Forwarded hits redact email-shaped path segments (literal or percent-encoded, `redactPiiPathSegments`), each vendor gets its own deep copy, and forward/hook failure reports carry fixed codes only (never thrown or vendor text). `cacheAnalyticsProviderLoad` (moved from Tovu): TTL memo for the per-beacon provider load (`DEFAULT_ANALYTICS_PROVIDERS_TTL_MS` 60s; failures never cached).
+- Vendor forwarding (`forwarding.ts`): `AnalyticsForwarder` provider contract + `createAnalyticsForwarderRegistry` (shared `@jini-ai/core/provider-registry`), `selectAnalyticsForwarder`, minimised `toForwardedHit` (no region/sessionId), `createFanOutAnalyticsSink` (primary awaited, forwarders detached and isolated), `composeBeforeIngestHooks` (ordered chain; a throwing handler is skipped and reported). Shared `createAnalyticsForwardLimiter` caps vendor calls in flight (over the cap: dropped + reported, local hits unaffected). `AnalyticsSinkKind` widens to `"local" | string` (forwarder id). Forwarded hits redact email-shaped path segments (literal or percent-encoded, `redactPiiPathSegments`), each vendor gets its own deep copy, and forward/hook failure reports carry fixed codes only (never thrown or vendor text). `cacheAnalyticsProviderLoad` (moved from the first host): TTL memo for the per-beacon provider load (`DEFAULT_ANALYTICS_PROVIDERS_TTL_MS` 60s; failures never cached).
 
 ## 0.2.1
 
 ### Patch Changes
 
-- Tovu clean-up release (2026-10-08): code Tovu moved into Jini, plus the Jini clean-up (see the commit log since 0.2.0).
+- Host clean-up release (2026-10-08): code the first host moved into Jini, plus the Jini clean-up (see the commit log since 0.2.0).
 
 ## 0.2.0 — 2026-10-02
 

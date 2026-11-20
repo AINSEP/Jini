@@ -16,7 +16,7 @@ import type { CommercePriceRecord, CommerceProductRecord, CommerceProductSpec } 
  *
  * Deliberately NOT included in this mapping this pass, named explicitly rather than silently
  * dropped:
- *  - `images` — a real product image needs the ADR-027 transform-registry pipeline
+ *  - `images` — a real product image needs the transform-registry pipeline
  *    (`mediaTransformVersions`, `renderImageTag`) to produce a safe, validated `/m/...` URL; a
  *    shortcut construction here would bypass that validation. The templates already degrade
  *    gracefully to a placeholder card when `images` is absent (see `fashion-modern/templates/

@@ -4,7 +4,7 @@ import type { AgentToolDefinition as SharedAgentToolDefinition } from "@jini-ai/
 const MANAGE_INTEGRATIONS_PERMISSION = "admin.integrations.manage";
 
 /**
- * @file The Integrations (webhooks) domain's agent-tool catalog, instantiating SPEC-016 REQ-22's
+ * @file The Integrations (webhooks) domain's agent-tool catalog, instantiating the
  * naming/callability convention (the same shape every other domain catalog uses).
  *
  * Purpose:
@@ -43,8 +43,8 @@ const MANAGE_INTEGRATIONS_PERMISSION = "admin.integrations.manage";
  *     EXCLUDED regardless of whether a future admin route surfaces it.
  *
  * How it relates to the project:
- * The server-side tool filter (ADR-014) consumes this catalog to decide which tool names an agent
- * session may even see; `authorize()` (ADR-021 §2) enforces the actual permission checks at call
+ * The server-side tool filter consumes this catalog to decide which tool names an agent
+ * session may even see; `authorize()` enforces the actual permission checks at call
  * time — this module only declares the catalog shape, it performs no I/O and no enforcement itself.
  *
  * Architectural role:

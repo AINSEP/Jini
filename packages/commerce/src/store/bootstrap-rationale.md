@@ -1,6 +1,6 @@
 # Historical opt-in CMS bootstrap rationale
 
-Tovu boot no longer activates commerce. Its explicit CMS preparation adapter remains for future use.
+The first host’s boot no longer activates commerce. Its explicit CMS preparation adapter remains for future use.
 The retired composition fragment and its behavior rationale are preserved here; this is not executable wiring.
 
 `newsletter`/`comments`/`store-plugin` are OPTIONAL, matching their pre-existing log-and-continue

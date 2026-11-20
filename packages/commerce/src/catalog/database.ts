@@ -12,12 +12,12 @@ export interface CommerceDatabase {
   commerce_order_payments: CommerceOrderPaymentsTable;
 }
 export type CommerceKernel = StorageKernel<Kysely<CommerceDatabase>, CommerceDatabase>;
-export interface CommerceOrderPaymentsTable {
+interface CommerceOrderPaymentsTable {
   workspace_id: string; order_id: string; site_id: string; provider_id: string; provider_account_id: string;
   mode: "test" | "live"; amount_minor: ColumnType<number | string | bigint, number, number>; currency: string;
   payment_id: string | null; created_at: string;
 }
-export interface CommercePriceProviderRefsTable {
+interface CommercePriceProviderRefsTable {
   workspace_id: string;
   price_id: string;
   provider_id: string;
@@ -26,7 +26,7 @@ export interface CommercePriceProviderRefsTable {
   provider_price_ref: string;
   created_at: string;
 }
-export interface CommerceOrderItemsTable {
+interface CommerceOrderItemsTable {
   id: string;
   workspace_id: string;
   order_id: string;
@@ -39,7 +39,7 @@ export interface CommerceOrderItemsTable {
   created_at: string;
 }
 
-export interface CommerceOrdersTable {
+interface CommerceOrdersTable {
   id: string;
   workspace_id: string;
   member_id: string;
@@ -56,7 +56,7 @@ export interface CommerceOrdersTable {
   version: number;
 }
 
-export interface CommercePricesTable {
+interface CommercePricesTable {
   id: string;
   workspace_id: string;
   product_id: string;
@@ -69,7 +69,7 @@ export interface CommercePricesTable {
   version: number;
 }
 
-export interface CommerceProductImagesTable {
+interface CommerceProductImagesTable {
   id: string;
   workspace_id: string;
   product_id: string;
@@ -78,7 +78,7 @@ export interface CommerceProductImagesTable {
   created_at: string;
 }
 
-export interface CommerceProductsTable {
+interface CommerceProductsTable {
   id: string;
   workspace_id: string;
   name: string;
@@ -93,7 +93,7 @@ export interface CommerceProductsTable {
   version: number;
 }
 
-export interface CommerceWebhookEventsTable {
+interface CommerceWebhookEventsTable {
   id: string;
   workspace_id: string;
   provider: string;

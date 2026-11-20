@@ -4,7 +4,7 @@
  *
  * A provider plugin (Stripe, PayPal, LiPay) is a stateless TRANSLATOR: it turns our requests into
  * provider calls and provider responses/webhooks into evidence. It writes no rows, owns no
- * idempotency and makes outbound calls only through `ctx.httpClient` (the ADR-038 seam).
+ * idempotency and makes outbound calls only through `ctx.httpClient`.
  *
  * Every call returns an `Outcome` with THREE cases instead of ok/error, because "the call failed"
  * and "no money moved" are different facts: a timeout may have charged the card. Today's code

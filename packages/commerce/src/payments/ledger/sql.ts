@@ -1,5 +1,5 @@
 /**
- * @file The payments ledger's SQL half: the `@jini-ai/db` storage-kernel adapter and the ADR-066
+ * @file The payments ledger's SQL half: the `@jini-ai/db` storage-kernel adapter and the
  * migration history. Kept out of the `payments/kernel` barrel because it loads `kysely` at runtime
  * (an optional peer); a host that persists payments imports this and injects its `@jini-ai/db`
  * kernel and `runMigrations`.

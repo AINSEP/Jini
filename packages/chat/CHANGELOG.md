@@ -202,7 +202,7 @@
   caller's behalf; a caller that still wants that inference should resolve a manifest for the file
   itself (see `@jini-ai/chat`'s `inferLegacyManifest`) before handing it to this registry. Verified
   zero external callers of `RendererRegistry`/`resolveArtifactManifest`/`createDefaultRendererRegistry`
-  anywhere in Jini or Tovu before making this change — `@jini-ai/chat`'s own `RendererRegistry` is an
+  anywhere in Jini or the first host before making this change — `@jini-ai/chat`'s own `RendererRegistry` is an
   unrelated, locally-defined class in `artifact-types.ts`, and `@jini-ai/artifacts`' own
   `resolveArtifactManifest` is an unrelated 3-argument function; both are same-name coincidences, not
   real dependents. The four bundled renderers (`HtmlRenderer`, `MarkdownRenderer`, `SvgRenderer`,
@@ -284,7 +284,7 @@
 
 ## 0.5.5 — 2026-10-08
 
-- Tovu clean-up release: code Tovu moved into Jini, plus the Jini clean-up (see the commit log).
+- Host clean-up release: code the first host moved into Jini, plus the Jini clean-up (see the commit log).
 
 ## 0.5.4 — 2026-10-06
 

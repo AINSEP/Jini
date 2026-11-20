@@ -128,7 +128,7 @@
 
 ## 0.3.1 — 2026-10-08
 
-- Tovu clean-up release: code Tovu moved into Jini, plus the Jini clean-up (see the commit log).
+- Host clean-up release: code the first host moved into Jini, plus the Jini clean-up (see the commit log).
 
 ## 0.3.0 — 2026-10-05
 

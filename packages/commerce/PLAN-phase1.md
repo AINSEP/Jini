@@ -45,7 +45,7 @@ settleOrderPayment: association by (workspace, reference) → scope-fenced getPa
 | # | Decision | Effect on this plan |
 |---|---|---|
 | D1 | Delete the legacy `payments-stripe/stripe.ts` and its 2 tests | P30 |
-| D2 | The **host** ships catalog schema changes through its own migration (Tovu ADR-066 TS migrations); borrowed-schema fixtures are updated in the same shard | §4, P14–P16 |
+| D2 | The **host** ships catalog schema changes through its own migration (TypeScript migrations); borrowed-schema fixtures are updated in the same shard | §4, P14–P16 |
 | D3 | The catalog's second webhook inbox is retired in Phase 2 | Untouched |
 | D11 | The Stripe plugin is the default production provider; the LiPay fake is test-only, enforced fake-locally | P03 |
 | D12 | Keep manifest `contributes.providers`: the loader needs it today | §0.3 |
@@ -599,7 +599,7 @@ session status alone decides.
 payments-side change is the `reference` key added to the JSON outbox payload, which needs no
 schema change.
 
-**Catalog: a host migration (D2).** This is a prerequisite: Tovu ships an ADR-066 TS migration
+**Catalog: a host migration (D2).** This is a prerequisite: the host ships a TypeScript migration
 **before** the host enables `payOrder`. Commerce never creates catalog tables (`database.ts:3`).
 The DDL below is documented in the README and mirrored in the borrowed-schema fixture
 `repo.vitest.test.ts:37-55` **in the same shard** that edits `database.ts`.

@@ -9,7 +9,7 @@ import { paymentsIntentReplay } from "./0005_payments_intent_replay.js";
 import { COMMERCE_PAYMENTS_MIGRATION_CHECKSUMS } from "./checksums.js";
 
 /**
- * @file The payments ledger's migration history (ADR-066), in order, and its runner entry. A host
+ * @file The payments ledger's migration history, in order, and its runner entry. A host
  * calls {@link migrateCommercePayments} with its own storage kernel at boot; the history keeps its
  * own ledger table, so it never collides with the host's content migrations in the same database.
  *
