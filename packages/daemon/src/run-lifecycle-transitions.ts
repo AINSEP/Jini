@@ -128,7 +128,7 @@ export function createRunFinishMethod({ requireRun, eventLog, trackTerminalRun }
         record.resumable = finishInput.resumable;
         record.terminalEndEntry = endEntry;
         trackTerminalRun(finishInput.runId, record, endEntry.recordedAt);
-        const endEvent = toRunEvent(finishInput.runId, endEntry);
+        const endEvent = toRunEvent({ runId: finishInput.runId, entry: endEntry });
         notifySubscribers(record, endEvent);
 
         resolveTerminalWaiters(record);

@@ -1,5 +1,5 @@
 /**
- * @file The embed-reference view of a `"html"`-format Page's body (SPEC-047 Slice 2, generalized
+ * @file The embed-reference view of a `"html"`-format Page's body (generalized
  * 2026-08-07 per `generic-embed-contract`, rewired onto the shared marker parser
  * 2026-08-10).
  *

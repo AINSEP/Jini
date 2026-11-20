@@ -222,7 +222,7 @@ export function useFormEditorTabs({ tab, formId, navigate }: { tab: "fields" | "
   // Roving-tabindex focus targets for the tab strip below, indexed the same as `FORM_TABS` — see
   // `nextTabIndex`'s doc comment for why the index math itself lives outside the component.
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
-  // Navigates to `/forms/:formId` or `/forms/:formId/submissions` (ADR-063) — `panels.tsx`'s
+  // Navigates to `/forms/:formId` or `/forms/:formId/submissions` — `panels.tsx`'s
   // `forms` panel keys `FormEditor` off `ctx.params.formId` on BOTH routes, so this is a route
   // change, not a remount: in-progress Fields edits survive a trip to Submissions and back.
   function onTabChange(nextTab: "fields" | "submissions") {

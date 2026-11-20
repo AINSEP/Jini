@@ -4,7 +4,7 @@ import { PolicyRow } from '../components/PolicyRow.js';
 export default function PoliciesTab({ usePoliciesTab = usePoliciesTab_ }: {
     readonly params?: Readonly<Record<string, unknown>>;
     usePoliciesTab?: typeof usePoliciesTab_;
-}, _optional: Record<string, never> = {}) {
+}) {
     const v = usePoliciesTab({});
     return <section><h2>Policies</h2>
     {v.canManage ? <form onSubmit={v.submit}>{v.error ? <Notice tone="danger">{v.error}</Notice> : null}

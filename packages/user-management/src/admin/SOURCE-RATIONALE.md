@@ -76,7 +76,7 @@ All source comments are retained verbatim below, including historical why commen
 
 ```text
 /**
- * @file "Roles & Permissions" screen (SPEC-006 + 0.6.0 CRUD-completion amendment) — the
+ * @file "Roles & Permissions" screen (0.6.0 CRUD-completion amendment) — the
  * `/admin/roles` route. Markup only.
  *
  * State and API calls live in `hooks/use-roles.hooks.ts`; the row-menu logic and the

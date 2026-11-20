@@ -4,7 +4,7 @@ import { useRoleRow as useRoleRow_ } from '../hooks/RolesTab.hooks.js';
 export function RoleRow({ useRoleRow = useRoleRow_, ...props }: {
     role: RoleRecord;
     useRoleRow?: typeof useRoleRow_;
-}, _optional: Record<string, never> = {}) {
+}) {
     const v = useRoleRow(props);
     const editActions = v.editing ? <><Button onPress={v.save} pending={v.pending} disabled={v.saveDisabled}>Save</Button><Button onPress={v.cancel}>Cancel</Button></> :
         <Menu label={v.menuLabel} items={v.menu} />;

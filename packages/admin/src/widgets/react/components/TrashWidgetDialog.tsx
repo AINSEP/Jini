@@ -7,7 +7,6 @@ export function TrashWidgetDialog(
   { t, pendingTrash, trashing, confirmTrash, cancelTrash }: {
     t: Translate; pendingTrash: AdminWidget | null; trashing: boolean; confirmTrash: () => void; cancelTrash: () => void;
   },
-  _optional: Record<string, never> = {},
 ) {
   const pendingTrashTitle = pendingTrash?.title ?? "";
   return (

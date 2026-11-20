@@ -1,7 +1,7 @@
 /**
  * @file The shared read/diff-write half of every settings-dialog tab adapter.
  *
- * Each tab maps a SPEC-007 ledger namespace onto one `@jini-ai/ui` config
+ * Each tab maps a ledger namespace onto one `@jini-ai/ui` config
  * object. Three things are identical across all of them and live here:
  *
  * 1. **Cold-start tolerance.** A namespace with no registered definitions
@@ -9,7 +9,7 @@
  *    on a database predating the tab). That is not an error worth surfacing —
  *    it means "use defaults". Every OTHER failure still propagates.
  * 2. **Field-level diffing.** The ledger is append-only per key
- *    (ADR-028 §4), so writing all N keys on every save would burn N revisions
+ *    so writing all N keys on every save would burn N revisions
  *    per keystroke. Only changed keys are written.
  * 3. **Typed reads.** Ledger values arrive as `unknown`; a missing or
  *    wrong-typed value falls back field by field rather than throwing, so a
@@ -17,7 +17,7 @@
  *
  * What deliberately does NOT live here: anything about a specific tab's
  * shape, and anything about credentials. `execution-settings.ts` keeps its own
- * localStorage half because the ADR-028 §6 secret gate is an execution-tab
+ * localStorage half because the secret gate is an execution-tab
  * problem, not a general one — see that file's header.
  */
 

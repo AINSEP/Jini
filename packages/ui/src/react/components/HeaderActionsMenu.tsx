@@ -53,9 +53,7 @@ export function isHeaderMenuDismissKey(key: string): boolean {
  * Whether a pointer event landed outside the menu (and should therefore close
  * it). A missing container never counts as "outside".
  */
-export function isOutsideHeaderMenu(
-  container: HTMLElement | null,
-  target: EventTarget | null,
+export function isOutsideHeaderMenu({ container, target }: { container: HTMLElement | null; target: EventTarget | null }, _optional = {}
 ): boolean {
   if (!container) return false;
   return !container.contains(target as Node | null);
@@ -122,7 +120,7 @@ export function useHeaderActionsMenuDismiss(params: {
   useEffect(() => {
     if (!open) return undefined;
     function onPointerDown(event: MouseEvent) {
-      if (isOutsideHeaderMenu(containerRef.current, event.target)) onDismiss();
+      if (isOutsideHeaderMenu({ container: containerRef.current, target: event.target })) onDismiss();
     }
     function onKeyDown(event: KeyboardEvent) {
       if (isHeaderMenuDismissKey(event.key)) onDismiss();

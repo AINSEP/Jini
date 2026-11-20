@@ -21,7 +21,7 @@ async function postContentIr({ source, ref, deps, context }: {
   deps: ResolveHtmlPageEmbedsDeps;
   context: WidgetResolveContext;
 }): Promise<WidgetRenderIR> {
-  const renderContext = await resolvePostContentRenderContext(deps, source.bodyJson, context);
+  const renderContext = await resolvePostContentRenderContext({ deps, bodyJson: source.bodyJson, context });
   return {
     componentId: "post-content",
     props: {

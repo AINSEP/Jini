@@ -17,7 +17,7 @@ import type { ResolvePageWidgetsDeps } from "./page-widget-resolution.js";
 export type WidgetInstanceResolutionDeps = Pick<ResolvePageWidgetsDeps, "entryRepo" | "report">;
 
 // ---------------------------------------------------------------------------
-// HTML Page embeds (SPEC-047 Slice 2, registry-restructured 2026-08-07 per
+// HTML Page embeds (registry-restructured 2026-08-07 per
 // `generic-embed-contract`) — resolves `html-embeds.ts`'s `data-embed-type`
 // placeholder convention. A parallel entry point to `resolvePageWidgets` above, not a mode of it: an
 // `"html"`-format Page has no `bodyJson` tree and is not an `entries` row `pageEntryId` could

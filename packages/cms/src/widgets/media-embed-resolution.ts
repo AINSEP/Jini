@@ -7,7 +7,7 @@ import type { WidgetRenderIR, WidgetResolveContext } from "./types.js";
 import type { ResolveHtmlPageEmbedsDeps } from "./resolver-contracts.js";
 
 /**
- * `data-embed-type="media"` resolver (SPEC-047, 2026-08-07) — NEW logic, not adapted from
+ * `data-embed-type="media"` resolver (2026-08-07) — NEW logic, not adapted from
  * `resolveWidgetType`: a media embed targets an assets-domain record (`MediaRepoPort`), never a
  * `widget`-type entries row, so it shares nothing with `resolveWidgetInstances`'s batching shape
  * beyond the same REQ-27/28 never-throws/degrade-to-absent discipline every resolver here follows.

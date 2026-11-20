@@ -10,7 +10,7 @@ import type { ReactNode } from "react";
 
 import { formatTimestamp, type Translate } from '@jini-ai/core/text';
 /**
- * @file Admin "Members" screen (ADR-030, ADR-PIPE-013 Decision §7) — markup only.
+ * @file Admin "Members" screen — markup only.
  *
  * State and API calls live in `hooks/use-members.hooks.ts`; the row-menu logic, per-row action
  * state shape, and the server-error-message override live in `rules.ts`. What stays here is what

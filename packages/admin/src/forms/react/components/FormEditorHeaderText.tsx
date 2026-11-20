@@ -1,4 +1,4 @@
-export function FormEditorHeaderText(props: { isNew: boolean; name: string; t: (key: string) => string }, _optional: Record<string, never> = {}) {
+export function FormEditorHeaderText(props: { isNew: boolean; name: string; t: (key: string) => string }) {
   const { isNew, name, t } = props;
   return (
     <div className="page-header-text">

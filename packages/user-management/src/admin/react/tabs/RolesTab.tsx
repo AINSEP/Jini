@@ -4,7 +4,7 @@ import { RoleRow } from '../components/RoleRow.js';
 export default function RolesTab({ useRolesTab = useRolesTab_ }: {
     readonly params?: Readonly<Record<string, unknown>>;
     useRolesTab?: typeof useRolesTab_;
-}, _optional: Record<string, never> = {}) {
+}) {
     const v = useRolesTab({});
     return <section><h2>Roles</h2>
     {v.canManage ? <form onSubmit={v.submit}>{v.error ? <Notice tone="danger">{v.error}</Notice> : null}

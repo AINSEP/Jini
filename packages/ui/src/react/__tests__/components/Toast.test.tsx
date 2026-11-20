@@ -21,10 +21,10 @@ import {
 
 describe('Toast pure helpers', () => {
   it('toastEffectiveTtl pins to 0 only when code is a non-empty string', () => {
-    expect(toastEffectiveTtl('npm i foo', 4000)).toBe(0);
-    expect(toastEffectiveTtl('', 4000)).toBe(4000); // empty string is falsy
-    expect(toastEffectiveTtl(null, 4000)).toBe(4000);
-    expect(toastEffectiveTtl(undefined, 4000)).toBe(4000);
+    expect(toastEffectiveTtl({ code: 'npm i foo', ttlMs: 4000 })).toBe(0);
+    expect(toastEffectiveTtl({ code: '', ttlMs: 4000 })).toBe(4000); // empty string is falsy
+    expect(toastEffectiveTtl({ code: null, ttlMs: 4000 })).toBe(4000);
+    expect(toastEffectiveTtl({ code: undefined, ttlMs: 4000 })).toBe(4000);
   });
 
   it('toastToneIcon maps each tone to its glyph', () => {

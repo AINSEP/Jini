@@ -1,10 +1,10 @@
 import { createConsoleLogger, type Logger } from "@jini-ai/core/primitives";
 /**
- * @file Widget-instance READ accessors (SPEC-043 REQ-04) — `write-service.ts` only ever exported
+ * @file Widget-instance READ accessors — `write-service.ts` only ever exported
  * create/update/trash/purge; this file is the missing `widgets.read`-gated get/list side, named
  * separately per `features/entries`' own `write-service.ts`/`list.ts` split convention.
  *
- * External /audit-work finding (2026-07-21, ADR-047): confirmed no read/list accessor existed in
+ * External /audit-work finding (2026-07-21): confirmed no read/list accessor existed in
  * this package at all — the admin `get-by-id`/`list` routes (`routes/admin/widgets/*.ts`) this
  * dispatch builds depend on it directly.
  *

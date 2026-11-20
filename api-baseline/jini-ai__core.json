@@ -583,8 +583,7 @@
    "ChartSpec": "interface:90313028bd",
    "ChartTheme": "interface:619b0d6546",
    "ChartThemeApplier": "type:be02af0934",
-   "ChartValue": "type:b0d0bcadd7",
-   "DEFAULT_CHART_THEME": "variable:eda92e80ae"
+   "ChartValue": "type:b0d0bcadd7"
   }
  },
  "./contracts/content-types": {

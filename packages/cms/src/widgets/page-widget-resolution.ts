@@ -9,8 +9,7 @@ import { type InlineEmbedRef, collectWidgetEmbeds } from "./document-embed-refs.
 import { toRenderIr, resolveWidgetInstances, inlineContentOverrides, assembleInlineResolved } from "./widget-instance-resolution.js";
 
 /**
- * @file `resolvePageWidgets` — the batch-first page-render resolution orchestrator (SPEC-043
- * REQ-23..28; ADR-047 Debate Fold-In Amendment 2).
+ * @file `resolvePageWidgets` — the batch-first page-render resolution orchestrator.
  *
  * Purpose:
  * The single seam that turns "a page's widget references" (region-bound + inline-embedded) into
@@ -43,7 +42,7 @@ export interface ResolvePageWidgetsInput {
    * `widgetEmbed` nodes (REQ-21) — e.g. a `PostRecord.bodyJson` on the `home`/`post` site routes.
    * Passed as content rather than an id-to-fetch (unlike the old `pageEntryId` this replaces)
    * because the only real callers already hold the document: `PostRecord` (`features/post`) is a
-   * separate, pre-ADR-022 table an `EntryRepoPort.findById` call can never resolve, which is why
+   * separate, older table an `EntryRepoPort.findById` call can never resolve, which is why
    * `pageEntryId` had no real caller and every `widgetEmbed` node in a post body rendered the
    * REQ-28 placeholder forever, never real content. `undefined` when there is no host document
    * (the home route) or nothing to scan.

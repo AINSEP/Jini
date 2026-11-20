@@ -1,8 +1,7 @@
 import { WidgetForbiddenError } from "./errors.js";
 
 /**
- * @file Shared `authorize()` plumbing for `write-service.ts`/`region-area-service.ts` (SPEC-043
- * REQ-40/41, INV-07).
+ * @file Shared `authorize()` plumbing for `write-service.ts`/`region-area-service.ts`.
  *
  * Purpose:
  * `AuthorizeFn` mirrors `packages/cms/src/entries/write-service.ts`'s `AuthorizeFn` shape structurally (no

@@ -45,7 +45,7 @@ export function collectWidgetEmbeds(root: unknown, out: InlineEmbedRef[]): void 
 }
 
 /** Scans a TipTap-shaped `bodyJson` tree for every ref-based `image`/`media` node's `assetId`
- *  (ADR-027 §4's `{assetId, transformName}` shape) — both the legacy image-only ref shape and the
+ *  (`{assetId, transformName}` shape) — both the legacy image-only ref shape and the
  *  generic `media` node (2026-09-11, `render.ts`'s `renderDocMedia`'s own doc) share this collection,
  *  since both key their sizing/content-type override off the SAME `mediaAssetMetadata` map by
  *  `assetId` alone. Widened 2026-09-11 (owner-reported, verifying the admin Preview-tab fix: a

@@ -78,7 +78,7 @@ function collectUrlCredentials(pass: SpanPass): void {
     const start = index + '//'.length;
     return { start, end: start + userinfo.length, category: CATEGORY.urlCredentials };
   });
-  collectMatches(pass, SIGNED_QUERY_RE, trailingValue(CATEGORY.signedQuery, 2));
+  collectMatches(pass, SIGNED_QUERY_RE, trailingValue({ category: CATEGORY.signedQuery, group: 2 }));
 }
 
 /** Values named by a header, query parameter or bearer prefix. Each rule matches the original
@@ -86,7 +86,7 @@ function collectUrlCredentials(pass: SpanPass): void {
  * before) merge into one span instead of one leaving a credential suffix beside the other's marker. */
 function collectKeyedCredentials(pass: SpanPass): void {
   collectApiKeyHeaders(pass);
-  collectMatches(pass, PROVIDER_API_KEY_QUERY, trailingValue(CATEGORY.apiKeyQuery, 2));
+  collectMatches(pass, PROVIDER_API_KEY_QUERY, trailingValue({ category: CATEGORY.apiKeyQuery, group: 2 }));
   collectMatches(pass, API_KEY_QUERY, (match, index) => {
     const start = index + (match[1] ?? '').length;
     const end = index + match[0].length;
@@ -96,8 +96,8 @@ function collectKeyedCredentials(pass: SpanPass): void {
     const start = index + match[0].length;
     return { start, end: start + (match[1] ?? '').length, category: CATEGORY.bearerToken };
   });
-  collectMatches(pass, BASIC_AUTH_RE, trailingValue(CATEGORY.labeledSecret, 1));
-  collectMatches(pass, COOKIE_HEADER_RE, trailingValue(CATEGORY.labeledSecret, 1));
+  collectMatches(pass, BASIC_AUTH_RE, trailingValue({ category: CATEGORY.labeledSecret, group: 1 }));
+  collectMatches(pass, COOKIE_HEADER_RE, trailingValue({ category: CATEGORY.labeledSecret, group: 1 }));
   collectUrlSecretParams(pass);
 }
 

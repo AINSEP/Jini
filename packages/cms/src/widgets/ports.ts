@@ -1,23 +1,23 @@
 /**
- * @file Ports + typed-call contracts for the host `widgets` library (ADR-047, SPEC-043).
+ * @file Ports + typed-call contracts for the host `widgets` library.
  *
- * ADR-006 (rule-of-two) applied the way ADR-029 §5 already set precedent:
+ * The rule-of-two applied as already established for navigation:
  *
  * - **`WidgetRegionBindingRepoPort` IS a port.** It persists the derived
  *   `widget_region_bindings` index — two real adapters, in-memory + SQLite,
  *   mirroring `NavLocationBindingRepoPort` exactly.
  *
  * - **Widget instances add NO new persistence port.** A widget instance is an
- *   ADR-022 entry; it rides the existing entries repo (already rule-of-two).
+ *   entry; it rides the existing entries repo (already rule-of-two).
  *
  * - **`widget_area` entries add NO new persistence port either** — same
- *   reasoning, they are entries too (ADR-047 Debate Fold-In Amendment 1).
+ *   reasoning, they are entries too.
  *
  * - **Resolution (`WidgetResolver`, `widgets/types.ts`) is NOT a port** — one
  *   evaluator per registered type, dispatched through the closed
  *   `CORE_RESOLVERS` map (`resolvers/index.ts`), not injected. Promote to a
  *   port only if a second real implementation of a given type's resolution
- *   logic appears (ADR-029 §5's anti-port-mania call, applied identically).
+ *   logic appears (the same constraint against unnecessary ports).
  *
  * INTERFACES ONLY. No feature logic lives here.
  */
@@ -31,7 +31,7 @@ import type { WidgetRegionBindingRow, WidgetRegionDescriptor, WidgetRegionKey } 
 /**
  * Persistence for the derived `widget_region_bindings` index. Writes happen
  * only inside the same transaction as the `widget_area` entry mutation that
- * changed `regionKey` (single write chokepoint, ADR-022 §4a) — this port is
+ * changed `regionKey` (single write chokepoint) — this port is
  * the storage seam, not a second write path. `rebuildForWorkspace` exists
  * because the index is **rebuildable by definition** — a full rescan of
  * `widget_area` entries can always reconstruct it (INV-02).

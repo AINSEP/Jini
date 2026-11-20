@@ -88,7 +88,7 @@ export async function resolvePostTypeEmbeds(
         widgetReport({ context }).warn({ message: 'resolveHtmlPageEmbeds: unresolved "post" reference — no such published post' }, { meta: { workspaceId: context.workspaceId, postId: key } });
         return;
       }
-      const renderContext = await resolvePostContentRenderContext(deps, post.bodyJson, context);
+      const renderContext = await resolvePostContentRenderContext({ deps, bodyJson: post.bodyJson, context });
       resolved.set(key, {
         componentId: "post-content",
         props: { title: post.title, slug: post.slug, updatedAt: post.updatedAt, publishAt: post.publishAt ?? null, bodyJson: post.bodyJson, ...renderContext },

@@ -71,7 +71,7 @@ describe('node runtime ports over the real platform functions', () => {
     const lockPath = join(root, 'x.lock');
     const seen = await nodeFileLock.withFileLock({ lockPath, run: async () => access(lockPath).then(() => 'held', () => 'absent') });
     expect(seen).toBe('held');
-    await expect(access(lockPath)).rejects.toThrow();
+    await expect(access(lockPath)).rejects.toMatchObject({ code: 'ENOENT' });
   });
 
   it('writer writes text, writes JSON from the `data` field with a trailing newline, and backs up once', async () => {

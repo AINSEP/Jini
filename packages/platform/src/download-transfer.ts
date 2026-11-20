@@ -153,20 +153,17 @@ async function downloadFromZero(
   if (!response.ok) throw new Error(`download request returned HTTP ${response.status}`);
   const totalBytes = contentLength(response);
   const validators = validatorsFromResponse(response);
-  await writeJson(target.manifestPath, createManifest(target, "partial", { totalBytes, validators }));
+  await writeJson(target.manifestPath, createManifest({ target, state: "partial", patch: { totalBytes, validators } }));
   await writeResponseBodyToPartial(response, target, { emit, startBytes: 0, totalBytes });
   return { resumed: false, totalBytes };
 }
 
-export async function downloadWithRetries(
-  target: NormalizedTarget,
-  manifest: DownloadManifest | null,
-  options: {
+export async function downloadWithRetries({ target, manifest, options }: { target: NormalizedTarget; manifest: DownloadManifest | null; options: {
     emit: (progress: ManagedDownloadProgress) => void;
     fetchImpl: typeof globalThis.fetch;
     maxAttempts: number;
     requestHeaders?: Record<string, string> | undefined;
-  },
+  } }, _optional = {}
 ): Promise<DownloadAttemptResult> {
   let lastError: unknown;
   let nextManifest = manifest;
@@ -202,7 +199,7 @@ async function manifestAfterFailedAttempt(input: {
   const partialBytes = await statFileSize(target.partialPath);
   if (partialBytes == null || partialBytes <= 0) return manifest;
   const next: DownloadManifest = {
-    ...(manifest ?? createManifest(target, "partial")),
+    ...(manifest ?? createManifest({ target, state: "partial" })),
     state: "partial",
     updatedAt: new Date().toISOString(),
   };

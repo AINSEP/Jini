@@ -5,7 +5,7 @@ import { PermissionPanel } from './PermissionPanel.js';
 export function PolicyRow({ usePolicyRow = usePolicyRow_, ...props }: {
     policy: PolicyRecord;
     usePolicyRow?: typeof usePolicyRow_;
-}, _optional: Record<string, never> = {}) {
+}) {
     const v = usePolicyRow(props);
     const editActions = v.editing ? <><Button onPress={v.save} pending={v.pending} disabled={v.saveDisabled}>Save</Button><Button onPress={v.cancel}>Cancel</Button></> :
         <Menu label={v.menuLabel} items={v.menu} />;

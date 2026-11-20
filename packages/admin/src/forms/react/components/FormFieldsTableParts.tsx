@@ -56,7 +56,7 @@ export function FormFieldsTableHead({ t }: { t: (key: string) => string }, _opti
 }
 
 /** The footer row holding the "Add field" button. */
-export function FormFieldsTableFoot({ addField, t }: { addField: () => void; t: (key: string) => string }, _optional: Record<string, never> = {}) {
+export function FormFieldsTableFoot({ addField, t }: { addField: () => void; t: (key: string) => string }) {
   return (
     <tfoot>
       <tr>

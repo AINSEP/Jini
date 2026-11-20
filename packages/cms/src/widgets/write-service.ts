@@ -1,10 +1,10 @@
 import { nowIso as clockNowIso } from "@jini-ai/core/primitives";
 /**
- * @file Widget-instance CRUD through the existing entries chokepoint (SPEC-043 REQ-01..06, REQ-42/43).
+ * @file Widget-instance CRUD through the existing entries chokepoint.
  *
  * Purpose:
  * Same chokepoint discipline as `posts`/`menus`/`forms` — no parallel mutation path. A widget
- * instance is a `type='widget'` entries row (ADR-022 §1); every write here composes
+ * instance is a `type='widget'` entries row; every write here composes
  * `packages/cms/src/entries/write-service.ts`'s real `createEntry`/`updateEntry` chokepoint (never
  * reimplemented) so revisions and slug-uniqueness come for free.
  *
@@ -209,7 +209,7 @@ export interface UpdateWidgetInstanceInput {
   readonly widgetInstanceId: UUID;
   readonly baseVersion: number;
   readonly config: Record<string, unknown>;
-  /** Optional (SPEC-043 ui.spec §4.3): omitted keeps the current title, forwarded to
+  /** Optional: omitted keeps the current title, forwarded to
    *  `updateEntry`'s own `title` field (`input.title ?? current.title`) the same way create's
    *  `title` reaches the entry row — never folded into `fieldsJson`, which only carries
    *  widget-domain payload (`widgetType`/`config`/`status`). */
@@ -356,8 +356,8 @@ export interface TrashWidgetInstanceRequired {
 }
 
 /**
- * Deleting a widget = moving it to the Trash (the injected `remove`). UNCONDITIONAL, per ADR-047 §7
- * and feature.spec.md EC-07: a widget still placed somewhere can be trashed, and every placement
+ * Deleting a widget = moving it to the Trash (the injected `remove`). UNCONDITIONAL,
+ * per feature.spec.md: a widget still placed somewhere can be trashed, and every placement
  * then renders the REQ-28 placeholder until it is restored. Only a purge from the Trash removes it
  * for good.
  *

@@ -15,13 +15,13 @@ import type { LightboxController } from "../components/Lightbox/Lightbox.hooks.j
 describe("open/closed state", () => {
   it("has no open attribute when open is false", () => {
     render(<ImagePreviewModal open={false} src="/theme-assets/basic/screenshots/index.png" alt="Basic theme preview" onClose={vi.fn()} />);
-    const dialog = document.querySelector("dialog.image-preview-modal")!;
+    const dialog = document.querySelector("dialog.jini-image-preview-modal")!;
     expect(dialog.hasAttribute("open")).toBe(false);
   });
 
   it("has the open attribute when open is true", () => {
     render(<ImagePreviewModal open={true} src="/theme-assets/basic/screenshots/index.png" alt="Basic theme preview" onClose={vi.fn()} />);
-    const dialog = document.querySelector("dialog.image-preview-modal")!;
+    const dialog = document.querySelector("dialog.jini-image-preview-modal")!;
     expect(dialog.hasAttribute("open")).toBe(true);
   });
 
@@ -75,7 +75,7 @@ describe("closing", () => {
   it("calls onClose when the backdrop (the dialog element itself, not a child) is clicked", () => {
     const onClose = vi.fn();
     render(<ImagePreviewModal open={true} src="/x.png" alt="x" onClose={onClose} />);
-    const dialog = document.querySelector("dialog.image-preview-modal")!;
+    const dialog = document.querySelector("dialog.jini-image-preview-modal")!;
     fireEvent.click(dialog);
     expect(onClose).toHaveBeenCalledTimes(1);
   });
@@ -90,7 +90,7 @@ describe("closing", () => {
   it("calls onClose on the dialog's native cancel event (Escape) and prevents the browser's own close", () => {
     const onClose = vi.fn();
     render(<ImagePreviewModal open={true} src="/x.png" alt="x" onClose={onClose} />);
-    const dialog = document.querySelector("dialog.image-preview-modal")!;
+    const dialog = document.querySelector("dialog.jini-image-preview-modal")!;
     const cancelEvent = new Event("cancel", { cancelable: true });
     fireEvent(dialog, cancelEvent);
     expect(onClose).toHaveBeenCalledTimes(1);

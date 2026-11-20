@@ -8,7 +8,7 @@ import type { WidgetRegionBindingRow, WidgetRegionKey } from "../types.js";
 
 /**
  * @file THE durable `WidgetRegionBindingRepoPort`: one Kysely query body for every dialect the
- * storage kernel drives (storage plan §4, ADR-066). ADR-006 rule-of-two "second adapter" half —
+ * storage kernel drives (storage plan). Rule-of-two "second adapter" half —
  * `repo.memory.ts`'s `InMemoryWidgetRegionBindingRepo` is the first; `repo.sqlite.ts` is the thin
  * subclass the composition root builds from the content db handle. `upsert` targets the composite
  * `UNIQUE(workspace_id, region_key)` index (a real strengthening of INV-02 over the in-memory

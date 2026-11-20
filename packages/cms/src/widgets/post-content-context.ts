@@ -144,10 +144,7 @@ async function resolvePostContentWidgetContext(
 
 /** Everything a "post-content" IR's embedded body needs to render beyond the body itself — media
  *  context plus inline widgets — spread into the IR's `props` by all three "post-content" builders. */
-export async function resolvePostContentRenderContext(
-  deps: ResolveHtmlPageEmbedsDeps,
-  bodyJson: JsonObject,
-  context: WidgetResolveContext
+export async function resolvePostContentRenderContext({ deps, bodyJson, context }: { deps: ResolveHtmlPageEmbedsDeps; bodyJson: JsonObject; context: WidgetResolveContext }, _optional = {}
 ): Promise<JsonObject> {
   const [mediaContext, widgetContext, timeZone] = await Promise.all([
     resolvePostContentMediaContext(deps, bodyJson, context),

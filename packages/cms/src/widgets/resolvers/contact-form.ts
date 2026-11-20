@@ -7,11 +7,11 @@ import type { FormDefinitionReadPort, FormDefinitionView } from "./ports.js";
 import type { WidgetResolveResult, WidgetResolver } from "../types.js";
 
 /**
- * @file `contact-form` widget resolver (SPEC-043 REQ-36..39, ADR-047 Debate Fold-In Amendment 4).
+ * @file `contact-form` widget resolver.
  *
  * Purpose:
  * A thin, READ-ONLY adapter over `src/forms/`'s definition read side. Imports ONLY the read-only
- * `FormDefinitionRepoPort` type, through `forms/index.ts` (ADR-009 §1's barrel; the type is
+ * `FormDefinitionRepoPort` type, through `forms/index.ts` (the barrel; the type is
  * declared in `forms/ports.ts`) — never the Forms library's own submission write path or its
  * outbox-driven mail-notification module — so this file can never persist a submission, send
  * mail, rate-limit, or duplicate any part of the Forms pipeline (INV-08, hard invariant; verified
@@ -92,13 +92,13 @@ async function contactFormProps({ definition, successMessage, providers, consent
     ...(builtin ? { schemaHash } : {}),
     // Closes this file's own previously-disclosed deferral ("the actual submission still
     // posts to Forms' existing public route unmodified... that is a render-component/route
-    // concern, out of this resolver's scope") — the render component built for SPEC-043's
+    // concern, out of this resolver's scope") — the render component built for the
     // routes/UI slice (the host app's `src/server/inbound/public-http/http/site/render.ts`'s `renderWidgetContactForm`) needs the
     // definition's `slug` to build `POST /forms/:slug/submit`'s URL (REQ-37's second half).
     slug: definition.slug,
     // REQ-37: Forms' own declared field vocabulary, passed through verbatim — never a
     // hardcoded field-type list. Cast: FieldDescriptor[] has no index signature of its
-    // own, but every field is plain JSON-serializable data (SPEC-010 forms/types.ts).
+    // own, but every field is plain JSON-serializable data (forms/types.ts).
     fields: definition.fields as unknown as JsonObject,
     ...(definition.mode === "html" ? {
       mode: "html", html: definition.html ?? "",

@@ -41,7 +41,7 @@ const STATIC_ERROR_MESSAGES: Readonly<Record<string, string>> = {
   USERNAME_IN_TRASH: "A user with this username is in the Trash; restore or delete them permanently first.",
 };
 
-/** Server error `code` -> a plain-language prefix (SPEC-006 errors.spec.md §2), layered on the
+/** Server error `code` -> a plain-language prefix, layered on the
  *  shared default (`lib/api.ts`'s `describeApiError`) — this screen's `RESOURCE_CONFLICT` means
  *  "username already in use", a different meaning than `Roles.tsx`'s "still referenced" or
  *  `Workspace.tsx`'s "slug already taken" for the same code (audit cross-cutting finding #2 —

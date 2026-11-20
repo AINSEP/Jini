@@ -9,7 +9,7 @@ import { resolvePostTypeEmbeds } from "./post-embed-resolution.js";
 import { resolveContentTypeEmbeds } from "./content-embed-resolution.js";
 
 /**
- * Registry of known embed types (SPEC-047, generalized 2026-08-07). Adding a new embed type is
+ * Registry of known embed types (generalized 2026-08-07). Adding a new embed type is
  * registering one more entry here — no other file in `resolveHtmlPageEmbeds`'s call chain changes,
  * and `html-embeds.ts`'s scanner already reports any type token it finds regardless of whether an
  * entry exists here (see that file's own doc). A type ABSENT from this registry is the "unknown

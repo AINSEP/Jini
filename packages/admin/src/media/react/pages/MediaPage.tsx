@@ -1,7 +1,7 @@
 import { Suspense } from 'react';
 import type { MediaPageProps } from '../hooks/MediaPage.hooks.js';
 import { MediaLibraryContext, useMediaPage } from '../hooks/MediaPage.hooks.js';
-export function MediaPage({ useMediaPageHook = useMediaPage, ...props }: MediaPageProps & { useMediaPageHook?: typeof useMediaPage }, _optional: Record<string, never> = {}) {
+export function MediaPage({ useMediaPageHook = useMediaPage, ...props }: MediaPageProps & { useMediaPageHook?: typeof useMediaPage }) {
   const vm = useMediaPageHook(props);
   return (
     <section className="jini-page" data-jini-part="media.page">

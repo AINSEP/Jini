@@ -27,7 +27,7 @@ export function FieldAttributesDialog({
   useFieldAttributesDialogHook = useFieldAttributesDialog,
   useFieldAttributesViewHook = useFieldAttributesView,
   t,
-}: FieldAttributesDialogProps, _optional: Record<string, never> = {}) {
+}: FieldAttributesDialogProps) {
   const controller = useFieldAttributesDialogHook({
     field,
     onSave,

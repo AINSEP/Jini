@@ -65,6 +65,6 @@ const defaultHistoryStorage: BrowserHistoryStoragePort = createBrowserHistorySto
  * or a swappable/test port, should call `useBrowserHistory` directly with
  * its own `{ historyStorage }` instead of this zero-arg wirer.
  */
-export function useWiredBrowserHistory(scopeKey: string, options?: UseBrowserHistoryOptions): BrowserHistoryController {
+export function useWiredBrowserHistory({ scopeKey, options }: { scopeKey: string; options?: UseBrowserHistoryOptions | undefined }, _optional = {}): BrowserHistoryController {
   return useBrowserHistory(scopeKey, { historyStorage: defaultHistoryStorage }, options);
 }

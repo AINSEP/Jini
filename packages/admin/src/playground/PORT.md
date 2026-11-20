@@ -50,7 +50,7 @@ Pending implementation and scoped commands. Exact results and inventory will be 
 Commands from `/Users/la/Programming/Jini`:
 
 - `pnpm --filter @jini-ai/admin exec tsc --noEmit` — exit 0.
-- `env -u TOVU_ADMIN_PASSWORD pnpm --filter @jini-ai/admin exec vitest run src/playground` — exit 0, 3 files / 7 tests.
+- With the host admin-password override cleared, `pnpm --filter @jini-ai/admin exec vitest run src/playground` — exit 0, 3 files / 7 tests.
 
 Initial CSS attribute selector exposed a jsdom/nwsapi selector parsing bug in a minimal probe;
 class selectors preserve the original CSS-only behavior and pass visible/hidden assertions.

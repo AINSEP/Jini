@@ -18,7 +18,7 @@ function AttributeNameSuggestions() {
 }
 
 /** One HTML attribute (name, value, remove) of the field dialog's styling section. */
-export function FieldAttributeRow({ row, index, t }: { row: ViewRow; index: number; t: (key: string) => string }, _optional: Record<string, never> = {}) {
+export function FieldAttributeRow({ row, index, t }: { row: ViewRow; index: number; t: (key: string) => string }) {
   return (
       <fieldset key={row._rowId} className="collections-field-row">
         <legend>{t("Attribute")} {index + 1}</legend>
@@ -71,7 +71,7 @@ export function FieldAttributeRow({ row, index, t }: { row: ViewRow; index: numb
 /** The collapsed class and attribute-row half of the field dialog. */
 export function FieldAttributesStyling({ hasStyling, className, onClassName, rows, addRow, t }: {
   hasStyling: boolean; className: string; onClassName: ViewReturn["onClassName"]; rows: ViewReturn["rows"]; addRow: () => void; t: (key: string) => string;
-}, _optional: Record<string, never> = {}) {
+}) {
   return (
     <details className="field-settings-advanced" open={hasStyling}>
       <summary>{t("CSS classes and HTML attributes")}</summary>
@@ -121,7 +121,7 @@ export function FieldAttributesStyling({ hasStyling, className, onClassName, row
 }
 
 /** Save error and the Save / Cancel buttons of the field dialog. */
-export function FieldAttributesActions({ error, onCancel, t }: { error: string | null; onCancel: () => void; t: (key: string) => string }, _optional: Record<string, never> = {}) {
+export function FieldAttributesActions({ error, onCancel, t }: { error: string | null; onCancel: () => void; t: (key: string) => string }) {
   return (
     <>
       {error ? (

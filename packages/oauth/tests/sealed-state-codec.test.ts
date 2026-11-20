@@ -32,7 +32,7 @@ describe('createSealerStateCodec', () => {
 
     it('refuses to open a state sealed under another AAD', async () => {
         const state = await harness('context-a').codec.seal({ plaintext: 'secret' });
-        await expect(harness('context-b').codec.open({ state })).rejects.toThrow();
+        await expect(harness('context-b').codec.open({ state })).rejects.toThrow(/^authentication failed$/);
     });
 
     for (const [name, change] of [

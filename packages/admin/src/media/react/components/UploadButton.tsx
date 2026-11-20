@@ -1,7 +1,7 @@
 import { Button, TextField } from '../../../react/kit.js';
 import { useUploadButton } from '../hooks/UploadButton.hooks.js';
 import type { UploadButtonProps } from '../hooks/UploadButton.hooks.js';
-export function UploadButton({ useUploadButtonHook = useUploadButton, ...props }: UploadButtonProps & { useUploadButtonHook?: typeof useUploadButton }, _optional: Record<string, never> = {}) {
+export function UploadButton({ useUploadButtonHook = useUploadButton, ...props }: UploadButtonProps & { useUploadButtonHook?: typeof useUploadButton }) {
   const vm = useUploadButtonHook(props);
   return (
     <div className="jini-toolbar jini-media-upload" data-jini-part="media.upload" data-agent-element={vm.handles.toolbar} onDragOver={vm.onDragOver} onDrop={vm.onDrop}>

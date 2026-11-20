@@ -41,6 +41,6 @@ const defaultBridgeRegistration: BrowserBridgeRegistrationPort = createNoopBrows
  * swappable-port carve-out as a test double, just for a real host
  * implementation instead.
  */
-export function useWiredBrowserBridgeRegistration(scopeKey: string | undefined, handle: BrowserTabHandle | null): void {
+export function useWiredBrowserBridgeRegistration({ scopeKey, handle }: { scopeKey: string | undefined; handle: BrowserTabHandle | null }, _optional = {}): void {
   useBrowserBridgeRegistration(scopeKey, handle, { bridgeRegistration: defaultBridgeRegistration });
 }

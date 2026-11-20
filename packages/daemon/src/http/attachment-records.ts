@@ -176,6 +176,6 @@ export async function verifyClaimedAttachments({ claimed }: { readonly claimed: 
 }
 
 /** An attachment no run has claimed, or one claimed by `runId` (never by an absent run id). */
-export function isUnclaimedOrClaimedBy(claimedRunId: string | undefined, runId: string | undefined): boolean {
+export function isUnclaimedOrClaimedBy({ claimedRunId, runId }: { claimedRunId: string | undefined; runId: string | undefined }, _optional = {}): boolean {
   return claimedRunId === undefined || (runId !== undefined && claimedRunId === runId);
 }

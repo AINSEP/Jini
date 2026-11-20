@@ -1,16 +1,15 @@
 /**
  * @file `validateWidgetEmbedMutation` — the shared `widgetEmbed` guardrail validator
- * (SPEC-043 REQ-19/20, INV-04; ADR-047 Debate Fold-In Amendment 5/6).
  *
  * Purpose:
  * A pure decision function, no I/O. This is the ONE validator both the live-editor mutation path
- * (ADR-016 §1 CopilotKit frontend action, via the existing change-set review layer) and the
+ * (a CopilotKit frontend action, via the existing change-set review layer) and the
  * server-side/AI mutation path (`embed-service.ts`'s `insertWidgetEmbed` et al., Amendment 6) must
  * call — enforcement lives here, not duplicated at each call site, so the two paths can never
  * silently diverge (the exact gap Amendment 6 exists to close).
  *
  * Architectural role:
- * TDD-certified implementation (SPEC-043 / implementation outline C-008). Signature and JSDoc are
+ * TDD-certified implementation. Signature and JSDoc are
  * design-frozen; `validateWidgetEmbedMutation()` is a pure decision function — no I/O — rejecting a
  * mutation that would place a `widgetEmbed` inside a widget's own body (REQ-19/INV-04) or exceed
  * `maxEmbedsPerDocument` (REQ-20). Verified against `__tests__/unit/embed-validation.unit.test.ts`.

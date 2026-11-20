@@ -99,7 +99,7 @@ export function collectMatches(
 
 /** Span of the match's trailing capture `group`, unless that value is already a generated marker
  * (already masked values are not new credentials and should not inflate the audit count). */
-export function trailingValue(category: string, group: number) {
+export function trailingValue({ category, group }: { category: string; group: number }, _optional = {}) {
   return (match: RegExpMatchArray, index: number): Span | undefined => {
     const value = match[group] ?? '';
     if (isMaskedValue(value)) return undefined;

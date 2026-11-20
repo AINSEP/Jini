@@ -1,5 +1,5 @@
 /**
- * @file The v1 widget-type registry (SPEC-043 REQ-07..10, ADR-047 Debate Fold-In Amendment 3).
+ * @file The v1 widget-type registry.
  *
  * Purpose:
  * Each `WidgetTypeRegistration` below is plain, JSON-serializable data — schema, capability
@@ -8,7 +8,7 @@
  * pointer that only ever resolves through `resolvers/index.ts`'s closed `CORE_RESOLVERS` map
  * (REQ-08) — never a dynamic import, `eval`, or arbitrary function reference. This is the split
  * Amendment 3 requires: type *registration* is data (Tier-1-safe, this file); type *behavior* is
- * core-owned code in v1, ADR-024 Tier-2/3-gated for any future plugin-contributed dynamic type
+ * core-owned code in v1, Tier-2/3-gated for any future plugin-contributed dynamic type
  * (`resolvers/`).
  *
  * `getWidgetTypeRegistration`/`findWidgetTypeRegistration` are the two lookup accessors over this

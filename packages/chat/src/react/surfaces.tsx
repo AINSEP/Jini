@@ -47,7 +47,7 @@ export interface ChatSurfaces {
 
 const ChatSurfacesContext = createContext<ChatSurfaces | null>(null);
 
-export function ChatSurfacesProvider(required: { surfaces: ChatSurfaces; children: ReactNode }, _optional: Record<string, never> = {}) {
+export function ChatSurfacesProvider(required: { surfaces: ChatSurfaces; children: ReactNode }) {
   const [surfaces] = useState(() => required.surfaces);
   return <ChatSurfacesContext.Provider value={surfaces}>{required.children}</ChatSurfacesContext.Provider>;
 }

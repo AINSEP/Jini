@@ -2,7 +2,7 @@ import type { WidgetHostPorts } from "./host-ports.js";
 import { nowIso as clockNowIso } from "@jini-ai/core/primitives";
 /**
  * @file `widget_area` entry CRUD + whole-document placement mutation + the derived binding-table
- * reconcile step (SPEC-043 REQ-11..17; ADR-047 Debate Fold-In Amendment 1).
+ * reconcile step.
  *
  * Purpose:
  * Deliberately mirrors `navigation/reconcile.ts` — same reconcile-not-author discipline for

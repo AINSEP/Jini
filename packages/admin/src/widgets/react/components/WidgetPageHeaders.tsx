@@ -73,7 +73,7 @@ export function WidgetRegionsHeader({ t, headerActions, newRegionKey, setNewRegi
 }
 
 /** Title and the create controls of the widgets library. */
-export function WidgetsLibraryHeader({ t, headerActions, createType, setCreateType, widgetTypes }: { t: Translate; headerActions: ReactNode; createType: AdminWidgetType; setCreateType: (type: AdminWidgetType) => void; widgetTypes: readonly WidgetTypeOption[] }, _optional: Record<string, never> = {}) {
+export function WidgetsLibraryHeader({ t, headerActions, createType, setCreateType, widgetTypes }: { t: Translate; headerActions: ReactNode; createType: AdminWidgetType; setCreateType: (type: AdminWidgetType) => void; widgetTypes: readonly WidgetTypeOption[] }) {
   return (
     <div className="page-header">
       <div className="page-header-text">
@@ -174,7 +174,7 @@ export function WidgetInstanceEditorHeader({ t, isNew, message, error, saving, s
 }
 
 /** Back link, title and Save of the region editor. */
-export function WidgetRegionEditorHeader({ t, regionKey, message, error, saving, onSave }: { t: Translate; regionKey: string; message: string | null; error: string | null; saving: boolean; onSave: () => void }, _optional: Record<string, never> = {}) {
+export function WidgetRegionEditorHeader({ t, regionKey, message, error, saving, onSave }: { t: Translate; regionKey: string; message: string | null; error: string | null; saving: boolean; onSave: () => void }) {
   // `page-header-split` (`styles.css`) — same shared idiom Pages/Posts/Forms already use:
   // back link alone at the left rail, title block centred. Widget Regions never grew a
   // separate `.editor-action-row` below a toolbar, so Save/status (`.page-header-actions`)

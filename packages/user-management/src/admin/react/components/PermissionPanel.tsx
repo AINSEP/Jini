@@ -4,7 +4,7 @@ import { usePermissionPanel as usePermissionPanel_ } from '../hooks/PermissionPa
 export function PermissionPanel({ usePermissionPanel = usePermissionPanel_, ...props }: {
     policy: PolicyRecord;
     usePermissionPanel?: typeof usePermissionPanel_;
-}, _optional: Record<string, never> = {}) {
+}) {
     const v = usePermissionPanel(props);
     const permissions = v.empty ? <p>No permissions yet.</p> :
         <ul>{v.rows.map(row => <li key={row.id}><code>{row.permission}</code>{row.resourceType ? <span> ({row.resourceType})</span> : null}

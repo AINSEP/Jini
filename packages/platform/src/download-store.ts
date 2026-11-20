@@ -157,10 +157,7 @@ export function manifestMatchesTarget(manifest: DownloadManifest, target: Normal
   return identityMatches && checksumMatches;
 }
 
-export function createManifest(
-  target: NormalizedTarget,
-  state: "complete" | "partial",
-  patch: Partial<Pick<DownloadManifest, "totalBytes" | "validators">> = {},
+export function createManifest({ target, state, patch = {} }: { target: NormalizedTarget; state: "complete" | "partial"; patch?: Partial<Pick<DownloadManifest, "totalBytes" | "validators">> | undefined }, _optional = {}
 ): DownloadManifest {
   const now = new Date().toISOString();
   return {

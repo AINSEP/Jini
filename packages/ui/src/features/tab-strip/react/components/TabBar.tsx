@@ -128,7 +128,7 @@ export function TabBar({
   containerHandle,
   useTabBarKeyboardHook = useTabBarKeyboard,
   useActiveTabInViewHook = useActiveTabInView,
-}: TabBarProps, _optional: Record<string, never> = {}) {
+}: TabBarProps) {
   const { onKeyDown } = useTabBarKeyboardHook({ tabs: tabs, activeId: activeId, onChange: onChange });
   const stripRef = useActiveTabInViewHook({ activeId: activeId });
   return (

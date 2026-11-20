@@ -4,7 +4,7 @@ Programmer(Execution): Programmer persona loaded for a behavior-preserving extra
 
 ## Inputs and approved ownership
 
-C0-admin-common.md and C4-seo-admin.md, coordinator's Part-A-only dispatch, CMS-JINI-MODULAR-DESIGN.md Rev 3 decision 1 / section 4 C4, authoritative uncommitted Phase 17 native Dialog and Phase 18 TabBar source. Tovu architecture chapters 13/14 were consulted as target constraints. Pattern seed is the explicitly directed existing media module/HTTP adapter and agent-plugins PORT/controller pattern, not a new unapproved design. Graph MCP tools were unavailable; discovery used current source reads in Tovu/Jini. No indexing or install was attempted.
+C0-admin-common.md and C4-seo-admin.md, coordinator's Part-A-only dispatch, CMS-JINI-MODULAR-DESIGN.md Rev 3 decision 1 / section 4 C4, authoritative uncommitted Phase 17 native Dialog and Phase 18 TabBar source. The host architecture chapters 13/14 were consulted as target constraints. Pattern seed is the explicitly directed existing media module/HTTP adapter and agent-plugins PORT/controller pattern, not a new unapproved design. Graph MCP tools were unavailable; discovery used current source reads in host/Jini. No indexing or install was attempted.
 
 The existing `core/ports/seo.ts` AdminSeoPort is the sole production API contract. This domain introduces tokens, presentation models, controllers, HTTP/memory adapters, React binding and framework-free conformance. All controller state uses the existing createControllerStore; effects/disposal use the existing useController. No React is reachable through universal runtime imports. DOMParser is the existing native browser XML parser and is invoked only by the sitemap view hook; calling the exported parsing rule requires a DOM-capable host.
 
@@ -61,7 +61,7 @@ and sitemapStateLabel for host dictionary contract tests. The page's context-bac
 runs before loading/error returns, preserving React hook order without changing markup.
 These source additions require a Jini admin rebuild and publication before shipping the host.
 
-- t = the host's createDictionaryTranslator(SEO_DICT, locale). English identity is the default; dictionaries stay in Tovu. Existing locale props are compatibility metadata, not a second translation owner. A translator update does not discard controller drafts.
+- t = the host's createDictionaryTranslator(SEO_DICT, locale). English identity is the default; dictionaries stay in the host. Existing locale props are compatibility metadata, not a second translation owner. A translator update does not discard controller drafts.
 - describeError = ({ error, fallback }) => describeApiError(error, fallback). This preserves the host ApiError class's special empty-message fallback on picker/entry reads and writes. Settings errors retain their pre-existing Error.message behavior.
 - headerActions = the host PublishSectionButton for settings, inside the unchanged page-actions div.
 - slots.MediaPickerDialog = the existing components/MediaPickerDialog wrapper. It owns the source picker DOM/handles and hydration of the selected CMS row (notably slug and active status). This is necessary for exact legacy parity; it is a host seam, never a copied production implementation.
@@ -80,7 +80,7 @@ runSeoApiConformance({ api }, { entryId }) is framework-free and destructive: us
 
 Eight suites were copied with import/render-harness changes only; no assertion or test body was changed. Legacy ABI wrappers exist only under react/__tests__/harness and delegate to the production controllers/core-port memory adapter; they are not a parallel production SeoPort. The render harness supplies an English translator, memory API, site origin and host-owned media slot fixture. The fixture represents the source picker callback contract; it does not claim to certify the shared media service's own DOM.
 
-`Seo.hooks.unit.test.tsx` remains in Tovu because it tests real router replacement history and the Spanish SEO dictionary. Its FormData assertion stays there too as part of the same file; Part B must rewire its imports to the surviving host/module test harness without changing assertions. Tovu panels/nav/sidebar/module wiring suites remain host-owned.
+`Seo.hooks.unit.test.tsx` remains in the host because it tests real router replacement history and the Spanish SEO dictionary. Its FormData assertion stays there too as part of the same file; Part B must rewire its imports to the surviving host/module test harness without changing assertions. The host panels/nav/sidebar/module wiring suites remain host-owned.
 
 | Source | Jini owner |
 |---|---|
@@ -94,13 +94,13 @@ Eight suites were copied with import/render-harness changes only; no assertion o
 | MediaRefField hooks/component | controllers/media-ref.controller.ts, react/hooks/MediaRefField.hooks.ts, react/components/MediaRefField.tsx |
 | SitemapModal hooks/component | react/hooks/SitemapModal.hooks.ts, react/components/SitemapModal.tsx |
 | Seo hooks/glyphs/component | react/hooks/SeoPage.hooks.ts, react/components/SeoIcons.tsx, react/pages/SeoPage.tsx |
-| i18n calls | messages.en.ts + injected translator; dictionaries remain Tovu |
+| i18n calls | messages.en.ts + injected translator; dictionaries remain host-owned |
 
 SOURCE-RATIONALE.md retains every source comment verbatim, including historical design tradeoffs. Active prose points to surviving owners; archived references remain original provenance.
 
 ## Static review and honest validation status
 
-Architecture Audit: WARNING (source-boundary inspection passed; runtime, type, packaging and UI validation are intentionally pending). Checked C0/C4 fences, canonical core port ownership, dependency inversion, universal/browser split, one React folder level, native UI owners, optional peers, two-object new boundaries, preserved assertions and the explicit host seams above. No out-of-domain files or manifests were edited. The Tovu/Jini governance scopes reviewed contain no additional SEO-admin governance ADR.
+Architecture Audit: WARNING (source-boundary inspection passed; runtime, type, packaging and UI validation are intentionally pending). Checked C0/C4 fences, canonical core port ownership, dependency inversion, universal/browser split, one React folder level, native UI owners, optional peers, two-object new boundaries, preserved assertions and the explicit host seams above. No out-of-domain files or manifests were edited. The host/Jini governance scopes reviewed contain no additional SEO-admin governance ADR.
 
 Source AST inspection, without compiling or typechecking, found no syntax diagnostics or missing relative imports in the inspected source. All 491 expect expression statements across the eight copied suites are byte-identical. Final inspection is saved to the host CMS-BRIEFS/out/c4-static-review.json (46 source files, 21 universal-closure files, matching class/handle/ARIA literals and assertions). Existing TypeScript parser was reused; no analyzer or dependency was installed.
 
@@ -113,7 +113,7 @@ Function-quality review: controller actions use bounded one/two-request flows; p
 | settings / entry state machines | NO_RECORDED_FINDINGS | Existing store/React lifecycle reused; nullable clear sink and analysis-generation invariant retained |
 | entry picker / sitemap | NO_RECORDED_FINDINGS | Original order, terminal disabled state, parse memoization and stale-settlement handling retained |
 | HTTP adapter | NO_RECORDED_FINDINGS | Host request/url and explicit raw XML transport; unchanged wire contract |
-| media binding | RECOMMENDED | Generic picker contract omits CMS slug hydration/legacy handles; explicit existing-host slot keeps parity, mandatory for Tovu Part B |
+| media binding | RECOMMENDED | Generic picker contract omits CMS slug hydration/legacy handles; explicit existing-host slot keeps parity, mandatory for host Part B |
 | memory resolution | RECOMMENDED | Seed projection does not simulate CMS derivation; resolveEntry seam or server integration owns richer behavior |
 | presentation / copied tests | NO_RECORDED_FINDINGS | Native owners and exact source markup/491 assertion statements retained; host wiring test excluded from move |
 

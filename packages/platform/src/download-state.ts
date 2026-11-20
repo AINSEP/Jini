@@ -67,9 +67,9 @@ export async function runManagedDownload(
   try {
     const state = await loadStateAllowingOneReset({ target });
     if (state.result != null) return state.result;
-    const download = await downloadWithRetries(target, state.manifest, options);
+    const download = await downloadWithRetries({ target, manifest: state.manifest, options });
     const bytes = await promoteVerifiedPartial({ target });
-    await writeJson(target.manifestPath, createManifest(target, "complete", { totalBytes: download.totalBytes }));
+    await writeJson(target.manifestPath, createManifest({ target, state: "complete", patch: { totalBytes: download.totalBytes } }));
     return {
       bucket: target.bucket,
       bytes,

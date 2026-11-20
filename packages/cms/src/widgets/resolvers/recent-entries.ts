@@ -7,7 +7,7 @@ import type { WidgetInstanceView, WidgetResolveResult, WidgetResolver } from "..
 import { formatDateLabel, resolveSiteTimeZoneSafely, type SiteTimeZonePort } from "../date-label.js";
 
 /**
- * @file `recent-entries` widget resolver (SPEC-043 REQ-25, ADR-047 §9) — extended by the
+ * @file `recent-entries` widget resolver — extended by the
  * collections plan (R1, 2026-09-23) into "Collection list": the same widget type now ALSO accepts
  * `collection`/`where`/`sort`/`fields`/`layout`/`columns`, reusing C1's `parseCollectionListConfig`
  * parser and C2's `EntryDisplayListPort.listPublishedForDisplay` query — the exact parser/query the

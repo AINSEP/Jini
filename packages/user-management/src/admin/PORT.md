@@ -150,7 +150,7 @@ this port; identity-based scope binding was handled within user-management.
 
 All commands run from the engine workspace. The unchanged package baseline was green:
 `pnpm --filter @jini-ai/user-management exec tsc --noEmit` (exit 0) and
-`env -u TOVU_ADMIN_PASSWORD pnpm --filter @jini-ai/user-management exec vitest run`
+With the host admin-password override cleared, `pnpm --filter @jini-ai/user-management exec vitest run`
 (exit 0; 31 files, 313 tests).
 
 Final command results are recorded below after the final run. The existing exact export
@@ -161,8 +161,8 @@ existing public-argument AST contract still checks every new exported function.
 | Final command | Result |
 | --- | --- |
 | `pnpm --filter @jini-ai/user-management exec tsc --noEmit` | Exit 0; no diagnostics |
-| `env -u TOVU_ADMIN_PASSWORD pnpm --filter @jini-ai/user-management exec vitest run src/admin` | Exit 0; 6 files, 22 tests passed |
-| `env -u TOVU_ADMIN_PASSWORD pnpm --filter @jini-ai/user-management exec vitest run` | Exit 0; 37 files, 335 tests passed |
+| With the host admin-password override cleared, `pnpm --filter @jini-ai/user-management exec vitest run src/admin` | Exit 0; 6 files, 22 tests passed |
+| With the host admin-password override cleared, `pnpm --filter @jini-ai/user-management exec vitest run` | Exit 0; 37 files, 335 tests passed |
 | `git diff --check -- packages/user-management` | Exit 0 |
 | `pnpm --filter @jini-ai/user-management exec tsc --outDir /private/tmp/jini-roles-export-smoke/node_modules/@jini-ai/user-management/dist --declarationMap false --sourceMap false` | Exit 0; emission outside the repositories |
 | `node /private/tmp/jini-roles-export-smoke/smoke.mjs` | Exit 0; 9 export targets present, 15 conformance checks passed without React, admin or ui-kit installed |
@@ -430,7 +430,7 @@ admin 22 → 53 (+31), server 225 → 225, public contracts 7 → 7. Roles remai
 | --- | --- | --- |
 | `pnpm --filter @jini-ai/user-management exec tsc --noEmit` | 0 | Final rerun after the final safety hardening; no diagnostics |
 | `pnpm --filter @jini-ai/user-management exec vitest run src/admin` | 0 | 9 files, 53 tests |
-| `env -u TOVU_ADMIN_PASSWORD pnpm --filter @jini-ai/user-management exec vitest run src/server` | 0 | 16 files, 225 tests |
+| With the host admin-password override cleared, `pnpm --filter @jini-ai/user-management exec vitest run src/server` | 0 | 16 files, 225 tests |
 | `pnpm --filter @jini-ai/user-management exec vitest run src/__tests__` | 0 | 4 files, 7 public-entry/argument tests |
 | `pnpm exec node --import tsx -e "const { checkPackageLayers } = require('./scripts/check-package-layers.ts'); const violations = checkPackageLayers(); console.log(JSON.stringify({ count: violations.length, violations }, null, 2)); process.exit(violations.length ? 1 : 0);"` | 0 | count: 0, violations: [] |
 | `git diff --check -- packages/user-management` | 0 | No whitespace diagnostics |

@@ -6,7 +6,7 @@ import { MediaRefField } from "../components/MediaRefField.js";
 import { SeoSection } from "../components/SeoSection.js";
 
 /** Title template and default meta description. */
-export function SeoSearchAppearanceSection({ locale, settings, t }: Pick<SeoTabController, "locale" | "settings"> & { t: ReturnType<typeof useSeoCopy> }, _optional: Record<string, never> = {}) {
+export function SeoSearchAppearanceSection({ locale, settings, t }: Pick<SeoTabController, "locale" | "settings"> & { t: ReturnType<typeof useSeoCopy> }) {
   return (
     <SeoSection title={t({ locale: locale, key: "Search appearance" })}>
       <div className="jini-field">
@@ -44,7 +44,7 @@ export function SeoSearchAppearanceSection({ locale, settings, t }: Pick<SeoTabC
 }
 
 /** Default preview image and the X/Twitter handle. */
-export function SeoSocialPreviewSection({ locale, settings, defaultOgImage, setDefaultOgImage, t }: Pick<SeoTabController, "locale" | "settings" | "defaultOgImage" | "setDefaultOgImage"> & { t: ReturnType<typeof useSeoCopy> }, _optional: Record<string, never> = {}) {
+export function SeoSocialPreviewSection({ locale, settings, defaultOgImage, setDefaultOgImage, t }: Pick<SeoTabController, "locale" | "settings" | "defaultOgImage" | "setDefaultOgImage"> & { t: ReturnType<typeof useSeoCopy> }) {
   // Its own group, not a tail on "Search appearance". These two fields are what a link to this
   // site looks like when it is PASTED somewhere — a different question from what a search
   // result looks like, and the split every SEO tool an operator has already used makes. The
@@ -84,7 +84,7 @@ export function SeoSocialPreviewSection({ locale, settings, defaultOgImage, setD
 }
 
 /** Default noindex, nofollow and the sitemap switch. */
-export function SeoCrawlingSection({ locale, settings, t }: Pick<SeoTabController, "locale" | "settings"> & { t: ReturnType<typeof useSeoCopy> }, _optional: Record<string, never> = {}) {
+export function SeoCrawlingSection({ locale, settings, t }: Pick<SeoTabController, "locale" | "settings"> & { t: ReturnType<typeof useSeoCopy> }) {
   return (
     <SeoSection title={t({ locale: locale, key: "Crawling" })}>
       <label className="jini-form-checkbox-field">
@@ -131,7 +131,7 @@ export function SeoCrawlingSection({ locale, settings, t }: Pick<SeoTabControlle
 }
 
 /** The Save settings button. */
-export function SeoSaveActions({ locale, saving, t }: Pick<SeoTabController, "locale" | "saving"> & { t: ReturnType<typeof useSeoCopy> }, _optional: Record<string, never> = {}) {
+export function SeoSaveActions({ locale, saving, t }: Pick<SeoTabController, "locale" | "saving"> & { t: ReturnType<typeof useSeoCopy> }) {
   return (
     <div className="jini-editor-actions jini-form-actions jini-seo-actions">
       <button

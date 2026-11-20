@@ -1,10 +1,9 @@
 import { isNonArrayRecord } from "@jini-ai/core/records";
 /**
- * @file `extractEntryRefs` — the chokepoint-side `entry_refs` extractor (ADR-022 §5, SPEC-043
- * REQ-29..32).
+ * @file `extractEntryRefs` — the chokepoint-side `entry_refs` extractor.
  *
  * Purpose:
- * Walks a written entry's `bodyJson`/`fields.ext.*` for `ref`-typed fields (ADR-022 §5's field-type
+ * Walks a written entry's `bodyJson`/`fields.ext.*` for `ref`-typed fields (the field-type
  * vocabulary) and widget-reference-shaped nodes (`widget_area` placements, `widgetEmbed` nodes),
  * producing the rows `EntryRefsRepoPort.replaceForSource` writes in the SAME transaction as the
  * triggering entry write (INV-06) — never a follow-up async job. Entry-target references (menu,
@@ -231,11 +230,11 @@ export function extractEntryRefs(input: ExtractEntryRefsInput, _optional: Record
 }
 
 // ---------------------------------------------------------------------------
-// SPEC-047 Slice 3 — `"html"`-format Page bodies (`body_html`, a plain string, not a `bodyJson`
+// `"html"`-format Page bodies (`body_html`, a plain string, not a `bodyJson`
 // tree). A sibling entry point to `extractEntryRefs` above, not a mode of it: an html Page is
 // written through the host's html page document store, a completely
-// separate write path from the `entries` chokepoint `extractEntryRefs` is called from (ADR-056
-// CIC-3 — Pages bypass that chokepoint entirely), so it needs its own call site, not a widened
+// separate write path from the `entries` chokepoint `extractEntryRefs` is called from (
+// Pages bypass that chokepoint entirely), so it needs its own call site, not a widened
 // `ExtractEntryRefsInput`.
 // ---------------------------------------------------------------------------
 
@@ -281,7 +280,7 @@ export type EntryRefsReport = (required: { message: string; sourceEntryId: UUID 
  * Every other skip here is a decision: an unmapped type has no `targetKind`, an absent id has
  * nothing to populate `targetId` with. A REJECTED marker is different — it is a reference that
  * exists in the markup and that this index cannot see. `entry_refs` is what safe-delete's where-used
- * check reads (SPEC-043 REQ-34/REQ-42), so a dropped row does not degrade the feature, it INVERTS
+ * check reads, so a dropped row does not degrade the feature, it INVERTS
  * it: the delete is reported safe precisely because the reference protecting the target went
  * missing. One stray character in one config is enough.
  *

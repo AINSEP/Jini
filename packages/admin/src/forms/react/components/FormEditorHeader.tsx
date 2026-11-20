@@ -5,7 +5,7 @@ import { FormEditorHeaderText } from './FormEditorHeaderText.js';
 /** Back link and title block above the form editor. */
 export function FormEditorHeader({ isNew, name, onBack, t }: {
   isNew: boolean; name: string; onBack: MouseEventHandler<HTMLAnchorElement>; t: (key: string) => string;
-}, _optional: Record<string, never> = {}) {
+}) {
 
   // `page-header-split` (the same modifier `PageEditorHeader`/`PostEditor` use on the shared
   // `.page-header`, `styles.css`) — back link alone at the far left, title block centred.

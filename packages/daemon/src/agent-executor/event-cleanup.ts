@@ -35,9 +35,7 @@ export function defaultCleanupFailureSink(context: AgentCleanupFailureContext): 
  * exactly that. Same reasoning `run-lifecycle.ts`'s `handleInactivityTimeout` already applies to its
  * own `onInternalError`.
  */
-export function reportPostCloseFailure(
-  onCleanupFailure: (context: AgentCleanupFailureContext) => void,
-  context: AgentCleanupFailureContext,
+export function reportPostCloseFailure({ onCleanupFailure, context }: { onCleanupFailure: (context: AgentCleanupFailureContext) => void; context: AgentCleanupFailureContext }, _optional = {}
 ): void {
   try {
     onCleanupFailure(context);
@@ -68,12 +66,12 @@ export async function cleanupStagedFilesSafely(ctx: PostCloseGuardContext): Prom
   try {
     await ctx.cleanupStagedFiles();
   } catch (error) {
-    reportPostCloseFailure(ctx.onCleanupFailure, {
+    reportPostCloseFailure({ onCleanupFailure: ctx.onCleanupFailure, context: {
       runId: ctx.runId,
       phase: 'staged-file-cleanup',
       pid: ctx.child.pid,
       error,
-    });
+    } });
   }
 }
 
@@ -86,20 +84,17 @@ export async function cleanupStagedFilesSafely(ctx: PostCloseGuardContext): Prom
  * every run with no classifier configured at all, so an unavailable classifier degrades to the
  * documented default rather than losing the run.
  */
-export async function classifyFailureSafely(
-  ctx: PostCloseGuardContext,
-  classifyFailure: ClassifyFailure,
-  context: FailureClassificationContext,
+export async function classifyFailureSafely({ ctx, classifyFailure, context }: { ctx: PostCloseGuardContext; classifyFailure: ClassifyFailure; context: FailureClassificationContext }, _optional = {}
 ): Promise<boolean> {
   try {
     return await classifyFailure(context);
   } catch (error) {
-    reportPostCloseFailure(ctx.onCleanupFailure, {
+    reportPostCloseFailure({ onCleanupFailure: ctx.onCleanupFailure, context: {
       runId: ctx.runId,
       phase: 'failure-classification',
       pid: ctx.child.pid,
       error,
-    });
+    } });
     return false;
   }
 }
