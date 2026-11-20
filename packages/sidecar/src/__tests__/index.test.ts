@@ -38,7 +38,7 @@ import {
 // net.ts is an internal module shared by port.ts/json-ipc.ts, not re-exported from the barrel
 // (see index.ts's own module doc) — imported directly here, matching the rest of this file's
 // convention of importing everything else through the barrel.
-import { jsonIpcError, prepareIpcPath } from "../json-ipc.js";
+import { prepareIpcPath } from "../json-ipc.js";
 import { closeServer, listenOnPort } from "../net.js";
 import { allocateDynamicPort } from "../port.js";
 
@@ -583,22 +583,6 @@ describe("@jini-ai/sidecar — json-file", () => {
     } finally {
       await rm(dir, { force: true, recursive: true });
     }
-  });
-});
-
-describe("@jini-ai/sidecar — jsonIpcError (direct — its only in-tree caller always passes a codeless SyntaxError)", () => {
-  it("omits the code field for a codeless error (its real, in-tree call path)", () => {
-    expect(jsonIpcError({ error: new SyntaxError("Unexpected token") })).toEqual({ message: "Unexpected token" });
-  });
-
-  it("includes the code field for a Node-style errno error (generic, currently caller-less behavior)", () => {
-    const err = new Error("not found") as NodeJS.ErrnoException;
-    err.code = "ENOENT";
-    expect(jsonIpcError({ error: err })).toEqual({ code: "ENOENT", message: "not found" });
-  });
-
-  it("stringifies a non-Error rejection value (errorMessage's non-Error branch)", () => {
-    expect(jsonIpcError({ error: "a plain string failure" })).toEqual({ message: "a plain string failure" });
   });
 });
 

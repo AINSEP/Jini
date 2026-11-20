@@ -164,7 +164,7 @@ function isValidRegistryRecord(value: unknown): value is LocalDaemonRegistryReco
 /**
  * Read a daemon's registry record at `registryPath` and return it only if it is well-formed AND
  * its recorded `pid` is still alive — the combined "read, don't just trust" discovery primitive a
- * CLI-side `resolveDaemonUrl({}, { discover })` probe needs. A stale record from a daemon that crashed
+ * CLI-side `resolveDaemonUrl({ env }, { discover })` probe needs. A stale record from a daemon that crashed
  * (pid no longer alive), a missing file, or a malformed/foreign JSON file all resolve to `null`
  * rather than throwing — discovery failing is an expected, non-exceptional outcome (the caller
  * falls through to its own `defaultUrl`/error, per `resolveDaemonUrl`'s own contract).

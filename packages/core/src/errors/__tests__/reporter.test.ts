@@ -57,7 +57,7 @@ describe('incident', () => {
     expect(String(entries[0]!.meta!.diagnostic)).toContain('Error: disk is full');
     expect(reports).toHaveLength(1);
     expect(reports[0]!.context).toEqual({ operation: STEP, level: 'error', attributes: { errorId: ID, label: 'Error(SQLITE_FULL)' } });
-    expect(reports[0]!.error).not.toBe(original);
+    expect(reports[0]!.error).toBe(original);
   });
 
   test('the boundary may pass an ID it already minted; the ID port is then not asked', () => {
@@ -75,11 +75,14 @@ describe('incident', () => {
     expect(entries[0]!.meta!.causes).toEqual(['TypeError', 'RangeError', 'SyntaxError']);
   });
 
-  test('secret shapes and the exact secrets of the host and of the call are blanked in the record and the tracker report', () => {
+  test('the host diagnostic blanks secrets and the tracker receives the original error and call secrets', () => {
     const built = build({ redaction: { exactSecrets: ['host-standing-secret'] } });
     const error = new Error('upstream said host-standing-secret and call-scoped-secret with Authorization: Bearer abcdefghijklmnopqrstuvwxyz012345');
-    built.reporter.describe({ error, step: STEP, scope: 'members', fallback }, { audience: 'authorized', exactSecrets: ['call-scoped-secret'] });
-    const operatorText = JSON.stringify([built.entries[0]!.meta, (built.reports[0]!.error as Error).message, (built.reports[0]!.error as Error).stack]);
+    const exactSecrets = ['call-scoped-secret'];
+    built.reporter.describe({ error, step: STEP, scope: 'members', fallback }, { audience: 'authorized', exactSecrets });
+    const operatorText = String(built.entries[0]!.meta!.diagnostic);
+    expect(built.reports[0]!.error).toBe(error);
+    expect(built.reports[0]!.context.exactSecrets).toEqual(exactSecrets);
     for (const secret of ['host-standing-secret', 'call-scoped-secret', 'abcdefghijklmnopqrstuvwxyz012345']) expect(operatorText).not.toContain(secret);
     expect(operatorText).toContain('upstream said');
   });

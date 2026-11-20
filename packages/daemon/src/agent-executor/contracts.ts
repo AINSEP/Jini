@@ -315,6 +315,7 @@ export interface TerminateChildTreeDeps {
 export type AgentCleanupFailurePhase =
   | 'cancel'
   | 'acp-attach-failure'
+  | 'acp-release'
   | 'pi-rpc-attach-failure'
   | 'tool-cancellation'
   | 'staged-file-cleanup'

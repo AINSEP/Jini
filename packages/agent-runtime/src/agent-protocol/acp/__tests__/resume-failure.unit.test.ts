@@ -19,7 +19,7 @@ function createFixture(optionalArgs: Omit<AttachAcpSessionOptions, 'child' | 'pr
     resumeSessionId: 'prior-session', stageTimeoutMs: 100, ...optionalArgs,
   });
   const frame = (value: unknown) => child.stdout.write(`${JSON.stringify(value)}\n`);
-  const initialize = () => frame({ jsonrpc: '2.0', id: 1, result: {} });
+  const initialize = () => frame({ jsonrpc: '2.0', id: 1, result: { agentCapabilities: { loadSession: true } } });
   const errorPayloads = () => send.mock.calls.filter(([args]) => args.event === 'error').map(([args]) => args.payload);
   return { child, controller, frame, initialize, errorPayloads };
 }

@@ -1328,6 +1328,8 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
         permissionMode: input.permissionMode,
         cliParity: input.cliParity,
         model: input.model,
+        effort: input.reasoning,
+        resumeSessionId: input.resumeSessionId, resumesViaAcpLoad: def.resumesSessionViaAcpLoad === true,
         ...(modelCatalog ? { modelCatalog } : {}),
         imagePaths: input.imagePaths ?? [],
         envFormat: def.acpMcpEnvFormat,

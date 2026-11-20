@@ -222,6 +222,20 @@ describe('attachAcpSession', () => {
   });
 
   describe('resume flow (resumeSessionId)', () => {
+    it('fails resume when the agent does not offer session/load', () => {
+      const child = new FakeAcpChild();
+      const send = vi.fn();
+      attachWith(baseOptions(child, { send, resumeSessionId: 'prior-session' }));
+      emitResult(child, 1, {});
+      expect(writesOf(child)).toHaveLength(1);
+      expect(send.mock.calls.filter(([event]) => event.event === 'error')).toEqual([
+        [expect.objectContaining({ payload: expect.objectContaining({ error: expect.objectContaining({
+          details: { kind: 'resume_failed', sessionId: 'prior-session', cause: { reason: 'load_session_unsupported' } },
+        }) }) })],
+      ]);
+      expect(child.killed).toBe(true);
+    });
+
     it('P15: resumes with MCP servers and accepts a load response without a session id', () => {
       const child = new FakeAcpChild();
       const send = vi.fn();
@@ -264,7 +278,7 @@ describe('attachAcpSession', () => {
     it('sends session/load instead of session/new when resumeSessionId is set', () => {
       const child = new FakeAcpChild();
       (({ child, prompt, send, ...optionalArgs }: Parameters<typeof attachAcpSession>[0] & NonNullable<Parameters<typeof attachAcpSession>[1]>) => attachAcpSession({ child, prompt, send }, optionalArgs))(baseOptions(child, { resumeSessionId: 'prior-session', cwd: '/work' }));
-      emitResult(child, 1, {});
+      emitResult(child, 1, { agentCapabilities: { loadSession: true } });
       expect(writesOf(child)[1]).toEqual({
         jsonrpc: '2.0',
         id: 2,
@@ -276,20 +290,111 @@ describe('attachAcpSession', () => {
     it('captures the durable session id and exposes it via getDurableSessionId()', () => {
       const child = new FakeAcpChild();
       const controller = (({ child, prompt, send, ...optionalArgs }: Parameters<typeof attachAcpSession>[0] & NonNullable<Parameters<typeof attachAcpSession>[1]>) => attachAcpSession({ child, prompt, send }, optionalArgs))(baseOptions(child, { resumeSessionId: 'prior-session' }));
-      emitResult(child, 1, {});
+      emitResult(child, 1, { agentCapabilities: { loadSession: true } });
       emitResult(child, 2, { sessionId: 'sess-1', openCodeSessionId: 'durable-1' });
       expect(controller.getDurableSessionId()).toBe('durable-1');
     });
 
-    it('getDurableSessionId returns null when the agent reports none', () => {
+    it('getDurableSessionId falls back to the ACP sessionId', () => {
       const child = new FakeAcpChild();
       const controller = (({ child, prompt, send, ...optionalArgs }: Parameters<typeof attachAcpSession>[0] & NonNullable<Parameters<typeof attachAcpSession>[1]>) => attachAcpSession({ child, prompt, send }, optionalArgs))(baseOptions(child));
       handshakeToSessionNew(child, { sessionId: 'sess-1' });
-      expect(controller.getDurableSessionId()).toBeNull();
+      expect(controller.getDurableSessionId()).toBe('sess-1');
+    });
+  });
+
+  describe('beforeRelease', () => {
+    it('waits for the hook before closing stdin and starting the clean exit timer', async () => {
+      const child = new FakeAcpChild();
+      let release!: () => void;
+      const pending = new Promise<void>(resolve => { release = resolve; });
+      attachWith(baseOptions(child, { beforeRelease: () => pending }));
+      handshakeToSessionNew(child);
+      emitResult(child, 3, {});
+      expect(child.stdin!.ended).toBe(false);
+      release();
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(child.stdin!.ended).toBe(true);
+      expect(child.killed).toBe(false);
+      vi.advanceTimersByTime(500);
+      expect(child.killed).toBe(true);
+    });
+
+    it('waits for the hook before signalling a failed child', async () => {
+      const child = new FakeAcpChild();
+      let release!: () => void;
+      const pending = new Promise<void>(resolve => { release = resolve; });
+      attachWith(baseOptions(child, { beforeRelease: () => pending }));
+      emitResult(child, 1, {});
+      emitRpcError(child, 2, { message: 'x' });
+      expect(child.killed).toBe(false);
+      release();
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(child.killed).toBe(true);
+    });
+
+    it('releases the child even when the hook rejects', async () => {
+      const child = new FakeAcpChild();
+      attachWith(baseOptions(child, { beforeRelease: () => Promise.reject(new Error('snapshot failed')) }));
+      handshakeToSessionNew(child);
+      emitResult(child, 3, {});
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(child.stdin!.ended).toBe(true);
+      vi.advanceTimersByTime(500);
+      expect(child.killed).toBe(true);
     });
   });
 
   describe('model selection', () => {
+    it('sets an offered reasoning effort before prompting', () => {
+      const child = new FakeAcpChild();
+      attachWith(baseOptions(child, { model: 'gpt-4', effort: 'high' }));
+      emitResult(child, 1, {});
+      emitResult(child, 2, {
+        sessionId: 'sess-1', models: { currentModelId: 'gpt-4' },
+        configOptions: [{ id: 'effort', category: 'thought_level', type: 'select', options: [{ value: 'low' }, { value: 'high' }] }],
+      });
+      expect(writesOf(child)[2]).toMatchObject({ id: 3, method: 'session/set_config_option',
+        params: { sessionId: 'sess-1', configId: 'effort', value: 'high' } });
+      emitResult(child, 3, {});
+      expect(writesOf(child)[3]).toMatchObject({ id: 4, method: 'session/prompt' });
+    });
+
+    it('fails without prompting when reasoning effort is not offered', () => {
+      const child = new FakeAcpChild();
+      const send = vi.fn();
+      attachWith(baseOptions(child, { model: 'gpt-4', effort: 'high', send }));
+      emitResult(child, 1, {});
+      emitResult(child, 2, { sessionId: 'sess-1', models: { currentModelId: 'gpt-4' } });
+      const message = 'This agent does not offer the reasoning effort "high". It offers: none. Pick one of those and retry.';
+      expect(send).toHaveBeenCalledWith({ event: 'error', payload: { message,
+        error: { code: 'AGENT_EXECUTION_FAILED', message, retryable: false,
+          details: { kind: 'effort_unsupported', effort: 'high', offered: [] } },
+      } });
+      expect(writesOf(child).some(request => request.method === 'session/prompt')).toBe(false);
+    });
+
+    it('uses reasoning effort options from the model switch reply', () => {
+      const child = new FakeAcpChild();
+      attachWith(baseOptions(child, { model: 'gpt-4', effort: 'high' }));
+      emitResult(child, 1, {});
+      emitResult(child, 2, { sessionId: 'sess-1',
+        configOptions: [{ id: 'model', category: 'model', options: [] }],
+      });
+      expect(writesOf(child)[2]).toMatchObject({ id: 3, method: 'session/set_config_option',
+        params: { configId: 'model', value: 'gpt-4' } });
+      emitResult(child, 3, {
+        configOptions: [{ id: 'effort', category: 'thought_level', type: 'select', options: [{ value: 'high' }] }],
+      });
+      expect(writesOf(child)[3]).toMatchObject({ id: 4, method: 'session/set_config_option',
+        params: { sessionId: 'sess-1', configId: 'effort', value: 'high' } });
+      emitResult(child, 4, {});
+      expect(writesOf(child)[4]).toMatchObject({ id: 5, method: 'session/prompt' });
+    });
+
     it('sends session/set_model when a non-default model is requested and no configId is known', () => {
       const child = new FakeAcpChild();
       const send = vi.fn();
@@ -368,7 +473,12 @@ describe('attachAcpSession', () => {
       emitResult(child, 2, { sessionId: 'sess-1' });
       // id 3 = set_model request; respond with a recoverable error.
       emitRpcError(child, 3, { code: -32602, message: 'unknown model' });
-      expect(send).toHaveBeenCalledWith({ event: 'error', payload: { message: 'json-rpc id 3: unknown model' } });
+      expect(send).toHaveBeenCalledWith({ event: 'error', payload: {
+        message: 'This agent did not accept the model "gpt-4". Pick a model from its list and retry. (json-rpc id 3: unknown model)',
+        error: { code: 'AGENT_EXECUTION_FAILED',
+          message: 'This agent did not accept the model "gpt-4". Pick a model from its list and retry. (json-rpc id 3: unknown model)',
+          retryable: false, details: { kind: 'model_unsupported', model: 'gpt-4' } },
+      } });
       expect(writesOf(child).some((request) => request.method === 'session/prompt')).toBe(false);
     });
 
@@ -1782,16 +1892,12 @@ describe('attachAcpSession offered permission options', () => {
 });
 
 describe('attachAcpSession null-id model-selection error', () => {
-  it('treats a null-id recoverable RPC error before the prompt as a model-selection failure and sends the prompt early (reported, not fixed)', () => {
-    // setModelRequestId starts null, so a JSON-RPC error with `id: null`
-    // matches it; with no model pinned the session "recovers" by prompting
-    // even though session/new was never acknowledged.
+  it('does not treat a null-id RPC error as a model-selection reply', () => {
     const child = new FakeAcpChild();
     const send = vi.fn();
     const controller = attachWith(baseOptions(child, { send }));
     emitLine(child, { jsonrpc: '2.0', id: null, error: { code: -32602, message: 'bad params' } });
-    expect(send).toHaveBeenCalledWith({ event: 'agent', payload: { type: 'status', label: 'model', model: 'default' } });
-    expect(writesOf(child).map((request) => request.method)).toEqual(['initialize', 'session/prompt']);
-    expect(controller.hasFatalError()).toBe(false);
+    expect(writesOf(child).map((request) => request.method)).toEqual(['initialize']);
+    expect(controller.hasFatalError()).toBe(true);
   });
 });

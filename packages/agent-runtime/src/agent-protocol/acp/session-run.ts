@@ -192,7 +192,12 @@ export function failWithPayload({ run, payload }: { run: AcpRun; payload: Unknow
   run.fatal = true;
   clearStageTimer({ run });
   sendFailure(run, payload);
-  if (!run.child.killed) run.child.kill('SIGTERM');
+  releaseChild({ run, release: () => { if (!run.child.killed) run.child.kill('SIGTERM'); } });
+}
+
+function releaseChild({ run, release }: { run: AcpRun; release: () => void }): void {
+  if (!run.options.beforeRelease) release();
+  else void run.options.beforeRelease().then(release, release);
 }
 
 function buildFailurePayload({ message, options }: { message: string; options: FailOptions }): UnknownRecord {
@@ -230,7 +235,7 @@ export function failRun({ run, message }: { run: AcpRun; message: string }, opti
   sendFailure(run, useModelUnavailable
     ? amrModelUnavailablePayload(message)
     : buildFailurePayload({ message, options }));
-  if (!run.child.killed) run.child.kill('SIGTERM');
+  releaseChild({ run, release: () => { if (!run.child.killed) run.child.kill('SIGTERM'); } });
 }
 
 export function writeRpc({ run, ...rpc }: { run: AcpRun } & { id: JsonRpcId; method: string; params: unknown; timeoutLabel: string }, _optional: Record<string, never> = {}): void {
@@ -440,15 +445,17 @@ function finishCleanPrompt(run: AcpRun, { usageSource }: { usageSource?: unknown
   }
   run.finished = true;
   clearStageTimer({ run });
-  run.stdin.end();
-  // Some ACP agents keep the child process alive after stdin closes,
-  // waiting for another prompt. Each run owns one process per turn, so
-  // close it once this prompt is cleanly complete.
-  const { child } = run;
-  const cleanExitTimer = setTimeout(() => {
-    if (!child.killed) child.kill('SIGTERM');
-  }, 500);
-  child.once('close', () => clearTimeout(cleanExitTimer));
+  releaseChild({ run, release: () => {
+    run.stdin.end();
+    // Some ACP agents keep the child process alive after stdin closes,
+    // waiting for another prompt. Each run owns one process per turn, so
+    // close it once this prompt is cleanly complete.
+    const { child } = run;
+    const cleanExitTimer = setTimeout(() => {
+      if (!child.killed) child.kill('SIGTERM');
+    }, 500);
+    child.once('close', () => clearTimeout(cleanExitTimer));
+  } });
 }
 
 function recoverFromModelSelectionError(run: AcpRun): void {
@@ -479,6 +486,7 @@ export function buildAcpEffects({ run }: { run: AcpRun }, _optional: Record<stri
     modelUnavailableErrorCode: options.modelUnavailableErrorCode,
     accountFailureClassifier: resolved.accountFailureClassifier,
     model: options.model,
+    effort: options.effort,
     onSessionInit: options.onSessionInit,
     resumeSessionId: options.resumeSessionId,
     effectiveCwd: run.effectiveCwd,
@@ -580,11 +588,13 @@ function abortRun(run: AcpRun): void {
   // instead of lingering (and leaking that server) until the caller's
   // SIGTERM fallback fires. This also covers aborts during ACP startup,
   // before session/new returns. Mirrors the clean-completion path above.
-  try {
-    stdin.end();
-  } catch {
-    // Best effort; the caller still owns the SIGTERM/SIGKILL fallback.
-  }
+  releaseChild({ run, release: () => {
+    try {
+      stdin.end();
+    } catch {
+      // Best effort; the caller still owns the SIGTERM/SIGKILL fallback.
+    }
+  } });
 }
 
 /** The public handle `attachAcpSession` returns for one run. */

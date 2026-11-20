@@ -94,31 +94,6 @@ function errorCode(error: unknown): string | null {
 }
 
 /**
- * @internal Extract a human-readable message from an unknown thrown value.
- */
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
-/**
- * Shape an unknown error into the `{code?,message}` IPC error payload.
- *
- * Exported (previously module-private) for direct unit testing: its only
- * current caller (a `JSON.parse` frame-parse failure) always passes a
- * codeless `SyntaxError`, so the `code`-present branch below is real,
- * generically useful behavior (any future caller with a Node-style errno
- * error benefits from it) with no in-tree caller that happens to have one in
- * hand today — matching this repo's "extract into a directly-testable pure
- * function" convention rather than narrowing the type away.
- */
-export function jsonIpcError({ error }: { error: unknown }, _optional: Record<string, never> = {}): { code?: string; message: string } {
-  return {
-    ...(errorCode(error) == null ? {} : { code: errorCode(error) as string }),
-    message: errorMessage(error),
-  };
-}
-
-/**
  * @internal Decide whether a unix socket path is a stale (dead) endpoint safe to
  * unlink: it exists as a socket but refuses/ENOENTs on connect.
  */
@@ -321,7 +296,7 @@ export async function createJsonIpcServer({
         socket.end(
           `${JSON.stringify({
             ok: false,
-            error: jsonIpcError({ error }),
+            error: { code: "BAD_FRAME", message: "The sidecar could not read the request frame. Send one line of valid JSON." },
           })}\n`,
         );
         return;

@@ -12,6 +12,8 @@ export function createAcpSessionState(): AcpSessionState {
     nextId: 2,
     promptRequestId: null,
     setModelRequestId: null,
+    effortRequestId: null,
+    configOptions: null,
     sessionId: null,
     durableSessionId: null,
     activeModel: null,

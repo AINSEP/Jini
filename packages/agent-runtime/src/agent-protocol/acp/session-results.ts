@@ -1,8 +1,9 @@
+import { asObject } from './json.js';
 import { ACP_AUTH_REQUIRED_ERROR_CODE } from './constants.js';
 import { accountFailureDetails } from './account-failure.js';
 import type { UnknownRecord } from './types.js';
 import { rpcErrorData, rpcErrorRetryable, promotedOpenCodeSessionErrorPayload, formatUsage } from './rpc.js';
-import { findModelConfigOption, currentModelFromSessionResult, modelSelectionErrorIsRecoverable } from './models.js';
+import { findEffortConfigOption, findModelConfigOption, currentModelFromSessionResult, modelSelectionErrorIsRecoverable } from './models.js';
 import { buildAcpSessionNewParams } from './session-params.js';
 import { type AcpSessionState, type AcpSessionEffects } from './session-types.js';
 /** `typeof value === 'string' ? value : null` as a named predicate — too trivial to export on its own. */
@@ -38,6 +39,12 @@ export function handleRpcError({
     return;
   }
   if (error?.code === ACP_AUTH_REQUIRED_ERROR_CODE && /auth/i.test(rpcErr)) { failAuthRequired({ effects, rpcErr }); return; }
+  if (awaitingModelSelectionReply({ state, obj }) && effects.model && effects.model !== 'default') {
+    effects.fail(`This agent did not accept the model "${effects.model}". Pick a model from its list and retry. (${rpcErr})`, {
+      details: { kind: 'model_unsupported', model: effects.model }, retryable: false,
+    });
+    return;
+  }
   failWithRpcError({ effects, obj, rpcErr });
 }
 
@@ -45,6 +52,10 @@ function failAuthRequired({ effects, rpcErr }: { effects: AcpSessionEffects; rpc
   const message = `This agent is not signed in. Sign in to its command-line tool on this computer, then retry. (${rpcErr})`;
   effects.failWithPayload({ message, error: { code: 'AUTH_REQUIRED', message, retryable: false,
     details: accountFailureDetails({ failure: { code: 'AUTH_REQUIRED', message, action: 'sign_in' } }) } });
+}
+
+function awaitingModelSelectionReply({ state, obj }: { state: AcpSessionState; obj: UnknownRecord }): boolean {
+  return state.setModelRequestId !== null && obj.id === state.setModelRequestId && state.promptRequestId === null;
 }
 
 /** True when `obj` is a recoverable error answering our own `session/set_model`
@@ -60,8 +71,7 @@ function isRecoverableModelSelectionError({
   obj: UnknownRecord;
   error: UnknownRecord | null;
 }): boolean {
-  const awaitingSetModel = obj.id === state.setModelRequestId && state.promptRequestId === null;
-  return awaitingSetModel && modelSelectionErrorIsRecoverable({ code: error?.code }) && (!effects.model || effects.model === 'default');
+  return awaitingModelSelectionReply({ state, obj }) && modelSelectionErrorIsRecoverable({ code: error?.code }) && (!effects.model || effects.model === 'default');
 }
 
 /** Fails the run for a real RPC error, promoting a known OpenCode session error
@@ -89,7 +99,11 @@ function failWithRpcError({
 }
 
 /** Handles the `initialize` ack: sends `session/load` (resume) or `session/new` (fresh). */
-export function handleInitializeAck({ state, effects }: { state: AcpSessionState; effects: AcpSessionEffects }, _optional: Record<string, never> = {}): void {
+export function handleInitializeAck({ state, effects, result }: { state: AcpSessionState; effects: AcpSessionEffects; result: UnknownRecord }, _optional: Record<string, never> = {}): void {
+  if (effects.resumeSessionId && asObject({ value: result.agentCapabilities })?.loadSession !== true) {
+    effects.fail('This agent cannot reopen a saved conversation (it does not offer session/load); a new conversation is needed.', { details: { reason: 'load_session_unsupported' } });
+    return;
+  }
   state.expectedId = state.nextId;
   if (effects.resumeSessionId) {
     // Resume the prior upstream session instead of creating a fresh one.
@@ -151,7 +165,26 @@ function recordSessionIdentity({ state, result }: {
   // ACP load responses need not repeat the handle supplied in the request.
   state.sessionId = asOptionalString(result.sessionId) ?? resumeSessionId;
   // The durable handle for resuming this session on the next turn.
-  state.durableSessionId = asOptionalString(result.openCodeSessionId) ?? resumeSessionId;
+  state.durableSessionId = asOptionalString(result.openCodeSessionId) ?? state.sessionId;
+}
+
+function sendEffortOrPrompt({ state, effects }: { state: AcpSessionState; effects: AcpSessionEffects }): void {
+  const effort = effects.effort;
+  if (!effort) { effects.sendPrompt(); return; }
+  const option = findEffortConfigOption({ configOptions: state.configOptions });
+  const offered = option?.values ?? [];
+  if (!option || !offered.includes(effort)) {
+    effects.fail(`This agent does not offer the reasoning effort "${effort}". It offers: ${offered.join(', ') || 'none'}. Pick one of those and retry.`, {
+      details: { kind: 'effort_unsupported', effort, offered }, retryable: false,
+    });
+    return;
+  }
+  state.effortRequestId = state.nextId;
+  state.expectedId = state.nextId;
+  effects.writeRpc(state.nextId, 'session/set_config_option', {
+    sessionId: state.sessionId, configId: option.configId, value: effort,
+  }, 'session/set_config_option');
+  state.nextId += 1;
 }
 
 /** Handles the `session/new` (or `session/load`) ack: records the session id, model config, and either triggers a model switch or sends the prompt. */
@@ -174,6 +207,7 @@ export function handleSessionNewAck({
   const modelConfig = findModelConfigOption({ configOptions: result.configOptions });
   state.modelConfigId = modelConfigIdOrNull({ modelConfig });
   state.activeModel = currentModelFromSessionResult({ result });
+  state.configOptions = result.configOptions;
   if (state.sessionId && state.activeModel && (!effects.model || effects.model === state.activeModel)) {
     effects.send({ event: 'agent', payload: { type: 'status', label: 'model', model: state.activeModel } });
   }
@@ -182,7 +216,7 @@ export function handleSessionNewAck({
     effects.fail(`invalid session/new response: ${rawLine}`);
     return;
   }
-  effects.sendPrompt();
+  sendEffortOrPrompt({ state, effects });
 }
 
 function modelConfigIdOrNull({ modelConfig }: { modelConfig: ReturnType<typeof findModelConfigOption> }, _optional: Record<string, never> = {}): string | null { return modelConfig ? modelConfig.configId : null; }
@@ -254,7 +288,8 @@ export function handleModelSetAck({
   // the call), not a behavior change.
   state.activeModel = currentModelFromSessionResult({ result }) ?? (effects.model as string);
   effects.send({ event: 'agent', payload: { type: 'status', label: 'model', model: state.activeModel } });
-  effects.sendPrompt();
+  if (result.configOptions !== undefined) state.configOptions = result.configOptions;
+  sendEffortOrPrompt({ state, effects });
 }
 
 /** Top-level JSON-RPC result dispatcher, keyed by which request `expectedId`/`promptRequestId` is currently outstanding. */
@@ -273,7 +308,7 @@ export function routeResultById({
 }, _optional: Record<string, never> = {}): void {
   if (obj.id !== state.expectedId || !result) return;
   if (state.expectedId === 1) {
-    handleInitializeAck({ state, effects });
+    handleInitializeAck({ state, effects, result });
     return;
   }
   if (state.expectedId === 2) {
@@ -284,6 +319,7 @@ export function routeResultById({
     handlePromptResult({ state, effects, result });
     return;
   }
+  if (obj.id === state.effortRequestId) { effects.sendPrompt(); return; }
   if (isModelSetAckExpected({ state, effects, obj })) {
     handleModelSetAck({ state, effects, result });
   }

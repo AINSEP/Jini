@@ -563,7 +563,7 @@ describe('handleInitializeAck', () => {
   it('sends session/load with the resume session id when resuming', () => {
     const state = createAcpSessionState();
     const effects = fakeEffects({ resumeSessionId: 'sess-old', effectiveCwd: '/work' });
-    handleInitializeAck({ state, effects });
+    handleInitializeAck({ state, effects, result: { agentCapabilities: { loadSession: true } } });
     expect(effects.writeRpc).toHaveBeenCalledWith(2, 'session/load', { sessionId: 'sess-old', cwd: '/work', mcpServers: [] }, 'session/load');
     expect(state.expectedId).toBe(2);
     expect(state.nextId).toBe(3);
@@ -572,7 +572,7 @@ describe('handleInitializeAck', () => {
   it('sends session/new with mcpServers forwarded when no resume id is set', () => {
     const state = createAcpSessionState();
     const effects = fakeEffects({ mcpServers: [{ name: 'fs', command: 'x' }] as never });
-    handleInitializeAck({ state, effects });
+    handleInitializeAck({ state, effects, result: {} });
     expect(effects.writeRpc).toHaveBeenCalledWith(2, 'session/new', expect.anything(), 'session/new');
   });
 });

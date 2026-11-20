@@ -115,12 +115,12 @@ describe('createLocalDaemonDiscovery', () => {
       const discover = createLocalDaemonDiscovery({ dataDir });
 
       await expect(
-        resolveDaemonUrl({}, { discover, defaultUrl: 'http://default.example' }),
+        resolveDaemonUrl({ env: process.env }, { discover, defaultUrl: 'http://default.example' }),
       ).resolves.toBe('http://127.0.0.1:54213');
 
       // An explicit flag still wins over local discovery.
       await expect(
-        resolveDaemonUrl({}, { flagUrl: 'http://flag.example', discover, defaultUrl: 'http://default.example' }),
+        resolveDaemonUrl({ env: process.env }, { flagUrl: 'http://flag.example', discover, defaultUrl: 'http://default.example' }),
       ).resolves.toBe('http://flag.example');
     });
 
@@ -129,7 +129,7 @@ describe('createLocalDaemonDiscovery', () => {
       const discover = createLocalDaemonDiscovery({ dataDir });
 
       await expect(
-        resolveDaemonUrl({}, { discover, defaultUrl: 'http://default.example' }),
+        resolveDaemonUrl({ env: process.env }, { discover, defaultUrl: 'http://default.example' }),
       ).resolves.toBe('http://default.example');
     });
   });

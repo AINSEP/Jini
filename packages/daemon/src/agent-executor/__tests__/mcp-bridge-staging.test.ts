@@ -148,7 +148,7 @@ it('runAcpDispatch omits permissionMode from the ACP attach when its caller supp
       failBeforeSpawn: refuse, listProcessSnapshots: async () => [], collectProcessTreePids: () => [],
       stopProcesses: async () => ({ alreadyStopped: true, forcedPids: [], matchedPids: [], remainingPids: [], stoppedPids: [] }) },
   });
-  expect(Object.keys(attached[0]!).sort()).toEqual(['child', 'cwd', 'prompt', 'send']);
+  expect(Object.keys(attached[0]!).sort()).toEqual(['beforeRelease', 'child', 'cwd', 'prompt', 'send']);
   // A run succeeds only once it has produced output.
   (attached[0]!.send as (args: { event: string; payload: unknown }) => void)({ event: 'agent', payload: { type: 'text_delta', delta: 'done' } });
   child.emit('close', 0, null);

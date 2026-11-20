@@ -1,7 +1,7 @@
 import { createModelReceiptTracker } from './model-receipts.js';
 import { observeRunOutput } from './run-output.js';
 import { createRunEventQueue, receivedJournalEntry, attachMessageRelay } from './event-io.js';
-import { cleanupStagedFilesSafely, classifyFailureSafely, terminateChildTreeBestEffort } from './event-cleanup.js';
+import { cleanupStagedFilesSafely, classifyFailureSafely, terminateChildTreeBestEffort, reportPostCloseFailure } from './event-cleanup.js';
 import { translateAgentRuntimeEvent, applyAgentTranslationSideEffects, translateAcpError } from './event-translation.js';
 import { errorMessage } from './values.js';
 import type { ChildProcess } from 'node:child_process';
@@ -23,6 +23,9 @@ interface WireAcpLifecycleContext extends TerminateChildTreeDeps {
   readonly permissionMode: 'bypass' | 'restricted' | undefined;
   readonly cliParity?: boolean | undefined;
   readonly model: string | undefined;
+  readonly resumeSessionId?: string | null | undefined;
+  readonly resumesViaAcpLoad?: boolean | undefined;
+  readonly effort?: string | undefined;
   readonly modelCatalog?: ModelCatalogSnapshot;
   readonly imagePaths: readonly string[];
   readonly envFormat: 'array' | 'map' | undefined;
@@ -50,8 +53,14 @@ interface WireAcpLifecycleContext extends TerminateChildTreeDeps {
   readonly classifyFailure: ClassifyFailure | undefined;
 }
 
+function acpRepairOptions({ ctx, state }: { ctx: WireAcpLifecycleContext; state: { descendantPids: number[] } }) {
+  return { ...(ctx.resumesViaAcpLoad && ctx.resumeSessionId ? { resumeSessionId: ctx.resumeSessionId } : {}),
+    ...(ctx.effort ? { effort: ctx.effort } : {}),
+    beforeRelease: () => recordDescendants({ ctx, state }) };
+}
+
 /** Preserve ACP's distinction between absent fields and explicitly supplied empty values. */
-function acpSessionOptions({ ctx }: { ctx: WireAcpLifecycleContext }, _options = {}): Parameters<NonNullable<CreateAgentExecutorOptions['attachAcpSession']>>[1] {
+function acpSessionOptions({ ctx, state }: { ctx: WireAcpLifecycleContext; state: { descendantPids: number[] } }, _options = {}): Parameters<NonNullable<CreateAgentExecutorOptions['attachAcpSession']>>[1] {
   return {
     cwd: ctx.cwd,
     ...(ctx.cliParity ? { cliParity: true, stageTimeoutMs: 0 } : {}),
@@ -64,6 +73,7 @@ function acpSessionOptions({ ctx }: { ctx: WireAcpLifecycleContext }, _options =
     // to before this field existed.
     ...(ctx.mcpServers !== undefined && ctx.mcpServers.length > 0 ? { mcpServers: [...ctx.mcpServers] } : {}),
     ...(ctx.onPermissionRequest !== undefined ? { onPermissionRequest: ctx.onPermissionRequest } : {}),
+    ...acpRepairOptions({ ctx, state }),
   };
 }
 
@@ -82,6 +92,7 @@ function wireAcpLifecycle(ctx: WireAcpLifecycleContext): ReturnType<WireAcpLifec
   const output = observeRunOutput({ lifecycle, runId, agentName: agentId });
   const state = {
     cancelRequested: false,
+    descendantPids: [] as number[],
     // Gap 5 (session resume) — see wireChildLifecycle's identical local for the full rationale.
     capturedSessionId: undefined as string | undefined,
     // Real `FailureClassificationContext.sideEffects` signals — see that interface's own doc.
@@ -120,13 +131,13 @@ function wireAcpLifecycle(ctx: WireAcpLifecycleContext): ReturnType<WireAcpLifec
   });
 
   controller = ctx.attachAcpSession({ child, prompt: ctx.prompt,
-    send: createAcpEventSender({ ctx, state, modelReceipt, enqueueEmit }) }, acpSessionOptions({ ctx }, {}));
+    send: createAcpEventSender({ ctx, state, modelReceipt, enqueueEmit }) }, acpSessionOptions({ ctx, state }, {}));
   return controller;
 }
 
 async function finishAcpOnClose({ ctx, state, getTail, unsubscribeCancel, output, code, signal, getController }: {
   ctx: WireAcpLifecycleContext;
-  state: { cancelRequested: boolean; capturedSessionId: string | undefined; userVisibleOutputSeen: boolean; toolCallSeen: boolean };
+  state: { cancelRequested: boolean; capturedSessionId: string | undefined; userVisibleOutputSeen: boolean; toolCallSeen: boolean; descendantPids: number[] };
   getTail: ReturnType<typeof createRunEventQueue>['getTail']; unsubscribeCancel: () => void;
   output: ReturnType<typeof observeRunOutput>; code: number | null; signal: NodeJS.Signals | null;
   getController: () => ReturnType<WireAcpLifecycleContext['attachAcpSession']> | null;
@@ -134,6 +145,7 @@ async function finishAcpOnClose({ ctx, state, getTail, unsubscribeCancel, output
   const { runId, agentId, lifecycle, classifyFailure } = ctx;
   await getTail();
   unsubscribeCancel();
+  await stopRecordedDescendants({ ctx, state });
   // Guarded for the same reasons as the child-driven handler above.
   await cleanupStagedFilesSafely(ctx);
   let finalStatus: 'cancelled' | 'succeeded' | 'failed' = 'cancelled';
@@ -149,7 +161,35 @@ async function finishAcpOnClose({ ctx, state, getTail, unsubscribeCancel, output
           sideEffects: { userVisibleOutputSeen: state.userVisibleOutputSeen, toolCallSeen: state.toolCallSeen },
         })
       : false;
-  await lifecycle.finish({ runId, status, code, signal: signal ?? null, resumable }, { ...(state.capturedSessionId !== undefined ? { sessionRef: state.capturedSessionId } : {}) });
+  const sessionRef = acpSessionRef({ ctx, state, controller: getController() });
+  await lifecycle.finish({ runId, status, code, signal: signal ?? null, resumable }, { ...(sessionRef !== undefined ? { sessionRef } : {}) });
+}
+
+async function recordDescendants({ ctx, state }: { ctx: WireAcpLifecycleContext; state: { descendantPids: number[] } }): Promise<void> {
+  if (ctx.child.pid == null) return;
+  try {
+    const processes = await ctx.listProcessSnapshots();
+    state.descendantPids = ctx.collectProcessTreePids({ processes, rootPids: [ctx.child.pid] });
+  } catch (error) {
+    reportPostCloseFailure(ctx.onCleanupFailure, { runId: ctx.runId, phase: 'acp-release', pid: ctx.child.pid, error });
+  }
+}
+
+async function stopRecordedDescendants({ ctx, state }: { ctx: WireAcpLifecycleContext; state: { descendantPids: number[] } }): Promise<void> {
+  if (state.descendantPids.length === 0) return;
+  try {
+    await ctx.stopProcesses({ pids: state.descendantPids });
+  } catch (error) {
+    reportPostCloseFailure(ctx.onCleanupFailure, { runId: ctx.runId, phase: 'acp-release', pid: ctx.child.pid, error });
+  }
+}
+
+function acpSessionRef({ ctx, state, controller }: {
+  ctx: WireAcpLifecycleContext;
+  state: { capturedSessionId: string | undefined };
+  controller: ReturnType<WireAcpLifecycleContext['attachAcpSession']> | null;
+}) {
+  return state.capturedSessionId ?? (ctx.resumesViaAcpLoad ? controller?.getDurableSessionId() ?? undefined : undefined);
 }
 
 function createAcpEventSender({ ctx, state, modelReceipt, enqueueEmit }: {
@@ -192,6 +232,9 @@ interface RunAcpDispatchInput {
   readonly permissionMode: 'bypass' | 'restricted' | undefined;
   readonly cliParity?: boolean | undefined;
   readonly model: string | undefined;
+  readonly resumeSessionId?: string | null | undefined;
+  readonly resumesViaAcpLoad?: boolean | undefined;
+  readonly effort?: string | undefined;
   readonly modelCatalog?: ModelCatalogSnapshot;
   readonly imagePaths: readonly string[];
   readonly envFormat: 'array' | 'map' | undefined;
@@ -225,6 +268,7 @@ export async function runAcpDispatch({ input, deps }: { readonly input: RunAcpDi
       permissionMode: input.permissionMode,
       cliParity: input.cliParity,
       model: input.model,
+      resumeSessionId: input.resumeSessionId, resumesViaAcpLoad: input.resumesViaAcpLoad, effort: input.effort,
       ...(input.modelCatalog ? { modelCatalog: input.modelCatalog } : {}),
       imagePaths: input.imagePaths,
       envFormat: input.envFormat,
