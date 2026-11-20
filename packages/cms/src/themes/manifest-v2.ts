@@ -263,7 +263,7 @@ export function validateManifestV2(
   issues.push(...checkFontStylesheets({ value: raw.fontStylesheets }));
   // The runtime parser owns this contract too: schema acceptance must never hide loader rejection.
   try {
-    parseTemplateFor({ onInvalid: rejectTemplateFor, value: raw.templateFor, templates: Array.isArray(raw.templates) ? raw.templates.map(String) : undefined });
+    parseTemplateFor({ onInvalid: rejectTemplateFor, value: raw.templateFor, ...(Array.isArray(raw.templates) ? { templates: raw.templates.map(String) } : {}) });
   } catch (error) {
     issues.push({ ruleId: "v2-template-for", message: (error as Error).message });
   }

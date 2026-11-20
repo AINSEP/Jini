@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 
+import type { DomainEvent } from "@jini-ai/core/contracts/events";
 import type { FormDefinitionRecord, FormSubmissionRecord } from "../../types.js";
 import { importRemoteFormSubmissions, type ImportRemoteSubmissionsDeps, type RemoteSubmissionInput } from "../import-remote-submissions.js";
 
@@ -15,7 +16,7 @@ const disabled: FormDefinitionRecord = { ...waitlist, id: "f2", slug: "old", sta
 
 function setup({ failCreateOn, definitions = [waitlist, disabled] }: { failCreateOn?: string; definitions?: FormDefinitionRecord[] } = {}) {
   const rows: FormSubmissionRecord[] = [];
-  const events: { name: string; aggregateId: string; payload: unknown }[] = [];
+  const events: DomainEvent[] = [];
   const receipts = new Map<string, string>();
   const lookups: string[] = [];
   let ids = 0;
