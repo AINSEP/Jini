@@ -122,7 +122,7 @@ function MemoryConnectorPicker({ selected, useTHook = useT }: { selected: boolea
   const t = useTHook();
   return (
     <span className={`memory-connector-picker${selected ? ' is-selected' : ''}`}>
-      <span className="memory-connector-picker-box" aria-hidden="true">
+      <span className="jini-memory-connector-picker-box" aria-hidden="true">
         {selected ? <Icon name="check" size={12} /> : null}
       </span>
       <span>{selected ? t('Selected') : t('Select')}</span>
@@ -152,7 +152,7 @@ function MemoryConnectorRow({
       data-memory-connector-id={connector.id}
     >
       <input
-        className="memory-connector-input"
+        className="jini-memory-connector-input"
         type="checkbox"
         checked={selected}
         disabled={!connected}
@@ -161,11 +161,11 @@ function MemoryConnectorRow({
       />
       <span className={`memory-connector-brand${selected ? ' is-selected' : ''}`}>
         <ConnectorLogo connectorId={connector.id} connectorName={connector.name} logoUrl={connector.logoUrl} size="sm" />
-        <span className="memory-connector-selected-mark" aria-hidden="true">
+        <span className="jini-memory-connector-selected-mark" aria-hidden="true">
           {selected ? <Icon name="check" size={13} /> : null}
         </span>
       </span>
-      <span className="memory-connector-copy">
+      <span className="jini-memory-connector-copy">
         <strong>{connector.name}</strong>
         <small>{connectorHint({ connector, state, t })}</small>
       </span>
@@ -191,8 +191,8 @@ function MemoryConnectedSummary({
 }) {
   const t = useTHook();
   return (
-    <div className="memory-source-summary memory-connected-summary">
-      <span className="memory-block-icon">
+    <div className="jini-memory-source-summary jini-memory-connected-summary">
+      <span className="jini-memory-block-icon">
         <Icon name="link" size={15} />
       </span>
       <div>
@@ -230,7 +230,7 @@ function MemoryConnectorRunBar({
 }) {
   const t = useTHook();
   return (
-    <div className="memory-connector-actions memory-connector-runbar">
+    <div className="memory-connector-actions jini-memory-connector-runbar">
       <span className="hint">
         {t('Selected')} {selectedCount} {t('of')} {connectedCount} {t('connected')}{' '}
         {connectedCount === 1 ? t('app') : t('apps')}.
@@ -259,21 +259,21 @@ function MemoryConnectorDiagnostics({
 }) {
   const t = useTHook();
   return (
-    <div className="memory-connector-diagnostics" aria-label={t('Connected app read status')}>
-      <div className="memory-connector-diagnostics-head">
+    <div className="jini-memory-connector-diagnostics" aria-label={t('Connected app read status')}>
+      <div className="jini-memory-connector-diagnostics-head">
         <strong>{t('Last scan')}</strong>
         <span>
           {formatConnectorContextBytes({ bytes: connectorContextBytes })} {t('read')}
         </span>
       </div>
-      <div className="memory-connector-diagnostics-list">
+      <div className="jini-memory-connector-diagnostics-list">
         {connectorAttempts.map((attempt) => (
           <div
             key={`${attempt.connectorId}-${attempt.status}-${attempt.toolName ?? 'none'}`}
             className={`memory-connector-diagnostic-row is-${attempt.status}`}
           >
-            <span className="memory-connector-diagnostic-dot" aria-hidden="true" />
-            <span className="memory-connector-diagnostic-copy">
+            <span className="jini-memory-connector-diagnostic-dot" aria-hidden="true" />
+            <span className="jini-memory-connector-diagnostic-copy">
               <strong>{connectorAttemptTitle(attempt)}</strong>
               <small>{connectorAttemptDetail(attempt)}</small>
             </span>
@@ -299,12 +299,12 @@ function MemoryScanHistory({
 }) {
   const t = useTHook();
   return (
-    <details className="memory-scan-history">
+    <details className="jini-memory-scan-history">
       <summary>
         <span>{t('Recent scans')}</span>
         <span>{connectorExtractions.length}</span>
       </summary>
-      <div className="memory-connector-run-history" aria-label={t('Connected app memory run status')}>
+      <div className="jini-memory-connector-run-history" aria-label={t('Connected app memory run status')}>
         {connectorExtractions.slice(0, 4).map((record) => (
           <MemoryExtractionCard key={record.id} record={record} nowClock={nowClock} onOpenPreview={onOpenPreview} onDelete={onDeleteExtraction} />
         ))}
@@ -354,7 +354,7 @@ export interface MemoryConnectedPanelProps {
 function MemoryConnectorPickerHead({ selectedCount, useTHook = useT }: { selectedCount: number; useTHook?: typeof useT; }) {
   const t = useTHook();
   return (
-    <div className="memory-connector-picker-head">
+    <div className="jini-memory-connector-picker-head">
       <div>
         <h4>{t('Choose sources')}</h4>
         <p className="hint">{t('Select connected apps first. Only the apps you choose are scanned.')}</p>
@@ -380,14 +380,14 @@ function MemoryConnectorWorkbench({ useTHook = useT, ...props }: MemoryConnected
     connectorIdsWithDetails,
   };
   return (
-    <div className="memory-connector-workbench">
+    <div className="jini-memory-connector-workbench">
       {props.connectorLoadError ? (
-        <div role="alert" className="memory-connector-result is-error">
+        <div role="alert" className="jini-memory-connector-result is-error">
           {props.connectorLoadError}
         </div>
       ) : null}
       <MemoryConnectorPickerHead selectedCount={selectedConnectedConnectorIds.length} />
-      <div className="memory-connector-list" aria-label={t('Connected memory apps')}>
+      <div className="jini-memory-connector-list" aria-label={t('Connected memory apps')}>
         {props.memoryConnectors.map((connector) => (
           <MemoryConnectorRow
             key={connector.id}
@@ -416,12 +416,12 @@ function MemoryConnectorFeedback(props: MemoryConnectedPanelProps) {
   return (
     <>
       {connectorStatus ? (
-        <div role="status" className="memory-connector-result is-success">
+        <div role="status" className="jini-memory-connector-result jini-is-success">
           {connectorStatus}
         </div>
       ) : null}
       {connectorError ? (
-        <div role="alert" className="memory-connector-result is-error">
+        <div role="alert" className="jini-memory-connector-result is-error">
           {connectorError}
         </div>
       ) : null}
@@ -443,7 +443,7 @@ function MemoryConnectorFeedback(props: MemoryConnectedPanelProps) {
 export function MemoryConnectedPanel(props: MemoryConnectedPanelProps) {
   const { connectorSuggestions } = props;
   return (
-    <div className="memory-tab-panel memory-connected-panel">
+    <div className="jini-memory-tab-panel jini-memory-connected-panel">
       <MemoryConnectedSummary
         connectorsLoading={props.connectorsLoading}
         connectedCount={props.connectedCount}

@@ -23,17 +23,17 @@ export function SelectionActionBar({
   const count = selectedIds.length;
 
   return (
-    <div className="asset-grid-selection-bar">
-      <span className="asset-grid-selection-count">{t('{count} selected', { count })}</span>
-      <button type="button" className="asset-grid-selection-link" onClick={onSelectAll}>
+    <div className="jini-asset-grid-selection-bar">
+      <span className="jini-asset-grid-selection-count">{t('{count} selected', { count })}</span>
+      <button type="button" className="jini-asset-grid-selection-link" onClick={onSelectAll}>
         {t('Select all')}
       </button>
-      <button type="button" className="asset-grid-selection-link" onClick={onClear}>
+      <button type="button" className="jini-asset-grid-selection-link" onClick={onClear}>
         {t('Clear')}
       </button>
-      <span className="asset-grid-selection-spacer" />
+      <span className="jini-asset-grid-selection-spacer" />
       {renderBulkActions ? renderBulkActions(selectedIds) : null}
-      <button type="button" className="asset-grid-selection-delete" onClick={onRequestDelete}>
+      <button type="button" className="jini-asset-grid-selection-delete" onClick={onRequestDelete}>
         {t('Delete {count}', { count })}
       </button>
     </div>

@@ -16,23 +16,23 @@ export function AssetTreeBreadcrumbs({ currentDir, rootLabel, onNavigate, useTHo
   const atRoot = currentDir === '';
 
   return (
-    <nav className="asset-tree-breadcrumbs" aria-label={t('Breadcrumbs')}>
+    <nav className="jini-asset-tree-breadcrumbs" aria-label={t('Breadcrumbs')}>
       {atRoot ? (
-        <span className="asset-tree-breadcrumb-current">{rootLabel}</span>
+        <span className="jini-asset-tree-breadcrumb-current">{rootLabel}</span>
       ) : (
-        <button type="button" className="asset-tree-breadcrumb-btn" onClick={() => onNavigate('')}>
+        <button type="button" className="jini-asset-tree-breadcrumb-btn" onClick={() => onNavigate('')}>
           {rootLabel}
         </button>
       )}
       {segments.map((segment) => (
-        <span key={segment.path} className="asset-tree-breadcrumb-segment">
-          <span className="asset-tree-breadcrumb-sep" aria-hidden>
+        <span key={segment.path} className="jini-asset-tree-breadcrumb-segment">
+          <span className="jini-asset-tree-breadcrumb-sep" aria-hidden>
             /
           </span>
           {segment.isLast ? (
-            <span className="asset-tree-breadcrumb-current">{segment.label}</span>
+            <span className="jini-asset-tree-breadcrumb-current">{segment.label}</span>
           ) : (
-            <button type="button" className="asset-tree-breadcrumb-btn" onClick={() => onNavigate(segment.path)}>
+            <button type="button" className="jini-asset-tree-breadcrumb-btn" onClick={() => onNavigate(segment.path)}>
               {segment.label}
             </button>
           )}

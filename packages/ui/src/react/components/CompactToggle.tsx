@@ -38,8 +38,8 @@ export function CompactToggle({
       disabled={disabled}
       title={hint}
     >
-      <span className="compact-toggle-label">{label}</span>
-      <span className="compact-toggle-switch" aria-hidden />
+      <span className="jini-compact-toggle-label">{label}</span>
+      <span className="jini-compact-toggle-switch" aria-hidden />
     </button>
   );
 }

@@ -73,7 +73,7 @@ it('beforeMain renders between the sidebar and the backdrop', () => {
 it('assistantAside renders in place of the built-in aside, and wins when both are supplied', () => {
   const { container } = mount({ assistantAside: <aside data-testid="host-aside">Host dock</aside>, assistant: { content: <p>Pane</p>, label: 'Assistant', open: true } });
   expect(screen.getByTestId('host-aside')).toBeInTheDocument();
-  expect(container.querySelector('.admin-assistant-pane')).toBeNull();
+  expect(container.querySelector('.jini-admin-assistant-pane')).toBeNull();
   expect(screen.queryByText('Pane')).toBeNull();
   const root = container.firstElementChild!;
   expect(root.children[root.children.length - 1]).toBe(screen.getByTestId('host-aside'));

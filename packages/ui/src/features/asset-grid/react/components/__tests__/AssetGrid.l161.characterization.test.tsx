@@ -36,7 +36,7 @@ describe('AssetGrid L161 characterization', () => {
     expect(screen.queryByText('No assets yet.') !== null).toBe(emptyState == null);
     expect(screen.queryByText('Custom empty') !== null).toBe(emptyState === 'Custom empty');
     if (emptyState === 0) expect(container.querySelector('.asset-grid-root')).toHaveTextContent('0');
-    expect(container.querySelector('.asset-grid-grid')).toBeNull();
+    expect(container.querySelector('.jini-asset-grid-grid')).toBeNull();
   });
 
   it('keeps loaded cards visible during a refresh', async () => {
@@ -53,19 +53,19 @@ describe('AssetGrid L161 characterization', () => {
   it('defaults to grid mode and retains a user-selected mode across rerenders', async () => {
     const result = grid({});
     await screen.findByRole('button', { name: 'One' });
-    expect(result.container.querySelector('.asset-grid-grid')).not.toBeNull();
+    expect(result.container.querySelector('.jini-asset-grid-grid')).not.toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Timeline' }));
-    expect(result.container.querySelector('.asset-grid-timeline')).not.toBeNull();
+    expect(result.container.querySelector('.jini-asset-grid-timeline')).not.toBeNull();
     result.rerender(<AssetGrid selectors={selectors} renderThumbnail={() => null} initialViewMode="grid"
       dependencies={createFakeAssetGridDependencies({ assets })} />);
-    expect(result.container.querySelector('.asset-grid-timeline')).not.toBeNull();
+    expect(result.container.querySelector('.jini-asset-grid-timeline')).not.toBeNull();
   });
 
   it('accepts an explicit initial timeline mode and day-key selector', async () => {
     const getDayKey = vi.fn(() => 'custom-day');
     const { container } = grid({ initialViewMode: 'timeline', selectors: { ...selectors, getDayKey } });
     await screen.findByRole('button', { name: 'One' });
-    expect(container.querySelector('.asset-grid-timeline')).not.toBeNull();
+    expect(container.querySelector('.jini-asset-grid-timeline')).not.toBeNull();
     expect(screen.getByRole('heading', { name: 'custom-day' })).toBeInTheDocument();
     expect(getDayKey).toHaveBeenCalledWith(assets[0]);
   });

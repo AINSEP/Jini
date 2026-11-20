@@ -167,7 +167,7 @@ describe('MemoryList', () => {
 
   it('publishes the toolbar sub-handles under the agentHandle base', () => {
     const { container } = renderList({ agentHandle: 'mem', visibleExtractions: [record()], unifiedMemoryCount: 2 });
-    const handles = [...container.querySelectorAll('.library-toolbar [data-agent-element]')].map((el) => el.getAttribute('data-agent-element'));
+    const handles = [...container.querySelectorAll('.jini-library-toolbar [data-agent-element]')].map((el) => el.getAttribute('data-agent-element'));
     expect(handles).toEqual(['mem-filter-all', 'mem-filter-feedback', 'mem-clear-extractions', 'mem-refresh-extractions']);
   });
 
@@ -191,7 +191,7 @@ describe('MemoryList', () => {
       visibleExtractions: [record()],
       unifiedMemoryCount: 2,
     });
-    const counts = [...container.querySelectorAll('.filter-pill-count')].map((el) => el.textContent);
+    const counts = [...container.querySelectorAll('.jini-filter-pill-count')].map((el) => el.textContent);
     expect(counts).toEqual(['3', '1', '1']);
     expect(container.querySelector('.filter-pill.active')?.textContent).toBe('All3');
   });
@@ -203,10 +203,10 @@ describe('MemoryList', () => {
 
   it('spins the refresh icon only while refreshing', () => {
     const idle = renderList({ visibleExtractions: [record()], unifiedMemoryCount: 2 });
-    expect(idle.container.querySelector('.memory-refresh-extractions .icon-spin')).toBeNull();
+    expect(idle.container.querySelector('.jini-memory-refresh-extractions .icon-spin')).toBeNull();
     idle.unmount();
     const busy = renderList({ visibleExtractions: [record()], unifiedMemoryCount: 2, isRefreshing: true });
-    expect(busy.container.querySelector('.memory-refresh-extractions .icon-spin')).not.toBeNull();
+    expect(busy.container.querySelector('.jini-memory-refresh-extractions .icon-spin')).not.toBeNull();
   });
 
   it('routes an extraction row delete to onDeleteExtraction with its id', async () => {

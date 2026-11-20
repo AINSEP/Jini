@@ -1,7 +1,7 @@
 /**
  * @file Product analytics: how PEOPLE USE THE PRODUCT (an owner started an assistant chat, a tool
  * call succeeded), as opposed to this package's root entry, which is VISITOR analytics for the sites
- * a product serves (cookie-less pageview hits, salted visitor hashes, ADR-035).
+ * a product serves (cookie-less pageview hits, salted visitor hashes).
  *
  * A new, small contract rather than an extension of the hit-ingest one (decided 2026-10-25): the
  * subject differs (an identified, pseudonymous product user vs an anonymous site visitor), so does

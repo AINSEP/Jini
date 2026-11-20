@@ -7,5 +7,5 @@ export interface JsonPanelProps {
  *  `value` is nullish. Trivial, zero-dependency — ported verbatim. */
 export function JsonPanel({ value, emptyLabel }: JsonPanelProps) {
   if (value == null) return <div className="viewer-empty">{emptyLabel}</div>;
-  return <pre className="viewer-source">{JSON.stringify(value, null, 2)}</pre>;
+  return <pre className="jini-viewer-source">{JSON.stringify(value, null, 2)}</pre>;
 }

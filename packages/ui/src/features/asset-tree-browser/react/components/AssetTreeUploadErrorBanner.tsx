@@ -12,7 +12,7 @@ export function AssetTreeUploadErrorBanner({ message, onDismiss, useTHook = useT
   const t = useTHook();
 
   return (
-    <div className="asset-tree-upload-banner" data-testid="asset-tree-upload-error-banner">
+    <div className="jini-asset-tree-upload-banner" data-testid="asset-tree-upload-error-banner">
       <span>{message}</span>
       {onDismiss ? (
         <button type="button" data-testid="asset-tree-upload-error-dismiss" onClick={onDismiss}>

@@ -40,9 +40,9 @@ export interface SourceConfigTestControlProps {
 export function SourceConfigTestControl({ running, result, disabled = false, agentHandle, onTest, useTHook = useT }: SourceConfigTestControlProps) {
   const t = useTHook();
   return (
-    <div className="source-config-test-control">
+    <div className="jini-source-config-test-control">
       <div
-        className="source-config-test-control-status"
+        className="jini-source-config-test-control-status"
         {...sourceConfigAgentProps({ base: agentHandle,
           role: 'status',
           label: t('Connection test result'),
@@ -53,7 +53,7 @@ export function SourceConfigTestControl({ running, result, disabled = false, age
       </div>
       <button
         type="button"
-        className="source-config-test-button"
+        className="jini-source-config-test-button"
         {...sourceConfigAgentProps({ base: agentHandle, role: 'button', label: t('Test connection') })}
         onClick={onTest}
         disabled={disabled || running}
@@ -71,7 +71,7 @@ function TestStatusMessage({ running, result, useTHook = useT }: { running: bool
   const t = useTHook();
   if (running) {
     return (
-      <span className="source-config-test-status is-running" role="status" aria-live="polite">
+      <span className="jini-source-config-test-status is-running" role="status" aria-live="polite">
         {t('Testing…')}
       </span>
     );
@@ -79,7 +79,7 @@ function TestStatusMessage({ running, result, useTHook = useT }: { running: bool
   if (!result) return null;
   return (
     <span
-      className={result.ok ? 'source-config-test-status is-success' : 'source-config-test-status is-error'}
+      className={result.ok ? 'jini-source-config-test-status jini-is-success' : 'jini-source-config-test-status is-error'}
       role={result.ok ? 'status' : 'alert'}
     >
       {result.message ?? (result.ok ? t('Connection ok.') : t('Connection failed.'))}

@@ -35,12 +35,12 @@ function AssetCardBadges({ sourceLabel, kindLabel }: Pick<AssetCardProps<AssetGr
   return (
     <>
       {sourceLabel ? (
-        <span className="asset-grid-card-badge" data-badge="source">
+        <span className="jini-asset-grid-card-badge" data-badge="source">
           {sourceLabel}
         </span>
       ) : null}
       {kindLabel ? (
-        <span className="asset-grid-card-badge" data-badge="kind">
+        <span className="jini-asset-grid-card-badge" data-badge="kind">
           {kindLabel}
         </span>
       ) : null}
@@ -56,10 +56,10 @@ function renderCardActions<TAsset extends AssetGridItem>(
 ) {
   if (!renderCardExtra && !onDeleteAsset) return null;
   return (
-    <div className="asset-grid-card-actions">
+    <div className="jini-asset-grid-card-actions">
       {renderCardExtra ? renderCardExtra(asset) : <span />}
       {onDeleteAsset ? (
-        <button type="button" className="asset-grid-card-delete-btn" onClick={() => onDeleteAsset(asset.id)}>
+        <button type="button" className="jini-asset-grid-card-delete-btn" onClick={() => onDeleteAsset(asset.id)}>
           {t('Remove')}
         </button>
       ) : null}

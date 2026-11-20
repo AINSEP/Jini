@@ -176,7 +176,7 @@ describe('MarkdownSplitPane', () => {
     const modeGroup = screen.getByLabelText('Mode X');
     expect(modeGroup.textContent).toBe('SrcBothView');
     expect(screen.getByRole('textbox', { name: 'Editor X' })).toBeInTheDocument();
-    expect(screen.getByLabelText('Preview X')).toHaveClass('markdown-preview-pane');
+    expect(screen.getByLabelText('Preview X')).toHaveClass('jini-markdown-preview-pane');
   });
 
   it('renders the translator supplied through useTHook', () => {

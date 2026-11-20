@@ -79,7 +79,7 @@ describe('MemoryAdvancedModal', () => {
 
   it('closes when the backdrop (but not the dialog) is clicked', () => {
     const { onClose, host } = renderModal();
-    const backdrop = host.querySelector('.memory-action-modal-backdrop') as HTMLElement;
+    const backdrop = host.querySelector('.jini-memory-action-modal-backdrop') as HTMLElement;
     // Clicking the dialog itself must NOT close (stopPropagation / target guard).
     const dialog = host.querySelector('[role="dialog"]') as HTMLElement;
     dialog.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));

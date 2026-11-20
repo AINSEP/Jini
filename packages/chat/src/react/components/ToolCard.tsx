@@ -186,9 +186,9 @@ function ToolRowHead({ name, input, result, runStreaming, runSucceeded, useTHook
   return (
     <>
       <ResultBadge result={result} runStreaming={runStreaming} runSucceeded={runSucceeded} />
-      <span className="op-sr-prefix">{prefix}</span>
+      <span className="jini-op-sr-prefix">{prefix}</span>
       <span className={`op-title${isRunning ? RUNNING_TITLE_CLASS : ''}`} title={toolName}>{toolName}</span>
-      {summary ? <span className="op-meta op-target" title={summary}>{summary}</span> : null}
+      {summary ? <span className="jini-op-meta jini-op-target" title={summary}>{summary}</span> : null}
     </>
   );
 }
@@ -212,7 +212,7 @@ function DelegatedToolCard({ name, input, result, runStreaming, runSucceeded }: 
   const args = isDelegatedWrapperToolName({ name: name }) ? wrapper.input : input;
   return (
     <ExpandableCard
-      className="op-jini-tool"
+      className="jini-op-jini-tool"
       call={{ input: args ?? {}, result: result, runStreaming: runStreaming, runSucceeded: runSucceeded }}
       head={<ToolRowHead name={toolId} input={args} result={result} runStreaming={runStreaming} runSucceeded={runSucceeded} />}
       after={<FileErrorDetail result={result} />}
@@ -247,14 +247,14 @@ function SearchToolsCard({ input, result, runStreaming, runSucceeded, useTHook =
   const t = useTHook();
   const obj = (input ?? {}) as { query?: string; limit?: number };
   const call = { input, result, runStreaming, runSucceeded };
-  return <FamilyCard call={call} className="op-jini-tool" shimmer title={t('Search tools')} meta={obj.query ? <span className="op-meta">{obj.query}</span> : null} after={<FileErrorDetail result={result} />} />;
+  return <FamilyCard call={call} className="jini-op-jini-tool" shimmer title={t('Search tools')} meta={obj.query ? <span className="jini-op-meta">{obj.query}</span> : null} after={<FileErrorDetail result={result} />} />;
 }
 
 function DescribeToolCard({ input, result, runStreaming, runSucceeded, useTHook = useT }: CardProps & { useTHook?: typeof useT }) {
   const t = useTHook();
   const obj = (input ?? {}) as { id?: string };
   const call = { input, result, runStreaming, runSucceeded };
-  return <FamilyCard call={call} className="op-jini-tool" shimmer title={t('Describe tool')} meta={obj.id ? <span className="op-meta">{obj.id}</span> : null} after={<FileErrorDetail result={result} />} />;
+  return <FamilyCard call={call} className="jini-op-jini-tool" shimmer title={t('Describe tool')} meta={obj.id ? <span className="jini-op-meta">{obj.id}</span> : null} after={<FileErrorDetail result={result} />} />;
 }
 
 interface FileToolCtx {
@@ -273,7 +273,7 @@ function OpenInTabButton({ filePath, ctx, useTHook = useT }: { filePath: string;
   if (ctx.projectFileNames && !ctx.projectFileNames.has(baseName)) return null;
   const open = ctx.onRequestOpenFile;
   return (
-    <button type="button" className="op-open" onClick={() => open(baseName)} title={t('Open {name} in a tab', { name: baseName })}>
+    <button type="button" className="jini-op-open" onClick={() => open(baseName)} title={t('Open {name} in a tab', { name: baseName })}>
       {t('Open')}
     </button>
   );
@@ -295,12 +295,12 @@ function FileWriteCard({ input, result, runStreaming, runSucceeded, ctx, useTHoo
   const lines = typeof obj.content === 'string' ? obj.content.split('\n').length : null;
   const call = { input, result, runStreaming, runSucceeded };
   return (
-    <FamilyCard call={call} className="op-file" shimmer title={t('Write')} meta={<span className="op-meta">
+    <FamilyCard call={call} className="jini-op-file" shimmer title={t('Write')} meta={<span className="jini-op-meta">
       {baseName}
       {lines !== null ? ` · ${t('{n} lines', { n: lines })}` : ''}
     </span>} after={<FileErrorDetail result={result} />}>
-      <div className="op-card-detail op-card-file-detail">
-        <code className="op-path">{file}</code>
+      <div className="jini-op-card-detail jini-op-card-file-detail">
+        <code className="jini-op-path">{file}</code>
         <OpenInTabButton filePath={file} ctx={ctx} />
       </div>
     </FamilyCard>
@@ -316,11 +316,11 @@ function FileEditCard({ input, result, runStreaming, runSucceeded, ctx, useTHook
   const editCount = Array.isArray(obj.edits) ? obj.edits.length : 1;
   const call = { input, result, runStreaming, runSucceeded };
   return (
-    <FamilyCard call={call} className="op-file" shimmer title={t('Edit')} meta={<span className="op-meta">
+    <FamilyCard call={call} className="jini-op-file" shimmer title={t('Edit')} meta={<span className="jini-op-meta">
       {baseName} · {editCount} {editCount === 1 ? t('change') : t('changes')}
     </span>} after={<FileErrorDetail result={result} />}>
-      <div className="op-card-detail op-card-file-detail">
-        <code className="op-path">{file}</code>
+      <div className="jini-op-card-detail jini-op-card-file-detail">
+        <code className="jini-op-path">{file}</code>
         <OpenInTabButton filePath={file} ctx={ctx} />
       </div>
     </FamilyCard>
@@ -335,9 +335,9 @@ function FileReadCard({ input, result, runStreaming, runSucceeded, ctx, useTHook
   const baseName = targetAtOffset({ target: file.split('/').pop()!, offset: obj.offset });
   const call = { input, result, runStreaming, runSucceeded };
   return (
-    <FamilyCard call={call} className="op-file" shimmer title={t('Read')} meta={<span className="op-meta">{baseName}</span>} after={<FileErrorDetail result={result} />}>
-      <div className="op-card-detail op-card-file-detail">
-        <code className="op-path">{file}</code>
+    <FamilyCard call={call} className="jini-op-file" shimmer title={t('Read')} meta={<span className="jini-op-meta">{baseName}</span>} after={<FileErrorDetail result={result} />}>
+      <div className="jini-op-card-detail jini-op-card-file-detail">
+        <code className="jini-op-path">{file}</code>
         <OpenInTabButton filePath={file} ctx={ctx} />
       </div>
     </FamilyCard>
@@ -350,14 +350,14 @@ function BashCard({ input, result, runStreaming, runSucceeded, useTHook = useT }
   const command = obj.command ?? '';
   const desc = obj.description;
   const call = { input, result, runStreaming, runSucceeded };
-  return <FamilyCard call={call} className="op-bash" shimmer title={t('Bash')} meta={desc ? <span className="op-meta op-desc">{desc}</span> : null} detailInput={command} />;
+  return <FamilyCard call={call} className="jini-op-bash" shimmer title={t('Bash')} meta={desc ? <span className="jini-op-meta jini-op-desc">{desc}</span> : null} detailInput={command} />;
 }
 
 function GlobCard({ input, result, runStreaming, runSucceeded, useTHook = useT }: CardProps & { useTHook?: typeof useT }) {
   const t = useTHook();
   const obj = (input ?? {}) as { pattern?: string; path?: string };
   const call = { input, result, runStreaming, runSucceeded };
-  return <FamilyCard call={call} className="op-search" title={t('Search files')} meta={<span className="op-meta">
+  return <FamilyCard call={call} className="jini-op-search" title={t('Search files')} meta={<span className="jini-op-meta">
     {obj.pattern ?? '*'}
     {obj.path ? ` in ${obj.path}` : ''}
   </span>} />;
@@ -367,7 +367,7 @@ function GrepCard({ input, result, runStreaming, runSucceeded, useTHook = useT }
   const t = useTHook();
   const obj = (input ?? {}) as { pattern?: string; path?: string };
   const call = { input, result, runStreaming, runSucceeded };
-  return <FamilyCard call={call} className="op-search" title={t('Search content')} meta={<span className="op-meta">
+  return <FamilyCard call={call} className="jini-op-search" title={t('Search content')} meta={<span className="jini-op-meta">
     {obj.pattern ?? ''}
     {obj.path ? ` in ${obj.path}` : ''}
   </span>} />;
@@ -377,21 +377,21 @@ function WebFetchCard({ input, result, runStreaming, runSucceeded, useTHook = us
   const t = useTHook();
   const obj = (input ?? {}) as { url?: string };
   const call = { input, result, runStreaming, runSucceeded };
-  return <FamilyCard call={call} className="op-web" title={t('Fetch')} meta={<span className="op-meta">{obj.url ?? ''}</span>} />;
+  return <FamilyCard call={call} className="jini-op-web" title={t('Fetch')} meta={<span className="jini-op-meta">{obj.url ?? ''}</span>} />;
 }
 
 function WebSearchCard({ input, result, runStreaming, runSucceeded, useTHook = useT }: CardProps & { useTHook?: typeof useT }) {
   const t = useTHook();
   const obj = (input ?? {}) as { query?: string };
   const call = { input, result, runStreaming, runSucceeded };
-  return <FamilyCard call={call} className="op-web" title={t('Search')} meta={<span className="op-meta">{obj.query ?? ''}</span>} />;
+  return <FamilyCard call={call} className="jini-op-web" title={t('Search')} meta={<span className="jini-op-meta">{obj.query ?? ''}</span>} />;
 }
 
 /** Any tool this package has no family card for — an MCP tool, or a card tool such as `assistant_ask_choice` whose form renders elsewhere in the turn. The row still opens to the full call. */
 function GenericCard({ name, input, result, runStreaming, runSucceeded }: CardProps & { name: string }) {
   return (
     <ExpandableCard
-      className="op-generic"
+      className="jini-op-generic"
       call={{ input: input, result: result, runStreaming: runStreaming, runSucceeded: runSucceeded }}
       head={<ToolRowHead name={name} input={input} result={result} runStreaming={runStreaming} runSucceeded={runSucceeded} />}
       after={<ToolResultMedia result={result} />}
@@ -417,12 +417,12 @@ function ExpandableCard({ className, head, after, call, children }: { className:
     <div className={`op-card ${className}`}>
       <button type="button" className="op-card-head" aria-expanded={open} aria-controls={panelId} onClick={() => setOpen((o) => !o)}>
         {head}
-        <span className="op-expand-chev" aria-hidden>
+        <span className="jini-op-expand-chev" aria-hidden>
           <Icon name={open ? 'chevron-down' : 'chevron-right'} size={11} />
         </span>
       </button>
       <div id={panelId} className={`accordion-collapsible${open ? ' open' : ''}`}>
-        {open ? <div className="accordion-collapsible-inner">{children}</div> : null}
+        {open ? <div className="jini-accordion-collapsible-inner">{children}</div> : null}
       </div>
       {open ? null : <CollapsedReaderText call={call} />}
       {after}
@@ -443,7 +443,7 @@ function CollapsedReaderText({ call }: { call: CardProps }) {
     { input, result: resultContent === undefined ? undefined : { content: resultContent, isError: resultIsError } },
     { runStreaming, runSucceeded },
   ), [input, resultContent, resultIsError, runStreaming, runSucceeded]);
-  return <span className="op-card-reader-text op-sr-prefix">{text}</span>;
+  return <span className="jini-op-card-reader-text jini-op-sr-prefix">{text}</span>;
 }
 
 /** The call's input, its result (or why there is none), and any extra `children` — see `describeToolCallDetail` for the redaction and formatting rules. */
@@ -453,10 +453,10 @@ function ToolCallDetail({ input, result, runStreaming, runSucceeded, children, u
   // call when the person opens it. The core formatter still owns formatting and secret redaction.
   const detail = describeToolCallDetail({ input: input, result: result }, { runStreaming: runStreaming, runSucceeded: runSucceeded, maxChars: Infinity });
   return (
-    <div className="op-card-detail">
-      {detail.inputText !== null ? <pre className="op-command op-input">{detail.inputText}</pre> : null}
+    <div className="jini-op-card-detail">
+      {detail.inputText !== null ? <pre className="jini-op-command jini-op-input">{detail.inputText}</pre> : null}
       {detail.outputText !== null ? <pre className="op-output">{detail.outputText}</pre> : null}
-      {detail.noteKey !== null ? <p className="op-detail-note">{t(detail.noteKey)}</p> : null}
+      {detail.noteKey !== null ? <p className="jini-op-detail-note">{t(detail.noteKey)}</p> : null}
       {children}
     </div>
   );
@@ -467,12 +467,12 @@ function ErrorBadge({ result, useTHook = useT }: { result: ToolResultEvent } & {
   const t = useTHook();
   if (useContext(RetriedContext))
     return (
-      <span className="op-status op-status-retried" title={t('Retried')}>
+      <span className="jini-op-status jini-op-status-retried" title={t('Retried')}>
         <Icon name="retry" size={14} />
       </span>
     );
   return (
-    <span className="op-status op-status-error" title={describeToolCallDetail({ input: null, result }, { maxChars: COLLAPSED_DETAIL_MAX_CHARS }).outputText ?? t('Error')}>
+    <span className="jini-op-status op-status-error" title={describeToolCallDetail({ input: null, result }, { maxChars: COLLAPSED_DETAIL_MAX_CHARS }).outputText ?? t('Error')}>
       <Icon name="close" size={14} />
     </span>
   );
@@ -482,19 +482,19 @@ function ResultBadge({ result, runStreaming, runSucceeded, useTHook = useT }: { 
   const t = useTHook();
   if (!result && runStreaming)
     return (
-      <span className="op-status op-status-running" title={t('Running')}>
+      <span className="jini-op-status jini-op-status-running" title={t('Running')}>
         <Icon name="spinner" size={14} />
       </span>
     );
   if (!result && !runSucceeded)
     return (
-      <span className="op-status op-status-error" title={t('Error')}>
+      <span className="jini-op-status op-status-error" title={t('Error')}>
         <Icon name="close" size={14} />
       </span>
     );
   if (result?.isError) return <ErrorBadge result={result} />;
   return (
-    <span className="op-status op-status-ok" title={t('Done')}>
+    <span className="jini-op-status jini-op-status-ok" title={t('Done')}>
       <Icon name="check" size={14} />
     </span>
   );
@@ -518,7 +518,7 @@ function ToolResultMedia({ result }: { result?: ToolResultEvent | undefined }) {
   const images = blocks.filter((block): block is ToolResultImage => block.type === 'image');
   if (images.length === 0) return null;
   return (
-    <div className="op-media">
+    <div className="jini-op-media">
       {images.map((block, index) => <ToolResultImageFigure key={index} block={block} />)}
     </div>
   );
@@ -534,21 +534,21 @@ type ToolResultImage = Extract<ToolResultMediaBlock, { type: 'image' }>;
 function ToolResultImageFigure({ block }: { block: ToolResultImage }) {
   const img = (
     <img
-      className="op-media-image"
+      className="jini-op-media-image"
       src={`data:${block.mimeType};base64,${block.data}`}
       alt={block.title ?? ''}
       style={{ maxWidth: '100%', height: 'auto', display: 'block' }}
     />
   );
   const linked = block.href !== undefined && SAFE_LINK_HREF.test(block.href) && !block.href.startsWith('#')
-    ? <a className="op-media-link" href={block.href} target="_blank" rel="noopener noreferrer">{img}</a>
+    ? <a className="jini-op-media-link" href={block.href} target="_blank" rel="noopener noreferrer">{img}</a>
     : img;
   if (block.title === undefined) return linked;
   return (
     // No host stylesheet styles op-media yet; reset the UA figure margin (40px sides) inline, like the img.
-    <figure className="op-media-figure" style={{ margin: 0 }}>
+    <figure className="jini-op-media-figure" style={{ margin: 0 }}>
       {linked}
-      <figcaption className="op-media-caption">{block.title}</figcaption>
+      <figcaption className="jini-op-media-caption">{block.title}</figcaption>
     </figure>
   );
 }

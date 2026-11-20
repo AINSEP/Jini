@@ -20,5 +20,5 @@ export function renderMarkdown(body: string) {
   // eslint-disable-next-line react/no-danger -- `html` is micromark's own
   // escaped output (raw HTML in the source is neutralized, not passed
   // through), so this is not an unsanitized-input XSS risk.
-  return <div className="memory-markdown-body" dangerouslySetInnerHTML={{ __html: html }} />;
+  return <div className="jini-memory-markdown-body" dangerouslySetInnerHTML={{ __html: html }} />;
 }

@@ -5,7 +5,7 @@ import { ConnectorLogo } from '../../components/ConnectorLogo.js';
 describe('ConnectorLogo', () => {
   it('renders an initials fallback when no logoUrl is given', () => {
     const { container } = render(<ConnectorLogo connectorId="slack" connectorName="Slack" />);
-    expect(container.querySelector('.connector-logo-fallback')?.textContent).toBe('Sl');
+    expect(container.querySelector('.jini-connector-logo-fallback')?.textContent).toBe('Sl');
     expect(container.querySelector('img')).toBeNull();
   });
 

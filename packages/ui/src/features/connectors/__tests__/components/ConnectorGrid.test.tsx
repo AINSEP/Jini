@@ -76,8 +76,8 @@ describe('ConnectorGrid', () => {
     );
     const cardA = screen.getByLabelText('Open details for A');
     const cardB = screen.getByLabelText('Open details for B');
-    expect(cardA.querySelector('.connector-action.is-connect')?.getAttribute('aria-busy')).toBe('true');
-    expect(cardB.querySelector('.connector-action.is-connect')?.getAttribute('aria-busy')).toBeNull();
+    expect(cardA.querySelector('.jini-connector-action.is-connect')?.getAttribute('aria-busy')).toBe('true');
+    expect(cardB.querySelector('.jini-connector-action.is-connect')?.getAttribute('aria-busy')).toBeNull();
   });
 
   it('honors custom empty-state copy overrides', () => {

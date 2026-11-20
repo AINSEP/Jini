@@ -32,21 +32,21 @@ export function Notice({ outcome, logLabel, className, useTHook = useT }: Notice
     <div
       className={[
         'plugins-view__notice',
-        outcome.ok ? 'is-success' : 'is-error',
+        outcome.ok ? 'jini-is-success' : 'is-error',
         className,
       ].filter(Boolean).join(' ')}
       role="status"
     >
       <div>{outcome.message}</div>
       {warnings.length > 0 ? (
-        <div className="plugins-view__notice-sub">
+        <div className="jini-plugins-view__notice-sub">
           {warnings.length === 1
             ? t('{n} warning', { n: warnings.length })
             : t('{n} warnings', { n: warnings.length })}
         </div>
       ) : null}
       {log.length > 0 ? (
-        <details className="plugins-view__notice-log">
+        <details className="jini-plugins-view__notice-log">
           <summary>{logLabel ?? t('Install log')}</summary>
           <ul>
             {log.map((line, idx) => (

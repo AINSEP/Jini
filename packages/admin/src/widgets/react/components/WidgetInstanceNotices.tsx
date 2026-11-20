@@ -4,7 +4,7 @@ export function WhereUsedBanner(props: { whereUsed: AdminWidgetWhereUsed; t: Tra
   const { t } = props;
   if (props.whereUsed.count === 0) return null;
   return (
-    <div className="notice widget-where-used-banner">
+    <div className="notice jini-widget-where-used-banner">
       <strong>
         {props.whereUsed.count === 1
           ? t("Used in 1 place:")

@@ -17,13 +17,13 @@ export function CommentSideAttachments({
   resolveAttachmentUrl: (attachment: ViewerCommentAttachment) => string;
 }) {
   return (
-    <div className="comment-side-attachments">
+    <div className="jini-comment-side-attachments">
       {attachments.map((attachment) => {
         const url = resolveAttachmentUrl(attachment);
         return (
           <a
             key={attachment.path}
-            className="comment-side-attachment"
+            className="jini-comment-side-attachment"
             data-testid="comment-side-attachment"
             href={url}
             target="_blank"
@@ -61,14 +61,14 @@ export function CommentSideSelectBar({
   if (selectedCount === 0) return null;
   const idleSendLabel = queueOnSend ? t('Queue') : t('Send to chat');
   return (
-    <div className="comment-side-selectbar" data-testid="comment-side-selectbar">
-      <span className="comment-side-selectcount">{t('{n} selected', { n: selectedCount })}</span>
-      <button type="button" className="comment-side-clear" onClick={onClearSelection}>
+    <div className="jini-comment-side-selectbar" data-testid="comment-side-selectbar">
+      <span className="jini-comment-side-selectcount">{t('{n} selected', { n: selectedCount })}</span>
+      <button type="button" className="jini-comment-side-clear" onClick={onClearSelection}>
         {t('Clear')}
       </button>
       <button
         type="button"
-        className="comment-side-send"
+        className="jini-comment-side-send"
         data-testid="comment-side-send-claude"
         disabled={sending || sendDisabled}
         onClick={() => void onSendSelected()}

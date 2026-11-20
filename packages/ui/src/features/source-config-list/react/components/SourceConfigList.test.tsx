@@ -76,7 +76,7 @@ describe('SourceConfigList — MCP-server-shaped source', () => {
     );
     expect(await screen.findByText('https://mcp.example/a')).toBeInTheDocument();
     const card = screen.getByTestId('source-config-item-card');
-    expect(card.querySelector('.source-config-item-card-trust-badge')?.textContent).toBe('Trusted');
+    expect(card.querySelector('.jini-source-config-item-card-trust-badge')?.textContent).toBe('Trusted');
   });
 
   it('publishes the host agent handle on the add form and on each item card', async () => {
@@ -107,7 +107,7 @@ describe('SourceConfigList — MCP-server-shaped source', () => {
 
     expect(await screen.findByText('https://mcp.example/new')).toBeInTheDocument();
     const card = screen.getByTestId('source-config-item-card');
-    expect(card.querySelector('.source-config-item-card-trust-badge')?.textContent).toBe('Trusted');
+    expect(card.querySelector('.jini-source-config-item-card-trust-badge')?.textContent).toBe('Trusted');
     expect((await dependencies.port.fetchSources())).toHaveLength(1);
   });
 
@@ -124,7 +124,7 @@ describe('SourceConfigList — MCP-server-shaped source', () => {
     const card = screen.getByTestId('source-config-item-card');
     await userEvent.selectOptions(within(card).getByRole('combobox', { name: /Trust level for/ }), 'trusted');
     await waitFor(() =>
-      expect(card.querySelector('.source-config-item-card-trust-badge')?.textContent).toBe('Trusted'),
+      expect(card.querySelector('.jini-source-config-item-card-trust-badge')?.textContent).toBe('Trusted'),
     );
     const persisted = await dependencies.port.fetchSources();
     expect(persisted[0]?.trust).toBe('trusted');

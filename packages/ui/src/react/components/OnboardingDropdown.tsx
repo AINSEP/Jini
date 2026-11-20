@@ -397,7 +397,7 @@ function OnboardingDropdownSearch({ query, setQuery, placeholder, label }: {
 }) {
   return (
     <label
-      className="onboarding-view__select-search"
+      className="jini-onboarding-view__select-search"
       onClick={(event) => event.stopPropagation()}
     >
       <Icon name="search" size={14} />
@@ -443,7 +443,7 @@ function OnboardingDropdownOptions({ label, multiple, visibleOptions, selectedVa
 } & Pick<UseOnboardingDropdownResult, 'visibleOptions' | 'selectedValues' | 'emptyMessage' | 'selectOption'>) {
   return (
     <div
-      className="onboarding-view__select-options"
+      className="jini-onboarding-view__select-options"
       role="listbox"
       aria-label={label}
       aria-multiselectable={multiple || undefined}
@@ -457,7 +457,7 @@ function OnboardingDropdownOptions({ label, multiple, visibleOptions, selectedVa
         />
       ))}
       {visibleOptions.length === 0 ? (
-        <div className="onboarding-view__select-empty">{emptyMessage}</div>
+        <div className="jini-onboarding-view__select-empty">{emptyMessage}</div>
       ) : null}
     </div>
   );
@@ -490,7 +490,7 @@ function OnboardingDropdownMenu({ label, placeholder, multiple, searchable, sear
 } & Pick<UseOnboardingDropdownResult, 'query' | 'setQuery' | 'menuMaxHeight' | 'visibleOptions' | 'selectedValues' | 'emptyMessage' | 'selectOption'>) {
   return (
     <div
-      className="onboarding-view__select-menu"
+      className="jini-onboarding-view__select-menu"
       data-searchable={searchable || undefined}
       style={{ '--onboarding-select-menu-max-height': `${menuMaxHeight}px` } as CSSProperties}
     >

@@ -11,7 +11,7 @@ describe('renderMarkdown', () => {
   it('renders plain text', () => {
     const { container } = render(renderMarkdown('just plain text'));
     expect(container.textContent).toContain('just plain text');
-    expect(container.querySelector('.memory-markdown-body')).not.toBeNull();
+    expect(container.querySelector('.jini-memory-markdown-body')).not.toBeNull();
   });
 
   it('renders bold text as a <strong> element', () => {

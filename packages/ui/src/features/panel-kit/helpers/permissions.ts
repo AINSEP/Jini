@@ -1,5 +1,5 @@
-// ADR-021: GET /auth/me flattens effectivePermissions, losing resourceType/constraintJson.
-// ADR-006 keeps one server evaluator; every mutation and tool call must be rechecked there.
+// GET /auth/me flattens effectivePermissions, losing resourceType/constraintJson.
+// One server evaluator is retained; every mutation and tool call must be rechecked there.
 /** UI affordance check for exact grants or the literal * wildcard; server authorization remains host-owned. */
 /**
  * A flattened permission list has lost resource scopes and constraints. Treating '*' as an ordinary

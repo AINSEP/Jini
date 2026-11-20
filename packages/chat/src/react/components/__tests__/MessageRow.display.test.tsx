@@ -190,7 +190,7 @@ describe('MessageRow retried tool calls (f2: a failure the turn retried successf
     const write = (id: string, target: string): AgentEvent => ({ kind: 'tool_use', id, name: 'content_post_update', input: { [key]: target, html: id } });
     const message = assistant('different-targets', [write('a', 'page-a'), result('a', true), write('b', 'page-b'), result('b')]);
     const view = render(<MessageRow message={message} runSucceeded />);
-    expect(view.container.querySelector('.op-status-retried')).toBeNull();
+    expect(view.container.querySelector('.jini-op-status-retried')).toBeNull();
     expect(view.container.querySelector('.op-status-error')).not.toBeNull();
     view.rerender(<MessageRow message={message} runSucceeded toolCallDisplay="collapsed" />);
     expect(screen.getByRole('button', { name: 'Used 2 tools · 1 failed' })).toBeInTheDocument();
@@ -200,7 +200,7 @@ describe('MessageRow retried tool calls (f2: a failure the turn retried successf
     const write = (id: string): AgentEvent => ({ kind: 'tool_use', id, name: 'content_post_update', input: { postId: 'page-a', html: id } });
     const message = assistant('same-target', [write('a'), result('a', true), write('b'), result('b')]);
     const view = render(<MessageRow message={message} runSucceeded />);
-    expect(view.container.querySelector('.op-status-retried')).toHaveAttribute('title', 'Retried');
+    expect(view.container.querySelector('.jini-op-status-retried')).toHaveAttribute('title', 'Retried');
     expect(view.container.querySelector('.op-status-error')).toBeNull();
     view.rerender(<MessageRow message={message} runSucceeded toolCallDisplay="collapsed" />);
     expect(screen.getByRole('button', { name: 'Used 2 tools' })).toBeInTheDocument();
@@ -210,7 +210,7 @@ describe('MessageRow retried tool calls (f2: a failure the turn retried successf
     const write = (id: string, postId: string): AgentEvent => ({ kind: 'tool_use', id, name: 'mcp__jini__execute_readonly_delegated_tool', input: { toolId: 'content.write', input: { postId } } });
     const message = assistant('nested-target', [write('a', 'page-a'), result('a', true), write('b', 'page-b'), result('b')]);
     const view = render(<MessageRow message={message} runSucceeded />);
-    expect(view.container.querySelector('.op-status-retried')).toBeNull();
+    expect(view.container.querySelector('.jini-op-status-retried')).toBeNull();
     expect(view.container.querySelector('.op-status-error')).not.toBeNull();
   });
 
@@ -220,7 +220,7 @@ describe('MessageRow retried tool calls (f2: a failure the turn retried successf
       { kind: 'tool_use', id: 'b', name: 'content_post_update', input: { post_id: 'page-a', slug: 'corrected-slug' } }, result('b'),
     ]);
     const view = render(<MessageRow message={message} runSucceeded />);
-    expect(view.container.querySelector('.op-status-retried')).toHaveAttribute('title', 'Retried');
+    expect(view.container.querySelector('.jini-op-status-retried')).toHaveAttribute('title', 'Retried');
     expect(view.container.querySelector('.op-status-error')).toBeNull();
   });
 
@@ -230,7 +230,7 @@ describe('MessageRow retried tool calls (f2: a failure the turn retried successf
       use('b', 'content_post_update'), result('b'),
     ]);
     const view = render(<MessageRow message={message} runSucceeded />);
-    expect(view.container.querySelector('.op-status-retried')).toBeNull();
+    expect(view.container.querySelector('.jini-op-status-retried')).toBeNull();
     expect(view.container.querySelector('.op-status-error')).not.toBeNull();
   });
 
@@ -253,8 +253,8 @@ describe('MessageRow retried tool calls (f2: a failure the turn retried successf
     const cards = [...container.querySelectorAll('.jini-message-tools .op-card')];
     expect(cards).toHaveLength(3);
     expect(cards[0]!.querySelector('.op-status-error')).toBeNull();
-    expect(cards[0]!.querySelector('.op-status-retried')).toHaveAttribute('title', 'Retried');
-    expect(cards[1]!.querySelector('.op-status-ok')).not.toBeNull();
+    expect(cards[0]!.querySelector('.jini-op-status-retried')).toHaveAttribute('title', 'Retried');
+    expect(cards[1]!.querySelector('.jini-op-status-ok')).not.toBeNull();
     expect(cards[2]!.querySelector('.op-status-error')).not.toBeNull();
     const head = cards[0]!.querySelector('button.op-card-head')!;
     await user.click(head);

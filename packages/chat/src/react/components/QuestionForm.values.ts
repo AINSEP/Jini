@@ -10,7 +10,7 @@ export function emptyQuestionValue(q: QuestionFormType['questions'][number]): st
   return '';
 }
 
-export function canonicalizeQuestionValue(q: QuestionFormType['questions'][number], value: string | string[]): string | string[] {
+export function canonicalizeQuestionValue({ q, value }: { q: QuestionFormType['questions'][number]; value: string | string[] }, _optional = {}): string | string[] {
   if (Array.isArray(value)) return value.map((entry) => formOptionValueForLabel({ question: q, labelOrValue: entry }));
   return formOptionValueForLabel({ question: q, labelOrValue: value });
 }
@@ -19,7 +19,7 @@ export function shouldRenderCustomChoice(q: QuestionFormType['questions'][number
   return q.allowCustom !== false;
 }
 
-export function questionValueIsKnown(q: QuestionFormType['questions'][number], value: string): boolean {
+export function questionValueIsKnown({ q, value }: { q: QuestionFormType['questions'][number]; value: string }, _optional = {}): boolean {
   if (q.options?.some((option) => option.value === value || option.label === value)) return true;
   if (q.cards?.some((card) => card.id === value || card.label === value)) return true;
   return false;
@@ -27,12 +27,12 @@ export function questionValueIsKnown(q: QuestionFormType['questions'][number], v
 
 export function customSingleValue(q: QuestionFormType['questions'][number], value: AnswerValue): string {
   if (typeof value !== 'string' || value.length === 0) return '';
-  return questionValueIsKnown(q, value) ? '' : value;
+  return questionValueIsKnown({ q, value }) ? '' : value;
 }
 
 export function customCheckboxValue(q: QuestionFormType['questions'][number], value: AnswerValue): string {
   if (!Array.isArray(value)) return '';
-  return value.filter((entry) => !questionValueIsKnown(q, entry)).join(', ');
+  return value.filter((entry) => !questionValueIsKnown({ q, value: entry })).join(', ');
 }
 
 export function splitCustomEntries(raw: string): string[] {
@@ -42,7 +42,7 @@ export function splitCustomEntries(raw: string): string[] {
     .filter(Boolean);
 }
 
-export function customInputCharCount(value: string, placeholder: string): number {
+export function customInputCharCount({ value, placeholder }: { value: string; placeholder: string }, _optional = {}): number {
   const base = value.length > 0 ? value.length : Math.min(placeholder.length, 22);
   return Math.max(18, Math.min(base + 2, 72));
 }

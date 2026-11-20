@@ -26,10 +26,10 @@ export function ImportChoice({ active, icon, title, body, onClick, className }: 
       ].filter(Boolean).join(' ')}
       onClick={onClick}
     >
-      <span className="plugins-import-modal__choice-icon" aria-hidden>
+      <span className="jini-plugins-import-modal__choice-icon" aria-hidden>
         <Icon name={icon} size={16} />
       </span>
-      <span className="plugins-import-modal__choice-copy">
+      <span className="jini-plugins-import-modal__choice-copy">
         <span>{title}</span>
         <span>{body}</span>
       </span>

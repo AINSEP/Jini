@@ -35,11 +35,11 @@ describe('tool-card memory in a restored chat', () => {
     const nodes = list.querySelectorAll('*').length;
     expect(list.querySelectorAll('[data-message-id]')).toHaveLength(38);
     expect(list.querySelectorAll('.op-card')).toHaveLength(713);
-    expect(list.querySelectorAll('pre, .accordion-collapsible-inner')).toHaveLength(0);
+    expect(list.querySelectorAll('pre, .jini-accordion-collapsible-inner')).toHaveLength(0);
     // A structural budget, not a timing or heap claim: leave room for ordinary message chrome,
     // but fail if each collapsed card starts retaining its full panel again.
     expect(nodes).toBeLessThan(713 * 15 + 38 * 20);
-    const summaries = Array.from(list.querySelectorAll('.op-card-reader-text'));
+    const summaries = Array.from(list.querySelectorAll('.jini-op-card-reader-text'));
     expect(summaries).toHaveLength(713);
     expect(summaries.every(node => node.textContent?.length === 801)).toBe(true);
     expect(list.textContent!.length).toBeLessThan(713 * 900 + 38 * 100);
@@ -49,13 +49,13 @@ describe('tool-card memory in a restored chat', () => {
     const panelId = toggle.getAttribute('aria-controls')!;
     await userEvent.click(toggle);
     expect(toggle).toHaveAttribute('aria-expanded', 'true');
-    expect(document.getElementById(panelId)?.querySelector('.op-input')?.textContent)
+    expect(document.getElementById(panelId)?.querySelector('.jini-op-input')?.textContent)
       .toBe(JSON.stringify({ element: 'name-input', payload: longInput }, null, 2));
     expect(document.getElementById(panelId)?.querySelector('.op-output')?.textContent).toBe(longOutput);
     expect(list.querySelectorAll('pre')).toHaveLength(2);
     await userEvent.click(toggle);
     expect(toggle).toHaveAttribute('aria-expanded', 'false');
-    expect(list.querySelectorAll('pre, .accordion-collapsible-inner')).toHaveLength(0);
+    expect(list.querySelectorAll('pre, .jini-accordion-collapsible-inner')).toHaveLength(0);
     expect(list.querySelectorAll('*')).toHaveLength(nodes);
     // Rendering never truncates the source events that the conversation store keeps.
     expect(messages[1]!.events![1]).toMatchObject({ content: longOutput });
@@ -70,9 +70,9 @@ describe('tool-card memory in a restored chat', () => {
       driver, capabilityId: 'page.find_elements', input: { query: 'tool-call-reader', withState: true },
     }) as FindElementsResult;
 
-    const reader = container.querySelector('.op-card-reader-text')!;
+    const reader = container.querySelector('.jini-op-card-reader-text')!;
     expect(reader).not.toHaveAttribute('hidden');
-    expect(reader).toHaveClass('op-sr-prefix');
+    expect(reader).toHaveClass('jini-op-sr-prefix');
     expect(reader.closest('.accordion-collapsible')).toBeNull();
     const pending = await read();
     expect(pending.elements).toHaveLength(1);
@@ -99,14 +99,14 @@ describe('tool-card memory in a restored chat', () => {
     expect(badge.getAttribute('title')).toContain('[token removed]');
     expect(container.querySelector('.op-output')?.textContent).toHaveLength(400);
     expect(container.querySelector('.op-output')?.textContent).toContain('[token removed]');
-    expect(container.querySelector('.op-card-reader-text')?.textContent).toHaveLength(801);
+    expect(container.querySelector('.jini-op-card-reader-text')?.textContent).toHaveLength(801);
     expect(container.innerHTML).not.toContain(key);
     expect(container.textContent!.length + badge.getAttribute('title')!.length).toBeLessThan(2_000);
 
     await userEvent.click(screen.getByRole('button'));
     expect(container.querySelector('.accordion-collapsible .op-output')?.textContent)
       .toBe(`failed [token removed]: ${longOutput}`);
-    expect(container.querySelector('.op-input')?.textContent)
+    expect(container.querySelector('.jini-op-input')?.textContent)
       .toBe(JSON.stringify({ payload: longInput }, null, 2));
     expect(container.innerHTML).not.toContain(key);
   });
@@ -117,7 +117,7 @@ describe('tool-card memory in a restored chat', () => {
       <ToolCard use={{ kind: 'tool_use', id: 'jini', name: 'page.fill', input: { payload: `${key} ${longInput}` } }} />
       <ToolCard use={{ kind: 'tool_use', id: 'mcp', name: 'mcp__vendor__send', input: { body: `${key} ${longInput}` } }} />
     </>);
-    const metas = Array.from(container.querySelectorAll('.op-meta'), node => node.textContent!);
+    const metas = Array.from(container.querySelectorAll('.jini-op-meta'), node => node.textContent!);
     expect(metas).toHaveLength(2);
     for (const meta of metas) {
       expect(meta).toHaveLength(200);

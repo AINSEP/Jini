@@ -22,12 +22,12 @@ export function AppChromeHeader({
   showTrafficSpace = true,
 }: Props) {
   return (
-    <header className="app-chrome-header">
-      {showTrafficSpace ? <div className="app-chrome-traffic-space" aria-hidden /> : null}
+    <header className="jini-app-chrome-header">
+      {showTrafficSpace ? <div className="jini-app-chrome-traffic-space" aria-hidden /> : null}
       {onBack ? (
         <button
           type="button"
-          className="app-chrome-back jini-tooltip"
+          className="jini-app-chrome-back jini-tooltip"
           onClick={onBack}
           title={backLabel}
           data-tooltip={backLabel}
@@ -37,15 +37,15 @@ export function AppChromeHeader({
           <RemixIcon name="arrow-left-line" size={16} />
         </button>
       ) : null}
-      {children ? <div className="app-chrome-content">{children}</div> : null}
-      <div className="app-chrome-drag" aria-hidden />
-      {fileActionsBefore ? <div className="app-chrome-file-actions-before">{fileActionsBefore}</div> : null}
+      {children ? <div className="jini-app-chrome-content">{children}</div> : null}
+      <div className="jini-app-chrome-drag" aria-hidden />
+      {fileActionsBefore ? <div className="jini-app-chrome-file-actions-before">{fileActionsBefore}</div> : null}
       <div
         id={APP_CHROME_FILE_ACTIONS_ID}
-        className="app-chrome-file-actions"
+        className="jini-app-chrome-file-actions"
         data-app-chrome-file-actions="true"
       />
-      {actions ? <div className="app-chrome-actions">{actions}</div> : null}
+      {actions ? <div className="jini-app-chrome-actions">{actions}</div> : null}
     </header>
   );
 }
@@ -62,7 +62,7 @@ export function SettingsIconButton({
   return (
     <button
       type="button"
-      className="settings-icon-btn jini-tooltip"
+      className="jini-settings-icon-btn jini-tooltip"
       onClick={onClick}
       title={title}
       data-tooltip={title}

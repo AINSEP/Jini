@@ -46,7 +46,7 @@ export function FileImportPanel({
         <h3>{title}</h3>
         <p>{body}</p>
       </div>
-      <label className="plugins-import-modal__file">
+      <label className="jini-plugins-import-modal__file">
         <input
           type="file"
           data-testid={folder ? 'plugins-folder-input' : 'plugins-zip-input'}
@@ -60,7 +60,7 @@ export function FileImportPanel({
       </label>
       <button
         type="button"
-        className="plugins-view__primary"
+        className="jini-plugins-view__primary"
         onClick={onImport}
         disabled={working || !canSubmit}
       >

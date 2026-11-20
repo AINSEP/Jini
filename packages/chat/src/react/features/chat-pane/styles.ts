@@ -1509,11 +1509,11 @@ export const CHAT_PANE_STYLES = `
   cursor: pointer;
   color: inherit;
 }
-.jini-chat-pane .op-status { display: inline-flex; flex-shrink: 0; }
-.jini-chat-pane .op-status-ok { color: #4e875f; }
+.jini-chat-pane .jini-op-status { display: inline-flex; flex-shrink: 0; }
+.jini-chat-pane .jini-op-status-ok { color: #4e875f; }
 .jini-chat-pane .op-status-error { color: var(--danger); }
-.jini-chat-pane .op-status-retried { color: var(--jini-chat-muted); }
-.jini-chat-pane .op-status-running { color: var(--jini-chat-accent); }
+.jini-chat-pane .jini-op-status-retried { color: var(--jini-chat-muted); }
+.jini-chat-pane .jini-op-status-running { color: var(--jini-chat-accent); }
 /* The name truncates before the target does (owner bug 11-01: "Content Read Content…" squeezed the
    target out — the target was flex: 1 with a 0 basis beside a name that would not shrink). A generic
    row's target (.op-target, ToolCard's ToolRowHead) keeps its own width up to 35% of the row; both
@@ -1531,7 +1531,7 @@ export const CHAT_PANE_STYLES = `
 .jini-chat-pane .shimmer-text { animation: jini-chat-shimmer 1.6s ease-in-out infinite; }
 @keyframes jini-chat-shimmer { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
 @media (prefers-reduced-motion: reduce) { .jini-chat-pane .shimmer-text { animation: none; opacity: .6; } }
-.jini-chat-pane .op-meta {
+.jini-chat-pane .jini-op-meta {
   color: var(--jini-chat-muted);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1539,10 +1539,10 @@ export const CHAT_PANE_STYLES = `
   flex: 1;
   min-width: 0;
 }
-.jini-chat-pane .op-meta.op-target { flex: 0 0 auto; max-width: 35%; }
+.jini-chat-pane .jini-op-meta.jini-op-target { flex: 0 0 auto; max-width: 35%; }
 /* ToolRowHead's "Tool call · " prefix: screen readers still hear it, the ~333px dock row doesn't spend
    half its width on it (owner bug 11-01). Clipped, never display:none, so it stays in the accessible name. */
-.jini-chat-pane .op-sr-prefix {
+.jini-chat-pane .jini-op-sr-prefix {
   position: absolute;
   width: 1px;
   height: 1px;
@@ -1551,15 +1551,15 @@ export const CHAT_PANE_STYLES = `
   white-space: nowrap;
   clip-path: inset(50%);
 }
-.jini-chat-pane .op-expand-chev { flex-shrink: 0; margin-left: auto; color: var(--jini-chat-faint); }
+.jini-chat-pane .jini-op-expand-chev { flex-shrink: 0; margin-left: auto; color: var(--jini-chat-faint); }
 /* Collapsed by default: 0 max-height clips the inner content, no display:none — keeps the height
    transition instead of an instant jump cut. */
 .jini-chat-pane .accordion-collapsible { max-height: 0; overflow: hidden; transition: max-height .15s ease; }
 .jini-chat-pane .accordion-collapsible.open { max-height: 480px; overflow-y: auto; }
-.jini-chat-pane .accordion-collapsible-inner { padding: 0 10px 10px; }
-.jini-chat-pane .op-card-detail { display: flex; flex-direction: column; gap: 6px; }
-.jini-chat-pane .op-path,
-.jini-chat-pane .op-command,
+.jini-chat-pane .jini-accordion-collapsible-inner { padding: 0 10px 10px; }
+.jini-chat-pane .jini-op-card-detail { display: flex; flex-direction: column; gap: 6px; }
+.jini-chat-pane .jini-op-path,
+.jini-chat-pane .jini-op-command,
 .jini-chat-pane .op-output {
   font-family: var(--jini-chat-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
   font-size: 12px;
@@ -1572,8 +1572,8 @@ export const CHAT_PANE_STYLES = `
   word-break: break-word;
 }
 /* The "Waiting for the result or answer…" / "Finished with no output." line in an expanded tool row (ToolCard.tsx's ToolCallDetail). */
-.jini-chat-pane .op-detail-note { margin: 0; font-size: 12px; color: var(--jini-chat-muted); }
-.jini-chat-pane .op-open {
+.jini-chat-pane .jini-op-detail-note { margin: 0; font-size: 12px; color: var(--jini-chat-muted); }
+.jini-chat-pane .jini-op-open {
   border: 1px solid var(--jini-chat-border-strong);
   border-radius: 6px;
   background: var(--jini-chat-panel);

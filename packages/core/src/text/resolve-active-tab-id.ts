@@ -1,4 +1,4 @@
-// ADR-063: URL-owned screens retain their own tab lists and defaults. Pages mirrors local state
+// URL-owned screens retain their own tab lists and defaults. Pages mirrors local state
 // to the URL to avoid navigation over eagerly fetched data; tab-manifest enumerability is a separate decision.
 /** Keep an allowed selection or choose the allowed default/first id; an empty list keeps defaultId. */
 /**

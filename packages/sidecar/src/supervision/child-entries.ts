@@ -2,7 +2,7 @@
  * @file The one holder of "which site dirs have a LIVE child server right now" — the host's
  * `openSites` map, grown the one property it never had: it observes the child dying.
  *
- * **The defect this exists for (D-06).** `openSites` was a bare `Map`, and the audit's phrasing is
+ * **The defect this exists for.** `openSites` was a bare `Map`, and the audit's phrasing is
  * exact: it was "a registry of what was STARTED and not yet deliberately stopped", read everywhere
  * as "what is running". the host's server's handle was built for boot-or-fail and discarded the
  * child's exit once ready, so after a crash:
@@ -70,7 +70,7 @@ interface ChildEntries<E extends ChildEntry> {
  * @param deps.onUnexpectedExit called once per site whose child dies without a {@link delete} first.
  *   Receives the entry that was holding it, because the caller needs its `server.pid` to drop the
  *   right crash-safety row — this instance's own registry file can also hold a still-draining earlier
- *   child's row for the same site dir, and closing by site dir alone would take that one too (D-07).
+ *   child's row for the same site dir, and closing by site dir alone would take that one too.
  *   Injected rather than reaching for the host registry directly so this module needs no
  *   `registryPath`, no filesystem, and no knowledge of what the caller does about it — the host
  *   drops the crash-safety row and logs; a test just records the call.

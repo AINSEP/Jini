@@ -59,7 +59,7 @@ export function AttachmentTray({ agentHandle, attachments, onRemove, renderItem,
         </div>
       ))}
       {uploading ? (
-        <div className="jini-attachment-chip is-uploading" data-testid="attachment-uploading-chip">
+        <div className="jini-attachment-chip jini-is-uploading" data-testid="attachment-uploading-chip">
           <span className="jini-attachment-chip-icon"><Icon name="spinner" size={15} /></span>
           <span className="jini-attachment-chip-copy">
             <span className="jini-attachment-chip-name">{t('Uploading…')}</span>

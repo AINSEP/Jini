@@ -25,7 +25,7 @@
  *    their site elsewhere and lets something else take its old path leaves a row whose provenance and
  *    containment are both still perfectly true about a directory this app never made — and the card
  *    even renders under the NEW site's name, since `readSiteName` reads whatever `config.json` is
- *    there now. That is the whole of SEC-01/D-04, and no amount of reasoning about the row can catch
+ *    there now. No amount of reasoning about the row can catch
  *    it: only asking the live directory who it is can.
  *
  * No test subsumes another, which is why all three are here rather than one. All fail CLOSED:

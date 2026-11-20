@@ -13,16 +13,16 @@ export function ResourceRowListHero({
   onCreate,
 }: Pick<ResourceRowListViewProps, 'eyebrow' | 'title' | 'lede' | 'metrics' | 'metricsAriaLabel' | 'createLabel' | 'onCreate'>) {
   return (
-    <header className="resource-row-list-hero">
-      <div className="resource-row-list-hero-copy">
-        {eyebrow ? <span className="resource-row-list-hero-eyebrow">{eyebrow}</span> : null}
-        <h1 className="resource-row-list-hero-title">{title}</h1>
-        {lede ? <p className="resource-row-list-hero-lede">{lede}</p> : null}
+    <header className="jini-resource-row-list-hero">
+      <div className="jini-resource-row-list-hero-copy">
+        {eyebrow ? <span className="jini-resource-row-list-hero-eyebrow">{eyebrow}</span> : null}
+        <h1 className="jini-resource-row-list-hero-title">{title}</h1>
+        {lede ? <p className="jini-resource-row-list-hero-lede">{lede}</p> : null}
       </div>
-      <div className="resource-row-list-hero-actions">
+      <div className="jini-resource-row-list-hero-actions">
         <ResourceMetrics metrics={metrics} ariaLabel={metricsAriaLabel} />
         {onCreate && createLabel ? (
-          <button type="button" className="resource-row-list-new" onClick={onCreate}>
+          <button type="button" className="jini-resource-row-list-new" onClick={onCreate}>
             {createLabel}
           </button>
         ) : null}
@@ -41,13 +41,13 @@ export function ResourceRowListAlerts({
   return (
     <>
       {error ? (
-        <div className="resource-row-list-error" role="alert">
+        <div className="jini-resource-row-list-error" role="alert">
           {errorLabel ?? error}
         </div>
       ) : null}
 
       {actionError ? (
-        <div className="resource-row-list-action-error" role="alert">
+        <div className="jini-resource-row-list-action-error" role="alert">
           {actionErrorLabel ?? actionError}
         </div>
       ) : null}
@@ -58,12 +58,12 @@ export function ResourceRowListAlerts({
 /** The empty state — TasksView's own empty state is itself the create button, so it is clickable only when `onCreate` is given. */
 export function ResourceRowListEmpty({ emptyTitle, emptyBody, onCreate }: Pick<ResourceRowListViewProps, 'emptyTitle' | 'emptyBody' | 'onCreate'>) {
   return onCreate ? (
-    <button type="button" className="resource-row-list-empty" onClick={onCreate}>
+    <button type="button" className="jini-resource-row-list-empty" onClick={onCreate}>
       <strong>{emptyTitle}</strong>
       <span>{emptyBody}</span>
     </button>
   ) : (
-    <div className="resource-row-list-empty">
+    <div className="jini-resource-row-list-empty">
       <strong>{emptyTitle}</strong>
       <span>{emptyBody}</span>
     </div>

@@ -31,7 +31,7 @@ export interface LanguageMenuProps {
 // ---------------------------------------------------------------------------
 
 /** The label for the active locale, falling back to the raw code when unknown. */
-export function resolveActiveLocaleLabel(locales: LocaleOption[], locale: string): string {
+export function resolveActiveLocaleLabel({ locales, locale }: { locales: LocaleOption[]; locale: string }, _optional = {}): string {
   return locales.find((l) => l.code === locale)?.label ?? locale;
 }
 
@@ -58,9 +58,8 @@ export function languageMenuPillClassName(compact: boolean): string {
 }
 
 export function languageMenuPopoverClassName(
-  placement: 'up' | 'down',
-  compact: boolean,
-  align: 'start' | 'end',
+  { placement, compact, align }: { placement: 'up' | 'down'; compact: boolean; align: 'start' | 'end' },
+  _optional = {},
 ): string {
   return `lang-menu-popover lang-menu-popover--${placement}${
     compact ? ' lang-menu-popover--compact' : ''
@@ -90,8 +89,8 @@ export function useLanguageMenuDisclosure(): LanguageMenuDisclosure {
 }
 
 /** Memoized active-locale label derived from the (host-supplied) locale list. */
-export function useActiveLocaleLabel(locales: LocaleOption[], locale: string): string {
-  return useMemo(() => resolveActiveLocaleLabel(locales, locale), [locales, locale]);
+export function useActiveLocaleLabel({ locales, locale }: { locales: LocaleOption[]; locale: string }, _optional = {}): string {
+  return useMemo(() => resolveActiveLocaleLabel({ locales, locale }), [locales, locale]);
 }
 
 /**
@@ -137,7 +136,7 @@ export interface UseLanguageMenuResult {
 export function useLanguageMenu(locales: LocaleOption[], locale: string): UseLanguageMenuResult {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const { open, toggle, close } = useLanguageMenuDisclosure();
-  const activeLabel = useActiveLocaleLabel(locales, locale);
+  const activeLabel = useActiveLocaleLabel({ locales, locale });
   useLanguageMenuDismiss({ open, onDismiss: close, containerRef });
   return { open, toggle, close, containerRef, activeLabel };
 }
@@ -184,7 +183,7 @@ export function LanguageMenu({
         )}
       </button>
       {open ? (
-        <div className={languageMenuPopoverClassName(placement, compact, align)} role="menu">
+        <div className={languageMenuPopoverClassName({ placement, compact, align })} role="menu">
           {locales.map(({ code, label }) => {
             const active = locale === code;
             return (

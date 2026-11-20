@@ -37,7 +37,7 @@ export function ProgressCard({ data, maxSteps = 6, maxSecondaryItems = 5, useTHo
 
   return (
     <section className={`progress-card is-${data.status}`} data-progress-card-id={data.id}>
-      <div className="progress-card-head">
+      <div className="jini-progress-card-head">
         <Icon name={progressCardStatusIcon({ status: data.status })} />
         <span>
           <strong>{title}</strong>
@@ -45,11 +45,11 @@ export function ProgressCard({ data, maxSteps = 6, maxSecondaryItems = 5, useTHo
         </span>
       </div>
       <ProgressCardBar progress={data.progress} label={t('{title} progress', { title })} />
-      {visibleSteps.length > 0 ? <ProgressCardItemList items={visibleSteps} className="progress-card-steps" /> : null}
+      {visibleSteps.length > 0 ? <ProgressCardItemList items={visibleSteps} className="jini-progress-card-steps" /> : null}
       {visibleSecondaryItems.length > 0 ? (
-        <div className="progress-card-secondary-items">
+        <div className="jini-progress-card-secondary-items">
           <span>{secondaryHeading}</span>
-          <ProgressCardItemList items={visibleSecondaryItems} className="progress-card-secondary-item-list" asCode />
+          <ProgressCardItemList items={visibleSecondaryItems} className="jini-progress-card-secondary-item-list" asCode />
         </div>
       ) : null}
     </section>

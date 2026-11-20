@@ -44,7 +44,7 @@ describe('TodoCard', () => {
     expect(toggle).toHaveAttribute('aria-expanded', 'true');
     await userEvent.click(toggle);
     expect(toggle).toHaveAttribute('aria-expanded', 'false');
-    expect(container.querySelector('.op-todo-current')).toHaveTextContent('Writing the report');
+    expect(container.querySelector('.jini-op-todo-current')).toHaveTextContent('Writing the report');
   });
 
   it('falls back to content for the collapsed current label when the in-progress todo has no activeForm', async () => {
@@ -52,7 +52,7 @@ describe('TodoCard', () => {
     const { container } = render(<TodoCard todos={todos} />);
     const toggle = screen.getByRole('button', { name: /todos/i });
     await userEvent.click(toggle);
-    expect(container.querySelector('.op-todo-current')).toHaveTextContent('write the report');
+    expect(container.querySelector('.jini-op-todo-current')).toHaveTextContent('write the report');
   });
 
   it('renders the activeForm as the todo-item text for an in-progress item, falling back to content for others', () => {

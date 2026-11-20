@@ -55,8 +55,8 @@ export interface PaletteTweaksProps {
  * `selected` preview, and hovering a palette previews that palette.
  */
 export function resolvePalettePreview(
-  target: PaletteHoverTarget,
-  selected: PaletteId | null,
+  { target, selected }: { target: PaletteHoverTarget; selected: PaletteId | null },
+  _optional = {},
 ): PaletteId | null {
   if (target === 'original') return null;
   if (target === null) return selected;
@@ -68,8 +68,8 @@ export function resolvePalettePreview(
  * selected palette deselects it (back to `null`), otherwise it selects it.
  */
 export function nextPaletteSelection(
-  selected: PaletteId | null,
-  id: PaletteId,
+  { selected, id }: { selected: PaletteId | null; id: PaletteId },
+  _optional = {},
 ): PaletteId | null {
   return selected === id ? null : id;
 }
@@ -107,7 +107,7 @@ export function usePaletteHover(options: {
   const setHover = useCallback(
     (target: PaletteHoverTarget) => {
       setHovered(target);
-      onPreview(resolvePalettePreview(target, selected));
+      onPreview(resolvePalettePreview({ target, selected }));
     },
     [onPreview, selected],
   );
@@ -206,7 +206,7 @@ export function PaletteTweaks({ open, selected, onChange, onPreview, onClose, us
               onMouseEnter={() => setHover(p.id)}
               onMouseLeave={() => setHover(null)}
               onClick={() => {
-                onChange(nextPaletteSelection(selected, p.id));
+                onChange(nextPaletteSelection({ selected, id: p.id }));
                 onClose();
               }}
             >

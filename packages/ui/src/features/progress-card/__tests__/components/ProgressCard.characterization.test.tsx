@@ -35,8 +35,8 @@ describe('ProgressCard characterization', () => {
     const steps = Array.from({ length: 8 }, (_, index) => ({ id: `s${index}`, label: `Step ${index}`, status: 'pending' as const }));
     const secondaryItems = Array.from({ length: 7 }, (_, index) => ({ id: `f${index}`, label: `file-${index}`, status: 'succeeded' as const }));
     const { container } = render(<ProgressCard data={{ ...base, steps, secondaryItems }} />);
-    expect(container.querySelectorAll('.progress-card-steps > span')).toHaveLength(6);
-    expect(container.querySelectorAll('.progress-card-secondary-item-list > code')).toHaveLength(5);
+    expect(container.querySelectorAll('.jini-progress-card-steps > span')).toHaveLength(6);
+    expect(container.querySelectorAll('.jini-progress-card-secondary-item-list > code')).toHaveLength(5);
     expect(screen.queryByText('Step 6')).toBeNull();
     expect(screen.queryByText('file-5')).toBeNull();
     expect(screen.getByText('Files touched').tagName).toBe('SPAN');
@@ -47,8 +47,8 @@ describe('ProgressCard characterization', () => {
       steps: [{ id: 's', label: 'step', status: 'running' }],
       secondaryItems: [{ id: 'f', label: 'file', status: 'succeeded' }],
     }} maxSteps={0} maxSecondaryItems={0} />);
-    expect(container.querySelector('.progress-card-steps')).toBeNull();
-    expect(container.querySelector('.progress-card-secondary-items')).toBeNull();
+    expect(container.querySelector('.jini-progress-card-steps')).toBeNull();
+    expect(container.querySelector('.jini-progress-card-secondary-items')).toBeNull();
   });
 
   it('omits an explicitly empty secondary list and uses slice semantics for negative caps', () => {
@@ -56,7 +56,7 @@ describe('ProgressCard characterization', () => {
       steps: [{ id: 's1', label: 'first', status: 'pending' }, { id: 's2', label: 'last', status: 'pending' }],
       secondaryItems: [],
     }} maxSteps={-1} />);
-    expect(container.querySelector('.progress-card-secondary-items')).toBeNull();
+    expect(container.querySelector('.jini-progress-card-secondary-items')).toBeNull();
     expect(screen.getByText('first').tagName).toBe('SPAN');
     expect(screen.queryByText('last')).toBeNull();
   });

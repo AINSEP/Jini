@@ -34,7 +34,7 @@ function RowCheck({ path, displayName, selected, onToggleSelect, useTHook = useT
   const t = useTHook();
   return (
     <span
-      className="asset-tree-row-check"
+      className="jini-asset-tree-row-check"
       role="checkbox"
       aria-checked={selected}
       aria-label={selected ? t('Deselect {name}', { name: displayName }) : t('Select {name}', { name: displayName })}
@@ -52,7 +52,7 @@ function RowCheck({ path, displayName, selected, onToggleSelect, useTHook = useT
       }}
     >
       {selected ? (
-        <span className="asset-tree-row-check-mark" aria-hidden>
+        <span className="jini-asset-tree-row-check-mark" aria-hidden>
           ✓
         </span>
       ) : null}
@@ -70,7 +70,7 @@ function RenameInput({ displayName, renaming, onRenameDraftChange, onCommitRenam
   return (
   <input
     autoFocus
-    className="asset-tree-rename-input"
+    className="jini-asset-tree-rename-input"
     aria-label={t('Rename {name}', { name: displayName })}
     value={renaming.draft}
     disabled={renaming.saving}
@@ -100,22 +100,22 @@ function RowNameCell({ path, displayName, kindLabel, renaming, nameKeyDown, onSe
   onRenameDraftChange: (draft: string) => void; onCommitRename: () => void; onCancelRename: () => void;
 }) {
   return (
-      <div className="asset-tree-row-name-wrap">
+      <div className="jini-asset-tree-row-name-wrap">
         {renaming ? (
           <RenameInput displayName={displayName} renaming={renaming} onRenameDraftChange={onRenameDraftChange} onCommitRename={onCommitRename} onCancelRename={onCancelRename} />
         ) : (
           <button
             type="button"
-            className="asset-tree-row-name-btn"
+            className="jini-asset-tree-row-name-btn"
             onClick={() => onSelectPreview(path)}
             onDoubleClick={() => onOpen(path)}
             onKeyDown={nameKeyDown}
           >
-            <span className="asset-tree-row-name-wrap">
-              <span className="asset-tree-row-name" title={displayName}>
+            <span className="jini-asset-tree-row-name-wrap">
+              <span className="jini-asset-tree-row-name" title={displayName}>
                 {displayName}
               </span>
-              <span className="asset-tree-row-sub">{kindLabel}</span>
+              <span className="jini-asset-tree-row-sub">{kindLabel}</span>
             </span>
           </button>
         )}
@@ -132,7 +132,7 @@ function RowMenuTrigger({ path, displayName, handleMenuTrigger, useTHook = useT 
   return (
     <span
       data-testid={`asset-tree-file-menu-${path}`}
-      className="asset-tree-row-menu"
+      className="jini-asset-tree-row-menu"
       role="button"
       tabIndex={0}
       aria-label={t('Row actions for {name}', { name: displayName })}
@@ -172,11 +172,11 @@ export function AssetTreeFileRow({
   return (
     <div
       data-testid={`asset-tree-file-row-${path}`}
-      className={`asset-tree-row asset-tree-file-row${active ? ' active' : ''}${selected ? ' selected' : ''}`}
+      className={`jini-asset-tree-row asset-tree-file-row${active ? ' active' : ''}${selected ? ' selected' : ''}`}
     >
       <RowCheck path={path} displayName={displayName} selected={selected} onToggleSelect={onToggleSelect} />
       <span
-        className="asset-tree-row-icon"
+        className="jini-asset-tree-row-icon"
         aria-hidden
         onClick={() => onSelectPreview(path)}
         onDoubleClick={() => onOpen(path)}
@@ -188,10 +188,10 @@ export function AssetTreeFileRow({
         onSelectPreview={onSelectPreview} onOpen={onOpen}
         onRenameDraftChange={onRenameDraftChange} onCommitRename={onCommitRename} onCancelRename={onCancelRename}
       />
-      <span className="asset-tree-row-size" onClick={() => onSelectPreview(path)} onDoubleClick={() => onOpen(path)}>
+      <span className="jini-asset-tree-row-size" onClick={() => onSelectPreview(path)} onDoubleClick={() => onOpen(path)}>
         {humanBytes({ n: size })}
       </span>
-      <span className="asset-tree-row-time" onClick={() => onSelectPreview(path)} onDoubleClick={() => onOpen(path)}>
+      <span className="jini-asset-tree-row-time" onClick={() => onSelectPreview(path)} onDoubleClick={() => onOpen(path)}>
         {timeLabel}
       </span>
       <RowMenuTrigger path={path} displayName={displayName} handleMenuTrigger={handleMenuTrigger} />

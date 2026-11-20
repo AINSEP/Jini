@@ -218,10 +218,10 @@ export function useExportDiagnostics(props: ExportDiagnosticsButtonProps): UseEx
 export function ExportDiagnosticsButton({ useExportDiagnosticsHook = useExportDiagnostics, ...props }: ExportDiagnosticsButtonProps) {
   const { status, busy, labels: t, runExport } = useExportDiagnosticsHook(props);
   return (
-    <div className="diagnostics-export-row">
+    <div className="jini-diagnostics-export-row">
       <button
         type="button"
-        className="ghost diagnostics-export-button"
+        className="ghost jini-diagnostics-export-button"
         onClick={() => void runExport()}
         disabled={busy}
         data-status={status.kind}

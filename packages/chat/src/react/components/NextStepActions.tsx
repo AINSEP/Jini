@@ -39,17 +39,17 @@ export function NextStepActions({ actions, onSelect, useTHook = useT }: NextStep
   const t = useTHook();
   if (actions.length === 0) return null;
   return (
-    <div className="next-step-actions">
+    <div className="jini-next-step-actions">
       {actions.map((action) => (
-        <button key={action.id} type="button" className="next-step-action" disabled={action.disabled || action.busy} onClick={() => onSelect(action.id)}>
+        <button key={action.id} type="button" className="jini-next-step-action" disabled={action.disabled || action.busy} onClick={() => onSelect(action.id)}>
           {action.icon ? (
-            <span className="next-step-action-icon" aria-hidden>
+            <span className="jini-next-step-action-icon" aria-hidden>
               {action.icon}
             </span>
           ) : null}
-          <span className="next-step-action-body">
-            <span className="next-step-action-title">{action.busy && action.busyLabel ? t(action.busyLabel) : t(action.label)}</span>
-            {action.description ? <span className="next-step-action-desc">{t(action.description)}</span> : null}
+          <span className="jini-next-step-action-body">
+            <span className="jini-next-step-action-title">{action.busy && action.busyLabel ? t(action.busyLabel) : t(action.label)}</span>
+            {action.description ? <span className="jini-next-step-action-desc">{t(action.description)}</span> : null}
           </span>
         </button>
       ))}

@@ -26,7 +26,7 @@ function rowHandles({ agentHandle, action, ids }: { agentHandle: string | undefi
 function MemoryListCounts({ savedCount, extractionCount, useTHook = useT }: { savedCount: number; extractionCount: number; useTHook?: typeof useT; }) {
   const t = useTHook();
   return (
-    <div className="memory-management-counts">
+    <div className="jini-memory-management-counts">
       <span className="memory-source-badge">{savedCount} {t('saved')}</span>
       {extractionCount > 0 ? (
         <span className="memory-source-badge">
@@ -55,7 +55,7 @@ function MemoryFilterPills({
   const t = useTHook();
   const typeLabel = useMemo(() => memoryTypeLabels({ t }), [t]);
   return (
-    <div className="library-filters">
+    <div className="jini-library-filters">
       <button
         type="button"
         className={`filter-pill${filter === 'all' ? ' active' : ''}`}
@@ -63,7 +63,7 @@ function MemoryFilterPills({
         {...agentHandleProps({}, { base: agentHandle, action: 'filter-all', role: 'button', label: t('All') })}
       >
         {t('All')}
-        <span className="filter-pill-count">{entries.length + extractionCount}</span>
+        <span className="jini-filter-pill-count">{entries.length + extractionCount}</span>
       </button>
       {TYPES.map((type) => {
         const count = entries.filter((e) => e.type === type).length;
@@ -77,7 +77,7 @@ function MemoryFilterPills({
             {...agentHandleProps({}, { base: agentHandle, action: `filter-${type}`, role: 'button', label: typeLabel[type] })}
           >
             {typeLabel[type]}
-            <span className="filter-pill-count">{count}</span>
+            <span className="jini-filter-pill-count">{count}</span>
           </button>
         );
       })}
@@ -103,7 +103,7 @@ function MemoryExtractionActions({
     <>
       <button
         type="button"
-        className="ghost memory-clear-extractions"
+        className="ghost jini-memory-clear-extractions"
         onClick={() => onClearExtractions()}
         title={t('Clear extraction history')}
         {...agentHandleProps({}, { base: agentHandle, action: 'clear-extractions', role: 'button', label: t('Clear extraction history') })}
@@ -113,7 +113,7 @@ function MemoryExtractionActions({
       </button>
       <button
         type="button"
-        className="ghost memory-refresh-extractions"
+        className="ghost jini-memory-refresh-extractions"
         onClick={() => onRefreshExtractions()}
         disabled={isRefreshing}
         title={t('Refresh')}
@@ -132,9 +132,9 @@ function MemoryListEmpty({ useTHook = useT }: { useTHook?: typeof useT } = {}) {
     // Empty state: one clear "no rows yet" line and a one-sentence
     // primer that explains the mechanism (talk in chat, fact gets
     // extracted) with a single example.
-    <div className="library-empty">
-      <p className="library-empty-title">{t('No saved memories yet')}</p>
-      <p className="library-empty-hint">
+    <div className="jini-library-empty">
+      <p className="jini-library-empty-title">{t('No saved memories yet')}</p>
+      <p className="jini-library-empty-hint">
         {t('Tell the assistant a fact in chat — e.g.')} <code>{t('I prefer dark mode')}</code>{' '}
         {t('— and it will be saved here automatically.')}
       </p>
@@ -207,7 +207,7 @@ function MemoryListToolbar({ entries, extractionCount, filter, onFilterChange, o
   agentHandle: string | undefined;
 }) {
   return (
-  <div className="library-toolbar is-row">
+  <div className="jini-library-toolbar jini-is-row">
     <MemoryFilterPills
       entries={entries}
       extractionCount={extractionCount}
@@ -215,7 +215,7 @@ function MemoryListToolbar({ entries, extractionCount, filter, onFilterChange, o
       onFilterChange={onFilterChange}
       agentHandle={agentHandle}
     />
-    <div className="memory-management-actions">
+    <div className="jini-memory-management-actions">
       {extractionCount > 0 ? (
         <MemoryExtractionActions
           onClearExtractions={onClearExtractions}

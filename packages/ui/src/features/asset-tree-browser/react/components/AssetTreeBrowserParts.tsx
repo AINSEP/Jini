@@ -51,11 +51,11 @@ export function AssetTreeBrowserTopbar({
 }: AssetTreeBrowserTopbarProps) {
   const t = useTHook();
   return (
-    <div className="asset-tree-topbar">
-      <div className="asset-tree-topbar-left">
+    <div className="jini-asset-tree-topbar">
+      <div className="jini-asset-tree-topbar-left">
         <AssetTreeBreadcrumbs currentDir={currentDir} rootLabel={rootLabel ?? t('Files')} onNavigate={onNavigate} />
       </div>
-      <div className="asset-tree-topbar-right">
+      <div className="jini-asset-tree-topbar-right">
         <AssetTreeToolbar actions={toolbarActions} />
       </div>
     </div>
@@ -78,7 +78,7 @@ export function AssetTreeBrowserBody<TFile extends AssetTreeFileItem>(props: Ass
   const { dragUpload, preview } = controller;
   return (
     <div
-      className="asset-tree-body"
+      className="jini-asset-tree-body"
       data-testid="asset-tree-body"
       onDragEnter={dragUpload.onDragEnter}
       onDragOver={dragUpload.onDragOver}
@@ -163,10 +163,10 @@ function AssetTreeFoldersSection<TFile extends AssetTreeFileItem>({
   const t = useTHook();
   if (dirs.length === 0) return null;
   return (
-    <div className="asset-tree-section">
-      <div className="asset-tree-section-label">
+    <div className="jini-asset-tree-section">
+      <div className="jini-asset-tree-section-label">
         {t('Folders')}
-        <span className="asset-tree-section-count">{dirs.length}</span>
+        <span className="jini-asset-tree-section-count">{dirs.length}</span>
       </div>
       {dirs.map((dirName) => {
         const fullPath = currentDir === '' ? dirName : `${currentDir}/${dirName}`;
@@ -199,10 +199,10 @@ function AssetTreeKindSection<TFile extends AssetTreeFileItem>({
   const { navigation, preview, selection, rename, rowMenu, openPath } = controller;
   const config = resolveKindConfig({ kind: section.kind, kindConfig });
   return (
-    <div className="asset-tree-section">
-      <div className="asset-tree-section-label">
+    <div className="jini-asset-tree-section">
+      <div className="jini-asset-tree-section-label">
         {t(config.label)}
-        <span className="asset-tree-section-count">{section.files.length}</span>
+        <span className="jini-asset-tree-section-count">{section.files.length}</span>
       </div>
       {section.files.map((f) => (
         <AssetTreeFileRow

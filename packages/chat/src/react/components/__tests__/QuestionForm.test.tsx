@@ -501,19 +501,19 @@ describe('QuestionForm', () => {
         },
       ]);
       const { container } = render(<QuestionForm form={q} interactive onSubmit={vi.fn()} />);
-      const swatches = container.querySelectorAll('.qf-card-swatch');
+      const swatches = container.querySelectorAll('.jini-qf-card-swatch');
       expect(swatches.length).toBe(6);
       expect(screen.getByText('Bold and vivid')).toBeInTheDocument();
-      const refsParagraph = container.querySelector('.qf-card-refs')!;
+      const refsParagraph = container.querySelector('.jini-qf-card-refs')!;
       expect(refsParagraph.textContent).toBe('References: A · B · C · D');
       expect(refsParagraph.textContent).not.toContain('E');
 
       // The "plain" card has no palette/mood/references — those sections must not render for it.
       const cardLabels = container.querySelectorAll('label.qf-card');
       const plainCardLabel = Array.from(cardLabels).find((el) => el.textContent?.includes('Plain'))!;
-      expect(plainCardLabel.querySelector('.qf-card-swatch')).toBeNull();
-      expect(plainCardLabel.querySelector('.qf-card-mood')).toBeNull();
-      expect(plainCardLabel.querySelector('.qf-card-refs')).toBeNull();
+      expect(plainCardLabel.querySelector('.jini-qf-card-swatch')).toBeNull();
+      expect(plainCardLabel.querySelector('.jini-qf-card-mood')).toBeNull();
+      expect(plainCardLabel.querySelector('.jini-qf-card-refs')).toBeNull();
     });
 
     it('is also selectable by matching card.label (legacy stored value), and supports the custom-choice fallback', async () => {

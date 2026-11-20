@@ -27,8 +27,8 @@ export function OptionCards<T extends string | number>({
 }: OptionCardsProps<T>) {
   return (
     <div className={['newproj-media-field', className].filter(Boolean).join(' ')}>
-      <div className="newproj-label">{label}</div>
-      <div className="newproj-option-grid compact">
+      <div className="jini-newproj-label">{label}</div>
+      <div className="jini-newproj-option-grid compact">
         {options.map((option) => (
           <button
             key={String(option.value)}

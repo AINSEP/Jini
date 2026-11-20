@@ -30,7 +30,7 @@ describe('ViewerShell', () => {
         <div>x</div>
       </ViewerShell>,
     );
-    expect(container.querySelector('.viewer-toolbar-actions')).toBeNull();
+    expect(container.querySelector('.jini-viewer-toolbar-actions')).toBeNull();
   });
 });
 

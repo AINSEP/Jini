@@ -190,7 +190,7 @@ export function A2uiSurfaceCard({ events, runId, onAgentAction, clock, registry:
         {t('A2UI surface refused: {reason}', { reason: refusalNotice })}
       </div>
     ) : (
-      <div className="a2ui-surface-card a2ui-surface-waiting" role="status">
+      <div className="a2ui-surface-card jini-a2ui-surface-waiting" role="status">
         {t('Waiting for the agent to send a root component…')}
       </div>
     );
@@ -200,12 +200,12 @@ export function A2uiSurfaceCard({ events, runId, onAgentAction, clock, registry:
     <div className="a2ui-surface-card" data-a2ui-surface-id={surfaceId}>
       <RenderComponent interpreter={interpreter} surfaceId={surfaceId!} componentId="root" ancestors={new Set()} onAction={handleAction} registry={registry} />
       {refusalNotice ? (
-        <div className="a2ui-surface-notice a2ui-surface-notice-refused" role="status">
+        <div className="jini-a2ui-surface-notice a2ui-surface-notice-refused" role="status">
           {t('Action refused: {reason}', { reason: refusalNotice })}
         </div>
       ) : null}
       {pendingAgentAction ? (
-        <div className="a2ui-surface-notice a2ui-surface-notice-unwired" role="status">
+        <div className="jini-a2ui-surface-notice jini-a2ui-surface-notice-unwired" role="status">
           {t('This action is meant for the agent, but this host has not wired up a live agent-action relay yet.')}
         </div>
       ) : null}
@@ -214,12 +214,12 @@ export function A2uiSurfaceCard({ events, runId, onAgentAction, clock, registry:
         // *before* anything is sent (the interpreter said no); this one fires *after* — the message
         // left this component but the host reports it never arrived. Conflating them would tell the
         // human the wrong half of the story.
-        <div className="a2ui-surface-notice a2ui-surface-notice-delivery-failed" role="status">
+        <div className="jini-a2ui-surface-notice a2ui-surface-notice-delivery-failed" role="status">
           {t('This action could not be delivered: {reason}', { reason: deliveryFailureNotice })}
         </div>
       ) : null}
       {localActionResult ? (
-        <div className="a2ui-surface-notice a2ui-surface-notice-local-action" role="status" data-a2ui-component-id={localActionResult.componentId}>
+        <div className="jini-a2ui-surface-notice jini-a2ui-surface-notice-local-action" role="status" data-a2ui-component-id={localActionResult.componentId}>
           {t('Local action resolved: {value}', { value: formatLocalActionValue(localActionResult.value) })}
         </div>
       ) : null}

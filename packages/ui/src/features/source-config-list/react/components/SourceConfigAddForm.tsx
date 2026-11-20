@@ -105,7 +105,7 @@ export function SourceConfigAddForm({ useTHook = useT, ...props }: SourceConfigA
       <AddFormTrustSelect {...props} />
       <AddFormTestControl {...props} />
       {submitError ? (
-        <div className="source-config-add-form-error" role="alert">
+        <div className="jini-source-config-add-form-error" role="alert">
           {t(submitError)}
         </div>
       ) : null}
@@ -178,7 +178,7 @@ function AddFormActions({ submitting, agentHandle, onCancel, cancelLabel, submit
   const submitButton = (
     <button
       type="submit"
-      className="source-config-add-form-submit"
+      className="jini-source-config-add-form-submit"
       disabled={submitting}
       {...sourceConfigAgentProps({ base: agentHandle, role: 'button', label: submitLabel, action: 'submit' })}
     >
@@ -188,11 +188,11 @@ function AddFormActions({ submitting, agentHandle, onCancel, cancelLabel, submit
   if (!onCancel) return submitButton;
   const resolvedCancelLabel = t(cancelLabel ?? 'Cancel');
   return (
-    <div className="source-config-add-form-actions">
+    <div className="jini-source-config-add-form-actions">
       {submitButton}
       <button
         type="button"
-        className="source-config-add-form-cancel"
+        className="jini-source-config-add-form-cancel"
         disabled={submitting}
         {...sourceConfigAgentProps({ base: agentHandle, role: 'button', label: resolvedCancelLabel, action: 'cancel' })}
         onClick={onCancel}

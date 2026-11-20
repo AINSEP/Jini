@@ -34,7 +34,7 @@ describe('ProgressCard independent copy and prop updates', () => {
       secondaryItemsLabel: '',
       secondaryItems: [{ id: 'file', label: 'result.txt', status: 'pending' }],
     }} />);
-    expect(container.querySelector('.progress-card-secondary-items > span')?.textContent).toBe('');
+    expect(container.querySelector('.jini-progress-card-secondary-items > span')?.textContent).toBe('');
     expect(screen.queryByText('Files touched')).toBeNull();
     expect(screen.getByText('result.txt').tagName).toBe('CODE');
   });

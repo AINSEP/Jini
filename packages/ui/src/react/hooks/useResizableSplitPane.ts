@@ -79,7 +79,7 @@ function clampWidthForMax(width: number, min: number, max: number, effectiveMax:
 // `@vitest-environment node` companion test — this package's default jsdom
 // environment always defines `window`, so that branch is otherwise
 // unreachable. See `packages/ui/src/react/hooks/__tests__/useResizableSplitPane.test.tsx`.
-export function readSavedWidth(storageKey: string, defaultWidth: number, min: number, max: number): number {
+export function readSavedWidth({ storageKey, defaultWidth, min, max }: { storageKey: string; defaultWidth: number; min: number; max: number }, _optional = {}): number {
   if (typeof window === 'undefined') return defaultWidth;
   try {
     const raw = window.localStorage.getItem(storageKey);
@@ -90,7 +90,7 @@ export function readSavedWidth(storageKey: string, defaultWidth: number, min: nu
   }
 }
 
-export function saveWidth(storageKey: string, width: number, min: number, max: number): void {
+export function saveWidth({ storageKey, width, min, max }: { storageKey: string; width: number; min: number; max: number }, _optional = {}): void {
   if (typeof window === 'undefined') return;
   try {
     window.localStorage.setItem(storageKey, String(clampPreferredWidth(width, min, max)));
@@ -195,7 +195,7 @@ function useContainerMeasurement({
 /** The committed/preferred width, its container-narrowed max, and the CSS it renders into the container. */
 function useSplitPaneWidth(config: SplitPaneConfig, containerRef: RefObject<HTMLDivElement | null>) {
   const { storageKey, defaultWidth, minWidth, maxWidthOption, handleWidth, minSecondaryWidth } = config;
-  const [width, setWidth] = useState(() => readSavedWidth(storageKey, defaultWidth, minWidth, maxWidthOption));
+  const [width, setWidth] = useState(() => readSavedWidth({ storageKey, defaultWidth, min: minWidth, max: maxWidthOption }));
   const [maxWidth, setMaxWidth] = useState(maxWidthOption);
   const [secondaryMinWidth, setSecondaryMinWidth] = useState(minSecondaryWidth);
   const widthRef = useRef(width);
@@ -396,7 +396,7 @@ function usePointerResize({ config, containerRef, paneWidth }: {
       setIsResizing(false);
       if (saveFinalWidth) {
         const finalWidth = renderPreferredWidth(preferredWidthRef.current);
-        saveWidth(storageKey, finalWidth, minWidth, maxWidthOption);
+        saveWidth({ storageKey, width: finalWidth, min: minWidth, max: maxWidthOption });
       }
     },
     [renderPreferredWidth, storageKey, minWidth, maxWidthOption, refs, preferredWidthRef],
@@ -459,7 +459,7 @@ function useKeyboardResize({ config, containerRef, paneWidth }: {
       if (nextWidth === undefined) return;
       event.preventDefault();
       const next = applyWidth(nextWidth);
-      saveWidth(storageKey, next, minWidth, maxWidthOption);
+      saveWidth({ storageKey, width: next, min: minWidth, max: maxWidthOption });
     },
     [applyWidth, keyboardStep, minWidth, maxWidthOption, storageKey, containerRef, widthRef, maxWidthRef],
   );

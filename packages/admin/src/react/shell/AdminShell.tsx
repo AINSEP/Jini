@@ -107,7 +107,7 @@ function ShellMainColumn({ props, view, drawer, ids }: {
 function renderAssistant(slots: AdminShellBaseProps['slots']): ReactNode {
   const { assistant, assistantAside } = slots;
   if (assistantAside) return assistantAside;
-  return assistant && <aside className="admin-assistant-pane" aria-label={assistant.label} hidden={!assistant.open}>{assistant.content}</aside>;
+  return assistant && <aside className="jini-admin-assistant-pane" aria-label={assistant.label} hidden={!assistant.open}>{assistant.content}</aside>;
 }
 
 /**

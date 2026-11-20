@@ -42,7 +42,7 @@ export type DimensionName =
 /** Metrics a dashboard/AI query can request over the aggregate store. */
 export type MetricName = "pageviews" | "visitors" | "events" | "bounce_rate" | "avg_duration_ms";
 
-/** Flat `analytics.*` permission strings (ADR-021 §3 — one permission language). */
+/** Flat `analytics.*` permission strings (one permission language). */
 export type AnalyticsPermission =
   | "analytics.read"
   | "analytics.read.realtime"
@@ -51,7 +51,7 @@ export type AnalyticsPermission =
   | "analytics.export";
 
 /**
- * Which sink adapter a site routes ingest through (ADR-006 rule-of-two — see ports.ts).
+ * Which sink adapter a site routes ingest through (rule-of-two — see ports.ts).
  * Which sink a site routes through: `"local"` = the host's built-in sink only (default); any other
  * value is the id of a registered vendor forwarder that receives hits IN ADDITION to the built-in
  * sink (see forwarding.ts). Widened from `"local" | "forwarding"`; `"forwarding"` was never produced.
@@ -135,7 +135,7 @@ export interface NormalizedHit {
 /**
  * Raw buffer row — PII-free by construction, HARD-TTL'd. Feeds the rollup job and the
  * realtime/last-N-minutes view, then pruned. This is not durable storage; the aggregate
- * table is. (ADR-027 §2 single-writer sidecar; narrows ADR-022 INV-3.)
+ * table is. (single-writer sidecar)
  */
 export interface AnalyticsEventRow {
   id: UUID;
@@ -156,7 +156,7 @@ export interface AnalyticsEventRow {
   sessionId: string;
   eventName: string | null;
   eventProps: JsonObject | null;
-  /** Written by core (single writer); attribution stamp analogous to ADR-027 §2. */
+  /** Written by core (single writer); attribution stamp for the single-writer sidecar. */
   createdByPluginId: string | null;
   /** Hard retention boundary; the prune job deletes on/after this instant. */
   expiresAt: ISODateTime;
@@ -168,7 +168,7 @@ export interface AnalyticsEventRow {
  * distinct-visitor counts compose across arbitrary time ranges WITHOUT storing per-visitor
  * rows — the privacy + storage-efficiency lever. Dimension-value cardinality is capped per
  * bucket to a top-N with an `(other)` overflow bucket (see `DIMENSION_OVERFLOW_VALUE`).
- * Composite PK is workspace-scoped (ADR-007): (workspaceId, granularity, bucketStart, dimension, dimensionValue).
+ * Composite PK is workspace-scoped: (workspaceId, granularity, bucketStart, dimension, dimensionValue).
  */
 export interface AnalyticsAggregateRow {
   workspaceId: UUID;
@@ -204,9 +204,9 @@ export interface AnalyticsSessionRow {
 }
 
 /**
- * Declarative goal/custom-event definition (schemas-as-data registry, mirroring ADR-022's
- * content-types-as-data and ADR-028's setting-definitions). `matchValue` MUST be evaluated by
- * the total/bounded expression language (ADR-022 amendment §2 — a trust-boundary primitive);
+ * Declarative goal/custom-event definition (schemas-as-data registry, mirroring
+ * content-types-as-data and setting-definitions). `matchValue` MUST be evaluated by
+ * the total/bounded expression language (a trust-boundary primitive);
  * no arbitrary code.
  */
 export interface AnalyticsGoalDef {
@@ -216,7 +216,7 @@ export interface AnalyticsGoalDef {
   name: string;
   displayName: string;
   matchKind: "pageview_path" | "custom_event";
-  /** Bounded pattern: a path glob or an event name. Total/side-effect-free (ADR-022 §2). */
+  /** Bounded pattern: a path glob or an event name. Total/side-effect-free. */
   matchValue: string;
   createdAt: ISODateTime;
 }
@@ -233,7 +233,7 @@ export interface AnalyticsSiteConfig {
   excludedPaths: readonly string[];
   /** IP ranges excluded (matched transiently at ingest; never stored on a row). */
   excludedIpRanges: readonly string[];
-  /** Which sink adapter to route through (ADR-006). */
+  /** Which sink adapter to route through. */
   sink: AnalyticsSinkKind;
 }
 
@@ -288,7 +288,7 @@ export interface RealtimeSnapshot {
   topPaths: readonly BreakdownRow[];
 }
 
-// ---- Domain event payloads (outbox, ADR-009 lane 2 — low volume, NOT per-hit) ----
+// ---- Domain event payloads (outbox, lane 2 — low volume, NOT per-hit) ----
 
 /** Names of domain events the analytics library emits via the outbox. */
 export type AnalyticsDomainEventName = "analytics.rollup.completed" | "analytics.goal.triggered";

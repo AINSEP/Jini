@@ -21,14 +21,14 @@ export function ViewerFileActions({ downloadUrl, openUrl, fileName, downloadLabe
   const t = useTHook();
   if (!downloadUrl && !openUrl) return null;
   return (
-    <div className="viewer-toolbar-actions">
+    <div className="jini-viewer-toolbar-actions">
       {downloadUrl ? (
-        <a className="ghost-link" href={downloadUrl} download={fileName}>
+        <a className="jini-ghost-link" href={downloadUrl} download={fileName}>
           {downloadLabel ?? t('Download')}
         </a>
       ) : null}
       {openUrl ? (
-        <a className="ghost-link" href={openUrl} target="_blank" rel="noreferrer noopener">
+        <a className="jini-ghost-link" href={openUrl} target="_blank" rel="noreferrer noopener">
           {openLabel ?? t('Open')}
         </a>
       ) : null}

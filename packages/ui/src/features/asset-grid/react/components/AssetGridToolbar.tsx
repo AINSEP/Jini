@@ -33,7 +33,7 @@ function FacetSelect({ facets, label, value, onChange }: {
 }) {
   if (facets.length === 0) return null;
   return (
-    <select aria-label={label} className="asset-grid-select" value={value} onChange={(e) => onChange(e.target.value)}>
+    <select aria-label={label} className="jini-asset-grid-select" value={value} onChange={(e) => onChange(e.target.value)}>
       {facets.map((f) => (
         <option key={f.value || ALL_FACET_VALUE} value={f.value}>
           {f.label}
@@ -50,10 +50,10 @@ function ViewModeToggle({ viewMode, onViewModeChange, useTHook = useT }: {
 }) {
   const t = useTHook();
   return (
-    <div className="asset-grid-view-toggle" role="group" aria-label={t('View mode')}>
+    <div className="jini-asset-grid-view-toggle" role="group" aria-label={t('View mode')}>
       <button
         type="button"
-        className="asset-grid-view-toggle-btn"
+        className="jini-asset-grid-view-toggle-btn"
         data-active={viewMode === 'grid' ? 'true' : 'false'}
         aria-pressed={viewMode === 'grid'}
         onClick={() => onViewModeChange('grid')}
@@ -63,7 +63,7 @@ function ViewModeToggle({ viewMode, onViewModeChange, useTHook = useT }: {
       </button>
       <button
         type="button"
-        className="asset-grid-view-toggle-btn"
+        className="jini-asset-grid-view-toggle-btn"
         data-active={viewMode === 'timeline' ? 'true' : 'false'}
         aria-pressed={viewMode === 'timeline'}
         onClick={() => onViewModeChange('timeline')}

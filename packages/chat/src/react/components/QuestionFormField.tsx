@@ -111,7 +111,7 @@ function SelectControl(ctx: FieldContext) {
   if (!q.options) return null;
   return (
     <>
-      <select className="qf-select" aria-label={q.label} {...fieldAria(ctx.formId, q)} value={typeof value === 'string' && questionValueIsKnown(q, value) ? value : ''} disabled={locked} onChange={(e) => update(q.id, e.target.value)}>
+      <select className="qf-select" aria-label={q.label} {...fieldAria(ctx.formId, q)} value={typeof value === 'string' && questionValueIsKnown({ q, value }) ? value : ''} disabled={locked} onChange={(e) => update(q.id, e.target.value)}>
         <option value="" disabled>
           {q.placeholder ?? t('Choose one')}
         </option>
@@ -204,17 +204,17 @@ const QUESTION_CONTROLS: Record<Question['type'], (ctx: FieldContext) => ReactNo
 
 function OptionCopy({ option }: { option: FormOption }) {
   return (
-    <span className="qf-chip-copy">
+    <span className="jini-qf-chip-copy">
       <span>{option.label}</span>
-      {option.description ? <span className="qf-chip-desc">{option.description}</span> : null}
+      {option.description ? <span className="jini-qf-chip-desc">{option.description}</span> : null}
     </span>
   );
 }
 
 function CustomChoiceInput({ label, value, placeholder, disabled, onChange }: { label: string; value: string; placeholder: string; disabled: boolean; onChange: (value: string) => void }) {
-  const chars = customInputCharCount(value, placeholder);
+  const chars = customInputCharCount({ value, placeholder });
   return (
-    <label className="qf-custom">
+    <label className="jini-qf-custom">
       <span>{label}</span>
       <input type="text" className="qf-input" value={value} placeholder={placeholder} disabled={disabled} style={{ '--qf-custom-chars': String(chars) } as CSSProperties} onChange={(event) => onChange(event.target.value)} />
     </label>
@@ -225,29 +225,29 @@ function DirectionCardView({ card, formId, questionId, selected, disabled, onSel
   return (
     <label className={`qf-card${selected ? ' qf-card-on' : ''}${disabled ? ' qf-card-disabled' : ''}`}>
       <input type="radio" name={`${formId}-${questionId}`} value={card.id} checked={selected} disabled={disabled} onChange={() => onSelect()} />
-      <div className="qf-card-head">
-        <div className="qf-card-title">{card.label}</div>
-        {selected ? <span className="qf-card-pill">{t('Selected')}</span> : null}
+      <div className="jini-qf-card-head">
+        <div className="jini-qf-card-title">{card.label}</div>
+        {selected ? <span className="jini-qf-card-pill">{t('Selected')}</span> : null}
       </div>
       {card.palette.length > 0 ? (
-        <div className="qf-card-swatches" aria-hidden>
+        <div className="jini-qf-card-swatches" aria-hidden>
           {card.palette.slice(0, 6).map((c, i) => (
-            <span key={i} className="qf-card-swatch" style={{ background: c }} title={c} />
+            <span key={i} className="jini-qf-card-swatch" style={{ background: c }} title={c} />
           ))}
         </div>
       ) : null}
-      <div className="qf-card-types" aria-hidden>
-        <span className="qf-card-type-display" style={{ fontFamily: card.displayFont }}>
+      <div className="jini-qf-card-types" aria-hidden>
+        <span className="jini-qf-card-type-display" style={{ fontFamily: card.displayFont }}>
           Aa
         </span>
-        <span className="qf-card-type-body" style={{ fontFamily: card.bodyFont }}>
+        <span className="jini-qf-card-type-body" style={{ fontFamily: card.bodyFont }}>
           {t('The quick brown fox')}
         </span>
       </div>
-      {card.mood ? <p className="qf-card-mood">{card.mood}</p> : null}
+      {card.mood ? <p className="jini-qf-card-mood">{card.mood}</p> : null}
       {card.references.length > 0 ? (
-        <p className="qf-card-refs">
-          <span className="qf-card-refs-label">{t('References:')}</span> {card.references.slice(0, 4).join(' · ')}
+        <p className="jini-qf-card-refs">
+          <span className="jini-qf-card-refs-label">{t('References:')}</span> {card.references.slice(0, 4).join(' · ')}
         </p>
       ) : null}
     </label>

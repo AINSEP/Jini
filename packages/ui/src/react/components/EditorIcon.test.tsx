@@ -6,7 +6,7 @@ import { EditorIcon } from './EditorIcon.js';
 describe('EditorIcon', () => {
   it('renders the vscode glyph with the default size', () => {
     const { container } = render(<EditorIcon editorId="vscode" />);
-    const span = container.querySelector('span.editor-icon');
+    const span = container.querySelector('span.jini-editor-icon');
     expect(span).not.toBeNull();
     expect((span as HTMLElement).style.width).toBe('16px');
     expect((span as HTMLElement).style.background).toBe('var(--jini-primary)');
@@ -31,7 +31,7 @@ describe('EditorIcon', () => {
 
   it('falls back to a neutral folder tile for an unregistered id', () => {
     const { container } = render(<EditorIcon editorId="some-unknown-editor" size={24} />);
-    const span = container.querySelector('span.editor-icon');
+    const span = container.querySelector('span.jini-editor-icon');
     expect((span as HTMLElement).style.background).toBe('var(--jini-muted)');
     const svg = container.querySelector('svg');
     expect(svg?.getAttribute('width')).toBe(String(24 * 0.6));

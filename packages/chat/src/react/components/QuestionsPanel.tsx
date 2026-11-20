@@ -45,7 +45,7 @@ export function QuestionsPanel({ form, interactive, submitDisabled, submittedAns
   const busy = submitDisabled || generating;
 
   return (
-    <div className="qp-panel">
+    <div className="jini-qp-panel">
       <QuestionForm ref={formRef} form={form} interactive={interactive} {...(submittedAnswers !== undefined ? { submittedAnswers } : {})} hideInternalSubmit {...(redactUserText ? { redactUserText } : {})} {...(onSecretRedacted ? { onSecretRedacted } : {})} onReadyChange={setReady} onSubmit={onSubmit} />
       {!answered ? <QuestionsFooter formRef={formRef} generating={generating} busy={busy} ready={ready} t={t} /> : null}
     </div>
@@ -61,12 +61,12 @@ function QuestionsFooter({ formRef, generating, busy, ready, t }: {
   t: ReturnType<typeof useT>;
 }) {
   return (
-    <div className="qp-foot">
-      {generating ? <span className="qp-hint">{t('Still generating…')}</span> : null}
-      <button type="button" className="qp-skip" disabled={busy} onClick={() => formRef.current?.skipAll()}>
+    <div className="jini-qp-foot">
+      {generating ? <span className="jini-qp-hint">{t('Still generating…')}</span> : null}
+      <button type="button" className="jini-qp-skip" disabled={busy} onClick={() => formRef.current?.skipAll()}>
         {t('Skip')}
       </button>
-      <button type="button" className="qp-continue primary" disabled={busy || !ready} onClick={() => formRef.current?.submit()}>
+      <button type="button" className="jini-qp-continue primary" disabled={busy || !ready} onClick={() => formRef.current?.submit()}>
         {t('Continue')}
       </button>
     </div>
