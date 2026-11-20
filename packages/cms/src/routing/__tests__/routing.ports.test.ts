@@ -72,15 +72,15 @@ test('a running phase snapshots registrations when a handler revokes its sibling
 });
 
 
-test('routing retains the original barrel boundary, open items and ADR-039 registry rationale verbatim', () => {
+test('routing retains the original barrel boundary, open items and registry rationale', () => {
   const readme = readFileSync(new URL('../README.md', import.meta.url), 'utf8');
   for (const rationale of [
     `- Public surface is the \`index.ts\` barrel only; deep imports into this
   library's internals are not supported.`,
     `- \`isActive\` ancestor/prefix semantics (nested menu highlighting) and the
-  \`urlFor → null\` caller-render contract are v0.1 work (ADR-039 "Open").`,
-    `- Per ADR-039 §4's promotion trigger, the day a second in-tx participant
-  alongside \`SlugChangeCapture\` is real (ADR-039's Round-3 fold already names
+  \`urlFor → null\` caller-render contract are v0.1 work (an open design decision).`,
+    `- Per the promotion trigger, the day a second in-tx participant
+  alongside \`SlugChangeCapture\` is real (the Round-3 fold already names
   Menus' binding-index write as that second participant), the single-slot
   model should be generalized into a small ordered core-only registry — a
   mechanical refactor, not a contract change.`,
