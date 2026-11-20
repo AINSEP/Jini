@@ -50,7 +50,7 @@ let descriptors;
 let artifactWrites;
 
 async function loadPluginTools() {
-  const parsed = parseAgentPluginToolsFile({ raw: await readFile(new URL('tovu-agent-tools.json', PLUGIN_ROOT), 'utf8') });
+  const parsed = parseAgentPluginToolsFile({ raw: await readFile(new URL('jini-agent-tools.json', PLUGIN_ROOT), 'utf8') });
   assert.equal(parsed.ok, true);
   return Promise.all(parsed.descriptors.map(async (descriptor) => ({ pluginId: PLUGIN, descriptor, module: (await import(new URL(descriptor.module, PLUGIN_ROOT))).default })));
 }

@@ -16,11 +16,11 @@ callback route) lives in the host's overlay for this plugin, not here.
 | Path | What it is |
 |---|---|
 | `plugin.json`, `mcp.json` | Manifest (no MCP servers). |
-| `tovu-connections.json` | The sign-in (the `tovu-*.json` files are the Tovu host's contribution contracts; their names and keys are frozen): Google endpoints, per-client-kind parameters, Picker start params and the `picked_file_ids` callback field, and the NAMES of the host config holding the client ids (`TOVU_GOOGLE_WORKSPACE_OAUTH_{WEB,DESKTOP}_CLIENT_{ID,SECRET}`, placeholders until the Cloud project exists). `byoClient: true` lets a workspace admin use their own OAuth client instead (saved as the custom credential `google-workspace/account OAuth client`; see `skills/google-workspace/references/connection.md`). |
+| `jini-connections.json` | The sign-in (the `jini-*.json` files are the host's contribution contracts): Google endpoints, per-client-kind parameters, Picker start params and the `picked_file_ids` callback field, and the NAMES of the host config holding the client ids (`JINI_GOOGLE_WORKSPACE_OAUTH_{WEB,DESKTOP}_CLIENT_{ID,SECRET}`, placeholders until the Cloud project exists). `byoClient: true` lets a workspace admin use their own OAuth client instead (saved as the custom credential `google-workspace/account OAuth client`; see `skills/google-workspace/references/connection.md`). |
 | `products.json` | Product catalog: id, label, tool prefix (every tool named with it belongs to the product and is gated by it; a security pin enumerates them), required scopes. Sheets = `drive.file` only. |
-| `tovu-agent-tools.json` + `tools/` | Executable tools (the host adds its own prefix to each name): `account_info`, and the Sheets tools in `tools/sheets/` (see its README). |
-| `tovu-admin-surfaces.json` + `ui/` | Plugin-owned admin surfaces: the connection panel, Choose spreadsheet (Picker) and Form destinations, each with a server-side `handlerModule`. See `ui/README.md`. |
-| `tovu-form-destinations.json` + `form-destinations/` | Push-only `google-sheets` destination (no `receive`): frozen column mapping, bounded submission-id dedupe, contract-shaped results. See `form-destinations/README.md`. Not yet called by the host's forms fan-out (wired in a later lot). |
+| `jini-agent-tools.json` + `tools/` | Executable tools (the host adds its own prefix to each name): `account_info`, and the Sheets tools in `tools/sheets/` (see its README). |
+| `jini-admin-surfaces.json` + `ui/` | Plugin-owned admin surfaces: the connection panel, Choose spreadsheet (Picker) and Form destinations, each with a server-side `handlerModule`. See `ui/README.md`. |
+| `jini-form-destinations.json` + `form-destinations/` | Push-only `google-sheets` destination (no `receive`): frozen column mapping, bounded submission-id dedupe, contract-shaped results. See `form-destinations/README.md`. Not yet called by the host's forms fan-out (wired in a later lot). |
 | `lib/` | Shared code (below). |
 | `skills/google-workspace/` | What the in-app assistant reads. |
 | `__tests__/` | Plugin-local `node:test` suites (not shipped): `fake-google-http.mjs` (127.0.0.1 fake Google), the OAuth contract pins and the skill-content pins. |
@@ -52,7 +52,7 @@ callback route) lives in the host's overlay for this plugin, not here.
   revoke throws `provider-unreachable` or `provider-refused` for the host to record.
 - An access token can expire in flight: a 401 gets one more token read and is retried only if the
   token differs. An unchanged token or second 401 is `reconnect-required`. Tools and form delivery share this.
-- The budgets declared in `tovu-connections.json` (45/min per account, 240/min per instance) are
+- The budgets declared in `jini-connections.json` (45/min per account, 240/min per instance) are
   charged by the host on every token read; its refusal (`rate-limited`) becomes `quota-delay` with
   the host's `retryAfterMs` and `outcome: 'not-applied'`, and follows the same inline backoff rules
   as Google's 429 (nothing was sent, so even an append may wait and retry).
@@ -60,17 +60,17 @@ callback route) lives in the host's overlay for this plugin, not here.
 
 ## How it fits
 
-The host reads each contribution file and runs it on Jini's services: `tovu-connections.json` on
-`@jini-ai/integrations/api-connections`; `tovu-agent-tools.json` on
-`@jini-ai/agent-plugins/lifecycle/tools`; `tovu-admin-surfaces.json` on
-`@jini-ai/agent-plugins/admin-surfaces`; `tovu-form-destinations.json` through the host's form
-destination registry. In Tovu those readers are `features/api-connections/contribution.ts`,
+The host reads each contribution file and runs it on Jini's services: `jini-connections.json` on
+`@jini-ai/integrations/api-connections`; `jini-agent-tools.json` on
+`@jini-ai/agent-plugins/lifecycle/tools`; `jini-admin-surfaces.json` on
+`@jini-ai/agent-plugins/admin-surfaces`; `jini-form-destinations.json` through the host's form
+destination registry. In the first host those readers are `features/api-connections/contribution.ts`,
 `features/agent-plugins/executable-tools`, `features/agent-plugins/admin-surfaces` and
 `features/form-destinations/registry.ts`.
 
 ## Extension points
 
-A new product adds an entry to `products.json` (its scopes), its tools to `tovu-agent-tools.json`
+A new product adds an entry to `products.json` (its scopes), its tools to `jini-agent-tools.json`
 under its own prefix, and its modules under `products/<id>/`, all on the same sign-in.
 
 ## Known gaps
@@ -94,13 +94,13 @@ under its own prefix, and its modules under `products/<id>/`, all on the same si
 - Panels (G13b) are built and unit-tested only; they need a Chrome check (hosted Picker inside the
   sandboxed frame, desktop system-browser Picker, the account-page button). The host says whether it
   is hosted or desktop (`context.hostKind`); a hosted site also needs both
-  `TOVU_GOOGLE_PICKER_BROWSER_KEY` and `TOVU_GOOGLE_PICKER_APP_ID` (placeholders, never real values)
+  `JINI_GOOGLE_PICKER_BROWSER_KEY` and `JINI_GOOGLE_PICKER_APP_ID` (placeholders, never real values)
   or the Picker is `picker-not-configured`. The panels cannot open links themselves (no
   `allow-popups`): the connection panel declares `linkOrigins: ["https://myaccount.google.com"]` and
   asks the admin page to open the Google account-access page (`client.openLink`); the address also
   stays visible as text.
 - Quotas: the per-account (45/min) and per-instance (240/min) budgets declared in
-  `tovu-connections.json` are implemented by the host and charged on every token read; there is no
+  `jini-connections.json` are implemented by the host and charged on every token read; there is no
   plugin-side limiter. Form delivery reads a token per Google request (`credential.getAccessToken`),
   so it is charged per request like the tools.
 - Hosted Picker sessions are kept one per surface (`picker-session:<surfaceId>`), not per tab or
@@ -128,5 +128,5 @@ on `GoogleWorkspaceError` (a request index or kind name, never Google's text or 
 Hosted sign-in asks for consent when Jini has no renewable credential stored (`forceConsentParams`),
 so connecting another workspace can obtain offline access. Renewable same-account reconnects keep
 incremental grants without forcing consent. Client settings now use the full plugin namespace,
-`TOVU_GOOGLE_WORKSPACE_OAUTH_{WEB,DESKTOP}_CLIENT_{ID,SECRET}`. Provision these settings
+`JINI_GOOGLE_WORKSPACE_OAUTH_{WEB,DESKTOP}_CLIENT_{ID,SECRET}`. Provision these settings
 before enabling this build; the earlier abbreviated names were never configured, so no fallback is needed.

@@ -33,7 +33,7 @@ test('normalizeForms keeps the compact manifest and refuses unusable input with 
 });
 
 test('database name is stable and capped from the Worker identity', () => {
-  assert.equal(databaseName({ resourceName: 'jini-demo' }), 'tovu-forms-jini-demo');
+  assert.equal(databaseName({ resourceName: 'jini-demo' }), 'jini-forms-jini-demo');
   assert.equal(databaseName({ resourceName: 'x'.repeat(63) }).length, 63);
 });
 
@@ -44,12 +44,12 @@ test('preview: create vs reuse, Pages unsupported, missing D1 permission named, 
     return previewForms({ api, kit: f.kit, resourceName: 'jini-demo', targetId, formDestination });
   };
   assert.equal(await run({ list: () => json([]), formDestination: { forms: [] } }), undefined);
-  const created = await run({ list: ({ url }) => { assert.equal(url.searchParams.get('name'), 'tovu-forms-jini-demo'); return json([{ name: 'tovu-forms-jini-demo-old', uuid: 'x' }]); } });
+  const created = await run({ list: ({ url }) => { assert.equal(url.searchParams.get('name'), 'jini-forms-jini-demo'); return json([{ name: 'jini-forms-jini-demo-old', uuid: 'x' }]); } });
   assert.equal(created.status, 'on');
   assert.equal(created.changes[0].action, 'create');
-  assert.match(created.message, /^Form submissions: on \(1 form\)\. .*tovu-forms-jini-demo \(created\).*pulled into the site admin on demand\. Free plan limits: 100,000 Worker requests\/day, D1 100,000 row writes\/day and 500 MB/);
-  const reused = await run({ list: () => json([{ name: 'tovu-forms-jini-demo', uuid: 'db-1' }]), formDestination: { forms: [forms[0], { ...forms[0], slug: 'other' }] } });
-  assert.deepEqual(reused.changes[0], { action: 'reuse', resource: 'd1-database', name: 'tovu-forms-jini-demo', databaseId: 'db-1' });
+  assert.match(created.message, /^Form submissions: on \(1 form\)\. .*jini-forms-jini-demo \(created\).*pulled into the site admin on demand\. Free plan limits: 100,000 Worker requests\/day, D1 100,000 row writes\/day and 500 MB/);
+  const reused = await run({ list: () => json([{ name: 'jini-forms-jini-demo', uuid: 'db-1' }]), formDestination: { forms: [forms[0], { ...forms[0], slug: 'other' }] } });
+  assert.deepEqual(reused.changes[0], { action: 'reuse', resource: 'd1-database', name: 'jini-forms-jini-demo', databaseId: 'db-1' });
   assert.match(reused.message, /\(2 forms\).*\(reused\)/);
   const pages = await run({ list: () => { throw new Error('Pages must not read D1'); }, targetId: 'cloudflare-pages' });
   assert.equal(pages.status, 'unsupported');
@@ -73,28 +73,28 @@ function provisionFixture({ d1, list = () => json([]), create }) {
 test('provision creates the database once, applies migrations once, and reruns as a no-op', async () => {
   const d1 = fakeD1({ migrated: false });
   let exists = false;
-  const p = provisionFixture({ d1, list: () => json(exists ? [{ name: 'tovu-forms-jini-demo', uuid: 'db-1' }] : []), create: () => { exists = true; return json({ name: 'tovu-forms-jini-demo', uuid: 'db-1' }); } });
+  const p = provisionFixture({ d1, list: () => json(exists ? [{ name: 'jini-forms-jini-demo', uuid: 'db-1' }] : []), create: () => { exists = true; return json({ name: 'jini-forms-jini-demo', uuid: 'db-1' }); } });
   const first = await provisionForms({ api: p.api, kit: p.f.kit, resourceName: 'jini-demo' });
-  assert.deepEqual(first, { databaseId: 'db-1', databaseName: 'tovu-forms-jini-demo', applied: [1] });
+  assert.deepEqual(first, { databaseId: 'db-1', databaseName: 'jini-forms-jini-demo', applied: [1] });
   assert.deepEqual(d1.rows('SELECT version FROM schema_migrations'), [{ version: 1 }]);
   assert.deepEqual(d1.rows("SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('submissions', 'rate_windows') ORDER BY name").map(row => row.name), ['rate_windows', 'submissions']);
   const again = await provisionForms({ api: p.api, kit: p.f.kit, resourceName: 'jini-demo' });
   assert.deepEqual(again.applied, []);
-  assert.deepEqual(p.created, ['tovu-forms-jini-demo']);
+  assert.deepEqual(p.created, ['jini-forms-jini-demo']);
   assert.equal(p.f.calls.some(call => /DROP/i.test(String(call.init.body))), false, "provision preserves the schema while cleaning acknowledged payloads");
 });
 
 test('provision recovers a concurrent create race and refuses a database without an id', async () => {
   const d1 = fakeD1({ migrated: false });
   let lists = 0;
-  const race = provisionFixture({ d1, list: () => json(lists++ ? [{ name: 'tovu-forms-jini-demo', uuid: 'db-2' }] : []), create: () => json(null, 400, { errors: [{ message: 'A database with that name already exists' }] }) });
+  const race = provisionFixture({ d1, list: () => json(lists++ ? [{ name: 'jini-forms-jini-demo', uuid: 'db-2' }] : []), create: () => json(null, 400, { errors: [{ message: 'A database with that name already exists' }] }) });
   assert.equal((await provisionForms({ api: race.api, kit: race.f.kit, resourceName: 'jini-demo' })).databaseId, 'db-2');
   const failing = provisionFixture({ d1, create: () => json(null, 500) });
   await assert.rejects(provisionForms({ api: failing.api, kit: failing.f.kit, resourceName: 'jini-demo' }), /CLOUDFLARE_API_ERROR/);
-  const blank = provisionFixture({ d1, create: () => json({ name: 'tovu-forms-jini-demo' }) });
+  const blank = provisionFixture({ d1, create: () => json({ name: 'jini-forms-jini-demo' }) });
   await assert.rejects(provisionForms({ api: blank.api, kit: blank.f.kit, resourceName: 'jini-demo' }), /CLOUDFLARE_D1_INVALID.*returned no id/);
-  const odd = provisionFixture({ d1, list: () => json([{ name: 'tovu-forms-jini-demo', uuid: 'db-3' }]) });
-  odd.f.kit.fetch = async (url, init) => (url.endsWith('/query') ? json({ unexpected: true }) : json([{ name: 'tovu-forms-jini-demo', uuid: 'db-3' }]));
+  const odd = provisionFixture({ d1, list: () => json([{ name: 'jini-forms-jini-demo', uuid: 'db-3' }]) });
+  odd.f.kit.fetch = async (url, init) => (url.endsWith('/query') ? json({ unexpected: true }) : json([{ name: 'jini-forms-jini-demo', uuid: 'db-3' }]));
   assert.deepEqual((await provisionForms({ api: createApi({ credential, kit: odd.f.kit }), kit: odd.f.kit, resourceName: 'jini-demo' })).applied, [1]);
 });
 
@@ -104,10 +104,10 @@ test('worker parts compile the manifest in and bind D1 plus the receiver key', a
   assert.equal(parts.modules[1].source, await receiverModule());
   assert.match(parts.modules[1].source, /export async function handleRequest/);
   assert.equal(parts.modules[3].source.includes(SECRET), false, 'the key never enters module source');
-  assert.deepEqual(parts.bindings, [{ type: 'd1', name: 'TOVU_FORMS', id: 'db-1' }, { type: 'secret_text', name: 'TOVU_FORMS_SECRET', text: SECRET }]);
-  assert.deepEqual(parts.runWorkerFirst, ['/forms/*', '/_tovu/*']);
+  assert.deepEqual(parts.bindings, [{ type: 'd1', name: 'JINI_FORMS', id: 'db-1' }, { type: 'secret_text', name: 'JINI_FORMS_SECRET', text: SECRET }]);
+  assert.deepEqual(parts.runWorkerFirst, ['/forms/*', '/_jini/*']);
   const withPages = await formsWorkerParts({ manifest: { forms, secret: SECRET }, secret: SECRET, databaseId: 'db-1' }, { pageRoutes: ['/', '/join/', '/join'] });
-  assert.deepEqual(withPages.runWorkerFirst, ['/forms/*', '/_tovu/*', '/', '/join/', '/join']);
+  assert.deepEqual(withPages.runWorkerFirst, ['/forms/*', '/_jini/*', '/', '/join/', '/join']);
 });
 
 test('form page routes list exact paths of exported HTML pages that render a host form', () => {
@@ -129,7 +129,7 @@ test('pull reads one page with the bearer key from the site origin and validates
     assert.equal(url.origin, 'https://jini-demo.acct.workers.dev');
     assert.equal(init.headers.Authorization, `Bearer ${SECRET}`);
     assert.equal(init.redirect, 'error');
-    if (url.pathname === '/_tovu/forms/ack') { assert.deepEqual(JSON.parse(init.body), { ids: ['r-4'] }); return Response.json({ acknowledged: 1 }); }
+    if (url.pathname === '/_jini/forms/ack') { assert.deepEqual(JSON.parse(init.body), { ids: ['r-4'] }); return Response.json({ acknowledged: 1 }); }
     assert.equal(url.search, '?after=3&limit=100');
     return Response.json({ items: [item], nextAfter: 4, hasMore: true });
   } });
@@ -166,7 +166,7 @@ test('republish removes old acknowledged PII and raw IPs from earlier receivers 
   await d1.binding.prepare('INSERT INTO submissions (id,form_slug,answers_json,submitted_at,ip,pulled_at) VALUES (?,?,?,?,?,?)').bind('acked','contact','{"private":"answer"}','2026-01-01','203.0.113.9','2026-01-02').run();
   await d1.binding.prepare('INSERT INTO submissions (id,form_slug,answers_json,submitted_at,ip) VALUES (?,?,?,?,?)').bind('pending','contact','{}','2026-11-04','203.0.113.9').run();
   await d1.binding.prepare('INSERT INTO rate_windows (key,window_start,count) VALUES (?,?,?)').bind('contact:203.0.113.9', 1, 1).run();
-  const p = provisionFixture({ d1, list: () => json([{ name: 'tovu-forms-jini-demo', uuid: 'db-1' }]), create: () => assert.fail('already exists') });
+  const p = provisionFixture({ d1, list: () => json([{ name: 'jini-forms-jini-demo', uuid: 'db-1' }]), create: () => assert.fail('already exists') });
   await provisionForms({ api: p.api, kit: p.f.kit, resourceName: 'jini-demo' });
   assert.deepEqual(d1.rows('SELECT id,ip FROM submissions'), [{ id: 'pending', ip: null }]);
   assert.deepEqual(d1.rows('SELECT * FROM rate_windows'), []);
@@ -175,7 +175,7 @@ test('republish removes old acknowledged PII and raw IPs from earlier receivers 
 
 test('preview shows uncollected counts and discloses indefinite retention without reading answers', async () => {
   const f = fixture({ respond: routes([
-    ['/d1/database', 'GET', () => json([{ name: 'tovu-forms-jini-demo', uuid: 'db-1' }])],
+    ['/d1/database', 'GET', () => json([{ name: 'jini-forms-jini-demo', uuid: 'db-1' }])],
     ['/d1/database/db-1/query', 'POST', ({init}) => {
       assert.equal(JSON.parse(init.body).sql, 'SELECT COUNT(*) AS count FROM submissions WHERE pulled_at IS NULL');
       return json([{ results: [{ count: 7 }] }]);

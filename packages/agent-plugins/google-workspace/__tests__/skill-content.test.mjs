@@ -8,13 +8,13 @@ import test from 'node:test';
  * the move from Tovu's bundled `content/agent-plugins/google-workspace` (plan v2 §5.1). Tovu's own
  * tool names, admin paths and OAuth callback route moved to Tovu's overlay
  * (`content/agent-plugin-overlays/google-workspace`), whose test checks them against Tovu's tools.
- * Frozen identifiers (the `tovu-*.json` contracts, `TOVU_GOOGLE_*` config names, the
- * `_tovu_submission_id` / `_tovu_submitted_at` sheet columns, publisher id) stay as they were.
+ * Frozen identifiers (the `jini-*.json` contracts, `JINI_GOOGLE_*` config names, the
+ * `_jini_submission_id` / `_jini_submitted_at` sheet columns, publisher id) stay as they were.
  */
 const root = path.resolve(import.meta.dirname, '..');
 const skillDir = path.join(root, 'skills/google-workspace');
 const references = ['connection.md', 'form-delivery.md', 'sheets.md', 'troubleshooting.md'];
-const contributionFiles = ['tovu-admin-surfaces.json', 'tovu-agent-tools.json', 'tovu-connections.json', 'tovu-form-destinations.json'];
+const contributionFiles = ['jini-admin-surfaces.json', 'jini-agent-tools.json', 'jini-connections.json', 'jini-form-destinations.json'];
 
 const read = file => readFileSync(path.join(root, file), 'utf8');
 const readJson = file => JSON.parse(read(file));
@@ -30,7 +30,7 @@ test('the manifest keeps its publisher id, products and credential cards; its pr
   const manifest = readJson('plugin.json');
   const host = manifest.extensions.jini;
   assert.equal(manifest.name, 'google-workspace');
-  assert.equal(host.id, 'tovu/google-workspace');
+  assert.equal(host.id, 'jini/google-workspace');
   assert.deepEqual(host.provides, ['api-connection:google-workspace', 'form-destination:google-sheets']);
   assert.deepEqual(host.credentialCards.map(card => card.target), ['google-workspace-sign-in', 'google-workspace-oauth-client']);
   assert.doesNotMatch(`${manifest.description} ${host.summary}`, /\bTovu\b/);
@@ -66,8 +66,8 @@ test('portable references describe capabilities while the contribution keeps fro
   assert.match(connection, /browser API key and application ID/);
   assert.doesNotMatch(connection, /tovu/i);
   for (const text of [skill(), connection]) assert.match(text, /google-workspace-oauth-client/);
-  const connectionContract = readJson('tovu-connections.json').connections[0];
-  assert.equal(connectionContract.clients.web.clientIdEnv, 'TOVU_GOOGLE_WORKSPACE_OAUTH_WEB_CLIENT_ID');
+  const connectionContract = readJson('jini-connections.json').connections[0];
+  assert.equal(connectionContract.clients.web.clientIdEnv, 'JINI_GOOGLE_WORKSPACE_OAUTH_WEB_CLIENT_ID');
 });
 
 test('the safety rules are still stated', () => {
@@ -84,7 +84,7 @@ test('the safety rules are still stated', () => {
 // Drift guard: markdown cannot fail a build, so a renamed or removed tool would leave the skill
 // telling every agent to call something that does not exist.
 test('every tool the skill cites is declared, and every declared tool is cited', () => {
-  const declared = new Set(readJson('tovu-agent-tools.json').tools.map(tool => tool.name));
+  const declared = new Set(readJson('jini-agent-tools.json').tools.map(tool => tool.name));
   const cited = new Set();
   for (const { text } of skillTexts()) {
     for (const match of text.matchAll(/`((?:sheets_[a-z0-9_]*[a-z0-9])|account_info)(?=[` {(])/g)) cited.add(match[1]);
@@ -96,10 +96,10 @@ test('every tool the skill cites is declared, and every declared tool is cited',
 // Cross-slice check: the runtime modules move in their own slice; this goes green once both land.
 test('every module path a contribution file declares exists in the plugin folder', () => {
   const modules = [
-    ...readJson('tovu-agent-tools.json').tools.map(tool => tool.module),
-    ...readJson('tovu-connections.json').connections.map(connection => connection.module),
-    ...readJson('tovu-form-destinations.json').destinations.map(destination => destination.module),
-    ...readJson('tovu-admin-surfaces.json').surfaces.flatMap(surface => [surface.entry, surface.handlerModule, ...surface.files]),
+    ...readJson('jini-agent-tools.json').tools.map(tool => tool.module),
+    ...readJson('jini-connections.json').connections.map(connection => connection.module),
+    ...readJson('jini-form-destinations.json').destinations.map(destination => destination.module),
+    ...readJson('jini-admin-surfaces.json').surfaces.flatMap(surface => [surface.entry, surface.handlerModule, ...surface.files]),
   ];
   for (const file of contributionFiles) assert.ok(existsSync(path.join(root, file)), file);
   assert.deepEqual([...new Set(modules)].filter(file => !existsSync(path.join(root, file))).sort(), []);

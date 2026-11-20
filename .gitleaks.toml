@@ -23,3 +23,10 @@ condition = "AND"
 paths = ['''^packages/daemon/src/http/__tests__/fixtures/loopback-tls\.ts$''']
 regexTarget = "match"
 regexes = ['''^-----BEGIN PRIVATE KEY-----''']
+
+[[allowlists]]
+description = "S3 provider manifest: keyPrefix names an environment variable (JINI_S3_KEY_PREFIX), not a credential; exact line only"
+condition = "AND"
+paths = ['''^packages/agent-plugins/s3-compatible/jini-object-stores\.json$''']
+regexTarget = "line"
+regexes = ['''^\s*"keyPrefix": "JINI_S3_KEY_PREFIX"\s*$''']

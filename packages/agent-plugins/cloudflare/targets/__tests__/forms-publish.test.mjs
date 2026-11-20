@@ -14,7 +14,7 @@ function workersHosting({ d1, scripts }) {
     ['/workers/subdomain', null, () => json({ subdomain: 'my-account' })],
     ['/assets-upload-session', null, () => json({ jwt: 'session', buckets: [] })],
     [/\/d1\/database\/db-1\/query$/, 'POST', ({ init }) => json(d1.rest(JSON.parse(init.body)))],
-    ['/d1/database', 'GET', () => json([{ name: 'tovu-forms-jini-demo', uuid: 'db-1' }])],
+    ['/d1/database', 'GET', () => json([{ name: 'jini-forms-jini-demo', uuid: 'db-1' }])],
     ['/workers/scripts/jini-demo', 'PUT', ({ init }) => { scripts.push(init.body); return json({ id: 'version' }); }],
     ['/subdomain', 'POST', () => json({ enabled: true })],
     ['/workers/scripts', 'GET', () => json([])],
@@ -27,12 +27,12 @@ test('Workers with active forms provisions D1 and uploads the receiver on the sa
   const f = fixture({ respond: workersHosting({ d1, scripts }) });
   const result = await workers.create({ credential, config: {}, kit: f.kit }).publish({ files, projectName: 'demo', metadata: { formDestination } });
   const metadata = JSON.parse(scripts[0].get('metadata'));
-  assert.deepEqual(metadata.bindings, [{ type: 'assets', name: 'ASSETS' }, { type: 'd1', name: 'TOVU_FORMS', id: 'db-1' }, { type: 'secret_text', name: 'TOVU_FORMS_SECRET', text: SECRET }]);
-  assert.deepEqual(metadata.assets.config.run_worker_first, ['/forms/*', '/_tovu/*', '/'], 'the page holding the form runs the Worker first');
+  assert.deepEqual(metadata.bindings, [{ type: 'assets', name: 'ASSETS' }, { type: 'd1', name: 'JINI_FORMS', id: 'db-1' }, { type: 'secret_text', name: 'JINI_FORMS_SECRET', text: SECRET }]);
+  assert.deepEqual(metadata.assets.config.run_worker_first, ['/forms/*', '/_jini/*', '/'], 'the page holding the form runs the Worker first');
   assert.equal(metadata.main_module, 'index.mjs');
   assert.match(await scripts[0].get('forms-manifest.mjs').text(), /"slug":"waitlist"/);
   assert.match(await scripts[0].get('receiver.mjs').text(), /handleRequest/);
-  assert.deepEqual(result.providerMetadata.formSubmissions, { forms: 1, databaseId: 'db-1', databaseName: 'tovu-forms-jini-demo' });
+  assert.deepEqual(result.providerMetadata.formSubmissions, { forms: 1, databaseId: 'db-1', databaseName: 'jini-forms-jini-demo' });
   assert.equal(JSON.stringify(result).includes(SECRET), false, 'the receiver key never enters publish history');
   const d1Index = f.calls.findIndex(call => call.url.includes('/d1/'));
   const sessionIndex = f.calls.findIndex(call => call.url.includes('assets-upload-session'));
@@ -84,7 +84,7 @@ test('switching every form away preserves pending receiver storage and authentic
   const result = await workers.create({ credential, config: {}, kit: f.kit }).publish({ files: [{ file: 'index.html', data: '<form action="https://formspree.io/f/abcd"></form>' }], projectName: 'demo', metadata: { formDestination: { forms: [], secret: SECRET } } });
   const metadata = JSON.parse(scripts[0].get('metadata'));
   assert.ok(metadata.bindings.some(binding => binding.type === 'd1' && binding.id === 'db-1'));
-  assert.deepEqual(metadata.assets.config.run_worker_first, ['/_tovu/*']);
+  assert.deepEqual(metadata.assets.config.run_worker_first, ['/_jini/*']);
   assert.equal(result.providerMetadata.formSubmissions.forms, 0);
   assert.equal(d1.rows('SELECT * FROM submissions').length, 1);
   assert.equal(await scripts[0].get('forms-manifest.mjs').text(), 'export default {"forms":[]};\n');

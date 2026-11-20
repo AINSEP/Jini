@@ -17,7 +17,7 @@ class DeployError extends Error {
 }
 
 const CREDENTIAL = { accessKeyId: "id", bucket: "b", region: "us-east-1", publicUrl: "https://cdn.example.test/", token: "secret", endpoint: "https://s3.example.test" };
-const MANIFEST = "https://s3.example.test/b/.tovu/managed-keys.json";
+const MANIFEST = "https://s3.example.test/b/.jini/managed-keys.json";
 
 /** A kit whose signing client answers each request from `respond(method, url, init)`. */
 function kitWith(respond, extra = {}) {
@@ -49,9 +49,9 @@ test("an upload that throws at the transport layer is a bounded 502 naming the f
 
 test("manifest-write refusals with an empty body carry only the status; a 4xx other than 400 is a 400, a 5xx a 502", async () => {
   const cases = [
-    [400, "Failed to update the Tovu-managed object manifest: HTTP 400", 400],
-    [403, "Failed to update the Tovu-managed object manifest: HTTP 403", 400],
-    [503, "Failed to update the Tovu-managed object manifest: HTTP 503", 502],
+    [400, "Failed to update the managed object manifest: HTTP 400", 400],
+    [403, "Failed to update the managed object manifest: HTTP 403", 400],
+    [503, "Failed to update the managed object manifest: HTTP 503", 502],
   ];
   for (const [status, message, deployStatus] of cases) {
     const { kit } = kitWith((method, url) => {

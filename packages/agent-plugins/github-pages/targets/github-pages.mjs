@@ -9,7 +9,7 @@ import { createHash } from "node:crypto";
  * `DeployError` come from the host kit the host injects (see {@link bindGitHubPages}), bound once
  * per target: an installed plugin has no npm dependencies.
  *
- * What the first host (Tovu) used to add in its core around this target now lives in the module
+ * What the first host used to add in its core around this target now lives in the module
  * contract at the bottom: the `.nojekyll` marker, the `/<repo>` base path, and the owner/repo/branch
  * validation. GitHub Pages has no response-header config, so `responseHeaders` is ignored.
  *
@@ -516,7 +516,7 @@ export default {
   },
   /**
    * Shape check at the boundary before any value reaches a URL (the class still escapes each
-   * segment). Texts are byte-identical to the checks the first host (Tovu) ran in its core before this moved here.
+   * segment). Texts are byte-identical to the checks the first host ran in its core before this moved here.
    * @param {{ owner?: unknown, repo?: unknown, branch?: unknown }} config
    * @returns {string | null}
    */

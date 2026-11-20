@@ -3,7 +3,7 @@
  * for the bundled s3-compatible Agent Plugin: AWS S3, Cloudflare R2, Backblaze B2, DigitalOcean
  * Spaces, Wasabi, MinIO, ...
  *
- * Moved from Tovu core `apps/website/src/features/media/blob-store.s3.ts` (`S3BlobStore`): same
+ * Moved from the original host core `apps/website/src/features/media/blob-store.s3.ts` (`S3BlobStore`): same
  * requests, same path-style object URLs, same status handling, error texts re-prefixed
  * `S3ObjectStore.<method>`. SigV4 signing comes from the host (`host.createSigV4Client`, the same
  * `aws4fetch` `AwsClient` core used), because an installed plugin has no npm dependencies; the host
@@ -11,7 +11,7 @@
  * (2026-09-29), like `targets/s3-compatible.mjs`.
  *
  * Bucket posture (carried over from `S3BlobStore`): this store signs key → bytes operations against
- * a bucket the Tovu server itself is the ONLY reader of — every public media byte is proxied back out
+ * a bucket the host server itself is the ONLY reader of — every public media byte is proxied back out
  * through the `/m/...` rendition route, which calls the store's `get()` and streams the result itself.
  * That proxying is what makes this bucket safe to leave PRIVATE (least-privilege
  * `s3:GetObject`/`PutObject`/`DeleteObject`/`HeadObject` on one prefix, no `s3:ListBucket`, no
@@ -47,7 +47,7 @@ const HEAD_TIMEOUT_MS = 30_000;
 
 /**
  * The setting/credential names `create` refuses without, each with how to read it. A blank string is
- * missing too — the same `!value` test Tovu's env path (`TOVU_S3_*`) applies.
+ * missing too — the same `!value` test the host's env path (`JINI_S3_*`) applies.
  */
 const REQUIRED_INPUTS = [
   ["credential.fields.accessKeyId", ({ credential }) => credential?.fields?.accessKeyId],

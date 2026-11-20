@@ -2,7 +2,7 @@
  * @file S3-compatible deploy target of the `s3-compatible` Agent Plugin (AWS S3, Cloudflare R2,
  * Backblaze B2, DigitalOcean Spaces, Wasabi, MinIO, ...).
  *
- * Moved from Tovu core `apps/website/src/features/deployments/static-publish/s3-compatible-target.ts`:
+ * Moved from the original host core `apps/website/src/features/deployments/static-publish/s3-compatible-target.ts`:
  * the body of {@link bindS3Compatible} is that source with its TypeScript types stripped, same
  * requests, manifest protocol and error texts. SigV4 signing, reachability and `DeployError` come
  * from the host kit (the first host's `kit.createSigV4Client` is the `aws4fetch` `AwsClient` its core used), because
@@ -30,7 +30,7 @@ const TRAILING_URL_SLASHES = /^(.*[^/])?\/+$/s;
 export function bindS3Compatible(kit, _optional = {}) {
   const { checkDeploymentUrl, DeployError, createSigV4Client } = kit;
   /**
-   * Original notes (moved from Tovu core `s3-compatible-target.ts`): `DeployTarget` implementation for S3-compatible object storage (AWS S3, Cloudflare R2,
+   * Original notes (moved from the original host core `s3-compatible-target.ts`): `DeployTarget` implementation for S3-compatible object storage (AWS S3, Cloudflare R2,
    * Backblaze B2, DigitalOcean Spaces, Wasabi, MinIO, ...) — spec
    * `ADS-memory/specs/custom-publish-provider-contract.md` §1-§2.
    *
@@ -44,11 +44,11 @@ export function bindS3Compatible(kit, _optional = {}) {
    * "not architecture" (§2).
    *
    * How it relates to the project:
-   * Lives in Tovu, not in `@jini-ai/devops` — no second consumer exists yet (spec §2's extraction
+   * Lived in the original host, not in `@jini-ai/devops` — no second consumer exists yet (spec §2's extraction
    * ruling). `adapter.ts` is this feature's ONLY caller; every OTHER caller in this codebase sees just
    * `./types.ts`'s `StaticPublishConfig`/`StaticPublishOutcome`, never this file's types (the same
    * "keep Jini's types at the boundary" discipline `adapter.ts`'s own header documents, extended one
-   * level further here since even a Tovu-local deploy target should not leak past its one caller).
+   * level further here since even a host-local deploy target should not leak past its one caller).
    *
    * `checkDeploymentUrl` is reused verbatim from `@jini-ai/devops/deploy`'s `reachability.ts` (already a
    * dependency) rather than reimplemented — it already carries the SSRF-hardened connection-time DNS
@@ -77,7 +77,7 @@ export function bindS3Compatible(kit, _optional = {}) {
    * whoever owns `custom-publish-provider-contract.md` should reconcile §7 with this file).
    *
    * The fix: {@link MANAGED_MANIFEST_KEY} is a small JSON object this target PUTs to the bucket itself,
-   * under a dedicated, Tovu-namespaced key, listing exactly which keys the LAST publish wrote. Every
+   * under a dedicated, plugin-namespaced key, listing exactly which keys the LAST publish wrote. Every
    * `publish()` call now (1) uploads the current export (unchanged), (2) reads the previous manifest and
    * deletes any key it lists that the CURRENT export no longer produces — a targeted delete of a key this
    * target is certain it owns, never a key with no such record — and (3) writes the new manifest ONLY
@@ -86,7 +86,7 @@ export function bindS3Compatible(kit, _optional = {}) {
    * was not yet confirmed deleted, so the next run's diff naturally retries exactly the right work —
    * nothing is ever silently forgotten (re-deleting an already-gone key or re-uploading an
    * already-current one is a harmless no-op), and nothing not YET recorded as managed is ever deleted. A
-   * bucket with no manifest yet (the first publish ever, or content a human uploaded before Tovu ever
+   * bucket with no manifest yet (the first publish ever, or content a human uploaded before the host ever
    * touched this bucket) has nothing "known managed," so nothing is ever inferred safe to delete — the
    * same "unknown means untouched" default the github plugin's `source-control/commit-site.mjs` manifest-based fix uses for the
    * identical class of finding in that adapter.
@@ -99,7 +99,7 @@ export function bindS3Compatible(kit, _optional = {}) {
    *
    *  1. OWNERSHIP WAS TRUSTED BLINDLY. Any key the manifest LISTED was deleted, with no check that the
    *     key's LIVE object still matched what this target itself last wrote. A human (or another tool)
-   *     overwriting a Tovu-published object directly in the bucket, then a later export simply no longer
+   *     overwriting a plugin-published object directly in the bucket, then a later export simply no longer
    *     producing that key, meant the overwrite got silently deleted on the very next publish. Fixed by
    *     giving the manifest real provenance: it is now `{version: 2, keys: [{key, etag}]}`, recording the
    *     ETag THIS target itself observed immediately after writing each key, not just the key string.
@@ -159,7 +159,7 @@ export function bindS3Compatible(kit, _optional = {}) {
    *     silently absorbed.
    *
    * Architectural role:
-   * `features/deployments/static-publish` domain logic, this feature's second (Tovu-local) seam into
+   * `features/deployments/static-publish` domain logic, this feature's second (host-local) seam into
    * the `DeployTarget` port `@jini-ai/devops/deploy` defines.
    */
   /** Fallback `Content-Type` for a `DeployFile` with none set — same gap `adapter.ts`'s `toDeployFile`
@@ -187,14 +187,14 @@ export function bindS3Compatible(kit, _optional = {}) {
    *  that indicate sustained contention this target should surface rather than retry indefinitely against. */
   const MAX_MANIFEST_WRITE_ATTEMPTS = 3;
   /** Where this target records exactly which keys IT wrote — see this file's header CRITICAL fix note.
-   *  A hidden, Tovu-namespaced key deliberately: a real static export does not produce a dotfile
+   *  A hidden, plugin-namespaced key deliberately: a real static export does not produce a dotfile
    *  directory, so collision with genuine site content is not a practical concern the way a plain
    *  `manifest.json` at the bucket root would be. Byte-identical NAMING PATTERN to
    *  `commit-site.mjs`'s `MANAGED_MANIFEST_PATH` — not shared code (this is an S3 object key, that
    *  is a git tree path; the two adapters have no dependency on each other), just the same "small
-   *  Tovu-owned tracking file, physically stored inside what this adapter manages" shape applied to two
+   *  plugin-owned tracking file, physically stored inside what this adapter manages" shape applied to two
    *  different storage systems. */
-  const MANAGED_MANIFEST_KEY = ".tovu/managed-keys.json";
+  const MANAGED_MANIFEST_KEY = ".jini/managed-keys.json";
   /**
    * Derives the object-storage API host to sign requests against when `config.endpoint` is blank —
    * "Plain AWS S3: leave this blank" per the credential form's own hint copy (spec §4c). Every other
@@ -385,7 +385,7 @@ export function bindS3Compatible(kit, _optional = {}) {
    *
    * A VERIFIED 404 is the ONLY case treated as "zero prior keys" — it is a genuinely different fact than
    * "this object could not be read," and is exactly what the first publish ever to a bucket (or one a
-   * human populated before Tovu ever touched it) looks like. Every OTHER failure (network, a non-404 HTTP
+   * human populated before the host ever touched it) looks like. Every OTHER failure (network, a non-404 HTTP
    * error, a body that fails to parse, or a body that parses but matches neither manifest shape {@link
    * parseManagedManifestShape} recognizes) now THROWS a real {@link DeployError} — `publish()` fails the
    * whole call rather than risk writing a new manifest that silently forgets what an unreadable one
@@ -402,7 +402,7 @@ export function bindS3Compatible(kit, _optional = {}) {
           return await client.fetch(objectUrl(config, MANAGED_MANIFEST_KEY), { method: "GET", signal: AbortSignal.timeout(UPLOAD_TIMEOUT_MS) });
       }
       catch (err) {
-          throw new DeployError(`Failed to read the Tovu-managed object manifest — cannot confirm which keys this target previously owned: ${err instanceof Error ? err.message : String(err)}`, 502);
+          throw new DeployError(`Failed to read the managed object manifest — cannot confirm which keys this target previously owned: ${err instanceof Error ? err.message : String(err)}`, 502);
       }
   }
   /** The parse-and-validate half of {@link fetchManagedManifest}, for an already-`ok` response. */
@@ -412,11 +412,11 @@ export function bindS3Compatible(kit, _optional = {}) {
           parsed = JSON.parse(await resp.text());
       }
       catch {
-          throw new DeployError("The Tovu-managed object manifest is not valid JSON — cannot confirm which keys this target previously owned.", 502);
+          throw new DeployError("The managed object manifest is not valid JSON — cannot confirm which keys this target previously owned.", 502);
       }
       const files = parseManagedManifestShape(parsed);
       if (files === undefined) {
-          throw new DeployError("The Tovu-managed object manifest did not match a recognized shape — cannot confirm which keys this target previously owned.", 502);
+          throw new DeployError("The managed object manifest did not match a recognized shape — cannot confirm which keys this target previously owned.", 502);
       }
       return { files, etag: resp.headers.get("etag") ?? undefined };
   }
@@ -427,7 +427,7 @@ export function bindS3Compatible(kit, _optional = {}) {
       if (!resp.ok) {
           const body = await safeErrorBody(resp);
           const detail = body ? ` — ${body}` : "";
-          throw new DeployError(`Failed to read the Tovu-managed object manifest — cannot confirm which keys this target previously owned: HTTP ${resp.status}${detail}`, resp.status >= 500 ? 502 : 400);
+          throw new DeployError(`Failed to read the managed object manifest — cannot confirm which keys this target previously owned: HTTP ${resp.status}${detail}`, resp.status >= 500 ? 502 : 400);
       }
       const { files, etag } = await parseManagedManifestBody(resp);
       return { status: "found", files, etag };
@@ -470,7 +470,7 @@ export function bindS3Compatible(kit, _optional = {}) {
           return await client.fetch(objectUrl(config, MANAGED_MANIFEST_KEY), { method: "PUT", body, headers, signal: AbortSignal.timeout(UPLOAD_TIMEOUT_MS) });
       }
       catch (err) {
-          throw new DeployError(`Failed to update the Tovu-managed object manifest: ${err instanceof Error ? err.message : String(err)}`, 502);
+          throw new DeployError(`Failed to update the managed object manifest: ${err instanceof Error ? err.message : String(err)}`, 502);
       }
   }
   /** Classifies a `400` manifest-write response. Some S3-compatible providers report an unsupported
@@ -483,7 +483,7 @@ export function bindS3Compatible(kit, _optional = {}) {
       if (/notimplemented|not implemented|unsupportedoperation/i.test(body))
           return "unsupported";
       const detail = body ? ` — ${body}` : "";
-      throw new DeployError(`Failed to update the Tovu-managed object manifest: HTTP 400${detail}`, 400);
+      throw new DeployError(`Failed to update the managed object manifest: HTTP 400${detail}`, 400);
   }
   async function classifyManifestWriteResponse(resp) {
       if (resp.ok)
@@ -496,7 +496,7 @@ export function bindS3Compatible(kit, _optional = {}) {
           return classifyManifestWrite400(resp);
       const errorBody = await safeErrorBody(resp);
       const detail = errorBody ? ` — ${errorBody}` : "";
-      throw new DeployError(`Failed to update the Tovu-managed object manifest: HTTP ${resp.status}${detail}`, resp.status >= 500 ? 502 : 400);
+      throw new DeployError(`Failed to update the managed object manifest: HTTP ${resp.status}${detail}`, resp.status >= 500 ? 502 : 400);
   }
   async function writeManagedManifestConditional(client, config, files, precondition) {
       const body = buildManifestBody(files);
@@ -653,9 +653,9 @@ export function bindS3Compatible(kit, _optional = {}) {
    *  loop purely to keep that loop's cognitive complexity down — this function has no loop of its own. */
   function manifestWriteExhaustedError(outcome) {
       if (outcome === "unsupported") {
-          return new DeployError("This provider reported the Tovu-managed object manifest write as 'unsupported' even after degrading to an unconditional write, and retries were exhausted — it may not support the write shape this target requires.", 502);
+          return new DeployError("This provider reported the managed object manifest write as 'unsupported' even after degrading to an unconditional write, and retries were exhausted — it may not support the write shape this target requires.", 502);
       }
-      return new DeployError("Concurrent publish detected on the Tovu-managed object manifest and retries were exhausted — another publish updated it while this one was running. Try publishing again.", 409);
+      return new DeployError("Concurrent publish detected on the managed object manifest and retries were exhausted — another publish updated it while this one was running. Try publishing again.", 409);
   }
   async function attemptManifestSync(client, config, currentKeys, currentFiles, concurrencyGuardActive) {
       const manifestRead = await fetchManagedManifest(client, config);
@@ -842,7 +842,7 @@ function classifyCredentialResponse(response) {
 
 // ---------------------------------------------------------------------------
 // Hosting setup: the steps that make a bucket servable, which the person applies in their own
-// console. Moved from Tovu core `publish-agent-tools.ts` (`inferHostingSetupProvider` /
+// console. Moved from the original host core `publish-agent-tools.ts` (`inferHostingSetupProvider` /
 // `buildHostingSetupContent`), types stripped, same text.
 // ---------------------------------------------------------------------------
 
@@ -976,11 +976,11 @@ function buildHostingSetupContent(provider, bucket, region) {
       {
         title: "Check your provider's own documentation for making a bucket publicly readable",
         description:
-          `Your storage endpoint wasn't recognized as one of the providers Tovu has specific guidance for (bucket '${bucket}', region '${region}'). ` +
+          `Your storage endpoint wasn't recognized as one of the providers with specific app guidance (bucket '${bucket}', region '${region}'). ` +
           "Most S3-compatible providers support a public-read bucket policy similar to AWS's own — search your provider's docs for 'bucket policy' or 'public access'.",
       },
     ],
-    warning: "This provider is not one Tovu has specific hosting-setup guidance for yet — the steps above are generic, not verified against your provider's own documentation.",
+    warning: "This provider is not one the app has specific hosting-setup guidance for yet — the steps above are generic, not verified against your provider's own documentation.",
   };
 }
 

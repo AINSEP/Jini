@@ -26,9 +26,9 @@ import { GoogleWorkspaceError } from './request-policy.mjs';
 import { SHEETS_PRODUCT_ID } from './sheets-client.mjs';
 import { CONNECTION_ID, sheetsUnavailableReason, surfaceAccount, surfaceRefusal, surfaceSheetsClient } from './surface-actions.mjs';
 
-// The names keep their `TOVU_` prefix: sites already set them, and renaming would unconfigure them.
+// Sites configure these public Picker values through the host.
 /** Public config the hosted JS Picker needs; placeholders the operator sets, never secrets. */
-export const PICKER_CONFIG_NAMES = Object.freeze({ developerKey: 'TOVU_GOOGLE_PICKER_BROWSER_KEY', appId: 'TOVU_GOOGLE_PICKER_APP_ID' });
+export const PICKER_CONFIG_NAMES = Object.freeze({ developerKey: 'JINI_GOOGLE_PICKER_BROWSER_KEY', appId: 'JINI_GOOGLE_PICKER_APP_ID' });
 
 /** Long enough to browse Drive in the Picker; short enough that a forgotten tab stops being usable. */
 export const PICKER_SESSION_TTL_MS = 15 * 60_000;

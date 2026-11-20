@@ -8,7 +8,7 @@ const manifest = { forms: [{ slug: 'contact', fields }] };
 const now = () => Date.parse('2026-11-04T00:00:00Z');
 const post = body => new Request('https://site.example/forms/contact/submit', { method: 'POST', body, headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'CF-Connecting-IP': '203.0.113.9' } });
 test('receiver rejects invalid email, unchecked consent and forged choices before reporting success', async () => {
-  const d1 = fakeD1(); const env = { TOVU_FORMS: d1.binding };
+  const d1 = fakeD1(); const env = { JINI_FORMS: d1.binding };
   for (const body of ['email=wrong&consent=on', 'email=a%40b.co&consent=false', 'email=a%40b.co&consent=on&choice=forged']) {
     assert.equal((await handleRequest({ request: post(body), env, manifest }, { now })).status, 400);
   }
@@ -16,14 +16,14 @@ test('receiver rejects invalid email, unchecked consent and forged choices befor
 });
 test('receiver stores no raw IP, including in its rate keys', async () => {
   const d1 = fakeD1();
-  assert.equal((await handleRequest({ request: post('email=a%40b.co&consent=on'), env: { TOVU_FORMS: d1.binding, TOVU_FORMS_SECRET: 's'.repeat(43) }, manifest }, { now, randomId: () => 's' })).status, 303);
+  assert.equal((await handleRequest({ request: post('email=a%40b.co&consent=on'), env: { JINI_FORMS: d1.binding, JINI_FORMS_SECRET: 's'.repeat(43) }, manifest }, { now, randomId: () => 's' })).status, 303);
   assert.equal(d1.rows('SELECT ip FROM submissions')[0].ip, null);
   assert.equal(JSON.stringify(d1.rows('SELECT * FROM rate_windows')).includes('203.0.113.9'), false);
 });
 test('acknowledgement erases committed answers and IP, and is idempotent', async () => {
   const d1 = fakeD1();
   await d1.binding.prepare('INSERT INTO submissions (id,form_slug,answers_json,submitted_at,ip) VALUES (?,?,?,?,?)').bind('s', 'contact', '{"secret":"answer"}', new Date(now()).toISOString(), '203.0.113.9').run();
-  const ack = () => acknowledge({ env: { TOVU_FORMS: d1.binding }, request: new Request('https://site.example/_tovu/forms/ack', { method: 'POST', body: JSON.stringify({ ids: ['s'] }) }) }, { now });
+  const ack = () => acknowledge({ env: { JINI_FORMS: d1.binding }, request: new Request('https://site.example/_jini/forms/ack', { method: 'POST', body: JSON.stringify({ ids: ['s'] }) }) }, { now });
   assert.deepEqual(await (await ack()).json(), { acknowledged: 1 });
   assert.deepEqual(d1.rows('SELECT * FROM submissions'), []);
   assert.deepEqual(await (await ack()).json(), { acknowledged: 0 });
@@ -31,7 +31,7 @@ test('acknowledgement erases committed answers and IP, and is idempotent', async
 test('legacy pending IPs never leave the receiver while republish scrubs their stored copies', async () => {
   const d1 = fakeD1();
   await d1.binding.prepare('INSERT INTO submissions (id,form_slug,answers_json,submitted_at,ip) VALUES (?,?,?,?,?)').bind('s','contact','{}','2026-01-01T00:00:00.000Z','203.0.113.9').run();
-  const response = await listPending({ env: { TOVU_FORMS: d1.binding }, url: new URL('https://site.example/_tovu/forms/pending') }, { now });
+  const response = await listPending({ env: { JINI_FORMS: d1.binding }, url: new URL('https://site.example/_jini/forms/pending') }, { now });
   assert.equal((await response.json()).items[0].ip, null);
 });
 test('publish refuses files and validation the receiver cannot enforce', () => {
@@ -51,7 +51,7 @@ test('rate pseudonyms depend on the receiver secret and never fall back to unsal
   const keys = [];
   for (const secret of ['a'.repeat(43), 'b'.repeat(43)]) {
     const d1 = fakeD1();
-    const response = await handleRequest({ request: post('email=a%40b.co&consent=on'), env: { TOVU_FORMS: d1.binding, TOVU_FORMS_SECRET: secret }, manifest }, { now, randomId: () => 's' });
+    const response = await handleRequest({ request: post('email=a%40b.co&consent=on'), env: { JINI_FORMS: d1.binding, JINI_FORMS_SECRET: secret }, manifest }, { now, randomId: () => 's' });
     assert.equal(response.status, 303); keys.push(d1.rows('SELECT key FROM rate_windows')[0].key);
   }
   assert.notEqual(keys[0], keys[1]);

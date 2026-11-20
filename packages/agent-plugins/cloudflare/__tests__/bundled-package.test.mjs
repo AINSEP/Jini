@@ -22,7 +22,7 @@ test('the manifest keeps every frozen identifier hosts and saved sites already s
   const manifest = await readJson('plugin.json');
   assert.equal(manifest.name, 'cloudflare');
   const host = manifest.extensions.jini;
-  assert.equal(host.id, 'tovu/cloudflare');
+  assert.equal(host.id, 'jini/cloudflare');
   assert.deepEqual(host.provides, ['deploy-target:cloudflare-workers', 'deploy-target:cloudflare-pages', 'form-destination:cloudflare-d1']);
   assert.deepEqual(host.supersedes.packages, ['cloudflare-pages']);
   assert.deepEqual(host.supersedes.contributions.map(row => [row.fromPlugins, row.descriptorId]), [[['deploy', 'cloudflare-pages'], 'cloudflare-pages']]);
@@ -33,15 +33,15 @@ test('the manifest keeps every frozen identifier hosts and saved sites already s
 
 test('every contribution file names a module this plugin ships', async () => {
   const files = await shippedFiles();
-  const targets = (await readJson('tovu-deploy-targets.json')).targets;
+  const targets = (await readJson('jini-deploy-targets.json')).targets;
   assert.deepEqual(targets.map(target => [target.id, target.module]), [
     ['cloudflare-workers', 'targets/cloudflare-workers.mjs'],
     ['cloudflare-pages', 'targets/cloudflare-pages.mjs'],
   ]);
-  const destinations = (await readJson('tovu-form-destinations.json')).destinations;
+  const destinations = (await readJson('jini-form-destinations.json')).destinations;
   assert.deepEqual(destinations.map(row => [row.id, row.module, row.hosts]), [['cloudflare-d1', 'form-destinations/cloudflare-d1.mjs', ['cloudflare-workers']]]);
   for (const module of [...targets, ...destinations].map(row => row.module)) assert.ok(files.includes(module), module);
-  assert.deepEqual((await readJson('tovu-consent.json')).contributions, [{ kind: 'region-resolver', id: 'cloudflare', header: 'cf-ipcountry' }]);
+  assert.deepEqual((await readJson('jini-consent.json')).contributions, [{ kind: 'region-resolver', id: 'cloudflare', header: 'cf-ipcountry' }]);
   assert.ok(files.includes('worker/forms-receiver.mjs'));
 });
 
@@ -57,10 +57,10 @@ test('the distribution carries its CMS evidence reader without installing CMS at
 });
 
 test('form wire names stay frozen: live Workers and D1 databases already use them', () => {
-  assert.equal(FORMS_BINDING, 'TOVU_FORMS');
-  assert.equal(FORMS_SECRET_BINDING, 'TOVU_FORMS_SECRET');
-  assert.deepEqual(FORMS_WORKER_ROUTES, ['/forms/*', '/_tovu/*']);
-  assert.equal(databaseName({ resourceName: 'jini-demo' }), 'tovu-forms-jini-demo');
+  assert.equal(FORMS_BINDING, 'JINI_FORMS');
+  assert.equal(FORMS_SECRET_BINDING, 'JINI_FORMS_SECRET');
+  assert.deepEqual(FORMS_WORKER_ROUTES, ['/forms/*', '/_jini/*']);
+  assert.equal(databaseName({ resourceName: 'jini-demo' }), 'jini-forms-jini-demo');
 });
 
 test('the shipped text and runtime messages are host-neutral', async () => {

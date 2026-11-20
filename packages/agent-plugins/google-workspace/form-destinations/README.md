@@ -1,7 +1,7 @@
 # `form-destinations/` — the Google Sheets form destination
 
 **Purpose.** Push each accepted form submission into a Google Sheets tab as one row, at least once,
-with best-effort dedupe. Declared in `../tovu-form-destinations.json` as `google-sheets` (push only,
+with best-effort dedupe. Declared in `../jini-form-destinations.json` as `google-sheets` (push only,
 no `receive`), part of the Sheets product (`../products.json`).
 
 ## Public API
@@ -31,7 +31,7 @@ connection now holds another account (`authorization-required`), and a binding w
 (`configuration-invalid`).
 
 Which column holds which field is kept in the sheet, not the binding: the first time a field is
-written, its column gets a developer-metadata marker (`tovu_form_field` = the field id, visibility
+written, its column gets a developer-metadata marker (`jini_form_field` = the field id, visibility
 `DOCUMENT`, attached to that one column). The marker decides the column from then on, so a label
 edited in the form, a header renamed in the sheet, or columns inserted or moved before it keep the
 field's data in one column (Google moves column metadata with the column). An untagged field is
@@ -52,7 +52,7 @@ there. A distinct outcome needs a contract change in Jini (`@jini-ai/cms/forms`)
 |---|---|
 | `sheets.mjs` | One attempt: product check → tab by sheet id → header row + column markers → dedupe scan → one atomic column batch (grid, headers, markers) → RAW append → re-scan after a lost answer. |
 | `mapping.mjs` | Field id ↔ marker / header ↔ column (`buildMapping`, `readMarkers`, `planColumns`); mapping errors; the RAW row (checkbox groups joined `", "`). |
-| `dedupe.mjs` | Scans the `_tovu_submission_id` column in 5,000-row chunks; > 50,000 data rows → `destination-limit`. |
+| `dedupe.mjs` | Scans the `_jini_submission_id` column in 5,000-row chunks; > 50,000 data rows → `destination-limit`. |
 | `delivery-result.mjs` | The contract's result shape and the plugin-error → contract-code table. |
 
 ## How it fits

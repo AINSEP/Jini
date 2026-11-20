@@ -48,7 +48,7 @@ const NETLIFY_FAILURE_STATES = new Set(["error", "rejected"]);
 
 /**
  * Renders a header set in Netlify's `_headers` format: a path pattern, then two-space-indented
- * `Name: value` lines. Byte-identical to what the first host (Tovu) rendered in its core before this moved here.
+ * `Name: value` lines. Byte-identical to what the first host rendered in its core before this moved here.
  *
  * @param {Readonly<Record<string, string>>} headers
  * @returns {string}

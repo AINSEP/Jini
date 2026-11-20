@@ -20,7 +20,7 @@ import { titleCaseFromPluginId, type ResolvedAgentPluginForConnect } from "./con
  * remote server declares `tokenAuth { helpUrl, probeUrl }` in its `mcp.json` (`manifest.ts`).
  * Used when `agent_plugin_connect`'s sign-in cannot start.
  *
- * Moved here on 2026-09-29 from `features/supabase-connect/` (SPEC-052's `supabase_set_access_token`),
+ * Moved here on 2026-09-29 from `features/supabase-connect/` (`supabase_set_access_token`),
  * so no vendor code is left in core: the tokens page and the probe URL now come from the plugin.
  *
  * A Jini secret-card spec with domain copy from `connect-card-ui.ts`; the submitted token is probed with one GET to the declared
@@ -116,7 +116,7 @@ export interface AgentPluginAccessTokenToolDeps extends AgentPluginTokenTargetDe
   readonly host: AgentPluginAccessTokenHost;
 }
 
-/** Plain-language messages from SPEC-052's errors.spec.md. None ever carries a token or a vendor body. */
+/** Plain-language messages from errors.spec.md. None ever carries a token or a vendor body. */
 const MESSAGES = {
   tokenInvalid: "The server rejected this token.",
   blankToken: "The access token cannot be blank. Nothing was saved.",

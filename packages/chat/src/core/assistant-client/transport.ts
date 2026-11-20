@@ -130,7 +130,7 @@ export function createAssistantTransportClient({ ports }: { ports: AssistantTran
   const translateRunAgentPayload = (payload: RunAgentPayload) => runEvents.translateRunAgentPayload({ payload }, {});
 
   /**
-   * Shared HTTP implementation of `@jini-ai/chat/react`'s `ChatTransport` port (originally ADR-049).
+   * Shared HTTP implementation of `@jini-ai/chat/react`'s `ChatTransport` port.
    *
    * TWO run paths live here, selected per-turn by `getExecutionConfig()` (see
    * `createAssistantTransport`'s own doc):
@@ -143,7 +143,7 @@ export function createAssistantTransportClient({ ports }: { ports: AssistantTran
    *    module doc is explicit that this reduction is a transport concern ("a host's transport adapter
    *    is responsible for reducing wire deltas... into the persisted/renderable AgentEvent items"), so
    *    `translateRunAgentPayload` below does that translation.
-   * 2. **API · BYOK** (2026-08-04, ADR-049's picker): binds to the host app's `src/server/runtime/composition/modules/assistant-byok.ts`'s
+   * 2. **API · BYOK** (2026-08-04, the execution picker): binds to the host app's `src/server/runtime/composition/modules/assistant-byok.ts`'s
    *    `POST /api/admin/v1/assistant/byok-turn` — one request/response holding the WHOLE turn open,
    *    no separate `EventSource`/reattach/cancel-by-runId (see that route's own header for why, and
    *    what it costs). Its SSE frames carry the SAME `payload.type` vocabulary

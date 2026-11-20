@@ -24,13 +24,13 @@ test('migrations run with the system clock when the kit has none, and tolerate q
   const f = fixture({ respond: routes([
     // The first statement's answer carries an item with no `results` and a null item: both read as no rows.
     [/\/d1\/database\/[^/]+\/query$/, 'POST', ({ init }) => { const out = d1.rest(JSON.parse(init.body)); return json(/schema_migrations \(version INTEGER/.test(init.body) ? [{ success: true }, null] : out); }],
-    ['/d1/database', 'GET', () => json([{ name: 'tovu-forms-jini-demo', uuid: 'db-1' }])],
+    ['/d1/database', 'GET', () => json([{ name: 'jini-forms-jini-demo', uuid: 'db-1' }])],
   ]) });
   const kit = { ...f.kit };
   delete kit.now;
   const before = Date.now();
   const result = await provisionForms({ api: createApi({ credential, kit }), kit, resourceName: 'jini-demo' });
-  assert.deepEqual(result, { databaseId: 'db-1', databaseName: 'tovu-forms-jini-demo', applied: [1] });
+  assert.deepEqual(result, { databaseId: 'db-1', databaseName: 'jini-forms-jini-demo', applied: [1] });
   const [row] = d1.rows('SELECT version, applied_at FROM schema_migrations');
   assert.equal(row.version, 1);
   assert.ok(Date.parse(row.applied_at) >= before - 1000 && Date.parse(row.applied_at) <= Date.now() + 1000, row.applied_at);

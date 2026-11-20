@@ -9,7 +9,7 @@
  *   from the host kit the host injects (see {@link bindVercel}),
  *   bound once per target by {@link bindVercel}: an installed plugin has no npm dependencies.
  * - `responseHeaders` (the host's security header set) is rendered into a root `vercel.json` here,
- *   which the first host (Tovu) used to add in its core.
+ *   which the first host used to add in its core.
  * - Files are uploaded one per request to `POST /v2/files` (by SHA-1) and the deployment references
  *   them as `{ file, sha, size }`, the way Vercel's CLI does (2026-10-11). The devops source sent every
  *   file inline, base64, in the one `/v13/deployments` body, which Vercel refuses past 10 MB
@@ -34,7 +34,7 @@ const VERCEL_CONFIG_FILE = "vercel.json";
 
 /**
  * Renders a header set as a `vercel.json` with one catch-all header rule. Byte-identical to what
- * the first host (Tovu) rendered in its core before this moved here.
+ * the first host rendered in its core before this moved here.
  *
  * @param {Readonly<Record<string, string>>} headers
  * @returns {string}

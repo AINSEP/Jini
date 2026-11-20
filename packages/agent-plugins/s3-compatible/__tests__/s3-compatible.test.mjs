@@ -115,7 +115,7 @@ const MAX_MANIFEST_WRITE_ATTEMPTS = 3;
  *  assumptions about it, the same reasoning `CONFIG`/`FILES` above are plain literals rather than
  *  imports from the production module. Declared here (not only near the CRITICAL FIX section below) so
  *  the plain default responder immediately below can reference it. */
-const MANAGED_MANIFEST_KEY = ".tovu/managed-keys.json";
+const MANAGED_MANIFEST_KEY = ".jini/managed-keys.json";
 
 /** Default fake response for tests below that don't care about the managed-keys manifest at all — a GET
  *  for it must be answered with a REAL, verified 404 ("no manifest yet"), never a generic empty 200 body.

@@ -77,7 +77,7 @@ export interface SurfaceExchangeBinding {
 /**
  * One inbound message, or the reason there will not be one.
  *
- * The non-`received` cases are part of the contract rather than error handling (ADR-055 Decision 6):
+ * The non-`received` cases are part of the contract rather than error handling:
  * blocking moves the timeout story, it does not remove it, and a handler must be able to tell the
  * model something true about which happened.
  */

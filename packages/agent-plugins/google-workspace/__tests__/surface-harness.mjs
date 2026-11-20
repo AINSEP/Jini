@@ -99,7 +99,7 @@ export function destinationBinding(formSlug, destination = {}) {
 
 /** The surfaces file as Jini parses it. */
 export async function surfaceDescriptors() {
-  const parsed = parseAdminSurfacesFile({ raw: await readFile(new URL('../tovu-admin-surfaces.json', import.meta.url), 'utf8') });
+  const parsed = parseAdminSurfacesFile({ raw: await readFile(new URL('../jini-admin-surfaces.json', import.meta.url), 'utf8') });
   if (!parsed.ok) throw new Error(parsed.reason);
   return parsed.descriptors;
 }

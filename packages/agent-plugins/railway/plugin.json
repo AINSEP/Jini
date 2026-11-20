@@ -3,14 +3,14 @@
   "name": "railway",
   "version": "1.0.1",
   "description": "Deploys existing Railway services, checks deployment status and logs, stages variables, and generates railway.json for the host's server.",
-  "author": "Tovu",
+  "author": "Jini",
   "license": "Apache-2.0",
   "extensions": {
     "jini": {
       "maturity": "soon",
       "displayName": "Railway",
       "summary": "Deploys and checks an existing Railway service, stages variables, and writes the server settings file.",
-      "id": "tovu/railway",
+      "id": "jini/railway",
       "provides": [
         "deploy-config:railway",
         "deploy-ops:railway"

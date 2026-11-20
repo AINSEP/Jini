@@ -103,7 +103,7 @@ export interface AuditedToolExecutor {
  * record yet, and wrapping a handler would miss denied/confirmed attempts. The executor's own
  * in-memory audit remains authoritative for getAuditRecord; an injected sink can retain history.
  * Audit observes rather than gates: sink/reporting failures never alter execution outcomes.
- * ADR-021 §2 keeps authorization with ToolPolicy.authorize and the domain evaluator.
+ * Authorization stays with ToolPolicy.authorize and the domain evaluator.
  * Forward emitSurface unchanged or human-answer tools would silently take their fallback path.
  * Settled details retain truncation or an errorId link, never error text or operator content. */
 export function withToolAttemptAudit(

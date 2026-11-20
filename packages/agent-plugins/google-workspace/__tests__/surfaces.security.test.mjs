@@ -18,7 +18,7 @@ import { REVOCATION_PENDING_TEXT, connectionSummary, revocationMessage } from '.
 import { startFakeGoogle } from './fake-google-http.mjs';
 import { FILE_ID, OTHER_FILE_ID, TOKEN, bootSurfaces, createHostPorts, serveGoogle, surfaceDescriptors } from './surface-harness.mjs';
 
-const PICKER_CONFIG = { TOVU_GOOGLE_PICKER_BROWSER_KEY: 'browser-key-placeholder', TOVU_GOOGLE_PICKER_APP_ID: '123456789' };
+const PICKER_CONFIG = { JINI_GOOGLE_PICKER_BROWSER_KEY: 'browser-key-placeholder', JINI_GOOGLE_PICKER_APP_ID: '123456789' };
 const SESSION = 'session-0123456789abcdef';
 let fake;
 let clock;
@@ -61,18 +61,18 @@ test('declarations: only the connection panel may open a link, only to the Googl
 
 test('declarations: Picker surfaces declare exactly the desktop start params, the picked_file_ids field and the two public Picker names; the connection panel none; the binding surfaces only the Sheets adapter', async () => {
   const descriptors = await surfaceDescriptors();
-  const connectionsFile = JSON.parse(await readFile(new URL('../tovu-connections.json', import.meta.url), 'utf8')).connections[0];
+  const connectionsFile = JSON.parse(await readFile(new URL('../jini-connections.json', import.meta.url), 'utf8')).connections[0];
   const declared = Object.fromEntries(descriptors.map((surface) => [surface.id, { connections: surface.connections, publicConfig: surface.publicConfig ?? [] }]));
   const pickerConnection = [{ id: 'account', startParams: Object.keys(DESKTOP_PICKER_START_PARAMS), callbackFields: ['picked_file_ids'] }];
-  const publicConfig = ['TOVU_GOOGLE_PICKER_BROWSER_KEY', 'TOVU_GOOGLE_PICKER_APP_ID'];
+  const publicConfig = ['JINI_GOOGLE_PICKER_BROWSER_KEY', 'JINI_GOOGLE_PICKER_APP_ID'];
   assert.deepEqual(declared, {
     connection: { connections: [{ id: 'account', startParams: [], callbackFields: [] }], publicConfig: [] },
     picker: { connections: pickerConnection, publicConfig },
     'form-destinations': { connections: pickerConnection, publicConfig },
   });
   // The two surfaces that read or write form-delivery bindings name exactly this plugin's Sheets adapter
-  // (`tovu-form-destinations.json`); the Picker surface touches no binding.
-  const destinationsFile = JSON.parse(await readFile(new URL('../tovu-form-destinations.json', import.meta.url), 'utf8'));
+  // (`jini-form-destinations.json`); the Picker surface touches no binding.
+  const destinationsFile = JSON.parse(await readFile(new URL('../jini-form-destinations.json', import.meta.url), 'utf8'));
   assert.deepEqual(Object.fromEntries(descriptors.map((surface) => [surface.id, surface.deliveryAdapters ?? []])), {
     connection: [destinationsFile.destinations[0].id], picker: [], 'form-destinations': [destinationsFile.destinations[0].id],
   });
@@ -105,7 +105,7 @@ test('bootstrap: Sheets turned off → unavailable (product-disabled), no access
 });
 
 test('bootstrap: a hosted site without both public Picker values is unavailable (picker-not-configured) and hands out no token', async () => {
-  const { ports, surfaces } = await boot({ publicConfig: { TOVU_GOOGLE_PICKER_BROWSER_KEY: 'browser-key-placeholder' } });
+  const { ports, surfaces } = await boot({ publicConfig: { JINI_GOOGLE_PICKER_BROWSER_KEY: 'browser-key-placeholder' } });
   const bootstrap = await surfaces.bootstrap('picker');
   assert.equal(bootstrap.mode, 'unavailable');
   assert.equal(bootstrap.reason, 'picker-not-configured');

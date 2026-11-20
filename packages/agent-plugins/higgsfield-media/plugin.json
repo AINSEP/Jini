@@ -3,7 +3,7 @@
   "name": "higgsfield-media",
   "version": "1.1.1",
   "description": "Generates images or video through Higgsfield's hosted MCP server, follows asynchronous jobs, then imports the returned asset into this site's Media library. Connect the account through the person's browser sign-in, never an API key. Discover this account's current tools, schemas and model entitlements; the worked model and plan examples are historical, not guarantees. Covers operator write grants, polling without sync:true, connection recovery and importing media from its URL.",
-  "author": "Tovu",
+  "author": "Jini",
   "license": "Apache-2.0",
   "keywords": [
     "higgsfield",
@@ -78,7 +78,7 @@
           }
         }
       },
-      "id": "tovu/higgsfield-media",
+      "id": "jini/higgsfield-media",
       "provides": [
         "media:image",
         "media:video"

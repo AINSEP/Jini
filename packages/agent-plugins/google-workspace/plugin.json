@@ -3,7 +3,7 @@
   "name": "google-workspace",
   "version": "0.1.1",
   "description": "Connects one Google account to this site with Google's own sign-in, then works with the Google files the person picks or this site creates (the drive.file permission, never the whole Drive). v1 ships Google Sheets: chat tools for spreadsheets and a form destination that appends submissions as rows. Products are turned on separately; turning one off stops its tools and deliveries without revoking the sign-in.",
-  "author": "Tovu",
+  "author": "Jini",
   "license": "Apache-2.0",
   "extensions": {
     "jini": {
@@ -11,7 +11,7 @@
       "vendorAliases": ["google-sheets", "docs.google.com", "sheets.googleapis.com", "drive.googleapis.com", "gmail"],
       "displayName": "Google Workspace",
       "summary": "Sign in with Google once, then work with the spreadsheets you choose or create here.",
-      "id": "tovu/google-workspace",
+      "id": "jini/google-workspace",
       "provides": [
         "api-connection:google-workspace",
         "form-destination:google-sheets"

@@ -32,10 +32,10 @@ test('the module is a valid Jini mail provider and matches its v2 descriptor', a
   assert.equal(resend.id, 'resend');
   assert.deepEqual(resend.credentialKeys, ['token']);
   assert.deepEqual(resend.capabilities, { hosted: true, feedback: true, domainVerification: true, rateLimit: { perSecond: 2, burst: 2 } });
-  const descriptor = JSON.parse(await readFile(new URL('../tovu-mail-adapters.json', import.meta.url), 'utf8'));
+  const descriptor = JSON.parse(await readFile(new URL('../jini-mail-adapters.json', import.meta.url), 'utf8'));
   assert.equal(descriptor.schemaVersion, 2);
   assert.deepEqual(descriptor.adapters[0], {
-    id: 'resend', label: 'Resend', module: 'adapters/resend.mjs', credentialLabel: 'Tovu Mail — Resend API', credentialKeys: ['token'], feedback: true,
+    id: 'resend', label: 'Resend', module: 'adapters/resend.mjs', credentialLabel: 'Mail — Resend API', credentialKeys: ['token'], feedback: true,
     credentialCard: {
       title: 'Connect Resend',
       // 7d1f99532 declares each card's display-only purpose.
