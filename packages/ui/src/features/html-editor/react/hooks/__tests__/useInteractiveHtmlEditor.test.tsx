@@ -679,7 +679,7 @@ describe('useInteractiveHtmlEditor — the splice holds for real RTE edits (Slic
 
     expect(warnSpy).toHaveBeenCalledTimes(1);
     expect(warnSpy).toHaveBeenCalledWith(
-      '[useInteractiveHtmlEditor] falling back to full re-serialization: source splice could not be preserved.',
+      '[useInteractiveHtmlEditor] falling back to full re-serialization: a block was added, moved, copied or deleted since mount',
     );
   });
 
@@ -695,7 +695,7 @@ describe('useInteractiveHtmlEditor — the splice holds for real RTE edits (Slic
     lastFake!.fire('update');
 
     expect(warnSpy).toHaveBeenCalledWith(
-      '[useInteractiveHtmlEditor] falling back to full re-serialization: source splice could not be preserved.',
+      '[useInteractiveHtmlEditor] falling back to full re-serialization: a block was added, moved, copied or deleted since mount',
     );
   });
 
@@ -709,7 +709,7 @@ describe('useInteractiveHtmlEditor — the splice holds for real RTE edits (Slic
     lastFake!.fire('update');
 
     expect(warnSpy).toHaveBeenCalledWith(
-      '[useInteractiveHtmlEditor] falling back to full re-serialization: source splice could not be preserved.',
+      '[useInteractiveHtmlEditor] falling back to full re-serialization: a block was added, moved, copied or deleted since mount',
     );
   });
 });

@@ -81,7 +81,7 @@ it('uses the injected menu and tooltip controllers independently', () => {
   expect(onSelect).toHaveBeenCalledWith('terra');
   expect(bubble()).toBeNull();
   const closed: typeof useRuntimeDropUp = (required) => ({ ...useRuntimeDropUp(required), open: false });
-  view.rerender(<RuntimeDropUp {...props} useRuntimeDropUpHook={closed} useInfoTipHook={useInfoTipHook} />);
+  view.rerender(<RuntimeDropUp {...props} useAgentHandleHook={() => 'injected-model'} useRuntimeDropUpHook={closed} useInfoTipHook={useInfoTipHook} />);
   expect(bubble()).toHaveTextContent('GPT-5.6-Terra');
   fireEvent.mouseEnter(screen.getByRole('button', { name: 'Model: GPT-5.6-Terra' }));
   expect(show).toHaveBeenCalledOnce();

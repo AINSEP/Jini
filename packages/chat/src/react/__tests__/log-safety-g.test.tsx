@@ -37,7 +37,7 @@ it('renders a fixed extension fallback and delivers the original to the host rep
   const error = failure();
   const Broken = (): React.ReactNode => { throw error; };
   render(<ExtEventErrorBoundary name="example" report={report}><Broken /></ExtEventErrorBoundary>);
-  expect(screen.getByRole('alert').textContent).toBe('This extension could not be rendered.');
+  expect(screen.getByRole('alert').textContent).toBe('"example" could not be rendered (Error).');
   expect(screen.getByRole('alert').textContent).not.toContain(sentinel);
   expect(report.error).toHaveBeenCalledTimes(1);
   expect(report.error.mock.calls[0]?.[1]?.error).toBe(error);

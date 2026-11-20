@@ -681,7 +681,7 @@ describe('MessageRow', () => {
       };
       render(<MessageRow message={message} runSucceeded />);
       expect(screen.getByText('still here')).toBeInTheDocument();
-      expect(screen.getByRole('alert')).toHaveTextContent('"a2ui" failed to render: malformed data-model path');
+      expect(screen.getByRole('alert')).toHaveTextContent('"a2ui" could not be rendered (Error).');
       consoleError.mockRestore();
     });
   });

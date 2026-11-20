@@ -97,7 +97,8 @@ function serializeWithSplice(
   sourcePlan: PreparedEditorSource, report: Pick<Logger, 'warn'> | undefined,
 ): string {
   if (structuralChange) {
-    warnFallback({ trigger: `a block was added, moved, copied or deleted since mount (first: ${structuralChange})` }, { report });
+    // The first change's label comes from the host's editor events, so only its category is logged.
+    warnFallback({ trigger: 'a block was added, moved, copied or deleted since mount' }, { report });
     return serializeCleaned(editor);
   }
   if (dirty.size === 0) {

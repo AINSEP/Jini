@@ -1,3 +1,4 @@
+import { describeErrorForLog } from '@jini-ai/core/model-facing-tool-errors';
 import { createConsoleLogger, type Logger } from '@jini-ai/core/primitives';
 /**
  * @module ExtEventErrorBoundary
@@ -50,7 +51,7 @@ export class ExtEventErrorBoundary extends Component<ExtEventErrorBoundaryProps,
     if (this.state.error) {
       return (
         <div className="jini-ext-event-error" role="alert" data-ext-event-name={this.props.name}>
-          {'This extension could not be rendered.'}
+          {`"${this.props.name}" could not be rendered (${describeErrorForLog({ err: this.state.error })}).`}
         </div>
       );
     }

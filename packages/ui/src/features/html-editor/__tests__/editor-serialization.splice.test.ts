@@ -42,7 +42,7 @@ describe('serializeEditorSource splice fallbacks', () => {
     first!.components('ONE');
     const edits = new Map([[String(pathA), edit(pathA, first!)], [String(pathB), edit(pathB, first!)]]);
     expect(serializeEditorSource({ editor, html, edits, sourcePlan: plan })).toBe(wrapper.getInnerHTML());
-    expect(warn.mock.calls.flat().join(' ')).toContain('source splice could not be preserved');
+    expect(warn.mock.calls.flat().join(' ')).toContain('could not be spliced');
   });
 
   it('falls back to the cleaned export when a text edit spans a protected source region', () => {
@@ -53,7 +53,7 @@ describe('serializeEditorSource splice fallbacks', () => {
     const output = serializeEditorSource({ editor, html, edits: new Map([['0', edit([0], section!)]]), sourcePlan: plan });
     expect(output).toBe(wrapper.getInnerHTML());
     expect(output).toContain('<div data-kui="marquee">run</div>');
-    expect(warn.mock.calls.flat().join(' ')).toContain('source splice could not be preserved');
+    expect(warn.mock.calls.flat().join(' ')).toContain('overlaps a protected source region');
   });
 
   it('refuses to export text that would carry the mount-private marker attribute', () => {

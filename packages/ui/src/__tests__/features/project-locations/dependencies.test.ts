@@ -126,6 +126,6 @@ it('skips seeded, retained built-in and later explicit location IDs', async () =
   const result = await port.saveLocations([{ path: '/new' }, { id: retained.id, path: retained.path }, { id: 'fake-location-3', path: '/explicit' }]);
   expect(result.map(location => location.id)).toEqual(['fake-location-1', 'fake-location-4', 'fake-location-2', 'fake-location-3']);
   expect(result[0]).toEqual(builtIn);
-  expect(result[2]).toEqual(retained);
+  expect(result[2]).toEqual({ ...retained, name: 'kept' }); // the fake names every saved draft from its path
   expect(await port.fetchLocations()).toEqual(result);
 });

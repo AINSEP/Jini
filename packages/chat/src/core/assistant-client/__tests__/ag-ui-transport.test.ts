@@ -96,7 +96,7 @@ describe("createAgUiRunClient", () => {
     const { client, agents, handlers } = setup();
     const started = client.startAgUiRun({ input: { history, signal: new AbortController().signal }, handlers });
     agents[0]!.observer!.error("401 unauthorized");
-    await expect(started).rejects.toEqual(new Error("401 unauthorized"));
+    await expect(started).rejects.toEqual(new Error("The agent run stream stopped with an error (string); send the message again."));
     expect(handlers.onDone).not.toHaveBeenCalled();
   });
 
@@ -106,7 +106,7 @@ describe("createAgUiRunClient", () => {
     agents[0]!.observer!.next({ type: EventType.TEXT_MESSAGE_CONTENT, messageId: "m", delta: "partial" });
     const failure = new Error("socket reset");
     agents[0]!.observer!.error(failure);
-    expect(handlers.onError).toHaveBeenCalledWith(failure);
+    expect(handlers.onError).toHaveBeenCalledWith(new Error("The agent run stream stopped with an error (Error); send the message again."));
     expect(handlers.onDone).toHaveBeenCalledWith([{ kind: "text", text: "partial" }]);
   });
 
@@ -198,7 +198,7 @@ describe("createAgUiRunClient run lifetime", () => {
     const started = client.startAgUiRun({ input: { history, signal: signal.signal }, handlers });
     const failure = new Error("503 unavailable");
     agents[0]!.observer!.error(failure);
-    await expect(started).rejects.toBe(failure);
+    await expect(started).rejects.toEqual(new Error("The agent run stream stopped with an error (Error); send the message again."));
     signal.abort();
     await client.stopAgUiRun({ runId: "agui-id1" });
     expect(agents[0]!.abortRun).not.toHaveBeenCalled();
@@ -216,7 +216,7 @@ describe("createAgUiRunClient run lifetime", () => {
     agents[0]!.observer!.next({ type: EventType.TEXT_MESSAGE_CONTENT, messageId: "m", delta: "partial" });
     agents[0]!.observer!.error("socket reset");
     expect(order).toEqual(["error", "done"]);
-    expect(handlers.onError.mock.calls[0]![0]).toEqual(new Error("socket reset"));
+    expect(handlers.onError.mock.calls[0]![0]).toEqual(new Error("The agent run stream stopped with an error (string); send the message again."));
     signal.abort();
     await client.stopAgUiRun({ runId: "agui-id1" });
     expect(agents[0]!.abortRun).not.toHaveBeenCalled();
@@ -231,7 +231,7 @@ describe("createAgUiRunClient run lifetime", () => {
     agents[0]!.observer!.error(failure);
     agents[0]!.observer!.complete();
     expect(handlers.onError).toHaveBeenCalledTimes(1);
-    expect(handlers.onError).toHaveBeenCalledWith(failure);
+    expect(handlers.onError).toHaveBeenCalledWith(new Error("The agent run stream stopped with an error (Error); send the message again."));
     expect(handlers.onDone).toHaveBeenCalledTimes(1);
     expect(handlers.onDone).toHaveBeenCalledWith([{ kind: "text", text: "a" }]);
   });

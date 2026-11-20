@@ -103,7 +103,7 @@ describe('hooks wrapped by a spy that still drives the real view-model', () => {
         hooks={{ useT: useQuotingT, useConversationListView: useView }}
       />,
     );
-    expect(useView).toHaveBeenCalledWith(expect.objectContaining({ activeConversationId: 'c1' }));
+    expect(useView.mock.calls[0]![0]).toEqual(expect.objectContaining({ activeConversationId: 'c1' }));
     fireEvent.click(screen.getByTestId('conversation-trigger'));
     expect(screen.getByText('«Conversations»')).toBeInTheDocument();
   });
