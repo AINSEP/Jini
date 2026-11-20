@@ -13,6 +13,7 @@
     "kind": "content-model",
     "runtime": "universal",
     "entries": {
+      "./themes/token-aliases": "universal",
       "./publish/transfer": "universal",
       "./publish/transfer/blob-staging": "node",
       "./themes/template-applicability": "universal",
@@ -201,6 +202,11 @@
   "main": "./dist/core/index.js",
   "types": "./dist/core/index.d.ts",
   "exports": {
+    "./themes/token-aliases": {
+      "types": "./dist/themes/token-aliases.d.ts",
+      "import": "./dist/themes/token-aliases.js",
+      "default": "./dist/themes/token-aliases.js"
+    },
     "./publish/transfer": {
       "types": "./dist/publish/transfer/index.d.ts",
       "import": "./dist/publish/transfer/index.js",

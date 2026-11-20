@@ -10,6 +10,8 @@ import * as agentJobs from '../agent-jobs/entry.js';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const subpaths = {
+  './backup/plan-store': 'backup/plan-store.node',
+  './backup/push-jobs': 'backup/push-jobs',
   './source-control': 'source-control/entry',
   './static-export': 'static-export/entry',
   './static-export/node': 'static-export/node-adapters',

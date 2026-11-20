@@ -14,6 +14,11 @@ const manifest = JSON.parse(readFileSync(new URL('package.json', packageRoot), '
 
 it('keeps exports and entry runtime metadata synchronized', () => {
   expect(Object.keys(manifest.exports).sort()).toEqual(Object.keys(manifest.jini.entries).sort());
+  expect(manifest.jini.entries['./presentation/html']).toBe('universal');
+  expect(manifest.jini.entries['./presentation/page-head']).toBe('universal');
+  expect(manifest.jini.entries['./forms/result-query']).toBe('universal');
+  expect(manifest.jini.entries['./forms/result-flash']).toBe('universal');
+  expect(manifest.jini.entries['./themes/preview/refresh']).toBe('node');
   expect(manifest.jini.entries['./core/tools']).toBe('universal');
   expect(manifest.jini.entries['./media/import']).toBe('universal');
   expect(manifest.jini.entries['./media/cover-image']).toBe('node');
