@@ -1,6 +1,7 @@
 import { realpathSync } from 'node:fs';
 import path from 'node:path';
 import { trimCharsEnd } from '@jini-ai/core/text';
+import { orFallbackSync } from '@jini-ai/core/errors/idioms';
 import type { McpServerConfig } from '../config.js';
 import { isPlainObject, nonEmptyField, remoteHeadersField } from '../config-shared.js';
 
@@ -113,12 +114,7 @@ function normalizeAllowedDirectory(dir: string): string {
 
 function normalizeAllowedDirectoryVariants(dir: string, resolvePath: (args: { filePath: string }) => string): string[] {
   const normalized = normalizeAllowedDirectory(dir);
-  let real: string | null = null;
-  try {
-    real = normalizeAllowedDirectory(resolvePath({ filePath: dir }));
-  } catch {
-    real = null;
-  }
+  const real = orFallbackSync({ work: () => normalizeAllowedDirectory(resolvePath({ filePath: dir })), fallback: null, step: 'Resolve OpenCode directory alias' });
   return real && real !== normalized ? [normalized, real] : [normalized];
 }
 
