@@ -36,9 +36,9 @@ export type ThemeOriginalSource = {
  * `null` for.
  *
  * `packageThemesRoot` is deliberately `string | undefined`, not required: only the SQLite composition
- * root (`apps/website/src/server/runtime/composition/deps.ts`'s `createSiteRouteDeps`) and the CLI install-dir boot know the package's
+ * root (the host's site route deps) and the CLI install-dir boot know the package's
  * own themes root at all (`builtInThemesDir()`) — the hermetic in-memory composition root
- * (`apps/website/src/server/runtime/composition/app.ts`'s `createRouteDeps`) and every hand-built `RouteDeps`/`ContentRouteDeps`/
+ * (the host's in-memory route deps) and every hand-built `RouteDeps`/`ContentRouteDeps`/
  * `ThemeToolDeps` test fixture predate this field and have no reason to set it. `undefined` is
  * therefore "no package fallback configured," answered the same as "the package has no original for
  * this theme id" (`null`), never thrown.

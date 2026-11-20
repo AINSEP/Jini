@@ -68,7 +68,7 @@ class EntryBuilder {
   private inlineBytes = 0;
   private readonly input: UploadPlannedContentInput;
   private readonly inlineTextMaxBytes: number | undefined;
-  constructor(input: UploadPlannedContentInput, { inlineTextMaxBytes }: { inlineTextMaxBytes?: number } = {}) {
+  constructor(input: UploadPlannedContentInput, { inlineTextMaxBytes }: { inlineTextMaxBytes?: number | undefined } = {}) {
     this.input = input;
     this.inlineTextMaxBytes = inlineTextMaxBytes;
   }

@@ -3,7 +3,7 @@ import { access, chmod, mkdir, mkdtemp, readFile, readdir, rm, stat, symlink, wr
 import * as fsPromises from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { test, vi, type TestContext } from "vitest";
+import { onTestFinished, test, vi, type TestContext } from "vitest";
 
 import { createDirectoryTrashAdapter, unhideIfRemoveThrows } from "../adapters/directory.node.js";
 
@@ -26,7 +26,7 @@ async function pathExists(path: string): Promise<boolean> {
 
 async function harness(t: TestContext, forget?: (required: { workspaceId: string; entityId: string }) => Promise<void>) {
   const root = await mkdtemp(join(tmpdir(), "directory-trash-"));
-  t.onTestFinished(async () => rm(root, { recursive: true, force: true }));
+  onTestFinished(async () => rm(root, { recursive: true, force: true }));
   const liveParent = join(root, "plugins");
   const liveDir = join(liveParent, ID);
   const parkedDir = join(root, "plugins-trash", ID);
@@ -39,7 +39,7 @@ async function harness(t: TestContext, forget?: (required: { workspaceId: string
       liveNames: (await pathExists(liveDir)) ? [ID] : [],
       parkedDir,
     }),
-    forget,
+    ...(forget ? { forget } : {}),
   });
   return { adapter, liveDir, liveParent, parkedDir };
 }
@@ -173,7 +173,7 @@ test("unhideIfRemoveThrows moves the folder back when the Trash row write throws
 
 test("hide refuses a parking root that resolves inside the live parent through a symlink", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "directory-trash-"));
-  t.onTestFinished(async () => rm(root, { recursive: true, force: true }));
+  onTestFinished(async () => rm(root, { recursive: true, force: true }));
   const liveParent = join(root, "plugins");
   const liveDir = join(liveParent, ID);
   await makeLive(liveDir);

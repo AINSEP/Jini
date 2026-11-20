@@ -166,6 +166,6 @@ export function resetThemeFileToOriginal(
     return { wasModified: false, bytes: original.size };
   }
   mkdirSync(dirname(target), { recursive: true });
-  writeFileAtomically({ ports: required.ports, target, relativePathForError: relativePath, fillTemp: (tempPath) => copyFileSync(original.path, tempPath) }, { stat: undefined, revisionFile: { themeDir, themesRoot, relativePath } });
+  writeFileAtomically({ ports: required.ports, target, relativePathForError: relativePath, fillTemp: (tempPath) => copyFileSync(original.path, tempPath) }, { revisionFile: { themeDir, themesRoot, relativePath } });
   return { wasModified: true, bytes: original.size };
 }
