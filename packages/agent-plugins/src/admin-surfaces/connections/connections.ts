@@ -1,6 +1,7 @@
 import { ADMIN_SURFACE_ACTION_INTENTS, type AdminSurfaceAuthorizationStart, type AdminSurfaceConnections, type AdminSurfaceConnectionStatus, type AdminSurfaceSignInAttempt } from '../surface-capabilities.js';
 import type { AdminSurfaceConnectionsHost, AdminSurfaceDeclaredConnection, AdminSurfaceStagedAccount, AdminSurfaceStatusView } from './ports.js';
 import { createConsoleLogger, type Logger } from '@jini-ai/core/primitives';
+import { describeErrorForLog } from '@jini-ai/core';
 
 
 /**
@@ -128,7 +129,7 @@ function watchDesktopCompletion<Connection extends AdminSurfaceDeclaredConnectio
     (error: unknown) => {
       host.attempts.set(connectionRef, failedAttempt(error));
       const logger = scope.report ?? createConsoleLogger({ prefix: '[admin-surfaces]' });
-      logger.warn({ message: 'Desktop sign-in did not complete.' }, { error });
+      logger.warn({ message: `desktop sign-in for '${pluginId}' did not complete: ${describeErrorForLog({ err: error })}` });
     },
   );
 }

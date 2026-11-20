@@ -22,7 +22,7 @@ There is no daemon, agent-runtime or CMS dependency.
 - Express request parsing, `sendJson` and `sendApiError`.
 - Origin and bearer guards, including core's canonical origin validation and Node token comparison.
 - Cursor-aware and raw SSE primitives, route registration inventory and `mountPackHttp`.
-- `./rate-limit`, `./middleware` and `./observability`.
+- `./rate-limit`, `./middleware`, `./observability` and `./range`.
 
 - `rate-limit` exports `createRateLimiter({ profile, clock, store })`,
   `createMemoryCounterStore({})`, and `resolveClientIp({ source, policy })`.

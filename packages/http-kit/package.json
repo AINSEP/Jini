@@ -18,6 +18,7 @@
       "./settings": "node",
       "./observability": "node",
       "./html-response": "node",
+      "./range": "universal",
       "./node-bridge": "node"
     },
     "runtime": "node"
@@ -56,6 +57,11 @@
       "types": "./dist/html-response.d.ts",
       "import": "./dist/html-response.js",
       "default": "./dist/html-response.js"
+    },
+    "./range": {
+      "types": "./dist/range.d.ts",
+      "import": "./dist/range.js",
+      "default": "./dist/range.js"
     },
     "./node-bridge": {
       "types": "./dist/node-bridge.d.ts",

@@ -28,6 +28,11 @@ Configuration writes only through the injected guarded settings writer; no deliv
 | `./media/cover-image` | universal | Read-only cover selection and iterative body projection with injected media metadata. |
 | `./media/node` | node | Filesystem blob stores, sharp image transforms and ffmpeg adapters. |
 | `./settings` | universal | One-release compatibility re-export of `@jini-ai/core/settings`. |
+| `./presentation/html` | universal | Document detection, off-site link attributes and head/body markup insertion. |
+| `./presentation/page-head` | universal | Page-head folding and serialization. |
+| `./forms/result-query` | universal | Form submission result query encoding, decoding and clearing. |
+| `./forms/result-flash` | universal | Form flash cookie encoding, decoding and result merging. |
+| `./themes/preview/refresh` | node | Preview-path validation, refresh requests, reads and feeds. |
 | `./widgets` / `./widgets/markers` / `./widgets/resolvers` | universal | Widget contracts, markers and resolution services; no HTML parser. |
 | `./widgets/html` | node | HTML scanning/substitution, fragment validation, plugin-export template resolution, page-body sanitizing and media Raw HTML resolution (diagnostics through an injected `report`). |
 | `./html/style-values` | universal | CSS-value allowlists for author strings a renderer writes into a `style` attribute (`safeTextAlign`, `safeAspectRatio`). |

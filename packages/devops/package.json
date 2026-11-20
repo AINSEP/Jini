@@ -32,7 +32,9 @@
       "./static-export/failure-summary": "universal",
       "./dns": "node",
       "./dns/node": "node",
-      "./backup/upload": "node"
+      "./backup/upload": "node",
+      "./backup/plan-store": "node",
+      "./backup/push-jobs": "universal"
     },
     "isolation": {
       "shared": [
@@ -151,6 +153,16 @@
       "types": "./dist/backup/upload.node.d.ts",
       "import": "./dist/backup/upload.node.js",
       "default": "./dist/backup/upload.node.js"
+    },
+    "./backup/plan-store": {
+      "types": "./dist/backup/plan-store.node.d.ts",
+      "import": "./dist/backup/plan-store.node.js",
+      "default": "./dist/backup/plan-store.node.js"
+    },
+    "./backup/push-jobs": {
+      "types": "./dist/backup/push-jobs.d.ts",
+      "import": "./dist/backup/push-jobs.js",
+      "default": "./dist/backup/push-jobs.js"
     }
   },
   "files": [
