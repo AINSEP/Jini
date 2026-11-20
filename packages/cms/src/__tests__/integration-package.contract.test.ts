@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from 'node:fs';
 import { expect, it } from 'vitest';
+import { SqlFormDeliveryRepo, SqlFormPullLeaseRepo, SqlFormSubmissionReceiptRepo } from '../forms/sql/index.js';
 
 const packageRoot = new URL('../../', import.meta.url);
 const manifest = JSON.parse(readFileSync(new URL('package.json', packageRoot), 'utf8')) as {
@@ -37,6 +38,9 @@ it('keeps the folded domain entries and optional adapter peers explicit', () => 
   expect(manifest.jini.entries['./forms']).toBe('universal');
   expect(manifest.jini.entries['./forms/html']).toBe('node');
   expect(manifest.jini.entries['./forms/sql']).toBe('node');
+  expect(typeof SqlFormDeliveryRepo).toBe('function');
+  expect(typeof SqlFormPullLeaseRepo).toBe('function');
+  expect(typeof SqlFormSubmissionReceiptRepo).toBe('function');
   expect(manifest.jini.entries['./forms/express']).toBe('node');
   expect(manifest.jini.entries["./comments"]).toBe("universal");
   expect(manifest.jini.entries["./comments/sql"]).toBe("node");
