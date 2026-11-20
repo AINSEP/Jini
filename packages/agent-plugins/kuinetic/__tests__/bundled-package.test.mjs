@@ -37,6 +37,16 @@ test('the delivered SKILL.md and its file inventory stay under the 8 KiB automat
   assert.ok(bytes + 512 < 8 * 1024, `${bytes} bytes`);
 });
 
+// "Redesign this site, use kuinetic" ranks kuinetic first and delivers only it on turn 1, so its
+// core names the exact call that loads the ui-ux-design core before any design work.
+test('the core names the ui-ux-design load call near the top', async () => {
+  const skill = await read('skills/kuinetic/SKILL.md');
+  const call = '`load_agent_plugin({ "pluginId": "ui-ux-design", "skill": "ui-ux-design" })`';
+  assert.ok(skill.includes(call));
+  assert.ok(skill.indexOf(call) < skill.indexOf('\n## '), 'before the first section');
+  assert.match(skill, /before designing or redesigning a theme or page, load the ui-ux-design core/);
+});
+
 test('the manifest and its own changelog version the plugin independently of ui-ux-design', async () => {
   const manifest = JSON.parse(await read('plugin.json'));
   assert.equal(manifest.name, 'kuinetic');

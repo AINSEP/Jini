@@ -81,7 +81,8 @@ test('the manifest keeps the card summary and the search keywords of both former
     provides: ['ui-design'],
   } });
   assert.doesNotMatch(manifest.description, /shadcn/);
-  assert.deepEqual(manifest.keywords, ['design', 'ui', 'ux', 'ui-design', 'theme', 'page', 'website', 'layout']);
+  assert.deepEqual(manifest.keywords, ['design', 'ui', 'ux', 'ui-design', 'theme', 'page', 'website', 'layout',
+    'redesign', 'restyle', 'look and feel']);
   // Hosts seeded Tovu's 0.6.0; an equal or lower version over different bytes is refused or flagged.
   assert.equal(manifest.version, '0.7.0');
 });

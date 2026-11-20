@@ -684,10 +684,10 @@
     "version": "0.7.1",
     "description": "kUInetic, the declarative data-kui animation library: detection, setup, attribute grammar, effect names, reduced motion and opt-in tiers, as one portable Agent Plugin.",
     "expectedDigests": {
-      "CHANGELOG.md": "sha256-d60309b6a26df3560df1efb575e47e558800e81a52aa6a37a72568540b097caa",
+      "CHANGELOG.md": "sha256-e9144e7846ce916fea3c7be92c13e46a44b19d927888d7796fec0cbc59faf134",
       "mcp.json": "sha256-1788697eb2d3aa1caa8da59a62331a92529e24885f0e7151418f915000fbf7fd",
       "plugin.json": "sha256-835ab415ac3852df5b32a3e58e84e493911d7f957ee8184b313b55a34dffa488",
-      "skills/kuinetic/SKILL.md": "sha256-9bfcc2d9b2ceaaf2b92f5784927da6c9a24fad3ec6d18c3eae9510002544d37e",
+      "skills/kuinetic/SKILL.md": "sha256-230e1a33d3bec8fb562a3e0e03c23e6bcc9d4ac151784905804058896108ba03",
       "skills/kuinetic/references/effects-by-family.md": "sha256-a8d698b15245aea258f4abc7e36ef5e25cd4ac7da5cab67eff097c091db629c5",
       "skills/kuinetic/references/opt-in-tiers.md": "sha256-eb9a229828c77b1e3f92f5e17aee31e99a20914b5893c2cdf6351bcc6bf4881f",
       "skills/kuinetic/references/reserved-keys.md": "sha256-eb76b75a0d0f2edb8e99b572934872d48ee182bb262da2ae5954dbd588202a07"
@@ -1241,13 +1241,13 @@
     "version": "0.7.1",
     "description": "UI/UX design, interface-design-system, accessibility and web-compliance skills bundled as one portable Agent Plugin.",
     "expectedDigests": {
-      "CHANGELOG.md": "sha256-709942f20a27a515c7e283248a6ecf865b6444e4b1be48c3c9ab7d929348efe8",
+      "CHANGELOG.md": "sha256-c729a20fcd283a7cb051c676b613c6aa488c0e265bf420de004abcf0b03fea39",
       "LICENSE": "sha256-9d95806a26532623360eb84bb17d298f394b55ef73fb4c0796d99b4319b2b0da",
       "NOTICE": "sha256-9ef30e7730297fd0160811b005ce46da6fea46478de59abe739575d8004d14fc",
       "README.md": "sha256-b69c8ea01362caeea75a9afadeed7f1b09ac30fa8702da46629edb2b920d11bc",
       "com.anthropic.claude-code/hooks/hooks.json": "sha256-370d1cfc65d33ac55e9cf35ac945d3d6127dbfe0ef827e010d0ff6ead62184f8",
       "mcp.json": "sha256-1788697eb2d3aa1caa8da59a62331a92529e24885f0e7151418f915000fbf7fd",
-      "plugin.json": "sha256-7d3e5b2b71e963bf75ef42ad05a4b5491adac028aa32cc92c968ab6e0013b96c",
+      "plugin.json": "sha256-2b0891a17218d39badd8b885dd006b28bcacb92382abcb27cdf71cd1d60661dc",
       "skills/frontend-accessibility/SKILL.md": "sha256-be7aeb4fbe026808d79af95c38b73ef42d8ceac055bf0f2124c1af485ffcedd5",
       "skills/gstack-design/SKILL.md": "sha256-68e8223d3b4860e570574b5562d4d84ede1570837cc7aba07e2687d3a1256aa1",
       "skills/gstack-design/references/consultation.md": "sha256-64448181afd6bdf3ed463097bf2ca787d249630004ce77c60a17ab98fee39421",

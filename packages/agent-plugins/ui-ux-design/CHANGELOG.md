@@ -11,6 +11,7 @@
 - `skills/shadcn-ui/` moved unchanged to its own plugin, `@jini-ai/agent-plugins/shadcn-ui`.
 - `references/kuinetic-reference.md` moved verbatim to its own plugin, `@jini-ai/agent-plugins/kuinetic`;
   `ui-animation.md` and the workflow now point at that plugin.
+- Search keywords add `redesign`, `restyle` and `look and feel`, so a plain redesign request ranks it.
 
 ## 0.6.19
 

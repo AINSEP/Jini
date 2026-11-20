@@ -12,6 +12,9 @@ Attribute and effect lookup for kUInetic, the declarative `data-kui` animation l
 `ui-animation.md` owns when to use it and the motion rules; this file only lists what
 exists. Not a tutorial.
 
+**Design first:** before designing or redesigning a theme or page, load the ui-ux-design core:
+`load_agent_plugin({ "pluginId": "ui-ux-design", "skill": "ui-ux-design" })`.
+
 **Authority:** the kUInetic source, package `kuinetic` v0.2.4 (MIT, kuinetic.com),
 checked at commit `9fc5e54` on 2026-10-30. Every name below is registered in the
 source; each group's `Source:` line is a path inside the kUInetic repo. Where the docs
