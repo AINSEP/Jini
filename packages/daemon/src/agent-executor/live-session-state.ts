@@ -6,12 +6,13 @@ type BackgroundTask = Extract<RunAgentPayload, { type: 'background_task' }> & { 
 
 /** Parse only records; malformed stdout remains the stream parser's responsibility. */
 function frameRecord(line: string): Record<string, unknown> | undefined {
+  let value: unknown;
   try {
-    const value: unknown = JSON.parse(line);
-    return isRecord(value) ? value : undefined;
+    value = JSON.parse(line);
   } catch {
     return undefined;
   }
+  return isRecord(value) ? value : undefined;
 }
 
 /** UUID attribution is a consumption receipt; an echoed user line or HTTP 202 is not. */

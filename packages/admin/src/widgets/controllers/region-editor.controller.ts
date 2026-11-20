@@ -1,4 +1,5 @@
 import { createControllerStore, describeApiError } from '@jini-ai/core/admin-runtime';
+import { orFallback } from '@jini-ai/core/errors/idioms';
 import { buildDraftPlacement, movePlacement, resolveWidgetRegionSaveError, widgetApiError } from '../rules.js';
 import { widgetsEnglish } from '../messages.en.js';
 import type { AdminWidgetsPort } from '../ports.js';
@@ -26,9 +27,9 @@ export function createWidgetRegionEditorController({ api, regionKey: initialKey 
     const draft = buildDraftPlacement({ widgetInstanceId });
     store.set({ patch: { placements: [...store.getSnapshot().placements, draft] } });
     // A failed lookup keeps the draft saveable; the post-save reread supplies its title/type.
-    void api.getWidget({ id: widgetInstanceId }, { signal: store.signal }).then(({ widget }) => {
+    void orFallback({ work: () => api.getWidget({ id: widgetInstanceId }, { signal: store.signal }).then(({ widget }) => {
       store.set({ patch: { placements: store.getSnapshot().placements.map(p => p.placementId === draft.placementId ? { ...p, widgetTitle: widget.title, widgetType: widget.widgetType } : p) } });
-    }).catch(() => {});
+    }), fallback: undefined, step: 'read draft widget details' });
   }
   async function save(_required: Record<string, never> = {}, _optional: Record<string, never> = {}) {
     const { area, placements } = store.getSnapshot();

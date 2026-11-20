@@ -1,4 +1,5 @@
 import { nowIso as readNowIso } from '@jini-ai/core/primitives';
+import { afterSettled } from '@jini-ai/core/errors/idioms';
 import type { Clock } from '@jini-ai/core/primitives';
 import type { OAuthRequiredArgs, OAuthOptionalArgs } from './args.js';
 import { registerOAuthClientDynamically } from './registration.js';
@@ -55,7 +56,8 @@ export function createOAuthClientRegistrar(deps: OAuthClientRegistrarDeps): OAut
             const input = { ...optionalArgs, issuer: requiredArgs.issuer, registrationEndpoint: requiredArgs.registrationEndpoint, scopes: requiredArgs.scopes };
             const key = cacheKey(input);
             // Wait for an outstanding registration write so it cannot resurrect an invalidated client.
-            await inFlight.get(key)?.catch(() => undefined);
+            const pending = inFlight.get(key);
+            if (pending !== undefined) await afterSettled({ promise: pending });
             await deps.cache.delete({
                 key: key
             });
