@@ -1,4 +1,5 @@
-import type { ImageCodecPort } from "./image-codec.js";
+import { orFallback } from "@jini-ai/core/errors/idioms";
+import type { EncodedImage, ImageCodecPort } from "./image-codec.js";
 
 /** Long edge of the chat preview. Small on purpose: the model sees the block too, so it is a
  *  glance (a few KB), not a second copy; the full file is one click away through `href`. */
@@ -20,16 +21,18 @@ export async function withChatPreview<T extends { media: { title: string; public
 ) {
   // Raster only, like media_view_image: these are the unsanitized source bytes, so an SVG never
   // reaches the rasterizer here, and a video has no still to show.
-  if (!routeDeps.imageCodec || !contentType.startsWith("image/") || contentType === "image/svg+xml") return result;
-  try {
-    const preview = await routeDeps.imageCodec.encode({ source: bytes, autoOrient: true, format: "webp", quality: 70,
-      resize: { width: MEDIA_CHAT_PREVIEW_MAX_EDGE_PX, height: MEDIA_CHAT_PREVIEW_MAX_EDGE_PX, fit: "inside", withoutEnlargement: true } });
-    const { title, publicUrl } = result.media;
-    return { content: [
+  const { imageCodec } = routeDeps;
+  if (!imageCodec || !contentType.startsWith("image/") || contentType === "image/svg+xml") return result;
+  const preview = await orFallback<EncodedImage | null>({
+    work: () => imageCodec.encode({ source: bytes, autoOrient: true, format: "webp", quality: 70,
+      resize: { width: MEDIA_CHAT_PREVIEW_MAX_EDGE_PX, height: MEDIA_CHAT_PREVIEW_MAX_EDGE_PX, fit: "inside", withoutEnlargement: true } }),
+    fallback: null,
+    step: "encode media chat preview",
+  });
+  if (!preview) return result;
+  const { title, publicUrl } = result.media;
+  return { content: [
       { type: "text" as const, text: JSON.stringify(result) },
       { type: "image" as const, mimeType: "image/webp", data: Buffer.from(preview.bytes).toString("base64"), title, ...(publicUrl ? { href: publicUrl } : {}) },
-    ] };
-  } catch {
-    return result;
-  }
+  ] };
 }

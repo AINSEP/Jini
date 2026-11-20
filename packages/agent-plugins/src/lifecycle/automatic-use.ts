@@ -229,6 +229,16 @@ async function prepare({ ctx, input }: { ctx: UseContext; input: PrepareInput })
   const result = await preparedGuidance({ ctx, matches, input });
   rememberDelivery(ctx);
   await publishUsage(ctx);
+  return withPluginNotes({ ctx, input, installed, candidates, result });
+}
+/** Appends the enabled-plugin catalog and the off-plugin note to the prepared guidance. */
+function withPluginNotes({ ctx, input, installed, candidates, result }: {
+  ctx: UseContext;
+  input: PrepareInput;
+  installed: readonly AgentPluginSearchCandidate[];
+  candidates: readonly AgentPluginSearchCandidate[];
+  result: string;
+}): string {
   // Preflight never resolves off packages implicitly. A catalog line offers an explicit read;
   // its setup guidance may explain whether enabling or credentials are needed.
   const off = offPluginNote(ctx, { catalog: installed, input });

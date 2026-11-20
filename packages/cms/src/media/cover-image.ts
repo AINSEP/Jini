@@ -7,7 +7,7 @@ import { scanEmbedMarkers, type EmbedMarker } from "../widgets/markers/marker.js
 
 export interface CoverImagePost {
   title: string;
-  featuredMediaId?: string | null;
+  featuredMediaId?: string | null | undefined;
   bodyFormat: "doc" | "html";
   bodyJson: unknown;
   bodyHtml: string | null;

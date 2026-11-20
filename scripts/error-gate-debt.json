@@ -2105,9 +2105,14 @@
     "value": 5
   },
   {
+    "file": "packages/platform/src/process-probes.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
     "file": "packages/platform/src/process.ts",
     "rule": "catch-reads-error",
-    "value": 5
+    "value": 3
   },
   {
     "file": "packages/platform/src/proxy-env.ts",
@@ -2285,7 +2290,7 @@
     "value": 1
   },
   {
-    "file": "packages/search/src/indexer.ts",
+    "file": "packages/search/src/indexer-write.ts",
     "rule": "catch-reads-error",
     "value": 1
   },
