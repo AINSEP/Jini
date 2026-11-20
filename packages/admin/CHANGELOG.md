@@ -103,7 +103,7 @@
 
   **`@jini-ai/composio` is retired, not versioned forward.** It was published (0.1.0, 0.2.0, 0.2.1 —
   a longer public life than ui-core's single version), but has zero consumers: no source file,
-  package.json, or lockfile in either this repo or Tovu has ever referenced it, verified with a `-S`
+  package.json, or lockfile in either this repo or the first host has ever referenced it, verified with a `-S`
   pickaxe over full git history rather than current state alone. Deleting the source does **not**
   unpublish anything — 0.2.1 stays installable and no existing build breaks — so a deprecation-stub
   package was judged not worth keeping alive for a name nothing needs. Whoever runs the next release
@@ -114,7 +114,7 @@
   ```
 
   One caution for anyone re-examining that consumer question later: composio's CHANGELOG for 0.2.1
-  says "Verified against a real external consumer (Tovu...)", which reads like direct evidence of a
+  says "Verified against a real external consumer (the first host...)", which reads like direct evidence of a
   dependency. It is not. That exact sentence appears verbatim in 23 other packages' CHANGELOGs — it
   is boilerplate from a repo-wide `main`/`types` resolution fix that was batch-applied, not a
   composio-specific claim.
@@ -146,7 +146,7 @@
 
 ## 0.4.10 — 2026-10-13
 
-- Forms HTML starter: URL fields emit `type="text"` plus the registry's URL hints (`inputmode`, `autocomplete`, `spellcheck`, `autocapitalize`), so bare domains such as `tovu.dev` are no longer refused by the browser. CMS peer floor ^0.5.11.
+- Forms HTML starter: URL fields emit `type="text"` plus the registry's URL hints (`inputmode`, `autocomplete`, `spellcheck`, `autocapitalize`), so bare domains such as `example.com` are no longer refused by the browser. CMS peer floor ^0.5.11.
 
 ## 0.4.9 — 2026-10-13
 
@@ -169,7 +169,7 @@
 
 ### Patch Changes
 
-- Tovu clean-up release (2026-10-08): code Tovu moved into Jini, plus the Jini clean-up (see the commit log since 0.4.2).
+- Host clean-up release (2026-10-08): code the first host moved into Jini, plus the Jini clean-up (see the commit log since 0.4.2).
 
 ## 0.4.2 — 2026-10-05
 

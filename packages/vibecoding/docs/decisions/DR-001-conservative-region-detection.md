@@ -27,7 +27,7 @@ The universal region contract and pure helpers stay independent of the Node pars
 
 Offsets index the untouched UTF-16 input, including CRLF, BOM and astral characters. parse5 recovery determines the tree: a non-void self-closing slash is ignored, an explicit later close can delimit an editable region, unquoted/upper-case attributes are recognized, and `noscript` content is literal text. Regions are sorted by source offset rather than recovered tree order. No region depth is published.
 
-Tovu Pages consumes scans/pure edits directly to preserve its read → compute → write compare-and-swap basis. Its handle policy allows additions/removals and refuses newly worsened ambiguity; it is not a security boundary for a principal already allowed to replace the whole page. Malformed HTML warns without a whole-document read/write refusal. Pages undo restores a saved revision, and Pages has no save rate limit; both are host decisions, so no store adapter or second history mechanism is introduced here.
+The first host's Pages feature consumes scans/pure edits directly to preserve its read → compute → write compare-and-swap basis. Its handle policy allows additions/removals and refuses newly worsened ambiguity; it is not a security boundary for a principal already allowed to replace the whole page. Malformed HTML warns without a whole-document read/write refusal. Pages undo restores a saved revision, and Pages has no save rate limit; both are host decisions, so no store adapter or second history mechanism is introduced here.
 
 ## Defect prevented
 

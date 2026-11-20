@@ -157,6 +157,6 @@ Reviewed the plan, commerce source, provider plugin host/build, OpenSaaS referen
 
 The smallest Phase 1 retains `checkout`, `PaymentsPort.createIntent`, `NextAction`, existing provider options where appropriate, the scoped ledger, inbox/worker, single writer, outbox, and storefront. Add only the necessary purchase description/mapping, safe order association/projection, redirect handling, and the converted **existing** Stripe plugin.
 
-**Files changed:** Jini none; Tovu none. **Production lines:** +0 / −0. No tests, builds, installs, or servers run.
+**Files changed:** Jini none; the host none. **Production lines:** +0 / −0. No tests, builds, installs, or servers run.
 
 **Verdict: REPLAN.**

@@ -11,7 +11,7 @@
 export type PaymentMode = "test" | "live";
 
 export interface PaymentScope {
-  /** Tenant boundary (ADR-007: every method carries `workspaceId`). */
+  /** Tenant boundary (every method carries `workspaceId`). */
   readonly workspaceId: string;
   /** The site inside the workspace that sells. Single-site hosts pass their one site id. */
   readonly siteId: string;

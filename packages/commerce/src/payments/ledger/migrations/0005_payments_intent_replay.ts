@@ -1,7 +1,7 @@
 import { sql, type Kysely } from "kysely";
 import type { MigrationStep, StorageKernel } from "@jini-ai/core/contracts/storage";
 
-/** ADR-066: durable, credential-free intent replay state; historical rows stay ineligible. */
+/** Durable, credential-free intent replay state; historical rows stay ineligible. */
 export const PAYMENTS_INTENT_REPLAY_ID = "0005_payments_intent_replay";
 
 async function up(kernel: StorageKernel<Kysely<unknown>, unknown>): Promise<void> {

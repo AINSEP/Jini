@@ -30,8 +30,8 @@ export const FIELD_TYPE_LABELS: Readonly<Record<string, string>> = {
   "checkbox-group": "Checkboxes", toggle: "Toggle switch", file: "File upload", hidden: "Hidden value",
 };
 
-export type FieldBounds = "number" | "date" | "time" | "datetime-local";
-export type FieldDefaultKind = "text" | "textarea" | "number" | "temporal" | "boolean" | "choice" | "choices";
+type FieldBounds = "number" | "date" | "time" | "datetime-local";
+type FieldDefaultKind = "text" | "textarea" | "number" | "temporal" | "boolean" | "choice" | "choices";
 
 /** Which builder settings apply to one field type. */
 export interface FieldSettings {
@@ -100,7 +100,7 @@ export function fieldSettingsFor({ type, catalog }: { type: string; catalog: For
   };
 }
 
-export type FieldTypeGroup = "Text" | "Numbers and dates" | "Choices" | "Other";
+type FieldTypeGroup = "Text" | "Numbers and dates" | "Choices" | "Other";
 const GROUP_ORDER: FieldTypeGroup[] = ["Text", "Choices", "Numbers and dates", "Other"];
 
 function groupOf({ type, catalog }: { type: string; catalog: FormsCatalogPort }): FieldTypeGroup {
@@ -311,7 +311,7 @@ export function maxUploadMb({ catalog }: { catalog: FormsCatalogPort }, _optiona
   return catalog.maxFileBytes / 1024 / 1024;
 }
 
-export type FieldSettingsPatchResult = { ok: true; patch: Partial<AdminFormField> } | { ok: false; error: string };
+type FieldSettingsPatchResult = { ok: true; patch: Partial<AdminFormField> } | { ok: false; error: string };
 type Parsed<T> = { ok: true; value: T } | { ok: false; error: string };
 
 const isBlank = (value: string): boolean => value.trim() === "";

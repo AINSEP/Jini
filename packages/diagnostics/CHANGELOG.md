@@ -58,7 +58,7 @@
   consent is unchanged. `combineObservabilityPorts` now wraps a
   single enabled adapter too, so its throws never reach the caller.
 - 0b413ae: PROTOTYPE (cloud/observability-1025, not for release): `ObservabilityPort` gains `trackOperation` (feature-level unit of work) and `reportError` (incident report, adapter-redacted). Breaking for hand-written port implementations: both methods are required. Noop stays zero-allocation; `combineObservabilityPorts` fans out to several enabled adapters (none → noop; one or more → each adapter isolated); `describeReportedError` gives error-tracker adapters a redacted, capped type/message/stack.
-- 803a949: Observability vendor adapters as provider subpaths: `@jini-ai/diagnostics/observability/opentelemetry` (moved from Tovu core) and `@jini-ai/diagnostics/observability/sentry`, each returning `{ port, dispose }` with optional peer SDKs. Review fixes: attribute strings and `Error.name` redacted and capped; fan-out isolates each adapter's tracker creation and end; Sentry root operations start fresh traces and never call `NodeClient#init()` or channel injection. `withToolCallObservability` exports a fixed label for unregistered tool ids and adds `user.id` (pseudonymous principal).
+- 803a949: Observability vendor adapters as provider subpaths: `@jini-ai/diagnostics/observability/opentelemetry` (moved from the first host's core) and `@jini-ai/diagnostics/observability/sentry`, each returning `{ port, dispose }` with optional peer SDKs. Review fixes: attribute strings and `Error.name` redacted and capped; fan-out isolates each adapter's tracker creation and end; Sentry root operations start fresh traces and never call `NodeClient#init()` or channel injection. `withToolCallObservability` exports a fixed label for unregistered tool ids and adds `user.id` (pseudonymous principal).
 - 63bacc5: OpenTelemetry and Sentry observability adapters moved out of `@jini-ai/diagnostics` into the `observability-opentelemetry` and `observability-sentry` provider plugins of `@jini-ai/provider-plugins`. Removed: the `@jini-ai/diagnostics/observability/opentelemetry` and `/observability/sentry` subpaths and every `@opentelemetry/*` / `@sentry/node` dev and optional peer dependency. The OTel plugin accepts any OTLP/HTTP endpoint plus generic request headers. Packages bundled into plugin artifacts now ship their LICENSE file.
 - Updated dependencies [7479159]
 - Updated dependencies [c31264d]
@@ -107,7 +107,7 @@
 
 ### Patch Changes
 
-- Tovu clean-up release (2026-10-08): code Tovu moved into Jini, plus the Jini clean-up (see the commit log since 0.5.0).
+- Host clean-up release (2026-10-08): code the first host moved into Jini, plus the Jini clean-up (see the commit log since 0.5.0).
 
 ## 0.5.0 — 2026-10-05
 

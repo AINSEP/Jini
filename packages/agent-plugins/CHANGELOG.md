@@ -13,7 +13,7 @@
   `parseMailAdaptersFile({ raw }, optional)` call remains supported through a local
   validation boundary, preserving declared setup validation and v1/v2 descriptors.
   Provider-status and credential-save factories also require host wording and catalog
-  provenance so a second host supplies its own navigation without changing Tovu bytes.
+  provenance so a second host supplies its own navigation without changing the first host's bytes.
 
 - ce9e9dc: Expose the injected API host and connection sign-in flow from integrations/api-connections,
   and the persisted plugin-state store from the universal agent-plugins/admin-surfaces entry.
@@ -108,7 +108,7 @@
   export, stage that payload and seed through the existing Agent Plugin lifecycle.
   The lifecycle implementation remains in @jini-ai/agent-plugins. Inner plugin
   version 0.4.6, deterministic packing, digest selection and operator activation
-  decisions are preserved. Tovu wording reconciliation and cutover follow later.
+  decisions are preserved. Host wording reconciliation and cutover follow later.
 
 ## 0.6.13
 
@@ -159,7 +159,7 @@
 ## 0.4.7 — 2026-10-15 — folder uploads share one ZIP encoder
 
 - New `./folder-zip` (universal): `zipFolderFiles()`, the binary-safe stored-mode folder encoder,
-  moved here from Tovu's admin so browser and server folder installs pack identically.
+  moved here from the first host's admin so browser and server folder installs pack identically.
 - New `./folder-zip/node`: `zipLocalFolder()` reads a local folder into that same encoder. Refuses
   symlinks and special files, bounds entries (4096) and bytes before reading, and sorts paths so the
   same folder always packs to the same digest.
@@ -204,7 +204,7 @@
 
 ### Patch Changes
 
-- Tovu clean-up release (2026-10-08): code Tovu moved into Jini, plus the Jini clean-up (see the commit log since 0.4.1).
+- Host clean-up release (2026-10-08): code the first host moved into Jini, plus the Jini clean-up (see the commit log since 0.4.1).
 
 ## 0.4.1 — 2026-10-04
 

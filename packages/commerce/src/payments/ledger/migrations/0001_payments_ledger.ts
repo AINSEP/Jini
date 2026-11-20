@@ -2,7 +2,7 @@ import { type ColumnDefinitionBuilder, type CreateTableBuilder, sql, type Kysely
 import type { MigrationStep, StorageKernel } from "@jini-ai/core/contracts/storage";
 
 /**
- * @file The payments ledger's first schema (ADR-066 step; design 2026-10-21 lot L2). Portable DDL:
+ * @file The payments ledger's first schema (design 2026-10-21 lot L2). Portable DDL:
  * TEXT, BIGINT and INTEGER only, built with Kysely's schema builder so one body is valid on SQLite
  * and Postgres with no dialect branch.
  *

@@ -1,5 +1,5 @@
 /**
- * @file Pinned checksums of the payments ledger's migration steps (ADR-066 §3). The runner records
+ * @file Pinned checksums of the payments ledger's migration steps. The runner records
  * these in `commerce_payments_migrations` and refuses a database whose recorded checksum differs.
  * `../__tests__/migrations.vitest.test.ts` re-derives each from its `NNNN_name.ts` source (comments
  * removed, whitespace collapsed, sha256 via `sourceChecksum`), so an edit to a shipped step goes red

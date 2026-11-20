@@ -2,7 +2,7 @@ import type { MigrationStep, StorageKernel } from "@jini-ai/core/contracts/stora
 import type { Kysely } from "kysely";
 
 /**
- * @file Payments ledger step 4 (ADR-066; L4 review fixes R2-F4 and R2-F8): what a capture/void
+ * @file Payments ledger step 4 (L4 review fixes R2-F4 and R2-F8): what a capture/void
  * attempt needs to be compared on replay and recovered after a lost response. Same portable-DDL
  * rules as `0001_payments_ledger` (TEXT/BIGINT only). Earlier steps are frozen, so the columns and
  * the index are added here.

@@ -10,7 +10,7 @@ export interface FieldAttributesDialogState {
   settings: FieldSettingsForm;
   error: string | null;
 }
-export function initialFieldAttributesDialogState({ field, catalog }: { field: AdminFormField; catalog: FormsCatalogPort }, _optional = {}): FieldAttributesDialogState {
+function initialFieldAttributesDialogState({ field, catalog }: { field: AdminFormField; catalog: FormsCatalogPort }, _optional = {}): FieldAttributesDialogState {
   return { className: field.className ?? "", rows: attrRowsFromField({ field }), settings: settingsFormFromField({ field, catalog }), error: null };
 }
 /** Add or remove one value from a list setting (accepted uploads, default choices). */
