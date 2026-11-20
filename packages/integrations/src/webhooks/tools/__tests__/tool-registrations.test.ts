@@ -193,7 +193,7 @@ test("one success call per non-delete tool returns the model-facing view", async
     { subscription: view({ label: "Renamed", targetUrl: "https://example.test/renamed", topics: ["c"], version: 2, lastDelivery: newest }) },
   );
   assert.deepEqual(await call("webhooks_pause_subscription", { subscriptionId: "sub-1" }), {
-    subscription: view({ label: "Renamed", targetUrl: "https://example.test/renamed", topics: ["c"], status: "paused", version: 2 }),
+    subscription: view({ label: "Renamed", targetUrl: "https://example.test/renamed", topics: ["c"], status: "paused", version: 3 }),
   });
 });
 
@@ -264,7 +264,7 @@ test("delete confirmed: the prepared snapshot is frozen, the subscription is sof
     deleted: true, cancelled: false,
     subscription: {
       id: "sub-1", label: "Hook sub-1", targetUrl: "https://example.test/hooks/orders", topics: ["order.created"], status: "disabled", secretVersion: 3,
-      previousSecretVersion: 2, createdAt: NOW, updatedAt: NOW, disabledAt: NOW, version: 1, lastDelivery: null,
+      previousSecretVersion: 2, createdAt: NOW, updatedAt: NOW, disabledAt: NOW, version: 2, lastDelivery: null,
     },
   });
   assert.equal(fixture.confirm.runs, 1);
@@ -305,6 +305,25 @@ test("delete: an unknown id is refused before any confirmation, and a target tha
   });
   fixture.deps.confirmDelete = original;
   assert.equal((await fixture.repo.findById({ workspaceId: WORKSPACE_ID, id: "sub-1" }))?.label, "Changed while open");
+});
+
+test("delete: a write conflict after the confirmed snapshot check asks for a new confirmation", async () => {
+  const fixture = await makeFixture("confirm");
+  const find = fixture.repo.findById.bind(fixture.repo);
+  let reads = 0;
+  fixture.repo.findById = async (required) => {
+    if (++reads === 3) await fixture.repo.save({ ...seededRecord("sub-1"), label: "Edited", version: 2 }, { expectedVersion: 1 });
+    return find(required);
+  };
+  await assert.rejects(caller(fixture)("webhooks_delete_subscription", { subscriptionId: "sub-1" }), (error: unknown) => {
+    assert.ok(error instanceof ToolInputError);
+    assert.equal(error.message, "webhooks_delete_subscription: target changed while confirmation was open. Request a new confirmation; nothing was deleted.");
+    return true;
+  });
+  const current = await find({ workspaceId: WORKSPACE_ID, id: "sub-1" });
+  assert.equal(current?.label, "Edited");
+  assert.equal(current?.status, "active");
+  assert.equal(current?.version, 2);
 });
 
 test("delete: a run aborted while the confirmed delete re-checks permission is abandoned and nothing is deleted", async () => {

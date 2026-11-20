@@ -47,12 +47,12 @@ export type RemoveTaxonomyFn = (required: {
  *  shape (`repo.sqlite.ts`), declared here rather than imported from there, so a future in-memory
  *  adapter can satisfy this without depending on the SQLite class. */
 export interface TermTrashReadPort {
-  findForTrash(id: string): Promise<{ id: string; name: string; taxonomyName: string; version: number } | null>;
+  findForTrash(required: { id: string }): Promise<{ id: string; name: string; taxonomyName: string; version: number } | null>;
 }
 
 /** `SqliteTaxonomyRepo.findForTrash`'s exact shape — see {@link TermTrashReadPort}'s doc. */
 export interface TaxonomyTrashReadPort {
-  findForTrash(id: string): Promise<{ id: string; name: string; version: number } | null>;
+  findForTrash(required: { id: string }): Promise<{ id: string; name: string; version: number } | null>;
 }
 
 export type TrashTermOutcome =
@@ -78,7 +78,7 @@ export async function trashTerm(
     termRepo: TermTrashReadPort; remove: RemoveTermFn; clock: { nowIso(): string } },
   _optional = {}
 ): Promise<TrashTermOutcome> {
-  const term = await required.termRepo.findForTrash(required.termId);
+  const term = await required.termRepo.findForTrash({ id: required.termId });
   if (!term) return { ok: false, reason: "not-found" };
 
   return required.remove({
@@ -103,7 +103,7 @@ export async function trashTaxonomy(
     taxonomyRepo: TaxonomyTrashReadPort; remove: RemoveTaxonomyFn; clock: { nowIso(): string } },
   _optional = {}
 ): Promise<TrashTaxonomyOutcome> {
-  const taxonomy = await required.taxonomyRepo.findForTrash(required.taxonomyId);
+  const taxonomy = await required.taxonomyRepo.findForTrash({ id: required.taxonomyId });
   if (!taxonomy) return { ok: false, reason: "not-found" };
 
   return required.remove({

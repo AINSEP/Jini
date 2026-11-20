@@ -36,7 +36,7 @@ test("term purge follow-up: beforePurge reads the term (trash-blind) and the Tra
   const revisions = recordingRevisions();
   const outbox = recordingOutbox();
   const hooks = createTermPurgeFollowUp({
-    termRepo: { findForPurgeAudit: async id => { assert.equal(id, "term-1"); return { id: "term-1", name: "Red", taxonomyId: "tax-1" }; } },
+    termRepo: { findForPurgeAudit: async ({ id }) => { assert.equal(id, "term-1"); return { id: "term-1", name: "Red", taxonomyId: "tax-1" }; } },
     trash: trashLookup({ actorPrincipalId: "user-1" }),
     revisions,
     outbox,
@@ -60,7 +60,7 @@ test("term purge follow-up: no Trash row found falls back to an 'unknown' actor 
   const revisions = recordingRevisions();
   const outbox = recordingOutbox();
   const hooks = createTermPurgeFollowUp({
-    termRepo: { findForPurgeAudit: async id => { assert.equal(id, "term-1"); return { id: "term-1", name: "Red", taxonomyId: "tax-1" }; } },
+    termRepo: { findForPurgeAudit: async ({ id }) => { assert.equal(id, "term-1"); return { id: "term-1", name: "Red", taxonomyId: "tax-1" }; } },
     trash: trashLookup(null),
     revisions,
     outbox,
@@ -78,7 +78,7 @@ test("term purge follow-up: afterPurge no-ops when beforePurge found nothing (de
   const revisions = recordingRevisions();
   const outbox = recordingOutbox();
   const hooks = createTermPurgeFollowUp({
-    termRepo: { findForPurgeAudit: async id => { assert.equal(id, "does-not-exist"); return null; } },
+    termRepo: { findForPurgeAudit: async ({ id }) => { assert.equal(id, "does-not-exist"); return null; } },
     trash: trashLookup({ actorPrincipalId: "user-1" }),
     revisions,
     outbox,
@@ -97,7 +97,7 @@ test("taxonomy purge follow-up: beforePurge reads every member term id regardles
   const revisions = recordingRevisions();
   const outbox = recordingOutbox();
   const hooks = createTaxonomyPurgeFollowUp({
-    termRepo: { listIdsForPurgeAudit: async id => { assert.equal(id, "tax-1"); return ["term-1", "term-2"]; } },
+    termRepo: { listIdsForPurgeAudit: async ({ taxonomyId }) => { assert.equal(taxonomyId, "tax-1"); return ["term-1", "term-2"]; } },
     trash: trashLookup({ actorPrincipalId: "user-1" }, "taxonomy", "tax-1"),
     revisions,
     outbox,
@@ -119,7 +119,7 @@ test("taxonomy purge follow-up: an empty (member-less) taxonomy still writes a r
   const revisions = recordingRevisions();
   const outbox = recordingOutbox();
   const hooks = createTaxonomyPurgeFollowUp({
-    termRepo: { listIdsForPurgeAudit: async id => { assert.equal(id, "tax-1"); return []; } },
+    termRepo: { listIdsForPurgeAudit: async ({ taxonomyId }) => { assert.equal(taxonomyId, "tax-1"); return []; } },
     trash: trashLookup({ actorPrincipalId: "user-1" }, "taxonomy", "tax-1"),
     revisions,
     outbox,
@@ -137,7 +137,7 @@ test("taxonomy purge follow-up: no Trash row found falls back to an 'unknown' ac
   const revisions = recordingRevisions();
   const outbox = recordingOutbox();
   const hooks = createTaxonomyPurgeFollowUp({
-    termRepo: { listIdsForPurgeAudit: async id => { assert.equal(id, "tax-1"); return ["term-1"]; } },
+    termRepo: { listIdsForPurgeAudit: async ({ taxonomyId }) => { assert.equal(taxonomyId, "tax-1"); return ["term-1"]; } },
     trash: trashLookup(null, "taxonomy", "tax-1"),
     revisions,
     outbox,
@@ -157,7 +157,7 @@ test('purge captures actor and member IDs before removal, then emits one shared 
   let ticks = 0;
   const seen: unknown[] = [];
   const hooks = createTaxonomyPurgeFollowUp({
-    termRepo: { listIdsForPurgeAudit: async () => { assert.equal(removed, false); return ['one', 'two']; } },
+    termRepo: { listIdsForPurgeAudit: async ({ taxonomyId }) => { assert.equal(taxonomyId, 'taxonomy'); assert.equal(removed, false); return ['one', 'two']; } },
     trash: { findByEntity: async () => { assert.equal(removed, false); return { actorPrincipalId: 'captured' }; } },
     revisions: { insert: async row => { seen.push(['revision', row]); } },
     outbox: { enqueue: async ({ event }) => { seen.push(['event', event]); } },
@@ -179,7 +179,7 @@ test('term purge uses captured term and actor after removal and one timestamp fo
   const revisions = recordingRevisions();
   const outbox = recordingOutbox();
   const hooks = createTermPurgeFollowUp({
-    termRepo: { findForPurgeAudit: async () => { assert.equal(removed, false); return { id: 'term', taxonomyId: 'taxonomy', name: 'Captured' }; } },
+    termRepo: { findForPurgeAudit: async ({ id }) => { assert.equal(id, 'term'); assert.equal(removed, false); return { id: 'term', taxonomyId: 'taxonomy', name: 'Captured' }; } },
     trash: { findByEntity: async () => { assert.equal(removed, false); return { actorPrincipalId: 'captured' }; } },
     revisions, outbox, clock: { nowIso: () => `time-${++ticks}` },
   });

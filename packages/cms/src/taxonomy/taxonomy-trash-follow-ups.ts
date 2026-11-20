@@ -62,14 +62,14 @@ export interface TaxonomyEventOutboxPort {
 /** `SqliteTermRepo.findForPurgeAudit`'s exact shape (`repo.sqlite.ts`) — trash-blind, since a
  *  purge only ever runs on an already-hidden row. */
 export interface TermPurgeAuditReadPort {
-  findForPurgeAudit(id: string): Promise<{ id: string; name: string; taxonomyId: string } | null>;
+  findForPurgeAudit(required: { id: string }): Promise<{ id: string; name: string; taxonomyId: string } | null>;
 }
 
 /** `SqliteTermRepo.listIdsForPurgeAudit`'s exact shape — every member term id regardless of its
  *  own or its taxonomy's status, matching what `registry.ts`'s taxonomy `purgeFirst` cascade is
  *  about to delete. */
 export interface TaxonomyMemberIdsReadPort {
-  listIdsForPurgeAudit(taxonomyId: string): Promise<string[]>;
+  listIdsForPurgeAudit(required: { taxonomyId: string }): Promise<string[]>;
 }
 
 interface TermPurgePriorState {
@@ -105,7 +105,7 @@ export function createTermPurgeFollowUp(deps: {
 }, _optional = {}): PurgeFollowUpHooks {
   return {
     async beforePurge({ workspaceId, entityId }): Promise<TermPurgePriorState | null> {
-      const term = await deps.termRepo.findForPurgeAudit(entityId);
+      const term = await deps.termRepo.findForPurgeAudit({ id: entityId });
       if (!term) return null;
       const trashItem = await deps.trash.findByEntity({ workspaceId, entityType: "term", entityId });
       return { taxonomyId: term.taxonomyId, name: term.name, actorId: trashItem?.actorPrincipalId ?? "unknown" };
@@ -154,7 +154,7 @@ export function createTaxonomyPurgeFollowUp(deps: {
 }, _optional = {}): PurgeFollowUpHooks {
   return {
     async beforePurge({ workspaceId, entityId }): Promise<TaxonomyPurgePriorState> {
-      const deletedTermIds = await deps.termRepo.listIdsForPurgeAudit(entityId);
+      const deletedTermIds = await deps.termRepo.listIdsForPurgeAudit({ taxonomyId: entityId });
       const trashItem = await deps.trash.findByEntity({ workspaceId, entityType: "taxonomy", entityId });
       return { deletedTermIds, actorId: trashItem?.actorPrincipalId ?? "unknown" };
     },

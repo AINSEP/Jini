@@ -12,7 +12,7 @@ import {
   type HostReadVocabulary,
   type ToolHandler,
 } from "@jini-ai/core";
-import { requireExpectedVersion } from "@jini-ai/core/optimistic-concurrency";
+import { RecordVersionConflictError, requireExpectedVersion } from "@jini-ai/core/optimistic-concurrency";
 import {
   createSubscription,
   updateSubscription,
@@ -157,12 +157,8 @@ export const webhooksPauseSubscriptionHandler = ({ deps }: WebhookHandlerArgs, _
 
 /**
  * The MCP-UI-gated delete — migrated onto the shared held-open confirmation exchange
- * (2026-09-08, ADS-memory/reports/2026-09-08-delete-confirmation-build.md). No separate
- * staleness re-check: `deleteSubscription` performs its own fresh existence lookup at write
- * time (confirmed by reading it in full — no `expectedVersion`/optimistic-concurrency field
- * anywhere in its input), so whatever the row looks like at confirm time is exactly what gets
- * deleted, or a fresh `WebhookSubscriptionNotFoundError` if it is gone by then.
- * The owner opt-in now adds a full snapshot check before that service so changed targets re-ask.
+ * (2026-09-08, ADS-memory/reports/2026-09-08-delete-confirmation-build.md).
+ * The snapshot check and confirmed version fence changes while confirmation is open.
  */
 export const webhooksDeleteSubscriptionHandler = ({ deps, surfaces }: WebhookHandlerArgs, _optional = {}): ToolHandler => deps.confirmDelete({ surfaces,
   prepare: async ({ ctx }) => {
@@ -179,11 +175,16 @@ export const webhooksDeleteSubscriptionHandler = ({ deps, surfaces }: WebhookHan
     const current = await deps.webhookSubscriptionRepo.findById({ workspaceId: deps.workspaceId, id: subscriptionId });
     if (!isDeepStrictEqual(current, existing)) throw new ToolInputError({ message: "webhooks_delete_subscription: target changed while confirmation was open. Request a new confirmation; nothing was deleted." });
     ctx.signal.throwIfAborted();
-    const { subscription } = await deleteSubscription({
-      deps: subscriptionServiceDeps(deps),
-      input: { workspaceId: deps.workspaceId, id: subscriptionId },
-    });
-    return { deleted: true, cancelled: false, subscription: toSubscriptionToolView({ subscription, lastDelivery: null }) };
+    try {
+      const { subscription } = await deleteSubscription({
+        deps: subscriptionServiceDeps(deps),
+        input: { workspaceId: deps.workspaceId, id: subscriptionId },
+      }, { expectedVersion: existing.version });
+      return { deleted: true, cancelled: false, subscription: toSubscriptionToolView({ subscription, lastDelivery: null }) };
+    } catch (error) {
+      if (error instanceof RecordVersionConflictError) throw new ToolInputError({ message: "webhooks_delete_subscription: target changed while confirmation was open. Request a new confirmation; nothing was deleted." });
+      throw error;
+    }
   },
   declined: ({ reason, prepared }) => {
     if (reason === "declined" && prepared) return { deleted: false, cancelled: true, subscription: toSubscriptionToolView({ subscription: prepared.existing, lastDelivery: null }) };
