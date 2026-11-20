@@ -1,5 +1,6 @@
 import type { SettingScope, SettingDefinitionRecord } from "./types.js";
-import type { SetValueRequired, ClearValueRequired, ResetNamespaceRequired } from "./write-service.js";
+import type { SetValueRequired, ClearValueRequired } from "./write-values.js";
+import type { ResetNamespaceRequired } from "./write-reset.js";
 import type { ChangeFeedViewer, ChangeFeedBatch } from "./change-feed.js";
 
 export type Authorize = (required: {

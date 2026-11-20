@@ -1,5 +1,7 @@
 import { getEffective, resolveDefinition, type DefinitionInput } from "./settings.js";
-import { set, clear, resetNamespace, registerDefinitions, type SettingsWriteServiceDeps } from "./write-service.js";
+import { registerDefinitions, type SettingsWriteServiceDeps } from "./write-service.js";
+import { set, clear } from "./write-values.js";
+import { resetNamespace } from "./write-reset.js";
 import { NON_REGISTER_DEFINITION_OPS, parseNonRegisterDefinitionOp, type DefinitionOpRequestItem } from "./definitions-dispatch.js";
 import { collectChangedNamespaces } from "./change-feed.js";
 import type { SettingsRepoPort } from "./ports.js";

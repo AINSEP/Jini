@@ -235,13 +235,6 @@
     {
       "rule": "HW3-module-state",
       "file": "packages/platform/src/download.ts",
-      "line": 229,
-      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
-      "fingerprint": "713b59583c84b68deb1e56dabc40b03dd0cc54546bd206e89a9528c80c60d88a"
-    },
-    {
-      "rule": "HW3-module-state",
-      "file": "packages/platform/src/download.ts",
       "line": 230,
       "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
       "fingerprint": "3bc10be06d08501eef60546e2fda57771271b9d08f2bad8efbacc7c3600b9122"
@@ -728,6 +721,13 @@
       "line": 68,
       "reason": "Reviewed module singleton keyed by globally unique conversationId (see the module @tradeoffs); folder drafts share the text drafts' tier.",
       "fingerprint": "1935bfc4622e27eff505b8516510e08dabaec23d8b7f5cc72f6d6a29a6dc3aef"
+    },
+    {
+      "rule": "HW3-module-state",
+      "file": "packages/platform/src/download-target.ts",
+      "line": 6,
+      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
+      "fingerprint": "713b59583c84b68deb1e56dabc40b03dd0cc54546bd206e89a9528c80c60d88a"
     }
   ]
 }

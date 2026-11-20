@@ -2,7 +2,7 @@ import type { JsonValue, UUID } from "../primitives/index.js";
 import { DefinitionNotFoundError, DefinitionTombstonedError, PrincipalNotFoundError, ScopeNotAllowedError, ValueValidationFailedError } from "./errors.js";
 import { resolveDefinitionRaw, validateValueAgainstSchema } from "./settings.js";
 import { SCOPE_BIT, type SettingScope } from "./types.js";
-import { type SettingsWriteServiceDeps } from './write-service.js';
+import type { SettingsWriteServiceDeps } from './write-service.js';
 import { type SettingsValueWriteOptions, assertTargetWorkspaceMatchesAuth, authorizeValueWrite, derivePermissionFor, writeValueRevision } from './write-value-revisions.js';
 export interface SetValueRequired {
   deps: SettingsWriteServiceDeps;

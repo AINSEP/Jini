@@ -3,7 +3,7 @@ import type { JsonValue, UUID } from "../primitives/index.js";
 import { ForbiddenError, SettingsRevisionConflictError } from "./errors.js";
 import type { SettingsRepoPort } from "./ports.js";
 import type { SettingScope } from "./types.js";
-import { type SetValueRequired, type resolveScopedDefinitionOrThrow } from './write-values.js';
+import type { SetValueRequired, resolveScopedDefinitionOrThrow } from './write-values.js';
 import { deriveRequiredPermission, type SettingsWriteServiceDeps } from './write-service.js';
 /**
  * Every non-global write must land in the workspace it was AUTHORIZED against.

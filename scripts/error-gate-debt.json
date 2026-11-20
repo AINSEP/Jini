@@ -2077,12 +2077,37 @@
   {
     "file": "packages/platform/src/download.ts",
     "rule": "catch-reads-error",
-    "value": 25
+    "value": 3
   },
   {
-    "file": "packages/platform/src/download.ts",
+    "file": "packages/platform/src/download-lock.ts",
+    "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/platform/src/download-maintenance.ts",
+    "rule": "catch-reads-error",
+    "value": 7
+  },
+  {
+    "file": "packages/platform/src/download-state.ts",
+    "rule": "catch-reads-error",
+    "value": 6
+  },
+  {
+    "file": "packages/platform/src/download-state.ts",
     "rule": "failure-text-from-catalog",
     "value": 1
+  },
+  {
+    "file": "packages/platform/src/download-store.ts",
+    "rule": "catch-reads-error",
+    "value": 4
+  },
+  {
+    "file": "packages/platform/src/download-transfer.ts",
+    "rule": "catch-reads-error",
+    "value": 3
   },
   {
     "file": "packages/platform/src/fetch-with-timeout.ts",
