@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { InMemorySpanExporter, SpanKind, SpanStatusCode, createAsyncScope, createPort } from "./otel-fakes.js";
 
@@ -6,8 +6,9 @@ import {
   createNoopObservabilityPort,
   isNoopObservabilityPort,
 } from "@jini-ai/core/contracts/observability";
-import { createHookObservabilityPort } from "@jini-ai/diagnostics/observability";
+import { createHookObservabilityPort, observabilityProviderContract } from "@jini-ai/diagnostics/observability";
 import type { ObservabilityConfigEnabled } from "@jini-ai/diagnostics/observability";
+import { createOtelObservabilityPort } from "../observability-opentelemetry/otel-port.js";
 
 /**
  * @file The three signals beyond inbound requests — DB queries, outbound HTTP calls and agent runs —
@@ -100,6 +101,34 @@ describe("trackOutboundCall", () => {
 });
 
 describe("trackAgentRun", () => {
+ it.each(['succeeded', 'failed'] as const)('records one duration in milliseconds after %s settlement, including repeated end', status => {
+  const span = { updateName: vi.fn(), setAttribute: vi.fn(), setStatus: vi.fn(), addEvent: vi.fn(), end: vi.fn() };
+  const metric = vi.fn(() => { expect(span.end).toHaveBeenCalledTimes(1); });
+  const port = createOtelObservabilityPort({ config: CONFIG, exporterFactory: { create: () => ({}) },
+   tracerProviderFactory: { create: () => ({ getTracer: () => ({ startSpan: () => span }) }) },
+  }, { helpers: observabilityProviderContract.context, metric });
+  const now = vi.spyOn(performance, 'now').mockReturnValueOnce(10).mockReturnValue(35);
+  const tracker = port.trackAgentRun({ runId: 'r' });
+  expect(metric).not.toHaveBeenCalled();
+  tracker.end({ status });
+  tracker.end({ status });
+  now.mockRestore();
+  expect(metric.mock.calls).toEqual([[{ name: 'agent.run.duration', value: 25 }, { kind: 'histogram', unit: 'ms' }]]);
+  expect(span.end).toHaveBeenCalledTimes(1);
+ });
+
+ it('does no timing when the structural port has no metric recorder', () => {
+  const { exporter, port } = setup();
+  const now = vi.spyOn(performance, 'now');
+  const tracker = port.trackAgentRun({ runId: 'r' });
+  tracker.end({ status: 'succeeded' });
+  tracker.end({ status: 'succeeded' });
+  const calls = now.mock.calls.length;
+  now.mockRestore();
+  expect(calls).toBe(0);
+  expect(exporter.getFinishedSpans()).toHaveLength(1);
+ });
+
  it("is a root INTERNAL span named invoke_agent with run/conversation ids and the terminal status", () => {
   const { exporter, port } = setup();
   const request = port.trackRequest({ method: "PUT", path: "/chats/1" });
