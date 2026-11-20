@@ -22,7 +22,7 @@ import type { PaymentScope } from "../contract/scope.js";
 import type { IntentStatus } from "../state/status.js";
 import { applyPaymentEvidence, type ApplyResult } from "../accounting/apply-evidence.js";
 import type { LedgerTx } from "../ledger/repo.js";
-import { OPEN_ATTEMPT_OUTCOMES, type AttemptRecord, type PaymentRecord } from "../ledger/rows.js";
+import { OPEN_ATTEMPT_OUTCOMES, type AttemptRecord, type PaymentRecord } from "../ledger/row-records.js";
 import {
   NOT_ASSESSED_RISK, REPLAY_RISK, checkAmount, checkProvider, checkText, dispatch, fail, markAttempt, newAttempt, noteApplied,
   onUniqueRace, outcomeError, owned, readPayment, rejectedReplay, resolveContext, type Failure,

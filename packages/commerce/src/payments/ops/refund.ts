@@ -18,7 +18,7 @@ import type { Outcome, PaymentProvider } from "../contract/provider.js";
 import { sameScope, type PaymentScope } from "../contract/scope.js";
 import { applyRefundEvidence, recordRefundDispatchOutcome, reserveRefund, type ReserveResult } from "../accounting/apply-evidence.js";
 import type { LedgerTx } from "../ledger/repo.js";
-import type { AttemptRecord, PaymentRecord, RefundRecord } from "../ledger/rows.js";
+import type { AttemptRecord, PaymentRecord, RefundRecord } from "../ledger/row-records.js";
 import {
   SPENT_KEY, checkAmount, checkProvider, checkText, dispatch, fail, markAttempt, newAttempt, noteApplied, onUniqueRace, outcomeError,
   readPayment, rejectedReplay, resolveContext, type Failure,

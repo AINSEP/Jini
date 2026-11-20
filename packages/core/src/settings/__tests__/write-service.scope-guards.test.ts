@@ -4,7 +4,8 @@ import { test } from "vitest";
 import { InMemorySettingsPrincipalLookup } from "./principal.fixture.js";
 import { ForbiddenError } from "../errors.js";
 import { InMemorySettingsRepo } from "../repo.memory.js";
-import { clear, resetNamespace, set } from "../write-service.js";
+import { clear, set } from "../write-values.js";
+import { resetNamespace } from "../write-reset.js";
 import type { SettingDefinitionRecord, SettingValueRecord } from "../types.js";
 
 /**

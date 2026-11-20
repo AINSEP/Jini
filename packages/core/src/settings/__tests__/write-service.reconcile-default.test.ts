@@ -4,7 +4,8 @@ import { test } from "vitest";
 import { InMemorySettingsPrincipalLookup } from "./principal.fixture.js";
 import { DefinitionInvalidError, ValueValidationFailedError } from "../errors.js";
 import { InMemorySettingsRepo } from "../repo.memory.js";
-import { reconcileDefinitionDefault, registerDefinitions } from "../write-service.js";
+import { reconcileDefinitionDefault } from "../write-definition-status.js";
+import { registerDefinitions } from "../write-service.js";
 import type { JsonValue } from "../../primitives/index.js";
 import type { SettingDefinitionRecord, SettingValueSchema } from "../types.js";
 

@@ -16,7 +16,7 @@
  * flight must not be judged from a snapshot taken before it lands.
  */
 import type { IntentStatus } from "../state/status.js";
-import { OPEN_ATTEMPT_OUTCOMES, type AttemptRecord, type PaymentRecord } from "../ledger/rows.js";
+import { OPEN_ATTEMPT_OUTCOMES, type AttemptRecord, type PaymentRecord } from "../ledger/row-records.js";
 import { CAPTURE_VOID_STATUSES } from "./capture-void.js";
 import type { OpsDeps } from "./deps.js";
 import { applySnapshot, leave, retrieveSnapshot, type Verdict } from "./reconcile-snapshot.js";

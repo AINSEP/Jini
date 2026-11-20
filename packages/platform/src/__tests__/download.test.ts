@@ -17,15 +17,9 @@ import { setTimeout as sleep } from "node:timers/promises";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import {
-  MANAGED_DOWNLOAD_ERROR_CODES,
-  downloadCopyAndClear,
-  inspectManagedDownload,
-  managedDownload,
-  pruneManagedDownloads,
-  removeManagedDownload,
-  type ManagedDownloadProgress,
-} from "../download.js";
+import { MANAGED_DOWNLOAD_ERROR_CODES, type ManagedDownloadProgress } from "../download-types.js";
+import { downloadCopyAndClear, managedDownload } from "../download.js";
+import { inspectManagedDownload, pruneManagedDownloads, removeManagedDownload } from "../download-maintenance.js";
 
 // root (CAP_DAC_OVERRIDE) always bypasses a directory's own permission bits, so `chmodSync(dir,
 // 0o000)` cannot actually block root's own read/write/remove access the way these tests rely on —

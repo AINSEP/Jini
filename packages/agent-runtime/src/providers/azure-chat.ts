@@ -74,7 +74,9 @@
  */
 import { defaultDnsLookup, validateBaseUrlResolved, type PinnedFetch } from './connection-guard.js';
 import { type DnsLookupFn } from '@jini-ai/core/contracts/agents';
-import { runOpenAiCompatibleRequest, refreshOpenAiTools, createStrictToolRetry, type StrictToolRetryState, type OpenAiCompatibleRequestOutcome } from './openai-chat.js';
+import { runOpenAiCompatibleRequest } from './openai-chat-request.js';
+import { refreshOpenAiTools, createStrictToolRetry } from './openai-chat.js';
+import { type StrictToolRetryState, type OpenAiCompatibleRequestOutcome } from './openai-chat-types.js';
 import type { ProviderToolSnapshotOptions, ProviderSchemaFallback } from './provider-tool-policy.js';
 import { buildLegacyMaxTokensParam, buildMaxCompletionTokensParam, isUnsupportedMaxTokensError } from './token-params.js';
 import { createTurnEndGuard, type TurnEndReason } from './turn-end-guard.js';

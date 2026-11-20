@@ -1,10 +1,8 @@
 import { describe, expect, test } from "vitest";
 
 import { LedgerConstraintError, type LedgerConstraintKind, type LedgerTx, type PaymentsLedger } from "../repo.js";
-import type {
-  AttemptRecord, DisputeRecord, EvidenceRecord, NewInbox, NewOutbox, NewPayment, NewQuarantine, OperatorActionRecord, PaymentPatch,
-  RefundRecord,
-} from "../rows.js";
+import type { AttemptRecord, DisputeRecord, EvidenceRecord, NewInbox, NewOutbox, NewPayment, NewQuarantine, OperatorActionRecord, RefundRecord } from "../row-records.js";
+import type { PaymentPatch } from "../row-patches.js";
 
 /**
  * @file THE contract every `PaymentsLedger` adapter must pass: run by `memory.vitest.test.ts`

@@ -4,7 +4,8 @@ import { test } from "vitest";
 import { InMemorySettingsPrincipalLookup } from "./principal.fixture.js";
 import { DefinitionNotFoundError, DefinitionTombstonedError } from "../errors.js";
 import { InMemorySettingsRepo } from "../repo.memory.js";
-import { deprecateDefinition, registerDefinitions, tombstoneDefinition } from "../write-service.js";
+import { deprecateDefinition, tombstoneDefinition } from "../write-definition-status.js";
+import { registerDefinitions } from "../write-service.js";
 
 const clock = { nowMs: () => Date.parse("2026-07-12T00:00:00.000Z")};
 let idCounter = 0;

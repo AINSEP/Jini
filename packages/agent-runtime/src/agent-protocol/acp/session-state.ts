@@ -3,7 +3,7 @@
  * from it, and `session.ts` imports `session-run.ts`, so the factory cannot live in `session.ts`
  * without a runtime import cycle. The `AcpSessionState` shape stays in `session.ts` (type-only import).
  */
-import type { AcpSessionState } from './session.js';
+import type { AcpSessionState } from './session-types.js';
 
 /** Builds a fresh {@link AcpSessionState} with every field at its initial value. */
 export function createAcpSessionState(): AcpSessionState {

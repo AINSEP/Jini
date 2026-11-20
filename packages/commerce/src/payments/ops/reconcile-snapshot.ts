@@ -5,7 +5,7 @@
  */
 import type { PaymentEvidence } from "../contract/evidence.js";
 import type { PaymentProvider } from "../contract/provider.js";
-import type { PaymentRecord } from "../ledger/rows.js";
+import type { PaymentRecord } from "../ledger/row-records.js";
 import { applyPaymentEvidence } from "../accounting/apply-evidence.js";
 import { dispatch, markAttempt, noteApplied, raiseAlert, resolveContext } from "./common.js";
 import type { OpsDeps } from "./deps.js";

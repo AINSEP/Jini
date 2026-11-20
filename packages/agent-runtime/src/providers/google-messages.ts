@@ -101,7 +101,8 @@ import { type DnsLookupFn } from '@jini-ai/core/contracts/agents';
 import { googleStreamGenerateContentUrl } from './google.js';
 import { decodeSseStream } from './sse-decode.js';
 import { createTurnEndGuard, type TurnEndReason } from './turn-end-guard.js';
-import { createStrictToolRetry, type StrictToolRetryState } from './openai-chat.js';
+import { createStrictToolRetry } from './openai-chat.js';
+import { type StrictToolRetryState } from './openai-chat-types.js';
 import type { ProviderToolSnapshotOptions, ProviderSchemaFallback } from './provider-tool-policy.js';
 import { toolLoopVerdict } from './tool-loop-verdict.js';
 

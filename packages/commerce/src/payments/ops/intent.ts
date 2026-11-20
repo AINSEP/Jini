@@ -17,7 +17,7 @@ import type { IntentLine, IntentRequest, Outcome, PaymentProvider, ProviderConte
 import { assessPreChargeRisk, type RiskDecision } from "../contract/risk.js";
 import { sameScope, type PaymentScope } from "../contract/scope.js";
 import { applyPaymentEvidence, recordIntentDispatchOutcome } from "../accounting/apply-evidence.js";
-import type { AttemptRecord, PaymentRecord } from "../ledger/rows.js";
+import type { AttemptRecord, PaymentRecord } from "../ledger/row-records.js";
 import {
   REPLAY_RISK, checkAmount, checkProvider, checkText, dispatch, fail, markAttempt, newAttempt, noteApplied, onUniqueRace,
   readPayment, rejectedReplay, resolveContext, type Failure,

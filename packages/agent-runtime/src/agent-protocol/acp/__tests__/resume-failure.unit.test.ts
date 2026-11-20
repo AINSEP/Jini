@@ -2,7 +2,8 @@ import type { ChildProcess } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { attachAcpSession, type AttachAcpSessionOptions } from '../session.js';
+import { attachAcpSession } from '../session.js';
+import { type AttachAcpSessionOptions } from '../session-types.js';
 
 function createFixture(optionalArgs: Omit<AttachAcpSessionOptions, 'child' | 'prompt' | 'send'> = {},
   { failInitialWrite = false }: { failInitialWrite?: boolean } = {}) {

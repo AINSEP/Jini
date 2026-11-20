@@ -1,7 +1,8 @@
 import { runAnthropicToolTurn, type AnthropicMessageParam, type AnthropicToolCall, type AnthropicToolResultContentBlock, type AnthropicToolDef } from './anthropic-messages.js';
 import { runAzureToolTurn } from './azure-chat.js';
 import { runGoogleToolTurn, type GoogleContent, type GoogleToolCall, type GoogleToolDef, type GoogleToolResultPart } from './google-messages.js';
-import { runOpenAiToolTurn, type OpenAiContentPart, type OpenAiFunctionToolDef, type OpenAiMessageParam, type OpenAiToolCall } from './openai-chat.js';
+import { runOpenAiToolTurn } from './openai-chat.js';
+import { type OpenAiContentPart, type OpenAiFunctionToolDef, type OpenAiMessageParam, type OpenAiToolCall } from './openai-chat-types.js';
 import type { ProviderTurnAdapters, ProviderTurnEvent, ProviderToolCall, ProviderToolResult, ProviderToolDescriptor, ProviderToolTurnInput, ProviderToolTurnResult, ProviderToolTurnOptions, ProviderToolSnapshotOptions } from './tool-turn-types.js';
 import { createToolNameMap } from '@jini-ai/core';
 import { compileOperationSchema, type CompiledOperationSchema } from './operation-schema.js';

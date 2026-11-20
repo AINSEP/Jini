@@ -9,15 +9,8 @@
  */
 export { type AcpMcpServerInput, buildAcpSessionNewParams } from './session-params.js';
 export { type ModelOption, normalizeModels, detectAcpModels } from './models.js';
-export {
-  attachAcpSession,
-  type AcpPermissionDecision,
-  type AcpPermissionHandler,
-  type AcpPermissionOption,
-  type AcpPermissionRequest,
-  type AcpSessionController,
-  type AttachAcpSessionOptions,
-} from './session.js';
+export { attachAcpSession } from './session.js';
+export { type AcpPermissionDecision, type AcpPermissionHandler, type AcpPermissionOption, type AcpPermissionRequest, type AcpSessionController, type AttachAcpSessionOptions } from './session-types.js';
 export {
   type AccountFailure,
   type AccountFailureClassifier,

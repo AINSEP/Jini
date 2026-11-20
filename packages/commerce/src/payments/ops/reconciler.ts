@@ -28,7 +28,7 @@
 import type { PaymentEvidence, RefundEvidence } from "../contract/evidence.js";
 import type { PaymentProvider } from "../contract/provider.js";
 import type { LedgerKeyScope, ScanCursor } from "../ledger/repo.js";
-import type { PaymentRecord, RefundRecord } from "../ledger/rows.js";
+import type { PaymentRecord, RefundRecord } from "../ledger/row-records.js";
 import { recordRefundDispatchOutcome, settleUnknownRefund } from "../accounting/apply-evidence.js";
 import type { OpsDeps } from "./deps.js";
 import { RECONCILED_ATTEMPT_OPS, reconcileAttempt } from "./reconcile-attempts.js";

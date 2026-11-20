@@ -4,15 +4,11 @@ import { test } from "vitest";
 import { InMemorySettingsPrincipalLookup } from "./principal.fixture.js";
 import { getEffective } from "../settings.js";
 import { InMemorySettingsRepo } from "../repo.memory.js";
-import {
-  clear,
-  deprecateDefinition,
-  registerDefinitions,
-  renameDefinition,
-  retypeDefinition,
-  set,
-  tombstoneDefinition,
-} from "../write-service.js";
+import { clear, set } from "../write-values.js";
+import { deprecateDefinition, tombstoneDefinition } from "../write-definition-status.js";
+import { registerDefinitions } from "../write-service.js";
+import { renameDefinition } from "../write-definition-rename.js";
+import { retypeDefinition } from "../write-definition-retype.js";
 import { purgeTenantSettings } from "../purge-service.js";
 import type { SettingDefinitionRecord, SettingValueRecord } from "../types.js";
 

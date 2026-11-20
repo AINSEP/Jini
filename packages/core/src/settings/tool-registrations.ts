@@ -31,7 +31,7 @@ import {
 import type { SettingsRepoPort } from "./ports.js";
 import { getEffective, resolveDefinition, resolveDefinitionRaw } from "./settings.js";
 import { SCOPE_BIT, type SettingDefinitionRecord, type SettingValueRecord } from "./types.js";
-import { set as setSettingValue } from "./write-service.js";
+import { set as setSettingValue } from "./write-values.js";
 
 const CATALOG_BY_ID = indexCatalogById({ catalog: getSettingsAgentToolCatalog() });
 

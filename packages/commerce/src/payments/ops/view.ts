@@ -6,7 +6,7 @@ import type { Money } from "../../money/money.js";
 import type { NextAction } from "../contract/evidence.js";
 import type { PaymentView, ProviderSummary, RefundView } from "../contract/payments-port.js";
 import type { PaymentScope } from "../contract/scope.js";
-import type { PaymentRecord, RefundRecord } from "../ledger/rows.js";
+import type { PaymentRecord, RefundRecord } from "../ledger/row-records.js";
 import type { RegisteredProvider } from "../provider-registry.js";
 
 type Scoped = Pick<PaymentRecord, "workspaceId" | "siteId" | "providerId" | "providerAccountId" | "mode">;

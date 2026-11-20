@@ -25,7 +25,7 @@ import type { PaymentProvider } from "../contract/provider.js";
 import type { PaymentScope } from "../contract/scope.js";
 import { applyPaymentEvidence, type ApplyResult } from "../accounting/apply-evidence.js";
 import { LedgerConstraintError, type LedgerTx, type PaymentsLedger } from "../ledger/repo.js";
-import type { EvidenceSource, InboxRecord, PaymentRecord } from "../ledger/rows.js";
+import type { EvidenceSource, InboxRecord, PaymentRecord } from "../ledger/row-records.js";
 import type { KernelProviderRegistry, ProviderContextPort } from "../provider-registry.js";
 
 export interface InboxWorkerDeps {

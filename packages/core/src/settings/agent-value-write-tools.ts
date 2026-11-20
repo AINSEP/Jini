@@ -6,7 +6,8 @@ import { DefinitionNotFoundError, DefinitionTombstonedError, ForbiddenError, Sco
 import { getEffective, resolveDefinitionRaw, validateValueAgainstSchema } from "./settings.js";
 import type { SettingsToolDeps } from "./tool-registrations.js";
 import { SCOPE_BIT, type SettingDefinitionRecord, type SettingValueRecord } from "./types.js";
-import { clear, deriveRequiredPermission, set, type SettingsWriteServiceDeps } from "./write-service.js";
+import { clear, set } from "./write-values.js";
+import { deriveRequiredPermission, type SettingsWriteServiceDeps } from "./write-service.js";
 
 export type SettingsValueWriteToolId = "settings_set_value" | "settings_clear_value";
 

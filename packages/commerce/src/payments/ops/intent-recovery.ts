@@ -1,5 +1,5 @@
 import type { IntentRequest, PaymentProvider, ProviderContext } from "../contract/provider.js";
-import type { AttemptRecord, PaymentRecord } from "../ledger/rows.js";
+import type { AttemptRecord, PaymentRecord } from "../ledger/row-records.js";
 import { dispatch, markAttempt } from "./common.js";
 import type { OpsDeps } from "./deps.js";
 import { scopeOf } from "./view.js";

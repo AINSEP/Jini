@@ -4,7 +4,8 @@
 import type {
   AgentLaunchResolution, ModelDiscoveryContext, NativeToolPolicyInput, RunPlanHost, RuntimeAgentDef, RuntimeBuildOptions, RuntimeEnv,
 } from '@jini-ai/core/contracts/agents';
-import { attachAcpSession, type AttachAcpSessionOptions } from './agent-protocol/acp/session.js';
+import { attachAcpSession } from './agent-protocol/acp/session.js';
+import { type AttachAcpSessionOptions } from './agent-protocol/acp/session-types.js';
 import { attachPiRpcSession, type PiRpcSessionOptions } from './agent-protocol/pi-rpc/session.js';
 import {
   claudeFilesystemRuntimePaths, claudeFilesystemSettings, createClaudeFilesystemSupportProbe, validateFilesystemLaunch, validateReadOnlyExtraDirs,
