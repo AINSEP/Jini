@@ -139,6 +139,7 @@ export interface PauseSubscriptionRequired {
 
 export interface PauseSubscriptionOptional {
   paused?: boolean;
+  expectedVersion?: number;
 }
 
 /** Pause or resume a subscription; disabled subscriptions cannot resume. */
@@ -159,9 +160,10 @@ export async function pauseSubscription(
     ...existing,
     status: paused ? "paused" : "active",
     updatedAt: nowIso({ clock: deps.clock }),
+    version: existing.version + 1,
   };
 
-  await deps.repo.save(subscription);
+  await deps.repo.save(subscription, { expectedVersion: optional.expectedVersion ?? existing.version });
   return { subscription };
 }
 
@@ -178,7 +180,7 @@ export interface DeleteSubscriptionRequired {
 /** Soft-disable a subscription while retaining its audit history. */
 export async function deleteSubscription(
   required: DeleteSubscriptionRequired,
-  _optional: WebhookSubscriptionOptional = {}
+  optional: WebhookSubscriptionOptional & { expectedVersion?: number } = {}
 ): Promise<{ subscription: WebhookSubscriptionRecord }> {
   // Retain the row and disabledAt for audit durability; the repository intentionally has no delete.
   const { deps, input } = required;
@@ -191,9 +193,10 @@ export async function deleteSubscription(
     status: "disabled",
     disabledAt: now,
     updatedAt: now,
+    version: existing.version + 1,
   };
 
-  await deps.repo.save(subscription);
+  await deps.repo.save(subscription, { expectedVersion: optional.expectedVersion ?? existing.version });
   return { subscription };
 }
 

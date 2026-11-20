@@ -19,11 +19,11 @@ const clock = { nowIso: () => "2026-09-21T00:00:00.000Z" };
 const actor = { principalId: "user-1" };
 
 function termReadPort(row: { id: string; name: string; taxonomyName: string; version: number } | null): TermTrashReadPort {
-  return { findForTrash: async (id) => { assert.equal(id, "term-1"); return row && row.id === id ? row : null; } };
+  return { findForTrash: async ({ id }) => { assert.equal(id, "term-1"); return row && row.id === id ? row : null; } };
 }
 
 function taxonomyReadPort(row: { id: string; name: string; version: number } | null): TaxonomyTrashReadPort {
-  return { findForTrash: async (id) => { assert.equal(id, "tax-1"); return row && row.id === id ? row : null; } };
+  return { findForTrash: async ({ id }) => { assert.equal(id, "tax-1"); return row && row.id === id ? row : null; } };
 }
 
 test("trashTerm: a missing/already-trashed term (read port returns null) is not-found, remove is never called", async () => {
