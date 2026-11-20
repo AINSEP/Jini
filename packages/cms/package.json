@@ -96,6 +96,7 @@
       "./forms/portable-validation": "universal",
       "./core/commands": "universal",
       "./themes/layout": "universal",
+      "./themes/manifest-v2": "universal",
       "./themes/files/reviewed-write": "node",
       "./themes/files/atomic-write": "node"
     },
@@ -248,6 +249,11 @@
       "types": "./dist/themes/layout.d.ts",
       "import": "./dist/themes/layout.js",
       "default": "./dist/themes/layout.js"
+    },
+    "./themes/manifest-v2": {
+      "types": "./dist/themes/manifest-v2.d.ts",
+      "import": "./dist/themes/manifest-v2.js",
+      "default": "./dist/themes/manifest-v2.js"
     },
     ".": {
       "types": "./dist/core/index.d.ts",

@@ -110,3 +110,5 @@ export {
  * drag that host's schema into every consumer's dependency closure. Hosts compose their own; this
  * entry point exports the ports they compose against.
  */
+
+export { wentLiveSinceSave, goLiveEvent, announcePendingGoLive, announceDueGoLives, type GoLiveRow, type GoLiveCandidatesPort } from "./go-live.js";

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { applicableThemeTemplates, parseTemplateFor, type TemplateForIssue } from "../template-applicability.js";
+import { applicableThemeTemplates, parseTemplateFor, rejectTemplateFor, type TemplateForIssue } from "../template-applicability.js";
 
 const templates = ["post.html", "shared.html", "page.html", "both.html"];
 const templateFor = { "post.html": ["post"], "page.html": ["page"], "both.html": ["post", "page"] } as const;
@@ -52,5 +52,23 @@ test("without declared templates an empty map parses and any named template is r
   assert.throws(() => parseTemplateFor({ value: { "landing.html": ["page"] }, onInvalid }), issue => {
     assert.deepEqual(issue, { kind: "undeclared-template", template: "landing.html" });
     return true;
+  });
+});
+
+test("rejectTemplateFor rejects an invalid map with the manifest diagnostic", () => {
+  assert.throws(() => rejectTemplateFor({ issue: { kind: "invalid-map" } }), {
+    message: "theme.json templateFor must be an object mapping template names to content kinds",
+  });
+});
+
+test("rejectTemplateFor rejects an undeclared template with the manifest diagnostic", () => {
+  assert.throws(() => rejectTemplateFor({ issue: { kind: "undeclared-template", template: "missing.html" } }), {
+    message: "theme.json templateFor 'missing.html' is not listed in templates",
+  });
+});
+
+test("rejectTemplateFor rejects invalid kinds with the manifest diagnostic", () => {
+  assert.throws(() => rejectTemplateFor({ issue: { kind: "invalid-kinds", template: "post.html" } }), {
+    message: "theme.json templateFor 'post.html' must be a non-empty array of unique 'post'/'page' kinds",
   });
 });
