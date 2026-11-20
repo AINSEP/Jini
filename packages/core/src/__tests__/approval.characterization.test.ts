@@ -240,14 +240,14 @@ describe('createApprovalProposalStore', () => {
     const failure = new Error('effect failed');
     s.propose({ description: {}, execute: async () => { throw failure; }, signal: new AbortController().signal });
     await expect(s.respond({ approvalId: 'p', approved: true })).rejects.toBe(failure);
-    expect(s.getSnapshot()).toEqual({ pending: null, error: 'effect failed' });
+    expect(s.getSnapshot()).toEqual({ pending: null, error: 'The approved action stopped with an error (Error).' });
   });
 
   it('publishes a non-Error rejection as a string', async () => {
     const s = createApprovalProposalStore({ responseTool: 'reply', messages, ids: fixedIds('p'), scheduler: fakeScheduler() });
     s.propose({ description: {}, execute: () => Promise.reject(42), signal: new AbortController().signal });
     await expect(s.respond({ approvalId: 'p', approved: true })).rejects.toBe(42);
-    expect(s.getSnapshot().error).toBe('42');
+    expect(s.getSnapshot().error).toBe('The approved action stopped with an error (number).');
   });
 });
 

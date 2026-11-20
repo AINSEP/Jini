@@ -507,7 +507,7 @@ it('logs malformed config JSON as its class only, never the echoed file text', a
   const log = vi.spyOn(console, 'error').mockImplementation(() => {});
   try {
     await expect(readMcpConfig({ files, dataDir: dir })).resolves.toEqual({ servers: [] });
-    expect(log).toHaveBeenCalledWith('[mcp-config] Corrupted JSON, returning empty:', 'SyntaxError');
+    expect(log).toHaveBeenCalledWith(`[mcp-config] The MCP config file ${path.join(dir, 'mcp-config.json')} is not valid JSON; reading it as an empty server list.`, 'SyntaxError');
     expect(JSON.stringify(log.mock.calls)).not.toMatch(/boom|SECRETSECRET/);
   } finally { log.mockRestore(); }
 });

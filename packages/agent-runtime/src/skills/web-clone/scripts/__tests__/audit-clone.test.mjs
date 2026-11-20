@@ -239,5 +239,5 @@ describe("main", () => {
 it("walk retains every supported source extension", () => {
   const names = ["a.html", "b.css", "c.js", "d.jsx", "e.ts", "f.tsx", "g.json", "h.md", "i.txt", "j.svg"];
   const dir = project(Object.fromEntries(names.map(name => [name, ""])));
-  expect(walk(dir).map(file => path.relative(dir, file)).sort()).toEqual(names);
+  expect(walk({ dir }).map(file => path.relative(dir, file)).sort()).toEqual(names);
 });

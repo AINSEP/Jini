@@ -35,7 +35,8 @@ vi.mock('../../client/client.js', () => ({
   }),
 }));
 
-import { createMcpToolServer, type McpServerLike, type McpToolServerRequiredArgs, type McpToolServerOptions, type McpTransportLike } from '../tool-server.js';
+import type { McpServerLike } from '../adapters/sdk-server.js';
+import { createMcpToolServer, type McpToolServerRequiredArgs, type McpToolServerOptions, type McpTransportLike } from '../tool-server.js';
 import type { McpToolDef } from '../tool-protocol.js';
 import type { McpResourceDef } from '../resource-protocol.js';
 import { TOOL_CATALOG_TOOLS } from '../tools/tool-catalog-tools.js';

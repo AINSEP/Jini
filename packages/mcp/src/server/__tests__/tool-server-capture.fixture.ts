@@ -1,5 +1,5 @@
 import { CallToolRequestSchema, ListToolsRequestSchema, type CallToolResult, type ListToolsResult } from '@modelcontextprotocol/sdk/types.js';
-import type { McpServerLike } from '../tool-server.js';
+import type { McpServerLike } from '../adapters/sdk-server.js';
 
 /** The parts of the SDK's per-request `extra` a test may hand the call handler. */
 export type CapturedExtra = {

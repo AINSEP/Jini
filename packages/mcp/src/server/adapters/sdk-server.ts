@@ -2,7 +2,6 @@ import type { Readable, Writable } from 'node:stream';
 import { Server, type ServerOptions } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { CallToolRequestSchema, ListResourcesRequestSchema, ListToolsRequestSchema, ReadResourceRequestSchema, type Implementation, type CallToolResult, type ListResourcesResult, type ListToolsResult, type ReadResourceResult } from '@modelcontextprotocol/sdk/types.js';
-import type { McpServerLike } from '../tool-server.js';
 import type { McpTransportLike } from '../ports.js';
 import type { CallProgressExtra } from '../call-progress.js';
 import { adaptSdkTransport, resolveSdkTransport } from './sdk-transport.js';
@@ -15,6 +14,28 @@ export type SdkRequestSchemas = {
   listResources: typeof ListResourcesRequestSchema;
   readResource: typeof ReadResourceRequestSchema;
 };
+
+/** Object-shaped server port. The default adapter translates it to the SDK interface. */
+// Method shorthand deliberately keeps parameter checking bivariant under strict TypeScript,
+// allowing handlers narrowed to the specific request schema each overload registers.
+export interface McpServerLike {
+  setRequestHandler(args: { schema: SdkRequestSchemas['listTools']; handler: () => Promise<ListToolsResult> }): void;
+  setRequestHandler(args: {
+    schema: SdkRequestSchemas['callTool'];
+    handler: (
+      requiredArgs: { request: { params: { name: string; arguments?: Record<string, unknown> } } },
+      optionalArgs?: { extra?: CallProgressExtra },
+    ) => Promise<CallToolResult>;
+  }): void;
+  setRequestHandler(args: { schema: SdkRequestSchemas['listResources']; handler: () => Promise<ListResourcesResult> }): void;
+  setRequestHandler(args: {
+    schema: SdkRequestSchemas['readResource'];
+    handler: (requiredArgs: { request: { params: { uri: string } } }) => Promise<ReadResourceResult>;
+  }): void;
+  connect(args: { transport: McpTransportLike }): Promise<void>;
+  /** Optional for static embeddings; required when delegated publication is enabled. */
+  sendToolListChanged?(required: Record<string, never>, optional?: Record<string, never>): Promise<void>;
+}
 
 // SDK objects remain behind these adapters; hosts implement the object-shaped ports above.
 export function defaultCreateServer({ info, options }: { info: SdkServerInfo; options: SdkServerOptions }, _optional: Record<string, never> = {}): McpServerLike {

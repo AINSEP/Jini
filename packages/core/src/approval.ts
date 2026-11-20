@@ -1,5 +1,6 @@
 import { humanConfirmedHandler, requireInputRecord, type HumanConfirmationAnswer, type HumanConfirmer } from './registration-kit.js';
 import { ToolInputError } from './tool-registry.js';
+import { describeErrorForLog } from './model-facing-tool-errors.js';
 import type { ToolExecutionContext, ToolExecutionOptions, ToolHandler, ToolRegistration } from './tool-registry.js';
 import type { IdGenerator } from './primitives/ids.js';
 import { isNonArrayRecord } from './records.js';
@@ -349,7 +350,7 @@ export function createApprovalProposalStore<TDescription>(
       const answer = await resolveApproval({ signal: prepared.signal, askHuman: async () => approved === true ? { confirmed: true } : { confirmed: false, reason: 'declined' } });
       if (!answer.confirmed) return { status: 'declined' };
       try { return await prepared.execute(); }
-      catch (error) { publish({ ...snapshot, error: 'The approved action failed.' }); throw error; }
+      catch (error) { publish({ ...snapshot, error: `The approved action stopped with an error (${describeErrorForLog({ err: error })}).` }); throw error; }
     },
   };
   const request = (required: { description: TDescription; signal: AbortSignal }, optional: { timeoutMs?: number } = {}) =>

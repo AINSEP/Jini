@@ -14,6 +14,7 @@ export * from './tool-protocol.js';
 export * from './resource-protocol.js';
 export * from './daemon-client.js';
 export * from './tool-server.js';
+export type { McpServerLike } from './adapters/sdk-server.js';
 export * from './tools/run-tools.js';
 export * from './tools/delegated-tool.js';
 export * from './tools/tool-catalog-tools.js';

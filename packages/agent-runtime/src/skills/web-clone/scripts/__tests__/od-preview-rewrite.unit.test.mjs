@@ -148,6 +148,6 @@ it("preserves all host root routes even when a matching asset exists", () => {
   const root = tempDir();
   for (const prefix of ["api", "artifacts", "frames"]) {
     write(root, `${prefix}/image.png`);
-    expect(rootAssetPath({ root, fs }, `/${prefix}/image.png`)).toBeNull();
+    expect(rootAssetPath({ project: { root, fs }, value: `/${prefix}/image.png` })).toBeNull();
   }
 });

@@ -12,7 +12,7 @@ import { createToolExposure, type ToolDescriptor, type ToolExposurePromotion } f
 import type { Logger } from '@jini-ai/core/primitives';
 import type { McpTransportLike } from './ports.js';
 export type { McpTransportLike } from './ports.js';
-import { defaultCreateServer, defaultCreateTransport, bindSdkToolHandlers, bindSdkResourceHandlers, type SdkRequestSchemas, type SdkServerInfo, type SdkServerOptions } from './adapters/sdk-server.js';
+import { defaultCreateServer, defaultCreateTransport, bindSdkToolHandlers, bindSdkResourceHandlers, type McpServerLike, type SdkServerInfo, type SdkServerOptions } from './adapters/sdk-server.js';
 import type { CallToolResult, ListResourcesResult, ListToolsResult, ReadResourceResult } from './adapters/sdk-wire.js';
 import { createMcpIdleExitController } from '../client/client.js';
 import { startCallProgress, type CallProgressExtra, type CallProgressScheduler } from './call-progress.js';
@@ -26,28 +26,6 @@ import { createStdioHosting, validateFrameLimit, wantsStdioHosting, type StdioHo
 
 /** Auto-exit an idle server after this long without tool activity. */
 const DEFAULT_IDLE_MS = 30 * 60 * 1000;
-
-/** Object-shaped server port. The default adapter translates it to the SDK interface. */
-// Method shorthand deliberately keeps parameter checking bivariant under strict TypeScript,
-// allowing handlers narrowed to the specific request schema each overload registers.
-export interface McpServerLike {
-  setRequestHandler(args: { schema: SdkRequestSchemas['listTools']; handler: () => Promise<ListToolsResult> }): void;
-  setRequestHandler(args: {
-    schema: SdkRequestSchemas['callTool'];
-    handler: (
-      requiredArgs: { request: { params: { name: string; arguments?: Record<string, unknown> } } },
-      optionalArgs?: { extra?: CallProgressExtra },
-    ) => Promise<CallToolResult>;
-  }): void;
-  setRequestHandler(args: { schema: SdkRequestSchemas['listResources']; handler: () => Promise<ListResourcesResult> }): void;
-  setRequestHandler(args: {
-    schema: SdkRequestSchemas['readResource'];
-    handler: (requiredArgs: { request: { params: { uri: string } } }) => Promise<ReadResourceResult>;
-  }): void;
-  connect(args: { transport: McpTransportLike }): Promise<void>;
-  /** Optional for static embeddings; required when delegated publication is enabled. */
-  sendToolListChanged?(required: Record<string, never>, optional?: Record<string, never>): Promise<void>;
-}
 
 /** Required identity, tool surface, and daemon URL resolver. */
 export interface McpToolServerRequiredArgs {

@@ -300,7 +300,7 @@ it('logs malformed token JSON as its class only, never the echoed file text', as
   const log = vi.spyOn(console, 'error').mockImplementation(() => {});
   try {
     await expect(readTokensFile({ files, dataDir: dir, clock: testClock })).resolves.toEqual({ servers: {} });
-    expect(log).toHaveBeenCalledWith('[mcp-tokens] Corrupted JSON, returning empty:', 'SyntaxError');
+    expect(log).toHaveBeenCalledWith(`[mcp-tokens] The MCP token file ${path.join(dir, 'mcp-tokens.json')} is not valid JSON; kept a copy beside it and reading it as an empty store.`, 'SyntaxError');
     expect(JSON.stringify(log.mock.calls)).not.toMatch(/boom|SECRETSECRET/);
   } finally { log.mockRestore(); }
 });

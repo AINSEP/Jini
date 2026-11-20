@@ -12,7 +12,7 @@ it.each([failure(), sentinel])('approval publishes fixed copy and rejects with t
   const store = createApprovalProposalStore({ responseTool: 'reply', messages: { closed: 'closed', pending: 'pending', missing: 'missing' }, ids: fixedIds('proposal'), scheduler: fakeScheduler() });
   store.propose({ description: 'approved action', signal: new AbortController().signal, execute: async () => { throw error; } });
   await expect(store.respond({ approvalId: 'proposal', approved: true })).rejects.toBe(error);
-  expect(store.getSnapshot()).toEqual({ pending: null, error: 'The approved action failed.' });
+  expect(store.getSnapshot()).toEqual({ pending: null, error: `The approved action stopped with an error (${error instanceof Error ? 'Error' : 'string'}).` });
   expect(JSON.stringify(store.getSnapshot())).not.toContain(sentinel);
 });
 
