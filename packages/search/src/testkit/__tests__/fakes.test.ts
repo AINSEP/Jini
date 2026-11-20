@@ -51,6 +51,22 @@ test('index state: put is an upsert by (target, key); list, counts and deleteTar
   expect(await indexState.get({ target: other, key: key('a') })).not.toBeNull();
 });
 
+test('index state: put refuses an older revision and preserves the newer row', async () => {
+  const { indexState } = createInMemorySearchState();
+  const newer = row('a', { revision: 2, status: 'indexed' });
+  expect(await indexState.put({ row: newer })).toBe(true);
+  expect(await indexState.put({ row: row('a', { revision: 1 }) })).toBe(false);
+  expect(await indexState.get({ target, key: key('a') })).toEqual(newer);
+});
+
+test('index state: put accepts the same revision', async () => {
+  const { indexState } = createInMemorySearchState();
+  await indexState.put({ row: row('a', { revision: 2 }) });
+  const settled = row('a', { revision: 2, status: 'indexed' });
+  expect(await indexState.put({ row: settled })).toBe(true);
+  expect(await indexState.get({ target, key: key('a') })).toEqual(settled);
+});
+
 test('index state rows are stored as frozen copies', async () => {
   const { indexState } = createInMemorySearchState();
   const original = { ...row('a') };

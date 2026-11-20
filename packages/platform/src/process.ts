@@ -11,14 +11,14 @@
  * executor for bounded usage samples; keeps a private `errorCode` copy.
  */
 import { spawn, type ChildProcess, type StdioOptions } from "node:child_process";
-import { posix, win32 } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
-import { captureLineTail } from "@jini-ai/core/text";
 import { windowsPowerShell } from "./windows-system-tools.js";
 
 import type { CommandInvocationRequest, ProcessSnapshot, StopProcessesResult } from "@jini-ai/core/contracts/runtime";
 import { createCommandInvocation } from "./command.js";
 import { execFileBuffered } from "./shell.js";
+import { topReadings } from "./process-top-footprint.js";
+import { listPosixProcessSnapshots, listWindowsProcessSnapshots, parsePsUsage, parseCimUsage, processUsageCommand, processProbeOutput, parsePrivateWorkingSets, assertPrivateMemorySample } from "./process-probes.js";
 
 export type ProcessStampShape = object;
 
@@ -66,13 +66,6 @@ export type ProcessPrivateMemory = {
 };
 
 export type StampedProcessMatchCriteria<TStamp extends ProcessStampShape> = Partial<TStamp>;
-
-type WindowsProcessRecord = {
-  CommandLine?: string | null;
-  Name?: string | null;
-  ParentProcessId?: number | string | null;
-  ProcessId?: number | string | null;
-};
 
 /** @internal Extract a Node `error.code` as a string, or `null` when the value carries no code. */
 function errorCode(error: unknown): string | null {
@@ -296,54 +289,6 @@ export async function waitForProcessExit(pid: number | null | undefined, timeout
   return !isProcessAlive(pid);
 }
 
-/** @internal Parse `ps -axo pid=,ppid=,command=` output into process snapshots. */
-function parsePsOutput(stdout: string): ProcessSnapshot[] {
-  return stdout
-    .split(/\r?\n/)
-    .map((line) => {
-      // Same as /^\s*(\d+)\s+(\d+)\s+(.+)$/, split so the command tail cannot backtrack.
-      const match = /^\s*(\d+)\s+(\d+)/.exec(line);
-      const command = match ? captureLineTail({ rest: line.slice(match[0].length) }, { minWhitespace: 1 }) : null;
-      if (!match || command === null) return null;
-      return { pid: Number(match[1]), ppid: Number(match[2]), command };
-    })
-    .filter((snapshot): snapshot is ProcessSnapshot => snapshot != null);
-}
-
-/** @internal Enumerate process snapshots on POSIX via `ps`. */
-async function listPosixProcessSnapshots(input: ProcessUsagePorts, options: ProcessUsageOptions & { commandLines?: boolean }): Promise<ProcessSnapshot[]> {
-  // Fixed process-enumeration utility intentionally uses the trusted host PATH; command and argv are code-owned.
-  const stdout = await processProbeOutput({ command: "ps", run: input.run ?? execFileBuffered,
-    args: ["-axo", options.commandLines === false ? "pid=,ppid=,comm=" : "pid=,ppid=,command="],
-  }, options);
-  return parsePsOutput(stdout ?? "");
-}
-
-/** @internal Enumerate process snapshots on Windows via `Get-CimInstance Win32_Process` JSON. */
-async function listWindowsProcessSnapshots(input: ProcessUsagePorts, options: ProcessUsageOptions & { commandLines?: boolean }): Promise<ProcessSnapshot[]> {
-  const field = options.commandLines === false ? "Name" : "CommandLine";
-  const command = [
-    "$ErrorActionPreference = 'Stop'",
-    `Get-CimInstance Win32_Process | Select-Object ProcessId, ParentProcessId, ${field} | ConvertTo-Json -Compress`,
-  ].join("; ");
-  const stdout = await processProbeOutput({ command: windowsPowerShell(), run: input.run ?? execFileBuffered,
-    args: ["-NoProfile", "-NonInteractive", "-Command", command],
-  }, options);
-  const payload = stdout?.trim();
-  if (!payload) return [];
-  const records = JSON.parse(payload) as WindowsProcessRecord | WindowsProcessRecord[];
-  return (Array.isArray(records) ? records : [records])
-    .map((record) => {
-      const pid = Number(record.ProcessId);
-      const ppid = Number(record.ParentProcessId);
-      const commandLine = options.commandLines === false ? record.Name?.trim() ?? "" : record.CommandLine?.trim();
-      if (commandLine == null || Number.isNaN(pid) || Number.isNaN(ppid)) return null;
-      if (options.commandLines !== false && !commandLine) return null;
-      return { command: commandLine, pid, ppid };
-    })
-    .filter((snapshot): snapshot is ProcessSnapshot => snapshot != null);
-}
-
 /**
  * Enumerate all running processes as `{ pid, ppid, command }` snapshots, using
  * the platform-appropriate backend. Returns an empty list on any failure.
@@ -365,65 +310,6 @@ export async function listProcessSnapshots(
   } catch {
     return [];
   }
-}
-
-/** @internal Decode ps cumulative CPU time, including macOS fractional seconds and days. */
-function parseCpuTime(value: string): number {
-  const match = value.match(/^(?:(\d+)-)?(?:(\d+):)?(\d+):(\d+(?:\.\d+)?)$/);
-  if (!match) return NaN;
-  return Number(match[1] ?? 0) * 86400 + Number(match[2] ?? 0) * 3600
-    + Number(match[3]) * 60 + Number(match[4]);
-}
-
-/** @internal Reject incomplete metrics instead of presenting missing usage as zero. */
-function validProcessUsage(usage: ProcessUsage): boolean {
-  const { pid, ppid, rssBytes, cpuSeconds } = usage;
-  return [pid, ppid].every(Number.isSafeInteger) && [rssBytes, cpuSeconds].every(Number.isFinite)
-    && [pid, ppid, rssBytes, cpuSeconds].every((value) => value >= 0);
-}
-
-/** @internal Read only comm, never args/command, so credentials cannot enter the result. */
-function parsePsUsage(stdout: string): ProcessUsage[] {
-  return stdout.split(/\r?\n/).flatMap((line) => {
-    const match = line.match(/^\s*(\d+)\s+(\d+)\s+(\d+)\s+(\S+)\s+(\S.*)$/);
-    if (!match) return [];
-    const usage = {
-      pid: Number(match[1]), ppid: Number(match[2]), rssBytes: Number(match[3]) * 1024,
-      cpuSeconds: parseCpuTime(match[4]!), name: posix.basename(match[5]!.trim()),
-    };
-    return validProcessUsage(usage) ? [usage] : [];
-  });
-}
-
-/** @internal CIM serializes numeric fields as numbers or strings; null is not zero usage. */
-function cimNumber(value: unknown): number {
-  if (typeof value === "number") return value;
-  return typeof value === "string" && value.trim() ? Number(value) : NaN;
-}
-
-/** @internal Convert Windows 100ns CPU counters and retain nameless process rows. */
-function parseCimUsage(stdout: string): ProcessUsage[] {
-  if (!stdout.trim()) return [];
-  const payload: unknown = JSON.parse(stdout);
-  return (Array.isArray(payload) ? payload : [payload]).flatMap((record: unknown) => {
-    if (!record || typeof record !== "object") return [];
-    const row = record as Record<string, unknown>;
-    const usage = {
-      pid: cimNumber(row.ProcessId), ppid: cimNumber(row.ParentProcessId),
-      rssBytes: cimNumber(row.WorkingSetSize),
-      cpuSeconds: (cimNumber(row.UserModeTime) + cimNumber(row.KernelModeTime)) / 10_000_000,
-      name: typeof row.Name === "string" ? win32.basename(row.Name.trim()) : "",
-    };
-    return validProcessUsage(usage) ? [usage] : [];
-  });
-}
-
-/** @internal Fixed executable and argv, invoked directly without a command shell. */
-function processUsageCommand(windows: boolean): { command: string; args: string[] } {
-  return windows
-    ? { command: windowsPowerShell(), args: ["-NoProfile", "-NonInteractive", "-Command",
-      "$ErrorActionPreference = 'Stop'; Get-CimInstance Win32_Process | Select-Object ProcessId, ParentProcessId, WorkingSetSize, UserModeTime, KernelModeTime, Name | ConvertTo-Json -Compress"] }
-    : { command: "ps", args: ["-axo", "pid=,ppid=,rss=,time=,comm="] };
 }
 
 /**
@@ -463,52 +349,14 @@ export function parseProcessFootprint({ text }: { text: string }, _options = {})
   return Number.isFinite(bytes) ? bytes : null;
 }
 
-/** @internal One bounded read-only OS probe; partial output on failure is discarded. */
-async function processProbeOutput(
-  input: { command: string; args: string[]; run: typeof execFileBuffered },
-  options: ProcessUsageOptions,
-): Promise<string | null> {
-  try {
-    const result = await input.run(input.command, input.args, {
-      encoding: "utf8", timeout: options.timeoutMs ?? 5000, maxBuffer: 8 * 1024 * 1024, windowsHide: true,
-    });
-    return result.ok ? result.stdout : null;
-  } catch { return null; }
-}
-
-/** @internal Performance instance names can reorder (node, node#1); only IDProcess is identity. */
-function parsePrivateWorkingSets({ stdout }: { stdout: string | null }): Map<number, number | null> {
-  const readings = new Map<number, number | null>();
-  try {
-    const payload: unknown = JSON.parse(stdout ?? "null");
-    for (const record of Array.isArray(payload) ? payload : [payload]) {
-      if (!record || typeof record !== "object") continue;
-      const row = record as Record<string, unknown>;
-      const pid = cimNumber(row.IDProcess);
-      const bytes = cimNumber(row.WorkingSetPrivate);
-      if (!validSamplePid(pid)) continue;
-      readings.set(pid, Number.isSafeInteger(bytes) && bytes >= 0 ? bytes : null);
-    }
-  } catch { /* Malformed/absent counters are unavailable, never zero. */ }
-  return readings;
-}
-
-const validSamplePid = (pid: number): boolean => Number.isSafeInteger(pid) && pid > 0;
-
-/** @internal Reject invalid identities and oversized collections before making any OS calls. */
-function assertPrivateMemorySample({ pids, maxPids }: { pids: number[]; maxPids: number }): void {
-  if (!pids.every(validSamplePid)) throw new RangeError("invalid process PID");
-  if (!Number.isSafeInteger(maxPids) || maxPids < 1 || pids.length > maxPids) throw new RangeError("process sample exceeds PID limit");
-}
-
 /**
- * Read private memory once per unique PID, without attaching an inspector or changing target state.
+ * Read private memory for unique PIDs, without attaching an inspector or changing target state.
  * macOS uses physical footprint; Windows uses private working set joined by PID, never PrivateBytes
  * or Win32_Process.WorkingSetSize. Failed probes return null; invalid PIDs/limits throw RangeError.
  * @param input - Requested PIDs and optional host platform/bounded execution port.
  * @param options - Per-probe timeout (5000ms) and unique-PID limit (512); excess is rejected.
  * @returns Accurately labeled bytes, including a null row for every unavailable PID.
- * @complexity O(n) output space for n unique PIDs; macOS makes n sequential bounded probes,
+ * @complexity O(n) output space for n unique PIDs; macOS makes one bounded `top` read,
  * Windows makes one bounded bulk probe plus O(m) parsing space for m host processes.
  * @example await sampleProcessPrivateMemory({ pids: [123] }, { timeoutMs: 10000 })
  */
@@ -520,13 +368,10 @@ export async function sampleProcessPrivateMemory(
   assertPrivateMemorySample({ pids, maxPids: options.maxPids ?? 512 });
   const platform = input.platform ?? process.platform;
   const run = input.run ?? execFileBuffered;
-  const readings: ProcessPrivateMemory["readings"] = [];
   if (platform === "darwin") {
-    for (const pid of pids) {
-      const stdout = await processProbeOutput({ command: "footprint", args: ["-p", String(pid)], run }, options);
-      readings.push({ pid, bytes: parseProcessFootprint({ text: stdout ?? "" }) });
-    }
-    return { metric: "physical-footprint", readings };
+    if (!pids.length) return { metric: "physical-footprint", readings: [] };
+    const stdout = await processProbeOutput({ command: "/usr/bin/top", args: ["-l","1","-R","-F","-stats","pid,mem", ...pids.flatMap(pid => ["-pid", String(pid)])], run }, options);
+    return { metric: "physical-footprint", readings: topReadings({ text: stdout ?? "", pids }) };
   }
   if (platform !== "win32") return { metric: "unavailable", readings: pids.map((pid) => ({ pid, bytes: null })) };
   const stdout = await processProbeOutput({ command: windowsPowerShell(), run, args: ["-NoProfile", "-NonInteractive", "-Command",
