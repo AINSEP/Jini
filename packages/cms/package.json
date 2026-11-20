@@ -13,6 +13,12 @@
     "kind": "content-model",
     "runtime": "universal",
     "entries": {
+      "./themes/token-aliases": "universal",
+      "./presentation/html": "universal",
+      "./presentation/page-head": "universal",
+      "./forms/result-query": "universal",
+      "./forms/result-flash": "node",
+      "./themes/preview/refresh": "node",
       "./themes/template-applicability": "universal",
       "./themes/preview/roster": "node",
       "./themes/preview/watcher": "node",
@@ -189,6 +195,36 @@
   "main": "./dist/core/index.js",
   "types": "./dist/core/index.d.ts",
   "exports": {
+    "./themes/token-aliases": {
+      "types": "./dist/themes/token-aliases.d.ts",
+      "import": "./dist/themes/token-aliases.js",
+      "default": "./dist/themes/token-aliases.js"
+    },
+    "./presentation/html": {
+      "types": "./dist/presentation/html.d.ts",
+      "import": "./dist/presentation/html.js",
+      "default": "./dist/presentation/html.js"
+    },
+    "./presentation/page-head": {
+      "types": "./dist/presentation/page-head.d.ts",
+      "import": "./dist/presentation/page-head.js",
+      "default": "./dist/presentation/page-head.js"
+    },
+    "./forms/result-query": {
+      "types": "./dist/forms/result-query.d.ts",
+      "import": "./dist/forms/result-query.js",
+      "default": "./dist/forms/result-query.js"
+    },
+    "./forms/result-flash": {
+      "types": "./dist/forms/result-flash.d.ts",
+      "import": "./dist/forms/result-flash.js",
+      "default": "./dist/forms/result-flash.js"
+    },
+    "./themes/preview/refresh": {
+      "types": "./dist/themes/preview/refresh.node.d.ts",
+      "import": "./dist/themes/preview/refresh.node.js",
+      "default": "./dist/themes/preview/refresh.node.js"
+    },
     "./themes/template-applicability": {
       "types": "./dist/themes/template-applicability.d.ts",
       "import": "./dist/themes/template-applicability.js",

@@ -12,6 +12,7 @@
     "domain": "server",
     "kind": "transport",
     "entries": {
+      "./range": "universal",
       ".": "node",
       "./rate-limit": "node",
       "./middleware": "node",
@@ -27,6 +28,11 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
+    "./range": {
+      "types": "./dist/range.d.ts",
+      "import": "./dist/range.js",
+      "default": "./dist/range.js"
+    },
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",

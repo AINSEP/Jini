@@ -193,3 +193,5 @@ export type { DocumentTextPage } from './document-read.js';
 
 export { InMemoryVersionedMediaRepo, type VersionedMediaRepoPort } from "./versioned-repo.js";
 export { guardMediaRenditionRepo } from "./guard-rendition-repo.js";
+
+export { withChatPreview } from "./chat-preview.js";

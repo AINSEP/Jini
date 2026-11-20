@@ -13,6 +13,8 @@
     "kind": "devops",
     "runtime": "node",
     "entries": {
+      "./backup/plan-store": "node",
+      "./backup/push-jobs": "node",
       ".": "node",
       "./source-control": "node",
       "./static-export": "node",
@@ -52,6 +54,16 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
+    "./backup/plan-store": {
+      "types": "./dist/backup/plan-store.node.d.ts",
+      "import": "./dist/backup/plan-store.node.js",
+      "default": "./dist/backup/plan-store.node.js"
+    },
+    "./backup/push-jobs": {
+      "types": "./dist/backup/push-jobs.d.ts",
+      "import": "./dist/backup/push-jobs.js",
+      "default": "./dist/backup/push-jobs.js"
+    },
     "./source-control": {
       "types": "./dist/source-control/entry.d.ts",
       "import": "./dist/source-control/entry.js",
