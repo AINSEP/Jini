@@ -42,6 +42,12 @@ it('closes its default dispatcher after use', async () => {
   const close = vi.spyOn(owned!, 'close');
   try {
     await ports.close();
-    expect(close).toHaveBeenCalledOnce();
-  } finally { close.mockRestore(); await owned!.close(); }
+    // undici's promise-form close() re-enters close(callback), so the spy sees two calls for one close.
+    expect(close).toHaveBeenCalled();
+    expect(owned!.closed).toBe(true);
+  } finally {
+    close.mockRestore();
+    // ports.close() already closed it on the passing path; only a failed assertion leaves it open.
+    if (!owned!.closed) await owned!.close();
+  }
 });

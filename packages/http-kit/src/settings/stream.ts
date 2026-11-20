@@ -135,12 +135,12 @@ function readStreamTimings(optional: SettingsHttpOptions): {
 }
 
 function createErrorReporter(optional: SettingsHttpOptions): (operation: string, error: unknown) => void {
-  const logger = createConsoleLogger({ prefix: '[settings]' });
+  const settingsLogger = createConsoleLogger({ prefix: '[settings]' });
   return (operation, error) => {
     // Reporting is best-effort: a host hook must never turn recovery into an unhandled rejection.
     try {
       if (optional.onError) optional.onError({ operation, error });
-      else logger.error({ message: `change feed ${operation} failed` }, { error });
+      else settingsLogger.error({ message: `change feed ${operation} failed` }, { error });
     } catch { /* Diagnostic failures cannot interrupt stream cleanup or retries. */ }
   };
 }
