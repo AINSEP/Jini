@@ -99,7 +99,7 @@
   examples in comments and literal-text bodies (including `noscript`), and collapse reconstructed
   formatting clones to one unsafe address. The scan path keeps safe regions usable alongside
   malformed markup.
-- HTML5 recovery differs from Tovu's former lexical scanner: non-void self-closing syntax remains
+- HTML5 recovery differs from the first host's former lexical scanner: non-void self-closing syntax remains
   open, an explicit later close permits editing, unclosed top-level elements use recovered advice
   boundaries, malformed tokens follow parse5 recovery, and unquoted/upper-case handle attributes
   are recognized.
@@ -121,7 +121,7 @@
 
 ### Patch Changes
 
-- Tovu clean-up release (2026-10-08): code Tovu moved into Jini, plus the Jini clean-up (see the commit log since 0.4.0).
+- Host clean-up release (2026-10-08): code the first host moved into Jini, plus the Jini clean-up (see the commit log since 0.4.0).
 
 ## 0.4.0 — 2026-10-02
 

@@ -35,11 +35,11 @@ import type {
 const ZERO_OK = { allowZero: true } as const;
 
 type Tables = ContentDatabase;
-export type CommerceProductRow = Selectable<Tables["commerce_products"]>;
-export type CommerceProductImageRow = Selectable<Tables["commerce_product_images"]>;
-export type CommercePriceRow = Selectable<Tables["commerce_prices"]>;
-export type CommerceOrderRow = Selectable<Tables["commerce_orders"]>;
-export type CommerceOrderItemRow = Selectable<Tables["commerce_order_items"]>;
+type CommerceProductRow = Selectable<Tables["commerce_products"]>;
+type CommerceProductImageRow = Selectable<Tables["commerce_product_images"]>;
+type CommercePriceRow = Selectable<Tables["commerce_prices"]>;
+type CommerceOrderRow = Selectable<Tables["commerce_orders"]>;
+type CommerceOrderItemRow = Selectable<Tables["commerce_order_items"]>;
 
 /** One `commerce_products` row as a {@link CommerceProductRecord}; NULL columns become `undefined`. */
 export function toProductRecord(row: CommerceProductRow, _optional: Record<string, never> = {}): CommerceProductRecord {

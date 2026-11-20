@@ -142,7 +142,7 @@
   The route was named `agui-stream` from when Jini's own run-event protocol was mistakenly branded as
   AG-UI; the TypeScript symbols were renamed to `GenUi` on 2026-07-27, but the URL was deliberately left
   un-renamed on the assumption it was a wire contract an already-deployed client might be calling. A
-  2026-08-18 audit found zero callers anywhere — no client in this repo or in `Tovu` ever requested it,
+  2026-08-18 audit found zero callers anywhere — no client in this repo or in the first host ever requested it,
   `examples/reference-web`'s daemon only registered the route without anything ever calling it, and
   `@jini-ai/http-kit` has never been published to npm, so no external integrator could depend on it either.
   Rather than carry a dead, confusingly-named route indefinitely, it was removed outright.
@@ -241,7 +241,7 @@
 
 ### Patch Changes
 
-- Tovu clean-up release (2026-10-08): code Tovu moved into Jini, plus the Jini clean-up (see the commit log since 0.4.0).
+- Host clean-up release (2026-10-08): code the first host moved into Jini, plus the Jini clean-up (see the commit log since 0.4.0).
 
 ## 0.4.0 — 2026-10-02
 

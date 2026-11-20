@@ -2,7 +2,7 @@ import { type CreateTableBuilder, sql, type Kysely } from "kysely";
 import type { MigrationStep, StorageKernel } from "@jini-ai/core/contracts/storage";
 
 /**
- * @file Payments ledger step 2 (ADR-066; lot L4): the append-only operator-action audit, the
+ * @file Payments ledger step 2 (lot L4): the append-only operator-action audit, the
  * two indexes the reconciler's scans need, and the outbox enqueue order. Same portable-DDL rules as `0001_payments_ledger`
  * (TEXT/BIGINT only, NOT NULL primary key, mode CHECK, a foreign key over the payment's
  * id + workspace + mode). Step 1 is frozen, so the table is added here rather than there.

@@ -18,7 +18,7 @@
   `parseMailAdaptersFile({ raw }, optional)` call remains supported through a local
   validation boundary, preserving declared setup validation and v1/v2 descriptors.
   Provider-status and credential-save factories also require host wording and catalog
-  provenance so a second host supplies its own navigation without changing Tovu bytes.
+  provenance so a second host supplies its own navigation without changing the first host's bytes.
 
 ### Patch Changes
 
@@ -180,7 +180,7 @@
 
 ### Patch Changes
 
-- Tovu clean-up release (2026-10-08): code Tovu moved into Jini, plus the Jini clean-up (see the commit log since 0.5.1).
+- Host clean-up release (2026-10-08): code the first host moved into Jini, plus the Jini clean-up (see the commit log since 0.5.1).
 
 ## 0.5.1 — 2026-10-04
 

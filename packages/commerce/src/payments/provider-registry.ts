@@ -30,7 +30,7 @@ export interface KernelProviderRegistry {
   list(required?: Record<string, never>, optional?: Record<string, never>): readonly RegisteredProvider[];
 }
 
-/** ADR-026 identifier grammar: the id is a URL path segment of the webhook route. */
+/** Identifier grammar: the id is a URL path segment of the webhook route. */
 const PROVIDER_ID = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
 function registrationProblem(

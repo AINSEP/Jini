@@ -37,13 +37,13 @@ spec_mode: reverse_spec
 - `suggestRegionHandle` shall use the first heading only, replace inline tags with spaces, call the injected host slugifier, truncate to 48 code units and remove trailing hyphens. Missing headings, empty slugs and collisions shall yield no suggestion; no positional fallback shall be invented. `untaggedTopLevelSections` shall examine only untagged direct content elements, skip style/script/template/link/meta/base/title and reserve successful suggestions across the batch.
 - Hosts shall scan each distinct source string once and reuse that scan across helpers. The pure path shall permit adding/removing descendant handles and shall leave storage, authorization, concurrency checks and write policy to its host. The strict target's identical-handle-multiset rule shall remain unchanged.
 
-Intentional differences from Tovu's former lexical scanner (the helpers' origin), recorded in the scan/edit test headers:
+Intentional differences from the first host's former lexical scanner (the helpers' origin), recorded in the scan/edit test headers:
 
 - A non-void `<div … />` remains open and may contain following siblings until closed. The slash does not create an empty region; `<section data-agent-element="hero"/>body</section>` has an explicit closing tag and shall remain editable.
 - Unclosed top-level elements shall use parse5's recovered boundaries for tagging advice. Malformed opening tags and unterminated declarations shall follow HTML5 recovery rather than lexical skip rules; dropped unfinished handles shall be document diagnostics while safe regions remain usable.
 - Unquoted values and upper-case attribute names shall be recognized according to browser parsing. `noscript` shall be a text body, and formatting reconstruction shall collapse clones as described above.
 
-For Tovu Pages, the approved integration uses the scan and pure helpers directly: read → compute →
+For the first host's Pages feature, the approved integration uses the scan and pure helpers directly: read → compute →
 write against the original captured version. It shall not use `EditTarget`/`createHtmlRegionTarget`,
 whose additional reads would recapture that version and weaken the host's compare-and-swap guard.
 The Pages handle policy permits additions/removals and refuses newly worsened ambiguity; it is
