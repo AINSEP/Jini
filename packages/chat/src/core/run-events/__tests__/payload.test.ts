@@ -21,6 +21,10 @@ describe("translateRunAgentPayload — text and thinking deltas", () => {
     expect(translateRunAgentPayload({ type: "text_delta", delta: "hello" })).toEqual({ kind: "text", text: "hello" });
   });
 
+  test("text_delta with no delta becomes empty text", () => {
+    expect(translateRunAgentPayload({ type: "text_delta" })).toEqual({ kind: "text", text: "" });
+  });
+
   test("thinking_delta becomes a 'thinking' AgentEvent, not conflated with text_delta", () => {
     expect(translateRunAgentPayload({ type: "thinking_delta", delta: "considering options" })).toEqual({
       kind: "thinking",
@@ -59,6 +63,10 @@ describe("translateRunAgentPayload — tool lifecycle", () => {
   test("tool_result with no isError field defaults to false, not undefined", () => {
     const translated = translateRunAgentPayload({ type: "tool_result", toolUseId: "t2", content: "ok" });
     expect(translated).toEqual({ kind: "tool_result", toolUseId: "t2", content: "ok", isError: false });
+  });
+
+  test("tool_result with null content and a truthy isError becomes empty content and true", () => {
+    expect(translateRunAgentPayload({ type: "tool_result", toolUseId: "t1", content: null, isError: 1 })).toEqual({ kind: "tool_result", toolUseId: "t1", content: "", isError: true });
   });
 
   test("tool_result with a media array forwards it verbatim", () => {

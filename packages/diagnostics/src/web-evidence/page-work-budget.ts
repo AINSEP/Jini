@@ -1,3 +1,4 @@
+import { observed } from "@jini-ai/core/errors/idioms";
 import { REAL_CAPTURE_CLOCK, type CaptureClock } from "./capture-clock.js";
 
 /** Internal deadline shared by every asynchronous step of one page observation. */
@@ -79,7 +80,7 @@ export class PageWorkBudget {
   async release({ close }: { close: () => Promise<void> }): Promise<void> {
     const closing = close();
     if (this.remainingMs() <= 0 || this.signal?.aborted) {
-      void closing.catch(() => {});
+      observed({ promise: closing });
       return;
     }
     try {

@@ -22,6 +22,7 @@
 
 import { realpathSync } from 'node:fs';
 import path from 'node:path';
+import { afterSettled, orFallbackSync } from '@jini-ai/core/errors/idioms';
 import { createConsoleLogger, pathContains, type Logger } from '@jini-ai/core/primitives';
 import type { AtomicFileWriterPort } from '@jini-ai/core/contracts/runtime';
 import { inferMcpAuthModeForUrl, isPlainObject } from './config-shared.js';
@@ -275,7 +276,7 @@ export async function writeMcpConfig(
   _optional: Record<string, never> = {},
 ): Promise<McpConfig> {
   const prev = writeLocks.get(dataDir) ?? Promise.resolve();
-  const task = prev.catch(() => {}).then(() => doWrite(dataDir, body, files));
+  const task = afterSettled({ promise: prev }).then(() => doWrite(dataDir, body, files));
   writeLocks.set(dataDir, task);
   try {
     return await task;
@@ -300,11 +301,7 @@ async function doWrite(dataDir: string, body: unknown, files: McpConfigFilesPort
  * segments) when it does not exist yet, or the platform can't resolve it.
  */
 function resolveRealOrLexical({ filePath: p }: { filePath: string }): string {
-  try {
-    return realpathSync.native(p);
-  } catch {
-    return path.resolve(p);
-  }
+  return orFallbackSync({ work: () => realpathSync.native(p), fallback: undefined, step: 'Resolve MCP config path' }) ?? path.resolve(p);
 }
 
 /**
