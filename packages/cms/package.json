@@ -184,7 +184,8 @@
         ]
       },
       "shared": [
-        "src/widgets/markers/marker.ts"
+        "src/widgets/markers/marker.ts",
+        "src/navigation/href.ts"
       ]
     },
     "optionalPeers": {
