@@ -272,20 +272,20 @@ describe('detectAcpModels', () => {
     vi.useRealTimers();
   });
 
-  it('performs initialize -> session/new and resolves with the detected models', async () => {
+  it.each([1, 2])('negotiates ACP protocol version %i before model discovery', async (protocolVersion) => {
     const child = new FakeChild();
     (spawn as unknown as ReturnType<typeof vi.fn>).mockReturnValue(child);
 
     const promise = detectAcpModels({ bin: 'acp-bin', args: [] });
     await Promise.resolve();
     const initReq = lastRpcRequest(child);
-    expect(initReq.method).toBe('initialize');
-    expect(initReq.params.clientInfo.name).toBe('agent-runtime-detect');
+    expect(initReq.method, 'Model discovery starts with initialize').toBe('initialize');
+    expect(initReq.params.clientInfo.name, 'Model discovery identifies its client').toBe('agent-runtime-detect');
 
-    child.stdout.emit('data', `${JSON.stringify({ jsonrpc: '2.0', id: 1, result: {} })}\n`);
+    child.stdout.emit('data', `${JSON.stringify({ jsonrpc: '2.0', id: 1, result: { protocolVersion } })}\n`);
     await Promise.resolve();
     const sessionNewReq = lastRpcRequest(child);
-    expect(sessionNewReq.method).toBe('session/new');
+    if (protocolVersion === 1) expect(sessionNewReq.method, 'The supported protocol version proceeds to session creation').toBe('session/new');
 
     child.stdout.emit(
       'data',
@@ -296,9 +296,15 @@ describe('detectAcpModels', () => {
       })}\n`,
     );
 
-    const models = await promise;
-    expect(models.map((m) => m.id)).toEqual(['default', 'a']);
-    expect(child.killed).toBe(true);
+    if (protocolVersion === 2) {
+      await expect(promise, 'An unsupported protocol version rejects model discovery').rejects.toThrow('This agent did not negotiate ACP protocol version 1.');
+      expect(child.killed, 'The unsupported protocol version closes the probe child').toBe(true);
+      expect(child.stdin.writes, 'The unsupported protocol version sends only initialize').toHaveLength(1);
+    } else {
+      const models = await promise;
+      expect(models.map((m) => m.id), 'The supported protocol version returns the detected models').toEqual(['default', 'a']);
+      expect(child.killed, 'Completed model discovery closes the probe child').toBe(true);
+    }
   });
 
   it('rejects when the child process errors on spawn', async () => {

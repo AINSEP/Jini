@@ -51,6 +51,12 @@ test('foreign owner, wrong run and wrong invocation cannot consume a delivered c
   expect(registry.begin({ runId: 'run', invocationId: 'invocation', owner: { ...owner, principalId: 'foreign' } })).toBe(false);
   expect(registry.begin({ runId: 'other-run', invocationId: 'invocation', owner })).toBe(false);
   expect(handle.begin({ runId: 'run', invocationId: 'page.click' })).toBe(false);
+  registry.bindRunByToken({ runId: 'other-run', bindToken: handle.bindToken, owner });
+  expect(handle.begin({ runId: 'other-run', invocationId: 'invocation' }), 'A bound different run cannot begin the pending invocation').toBe(false);
+  const unbind = registry.bindRunByToken({ runId: 'run', bindToken: handle.bindToken, owner });
+  unbind();
+  expect(handle.begin({ runId: 'run', invocationId: 'invocation' }), 'The original run cannot begin the pending invocation after unbinding').toBe(false);
+  registry.bindRunByToken({ runId: 'run', bindToken: handle.bindToken, owner });
   expect(registry.begin({ runId: 'run', invocationId: 'invocation', owner })).toBe(true);
   expect(registry.begin({ runId: 'run', invocationId: 'invocation', owner })).toBe(false);
   registry.settle({ sessionId: 'session', invocationId: 'invocation', outcome: { ok: true, output: null } });

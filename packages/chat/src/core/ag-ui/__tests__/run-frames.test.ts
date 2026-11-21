@@ -83,17 +83,22 @@ test('only an explicitly marked pending approval projects an interrupt', async (
   const bytes = new TextEncoder().encode([
     { type: 'mcp-ui', resource },
     { type: 'mcp-ui', resource, surfaceExchange: { exchangeId: 'result', toolId: 'tool', runId: 'r' } },
+    { type: 'text_delta', delta: 'before approval' },
     { type: 'mcp-ui', resource, pendingApproval },
+    { type: 'text_delta', delta: 'after approval' },
   ].map(payload => `event: agent\ndata: ${JSON.stringify({ payload })}\n\n`).join(''));
   const reader = new ReadableStream<Uint8Array>({ start(c) { c.enqueue(bytes); c.close(); } }).getReader();
   const events: AgUiEvent[] = [];
   const outcome = await drainRunFramesToAgUi({ reader, threadId: 't', runId: 'r', state: createAgUiTranslationState(translation), notices,
     write: event => { events.push(event); } });
   expect(outcome).toEqual({ status: 'succeeded' });
-  expect(events).toEqual([
+  expect(events, 'The approval closes the open message before interrupting and excludes later text').toEqual([
     { type: 'CUSTOM', name: 'example.ext.mcp-ui', value: resource },
     { type: 'CUSTOM', name: 'example.ext.mcp-ui', value: { ...resource, resource: { ...resource.resource,
       _meta: { 'jini/surface-exchange': { exchangeId: 'result', toolId: 'tool', runId: 'r' } } } } },
+    { type: 'TEXT_MESSAGE_START', messageId: 'msg_1', role: 'assistant' },
+    { type: 'TEXT_MESSAGE_CONTENT', messageId: 'msg_1', delta: 'before approval' },
+    { type: 'TEXT_MESSAGE_END', messageId: 'msg_1' },
     { type: 'RUN_FINISHED', threadId: 't', runId: 'r', outcome: { type: 'interrupt', interrupts: [pendingApproval] } },
   ]);
 });
