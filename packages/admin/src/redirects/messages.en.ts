@@ -20,6 +20,7 @@ export const redirectsMessagesEn = {
   "308 (permanent, method-preserving)": "308 (permanent, method-preserving)",
   "Add redirect": "Add redirect",
   "No redirect rules yet.": "No redirect rules yet.",
+  "Only the first 500 active wildcard redirects are used. Turn off or merge some.": "Only the first 500 active wildcard redirects are used. Turn off or merge some.",
   "From": "From",
   "To": "To",
   "Type": "Type",

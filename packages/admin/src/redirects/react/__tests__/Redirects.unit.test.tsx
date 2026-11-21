@@ -86,6 +86,26 @@ describe("Redirects — create form", () => {
 
 afterEach(() => vi.restoreAllMocks());
 
+it("shows the wildcard limit notice above 500 active rules and hides it at 500", async () => {
+  const port = createFakeRedirectsPort();
+  for (let index = 0; index < 501; index++) {
+    await port.createRedirect({ matchType: "wildcard", fromPattern: `/wildcard-${index}/*`,
+      toTarget: "/destination/$1", statusCode: 301 });
+  }
+  const view = render(
+    <FetchQueryProvider><Redirects useRedirectsHook={() => useRedirects(port, (k) => k, "en")} /></FetchQueryProvider>,
+  );
+  const notice = "Only the first 500 active wildcard redirects are used. Turn off or merge some.";
+  expect(await screen.findByText(notice), "501 active wildcard rules must show the limit notice").toBeInTheDocument();
+  view.unmount();
+  const atCapacity = createFakeRedirectsPort({ redirects: port.rules.slice(0, 500) });
+  render(
+    <FetchQueryProvider><Redirects useRedirectsHook={() => useRedirects(atCapacity, (k) => k, "en")} /></FetchQueryProvider>,
+  );
+  await screen.findByText("/wildcard-499/*");
+  expect(screen.queryByText(notice), "500 active wildcard rules must not show the limit notice").not.toBeInTheDocument();
+});
+
 describe("Redirects — table actions and bulk import", () => {
   async function renderRule() {
     const port = createFakeRedirectsPort();
