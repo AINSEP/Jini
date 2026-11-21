@@ -95,10 +95,10 @@ describe('createFrontendControl', () => {
   }
 
   describe('what a host is given', () => {
-    it('exposes only the extension, the registrations and the run/request bind hooks', () => {
+    it('exposes only the extension, the registrations, the owner-checked begin and the run/request bind hooks', () => {
       const control = createFrontendControl({ capabilities: [PAGE_CLICK], resolveBindToken: () => undefined });
 
-      expect(Object.keys(control).sort()).toEqual(['bindOnStarted', 'bindRequest', 'routes', 'toolRegistrations']);
+      expect(Object.keys(control).sort()).toEqual(['begin', 'bindOnStarted', 'bindRequest', 'routes', 'toolRegistrations']);
     });
 
     // The registry's invoke() drives a real user's screen with no policy, confirmation, timeout or
