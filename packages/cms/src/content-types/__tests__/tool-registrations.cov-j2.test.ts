@@ -98,6 +98,48 @@ test("collections_content_type_define honors the host's reserved keys when suppl
   assert.equal(await h.repo.findByKey({ workspaceId: WORKSPACE_ID, key: "blog" }), null);
 });
 
+test("collections_content_type_update_fields refuses cancellation at transaction admission without persisting", async () => {
+  const h = harness();
+  await defineRecipe(h);
+  const controller = new AbortController();
+  const reason = new Error("content type update cancelled");
+  const revisions = h.repo.listRevisions();
+  const indexCalls = [...h.indexCalls];
+  h.repo.transaction = async ({ fn }) => {
+    controller.abort(reason);
+    return fn();
+  };
+  const input = { key: "recipe", fields: [{ ...TITLE_FIELD, queryable: false }], expectedVersion: 1 };
+
+  await assert.rejects(h.tool("collections_content_type_update_fields").handler({ ...ctx(input), signal: controller.signal }),
+    actual => actual === reason, "transaction admission cancellation rejects with the original abort reason");
+
+  assert.equal((await h.repo.findByKey({ workspaceId: WORKSPACE_ID, key: "recipe" }))?.version, 1,
+    "cancellation before persistence preserves version one");
+  assert.deepEqual(h.repo.listRevisions(), revisions, "cancellation adds no revision");
+  assert.deepEqual(h.indexCalls, indexCalls, "cancellation starts no index transition");
+});
+
+test("collections_content_type_update_fields completes when cancellation follows the save", async () => {
+  const h = harness();
+  await defineRecipe(h);
+  const controller = new AbortController();
+  h.deps.contentTypeIndexProvisioner.applyFieldIndexTransitions = async (call) => {
+    h.indexCalls.push(["transition", call]);
+    controller.abort(new Error("content type update already saved"));
+  };
+  const fields = [{ ...TITLE_FIELD, queryable: false }];
+
+  const result = await h.tool("collections_content_type_update_fields").handler({
+    ...ctx({ key: "recipe", fields, expectedVersion: 1 }), signal: controller.signal,
+  });
+
+  assert.deepEqual(result, { contentType: { key: "recipe", label: "Recipe", status: "active", version: 2, fields } },
+    "cancellation during index provisioning retains the committed version two result");
+  assert.equal((await h.repo.findByKey({ workspaceId: WORKSPACE_ID, key: "recipe" }))?.version, 2,
+    "cancellation after the save preserves version two in storage");
+});
+
 test("collections_content_type_update_fields replaces the field schema at the expected version", async () => {
   const h = harness();
   await defineRecipe(h);

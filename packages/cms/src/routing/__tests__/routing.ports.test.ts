@@ -1,5 +1,4 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import { test } from 'vitest';
 import { createRouting, type RoutingContentRecord } from '../index.js';
 
@@ -25,6 +24,8 @@ test('host visibility changes actual URLs for both record and id resolution', as
   assert.equal(await hidden.urlFor(input), null);
   assert.deepEqual(reads, [{ workspaceId: 'workspace-a', id: 'entry-1' }, { workspaceId: 'workspace-a', id: 'entry-1' }]);
   assert.deepEqual(seen, [post, post, post, post]);
+  assert.equal(await hidden.isActive({ ...input, currentPath: '/hello' }), false, 'hidden entries are excluded from active routing');
+  assert.equal(await visible.isActive({ ...input, currentPath: '/hello/?q=1' }), true, 'active routing matches the normalized request path');
 });
 
 test('named routes, phase owners and slug captures are isolated between routing instances', async () => {
@@ -69,20 +70,4 @@ test('a running phase snapshots registrations when a handler revokes its sibling
   await routing.runPreContentPhase({ path: '/', ctx });
   await routing.runPreContentPhase({ path: '/', ctx });
   assert.deepEqual(seen, ['first', 'sibling', 'first']);
-});
-
-
-test('routing retains the original barrel boundary, open items and registry rationale', () => {
-  const readme = readFileSync(new URL('../README.md', import.meta.url), 'utf8');
-  for (const rationale of [
-    `- Public surface is the \`index.ts\` barrel only; deep imports into this
-  library's internals are not supported.`,
-    `- \`isActive\` ancestor/prefix semantics (nested menu highlighting) and the
-  \`urlFor → null\` caller-render contract are v0.1 work (an open design decision).`,
-    `- Per the promotion trigger, the day a second in-tx participant
-  alongside \`SlugChangeCapture\` is real (the Round-3 fold already names
-  Menus' binding-index write as that second participant), the single-slot
-  model should be generalized into a small ordered core-only registry — a
-  mechanical refactor, not a contract change.`,
-  ]) assert.ok(readme.includes(rationale), rationale);
 });

@@ -229,7 +229,7 @@ export function buildContentTypesRegistrations(routeDeps: ContentTypesToolDeps):
             fields: requireFields(input, "collections_content_type_update_fields"),
             expectedVersion: requireNumber({ input, key: "expectedVersion" }),
           },
-        }),
+        }, { signal: ctx.signal }),
       );
     },
     collections_content_type_deprecate: contentTypeLifecycleHandler({ routeDeps, transition: deprecateContentType }),
