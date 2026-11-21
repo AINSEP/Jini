@@ -26,6 +26,7 @@ describe('milestone 1 gate N — health-boot from packed @jini-ai/* tarballs', (
     expect(existsSync(harnessScript)).toBe(true);
   });
 
+  // Vitest 3 fails a synchronous test that overruns its timeout (Vitest 2 could not); this one runs a full pack-and-boot of the @jini-ai/* tarballs (~170 s in base).
   it('boots examples/minimal-host from packed tarballs, not workspace links', () => {
     if (!existsSync(harnessScript)) {
       throw new Error(
@@ -46,5 +47,5 @@ describe('milestone 1 gate N — health-boot from packed @jini-ai/* tarballs', (
     for (const tarball of report.packedTarballs) {
       expect(tarball).toMatch(/\.tgz$/);
     }
-  });
+  }, 300_000);
 });
