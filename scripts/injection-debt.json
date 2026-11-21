@@ -47,7 +47,6 @@
   {"rule": "L5-injected-edge", "file": "packages/daemon/package.json", "spec": "@jini-ai/agent-runtime", "kind": "manifest-dependencies", "count": 1, "lane": "L-AGENTS"},
   {"rule": "L5-injected-edge", "file": "packages/daemon/package.json", "spec": "@jini-ai/db", "kind": "manifest-dependencies", "count": 1, "lane": "L-STORAGE"},
   {"rule": "L5-injected-edge", "file": "packages/daemon/package.json", "spec": "@jini-ai/platform", "kind": "manifest-dependencies", "count": 1, "lane": "L-PLATFORM"},
-  {"rule": "L5-injected-edge", "file": "packages/daemon/src/agent-executor/antigravity/permissions.ts", "spec": "@jini-ai/platform/fs", "kind": "import", "count": 1, "lane": "L-PLATFORM"},
   {"rule": "L5-injected-edge", "file": "packages/daemon/src/agent-executor/claude/filesystem.ts", "spec": "@jini-ai/agent-runtime", "kind": "import", "count": 1, "lane": "L-AGENTS"},
   {"rule": "L5-injected-edge", "file": "packages/daemon/src/agent-executor/contracts.ts", "spec": "@jini-ai/agent-runtime", "kind": "type-import", "count": 1, "lane": "L-AGENTS"},
   {"rule": "L5-injected-edge", "file": "packages/daemon/src/agent-executor/contracts.ts", "spec": "@jini-ai/platform/command", "kind": "type-import", "count": 1, "lane": "L-PLATFORM"},
