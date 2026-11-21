@@ -6,7 +6,7 @@
  *
  * Stateless. Every dependency is a port the host passes; there is no optional sink, so an incident
  * cannot be dropped for lack of wiring. Nothing here throws: a failing ID, clock, catalog, logger or
- * tracker port must not replace the failure being reported.
+ * tracker port must not replace the failure being reported; its adapter blanks secrets before anything leaves the process.
  */
 import { ClientFacingError } from '../contracts/server/json-route.js';
 import { statusForError, type ServerApiError } from '../contracts/server/api-error.js';
@@ -26,7 +26,7 @@ import { interpolateSentence } from './sentences.js';
 /** One report to the host's tracker. Structurally what `ObservabilityPort.reportError` takes; core does not import diagnostics. */
 export interface IncidentTrackerReport {
   readonly error: unknown;
-  readonly context: { readonly operation: string; readonly level?: 'warning' | 'error'; readonly attributes?: Readonly<Record<string, string | number>> };
+  readonly context: { readonly operation: string; readonly level?: 'warning' | 'error'; readonly exactSecrets?: readonly string[]; readonly attributes?: Readonly<Record<string, string | number>> };
 }
 export interface ErrorReporterPorts {
   /** Returns a finished error ID. Hosts mint `ERR-XXXX-XXXX-XXXX-XXXX`, the one shape a reader can recover from plain text. */
@@ -111,16 +111,8 @@ function headLabel({ error, describer }: { error: unknown; describer: ErrorDescr
   return parts.code === undefined ? parts.label : `${parts.label}(${parts.code})`;
 }
 
-/** The record text travels as the tracker's error, so the tracker never holds the unredacted original. */
-function trackerCarrier({ label, diagnostic }: { label: string; diagnostic: string }): Error {
-  const carrier = new Error(diagnostic.split('\n', 1)[0] ?? label);
-  carrier.name = label;
-  carrier.stack = diagnostic;
-  return carrier;
-}
-
-function reportToTracker(required: { context: ReporterContext; incident: Incident; step: string; diagnostic: string; level: 'warning' | 'error' }): void {
-  const { context, incident, step, diagnostic, level } = required;
+function reportToTracker(required: { context: ReporterContext; incident: Incident; step: string; error: unknown; exactSecrets?: readonly string[] | undefined; level: 'warning' | 'error' }): void {
+  const { context, incident, step, error, exactSecrets, level } = required;
   const failed = (trackerError: unknown): void => {
     // The host record above already holds the incident; say that the tracker copy is missing.
     attempt({ fallback: undefined, read: () => context.ports.logger.warn(
@@ -129,8 +121,8 @@ function reportToTracker(required: { context: ReporterContext; incident: Inciden
   };
   try {
     const sent = context.ports.tracker.reportError({
-      error: trackerCarrier({ label: incident.label, diagnostic }),
-      context: { operation: step, level, attributes: { errorId: incident.errorId, label: incident.label } },
+      error,
+      context: { operation: step, level, ...(exactSecrets === undefined ? {} : { exactSecrets }), attributes: { errorId: incident.errorId, label: incident.label } },
     });
     if (sent instanceof Promise) sent.then(undefined, failed);
   } catch (trackerError) {
@@ -154,10 +146,9 @@ function recordIncident(required: { context: ReporterContext; error: unknown; st
     errorId, step, label, causes: attempt({ read: () => causeLabels({ error, describer }), fallback: [] }),
     appVersion: ports.versions.app, jiniVersion: ports.versions.jini, ...(time === undefined ? {} : { time }), diagnostic,
   };
-  // `diagnostic` is the operator-only record: message and stack with secrets blanked. `error` is the
-  // original, which only a host diagnostics sink receives.
+  // `diagnostic` is the operator-only record. The tracker gets the original `error` and the call's `exactSecrets`; the tracker adapter blanks secrets before anything leaves the process.
   attempt({ fallback: undefined, read: () => ports.logger[level === 'warning' ? 'warn' : 'error']({ message: `[incident] ${step} failed (error ${errorId})` }, { meta, error }) });
-  if (optional.tracker !== 'skip') reportToTracker({ context, incident, step, diagnostic, level });
+  if (optional.tracker !== 'skip') reportToTracker({ context, incident, step, error, exactSecrets: optional.exactSecrets, level });
   return incident;
 }
 

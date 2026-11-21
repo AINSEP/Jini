@@ -45,7 +45,7 @@ test("injected file, warning, output and exit ports receive required objects", a
   expect(await barrel.readPromptFromFlags({ flags: { "prompt-file": "/host/prompt.md" } }, { readFile })).toBe("contents:/host/prompt.md");
   expect(readFile).toHaveBeenCalledWith({ path: "/host/prompt.md" });
   const warn = vi.fn();
-  await barrel.resolveDaemonUrl({}, { flagUrl: "http://remote.example", warn });
+  await barrel.resolveDaemonUrl({ env: {} }, { flagUrl: "http://remote.example", warn });
   expect(warn).toHaveBeenCalledWith({ message: expect.stringContaining("remote.example") });
   const write = vi.fn();
   const exit = vi.fn(({ code }: { code: number }): never => { throw new Error(`exited:${code}`); });

@@ -60,6 +60,7 @@ export interface AttachAcpSessionOptions {
   prompt: string;
   cwd?: string;
   model?: string | null;
+  effort?: string;
   imagePaths?: string[];
   mcpServers?: AcpMcpServerInput[];
   // Passed through to buildAcpSessionNewParams — see AcpSessionOptions.
@@ -94,6 +95,8 @@ export interface AttachAcpSessionOptions {
   // The original error code is retained, with prior details under `cause`.
   // Once load succeeds, later model/prompt failures are ordinary run errors.
   resumeSessionId?: string | null;
+  /** Awaited before stdin is closed or the child is signalled, so the caller can record the child's descendants while it is alive. A rejection is ignored. */
+  beforeRelease?: () => Promise<void>;
   // Subsegment timing markers for spawn->first-token attribution.
   // `onCliReady` fires once on the first well-formed ACP JSON-RPC message
   // (the CLI is up and speaking the protocol); `onSessionInit` fires once when
@@ -125,6 +128,8 @@ export interface AcpSessionState {
   nextId: number;
   promptRequestId: JsonRpcId | null;
   setModelRequestId: JsonRpcId | null;
+  effortRequestId: JsonRpcId | null;
+  configOptions: unknown;
   sessionId: string | null;
   // The durable upstream session handle reported by the agent on session/new
   // or session/load (e.g. a vendor bridge's own session id). Distinct from
@@ -178,6 +183,7 @@ export interface AcpSessionEffects {
   modelUnavailableErrorCode?: 'AMR_MODEL_UNAVAILABLE' | undefined;
   accountFailureClassifier: AccountFailureClassifier;
   model?: string | null | undefined;
+  effort?: string | undefined;
   onSessionInit?: (() => void) | undefined;
   resumeSessionId?: string | null | undefined;
   effectiveCwd: string;

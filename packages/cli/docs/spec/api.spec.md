@@ -35,7 +35,7 @@ Signatures below preserve current source: required object first and optional obj
 ## Discovery and input (`.`)
 
 ```ts
-resolveDaemonUrl(_requiredArgs: Record<string, never>, options: ResolveDaemonUrlOptions = {}): Promise<string>;
+resolveDaemonUrl(required: { env: NodeJS.ProcessEnv }, options: ResolveDaemonUrlOptions = {}): Promise<string>;
 sanitizeDaemonUrlForDisplay({ url }: { url: string }): string;
 daemonUrlPolicyWarning({ url }: { url: string }): string | null;
 createLocalDaemonDiscovery(options: LocalDaemonDiscoveryOptions): NonNullable<ResolveDaemonUrlOptions['discover']>;
@@ -44,7 +44,7 @@ readBodyFromFlags({ flags }: { flags: BodyFlags }, options: ReadBodyFromFlagsOpt
 new PayloadTooLargeError(required: {message:string});
 ```
 
-Discovery options: flagUrl?, env? (process.env), envVarName?, discover? `({env},{timeoutMs}) => Promise<string|null>`, timeoutMs? (800), defaultUrl?, warn? `({message})=>void`. The resolver itself has no default env-var name or URL. `LocalDaemonDiscoveryOptions` is `{registryPath:string} | {dataDir:string}` and uses the sidecar registry reader; no filesystem/liveness port is injectable here.
+The resolver requires `{ env }`. Discovery options: flagUrl?, envVarName?, discover? `({env},{timeoutMs}) => Promise<string|null>`, timeoutMs? (800), defaultUrl?, warn? `({message})=>void`. The resolver itself has no default env-var name or URL. `LocalDaemonDiscoveryOptions` is `{registryPath:string} | {dataDir:string}` and uses the sidecar registry reader; no filesystem/liveness port is injectable here.
 
 PromptFlags is `{prompt?, 'prompt-file'?}`; BodyFlags is `{body?, 'body-file'?}`. Both text-reader option types expose `readFile?({path})=>Promise<string>`, `readStdin?()=>Promise<string>`, maxBytes?, signal?. Default readers use Node filesystem/stdin. Reader limits and cancellation do not apply to injected readers or inline strings.
 
@@ -103,8 +103,9 @@ Exported shapes: `IntrospectedArgument` (name/required/description), `Introspect
 import { CommandRegistry, registerRunCommands, resolveDaemonUrl,
   createLocalDaemonDiscovery } from '@jini-ai/cli';
 const registry = new CommandRegistry({});
+const env = process.env;
 const discover = createLocalDaemonDiscovery({ dataDir: '/var/lib/example' });
-registerRunCommands({ registry, resolveBaseUrl: () => resolveDaemonUrl({}, { discover }) }, {
+registerRunCommands({ registry, resolveBaseUrl: () => resolveDaemonUrl({ env }, { discover }) }, {
   write: ({text}) => process.stdout.write(text),
 });
 await registry.dispatch({ argv: ['run', 'list'] });

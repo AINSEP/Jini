@@ -180,9 +180,8 @@ function buildResolveBaseUrl(globals: PartitionedArgv['globals'], env: NodeJS.Pr
   else if (dataDir !== undefined) discover = createLocalDaemonDiscovery({ dataDir });
   else discover = undefined;
   return () =>
-    resolveDaemonUrl({}, {
+    resolveDaemonUrl({ env }, {
       flagUrl: daemonUrl ?? null,
-      env,
       envVarName: DAEMON_URL_ENV_VAR,
       ...(discover !== undefined ? { discover } : {}),
       warn,

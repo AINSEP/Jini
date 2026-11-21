@@ -1623,16 +1623,22 @@ interface FakeAcpAttachCall {
   readonly optionKeys: readonly string[];
   readonly cliParity: unknown;
   readonly stageTimeoutMs: unknown;
+  readonly resumeSessionId: unknown;
+  readonly effort: unknown;
+  readonly beforeRelease: (() => Promise<void>) | undefined;
   readonly send: (event: string, payload: unknown) => void;
 }
 
 interface AcpHarnessOptions {
+  durableSessionId?: string | null;
   def?: Partial<RuntimeAgentDef>;
   completedSuccessfully?: boolean;
   acpPermissionHandler?: unknown;
   attachThrows?: unknown;
   /** SEC-007: makes `stopProcesses` reject instead of succeeding. */
   stopProcessesRejects?: unknown;
+  /** Makes `listProcessSnapshots` reject instead of succeeding. */
+  listProcessSnapshotsRejects?: unknown;
   /** Gap 1's byte-journal — omitted by default, matching `CreateAgentExecutorOptions.journal`'s own opt-in default. */
   journal?: RunByteJournal;
   /** Gap 4's failure classifier — omitted by default, matching `CreateAgentExecutorOptions.classifyFailure`'s own opt-in default. */
@@ -1665,6 +1671,9 @@ function createFakeAttachAcpSession({ options, attachCalls, abort }: { options: 
     onPermissionRequest?: unknown;
     cliParity?: boolean;
     stageTimeoutMs?: number;
+    resumeSessionId?: unknown;
+    effort?: unknown;
+    beforeRelease?: () => Promise<void>;
     send: (args: { event: string; payload: unknown }) => void;
   }, optionalAttachOptions: Record<string, unknown> = {}) => {
     const attachOptions = { ...requiredAttachOptions, ...optionalAttachOptions };
@@ -1680,6 +1689,9 @@ function createFakeAttachAcpSession({ options, attachCalls, abort }: { options: 
       optionKeys: Object.keys(attachOptions).sort(),
       cliParity: attachOptions.cliParity,
       stageTimeoutMs: attachOptions.stageTimeoutMs,
+      resumeSessionId: attachOptions.resumeSessionId,
+      effort: attachOptions.effort,
+      beforeRelease: attachOptions.beforeRelease,
       send: (event, payload) => attachOptions.send({ event, payload }),
     });
     if (options.attachThrows) {
@@ -1687,7 +1699,7 @@ function createFakeAttachAcpSession({ options, attachCalls, abort }: { options: 
     }
     const controller: AcpSessionController = {
       hasFatalError: () => false,
-      getDurableSessionId: () => null,
+      getDurableSessionId: () => options.durableSessionId ?? null,
       completedSuccessfully: () => options.completedSuccessfully ?? true,
       abort,
     };
@@ -1711,6 +1723,7 @@ function createAcpExecutor({ options, lifecycle, def, child, attachAcpSession: f
         childPathPrepend: [],
         diagnostic: null,
       }) as AgentLaunchResolution, applyAgentLaunchEnv: ({ env }) => env, spawn: fakeSpawn, attachAcpSession: fakeAttachAcpSession, ...(options.acpPermissionHandler !== undefined ? { acpPermissionHandler: options.acpPermissionHandler as never } : {}), listProcessSnapshots: async () => {
+      if (options.listProcessSnapshotsRejects !== undefined) throw options.listProcessSnapshotsRejects;
       const pid = child.pid ?? 0;
       return [
         { pid, ppid: 1, command: 'fake-acp-bin' },
@@ -1743,6 +1756,40 @@ function createAcpHarness(options: AcpHarnessOptions = {}): AcpHarness {
 }
 
 describe('AgentExecutor — ACP dispatch (fake attachAcpSession)', () => {
+  it('stops recorded descendants before finishing the ACP run', async () => {
+    const { lifecycle, executor, child, attachCalls, stopProcessesCalls } = createAcpHarness();
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+    await executor.run({ runId: run.id, agentId: 'fake-agent', prompt: 'hello', cwd: '/work' });
+    expect(attachCalls[0]?.beforeRelease).toBeTypeOf('function');
+    await attachCalls[0]?.beforeRelease?.();
+    child.emit('close', 0, null);
+    expect((await lifecycle.waitForTerminal({ runId: run.id })).state).toBe('succeeded');
+    expect(stopProcessesCalls).toEqual([[5100, 5101]]);
+  });
+
+  it('reports an ACP release snapshot failure and still finishes', async () => {
+    const error = new Error('snapshot failed');
+    const { lifecycle, executor, child, attachCalls, onCleanupFailure } = createAcpHarness({ listProcessSnapshotsRejects: error });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+    await executor.run({ runId: run.id, agentId: 'fake-agent', prompt: 'hello', cwd: '/work' });
+    expect(attachCalls[0]?.beforeRelease).toBeTypeOf('function');
+    await attachCalls[0]?.beforeRelease?.();
+    expect(onCleanupFailure).toHaveBeenCalledWith({ runId: run.id, phase: 'acp-release', pid: 5100, error });
+    child.emit('close', 0, null);
+    expect((await lifecycle.waitForTerminal({ runId: run.id })).state).toBe('succeeded');
+  });
+
+  it.each(['high', undefined])('forwards reasoning effort only when supplied (%s)', async reasoning => {
+    const { lifecycle, executor, child, attachCalls } = createAcpHarness();
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+    await executor.run({ runId: run.id, agentId: 'fake-agent', prompt: 'hello', cwd: '/work' },
+      reasoning === undefined ? {} : { reasoning });
+    if (reasoning === undefined) expect(attachCalls[0]?.optionKeys).not.toContain('effort');
+    else expect(attachCalls[0]?.effort).toBe('high');
+    child.emit('close', 0, null);
+    await lifecycle.waitForTerminal({ runId: run.id });
+  });
+
   it('spawns, attaches an ACP session, forwards raw stdout/stderr, translates a text_delta agent event, and finishes succeeded', async () => {
     const { lifecycle, executor, child, attachCalls } = createAcpHarness();
     const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
@@ -3868,6 +3915,30 @@ describe('AgentExecutor — gap 1 byte-journal (CreateAgentExecutorOptions.journ
 });
 
 describe('AgentExecutor — gap 5 session resume (RunEndPayload.sessionRef)', () => {
+  it('forwards resume and returns the durable ACP session id for an eligible def', async () => {
+    const { lifecycle, executor, child, attachCalls } = createAcpHarness({
+      def: { resumesSessionViaAcpLoad: true }, durableSessionId: 'dur-1',
+    });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+    await executor.run({ runId: run.id, agentId: 'fake-agent', prompt: 'hello', cwd: '/work' }, { resumeSessionId: 'prior' });
+    expect(attachCalls[0]?.resumeSessionId).toBe('prior');
+    child.emit('close', 0, null);
+    await lifecycle.waitForTerminal({ runId: run.id });
+    const events = await collectEvents(lifecycle, run.id);
+    expect(events.find(event => event.kind === 'end')?.payload).toMatchObject({ sessionRef: 'dur-1' });
+  });
+
+  it('omits ACP resume and durable sessionRef without the def flag', async () => {
+    const { lifecycle, executor, child, attachCalls } = createAcpHarness({ durableSessionId: 'dur-1' });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+    await executor.run({ runId: run.id, agentId: 'fake-agent', prompt: 'hello', cwd: '/work' }, { resumeSessionId: 'prior' });
+    expect(attachCalls[0]?.optionKeys).not.toContain('resumeSessionId');
+    child.emit('close', 0, null);
+    await lifecycle.waitForTerminal({ runId: run.id });
+    const events = await collectEvents(lifecycle, run.id);
+    expect(events.find(event => event.kind === 'end')?.payload).not.toHaveProperty('sessionRef');
+  });
+
   it.each([
     { name: 'known', childPid: 4242 },
     { name: 'unavailable', childPid: undefined },

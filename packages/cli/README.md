@@ -47,10 +47,11 @@ No peer dependencies. Depends on `@jini-ai/core` (for the `token()`-based transp
 ```ts
 import { CommandRegistry, resolveDaemonUrl, registerRunCommands, exitWithStructuredError } from '@jini-ai/cli';
 
+const env = process.env;
 const registry = new CommandRegistry({});
 
 registerRunCommands({ registry,
-  resolveBaseUrl: () => resolveDaemonUrl({}, { envVarName: 'JINI_DAEMON_URL', defaultUrl: 'http://127.0.0.1:4317' }),
+  resolveBaseUrl: () => resolveDaemonUrl({ env }, { envVarName: 'JINI_DAEMON_URL', defaultUrl: 'http://127.0.0.1:4317' }),
 });
 
 const result = await registry.dispatch({ argv: process.argv.slice(2) });

@@ -85,6 +85,20 @@ export function findModelConfigOption({ configOptions }: { configOptions: unknow
   }
   return null;
 }
+export function findEffortConfigOption({ configOptions }: { configOptions: unknown }, _optional: Record<string, never> = {}): { configId: string; values: string[] } | null {
+  const options = Array.isArray(configOptions) ? configOptions : [];
+  for (const rawOption of options) {
+    const option = asObject({ value: rawOption });
+    if (option?.category !== 'thought_level' || typeof option.id !== 'string') continue;
+    const values = Array.isArray(option.options) ? option.options.flatMap((rawValue: unknown) => {
+      const value = asObject({ value: rawValue })?.value;
+      return typeof value === 'string' ? [value] : [];
+    }) : [];
+    return { configId: option.id, values };
+  }
+  return null;
+}
+
 /** Returns the trimmed string when `value` is a string, else `''`. */
 function trimmedOrEmpty(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
