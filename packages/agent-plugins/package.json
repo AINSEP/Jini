@@ -123,7 +123,6 @@
     },
     "optionalPeers": {
       "yauzl": "opt-in: plugin zip import — Plugin ZIP import could not load yauzl. Install yauzl to enable this feature, or check its installed version and native binaries.",
-      "@jini-ai/platform": "opt-in: platform-backed adapters; import @jini-ai/agent-plugins/lifecycle — Platform-backed adapters could not load @jini-ai/platform. Install @jini-ai/platform to enable this feature, or check its installed version and native binaries.",
       "@cfworker/json-schema": "opt-in: json schema validation; import @jini-ai/agent-plugins/lifecycle/tools, import @jini-ai/agent-plugins/connect/executable — JSON Schema validation could not load @cfworker/json-schema. Install @cfworker/json-schema to enable this feature, or check its installed version and native binaries.",
       "semver": "opt-in: plugin version compatibility; import @jini-ai/agent-plugins/lifecycle, import @jini-ai/agent-plugins/lifecycle/host-tools — Plugin version compatibility could not load semver. Install semver to enable this feature, or check its installed version and native binaries.",
       "@jini-ai/commerce": "opt-in: commerce server; import @jini-ai/agent-plugins/commerce/server — Commerce checkout requires the host commerce kernel."
@@ -379,16 +378,12 @@
   "peerDependencies": {
     "yauzl": "^3.4.0",
     "@jini-ai/core": "^0.7.0",
-    "@jini-ai/platform": "^0.7.0",
     "@cfworker/json-schema": "^4.1.1",
     "semver": "^7.6.2",
     "@jini-ai/commerce": "^0.7.0"
   },
   "peerDependenciesMeta": {
     "yauzl": {
-      "optional": true
-    },
-    "@jini-ai/platform": {
       "optional": true
     },
     "@cfworker/json-schema": {

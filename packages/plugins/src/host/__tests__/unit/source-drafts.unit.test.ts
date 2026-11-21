@@ -11,6 +11,7 @@ import { discoverPlugins, siteEntryPath } from '../../node/discovery.js';
 import { manifestHost, tierPolicy, createInvocationCoreDeps } from '../support/fixture-bindings.js';
 import { InMemoryPluginActivationRepo } from '../support/repo.memory.js';
 import { loadPlugin } from '../support/loader.js';
+import { withFileLock } from '@jini-ai/platform/fs/file-lock';
 
 const roots: string[] = [];
 afterEach(async () => { for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true }); });
@@ -27,7 +28,7 @@ async function fixture(options: { hosted?: boolean; optIn?: boolean; reload?: ()
     preview: async (input, options = {}) => { calls.push('preview'); return previewSitePluginInstall({ ...input, deps: { ...deps, ...options } }); },
     install: async (input, options = {}) => { calls.push('install'); return installSitePlugin({ ...input, deps: { ...deps, ...options } }); },
   };
-  const sourceDeps = { ...manifestHost, installDir, builtInIds: ['bundled'], installer,
+  const sourceDeps = { ...manifestHost, installDir, builtInIds: ['bundled'], installer, fileLock: { withFileLock },
     policy: createPluginSourcePolicy({ hosted: options.hosted ?? false, localInstallOptIn: options.optIn ?? false }), scaffoldEntry: entry,
     reload: async () => { calls.push('reload'); return options.reload ? options.reload() : false; } };
   const retainedSourceDeps = { ...sourceDeps, pruneVersions: ({ id }: { id: string }) => pruneSitePluginVersions({ id, installDir, repo }) };

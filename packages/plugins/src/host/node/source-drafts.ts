@@ -5,8 +5,7 @@ import { lstat, mkdir, mkdtemp, readdir, readFile, rename, rm, writeFile, unlink
 import path from 'node:path';
 import { tmpdir } from 'node:os';
 import * as semver from 'semver';
-import { withFileLock, type FileLockOptions } from '@jini-ai/platform/fs/file-lock';
-import { FileLockTimeoutError } from '@jini-ai/core/contracts/runtime';
+import { FileLockTimeoutError, type FileLockPort, type FileLockPortOptions } from '@jini-ai/core/contracts/runtime';
 import { validateManifest, validatePluginIdFormat } from '../manifest.js';
 import { PLUGIN_MANIFEST_FILENAME as MANIFEST, LEGACY_PLUGIN_MANIFEST_FILENAME, PLUGIN_MANIFEST_FILENAMES, canonicalizePluginManifest } from '../plugin-format.js';
 import type { ManifestHostPorts } from '../ports.js';
@@ -47,6 +46,8 @@ export interface PluginSourceDeps extends ManifestHostPorts {
   readonly builtInIds: readonly string[];
   readonly installer: PluginInstallerPort;
   readonly policy: PluginSourcePolicyPort;
+  /** The host's cross-process file lock (Node hosts pass `nodeFileLock` of `@jini-ai/node-adapters/fs`). Required: a default would re-import platform. */
+  readonly fileLock: FileLockPort;
   /** Host-specific opt-in instructions; omitted hosts receive a neutral refusal. */
   readonly localInstallDisabledMessage?: string;
   /** Host ABI text, avoiding an external site's dependency on npm package resolution. */
@@ -170,7 +171,7 @@ function createDraftLock(ctx: DraftContext) {
     if (options.createRoot) await mkdir(root, { recursive: true });
     if (!options.createRoot && !await exists(root)) fail('PLUGIN_SOURCE_DRAFT_MISSING', 'Create or open a plugin draft first.');
     try {
-      return await withFileLock({ lockPath: root + '-source-lock', run: action }, { ...optional.lockPorts, timeoutMs: 100, staleMs: Infinity });
+      return await required.fileLock.withFileLock({ lockPath: root + '-source-lock', run: action }, { ...optional.lockPorts, timeoutMs: 100, staleMs: Infinity });
     } catch (error) {
       if (error instanceof FileLockTimeoutError) fail('PLUGIN_SOURCE_BUSY', 'Another source operation is in progress. Retry after it finishes.');
       throw error;
@@ -442,7 +443,7 @@ function draftApprovalOperations(ctx: DraftOperations): Pick<PluginSourcePort, '
  * @example createPluginSourceService({ ...host, installDir, installer, policy, reload, builtInIds: [], scaffoldEntry }, {})
  * @complexity O(package bytes) per operation, capped at 8 MiB / 512 entries.
  */
-export function createPluginSourceService(required: PluginSourceDeps, optional: { temporaryDir?: string; lockPorts?: Pick<FileLockOptions, 'clock' | 'process' | 'hostname'> } = {}): PluginSourcePort {
+export function createPluginSourceService(required: PluginSourceDeps, optional: { temporaryDir?: string; lockPorts?: Pick<FileLockPortOptions, 'clock' | 'process' | 'hostname'> } = {}): PluginSourcePort {
   const ctx = createDraftContext(required, optional);
   const locked = createDraftLock(ctx);
   const versions = createDraftVersionReader(ctx);
