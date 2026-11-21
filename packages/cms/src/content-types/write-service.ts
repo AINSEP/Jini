@@ -371,9 +371,7 @@ export interface UpdateContentTypeFieldsRequired {
  * @overallScore 100
  * See docs/decisions/DR-001-safe-schema-and-index-transitions.md.
  */
-export async function updateContentTypeFields(
-  required: UpdateContentTypeFieldsRequired
-): Promise<Result<{ contentType: ContentTypeRecord }, Error>> {
+export async function updateContentTypeFields(required: UpdateContentTypeFieldsRequired, optional: { signal?: AbortSignal | undefined } = {}): Promise<Result<{ contentType: ContentTypeRecord }, Error>> {
   const { deps, input } = required;
 
   const authError = await authorizeContentTypeManage({ deps, input, action: `update content type '${input.key}'` });
@@ -409,6 +407,7 @@ export async function updateContentTypeFields(
 
   await deps.repo.transaction({
     fn: async () => {
+      optional.signal?.throwIfAborted();
       await persistWithRevision({ deps, input, op: "field-change", row: updated, recordedAt: now });
     }
   });

@@ -7,7 +7,7 @@ import type { AgentPluginActivations } from "../activation.js";
 import type { InstalledAgentPlugin } from "../types.js";
 import { readInstalledAgentPluginIdentity, type PluginMaturity } from "./identity.js";
 import { readInstalledSkillDetail, type AgentPluginSkillDetail } from "./skill-tool.js";
-import type { AgentPluginHostToolPorts, HostSearchToolNames, HostToolMessages } from "./ports.js";
+import type { AgentPluginHostToolPorts, HostSearchToolNames, HostToolMessages, RequireHostToolPermission } from "./ports.js";
 
 /**
  * ===========================================================================================
@@ -276,12 +276,13 @@ function selectAgentPluginSearchCandidates(
  * @complexity O(1) to build; see {@link loadAgentPluginSearchCandidates} and
  * {@link selectAgentPluginSearchCandidates} for the handler's per-call cost.
  */
-export function buildAgentPluginSearchRegistrations(routeDeps: AgentPluginSearchToolDeps, _optional: Record<string, never> = {}): ToolRegistration[] {
+export function buildAgentPluginSearchRegistrations(routeDeps: AgentPluginSearchToolDeps & { requirePermission: RequireHostToolPermission }, _optional: Record<string, never> = {}): ToolRegistration[] {
   const handlers: Record<string, ToolHandler> = {
     [SEARCH_AGENT_PLUGIN_LOCAL_TOOL_ID]: async (ctx) => {
       const input = requireInputRecord({ input: ctx.input });
       const query = optionalString({ input, key: "query" }) ?? "";
       const { offset, limit } = readAgentPluginSearchWindow({ input });
+      await routeDeps.requirePermission({ workspaceId: routeDeps.workspaceId, principalId: ctx.principal.id, permission: routeDeps.ports.permissions.use }, { entityType: "workspace", entityId: routeDeps.workspaceId });
       const candidates = await loadAgentPluginSearchCandidates(routeDeps);
       const ranked = selectAgentPluginSearchCandidates({ query, candidates, ports: routeDeps.ports });
       return projectAgentPluginSearchPage({ candidates: ranked, offset, limit, totalInstalled: candidates.length });
