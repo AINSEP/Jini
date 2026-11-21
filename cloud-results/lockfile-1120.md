@@ -1,4 +1,4 @@
-**Jini `release/lockfile-1120` @ JINI_SHA · Tovu `release/lockfile-1120` @ TOVU_SHA**
+**Jini `release/lockfile-1120` @ `9abbfb7d0` · Tovu `release/lockfile-1120` @ `d83f1924b`** (last content commits; only this SHA-line commit follows each)
 
 # lockfile-1120 (2026-11-21) — PARTIAL (published: nothing; see step 10)
 
