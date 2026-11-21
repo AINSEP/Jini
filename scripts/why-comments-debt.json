@@ -1408,6 +1408,118 @@
     {
       "id": "6fa4b5bd2f07",
       "reason": "jz-jini (combine-7): prose rewritten by H2-A11Y-RESOURCE (keyboard behaviour added; the comment now names it): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/ui/src/features/resource-dashboard/react/components/ResourceCardParts.tsx:15-15."
+    },
+    {
+      "id": "a70a189c5e13",
+      "reason": "combine-9 (coordinator decision from lockfile-1120): code deleted by R8b step 6 (the executor's legacy runtime options, resolvers and their pre-R8b test/kernel notes went with it; R11b-1 step 4 for the sidecar platform-ABI note). Was packages/daemon/src/agent-executor/codex/contracts.ts:39-39."
+    },
+    {
+      "id": "27ea9f7812a3",
+      "reason": "combine-9 (coordinator decision from lockfile-1120): code deleted by R8b step 6 (the executor's legacy runtime options, resolvers and their pre-R8b test/kernel notes went with it; R11b-1 step 4 for the sidecar platform-ABI note). Was packages/daemon/src/agent-executor/contracts.ts:564-564."
+    },
+    {
+      "id": "65e5a6addfb5",
+      "reason": "combine-9 (coordinator decision from lockfile-1120): code deleted by R8b step 6 (the executor's legacy runtime options, resolvers and their pre-R8b test/kernel notes went with it; R11b-1 step 4 for the sidecar platform-ABI note). Was packages/daemon/src/agent-executor/contracts.ts:566-566."
+    },
+    {
+      "id": "2dd7291577a2",
+      "reason": "combine-9 (coordinator decision from lockfile-1120): code deleted by R8b step 6 (the executor's legacy runtime options, resolvers and their pre-R8b test/kernel notes went with it; R11b-1 step 4 for the sidecar platform-ABI note). Was packages/daemon/src/agent-executor/contracts.ts:568-568."
+    },
+    {
+      "id": "8afc87cdb168",
+      "reason": "combine-9 (coordinator decision from lockfile-1120): code deleted by R8b step 6 (the executor's legacy runtime options, resolvers and their pre-R8b test/kernel notes went with it; R11b-1 step 4 for the sidecar platform-ABI note). Was packages/daemon/src/agent-executor/contracts.ts:570-570."
+    },
+    {
+      "id": "b3d734dbdf30",
+      "reason": "combine-9 (coordinator decision from lockfile-1120): code deleted by R8b step 6 (the executor's legacy runtime options, resolvers and their pre-R8b test/kernel notes went with it; R11b-1 step 4 for the sidecar platform-ABI note). Was packages/daemon/src/agent-executor/contracts.ts:572-572."
+    },
+    {
+      "id": "1c48478853de",
+      "reason": "combine-9 (coordinator decision from lockfile-1120): code deleted by R8b step 6 (the executor's legacy runtime options, resolvers and their pre-R8b test/kernel notes went with it; R11b-1 step 4 for the sidecar platform-ABI note). Was packages/daemon/src/agent-executor/contracts.ts:574-574."
+    },
+    {
+      "id": "2724d8fcc1cb",
+      "reason": "combine-9 (coordinator decision from lockfile-1120): code deleted by R8b step 6 (the executor's legacy runtime options, resolvers and their pre-R8b test/kernel notes went with it; R11b-1 step 4 for the sidecar platform-ABI note). Was packages/daemon/src/agent-executor/contracts.ts:576-576."
+    },
+    {
+      "id": "f2c6e78fea1f",
+      "reason": "combine-9 (coordinator decision from lockfile-1120): code deleted by R8b step 6 (the executor's legacy runtime options, resolvers and their pre-R8b test/kernel notes went with it; R11b-1 step 4 for the sidecar platform-ABI note). Was packages/daemon/src/agent-executor/contracts.ts:582-582."
+    },
+    {
+      "id": "7c656c2f380b",
+      "reason": "combine-9 (coordinator decision from lockfile-1120): code deleted by R8b step 6 (the executor's legacy runtime options, resolvers and their pre-R8b test/kernel notes went with it; R11b-1 step 4 for the sidecar platform-ABI note). Was packages/daemon/src/agent-executor/contracts.ts:590-590."
+    },
+    {
+      "id": "21276cf33b96",
+      "reason": "combine-9 (coordinator decision from lockfile-1120): code deleted by R8b step 6 (the executor's legacy runtime options, resolvers and their pre-R8b test/kernel notes went with it; R11b-1 step 4 for the sidecar platform-ABI note). Was packages/daemon/src/agent-executor/contracts.ts:592-599."
+    },
+    {
+      "id": "ca8824ce5c91",
+      "reason": "combine-9 (coordinator decision from lockfile-1120): code deleted by R8b step 6 (the executor's legacy runtime options, resolvers and their pre-R8b test/kernel notes went with it; R11b-1 step 4 for the sidecar platform-ABI note). Was packages/daemon/src/agent-executor/contracts.ts:601-607."
+    },
+    {
+      "id": "407ed01b3396",
+      "reason": "combine-9 (coordinator decision from lockfile-1120): code deleted by R8b step 6 (the executor's legacy runtime options, resolvers and their pre-R8b test/kernel notes went with it; R11b-1 step 4 for the sidecar platform-ABI note). Was packages/daemon/src/agent-executor/contracts.ts:609-609."
+    },
+    {
+      "id": "e6241ace970d",
+      "reason": "combine-9 (coordinator decision from lockfile-1120): code deleted by R8b step 6 (the executor's legacy runtime options, resolvers and their pre-R8b test/kernel notes went with it; R11b-1 step 4 for the sidecar platform-ABI note). Was packages/daemon/src/agent-executor/contracts.ts:611-611."
+    },
+    {
+      "id": "868ad2f832f3",
+      "reason": "combine-9 (coordinator decision from lockfile-1120): code deleted by R8b step 6 (the executor's legacy runtime options, resolvers and their pre-R8b test/kernel notes went with it; R11b-1 step 4 for the sidecar platform-ABI note). Was packages/daemon/src/agent-executor/contracts.ts:613-613."
+    },
+    {
+      "id": "0acd0c8e8395",
+      "reason": "combine-9 (coordinator decision from lockfile-1120): code deleted by R8b step 6 (the executor's legacy runtime options, resolvers and their pre-R8b test/kernel notes went with it; R11b-1 step 4 for the sidecar platform-ABI note). Was packages/daemon/src/agent-executor/launch.ts:213-213."
+    },
+    {
+      "id": "ff596d0a90c4",
+      "reason": "combine-9 (coordinator decision from lockfile-1120): code deleted by R8b step 6 (the executor's legacy runtime options, resolvers and their pre-R8b test/kernel notes went with it; R11b-1 step 4 for the sidecar platform-ABI note). Was packages/daemon/src/agent-executor/launch.ts:248-256."
+    },
+    {
+      "id": "a46a36b052bd",
+      "reason": "combine-9 (coordinator decision from lockfile-1120): code deleted by R8b step 6 (the executor's legacy runtime options, resolvers and their pre-R8b test/kernel notes went with it; R11b-1 step 4 for the sidecar platform-ABI note). Was packages/daemon/src/agent-executor/launch.ts:261-262."
+    },
+    {
+      "id": "757b830f24a6",
+      "reason": "combine-9 (coordinator decision from lockfile-1120): code deleted by R8b step 6 (the executor's legacy runtime options, resolvers and their pre-R8b test/kernel notes went with it; R11b-1 step 4 for the sidecar platform-ABI note). Was packages/daemon/src/agent-executor/launch.ts:268-268."
+    },
+    {
+      "id": "6df58ac8f112",
+      "reason": "combine-9 (coordinator decision from lockfile-1120): code deleted by R8b step 6 (the executor's legacy runtime options, resolvers and their pre-R8b test/kernel notes went with it; R11b-1 step 4 for the sidecar platform-ABI note). Was packages/daemon/src/agent-executor/launch.ts:292-292."
+    },
+    {
+      "id": "9729313a5842",
+      "reason": "combine-9 (coordinator decision from lockfile-1120): code deleted by R8b step 6 (the executor's legacy runtime options, resolvers and their pre-R8b test/kernel notes went with it; R11b-1 step 4 for the sidecar platform-ABI note). Was packages/daemon/src/agent-executor/launch.ts:308-308."
+    },
+    {
+      "id": "8c981bdcb5b8",
+      "reason": "combine-9 (coordinator decision from lockfile-1120): code deleted by R8b step 6 (the executor's legacy runtime options, resolvers and their pre-R8b test/kernel notes went with it; R11b-1 step 4 for the sidecar platform-ABI note). Was packages/daemon/src/agent-executor/launch.ts:1006-1006."
+    },
+    {
+      "id": "62c89cedaa43",
+      "reason": "combine-9 (coordinator decision from lockfile-1120): code deleted by R8b step 6 (the executor's legacy runtime options, resolvers and their pre-R8b test/kernel notes went with it; R11b-1 step 4 for the sidecar platform-ABI note). Was packages/daemon/src/agent-executor/pi/contracts.ts:2-2."
+    },
+    {
+      "id": "e257af659838",
+      "reason": "combine-9 (coordinator decision from lockfile-1120): code deleted by R8b step 6 (the executor's legacy runtime options, resolvers and their pre-R8b test/kernel notes went with it; R11b-1 step 4 for the sidecar platform-ABI note). Was packages/server/src/__tests__/builtin-features.terminal-lifecycle.test.ts:15-16."
+    },
+    {
+      "id": "5ada293f724d",
+      "reason": "combine-9 (coordinator decision from lockfile-1120): code deleted by R8b step 6 (the executor's legacy runtime options, resolvers and their pre-R8b test/kernel notes went with it; R11b-1 step 4 for the sidecar platform-ABI note). Was packages/server/src/__tests__/builtin-features.terminal-service.test.ts:16-16."
+    },
+    {
+      "id": "fc223057f3e4",
+      "reason": "combine-9 (coordinator decision from lockfile-1120): code deleted by R8b step 6 (the executor's legacy runtime options, resolvers and their pre-R8b test/kernel notes went with it; R11b-1 step 4 for the sidecar platform-ABI note). Was packages/server/src/kernel-base.ts:129-129."
+    },
+    {
+      "id": "765eb5e0c8ba",
+      "reason": "combine-9 (coordinator decision from lockfile-1120): code deleted by R8b step 6 (the executor's legacy runtime options, resolvers and their pre-R8b test/kernel notes went with it; R11b-1 step 4 for the sidecar platform-ABI note). Was packages/server/src/terminal-service.ts:27-27."
+    },
+    {
+      "id": "fed8b7760611",
+      "reason": "combine-9 (coordinator decision from lockfile-1120): code deleted by R8b step 6 (the executor's legacy runtime options, resolvers and their pre-R8b test/kernel notes went with it; R11b-1 step 4 for the sidecar platform-ABI note). Was packages/sidecar/src/supervision/supervisor-node.ts:49-49."
     }
   ]
 }
