@@ -12,6 +12,11 @@ export function isScrolledToBottom(el: { scrollHeight: number; scrollTop: number
   return el.scrollHeight - el.scrollTop - el.clientHeight <= AT_BOTTOM_THRESHOLD_PX;
 }
 
+/** Whether the transcript is taller than its box, i.e. there is anywhere to scroll at all. */
+export function hasOverflow(el: { scrollHeight: number; clientHeight: number }): boolean {
+  return el.scrollHeight - el.clientHeight > AT_BOTTOM_THRESHOLD_PX;
+}
+
 /**
  * The sticky-follow flag after a `scroll` event.
  *

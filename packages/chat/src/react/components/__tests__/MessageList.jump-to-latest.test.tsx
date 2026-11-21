@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { ChatMessage } from '../../../core/index.js';
 import { MessageList } from '../MessageList.js';
+import { CHAT_PANE_STYLES } from '../../features/chat-pane/styles.js';
 
 const messages: ChatMessage[] = [
   { id: '1', role: 'user', content: 'hi' },
@@ -24,11 +25,59 @@ function scrollList(el: HTMLElement, top: number) {
   fireEvent.scroll(el);
 }
 
+/** The body of the first CSS rule whose selector is exactly `selector`. */
+function ruleBody(css: string, selector: string): string {
+  const at = css.indexOf(`${selector} {`);
+  return at < 0 ? '' : css.slice(at, css.indexOf('}', at));
+}
+
 describe('MessageList "Jump to latest"', () => {
-  it('is hidden while the transcript follows the newest message', () => {
+  it('is hidden while the transcript follows the newest message and nothing overflows', () => {
+    render(<MessageList messages={messages} />);
+    expect(screen.queryByRole('button', { name: /Jump to/ })).toBeNull();
+  });
+
+  // Owner 2026-11-13: the centred "↓ Jump to latest" pill covered a message mid-transcript. It is
+  // an icon-only arrow at the list's bottom-right: down when scrolled away from the latest, up when
+  // at the bottom with history above.
+  it('is an icon-only arrow with no visible text, named for screen readers', () => {
     const { el } = overflowingList();
     scrollList(el, 200);
+    scrollList(el, 50);
+    const button = screen.getByRole('button', { name: 'Jump to latest' });
+    expect(button.textContent?.trim()).toBe('');
+    expect(button).toHaveAttribute('title', 'Jump to latest');
+    expect(button.querySelector('svg')).not.toBeNull();
+  });
+
+  it('turns into an up arrow ("Jump to top") at the bottom of an overflowing transcript', () => {
+    const { el, scrollTo } = overflowingList();
+    scrollList(el, 200);
     expect(screen.queryByRole('button', { name: 'Jump to latest' })).toBeNull();
+    const up = screen.getByRole('button', { name: 'Jump to top' });
+    expect(up.textContent?.trim()).toBe('');
+    act(() => { up.click(); });
+    expect(scrollTo).toHaveBeenCalledWith(expect.objectContaining({ top: 0 }));
+    // Now away from the latest: the down arrow replaces it straight away.
+    expect(screen.getByRole('button', { name: 'Jump to latest' })).toBeInTheDocument();
+  });
+
+  it('is anchored bottom-right of the list, never centred over messages, with a 40px touch target', () => {
+    const wrap = ruleBody(CHAT_PANE_STYLES, '.jini-message-list__jump');
+    expect(wrap).toContain('justify-content: flex-end;');
+    expect(wrap).not.toContain('justify-content: center;');
+    // In the pane it is pinned to the body's bottom-right, just above the composer overlay. Sticky
+    // was measured from the list's content box in Chrome, i.e. ABOVE its composer-sized bottom
+    // padding, which floated it mid-transcript on phones.
+    const inPane = ruleBody(CHAT_PANE_STYLES, '.jini-chat-pane__body .jini-message-list__jump');
+    expect(inPane).toContain('position: absolute;');
+    expect(inPane).toContain('right: 22px;');
+    expect(inPane).toContain('bottom: calc(var(--jini-chat-controls-height, 240px) + 8px);');
+    const btn = ruleBody(CHAT_PANE_STYLES, '.jini-message-list__jump-btn');
+    expect(btn).toContain('width: 40px;');
+    expect(btn).toContain('height: 40px;');
+    expect(btn).toContain('border-radius: 50%;');
+    expect(btn).not.toMatch(/#[0-9a-f]{3,8}\b|rgb\(/i);
   });
 
   it('appears once the user scrolls up and hides again back at the bottom', () => {

@@ -1,3 +1,13 @@
+## 0.7.2
+
+### Patch Changes
+
+- Updated dependencies
+  - @jini-ai/chat@0.7.2
+  - @jini-ai/daemon@0.7.2
+  - @jini-ai/db@0.7.2
+  - @jini-ai/registry@0.7.2
+
 ## 0.7.1
 
 ### Patch Changes

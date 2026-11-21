@@ -1,3 +1,13 @@
+## 0.7.2
+
+### Patch Changes
+
+- The "Jump to latest" button is an icon-only round arrow at the message list's bottom-right, just above the composer: a down arrow when scrolled away from the latest message, an up arrow ("Jump to top") at the bottom of an overflowing transcript, and hidden when nothing scrolls.
+  - @jini-ai/agentic@0.7.2
+  - @jini-ai/core@0.7.2
+  - @jini-ai/db@0.7.2
+  - @jini-ai/diagnostics@0.7.2
+
 ## 0.7.1
 
 ### Patch Changes
