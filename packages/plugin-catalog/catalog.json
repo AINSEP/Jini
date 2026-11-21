@@ -778,7 +778,7 @@
       "licenses/_opentelemetry_sdk-trace-node/package-license.json": "sha256-a9e210dd7a5ae500f89190574449fcfc99d2f9ad8a44bf83e4e81a889841af78",
       "licenses/_opentelemetry_semantic-conventions/LICENSE": "sha256-c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
       "licenses/_opentelemetry_semantic-conventions/package-license.json": "sha256-0ec80485a2d86ac074d8840badc0243f5c4481e542dfb9c3aa5d9dcbed96c386",
-      "server/index.mjs": "sha256-fb9920201a0df3c6daa6e84cf0b05307d933e8a5ed29401fc2a84b3b3b4da29d"
+      "server/index.mjs": "sha256-f0b14905a38abff3d0053bae4463c3e3bd586c4f21f7de2927d65b552c625a89"
     }
   },
   {
@@ -820,7 +820,7 @@
       "licenses/_sentry_server-utils/LICENSE": "sha256-f3df0b92efcd9d8cc0de5a36c151569a12a647d65b851abbb696ef7b13dee10b",
       "licenses/_sentry_server-utils/LICENSE-SOURCE": "sha256-dabf27713f74b53ed1b4f6412fa417dfa1b757da97f94ea243bbdb05503c168d",
       "licenses/_sentry_server-utils/package-license.json": "sha256-fc86dcf64159ae72833f6c8655f0841c714aed8b67a241e76ca00a2bfb0bd9b7",
-      "server/index.mjs": "sha256-3cea44868117c17633923ade042554b89c2436541c2c13a7970ba8135f6f0948"
+      "server/index.mjs": "sha256-036e7cbad481a3e42da7315d8dce89d4a3c88c9a01af93d4b2c19a8e16673051"
     }
   },
   {
