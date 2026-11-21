@@ -1,4 +1,4 @@
-**`integ/merge-9-2026-11-21` @ `SHA_LINE`** (last content commit; the commit on top only writes this SHA line)
+**`integ/merge-9-2026-11-21` @ `89541e499`** (last content commit; the commit on top only writes this SHA line)
 
 # combine-9 JINI (2026-11-21) — `integ/merge-9-2026-11-21`
 
