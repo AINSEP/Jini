@@ -62,6 +62,6 @@ describe("nodeModuleLoader", () => {
   });
 
   it("rejects for a module that is not installed", async () => {
-    await expect(nodeModuleLoader.load({ moduleName: "jini-diagnostics-no-such-module" })).rejects.toThrow("Failed to load url jini-diagnostics-no-such-module (resolved id: jini-diagnostics-no-such-module). Does the file exist?");
+    await expect(nodeModuleLoader.load({ moduleName: "jini-diagnostics-no-such-module" })).rejects.toThrow("Cannot find package 'jini-diagnostics-no-such-module' imported from");
   });
 });

@@ -7,6 +7,9 @@ export default defineConfig({
     alias: [{ find: /^@jini-ai\/agent-runtime$/, replacement: fileURLToPath(new URL('../agent-runtime/src/index.ts', import.meta.url)) }],
   },
   test: {
+    // Vitest 3 fakes every timer API by default, performance included, which drops getEntriesByType from
+    // the boot-timing tests. Keep Vitest 2's default set.
+    fakeTimers: { toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'setImmediate', 'clearImmediate', 'Date'] },
     // Package-wide default is jsdom (most tests in this package touch the
     // DOM). The few tests that assert real SSR/no-DOM behavior (e.g.
     // utils/dom-subscriptions, utils/zip) opt back into Node per-file via a

@@ -204,7 +204,7 @@ describe('renderOpenRouterImage response parsing (pinned before refactor)', () =
     it('sends a non-URL string starting with "http" to the SSRF guard rather than decoding it as base64', async () => {
         const fetchMock = vi.fn(async () => chatResponse([{ image_url: { url: 'httpAAAA' } }]));
         vi.stubGlobal('fetch', fetchMock);
-        await expect(renderOpenRouterImage({ ctx: baseCtx(), credentials: { apiKey: 'or-test' } })).rejects.toThrow(new TypeError('Invalid URL'));
+        await expect(renderOpenRouterImage({ ctx: baseCtx(), credentials: { apiKey: 'or-test' } })).rejects.toThrow(expect.objectContaining({ name: 'TypeError', message: 'Invalid URL' }));
         expect(fetchMock).toHaveBeenCalledTimes(1);
     });
     it('truncates the body in the non-OK error to 240 chars', async () => {
