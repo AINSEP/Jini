@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "railway",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Deploys existing Railway services, checks deployment status and logs, stages variables, and generates railway.json for the host's server.",
   "author": "Jini",
   "license": "Apache-2.0",

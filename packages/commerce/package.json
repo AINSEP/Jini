@@ -108,7 +108,9 @@
     "LICENSE",
     "NOTICE",
     "!dist/**/__tests__/**",
-    "!dist/**/*.map"
+    "!dist/**/*.map",
+    "!dist/**/*.test.js",
+    "!dist/**/*.test.d.ts"
   ],
   "publishConfig": {
     "access": "public",

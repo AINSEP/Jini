@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "meilisearch",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Runs the site's visitor search on a Meilisearch server (self-hosted or Meilisearch Cloud) instead of the host's built-in search. Ships the search provider itself (a host loads it only when the host shipped it) and the know-how to connect it. Meilisearch receives PUBLIC content only: published, publicly visible titles, text and URLs. Members-only or otherwise restricted content is never sent to it and stays in the host's built-in search.",
   "author": "Jini",
   "license": "Apache-2.0",
