@@ -1,0 +1,53 @@
+--- a/api-baseline/jini-ai__agent-plugins.json
++++ b/api-baseline/jini-ai__agent-plugins.json
+-   "PluginHostDeps": "interface:7688b1a74e",
++   "PluginHostDeps": "interface:cabf8f6968",
+--- a/api-baseline/jini-ai__cms.json
++++ b/api-baseline/jini-ai__cms.json
++ "./forms/field-length-caps": {
++  "types": "./dist/forms/field-length-caps.d.ts",
++  "symbols": {
++   "FORM_LONG_TEXT_MAX_CHARS": "variable:861a7f0724",
++   "FORM_TEXT_MAX_CHARS": "variable:51bf612cbd",
++   "capSubmissionFieldLengths": "function:500258f8ca",
++   "fieldMaxChars": "function:d3187cc489"
++  }
++ },
++ "./taxonomy/render-entry": {
++  "types": "./dist/taxonomy/render-entry.d.ts",
++  "symbols": {
++   "HtmlTaxonomyTerm": "interface:c951a653f7",
++   "renderHtmlTaxonomy": "function:b4aa995c66"
++  }
++ },
++ "./widgets/html/media-html": {
++  "types": "./dist/widgets/html/media-html.d.ts",
++  "symbols": {
++   "MediaHtmlEvent": "interface:d3ae570116",
++   "MediaHtmlReport": "type:249b212e5f",
++   "renderMediaRawHtml": "function:15476cd7ac",
++   "sanitizePageHtml": "function:d80bf8b509"
++  }
++ },
+--- a/api-baseline/jini-ai__core.json
++++ b/api-baseline/jini-ai__core.json
+-   "confirm": "function:9bcf2fa040",
++   "confirm": "function:b7247c384a",
+-   "execute": "function:2086e804a5",
++   "execute": "function:9256b602d6",
+-   "confirm": "function:9bcf2fa040",
+-   "execute": "function:2086e804a5",
++   "confirm": "function:b7247c384a",
++   "execute": "function:9256b602d6",
+-   "readPluginIdentity": "function:d4725f3420",
+-   "validatePluginIdentity": "function:dc0a163215"
++   "readPluginIdentity": "function:3499c27ea3",
++   "validatePluginIdentity": "function:d6d072c26e"
+--- a/api-baseline/jini-ai__plugins.json
++++ b/api-baseline/jini-ai__plugins.json
+-   "ManifestHostPorts": "interface:065fb69dbe",
++   "ManifestHostPorts": "interface:c5eef6b6b4",
+-   "PluginCapabilityToolsRequired": "interface:26677287a4",
++   "PluginCapabilityToolsRequired": "interface:01b66e2f94",
+-   "PluginRuntimeHostBinding": "interface:804bf991ad",
++   "PluginRuntimeHostBinding": "interface:e625d072fd",

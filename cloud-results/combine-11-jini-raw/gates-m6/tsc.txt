@@ -1,0 +1,2 @@
+== scripts
+EXIT 0

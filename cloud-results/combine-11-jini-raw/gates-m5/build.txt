@@ -1,0 +1,50 @@
+Scope: 14 of 51 workspace projects
+packages/agent-plugins build$ tsc -p tsconfig.json && node scripts/build-cloudflare.mjs
+packages/agent-plugins build: Done
+packages/admin build$ tsc -p tsconfig.json
+packages/search build$ tsc -p tsconfig.json
+packages/node-adapters build$ tsc -p tsconfig.json
+packages/node-adapters build: Done
+packages/search build: Done
+packages/admin build: Done
+packages/user-management build$ tsc -p tsconfig.json
+packages/daemon build$ tsc -p tsconfig.json
+packages/user-management build: Done
+packages/daemon build: Done
+packages/devops build$ tsc -p tsconfig.json
+packages/mcp build$ tsc -p tsconfig.json && chmod +x dist/bin/serve.js
+packages/server build$ tsc -p tsconfig.tests.json && tsc -p tsconfig.json
+packages/sqlite build$ tsc -p tsconfig.json
+packages/sqlite build: Done
+packages/server build: Done
+packages/devops build: Done
+packages/mcp build: Done
+examples/reference-web build$ vite build && vite build --config vite.mcpui-view.config.ts
+examples/reference-web build: vite v8.1.6 building client environment for production...
+examples/reference-web build: [2K
+examples/reference-web build: transforming...✓ 1157 modules transformed.
+examples/reference-web build: rendering chunks...
+examples/reference-web build: computing gzip size...
+examples/reference-web build: dist/index.html                                  1.06 kB │ gzip:   0.60 kB
+examples/reference-web build: dist/sample-preview/starter-site/notes.html      8.03 kB │ gzip:   3.18 kB
+examples/reference-web build: dist/sample-preview/starter-site/index.html      8.67 kB │ gzip:   3.36 kB
+examples/reference-web build: dist/assets/index-tiIM3XZq.css                 149.81 kB │ gzip:  25.11 kB
+examples/reference-web build: dist/assets/remixicon-D9cWxkfR.css             157.14 kB │ gzip:  21.41 kB
+examples/reference-web build: dist/assets/index-E3FSzJUg.js                1,328.07 kB │ gzip: 382.91 kB
+examples/reference-web build: ✓ built in 690ms
+examples/reference-web build: [plugin builtin:vite-reporter] 
+examples/reference-web build: (!) Some chunks are larger than 500 kB after minification. Consider:
+examples/reference-web build: - Using dynamic import() to code-split the application
+examples/reference-web build: - Use build.rolldownOptions.output.codeSplitting to improve chunking: https://rolldown.rs/reference/OutputOptions.codeSplitting
+examples/reference-web build: - Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+examples/reference-web build: vite v8.1.6 building client environment for production...
+examples/reference-web build: [2K
+examples/reference-web build: transforming...✓ 167 modules transformed.
+examples/reference-web build: rendering chunks...
+examples/reference-web build: [plugin vite:singlefile] 
+examples/reference-web build: [plugin vite:singlefile] Inlining: mcp-app-CtILIpHY.js
+examples/reference-web build: computing gzip size...
+examples/reference-web build: dist-mcpui-view/mcpui-view-src/mcp-app.html  455.82 kB │ gzip: 111.36 kB
+examples/reference-web build: ✓ built in 171ms
+examples/reference-web build: Done
+EXIT 0

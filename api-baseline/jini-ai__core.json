@@ -234,7 +234,7 @@
    "callerSafeErrorMessage": "function:dd42e38361",
    "configuredAllowedHosts": "function:410eb5ffb2",
    "configuredAllowedOrigins": "function:062b77033b",
-   "confirm": "function:9bcf2fa040",
+   "confirm": "function:b7247c384a",
    "createApprovalHandler": "function:63a9264dcb",
    "createApprovalProposalStore": "function:7928fc209a",
    "createBatchApprovalHandler": "function:99d2ba1da2",
@@ -261,7 +261,7 @@
    "describeRequestFailure": "function:4d012af1bd",
    "disposePacks": "function:d3a3411e6c",
    "evaluateFeatureFlag": "function:5aa379b64f",
-   "execute": "function:2086e804a5",
+   "execute": "function:9256b602d6",
    "expandBatchContexts": "function:8080b6ae58",
    "expireToken": "function:4e11cad822",
    "forbiddenRule": "function:be512ff702",
@@ -1393,8 +1393,8 @@
    "WorkspaceMismatchError": "class:9c3ebb1c1f",
    "appendActorReference": "function:edefec3d69",
    "authorizeForHooks": "function:8d7136d385",
-   "confirm": "function:9bcf2fa040",
-   "execute": "function:2086e804a5",
+   "confirm": "function:b7247c384a",
+   "execute": "function:9256b602d6",
    "expireToken": "function:4e11cad822",
    "isRedeemable": "function:125ea22c2b",
    "mintToken": "function:95718fedfa",
@@ -1515,8 +1515,8 @@
    "assertPluginIdentityAvailable": "function:bc3ea96d3f",
    "createPluginLookup": "function:be7cee4758",
    "createPluginLookupFacade": "function:a2192063a0",
-   "readPluginIdentity": "function:d4725f3420",
-   "validatePluginIdentity": "function:dc0a163215"
+   "readPluginIdentity": "function:3499c27ea3",
+   "validatePluginIdentity": "function:d6d072c26e"
   }
  },
  "./primitives": {

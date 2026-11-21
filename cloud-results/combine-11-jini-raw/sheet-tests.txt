@@ -1,0 +1,46 @@
+######## w4 contract test
+ ✓ src/__tests__/integration-package.contract.test.ts (5 tests) 8ms
+ Test Files  1 passed (1)
+      Tests  5 passed (5)
+function function function
+######## w5 sheet tests
+ ✓ src/__tests__/plugin-directory.test.ts (46 tests) 19ms
+ ✓ src/gated-mutations/__tests__/gateway.test.ts (31 tests) 9ms
+ Test Files  2 passed (2)
+      Tests  77 passed (77)
+######## proto sheet tests
+ ✓ src/core/ag-ui/__tests__/run-frames.test.ts (6 tests) 15ms
+      Tests  6 passed (6)
+ ✓ src/__tests__/frontend-session-ag-ui.test.ts (5 tests) 16ms
+      Tests  5 passed (5)
+ ✓ src/agent-protocol/acp/__tests__/models.test.ts (63 tests) 61ms
+ ✓ src/agent-protocol/acp/__tests__/session.test.ts (140 tests) 126ms
+      Tests  203 passed (203)
+######## gh sheet test (node --test)
+ok 1 - a redirect refusal thrown as a non-Error is still provider-error, with its text
+ok 2 - a thrown non-Error value is network-unreachable with its text; so is a failed branch lookup
+ok 3 - a blob POST that never gets a response is network-unreachable
+ok 4 - a manifest whose JSON is not an object is refused, never read as 'nothing owned'
+ok 5 - a live blob answer without a sha is unverifiable: the dropped path is kept and reported diverged
+ok 6 - a missing canonical manifest reads predecessor ownership at the parent commit and publishes canonical ownership
+ok 7 - an existing empty canonical manifest takes precedence over the predecessor
+ok 8 - a rejected canonical lookup refuses the publish without reading predecessor ownership or writing
+ok 9 - the manifest lists every written path sorted, keeping duplicates in input order; its blob failing fails the commit
+# tests 9
+# pass 9
+# fail 0
+######## w6 sheet test
+ ✓ scripts/__tests__/check-error-gate.test.ts (107 tests) 1043ms
+   ✓ precedence step 1: a sanctioned reporting module is skipped by every rule  649ms
+      Tests  107 passed (107)
+######## main merge: chat MessageList tests
+ ✓ src/react/components/__tests__/hook-injection.sweep2.test.tsx (16 tests) 177ms
+ ✓ src/react/components/__tests__/MessageList.jump-to-latest.test.tsx (7 tests) 205ms
+ ✓ src/react/components/__tests__/MessageList.test.tsx (25 tests) 419ms
+ ✓ src/react/components/__tests__/list-gallery.hooks.test.tsx (7 tests) 33ms
+ ✓ src/react/components/__tests__/MessageList.l199.characterization.test.tsx (5 tests) 159ms
+ ✓ src/react/components/__tests__/MessageList.streaming-renders.test.tsx (1 test) 111ms
+ ✓ src/react/components/__tests__/MessageList.queued-attachments.cov-j2.test.tsx (2 tests) 155ms
+ ✓ src/react/components/__tests__/MessageList.rules.test.ts (4 tests) 3ms
+ Test Files  8 passed (8)
+      Tests  67 passed (67)

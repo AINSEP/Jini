@@ -1,0 +1,6 @@
+== packages/agent-plugins
+EXIT 0
+== packages/core
+EXIT 0
+== packages/plugins
+EXIT 0

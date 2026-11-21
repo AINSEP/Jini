@@ -368,7 +368,7 @@
   "symbols": {
    "AgentPluginLifecycleCapability": "interface:c877b37126",
    "PluginHostActivation": "interface:fbd7b4a8f9",
-   "PluginHostDeps": "interface:7688b1a74e",
+   "PluginHostDeps": "interface:cabf8f6968",
    "PluginHostDiscoveryRecord": "interface:c4162d7fea",
    "PluginHostGrantDeps": "interface:caa2f3bdc1",
    "PluginHostLifecycle": "interface:995081d637",
