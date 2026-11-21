@@ -1,5 +1,5 @@
 /** The existing wire schemas remain core-owned, even when no chart plugin is enabled. */
-import { z } from 'zod';
+import { z } from 'zod/v3';
 import type { InteractiveComponentManifest } from '../interactive-ui/types.js';
 import { chartSpecSchema } from './contract.js';
 import { type ChartSpec } from '@jini-ai/core/contracts/charts';

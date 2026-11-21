@@ -1,5 +1,5 @@
 /** Capability ordering belongs to InteractiveUiRegistry, including framework-neutral entries. */
-import { z } from 'zod';
+import { z } from 'zod/v3';
 import { InteractiveUiRegistry } from '../interactive-ui/registry.js';
 import type { InteractiveComponentManifest } from '../interactive-ui/types.js';
 import type { ChartKind, ChartProviderEntry, ChartSpec } from '@jini-ai/core/contracts/charts';

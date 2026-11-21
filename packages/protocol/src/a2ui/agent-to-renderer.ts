@@ -21,7 +21,7 @@
  * validates against the one matching schema, matching what `renderer_to_agent.json`'s own error
  * schema anticipates (`VALIDATION_FAILED` with a JSON-Pointer `path` into the offending field).
  */
-import { z } from 'zod';
+import { z } from 'zod/v3';
 import { ComponentIdSchema, FunctionCallSchema, CallIdSchema } from './common-types.js';
 
 const PROTOCOL_VERSION = 'v1.0' as const;

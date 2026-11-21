@@ -5,7 +5,7 @@
  * schemas + inferred types — no runtime/backend logic lives here, matching this package's
  * "pure wire types" charter (see `run.ts`/`events.ts`/`errors.ts` for the same pattern).
  */
-import { z } from 'zod';
+import { z } from 'zod/v3';
 
 export const RegistryBackendKindSchema = z.enum(['github', 'http', 'local', 'db']);
 export type RegistryBackendKind = z.infer<typeof RegistryBackendKindSchema>;

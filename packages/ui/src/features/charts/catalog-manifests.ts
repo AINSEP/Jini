@@ -1,7 +1,7 @@
 /** The one headless owner of chart catalog entries. The browser registry attaches components to
  * these exact entries; a server catalog serves them as they are. React-free and DOM-free.
  */
-import { z } from 'zod';
+import { z } from 'zod/v3';
 import type { InteractiveComponentManifest } from '../interactive-ui/types.js';
 import { chartSpecSchema } from './contract.js';
 import { type ChartKind } from '@jini-ai/core/contracts/charts';

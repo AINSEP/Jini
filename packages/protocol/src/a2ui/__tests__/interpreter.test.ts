@@ -1,6 +1,6 @@
 import { createIds } from './fixture-ports.js';
 import { describe, expect, it } from 'vitest';
-import { z } from 'zod';
+import { z } from 'zod/v3';
 import type { ParseFailure } from '../agent-to-renderer.js';
 import { createLabCatalog } from '../catalog.js';
 import type { LocalFunctionAction } from '../common-types.js';

@@ -308,7 +308,7 @@
     "shiki": "^1.24.4",
     "tailwind-merge": "^2.6.0",
     "tailwindcss": "^4.1.16",
-    "zod": "^3.25.76"
+    "zod": "^4.6.6"
   },
   "dependencies": {
     "@jini-ai/core": "workspace:^",
@@ -333,7 +333,7 @@
     "parse5": "^7.3.0 || ^8.0.1",
     "shiki": "^1.24.4",
     "tailwind-merge": "^2.6.0",
-    "zod": "^3.25.76"
+    "zod": "^4.6.6"
   },
   "peerDependenciesMeta": {
     "@tanstack/react-query": {
