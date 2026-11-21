@@ -362,6 +362,7 @@
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^3.2.6",
+    "vitest": "^3.2.6",
     "yazl": "^3.3.1",
     "@jini-ai/core": "workspace:^",
     "@jini-ai/platform": "workspace:^",

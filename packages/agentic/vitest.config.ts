@@ -2,6 +2,9 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   test: {
+    // Vitest 3 fakes every timer API by default, requestAnimationFrame included, which replaces the
+    // frame stubs the settle tests install themselves. Keep Vitest 2's default set.
+    fakeTimers: { toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'setImmediate', 'clearImmediate', 'Date'] },
     // The root half of this package (everything outside src/core/dom/) is DOM-free by
     // construction — see tsconfig.json's exclude and archived provenance ledger's "DOM split" section — so it
     // runs under vitest's default 'node' environment. Only src/core/dom/** (the browser
