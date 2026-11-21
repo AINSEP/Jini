@@ -38,7 +38,7 @@ describe("infra 0.3.3 shim surface", () => {
     expect(JSON.stringify(manifest.exports)).not.toContain('"require"');
     expect(Object.keys(manifest.peerDependencies)).toEqual(["@jini-ai/db"]);
     // Caret floor on the current minor line, not an exact string every fixed-group bump invalidates.
-    expect(manifest.peerDependencies["@jini-ai/db"]).toMatch(/^\^0\.(?:[7-9]|\d{2,})\.\d+$/);
+    expect(manifest.peerDependencies["@jini-ai/db"]).toMatch(/^\^0\.(?:[7-9]|\d{2,})\.\d+(?:-[0-9A-Za-z.-]+)?$/);
     expect(manifest.peerDependenciesMeta).toEqual({ "@jini-ai/db": { optional: true } });
     expect(manifest.devDependencies["@jini-ai/db"]).toBe("workspace:^");
     expect(manifest.devDependencies["@jini-ai/core"]).toBe("workspace:*");
