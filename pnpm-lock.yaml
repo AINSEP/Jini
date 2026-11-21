@@ -1042,9 +1042,6 @@ importers:
       '@jini-ai/core':
         specifier: workspace:^
         version: link:../core
-      '@jini-ai/platform':
-        specifier: workspace:^
-        version: link:../platform
       '@jini-ai/protocol':
         specifier: workspace:^
         version: link:../protocol
@@ -1055,6 +1052,9 @@ importers:
       '@jini-ai/daemon':
         specifier: workspace:^
         version: link:../daemon
+      '@jini-ai/platform':
+        specifier: workspace:^
+        version: link:../platform
 
   packages/memory:
     devDependencies:
