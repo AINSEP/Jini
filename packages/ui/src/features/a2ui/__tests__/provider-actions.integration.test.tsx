@@ -2,7 +2,7 @@ import type { ComponentType } from 'react';
 import { render, screen } from '../../../__tests__/ui-kit-render-support.js';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { z } from 'zod';
+import { z } from 'zod/v3';
 import { A2uiSurfaceRenderer } from '../renderer.js';
 import { buildA2uiCatalogFromRegistry } from '../catalog-from-registry.js';
 import { createA2uiInterpreter, createLabCatalog } from '@jini-ai/protocol/a2ui';

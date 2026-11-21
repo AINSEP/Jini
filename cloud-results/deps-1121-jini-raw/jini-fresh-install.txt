@@ -1,0 +1,38 @@
+Scope: all 51 workspace projects
+Lockfile is up to date, resolution step is skipped
+Progress: resolved 1, reused 0, downloaded 0, added 0
+Packages: +1100
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+Progress: resolved 1100, reused 929, downloaded 0, added 0
+Progress: resolved 1100, reused 1093, downloaded 0, added 454
+Progress: resolved 1100, reused 1093, downloaded 0, added 898
+Progress: resolved 1100, reused 1093, downloaded 0, added 1100, done
+
+devDependencies:
++ @changesets/cli 2.31.1
++ @jini-ai/core 0.7.3-next.1 <- packages/core
++ @jini-ai/devops 0.7.3-next.1 <- packages/devops
++ @jini-ai/plugins 0.7.3-next.1 <- packages/plugins
++ @jini-ai/provider-plugins 0.7.3-next.1 <- packages/provider-plugins
++ @types/node 24.13.3
++ @types/semver 7.8.0
++ @vitest/coverage-v8 3.2.7
++ dependency-cruiser 18.1.0
++ eslint 10.8.0
++ eslint-plugin-sonarjs 4.2.0
++ knip 5.61.3
++ semver 7.8.5
++ tsx 4.23.1
++ typescript 5.9.3
++ typescript-eslint 8.65.0
++ vitest 3.2.7
+
+╭ Warning ─────────────────────────────────────────────────────────────────────╮
+│                                                                              │
+│   Ignored build scripts: @parcel/watcher@2.5.1, argon2@0.44.0,               │
+│   core-js@3.51.0, esbuild@0.25.12, esbuild@0.28.1.                           │
+│   Run "pnpm approve-builds" to pick which dependencies should be allowed     │
+│   to run scripts.                                                            │
+│                                                                              │
+╰──────────────────────────────────────────────────────────────────────────────╯
+Done in 5.3s using pnpm v10.33.2

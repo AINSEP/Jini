@@ -7,7 +7,7 @@
  * `error` (`minProperties: 2, maxProperties: 2` in the real schema — enforced below via `.refine`,
  * since zod's object schema has no direct min/max-properties primitive).
  */
-import { z } from 'zod';
+import { z } from 'zod/v3';
 import { CallIdSchema } from './common-types.js';
 
 const PROTOCOL_VERSION = 'v1.0' as const;

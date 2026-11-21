@@ -1,5 +1,5 @@
 /** Chart spec validation. The provider ABI lives in `@jini-ai/core/contracts/charts`. */
-import { z } from 'zod';
+import { z } from 'zod/v3';
 import type { ChartSpec, ChartValue } from '@jini-ai/core/contracts/charts';
 
 const chartValueSchema: z.ZodType<ChartValue> = z.lazy(() => z.union([

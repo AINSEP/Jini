@@ -3,7 +3,7 @@ import type { RenderHookOptions, RenderResult } from '@testing-library/react';
 // Kit-scoped render: chat panes and cards reach ui's kit-backed selects and secret inputs, so the
 // surfaces wrapper also needs the UiKitProvider a host mounts at its root.
 import { render, renderHook } from './ui-kit-render-support.js';
-import { z } from 'zod';
+import { z } from 'zod/v3';
 import {
   ChatSurfacesProvider,
   type ChatSurfaceComponentEntry,

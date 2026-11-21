@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { z } from 'zod';
+import { z } from 'zod/v3';
 import { buildA2uiCatalogFromRegistry } from '../catalog-from-registry.js';
 import { createLabCatalog } from '@jini-ai/protocol/a2ui';
 import { InteractiveUiRegistry, type InteractiveComponentEntry } from '../../interactive-ui/registry.js';

@@ -62,7 +62,8 @@ describe('validateNativePermissionSnapshot', () => {
     const value = { ...snapshot(), sentinel: secret, ...invalid };
     const validate = () => validateNativePermissionSnapshot({ value, capabilityKeys }, { message });
     expect(validate).toThrow(InvalidNativePermissionsError);
-    expect(validate).toThrow(new Error(message));
+    // Vitest 3 compares an Error instance by class as well; the assertion here is the exact message.
+    expect(validate).toThrow(expect.objectContaining({ message }));
     expect(validate).not.toThrow(secret);
   });
 

@@ -1,7 +1,7 @@
 /** The browser registry is the headless catalog plus components: same ids, schemas and providers. */
 import { describe, expect, it } from 'vitest';
 import { render, waitFor } from '@testing-library/react';
-import { z } from 'zod';
+import { z } from 'zod/v3';
 import { createChartInteractiveRegistry } from '../react.js';
 import { chartCatalogManifests, createChartProviderRegistry } from '../index.js';
 import { type ChartProviderEntry, type ChartSpec } from '@jini-ai/core/contracts/charts';

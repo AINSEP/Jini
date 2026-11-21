@@ -1,7 +1,7 @@
 import { screen } from '@testing-library/react';
 import { renderWithChatSurfaces } from '../../__tests__/fake-chat-surfaces.js';
 import { expect, it } from 'vitest';
-import { z } from 'zod';
+import { z } from 'zod/v3';
 import { createLabCatalog } from '@jini-ai/protocol/a2ui';
 import { DEFAULT_INTERACTIVE_UI_REGISTRY } from '@jini-ai/ui/interactive-ui';
 import { A2uiSurfaceCard } from '../A2uiSurfaceCard.js';

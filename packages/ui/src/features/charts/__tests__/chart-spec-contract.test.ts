@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { z } from 'zod';
+import type { z } from 'zod/v3';
 import type { ChartSpec } from '@jini-ai/core/contracts/charts';
 import { chartSpecSchema } from '../contract.js';
 

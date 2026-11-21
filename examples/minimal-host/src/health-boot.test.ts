@@ -15,7 +15,8 @@
 //   entry ends in `.tgz`.
 import { describe, it, expect } from 'vitest';
 import { existsSync } from 'node:fs';
-import { execFileSync } from 'node:child_process';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import path from 'node:path';
 
 const repoRoot = path.resolve(__dirname, '..', '..', '..');
@@ -26,7 +27,8 @@ describe('milestone 1 gate N — health-boot from packed @jini-ai/* tarballs', (
     expect(existsSync(harnessScript)).toBe(true);
   });
 
-  it('boots examples/minimal-host from packed tarballs, not workspace links', () => {
+  // A full pack-and-boot of the @jini-ai/* tarballs (~170 s in base). Vitest 2 never enforced the default 5 s on it.
+  it('boots examples/minimal-host from packed tarballs, not workspace links', async () => {
     if (!existsSync(harnessScript)) {
       throw new Error(
         'scripts/health-boot.ts does not exist yet — milestone 1 impl must add the ' +
@@ -34,7 +36,8 @@ describe('milestone 1 gate N — health-boot from packed @jini-ai/* tarballs', (
       );
     }
 
-    const raw = execFileSync('tsx', [harnessScript], { cwd: repoRoot, encoding: 'utf8' }).trim();
+    // Async so the worker keeps answering Vitest 3's RPC (a ~170 s execFileSync timed out onTaskUpdate).
+    const raw = (await promisify(execFile)('tsx', [harnessScript], { cwd: repoRoot, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })).stdout.trim();
     const lastLine = raw.split('\n').filter(Boolean).pop();
     if (!lastLine) throw new Error('health-boot harness produced no stdout');
 
@@ -46,5 +49,5 @@ describe('milestone 1 gate N — health-boot from packed @jini-ai/* tarballs', (
     for (const tarball of report.packedTarballs) {
       expect(tarball).toMatch(/\.tgz$/);
     }
-  });
+  }, 300_000);
 });

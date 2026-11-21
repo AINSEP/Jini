@@ -27,7 +27,7 @@
  * catalog is accepted, closed-schema-validated and held in interpreter state. Whether any given
  * host renderer draws it is a separate concern this package has no opinion on.
  */
-import { z } from 'zod';
+import { z } from 'zod/v3';
 import {
   AccessibilityAttributesSchema,
   ActionSchema,

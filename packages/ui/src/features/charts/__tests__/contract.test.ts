@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { chartSpecSchema, legacyChartSpec, chartWireManifests } from '../index.js';
 import { InteractiveUiRegistry } from '../../interactive-ui/registry.js';
-import { z } from 'zod';
+import { z } from 'zod/v3';
 
 describe('neutral chart contract', () => {
   it('converts all three existing wire shapes without losing row data', () => {

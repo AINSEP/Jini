@@ -18,7 +18,7 @@
  * also not encoded here — see `catalog.ts`'s `createLabCatalog()`, which carries all 18 of the real
  * "basic" catalog's components with their closed, per-type property schemas.
  */
-import { z } from 'zod';
+import { z } from 'zod/v3';
 
 /** `common_types.json#/$defs/ComponentId` — "The unique identifier for a component, used for both definitions and references within the same surface." */
 export const ComponentIdSchema = z.string();

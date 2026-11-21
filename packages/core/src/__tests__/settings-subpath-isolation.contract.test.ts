@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { expect, it } from "vitest";
 
+// Vitest 3 fails a synchronous test that overruns its timeout (Vitest 2 could not); this one runs a full subpath-closure audit (~21 s in base).
 it("isolates neutral settings from the kernel root and retires the Express entry", async () => {
   const repoRoot = fileURLToPath(new URL("../../../../", import.meta.url));
   // Use the same source-closure guard as pnpm guard; importing the tooling by runtime path
@@ -45,4 +46,4 @@ it("isolates neutral settings from the kernel root and retires the Express entry
   expect(manifest.jini.optionalPeers?.express).toBeUndefined();
   expect(manifest.dependencies?.express).toBeUndefined();
   expect(manifest.optionalDependencies?.express).toBeUndefined();
-});
+}, 60_000);

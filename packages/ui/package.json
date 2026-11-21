@@ -294,11 +294,11 @@
     "@testing-library/user-event": "^14.5.0",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
-    "@vitest/coverage-v8": "^2.1.9",
+    "@vitest/coverage-v8": "^3.2.6",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "grapesjs": "0.23.4",
-    "jsdom": "^25.0.1",
+    "jsdom": "^26.1.0",
     "micromark": "^4.0.0",
     "micromark-extension-gfm": "^3.0.0",
     "parse5": "^8.0.1",
@@ -307,7 +307,7 @@
     "shiki": "^1.24.4",
     "tailwind-merge": "^2.6.0",
     "tailwindcss": "^4.1.16",
-    "zod": "^3.25.76"
+    "zod": "^4.6.6"
   },
   "dependencies": {
     "@jini-ai/core": "workspace:^",
@@ -332,7 +332,7 @@
     "parse5": "^7.3.0 || ^8.0.1",
     "shiki": "^1.24.4",
     "tailwind-merge": "^2.6.0",
-    "zod": "^3.25.76"
+    "zod": "^4.6.6"
   },
   "peerDependenciesMeta": {
     "@tanstack/react-query": {

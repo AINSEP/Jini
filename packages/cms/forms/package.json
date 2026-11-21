@@ -46,7 +46,7 @@
   },
   "devDependencies": {
     "@jini-ai/cms": "workspace:^",
-    "vitest": "^2.1.0",
+    "vitest": "^3.2.6",
     "typescript": "^5.6.0",
     "@types/node": "^24.0.0"
   },
