@@ -5,7 +5,8 @@ const mocks = vi.hoisted(() => ({
   read: vi.fn(), write: vi.fn(), remove: vi.fn(),
 }));
 vi.mock("node:child_process", () => ({ spawn: mocks.spawn, execFileSync: mocks.exec }));
-// collectProcessTreePids and planCommandInvocation are pure helpers owned by core's runtime contract (recorded here); the rest of that entry stays real.
+// collectProcessTreePids is a pure helper owned by core's runtime contract; the rest of that entry stays real.
+// planCommandInvocation is recorded the same way: the planner the adapter calls with the host's command shell.
 vi.mock("@jini-ai/core/contracts/runtime", async (importOriginal) => ({ ...await importOriginal<object>(), collectProcessTreePids: mocks.collect, planCommandInvocation: mocks.invocation }));
 vi.mock("../../daemon-registry.js", () => ({ readLiveDaemonRegistryRecord: mocks.read, writeDaemonRegistryRecord: mocks.write, removeDaemonRegistryRecordIfCurrent: mocks.remove }));
 

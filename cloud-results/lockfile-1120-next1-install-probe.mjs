@@ -1,0 +1,4 @@
+const list=['@jini-ai/node-adapters/agent-plugins','@jini-ai/node-adapters/fs','@jini-ai/node-adapters/process','@jini-ai/sidecar/supervisor/node','@jini-ai/sidecar','@jini-ai/mcp','@jini-ai/plugins/host/node','@jini-ai/agent-plugins/lifecycle','@jini-ai/daemon','@jini-ai/core/errors/idioms','@jini-ai/admin','@jini-ai/oauth'];
+let bad=0;for(const s of list){try{await import(s);console.log('OK  ',s)}catch(e){bad++;console.log('FAIL',s,e.code,String(e.message).split('\n')[0].slice(0,160))}}
+for(const n of ['core','admin','oauth','node-adapters','agent-plugins']){const p=JSON.parse((await import('node:fs')).readFileSync(`node_modules/@jini-ai/${n}/package.json`,'utf8'));console.log(n,p.version,'core:',p.dependencies?.['@jini-ai/core']??p.peerDependencies?.['@jini-ai/core']??'-')}
+console.log('failures',bad)

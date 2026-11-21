@@ -1,4 +1,4 @@
-why-comments: 101 files with removed lines checked against 06559affb..HEAD, 27 comment blocks lost (0 allow-listed)
+why-comments: 108 files with removed lines checked against 06559affb..HEAD, 28 comment blocks lost (0 allow-listed)
 packages/daemon/src/agent-executor/codex/contracts.ts:39-39  [a70a189c5e13]  explicit host/run policy; environment defaults belong to native composition. native executor composition resolves its env default when ab...
 packages/daemon/src/agent-executor/contracts.ts:563-563  [27ea9f7812a3]  resolves/pins the concrete starting model against the actual launch scope.
 packages/daemon/src/agent-executor/contracts.ts:565-565  [65e5a6addfb5]  @default the real `@jini-ai/agent-runtime` registry lookup
@@ -26,6 +26,7 @@ packages/server/src/__tests__/builtin-features.terminal-lifecycle.test.ts:15-16 
 packages/server/src/__tests__/builtin-features.terminal-service.test.ts:16-16  [5ada293f724d]  a recording spy over the real engine: records the options the preset hands `createterminalservice`, so knob forwarding is asserted, not a...
 packages/server/src/kernel-base.ts:129-129  [fc223057f3e4]  until the executor takes the bound runtime port (r8b), it still receives the two definition policies by value.
 packages/server/src/terminal-service.ts:27-27  [765eb5e0c8ba]  builds the terminal service from the preset's `terminal` options: the host's loader (or the inert one) plus only the tuning that was given.
-why-comments: 27 deleted comment blocks appear nowhere else (owner rule: refactors move "why" comments with the code, never delete them)
+packages/sidecar/src/supervision/supervisor-node.ts:49-49  [fed8b7760611]  native effect ports retain their platform abi so tests can supply di fakes.
+why-comments: 28 deleted comment blocks appear nowhere else (owner rule: refactors move "why" comments with the code, never delete them)
   fix: put the comment back next to the code it explains, or move it with that code.
   last resort: add { "id": "<id above>", "reason": "<why this comment is truly obsolete>" } to the debt file (`pnpm check:why-comments`).
