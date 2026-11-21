@@ -1,0 +1,45 @@
+
+> jini@ api:check /home/user/Jini
+> node --import tsx ./scripts/check-api-surface.ts
+
+[api] @jini-ai/agent-plugins (breaking, covered by changeset)
+  REMOVED subpath ./lifecycle/node
+[api] @jini-ai/daemon
+  changed export  .#CreateAgentExecutorOptions
+  changed export  .#createAgentExecutor
+  changed export  .#guardWindowsCommandLineBudget
+  changed export  .#probeMcpBridge
+  changed export  .#resolveDefAndStreamFormat
+  changed export  .#resolveImageDeliveryAndArgvBudget
+  changed export  .#resolveLaunch
+  changed export  .#resolveMcpBridgeForRun
+  changed export  .#resolveSystemPromptOverlayDelivery
+  changed export  .#selectAgentExecutorHostEnv
+  changed export  .#spawnAgentChildProcess
+  changed export  .#stageLogFile
+  changed export  .#stagePromptFile
+  changed export  ./session-coordination#failRunBeforeStart
+  added export    .#McpBridgeProbe
+  added export    .#McpBridgeProbeEntry
+  added export    ./session-coordination#FailRunBeforeStartInput
+[api] @jini-ai/mcp
+  changed export  .#installOwnedJsonAgent
+  added export    .#OwnedJsonInstallFiles
+[api] @jini-ai/node-adapters
+  added subpath   ./agent-plugins
+  added export    ./process#SpawnFunction
+  added export    ./process#createSpawnPort
+  added export    ./process#nodeCommandShell
+  added export    ./process#nodeSpawnPort
+[api] @jini-ai/plugins
+  changed export  ./host/node#PluginRuntimeHostBinding
+  changed export  ./host/node#PluginSourceDeps
+  changed export  ./host/node#createPluginSourceService
+[api] @jini-ai/server
+  changed export  .#CreateJiniKernelBaseOptions
+[api] @jini-ai/sidecar
+  changed export  .#writeDaemonRegistryRecord
+  changed export  .#writeJsonFile
+  changed export  ./supervisor/node#createSupervisorRegistry
+  added export    .#JsonFileWriter
+[api] checked 40 packages, 676 entries, 17185 symbols

@@ -21,6 +21,7 @@
    "DaemonSupervisorOptions": "interface:31141068a1",
    "DaemonSupervisorRequired": "interface:d17497cfe4",
    "DaemonSupervisorState": "type:579181487c",
+   "JsonFileWriter": "type:e661d5ec1a",
    "JsonIpcHandler": "type:8f9c3e6c44",
    "JsonIpcServerHandle": "type:fc400b2a0a",
    "KeyedSerializer": "interface:b6c6e8cbf4",
@@ -79,8 +80,8 @@
    "resolveRuntimeRoot": "function:e95991d497",
    "resolveSidecarBase": "function:3f8e13305e",
    "resolveSourceRuntimeRoot": "function:0eeb6cc28b",
-   "writeDaemonRegistryRecord": "function:0ee049683d",
-   "writeJsonFile": "function:e6c10c72e5"
+   "writeDaemonRegistryRecord": "function:318b4fc9a8",
+   "writeJsonFile": "function:da1cfcfdc3"
   }
  },
  "./respawn-policy": {
@@ -153,7 +154,7 @@
    "createNodeDaemonProcessAdapter": "function:40b96446c1",
    "createNodeIpcChannel": "function:723976b16d",
    "createNodeSupervisorScheduler": "function:bbc58fa60f",
-   "createSupervisorRegistry": "function:a0c32721e6",
+   "createSupervisorRegistry": "function:604186f57d",
    "ipcRefusalReason": "function:b8d0bbb705",
    "provideNodeStartupSecrets": "function:5fa948d943",
    "receiveNodeStartupSecrets": "function:52a1227790",

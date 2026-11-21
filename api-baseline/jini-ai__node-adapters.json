@@ -1,4 +1,10 @@
 {
+ "./agent-plugins": {
+  "types": "./dist/agent-plugins.d.ts",
+  "symbols": {
+   "createNodeAgentPluginEffects": "function:aa31bc30ce"
+  }
+ },
  "./fs": {
   "types": "./dist/fs.d.ts",
   "symbols": {
@@ -10,8 +16,12 @@
   "types": "./dist/process.d.ts",
   "symbols": {
    "ProcessFunctions": "interface:2195967367",
+   "SpawnFunction": "type:f70079dea4",
    "createProcessControlPort": "function:b7f8365c70",
-   "nodeProcessControl": "variable:90bc017162"
+   "createSpawnPort": "function:b68790fe9f",
+   "nodeCommandShell": "function:c6af7f1ebb",
+   "nodeProcessControl": "variable:90bc017162",
+   "nodeSpawnPort": "variable:494198a181"
   }
  }
 }

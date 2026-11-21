@@ -743,12 +743,6 @@
    "parseMailAdaptersFile": "function:634acd9417"
   }
  },
- "./lifecycle/node": {
-  "types": "./dist/lifecycle/node.d.ts",
-  "symbols": {
-   "createNodeAgentPluginEffects": "function:aa31bc30ce"
-  }
- },
  "./lifecycle/tools": {
   "types": "./dist/lifecycle/tools/index.d.ts",
   "symbols": {

@@ -12,7 +12,7 @@
    "CapabilityId": "type:a5b5c776c6",
    "CloseHttpServerOptions": "interface:09ef52feb9",
    "ComposeJiniKernelConfig": "interface:442442af04",
-   "CreateJiniKernelBaseOptions": "interface:8ea154fbb3",
+   "CreateJiniKernelBaseOptions": "interface:22498e73ea",
    "CreateLocalNodeDaemonConfig": "interface:d49897aa2f",
    "DEFAULT_DAEMON_BIND_HOST": "variable:b7f875e50c",
    "DeactivationReason": "type:310feaeb2c",
