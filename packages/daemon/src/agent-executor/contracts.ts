@@ -34,9 +34,8 @@ import type {
    attachPiRpcSession,
    prepareAgentLogFile,
    preparePromptFileForAgent,
-   AcpMcpServerInput,
-   AcpPermissionHandler,
 } from '@jini-ai/agent-runtime';
+import type { AcpMcpServerInput, AcpPermissionHandler } from '../ports/agent-runtime-sessions.js';
 import type { PromptAugmenter } from '@jini-ai/core/contracts/agents';
 import type { ProcessSnapshot, StopProcessesResult } from '@jini-ai/core/contracts/runtime';
 import type {

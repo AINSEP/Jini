@@ -8,9 +8,7 @@ import { MIMO_CONFIG_ENV } from './mimo/constants.js';
 import { buildClaudeMcpDelivery, writeMcpJsonForRun } from './claude/mcp-delivery.js';
 import { buildCodexMcpDelivery } from './codex/mcp-delivery.js';
 import type { McpDeliveryBuildInput } from './mcp-delivery-types.js';
-import type {
-   AcpMcpServerInput,
-} from '@jini-ai/agent-runtime';
+import type { AcpMcpServerInput } from '../ports/agent-runtime-sessions.js';
 import type { RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 import {
   isRecord,
