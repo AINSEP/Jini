@@ -1,6 +1,7 @@
 import { ChildProcess } from "node:child_process";
 import { PassThrough } from "node:stream";
 import { expect, test, vi } from "vitest";
+import type { ProcessControlPort } from "@jini-ai/core/contracts/runtime";
 import { createNodeDaemonProcessAdapter, type NodeDaemonProcessOptions, type SupervisorRegistry } from "../supervisor-node.js";
 import type { SpawnedDaemonProcess } from "../supervisor.js";
 
@@ -11,23 +12,23 @@ function harness(_required: Record<string, never>, { platform = "win32" }: { pla
   const stderr = new PassThrough();
   const native = Object.assign(new ChildProcess(), { pid: 42, stdin, stdout, stderr,
     kill: vi.fn<ChildProcess["kill"]>(() => { order.push("child-kill"); return true; }) });
-  const snapshots = vi.fn<NonNullable<NodeDaemonProcessOptions["listProcessSnapshots"]>>(async () => {
+  const snapshots = vi.fn<ProcessControlPort["listProcessSnapshots"]>(async () => {
     order.push("snapshot"); return [{ pid: 43, ppid: 42, command: "worker" }];
   });
-  const wait = vi.fn<NonNullable<NodeDaemonProcessOptions["waitForProcessExit"]>>(async () => {
+  const wait = vi.fn<ProcessControlPort["waitForProcessExit"]>(async () => {
     order.push("wait"); return true;
   });
   const force = vi.fn<NonNullable<NodeDaemonProcessOptions["execFileSync"]>>(() => { order.push("force"); });
   const signal = vi.fn<NonNullable<NodeDaemonProcessOptions["signalProcess"]>>(() => { order.push("signal"); return true; });
-  const stop = vi.fn<NonNullable<NodeDaemonProcessOptions["stopProcesses"]>>(async () => {
+  const stop = vi.fn<ProcessControlPort["stopProcesses"]>(async () => {
     order.push("stop");
     return { alreadyStopped: false, forcedPids: [], matchedPids: [43, 42], remainingPids: [], stoppedPids: [43, 42] };
   });
   const remove = vi.fn<SupervisorRegistry["removeIfCurrent"]>(async () => { order.push("remove"); });
   const registry: SupervisorRegistry = { readLive: async () => null, write: async () => {}, removeIfCurrent: remove };
-  const required = { command: process.execPath, args: ["daemon.js"], cwd: "/host", env: {}, registry };
-  const options: NodeDaemonProcessOptions = { platform, spawn: () => native, listProcessSnapshots: snapshots,
-    waitForProcessExit: wait, execFileSync: force, signalProcess: signal, stopProcesses: stop };
+  const required = { command: process.execPath, args: ["daemon.js"], cwd: "/host", env: {}, registry,
+    process: { listProcessSnapshots: snapshots, waitForProcessExit: wait, stopProcesses: stop }, commandShell: { platform: process.platform, fallbackComSpec: undefined } };
+  const options: NodeDaemonProcessOptions = { platform, spawn: () => native, execFileSync: force, signalProcess: signal };
   const adapter = createNodeDaemonProcessAdapter(required, options);
   return { adapter, required, options, native, stdin, stdout, stderr, snapshots, wait, force, signal, stop, remove, order };
 }
@@ -109,12 +110,12 @@ test("Windows requests snapshots and closes stdin before awaiting graceful exit"
   expect(h.stdin.writableEnded).toBe(true);
   expect(h.order).toEqual(["snapshot", "wait"]);
   expect(h.wait).toHaveBeenCalledTimes(1);
-  expect(h.wait).toHaveBeenCalledWith(42);
+  expect(h.wait).toHaveBeenCalledWith({ pid: 42 });
   release(true);
   await pending;
   expect(h.order).toEqual(["snapshot", "wait", "stop", "remove"]);
   expect(h.stop).toHaveBeenCalledTimes(1);
-  expect(h.stop).toHaveBeenCalledWith([43, 42]);
+  expect(h.stop).toHaveBeenCalledWith({ pids: [43, 42] });
   expect(h.remove).toHaveBeenCalledTimes(1);
   expect(h.remove).toHaveBeenCalledWith({ pid: 42 });
 });
@@ -131,7 +132,7 @@ test.each(["missing stdin", "close failure", "wait failure", "timeout"])("Window
   expect(h.force).toHaveBeenCalledWith("taskkill", ["/pid", "42", "/T", "/F"], { stdio: "ignore" });
   expect(child.kill).not.toHaveBeenCalled();
   expect(h.stop).toHaveBeenCalledTimes(1);
-  expect(h.stop).toHaveBeenCalledWith([43, 42]);
+  expect(h.stop).toHaveBeenCalledWith({ pids: [43, 42] });
   expect(h.remove).toHaveBeenCalledTimes(1);
   expect(h.remove).toHaveBeenCalledWith({ pid: 42 });
 });

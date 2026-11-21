@@ -73,7 +73,6 @@
     "@jini-ai/platform": "workspace:*"
   },
   "dependencies": {
-    "@jini-ai/core": "workspace:^",
-    "@jini-ai/platform": "workspace:^"
+    "@jini-ai/core": "workspace:^"
   }
 }
