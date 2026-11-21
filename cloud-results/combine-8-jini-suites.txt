@@ -1,0 +1,58 @@
+# combine-8 full suites — worktree /home/user/jt at 1aa27373 (fresh frozen install exit 0; pnpm --no-bail -r build exit 0, 0 error TS); npm --prefix packages/<p> run test -- --maxWorkers=2 --minWorkers=1
+agent-runtime exit 0       Tests  4537 passed | 1 skipped (4538)
+daemon exit 1       Tests  1 failed | 4843 passed | 1 skipped (4845)
+chat exit 0       Tests  4486 passed | 1 skipped (4487)
+cms exit 0       Tests  5002 passed (5002)
+core exit 0       Tests  2947 passed (2947)
+ui exit 0       Tests  8818 passed (8818)
+cli exit 0       Tests  605 passed (605)
+devops exit 0       Tests  1327 passed (1327)
+sidecar exit 0       Tests  406 passed | 3 skipped (409)
+platform exit 0       Tests  3354 passed | 6 skipped (3360)
+diagnostics exit 0       Tests  1090 passed (1090)
+mcp exit 0       Tests  1882 passed (1882)
+infra exit 0       Tests  155 passed (155)
+plugins exit 0       Tests  1015 passed (1015)
+agent-plugins exit 0       Tests  2198 passed | 2 skipped (2200)
+integrations exit 0       Tests  2077 passed (2077)
+daemon re-run with d017d5ff's test fix applied: exit 0       Tests  4844 passed | 1 skipped (4845)
+
+## the one daemon red (first run)
+ FAIL  src/http/__tests__/frontend-control.test.ts > createFrontendControl > what a host is given > exposes only the extension, the registrations and the run/request bind hooks
+AssertionError: expected [ 'begin', 'bindOnStarted', …(3) ] to deeply equal [ Array(4) ]
+
+- Expected
++ Received
+
+  Array [
++   "begin",
+    "bindOnStarted",
+    "bindRequest",
+    "routes",
+    "toolRegistrations",
+  ]
+
+ ❯ src/http/__tests__/frontend-control.test.ts:101:43
+     99|       const control = createFrontendControl({ capabilities: [PAGE_CLIC…
+    100| 
+    101|       expect(Object.keys(control).sort()).toEqual(['bindOnStarted', 'b…
+       |                                           ^
+
+## Test Files per package
+agent-plugins.txt: Test Files  150 passed (150)
+agent-runtime.txt: Test Files  192 passed (192)
+chat.txt: Test Files  318 passed | 1 skipped (319)
+cli.txt: Test Files  35 passed (35)
+cms.txt: Test Files  428 passed (428)
+core.txt: Test Files  213 passed (213)
+daemon-rerun.txt: Test Files  250 passed | 1 skipped (251)
+daemon.txt: Test Files  1 failed | 249 passed | 1 skipped (251)
+devops.txt: Test Files  91 passed (91)
+diagnostics.txt: Test Files  68 passed (68)
+infra.txt: Test Files  15 passed (15)
+integrations.txt: Test Files  101 passed (101)
+mcp.txt: Test Files  113 passed (113)
+platform.txt: Test Files  180 passed (180)
+plugins.txt: Test Files  75 passed (75)
+sidecar.txt: Test Files  30 passed (30)
+ui.txt: Test Files  650 passed (650)
