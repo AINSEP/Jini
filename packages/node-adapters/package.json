@@ -57,7 +57,7 @@
     "@jini-ai/platform": "workspace:^"
   },
   "peerDependencies": {
-    "@jini-ai/agent-plugins": "workspace:^"
+    "@jini-ai/agent-plugins": "^0.7.3-next.1"
   },
   "peerDependenciesMeta": {
     "@jini-ai/agent-plugins": {
