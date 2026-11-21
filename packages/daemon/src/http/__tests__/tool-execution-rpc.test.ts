@@ -367,7 +367,7 @@ describe('remote tool RPC — body parser and gate order', () => {
     const executeCalls = vi.fn();
     const { baseUrl } = await serve({ executor: { ...executorWith(), execute: executeCalls } }, { maxBodyBytes: 1024 });
     const body = JSON.stringify({ executionId: 'e', principal, run, toolId: 'x', input: 'z'.repeat(1024 * 1024) });
-    const response = await rawRequest(baseUrl, { method: 'POST', path: '/internal/tool-executions', body });
+    const response = await rawRequest(baseUrl, { method: 'POST', path: '/internal/tool-executions', headers: { 'content-type': 'application/json', 'content-length': String(Buffer.byteLength(body)) } });
     expect(response.status).toBe(401);
     expect(executeCalls).not.toHaveBeenCalled();
     // The same body, authenticated, is read and refused for its size: the 401 above is the gate's, not the limit's.

@@ -142,7 +142,10 @@ function sameFile(a: FileIdentity, b: FileIdentity): boolean { return a.ino === 
 function sameStat(a: FileIdentity & { mtimeMs: number }, b: FileIdentity & { mtimeMs: number }): boolean { return sameFile(a, b) && a.mtimeMs === b.mtimeMs; }
 function unchanged(a: LockSnapshot, b: LockSnapshot): boolean { return sameStat(a, b) && a.raw === b.raw; }
 function stale(observed: LockSnapshot, current: LockSnapshot, s: Settings): boolean {
-  return unchanged(observed, current) && isLockStale({ nowMs: s.clock.nowMs(), mtimeMs: observed.mtimeMs, staleMs: s.staleMs, ownerAlive: ownerAlive(current, s), observedInode: observed.ino, currentInode: current.ino, observedDevice: observed.dev, currentDevice: current.dev });
+  if (!unchanged(observed, current)) return false;
+  const alive = ownerAlive(current, s);
+  if (current.holder !== undefined && alive !== false) return false;
+  return isLockStale({ nowMs: s.clock.nowMs(), mtimeMs: observed.mtimeMs, staleMs: s.staleMs, ownerAlive: alive, observedInode: observed.ino, currentInode: current.ino, observedDevice: observed.dev, currentDevice: current.dev });
 }
 function messagesOption(options: FileLockOptions): { messages?: PlatformMessages } { return options.messages ? { messages: options.messages } : {}; }
 function checkTimeout(lockPath: string, holder: FileLockHolder | undefined, start: number, s: Settings, options: FileLockOptions): void {
