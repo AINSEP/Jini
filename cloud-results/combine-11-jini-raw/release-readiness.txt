@@ -1,0 +1,64 @@
+=== pnpm guard:plugins
+
+> jini@ guard:plugins /home/user/Jini
+> node --import tsx ./scripts/check-plugin-packages.ts && node --import tsx ./scripts/check-agent-plugin-content.ts
+
+EXIT 0
+=== pnpm guard:plugins:packed
+
+> jini@ guard:plugins:packed /home/user/Jini
+> node --import tsx ./scripts/check-plugin-packages.ts --packed
+
+EXIT 0
+=== pnpm guard:plugins:catalog
+
+> jini@ guard:plugins:catalog /home/user/Jini
+> pnpm --filter @jini-ai/plugin-catalog run generate && pnpm --filter @jini-ai/plugin-catalog run test
+
+
+> @jini-ai/plugin-catalog@0.7.3-next.1 generate /home/user/Jini/packages/plugin-catalog
+> node --import tsx scripts/generate.ts
+
+
+> @jini-ai/plugin-catalog@0.7.3-next.1 test /home/user/Jini/packages/plugin-catalog
+> vitest run
+
+
+ RUN  v3.2.7 /home/user/Jini/packages/plugin-catalog
+
+npm warn Unknown env config "disallow-workspace-cycles". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown env config "prefer-workspace-packages". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown env config "verify-deps-before-run". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown env config "minimum-release-age". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown env config "npm-globalconfig". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown env config "package-extensions". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown env config "link-workspace-packages". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown env config "recursive". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown env config "_jsr-registry". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm notice
+npm notice package: @jini-ai/plugin-catalog@0.7.3-next.1
+npm notice Tarball Contents
+npm notice 11.3kB LICENSE
+npm notice 256B NOTICE
+npm notice 2.6kB README.md
+npm notice 92.6kB catalog.json
+npm notice 905B package.json
+npm notice Tarball Details
+npm notice name: @jini-ai/plugin-catalog
+npm notice version: 0.7.3-next.1
+npm notice filename: jini-ai-plugin-catalog-0.7.3-next.1.tgz
+npm notice package size: 34.3 kB
+npm notice unpacked size: 107.7 kB
+npm notice shasum: a8bd38fc70041986ad275ce7f1044a1569f28b07
+npm notice integrity: sha512-NIYJV9PmJGYgT[...]wJTyg56QliZSQ==
+npm notice total files: 5
+npm notice
+ ✓ __tests__/catalog.test.ts (68 tests) 438ms
+   ✓ standalone plugin catalog > packs only metadata and documentation into the actual npm tarball  351ms
+
+ Test Files  1 passed (1)
+      Tests  68 passed (68)
+   Start at  19:59:04
+   Duration  776ms (transform 94ms, setup 0ms, collect 120ms, tests 438ms, environment 0ms, prepare 64ms)
+
+EXIT 0

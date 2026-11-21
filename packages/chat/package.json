@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/chat",
-  "version": "0.7.3-next.1",
+  "version": "0.7.3-next.2",
   "description": "Jini's chat/artifact frontend, consolidated into one package with two subpaths: framework-free chat vocabulary and pure parsers in `/core`, headless hooks + presentational components + slots in `/react`. Import only the layer you need.",
   "license": "Apache-2.0",
   "repository": {
@@ -259,8 +259,8 @@
     "@radix-ui/react-radio-group": "^1.4.7",
     "@radix-ui/react-select": "^2.3.7",
     "@radix-ui/react-slot": "^1.3.3",
-    "@jini-ai/agent-runtime": "^0.7.3-next.1",
-    "@jini-ai/ui": "^0.7.3-next.1"
+    "@jini-ai/agent-runtime": "^0.7.3-next.2",
+    "@jini-ai/ui": "^0.7.3-next.2"
   },
   "devDependencies": {
     "@jini-ai/ui-kit": "workspace:^",

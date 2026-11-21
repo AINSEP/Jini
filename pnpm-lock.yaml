@@ -383,7 +383,7 @@ importers:
   packages/agent-plugins:
     dependencies:
       '@jini-ai/commerce':
-        specifier: ^0.7.3-next.1
+        specifier: ^0.7.3-next.2
         version: link:../commerce
       yauzl:
         specifier: ^3.4.0
