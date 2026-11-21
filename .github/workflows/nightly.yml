@@ -1,0 +1,66 @@
+name: Nightly
+
+on:
+  schedule: [{ cron: '37 3 * * 2,5' }]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  full-suites:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - name: Dependency audit (report-only)
+        run: pnpm audit
+        continue-on-error: true
+
+      - run: pnpm -r run build
+        id: build
+
+      - name: workspace tests
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: pnpm -r --workspace-concurrency=1 --no-bail --if-present run test
+
+      - name: script tests (Vitest)
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: pnpm exec vitest run scripts/__tests__
+
+      - name: script tests (Node)
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: pnpm run test:scripts:node
+
+      - name: SonarJS (report-only; counts per rule)
+        if: ${{ !cancelled() }}
+        run: pnpm quality:sonar
+        continue-on-error: true
+
+      # Initial quality-tool rollout: observations only, never included in the gate below.
+      - name: knip (report-only)
+        if: ${{ !cancelled() }}
+        run: pnpm quality:knip
+        continue-on-error: true
+
+      - name: dependency-cruiser (report-only)
+        if: ${{ !cancelled() }}
+        run: pnpm quality:depcruise
+        continue-on-error: true
+
+      - name: fast-check properties (report-only)
+        if: ${{ !cancelled() }}
+        run: pnpm quality:properties
+        continue-on-error: true
+
