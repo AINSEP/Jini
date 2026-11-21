@@ -1,6 +1,6 @@
 import { promises as fs } from 'node:fs';
 import { isDeepStrictEqual } from 'node:util';
-import { backupOriginalOnce, withFileLock, writeFileAtomicAsync } from '@jini-ai/platform/fs';
+import type { AtomicFileWriterPort, FileLockPort } from '@jini-ai/core/contracts/runtime';
 import { applyJsonInstall, isAgentSlug, planAgentInstall, type McpLaunchSpec, type PlanContext } from './install.js';
 
 /** Missing is the only condition permitting creation; reject symlinks even for an unchanged entry. */
@@ -21,12 +21,18 @@ function assertCredentialFree({ spec }: { spec: McpLaunchSpec }): void {
   }
 }
 
+/** The host's file effects: Node hosts pass `{ fileLock: nodeFileLock, writer: nodeAtomicWriter }` from `@jini-ai/node-adapters/fs`. */
+export interface OwnedJsonInstallFiles {
+  readonly fileLock: FileLockPort;
+  readonly writer: Pick<AtomicFileWriterPort, 'writeText' | 'backupOriginalOnce'>;
+}
+
 /** Install one owned static connector after explicit consent, preserving foreign data and a first backup.
  * The host must call this only for a CLI without a temporary config path. No token is accepted or minted.
  * @complexity O(config bytes) time and space; one locked read and, when changed, backup plus atomic write.
  */
 export async function installOwnedJsonAgent(
-  required: { agentId: string; spec: McpLaunchSpec; ctx: PlanContext; allowed: boolean },
+  required: { agentId: string; spec: McpLaunchSpec; ctx: PlanContext; allowed: boolean; files: OwnedJsonInstallFiles },
   _optional: Record<string, never> = {},
 ): Promise<void> {
   if (required.allowed !== true) throw new Error('Allow this agent to change its settings outside the host before installing its connector.');
@@ -35,11 +41,12 @@ export async function installOwnedJsonAgent(
   if (!isAgentSlug(slug)) throw new Error('Unknown MCP agent installation');
   const plan = planAgentInstall({ slug: slug.value, spec: required.spec, ctx: required.ctx });
   if (plan.kind !== 'json') throw new Error('MCP installation does not use a JSON registry');
-  await withFileLock({ lockPath: `${plan.configPath}.jini-lock`, run: async () => {
+  const { fileLock, writer } = required.files;
+  await fileLock.withFileLock({ lockPath: `${plan.configPath}.jini-lock`, run: async () => {
     const existingText = await readConfig({ path: plan.configPath });
     const content = applyJsonInstall({ existingText, plan });
     if (existingText !== null && isDeepStrictEqual(JSON.parse(existingText), JSON.parse(content))) return;
-    if (existingText !== null) await backupOriginalOnce({ filePath: plan.configPath });
-    await writeFileAtomicAsync({ filePath: plan.configPath, content }, { refuseSymlink: true });
+    if (existingText !== null) await writer.backupOriginalOnce({ filePath: plan.configPath });
+    await writer.writeText({ filePath: plan.configPath, content }, { refuseSymlink: true });
   } }, { createParent: true, timeoutMs: 5000 });
 }

@@ -52,7 +52,6 @@
   {"rule": "L5-injected-edge", "file": "packages/integrations/src/media-providers/dispatch/outbound.ts", "spec": "@jini-ai/platform/http/guarded", "kind": "import", "count": 1, "lane": "L-PLATFORM"},
   {"rule": "L5-injected-edge", "file": "packages/integrations/src/saved-requests/execute.ts", "spec": "@jini-ai/platform/http/guarded", "kind": "import", "count": 1, "lane": "L-PLATFORM"},
   {"rule": "L5-injected-edge", "file": "packages/mcp/package.json", "spec": "@jini-ai/platform", "kind": "manifest-dependencies", "count": 1, "lane": "L-PLATFORM"},
-  {"rule": "L5-injected-edge", "file": "packages/mcp/src/agent-install/owned-json-install.ts", "spec": "@jini-ai/platform/fs", "kind": "import", "count": 1, "lane": "L-PLATFORM"},
   {"rule": "L5-injected-edge", "file": "packages/sidecar/package.json", "spec": "@jini-ai/platform", "kind": "manifest-dependencies", "count": 1, "lane": "L-PLATFORM"},
   {"rule": "L5-injected-edge", "file": "packages/sidecar/src/json-file.ts", "spec": "@jini-ai/platform/fs", "kind": "import", "count": 1, "lane": "L-PLATFORM"},
   {"rule": "L5-injected-edge", "file": "packages/sidecar/src/supervision/supervisor-node.ts", "spec": "@jini-ai/platform/command", "kind": "import", "count": 1, "lane": "L-PLATFORM"},
