@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/node-adapters",
-  "version": "0.7.1",
+  "version": "0.7.3-next.1",
   "description": "Node bindings of the engine's runtime ports (file lock, atomic file writer, process control) over @jini-ai/platform functions. Bindings only: assembles nothing.",
   "license": "Apache-2.0",
   "repository": {
