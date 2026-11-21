@@ -279,6 +279,7 @@ export interface PluginCapabilitySourceDeps {
 export interface PluginCapabilityToolsRequired<TPost extends PluginCapabilityPost, TDraft, TFamily extends string> {
   /** @agent-note Namespace passed to `readPluginIdentity` for the discovery terms. */
   readonly identityNamespace: string;
+  readonly legacyIdentityNamespace?: string | undefined;
   /** The host SDK's before-save hook id (the same id its `PluginSdkBinding.hookIds` admits and its
    *  invocation binding receives as `beforeSaveHook`).
    *  @agent-note Second-host rule: required, no default. A tier-2 plugin whose manifest `hooks`
@@ -389,8 +390,8 @@ export function createPluginCapabilityTools<TPost extends PluginCapabilityPost, 
   required: PluginCapabilityToolsRequired<TPost, TDraft, TFamily>,
   _optional: Record<string, never> = {},
 ): PluginCapabilityTools<TPost, TDraft, TFamily> {
-  const { identityNamespace, beforeSaveHook, text, catalog, access, executableAccess, approvalFamily, toPreviewDraft } = required;
-  const host = { identityNamespace, beforeSaveHook, text, catalog, access, executableAccess, approvalFamily, toPreviewDraft };
+  const { identityNamespace, legacyIdentityNamespace, beforeSaveHook, text, catalog, access, executableAccess, approvalFamily, toPreviewDraft } = required;
+  const host = { identityNamespace, legacyIdentityNamespace, beforeSaveHook, text, catalog, access, executableAccess, approvalFamily, toPreviewDraft };
   return {
     loadSources: (deps) => loadEnabledPluginCapabilityToolSources(host, deps),
     buildRegistrations: (args) => buildPluginCapabilityToolRegistrations(host, args),
@@ -434,8 +435,8 @@ function buildFieldSources<TPost extends PluginCapabilityPost, TDraft, TFamily e
  * call it and what an empty result means.
  */
 function buildCapabilityToolDescription<TPost extends PluginCapabilityPost, TDraft, TFamily extends string>(host: PluginCapabilityToolsRequired<TPost, TDraft, TFamily>, manifest: PluginManifest, fields: readonly PluginCapabilityFieldSource[]): string {
-  const { identityNamespace, beforeSaveHook, text } = host;
-  const identity = readPluginIdentity({ manifest: manifest as unknown as Readonly<Record<string, unknown>>, name: manifest.id, namespace: identityNamespace });
+  const { identityNamespace, legacyIdentityNamespace, beforeSaveHook, text } = host;
+  const identity = readPluginIdentity({ manifest: manifest as unknown as Readonly<Record<string, unknown>>, name: manifest.id, namespace: identityNamespace, legacyNamespace: legacyIdentityNamespace });
   const fieldText = fields.map((field) => field.description).join(" ") + text.discovery({ terms: [identity.id, ...identity.keywords, ...identity.provides].join(" ") });
   if (runsFreshFor(manifest, beforeSaveHook)) {
     return text.freshDescription({ pluginName: manifest.name, fieldText });

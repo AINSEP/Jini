@@ -94,6 +94,7 @@ export interface PluginHostDeps<UninstallInput, Layout extends AgentPluginLayout
   /** @agent-note Your app's id; it is the namespace of every plugin identity this host reads and
    * admits, so it must not change between installs. */
   readonly namespace: string;
+  readonly legacySiteIdentityNamespace?: string;
   /** @agent-note Provider: the site-runtime plugin discovery owner. Metadata only, fresh per call. */
   readonly discoverPlugins: () => Promise<readonly PluginHostDiscoveryRecord[]>;
   /** @agent-note Provider: the site-runtime activation repo point read (same repo the runtime uses). */
@@ -184,7 +185,7 @@ async function listSiteProviders<UninstallInput, Layout extends AgentPluginLayou
       continue;
     }
     let parsed: ReturnType<typeof readPluginIdentity> | undefined;
-    try { parsed = readPluginIdentity({ manifest: record.manifest as Readonly<Record<string, unknown>>, name: record.id, namespace: deps.namespace }); }
+    try { parsed = readPluginIdentity({ manifest: record.manifest as Readonly<Record<string, unknown>>, name: record.id, namespace: deps.namespace, legacyNamespace: deps.legacySiteIdentityNamespace }); }
     catch { warn(`Plugin '${record.id}': installed identity manifest is unreadable or invalid; omitted from metadata lookup.`); }
     if (parsed) {
       const { warnings, ...identity } = parsed;
