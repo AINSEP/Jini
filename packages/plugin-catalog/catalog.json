@@ -422,7 +422,7 @@
       "skills/github/references/site-backup.md": "sha256-542a2304414effd0240fb9d1b53bd46bd59ebdb3d83757997bdd4137f7f56793",
       "skills/github/references/source-control.md": "sha256-e603e0c153e84cda8728512427516d0e0d81d3d7c3654ccf0d9ad5481118a90c",
       "source-control/backup-push.mjs": "sha256-bc54d81689d29912b3267a475351ed119f7ee314fb901258cdaafd5d380fdc43",
-      "source-control/commit-site.mjs": "sha256-58565a6df7d53a60961f36b29eabbffc7a9e71cd087db344fdc2f13d0a6209ce",
+      "source-control/commit-site.mjs": "sha256-0f2b56da3b7592398f258f6ee45d320e7200264cab414edb2b4bb9e1b457b4e1",
       "source-control/github.mjs": "sha256-0155633fbd2db2c2cb043666f2c313e9f7ba11f1c8044fba9df4ccccf93f724b",
       "source-control/write-files.mjs": "sha256-9048d4a3cf8b93057c7e2a051f4f55ab6dfbf0648deb846b348cb9d9cc2e1aa9"
     }
