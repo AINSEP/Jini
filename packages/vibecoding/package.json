@@ -94,7 +94,7 @@
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "typescript": "^5.9.2",
-    "vitest": "^3.2.4",
+    "vitest": "^3.2.6",
     "@jini-ai/core": "workspace:*",
     "parse5": "^8.0.1",
     "@jini-ai/platform": "workspace:^"

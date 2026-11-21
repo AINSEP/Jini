@@ -28,3 +28,11 @@ disallowWorkspaceCycles: true
 minimumReleaseAge: 20160
 minimumReleaseAgeExclude:
   - '@jini-ai/*'
+
+# Vitest 3's `optional-types.d.ts` re-exports `jsdom` types. pnpm's hidden hoisting then exposes
+# `@types/jsdom`, whose `/// <reference lib="dom" />` swaps the global `BodyInit`/`RequestInit` of
+# node-only packages (platform, http-kit) from undici-types to DOM when their tsconfig includes tests.
+# Packages that test with jsdom declare `@types/jsdom` themselves and are unaffected. (deps-1121)
+hoistPattern:
+  - '*'
+  - '!@types/jsdom'

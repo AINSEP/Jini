@@ -55,6 +55,6 @@
     "@jini-ai/registry": "workspace:^"
   },
   "devDependencies": {
-    "@vitest/coverage-v8": "^2.1.9"
+    "@vitest/coverage-v8": "^3.2.6"
   }
 }
