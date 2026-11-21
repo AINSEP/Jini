@@ -7,10 +7,12 @@
  * sites. `findings` is every finding of the three rules on that copy, as `line:rule`. The exemption
  * is proven on real shapes, not on shapes written to pass.
  */
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { Linter } from 'eslint';
 import { expect, test } from 'vitest';
-import { compareErrorGateDebt, errorGateConfig, findErrorGateViolations, sanctionedModules } from '../check-error-gate.mjs';
+import { compareErrorGateDebt, errorGateConfig, findErrorGateViolations, sanctionedModules, updateErrorGateDebt } from '../check-error-gate.mjs';
 
 interface CopiedSite { site: string; kind: string; expect: 'passes' | 'flagged'; catchLine: number; findings: string[]; imports: string[]; code: string }
 const copiedSites = JSON.parse(readFileSync(new URL('./fixtures/error-gate/sites.json', import.meta.url), 'utf8')) as CopiedSite[];
@@ -194,4 +196,54 @@ test('the debt comparison reports new, worse, improved and gone entries by file 
   expect(result.worsened).toEqual([{ prior: entry('a.ts', 2), violation: entry('a.ts', 3) }]);
   expect(result.improved).toEqual([{ prior: entry('b.ts', 3), violation: entry('b.ts', 1) }]);
   expect(result.stale).toEqual([entry('d.ts', 1)]);
+});
+
+test('a full update refuses new and worsened debt without changing ledger bytes', ({ onTestFinished }) => {
+  const dir = mkdtempSync(join(tmpdir(), 'jini-error-gate-'));
+  onTestFinished(() => rmSync(dir, { recursive: true, force: true }));
+  const debtPath = join(dir, 'debt.json');
+  writeFileSync(debtPath, JSON.stringify([{ file: 'a.ts', rule: 'catch-reads-error', value: 1 }]));
+  const before = readFileSync(debtPath);
+  const current = [
+    { file: 'a.ts', rule: 'catch-reads-error', value: 2 },
+    { file: 'b.ts', rule: 'catch-reads-error', value: 1 },
+  ];
+  expect(updateErrorGateDebt({ debtPath, current, scoped: false }), 'A full update must refuse new and worsened debt').toBe(1);
+  expect(readFileSync(debtPath), 'Refusing growth must preserve every ledger byte').toEqual(before);
+});
+
+test('a scoped update refuses an apparent shrink without changing ledger bytes', ({ onTestFinished }) => {
+  const dir = mkdtempSync(join(tmpdir(), 'jini-error-gate-'));
+  onTestFinished(() => rmSync(dir, { recursive: true, force: true }));
+  const debtPath = join(dir, 'debt.json');
+  writeFileSync(debtPath, JSON.stringify([
+    { file: 'a.ts', rule: 'catch-reads-error', value: 1 },
+    { file: 'b.ts', rule: 'catch-reads-error', value: 1 },
+  ]));
+  const before = readFileSync(debtPath);
+  const current = [{ file: 'a.ts', rule: 'catch-reads-error', value: 1 }];
+  expect(updateErrorGateDebt({ debtPath, current, scoped: true }), 'A scoped scan must never replace the full ledger').toBe(1);
+  expect(readFileSync(debtPath), 'Refusing a scoped update must preserve every ledger byte').toEqual(before);
+});
+
+test('a full shrink writes only the surviving debt rows', ({ onTestFinished }) => {
+  const dir = mkdtempSync(join(tmpdir(), 'jini-error-gate-'));
+  onTestFinished(() => rmSync(dir, { recursive: true, force: true }));
+  const debtPath = join(dir, 'debt.json');
+  writeFileSync(debtPath, JSON.stringify([
+    { file: 'a.ts', rule: 'catch-reads-error', value: 2 },
+    { file: 'b.ts', rule: 'catch-reads-error', value: 1 },
+  ]));
+  const current = [{ file: 'a.ts', rule: 'catch-reads-error', value: 1 }];
+  expect(updateErrorGateDebt({ debtPath, current, scoped: false }), 'A full scan may lower the recorded debt').toBe(0);
+  expect(readFileSync(debtPath, 'utf8'), 'The ledger must contain only surviving rows with their reduced counts').toBe(`${JSON.stringify(current, null, 2)}\n`);
+});
+
+test('the first full update creates an absent ledger', ({ onTestFinished }) => {
+  const dir = mkdtempSync(join(tmpdir(), 'jini-error-gate-'));
+  onTestFinished(() => rmSync(dir, { recursive: true, force: true }));
+  const debtPath = join(dir, 'debt.json');
+  const current = [{ file: 'a.ts', rule: 'catch-reads-error', value: 1 }];
+  expect(updateErrorGateDebt({ debtPath, current, scoped: false }), 'The first full update must create the baseline').toBe(0);
+  expect(readFileSync(debtPath, 'utf8'), 'The initial ledger must store the full scan with the existing serialization').toBe(`${JSON.stringify(current, null, 2)}\n`);
 });
