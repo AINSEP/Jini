@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/agent-plugins",
-  "version": "0.7.1",
+  "version": "0.7.3-next.1",
   "description": "Support for Agent Plugins: vendor-neutral manifest types and validators, installation, activation, digests and trusted contribution loading. Every Jini agent plugin ships here as its own subpath (@jini-ai/agent-plugins/<id>); resolving one never loads another plugin's files.",
   "license": "Apache-2.0",
   "repository": {
@@ -15,7 +15,6 @@
     "entries": {
       ".": "universal",
       "./lifecycle": "node",
-      "./lifecycle/node": "node",
       "./lifecycle/yauzl": "node",
       "./lifecycle/tools": "node",
       "./lifecycle/host-tools": "node",
@@ -124,7 +123,6 @@
     },
     "optionalPeers": {
       "yauzl": "opt-in: plugin zip import — Plugin ZIP import could not load yauzl. Install yauzl to enable this feature, or check its installed version and native binaries.",
-      "@jini-ai/platform": "opt-in: platform-backed adapters; import @jini-ai/agent-plugins/lifecycle — Platform-backed adapters could not load @jini-ai/platform. Install @jini-ai/platform to enable this feature, or check its installed version and native binaries.",
       "@cfworker/json-schema": "opt-in: json schema validation; import @jini-ai/agent-plugins/lifecycle/tools, import @jini-ai/agent-plugins/connect/executable — JSON Schema validation could not load @cfworker/json-schema. Install @cfworker/json-schema to enable this feature, or check its installed version and native binaries.",
       "semver": "opt-in: plugin version compatibility; import @jini-ai/agent-plugins/lifecycle, import @jini-ai/agent-plugins/lifecycle/host-tools — Plugin version compatibility could not load semver. Install semver to enable this feature, or check its installed version and native binaries.",
       "@jini-ai/commerce": "opt-in: commerce server; import @jini-ai/agent-plugins/commerce/server — Commerce checkout requires the host commerce kernel."
@@ -142,11 +140,6 @@
       "types": "./dist/lifecycle/index.d.ts",
       "import": "./dist/lifecycle/index.js",
       "default": "./dist/lifecycle/index.js"
-    },
-    "./lifecycle/node": {
-      "types": "./dist/lifecycle/node.d.ts",
-      "import": "./dist/lifecycle/node.js",
-      "default": "./dist/lifecycle/node.js"
     },
     "./lifecycle/yauzl": {
       "types": "./dist/lifecycle/yauzl-archive-reader.d.ts",
@@ -370,8 +363,8 @@
   "devDependencies": {
     "@vitest/coverage-v8": "^2.1.9",
     "yazl": "^3.3.1",
-    "@jini-ai/core": "^0.7.1",
-    "@jini-ai/platform": "^0.7.1",
+    "@jini-ai/core": "workspace:^",
+    "@jini-ai/platform": "workspace:^",
     "@cfworker/json-schema": "^4.1.1",
     "@jini-ai/cms": "workspace:^",
     "@jini-ai/plugins": "workspace:^",
@@ -384,17 +377,13 @@
   },
   "peerDependencies": {
     "yauzl": "^3.4.0",
-    "@jini-ai/core": "^0.7.0",
-    "@jini-ai/platform": "^0.7.0",
+    "@jini-ai/core": "^0.7.3-next.1",
     "@cfworker/json-schema": "^4.1.1",
     "semver": "^7.6.2",
-    "@jini-ai/commerce": "^0.7.0"
+    "@jini-ai/commerce": "^0.7.3-next.1"
   },
   "peerDependenciesMeta": {
     "yauzl": {
-      "optional": true
-    },
-    "@jini-ai/platform": {
       "optional": true
     },
     "@cfworker/json-schema": {

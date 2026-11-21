@@ -1,5 +1,6 @@
 import type { PluginLookupPort } from "@jini-ai/core/plugin-directory";
 import type { Clock as ClockPort } from "@jini-ai/core/primitives";
+import type { FileLockPort } from "@jini-ai/core/contracts/runtime";
 import type { PluginActivationRepoPort } from "../activation.js";
 import type { PluginContributionRegistry } from "../contributions.js";
 import type { AdmittedBrowserProvider } from "../browser-providers.js";
@@ -117,6 +118,8 @@ export interface PluginRuntimeHostBinding {
   readonly archiveReader: ArchiveReaderPort;
   readonly verifyDigest: VerifyDigestPort;
   readonly createInvocationCoreDeps: RunTier2CallRequired["createInvocationCoreDeps"];
+  /** Serializes plugin source edits with seal snapshots; Node hosts pass `nodeFileLock` of `@jini-ai/node-adapters/fs`. */
+  readonly fileLock: FileLockPort;
 }
 
 /** Only the tracker member the runtime calls. @agent-note The host supplies the event vocabulary

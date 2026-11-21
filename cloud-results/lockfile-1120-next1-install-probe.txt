@@ -1,0 +1,18 @@
+OK   @jini-ai/node-adapters/agent-plugins
+OK   @jini-ai/node-adapters/fs
+OK   @jini-ai/node-adapters/process
+OK   @jini-ai/sidecar/supervisor/node
+OK   @jini-ai/sidecar
+OK   @jini-ai/mcp
+FAIL @jini-ai/plugins/host/node ERR_MODULE_NOT_FOUND Cannot find package 'semver' imported from /tmp/claude-0/pack2/consumer/node_modules/@jini-ai/plugins/dist/host/node/discovery.js
+FAIL @jini-ai/agent-plugins/lifecycle ERR_MODULE_NOT_FOUND Cannot find package 'semver' imported from /tmp/claude-0/pack2/consumer/node_modules/@jini-ai/agent-plugins/dist/lifecycle/update-plan.js
+OK   @jini-ai/daemon
+OK   @jini-ai/core/errors/idioms
+OK   @jini-ai/admin
+OK   @jini-ai/oauth
+core 0.7.3-next.1 core: -
+admin 0.7.3-next.1 core: ^0.7.3-next.1
+oauth 0.7.3-next.1 core: ^0.7.3-next.1
+node-adapters 0.7.3-next.1 core: ^0.7.3-next.1
+agent-plugins 0.7.3-next.1 core: ^0.7.3-next.1
+failures 2

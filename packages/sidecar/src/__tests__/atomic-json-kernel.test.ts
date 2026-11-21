@@ -3,6 +3,9 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { writeJsonFile } from '../json-file.js';
+import { writeJsonFileAtomicAsync } from '@jini-ai/platform/fs';
+/** The real atomic writer (platform is a test dependency); hosts pass node-adapters' `nodeAtomicWriter`. */
+const testWriter = { writeJson: writeJsonFileAtomicAsync };
 
 // The shared writer uses named filesystem exports; intercept those bindings
 // while retaining real file I/O and real handles for durability assertions.
@@ -46,7 +49,7 @@ describe('runtime JSON durability through the platform writer', () => {
       order.push('rename');
       await rename(from, to);
     });
-    await writeJsonFile({ filePath, payload: { runId: 'run-1' } });
+    await writeJsonFile({ writer: testWriter, filePath, payload: { runId: 'run-1' } });
     expect(order).toEqual(['file-sync', 'rename', 'directory-sync']);
     expect(await fs.readFile(filePath, 'utf8')).toBe('{\n  "runId": "run-1"\n}\n');
   });
@@ -57,7 +60,7 @@ describe('runtime JSON durability through the platform writer', () => {
     await fs.writeFile(filePath, '{}\n');
     const mode = (0o666 & ~process.umask()) ^ 0o040;
     await fs.chmod(filePath, mode);
-    await writeJsonFile({ filePath, payload: { value: 2 } });
+    await writeJsonFile({ writer: testWriter, filePath, payload: { value: 2 } });
     expect((await fs.stat(filePath)).mode & 0o777).toBe(mode);
   });
 
@@ -72,7 +75,7 @@ describe('runtime JSON durability through the platform writer', () => {
       if (flags === 'wx') vi.spyOn(handle, 'sync').mockRejectedValue(failure);
       return handle;
     });
-    await expect(writeJsonFile({ filePath, payload: { value: 3 } })).rejects.toBe(failure);
+    await expect(writeJsonFile({ writer: testWriter, filePath, payload: { value: 3 } })).rejects.toBe(failure);
     expect(await fs.readFile(filePath, 'utf8')).toBe('old\n');
     expect(await fs.readdir(path.dirname(filePath))).toEqual(['state.json']);
   });
@@ -81,7 +84,7 @@ describe('runtime JSON durability through the platform writer', () => {
   it('rejects unserializable payloads before replacing the destination', async () => {
     const filePath = await destination();
     await fs.writeFile(filePath, 'old\n');
-    await expect(writeJsonFile({ filePath, payload: undefined })).rejects.toBeInstanceOf(TypeError);
+    await expect(writeJsonFile({ writer: testWriter, filePath, payload: undefined })).rejects.toBeInstanceOf(TypeError);
     expect(await fs.readFile(filePath, 'utf8')).toBe('old\n');
   });
 
@@ -96,7 +99,7 @@ describe('runtime JSON durability through the platform writer', () => {
       if (String(target) === path.dirname(filePath)) vi.spyOn(handle, 'sync').mockRejectedValue(failure);
       return handle;
     });
-    await expect(writeJsonFile({ filePath, payload: { value: 4 } })).rejects.toBe(failure);
+    await expect(writeJsonFile({ writer: testWriter, filePath, payload: { value: 4 } })).rejects.toBe(failure);
     expect(await fs.readFile(filePath, 'utf8')).toBe('{\n  "value": 4\n}\n');
     expect(await fs.readdir(path.dirname(filePath))).toEqual(['state.json']);
   });

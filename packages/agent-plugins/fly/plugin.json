@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "fly",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Deploys the host's server to fly.io: one machine only for volume-backed state, secrets never in fly.toml, deploying ships code, not content. Contributes Fly operations, server config generation and the FlyV1 credential scheme.",
   "author": "Jini",
   "license": "Apache-2.0",

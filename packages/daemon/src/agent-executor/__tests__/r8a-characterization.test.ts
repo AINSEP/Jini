@@ -147,23 +147,18 @@ describe('R14: every CLI argument reaches spawn', () => {
   });
 
   it('quotes and percent-escapes (exact golden) and marks verbatim a win32 .cmd shim without dropping an argument', async () => {
-    const platform = Object.getOwnPropertyDescriptor(process, 'platform')!;
-    Object.defineProperty(process, 'platform', { ...platform, value: 'win32' });
-    try {
-      const child = createFakeChild(6201);
-      const calls: Array<{ command: string; args: readonly string[]; options: Record<string, unknown> }> = [];
-      const rig = createRig({ def: createDef({ buildArgs: () => ARGS }), spawn: recordSpawn(child, calls), launchPath: 'C:\\agent\\agent.cmd' });
-      const runId = await rig.start();
-      await rig.executor.run({ runId, agentId: 'r8a-agent', prompt: 'hi', cwd: '/work' });
-      expect(calls).toHaveLength(1);
-      const spawned = calls[0]!;
-      expect(spawned.options.windowsVerbatimArguments).toBe(true);
-      // Golden: the planner's exact output today (quoting and the `^%` escape), joined for readability.
-      expect(spawned.args.join(' ')).toBe('/d /s /c "C:\\agent\\agent.cmd --mode plan "a b" "50"^%"""');
-      child.emit('close', 0, null);
-      await rig.lifecycle.waitForTerminal({ runId });
-    } finally {
-      Object.defineProperty(process, 'platform', platform);
-    }
+    // The shell's platform is a host-stated input, so a Linux run pins win32 without touching `process`.
+    const child = createFakeChild(6201);
+    const calls: Array<{ command: string; args: readonly string[]; options: Record<string, unknown> }> = [];
+    const rig = createRig({ def: createDef({ buildArgs: () => ARGS }), spawn: recordSpawn(child, calls), launchPath: 'C:\\agent\\agent.cmd', platform: 'win32' });
+    const runId = await rig.start();
+    await rig.executor.run({ runId, agentId: 'r8a-agent', prompt: 'hi', cwd: '/work' });
+    expect(calls).toHaveLength(1);
+    const spawned = calls[0]!;
+    expect(spawned.options.windowsVerbatimArguments).toBe(true);
+    // Golden: the planner's exact output today (quoting and the `^%` escape), joined for readability.
+    expect(spawned.args.join(' ')).toBe('/d /s /c "C:\\agent\\agent.cmd --mode plan "a b" "50"^%"""');
+    child.emit('close', 0, null);
+    await rig.lifecycle.waitForTerminal({ runId });
   });
 });

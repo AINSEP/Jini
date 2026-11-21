@@ -1,4 +1,5 @@
 import { createModelReceiptTracker } from './model-receipts.js';
+import type { AgentRuntimePort } from '../ports/agent-runtime.js';
 import { observeRunOutput } from './run-output.js';
 import { createRunEventQueue, receivedJournalEntry, attachMessageRelay } from './event-io.js';
 import { cleanupStagedFilesSafely, classifyFailureSafely, terminateChildTreeBestEffort, reportPostCloseFailure } from './event-cleanup.js';
@@ -43,7 +44,8 @@ interface WireAcpLifecycleContext extends TerminateChildTreeDeps {
    */
   readonly mcpServers: Extract<McpBridgeDelivery, { kind: 'acp-merge' }>['mcpServers'] | undefined;
   readonly onPermissionRequest: NonNullable<CreateAgentExecutorOptions['acpPermissionHandler']> | undefined;
-  readonly attachAcpSession: NonNullable<CreateAgentExecutorOptions['attachAcpSession']>;
+  readonly attachAcpSession: AgentRuntimePort['sessions']['attachAcp'];
+  readonly identityKind: AgentRuntimePort['models']['identityKind'];
   readonly onCleanupFailure: (context: AgentCleanupFailureContext) => void;
   /** Same seam as `WireChildLifecycleContext.cleanupStagedFiles` — no current ACP def declares `promptViaFile` or `needsAgentLogFile`, so this is always the no-op default in practice today, threaded through for consistency rather than special-cased away. */
   readonly cleanupStagedFiles: () => Promise<void>;
@@ -60,7 +62,7 @@ function acpRepairOptions({ ctx, state }: { ctx: WireAcpLifecycleContext; state:
 }
 
 /** Preserve ACP's distinction between absent fields and explicitly supplied empty values. */
-function acpSessionOptions({ ctx, state }: { ctx: WireAcpLifecycleContext; state: { descendantPids: number[] } }, _options = {}): Parameters<NonNullable<CreateAgentExecutorOptions['attachAcpSession']>>[1] {
+function acpSessionOptions({ ctx, state }: { ctx: WireAcpLifecycleContext; state: { descendantPids: number[] } }, _options = {}): Parameters<AgentRuntimePort['sessions']['attachAcp']>[1] {
   return {
     cwd: ctx.cwd,
     ...(ctx.cliParity ? { cliParity: true, stageTimeoutMs: 0 } : {}),
@@ -87,7 +89,7 @@ function acpSessionOptions({ ctx, state }: { ctx: WireAcpLifecycleContext; state
  * success.
  */
 function wireAcpLifecycle(ctx: WireAcpLifecycleContext): ReturnType<WireAcpLifecycleContext['attachAcpSession']> {
-  const modelReceipt = createModelReceiptTracker({}, { startingModel: ctx.model, models: ctx.modelCatalog?.models });
+  const modelReceipt = createModelReceiptTracker({ identityKind: ctx.identityKind, startingModel: ctx.model }, { models: ctx.modelCatalog?.models });
   const { runId, agentId, child, lifecycle, journal } = ctx;
   const output = observeRunOutput({ lifecycle, runId, agentName: agentId });
   const state = {
@@ -244,7 +246,8 @@ interface RunAcpDispatchInput {
 interface RunAcpDispatchDeps extends TerminateChildTreeDeps {
   readonly registerMessageRelay?: (relay: RunMessageRelay) => void;
   readonly lifecycle: RunLifecycle;
-  readonly attachAcpSession: NonNullable<CreateAgentExecutorOptions['attachAcpSession']>;
+  readonly attachAcpSession: AgentRuntimePort['sessions']['attachAcp'];
+  readonly identityKind: AgentRuntimePort['models']['identityKind'];
   readonly onPermissionRequest: NonNullable<CreateAgentExecutorOptions['acpPermissionHandler']> | undefined;
   readonly onCleanupFailure: (context: AgentCleanupFailureContext) => void;
   readonly cleanupStagedFiles: () => Promise<void>;
@@ -277,6 +280,7 @@ export async function runAcpDispatch({ input, deps }: { readonly input: RunAcpDi
       mcpServers: input.mcpBridge?.kind === 'acp-merge' ? input.mcpBridge.mcpServers : undefined,
       onPermissionRequest: deps.onPermissionRequest,
       attachAcpSession: deps.attachAcpSession,
+      identityKind: deps.identityKind,
       listProcessSnapshots: deps.listProcessSnapshots,
       collectProcessTreePids: deps.collectProcessTreePids,
       stopProcesses: deps.stopProcesses,

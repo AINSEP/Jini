@@ -1,5 +1,4 @@
 import path from 'node:path';
-import { writeJsonFileAtomicAsync } from '@jini-ai/platform/fs';
 import { createPersistentStateModule } from './persistent-state.js';
 import type { AgentPluginLifecyclePorts } from './ports.js';
 
@@ -83,7 +82,7 @@ function createUpdateJournalOperations(
   async function write({ journal, history = false }: { journal: AgentPluginUpdateJournal; history?: boolean }, _optional = {}): Promise<void> {
     const filePath = history ? path.join(root, 'update-history', `${journal.transactionId}.json`) : journalPath;
     await contain({ entryPath: filePath });
-    await writeJsonFileAtomicAsync({ filePath, data: journal }, { fs: ports.filesystem,
+    await ports.atomicWriter.writeJson({ filePath, data: journal }, { fs: ports.filesystem,
       createParent: true, mode: 0o600, platform: ports.process.platform, tempName: () => ports.ids.newId() });
   }
   async function clear(_required: Record<string, never>, _optional = {}): Promise<void> {

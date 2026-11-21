@@ -7,6 +7,7 @@ import { createInMemoryEventLog } from '../../event-log.js';
 import { createRunLifecycle } from '../../run-lifecycle.js';
 import type { ToolExecutionResult } from '../../tool-executor-types.js';
 import { createFakeChild, createDef, stopResult, flush } from './r8a-rig.js';
+import { agentRuntimeFixture } from './runtime-fixture.js';
 
 function deferred<T = void>() {
   let resolve!: (value: T) => void;
@@ -23,6 +24,7 @@ async function fixture(overrides: Partial<Parameters<typeof wireChildLifecycle>[
   await lifecycle.stream({ runId: run.id, onEvent: event => { events.push(event); } });
   const ctx: Parameters<typeof wireChildLifecycle>[0] = {
     runId: run.id, lifecycle, child: child as unknown as ChildProcess,
+    streams: agentRuntimeFixture().streams, identityKind: agentRuntimeFixture().models.identityKind,
     def: createDef({ streamFormat: 'claude-stream-json', promptInputFormat: 'stream-json' }),
     streamFormat: 'claude-stream-json', onCleanupFailure: vi.fn(), cleanupStagedFiles: async () => {},
     journal: undefined, continuation: undefined, classifyFailure: undefined,

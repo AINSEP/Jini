@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/integrations",
-  "version": "0.7.1",
+  "version": "0.7.3-next.1",
   "description": "Third-party vendor integrations and outbound services, each independently importable: media generation, credentialed HTTP and webhooks.",
   "license": "Apache-2.0",
   "repository": {
@@ -151,7 +151,7 @@
   },
   "peerDependencies": {
     "better-sqlite3": "^13.0.0",
-    "@jini-ai/platform": "^0.7.0",
+    "@jini-ai/platform": "^0.7.3-next.1",
     "@cfworker/json-schema": "^4.1.1"
   },
   "devDependencies": {

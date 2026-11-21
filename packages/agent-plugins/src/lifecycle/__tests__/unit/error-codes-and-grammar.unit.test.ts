@@ -5,12 +5,10 @@
  * installed-package-roots.ts:8,34,71 and node.ts:16,20,30.
  */
 import { afterEach, describe, expect, test, vi } from 'vitest';
-import * as nativeFilesystem from 'node:fs/promises';
 import { mkdir, mkdtemp, realpath } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { listInstalledPackageRoots } from '../../installed-package-roots.js';
-import { createNodeAgentPluginEffects } from '../../node.js';
 import type { AgentPluginLifecyclePorts, FilesystemPort } from '../../ports.js';
 import { forceRemove } from '../fixtures/force-remove.js';
 import { ports } from '../test-support.js';
@@ -49,30 +47,5 @@ describe('installed revision folder grammar', () => {
     await make('_bad', digest);
     const listed = await listInstalledPackageRoots({ ports, workspaceRoot });
     expect(listed.map((root) => `${root.localId}/${root.archiveDigest}`).sort()).toEqual([`ok/${digest}`, `${'x'.repeat(64)}/${digest}`].sort());
-  });
-});
-
-describe('createNodeAgentPluginEffects', () => {
-  test('uses an injected filesystem, else node:fs/promises', () => {
-    const fake = { ...nativeFilesystem } as FilesystemPort;
-    expect(createNodeAgentPluginEffects({}, { filesystem: fake }).filesystem).toBe(fake);
-    expect(createNodeAgentPluginEffects({}).filesystem).toBe(nativeFilesystem);
-  });
-
-  // `clock.sleep` is pinned with a controlled timer in node-sleep.unit.test.ts (FU-B).
-
-  test.each<[string, unknown, boolean]>([
-    ['ESRCH (no such process)', Object.assign(new Error('x'), { code: 'ESRCH' }), false],
-    ['EPERM (exists, not ours)', Object.assign(new Error('x'), { code: 'EPERM' }), true],
-    ['a thrown string', 'odd', true], ['a thrown null', null, true], ['an object without code', {}, true],
-  ])('isAlive when kill throws %s -> %s', (_name, thrown, alive) => {
-    vi.spyOn(process, 'kill').mockImplementation(() => { throw thrown; });
-    expect(createNodeAgentPluginEffects({}).process.isAlive({ pid: 12345 })).toBe(alive);
-  });
-
-  test.each([[0], [-1], [1.5], [Number.NaN]])('isAlive(%s) is false without signalling', (pid) => {
-    const kill = vi.spyOn(process, 'kill');
-    expect(createNodeAgentPluginEffects({}).process.isAlive({ pid })).toBe(false);
-    expect(kill).not.toHaveBeenCalled();
   });
 });

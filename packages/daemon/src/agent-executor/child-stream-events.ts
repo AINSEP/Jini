@@ -1,4 +1,4 @@
-import { createClaudeStreamHandler, createJsonEventStreamHandler, createQoderStreamHandler } from '@jini-ai/agent-runtime';
+import type { AgentRuntimePort } from '../ports/agent-runtime.js';
 import { projectDiagnosticFrame } from '../tool-result-diagnostics.js';
 import { createCliToolCallReceiver } from './tool-call-receipts.js';
 import { translateAgentRuntimeEvent, applyAgentTranslationSideEffects } from './event-translation.js';
@@ -38,18 +38,15 @@ function statusWithChildIdentity(
  * @complexity O(1) dispatch; the returned handler's own per-chunk cost is the parser's.
  * @overallScore 100/100
  */
-function createStreamHandlerForDef(
-  def: RuntimeAgentDef,
-  streamFormat: JsonStreamFormat,
-  onEvent: (event: Record<string, unknown>) => void,
-): StreamHandler {
+function createStreamHandlerForDef({ def, streamFormat, streams }: { def: RuntimeAgentDef; streamFormat: JsonStreamFormat; streams: AgentRuntimePort['streams'] },
+  { onEvent }: { onEvent: (event: Record<string, unknown>) => void }): StreamHandler {
   switch (streamFormat) {
     case 'claude-stream-json':
-      return createClaudeStreamHandler({ onEvent: onEvent }, { costBasis: def.usageCostBasis ?? 'run' });
+      return streams.claude({ onEvent: onEvent }, { costBasis: def.usageCostBasis ?? 'run' });
     case 'qoder-stream-json':
-      return createQoderStreamHandler({ onEvent: onEvent });
+      return streams.qoder({ onEvent: onEvent });
     case 'json-event-stream':
-      return createJsonEventStreamHandler({ kind: def.eventParser ?? '', onEvent: createCliToolCallReceiver({ kind: def.eventParser ?? '', onEvent }) });
+      return streams.jsonEvents({ kind: def.eventParser ?? '', onEvent: createCliToolCallReceiver({ kind: def.eventParser ?? '', onEvent }) });
     default: {
       // Unreachable: every stream format has a case above, and a new one fails typecheck here.
       const unknownFormat: never = streamFormat;
@@ -64,7 +61,7 @@ export function createChildStreamHandler({ ctx, signals, bridge, enqueueEmit, in
   input: ReturnType<typeof createChildInput>; modelReceipt: ReturnType<typeof createModelReceiptTracker>;
 }, _options = {}): StreamHandler | null {
   const { runId, def, streamFormat, lifecycle } = ctx;
-  return streamFormat === 'plain' ? null : createStreamHandlerForDef(def, streamFormat, rawEvent => {
+  return streamFormat === 'plain' ? null : createStreamHandlerForDef({ def, streamFormat, streams: ctx.streams }, { onEvent: rawEvent => {
     if (bridge.bridgeUnavailable) return;
     const translation = translateAgentRuntimeEvent({ rawEvent: rawEvent });
     if (translation.kind === 'agent') {
@@ -92,7 +89,7 @@ export function createChildStreamHandler({ ctx, signals, bridge, enqueueEmit, in
     if (translation.kind === 'turn-end') {
       input.handleTurnEnd(translation.stopReason);
     }
-  });
+  } });
 }
 
 /** Verify against an already-saved call in this run; unverified metadata preserves all output. */

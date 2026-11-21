@@ -1,0 +1,32 @@
+why-comments: 108 files with removed lines checked against 06559affb..HEAD, 28 comment blocks lost (0 allow-listed)
+packages/daemon/src/agent-executor/codex/contracts.ts:39-39  [a70a189c5e13]  explicit host/run policy; environment defaults belong to native composition. native executor composition resolves its env default when ab...
+packages/daemon/src/agent-executor/contracts.ts:563-563  [27ea9f7812a3]  resolves/pins the concrete starting model against the actual launch scope.
+packages/daemon/src/agent-executor/contracts.ts:565-565  [65e5a6addfb5]  @default the real `@jini-ai/agent-runtime` registry lookup
+packages/daemon/src/agent-executor/contracts.ts:567-567  [2dd7291577a2]  @default the real `@jini-ai/agent-runtime` launch resolver
+packages/daemon/src/agent-executor/contracts.ts:569-569  [8afc87cdb168]  @default the real `@jini-ai/agent-runtime` once-per-binary `--help` capability probe
+packages/daemon/src/agent-executor/contracts.ts:571-571  [b3d734dbdf30]  bounded version/enforcement probe; replaceable for offline host tests.
+packages/daemon/src/agent-executor/contracts.ts:573-573  [1c48478853de]  @default the real `@jini-ai/agent-runtime` path-env composer
+packages/daemon/src/agent-executor/contracts.ts:575-575  [2724d8fcc1cb]  @default the real `@jini-ai/platform` cross-platform invocation builder
+packages/daemon/src/agent-executor/contracts.ts:581-581  [f2c6e78fea1f]  @default the real `@jini-ai/agent-runtime` acp session transport
+packages/daemon/src/agent-executor/contracts.ts:589-589  [7c656c2f380b]  @default the real `@jini-ai/agent-runtime` pi-rpc session transport
+packages/daemon/src/agent-executor/contracts.ts:591-598  [21276cf33b96]  stages a `promptviafile` def's (grok-build) composed prompt to a temp file before `buildargs` runs. touches the real filesystem by defaul...
+packages/daemon/src/agent-executor/contracts.ts:600-606  [ca8824ce5c91]  stages a `needsagentlogfile` def's (antigravity) diagnostic-log path before `buildargs` runs. same real-filesystem/injectable-for-tests d...
+packages/daemon/src/agent-executor/contracts.ts:608-608  [407ed01b3396]  @default the real `@jini-ai/platform` process-snapshot enumerator
+packages/daemon/src/agent-executor/contracts.ts:610-610  [e6241ace970d]  @default the real `@jini-ai/platform` descendant-pid collector
+packages/daemon/src/agent-executor/contracts.ts:612-612  [868ad2f832f3]  @default the real `@jini-ai/platform` sigterm→sigkill escalator
+packages/daemon/src/agent-executor/launch.ts:213-213  [0acd0c8e8395]  host-configured resolution names are explicit configuration, never a scan of the env bag.
+packages/daemon/src/agent-executor/launch.ts:248-256  [ff596d0a90c4]  resolves `createagentexecutoroptions`' agent-runtime collaborator seams (registry lookup, launch resolution, acp/pi-rpc session attachmen...
+packages/daemon/src/agent-executor/launch.ts:261-262  [a46a36b052bd]  `createagentexecutor` always resolves both before calling here (host env falls back to the process env, the pi shutdown grace to its env ...
+packages/daemon/src/agent-executor/launch.ts:268-268  [757b830f24a6]  without owned state, only an enabled plugin policy needs binding; otherwise keep the published definition.
+packages/daemon/src/agent-executor/launch.ts:292-292  [6df58ac8f112]  resolves the os-process-facing collaborator seams — see {@link resolveagentruntimedeps}'s doc. pure.
+packages/daemon/src/agent-executor/launch.ts:308-308  [9729313a5842]  resolves the two remaining defaultable options — see {@link resolveagentruntimedeps}'s doc. pure.
+packages/daemon/src/agent-executor/launch.ts:1006-1006  [8c981bdcb5b8]  this native composition boundary resolves ambient defaults once, before allowlisting child env.
+packages/daemon/src/agent-executor/pi/contracts.ts:2-2  [62c89cedaa43]  post-completion pi rpc grace period, resolved once at native composition.
+packages/server/src/__tests__/builtin-features.terminal-lifecycle.test.ts:15-16  [e257af659838]  a recording spy, not a replacement: the preset builds its own service from `options.terminal`, and the test needs that very service to op...
+packages/server/src/__tests__/builtin-features.terminal-service.test.ts:16-16  [5ada293f724d]  a recording spy over the real engine: records the options the preset hands `createterminalservice`, so knob forwarding is asserted, not a...
+packages/server/src/kernel-base.ts:129-129  [fc223057f3e4]  until the executor takes the bound runtime port (r8b), it still receives the two definition policies by value.
+packages/server/src/terminal-service.ts:27-27  [765eb5e0c8ba]  builds the terminal service from the preset's `terminal` options: the host's loader (or the inert one) plus only the tuning that was given.
+packages/sidecar/src/supervision/supervisor-node.ts:49-49  [fed8b7760611]  native effect ports retain their platform abi so tests can supply di fakes.
+why-comments: 28 deleted comment blocks appear nowhere else (owner rule: refactors move "why" comments with the code, never delete them)
+  fix: put the comment back next to the code it explains, or move it with that code.
+  last resort: add { "id": "<id above>", "reason": "<why this comment is truly obsolete>" } to the debt file (`pnpm check:why-comments`).

@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/server",
-  "version": "0.7.1",
+  "version": "0.7.3-next.1",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
@@ -106,13 +106,14 @@
     "@jini-ai/http-kit": "workspace:^",
     "@jini-ai/registry": "workspace:^",
     "@jini-ai/sidecar": "workspace:^",
+    "@jini-ai/node-adapters": "workspace:^",
     "@jini-ai/platform": "workspace:^"
   },
   "peerDependencies": {
     "node-pty": "^1.1.0",
     "better-sqlite3": "^13.0.0",
     "express": "^4.21.0 || ^5.0.0",
-    "@jini-ai/chat": "^0.7.0"
+    "@jini-ai/chat": "^0.7.3-next.1"
   },
   "sideEffects": false,
   "peerDependenciesMeta": {

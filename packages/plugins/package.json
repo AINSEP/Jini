@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/plugins",
-  "version": "0.7.1",
+  "version": "0.7.3-next.1",
   "description": "Host-independent extension glue and site-plugin runtime with injected SDK, trust, archive and storage ports.",
   "license": "Apache-2.0",
   "repository": {
@@ -28,7 +28,6 @@
       }
     },
     "optionalPeers": {
-      "@jini-ai/platform": "opt-in: platform-backed adapters; import @jini-ai/plugins/host/node — Platform-backed adapters could not load @jini-ai/platform. Install @jini-ai/platform to enable this feature, or check its installed version and native binaries.",
       "semver": "opt-in: plugin version compatibility; import @jini-ai/plugins/host — Plugin version compatibility could not load semver. Install semver to enable this feature, or check its installed version and native binaries.",
       "kysely": "opt-in: sql storage adapters; import @jini-ai/plugins/host/sql — SQL storage adapters could not load kysely. Install kysely to enable this feature, or check its installed version and native binaries."
     }
@@ -92,7 +91,6 @@
     "@jini-ai/core": "workspace:^"
   },
   "peerDependencies": {
-    "@jini-ai/platform": "^0.7.0",
     "semver": "^7.6.2",
     "kysely": "^0.29.6"
   },
@@ -105,9 +103,6 @@
     "@jini-ai/db": "workspace:*"
   },
   "peerDependenciesMeta": {
-    "@jini-ai/platform": {
-      "optional": true
-    },
     "semver": {
       "optional": true
     },

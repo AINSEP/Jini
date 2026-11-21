@@ -1,0 +1,3 @@
+New violation: [complexity] packages/agent-plugins/src/lifecycle/automatic-use.ts:222 prepare (11)
+New violation: [complexity] packages/integrations/src/api-connections/hosted-mcp/sign-in-configuration.ts:70 selfConfigureConnection (11)
+Complexity ratchet failed.

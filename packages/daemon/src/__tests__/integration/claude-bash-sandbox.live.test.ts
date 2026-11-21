@@ -1,3 +1,4 @@
+import { createAgentRuntimeBindings, createNativeAgentRuntime } from '@jini-ai/agent-runtime';
 import { spawn, type ChildProcess, type SpawnOptions } from 'node:child_process';
 import { accessSync, constants, statSync } from 'node:fs';
 import { mkdtemp, realpath, rm } from 'node:fs/promises';
@@ -6,6 +7,8 @@ import { delimiter, join, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { expect, it } from 'vitest';
 import type { RunProtocolEvent } from '@jini-ai/protocol';
+import { nodeAtomicWriter, nodeFileLock } from '@jini-ai/node-adapters/fs';
+import { createSpawnPort, nodeCommandShell, nodeProcessControl, type SpawnFunction } from '@jini-ai/node-adapters/process';
 
 const COMMAND = 'pwd && echo REPRO_OK';
 
@@ -116,8 +119,10 @@ it.skipIf(Boolean(reason))('runs one real Claude Bash command inside the daemon 
     child.stdout?.on('data', (chunk: Buffer) => { stdout += chunk.toString('utf8'); });
     child.stderr?.on('data', (chunk: Buffer) => { stderr += chunk.toString('utf8'); });
     return child;
-  }) as typeof spawn;
-  const executor = daemon.createAgentExecutor({ lifecycle }, { spawn: spawnLive });
+  }) satisfies SpawnFunction;
+  const executor = daemon.createAgentExecutor({ lifecycle, hostEnv: process.env, agentRuntime: createAgentRuntimeBindings({ runtime: createNativeAgentRuntime({ env: process.env }) }), runtime: {
+    spawn: createSpawnPort({ spawn: spawnLive }), processes: nodeProcessControl, fileLock: nodeFileLock, writer: nodeAtomicWriter, commandShell: nodeCommandShell({ env: process.env }),
+  } });
   const timeout = setTimeout(() => {
     controller.abort(new Error('Claude live run exceeded 120 seconds'));
     void lifecycle.cancel({ runId: run.id, reason: 'live test timeout' });

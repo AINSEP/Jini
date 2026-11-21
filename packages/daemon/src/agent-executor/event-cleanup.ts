@@ -1,5 +1,4 @@
 import { createConsoleLogger } from '@jini-ai/core/primitives';
-import { listProcessSnapshots, stopProcesses } from '@jini-ai/platform/process';
 import type { ChildProcess } from 'node:child_process';
 import type {
   TerminateChildTreeDeps, AgentCleanupFailurePhase, AgentCleanupFailureContext,
@@ -9,7 +8,7 @@ import type {
 /**
  * Enumerates `child`'s full descendant process tree and stops it (SIGTERM →
  * SIGKILL escalation, via the injected `stopProcesses` port).
- * @param deps - The process-snapshot/tree-collection/stop ports (real `@jini-ai/platform` implementations by default — see {@link CreateAgentExecutorOptions}).
+ * @param deps - The process-snapshot/tree-collection/stop ports (the host's `AgentExecutorRuntimePorts.processes`, bound by the launcher).
  * @param child - The child whose descendant tree should be terminated.
  * @returns Resolves once escalation completes (or immediately, as a no-op, if `child.pid` was never assigned — spawn never actually started).
  * @complexity O(p) in the number of live OS processes (`listProcessSnapshots`'s own cost) plus O(1) escalation rounds.

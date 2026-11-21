@@ -16,7 +16,7 @@ import { randomUUID } from "node:crypto";
 import { link, rename } from "node:fs/promises";
 import { join, resolve } from "node:path";
 
-import { readJsonFile, removeFile, writeJsonFile } from "./json-file.js";
+import { readJsonFile, removeFile, writeJsonFile, type JsonFileWriter } from "./json-file.js";
 
 /** Default file name for a daemon's registry record, resolved relative to its `dataDir`. */
 const DEFAULT_DAEMON_REGISTRY_FILE_NAME = "daemon.json";
@@ -57,8 +57,8 @@ export function resolveDaemonRegistryPath({ dataDir }: { dataDir: string }, { fi
  * at `registryPath`. Safe under concurrent writers — the last writer to complete its rename wins,
  * and every reader only ever observes a fully-written file, never a partial one.
  */
-export async function writeDaemonRegistryRecord({ registryPath, record }: { registryPath: string; record: LocalDaemonRegistryRecord }, _optional: Record<string, never> = {}): Promise<void> {
-  await writeJsonFile({ filePath: registryPath, payload: record });
+export async function writeDaemonRegistryRecord({ registryPath, record, writer }: { registryPath: string; record: LocalDaemonRegistryRecord; writer: JsonFileWriter }, _optional: Record<string, never> = {}): Promise<void> {
+  await writeJsonFile({ filePath: registryPath, payload: record, writer });
 }
 
 /** The two path moves `removeDaemonRegistryRecordIfCurrent` makes; injectable so a race lost to

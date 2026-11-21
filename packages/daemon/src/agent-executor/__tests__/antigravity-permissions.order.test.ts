@@ -2,7 +2,10 @@ import { promises as fs } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { ensureAntigravityMcpPermission } from '../antigravity/permissions.js';
+import { nodeAtomicWriter, nodeFileLock } from '@jini-ai/node-adapters/fs';
+import { ensureAntigravityMcpPermission as grantWithPorts } from '../antigravity/permissions.js';
+
+const ensureAntigravityMcpPermission = (input: { settingsPath: string; serverName: string }) => grantWithPorts({ ...input, fileLock: nodeFileLock, writer: nodeAtomicWriter });
 
 /**
  * @file R8a step 0 (R11): the order of effects on the user's personal settings file: lock, then

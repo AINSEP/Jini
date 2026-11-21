@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "google-login",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Adds Google sign-in for site members using this site's own Google OAuth client. Includes setup guidance for apps using Supabase Auth.",
   "author": "Jini",
   "license": "Apache-2.0",

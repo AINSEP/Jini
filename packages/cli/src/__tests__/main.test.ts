@@ -6,6 +6,14 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { writeDaemonRegistryRecord } from '@jini-ai/sidecar';
 import { DEFAULT_CLI_EXIT_CODES } from '../errors.js';
 import { main, type MainDeps } from '../main.js';
+import { mkdir as mkdirForWriter, writeFile as writeFileForWriter } from 'node:fs/promises';
+import { dirname as dirnameForWriter } from 'node:path';
+/** A plain JSON writer for seeding registry records: these tests read discovery, not write durability
+ * (sidecar's own tests cover the atomic writer); hosts pass node-adapters' `nodeAtomicWriter`. */
+const testWriter = { writeJson: async ({ filePath, data }: { filePath: string; data: unknown }) => {
+  await mkdirForWriter(dirnameForWriter(filePath), { recursive: true });
+  await writeFileForWriter(filePath, `${JSON.stringify(data, null, 2)}\n`);
+} };
 
 class ExitSentinel extends Error {
   constructor(public code: number) {
@@ -221,7 +229,7 @@ describe('main: daemon-url resolution', () => {
   it('resolves a locally running daemon via --data-dir, backed by a real on-disk registry record', async () => {
     const dataDir = await makeTempDataDir();
     const { resolveDaemonRegistryPath } = await import('@jini-ai/sidecar');
-    await writeDaemonRegistryRecord({ registryPath: resolveDaemonRegistryPath({ dataDir }), record: {
+    await writeDaemonRegistryRecord({ writer: testWriter, registryPath: resolveDaemonRegistryPath({ dataDir }), record: {
       url: 'http://127.0.0.1:54213',
       host: '127.0.0.1',
       port: 54213,
@@ -241,7 +249,7 @@ describe('main: daemon-url resolution', () => {
     const dataDir = await makeTempDataDir();
     const customDir = await makeTempDataDir();
     const registryPath = join(customDir, 'custom.json');
-    await writeDaemonRegistryRecord({ registryPath, record: {
+    await writeDaemonRegistryRecord({ writer: testWriter, registryPath, record: {
       url: 'http://127.0.0.1:9999',
       host: '127.0.0.1',
       port: 9999,

@@ -143,7 +143,8 @@ describe('plugin identity (owner 2026-10-09)', () => {
     // 0.4.3 added the runtime identity entry and 0.4.9 ./provider-registry; the fixed-group
     // 0.6.10 release moved the floor to ^0.6.10. Assert the floor is at least that (not an exact
     // string) so a later fixed-group bump does not break this test without changing the invariant.
-    const floor = /^\^(\d+)\.(\d+)\.(\d+)$/.exec(pkg.peerDependencies['@jini-ai/core'] ?? '');
+    // A prerelease floor (`^0.7.3-next.1`, a `next` cut) is still a floor: its numeric part is what is compared.
+    const floor = /^\^(\d+)\.(\d+)\.(\d+)(?:-[0-9A-Za-z.-]+)?$/.exec(pkg.peerDependencies['@jini-ai/core'] ?? '');
     expect(floor).not.toBeNull();
     const [major = 0, minor = 0, patch = 0] = (floor ?? []).slice(1).map(Number);
     expect(major > 0 || minor > 6 || (minor === 6 && patch >= 10)).toBe(true);

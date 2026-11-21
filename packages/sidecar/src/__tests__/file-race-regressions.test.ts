@@ -36,6 +36,9 @@ vi.mock('node:fs/promises', async (importOriginal) => {
 
 import { removeDaemonRegistryRecordIfCurrent } from '../daemon-registry.js';
 import { writeJsonFile } from '../json-file.js';
+import { writeJsonFileAtomicAsync } from '@jini-ai/platform/fs';
+/** The real atomic writer (platform is a test dependency); hosts pass node-adapters' `nodeAtomicWriter`. */
+const testWriter = { writeJson: writeJsonFileAtomicAsync };
 
 const roots: string[] = [];
 async function registryPath() {
@@ -56,7 +59,7 @@ it('uses a distinct temporary file for each concurrent write with the same clock
   const filePath = await registryPath();
   vi.spyOn(Date, 'now').mockReturnValue(1234);
   const results = await Promise.allSettled(Array.from({ length: 32 }, (_, value) =>
-    writeJsonFile({ filePath, payload: { value } }),
+    writeJsonFile({ writer: testWriter, filePath, payload: { value } }),
   ));
   expect(results.map(result => result.status)).toEqual(Array(32).fill('fulfilled'));
   expect(new Set(hooks.writes).size).toBe(32);
@@ -71,7 +74,7 @@ it('rechecks the captured record when a newer owner replaces the file after the 
   hooks.afterRead = async readPath => {
     if (readPath !== path) return;
     hooks.afterRead = undefined;
-    await writeJsonFile({ filePath: path, payload: { pid: 22, version: 'new' } });
+    await writeJsonFile({ writer: testWriter, filePath: path, payload: { pid: 22, version: 'new' } });
   };
   await removeDaemonRegistryRecordIfCurrent({ registryPath: path, pid: 11 });
   expect(JSON.parse(await readFile(path, 'utf8'))).toEqual({ pid: 22, version: 'new' });
@@ -84,7 +87,7 @@ it('never removes a replacement published after the old record has been detached
   hooks.afterRename = async from => {
     if (from !== path) return;
     hooks.afterRename = undefined;
-    await writeJsonFile({ filePath: path, payload: { pid: 22 } });
+    await writeJsonFile({ writer: testWriter, filePath: path, payload: { pid: 22 } });
   };
   await removeDaemonRegistryRecordIfCurrent({ registryPath: path, pid: 11 });
   expect(JSON.parse(await readFile(path, 'utf8'))).toEqual({ pid: 22 });
@@ -97,12 +100,12 @@ it('restores a foreign captured record only when the public path is still empty'
   hooks.afterRead = async readPath => {
     if (readPath !== path) return;
     hooks.afterRead = undefined;
-    await writeJsonFile({ filePath: path, payload: { pid: 22 } });
+    await writeJsonFile({ writer: testWriter, filePath: path, payload: { pid: 22 } });
   };
   hooks.afterRename = async from => {
     if (from !== path) return;
     hooks.afterRename = undefined;
-    await writeJsonFile({ filePath: path, payload: { pid: 33 } });
+    await writeJsonFile({ writer: testWriter, filePath: path, payload: { pid: 33 } });
   };
   await removeDaemonRegistryRecordIfCurrent({ registryPath: path, pid: 11 });
   expect(JSON.parse(await readFile(path, 'utf8'))).toEqual({ pid: 33 });

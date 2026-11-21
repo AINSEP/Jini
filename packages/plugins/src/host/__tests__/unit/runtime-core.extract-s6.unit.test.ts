@@ -18,6 +18,7 @@ import {
 import type { PluginManifest } from '../../manifest.js';
 import type { PluginSourcePolicyPort } from '../../source-policy.js';
 import type { PluginSdkBinding } from '../../ports.js';
+import { withFileLock } from '@jini-ai/platform/fs/file-lock';
 import { InMemoryPluginActivationRepo } from '../../repo.memory.js';
 import { manifestHost, pluginSdkBinding as baseBinding } from '../support/fixture-bindings.js';
 
@@ -36,6 +37,7 @@ const hostBinding: PluginRuntimeHostBinding = {
   verifyDigest: async () => 'sha256-acme',
   createInvocationCoreDeps: ({ pluginId, declaredHooks }) =>
     createPluginInvocationBinding({ pluginId, declaredHooks, beforeSaveHook: HOOK }, {}),
+  fileLock: { withFileLock },
 };
 const text: PluginRuntimeText = {
   scaffoldEntry: '// acme scaffold\nexport default {};\n',

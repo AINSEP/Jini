@@ -9,9 +9,11 @@
  * fakes and assert exactly what each receives. The file lock and atomic writer bind in
  * `@jini-ai/node-adapters/fs` (a separate entry: subpath isolation keeps the `os` and `fs` domains apart).
  * `command` has no binding on purpose: core's pure `planCommandInvocation` is the planner, and
- * `createCommandInvocation` reads its arguments from the other object.
+ * `createCommandInvocation` reads its arguments from the other object. The planner's two host inputs
+ * come from {@link nodeCommandShell}; process start comes from {@link nodeSpawnPort}.
  */
-import type { ProcessControlPort } from "@jini-ai/core/contracts/runtime";
+import { spawn, type ChildProcess, type SpawnOptions } from "node:child_process";
+import type { ProcessControlPort, RuntimePlatform } from "@jini-ai/core/contracts/runtime";
 import { listProcessSnapshots, stopProcesses, waitForProcessExit } from "@jini-ai/platform/process";
 
 /** The three platform process functions the process-control port wraps. */
@@ -38,3 +40,34 @@ export function createProcessControlPort(required: { readonly functions: Process
 
 /** The Node implementation, ready for a host to hand to daemon. */
 export const nodeProcessControl: ProcessControlPort = createProcessControlPort({ functions: { listProcessSnapshots, stopProcesses, waitForProcessExit } });
+
+/** The one `node:child_process` function the spawn port wraps. */
+export type SpawnFunction = (command: string, args: string[], options: SpawnOptions) => ChildProcess;
+
+/**
+ * Adapts Node's positional `spawn(command, args, options)` to the object-argument spawn port. Returns the
+ * child in the same synchronous turn it was spawned: the caller attaches its `'error'` listeners before
+ * yielding, and an `async` adapter here would let the child's first event fire with nobody listening.
+ * The args reach `spawn` as a new mutable array (the port's array is readonly); an absent `options` is `{}`.
+ * @complexity O(a) in the argument count for the copy; otherwise what `spawn` costs.
+ */
+export function createSpawnPort(required: { readonly spawn: SpawnFunction }, _optional: Record<string, never> = {}) {
+  const { spawn: spawnFunction } = required;
+  return ({ command, args }: { readonly command: string; readonly args: readonly string[] }, options: SpawnOptions = {}): ChildProcess =>
+    spawnFunction(command, [...args], options);
+}
+
+/** The Node implementation of the spawn port, ready for a host to hand to daemon. */
+export const nodeSpawnPort = createSpawnPort({ spawn });
+
+/**
+ * The two host inputs of core's pure `planCommandInvocation`: the platform and the `ComSpec` a Windows
+ * `.cmd` shim falls back to when the child's own env has none. The host passes the env it already owns
+ * (this module never reads the ambient process env); the platform defaults to the running one.
+ */
+export function nodeCommandShell(
+  { env }: { readonly env: Readonly<Record<string, string | undefined>> },
+  { platform = process.platform }: { readonly platform?: RuntimePlatform } = {},
+): { readonly platform: RuntimePlatform; readonly fallbackComSpec: string | undefined } {
+  return { platform, fallbackComSpec: env.ComSpec };
+}

@@ -1,4 +1,5 @@
 import { createModelReceiptTracker } from './model-receipts.js';
+import type { AgentRuntimePort } from '../ports/agent-runtime.js';
 import { observeRunOutput } from './run-output.js';
 import { classifyRunCloseStatus } from '../close-status.js';
 import { createRunEventQueue, receivedJournalEntry } from './event-io.js';
@@ -13,11 +14,13 @@ import type { StdoutJournalBlobPort } from '../tool-result-diagnostics.js';
 import type { RunLifecycle } from '../run-lifecycle.js';
 import type { RunByteJournal } from '../continuation/journal.js';
 import type { RunMessageRelay } from './message-relay.js';
-import type { probeMcpBridge } from './mcp-bridge-probe.js';
+import type { McpBridgeProbe, McpBridgeProbeEntry } from './mcp-bridge-probe.js';
 import type { TerminateChildTreeDeps, ChildDrivenStreamFormat, AgentCleanupFailureContext,
   ContinuationOptions, ClassifyFailure, StdinCloseHandle, StreamHandler } from './contracts.js';
 
 export interface WireChildLifecycleContext extends TerminateChildTreeDeps {
+  readonly streams: AgentRuntimePort['streams'];
+  readonly identityKind: AgentRuntimePort['models']['identityKind'];
   readonly registerMessageRelay?: (relay: RunMessageRelay) => void;
   readonly delegatedResultCorrelation?: DelegatedResultCorrelation;
   readonly stdoutJournalBlobs?: StdoutJournalBlobPort;
@@ -54,8 +57,8 @@ export interface WireChildLifecycleContext extends TerminateChildTreeDeps {
    * {@link MCP_BRIDGE_UNAVAILABLE} instead of letting it continue without the host's tools.
    */
   readonly expectsJiniBridge: boolean;
-  readonly bridgeProbeEntry: Parameters<typeof probeMcpBridge>[0]['entry'] | undefined;
-  readonly probeMcpBridge: typeof probeMcpBridge;
+  readonly bridgeProbeEntry: McpBridgeProbeEntry | undefined;
+  readonly probeMcpBridge: McpBridgeProbe;
 }
 
 export interface ChildRunSignals {
@@ -142,7 +145,7 @@ export function wireChildLifecycle(ctx: WireChildLifecycleContext): StdinCloseHa
   const { runId, def, streamFormat, child, lifecycle } = ctx;
   const stdoutDiagnostics = createStdoutDiagnostics({ ctx, enqueueEmit: task => queue.enqueueEmit(task) });
   const output = observeRunOutput({ lifecycle, runId, agentName: def.name }, { plainStdout: streamFormat === 'plain' });
-  const modelReceipt = createModelReceiptTracker({}, { startingModel: ctx.startingModel, models: ctx.modelCatalog?.models });
+  const modelReceipt = createModelReceiptTracker({ identityKind: ctx.identityKind, startingModel: ctx.startingModel }, { models: ctx.modelCatalog?.models });
   const queue = createRunEventQueue({});
   const { enqueueEmit } = queue;
   const signals: ChildRunSignals = {

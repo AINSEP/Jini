@@ -130,6 +130,7 @@ export type {
   JsonInstallPlan,
   ManualInstallPlan,
   InstallPlan,
+  OwnedJsonInstallFiles,
 } from './agent-install/index.js';
 
 // Object-argument contracts and injected ports.

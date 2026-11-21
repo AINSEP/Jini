@@ -1,8 +1,8 @@
 [
   {
     "kind": "provider",
-    "path": "plugins/ai-trace-langfuse/0.7.1",
-    "pluginVersion": "0.7.1",
+    "path": "plugins/ai-trace-langfuse/0.7.3-next.1",
+    "pluginVersion": "0.7.3-next.1",
     "contract": {
       "id": "ai_trace",
       "version": 1
@@ -10,7 +10,7 @@
     "id": "ai-trace-langfuse",
     "publisherIdentity": "jini/ai-trace-langfuse",
     "packageName": "@jini-ai/provider-plugins",
-    "version": "0.7.1",
+    "version": "0.7.3-next.1",
     "description": "Langfuse",
     "expectedDigests": {
       "CHANGELOG.md": "sha256-bd2036b212f0dc0f28f651d9810531cfdc69b4dc89273ef2671f2479a1366795",
@@ -19,7 +19,7 @@
       "README.md": "sha256-a5e9d3d8dd1079cb2c9fc5150aed5540ac147de64d0417cb83dd7eb5363470b9",
       "licenses/_jini-ai_provider-plugins/LICENSE": "sha256-9d95806a26532623360eb84bb17d298f394b55ef73fb4c0796d99b4319b2b0da",
       "licenses/_jini-ai_provider-plugins/NOTICE": "sha256-41f25c5b9af4c8e8e98e2a7c658b3922253c760686e17e0ef7fa003fae83cb95",
-      "licenses/_jini-ai_provider-plugins/package-license.json": "sha256-e5b0aba2e8ad1bbeae42e9f21e7c67b17c8d86e2ea8e3617f8ee70586b679c31",
+      "licenses/_jini-ai_provider-plugins/package-license.json": "sha256-0347d68a3392cbffcbd8519003b438ec698ab263201e4c8a84dc34196368a434",
       "licenses/langfuse/LICENSE": "sha256-500dc50774b3a1b58900bf28e03f63906d6e910a56da147ef154cddb5c1619b3",
       "licenses/langfuse/LICENSE-SOURCE": "sha256-86e467e07d45cff307b1b33738dea99cf2ae2a22fbe5fb571ae3a03819d41f54",
       "licenses/langfuse/SOURCE": "sha256-7828b8d9c40401be34ccf1682306881431fd1ee6d86a3b5ad10f4104c217ce0a",
@@ -35,8 +35,8 @@
   },
   {
     "kind": "provider",
-    "path": "plugins/analytics-posthog/0.7.1",
-    "pluginVersion": "0.7.1",
+    "path": "plugins/analytics-posthog/0.7.3-next.1",
+    "pluginVersion": "0.7.3-next.1",
     "contract": {
       "id": "product_analytics",
       "version": 1
@@ -44,16 +44,16 @@
     "id": "analytics-posthog",
     "publisherIdentity": "jini/analytics-posthog",
     "packageName": "@jini-ai/provider-plugins",
-    "version": "0.7.1",
+    "version": "0.7.3-next.1",
     "description": "PostHog",
     "expectedDigests": {
       "CHANGELOG.md": "sha256-24133b66cc1aa98538cb8b5120843ba24d9f26a26fa7b133b3667672bfde4838",
       "LICENSE": "sha256-9d95806a26532623360eb84bb17d298f394b55ef73fb4c0796d99b4319b2b0da",
       "NOTICE": "sha256-75da95e7c5263160f874d3eb197e3010f2196378b40df69cedc6ff3247261cf3",
-      "README.md": "sha256-91cc68441f486ebd1ca97245e11f81f704c74b9f7219c5762bf8d136f81701b1",
+      "README.md": "sha256-42ba2d5f0b4683dda0e76192affb6f2ce745345ec322cef92ccfd8dc101df598",
       "licenses/_jini-ai_provider-plugins/LICENSE": "sha256-9d95806a26532623360eb84bb17d298f394b55ef73fb4c0796d99b4319b2b0da",
       "licenses/_jini-ai_provider-plugins/NOTICE": "sha256-41f25c5b9af4c8e8e98e2a7c658b3922253c760686e17e0ef7fa003fae83cb95",
-      "licenses/_jini-ai_provider-plugins/package-license.json": "sha256-e5b0aba2e8ad1bbeae42e9f21e7c67b17c8d86e2ea8e3617f8ee70586b679c31",
+      "licenses/_jini-ai_provider-plugins/package-license.json": "sha256-0347d68a3392cbffcbd8519003b438ec698ab263201e4c8a84dc34196368a434",
       "licenses/_posthog_core/LICENSE": "sha256-d3fb92ac01f0bef4078f89aac9f20f76da3383ad45becf6204abdf5495f43f8f",
       "licenses/_posthog_core/package-license.json": "sha256-51e1e60575cebc489313e9ffe4c5b9c08582bdefa071de03cf4c0772df66ccc5",
       "licenses/posthog-js/LICENSE": "sha256-a3f86c7ac54e89e50df3f0944fd14ec8bb23d4350721fc6f59db0558d0d160b0",
@@ -68,7 +68,7 @@
   {
     "kind": "agent",
     "path": "calendly",
-    "pluginVersion": "0.1.0",
+    "pluginVersion": "0.1.1",
     "contract": {
       "id": "agent-plugins",
       "version": "1.0.0"
@@ -76,13 +76,13 @@
     "id": "calendly",
     "publisherIdentity": "jini/calendly",
     "packageName": "@jini-ai/agent-plugins",
-    "version": "0.7.1",
+    "version": "0.7.3-next.1",
     "description": "Shows a live Calendly booking calendar on a site page. A public Calendly link is all it needs; signing in to Calendly is optional.",
     "expectedDigests": {
       "exports/booking-calendar.css": "sha256-0c93a72edd0680e86163e39883624b54720a3ed3093ecab78c4ee911cc642edd",
       "exports/booking-calendar.html": "sha256-2869f70573c26eeee891102322f5c3d201b78b2a2ad3e67f2e9afc45af050299",
       "mcp.json": "sha256-eda0124acdec4fefceb87d53b0988b0034aad2e04efd38f497c0fab4e57b2920",
-      "plugin.json": "sha256-90bcc35d10c9ded2899ba1c9f9e1b8e00dd84b997010c323d3ef819c6ceca5e4",
+      "plugin.json": "sha256-318197af31256a91c17f60641e4a82741c38539404397e19553e3587431ef216",
       "skills/calendly/SKILL.md": "sha256-155abab39b8f6a76293887016c25103f325271ffcae1536676b56dcd1928450a"
     }
   },
@@ -97,7 +97,7 @@
     "id": "charts-echarts",
     "publisherIdentity": "jini/charts-echarts-agent",
     "packageName": "@jini-ai/agent-plugins",
-    "version": "0.7.1",
+    "version": "0.7.3-next.1",
     "description": "Teaches the assistant to draw bar, stacked bar, line, area, pie, donut and scatter charts in chat with the Apache ECharts chart provider: finding the chart components with search_components, the data shape each one takes, several series in one chart through the generic chart.spec entry, axis names and number formats, and what falls back to a table. Know-how only: no code, no MCP server; the ECharts provider plugin (charts-echarts) draws the charts and switches this plugin on and off.",
     "expectedDigests": {
       "plugin.json": "sha256-9a1df5d1da8dec27443b85b627683542bdbae567c071394fe29f8a57451b87f3",
@@ -106,8 +106,8 @@
   },
   {
     "kind": "provider",
-    "path": "plugins/charts-echarts/0.7.1",
-    "pluginVersion": "0.7.1",
+    "path": "plugins/charts-echarts/0.7.3-next.1",
+    "pluginVersion": "0.7.3-next.1",
     "contract": {
       "id": "browser-provider:chart",
       "version": 1
@@ -115,14 +115,14 @@
     "id": "charts-echarts",
     "publisherIdentity": "jini/charts-echarts",
     "packageName": "@jini-ai/provider-plugins",
-    "version": "0.7.1",
+    "version": "0.7.3-next.1",
     "description": "Apache ECharts",
     "expectedDigests": {
       "client/provider.js": "sha256-3465ac31a3c2e966e39f84bcccb6afc6f06204b26295a6cdf5633c3e888347dd",
       "client/styles.css": "sha256-be5e0483f8883b44bf2319beed8ceefc7f26f74c3f2389efafb4c09aaf901d08",
       "licenses/_jini-ai_provider-plugins/LICENSE": "sha256-9d95806a26532623360eb84bb17d298f394b55ef73fb4c0796d99b4319b2b0da",
       "licenses/_jini-ai_provider-plugins/NOTICE": "sha256-41f25c5b9af4c8e8e98e2a7c658b3922253c760686e17e0ef7fa003fae83cb95",
-      "licenses/_jini-ai_provider-plugins/package-license.json": "sha256-e5b0aba2e8ad1bbeae42e9f21e7c67b17c8d86e2ea8e3617f8ee70586b679c31",
+      "licenses/_jini-ai_provider-plugins/package-license.json": "sha256-0347d68a3392cbffcbd8519003b438ec698ab263201e4c8a84dc34196368a434",
       "licenses/echarts/LICENSE": "sha256-634293835b43a6dd2094fa39182a3d9a6b9ca43b7fdb9ac354e8037af2a3093a",
       "licenses/echarts/NOTICE": "sha256-d491d358344f842685c1b1585970999db65fe30ecf7ef3867af8814f4016c016",
       "licenses/echarts/package-license.json": "sha256-adef4e80c943177659d316c9b67cad6a7bacc06320d4b29984f3c0c1342ddd29",
@@ -144,7 +144,7 @@
     "id": "charts-recharts",
     "publisherIdentity": "jini/charts-recharts-agent",
     "packageName": "@jini-ai/agent-plugins",
-    "version": "0.7.1",
+    "version": "0.7.3-next.1",
     "description": "Teaches the assistant to draw bar, line and pie charts in chat with the Recharts chart provider: finding the chart components with search_components, the data shape each one takes, what Recharts draws and what falls back to a table, and the generic chart.spec entry for several series. Know-how only: no code, no MCP server; the Recharts provider plugin (charts-recharts) draws the charts and switches this plugin on and off.",
     "expectedDigests": {
       "plugin.json": "sha256-98d4ed64928c844ac5919a628b32b8e4611738ac1288c140ea7be48922fce159",
@@ -153,8 +153,8 @@
   },
   {
     "kind": "provider",
-    "path": "plugins/charts-recharts/0.7.1",
-    "pluginVersion": "0.7.1",
+    "path": "plugins/charts-recharts/0.7.3-next.1",
+    "pluginVersion": "0.7.3-next.1",
     "contract": {
       "id": "browser-provider:chart",
       "version": 1
@@ -162,14 +162,14 @@
     "id": "charts-recharts",
     "publisherIdentity": "jini/charts-recharts",
     "packageName": "@jini-ai/provider-plugins",
-    "version": "0.7.1",
+    "version": "0.7.3-next.1",
     "description": "Recharts",
     "expectedDigests": {
       "client/provider.js": "sha256-1ac616500dcd27252ddfd996516e461a694c2d035be0adacd9c4c0862930fe2c",
       "client/styles.css": "sha256-8bf7290ed757364db0ab99e55f2ab682647f572fbdda622f1c39937727e8eb3c",
       "licenses/_jini-ai_provider-plugins/LICENSE": "sha256-9d95806a26532623360eb84bb17d298f394b55ef73fb4c0796d99b4319b2b0da",
       "licenses/_jini-ai_provider-plugins/NOTICE": "sha256-41f25c5b9af4c8e8e98e2a7c658b3922253c760686e17e0ef7fa003fae83cb95",
-      "licenses/_jini-ai_provider-plugins/package-license.json": "sha256-e5b0aba2e8ad1bbeae42e9f21e7c67b17c8d86e2ea8e3617f8ee70586b679c31",
+      "licenses/_jini-ai_provider-plugins/package-license.json": "sha256-0347d68a3392cbffcbd8519003b438ec698ab263201e4c8a84dc34196368a434",
       "licenses/_reduxjs_toolkit/LICENSE": "sha256-49784961ec6c4941437b7a2c54d8977d0528076a9e7c73dd40f7d0942b8f106d",
       "licenses/_reduxjs_toolkit/package-license.json": "sha256-841f76ddac88a780f1d16a201f72ad529d0b50148fcba84d103a65a8689f95b0",
       "licenses/clsx/license": "sha256-9a9edad7baae52622bddf3c15b2ef8a33d2c89f2d25408ad13e8a7481c6b0c97",
@@ -232,7 +232,7 @@
   {
     "kind": "agent",
     "path": "cloudflare",
-    "pluginVersion": "0.3.3",
+    "pluginVersion": "0.3.4",
     "contract": {
       "id": "agent-plugins",
       "version": "1.0.0"
@@ -240,7 +240,7 @@
     "id": "cloudflare",
     "publisherIdentity": "jini/cloudflare",
     "packageName": "@jini-ai/agent-plugins",
-    "version": "0.7.1",
+    "version": "0.7.3-next.1",
     "description": "Publishes static exports to Cloudflare Workers or Pages and attaches reviewed custom domains using your saved Cloudflare connection. Workers sites with active forms store submissions in a D1 database in your Cloudflare account for the host to pull. Preview reads current infrastructure; domain changes require human confirmation.",
     "expectedDigests": {
       "NOTES.md": "sha256-3841fc50cb2fd214ab350755340d7d25b314b30ad610304a9e093e38eac748d2",
@@ -261,7 +261,7 @@
       "lib/workers-upload.mjs": "sha256-544ad8b3398c74a1374411635f7bc3d126b9081cc1d71aef09ee25c9256ab468",
       "lib/zones.mjs": "sha256-53c3815db92dd7ede2255457f7af9ae3c1a1e3558e0cb723739bf1ea505d0988",
       "mcp.json": "sha256-1788697eb2d3aa1caa8da59a62331a92529e24885f0e7151418f915000fbf7fd",
-      "plugin.json": "sha256-508cca7449e17b41b2bc6d59eb98b82ade66d77a4aceaa434b0b677a2e359b44",
+      "plugin.json": "sha256-bb1f91cdbfd8c4b3391cda562b85b342d851273754f6bc581c9cc0eb3557db4e",
       "skills/cloudflare/SKILL.md": "sha256-71885edad9751a77391668f1b959fe33a6fb25e24bdfe35dbb515c14ea4d6074",
       "skills/cloudflare/references/domains.md": "sha256-33392b046b67b83e3b5d0008b4cb589399f0b2a4bca513e387ed0776e2200b80",
       "skills/cloudflare/references/pages.md": "sha256-f47935e4b5976d7ae366bc1a633bb651242fd957a0407c7085125733c6d122cd",
@@ -285,7 +285,7 @@
     "id": "commerce",
     "publisherIdentity": "jini/commerce",
     "packageName": "@jini-ai/agent-plugins",
-    "version": "0.7.1",
+    "version": "0.7.3-next.1",
     "description": "One-time catalog and member checkout using the host's configured payment provider. Disabled until the host activates and configures it.",
     "expectedDigests": {
       "plugin.json": "sha256-76aa43b33da1c721243f31163832b2108c323127f86a8f2a11c1aac1e6cf367d",
@@ -295,7 +295,7 @@
   {
     "kind": "agent",
     "path": "composio",
-    "pluginVersion": "1.0.1",
+    "pluginVersion": "1.0.2",
     "contract": {
       "id": "agent-plugins",
       "version": "1.0.0"
@@ -303,18 +303,18 @@
     "id": "composio",
     "publisherIdentity": "jini/composio",
     "packageName": "@jini-ai/agent-plugins",
-    "version": "0.7.1",
+    "version": "0.7.3-next.1",
     "description": "Lets the assistant use the user's other apps (Gmail, Google Calendar, Slack, Notion, GitHub, HubSpot, Linear and 1000+ more) through Composio Connect, Composio's hosted MCP server. One browser sign-in to Composio connects it; each app is then connected on first use by a Composio sign-in link, with no API keys anywhere.",
     "expectedDigests": {
       "mcp.json": "sha256-8bffa7c8b72854769059867543fd1b18caf3b0cbdf9db7358543d7aa29b3d94e",
-      "plugin.json": "sha256-aad0c1637971e2c5b1a51116144bfa9e85cae9a8c537b316d7d72c19f6a14637",
+      "plugin.json": "sha256-049b2295fbac22a9f42e83860841cca2ea362cfcffc42154b074a6e0fe22c8aa",
       "skills/composio/SKILL.md": "sha256-c029ff93553bdd769de7aee9e39f998cadd6b6ad7b080bb35aa4f269a80cebb9"
     }
   },
   {
     "kind": "provider",
-    "path": "plugins/fixture-provider/0.7.1",
-    "pluginVersion": "0.7.1",
+    "path": "plugins/fixture-provider/0.7.3-next.1",
+    "pluginVersion": "0.7.3-next.1",
     "contract": {
       "id": "fixture",
       "version": 1
@@ -322,19 +322,19 @@
     "id": "fixture-provider",
     "publisherIdentity": "jini/fixture-provider",
     "packageName": "@jini-ai/provider-plugins",
-    "version": "0.7.1",
+    "version": "0.7.3-next.1",
     "description": "Provider artifact fixture",
     "expectedDigests": {
       "licenses/_jini-ai_provider-plugins/LICENSE": "sha256-9d95806a26532623360eb84bb17d298f394b55ef73fb4c0796d99b4319b2b0da",
       "licenses/_jini-ai_provider-plugins/NOTICE": "sha256-41f25c5b9af4c8e8e98e2a7c658b3922253c760686e17e0ef7fa003fae83cb95",
-      "licenses/_jini-ai_provider-plugins/package-license.json": "sha256-e5b0aba2e8ad1bbeae42e9f21e7c67b17c8d86e2ea8e3617f8ee70586b679c31",
+      "licenses/_jini-ai_provider-plugins/package-license.json": "sha256-0347d68a3392cbffcbd8519003b438ec698ab263201e4c8a84dc34196368a434",
       "server/index.mjs": "sha256-644c4647ba4b20bf02f1e577b13cc33ffa84a8e6dce5159266bd83a4f6e76284"
     }
   },
   {
     "kind": "agent",
     "path": "fly",
-    "pluginVersion": "1.0.1",
+    "pluginVersion": "1.0.2",
     "contract": {
       "id": "agent-plugins",
       "version": "1.0.0"
@@ -342,7 +342,7 @@
     "id": "fly",
     "publisherIdentity": "jini/fly",
     "packageName": "@jini-ai/agent-plugins",
-    "version": "0.7.1",
+    "version": "0.7.3-next.1",
     "description": "Deploys the host's server to fly.io: one machine only for volume-backed state, secrets never in fly.toml, deploying ships code, not content. Contributes Fly operations, server config generation and the FlyV1 credential scheme.",
     "expectedDigests": {
       "deploy-configs/fly.mjs": "sha256-1a79d00d5a2a343309e81c27fee738b13d834b78233318b8b87e637f5cf39aed",
@@ -351,7 +351,7 @@
       "jini-deploy-configs.json": "sha256-f4671bc0a96799f456feff97516428b07a7a0170e4b78de46efc3c6290c34e1a",
       "jini-deploy-ops.json": "sha256-200365349872c35fe5b5f0d925a0c8da10cf35a1e4782d6cf42db3f42379bbe4",
       "mcp.json": "sha256-1788697eb2d3aa1caa8da59a62331a92529e24885f0e7151418f915000fbf7fd",
-      "plugin.json": "sha256-ef390787c9a5b5db7eb02fe9edfb65120eb7b0910a150c09786c71ee1a396396",
+      "plugin.json": "sha256-80ad4df7c19835b9b6e43b5428f0570f0e7ec547c5ba1137e6af91c1e353c114",
       "scripts/render-deploy-workflow.mjs": "sha256-1cc145afc1e121b65943a31005b99c2d2ddd5c0a7f77ef272214df39249d7247",
       "skills/fly/SKILL.md": "sha256-bb07cf3cb0dd3e9ace0d4b443c68d6283af544061a238fadbaae1964de1eab39",
       "skills/fly/references/fly-deploy.template.yml": "sha256-459122945582cc4a2917cea070e11d3ae1d5dfcfde317ad77aed204dadb03214",
@@ -369,7 +369,7 @@
     "id": "formspree",
     "publisherIdentity": "jini/formspree-agent",
     "packageName": "@jini-ai/agent-plugins",
-    "version": "0.7.1",
+    "version": "0.7.3-next.1",
     "description": "Connects native forms to Formspree. Visitors POST directly to Formspree; this site keeps its existing form definitions and historical answers. Installation alone never switches a form.",
     "expectedDigests": {
       "plugin.json": "sha256-6017816d2dfc9ddd51a39c46827e74f98eda6c65be953ccf21c2446258f9bf50",
@@ -378,8 +378,8 @@
   },
   {
     "kind": "provider",
-    "path": "plugins/formspree/0.7.1",
-    "pluginVersion": "0.7.1",
+    "path": "plugins/formspree/0.7.3-next.1",
+    "pluginVersion": "0.7.3-next.1",
     "contract": {
       "id": "form_collection",
       "version": 1
@@ -387,19 +387,19 @@
     "id": "formspree",
     "publisherIdentity": "jini/formspree",
     "packageName": "@jini-ai/provider-plugins",
-    "version": "0.7.1",
+    "version": "0.7.3-next.1",
     "description": "Formspree form collection",
     "expectedDigests": {
       "licenses/_jini-ai_provider-plugins/LICENSE": "sha256-9d95806a26532623360eb84bb17d298f394b55ef73fb4c0796d99b4319b2b0da",
       "licenses/_jini-ai_provider-plugins/NOTICE": "sha256-41f25c5b9af4c8e8e98e2a7c658b3922253c760686e17e0ef7fa003fae83cb95",
-      "licenses/_jini-ai_provider-plugins/package-license.json": "sha256-e5b0aba2e8ad1bbeae42e9f21e7c67b17c8d86e2ea8e3617f8ee70586b679c31",
+      "licenses/_jini-ai_provider-plugins/package-license.json": "sha256-0347d68a3392cbffcbd8519003b438ec698ab263201e4c8a84dc34196368a434",
       "server/index.mjs": "sha256-26b9e32337e867a5fa69096c4f52d9f5ecda2ca952c098808fe0bfb2e0bf5808"
     }
   },
   {
     "kind": "agent",
     "path": "github",
-    "pluginVersion": "1.1.1",
+    "pluginVersion": "1.1.2",
     "contract": {
       "id": "agent-plugins",
       "version": "1.0.0"
@@ -407,14 +407,14 @@
     "id": "github",
     "publisherIdentity": "jini/github",
     "packageName": "@jini-ai/agent-plugins",
-    "version": "0.7.1",
+    "version": "0.7.3-next.1",
     "description": "Everything a host's assistant needs to work against a GitHub repository through the workspace's own saved credentials, with no git, no gh CLI, and no token ever passing through the assistant: writing and updating files in one atomic commit, dispatching and following a GitHub Actions run, reading a failed run's logs, committing the site's rendered static export, backing up the site itself (database, media, themes, plugins, settings) to a private repository, and deploying the host's server through its GitHub Actions deploy workflow (the `github-actions` deployment ops platform). Encodes the rules that generic GitHub knowledge gets wrong here — a 204 dispatch means queued and never deployed, a workflow only fires on the branch its own trigger names, a repository secret is the human's step and never the assistant's, a 403 on an org-wide listing is a normal app-scoped-token boundary rather than a broken credential, and editing an existing file means diffing the MODIFIED files and not only the added and deleted ones.",
     "expectedDigests": {
       "deploy-ops/github-actions.mjs": "sha256-66adf13a6b9635e054b0b1647b82560be5ccc701803570328aa41861af48a28d",
       "jini-deploy-ops.json": "sha256-592ce3242c4dc5cc57a89ba5219bc7d4efabe153b4e8f5bc0ddbee38fabbb337",
       "jini-source-control.json": "sha256-8ec49b9790e7d681d5193ea2f87ff524ffbd9d1f37abb7ea773e95507807fb94",
       "mcp.json": "sha256-1788697eb2d3aa1caa8da59a62331a92529e24885f0e7151418f915000fbf7fd",
-      "plugin.json": "sha256-6c9ad181973fe1cef05622e6394032ce9c2bf2379e5fef607a20ff455cab53cc",
+      "plugin.json": "sha256-4a0e7bb39ad7bc4313d170747ee4bfe32abcd8c1a8018e7f3c15ad9752c73f1e",
       "skills/github/SKILL.md": "sha256-29264275c1899ed09c817ac7fd361b19669d98a08aaefa57abb8a12916fce530",
       "skills/github/references/actions.md": "sha256-fb55f3c10affc3fae9627bc3938b78515bd2e3963354cd858345e9e355346ad6",
       "skills/github/references/auth-and-tokens.md": "sha256-db3d6419affe82f08e2c7f5b945991c7f744650d94f440aa992d66bfb0e39375",
@@ -430,7 +430,7 @@
   {
     "kind": "agent",
     "path": "github-pages",
-    "pluginVersion": "0.1.1",
+    "pluginVersion": "0.1.2",
     "contract": {
       "id": "agent-plugins",
       "version": "1.0.0"
@@ -438,13 +438,13 @@
     "id": "github-pages",
     "publisherIdentity": "jini/github-pages",
     "packageName": "@jini-ai/agent-plugins",
-    "version": "0.7.1",
+    "version": "0.7.3-next.1",
     "description": "Publishes the site's static export to GitHub Pages with the workspace's own saved token. Ships the host code itself (a host loads it only because that host chose to ship this plugin) and the know-how an agent needs: which token permissions to grant, never guessing the owner, the address and base path, and what each failure means in plain words.",
     "expectedDigests": {
       "NOTES.md": "sha256-203ec670780b90eb7087ceaf09675e32d254a507a2f5c8ac390e08a3f18793ae",
       "jini-deploy-targets.json": "sha256-367b99e28be360140446f2b920ffe0f310cd5a7e25309949cba7e17a9a51ec98",
       "mcp.json": "sha256-1788697eb2d3aa1caa8da59a62331a92529e24885f0e7151418f915000fbf7fd",
-      "plugin.json": "sha256-05be16f8a9c725fdb61e8052ee4597d2640ae26a8b02a55ceb3ac327653cfc16",
+      "plugin.json": "sha256-858aed3334e15bbfcf2eb760716087b132a2ff95be17902a52145c176bd0e91b",
       "skills/github-pages/SKILL.md": "sha256-fc3436af85ad446b4768ede85f5310f3116d3b3329bc5fe36696bea4b1829d0e",
       "targets/github-pages.mjs": "sha256-962f12366cca678bdccf2c097b2f87ec83b8d3547aa4599d6099b852ac762d63"
     }
@@ -460,7 +460,7 @@
     "id": "google-forms",
     "publisherIdentity": "jini/google-forms-agent",
     "packageName": "@jini-ai/agent-plugins",
-    "version": "0.7.1",
+    "version": "0.7.3-next.1",
     "description": "Select a published public Google Form as a form collection provider. Questions and answers stay in Google; switching preserves local definitions and historical answers. Installation alone never switches a form.",
     "expectedDigests": {
       "plugin.json": "sha256-cdfd5005abd51a2b99c8e31a2f4e7b5d5ef7e7d006349a61e57c6d9ce4d46e9e",
@@ -469,8 +469,8 @@
   },
   {
     "kind": "provider",
-    "path": "plugins/google-forms/0.7.1",
-    "pluginVersion": "0.7.1",
+    "path": "plugins/google-forms/0.7.3-next.1",
+    "pluginVersion": "0.7.3-next.1",
     "contract": {
       "id": "form_collection",
       "version": 1
@@ -478,19 +478,19 @@
     "id": "google-forms",
     "publisherIdentity": "jini/google-forms",
     "packageName": "@jini-ai/provider-plugins",
-    "version": "0.7.1",
+    "version": "0.7.3-next.1",
     "description": "Google Forms collection",
     "expectedDigests": {
       "licenses/_jini-ai_provider-plugins/LICENSE": "sha256-9d95806a26532623360eb84bb17d298f394b55ef73fb4c0796d99b4319b2b0da",
       "licenses/_jini-ai_provider-plugins/NOTICE": "sha256-41f25c5b9af4c8e8e98e2a7c658b3922253c760686e17e0ef7fa003fae83cb95",
-      "licenses/_jini-ai_provider-plugins/package-license.json": "sha256-e5b0aba2e8ad1bbeae42e9f21e7c67b17c8d86e2ea8e3617f8ee70586b679c31",
+      "licenses/_jini-ai_provider-plugins/package-license.json": "sha256-0347d68a3392cbffcbd8519003b438ec698ab263201e4c8a84dc34196368a434",
       "server/index.mjs": "sha256-4d2eddc17a0453489dada1936203d1320be1c9b8457707eb46d701defc067c72"
     }
   },
   {
     "kind": "agent",
     "path": "google-login",
-    "pluginVersion": "0.1.1",
+    "pluginVersion": "0.1.2",
     "contract": {
       "id": "agent-plugins",
       "version": "1.0.0"
@@ -498,7 +498,7 @@
     "id": "google-login",
     "publisherIdentity": "jini/google-login",
     "packageName": "@jini-ai/agent-plugins",
-    "version": "0.7.1",
+    "version": "0.7.3-next.1",
     "description": "Adds Google sign-in for site members using this site's own Google OAuth client. Includes setup guidance for apps using Supabase Auth.",
     "expectedDigests": {
       "exports/google-g.svg": "sha256-95bcef150b35e3fe4544af6052763471e6bb545106af862075d08d03455b8138",
@@ -506,14 +506,14 @@
       "exports/sign-in-button.html": "sha256-b493a62c7d7d73f36d3930354ce0c8e035ae1cf11eea27afda521f66491f890b",
       "jini-login-providers.json": "sha256-52e5bb89a8fb5d604da458328e526610f0771e7f831589928c91c980a98cf786",
       "mcp.json": "sha256-1788697eb2d3aa1caa8da59a62331a92529e24885f0e7151418f915000fbf7fd",
-      "plugin.json": "sha256-9a2b62edc44beb72239070e17d0c1a8eff50e1dd39f0330b625a95ff46acc6ad",
+      "plugin.json": "sha256-e49ebed42d631fd153ae9244b1a2c2ea3771b56bcc393ad082cb2a7183f1b9d2",
       "skills/google-login/SKILL.md": "sha256-359bf2e697fd02a62b52ff8111d0950b6ab1311798ddfa2001499428b4473b98"
     }
   },
   {
     "kind": "agent",
     "path": "google-workspace",
-    "pluginVersion": "0.1.1",
+    "pluginVersion": "0.1.2",
     "contract": {
       "id": "agent-plugins",
       "version": "1.0.0"
@@ -521,7 +521,7 @@
     "id": "google-workspace",
     "publisherIdentity": "jini/google-workspace",
     "packageName": "@jini-ai/agent-plugins",
-    "version": "0.7.1",
+    "version": "0.7.3-next.1",
     "description": "Connects one Google account to this site with Google's own sign-in, then works with the Google files the person picks or this site creates (the drive.file permission, never the whole Drive). v1 ships Google Sheets: chat tools for spreadsheets and a form destination that appends submissions as rows. Products are turned on separately; turning one off stops its tools and deliveries without revoking the sign-in.",
     "expectedDigests": {
       "README.md": "sha256-3345e6ec8232cf78dc7f7e6de6c7bb91c29316490f2d8a717b75e780ca454d14",
@@ -548,7 +548,7 @@
       "lib/sheets-client.mjs": "sha256-becde804f58d07afffa8de44643a3313ea75c135fa1047e5339224dde988d34c",
       "lib/surface-actions.mjs": "sha256-3abe8693a0be3a7ce22e173908096d8ffb79fd3f836a8dc217c005aca60e35e0",
       "mcp.json": "sha256-1788697eb2d3aa1caa8da59a62331a92529e24885f0e7151418f915000fbf7fd",
-      "plugin.json": "sha256-70cdb25970e4f8d94c39f4cfa67c02db4cf0c2e20d5797be533d203a336fced7",
+      "plugin.json": "sha256-51f6c44b5a1495c6bf62f3520102e4373e09b2284eda7491f891f7646fc19f60",
       "products.json": "sha256-66414614357e647b5d0efc9718634219bdebe732f80498926eb661e46c2c87dc",
       "skills/google-workspace/SKILL.md": "sha256-fcd0c7a83b1b5197c070b14048713053dc3ea95f841b1a95e0da5979bbcf36fd",
       "skills/google-workspace/references/connection.md": "sha256-44156647a6fc7b62c4145b6e0b4e6803f08ed8449313acac3378c122216836f0",
@@ -605,7 +605,7 @@
   {
     "kind": "agent",
     "path": "higgsfield-media",
-    "pluginVersion": "1.1.1",
+    "pluginVersion": "1.1.2",
     "contract": {
       "id": "agent-plugins",
       "version": "1.0.0"
@@ -613,11 +613,11 @@
     "id": "higgsfield-media",
     "publisherIdentity": "jini/higgsfield-media",
     "packageName": "@jini-ai/agent-plugins",
-    "version": "0.7.1",
+    "version": "0.7.3-next.1",
     "description": "Generates images or video through Higgsfield's hosted MCP server, follows asynchronous jobs, then imports the returned asset into this site's Media library. Connect the account through the person's browser sign-in, never an API key. Discover this account's current tools, schemas and model entitlements; the worked model and plan examples are historical, not guarantees. Covers operator write grants, polling without sync:true, connection recovery and importing media from its URL.",
     "expectedDigests": {
       "mcp.json": "sha256-98af9b33fa9274d6a4553c5e7f78dd070142ec35dc5dff69c22a93c757118d5a",
-      "plugin.json": "sha256-0a511511680261ea99144fca553ecae28692507fdd750920b5cd091cc2c113c4",
+      "plugin.json": "sha256-f250974ec93a3877837e5aa751474608cc2cf11ec43e7a081a37a50259011549",
       "skills/higgsfield-media/SKILL.md": "sha256-44f4e1ae21a5c68495ed97885b9c6edbd2e924e202dd14d51cad6209d2ad48a7",
       "skills/higgsfield-media/references/failure-modes.md": "sha256-3e5d603951671091240159c416038972bf007d73df7f8076746434025e2f468d",
       "skills/higgsfield-media/references/models-and-plan-gates.md": "sha256-18466496f09b341d122d1053491c20984934fe5ea1d3dff052dbb51d64fe2adb"
@@ -626,7 +626,7 @@
   {
     "kind": "agent",
     "path": "jev",
-    "pluginVersion": "1.0.1",
+    "pluginVersion": "1.0.2",
     "contract": {
       "id": "agent-plugins",
       "version": "1.0.0"
@@ -634,11 +634,11 @@
     "id": "jev",
     "publisherIdentity": "jini/jev",
     "packageName": "@jini-ai/agent-plugins",
-    "version": "0.7.1",
+    "version": "0.7.3-next.1",
     "description": "Teaches an agent what Jev (TypeSafe's 'System One' model) is and when it belongs in a design: a fast, cheap, non-generative model that takes state plus a typed Choice/Score/Noul question and returns a typed answer with a calibrated probability distribution, for classification, routing, scoring, and confidence-gated automation — not for writing prose. Covers the three primitives' exact request/response shapes, how to read and threshold confidence, the documented architectural patterns, jev-1.13's known jaggedness (counting, dates, indirection, adversarial content, generation), and both the HTTP API and the JavaScript SDK. This plugin declares no MCP server: Jev has no official MCP integration, so a host's assistant cannot call it directly through chat yet. The skill exists for designing and writing code that calls Jev itself, authenticated with an API key (TYPESAFE_API_KEY, the documented SDK env var) the operator sets outside of chat.",
     "expectedDigests": {
       "mcp.json": "sha256-1788697eb2d3aa1caa8da59a62331a92529e24885f0e7151418f915000fbf7fd",
-      "plugin.json": "sha256-801975354247da447aa4819786b2ef3ae76dd07e892b0ea9c3875db9830a68e7",
+      "plugin.json": "sha256-8bcc654fdd043045707e19ea57193a06208bbc7a6e0e4fcc1a199b3da611e741",
       "skills/jev/SKILL.md": "sha256-c57b3631b8c586a5966de85b928418699a416a7f8ce1da1ed641444a9a118790",
       "skills/jev/references/cookbooks.md": "sha256-1010e7b43e5f680b95982a0f7a6dea252ed38cf8e17ed5885a1760101ed85227",
       "skills/jev/references/jaggedness.md": "sha256-2cadacbbd40e57c0351610ab364988a4fe3ae4c0acbdb8d132c36dcf875ffa19",
@@ -658,7 +658,7 @@
     "id": "kuinetic",
     "publisherIdentity": "jini/kuinetic",
     "packageName": "@jini-ai/agent-plugins",
-    "version": "0.7.1",
+    "version": "0.7.3-next.1",
     "description": "kUInetic, the declarative data-kui animation library: detection, setup, attribute grammar, effect names, reduced motion and opt-in tiers, as one portable Agent Plugin.",
     "expectedDigests": {
       "CHANGELOG.md": "sha256-e9144e7846ce916fea3c7be92c13e46a44b19d927888d7796fec0cbc59faf134",
@@ -681,7 +681,7 @@
     "id": "langfuse",
     "publisherIdentity": "jini/langfuse",
     "packageName": "@jini-ai/agent-plugins",
-    "version": "0.7.1",
+    "version": "0.7.3-next.1",
     "description": "Connects the site to Langfuse through the ai-trace-langfuse provider in @jini-ai/provider-plugins. Installation alone does not enable or configure the provider.",
     "expectedDigests": {
       "plugin.json": "sha256-4cf23de760ca9385713228dd827cd24916a7e92ecc7a484224866649112dd4bf"
@@ -690,7 +690,7 @@
   {
     "kind": "agent",
     "path": "meilisearch",
-    "pluginVersion": "0.1.1",
+    "pluginVersion": "0.1.2",
     "contract": {
       "id": "agent-plugins",
       "version": "1.0.0"
@@ -698,12 +698,12 @@
     "id": "meilisearch",
     "publisherIdentity": "jini/meilisearch",
     "packageName": "@jini-ai/agent-plugins",
-    "version": "0.7.1",
+    "version": "0.7.3-next.1",
     "description": "Runs the site's visitor search on a Meilisearch server (self-hosted or Meilisearch Cloud) instead of the host's built-in search. Ships the search provider itself (a host loads it only when the host shipped it) and the know-how to connect it. Meilisearch receives PUBLIC content only: published, publicly visible titles, text and URLs. Members-only or otherwise restricted content is never sent to it and stays in the host's built-in search.",
     "expectedDigests": {
       "jini-search-providers.json": "sha256-7828483352cf3161f85557fd1a3d05646701aa9367c093fe77260b2a0e68e0a0",
       "mcp.json": "sha256-1788697eb2d3aa1caa8da59a62331a92529e24885f0e7151418f915000fbf7fd",
-      "plugin.json": "sha256-48fd0f28c188406b386e038098aa5ad2bc78d9696b7a47c0f7dae65841f76a76",
+      "plugin.json": "sha256-2e68b8d64bcce7d3de39ee6bf36fa403b5668473e17faa0e3429e75290d64e7a",
       "providers/meilisearch.mjs": "sha256-7171c66a9a0007019a6456df23ea5f56a944afab64ff3a56a9ffbd79b2b6f3d4",
       "skills/meilisearch/SKILL.md": "sha256-8a37c38b69528682570f36b10c0c1ad334342070d7ab0f9949e2ae880f3ea9ff"
     }
@@ -711,7 +711,7 @@
   {
     "kind": "agent",
     "path": "netlify",
-    "pluginVersion": "0.1.1",
+    "pluginVersion": "0.1.2",
     "contract": {
       "id": "agent-plugins",
       "version": "1.0.0"
@@ -719,22 +719,22 @@
     "id": "netlify",
     "publisherIdentity": "jini/netlify",
     "packageName": "@jini-ai/agent-plugins",
-    "version": "0.7.1",
+    "version": "0.7.3-next.1",
     "description": "Publishes the site's static export to Netlify with the workspace's own saved token. Ships the host code itself (a host loads it only because that host chose to ship this plugin) and the know-how an agent needs: where to get a token, how the Netlify site is named, and what each failure means in plain words.",
     "expectedDigests": {
       "NOTES.md": "sha256-bd8c3fba094156e1fdb1673b211b4de2e15507b0bdfae9c7518f20ab3b03495a",
       "jini-consent.json": "sha256-131b61c5f6b3dd439519a431763bbd66cc94c4685d9da47f2ec0020b532cac0c",
       "jini-deploy-targets.json": "sha256-4808efb46250e65e867f28d37f5221fd2f969bc54aafe2b28dc441478388fc5c",
       "mcp.json": "sha256-1788697eb2d3aa1caa8da59a62331a92529e24885f0e7151418f915000fbf7fd",
-      "plugin.json": "sha256-407fe7b271c85f4ba2fe69864d7d3fef8ec63d486ff09484ccc9848aa34012b3",
+      "plugin.json": "sha256-d49e4e5c89157cca8406fca7d6a1154561e893853d021de407cbfaacbab0dac5",
       "skills/netlify/SKILL.md": "sha256-5c9abecb9124abccb42c81edbc7b600d0a365589ccfa5299eb5445ea78c7243f",
       "targets/netlify.mjs": "sha256-ff8cdbac8f1f2fb9a259ce3402d393744f214dfd003d4de49f43ee98fac7aff6"
     }
   },
   {
     "kind": "provider",
-    "path": "plugins/observability-opentelemetry/0.7.1",
-    "pluginVersion": "0.7.1",
+    "path": "plugins/observability-opentelemetry/0.7.3-next.1",
+    "pluginVersion": "0.7.3-next.1",
     "contract": {
       "id": "observability",
       "version": 1
@@ -742,18 +742,18 @@
     "id": "observability-opentelemetry",
     "publisherIdentity": "jini/observability-opentelemetry",
     "packageName": "@jini-ai/provider-plugins",
-    "version": "0.7.1",
+    "version": "0.7.3-next.1",
     "description": "OpenTelemetry",
     "expectedDigests": {
       "CHANGELOG.md": "sha256-d5d0c8f094fe3eb3358a9041fb043e5753b83674eb730ddf414a31ddc04110ff",
       "LICENSE": "sha256-9d95806a26532623360eb84bb17d298f394b55ef73fb4c0796d99b4319b2b0da",
       "NOTICE": "sha256-4a7f0e18c512c3a2d50e3c5072e8dcee983e4a5a904f189194310b1e1db3edc7",
-      "README.md": "sha256-07beab662fb4e208bab8a4dcd74f9d4c2d66d6377840186fe4c08209644c5c17",
+      "README.md": "sha256-0fa700649563840cdf3f92a0fbbd4d75bc5463b147db1da80c6d99c0d007c286",
       "licenses/_jini-ai_core/LICENSE": "sha256-9d95806a26532623360eb84bb17d298f394b55ef73fb4c0796d99b4319b2b0da",
-      "licenses/_jini-ai_core/package-license.json": "sha256-c1bb4f94ca08b1856b35690207f7511004e041806e1eb6a6e134c8af81d43697",
+      "licenses/_jini-ai_core/package-license.json": "sha256-1dbf5b35e631ece3c2b11cc1596c28970d8d7d6412b2291baca7af050fc749ab",
       "licenses/_jini-ai_provider-plugins/LICENSE": "sha256-9d95806a26532623360eb84bb17d298f394b55ef73fb4c0796d99b4319b2b0da",
       "licenses/_jini-ai_provider-plugins/NOTICE": "sha256-41f25c5b9af4c8e8e98e2a7c658b3922253c760686e17e0ef7fa003fae83cb95",
-      "licenses/_jini-ai_provider-plugins/package-license.json": "sha256-e5b0aba2e8ad1bbeae42e9f21e7c67b17c8d86e2ea8e3617f8ee70586b679c31",
+      "licenses/_jini-ai_provider-plugins/package-license.json": "sha256-0347d68a3392cbffcbd8519003b438ec698ab263201e4c8a84dc34196368a434",
       "licenses/_opentelemetry_api/LICENSE": "sha256-c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
       "licenses/_opentelemetry_api/package-license.json": "sha256-1535b30eb72144f96b0f2f473308b5a6239bd81c6346d9c151842b2e9b3cd3d1",
       "licenses/_opentelemetry_api-logs/LICENSE": "sha256-c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
@@ -783,8 +783,8 @@
   },
   {
     "kind": "provider",
-    "path": "plugins/observability-sentry/0.7.1",
-    "pluginVersion": "0.7.1",
+    "path": "plugins/observability-sentry/0.7.3-next.1",
+    "pluginVersion": "0.7.3-next.1",
     "contract": {
       "id": "observability",
       "version": 1
@@ -792,18 +792,18 @@
     "id": "observability-sentry",
     "publisherIdentity": "jini/observability-sentry",
     "packageName": "@jini-ai/provider-plugins",
-    "version": "0.7.1",
+    "version": "0.7.3-next.1",
     "description": "Sentry",
     "expectedDigests": {
       "CHANGELOG.md": "sha256-32fc6ab34ab7c794f0117b266acfdf5583eaf08695252fafc203ce8ffa6a4d86",
       "LICENSE": "sha256-9d95806a26532623360eb84bb17d298f394b55ef73fb4c0796d99b4319b2b0da",
       "NOTICE": "sha256-9b76d3e8027cefee5f9df2dbffd3f71e6d95d7b7c0a4f4e4e47a2eaae81b63d7",
-      "README.md": "sha256-7e37a320a169c73b401ff848e0dd181ec7e847a9e45736ecf4b04524919a6fc3",
+      "README.md": "sha256-ce3b2b548c14bd4155dbe065d48e8bd898e0294f262846e9258672e773907fb0",
       "licenses/_jini-ai_core/LICENSE": "sha256-9d95806a26532623360eb84bb17d298f394b55ef73fb4c0796d99b4319b2b0da",
-      "licenses/_jini-ai_core/package-license.json": "sha256-c1bb4f94ca08b1856b35690207f7511004e041806e1eb6a6e134c8af81d43697",
+      "licenses/_jini-ai_core/package-license.json": "sha256-1dbf5b35e631ece3c2b11cc1596c28970d8d7d6412b2291baca7af050fc749ab",
       "licenses/_jini-ai_provider-plugins/LICENSE": "sha256-9d95806a26532623360eb84bb17d298f394b55ef73fb4c0796d99b4319b2b0da",
       "licenses/_jini-ai_provider-plugins/NOTICE": "sha256-41f25c5b9af4c8e8e98e2a7c658b3922253c760686e17e0ef7fa003fae83cb95",
-      "licenses/_jini-ai_provider-plugins/package-license.json": "sha256-e5b0aba2e8ad1bbeae42e9f21e7c67b17c8d86e2ea8e3617f8ee70586b679c31",
+      "licenses/_jini-ai_provider-plugins/package-license.json": "sha256-0347d68a3392cbffcbd8519003b438ec698ab263201e4c8a84dc34196368a434",
       "licenses/_opentelemetry_api/LICENSE": "sha256-c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
       "licenses/_opentelemetry_api/package-license.json": "sha256-1535b30eb72144f96b0f2f473308b5a6239bd81c6346d9c151842b2e9b3cd3d1",
       "licenses/_sentry_conventions/LICENSE": "sha256-6c459083310e285797954222cc75bb33a56c04512d4f07c8b1b80258f99b0278",
@@ -826,7 +826,7 @@
   {
     "kind": "agent",
     "path": "opentelemetry",
-    "pluginVersion": "0.1.1",
+    "pluginVersion": "0.1.2",
     "contract": {
       "id": "agent-plugins",
       "version": "1.0.0"
@@ -834,18 +834,18 @@
     "id": "opentelemetry",
     "publisherIdentity": "jini/opentelemetry",
     "packageName": "@jini-ai/agent-plugins",
-    "version": "0.7.1",
+    "version": "0.7.3-next.1",
     "description": "Connects the site's traces to any OpenTelemetry (OTLP/HTTP) backend, such as Grafana Cloud or Honeycomb, through the OpenTelemetry provider plugin in the same package (observability-opentelemetry). Ships the know-how and a secure key card: the person enters the OTLP endpoint, an optional username or instance ID, and the token; the host saves it to your project, and you choose which sites use it. No vendor code here; the provider plugin exports the traces.",
     "expectedDigests": {
       "mcp.json": "sha256-1788697eb2d3aa1caa8da59a62331a92529e24885f0e7151418f915000fbf7fd",
-      "plugin.json": "sha256-82affe4dde54e50a130347c1828931a8bf1bc5635c046c9fb53d7ee127b6a949",
+      "plugin.json": "sha256-2f94d40ff6ce9d78b4ed8e8b82f7388495a842b317cbe992ee6e1035d7c42cb5",
       "skills/opentelemetry/SKILL.md": "sha256-36ad4ecaf96c1d3663db5867c8566ee34b607dc444c8de7765dc3c1793619a9d"
     }
   },
   {
     "kind": "provider",
-    "path": "plugins/payments-stripe/0.7.1",
-    "pluginVersion": "0.7.1",
+    "path": "plugins/payments-stripe/0.7.3-next.1",
+    "pluginVersion": "0.7.3-next.1",
     "contract": {
       "id": "payments",
       "version": 1
@@ -853,7 +853,7 @@
     "id": "payments-stripe",
     "publisherIdentity": "jini/payments-stripe",
     "packageName": "@jini-ai/provider-plugins",
-    "version": "0.7.1",
+    "version": "0.7.3-next.1",
     "description": "Stripe payments provider",
     "expectedDigests": {
       "CHANGELOG.md": "sha256-bd2036b212f0dc0f28f651d9810531cfdc69b4dc89273ef2671f2479a1366795",
@@ -862,14 +862,14 @@
       "README.md": "sha256-61af4851370194e9b1a2e2c26227ccb43a3048416a683b348a6ed9ecf240ae13",
       "licenses/_jini-ai_provider-plugins/LICENSE": "sha256-9d95806a26532623360eb84bb17d298f394b55ef73fb4c0796d99b4319b2b0da",
       "licenses/_jini-ai_provider-plugins/NOTICE": "sha256-41f25c5b9af4c8e8e98e2a7c658b3922253c760686e17e0ef7fa003fae83cb95",
-      "licenses/_jini-ai_provider-plugins/package-license.json": "sha256-e5b0aba2e8ad1bbeae42e9f21e7c67b17c8d86e2ea8e3617f8ee70586b679c31",
+      "licenses/_jini-ai_provider-plugins/package-license.json": "sha256-0347d68a3392cbffcbd8519003b438ec698ab263201e4c8a84dc34196368a434",
       "server/index.mjs": "sha256-7e073314c783773c0e5b3d09e3072b485884ae568226c0052aa770f827f5257b"
     }
   },
   {
     "kind": "agent",
     "path": "posthog",
-    "pluginVersion": "0.1.1",
+    "pluginVersion": "0.1.2",
     "contract": {
       "id": "agent-plugins",
       "version": "1.0.0"
@@ -877,18 +877,18 @@
     "id": "posthog",
     "publisherIdentity": "jini/posthog",
     "packageName": "@jini-ai/agent-plugins",
-    "version": "0.7.1",
+    "version": "0.7.3-next.1",
     "description": "Connects the site to PostHog product analytics through the PostHog provider plugin in the same package (analytics-posthog). Ships the know-how and a secure key card: the assistant opens the card, the person picks the region (US by default, EU or a self-hosted URL) and pastes the project API key, and the host saves it to your project, and you choose which sites use it. No PostHog code here; the provider plugin sends the events.",
     "expectedDigests": {
       "mcp.json": "sha256-1788697eb2d3aa1caa8da59a62331a92529e24885f0e7151418f915000fbf7fd",
-      "plugin.json": "sha256-23ab80e2cbcf7f66796cef232070191ee9358aee079a4b653f2ca1817951f99c",
+      "plugin.json": "sha256-ff005aefabd3cbbbca3fd7b884fec7c324edf8d1ec0146d16fee8588a7eb73c6",
       "skills/posthog/SKILL.md": "sha256-954bd085059abd0a4427a8e3d62193148d754f896f2b908777731075089d3425"
     }
   },
   {
     "kind": "agent",
     "path": "railway",
-    "pluginVersion": "1.0.1",
+    "pluginVersion": "1.0.2",
     "contract": {
       "id": "agent-plugins",
       "version": "1.0.0"
@@ -896,7 +896,7 @@
     "id": "railway",
     "publisherIdentity": "jini/railway",
     "packageName": "@jini-ai/agent-plugins",
-    "version": "0.7.1",
+    "version": "0.7.3-next.1",
     "description": "Deploys existing Railway services, checks deployment status and logs, stages variables, and generates railway.json for the host's server.",
     "expectedDigests": {
       "deploy-configs/railway.mjs": "sha256-9d6dafa830de1211c760c1d97ad61756057108c17638ee6d2104673df2aea61c",
@@ -904,14 +904,14 @@
       "jini-deploy-configs.json": "sha256-fe91255d5c34ea545a56d28e1c37c661ec0062c6834dbb50828c45319b6e665c",
       "jini-deploy-ops.json": "sha256-be77a44326a9cdbd38c841c80f2e2b50c52bbe356f4450392dac2dfe654f445c",
       "mcp.json": "sha256-1788697eb2d3aa1caa8da59a62331a92529e24885f0e7151418f915000fbf7fd",
-      "plugin.json": "sha256-6837f16317e697b9fa3ef957d646fc8f869817f762e6f3c4c5da9e6237046778",
+      "plugin.json": "sha256-f07e84e29fd465fa983e89fabb28e02ea358e9f0b138752612a45ff1f7c4521a",
       "skills/railway/SKILL.md": "sha256-f967ade1fc3d0e93aba48862b440f573f98aa3a79790d98b6f6ec04296c7582b"
     }
   },
   {
     "kind": "agent",
     "path": "render",
-    "pluginVersion": "1.0.1",
+    "pluginVersion": "1.0.2",
     "contract": {
       "id": "agent-plugins",
       "version": "1.0.0"
@@ -919,7 +919,7 @@
     "id": "render",
     "publisherIdentity": "jini/render",
     "packageName": "@jini-ai/agent-plugins",
-    "version": "0.7.1",
+    "version": "0.7.3-next.1",
     "description": "Generates render.yaml and deploys existing Render server services through the API, with status, logs and environment variable tools.",
     "expectedDigests": {
       "deploy-configs/render.mjs": "sha256-16d7e27bef2d8c42c8df232a4b766dbf2aea0216c0a88f8d5b539d9da29e0342",
@@ -927,14 +927,14 @@
       "jini-deploy-configs.json": "sha256-ca97e7381b662a8c0ae8083912a36f12319278487f5dab47eefc6dc9cab5e8f6",
       "jini-deploy-ops.json": "sha256-c3b4947dfadb79524066c30dbb69c7339636a91a9d229acdec145f42bed0cbf5",
       "mcp.json": "sha256-1788697eb2d3aa1caa8da59a62331a92529e24885f0e7151418f915000fbf7fd",
-      "plugin.json": "sha256-a4ba23b20ef836d46a4964315a9295009b0982bbdfdfd00bc20a79b29fbbf2d5",
+      "plugin.json": "sha256-3cf71947824e3d52d5f4fecba87917acc4fe604c950b9efeee31485ab9570e81",
       "skills/render/SKILL.md": "sha256-60ba576415cfebe8c304dd36d482a4cfea03d12d9de15670bf92cb242c4a78c6"
     }
   },
   {
     "kind": "agent",
     "path": "resend",
-    "pluginVersion": "0.2.2",
+    "pluginVersion": "0.2.3",
     "contract": {
       "id": "agent-plugins",
       "version": "1.0.0"
@@ -942,7 +942,7 @@
     "id": "resend",
     "publisherIdentity": "jini/resend",
     "packageName": "@jini-ai/agent-plugins",
-    "version": "0.7.1",
+    "version": "0.7.3-next.1",
     "description": "Sends the site's email (sign-in links, form notifications, newsletters) through Resend's hosted email API, and connects the assistant to Resend's own hosted MCP server for work on the Resend account itself: domains and their DNS verification, broadcasts, contacts, segments, topics, templates, logs and usage. Ships the mail adapter (a host loads it only when the host shipped it) and the know-how to set both up: a sending key saved through the secure site-mail connection card, and a separate Full access key saved through the secure account card for the account tools.",
     "expectedDigests": {
       "NOTES.md": "sha256-9a5b85e566cbd88c2df0bedef286b4886b14fd4290fd91c8a7c1b8608d87b170",
@@ -952,14 +952,14 @@
       "lib/errors.mjs": "sha256-28bb77a8727b6f83532f5748514076e939211c20ae21a475de4a9c4d87dde461",
       "lib/feedback.mjs": "sha256-b1051b2938e21ec8b55d04f2087482345a6354c5557ed3f56717079d36eb6642",
       "mcp.json": "sha256-68d4da10819e313ef2b1ce92fedf4c588932b6edd296f8537f26c51e83c8c823",
-      "plugin.json": "sha256-954e116decb29e59523af188a9f5e577a7a492b21d3f01c96cfd4fe5f6cb6b40",
+      "plugin.json": "sha256-804211ea758c947ac24850fc18f861909744a1a663e8a06dab09a8f64f309ab4",
       "skills/resend/SKILL.md": "sha256-816ac3528b702bbcdb56c8236bd1c7c01ada77ec1c05edc67a142e5ce76cad6e"
     }
   },
   {
     "kind": "agent",
     "path": "s3-compatible",
-    "pluginVersion": "0.1.1",
+    "pluginVersion": "0.1.2",
     "contract": {
       "id": "agent-plugins",
       "version": "1.0.0"
@@ -967,7 +967,7 @@
     "id": "s3-compatible",
     "publisherIdentity": "jini/s3-compatible",
     "packageName": "@jini-ai/agent-plugins",
-    "version": "0.7.1",
+    "version": "0.7.3-next.1",
     "description": "Publishes the site's static export to S3-compatible object storage (AWS S3, Cloudflare R2, Backblaze B2, DigitalOcean Spaces, Wasabi, MinIO, ...) with the workspace's own saved access key. Ships the host code itself (a host loads it only because that host chose to ship this plugin) and the know-how an agent needs: what to set up in the bucket first, which credential fields go where, and what each failure means in plain words.",
     "expectedDigests": {
       "NOTES.md": "sha256-e9df4668467019852707a0a6b9e7655dde1b1cf1ab176810c1e0d643f579ba86",
@@ -975,7 +975,7 @@
       "jini-object-stores.json": "sha256-2f792839557e3612f23bccb66aa91dfacb2ac510c829b82b62724ee73987fff5",
       "mcp.json": "sha256-1788697eb2d3aa1caa8da59a62331a92529e24885f0e7151418f915000fbf7fd",
       "object-stores/s3-compatible.mjs": "sha256-b5366094fec2f343c43174054c675bba7f73f1a4ca3da54243defa1d5d73a449",
-      "plugin.json": "sha256-95d589fbeb7d0b368214dd4e9a0482eddcb71a3ff44bf41db67e124f48654d1a",
+      "plugin.json": "sha256-c5291956a776b9ee8be7d0d4c4c0ff41566bbfa8354f0a0d88931edb41dcd2eb",
       "skills/s3-compatible/SKILL.md": "sha256-acee7ab89ebe50f7d78838c910a483ef823778b258e13fe2b944e1b59dcdbe4f",
       "targets/s3-compatible.mjs": "sha256-43f948e91487faf9350de986c7c846ec4600031c868b1bccad39df3ab9c3569d"
     }
@@ -983,7 +983,7 @@
   {
     "kind": "agent",
     "path": "sentry",
-    "pluginVersion": "0.1.1",
+    "pluginVersion": "0.1.2",
     "contract": {
       "id": "agent-plugins",
       "version": "1.0.0"
@@ -991,11 +991,11 @@
     "id": "sentry",
     "publisherIdentity": "jini/sentry",
     "packageName": "@jini-ai/agent-plugins",
-    "version": "0.7.1",
+    "version": "0.7.3-next.1",
     "description": "Connects the site's error tracking to Sentry through the Sentry provider plugin in the same package (observability-sentry). Ships the know-how and a secure key card: the person pastes the project's DSN and an optional environment name; the host saves it to your project, and you choose which sites use it. No Sentry code here; the provider plugin reports the errors.",
     "expectedDigests": {
       "mcp.json": "sha256-1788697eb2d3aa1caa8da59a62331a92529e24885f0e7151418f915000fbf7fd",
-      "plugin.json": "sha256-b0a68e2cd1c6440551ce96c5d4ef81dddd14d076959787d086bdf7d398c12b12",
+      "plugin.json": "sha256-ae61299c8670c927d708d4d331f55ba0994718126d0a91d5592c68f4fb6dad1f",
       "skills/sentry/SKILL.md": "sha256-12231060121c7c1b1a9f781aef72531bbcf6d9cacc4629b74fb3871c69c18256"
     }
   },
@@ -1010,7 +1010,7 @@
     "id": "shadcn-ui",
     "publisherIdentity": "jini/shadcn-ui",
     "packageName": "@jini-ai/agent-plugins",
-    "version": "0.7.1",
+    "version": "0.7.3-next.1",
     "description": "shadcn/ui (Radix or Base UI with Tailwind CSS) component discovery, setup, customization and integration guidance for React app work, as one portable Agent Plugin.",
     "expectedDigests": {
       "CHANGELOG.md": "sha256-c831e0b1ab1bd66b0b03a496e594e349797bef1c80cb5b569a684eb75601cebe",
@@ -1033,7 +1033,7 @@
   {
     "kind": "agent",
     "path": "shopify",
-    "pluginVersion": "0.1.1",
+    "pluginVersion": "0.1.2",
     "contract": {
       "id": "agent-plugins",
       "version": "1.0.0"
@@ -1041,11 +1041,11 @@
     "id": "shopify",
     "publisherIdentity": "jini/shopify",
     "packageName": "@jini-ai/agent-plugins",
-    "version": "0.7.1",
+    "version": "0.7.3-next.1",
     "description": "Runs a shop on this site while Shopify keeps the products, cart, checkout, payments and orders. Works with no Shopify key at all: it reads the store's public product data (<store>/products.json and /meta.json), copies every product into a 'product' collection here (price, stock, photo, Buy link), and builds the shop grid with the collection embed whose Buy buttons are Shopify cart links (https://<shop>.myshopify.com/cart/<variant_id>:1) that open Shopify's own checkout. Re-running updates the same entries instead of duplicating them. Also encodes the domain move that breaks checkout when done in the wrong order (connect a shop. subdomain to Shopify and make it primary BEFORE the main domain points at this site). Follow the shopify skill and the host guidance.",
     "expectedDigests": {
       "mcp.json": "sha256-1788697eb2d3aa1caa8da59a62331a92529e24885f0e7151418f915000fbf7fd",
-      "plugin.json": "sha256-5b27d9fca13c12fe82f45793d01e0654b3e661955ba6238467c1a751a59ee967",
+      "plugin.json": "sha256-6149f590eb15012aad0aa137594c82275c54c855eb5722ceea55f4b47821470e",
       "skills/shopify/SKILL.md": "sha256-a1bccec418de6219bb70f454b64164cf8346a4b5a31ed2df84a78cfdbfe9ed99",
       "skills/shopify/references/catalog-sync.md": "sha256-9e680bd79d70fe3305abeecd8b66e7d0794132879492f6ba12836c2abe1c440a",
       "skills/shopify/references/domains.md": "sha256-a5707e74d2aeec686c9aa2493aa13a18bab3409a32cca18da3b82513aa257941",
@@ -1056,7 +1056,7 @@
   {
     "kind": "agent",
     "path": "site-compliance",
-    "pluginVersion": "1.0.1",
+    "pluginVersion": "1.0.2",
     "contract": {
       "id": "agent-plugins",
       "version": "1.0.0"
@@ -1064,11 +1064,11 @@
     "id": "site-compliance",
     "publisherIdentity": "jini/site-compliance",
     "packageName": "@jini-ai/agent-plugins",
-    "version": "0.7.1",
+    "version": "0.7.3-next.1",
     "description": "Evidence-based privacy, cookie/consent, and accessibility risk screening for a website. Collects citable evidence from the site's own configuration and its own rendered pages, reports findings with the exact page path, selector, header, or request that supports each one, and says 'cannot determine' where the evidence is missing. Never asserts a GDPR, CCPA/CPRA, or WCAG compliance verdict.",
     "expectedDigests": {
       "mcp.json": "sha256-1788697eb2d3aa1caa8da59a62331a92529e24885f0e7151418f915000fbf7fd",
-      "plugin.json": "sha256-f70d9b78a7d617363297746c4e094266b58fa8bf724c74bc5acf1e6349d9b229",
+      "plugin.json": "sha256-8dbf72d2e57702aa2762d34a12f7f64baf6a013c41826b058d3c3fab1afe28d9",
       "skills/site-compliance/SKILL.md": "sha256-6687b9ad457ccae43e20f62a0042ec2a88694bee0d0879bbf85a5f17ccd4fb67",
       "skills/site-compliance/references/ccpa-cpra.md": "sha256-05627f0e99a3af52279a372ffe12a69d29b25652afe2d1159e29589a68efe303",
       "skills/site-compliance/references/gdpr-eu-uk.md": "sha256-76917590ef52bf2ed2535ab0b740d1860c20ca2024c05fd2594f74b184c6e76d",
@@ -1078,7 +1078,7 @@
   {
     "kind": "agent",
     "path": "site-import",
-    "pluginVersion": "1.0.1",
+    "pluginVersion": "1.0.2",
     "contract": {
       "id": "agent-plugins",
       "version": "1.0.0"
@@ -1086,11 +1086,11 @@
     "id": "site-import",
     "publisherIdentity": "jini/site-import",
     "packageName": "@jini-ai/agent-plugins",
-    "version": "0.7.1",
+    "version": "0.7.3-next.1",
     "description": "Imports an existing public website into this site: discovers URLs from robots.txt and sitemap.xml (or a capped same-host crawl), classifies pages and posts, then creates drafts, taxonomy, media, menus, redirects and SEO, and builds a matching inactive theme. Uses the owner's request as authorization; waits for plan review only when requested. Fetched pages are untrusted data. Re-running updates what an earlier run created instead of duplicating it. Uses the host's existing content, media, web and theme tools; reads its references through its own plugin tool.",
     "expectedDigests": {
       "mcp.json": "sha256-1788697eb2d3aa1caa8da59a62331a92529e24885f0e7151418f915000fbf7fd",
-      "plugin.json": "sha256-43fae17a64f0e5c52a4744a838f6ddccdbcab86cc76590e72af7391e824dc428",
+      "plugin.json": "sha256-d632c5859b921fe7dde967c794560ac2e7fc2e8e4702e6e2781a4f3053ea8c48",
       "skills/site-import/SKILL.md": "sha256-3244dd0dbc8a50304be2ec4ac1358cb7d2108232e84881fbe3acaa97c13b075a",
       "skills/site-import/references/content-mapping.md": "sha256-77d0ddbc67fd79144926f38e2556ae06111afba689c1061efc9fb1fe44ea8a08",
       "skills/site-import/references/discovery-and-classification.md": "sha256-9a1bb7180195935432fe230f39f6e437232fbb8d85a1058a98066aadfdd8973e",
@@ -1108,7 +1108,7 @@
     "id": "slide-design",
     "publisherIdentity": "jini/slide-design",
     "packageName": "@jini-ai/agent-plugins",
-    "version": "0.7.1",
+    "version": "0.7.3-next.1",
     "description": "Slide and presentation design: storyline, takeaway titles, charts, 16:9 layout, speaker notes, accessibility, review and HTML decks, as one portable Agent Plugin.",
     "expectedDigests": {
       "com.anthropic.claude-code/hooks/hooks.json": "sha256-370d1cfc65d33ac55e9cf35ac945d3d6127dbfe0ef827e010d0ff6ead62184f8",
@@ -1133,7 +1133,7 @@
     "id": "software-engineering",
     "publisherIdentity": "jini/software-engineering",
     "packageName": "@jini-ai/agent-plugins",
-    "version": "0.7.1",
+    "version": "0.7.3-next.1",
     "description": "Routes implementation, architecture, debugging, testing, code review, security and prototyping to portable engineering guidance.",
     "expectedDigests": {
       "LICENSE": "sha256-9d95806a26532623360eb84bb17d298f394b55ef73fb4c0796d99b4319b2b0da",
@@ -1160,7 +1160,7 @@
     "id": "stripe",
     "publisherIdentity": "jini/stripe",
     "packageName": "@jini-ai/agent-plugins",
-    "version": "0.7.1",
+    "version": "0.7.3-next.1",
     "description": "Connects the site to Stripe through the payments-stripe provider in @jini-ai/provider-plugins. Installation alone does not enable or configure the provider.",
     "expectedDigests": {
       "plugin.json": "sha256-017002cc4a7626a21e45910926ed6df60c50b2963590bf716dc33c5d01b8b13c"
@@ -1169,7 +1169,7 @@
   {
     "kind": "agent",
     "path": "supabase",
-    "pluginVersion": "1.1.1",
+    "pluginVersion": "1.1.2",
     "contract": {
       "id": "agent-plugins",
       "version": "1.0.0"
@@ -1177,11 +1177,11 @@
     "id": "supabase",
     "publisherIdentity": "jini/supabase",
     "packageName": "@jini-ai/agent-plugins",
-    "version": "0.7.1",
+    "version": "0.7.3-next.1",
     "description": "Gives this site a hosted database (Supabase) for sign-ups, forms and app data, set up from chat with no setup steps for the person. Use it whenever someone says they need a database, want to store data, or want sign-ups or form entries saved. Always start by connecting the Supabase account: it shows a sign-in card (the person signs in or signs up at Supabase themselves), turns the connection on, and returns once connected. Then follow the supabase skill: find or create the database, handle Supabase's free limit of two active databases, and speak in plain words only.",
     "expectedDigests": {
       "mcp.json": "sha256-b511edc9f8d63dc7e327ad4f374c7ff37ead7f08a7d20760980efe1ff0e6c418",
-      "plugin.json": "sha256-990acca38b3c8b8b2276a640a75e589bb6cd585410630b5bd973f06c8cee2eca",
+      "plugin.json": "sha256-28baecc944d0cc5270b32fa3c5612d59296f87f7d109a7c547ea4fffd62f2def",
       "skills/supabase/SKILL.md": "sha256-080731164dbe6cbb1cafad2a6e0491573fcb8e76cc0c2cc4b834103e6a75d050",
       "skills/supabase/references/failure-modes.md": "sha256-b35f2bda84096f0dfcd81cd92fa110d3a1ad3cb0356d6f12700660d339022aae"
     }
@@ -1197,7 +1197,7 @@
     "id": "ui-ux-design",
     "publisherIdentity": "jini/ui-ux-design",
     "packageName": "@jini-ai/agent-plugins",
-    "version": "0.7.1",
+    "version": "0.7.3-next.1",
     "description": "UI/UX design, interface-design-system, accessibility and web-compliance skills bundled as one portable Agent Plugin.",
     "expectedDigests": {
       "CHANGELOG.md": "sha256-c729a20fcd283a7cb051c676b613c6aa488c0e265bf420de004abcf0b03fea39",
@@ -1249,7 +1249,7 @@
   {
     "kind": "agent",
     "path": "vercel",
-    "pluginVersion": "0.1.1",
+    "pluginVersion": "0.1.2",
     "contract": {
       "id": "agent-plugins",
       "version": "1.0.0"
@@ -1257,7 +1257,7 @@
     "id": "vercel",
     "publisherIdentity": "jini/vercel",
     "packageName": "@jini-ai/agent-plugins",
-    "version": "0.7.1",
+    "version": "0.7.3-next.1",
     "description": "Publishes the site's static export to Vercel with the workspace's own saved token. Ships the host code itself (a host loads it only because that host chose to ship this plugin) and the know-how an agent needs: where to get a token, the optional team, Deployment Protection, and what each failure means in plain words.",
     "expectedDigests": {
       "NOTES.md": "sha256-3fa4c2d96c485ea6d9624d19e53c209bdc13650a7b58c315ecd5fc894972806b",
@@ -1266,7 +1266,7 @@
       "jini-object-stores.json": "sha256-aeced733674d924fef5d7415879cbeefa765f8abe6969b80482706232de7197b",
       "mcp.json": "sha256-1788697eb2d3aa1caa8da59a62331a92529e24885f0e7151418f915000fbf7fd",
       "object-stores/vercel-blob.mjs": "sha256-a60022777ba6316bdec00c3546f7196a1227c3d6fd43cbb82331a0c3c1a1bf8c",
-      "plugin.json": "sha256-44cc3c0f27894d84ff0b45fdd2744386e4e39d329ca7ef4f20f2c63e874f238d",
+      "plugin.json": "sha256-5b44e6d1a22bbf9eab089b5e3b596f0f548af999879731b6fb224eef7383fa32",
       "skills/vercel/SKILL.md": "sha256-43d108177e0dea6f3e5a6b120c3afc011331c4686803806139be72f57b17ebb5",
       "targets/vercel.mjs": "sha256-0d108da3498a37e32e61c50cf66c372773011c8b3eab6fd4c74e56afecf5ce3a"
     }
@@ -1274,7 +1274,7 @@
   {
     "kind": "agent",
     "path": "wordpress",
-    "pluginVersion": "0.1.1",
+    "pluginVersion": "0.1.2",
     "contract": {
       "id": "agent-plugins",
       "version": "1.0.0"
@@ -1282,11 +1282,11 @@
     "id": "wordpress",
     "publisherIdentity": "jini/wordpress",
     "packageName": "@jini-ai/agent-plugins",
-    "version": "0.7.1",
+    "version": "0.7.3-next.1",
     "description": "Guides publishing a site through an existing host, connecting an owned subdomain, or redirecting a free WordPress.com address. Uses existing hosting, DNS and page-reading tools. Includes WordPress.com dashboard steps and marks unconfirmed redirect pricing and host URL eligibility for dashboard confirmation.",
     "expectedDigests": {
       "NOTES.md": "sha256-45f4afad805dbba8a0476bbd4280e518d9c799ec08720647434e1dae93dc83a0",
-      "plugin.json": "sha256-a1bb7e8057245e5872f78a7ceed0c7ec4b946d442a9be224be16f9f162e8c6bb",
+      "plugin.json": "sha256-267ed5f8cd303e766041928b1eaa0f81d92840ff586fb683282994eda8aaf41d",
       "skills/wordpress/SKILL.md": "sha256-777f205072052707d9154868217f91058897d90f0d755aad514d963f0d65c684",
       "skills/wordpress/references/free-site-redirect.md": "sha256-ddf833e65cd11520cf7bfac05669389e8a8afa3f12e580138702a57462b508fb",
       "skills/wordpress/references/subdomain.md": "sha256-f9dae8e93a3e79d62a80e9b510df228d207167031d2083a7bd3802189dd10c58"

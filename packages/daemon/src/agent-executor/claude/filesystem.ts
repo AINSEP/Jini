@@ -1,5 +1,5 @@
 import { promises as fs } from 'node:fs';
-import { claudeFilesystemRuntimePaths, claudeFilesystemSettings, createClaudeFilesystemSupportProbe } from '@jini-ai/agent-runtime';
+import type { AgentRuntimePort } from '../../ports/agent-runtime.js';
 import type { MutableRunInput } from '../launch.js';
 
 async function prepareClaudeRuntimeTemp({ input, spawnEnv, runtimeTemps }: { input: MutableRunInput; spawnEnv: NodeJS.ProcessEnv; runtimeTemps: string[] }): Promise<void> {
@@ -14,7 +14,6 @@ async function prepareClaudeRuntimeTemp({ input, spawnEnv, runtimeTemps }: { inp
 }
 
 export const claudeFilesystemAdapter = {
-  createProbe: createClaudeFilesystemSupportProbe,
   prepare({ input, spawnEnv, runtimeTemps }: { input: MutableRunInput; spawnEnv: NodeJS.ProcessEnv; runtimeTemps: string[] }): Promise<void> | void {
     if (process.platform === 'win32') return;
     return prepareClaudeRuntimeTemp({ input, spawnEnv, runtimeTemps });
@@ -23,10 +22,10 @@ export const claudeFilesystemAdapter = {
     // Personal Claude hooks/permissions stay excluded even on an unconfined CLI fallback.
     input.settingSources = [];
   },
-  supported({ input, launchPath, spawnEnv }: { input: MutableRunInput; launchPath: string; spawnEnv: NodeJS.ProcessEnv }): void {
-    input.filesystemRuntimeReadPaths = claudeFilesystemRuntimePaths({ launchPath }, {});
+  supported({ input, launchPath, spawnEnv }: { input: MutableRunInput; launchPath: string; spawnEnv: NodeJS.ProcessEnv }, { filesystem }: { filesystem: Pick<AgentRuntimePort['filesystem'], 'runtimePaths' | 'settings'> }): void {
+    input.filesystemRuntimeReadPaths = filesystem.runtimePaths({ launchPath });
     // Validates host settings here so a malformed value fails cleanly; buildArgs merges again (idempotent).
-    input.settings = claudeFilesystemSettings({ options: input }, {});
+    input.settings = filesystem.settings({ options: input });
     // A login environment can otherwise force auto-memory back on despite the host setting.
     spawnEnv.CLAUDE_CODE_DISABLE_AUTO_MEMORY = '1';
   },

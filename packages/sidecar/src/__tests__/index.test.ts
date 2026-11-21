@@ -41,6 +41,9 @@ import {
 import { prepareIpcPath } from "../json-ipc.js";
 import { closeServer, listenOnPort } from "../net.js";
 import { allocateDynamicPort } from "../port.js";
+import { writeJsonFileAtomicAsync } from '@jini-ai/platform/fs';
+/** The real atomic writer (platform is a test dependency); hosts pass node-adapters' `nodeAtomicWriter`. */
+const testWriter = { writeJson: writeJsonFileAtomicAsync };
 
 // root (CAP_DAC_OVERRIDE) always bypasses a directory/file's own permission bits, so `chmod(path,
 // 0o000)` cannot actually block root's own access the way a couple of tests below rely on — a
@@ -562,7 +565,7 @@ describe("@jini-ai/sidecar — json-file", () => {
     const dir = await mkdtemp(join(tmpdir(), "jini-sidecar-jsonfile-"));
     try {
       const filePath = join(dir, "nested", "state.json");
-      await writeJsonFile({ filePath, payload: { runId: "run_1" } });
+      await writeJsonFile({ writer: testWriter, filePath, payload: { runId: "run_1" } });
       expect(await readJsonFile<{ runId: string }>({ filePath })).toEqual({ runId: "run_1" });
 
       await removePointerIfCurrent({ pointerPath: filePath, runId: "run_2" });

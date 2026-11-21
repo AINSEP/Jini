@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import * as agentPluginBindings from '../agent-plugins.js';
 import * as fsBindings from '../fs.js';
 import * as processBindings from '../process.js';
 
@@ -11,8 +12,9 @@ const manifest = JSON.parse(readFileSync(new URL('package.json', root), 'utf8'))
 };
 /** One subpath per binding family; a later lane adds its own entry in its own commit. */
 const SURFACE: Readonly<Record<string, { readonly module: object; readonly names: readonly string[] }>> = {
+  './agent-plugins': { module: agentPluginBindings, names: ['createNodeAgentPluginEffects'] },
   './fs': { module: fsBindings, names: ['nodeAtomicWriter', 'nodeFileLock'] },
-  './process': { module: processBindings, names: ['createProcessControlPort', 'nodeProcessControl'] },
+  './process': { module: processBindings, names: ['createProcessControlPort', 'createSpawnPort', 'nodeCommandShell', 'nodeProcessControl', 'nodeSpawnPort'] },
 };
 
 describe('@jini-ai/node-adapters public surface', () => {

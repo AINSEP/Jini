@@ -7,6 +7,7 @@ import { createAgentExecutor } from '../index.js';
 import { createRunLifecycle } from '../../run-lifecycle.js';
 import { createInMemoryEventLog } from '../../event-log.js';
 import { fixtureLaunchModel, fixtureModelDiscovery } from './model-discovery-fixture.js';
+import { runtimeFixture, agentRuntimeFixture } from './runtime-fixture.js';
 
 const definition: RuntimeAgentDef = { ...fixtureModelDiscovery, id: 'm1-cli', name: 'Fixture CLI', bin: 'fixture',
   versionArgs: [], fallbackModels: [], streamFormat: 'acp-json-rpc', buildArgs: () => [], supportsNativeToolAccess: true };
@@ -15,14 +16,8 @@ async function start({ bridge }: { bridge: boolean }) {
   const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
   const child = Object.assign(new EventEmitter(), { stdin: new PassThrough(), stdout: new PassThrough(), stderr: new PassThrough(), exitCode: null, signalCode: null });
   const def = { ...definition, ...(bridge ? { externalMcpInjection: 'acp-merge' as const } : {}) };
-  const executor = createAgentExecutor({ lifecycle }, { getAgentDef: () => def, hostEnv: {},
-    resolveAgentLaunch: () => ({ selectedPath: '/fixture', pathResolvedPath: '/fixture', configuredOverridePath: null,
-      launchPath: '/fixture', launchKind: 'selected', childPathPrepend: [], diagnostic: null }),
-    applyAgentLaunchEnv: ({ env }) => env, ensureAgentCapabilities: async () => {}, resolveModelForLaunch: fixtureLaunchModel,
-    spawn: (() => { queueMicrotask(() => child.emit('spawn')); return child as unknown as ChildProcess; }) as typeof nodeSpawn,
-    attachAcpSession: () => ({ hasFatalError: () => false, getDurableSessionId: () => null, completedSuccessfully: () => true, abort() {} }),
-    ...(bridge ? { mcpJsonInjection: { command: 'fixture-bridge', daemonUrl: 'http://daemon.invalid' } } : {}),
-  });
+  const executor = createAgentExecutor({ lifecycle, hostEnv: {}, runtime: runtimeFixture({ spawn: (() => { queueMicrotask(() => child.emit('spawn')); return child as unknown as ChildProcess; }) as typeof nodeSpawn }), agentRuntime: agentRuntimeFixture({ getAgentDef: () => def, resolveAgentLaunch: () => ({ selectedPath: '/fixture', pathResolvedPath: '/fixture', configuredOverridePath: null,
+      launchPath: '/fixture', launchKind: 'selected', childPathPrepend: [], diagnostic: null }), applyAgentLaunchEnv: ({ env }) => env, ensureAgentCapabilities: async () => {}, resolveModelForLaunch: fixtureLaunchModel, attachAcpSession: () => ({ hasFatalError: () => false, getDurableSessionId: () => null, completedSuccessfully: () => true, abort() {} }) }) }, { ...(bridge ? { mcpJsonInjection: { command: 'fixture-bridge', daemonUrl: 'http://daemon.invalid' } } : {}) });
   const { run } = await lifecycle.start({ contextRef: 'm1-relay' });
   await executor.run({ runId: run.id, agentId: def.id, cwd: '/fixture', prompt: 'Hello' });
   return { executor, runId: run.id, close: async () => { child.emit('close', 0, null); await lifecycle.waitForTerminal({ runId: run.id }); } };
@@ -52,7 +47,7 @@ it('names an unknown disabled capability in the refusal before any model probe o
   const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
   const spawn = vi.fn();
   const resolveModelForLaunch = vi.fn();
-  const executor = createAgentExecutor({ lifecycle }, { getAgentDef: () => ({ ...definition, supportsNativeToolAccess: false }), spawn, resolveModelForLaunch });
+  const executor = createAgentExecutor({ lifecycle, hostEnv: {}, runtime: runtimeFixture({ spawn: spawn }), agentRuntime: agentRuntimeFixture({ getAgentDef: () => ({ ...definition, supportsNativeToolAccess: false }), resolveModelForLaunch }) });
   const { run } = await lifecycle.start({ contextRef: 'm1-unknown-switch' });
   await expect(executor.run({ runId: run.id, agentId: definition.id, cwd: '/fixture', prompt: 'Hello' }, {
     nativeCapabilities: JSON.parse('{"futureSwitch":false}'),

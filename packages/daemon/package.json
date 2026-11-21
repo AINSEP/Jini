@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/daemon",
-  "version": "0.7.1",
+  "version": "0.7.3-next.1",
   "description": "The stateful agent daemon runtime: run lifecycle, durable event-log port, the tool-execution boundary, agent executor, terminal sessions, and routines.",
   "license": "Apache-2.0",
   "repository": {
@@ -199,6 +199,7 @@
     "@types/express": "^4.17.21",
     "@jini-ai/agent-runtime": "workspace:^",
     "@jini-ai/core": "workspace:^",
+    "@jini-ai/node-adapters": "workspace:^",
     "@jini-ai/platform": "workspace:^",
     "@jini-ai/protocol": "workspace:^"
   },

@@ -15,6 +15,9 @@ import {
   type LocalDaemonRegistryRecord,
 } from "../daemon-registry.js";
 import { readJsonFile } from "../json-file.js";
+import { writeJsonFileAtomicAsync } from '@jini-ai/platform/fs';
+/** The real atomic writer (platform is a test dependency); hosts pass node-adapters' `nodeAtomicWriter`. */
+const testWriter = { writeJson: writeJsonFileAtomicAsync };
 
 const tempDirs: string[] = [];
 async function makeTempDir(): Promise<string> {
@@ -84,7 +87,7 @@ describe("writeDaemonRegistryRecord / readLiveDaemonRegistryRecord", () => {
     const registryPath = resolveDaemonRegistryPath({ dataDir: dir });
     const record = makeRecord({ pid: process.pid });
 
-    await writeDaemonRegistryRecord({ registryPath, record });
+    await writeDaemonRegistryRecord({ writer: testWriter, registryPath, record });
 
     await expect(readJsonFile({ filePath: registryPath })).resolves.toEqual(record);
     await expect(readLiveDaemonRegistryRecord({ registryPath })).resolves.toEqual(record);
@@ -106,7 +109,7 @@ describe("writeDaemonRegistryRecord / readLiveDaemonRegistryRecord", () => {
   it("returns null for a record whose pid is out of range (0/negative/non-integer)", async () => {
     const dir = await makeTempDir();
     const registryPath = resolveDaemonRegistryPath({ dataDir: dir });
-    await writeDaemonRegistryRecord({ registryPath, record: makeRecord({ pid: -1 }) });
+    await writeDaemonRegistryRecord({ writer: testWriter, registryPath, record: makeRecord({ pid: -1 }) });
     await expect(readLiveDaemonRegistryRecord({ registryPath })).resolves.toBeNull();
   });
 
@@ -115,7 +118,7 @@ describe("writeDaemonRegistryRecord / readLiveDaemonRegistryRecord", () => {
     const registryPath = resolveDaemonRegistryPath({ dataDir: dir });
     const deadPid = await spawnAndAwaitExit();
 
-    await writeDaemonRegistryRecord({ registryPath, record: makeRecord({ pid: deadPid }) });
+    await writeDaemonRegistryRecord({ writer: testWriter, registryPath, record: makeRecord({ pid: deadPid }) });
 
     // The file is real and well-formed — a naive reader that skipped the liveness check would
     // hand this URL back to a caller as if the daemon were still reachable.
@@ -129,8 +132,8 @@ describe("writeDaemonRegistryRecord / readLiveDaemonRegistryRecord", () => {
     const first = makeRecord({ url: "http://127.0.0.1:1111", port: 1111 });
     const second = makeRecord({ url: "http://127.0.0.1:2222", port: 2222 });
 
-    await writeDaemonRegistryRecord({ registryPath, record: first });
-    await writeDaemonRegistryRecord({ registryPath, record: second });
+    await writeDaemonRegistryRecord({ writer: testWriter, registryPath, record: first });
+    await writeDaemonRegistryRecord({ writer: testWriter, registryPath, record: second });
 
     // A reader observing mid-sequence would see exactly `first` or exactly `second` — this
     // module writes through `writeJsonFile`'s platform-backed atomic writer (json-file.ts), which is
@@ -144,7 +147,7 @@ describe("removeDaemonRegistryRecordIfCurrent", () => {
   it("removes the record when its pid matches", async () => {
     const dir = await makeTempDir();
     const registryPath = resolveDaemonRegistryPath({ dataDir: dir });
-    await writeDaemonRegistryRecord({ registryPath, record: makeRecord({ pid: process.pid }) });
+    await writeDaemonRegistryRecord({ writer: testWriter, registryPath, record: makeRecord({ pid: process.pid }) });
 
     await removeDaemonRegistryRecordIfCurrent({ registryPath, pid: process.pid });
 
@@ -155,7 +158,7 @@ describe("removeDaemonRegistryRecordIfCurrent", () => {
     const dir = await makeTempDir();
     const registryPath = resolveDaemonRegistryPath({ dataDir: dir });
     const record = makeRecord({ pid: process.pid });
-    await writeDaemonRegistryRecord({ registryPath, record });
+    await writeDaemonRegistryRecord({ writer: testWriter, registryPath, record });
 
     await removeDaemonRegistryRecordIfCurrent({ registryPath, pid: process.pid + 1 });
 
@@ -165,7 +168,7 @@ describe("removeDaemonRegistryRecordIfCurrent", () => {
   it("treats a record another remover detached first (rename ENOENT) as already removed", async () => {
     const dir = await makeTempDir();
     const registryPath = resolveDaemonRegistryPath({ dataDir: dir });
-    await writeDaemonRegistryRecord({ registryPath, record: makeRecord({ pid: process.pid }) });
+    await writeDaemonRegistryRecord({ writer: testWriter, registryPath, record: makeRecord({ pid: process.pid }) });
     const files: DaemonRegistryFilePorts = { link, rename: async () => { throw Object.assign(new Error("gone"), { code: "ENOENT" }); } };
 
     await expect(removeDaemonRegistryRecordIfCurrent({ registryPath, pid: process.pid }, { files })).resolves.toBeUndefined();
@@ -176,7 +179,7 @@ describe("removeDaemonRegistryRecordIfCurrent", () => {
     const dir = await makeTempDir();
     const registryPath = resolveDaemonRegistryPath({ dataDir: dir });
     const record = makeRecord({ pid: process.pid });
-    await writeDaemonRegistryRecord({ registryPath, record });
+    await writeDaemonRegistryRecord({ writer: testWriter, registryPath, record });
     const denied = Object.assign(new Error("permission denied"), { code: "EACCES" });
     const files: DaemonRegistryFilePorts = { link, rename: async () => { throw denied; } };
 
@@ -187,12 +190,12 @@ describe("removeDaemonRegistryRecordIfCurrent", () => {
   it("propagates a refused restore of a foreign captured record and keeps the tombstone for recovery", async () => {
     const dir = await makeTempDir();
     const registryPath = resolveDaemonRegistryPath({ dataDir: dir });
-    await writeDaemonRegistryRecord({ registryPath, record: makeRecord({ pid: process.pid }) });
+    await writeDaemonRegistryRecord({ writer: testWriter, registryPath, record: makeRecord({ pid: process.pid }) });
     const foreign = makeRecord({ pid: process.pid + 1 });
     const refused = Object.assign(new Error("cross-device link"), { code: "EXDEV" });
     const files: DaemonRegistryFilePorts = {
       // A newer daemon's record lands between the ownership read and the detach.
-      rename: async (from, to) => { await writeDaemonRegistryRecord({ registryPath: from, record: foreign }); await rename(from, to); },
+      rename: async (from, to) => { await writeDaemonRegistryRecord({ writer: testWriter, registryPath: from, record: foreign }); await rename(from, to); },
       link: async () => { throw refused; },
     };
 

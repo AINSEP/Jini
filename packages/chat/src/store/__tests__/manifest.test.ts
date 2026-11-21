@@ -17,7 +17,7 @@ it('makes every SQL, React and surface-card UI peer optional, with one pinned de
  // The surface-card peers became optional in d5abdfbc; Recharts is now artifact-owned.
  const peers={'better-sqlite3':'^13.0.0','@electric-sql/pglite':'0.5.8',pg:'^8.23.0',react:'^18.3.0 || ^19.0.0','react-dom':'^18.3.0 || ^19.0.0','@ag-ui/core':'0.0.58',
   '@mcp-ui/client':'7.1.1','@radix-ui/react-checkbox':'^1.3.11','@radix-ui/react-label':'^2.1.15','@radix-ui/react-radio-group':'^1.4.7','@radix-ui/react-select':'^2.3.7','@radix-ui/react-slot':'^1.3.3'};
- const jiniPeers={'@jini-ai/agent-runtime':'^0.7.0','@jini-ai/ui':'^0.7.0'};
+ const jiniPeers={'@jini-ai/agent-runtime':'^0.7.3-next.1','@jini-ai/ui':'^0.7.3-next.1'};
  expect(manifest.peerDependencies).toEqual({...peers,...jiniPeers});
  // SQL stores and surface cards use core's default clock at runtime, so core is required.
  // Default widget/bridge/SQL entries load db, diagnostics and Kysely, so they became regular

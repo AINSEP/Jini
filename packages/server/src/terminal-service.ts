@@ -12,6 +12,11 @@ import type { WorkspaceRootResolver } from '@jini-ai/daemon/http';
 export type TerminalFeatureOptions = Omit<CreateTerminalServiceOptions, 'loadSpawnPty'> & {
   /** Host-selected PTY implementation; the native adapter is at `@jini-ai/server/adapters/node-pty`. Without one, `create()` rejects with guidance. */
   readonly loadSpawnPty?: CreateTerminalServiceOptions['loadSpawnPty'];
+  /**
+   * A service the host built itself (the guidance below names this option). It is used as given: `loadSpawnPty` and the
+   * tuning options configure the service the preset would otherwise build, so they have no effect beside it.
+   */
+  readonly terminalService?: TerminalService;
   readonly resolveWorkspaceRoot?: WorkspaceRootResolver;
   readonly principal?: Principal;
 };
@@ -24,8 +29,12 @@ function inertPtyLoader(): never {
 /** The tuning keys the preset forwards to the service; an explicit `undefined` never overrides the engine's default. */
 const TERMINAL_TUNING_KEYS = ['maxEvents', 'maxBufferBytes', 'exitTailBytes', 'flushIntervalMs', 'flushThresholdBytes', 'ttlMs', 'shutdownGraceMs'] as const;
 
-/** Builds the terminal service from the preset's `terminal` options: the host's loader (or the inert one) plus only the tuning that was given. */
-export function buildTerminalService({ options }: { options: TerminalFeatureOptions }, _optional: Record<string, never> = {}): TerminalService {
+/** The host's service when it gave one; otherwise one built from the host's loader (or the inert one) plus only the tuning that was given. `createService` is the engine's builder, injectable so a test can record what it receives. */
+export function buildTerminalService(
+  { options }: { options: TerminalFeatureOptions },
+  { createService = createTerminalService }: { createService?: typeof createTerminalService } = {},
+): TerminalService {
+  if (options.terminalService !== undefined) return options.terminalService;
   const tuning = Object.fromEntries(TERMINAL_TUNING_KEYS.filter((key) => options[key] !== undefined).map((key) => [key, options[key]]));
-  return createTerminalService({ loadSpawnPty: options.loadSpawnPty ?? inertPtyLoader, ...tuning });
+  return createService({ loadSpawnPty: options.loadSpawnPty ?? inertPtyLoader, ...tuning });
 }

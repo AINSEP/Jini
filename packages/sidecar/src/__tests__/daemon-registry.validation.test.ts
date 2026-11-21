@@ -5,6 +5,9 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { readLiveDaemonRegistryRecord, removeDaemonRegistryRecordIfCurrent, writeDaemonRegistryRecord } from "../daemon-registry.js";
+import { writeJsonFileAtomicAsync } from '@jini-ai/platform/fs';
+/** The real atomic writer (platform is a test dependency); hosts pass node-adapters' `nodeAtomicWriter`. */
+const testWriter = { writeJson: writeJsonFileAtomicAsync };
 
 let dir: string;
 let registryPath: string;
@@ -49,13 +52,13 @@ describe("readLiveDaemonRegistryRecord refuses a record broken in exactly one fi
 
 describe("removeDaemonRegistryRecordIfCurrent ownership guard", () => {
   it("never removes a record owned by another pid", async () => {
-    await writeDaemonRegistryRecord({ registryPath, record: { ...valid, pid: process.pid + 1 } });
+    await writeDaemonRegistryRecord({ writer: testWriter, registryPath, record: { ...valid, pid: process.pid + 1 } });
     await removeDaemonRegistryRecordIfCurrent({ registryPath, pid: process.pid });
     expect(JSON.parse(await readFile(registryPath, "utf8")).pid).toBe(process.pid + 1);
   });
 
   it("restores a foreign record that replaced ours between read and detach", async () => {
-    await writeDaemonRegistryRecord({ registryPath, record: valid });
+    await writeDaemonRegistryRecord({ writer: testWriter, registryPath, record: valid });
     const foreign = { ...valid, pid: process.pid + 7 };
     const files = {
       rename: async (from: string, to: string) => {

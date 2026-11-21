@@ -8,6 +8,7 @@ import { createRunLifecycle, type RunLifecycle } from '../../run-lifecycle.js';
 import type { RunByteJournal } from '../../continuation/journal.js';
 import { createAgentExecutor } from '../../index.js';
 import { fixtureLaunchModel, fixtureModelDiscovery } from './model-discovery-fixture.js';
+import { runtimeFixture, agentRuntimeFixture } from './runtime-fixture.js';
 
 /** A message sent during tools/background work is queued on the same session without aborting
  * anything. HTTP acceptance means queued; only UUID-attributed CLI replies confirm consumption.
@@ -71,18 +72,7 @@ function createHarness(def: RuntimeAgentDef, options: HarnessOptions = {}) {
   const child = createFakeChild();
   const spawn = (() => { queueMicrotask(() => child.emit('spawn')); return child as unknown as ChildProcess; }) as unknown as typeof nodeSpawn;
   const onCleanupFailure = vi.fn();
-  const executor = createAgentExecutor({ lifecycle: executorLifecycle(lifecycle, options) }, {
-    ...(options.bridge ? { mcpJsonInjection: { command: 'node', args: ['serve.js'], daemonUrl: 'http://127.0.0.1:4317' } } : {}),
-    ...(options.journal ? { journal: options.journal } : {}),
-    resolveModelForLaunch: fixtureLaunchModel,
-    getAgentDef: ({ id }) => (id === def.id ? def : null),
-    resolveAgentLaunch: () => ({ selectedPath: '/fake/bin', pathResolvedPath: '/fake/bin', configuredOverridePath: null, launchPath: '/fake/bin', launchKind: 'selected', childPathPrepend: [], diagnostic: null }) as AgentLaunchResolution,
-    applyAgentLaunchEnv: ({ env }) => env,
-    spawn,
-    listProcessSnapshots: async () => [],
-    stopProcesses: async () => ({ alreadyStopped: true, forcedPids: [], matchedPids: [], remainingPids: [], stoppedPids: [] }),
-    onCleanupFailure,
-  });
+  const executor = createAgentExecutor({ lifecycle: executorLifecycle(lifecycle, options), hostEnv: {}, runtime: runtimeFixture({ spawn: spawn, listProcessSnapshots: async () => [], stopProcesses: async () => ({ alreadyStopped: true, forcedPids: [], matchedPids: [], remainingPids: [], stoppedPids: [] }) }), agentRuntime: agentRuntimeFixture({ resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (id === def.id ? def : null), resolveAgentLaunch: () => ({ selectedPath: '/fake/bin', pathResolvedPath: '/fake/bin', configuredOverridePath: null, launchPath: '/fake/bin', launchKind: 'selected', childPathPrepend: [], diagnostic: null }) as AgentLaunchResolution, applyAgentLaunchEnv: ({ env }) => env }) }, { ...(options.bridge ? { mcpJsonInjection: { command: 'node', args: ['serve.js'], daemonUrl: 'http://127.0.0.1:4317' } } : {}), ...(options.journal ? { journal: options.journal } : {}), onCleanupFailure });
   return { lifecycle, executor, child, onCleanupFailure };
 }
 

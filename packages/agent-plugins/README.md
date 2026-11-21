@@ -114,7 +114,6 @@ Catalog format) that this package does not implement.
 | `./manifest` | universal | Strict manifest/MCP parsing and typed namespace readers; object structural validators are also re-exported here. |
 | `./lifecycle` | node | Host-injected installation, activation, locks, digests, bundles, trusted files, reference resolution, ranking and MCP provisioning helpers. |
 | `./lifecycle` packing | node | `createAgentPluginLifecycle(ports).packAgentPluginDirectory({ sourceDir }, { allowPaths, excludeNames, excludeSuffixes, includeTests })`; explicit allow-paths and their ancestors beat name exclusions; excluded descendants still skip. Suffix exclusions always win; test skips require `includeTests: true` to disable. |
-| `./lifecycle/node` | node | `createNodeAgentPluginEffects({})` opt-in native effects. |
 | `./lifecycle/yauzl` | node | `createYauzlAgentPluginArchiveReader({ yauzl })`; the host supplies the optional peer library. |
 | `./folder-zip` | universal | `zipFolderFiles({ files, maxBytes })`: packs picked folder `File`s into one stored-mode, binary-safe `.zip` `File` (the admin "Upload a folder" encoder). |
 | `./folder-zip/node` | node | `zipLocalFolder({ path, maxBytes })`: the same encoder over a local folder; refuses symlinks/special files, bounds entries and bytes. |
@@ -203,7 +202,7 @@ Create and retain one lifecycle per host context:
 
 ```ts
 import { createAgentPluginLifecycle, createAgentPluginLayout } from '@jini-ai/agent-plugins/lifecycle';
-import { createNodeAgentPluginEffects } from '@jini-ai/agent-plugins/lifecycle/node';
+import { createNodeAgentPluginEffects } from '@jini-ai/node-adapters/agent-plugins';
 
 const layout = createAgentPluginLayout({ root: pluginRoot });
 const lifecycle = createAgentPluginLifecycle({
