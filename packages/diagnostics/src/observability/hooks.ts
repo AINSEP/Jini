@@ -20,6 +20,7 @@ export function createHookObservabilityPort(
  return {
   get supportsMetric() { return signals.supportsMetric === true; },
   activeTraceIds: (_required = {}, _optional = {}) => signals.activeTraceIds?.(),
+  activeTraceparent: () => signals.activeTraceparent?.(),
   trackRequest(input, options = {}) {
    const requestId = options.requestId ?? requestIdGenerator.generate({});
    const startedAt = clock.nowMs();

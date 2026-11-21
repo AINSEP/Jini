@@ -589,6 +589,84 @@ test('the plugin owns legacy read migrations and only declared auth headers sati
   }
 });
 
+test('active traceparent contains the SDK span context only while the span is live and scoped', () => {
+  const { port, exporter } = createPortUnderTest();
+  assert.equal(port.activeTraceparent?.(), undefined);
+  const operation = port.trackOperation({ name: 'site.publish' });
+  let carrier: string | undefined;
+  operation.run(() => {
+    carrier = port.activeTraceparent?.();
+  });
+  assert.equal(port.activeTraceparent?.(), undefined);
+  operation.run(() => {
+    operation.end({ outcome: 'completed', failed: false });
+    assert.equal(port.activeTraceparent?.(), undefined);
+  });
+  const span = exporter.getFinishedSpans()[0]!;
+  const { traceId, spanId, traceFlags } = span.spanContext();
+  assert.equal(carrier, `00-${traceId}-${spanId}-${traceFlags.toString(16).padStart(2, '0')}`);
+});
+
+test.each(['00', '01'])('explicit remote traceparent wins over local parentage with flags %s', (flags) => {
+  const { port, exporter } = createPortUnderTest();
+  const traceId = 'a'.repeat(32);
+  const parentId = 'b'.repeat(16);
+  const traceparent = `00-${traceId}-${parentId}-${flags}`;
+  const local = port.trackRequest({ method: 'GET', path: '/' });
+  local.run?.(() => {
+    const operation = port.trackOperation({ name: 'site.publish', traceparent });
+    const agent = port.trackAgentRun({ runId: 'run' }, { traceparent });
+    for (const tracker of [operation, agent]) tracker.run(() => {
+      assert.equal(port.activeTraceIds?.()?.traceId, traceId);
+      assert.notEqual(port.activeTraceIds?.()?.spanId, parentId);
+      assert.match(port.activeTraceparent?.()!, new RegExp(`^00-${traceId}-[a-f0-9]{16}-${flags}$`));
+    });
+    operation.end({ outcome: 'completed', failed: false });
+    agent.end({ status: 'succeeded' });
+  });
+  const spans = exporter.getFinishedSpans();
+  assert.equal(spans.length, flags === '01' ? 2 : 0);
+  for (const span of spans) {
+    assert.equal(span.parentSpanContext?.spanId, parentId);
+    assert.equal(span.parentSpanContext?.traceFlags, Number.parseInt(flags, 16));
+    assert.equal(span.parentSpanContext?.isRemote, true);
+  }
+  local.end({ statusCode: 200, routePattern: '/' });
+});
+
+test.each([
+  undefined,
+  `00-${'0'.repeat(32)}-${'b'.repeat(16)}-01`,
+  `00-${'a'.repeat(32)}-${'0'.repeat(16)}-01`,
+  'malformed',
+  `01-${'a'.repeat(32)}-${'b'.repeat(16)}-01`,
+  `00-${'a'.repeat(31)}-${'b'.repeat(16)}-01`,
+  `00-${'a'.repeat(32)}-${'b'.repeat(16)}-gg`,
+  `00-${'a'.repeat(32)}-${'b'.repeat(16)}-01-extra`,
+  `00-${'a'.repeat(32)}-${'b'.repeat(16)}-01\n`,
+])('invalid or omitted traceparent preserves operation parentage and agent roots: %s', (carrier) => {
+  const { port, exporter } = createPortUnderTest();
+  const options = carrier === undefined ? {} : { traceparent: carrier };
+  port.trackOperation({ name: 'root', ...options }).end({ outcome: 'completed', failed: false });
+  const local = port.trackRequest({ method: 'GET', path: '/' });
+  local.run?.(() => {
+    port.trackOperation({ name: 'child', ...options }).end({ outcome: 'completed', failed: false });
+    port.trackAgentRun({ runId: 'run' }, options).end({ status: 'succeeded' });
+  });
+  local.end({ statusCode: 200, routePattern: '/' });
+  const spans = exporter.getFinishedSpans();
+  assert.equal(spans.length, 4);
+  const root = spans[0]!;
+  const child = spans[1]!;
+  const agent = spans[2]!;
+  const request = spans[3]!;
+  assert.equal(root.parentSpanContext, undefined);
+  assert.equal(child.parentSpanContext?.spanId, request.spanContext().spanId);
+  assert.equal(child.spanContext().traceId, request.spanContext().traceId);
+  assert.equal(agent.parentSpanContext, undefined);
+  assert.notEqual(agent.spanContext().traceId, request.spanContext().traceId);
+});
+
 test("structural roots explicitly pass ROOT_CONTEXT and explicit parents stay linked", async () => {
   const { ROOT_CONTEXT, trace } = await import("@opentelemetry/api");
   const { adaptTracer } = await import("../observability-opentelemetry/opentelemetry.js");

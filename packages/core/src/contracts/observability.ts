@@ -33,7 +33,7 @@ export interface OutboundCallTrackingInput { method: string; url: string; }
 export interface OutboundCallTrackingOutcome { statusCode?: number; error?: unknown; }
 export interface OutboundCallTracker extends TrackerScope { end(outcome: OutboundCallTrackingOutcome): void; }
 export interface AgentRunTrackingInput { runId: string; }
-export interface AgentRunTrackingOptions { conversationId?: string; agentName?: string; }
+export interface AgentRunTrackingOptions { conversationId?: string; agentName?: string; traceparent?: string; }
 /** `interrupted`: the run vanished (its process restarted). `abandoned`: the watcher gave up unproven. */
 export type AgentRunStatus = 'succeeded' | 'failed' | 'canceled' | 'interrupted' | 'abandoned';
 export interface AgentRunTrackingOutcome { status: AgentRunStatus; error?: unknown; }
@@ -45,7 +45,7 @@ export type OperationAttributes = Readonly<Record<string, string | number>>;
  * names: the HTTP request, DB queries and outbound calls it makes nest under it. `name` is a fixed
  * dotted label (`tool.call`), never per-call text, so grouping stays bounded.
  */
-export interface OperationTrackingInput { name: string; attributes?: OperationAttributes; }
+export interface OperationTrackingInput { name: string; attributes?: OperationAttributes; traceparent?: string; }
 /** `outcome` is the feature's own fixed label (`completed`, `denied`, `timed-out`); `failed` says
  * whether that outcome is a failure, which only the feature can judge (a denial is not one). */
 export interface OperationTrackingOutcome { outcome: string; failed: boolean; attributes?: OperationAttributes; }
@@ -70,6 +70,7 @@ export interface MetricOptions {
 export interface ObservabilityPort {
  /** Current structural tracing scope, absent outside a trace. Never generates an ID. */
  activeTraceIds?(required?: Record<string, never>, optional?: Record<string, never>): TraceIds | undefined;
+ activeTraceparent?(): string | undefined;
  /** Explicit capability: a callable noop metric does not imply local metric admission. */
  readonly supportsMetric?: boolean;
  /** Records one measurement; adapters without a metrics backend use a no-op. */
@@ -144,6 +145,7 @@ const NOOP_SIGNAL_TRACKER: DbQueryTracker & OutboundCallTracker & AgentRunTracke
 const NOOP_PORT: ObservabilityPort = Object.freeze({
  supportsMetric: false,
  activeTraceIds: () => undefined,
+ activeTraceparent: () => undefined,
  trackRequest: () => NOOP_TRACKER,
  trackDbQuery: () => NOOP_SIGNAL_TRACKER,
  trackOutboundCall: () => NOOP_SIGNAL_TRACKER,

@@ -9,6 +9,7 @@ export interface ObservabilityConfigEnabled { enabled: true; serviceName: string
 
 export interface TraceSpanPort {
  ids?(required?: Record<string, never>, optional?: Record<string, never>): TraceIds | undefined;
+ traceparent?(): string | undefined;
  updateName(required: { name: string }): void;
  setAttribute(required: { name: string; value: string | number }): void;
  setStatus(required: { code: 'error'; description?: string }): void;
@@ -18,7 +19,7 @@ export interface TraceSpanPort {
 export type TraceSpanKind = 'server' | 'client' | 'internal';
 export interface TracerPort {
  /** `parent` is a span this tracer returned earlier; absent means a root span. */
- startSpan(required: { name: string; kind: TraceSpanKind; attributes: Record<string, string | number> }, optional?: { parent?: TraceSpanPort }): TraceSpanPort;
+ startSpan(required: { name: string; kind: TraceSpanKind; attributes: Record<string, string | number> }, optional?: { parent?: TraceSpanPort; traceparent?: string }): TraceSpanPort;
 }
 export interface SpanScopePort {
  active(): TraceSpanPort | undefined;

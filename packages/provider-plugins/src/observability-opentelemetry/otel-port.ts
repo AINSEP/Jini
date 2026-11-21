@@ -91,9 +91,9 @@ function finishWithOutcome({ ctx, span, attributes }: { ctx: OtelCtx; span: Trac
  finish({ ctx, span, attributes }, softFailure !== undefined ? { failure: softFailure } : {});
 }
 
-function start({ ctx, name, kind, attributes }: { ctx: OtelCtx; name: string; kind: TraceSpanKind; attributes: Attributes }, { root = false }: { root?: boolean } = {}): TraceSpanPort {
+function start({ ctx, name, kind, attributes }: { ctx: OtelCtx; name: string; kind: TraceSpanKind; attributes: Attributes }, { root = false, traceparent }: { root?: boolean; traceparent?: string } = {}): TraceSpanPort {
  const parent = root ? undefined : ctx.scope?.active();
- return ctx.tracer.startSpan({ name, kind, attributes }, parent ? { parent } : {});
+ return ctx.tracer.startSpan({ name, kind, attributes }, { ...(parent ? { parent } : {}), ...(traceparent ? { traceparent } : {}) });
 }
 
 function runIn({ ctx, span }: { ctx: OtelCtx; span: TraceSpanPort }) {
@@ -140,9 +140,9 @@ function trackOutboundCall({ ctx, method, url }: { ctx: OtelCtx; method: string;
  }) };
 }
 
-function trackOperation({ ctx, name, attributes = {} }: { ctx: OtelCtx; name: string; attributes?: Attributes }): ReturnType<ObservabilityPort['trackOperation']> {
+function trackOperation({ ctx, name, attributes = {}, traceparent }: { ctx: OtelCtx; name: string; attributes?: Attributes; traceparent?: string }): ReturnType<ObservabilityPort['trackOperation']> {
  const { redactOperationAttributes, redactLabel } = ctx.helpers;
- const span = start({ ctx, name, kind: 'internal', attributes: redactOperationAttributes({ attributes }) });
+ const span = start({ ctx, name, kind: 'internal', attributes: redactOperationAttributes({ attributes }) }, traceparent ? { traceparent } : {});
  return { run: runIn({ ctx, span }), end: once(({ outcome, failed, attributes: settled = {} }) => {
   // The feature decides what counts as failure; its outcome label doubles as the error type.
   finish({ ctx, span, attributes: redactOperationAttributes({ attributes: { ...settled, 'operation.outcome': outcome } }) }, failed ? { failure: redactLabel({ text: outcome }) } : {});
@@ -170,13 +170,13 @@ function reportError({ ctx, error, context }: { ctx: OtelCtx; error: unknown; co
  }
 }
 
-function trackAgentRun({ ctx, runId, conversationId, agentName }: { ctx: OtelCtx; runId: string; conversationId?: string; agentName?: string }): ReturnType<ObservabilityPort['trackAgentRun']> {
+function trackAgentRun({ ctx, runId, conversationId, agentName, traceparent }: { ctx: OtelCtx; runId: string; conversationId?: string; agentName?: string; traceparent?: string }): ReturnType<ObservabilityPort['trackAgentRun']> {
  const startedAt = ctx.metric ? performance.now() : 0;
  // A run outlives the request that started it, so it is its own trace rather than a long child.
  const span = start({ ctx, name: agentName ? `invoke_agent ${agentName}` : 'invoke_agent', kind: 'internal', attributes: {
   'gen_ai.operation.name': 'invoke_agent', ...(agentName ? { 'gen_ai.agent.name': agentName } : {}),
   ...(conversationId ? { 'gen_ai.conversation.id': conversationId } : {}), 'agent.run.id': runId,
- } }, { root: true });
+ } }, { root: true, ...(traceparent ? { traceparent } : {}) });
  return { run: runIn({ ctx, span }), end: once(({ status, error }) => {
   finishWithOutcome({ ctx, span, attributes: { 'agent.run.status': status } }, { error, ...(FAILED_RUN_STATUSES.has(status) ? { softFailure: status } : {}) });
   ctx.metric?.({ name: 'agent.run.duration', value: performance.now() - startedAt }, { kind: 'histogram', unit: 'ms' });
@@ -197,13 +197,14 @@ export function createOtelObservabilityPort({ config, exporterFactory, tracerPro
  return {
   supportsMetric: false,
   activeTraceIds: (_required = {}, _optional = {}) => scope?.active()?.ids?.(),
+  activeTraceparent: () => scope?.active()?.traceparent?.(),
   // This structural tracing adapter has no metrics exporter; the provider plugin supplies it.
   metric() {},
   trackRequest: (input, { requestId } = {}) => trackRequest({ ctx, input, ...(requestId ? { requestId } : {}) }),
   trackDbQuery: ({ system }) => trackDbQuery({ ctx, system }),
   trackOutboundCall: ({ method, url }) => trackOutboundCall({ ctx, method, url }),
-  trackOperation: ({ name, attributes }) => trackOperation({ ctx, name, ...(attributes ? { attributes } : {}) }),
+  trackOperation: ({ name, attributes, traceparent }) => trackOperation({ ctx, name, ...(attributes ? { attributes } : {}), ...(traceparent ? { traceparent } : {}) }),
   reportError: ({ error, context }) => reportError({ ctx, error, context }),
-  trackAgentRun: ({ runId }, { conversationId, agentName } = {}) => trackAgentRun({ ctx, runId, ...(conversationId ? { conversationId } : {}), ...(agentName ? { agentName } : {}) }),
+  trackAgentRun: ({ runId }, { conversationId, agentName, traceparent } = {}) => trackAgentRun({ ctx, runId, ...(conversationId ? { conversationId } : {}), ...(agentName ? { agentName } : {}), ...(traceparent ? { traceparent } : {}) }),
  };
 }
