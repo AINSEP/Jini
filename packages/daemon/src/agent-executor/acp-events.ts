@@ -171,7 +171,7 @@ async function recordDescendants({ ctx, state }: { ctx: WireAcpLifecycleContext;
     const processes = await ctx.listProcessSnapshots();
     state.descendantPids = ctx.collectProcessTreePids({ processes, rootPids: [ctx.child.pid] });
   } catch (error) {
-    reportPostCloseFailure(ctx.onCleanupFailure, { runId: ctx.runId, phase: 'acp-release', pid: ctx.child.pid, error });
+    reportPostCloseFailure({ onCleanupFailure: ctx.onCleanupFailure, context: { runId: ctx.runId, phase: 'acp-release', pid: ctx.child.pid, error } });
   }
 }
 
@@ -180,7 +180,7 @@ async function stopRecordedDescendants({ ctx, state }: { ctx: WireAcpLifecycleCo
   try {
     await ctx.stopProcesses({ pids: state.descendantPids });
   } catch (error) {
-    reportPostCloseFailure(ctx.onCleanupFailure, { runId: ctx.runId, phase: 'acp-release', pid: ctx.child.pid, error });
+    reportPostCloseFailure({ onCleanupFailure: ctx.onCleanupFailure, context: { runId: ctx.runId, phase: 'acp-release', pid: ctx.child.pid, error } });
   }
 }
 
