@@ -76,6 +76,7 @@ it('keeps the folded domain entries and optional adapter peers explicit', () => 
   expect(manifest.jini.isolation.domains.redirects).toEqual(["src/redirects"]);
   expect(manifest.jini.entries['./seo']).toBe('universal');
   expect(manifest.jini.entries['./seo/dom']).toBe('browser');
+  expect(manifest.jini.entries['./seo/cover-image']).toBe('node');
   expect(manifest.jini.entries['./widgets']).toBe('universal');
   expect(manifest.jini.entries['./widgets/markers']).toBe('universal');
   expect(manifest.jini.entries['./widgets/html']).toBe('node');

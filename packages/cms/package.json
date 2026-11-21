@@ -92,6 +92,7 @@
       "./seo": "universal",
       "./seo/content-analysis": "universal",
       "./seo/dom": "browser",
+      "./seo/cover-image": "node",
       "./widgets": "universal",
       "./widgets/markers": "universal",
       "./widgets/html": "node",
@@ -186,7 +187,8 @@
       },
       "shared": [
         "src/widgets/markers/marker.ts",
-        "src/navigation/href.ts"
+        "src/navigation/href.ts",
+        "src/media/cover-image.ts"
       ]
     },
     "optionalPeers": {
@@ -616,6 +618,11 @@
       "types": "./dist/seo/dom/index.d.ts",
       "import": "./dist/seo/dom/index.js",
       "default": "./dist/seo/dom/index.js"
+    },
+    "./seo/cover-image": {
+      "types": "./dist/seo/cover-image.d.ts",
+      "import": "./dist/seo/cover-image.js",
+      "default": "./dist/seo/cover-image.js"
     },
     "./widgets": {
       "types": "./dist/widgets/index.d.ts",
