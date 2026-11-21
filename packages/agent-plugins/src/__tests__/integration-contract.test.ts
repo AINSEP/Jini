@@ -3,7 +3,7 @@ import * as nativeFilesystem from "node:fs/promises";
 import { test, expect } from 'vitest';
 import { validatePluginManifest, validateMcpManifest, isPluginManifest, isMcpManifest } from '../index.js';
 import { createAgentPluginLifecycle, createAgentPluginLayout, parseAgentPluginManifest, fetchAgentPluginArchive, legacyAgentPluginMetadataWarning } from '../lifecycle/index.js';
-import { createNodeAgentPluginEffects } from '../lifecycle/node.js';
+import { nativeEffectsFixture } from '../lifecycle/__tests__/fixtures/native-effects.js';
 import { ports } from '../lifecycle/__tests__/test-support.js';
 import { mkdtemp } from 'node:fs/promises';
 import path from 'node:path';
@@ -53,7 +53,7 @@ test('strict parser preserves standard author objects and legacy author strings'
 // REGRESSION: fails if lifecycle calls fs/promises.open with a wrapped path object.
 test('archive installation accepts native filesystem effects through the public facade', async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'plugin-contract-'));
-  const effects = createNodeAgentPluginEffects({});
+  const effects = nativeEffectsFixture();
   const seen: string[] = [];
   const api = createAgentPluginLifecycle({ ...ports, ...effects,
     layout: createAgentPluginLayout({ root }),

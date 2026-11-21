@@ -522,7 +522,7 @@
    "AgentPluginLayout": "type:08d4efab5f",
    "AgentPluginLayoutPort": "interface:d85ecc33eb",
    "AgentPluginLifecycleOptional": "type:5e69b9ca3d",
-   "AgentPluginLifecyclePorts": "interface:5080d2f8ad",
+   "AgentPluginLifecyclePorts": "interface:84c6df1f4e",
    "AgentPluginLifecycleRequired": "type:5ed9a704ff",
    "AgentPluginManifest": "interface:9bdfdd5a99",
    "AgentPluginMcpConfig": "interface:c642887fd5",
@@ -746,7 +746,7 @@
  "./lifecycle/node": {
   "types": "./dist/lifecycle/node.d.ts",
   "symbols": {
-   "createNodeAgentPluginEffects": "function:aa0c709cec"
+   "createNodeAgentPluginEffects": "function:aa31bc30ce"
   }
  },
  "./lifecycle/tools": {

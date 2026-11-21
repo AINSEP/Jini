@@ -14,7 +14,7 @@ spec_mode: reverse_spec
 | `@jini-ai/agent-plugins` | Universal | Standard manifest types, filenames, schema URLs, shallow guards |
 | `@jini-ai/agent-plugins/manifest` | Universal | Lifecycle manifest/MCP parsers, extension reader, shallow validators |
 | `@jini-ai/agent-plugins/lifecycle` | Node | Lifecycle factory, layout, fetching, MCP delegation, errors and types |
-| `@jini-ai/agent-plugins/lifecycle/node` | Node | Explicit native effects and filesystem adapter |
+| `@jini-ai/node-adapters/agent-plugins` | Node | Explicit native effects (moved out of this package in R11a; hosts import it) |
 | `@jini-ai/agent-plugins/lifecycle/yauzl` | Node | Explicit ZIP reader adapter |
 | `@jini-ai/agent-plugins/ui-ux-design/*` | Static assets | Portable plugin manifest, skill markdown/resources and illustrative client files |
 
@@ -118,7 +118,7 @@ String-valued path/id/query fields in this table are `string`; flags are `boolea
 
 `provisionAgentPluginMcp({ mcpProvisioning, workspaceId, installed })`, `syncAgentPluginMcpEnabled({ mcpProvisioning, workspaceId, pluginId, enabled })`, and `removeAgentPluginMcp({ mcpProvisioning, workspaceId, pluginId })` each return `Promise<void>` and accept `_optional: Record<string, never> = {}` as the second argument. They perform the named host operation, then roster notification. Install, enable, and uninstall do not invoke them automatically.
 
-`createNodeAgentPluginEffects({}, { filesystem?: FilesystemPort } = {})` returns `{ filesystem, clock, ids, process }`; injected native filesystem effects retain their identity. The wrapper factory and wrapper FileHandle/NodeFilesystem types are removed. Generic locks/errors/holder types come directly from `@jini-ai/platform/fs/file-lock`; activation passes 15000ms timeout, 10000ms staleness and 10ms polling.
+`createNodeAgentPluginEffects({}, { filesystem?: FilesystemPort } = {})` returns `{ filesystem, fileLock, atomicWriter, clock, ids, process }` (`fileLock` and `atomicWriter` are the lifecycle's required file ports, bound to platform's functions); injected native filesystem effects retain their identity. The wrapper factory and wrapper FileHandle/NodeFilesystem types are removed. Generic locks/errors/holder types come directly from `@jini-ai/platform/fs/file-lock`; activation passes 15000ms timeout, 10000ms staleness and 10ms polling.
 
 `createYauzlAgentPluginArchiveReader({ yauzl: YauzlPort }, _optional: Record<string, never> = {}): AgentPluginArchiveReaderPort` accepts an empty options object. The exported `YauzlPort`, `YauzlZipFile`, and `YauzlEntry` model the peer library's positional `fromBufferPromise(buffer, options)`, `eachEntry()`, `openReadStreamPromise(entry)`, and `close()` APIs. The consumer supplies the compatible library; imports do not load it automatically.
 
@@ -129,7 +129,7 @@ Constants exported by lifecycle: `ACTIVATIONS_FILENAME`, `ACTIVATIONS_LOCK_FILEN
 ```ts
 import { createAgentPluginLifecycle, createAgentPluginLayout,
   parseAgentPluginManifest, provisionAgentPluginMcp } from '@jini-ai/agent-plugins/lifecycle';
-import { createNodeAgentPluginEffects } from '@jini-ai/agent-plugins/lifecycle/node';
+import { createNodeAgentPluginEffects } from '@jini-ai/node-adapters/agent-plugins';
 
 // fetchPort, outboundGuard and mcpProvisioning are host adapters.
 const layout = createAgentPluginLayout({ root: '/var/lib/example/agent-plugins' });
@@ -182,4 +182,4 @@ These names are also reachable through the current export map. Parameter declara
 
 ## Current manifest boundary
 
-The current `package.json` exposes `.`, `./ui-ux-design/*`, `./lifecycle`, `./lifecycle/node`, `./lifecycle/yauzl`, `./manifest`. Internal source exports do not create additional supported import paths. The contracts above describe source, not generated output.
+The current `package.json` exposes `.`, `./ui-ux-design/*`, `./lifecycle`, `./lifecycle/yauzl`, `./manifest`. Internal source exports do not create additional supported import paths. The contracts above describe source, not generated output.

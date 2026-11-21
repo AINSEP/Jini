@@ -9,7 +9,7 @@ let release: () => void = () => {};
 const setTimeoutFake = vi.fn((_ms: number) => new Promise<void>((resolve) => { release = resolve; }));
 vi.mock('node:timers/promises', () => ({ setTimeout: (ms: number) => setTimeoutFake(ms) }));
 
-const { createNodeAgentPluginEffects } = await import('../../node.js');
+const { createNodeAgentPluginEffects } = await import('../agent-plugins.js');
 
 test('sleep forwards exactly the requested delay and resolves only when the timer settles', async () => {
   let settled = false;

@@ -14,12 +14,21 @@
     "runtime": "node",
     "entries": {
       "./fs": "node",
-      "./process": "node"
+      "./process": "node",
+      "./agent-plugins": "node"
+    },
+    "optionalPeers": {
+      "@jini-ai/agent-plugins": "opt-in: agent plugin lifecycle effects; import @jini-ai/node-adapters/agent-plugins — Agent plugin lifecycle effects name the port types of @jini-ai/agent-plugins. Install @jini-ai/agent-plugins to enable this feature, or check its installed version."
     }
   },
   "type": "module",
   "sideEffects": false,
   "exports": {
+    "./agent-plugins": {
+      "types": "./dist/agent-plugins.d.ts",
+      "import": "./dist/agent-plugins.js",
+      "default": "./dist/agent-plugins.js"
+    },
     "./fs": {
       "types": "./dist/fs.d.ts",
       "import": "./dist/fs.js",
@@ -47,6 +56,14 @@
     "@jini-ai/core": "workspace:^",
     "@jini-ai/platform": "workspace:^"
   },
+  "peerDependencies": {
+    "@jini-ai/agent-plugins": "workspace:^"
+  },
+  "peerDependenciesMeta": {
+    "@jini-ai/agent-plugins": {
+      "optional": true
+    }
+  },
   "publishConfig": {
     "access": "public",
     "registry": "https://registry.npmjs.org"
@@ -58,6 +75,7 @@
     "test:coverage": "vitest run --coverage"
   },
   "devDependencies": {
+    "@jini-ai/agent-plugins": "workspace:^",
     "@vitest/coverage-v8": "^2.1.9"
   }
 }

@@ -5,7 +5,7 @@
  * names, files or wiring, it fails here.
  */
 import { createAgentPluginLayout, createAgentPluginLifecycle } from '@jini-ai/agent-plugins/lifecycle';
-import { createNodeAgentPluginEffects } from '@jini-ai/agent-plugins/lifecycle/node';
+import { createNodeAgentPluginEffects } from '@jini-ai/node-adapters/agent-plugins';
 import type { AgentPluginHostToolPorts } from '@jini-ai/agent-plugins/lifecycle/host-tools';
 import { countFilesystem, createCostCounters, type CostCounters } from './counters.ts';
 import { createMemorySealer, createMemorySettings, createMemoryVault, type MemorySealer, type MemorySettings, type MemoryVault } from './memory-ports.ts';

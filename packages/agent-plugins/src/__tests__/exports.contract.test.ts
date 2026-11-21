@@ -3,7 +3,6 @@ import { readFile, access } from 'node:fs/promises';
 import * as root from '../index.js';
 import * as manifest from '../lifecycle/manifest.js';
 import * as lifecycle from '../lifecycle/index.js';
-import * as node from '../lifecycle/node.js';
 import * as zip from '../lifecycle/yauzl-archive-reader.js';
 
 test('runtime metadata and export targets agree for every code entry', async () => {
@@ -13,7 +12,6 @@ test('runtime metadata and export targets agree for every code entry', async () 
     ['.', 'index', 'universal'],
     ['./manifest', 'lifecycle/manifest', 'universal'],
     ['./lifecycle', 'lifecycle/index', 'node'],
-    ['./lifecycle/node', 'lifecycle/node', 'node'],
     ['./lifecycle/yauzl', 'lifecycle/yauzl-archive-reader', 'node'],
     ['./lifecycle/tools', 'lifecycle/tools/index', 'node'],
     ['./admin-surfaces', 'admin-surfaces/index', 'universal'],
@@ -36,8 +34,8 @@ test('barrels expose callable facades without leaking internal composition facto
   expect(typeof manifest.validatePluginManifest).toBe('function');
   expect(typeof lifecycle.createAgentPluginLifecycle).toBe('function');
   expect(typeof lifecycle.isAgentPluginName).toBe('function');
-  expect(typeof node.createNodeAgentPluginEffects).toBe('function');
-  expect(node).not.toHaveProperty('createNodeAgentPluginFilesystem');
+  // The Node effects live in `@jini-ai/node-adapters/agent-plugins` (R11a); no subpath here exports them.
+  expect(lifecycle).not.toHaveProperty('createNodeAgentPluginEffects');
   expect(lifecycle).not.toHaveProperty('withExclusiveFileLock');
   expect(typeof zip.createYauzlAgentPluginArchiveReader).toBe('function');
   expect(lifecycle).not.toHaveProperty('createInstallModule');

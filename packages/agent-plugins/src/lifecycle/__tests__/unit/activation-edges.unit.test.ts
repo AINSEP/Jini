@@ -20,10 +20,10 @@ async function workspace(): Promise<string> {
   temporaries.push(dir);
   return dir;
 }
-const { filesystem, clock, ids, process: hostProcess } = ports;
+const { filesystem, fileLock, clock, ids, process: hostProcess } = ports;
 /** Each call gets a fresh port object, so each gets its own activation module instance. */
 function activations(overrides: { filesystem?: FilesystemPort; platform?: NodeJS.Platform } = {}, onEvent?: (event: { message: string }) => void) {
-  const required = { filesystem: overrides.filesystem ?? filesystem, clock, ids,
+  const required = { filesystem: overrides.filesystem ?? filesystem, fileLock, clock, ids,
     process: overrides.platform ? { ...hostProcess, platform: overrides.platform } : hostProcess };
   return onEvent ? createAgentPluginActivations(required, { onEvent }) : createAgentPluginActivations(required);
 }

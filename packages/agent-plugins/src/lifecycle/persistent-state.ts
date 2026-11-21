@@ -1,7 +1,6 @@
 import { resolveAgentPluginLifecycleNamespace } from '../core/identity-namespace.js';
 import { createPluginMemory, migratePluginLayout, assertPluginStatePath, withPluginStateLock } from '../../core/persistent-state.js';
 import path from 'node:path';
-import { withFileLock } from '@jini-ai/platform/fs/file-lock';
 import { createPackagePathsModule } from './package-paths.js';
 import { parseAgentPluginManifest } from './manifest.js';
 import type { AgentPluginLifecyclePorts } from './ports.js';
@@ -12,7 +11,7 @@ export function createPersistentStateModule(ports: AgentPluginLifecyclePorts, _o
   const effects = {
     filesystem: ports.filesystem,
     contain: ({ root, entryPath }: { root: string; entryPath: string }) => assertContainedOnDisk(root, entryPath),
-    withLock: <T>({ lockPath, run }: { lockPath: string; run(): Promise<T> }) => withFileLock({ lockPath, run }, {
+    withLock: <T>({ lockPath, run }: { lockPath: string; run(): Promise<T> }) => ports.fileLock.withFileLock({ lockPath, run }, {
       filesystem: ports.filesystem, clock: ports.clock, process: ports.process,
       hostname: () => ports.process.hostname({}), token: () => ports.ids.newId(),
       monotonicMs: () => ports.clock.monotonicMs(), sleep: ({ durationMs }) => ports.clock.sleep({ ms: durationMs }),

@@ -141,6 +141,9 @@ importers:
       '@jini-ai/mcp':
         specifier: workspace:*
         version: link:../../packages/mcp
+      '@jini-ai/node-adapters':
+        specifier: workspace:*
+        version: link:../../packages/node-adapters
       '@jini-ai/oauth':
         specifier: workspace:*
         version: link:../../packages/oauth
@@ -1068,6 +1071,9 @@ importers:
         specifier: workspace:^
         version: link:../platform
     devDependencies:
+      '@jini-ai/agent-plugins':
+        specifier: workspace:^
+        version: link:../agent-plugins
       '@vitest/coverage-v8':
         specifier: ^2.1.9
         version: 2.1.9(vitest@2.1.9(@types/node@24.13.3)(jsdom@26.1.0)(lightningcss@1.33.0)(sass@1.51.0))

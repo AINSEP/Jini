@@ -15,7 +15,6 @@
     "entries": {
       ".": "universal",
       "./lifecycle": "node",
-      "./lifecycle/node": "node",
       "./lifecycle/yauzl": "node",
       "./lifecycle/tools": "node",
       "./lifecycle/host-tools": "node",
@@ -142,11 +141,6 @@
       "types": "./dist/lifecycle/index.d.ts",
       "import": "./dist/lifecycle/index.js",
       "default": "./dist/lifecycle/index.js"
-    },
-    "./lifecycle/node": {
-      "types": "./dist/lifecycle/node.d.ts",
-      "import": "./dist/lifecycle/node.js",
-      "default": "./dist/lifecycle/node.js"
     },
     "./lifecycle/yauzl": {
       "types": "./dist/lifecycle/yauzl-archive-reader.d.ts",

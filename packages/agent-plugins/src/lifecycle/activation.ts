@@ -49,7 +49,6 @@ import {
   type FileLockHolder,
   type HeldFileLock,
 } from "@jini-ai/core/contracts/runtime";
-import { withFileLock } from "@jini-ai/platform/fs/file-lock";
 import type { AgentPluginLifecyclePorts } from "./ports.js";
 
 /**
@@ -175,7 +174,7 @@ export interface DeleteAgentPluginActivationRequired {
   readonly pluginId: string;
 }
 
-type ActivationPorts = Pick<AgentPluginLifecyclePorts, "filesystem" | "clock" | "ids" | "process" | "onEvent">;
+type ActivationPorts = Pick<AgentPluginLifecyclePorts, "filesystem" | "fileLock" | "clock" | "ids" | "process" | "onEvent">;
 
 function buildModule(ports: ActivationPorts) {
   const randomUUID = () => ports.ids.newId();
@@ -816,7 +815,7 @@ function buildModule(ports: ActivationPorts) {
       await mkdir(workspaceRoot, { recursive: true, mode: 0o700 });
       const lockPath = path.join(workspaceRoot, ACTIVATIONS_LOCK_FILENAME);
       try {
-        return await withFileLock({ lockPath, run: write }, {
+        return await ports.fileLock.withFileLock({ lockPath, run: write }, {
           timeoutMs: 15_000, staleMs: 10_000, pollMs: 10,
           filesystem: ports.filesystem, clock: ports.clock, monotonicMs: () => ports.clock.monotonicMs(),
           process: ports.process,

@@ -3,7 +3,6 @@ import * as fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { createAgentPluginLayout } from '../../layout.js';
-import { createNodeAgentPluginEffects } from '../../node.js';
 import { createPersistentStateModule } from '../../persistent-state.js';
 import { createPackagePathsModule } from '../../package-paths.js';
 import { createCapabilityProjectionModule } from '../../capability-projection.js';
@@ -38,20 +37,6 @@ describe('createAgentPluginLayout', () => {
     const workspace = createAgentPluginLayout({ root: '/plugins' }).forWorkspace({ workspaceId: 'ws' });
     expect(workspace.pluginMemoryDir({ pluginId: 'acme', kind: 'notes' })).toBe('/plugins/ws/ws/acme/memory/notes');
     expect(() => workspace.pluginMemoryDir({ pluginId: 'acme', kind: 'cache' as 'notes' })).toThrow('Invalid memory kind');
-  });
-});
-
-describe('createNodeAgentPluginEffects process.isAlive', () => {
-  const { process: host } = createNodeAgentPluginEffects({});
-  test('a non-positive or non-integer pid is never alive', () => {
-    for (const pid of [0, -1, 1.5, Number.NaN]) expect(host.isAlive({ pid })).toBe(false);
-  });
-  test('the current process is alive and an exited child is not', async () => {
-    expect(host.isAlive({ pid: process.pid })).toBe(true);
-    const { spawn } = await import('node:child_process');
-    const child = spawn(process.execPath, ['-e', '']);
-    await new Promise(resolve => child.on('exit', resolve));
-    expect(host.isAlive({ pid: child.pid! })).toBe(false);
   });
 });
 
