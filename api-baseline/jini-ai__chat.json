@@ -429,8 +429,11 @@
    "CustomEventNames": "interface:5e0d9dd150",
    "EventIdGenerator": "interface:eebab26b20",
    "closeAgUiRun": "function:8abb007214",
+   "confirmationInterrupt": "function:887eb685e8",
+   "createAgUiPauseStore": "function:906166a389",
    "createAgUiTranslationState": "function:9f3f65fe3c",
    "drainRunFramesToAgUi": "function:44ffd0d379",
+   "readConfirmationResume": "function:1ee8952982",
    "translateAgentEventToAgUi": "function:f5da5df6c5"
   }
  },
@@ -814,7 +817,7 @@
    "EmbedChatWidgetArgs": "interface:43cd8ccded",
    "EmbedHeaderCopy": "interface:b34d8f5c25",
    "EscapeKeyPort": "interface:01e9753a47",
-   "mountEmbedChat": "function:f01b9a047f",
+   "mountEmbedChat": "function:6c9cb2731b",
    "useEmbedChatDialog": "function:2c006deed2"
   }
  },
@@ -1011,9 +1014,10 @@
   "types": "./dist/core/assistant-client/ag-ui-transport.d.ts",
   "symbols": {
    "AgUiClient": "interface:36f67235bc",
-   "AgUiClientPorts": "interface:f27da2672b",
+   "AgUiClientPorts": "interface:b3989c988b",
    "AgUiEventContext": "interface:98f709f96f",
-   "AgUiRunClient": "interface:5b3d498734",
+   "AgUiRunClient": "interface:2f5a79b8fa",
+   "createAgUiFetchAgent": "function:afbc5bd7b5",
    "createAgUiRunClient": "function:7a36a31c21"
   }
  },
@@ -1038,9 +1042,9 @@
    "A2uiActionDeliveryOutcome": "type:88ac0dc164",
    "A2uiActionPosterInput": "interface:697bb49188",
    "AgUiClient": "interface:36f67235bc",
-   "AgUiClientPorts": "interface:f27da2672b",
+   "AgUiClientPorts": "interface:b3989c988b",
    "AgUiEventContext": "interface:98f709f96f",
-   "AgUiRunClient": "interface:5b3d498734",
+   "AgUiRunClient": "interface:2f5a79b8fa",
    "AssistantConversation": "interface:0f89c59f00",
    "AssistantTransportClient": "interface:c97bd489c5",
    "AssistantTransportOptions": "interface:765b6ebe44",

@@ -1,0 +1,39 @@
+
+> jini@ api:check /home/user/Jini
+> node --import tsx ./scripts/check-api-surface.ts
+
+[api] @jini-ai/agent-runtime
+  changed export  .#AttachAcpSessionOptions
+[api] @jini-ai/chat
+  changed export  ./react/embed#mountEmbedChat
+  changed export  ./transports/ag-ui#AgUiClientPorts
+  changed export  ./transports/ag-ui#AgUiRunClient
+  changed export  ./transports/http#AgUiClientPorts
+  changed export  ./transports/http#AgUiRunClient
+  added export    ./core/ag-ui#confirmationInterrupt
+  added export    ./core/ag-ui#createAgUiPauseStore
+  added export    ./core/ag-ui#readConfirmationResume
+  added export    ./transports/ag-ui#createAgUiFetchAgent
+[api] @jini-ai/cli
+  changed export  .#ResolveDaemonUrlOptions
+  changed export  .#resolveDaemonUrl
+[api] @jini-ai/cms
+  changed export  ./media#AssetBlobRepoPort
+  changed export  ./media#InMemoryAssetBlobRepo
+  changed export  ./media/cover-image#CoverImagePost
+  added subpath   ./seo/cover-image
+[api] @jini-ai/core
+  changed export  ./errors/reporter#IncidentTrackerReport
+[api] @jini-ai/daemon
+  changed export  .#AgentCleanupFailurePhase
+  changed export  .#FrontendSessionHandle
+  changed export  .#FrontendSessionRegistry
+  changed export  ./http#FrontendControl
+[api] @jini-ai/devops
+  changed export  ./local-dev#selectNodeRuntime
+[api] @jini-ai/ui
+  changed export  .#ErrorNotice
+  changed export  .#ErrorNoticeProps
+  changed export  ./panel-kit#ErrorNotice
+  changed export  ./panel-kit#ErrorNoticeProps
+[api] checked 40 packages, 677 entries, 17184 symbols

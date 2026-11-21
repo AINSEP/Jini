@@ -816,7 +816,7 @@
   "types": "./dist/media/index.d.ts",
   "symbols": {
    "AssetBlobRecord": "interface:4803f7dc72",
-   "AssetBlobRepoPort": "interface:f452c6498e",
+   "AssetBlobRepoPort": "interface:c05725bacb",
    "AssetBlobStatus": "type:ab6fa51711",
    "AssetRenditionRecord": "interface:de3b2ef748",
    "AssetRenditionRepoPort": "interface:1bd3440401",
@@ -846,7 +846,7 @@
    "ImageMetadata": "interface:319c09f36c",
    "ImageTileInput": "interface:bc78079811",
    "ImageTransformerPort": "interface:f8dcda0417",
-   "InMemoryAssetBlobRepo": "class:41e07f9f94",
+   "InMemoryAssetBlobRepo": "class:7cd67f9854",
    "InMemoryAssetRenditionRepo": "class:c612a9a792",
    "InMemoryBlobGcJournalRepo": "class:048ea5d1ee",
    "InMemoryBlobStore": "class:fb71680281",
@@ -1000,7 +1000,7 @@
   "types": "./dist/media/cover-image.d.ts",
   "symbols": {
    "CoverImage": "interface:ad3a989b73",
-   "CoverImagePost": "interface:de99241b17",
+   "CoverImagePost": "interface:cf90606990",
    "CoverMedia": "interface:aaf6c59571",
    "collectCoverMediaRefs": "function:ca26acac09",
    "projectPostBody": "function:8e05896cd9",
@@ -1758,6 +1758,15 @@
    "analyzeContent": "function:82656b6fad",
    "countSyllables": "function:9a0b05c175",
    "summarizeReport": "function:0e2dc1bbdf"
+  }
+ },
+ "./seo/cover-image": {
+  "types": "./dist/seo/cover-image.d.ts",
+  "symbols": {
+   "resolveSeoCoverImage": "function:578732f162",
+   "withContentImageSource": "function:9e91a07f33",
+   "withCoverReadDeps": "function:86a5a39998",
+   "withCoverSeoDefaults": "function:9b4ae2b5da"
   }
  },
  "./seo/dom": {

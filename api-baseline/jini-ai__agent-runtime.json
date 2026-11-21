@@ -51,7 +51,7 @@
    "AnthropicTurnResult": "interface:51ccf227e4",
    "AnthropicUrlImageSource": "interface:4a13b29cab",
    "ArtifactTaxonomy": "interface:7d2438dc12",
-   "AttachAcpSessionOptions": "interface:5f985438ef",
+   "AttachAcpSessionOptions": "interface:54c7249b76",
    "AuthorizationServerMetadata": "interface:1c48f0db55",
    "AuthorizeUrlInput": "interface:49cb5bcd08",
    "AzureContentPart": "type:8288b09e05",
