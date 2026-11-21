@@ -1,45 +1,50 @@
+=== CAUSE-J4-metric-line-removed
+mutation:
+-  ctx.metric?.({ name: 'operation.completed', value: 1 }, { kind: 'counter', attributes: { 'operation.name': name, 'operation.failed': failed ? 1 : 0 } });
+      Tests  91 passed (91)
+EXIT 0
 === J1-constant-flags-00
 mutation:
 -      return `00-${traceId}-${spanId}-${traceFlags.toString(16).padStart(2, '0')}`;
 +      return `00-${traceId}-${spanId}-${'00'}`;
- FAIL  src/__tests__/observability-opentelemetry.test.ts > the factory resolves a general endpoint to /v1/traces and serves the port until disposed
+      Tests  5 failed | 64 passed (69)
  FAIL  src/__tests__/observability-opentelemetry.test.ts > a settings card supplies no tracer name: the service name is the tracer name
- FAIL  src/__tests__/observability-opentelemetry.test.ts > site attribution: every exported span's resource carries the host's attributes; service.name stays the host's service
  FAIL  src/__tests__/observability-opentelemetry.test.ts > active traceparent contains the SDK span context only while the span is live and scoped
  FAIL  src/__tests__/observability-opentelemetry.test.ts > explicit remote traceparent wins over local parentage with flags 01
-      Tests  5 failed | 64 passed (69)
+ FAIL  src/__tests__/observability-opentelemetry.test.ts > site attribution: every exported span's resource carries the host's attributes; service.name stays the host's service
+ FAIL  src/__tests__/observability-opentelemetry.test.ts > the factory resolves a general endpoint to /v1/traces and serves the port until disposed
 EXIT 1
 === J1-constant-flags-01
 mutation:
 -      return `00-${traceId}-${spanId}-${traceFlags.toString(16).padStart(2, '0')}`;
 +      return `00-${traceId}-${spanId}-${'01'}`;
- FAIL  src/__tests__/observability-opentelemetry.test.ts > the factory resolves a general endpoint to /v1/traces and serves the port until disposed
- FAIL  src/__tests__/observability-opentelemetry.test.ts > a settings card supplies no tracer name: the service name is the tracer name
- FAIL  src/__tests__/observability-opentelemetry.test.ts > site attribution: every exported span's resource carries the host's attributes; service.name stays the host's service
- FAIL  src/__tests__/observability-opentelemetry.test.ts > explicit remote traceparent wins over local parentage with flags 00
       Tests  4 failed | 65 passed (69)
+ FAIL  src/__tests__/observability-opentelemetry.test.ts > a settings card supplies no tracer name: the service name is the tracer name
+ FAIL  src/__tests__/observability-opentelemetry.test.ts > explicit remote traceparent wins over local parentage with flags 00
+ FAIL  src/__tests__/observability-opentelemetry.test.ts > site attribution: every exported span's resource carries the host's attributes; service.name stays the host's service
+ FAIL  src/__tests__/observability-opentelemetry.test.ts > the factory resolves a general endpoint to /v1/traces and serves the port until disposed
 EXIT 1
 === J2a-ignore-remote-parent
 mutation:
 -      const context = remoteContext && isSpanContextValid(remoteContext) ? trace.setSpanContext(ROOT_CONTEXT, remoteContext)
 +      const context = false ? trace.setSpanContext(ROOT_CONTEXT, remoteContext)
- FAIL  src/__tests__/observability-opentelemetry.test.ts > the factory resolves a general endpoint to /v1/traces and serves the port until disposed
+      Tests  5 failed | 64 passed (69)
  FAIL  src/__tests__/observability-opentelemetry.test.ts > a settings card supplies no tracer name: the service name is the tracer name
- FAIL  src/__tests__/observability-opentelemetry.test.ts > site attribution: every exported span's resource carries the host's attributes; service.name stays the host's service
  FAIL  src/__tests__/observability-opentelemetry.test.ts > explicit remote traceparent wins over local parentage with flags 00
  FAIL  src/__tests__/observability-opentelemetry.test.ts > explicit remote traceparent wins over local parentage with flags 01
-      Tests  5 failed | 64 passed (69)
+ FAIL  src/__tests__/observability-opentelemetry.test.ts > site attribution: every exported span's resource carries the host's attributes; service.name stays the host's service
+ FAIL  src/__tests__/observability-opentelemetry.test.ts > the factory resolves a general endpoint to /v1/traces and serves the port until disposed
 EXIT 1
 === J2b-accept-zero-ids
 mutation:
 -      const context = remoteContext && isSpanContextValid(remoteContext) ? trace.setSpanContext(ROOT_CONTEXT, remoteContext)
 +      const context = remoteContext ? trace.setSpanContext(ROOT_CONTEXT, remoteContext)
- FAIL  src/__tests__/observability-opentelemetry.test.ts > the factory resolves a general endpoint to /v1/traces and serves the port until disposed
+      Tests  5 failed | 64 passed (69)
  FAIL  src/__tests__/observability-opentelemetry.test.ts > a settings card supplies no tracer name: the service name is the tracer name
- FAIL  src/__tests__/observability-opentelemetry.test.ts > site attribution: every exported span's resource carries the host's attributes; service.name stays the host's service
  FAIL  src/__tests__/observability-opentelemetry.test.ts > invalid or omitted traceparent preserves operation parentage and agent roots: 00-00000000000000000000000000000000-bbbbbbbbbbbbbbbb-01
  FAIL  src/__tests__/observability-opentelemetry.test.ts > invalid or omitted traceparent preserves operation parentage and agent roots: 00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-0000000000000000-01
-      Tests  5 failed | 64 passed (69)
+ FAIL  src/__tests__/observability-opentelemetry.test.ts > site attribution: every exported span's resource carries the host's attributes; service.name stays the host's service
+ FAIL  src/__tests__/observability-opentelemetry.test.ts > the factory resolves a general endpoint to /v1/traces and serves the port until disposed
 EXIT 1
 === J3a-fanout-stop-first
 mutation:
@@ -51,55 +56,73 @@ EXIT 0
 mutation:
 -  for (const port of live) {
 +  for (const port of live.slice(0, 1)) {
- FAIL  src/observability/__tests__/trace-correlation.unit.test.ts > active trace correlation > passes the first active provider IDs through hooks and the facade and into error context
       Tests  1 failed | 1 passed (2)
+ FAIL  src/observability/__tests__/trace-correlation.unit.test.ts > active trace correlation > passes the first active provider IDs through hooks and the facade and into error context
 EXIT 1
 === J3b-omit-hook-forwarding
 mutation:
 -  activeTraceparent: () => signals.activeTraceparent?.(),
- FAIL  src/observability/__tests__/trace-correlation.unit.test.ts > active trace correlation > passes the first active provider IDs through hooks and the facade and into error context
       Tests  1 failed | 1 passed (2)
+ FAIL  src/observability/__tests__/trace-correlation.unit.test.ts > active trace correlation > passes the first active provider IDs through hooks and the facade and into error context
 EXIT 1
 === J4a-emit-outside-once
 mutation:
 - return { run: runIn({ ctx, span }), end: once(({ outcome, failed, attributes: settled = {} }) => {
 + return { run: runIn({ ctx, span }), end: ((h) => h)(({ outcome, failed, attributes: settled = {} }) => {
+      Tests  3 failed | 23 passed (26)
  FAIL  src/__tests__/observability-otel-operations.test.ts > otel: a failed outcome sets error status and error.type to the outcome label; end is once-only
  FAIL  src/__tests__/observability-otel-operations.test.ts > otel: an operation records one completion with failed=false despite repeated end
  FAIL  src/__tests__/observability-otel-operations.test.ts > otel: an operation records one completion with failed=true despite repeated end
-      Tests  3 failed | 23 passed (26)
 EXIT 1
 === J4b-drop-failure-flag
 mutation:
 -  ctx.metric?.({ name: 'operation.completed', value: 1 }, { kind: 'counter', attributes: { 'operation.name': name, 'operation.failed': failed ? 1 : 0 } });
 +  ctx.metric?.({ name: 'operation.completed', value: 1 }, { kind: 'counter', attributes: { 'operation.name': name, 'operation.failed': 0 } });
- FAIL  src/__tests__/observability-otel-operations.test.ts > otel: an operation records one completion with failed=true despite repeated end
       Tests  1 failed | 25 passed (26)
+ FAIL  src/__tests__/observability-otel-operations.test.ts > otel: an operation records one completion with failed=true despite repeated end
 EXIT 1
 === J5a-omit-interrupted
 mutation:
 -  ctx.metric?.({ name: 'agent.run.completed', value: 1 }, { kind: 'counter', attributes: { 'agent.run.status': status } });
 +  if (status !== 'interrupted') ctx.metric?.({ name: 'agent.run.completed', value: 1 }, { kind: 'counter', attributes: { 'agent.run.status': status } });
- FAIL  src/__tests__/observability-otel-surfaces.test.ts > trackAgentRun > records one duration and completion after interrupted settlement, including repeated end
       Tests  1 failed | 19 passed (20)
+ FAIL  src/__tests__/observability-otel-surfaces.test.ts > trackAgentRun > records one duration and completion after interrupted settlement, including repeated end
 EXIT 1
 === J5b-record-twice
 mutation:
 +  ctx.metric?.({ name: 'agent.run.completed', value: 1 }, { kind: 'counter', attributes: { 'agent.run.status': status } });
- FAIL  src/__tests__/observability-otel-surfaces.test.ts > trackAgentRun > records one duration and completion after succeeded settlement, including repeated end
+      Tests  5 failed | 15 passed (20)
+ FAIL  src/__tests__/observability-otel-surfaces.test.ts > trackAgentRun > records one duration and completion after abandoned settlement, including repeated end
+ FAIL  src/__tests__/observability-otel-surfaces.test.ts > trackAgentRun > records one duration and completion after canceled settlement, including repeated end
  FAIL  src/__tests__/observability-otel-surfaces.test.ts > trackAgentRun > records one duration and completion after failed settlement, including repeated end
  FAIL  src/__tests__/observability-otel-surfaces.test.ts > trackAgentRun > records one duration and completion after interrupted settlement, including repeated end
- FAIL  src/__tests__/observability-otel-surfaces.test.ts > trackAgentRun > records one duration and completion after canceled settlement, including repeated end
- FAIL  src/__tests__/observability-otel-surfaces.test.ts > trackAgentRun > records one duration and completion after abandoned settlement, including repeated end
-      Tests  5 failed | 15 passed (20)
+ FAIL  src/__tests__/observability-otel-surfaces.test.ts > trackAgentRun > records one duration and completion after succeeded settlement, including repeated end
 EXIT 1
 === J6a-remove-expand
 mutation:
 -it('renders both enabled and disabled rows read-only with details and inspection', async () => { const { api, tree } = setup(['admin.plugins.read'], 'unknown'); const write = vi.spyOn(api, 'setEnabled'); render(tree()); expect(await screen.findByRole('switch', { name: 'Enable UI UX Design' })).toBeDisabled(); expect(screen.getByRole('switch', { name: 'Disable Second' })).toBeChecked(); expect(screen.getByRole('switch', { name: 'Disable Second' })).toBeDisabled(); fireEvent.click(screen.getByRole('button', { name: 'Expand UI UX Design' })); expect(await screen.findByRole('region', { name: 'Portable components' })).toBeVisible(); expect(screen.getByText('A design skill')).toBeVisible(); expect(screen.getByRole('button', { name: 'Uninstall UI UX Design — unavailable' })).toBeDisabled(); expect(screen.getByText('Packages are managed by this host.')).toBeVisible(); expect(write).not.toHaveBeenCalled(); });
 +it('renders both enabled and disabled rows read-only with details and inspection', async () => { const { api, tree } = setup(['admin.plugins.read'], 'unknown'); const write = vi.spyOn(api, 'setEnabled'); render(tree()); expect(await screen.findByRole('switch', { name: 'Enable UI UX Design' })).toBeDisabled(); expect(screen.getByRole('switch', { name: 'Disable Second' })).toBeChecked(); expect(screen.getByRole('switch', { name: 'Disable Second' })).toBeDisabled(); expect(await screen.findByRole('region', { name: 'Portable components' })).toBeVisible(); expect(screen.getByText('A design skill')).toBeVisible(); expect(screen.getByRole('button', { name: 'Uninstall UI UX Design — unavailable' })).toBeDisabled(); expect(screen.getByText('Packages are managed by this host.')).toBeVisible(); expect(write).not.toHaveBeenCalled(); });
- FAIL  src/agent-plugins/react/__tests__/agent-plugins.test.tsx > renders both enabled and disabled rows read-only with details and inspection
       Tests  1 failed | 6 passed (7)
+ FAIL  src/agent-plugins/react/__tests__/agent-plugins.test.tsx > renders both enabled and disabled rows read-only with details and inspection
 EXIT 1
+=== J6b-sync-region-query-load1
+mutation:
+-it('renders both enabled and disabled rows read-only with details and inspection', async () => { const { api, tree } = setup(['admin.plugins.read'], 'unknown'); const write = vi.spyOn(api, 'setEnabled'); render(tree()); expect(await screen.findByRole('switch', { name: 'Enable UI UX Design' })).toBeDisabled(); expect(screen.getByRole('switch', { name: 'Disable Second' })).toBeChecked(); expect(screen.getByRole('switch', { name: 'Disable Second' })).toBeDisabled(); fireEvent.click(screen.getByRole('button', { name: 'Expand UI UX Design' })); expect(await screen.findByRole('region', { name: 'Portable components' })).toBeVisible(); expect(screen.getByText('A design skill')).toBeVisible(); expect(screen.getByRole('button', { name: 'Uninstall UI UX Design — unavailable' })).toBeDisabled(); expect(screen.getByText('Packages are managed by this host.')).toBeVisible(); expect(write).not.toHaveBeenCalled(); });
++it('renders both enabled and disabled rows read-only with details and inspection', async () => { const { api, tree } = setup(['admin.plugins.read'], 'unknown'); const write = vi.spyOn(api, 'setEnabled'); render(tree()); expect(await screen.findByRole('switch', { name: 'Enable UI UX Design' })).toBeDisabled(); expect(screen.getByRole('switch', { name: 'Disable Second' })).toBeChecked(); expect(screen.getByRole('switch', { name: 'Disable Second' })).toBeDisabled(); fireEvent.click(screen.getByRole('button', { name: 'Expand UI UX Design' })); expect(screen.getByRole('region', { name: 'Portable components' })).toBeVisible(); expect(screen.getByText('A design skill')).toBeVisible(); expect(screen.getByRole('button', { name: 'Uninstall UI UX Design — unavailable' })).toBeDisabled(); expect(screen.getByText('Packages are managed by this host.')).toBeVisible(); expect(write).not.toHaveBeenCalled(); });
+      Tests  7 passed (7)
+EXIT 0
+=== J6b-sync-region-query-load2
+mutation:
+-it('renders both enabled and disabled rows read-only with details and inspection', async () => { const { api, tree } = setup(['admin.plugins.read'], 'unknown'); const write = vi.spyOn(api, 'setEnabled'); render(tree()); expect(await screen.findByRole('switch', { name: 'Enable UI UX Design' })).toBeDisabled(); expect(screen.getByRole('switch', { name: 'Disable Second' })).toBeChecked(); expect(screen.getByRole('switch', { name: 'Disable Second' })).toBeDisabled(); fireEvent.click(screen.getByRole('button', { name: 'Expand UI UX Design' })); expect(await screen.findByRole('region', { name: 'Portable components' })).toBeVisible(); expect(screen.getByText('A design skill')).toBeVisible(); expect(screen.getByRole('button', { name: 'Uninstall UI UX Design — unavailable' })).toBeDisabled(); expect(screen.getByText('Packages are managed by this host.')).toBeVisible(); expect(write).not.toHaveBeenCalled(); });
++it('renders both enabled and disabled rows read-only with details and inspection', async () => { const { api, tree } = setup(['admin.plugins.read'], 'unknown'); const write = vi.spyOn(api, 'setEnabled'); render(tree()); expect(await screen.findByRole('switch', { name: 'Enable UI UX Design' })).toBeDisabled(); expect(screen.getByRole('switch', { name: 'Disable Second' })).toBeChecked(); expect(screen.getByRole('switch', { name: 'Disable Second' })).toBeDisabled(); fireEvent.click(screen.getByRole('button', { name: 'Expand UI UX Design' })); expect(screen.getByRole('region', { name: 'Portable components' })).toBeVisible(); expect(screen.getByText('A design skill')).toBeVisible(); expect(screen.getByRole('button', { name: 'Uninstall UI UX Design — unavailable' })).toBeDisabled(); expect(screen.getByText('Packages are managed by this host.')).toBeVisible(); expect(write).not.toHaveBeenCalled(); });
+      Tests  7 passed (7)
+EXIT 0
+=== J6b-sync-region-query-load3
+mutation:
+-it('renders both enabled and disabled rows read-only with details and inspection', async () => { const { api, tree } = setup(['admin.plugins.read'], 'unknown'); const write = vi.spyOn(api, 'setEnabled'); render(tree()); expect(await screen.findByRole('switch', { name: 'Enable UI UX Design' })).toBeDisabled(); expect(screen.getByRole('switch', { name: 'Disable Second' })).toBeChecked(); expect(screen.getByRole('switch', { name: 'Disable Second' })).toBeDisabled(); fireEvent.click(screen.getByRole('button', { name: 'Expand UI UX Design' })); expect(await screen.findByRole('region', { name: 'Portable components' })).toBeVisible(); expect(screen.getByText('A design skill')).toBeVisible(); expect(screen.getByRole('button', { name: 'Uninstall UI UX Design — unavailable' })).toBeDisabled(); expect(screen.getByText('Packages are managed by this host.')).toBeVisible(); expect(write).not.toHaveBeenCalled(); });
++it('renders both enabled and disabled rows read-only with details and inspection', async () => { const { api, tree } = setup(['admin.plugins.read'], 'unknown'); const write = vi.spyOn(api, 'setEnabled'); render(tree()); expect(await screen.findByRole('switch', { name: 'Enable UI UX Design' })).toBeDisabled(); expect(screen.getByRole('switch', { name: 'Disable Second' })).toBeChecked(); expect(screen.getByRole('switch', { name: 'Disable Second' })).toBeDisabled(); fireEvent.click(screen.getByRole('button', { name: 'Expand UI UX Design' })); expect(screen.getByRole('region', { name: 'Portable components' })).toBeVisible(); expect(screen.getByText('A design skill')).toBeVisible(); expect(screen.getByRole('button', { name: 'Uninstall UI UX Design — unavailable' })).toBeDisabled(); expect(screen.getByText('Packages are managed by this host.')).toBeVisible(); expect(write).not.toHaveBeenCalled(); });
+      Tests  7 passed (7)
+EXIT 0
 === J6b-sync-region-query
 mutation:
 -it('renders both enabled and disabled rows read-only with details and inspection', async () => { const { api, tree } = setup(['admin.plugins.read'], 'unknown'); const write = vi.spyOn(api, 'setEnabled'); render(tree()); expect(await screen.findByRole('switch', { name: 'Enable UI UX Design' })).toBeDisabled(); expect(screen.getByRole('switch', { name: 'Disable Second' })).toBeChecked(); expect(screen.getByRole('switch', { name: 'Disable Second' })).toBeDisabled(); fireEvent.click(screen.getByRole('button', { name: 'Expand UI UX Design' })); expect(await screen.findByRole('region', { name: 'Portable components' })).toBeVisible(); expect(screen.getByText('A design skill')).toBeVisible(); expect(screen.getByRole('button', { name: 'Uninstall UI UX Design — unavailable' })).toBeDisabled(); expect(screen.getByText('Packages are managed by this host.')).toBeVisible(); expect(write).not.toHaveBeenCalled(); });
@@ -110,54 +133,54 @@ EXIT 0
 mutation:
 -    if (!resolved) return false;
 +    if (!resolved) return true;
- FAIL  src/routing/__tests__/routing.ports.test.ts > host visibility changes actual URLs for both record and id resolution
       Tests  1 failed | 3 passed (4)
+ FAIL  src/routing/__tests__/routing.ports.test.ts > host visibility changes actual URLs for both record and id resolution
 EXIT 1
 === R1a-remove-guard-calls
 mutation:
 -  await requireWildcardCapacity({ deps, record, existingId: undefined });
 -  await requireWildcardCapacity({ deps, record, existingId: existing.id });
+      Tests  2 failed | 50 passed (52)
  FAIL  src/redirects/__tests__/redirects.test.ts > createRedirect refuses the 501st active wildcard without saving
  FAIL  src/redirects/__tests__/redirects.test.ts > updateRedirect refuses activating an inactive wildcard at capacity
-      Tests  2 failed | 50 passed (52)
 EXIT 1
 === R1b-remove-capacity-refusal
 mutation:
 -  if (dynamic.length >= DYNAMIC_SET_LIMIT) {
 +  if (false) {
+      Tests  2 failed | 50 passed (52)
  FAIL  src/redirects/__tests__/redirects.test.ts > createRedirect refuses the 501st active wildcard without saving
  FAIL  src/redirects/__tests__/redirects.test.ts > updateRedirect refuses activating an inactive wildcard at capacity
-      Tests  2 failed | 50 passed (52)
 EXIT 1
 === R2-boundary-ge
 mutation:
 -      {redirects.filter((rule) => rule.status === "active" && rule.matchType === "wildcard").length > 500 ? <div className="notice">{t("Only the first 500 active wildcard redirects are used. Turn off or merge some.")}</div> : null}
 +      {redirects.filter((rule) => rule.status === "active" && rule.matchType === "wildcard").length >= 500 ? <div className="notice">{t("Only the first 500 active wildcard redirects are used. Turn off or merge some.")}</div> : null}
- FAIL  src/redirects/react/__tests__/Redirects.unit.test.tsx > shows the wildcard limit notice above 500 active rules and hides it at 500
       Tests  1 failed | 5 passed (6)
+ FAIL  src/redirects/react/__tests__/Redirects.unit.test.tsx > shows the wildcard limit notice above 500 active rules and hides it at 500
 EXIT 1
 === R2-remove-notice
 mutation:
 -      {redirects.filter((rule) => rule.status === "active" && rule.matchType === "wildcard").length > 500 ? <div className="notice">{t("Only the first 500 active wildcard redirects are used. Turn off or merge some.")}</div> : null}
 +      {redirects.filter((rule) => rule.status === "active" && rule.matchType === "wildcard").length > 100000 ? <div className="notice">{t("Only the first 500 active wildcard redirects are used. Turn off or merge some.")}</div> : null}
- FAIL  src/redirects/react/__tests__/Redirects.unit.test.tsx > shows the wildcard limit notice above 500 active rules and hides it at 500
       Tests  1 failed | 5 passed (6)
+ FAIL  src/redirects/react/__tests__/Redirects.unit.test.tsx > shows the wildcard limit notice above 500 active rules and hides it at 500
 EXIT 1
 === dgc2J4-remove-abort-check
 mutation:
 -    optional.signal?.throwIfAborted();
- FAIL  src/entries/__tests__/tool-registrations.cov-j2.test.ts > collections_entry_update refuses cancellation at transaction admission without persisting
       Tests  1 failed | 9 passed (10)
+ FAIL  src/entries/__tests__/tool-registrations.cov-j2.test.ts > collections_entry_update refuses cancellation at transaction admission without persisting
 EXIT 1
 === dgcJ1-remove-permission
 mutation:
 -      await routeDeps.requirePermission({ workspaceId: routeDeps.workspaceId, principalId: ctx.principal.id, permission: routeDeps.ports.permissions.use }, { entityType: "workspace", entityId: routeDeps.workspaceId });
- FAIL  src/lifecycle/host-tools/__tests__/search-tool.authorization.test.ts > search checks the principal's configured use permission before reading the workspace
       Tests  1 failed (1)
+ FAIL  src/lifecycle/host-tools/__tests__/search-tool.authorization.test.ts > search checks the principal's configured use permission before reading the workspace
 EXIT 1
 === dgcJ3-remove-abort-check
 mutation:
 -      optional.signal?.throwIfAborted();
- FAIL  src/content-types/__tests__/tool-registrations.cov-j2.test.ts > collections_content_type_update_fields refuses cancellation at transaction admission without persisting
       Tests  1 failed | 11 passed (12)
+ FAIL  src/content-types/__tests__/tool-registrations.cov-j2.test.ts > collections_content_type_update_fields refuses cancellation at transaction admission without persisting
 EXIT 1

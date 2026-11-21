@@ -1,0 +1,80 @@
+# full suites — worktree /home/user/jt10 at 26dbb2133 (fresh frozen install 0, pnpm --no-bail -r build 0, 0 error TS); neutral-host re-run at 7b3e4e927 after the typecheck fix
+# command: npm --prefix <pkg> run test -- --maxWorkers=2 --minWorkers=1 ; scripts: npx vitest run scripts/__tests__
+INSTALL EXIT 0
+BUILD EXIT 0 errorTS=0
+packages/core EXIT 0 Tests  2947 passed (2947)
+packages/diagnostics EXIT 0 Tests  1090 passed (1090)
+packages/provider-plugins EXIT 1 Tests  4 failed | 914 passed (918)
+packages/agent-plugins EXIT 0 Tests  2188 passed | 2 skipped (2190)
+packages/cms EXIT 1 Tests  1 failed | 5008 passed (5009)
+packages/admin EXIT 0 Tests  3074 passed (3074)
+examples/neutral-host EXIT 1 Tests  2 failed | 37 passed | 13 todo (52)
+scripts/__tests__ (vitest) EXIT 1 Tests  14 failed | 1000 passed | 33 skipped (1047)
+DONE
+examples/neutral-host @7b3e4e927: Tests  1 failed | 38 passed | 13 todo (52)
+=== provider-plugins failing
+     → Test timed out in 5000ms.
+ FAIL  src/__tests__/observability-opentelemetry.test.ts > a settings card supplies no tracer name: the service name is the tracer name
+ FAIL  src/__tests__/observability-opentelemetry.test.ts > site attribution: every exported span's resource carries the host's attributes; service.name stays the host's service
+ FAIL  src/__tests__/observability-opentelemetry.test.ts > the factory resolves a general endpoint to /v1/traces and serves the port until disposed
+ FAIL  src/__tests__/observability-sentry.test.ts > a composed tracker correlates Sentry errors to the actual active OTel span only
+Error: Test timed out in 5000ms.
+=== cms failing
+ FAIL  forms/src/__tests__/package-boundary.test.ts > forms keeps its own published root entry and CMS exposes no forms alias
+AssertionError: expected '0.7.1' to be '0.7.3-next.1' // Object.is equality
+=== neutral-host failing
+ FAIL  src/contribution-contracts.test.ts > contribution contracts > walks every contribution file, and each kind is in the contract table
+ FAIL  src/neutral-host/neutral-host.test.ts > moved classes in a neutral host > plugin search: finds installed plugins by the host's own names
+AssertionError: expected 'failed' to be 'completed' // Object.is equality
+AssertionError: expected 0 to be greater than or equal to 27
+=== neutral-host-fixed failing
+ FAIL  src/contribution-contracts.test.ts > contribution contracts > walks every contribution file, and each kind is in the contract table
+AssertionError: expected 0 to be greater than or equal to 27
+=== scripts-vitest failing
+ FAIL  scripts/__tests__/check-env-access.test.ts > env-access debt file of this repository > is current: no occurrence is missing from it and none in it is stale
+ FAIL  scripts/__tests__/check-env-access.test.ts > env-access host scan (where it looks and which files are process entries) > returns only occurrences that are not in the debt file, and says when debt is stale
+ FAIL  scripts/__tests__/check-why-comments.test.mjs [ scripts/__tests__/check-why-comments.test.mjs ]
+ FAIL  scripts/__tests__/connection-card.packed.test.ts > packed connection-card consumer > renders different host copy and delivers a real exchange through published entries
+ FAIL  scripts/__tests__/coupling-isolation.test.ts > model-discovery policy import isolation > cannot reach native process/filesystem modules or its adapter implementations
+ FAIL  scripts/__tests__/coupling-isolation.test.ts > platform OS helper import isolation > command reaches only its existing OS owners
+ FAIL  scripts/__tests__/coupling-isolation.test.ts > platform OS helper import isolation > process reaches only its existing OS owners
+ FAIL  scripts/__tests__/coupling-isolation.test.ts > platform OS helper import isolation > proxy-env reaches only its existing OS owners
+ FAIL  scripts/__tests__/coupling-isolation.test.ts > re-verify dependency and state regressions > declares the shared secret-input owner on the permitted optional UI layer edge
+ FAIL  scripts/__tests__/coupling-isolation.test.ts > verified shared leaves retain their existing owners > only the web entry reaches HTML peers; the root and asset cache retain lazy Undici access
+ FAIL  scripts/__tests__/extract-s3-source-contracts.test.ts > F3 A2 changeset records both public minor releases and compatible parser injection
+ FAIL  scripts/__tests__/extract-s3-source-contracts.test.ts > F5 UI optional-peer strings preserve the original em-dash formatting exactly
+ FAIL  scripts/__tests__/optional-peer-contract.test.ts > all real default entries keep runtime libraries required and classify opt-in subpaths
+ FAIL  scripts/__tests__/optional-peer-contract.test.ts > keeps default-entry host framework daemon → express required
+ FAIL  scripts/__tests__/optional-peer-contract.test.ts > keeps ui → lexical an explicitly classified opt-in peer
+AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+AssertionError: expected '"optionalPeers": {\n      "@tanstack/…' to be '"optionalPeers": {\n      "@tanstack/…' // Object.is equality
+AssertionError: expected [ 'parse5' ] to deeply equal []
+AssertionError: expected [ { …(3) }, { …(3) }, { …(3) }, …(1) ] to deeply equal []
+AssertionError: expected [ …(23) ] to deeply equal [ …(4) ]
+AssertionError: expected [ …(23) ] to deeply equal [ …(8) ]
+AssertionError: expected [ …(31) ] to deeply equal [ …(12) ]
+AssertionError: expected [ …(57) ] to deeply equal [ …(21) ]
+AssertionError: expected [ …(79) ] to have a length of 81 but got 79
+AssertionError: expected [] to deeply equal [ …(3) ]
+AssertionError: expected undefined to be 'workspace:^' // Object.is equality
+AssertionError: expected undefined to be true // Object.is equality
+AssertionError: expected undefined to be truthy
+AssertionError: node:internal/modules/run_main:107
+Error: No test suite found in file /home/user/jt10/scripts/__tests__/check-why-comments.test.mjs
+=== scripts/__tests__ BASE (061cd7ce1, worktree /home/user/jrel, fresh frozen install 0, -r build 0): Tests  14 failed | 998 passed | 33 skipped (1045)
+ FAIL  scripts/__tests__/check-env-access.test.ts > env-access debt file of this repository > is current: no occurrence is missing from it and none in it is stale
+ FAIL  scripts/__tests__/check-env-access.test.ts > env-access host scan (where it looks and which files are process entries) > returns only occurrences that are not in the debt file, and says when debt is stale
+ FAIL  scripts/__tests__/check-why-comments.test.mjs [ scripts/__tests__/check-why-comments.test.mjs ]
+ FAIL  scripts/__tests__/connection-card.packed.test.ts > packed connection-card consumer > renders different host copy and delivers a real exchange through published entries
+ FAIL  scripts/__tests__/coupling-isolation.test.ts > model-discovery policy import isolation > cannot reach native process/filesystem modules or its adapter implementations
+ FAIL  scripts/__tests__/coupling-isolation.test.ts > platform OS helper import isolation > command reaches only its existing OS owners
+ FAIL  scripts/__tests__/coupling-isolation.test.ts > platform OS helper import isolation > process reaches only its existing OS owners
+ FAIL  scripts/__tests__/coupling-isolation.test.ts > platform OS helper import isolation > proxy-env reaches only its existing OS owners
+ FAIL  scripts/__tests__/coupling-isolation.test.ts > re-verify dependency and state regressions > declares the shared secret-input owner on the permitted optional UI layer edge
+ FAIL  scripts/__tests__/coupling-isolation.test.ts > verified shared leaves retain their existing owners > only the web entry reaches HTML peers; the root and asset cache retain lazy Undici access
+ FAIL  scripts/__tests__/extract-s3-source-contracts.test.ts > F3 A2 changeset records both public minor releases and compatible parser injection
+ FAIL  scripts/__tests__/extract-s3-source-contracts.test.ts > F5 UI optional-peer strings preserve the original em-dash formatting exactly
+ FAIL  scripts/__tests__/optional-peer-contract.test.ts > all real default entries keep runtime libraries required and classify opt-in subpaths
+ FAIL  scripts/__tests__/optional-peer-contract.test.ts > keeps default-entry host framework daemon → express required
+ FAIL  scripts/__tests__/optional-peer-contract.test.ts > keeps ui → lexical an explicitly classified opt-in peer
+=== provider-plugins cause check: J4 'operation.completed' metric line removed -> observability-opentelemetry + observability-sentry: Tests  91 passed (91)
