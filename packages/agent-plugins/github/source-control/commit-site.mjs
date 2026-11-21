@@ -181,10 +181,18 @@ export function createSiteCommitter(kit, _optional = {}) {
     return { ok: true, treeSha: sha };
   }
 
+  async function fetchManagedManifestResponse({ token, owner, repo, branch, scope }) {
+    const result = await githubFetch(`${GITHUB_API}/repos/${enc(owner)}/${enc(repo)}/contents/${encPath(scope.manifestPath)}?ref=${enc(branch)}`, { headers: githubHeaders(token) });
+    if (result.kind === "response" && result.response.status === 404 && scope.previousManagedManifestPath) {
+      return githubFetch(`${GITHUB_API}/repos/${enc(owner)}/${enc(repo)}/contents/${encPath(scope.previousManagedManifestPath)}?ref=${enc(branch)}`, { headers: githubHeaders(token) });
+    }
+    return result;
+  }
+
   /** @param {string} token @param {string} owner @param {string} repo @param {string} branch
    *  @returns {Promise<{ ok: true, files: readonly PreviouslyManagedFile[] } | StepFailure>} */
   async function fetchManagedManifest(token, owner, repo, branch, scope) {
-    const result = await githubFetch(`${GITHUB_API}/repos/${enc(owner)}/${enc(repo)}/contents/${encPath(scope.manifestPath)}?ref=${enc(branch)}`, { headers: githubHeaders(token) });
+    const result = await fetchManagedManifestResponse({ token, owner, repo, branch, scope });
     if (result.kind !== "response") return nonResponseFailure(result);
     const { response } = result;
     if (response.status === 404) return { ok: true, files: [] }; // verified: no manifest yet — safe, not "unreadable"
@@ -287,7 +295,7 @@ export function createSiteCommitter(kit, _optional = {}) {
     const fileTree = await buildFileTreeEntries(token, owner, repo, files);
     if (!fileTree.ok) return fileTree;
 
-    const candidates = (previousManagedFiles ?? []).filter((f) => !fileTree.currentPaths.has(f.path) && f.path !== scope.manifestPath);
+    const candidates = (previousManagedFiles ?? []).filter((f) => !fileTree.currentPaths.has(f.path) && f.path !== scope.manifestPath && f.path !== scope.previousManagedManifestPath);
     const { deletions, deletedPaths, divergedPaths } = await resolveDeletionCandidates(token, owner, repo, branch, candidates);
 
     const sortedFiles = fileTree.currentFileShas.slice().sort((a, b) => {
@@ -336,26 +344,28 @@ export function createSiteCommitter(kit, _optional = {}) {
   /** A new branch has no parent, no base tree and no manifest. @param {string} token @param {string} owner
    *  @param {string} repo @param {string} branch @param {string | undefined} parentSha */
   async function resolveCommitPrerequisites(token, owner, repo, branch, parentSha, scope) {
-    if (parentSha === undefined) return /** @type {const} */ ({ ok: true, baseTreeSha: undefined, previousManagedFiles: undefined, parents: [] });
+    if (parentSha === undefined) return /** @type {const} */ ({ ok: true, baseTreeSha: undefined, previousManagedFiles: undefined, parents: [], readRef: branch });
 
     const parentTreeResult = await fetchParentTree(token, owner, repo, parentSha);
     if (!parentTreeResult.ok) return parentTreeResult;
-    const manifestResult = await fetchManagedManifest(token, owner, repo, branch, scope);
+    const readRef = scope.previousManagedManifestPath ? parentSha : branch;
+    const manifestResult = await fetchManagedManifest(token, owner, repo, readRef, scope);
     if (!manifestResult.ok) return manifestResult;
-    return /** @type {const} */ ({ ok: true, baseTreeSha: parentTreeResult.treeSha, previousManagedFiles: manifestResult.files, parents: [parentSha] });
+    return /** @type {const} */ ({ ok: true, baseTreeSha: parentTreeResult.treeSha, previousManagedFiles: manifestResult.files, parents: [parentSha], readRef });
   }
 
   /** Prefix payloads once and reserve the local ownership manifest before any provider I/O.
-   * @param {{ input: { folder?: string, files: readonly CommitFile[] } }} required
+   * @param {{ input: { folder?: string, previousManagedManifestPath?: string, files: readonly CommitFile[] } }} required
    * @complexity O(file count + path bytes), no effects.
    */
   function prepareCommitScope({ input }, _options = {}) {
     try {
       const folder = kit.repositoryPaths.normalizeFolder({ folder: input.folder });
       const manifestPath = kit.repositoryPaths.prefixPath({ folder, path: MANAGED_MANIFEST_PATH });
+      const previousManagedManifestPath = input.previousManagedManifestPath ? kit.repositoryPaths.prefixPath({ folder, path: input.previousManagedManifestPath }) : undefined;
       const files = input.files.map(file => ({ ...file, path: kit.repositoryPaths.prefixPath({ folder, path: file.path }) }));
-      if (files.some(file => file.path === manifestPath)) return { ok: false, code: PROVIDER_ERROR, message: "Export cannot overwrite the managed manifest." };
-      return { ok: true, folder, manifestPath, files };
+      if (files.some(file => file.path === manifestPath || file.path === previousManagedManifestPath)) return { ok: false, code: PROVIDER_ERROR, message: "Export cannot overwrite the managed manifest." };
+      return { ok: true, folder, manifestPath, previousManagedManifestPath, files };
     } catch {
       return { ok: false, code: PROVIDER_ERROR, message: "Invalid target folder or repository file path." };
     }
@@ -372,7 +382,7 @@ export function createSiteCommitter(kit, _optional = {}) {
   }
 
   /**
-   * @param {{ token: string, owner: string, repo: string, branch?: string, commitMessage: string, folder?: string, files: readonly CommitFile[] }} input
+   * @param {{ token: string, owner: string, repo: string, branch?: string, commitMessage: string, folder?: string, previousManagedManifestPath?: string, files: readonly CommitFile[] }} input
    * @complexity O(f) requests in the file count, plus one per path a previous export owned and dropped.
    */
   return async function commitSite(input) {
@@ -393,7 +403,7 @@ export function createSiteCommitter(kit, _optional = {}) {
     const prereqs = await resolveCommitPrerequisites(token, owner, repo, branch, parentSha, scope);
     if (!prereqs.ok) return prereqs;
 
-    const treeResult = await buildTree(token, owner, repo, branch, files, prereqs.baseTreeSha, prereqs.previousManagedFiles, scope);
+    const treeResult = await buildTree(token, owner, repo, prereqs.readRef, files, prereqs.baseTreeSha, prereqs.previousManagedFiles, scope);
     if (!treeResult.ok) return treeResult;
 
     if (unchangedSiteTree({ baseTreeSha: prereqs.baseTreeSha, treeSha: treeResult.sha })) {
