@@ -193,7 +193,7 @@ export function buildEntriesRegistrations(routeDeps: EntriesToolDeps): ToolRegis
               fieldsJson: input.fieldsJson,
               expectedVersion: requireNumber({ input, key: "expectedVersion" }),
             },
-          }),
+          }, { signal: ctx.signal }),
         ) });
     },
 

@@ -381,7 +381,7 @@ export interface UpdateEntryRequired {
  * @overallScore 100
  * See docs/decisions/DR-002-content-lifecycle-and-cleanup.md.
  */
-export async function updateEntry(required: UpdateEntryRequired): Promise<Result<{ entry: EntryRecord }, Error>> {
+export async function updateEntry(required: UpdateEntryRequired, optional: { signal?: AbortSignal | undefined } = {}): Promise<Result<{ entry: EntryRecord }, Error>> {
   const { deps, input } = required;
 
   const resolved = await resolveExistingEntryForTransition(deps, input);
@@ -401,8 +401,10 @@ export async function updateEntry(required: UpdateEntryRequired): Promise<Result
     version: current.version + 1,
   };
 
-  const conflict = await runVersionedWrite(deps.entryRepo, () =>
-    persistEntryWrite({ deps, entry: updated, op: "update", input, recordedAt: now }, { saveOptions: { expectedVersion: input.expectedVersion }, onWritten: deps.onWritten }),
+  const conflict = await runVersionedWrite(deps.entryRepo, () => {
+    optional.signal?.throwIfAborted();
+    return persistEntryWrite({ deps, entry: updated, op: "update", input, recordedAt: now }, { saveOptions: { expectedVersion: input.expectedVersion }, onWritten: deps.onWritten });
+  },
   );
   if (conflict) return { ok: false, error: conflict };
 

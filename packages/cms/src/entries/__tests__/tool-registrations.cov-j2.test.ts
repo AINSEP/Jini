@@ -48,7 +48,7 @@ function harness(overrides: Partial<EntriesToolDeps> = {}, contentTypes: Record<
     assert.ok(found, `${id} must be wired`);
     return found;
   };
-  return { entryRepo, events, permissionRequests, registrations, tool };
+  return { deps, entryRepo, events, permissionRequests, registrations, tool };
 }
 
 type EntryView = { entry: Record<string, unknown> & { id: string; version: number } };
@@ -104,6 +104,54 @@ test("collections_entry_create appends the schema to a fieldsJson shape rejectio
   await assert.rejects(() => h.tool("collections_entry_create").handler(ctx({ type: "recipe", slug: "chili" })), ToolInputError);
   assert.deepEqual(await h.entryRepo.listByWorkspace({ workspaceId: WORKSPACE_ID }), []);
   assert.deepEqual(h.events, []);
+});
+
+test("collections_entry_update refuses cancellation at transaction admission without persisting", async () => {
+  const h = harness();
+  const created = await createChili(h);
+  const controller = new AbortController();
+  const reason = new Error("entry update cancelled");
+  const events = [...h.events];
+  let addedRevisions = 0;
+  const appendRevision = h.entryRepo.appendRevision.bind(h.entryRepo);
+  h.entryRepo.appendRevision = async (revision) => {
+    addedRevisions += 1;
+    return appendRevision(revision);
+  };
+  h.entryRepo.transaction = async ({ fn }) => {
+    controller.abort(reason);
+    return fn();
+  };
+  const input = { id: created.entry.id, title: "Chili v2", expectedVersion: 1 };
+
+  await assert.rejects(h.tool("collections_entry_update").handler({ ...ctx(input), signal: controller.signal }),
+    actual => actual === reason, "transaction admission cancellation rejects with the original abort reason");
+
+  const stored = await h.entryRepo.findById({ workspaceId: WORKSPACE_ID, id: created.entry.id });
+  assert.equal(stored?.title, "Chili", "cancellation before persistence preserves the original title");
+  assert.equal(stored?.version, 1, "cancellation before persistence preserves version one");
+  assert.equal(addedRevisions, 0, "cancellation adds no revision");
+  assert.deepEqual(h.events, events, "cancellation enqueues no update event");
+});
+
+test("collections_entry_update completes when cancellation follows the write", async () => {
+  const h = harness();
+  const created = await createChili(h);
+  const controller = new AbortController();
+  h.deps.outbox.enqueue = async (event) => {
+    h.events.push(event);
+    controller.abort(new Error("entry update already saved"));
+  };
+
+  const result = await h.tool("collections_entry_update").handler({
+    ...ctx({ id: created.entry.id, title: "Chili v2", expectedVersion: 1 }), signal: controller.signal,
+  });
+
+  assert.deepEqual(result, { entry: { ...created.entry, title: "Chili v2", version: 2 } },
+    "cancellation during update outbox enqueue retains the successful version two result");
+  const stored = await h.entryRepo.findById({ workspaceId: WORKSPACE_ID, id: created.entry.id });
+  assert.equal(stored?.title, "Chili v2", "cancellation after the write preserves the new title in storage");
+  assert.equal(stored?.version, 2, "cancellation after the write preserves version two in storage");
 });
 
 test("collections_entry_update changes the title (string only) and fields at the expected version", async () => {
