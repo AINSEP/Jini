@@ -28,7 +28,7 @@ test("render ships exactly its portable payload and none of the host's files", a
 test("render keeps its publisher id, contributions and frozen contribution file names", async () => {
   const manifest = await readJson("plugin.json");
   assert.equal(manifest.name, "render");
-  assert.equal(manifest.version, "1.0.1");
+  assert.equal(manifest.version, "1.0.2");
   assert.equal(manifest.extensions.jini.id, "jini/render");
   assert.deepEqual(manifest.extensions.jini.provides, ["deploy-config:render", "deploy-ops:render"]);
   const configs = await readJson("jini-deploy-configs.json");
