@@ -8,6 +8,8 @@ import { createHookObservabilityPort } from "@jini-ai/diagnostics/observability"
 import { describeReportedError } from "@jini-ai/diagnostics/observability";
 import { errorType, redactOperationAttributes } from "@jini-ai/diagnostics/observability";
 import type { ObservabilityConfigEnabled } from "@jini-ai/diagnostics/observability";
+import { observabilityProviderContract } from "@jini-ai/diagnostics/observability";
+import { createOtelObservabilityPort } from "../observability-opentelemetry/otel-port.js";
 
 /** Feature-level operations and error reports: the two signals no transport names. */
 
@@ -47,6 +49,20 @@ test("otel: a failed outcome sets error status and error.type to the outcome lab
   assert.equal(span?.status.code, "error");
   assert.equal(span?.attributes["error.type"], "timed-out");
   assert.equal(span?.attributes["tool.error_kind"], "internal");
+});
+
+test.each([false, true])("otel: an operation records one completion with failed=%s despite repeated end", (failed) => {
+  const metrics: unknown[] = [];
+  const span = { updateName() {}, setAttribute() {}, setStatus() {}, addEvent() {}, end() {} };
+  const port = createOtelObservabilityPort({ config: CONFIG, exporterFactory: { create: () => ({}) },
+    tracerProviderFactory: { create: () => ({ getTracer: () => ({ startSpan: () => span }) }) },
+  }, { helpers: observabilityProviderContract.context, metric: (...args) => { metrics.push(args); } });
+  const tracker = port.trackOperation({ name: "tool.call" });
+  assert.deepEqual(metrics, []);
+  tracker.end({ outcome: failed ? "timed-out" : "completed", failed });
+  tracker.end({ outcome: "completed", failed: !failed });
+  assert.deepEqual(metrics, [[{ name: "operation.completed", value: 1 },
+    { kind: "counter", attributes: { "operation.name": "tool.call", "operation.failed": failed ? 1 : 0 } }]]);
 });
 
 test("otel: reportError inside run() adds a type-only exception event to that operation's span", async () => {
