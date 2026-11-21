@@ -36,6 +36,7 @@
       "./entries": "universal",
       "./content-types": "universal",
       "./taxonomy": "universal",
+      "./taxonomy/render-entry": "universal",
       "./presentation": "universal",
       "./presentation/document-shell": "universal",
       "./presentation/html": "universal",
@@ -70,6 +71,7 @@
       "./media/slug": "universal",
       "./media/cover-image": "node",
       "./forms": "universal",
+      "./forms/field-length-caps": "universal",
       "./forms/email-sender": "universal",
       "./forms/html": "node",
       "./forms/sql": "node",
@@ -96,6 +98,7 @@
       "./widgets": "universal",
       "./widgets/markers": "universal",
       "./widgets/html": "node",
+      "./widgets/html/media-html": "node",
       "./widgets/resolvers": "universal",
       "./widgets/sql": "node",
       "./listing": "universal",
@@ -339,6 +342,11 @@
       "import": "./dist/taxonomy/index.js",
       "default": "./dist/taxonomy/index.js"
     },
+    "./taxonomy/render-entry": {
+      "types": "./dist/taxonomy/render-entry.d.ts",
+      "import": "./dist/taxonomy/render-entry.js",
+      "default": "./dist/taxonomy/render-entry.js"
+    },
     "./presentation/document-shell": {
       "types": "./dist/presentation/document-shell.d.ts",
       "import": "./dist/presentation/document-shell.js",
@@ -509,6 +517,11 @@
       "import": "./dist/forms/index.js",
       "default": "./dist/forms/index.js"
     },
+    "./forms/field-length-caps": {
+      "types": "./dist/forms/field-length-caps.d.ts",
+      "import": "./dist/forms/field-length-caps.js",
+      "default": "./dist/forms/field-length-caps.js"
+    },
     "./forms/email-sender": {
       "types": "./dist/forms/email-sender.d.ts",
       "import": "./dist/forms/email-sender.js",
@@ -638,6 +651,11 @@
       "types": "./dist/widgets/html/index.d.ts",
       "import": "./dist/widgets/html/index.js",
       "default": "./dist/widgets/html/index.js"
+    },
+    "./widgets/html/media-html": {
+      "types": "./dist/widgets/html/media-html.d.ts",
+      "import": "./dist/widgets/html/media-html.js",
+      "default": "./dist/widgets/html/media-html.js"
     },
     "./widgets/resolvers": {
       "types": "./dist/widgets/resolvers/index.d.ts",
