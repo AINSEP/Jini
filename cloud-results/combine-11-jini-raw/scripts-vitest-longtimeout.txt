@@ -1,0 +1,297 @@
+
+ RUN  v3.2.7 /home/user/Jini
+
+ ✓ scripts/__tests__/leaf-import-closures.test.ts (7 tests) 16262ms
+   ✓ HTML viewer leaf imports > cannot reach the renderer barrel, Markdown renderers or srcdoc assembly  370ms
+   ✓ universal translation owner and SEO entries > keeps SEO and its HTTP adapter free of React and preserves the existing interpolation owner  15706ms
+ ✓ scripts/__tests__/fetch-query-isolation.test.ts (3 tests) 22087ms
+   ✓ fetch-query optional adapter isolation > keeps TanStack out of the default runtime closure while the optional entry reaches it  22084ms
+ ✓ scripts/__tests__/check-error-disclosure-callers.test.ts (5 tests) 6891ms
+   ✓ the real tree has no caller outside the reviewed lists  6869ms
+ ❯ scripts/__tests__/coupling-isolation.test.ts (21 tests | 6 failed) 34225ms
+   × platform OS helper import isolation > command reaches only its existing OS owners 16ms
+     → expected [ …(31) ] to deeply equal [ …(12) ]
+   × platform OS helper import isolation > process reaches only its existing OS owners 2ms
+     → expected [ …(57) ] to deeply equal [ …(21) ]
+   ✓ platform OS helper import isolation > toolchain reaches only its existing OS owners 6ms
+   × platform OS helper import isolation > proxy-env reaches only its existing OS owners 1ms
+     → expected [ …(23) ] to deeply equal [ …(8) ]
+   ✓ platform OS helper import isolation > shell reaches only its existing OS owners 0ms
+   ✓ platform OS helper import isolation > child-environment reaches only its existing OS owners 0ms
+   × model-discovery policy import isolation > cannot reach native process/filesystem modules or its adapter implementations 1ms
+     → expected [ …(23) ] to deeply equal [ …(4) ]
+   ✓ verified shared leaves retain their existing owners > @jini-ai/platform./http/guarded crosses no domain boundary 0ms
+   ✓ verified shared leaves retain their existing owners > @jini-ai/platform./mail crosses no domain boundary 0ms
+   ✓ verified shared leaves retain their existing owners > @jini-ai/platform./net crosses no domain boundary 0ms
+   ✓ verified shared leaves retain their existing owners > @jini-ai/platform./web crosses no domain boundary 0ms
+   ✓ verified shared leaves retain their existing owners > @jini-ai/platform./asset-cache crosses no domain boundary 0ms
+   ✓ verified shared leaves retain their existing owners > @jini-ai/devops./source-control crosses no domain boundary 0ms
+   ✓ verified shared leaves retain their existing owners > @jini-ai/devops./static-export/failure-summary crosses no domain boundary 0ms
+   × verified shared leaves retain their existing owners > only the web entry reaches HTML peers; the root and asset cache retain lazy Undici access 4ms
+     → expected [ 'parse5' ] to deeply equal []
+   ✓ verified shared leaves retain their existing owners > clears platform and infra subset dependency findings without weakening the guard 0ms
+   ✓ re-verify dependency and state regressions > keeps standalone plugin tooling on package public entries  14331ms
+   × re-verify dependency and state regressions > declares the shared secret-input owner on the permitted optional UI layer edge 4091ms
+     → expected undefined to be 'workspace:^' // Object.is equality
+   ✓ re-verify dependency and state regressions > packages/devops/src/static-export/css-urls.ts owns no mutable module state 3ms
+   ✓ re-verify dependency and state regressions > packages/provider-plugins/src/payments-stripe/webhook.ts owns no mutable module state 1ms
+   ✓ commerce shared value and input owners > shares money and strict tool inputs without crossing catalog/payment domains 1ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 6 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  scripts/__tests__/coupling-isolation.test.ts > platform OS helper import isolation > command reaches only its existing OS owners
+AssertionError: expected [ …(31) ] to deeply equal [ …(12) ]
+
+- Expected
++ Received
+
+  [
++   "packages/core/src/contracts/runtime.ts",
++   "packages/core/src/contracts/runtime/command.ts",
++   "packages/core/src/contracts/runtime/environment.ts",
++   "packages/core/src/contracts/runtime/file-lock.ts",
++   "packages/core/src/contracts/runtime/fs.ts",
++   "packages/core/src/contracts/runtime/http.ts",
++   "packages/core/src/contracts/runtime/platform.ts",
++   "packages/core/src/contracts/runtime/process.ts",
++   "packages/core/src/contracts/runtime/reader.ts",
++   "packages/core/src/contracts/runtime/terminal.ts",
++   "packages/core/src/model-facing-tool-errors.ts",
++   "packages/core/src/primitives/errors.ts",
+    "packages/core/src/primitives/http.ts",
+    "packages/core/src/primitives/ids.ts",
+    "packages/core/src/primitives/index.ts",
+    "packages/core/src/primitives/json.ts",
+    "packages/core/src/primitives/logger.ts",
++   "packages/core/src/primitives/node-shape.ts",
+    "packages/core/src/primitives/paths.ts",
+    "packages/core/src/primitives/result.ts",
+    "packages/core/src/primitives/sse.ts",
+    "packages/core/src/primitives/tasks.ts",
+    "packages/core/src/primitives/time.ts",
+    "packages/core/src/primitives/trim-chars.ts",
++   "packages/core/src/records.ts",
++   "packages/core/src/tool-input-envelope.ts",
++   "packages/core/src/tool-input-errors.ts",
++   "packages/core/src/tool-input-normalization.ts",
++   "packages/core/src/tool-input-repairs.ts",
++   "packages/core/src/tool-registry.ts",
+    "packages/platform/src/command.ts",
+  ]
+
+ ❯ scripts/__tests__/coupling-isolation.test.ts:31:26
+     29|     if (name === 'process') files.push('packages/platform/src/command.…
+     30|       'packages/platform/src/windows-system-tools.ts');
+     31|     expect(entry?.files).toEqual([...new Set(files)].sort());
+       |                          ^
+     32|     // Core reuse is intentional (d62cf2a9f); Undici, drivers and rend…
+     33|     expect(entry?.dependencies).toEqual(['command', 'process', 'proxy-…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/6]⎯
+
+ FAIL  scripts/__tests__/coupling-isolation.test.ts > platform OS helper import isolation > process reaches only its existing OS owners
+AssertionError: expected [ …(57) ] to deeply equal [ …(21) ]
+
+- Expected
++ Received
+
+  [
++   "packages/core/src/contracts/runtime.ts",
++   "packages/core/src/contracts/runtime/command.ts",
++   "packages/core/src/contracts/runtime/environment.ts",
++   "packages/core/src/contracts/runtime/file-lock.ts",
++   "packages/core/src/contracts/runtime/fs.ts",
++   "packages/core/src/contracts/runtime/http.ts",
++   "packages/core/src/contracts/runtime/platform.ts",
++   "packages/core/src/contracts/runtime/process.ts",
++   "packages/core/src/contracts/runtime/reader.ts",
++   "packages/core/src/contracts/runtime/terminal.ts",
++   "packages/core/src/model-facing-tool-errors.ts",
++   "packages/core/src/primitives/errors.ts",
+    "packages/core/src/primitives/http.ts",
+    "packages/core/src/primitives/ids.ts",
+    "packages/core/src/primitives/index.ts",
+    "packages/core/src/primitives/json.ts",
+    "packages/core/src/primitives/logger.ts",
++   "packages/core/src/primitives/node-shape.ts",
+    "packages/core/src/primitives/paths.ts",
+    "packages/core/src/primitives/result.ts",
+    "packages/core/src/primitives/sse.ts",
+    "packages/core/src/primitives/tasks.ts",
+    "packages/core/src/primitives/time.ts",
+    "packages/core/src/primitives/trim-chars.ts",
++   "packages/core/src/records.ts",
+    "packages/core/src/redact.ts",
++   "packages/core/src/redaction-collectors.ts",
++   "packages/core/src/redaction-exact-secrets.ts",
++   "packages/core/src/redaction-labels.ts",
++   "packages/core/src/redaction-patterns.ts",
++   "packages/core/src/redaction-spans.ts",
++   "packages/core/src/secret-shapes.ts",
+    "packages/core/src/text/descriptor-i18n.ts",
++   "packages/core/src/text/dictionary-translator.ts",
+    "packages/core/src/text/escape.ts",
++   "packages/core/src/text/format-byte-size.ts",
++   "packages/core/src/text/format-timestamp.ts",
+    "packages/core/src/text/index.ts",
++   "packages/core/src/text/is-abort-error.ts",
+    "packages/core/src/text/line-tail.ts",
++   "packages/core/src/text/mime.ts",
++   "packages/core/src/text/redact-urls.ts",
++   "packages/core/src/text/resolve-active-tab-id.ts",
+    "packages/core/src/text/sanitize-untrusted-text.ts",
++   "packages/core/src/text/tagged-text-suppression.ts",
++   "packages/core/src/text/template-i18n.ts",
++   "packages/core/src/tool-input-envelope.ts",
++   "packages/core/src/tool-input-errors.ts",
++   "packages/core/src/tool-input-normalization.ts",
++   "packages/core/src/tool-input-repairs.ts",
++   "packages/core/src/tool-registry.ts",
+    "packages/platform/src/command.ts",
++   "packages/platform/src/process-probes.ts",
++   "packages/platform/src/process-top-footprint.ts",
+    "packages/platform/src/process.ts",
+    "packages/platform/src/shell.ts",
+    "packages/platform/src/windows-system-tools.ts",
+  ]
+
+ ❯ scripts/__tests__/coupling-isolation.test.ts:31:26
+     29|     if (name === 'process') files.push('packages/platform/src/command.…
+     30|       'packages/platform/src/windows-system-tools.ts');
+     31|     expect(entry?.files).toEqual([...new Set(files)].sort());
+       |                          ^
+     32|     // Core reuse is intentional (d62cf2a9f); Undici, drivers and rend…
+     33|     expect(entry?.dependencies).toEqual(['command', 'process', 'proxy-…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/6]⎯
+
+ FAIL  scripts/__tests__/coupling-isolation.test.ts > platform OS helper import isolation > proxy-env reaches only its existing OS owners
+AssertionError: expected [ …(23) ] to deeply equal [ …(8) ]
+
+- Expected
++ Received
+
+  [
+    "packages/core/src/primitives/trim-chars.ts",
+    "packages/core/src/redact.ts",
++   "packages/core/src/redaction-collectors.ts",
++   "packages/core/src/redaction-exact-secrets.ts",
++   "packages/core/src/redaction-labels.ts",
++   "packages/core/src/redaction-patterns.ts",
++   "packages/core/src/redaction-spans.ts",
++   "packages/core/src/secret-shapes.ts",
+    "packages/core/src/text/descriptor-i18n.ts",
++   "packages/core/src/text/dictionary-translator.ts",
+    "packages/core/src/text/escape.ts",
++   "packages/core/src/text/format-byte-size.ts",
++   "packages/core/src/text/format-timestamp.ts",
+    "packages/core/src/text/index.ts",
++   "packages/core/src/text/is-abort-error.ts",
+    "packages/core/src/text/line-tail.ts",
++   "packages/core/src/text/mime.ts",
++   "packages/core/src/text/redact-urls.ts",
++   "packages/core/src/text/resolve-active-tab-id.ts",
+    "packages/core/src/text/sanitize-untrusted-text.ts",
++   "packages/core/src/text/tagged-text-suppression.ts",
++   "packages/core/src/text/template-i18n.ts",
+    "packages/platform/src/proxy-env.ts",
+  ]
+
+ ❯ scripts/__tests__/coupling-isolation.test.ts:31:26
+     29|     if (name === 'process') files.push('packages/platform/src/command.…
+     30|       'packages/platform/src/windows-system-tools.ts');
+     31|     expect(entry?.files).toEqual([...new Set(files)].sort());
+       |                          ^
+     32|     // Core reuse is intentional (d62cf2a9f); Undici, drivers and rend…
+     33|     expect(entry?.dependencies).toEqual(['command', 'process', 'proxy-…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/6]⎯
+
+ FAIL  scripts/__tests__/coupling-isolation.test.ts > model-discovery policy import isolation > cannot reach native process/filesystem modules or its adapter implementations
+AssertionError: expected [ …(23) ] to deeply equal [ …(4) ]
+
+- Expected
++ Received
+
+  [
+    "packages/agent-runtime/src/core/model-discovery-shared.ts",
++   "packages/agent-runtime/src/defs/aider/model-discovery.ts",
++   "packages/agent-runtime/src/defs/amr/model-discovery.ts",
++   "packages/agent-runtime/src/defs/antigravity/model-discovery.ts",
++   "packages/agent-runtime/src/defs/claude/model-discovery.ts",
++   "packages/agent-runtime/src/defs/codebuddy/model-discovery.ts",
++   "packages/agent-runtime/src/defs/codex/model-discovery.ts",
++   "packages/agent-runtime/src/defs/crush/model-discovery.ts",
++   "packages/agent-runtime/src/defs/cursor-agent/model-discovery.ts",
++   "packages/agent-runtime/src/defs/deepseek/model-discovery.ts",
++   "packages/agent-runtime/src/defs/droid/model-discovery.ts",
++   "packages/agent-runtime/src/defs/grok-build/model-discovery.ts",
++   "packages/agent-runtime/src/defs/mimo/model-discovery.ts",
++   "packages/agent-runtime/src/defs/opencode/model-discovery.ts",
++   "packages/agent-runtime/src/defs/pi/model-discovery.ts",
++   "packages/agent-runtime/src/defs/qoder/model-discovery.ts",
++   "packages/agent-runtime/src/defs/qwen/model-discovery.ts",
++   "packages/agent-runtime/src/model-discovery-config-types.ts",
+    "packages/agent-runtime/src/model-discovery-config.ts",
+    "packages/agent-runtime/src/model-discovery-yaml.ts",
+    "packages/agent-runtime/src/model-discovery.ts",
++   "packages/core/src/contracts/agents/index.ts",
++   "packages/core/src/contracts/agents/model-catalog.ts",
+  ]
+
+ ❯ scripts/__tests__/coupling-isolation.test.ts:42:26
+     40|   it('cannot reach native process/filesystem modules or its adapter im…
+     41|     const entry = audit.closures.find(closure => closure.package === '…
+     42|     expect(entry?.files).toEqual([
+       |                          ^
+     43|       'packages/agent-runtime/src/core/model-discovery-shared.ts',
+     44|       'packages/agent-runtime/src/model-discovery-config.ts',
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/6]⎯
+
+ FAIL  scripts/__tests__/coupling-isolation.test.ts > verified shared leaves retain their existing owners > only the web entry reaches HTML peers; the root and asset cache retain lazy Undici access
+AssertionError: expected [ 'parse5' ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   "parse5",
++ ]
+
+ ❯ scripts/__tests__/coupling-isolation.test.ts:80:84
+     78|     const platform = audit.closures.filter(closure => closure.package …
+     79|     for (const closure of platform) {
+     80|       expect(closure.dependencies.filter(name => htmlPeers.includes(na…
+       |                                                                                    ^
+     81|     }
+     82|     expect(platform.find(closure => closure.subpath === '.')?.dependen…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/6]⎯
+
+ FAIL  scripts/__tests__/coupling-isolation.test.ts > re-verify dependency and state regressions > declares the shared secret-input owner on the permitted optional UI layer edge
+AssertionError: expected undefined to be 'workspace:^' // Object.is equality
+
+- Expected: 
+"workspace:^"
+
++ Received: 
+undefined
+
+ ❯ scripts/__tests__/coupling-isolation.test.ts:107:49
+    105|       && finding.rule === 'SI-dependency')).toEqual([]);
+    106|     const pkg = JSON.parse(readFileSync(new URL('../../packages/ui/pac…
+    107|     expect(pkg.dependencies['@jini-ai/ui-kit']).toBe('workspace:^');
+       |                                                 ^
+    108|     expect(pkg.peerDependencies?.['@jini-ai/ui-kit']).toBeUndefined();
+    109|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/6]⎯
+
+
+ Test Files  1 failed | 3 passed (4)
+      Tests  6 failed | 30 passed (36)
+   Start at  20:26:49
+   Duration  35.72s (transform 670ms, setup 0ms, collect 2.97s, tests 79.47s, environment 1ms, prepare 339ms)
+

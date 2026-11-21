@@ -138,3 +138,13 @@ not ok 8 - a rejected canonical lookup refuses the publish without reading prede
       Tests  1 failed | 106 passed (107)
  FAIL  scripts/__tests__/check-error-gate.test.ts > the first full update creates an absent ledger
 => RED (killed)
+######## jx-ci J4 (local stand-in): remove ./presentation/html export from the installed cms archive
+  return new ERR_PACKAGE_PATH_NOT_EXPORTED(
+Error [ERR_PACKAGE_PATH_NOT_EXPORTED]: Package subpath './presentation/html' is not defined by "exports" in /tmp/claude-0/c11/consumer/node_modules/@jini-ai/cms/package.json imported from /tmp/claude-0/c11/consumer/check.mjs
+######## jx-ci J4 (local stand-in): omit the cms-forms archive
+npm install EXIT 0
+AssertionError [ERR_ASSERTION]: Nested CMS forms must be installed from the candidate
+######## jx-ci J3 (local stand-in): provider-plugins export ./catalog -> missing target, then guard:plugins:packed
+EXIT 1
+P1-plugin-isolation packages/provider-plugins/package.json: @jini-ai/provider-plugins: exported paths missing from tarball: ./catalog-missing.json
+ ELIFECYCLE  Command failed with exit code 1.

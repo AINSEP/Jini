@@ -1,0 +1,50 @@
+packages/core:  Tests 2953 passed (2953); EXIT 0
+packages/plugins:  Tests 1017 passed (1017); EXIT 0
+packages/agent-plugins:  Tests 2188 passed | 2 skipped (2190); EXIT 0
+packages/cms:  Tests 2 failed | 5008 passed (5010); EXIT 1
+packages/cms/forms:  Tests 1 failed | 156 passed (157); EXIT 1
+packages/chat:  Tests 4489 passed | 1 skipped (4490); EXIT 0
+packages/daemon:  Tests 4854 passed | 1 skipped (4855); EXIT 0
+packages/agent-runtime:  Tests 4539 passed | 1 skipped (4540); EXIT 0
+examples/neutral-host:  Tests 1 failed | 38 passed | 13 todo (52); EXIT 1
+packages/provider-plugins:  Tests 4 failed | 914 passed (918); EXIT 1
+packages/admin:  Tests 3074 passed (3074); EXIT 0
+packages/agentic:  Tests 1149 passed (1149); EXIT 0
+packages/analytics:  Tests 226 passed (226); EXIT 0
+packages/artifacts:  Tests 242 passed (242); EXIT 0
+packages/capability-providers:  Tests 198 passed (198); EXIT 0
+packages/cli:  Tests 605 passed (605); EXIT 0
+packages/commerce:  Tests 11 passed (11); Tests 1421 passed | 1 skipped (1422); EXIT 0
+packages/cookie-consent:  Tests 221 passed (221); EXIT 0
+packages/db:  Tests 950 passed (950); EXIT 0
+packages/desktop-host:  Tests 749 passed | 1 skipped (750); EXIT 0
+packages/devops:  Tests 1327 passed (1327); EXIT 0
+packages/diagnostics:  Tests 1090 passed (1090); EXIT 0
+packages/http-kit:  Tests 750 passed (750); EXIT 0
+packages/infra:  Tests 155 passed (155); EXIT 0
+packages/integration-tests:  EXIT 0
+packages/integrations:  Tests 2077 passed (2077); EXIT 0
+packages/mcp:  Tests 1885 passed (1885); EXIT 0
+packages/memory:  Tests 409 passed (409); EXIT 0
+packages/node-adapters:  Tests 35 passed (35); EXIT 0
+packages/oauth:  Tests 824 passed (824); EXIT 0
+packages/platform:  Tests 3354 passed | 6 skipped (3360); EXIT 0
+packages/plugin-catalog:  Tests 68 passed (68); EXIT 0
+packages/plugin-fixture-provider:  Tests 1 failed | 1 passed (2); EXIT 1
+packages/protocol:  Tests 794 passed (794); EXIT 0
+packages/registry:  Tests 392 passed (392); EXIT 0
+packages/sandbox:  Tests 179 passed (179); EXIT 0
+packages/search:  Tests 371 passed (371); EXIT 0
+packages/server:  Tests 469 passed | 1 skipped (470); EXIT 0
+packages/sidecar:  Tests 408 passed | 3 skipped (411); EXIT 0
+packages/sqlite:  Tests 10 passed (10); EXIT 0
+packages/ui:  Tests 8818 passed (8818); EXIT 0
+packages/ui-kit:  Tests 232 passed (232); EXIT 0
+packages/user-management:  Tests 1353 passed (1353); EXIT 0
+packages/vibecoding:  Tests 364 passed (364); EXIT 0
+examples/minimal-host:  Tests 3 passed (3); EXIT 0
+examples/nlweb-demo:  Tests 18 passed (18); EXIT 0
+examples/notes-app:  EXIT 0
+examples/reference-desktop:  Tests 4 passed (4); EXIT 0
+examples/reference-web:  Tests 54 passed (54); EXIT 1
+ALLDONE

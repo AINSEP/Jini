@@ -1,0 +1,6 @@
+why-comments: 75 files with removed lines checked against de4e555b9..HEAD, 1 comment blocks lost (0 allow-listed)
+packages/admin/src/comments/__tests__/test-runner.ts:10-11  [8559987223a2]  the host uses vitest 4; this package uses vitest 2. preserve the copied assertion by composing its two existing built-in matchers, withou...
+why-comments: 1 deleted comment blocks appear nowhere else (owner rule: refactors move "why" comments with the code, never delete them)
+  fix: put the comment back next to the code it explains, or move it with that code.
+  last resort: add { "id": "<id above>", "reason": "<why this comment is truly obsolete>" } to the debt file (`pnpm check:why-comments`).
+EXIT 1

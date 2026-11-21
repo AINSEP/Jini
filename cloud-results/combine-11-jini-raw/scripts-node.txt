@@ -1,0 +1,438 @@
+TAP version 13
+# Subtest: boot identity waiver retains exact file, fingerprint and occurrence count
+ok 1 - boot identity waiver retains exact file, fingerprint and occurrence count
+  ---
+  duration_ms: 56.095983
+  type: 'test'
+  ...
+# Subtest: Jini guard scans nested package source and excludes tests; clean DI does not add debt
+ok 2 - Jini guard scans nested package source and excludes tests; clean DI does not add debt
+  ---
+  duration_ms: 10.439563
+  type: 'test'
+  ...
+# Subtest: Jini package imports cannot connect site and agent plugin owners
+ok 3 - Jini package imports cannot connect site and agent plugin owners
+  ---
+  duration_ms: 3.424769
+  type: 'test'
+  ...
+# Subtest: explicit readonly collections and frozen JavaScript arrays do not own mutable module state
+ok 4 - explicit readonly collections and frozen JavaScript arrays do not own mutable module state
+  ---
+  duration_ms: 1.868955
+  type: 'test'
+  ...
+# Subtest: a hook received as a prop defaulted to the real hook is not flagged
+ok 5 - a hook received as a prop defaulted to the real hook is not flagged
+  ---
+  duration_ms: 9.053503
+  type: 'test'
+  ...
+# Subtest: a direct imported custom hook call is flagged with file line, component and hook
+ok 6 - a direct imported custom hook call is flagged with file line, component and hook
+  ---
+  duration_ms: 2.149899
+  type: 'test'
+  ...
+# Subtest: a same-file custom hook is flagged
+ok 7 - a same-file custom hook is flagged
+  ---
+  duration_ms: 1.350341
+  type: 'test'
+  ...
+# Subtest: useT and useAdminLocale are not exempt
+ok 8 - useT and useAdminLocale are not exempt
+  ---
+  duration_ms: 0.918762
+  type: 'test'
+  ...
+# Subtest: React built-in hooks are exempt
+ok 9 - React built-in hooks are exempt
+  ---
+  duration_ms: 1.439825
+  type: 'test'
+  ...
+# Subtest: memo and forwardRef wrapped components are flagged
+ok 10 - memo and forwardRef wrapped components are flagged
+  ---
+  duration_ms: 1.578177
+  type: 'test'
+  ...
+# Subtest: lowercase functions and custom hook definitions are not components
+ok 11 - lowercase functions and custom hook definitions are not components
+  ---
+  duration_ms: 0.384444
+  type: 'test'
+  ...
+# Subtest: --update writes the baseline keyed by component and hook; tests and node_modules are skipped
+ok 12 - --update writes the baseline keyed by component and hook; tests and node_modules are skipped
+  ---
+  duration_ms: 4.457766
+  type: 'test'
+  ...
+# Subtest: a moved file with the same component is no new debt
+ok 13 - a moved file with the same component is no new debt
+  ---
+  duration_ms: 2.578003
+  type: 'test'
+  ...
+# Subtest: a higher count fails and names file:line, component, hook and the fix pattern
+ok 14 - a higher count fails and names file:line, component, hook and the fix pattern
+  ---
+  duration_ms: 3.187474
+  type: 'test'
+  ...
+# Subtest: a new key fails
+ok 15 - a new key fails
+  ---
+  duration_ms: 3.805851
+  type: 'test'
+  ...
+# Subtest: a shrunk baseline passes and suggests --update
+ok 16 - a shrunk baseline passes and suggests --update
+  ---
+  duration_ms: 9.672945
+  type: 'test'
+  ...
+# Subtest: a missing baseline is a loud error, not a pass
+ok 17 - a missing baseline is a loud error, not a pass
+  ---
+  duration_ms: 1.664776
+  type: 'test'
+  ...
+# fatal: bad revision 'no-such-ref'
+# Subtest: mutation: deleting a why comment makes the gate fire with file, line and id
+ok 18 - mutation: deleting a why comment makes the gate fire with file, line and id
+  ---
+  duration_ms: 163.956681
+  type: 'test'
+  ...
+# Subtest: mutation reverted: keeping the comment passes
+ok 19 - mutation reverted: keeping the comment passes
+  ---
+  duration_ms: 197.414916
+  type: 'test'
+  ...
+# Subtest: a comment moved to another file with the code is not lost
+ok 20 - a comment moved to another file with the code is not lost
+  ---
+  duration_ms: 167.960831
+  type: 'test'
+  ...
+# Subtest: a rewrapped comment (different line breaks and markers) is not lost
+ok 21 - a rewrapped comment (different line breaks and markers) is not lost
+  ---
+  duration_ms: 163.866927
+  type: 'test'
+  ...
+# Subtest: a comment folded into a longer comment elsewhere is not lost
+ok 22 - a comment folded into a longer comment elsewhere is not lost
+  ---
+  duration_ms: 164.406724
+  type: 'test'
+  ...
+# Subtest: the text surviving in the other repo counts as not lost
+ok 23 - the text surviving in the other repo counts as not lost
+  ---
+  duration_ms: 353.574571
+  type: 'test'
+  ...
+# Subtest: a comment reworded in place (a few words changed) is not lost
+ok 24 - a comment reworded in place (a few words changed) is not lost
+  ---
+  duration_ms: 158.921443
+  type: 'test'
+  ...
+# Subtest: editing one line of a multi-line comment keeps the rest, so it is not lost
+ok 25 - editing one line of a multi-line comment keeps the rest, so it is not lost
+  ---
+  duration_ms: 166.547741
+  type: 'test'
+  ...
+# Subtest: a report that quotes the deleted comment does not make it survive
+ok 26 - a report that quotes the deleted comment does not make it survive
+  ---
+  duration_ms: 185.658131
+  type: 'test'
+  ...
+# Subtest: shortening a comment by dropping a sentence is flagged
+ok 27 - shortening a comment by dropping a sentence is flagged
+  ---
+  duration_ms: 169.75883
+  type: 'test'
+  ...
+# Subtest: an allow-listed block passes, and the entry needs a reason
+ok 28 - an allow-listed block passes, and the entry needs a reason
+  ---
+  duration_ms: 234.077518
+  type: 'test'
+  ...
+# Subtest: exempt comments are never reported: directives, licenses, labels, commented-out code
+ok 29 - exempt comments are never reported: directives, licenses, labels, commented-out code
+  ---
+  duration_ms: 173.167796
+  type: 'test'
+  ...
+# Subtest: non-source files and added-only files are out of scope
+ok 30 - non-source files and added-only files are out of scope
+  ---
+  duration_ms: 164.941417
+  type: 'test'
+  ...
+# Subtest: a bad ref is a loud error, not a pass
+ok 31 - a bad ref is a loud error, not a pass
+  ---
+  duration_ms: 161.805584
+  type: 'test'
+  ...
+# Subtest: --merge-base diffs from the common ancestor
+ok 32 - --merge-base diffs from the common ancestor
+  ---
+  duration_ms: 176.350516
+  type: 'test'
+  ...
+# Subtest: an unknown flag is rejected
+ok 33 - an unknown flag is rejected
+  ---
+  duration_ms: 1.073086
+  type: 'test'
+  ...
+# Subtest: lexer: comment markers inside strings, templates and regexes are not comments
+ok 34 - lexer: comment markers inside strings, templates and regexes are not comments
+  ---
+  duration_ms: 1.501302
+  type: 'test'
+  ...
+# Subtest: lexer: consecutive standalone line comments form one block; trailing ones stay apart
+ok 35 - lexer: consecutive standalone line comments form one block; trailing ones stay apart
+  ---
+  duration_ms: 0.393201
+  type: 'test'
+  ...
+# Subtest: lexer: an apostrophe in JSX text cannot swallow later comments
+ok 36 - lexer: an apostrophe in JSX text cannot swallow later comments
+  ---
+  duration_ms: 0.22743
+  type: 'test'
+  ...
+# Subtest: normalizeText ignores markers, case and whitespace; classifyBlock gives a stable id
+ok 37 - normalizeText ignores markers, case and whitespace; classifyBlock gives a stable id
+  ---
+  duration_ms: 0.23891
+  type: 'test'
+  ...
+# Subtest: parseDiff reads removed ranges and treats "+++" content lines as content
+ok 38 - parseDiff reads removed ranges and treats "+++" content lines as content
+  ---
+  duration_ms: 0.359935
+  type: 'test'
+  ...
+# Subtest: parseDebt rejects a malformed file
+ok 39 - parseDebt rejects a malformed file
+  ---
+  duration_ms: 0.667315
+  type: 'test'
+  ...
+# Subtest: the import observation sees static, type-only, re-export, dynamic and CommonJS reaches
+ok 40 - the import observation sees static, type-only, re-export, dynamic and CommonJS reaches
+  ---
+  duration_ms: 10.369745
+  type: 'test'
+  ...
+# Subtest: Jini consumers have no imports or re-exports of the retired package
+ok 41 - Jini consumers have no imports or re-exports of the retired package
+  ---
+  duration_ms: 10568.431985
+  type: 'test'
+  ...
+# Subtest: Jini consumer manifests have no dependency on the retired package
+ok 42 - Jini consumer manifests have no dependency on the retired package
+  ---
+  duration_ms: 4.105856
+  type: 'test'
+  ...
+# Subtest: Tovu consumers have no imports or re-exports of the retired package
+not ok 43 - Tovu consumers have no imports or re-exports of the retired package
+  ---
+  duration_ms: 8365.742361
+  type: 'test'
+  location: '/home/user/Jini/scripts/__tests__/integration/infra-retirement.integration.test.ts:2:4626'
+  failureType: 'testCodeFailure'
+  error: |-
+    Retirement requires every consumer import to move first
+    + actual - expected
+    
+    + [
+    +   {
+    +     path: '/home/user/Tovu/apps/website/src/contracts/core/events/enqueue-only-outbox.ts',
+    +     specifier: '@jini-ai/infra/events/outbox'
+    +   },
+    +   {
+    +     path: '/home/user/Tovu/apps/website/src/contracts/core/events/jini-outbox-adapter.ts',
+    +     specifier: '@jini-ai/infra/events/outbox'
+    +   },
+    +   {
+    +     path: '/home/user/Tovu/apps/website/src/contracts/core/events/outbox-drainer.ts',
+    +     specifier: '@jini-ai/infra/events/outbox'
+    +   },
+    +   {
+    +     path: '/home/user/Tovu/apps/website/src/contracts/core/events/outbox-drainer.ts',
+    +     specifier: '@jini-ai/infra/events/outbox'
+    +   },
+    +   {
+    +     path: '/home/user/Tovu/apps/website/src/contracts/core/events/outbox-drainer.ts',
+    +     specifier: '@jini-ai/infra/events/outbox'
+    +   },
+    +   {
+    +     path: '/home/user/Tovu/apps/website/src/contracts/core/events/outbox-retry-policies.ts',
+    +     specifier: '@jini-ai/infra/events/outbox'
+    +   },
+    +   {
+    +     path: '/home/user/Tovu/apps/website/src/contracts/core/events/outbox-worker.ts',
+    +     specifier: '@jini-ai/infra/events/outbox'
+    +   },
+    +   {
+    +     path: '/home/user/Tovu/apps/website/src/contracts/core/events/outbox-worker.ts',
+    +     specifier: '@jini-ai/infra/events/outbox'
+    +   },
+    +   {
+    +     path: '/home/user/Tovu/apps/website/src/contracts/core/events/outbox-worker.ts',
+    +     specifier: '@jini-ai/infra/events/outbox'
+    +   },
+    +   {
+    +     path: '/home/user/Tovu/apps/website/src/contracts/core/events/outbox-worker.ts',
+    +     specifier: '@jini-ai/infra/events/outbox'
+    +   },
+    +   {
+    +     path: '/home/user/Tovu/apps/website/src/server/runtime/composition/__tests__/form-delivery-vertical-slice.integration.test.ts',
+    +     specifier: '@jini-ai/infra/events/outbox'
+    +   }
+    + ]
+    - []
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual:
+    0:
+      path: '/home/user/Tovu/apps/website/src/contracts/core/events/enqueue-only-outbox.ts'
+      specifier: '@jini-ai/infra/events/outbox'
+    1:
+      path: '/home/user/Tovu/apps/website/src/contracts/core/events/jini-outbox-adapter.ts'
+      specifier: '@jini-ai/infra/events/outbox'
+    2:
+      path: '/home/user/Tovu/apps/website/src/contracts/core/events/outbox-drainer.ts'
+      specifier: '@jini-ai/infra/events/outbox'
+    3:
+      path: '/home/user/Tovu/apps/website/src/contracts/core/events/outbox-drainer.ts'
+      specifier: '@jini-ai/infra/events/outbox'
+    4:
+      path: '/home/user/Tovu/apps/website/src/contracts/core/events/outbox-drainer.ts'
+      specifier: '@jini-ai/infra/events/outbox'
+    5:
+      path: '/home/user/Tovu/apps/website/src/contracts/core/events/outbox-retry-policies.ts'
+      specifier: '@jini-ai/infra/events/outbox'
+    6:
+      path: '/home/user/Tovu/apps/website/src/contracts/core/events/outbox-worker.ts'
+      specifier: '@jini-ai/infra/events/outbox'
+    7:
+      path: '/home/user/Tovu/apps/website/src/contracts/core/events/outbox-worker.ts'
+      specifier: '@jini-ai/infra/events/outbox'
+    8:
+      path: '/home/user/Tovu/apps/website/src/contracts/core/events/outbox-worker.ts'
+      specifier: '@jini-ai/infra/events/outbox'
+    9:
+      path: '/home/user/Tovu/apps/website/src/contracts/core/events/outbox-worker.ts'
+      specifier: '@jini-ai/infra/events/outbox'
+    10:
+      path: '/home/user/Tovu/apps/website/src/server/runtime/composition/__tests__/form-delivery-vertical-slice.integration.test.ts'
+      specifier: '@jini-ai/infra/events/outbox'
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/Jini/scripts/__tests__/integration/infra-retirement.integration.test.ts:86:12)
+    Test.runInAsyncScope (node:async_hooks:227:14)
+    Test.run (node:internal/test_runner/test:1402:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+    Test.postRun (node:internal/test_runner/test:1542:19)
+    Test.run (node:internal/test_runner/test:1467:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+  ...
+# Subtest: Tovu consumer manifests have no dependency on the retired package
+not ok 44 - Tovu consumer manifests have no dependency on the retired package
+  ---
+  duration_ms: 1.501261
+  type: 'test'
+  location: '/home/user/Jini/scripts/__tests__/integration/infra-retirement.integration.test.ts:2:5238'
+  failureType: 'testCodeFailure'
+  error: |-
+    Retirement requires every consumer dependency to move first
+    + actual - expected
+    
+    + [
+    +   {
+    +     path: '/home/user/Tovu/package.json',
+    +     section: 'dependencies'
+    +   }
+    + ]
+    - []
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual:
+    0:
+      path: '/home/user/Tovu/package.json'
+      section: 'dependencies'
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/Jini/scripts/__tests__/integration/infra-retirement.integration.test.ts:99:12)
+    Test.runInAsyncScope (node:async_hooks:227:14)
+    Test.run (node:internal/test_runner/test:1402:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+    Test.postRun (node:internal/test_runner/test:1542:19)
+    Test.run (node:internal/test_runner/test:1467:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+  ...
+# Subtest: j05 final state removes the infra workspace, including stale generated leftovers
+not ok 45 - j05 final state removes the infra workspace, including stale generated leftovers
+  ---
+  duration_ms: 0.385755
+  type: 'test'
+  location: '/home/user/Jini/scripts/__tests__/integration/infra-retirement.integration.test.ts:2:5992'
+  failureType: 'testCodeFailure'
+  error: |-
+    Retirement is incomplete: retain infra until its release gate and outbox ownership are resolved
+    
+    true !== false
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: false
+  actual: true
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (/home/user/Jini/scripts/__tests__/integration/infra-retirement.integration.test.ts:104:10)
+    Test.runInAsyncScope (node:async_hooks:227:14)
+    Test.run (node:internal/test_runner/test:1402:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+    Test.postRun (node:internal/test_runner/test:1542:19)
+    Test.run (node:internal/test_runner/test:1467:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+  ...
+# Subtest: sync uses pinned Git bytes, repeats deterministically and rejects incomplete or oversized updates without writing
+ok 46 - sync uses pinned Git bytes, repeats deterministically and rejects incomplete or oversized updates without writing
+  ---
+  duration_ms: 687.741251
+  type: 'test'
+  ...
+1..46
+# tests 46
+# suites 0
+# pass 43
+# fail 3
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 25231.710546
+EXIT 1
