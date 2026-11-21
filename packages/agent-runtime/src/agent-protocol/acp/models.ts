@@ -9,7 +9,7 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { createJsonLineStream } from '../core/index.js';
 import type { JsonRpcId, UnknownRecord, TimerHandle } from './types.js';
-import { ACP_PROTOCOL_VERSION, DEFAULT_TIMEOUT_MS, MODEL_CONFIG_OPTION_IDS } from './constants.js';
+import { ACP_PROTOCOL_VERSION, DEFAULT_TIMEOUT_MS, MODEL_CONFIG_OPTION_IDS, unsupportedAcpProtocolVersionMessage } from './constants.js';
 import { errorMessage, resolveAcpTimeoutMs, asObject } from './json.js';
 import { sendRpc, rpcErrorMessage } from './rpc.js';
 import { buildAcpSessionNewParams } from './session-params.js';
@@ -345,6 +345,11 @@ function handleProbeRpcError({ run, obj, rpcErr }: {
 function handleProbeResult(run: ProbeRun, result: UnknownRecord): void {
   const { config } = run;
   if (run.expectedId === 1) {
+    const message = unsupportedAcpProtocolVersionMessage({ protocolVersion: result.protocolVersion });
+    if (message) {
+      failProbe({ run, message });
+      return;
+    }
     run.expectedId = 2;
     writeProbeRpc(run, { id: 2, method: 'session/new', params: buildAcpSessionNewParams({ cwd: config.cwd }) });
     return;

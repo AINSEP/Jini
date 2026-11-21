@@ -141,6 +141,18 @@ describe('attachAcpSession', () => {
     });
   });
 
+  it('closes the ACP child when initialize reports an unsupported version', () => {
+    const child = new FakeAcpChild();
+    const send = vi.fn();
+    const session = attachWith(baseOptions(child, { send }));
+    emitResult(child, 1, { protocolVersion: 2 });
+    expect(session.hasFatalError(), 'An unsupported protocol version makes the session fatal').toBe(true);
+    expect(child.killed, 'The failed negotiation closes the ACP child').toBe(true);
+    expect(writesOf(child).map(request => request.method), 'The failed negotiation sends only initialize').toEqual(['initialize']);
+    expect(send.mock.calls.filter(([event]) => event.event === 'error'), 'The failed negotiation emits one error event').toHaveLength(1);
+    expect(send, 'The error explains the required ACP protocol version').toHaveBeenCalledWith({ event: 'error', payload: expect.objectContaining({ message: 'This agent did not negotiate ACP protocol version 1.' }) });
+  });
+
   it('honors a caller-supplied clientName/clientVersion', () => {
     const child = new FakeAcpChild();
     (({ child, prompt, send, ...optionalArgs }: Parameters<typeof attachAcpSession>[0] & NonNullable<Parameters<typeof attachAcpSession>[1]>) => attachAcpSession({ child, prompt, send }, optionalArgs))(baseOptions(child, { clientName: 'custom', clientVersion: '9.9.9' }));

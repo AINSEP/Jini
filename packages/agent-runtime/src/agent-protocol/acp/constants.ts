@@ -6,6 +6,10 @@
 
 /** ACP JSON-RPC protocol version sent in every `initialize` handshake. */
 export const ACP_PROTOCOL_VERSION = 1;
+export function unsupportedAcpProtocolVersionMessage({ protocolVersion }: { protocolVersion: unknown }): string | undefined {
+  if (protocolVersion === undefined || protocolVersion === ACP_PROTOCOL_VERSION) return undefined;
+  return `This agent did not negotiate ACP protocol version ${ACP_PROTOCOL_VERSION}.`;
+}
 /** ACP's auth_required error code */
 export const ACP_AUTH_REQUIRED_ERROR_CODE = -32000;
 /** Default timeout in milliseconds for short-lived ACP operations such as model detection. */

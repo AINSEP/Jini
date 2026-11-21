@@ -1,5 +1,5 @@
 import { asObject } from './json.js';
-import { ACP_AUTH_REQUIRED_ERROR_CODE } from './constants.js';
+import { ACP_AUTH_REQUIRED_ERROR_CODE, unsupportedAcpProtocolVersionMessage } from './constants.js';
 import { accountFailureDetails } from './account-failure.js';
 import type { UnknownRecord } from './types.js';
 import { rpcErrorData, rpcErrorRetryable, promotedOpenCodeSessionErrorPayload, formatUsage } from './rpc.js';
@@ -100,6 +100,11 @@ function failWithRpcError({
 
 /** Handles the `initialize` ack: sends `session/load` (resume) or `session/new` (fresh). */
 export function handleInitializeAck({ state, effects, result }: { state: AcpSessionState; effects: AcpSessionEffects; result: UnknownRecord }, _optional: Record<string, never> = {}): void {
+  const message = unsupportedAcpProtocolVersionMessage({ protocolVersion: result.protocolVersion });
+  if (message) {
+    effects.fail(message);
+    return;
+  }
   if (effects.resumeSessionId && asObject({ value: result.agentCapabilities })?.loadSession !== true) {
     effects.fail('This agent cannot reopen a saved conversation (it does not offer session/load); a new conversation is needed.', { details: { reason: 'load_session_unsupported' } });
     return;
