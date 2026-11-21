@@ -7,6 +7,7 @@ import { createCommandInvocation } from "@jini-ai/platform/command";
 import { omitEnvironmentKeys, collectProcessTreePids } from "@jini-ai/core/contracts/runtime";
 import { listProcessSnapshots, stopProcesses, waitForProcessExit } from "@jini-ai/platform/process";
 import { readLiveDaemonRegistryRecord, removeDaemonRegistryRecordIfCurrent, writeDaemonRegistryRecord } from "../daemon-registry.js";
+import type { JsonFileWriter } from "../json-file.js";
 import type { LocalDaemonRegistryRecord } from "../daemon-registry.js";
 import type { SpawnedDaemonProcess, SupervisorScheduler } from "./supervisor.js";
 
@@ -19,14 +20,14 @@ export interface SupervisorRegistry {
 /**
  * Reuse the sidecar registry's atomic records, liveness checks and ownership-guarded removal.
  * The child calls write only after it actually starts listening.
- * @param required Host-owned registry path.
+ * @param required Host-owned registry path and the host's atomic JSON writer.
  * @returns A registry port with object arguments at all data-bearing boundaries.
  * @complexity O(1) operations, excluding filesystem I/O.
  */
-export function createSupervisorRegistry({ registryPath }: { registryPath: string }, _optional: Record<string, never> = {}): SupervisorRegistry {
+export function createSupervisorRegistry({ registryPath, writer }: { registryPath: string; writer: JsonFileWriter }, _optional: Record<string, never> = {}): SupervisorRegistry {
   return {
     readLive: () => readLiveDaemonRegistryRecord({ registryPath }),
-    write: ({ record }) => writeDaemonRegistryRecord({ registryPath, record }),
+    write: ({ record }) => writeDaemonRegistryRecord({ registryPath, record, writer }),
     removeIfCurrent: ({ pid }) => removeDaemonRegistryRecordIfCurrent({ registryPath, pid }),
   };
 }

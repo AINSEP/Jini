@@ -3,12 +3,15 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, test } from 'vitest';
 import { normalizeIpcPath, readJsonFile, removePointerIfCurrent, resolveDaemonRegistryPath, writeJsonFile } from '../index.js';
+import { writeJsonFileAtomicAsync } from '@jini-ai/platform/fs';
+/** The real atomic writer (platform is a test dependency); hosts pass node-adapters' `nodeAtomicWriter`. */
+const testWriter = { writeJson: writeJsonFileAtomicAsync };
 
 test('object inputs preserve atomic state and guarded pointer removal', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'args-convention-'));
   try {
     const filePath = resolveDaemonRegistryPath({ dataDir: dir }, { fileName: 'pointer.json' });
-    await writeJsonFile({ filePath, payload: { runId: 'new' } });
+    await writeJsonFile({ writer: testWriter, filePath, payload: { runId: 'new' } });
     await removePointerIfCurrent({ pointerPath: filePath, runId: 'old' });
     expect(await readJsonFile({ filePath })).toEqual({ runId: 'new' });
     await removePointerIfCurrent({ pointerPath: filePath, runId: 'new' });

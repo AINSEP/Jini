@@ -44,6 +44,7 @@ import { installRouteRegistrationGuard, mountPackHttp } from '@jini-ai/http-kit'
 import { createLocalSameOriginPolicy, type RouteHostContext } from '@jini-ai/core/contracts/server';
 import type { DaemonRouteHost, DelegatedToolExecuteRequest,  RunStartHandler,  WorkspaceRootResolver } from '@jini-ai/daemon/http';
 import { removeDaemonRegistryRecordIfCurrent, resolveDaemonRegistryPath, writeDaemonRegistryRecord } from '@jini-ai/sidecar';
+import { nodeAtomicWriter } from '@jini-ai/node-adapters/fs';
 
 import { composeJiniKernel, type JiniKernelSecurity, type KernelBoundIds } from './compose-jini-kernel.js';
 import type { BuiltInFeatureOptions } from './builtin-features.js';
@@ -433,7 +434,7 @@ function startLocalDaemonListener({ kernel, host, registryPath, resolvedPortRef,
         void (async () => {
           if (registryPath !== null) {
             try {
-              await writeDaemonRegistryRecord({ registryPath, record: {
+              await writeDaemonRegistryRecord({ registryPath, writer: nodeAtomicWriter, record: {
                 url: reportedUrl,
                 host: resolveReportHost({ bindHost: host }),
                 port: boundPort,
