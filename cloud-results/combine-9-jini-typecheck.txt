@@ -1,0 +1,94 @@
+Scope: 50 of 51 workspace projects
+packages/cookie-consent typecheck$ tsc -p tsconfig.json --noEmit
+packages/core typecheck$ tsc -p tsconfig.json --noEmit
+packages/integration-tests typecheck$ tsc -p tsconfig.json --noEmit
+examples/nlweb-demo typecheck$ tsc -p tsconfig.json --noEmit
+packages/integration-tests typecheck: Done
+packages/memory typecheck$ tsc -p tsconfig.json --noEmit
+examples/nlweb-demo typecheck: Done
+packages/protocol typecheck$ tsc -p tsconfig.json --noEmit
+packages/cookie-consent typecheck: Done
+packages/sandbox typecheck$ tsc -p tsconfig.json --noEmit
+packages/memory typecheck: Done
+packages/sandbox typecheck: Done
+packages/protocol typecheck: Done
+packages/core typecheck: Done
+packages/agentic typecheck$ tsc -p tsconfig.json --noEmit && tsc -p tsconfig.dom.json --noEmit
+packages/analytics typecheck$ tsc -p tsconfig.json --noEmit
+packages/artifacts typecheck$ tsc -p tsconfig.json --noEmit
+packages/capability-providers typecheck$ tsc -p tsconfig.json --noEmit
+packages/artifacts typecheck: Done
+packages/desktop-host typecheck$ tsc -p tsconfig.json --noEmit
+packages/capability-providers typecheck: Done
+packages/http-kit typecheck$ tsc -p tsconfig.json --noEmit
+packages/analytics typecheck: Done
+packages/platform typecheck$ tsc -p tsconfig.json --noEmit
+packages/http-kit typecheck: Done
+packages/ui-kit typecheck$ tsc --noEmit
+packages/desktop-host typecheck: Done
+packages/agentic typecheck: Done
+packages/ui-kit typecheck: Done
+packages/platform typecheck: Done
+examples/reference-desktop typecheck$ tsc -p tsconfig.json --noEmit
+packages/db typecheck$ tsc -p tsconfig.json --noEmit
+packages/diagnostics typecheck$ tsc -p tsconfig.json --noEmit
+packages/oauth typecheck$ tsc -p tsconfig.json --noEmit
+examples/reference-desktop typecheck: Done
+packages/sidecar typecheck$ tsc -p tsconfig.json --noEmit
+packages/oauth typecheck: Done
+packages/vibecoding typecheck$ tsc -p tsconfig.json --noEmit
+packages/diagnostics typecheck: Done
+packages/sidecar typecheck: Done
+packages/vibecoding typecheck: Done
+packages/db typecheck: Done
+packages/cms typecheck$ tsc -p tsconfig.json --noEmit
+packages/infra typecheck$ tsc -p tsconfig.json --noEmit
+packages/cli typecheck$ tsc -p tsconfig.json --noEmit
+packages/integrations typecheck$ tsc -p tsconfig.json --noEmit
+packages/infra typecheck: Done
+packages/plugins typecheck$ tsc -p tsconfig.json --noEmit
+packages/cli typecheck: Done
+packages/registry typecheck$ tsc -p tsconfig.json --noEmit
+packages/registry typecheck: Done
+packages/integrations typecheck: Done
+packages/plugins typecheck: Done
+packages/cms typecheck: Done
+examples/notes-app typecheck$ tsc -p tsconfig.json --noEmit
+packages/agent-runtime typecheck$ tsc -p tsconfig.json --noEmit
+packages/cms/forms typecheck$ tsc -p tsconfig.json --noEmit
+packages/commerce typecheck$ tsc -p tsconfig.json --noEmit
+examples/notes-app typecheck: Done
+packages/cms/forms typecheck: Done
+packages/commerce typecheck: Done
+packages/agent-runtime typecheck: Done
+packages/agent-plugins typecheck$ tsc -p tsconfig.json --noEmit
+packages/ui typecheck$ tsc -p tsconfig.json --noEmit
+packages/agent-plugins typecheck: Done
+packages/ui typecheck: Done
+packages/node-adapters typecheck$ tsc -p tsconfig.json --noEmit
+packages/provider-plugins typecheck$ tsc -p tsconfig.json --noEmit && tsc -p tsconfig.charts.json --noEmit
+packages/chat typecheck$ tsc -p tsconfig.json --noEmit
+packages/admin typecheck$ tsc -p tsconfig.json --noEmit
+packages/node-adapters typecheck: Done
+packages/search typecheck$ tsc -p tsconfig.json --noEmit
+packages/search typecheck: Done
+packages/provider-plugins typecheck: Done
+packages/admin typecheck: Done
+packages/chat typecheck: Done
+packages/user-management typecheck$ tsc -p tsconfig.json --noEmit
+packages/daemon typecheck$ tsc -p tsconfig.json --noEmit
+packages/user-management typecheck: Done
+packages/daemon typecheck: Done
+packages/devops typecheck$ tsc -p tsconfig.json --noEmit
+packages/mcp typecheck$ tsc -p tsconfig.json --noEmit
+packages/server typecheck$ tsc -p tsconfig.tests.json && tsc -p tsconfig.json --noEmit
+packages/sqlite typecheck$ tsc -p tsconfig.json --noEmit
+packages/sqlite typecheck: Done
+packages/server typecheck: Done
+packages/devops typecheck: Done
+packages/mcp typecheck: Done
+examples/neutral-host typecheck$ tsc -p tsconfig.json
+examples/reference-web typecheck$ tsc -p tsconfig.json --noEmit
+examples/neutral-host typecheck: Done
+examples/reference-web typecheck: Done
+exit=0

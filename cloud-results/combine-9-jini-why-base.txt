@@ -1,0 +1,3 @@
+why-comments: 113 files with removed lines checked against 3ad0c5671..HEAD, 28 comment blocks lost (28 allow-listed)
+why-comments: ok
+exit=0

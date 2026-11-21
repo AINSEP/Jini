@@ -1,0 +1,4 @@
+Worsened from 1044: [max-lines] packages/daemon/src/agent-executor/launch.ts:826 <file> (1046)
+Worsened from 429: [max-lines-per-function] packages/daemon/src/agent-executor/launch.ts:1005 createAgentExecutor (431)
+Size ratchet failed.
+exit=1
