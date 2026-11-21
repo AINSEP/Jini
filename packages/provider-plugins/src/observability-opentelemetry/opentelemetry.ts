@@ -26,7 +26,7 @@
  * (provider shutdown: flushes the batch queue, stops its timer) for the host's teardown.
  */
 // Span lifecycle rationale: ./otel-port.ts.
-import { ROOT_CONTEXT, SpanKind, SpanStatusCode, trace, type Meter, type Span, type Tracer } from "@opentelemetry/api";
+import { ROOT_CONTEXT, SpanKind, SpanStatusCode, isSpanContextValid, trace, type Meter, type Span, type Tracer } from "@opentelemetry/api";
 import { getSharedConfigurationDefaults, OTLPExporterBase } from "@opentelemetry/otlp-exporter-base";
 import { createOtlpHttpExportDelegate, httpAgentFactoryFromOptions } from "@opentelemetry/otlp-exporter-base/node-http";
 import { JsonTraceSerializer, TraceExporterMetricsHelper, JsonMetricsSerializer, MetricsExporterMetricsHelper, type ISerializer, type IExporterMetricsHelper } from "@opentelemetry/otlp-transformer";
@@ -140,6 +140,11 @@ function adaptSpan({ span }: { span: Span }): TraceSpanPort {
       const { traceId, spanId } = span.spanContext();
       return { traceId, spanId };
     },
+    traceparent: () => {
+      if (ended) return undefined;
+      const { traceId, spanId, traceFlags } = span.spanContext();
+      return `00-${traceId}-${spanId}-${traceFlags.toString(16).padStart(2, '0')}`;
+    },
     updateName: ({ name }) => { span.updateName(name); },
     setAttribute: ({ name, value }) => { span.setAttribute(name, value); },
     setStatus: ({ description }) => { span.setStatus({ code: SpanStatusCode.ERROR, ...(description ? { message: description } : {}) }); },
@@ -160,9 +165,12 @@ function adaptSpan({ span }: { span: Span }): TraceSpanPort {
  */
 export function adaptTracer({ tracer }: { tracer: Tracer }, _options = {}): TracerPort {
   return {
-    startSpan: ({ name, kind, attributes }, { parent } = {}) => {
+    startSpan: ({ name, kind, attributes }, { parent, traceparent } = {}) => {
       const parentSpan = parent ? sdkSpans.get(parent) : undefined;
-      const context = parentSpan ? trace.setSpan(ROOT_CONTEXT, parentSpan) : ROOT_CONTEXT;
+      const remote = traceparent?.match(/^00-([a-f0-9]{32})-([a-f0-9]{16})-([a-f0-9]{2})(?![\s\S])/);
+      const remoteContext = remote ? { traceId: remote[1]!, spanId: remote[2]!, traceFlags: Number.parseInt(remote[3]!, 16), isRemote: true } : undefined;
+      const context = remoteContext && isSpanContextValid(remoteContext) ? trace.setSpanContext(ROOT_CONTEXT, remoteContext)
+        : parentSpan ? trace.setSpan(ROOT_CONTEXT, parentSpan) : ROOT_CONTEXT;
       return adaptSpan({ span: tracer.startSpan(name, { kind: SDK_SPAN_KINDS[kind], attributes }, context) });
     },
   };
