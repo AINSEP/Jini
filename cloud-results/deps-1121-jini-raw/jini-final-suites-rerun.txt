@@ -1,0 +1,6 @@
+packages/platform EXIT 0  Tests 3354 passed | 6 skipped (3360);  (40s)
+packages/core EXIT 0  Tests 2947 passed (2947);  (32s)
+packages/plugins EXIT 0  Tests 1017 passed (1017);  (19s)
+examples/minimal-host EXIT 1  Tests 3 passed (3);  (104s)
+DONE
+examples/minimal-host EXIT 0  Tests 3 passed (3);  (104s)

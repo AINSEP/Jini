@@ -1,0 +1,3 @@
+packages/commerce EXIT 0  Tests 11 passed (11); Tests 1421 passed | 1 skipped (1422);  (34s)
+packages/search EXIT 0  Tests 371 passed (371);  (5s)
+DONE
