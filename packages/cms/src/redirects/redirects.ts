@@ -36,6 +36,7 @@ import { insertRedirectAndRevision, type RedirectDbHandle } from "./ports.intern
 import type { RedirectMatcher, RedirectMutatedEvent, RedirectRepoPort } from "./ports.js";
 import { isReferrerAliasLocation } from "./referrer-alias.js";
 import { checkSameOriginDestination } from "./reserved-destination.js";
+import { DYNAMIC_SET_LIMIT } from "./resolver.js";
 import {
   RedirectConflictError,
   RedirectLoopError,
@@ -507,6 +508,19 @@ export interface CreateRedirectRequired {
   source?: "manual" | "import";
 }
 
+async function requireWildcardCapacity(
+  { deps, record, existingId }: { deps: RedirectsWriteDeps; record: RedirectRecord; existingId: string | undefined },
+): Promise<void> {
+  if (record.status !== "active" || record.matchType !== "wildcard") return;
+  const dynamic = await deps.repo.listDynamic({
+    workspaceId: record.workspaceId, includeOverrideOnly: false, limit: DYNAMIC_SET_LIMIT + 1,
+  });
+  if (dynamic.some((rule) => rule.id === existingId)) return;
+  if (dynamic.length >= DYNAMIC_SET_LIMIT) {
+    throw new RedirectValidationError("This site already has 500 active wildcard redirects, the most it can use. Turn off or merge some before adding another.");
+  }
+}
+
 /** C-001: manual-create entry point (REQ-01). */
 export async function createRedirect(required: CreateRedirectRequired, _optional: Record<string, never> = {}): Promise<{ record: RedirectRecord }> {
   const { deps, input, source = "manual" } = required;
@@ -533,6 +547,7 @@ export async function createRedirect(required: CreateRedirectRequired, _optional
     updatedAt: now,
     version: 1,
   };
+  await requireWildcardCapacity({ deps, record, existingId: undefined });
   return persistRedirectWrite({ deps, record, revision: redirectRevision({ record, input, tombstoned: false }), change: "created" });
 }
 
@@ -685,6 +700,7 @@ export async function updateRedirect(required: UpdateRedirectRequired, _optional
   const now = clockNowIso({ clock: deps.clock });
   const version = existing.version + 1;
   const record: RedirectRecord = { ...existing, ...fields, toTarget: finalTarget, updatedAt: now, version };
+  await requireWildcardCapacity({ deps, record, existingId: existing.id });
   return persistRedirectWrite({ deps, record, revision: redirectRevision({ record, input, tombstoned: false }), change: "updated" });
 }
 

@@ -54,7 +54,7 @@ import type {
 import type { RedirectRecord, RedirectRequest, RedirectResolution } from "./types.js";
 
 /** The bounded dynamic (wildcard) set cap (behavior.spec.md §3/§4, OQ-01). */
-const DYNAMIC_SET_LIMIT = 500;
+export const DYNAMIC_SET_LIMIT = 500;
 
 export interface RedirectPhaseHandlerDeps {
   repo: RedirectRepoPort;

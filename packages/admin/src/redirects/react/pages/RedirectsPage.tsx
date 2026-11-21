@@ -41,6 +41,7 @@ export function RedirectsPage({ useRedirectsHook = useWiredRedirects, useRedirec
 
       <ImportRedirectsForm t={t} locale={locale} />
 
+      {redirects.filter((rule) => rule.status === "active" && rule.matchType === "wildcard").length > 500 ? <div className="notice">{t("Only the first 500 active wildcard redirects are used. Turn off or merge some.")}</div> : null}
       <DataTable
         rows={redirects}
         rowKey={(rule) => rule.id}

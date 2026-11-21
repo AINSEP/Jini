@@ -82,6 +82,40 @@ function makeDeps(opts: { redirectAllowlist?: string[] } = {}): RedirectsWriteDe
 // createRedirect — validation ordering, AC-01/02/03/06/07/08/09
 // ---------------------------------------------------------------------------
 
+const wildcardRulesAtCapacity: RedirectRecord[] = Array.from({ length: 500 }, (_, index) => ({
+  id: `wildcard-${index}`, workspaceId: WORKSPACE_ID, matchType: "wildcard",
+  fromPattern: `/wildcard-${index}/*`, toTarget: "/destination/$1", statusCode: 301,
+  status: "active", override: index % 2 === 0, priority: 0, source: "manual",
+  createdByPrincipal: ACTOR_ID, createdAt: "2026-07-13T00:00:00.000Z",
+  updatedAt: "2026-07-13T00:00:00.000Z", version: 1,
+}));
+
+test("createRedirect refuses the 501st active wildcard without saving", async () => {
+  const repo = new InMemoryRedirectRepo({ seed: wildcardRulesAtCapacity });
+  const deps = { ...makeDeps(), repo, db: repo };
+  await assert.rejects(
+    () => createRedirect({ deps, input: { workspaceId: WORKSPACE_ID, actorId: ACTOR_ID,
+      matchType: "wildcard", fromPattern: "/another/*", toTarget: "/destination/$1", statusCode: 301 } }),
+    (error: unknown) => error instanceof RedirectValidationError && error.message ===
+      "This site already has 500 active wildcard redirects, the most it can use. Turn off or merge some before adding another.",
+    "a new active wildcard must be refused with the capacity message",
+  );
+  assert.deepEqual(await repo.list({ workspaceId: WORKSPACE_ID }), wildcardRulesAtCapacity,
+    "the refused wildcard must leave every stored rule unchanged");
+  assert.deepEqual(repo.listRevisionsForTests({ redirectId: "redirect-1" }, {}), [],
+    "the refused wildcard must not append a revision");
+});
+
+test("createRedirect still saves an exact rule at 500 active wildcards", async () => {
+  const repo = new InMemoryRedirectRepo({ seed: wildcardRulesAtCapacity });
+  const deps = { ...makeDeps(), repo, db: repo };
+  const { record } = await createRedirect({ deps, input: { workspaceId: WORKSPACE_ID, actorId: ACTOR_ID,
+    matchType: "exact", fromPattern: "/another", toTarget: "/destination", statusCode: 301 } });
+  assert.equal(record.matchType, "exact", "the exact rule must remain an exact match");
+  assert.deepEqual(await repo.findById({ workspaceId: WORKSPACE_ID, id: record.id }), record,
+    "the exact rule must be saved even when the wildcard set is full");
+});
+
 test("createRedirect writes a record + a same-tx revision (INV-01, AC-01)", async () => {
   const deps = makeDeps();
   const { record } = await createRedirect({
@@ -504,6 +538,35 @@ test("AC-08: a failure inside the transaction wrapper leaves neither the record 
 // ---------------------------------------------------------------------------
 // updateRedirect — AC-06
 // ---------------------------------------------------------------------------
+
+test("updateRedirect refuses activating an inactive wildcard at capacity", async () => {
+  const inactive: RedirectRecord = { ...wildcardRulesAtCapacity[0]!, id: "inactive-wildcard",
+    fromPattern: "/inactive/*", status: "disabled" };
+  const repo = new InMemoryRedirectRepo({ seed: [...wildcardRulesAtCapacity, inactive] });
+  const deps = { ...makeDeps(), repo, db: repo };
+  await assert.rejects(
+    () => updateRedirect({ deps, input: { workspaceId: WORKSPACE_ID, actorId: ACTOR_ID,
+      id: inactive.id, status: "active" } }),
+    (error: unknown) => error instanceof RedirectValidationError && error.message ===
+      "This site already has 500 active wildcard redirects, the most it can use. Turn off or merge some before adding another.",
+    "activating an additional wildcard must be refused with the capacity message",
+  );
+  assert.deepEqual(await repo.findById({ workspaceId: WORKSPACE_ID, id: inactive.id }), inactive,
+    "a refused activation must leave the inactive wildcard unchanged");
+  assert.deepEqual(repo.listRevisionsForTests({ redirectId: inactive.id }, {}), [],
+    "a refused activation must not append a revision");
+});
+
+test("updateRedirect still edits a wildcard already counted among the 500 active rules", async () => {
+  const repo = new InMemoryRedirectRepo({ seed: wildcardRulesAtCapacity });
+  const deps = { ...makeDeps(), repo, db: repo };
+  const { record } = await updateRedirect({ deps, input: { workspaceId: WORKSPACE_ID, actorId: ACTOR_ID,
+    id: "wildcard-0", toTarget: "/edited/$1" } });
+  assert.equal(record.toTarget, "/edited/$1", "the existing active wildcard must accept the edit");
+  assert.equal(record.status, "active", "editing an existing wildcard must keep it active");
+  assert.deepEqual(await repo.findById({ workspaceId: WORKSPACE_ID, id: record.id }), record,
+    "the edit to the existing active wildcard must be saved");
+});
 
 test("updateRedirect applies a partial change and appends a new revision", async () => {
   const deps = makeDeps();
