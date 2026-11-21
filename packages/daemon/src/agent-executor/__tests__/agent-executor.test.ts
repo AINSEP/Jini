@@ -1761,10 +1761,11 @@ describe('AgentExecutor — ACP dispatch (fake attachAcpSession)', () => {
     const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
     await executor.run({ runId: run.id, agentId: 'fake-agent', prompt: 'hello', cwd: '/work' });
     expect(attachCalls[0]?.beforeRelease).toBeTypeOf('function');
+    attachCalls[0]!.send('agent', { type: 'text_delta', delta: 'hello' });
     await attachCalls[0]?.beforeRelease?.();
     child.emit('close', 0, null);
     expect((await lifecycle.waitForTerminal({ runId: run.id })).state).toBe('succeeded');
-    expect(stopProcessesCalls).toEqual([[5100, 5101]]);
+    expect(stopProcessesCalls).toEqual([[5101, 5100]]);
   });
 
   it('reports an ACP release snapshot failure and still finishes', async () => {
@@ -1773,6 +1774,7 @@ describe('AgentExecutor — ACP dispatch (fake attachAcpSession)', () => {
     const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
     await executor.run({ runId: run.id, agentId: 'fake-agent', prompt: 'hello', cwd: '/work' });
     expect(attachCalls[0]?.beforeRelease).toBeTypeOf('function');
+    attachCalls[0]!.send('agent', { type: 'text_delta', delta: 'hello' });
     await attachCalls[0]?.beforeRelease?.();
     expect(onCleanupFailure).toHaveBeenCalledWith({ runId: run.id, phase: 'acp-release', pid: 5100, error });
     child.emit('close', 0, null);
