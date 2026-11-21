@@ -159,7 +159,7 @@ function subscribeRun(
       },
       error: (error: unknown) => {
         forgetRun({ turn });
-        const err = new Error(`The agent run stream stopped with an error (${describeErrorForLog({ err: error })}); send the message again.`);
+        const err = runStreamError({ error });
         if (!startSettled) {
           startSettled = true;
           reject(err);
@@ -187,6 +187,11 @@ function subscribeRun(
       },
     });
   });
+}
+
+function runStreamError({ error }: { error: unknown }, _optional: Record<string, never> = {}): Error {
+  const status = error instanceof Error && "status" in error && typeof error.status === "number" ? `HTTP ${error.status}, ` : "";
+  return new Error(`The agent run stream stopped with an error (${status}${describeErrorForLog({ err: error })}); send the message again.`, { cause: error });
 }
 
 /**

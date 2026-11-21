@@ -100,6 +100,17 @@ describe("createAgUiRunClient", () => {
     expect(handlers.onDone).not.toHaveBeenCalled();
   });
 
+  it("rejects the start with the HTTP status and keeps the original error as the cause", async () => {
+    const { client, agents, handlers } = setup();
+    const started = client.startAgUiRun({ input: { history, signal: new AbortController().signal }, handlers });
+    const failure = Object.assign(new Error("HTTP 502: upstream refused"), { status: 502 });
+    agents[0]!.observer!.error(failure);
+    const rejection = await started.then(() => undefined, (error: unknown) => error);
+    expect(rejection).toHaveProperty("message", "The agent run stream stopped with an error (HTTP 502, Error); send the message again.");
+    expect(rejection).toHaveProperty("cause", failure);
+    expect(handlers.onDone).not.toHaveBeenCalled();
+  });
+
   it("reports a mid-stream failure and still hands the collected events to onDone", async () => {
     const { client, agents, handlers } = setup();
     void client.startAgUiRun({ input: { history, signal: new AbortController().signal }, handlers });
@@ -107,6 +118,7 @@ describe("createAgUiRunClient", () => {
     const failure = new Error("socket reset");
     agents[0]!.observer!.error(failure);
     expect(handlers.onError).toHaveBeenCalledWith(new Error("The agent run stream stopped with an error (Error); send the message again."));
+    expect(handlers.onError.mock.calls[0]![0]).toHaveProperty("cause", failure);
     expect(handlers.onDone).toHaveBeenCalledWith([{ kind: "text", text: "partial" }]);
   });
 

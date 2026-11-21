@@ -79,7 +79,7 @@ async function moveDir(required: { from: string; to: string }, optional: { reado
     current = to;
   } catch (error) {
     if (errorCode({ error }) === "EXDEV") {
-      throw new Error(`directory Trash cannot move '${from}' across filesystems`);
+      throw new Error(`directory Trash cannot move '${from}' across filesystems`, { cause: error });
     }
     throw error;
   } finally {
