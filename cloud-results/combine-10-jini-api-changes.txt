@@ -1,0 +1,22 @@
+
+> jini@ api:check /home/user/Jini
+> node --import tsx ./scripts/check-api-surface.ts
+
+[api] @jini-ai/admin
+  changed export  ./redirects#redirectsMessagesEn
+  changed export  ./redirects#redirectsModule
+  changed export  ./redirects/react#redirects
+[api] @jini-ai/agent-plugins
+  changed export  ./lifecycle/host-tools#buildAgentPluginSearchRegistrations
+[api] @jini-ai/cms
+  changed export  ./content-types#updateContentTypeFields
+  changed export  ./entries#updateEntry
+  added export    ./redirects#DYNAMIC_SET_LIMIT
+[api] @jini-ai/core
+  changed export  ./contracts/observability#AgentRunTrackingOptions
+  changed export  ./contracts/observability#ObservabilityPort
+  changed export  ./contracts/observability#OperationTrackingInput
+[api] @jini-ai/provider-plugins
+  changed export  ./observability-opentelemetry/port#TracerPort
+[api] checked 40 packages, 677 entries, 17194 symbols
+EXIT 0

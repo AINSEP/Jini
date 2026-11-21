@@ -702,7 +702,7 @@
    "agentPluginSearchDerivedRisk": "variable:1d30d49a7d",
    "agentPluginSearchToolCatalog": "function:3b1a3bafd3",
    "agentPluginToolDerivedRisk": "function:6ae1238e7e",
-   "buildAgentPluginSearchRegistrations": "function:943e3a097d",
+   "buildAgentPluginSearchRegistrations": "function:4f2898add8",
    "buildAgentPluginToolRegistrations": "function:14351b8d45",
    "buildPluginMemoryRegistrations": "function:88f64ba759",
    "createAgentPluginToolGate": "function:60aecf412f",

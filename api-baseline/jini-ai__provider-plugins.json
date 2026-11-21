@@ -62,7 +62,7 @@
    "OtelAdapterDependencies": "interface:e7d8a8768c",
    "OtelAdapterOptions": "interface:f3f75876ea",
    "TraceSpanKind": "type:dc2c763271",
-   "TracerPort": "interface:d9f7af1cf7",
+   "TracerPort": "interface:9b4dea9f67",
    "TracerProviderFactory": "interface:ea1de01798",
    "createOtelObservabilityPort": "function:be4b7795ae",
    "outboundTargetAttributes": "function:81a28602aa",

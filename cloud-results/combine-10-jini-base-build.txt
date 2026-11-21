@@ -1,0 +1,2 @@
+BUILD EXIT 0
+(full log trimmed: 134 lines, 0 'error TS')

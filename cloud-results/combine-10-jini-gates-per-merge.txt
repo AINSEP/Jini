@@ -1,0 +1,257 @@
+######## m1
+=== build
+ ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT  None of the selected packages has a "build" script
+EXIT 1
+=== complexity
+New violation: [complexity] packages/agent-runtime/src/agent-protocol/acp/session-results.ts:21 handleRpcError (12)
+New violation: [sonarjs/cognitive-complexity] packages/chat/src/core/ag-ui/event-projection.ts:256 drainRunFramesToAgUi (12)
+New violation: [complexity] packages/chat/src/core/ag-ui/event-projection.ts:292 readConfirmationResume (11)
+New violation: [complexity] packages/ui/src/features/panel-kit/ErrorNotice.tsx:22 ErrorNotice (11)
+Complexity ratchet failed.
+EXIT 1
+=== error-gate
+New: [catch-reads-error] packages/admin/src/forms/react/hooks/use-form-editor-parts.hooks.ts (3)
+New: [catch-reads-error] packages/admin/src/media/adapters/http.ts (1)
+New: [catch-reads-error] packages/admin/src/react/entities/FailureNotice.tsx (1)
+New: [no-generic-failure-text] packages/admin/src/react/entities/FailureNotice.tsx (1)
+New: [catch-reads-error] packages/agent-runtime/src/agent-protocol/acp/session-permission.ts (3)
+New: [catch-reads-error] packages/agent-runtime/src/agent-protocol/acp/session-run.ts (3)
+New: [catch-reads-error] packages/agent-runtime/src/claude-stream-handler.ts (1)
+New: [catch-reads-error] packages/agent-runtime/src/json-event-stream-shared.ts (1)
+New: [catch-reads-error] packages/chat/src/embed-widget/browser/agent-inventory.ts (2)
+New: [catch-reads-error] packages/core/src/contracts/ai-trace/capture.ts (1)
+New: [catch-reads-error] packages/core/src/contracts/ai-trace/sinks.ts (1)
+New: [catch-reads-error] packages/daemon/src/agent-executor/mcp-json-file.ts (1)
+New: [failure-text-from-catalog] packages/db/src/sqlite/stopped.ts (1)
+New: [catch-reads-error] packages/desktop-host/src/electron/app-version.ts (1)
+New: [catch-reads-error] packages/devops/src/packaging/electron/tree-fingerprint.ts (1)
+New: [catch-reads-error] packages/diagnostics/src/web-evidence/bounded-body.ts (1)
+New: [catch-reads-error] packages/http-kit/src/node-bridge.ts (6)
+New: [catch-reads-error] packages/mcp/src/federation/hosted/probe.ts (1)
+New: [catch-reads-error] packages/platform/src/mail/email-template-operations.ts (1)
+New: [catch-reads-error] packages/platform/src/secrets/sealer-contract.ts (1)
+New: [catch-reads-error] packages/ui/src/features/memory/react/hooks/useMemoryConnectors.parts.hooks.ts (3)
+New: [failure-text-from-catalog] packages/ui/src/features/memory/react/hooks/useMemoryConnectors.parts.hooks.ts (3)
+New: [catch-reads-error] packages/ui/src/features/version-manager/react/hooks/useVersionManager.state.ts (1)
+New: [catch-reads-error] packages/ui/src/react/hooks/usePersistedDisclosure.ts (2)
+11 entries improved or are gone: run with --update to lower the debt list.
+Error gate (WARN mode): 24 new or worse entries. Not failing the build yet; fix them or use a named idiom.
+EXIT 0
+=== guard
+[guard] R13-model-fallback-freshness opencode: MF3 SKIPPED — MF3 does not apply to `opencode` — only MF1/MF2 (staleness date) apply. Staleness date still enforced (MF1/MF2).
+[guard] ok — self-test passed (checks proven against known-bad fixtures) and zero violations found in packages/. Vocabulary-firewall and residual-JS-allowlist checks are still TODO.
+EXIT 0
+=== hooks
+hook-injection: 0 components, 0 direct custom-hook calls
+top hooks: 
+top folders: 
+hook-injection: ok
+EXIT 0
+=== log-safety
+New raw log path: [raw-error] packages/chat/src/core/assistant-client/ag-ui-fetch-agent.ts (1)
+New raw log path: [stored-error-text] packages/core/src/approval-batch-chain.ts (2)
+New raw log path: [stored-error-text] packages/daemon/src/agent-executor/codex/home-staging.ts (1)
+New raw log path: [stored-error-text] packages/daemon/src/http/tool-execution-routes.ts (1)
+New raw log path: [stored-error-text] packages/desktop-host/src/app-version/loader.ts (2)
+New raw log path: [error-format] packages/desktop-host/src/app-version/update-check.ts (1)
+New raw log path: [error-text] packages/desktop-host/src/app-version/update-check.ts (1)
+New raw log path: [error-format] packages/http-kit/src/node-bridge.ts (1)
+New raw log path: [error-helper] packages/http-kit/src/node-bridge.ts (1)
+New raw log path: [console] packages/ui/src/features/panel-kit/hooks/use-settings-slice-save.hooks.ts (1)
+Log-safety ratchet failed.
+EXIT 1
+=== size
+Worsened from 950: [max-lines] packages/daemon/src/agent-executor/launch.ts:852 <file> (952)
+Worsened from 416: [max-lines-per-function] packages/daemon/src/agent-executor/launch.ts:910 createAgentExecutor (418)
+Size ratchet failed.
+EXIT 1
+=== tsc-scripts
+EXIT 0
+=== tsc
+=== why-base
+why-comments: 1 files with removed lines checked against 061cd7ce1..HEAD, 0 comment blocks lost (0 allow-listed)
+why-comments: ok
+EXIT 0
+=== why-default
+why-comments: 2539 files with removed lines checked against origin/refactor/terra..HEAD, 346 comment blocks lost (342 allow-listed)
+packages/agent-runtime/src/agent-protocol/acp/__tests__/session.test.ts:1754-1756  [4bb23d5ecd7b]  setmodelrequestid starts null, so a json-rpc error with `id: null` matches it; with no model pinned the session "recovers" by prompting e...
+packages/core/src/errors/reporter.ts:113-113  [aebef68baf2a]  the record text travels as the tracker's error, so the tracker never holds the unredacted original.
+packages/core/src/errors/reporter.ts:156-157  [b550e959f815]  `diagnostic` is the operator-only record: message and stack with secrets blanked. `error` is the original, which only a host diagnostics ...
+packages/sidecar/src/json-ipc.ts:103-113  [fa4f71f9f63b]  shape an unknown error into the `{code?,message}` ipc error payload. exported (previously module-private) for direct unit testing: its on...
+why-comments: 4 deleted comment blocks appear nowhere else (owner rule: refactors move "why" comments with the code, never delete them)
+  fix: put the comment back next to the code it explains, or move it with that code.
+  last resort: add { "id": "<id above>", "reason": "<why this comment is truly obsolete>" } to the debt file (`pnpm check:why-comments`).
+EXIT 1
+######## m2
+=== build
+EXIT 0
+=== complexity
+New violation: [complexity] packages/agent-runtime/src/agent-protocol/acp/session-results.ts:21 handleRpcError (12)
+New violation: [sonarjs/cognitive-complexity] packages/chat/src/core/ag-ui/event-projection.ts:256 drainRunFramesToAgUi (12)
+New violation: [complexity] packages/chat/src/core/ag-ui/event-projection.ts:292 readConfirmationResume (11)
+New violation: [complexity] packages/ui/src/features/panel-kit/ErrorNotice.tsx:22 ErrorNotice (11)
+Complexity ratchet failed.
+EXIT 1
+=== error-gate
+New: [catch-reads-error] packages/admin/src/forms/react/hooks/use-form-editor-parts.hooks.ts (3)
+New: [catch-reads-error] packages/admin/src/media/adapters/http.ts (1)
+New: [catch-reads-error] packages/admin/src/react/entities/FailureNotice.tsx (1)
+New: [no-generic-failure-text] packages/admin/src/react/entities/FailureNotice.tsx (1)
+New: [catch-reads-error] packages/agent-runtime/src/agent-protocol/acp/session-permission.ts (3)
+New: [catch-reads-error] packages/agent-runtime/src/agent-protocol/acp/session-run.ts (3)
+New: [catch-reads-error] packages/agent-runtime/src/claude-stream-handler.ts (1)
+New: [catch-reads-error] packages/agent-runtime/src/json-event-stream-shared.ts (1)
+New: [catch-reads-error] packages/chat/src/embed-widget/browser/agent-inventory.ts (2)
+New: [catch-reads-error] packages/core/src/contracts/ai-trace/capture.ts (1)
+New: [catch-reads-error] packages/core/src/contracts/ai-trace/sinks.ts (1)
+New: [catch-reads-error] packages/daemon/src/agent-executor/mcp-json-file.ts (1)
+New: [failure-text-from-catalog] packages/db/src/sqlite/stopped.ts (1)
+New: [catch-reads-error] packages/desktop-host/src/electron/app-version.ts (1)
+New: [catch-reads-error] packages/devops/src/packaging/electron/tree-fingerprint.ts (1)
+New: [catch-reads-error] packages/diagnostics/src/web-evidence/bounded-body.ts (1)
+New: [catch-reads-error] packages/http-kit/src/node-bridge.ts (6)
+New: [catch-reads-error] packages/mcp/src/federation/hosted/probe.ts (1)
+New: [catch-reads-error] packages/platform/src/mail/email-template-operations.ts (1)
+New: [catch-reads-error] packages/platform/src/secrets/sealer-contract.ts (1)
+New: [catch-reads-error] packages/ui/src/features/memory/react/hooks/useMemoryConnectors.parts.hooks.ts (3)
+New: [failure-text-from-catalog] packages/ui/src/features/memory/react/hooks/useMemoryConnectors.parts.hooks.ts (3)
+New: [catch-reads-error] packages/ui/src/features/version-manager/react/hooks/useVersionManager.state.ts (1)
+New: [catch-reads-error] packages/ui/src/react/hooks/usePersistedDisclosure.ts (2)
+Worse: [catch-reads-error] packages/diagnostics/src/observability/fanout.ts (7 -> 8)
+11 entries improved or are gone: run with --update to lower the debt list.
+Error gate (WARN mode): 25 new or worse entries. Not failing the build yet; fix them or use a named idiom.
+EXIT 0
+=== guard
+[guard] R13-model-fallback-freshness opencode: MF3 SKIPPED — MF3 does not apply to `opencode` — only MF1/MF2 (staleness date) apply. Staleness date still enforced (MF1/MF2).
+[guard] ok — self-test passed (checks proven against known-bad fixtures) and zero violations found in packages/. Vocabulary-firewall and residual-JS-allowlist checks are still TODO.
+EXIT 0
+=== hooks
+hook-injection: 0 components, 0 direct custom-hook calls
+top hooks: 
+top folders: 
+hook-injection: ok
+EXIT 0
+=== log-safety
+New raw log path: [raw-error] packages/chat/src/core/assistant-client/ag-ui-fetch-agent.ts (1)
+New raw log path: [stored-error-text] packages/core/src/approval-batch-chain.ts (2)
+New raw log path: [stored-error-text] packages/daemon/src/agent-executor/codex/home-staging.ts (1)
+New raw log path: [stored-error-text] packages/daemon/src/http/tool-execution-routes.ts (1)
+New raw log path: [stored-error-text] packages/desktop-host/src/app-version/loader.ts (2)
+New raw log path: [error-format] packages/desktop-host/src/app-version/update-check.ts (1)
+New raw log path: [error-text] packages/desktop-host/src/app-version/update-check.ts (1)
+New raw log path: [error-format] packages/http-kit/src/node-bridge.ts (1)
+New raw log path: [error-helper] packages/http-kit/src/node-bridge.ts (1)
+New raw log path: [console] packages/ui/src/features/panel-kit/hooks/use-settings-slice-save.hooks.ts (1)
+Log-safety ratchet failed.
+EXIT 1
+=== size
+Worsened from 950: [max-lines] packages/daemon/src/agent-executor/launch.ts:852 <file> (952)
+Worsened from 416: [max-lines-per-function] packages/daemon/src/agent-executor/launch.ts:910 createAgentExecutor (418)
+Size ratchet failed.
+EXIT 1
+=== tsc
+== packages/admin EXIT 0
+== packages/agent-plugins EXIT 0
+== packages/cms EXIT 0
+== packages/core EXIT 0
+== packages/diagnostics EXIT 0
+== packages/provider-plugins EXIT 0
+=== why-base
+why-comments: 20 files with removed lines checked against 061cd7ce1..HEAD, 0 comment blocks lost (0 allow-listed)
+why-comments: ok
+EXIT 0
+=== why-default
+why-comments: 2542 files with removed lines checked against origin/refactor/terra..HEAD, 346 comment blocks lost (342 allow-listed)
+packages/agent-runtime/src/agent-protocol/acp/__tests__/session.test.ts:1754-1756  [4bb23d5ecd7b]  setmodelrequestid starts null, so a json-rpc error with `id: null` matches it; with no model pinned the session "recovers" by prompting e...
+packages/core/src/errors/reporter.ts:113-113  [aebef68baf2a]  the record text travels as the tracker's error, so the tracker never holds the unredacted original.
+packages/core/src/errors/reporter.ts:156-157  [b550e959f815]  `diagnostic` is the operator-only record: message and stack with secrets blanked. `error` is the original, which only a host diagnostics ...
+packages/sidecar/src/json-ipc.ts:103-113  [fa4f71f9f63b]  shape an unknown error into the `{code?,message}` ipc error payload. exported (previously module-private) for direct unit testing: its on...
+why-comments: 4 deleted comment blocks appear nowhere else (owner rule: refactors move "why" comments with the code, never delete them)
+  fix: put the comment back next to the code it explains, or move it with that code.
+  last resort: add { "id": "<id above>", "reason": "<why this comment is truly obsolete>" } to the debt file (`pnpm check:why-comments`).
+EXIT 1
+######## m3
+=== build
+EXIT 0
+=== complexity
+New violation: [complexity] packages/agent-runtime/src/agent-protocol/acp/session-results.ts:21 handleRpcError (12)
+New violation: [sonarjs/cognitive-complexity] packages/chat/src/core/ag-ui/event-projection.ts:256 drainRunFramesToAgUi (12)
+New violation: [complexity] packages/chat/src/core/ag-ui/event-projection.ts:292 readConfirmationResume (11)
+New violation: [complexity] packages/ui/src/features/panel-kit/ErrorNotice.tsx:22 ErrorNotice (11)
+Complexity ratchet failed.
+EXIT 1
+=== error-gate
+New: [catch-reads-error] packages/admin/src/forms/react/hooks/use-form-editor-parts.hooks.ts (3)
+New: [catch-reads-error] packages/admin/src/media/adapters/http.ts (1)
+New: [catch-reads-error] packages/admin/src/react/entities/FailureNotice.tsx (1)
+New: [no-generic-failure-text] packages/admin/src/react/entities/FailureNotice.tsx (1)
+New: [catch-reads-error] packages/agent-runtime/src/agent-protocol/acp/session-permission.ts (3)
+New: [catch-reads-error] packages/agent-runtime/src/agent-protocol/acp/session-run.ts (3)
+New: [catch-reads-error] packages/agent-runtime/src/claude-stream-handler.ts (1)
+New: [catch-reads-error] packages/agent-runtime/src/json-event-stream-shared.ts (1)
+New: [catch-reads-error] packages/chat/src/embed-widget/browser/agent-inventory.ts (2)
+New: [catch-reads-error] packages/core/src/contracts/ai-trace/capture.ts (1)
+New: [catch-reads-error] packages/core/src/contracts/ai-trace/sinks.ts (1)
+New: [catch-reads-error] packages/daemon/src/agent-executor/mcp-json-file.ts (1)
+New: [failure-text-from-catalog] packages/db/src/sqlite/stopped.ts (1)
+New: [catch-reads-error] packages/desktop-host/src/electron/app-version.ts (1)
+New: [catch-reads-error] packages/devops/src/packaging/electron/tree-fingerprint.ts (1)
+New: [catch-reads-error] packages/diagnostics/src/web-evidence/bounded-body.ts (1)
+New: [catch-reads-error] packages/http-kit/src/node-bridge.ts (6)
+New: [catch-reads-error] packages/mcp/src/federation/hosted/probe.ts (1)
+New: [catch-reads-error] packages/platform/src/mail/email-template-operations.ts (1)
+New: [catch-reads-error] packages/platform/src/secrets/sealer-contract.ts (1)
+New: [catch-reads-error] packages/ui/src/features/memory/react/hooks/useMemoryConnectors.parts.hooks.ts (3)
+New: [failure-text-from-catalog] packages/ui/src/features/memory/react/hooks/useMemoryConnectors.parts.hooks.ts (3)
+New: [catch-reads-error] packages/ui/src/features/version-manager/react/hooks/useVersionManager.state.ts (1)
+New: [catch-reads-error] packages/ui/src/react/hooks/usePersistedDisclosure.ts (2)
+Worse: [catch-reads-error] packages/diagnostics/src/observability/fanout.ts (7 -> 8)
+11 entries improved or are gone: run with --update to lower the debt list.
+Error gate (WARN mode): 25 new or worse entries. Not failing the build yet; fix them or use a named idiom.
+EXIT 0
+=== guard
+[guard] R13-model-fallback-freshness opencode: MF3 SKIPPED — MF3 does not apply to `opencode` — only MF1/MF2 (staleness date) apply. Staleness date still enforced (MF1/MF2).
+[guard] ok — self-test passed (checks proven against known-bad fixtures) and zero violations found in packages/. Vocabulary-firewall and residual-JS-allowlist checks are still TODO.
+EXIT 0
+=== hooks
+hook-injection: 0 components, 0 direct custom-hook calls
+top hooks: 
+top folders: 
+hook-injection: ok
+EXIT 0
+=== log-safety
+New raw log path: [raw-error] packages/chat/src/core/assistant-client/ag-ui-fetch-agent.ts (1)
+New raw log path: [stored-error-text] packages/core/src/approval-batch-chain.ts (2)
+New raw log path: [stored-error-text] packages/daemon/src/agent-executor/codex/home-staging.ts (1)
+New raw log path: [stored-error-text] packages/daemon/src/http/tool-execution-routes.ts (1)
+New raw log path: [stored-error-text] packages/desktop-host/src/app-version/loader.ts (2)
+New raw log path: [error-format] packages/desktop-host/src/app-version/update-check.ts (1)
+New raw log path: [error-text] packages/desktop-host/src/app-version/update-check.ts (1)
+New raw log path: [error-format] packages/http-kit/src/node-bridge.ts (1)
+New raw log path: [error-helper] packages/http-kit/src/node-bridge.ts (1)
+New raw log path: [console] packages/ui/src/features/panel-kit/hooks/use-settings-slice-save.hooks.ts (1)
+Log-safety ratchet failed.
+EXIT 1
+=== size
+New violation: [max-lines] packages/cms/src/redirects/redirects.ts:848 <file> (513)
+Worsened from 950: [max-lines] packages/daemon/src/agent-executor/launch.ts:852 <file> (952)
+Worsened from 416: [max-lines-per-function] packages/daemon/src/agent-executor/launch.ts:910 createAgentExecutor (418)
+Size ratchet failed.
+EXIT 1
+=== tsc
+== packages/admin EXIT 0
+== packages/cms EXIT 0
+=== why-base
+why-comments: 26 files with removed lines checked against 061cd7ce1..HEAD, 0 comment blocks lost (0 allow-listed)
+why-comments: ok
+EXIT 0
+=== why-default
+why-comments: 2544 files with removed lines checked against origin/refactor/terra..HEAD, 346 comment blocks lost (342 allow-listed)
+packages/agent-runtime/src/agent-protocol/acp/__tests__/session.test.ts:1754-1756  [4bb23d5ecd7b]  setmodelrequestid starts null, so a json-rpc error with `id: null` matches it; with no model pinned the session "recovers" by prompting e...
+packages/core/src/errors/reporter.ts:113-113  [aebef68baf2a]  the record text travels as the tracker's error, so the tracker never holds the unredacted original.
+packages/core/src/errors/reporter.ts:156-157  [b550e959f815]  `diagnostic` is the operator-only record: message and stack with secrets blanked. `error` is the original, which only a host diagnostics ...
+packages/sidecar/src/json-ipc.ts:103-113  [fa4f71f9f63b]  shape an unknown error into the `{code?,message}` ipc error payload. exported (previously module-private) for direct unit testing: its on...
+why-comments: 4 deleted comment blocks appear nowhere else (owner rule: refactors move "why" comments with the code, never delete them)
+  fix: put the comment back next to the code it explains, or move it with that code.
+  last resort: add { "id": "<id above>", "reason": "<why this comment is truly obsolete>" } to the debt file (`pnpm check:why-comments`).
+EXIT 1

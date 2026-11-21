@@ -1,0 +1,71 @@
+=== admin-agent-plugins.test.tsx
+ ✓ src/agent-plugins/react/__tests__/agent-plugins.test.tsx (7 tests) 3618ms
+   ✓ denies default mounts without reading the backend 365ms
+   ✓ renders both enabled and disabled rows read-only with details and inspection 435ms
+   ✓ preserves all rows across lazy list tabs and shows an honest marketplace 990ms
+   ✓ uses direct enable, guarded disable and cancel-first focus without optimistic activation 409ms
+   ✓ Downloaded Turn off confirms a disable without deleting or hiding the package 675ms
+   ✓ inspects disabled packages with file omissions, caps, keyboard navigation and per-file wrap reset 400ms
+   ✓ honors host Button overrides for page and confirmation actions 343ms
+      Tests  7 passed (7)
+EXIT 0
+=== admin-redirects
+ ✓ src/redirects/react/__tests__/Redirects.unit.test.tsx (6 tests) 1839ms
+   ✓ shows the wildcard limit notice above 500 active rules and hides it at 500 1007ms
+      Tests  6 passed (6)
+EXIT 0
+=== agent-plugins-search-tool.authorization.test.ts
+ ✓ src/lifecycle/host-tools/__tests__/search-tool.authorization.test.ts (1 test) 5ms
+      Tests  1 passed (1)
+EXIT 0
+=== cms-redirects
+ ✓ src/redirects/__tests__/redirects.test.ts (52 tests) 49ms
+      Tests  52 passed (52)
+EXIT 0
+=== cms-routing.ports.test.ts
+ ✓ src/routing/__tests__/routing.ports.test.ts (4 tests) 6ms
+      Tests  4 passed (4)
+EXIT 0
+=== cms-tool-registrations.cov-j2.test.ts
+ ✓ src/entries/__tests__/tool-registrations.cov-j2.test.ts (10 tests) 16ms
+      Tests  10 passed (10)
+EXIT 0
+=== diagnostics-trace-correlation.unit.test.ts
+ ✓ src/observability/__tests__/trace-correlation.unit.test.ts (2 tests) 18ms
+      Tests  2 passed (2)
+EXIT 0
+=== provider-plugins-observability-opentelemetry.test.ts
+   ✓ active IDs follow nested async spans, concurrent work and scope exit 7619ms
+   ✓ an agent run is an INTERNAL root span even when started inside a request 8036ms
+   ✓ the plugin factory exports through the default OTLP batch pipeline with its configured service identity and generic OTLP headers 5019ms
+   ✓ obs #1: a credential-shaped error.code never reaches an exported OTel span 8724ms
+   × the factory resolves a general endpoint to /v1/traces and serves the port until disposed 5003ms
+   × a settings card supplies no tracer name: the service name is the tracer name 5001ms
+   × site attribution: every exported span's resource carries the host's attributes; service.name stays the host's service 5003ms
+   ✓ active traceparent contains the SDK span context only while the span is live and scoped 7791ms
+   ✓ explicit remote traceparent wins over local parentage with flags 00 7602ms
+   ✓ explicit remote traceparent wins over local parentage with flags 01 8247ms
+   ✓ invalid or omitted traceparent preserves operation parentage and agent roots: undefined 7131ms
+   ✓ invalid or omitted traceparent preserves operation parentage and agent roots: 00-00000000000000000000000000000000-bbbbbbbbbbbbbbbb-01 8284ms
+   ✓ invalid or omitted traceparent preserves operation parentage and agent roots: 00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-0000000000000000-01 8729ms
+   ✓ invalid or omitted traceparent preserves operation parentage and agent roots: malformed 7844ms
+   ✓ invalid or omitted traceparent preserves operation parentage and agent roots: 01-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01 7463ms
+   ✓ invalid or omitted traceparent preserves operation parentage and agent roots: 00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01 8961ms
+   ✓ invalid or omitted traceparent preserves operation parentage and agent roots: 00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-gg 8328ms
+   ✓ invalid or omitted traceparent preserves operation parentage and agent roots: 00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01-extra 7921ms
+   ✓ invalid or omitted traceparent preserves operation parentage and agent roots: 00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  src/__tests__/observability-opentelemetry.test.ts > the factory resolves a general endpoint to /v1/traces and serves the port until disposed
+ FAIL  src/__tests__/observability-opentelemetry.test.ts > a settings card supplies no tracer name: the service name is the tracer name
+ FAIL  src/__tests__/observability-opentelemetry.test.ts > site attribution: every exported span's resource carries the host's attributes; service.name stays the host's service
+Error: Test timed out in 5000ms.
+      Tests  3 failed | 66 passed (69)
+EXIT 1
+=== provider-plugins-observability-otel-operations.test.ts
+ ✓ src/__tests__/observability-otel-operations.test.ts (26 tests) 47ms
+      Tests  26 passed (26)
+EXIT 0
+=== provider-plugins-observability-otel-surfaces.test.ts
+ ✓ src/__tests__/observability-otel-surfaces.test.ts (20 tests) 20ms
+      Tests  20 passed (20)
+EXIT 0

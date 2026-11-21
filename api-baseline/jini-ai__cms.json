@@ -196,7 +196,7 @@
    "resolveFieldIndexTransition": "function:8abc34247d",
    "toContentTypeOutbox": "function:09e14a5d38",
    "tombstoneContentType": "function:c0ac284992",
-   "updateContentTypeFields": "function:8b84046cc6",
+   "updateContentTypeFields": "function:e84a3ed98e",
    "validateIdentifierGrammar": "function:5f7043e924"
   }
  },
@@ -340,7 +340,7 @@
    "selectVisibleEntryFields": "function:09ab8d935c",
    "toEntryOutbox": "function:e566a51911",
    "unpublishEntry": "function:7c7e151790",
-   "updateEntry": "function:55b6638165",
+   "updateEntry": "function:b181b80aa9",
    "validateFieldsAgainstSchema": "function:3a0788f658",
    "wentLiveSinceSave": "function:fae0ffe273"
   }
@@ -1454,6 +1454,7 @@
   "symbols": {
    "CreateRedirectInput": "interface:0d260b8b46",
    "CreateRedirectRequired": "interface:597a15ba14",
+   "DYNAMIC_SET_LIMIT": "variable:29a2b54737",
    "ImportRedirectsFailure": "interface:53efa73cd2",
    "ImportRedirectsRequired": "interface:5067cbc759",
    "InMemoryRedirectRepo": "class:bc96617926",

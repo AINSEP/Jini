@@ -1086,8 +1086,8 @@
    "redirectRowMenuItems": "function:d86ef3054e",
    "redirectsApiToken": "variable:75c68e2230",
    "redirectsEventsToken": "variable:39ec2565b8",
-   "redirectsMessagesEn": "variable:81dff63312",
-   "redirectsModule": "variable:bce67a9c12",
+   "redirectsMessagesEn": "variable:cb32152223",
+   "redirectsModule": "variable:5e3135581f",
    "translateRedirectsEn": "variable:3f51bd1564",
    "visibleRedirectsError": "function:2431efdf9e"
   }
@@ -1117,7 +1117,7 @@
    "RedirectsControllerContext": "variable:d880dc8022",
    "RedirectsReactOptions": "interface:6d3f19114c",
    "RedirectsRenderMessageInput": "interface:3b980fb522",
-   "redirects": "function:c75fd982d4",
+   "redirects": "function:8d3484fb1f",
    "useHitCountCell": "function:32f81fe02d",
    "useImportRedirectsForm": "function:0a90591982",
    "useRedirects": "function:373d076313",
