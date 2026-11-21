@@ -38,6 +38,7 @@ function harness(overrides: Partial<AssistantTransportPorts> = {}) {
     reattachAgUiRun: async ({ handlers }) => { agUiReattached.push(handlers); },
     fetchAgUiRunStatus: async () => null,
     stopAgUiRun: async ({ runId }) => { agUiStopped.push(runId); },
+    resumeAgUiRun: async () => { throw new Error('resumeAgUiRun is not used by these transport cases'); },
   };
   const ports: AssistantTransportPorts = {
     runsUrl: '/runs', byokTurnUrl: '/byok', byokRunIdPrefix: 'byok:', notices,

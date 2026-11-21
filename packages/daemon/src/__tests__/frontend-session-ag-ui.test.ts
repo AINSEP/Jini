@@ -3,7 +3,7 @@ import { createToolRegistry } from '@jini-ai/core';
 import { createFrontendSessionRegistry, type FrontendInvocation } from '../frontend-session-registry.js';
 import { createFrontendCapabilityRegistrations } from '../frontend-capability-tools.js';
 import { createToolExecutor } from '../tool-executor.js';
-import { createAgUiTranslationState, translateAgentEventToAgUi } from '../../../chat/src/core/ag-ui/event-projection.js';
+import { createAgUiTranslationState, translateAgentEventToAgUi } from '@jini-ai/chat/core/ag-ui';
 
 const owner = { workspaceId: 'workspace', principalId: 'owner', tabId: 'tab' };
 
