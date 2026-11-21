@@ -1,4 +1,5 @@
 import { createModelReceiptTracker } from './model-receipts.js';
+import type { AgentRuntimePort } from '../ports/agent-runtime.js';
 import { observeRunOutput } from './run-output.js';
 import { classifyRunCloseStatus } from '../close-status.js';
 import { createRunEventQueue, receivedJournalEntry } from './event-io.js';
@@ -18,6 +19,8 @@ import type { TerminateChildTreeDeps, ChildDrivenStreamFormat, AgentCleanupFailu
   ContinuationOptions, ClassifyFailure, StdinCloseHandle, StreamHandler } from './contracts.js';
 
 export interface WireChildLifecycleContext extends TerminateChildTreeDeps {
+  readonly streams: AgentRuntimePort['streams'];
+  readonly identityKind: AgentRuntimePort['models']['identityKind'];
   readonly registerMessageRelay?: (relay: RunMessageRelay) => void;
   readonly delegatedResultCorrelation?: DelegatedResultCorrelation;
   readonly stdoutJournalBlobs?: StdoutJournalBlobPort;
@@ -142,7 +145,7 @@ export function wireChildLifecycle(ctx: WireChildLifecycleContext): StdinCloseHa
   const { runId, def, streamFormat, child, lifecycle } = ctx;
   const stdoutDiagnostics = createStdoutDiagnostics({ ctx, enqueueEmit: task => queue.enqueueEmit(task) });
   const output = observeRunOutput({ lifecycle, runId, agentName: def.name }, { plainStdout: streamFormat === 'plain' });
-  const modelReceipt = createModelReceiptTracker({}, { startingModel: ctx.startingModel, models: ctx.modelCatalog?.models });
+  const modelReceipt = createModelReceiptTracker({ identityKind: ctx.identityKind, startingModel: ctx.startingModel }, { models: ctx.modelCatalog?.models });
   const queue = createRunEventQueue({});
   const { enqueueEmit } = queue;
   const signals: ChildRunSignals = {

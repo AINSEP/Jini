@@ -14,7 +14,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { RunAgentPayload, RunProtocolEvent } from '@jini-ai/protocol';
 import {
   AGENT_DEFS,
-  agentCapabilities,
   attachAcpSession,
   attachPiRpcSession,
   getAgentDef,
@@ -69,7 +68,7 @@ import {
   type McpBridgeProbeResult,
   type McpBridgeProbe,
 } from '../../index.js';
-import { runtimeFixture } from './runtime-fixture.js';
+import { runtimeFixture, agentRuntimeFixture } from './runtime-fixture.js';
 
 // Fake defs take no stream-json stdin, so every bridged run also carries the mid-run message
 // relay (f40db242) with a fresh per-run nonce.
@@ -452,7 +451,7 @@ function createHarness(options: HarnessOptions = {}): Harness {
       if (options.stopProcessesRejects !== undefined) throw options.stopProcessesRejects;
       const numericPids = pids.filter((pid): pid is number => typeof pid === 'number');
       return { alreadyStopped: false, forcedPids: [], matchedPids: numericPids, remainingPids: [], stoppedPids: numericPids };
-    } }) }, { ...(options.delegatedResultCorrelation ? { delegatedResultCorrelation: options.delegatedResultCorrelation } : {}), ...(options.stdoutJournalBlobs ? { stdoutJournalBlobs: options.stdoutJournalBlobs } : {}), ...(options.probeMcpBridge ? { probeMcpBridge: options.probeMcpBridge } : {}), resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (def && def.id === id ? def : null), resolveAgentLaunch: () =>
+    } }), agentRuntime: agentRuntimeFixture({ ...(options.preparePromptFileForAgent !== undefined ? { preparePromptFileForAgent: options.preparePromptFileForAgent } : {}), ...(options.prepareAgentLogFile !== undefined ? { prepareAgentLogFile: options.prepareAgentLogFile } : {}), resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (def && def.id === id ? def : null), resolveAgentLaunch: () =>
       ({
         selectedPath: launchPath,
         pathResolvedPath: launchPath,
@@ -461,9 +460,7 @@ function createHarness(options: HarnessOptions = {}): Harness {
         launchKind: 'selected',
         childPathPrepend: [],
         diagnostic: null,
-      }) as AgentLaunchResolution, applyAgentLaunchEnv: ({ env }) => env,  ...(options.preparePromptFileForAgent !== undefined
-      ? { preparePromptFileForAgent: options.preparePromptFileForAgent }
-      : {}), ...(options.prepareAgentLogFile !== undefined ? { prepareAgentLogFile: options.prepareAgentLogFile } : {}),   onCleanupFailure, ...(options.journal !== undefined ? { journal: options.journal } : {}), ...(options.continuation !== undefined ? { continuation: options.continuation } : {}), ...(options.classifyFailure !== undefined ? { classifyFailure: options.classifyFailure } : {}), ...(options.mcpJsonInjection !== undefined ? { mcpJsonInjection: options.mcpJsonInjection } : {}), ...(options.claudeConfigDirIsolation !== undefined
+      }) as AgentLaunchResolution, applyAgentLaunchEnv: ({ env }) => env }) }, { ...(options.delegatedResultCorrelation ? { delegatedResultCorrelation: options.delegatedResultCorrelation } : {}), ...(options.stdoutJournalBlobs ? { stdoutJournalBlobs: options.stdoutJournalBlobs } : {}), ...(options.probeMcpBridge ? { probeMcpBridge: options.probeMcpBridge } : {}), onCleanupFailure, ...(options.journal !== undefined ? { journal: options.journal } : {}), ...(options.continuation !== undefined ? { continuation: options.continuation } : {}), ...(options.classifyFailure !== undefined ? { classifyFailure: options.classifyFailure } : {}), ...(options.mcpJsonInjection !== undefined ? { mcpJsonInjection: options.mcpJsonInjection } : {}), ...(options.claudeConfigDirIsolation !== undefined
       ? { claudeConfigDirIsolation: options.claudeConfigDirIsolation }
       : {}), ...(options.claudeConfigDirIsolationEnabled !== undefined
       ? { claudeConfigDirIsolationEnabled: options.claudeConfigDirIsolationEnabled }
@@ -1131,7 +1128,7 @@ describe('AgentExecutor — cancellation', () => {
     const def = createFakeDef();
     const executor = createAgentExecutor({ lifecycle, hostEnv: {}, runtime: runtimeFixture({ spawn: fakeSpawn, listProcessSnapshots: async () => [{ pid: 4242, ppid: 1, command: 'fake-bin' }], stopProcesses: async () => {
         throw new Error('EPERM: secret/token/abc123 not permitted');
-      } }) }, { resolveModelForLaunch: fixtureLaunchModel, getAgentDef: () => def, resolveAgentLaunch: () =>
+      } }), agentRuntime: agentRuntimeFixture({ resolveModelForLaunch: fixtureLaunchModel, getAgentDef: () => def, resolveAgentLaunch: () =>
         ({
           selectedPath: '/fake/bin',
           pathResolvedPath: '/fake/bin',
@@ -1140,7 +1137,7 @@ describe('AgentExecutor — cancellation', () => {
           launchKind: 'selected',
           childPathPrepend: [],
           diagnostic: null,
-        }) as AgentLaunchResolution, applyAgentLaunchEnv: ({ env }) => env,  });
+        }) as AgentLaunchResolution, applyAgentLaunchEnv: ({ env }) => env }) });
     const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
     const runPromise = executor.run({ runId: run.id, agentId: 'fake-agent', prompt: 'x', cwd: '/work' });
     await flushAsync();
@@ -1216,7 +1213,7 @@ describe('isSupportedStreamFormat', () => {
 describe('createAgentExecutor — real default collaborators', () => {
   it('constructs cleanly with only { lifecycle } — every collaborator falls back to its real @jini-ai/agent-runtime / @jini-ai/platform / node:child_process default', () => {
     const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
-    const executor = createAgentExecutor({ lifecycle, hostEnv: {}, runtime: runtimeFixture() });
+    const executor = createAgentExecutor({ lifecycle, hostEnv: {}, runtime: runtimeFixture(), agentRuntime: agentRuntimeFixture() });
     expect(typeof executor.run).toBe('function');
   });
 
@@ -1240,7 +1237,7 @@ describe('createAgentExecutor — real default collaborators', () => {
 
       const executor = createAgentExecutor({ lifecycle, hostEnv: {}, runtime: runtimeFixture({ spawn: fakeSpawn, listProcessSnapshots: async () => [], stopProcesses: async () => {
           throw Object.assign(new Error('EPERM: not permitted api_key=SECRETSECRETSECRETSECRET'), { code: 'EPERM' });
-        } }) }, { resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (def.id === id ? def : null), resolveAgentLaunch: () =>
+        } }), agentRuntime: agentRuntimeFixture({ resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (def.id === id ? def : null), resolveAgentLaunch: () =>
           ({
             selectedPath: '/fake/pi-bin',
             pathResolvedPath: '/fake/pi-bin',
@@ -1249,7 +1246,7 @@ describe('createAgentExecutor — real default collaborators', () => {
             launchKind: 'selected',
             childPathPrepend: [],
             diagnostic: null,
-          }) as AgentLaunchResolution, applyAgentLaunchEnv: ({ env }) => env,  attachPiRpcSession: fakeAttachPiRpcSession, });
+          }) as AgentLaunchResolution, applyAgentLaunchEnv: ({ env }) => env, attachPiRpcSession: fakeAttachPiRpcSession }) });
 
       const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
       await expect(executor.run({ runId: run.id, agentId: 'fake-agent', prompt: 'x', cwd: '/work' })).rejects.toMatchObject({
@@ -1283,7 +1280,7 @@ describe('createAgentExecutor — real default collaborators', () => {
         return child as unknown as ChildProcess;
       }) as unknown as typeof nodeSpawn;
 
-      const executor = createAgentExecutor({ lifecycle, hostEnv: {}, runtime: runtimeFixture({ spawn: fakeSpawn, listProcessSnapshots: async () => [], stopProcesses: async () => ({ alreadyStopped: false, forcedPids: [], matchedPids: [], remainingPids: [], stoppedPids: [] }) }) }, { resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (def.id === id ? def : null), resolveAgentLaunch: () =>
+      const executor = createAgentExecutor({ lifecycle, hostEnv: {}, runtime: runtimeFixture({ spawn: fakeSpawn, listProcessSnapshots: async () => [], stopProcesses: async () => ({ alreadyStopped: false, forcedPids: [], matchedPids: [], remainingPids: [], stoppedPids: [] }) }), agentRuntime: agentRuntimeFixture({ resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (def.id === id ? def : null), resolveAgentLaunch: () =>
           ({
             selectedPath: '/fake/claude-bin',
             pathResolvedPath: '/fake/claude-bin',
@@ -1292,7 +1289,7 @@ describe('createAgentExecutor — real default collaborators', () => {
             launchKind: 'selected',
             childPathPrepend: [],
             diagnostic: null,
-          }) as AgentLaunchResolution, applyAgentLaunchEnv: ({ env }) => env,    mcpJsonInjection: { command: '/usr/bin/jini-mcp', daemonUrl: 'http://127.0.0.1:4242' } });
+          }) as AgentLaunchResolution, applyAgentLaunchEnv: ({ env }) => env }) }, { mcpJsonInjection: { command: '/usr/bin/jini-mcp', daemonUrl: 'http://127.0.0.1:4242' } });
 
       const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
       await executor.run({ runId: run.id, agentId: 'claude', prompt: 'hi', cwd: tmpDir });
@@ -1336,7 +1333,7 @@ describe('createAgentExecutor — real default collaborators', () => {
         return child as unknown as ChildProcess;
       }) as unknown as typeof nodeSpawn;
 
-      const executor = createAgentExecutor({ lifecycle, hostEnv: {}, runtime: runtimeFixture({ spawn: fakeSpawn, listProcessSnapshots: async () => [], stopProcesses: async () => ({ alreadyStopped: false, forcedPids: [], matchedPids: [], remainingPids: [], stoppedPids: [] }) }) }, { resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (def.id === id ? def : null), resolveAgentLaunch: () =>
+      const executor = createAgentExecutor({ lifecycle, hostEnv: {}, runtime: runtimeFixture({ spawn: fakeSpawn, listProcessSnapshots: async () => [], stopProcesses: async () => ({ alreadyStopped: false, forcedPids: [], matchedPids: [], remainingPids: [], stoppedPids: [] }) }), agentRuntime: agentRuntimeFixture({ resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (def.id === id ? def : null), resolveAgentLaunch: () =>
           ({
             selectedPath: '/fake/claude-bin',
             pathResolvedPath: '/fake/claude-bin',
@@ -1345,7 +1342,7 @@ describe('createAgentExecutor — real default collaborators', () => {
             launchKind: 'selected',
             childPathPrepend: [],
             diagnostic: null,
-          }) as AgentLaunchResolution, applyAgentLaunchEnv: ({ env }) => env,    mcpJsonInjection: { command: '/usr/bin/jini-mcp', daemonUrl: 'http://127.0.0.1:4242' } });
+          }) as AgentLaunchResolution, applyAgentLaunchEnv: ({ env }) => env }) }, { mcpJsonInjection: { command: '/usr/bin/jini-mcp', daemonUrl: 'http://127.0.0.1:4242' } });
 
       const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
       await executor.run({ runId: run.id, agentId: 'claude', prompt: 'hi', cwd: tmpDir });
@@ -1380,7 +1377,7 @@ describe('createAgentExecutor — real default collaborators', () => {
       return child as unknown as ChildProcess;
     }) as unknown as typeof nodeSpawn;
 
-    const executor = createAgentExecutor({ lifecycle, hostEnv: {}, runtime: runtimeFixture({ spawn: fakeSpawn, listProcessSnapshots: async () => [], stopProcesses: async () => ({ alreadyStopped: false, forcedPids: [], matchedPids: [], remainingPids: [], stoppedPids: [] }) }) }, { resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (def.id === id ? def : null), resolveAgentLaunch: () =>
+    const executor = createAgentExecutor({ lifecycle, hostEnv: {}, runtime: runtimeFixture({ spawn: fakeSpawn, listProcessSnapshots: async () => [], stopProcesses: async () => ({ alreadyStopped: false, forcedPids: [], matchedPids: [], remainingPids: [], stoppedPids: [] }) }), agentRuntime: agentRuntimeFixture({ resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (def.id === id ? def : null), resolveAgentLaunch: () =>
         ({
           selectedPath: '/fake/bin',
           pathResolvedPath: '/fake/bin',
@@ -1389,7 +1386,7 @@ describe('createAgentExecutor — real default collaborators', () => {
           launchKind: 'selected',
           childPathPrepend: [],
           diagnostic: null,
-        }) as AgentLaunchResolution, applyAgentLaunchEnv: ({ env }) => env,    mcpJsonInjection: { command: '/usr/bin/jini-mcp', daemonUrl: 'http://127.0.0.1:4242' } });
+        }) as AgentLaunchResolution, applyAgentLaunchEnv: ({ env }) => env }) }, { mcpJsonInjection: { command: '/usr/bin/jini-mcp', daemonUrl: 'http://127.0.0.1:4242' } });
 
     const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
     await executor.run({ runId: run.id, agentId: 'fake-agent', prompt: 'hi', cwd: '/tmp' });
@@ -1715,7 +1712,7 @@ function createAcpExecutor({ options, lifecycle, def, child, attachAcpSession: f
       if (options.stopProcessesRejects !== undefined) throw options.stopProcessesRejects;
       const numericPids = pids.filter((pid): pid is number => typeof pid === 'number');
       return { alreadyStopped: false, forcedPids: [], matchedPids: numericPids, remainingPids: [], stoppedPids: numericPids };
-    } }) }, { resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (def.id === id ? def : null), resolveAgentLaunch: () =>
+    } }), agentRuntime: agentRuntimeFixture({ ...(options.prepareAgentLogFile !== undefined ? { prepareAgentLogFile: options.prepareAgentLogFile } : {}), resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (def.id === id ? def : null), resolveAgentLaunch: () =>
       ({
         selectedPath: '/fake/acp-bin',
         pathResolvedPath: '/fake/acp-bin',
@@ -1724,7 +1721,7 @@ function createAcpExecutor({ options, lifecycle, def, child, attachAcpSession: f
         launchKind: 'selected',
         childPathPrepend: [],
         diagnostic: null,
-      }) as AgentLaunchResolution, applyAgentLaunchEnv: ({ env }) => env,  attachAcpSession: fakeAttachAcpSession, ...(options.acpPermissionHandler !== undefined ? { acpPermissionHandler: options.acpPermissionHandler as never } : {}),   onCleanupFailure, ...(options.journal !== undefined ? { journal: options.journal } : {}), ...(options.classifyFailure !== undefined ? { classifyFailure: options.classifyFailure } : {}), ...(options.prepareAgentLogFile !== undefined ? { prepareAgentLogFile: options.prepareAgentLogFile } : {}), ...(options.mcpJsonInjection !== undefined ? { mcpJsonInjection: options.mcpJsonInjection } : {}) });
+      }) as AgentLaunchResolution, applyAgentLaunchEnv: ({ env }) => env, attachAcpSession: fakeAttachAcpSession }) }, { ...(options.acpPermissionHandler !== undefined ? { acpPermissionHandler: options.acpPermissionHandler as never } : {}), onCleanupFailure, ...(options.journal !== undefined ? { journal: options.journal } : {}), ...(options.classifyFailure !== undefined ? { classifyFailure: options.classifyFailure } : {}), ...(options.mcpJsonInjection !== undefined ? { mcpJsonInjection: options.mcpJsonInjection } : {}) });
 }
 
 /** Builds an `AgentExecutor` wired to an `acp-json-rpc` def and a fully fake `attachAcpSession` — no real ACP handshake, matching `createHarness`'s JSON-stream-path precedent above. */
@@ -2153,7 +2150,7 @@ function createPiRpcHarness(options: PiRpcHarnessOptions = {}): PiRpcHarness {
       if (options.stopProcessesRejects !== undefined) throw options.stopProcessesRejects;
       const numericPids = pids.filter((pid): pid is number => typeof pid === 'number');
       return { alreadyStopped: false, forcedPids: [], matchedPids: numericPids, remainingPids: [], stoppedPids: numericPids };
-    } }) }, { resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (def.id === id ? def : null), resolveAgentLaunch: () =>
+    } }), agentRuntime: agentRuntimeFixture({ ...(options.prepareAgentLogFile !== undefined ? { prepareAgentLogFile: options.prepareAgentLogFile } : {}), resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (def.id === id ? def : null), resolveAgentLaunch: () =>
       ({
         selectedPath: '/fake/pi-bin',
         pathResolvedPath: '/fake/pi-bin',
@@ -2162,7 +2159,7 @@ function createPiRpcHarness(options: PiRpcHarnessOptions = {}): PiRpcHarness {
         launchKind: 'selected',
         childPathPrepend: [],
         diagnostic: null,
-      }) as AgentLaunchResolution, applyAgentLaunchEnv: ({ env }) => env,  attachPiRpcSession: fakeAttachPiRpcSession,   onCleanupFailure, ...(options.journal !== undefined ? { journal: options.journal } : {}), ...(options.classifyFailure !== undefined ? { classifyFailure: options.classifyFailure } : {}), ...(options.prepareAgentLogFile !== undefined ? { prepareAgentLogFile: options.prepareAgentLogFile } : {}) });
+      }) as AgentLaunchResolution, applyAgentLaunchEnv: ({ env }) => env, attachPiRpcSession: fakeAttachPiRpcSession }) }, { onCleanupFailure, ...(options.journal !== undefined ? { journal: options.journal } : {}), ...(options.classifyFailure !== undefined ? { classifyFailure: options.classifyFailure } : {}), ...(options.prepareAgentLogFile !== undefined ? { prepareAgentLogFile: options.prepareAgentLogFile } : {}) });
 
   return { lifecycle, executor, child, attachCalls, abort, stopProcessesCalls, onCleanupFailure };
 }
@@ -2216,7 +2213,8 @@ describe('AgentExecutor — pi-rpc dispatch (fake attachPiRpcSession)', () => {
     await flushAsync();
     await runPromise;
 
-    expect(attachCalls[0]?.optionKeys).toEqual(['child', 'cwd', 'gracefulShutdownMs', 'prompt', 'send']);
+    // The shutdown grace is the runtime binding's (agent-runtime pins its precedence); the launcher passes none.
+    expect(attachCalls[0]?.optionKeys).toEqual(['child', 'cwd', 'prompt', 'send']);
 
     child.emit('close', 0, null);
     await lifecycle.waitForTerminal({ runId: run.id });
@@ -5329,7 +5327,6 @@ describe('buildMcpBridgeDelivery', () => {
 
 describe('resolveSystemPromptOverlayDelivery', () => {
   const base = {
-    defId: 'fake-agent',
     systemPromptDelivery: undefined,
     resumesSessionViaCli: undefined,
     resumesSessionViaAcpLoad: undefined,
@@ -5339,19 +5336,19 @@ describe('resolveSystemPromptOverlayDelivery', () => {
   };
 
   it('passes the prompt through unchanged and appends nothing when there is no overlay', () => {
-    expect(resolveSystemPromptOverlayDelivery({ ...base, overlay: undefined })).toEqual({
+    expect(resolveSystemPromptOverlayDelivery({ ...base, overlay: undefined }, { capabilities: undefined })).toEqual({
       promptPrefix: '',
       prompt: base.prompt,
       extraArgs: [],
       envOverrides: {},
     });
-    expect(resolveSystemPromptOverlayDelivery({ ...base, overlay: null })).toEqual({
+    expect(resolveSystemPromptOverlayDelivery({ ...base, overlay: null }, { capabilities: undefined })).toEqual({
       promptPrefix: '',
       prompt: base.prompt,
       extraArgs: [],
       envOverrides: {},
     });
-    expect(resolveSystemPromptOverlayDelivery({ ...base, overlay: '' })).toEqual({
+    expect(resolveSystemPromptOverlayDelivery({ ...base, overlay: '' }, { capabilities: undefined })).toEqual({
       promptPrefix: '',
       prompt: base.prompt,
       extraArgs: [],
@@ -5360,7 +5357,7 @@ describe('resolveSystemPromptOverlayDelivery', () => {
   });
 
   it("fallback (no declared strategy): prefixes the overlay onto the prompt, clearly delimited", () => {
-    expect(resolveSystemPromptOverlayDelivery(base)).toEqual({
+    expect(resolveSystemPromptOverlayDelivery(base, { capabilities: undefined })).toEqual({
       // The one strategy that carries the overlay in the prompt text, so the one non-empty
       // `promptPrefix`. Every transport in `run()` applies this prefix verbatim; asserting `''`
       // on each of the other cases below is what pins the no-double-delivery invariant.
@@ -5372,27 +5369,27 @@ describe('resolveSystemPromptOverlayDelivery', () => {
   });
 
   it('fallback: a def with no session memory gets the prefix on every turn, resumeSessionId or not', () => {
-    const withResumeId = resolveSystemPromptOverlayDelivery({ ...base, resumeSessionId: 'sess-1' });
+    const withResumeId = resolveSystemPromptOverlayDelivery({ ...base, resumeSessionId: 'sess-1' }, { capabilities: undefined });
     expect(withResumeId.prompt.startsWith('Follow the house rules.')).toBe(true);
   });
 
   it('fallback: a resumesSessionViaCli def gets the prefix on its session-creating turn (no resumeSessionId yet)', () => {
-    const delivery = resolveSystemPromptOverlayDelivery({ ...base, resumesSessionViaCli: true, });
+    const delivery = resolveSystemPromptOverlayDelivery({ ...base, resumesSessionViaCli: true, }, { capabilities: undefined });
     expect(delivery.prompt.startsWith('Follow the house rules.')).toBe(true);
   });
 
   it('fallback: a resumesSessionViaCli def does NOT get the prefix once a resumeSessionId is present — avoids compounding it into the CLI-owned session history', () => {
-    const delivery = resolveSystemPromptOverlayDelivery({ ...base, resumesSessionViaCli: true, resumeSessionId: 'sess-1' });
+    const delivery = resolveSystemPromptOverlayDelivery({ ...base, resumesSessionViaCli: true, resumeSessionId: 'sess-1' }, { capabilities: undefined });
     expect(delivery).toEqual({ promptPrefix: '', prompt: base.prompt, extraArgs: [], envOverrides: {} });
   });
 
   it('fallback: same resume-in-progress skip applies to resumesSessionViaAcpLoad defs (amr)', () => {
-    const delivery = resolveSystemPromptOverlayDelivery({ ...base, resumesSessionViaAcpLoad: true, resumeSessionId: 'acp-sess-1' });
+    const delivery = resolveSystemPromptOverlayDelivery({ ...base, resumesSessionViaAcpLoad: true, resumeSessionId: 'acp-sess-1' }, { capabilities: undefined });
     expect(delivery).toEqual({ promptPrefix: '', prompt: base.prompt, extraArgs: [], envOverrides: {} });
   });
 
   it("fallback: an empty-string resumeSessionId does not count as 'continuing a session'", () => {
-    const delivery = resolveSystemPromptOverlayDelivery({ ...base, resumesSessionViaCli: true, resumeSessionId: '' });
+    const delivery = resolveSystemPromptOverlayDelivery({ ...base, resumesSessionViaCli: true, resumeSessionId: '' }, { capabilities: undefined });
     expect(delivery.prompt.startsWith('Follow the house rules.')).toBe(true);
   });
 
@@ -5400,7 +5397,7 @@ describe('resolveSystemPromptOverlayDelivery', () => {
     const delivery = resolveSystemPromptOverlayDelivery({
       ...base,
       systemPromptDelivery: { strategy: 'append-flag', flag: '--append-system-prompt' },
-    });
+    }, { capabilities: undefined });
     expect(delivery).toEqual({
       promptPrefix: '',
       prompt: base.prompt,
@@ -5415,35 +5412,31 @@ describe('resolveSystemPromptOverlayDelivery', () => {
       systemPromptDelivery: { strategy: 'append-flag', flag: '--append-system-prompt' },
       resumesSessionViaCli: true,
       resumeSessionId: 'sess-1',
-    });
+    }, { capabilities: undefined });
     expect(delivery.extraArgs).toEqual(['--append-system-prompt', 'Follow the house rules.']);
   });
 
   it("'append-flag' with a capabilityKey: gated on the probed capability, same as claude's own pre-existing behavior", () => {
-    agentCapabilities.set('fake-agent', { appendSystemPrompt: true });
     const gated = resolveSystemPromptOverlayDelivery({
       ...base,
       systemPromptDelivery: { strategy: 'append-flag', flag: '--append-system-prompt', capabilityKey: 'appendSystemPrompt' },
-    });
+    }, { capabilities: { appendSystemPrompt: true } });
     expect(gated.extraArgs).toEqual(['--append-system-prompt', 'Follow the house rules.']);
-    agentCapabilities.delete('fake-agent');
   });
 
   it("'append-flag' with a capabilityKey explicitly false: an older build rejected the probe, so the flag is withheld rather than risking exit 1", () => {
-    agentCapabilities.set('fake-agent', { appendSystemPrompt: false });
     const gated = resolveSystemPromptOverlayDelivery({
       ...base,
       systemPromptDelivery: { strategy: 'append-flag', flag: '--append-system-prompt', capabilityKey: 'appendSystemPrompt' },
-    });
+    }, { capabilities: { appendSystemPrompt: false } });
     expect(gated).toEqual({ promptPrefix: '', prompt: base.prompt, extraArgs: [], envOverrides: {} });
-    agentCapabilities.delete('fake-agent');
   });
 
-  it("'append-flag' with a capabilityKey never probed (agentCapabilities has no entry for this def): allowed by default, matching claude.ts's own pre-existing `agentCapabilities.get(id) || {}` — only an explicit `false` withholds the flag", () => {
+  it("'append-flag' with a capabilityKey never probed (`capabilities` is `undefined`): allowed by default, matching claude.ts's own pre-existing `agentCapabilities.get(id) || {}` — only an explicit `false` withholds the flag", () => {
     const gated = resolveSystemPromptOverlayDelivery({
       ...base,
       systemPromptDelivery: { strategy: 'append-flag', flag: '--append-system-prompt', capabilityKey: 'appendSystemPrompt' },
-    });
+    }, { capabilities: undefined });
     expect(gated.extraArgs).toEqual(['--append-system-prompt', 'Follow the house rules.']);
   });
 
@@ -5451,7 +5444,7 @@ describe('resolveSystemPromptOverlayDelivery', () => {
     const delivery = resolveSystemPromptOverlayDelivery({
       ...base,
       systemPromptDelivery: { strategy: 'env-var', varName: 'REASONIX_ACP_SYSTEM_APPEND' },
-    });
+    }, { capabilities: undefined });
     expect(delivery).toEqual({
       promptPrefix: '',
       prompt: base.prompt,
@@ -5466,7 +5459,7 @@ describe('resolveSystemPromptOverlayDelivery', () => {
       systemPromptDelivery: { strategy: 'env-var', varName: 'REASONIX_ACP_SYSTEM_APPEND' },
       resumesSessionViaAcpLoad: true,
       resumeSessionId: 'acp-sess-1',
-    });
+    }, { capabilities: undefined });
     expect(delivery.envOverrides).toEqual({ REASONIX_ACP_SYSTEM_APPEND: 'Follow the house rules.' });
   });
 
@@ -5489,14 +5482,13 @@ describe('resolveSystemPromptOverlayDelivery', () => {
     for (const def of AGENT_DEFS) {
       if (def.systemPromptDelivery?.strategy === 'config-instructions-file') continue;
       const delivery = resolveSystemPromptOverlayDelivery({
-        defId: def.id,
         systemPromptDelivery: def.systemPromptDelivery,
         resumesSessionViaCli: def.resumesSessionViaCli,
         resumesSessionViaAcpLoad: def.resumesSessionViaAcpLoad,
         overlay: 'x',
         prompt: 'y',
         resumeSessionId: undefined,
-      });
+      }, { capabilities: undefined });
       const deliversViaPrompt = delivery.prompt !== 'y';
       const deliversViaArgs = delivery.extraArgs.length > 0;
       const deliversViaEnv = Object.keys(delivery.envOverrides).length > 0;
@@ -5508,7 +5500,7 @@ describe('resolveSystemPromptOverlayDelivery', () => {
     const delivery = resolveSystemPromptOverlayDelivery({
       ...base,
       systemPromptDelivery: { strategy: 'config-instructions-file', varName: 'OPENCODE_CONFIG_CONTENT' },
-    });
+    }, { capabilities: undefined });
     expect(delivery).toEqual({ promptPrefix: '', prompt: base.prompt, extraArgs: [], envOverrides: {} });
   });
 });
@@ -6672,7 +6664,7 @@ async function probeOverlayDelivery(
     return child as unknown as ChildProcess;
   }) as unknown as typeof nodeSpawn;
 
-  const executor = createAgentExecutor({ lifecycle, hostEnv: {}, runtime: runtimeFixture({ spawn: fakeSpawn, listProcessSnapshots: async () => [{ pid: child.pid ?? 0, ppid: 1, command: 'fake-bin' }], stopProcesses: async () => ({ alreadyStopped: true, forcedPids: [], matchedPids: [], remainingPids: [], stoppedPids: [] }) }) }, { resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (def.id === id ? def : null), resolveAgentLaunch: () =>
+  const executor = createAgentExecutor({ lifecycle, hostEnv: {}, runtime: runtimeFixture({ spawn: fakeSpawn, listProcessSnapshots: async () => [{ pid: child.pid ?? 0, ppid: 1, command: 'fake-bin' }], stopProcesses: async () => ({ alreadyStopped: true, forcedPids: [], matchedPids: [], remainingPids: [], stoppedPids: [] }) }), agentRuntime: agentRuntimeFixture({ resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (def.id === id ? def : null), resolveAgentLaunch: () =>
       ({
         selectedPath: '/fake/bin',
         pathResolvedPath: '/fake/bin',
@@ -6681,7 +6673,7 @@ async function probeOverlayDelivery(
         launchKind: 'selected',
         childPathPrepend: [],
         diagnostic: null,
-      }) as AgentLaunchResolution, applyAgentLaunchEnv: ({ env }) => env,  promptAugmenter: createOverlayAugmenter(options.overlay === undefined ? OVERLAY_TEXT : options.overlay), preparePromptFileForAgent: (async ({ def: promptFileDef, prompt }: { def: RuntimeAgentDef | null | undefined; prompt: string }) => {
+      }) as AgentLaunchResolution, applyAgentLaunchEnv: ({ env }) => env, preparePromptFileForAgent: (async ({ def: promptFileDef, prompt }: { def: RuntimeAgentDef | null | undefined; prompt: string }) => {
       if (!promptFileDef?.promptViaFile) return null;
       promptFile = prompt;
       return { path: '/fake/staged/prompt.md', cleanup: async () => {} };
@@ -6699,7 +6691,7 @@ async function probeOverlayDelivery(
     }) as unknown as typeof attachAcpSession, attachPiRpcSession: ((attachOptions: { prompt: string }) => {
       piRpcPrompt = attachOptions.prompt;
       return { hasFatalError: () => false, getLastSessionPath: () => null, abort: vi.fn() } as PiRpcSession;
-    }) as unknown as typeof attachPiRpcSession,   onCleanupFailure: vi.fn() });
+    }) as unknown as typeof attachPiRpcSession }) }, { promptAugmenter: createOverlayAugmenter(options.overlay === undefined ? OVERLAY_TEXT : options.overlay), onCleanupFailure: vi.fn() });
 
   const { run } = await lifecycle.start({ contextRef: `ctx-overlay-${def.id}` });
   const runPromise = executor.run({ runId: run.id, agentId: def.id, prompt: OVERLAY_USER_PROMPT, cwd: '/work' }, { ...(options.resumeSessionId !== undefined ? { resumeSessionId: options.resumeSessionId } : {}) });

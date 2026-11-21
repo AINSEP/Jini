@@ -6,43 +6,40 @@ import { createInMemoryEventLog } from '../../event-log.js';
 import type { RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 import { expect, it } from 'vitest';
 import { resolveRunEnv, selectAgentExecutorHostEnv, resolveSystemPromptOverlayDelivery } from '../launch.js';
-import { configureExecutableResolutionEnv, createAgentRuntimeState, defaultRuntimeState } from '@jini-ai/agent-runtime';
-import { runtimeFixture } from './runtime-fixture.js';
+import { createAgentRuntimeState } from '@jini-ai/agent-runtime';
+import { runtimeFixture, agentRuntimeFixture } from './runtime-fixture.js';
 
-it('preserves configured default resolution paths without passing a runtime state', () => {
-  const previous = { ...defaultRuntimeState.executable.envNames };
-  try {
-    configureExecutableResolutionEnv({ overrides: { agentHomeEnvVar: 'HOST_RUNTIME_HOME', resourceRootEnvVar: 'HOST_RESOURCE_ROOT' } });
-    const selected = selectAgentExecutorHostEnv({ env: {
-      HOST_RUNTIME_HOME: '/host/runtime', HOST_RESOURCE_ROOT: '/host/resources', UNRELATED_TOKEN: 'fixture-secret',
-    } });
-    expect(selected).toEqual({ HOST_RUNTIME_HOME: '/host/runtime', HOST_RESOURCE_ROOT: '/host/resources' });
-    expect(resolveRunEnv({ input: {}, hostEnv: selected })).toEqual({});
-  } finally {
-    configureExecutableResolutionEnv({ overrides: previous });
-  }
+it('copies host-configured resolution names from the runtime port, never from scanning the env', () => {
+  const selected = selectAgentExecutorHostEnv({ env: {
+    HOST_RUNTIME_HOME: '/host/runtime', HOST_RESOURCE_ROOT: '/host/resources', UNRELATED_TOKEN: 'fixture-secret',
+  }, hostEnvNames: ['HOST_RUNTIME_HOME', 'HOST_RESOURCE_ROOT'] });
+  expect(selected).toEqual({ HOST_RUNTIME_HOME: '/host/runtime', HOST_RESOURCE_ROOT: '/host/resources' });
+  expect(resolveRunEnv({ input: {}, hostEnv: selected })).toEqual({});
 });
 
 // hwb #15: only known source-config keys accompany the existing baseline spawn environment.
 it('snapshots an explicit host allowlist and keeps configuration paths out of the child environment', () => {
   const env = { PATH: '/bin', USER: 'operator', HOME: '/home/operator', CODEX_HOME: '/host/codex', CLAUDE_CONFIG_DIR: '/host/claude', UNRELATED_TOKEN: 'fixture-secret' };
-  const state = createAgentRuntimeState({});
-  state.executable.envNames.agentHomeEnvVar = 'HOST_RUNTIME_HOME';
-  expect(selectAgentExecutorHostEnv({ env: { HOST_RUNTIME_HOME: '/host/runtime', UNRELATED_TOKEN: 'fixture-secret' } }, { runtimeState: state })).toEqual({ HOST_RUNTIME_HOME: '/host/runtime' });
-  const selected = selectAgentExecutorHostEnv({ env });
+  expect(selectAgentExecutorHostEnv({ env: { HOST_RUNTIME_HOME: '/host/runtime', UNRELATED_TOKEN: 'fixture-secret' }, hostEnvNames: ['HOST_RUNTIME_HOME'] })).toEqual({ HOST_RUNTIME_HOME: '/host/runtime' });
+  const selected = selectAgentExecutorHostEnv({ env, hostEnvNames: [] });
   expect(selected).toEqual({ PATH: '/bin', USER: 'operator', HOME: '/home/operator', CODEX_HOME: '/host/codex', CLAUDE_CONFIG_DIR: '/host/claude' });
   env.CODEX_HOME = '/changed';
   expect(selected.CODEX_HOME).toBe('/host/codex');
   expect(resolveRunEnv({ input: { credentialEnv: { OPENAI_API_KEY: 'delegated-fixture' } }, hostEnv: selected })).toEqual({ PATH: '/bin', USER: 'operator', HOME: '/home/operator', OPENAI_API_KEY: 'delegated-fixture' });
 });
 
-it('uses the injected host capability state for overlay flags', () => {
-  const a = createAgentRuntimeState({}); const b = createAgentRuntimeState({});
-  a.capabilities.set('claude', { appendSystemPrompt: false });
-  b.capabilities.set('claude', { appendSystemPrompt: true });
-  const input = { defId: 'claude', systemPromptDelivery: { strategy: 'append-flag' as const, flag: '--append-system-prompt', capabilityKey: 'appendSystemPrompt' }, resumesSessionViaCli: undefined, resumesSessionViaAcpLoad: undefined, overlay: 'host overlay', prompt: 'question', resumeSessionId: undefined };
-  expect(resolveSystemPromptOverlayDelivery(input, { state: a }).extraArgs).toEqual([]);
-  expect(resolveSystemPromptOverlayDelivery(input, { state: b }).extraArgs).toEqual(['--append-system-prompt', 'host overlay']);
+it('reads the capability map the caller passes for overlay flags', () => {
+  const input = { systemPromptDelivery: { strategy: 'append-flag' as const, flag: '--append-system-prompt', capabilityKey: 'appendSystemPrompt' }, resumesSessionViaCli: undefined, resumesSessionViaAcpLoad: undefined, overlay: 'host overlay', prompt: 'question', resumeSessionId: undefined };
+  expect(resolveSystemPromptOverlayDelivery(input, { capabilities: { appendSystemPrompt: false } }).extraArgs).toEqual([]);
+  expect(resolveSystemPromptOverlayDelivery(input, { capabilities: { appendSystemPrompt: true } }).extraArgs).toEqual(['--append-system-prompt', 'host overlay']);
+});
+
+it('unknown capability allows the flag; only an explicit false withholds it', () => {
+  const input = { systemPromptDelivery: { strategy: 'append-flag' as const, flag: '--append-system-prompt', capabilityKey: 'appendSystemPrompt' }, resumesSessionViaCli: undefined, resumesSessionViaAcpLoad: undefined, overlay: 'host overlay', prompt: 'question', resumeSessionId: undefined };
+  // Never probed: no map at all, or a map that does not name this key.
+  expect(resolveSystemPromptOverlayDelivery(input, { capabilities: undefined }).extraArgs).toEqual(['--append-system-prompt', 'host overlay']);
+  expect(resolveSystemPromptOverlayDelivery(input, { capabilities: {} }).extraArgs).toEqual(['--append-system-prompt', 'host overlay']);
+  expect(resolveSystemPromptOverlayDelivery(input, { capabilities: { appendSystemPrompt: false } }).extraArgs).toEqual([]);
 });
 
 it('threads the host snapshot and bound capabilities through a real executor run', async () => {
@@ -56,12 +53,7 @@ it('threads the host snapshot and bound capabilities through a real executor run
   };
   const hostEnv = { PATH: '/host/bin', HOME: '/host/home', UNRELATED_TOKEN: 'fixture-secret' };
   const calls: unknown[] = [];
-  const executor = createAgentExecutor({ lifecycle, hostEnv: hostEnv, runtime: runtimeFixture({ spawn: ((_command: string, args: readonly string[], options?: { env?: NodeJS.ProcessEnv }) => { calls.push({ args, env: options?.env }); throw new Error('stop after capturing spawn'); }) as unknown as typeof nodeSpawn }) }, {
-     runtimeState: state, getAgentDef: () => def,
-    resolveAgentLaunch: () => ({ selectedPath: '/fake/host-agent', pathResolvedPath: '/fake/host-agent', configuredOverridePath: null, launchPath: '/fake/host-agent', launchKind: 'selected', childPathPrepend: [], diagnostic: null }),
-    applyAgentLaunchEnv: ({ env }) => env, ensureAgentCapabilities: async () => {},
-    
-  });
+  const executor = createAgentExecutor({ lifecycle, hostEnv: hostEnv, runtime: runtimeFixture({ spawn: ((_command: string, args: readonly string[], options?: { env?: NodeJS.ProcessEnv }) => { calls.push({ args, env: options?.env }); throw new Error('stop after capturing spawn'); }) as unknown as typeof nodeSpawn }), agentRuntime: agentRuntimeFixture({ runtimeState: state, getAgentDef: () => def, resolveAgentLaunch: () => ({ selectedPath: '/fake/host-agent', pathResolvedPath: '/fake/host-agent', configuredOverridePath: null, launchPath: '/fake/host-agent', launchKind: 'selected', childPathPrepend: [], diagnostic: null }), applyAgentLaunchEnv: ({ env }) => env, ensureAgentCapabilities: async () => {} }, { env: hostEnv }) });
   hostEnv.HOME = '/changed';
   const { run } = await lifecycle.start({ contextRef: 'host-port-test' });
   await executor.run({ runId: run.id, agentId: def.id, prompt: 'question', cwd: '/work' }).catch(() => undefined);
@@ -71,10 +63,8 @@ it('threads the host snapshot and bound capabilities through a real executor run
 // F1 fix wave (Stryker L8 §4 launch.ts:193-208 `typeof env[key]==='string'` → true survived):
 // a present-but-non-string allowlisted key must not leak into the snapshot as a key at all.
 it('F1: allowlisted and host-configured keys with non-string values are dropped, not copied as undefined', () => {
-  const state = createAgentRuntimeState({});
-  state.executable.envNames.agentHomeEnvVar = 'HOST_RUNTIME_HOME';
   const env = { CODEX_HOME: undefined, CLAUDE_CONFIG_DIR: 42 as unknown as string, HOST_RUNTIME_HOME: undefined, NPM_CONFIG_PREFIX: '/npm', FNM_DIR: '/fnm' };
-  const selected = selectAgentExecutorHostEnv({ env }, { runtimeState: state });
+  const selected = selectAgentExecutorHostEnv({ env, hostEnvNames: ['HOST_RUNTIME_HOME'] });
   expect(selected).toEqual({ NPM_CONFIG_PREFIX: '/npm', FNM_DIR: '/fnm' });
   for (const key of ['CODEX_HOME', 'CLAUDE_CONFIG_DIR', 'HOST_RUNTIME_HOME']) expect(Object.keys(selected)).not.toContain(key);
 });
@@ -82,6 +72,5 @@ it('F1: allowlisted and host-configured keys with non-string values are dropped,
 it('F1: every documented config key is carried (first, middle and last of the list)', () => {
   const keys = ['CODEX_HOME', 'CLAUDE_CONFIG_DIR', 'VELA_OPENCODE_BIN', 'AGENT_RUNTIME_HOME', 'AGENT_RUNTIME_RESOURCE_ROOT', 'VP_HOME', 'NPM_CONFIG_PREFIX', 'npm_config_prefix', 'APPDATA', 'LOCALAPPDATA', 'MISE_DATA_DIR', 'FNM_DIR'];
   const env = Object.fromEntries(keys.map((k) => [k, `/v/${k}`]));
-  const state = createAgentRuntimeState({});
-  expect(selectAgentExecutorHostEnv({ env }, { runtimeState: state })).toEqual(env);
+  expect(selectAgentExecutorHostEnv({ env, hostEnvNames: [] })).toEqual(env);
 });

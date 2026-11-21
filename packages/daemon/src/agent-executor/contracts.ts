@@ -1,6 +1,5 @@
-import type { CodexExecutorOptions, CodexMcpHomeOptions } from './codex/contracts.js';
+import type { CodexMcpHomeOptions } from './codex/contracts.js';
 import type { ClaudeExecutorOptions } from './claude/contracts.js';
-import type { PiExecutorOptions } from './pi/contracts.js';
 import type { McpJsonServerEntry } from './mcp-json-file.js';
 export type { PreparedCodexHome } from './codex/contracts.js';
 export type { PreparedClaudeConfigDir, ClaudeConfigDirSeams, ClaudeConfigDirIsolationOptions } from './claude/contracts.js';
@@ -22,19 +21,7 @@ import type {
    MessageRelayVia,
    RelayedUserMessage,
 } from '@jini-ai/protocol';
-import type {
-   AgentRuntimeState,
-   applyAgentLaunchEnv,
-   ensureAgentCapabilities,
-   assertClaudeFilesystemSupport,
-   resolveModelForLaunch,
-   getAgentDef,
-   resolveAgentLaunch,
-   attachAcpSession,
-   attachPiRpcSession,
-   prepareAgentLogFile,
-   preparePromptFileForAgent,
-} from '@jini-ai/agent-runtime';
+import type { AgentRuntimePort } from '../ports/agent-runtime.js';
 import type { AcpMcpServerInput, AcpPermissionHandler } from '../ports/agent-runtime-sessions.js';
 import type { PromptAugmenter } from '@jini-ai/core/contracts/agents';
 import type { ProcessSnapshot, StopProcessesResult } from '@jini-ai/core/contracts/runtime';
@@ -546,7 +533,7 @@ export interface FailureClassificationContext {
  */
 export type ClassifyFailure = (context: FailureClassificationContext) => boolean | Promise<boolean>;
 
-export interface CreateAgentExecutorOptions extends ClaudeExecutorOptions, CodexExecutorOptions, PiExecutorOptions {
+export interface CreateAgentExecutorOptions extends ClaudeExecutorOptions {
   /** Negotiated v1 only; share with bridge/lifecycle. Absent preserves legacy diagnostics/echoes. */
   readonly delegatedResultCorrelation?: DelegatedResultCorrelation;
   /** Required with correlation + byte journal: exact stdout blobs and durable reference records. */
@@ -555,49 +542,17 @@ export interface CreateAgentExecutorOptions extends ClaudeExecutorOptions, Codex
   readonly hostEnv: NodeJS.ProcessEnv;
   /** The host's OS-facing implementations (spawn, process control, file lock, atomic writer, command shell). */
   readonly runtime: AgentExecutorRuntimePorts;
-  readonly runtimeState?: AgentRuntimeState;
+  /** The agent runtime the launcher consumes: definitions, launch resolution, sessions, stream parsers, model resolution, filesystem policy. Required: daemon has no default runtime. The binding (usually `createAgentRuntimeBindings`) owns the runtime state, the host env names and the Codex/Pi definition policies. */
+  readonly agentRuntime: AgentRuntimePort;
   readonly lifecycle: RunLifecycle;
-  /** Resolves/pins the concrete starting model against the actual launch scope. */
-  readonly resolveModelForLaunch?: typeof resolveModelForLaunch;
-  /** @default the real `@jini-ai/agent-runtime` registry lookup */
-  readonly getAgentDef?: typeof getAgentDef;
-  /** @default the real `@jini-ai/agent-runtime` launch resolver */
-  readonly resolveAgentLaunch?: typeof resolveAgentLaunch;
-  /** @default the real `@jini-ai/agent-runtime` once-per-binary `--help` capability probe */
-  readonly ensureAgentCapabilities?: typeof ensureAgentCapabilities;
-  /** Bounded version/enforcement probe; replaceable for offline host tests. */
-  readonly assertClaudeFilesystemSupport?: typeof assertClaudeFilesystemSupport;
-  /** @default the real `@jini-ai/agent-runtime` PATH-env composer */
-  readonly applyAgentLaunchEnv?: typeof applyAgentLaunchEnv;
   /** Diagnostic bridge probe; independent of the agent spawn seam. @default the real MCP initialize probe, spawned through `runtime.spawn`. */
   readonly probeMcpBridge?: McpBridgeProbe;
-  /** @default the real `@jini-ai/agent-runtime` ACP session transport */
-  readonly attachAcpSession?: typeof attachAcpSession;
   /**
    * Host-owned policy for ACP agents' native tool calls. The ACP agent still
    * executes its own selected option; Jini-registered tool execution belongs
    * to `createDelegatedToolBridge`, not this permission callback.
    */
   readonly acpPermissionHandler?: AcpPermissionHandler;
-  /** @default the real `@jini-ai/agent-runtime` pi-rpc session transport */
-  readonly attachPiRpcSession?: typeof attachPiRpcSession;
-  /**
-   * Stages a `promptViaFile` def's (grok-build) composed prompt to a temp
-   * file before `buildArgs` runs. Touches the real filesystem by default
-   * (`fs.mkdtemp`/`fs.writeFile`/`fs.rm`) — injectable so tests can drive
-   * it without real disk I/O, matching this factory's "no real subprocess,
-   * filesystem, or PATH lookup by default in tests" convention.
-   * @default the real `@jini-ai/agent-runtime` prompt-file stager
-   */
-  readonly preparePromptFileForAgent?: typeof preparePromptFileForAgent;
-  /**
-   * Stages a `needsAgentLogFile` def's (antigravity) diagnostic-log path
-   * before `buildArgs` runs. Same real-filesystem/injectable-for-tests deal
-   * as `preparePromptFileForAgent` above, and a no-op for every def that
-   * did not opt in.
-   * @default the real `@jini-ai/agent-runtime` log-file stager
-   */
-  readonly prepareAgentLogFile?: typeof prepareAgentLogFile;
   /** Host-owned sink for a process-tree cleanup failure (SEC-007) — e.g. EPERM stopping descendants. @default logs a redacted diagnostic via `console.error` */
   readonly onCleanupFailure?: (context: AgentCleanupFailureContext) => void;
   /**

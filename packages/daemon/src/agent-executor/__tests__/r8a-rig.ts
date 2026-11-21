@@ -2,7 +2,7 @@ import { EventEmitter } from 'node:events';
 import type { ChildProcess } from 'node:child_process';
 import type { RuntimePlatform } from '@jini-ai/core/contracts/runtime';
 import type { SpawnFunction } from '@jini-ai/node-adapters/process';
-import { runtimeFixture, type RuntimeFixtureScript } from './runtime-fixture.js';
+import { runtimeFixture, type RuntimeFixtureScript, agentRuntimeFixture } from './runtime-fixture.js';
 import { vi } from 'vitest';
 import type { AgentLaunchResolution, RuntimeAgentDef, RuntimeLock } from '@jini-ai/core/contracts/agents';
 import { createInMemoryEventLog } from '../../event-log.js';
@@ -90,14 +90,8 @@ export function createRig(input: {
       listProcessSnapshots: input.listProcessSnapshots ?? (async () => []),
       stopProcesses: input.stopProcesses ?? (async () => stopResult),
       ...(input.platform ? { platform: input.platform } : {}),
-    }),
-  }, {
-    resolveModelForLaunch: fixtureLaunchModel,
-    getAgentDef: ({ id }) => (id === def.id ? def : null),
-    resolveAgentLaunch: launchAt(input.launchPath ?? '/fake/bin'), applyAgentLaunchEnv: ({ env }) => env,
-    prepareAgentLogFile: (async () => ({ path: '/fake/agent.log', cleanup: async () => { events.push('cleanup'); } })) as never,
-    onCleanupFailure,
-  });
+    }), agentRuntime: agentRuntimeFixture({ resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (id === def.id ? def : null), resolveAgentLaunch: launchAt(input.launchPath ?? '/fake/bin'), applyAgentLaunchEnv: ({ env }) => env, prepareAgentLogFile: (async () => ({ path: '/fake/agent.log', cleanup: async () => { events.push('cleanup'); } })) as never }),
+  }, { onCleanupFailure });
   const start = async (): Promise<string> => (await lifecycle.start({ contextRef: 'r8a' })).run.id;
   return { events, lifecycle, executor, onCleanupFailure, start };
 }

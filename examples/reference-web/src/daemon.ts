@@ -11,7 +11,8 @@ import { createAgentExecutor } from '@jini-ai/daemon';
 import { nodeAtomicWriter, nodeFileLock } from '@jini-ai/node-adapters/fs';
 import { nodeCommandShell, nodeProcessControl, nodeSpawnPort } from '@jini-ai/node-adapters/process';
 import type { AgentExecutorRuntimePorts } from '@jini-ai/daemon/ports/runtime';
-import { createNativeAgentRuntime } from '@jini-ai/agent-runtime';
+import { createAgentRuntimeBindings, createNativeAgentRuntime } from '@jini-ai/agent-runtime';
+import type { AgentRuntimePort } from '@jini-ai/daemon/ports/agent-runtime';
 import type { ToolRegistration } from '@jini-ai/core';
 import { attachmentCleanupRoutes, attachmentUploadRoutes, createDiskAttachmentStore, createFrontendControl, mediaRoutes, memoryRoutes } from '@jini-ai/daemon/http';
 import { createBuiltinVendorAdapterRegistry, createMediaDispatchEngine, createSqliteMediaTaskStore } from '@jini-ai/integrations/media-providers';
@@ -351,8 +352,7 @@ async function main(): Promise<void> {
   };
   const runtime = createNativeAgentRuntime({ env });
   const runtimeExecutorOptions = { runtimeState: runtime.state, hostEnv: runtime.hostEnv,
-    codexDisablePlugins: runtime.codex.disablePlugins === true, piGracefulShutdownMs: runtime.pi.gracefulShutdownMs ?? 5000,
-    getAgentDef: runtime.getAgentDef, resolveAgentLaunch: runtime.resolveAgentLaunch };
+    codexDisablePlugins: runtime.codex.disablePlugins === true, piGracefulShutdownMs: runtime.pi.gracefulShutdownMs ?? 5000 };
   const mediaTaskStore = await createSqliteMediaTaskStore(resolve(dataDir, 'media-tasks.db'));
   const memoryRoutesDeps = {
     notes: createNoteStore({ validTypes: ['note'], defaultType: 'note' }),
@@ -542,8 +542,8 @@ async function main(): Promise<void> {
               decoded.workingDirectory,
               decoded.project,
             );
-            const executor = createAgentExecutor({ lifecycle, hostEnv: runtimeExecutorOptions.hostEnv, runtime: executorRuntimeFor({ hostEnv: runtimeExecutorOptions.hostEnv }) }, {
-              ...runtimeExecutorOptions,
+            const executor = createAgentExecutor({ lifecycle, hostEnv: runtimeExecutorOptions.hostEnv, runtime: executorRuntimeFor({ hostEnv: runtimeExecutorOptions.hostEnv }),
+              agentRuntime: createAgentRuntimeBindings({ runtime }) satisfies AgentRuntimePort }, {
               // Gives the spawned CLI `execute_delegated_tool`, the agent-native route into the
               // same `ToolExecutor` gate `frontendControl` registers its capabilities behind.
               ...(mcpBridge !== undefined ? { mcpJsonInjection: mcpBridge } : {}),

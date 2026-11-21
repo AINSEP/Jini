@@ -7,6 +7,7 @@ import { createInMemoryEventLog } from '../../event-log.js';
 import { createRunLifecycle } from '../../run-lifecycle.js';
 import type { RunMessageRelay } from '../message-relay.js';
 import { createFakeChild, stopResult, flush } from './r8a-rig.js';
+import { agentRuntimeFixture } from './runtime-fixture.js';
 
 function deferred() {
   let resolve!: () => void;
@@ -28,7 +29,7 @@ async function fixture() {
     classifyFailure: undefined, releaseStagedResources: async () => {},
     failBeforeSpawn: async (): Promise<never> => { throw new Error('unexpected spawn failure'); },
     listProcessSnapshots: async () => [], collectProcessTreePids: () => [], stopProcesses: async () => stopResult,
-    onPermissionRequest: undefined };
+    onPermissionRequest: undefined, identityKind: agentRuntimeFixture().models.identityKind };
   return { lifecycle, child, runId: run.id, events, input, deps };
 }
 

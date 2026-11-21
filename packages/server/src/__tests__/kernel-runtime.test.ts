@@ -6,7 +6,8 @@ import Database from 'better-sqlite3';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createNativeAgentRuntime } from '@jini-ai/agent-runtime';
+import { createAgentRuntimeBindings, createNativeAgentRuntime } from '@jini-ai/agent-runtime';
+import type { AgentRuntimePort } from '@jini-ai/daemon/ports/agent-runtime';
 import { createLocalNodeDaemon } from '../create-local-node-daemon.js';
 import { nodeAtomicWriter, nodeFileLock } from '@jini-ai/node-adapters/fs';
 import { createSpawnPort, nodeCommandShell, nodeProcessControl, type SpawnFunction } from '@jini-ai/node-adapters/process';
@@ -17,15 +18,19 @@ it('gives each kernel a separate state, shares it with its executor, and clears 
     const captured: string[][] = [];
     return { captured, boot: createJiniKernelBase({ storage: { kind: 'memory' }, agentExecutor: {
       hostEnv: { PATH: '/fake/bin' }, codexDisablePlugins: true,
-      getAgentDef: () => ({ ...def, buildArgs: (_required, { options } = {}) =>
-        options?.capabilities?.hostFlag ? ['--host-flag'] : [] }),
-      resolveAgentLaunch: () => ({ selectedPath: '/fake/cli', pathResolvedPath: '/fake/cli', configuredOverridePath: null,
-        launchPath: '/fake/cli', launchKind: 'selected', childPathPrepend: [], diagnostic: null }),
-      resolveModelForLaunch: async () => ({ model: 'fixture-model',
-        resolution: { status: 'resolved', id: 'fixture-model', source: 'rpc', resolvedAt: '2026-10-13T00:00:00.000Z', launchFingerprint: 'fixture' },
-        catalog: { models: [{ id: 'fixture-model', label: 'fixture-model', identityKind: 'concrete' }], source: 'rpc', freshness: 'fresh', fetchedAt: '2026-10-13T00:00:00.000Z', expiresAt: '2026-10-13T01:00:00.000Z', coverage: 'account', launchFingerprint: 'fixture', diagnostics: [] },
-      }),
-      applyAgentLaunchEnv: ({ env }) => env, ensureAgentCapabilities: async () => {},
+      bindAgentRuntime: ({ runtime }) => {
+        const bound = createAgentRuntimeBindings({ runtime }) satisfies AgentRuntimePort;
+        return { ...bound,
+          // The runtime's own `bind` closes the definition over this kernel's state: that is how `hostFlag` reaches `buildArgs`.
+          defs: { ...bound.defs, get: () => bound.defs.bind({ def: { ...def, buildArgs: (_required, { options } = {}) =>
+            options?.capabilities?.hostFlag ? ['--host-flag'] : [] } }), ensureCapabilities: async () => {} },
+          launch: { ...bound.launch, resolve: () => ({ selectedPath: '/fake/cli', pathResolvedPath: '/fake/cli', configuredOverridePath: null,
+            launchPath: '/fake/cli', launchKind: 'selected', childPathPrepend: [], diagnostic: null }), applyEnv: ({ env }) => env },
+          models: { ...bound.models, resolveForLaunch: async () => ({ model: 'fixture-model',
+            resolution: { status: 'resolved', id: 'fixture-model', source: 'rpc', resolvedAt: '2026-10-13T00:00:00.000Z', launchFingerprint: 'fixture' },
+            catalog: { models: [{ id: 'fixture-model', label: 'fixture-model', identityKind: 'concrete' }], source: 'rpc', freshness: 'fresh', fetchedAt: '2026-10-13T00:00:00.000Z', expiresAt: '2026-10-13T01:00:00.000Z', coverage: 'account', launchFingerprint: 'fixture', diagnostics: [] },
+          }) } };
+      },
       runtime: {
         spawn: createSpawnPort({ spawn: ((_command: string, argv: readonly string[]) => { captured.push([...argv]); throw new Error('fixture spawn stop'); }) as SpawnFunction }),
         processes: nodeProcessControl, fileLock: nodeFileLock, writer: nodeAtomicWriter, commandShell: nodeCommandShell({ env: {} }),
@@ -54,12 +59,15 @@ it('gives each kernel a separate state, shares it with its executor, and clears 
 it('forwards explicit executor options through the local preset and disposes its supplied state', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'jini-runtime-preset-'));
   const env = { PATH: '/fake/bin', JINI_DISABLE_API_AUTH: '1' };
+  let lookups = 0;
   const runtime = createNativeAgentRuntime({ env });
   runtime.state.capabilities.set('owned', { feature: true });
-  let lookups = 0;
   const daemon = await createLocalNodeDaemon({ dataDir: dir, packs: [], discoveryFile: false, env,
     open: (file, settings = {}) => new Database(file, settings),
-    agentExecutor: { runtimeState: runtime.state, getAgentDef: () => { lookups++; return null; } },
+    agentExecutor: { runtimeState: runtime.state, bindAgentRuntime: ({ runtime: native }) => {
+      const bound = createAgentRuntimeBindings({ runtime: native }) satisfies AgentRuntimePort;
+      return { ...bound, defs: { ...bound.defs, get: (required) => { lookups++; return bound.defs.get(required); } } };
+    } },
     resolveRunInput: () => ({ agentId: 'host-only-fixture', prompt: 'question', cwd: '/work' }),
   });
   try {

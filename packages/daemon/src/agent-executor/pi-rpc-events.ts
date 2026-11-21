@@ -1,4 +1,5 @@
 import { createModelReceiptTracker } from './model-receipts.js';
+import type { AgentRuntimePort } from '../ports/agent-runtime.js';
 import { observeRunOutput } from './run-output.js';
 import { createRunEventQueue, receivedJournalEntry } from './event-io.js';
 import { cleanupStagedFilesSafely, classifyFailureSafely, terminateChildTreeBestEffort } from './event-cleanup.js';
@@ -22,7 +23,8 @@ interface WirePiRpcLifecycleContext extends TerminateChildTreeDeps {
   readonly modelCatalog?: ModelCatalogSnapshot;
   readonly imagePaths: readonly string[];
   readonly uploadRoot: string | undefined;
-  readonly attachPiRpcSession: NonNullable<CreateAgentExecutorOptions['attachPiRpcSession']>;
+  readonly attachPiRpcSession: AgentRuntimePort['sessions']['attachPiRpc'];
+  readonly identityKind: AgentRuntimePort['models']['identityKind'];
   readonly onCleanupFailure: (context: AgentCleanupFailureContext) => void;
   /** Same seam as `WireChildLifecycleContext.cleanupStagedFiles` — no current pi-rpc def declares `promptViaFile` or `needsAgentLogFile`, so this is always the no-op default in practice today, threaded through for consistency rather than special-cased away. */
   readonly cleanupStagedFiles: () => Promise<void>;
@@ -52,7 +54,7 @@ interface WirePiRpcLifecycleContext extends TerminateChildTreeDeps {
  * multi-turn tool continuation, resumable session ids, etc.).
  */
 function wirePiRpcLifecycle(ctx: WirePiRpcLifecycleContext): ReturnType<WirePiRpcLifecycleContext['attachPiRpcSession']> {
-  const modelReceipt = createModelReceiptTracker({}, { startingModel: ctx.model, models: ctx.modelCatalog?.models });
+  const modelReceipt = createModelReceiptTracker({ identityKind: ctx.identityKind, startingModel: ctx.model }, { models: ctx.modelCatalog?.models });
   const { runId, agentId, child, lifecycle, journal } = ctx;
   const output = observeRunOutput({ lifecycle, runId, agentName: agentId });
   const state = {
@@ -162,7 +164,8 @@ interface RunPiRpcDispatchInput {
 
 interface RunPiRpcDispatchDeps extends TerminateChildTreeDeps {
   readonly lifecycle: RunLifecycle;
-  readonly attachPiRpcSession: NonNullable<CreateAgentExecutorOptions['attachPiRpcSession']>;
+  readonly attachPiRpcSession: AgentRuntimePort['sessions']['attachPiRpc'];
+  readonly identityKind: AgentRuntimePort['models']['identityKind'];
   readonly onCleanupFailure: (context: AgentCleanupFailureContext) => void;
   readonly cleanupStagedFiles: () => Promise<void>;
   readonly journal: RunByteJournal | undefined;
@@ -186,6 +189,7 @@ export async function runPiRpcDispatch({ input, deps }: { readonly input: RunPiR
       imagePaths: input.imagePaths,
       uploadRoot: input.uploadRoot,
       attachPiRpcSession: deps.attachPiRpcSession,
+      identityKind: deps.identityKind,
       listProcessSnapshots: deps.listProcessSnapshots,
       collectProcessTreePids: deps.collectProcessTreePids,
       stopProcesses: deps.stopProcesses,

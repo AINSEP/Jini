@@ -5,7 +5,7 @@ import { createRunLifecycle } from '../../run-lifecycle.js';
 import { createAgentExecutor } from '../../index.js';
 import { createFakeChild, createDef, createRig, launchAt, stopResult, flush, type SpawnPort } from './r8a-rig.js';
 import { fixtureLaunchModel } from './model-discovery-fixture.js';
-import { runtimeFixture } from './runtime-fixture.js';
+import { runtimeFixture, agentRuntimeFixture } from './runtime-fixture.js';
 
 /**
  * @file R8a pins written before step 5 edits the launcher (the cases step 0 left open):
@@ -104,11 +104,7 @@ describe('step 4: the antigravity permission grant runs through the host runtime
     const runtime = runtimeFixture({ spawn });
     const def = createDef({ id: 'antigravity', name: 'Antigravity', externalMcpInjection: 'env-passthrough' });
     const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
-    const executor = createAgentExecutor({ lifecycle, hostEnv: { PATH: '/bin' }, runtime }, {
-      resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (id === def.id ? def : null),
-      resolveAgentLaunch: launchAt('/fake/bin'), applyAgentLaunchEnv: ({ env }) => env, ensureAgentCapabilities: async () => {},
-      mcpJsonInjection: { command: 'jini-mcp', daemonUrl: 'http://localhost:4317' },
-    });
+    const executor = createAgentExecutor({ lifecycle, hostEnv: { PATH: '/bin' }, runtime, agentRuntime: agentRuntimeFixture({ resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (id === def.id ? def : null), resolveAgentLaunch: launchAt('/fake/bin'), applyAgentLaunchEnv: ({ env }) => env, ensureAgentCapabilities: async () => {} }) }, { mcpJsonInjection: { command: 'jini-mcp', daemonUrl: 'http://localhost:4317' } });
     const runId = (await lifecycle.start({ contextRef: 'r8a-agy' })).run.id;
     await executor.run({ runId, agentId: def.id, prompt: 'hi', cwd: '/work' }, { nativeCapabilities: { userMcp: true } });
     // Where the settings file lives is the user's home; the order and the ports are what is pinned.
