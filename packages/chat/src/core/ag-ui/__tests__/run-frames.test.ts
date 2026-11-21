@@ -76,3 +76,24 @@ test('a reader rejection writes RUN_ERROR and returns the same error', async () 
   expect(outcome.error).toBe(error);
   expect(events).toEqual([{ type: 'RUN_ERROR', message: 'read failed' }]);
 });
+
+test('only an explicitly marked pending approval projects an interrupt', async () => {
+  const resource = { type: 'resource', resource: { uri: 'ui://card', mimeType: 'text/html', text: '<p>Decision</p>' } };
+  const pendingApproval = { id: 'approval', reason: 'confirmation', toolCallId: 'tool', message: 'Allow action?' };
+  const bytes = new TextEncoder().encode([
+    { type: 'mcp-ui', resource },
+    { type: 'mcp-ui', resource, surfaceExchange: { exchangeId: 'result', toolId: 'tool', runId: 'r' } },
+    { type: 'mcp-ui', resource, pendingApproval },
+  ].map(payload => `event: agent\ndata: ${JSON.stringify({ payload })}\n\n`).join(''));
+  const reader = new ReadableStream<Uint8Array>({ start(c) { c.enqueue(bytes); c.close(); } }).getReader();
+  const events: AgUiEvent[] = [];
+  const outcome = await drainRunFramesToAgUi({ reader, threadId: 't', runId: 'r', state: createAgUiTranslationState(translation), notices,
+    write: event => { events.push(event); } });
+  expect(outcome).toEqual({ status: 'succeeded' });
+  expect(events).toEqual([
+    { type: 'CUSTOM', name: 'example.ext.mcp-ui', value: resource },
+    { type: 'CUSTOM', name: 'example.ext.mcp-ui', value: { ...resource, resource: { ...resource.resource,
+      _meta: { 'jini/surface-exchange': { exchangeId: 'result', toolId: 'tool', runId: 'r' } } } } },
+    { type: 'RUN_FINISHED', threadId: 't', runId: 'r', outcome: { type: 'interrupt', interrupts: [pendingApproval] } },
+  ]);
+});

@@ -18,12 +18,15 @@ import type { AgentEvent } from "../events.js";
 import type { ChatMessage } from "../messages.js";
 import type { RunHandlers, StartRunInput } from "../transport.js";
 
+export { createAgUiFetchAgent } from "./ag-ui-fetch-agent.js";
+
 export interface AgUiClient {
  readonly abortController: AbortController;
  abortRun(): void;
  run(input: RunAgentInput): { subscribe(observer: { next: (event: unknown) => void; error: (error: unknown) => void; complete: () => void }): unknown };
 }
 export interface AgUiClientPorts {
+ readonly onLiveEvent?: (required: { event: AgUiEvent }) => boolean;
  readonly endpoint: string; readonly runIdPrefix: string; readonly customEventNames: CustomEventNames;
  readonly mintId: (required: Record<string, never>, optional: Record<string, never>) => string;
  readonly createAgent: (required: { url: string; threadId: string }, optional: Record<string, never>) => AgUiClient;
@@ -35,6 +38,7 @@ export interface AgUiRunClient {
   isAgUiRunId(required: { runId: string }, optional?: Record<string, never>): boolean;
   handleAgUiEvent(required: { event: AgUiEvent; ctx: AgUiEventContext }, optional?: Record<string, never>): void;
   startAgUiRun(required: { input: StartRunInput; handlers: RunHandlers }, optional?: Record<string, never>): Promise<{ runId: string }>;
+  resumeAgUiRun(required: { input: StartRunInput; handlers: RunHandlers; threadId: string; parentRunId: string; resume: NonNullable<RunAgentInput["resume"]> }, optional?: Record<string, never>): Promise<{ runId: string }>;
   reattachAgUiRun(required: { handlers: RunHandlers }, optional?: Record<string, never>): Promise<void>;
   fetchAgUiRunStatus(required: Record<string, never>, optional?: Record<string, never>): Promise<null>;
   stopAgUiRun(required: { runId: string }, optional?: Record<string, never>): Promise<void>;
@@ -73,7 +77,7 @@ interface AgUiRunTurn {
  * forwarded to both `collected` (the final transcript `onDone` receives) and `handlers.onEvent`
  * (live rendering).
  */
-function handleAgUiEvent({ event, ctx }: { event: AgUiEvent; ctx: AgUiEventContext }, _optional: Record<string, never> = {}): void {
+function handleAgUiEvent({ event, ctx, onLiveEvent }: { event: AgUiEvent; ctx: AgUiEventContext; onLiveEvent?: AgUiClientPorts["onLiveEvent"] }, _optional: Record<string, never> = {}): void {
   if (event.type === EventType.RUN_ERROR) {
     if (event.code === "abort") {
       ctx.finish();
@@ -83,9 +87,11 @@ function handleAgUiEvent({ event, ctx }: { event: AgUiEvent; ctx: AgUiEventConte
     return;
   }
   if (event.type === EventType.RUN_FINISHED) {
+    onLiveEvent?.({ event });
     ctx.finish();
     return;
   }
+  if (onLiveEvent?.({ event })) return;
   for (const translated of translateAgUiEventToAgentEvent({ event, state: ctx.state }, {})) {
     ctx.collected.push(translated);
     ctx.handlers.onEvent(translated);
@@ -143,7 +149,7 @@ function settleRunOnce({ turn }: { turn: AgUiRunTurn }, _optional: Record<string
  * once finished" contract.
  */
 function subscribeRun(
-  { turn, runAgentInput, state }: { turn: AgUiRunTurn; runAgentInput: RunAgentInput; state: AgUiToAgentTranslationState },
+  { turn, runAgentInput, state, ports }: { turn: AgUiRunTurn; runAgentInput: RunAgentInput; state: AgUiToAgentTranslationState; ports: AgUiClientPorts },
   _optional: Record<string, never> = {},
 ): Promise<{ runId: string }> {
   const finish = () => settleRunOnce({ turn });
@@ -155,7 +161,7 @@ function subscribeRun(
           startSettled = true;
           resolve({ runId: turn.runId });
         }
-        handleAgUiEvent({ event: event as AgUiEvent, ctx: { collected: turn.collected, handlers: turn.handlers, state, finish } });
+        handleAgUiEvent({ event: event as AgUiEvent, onLiveEvent: ports.onLiveEvent, ctx: { collected: turn.collected, handlers: turn.handlers, state, finish } });
       },
       error: (error: unknown) => {
         forgetRun({ turn });
@@ -201,14 +207,14 @@ function runStreamError({ error }: { error: unknown }, _optional: Record<string,
  * requests, matching this transport's other paths' explicitness about the session cookie.
  */
 async function startRun(
-  { ports, agents, input, handlers }: { ports: AgUiClientPorts; agents: Map<string, AgUiClient>; input: StartRunInput; handlers: RunHandlers },
+  { ports, agents, input, handlers, resume }: { ports: AgUiClientPorts; agents: Map<string, AgUiClient>; input: StartRunInput; handlers: RunHandlers; resume?: { threadId: string; parentRunId: string; resume: NonNullable<RunAgentInput["resume"]> } },
   _optional: Record<string, never> = {},
 ): Promise<{ runId: string }> {
   const runId = `${ports.runIdPrefix}${ports.mintId({}, {})}`;
   // The conversation-level id, stable across turns — a genuine AG-UI `threadId`, distinct from the
   // per-turn `runId` minted fresh above. Falls back to minting one only for a conversation that has
   // none yet (e.g. the very first turn).
-  const threadId = input.conversationId ?? ports.mintId({}, {});
+  const threadId = resume?.threadId ?? input.conversationId ?? ports.mintId({}, {});
 
   const agent = ports.createAgent({ url: ports.endpoint, threadId }, {});
   if (input.signal.aborted) throw new DOMException("Run cancelled", "AbortError");
@@ -218,7 +224,8 @@ async function startRun(
 
   const turn: AgUiRunTurn = { runId, agent, signal: input.signal, abort, handlers, collected: [], agents, settled: false };
   const state = createAgUiToAgentTranslationState({ customEventNames: ports.customEventNames }, {});
-  return subscribeRun({ turn, runAgentInput: toRunAgentInput({ input, runId, threadId }), state });
+  return subscribeRun({ turn, runAgentInput: { ...toRunAgentInput({ input, runId, threadId }),
+    ...(resume ? { parentRunId: resume.parentRunId, resume: resume.resume } : {}) }, state, ports });
 }
 
 /** No server-side run record exists on this path (module doc) — a reload has already discarded the
@@ -244,8 +251,9 @@ export function createAgUiRunClient({ ports }: { ports: AgUiClientPorts }, _opti
   const agents = new Map<string, AgUiClient>();
   return {
     isAgUiRunId: ({ runId }: { runId: string }, _optional: Record<string, never> = {}) => runId.startsWith(ports.runIdPrefix),
-    handleAgUiEvent,
+    handleAgUiEvent: ({ event, ctx }, _optional: Record<string, never> = {}) => handleAgUiEvent({ event, ctx, onLiveEvent: ports.onLiveEvent }),
     startAgUiRun: ({ input, handlers }: { input: StartRunInput; handlers: RunHandlers }, _optional: Record<string, never> = {}) => startRun({ ports, agents, input, handlers }),
+    resumeAgUiRun: ({ input, handlers, threadId, parentRunId, resume }, _optional: Record<string, never> = {}) => startRun({ ports, agents, input, handlers, resume: { threadId, parentRunId, resume } }),
     reattachAgUiRun,
     fetchAgUiRunStatus,
     /** An AG-UI run's only cancellation handle is the `HttpAgent` {@link startRun} registered for

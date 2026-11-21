@@ -89,6 +89,7 @@ export type FrontendOutcome =
   | { readonly ok: false; readonly message: string };
 
 export interface FrontendSessionHandle {
+  begin(required: { runId: string; invocationId: string }, optional?: Record<string, never>): boolean;
   readonly sessionId: string;
   /**
    * Secret that proves a caller is the surface this handle belongs to, and the only thing that
@@ -109,6 +110,7 @@ export interface FrontendSessionHandle {
 }
 
 export interface FrontendSessionRegistry {
+  begin(required: { runId: string; invocationId: string; owner: FrontendSessionOwner }, optional?: Record<string, never>): boolean;
   /** HTTP response authentication; possession of a URL session id grants nothing. */
   ownsSession(args: { sessionId: string; owner: FrontendSessionOwner; bindToken: string }): boolean;
   /**
@@ -190,6 +192,8 @@ export interface CreateFrontendSessionRegistryOptions {
 }
 
 interface PendingInvocation {
+  readonly runId: string;
+  begun?: boolean;
   approvalPending?: boolean;
   approvalRecorded?: boolean;
   readonly onApprovalStateChange?: ToolExecutionOptions["onApprovalStateChange"];
@@ -288,6 +292,16 @@ function resolveTarget(runId: string, capabilityId: string, runBindings: Readonl
   return session;
 }
 
+function begin({ state, session, runId, invocationId }: {
+  state: ReturnType<typeof createFrontendRegistryState>; session: AttachedSession; runId: string; invocationId: string;
+}): boolean {
+  if (state.runBindings.get(runId) !== session) return false;
+  const entry = session.pending.get(invocationId);
+  if (!entry || entry.runId !== runId || entry.begun) return false;
+  entry.begun = true;
+  return true;
+}
+
 function createSessionAttachment(state: ReturnType<typeof createFrontendRegistryState>, options: CreateFrontendSessionRegistryOptions, newBindToken: () => string) {
   const { sessions, runBindings, bindTokens } = state;
   function attach({ descriptor, deliver, cancel }: { readonly descriptor: FrontendSessionDescriptor; readonly deliver: (invocation: FrontendInvocation) => void; readonly cancel?: (args: { invocationId: string }) => void }
@@ -304,6 +318,7 @@ function createSessionAttachment(state: ReturnType<typeof createFrontendRegistry
     return {
       sessionId: descriptor.sessionId,
       bindToken,
+      begin: ({ runId, invocationId }, _optional: Record<string, never> = {}) => begin({ state, session, runId, invocationId }),
       detach(_args: Record<string, never>): void {
         // Only tear down state this attachment still owns. A stale handle — one whose attachment
         // already detached and whose session id has since been re-attached — must not remove the
@@ -384,7 +399,7 @@ function createFrontendInvoker(state: ReturnType<typeof createFrontendRegistrySt
         return;
       }
       signal?.addEventListener('abort', onAbort, { once: true });
-      target.pending.set(invocationId, { resolve, reject, dispose, ...(onApprovalStateChange ? { onApprovalStateChange } : {}) });
+      target.pending.set(invocationId, { runId, resolve, reject, dispose, ...(onApprovalStateChange ? { onApprovalStateChange } : {}) });
 
       try {
         target.deliver({ invocationId, capabilityId, input });
@@ -436,7 +451,13 @@ function createFrontendSessionAccess(state: ReturnType<typeof createFrontendRegi
   function ownsSession({ sessionId, owner, bindToken }: { sessionId: string; owner: FrontendSessionOwner; bindToken: string }): boolean {
     return bindTokens.get(bindToken) === sessionId && sameFrontendOwner({ expected: sessions.get(sessionId)?.descriptor.owner, actual: owner });
   }
-  return { progress, settle, sessionFor, capabilitiesFor, ownsSession };
+  return { progress, settle, sessionFor, capabilitiesFor, ownsSession,
+    begin: ({ runId, invocationId, owner }: { runId: string; invocationId: string; owner: FrontendSessionOwner }, _optional: Record<string, never> = {}): boolean => {
+      const session = runBindings.get(runId);
+      if (!session || !sameFrontendOwner({ expected: session.descriptor.owner, actual: owner })) return false;
+      return begin({ state, session, runId, invocationId });
+    },
+  };
 }
 
 /**
@@ -458,7 +479,7 @@ export function createFrontendSessionRegistry(requiredArgs: Record<string, never
   const attach = createSessionAttachment(state, options, newBindToken);
   const { bindRun, bindRunByToken } = createRunBindings(state);
   const invoke = createFrontendInvoker(state, newInvocationId);
-  const { settle, progress, capabilitiesFor, sessionFor, ownsSession } = createFrontendSessionAccess(state);
+  const { settle, progress, capabilitiesFor, sessionFor, ownsSession, begin } = createFrontendSessionAccess(state);
 
-  return { attach, bindRun, bindRunByToken, invoke, settle, progress, capabilitiesFor, sessionFor, ownsSession };
+  return { attach, bindRun, bindRunByToken, invoke, settle, progress, capabilitiesFor, sessionFor, ownsSession, begin };
 }

@@ -96,6 +96,7 @@ export interface CreateFrontendControlOptions {
 }
 
 export interface FrontendControl {
+  begin(required: { runId: string; invocationId: string; owner: FrontendSessionOwner }, optional?: Record<string, never>): boolean;
   /** Request-lifetime binding for hosts without daemon runs; release in finally and on cancel. */
   bindRequest(required: { runId: string; bindToken: string; owner: FrontendSessionOwner; signal: AbortSignal }, optional?: Record<string, never>): () => void;
   /**
@@ -221,5 +222,5 @@ export function createFrontendControl(requiredArgs: Omit<CreateFrontendControlOp
 
   const bindOnStarted = createBindOnStarted({ registry, options: { ...options, onBindError } });
   const bindRequest = createBindRequest({ registry });
-  return { routes, toolRegistrations, bindOnStarted, bindRequest };
+  return { routes, toolRegistrations, bindOnStarted, bindRequest, begin: registry.begin };
 }
