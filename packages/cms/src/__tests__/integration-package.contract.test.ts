@@ -88,6 +88,24 @@ it('keeps the folded domain entries and optional adapter peers explicit', () => 
   expect(manifest.jini.isolation.domains.widgets).toEqual(['src/widgets']);
 });
 
+it('exposes the taxonomy, field length and media HTML leaves', () => {
+  expect(manifest.exports['./taxonomy/render-entry'], 'taxonomy rendering resolves to its existing leaf').toEqual({
+    types: './dist/taxonomy/render-entry.d.ts',
+    import: './dist/taxonomy/render-entry.js',
+    default: './dist/taxonomy/render-entry.js',
+  });
+  expect(manifest.exports['./forms/field-length-caps'], 'field length caps resolve to their existing leaf').toEqual({
+    types: './dist/forms/field-length-caps.d.ts',
+    import: './dist/forms/field-length-caps.js',
+    default: './dist/forms/field-length-caps.js',
+  });
+  expect(manifest.exports['./widgets/html/media-html'], 'media HTML resolves to its existing leaf').toEqual({
+    types: './dist/widgets/html/media-html.d.ts',
+    import: './dist/widgets/html/media-html.js',
+    default: './dist/widgets/html/media-html.js',
+  });
+});
+
 it('gives every public export a source target for a subsequent clean build', () => {
   // PARITY: each advertised entry must still resolve to an actual source module after moves.
   const missing: string[] = [];
