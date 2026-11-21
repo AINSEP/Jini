@@ -1,5 +1,6 @@
 import { nowIso } from '@jini-ai/core/primitives';
 import { describeErrorForLog } from '@jini-ai/core';
+import { observed } from '@jini-ai/core/errors/idioms';
 import type { EventEnvelope, OutboxClaim, OutboxRecord, OutboxRetryPolicy, OutboxWorkerArgs, OutboxWorkerOptions, Scheduler } from './ports.js';
 import { computeOutboxBackoffMs, MAX_OUTBOX_ATTEMPTS, resolvePolicy } from './policy.js';
 import type { ResolvedPolicy } from './policy.js';
@@ -362,7 +363,7 @@ async function boundedGate<Event extends EventEnvelope>(input: {
   args: FencedWorkerArgs<Event>; policy: ResolvedPolicy; start: () => Promise<boolean>;
 }): Promise<boolean | typeof TIMED_OUT> {
   const gate = Promise.resolve().then(input.start);
-  gate.catch(() => {});
+  observed({ promise: gate });
   return settleWithin({ publishing: gate, scheduler: input.args.scheduler, timeoutMs: input.policy.deliveryTimeoutMs });
 }
 

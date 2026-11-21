@@ -10,6 +10,7 @@
 import { lstat } from "node:fs/promises";
 import path from "node:path";
 import { describeErrorForLog, redactSecrets } from "@jini-ai/core";
+import { observed } from "@jini-ai/core/errors/idioms";
 import { createPluginLookupFacade } from "@jini-ai/core/plugin-directory";
 import { createConsoleLogger } from "@jini-ai/core/primitives";
 import { setPluginEnabled, type PluginActivationRepoPort } from "../activation.js";
@@ -381,7 +382,7 @@ export function createPluginRuntimeCore<TEvent, TOptions>(
     });
     const attached = attachPlugin(record.id, record);
     // Observed even after the deadline wins, so a late failure is never an unhandled rejection.
-    attached.catch(() => {});
+    observed({ promise: attached });
     try { await Promise.race([attached, deadline]); } finally { clearTimeout(timer); }
   }
 
