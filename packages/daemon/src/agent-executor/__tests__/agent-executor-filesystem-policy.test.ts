@@ -55,6 +55,7 @@ describe('executor filesystem policy (owner 2026-10-23)', () => {
         }
         throw new Error('stop after policy capture');
       });
+      // The daemon's own CLAUDE_CODE_TMPDIR must neither reach the child nor widen its policy (SEC-001).
       const executor = createAgentExecutor({ lifecycle, hostEnv: { ...childEnv, CLAUDE_CODE_TMPDIR: '/ambient/claude-temp' }, runtime: runtimeFixture({ spawn: spawnChild as unknown as typeof spawn }), agentRuntime: agentRuntimeFixture({ getAgentDef: () => def, resolveModelForLaunch: fixtureLaunchModel, resolveAgentLaunch: () => ({ selectedPath: executable, pathResolvedPath: executable, configuredOverridePath: null,
           launchPath: executable, launchKind: 'selected', childPathPrepend: [], diagnostic: null }) as AgentLaunchResolution, applyAgentLaunchEnv: ({ env }) => env, ensureAgentCapabilities: async () => {}, assertClaudeFilesystemSupport: verify }) });
       const { run } = await lifecycle.start({ contextRef: 'filesystem-test' });
