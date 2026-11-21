@@ -316,17 +316,18 @@ test("failed compensation reports the rollback error once and retains the remove
   assert.deepEqual(reported, [rollbackError]);
 });
 
-test("EXDEV retains the existing message and recovers the live tree", async (t) => {
+test("EXDEV keeps the existing message and its cause, and recovers the live tree", async (t) => {
   const { liveParent, parkedDir } = await harness(t);
   await makeLive(join(liveParent, ID));
+  const cause = Object.assign(new Error("cross-device"), { code: "EXDEV" });
   const adapter = createDirectoryTrashAdapter({
     entityType: ENTITY, locate: () => ({ liveParent, parkedDir, liveNames: [ID] }),
   }, {
-    rename: async () => { throw Object.assign(new Error("cross-device"), { code: "EXDEV" }); },
+    rename: async () => { throw cause; },
   });
   await assert.rejects(adapter.hide(markerArgs()), (error: unknown) => error instanceof Error
     && error.message === `directory Trash cannot move '${join(liveParent, ID)}' across filesystems`
-    && !("cause" in error));
+    && error.cause === cause);
   assert.equal(await readFile(join(liveParent, ID, "plugin.json"), "utf8"), "plugin-a");
   assert.equal(await pathExists(parkedDir), false);
 });
