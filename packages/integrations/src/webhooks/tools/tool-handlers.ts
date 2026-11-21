@@ -182,7 +182,7 @@ export const webhooksDeleteSubscriptionHandler = ({ deps, surfaces }: WebhookHan
       }, { expectedVersion: existing.version });
       return { deleted: true, cancelled: false, subscription: toSubscriptionToolView({ subscription, lastDelivery: null }) };
     } catch (error) {
-      if (error instanceof RecordVersionConflictError) throw new ToolInputError({ message: "webhooks_delete_subscription: target changed while confirmation was open. Request a new confirmation; nothing was deleted." });
+      if (error instanceof RecordVersionConflictError) throw new ToolInputError({ message: "webhooks_delete_subscription: target changed while confirmation was open. Request a new confirmation; nothing was deleted." }, { cause: error });
       throw error;
     }
   },

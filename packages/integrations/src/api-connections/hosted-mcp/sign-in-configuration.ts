@@ -77,9 +77,7 @@ export async function selfConfigureConnection({ deps, record, redirectUri, optio
 
   const discovered = await discoverConnectionAuthorizationServer(deps, record);
   const discoveredEndpoints = toStoredEndpoints(discovered);
-  // Endpoints the operator typed win; discovery only fills the ones left blank (a typed token
-  // endpoint alone has no authorization endpoint to redirect to).
-  const endpoints: StoredOAuthEndpoints = mustDiscover ? discoveredEndpoints : { ...discoveredEndpoints, ...stored, resource: discoveredEndpoints.resource ?? stored.resource };
+  const endpoints = selfConfiguredEndpoints({ mustDiscover, discoveredEndpoints, stored });
   const grant = selfConfiguredGrant({ record, discovered, ports: deps.ports });
   const scopes = selfConfiguredScopes({ record, discovered });
 
@@ -97,6 +95,20 @@ export async function selfConfigureConnection({ deps, record, redirectUri, optio
     clientId: minted.clientId,
     clientSecret: minted.clientSecret,
   }, options);
+}
+
+/**
+ * The endpoints a self-configuring connect stores.
+ * Endpoints the operator typed win; discovery only fills the ones left blank (a typed token
+ * endpoint alone has no authorization endpoint to redirect to).
+ * @complexity O(1).
+ */
+function selfConfiguredEndpoints({ mustDiscover, discoveredEndpoints, stored }: {
+  readonly mustDiscover: boolean;
+  readonly discoveredEndpoints: StoredOAuthEndpoints;
+  readonly stored: StoredOAuthEndpoints;
+}): StoredOAuthEndpoints {
+  return mustDiscover ? discoveredEndpoints : { ...discoveredEndpoints, ...stored, resource: discoveredEndpoints.resource ?? stored.resource };
 }
 
 /**

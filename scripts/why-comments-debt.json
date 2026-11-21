@@ -944,6 +944,470 @@
     {
       "id": "e0bde041038d",
       "reason": "xd5-render (combine-6): the render extraction moved the page-head contract, form-result transport and media-ref shape check into Jini as their canonical home (cms presentation/page-head, forms, widgets markers); the comments describing them as duplicates of a host file, or as mirroring the host renderer, no longer apply and were rewritten for the new ownership."
+    },
+    {
+      "id": "708256d8a732",
+      "reason": "jb2 (combine-7): code deleted by J-HW1: the shared DOMParser it explained was removed from the Sidebar icon render. Was packages/admin/src/react/components/Sidebar.tsx:194-195."
+    },
+    {
+      "id": "78904e7e3e9c",
+      "reason": "jy-pay (combine-7): prose rewritten by K1/K4-K9 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/agent-plugins/cloudflare/lib/forms.mjs:5-8."
+    },
+    {
+      "id": "a1b445fbde84",
+      "reason": "jy-pay (combine-7): code deleted by D3: the GitHub App deployments adapter and its tests were deleted. Was packages/agent-plugins/github/__tests__/deployments-provider.test.mjs:7-17."
+    },
+    {
+      "id": "446c0ddd11bf",
+      "reason": "jy-pay (combine-7): code deleted by D3: the GitHub App deployments adapter and its tests were deleted. Was packages/agent-plugins/github/__tests__/deployments-provider.test.mjs:48-50."
+    },
+    {
+      "id": "7ce57115faaa",
+      "reason": "jy-pay (combine-7): code deleted by D3: the GitHub App deployments adapter and its tests were deleted. Was packages/agent-plugins/github/__tests__/deployments-provider.test.mjs:58-60."
+    },
+    {
+      "id": "f0c2a9531452",
+      "reason": "jy-pay (combine-7): code deleted by D3: the GitHub App deployments adapter and its tests were deleted. Was packages/agent-plugins/github/__tests__/deployments-provider.test.mjs:170-170."
+    },
+    {
+      "id": "d5bbc93243aa",
+      "reason": "jy-pay (combine-7): code deleted by D3: the GitHub App deployments adapter and its tests were deleted. Was packages/agent-plugins/github/__tests__/deployments-provider.test.mjs:204-208."
+    },
+    {
+      "id": "7b936e78e077",
+      "reason": "jy-pay (combine-7): code deleted by D3: the GitHub App deployments adapter and its tests were deleted. Was packages/agent-plugins/github/__tests__/deployments-provider.test.mjs:213-216."
+    },
+    {
+      "id": "3968171c8eb7",
+      "reason": "jy-pay (combine-7): code deleted by D3: the GitHub App deployments adapter and its tests were deleted. Was packages/agent-plugins/github/__tests__/deployments-provider.test.mjs:229-229."
+    },
+    {
+      "id": "c7a82db88c8e",
+      "reason": "jy-pay (combine-7): code deleted by D3: the GitHub App deployments adapter and its tests were deleted. Was packages/agent-plugins/github/__tests__/deployments-provider.test.mjs:277-278."
+    },
+    {
+      "id": "51d2989c9ad5",
+      "reason": "jy-pay (combine-7): code deleted by D3: the GitHub App deployments adapter and its tests were deleted. Was packages/agent-plugins/github/deployments/github.mjs:3-22."
+    },
+    {
+      "id": "3ec335bc7afa",
+      "reason": "jy-pay (combine-7): code deleted by D3: the GitHub App deployments adapter and its tests were deleted. Was packages/agent-plugins/github/deployments/github.mjs:30-31."
+    },
+    {
+      "id": "5871e7b45ff7",
+      "reason": "jy-pay (combine-7): code deleted by D3: the GitHub App deployments adapter and its tests were deleted. Was packages/agent-plugins/github/deployments/github.mjs:33-34."
+    },
+    {
+      "id": "8835bc133879",
+      "reason": "jy-pay (combine-7): code deleted by D3: the GitHub App deployments adapter and its tests were deleted. Was packages/agent-plugins/github/deployments/github.mjs:50-54."
+    },
+    {
+      "id": "0a94cb9438ff",
+      "reason": "jy-pay (combine-7): code deleted by D3: the GitHub App deployments adapter and its tests were deleted. Was packages/agent-plugins/github/deployments/github.mjs:63-77."
+    },
+    {
+      "id": "5481ca1ab66d",
+      "reason": "jy-pay (combine-7): code deleted by D3: the GitHub App deployments adapter and its tests were deleted. Was packages/agent-plugins/github/deployments/github.mjs:88-93."
+    },
+    {
+      "id": "5a148c9f1baa",
+      "reason": "jy-pay (combine-7): code deleted by D3: the GitHub App deployments adapter and its tests were deleted. Was packages/agent-plugins/github/deployments/github.mjs:111-115."
+    },
+    {
+      "id": "0b167168e219",
+      "reason": "jy-pay (combine-7): code deleted by D3: the GitHub App deployments adapter and its tests were deleted. Was packages/agent-plugins/github/deployments/github.mjs:131-138."
+    },
+    {
+      "id": "f1819f7345f5",
+      "reason": "jy-pay (combine-7): code deleted by D3: the GitHub App deployments adapter and its tests were deleted. Was packages/agent-plugins/github/deployments/github.mjs:181-181."
+    },
+    {
+      "id": "d2136c020e7e",
+      "reason": "jy-pay (combine-7): code deleted by D3: the GitHub App deployments adapter and its tests were deleted. Was packages/agent-plugins/github/deployments/github.mjs:196-201."
+    },
+    {
+      "id": "0354b1dc8684",
+      "reason": "jy-pay (combine-7): code deleted by D3: the GitHub App deployments adapter and its tests were deleted. Was packages/agent-plugins/github/deployments/github.mjs:252-260."
+    },
+    {
+      "id": "ec624ff81a1a",
+      "reason": "jy-pay (combine-7): code deleted by D3: the GitHub App deployments adapter and its tests were deleted. Was packages/agent-plugins/github/deployments/github.mjs:267-269."
+    },
+    {
+      "id": "29b9b9fdd033",
+      "reason": "jy-pay (combine-7): code deleted by D3: the GitHub App deployments adapter and its tests were deleted. Was packages/agent-plugins/github/deployments/github.mjs:289-301."
+    },
+    {
+      "id": "454e35599c73",
+      "reason": "jy-pay (combine-7): code deleted by D3: the GitHub App deployments adapter and its tests were deleted. Was packages/agent-plugins/github/deployments/github.mjs:323-330."
+    },
+    {
+      "id": "db18288abc7a",
+      "reason": "jy-pay (combine-7): code deleted by D3: the GitHub App deployments adapter and its tests were deleted. Was packages/agent-plugins/github/deployments/github.mjs:379-384."
+    },
+    {
+      "id": "d19b707953ef",
+      "reason": "jy-pay (combine-7): code deleted by D3: the GitHub App deployments adapter and its tests were deleted. Was packages/agent-plugins/github/deployments/github.mjs:404-407."
+    },
+    {
+      "id": "5f6e7dfe3fba",
+      "reason": "jy-pay (combine-7): prose rewritten by K1/K4-K9 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/agent-plugins/google-workspace/form-destinations/mapping.mjs:21-22."
+    },
+    {
+      "id": "3650601b7f94",
+      "reason": "jy-pay (combine-7): prose rewritten by K1/K4-K9 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/agent-plugins/google-workspace/lib/picker-flow.mjs:29-29."
+    },
+    {
+      "id": "a10005d2bf1b",
+      "reason": "jy-pay (combine-7): prose rewritten by K1/K4-K9 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/agent-plugins/google-workspace/lib/surface-actions.mjs:17-17."
+    },
+    {
+      "id": "3a43d4b42487",
+      "reason": "jb2 (combine-7): code deleted or replaced by RT-J1/RT-J2: automatic plugin use was reworked (query preflight now delivers the top and required providers); the explained code and wording no longer exist. Was packages/agent-plugins/src/lifecycle/__tests__/unit/automatic-use.unit.test.ts:287-287."
+    },
+    {
+      "id": "c9a39aad2dec",
+      "reason": "jb2 (combine-7): code deleted or replaced by RT-J1/RT-J2: automatic plugin use was reworked (query preflight now delivers the top and required providers); the explained code and wording no longer exist. Was packages/agent-plugins/src/lifecycle/automatic-use.ts:31-35."
+    },
+    {
+      "id": "23f3f6f54b26",
+      "reason": "jb2 (combine-7): code deleted or replaced by RT-J1/RT-J2: automatic plugin use was reworked (query preflight now delivers the top and required providers); the explained code and wording no longer exist. Was packages/agent-plugins/src/lifecycle/automatic-use.ts:244-244."
+    },
+    {
+      "id": "e56d91cf930d",
+      "reason": "jb2 (combine-7): code deleted or replaced by RT-J1/RT-J2: automatic plugin use was reworked (query preflight now delivers the top and required providers); the explained code and wording no longer exist. Was packages/agent-plugins/src/lifecycle/automatic-use.ts:257-257."
+    },
+    {
+      "id": "f0563ea39b5c",
+      "reason": "jy-pay (combine-7): prose rewritten by K1/K4-K9 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/agent-plugins/supabase/__tests__/bundled-package.test.mjs:46-46."
+    },
+    {
+      "id": "e963b0a60326",
+      "reason": "jy-cls (combine-7): prose rewritten by J11 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/analytics/src/forwarding.ts:180-180."
+    },
+    {
+      "id": "42c07ed66bea",
+      "reason": "jy-cls (combine-7): prose rewritten by J11 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/analytics/src/ingest.ts:377-377."
+    },
+    {
+      "id": "caf068055f96",
+      "reason": "jy-cls (combine-7): prose rewritten by J11 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/analytics/src/types.ts:45-45."
+    },
+    {
+      "id": "2bc3616868f5",
+      "reason": "jy-cls (combine-7): prose rewritten by J11 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/analytics/src/types.ts:159-159."
+    },
+    {
+      "id": "a3b16fee943b",
+      "reason": "jy-cls (combine-7): prose rewritten by J11 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/analytics/src/types.ts:206-211."
+    },
+    {
+      "id": "53ee40ca7a68",
+      "reason": "jy-cls (combine-7): prose rewritten by J11 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/analytics/src/types.ts:219-219."
+    },
+    {
+      "id": "c0ec60fdc258",
+      "reason": "jy-cls (combine-7): prose rewritten by J11 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/analytics/src/types.ts:236-236."
+    },
+    {
+      "id": "0622260513fd",
+      "reason": "jy-cls (combine-7): prose rewritten by J11 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/analytics/src/types.ts:291-291."
+    },
+    {
+      "id": "f13c20621aa0",
+      "reason": "jb2 (combine-7): code deleted by RD-J1: the guesser-only redaction path and its tests were removed. Was packages/chat/src/core/__tests__/user-text-redaction.gaps.test.ts:37-38."
+    },
+    {
+      "id": "d4f88ac393f5",
+      "reason": "jb2 (combine-7): code deleted by RD-J1: the guesser-only redaction path and its tests were removed. Was packages/chat/src/core/__tests__/user-text-redaction.gaps.test.ts:40-40."
+    },
+    {
+      "id": "31abd75d1c40",
+      "reason": "jb2 (combine-7): code deleted by RD-J1: the guesser-only redaction path and its tests were removed. Was packages/chat/src/core/__tests__/user-text-redaction.gaps.test.ts:53-53."
+    },
+    {
+      "id": "c0976888df8f",
+      "reason": "jb2 (combine-7): code deleted by RD-J1: the guesser-only redaction path and its tests were removed. Was packages/chat/src/core/__tests__/user-text-redaction.path-boundaries.test.ts:53-53."
+    },
+    {
+      "id": "8dcd522b13a5",
+      "reason": "jb2 (combine-7): code deleted by RD-J1: the guesser-only redaction path and its tests were removed. Was packages/chat/src/core/user-text-redaction.ts:44-46."
+    },
+    {
+      "id": "a6b5e3e4ea92",
+      "reason": "jb2 (combine-7): code deleted by RD-J1: the guesser-only redaction path and its tests were removed. Was packages/chat/src/core/user-text-redaction.ts:55-57."
+    },
+    {
+      "id": "83da5adcd816",
+      "reason": "jb2 (combine-7): code deleted by RD-J1: the guesser-only redaction path and its tests were removed. Was packages/chat/src/core/user-text-redaction.ts:64-64."
+    },
+    {
+      "id": "1064c9c418fa",
+      "reason": "jb2 (combine-7): code deleted by RD-J1: the guesser-only redaction path and its tests were removed. Was packages/chat/src/core/user-text-redaction.ts:73-75."
+    },
+    {
+      "id": "dd15e38c7abb",
+      "reason": "jb2 (combine-7): code deleted by RD-J1: the guesser-only redaction path and its tests were removed. Was packages/chat/src/core/user-text-redaction.ts:88-94."
+    },
+    {
+      "id": "fd942f7facff",
+      "reason": "jb2 (combine-7): code deleted by RD-J1: the guesser-only redaction path and its tests were removed. Was packages/chat/src/core/user-text-redaction.ts:98-98."
+    },
+    {
+      "id": "36ea934204b9",
+      "reason": "jb2 (combine-7): code deleted by RD-J1: the guesser-only redaction path and its tests were removed. Was packages/chat/src/core/user-text-redaction.ts:104-104."
+    },
+    {
+      "id": "780ed03760e9",
+      "reason": "jy-pa (combine-7): prose rewritten by J01 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/cms/src/comments/ports.ts:32-32."
+    },
+    {
+      "id": "ceedd57a8831",
+      "reason": "jy-pa (combine-7): prose rewritten by J01 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/cms/src/comments/ports.ts:43-44."
+    },
+    {
+      "id": "33570d5c2a66",
+      "reason": "jy-pa (combine-7): prose rewritten by J01 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/cms/src/comments/ports.ts:110-113."
+    },
+    {
+      "id": "05ea303edd02",
+      "reason": "jy-pa (combine-7): prose rewritten by J01 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/cms/src/comments/ports.ts:152-156."
+    },
+    {
+      "id": "8a0d62eb90fc",
+      "reason": "jy-pa (combine-7): prose rewritten by J01 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/cms/src/comments/ports.ts:172-176."
+    },
+    {
+      "id": "9f500c63d5f1",
+      "reason": "jy-pa (combine-7): prose rewritten by J01 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/cms/src/comments/types.ts:51-51."
+    },
+    {
+      "id": "70fa00ff378c",
+      "reason": "jy-pa (combine-7): prose rewritten by J01 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/cms/src/comments/types.ts:65-65."
+    },
+    {
+      "id": "68f33d9ee3cc",
+      "reason": "jy-pa (combine-7): prose rewritten by J01 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/cms/src/comments/types.ts:99-99."
+    },
+    {
+      "id": "bddf0e15fd8a",
+      "reason": "jy-pa (combine-7): prose rewritten by J01 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/cms/src/comments/types.ts:109-114."
+    },
+    {
+      "id": "38d1ccbf0292",
+      "reason": "jy-pa (combine-7): prose rewritten by J01 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/cms/src/comments/types.ts:130-130."
+    },
+    {
+      "id": "56d91fedb813",
+      "reason": "jy-pa (combine-7): prose rewritten by J01 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/cms/src/comments/types.ts:145-145."
+    },
+    {
+      "id": "e8197801b78a",
+      "reason": "jy-pa (combine-7): prose rewritten by J03 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/cms/src/redirects/ports.ts:143-145."
+    },
+    {
+      "id": "e6009e11cc8d",
+      "reason": "jy-pa (combine-7): prose rewritten by J03 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/cms/src/redirects/types.ts:1-23."
+    },
+    {
+      "id": "865f33a712b6",
+      "reason": "jy-pa (combine-7): prose rewritten by J03 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/cms/src/redirects/types.ts:68-68."
+    },
+    {
+      "id": "ec3b08f7c4b6",
+      "reason": "jy-pa (combine-7): prose rewritten by J03 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/cms/src/redirects/types.ts:70-70."
+    },
+    {
+      "id": "c3bf680f0c8c",
+      "reason": "jy-pa (combine-7): prose rewritten by J03 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/cms/src/redirects/types.ts:98-98."
+    },
+    {
+      "id": "273b82db3395",
+      "reason": "jy-pa (combine-7): prose rewritten by J03 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/cms/src/redirects/types.ts:100-100."
+    },
+    {
+      "id": "7b32c4fa2469",
+      "reason": "jy-pa (combine-7): prose rewritten by J03 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/cms/src/redirects/types.ts:104-104."
+    },
+    {
+      "id": "eb4f42296066",
+      "reason": "jy-pa (combine-7): prose rewritten by J03 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/cms/src/routing/routing.ts:33-35."
+    },
+    {
+      "id": "9125fd74c922",
+      "reason": "jy-pa (combine-7): prose rewritten by J03 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/cms/src/routing/routing.ts:54-56."
+    },
+    {
+      "id": "137c1079a01a",
+      "reason": "jy-pa (combine-7): prose rewritten by J03 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/cms/src/routing/routing.ts:134-136."
+    },
+    {
+      "id": "6bc4d9331c53",
+      "reason": "jy-pa (combine-7): prose rewritten by J03 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/cms/src/routing/routing.ts:146-151."
+    },
+    {
+      "id": "d8c3ec8b5b70",
+      "reason": "jy-pa (combine-7): prose rewritten by J03 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/cms/src/routing/routing.ts:594-596."
+    },
+    {
+      "id": "d777342227c7",
+      "reason": "jy-pa (combine-7): prose rewritten by J03 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/cms/src/routing/types.ts:25-27."
+    },
+    {
+      "id": "0df79212eea2",
+      "reason": "jy-pa (combine-7): prose rewritten by J03 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/cms/src/routing/types.ts:77-77."
+    },
+    {
+      "id": "331862aace75",
+      "reason": "jy-pa (combine-7): prose rewritten by J03 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/cms/src/routing/types.ts:80-82."
+    },
+    {
+      "id": "4f5692536e96",
+      "reason": "jy-pa (combine-7): prose rewritten by J03 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/cms/src/routing/types.ts:113-115."
+    },
+    {
+      "id": "a00d2d1114a9",
+      "reason": "jy-pa (combine-7): prose rewritten by J03 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/cms/src/routing/types.ts:153-155."
+    },
+    {
+      "id": "d258b3c96a90",
+      "reason": "jy-pa (combine-7): prose rewritten by J04 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/cms/src/seo/media.ts:39-39."
+    },
+    {
+      "id": "105791e39804",
+      "reason": "jy-pads (combine-7): prose rewritten by J05 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/cms/src/widgets/ports.ts:1-23."
+    },
+    {
+      "id": "e43026095e33",
+      "reason": "jy-pads (combine-7): prose rewritten by J05 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/cms/src/widgets/sql/entry-refs-repo.ts:6-6."
+    },
+    {
+      "id": "479f6be0b52f",
+      "reason": "jy-pads (combine-7): prose rewritten by J05 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/cms/src/widgets/types.ts:38-38."
+    },
+    {
+      "id": "a3ec28beb18a",
+      "reason": "jy-pads (combine-7): prose rewritten by J05 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/cms/src/widgets/types.ts:99-101."
+    },
+    {
+      "id": "7138824c176c",
+      "reason": "jy-pads (combine-7): prose rewritten by J05 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/cms/src/widgets/types.ts:247-247."
+    },
+    {
+      "id": "aa5075422ac0",
+      "reason": "jz-jini (combine-7): prose rewritten by J-C1 (host path removed): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/commerce/src/catalog/storefront.ts:55-56."
+    },
+    {
+      "id": "f233eb79452b",
+      "reason": "jy-pb (combine-7): prose rewritten by J12 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/commerce/src/payments/contract/scope.ts:14-14."
+    },
+    {
+      "id": "dd1a259a182b",
+      "reason": "jy-pa (combine-7): prose rewritten by J06 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/db/src/data-modules/data-module.ts:472-472."
+    },
+    {
+      "id": "750d04f9982c",
+      "reason": "jy-pa (combine-7): prose rewritten by J07 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/db/src/recovery/operation-lock.ts:62-62."
+    },
+    {
+      "id": "37670666a75c",
+      "reason": "jy-pa (combine-7): prose rewritten by J07 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/db/src/recovery/recovery-orchestrator.ts:68-75."
+    },
+    {
+      "id": "cfd004f02e35",
+      "reason": "jy-core (combine-7): prose rewritten by K2 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/plugin-catalog/__tests__/catalog.test.ts:37-37."
+    },
+    {
+      "id": "0a85f8f7580e",
+      "reason": "jy-core (combine-7): prose rewritten by K2 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/plugin-catalog/scripts/generate.ts:11-11."
+    },
+    {
+      "id": "b0133d93fd8c",
+      "reason": "jy-core (combine-7): prose rewritten by J08 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/plugins/src/host/activation.ts:35-35."
+    },
+    {
+      "id": "aaf6ce6a20c0",
+      "reason": "jy-core (combine-7): prose rewritten by J08 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/plugins/src/host/browser-providers.ts:1-1."
+    },
+    {
+      "id": "7cb6da84c8df",
+      "reason": "jy-core (combine-7): prose rewritten by J08 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/plugins/src/host/hook-registry.ts:110-111."
+    },
+    {
+      "id": "156052ed5746",
+      "reason": "jy-core (combine-7): prose rewritten by J08 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/plugins/src/host/manifest-types.ts:14-15."
+    },
+    {
+      "id": "54b3a330e505",
+      "reason": "jy-core (combine-7): prose rewritten by J08 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/plugins/src/host/manifest-types.ts:47-47."
+    },
+    {
+      "id": "3bc66856c7a8",
+      "reason": "jy-core (combine-7): prose rewritten by J08 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/plugins/src/host/manifest-types.ts:93-93."
+    },
+    {
+      "id": "5efaa0507f5c",
+      "reason": "jy-core (combine-7): prose rewritten by J08 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/plugins/src/host/manifest.ts:245-245."
+    },
+    {
+      "id": "b7f5831ed650",
+      "reason": "jy-core (combine-7): prose rewritten by J09 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/plugins/src/host/node/loader.ts:223-223."
+    },
+    {
+      "id": "7e87120cce9b",
+      "reason": "jb2 (combine-7): code deleted by J-HW2: the stuck-run watchdog and its tests were deleted. Was packages/ui/src/features/observability/__tests__/stuck-run.test.ts:38-38."
+    },
+    {
+      "id": "80bc19ffed71",
+      "reason": "jb2 (combine-7): code deleted by J-HW2: the stuck-run watchdog and its tests were deleted. Was packages/ui/src/features/observability/__tests__/stuck-run.test.ts:42-42."
+    },
+    {
+      "id": "7589ea02f88a",
+      "reason": "jb2 (combine-7): code deleted by J-HW2: the stuck-run watchdog and its tests were deleted. Was packages/ui/src/features/observability/__tests__/stuck-run.test.ts:83-83."
+    },
+    {
+      "id": "13de23a9c239",
+      "reason": "jb2 (combine-7): code deleted by J-HW2: the stuck-run watchdog and its tests were deleted. Was packages/ui/src/features/observability/stuck-run.ts:1-15."
+    },
+    {
+      "id": "5ebcbd0524ad",
+      "reason": "jb2 (combine-7): code deleted by J-HW2: the stuck-run watchdog and its tests were deleted. Was packages/ui/src/features/observability/stuck-run.ts:18-18."
+    },
+    {
+      "id": "14069bc50ada",
+      "reason": "jb2 (combine-7): code deleted by J-HW2: the stuck-run watchdog and its tests were deleted. Was packages/ui/src/features/observability/stuck-run.ts:34-34."
+    },
+    {
+      "id": "faff33fa35e4",
+      "reason": "jb2 (combine-7): code deleted by J-HW2: the stuck-run watchdog and its tests were deleted. Was packages/ui/src/features/observability/stuck-run.ts:36-36."
+    },
+    {
+      "id": "809fe6e95896",
+      "reason": "jb2 (combine-7): code deleted by J-HW2: the stuck-run watchdog and its tests were deleted. Was packages/ui/src/features/observability/stuck-run.ts:40-45."
+    },
+    {
+      "id": "4b831c51da3e",
+      "reason": "jb2 (combine-7): code deleted by J-HW2: the stuck-run watchdog and its tests were deleted. Was packages/ui/src/features/observability/stuck-run.ts:63-63."
+    },
+    {
+      "id": "ce26bd5958da",
+      "reason": "jb2 (combine-7): code deleted by J-HW2: the stuck-run watchdog and its tests were deleted. Was packages/ui/src/features/observability/stuck-run.ts:72-76."
+    },
+    {
+      "id": "2217485b02ea",
+      "reason": "jb2 (combine-7): code deleted by J-HW2: the stuck-run watchdog and its tests were deleted. Was packages/ui/src/features/observability/stuck-run.ts:104-122."
+    },
+    {
+      "id": "9af768275e93",
+      "reason": "jb2 (combine-7): code deleted by J-HW2: the stuck-run watchdog and its tests were deleted. Was packages/ui/src/features/observability/stuck-run.ts:133-133."
+    },
+    {
+      "id": "48a6fd58bc5a",
+      "reason": "jy-cls (combine-7): prose rewritten by J11 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/ui/src/features/panel-kit/helpers/permissions.ts:1-2."
+    },
+    {
+      "id": "6fa4b5bd2f07",
+      "reason": "jz-jini (combine-7): prose rewritten by H2-A11Y-RESOURCE (keyboard behaviour added; the comment now names it): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/ui/src/features/resource-dashboard/react/components/ResourceCardParts.tsx:15-15."
     }
   ]
 }

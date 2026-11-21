@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 
 import { ToolInputError, type ToolExecutionContext, type ToolHandler, type ToolRegistration } from "@jini-ai/core";
+import { RecordVersionConflictError } from "@jini-ai/core/optimistic-concurrency";
 import { InMemoryWebhookDeliveryRepo, InMemoryWebhookSubscriptionRepo } from "../../__tests__/memory-fixtures.js";
 import type { WebhookDeliveryRecord, WebhookSubscriptionRecord } from "../../types.js";
 import { getWebhooksAgentToolCatalog } from "../agent-tools.js";
@@ -318,6 +319,7 @@ test("delete: a write conflict after the confirmed snapshot check asks for a new
   await assert.rejects(caller(fixture)("webhooks_delete_subscription", { subscriptionId: "sub-1" }), (error: unknown) => {
     assert.ok(error instanceof ToolInputError);
     assert.equal(error.message, "webhooks_delete_subscription: target changed while confirmation was open. Request a new confirmation; nothing was deleted.");
+    assert.ok(error.cause instanceof RecordVersionConflictError);
     return true;
   });
   const current = await find({ workspaceId: WORKSPACE_ID, id: "sub-1" });
