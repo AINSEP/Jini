@@ -13,11 +13,17 @@ const malformedId = id => typeof id !== 'string' || id.length > 129 || !ID_PATTE
 const validCapability = p => typeof p === 'string' && p.length <= 129 && CAPABILITY_PATTERN.test(p);
 const legacyIdFor = localName => `unknown/${localName}`;
 
+function readIdentityExtension({ manifest, namespace, legacyNamespace }) {
+  const extension = manifest?.extensions?.[namespace];
+  if (extension === undefined && legacyNamespace !== undefined) return manifest?.extensions?.[legacyNamespace];
+  return extension;
+}
+
 /** The first shape error that stops identity validation before any field is interpreted. */
-function structuralError({ manifest, namespace }) {
+function structuralError({ manifest, namespace, legacyNamespace }) {
   if (!object(manifest)) return 'Plugin manifest must be an object.';
   if (manifest.extensions !== undefined && !object(manifest.extensions)) return 'Plugin extensions must be an object.';
-  const extension = manifest.extensions?.[namespace];
+  const extension = readIdentityExtension({ manifest, namespace, legacyNamespace });
   if (extension !== undefined && !object(extension)) return 'Plugin identity extension must be an object.';
   return undefined;
 }
@@ -37,31 +43,31 @@ function providesErrors({ provides }) {
 }
 
 /** Collects identity errors without mutating the portable manifest. Absent metadata is legacy.
- * @param {{manifest: unknown, namespace: string}} required
+ * @param {{manifest: unknown, namespace: string, legacyNamespace?: string | undefined}} required
  * @param {Record<string, never>} [optional]
  * @returns {{errors: string[]}}
  * @complexity O(k + p) in keyword and provides entries; no I/O.
  */
-export function validatePluginIdentity({ manifest, namespace }, optional = {}) {
-  const structural = structuralError({ manifest, namespace });
+export function validatePluginIdentity({ manifest, namespace, legacyNamespace }, optional = {}) {
+  const structural = structuralError({ manifest, namespace, legacyNamespace });
   if (structural !== undefined) return { errors: [structural] };
-  const extension = manifest.extensions?.[namespace];
+  const extension = readIdentityExtension({ manifest, namespace, legacyNamespace });
   if (extension === undefined) return { errors: [] };
   return { errors: [...idErrors({ id: extension.id }), ...providesErrors({ provides: extension.provides })] };
 }
 
 /** Resolves one identity; warns on missing ids and refuses malformed declarations.
- * @param {{manifest: Record<string, unknown>, namespace: string, name?: string}} required
+ * @param {{manifest: Record<string, unknown>, namespace: string, name?: string, legacyNamespace?: string | undefined}} required
  * @param {Record<string, never>} [optional]
  * @returns {{id: string, keywords: string[], provides: string[], warnings: string[]}}
  * @throws {TypeError} Malformed identity metadata or missing legacy name.
  * @example readPluginIdentity({ manifest: { name: 'example' }, namespace: 'host' })
  * @complexity O(k + p), copying arrays so a caller cannot mutate manifest metadata.
  */
-export function readPluginIdentity({ manifest, namespace, name }, optional = {}) {
-  const { errors } = validatePluginIdentity({ manifest, namespace });
+export function readPluginIdentity({ manifest, namespace, name, legacyNamespace }, optional = {}) {
+  const { errors } = validatePluginIdentity({ manifest, namespace, legacyNamespace });
   if (errors.length) throw new TypeError(errors.join(' '));
-  const extension = manifest.extensions?.[namespace];
+  const extension = readIdentityExtension({ manifest, namespace, legacyNamespace });
   const declaredId = extension?.id;
   const localName = name ?? manifest.name;
   const id = declaredId ?? legacyIdentity({ localName });

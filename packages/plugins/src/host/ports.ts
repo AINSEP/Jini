@@ -35,6 +35,7 @@ export interface DeclarativeContentTypesPort {
 export interface ManifestHostPorts<H extends HookPoints = HookPoints> {
   /** Host-owned namespace containing publisher id/provides in persisted manifest extensions. */
   readonly identityNamespace: string;
+  readonly legacyIdentityNamespace?: string;
   readonly pluginSdkBinding: PluginSdkBinding<H>;
   readonly capabilityVocabulary: readonly string[];
   readonly declarativeContentTypes: DeclarativeContentTypesPort;

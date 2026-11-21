@@ -214,7 +214,7 @@ type IdentityScan = Pick<typeof import('node:fs/promises'), 'lstat' | 'readdir' 
 type InstalledIdentity = ReturnType<typeof readPluginIdentity>;
 
 function identityOf(manifest: PluginManifest, deps: PluginInstallDeps, name = manifest.id): InstalledIdentity {
-  return readPluginIdentity({ manifest: manifest as unknown as Readonly<Record<string, unknown>>, name, namespace: deps.identityNamespace });
+  return readPluginIdentity({ manifest: manifest as unknown as Readonly<Record<string, unknown>>, name, namespace: deps.identityNamespace, legacyNamespace: deps.legacyIdentityNamespace });
 }
 
 function assertIdentityFree(candidate: InstalledIdentity & { family: string; localId: string }, installed: Parameters<typeof assertPluginIdentityAvailable>[0]['installed']): void {
@@ -263,7 +263,7 @@ async function readInstalledIdentity(required: { scan: IdentityScan; versionDir:
     const manifestInfo = await scan.lstat(manifestPath);
     if (!manifestInfo.isFile() || manifestInfo.isSymbolicLink()) fail("PLUGIN_PACKAGE_UNSAFE", "Installed plugin manifests must not be links.");
     const installedManifest = JSON.parse(await scan.readFile(manifestPath, "utf8"));
-    return readPluginIdentity({ manifest: installedManifest, name: localId, namespace: deps.identityNamespace });
+    return readPluginIdentity({ manifest: installedManifest, name: localId, namespace: deps.identityNamespace, legacyNamespace: deps.legacyIdentityNamespace });
   } catch (error) {
     if (error instanceof PluginInstallError) throw error;
     // Preserve link refusals while isolating one broken unrelated manifest.

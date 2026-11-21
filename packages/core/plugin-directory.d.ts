@@ -27,6 +27,6 @@ export interface PluginLookupPort {
 export type PluginIdentityCandidate = Pick<PluginProvider, 'id' | 'family' | 'localId'>;
 export function assertPluginIdentityAvailable(required: { readonly candidate: PluginIdentityCandidate; readonly installed: readonly PluginProvider[] }, optional?: Record<string, never>): void;
 export function createPluginLookupFacade(required: { readonly lookup: PluginLookupPort }, optional?: Record<string, never>): PluginLookupPort;
-export function validatePluginIdentity(required: { readonly manifest: unknown; readonly namespace: string }, optional?: Record<string, never>): { readonly errors: readonly string[] };
-export function readPluginIdentity(required: { readonly manifest: Readonly<Record<string, unknown>>; readonly namespace: string; readonly name?: string }, optional?: Record<string, never>): PluginIdentity;
+export function validatePluginIdentity(required: { readonly manifest: unknown; readonly namespace: string; readonly legacyNamespace?: string | undefined }, optional?: Record<string, never>): { readonly errors: readonly string[] };
+export function readPluginIdentity(required: { readonly manifest: Readonly<Record<string, unknown>>; readonly namespace: string; readonly name?: string; readonly legacyNamespace?: string | undefined }, optional?: Record<string, never>): PluginIdentity;
 export function createPluginLookup(required: { readonly listPlugins: (required: Record<string, never>, optional?: Record<string, never>) => Promise<readonly PluginProvider[]> }, optional?: { readonly warn?: (message: string) => void }): PluginLookupPort;

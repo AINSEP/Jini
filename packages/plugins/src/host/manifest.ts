@@ -477,7 +477,7 @@ export function validateManifest<H extends HookPoints>(
 
   const errors: PluginValidationError[] = [
     ...validateKeys(raw),
-    ...validatePluginIdentity({ manifest: raw, namespace: required.identityNamespace }).errors.map(message => ({ code: "PLUGIN_IDENTITY_INVALID", file: null, message })),
+    ...validatePluginIdentity({ manifest: raw, namespace: required.identityNamespace, legacyNamespace: required.legacyIdentityNamespace }).errors.map(message => ({ code: "PLUGIN_IDENTITY_INVALID", file: null, message })),
     ...idErrors,
     ...validateIdentityFields(raw),
     ...validateEngine(raw),
@@ -492,7 +492,7 @@ export function validateManifest<H extends HookPoints>(
   ];
 
   const warnings = errors.length === 0
-    ? readPluginIdentity({ manifest: raw, name: id!, namespace: required.identityNamespace }).warnings
+    ? readPluginIdentity({ manifest: raw, name: id!, namespace: required.identityNamespace, legacyNamespace: required.legacyIdentityNamespace }).warnings
     : [];
   return { errors, warnings };
 }

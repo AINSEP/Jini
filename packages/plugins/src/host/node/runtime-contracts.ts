@@ -113,6 +113,7 @@ export interface PluginRuntimeHostBinding {
   readonly declarativeContentTypes: DeclarativeContentTypesPort;
   readonly coreOwnerName: string;
   readonly identityNamespace: string;
+  readonly legacyIdentityNamespace?: string;
   readonly localInstallDisabledMessage: string;
   readonly tierPolicy: PluginTierPolicy;
   readonly archiveReader: ArchiveReaderPort;
