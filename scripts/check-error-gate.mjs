@@ -18,7 +18,7 @@
  * `--list` (every entry with its lines), `--update` (rewrite the debt list; only for a shrink or the
  * first baseline), `--list --files a.ts,b.ts` (a job's own files, no ratchet).
  */
-import { globSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, globSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { ESLint } from 'eslint';
@@ -104,15 +104,24 @@ export function compareErrorGateDebt({ debt, current }, _optional = {}) {
   return result;
 }
 
-async function main(argv) {
-  const only = argv.includes('--files') ? argv[argv.indexOf('--files') + 1]?.split(',') : undefined;
-  const current = await findErrorGateViolations({}, only === undefined ? {} : { files: only });
-  if (argv.includes('--list')) {
-    for (const entry of current) console.log(`[${entry.rule}] ${entry.file} (${entry.value}; lines ${entry.lines.join(', ')})`);
-    return 0;
+export function updateErrorGateDebt({ debtPath, current, scoped }, _optional = {}) {
+  if (scoped) {
+    console.error('Cannot update the error gate debt list with --files; run a full scan.');
+    return 1;
   }
-  const stored = current.map(({ file, rule, value }) => ({ file, rule, value }));
-  if (argv.includes('--update')) { writeFileSync(path.join(root, debtFile), `${JSON.stringify(stored, null, 2)}\n`); console.log(`Wrote ${stored.length} entries to ${debtFile}.`); return 0; }
+  if (existsSync(debtPath)) {
+    const { added, worsened } = compareErrorGateDebt({ debt: JSON.parse(readFileSync(debtPath, 'utf8')), current });
+    if (added.length || worsened.length) {
+      console.error('Cannot update the error gate debt list with new or worsened entries.');
+      return 1;
+    }
+  }
+  writeFileSync(debtPath, `${JSON.stringify(current, null, 2)}\n`);
+  console.log(`Wrote ${current.length} entries to ${debtFile}.`);
+  return 0;
+}
+
+function reportErrorGateDebt({ argv, stored }, _optional = {}) {
   const { added, worsened, improved, stale } = compareErrorGateDebt({ debt: JSON.parse(readFileSync(path.join(root, debtFile), 'utf8')), current: stored });
   for (const entry of added) console.log(`New: [${entry.rule}] ${entry.file} (${entry.value})`);
   for (const { prior, violation } of worsened) console.log(`Worse: [${violation.rule}] ${violation.file} (${prior.value} -> ${violation.value})`);
@@ -123,6 +132,18 @@ async function main(argv) {
   console.log(failing ? `Error gate (WARN mode): ${failing} new or worse entries. Not failing the build yet; fix them or use a named idiom.`
     : `Error gate passed: ${total} findings in ${stored.length} file/rule entries.`);
   return failing && argv.includes('--strict') ? 1 : 0;
+}
+
+async function main(argv) {
+  const only = argv.includes('--files') ? argv[argv.indexOf('--files') + 1]?.split(',') : undefined;
+  const current = await findErrorGateViolations({}, only === undefined ? {} : { files: only });
+  if (argv.includes('--list')) {
+    for (const entry of current) console.log(`[${entry.rule}] ${entry.file} (${entry.value}; lines ${entry.lines.join(', ')})`);
+    return 0;
+  }
+  const stored = current.map(({ file, rule, value }) => ({ file, rule, value }));
+  if (argv.includes('--update')) return updateErrorGateDebt({ debtPath: path.join(root, debtFile), current: stored, scoped: argv.includes('--files') });
+  return reportErrorGateDebt({ argv, stored });
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) process.exitCode = await main(process.argv.slice(2));
