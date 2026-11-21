@@ -162,7 +162,7 @@ describe('plugin package installation isolation', () => {
 
   describe('@jini-ai/provider-plugins ships all provider runtimes', () => {
     const distribution = { name: '@jini-ai/provider-plugins' };
-    const providerSourceExists = ({ id }: { id: string }) => ['charts-recharts', 'charts-echarts', 'analytics-posthog'].includes(id);
+    const providerSourceExists = ({ id }: { id: string }) => ['charts-recharts', 'charts-echarts', 'analytics-posthog', 'observability-opentelemetry'].includes(id);
     const agentPluginPackages = [{ name: 'charts-recharts', sourceDir: 'packages/agent-plugins/charts-recharts' }];
     const pack = (paths: string[]) => () => assertPluginPackageIsolation({ manifest: distribution, packedPaths: [...docs, 'package/CHANGELOG.md', ...paths], pluginIds },
       { providerSourceExists, agentPluginPackages });
@@ -171,6 +171,30 @@ describe('plugin package installation isolation', () => {
       expect(pack(['package/catalog.json', 'package/plugins/charts-recharts/0.6.19/jini.plugin.json',
         'package/plugins/charts-recharts/0.6.19/client/provider.js', 'package/plugins/charts-recharts/0.6.19/licenses/recharts/LICENSE',
         'package/plugins/charts-echarts/0.6.19/client/provider.js'])).not.toThrow();
+    });
+
+    it('accepts a reviewed provider library alongside its payload when its port export targets dist', () => {
+      expect(() => assertPluginPackageIsolation({
+        manifest: { ...distribution, exports: {
+          './observability-opentelemetry/port': { types: './dist/observability-opentelemetry/otel-port.d.ts',
+            import: './dist/observability-opentelemetry/otel-port.js' },
+        } },
+        packedPaths: [...docs, 'package/plugins/observability-opentelemetry/0.6.19/server/index.mjs',
+          'package/dist/observability-opentelemetry/contract.js'], pluginIds,
+      }, { providerSourceExists, agentPluginPackages })).not.toThrow();
+    });
+
+    it('refuses a reviewed provider library without its port export', () => {
+      expect(pack(['package/plugins/observability-opentelemetry/0.6.19/server/index.mjs',
+        'package/dist/observability-opentelemetry/contract.js']))
+        .toThrow('unexpected packed file dist/observability-opentelemetry/contract.js');
+    });
+
+    it('refuses an unreviewed provider library even with a port export', () => {
+      expect(() => assertPluginPackageIsolation({
+        manifest: { ...distribution, exports: { './future-plugin/port': './dist/future-plugin/x.js' } },
+        packedPaths: [...docs, 'package/dist/future-plugin/x.js'], pluginIds,
+      }, { providerSourceExists, agentPluginPackages })).toThrow('unexpected packed file dist/future-plugin/x.js');
     });
 
     it.each(['scripts/build.ts', 'src/charts-recharts/index.ts', 'plugins/unknown-provider/1.0.0/server/index.mjs'])(
