@@ -101,7 +101,7 @@ describe("trackOutboundCall", () => {
 });
 
 describe("trackAgentRun", () => {
- it.each(['succeeded', 'failed'] as const)('records one duration in milliseconds after %s settlement, including repeated end', status => {
+ it.each(['succeeded', 'failed', 'interrupted', 'canceled', 'abandoned'] as const)('records one duration and completion after %s settlement, including repeated end', status => {
   const span = { updateName: vi.fn(), setAttribute: vi.fn(), setStatus: vi.fn(), addEvent: vi.fn(), end: vi.fn() };
   const metric = vi.fn(() => { expect(span.end).toHaveBeenCalledTimes(1); });
   const port = createOtelObservabilityPort({ config: CONFIG, exporterFactory: { create: () => ({}) },
@@ -113,7 +113,10 @@ describe("trackAgentRun", () => {
   tracker.end({ status });
   tracker.end({ status });
   now.mockRestore();
-  expect(metric.mock.calls).toEqual([[{ name: 'agent.run.duration', value: 25 }, { kind: 'histogram', unit: 'ms' }]]);
+  expect(metric.mock.calls).toEqual([
+   [{ name: 'agent.run.duration', value: 25 }, { kind: 'histogram', unit: 'ms' }],
+   [{ name: 'agent.run.completed', value: 1 }, { kind: 'counter', attributes: { 'agent.run.status': status } }],
+  ]);
   expect(span.end).toHaveBeenCalledTimes(1);
  });
 

@@ -146,6 +146,7 @@ function trackOperation({ ctx, name, attributes = {} }: { ctx: OtelCtx; name: st
  return { run: runIn({ ctx, span }), end: once(({ outcome, failed, attributes: settled = {} }) => {
   // The feature decides what counts as failure; its outcome label doubles as the error type.
   finish({ ctx, span, attributes: redactOperationAttributes({ attributes: { ...settled, 'operation.outcome': outcome } }) }, failed ? { failure: redactLabel({ text: outcome }) } : {});
+  ctx.metric?.({ name: 'operation.completed', value: 1 }, { kind: 'counter', attributes: { 'operation.name': name, 'operation.failed': failed ? 1 : 0 } });
  }) };
 }
 
@@ -179,6 +180,7 @@ function trackAgentRun({ ctx, runId, conversationId, agentName }: { ctx: OtelCtx
  return { run: runIn({ ctx, span }), end: once(({ status, error }) => {
   finishWithOutcome({ ctx, span, attributes: { 'agent.run.status': status } }, { error, ...(FAILED_RUN_STATUSES.has(status) ? { softFailure: status } : {}) });
   ctx.metric?.({ name: 'agent.run.duration', value: performance.now() - startedAt }, { kind: 'histogram', unit: 'ms' });
+  ctx.metric?.({ name: 'agent.run.completed', value: 1 }, { kind: 'counter', attributes: { 'agent.run.status': status } });
  }) };
 }
 
