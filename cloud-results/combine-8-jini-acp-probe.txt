@@ -1,0 +1,59 @@
+# combine-8 ACP probe — opencode-ai@1.19.6 (npm, scratch), empty HOME, driven (a) raw over 'opencode acp' and (b) through Jini's attachAcpSession (packages/agent-runtime/dist at integ/merge-8 1aa27373). Proxy refuses the opencode model host (403), so no prompt can complete.
+
+## (a) raw
+INIT {"loadSession":true,"mcpCapabilities":{"http":true,"sse":true},"promptCapabilities":{"embeddedContext":true,"image":true},"sessionCapabilities":{"close":{},"fork":{},"list":{},"resume":{}}} auth [{"description":"Run `opencode auth login` in the terminal","name":"Login with opencode","id":"opencode-login"}]
+NEW ses_e03f4a96affetpJ2ki2PvD4cg6 configOptions [{"id":"model","category":"model","n":212,"current":"opencode/big-pickle"},{"id":"mode","category":"mode","n":2,"current":"build"}]
+LOAD-BOGUS {"jsonrpc":"2.0","id":4,"error":{"code":-32603,"message":"Internal error: OpenCode service failure","data":{"service":"session"}}}
+EXIT null SIGTERM 41 ms
+
+## (b) jini scenario: resume
+EVENT 2473ms error {"message":"json-rpc id 2: Internal error: OpenCode service failure","error":{"code":"AGENT_EXECUTION_FAILED","message":"json-rpc id 2: Internal error: OpenCode service failure","retryable":false,"details":{"kind":"resume_failed","sessionId":"ses_bogus_does_no
+SENT initialize, session/load
+EXIT null SIGTERM 2532ms completedSuccessfully false durable null beforeRelease calls 1
+(probe process itself)
+(probe process itself)
+
+## (b) jini scenario: badmodel
+EVENT 2161ms error {"message":"This agent did not accept the model \"nope/not-a-model\". Pick a model from its list and retry. (json-rpc id 3: Invalid params: model not found: nope/not-a-model)","error":{"code":"AGENT_EXECUTION_FAILED","message":"This agent did not accept the mo
+SENT initialize, session/new, session/set_config_option
+EXIT null SIGTERM 2240ms completedSuccessfully false durable ses_e03f491adffeikzohDB7IemW42 beforeRelease calls 1
+(probe process itself)
+(probe process itself)
+
+## (b) jini scenario: goodmodel
+EVENT 1934ms agent {"type":"status","label":"model","model":"opencode/big-pickle"}
+EVENT 1934ms agent {"type":"status","label":"waiting_for_first_output","elapsedMs":1934}
+EVENT 2499ms error {"message":"json-rpc id 3: Internal error: Proxy refused to open a tunnel: 403 Forbidden (agent proxy: no rule or network setting allows this host)","error":{"code":"AGENT_EXECUTION_FAILED","message":"json-rpc id 3: Internal error: Proxy refused to open a tunn
+SENT initialize, session/new, session/prompt
+EXIT null SIGTERM 2558ms completedSuccessfully false durable ses_e03f487a9ffeHcqAlBpTU6Pu3R beforeRelease calls 1
+(probe process itself)
+(probe process itself)
+
+## (b) jini scenario: effort
+EVENT 1870ms agent {"type":"status","label":"model","model":"opencode/big-pickle"}
+EVENT 1870ms error {"message":"This agent does not offer the reasoning effort \"high\". It offers: none. Pick one of those and retry.","error":{"code":"AGENT_EXECUTION_FAILED","message":"This agent does not offer the reasoning effort \"high\". It offers: none. Pick one of those 
+SENT initialize, session/new
+EXIT null SIGTERM 1909ms completedSuccessfully false durable ses_e03f47bd3ffee1xorJALTdz00G beforeRelease calls 1
+(probe process itself)
+(probe process itself)
+
+## (b) jini scenario: cancel
+EVENT 1926ms agent {"type":"status","label":"model","model":"opencode/big-pickle"}
+EVENT 1926ms agent {"type":"status","label":"waiting_for_first_output","elapsedMs":1926}
+EVENT 1926ms (abort called) null
+SENT initialize, session/new, session/prompt, session/cancel
+EXIT 0 null 1985ms completedSuccessfully false durable ses_e03f47201ffeI7qCKV0OL47mu6 beforeRelease calls 1
+(probe process itself)
+(probe process itself)
+
+## (b) jini scenario: plain
+EVENT 2132ms agent {"type":"status","label":"model","model":"opencode/big-pickle"}
+EVENT 2132ms agent {"type":"status","label":"waiting_for_first_output","elapsedMs":2131}
+EVENT 2981ms error {"message":"json-rpc id 3: Internal error: Proxy refused to open a tunnel: 403 Forbidden (agent proxy: no rule or network setting allows this host)","error":{"code":"AGENT_EXECUTION_FAILED","message":"json-rpc id 3: Internal error: Proxy refused to open a tunn
+SENT initialize, session/new, session/prompt
+EXIT null SIGTERM 3027ms completedSuccessfully false durable ses_e03f4674fffeAvjn5phN1mbTES beforeRelease calls 1
+(probe process itself)
+(probe process itself)
+
+## leftover opencode processes after all runs
+none (ps: 0 opencode acp processes)

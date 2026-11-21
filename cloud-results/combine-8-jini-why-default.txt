@@ -1,0 +1,9 @@
+why-comments: 2470 files with removed lines checked against origin/refactor/terra..HEAD, 318 comment blocks lost (314 allow-listed)
+packages/agent-runtime/src/agent-protocol/acp/__tests__/session.test.ts:1754-1756  [4bb23d5ecd7b]  setmodelrequestid starts null, so a json-rpc error with `id: null` matches it; with no model pinned the session "recovers" by prompting e...
+packages/core/src/errors/reporter.ts:113-113  [aebef68baf2a]  the record text travels as the tracker's error, so the tracker never holds the unredacted original.
+packages/core/src/errors/reporter.ts:156-157  [b550e959f815]  `diagnostic` is the operator-only record: message and stack with secrets blanked. `error` is the original, which only a host diagnostics ...
+packages/sidecar/src/json-ipc.ts:103-113  [fa4f71f9f63b]  shape an unknown error into the `{code?,message}` ipc error payload. exported (previously module-private) for direct unit testing: its on...
+why-comments: 4 deleted comment blocks appear nowhere else (owner rule: refactors move "why" comments with the code, never delete them)
+  fix: put the comment back next to the code it explains, or move it with that code.
+  last resort: add { "id": "<id above>", "reason": "<why this comment is truly obsolete>" } to the debt file (`pnpm check:why-comments`).
+exit 1

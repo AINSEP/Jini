@@ -1,0 +1,94 @@
+=== m1
+build exit 0
+tsc chat exit 0
+tsc cms exit 0
+guard exit 0
+=== m2
+build exit 0
+tsc chat exit 0
+tsc daemon exit 0
+tsc platform exit 0
+guard exit 0
+=== m3
+build exit 0
+tsc chat exit 0
+tsc cli exit 0
+tsc diagnostics exit 0
+tsc mcp exit 0
+guard exit 0
+=== m4
+build exit 0
+tsc infra exit 0
+tsc mcp exit 0
+tsc plugins exit 0
+guard exit 0
+=== m5
+packages/daemon build: src/agent-executor/acp-events.ts(174,28): error TS2345: Argument of type '(context: AgentCleanupFailureContext) => void' is not assignable to parameter of type '{ onCleanupFailure: (context: AgentCleanupFailureContext) => void; context: AgentCleanupFailureContext; }'.
+packages/daemon build: src/agent-executor/acp-events.ts(183,28): error TS2345: Argument of type '(context: AgentCleanupFailureContext) => void' is not assignable to parameter of type '{ onCleanupFailure: (context: AgentCleanupFailureContext) => void; context: AgentCleanupFailureContext; }'.
+build exit 1
+tsc agent-runtime exit 0
+tsc cli exit 0
+tsc core exit 0
+src/agent-executor/acp-events.ts(174,28): error TS2345: Argument of type '(context: AgentCleanupFailureContext) => void' is not assignable to parameter of type '{ onCleanupFailure: (context: AgentCleanupFailureContext) => void; context: AgentCleanupFailureContext; }'.
+src/agent-executor/acp-events.ts(183,28): error TS2345: Argument of type '(context: AgentCleanupFailureContext) => void' is not assignable to parameter of type '{ onCleanupFailure: (context: AgentCleanupFailureContext) => void; context: AgentCleanupFailureContext; }'.
+tsc daemon exit 2
+tsc devops exit 0
+tsc sidecar exit 0
+tsc ui exit 0
+guard exit 0
+=== m5b
+build exit 0
+tsc agent-runtime exit 0
+tsc cli exit 0
+tsc core exit 0
+tsc daemon exit 0
+tsc devops exit 0
+tsc sidecar exit 0
+tsc ui exit 0
+guard exit 0
+=== m6
+build exit 0
+tsc agent-plugins exit 0
+tsc cms exit 0
+tsc integrations exit 0
+guard exit 0
+=== m7
+packages/chat build: src/core/ag-ui/__tests__/interrupts.test.ts(5,72): error TS6059: File '/home/user/Jini/packages/daemon/src/surface-exchanges.ts' is not under 'rootDir' '/home/user/Jini/packages/chat/src'. 'rootDir' is expected to contain all source files.
+packages/chat build: src/core/assistant-client/__tests__/transport.test.ts(34,9): error TS2741: Property 'resumeAgUiRun' is missing in type '{ isAgUiRunId: ({ runId }: { runId: string; }) => boolean; handleAgUiEvent: () => void; startAgUiRun: ({ input }: { input: StartRunInput; handlers: RunHandlers; }) => Promise<{ runId: string; }>; reattachAgUiRun: ({ handlers }: { ...; }) => Promise<...>; fetchAgUiRunStatus: () => Promise<...>; stopAgUiRun: ({ runId ...' but required in type 'AgUiRunClient'.
+packages/chat build: ../daemon/src/bound-confirmations.ts(12,79): error TS6059: File '/home/user/Jini/packages/daemon/src/tool-executor-types.ts' is not under 'rootDir' '/home/user/Jini/packages/chat/src'. 'rootDir' is expected to contain all source files.
+packages/chat build: ../daemon/src/surface-exchanges.ts(63,36): error TS6059: File '/home/user/Jini/packages/daemon/src/scheduler.ts' is not under 'rootDir' '/home/user/Jini/packages/chat/src'. 'rootDir' is expected to contain all source files.
+packages/chat build: ../daemon/src/surface-exchanges.ts(64,42): error TS6059: File '/home/user/Jini/packages/daemon/src/surface-restoration.ts' is not under 'rootDir' '/home/user/Jini/packages/chat/src'. 'rootDir' is expected to contain all source files.
+packages/chat build: ../daemon/src/surface-exchanges.ts(66,15): error TS6059: File '/home/user/Jini/packages/daemon/src/bound-confirmations.ts' is not under 'rootDir' '/home/user/Jini/packages/chat/src'. 'rootDir' is expected to contain all source files.
+packages/daemon build: ../chat/src/core/ag-ui/event-projection.ts(10,33): error TS6059: File '/home/user/Jini/packages/chat/src/core/events.ts' is not under 'rootDir' '/home/user/Jini/packages/daemon/src'. 'rootDir' is expected to contain all source files.
+packages/daemon build: ../chat/src/core/ag-ui/event-projection.ts(11,129): error TS6059: File '/home/user/Jini/packages/chat/src/core/run-events/entry.ts' is not under 'rootDir' '/home/user/Jini/packages/daemon/src'. 'rootDir' is expected to contain all source files.
+packages/daemon build: ../chat/src/core/assistant-content.ts(18,36): error TS6059: File '/home/user/Jini/packages/chat/src/core/tool-events.ts' is not under 'rootDir' '/home/user/Jini/packages/daemon/src'. 'rootDir' is expected to contain all source files.
+packages/daemon build: ../chat/src/core/run-events/entry.ts(8,44): error TS6059: File '/home/user/Jini/packages/chat/src/core/assistant-content.ts' is not under 'rootDir' '/home/user/Jini/packages/daemon/src'. 'rootDir' is expected to contain all source files.
+packages/daemon build: ../chat/src/core/run-events/entry.ts(9,44): error TS6059: File '/home/user/Jini/packages/chat/src/core/surface-recovery.ts' is not under 'rootDir' '/home/user/Jini/packages/daemon/src'. 'rootDir' is expected to contain all source files.
+packages/daemon build: ../chat/src/core/run-events/entry.ts(10,41): error TS6059: File '/home/user/Jini/packages/chat/src/core/compact-events.ts' is not under 'rootDir' '/home/user/Jini/packages/daemon/src'. 'rootDir' is expected to contain all source files.
+packages/daemon build: ../chat/src/core/run-events/entry.ts(38,36): error TS6059: File '/home/user/Jini/packages/chat/src/core/messages.ts' is not under 'rootDir' '/home/user/Jini/packages/daemon/src'. 'rootDir' is expected to contain all source files.
+packages/daemon build: ../chat/src/core/tool-events.ts(3,34): error TS6059: File '/home/user/Jini/packages/chat/src/core/tool-presentation.ts' is not under 'rootDir' '/home/user/Jini/packages/daemon/src'. 'rootDir' is expected to contain all source files.
+packages/daemon build: ../chat/src/core/tool-presentation.ts(1,45): error TS6059: File '/home/user/Jini/packages/chat/src/core/antigravity/tool-presentation.ts' is not under 'rootDir' '/home/user/Jini/packages/daemon/src'. 'rootDir' is expected to contain all source files.
+packages/daemon build: src/__tests__/frontend-session-ag-ui.test.ts(6,71): error TS6059: File '/home/user/Jini/packages/chat/src/core/ag-ui/event-projection.ts' is not under 'rootDir' '/home/user/Jini/packages/daemon/src'. 'rootDir' is expected to contain all source files.
+build exit 1
+src/core/ag-ui/__tests__/interrupts.test.ts(5,72): error TS6059: File '/home/user/Jini/packages/daemon/src/surface-exchanges.ts' is not under 'rootDir' '/home/user/Jini/packages/chat/src'. 'rootDir' is expected to contain all source files.
+src/core/assistant-client/__tests__/transport.test.ts(34,9): error TS2741: Property 'resumeAgUiRun' is missing in type '{ isAgUiRunId: ({ runId }: { runId: string; }) => boolean; handleAgUiEvent: () => void; startAgUiRun: ({ input }: { input: StartRunInput; handlers: RunHandlers; }) => Promise<{ runId: string; }>; reattachAgUiRun: ({ handlers }: { ...; }) => Promise<...>; fetchAgUiRunStatus: () => Promise<...>; stopAgUiRun: ({ runId ...' but required in type 'AgUiRunClient'.
+../daemon/src/bound-confirmations.ts(12,79): error TS6059: File '/home/user/Jini/packages/daemon/src/tool-executor-types.ts' is not under 'rootDir' '/home/user/Jini/packages/chat/src'. 'rootDir' is expected to contain all source files.
+../daemon/src/surface-exchanges.ts(63,36): error TS6059: File '/home/user/Jini/packages/daemon/src/scheduler.ts' is not under 'rootDir' '/home/user/Jini/packages/chat/src'. 'rootDir' is expected to contain all source files.
+../daemon/src/surface-exchanges.ts(64,42): error TS6059: File '/home/user/Jini/packages/daemon/src/surface-restoration.ts' is not under 'rootDir' '/home/user/Jini/packages/chat/src'. 'rootDir' is expected to contain all source files.
+../daemon/src/surface-exchanges.ts(66,15): error TS6059: File '/home/user/Jini/packages/daemon/src/bound-confirmations.ts' is not under 'rootDir' '/home/user/Jini/packages/chat/src'. 'rootDir' is expected to contain all source files.
+tsc chat exit 2
+../chat/src/core/ag-ui/event-projection.ts(10,33): error TS6059: File '/home/user/Jini/packages/chat/src/core/events.ts' is not under 'rootDir' '/home/user/Jini/packages/daemon/src'. 'rootDir' is expected to contain all source files.
+../chat/src/core/ag-ui/event-projection.ts(11,129): error TS6059: File '/home/user/Jini/packages/chat/src/core/run-events/entry.ts' is not under 'rootDir' '/home/user/Jini/packages/daemon/src'. 'rootDir' is expected to contain all source files.
+../chat/src/core/assistant-content.ts(18,36): error TS6059: File '/home/user/Jini/packages/chat/src/core/tool-events.ts' is not under 'rootDir' '/home/user/Jini/packages/daemon/src'. 'rootDir' is expected to contain all source files.
+../chat/src/core/run-events/entry.ts(8,44): error TS6059: File '/home/user/Jini/packages/chat/src/core/assistant-content.ts' is not under 'rootDir' '/home/user/Jini/packages/daemon/src'. 'rootDir' is expected to contain all source files.
+../chat/src/core/run-events/entry.ts(9,44): error TS6059: File '/home/user/Jini/packages/chat/src/core/surface-recovery.ts' is not under 'rootDir' '/home/user/Jini/packages/daemon/src'. 'rootDir' is expected to contain all source files.
+../chat/src/core/run-events/entry.ts(10,41): error TS6059: File '/home/user/Jini/packages/chat/src/core/compact-events.ts' is not under 'rootDir' '/home/user/Jini/packages/daemon/src'. 'rootDir' is expected to contain all source files.
+../chat/src/core/run-events/entry.ts(38,36): error TS6059: File '/home/user/Jini/packages/chat/src/core/messages.ts' is not under 'rootDir' '/home/user/Jini/packages/daemon/src'. 'rootDir' is expected to contain all source files.
+../chat/src/core/tool-events.ts(3,34): error TS6059: File '/home/user/Jini/packages/chat/src/core/tool-presentation.ts' is not under 'rootDir' '/home/user/Jini/packages/daemon/src'. 'rootDir' is expected to contain all source files.
+../chat/src/core/tool-presentation.ts(1,45): error TS6059: File '/home/user/Jini/packages/chat/src/core/antigravity/tool-presentation.ts' is not under 'rootDir' '/home/user/Jini/packages/daemon/src'. 'rootDir' is expected to contain all source files.
+src/__tests__/frontend-session-ag-ui.test.ts(6,71): error TS6059: File '/home/user/Jini/packages/chat/src/core/ag-ui/event-projection.ts' is not under 'rootDir' '/home/user/Jini/packages/daemon/src'. 'rootDir' is expected to contain all source files.
+tsc daemon exit 2
+guard exit 1
+[guard] R2-deep-path packages/chat/src/core/ag-ui/__tests__/interrupts.test.ts: relative import "../../../../../daemon/src/surface-exchanges.js" reaches into another package's src (daemon) — import by package name instead
+[guard] R2-deep-path packages/daemon/src/__tests__/frontend-session-ag-ui.test.ts: relative import "../../../chat/src/core/ag-ui/event-projection.js" reaches into another package's src (chat) — import by package name instead
+[guard] HW3-module-state packages/chat/src/core/messages.js: Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.

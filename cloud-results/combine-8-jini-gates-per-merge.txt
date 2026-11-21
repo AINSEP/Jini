@@ -1,0 +1,302 @@
+=================== m1 vs base
+complexity.txt: =base (exit 1)
+error-gate.txt: DIFF vs base
+< New: [failure-text-from-catalog] packages/cms/src/trash/adapters/directory.node.ts (1)
+< Error gate (WARN mode): 29 new or worse entries. Not failing the build yet; fix them or use a named idiom.
+> Error gate (WARN mode): 28 new or worse entries. Not failing the build yet; fix them or use a named idiom.
+hooks.txt: =base (exit 0)
+log-safety.txt: =base (exit 1)
+size.txt: =base (exit 0)
+why-base.txt: =base (exit 0)
+why-default.txt: =base (exit 1)
+=================== m2 vs base
+complexity.txt: =base (exit 1)
+error-gate.txt: DIFF vs base
+< New: [failure-text-from-catalog] packages/cms/src/trash/adapters/directory.node.ts (1)
+< Error gate (WARN mode): 29 new or worse entries. Not failing the build yet; fix them or use a named idiom.
+> Error gate (WARN mode): 28 new or worse entries. Not failing the build yet; fix them or use a named idiom.
+hooks.txt: =base (exit 0)
+log-safety.txt: =base (exit 1)
+size.txt: =base (exit 0)
+why-base.txt: =base (exit 0)
+why-default.txt: =base (exit 1)
+=================== m3 vs base
+complexity.txt: =base (exit 1)
+error-gate.txt: DIFF vs base
+< New: [failure-text-from-catalog] packages/cms/src/trash/adapters/directory.node.ts (1)
+< 8 entries improved or are gone: run with --update to lower the debt list.
+< Error gate (WARN mode): 29 new or worse entries. Not failing the build yet; fix them or use a named idiom.
+> 10 entries improved or are gone: run with --update to lower the debt list.
+> Error gate (WARN mode): 28 new or worse entries. Not failing the build yet; fix them or use a named idiom.
+hooks.txt: =base (exit 0)
+log-safety.txt: =base (exit 1)
+size.txt: =base (exit 0)
+why-base.txt: =base (exit 0)
+why-default.txt: =base (exit 1)
+=================== m4 vs base
+complexity.txt: =base (exit 1)
+error-gate.txt: DIFF vs base
+< New: [failure-text-from-catalog] packages/cms/src/trash/adapters/directory.node.ts (1)
+< 8 entries improved or are gone: run with --update to lower the debt list.
+< Error gate (WARN mode): 29 new or worse entries. Not failing the build yet; fix them or use a named idiom.
+> 13 entries improved or are gone: run with --update to lower the debt list.
+> Error gate (WARN mode): 28 new or worse entries. Not failing the build yet; fix them or use a named idiom.
+hooks.txt: =base (exit 0)
+log-safety.txt: =base (exit 1)
+size.txt: =base (exit 0)
+why-base.txt: =base (exit 0)
+why-default.txt: =base (exit 1)
+=================== m5 vs base
+complexity.txt: DIFF vs base
+> New violation: [complexity] packages/agent-runtime/src/agent-protocol/acp/session-results.ts:21 handleRpcError (12)
+> New violation: [complexity] packages/ui/src/features/panel-kit/ErrorNotice.tsx:22 ErrorNotice (11)
+error-gate.txt: DIFF vs base
+< New: [failure-text-from-catalog] packages/cms/src/trash/adapters/directory.node.ts (1)
+< 8 entries improved or are gone: run with --update to lower the debt list.
+< Error gate (WARN mode): 29 new or worse entries. Not failing the build yet; fix them or use a named idiom.
+> 13 entries improved or are gone: run with --update to lower the debt list.
+> Error gate (WARN mode): 28 new or worse entries. Not failing the build yet; fix them or use a named idiom.
+hooks.txt: =base (exit 0)
+log-safety.txt: =base (exit 1)
+size.txt: DIFF vs base
+< Size ratchet passed: 60 debt entries (55 functions, 5 files); 4 accepted exceptions.
+< exit 0
+> Worsened from 1044: [max-lines] packages/daemon/src/agent-executor/launch.ts:826 <file> (1046)
+> Worsened from 429: [max-lines-per-function] packages/daemon/src/agent-executor/launch.ts:1005 createAgentExecutor (431)
+> Size ratchet failed.
+> exit 1
+why-base.txt: DIFF vs base
+< why-comments: 0 files with removed lines checked against 06559affb..HEAD, 0 comment blocks lost (0 allow-listed)
+< why-comments: ok
+< exit 0
+> why-comments: 49 files with removed lines checked against 06559affb..HEAD, 4 comment blocks lost (0 allow-listed)
+> packages/agent-runtime/src/agent-protocol/acp/__tests__/session.test.ts:1786-1788  [4bb23d5ecd7b]  setmodelrequestid starts null, so a json-rpc error with `id: null` matches it; with no model pinned the session "recovers" by prompting e...
+> packages/core/src/errors/reporter.ts:114-114  [aebef68baf2a]  the record text travels as the tracker's error, so the tracker never holds the unredacted original.
+> packages/core/src/errors/reporter.ts:157-158  [b550e959f815]  `diagnostic` is the operator-only record: message and stack with secrets blanked. `error` is the original, which only a host diagnostics ...
+> packages/sidecar/src/json-ipc.ts:103-113  [fa4f71f9f63b]  shape an unknown error into the `{code?,message}` ipc error payload. exported (previously module-private) for direct unit testing: its on...
+> why-comments: 4 deleted comment blocks appear nowhere else (owner rule: refactors move "why" comments with the code, never delete them)
+>   fix: put the comment back next to the code it explains, or move it with that code.
+>   last resort: add { "id": "<id above>", "reason": "<why this comment is truly obsolete>" } to the debt file (`pnpm check:why-comments`).
+> exit 1
+why-default.txt: DIFF vs base
+< why-comments: 2444 files with removed lines checked against origin/refactor/terra..HEAD, 314 comment blocks lost (199 allow-listed)
+> why-comments: 2466 files with removed lines checked against origin/refactor/terra..HEAD, 318 comment blocks lost (199 allow-listed)
+> packages/agent-runtime/src/agent-protocol/acp/__tests__/session.test.ts:1754-1756  [4bb23d5ecd7b]  setmodelrequestid starts null, so a json-rpc error with `id: null` matches it; with no model pinned the session "recovers" by prompting e...
+> packages/core/src/errors/reporter.ts:113-113  [aebef68baf2a]  the record text travels as the tracker's error, so the tracker never holds the unredacted original.
+> packages/core/src/errors/reporter.ts:156-157  [b550e959f815]  `diagnostic` is the operator-only record: message and stack with secrets blanked. `error` is the original, which only a host diagnostics ...
+> packages/sidecar/src/json-ipc.ts:103-113  [fa4f71f9f63b]  shape an unknown error into the `{code?,message}` ipc error payload. exported (previously module-private) for direct unit testing: its on...
+< why-comments: 115 deleted comment blocks appear nowhere else (owner rule: refactors move "why" comments with the code, never delete them)
+> why-comments: 119 deleted comment blocks appear nowhere else (owner rule: refactors move "why" comments with the code, never delete them)
+=================== m6 vs base
+complexity.txt: DIFF vs base
+< New violation: [complexity] packages/agent-plugins/src/lifecycle/automatic-use.ts:222 prepare (11)
+< New violation: [complexity] packages/integrations/src/api-connections/hosted-mcp/sign-in-configuration.ts:70 selfConfigureConnection (11)
+> New violation: [complexity] packages/agent-runtime/src/agent-protocol/acp/session-results.ts:21 handleRpcError (12)
+> New violation: [complexity] packages/ui/src/features/panel-kit/ErrorNotice.tsx:22 ErrorNotice (11)
+error-gate.txt: DIFF vs base
+< New: [catch-reads-error] packages/cms/src/media/chat-preview.ts (1)
+< New: [failure-text-from-catalog] packages/cms/src/trash/adapters/directory.node.ts (1)
+< New: [failure-text-from-catalog] packages/integrations/src/webhooks/tools/tool-handlers.ts (1)
+< New: [catch-reads-error] packages/platform/src/process-probes.ts (2)
+< New: [catch-reads-error] packages/search/src/indexer-write.ts (1)
+< 8 entries improved or are gone: run with --update to lower the debt list.
+< Error gate (WARN mode): 29 new or worse entries. Not failing the build yet; fix them or use a named idiom.
+> 11 entries improved or are gone: run with --update to lower the debt list.
+> Error gate (WARN mode): 24 new or worse entries. Not failing the build yet; fix them or use a named idiom.
+hooks.txt: =base (exit 0)
+log-safety.txt: =base (exit 1)
+size.txt: DIFF vs base
+< Size ratchet passed: 60 debt entries (55 functions, 5 files); 4 accepted exceptions.
+< exit 0
+> Worsened from 1044: [max-lines] packages/daemon/src/agent-executor/launch.ts:826 <file> (1046)
+> Worsened from 429: [max-lines-per-function] packages/daemon/src/agent-executor/launch.ts:1005 createAgentExecutor (431)
+> Size ratchet failed.
+> exit 1
+why-base.txt: DIFF vs base
+< why-comments: 0 files with removed lines checked against 06559affb..HEAD, 0 comment blocks lost (0 allow-listed)
+< why-comments: ok
+< exit 0
+> why-comments: 58 files with removed lines checked against 06559affb..HEAD, 4 comment blocks lost (0 allow-listed)
+> packages/agent-runtime/src/agent-protocol/acp/__tests__/session.test.ts:1786-1788  [4bb23d5ecd7b]  setmodelrequestid starts null, so a json-rpc error with `id: null` matches it; with no model pinned the session "recovers" by prompting e...
+> packages/core/src/errors/reporter.ts:114-114  [aebef68baf2a]  the record text travels as the tracker's error, so the tracker never holds the unredacted original.
+> packages/core/src/errors/reporter.ts:157-158  [b550e959f815]  `diagnostic` is the operator-only record: message and stack with secrets blanked. `error` is the original, which only a host diagnostics ...
+> packages/sidecar/src/json-ipc.ts:103-113  [fa4f71f9f63b]  shape an unknown error into the `{code?,message}` ipc error payload. exported (previously module-private) for direct unit testing: its on...
+> why-comments: 4 deleted comment blocks appear nowhere else (owner rule: refactors move "why" comments with the code, never delete them)
+>   fix: put the comment back next to the code it explains, or move it with that code.
+>   last resort: add { "id": "<id above>", "reason": "<why this comment is truly obsolete>" } to the debt file (`pnpm check:why-comments`).
+> exit 1
+why-default.txt: DIFF vs base
+< why-comments: 2444 files with removed lines checked against origin/refactor/terra..HEAD, 314 comment blocks lost (199 allow-listed)
+< packages/admin/src/react/components/Sidebar.tsx:194-195  [708256d8a732]  reused across parses rather than constructed per render — `domparser` instances are stateless and this runs once per icon render, but the...
+< packages/agent-plugins/cloudflare/lib/forms.mjs:5-8  [78904e7e3e9c]  form submissions destination: one d1 database per site worker plus the bundled receiver. forms, fields and full validation stay in the ho...
+< packages/agent-plugins/github/__tests__/deployments-provider.test.mjs:7-17  [a1b445fbde84]  @file regression tests for `../deployments/github.mjs`. mirrors `src/webhooks/http.memory.ts`'s `recordinghttpclient` shape (scripted res...
+< packages/agent-plugins/github/__tests__/deployments-provider.test.mjs:48-50  [446c0ddd11bf]  always throws — proves the `try/catch` around each `sendpinned` call site (mint, create, poll) surfaces a network failure as a typed, ret...
+< packages/agent-plugins/github/__tests__/deployments-provider.test.mjs:58-60  [7ce57115faaa]  like `fakehttpclient`, but a step may be a thunk that throws instead of a canned response — lets a test succeed on the token mint (call 1...
+< packages/agent-plugins/github/__tests__/deployments-provider.test.mjs:170-170  [f0c2a9531452]  no network call was made — the check happens before any credential is even read.
+< packages/agent-plugins/github/__tests__/deployments-provider.test.mjs:204-208  [d5bbc93243aa]  the hostile repo segment must survive as one opaque path segment (its "/" characters encoded to %2f) — never split into multiple "/"-deli...
+< packages/agent-plugins/github/__tests__/deployments-provider.test.mjs:213-216  [7b936e78e077]  direct test of the chokepoint itself (see its doc comment): every current adapter call site builds urls through `githubapiurl()`, which c...
+< packages/agent-plugins/github/__tests__/deployments-provider.test.mjs:229-229  [3968171c8eb7]  deliberately not first, to falsify a newest-first assumption
+< packages/agent-plugins/github/__tests__/deployments-provider.test.mjs:277-278  [c7a82db88c8e]  never terminal, so an enum value github adds later cannot be mistaken for success or a permanent failure.
+< packages/agent-plugins/github/deployments/github.mjs:3-22  [51d2989c9ad5]  @file the first-party `github` deployment provider — github app installation auth over the guarded adr-038 `httpclientport`. why a github...
+< packages/agent-plugins/github/deployments/github.mjs:30-31  [3ec335bc7afa]  github app jwts: `exp` must be no more than 10 minutes past `iat` (verified — see file header). 9 minutes leaves margin against clock dri...
+< packages/agent-plugins/github/deployments/github.mjs:33-34  [5871e7b45ff7]  github's own guidance is to back-date `iat` by up to 60s to tolerate clock skew between this process and github's clock (verified — see f...
+< packages/agent-plugins/github/deployments/github.mjs:50-54  [8835bc133879]  reads and validates `target.config`'s three required github-specific fields. @complexity o(1).
+< packages/agent-plugins/github/deployments/github.mjs:63-77  [0a94cb9438ff]  the origin pin. this is the only call site for `http.send` in this file — every outbound request (minting a token, creating a deployment,...
+< packages/agent-plugins/github/deployments/github.mjs:88-93  [5481ca1ab66d]  builds a same-origin url from a path. every caller-influenced path segment (owner, repo, installation id, provider run ref) must already ...
+< packages/agent-plugins/github/deployments/github.mjs:111-115  [5a148c9f1baa]  signs a github app jwt locally. the private key never leaves this process. @complexity o(1) (one rsa signature over a short, fixed-shape ...
+< packages/agent-plugins/github/deployments/github.mjs:131-138  [0b167168e219]  mints a short-lived app jwt, exchanges it for an installation access token narrowed to exactly this installation's `deployments: write` p...
+< packages/agent-plugins/github/deployments/github.mjs:181-181  [f1819f7345f5]  token formats are opaque; do not assume a fixed prefix or length.
+< packages/agent-plugins/github/deployments/github.mjs:196-201  [d2136c020e7e]  sends the `post .../deployments` call and validates its response — split out of `startrun` so the pre-checks (target config, release shap...
+< packages/agent-plugins/github/deployments/github.mjs:252-260  [0354b1dc8684]  creates a github deployment for an existing commit. does not wait for (or fabricate) evidence that a build or deploy has started — github...
+< packages/agent-plugins/github/deployments/github.mjs:267-269  [ec624ff81a1a]  the honesty constraint, enforced at the one place it can be: this adapter promotes an existing commit. it cannot manufacture one from an ...
+< packages/agent-plugins/github/deployments/github.mjs:289-301  [29b9b9fdd033]  github's real deployment-status `state` enum has seven values — `error`, `failure`, `inactive`, `in_progress`, `queued`, `pending`, `succ...
+< packages/agent-plugins/github/deployments/github.mjs:323-330  [454e35599c73]  sends the `get .../statuses` call and resolves the latest status from it — split out of `pollrun` for the same "pre-checks vs. http round...
+< packages/agent-plugins/github/deployments/github.mjs:379-384  [db18288abc7a]  polls the latest deployment status. @complexity one outbound http request (plus the token mint) and a single linear scan over the returne...
+< packages/agent-plugins/github/deployments/github.mjs:404-407  [d19b707953ef]  builds the `github` deployment provider adapter. stateless — safe to construct once and reuse across requests; all per-call state lives i...
+< packages/agent-plugins/google-workspace/form-destinations/mapping.mjs:21-22  [5f6e7dfe3fba]  these names keep their `tovu` prefix: deliveries have already written them into people's spreadsheets, and a renamed header or marker key...
+< packages/agent-plugins/google-workspace/lib/picker-flow.mjs:29-29  [3650601b7f94]  the names keep their `tovu_` prefix: sites already set them, and renaming would unconfigure them.
+< packages/agent-plugins/google-workspace/lib/surface-actions.mjs:17-17  [a10005d2bf1b]  the plugin's one sign-in: `tovu-connections.json`'s id, declared by every surface that uses it.
+=================== m7 vs base
+complexity.txt: DIFF vs base
+< New violation: [complexity] packages/agent-plugins/src/lifecycle/automatic-use.ts:222 prepare (11)
+< New violation: [complexity] packages/integrations/src/api-connections/hosted-mcp/sign-in-configuration.ts:70 selfConfigureConnection (11)
+> New violation: [complexity] packages/agent-runtime/src/agent-protocol/acp/session-results.ts:21 handleRpcError (12)
+> New violation: [sonarjs/cognitive-complexity] packages/chat/src/core/ag-ui/event-projection.ts:256 drainRunFramesToAgUi (12)
+> New violation: [complexity] packages/chat/src/core/ag-ui/event-projection.ts:292 readConfirmationResume (11)
+> New violation: [complexity] packages/ui/src/features/panel-kit/ErrorNotice.tsx:22 ErrorNotice (11)
+error-gate.txt: DIFF vs base
+< New: [catch-reads-error] packages/cms/src/media/chat-preview.ts (1)
+< New: [failure-text-from-catalog] packages/cms/src/trash/adapters/directory.node.ts (1)
+< New: [failure-text-from-catalog] packages/integrations/src/webhooks/tools/tool-handlers.ts (1)
+< New: [catch-reads-error] packages/platform/src/process-probes.ts (2)
+< New: [catch-reads-error] packages/search/src/indexer-write.ts (1)
+< 8 entries improved or are gone: run with --update to lower the debt list.
+< Error gate (WARN mode): 29 new or worse entries. Not failing the build yet; fix them or use a named idiom.
+> 11 entries improved or are gone: run with --update to lower the debt list.
+> Error gate (WARN mode): 24 new or worse entries. Not failing the build yet; fix them or use a named idiom.
+hooks.txt: =base (exit 0)
+log-safety.txt: DIFF vs base
+> New raw log path: [raw-error] packages/chat/src/core/assistant-client/ag-ui-fetch-agent.ts (1)
+size.txt: DIFF vs base
+< Size ratchet passed: 60 debt entries (55 functions, 5 files); 4 accepted exceptions.
+< exit 0
+> Worsened from 1044: [max-lines] packages/daemon/src/agent-executor/launch.ts:826 <file> (1046)
+> Worsened from 429: [max-lines-per-function] packages/daemon/src/agent-executor/launch.ts:1005 createAgentExecutor (431)
+> Size ratchet failed.
+> exit 1
+why-base.txt: DIFF vs base
+< why-comments: 0 files with removed lines checked against 06559affb..HEAD, 0 comment blocks lost (0 allow-listed)
+< why-comments: ok
+< exit 0
+> why-comments: 64 files with removed lines checked against 06559affb..HEAD, 4 comment blocks lost (0 allow-listed)
+> packages/agent-runtime/src/agent-protocol/acp/__tests__/session.test.ts:1786-1788  [4bb23d5ecd7b]  setmodelrequestid starts null, so a json-rpc error with `id: null` matches it; with no model pinned the session "recovers" by prompting e...
+> packages/core/src/errors/reporter.ts:114-114  [aebef68baf2a]  the record text travels as the tracker's error, so the tracker never holds the unredacted original.
+> packages/core/src/errors/reporter.ts:157-158  [b550e959f815]  `diagnostic` is the operator-only record: message and stack with secrets blanked. `error` is the original, which only a host diagnostics ...
+> packages/sidecar/src/json-ipc.ts:103-113  [fa4f71f9f63b]  shape an unknown error into the `{code?,message}` ipc error payload. exported (previously module-private) for direct unit testing: its on...
+> why-comments: 4 deleted comment blocks appear nowhere else (owner rule: refactors move "why" comments with the code, never delete them)
+>   fix: put the comment back next to the code it explains, or move it with that code.
+>   last resort: add { "id": "<id above>", "reason": "<why this comment is truly obsolete>" } to the debt file (`pnpm check:why-comments`).
+> exit 1
+why-default.txt: DIFF vs base
+< why-comments: 2444 files with removed lines checked against origin/refactor/terra..HEAD, 314 comment blocks lost (199 allow-listed)
+< packages/admin/src/react/components/Sidebar.tsx:194-195  [708256d8a732]  reused across parses rather than constructed per render — `domparser` instances are stateless and this runs once per icon render, but the...
+< packages/agent-plugins/cloudflare/lib/forms.mjs:5-8  [78904e7e3e9c]  form submissions destination: one d1 database per site worker plus the bundled receiver. forms, fields and full validation stay in the ho...
+< packages/agent-plugins/github/__tests__/deployments-provider.test.mjs:7-17  [a1b445fbde84]  @file regression tests for `../deployments/github.mjs`. mirrors `src/webhooks/http.memory.ts`'s `recordinghttpclient` shape (scripted res...
+< packages/agent-plugins/github/__tests__/deployments-provider.test.mjs:48-50  [446c0ddd11bf]  always throws — proves the `try/catch` around each `sendpinned` call site (mint, create, poll) surfaces a network failure as a typed, ret...
+< packages/agent-plugins/github/__tests__/deployments-provider.test.mjs:58-60  [7ce57115faaa]  like `fakehttpclient`, but a step may be a thunk that throws instead of a canned response — lets a test succeed on the token mint (call 1...
+< packages/agent-plugins/github/__tests__/deployments-provider.test.mjs:170-170  [f0c2a9531452]  no network call was made — the check happens before any credential is even read.
+< packages/agent-plugins/github/__tests__/deployments-provider.test.mjs:204-208  [d5bbc93243aa]  the hostile repo segment must survive as one opaque path segment (its "/" characters encoded to %2f) — never split into multiple "/"-deli...
+< packages/agent-plugins/github/__tests__/deployments-provider.test.mjs:213-216  [7b936e78e077]  direct test of the chokepoint itself (see its doc comment): every current adapter call site builds urls through `githubapiurl()`, which c...
+< packages/agent-plugins/github/__tests__/deployments-provider.test.mjs:229-229  [3968171c8eb7]  deliberately not first, to falsify a newest-first assumption
+< packages/agent-plugins/github/__tests__/deployments-provider.test.mjs:277-278  [c7a82db88c8e]  never terminal, so an enum value github adds later cannot be mistaken for success or a permanent failure.
+< packages/agent-plugins/github/deployments/github.mjs:3-22  [51d2989c9ad5]  @file the first-party `github` deployment provider — github app installation auth over the guarded adr-038 `httpclientport`. why a github...
+< packages/agent-plugins/github/deployments/github.mjs:30-31  [3ec335bc7afa]  github app jwts: `exp` must be no more than 10 minutes past `iat` (verified — see file header). 9 minutes leaves margin against clock dri...
+< packages/agent-plugins/github/deployments/github.mjs:33-34  [5871e7b45ff7]  github's own guidance is to back-date `iat` by up to 60s to tolerate clock skew between this process and github's clock (verified — see f...
+< packages/agent-plugins/github/deployments/github.mjs:50-54  [8835bc133879]  reads and validates `target.config`'s three required github-specific fields. @complexity o(1).
+< packages/agent-plugins/github/deployments/github.mjs:63-77  [0a94cb9438ff]  the origin pin. this is the only call site for `http.send` in this file — every outbound request (minting a token, creating a deployment,...
+< packages/agent-plugins/github/deployments/github.mjs:88-93  [5481ca1ab66d]  builds a same-origin url from a path. every caller-influenced path segment (owner, repo, installation id, provider run ref) must already ...
+< packages/agent-plugins/github/deployments/github.mjs:111-115  [5a148c9f1baa]  signs a github app jwt locally. the private key never leaves this process. @complexity o(1) (one rsa signature over a short, fixed-shape ...
+< packages/agent-plugins/github/deployments/github.mjs:131-138  [0b167168e219]  mints a short-lived app jwt, exchanges it for an installation access token narrowed to exactly this installation's `deployments: write` p...
+< packages/agent-plugins/github/deployments/github.mjs:181-181  [f1819f7345f5]  token formats are opaque; do not assume a fixed prefix or length.
+< packages/agent-plugins/github/deployments/github.mjs:196-201  [d2136c020e7e]  sends the `post .../deployments` call and validates its response — split out of `startrun` so the pre-checks (target config, release shap...
+< packages/agent-plugins/github/deployments/github.mjs:252-260  [0354b1dc8684]  creates a github deployment for an existing commit. does not wait for (or fabricate) evidence that a build or deploy has started — github...
+< packages/agent-plugins/github/deployments/github.mjs:267-269  [ec624ff81a1a]  the honesty constraint, enforced at the one place it can be: this adapter promotes an existing commit. it cannot manufacture one from an ...
+< packages/agent-plugins/github/deployments/github.mjs:289-301  [29b9b9fdd033]  github's real deployment-status `state` enum has seven values — `error`, `failure`, `inactive`, `in_progress`, `queued`, `pending`, `succ...
+< packages/agent-plugins/github/deployments/github.mjs:323-330  [454e35599c73]  sends the `get .../statuses` call and resolves the latest status from it — split out of `pollrun` for the same "pre-checks vs. http round...
+< packages/agent-plugins/github/deployments/github.mjs:379-384  [db18288abc7a]  polls the latest deployment status. @complexity one outbound http request (plus the token mint) and a single linear scan over the returne...
+< packages/agent-plugins/github/deployments/github.mjs:404-407  [d19b707953ef]  builds the `github` deployment provider adapter. stateless — safe to construct once and reuse across requests; all per-call state lives i...
+< packages/agent-plugins/google-workspace/form-destinations/mapping.mjs:21-22  [5f6e7dfe3fba]  these names keep their `tovu` prefix: deliveries have already written them into people's spreadsheets, and a renamed header or marker key...
+< packages/agent-plugins/google-workspace/lib/picker-flow.mjs:29-29  [3650601b7f94]  the names keep their `tovu_` prefix: sites already set them, and renaming would unconfigure them.
+< packages/agent-plugins/google-workspace/lib/surface-actions.mjs:17-17  [a10005d2bf1b]  the plugin's one sign-in: `tovu-connections.json`'s id, declared by every surface that uses it.
+=================== final vs base
+complexity.txt: DIFF vs base
+< New violation: [complexity] packages/agent-plugins/src/lifecycle/automatic-use.ts:222 prepare (11)
+< New violation: [complexity] packages/integrations/src/api-connections/hosted-mcp/sign-in-configuration.ts:70 selfConfigureConnection (11)
+> New violation: [complexity] packages/agent-runtime/src/agent-protocol/acp/session-results.ts:21 handleRpcError (12)
+> New violation: [sonarjs/cognitive-complexity] packages/chat/src/core/ag-ui/event-projection.ts:256 drainRunFramesToAgUi (12)
+> New violation: [complexity] packages/chat/src/core/ag-ui/event-projection.ts:292 readConfirmationResume (11)
+> New violation: [complexity] packages/ui/src/features/panel-kit/ErrorNotice.tsx:22 ErrorNotice (11)
+error-gate.txt: DIFF vs base
+< New: [catch-reads-error] packages/cms/src/media/chat-preview.ts (1)
+< New: [failure-text-from-catalog] packages/cms/src/trash/adapters/directory.node.ts (1)
+< New: [failure-text-from-catalog] packages/integrations/src/webhooks/tools/tool-handlers.ts (1)
+< New: [catch-reads-error] packages/platform/src/process-probes.ts (2)
+< New: [catch-reads-error] packages/search/src/indexer-write.ts (1)
+< 8 entries improved or are gone: run with --update to lower the debt list.
+< Error gate (WARN mode): 29 new or worse entries. Not failing the build yet; fix them or use a named idiom.
+> 11 entries improved or are gone: run with --update to lower the debt list.
+> Error gate (WARN mode): 24 new or worse entries. Not failing the build yet; fix them or use a named idiom.
+hooks.txt: =base (exit 0)
+log-safety.txt: DIFF vs base
+> New raw log path: [raw-error] packages/chat/src/core/assistant-client/ag-ui-fetch-agent.ts (1)
+size.txt: DIFF vs base
+< Size ratchet passed: 60 debt entries (55 functions, 5 files); 4 accepted exceptions.
+< exit 0
+> Worsened from 1044: [max-lines] packages/daemon/src/agent-executor/launch.ts:826 <file> (1046)
+> Worsened from 429: [max-lines-per-function] packages/daemon/src/agent-executor/launch.ts:1005 createAgentExecutor (431)
+> Size ratchet failed.
+> exit 1
+why-base.txt: DIFF vs base
+< why-comments: 0 files with removed lines checked against 06559affb..HEAD, 0 comment blocks lost (0 allow-listed)
+< why-comments: ok
+< exit 0
+> why-comments: 64 files with removed lines checked against 06559affb..HEAD, 4 comment blocks lost (0 allow-listed)
+> packages/agent-runtime/src/agent-protocol/acp/__tests__/session.test.ts:1786-1788  [4bb23d5ecd7b]  setmodelrequestid starts null, so a json-rpc error with `id: null` matches it; with no model pinned the session "recovers" by prompting e...
+> packages/core/src/errors/reporter.ts:114-114  [aebef68baf2a]  the record text travels as the tracker's error, so the tracker never holds the unredacted original.
+> packages/core/src/errors/reporter.ts:157-158  [b550e959f815]  `diagnostic` is the operator-only record: message and stack with secrets blanked. `error` is the original, which only a host diagnostics ...
+> packages/sidecar/src/json-ipc.ts:103-113  [fa4f71f9f63b]  shape an unknown error into the `{code?,message}` ipc error payload. exported (previously module-private) for direct unit testing: its on...
+> why-comments: 4 deleted comment blocks appear nowhere else (owner rule: refactors move "why" comments with the code, never delete them)
+>   fix: put the comment back next to the code it explains, or move it with that code.
+>   last resort: add { "id": "<id above>", "reason": "<why this comment is truly obsolete>" } to the debt file (`pnpm check:why-comments`).
+> exit 1
+why-default.txt: DIFF vs base
+< why-comments: 2444 files with removed lines checked against origin/refactor/terra..HEAD, 314 comment blocks lost (199 allow-listed)
+< packages/admin/src/react/components/Sidebar.tsx:194-195  [708256d8a732]  reused across parses rather than constructed per render — `domparser` instances are stateless and this runs once per icon render, but the...
+< packages/agent-plugins/cloudflare/lib/forms.mjs:5-8  [78904e7e3e9c]  form submissions destination: one d1 database per site worker plus the bundled receiver. forms, fields and full validation stay in the ho...
+< packages/agent-plugins/github/__tests__/deployments-provider.test.mjs:7-17  [a1b445fbde84]  @file regression tests for `../deployments/github.mjs`. mirrors `src/webhooks/http.memory.ts`'s `recordinghttpclient` shape (scripted res...
+< packages/agent-plugins/github/__tests__/deployments-provider.test.mjs:48-50  [446c0ddd11bf]  always throws — proves the `try/catch` around each `sendpinned` call site (mint, create, poll) surfaces a network failure as a typed, ret...
+< packages/agent-plugins/github/__tests__/deployments-provider.test.mjs:58-60  [7ce57115faaa]  like `fakehttpclient`, but a step may be a thunk that throws instead of a canned response — lets a test succeed on the token mint (call 1...
+< packages/agent-plugins/github/__tests__/deployments-provider.test.mjs:170-170  [f0c2a9531452]  no network call was made — the check happens before any credential is even read.
+< packages/agent-plugins/github/__tests__/deployments-provider.test.mjs:204-208  [d5bbc93243aa]  the hostile repo segment must survive as one opaque path segment (its "/" characters encoded to %2f) — never split into multiple "/"-deli...
+< packages/agent-plugins/github/__tests__/deployments-provider.test.mjs:213-216  [7b936e78e077]  direct test of the chokepoint itself (see its doc comment): every current adapter call site builds urls through `githubapiurl()`, which c...
+< packages/agent-plugins/github/__tests__/deployments-provider.test.mjs:229-229  [3968171c8eb7]  deliberately not first, to falsify a newest-first assumption
+< packages/agent-plugins/github/__tests__/deployments-provider.test.mjs:277-278  [c7a82db88c8e]  never terminal, so an enum value github adds later cannot be mistaken for success or a permanent failure.
+< packages/agent-plugins/github/deployments/github.mjs:3-22  [51d2989c9ad5]  @file the first-party `github` deployment provider — github app installation auth over the guarded adr-038 `httpclientport`. why a github...
+< packages/agent-plugins/github/deployments/github.mjs:30-31  [3ec335bc7afa]  github app jwts: `exp` must be no more than 10 minutes past `iat` (verified — see file header). 9 minutes leaves margin against clock dri...
+< packages/agent-plugins/github/deployments/github.mjs:33-34  [5871e7b45ff7]  github's own guidance is to back-date `iat` by up to 60s to tolerate clock skew between this process and github's clock (verified — see f...
+< packages/agent-plugins/github/deployments/github.mjs:50-54  [8835bc133879]  reads and validates `target.config`'s three required github-specific fields. @complexity o(1).
+< packages/agent-plugins/github/deployments/github.mjs:63-77  [0a94cb9438ff]  the origin pin. this is the only call site for `http.send` in this file — every outbound request (minting a token, creating a deployment,...
+< packages/agent-plugins/github/deployments/github.mjs:88-93  [5481ca1ab66d]  builds a same-origin url from a path. every caller-influenced path segment (owner, repo, installation id, provider run ref) must already ...
+< packages/agent-plugins/github/deployments/github.mjs:111-115  [5a148c9f1baa]  signs a github app jwt locally. the private key never leaves this process. @complexity o(1) (one rsa signature over a short, fixed-shape ...
+< packages/agent-plugins/github/deployments/github.mjs:131-138  [0b167168e219]  mints a short-lived app jwt, exchanges it for an installation access token narrowed to exactly this installation's `deployments: write` p...
+< packages/agent-plugins/github/deployments/github.mjs:181-181  [f1819f7345f5]  token formats are opaque; do not assume a fixed prefix or length.
+< packages/agent-plugins/github/deployments/github.mjs:196-201  [d2136c020e7e]  sends the `post .../deployments` call and validates its response — split out of `startrun` so the pre-checks (target config, release shap...
+< packages/agent-plugins/github/deployments/github.mjs:252-260  [0354b1dc8684]  creates a github deployment for an existing commit. does not wait for (or fabricate) evidence that a build or deploy has started — github...
+< packages/agent-plugins/github/deployments/github.mjs:267-269  [ec624ff81a1a]  the honesty constraint, enforced at the one place it can be: this adapter promotes an existing commit. it cannot manufacture one from an ...
+< packages/agent-plugins/github/deployments/github.mjs:289-301  [29b9b9fdd033]  github's real deployment-status `state` enum has seven values — `error`, `failure`, `inactive`, `in_progress`, `queued`, `pending`, `succ...
+< packages/agent-plugins/github/deployments/github.mjs:323-330  [454e35599c73]  sends the `get .../statuses` call and resolves the latest status from it — split out of `pollrun` for the same "pre-checks vs. http round...
+< packages/agent-plugins/github/deployments/github.mjs:379-384  [db18288abc7a]  polls the latest deployment status. @complexity one outbound http request (plus the token mint) and a single linear scan over the returne...
+< packages/agent-plugins/github/deployments/github.mjs:404-407  [d19b707953ef]  builds the `github` deployment provider adapter. stateless — safe to construct once and reuse across requests; all per-call state lives i...
+< packages/agent-plugins/google-workspace/form-destinations/mapping.mjs:21-22  [5f6e7dfe3fba]  these names keep their `tovu` prefix: deliveries have already written them into people's spreadsheets, and a renamed header or marker key...
+< packages/agent-plugins/google-workspace/lib/picker-flow.mjs:29-29  [3650601b7f94]  the names keep their `tovu_` prefix: sites already set them, and renaming would unconfigure them.
+< packages/agent-plugins/google-workspace/lib/surface-actions.mjs:17-17  [a10005d2bf1b]  the plugin's one sign-in: `tovu-connections.json`'s id, declared by every surface that uses it.
