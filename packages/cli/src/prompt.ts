@@ -32,6 +32,7 @@
  * default `readFile`/`readStdin` implementations — they have no effect if a
  * caller injects their own.
  */
+import { createReadStream } from 'node:fs';
 
 /** Thrown by the default readers when a file or stdin stream exceeds its configured byte cap. */
 export class PayloadTooLargeError extends Error {
@@ -107,7 +108,6 @@ async function readFlagSource(
 }
 
 async function defaultReadFile(path: string, limits: ReadLimits): Promise<string> {
-  const { createReadStream } = await import('node:fs');
   return await new Promise<string>((resolve, reject) => {
     const stream = createReadStream(path, limits.signal !== undefined ? { signal: limits.signal } : {});
     const chunks: Buffer[] = [];
