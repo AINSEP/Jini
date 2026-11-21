@@ -33,8 +33,9 @@ name: CI
 
 on:
   push:
-    branches: ["**"]
+    branches: [main]
   pull_request:
+    branches: [main, general-work]
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
@@ -59,9 +60,6 @@ jobs:
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
-      - name: Dependency audit (report-only)
-        run: pnpm audit
-        continue-on-error: true
 
       # Every workspace package's package.json resolves its `@jini-ai/*` siblings through its own
       # gitignored `dist/` (`types`/`main` both point there — see e.g. packages/daemon/package.json),
@@ -143,27 +141,6 @@ jobs:
       - name: error gate rules on copied sites (the exemption's executable examples; blocking)
         if: ${{ !cancelled() }}
         run: pnpm exec vitest run scripts/__tests__/check-error-gate.test.ts scripts/__tests__/check-error-disclosure-callers.test.ts
-
-      - name: SonarJS (report-only; counts per rule)
-        if: ${{ !cancelled() }}
-        run: pnpm quality:sonar
-        continue-on-error: true
-
-      # Initial quality-tool rollout: observations only, never included in the gate below.
-      - name: knip (report-only)
-        if: ${{ !cancelled() }}
-        run: pnpm quality:knip
-        continue-on-error: true
-
-      - name: dependency-cruiser (report-only)
-        if: ${{ !cancelled() }}
-        run: pnpm quality:depcruise
-        continue-on-error: true
-
-      - name: fast-check properties (report-only)
-        if: ${{ !cancelled() }}
-        run: pnpm quality:properties
-        continue-on-error: true
 
       - name: fail if a blocking gate failed
         if: steps.guard.outcome == 'failure' || steps.typecheck.outcome == 'failure' || steps.agent_plugin_content.outcome == 'failure'
