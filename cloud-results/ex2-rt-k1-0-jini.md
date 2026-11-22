@@ -1,4 +1,4 @@
-DONE e398f2ffa
+DONE (see last commit on branch)
 
 # RT-K1-0.J (Jini half) — route refusal, body cap, returned-vs-thrown error parity
 
@@ -94,3 +94,55 @@ import { ClientFacingError } from "@jini-ai/core/contracts/server"; // for onErr
 5. `route-refusal.ts` keeps the source's double quotes (verbatim) while core uses single quotes; `RouteRefusalError`'s constructor keeps its positional `readonly response` parameter (verbatim).
 6. Pre-existing cms failures (forms package-boundary, result-html ×6, expand-partials ×1, pglite DDL under load) and pre-existing size/complexity/why-comments reds on base are unchanged.
 7. Gate tooling: base worktree had no `dist/`, so base `guard`/`check:cross-package` logs carry ENOENT/unresolved noise; comparisons above are per touched file.
+
+## Review fixes
+
+Applied the Codex 6.2 FIX list and the coordinator decisions. This **supersedes** the "Added (behaviour change)", "Exports + api-baseline delta", the parity rows under "Tests", the extra http-kit mutation, and the onError / Express `maxBodyBytes` bullets under "For the Tovu half" above. This branch is now the corrected RT-K1-0.J scope only. Returned-vs-thrown adapter parity moves to **BX-53/54**, which must keep the exact legacy 413 body `{"error":"Content too large to save.","code":"PAYLOAD_TOO_LARGE"}`. Express body enforcement stays in Tovu middleware.
+
+Commits: `406cafa2f` (FIX 1 + 3, plus the FIX 2 changeset and header), `0c3792108` (FIX 2 baselines), then this report commit (SHA on line 1).
+
+**FIX 1: adapter behaviour restored to base.**
+- `packages/http-kit/src/adapter.ts`, `packages/http-kit/src/types.ts`: restored byte-for-byte to merge-13. Returned parse/handler errors bypass `onError` again, and Express `maxBodyBytes` / `refuseOversizedBody` / `refuseReturned` are gone.
+- `packages/core/src/contracts/server/json-route.ts`: restored to merge-13 (`errorAnswer` for returned body-read/parse/handle errors; `refuseReturned` removed).
+- `packages/core/src/contracts/server/request-body.ts`: restored to merge-13 (`payloadTooLargeError` removed).
+- Characterization tests restored to merge-13: `http-kit/src/__tests__/adapter-pins.test.ts` and `adapter-ports.test.ts`, so `onError` is NOT called for returned failures again.
+- Parity-only additions dropped: `http-kit/src/__tests__/adapter-error-parity.test.ts` deleted, the json-route.test.ts parity block (+7) and the request-body.test.ts `payloadTooLargeError` case (+1) reverted.
+- `git diff origin/integ/merge-13-2026-11-22 -- packages/http-kit packages/core/src/contracts` is empty.
+
+**FIX 2: API surface narrowed.**
+- `api-baseline/jini-ai__http-kit.json` is restored (no delta).
+- `api-baseline/jini-ai__core.json:1339-1345`: the only delta is the new entry `./errors/route-refusal` with `RouteRefusalError` (class:2b67969581) and `rejectRoute` (function:ef82debcec), the same hashes as before the move. `payloadTooLargeError` is gone.
+- `api-baseline/jini-ai__cms.json:25-30`: `./admin-http/limits` → `CONTENT_ENTRY_MAX_BODY_BYTES` (unchanged).
+- `.changeset/p9k-rt-k1-0.md`: `@jini-ai/core` patch and `@jini-ai/cms` patch; the http-kit bump is removed.
+- `packages/cms/src/admin-http/limits.ts:2-4`: the header now says the file only declares the cap and that Express-mounted routes still enforce it through the host's body-size middleware, not the route adapter. The 1 MiB constant, its doc comment and the SPEC-002 rationale are unchanged.
+
+**FIX 3: runtime moved out of `src/contracts`; no XP4 exception.**
+- `packages/core/src/contracts/server/route-refusal.ts` was moved with `git mv` to `packages/core/src/errors/route-refusal.ts`, content unchanged. `RouteRefusalError`'s inherited name, fixed message, `response.status/body`, optional-field omission and `_optional` pad are all preserved.
+- The test moved beside it to `packages/core/src/errors/__tests__/route-refusal.test.ts`. The only edit is its import, now `'../route-refusal.js'`.
+- `packages/core/src/contracts/server.ts`: the barrel line is removed, so the file matches base.
+- `packages/core/package.json`: new `"./errors/route-refusal": "universal"` in `jini.entries` (line 78), plus an exports triple (lines 465-469). No other file under `src/contracts` changed, so nothing new was needed there (no new types).
+- **New Tovu specifier:** `import { RouteRefusalError, rejectRoute } from "@jini-ai/core/errors/route-refusal";` (replaces `@jini-ai/core/contracts/server` for these two symbols). `CONTENT_ENTRY_MAX_BODY_BYTES` still comes from `@jini-ai/cms/admin-http/limits`. Tovu's `onError` needs no `ClientFacingError` mapping from this step, and Tovu keeps `rejectOversizedJsonBody` on Express.
+
+**Gates (final tree; base = clean merge-13 worktree, outputs path-normalized and diffed):**
+| Gate | Result |
+|---|---|
+| `pnpm install --frozen-lockfile` | EXIT 0 |
+| `pnpm -r build` | EXIT 0 (`core/dist/errors/route-refusal.*` and `cms/dist/admin-http/limits.*` emitted) |
+| `pnpm typecheck` | EXIT 0 |
+| `pnpm guard` | EXIT 0 |
+| `pnpm api:check` | before update: core REMOVED 3 from `./contracts/server`, added subpath `./errors/route-refusal` (the expected deltas). Ran `api:update`. After: EXIT 0. Net baseline diff vs merge-13 = the core entry + the cms entry above, nothing else |
+| `check:size` / `check:complexity` / `check:why-comments` | EXIT 1 on both base and branch; outputs **identical** (no new red) |
+| `check:hooks` / `check:errors` | EXIT 0 on both, identical |
+| `check:cross-package` | EXIT 1 on both. Finding **file sets** per rule XP1/XP2/XP3/XP4/XP5: no file is flagged on the branch that is not flagged on base. XP4 has **no new findings**; the old `route-refusal.ts`/test XP4 lines are gone and `src/contracts` is identical to base. (The base worktree had no `dist/`, so base lines carry ENOENT text and the comparison is per file, not per line.) |
+
+**Tests (full suites, final tree):**
+- core: 217 files, **2975 passed** / 0 failed. That is the previous 2983 minus the 7 json-route parity tests and the 1 payloadTooLargeError test. The 4 route-refusal tests are kept.
+- http-kit: 38 files, **750 passed** / 0 failed, which equals the merge-13 base (parity file removed; pins/ports restored).
+- cms: 431 files, 5013 passed / **8 failed, all pre-existing**:
+  - forms `package-boundary` (version pin `0.7.2` vs `0.7.3-next.2`)
+  - `result-html` ×6 and `expand-partials` ×1, all `RegExp.escape is not a function` because this container runs Node 22 and the repo pins `~24`
+  - None of these touch `admin-http/limits` or the exports map. The same 3 files also fail on the base worktree (there at module load, because it has no `dist/`). The pglite DDL test passed this run.
+
+**Mutation (named):** removed `if (required.code !== undefined) body.code = required.code;` from `packages/core/src/errors/route-refusal.ts`. `route-refusal.test.ts` went **1 failed | 3 passed** ("carries the exact response for a 403 with code and permission details"). Restored with `git checkout`, then 4 passed and `git status` was clean.
+
+**Minor findings now resolved by these fixes:** 2 (XP4), 3 and 4 (no adapter changes on this branch any more).
