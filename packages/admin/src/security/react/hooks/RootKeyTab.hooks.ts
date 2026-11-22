@@ -16,10 +16,14 @@ function rootKeyProgress({ snapshot: s }: { snapshot: RootKeySnapshot | null }, 
 function rootKeyInputs({ snapshot: s }: { snapshot: RootKeySnapshot | null }, _optional = {}) {
   return { token: s?.token ?? '', confirm: s?.confirm ?? '', confirming: s?.confirming ?? false, preview: s?.preview };
 }
+/** Create-only: offered for no key at all, never over an env or file source. */
+function canGenerateKey({ status, generate }: { status: RootKeySnapshot['status'] | undefined; generate: 'shown' | 'hidden' }, _optional = {}) {
+  return generate === 'shown' && status?.state === 'missing' && !status.active && status.source === 'none';
+}
 function rootKeyFlags({ snapshot: s, generate }: { snapshot: RootKeySnapshot | null; generate: 'shown' | 'hidden' }, _optional = {}) {
   const status = s?.status;
   return { locked: isRootKeyLocked({ status: status ?? null }) || s?.generateError?.kind === 'locked',
-    canGenerate: generate === 'shown' && status?.state === 'missing' && !status.active && status.source === 'none', canConfirm: !!s?.preview && s.confirm === START_FRESH_CONFIRMATION };
+    canGenerate: canGenerateKey({ status, generate }), canConfirm: !!s?.preview && s.confirm === START_FRESH_CONFIRMATION };
 }
 /** What a refused create says: the server's own sentence when it sent one, else fixed copy. */
 function generateErrorText({ refusal, t }: { refusal: RootKeyRefusal | null | undefined; t: SecurityTranslator }, _optional = {}) {

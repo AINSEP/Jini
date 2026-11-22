@@ -98,13 +98,17 @@ export function rootKeyBadge({ status }: { status: RootKeyStatus }, { defaultEnv
   const name = status.envVarName ?? defaultEnvVarName;
   return name === undefined ? { label: 'Active — environment variable', tone } : { label: 'Active: environment variable {name}', vars: { name }, tone };
 }
+/** An env key is fixed by its exact variable name; a file key only by hand on the server. */
+function invalidKeyNote({ status }: { status: RootKeyStatus }, { defaultEnvVarName }: { defaultEnvVarName?: string | undefined } = {}): RootKeyNote {
+  const name = status.envVarName ?? defaultEnvVarName;
+  if (status.source !== 'env') return { text: 'The key file at', path: status.keyFilePath, after: "isn't in a usable format. It will need to be replaced by hand on the server — this tab can't do that yet." };
+  return name === undefined ? { text: 'A key is set up for this install, but it is not in a usable format. Fix the value stored in its environment variable to resolve this.' } : { text: 'A key is set up for this install, but it is not in a usable format. Fix the value stored in the {name} environment variable to resolve this.', vars: { name } };
+}
 export interface RootKeyNote { readonly text: string; readonly vars?: Readonly<Record<string, string>>; readonly path?: string; readonly after?: string }
 /** One plain sentence per source. A file path is shown as its own code element, never interpolated
  * into translated prose; an env var name is named because fixing it requires that exact name. */
 export function rootKeySourceNote({ status }: { status: RootKeyStatus }, { defaultEnvVarName, generate = 'shown' }: { defaultEnvVarName?: string | undefined; generate?: 'shown' | 'hidden' | undefined } = {}): RootKeyNote {
-  const name = status.envVarName ?? defaultEnvVarName;
-  if (status.invalid && status.source === 'env') return name === undefined ? { text: 'A key is set up for this install, but it is not in a usable format. Fix the value stored in its environment variable to resolve this.' } : { text: 'A key is set up for this install, but it is not in a usable format. Fix the value stored in the {name} environment variable to resolve this.', vars: { name } };
-  if (status.invalid) return { text: 'The key file at', path: status.keyFilePath, after: "isn't in a usable format. It will need to be replaced by hand on the server — this tab can't do that yet." };
+  if (status.invalid) return invalidKeyNote({ status }, { defaultEnvVarName });
   if (status.source === 'env') return { text: "This key was set up directly on the server rather than as a file, and it's already active — there's nothing to do here. Changing it means updating it on the server and restarting." };
   if (status.source === 'file') return { text: 'Stored in a file on this server, at', path: status.keyFilePath };
   // A host that hides Generate mints the key itself at boot, so the empty state says so.
