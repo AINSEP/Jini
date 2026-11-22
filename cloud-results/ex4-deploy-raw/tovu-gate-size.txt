@@ -1,0 +1,14 @@
+### base
+Worsened violation: apps/admin/src/features/pages/PageEditor.tsx:994 PageEditorPane#1 [max-lines-per-function] 128 (baseline 125)
+Worsened violation: apps/admin/src/features/pages/hooks/use-page-editor.hooks.ts:515 usePageEditor#1 [max-lines-per-function] 384 (baseline 380)
+Worsened violation: apps/admin/src/features/posts/hooks/use-post-editor.hooks.ts:420 usePostEditor#1 [max-lines-per-function] 410 (baseline 400)
+Worsened violation: apps/desktop/src/renderer/SiteGrid.tsx:749 <file> [max-lines] 502 (baseline 501)
+Worsened violation: apps/website/src/features/deployments/publish-agent-tools.ts:818 <file> [max-lines] 775 (baseline 763)
+exit=1
+### head
+Worsened violation: apps/admin/src/features/pages/PageEditor.tsx:994 PageEditorPane#1 [max-lines-per-function] 128 (baseline 125)
+Worsened violation: apps/admin/src/features/pages/hooks/use-page-editor.hooks.ts:515 usePageEditor#1 [max-lines-per-function] 384 (baseline 380)
+Worsened violation: apps/admin/src/features/posts/hooks/use-post-editor.hooks.ts:420 usePostEditor#1 [max-lines-per-function] 410 (baseline 400)
+Worsened violation: apps/desktop/src/renderer/SiteGrid.tsx:749 <file> [max-lines] 502 (baseline 501)
+Worsened violation: apps/website/src/features/deployments/publish-agent-tools.ts:818 <file> [max-lines] 775 (baseline 763)
+exit=1

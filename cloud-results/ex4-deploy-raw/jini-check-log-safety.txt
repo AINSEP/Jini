@@ -1,0 +1,5 @@
+New raw log path: [error-format] packages/http-kit/src/node-bridge.ts (1)
+New raw log path: [error-helper] packages/http-kit/src/node-bridge.ts (1)
+New raw log path: [console] packages/ui/src/features/panel-kit/hooks/use-settings-slice-save.hooks.ts (1)
+Log-safety ratchet failed.
+EXIT=1

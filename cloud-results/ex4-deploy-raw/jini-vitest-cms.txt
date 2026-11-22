@@ -1,0 +1,23 @@
+ FAIL  forms/src/__tests__/package-boundary.test.ts > forms keeps its own published root entry and CMS exposes no forms alias
+ FAIL  src/comments/__tests__/repo.cas-race.cov-j2.test.ts > comments sql repo CAS [pglite] > an unlocked write landing between the locked read and the update is reported as a conflict at its version
+ FAIL  src/comments/__tests__/repo.dialects.test.ts > comments repo [pglite] > create round-trips, with nulls and a real spam score
+ FAIL  src/comments/__tests__/write-service.trash.test.ts > [pglite] a failed index write rolls the moderation back rather than leaving a hidden comment with no Trash row
+ FAIL  src/content-types/__tests__/sql.repo.dialects.test.ts > content-type repo [pglite] > save inserts, then a second save fully replaces the row
+ FAIL  src/content-types/__tests__/universal-entries.boundary.test.ts > no CMS universal entry reaches a Node builtin
+ FAIL  src/forms/__tests__/create-tables.reference.test.ts > pglite: createFormsTables matches the reference DDL's catalog
+ FAIL  src/forms/__tests__/create-tables.test.ts > pglite: creates the tables, is idempotent, and the repos round-trip
+ FAIL  src/forms/__tests__/repo.contract.test.ts > [SqlFormDefinitionRepo [pglite]] create + findById round-trips
+ FAIL  src/forms/__tests__/repo.dialects.test.ts > forms repos [pglite] > definition create then findById / findBySlug / list round-trip
+ FAIL  src/forms/__tests__/repo.lost-update.test.ts > form definition lost updates [pglite] > a stale editor is refused and the first editor's change survives
+ FAIL  src/forms/__tests__/submission-ip-retention.dialects.test.ts > submission IP retention adapter and migration 0006 [pglite] > bounded batches cover more than 500 records; concurrent passes count each cleared row once
+ FAIL  src/forms/__tests__/submission-ip-retention.ports.unit.test.ts > submission IP retention column catalog port [pglite] > a nullable source_ip lets the update run, and the probe is asked about the submissions table
+ FAIL  src/navigation/__tests__/sql.repo.dialects.test.ts > menu repo [pglite] > save and the reads round-trip the doc and locations, scoped to the workspace
+ FAIL  src/presentation/__tests__/sql.repo.dialects.test.ts > presentation settings repo [pglite] > save then findByWorkspaceId round-trips; unknown workspace misses
+ FAIL  src/redirects/__tests__/repo.dialects.test.ts > redirect repo [pglite] > save round-trips every field incl. optionals and booleans; re-save replaces the row
+ FAIL  src/widgets/__tests__/entry-refs-repo.dialects.test.ts > entry refs repo [pglite] > replaceForSource then findBySource / findByTarget return rows in insertion order
+ FAIL  src/widgets/__tests__/repo.contract.test.ts > [SqlWidgetRegionBindingRepo pglite] upsert + findByRegion round-trips, upsert on the same (workspace, regionKey) replaces the row (real UNIQUE constraint, not just in-memory discipline)
+ FAIL  src/trash/__tests__/sql.kit.test.ts > trash sql kit [pglite] > notTrashed, as a real WHERE: a timestamp marker, a status marker, and hidden-with-parent over a live, trashed and NULL parent
+ FAIL  src/trash/__tests__/sql.repo.dialects.test.ts > trash repo [pglite] > insert round-trips every field and is idempotent on (workspace, entity type, entity id)
+ FAIL  src/trash/__tests__/table-adapter.dialects.test.ts > table trash adapter [pglite] > hide then unhide a timestamp entry bumps the version each time and clears the marker
+ Test Files  21 failed | 415 passed (436)
+      Tests  21 failed | 5039 passed (5060)

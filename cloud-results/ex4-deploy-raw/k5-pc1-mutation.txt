@@ -1,0 +1,13 @@
+75c75
+<   if (isPlainObject(config) && typeof config.html === 'string') addUrlKeys({ text: config.html, out: keys });
+---
+>   if (!(isPlainObject(config) && typeof config.html === 'string')) addUrlKeys({ text: config.html, out: keys });
+   × an html body contributes media markers by id or slug, and /m/ URLs 8ms
+   × an html media marker is matched case-insensitively, the way the embed resolver reads it 1ms
+   × TW2 pins malformed documents, asset precedence, inline config and SEO fallbacks 5ms
+   × TW2 pins placed-widget readability, missing entries, active modes and overlays 3ms
+   × placed widgets with no explicit mode scan their items, and a config with neither items nor html is scanned whole 0ms
+   × a gallery marker with no images array contributes nothing and does not throw 1ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 6 ⎯⎯⎯⎯⎯⎯⎯
+      Tests  6 failed | 39 passed (45)
+      Tests  45 passed (45)

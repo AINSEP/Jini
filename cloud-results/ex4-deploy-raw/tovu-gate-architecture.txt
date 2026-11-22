@@ -1,0 +1,14 @@
+### base
+  improved:  bidirectional hub count             335 → 313  (-22, -6.57%)
+========================================================================
+
+check:architecture — FAILED: 1 metric(s) regressed against a hard constraint.
+Either fix the regression or, if genuinely intended, run with --update to move the baseline.
+exit=1
+### head
+  improved:  bidirectional hub count             335 → 313  (-22, -6.57%)
+========================================================================
+
+check:architecture — FAILED: 1 metric(s) regressed against a hard constraint.
+Either fix the regression or, if genuinely intended, run with --update to move the baseline.
+exit=1

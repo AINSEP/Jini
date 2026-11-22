@@ -1,0 +1,11 @@
+107c107
+<         marker: { kind: "timestamp", column: "deleted_at" },
+---
+>         marker: { kind: "status", column: "status", value: "trash" },
+   × flat records use the registry's camelCase timestamp or exact status marker 12ms
+   ✓ an unregistered entity is a composition error for both SQL conditions and flat records 1ms
+   ✓ a parent with a timestamp marker hides its children the moment the parent's timestamp is set 20ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  src/trash/site/__tests__/not-trashed.test.ts > flat records use the registry's camelCase timestamp or exact status marker
+AssertionError: Expected values to be strictly equal:
+      Tests  5 passed (5)

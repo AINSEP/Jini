@@ -1,0 +1,5 @@
+Remove stale debt entry: [max-lines-per-function] packages/sidecar/src/json-ipc.ts:188 createJsonIpcServer (156)
+Remove stale debt entry: [max-lines-per-function] packages/sidecar/src/json-ipc.ts:201 createJsonIpcServer.createNetServer callback (131)
+Remove stale debt entry: [max-lines-per-function] packages/sidecar/src/json-ipc.ts:272 createJsonIpcServer.createNetServer callback.socket.on callback#3 (91)
+Size ratchet failed.
+EXIT=1

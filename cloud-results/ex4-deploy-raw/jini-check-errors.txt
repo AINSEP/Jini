@@ -1,0 +1,5 @@
+New: [catch-reads-error] packages/ui/src/react/hooks/usePersistedDisclosure.ts (2)
+Worse: [catch-reads-error] packages/diagnostics/src/observability/fanout.ts (7 -> 8)
+28 entries improved or are gone: run with --update to lower the debt list.
+Error gate (WARN mode): 25 new or worse entries. Not failing the build yet; fix them or use a named idiom.
+EXIT=0

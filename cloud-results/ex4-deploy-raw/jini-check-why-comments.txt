@@ -1,0 +1,5 @@
+packages/sidecar/src/json-ipc.ts:103-113  [fa4f71f9f63b]  shape an unknown error into the `{code?,message}` ipc error payload. exported (previously module-private) for direct unit testing: its on...
+why-comments: 10 deleted comment blocks appear nowhere else (owner rule: refactors move "why" comments with the code, never delete them)
+  fix: put the comment back next to the code it explains, or move it with that code.
+  last resort: add { "id": "<id above>", "reason": "<why this comment is truly obsolete>" } to the debt file (`pnpm check:why-comments`).
+EXIT=1

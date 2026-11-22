@@ -1,0 +1,15 @@
+43c43
+<   if (value === undefined) return undefined;
+---
+>   if (!(value === undefined)) return undefined;
+   × absent is none; a full block parses and tokenField defaults to 'token' 6ms
+   × malformed blocks are refused with the exact reason 1ms
+   × non-object credential fields are refused with their field location 0ms
+   × non-boolean required flags are refused instead of silently becoming optional 1ms
+   × non-boolean secret flags on non-token fields are refused 0ms
+   × token page URLs must be strings of at most 500 characters 2ms
+   × a custom tokenField selects the declared alternate secret with all field flags preserved 1ms
+   × L146 validation preserves bounds, optional flags and first-error ordering 1ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 8 ⎯⎯⎯⎯⎯⎯⎯
+      Tests  8 failed (8)
+      Tests  8 passed (8)
