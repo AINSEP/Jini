@@ -97,7 +97,6 @@
       "./software-engineering/*": "universal",
       "./commerce": "universal",
       "./commerce/*": "universal",
-      "./commerce/server": "node",
       "./google-forms": "universal",
       "./google-forms/*": "universal",
       "./connect": "universal",
@@ -124,8 +123,7 @@
     "optionalPeers": {
       "yauzl": "opt-in: plugin zip import — Plugin ZIP import could not load yauzl. Install yauzl to enable this feature, or check its installed version and native binaries.",
       "@cfworker/json-schema": "opt-in: json schema validation; import @jini-ai/agent-plugins/lifecycle/tools, import @jini-ai/agent-plugins/connect/executable — JSON Schema validation could not load @cfworker/json-schema. Install @cfworker/json-schema to enable this feature, or check its installed version and native binaries.",
-      "semver": "opt-in: plugin version compatibility; import @jini-ai/agent-plugins/lifecycle, import @jini-ai/agent-plugins/lifecycle/host-tools — Plugin version compatibility could not load semver. Install semver to enable this feature, or check its installed version and native binaries.",
-      "@jini-ai/commerce": "opt-in: commerce server; import @jini-ai/agent-plugins/commerce/server — Commerce checkout requires the host commerce kernel."
+      "semver": "opt-in: plugin version compatibility; import @jini-ai/agent-plugins/lifecycle, import @jini-ai/agent-plugins/lifecycle/host-tools — Plugin version compatibility could not load semver. Install semver to enable this feature, or check its installed version and native binaries."
     }
   },
   "type": "module",
@@ -262,11 +260,6 @@
     "./software-engineering": "./software-engineering/plugin.json",
     "./software-engineering/*": "./software-engineering/*",
     "./commerce": "./commerce/plugin.json",
-    "./commerce/server": {
-      "types": "./core/commerce-server.d.ts",
-      "import": "./core/commerce-server.mjs",
-      "default": "./core/commerce-server.mjs"
-    },
     "./commerce/*": "./commerce/*",
     "./google-forms": "./google-forms/plugin.json",
     "./google-forms/*": "./google-forms/*",
@@ -379,8 +372,7 @@
     "yauzl": "^3.4.0",
     "@jini-ai/core": "^0.7.3-next.2",
     "@cfworker/json-schema": "^4.1.1",
-    "semver": "^7.6.2",
-    "@jini-ai/commerce": "^0.7.3-next.2"
+    "semver": "^7.6.2"
   },
   "peerDependenciesMeta": {
     "yauzl": {
@@ -390,9 +382,6 @@
       "optional": true
     },
     "semver": {
-      "optional": true
-    },
-    "@jini-ai/commerce": {
       "optional": true
     }
   }
