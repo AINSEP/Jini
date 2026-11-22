@@ -912,10 +912,11 @@
  "./react/kit": {
   "types": "./dist/react/kit.d.ts",
   "symbols": {
-   "AdminKit": "interface:b219f36597",
-   "AdminKitComponents": "interface:f764c98cce",
-   "AdminKitHooks": "interface:943521f7c0",
+   "AdminKit": "interface:f40226cf1e",
+   "AdminKitComponents": "interface:5ae216e36f",
+   "AdminKitHooks": "interface:1075a237ad",
    "AdminKitProvider": "function:94b9894e57",
+   "AdminKitValues": "interface:d16aa50c2a",
    "AdminQueryKit": "interface:fe542cee9a",
    "AdminTheme": "interface:f2b152ab6a",
    "AdminThemeColors": "interface:3e5919e150",
@@ -944,14 +945,20 @@
    "HtmlEditor": "variable:d31865ebe5",
    "HtmlEditorProps": "interface:98fc40bf68",
    "HtmlEditorTarget": "interface:8fbd7f7e24",
+   "Icon": "variable:f84c5a7394",
    "IconButton": "variable:773b6f4c59",
    "IconButtonProps": "interface:35f8d2efbf",
+   "IconProps": "interface:1b439c2b9f",
    "InfoTip": "variable:9f6308e627",
    "InfoTipProps": "interface:c57f614143",
    "InteractiveHtmlEditorHandle": "interface:d48df7f338",
    "KitAttrs": "type:a54a0e70b2",
    "KitConfirmDialogProps": "interface:32bb6aacd9",
    "KitConfirmTone": "type:46d3dcb01f",
+   "KitDictionaries": "type:5ddbfccdb6",
+   "KitIconName": "type:2fceb65b22",
+   "KitNotificationsPreferences": "interface:112d04da99",
+   "KitTranslator": "type:88a68e0e0d",
    "Lightbox": "variable:e74bff5539",
    "LightboxProps": "interface:52b8b462b4",
    "MatchMediaPort": "type:1eef261c33",
@@ -985,6 +992,7 @@
    "WidgetSelectOption": "interface:f8d19f3d08",
    "WidgetSelectProps": "interface:f6c68a7a8c",
    "useAdminKit": "function:756220d37f",
+   "useAdminKitValues": "function:612f979146",
    "useAdminThemeKit": "function:6f1e3f60fa",
    "useAgentHandle": "variable:43858f4002",
    "useCachedLoader": "variable:3ec3d85be4",
@@ -998,7 +1006,8 @@
    "useMediaProviderRules": "function:67218fa272",
    "useMediaProvidersTab": "variable:ea89d93a84",
    "useNativeDialog": "variable:02b76d66fe",
-   "useSettlementGeneration": "variable:0f33290eb3"
+   "useSettlementGeneration": "variable:0f33290eb3",
+   "useT": "variable:cb9f21467a"
   }
  },
  "./react/overlays": {
