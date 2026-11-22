@@ -1,0 +1,950 @@
+XP1 packages/agent-runtime/src/claude-stream-frames.ts: @jini-ai/protocol
+XP2 packages/agent-runtime/src/detection.ts: @jini-ai/protocol
+XP3 packages/agent-runtime/src/detection.ts: @jini-ai/protocol
+XP2 packages/agent-runtime/src/diagnostics.ts: @jini-ai/protocol
+XP3 packages/agent-runtime/src/diagnostics.ts: @jini-ai/protocol
+XP3 packages/agent-runtime/src/skills/chat-motion-overlay/assets/remotion-template/src/components/BubbleScene.tsx: Error: missing current declaration mapping
+XP3 packages/agent-runtime/src/skills/chat-motion-overlay/assets/remotion-template/src/components/avatarLibrary.tsx: Error: missing current declaration mapping
+XP3 packages/agent-runtime/src/skills/web-clone/scripts/asset-harvest.mjs: Error: missing current declaration mapping
+XP3 packages/agent-runtime/src/skills/web-clone/scripts/audit-clone.mjs: Error: missing current declaration mapping
+XP3 packages/agent-runtime/src/skills/web-clone/scripts/compare-recon.mjs: Error: missing current declaration mapping
+XP3 packages/agent-runtime/src/skills/web-clone/scripts/dna-scaffold.mjs: Error: missing current declaration mapping
+XP3 packages/agent-runtime/src/skills/web-clone/scripts/init-clone.mjs: Error: missing current declaration mapping
+XP3 packages/agent-runtime/src/skills/web-clone/scripts/interaction-probe.mjs: Error: missing current declaration mapping
+XP3 packages/agent-runtime/src/skills/web-clone/scripts/lib/cli-args.mjs: Error: missing current declaration mapping
+XP3 packages/agent-runtime/src/skills/web-clone/scripts/lib/css-url.mjs: Error: missing current declaration mapping
+XP3 packages/agent-runtime/src/skills/web-clone/scripts/lib/diagnostic-labels.mjs: Error: missing current declaration mapping
+XP3 packages/agent-runtime/src/skills/web-clone/scripts/lib/main-guard.mjs: Error: missing current declaration mapping
+XP3 packages/agent-runtime/src/skills/web-clone/scripts/lib/playwright-loader.mjs: Error: missing current declaration mapping
+XP3 packages/agent-runtime/src/skills/web-clone/scripts/lib/script-cli.mjs: Error: missing current declaration mapping
+XP3 packages/agent-runtime/src/skills/web-clone/scripts/lib/trim-dashes.mjs: Error: missing current declaration mapping
+XP3 packages/agent-runtime/src/skills/web-clone/scripts/mirror-site.mjs: Error: missing current declaration mapping
+XP3 packages/agent-runtime/src/skills/web-clone/scripts/network-capture.mjs: Error: missing current declaration mapping
+XP3 packages/agent-runtime/src/skills/web-clone/scripts/od-preview-rewrite.mjs: Error: missing current declaration mapping
+XP3 packages/agent-runtime/src/skills/web-clone/scripts/recon-site.mjs: Error: missing current declaration mapping
+XP3 packages/agent-runtime/src/skills/web-clone/scripts/route-crawl.mjs: Error: missing current declaration mapping
+XP3 packages/agent-runtime/src/skills/web-clone/scripts/sourcemap-hunt.mjs: Error: missing current declaration mapping
+XP3 packages/agent-runtime/src/skills/web-clone/scripts/visual-diff.mjs: Error: missing current declaration mapping
+XP1 packages/agentic/src/core/render-surface.ts: @jini-ai/protocol/a2ui
+XP2 packages/chat/src/core/run-activity.ts: @jini-ai/protocol/a2ui
+XP1 packages/chat/src/react/components/A2uiSurfaceCard.hooks.ts: @jini-ai/protocol/a2ui
+XP3 packages/chat/src/react/components/A2uiSurfaceCard.hooks.ts: @jini-ai/protocol/a2ui
+XP1 packages/chat/src/react/components/A2uiSurfaceCard.rules.ts: @jini-ai/protocol/a2ui
+XP3 packages/chat/src/react/components/A2uiSurfaceCard.rules.ts: @jini-ai/protocol/a2ui
+XP3 packages/chat/src/react/components/Composer.tsx: @jini-ai/ui
+XP2 packages/chat/src/react/components/McpUiSurfaceCard.tsx: @jini-ai/protocol/mcp-ui
+XP3 packages/chat/src/react/components/McpUiSurfaceCard.tsx: @jini-ai/protocol/mcp-ui
+XP1 packages/chat/src/react/components/QuestionFormField.tsx: @jini-ai/ui
+XP2 packages/chat/src/react/components/mcp-ui-question-input.ts: @jini-ai/protocol/mcp-ui
+XP3 packages/chat/src/react/components/mcp-ui-question-input.ts: @jini-ai/protocol/mcp-ui
+XP2 packages/chat/src/react/components/mcp-ui-surface-state.ts: @jini-ai/protocol/mcp-ui
+XP3 packages/chat/src/react/components/mcp-ui-surface-state.ts: @jini-ai/protocol/mcp-ui
+XP3 packages/chat/src/react/features/chat-pane/components/AgentRuntimePicker.tsx: @jini-ai/ui
+XP1 packages/chat/src/react/features/chat-pane/components/ChatPaneComposerArea.tsx: @jini-ai/ui
+XP3 packages/chat/src/react/features/chat-pane/components/RuntimeDropUp.tsx: @jini-ai/ui
+XP1 packages/chat/src/react/features/chat-pane/components/RuntimePickerSections.tsx: @jini-ai/ui
+XP1 packages/chat/src/react/features/chat-pane/components/RuntimePickerSections.tsx: @jini-ai/ui/admin-widgets
+XP1 packages/chat/src/react/features/chat-pane/components/RuntimePickerSections.tsx: @jini-ai/agent-runtime/native-tool-policy
+XP1 packages/chat/src/react/features/chat-pane/components/RuntimePickerSections.tsx: @jini-ai/agent-runtime/model-selection
+XP2 packages/chat/src/react/features/chat-pane/create-mcp-ui-tool-caller.ts: @jini-ai/protocol/mcp-ui
+XP3 packages/chat/src/react/features/chat-pane/create-mcp-ui-tool-caller.ts: @jini-ai/protocol/mcp-ui
+XP3 packages/chat/src/react/features/chat-pane/hooks/useChatPaneFileDrop.hooks.ts: @jini-ai/ui
+XP2 packages/chat/src/react/features/chat-pane/types.ts: @jini-ai/ui
+XP3 packages/chat/src/react/features/chat-pane/types.ts: @jini-ai/ui
+XP2 packages/chat/src/react/hooks/useSurfaceRecovery.ts: @jini-ai/protocol/mcp-ui
+XP3 packages/chat/src/react/hooks/useSurfaceRecovery.ts: @jini-ai/protocol/mcp-ui
+XP1 packages/chat/src/react/surfaces.tsx: @jini-ai/protocol/a2ui
+XP1 packages/chat/src/react/surfaces.tsx: @jini-ai/protocol/mcp-ui
+XP3 packages/chat/src/react/surfaces.tsx: @jini-ai/protocol/a2ui
+XP3 packages/chat/src/react/surfaces.tsx: @jini-ai/protocol/mcp-ui
+XP1 packages/core/src/contracts/plugin-sdk.ts: @jini-ai/core/plugin-directory
+XP3 packages/core/src/contracts/plugin-sdk.ts: @jini-ai/core/plugin-directory
+XP1 packages/daemon/src/agent-executor/child-input.ts: @jini-ai/protocol
+XP1 packages/daemon/src/agent-executor/child-stream-events.ts: @jini-ai/protocol
+XP1 packages/daemon/src/agent-executor/event-io.ts: @jini-ai/protocol
+XP3 packages/daemon/src/agent-executor/event-io.ts: @jini-ai/protocol
+XP1 packages/daemon/src/core/tool-target.ts: @jini-ai/protocol
+XP3 packages/daemon/src/core/tool-target.ts: @jini-ai/protocol
+XP1 packages/daemon/src/http/attachment-persistence.ts: @jini-ai/platform/fs
+XP3 packages/daemon/src/http/attachments.ts: @jini-ai/protocol
+XP1 packages/daemon/src/http/tool-execution-caller.ts: @jini-ai/protocol
+XP3 packages/daemon/src/http/tool-execution-caller.ts: @jini-ai/protocol
+XP1 packages/daemon/src/run-lifecycle-events.ts: @jini-ai/protocol
+XP3 packages/daemon/src/run-lifecycle-events.ts: @jini-ai/protocol
+XP1 packages/daemon/src/run-lifecycle-registration.ts: @jini-ai/protocol
+XP3 packages/daemon/src/run-lifecycle-registration.ts: @jini-ai/protocol
+XP1 packages/daemon/src/run-lifecycle-registry.ts: @jini-ai/protocol
+XP3 packages/daemon/src/run-lifecycle-registry.ts: @jini-ai/protocol
+XP1 packages/daemon/src/run-lifecycle-timers.ts: @jini-ai/protocol
+XP1 packages/daemon/src/run-lifecycle-transitions.ts: @jini-ai/protocol
+XP3 packages/db/src/testing/postgres-database.ts: Error: missing current declaration mapping
+XP3 packages/db/src/testing/sqlite-snapshot-client.ts: Error: missing current declaration mapping
+XP3 packages/db/src/testing/transfer-pg-test-db.ts: Error: missing current declaration mapping
+XP1 packages/http-kit/src/internal-error.ts: @jini-ai/protocol
+XP3 packages/http-kit/src/internal-error.ts: @jini-ai/protocol
+XP3 packages/integrations/src/api-connections/hosted-mcp/sign-in-discovery.ts: @jini-ai/oauth
+XP3 packages/integrations/src/api-connections/hosted-mcp/sign-in-flow.ts: @jini-ai/oauth
+XP1 packages/node-adapters/src/agent-plugins.ts: @jini-ai/platform/fs
+XP1 packages/node-adapters/src/agent-plugins.ts: @jini-ai/platform/fs/file-lock
+XP1 packages/node-adapters/src/agent-plugins.ts: @jini-ai/agent-plugins/lifecycle
+XP3 packages/node-adapters/src/agent-plugins.ts: @jini-ai/agent-plugins/lifecycle
+XP1 packages/node-adapters/src/fs.ts: @jini-ai/platform/fs
+XP3 packages/node-adapters/src/fs.ts: @jini-ai/platform/fs
+XP1 packages/node-adapters/src/process.ts: @jini-ai/platform/process
+XP3 packages/node-adapters/src/process.ts: @jini-ai/platform/process
+XP3 packages/provider-plugins/src/ai-trace-langfuse/index.ts: Error: missing current declaration mapping
+XP3 packages/provider-plugins/src/ai-trace-langfuse/langfuse.ts: Error: missing current declaration mapping
+XP3 packages/provider-plugins/src/analytics-posthog/browser.ts: Error: missing current declaration mapping
+XP3 packages/provider-plugins/src/analytics-posthog/configuration.ts: Error: missing current declaration mapping
+XP3 packages/provider-plugins/src/analytics-posthog/consent-adapter.ts: Error: missing current declaration mapping
+XP3 packages/provider-plugins/src/analytics-posthog/consent.ts: Error: missing current declaration mapping
+XP3 packages/provider-plugins/src/analytics-posthog/contract.ts: Error: missing current declaration mapping
+XP3 packages/provider-plugins/src/analytics-posthog/index.ts: Error: missing current declaration mapping
+XP3 packages/provider-plugins/src/analytics-posthog/posthog.ts: Error: missing current declaration mapping
+XP3 packages/provider-plugins/src/charts-echarts/descriptor.ts: Error: missing current declaration mapping
+XP3 packages/provider-plugins/src/charts-echarts/mount.ts: Error: missing current declaration mapping
+XP3 packages/provider-plugins/src/charts-echarts/option.ts: Error: missing current declaration mapping
+XP3 packages/provider-plugins/src/charts-recharts/descriptor.ts: Error: missing current declaration mapping
+XP3 packages/provider-plugins/src/charts-recharts/mount.tsx: Error: missing current declaration mapping
+XP3 packages/provider-plugins/src/fixture-provider/index.ts: Error: missing current declaration mapping
+XP3 packages/provider-plugins/src/formspree/index.ts: Error: missing current declaration mapping
+XP3 packages/provider-plugins/src/formspree/provider.ts: Error: missing current declaration mapping
+XP3 packages/provider-plugins/src/google-forms/index.ts: Error: missing current declaration mapping
+XP3 packages/provider-plugins/src/google-forms/provider.ts: Error: missing current declaration mapping
+XP3 packages/provider-plugins/src/observability-opentelemetry/configuration.ts: Error: missing current declaration mapping
+XP3 packages/provider-plugins/src/observability-opentelemetry/contract.ts: Error: missing current declaration mapping
+XP3 packages/provider-plugins/src/observability-opentelemetry/index.ts: Error: missing current declaration mapping
+XP3 packages/provider-plugins/src/observability-opentelemetry/opentelemetry.ts: Error: missing current declaration mapping
+XP3 packages/provider-plugins/src/observability-sentry/configuration.ts: Error: missing current declaration mapping
+XP3 packages/provider-plugins/src/observability-sentry/contract.ts: Error: missing current declaration mapping
+XP3 packages/provider-plugins/src/observability-sentry/index.ts: Error: missing current declaration mapping
+XP3 packages/provider-plugins/src/observability-sentry/sentry.ts: Error: missing current declaration mapping
+XP3 packages/provider-plugins/src/payments-stripe/amount.ts: Error: missing current declaration mapping
+XP3 packages/provider-plugins/src/payments-stripe/checkout-session.ts: Error: missing current declaration mapping
+XP3 packages/provider-plugins/src/payments-stripe/configuration.ts: Error: missing current declaration mapping
+XP3 packages/provider-plugins/src/payments-stripe/contract.ts: Error: missing current declaration mapping
+XP3 packages/provider-plugins/src/payments-stripe/http.ts: Error: missing current declaration mapping
+XP3 packages/provider-plugins/src/payments-stripe/index.ts: Error: missing current declaration mapping
+XP3 packages/provider-plugins/src/payments-stripe/provider.ts: Error: missing current declaration mapping
+XP3 packages/provider-plugins/src/payments-stripe/session-reading.ts: Error: missing current declaration mapping
+XP3 packages/provider-plugins/src/payments-stripe/webhook.ts: Error: missing current declaration mapping
+XP3 packages/provider-plugins/src/telemetry-reporter.ts: Error: missing current declaration mapping
+XP1 packages/server/src/adapters/node-pty.ts: @jini-ai/platform
+XP2 packages/server/src/compose-jini-kernel.ts: @jini-ai/daemon/http
+XP2 packages/server/src/create-local-node-daemon.ts: @jini-ai/node-adapters/fs
+XP2 packages/server/src/feature.ts: @jini-ai/daemon/http
+XP3 packages/server/src/feature.ts: @jini-ai/daemon/http
+XP2 packages/server/src/kernel-base.ts: @jini-ai/daemon/ports/agent-runtime
+XP2 packages/server/src/kernel-base.ts: @jini-ai/platform/system
+XP2 packages/server/src/kernel-base.ts: @jini-ai/node-adapters/fs
+XP2 packages/server/src/kernel-base.ts: @jini-ai/node-adapters/process
+XP2 packages/server/src/kernel-base.ts: @jini-ai/daemon/ports/runtime
+XP3 packages/server/src/kernel-base.ts: @jini-ai/daemon/ports/agent-runtime
+XP1 packages/server/src/mount-routes.ts: @jini-ai/http-kit
+XP1 packages/server/src/mount-routes.ts: @jini-ai/http-kit/node-bridge
+XP2 packages/server/src/owner-store/index.ts: @jini-ai/db/kernel
+XP2 packages/server/src/owner-store/index.ts: @jini-ai/db/kernel/sqlite
+XP2 packages/server/src/owner-store/index.ts: @jini-ai/db/owner-store
+XP2 packages/server/src/owner-store/index.ts: @jini-ai/db/secrets-vault
+XP2 packages/server/src/owner-store/index.ts: @jini-ai/platform/secrets/credential-sets
+XP2 packages/server/src/owner-store/index.ts: @jini-ai/platform/secrets/legacy-owner
+XP3 packages/server/src/owner-store/index.ts: @jini-ai/platform/secrets/credential-sets
+XP3 packages/server/src/owner-store/index.ts: @jini-ai/platform/secrets/legacy-owner
+XP1 packages/server/src/route-host.ts: @jini-ai/daemon/http
+XP1 packages/server/src/route-host.ts: @jini-ai/http-kit
+XP1 packages/server/src/route-host.ts: @jini-ai/http-kit/node-bridge
+XP3 packages/server/src/route-host.ts: @jini-ai/daemon/http
+XP1 packages/server/src/terminal-service.ts: @jini-ai/platform
+XP1 packages/server/src/terminal-service.ts: @jini-ai/daemon/http
+XP3 packages/server/src/terminal-service.ts: @jini-ai/platform
+XP3 packages/server/src/terminal-service.ts: @jini-ai/daemon/http
+XP2 packages/ui/src/features/a2ui/catalog-from-registry.ts: @jini-ai/protocol/a2ui
+XP3 packages/ui/src/features/a2ui/catalog-from-registry.ts: @jini-ai/protocol/a2ui
+XP1 packages/ui/src/features/a2ui/renderer.hooks.ts: @jini-ai/protocol/a2ui
+XP3 packages/ui/src/features/a2ui/renderer.hooks.ts: @jini-ai/protocol/a2ui
+XP2 packages/ui/src/features/a2ui/renderer.tsx: @jini-ai/protocol/a2ui
+XP3 packages/ui/src/features/a2ui/renderer.tsx: @jini-ai/protocol/a2ui
+XP2 packages/ui/src/features/a2ui/use-a2ui-surface.ts: @jini-ai/protocol/a2ui
+XP3 packages/ui/src/features/a2ui/use-a2ui-surface.ts: @jini-ai/protocol/a2ui
+XP2 packages/ui/src/features/mcp-ui/cards.ts: @jini-ai/protocol/mcp-ui
+XP2 packages/ui/src/features/mcp-ui/secret-card.ts: @jini-ai/protocol/mcp-ui
+XP2 packages/ui/src/features/mcp-ui/sign-in-card.ts: @jini-ai/protocol/mcp-ui
+XP3 packages/ui/src/features/mcp-ui/sign-in-card.ts: @jini-ai/protocol/mcp-ui
+XP2 packages/ui/src/features/mcp-ui/surfaces/confirmation.ts: @jini-ai/protocol/mcp-ui
+XP3 packages/ui/src/features/mcp-ui/surfaces/confirmation.ts: @jini-ai/protocol/mcp-ui
+XP2 packages/ui/src/features/mcp-ui/surfaces/form.ts: @jini-ai/protocol/mcp-ui
+XP3 packages/ui/src/features/mcp-ui/surfaces/form.ts: @jini-ai/protocol/mcp-ui
+XP2 packages/ui/src/features/mcp-ui/surfaces/outcome.ts: @jini-ai/protocol/mcp-ui
+XP3 packages/ui/src/features/mcp-ui/surfaces/outcome.ts: @jini-ai/protocol/mcp-ui
+XP2 packages/ui/src/react/mcp-ui/useMcpUiHost.ts: @jini-ai/protocol/mcp-ui
+XP3 packages/ui/src/react/mcp-ui/useMcpUiHost.ts: @jini-ai/protocol/mcp-ui
+XP3 packages/user-management/src/react/users/hooks/use-users-form-state.hooks.ts: @jini-ai/ui
+XP3 packages/user-management/src/react/users/hooks/use-users-password.hooks.ts: @jini-ai/ui
+XP3 packages/user-management/src/react/users/hooks/use-users-state.hooks.ts: @jini-ai/ui
+XP3 packages/user-management/src/react/users/hooks/use-users-status.hooks.ts: @jini-ai/ui
+XP4 packages/core/src/contracts/admin-module.ts: ImportDeclaration
+XP4 packages/core/src/contracts/admin-module.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/admin-module.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/admin-module.ts: Error: contract JavaScript contains runtime statements
+XP4 packages/core/src/contracts/blob.ts: ClassDeclaration
+XP4 packages/core/src/contracts/blob.ts: Error: contract JavaScript contains runtime statements
+XP4 packages/core/src/contracts/capabilities.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/capabilities.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/capabilities.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/capabilities.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/capabilities.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/capabilities.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/capabilities.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/capabilities.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/capabilities.ts: Error: contract JavaScript contains runtime statements
+XP4 packages/core/src/contracts/forms.ts: FirstStatement
+XP4 packages/core/src/contracts/forms.ts: Error: contract JavaScript contains runtime statements
+XP4 packages/core/src/contracts/mail.ts: ExportDeclaration
+XP4 packages/core/src/contracts/mail.ts: Error: contract JavaScript contains runtime statements
+XP4 packages/core/src/contracts/observability.ts: FirstStatement
+XP4 packages/core/src/contracts/observability.ts: FirstStatement
+XP4 packages/core/src/contracts/observability.ts: FirstStatement
+XP4 packages/core/src/contracts/observability.ts: FirstStatement
+XP4 packages/core/src/contracts/observability.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/observability.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/observability.ts: Error: contract JavaScript contains runtime statements
+XP4 packages/core/src/contracts/plugin-sdk.ts: ImportDeclaration
+XP4 packages/core/src/contracts/plugin-sdk.ts: FirstStatement
+XP4 packages/core/src/contracts/plugin-sdk.ts: ClassDeclaration
+XP4 packages/core/src/contracts/plugin-sdk.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/plugin-sdk.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/plugin-sdk.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/plugin-sdk.ts: @jini-ai/core/plugin-directory
+XP4 packages/core/src/contracts/plugin-sdk.ts: Error: contract JavaScript contains runtime statements
+XP4 packages/core/src/contracts/runtime.ts: ExportDeclaration
+XP4 packages/core/src/contracts/runtime.ts: ExportDeclaration
+XP4 packages/core/src/contracts/runtime.ts: ExportDeclaration
+XP4 packages/core/src/contracts/runtime.ts: ExportDeclaration
+XP4 packages/core/src/contracts/runtime.ts: ExportDeclaration
+XP4 packages/core/src/contracts/runtime.ts: ExportDeclaration
+XP4 packages/core/src/contracts/runtime.ts: ExportDeclaration
+XP4 packages/core/src/contracts/runtime.ts: ExportDeclaration
+XP4 packages/core/src/contracts/runtime.ts: ExportDeclaration
+XP4 packages/core/src/contracts/runtime.ts: Error: contract JavaScript contains runtime statements
+XP4 packages/core/src/contracts/server.ts: ExportDeclaration
+XP4 packages/core/src/contracts/server.ts: ExportDeclaration
+XP4 packages/core/src/contracts/server.ts: ExportDeclaration
+XP4 packages/core/src/contracts/server.ts: ExportDeclaration
+XP4 packages/core/src/contracts/server.ts: ExportDeclaration
+XP4 packages/core/src/contracts/server.ts: ExportDeclaration
+XP4 packages/core/src/contracts/server.ts: ExportDeclaration
+XP4 packages/core/src/contracts/server.ts: ExportDeclaration
+XP4 packages/core/src/contracts/server.ts: ExportDeclaration
+XP4 packages/core/src/contracts/server.ts: ExportDeclaration
+XP4 packages/core/src/contracts/server.ts: ExportDeclaration
+XP4 packages/core/src/contracts/server.ts: ExportDeclaration
+XP4 packages/core/src/contracts/server.ts: ExportDeclaration
+XP4 packages/core/src/contracts/server.ts: Error: contract JavaScript contains runtime statements
+XP4 packages/core/src/contracts/storage.ts: ExportDeclaration
+XP4 packages/core/src/contracts/storage.ts: ExportDeclaration
+XP4 packages/core/src/contracts/storage.ts: ExportDeclaration
+XP4 packages/core/src/contracts/storage.ts: Error: contract JavaScript contains runtime statements
+XP4 packages/core/src/contracts/vault.ts: ExportDeclaration
+XP4 packages/core/src/contracts/vault.ts: Error: contract JavaScript contains runtime statements
+XP4 packages/core/src/contracts/__tests__/observability-noop.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/__tests__/observability-noop.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/__tests__/observability-noop.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/__tests__/observability-noop.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/__tests__/observability-noop.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/__tests__/observability-noop.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/__tests__/observability-noop.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/__tests__/observability-noop.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/__tests__/observability-noop.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/__tests__/observability-noop.test.ts: node:assert/strict
+XP4 packages/core/src/contracts/__tests__/observability-noop.test.ts: vitest
+XP4 packages/core/src/contracts/__tests__/observability-noop.test.ts: Error: contract JavaScript contains runtime statements
+XP4 packages/core/src/contracts/agents/index.ts: ExportDeclaration
+XP4 packages/core/src/contracts/agents/index.ts: Error: contract JavaScript contains runtime statements
+XP4 packages/core/src/contracts/agents/model-catalog.ts: ClassDeclaration
+XP4 packages/core/src/contracts/agents/model-catalog.ts: Error: contract JavaScript contains runtime statements
+XP4 packages/core/src/contracts/agents/__tests__/agents-contract.typecheck.ts: ImportDeclaration
+XP4 packages/core/src/contracts/agents/__tests__/agents-contract.typecheck.ts: FirstStatement
+XP4 packages/core/src/contracts/agents/__tests__/agents-contract.typecheck.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/agents/__tests__/agents-contract.typecheck.ts: FirstStatement
+XP4 packages/core/src/contracts/agents/__tests__/agents-contract.typecheck.ts: FirstStatement
+XP4 packages/core/src/contracts/agents/__tests__/agents-contract.typecheck.ts: FirstStatement
+XP4 packages/core/src/contracts/agents/__tests__/agents-contract.typecheck.ts: Error: contract JavaScript contains runtime statements
+XP4 packages/core/src/contracts/ai-trace/capture.ts: ImportDeclaration
+XP4 packages/core/src/contracts/ai-trace/capture.ts: FirstStatement
+XP4 packages/core/src/contracts/ai-trace/capture.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/ai-trace/capture.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/ai-trace/capture.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/ai-trace/capture.ts: Error: contract JavaScript contains runtime statements
+XP4 packages/core/src/contracts/ai-trace/classify.ts: FirstStatement
+XP4 packages/core/src/contracts/ai-trace/classify.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/ai-trace/classify.ts: Error: contract JavaScript contains runtime statements
+XP4 packages/core/src/contracts/ai-trace/index.ts: ExportDeclaration
+XP4 packages/core/src/contracts/ai-trace/index.ts: ExportDeclaration
+XP4 packages/core/src/contracts/ai-trace/index.ts: ExportDeclaration
+XP4 packages/core/src/contracts/ai-trace/index.ts: ExportDeclaration
+XP4 packages/core/src/contracts/ai-trace/index.ts: ExportDeclaration
+XP4 packages/core/src/contracts/ai-trace/index.ts: Error: contract JavaScript contains runtime statements
+XP4 packages/core/src/contracts/ai-trace/recorder.ts: ImportDeclaration
+XP4 packages/core/src/contracts/ai-trace/recorder.ts: ImportDeclaration
+XP4 packages/core/src/contracts/ai-trace/recorder.ts: ImportDeclaration
+XP4 packages/core/src/contracts/ai-trace/recorder.ts: ImportDeclaration
+XP4 packages/core/src/contracts/ai-trace/recorder.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/ai-trace/recorder.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/ai-trace/recorder.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/ai-trace/recorder.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/ai-trace/recorder.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/ai-trace/recorder.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/ai-trace/recorder.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/ai-trace/recorder.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/ai-trace/recorder.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/ai-trace/recorder.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/ai-trace/recorder.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/ai-trace/recorder.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/ai-trace/recorder.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/ai-trace/recorder.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/ai-trace/recorder.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/ai-trace/recorder.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/ai-trace/recorder.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/ai-trace/recorder.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/ai-trace/recorder.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/ai-trace/recorder.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/ai-trace/recorder.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/ai-trace/recorder.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/ai-trace/recorder.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/ai-trace/recorder.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/ai-trace/recorder.ts: FirstStatement
+XP4 packages/core/src/contracts/ai-trace/recorder.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/ai-trace/recorder.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/ai-trace/recorder.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/ai-trace/recorder.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/ai-trace/recorder.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/ai-trace/recorder.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/ai-trace/recorder.ts: Error: contract JavaScript contains runtime statements
+XP4 packages/core/src/contracts/ai-trace/sinks.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/ai-trace/sinks.ts: FirstStatement
+XP4 packages/core/src/contracts/ai-trace/sinks.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/ai-trace/sinks.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/ai-trace/sinks.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/ai-trace/sinks.ts: FirstStatement
+XP4 packages/core/src/contracts/ai-trace/sinks.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/ai-trace/sinks.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/ai-trace/sinks.ts: Error: contract JavaScript contains runtime statements
+XP4 packages/core/src/contracts/ai-trace/usage.ts: FirstStatement
+XP4 packages/core/src/contracts/ai-trace/usage.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/ai-trace/usage.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/ai-trace/usage.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/ai-trace/usage.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/ai-trace/usage.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/ai-trace/usage.ts: Error: contract JavaScript contains runtime statements
+XP4 packages/core/src/contracts/ai-trace/__tests__/ai-trace.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/ai-trace/__tests__/ai-trace.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/ai-trace/__tests__/ai-trace.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/ai-trace/__tests__/ai-trace.test.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/ai-trace/__tests__/ai-trace.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/ai-trace/__tests__/ai-trace.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/ai-trace/__tests__/ai-trace.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/ai-trace/__tests__/ai-trace.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/ai-trace/__tests__/ai-trace.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/ai-trace/__tests__/ai-trace.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/ai-trace/__tests__/ai-trace.test.ts: vitest
+XP4 packages/core/src/contracts/ai-trace/__tests__/ai-trace.test.ts: Error: contract JavaScript contains runtime statements
+XP4 packages/core/src/contracts/ai-trace/__tests__/capture-boundaries.unit.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/ai-trace/__tests__/capture-boundaries.unit.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/ai-trace/__tests__/capture-boundaries.unit.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/ai-trace/__tests__/capture-boundaries.unit.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/ai-trace/__tests__/capture-boundaries.unit.test.ts: vitest
+XP4 packages/core/src/contracts/ai-trace/__tests__/capture-boundaries.unit.test.ts: Error: contract JavaScript contains runtime statements
+XP4 packages/core/src/contracts/ai-trace/__tests__/recorder-boundaries.unit.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/ai-trace/__tests__/recorder-boundaries.unit.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/ai-trace/__tests__/recorder-boundaries.unit.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/ai-trace/__tests__/recorder-boundaries.unit.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/ai-trace/__tests__/recorder-boundaries.unit.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/ai-trace/__tests__/recorder-boundaries.unit.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/ai-trace/__tests__/recorder-boundaries.unit.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/ai-trace/__tests__/recorder-boundaries.unit.test.ts: vitest
+XP4 packages/core/src/contracts/ai-trace/__tests__/recorder-boundaries.unit.test.ts: Error: contract JavaScript contains runtime statements
+XP4 packages/core/src/contracts/ai-trace/__tests__/scenario.ts: FirstStatement
+XP4 packages/core/src/contracts/ai-trace/__tests__/scenario.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/ai-trace/__tests__/scenario.ts: Error: contract JavaScript contains runtime statements
+XP4 packages/core/src/contracts/ai-trace/__tests__/sink-policy.unit.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/ai-trace/__tests__/sink-policy.unit.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/ai-trace/__tests__/sink-policy.unit.test.ts: FirstStatement
+XP4 packages/core/src/contracts/ai-trace/__tests__/sink-policy.unit.test.ts: FirstStatement
+XP4 packages/core/src/contracts/ai-trace/__tests__/sink-policy.unit.test.ts: FirstStatement
+XP4 packages/core/src/contracts/ai-trace/__tests__/sink-policy.unit.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/ai-trace/__tests__/sink-policy.unit.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/ai-trace/__tests__/sink-policy.unit.test.ts: vitest
+XP4 packages/core/src/contracts/ai-trace/__tests__/sink-policy.unit.test.ts: Error: contract JavaScript contains runtime statements
+XP4 packages/core/src/contracts/mail/email-sender.ts: ClassDeclaration
+XP4 packages/core/src/contracts/mail/email-sender.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/mail/email-sender.ts: Error: contract JavaScript contains runtime statements
+XP4 packages/core/src/contracts/runtime/command.ts: ImportDeclaration
+XP4 packages/core/src/contracts/runtime/command.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/runtime/command.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/runtime/command.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/runtime/command.ts: Error: contract JavaScript contains runtime statements
+XP4 packages/core/src/contracts/runtime/environment.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/runtime/environment.ts: Error: contract JavaScript contains runtime statements
+XP4 packages/core/src/contracts/runtime/file-lock.ts: FirstStatement
+XP4 packages/core/src/contracts/runtime/file-lock.ts: ClassDeclaration
+XP4 packages/core/src/contracts/runtime/file-lock.ts: ClassDeclaration
+XP4 packages/core/src/contracts/runtime/file-lock.ts: Error: contract JavaScript contains runtime statements
+XP4 packages/core/src/contracts/runtime/process.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/runtime/process.ts: Error: contract JavaScript contains runtime statements
+XP4 packages/core/src/contracts/runtime/testing.ts: ImportDeclaration
+XP4 packages/core/src/contracts/runtime/testing.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/runtime/testing.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/runtime/testing.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/runtime/testing.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/runtime/testing.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/runtime/testing.ts: Error: contract JavaScript contains runtime statements
+XP4 packages/core/src/contracts/runtime/__tests__/command.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/runtime/__tests__/command.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/runtime/__tests__/command.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/runtime/__tests__/command.test.ts: vitest
+XP4 packages/core/src/contracts/runtime/__tests__/command.test.ts: Error: contract JavaScript contains runtime statements
+XP4 packages/core/src/contracts/runtime/__tests__/file-lock-errors.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/runtime/__tests__/file-lock-errors.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/runtime/__tests__/file-lock-errors.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/runtime/__tests__/file-lock-errors.test.ts: vitest
+XP4 packages/core/src/contracts/runtime/__tests__/file-lock-errors.test.ts: Error: contract JavaScript contains runtime statements
+XP4 packages/core/src/contracts/runtime/__tests__/process-tree.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/runtime/__tests__/process-tree.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/runtime/__tests__/process-tree.test.ts: FirstStatement
+XP4 packages/core/src/contracts/runtime/__tests__/process-tree.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/runtime/__tests__/process-tree.test.ts: vitest
+XP4 packages/core/src/contracts/runtime/__tests__/process-tree.test.ts: Error: contract JavaScript contains runtime statements
+XP4 packages/core/src/contracts/runtime/__tests__/testing.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/runtime/__tests__/testing.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/runtime/__tests__/testing.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/runtime/__tests__/testing.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/runtime/__tests__/testing.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/runtime/__tests__/testing.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/runtime/__tests__/testing.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/runtime/__tests__/testing.test.ts: vitest
+XP4 packages/core/src/contracts/runtime/__tests__/testing.test.ts: Error: contract JavaScript contains runtime statements
+XP4 packages/core/src/contracts/server/api-error.ts: FirstStatement
+XP4 packages/core/src/contracts/server/api-error.ts: FirstStatement
+XP4 packages/core/src/contracts/server/api-error.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/server/api-error.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/server/api-error.ts: Error: contract JavaScript contains runtime statements
+XP4 packages/core/src/contracts/server/auth.ts: FirstStatement
+XP4 packages/core/src/contracts/server/auth.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/server/auth.ts: Error: contract JavaScript contains runtime statements
+XP4 packages/core/src/contracts/server/conformance.ts: FirstStatement
+XP4 packages/core/src/contracts/server/conformance.ts: FirstStatement
+XP4 packages/core/src/contracts/server/conformance.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/server/conformance.ts: Error: contract JavaScript contains runtime statements
+XP4 packages/core/src/contracts/server/json-route.ts: ImportDeclaration
+XP4 packages/core/src/contracts/server/json-route.ts: ImportDeclaration
+XP4 packages/core/src/contracts/server/json-route.ts: ImportDeclaration
+XP4 packages/core/src/contracts/server/json-route.ts: ImportDeclaration
+XP4 packages/core/src/contracts/server/json-route.ts: ClassDeclaration
+XP4 packages/core/src/contracts/server/json-route.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/server/json-route.ts: FirstStatement
+XP4 packages/core/src/contracts/server/json-route.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/server/json-route.ts: FirstStatement
+XP4 packages/core/src/contracts/server/json-route.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/server/json-route.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/server/json-route.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/server/json-route.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/server/json-route.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/server/json-route.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/server/json-route.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/server/json-route.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/server/json-route.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/server/json-route.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/server/json-route.ts: Error: contract JavaScript contains runtime statements
+XP4 packages/core/src/contracts/server/middleware.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/server/middleware.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/server/middleware.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/server/middleware.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/server/middleware.ts: Error: contract JavaScript contains runtime statements
+XP4 packages/core/src/contracts/server/origin.ts: ImportDeclaration
+XP4 packages/core/src/contracts/server/origin.ts: ImportDeclaration
+XP4 packages/core/src/contracts/server/origin.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/server/origin.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/server/origin.ts: Error: contract JavaScript contains runtime statements
+XP4 packages/core/src/contracts/server/query.ts: FirstStatement
+XP4 packages/core/src/contracts/server/query.ts: FirstStatement
+XP4 packages/core/src/contracts/server/query.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/server/query.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/server/query.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/server/query.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/server/query.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/server/query.ts: Error: contract JavaScript contains runtime statements
+XP4 packages/core/src/contracts/server/request-body.ts: ImportDeclaration
+XP4 packages/core/src/contracts/server/request-body.ts: FirstStatement
+XP4 packages/core/src/contracts/server/request-body.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/server/request-body.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/server/request-body.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/server/request-body.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/server/request-body.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/server/request-body.ts: Error: contract JavaScript contains runtime statements
+XP4 packages/core/src/contracts/server/result.ts: FirstStatement
+XP4 packages/core/src/contracts/server/result.ts: FirstStatement
+XP4 packages/core/src/contracts/server/result.ts: Error: contract JavaScript contains runtime statements
+XP4 packages/core/src/contracts/server/route-table.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/server/route-table.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/server/route-table.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/server/route-table.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/server/route-table.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/server/route-table.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/server/route-table.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/server/route-table.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/server/route-table.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/server/route-table.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/server/route-table.ts: Error: contract JavaScript contains runtime statements
+XP4 packages/core/src/contracts/server/same-origin-write.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/server/same-origin-write.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/server/same-origin-write.ts: Error: contract JavaScript contains runtime statements
+XP4 packages/core/src/contracts/server/security-headers.ts: FirstStatement
+XP4 packages/core/src/contracts/server/security-headers.ts: FirstStatement
+XP4 packages/core/src/contracts/server/security-headers.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/server/security-headers.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/server/security-headers.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/server/security-headers.ts: Error: contract JavaScript contains runtime statements
+XP4 packages/core/src/contracts/server/sse.ts: FirstStatement
+XP4 packages/core/src/contracts/server/sse.ts: FirstStatement
+XP4 packages/core/src/contracts/server/sse.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/server/sse.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/server/sse.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/server/sse.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/server/sse.ts: Error: contract JavaScript contains runtime statements
+XP4 packages/core/src/contracts/server/testing.ts: ImportDeclaration
+XP4 packages/core/src/contracts/server/testing.ts: FirstStatement
+XP4 packages/core/src/contracts/server/testing.ts: FirstStatement
+XP4 packages/core/src/contracts/server/testing.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/server/testing.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/server/testing.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/server/testing.ts: FirstStatement
+XP4 packages/core/src/contracts/server/testing.ts: FirstStatement
+XP4 packages/core/src/contracts/server/testing.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/server/testing.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/server/testing.ts: Error: contract JavaScript contains runtime statements
+XP4 packages/core/src/contracts/server/__tests__/api-error.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/server/__tests__/api-error.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/server/__tests__/api-error.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/__tests__/api-error.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/__tests__/api-error.test.ts: vitest
+XP4 packages/core/src/contracts/server/__tests__/api-error.test.ts: Error: contract JavaScript contains runtime statements
+XP4 packages/core/src/contracts/server/__tests__/auth.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/server/__tests__/auth.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/server/__tests__/auth.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/__tests__/auth.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/__tests__/auth.test.ts: vitest
+XP4 packages/core/src/contracts/server/__tests__/auth.test.ts: Error: contract JavaScript contains runtime statements
+XP4 packages/core/src/contracts/server/__tests__/conformance.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/server/__tests__/conformance.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/server/__tests__/conformance.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/server/__tests__/conformance.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/__tests__/conformance.test.ts: vitest
+XP4 packages/core/src/contracts/server/__tests__/conformance.test.ts: Error: contract JavaScript contains runtime statements
+XP4 packages/core/src/contracts/server/__tests__/json-route.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/server/__tests__/json-route.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/server/__tests__/json-route.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/server/__tests__/json-route.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/server/__tests__/json-route.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/server/__tests__/json-route.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/server/__tests__/json-route.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/__tests__/json-route.test.ts: FirstStatement
+XP4 packages/core/src/contracts/server/__tests__/json-route.test.ts: FirstStatement
+XP4 packages/core/src/contracts/server/__tests__/json-route.test.ts: FirstStatement
+XP4 packages/core/src/contracts/server/__tests__/json-route.test.ts: FirstStatement
+XP4 packages/core/src/contracts/server/__tests__/json-route.test.ts: FirstStatement
+XP4 packages/core/src/contracts/server/__tests__/json-route.test.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/server/__tests__/json-route.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/__tests__/json-route.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/__tests__/json-route.test.ts: vitest
+XP4 packages/core/src/contracts/server/__tests__/json-route.test.ts: Error: contract JavaScript contains runtime statements
+XP4 packages/core/src/contracts/server/__tests__/middleware.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/server/__tests__/middleware.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/server/__tests__/middleware.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/server/__tests__/middleware.test.ts: FirstStatement
+XP4 packages/core/src/contracts/server/__tests__/middleware.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/__tests__/middleware.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/__tests__/middleware.test.ts: vitest
+XP4 packages/core/src/contracts/server/__tests__/middleware.test.ts: Error: contract JavaScript contains runtime statements
+XP4 packages/core/src/contracts/server/__tests__/origin.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/server/__tests__/origin.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/server/__tests__/origin.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/server/__tests__/origin.test.ts: FirstStatement
+XP4 packages/core/src/contracts/server/__tests__/origin.test.ts: FirstStatement
+XP4 packages/core/src/contracts/server/__tests__/origin.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/__tests__/origin.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/__tests__/origin.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/__tests__/origin.test.ts: vitest
+XP4 packages/core/src/contracts/server/__tests__/origin.test.ts: Error: contract JavaScript contains runtime statements
+XP4 packages/core/src/contracts/server/__tests__/query.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/server/__tests__/query.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/server/__tests__/query.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/__tests__/query.test.ts: vitest
+XP4 packages/core/src/contracts/server/__tests__/query.test.ts: Error: contract JavaScript contains runtime statements
+XP4 packages/core/src/contracts/server/__tests__/request-body.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/server/__tests__/request-body.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/server/__tests__/request-body.test.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/server/__tests__/request-body.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/__tests__/request-body.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/__tests__/request-body.test.ts: vitest
+XP4 packages/core/src/contracts/server/__tests__/request-body.test.ts: Error: contract JavaScript contains runtime statements
+XP4 packages/core/src/contracts/server/__tests__/route-table.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/server/__tests__/route-table.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/server/__tests__/route-table.test.ts: FirstStatement
+XP4 packages/core/src/contracts/server/__tests__/route-table.test.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/server/__tests__/route-table.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/__tests__/route-table.test.ts: vitest
+XP4 packages/core/src/contracts/server/__tests__/route-table.test.ts: Error: contract JavaScript contains runtime statements
+XP4 packages/core/src/contracts/server/__tests__/same-origin-write.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/server/__tests__/same-origin-write.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/server/__tests__/same-origin-write.test.ts: FirstStatement
+XP4 packages/core/src/contracts/server/__tests__/same-origin-write.test.ts: FirstStatement
+XP4 packages/core/src/contracts/server/__tests__/same-origin-write.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/__tests__/same-origin-write.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/__tests__/same-origin-write.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/__tests__/same-origin-write.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/__tests__/same-origin-write.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/__tests__/same-origin-write.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/__tests__/same-origin-write.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/__tests__/same-origin-write.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/__tests__/same-origin-write.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/__tests__/same-origin-write.test.ts: vitest
+XP4 packages/core/src/contracts/server/__tests__/same-origin-write.test.ts: Error: contract JavaScript contains runtime statements
+XP4 packages/core/src/contracts/server/__tests__/security-headers.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/server/__tests__/security-headers.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/server/__tests__/security-headers.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/__tests__/security-headers.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/__tests__/security-headers.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/__tests__/security-headers.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/__tests__/security-headers.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/__tests__/security-headers.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/__tests__/security-headers.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/__tests__/security-headers.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/__tests__/security-headers.test.ts: vitest
+XP4 packages/core/src/contracts/server/__tests__/security-headers.test.ts: Error: contract JavaScript contains runtime statements
+XP4 packages/core/src/contracts/server/__tests__/sse.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/server/__tests__/sse.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/server/__tests__/sse.test.ts: FirstStatement
+XP4 packages/core/src/contracts/server/__tests__/sse.test.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/server/__tests__/sse.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/__tests__/sse.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/__tests__/sse.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/__tests__/sse.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/__tests__/sse.test.ts: vitest
+XP4 packages/core/src/contracts/server/__tests__/sse.test.ts: Error: contract JavaScript contains runtime statements
+XP4 packages/core/src/contracts/server/__tests__/testing.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/server/__tests__/testing.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/server/__tests__/testing.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/__tests__/testing.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/__tests__/testing.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/__tests__/testing.test.ts: vitest
+XP4 packages/core/src/contracts/server/__tests__/testing.test.ts: Error: contract JavaScript contains runtime statements
+XP4 packages/core/src/contracts/server/verified-origin/configured-origin.ts: ImportDeclaration
+XP4 packages/core/src/contracts/server/verified-origin/configured-origin.ts: ImportDeclaration
+XP4 packages/core/src/contracts/server/verified-origin/configured-origin.ts: ImportDeclaration
+XP4 packages/core/src/contracts/server/verified-origin/configured-origin.ts: ImportDeclaration
+XP4 packages/core/src/contracts/server/verified-origin/configured-origin.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/server/verified-origin/configured-origin.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/server/verified-origin/configured-origin.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/server/verified-origin/configured-origin.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/server/verified-origin/configured-origin.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/server/verified-origin/configured-origin.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/server/verified-origin/configured-origin.ts: Error: contract JavaScript contains runtime statements
+XP4 packages/core/src/contracts/server/verified-origin/index.ts: ExportDeclaration
+XP4 packages/core/src/contracts/server/verified-origin/index.ts: ExportDeclaration
+XP4 packages/core/src/contracts/server/verified-origin/index.ts: ExportDeclaration
+XP4 packages/core/src/contracts/server/verified-origin/index.ts: ExportDeclaration
+XP4 packages/core/src/contracts/server/verified-origin/index.ts: ExportDeclaration
+XP4 packages/core/src/contracts/server/verified-origin/index.ts: Error: contract JavaScript contains runtime statements
+XP4 packages/core/src/contracts/server/verified-origin/loopback-host.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/server/verified-origin/loopback-host.ts: Error: contract JavaScript contains runtime statements
+XP4 packages/core/src/contracts/server/verified-origin/origin.ts: ImportDeclaration
+XP4 packages/core/src/contracts/server/verified-origin/origin.ts: FirstStatement
+XP4 packages/core/src/contracts/server/verified-origin/origin.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/server/verified-origin/origin.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/server/verified-origin/origin.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/server/verified-origin/origin.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/server/verified-origin/origin.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/server/verified-origin/origin.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/server/verified-origin/origin.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/server/verified-origin/origin.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/server/verified-origin/origin.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/server/verified-origin/origin.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/server/verified-origin/origin.ts: ClassDeclaration
+XP4 packages/core/src/contracts/server/verified-origin/origin.ts: Error: contract JavaScript contains runtime statements
+XP4 packages/core/src/contracts/server/verified-origin/repo.memory.ts: ImportDeclaration
+XP4 packages/core/src/contracts/server/verified-origin/repo.memory.ts: ClassDeclaration
+XP4 packages/core/src/contracts/server/verified-origin/repo.memory.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/server/verified-origin/repo.memory.ts: Error: contract JavaScript contains runtime statements
+XP4 packages/core/src/contracts/server/verified-origin/site-path.ts: FirstStatement
+XP4 packages/core/src/contracts/server/verified-origin/site-path.ts: FirstStatement
+XP4 packages/core/src/contracts/server/verified-origin/site-path.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/server/verified-origin/site-path.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/server/verified-origin/site-path.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/server/verified-origin/site-path.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/server/verified-origin/site-path.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/server/verified-origin/site-path.ts: Error: contract JavaScript contains runtime statements
+XP4 packages/core/src/contracts/server/verified-origin/types.ts: ImportDeclaration
+XP4 packages/core/src/contracts/server/verified-origin/types.ts: ClassDeclaration
+XP4 packages/core/src/contracts/server/verified-origin/types.ts: ClassDeclaration
+XP4 packages/core/src/contracts/server/verified-origin/types.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/server/verified-origin/types.ts: Error: contract JavaScript contains runtime statements
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-allowlist-boundaries.unit.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-allowlist-boundaries.unit.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-allowlist-boundaries.unit.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-allowlist-boundaries.unit.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-allowlist-boundaries.unit.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-allowlist-boundaries.unit.test.ts: vitest
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-allowlist-boundaries.unit.test.ts: Error: contract JavaScript contains runtime statements
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-branches.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-branches.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-branches.test.ts: FirstStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-branches.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-branches.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-branches.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-branches.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-branches.test.ts: vitest
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-branches.test.ts: Error: contract JavaScript contains runtime statements
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-configured.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-configured.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-configured.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-configured.test.ts: FirstStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-configured.test.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-configured.test.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-configured.test.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-configured.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-configured.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-configured.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-configured.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-configured.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-configured.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-configured.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-configured.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-configured.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-configured.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-configured.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-configured.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-configured.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-configured.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-configured.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-configured.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-configured.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-configured.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-configured.test.ts: FirstStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-configured.test.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-configured.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-configured.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-configured.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-configured.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-configured.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-configured.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-configured.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-configured.test.ts: node:assert/strict
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-configured.test.ts: vitest
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-configured.test.ts: Error: contract JavaScript contains runtime statements
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-normalize.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-normalize.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-normalize.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-normalize.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-normalize.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-normalize.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-normalize.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-normalize.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-normalize.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-normalize.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-normalize.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-normalize.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-normalize.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-normalize.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-normalize.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-normalize.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-normalize.test.ts: node:assert/strict
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-normalize.test.ts: vitest
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-normalize.test.ts: Error: contract JavaScript contains runtime statements
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-registry.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-registry.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-registry.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-registry.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-registry.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-registry.test.ts: FirstStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-registry.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-registry.test.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-registry.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-registry.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-registry.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-registry.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-registry.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-registry.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-registry.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-registry.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-registry.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-registry.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-registry.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-registry.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-registry.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-registry.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-registry.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-registry.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-registry.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-registry.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-registry.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-registry.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-registry.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-registry.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-registry.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-registry.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-registry.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-registry.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-registry.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-registry.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-registry.test.ts: node:assert/strict
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-registry.test.ts: vitest
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-registry.test.ts: Error: contract JavaScript contains runtime statements
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-repo.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-repo.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-repo.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-repo.test.ts: FirstStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-repo.test.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-repo.test.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-repo.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-repo.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-repo.test.ts: node:assert/strict
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-repo.test.ts: vitest
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-repo.test.ts: Error: contract JavaScript contains runtime statements
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-site-path.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-site-path.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-site-path.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-site-path.test.ts: FirstStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-site-path.test.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-site-path.test.ts: FirstStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-site-path.test.ts: ForOfStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-site-path.test.ts: FirstStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-site-path.test.ts: ForOfStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-site-path.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-site-path.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-site-path.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-site-path.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-site-path.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-site-path.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-site-path.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-site-path.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-site-path.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-site-path.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-site-path.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-site-path.test.ts: node:assert/strict
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-site-path.test.ts: vitest
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin-site-path.test.ts: Error: contract JavaScript contains runtime statements
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin.hostile.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin.hostile.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin.hostile.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin.hostile.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin.hostile.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin.hostile.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin.hostile.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin.hostile.test.ts: vitest
+XP4 packages/core/src/contracts/server/verified-origin/__tests__/verified-origin.hostile.test.ts: Error: contract JavaScript contains runtime statements
+XP4 packages/core/src/contracts/site/post-author.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/site/post-author.ts: Error: contract JavaScript contains runtime statements
+XP4 packages/core/src/contracts/site/request-facts.ts: FirstStatement
+XP4 packages/core/src/contracts/site/request-facts.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/site/request-facts.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/site/request-facts.ts: Error: contract JavaScript contains runtime statements
+XP4 packages/core/src/contracts/site/soft-delete.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/site/soft-delete.ts: Error: contract JavaScript contains runtime statements
+XP4 packages/core/src/contracts/site/strict-base64.ts: FirstStatement
+XP4 packages/core/src/contracts/site/strict-base64.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/site/strict-base64.ts: Error: contract JavaScript contains runtime statements
+XP4 packages/core/src/contracts/site/__tests__/strict-base64.unit.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/site/__tests__/strict-base64.unit.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/site/__tests__/strict-base64.unit.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/site/__tests__/strict-base64.unit.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/site/__tests__/strict-base64.unit.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/site/__tests__/strict-base64.unit.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/site/__tests__/strict-base64.unit.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/site/__tests__/strict-base64.unit.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/site/__tests__/strict-base64.unit.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/site/__tests__/strict-base64.unit.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/site/__tests__/strict-base64.unit.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/site/__tests__/strict-base64.unit.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/site/__tests__/strict-base64.unit.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/site/__tests__/strict-base64.unit.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/site/__tests__/strict-base64.unit.test.ts: node:assert/strict
+XP4 packages/core/src/contracts/site/__tests__/strict-base64.unit.test.ts: vitest
+XP4 packages/core/src/contracts/site/__tests__/strict-base64.unit.test.ts: Error: contract JavaScript contains runtime statements
+XP4 packages/core/src/contracts/site/gated-mutations/watermark.ts: ClassDeclaration
+XP4 packages/core/src/contracts/site/gated-mutations/watermark.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/site/gated-mutations/watermark.ts: Error: contract JavaScript contains runtime statements
+XP4 packages/core/src/contracts/site/gated-mutations/__tests__/watermark.unit.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/site/gated-mutations/__tests__/watermark.unit.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/site/gated-mutations/__tests__/watermark.unit.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/site/gated-mutations/__tests__/watermark.unit.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/site/gated-mutations/__tests__/watermark.unit.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/site/gated-mutations/__tests__/watermark.unit.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/site/gated-mutations/__tests__/watermark.unit.test.ts: node:assert/strict
+XP4 packages/core/src/contracts/site/gated-mutations/__tests__/watermark.unit.test.ts: vitest
+XP4 packages/core/src/contracts/site/gated-mutations/__tests__/watermark.unit.test.ts: Error: contract JavaScript contains runtime statements
+XP4 packages/core/src/contracts/storage/kernel.ts: ClassDeclaration
+XP4 packages/core/src/contracts/storage/kernel.ts: FirstStatement
+XP4 packages/core/src/contracts/storage/kernel.ts: Error: contract JavaScript contains runtime statements
+XP4 packages/core/src/contracts/storage/rows.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/storage/rows.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/storage/rows.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/storage/rows.ts: Error: contract JavaScript contains runtime statements
+XP4 packages/core/src/contracts/storage/values.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/storage/values.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/storage/values.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/storage/values.ts: Error: contract JavaScript contains runtime statements
+XP4 packages/core/src/contracts/storage/__tests__/kernel.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/storage/__tests__/kernel.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/storage/__tests__/kernel.test.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/storage/__tests__/kernel.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/storage/__tests__/kernel.test.ts: vitest
+XP4 packages/core/src/contracts/storage/__tests__/kernel.test.ts: Error: contract JavaScript contains runtime statements
+XP4 packages/core/src/contracts/storage/__tests__/rows.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/storage/__tests__/rows.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/storage/__tests__/rows.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/storage/__tests__/rows.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/storage/__tests__/rows.test.ts: vitest
+XP4 packages/core/src/contracts/storage/__tests__/rows.test.ts: Error: contract JavaScript contains runtime statements
+XP4 packages/core/src/contracts/storage/__tests__/sqlite.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/storage/__tests__/sqlite.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/storage/__tests__/sqlite.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/storage/__tests__/sqlite.test.ts: node:fs
+XP4 packages/core/src/contracts/storage/__tests__/sqlite.test.ts: vitest
+XP4 packages/core/src/contracts/storage/__tests__/sqlite.test.ts: Error: contract JavaScript contains runtime statements
+XP4 packages/core/src/contracts/storage/__tests__/values.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/storage/__tests__/values.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/storage/__tests__/values.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/storage/__tests__/values.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/storage/__tests__/values.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/storage/__tests__/values.test.ts: vitest
+XP4 packages/core/src/contracts/storage/__tests__/values.test.ts: Error: contract JavaScript contains runtime statements
+XP4 packages/core/src/contracts/vault/invariants.ts: FirstStatement
+XP4 packages/core/src/contracts/vault/invariants.ts: ClassDeclaration
+XP4 packages/core/src/contracts/vault/invariants.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/vault/invariants.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/vault/invariants.ts: FirstStatement
+XP4 packages/core/src/contracts/vault/invariants.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/vault/invariants.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/vault/invariants.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/vault/invariants.ts: Error: contract JavaScript contains runtime statements
+XP4 packages/core/src/contracts/vault/__tests__/invariants.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/vault/__tests__/invariants.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/vault/__tests__/invariants.test.ts: ImportDeclaration
+XP4 packages/core/src/contracts/vault/__tests__/invariants.test.ts: FunctionDeclaration
+XP4 packages/core/src/contracts/vault/__tests__/invariants.test.ts: FirstStatement
+XP4 packages/core/src/contracts/vault/__tests__/invariants.test.ts: FirstStatement
+XP4 packages/core/src/contracts/vault/__tests__/invariants.test.ts: FirstStatement
+XP4 packages/core/src/contracts/vault/__tests__/invariants.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/vault/__tests__/invariants.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/vault/__tests__/invariants.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/vault/__tests__/invariants.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/vault/__tests__/invariants.test.ts: ExpressionStatement
+XP4 packages/core/src/contracts/vault/__tests__/invariants.test.ts: node:assert/strict
+XP4 packages/core/src/contracts/vault/__tests__/invariants.test.ts: vitest
+XP4 packages/core/src/contracts/vault/__tests__/invariants.test.ts: Error: contract JavaScript contains runtime statements
+XP5 packages/chat/package.json: @jini-ai/protocol
+XP5 packages/node-adapters/package.json: @jini-ai/platform
+XP5 packages/node-adapters/package.json: @jini-ai/agent-plugins
+XP5 packages/server/package.json: @jini-ai/node-adapters
+XP5 packages/server/package.json: @jini-ai/platform
+XP5 packages/ui/package.json: @jini-ai/protocol
