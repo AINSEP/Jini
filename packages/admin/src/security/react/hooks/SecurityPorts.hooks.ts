@@ -1,5 +1,7 @@
 import { createContext, useContext } from 'react';
+import type { ReactNode } from 'react';
 import type { SecurityApiPort, OtherCredentialsPort, RootKeyPort } from '../../ports.js';
+import { englishSecurity, type SecurityTranslator } from '../../messages.en.js';
 import { AdminConfigError } from '@jini-ai/core/admin-runtime';
 export interface SecurityPorts { readonly securityApi: SecurityApiPort; readonly otherCredentials?: OtherCredentialsPort; readonly rootKey?: RootKeyPort }
 const refuse = async (): Promise<never> => { throw new Error('Unavailable'); };
@@ -10,3 +12,13 @@ export const noOtherCredentials: OtherCredentialsPort = { async list() { return 
 export const SecurityPortsContext = createContext<SecurityPorts | null>(null);
 export function useSecurityPorts(_required: Record<string, never> = {}, _optional = {}) { const ports = useContext(SecurityPortsContext); if (!ports) throw new AdminConfigError({ issues: ['React scope unavailable: security'] });
   return ports; }
+/** Host chrome for the page: its translator, and tab glyphs. A context
+ * rather than module data, so a locale change re-renders in place instead of rebuilding the scope. */
+export interface SecurityChrome {
+  readonly t: SecurityTranslator;
+  readonly tabIcons: Partial<Record<'access-tokens' | 'root-key', ReactNode>>;
+}
+export const SecurityChromeContext = createContext<SecurityChrome>({ t: englishSecurity, tabIcons: {} });
+export function useSecurityChrome(_required: Record<string, never> = {}, _optional: Record<string, never> = {}): SecurityChrome {
+  return useContext(SecurityChromeContext);
+}

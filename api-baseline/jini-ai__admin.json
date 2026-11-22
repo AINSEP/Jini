@@ -1165,6 +1165,7 @@
    "RootKeyStatus": "interface:89585e8ffc",
    "START_FRESH_CONFIRMATION": "variable:bd12c30403",
    "SecurityApiPort": "interface:e7ae4d0227",
+   "SecurityTranslator": "type:36a7df8662",
    "SecurityTransportPort": "interface:03f6485de8",
    "blankCredentialDraft": "function:9c6aae1e9b",
    "buildCredentialPatch": "function:d7156dee21",
@@ -1174,6 +1175,7 @@
    "credentialCategory": "function:17bc412cf1",
    "credentialLabel": "function:43bfe06e11",
    "credentialStore": "function:f1f16c983f",
+   "englishSecurity": "variable:b3ca7c0f96",
    "filterCredentials": "function:18bad887d8",
    "filterOtherCredentials": "function:b696bcfd60",
    "isRootKeyLocked": "function:9d60a59798",
@@ -1212,7 +1214,10 @@
  "./security/react": {
   "types": "./dist/security/react/index.d.ts",
   "symbols": {
-   "security": "function:90cab31763",
+   "SecurityOptions": "interface:08d231ba50",
+   "SecurityRootKeyTabOptions": "interface:20f25ecf87",
+   "SecurityTranslator": "type:36a7df8662",
+   "security": "function:0a6d853f7e",
    "useSecurityPorts": "function:a0ed09c781"
   }
  },
