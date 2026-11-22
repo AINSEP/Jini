@@ -1152,6 +1152,15 @@
    "EntryStatus": "type:f517b21192"
   }
  },
+ "./screens/collections/collections-i18n": {
+  "types": "./dist/screens/collections/collections-i18n.d.ts",
+  "symbols": {
+   "COLLECTIONS_DICT": "variable:0b0e0d1489",
+   "entryLifecycleFailureMessage": "function:e814e090d1",
+   "lifecycleFailureMessage": "function:765ee7c93b",
+   "t": "variable:44d298bf90"
+  }
+ },
  "./screens/collections/hooks/collection-entries-port.hooks": {
   "types": "./dist/screens/collections/hooks/collection-entries-port.hooks.d.ts",
   "symbols": {
@@ -1234,6 +1243,13 @@
   "types": "./dist/screens/taxonomy/html-rules.d.ts",
   "symbols": {
    "taxonomyHtmlEmbed": "function:03e5b8704b"
+  }
+ },
+ "./screens/taxonomy/taxonomy-i18n": {
+  "types": "./dist/screens/taxonomy/taxonomy-i18n.d.ts",
+  "symbols": {
+   "TAXONOMY_DICT": "variable:a9c647c18a",
+   "t": "variable:44d298bf90"
   }
  },
  "./screens/taxonomy/TaxonomyRowMenu": {
