@@ -16,6 +16,7 @@
       ".": "universal",
       "./session-bootstrap": "universal",
       "./server": "node",
+      "./admin-http/auth": "node",
       "./react": "browser",
       "./react/testing": "browser",
       "./react/kit": "browser",
@@ -49,6 +50,11 @@
       "types": "./dist/server/index.d.ts",
       "import": "./dist/server/index.js",
       "default": "./dist/server/index.js"
+    },
+    "./admin-http/auth": {
+      "types": "./dist/admin-http/auth/index.d.ts",
+      "import": "./dist/admin-http/auth/index.js",
+      "default": "./dist/admin-http/auth/index.js"
     },
     "./react": {
       "types": "./dist/react/index.d.ts",
