@@ -122,7 +122,8 @@
       "./settings/site/form-delivery": "universal",
       "./settings/site/form-destination": "universal",
       "./settings/site/mail-sender": "universal",
-      "./settings/site/site-timezone": "universal"
+      "./settings/site/site-timezone": "universal",
+      "./seo/site/page-head-contributor": "universal"
     },
     "isolation": {
       "domains": {
@@ -769,6 +770,11 @@
       "types": "./dist/settings/site/site-timezone.d.ts",
       "import": "./dist/settings/site/site-timezone.js",
       "default": "./dist/settings/site/site-timezone.js"
+    },
+    "./seo/site/page-head-contributor": {
+      "types": "./dist/seo/site/page-head-contributor.d.ts",
+      "import": "./dist/seo/site/page-head-contributor.js",
+      "default": "./dist/seo/site/page-head-contributor.js"
     }
   },
   "files": [

@@ -1834,6 +1834,12 @@
    "applyHeadElements": "function:6bf5c82dce"
   }
  },
+ "./seo/site/page-head-contributor": {
+  "types": "./dist/seo/site/page-head-contributor.d.ts",
+  "symbols": {
+   "createSeoPageHeadHook": "function:8f46e300eb"
+  }
+ },
  "./settings": {
   "types": "./dist/settings/index.d.ts",
   "symbols": {
