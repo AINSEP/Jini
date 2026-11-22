@@ -622,6 +622,15 @@
    "parseObjectStoresFile": "function:7dee0f4c77"
   }
  },
+ "./object-store/site/setting": {
+  "types": "./dist/object-store/site/setting.d.ts",
+  "symbols": {
+   "MEDIA_OBJECT_STORE_KEY": "variable:238308dd64",
+   "STORAGE_SETTINGS_NAMESPACE": "variable:e29f9a31b1",
+   "ensureMediaObjectStoreSetting": "function:52b430b008",
+   "readMediaObjectStoreSetting": "function:f24ecb79bc"
+  }
+ },
  "./process": {
   "types": "./dist/process.d.ts",
   "symbols": {
