@@ -115,7 +115,8 @@
       "./themes/layout": "universal",
       "./themes/manifest-v2": "universal",
       "./themes/files/reviewed-write": "node",
-      "./themes/files/atomic-write": "node"
+      "./themes/files/atomic-write": "node",
+      "./admin-http/limits": "universal"
     },
     "isolation": {
       "domains": {
@@ -727,6 +728,11 @@
       "types": "./dist/core/commands/index.d.ts",
       "import": "./dist/core/commands/index.js",
       "default": "./dist/core/commands/index.js"
+    },
+    "./admin-http/limits": {
+      "types": "./dist/admin-http/limits.d.ts",
+      "import": "./dist/admin-http/limits.js",
+      "default": "./dist/admin-http/limits.js"
     }
   },
   "files": [

@@ -22,6 +22,12 @@
    "requireToolPermission": "function:4a1a650143"
   }
  },
+ "./admin-http/limits": {
+  "types": "./dist/admin-http/limits.d.ts",
+  "symbols": {
+   "CONTENT_ENTRY_MAX_BODY_BYTES": "variable:49ef7bebb2"
+  }
+ },
  "./comments": {
   "types": "./dist/comments/index.d.ts",
   "symbols": {

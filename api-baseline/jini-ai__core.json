@@ -1349,6 +1349,13 @@
    "runOperation": "function:98c41a1385"
   }
  },
+ "./errors/route-refusal": {
+  "types": "./dist/errors/route-refusal.d.ts",
+  "symbols": {
+   "RouteRefusalError": "class:2b67969581",
+   "rejectRoute": "function:ef82debcec"
+  }
+ },
  "./errors/sentences": {
   "types": "./dist/errors/sentences.d.ts",
   "symbols": {
