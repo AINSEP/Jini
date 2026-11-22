@@ -1,7 +1,7 @@
 /**
  * @file Product analytics: how PEOPLE USE THE PRODUCT (an owner started an assistant chat, a tool
  * call succeeded), as opposed to this package's root entry, which is VISITOR analytics for the sites
- * a product serves (cookie-less pageview hits, salted visitor hashes, ADR-035).
+ * a product serves (cookie-less pageview hits, salted visitor hashes).
  *
  * A new, small contract rather than an extension of the hit-ingest one (decided 2026-10-25): the
  * subject differs (an identified, pseudonymous product user vs an anonymous site visitor), so does
@@ -19,50 +19,26 @@
  * by the host only when installed, enabled and configured; the contract names no vendor.
  */
 import { redactSecrets, redactSecretsWithCounts } from "@jini-ai/core";
+import type { ProductAiGeneration, ProductAnalyticsPort, ProductEventProperties } from "@jini-ai/core/contracts/observability";
 import type { JsonObject } from "@jini-ai/core/primitives";
+import { createConsoleLogger, type Logger } from '@jini-ai/core/primitives';
 
 import { validateEventProps } from "../privacy.js";
 export { createAiGenerationSink } from "./ai-generations.js";
 export { fanOutProductAnalytics } from "./fanout.js";
 export { injectBrowserAnalytics, renderBrowserAnalytics, resolveBrowserAnalyticsMode } from './browser.js';
-export type { BrowserAnalyticsMode, BrowserAnalyticsConsent, BrowserAnalyticsContribution } from './browser.js';
-
-export type ProductEventProperties = Readonly<Record<string, string | number | boolean>>;
-
-/** One thing a user did. `name` is a fixed snake_case label (`assistant_tool_call`), never user text. */
-export interface ProductEvent { name: string; userId: string; properties?: ProductEventProperties; }
-/** Who the user is, in pseudonymous traits only (a plan, a role, a locale — never a name or e-mail). */
-export interface ProductIdentity { userId: string; traits?: ProductEventProperties; }
-
-/** A model generation's neutral metadata. Text is separate so metadata-only providers cannot leak it. */
-export interface ProductAiGeneration { userId: string; properties: ProductEventProperties; input?: string; output?: string; }
-
-/** The port features call. Never throws, never blocks: delivery is the adapter's background job. */
-export interface ProductAnalyticsPort {
-  /** Optional trusted browser contribution; it contains only publishable browser configuration. */
-  browserAnalytics?(required: { surface: 'site' | 'admin' }, optional?: Record<string, never>): import('./browser.js').BrowserAnalyticsContribution;
-  /** Resolves after local consent/admission only; remote delivery remains in the background. */
-  capture(event: ProductEvent): void | Promise<void>;
-  identify(identity: ProductIdentity): void;
-  /** Optional capability; providers without LLM analytics keep their existing contract. */
-  captureAiGeneration?(required: ProductAiGeneration, optional?: Record<string, never>): void;
-  /** Explicit provider opt-in only. The default records counts and metadata, never transcript text. */
-  readonly includeAiContent?: boolean;
-}
-
-/** What a vendor provider subpath returns: the port plus the host-owned teardown (flush + close). */
-export interface ProductAnalyticsAdapter { port: ProductAnalyticsPort; dispose(): Promise<void>; }
+export type { BrowserAnalyticsMode, BrowserAnalyticsConsent } from './browser.js';
 
 const NOOP: ProductAnalyticsPort = Object.freeze({ capture: () => {}, identify: () => {} });
 
 /** The default: does nothing, allocates nothing. One shared frozen object.
  * @returns The shared noop port. @complexity O(1). */
-export function createNoopProductAnalytics(_required: Record<string, never>): ProductAnalyticsPort {
+export function createNoopProductAnalytics(_required: Record<string, never>, _optional: Record<string, never> = {}): ProductAnalyticsPort {
   return NOOP;
 }
 
 /** True for the shared noop, so a host can skip wrapping a feature at all. */
-export function isNoopProductAnalytics(port: ProductAnalyticsPort): boolean {
+export function isNoopProductAnalytics({ port }: { port: ProductAnalyticsPort }, _optional: Record<string, never> = {}): boolean {
   return port === NOOP;
 }
 
@@ -77,6 +53,7 @@ export type ProductAnalyticsConsent = (input: { userId: string }) => boolean | P
 export type ProductAnalyticsConsentRevision = (input: { userId: string }) => string | number;
 
 export interface ProductAnalyticsGuardOptions {
+  report?: Pick<Logger, 'warn'>;
   /** Required for async consent: the guard cannot observe settings changes on its own, so without
    * it every promised answer is dropped (fail closed) and the wrapper warns once on the console.
    * Synchronous consent needs none. A failed
@@ -124,20 +101,20 @@ function generationContent({ input, output }: { input?: string; output?: string 
  * @returns A guarded port; the noop stays the noop (zero cost when no vendor is configured).
  * @complexity O(p + t) per event for properties and opt-in text; O(d) in-flight consent decisions.
  */
-export function withProductAnalyticsGuards({ inner, consent }: { inner: ProductAnalyticsPort; consent: ProductAnalyticsConsent }, { consentRevision }: ProductAnalyticsGuardOptions = {}): ProductAnalyticsPort {
-  if (isNoopProductAnalytics(inner)) return inner;
+export function withProductAnalyticsGuards({ inner, consent }: { inner: ProductAnalyticsPort; consent: ProductAnalyticsConsent }, { consentRevision, report }: ProductAnalyticsGuardOptions = {}): ProductAnalyticsPort {
+  if (isNoopProductAnalytics({ port: inner })) return inner;
   // Keep generations only while decisions are in flight; past users do not accumulate here.
   const pending = new Map<string, { generation: number; count: number }>();
   let reportedMissingRevision = false;
   /** Once per wrapper: an async consent with no revision is a host misconfiguration (every promised
-   * approval is dropped), so say so instead of losing all events silently. The wrapper has no
-   * diagnostic hook, hence the console. Guarded locally: a throw escaping into `whenAllowed`'s catch
+   * approval is dropped), so say so instead of losing all events silently. The host diagnostic
+   * hook has a safe default. Guarded locally: a throw escaping into `whenAllowed`'s catch
    * would skip attaching handlers to the consent promise and leave a rejection unhandled. */
   const reportMissingRevision = (): void => {
     if (reportedMissingRevision) return;
     reportedMissingRevision = true;
     try {
-      console.warn("[analytics/product] async consent without consentRevision: every promised approval is dropped (fail closed). Pass { consentRevision } to withProductAnalyticsGuards.");
+      (report ?? createConsoleLogger({ prefix: '[analytics/product]' })).warn({ message: "async consent without consentRevision: every promised approval is dropped (fail closed). Pass { consentRevision } to withProductAnalyticsGuards." });
     } catch { /* Diagnostics never fail the feature. */ }
   };
   /** Runs `send` only after a current explicit approval; synchronous answers stay synchronous. */

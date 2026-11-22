@@ -9,7 +9,7 @@ import { createHash } from "node:crypto";
  * `DeployError` come from the host kit the host injects (see {@link bindGitHubPages}), bound once
  * per target: an installed plugin has no npm dependencies.
  *
- * What the first host (Tovu) used to add in its core around this target now lives in the module
+ * What the first host used to add in its core around this target now lives in the module
  * contract at the bottom: the `.nojekyll` marker, the `/<repo>` base path, and the owner/repo/branch
  * validation. GitHub Pages has no response-header config, so `responseHeaders` is ignored.
  *
@@ -47,7 +47,7 @@ function withNoJekyll(files) {
  *   `DeployHostKit` helpers, called positionally; `DeployError` is `new (message, status?, details?)`).
  * @returns The target class, constructed with `{ token, owner, repo, branch? }` as in devops.
  */
-export function bindGitHubPages(kit) {
+export function bindGitHubPages(kit, _optional = {}) {
   const { fetch: fetchWithTimeout, timeouts: FETCH_TIMEOUT_MS, sleep, DeployError, checkDeploymentUrl, normalizeDeploymentUrl, waitForReachableDeploymentUrl, assertNotRedirected, redirectGuardInit } = kit;
   const GITHUB_PAGES_TARGET_ID = 'github-pages';
   const GITHUB_API = 'https://api.github.com';
@@ -516,7 +516,7 @@ export default {
   },
   /**
    * Shape check at the boundary before any value reaches a URL (the class still escapes each
-   * segment). Texts are byte-identical to the checks the first host (Tovu) ran in its core before this moved here.
+   * segment). Texts are byte-identical to the checks the first host ran in its core before this moved here.
    * @param {{ owner?: unknown, repo?: unknown, branch?: unknown }} config
    * @returns {string | null}
    */

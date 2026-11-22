@@ -6,6 +6,7 @@ import ts from 'typescript';
 import { test } from 'vitest';
 
 /** Uses the real p1 closure so a newly re-exported module cannot silently evade the purity check. */
+// Vitest 3 fails a synchronous test that overruns its timeout (Vitest 2 could not); this one runs a full source walk of ./host (~11 s in base).
 test('./host is universal and never evaluates executable source', async () => {
   const repoRoot = fileURLToPath(new URL('../../../../../', import.meta.url));
   // Indirect import keeps repository guard source out of the published package's rootDir.
@@ -35,4 +36,4 @@ test('./host is universal and never evaluates executable source', async () => {
     }
     visit(source);
   }
-});
+}, 60_000);

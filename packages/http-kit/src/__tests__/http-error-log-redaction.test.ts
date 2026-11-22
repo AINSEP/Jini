@@ -9,9 +9,27 @@ import { describe, expect, it } from 'vitest';
 const metadata = new Set([
   'context.method.toUpperCase()', 'context.path', 'context.correlationId', 'context.source',
   'context.runId', 'context.phase', 'context.pid', 'context.provider', 'context.operation',
-  'source', 'runId', 'correlationId', 'routine.id', 'attempt.routine.id',
+  'source', 'logSource', 'runId', 'correlationId', 'routine.id', 'attempt.routine.id',
   "providerParam || 'unknown'", 'timeoutMs', 'signal',
 ]);
+
+// `describeErrorForLog` is core's class-and-approved-code describer (never a message), the wave-B log
+// policy; `redactSecrets` / `formatErrorForLog` are the older shared redactors.
+const SAFE_DIAGNOSTICS: ReadonlySet<string> = new Set(['redactSecrets', 'formatErrorForLog', 'describeErrorForLog']);
+
+/** The core `Logger` error bag: an object-first call on a `logger`-named receiver, the value under
+ * `error`/`err`/`reason`/`cause` of its second argument. The host's sink describes it (see
+ * `scripts/check-log-safety.mjs`, which enforces the same exemption), so the original may sit there. */
+function isLoggerErrorBagProperty(property: ts.Node): boolean {
+  if (!ts.isPropertyAssignment(property) && !ts.isShorthandPropertyAssignment(property)) return false;
+  // The bag may be a conditional (`error === undefined ? {} : { error }`) or parenthesized.
+  let bag: ts.Node = property.parent;
+  while (ts.isConditionalExpression(bag.parent) || ts.isParenthesizedExpression(bag.parent)) bag = bag.parent;
+  const call = bag.parent;
+  if (!ts.isCallExpression(call) || call.arguments[1] !== bag) return false;
+  if (!/(?:^|\.)(?:\w*[lL]ogger)\.(?:error|warn|log|info)$/.test(call.expression.getText())) return false;
+  return ts.isObjectLiteralExpression(call.arguments[0] ?? property) && ['error', 'err', 'reason', 'cause'].includes(property.name.getText());
+}
 
 function rawErrorLogs(source: string): string[] {
   const file = ts.createSourceFile('boundary.ts', source, ts.ScriptTarget.Latest, true);
@@ -19,7 +37,7 @@ function rawErrorLogs(source: string): string[] {
   const visit = (node: ts.Node): void => {
     if (ts.isCallExpression(node) && /^(?:console|logger)\.(?:error|warn|log)$/.test(node.expression.getText(file))) {
       node.arguments.forEach((arg, index) => {
-        if (ts.isCallExpression(arg) && arg.expression.getText(file) === 'redactSecrets') return;
+        if (ts.isCallExpression(arg) && SAFE_DIAGNOSTICS.has(arg.expression.getText(file))) return;
         // A fixed label or metadata prefix is safe; exception values must pass the shared redactor.
         const interpolation = ts.isTemplateExpression(arg) && arg.templateSpans.some(span => !metadata.has(span.expression.getText(file)));
         const label = ts.isStringLiteral(arg) || ts.isNoSubstitutionTemplateLiteral(arg) || ts.isTemplateExpression(arg);
@@ -42,11 +60,12 @@ function sources(dir: string): string[] {
 
 function isSafeDiagnostic(node: ts.Node): boolean {
   // Property names do not establish trust: error.pluginId can itself contain a credential.
-  return ts.isCallExpression(node) && ['redactSecrets', 'formatErrorForLog'].includes(node.expression.getText());
+  return ts.isCallExpression(node) && SAFE_DIAGNOSTICS.has(node.expression.getText());
 }
 
 function containsRawError(node: ts.Node, names: ReadonlySet<string>): boolean {
   if (isSafeDiagnostic(node)) return false;
+  if (isLoggerErrorBagProperty(node)) return false;
   if (ts.isPropertyAssignment(node)) return containsRawError(node.initializer, names);
   if (ts.isConditionalExpression(node)) return containsRawError(node.whenTrue, names) || containsRawError(node.whenFalse, names);
   if (ts.isIdentifier(node) && names.has(node.text)) return true;
@@ -114,12 +133,22 @@ describe('HTTP exception logging class guard', () => {
     'promise.catch(function (problem) { console.error(problem); })',
     'try { work(); } catch (message) { console.error(`failed ${message}`); }',
     'logger.warn({ message: `failed ${messageOf(error)}` })',
-    'deps.logger.warn({ message: "cleanup failed" }, { error: cleanupError })',
+    'deps.logger.warn({ message: "cleanup failed", error: cleanupError })',
     'console.error("host callback failed", failure.error)',
     'console.warn(`pool dropped: ${err.message}`)',
     'console.error("failed", error instanceof Error ? error.stack : String(error))',
   ])('rejects caught values across structured, JSX and callback logs: %s', source => {
     expect(rawCaughtErrorLogs(source)).not.toEqual([]);
+  });
+
+  it("accepts the core Logger's error bag and core's describer, and still rejects a raw error in its message", () => {
+    expect(rawCaughtErrorLogs('deps.logger.warn({ message: "cleanup failed" }, { error: cleanupError })')).toEqual([]);
+    expect(rawCaughtErrorLogs('logger.warn({ message }, error === undefined ? {} : { error })')).toEqual([]);
+    expect(rawCaughtErrorLogs('console.error("failed", describeErrorForLog({ err }))')).toEqual([]);
+    expect(rawErrorLogs('console.error("failed", describeErrorForLog({ err }))')).toEqual([]);
+    // A console receiver, or the error outside the bag, is still a raw log.
+    expect(rawCaughtErrorLogs('console.warn({ message: "failed" }, { error })')).not.toEqual([]);
+    expect(rawCaughtErrorLogs('logger.warn({ message: `failed ${error}` }, { error })')).not.toEqual([]);
   });
 
   it('accepts shared redaction while retaining diagnostic labels', () => {

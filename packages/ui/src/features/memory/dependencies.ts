@@ -7,6 +7,7 @@
  * Removal plan: migrate singleton consumers to host factories/providers, then remove deprecated
  * defaults in an owner-approved breaking release. Do not silently turn a demo into a live port.
  */
+import { fakeLatencyDelay } from '../../utils/fake-latency.js';
 import { requestWithTimeout } from '../../utils/browser-request.js';
 import type { Connector, ConnectorActionResult, ConnectorStatusMap } from '../connectors/types.js';
 import {
@@ -63,16 +64,9 @@ function requiredNonNullField<T extends object, K extends keyof T>(
   return value as NonNullable<T[K]>;
 }
 
-/** Build the real REST ports with one native fetch binding; defaults remain browser-owned. */
-export function createMemoryHttpPorts(
-  _required: Record<string, never>,
-  { fetch }: { fetch?: typeof globalThis.fetch } = {},
-): { config: MemoryConfigPort; entries: MemoryEntriesPort; extractions: MemoryExtractionsPort } {
-  function request(url: string, init: RequestInit, { timeoutMs }: { timeoutMs: number }): Promise<Response> {
-    return requestWithTimeout({ url, timeoutMs }, { ...(fetch === undefined ? {} : { fetch }), init });
-  }
-  // ─── Config cluster (real HTTP) ─────────────────────────────────────────────
+type MemoryRequest = (url: string, init: RequestInit, options: { timeoutMs: number }) => Promise<Response>;
 
+function createConfigPort(request: MemoryRequest): MemoryConfigPort {
   async function patchMemoryConfig(patch: UpdateMemoryConfigRequest): Promise<boolean> {
     const resp = await request(
       '/api/memory/config',
@@ -82,19 +76,18 @@ export function createMemoryHttpPorts(
     return resp.ok;
   }
 
-  const memoryConfigPort: MemoryConfigPort = {
-    patchConfig: patchMemoryConfig,
-  };
+  return { patchConfig: patchMemoryConfig };
+}
 
-  // ─── Entries/index cluster (real HTTP) ──────────────────────────────────────
-
+/** Read side of the entries/index cluster. */
+function createEntryReaders(request: MemoryRequest) {
   /**
    * `entries` drives the saved-memory list; `rootDir`/`index`/`enabled` are
    * consumed directly (no fallback) by `useMemoryEntries.reload()` and
    * `useMemoryConfig.hydrate()`.
    *
    * BUG FIX (ported from the pinned source with this fix applied — see
-   * `packages/ui/archived provenance ledger`): the pinned source validated only `entries`
+   * `archived UI provenance ledger`): the pinned source validated only `entries`
    * here, even though `hydrate()`/`reload()` read `enabled`/`rootDir`/`index`
    * off this same response with no fallback. A malformed `200` like
    * `{ entries: [] }` passed validation and then silently hydrated those other
@@ -137,6 +130,11 @@ export function createMemoryHttpPorts(
     return requiredNonNullField(json, 'entry', 'Memory entry request');
   }
 
+  return { fetchMemoryList, fetchMemoryTree, fetchMemoryEntry };
+}
+
+/** Write side of the entries/index cluster. */
+function createEntryWriters(request: MemoryRequest) {
   async function saveMemoryEntry(draft: DraftEntry): Promise<MemoryEntry | null> {
     const url = draft.id ? `/api/memory/${encodeURIComponent(draft.id)}` : '/api/memory';
     const resp = await request(
@@ -167,17 +165,10 @@ export function createMemoryHttpPorts(
     return resp.ok;
   }
 
-  const memoryEntriesPort: MemoryEntriesPort = {
-    fetchMemoryList,
-    fetchMemoryTree,
-    fetchMemoryEntry,
-    saveMemoryEntry,
-    deleteMemoryEntry,
-    saveMemoryIndex,
-  };
+  return { saveMemoryEntry, deleteMemoryEntry, saveMemoryIndex };
+}
 
-  // ─── Extraction history cluster (real HTTP) ─────────────────────────────────
-
+function createExtractionsPort(request: MemoryRequest): MemoryExtractionsPort {
   async function fetchExtractions(): Promise<MemoryExtractionRecord[]> {
     const resp = await request('/api/memory/extractions', {}, { timeoutMs: 15_000 });
     if (!resp.ok) throw new Error(`Memory extractions request failed (${resp.status})`);
@@ -203,12 +194,21 @@ export function createMemoryHttpPorts(
     return resp.ok;
   }
 
-  const memoryExtractionsPort: MemoryExtractionsPort = {
-    fetchExtractions,
-    deleteExtraction,
-    clearExtractionHistory,
+  return { fetchExtractions, deleteExtraction, clearExtractionHistory };
+}
+
+/** Build the real REST ports with one native fetch binding; defaults remain browser-owned. */
+export function createMemoryHttpPorts(
+  _required: Record<string, never>,
+  { fetch }: { fetch?: typeof globalThis.fetch } = {},
+): { config: MemoryConfigPort; entries: MemoryEntriesPort; extractions: MemoryExtractionsPort } {
+  const request: MemoryRequest = (url, init, { timeoutMs }) =>
+    requestWithTimeout({ url, timeoutMs }, { ...(fetch === undefined ? {} : { fetch }), init });
+  return {
+    config: createConfigPort(request),
+    entries: { ...createEntryReaders(request), ...createEntryWriters(request) },
+    extractions: createExtractionsPort(request),
   };
-  return { config: memoryConfigPort, entries: memoryEntriesPort, extractions: memoryExtractionsPort };
 }
 
 /** @deprecated Explicit legacy REST binding. Host UI composition must use MemoryPortsProvider. */
@@ -233,20 +233,18 @@ export interface FakeMemoryConnectorsPortOptions {
  */
 export function createFakeMemoryConnectorsPort(options: FakeMemoryConnectorsPortOptions = {}): MemoryConnectorsPort {
   let connectors = options.connectors ? options.connectors.map((c) => ({ ...c })) : [];
-  const latencyMs = options.latencyMs ?? 0;
-  const delay = <T>(value: T): Promise<T> =>
-    latencyMs > 0 ? new Promise((resolve) => setTimeout(() => resolve(value), latencyMs)) : Promise.resolve(value);
+  const delay = fakeLatencyDelay({}, { latencyMs: options.latencyMs });
 
   return {
     fetchMemoryConnectors() {
-      return delay(connectors.map((c) => ({ ...c })));
+      return delay({ value: connectors.map((c) => ({ ...c })) });
     },
     fetchConnectorStatuses() {
       const statuses: ConnectorStatusMap = {};
       for (const c of connectors) {
         statuses[c.id] = { status: c.status, ...(c.accountLabel ? { accountLabel: c.accountLabel } : {}) };
       }
-      return delay(statuses);
+      return delay({ value: statuses });
     },
     connectConnector(connectorId: string): Promise<ConnectorActionResult> {
       const idx = connectors.findIndex((c) => c.id === connectorId);
@@ -260,13 +258,13 @@ export function createFakeMemoryConnectorsPort(options: FakeMemoryConnectorsPort
           tools: [],
         };
         connectors = [...connectors, created];
-        return delay({ connector: { ...created }, auth: { kind: 'connected' } });
+        return delay({ value: { connector: { ...created }, auth: { kind: 'connected' } } });
       }
       connectors[idx] = { ...connectors[idx]!, status: 'connected' };
-      return delay({ connector: { ...connectors[idx]! }, auth: { kind: 'connected' } });
+      return delay({ value: { connector: { ...connectors[idx]! }, auth: { kind: 'connected' } } });
     },
     suggestConnectorMemories() {
-      return delay(options.suggestionResponse ?? null);
+      return delay({ value: options.suggestionResponse ?? null });
     },
     saveMemoryEntry: memoryEntriesPort.saveMemoryEntry,
     readPendingConnectorAuthIds: readPendingConnectorAuthIdsFromSession,

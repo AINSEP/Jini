@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
+  buildCodexArgs,
   codexAgentDef,
   codexNeedsDangerFullAccessSandbox,
   parseCodexDebugModels,
@@ -306,7 +307,7 @@ describe('codexAgentDef.buildArgs', () => {
 
   it('adds --disable plugins when the host explicitly disables plugins', () => {
     setPlatform('darwin');
-    const args = codexAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: { codexDisablePlugins: true } });
+    const args = buildCodexArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], codex: { disablePlugins: true } });
     expect(args).toContain('--disable');
     expect(args[args.indexOf('--disable') + 1]).toBe('plugins');
   });
@@ -314,7 +315,7 @@ describe('codexAgentDef.buildArgs', () => {
   it('omits --disable plugins for absent or explicitly enabled host policy', () => {
     setPlatform('darwin');
     expect(codexAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [] })).not.toContain('--disable');
-    expect(codexAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: { codexDisablePlugins: false } })).not.toContain('--disable');
+    expect(buildCodexArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], codex: { disablePlugins: false } })).not.toContain('--disable');
   });
 
   it('defaults extraAllowedDirs/options/runtimeContext when omitted entirely', () => {
@@ -547,7 +548,7 @@ describe('codexAgentDef.discoverModels', () => {
   });
 
   it('parses `codex debug models` output through the def\'s catalog parser', async () => {
-    const catalog = await codexAgentDef.discoverModels({ context: discoveryContext }, { deps: cliOutputDiscoveryDeps(JSON.stringify({ models: [{ slug: 'gpt-x', display_name: 'GPT X' }] })) });
+    const catalog = await codexAgentDef.discoverModels({ context: discoveryContext }, { deps: cliOutputDiscoveryDeps({ stdout: JSON.stringify({ models: [{ slug: 'gpt-x', display_name: 'GPT X' }] }) }) });
     expect(catalog.freshness).toBe('fresh');
     expect(catalog.models).toEqual([expect.objectContaining({ id: 'gpt-x', label: 'GPT X' })]);
   });

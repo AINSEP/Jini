@@ -22,7 +22,7 @@ const CONTINUE_TEXT = 'Continue with the "Continue to sign-in" button the admin 
 const EXPIRED_TEXT = 'The sign-in link expired. Start it again if you still want to change the connection.';
 const NOW = Date.parse('2030-01-01T00:00:00Z');
 
-/** A panel view in the `status` result shape declared in `tovu-admin-surfaces.json`. */
+/** A panel view in the `status` result shape declared in `jini-admin-surfaces.json`. */
 function panelView(optional = {}) {
   return {
     connection: { status: 'connected', grantedProducts: ['sheets'], accountLabel: 'Alice', ...optional.connection },

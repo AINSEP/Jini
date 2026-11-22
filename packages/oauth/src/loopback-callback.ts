@@ -111,7 +111,7 @@ export function readLoopbackCallback(requiredArgs: { readonly query: URLSearchPa
         throw invalidState({});
     const error = single(query, 'error');
     if (error !== undefined)
-        throw toCallbackError(error);
+        throw toCallbackError({ rawError: error });
     const code = single(query, 'code') ?? '';
     if (code === '' || code.length > MAX_CODE_LENGTH)
         throw invalidRequest('the authorization callback carried no usable code');

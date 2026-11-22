@@ -50,7 +50,7 @@ export function ResourceRowListItem({
   const historyActionProps = onHistoryItemAction ? { onAction: onHistoryItemAction } : {};
   return (
     <li className={`resource-row-list-item${row.paused ? ' is-paused' : ''}`} data-testid="resource-row-list-item">
-      <div className="resource-row-list-item-main">
+      <div className="jini-resource-row-list-item-main">
         <ResourceRowListItemContent row={row} statusLabel={statusLabel} toneMap={toneMap} />
       </div>
       <ResourceRowListItemActions

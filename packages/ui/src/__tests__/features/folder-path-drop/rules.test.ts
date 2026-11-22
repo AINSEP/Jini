@@ -47,47 +47,47 @@ function constantPort(path: string): FolderPathDropPort {
 
 describe('folderPathsFromDataTransfer', () => {
   it('returns no paths for a drop with neither items nor files', () => {
-    expect(folderPathsFromDataTransfer(fakeDataTransfer(undefined, undefined), constantPort('/unused'))).toEqual([]);
+    expect(folderPathsFromDataTransfer({ dataTransfer: fakeDataTransfer(undefined, undefined), port: constantPort('/unused') })).toEqual([]);
   });
 
   it('skips a non-file item (e.g. the text/uri-list string item Finder adds alongside a folder)', () => {
-    expect(folderPathsFromDataTransfer(fakeDataTransfer([fakeStringItem()], []), constantPort('/unused'))).toEqual([]);
+    expect(folderPathsFromDataTransfer({ dataTransfer: fakeDataTransfer([fakeStringItem()], []), port: constantPort('/unused') })).toEqual([]);
   });
 
   it('skips a file item whose entry is not a directory', () => {
     const file = fakeFile('loose-file');
     const dataTransfer = fakeDataTransfer([fakeFileItem(() => fakeEntry(false))], [file]);
-    expect(folderPathsFromDataTransfer(dataTransfer, portFrom(new Map([[file, '/should-not-appear']])))).toEqual([]);
+    expect(folderPathsFromDataTransfer({ dataTransfer, port: portFrom(new Map([[file, '/should-not-appear']])) })).toEqual([]);
   });
 
   it('skips a file item whose webkitGetAsEntry() resolves to null', () => {
     const file = fakeFile('no-entry');
     const dataTransfer = fakeDataTransfer([fakeFileItem(() => null)], [file]);
-    expect(folderPathsFromDataTransfer(dataTransfer, portFrom(new Map([[file, '/should-not-appear']])))).toEqual([]);
+    expect(folderPathsFromDataTransfer({ dataTransfer, port: portFrom(new Map([[file, '/should-not-appear']])) })).toEqual([]);
   });
 
   it('skips a file item on a drag that never defines webkitGetAsEntry at all', () => {
     const file = fakeFile('no-method');
     const dataTransfer = fakeDataTransfer([fakeFileItem(undefined)], [file]);
-    expect(folderPathsFromDataTransfer(dataTransfer, portFrom(new Map([[file, '/should-not-appear']])))).toEqual([]);
+    expect(folderPathsFromDataTransfer({ dataTransfer, port: portFrom(new Map([[file, '/should-not-appear']])) })).toEqual([]);
   });
 
   it('recovers the OS path for a single dropped folder', () => {
     const file = fakeFile('folder-a');
     const dataTransfer = fakeDataTransfer([fakeFileItem(() => fakeEntry(true))], [file]);
-    expect(folderPathsFromDataTransfer(dataTransfer, portFrom(new Map([[file, '/Users/x/Desktop/Folder A']])))).toEqual([
+    expect(folderPathsFromDataTransfer({ dataTransfer, port: portFrom(new Map([[file, '/Users/x/Desktop/Folder A']])) })).toEqual([
       '/Users/x/Desktop/Folder A',
     ]);
   });
 
   it("drops a resolved folder whose path could not be recovered (getPathForFile returned '')", () => {
     const dataTransfer = fakeDataTransfer([fakeFileItem(() => fakeEntry(true))], [fakeFile('unresolvable-folder')]);
-    expect(folderPathsFromDataTransfer(dataTransfer, constantPort(''))).toEqual([]);
+    expect(folderPathsFromDataTransfer({ dataTransfer, port: constantPort('') })).toEqual([]);
   });
 
   it('drops a folder item when .files has no entry at its index', () => {
     const dataTransfer = fakeDataTransfer([fakeFileItem(() => fakeEntry(true))], []);
-    expect(folderPathsFromDataTransfer(dataTransfer, constantPort('/should-not-appear'))).toEqual([]);
+    expect(folderPathsFromDataTransfer({ dataTransfer, port: constantPort('/should-not-appear') })).toEqual([]);
   });
 
   it("keeps the .files index aligned when a string item sits ahead of the folder's file item", () => {
@@ -95,7 +95,7 @@ describe('folderPathsFromDataTransfer', () => {
     const file = fakeFile('the-only-file');
     const dataTransfer = fakeDataTransfer([fakeStringItem(), fakeFileItem(() => fakeEntry(true))], [file]);
     expect(
-      folderPathsFromDataTransfer(dataTransfer, portFrom(new Map([[file, '/Users/x/Desktop/Aligned Folder']]))),
+      folderPathsFromDataTransfer({ dataTransfer, port: portFrom(new Map([[file, '/Users/x/Desktop/Aligned Folder']])) }),
     ).toEqual(['/Users/x/Desktop/Aligned Folder']);
   });
 
@@ -118,7 +118,7 @@ describe('folderPathsFromDataTransfer', () => {
         [folderTwo, '/Users/x/Desktop/Folder Two'],
       ]),
     );
-    expect(folderPathsFromDataTransfer(dataTransfer, port)).toEqual([
+    expect(folderPathsFromDataTransfer({ dataTransfer, port })).toEqual([
       '/Users/x/Desktop/Folder One',
       '/Users/x/Desktop/Folder Two',
     ]);
@@ -133,7 +133,7 @@ describe('folderPathsFromDataTransfer', () => {
     }
     const file = fakeFile('bound-folder');
     const dataTransfer = fakeDataTransfer([fakeFileItem(() => fakeEntry(true))], [file]);
-    expect(folderPathsFromDataTransfer(dataTransfer, new MapPort(new Map([[file, '/Users/x/Bound']])))).toEqual([
+    expect(folderPathsFromDataTransfer({ dataTransfer, port: new MapPort(new Map([[file, '/Users/x/Bound']])) })).toEqual([
       '/Users/x/Bound',
     ]);
   });

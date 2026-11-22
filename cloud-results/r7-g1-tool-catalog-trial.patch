@@ -1,0 +1,97 @@
+diff --git a/packages/daemon/src/http/__tests__/characterization/harness.ts b/packages/daemon/src/http/__tests__/characterization/harness.ts
+index f670fbf6..e443eef4 100644
+--- a/packages/daemon/src/http/__tests__/characterization/harness.ts
++++ b/packages/daemon/src/http/__tests__/characterization/harness.ts
+@@ -10,7 +10,13 @@ import type { AddressInfo } from 'node:net';
+ import express, { type Express, type RequestHandler } from 'express';
+ import type { RouteHostContext } from '@jini-ai/core/contracts/server';
+ import { createLocalSameOriginPolicy } from '@jini-ai/core/contracts/server';
++import type { ServerRoute } from '@jini-ai/core/contracts/server';
++import { reportRouteInternalError } from '@jini-ai/http-kit';
++import { createNodeDispatcher, maxReserializedJsonBytes } from '@jini-ai/http-kit/node-bridge';
+ import { testOriginConfig } from '../fixtures/local-origin.js';
++import { fakeDaemonRouteHost } from '../fakes/route-host.js';
++import type { DaemonRouteHost } from '../../route-host.js';
++import { describeRoutes } from '../../route-table.js';
+ import { registerActiveContextRoutes } from '../../active-context.js';
+ import { registerAgentRoutes } from '../../agents.js';
+ import { registerAttachmentLookupRoutes } from '../../attachment-lookup-routes.js';
+@@ -33,7 +39,7 @@ import { registerResearchRoutes } from '../../research.js';
+ import { registerRoutineRoutes } from '../../routines.js';
+ import { registerRunRoutes } from '../../runs.js';
+ import { registerTerminalRoutes } from '../../terminals.js';
+-import { registerToolCatalogRoutes } from '../../tool-catalog.js';
++import { toolCatalogRoutes } from '../../tool-catalog.js';
+ import { registerToolExecutionRoutes } from '../../tool-execution-routes.js';
+ import { registerXaiRoutes } from '../../xai.js';
+ 
+@@ -115,7 +121,7 @@ const MOUNT_ORDER: readonly (readonly [family: string, mount: Mount] | 'json-par
+   ['active-context', ({ app, adapter, deps }) => registerActiveContextRoutes({ app, deps: deps(), adapter })],
+   ['terminals', ({ app, adapter, deps }) => registerTerminalRoutes({ app, deps: deps(), adapter })],
+   ['db-ops', ({ app, adapter, deps }) => registerDaemonDbRoutes({ app, deps: deps(), adapter })],
+-  ['tool-catalog', ({ app, adapter, deps }) => registerToolCatalogRoutes({ app, deps: deps(), adapter })],
++  ['tool-catalog', ({ app, adapter, deps }) => mountRouteList({ app, routes: toolCatalogRoutes({ deps: deps(), host: routeHost(adapter) }) })],
+   ['delegated-tools', ({ app, adapter, deps }) => registerDelegatedToolRoutes({ app, deps: deps(), adapter })],
+   ['connectors', ({ app, adapter, deps }) => registerConnectorsRoutes({ app, deps: deps(), adapter })],
+   ['research', ({ app, adapter, deps }) => registerResearchRoutes({ app, deps: deps(), adapter })],
+@@ -133,6 +139,22 @@ const MOUNT_ORDER: readonly (readonly [family: string, mount: Mount] | 'json-par
+   ['frontend-request-route', ({ app, deps }) => registerFrontendRequestRoute({ app, path: '/api/frontend-requests', control: deps(), executor: deps(), resolveOwner: (deps() as { resolveOwner: never }).resolveOwner, capabilityIds: ['characterization.capability'] })],
+ ];
+ 
++/** The host a route list is given: the harness's own origin policy and sink, the real reporter, and the body limit a host derives from the blanket parser (100 KB). */
++function routeHost(adapter: RouteHostContext): DaemonRouteHost {
++  return { ...fakeDaemonRouteHost(), context: adapter, reportInternalError: reportRouteInternalError, jsonBodyMaxBytes: maxReserializedJsonBytes({ parserLimitBytes: 102_400 }) };
++}
++
++/** Mounts a route list at this position, as a host does, and records each route with its gate names as its layers. */
++function mountRouteList({ app, routes }: { app: Express; routes: readonly ServerRoute[] }): void {
++  const dispatcher = createNodeDispatcher();
++  for (const route of routes) dispatcher.server.route(route);
++  const recorder = app as unknown as { use(path: string, ...layers: unknown[]): void };
++  void recorder;
++  app.use((req, res, next) => { void dispatcher.handle({ incoming: req, out: res }, { next, parsedBody: (req as { body?: unknown }).body }); });
++  listed.push(...describeRoutes({ routes }));
++}
++const listed: { method: string; path: string; gates: readonly string[] }[] = [];
++
+ const layerName = (handler: unknown): string => (typeof handler === 'function' ? `${handler.name || 'anonymous'}/${handler.length}` : String(handler));
+ 
+ /** `app` with its registration methods recorded under `family` before they reach Express. */
+diff --git a/packages/daemon/src/http/tool-catalog.ts b/packages/daemon/src/http/tool-catalog.ts
+index 9eb29bb6..ab639e4f 100644
+--- a/packages/daemon/src/http/tool-catalog.ts
++++ b/packages/daemon/src/http/tool-catalog.ts
+@@ -19,11 +19,11 @@
+  * (`packages/daemon/src/delegated-tool-bridge.ts`) — finding a tool id here grants nothing.
+  */
+ import type { AgentToolSideEffect } from '@jini-ai/core';
+-import type { Express } from 'express';
+ import { createApiError } from '@jini-ai/protocol';
+-import { defineJsonRoute, mountJsonRoute } from '@jini-ai/http-kit';
+-import { type RouteHostContext, err, ok } from '@jini-ai/core/contracts/server';
++import { defineJsonRoute, err, jsonRoute, ok, type JsonRouteSpec } from '@jini-ai/core/contracts/server';
+ import { parseCatalogDescribeInput, parseCatalogSearchInput } from './catalog-route-input.js';
++import type { DaemonRouteHost } from './route-host.js';
++import { gated, type DaemonRoute } from './route-table.js';
+ 
+ export interface ToolCatalogSearchHit {
+   readonly readOnly?: boolean;
+@@ -106,8 +106,14 @@ export const toolCatalogDescribeRoute = defineJsonRoute<{ id: string }, ToolCata
+   },
+ }, { requireSameOrigin: true });
+ 
+-/** Mounts both tool-catalog routes on `app`. A pack's `http({ app, services })` calls this directly. */
+-export function registerToolCatalogRoutes({ app, deps, adapter }: { readonly app: Express; readonly deps: ToolCatalogHttpDeps; readonly adapter: RouteHostContext }, _optional: Record<string, never> = {}): void {
+-  mountJsonRoute({ app, spec: toolCatalogSearchRoute, deps, adapter });
+-  mountJsonRoute({ app, spec: toolCatalogDescribeRoute, deps, adapter });
++/**
++ * Both tool-catalog routes as data, each behind the same-origin gate its spec declares. A host
++ * mounts the list; the routes never see the host's app.
++ */
++export function toolCatalogRoutes({ deps, host }: { readonly deps: ToolCatalogHttpDeps; readonly host: DaemonRouteHost }, _optional: Record<string, never> = {}): DaemonRoute[] {
++  const json = <I, O>(spec: JsonRouteSpec<I, O, ToolCatalogHttpDeps>): DaemonRoute => gated({
++    route: jsonRoute({ spec: { ...spec, maxBodyBytes: host.jsonBodyMaxBytes }, deps, reportInternalError: host.reportInternalError }, { host: host.context }),
++    gates: spec.requireSameOrigin ? [{ name: 'same-origin' }] : [],
++  });
++  return [json(toolCatalogSearchRoute), json(toolCatalogDescribeRoute)];
+ }

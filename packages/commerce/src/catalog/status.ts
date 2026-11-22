@@ -40,11 +40,10 @@ function copyProvider(provider: CommercePaymentProvider): CommercePaymentProvide
 export function readCommerceStatus(input: {
   readonly workspaceId: string;
   readonly resolvePaymentRuntime: () => CommercePaymentRuntimePort | null;
-  readonly checkout?: CommerceCheckoutReadiness;
-}, _optional: Record<string, never> = {}): CommerceStatus {
+}, optional: { readonly checkout?: CommerceCheckoutReadiness } = {}): CommerceStatus {
   const paymentRuntime = input.resolvePaymentRuntime();
   const available = paymentRuntime !== null;
-  const checkoutAvailability = input.checkout?.ready ? "available" : "unavailable";
+  const checkoutAvailability = optional.checkout?.ready ? "available" : "unavailable";
 
   return {
     contractVersion: 1,
@@ -54,7 +53,7 @@ export function readCommerceStatus(input: {
       reason: available ? null : "No payment runtime is composed for this workspace.",
     },
     providers: paymentRuntime?.listProviders().map(copyProvider) ?? [],
-    ...(input.checkout === undefined ? {} : { checkout: { ...input.checkout } }),
+    ...(optional.checkout === undefined ? {} : { checkout: { ...optional.checkout } }),
     configuration: {
       status: "unavailable", schema: null,
       reason: "The payment runtime does not expose a provider configuration contract.",

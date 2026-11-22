@@ -16,9 +16,20 @@ import Database from 'better-sqlite3';
 // health-boot runs this file with plain `node`, whose type stripping never maps .js to .ts.
 import { acpFixtureDef } from './acp-fixture.ts';
 import { createAgentExecutor } from '@jini-ai/daemon';
-import { createNativeAgentRuntime, type AgentLaunchResolution } from '@jini-ai/agent-runtime';
-import { FETCH_TIMEOUT_MS, fetchWithTimeout } from '@jini-ai/platform';
+import { createAgentRuntimeBindings, createNativeAgentRuntime } from '@jini-ai/agent-runtime';
+import { type AgentLaunchResolution } from '@jini-ai/core/contracts/agents';
+import { fetchWithTimeout } from '@jini-ai/platform';
+import { FETCH_TIMEOUT_MS } from '@jini-ai/core/net';
 import { createLocalNodeDaemon } from '@jini-ai/server';
+import { nodeAtomicWriter, nodeFileLock } from '@jini-ai/node-adapters/fs';
+import { nodeCommandShell, nodeProcessControl, nodeSpawnPort } from '@jini-ai/node-adapters/process';
+import type { AgentExecutorRuntimePorts } from '@jini-ai/daemon/ports/runtime';
+import type { AgentRuntimePort } from '@jini-ai/daemon/ports/agent-runtime';
+
+/** The Node implementations of the OS-facing ports the agent executor needs, bound from the env this host owns. */
+function executorRuntimeFor({ hostEnv }: { hostEnv: NodeJS.ProcessEnv }, _optional: Record<string, never> = {}): AgentExecutorRuntimePorts {
+  return { spawn: nodeSpawnPort, processes: nodeProcessControl, fileLock: nodeFileLock, writer: nodeAtomicWriter, commandShell: nodeCommandShell({ env: hostEnv }) };
+}
 
 interface DaemonStatusBody {
   ok?: boolean;
@@ -47,7 +58,7 @@ async function main(): Promise<void> {
   const startDaemon = () => {
     const runtime = createNativeAgentRuntime({ env: process.env });
     const runtimeExecutorOptions = { runtimeState: runtime.state, hostEnv: runtime.hostEnv,
-      codexDisablePlugins: runtime.codexDisablePlugins, piGracefulShutdownMs: runtime.piGracefulShutdownMs };
+      codexDisablePlugins: runtime.codex.disablePlugins === true, piGracefulShutdownMs: runtime.pi.gracefulShutdownMs ?? 5000 };
     return createLocalNodeDaemon({
       dataDir,
       // The host supplies the SQLite driver; Jini never autoloads it.
@@ -67,20 +78,23 @@ async function main(): Promise<void> {
         }
 
         if (request.agentId === 'acp-fixture') {
-          const executor = createAgentExecutor({ lifecycle }, {
-            ...runtimeExecutorOptions,
-            getAgentDef: ({ id }) => (id === 'acp-fixture' ? acpFixtureDef() : null),
-            resolveAgentLaunch: () =>
-              ({
-                selectedPath: process.execPath,
-                pathResolvedPath: process.execPath,
-                configuredOverridePath: null,
-                launchPath: process.execPath,
-                launchKind: 'selected',
-                childPathPrepend: [],
-                diagnostic: null,
-              }) as AgentLaunchResolution,
-            applyAgentLaunchEnv: ({ env }) => env,
+          const bound = createAgentRuntimeBindings({ runtime }) satisfies AgentRuntimePort;
+          const agentRuntime: AgentRuntimePort = { ...bound,
+            defs: { ...bound.defs, get: ({ id }) => (id === 'acp-fixture' ? acpFixtureDef() : null) },
+            launch: { ...bound.launch,
+              resolve: () =>
+                ({
+                  selectedPath: process.execPath,
+                  pathResolvedPath: process.execPath,
+                  configuredOverridePath: null,
+                  launchPath: process.execPath,
+                  launchKind: 'selected',
+                  childPathPrepend: [],
+                  diagnostic: null,
+                }) as AgentLaunchResolution,
+              applyEnv: ({ env }) => env },
+          };
+          const executor = createAgentExecutor({ lifecycle, hostEnv: runtime.hostEnv, runtime: executorRuntimeFor({ hostEnv: runtime.hostEnv }), agentRuntime }, {
             acpPermissionHandler: () => ({ outcome: 'selected', optionId: 'allow' }),
           });
           await executor.run({
@@ -122,7 +136,7 @@ async function main(): Promise<void> {
 
 async function verifyDaemonStatus({ url }: { url: string }): Promise<void> {
   const response = await assertOk(
-    await fetchWithTimeout(`${url}/api/daemon/status`, {}, { timeoutMs: FETCH_TIMEOUT_MS.QUICK }),
+    await fetchWithTimeout({ url: `${url}/api/daemon/status`, timeoutMs: FETCH_TIMEOUT_MS.QUICK }, { init: {} }),
     'GET /api/daemon/status',
   );
   const body = (await response.json()) as DaemonStatusBody;
@@ -134,13 +148,11 @@ async function verifyDaemonStatus({ url }: { url: string }): Promise<void> {
 async function verifyCompletedRun({ url }: { url: string }): Promise<string> {
   const create = await assertOk(
     await fetchWithTimeout(
-      `${url}/api/runs`,
-      {
+      { url: `${url}/api/runs`, timeoutMs: FETCH_TIMEOUT_MS.QUICK }, { init: {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ contextRef: 'minimal-host-complete', idempotencyKey: 'complete-once' }),
-      },
-      { timeoutMs: FETCH_TIMEOUT_MS.QUICK },
+      } },
     ),
     'POST /api/runs',
   );
@@ -151,7 +163,7 @@ async function verifyCompletedRun({ url }: { url: string }): Promise<string> {
   }
 
   const firstStream = await assertOk(
-    await fetchWithTimeout(`${url}/api/runs/${encodeURIComponent(completedRunId)}/events`, {}, { timeoutMs: FETCH_TIMEOUT_MS.QUICK }),
+    await fetchWithTimeout({ url: `${url}/api/runs/${encodeURIComponent(completedRunId)}/events`, timeoutMs: FETCH_TIMEOUT_MS.QUICK }, { init: {} }),
     'GET /api/runs/:id/events',
   );
   const firstStreamBody = await firstStream.text();
@@ -162,9 +174,7 @@ async function verifyCompletedRun({ url }: { url: string }): Promise<string> {
 
   const reconnected = await assertOk(
     await fetchWithTimeout(
-      `${url}/api/runs/${encodeURIComponent(completedRunId)}/events`,
-      { headers: { 'last-event-id': firstCursors[0] ?? '' } },
-      { timeoutMs: FETCH_TIMEOUT_MS.QUICK },
+      { url: `${url}/api/runs/${encodeURIComponent(completedRunId)}/events`, timeoutMs: FETCH_TIMEOUT_MS.QUICK }, { init: { headers: { 'last-event-id': firstCursors[0] ?? '' } } },
     ),
     'GET /api/runs/:id/events reconnect',
   );
@@ -179,13 +189,11 @@ async function verifyCompletedRun({ url }: { url: string }): Promise<string> {
 async function verifyAcpRun({ url }: { url: string }): Promise<void> {
   const acp = await assertOk(
     await fetchWithTimeout(
-      `${url}/api/runs`,
-      {
+      { url: `${url}/api/runs`, timeoutMs: FETCH_TIMEOUT_MS.QUICK }, { init: {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ contextRef: 'minimal-host-acp', agentId: 'acp-fixture' }),
-      },
-      { timeoutMs: FETCH_TIMEOUT_MS.QUICK },
+      } },
     ),
     'POST /api/runs ACP fixture',
   );
@@ -195,7 +203,7 @@ async function verifyAcpRun({ url }: { url: string }): Promise<void> {
     throw new Error(`minimal-host: ACP fixture did not create a run: ${JSON.stringify(acpBody)}`);
   }
   const acpStream = await assertOk(
-    await fetchWithTimeout(`${url}/api/runs/${encodeURIComponent(acpRunId)}/events`, {}, { timeoutMs: FETCH_TIMEOUT_MS.QUICK }),
+    await fetchWithTimeout({ url: `${url}/api/runs/${encodeURIComponent(acpRunId)}/events`, timeoutMs: FETCH_TIMEOUT_MS.QUICK }, { init: {} }),
     'GET /api/runs/:id/events ACP fixture',
   );
   const acpStreamBody = await acpStream.text();
@@ -207,13 +215,11 @@ async function verifyAcpRun({ url }: { url: string }): Promise<void> {
 async function verifyCancelledRun({ url, cancellationCompletions }: { url: string; cancellationCompletions: Map<string, Promise<unknown>> }): Promise<void> {
   const waiting = await assertOk(
     await fetchWithTimeout(
-      `${url}/api/runs`,
-      {
+      { url: `${url}/api/runs`, timeoutMs: FETCH_TIMEOUT_MS.QUICK }, { init: {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ contextRef: 'minimal-host-cancel', agentId: 'wait-for-cancel' }),
-      },
-      { timeoutMs: FETCH_TIMEOUT_MS.QUICK },
+      } },
     ),
     'POST /api/runs waiting',
   );
@@ -224,13 +230,11 @@ async function verifyCancelledRun({ url, cancellationCompletions }: { url: strin
   }
   await assertOk(
     await fetchWithTimeout(
-      `${url}/api/runs/${encodeURIComponent(waitingRunId)}/cancel`,
-      {
+      { url: `${url}/api/runs/${encodeURIComponent(waitingRunId)}/cancel`, timeoutMs: FETCH_TIMEOUT_MS.QUICK }, { init: {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ reason: 'minimal-host cancellation check' }),
-      },
-      { timeoutMs: FETCH_TIMEOUT_MS.QUICK },
+      } },
     ),
     'POST /api/runs/:id/cancel',
   );
@@ -241,7 +245,7 @@ async function verifyCancelledRun({ url, cancellationCompletions }: { url: strin
 
 async function verifyRestoredRun({ url, completedRunId }: { url: string; completedRunId: string }): Promise<void> {
   const restored = await assertOk(
-    await fetchWithTimeout(`${url}/api/runs/${encodeURIComponent(completedRunId)}`, {}, { timeoutMs: FETCH_TIMEOUT_MS.QUICK }),
+    await fetchWithTimeout({ url: `${url}/api/runs/${encodeURIComponent(completedRunId)}`, timeoutMs: FETCH_TIMEOUT_MS.QUICK }, { init: {} }),
     'GET /api/runs/:id after restart',
   );
   const restoredBody = (await restored.json()) as RunResponse;
@@ -249,7 +253,7 @@ async function verifyRestoredRun({ url, completedRunId }: { url: string; complet
     throw new Error(`minimal-host: durable state was not restored: ${JSON.stringify(restoredBody)}`);
   }
   const replayed = await assertOk(
-    await fetchWithTimeout(`${url}/api/runs/${encodeURIComponent(completedRunId)}/events`, {}, { timeoutMs: FETCH_TIMEOUT_MS.QUICK }),
+    await fetchWithTimeout({ url: `${url}/api/runs/${encodeURIComponent(completedRunId)}/events`, timeoutMs: FETCH_TIMEOUT_MS.QUICK }, { init: {} }),
     'GET /api/runs/:id/events after restart',
   );
   if (!(await replayed.text()).includes('event: end')) {

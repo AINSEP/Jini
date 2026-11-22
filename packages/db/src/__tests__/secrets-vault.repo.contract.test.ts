@@ -3,17 +3,18 @@ import { afterAll, beforeEach, describe, test } from "vitest";
 import Database from "better-sqlite3";
 import { PGlite } from "@electric-sql/pglite";
 import { sql, type Kysely } from "kysely";
-import { InMemoryVaultRepo, SecretsVaultService, createVaultMetaParsers, type VaultPutRecord } from "@jini-ai/platform/secrets/credential-sets";
+import { InMemoryVaultRepo, SecretsVaultService, createVaultMetaParsers } from "@jini-ai/platform/secrets/credential-sets";
+import { type VaultPutRecord } from "@jini-ai/core/contracts/vault";
 import { AesGcmSecretSealer } from "@jini-ai/platform/secrets";
 import { InMemoryKeyring } from "@jini-ai/platform/secrets/testing";
 import { SqlSecretsVaultRepo, type SecretsVaultDatabase } from "../secrets-vault/index.js";
 import { sqliteKernel } from "../kernel/sqlite/index.js";
 import { openPgliteKernel } from "../kernel/pglite/index.js";
-import type { StorageKernel } from "../kernel/port.js";
+import type { KyselyKernel } from "../kernel/port.js";
 
 // Follow kernel.test.ts's embedded-driver matrix; there is no shared vault contract harness.
 const cases = [
-  { name: "sqlite", kernel: sqliteKernel<SecretsVaultDatabase>(new Database(":memory:")) },
+  { name: "sqlite", kernel: sqliteKernel<SecretsVaultDatabase>({ source: new Database(":memory:") }) },
   { name: "pglite", kernel: openPgliteKernel<SecretsVaultDatabase>({ PGlite }) },
 ];
 afterAll(async () => { for (const { kernel } of cases) await kernel.close(); });
@@ -133,7 +134,7 @@ for (const { name, kernel } of cases) describe(`secrets vault contract [${name}]
 
   test("executed group queries stay narrow: existence checks, one default, and one promotion identity", async () => {
     const statements: string[] = [];
-    const recordingKernel: StorageKernel<SecretsVaultDatabase> = { ...kernel,
+    const recordingKernel: KyselyKernel<SecretsVaultDatabase> = { ...kernel,
       run<T>(body: (db: Kysely<SecretsVaultDatabase>) => T | Promise<T>): Promise<T> {
         return kernel.run(db => body(db.withPlugin({
           transformQuery(args) { statements.push(db.getExecutor().compileQuery(args.node, args.queryId).sql); return args.node; },

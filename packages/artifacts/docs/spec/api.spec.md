@@ -9,7 +9,7 @@ spec_mode: reverse_spec
 
 ## Entry points and signatures
 
-Exports: `@jini-ai/artifacts` (`.`) and `@jini-ai/artifacts/node` (`./node`). The root is universal; publication guards decode byte content using standard TextDecoder without Node built-ins. All calls below use a required object; only shown optional objects exist in source. Some methods still take zero arguments.
+Exports: `@jini-ai/artifacts` (`.`) and `@jini-ai/artifacts/node` (`./node`). The root is universal; publication guards decode byte content using standard TextDecoder without Node built-ins. Plain helper functions take a required object and an optional object defaulting to `{}`; signatures below may omit empty optional objects. Hook implementations retain their declared signatures. Some methods still take zero arguments.
 
 | Root export | Return / dependencies |
 |---|---|

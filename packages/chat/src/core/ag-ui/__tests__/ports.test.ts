@@ -1,5 +1,6 @@
 import { expect, it } from 'vitest';
-import { createAgUiTranslationState, translateAgentEventToAgUi, closeAgUiRun, reduceAgentWirePayload } from '../entry.js';
+import { createAgUiTranslationState, translateAgentEventToAgUi, closeAgUiRun } from '../event-projection.js';
+import { translateRunAgentPayload } from '../../run-events/entry.js';
 
 it('injects host IDs and custom names and keeps concurrent runs isolated', () => {
   const names = { usage: 'consumer.usage', status: 'consumer.status', extensionPrefix: 'consumer.ext.' };
@@ -21,6 +22,6 @@ it('injects host IDs and custom names and keeps concurrent runs isolated', () =>
 it('treats inherited object keys as unknown extension event types', () => {
   for (const type of ['constructor', 'toString', '__proto__']) {
     const payload = { type, value: 'untrusted' };
-    expect(reduceAgentWirePayload({ payload })).toEqual({ kind: 'ext', name: type, data: payload });
+    expect(translateRunAgentPayload({ payload })).toEqual({ kind: 'ext', name: type, data: payload });
   }
 });

@@ -7,20 +7,21 @@ import {
   join,
   resolve,
 } from 'node:path';
-import type { RuntimeAgentDef } from '@jini-ai/agent-runtime';
+import type { RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 import { errorMessage } from '../values.js';
 import type {
   McpJsonInjectionOptions,
-  McpJsonServerEntry,
   McpHttpEndpoint,
   McpBridgeDelivery,
   PreparedCodexHome,
   FailBeforeSpawn,
 } from '../contracts.js';
-import { defaultReadMcpJsonFile, defaultWriteMcpJsonFile } from '../mcp-bridge.js';
+import { defaultReadMcpJsonFile, defaultWriteMcpJsonFile, type McpJsonServerEntry } from '../mcp-json-file.js';
 import { buildCodexHomeConfigToml } from './home-config.js';
 import { assertCodexHomeConfigParses, assertStagedHomeIsolated, CodexMcpIsolationError, codexIsolationRefusalMessage } from './isolation.js';
 import { omitKeys } from '../../core/omit-keys.js';
+
+export const CODEX_HOME_ENV = 'CODEX_HOME';
 
 /**
  * Where `'codex-toml'` reads the operator's REAL Codex config from, to seed a run's scratch copy —
@@ -45,7 +46,7 @@ export function resolveSourceCodexHomeDir({ hostEnv }: { readonly hostEnv: NodeJ
  * `mcp_skill_dependencies.rs`), and `codex exec` is `codex_exec` without it.
  */
 export function withStagedCodexHome({ env, codexHomeDir }: { readonly env: NodeJS.ProcessEnv; readonly codexHomeDir: string }, _options = {}): NodeJS.ProcessEnv {
-  return { ...omitKeys(env, ['CODEX_INTERNAL_ORIGINATOR_OVERRIDE']), CODEX_HOME: codexHomeDir };
+  return { ...omitKeys({ source: env, keys: ['CODEX_INTERNAL_ORIGINATOR_OVERRIDE'] }), CODEX_HOME: codexHomeDir };
 }
 
 function defaultMkdtempCodexHome({ prefix }: { readonly prefix: string }): Promise<string> {
@@ -191,15 +192,20 @@ async function prepareCodexHomeForRun(
 }
 
 /** True when a Codex run turns off the operator's personal MCP servers or settings, which only a staged home can do. */
-function codexTurnsOffPersonalConfig(input: { readonly def: RuntimeAgentDef; readonly nativeCapabilities?: Partial<import('@jini-ai/agent-runtime').NativeCapabilities> }): boolean {
+function codexTurnsOffPersonalConfig(input: { readonly def: RuntimeAgentDef; readonly nativeCapabilities?: Partial<import('@jini-ai/core/contracts/agents').NativeCapabilities> }): boolean {
   const capabilities = input.nativeCapabilities;
   return input.def.id === 'codex' && (capabilities?.userMcp === false || capabilities?.userSettings === false);
 }
 
 /** Which personal Codex config a staged home keeps: none when native tools are locked, else what the run's capabilities allow. */
-export function codexInheritance(input: { readonly nativeToolAccess?: boolean | undefined; readonly nativeCapabilities?: Partial<import('@jini-ai/agent-runtime').NativeCapabilities> }): { settings: boolean; mcp: boolean } {
+export function codexInheritance(input: { readonly nativeToolAccess?: boolean | undefined; readonly nativeCapabilities?: Partial<import('@jini-ai/core/contracts/agents').NativeCapabilities> }): { settings: boolean; mcp: boolean } {
   const nativeAllowed = input.nativeToolAccess !== false;
   return { settings: nativeAllowed && input.nativeCapabilities?.userSettings !== false, mcp: nativeAllowed && input.nativeCapabilities?.userMcp !== false };
+}
+
+/** Supply the HTTP endpoint to this CLI's run-scoped home staging. */
+export function codexHttpMcpStaging(endpoint: McpHttpEndpoint): { httpEndpoint: McpHttpEndpoint } {
+  return { httpEndpoint: endpoint };
 }
 
 /**
@@ -213,7 +219,7 @@ export function codexInheritance(input: { readonly nativeToolAccess?: boolean | 
  * @complexity O(1) plus {@link prepareCodexHomeForRun}'s own cost.
  * @overallScore 100/100
  */
-export async function prepareCodexHomeIfNeeded({ input, deps }: { readonly input: { readonly runId: string; readonly nativeToolAccess?: boolean | undefined; readonly nativeCapabilities?: Partial<import('@jini-ai/agent-runtime').NativeCapabilities>; readonly def: RuntimeAgentDef; readonly mcpBridge: McpBridgeDelivery | null; readonly httpEndpoint?: McpHttpEndpoint }; readonly deps: {
+export async function prepareCodexHomeIfNeeded({ input, deps }: { readonly input: { readonly runId: string; readonly nativeToolAccess?: boolean | undefined; readonly nativeCapabilities?: Partial<import('@jini-ai/core/contracts/agents').NativeCapabilities>; readonly def: RuntimeAgentDef; readonly mcpBridge: McpBridgeDelivery | null; readonly httpEndpoint?: McpHttpEndpoint }; readonly deps: {
     readonly mcpJsonInjection: McpJsonInjectionOptions | undefined;
     readonly hostEnv: NodeJS.ProcessEnv;
     readonly releaseStagedResources: () => Promise<void>;
@@ -244,10 +250,10 @@ export async function prepareCodexHomeIfNeeded({ input, deps }: { readonly input
     await deps.releaseStagedResources();
     if (err instanceof CodexMcpIsolationError) {
       return deps.failBeforeSpawn({ runId: input.runId, code: 'NATIVE_TOOL_POLICY_UNSUPPORTED',
-        message: codexIsolationRefusalMessage(err.message) });
+        message: codexIsolationRefusalMessage({ reason: err.message }) });
     }
     return deps.failBeforeSpawn(
-      { runId: input.runId, code: 'AGENT_SPAWN_FAILED', message: `AgentExecutor: could not stage a CODEX_HOME for agent "${input.def.id}": ${errorMessage(err)}` },
+      { runId: input.runId, code: 'AGENT_SPAWN_FAILED', message: `AgentExecutor: could not stage a CODEX_HOME for agent "${input.def.id}": ${errorMessage({ err })}` },
     );
   }
 }

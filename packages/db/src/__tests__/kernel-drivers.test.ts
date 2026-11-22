@@ -5,7 +5,8 @@ import Database from "better-sqlite3";
 import { Kysely, sql, SqliteDialect } from "kysely";
 import { PGlite } from "@electric-sql/pglite";
 
-import { buildKernel, UnsupportedCapabilityError } from "../kernel/index.js";
+import { buildKernel } from "../kernel/index.js";
+import { UnsupportedCapabilityError } from "@jini-ai/core/contracts/storage";
 import { openPgliteKernel } from "../kernel/pglite/index.js";
 import { sqliteKernel } from "../kernel/sqlite/index.js";
 
@@ -17,7 +18,7 @@ import { sqliteKernel } from "../kernel/sqlite/index.js";
 
 test("destroying the Kysely handle inside a SQLite run() leaves the consumer's connection open", async () => {
   const client = new Database(":memory:");
-  const kernel = sqliteKernel<unknown>(client);
+  const kernel = sqliteKernel<unknown>({ source: client });
   await kernel.execute(sql`CREATE TABLE t (id text)`);
   await kernel.run((db) => db.destroy());
   assert.equal(client.open, true);
@@ -41,7 +42,7 @@ test("Kysely introspection works through the PGlite dialect", async () => {
 
 test("a driver that claims backup but supplies none is refused explicitly, never silently skipped", async () => {
   const base = new Kysely<unknown>({ dialect: new SqliteDialect({ database: new Database(":memory:") }) });
-  const kernel = buildKernel<unknown>({
+  const kernel = buildKernel<unknown>({ driver: {
     dialect: "sqlite",
     transport: "better-sqlite3",
     capabilities: { interactiveTransactions: true, atomicBatch: true, transactionalDdl: true, backup: true },
@@ -51,7 +52,7 @@ test("a driver that claims backup but supplies none is refused explicitly, never
     begin: (body) => base.transaction().execute((tx) => body(tx)),
     lockKey: async () => {},
     close: () => base.destroy(),
-  });
+  } });
   try {
     await assert.rejects(kernel.backupTo("/never/written.db"), (err: unknown) => {
       assert.ok(err instanceof UnsupportedCapabilityError);

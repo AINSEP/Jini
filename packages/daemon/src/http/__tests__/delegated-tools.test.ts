@@ -1,6 +1,11 @@
+import { reportRouteInternalError } from '@jini-ai/http-kit';
 import { withReadOnlyToolConstraint, defaultDaemonMessages } from '../../read-only-tools.js';
 import { createNodeCredentialCrypto } from '../../run-credentials.js';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { denyAllOrigins } from '@jini-ai/core/contracts/server/testing';
+import { fakeDaemonRouteHost } from './fakes/route-host.js';
+import { serveRoutes } from './fakes/serve-routes.js';
+import { describeRoutes } from '../route-table.js';
 import { createToolRegistry, ToolInputError, type Principal, type ToolRegistry } from '@jini-ai/core';
 import {
   createInMemoryEventLog,
@@ -10,43 +15,12 @@ import {
   type RunLifecycle,
   type ToolExecutor,
 } from '../../index.js';
-import { isLocalSameOrigin } from '@jini-ai/core';
 import {
   delegatedToolExecuteRoute,
-  registerDelegatedToolRoutes,
+  delegatedToolRoutes,
   type DelegatedToolsHttpDeps,
 } from '../delegated-tools.js';
 
-vi.mock('@jini-ai/core', async (importOriginal) => ({
-  ...await importOriginal<typeof import('@jini-ai/core')>(),
-  isLocalSameOrigin: vi.fn(() => true),
-}));
-
-interface MockApp {
-  get: (path: string, handler: any) => void;
-  post: (path: string, handler: any) => void;
-  put: (path: string, handler: any) => void;
-  delete: (path: string, handler: any) => void;
-  patch: (path: string, handler: any) => void;
-  handlers: Record<string, (req: any, res: any) => Promise<void> | void>;
-}
-
-function makeApp(): MockApp {
-  const handlers: MockApp['handlers'] = {};
-  const make = (method: string) => (path: string, handler: any) => {
-    handlers[`${method.toUpperCase()} ${path}`] = handler;
-  };
-  return { get: make('get'), post: make('post'), put: make('put'), delete: make('delete'), patch: make('patch'), handlers };
-}
-
-function makeJsonRes() {
-  return {
-    status: vi.fn().mockReturnThis(),
-    json: vi.fn().mockReturnThis(),
-  };
-}
-
-const adapter = { allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST', env: {}, resolvedPortRef: { current: 7456 } };
 const TEST_PRINCIPAL: Principal = { id: 'test-principal' };
 
 function makeLifecycle(): RunLifecycle {
@@ -71,16 +45,13 @@ function makeToolExecutor(): ToolExecutor {
 
 function makeDeps(overrides: Partial<DelegatedToolsHttpDeps> = {}): DelegatedToolsHttpDeps {
   return {
+    reportInternalError: reportRouteInternalError,
     lifecycle: makeLifecycle(),
     toolExecutor: makeToolExecutor(),
     resolvePrincipal: () => TEST_PRINCIPAL,
     ...overrides,
   };
 }
-
-beforeEach(() => {
-  vi.mocked(isLocalSameOrigin).mockReturnValue(true);
-});
 
 describe('delegatedToolExecuteRoute.parse (parseDelegatedToolExecute)', () => {
   it('rejects a non-object body', () => {
@@ -246,7 +217,7 @@ describe('delegatedToolExecuteRoute.handle', () => {
     const result = await delegatedToolExecuteRoute.handle({ input: { runId: run.id, toolUseId: 'tu-1', toolId: 'flaky' }, deps });
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      expect(result.error).toEqual({ code: 'INTERNAL_ERROR', message: 'an internal error occurred', requestId: expect.any(String) });
+      expect(result.error).toEqual({ code: 'INTERNAL_ERROR', message: 'The tool could not run because of a server fault. Do not retry the same call; tell the user to copy the request ID and report this problem.', requestId: expect.any(String) });
     }
     expect(onInternalError).toHaveBeenCalledTimes(1);
     const context = onInternalError.mock.calls[0]![0];
@@ -292,7 +263,7 @@ describe('delegatedToolExecuteRoute.handle', () => {
     const result = await delegatedToolExecuteRoute.handle({ input: { runId: run.id, toolUseId: 'tu-1', toolId: 'flaky-internal' }, deps });
     expect(result).toEqual({
       ok: false,
-      error: { code: 'INTERNAL_ERROR', message: 'an internal error occurred', requestId: expect.any(String) },
+      error: { code: 'INTERNAL_ERROR', message: 'The tool could not run because of a server fault. Do not retry the same call; tell the user to copy the request ID and report this problem.', requestId: expect.any(String) },
     });
     expect(onInternalError).toHaveBeenCalledTimes(1);
     expect(onInternalError.mock.calls[0]![0].error).toBe('boom: secret detail');
@@ -372,7 +343,7 @@ describe('delegatedToolExecuteRoute.handle', () => {
     const result = await resultPromise;
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      expect(result.error).toEqual({ code: 'INTERNAL_ERROR', message: 'an internal error occurred', requestId: expect.any(String) });
+      expect(result.error).toEqual({ code: 'INTERNAL_ERROR', message: 'The tool could not run because of a server fault. Do not retry the same call; tell the user to copy the request ID and report this problem.', requestId: expect.any(String) });
     }
   });
 
@@ -388,7 +359,7 @@ describe('delegatedToolExecuteRoute.handle', () => {
     const result = await delegatedToolExecuteRoute.handle({ input: { runId: run.id, toolUseId: 'tu-1', toolId: 'echo' }, deps });
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      expect(result.error).toEqual({ code: 'INTERNAL_ERROR', message: 'an internal error occurred', requestId: expect.any(String) });
+      expect(result.error).toEqual({ code: 'INTERNAL_ERROR', message: 'The tool could not run because of a server fault. Do not retry the same call; tell the user to copy the request ID and report this problem.', requestId: expect.any(String) });
     }
     const context = onInternalError.mock.calls[0]![0];
     expect(context.source).toBe('resolve-principal');
@@ -396,111 +367,73 @@ describe('delegatedToolExecuteRoute.handle', () => {
   });
 });
 
-describe('registerDelegatedToolRoutes', () => {
-  it('mounts exactly POST /api/delegated-tool-calls', () => {
-    const app = makeApp();
-    registerDelegatedToolRoutes({ app: app as any, deps: makeDeps(), adapter });
-    expect(Object.keys(app.handlers)).toEqual(['POST /api/delegated-tool-calls']);
+describe('delegatedToolRoutes', () => {
+  const callPath = '/api/delegated-tool-calls';
+  const call = (body: unknown, { signal }: { signal?: AbortSignal } = {}) => new Request(`http://local${callPath}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body), ...(signal ? { signal } : {}) });
+  const serve = ({ deps, denyOrigins = false }: { deps: DelegatedToolsHttpDeps; denyOrigins?: boolean }) =>
+    serveRoutes({ routes: delegatedToolRoutes({ deps, host: fakeDaemonRouteHost({}, denyOrigins ? { originPolicy: denyAllOrigins } : {}) }) });
+
+  it('lists exactly POST /api/delegated-tool-calls, behind the same-origin gate', () => {
+    expect(describeRoutes({ routes: delegatedToolRoutes({ deps: makeDeps(), host: fakeDaemonRouteHost() }) })).toEqual([{ method: 'POST', path: callPath, gates: ['same-origin'] }]);
   });
 
   it('requires same-origin: blocks a cross-origin request with 403', async () => {
-    vi.mocked(isLocalSameOrigin).mockReturnValue(false);
-    const app = makeApp();
-    registerDelegatedToolRoutes({ app: app as any, deps: makeDeps(), adapter });
-    const res = makeJsonRes();
-    await app.handlers['POST /api/delegated-tool-calls']!(
-      { body: { runId: 'r1', toolUseId: 'tu-1', toolId: 'echo' }, query: {}, params: {} },
-      res,
-    );
-    expect(res.status).toHaveBeenCalledWith(403);
+    const response = await serve({ deps: makeDeps(), denyOrigins: true })(call({ runId: 'r1', toolUseId: 'tu-1', toolId: 'echo' }));
+    expect(response.status).toBe(403);
   });
 
-  it('mounted POST /api/delegated-tool-calls executes an allowed tool end to end through the real Adapter pipeline', async () => {
-    const app = makeApp();
+  it('executes an allowed tool end to end through the real JSON route pipeline', async () => {
     const deps = makeDeps();
     const { run } = await deps.lifecycle.start({ contextRef: 'ctx-1' });
-    registerDelegatedToolRoutes({ app: app as any, deps, adapter });
-    const res = makeJsonRes();
-    await app.handlers['POST /api/delegated-tool-calls']!(
-      { body: { runId: run.id, toolUseId: 'tu-1', toolId: 'echo', input: 'hi' }, query: {}, params: {} },
-      res,
-    );
-    expect(res.status).toHaveBeenCalledWith(200);
-    const [body] = res.json.mock.calls[0]!;
+    const response = await serve({ deps })(call({ runId: run.id, toolUseId: 'tu-1', toolId: 'echo', input: 'hi' }));
+    const body = await response.json() as { result: unknown };
+    expect(response.status).toBe(200);
     expect(body.result).toMatchObject({ status: 'completed', output: { echoed: 'hi' } });
   });
 
-  it('mounted POST answers an unknown tool id with HTTP 400', async () => {
+  it('answers an unknown tool id with HTTP 400', async () => {
     const deps = makeDeps();
     const { run } = await deps.lifecycle.start({ contextRef: 'ctx-1' });
-    const app = makeApp();
-    registerDelegatedToolRoutes({ app: app as any, deps, adapter });
-    const res = makeJsonRes();
-    await app.handlers['POST /api/delegated-tool-calls']!({ body: { runId: run.id, toolUseId: 'tu-1', toolId: 'nope', input: {} }, query: {}, params: {} }, res);
-    expect(res.status).toHaveBeenCalledWith(400);
-    expect(res.json).toHaveBeenCalledWith({ error: { code: 'BAD_REQUEST', message: 'ToolExecutor: unknown tool "nope"' } });
+    const response = await serve({ deps })(call({ runId: run.id, toolUseId: 'tu-1', toolId: 'nope', input: {} }));
+    expect([response.status, await response.json()]).toEqual([400, { error: { code: 'BAD_REQUEST', message: 'ToolExecutor: unknown tool "nope"' } }]);
   });
 
-  it('a real HTTP request close (client disconnect) reaches ToolExecutor and cancels a pending confirmation, end to end through mountJsonRoute', async () => {
+  it('a client disconnect (the request signal aborting) reaches ToolExecutor and cancels a pending confirmation', async () => {
     const registry = createToolRegistry({});
     registry.register({
       descriptor: { id: 'needs-confirm', requiresConfirmation: true },
       policy: { authorize: () => 'allow' },
       handler: async () => 'should not run',
     });
-    const toolExecutor = createToolExecutor({ registry });
-    const app = makeApp();
-    const deps = makeDeps({ toolExecutor });
+    const deps = makeDeps({ toolExecutor: createToolExecutor({ registry }) });
     const { run } = await deps.lifecycle.start({ contextRef: 'ctx-1' });
-    registerDelegatedToolRoutes({ app: app as any, deps, adapter });
-    const req = { body: { runId: run.id, toolUseId: 'tu-1', toolId: 'needs-confirm' }, query: {}, params: {} };
-    // Disconnect is observed on `res`, not `req` — see `adapter.ts`'s own comment: a real POST's
-    // body is already fully read by the time this handler runs, which fires `req`'s `'close'`
-    // immediately (no disconnect at all), so `res`'s `'close'` is the one that's actually safe.
-    const listeners = new Set<() => void>();
-    const res = {
-      ...makeJsonRes(),
-      on(event: string, listener: () => void) {
-        if (event === 'close') listeners.add(listener);
-      },
-      off(event: string, listener: () => void) {
-        if (event === 'close') listeners.delete(listener);
-      },
-    };
     const events: { kind: string; payload: { type: string; content?: string; isError?: boolean } }[] = [];
     await deps.lifecycle.stream({ runId: run.id, onEvent: (event) => events.push(event as (typeof events)[number]) });
+    const disconnect = new AbortController();
 
-    const handled = app.handlers['POST /api/delegated-tool-calls']!(req, res);
-
+    const answered = serve({ deps })(call({ runId: run.id, toolUseId: 'tu-1', toolId: 'needs-confirm' }, { signal: disconnect.signal }));
     await new Promise((resolve) => setTimeout(resolve, 20));
-    expect(listeners.size).toBeGreaterThan(0);
-    for (const listener of listeners) listener();
+    disconnect.abort();
+    // The client is gone: the route writes no body for it (499 is only the in-memory server's own status for "nobody is listening").
+    expect((await answered).status).toBe(499);
 
-    await handled;
-    // The client already disconnected — `mountJsonRoute` deliberately withholds the response
-    // rather than writing to a socket nobody is reading from anymore.
-    expect(res.status).not.toHaveBeenCalled();
-    expect(res.json).not.toHaveBeenCalled();
-
-    // But the cancellation genuinely reached `ToolExecutor` through the whole chain: the run's own
-    // event stream — which the bridge writes to regardless of whether an HTTP response ever goes
-    // out — shows the pending confirmation ending as cancelled, not left parked forever.
+    // The cancellation reached `ToolExecutor` through the whole chain: the run's own event stream, which the bridge writes to whether or not a response ever goes out, shows the pending confirmation ending as cancelled, not left parked forever.
     const agentEvents = events.filter((e) => e.kind === 'agent');
     expect(agentEvents.map((e) => e.payload.type)).toEqual(['tool_use', 'tool_result']);
-    const toolResult = agentEvents[1]!.payload;
-    expect(toolResult.content).toBe('Tool execution cancelled.');
-    expect(toolResult.isError).toBe(true);
+    expect([agentEvents[1]!.payload.content, agentEvents[1]!.payload.isError]).toEqual(['Tool execution cancelled.', true]);
   });
 
-  it('mounted POST /api/delegated-tool-calls responds 404 for an unknown runId through the real Adapter pipeline', async () => {
-    const app = makeApp();
-    registerDelegatedToolRoutes({ app: app as any, deps: makeDeps(), adapter });
-    const res = makeJsonRes();
-    await app.handlers['POST /api/delegated-tool-calls']!(
-      { body: { runId: 'never-started', toolUseId: 'tu-1', toolId: 'echo' }, query: {}, params: {} },
-      res,
-    );
-    expect(res.status).toHaveBeenCalledWith(404);
+  it('responds 404 for an unknown runId', async () => {
+    const response = await serve({ deps: makeDeps() })(call({ runId: 'never-started', toolUseId: 'tu-1', toolId: 'echo' }));
+    expect(response.status).toBe(404);
+  });
+
+  it('reports an internal failure through the host reporter, not the default one', async () => {
+    const host = fakeDaemonRouteHost();
+    const deps = makeDeps({ resolvePrincipal: () => { throw new Error('principal store down'); } });
+    const { run } = await deps.lifecycle.start({ contextRef: 'ctx-1' });
+    const response = await serveRoutes({ routes: delegatedToolRoutes({ deps, host }) })(call({ runId: run.id, toolUseId: 'tu-1', toolId: 'echo' }));
+    expect([response.status, host.reports.map((report) => report.logSource)]).toEqual([500, ['resolve-principal']]);
   });
 });
 
@@ -582,7 +515,7 @@ describe('delegatedToolExecuteRoute read-only constraint (requireReadOnly)', () 
     expect(ran).toEqual(['reader']);
   });
 
-  it('refuses an unregistered toolId under the constraint rather than falling through to ToolExecutor', async () => {
+  it('answers UNKNOWN_TOOL for an unregistered toolId under the constraint rather than falling through to ToolExecutor', async () => {
     const { registry, toolExecutor } = makeReadOnlyStack();
     const onInternalError = vi.fn();
     const deps = makeDeps({ toolExecutor, toolRegistry: registry, onInternalError });
@@ -591,27 +524,31 @@ describe('delegatedToolExecuteRoute read-only constraint (requireReadOnly)', () 
     );
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      expect(result.error.code).toBe('TOOL_OPERATION_DENIED');
-      expect(result.error.message).toContain('no tool "nope" is registered');
+      expect(result.error.code).toBe('UNKNOWN_TOOL');
+      expect(result.error.message).toBe('There is no tool named "nope". Find tools with search_tools.');
       expect(result.error.message).not.toContain('execute_delegated_tool');
     }
     expect(onInternalError).not.toHaveBeenCalled();
   });
 
-  it('suggests content_read.<resource> first at read-only preflight without resolving identity or running a handler', async () => {
+  it('answers a host-declared group at read-only preflight with its members and selector, without resolving identity or running a handler', async () => {
     const { registry, toolExecutor, ran } = makeReadOnlyStack();
     for (const id of ['content_read.backup_restore_point', 'content_read.theme']) {
       registry.register({ descriptor: { id, readOnly: true }, policy: { authorize: () => 'allow' }, handler: async () => ran.push(id) });
     }
     const resolvePrincipal = vi.fn(() => TEST_PRINCIPAL);
-    const deps = makeDeps({ toolExecutor, toolRegistry: registry, resolvePrincipal });
+    const selector = { keys: ['resource'], byValue: { theme: 'content_read.theme', backup: 'content_read.backup_restore_point' } };
+    const toolFamilies = { describeFamily: ({ familyId }: { familyId: string }) => familyId === 'content_read'
+      ? { members: ['content_read.backup_restore_point', 'content_read.theme'], selector } : undefined };
+    const deps = makeDeps({ toolExecutor, toolRegistry: registry, resolvePrincipal, toolFamilies });
     const { run } = await deps.lifecycle.start({ contextRef: 'ctx-1' });
     const result = await delegatedToolExecuteRoute.handle({ input: {
       runId: run.id, toolUseId: 'tu-1', toolId: 'content_read', input: { resource: 'theme' }, requireReadOnly: true,
     }, deps });
     expect(result).toEqual({ ok: false, error: {
-      code: 'TOOL_OPERATION_DENIED',
-      message: 'no tool "content_read" is registered; use search_tools — did you mean content_read.theme, content_read.backup_restore_point?',
+      code: 'UNKNOWN_TOOL',
+      message: '"content_read" is a group of tools, not one tool. Call one of: content_read.backup_restore_point, content_read.theme.',
+      details: { family: { id: 'content_read', members: ['content_read.backup_restore_point', 'content_read.theme'], selector } },
     } });
     expect(resolvePrincipal).not.toHaveBeenCalled();
     expect(ran).toEqual([]);
@@ -762,4 +699,30 @@ describe('delegatedToolExecuteRoute read-only constraint (requireReadOnly)', () 
 
     expect(ran).toEqual(['verify ran']);
   });
+});
+
+describe('delegated tool route: one incident owner (log safety)', () => {
+  it('the sink gets the original error, tool and run IDs and logSource; the default line prints the class only', async () => {
+    const failure = new Error('boom api_key=SECRETSECRETSECRETSECRET');
+    const toolExecutor: ToolExecutor = { ...makeToolExecutor(), execute: async () => { throw failure; } };
+    const onInternalError = vi.fn();
+    const deps = makeDeps({ toolExecutor, onInternalError });
+    const { run } = await deps.lifecycle.start({ contextRef: 'ctx-incident' });
+    const result = await delegatedToolExecuteRoute.handle({ input: { runId: run.id, toolUseId: 'tu-1', toolId: 'nope' }, deps });
+    if (result.ok) throw new Error('expected failure');
+    expect(result.error.message).toBe('The tool could not run because of a server fault. Do not retry the same call; tell the user to copy the request ID and report this problem.');
+    expect(onInternalError).toHaveBeenCalledWith({ source: 'delegated-tool-execute', error: failure, runId: run.id, toolId: 'nope', correlationId: result.error.requestId, logSource: 'delegated-tool-execute' });
+    expect(onInternalError.mock.calls[0]?.[0].error).toBe(failure);
+  });
+});
+
+it('keeps incident context and the injected reporter ID out of raw client failure text', async () => {
+  const host = fakeDaemonRouteHost();
+  const failure = new Error('private principal database');
+  const deps = makeDeps({ reportInternalError: host.reportInternalError, resolvePrincipal: () => { throw failure; } });
+  const { run } = await deps.lifecycle.start({ contextRef: 'ctx-reporter' });
+  const result = await delegatedToolExecuteRoute.handle({ input: { runId: run.id, toolUseId: 'use-1', toolId: 'broken' }, deps });
+  expect(result).toMatchObject({ ok: false, error: { code: 'INTERNAL_ERROR', requestId: 'req-1' } });
+  expect(host.reports[0]).toMatchObject({ report: { source: 'resolve-principal', runId: run.id, toolId: 'broken', error: failure } });
+  expect(JSON.stringify(result)).not.toContain(failure.message);
 });

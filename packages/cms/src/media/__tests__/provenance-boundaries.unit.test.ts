@@ -33,6 +33,32 @@ describe('safe media origin metadata', () => {
     expect(() => safeMediaProvenance({ source: { kind: 'url', url } })).toThrow('source URL must be HTTP or HTTPS');
   });
 
+  it('turns a URL origin whose url accessor throws into a validation error', () => {
+    const source = { kind: 'url', get url(): string { throw new Error('host accessor failed'); } } as MediaProvenance;
+    expect(() => safeMediaProvenance({ source })).toThrow(MediaValidationError);
+    expect(() => safeMediaProvenance({ source })).toThrow('source URL must be HTTP or HTTPS');
+  });
+
+  it('keeps the model and vendor that generated an asset, alone or beside a path', () => {
+    expect(safeMediaProvenance({ source: { kind: 'generated', model: 'gpt-image-2', provider: 'openai' } }))
+      .toEqual({ kind: 'generated', model: 'gpt-image-2', provider: 'openai' });
+    expect(safeMediaProvenance({ source: { kind: 'generated', path: 'a/b.png', model: 'nano-banana-pro', provider: 'google' } }))
+      .toEqual({ kind: 'generated', path: 'a/b.png', model: 'nano-banana-pro', provider: 'google' });
+    expect(safeMediaProvenance({ source: { kind: 'generated', model: 'flux-2' } })).toEqual({ kind: 'generated', model: 'flux-2' });
+  });
+
+  it('never carries generator labels onto an upload origin', () => {
+    const source = { kind: 'upload', model: 'gpt-image-2', provider: 'openai' } as unknown as MediaProvenance;
+    expect(safeMediaProvenance({ source })).toEqual({ kind: 'upload' });
+  });
+
+  it.each(['', ' ', 'a\nb', 'a\u0000b', 'x'.repeat(201)])('rejects an unsafe generator label %j', label => {
+    expect(() => safeMediaProvenance({ source: { kind: 'generated', model: label, provider: 'openai' } }))
+      .toThrow('generated image model and vendor must be short plain labels');
+    expect(() => safeMediaProvenance({ source: { kind: 'generated', model: 'gpt-image-2', provider: label } }))
+      .toThrow(MediaValidationError);
+  });
+
   it('rejects an unknown runtime kind', () => {
     expect(() => safeMediaProvenance({ source: { kind: 'external' } as unknown as MediaProvenance }))
       .toThrow('unknown source kind');

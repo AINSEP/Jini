@@ -3,10 +3,10 @@
  * plan against what the site already has, and apply through the host's ONE content-type write path
  * (behind {@link DeclaredContentTypeWritePorts}). AW-7 Tier 1, 2026-10-04.
  *
- * Why this exists: ADR-024 §1 defines Tier-1 as a manifest-only plugin whose first contribution is
+ * Why this exists: Tier-1 is defined as a manifest-only plugin whose first contribution is
  * "content types & fields", but `manifest.ts` only ever parsed-and-stored `contentTypes` (state.spec
  * §2: "UNUSED in v1"). This module is the missing half: a bounded, closed declaration grammar
- * (ADR-024 §5 — Tier-1 is only safe while its surface is non-Turing-complete and bounded) and an
+ * (Tier-1 is only safe while its surface is non-Turing-complete and bounded) and an
  * idempotent provisioner that runs at enable time.
  *
  * Rules the provisioner keeps (and why):
@@ -16,7 +16,7 @@
  *   refused before anything is written, rather than silently reshaping someone's content.
  * - **A tombstoned type is skipped.** The owner deleted it on purpose; tombstone is terminal and the
  *   key can never be reused (content-types INV-06), so re-enabling the plugin does not resurrect it.
- * - **Retain on disable/uninstall** (ADR-023/ADR-024 retain-by-default): nothing here ever removes a
+ * - **Retain on disable/uninstall** (retain-by-default): nothing here ever removes a
  *   type. The entries are the owner's content, not the plugin's.
  *
  * Pure parsing; the plan/apply halves do I/O only through the injected ports.
@@ -33,10 +33,10 @@ import { PluginInvalidError } from "./activation.js";
 import type { PluginValidationError } from "./manifest-types.js";
 import type { DeclaredContentType, DeclaredContentTypePlan } from "./ports.js";
 
-/** ADR-024 §5 bound: how many content types one plugin may declare.
+/** Bound: how many content types one plugin may declare.
  *  @agent-note Plugin-domain bound, not a host option; a longer list is refused whole at parse. */
 export const MAX_DECLARED_CONTENT_TYPES = 20;
-/** ADR-024 §5 bound: how many fields one declared content type may carry.
+/** Bound: how many fields one declared content type may carry.
  *  @agent-note Plugin-domain bound, not a host option. */
 export const MAX_DECLARED_FIELDS = 50;
 /** Core's own per-type queryable-field cap (`QUERYABLE_FIELD_CAP` in `@jini-ai/cms`'s
@@ -273,7 +273,7 @@ export interface DeclarativeContentTypes {
   /**
    * The declarative half of a manifest's validation: its `contentTypes`, plus — for a `tier-1`
    * plugin — the rule that it declares no code surface. Hooks, capability grants and `ext` fields
-   * all exist to be used by plugin code, and a Tier-1 plugin is never imported (ADR-024 §1: "zero
+   * all exist to be used by plugin code, and a Tier-1 plugin is never imported ("zero
    * executable code"), so declaring one is either a mistake or an attempt to look like something it
    * is not. `validateManifest()` calls this, so discovery lists a bad declaration as `invalid`
    * instead of it failing only at enable. A surface that is not an array is left to
@@ -348,147 +348,163 @@ export function createDeclarativeContentTypes(
   } = requiredArgs.cms;
   const RESERVED_KEYS: ReadonlySet<string> = new Set(requiredArgs.reservedKeys);
 
-  /** The name/kind half of one field — returns the validated pair, or `undefined` after recording why. */
-  function fieldIdentity(raw: Record<string, unknown>, typeKey: string, errors: PluginValidationError[]): { name: string; kind: ContentTypeFieldKind } | undefined {
-    const name = raw.name;
-    if (typeof name !== "string" || !validateIdentifierGrammar({ value: name })) {
-      errors.push(declError(`content type '${typeKey}' field name '${String(name)}' must match ${IDENTIFIER_GRAMMAR_TEXT}`));
-      return undefined;
-    }
-    const kind = raw.kind;
-    if (!isContentTypeFieldKind({ value: kind })) {
-      errors.push(declError(`content type '${typeKey}' field '${name}' has kind '${String(kind)}'; allowed: ${CONTENT_TYPE_FIELD_KINDS.join("|")}`));
-      return undefined;
-    }
-    return { name, kind: kind as ContentTypeFieldKind };
-  }
-
-  /** One `fields[]` entry. Collects every problem it finds; returns the field only when it has none. */
-  function parseField(raw: unknown, index: number, typeKey: string): { field?: ContentTypeFieldDef; errors: PluginValidationError[] } {
-    if (!isRecord(raw)) return { errors: [declError(`content type '${typeKey}' field ${index} must be an object`)] };
-    const where = `content type '${typeKey}' field '${String(raw.name)}'`;
-    const errors = unknownKeyErrors(raw, FIELD_KEYS, where);
-    const identity = fieldIdentity(raw, typeKey, errors);
-    const required = optionalFlag(raw, "required", where, errors);
-    const queryable = optionalFlag(raw, "queryable", where, errors);
-    if (identity && queryable && !isIndexableFieldKind({ value: identity.kind })) {
-      errors.push(declError(`${where} has storage-only kind '${identity.kind}' and cannot be queryable`));
-    }
-    if (!identity || errors.length > 0) return { errors };
-    return { field: { name: identity.name, kind: identity.kind, required, queryable }, errors };
-  }
-
-  function parseFields(raw: unknown, typeKey: string): { fields: ContentTypeFieldDef[]; errors: PluginValidationError[] } {
-    if (!Array.isArray(raw) || raw.length === 0 || raw.length > MAX_DECLARED_FIELDS) {
-      return { fields: [], errors: [declError(`content type '${typeKey}' must declare 1-${MAX_DECLARED_FIELDS} fields`)] };
-    }
-    const parsed = raw.map((field, index) => parseField(field, index, typeKey));
-    const fields = parsed.flatMap((result) => (result.field ? [result.field] : []));
-    const errors = parsed.flatMap((result) => result.errors);
-    for (const name of duplicateNames(fields.map((field) => field.name))) {
-      errors.push(declError(`content type '${typeKey}' declares field '${name}' more than once`));
-    }
-    const queryableCount = fields.filter((field) => field.queryable).length;
-    if (queryableCount > MAX_DECLARED_QUERYABLE_FIELDS) {
-      errors.push(declError(`content type '${typeKey}' declares ${queryableCount} queryable fields; at most ${MAX_DECLARED_QUERYABLE_FIELDS} are allowed`));
-    }
-    return { fields, errors };
-  }
-
-  function keyErrors(key: unknown, index: number): PluginValidationError[] {
-    if (typeof key !== "string") return [declError(`contentTypes[${index}].key must be a string`)];
-    if (!validateIdentifierGrammar({ value: key })) return [declError(`content type key '${key}' must match ${IDENTIFIER_GRAMMAR_TEXT}`)];
-    if (RESERVED_KEYS.has(key)) return [declError(`content type key '${key}' is reserved by core`)];
-    return [];
-  }
-
-  /** One `contentTypes[]` entry. */
-  function parseDecl(raw: unknown, index: number): { decl?: DeclaredContentTypeDefinition; errors: PluginValidationError[] } {
-    if (!isRecord(raw)) return { errors: [declError(`contentTypes[${index}] must be an object`)] };
-    const errors = [...unknownKeyErrors(raw, DECL_KEYS, `contentTypes[${index}]`), ...keyErrors(raw.key, index)];
-    const key = String(raw.key);
-    if (!labelValid(raw.label)) errors.push(declError(`content type '${key}' needs a label of 1-${MAX_LABEL_LENGTH} characters`));
-    const fields = parseFields(raw.fields, key);
-    errors.push(...fields.errors);
-    if (errors.length > 0) return { errors };
-    return { decl: { key, label: raw.label as string, fields: fields.fields }, errors };
-  }
-
-  /**
-   * Parses a manifest's raw `contentTypes` value. Collect-all, never throws (same contract as
-   * `validateManifest`). `undefined`/`null` declare nothing.
-   *
-   * @complexity O(t · f) over declared types and their fields — both bounded by the MAX_* constants.
-   */
-  function parseDeclaredContentTypes(required: { value: unknown }, _optional: Record<string, never> = {}): ParseDeclaredContentTypesResult {
-    const { value } = required;
-    if (value === undefined || value === null) return { decls: [], errors: [] };
-    if (!Array.isArray(value)) return { decls: [], errors: [declError("'contentTypes' must be an array")] };
-    if (value.length > MAX_DECLARED_CONTENT_TYPES) {
-      return { decls: [], errors: [declError(`'contentTypes' declares more than ${MAX_DECLARED_CONTENT_TYPES} content types`)] };
-    }
-    const parsed = value.map((entry, index) => parseDecl(entry, index));
-    const decls = parsed.flatMap((result) => (result.decl ? [result.decl] : []));
-    const errors = parsed.flatMap((result) => result.errors);
-    for (const key of duplicateNames(decls.map((decl) => decl.key))) {
-      errors.push(declError(`content type key '${key}' is declared more than once`));
-    }
-    return { decls, errors };
-  }
-
-  /** See {@link DeclarativeContentTypes.validateManifest}. */
-  function validateDeclarativeManifest(required: { manifest: DeclarativeManifestView }, _optional: Record<string, never> = {}): ParseDeclaredContentTypesResult {
-    const { manifest } = required;
-    const parsed = parseDeclaredContentTypes({ value: manifest.contentTypes });
-    if (manifest.tier !== "tier-1") return parsed;
-    const surfaceErrors = CODE_SURFACES.filter((surface) => {
-      const declared = manifest[surface];
-      return Array.isArray(declared) && declared.length > 0;
-    }).map((surface) => ({
-      code: "TIER1_DECLARES_CODE_SURFACE",
-      file: null,
-      message: `a declarative (tier-1) plugin cannot declare '${surface}' — only code can use them`,
-    }));
-    return { decls: parsed.decls, errors: [...surfaceErrors, ...parsed.errors] };
-  }
-
-  /**
-   * Carries out a conflict-free plan. Each create is recorded as `plugin:<id>` so the content-type
-   * revision log says which plugin made the type; losing a concurrent create race is judged against
-   * the winning type ({@link judgeLostRace}) — kept only when it matches the declaration. Any other
-   * failure is rethrown as-is.
-   */
-  async function applyDeclaredContentTypes(
-    required: { ports: DeclaredContentTypeWritePorts; workspaceId: string; pluginId: string; plan: DeclaredContentTypeDefinitionPlan },
-    _optional: Record<string, never> = {}
-  ): Promise<ApplyDeclaredContentTypesResult> {
-    const { ports, workspaceId, pluginId, plan } = required;
-    const created: string[] = [];
-    const kept: string[] = [];
-    const skipped: string[] = [];
-    const bucket = { created, keep: kept, "skip-tombstoned": skipped };
-    for (const { decl, outcome } of plan.items) {
-      const applied = outcome === "keep" || outcome === "skip-tombstoned" ? outcome : await createDeclared({ ports, workspaceId, pluginId, decl });
-      bucket[applied].push(decl.key);
-    }
-    return { created, kept, skipped };
-  }
-
-  /** Registers one planned type as `plugin:<id>`; a lost create race takes the judged winner's outcome. */
-  async function createDeclared(
-    required: { ports: DeclaredContentTypeWritePorts; workspaceId: string; pluginId: string; decl: DeclaredContentTypeDefinition }
-  ): Promise<"created" | "keep" | "skip-tombstoned"> {
-    const { ports, workspaceId, pluginId, decl } = required;
-    const result = await ports.register({ workspaceId, key: decl.key, label: decl.label, fields: [...decl.fields], actorId: `plugin:${pluginId}` });
-    if (result.ok) return "created";
-    if (!isAlreadyExists({ error: result.error })) throw result.error;
-    return judgeLostRace({ ports, workspaceId, pluginId, decl, lost: result.error });
-  }
-
+  const rules = { CONTENT_TYPE_FIELD_KINDS, isContentTypeFieldKind, isIndexableFieldKind,
+    validateIdentifierGrammar, IDENTIFIER_GRAMMAR_TEXT, isAlreadyExists, RESERVED_KEYS };
   return {
-    validateManifest: validateDeclarativeManifest,
-    parse: parseDeclaredContentTypes,
+    validateManifest: (required, optional) => validateDeclarativeManifest(rules, required, optional),
+    parse: (required, optional) => parseDeclaredContentTypes(rules, required, optional),
     plan: planDeclaredContentTypes,
-    apply: applyDeclaredContentTypes,
+    apply: (required, optional) => applyDeclaredContentTypes(rules, required, optional),
   };
+}
+
+interface DeclarativeRules {
+  CONTENT_TYPE_FIELD_KINDS: DeclaredContentTypeCms['fieldKinds'];
+  isContentTypeFieldKind: DeclaredContentTypeCms['isFieldKind'];
+  isIndexableFieldKind: DeclaredContentTypeCms['isIndexable'];
+  validateIdentifierGrammar: DeclaredContentTypeCms['validateIdentifier'];
+  IDENTIFIER_GRAMMAR_TEXT: DeclaredContentTypeCms['identifierGrammar'];
+  isAlreadyExists: DeclaredContentTypeCms['isAlreadyExists'];
+  RESERVED_KEYS: ReadonlySet<string>;
+}
+
+/** The name/kind half of one field — returns the validated pair, or `undefined` after recording why. */
+function fieldIdentity(rules: DeclarativeRules, { raw, typeKey, errors }: { raw: Record<string, unknown>; typeKey: string; errors: PluginValidationError[] }): { name: string; kind: ContentTypeFieldKind } | undefined {
+  const { CONTENT_TYPE_FIELD_KINDS, isContentTypeFieldKind, validateIdentifierGrammar, IDENTIFIER_GRAMMAR_TEXT } = rules;
+  const name = raw.name;
+  if (typeof name !== "string" || !validateIdentifierGrammar({ value: name })) {
+    errors.push(declError(`content type '${typeKey}' field name '${String(name)}' must match ${IDENTIFIER_GRAMMAR_TEXT}`));
+    return undefined;
+  }
+  const kind = raw.kind;
+  if (!isContentTypeFieldKind({ value: kind })) {
+    errors.push(declError(`content type '${typeKey}' field '${name}' has kind '${String(kind)}'; allowed: ${CONTENT_TYPE_FIELD_KINDS.join("|")}`));
+    return undefined;
+  }
+  return { name, kind: kind as ContentTypeFieldKind };
+}
+
+/** One `fields[]` entry. Collects every problem it finds; returns the field only when it has none. */
+function parseField(rules: DeclarativeRules, { raw, index, typeKey }: { raw: unknown; index: number; typeKey: string }): { field?: ContentTypeFieldDef; errors: PluginValidationError[] } {
+  const { isIndexableFieldKind } = rules;
+  if (!isRecord(raw)) return { errors: [declError(`content type '${typeKey}' field ${index} must be an object`)] };
+  const where = `content type '${typeKey}' field '${String(raw.name)}'`;
+  const errors = unknownKeyErrors(raw, FIELD_KEYS, where);
+  const identity = fieldIdentity(rules, { raw, typeKey, errors });
+  const required = optionalFlag(raw, "required", where, errors);
+  const queryable = optionalFlag(raw, "queryable", where, errors);
+  if (identity && queryable && !isIndexableFieldKind({ value: identity.kind })) {
+    errors.push(declError(`${where} has storage-only kind '${identity.kind}' and cannot be queryable`));
+  }
+  if (!identity || errors.length > 0) return { errors };
+  return { field: { name: identity.name, kind: identity.kind, required, queryable }, errors };
+}
+
+function parseFields(rules: DeclarativeRules, raw: unknown, typeKey: string): { fields: ContentTypeFieldDef[]; errors: PluginValidationError[] } {
+  if (!Array.isArray(raw) || raw.length === 0 || raw.length > MAX_DECLARED_FIELDS) {
+    return { fields: [], errors: [declError(`content type '${typeKey}' must declare 1-${MAX_DECLARED_FIELDS} fields`)] };
+  }
+  const parsed = raw.map((field, index) => parseField(rules, { raw: field, index, typeKey }));
+  const fields = parsed.flatMap((result) => (result.field ? [result.field] : []));
+  const errors = parsed.flatMap((result) => result.errors);
+  for (const name of duplicateNames(fields.map((field) => field.name))) {
+    errors.push(declError(`content type '${typeKey}' declares field '${name}' more than once`));
+  }
+  const queryableCount = fields.filter((field) => field.queryable).length;
+  if (queryableCount > MAX_DECLARED_QUERYABLE_FIELDS) {
+    errors.push(declError(`content type '${typeKey}' declares ${queryableCount} queryable fields; at most ${MAX_DECLARED_QUERYABLE_FIELDS} are allowed`));
+  }
+  return { fields, errors };
+}
+
+function keyErrors(rules: DeclarativeRules, key: unknown, index: number): PluginValidationError[] {
+  const { validateIdentifierGrammar, IDENTIFIER_GRAMMAR_TEXT, RESERVED_KEYS } = rules;
+  if (typeof key !== "string") return [declError(`contentTypes[${index}].key must be a string`)];
+  if (!validateIdentifierGrammar({ value: key })) return [declError(`content type key '${key}' must match ${IDENTIFIER_GRAMMAR_TEXT}`)];
+  if (RESERVED_KEYS.has(key)) return [declError(`content type key '${key}' is reserved by core`)];
+  return [];
+}
+
+/** One `contentTypes[]` entry. */
+function parseDecl(rules: DeclarativeRules, raw: unknown, index: number): { decl?: DeclaredContentTypeDefinition; errors: PluginValidationError[] } {
+  if (!isRecord(raw)) return { errors: [declError(`contentTypes[${index}] must be an object`)] };
+  const errors = [...unknownKeyErrors(raw, DECL_KEYS, `contentTypes[${index}]`), ...keyErrors(rules, raw.key, index)];
+  const key = String(raw.key);
+  if (!labelValid(raw.label)) errors.push(declError(`content type '${key}' needs a label of 1-${MAX_LABEL_LENGTH} characters`));
+  const fields = parseFields(rules, raw.fields, key);
+  errors.push(...fields.errors);
+  if (errors.length > 0) return { errors };
+  return { decl: { key, label: raw.label as string, fields: fields.fields }, errors };
+}
+
+/**
+ * Parses a manifest's raw `contentTypes` value. Collect-all, never throws (same contract as
+ * `validateManifest`). `undefined`/`null` declare nothing.
+ *
+ * @complexity O(t · f) over declared types and their fields — both bounded by the MAX_* constants.
+ */
+function parseDeclaredContentTypes(rules: DeclarativeRules, required: { value: unknown }, _optional: Record<string, never> = {}): ParseDeclaredContentTypesResult {
+  const { value } = required;
+  if (value === undefined || value === null) return { decls: [], errors: [] };
+  if (!Array.isArray(value)) return { decls: [], errors: [declError("'contentTypes' must be an array")] };
+  if (value.length > MAX_DECLARED_CONTENT_TYPES) {
+    return { decls: [], errors: [declError(`'contentTypes' declares more than ${MAX_DECLARED_CONTENT_TYPES} content types`)] };
+  }
+  const parsed = value.map((entry, index) => parseDecl(rules, entry, index));
+  const decls = parsed.flatMap((result) => (result.decl ? [result.decl] : []));
+  const errors = parsed.flatMap((result) => result.errors);
+  for (const key of duplicateNames(decls.map((decl) => decl.key))) {
+    errors.push(declError(`content type key '${key}' is declared more than once`));
+  }
+  return { decls, errors };
+}
+
+/** See {@link DeclarativeContentTypes.validateManifest}. */
+function validateDeclarativeManifest(rules: DeclarativeRules, required: { manifest: DeclarativeManifestView }, _optional: Record<string, never> = {}): ParseDeclaredContentTypesResult {
+  const { manifest } = required;
+  const parsed = parseDeclaredContentTypes(rules, { value: manifest.contentTypes });
+  if (manifest.tier !== "tier-1") return parsed;
+  const surfaceErrors = CODE_SURFACES.filter((surface) => {
+    const declared = manifest[surface];
+    return Array.isArray(declared) && declared.length > 0;
+  }).map((surface) => ({
+    code: "TIER1_DECLARES_CODE_SURFACE",
+    file: null,
+    message: `a declarative (tier-1) plugin cannot declare '${surface}' — only code can use them`,
+  }));
+  return { decls: parsed.decls, errors: [...surfaceErrors, ...parsed.errors] };
+}
+
+/**
+ * Carries out a conflict-free plan. Each create is recorded as `plugin:<id>` so the content-type
+ * revision log says which plugin made the type; losing a concurrent create race is judged against
+ * the winning type ({@link judgeLostRace}) — kept only when it matches the declaration. Any other
+ * failure is rethrown as-is.
+ */
+async function applyDeclaredContentTypes(rules: DeclarativeRules, 
+  required: { ports: DeclaredContentTypeWritePorts; workspaceId: string; pluginId: string; plan: DeclaredContentTypeDefinitionPlan },
+  _optional: Record<string, never> = {}
+): Promise<ApplyDeclaredContentTypesResult> {
+  const { ports, workspaceId, pluginId, plan } = required;
+  const created: string[] = [];
+  const kept: string[] = [];
+  const skipped: string[] = [];
+  const bucket = { created, keep: kept, "skip-tombstoned": skipped };
+  for (const { decl, outcome } of plan.items) {
+    const applied = outcome === "keep" || outcome === "skip-tombstoned" ? outcome : await createDeclared(rules, { ports, workspaceId, pluginId, decl });
+    bucket[applied].push(decl.key);
+  }
+  return { created, kept, skipped };
+}
+
+/** Registers one planned type as `plugin:<id>`; a lost create race takes the judged winner's outcome. */
+async function createDeclared(rules: DeclarativeRules, 
+  required: { ports: DeclaredContentTypeWritePorts; workspaceId: string; pluginId: string; decl: DeclaredContentTypeDefinition }
+): Promise<"created" | "keep" | "skip-tombstoned"> {
+  const { isAlreadyExists } = rules;
+  const { ports, workspaceId, pluginId, decl } = required;
+  const result = await ports.register({ workspaceId, key: decl.key, label: decl.label, fields: [...decl.fields], actorId: `plugin:${pluginId}` });
+  if (result.ok) return "created";
+  if (!isAlreadyExists({ error: result.error })) throw result.error;
+  return judgeLostRace({ ports, workspaceId, pluginId, decl, lost: result.error });
 }

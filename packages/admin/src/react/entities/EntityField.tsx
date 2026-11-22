@@ -1,12 +1,12 @@
 import type { ReactNode } from 'react';
-import { agentHandleProps } from '@jini-ai/agentic';
-import { useAgentHandle } from '@jini-ai/ui';
-import { Select } from '@jini-ai/ui/admin-widgets';
+import { agentHandleProps } from '@jini-ai/core/agent-handles';
+import { useAgentHandle, WidgetSelect as Select } from '../kit.js';
 import type { AdminEntityField, AdminEntityRelationField } from '../../core/ports/entities.js';
 import { selectTranslate, type EntityTranslate } from './types.js';
 import { fromDatetimeLocalValue, toDatetimeLocalValue, type RelationIndex } from './rules.js';
 
 interface EntityFieldProps {
+  readonly useAgentHandleHook?: typeof useAgentHandle;
   readonly agentHandle?: string | false | undefined;
   readonly inputId: string;
   readonly field: AdminEntityField;
@@ -59,9 +59,14 @@ function NumberInput(props: EntityFieldProps): ReactNode {
     onChange={(e) => onChange({ value: e.target.value === '' ? undefined : Number(e.target.value) })} />;
 }
 
-export function EntityField(required: EntityFieldProps): ReactNode {
-  const base = useAgentHandle({ agentHandle: required.agentHandle });
-  const props: EntityFieldProps = { ...required, agentHandle: base ?? false };
+export function EntityField({ useAgentHandleHook = useAgentHandle, ...required }: EntityFieldProps): ReactNode {
+  const base = useAgentHandleHook({ agentHandle: required.agentHandle });
+  return <EntityFieldInput {...required} agentHandle={base ?? false} />;
+}
+
+/** The kind-specific control, split from `EntityField` so the injected-hook default does not push
+ *  the kind switch past the complexity limit. */
+function EntityFieldInput(props: EntityFieldProps): ReactNode {
   const { field, value, onChange } = props;
   switch (field.kind) {
     case 'json': return <textarea {...commonProps(props)} value={props.text} onChange={(e) => props.onTextChange({ text: e.target.value })} />;

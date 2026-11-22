@@ -73,9 +73,7 @@ export const TOAST_TONE_ICON: Record<ToastTone, ToastToneIcon> = {
  * never auto-dismiss out from under the user mid-copy: its effective TTL is
  * forced to 0. Otherwise the caller's `ttlMs` stands.
  */
-export function toastEffectiveTtl(
-  code: string | null | undefined,
-  ttlMs: number,
+export function toastEffectiveTtl({ code, ttlMs }: { code: string | null | undefined; ttlMs: number }, _optional = {}
 ): number {
   return code ? 0 : ttlMs;
 }
@@ -119,7 +117,7 @@ export function toastClassName(options: {
   leaving: boolean;
 }): string {
   const { tone, placement, className, leaving } = options;
-  const base = withClassName(`jini-toast tone-${tone} placement-${placement}`, className);
+  const base = withClassName({ base: `jini-toast tone-${tone} placement-${placement}`, extra: className });
   return leaving ? `${base} leaving` : base;
 }
 
@@ -268,7 +266,7 @@ export function Toast({
   placement = 'bottom',
   useToastAutoDismiss: useToastAutoDismissHook = useToastAutoDismiss,
 }: ToastProps) {
-  const effectiveTtl = toastEffectiveTtl(code, ttlMs);
+  const effectiveTtl = toastEffectiveTtl({ code, ttlMs });
   const { leaving } = useToastAutoDismissHook({ message, details, code, effectiveTtl, onDismiss });
 
   return (

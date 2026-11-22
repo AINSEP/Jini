@@ -3,10 +3,10 @@ import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 
 
 import type { AdminMember } from "../../models.js";
 import { describeApiError, emptyRowState, type RowActionState } from "../rules.js";
-import { useCachedLoader, useFetchMutation, useFetchQuery, useInvalidate } from "@jini-ai/ui/fetch-query";
+import { useCachedLoader, useFetchMutation, useFetchQuery, useInvalidate } from "../../kit.js";
 import type { MembersPort } from "../../ports.js";
-import type { Translate } from "@jini-ai/ui/panel-kit";
 
+import { type Translate } from '@jini-ai/core/text';
 /**
  * @file Everything the Members screen does, so `Members.tsx` is only markup.
  *
@@ -89,7 +89,7 @@ function detailLoadingIdFor(
   return expandedId !== null && !detail.data && detail.isFetching ? expandedId : null;
 }
 
-export function useMembers({ port, translate, queryScope = "members" }: MembersDependencies, { refresh }: MembersOptions = {}): MembersController {
+function useMemberList(port: MembersPort, translate: Translate, queryScope: string) {
   const scopeRef = useRef(queryScope); scopeRef.current = queryScope;
   const describeError = (error: unknown, fallback: string) => describeApiError({ error, fallback, translate });
   /** `null` when there is nothing to describe, so each derived error string stays one line. */
@@ -109,14 +109,17 @@ export function useMembers({ port, translate, queryScope = "members" }: MembersD
   const disable = useFetchMutation({ run: ({ input: id }: { input: string }) => port.disableMember({ id }) }, { invalidates: [listKey, detailRoot] });
   // Sending a link changes no list/detail fields; do not refetch the roster on success.
   const resend = useFetchMutation({ run: ({ input: email }: { input: string }) => port.requestMemberMagicLink({ email }) });
+  return { scopeRef, describeError, describeIfError, listKey, detailRoot, invalidate, members, error, listLoader, disable, resend };
+}
+
+function useMemberPanelState(port: MembersPort, queryScope: string, detailRoot: readonly string[]) {
   const [rowState, setRowState] = useState<Record<string, RowActionState>>({});
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [detailById, setDetailById] = useState<Record<string, AdminMember>>({});
 
-
   // Disable now confirms via a `RowMenu` item -> `ConfirmDialog` modal (replacing the in-place
-  // two-click `ConfirmButton`, which has no menu-item equivalent — same migration Posts.tsx/
-  // Redirects.tsx/Users.tsx already made). `null` when the dialog is closed.
+  // two-click `ConfirmButton`, which has no menu-item equivalent — same migration the host app's src/features/posts/Posts.tsx,
+  // packages/admin/src/redirects/react/pages/RedirectsPage.tsx, and packages/user-management/src/react/users/Users.tsx already made). `null` when the dialog is closed.
   const [confirmingDisable, setConfirmingDisable] = useState<AdminMember | null>(null);
   // Which row's detail panel is actually open (C7, plan-access.md §8, N2) — a ref, not just
   // expandedId state, because onToggleDetail reads it after await, when a closure can be stale.
@@ -138,20 +141,13 @@ export function useMembers({ port, translate, queryScope = "members" }: MembersD
     setRowState({});
     setConfirmingDisable(null);
   }, [queryScope]);
-  // Only paint the failure onto the panel that is still expanded: the observer's entity key
-  // selects the current row, so a late rejection for a collapsed row cannot surface here.
-  const detailError = describeIfError(detail.error, translate("Failed to load member detail."));
-  // A superseded load leaves the spinner to its successor. Derive it from the current keyed
-  // observer instead of letting an old request's finally clear the new row's loading state.
-  const detailLoadingId = detailLoadingIdFor({ expandedId, detail });
-  useEffect(() => {
-    if (expandedId && detail.data) setDetailById(current => ({ ...current, [expandedId]: detail.data!.member }));
-  }, [expandedId, detail.data]);
-  useEffect(() => refresh?.subscribe({ onRefresh: () => {
-    invalidate({ key: listKey });
-    invalidate({ key: detailRoot });
-  } }), [refresh, invalidate, queryScope]);
+  return { rowState, setRowState, expandedId, setExpandedId, detailById, setDetailById, confirmingDisable, setConfirmingDisable, expandedIdRef, detailGenerations, setDetailGeneration, detail, detailLoader };
+}
 
+type MemberHandlersContext = ReturnType<typeof useMemberList> & ReturnType<typeof useMemberPanelState> & { translate: Translate };
+
+function createMemberRowHandlers(ctx: MemberHandlersContext) {
+  const { rowState, setRowState, disable, listLoader, setDetailById, translate, describeError, resend } = ctx;
   function stateFor({ id }: { id: string }): RowActionState {
     return rowState[id] ?? emptyRowState({});
   }
@@ -184,15 +180,11 @@ export function useMembers({ port, translate, queryScope = "members" }: MembersD
     }
   }
 
-  /** Confirms the Disable that `RowMenu`'s "Disable" item asked about. Closes the dialog either
-   *  way (matching Posts.tsx/Redirects.tsx/Users.tsx's own Disable/Delete `ConfirmDialog`
-   *  convention) — a failure surfaces via the row's own `rs.error`, not by leaving the modal open. */
-  async function confirmDisable() {
-    if (!confirmingDisable) return;
-    await onDisable(confirmingDisable);
-    setConfirmingDisable(null);
-  }
+  return { stateFor, onDisable, onResendSignInLink };
+}
 
+function createMemberDetailToggleHandler(ctx: MemberHandlersContext, port: MembersPort, queryScope: string) {
+  const { expandedIdRef, setExpandedId, detailById, detailGenerations, setDetailGeneration, detailLoader, detailRoot, scopeRef, setDetailById } = ctx;
   async function onToggleDetail(member: AdminMember) {
     if (expandedIdRef.current === member.id) {
       expandedIdRef.current = null;
@@ -217,6 +209,41 @@ export function useMembers({ port, translate, queryScope = "members" }: MembersD
       if (scopeRef.current === requestedScope && detailGenerations.current[member.id] === generation) setDetailById(current => ({ ...current, [member.id]: result.member }));
     } catch { /* The keyed observer owns the failure for the panel that is still expanded. */ }
   }
+
+  return onToggleDetail;
+}
+
+export function useMembers({ port, translate, queryScope = "members" }: MembersDependencies, { refresh }: MembersOptions = {}): MembersController {
+  const listState = useMemberList(port, translate, queryScope);
+  const panelState = useMemberPanelState(port, queryScope, listState.detailRoot);
+  const { describeIfError, listKey, detailRoot, invalidate, members, error } = listState;
+  const { expandedId, detailById, setDetailById, confirmingDisable, setConfirmingDisable, detail } = panelState;
+  // Only paint the failure onto the panel that is still expanded: the observer's entity key
+  // selects the current row, so a late rejection for a collapsed row cannot surface here.
+  const detailError = describeIfError(detail.error, translate("Failed to load member detail."));
+  // A superseded load leaves the spinner to its successor. Derive it from the current keyed
+  // observer instead of letting an old request's finally clear the new row's loading state.
+  const detailLoadingId = detailLoadingIdFor({ expandedId, detail });
+  useEffect(() => {
+    if (expandedId && detail.data) setDetailById(current => ({ ...current, [expandedId]: detail.data!.member }));
+  }, [expandedId, detail.data]);
+  useEffect(() => refresh?.subscribe({ onRefresh: () => {
+    invalidate({ key: listKey });
+    invalidate({ key: detailRoot });
+  } }), [refresh, invalidate, queryScope]);
+
+  const ctx = { ...listState, ...panelState, translate };
+  const { stateFor, onDisable, onResendSignInLink } = createMemberRowHandlers(ctx);
+  /** Confirms the Disable that `RowMenu`'s "Disable" item asked about. Closes the dialog either
+   *  way (matching the host app's src/features/posts/Posts.tsx, packages/admin/src/redirects/react/pages/RedirectsPage.tsx, and packages/user-management/src/react/users/Users.tsx's own Disable/Delete `ConfirmDialog`
+   *  convention) — a failure surfaces via the row's own `rs.error`, not by leaving the modal open. */
+  async function confirmDisable() {
+    if (!confirmingDisable) return;
+    await onDisable(confirmingDisable);
+    setConfirmingDisable(null);
+  }
+
+  const onToggleDetail = createMemberDetailToggleHandler(ctx, port, queryScope);
 
   return {
     members,

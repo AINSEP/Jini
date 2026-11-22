@@ -1,12 +1,12 @@
-import { act, renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "./legacy-harness.js";
 import { assert, afterEach, describe, expect, it, vi } from "vitest";
 
 import { FetchQueryProvider } from "@jini-ai/ui/fetch-query";
 import type { RedirectImportRule } from "./legacy-harness.js";
 import { createFakeRedirectsPort } from "./legacy-harness.js";
 import { useImportRedirectsForm, useWiredImportRedirectsForm } from "./legacy-harness.js";
-import type { AdminRedirectsPort } from "../../../core/ports/redirects.js";
-import { AdminApiError } from "../../../core/transport/errors.js";
+import type { AdminRedirectsPort } from "@jini-ai/admin/core";
+import { AdminApiError } from '@jini-ai/core/admin-runtime';
 import { createMemoryRedirectsApi } from "../../adapters/memory.js";
 import { translateRedirectsEn } from "../../messages.en.js";
 import { useImportRedirectsForm as useCoreImportRedirectsForm } from "../hooks/use-import-redirects-form.hooks.js";
@@ -197,7 +197,7 @@ describe("useImportRedirectsForm — injected port (no fetch stub)", () => {
   it("surfaces a rejected port call as an error", async () => {
     const port = createFakeRedirectsPort();
     port.importRedirects = async () => {
-      throw new Error("port down");
+      throw new AdminApiError({ message: "port down", status: 503 });
     };
     const { result } = renderHook(() => useImportRedirectsForm(port, fakeT, fakeLocale), { wrapper });
 

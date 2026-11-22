@@ -57,8 +57,8 @@ export interface SandboxRuntimeConfig {
   roots: SandboxRuntimeRoots;
 }
 
-const TRUTHY_VALUES = new Set(['1', 'true', 'yes', 'on']);
-const FALSY_VALUES = new Set(['0', 'false', 'no', 'off', '']);
+const TRUTHY_VALUES: ReadonlySet<string> = new Set(['1', 'true', 'yes', 'on']);
+const FALSY_VALUES: ReadonlySet<string> = new Set(['0', 'false', 'no', 'off', '']);
 
 /**
  * Reads {@link SandboxEnvConfig.modeEnvVar} and interprets it as a boolean
@@ -160,9 +160,8 @@ export function sandboxImportAllowedRoots(
  * sandboxing is enabled. Always `true` when sandboxing is off.
  */
 export function isSandboxImportedProjectRootAllowed(
-  config: SandboxEnvConfig,
-  projectRoot: string,
-  env: Record<string, string | undefined> = process.env,
+  { config, projectRoot }: { config: SandboxEnvConfig; projectRoot: string },
+  { env = process.env }: { env?: Record<string, string | undefined> | undefined } = {},
 ): boolean {
   if (!isSandboxModeEnabled(config, env)) return true;
   const candidate = canonicalizeContainmentCandidate(projectRoot);
@@ -174,12 +173,11 @@ export function isSandboxImportedProjectRootAllowed(
  * `null` when it's allowed (including when sandboxing is off).
  */
 export function sandboxImportedProjectRootUnavailableReason(
-  config: SandboxEnvConfig,
-  projectRoot: string,
-  env: Record<string, string | undefined> = process.env,
+  { config, projectRoot }: { config: SandboxEnvConfig; projectRoot: string },
+  { env = process.env }: { env?: Record<string, string | undefined> | undefined } = {},
 ): string | null {
   if (!isSandboxModeEnabled(config, env)) return null;
-  return isSandboxImportedProjectRootAllowed(config, projectRoot, env)
+  return isSandboxImportedProjectRootAllowed({ config, projectRoot }, { env })
     ? null
     : `Imported-folder projects are not available in ${config.modeEnvVar} unless their root is ` +
         `under ${config.importAllowedRootsEnvVar}.`;
@@ -189,7 +187,7 @@ export function sandboxImportedProjectRootUnavailableReason(
  * Derives the full sandbox directory tree from a data directory. Pure —
  * does not touch the filesystem (see {@link ensureSandboxRuntimeDirs}).
  */
-export function resolveSandboxRuntimeConfig(enabled: boolean, dataDir: string): SandboxRuntimeConfig {
+export function resolveSandboxRuntimeConfig({ enabled, dataDir }: { enabled: boolean; dataDir: string }, _optional: Record<string, never> = {}): SandboxRuntimeConfig {
   const sandboxRoot = path.join(dataDir, 'sandbox');
   return {
     enabled,
@@ -216,16 +214,15 @@ export function resolveSandboxRuntimeConfig(enabled: boolean, dataDir: string): 
  * var is unset.
  */
 export function resolveSandboxRuntimeConfigFromEnv(
-  config: SandboxEnvConfig,
-  env: Record<string, string | undefined>,
-  projectRoot: string,
+  { config, env, projectRoot }: { config: SandboxEnvConfig; env: Record<string, string | undefined>; projectRoot: string },
+  _optional: Record<string, never> = {},
 ): SandboxRuntimeConfig | null {
   if (!isSandboxModeEnabled(config, env)) return null;
   const rawDataDir = env[config.dataDirEnvVar]?.trim();
   if (!rawDataDir) {
     throw new Error(`${config.dataDirEnvVar} is required when ${config.modeEnvVar} is enabled`);
   }
-  return resolveSandboxRuntimeConfig(true, resolveProjectRelativePath(rawDataDir, projectRoot));
+  return resolveSandboxRuntimeConfig({ enabled: true, dataDir: resolveProjectRelativePath({ raw: rawDataDir, projectRoot }) });
 }
 
 /**
@@ -256,9 +253,8 @@ export function ensureSandboxRuntimeDirs(runtime: SandboxRuntimeConfig): void {
  * disabled.
  */
 export function applySandboxRuntimeEnv(
-  config: SandboxEnvConfig,
-  baseEnv: NodeJS.ProcessEnv,
-  runtime: SandboxRuntimeConfig,
+  { config, baseEnv, runtime }: { config: SandboxEnvConfig; baseEnv: NodeJS.ProcessEnv; runtime: SandboxRuntimeConfig },
+  _optional: Record<string, never> = {},
 ): NodeJS.ProcessEnv {
   if (!runtime.enabled) return baseEnv;
 

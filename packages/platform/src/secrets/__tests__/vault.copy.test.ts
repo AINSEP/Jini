@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 import { test, vi } from "vitest";
 import { AesGcmSecretSealer } from "../secret-sealer.aesgcm.js";
 import { InMemoryKeyring } from "../keyring.memory.js";
-import { SecretsVaultService, InMemoryVaultRepo, createVaultMetaParsers, buildVaultAad, VAULT_KINDS,
-  isCopyableKind, type VaultContext, type VaultCopyInput, type VaultMeta, type VaultPutInput } from "../credential-sets/index.js";
+import { SecretsVaultService, InMemoryVaultRepo, createVaultMetaParsers, buildVaultAad, isCopyableKind, type VaultCopyInput, type VaultPutInput } from "../credential-sets/index.js";
+import { VAULT_KINDS, type VaultContext, type VaultMeta } from "@jini-ai/core/contracts/vault";
 
 const token = "a-secret-key-12345678";
 const address = "postgres://user:password@host/db";

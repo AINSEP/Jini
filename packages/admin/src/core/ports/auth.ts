@@ -13,7 +13,7 @@
  *
  * Expect a rejection from `login` for invalid credentials, and treat any other 4xx as an opaque
  * authentication failure — the exact `code` vocabulary belongs to the host. See
- * `../transport/errors.ts`'s header for why a shared code->message table is a regression.
+ * `@jini-ai/core/admin-runtime`'s `admin-api-error.ts`'s header for why a shared code->message table is a regression.
  */
 
 /** The minimal principal shape a session carries — see the file header for why this is not
@@ -31,7 +31,7 @@ export interface AdminAuthPort {
   /**
    * The current session's principal, plus (when the host computes it) the permission strings
    * effective for that principal right now. `effectivePermissions` is an affordance list for
-   * driving UI visibility — see `../permissions/rules.ts`'s `hasPermission`, which is intentionally
+   * driving UI visibility — see `@jini-ai/core/admin-runtime`'s `panel-access.ts`'s `hasPermission`, which is intentionally
    * not an authorization boundary. A host that has not computed this yet may omit the field
    * entirely rather than send an empty array; callers should not treat "absent" and "empty" as the
    * same thing.

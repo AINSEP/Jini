@@ -4,7 +4,7 @@ import type { Money } from "../money/money.js";
 
 /**
  * @file Domain record types for the Commerce first vertical slice (2026-08-12 swarm-consensus
- * debate, section 5). Mirrors `src/members/types.ts`'s convention: type-only definitions for the
+ * debate, section 5). Mirrors the host app's `src/features/members/types.ts`'s convention: type-only definitions for the
  * row/domain shapes this feature owns; no logic here.
  *
  * Scope: catalog (products/prices), orders/order items, and the webhook inbox. Refunds,

@@ -1,4 +1,4 @@
-import type { RawBuilder, StorageKernel } from "../kernel/port.js";
+import type { KyselyKernel, RawBuilder } from "../kernel/port.js";
 import { ownedTransactionOf } from "../kernel/owned-transaction.js";
 import type { CheckedSqliteClient } from "./checked-client.js";
 import { assertCheckedAvailable, checkedClients, checkedStates, connectionsByKernel, SqliteClientError, type CheckedState, type SqliteLease } from "./checked-state.js";
@@ -18,7 +18,7 @@ class FailedOutcome extends Error {
   }
 }
 
-function sessionFor({ kernel, state, lease }: { kernel: StorageKernel<unknown>; state: CheckedState; lease: SqliteLease }, _optional: {} = {}): TransactionSession {
+function sessionFor({ kernel, state, lease }: { kernel: KyselyKernel<unknown>; state: CheckedState; lease: SqliteLease }, _optional: {} = {}): TransactionSession {
   const check = () => {
     if (!lease.active) throw new SqliteClientError({ code: "session_expired" });
     assertCheckedAvailable({ state });
@@ -43,7 +43,7 @@ function sessionFor({ kernel, state, lease }: { kernel: StorageKernel<unknown>; 
  * @throws SqliteClientError or the original body error; AggregateError preserves cleanup failures.
  */
 export async function withSqliteTransaction<T>(
-  required: { client: CheckedSqliteClient; kernel: StorageKernel<unknown>; work: Work<T> },
+  required: { client: CheckedSqliteClient; kernel: KyselyKernel<unknown>; work: Work<T> },
   optional: { rollbackOnFailedOutcome?: boolean } = {}
 ): Promise<T> {
   const { client, kernel, work } = required;

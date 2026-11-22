@@ -172,6 +172,10 @@ export async function prepareDirectories({ root, stateDir }: { root: string; sta
   return { root: canonicalRoot, stateDir: canonicalState };
 }
 
+type StoreContext = StoreInput & {
+  currentPath: string; objectPath: (hash: string) => string; manifestPath: (hash: string) => string;
+  checkpoint: (step: StoreCheckpoint) => Promise<void>; metadataLimit: number;
+};
 /** Content-addressed persistence and idempotent roll-forward. Call mutations inside locked().
  * @complexity O(bytes + files log files + files × depth²) for capture; memory bounded by maxTreeBytes.
  */
@@ -182,263 +186,291 @@ export function createProjectStore({ root, stateDir, paths, limits, filesystem }
   const checkpoint = async (step: StoreCheckpoint) => { await options.checkpoint?.({ step }); };
   const metadataLimit = limits.maxFiles * 1024 + 4096;
 
-  async function readCurrent(): Promise<Current | null> {
-    const value = await readJson({ path: currentPath, maxBytes: metadataLimit }).catch(error => {
-      if (missing(error)) return undefined;
-      throw error;
-    });
-    return value === undefined ? null : checkCurrent({ value, root });
-  }
-  async function manifest({ revisionId }: { revisionId: string }): Promise<Manifest> {
-    const value = await readJson({ path: manifestPath(revisionId), maxBytes: metadataLimit });
-    const result = checkManifest({ value, paths, limits });
-    if (digest({ bytes: JSON.stringify(result) }) !== revisionId) corrupt('manifest digest mismatch');
-    return result;
-  }
-  async function object({ file }: { file: ManifestFile }): Promise<Uint8Array> {
-    const handle = await fs.open(objectPath(file.hash), 'r').catch(cause => {
-      if (missing(cause)) throw new ProjectError({ code: 'CORRUPT', message: 'referenced object is missing', cause });
-      throw cause;
-    });
-    try {
-      const content = await readBounded({ handle, maxBytes: file.size });
-      if (content.byteLength !== file.size || digest({ bytes: content }) !== file.hash) corrupt('object digest/size mismatch');
-      return content;
-    } finally { await handle.close(); }
-  }
-  /** Prepare every durable dependency before publishing a pending selection. */
-  async function prepare({ files }: { files: ReadonlyMap<string, Uint8Array> }): Promise<string> {
-    assertCandidatePaths({ paths: [...files.keys()] });
-    const entries: ManifestFile[] = [];
-    for (const [path, bytes] of [...files].sort(([a], [b]) => compareCodeUnits(a, b))) {
-      const file = { path, hash: digest({ bytes }), size: bytes.byteLength };
-      entries.push(file);
-    }
-    const value = checkManifest({ value: { version: 1, files: entries }, paths, limits });
-    for (const file of entries) await writeObject({ file, bytes: files.get(file.path)! });
-    await checkpoint('objects');
-    const revisionId = digest({ bytes: JSON.stringify(value) });
-    const existing = await statIfPresent(manifestPath(revisionId));
-    if (existing) await manifest({ revisionId });
-    else await filesystem.writeJsonFileAtomicAsync({ filePath: manifestPath(revisionId), data: value }, { createParent: true });
-    await checkpoint('manifest');
-    return revisionId;
-  }
-  async function writeObject({ file, bytes }: { file: ManifestFile; bytes: Uint8Array }): Promise<void> {
-    const exists = await statIfPresent(objectPath(file.hash));
-    if (exists) await object({ file });
-    else await filesystem.writeFileAtomicAsync({ filePath: objectPath(file.hash), content: bytes }, { createParent: true });
-  }
-  async function observations({ files }: Manifest): Promise<Readonly<Record<string, Fingerprint>>> {
-    const result: Record<string, Fingerprint> = Object.create(null);
-    for (const file of files) {
-      const absolute = await regularPath({ paths, path: file.path });
-      const info = await fs.stat(absolute);
-      const bytes = await paths.reader.readBytes({ relativePath: file.path, maxBytes: limits.maxFileBytes });
-      const after = await fs.stat(absolute);
-      // A watcher may rewrite a file immediately after a rename. Do not cache its new timestamp
-      // against old object bytes: leaving it unobserved makes the next capture hash the drift.
-      if (sameFingerprint(info, after) && digest({ bytes }) === file.hash) result[file.path] = fingerprint(info);
-    }
-    return result;
-  }
-  /** Capture hashes only files whose disk fingerprint changed; unchanged bytes reuse objects. */
-  async function scan({ current }: { current: Current | null }): Promise<{ files: Map<string, Uint8Array>; observed: Record<string, Fingerprint> }> {
-    const listed = paths.reader.list({});
-    if (listed.truncated) throw new ProjectError({ code: 'LIMIT', message: 'tree traversal exceeded limits' });
-    // Host-disallowed files remain unmanaged; malformed allowed names are refused rather than hidden.
-    const names = listed.files.filter(relativePath => paths.allows({ relativePath }));
-    assertCandidatePaths({ paths: names });
-    const base = current ? await manifest({ revisionId: current.revision }) : { files: [] };
-    const previous = new Map(base.files.map(file => [file.path, file]));
-    const files = new Map<string, Uint8Array>();
-    let total = 0;
-    const observed: Record<string, Fingerprint> = Object.create(null);
-    for (const path of names) {
-      const scanned = await scanFile({ path, previous: previous.get(path), observed: current?.observed[path] });
-      total += scanned.bytes.byteLength;
-      if (total > limits.maxTreeBytes || files.size >= limits.maxFiles) throw new ProjectError({ code: 'LIMIT', message: 'tree exceeds project limits' });
-      files.set(path, scanned.bytes);
-      observed[path] = scanned.observed;
-    }
-    return { files, observed };
-  }
-  async function scanFile({ path, previous, observed }: {
-    path: string; previous: ManifestFile | undefined; observed: Fingerprint | undefined;
-  }): Promise<{ bytes: Uint8Array; observed: Fingerprint }> {
-    paths.check({ relativePath: path });
-    const absolute = await regularPath({ paths, path });
-    const info = await fs.stat(absolute);
-    const bytes = previous && observed && sameFingerprint(info, observed)
-      ? await object({ file: previous })
-      : await paths.reader.readBytes({ relativePath: path, maxBytes: limits.maxFileBytes });
-    const after = await fs.stat(absolute);
-    if (!sameFingerprint(info, after)) throw new ProjectError({ code: 'CONFLICT', message: `file changed while capturing: ${path}` });
-    return { bytes, observed: fingerprint(info) };
-  }
-  /** Read a published live file without scanning/re-hashing the whole project for every viewer read. */
-  async function readWorkingFile({ relativePath }: { relativePath: string }): Promise<Uint8Array> {
-    await regularPath({ paths, path: relativePath });
-    return paths.reader.readBytes({ relativePath, maxBytes: limits.maxFileBytes });
-  }
-  async function removeManaged({ before, after }: { before: Manifest; after: Manifest }): Promise<void> {
-    const retained = new Set(after.files.map(file => file.path));
-    for (const file of before.files) {
-      if (retained.has(file.path)) continue;
-      try { await fs.rm(await regularPath({ paths, path: file.path }), { force: true }); }
-      catch (error) { if (!['ENOENT', 'ENOTDIR'].includes((error as NodeJS.ErrnoException).code ?? '')) throw error; }
-      await checkpoint('delete');
-    }
-  }
-  /** Prune only directories that contained a removed managed file; never recurse into exclusions. */
-  async function prune({ before, after }: { before: Manifest; after: Manifest }): Promise<void> {
-    const folders = removedFolders({ before, after });
-    for (const folder of [...folders].sort((a, b) => b.split('/').length - a.split('/').length)) {
-      await pruneFolder({ folder });
-    }
-    await checkpoint('prune');
-  }
-  async function pruneFolder({ folder }: { folder: string }): Promise<void> {
-    try { await fs.rmdir(await regularPath({ paths, path: folder })); }
-    catch (error) {
-      if (!['ENOENT', 'ENOTEMPTY', 'EEXIST', 'ENOTDIR'].includes((error as NodeJS.ErrnoException).code ?? '')) throw error;
-    }
-  }
-  /** On case-insensitive volumes, reusing an empty old directory preserves its old spelling.
-   * Remove only empty managed aliases before writes, so a case-only directory rename is real.
-   */
-  async function pruneRenamedFolders({ before, after }: { before: Manifest; after: Manifest }): Promise<void> {
-    const previous = removedFolders({ before, after: { version: 1, files: [] } });
-    const next = removedFolders({ before: after, after: { version: 1, files: [] } });
-    const aliases = new Map([...next].map(folder => [portablePathKey({ path: folder }), folder]));
-    for (const folder of [...previous].sort((a, b) => b.length - a.length)) {
-      const alias = aliases.get(portablePathKey({ path: folder }));
-      if (alias !== undefined && alias !== folder) await pruneFolder({ folder });
-    }
-  }
-  /** Pre-read/verify every object before the first deletion. Pending remains until all writes land. */
-  async function materialize({ current }: { current: Current }): Promise<Current> {
-    const after = await manifest({ revisionId: current.revision });
-    const before = current.pending?.from ? await manifest({ revisionId: current.pending.from }) : { version: 1 as const, files: [] };
-    const previous = new Map(before.files.map(file => [file.path, file.hash]));
-    const writes = after.files.filter(file => previous.get(file.path) !== file.hash);
-    const bytes = new Map<string, Uint8Array>();
-    for (const file of after.files) bytes.set(file.path, await object({ file }));
-    await removeManaged({ before, after });
-    await pruneRenamedFolders({ before, after });
-    // Empty folders blocking a directory-to-file transition must be removed before writing it.
-    for (const file of writes) await removeBlockingFolder({ path: file.path, before });
-    for (const file of writes) {
-      await filesystem.writeFileAtomicAsync({ filePath: await regularPath({ paths, path: file.path }), content: bytes.get(file.path)! },
-        { createParent: true, refuseSymlink: true, defaultMode: 0o644 });
-      await checkpoint('write');
-    }
-    await prune({ before, after });
-    const settled: Current = { ...current, pending: null, observed: await observations(after) };
-    await filesystem.writeJsonFileAtomicAsync({ filePath: currentPath, data: settled });
-    await checkpoint('clear');
-    return settled;
-  }
-  async function removeBlockingFolder({ path, before }: { path: string; before: Manifest }): Promise<void> {
-    const destination = await regularPath({ paths, path });
-    const info = await lstatIfPresent(destination);
-    if (!info?.isDirectory()) return;
-    const folders = removedFolders({ before, after: { version: 1, files: [] } });
-    for (const folder of [...folders].sort((a, b) => b.length - a.length)) {
-      if (folder.startsWith(`${path}/`)) await pruneFolder({ folder });
-    }
-    await fs.rmdir(destination);
-  }
-  /** Refuse unsafe/unmanaged obstructions before the journal commit point. */
-  async function preflight({ current, revisionId }: { current: Current | null; revisionId: string }): Promise<void> {
-    const after = await manifest({ revisionId });
-    const before: Manifest = current ? await manifest({ revisionId: current.revision }) : { version: 1, files: [] };
-    const folders = removedFolders({ before, after });
-    const kept = new Set(after.files.map(file => file.path));
-    const removed = new Set(before.files.filter(file => !kept.has(file.path)).map(file => file.path));
-    const sources = new Map(before.files.map(file => [portablePathKey({ path: file.path }), file.path]));
-    await assertRenamedFolders({ before, after, folders, removed });
-    for (const file of after.files) {
-      await object({ file });
-      const target = await regularPath({ paths, path: file.path });
-      const info = await lstatIfPresent(target);
-      assertManagedDestination({ existsAsFile: info?.isFile() ?? false, path: file.path, sources });
-      if (info?.isDirectory()) await assertRemovableFolder({ path: file.path, folders, removed });
-    }
-  }
-  /** An existing filesystem alias must not let a create overwrite a host-disallowed file. */
-  function assertManagedDestination({ existsAsFile, path, sources }: {
-    existsAsFile: boolean; path: string; sources: ReadonlyMap<string, string>;
-  }): void {
-    if (!existsAsFile || sources.has(portablePathKey({ path }))) return;
-    throw new ProjectError({ code: 'INVALID_CHANGE', message: `unmanaged file blocks ${path}` });
-  }
-  /** A portable case rename cannot silently retain an unmanaged directory under its old spelling. */
-  async function assertRenamedFolders({ before, after, folders, removed }: {
-    before: Manifest; after: Manifest; folders: ReadonlySet<string>; removed: ReadonlySet<string>;
-  }): Promise<void> {
-    const previous = removedFolders({ before, after: { version: 1, files: [] } });
-    const next = removedFolders({ before: after, after: { version: 1, files: [] } });
-    const aliases = new Map([...next].map(folder => [portablePathKey({ path: folder }), folder]));
-    for (const path of previous) {
-      const alias = aliases.get(portablePathKey({ path }));
-      if (alias !== undefined && alias !== path) await assertRemovableFolder({ path, folders, removed });
-    }
-  }
-  async function assertRemovableFolder({ path, folders, removed }: {
-    path: string; folders: ReadonlySet<string>; removed: ReadonlySet<string>;
-  }): Promise<void> {
-    const inspect = new Set([path, ...[...folders].filter(folder => folder.startsWith(`${path}/`))]);
-    for (const folder of inspect) {
-      for (const name of await fs.readdir(await regularPath({ paths, path: folder }))) {
-        const child = `${folder}/${name}`;
-        if (!folders.has(child) && !removed.has(child)) throw new ProjectError({ code: 'INVALID_CHANGE', message: `unmanaged directory contents block ${path}` });
-      }
-    }
-  }
-  async function recover(): Promise<Current | null> {
-    const current = await readCurrent();
-    if (!current) return null;
-    try { await manifest({ revisionId: current.revision }); }
-    catch (cause) {
-      if (missing(cause)) throw new ProjectError({ code: 'CORRUPT', message: 'current manifest is missing', cause });
-      throw cause;
-    }
-    return current.pending ? materialize({ current }) : current;
-  }
-  /** Journal is the commit point. Reopen rolls it forward; no rollback or guessed replacement. */
-  async function select({ current, revisionId, captured }: {
-    current: Current | null; revisionId: string; captured?: Readonly<Record<string, Fingerprint>> | undefined;
-  }): Promise<Current> {
-    await manifest({ revisionId });
-    if (current?.generation === Number.MAX_SAFE_INTEGER) throw new ProjectError({ code: 'LIMIT', message: 'generation exhausted' });
-    const next: Current = { version: 1, root, revision: revisionId, generation: (current?.generation ?? 0) + 1,
-      pending: captured ? null : { from: current?.revision ?? null }, observed: captured ?? {} };
-    await filesystem.writeJsonFileAtomicAsync({ filePath: currentPath, data: next });
-    await checkpoint('journal');
-    return captured ? next : materialize({ current: next });
-  }
-  /** Refresh a same-content capture's fingerprints without inventing a new revision/generation. */
-  async function observe({ current, observed }: { current: Current; observed: Current['observed'] }): Promise<Current> {
-    if (JSON.stringify(current.observed) === JSON.stringify(observed)) return current;
-    const next = { ...current, observed };
-    await filesystem.writeJsonFileAtomicAsync({ filePath: currentPath, data: next });
-    return next;
-  }
-  /** Both stacks pin manifests and blobs. Expired snapshots do not pin storage indefinitely. */
-  async function collect({ revisions }: { revisions: ReadonlySet<string> }): Promise<void> {
-    const objects = new Set<string>();
-    for (const revisionId of revisions) {
-      for (const file of (await manifest({ revisionId })).files) objects.add(file.hash);
-    }
-    await removeUnreferenced({ directory: resolve(stateDir, 'manifests'), keep: new Set([...revisions].map(id => `${id}.json`)) });
-    await removeUnreferenced({ directory: resolve(stateDir, 'objects'), keep: objects });
-  }
+  const context: StoreContext = { root, stateDir, paths, limits, filesystem, currentPath, objectPath, manifestPath, checkpoint, metadataLimit };
   return {
-    readCurrent, manifest, object, prepare, scan, select, collect, preflight, observe, readWorkingFile,
+    readCurrent: () => readCurrent(context), manifest: (input: { revisionId: string }) => manifest(context, input),
+    object: (input: { file: ManifestFile }) => object(context, input),
+    prepare: (input: { files: ReadonlyMap<string, Uint8Array> }) => prepare(context, input),
+    scan: (input: { current: Current | null }) => scan(context, input),
+    select: (input: { current: Current | null; revisionId: string; captured?: Readonly<Record<string, Fingerprint>> | undefined }) => select(context, input),
+    collect: (input: { revisions: ReadonlySet<string> }) => collect(context, input),
+    preflight: (input: { current: Current | null; revisionId: string }) => preflight(context, input),
+    observe: (input: { current: Current; observed: Current['observed'] }) => observe(context, input),
+    readWorkingFile: (input: { relativePath: string }) => readWorkingFile(context, input),
     locked: <T>(run: () => Promise<T>) => filesystem.withFileLock({ lockPath: resolve(stateDir, 'project.lock'), run }, { staleMs: Infinity, createParent: true }),
-    recover,
+    recover: () => recover(context),
   };
+}
+async function readCurrent(context: StoreContext): Promise<Current | null> {
+  const { root, currentPath, metadataLimit } = context;
+  const value = await readJson({ path: currentPath, maxBytes: metadataLimit }).catch(error => {
+    if (missing(error)) return undefined;
+    throw error;
+  });
+  return value === undefined ? null : checkCurrent({ value, root });
+}
+async function manifest(context: StoreContext, { revisionId }: { revisionId: string }): Promise<Manifest> {
+  const { paths, limits, manifestPath, metadataLimit } = context;
+  const value = await readJson({ path: manifestPath(revisionId), maxBytes: metadataLimit });
+  const result = checkManifest({ value, paths, limits });
+  if (digest({ bytes: JSON.stringify(result) }) !== revisionId) corrupt('manifest digest mismatch');
+  return result;
+}
+async function object(context: StoreContext, { file }: { file: ManifestFile }): Promise<Uint8Array> {
+  const { objectPath } = context;
+  const handle = await fs.open(objectPath(file.hash), 'r').catch(cause => {
+    if (missing(cause)) throw new ProjectError({ code: 'CORRUPT', message: 'referenced object is missing', cause });
+    throw cause;
+  });
+  try {
+    const content = await readBounded({ handle, maxBytes: file.size });
+    if (content.byteLength !== file.size || digest({ bytes: content }) !== file.hash) corrupt('object digest/size mismatch');
+    return content;
+  } finally { await handle.close(); }
+}
+/** Prepare every durable dependency before publishing a pending selection. */
+async function prepare(context: StoreContext, { files }: { files: ReadonlyMap<string, Uint8Array> }): Promise<string> {
+  const { paths, limits, filesystem, manifestPath, checkpoint } = context;
+  assertCandidatePaths({ paths: [...files.keys()] });
+  const entries: ManifestFile[] = [];
+  for (const [path, bytes] of [...files].sort(([a], [b]) => compareCodeUnits(a, b))) {
+    const file = { path, hash: digest({ bytes }), size: bytes.byteLength };
+    entries.push(file);
+  }
+  const value = checkManifest({ value: { version: 1, files: entries }, paths, limits });
+  for (const file of entries) await writeObject(context, { file, bytes: files.get(file.path)! });
+  await checkpoint('objects');
+  const revisionId = digest({ bytes: JSON.stringify(value) });
+  const existing = await statIfPresent(manifestPath(revisionId));
+  if (existing) await manifest(context, { revisionId });
+  else await filesystem.writeJsonFileAtomicAsync({ filePath: manifestPath(revisionId), data: value }, { createParent: true });
+  await checkpoint('manifest');
+  return revisionId;
+}
+async function writeObject(context: StoreContext, { file, bytes }: { file: ManifestFile; bytes: Uint8Array }): Promise<void> {
+  const { filesystem, objectPath } = context;
+  const exists = await statIfPresent(objectPath(file.hash));
+  if (exists) await object(context, { file });
+  else await filesystem.writeFileAtomicAsync({ filePath: objectPath(file.hash), content: bytes }, { createParent: true });
+}
+async function observations(context: StoreContext, { files }: Manifest): Promise<Readonly<Record<string, Fingerprint>>> {
+  const { paths, limits } = context;
+  const result: Record<string, Fingerprint> = Object.create(null);
+  for (const file of files) {
+    const absolute = await regularPath({ paths, path: file.path });
+    const info = await fs.stat(absolute);
+    const bytes = await paths.reader.readBytes({ relativePath: file.path, maxBytes: limits.maxFileBytes });
+    const after = await fs.stat(absolute);
+    // A watcher may rewrite a file immediately after a rename. Do not cache its new timestamp
+    // against old object bytes: leaving it unobserved makes the next capture hash the drift.
+    if (sameFingerprint(info, after) && digest({ bytes }) === file.hash) result[file.path] = fingerprint(info);
+  }
+  return result;
+}
+/** Capture hashes only files whose disk fingerprint changed; unchanged bytes reuse objects. */
+async function scan(context: StoreContext, { current }: { current: Current | null }): Promise<{ files: Map<string, Uint8Array>; observed: Record<string, Fingerprint> }> {
+  const { paths, limits } = context;
+  const listed = paths.reader.list({});
+  if (listed.truncated) throw new ProjectError({ code: 'LIMIT', message: 'tree traversal exceeded limits' });
+  // Host-disallowed files remain unmanaged; malformed allowed names are refused rather than hidden.
+  const names = listed.files.filter(relativePath => paths.allows({ relativePath }));
+  assertCandidatePaths({ paths: names });
+  const base = current ? await manifest(context, { revisionId: current.revision }) : { files: [] };
+  const previous = new Map(base.files.map(file => [file.path, file]));
+  const files = new Map<string, Uint8Array>();
+  let total = 0;
+  const observed: Record<string, Fingerprint> = Object.create(null);
+  for (const path of names) {
+    const scanned = await scanFile(context, { path, previous: previous.get(path), observed: current?.observed[path] });
+    total += scanned.bytes.byteLength;
+    if (total > limits.maxTreeBytes || files.size >= limits.maxFiles) throw new ProjectError({ code: 'LIMIT', message: 'tree exceeds project limits' });
+    files.set(path, scanned.bytes);
+    observed[path] = scanned.observed;
+  }
+  return { files, observed };
+}
+async function scanFile(context: StoreContext, { path, previous, observed }: {
+  path: string; previous: ManifestFile | undefined; observed: Fingerprint | undefined;
+}): Promise<{ bytes: Uint8Array; observed: Fingerprint }> {
+  const { paths, limits } = context;
+  paths.check({ relativePath: path });
+  const absolute = await regularPath({ paths, path });
+  const info = await fs.stat(absolute);
+  const bytes = previous && observed && sameFingerprint(info, observed)
+    ? await object(context, { file: previous })
+    : await paths.reader.readBytes({ relativePath: path, maxBytes: limits.maxFileBytes });
+  const after = await fs.stat(absolute);
+  if (!sameFingerprint(info, after)) throw new ProjectError({ code: 'CONFLICT', message: `file changed while capturing: ${path}` });
+  return { bytes, observed: fingerprint(info) };
+}
+/** Read a published live file without scanning/re-hashing the whole project for every viewer read. */
+async function readWorkingFile(context: StoreContext, { relativePath }: { relativePath: string }): Promise<Uint8Array> {
+  const { paths, limits } = context;
+  await regularPath({ paths, path: relativePath });
+  return paths.reader.readBytes({ relativePath, maxBytes: limits.maxFileBytes });
+}
+async function removeManaged(context: StoreContext, { before, after }: { before: Manifest; after: Manifest }): Promise<void> {
+  const { paths, checkpoint } = context;
+  const retained = new Set(after.files.map(file => file.path));
+  for (const file of before.files) {
+    if (retained.has(file.path)) continue;
+    try { await fs.rm(await regularPath({ paths, path: file.path }), { force: true }); }
+    catch (error) { if (!['ENOENT', 'ENOTDIR'].includes((error as NodeJS.ErrnoException).code ?? '')) throw error; }
+    await checkpoint('delete');
+  }
+}
+/** Prune only directories that contained a removed managed file; never recurse into exclusions. */
+async function prune(context: StoreContext, { before, after }: { before: Manifest; after: Manifest }): Promise<void> {
+  const { checkpoint } = context;
+  const folders = removedFolders({ before, after });
+  for (const folder of [...folders].sort((a, b) => b.split('/').length - a.split('/').length)) {
+    await pruneFolder(context, { folder });
+  }
+  await checkpoint('prune');
+}
+async function pruneFolder(context: StoreContext, { folder }: { folder: string }): Promise<void> {
+  const { paths } = context;
+  try { await fs.rmdir(await regularPath({ paths, path: folder })); }
+  catch (error) {
+    if (!['ENOENT', 'ENOTEMPTY', 'EEXIST', 'ENOTDIR'].includes((error as NodeJS.ErrnoException).code ?? '')) throw error;
+  }
+}
+/** On case-insensitive volumes, reusing an empty old directory preserves its old spelling.
+ * Remove only empty managed aliases before writes, so a case-only directory rename is real.
+ */
+async function pruneRenamedFolders(context: StoreContext, { before, after }: { before: Manifest; after: Manifest }): Promise<void> {
+  const previous = removedFolders({ before, after: { version: 1, files: [] } });
+  const next = removedFolders({ before: after, after: { version: 1, files: [] } });
+  const aliases = new Map([...next].map(folder => [portablePathKey({ path: folder }), folder]));
+  for (const folder of [...previous].sort((a, b) => b.length - a.length)) {
+    const alias = aliases.get(portablePathKey({ path: folder }));
+    if (alias !== undefined && alias !== folder) await pruneFolder(context, { folder });
+  }
+}
+/** Pre-read/verify every object before the first deletion. Pending remains until all writes land. */
+async function materialize(context: StoreContext, { current }: { current: Current }): Promise<Current> {
+  const { paths, filesystem, currentPath, checkpoint } = context;
+  const after = await manifest(context, { revisionId: current.revision });
+  const before = current.pending?.from ? await manifest(context, { revisionId: current.pending.from }) : { version: 1 as const, files: [] };
+  const previous = new Map(before.files.map(file => [file.path, file.hash]));
+  const writes = after.files.filter(file => previous.get(file.path) !== file.hash);
+  const bytes = new Map<string, Uint8Array>();
+  for (const file of after.files) bytes.set(file.path, await object(context, { file }));
+  await removeManaged(context, { before, after });
+  await pruneRenamedFolders(context, { before, after });
+  // Empty folders blocking a directory-to-file transition must be removed before writing it.
+  for (const file of writes) await removeBlockingFolder(context, { path: file.path, before });
+  for (const file of writes) {
+    await filesystem.writeFileAtomicAsync({ filePath: await regularPath({ paths, path: file.path }), content: bytes.get(file.path)! },
+      { createParent: true, refuseSymlink: true, defaultMode: 0o644 });
+    await checkpoint('write');
+  }
+  await prune(context, { before, after });
+  const settled: Current = { ...current, pending: null, observed: await observations(context, after) };
+  await filesystem.writeJsonFileAtomicAsync({ filePath: currentPath, data: settled });
+  await checkpoint('clear');
+  return settled;
+}
+async function removeBlockingFolder(context: StoreContext, { path, before }: { path: string; before: Manifest }): Promise<void> {
+  const { paths } = context;
+  const destination = await regularPath({ paths, path });
+  const info = await lstatIfPresent(destination);
+  if (!info?.isDirectory()) return;
+  const folders = removedFolders({ before, after: { version: 1, files: [] } });
+  for (const folder of [...folders].sort((a, b) => b.length - a.length)) {
+    if (folder.startsWith(`${path}/`)) await pruneFolder(context, { folder });
+  }
+  await fs.rmdir(destination);
+}
+/** Refuse unsafe/unmanaged obstructions before the journal commit point. */
+async function preflight(context: StoreContext, { current, revisionId }: { current: Current | null; revisionId: string }): Promise<void> {
+  const { paths } = context;
+  const after = await manifest(context, { revisionId });
+  const before: Manifest = current ? await manifest(context, { revisionId: current.revision }) : { version: 1, files: [] };
+  const folders = removedFolders({ before, after });
+  const kept = new Set(after.files.map(file => file.path));
+  const removed = new Set(before.files.filter(file => !kept.has(file.path)).map(file => file.path));
+  const sources = new Map(before.files.map(file => [portablePathKey({ path: file.path }), file.path]));
+  await assertRenamedFolders(context, { before, after, folders, removed });
+  for (const file of after.files) {
+    await object(context, { file });
+    const target = await regularPath({ paths, path: file.path });
+    const info = await lstatIfPresent(target);
+    assertManagedDestination({ existsAsFile: info?.isFile() ?? false, path: file.path, sources });
+    if (info?.isDirectory()) await assertRemovableFolder(context, { path: file.path, folders, removed });
+  }
+}
+/** An existing filesystem alias must not let a create overwrite a host-disallowed file. */
+function assertManagedDestination({ existsAsFile, path, sources }: {
+  existsAsFile: boolean; path: string; sources: ReadonlyMap<string, string>;
+}): void {
+  if (!existsAsFile || sources.has(portablePathKey({ path }))) return;
+  throw new ProjectError({ code: 'INVALID_CHANGE', message: `unmanaged file blocks ${path}` });
+}
+/** A portable case rename cannot silently retain an unmanaged directory under its old spelling. */
+async function assertRenamedFolders(context: StoreContext, { before, after, folders, removed }: {
+  before: Manifest; after: Manifest; folders: ReadonlySet<string>; removed: ReadonlySet<string>;
+}): Promise<void> {
+  const previous = removedFolders({ before, after: { version: 1, files: [] } });
+  const next = removedFolders({ before: after, after: { version: 1, files: [] } });
+  const aliases = new Map([...next].map(folder => [portablePathKey({ path: folder }), folder]));
+  for (const path of previous) {
+    const alias = aliases.get(portablePathKey({ path }));
+    if (alias !== undefined && alias !== path) await assertRemovableFolder(context, { path, folders, removed });
+  }
+}
+async function assertRemovableFolder(context: StoreContext, { path, folders, removed }: {
+  path: string; folders: ReadonlySet<string>; removed: ReadonlySet<string>;
+}): Promise<void> {
+  const { paths } = context;
+  const inspect = new Set([path, ...[...folders].filter(folder => folder.startsWith(`${path}/`))]);
+  for (const folder of inspect) {
+    for (const name of await fs.readdir(await regularPath({ paths, path: folder }))) {
+      const child = `${folder}/${name}`;
+      if (!folders.has(child) && !removed.has(child)) throw new ProjectError({ code: 'INVALID_CHANGE', message: `unmanaged directory contents block ${path}` });
+    }
+  }
+}
+async function recover(context: StoreContext): Promise<Current | null> {
+  const current = await readCurrent(context);
+  if (!current) return null;
+  try { await manifest(context, { revisionId: current.revision }); }
+  catch (cause) {
+    if (missing(cause)) throw new ProjectError({ code: 'CORRUPT', message: 'current manifest is missing', cause });
+    throw cause;
+  }
+  return current.pending ? materialize(context, { current }) : current;
+}
+/** Journal is the commit point. Reopen rolls it forward; no rollback or guessed replacement. */
+async function select(context: StoreContext, { current, revisionId, captured }: {
+  current: Current | null; revisionId: string; captured?: Readonly<Record<string, Fingerprint>> | undefined;
+}): Promise<Current> {
+  const { root, filesystem, currentPath, checkpoint } = context;
+  await manifest(context, { revisionId });
+  if (current?.generation === Number.MAX_SAFE_INTEGER) throw new ProjectError({ code: 'LIMIT', message: 'generation exhausted' });
+  const next: Current = { version: 1, root, revision: revisionId, generation: (current?.generation ?? 0) + 1,
+    pending: captured ? null : { from: current?.revision ?? null }, observed: captured ?? {} };
+  await filesystem.writeJsonFileAtomicAsync({ filePath: currentPath, data: next });
+  await checkpoint('journal');
+  return captured ? next : materialize(context, { current: next });
+}
+/** Refresh a same-content capture's fingerprints without inventing a new revision/generation. */
+async function observe(context: StoreContext, { current, observed }: { current: Current; observed: Current['observed'] }): Promise<Current> {
+  const { filesystem, currentPath } = context;
+  if (JSON.stringify(current.observed) === JSON.stringify(observed)) return current;
+  const next = { ...current, observed };
+  await filesystem.writeJsonFileAtomicAsync({ filePath: currentPath, data: next });
+  return next;
+}
+/** Both stacks pin manifests and blobs. Expired snapshots do not pin storage indefinitely. */
+async function collect(context: StoreContext, { revisions }: { revisions: ReadonlySet<string> }): Promise<void> {
+  const { stateDir } = context;
+  const objects = new Set<string>();
+  for (const revisionId of revisions) {
+    for (const file of (await manifest(context, { revisionId })).files) objects.add(file.hash);
+  }
+  await removeUnreferenced({ directory: resolve(stateDir, 'manifests'), keep: new Set([...revisions].map(id => `${id}.json`)) });
+  await removeUnreferenced({ directory: resolve(stateDir, 'objects'), keep: objects });
 }
 /** Generated orphan objects/manifests are safe to discard only while holding the project lock. */
 async function removeUnreferenced({ directory, keep }: { directory: string; keep: ReadonlySet<string> }): Promise<void> {

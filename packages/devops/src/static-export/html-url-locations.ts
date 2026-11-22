@@ -95,7 +95,7 @@ function markdownLinkLocations({ body }: { body: string }, _optional = {}): Html
 /** CSS, Markdown indexes, sitemap and manifest positions use their response format, never an HTML text scan. */
 export function exportUrlLocations({ body, contentType }: { body: string; contentType: string }, _optional = {}): HtmlUrlLocation[] {
   if (/^text\/html\b/i.test(contentType)) return htmlUrlLocations({ html: body });
-  if (/^text\/css\b/i.test(contentType)) return cssUrlTokens(body).map(({ start, end }) => ({ start, end, kind: 'css' }));
+  if (/^text\/css\b/i.test(contentType)) return cssUrlTokens({ css: body }).map(({ start, end }) => ({ start, end, kind: 'css' }));
   if (/^text\/markdown\b/i.test(contentType)) return markdownLinkLocations({ body });
   if (/\bxml\b/i.test(contentType)) return [...body.matchAll(/<((?:[\w-]+:)?loc)>([^<]*)<\/\1>/g)].map(match => ({ start: match.index! + match[1]!.length + 2, end: match.index! + match[0].length - match[1]!.length - 3, kind: 'url' }));
   if (!/\bjson\b/i.test(contentType)) return [];

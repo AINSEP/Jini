@@ -91,6 +91,34 @@ function parentOf(name: string): string | undefined {
   return dot < 0 ? undefined : name.slice(dot + 1);
 }
 
+/** The NS set of the closest enclosing zone of `name` (a name without its own NS is not a zone cut). */
+async function findEnclosingServers(
+  { bootstrap, name }: { bootstrap: DnsResolverLike; name: string },
+): Promise<ProviderResult<readonly string[]>> {
+  for (let candidate: string | undefined = name; candidate !== undefined; candidate = parentOf(candidate)) {
+    const zone = candidate;
+    const result = await settle(() => bootstrap.resolveNs(zone), []);
+    if (result.status !== 'ok' || result.value.length > 0) return result;
+  }
+  return providerUnknown({ code: 'network', message: `No zone enclosing ${name} has nameservers.` });
+}
+
+/** One NS question to one parent server; a mismatched id or truncated reply is not an answer. */
+async function askParentServer(
+  { address, zone, exchange, randomId, timeoutMs }: { address: string; zone: string; exchange: DnsExchange; randomId: () => number; timeoutMs: number },
+): Promise<ProviderResult<readonly string[]>> {
+  try {
+    const id = randomId();
+    const reply = decodeNsReply({ message: await exchange({ address, message: encodeNsQuery({ id, name: zone }), timeoutMs }), name: zone });
+    if (reply.id !== id || reply.truncated) return providerUnknown({ code: 'network', message: `The parent nameserver ${address} sent an unusable reply.` });
+    if (reply.rcode === DNS_RCODE_NXDOMAIN) return providerRejected({ code: 'not_found', message: 'The name does not exist.' });
+    if (reply.rcode !== 0) return providerUnknown({ code: 'network', message: `The parent nameserver ${address} refused the query (rcode ${reply.rcode}).` });
+    return providerOk({ value: reply.nameservers });
+  } catch {
+    return providerUnknown({ code: 'network', message: 'The DNS query failed before an answer arrived.' });
+  }
+}
+
 /**
  * Build the adapter.
  * @param required.isPublicAddress - Host address policy: only addresses it accepts are queried.
@@ -119,37 +147,15 @@ export function createNodeAuthoritativeDnsResolver(
     return publicOnly(addresses)[0];
   };
 
-  /** The NS set of the closest enclosing zone of `name` (a name without its own NS is not a zone cut). */
-  const enclosingServers = async (name: string): Promise<ProviderResult<readonly string[]>> => {
-    for (let candidate: string | undefined = name; candidate !== undefined; candidate = parentOf(candidate)) {
-      const zone = candidate;
-      const result = await settle(() => bootstrap.resolveNs(zone), []);
-      if (result.status !== 'ok' || result.value.length > 0) return result;
-    }
-    return providerUnknown({ code: 'network', message: `No zone enclosing ${name} has nameservers.` });
-  };
-
-  /** One NS question to one parent server; a mismatched id or truncated reply is not an answer. */
-  const askParent = async (address: string, zone: string): Promise<ProviderResult<readonly string[]>> => {
-    try {
-      const id = randomId();
-      const reply = decodeNsReply({ message: await exchange({ address, message: encodeNsQuery({ id, name: zone }), timeoutMs }), name: zone });
-      if (reply.id !== id || reply.truncated) return providerUnknown({ code: 'network', message: `The parent nameserver ${address} sent an unusable reply.` });
-      if (reply.rcode === DNS_RCODE_NXDOMAIN) return providerRejected({ code: 'not_found', message: 'The name does not exist.' });
-      if (reply.rcode !== 0) return providerUnknown({ code: 'network', message: `The parent nameserver ${address} refused the query (rcode ${reply.rcode}).` });
-      return providerOk({ value: reply.nameservers });
-    } catch {
-      return providerUnknown({ code: 'network', message: 'The DNS query failed before an answer arrived.' });
-    }
-  };
+  const askParent = ({ address, zone }: { address: string; zone: string }) => askParentServer({ address, zone, exchange, randomId, timeoutMs });
 
   /** The parent's delegation of `zone`, from the first parent server that gives a usable reply. */
   const delegation = async (zone: string, parent: string): Promise<ProviderResult<readonly string[]>> => {
-    const servers = await enclosingServers(parent);
+    const servers = await findEnclosingServers({ bootstrap, name: parent });
     if (servers.status !== 'ok') return servers;
     for (const server of servers.value) {
       const address = await nameserverAddress(server);
-      const result = address === undefined ? undefined : await askParent(address, zone);
+      const result = address === undefined ? undefined : await askParent({ address, zone });
       if (result !== undefined && result.status !== 'unknown') return result;
     }
     return providerUnknown({ code: 'network', message: `No nameserver of ${parent} answered for the delegation of ${zone}.` });

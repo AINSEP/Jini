@@ -45,7 +45,7 @@ createJiniKernelBase(options: CreateJiniKernelBaseOptions): Promise<JiniKernelBa
 | discoveryFile | `<dataDir>/daemon.json`; false disables discovery |
 | onShutdown | Host teardown callback before base handles close |
 
-`composeJiniKernel` requires `{app: Express, adapter: AdapterContext, storage: JiniKernelStorage}`. storage is `{kind:'memory'}` or `{kind:'sqlite', dataDir, open}`. Optional profile defaults to agent-core-v1; security defaults to `{mode:'host'}`; installJsonBodyParser defaults true. It also accepts capabilities, features, featureOptions, extraFeatures, toolRegistrations, packs, bindings, agentExecutor overrides, env and `onAfterApiRoutes(app, callerDaemon, base)`.
+`composeJiniKernel` requires `{app: Express, adapter: AdapterContext, storage: JiniKernelStorage}`. storage is `{kind:'memory'}` or `{kind:'sqlite', dataDir, open}`. Optional profile defaults to agent-core-v1; security defaults to `{mode:'host'}`; installJsonBodyParser defaults true; `jsonBodyParserLimitBytes` is the byte limit of the JSON parser in front of the routes (102,400 when this function installs the parser; a caller with its own parser passes that parser's limit). It also accepts capabilities, features, featureOptions, extraFeatures, toolRegistrations, packs, bindings, agentExecutor overrides, env and `onAfterApiRoutes(app, callerDaemon, base)`.
 
 It returns `{base, daemon, activation, disposeFeatures(), disposeCallerPacks(), closeBase(), close()}`. Every close/dispose method returns Promise<void>. It mounts an app but opens no listener; host owns its HTTP server. Caller pack HTTP routes require explicit mounting in onAfterApiRoutes; kernel composition creates their services and registers their tools, but does not automatically mount their HTTP routes.
 
@@ -74,12 +74,12 @@ await daemon.stop();
 | `isCapabilityId(required: { value: string })` | type guard for CapabilityId |
 | `resolveFeatureActivation(input: FeatureActivationInput)` | FeatureActivationPlan; required features/profile, optional capabilities/featureOverrides; pure |
 | `createBuiltInFeatures(options: BuiltInFeatureOptions = {})` | readonly JiniFeature[]; no resources acquired until feature composition |
-| `buildDaemonDbOperations(db: SqliteDb, file: string)` | DaemonDbOperations inspect/verify/vacuum; borrowed handle and real file |
+| `buildDaemonDbOperations({db, file}: {db: SqliteDb; file: string}, _optional: Record<string, never> = {})` | DaemonDbOperations inspect/verify/vacuum; borrowed handle and real file |
 | `projectDetectedAgent(agent: DetectedAgent)` | AgentSummary; maps models/reasoning/auth/diagnostic fields |
 | `classifyRunFailureForRetry({code, signal, sideEffects?})` | boolean; daemon's process-exit retry classifier |
-| `resolveBoundPort(address: {port:number} \| string \| null)` | positive number or null |
-| `resolveReportHost(bindHost: string)` | loopback for wildcard binds; brackets IPv6 literals |
-| `normalizeDaemonBindHost(input: unknown)` | trimmed String(input ?? '') or loopback fallback |
+| `resolveBoundPort({address}: {address: {port:number} \| string \| null}, _optional: Record<string, never> = {})` | positive number or null |
+| `resolveReportHost({bindHost}: {bindHost: string}, _optional: Record<string, never> = {})` | loopback for wildcard binds; brackets IPv6 literals |
+| `normalizeDaemonBindHost({input}: {input: unknown}, _optional: Record<string, never> = {})` | trimmed String(input ?? '') or loopback fallback |
 | `closeHttpServer(server: http.Server, options: CloseHttpServerOptions = {})` | Promise<void>; idleCloseMs 1000, closeTimeoutMs 5000 |
 | `installGracefulShutdown(stop: () => Promise<void>, options: GracefulShutdownOptions = {})` | `{uninstall():void}`; SIGTERM/SIGINT, timeoutMs 10000, onExit defaults process.exit |
 | `CAPABILITY_IDS`, `CORE_CAPABILITIES`, `JINI_PROFILES` | Frozen capability/profile vocabulary |
@@ -88,16 +88,7 @@ await daemon.stop();
 
 BuiltInFeatureOptions groups host seams for health, runs, agents, hostTools, terminal, daemonDb, delegatedToolCalls, remoteRunEvents, xai, daemonStatus, memory, routines, media and frontendSessions. Required options for a selected feature are checked while composing it. The full current group shapes are in [builtin-features.ts](../../src/builtin-features.ts); no default host memory/routine/media engine is invented.
 
-`createFrontendControl` is re-exported from `@jini-ai/http-kit`:
-
-```ts
-createFrontendControl(
-  { capabilities, resolveBindToken },
-  { policy?, timeoutMs?, maxOutputBytes?, onBindError? } = {},
-): FrontendControl;
-```
-
-The resolver takes `{request: RunCreateRequest}` and returns a bind token or undefined. Return is `{httpExtension, toolRegistrations, bindOnStarted}`; wire all three to the host's routes, registry and start driver. Default policy denies; default capability timeout is 30000 ms. Bind failure is reported without failing the run. Re-exported `CreateFrontendControlOptions`, `FrontendControl`, `FrontendBindErrorContext`, `FrontendHttpExtension` remain owned by http-kit.
+`createFrontendControl` is **not** exported from `@jini-ai/server`: it is owned by `@jini-ai/daemon/http`, and a host imports it from there (see `@jini-ai/daemon`'s API spec for its signature, resolver, defaults and the `FrontendControl` it returns). Wire its `routes({ host })` (a route list for `mountRoutes`), `toolRegistrations` and `bindOnStarted` to the host's routes, registry and start driver; `setTimer` is required (the preset exports `nodeSessionTimer`).
 
 ## Backend selection and local storage
 

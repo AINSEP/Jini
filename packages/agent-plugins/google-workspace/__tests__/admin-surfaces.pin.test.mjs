@@ -1,5 +1,5 @@
 /**
- * @file Characterization pins for the existing `tovu-admin-surfaces.json` before the G13b panels
+ * @file Characterization pins for the existing `jini-admin-surfaces.json` before the G13b panels
  * extend it: the `connection` surface keeps its id, title and entry (the admin page's tab and any
  * saved link name it), the file still passes Jini's descriptor parser, and every served file stays
  * static and secret-free (the files route is public and the CSP forbids inline script and style).
@@ -15,12 +15,12 @@ const root = new URL('../', import.meta.url);
 const read = (path) => readFile(new URL(path, root), 'utf8');
 
 async function descriptors() {
-  const parsed = parseAdminSurfacesFile({ raw: await read('tovu-admin-surfaces.json') });
+  const parsed = parseAdminSurfacesFile({ raw: await read('jini-admin-surfaces.json') });
   assert.equal(parsed.ok, true, parsed.reason);
   return parsed.descriptors;
 }
 
-test('tovu-admin-surfaces.json: the connection surface keeps its id, title and entry', async () => {
+test('jini-admin-surfaces.json: the connection surface keeps its id, title and entry', async () => {
   const connection = (await descriptors()).find((surface) => surface.id === 'connection');
   assert.deepEqual({ id: connection.id, title: connection.title, entry: connection.entry }, { id: 'connection', title: 'Google Workspace', entry: 'ui/connection-panel.html' });
 });

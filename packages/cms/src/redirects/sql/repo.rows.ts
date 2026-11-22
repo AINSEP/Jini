@@ -1,7 +1,7 @@
 import type { Insertable, Selectable } from "kysely";
 
 import type { RedirectsTable, RedirectRevisionsTable } from "./row-types.js";
-import { toBool } from "@jini-ai/db/kernel";
+import { toBool } from "@jini-ai/core/contracts/storage";
 import type {
   RedirectMatchType,
   RedirectRecord,
@@ -30,7 +30,7 @@ export function toRecord({ row }: { row: RedirectRow }, _optional: Record<string
     toTarget: row.to_target,
     statusCode: row.status_code as RedirectStatusCode,
     status: row.status as RedirectStatus,
-    override: toBool(row.override) === true,
+    override: toBool({ value: row.override }) === true,
     priority: row.priority,
     source: row.source as RedirectSource,
     sourceEntryId: row.source_entry_id ?? undefined,
@@ -96,7 +96,7 @@ export function toRevision({ row }: { row: RedirectRevisionRow }, _optional: Rec
     workspaceId: row.workspace_id,
     seq: row.seq,
     state: JSON.parse(row.state_json) as RedirectRecord,
-    tombstoned: toBool(row.tombstoned) === true,
+    tombstoned: toBool({ value: row.tombstoned }) === true,
     actorId: row.actor_id,
     pluginId: row.plugin_id ?? undefined,
     recordedAt: row.recorded_at,

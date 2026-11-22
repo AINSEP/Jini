@@ -1,17 +1,20 @@
 import { useCallback, useEffect, useState } from 'react';
-import { applyAdminTheme, resolveColorScheme, type AdminTheme, type ColorSchemePreference } from '@jini-ai/ui/theme';
+import { useAdminThemeKit, type AdminTheme, type AdminThemeKit, type ColorSchemePreference } from '../kit.js';
 import type { AdminShellAppearance, AdminThemeEnvironment, AdminThemePreferenceStorePort } from './theme-ports.js';
 
 /** Keep effects inside the host's scope; storage reads/writes never use ambient browser state. */
 export function useAdminTheme({ userId, workspace }: {
   readonly userId: string | null; readonly workspace: Readonly<Record<string, string>>;
-}, { theme, colorScheme, environment, preferenceStore, onColorSchemeChange }: {
+}, { theme, colorScheme, environment, preferenceStore, onColorSchemeChange, useThemeKit = useAdminThemeKit }: {
   readonly theme?: AdminTheme;
   readonly colorScheme?: ColorSchemePreference;
   readonly environment?: AdminThemeEnvironment;
   readonly preferenceStore?: AdminThemePreferenceStorePort;
   readonly onColorSchemeChange?: (args: { readonly preference: ColorSchemePreference }) => void;
+  /** The host's theme kit, read once per render; defaults to the kit the nearest `AdminKitProvider` supplies. */
+  readonly useThemeKit?: () => AdminThemeKit;
 } = {}): AdminShellAppearance | undefined {
+  const { applyAdminTheme, resolveColorScheme } = useThemeKit();
   const scope = JSON.stringify([userId, Object.entries(workspace).sort(([a], [b]) => a.localeCompare(b))]);
   const [saved, setSaved] = useState<{ scope: string; preference: ColorSchemePreference } | null>(null);
   // Only the setter is used: bumping the revision re-renders, which re-reads the live media
@@ -29,7 +32,7 @@ export function useAdminTheme({ userId, workspace }: {
     if (!theme) return undefined;
     if (!environment) throw new TypeError('AdminShell theme requires a themeEnvironment port');
     return applyAdminTheme({ theme }, environment);
-  }, [theme, environment]);
+  }, [theme, environment, applyAdminTheme]);
 
   useEffect(() => {
     if (!environment || preference !== 'system') return undefined;

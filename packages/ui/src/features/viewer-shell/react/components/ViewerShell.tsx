@@ -27,12 +27,12 @@ export interface ViewerShellProps {
  */
 export function ViewerShell({ kindClassName, toolbarLeft, toolbarActions, bodyClassName, children }: ViewerShellProps) {
   return (
-    <div className={withClassName('viewer', kindClassName)}>
-      <div className="viewer-toolbar">
-        <div className="viewer-toolbar-left">{toolbarLeft}</div>
-        {toolbarActions ? <div className="viewer-toolbar-actions">{toolbarActions}</div> : null}
+    <div className={withClassName({ base: 'viewer', extra: kindClassName })}>
+      <div className="jini-viewer-toolbar">
+        <div className="jini-viewer-toolbar-left">{toolbarLeft}</div>
+        {toolbarActions ? <div className="jini-viewer-toolbar-actions">{toolbarActions}</div> : null}
       </div>
-      <div className={withClassName('viewer-body', bodyClassName)}>{children}</div>
+      <div className={withClassName({ base: 'viewer-body', extra: bodyClassName })}>{children}</div>
     </div>
   );
 }

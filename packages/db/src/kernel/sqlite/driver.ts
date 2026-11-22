@@ -1,10 +1,10 @@
 import path from "node:path";
 import { assertDatabaseCopySpace } from "../../sqlite/backup-policy.js";
 
+import type { SqliteClient, SqliteOpener } from "@jini-ai/core/contracts/storage";
 import { Kysely, type SqliteDatabase, SqliteDialect } from "kysely";
 
-import { buildKernel, type StorageKernel, TurnLock } from "../index.js";
-import type { SqliteClient, SqliteOpener } from "../../sqlite/types.js";
+import { buildKernel, type KyselyKernel, TurnLock } from "../index.js";
 import { checkedClients, checkedStates, connectionsByKernel, rawKernelClients } from "../../sqlite/checked-state.js";
 import { inheritOwnedTransaction } from "../owned-transaction.js";
 
@@ -33,7 +33,7 @@ import { inheritOwnedTransaction } from "../owned-transaction.js";
  * The connection's opener closes it; `close()` here does nothing.
  */
 
-export type SqliteKernel<DB> = StorageKernel<DB>;
+export type SqliteKernel<DB> = KyselyKernel<DB>;
 
 /** An ORM handle that carries its better-sqlite3 client as `$client`, or the client itself. */
 export type SqliteConnectionSource = SqliteClient | { readonly $client: SqliteClient };
@@ -55,7 +55,7 @@ function turnLockFor(client: SqliteClient): TurnLock | undefined {
 }
 
 /** The better-sqlite3 client under `source` (a handle's `$client`, or the client itself). */
-export function sqliteClientOf(source: SqliteConnectionSource): SqliteClient {
+export function sqliteClientOf({ source }: { source: SqliteConnectionSource }, _optional: Record<string, never> = {}): SqliteClient {
   return "$client" in source ? source.$client : source;
 }
 
@@ -91,15 +91,15 @@ function bindingShim(client: SqliteClient): SqliteDatabase {
   };
 }
 
-export function sqliteKernel<DB>(source: SqliteConnectionSource): SqliteKernel<DB> {
-  const client = sqliteClientOf(source);
+export function sqliteKernel<DB>({ source }: { source: SqliteConnectionSource }, _optional: Record<string, never> = {}): SqliteKernel<DB> {
+  const client = sqliteClientOf({ source });
   const checked = checkedClients.has(client);
   if (checkedStates.has(client) && !checked) throw new Error("cannot mix raw and checked SQLite kernel ownership");
   if (!checked) rawKernelClients.add(client);
   const known = kernels.get(client);
   if (known !== undefined) return known as SqliteKernel<DB>;
   const base = new Kysely<DB>({ dialect: new SqliteDialect({ database: bindingShim(client) }) });
-  const kernel = buildKernel<DB>({
+  const kernel = buildKernel<DB>({ driver: {
     dialect: "sqlite",
     transport: "better-sqlite3",
     capabilities: { interactiveTransactions: true, atomicBatch: true, transactionalDdl: true, backup: true },
@@ -126,7 +126,7 @@ export function sqliteKernel<DB>(source: SqliteConnectionSource): SqliteKernel<D
       await client.backup(destPath);
     },
     close: async () => {},
-  });
+  } });
   kernels.set(client, kernel as SqliteKernel<unknown>);
   connectionsByKernel.set(kernel as SqliteKernel<unknown>, client);
   return kernel;
@@ -138,7 +138,7 @@ export function sqliteKernel<DB>(source: SqliteConnectionSource): SqliteKernel<D
  *
  * @param required.open the consumer's better-sqlite3 opener, e.g. `(p, o) => new Database(p, o)`.
  */
-export function openMemorySqliteKernel<DB>(required: { open: SqliteOpener }): SqliteKernel<DB> {
+export function openMemorySqliteKernel<DB>(required: { open: SqliteOpener }, _optional: Record<string, never> = {}): SqliteKernel<DB> {
   return openSqliteFileKernel<DB>({ filePath: ":memory:", open: required.open });
 }
 
@@ -165,13 +165,13 @@ export function openSqliteFileKernel<DB>(
   // throwing SQLITE_BUSY at once.
   client.pragma("busy_timeout = 5000");
   if (!readOnly) client.pragma("foreign_keys = ON");
-  const kernel = sqliteKernel<DB>(client);
+  const kernel = sqliteKernel<DB>({ source: client });
   const owned: SqliteKernel<DB> = {
     ...kernel,
-    close: async () => closeSqliteConnection(client),
+    close: async () => closeSqliteConnection({ source: client }),
   };
   connectionsByKernel.set(owned as SqliteKernel<unknown>, client);
-  inheritOwnedTransaction({ from: kernel as StorageKernel<unknown>, to: owned as StorageKernel<unknown> });
+  inheritOwnedTransaction({ from: kernel as KyselyKernel<unknown>, to: owned as KyselyKernel<unknown> });
   return owned;
 }
 
@@ -180,13 +180,13 @@ export function openSqliteFileKernel<DB>(
  * and forgets its kernel. For callers that opened a database themselves and must
  * release it; the kernel's own `close()` never closes a connection it did not open.
  */
-export function closeSqliteConnection(source: SqliteConnectionSource): void {
-  const client = sqliteClientOf(source);
+export function closeSqliteConnection({ source }: { source: SqliteConnectionSource }, _optional: Record<string, never> = {}): void {
+  const client = sqliteClientOf({ source });
   kernels.delete(client);
   client.close();
 }
 
 /** The connection under a kernel this driver built, for the SQLite `StorageOps` (`./ops.ts`). */
-export function sqliteConnectionOf<DB>(kernel: StorageKernel<DB>): SqliteClient | undefined {
-  return connectionsByKernel.get(kernel as StorageKernel<unknown>);
+export function sqliteConnectionOf<DB>({ kernel }: { kernel: KyselyKernel<DB> }, _optional: Record<string, never> = {}): SqliteClient | undefined {
+  return connectionsByKernel.get(kernel as KyselyKernel<unknown>);
 }

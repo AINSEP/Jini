@@ -1,7 +1,7 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import { accessApprovalDetails } from '../../surfaces/access-approval.js';
 import { buildConfirmationSurface, CONFIRM_DWELL_MS } from '../../surfaces/confirmation.js';
-import { MCP_UI_ACTION_PLAN_META_KEY } from '../../resource.js';
+import { MCP_UI_ACTION_PLAN_META_KEY } from '@jini-ai/protocol/mcp-ui';
 import { mountSurface } from './mount-surface.js';
 
 const access = () => ({ resources: [{ id: 'mail', label: 'Mail <tools>', scope: { personId: 'person', siteId: 'site', chatId: 'chat' }, previous: { allow: [] }, proposed: { allow: ['read'], write: [] }, revision: 'v1' }] });

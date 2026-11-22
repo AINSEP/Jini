@@ -25,9 +25,8 @@ it('publishes every isolated extraction entry with its browser or universal clas
     '@radix-ui/react-radio-group': '^1.4.7',
     '@radix-ui/react-select': '^2.3.7',
     '@radix-ui/react-slot': '^1.3.3',
-    '@jini-ai/agent-runtime': '^0.6.10',
-    '@jini-ai/protocol': '^0.6.10',
-    '@jini-ai/ui': '^0.6.10',
+    '@jini-ai/agent-runtime': '^0.7.3-next.2',
+    '@jini-ai/ui': '^0.7.3-next.2',
   };
   expect(manifest.peerDependencies).toEqual(expectedPeers);
   expect(manifest.peerDependenciesMeta).toEqual(
@@ -39,9 +38,10 @@ it('publishes every isolated extraction entry with its browser or universal clas
   // them regular dependencies. Only opt-in subpaths and host UI peers remain optional.
   expect(manifest.dependencies).toEqual({
     '@jini-ai/core': 'workspace:^',
-    '@jini-ai/agentic': 'workspace:^',
     '@jini-ai/db': 'workspace:^',
     '@jini-ai/diagnostics': 'workspace:^',
+    // Wave B: core's run-activity reads A2UI surface ids from protocol, so it is required (7b601411).
+    '@jini-ai/protocol': 'workspace:^',
     'kysely': '^0.29.6',
   });
 });

@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/server",
-  "version": "0.7.2",
+  "version": "0.7.3-next.2",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
@@ -9,7 +9,7 @@
   },
   "jini": {
     "domain": "server",
-    "kind": "host",
+    "kind": "host-preset",
     "runtime": "node",
     "admission": "locked",
     "isolation": {
@@ -18,10 +18,9 @@
       }
     },
     "optionalPeers": {
+      "node-pty": "opt-in: import @jini-ai/server/adapters/node-pty — Interactive terminals could not load node-pty. Install node-pty to enable this feature, or check its installed version and native binaries.",
       "better-sqlite3": "opt-in: sqlite storage — SQLite storage could not load better-sqlite3. Install better-sqlite3 to enable this feature, or check its installed version and native binaries.",
-      "@jini-ai/chat": "opt-in: chat host assembly; import @jini-ai/server/storage/legacy/sqlite — Chat host assembly could not load @jini-ai/chat. Install @jini-ai/chat to enable this feature, or check its installed version and native binaries.",
-      "@jini-ai/platform": "opt-in: platform-backed adapters; import @jini-ai/server/owner-store — Platform-backed adapters could not load @jini-ai/platform. Install @jini-ai/platform to enable this feature, or check its installed version and native binaries.",
-      "kysely": "opt-in: sql storage adapters; import @jini-ai/server/owner-store — SQL storage adapters could not load kysely. Install kysely to enable this feature, or check its installed version and native binaries."
+      "@jini-ai/chat": "opt-in: chat host assembly; import @jini-ai/server/storage/legacy/sqlite — Chat host assembly could not load @jini-ai/chat. Install @jini-ai/chat to enable this feature, or check its installed version and native binaries."
     }
   },
   "type": "module",
@@ -47,6 +46,11 @@
       "types": "./dist/store/projects/sqlite.d.ts",
       "import": "./dist/store/projects/sqlite.js",
       "default": "./dist/store/projects/sqlite.js"
+    },
+    "./adapters/node-pty": {
+      "types": "./dist/adapters/node-pty.d.ts",
+      "import": "./dist/adapters/node-pty.js",
+      "default": "./dist/adapters/node-pty.js"
     },
     "./owner-store": {
       "types": "./dist/owner-store/index.d.ts",
@@ -78,9 +82,10 @@
     "test:coverage": "vitest run --coverage"
   },
   "devDependencies": {
+    "node-pty": "^1.1.0",
     "@types/better-sqlite3": "^7.6.11",
     "@types/express": "^4.17.21",
-    "@vitest/coverage-v8": "^2.1.9",
+    "@vitest/coverage-v8": "^3.2.6",
     "better-sqlite3": "^13.0.0",
     "@jini-ai/agent-runtime": "workspace:*",
     "@jini-ai/core": "workspace:*",
@@ -91,7 +96,6 @@
     "@jini-ai/db": "workspace:*",
     "@jini-ai/chat": "workspace:*",
     "@jini-ai/registry": "workspace:*",
-    "@jini-ai/platform": "workspace:*",
     "kysely": "^0.29.6"
   },
   "dependencies": {
@@ -101,27 +105,25 @@
     "@jini-ai/db": "workspace:^",
     "@jini-ai/http-kit": "workspace:^",
     "@jini-ai/registry": "workspace:^",
-    "@jini-ai/sidecar": "workspace:^"
+    "@jini-ai/sidecar": "workspace:^",
+    "@jini-ai/node-adapters": "workspace:^",
+    "@jini-ai/platform": "workspace:^"
   },
   "peerDependencies": {
+    "node-pty": "^1.1.0",
     "better-sqlite3": "^13.0.0",
     "express": "^4.21.0 || ^5.0.0",
-    "@jini-ai/chat": "^0.7.0",
-    "@jini-ai/platform": "^0.7.0",
-    "kysely": "^0.29.6"
+    "@jini-ai/chat": "^0.7.3-next.2"
   },
   "sideEffects": false,
   "peerDependenciesMeta": {
+    "node-pty": {
+      "optional": true
+    },
     "better-sqlite3": {
       "optional": true
     },
     "@jini-ai/chat": {
-      "optional": true
-    },
-    "@jini-ai/platform": {
-      "optional": true
-    },
-    "kysely": {
       "optional": true
     }
   }

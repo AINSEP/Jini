@@ -81,21 +81,19 @@ const EXACT_PUBLIC_IMPORTS = new Set([
   '@jini-ai/daemon/run-credentials',
   // Public CMS soft-delete capability; only this exact entry is public.
   '@jini-ai/cms/trash',
-  // Public domain HTTP entry; private nested paths remain forbidden by exact matching.
-  '@jini-ai/cms/settings/express',
   // R2 exception: the shared untrusted-text sanitizer is a public kernel entry,
   // independent of the CLI shell that previously owned it.
   '@jini-ai/core/text',
   // R2 exception #2 (2026-07-26 extraction): @jini-ai/agentic ships two entry points on
   // purpose — a DOM-free root and a browser-only "./dom" half, split across two
   // tsconfigs so the root's DOM-free guarantee stays compile-time (see
-  // packages/agentic/source-map.md's "The DOM split"). @jini-ai/chat-react genuinely needs
+  // 070311a07^:packages/agentic/source-map.md's "The DOM split"). @jini-ai/chat-react genuinely needs
   // the DOM half (createDomPageDriver) and there is no third package for it to live in
   // without adding to the sprawl this rule exists to bound. Gated to this exact literal,
   // not a pattern — no other package's subpath is exempted by this branch.
   '@jini-ai/agentic/dom',
   // R2 exception #3 (2026-07-28 fold-in): the standalone @jini-ai/a2ui package folded into
-  // @jini-ai/agentic/src/a2ui/ (see packages/agentic/source-map.md's "Folded from
+  // @jini-ai/agentic/src/a2ui/ (see 070311a07^:packages/agentic/source-map.md's "Folded from
   // @jini-ai/a2ui") rather than adding a fourth top-level package — the same
   // sprawl-avoidance reasoning as ./dom above. Published as its own subpath (not bundled
   // into the bare root barrel) since it has zero DOM/React dependency and a consumer of
@@ -149,6 +147,12 @@ const PRODUCT_IDENTITY_STRINGS = [
   'opendesign.app',
   'od://',
 ];
+/**
+ * Tool ids a host product owns. They are vocabulary of one consumer, so engine source may not name them
+ * (a host passes them in through a port); tests and comments may, as fixtures and provenance.
+ */
+const HOST_TOOL_NAMES = ['content_read'];
+const TEST_FILE_RE = /(^|\/)__tests__\/|\.(test|spec)\.[cm]?[jt]sx?$/;
 /** Matched separately (word-boundary) to avoid false positives on identifiers like `MOD_FOO`. */
 const OD_PREFIX_RE = /\bOD_[A-Z0-9_]*/;
 
@@ -457,7 +461,7 @@ export async function checkEngineBoundaries(
   const root = options.repoRoot ?? REPO_ROOT;
   const violations: Violation[] = [];
   const packagesDir = options.packagesDir ?? join(root, 'packages');
-  const files = listSourceFiles(packagesDir, { includeJson: true });
+  const files = listSourceFiles({ dir: packagesDir }, { includeJson: true });
   const packageRecords = loadPackageRecords(root, packagesDir, violations);
   const publicEntries = new Map(sourcePackages({ packagesDir }).map(pkg => [pkg.manifest.name,
   Object.keys(pkg.manifest.exports ?? {}).filter(key => key.startsWith('./'))]));
@@ -520,6 +524,10 @@ export async function checkEngineBoundaries(
         reason: `product-identity prefix "${match ? match[0] : 'OD_'}"`,
       });
     }
+    if (TEST_FILE_RE.test(file)) return;
+    for (const name of HOST_TOOL_NAMES) {
+      if (content.includes(name)) violations.push({ rule: 'R5-neutrality', file, reason: `host tool name "${name}"` });
+    }
 
   }
 
@@ -529,13 +537,13 @@ export async function checkEngineBoundaries(
     // Comment-stripped so module-doc provenance citations (e.g. "the OD_DATA_DIR env var name
     // ... was removed") don't get flagged as a live violation — see stripComments's doc.
     const rawContent = readFileSync(absFile, 'utf8');
-    const content = absFile.endsWith('.json') ? rawContent : stripComments(rawContent);
+    const content = absFile.endsWith('.json') ? rawContent : stripComments({ source: rawContent });
 
     checkProductIdentity(content, file);
     // JSON manifests carry live metadata too, but cannot import engine implementation code.
     if (absFile.endsWith('.json')) return;
 
-    for (const ref of extractImports(absFile)) {
+    for (const ref of extractImports({ absFilePath: absFile })) {
       const spec = ref.specifier;
 
       if (spec.startsWith('.')) {

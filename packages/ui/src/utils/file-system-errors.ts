@@ -21,7 +21,7 @@ export const FILE_SYSTEM_READ_ERROR_MESSAGE =
   'Could not read one or more dropped files or folders. Make sure they still exist and try again.';
 
 /** Wraps an arbitrary caught error into a named `FileSystemReadError`. */
-export function createFileSystemReadError(action: string, error: unknown): Error {
+export function createFileSystemReadError({ action, error }: { action: string; error: unknown }, _optional: Record<string, never> = {}): Error {
   const wrapped = new Error(`${action}: ${errorSummary(error)}`, { cause: error });
   wrapped.name = 'FileSystemReadError';
   return wrapped;

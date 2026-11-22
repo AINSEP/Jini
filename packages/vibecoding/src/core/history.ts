@@ -154,6 +154,131 @@ async function readCurrent(
   }
 }
 
+/** Stacks, target and the open-transaction flag shared by the history operations below. */
+interface HistoryState {
+  readonly target: EditTarget;
+  readonly limit: number;
+  readonly undoStack: HistoryEntry[];
+  readonly redoStack: HistoryEntry[];
+  transactionOpen: boolean;
+}
+
+function pushEntry({ undoStack, redoStack, limit }: HistoryState, entry: HistoryEntry): void {
+  undoStack.push(entry);
+  while (undoStack.length > limit) undoStack.shift();
+  redoStack.length = 0;
+}
+
+/**
+ * Replay part contents directly, deliberately skipping `validate` — see this module's doc for
+ * why an intermediate state of a multi-part rewind must not be judged.
+ */
+async function replayChanges({ target, changes, side }: {
+  target: EditTarget;
+  changes: readonly PartChange[];
+  side: "before" | "after";
+}): Promise<void> {
+  for (const change of changes) {
+    await target.replacePart({ id: change.id, content: side === "before" ? change.before : change.after });
+  }
+}
+
+/** A view of the target whose writes are recorded into `changes`. */
+function recordingTarget({ target, changes }: { target: EditTarget; changes: PartChange[] }): EditTarget {
+  return {
+    listParts: () => target.listParts(),
+    readPart: (args) => target.readPart(args),
+    snapshot: () => target.snapshot(),
+    restore: (args) => target.restore(args),
+    validate: (candidate) => target.validate(candidate),
+    async replacePart({ id, content }: { readonly id: PartId; readonly content: string }): Promise<void> {
+      const current = await readCurrent(target, id);
+      await target.replacePart({ id, content });
+      // A write that changed nothing is not a step a person can meaningfully undo.
+      if (current.existed && current.content === content) return;
+      changes.push({
+        id,
+        before: current.content,
+        after: content,
+        existedBefore: current.existed,
+      });
+    },
+  };
+}
+
+async function runTransaction<T>({ state, work, label }: {
+  state: HistoryState;
+  work: (recording: EditTarget) => Promise<T>;
+  label: string | undefined;
+}): Promise<T> {
+  if (state.transactionOpen) {
+    throw new Error(
+      "a transaction is already open — overlapping transactions would interleave their changes into one another's entries"
+    );
+  }
+  state.transactionOpen = true;
+
+  const changes: PartChange[] = [];
+  try {
+    return await work(recordingTarget({ target: state.target, changes }));
+  } finally {
+    state.transactionOpen = false;
+    // Committed even when `work` threw: partial writes already reached the artifact, and the
+    // caller needs them to be undoable.
+    if (changes.length > 0) pushEntry(state, label === undefined ? { changes } : { label, changes });
+  }
+}
+
+async function undoLast(state: HistoryState): Promise<HistoryEntry | null> {
+  const { undoStack, redoStack } = state;
+  // Peeked, not popped: a `replacePart` that throws partway through leaves the earlier parts
+  // already rewound, and popping first would strand that half-applied entry in NEITHER stack —
+  // the artifact changed and the history API could no longer reach it. Same principle decision
+  // 3 in this module's doc states for `transaction`. Moving between stacks only after a clean
+  // replay means a failed undo is simply retryable: replaying `before` again rewrites the
+  // parts that already landed with the content they already hold (a no-op) and retries the one
+  // that failed.
+  const entry = undoStack[undoStack.length - 1];
+  if (!entry) return null;
+  await replayChanges({ target: state.target, changes: [...entry.changes].reverse(), side: "before" });
+  undoStack.pop();
+  redoStack.push(entry);
+  return entry;
+}
+
+async function redoLast(state: HistoryState): Promise<HistoryEntry | null> {
+  const { undoStack, redoStack } = state;
+  // Peeked for the same reason as `undo` above, in the other direction.
+  const entry = redoStack[redoStack.length - 1];
+  if (!entry) return null;
+  await replayChanges({ target: state.target, changes: entry.changes, side: "after" });
+  redoStack.pop();
+  undoStack.push(entry);
+  return entry;
+}
+
+async function restoreSnapshot(state: HistoryState, snapshot: Snapshot): Promise<HistoryEntry | null> {
+  const { target } = state;
+  const changes: PartChange[] = [];
+  for (const [id, after] of Object.entries(snapshot.parts)) {
+    const current = await readCurrent(target, id);
+    if (current.existed && current.content === after) continue;
+    changes.push({ id, before: current.content, after, existedBefore: current.existed });
+  }
+  if (changes.length === 0) return null;
+
+  // Recorded BEFORE the replay, not after. A restore that throws on its second part has still
+  // changed the first, and pushing afterwards left those writes with no undo record at all —
+  // the destructive-restore failure mode decision 2 in this module's doc exists to prevent,
+  // reached by a different route. The `before` sides were captured above and are correct
+  // regardless of how far the replay got: undoing a partially-applied restore rewrites every
+  // listed part with the content it had before, which is a no-op for the ones never reached.
+  const entry: HistoryEntry = { label: `restore ${snapshot.id}`, changes };
+  pushEntry(state, entry);
+  await replayChanges({ target, changes, side: "after" });
+  return entry;
+}
+
 /**
  * Create an undo/redo stack over one target.
  *
@@ -166,119 +291,20 @@ export function createEditHistory(
   { target }: { readonly target: EditTarget },
   options: EditHistoryOptions = {}
 ): EditHistory {
-  const limit = options.limit ?? 50;
-  const undoStack: HistoryEntry[] = [];
-  const redoStack: HistoryEntry[] = [];
-  let transactionOpen = false;
-
-  function push(entry: HistoryEntry): void {
-    undoStack.push(entry);
-    while (undoStack.length > limit) undoStack.shift();
-    redoStack.length = 0;
-  }
-
-  /**
-   * Replay part contents directly, deliberately skipping `validate` — see this module's doc for
-   * why an intermediate state of a multi-part rewind must not be judged.
-   */
-  async function replay(changes: readonly PartChange[], side: "before" | "after"): Promise<void> {
-    for (const change of changes) {
-      await target.replacePart({ id: change.id, content: side === "before" ? change.before : change.after });
-    }
-  }
+  const state: HistoryState = { target, limit: options.limit ?? 50, undoStack: [], redoStack: [], transactionOpen: false };
+  const { undoStack, redoStack } = state;
 
   return {
-    async transaction<T>(
+    transaction: <T>(
       { work }: { readonly work: (recording: EditTarget) => Promise<T> },
       { label }: { readonly label?: string } = {}
-    ): Promise<T> {
-      if (transactionOpen) {
-        throw new Error(
-          "a transaction is already open — overlapping transactions would interleave their changes into one another's entries"
-        );
-      }
-      transactionOpen = true;
-
-      const changes: PartChange[] = [];
-      const recording: EditTarget = {
-        listParts: () => target.listParts(),
-        readPart: (args) => target.readPart(args),
-        snapshot: () => target.snapshot(),
-        restore: (args) => target.restore(args),
-        validate: (candidate) => target.validate(candidate),
-        async replacePart({ id, content }: { readonly id: PartId; readonly content: string }): Promise<void> {
-          const current = await readCurrent(target, id);
-          await target.replacePart({ id, content });
-          // A write that changed nothing is not a step a person can meaningfully undo.
-          if (current.existed && current.content === content) return;
-          changes.push({
-            id,
-            before: current.content,
-            after: content,
-            existedBefore: current.existed,
-          });
-        },
-      };
-
-      try {
-        return await work(recording);
-      } finally {
-        transactionOpen = false;
-        // Committed even when `work` threw: partial writes already reached the artifact, and the
-        // caller needs them to be undoable.
-        if (changes.length > 0) push(label === undefined ? { changes } : { label, changes });
-      }
-    },
+    ): Promise<T> => runTransaction({ state, work, label }),
 
     canUndo: () => undoStack.length > 0,
     canRedo: () => redoStack.length > 0,
-
-    async undo(): Promise<HistoryEntry | null> {
-      // Peeked, not popped: a `replacePart` that throws partway through leaves the earlier parts
-      // already rewound, and popping first would strand that half-applied entry in NEITHER stack —
-      // the artifact changed and the history API could no longer reach it. Same principle decision
-      // 3 in this module's doc states for `transaction`. Moving between stacks only after a clean
-      // replay means a failed undo is simply retryable: replaying `before` again rewrites the
-      // parts that already landed with the content they already hold (a no-op) and retries the one
-      // that failed.
-      const entry = undoStack[undoStack.length - 1];
-      if (!entry) return null;
-      await replay([...entry.changes].reverse(), "before");
-      undoStack.pop();
-      redoStack.push(entry);
-      return entry;
-    },
-
-    async redo(): Promise<HistoryEntry | null> {
-      // Peeked for the same reason as `undo` above, in the other direction.
-      const entry = redoStack[redoStack.length - 1];
-      if (!entry) return null;
-      await replay(entry.changes, "after");
-      redoStack.pop();
-      undoStack.push(entry);
-      return entry;
-    },
-
-    async restore({ snapshot }: { readonly snapshot: Snapshot }): Promise<HistoryEntry | null> {
-      const changes: PartChange[] = [];
-      for (const [id, after] of Object.entries(snapshot.parts)) {
-        const current = await readCurrent(target, id);
-        if (current.existed && current.content === after) continue;
-        changes.push({ id, before: current.content, after, existedBefore: current.existed });
-      }
-      if (changes.length === 0) return null;
-
-      // Recorded BEFORE the replay, not after. A restore that throws on its second part has still
-      // changed the first, and pushing afterwards left those writes with no undo record at all —
-      // the destructive-restore failure mode decision 2 in this module's doc exists to prevent,
-      // reached by a different route. The `before` sides were captured above and are correct
-      // regardless of how far the replay got: undoing a partially-applied restore rewrites every
-      // listed part with the content it had before, which is a no-op for the ones never reached.
-      const entry: HistoryEntry = { label: `restore ${snapshot.id}`, changes };
-      push(entry);
-      await replay(changes, "after");
-      return entry;
-    },
+    undo: () => undoLast(state),
+    redo: () => redoLast(state),
+    restore: ({ snapshot }: { readonly snapshot: Snapshot }) => restoreSnapshot(state, snapshot),
 
     entries: () => [...undoStack],
     retainedEntries: () => [...undoStack, ...redoStack],

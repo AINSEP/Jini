@@ -1,34 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import {
-  runOpenAiToolTurn,
-  openAiRequestUrl,
-  openAiHeaders,
-  openAiRequestBody,
-  extractOpenAiErrorDetail,
-  parseOpenAiSseData,
-  applyOpenAiStreamUsage,
-  firstOpenAiChoice,
-  handleOpenAiTextContentDelta,
-  newPendingOpenAiToolCall,
-  accumulateOpenAiToolCallDelta,
-  handleOpenAiChoiceDelta,
-  resolveOpenAiToolCalls,
-  processOpenAiStreamFrame,
-  invalidOpenAiContentPartReason,
-  sanitizeOpenAiToolResult,
-  splitOpenAiToolResultContent,
-  openAiLoopExitReason,
-  executeOpenAiToolCalls,
-  buildOpenAiAssistantToolCallMessage,
-  buildOpenAiToolExchangeMessages,
-  type OpenAiMessageParam,
-  type OpenAiTurnEvent,
-  type OpenAiStreamState,
-  type OpenAiToolCall,
-  type OpenAiContentPart,
-  type OpenAiCompatibleRequestOutcome,
-  type PendingToolCall,
-} from '../openai-chat.js';
+import { runOpenAiToolTurn, openAiRequestUrl, openAiHeaders, openAiRequestBody, openAiLoopExitReason } from '../openai-chat.js';
+import { extractOpenAiErrorDetail, processOpenAiStreamFrame } from '../openai-chat-request.js';
+import { parseOpenAiSseData, applyOpenAiStreamUsage, firstOpenAiChoice, handleOpenAiTextContentDelta, newPendingOpenAiToolCall, accumulateOpenAiToolCallDelta, handleOpenAiChoiceDelta, resolveOpenAiToolCalls } from '../openai-chat-stream.js';
+import { invalidOpenAiContentPartReason, sanitizeOpenAiToolResult, splitOpenAiToolResultContent, executeOpenAiToolCalls, buildOpenAiAssistantToolCallMessage, buildOpenAiToolExchangeMessages } from '../openai-chat-tool-results.js';
+import { type OpenAiMessageParam, type OpenAiTurnEvent, type OpenAiStreamState, type OpenAiToolCall, type OpenAiContentPart, type OpenAiCompatibleRequestOutcome, type PendingToolCall } from '../openai-chat-types.js';
 import { pinnedFetch } from '../connection-guard.js';
 import { createRoleMarkerGuard } from '../../role-marker-guard.js';
 

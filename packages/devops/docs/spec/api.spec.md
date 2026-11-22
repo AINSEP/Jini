@@ -7,7 +7,7 @@ spec_mode: reverse_spec
 
 # DevOps API contract
 
-All 12 `package.json` exports are covered below. Current functions use a required object and, where implemented, an optional object defaulting to `{}`. A required-only function has no implemented second argument. Structural callback ports and the SigV4 factory retain their current signatures. No provider implementations are bundled.
+All 12 `package.json` exports are covered below. Plain helper functions use a required object and an optional object defaulting to `{}`; signatures below may omit empty optional objects. Published overloads and callback implementations retain their declared signatures. Structural callback ports and the SigV4 factory retain their current signatures. No provider implementations are bundled.
 
 ## Root: `@jini-ai/devops`
 
@@ -261,7 +261,7 @@ Evidence: current subpath barrels/implementations and their existing tests, read
 
 ## ./deploy/node
 
-`createNodeReachabilityPorts({}, {fetch?: typeof globalThis.fetch,lookupImpl?: typeof node:dns.lookup} = {}): Pick<ReachabilityArgs, "fetch"|"guard">` supplies URL admission and connection-time DNS validation. The default undici dispatcher is shared/lazy; a lookup override owns an instance dispatcher. The selected native fetch receives dispatcher and RequestInit. Universal deploy code requires these ports and does not import this Node adapter.
+`createNodeReachabilityPorts({ assertSafeUrl, createValidatingLookup }, {fetch?: typeof globalThis.fetch,lookupImpl?: typeof node:dns.lookup} = {}): Pick<ReachabilityArgs, "fetch"|"guard">` supplies URL admission and connection-time DNS validation through the two platform functions the host passes in (`assertSafePublicUrl`, `createValidatingLookup`). The default undici dispatcher is shared/lazy; a lookup override owns an instance dispatcher. The selected native fetch receives dispatcher and RequestInit. Universal deploy code requires these ports and does not import this Node adapter.
 
 ## Current manifest boundary
 

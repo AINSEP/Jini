@@ -18,7 +18,7 @@ const result = await engine.generate({ surface: 'image', model: 'dall-e-3' }, { 
 ```
 
 No media path constructs a client implicitly: missing clients fail before network I/O.
-`fetchMediaOutbound({ url, timeoutMs }, { httpClient, init? })` requires the injected port.
+`fetchMediaOutbound({ url, timeoutMs, httpClient }, { init? })` requires the injected port.
 The explicit Node adapter selects native DNS/clock/pinned-transport ports. Its policy permits HTTP(S),
 denies private, loopback, link-local and reserved peers, rejects URL credentials, and caps decoded
 bytes at 96 MiB. Every DNS answer must be allowed, and the transport dials the checked IP while

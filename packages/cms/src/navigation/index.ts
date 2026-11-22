@@ -73,22 +73,24 @@ export {
 } from "./repo.memory.js";
 
 /**
- * `isAllowedHref`/`ALLOWED_HREF_SHAPES_DESCRIPTION` (2026-09-03): the canonical author-link
+ * `isAllowedHref`/`toAllowedHref`/`ALLOWED_HREF_SHAPES_DESCRIPTION` (2026-09-03): the canonical author-link
  * allowlist, promoted here specifically so a HOST can import it rather than hand-copy it — the
  * dependency direction a host -> `@jini-ai/cms` is the one that is actually legal (the reverse is
  * not). The host's own render-time `safeHref` (`server/inbound/public-http/http/site/render.ts` and its
- * `features/theme/static-render.ts` duplicate) have not yet been migrated to import this — see
- * `menu-service.ts`'s own doc comment on `isAllowedHref` for the retirement plan and why nothing in
- * `check:boundaries` blocks either host-side call site from doing so.
+ * `features/theme/static-render.ts` duplicate) were migrated to import this (2026-11-17) — see
+ * `href.ts`'s own doc comment on `isAllowedHref` for the retirement plan and why nothing in
+ * `check:boundaries` blocked either host-side call site from doing so. The same three are the
+ * dependency-free leaf `@jini-ai/cms/navigation/href`, for a render worker whose import graph must not
+ * load this barrel's menu service, tool registrations and `@jini-ai/core` root.
  */
+export { isAllowedHref, toAllowedHref, ALLOWED_HREF_SHAPES_DESCRIPTION } from "./href.js";
+
 export {
   createMenu,
   updateMenuTree,
   assignLocation,
   deleteMenu,
   validateAndCloneTree,
-  isAllowedHref,
-  ALLOWED_HREF_SHAPES_DESCRIPTION,
   MenuNotFoundError,
   MenuValidationError,
   MenuConflictError,

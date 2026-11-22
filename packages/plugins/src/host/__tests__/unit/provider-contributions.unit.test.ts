@@ -6,8 +6,7 @@ import { validateManifest } from '../../manifest.js';
 import { pluginClaimsFromManifest } from '../../plugin-claims.js';
 import { loadPlugin, type LoadPluginRequired } from '../../node/loader.js';
 import type { PluginManifest } from '../../manifest-types.js';
-import type { PluginSdk } from '../../ports.js';
-import type { PluginProviderContribution, PluginProviderResource } from '../../provider-contributions.js';
+import type { PluginSdk, PluginProviderContribution, PluginProviderResource } from '@jini-ai/core/contracts/plugin-sdk';
 import { manifestHost, pluginSdkBinding, tierPolicy } from '../support/fixture-bindings.js';
 
 const digest = `sha256-${'a'.repeat(64)}`;
@@ -137,6 +136,28 @@ describe('generation retirement and provider resources', () => {
     expect(lease?.port).toBe('ok');
     await lease!.dispose({}); await lease!.dispose({}); await host.dispose({});
     expect(lease!.isCurrent({})).toBe(false); expect(dispose).toHaveBeenCalledTimes(1);
+  });
+  it('hands a contract\'s domain context to the factory; host options win only for their own keys', async () => {
+    const registry = createPluginContributionRegistry({});
+    const factory = vi.fn(() => ({ port: 'ok', dispose() {} }));
+    publish({ registry, factory });
+    const context = { helper: 'domain', shared: 'domain' };
+    const host = createPluginProviderHost({ contributions: registry, contracts: [{ ...contract, context }] });
+    const factoryOptions = { borrowed: true, context: { helper: 'host' } };
+    await host.initialize({ ...declaration, input: {} }, { factoryOptions });
+    expect(factory).toHaveBeenCalledWith({}, { borrowed: true, context: { helper: 'host' } });
+    await host.initialize({ ...declaration, input: {} });
+    expect(factory).toHaveBeenLastCalledWith({}, { context });
+    await host.dispose({});
+  });
+  it('leaves factory options unchanged when the contract carries no context', async () => {
+    const registry = createPluginContributionRegistry({});
+    const factory = vi.fn(() => ({ port: 'ok', dispose() {} }));
+    publish({ registry, factory });
+    const host = createPluginProviderHost({ contributions: registry, contracts: [contract] });
+    await host.initialize({ ...declaration, input: {} });
+    expect(factory).toHaveBeenCalledWith({}, {});
+    await host.dispose({});
   });
   it('disposes a rejected port, including when the injected validator throws', async () => {
     for (const validate of [contract.validate, () => { throw new Error('validator failed'); }]) {

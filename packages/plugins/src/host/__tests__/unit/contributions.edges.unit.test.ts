@@ -114,14 +114,13 @@ describe('renderPluginWidgetFragments', () => {
     expect(checks).toBe(2);
   });
 
-  it.each([true, false])('without an error port, widget failures are redacted (Error instance=%s)', async asError => {
+  it.each([true, false])('without an error port, widget failures log the class only (Error instance=%s)', async asError => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const registry = createPluginContributionRegistry({});
-    const secret = 'ghp_' + 's'.repeat(36);
-    const failure = asError ? new Error(`render exploded ${secret}`) : `render exploded ${secret}`;
+    const failure = asError ? new Error('boom api_key=SECRETSECRETSECRETSECRET') : 'boom api_key=SECRETSECRETSECRETSECRET';
     registry.replace({ contributions: sealed('sample', { hello: () => { throw failure; } }) });
     expect((await renderPluginWidgetFragments(base(registry))).hello).toBe('');
-    expect(warn).toHaveBeenCalledWith("[plugins] Plugin 'sample' widget 'hello' failed", expect.stringContaining("render exploded [REDACTED:github_token]"));
-    expect(String(warn.mock.calls[0]?.[1])).not.toContain(secret);
+    expect(warn).toHaveBeenCalledWith("[plugins] Plugin 'sample' widget 'hello' failed", asError ? 'Error' : 'string');
+    expect(JSON.stringify(warn.mock.calls)).not.toMatch(/boom|SECRETSECRET|contributions\.edges/);
   });
 });

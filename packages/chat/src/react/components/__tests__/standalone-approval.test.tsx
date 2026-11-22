@@ -1,19 +1,20 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, expect, it, vi } from 'vitest';
-import { buildFormSurface, type McpUiHostProps } from '@jini-ai/ui/mcp-ui';
+import { buildFormSurface } from '@jini-ai/ui/mcp-ui';
+import type { McpUiHostProps } from '../../surfaces.js';
 import type { AgentEvent, ChatMessage } from '../../../core/index.js';
 import { clearExtEventRenderers } from '../../ext-event-renderer-registry.js';
 import { registerMcpUiSurfaceRenderer } from '../McpUiSurfaceCard.js';
+import { fakeChatSurfaces, renderWithChatSurfaces as renderWithSurfaces } from '../../__tests__/fake-chat-surfaces.js';
 import { MessageRow } from '../MessageRow.js';
 import { surfaceQuestionInput } from '../mcp-ui-question-input.js';
 
-vi.mock('@jini-ai/ui/mcp-ui', async original => ({
-  ...await original<typeof import('@jini-ai/ui/mcp-ui')>(),
-  McpUiHost: ({ onToolCall, title }: McpUiHostProps) => <section aria-label={title}><button onClick={() => {
+// The surfaces port supplies the MCP-UI host; this stub replaces the sandbox so tests drive its props boundary.
+const StubHost = ({ onToolCall, title }: McpUiHostProps) => <section aria-label={title}><button onClick={() => {
     void onToolCall?.({ name: 'answer', arguments: { selections: ['site-guide'] } });
-  }}>Use guide</button></section>,
-}));
+  }}>Use guide</button></section>;
+const renderWithChatSurfaces = (ui: Parameters<typeof renderWithSurfaces>[0]) => renderWithSurfaces(ui, { surfaces: fakeChatSurfaces({ mcpUi: { Host: StubHost } }) });
 
 const resource = buildFormSurface({
   uri: 'ui://approval/plugins', title: 'Agent plugins', toolName: 'answer', submitLabel: 'Use',
@@ -28,7 +29,7 @@ it.each([false, true])('shows standalone option labels and title with an unrelat
   const execute = vi.fn().mockResolvedValue({ delivered: true });
   registerMcpUiSurfaceRenderer({ sandboxProxyUrl: new URL('https://sandbox.test/proxy.html'), onToolCall: execute });
   const ownedEvents: AgentEvent[] = enclosingCall ? [{ kind: 'tool_use', id: 'parent', name: 'update_page', input: {} }, ...events] : events;
-  const view = render(<MessageRow message={{ ...message, events: ownedEvents }} runStreaming />);
+  const view = renderWithChatSurfaces(<MessageRow message={{ ...message, events: ownedEvents }} runStreaming />);
   expect(screen.getByText('Waiting for your answer above')).toBeInTheDocument();
   expect(view.container.textContent).not.toContain('Thinking…');
   await userEvent.click(screen.getByRole('button', { name: 'Use guide' }));
@@ -59,7 +60,7 @@ it('keeps readable receipt text and displays the updated outcome after history r
     { kind: 'tool_result', toolUseId: 'parent', content: '{"submitted":true,"selections":["site-guide"]}', isError: false },
     { kind: 'ext', name: 'mcp-ui', data: { ...resource, resource: { ...resource.resource, text: '<h1>Saved</h1>' } } },
   ];
-  const renderSaved = () => render(<MessageRow message={{ ...message, events: JSON.parse(JSON.stringify(savedEvents)), runStatus: 'succeeded' }} />);
+  const renderSaved = () => renderWithChatSurfaces(<MessageRow message={{ ...message, events: JSON.parse(JSON.stringify(savedEvents)), runStatus: 'succeeded' }} />);
   const view = renderSaved();
   expect(view.container.querySelector('.jini-message-user .jini-message-content')?.textContent).toBe('Agent plugins: Site guide');
   expect(view.container.querySelector('.mcpui-surface-card-closed')).toBeNull();

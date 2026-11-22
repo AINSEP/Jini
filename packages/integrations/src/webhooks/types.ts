@@ -36,6 +36,8 @@ export interface WebhookSubscriptionRecord {
   createdByPluginId: string | null;
   createdAt: ISODateTime;
   updatedAt: ISODateTime;
+  /** Optimistic concurrency counter for subscription edits. */
+  version: number;
   // Retain the disabled row and timestamp for durable audit lineage.
   disabledAt: ISODateTime | null;
 }

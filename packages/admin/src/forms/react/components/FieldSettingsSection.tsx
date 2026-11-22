@@ -1,4 +1,4 @@
-import { agentHandle } from '@jini-ai/agentic';
+import { agentHandle } from '@jini-ai/core/agent-handles';
 import type { AdminFormField } from '../../models.js';
 import { useFieldSettingsView } from '../hooks/forms-view.hooks.js';
 import { FieldSettingsDefaultRows, FieldSettingsLimitRows, FieldSettingsOptionsRow, FieldSettingsTextRows, FieldSettingsUploadRows } from './FieldSettingsRows.js';
@@ -8,6 +8,8 @@ export interface FieldSettingsSectionProps {
   field: AdminFormField;
   controller: FieldAttributesDialogController;
   t: (key: string) => string;
+  /** Dependency injection seam for tests; defaulted to the real hook. */
+  useFieldSettingsViewHook?: typeof useFieldSettingsView;
 }
 
 /**
@@ -20,8 +22,8 @@ export interface FieldSettingsSectionProps {
  * placeholder (slider, file…) focused the Help text ⓘ, whose tip opened half behind the dialog
  * (Chrome check, 2026-10-11). Focus must land on an input, never on an ⓘ.
  */
-export function FieldSettingsSection({ field, controller, t }: FieldSettingsSectionProps) {
-  const view = useFieldSettingsView({ field, controller, t });
+export function FieldSettingsSection({ field, controller, t, useFieldSettingsViewHook = useFieldSettingsView }: FieldSettingsSectionProps) {
+  const view = useFieldSettingsViewHook({ field, controller, t });
   const { settings } = view;
   return (
     <div className="field-settings" {...agentHandle({ handle: 'form-field-settings' }, { role: 'region', label: "This field's type-specific settings" })}>

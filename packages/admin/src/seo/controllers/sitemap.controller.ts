@@ -1,4 +1,4 @@
-import { createControllerStore } from '../../core/module/controller-store.js';
+import { createControllerStore, describeApiError } from '@jini-ai/core/admin-runtime';
 import type { AdminSeoPort } from '../ports.js';
 import type { SitemapState, SitemapModalView } from '../models.js';
 /** Disabled is terminal, distinct from loading. Refetch generations ignore older responses. */
@@ -16,7 +16,7 @@ export function createSitemapController(
       const { text } = await api.fetchSitemapXml({}, { signal: store.signal });
       if (ticket === generation) store.set({ patch: { xmlText: text, status: 'ready' } });
     } catch (error) {
-      if (ticket === generation) store.set({ patch: { error: error instanceof Error ? error.message : 'failed to load the sitemap', status: 'error' } });
+      if (ticket === generation) store.set({ patch: { error: describeApiError({ e: error, fallback: 'failed to load the sitemap' }), status: 'error' } });
     }
   }
   return {

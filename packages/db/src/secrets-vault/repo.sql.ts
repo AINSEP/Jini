@@ -1,8 +1,20 @@
 import { sql, type Expression, type Kysely } from "kysely";
-import { assertVaultReplacement, VaultError, type VaultBatchOp, type VaultBatchResult, type VaultDefaultQuery, type VaultSingletonQuery, type VaultMeta, type VaultOptions, type VaultQuery,
-  type VaultRecord, type VaultRepoPort } from "@jini-ai/platform/secrets/credential-sets/contracts";
-import { jsonSet, toBool } from "../kernel/dialect.js";
-import type { StorageKernel } from "../kernel/port.js";
+import {
+  assertVaultReplacement,
+  VaultError,
+  type VaultBatchOp,
+  type VaultBatchResult,
+  type VaultDefaultQuery,
+  type VaultSingletonQuery,
+  type VaultMeta,
+  type VaultOptions,
+  type VaultQuery,
+  type VaultRecord,
+  type VaultRepoPort,
+} from "@jini-ai/core/contracts/vault";
+import { jsonSet } from "../kernel/dialect.js";
+import { toBool } from "@jini-ai/core/contracts/storage";
+import type { KyselyKernel } from "../kernel/port.js";
 
 /** Fixed columns consumed by the adapter; hosts own DDL, foreign keys and migration provenance.
  * A partial unique default index and label index use the same scope as VaultRepoPort.
@@ -30,7 +42,7 @@ function fromRow(row: SecretsVaultTable): VaultRecord {
   catch { throw new VaultError({ code: "invalid-meta" }); }
   return { workspaceId: row.workspace_id, id: row.id, kind: row.kind, ownerKey: row.owner_key,
     principalId: row.principal_id, binding: row.binding, provider: row.provider, label: row.label,
-    isDefault: toBool(row.is_default) ?? false, revision: Number(row.revision),
+    isDefault: toBool({ value: row.is_default }) ?? false, revision: Number(row.revision),
     sealed: row.sealed_key_id === null ? null : { keyId: row.sealed_key_id, ciphertext: row.sealed_ciphertext!, nonce: row.sealed_nonce!, alg: row.sealed_alg! },
     last4: row.last4, tokenLength: row.token_length,
     meta,
@@ -61,8 +73,8 @@ function compareIds(a: string, b: string): number {
 }
 
 export class SqlSecretsVaultRepo implements VaultRepoPort {
-  private readonly kernel: StorageKernel<SecretsVaultDatabase>;
-  constructor({ kernel }: { kernel: StorageKernel<SecretsVaultDatabase> }, _options: VaultOptions = {}) { this.kernel = kernel; }
+  private readonly kernel: KyselyKernel<SecretsVaultDatabase>;
+  constructor({ kernel }: { kernel: KyselyKernel<SecretsVaultDatabase> }, _options: VaultOptions = {}) { this.kernel = kernel; }
 
   private write<T>(workspaceId: string, body: () => Promise<T>): Promise<T> {
     return this.kernel.transaction(async () => {
@@ -183,7 +195,7 @@ export class SqlSecretsVaultRepo implements VaultRepoPort {
     return this.write(input.workspaceId, async () => {
       const row = await this.kernel.run(db => db.updateTable("secrets_vault").set(eb => {
         let meta: Expression<unknown> = eb.ref("meta");
-        for (const [key, value] of Object.entries(input.patch)) meta = jsonSet(this.kernel.dialect, meta, [key], value);
+        for (const [key, value] of Object.entries(input.patch)) meta = jsonSet({ dialect: this.kernel.dialect, column: meta, path: [key], value });
         return { meta: meta as Expression<string>, revision: eb("revision", "+", 1), updated_at: input.updatedAt };
       }).where("workspace_id", "=", input.workspaceId).where("id", "=", input.id)
         .where("revision", "=", input.expectedRevision).returningAll().executeTakeFirst());

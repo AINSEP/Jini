@@ -25,5 +25,5 @@ export function SvgSourcePane({ mode, previewSrc, previewAlt, source, loading, l
   if (mode === 'preview') return <img alt={previewAlt} src={previewSrc} />;
   if (loading) return <div className="viewer-empty">{loadingLabel}</div>;
   if (error) return <div className="viewer-empty">{errorLabel}</div>;
-  return <pre className="viewer-source">{source ?? ''}</pre>;
+  return <pre className="jini-viewer-source">{source ?? ''}</pre>;
 }

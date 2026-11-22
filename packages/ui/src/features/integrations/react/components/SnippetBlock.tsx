@@ -1,7 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
 import { useT } from '../../../i18n/index.js';
 import { Icon } from '../../../../react/components/Icon.js';
-import { copyToClipboard } from '../../../../utils/copy-to-clipboard.js';
+import { useSnippetBlock } from './SnippetBlock.hooks.js';
 import type { McpSnippetLanguage } from '../../types.js';
 
 export interface SnippetBlockProps {
@@ -13,52 +12,20 @@ export interface SnippetBlockProps {
   copyAriaLabel?: string;
   copyLabel?: string;
   copiedLabel?: string;
+  useTHook?: typeof useT;
+  useSnippetBlockHook?: typeof useSnippetBlock;
 }
 
 /**
  * A read-only code block with a copy-to-clipboard button. Origin: the
  * `<pre>`/copy-button markup inline in `IntegrationsSection`.
  */
-export function SnippetBlock({ snippet, language, placeholder, copyAriaLabel, copyLabel, copiedLabel }: SnippetBlockProps) {
-  const t = useT();
-  const [copied, setCopied] = useState(false);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => {
-    return () => {
-      if (timerRef.current) clearTimeout(timerRef.current);
-    };
-  }, []);
-
-  // Reset the "Copied" badge whenever the snippet changes (e.g. the user
-  // switched clients) — otherwise a stale green check sits next to a
-  // snippet they haven't actually copied.
-  useEffect(() => {
-    setCopied(false);
-    if (timerRef.current) {
-      clearTimeout(timerRef.current);
-      timerRef.current = null;
-    }
-  }, [snippet]);
+export function SnippetBlock({ snippet, language, placeholder, copyAriaLabel, copyLabel, copiedLabel, useTHook = useT, useSnippetBlockHook = useSnippetBlock }: SnippetBlockProps) {
+  const t = useTHook();
+  const { copied, onCopy } = useSnippetBlockHook({ snippet });
 
   const resolvedCopyLabel = copyLabel ?? t('Copy');
   const resolvedCopiedLabel = copiedLabel ?? t('Copied');
-
-  // No `if (!snippet) return` guard here (the origin has one — see
-  // `onCopy` inline in `IntegrationsSection`): the only caller is the copy
-  // button below, which is already `disabled={!snippet}`, and a disabled
-  // button never receives a click event at all (browsers don't dispatch
-  // one, and jsdom matches — verified `fireEvent.click` on a disabled
-  // button doesn't invoke its handler either). The origin's guard was a
-  // dead duplicate of that same disablement; removed rather than carried
-  // forward or tested around.
-  async function onCopy() {
-    const ok = await copyToClipboard({ text: snippet });
-    if (!ok) return;
-    setCopied(true);
-    if (timerRef.current) clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(() => setCopied(false), 2000);
-  }
 
   return (
     <div className="jini-snippet-block">

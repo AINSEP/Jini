@@ -1,0 +1,353 @@
+import assert from "node:assert/strict";
+import { test } from "vitest";
+import { createErrorDescriber } from "@jini-ai/core";
+
+import { InMemorySpanExporter, createAsyncScope, createPort } from "./otel-fakes.js";
+import { createNoopObservabilityPort, isNoopObservabilityPort } from "@jini-ai/core/contracts/observability";
+import { createHookObservabilityPort } from "@jini-ai/diagnostics/observability";
+import { describeReportedError } from "@jini-ai/diagnostics/observability";
+import { errorType, redactOperationAttributes } from "@jini-ai/diagnostics/observability";
+import type { ObservabilityConfigEnabled } from "@jini-ai/diagnostics/observability";
+import { observabilityProviderContract } from "@jini-ai/diagnostics/observability";
+import { createOtelObservabilityPort } from "../observability-opentelemetry/otel-port.js";
+
+/** Feature-level operations and error reports: the two signals no transport names. */
+
+const CONFIG: ObservabilityConfigEnabled = { enabled: true, serviceName: "svc", tracerName: "svc.ops", endpoint: "http://collector/v1/traces" };
+class RepoLabelTestError extends Error {}
+
+const SECRET = "ghp_abcdefghijklmnopqrstuvwxyz0123456789";
+
+test("noop: trackOperation returns one shared frozen tracker and reportError does nothing", () => {
+  const port = createNoopObservabilityPort({});
+  const first = port.trackOperation({ name: "tool.call", attributes: { "tool.id": "a" } });
+  const second = port.trackOperation({ name: "tool.call" });
+  assert.equal(first, second);
+  assert.ok(Object.isFrozen(first));
+  assert.equal(first.run(() => 7), 7);
+  assert.doesNotThrow(() => port.reportError({ error: new Error("x"), context: { operation: "tool.call" } }));
+});
+
+test("otel: an operation is one internal span carrying its attributes and outcome; a non-failed outcome leaves status unset", () => {
+  const exporter = new InMemorySpanExporter();
+  const port = createPort(CONFIG, exporter);
+  port.trackOperation({ name: "tool.call", attributes: { "tool.id": "pages_list" } }).end({ outcome: "denied", failed: false });
+  const [span] = exporter.getFinishedSpans();
+  assert.equal(span?.name, "tool.call");
+  assert.equal(span?.kind, "internal");
+  assert.deepEqual(span?.attributes, { "tool.id": "pages_list", "operation.outcome": "denied" });
+  assert.equal(span?.status.code, "unset");
+});
+
+test("otel: a failed outcome sets error status and error.type to the outcome label; end is once-only", () => {
+  const exporter = new InMemorySpanExporter();
+  const tracker = createPort(CONFIG, exporter).trackOperation({ name: "tool.call" });
+  tracker.end({ outcome: "timed-out", failed: true, attributes: { "tool.error_kind": "internal" } });
+  tracker.end({ outcome: "completed", failed: false });
+  assert.equal(exporter.getFinishedSpans().length, 1);
+  const [span] = exporter.getFinishedSpans();
+  assert.equal(span?.status.code, "error");
+  assert.equal(span?.attributes["error.type"], "timed-out");
+  assert.equal(span?.attributes["tool.error_kind"], "internal");
+});
+
+test.each([false, true])("otel: an operation records one completion with failed=%s despite repeated end", (failed) => {
+  const metrics: unknown[] = [];
+  const span = { updateName() {}, setAttribute() {}, setStatus() {}, addEvent() {}, end() {} };
+  const port = createOtelObservabilityPort({ config: CONFIG, exporterFactory: { create: () => ({}) },
+    tracerProviderFactory: { create: () => ({ getTracer: () => ({ startSpan: () => span }) }) },
+  }, { helpers: observabilityProviderContract.context, metric: (...args) => { metrics.push(args); } });
+  const tracker = port.trackOperation({ name: "tool.call" });
+  assert.deepEqual(metrics, []);
+  tracker.end({ outcome: failed ? "timed-out" : "completed", failed });
+  tracker.end({ outcome: "completed", failed: !failed });
+  assert.deepEqual(metrics, [[{ name: "operation.completed", value: 1 },
+    { kind: "counter", attributes: { "operation.name": "tool.call", "operation.failed": failed ? 1 : 0 } }]]);
+});
+
+test("otel: reportError inside run() adds a type-only exception event to that operation's span", async () => {
+  const exporter = new InMemorySpanExporter();
+  const port = createPort(CONFIG, exporter, { scope: createAsyncScope() });
+  const tracker = port.trackOperation({ name: "tool.call" });
+  await tracker.run(async () => { port.reportError({ error: new TypeError(`token ${SECRET}`), context: { operation: "tool.call" } }); });
+  tracker.end({ outcome: "failed", failed: true });
+  const spans = exporter.getFinishedSpans();
+  assert.equal(spans.length, 1);
+  assert.deepEqual(spans[0]?.events, [{ name: "exception", attributes: { "exception.type": "TypeError", "operation.name": "tool.call" } }]);
+  assert.ok(!JSON.stringify(spans).includes(SECRET));
+});
+
+test("otel: reportError outside any tracker is its own ended root span", () => {
+  const exporter = new InMemorySpanExporter();
+  createPort(CONFIG, exporter, { scope: createAsyncScope() }).reportError({ error: Object.assign(new Error("x"), { code: "ECONNRESET" }), context: { operation: "backup.run", attributes: { "backup.kind": "full" } } });
+  const [span] = exporter.getFinishedSpans();
+  assert.equal(span?.name, "error backup.run");
+  assert.equal(span?.status.code, "error");
+  assert.equal(span?.attributes["backup.kind"], "full");
+  assert.equal(span?.events[0]?.attributes["exception.type"], "ECONNRESET");
+});
+
+test("otel: reportError never throws even when the span sink does", () => {
+  const port = createPort(CONFIG, Object.assign(new InMemorySpanExporter(), { spans: { push() { throw new Error("exporter down"); } } }) as unknown as InMemorySpanExporter);
+  assert.doesNotThrow(() => port.reportError({ error: new Error("x"), context: { operation: "op" } }));
+});
+
+test("hooks: operations and error reports pass straight to the tracing adapter", () => {
+  const exporter = new InMemorySpanExporter();
+  const port = createHookObservabilityPort({ clock: { nowMs: () => 0 }, requestIdGenerator: { generate: () => "r" } }, { tracing: createPort(CONFIG, exporter) });
+  port.trackOperation({ name: "op" }).end({ outcome: "completed", failed: false });
+  port.reportError({ error: new Error("x"), context: { operation: "op" } });
+  assert.deepEqual(exporter.getFinishedSpans().map((s) => s.name), ["op", "error op"]);
+});
+
+test("describeReportedError redacts secret shapes from message and stack, and caps the message", () => {
+  const described = describeReportedError({ error: new Error(`auth failed with ${SECRET} ${"x".repeat(5000)}`) });
+  assert.equal(described.type, "Error");
+  assert.ok(!described.message.includes(SECRET));
+  assert.ok(!(described.stack ?? "").includes(SECRET));
+  assert.ok(described.message.length <= 1024);
+  assert.deepEqual(describeReportedError({ error: "plain" }), { type: "string", message: "plain" });
+});
+
+test("C61: redact multiline secrets before applying the stack line limit", () => {
+  const error = new Error("request failed");
+  const secretPrefix = "fixture-private-prefix";
+  error.stack = [
+    "Error: request failed",
+    ...Array.from({ length: 28 }, () => "    at handler (fixture.ts:1:1)"),
+    // The closing quote is on line 31: cutting at 30 leaves an unmatched secret value.
+    `"password":"${secretPrefix}`,
+    'fixture-private-suffix"',
+  ].join("\n");
+
+  const described = describeReportedError({ error });
+  assert.equal(described.message, "request failed");
+  assert.equal(typeof described.stack, "string");
+  assert.equal(described.stack!.includes(secretPrefix), false);
+  assert.match(described.stack!, /\[REDACTED:labeled_secret\]/);
+  assert.ok(described.stack!.split("\n").length <= 30);
+});
+
+test("combineObservabilityPorts: noop-only is the noop; one live port still delivers its signals", async () => {
+  const { combineObservabilityPorts } = await import("@jini-ai/diagnostics/observability");
+  assert.ok(isNoopObservabilityPort(combineObservabilityPorts({ ports: [createNoopObservabilityPort({}), createNoopObservabilityPort({})] })));
+  const exporter = new InMemorySpanExporter();
+  const port = combineObservabilityPorts({ ports: [createNoopObservabilityPort({}), createPort(CONFIG, exporter)] });
+  port.trackOperation({ name: "tool.call" }).end({ outcome: "completed", failed: false });
+  assert.deepEqual(exporter.getFinishedSpans().map((s) => s.name), ["tool.call"]);
+});
+
+test("recheck #2: a single live adapter is isolated too: its start, end and report throws never reach the caller", async () => {
+  const { combineObservabilityPorts } = await import("@jini-ai/diagnostics/observability");
+  const down = () => { throw new Error("adapter down"); };
+  const throwsOnStart = combineObservabilityPorts({ ports: [{ ...createPort(CONFIG, new InMemorySpanExporter()), trackOperation: down, reportError: down }] });
+  const fallback = throwsOnStart.trackOperation({ name: "tool.call" });
+  assert.equal(fallback.run(() => "done"), "done");
+  assert.doesNotThrow(() => fallback.end({ outcome: "completed", failed: false }));
+  assert.doesNotThrow(() => throwsOnStart.reportError({ error: new Error("x"), context: { operation: "tool.call" } }));
+  const throwsOnEnd = combineObservabilityPorts({ ports: [{ ...createPort(CONFIG, new InMemorySpanExporter()), trackOperation: () => ({ run: <T>(fn: () => T) => fn(), end: down }) }] });
+  assert.doesNotThrow(() => throwsOnEnd.trackOperation({ name: "tool.call" }).end({ outcome: "completed", failed: false }));
+});
+
+test("combineObservabilityPorts: two live ports each get the operation, its nested report, and its end; a throwing reporter does not stop the other", async () => {
+  const { combineObservabilityPorts } = await import("@jini-ai/diagnostics/observability");
+  const a = new InMemorySpanExporter(); const b = new InMemorySpanExporter();
+  const scopeA = createAsyncScope(); const scopeB = createAsyncScope();
+  const broken = { ...createPort(CONFIG, a, { scope: scopeA }), reportError: () => { throw new Error("tracker down"); } };
+  const port = combineObservabilityPorts({ ports: [broken, createPort(CONFIG, b, { scope: scopeB })] });
+  const tracker = port.trackOperation({ name: "tool.call" });
+  assert.equal(tracker.run(() => { port.reportError({ error: new RangeError("x"), context: { operation: "tool.call" } }); return 5; }), 5);
+  tracker.end({ outcome: "failed", failed: true });
+  assert.deepEqual(a.getFinishedSpans().map((s) => s.name), ["tool.call"]);
+  assert.deepEqual(b.getFinishedSpans().map((s) => [s.name, s.events[0]?.attributes["exception.type"]]), [["tool.call", "RangeError"]]);
+});
+
+test("review #2: a secret in Error.name is redacted and capped in the error type (OTel export and describeReportedError)", () => {
+  const error = new Error("boom"); error.name = `${SECRET}${"X".repeat(200)}`;
+  const described = describeReportedError({ error });
+  assert.ok(!described.type.includes(SECRET)); assert.ok(described.type.length <= 64);
+  const exporter = new InMemorySpanExporter();
+  createPort(CONFIG, exporter).reportError({ error, context: { operation: "tool.call" } });
+  const exported = JSON.stringify(exporter.getFinishedSpans().map((s) => [s.status, s.events, s.attributes]));
+  assert.ok(!exported.includes(SECRET));
+});
+
+test("obs2 #1: a credential-shaped error.code is redacted before OTel and error-tracker delivery", () => {
+  const code = "AKIA" + "A".repeat(16);
+  const error = Object.assign(new TypeError("request failed"), { code });
+  const exporter = new InMemorySpanExporter();
+  const port = createPort(CONFIG, exporter);
+  port.reportError({ error, context: { operation: "tool.call" } });
+  port.trackDbQuery({ system: "sqlite" }).end({ operation: "select", error });
+  const label = "TypeError";
+  assert.equal(describeReportedError({ error }).type, label);
+  const spans = exporter.getFinishedSpans();
+  assert.equal(spans.length, 2);
+  for (const span of spans) {
+    assert.equal(span.status.description, label);
+    assert.equal(span.events[0]?.attributes["exception.type"], label);
+  }
+  assert.equal(spans[1]?.attributes["error.type"], label);
+  assert.ok(!JSON.stringify(spans).includes(code));
+});
+
+test("error labels include package-supplied classes and codes through an injected describer", () => {
+  const repoDescriber = createErrorDescriber({ codes: ["REPO_LABEL_TEST_CODE"], classes: [{ error: RepoLabelTestError, label: "RepoLabelTestError" }] });
+  assert.equal(errorType({ error: new RepoLabelTestError("hidden") }, { describer: repoDescriber }), "RepoLabelTestError");
+  assert.equal(errorType({ error: Object.assign(new Error("hidden"), { code: "REPO_LABEL_TEST_CODE" }) }, { describer: repoDescriber }), "REPO_LABEL_TEST_CODE");
+  // Without the describer the same errors read as the built-in class label, never the package's name.
+  assert.equal(errorType({ error: new RepoLabelTestError("hidden") }), "Error");
+});
+
+// Review jini-batch1 M2: host dashboards and alerts match `error.type = "ECONNREFUSED"`; the label
+// keeps that shape (approved code, else fixed class label) and still never carries raw text.
+test("error labels are an approved code, else the describer's class label, never the message, name or cause text", () => {
+  assert.equal(errorType({ error: Object.assign(new TypeError("hidden"), { code: "ECONNRESET" }) }), "ECONNRESET");
+  assert.equal(errorType({ error: Object.assign(new Error("hidden"), { code: "SQLITE_CONSTRAINT" }) }), "SQLITE_CONSTRAINT");
+  assert.equal(errorType({ error: Object.assign(new Error("hidden"), { code: "UNLISTED_CODE" }) }), "Error");
+  assert.equal(errorType({ error: Object.assign(new TypeError("hidden"), { code: "invalid code" }) }), "TypeError");
+  const error = new Error("hidden");
+  error.name = `${"x".repeat(60)} ${SECRET}`;
+  assert.equal(errorType({ error }), "Error");
+  assert.equal(errorType({ error: null }), "object");
+  const secret = Object.assign(new Error("boom api_key=SECRETSECRETSECRETSECRET"), { code: "SECRETSECRETSECRETSECRET" });
+  assert.equal(errorType({ error: secret }), "Error");
+  assert.equal(errorType({ error: new TypeError("x", { cause: new Error("boom") }) }), "TypeError");
+});
+
+test("review #1: secret-shaped operation attribute strings are redacted before the SDK sees them", () => {
+  const exporter = new InMemorySpanExporter();
+  const port = createPort(CONFIG, exporter);
+  port.trackOperation({ name: "tool.call", attributes: { "tool.id": SECRET } }).end({ outcome: "completed", failed: false, attributes: { note: SECRET } });
+  port.reportError({ error: new Error("x"), context: { operation: "tool.call", attributes: { "tool.id": SECRET } } });
+  assert.ok(!JSON.stringify(exporter.getFinishedSpans().map((s) => s.attributes)).includes(SECRET));
+});
+
+test("review #3: fan-out isolates each adapter's tracker creation and end; the caller never sees an adapter's throw", async () => {
+  const { combineObservabilityPorts } = await import("@jini-ai/diagnostics/observability");
+  const b = new InMemorySpanExporter(); const c = new InMemorySpanExporter();
+  const throwsOnStart = { ...createPort(CONFIG, new InMemorySpanExporter()), trackOperation: () => { throw new Error("start down"); } };
+  const throwsOnEnd = { ...createPort(CONFIG, b), trackOperation: () => ({ run: <T>(fn: () => T) => fn(), end: () => { throw new Error("end down"); } }) };
+  const port = combineObservabilityPorts({ ports: [throwsOnStart, throwsOnEnd, createPort(CONFIG, c)] });
+  const tracker = port.trackOperation({ name: "tool.call" });
+  assert.equal(tracker.run(() => "done"), "done");
+  assert.doesNotThrow(() => tracker.end({ outcome: "completed", failed: false }));
+  assert.deepEqual(c.getFinishedSpans().map((s) => s.name), ["tool.call"]);
+});
+
+test("combineObservabilityPorts: a tracker whose run() throws before, after, or instead of its callback never blocks the work or later scopes; the callback runs exactly once", async () => {
+  const { combineObservabilityPorts } = await import("@jini-ai/diagnostics/observability");
+  const noop = createNoopObservabilityPort({});
+  const scoped: string[] = [];
+  const withRun = (run: <T>(fn: () => T) => T) => ({ ...noop, trackOperation: () => ({ run, end() {} }) });
+  const recordingScope = withRun((fn) => { scoped.push("entered"); return fn(); });
+  const cases = {
+    before: withRun(() => { throw new Error("scope down"); }),
+    after: withRun((fn) => { fn(); throw new Error("scope down after"); }),
+    never: withRun(() => undefined as never),
+  };
+  for (const [name, broken] of Object.entries(cases)) {
+    scoped.length = 0;
+    let calls = 0;
+    const port = combineObservabilityPorts({ ports: [broken, recordingScope] });
+    const value = port.trackOperation({ name: "op" }).run!(() => { calls += 1; return `ok:${calls}`; });
+    assert.equal(value, "ok:1", name);
+    assert.equal(calls, 1, `${name}: exactly one callback execution`);
+    assert.deepEqual(scoped, ["entered"], `${name}: the later scope still ran`);
+  }
+  // The work's own error reaches the caller unchanged, even when the scope throws on its way out.
+  const failure = new Error("work failed");
+  const rethrowing = withRun((fn) => { try { return fn(); } catch { throw new Error("adapter replaced the error"); } });
+  const port = combineObservabilityPorts({ ports: [rethrowing, recordingScope] });
+  let calls = 0;
+  assert.throws(() => port.trackOperation({ name: "op" }).run!(() => { calls += 1; throw failure; }), (error) => error === failure);
+  assert.equal(calls, 1);
+});
+
+test("combineObservabilityPorts: app work runs exactly once and its recorded outcome wins, whatever a tracker's run() does with the callback", async () => {
+  const { combineObservabilityPorts } = await import("@jini-ai/diagnostics/observability");
+  const noop = createNoopObservabilityPort({});
+  const withRun = (run: <T>(fn: () => T) => T) => ({ ...noop, trackOperation: () => ({ run, end() {} }) });
+  // A tracker that calls the callback twice must not run the app's mutation twice.
+  const twice = withRun((fn) => { fn(); return fn(); });
+  let calls = 0;
+  const value = combineObservabilityPorts({ ports: [twice] }).trackOperation({ name: "op" }).run!(() => { calls += 1; return `ok:${calls}`; });
+  assert.equal(calls, 1, "the second call replays the recorded outcome");
+  assert.equal(value, "ok:1");
+  // A tracker that swallows the callback's error and returns normally must not hide it from the caller.
+  const failure = new Error("work failed");
+  const swallowing = withRun(((fn: () => unknown) => { try { return fn(); } catch { return "swallowed"; } }) as never);
+  let failing = 0;
+  assert.throws(() => combineObservabilityPorts({ ports: [swallowing] }).trackOperation({ name: "op" }).run!(() => { failing += 1; throw failure; }), (error) => error === failure);
+  assert.equal(failing, 1);
+  // A tracker that replaces a successful result cannot change what the caller gets.
+  const replacing = withRun((() => "replaced") as never);
+  assert.equal(combineObservabilityPorts({ ports: [replacing] }).trackOperation({ name: "op" }).run!(() => "real"), "real");
+  // A tracker that wraps async work in its own promise: the caller gets the work's promise, and the
+  // dropped wrapper's rejection is observed (never an unhandled rejection).
+  const unhandled: unknown[] = [];
+  const onUnhandled = (reason: unknown) => { unhandled.push(reason); };
+  process.on("unhandledRejection", onUnhandled);
+  try {
+    const wrapping = withRun(((fn: () => Promise<unknown>) => fn().then(() => { throw new Error("wrapper failed"); })) as never);
+    const work = Promise.resolve("async-real");
+    assert.equal(combineObservabilityPorts({ ports: [wrapping] }).trackOperation({ name: "op" }).run!(() => work), work);
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    assert.deepEqual(unhandled, []);
+  } finally { process.off("unhandledRejection", onUnhandled); }
+});
+
+test("combineObservabilityPorts: every signal fans out, and a tracker without run() is simply skipped as a scope", async () => {
+  const { combineObservabilityPorts } = await import("@jini-ai/diagnostics/observability");
+  const noop = createNoopObservabilityPort({});
+  const seen: string[] = [];
+  const recording = (tag: string) => ({
+    metric: () => { seen.push(`${tag}:metric`); },
+    trackRequest: () => { seen.push(`${tag}:request`); return { end() {} }; },
+    trackDbQuery: () => { seen.push(`${tag}:db`); return { end() {} }; },
+    trackOutboundCall: () => { seen.push(`${tag}:outbound`); return { end() {} }; },
+    trackAgentRun: () => { seen.push(`${tag}:agent`); return { end() {} }; },
+    trackOperation: () => { seen.push(`${tag}:op`); return { end() {} }; },
+    reportError: () => { seen.push(`${tag}:error`); },
+  });
+  const port = combineObservabilityPorts({ ports: [recording("a"), noop, recording("b")] as never });
+  port.trackRequest({ method: "GET", path: "/" }).end({ statusCode: 200 } as never);
+  port.trackDbQuery({ operation: "select" } as never).end({} as never);
+  port.trackOutboundCall({ method: "GET", url: "https://x.test" } as never).end({} as never);
+  port.trackAgentRun({ agentId: "a" } as never).end({} as never);
+  assert.equal(port.trackOperation({ name: "op" }).run!(() => "unscoped"), "unscoped");
+  port.metric({ name: "queue.size", value: 3 });
+  assert.deepEqual(seen, ["a:request", "b:request", "a:db", "b:db", "a:outbound", "b:outbound", "a:agent", "b:agent", "a:op", "b:op", "a:metric", "b:metric"]);
+});
+
+
+test("request targets prefer final route templates and scrub unmatched ids, emails and tokens", () => {
+  const exporter = new InMemorySpanExporter();
+  const port = createPort(CONFIG, exporter);
+  port.trackRequest({ method: "GET", path: "/users/alice@example.test/private-value" }).end({ statusCode: 200, routePattern: "/users/:email/:id" });
+  const paths = [
+    "/users/123?token=hidden#secret", "/users/507f191e810c19729de860ea",
+    "/users/550e8400-e29b-41d4-a716-446655440000", "/users/alice%40example.test",
+    "/users/eyJhbGciOiJIUzI1NiJ9.payload.signature", "/users/opaque-bearer-value-abcdef",
+    "/users/%25encoded", "/users/%ZZ", "/users/deadbeef",
+  ];
+  for (const path of paths) port.trackRequest({ method: "GET", path }).end({ statusCode: 404, routePattern: "unmatched" });
+  assert.equal(exporter.spans[0]!.attributes["http.target"], "/users/:email/:id");
+  for (const span of exporter.spans.slice(1)) assert.equal(span.attributes["http.target"], "/users/:param");
+});
+
+test("attribute keys follow the bounded label allow-list before SDK admission", () => {
+  const safe = redactOperationAttributes({ attributes: {
+    "tool.id": "publish", "person@example.test": "hidden", "https://secret.test": "hidden",
+    ["x".repeat(65)]: "hidden", [SECRET]: "hidden", "line\nbreak": "hidden",
+  } });
+  assert.deepEqual(safe, { "tool.id": "publish" });
+});
+
+
+test("attribute admission caps the number of labels and their text before any provider sees them", () => {
+  const attributes = Object.fromEntries(Array.from({ length: 100 }, (_, i) => [`label${i}`, "x".repeat(2000)]));
+  const safe = redactOperationAttributes({ attributes });
+  assert.equal(Object.keys(safe).length, 64);
+  assert.ok(Object.values(safe).every(value => String(value).length <= 256));
+});

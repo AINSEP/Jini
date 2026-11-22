@@ -1,4 +1,4 @@
-import { agentHandleProps, buildAgentListHandles } from '@jini-ai/agentic';
+import { agentHandleProps, buildAgentListHandles } from '@jini-ai/core/agent-handles';
 import { useT } from '../../i18n/index.js';
 import type { Connector, ConnectorAction, ConnectorAuthorizationPendingState } from '../types.js';
 import { ConnectorCard } from './ConnectorCard.js';
@@ -36,6 +36,7 @@ interface ConnectorGridEmptyProps {
   emptyNoMatchBody: ConnectorGridProps['emptyNoMatchBody'];
   emptyNoMatchAction: ConnectorGridProps['emptyNoMatchAction'];
   agentHandle: ConnectorGridProps['agentHandle'];
+  useTHook?: typeof useT;
 }
 
 /** Search-empty state: the no-match title/body and a clear-search action, each copy line host-overridable. */
@@ -46,19 +47,20 @@ function ConnectorGridEmpty({
   emptyNoMatchBody,
   emptyNoMatchAction,
   agentHandle,
+  useTHook = useT,
 }: ConnectorGridEmptyProps) {
-  const t = useT();
+  const t = useTHook();
   const title = emptyNoMatchTitle
     ? emptyNoMatchTitle(searchQuery.trim())
     : t('No connectors match "{query}"', { query: searchQuery.trim() });
   const action = emptyNoMatchAction ?? t('Clear search');
   return (
-    <div className="tab-empty connectors-empty" role="status" aria-live="polite" data-testid="connectors-empty">
-      <p className="connectors-empty-title">{title}</p>
-      <p className="connectors-empty-body">{emptyNoMatchBody ?? t('Try a different search term.')}</p>
+    <div className="jini-tab-empty jini-connectors-empty" role="status" aria-live="polite" data-testid="connectors-empty">
+      <p className="jini-connectors-empty-title">{title}</p>
+      <p className="jini-connectors-empty-body">{emptyNoMatchBody ?? t('Try a different search term.')}</p>
       <button
         type="button"
-        className="ghost connectors-empty-action"
+        className="ghost jini-connectors-empty-action"
         onClick={onClearSearch}
         {...agentHandleProps({}, { base: agentHandle, action: 'clear-search', role: 'button', label: action })}
       >

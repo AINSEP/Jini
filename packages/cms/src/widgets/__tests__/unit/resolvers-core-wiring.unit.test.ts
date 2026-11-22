@@ -1,3 +1,4 @@
+import { webcrypto } from "node:crypto";
 import { resolveMenuDoc } from "../../../navigation/index.js";
 import assert from "node:assert/strict";
 import test from "../support/test-runner.js";
@@ -30,6 +31,7 @@ const MENU: NavMenuEntry = {
 
 function deps(overrides: Partial<CoreResolverDeps> = {}): CoreResolverDeps {
   return {
+    crypto: webcrypto,
     menus: { resolveMenuDoc },
     navMenuReadModel: { getMenu: async () => MENU, getMenuBySlug: unexpected, listMenus: unexpected, resolveForLocation: unexpected } satisfies NavMenuReadModel,
     collectionList: {

@@ -172,7 +172,7 @@ The signatures below enumerate functions reachable through the root barrel, incl
 ### [paths.ts](../../src/paths.ts)
 
 ```ts
-function expandConfiguredEnv({ configuredEnv }: { configuredEnv: unknown }): Record<string, string>;
+function expandConfiguredEnv({ configuredEnv }: { configuredEnv: unknown }, _optional: Record<string, never> = {}): Record<string, string>;
 function expandHomePath({ value }: { value: string }): string;
 ```
 
@@ -181,10 +181,10 @@ function expandHomePath({ value }: { value: string }): string;
 ```ts
 function getRememberedLiveModels({ agentId }: { agentId: string }, { scope }: { scope?: string | null } = {}): RuntimeModelOption[];
 function isKnownModel({ def, modelId }: { def: RuntimeAgentDef; modelId: string | null | undefined }, { scope }: { scope?: string | null } = {} ): boolean;
-function preferFreshLiveModels({ freshModels, rememberedModels }: { freshModels: RuntimeModelOption[]; rememberedModels: RuntimeModelOption[] } ): RuntimeModelOption[];
+function preferFreshLiveModels({ freshModels, rememberedModels }: { freshModels: RuntimeModelOption[]; rememberedModels: RuntimeModelOption[] }, _optional: Record<string, never> = {} ): RuntimeModelOption[];
 function rememberLiveModels({ agentId, models }: { agentId: string; models: RuntimeModelOption[] }, { scope }: { scope?: string | null } = {}): void;
 function resolveModelForAgent({ def, resolved }: { def: RuntimeAgentDef; resolved: string | null }, { env = process.env, liveModelScope }: { env?: Record<string, string | undefined>; liveModelScope?: string | null } = {} ): string | null;
-function sanitizeCustomModel({ id }: { id: string | null | undefined }): string | null;
+function sanitizeCustomModel({ id }: { id: string | null | undefined }, _optional: Record<string, never> = {}): string | null;
 ```
 
 ### [invocation.ts](../../src/invocation.ts)
@@ -196,12 +196,12 @@ function execAgentFile({ command, args }: { command: string; args: string[] }, {
 ### [mmd-routes.ts](../../src/mmd-routes.ts)
 
 ```ts
-function loadMmdRouteLaunchEnv({ env, modelId }: { env: RuntimeEnv; modelId: string | null | undefined } ): Promise<MmdRouteLaunchEnv | null>;
-function loadMmdRouteModels({ env, fallbackModels }: { env: RuntimeEnv; fallbackModels: readonly RuntimeModelOption[] } ): Promise<RuntimeModelOption[] | null>;
-function mergeMmdRouteModels({ routeIds, fallbackModels }: { routeIds: readonly string[]; fallbackModels: readonly RuntimeModelOption[] } ): RuntimeModelOption[];
-function parseMmdRouteModelIds({ raw }: { raw: unknown }): string[];
-function resolveMmdRouteLaunchEnv({ raw, modelId }: { raw: unknown; modelId: string | null | undefined } ): MmdRouteLaunchEnv | null;
-function resolveMmdRoutesFile({ env }: { env: RuntimeEnv }): string | null;
+function loadMmdRouteLaunchEnv({ env, modelId }: { env: RuntimeEnv; modelId: string | null | undefined }, _optional: Record<string, never> = {} ): Promise<MmdRouteLaunchEnv | null>;
+function loadMmdRouteModels({ env, fallbackModels }: { env: RuntimeEnv; fallbackModels: readonly RuntimeModelOption[] }, _optional: Record<string, never> = {} ): Promise<RuntimeModelOption[] | null>;
+function mergeMmdRouteModels({ routeIds, fallbackModels }: { routeIds: readonly string[]; fallbackModels: readonly RuntimeModelOption[] }, _optional: Record<string, never> = {} ): RuntimeModelOption[];
+function parseMmdRouteModelIds({ raw }: { raw: unknown }, _optional: Record<string, never> = {}): string[];
+function resolveMmdRouteLaunchEnv({ raw, modelId }: { raw: unknown; modelId: string | null | undefined }, _optional: Record<string, never> = {} ): MmdRouteLaunchEnv | null;
+function resolveMmdRoutesFile({ env }: { env: RuntimeEnv }, _optional: Record<string, never> = {}): string | null;
 ```
 
 ### [metadata.ts](../../src/metadata.ts)
@@ -213,13 +213,13 @@ function installMetaForAgent({ agentId }: { agentId: string }, { table = DEFAULT
 ### [mcp.ts](../../src/mcp.ts)
 
 ```ts
-function buildAcpMcpServersForAgent({ def, spec }: { def: Pick<RuntimeAgentDef, 'mcpDiscovery' | 'acpMcpEnvFormat'>; spec: AcpMcpServerSpec } ): AcpMcpServerEntry[];
+function buildAcpMcpServersForAgent({ def, spec }: { def: Pick<RuntimeAgentDef, 'mcpDiscovery' | 'acpMcpEnvFormat'>; spec: AcpMcpServerSpec }, _optional: Record<string, never> = {} ): AcpMcpServerEntry[];
 ```
 
 ### [executables.ts](../../src/executables.ts)
 
 ```ts
-function agentBinEnvKey({ agentId }: { agentId: string | undefined }): string | null;
+function agentBinEnvKey({ agentId }: { agentId: string | undefined }, _optional: Record<string, never> = {}): string | null;
 function agentSearchDirs(): string[];
 function codexAppBundleCandidates(): string[];
 function configureExecutableResolutionEnv({ overrides }: { overrides: { agentHomeEnvVar?: string; resourceRootEnvVar?: string; } }): void;
@@ -233,7 +233,7 @@ function userToolchainBinDirs(): string[];
 ### [role-marker-guard.ts](../../src/role-marker-guard.ts)
 
 ```ts
-function createRoleMarkerGuard({ messageId }: { messageId: string }): RoleMarkerGuard;
+function createRoleMarkerGuard({ messageId }: { messageId: string }, _optional: Record<string, never> = {}): RoleMarkerGuard;
 ```
 
 ### [auth.ts](../../src/auth.ts)
@@ -242,7 +242,7 @@ function createRoleMarkerGuard({ messageId }: { messageId: string }): RoleMarker
 function antigravityAuthGuidance({ }: { }, { hostName = DEFAULT_HOST_NAME }: { hostName?: string } = {}): string;
 function antigravityQuotaGuidance(): string;
 function classifyAgentAuthFailure({ agentId, text }: { agentId: string; text: string }, { hostName = DEFAULT_HOST_NAME }: { hostName?: string } = {} ): AgentAuthProbeResult | null;
-function classifyAgentServiceFailure({ text }: { text: string }): AgentServiceFailureCode | null;
+function classifyAgentServiceFailure({ text }: { text: string }, _optional: Record<string, never> = {}): AgentServiceFailureCode | null;
 function claudeAuthGuidance({ }: { }, { hostName = DEFAULT_HOST_NAME }: { hostName?: string } = {}): string;
 function cursorAuthGuidance({ }: { }, { hostName = DEFAULT_HOST_NAME }: { hostName?: string } = {}): string;
 function deepseekAuthGuidance({ }: { }, { hostName = DEFAULT_HOST_NAME }: { hostName?: string } = {}): string;
@@ -258,10 +258,10 @@ function reasonixAuthGuidance({ }: { }, { hostName = DEFAULT_HOST_NAME }: { host
 ### [opencode-log.ts](../../src/opencode-log.ts)
 
 ```ts
-function extractOpenCodeServiceFailure({ logTail }: { logTail: string }): OpenCodeServiceFailure | null;
+function extractOpenCodeServiceFailure({ logTail }: { logTail: string }, _optional: Record<string, never> = {}): OpenCodeServiceFailure | null;
 function readLatestOpenCodeLogTail({ logDir }: { logDir: string }, options: { maxBytes?: number; since?: number } = {} ): string | null;
 function readOpenCodeServiceFailure({ env }: { env: Record<string, string | undefined> }, options: { since?: number } = {} ): OpenCodeServiceFailure | null;
-function resolveOpenCodeLogDir({ env }: { env: Record<string, string | undefined> }): string | null;
+function resolveOpenCodeLogDir({ env }: { env: Record<string, string | undefined> }, _optional: Record<string, never> = {}): string | null;
 ```
 
 ### [env.ts](../../src/env.ts)
@@ -292,9 +292,9 @@ function launchAgentInSystemTerminal({ command }: { command: string }, { platfor
 ### [diagnostics.ts](../../src/diagnostics.ts)
 
 ```ts
-function buildAuthDiagnostic({ def, auth }: { def: Pick<RuntimeAgentDef, 'id' | 'name'>; auth: AgentAuthProbeResult } ): AgentDiagnostic | null;
+function buildAuthDiagnostic({ def, auth }: { def: Pick<RuntimeAgentDef, 'id' | 'name'>; auth: AgentAuthProbeResult }, _optional: Record<string, never> = {} ): AgentDiagnostic | null;
 function buildExecutableDiagnostic({ def }: { def: Pick<RuntimeAgentDef, 'id' | 'name' | 'bin'> }, { configuredEnv = {} }: { configuredEnv?: Record<string, string> } = {} ): AgentDiagnostic;
-function buildNotInvocableDiagnostic({ def, launch, cause }: { def: Pick<RuntimeAgentDef, 'id' | 'name'>; launch: Pick<AgentLaunchResolution, 'selectedPath' | 'launchPath'>; cause: NotInvocableCause } ): AgentDiagnostic;
+function buildNotInvocableDiagnostic({ def, launch, cause }: { def: Pick<RuntimeAgentDef, 'id' | 'name'>; launch: Pick<AgentLaunchResolution, 'selectedPath' | 'launchPath'>; cause: NotInvocableCause }, _optional: Record<string, never> = {} ): AgentDiagnostic;
 ```
 
 ### [detection.ts](../../src/detection.ts)
@@ -310,20 +310,20 @@ function probeAgentModels({ def }: { def: RuntimeAgentDef }, { configuredEnv = {
 
 ```ts
 function checkPromptArgvBudget({ def, composed }: { def: RuntimeAgentDef | null | undefined; composed: unknown }, { platform = process.platform }: { platform?: NodeJS.Platform } = {} ): RuntimePromptBudgetError | null;
-function checkWindowsCmdShimCommandLineBudget({ def, resolvedBin, args }: { def: RuntimeAgentDef | null | undefined; resolvedBin: unknown; args: unknown } ): RuntimePromptBudgetError | null;
-function checkWindowsDirectExeCommandLineBudget({ def, resolvedBin, args }: { def: RuntimeAgentDef | null | undefined; resolvedBin: unknown; args: unknown } ): RuntimePromptBudgetError | null;
+function checkWindowsCmdShimCommandLineBudget({ def, resolvedBin, args }: { def: RuntimeAgentDef | null | undefined; resolvedBin: unknown; args: unknown }, _optional: Record<string, never> = {} ): RuntimePromptBudgetError | null;
+function checkWindowsDirectExeCommandLineBudget({ def, resolvedBin, args }: { def: RuntimeAgentDef | null | undefined; resolvedBin: unknown; args: unknown }, _optional: Record<string, never> = {} ): RuntimePromptBudgetError | null;
 ```
 
 ### [prompt-file.ts](../../src/prompt-file.ts)
 
 ```ts
-function preparePromptFileForAgent({ def, prompt, label }: { def: RuntimeAgentDef | null | undefined; prompt: string; label: string } ): Promise<PreparedPromptFile | null>;
+function preparePromptFileForAgent({ def, prompt, label }: { def: RuntimeAgentDef | null | undefined; prompt: string; label: string }, _optional: Record<string, never> = {} ): Promise<PreparedPromptFile | null>;
 ```
 
 ### [log-file.ts](../../src/log-file.ts)
 
 ```ts
-function prepareAgentLogFile({ def, label }: { def: RuntimeAgentDef | null | undefined; label: string } ): Promise<PreparedAgentLogFile | null>;
+function prepareAgentLogFile({ def, label }: { def: RuntimeAgentDef | null | undefined; label: string }, _optional: Record<string, never> = {} ): Promise<PreparedAgentLogFile | null>;
 ```
 
 ### [model-catalog-cache.ts](../../src/model-catalog-cache.ts)
@@ -335,26 +335,26 @@ function unionModels<Model extends { readonly id: string }>({ fallback, live }: 
 ### [registry.ts](../../src/registry.ts)
 
 ```ts
-function getAgentDef({ id }: { id: string }): RuntimeAgentDef | null;
-function runtimeSupportsExternalTools({ def }: { def: Pick<RuntimeAgentDef, 'externalMcpInjection'> }): boolean;
+function getAgentDef({ id }: { id: string }, _optional: Record<string, never> = {}): RuntimeAgentDef | null;
+function runtimeSupportsExternalTools({ def }: { def: Pick<RuntimeAgentDef, 'externalMcpInjection'> }, _optional: Record<string, never> = {}): boolean;
 ```
 
 ### [defs/amr.ts](../../src/defs/amr.ts)
 
 ```ts
-function fetchVelaBillingSummary({ resolvedBin, env }: { resolvedBin: string; env: NodeJS.ProcessEnv } ): Promise<VelaBillingSummary>;
-function fetchVelaPresetModels({ resolvedBin, env }: { resolvedBin: string; env: NodeJS.ProcessEnv } ): Promise<RuntimeModelOption[]>;
+function fetchVelaBillingSummary({ resolvedBin, env }: { resolvedBin: string; env: NodeJS.ProcessEnv }, _optional: Record<string, never> = {} ): Promise<VelaBillingSummary>;
+function fetchVelaPresetModels({ resolvedBin, env }: { resolvedBin: string; env: NodeJS.ProcessEnv }, _optional: Record<string, never> = {} ): Promise<RuntimeModelOption[]>;
 function fetchVelaRemoteModelsWithRetry({ resolvedBin, env }: { resolvedBin: string; env: NodeJS.ProcessEnv } ): Promise<RuntimeModelOption[]>;
-function normalizeVelaModelId({ rawId }: { rawId: string }): string | null;
-function parseVelaModelJson({ stdout, expectedSource }: { stdout: string; expectedSource: VelaModelJsonSource } ): RuntimeModelOption[];
-function parseVelaModels({ stdout }: { stdout: string }): RuntimeModelOption[];
+function normalizeVelaModelId({ rawId }: { rawId: string }, _optional: Record<string, never> = {}): string | null;
+function parseVelaModelJson({ stdout, expectedSource }: { stdout: string; expectedSource: VelaModelJsonSource }, _optional: Record<string, never> = {} ): RuntimeModelOption[];
+function parseVelaModels({ stdout }: { stdout: string }, _optional: Record<string, never> = {}): RuntimeModelOption[];
 ```
 
 ### [defs/antigravity.ts](../../src/defs/antigravity.ts)
 
 ```ts
 function parseAgyModels({ stdout }: { stdout: string }): RuntimeModelOption[] | null;
-function redactAntigravityAuthUrls({ fullText }: { fullText: string }): string;
+function redactAntigravityAuthUrls({ fullText }: { fullText: string }, _optional: Record<string, never> = {}): string;
 ```
 
 ### [defs/codex.ts](../../src/defs/codex.ts)
@@ -368,7 +368,7 @@ function unionModelReasoningOptions({ models }: { models: readonly RuntimeModelO
 ### [defs/cursor-agent.ts](../../src/defs/cursor-agent.ts)
 
 ```ts
-function parseCursorAgentModels({ stdout }: { stdout: string }): RuntimeModelOption[] | null;
+function parseCursorAgentModels({ stdout }: { stdout: string }, _optional: Record<string, never> = {}): RuntimeModelOption[] | null;
 ```
 
 ### [defs/grok-build.ts](../../src/defs/grok-build.ts)
@@ -380,12 +380,12 @@ function parseGrokBuildModels({ stdout }: { stdout: string }): RuntimeModelOptio
 ### [model-registry.ts](../../src/model-registry.ts)
 
 ```ts
-function effectiveAgentModelChoice({ agent, choice }: { agent: Pick<AgentDefinition, 'models'> | null | undefined; choice: AgentModelChoice | undefined } ): AgentModelChoice | undefined;
-function fingerprintCredential({ value }: { value: string }): string;
-function mergeModelOptions({ fetchedModels, suggestedModels }: { fetchedModels: readonly ModelCatalogOption[]; suggestedModels: readonly ModelCatalogOption[] } ): ModelCatalogOption[];
+function effectiveAgentModelChoice({ agent, choice }: { agent: Pick<AgentDefinition, 'models'> | null | undefined; choice: AgentModelChoice | undefined }, _optional: Record<string, never> = {} ): AgentModelChoice | undefined;
+function fingerprintCredential({ value }: { value: string }, _optional: Record<string, never> = {}): string;
+function mergeModelOptions({ fetchedModels, suggestedModels }: { fetchedModels: readonly ModelCatalogOption[]; suggestedModels: readonly ModelCatalogOption[] }, _optional: Record<string, never> = {} ): ModelCatalogOption[];
 function modelCatalogCacheKey({ providerId, baseUrl, credential }: { providerId: string; baseUrl: string; credential: string }, { variant = '' }: { variant?: unknown } = {} ): string;
-function normalizeAgentModelChoice({ agent, choice }: { agent: Pick<AgentDefinition, 'models'> | null | undefined; choice: AgentModelChoice | undefined } ): AgentModelChoice | null;
-function resolveCredentialStatus({ provider, hasStoredCredential }: { provider: Pick<ModelProvider, 'credentialsRequired'>; hasStoredCredential: boolean } ): CredentialStatus;
+function normalizeAgentModelChoice({ agent, choice }: { agent: Pick<AgentDefinition, 'models'> | null | undefined; choice: AgentModelChoice | undefined }, _optional: Record<string, never> = {} ): AgentModelChoice | null;
+function resolveCredentialStatus({ provider, hasStoredCredential }: { provider: Pick<ModelProvider, 'credentialsRequired'>; hasStoredCredential: boolean }, _optional: Record<string, never> = {} ): CredentialStatus;
 ```
 
 ### [claude-stream.ts](../../src/claude-stream.ts)
@@ -397,20 +397,20 @@ function createClaudeStreamHandler({ onEvent }: { onEvent: EventSink }, options:
 ### [json-event-stream.ts](../../src/json-event-stream.ts)
 
 ```ts
-function createJsonEventStreamHandler({ kind, onEvent }: { kind: ParserKind; onEvent: StreamEventHandler }): StreamParser;
+function createJsonEventStreamHandler({ kind, onEvent }: { kind: ParserKind; onEvent: StreamEventHandler }, _optional: Record<string, never> = {}): StreamParser;
 ```
 
 ### [qoder-stream.ts](../../src/qoder-stream.ts)
 
 ```ts
-function createQoderStreamHandler({ onEvent }: { onEvent: QoderEventSink }): StreamParser;
+function createQoderStreamHandler({ onEvent }: { onEvent: QoderEventSink }, _optional: Record<string, never> = {}): StreamParser;
 ```
 
 ### [acp-model-probe.ts](../../src/acp-model-probe.ts)
 
 ```ts
 function probeAcpModels(requiredArgs: Pick<AcpModelProbeRequest, "bin" | "args">, optionalArgs: Omit<AcpModelProbeRequest, "bin" | "args"> = {}): Promise<RuntimeModelOption[]>;
-function setAcpModelProbe({ probe }: { probe: AcpModelProbe | null }): void;
+function setAcpModelProbe({ probe }: { probe: AcpModelProbe | null }, _optional: Record<string, never> = {}): void;
 ```
 
 ### [pi-models.ts](../../src/pi-models.ts)
@@ -422,36 +422,36 @@ function parsePiModels({ stdout }: { stdout: unknown }): RuntimeModelOption[] | 
 ### [providers/token-params.ts](../../src/providers/token-params.ts)
 
 ```ts
-function buildLegacyMaxTokensParam({ maxTokens }: { maxTokens: number }): { max_tokens: number };
-function buildMaxCompletionTokensParam({ maxTokens }: { maxTokens: number }): { max_completion_tokens: number };
-function buildOpenAIChatTokenParam({ model, maxTokens }: { model: string; maxTokens: number } ): { max_tokens: number } | { max_completion_tokens: number };
-function isUnsupportedMaxTokensError({ detail }: { detail: string }): boolean;
-function usesMaxCompletionTokens({ model }: { model: string }): boolean;
+function buildLegacyMaxTokensParam({ maxTokens }: { maxTokens: number }, _optional: Record<string, never> = {}): { max_tokens: number };
+function buildMaxCompletionTokensParam({ maxTokens }: { maxTokens: number }, _optional: Record<string, never> = {}): { max_completion_tokens: number };
+function buildOpenAIChatTokenParam({ model, maxTokens }: { model: string; maxTokens: number }, _optional: Record<string, never> = {} ): { max_tokens: number } | { max_completion_tokens: number };
+function isUnsupportedMaxTokensError({ detail }: { detail: string }, _optional: Record<string, never> = {}): boolean;
+function usesMaxCompletionTokens({ model }: { model: string }, _optional: Record<string, never> = {}): boolean;
 ```
 
 ### [providers/google.ts](../../src/providers/google.ts)
 
 ```ts
-function googleGenerateContentUrl({ baseUrl, model }: { baseUrl: string; model: string }): string;
-function googleGenerativeLanguageBaseUrl({ baseUrl }: { baseUrl: string }): string;
-function googleModelPathSegment({ model }: { model: string }): string;
-function googleProviderModelsUrl({ baseUrl, apiKey }: { baseUrl: string; apiKey: string }): string;
-function googleStreamGenerateContentUrl({ baseUrl, model }: { baseUrl: string; model: string }): string;
-function normalizeGoogleModelId({ model }: { model: string }): string;
+function googleGenerateContentUrl({ baseUrl, model }: { baseUrl: string; model: string }, _optional: Record<string, never> = {}): string;
+function googleGenerativeLanguageBaseUrl({ baseUrl }: { baseUrl: string }, _optional: Record<string, never> = {}): string;
+function googleModelPathSegment({ model }: { model: string }, _optional: Record<string, never> = {}): string;
+function googleProviderModelsUrl({ baseUrl, apiKey }: { baseUrl: string; apiKey: string }, _optional: Record<string, never> = {}): string;
+function googleStreamGenerateContentUrl({ baseUrl, model }: { baseUrl: string; model: string }, _optional: Record<string, never> = {}): string;
+function normalizeGoogleModelId({ model }: { model: string }, _optional: Record<string, never> = {}): string;
 ```
 
 ### [providers/aihubmix.ts](../../src/providers/aihubmix.ts)
 
 ```ts
 function aihubmixAppCodeHeader(): Record<string, string>;
-function aihubmixCatalogUrl({ baseUrl, type }: { baseUrl: string; type: AIHubMixCatalogType }): string;
-function aihubmixGeminiImageBytes({ req, doFetch }: { req: AIHubMixGeminiImageRequest; doFetch: (requiredArgs: { url: string; init: RequestInit }) => Promise<Response> } ): Promise<Buffer>;
-function aihubmixGeminiImageUrl({ baseUrl, wireModel }: { baseUrl: string; wireModel: string }): string;
-function aihubmixHeaders({ apiKey }: { apiKey: string }): Record<string, string>;
-function aihubmixOriginFromBase({ baseUrl }: { baseUrl: string }): string;
-function aihubmixVideoSeconds({ wireModel, requested }: { wireModel: string; requested: number }): string;
-function aihubmixWireModel({ catalogId }: { catalogId: string }): string;
-function classifyAIHubMixModel({ model }: { model: string }): AIHubMixProtocol;
+function aihubmixCatalogUrl({ baseUrl, type }: { baseUrl: string; type: AIHubMixCatalogType }, _optional: Record<string, never> = {}): string;
+function aihubmixGeminiImageBytes({ req, doFetch }: { req: AIHubMixGeminiImageRequest; doFetch: (requiredArgs: { url: string; init: RequestInit }) => Promise<Response> }, _optional: Record<string, never> = {} ): Promise<Buffer>;
+function aihubmixGeminiImageUrl({ baseUrl, wireModel }: { baseUrl: string; wireModel: string }, _optional: Record<string, never> = {}): string;
+function aihubmixHeaders({ apiKey }: { apiKey: string }, _optional: Record<string, never> = {}): Record<string, string>;
+function aihubmixOriginFromBase({ baseUrl }: { baseUrl: string }, _optional: Record<string, never> = {}): string;
+function aihubmixVideoSeconds({ wireModel, requested }: { wireModel: string; requested: number }, _optional: Record<string, never> = {}): string;
+function aihubmixWireModel({ catalogId }: { catalogId: string }, _optional: Record<string, never> = {}): string;
+function classifyAIHubMixModel({ model }: { model: string }, _optional: Record<string, never> = {}): AIHubMixProtocol;
 function parseAIHubMixCatalog({ data }: { data: unknown }, options: ParseAIHubMixCatalogOptions = {} ): AIHubMixCatalogModel[];
 ```
 
@@ -460,8 +460,8 @@ function parseAIHubMixCatalog({ data }: { data: unknown }, options: ParseAIHubMi
 ```ts
 function defaultDnsLookup({ hostname }: { hostname: string }): Promise<DnsLookupAddress[]>;
 function pinnedFetch({ url, init, pinnedAddress }: { url: string; init: PinnedFetchInit; pinnedAddress: DnsLookupAddress | undefined } ): Promise<PinnedFetchResponse>;
-function validateBaseUrl({ baseUrl }: { baseUrl: string }): BaseUrlValidationResult;
-function validateBaseUrlResolved({ baseUrl, lookup }: { baseUrl: string; lookup: DnsLookupFn } ): Promise<BaseUrlValidationResult>;
+function validateBaseUrl({ baseUrl }: { baseUrl: string }, _optional: Record<string, never> = {}): BaseUrlValidationResult;
+function validateBaseUrlResolved({ baseUrl, lookup }: { baseUrl: string; lookup: DnsLookupFn }, _optional: Record<string, never> = {} ): Promise<BaseUrlValidationResult>;
 ```
 
 ### [providers/model-catalog.ts](../../src/providers/model-catalog.ts)
@@ -485,24 +485,24 @@ function decodeSseStream({ source }: { source: AsyncIterable<Uint8Array | string
 ### [providers/anthropic-messages.ts](../../src/providers/anthropic-messages.ts)
 
 ```ts
-function anthropicFrameKind({ data, frameEvent }: { data: Record<string, unknown>; frameEvent: string | null }): string;
+function anthropicFrameKind({ data, frameEvent }: { data: Record<string, unknown>; frameEvent: string | null }, _optional: Record<string, never> = {}): string;
 function anthropicHeaders(requiredArgs: Pick<AnthropicTurnOptions, "apiKey" | "model" | "messages" | "maxTokens" | "onEvent">, optionalArgs: Omit<AnthropicTurnOptions, "apiKey" | "model" | "messages" | "maxTokens" | "onEvent"> = {}): Record<string, string>;
-function anthropicLoopExitReason({ outcome, toolTurns, maxToolTurns }: { outcome: SingleRequestOutcome; toolTurns: number; maxToolTurns: number }): AnthropicTurnEndReason | null;
-function anthropicRequestBody({ options, messages }: { options: AnthropicTurnOptions; messages: readonly AnthropicMessageParam[] }): Record<string, unknown>;
-function anthropicRequestUrl({ baseUrl }: { baseUrl: string | undefined }): string;
-function buildAnthropicAssistantContent({ text, toolCalls }: { text: string; toolCalls: readonly AnthropicToolCall[] }): AnthropicContentBlockParam[];
-function executeAnthropicToolCalls({ executeTool, calls, onEvent }: { executeTool: AnthropicToolExecutor; calls: readonly AnthropicToolCall[]; onEvent: (event: AnthropicTurnEvent) => void } ): Promise<AnthropicToolResultBlockParam[]>;
+function anthropicLoopExitReason({ outcome, toolTurns, maxToolTurns }: { outcome: SingleRequestOutcome; toolTurns: number; maxToolTurns: number }, _optional: Record<string, never> = {}): AnthropicTurnEndReason | null;
+function anthropicRequestBody({ options, messages }: { options: AnthropicTurnOptions; messages: readonly AnthropicMessageParam[] }, _optional: Record<string, never> = {}): Record<string, unknown>;
+function anthropicRequestUrl({ baseUrl }: { baseUrl: string | undefined }, _optional: Record<string, never> = {}): string;
+function buildAnthropicAssistantContent({ text, toolCalls }: { text: string; toolCalls: readonly AnthropicToolCall[] }, _optional: Record<string, never> = {}): AnthropicContentBlockParam[];
+function executeAnthropicToolCalls({ executeTool, calls, onEvent }: { executeTool: AnthropicToolExecutor; calls: readonly AnthropicToolCall[]; onEvent: (event: AnthropicTurnEvent) => void }, _optional: Record<string, never> = {} ): Promise<AnthropicToolResultBlockParam[]>;
 function extractAnthropicErrorDetail({ rawText }: { rawText: string }): string;
-function guardToolResult({ result }: { result: AnthropicToolResult }): AnthropicToolResult;
-function handleAnthropicErrorFrame({ data, onEvent, apiKey }: { data: Record<string, unknown>; onEvent: (event: AnthropicTurnEvent) => void; apiKey: string } ): void;
-function handleAnthropicInputJsonDelta({ state, index, partialJson }: { state: AnthropicStreamState; index: number; partialJson: string }): void;
-function handleAnthropicTextDelta({ state, index, text, onEvent }: { state: AnthropicStreamState; index: number; text: string; onEvent: (event: AnthropicTurnEvent) => void } ): 'continue' | 'break';
-function handleContentBlockDelta({ state, data, onEvent }: { state: AnthropicStreamState; data: Record<string, unknown>; onEvent: (event: AnthropicTurnEvent) => void } ): 'continue' | 'break';
-function handleContentBlockStart({ state, data }: { state: AnthropicStreamState; data: Record<string, unknown> }): void;
-function handleContentBlockStop({ state, data, onEvent }: { state: AnthropicStreamState; data: Record<string, unknown>; onEvent: (event: AnthropicTurnEvent) => void } ): void;
-function handleMessageDelta({ state, data, onEvent }: { state: AnthropicStreamState; data: Record<string, unknown>; onEvent: (event: AnthropicTurnEvent) => void } ): void;
-function invalidToolResultContentBlockReason({ block }: { block: AnthropicToolResultContentBlock }): string | null;
-function parseAccumulatedToolInputJson({ inputJson }: { inputJson: string }): unknown;
+function guardToolResult({ result }: { result: AnthropicToolResult }, _optional: Record<string, never> = {}): AnthropicToolResult;
+function handleAnthropicErrorFrame({ data, onEvent, apiKey }: { data: Record<string, unknown>; onEvent: (event: AnthropicTurnEvent) => void; apiKey: string }, _optional: Record<string, never> = {} ): void;
+function handleAnthropicInputJsonDelta({ state, index, partialJson }: { state: AnthropicStreamState; index: number; partialJson: string }, _optional: Record<string, never> = {}): void;
+function handleAnthropicTextDelta({ state, index, text, onEvent }: { state: AnthropicStreamState; index: number; text: string; onEvent: (event: AnthropicTurnEvent) => void }, _optional: Record<string, never> = {} ): 'continue' | 'break';
+function handleContentBlockDelta({ state, data, onEvent }: { state: AnthropicStreamState; data: Record<string, unknown>; onEvent: (event: AnthropicTurnEvent) => void }, _optional: Record<string, never> = {} ): 'continue' | 'break';
+function handleContentBlockStart({ state, data }: { state: AnthropicStreamState; data: Record<string, unknown> }, _optional: Record<string, never> = {}): void;
+function handleContentBlockStop({ state, data, onEvent }: { state: AnthropicStreamState; data: Record<string, unknown>; onEvent: (event: AnthropicTurnEvent) => void }, _optional: Record<string, never> = {} ): void;
+function handleMessageDelta({ state, data, onEvent }: { state: AnthropicStreamState; data: Record<string, unknown>; onEvent: (event: AnthropicTurnEvent) => void }, _optional: Record<string, never> = {} ): void;
+function invalidToolResultContentBlockReason({ block }: { block: AnthropicToolResultContentBlock }, _optional: Record<string, never> = {}): string | null;
+function parseAccumulatedToolInputJson({ inputJson }: { inputJson: string }, _optional: Record<string, never> = {}): unknown;
 function parseAnthropicSseData({ raw }: { raw: string }): Record<string, unknown> | null;
 function runAnthropicToolTurn(requiredArgs: Pick<AnthropicTurnOptions, "apiKey" | "model" | "messages" | "maxTokens" | "onEvent">, optionalArgs: Omit<AnthropicTurnOptions, "apiKey" | "model" | "messages" | "maxTokens" | "onEvent"> = {}): Promise<AnthropicTurnResult>;
 ```
@@ -510,83 +510,77 @@ function runAnthropicToolTurn(requiredArgs: Pick<AnthropicTurnOptions, "apiKey" 
 ### [providers/openai-chat.ts](../../src/providers/openai-chat.ts)
 
 ```ts
-function accumulateOpenAiToolCallDelta({ state, rawCall }: { state: OpenAiStreamState; rawCall: unknown }): void;
-function applyOpenAiStreamUsage({ state, data, onEvent }: { state: OpenAiStreamState; data: Record<string, unknown>; onEvent: (event: OpenAiTurnEvent) => void }): void;
-function buildOpenAiAssistantToolCallMessage({ text, toolCalls }: { text: string; toolCalls: readonly OpenAiToolCallParam[] }): OpenAiMessageParam;
-function buildOpenAiToolExchangeMessages({ toolResultMessages, followUpParts }: { toolResultMessages: readonly OpenAiMessageParam[]; followUpParts: readonly OpenAiContentPart[] } ): OpenAiMessageParam[];
-function executeOpenAiToolCalls({ executeTool, calls, onEvent }: { executeTool: OpenAiToolExecutor; calls: readonly OpenAiToolCall[]; onEvent: (event: OpenAiTurnEvent) => void } ): Promise<OpenAiToolExecutionOutcome>;
+function accumulateOpenAiToolCallDelta({ state, rawCall }: { state: OpenAiStreamState; rawCall: unknown }, _optional: Record<string, never> = {}): void;
+function applyOpenAiStreamUsage({ state, data, onEvent }: { state: OpenAiStreamState; data: Record<string, unknown>; onEvent: (event: OpenAiTurnEvent) => void }, _optional: Record<string, never> = {}): void;
+function buildOpenAiAssistantToolCallMessage({ text, toolCalls }: { text: string; toolCalls: readonly OpenAiToolCallParam[] }, _optional: Record<string, never> = {}): OpenAiMessageParam;
+function buildOpenAiToolExchangeMessages({ toolResultMessages, followUpParts }: { toolResultMessages: readonly OpenAiMessageParam[]; followUpParts: readonly OpenAiContentPart[] }, _optional: Record<string, never> = {} ): OpenAiMessageParam[];
+function executeOpenAiToolCalls({ executeTool, calls, onEvent }: { executeTool: OpenAiToolExecutor; calls: readonly OpenAiToolCall[]; onEvent: (event: OpenAiTurnEvent) => void }, _optional: Record<string, never> = {} ): Promise<OpenAiToolExecutionOutcome>;
 function extractOpenAiErrorDetail({ rawText }: { rawText: string }): string;
-function firstOpenAiChoice({ data }: { data: Record<string, unknown> }): Record<string, unknown> | null;
-function handleOpenAiChoiceDelta({ state, choice, onEvent }: { state: OpenAiStreamState; choice: Record<string, unknown>; onEvent: (event: OpenAiTurnEvent) => void }): 'continue' | 'break';
-function handleOpenAiTextContentDelta({ state, content, onEvent }: { state: OpenAiStreamState; content: string; onEvent: (event: OpenAiTurnEvent) => void }): 'continue' | 'break';
-function invalidOpenAiContentPartReason({ part }: { part: OpenAiContentPart }): string | null;
-function newPendingOpenAiToolCall({ rawCall, index }: { rawCall: Record<string, unknown>; index: number }): PendingToolCall;
+function firstOpenAiChoice({ data }: { data: Record<string, unknown> }, _optional: Record<string, never> = {}): Record<string, unknown> | null;
+function handleOpenAiChoiceDelta({ state, choice, onEvent }: { state: OpenAiStreamState; choice: Record<string, unknown>; onEvent: (event: OpenAiTurnEvent) => void }, _optional: Record<string, never> = {}): 'continue' | 'break';
+function handleOpenAiTextContentDelta({ state, content, onEvent }: { state: OpenAiStreamState; content: string; onEvent: (event: OpenAiTurnEvent) => void }, _optional: Record<string, never> = {}): 'continue' | 'break';
+function invalidOpenAiContentPartReason({ part }: { part: OpenAiContentPart }, _optional: Record<string, never> = {}): string | null;
+function newPendingOpenAiToolCall({ rawCall, index }: { rawCall: Record<string, unknown>; index: number }, _optional: Record<string, never> = {}): PendingToolCall;
 function openAiHeaders(requiredArgs: Pick<OpenAiTurnOptions, "apiKey" | "model" | "messages" | "onEvent">, optionalArgs: Omit<OpenAiTurnOptions, "apiKey" | "model" | "messages" | "onEvent"> = {}): Record<string, string>;
-function openAiLoopExitReason({ outcome, toolTurns, maxToolTurns }: { outcome: OpenAiCompatibleRequestOutcome; toolTurns: number; maxToolTurns: number }): OpenAiTurnEndReason | null;
-function openAiRequestBody({ options, messages }: { options: OpenAiTurnOptions; messages: readonly OpenAiMessageParam[] }): Record<string, unknown>;
-function openAiRequestUrl({ baseUrl }: { baseUrl: string | undefined }): string;
+function openAiLoopExitReason({ outcome, toolTurns, maxToolTurns }: { outcome: OpenAiCompatibleRequestOutcome; toolTurns: number; maxToolTurns: number }, _optional: Record<string, never> = {}): OpenAiTurnEndReason | null;
+function openAiRequestBody({ options, messages }: { options: OpenAiTurnOptions; messages: readonly OpenAiMessageParam[] }, _optional: Record<string, never> = {}): Record<string, unknown>;
+function openAiRequestUrl({ baseUrl }: { baseUrl: string | undefined }, _optional: Record<string, never> = {}): string;
 function parseOpenAiSseData({ raw }: { raw: string }): Record<string, unknown> | null;
-function processOpenAiStreamFrame({ state, frame, onEvent }: { state: OpenAiStreamState; frame: DecodedSseEvent; onEvent: (event: OpenAiTurnEvent) => void }): OpenAiFrameResult;
-function resolveOpenAiToolCalls({ pending }: { pending: ReadonlyMap<number, PendingToolCall> }): OpenAiToolCall[];
+function processOpenAiStreamFrame({ state, frame, onEvent }: { state: OpenAiStreamState; frame: DecodedSseEvent; onEvent: (event: OpenAiTurnEvent) => void }, _optional: Record<string, never> = {}): OpenAiFrameResult;
+function resolveOpenAiToolCalls({ pending }: { pending: ReadonlyMap<number, PendingToolCall> }, _optional: Record<string, never> = {}): OpenAiToolCall[];
 function runOpenAiCompatibleRequest(requiredArgs: Pick<OpenAiCompatibleRequestInit, "url" | "headers" | "body" | "redactSecretsList" | "guardMessageId" | "providerLabel" | "onEvent" | "emitEnd" | "hasEnded">, optionalArgs: Omit<OpenAiCompatibleRequestInit, "url" | "headers" | "body" | "redactSecretsList" | "guardMessageId" | "providerLabel" | "onEvent" | "emitEnd" | "hasEnded"> = {}): Promise<OpenAiCompatibleRequestOutcome>;
 function runOpenAiToolTurn(requiredArgs: Pick<OpenAiTurnOptions, "apiKey" | "model" | "messages" | "onEvent">, optionalArgs: Omit<OpenAiTurnOptions, "apiKey" | "model" | "messages" | "onEvent"> = {}): Promise<OpenAiTurnResult>;
-function sanitizeOpenAiToolResult({ result }: { result: OpenAiToolResult }): SanitizedOpenAiToolResult;
-function splitOpenAiToolResultContent({ content }: { content: string | readonly OpenAiContentPart[] }): SplitOpenAiToolResultContent;
+function sanitizeOpenAiToolResult({ result }: { result: OpenAiToolResult }, _optional: Record<string, never> = {}): SanitizedOpenAiToolResult;
+function splitOpenAiToolResultContent({ content }: { content: string | readonly OpenAiContentPart[] }, _optional: Record<string, never> = {}): SplitOpenAiToolResultContent;
 ```
 
 ### [providers/google-messages.ts](../../src/providers/google-messages.ts)
 
 ```ts
-function applyGoogleUsage({ state, data, onEvent }: { state: GoogleStreamState; data: Record<string, unknown>; onEvent: (event: GoogleTurnEvent) => void }): void;
-function buildGoogleAssistantParts({ text, toolCalls }: { text: string; toolCalls: readonly GoogleToolCall[] }): GooglePart[];
-function executeGoogleToolCalls({ executeTool, calls, onEvent }: { executeTool: GoogleToolExecutor; calls: readonly GoogleToolCall[]; onEvent: (event: GoogleTurnEvent) => void } ): Promise<GoogleToolExecutionOutcome>;
-function googleLoopExitReason({ outcome, toolTurns, maxToolTurns }: { outcome: SingleRequestOutcome; toolTurns: number; maxToolTurns: number }): GoogleTurnEndReason | null;
-function handleGoogleBlockedPrompt({ data, onEvent }: { data: Record<string, unknown>; onEvent: (event: GoogleTurnEvent) => void }): boolean;
-function handleGoogleFunctionCallPart({ state, rawPart, onEvent }: { state: GoogleStreamState; rawPart: Record<string, unknown>; onEvent: (event: GoogleTurnEvent) => void }): void;
-function handleGoogleTextPart({ state, text, onEvent }: { state: GoogleStreamState; text: string; onEvent: (event: GoogleTurnEvent) => void }): 'continue' | 'break';
-function processGoogleFrame({ state, data, onEvent }: { state: GoogleStreamState; data: Record<string, unknown>; onEvent: (event: GoogleTurnEvent) => void }): GoogleFrameOutcome;
-function processGoogleRawPart({ state, rawPart, onEvent }: { state: GoogleStreamState; rawPart: unknown; onEvent: (event: GoogleTurnEvent) => void }): 'continue' | 'break';
+function applyGoogleUsage({ state, data, onEvent }: { state: GoogleStreamState; data: Record<string, unknown>; onEvent: (event: GoogleTurnEvent) => void }, _optional: Record<string, never> = {}): void;
+function buildGoogleAssistantParts({ text, toolCalls }: { text: string; toolCalls: readonly GoogleToolCall[] }, _optional: Record<string, never> = {}): GooglePart[];
+function executeGoogleToolCalls({ executeTool, calls, onEvent }: { executeTool: GoogleToolExecutor; calls: readonly GoogleToolCall[]; onEvent: (event: GoogleTurnEvent) => void }, _optional: Record<string, never> = {} ): Promise<GoogleToolExecutionOutcome>;
+function googleLoopExitReason({ outcome, toolTurns, maxToolTurns }: { outcome: SingleRequestOutcome; toolTurns: number; maxToolTurns: number }, _optional: Record<string, never> = {}): GoogleTurnEndReason | null;
+function handleGoogleBlockedPrompt({ data, onEvent }: { data: Record<string, unknown>; onEvent: (event: GoogleTurnEvent) => void }, _optional: Record<string, never> = {}): boolean;
+function handleGoogleFunctionCallPart({ state, rawPart, onEvent }: { state: GoogleStreamState; rawPart: Record<string, unknown>; onEvent: (event: GoogleTurnEvent) => void }, _optional: Record<string, never> = {}): void;
+function handleGoogleTextPart({ state, text, onEvent }: { state: GoogleStreamState; text: string; onEvent: (event: GoogleTurnEvent) => void }, _optional: Record<string, never> = {}): 'continue' | 'break';
+function processGoogleFrame({ state, data, onEvent }: { state: GoogleStreamState; data: Record<string, unknown>; onEvent: (event: GoogleTurnEvent) => void }, _optional: Record<string, never> = {}): GoogleFrameOutcome;
+function processGoogleRawPart({ state, rawPart, onEvent }: { state: GoogleStreamState; rawPart: unknown; onEvent: (event: GoogleTurnEvent) => void }, _optional: Record<string, never> = {}): 'continue' | 'break';
 function runGoogleToolTurn(requiredArgs: Pick<GoogleTurnOptions, "apiKey" | "model" | "contents" | "onEvent">, optionalArgs: Omit<GoogleTurnOptions, "apiKey" | "model" | "contents" | "onEvent"> = {}): Promise<GoogleTurnResult>;
 ```
 
 ### [providers/azure-chat.ts](../../src/providers/azure-chat.ts)
 
 ```ts
-function azureLoopExitReason({ outcome, toolTurns, maxToolTurns }: { outcome: OpenAiCompatibleRequestOutcome; toolTurns: number; maxToolTurns: number }): AzureTurnEndReason | null;
-function buildAzureAssistantToolCalls({ toolCalls }: { toolCalls: readonly AzureToolCall[] }): AzureToolCallParam[];
-function buildAzureToolExchangeMessages({ toolResultMessages, followUpParts }: { toolResultMessages: readonly AzureMessageParam[]; followUpParts: readonly AzureContentPart[] } ): AzureMessageParam[];
-function executeAzureToolCalls({ executeTool, calls, onEvent }: { executeTool: AzureToolExecutor; calls: readonly AzureToolCall[]; onEvent: (event: AzureTurnEvent) => void } ): Promise<AzureToolExecutionOutcome>;
+function azureLoopExitReason({ outcome, toolTurns, maxToolTurns }: { outcome: OpenAiCompatibleRequestOutcome; toolTurns: number; maxToolTurns: number }, _optional: Record<string, never> = {}): AzureTurnEndReason | null;
+function buildAzureAssistantToolCalls({ toolCalls }: { toolCalls: readonly AzureToolCall[] }, _optional: Record<string, never> = {}): AzureToolCallParam[];
+function buildAzureToolExchangeMessages({ toolResultMessages, followUpParts }: { toolResultMessages: readonly AzureMessageParam[]; followUpParts: readonly AzureContentPart[] }, _optional: Record<string, never> = {} ): AzureMessageParam[];
+function executeAzureToolCalls({ executeTool, calls, onEvent }: { executeTool: AzureToolExecutor; calls: readonly AzureToolCall[]; onEvent: (event: AzureTurnEvent) => void }, _optional: Record<string, never> = {} ): Promise<AzureToolExecutionOutcome>;
 function runAzureToolTurn(requiredArgs: Pick<AzureTurnOptions, "apiKey" | "baseUrl" | "model" | "messages" | "onEvent">, optionalArgs: Omit<AzureTurnOptions, "apiKey" | "baseUrl" | "model" | "messages" | "onEvent"> = {}): Promise<AzureTurnResult>;
 ```
 
 ### [providers/ollama-chat.ts](../../src/providers/ollama-chat.ts)
 
 ```ts
-function buildOllamaAssistantToolCalls({ toolCalls }: { toolCalls: readonly OllamaToolCall[] }): OllamaToolCallParam[];
-function executeOllamaToolCalls({ executeTool, calls, onEvent }: { executeTool: OllamaToolExecutor; calls: readonly OllamaToolCall[]; onEvent: (event: OllamaTurnEvent) => void } ): Promise<OllamaMessageParam[]>;
-function handleOllamaTextContent({ state, content, onEvent }: { state: OllamaStreamState; content: string; onEvent: (event: OllamaTurnEvent) => void }): 'continue' | 'break';
-function handleOllamaToolCallsField({ state, message }: { state: OllamaStreamState; message: Record<string, unknown> }): void;
-function ollamaLoopExitReason({ outcome, toolTurns, maxToolTurns }: { outcome: SingleRequestOutcome; toolTurns: number; maxToolTurns: number }): OllamaTurnEndReason | null;
-function parseNdjsonLine({ line }: { line: string }): unknown;
-function* parseNdjsonLines({ rawLines }: { rawLines: readonly string[] }): Generator<unknown>;
-function parseOllamaToolCallArguments({ args }: { args: unknown }): unknown;
-function processOllamaLine({ state, line, onEvent, emitEnd }: { state: OllamaStreamState; line: Record<string, unknown>; onEvent: (event: OllamaTurnEvent) => void; emitEnd: (reason: OllamaTurnEndReason) => void } ): 'continue' | 'break' | 'done';
-function resolveOllamaToolCall({ rawCall, index }: { rawCall: unknown; index: number }): OllamaToolCall | null;
+function buildOllamaAssistantToolCalls({ toolCalls }: { toolCalls: readonly OllamaToolCall[] }, _optional: Record<string, never> = {}): OllamaToolCallParam[];
+function executeOllamaToolCalls({ executeTool, calls, onEvent }: { executeTool: OllamaToolExecutor; calls: readonly OllamaToolCall[]; onEvent: (event: OllamaTurnEvent) => void }, _optional: Record<string, never> = {} ): Promise<OllamaMessageParam[]>;
+function handleOllamaTextContent({ state, content, onEvent }: { state: OllamaStreamState; content: string; onEvent: (event: OllamaTurnEvent) => void }, _optional: Record<string, never> = {}): 'continue' | 'break';
+function handleOllamaToolCallsField({ state, message }: { state: OllamaStreamState; message: Record<string, unknown> }, _optional: Record<string, never> = {}): void;
+function ollamaLoopExitReason({ outcome, toolTurns, maxToolTurns }: { outcome: SingleRequestOutcome; toolTurns: number; maxToolTurns: number }, _optional: Record<string, never> = {}): OllamaTurnEndReason | null;
+function parseNdjsonLine({ line }: { line: string }, _optional: Record<string, never> = {}): unknown;
+function* parseNdjsonLines({ rawLines }: { rawLines: readonly string[] }, _optional: Record<string, never> = {}): Generator<unknown>;
+function parseOllamaToolCallArguments({ args }: { args: unknown }, _optional: Record<string, never> = {}): unknown;
+function processOllamaLine({ state, line, onEvent, emitEnd }: { state: OllamaStreamState; line: Record<string, unknown>; onEvent: (event: OllamaTurnEvent) => void; emitEnd: (reason: OllamaTurnEndReason) => void }, _optional: Record<string, never> = {} ): 'continue' | 'break' | 'done';
+function resolveOllamaToolCall({ rawCall, index }: { rawCall: unknown; index: number }, _optional: Record<string, never> = {}): OllamaToolCall | null;
 function runOllamaToolTurn(requiredArgs: Pick<OllamaTurnOptions, "apiKey" | "model" | "messages" | "onEvent">, optionalArgs: Omit<OllamaTurnOptions, "apiKey" | "model" | "messages" | "onEvent"> = {}): Promise<OllamaTurnResult>;
-function splitNdjsonLines({ buffer }: { buffer: string }): { readonly lines: readonly string[]; readonly remainder: string };
-```
-
-### [providers/elevenlabs.ts](../../src/providers/elevenlabs.ts)
-
-```ts
-function listElevenLabsVoiceOptions({ workspaceKey, resolveCredentials }: { workspaceKey: string; resolveCredentials: ElevenLabsCredentialResolver }, options: { limit?: number; requestInit?: Pick<RequestInit, 'dispatcher'>; } = {} ): Promise<ElevenLabsVoiceOption[]>;
+function splitNdjsonLines({ buffer }: { buffer: string }, _optional: Record<string, never> = {}): { readonly lines: readonly string[]; readonly remainder: string };
 ```
 
 ### [providers/pkce.ts](../../src/providers/pkce.ts)
 
 ```ts
 function buildAuthorizeUrl(requiredArgs: Pick<AuthorizeUrlInput, "authServer" | "clientId" | "redirectUri" | "state" | "codeChallenge">, optionalArgs: Omit<AuthorizeUrlInput, "authServer" | "clientId" | "redirectUri" | "state" | "codeChallenge"> = {}): string;
-function deriveCodeChallenge({ verifier }: { verifier: string }): string;
+function deriveCodeChallenge({ verifier }: { verifier: string }, _optional: Record<string, never> = {}): string;
 function exchangeCodeForToken({ input }: { input: ExchangeCodeInput }, { fetchImpl = fetch }: { fetchImpl?: typeof fetch } = {}): Promise<OAuthTokenResponse>;
 function generateCodeVerifier(): string;
 function generateState(): string;
@@ -596,7 +590,7 @@ function refreshAccessToken({ input }: { input: RefreshTokenInput }, { fetchImpl
 ### [providers/oauth-provider.ts](../../src/providers/oauth-provider.ts)
 
 ```ts
-function beginOAuthPkce(input: BeginOAuthPkceInput): BeginOAuthPkceResult;
+function beginOAuthPkce(input: BeginOAuthPkceInput, _optional: Record<string, never> = {}): BeginOAuthPkceResult;
 function completeOAuthPkce(requiredArgs: Pick<CompleteOAuthPkceInput, "config" | "pending" | "state" | "code">, optionalArgs: Omit<CompleteOAuthPkceInput, "config" | "pending" | "state" | "code"> = {} ): Promise<OAuthTokenResponse>;
 function refreshOAuthPkceToken(requiredArgs: Pick<RefreshOAuthPkceInput, "config" | "refreshToken">, optionalArgs: Omit<RefreshOAuthPkceInput, "config" | "refreshToken"> = {} ): Promise<OAuthTokenResponse>;
 function xaiOAuthRedirectUri(): string;
@@ -611,12 +605,12 @@ function startOAuthCallbackListener(requiredArgs: Pick<StartOAuthCallbackListene
 ### [providers/oauth-tokens.ts](../../src/providers/oauth-tokens.ts)
 
 ```ts
-function clearStoredOAuthToken({ dataDir, fileName }: { dataDir: string; fileName: string }): Promise<void>;
-function getStoredOAuthToken({ dataDir, fileName }: { dataDir: string; fileName: string } ): Promise<StoredOAuthToken | null>;
+function clearStoredOAuthToken({ dataDir, fileName }: { dataDir: string; fileName: string }, _optional: Record<string, never> = {}): Promise<void>;
+function getStoredOAuthToken({ dataDir, fileName }: { dataDir: string; fileName: string }, _optional: Record<string, never> = {} ): Promise<StoredOAuthToken | null>;
 function isOAuthTokenExpired({ token }: { token: StoredOAuthToken }, { now = Date.now(), skew = 120_000 }: { now?: number; skew?: number } = {} ): boolean;
-function readOAuthTokenFile({ dataDir, fileName }: { dataDir: string; fileName: string }): Promise<OAuthTokenFile>;
-function sanitizeOAuthTokenFile({ raw }: { raw: unknown }): OAuthTokenFile;
-function setStoredOAuthToken({ dataDir, fileName, token }: { dataDir: string; fileName: string; token: StoredOAuthToken } ): Promise<void>;
+function readOAuthTokenFile({ dataDir, fileName }: { dataDir: string; fileName: string }, _optional: Record<string, never> = {}): Promise<OAuthTokenFile>;
+function sanitizeOAuthTokenFile({ raw }: { raw: unknown }, _optional: Record<string, never> = {}): OAuthTokenFile;
+function setStoredOAuthToken({ dataDir, fileName, token }: { dataDir: string; fileName: string; token: StoredOAuthToken }, _optional: Record<string, never> = {} ): Promise<void>;
 ```
 
 ### [providers/oauth-credentials.ts](../../src/providers/oauth-credentials.ts)
@@ -634,7 +628,7 @@ function runProviderToolTurn(required: ProviderToolTurnInput, optional: Provider
 ### [providers/google-schema.ts](../../src/providers/google-schema.ts)
 
 ```ts
-function coerceNumericEnumStringsToNumbers({ input, paths }: { input: unknown; paths: readonly string[] }): unknown;
+function coerceNumericEnumStringsToNumbers({ input, paths }: { input: unknown; paths: readonly string[] }, _optional: Record<string, never> = {}): unknown;
 function findNumericEnumPaths({ schema }: { schema: unknown }, { prefix = [] }: { prefix?: readonly string[] } = {}): string[];
 function googleParametersOf({ descriptor }: { descriptor: ProviderToolDescriptor }, { maxRefDepth = MAX_GOOGLE_REF_DEPTH }: { maxRefDepth?: number } = {}): Record<string, unknown>;
 function sanitizeGoogleSchema({ schema }: { schema: unknown }, { defs = {}, maxRefDepth = MAX_GOOGLE_REF_DEPTH }: { defs?: Readonly<Record<string, unknown>>; maxRefDepth?: number } = {}): unknown;
@@ -643,7 +637,7 @@ function sanitizeGoogleSchema({ schema }: { schema: unknown }, { defs = {}, maxR
 ### [agent-protocol/core/json-line-stream.ts](../../src/agent-protocol/core/json-line-stream.ts)
 
 ```ts
-function createJsonLineStream({ onMessage }: { onMessage: (requiredArgs: { message: unknown; rawLine: string }) => void }): StreamParser;
+function createJsonLineStream({ onMessage }: { onMessage: (requiredArgs: { message: unknown; rawLine: string }) => void }, { onError }: { onError?: (error: RangeError) => void } = {}): StreamParser;
 ```
 
 ### [agent-protocol/acp/session-params.ts](../../src/agent-protocol/acp/session-params.ts)
@@ -668,7 +662,7 @@ function attachAcpSession(requiredArgs: Pick<AttachAcpSessionOptions, "child" | 
 ### [agent-protocol/pi-rpc/events.ts](../../src/agent-protocol/pi-rpc/events.ts)
 
 ```ts
-function mapPiRpcEvent({ raw, send, ctx }: { raw: JsonRecord; send: SendAgentEvent; ctx: PiRpcContext } ): 'agent_end' | null;
+function mapPiRpcEvent({ raw, send, ctx }: { raw: JsonRecord; send: SendAgentEvent; ctx: PiRpcContext }, _optional: Record<string, never> = {} ): 'agent_end' | null;
 ```
 
 ### [agent-protocol/pi-rpc/session.ts](../../src/agent-protocol/pi-rpc/session.ts)
@@ -689,22 +683,19 @@ Every listed name is exported from the root; source links define fields and lite
 
 | Source | Exported values, classes and types |
 |---|---|
-| [types.ts](../../src/types.ts) | `DetectedAgent`, `RuntimeAgentDef`, `RuntimeBuildOptions`, `RuntimeCapabilityMap`, `RuntimeContext`, `RuntimeEnv`, `RuntimeExecOptions`, `RuntimeListModels`, `RuntimeLock`, `RuntimeLockAcquireContext`, `RuntimeLockHandoffContext`, `RuntimeLockHold`, `RuntimeModelOption`, `RuntimeModelSource`, `RuntimePromptBudgetError`, `RuntimeReasoningInModelId`, `RuntimeReasoningOption`, `RuntimeStdoutPolicy` |
+| [types.ts](../../src/types.ts) | `DetectedAgent`, `RuntimeExecOptions` |
 | [models.ts](../../src/models.ts) | `DEFAULT_MODEL_OPTION` |
 | [capabilities.ts](../../src/capabilities.ts) | `agentCapabilities` |
 | [mmd-routes.ts](../../src/mmd-routes.ts) | `MmdRouteLaunchEnv` |
 | [metadata.ts](../../src/metadata.ts) | `AgentInstallMeta`, `DEFAULT_AGENT_INSTALL_LINKS` |
 | [mcp.ts](../../src/mcp.ts) | `AcpMcpServerEntry`, `AcpMcpServerSpec` |
 | [role-marker-guard.ts](../../src/role-marker-guard.ts) | `FABRICATED_ROLE_MARKER_RE`, `RoleMarkerGuard`, `RoleMarkerWarningEvent` |
-| [auth.ts](../../src/auth.ts) | `AgentAuthProbeResult`, `AgentServiceFailureCode` |
+| [auth.ts](../../src/auth.ts) | `AgentAuthProbeResult` |
 | [opencode-log.ts](../../src/opencode-log.ts) | `OpenCodeServiceFailure` |
 | [env.ts](../../src/env.ts) | `SpawnEnvHooks` |
-| [launch.ts](../../src/launch.ts) | `AgentLaunchKind`, `AgentLaunchResolution` |
 | [terminal-launch.ts](../../src/terminal-launch.ts) | `TerminalLaunchResult` |
 | [diagnostics.ts](../../src/diagnostics.ts) | `NotInvocableCause` |
 | [detection.ts](../../src/detection.ts) | `ProbedAgentModels` |
-| [prompt-file.ts](../../src/prompt-file.ts) | `PreparedPromptFile` |
-| [log-file.ts](../../src/log-file.ts) | `PreparedAgentLogFile` |
 | [amr-model-cache.ts](../../src/amr-model-cache.ts) | `AmrModelLoadingCache`, `AmrModelsResponse`, `amrModelLoadingCache` |
 | [model-catalog-cache.ts](../../src/model-catalog-cache.ts) | `ModelCatalogCache`, `ModelCatalogCacheDependencies`, `ModelCatalogCacheKey`, `ModelCatalogCacheOptions`, `ModelCatalogReadOptions`, `ModelDiscovery`, `ModelMerger` |
 | [registry.ts](../../src/registry.ts) | `AGENT_DEFS`, `BASE_AGENT_DEFS` |
@@ -740,13 +731,12 @@ Every listed name is exported from the root; source links define fields and lite
 | [claude-stream.ts](../../src/claude-stream.ts) | `ClaudeStreamEvent` |
 | [qoder-stream.ts](../../src/qoder-stream.ts) | `QoderEvent` |
 | [amr-profile-resolver.ts](../../src/amr-profile-resolver.ts) | `AmrProfileResolver`, `noopAmrProfileResolver` |
-| [acp-model-probe.ts](../../src/acp-model-probe.ts) | `AcpModelProbe`, `AcpModelProbeRequest`, `noopAcpModelProbe` |
-| [prompt-augmenter.ts](../../src/prompt-augmenter.ts) | `PromptAugmenter`, `RunContextSelection`, `WorkspaceContextItem`, `noopPromptAugmenter` |
+| [acp-model-probe.ts](../../src/acp-model-probe.ts) | `noopAcpModelProbe` |
+| [prompt-augmenter.ts](../../src/prompt-augmenter.ts) | `noopPromptAugmenter` |
 | [artifact-taxonomy.ts](../../src/artifact-taxonomy.ts) | `ArtifactTaxonomy`, `noopArtifactTaxonomy` |
 | [telemetry-sink.ts](../../src/telemetry-sink.ts) | `RunLifecycleEvent`, `TelemetrySink`, `noopTelemetrySink` |
-| [providers/types.ts](../../src/providers/types.ts) | `ConnectionTestKind`, `ConnectionTestProtocol`, `ProviderModelOption`, `ProviderModelsKind`, `ProviderModelsRequest`, `ProviderModelsResponse` |
 | [providers/aihubmix.ts](../../src/providers/aihubmix.ts) | `AIHUBMIX_APP_CODE`, `AIHUBMIX_DEFAULT_BASE_URL`, `AIHUBMIX_IMAGE_ASPECT_TO_SIZE`, `AIHubMixCatalogModel`, `AIHubMixCatalogType`, `AIHubMixGeminiImageRequest`, `AIHubMixProtocol`, `ParseAIHubMixCatalogOptions` |
-| [providers/connection-guard.ts](../../src/providers/connection-guard.ts) | `BaseUrlValidationResult`, `DnsLookupAddress`, `DnsLookupFn`, `PinnedFetch`, `PinnedFetchInit`, `PinnedFetchResponse` |
+| [providers/connection-guard.ts](../../src/providers/connection-guard.ts) | `BaseUrlValidationResult`, `PinnedFetch`, `PinnedFetchInit`, `PinnedFetchResponse` |
 | [providers/model-catalog.ts](../../src/providers/model-catalog.ts) | `ProviderModelsInput` |
 | [providers/connection-test.ts](../../src/providers/connection-test.ts) | `ConnectionTestResponse`, `ProviderConnectionTestInput`, `ProviderConnectionTestRequest`, `SupportedConnectionTestProtocol` |
 | [providers/sse-decode.ts](../../src/providers/sse-decode.ts) | `DecodedSseEvent` |
@@ -768,7 +758,24 @@ Every listed name is exported from the root; source links define fields and lite
 | [agent-protocol/acp/session.ts](../../src/agent-protocol/acp/session.ts) | `AcpPermissionDecision`, `AcpPermissionHandler`, `AcpPermissionOption`, `AcpPermissionRequest`, `AcpSessionController`, `AttachAcpSessionOptions` |
 | [agent-protocol/acp/account-failure.ts](../../src/agent-protocol/acp/account-failure.ts) | `AccountFailure`, `AccountFailureClassifier`, `noopAccountFailureClassifier` |
 | [agent-protocol/pi-rpc/session.ts](../../src/agent-protocol/pi-rpc/session.ts) | `PiRpcSession`, `PiRpcSessionOptions` |
-| @jini-ai/protocol re-exports | `AgentDefinition`, `CredentialStatus`, `ModelCatalogOption`, `ModelProvider`, `AgentDiagnostic`, `AgentDiagnosticReason`, `AgentDiagnosticSeverity`, `AgentFixIntent` |
+| @jini-ai/protocol re-exports | `AgentDefinition`, `CredentialStatus`, `ModelCatalogOption`, `ModelProvider` |
+| [runtime-port-bindings.ts](../../src/runtime-port-bindings.ts) | `createAgentRuntimeBindings` |
+| [runtime-def-binding.ts](../../src/runtime-def-binding.ts) | `bindRuntimeAgentDef` |
+| [defs/codex/options.ts](../../src/defs/codex/options.ts) | `CodexDefOptions`, `codexDefOptionsFromEnv` |
+| [defs/pi/options.ts](../../src/defs/pi/options.ts) | `PiDefOptions`, `piDefOptionsFromEnv` |
+
+### Vocabulary that moved to core
+
+These types are no longer exported from this package (sheet C6, one definition each). Import them from `@jini-ai/core/contracts/agents`; the agent runtime and the daemon both implement or consume them from there.
+
+| Core file | Types |
+|---|---|
+| [definition.ts](../../../core/src/contracts/agents/definition.ts) | `AcpModelProbe`, `AcpModelProbeRequest`, `RuntimeAgentDef`, `RuntimeBuildOptions`, `RuntimeCapabilityMap`, `RuntimeContext`, `RuntimeListModels`, `RuntimeLock`, `RuntimeLockAcquireContext`, `RuntimeLockHandoffContext`, `RuntimeLockHold`, `RuntimeModelSource`, `RuntimePromptBudgetError`, `RuntimeReasoningInModelId`, `RuntimeStdoutPolicy` |
+| [model-catalog.ts](../../../core/src/contracts/agents/model-catalog.ts) | `RuntimeEnv`, `RuntimeModelOption`, `RuntimeReasoningOption`, `ModelIdentityKind`, `ConnectionTestKind`, `ConnectionTestProtocol`, `ProviderModelOption`, `ProviderModelsKind`, `ProviderModelsRequest`, `ProviderModelsQuery`, `ProviderModelsResponse`, `DnsLookupAddress`, `DnsLookupFn`, `RuntimeSelectionError` (a data-only error class: the launcher checks it with `instanceof`) |
+| [launch.ts](../../../core/src/contracts/agents/launch.ts) | `AgentLaunchKind`, `AgentLaunchResolution`, `PreparedAgentLogFile`, `PreparedPromptFile`, `PromptAugmenter`, `RunContextSelection`, `WorkspaceContextItem`, `AgentServiceFailureCode` |
+| [native-tool-policy.ts](../../../core/src/contracts/agents/native-tool-policy.ts) | `NativeCapabilities`, `NativeToolPolicyInput`, `RunConsentKey`, `RunPlan`, `RunPlanHost` |
+
+The AI trace recorder, usage normalizer and sinks are in `@jini-ai/core/contracts/ai-trace`; this package has no `./ai-trace` path. `AgentDiagnostic*` types come from `@jini-ai/protocol`. The daemon states what it needs from this package as `AgentRuntimePort` (`@jini-ai/daemon/ports/agent-runtime`); `createAgentRuntimeBindings` is the one binding of it.
 
 ## Alias and coverage boundaries
 

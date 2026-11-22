@@ -20,50 +20,14 @@
 import path from 'node:path';
 import { promises as fsp, type Dirent } from 'node:fs';
 import { trimChars, trimCharsEnd, trimCharsStart } from '@jini-ai/core/primitives';
+import { StorageError, type BlobFileMeta, type BlobStorage } from "@jini-ai/core/contracts/blob";
 import { encodeS3PathSegment, signSigV4, type SigV4Credentials } from './aws-sigv4.js';
-
-/** Metadata for a single stored blob. */
-export interface BlobFileMeta {
-  /** Path relative to the namespace root. Always uses forward slashes. */
-  path: string;
-  /** Total size in bytes. */
-  size: number;
-  /** Unix epoch milliseconds of last modification. */
-  mtimeMs: number;
-}
-
-/** The narrow contract every blob storage backend implements. */
-export interface BlobStorage {
-  /** Reads `<namespace>/<relpath>` into a Buffer. Throws a `StorageError('NOT_FOUND', ...)` when missing. */
-  readFile(namespace: string, relpath: string): Promise<Buffer>;
-  /** Writes `<namespace>/<relpath>`, creating parent directories/prefixes as needed. */
-  writeFile(namespace: string, relpath: string, body: Buffer): Promise<BlobFileMeta>;
-  /**
-   * Lists every file under `<namespace>/` recursively. The order is implementation-defined;
-   * callers that need deterministic order sort by `path`.
-   */
-  listFiles(namespace: string): Promise<BlobFileMeta[]>;
-  /** Deletes a single file under `<namespace>/`. Idempotent — missing files do not throw. */
-  deleteFile(namespace: string, relpath: string): Promise<void>;
-  /** Reports metadata for a single file without reading its bytes. Returns `null` when missing. */
-  statFile(namespace: string, relpath: string): Promise<BlobFileMeta | null>;
-}
-
-/** Error thrown by {@link BlobStorage} implementations, distinguishing not-found/traversal/IO failures. */
-export class StorageError extends Error {
-  readonly code: 'NOT_FOUND' | 'TRAVERSAL' | 'IO';
-  constructor(code: 'NOT_FOUND' | 'TRAVERSAL' | 'IO', message: string) {
-    super(message);
-    this.code = code;
-    this.name = 'StorageError';
-  }
-}
 
 /**
  * The local-disk default backend — a thin `fs/promises` wrapper rooted at a caller-supplied
  * directory, with a traversal guard so a hostile `namespace`/`relpath` can never escape it.
  */
-export class LocalBlobStorage implements BlobStorage {
+export class LocalBlobStorage implements BlobStorage<Buffer> {
   constructor(private readonly root: string) {}
 
   async readFile(namespace: string, relpath: string): Promise<Buffer> {
@@ -160,7 +124,7 @@ export interface S3BlobStorageOptions {
   now?: () => Date;
 }
 
-export class S3BlobStorage implements BlobStorage {
+export class S3BlobStorage implements BlobStorage<Buffer> {
   private readonly fetchFn: typeof fetch;
   constructor(public readonly options: S3BlobStorageOptions) {
     if (!options.bucket) throw new StorageError('IO', 'S3BlobStorage requires a bucket');

@@ -1,0 +1,23 @@
+
+> jini@ api:check /home/user/Jini
+> node --import tsx ./scripts/check-api-surface.ts
+
+[api] @jini-ai/agent-plugins
+  changed export  ./connect/plugin-host#PluginHostDeps
+[api] @jini-ai/cms
+  added subpath   ./forms/field-length-caps
+  added subpath   ./taxonomy/render-entry
+  added subpath   ./widgets/html/media-html
+[api] @jini-ai/core
+  changed export  .#confirm
+  changed export  .#execute
+  changed export  ./gated-mutations#confirm
+  changed export  ./gated-mutations#execute
+  changed export  ./plugin-directory#readPluginIdentity
+  changed export  ./plugin-directory#validatePluginIdentity
+[api] @jini-ai/plugins
+  changed export  ./host#ManifestHostPorts
+  changed export  ./host#PluginCapabilityToolsRequired
+  changed export  ./host/node#PluginRuntimeHostBinding
+[api] checked 40 packages, 680 entries, 17204 symbols
+api:check EXIT 0

@@ -1,12 +1,13 @@
 import { buildDomainRegistrations, indexCatalogById, optionalNumber, optionalString, requireInputRecord, ToolInputError, type AgentToolSideEffect, type DerivedRiskByToolId, type ToolHandler, type ToolRegistration, type AgentToolDefinition } from "@jini-ai/core";
+import { createConsoleLogger } from "@jini-ai/core/primitives";
 import { describeAgentPluginCompatibility, agentPluginDependentWarnings } from "../compatibility.js";
 import { projectAgentPluginSearchPage } from "../search-projection.js";
 import type { AgentPluginSearchCandidate } from "../search.js";
 import type { AgentPluginActivations } from "../activation.js";
 import type { InstalledAgentPlugin } from "../types.js";
 import { readInstalledAgentPluginIdentity, type PluginMaturity } from "./identity.js";
-import { summarizeSkillMarkdown, type AgentPluginSkillDetail } from "./skill-tool.js";
-import type { AgentPluginHostToolPorts, HostSearchToolNames, HostToolMessages } from "./ports.js";
+import { readInstalledSkillDetail, type AgentPluginSkillDetail } from "./skill-tool.js";
+import type { AgentPluginHostToolPorts, HostSearchToolNames, HostToolMessages, RequireHostToolPermission } from "./ports.js";
 
 /**
  * ===========================================================================================
@@ -215,7 +216,8 @@ export async function loadAgentPluginSearchCandidates(ctx: AgentPluginSearchTool
         requiredBy: agentPluginDependentWarnings({ plugin, installed, activations, nextProvides: [] }),
       });
     } catch (error) {
-      console.warn(`[agent-plugins] '${plugin.pluginId}': ${error instanceof Error ? error.message : String(error)} — excluded from search`);
+      const logger = ctx.ports.report ?? createConsoleLogger({ prefix: '[agent-plugins]' });
+      logger.warn({ message: 'Plugin excluded from search.' }, { error });
     }
   }
 
@@ -274,12 +276,13 @@ function selectAgentPluginSearchCandidates(
  * @complexity O(1) to build; see {@link loadAgentPluginSearchCandidates} and
  * {@link selectAgentPluginSearchCandidates} for the handler's per-call cost.
  */
-export function buildAgentPluginSearchRegistrations(routeDeps: AgentPluginSearchToolDeps, _optional: Record<string, never> = {}): ToolRegistration[] {
+export function buildAgentPluginSearchRegistrations(routeDeps: AgentPluginSearchToolDeps & { requirePermission: RequireHostToolPermission }, _optional: Record<string, never> = {}): ToolRegistration[] {
   const handlers: Record<string, ToolHandler> = {
     [SEARCH_AGENT_PLUGIN_LOCAL_TOOL_ID]: async (ctx) => {
       const input = requireInputRecord({ input: ctx.input });
       const query = optionalString({ input, key: "query" }) ?? "";
       const { offset, limit } = readAgentPluginSearchWindow({ input });
+      await routeDeps.requirePermission({ workspaceId: routeDeps.workspaceId, principalId: ctx.principal.id, permission: routeDeps.ports.permissions.use }, { entityType: "workspace", entityId: routeDeps.workspaceId });
       const candidates = await loadAgentPluginSearchCandidates(routeDeps);
       const ranked = selectAgentPluginSearchCandidates({ query, candidates, ports: routeDeps.ports });
       return projectAgentPluginSearchPage({ candidates: ranked, offset, limit, totalInstalled: candidates.length });
@@ -317,15 +320,10 @@ async function resolveSkillsForSearchTolerant(plugin: {
   const skills: AgentPluginSkillDetail[] = [];
   for (const skill of plugin.skills) {
     try {
-      const markdown = await ports.lifecycle.readInstalledSkillMarkdown({ packageRoot: plugin.packageRoot, skillPath: skill.skillPath });
-      skills.push({ name: skill.name, summary: summarizeSkillMarkdown(skill.name, markdown, ports), markdown,
-        readFile: (_input, options = {}) => ports.lifecycle.readInstalledSkillFile({ packageRoot: plugin.packageRoot, skillPath: skill.skillPath }, options),
-      });
+      skills.push(await readInstalledSkillDetail({ plugin, skill, ports }));
     } catch (error) {
-      console.warn(
-        `[agent-plugins] '${plugin.pluginId}': skill '${skill.name}' could not be read ` +
-          `(${error instanceof Error ? error.message : String(error)}) — skipped from search`,
-      );
+      const logger = ports.report ?? createConsoleLogger({ prefix: '[agent-plugins]' });
+      logger.warn({ message: 'Plugin skill could not be read; skipped from search.' }, { error });
     }
   }
   return skills;
@@ -349,6 +347,7 @@ async function buildSearchCandidate(
     ...(identity.maturity ? { maturity: identity.maturity } : {}),
     ...(identity.providerPlugin ? { providerPlugin: identity.providerPlugin } : {}),
     provides: identity.provides,
+    ...(plugin.requires !== undefined ? { requires: plugin.requires } : {}),
     keywords: identity.keywords,
     enabled: ports.activations.isAgentPluginActive({ activations: activations, pluginId: plugin.pluginId }),
     skills: skills.map((skill) => ({ name: skill.name, summary: skill.summary })),

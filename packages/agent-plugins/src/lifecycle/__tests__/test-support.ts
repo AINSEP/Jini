@@ -4,7 +4,7 @@ import { createRetireBundledModule } from '../retire-bundled.js';
 import { fetchAgentPluginArchive as fetchAgentPluginArchiveValue, maxAgentPluginArchiveBytes as maxAgentPluginArchiveBytesValue, type FetchAgentPluginArchiveOptional } from '../fetch-archive.js';
 import path from 'node:path';
 import { createAgentPluginLayout } from '../layout.js';
-import { createNodeAgentPluginEffects } from '../node.js';
+import { nativeEffectsFixture } from './fixtures/native-effects.js';
 import type { AgentPluginLifecyclePorts } from '../ports.js';
 import { createActivationModule } from "../activation.js";
 import { createBundledDigestsModule } from "../bundled-digests.js";
@@ -19,7 +19,7 @@ import { createSetEnabledModule } from "../set-enabled.js";
 import { createTrustedPluginFilesModule } from "../trusted-plugin-files.js";
 import { createUninstallModule } from "../uninstall.js";
 export const ports: AgentPluginLifecyclePorts = {
-  ...createNodeAgentPluginEffects({}),
+  ...nativeEffectsFixture(),
   layout: {
     get root() { return resolveAgentPluginLayout().root; },
     forWorkspace: input => resolveAgentPluginLayout().forWorkspace(input),

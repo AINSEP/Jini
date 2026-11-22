@@ -4,7 +4,8 @@ import { ensureSettingDefinitions, type SettingDefinitionSpec } from "../ensure-
 import { InMemorySettingsRepo } from "../repo.memory.js";
 import { getEffective } from "../settings.js";
 import { SCOPE_BIT, type SettingDefinitionRecord } from "../types.js";
-import { extendDefinitionScopes, set } from "../write-service.js";
+import { extendDefinitionScopes } from "../write-definition-retype.js";
+import { set } from "../write-values.js";
 import { InMemorySettingsPrincipalLookup } from "./principal.fixture.js";
 
 /** Real ledger seam: boot must preserve site-owned rows and core reconciliation,
@@ -54,7 +55,7 @@ test("site bootstrap never rewrites an existing default and registers separately
   assert.equal(await deps.settingsRepo.maxRevisionSeq(), 2);
   await ensureSettingDefinitions(deps, { ...input, definitions: changed, workspaceId: "workspace-2" });
   for (const [workspaceId, expected] of [["workspace-1", false], ["workspace-2", true]] as const) {
-    const result = await getEffective({ repo: deps.settingsRepo }, { namespace: input.namespace, key: "enabled", scopeContext: { workspaceId } });
+    const result = await getEffective({ deps: { repo: deps.settingsRepo }, namespace: input.namespace, key: "enabled", scopeContext: { workspaceId } });
     assert.equal(result?.value, expected);
   }
 });
@@ -87,7 +88,7 @@ test("boot leaves existing workspace values effective even when source defaults 
   const before = await deps.settingsRepo.listWorkspaceValues({ workspaceId: input.workspaceId });
   await ensureSettingDefinitions(deps, { ...input, definitions: [{ ...definitions[0]!, defaultValue: true }, definitions[1]!] });
   assert.deepEqual(await deps.settingsRepo.listWorkspaceValues({ workspaceId: input.workspaceId }), before);
-  assert.deepEqual(await getEffective({ repo: deps.settingsRepo }, {
+  assert.deepEqual(await getEffective({ deps: { repo: deps.settingsRepo },
     namespace: input.namespace, key: "enabled", scopeContext: { workspaceId: input.workspaceId },
   }), { value: true, sourceLayer: "workspace", defVersion: 1 });
   assert.equal(await deps.settingsRepo.maxRevisionSeq(), 3);
@@ -129,7 +130,7 @@ test("an existing core preference gains a personal layer without moving workspac
   assert.equal(after?.scopes, SCOPE_BIT.user | SCOPE_BIT.workspace);
   await set({ deps: writeDeps, input: { namespace: input.namespace, key: "agent", value: "my-agent", scope: "user", workspaceId: "ws", callerPrincipalId: "caller", authWorkspaceId: "ws" } });
   for (const [principalId, value] of [["caller", "my-agent"], ["other", "workspace-agent"]]) {
-    assert.equal((await getEffective({ repo: deps.settingsRepo }, { namespace: input.namespace, key: "agent", scopeContext: { workspaceId: "ws", principalId } }))?.value, value);
+    assert.equal((await getEffective({ deps: { repo: deps.settingsRepo }, namespace: input.namespace, key: "agent", scopeContext: { workspaceId: "ws", principalId } }))?.value, value);
   }
 });
 

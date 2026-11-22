@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { SurfaceEmitter } from '@jini-ai/core';
-import type { ToolExecutionResult, ToolExecutor } from '../../tool-executor.js';
+import type { ToolExecutionResult, ToolExecutor } from "../../tool-executor-types.js";
 import { describeInput, withToolAttemptAudit, withToolCatalogAudit, type ToolAttemptAuditSink, type ToolAttemptEvent } from '../tool-audit.js';
 
 type ExecuteArgs = Parameters<ToolExecutor['execute']>;

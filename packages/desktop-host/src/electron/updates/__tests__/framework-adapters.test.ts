@@ -77,7 +77,7 @@ it('P18: releases the final quit immediately and cancels the fallback when insta
     native.downloaded('2');
     expect(host.controller.beforeFinalQuit()).toBe(false);
     expect(vi.getTimerCount()).toBe(0);
-    expect(host.logs).toContain('auto-update: sync install');
+    expect(host.logs).toContain('auto-update: Error');
   } finally {
     host.controller.willQuit();
   }
@@ -184,7 +184,8 @@ it('uses the complete host message object', () => {
     presenceWriteFailed: ({ message }) => 'host presence ' + message,
   } });
   native.downloaded('7'); native.error(new Error('offline'));
-  expect(logs).toEqual(['host ready 7', 'host error offline']);
+  // The failure is reported to the host's message by its class only (the error text may carry a path or token).
+  expect(logs).toEqual(['host ready 7', 'host error Error']);
   controller.willQuit();
 });
 

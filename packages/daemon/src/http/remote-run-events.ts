@@ -22,25 +22,22 @@
  * would also present, and this route grants direct run-event-injection, a materially different
  * capability from what the general API token was designed to gate.
  */
-import { inspect } from 'node:util';
-import { redactSecrets } from '@jini-ai/core';
-import { randomUUID } from 'node:crypto';
-import type { Express, NextFunction, Request, Response } from 'express';
-import { createApiError, isTerminalRunState } from '@jini-ai/protocol';
+import { createApiError, createApiErrorResponse, isTerminalRunState } from '@jini-ai/protocol';
 import type { RemoteToolEventRecorder, RunLifecycle } from '../index.js';
-import { defineJsonRoute, mountJsonRoute, type AdapterContext } from '@jini-ai/http-kit';
-import { bearerTokenFromHeader, timingSafeTokenMatch } from '@jini-ai/http-kit';
-import { validationError } from '@jini-ai/http-kit';
-import { sendApiError, statusForError } from '@jini-ai/http-kit';
-import { err, ok, type Result, type RouteInputContext } from '@jini-ai/http-kit';
+import { timingSafeTokenMatch } from '@jini-ai/core';
+import { bearerTokenFromHeader, defineJsonRoute, err, jsonResponse, ok, statusForError, validationError, type ReportRouteInternalError, type Result, type RouteInputContext, type ServerMiddleware } from '@jini-ai/core/contracts/server';
+import type { DaemonRouteHost } from './route-host.js';
+import { gated, gatedJsonRoute, withHostReporter, type DaemonRoute } from './route-table.js';
 
 export interface RemoteToolBridgeTokenConfig {
   /** Env var name for the required shared secret. Defaults to `JINI_REMOTE_TOOL_BRIDGE_TOKEN`. */
   readonly tokenEnvVar?: string;
 }
 
+
 export interface RemoteRunEventInternalErrorContext {
   readonly source: 'tool-use' | 'tool-result';
+  readonly runId: string;
   readonly correlationId: string;
   readonly error: unknown;
 }
@@ -50,15 +47,12 @@ export interface RemoteRunEventHttpDeps {
   readonly lifecycle: RunLifecycle;
   readonly recorder: RemoteToolEventRecorder;
   readonly tokenConfig?: RemoteToolBridgeTokenConfig;
-  /** Defaults to `process.env`. Threaded through so tests never have to mutate real process env. */
-  readonly env?: NodeJS.ProcessEnv;
+  /** Where the bridge token is read from. Required (the daemon never reaches for `process.env`); tests pass a plain object. */
+  readonly env: Readonly<Record<string, string | undefined>>;
   /** Host-owned sink for the real exception behind a generic `INTERNAL_ERROR` response (SEC-005). Defaults to `console.error`. */
   readonly onInternalError?: (context: RemoteRunEventInternalErrorContext) => void;
-}
-
-function defaultInternalErrorSink(context: RemoteRunEventInternalErrorContext): void {
-  // eslint-disable-next-line no-console
-  console.error(`[@jini-ai/http-kit] internal error (remote-run-events/${context.source}, correlationId=${context.correlationId})`, redactSecrets({ input: inspect(context.error) }, { redactPii: false }));
+  /** Required for direct handlers; {@link remoteRunEventRoutes} binds the host's reporter. */
+  readonly reportInternalError: ReportRouteInternalError;
 }
 
 const DEFAULT_TOKEN_ENV_VAR = 'JINI_REMOTE_TOOL_BRIDGE_TOKEN';
@@ -70,34 +64,31 @@ const DEFAULT_TOKEN_ENV_VAR = 'JINI_REMOTE_TOOL_BRIDGE_TOKEN';
  * just because a host forgot to configure the token. If the token isn't configured, the route
  * fails closed with 503, not 200.
  *
- * Kept as its own middleware rather than folded into `api-security-middleware.ts`'s
+ * Kept as its own gate rather than folded into `api-security-middleware.ts`'s
  * `requireStrictBearerToken` (which has the identical fail-closed/no-loopback-exemption posture)
  * because these two routes own their own error codes — `REMOTE_TOOL_BRIDGE_*`, distinct from the
  * general API token's, so an operator can tell which secret is missing from the response alone.
  * The *decision* logic is shared: header parsing and the constant-time comparison both come from
- * that module, so the two gates cannot drift on what counts as a well-formed header or on
+ * core, so the two gates cannot drift on what counts as a well-formed header or on
  * comparison safety.
+ * @param required.env - Where the token is read from.
+ * @param required.timingSafeEqual - The host's constant-time byte compare.
+ * @param optional.tokenConfig - Names a different env var than the default.
  */
-export function requireRemoteToolBridgeToken(_required: Record<string, never>, deps: {
-  readonly tokenConfig?: RemoteToolBridgeTokenConfig | undefined;
-  readonly env?: NodeJS.ProcessEnv | undefined;
-} = {}) {
-  const tokenEnvVar = deps.tokenConfig?.tokenEnvVar ?? DEFAULT_TOKEN_ENV_VAR;
-  const env = deps.env ?? process.env;
-  return (req: Request, res: Response, next: NextFunction): void => {
+export function remoteToolBridgeTokenGate(
+  { env, timingSafeEqual }: { readonly env: Readonly<Record<string, string | undefined>>; readonly timingSafeEqual: DaemonRouteHost['timingSafeEqual'] },
+  { tokenConfig }: { readonly tokenConfig?: RemoteToolBridgeTokenConfig | undefined } = {},
+): ServerMiddleware {
+  const tokenEnvVar = tokenConfig?.tokenEnvVar ?? DEFAULT_TOKEN_ENV_VAR;
+  const refuse = (error: ReturnType<typeof createApiError>): Response => jsonResponse({ status: statusForError({ error }), body: createApiErrorResponse({ error }) });
+  return ({ request, next }) => {
     const token = env[tokenEnvVar];
-    if (!token) {
-      const error = createApiError({ code: 'REMOTE_TOOL_BRIDGE_NOT_CONFIGURED', message: `${tokenEnvVar} is not set — remote run-event ingestion is disabled` });
-      sendApiError({ res, status: statusForError({ error }), error });
-      return;
+    if (!token) return refuse(createApiError({ code: 'REMOTE_TOOL_BRIDGE_NOT_CONFIGURED', message: `${tokenEnvVar} is not set — remote run-event ingestion is disabled` }));
+    const presented = bearerTokenFromHeader({ header: request.headers.get('authorization') ?? undefined });
+    if (presented === null || !timingSafeTokenMatch({ presented, expected: token, timingSafeEqual })) {
+      return refuse(createApiError({ code: 'REMOTE_TOOL_BRIDGE_TOKEN_REQUIRED', message: `Authorization: Bearer <${tokenEnvVar}> required` }));
     }
-    const presented = bearerTokenFromHeader({ header: req.get('authorization') });
-    if (presented === null || !timingSafeTokenMatch({ presented, expected: token })) {
-      const error = createApiError({ code: 'REMOTE_TOOL_BRIDGE_TOKEN_REQUIRED', message: `Authorization: Bearer <${tokenEnvVar}> required` });
-      sendApiError({ res, status: statusForError({ error }), error });
-      return;
-    }
-    next();
+    return next();
   };
 }
 
@@ -217,10 +208,8 @@ function parseRemoteToolResult(input: RouteInputContext): Result<RemoteToolResul
  * the property that mattered.
  */
 async function toRemoteEventError(
-  error: unknown,
-  runId: string,
-  deps: RemoteRunEventHttpDeps,
-  source: RemoteRunEventInternalErrorContext['source'],
+  { error, runId, deps, source }: { readonly error: unknown; readonly runId: string; readonly deps: RemoteRunEventHttpDeps; readonly source: RemoteRunEventInternalErrorContext['source'] },
+  _optional: Record<string, never> = {},
 ): Promise<ReturnType<typeof createApiError>> {
   const status = await deps.lifecycle.get({ runId }).catch(() => undefined);
   if (status === undefined) {
@@ -231,10 +220,10 @@ async function toRemoteEventError(
       details: { runId },
     });
   }
-  const correlationId = randomUUID();
-  const sink = deps.onInternalError ?? defaultInternalErrorSink;
-  sink({ source, correlationId, error });
-  return createApiError({ code: 'INTERNAL_ERROR', message: 'an internal error occurred' }, { requestId: correlationId });
+  const message = source === 'tool-use'
+    ? 'The tool call could not be recorded for this run. Check the run status; copy the request ID and report this problem.'
+    : 'The tool result could not be recorded for this run. Check the run status; copy the request ID and report this problem.';
+  return deps.reportInternalError<Omit<RemoteRunEventInternalErrorContext, 'correlationId'>>({ report: { source, runId, error }, logSource: `remote-run-events/${source}`, message }, { onInternalError: deps.onInternalError });
 }
 
 export const remoteToolUseRoute = defineJsonRoute<RemoteToolUseRequest, RemoteRunEventResponse, RemoteRunEventHttpDeps>({
@@ -245,7 +234,7 @@ export const remoteToolUseRoute = defineJsonRoute<RemoteToolUseRequest, RemoteRu
       await deps.recorder.recordToolUse({ runId: input.runId, record: { toolUseId: input.toolUseId, toolId: input.toolId, input: input.input } });
       return ok({ value: { recorded: true } });
     } catch (error) {
-      return err({ error: await toRemoteEventError(error, input.runId, deps, 'tool-use') });
+      return err({ error: await toRemoteEventError({ error, runId: input.runId, deps, source: 'tool-use' }) });
     }
   }
 });
@@ -262,21 +251,26 @@ export const remoteToolResultRoute = defineJsonRoute<RemoteToolResultRequest, Re
       } });
       return ok({ value: { recorded: true } });
     } catch (error) {
-      return err({ error: await toRemoteEventError(error, input.runId, deps, 'tool-result') });
+      return err({ error: await toRemoteEventError({ error, runId: input.runId, deps, source: 'tool-result' }) });
     }
   }
 });
 
 /**
- * Mounts both remote-run-event routes on `app`, gated by {@link requireRemoteToolBridgeToken}.
- * Unlike `registerRunRoutes`/`registerDelegatedToolRoutes`, these routes do not use
- * `requireSameOrigin` — they are not meant to be called from a browser at all, only from a host's
- * own trusted backend process, so the dedicated bearer token above is the sole gate.
+ * Both remote-run-event routes as data, each behind {@link remoteToolBridgeTokenGate}: the gate is part of
+ * the route, so a host cannot mount one without the other. Unlike `runRoutes`/`delegatedToolRoutes`, these
+ * routes do not use `requireSameOrigin` — they are not meant to be called from a browser at all, only from
+ * a host's own trusted backend process, so the dedicated bearer token is the sole gate. The gate answers
+ * before the body is read.
+ * @param required.deps - The run store, the event recorder, the env the token is read from.
+ * @param required.host - The host the list is mounted on (its constant-time compare and internal-error reporter are used).
  */
-export function registerRemoteRunEventRoutes({ app, deps, adapter }: { readonly app: Express; readonly deps: RemoteRunEventHttpDeps; readonly adapter: AdapterContext }, _optional: Record<string, never> = {}): void {
-  const gate = requireRemoteToolBridgeToken({}, deps);
-  app.use('/api/runs/:runId/tool-use', gate);
-  app.use('/api/runs/:runId/tool-result', gate);
-  mountJsonRoute({ app, spec: remoteToolUseRoute, deps, adapter });
-  mountJsonRoute({ app, spec: remoteToolResultRoute, deps, adapter });
+export function remoteRunEventRoutes({ deps, host }: { readonly deps: Omit<RemoteRunEventHttpDeps, 'reportInternalError'>; readonly host: DaemonRouteHost }, _optional: Record<string, never> = {}): DaemonRoute[] {
+  const routeDeps = withHostReporter({ deps, host });
+  const gate = remoteToolBridgeTokenGate({ env: deps.env, timingSafeEqual: host.timingSafeEqual }, { tokenConfig: deps.tokenConfig });
+  const gates = [{ name: 'remote-bridge-token', middleware: gate }] as const;
+  return [
+    gated({ route: gatedJsonRoute({ spec: remoteToolUseRoute, deps: routeDeps, host }), gates }),
+    gated({ route: gatedJsonRoute({ spec: remoteToolResultRoute, deps: routeDeps, host }), gates }),
+  ];
 }

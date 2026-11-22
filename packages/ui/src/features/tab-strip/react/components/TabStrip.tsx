@@ -1,4 +1,4 @@
-import { agentHandleSegment } from '@jini-ai/agentic';
+import { agentHandleSegment } from '@jini-ai/core/agent-handles';
 import { useAgentHandle, type AgentControlProps } from '../../../../react/hooks/useAgentHandle.js';
 import type { ReactNode } from 'react';
 import { noopTabStripHaptics } from '../../ports.js';
@@ -9,6 +9,7 @@ import { TabStripItem } from './TabStripItem.js';
 import { TabStripFrame } from './TabStripFrame.js';
 
 export interface TabStripProps extends AgentControlProps {
+  useAgentHandleHook?: typeof useAgentHandle;
   tabs: TabStripTab[];
   activeTabId: string | null;
   onActivate: (tabId: string) => void;
@@ -36,7 +37,7 @@ export interface TabStripProps extends AgentControlProps {
  * `FileWorkspace.tsx` (a project's file/terminal/browser tab strip)
  * independently hand-rolled. Tab content, order (`tabs`), and active id are
  * fully host-owned; this component only supplies the shared drag/reorder/
- * active/close-button chrome. See `packages/ui/source-map.md`'s
+ * active/close-button chrome. See `archived UI source map`'s
  * `features/tab-strip/` section for what each source shape contributed and
  * what stayed host-specific (hover-preview popover, search-tabs popover,
  * global keyboard shortcuts, and localStorage/route-sync persistence are
@@ -57,9 +58,10 @@ export function TabStrip({
   ariaLabel,
   className,
   useTabStripDragReorder: useTabStripDragReorderHook = useTabStripDragReorder,
+  useAgentHandleHook = useAgentHandle,
   ...agentProps
 }: TabStripProps) {
-  const base = useAgentHandle(agentProps);
+  const base = useAgentHandleHook(agentProps);
   const { draggingTabId, dragOverTarget, stripRef, stripDragProps, getItemDragProps } = useTabStripDragReorderHook({
     tabs,
     onReorder,

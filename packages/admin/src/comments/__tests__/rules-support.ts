@@ -1,5 +1,5 @@
 /** Test-only call-shape bridge: all behavior delegates to the production rules. */
-import { AdminApiError } from '../../core/transport/errors.js';
+import { AdminApiError } from '@jini-ai/core/admin-runtime';
 import type { AdminComment, CommentStatus } from '../../core/ports/comments.js';
 import * as rules from '../rules.js';
 import { englishComments, type CommentsTranslator } from '../messages.en.js';

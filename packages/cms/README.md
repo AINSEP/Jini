@@ -24,12 +24,18 @@ Configuration writes only through the injected guarded settings writer; no deliv
 | subpath | runtime | contents |
 |---|---|---|
 | `.` / `./core` | universal | Content contracts and types, ports, pure domain services, kernel registries. No Express, no `node:*`, no DOM. |
-| `./media` | node | Media services, transform ports and preview policies. |
+| `./media` | node | Media services, transform ports and preview policies; versioned media repository and source-conditional rendition guard. |
+| `./media/cover-image` | universal | Read-only cover selection and iterative body projection with injected media metadata. |
 | `./media/node` | node | Filesystem blob stores, sharp image transforms and ffmpeg adapters. |
 | `./settings` | universal | One-release compatibility re-export of `@jini-ai/core/settings`. |
-| `./settings/express` | node | One-release compatibility re-export of `@jini-ai/core/settings/express`. |
+| `./presentation/html` | universal | Document detection, off-site link attributes and head/body markup insertion. |
+| `./presentation/page-head` | universal | Page-head folding and serialization. |
+| `./forms/result-query` | universal | Form submission result query encoding, decoding and clearing. |
+| `./forms/result-flash` | universal | Form flash cookie encoding, decoding and result merging. |
+| `./themes/preview/refresh` | node | Preview-path validation, refresh requests, reads and feeds. |
 | `./widgets` / `./widgets/markers` / `./widgets/resolvers` | universal | Widget contracts, markers and resolution services; no HTML parser. |
-| `./widgets/html` | node | HTML scanning/substitution, fragment validation and plugin-export template resolution. |
+| `./widgets/html` | node | HTML scanning/substitution, fragment validation, plugin-export template resolution, page-body sanitizing and media Raw HTML resolution (diagnostics through an injected `report`). |
+| `./html/style-values` | universal | CSS-value allowlists for author strings a renderer writes into a `style` attribute (`safeTextAlign`, `safeAspectRatio`). |
 
 Hosts that sanitize SVG uploads or ingest documents through `./media` must install the optional peers
 `dompurify` and `jsdom`. They load lazily: without them, other media still works, but SVG and Office uploads fail.
@@ -43,16 +49,16 @@ Domain HTTP adapters live under their domain subpaths. Hosts can compose them
 using `@jini-ai/http-kit` and `@jini-ai/server`.
 Identity tool registration composition belongs to `@jini-ai/user-management/server`.
 
-Generic settings now belong to `@jini-ai/core/settings`; the former CMS settings subpaths
-remain thin compatibility re-exports for one release.
+Generic settings now belong to `@jini-ai/core/settings`; `@jini-ai/cms/settings`
+remains a neutral compatibility entry. The former `./settings/express` entry has been removed.
 
-`@jini-ai/core/settings/express` exports `registerSettingsRoutes`, the settings HTTP
-contracts and the CMS service/change-feed factories. Hosts provide route paths,
+`@jini-ai/http-kit/settings` exports `registerSettingsRoutes` and the settings HTTP
+contracts. `@jini-ai/core/settings` exports the service/change-feed factories. Hosts provide route paths,
 permissions, workspace, readiness, principal resolution, authorization, scheduler,
 service and feed ports. Registration returns a disposer that closes active feeds.
 CMS adapters pass named request objects to settings dispatch and change-feed services;
 queryable index-name helpers return promises that callers must await.
-Install the optional peer `express` when using `./settings/express`.
+Install `express` in the host when using `@jini-ai/http-kit/settings`.
 The HTTP toolkit is a host composition choice and is not a CMS dependency.
 Readiness or principal-resolution failures return `401 UNAUTHENTICATED`.
 Stream diagnostics are best-effort: a throwing reporter cannot prevent retries,
@@ -88,6 +94,8 @@ consumer of `@jini-ai/cms/core` physically cannot reach a Node adapter, and `/co
 cannot import a transport type, because the module resolver refuses. Porting into this shape from
 the first commit means that failure mode cannot recur here.
 
+`@jini-ai/cms/seo/content-analysis` (universal, pure): `analyzeContent` scores title + content blocks (checks, readability, TOC with a host-supplied `slugify`) and `summarizeReport` renders the report as one English paragraph.
+
 ## Port inventory
 
 The kernel went first — the source repo's `src/core/{ports,commands,events,tools}` — because every
@@ -106,6 +114,42 @@ parser. Node hosts use `./navigation/node`, which re-exports the navigation API 
 parse5 normalization to create/update, merge and tool registration. The existing validation,
 raw-HTML permission checks, OCC and outbox owners remain unchanged; an unconfigured universal
 HTML write fails before saving rather than persisting markup that could escape its theme container.
+
+`./workspace/sql` (node) is the Kysely adapter for `WorkspaceRepoPort`: the host passes its storage
+kernel and its own `workspaces` table name; the adapter has no table or product defaults.
+
+`./taxonomy/sql` (node) is the Kysely adapter for the taxonomy ports (`SqlTaxonomyRepo`, `SqlTermRepo`,
+`SqlEntryTermRepo`, `SqlTaxonomyRevisionRepo`): the host passes its storage kernel, the names of its four
+taxonomy tables and the workspace each repository is scoped to; the adapter has no table or product defaults.
+The universal `./taxonomy` entry carries the read-port types (`TaxonomyPublishReadPort`, `TermPublishReadPort`,
+`AssignedTermView`, `EntryTermReadPort`) those repositories also satisfy.
+
+`./navigation/sql` (node) is the Kysely adapter for `MenuRepoPort` and `NavLocationBindingRepoPort`
+(`SqlMenuRepo`, `SqlNavLocationBindingRepo`): the host passes its storage kernel and the names of its menus and
+location-binding tables; the adapter has no table or product defaults.
+
+`./presentation/sql` (node) is the Kysely adapter for `PresentationSettingsRepoPort` (`SqlPresentationSettingsRepo`): the host
+passes its storage kernel and the name of its presentation-settings table; the adapter has no table or product defaults.
+
+`./content-types/sql` (node) is the Kysely adapter for `ContentTypeRepoPort` and `ContentTypeListPort`
+(`SqlContentTypeRepo`): the host passes its storage kernel, the names of its content-type and revision tables, and the
+declared envelope owners of the code-registered types as data; the adapter has no table or owner defaults.
+
+`./entries/sql` (node) is the Kysely adapter for `EntryRepoPort`, `EntryListPort`, `EntryDisplayListPort`,
+`EntryListExcludingTypesPort` and `EntryPublishReadPort` (`SqlEntryRepo`): the host passes its storage kernel, the names of
+its entry and revision tables, the two JSON dialect helpers (`EntryJsonDialectPort`, from the same kernel) and an
+`onWriteSettled` hook the repository calls after every save and transaction, success or failure.
+
+`./entries` also exports `TrashAwareInMemoryEntryRepo`, the in-memory twin of that repository (the Trash hidden from every read, the
+`findAny*` / `saveAny` / `hardDelete` seam); its required `onWriteSettled` hook is called after a save, a transaction (also on
+failure), a `saveAny` and a `hardDelete` that removed a row.
+
+`./trash` also exports the registry types (`TrashEntry`, `TrashRegistry`, `TrashMarkerSpec` and the specs they hold) and
+`trashEntityLockKey`, the one lock key a Trash transition takes for an entity. `./trash/sql` (node) is the Kysely adapter for
+`TrashRepoPort` (`SqlTrashRepo`: the host passes its storage kernel and the name of its `trashed_items` table) with the
+registry-driven query kit a host's table adapter is built from: `notTrashed` (a `WHERE` condition) and `isTrashedRecord`
+(its flat-record twin), `readLiveSnapshot`, `entryWhere` and `loose`. `createTableTrashAdapter` is the one `TrashAdapter` for every registry entry: the host
+passes the entry, its storage kernel (read on first use) and the name of its `trashed_items` table.
 
 **Still to move:** `post`, `seo`, `comments`, `redirects`, `newsletter`,
 `members`. Widgets are exposed through the universal and node entries above.

@@ -25,8 +25,8 @@
  * of the process that also touches it. {@link createOtelObservabilityAdapter} also returns `dispose`
  * (provider shutdown: flushes the batch queue, stops its timer) for the host's teardown.
  */
-// Span lifecycle rationale: @jini-ai/diagnostics src/observability/otel.ts.
-import { ROOT_CONTEXT, SpanKind, SpanStatusCode, trace, type Meter, type Span, type Tracer } from "@opentelemetry/api";
+// Span lifecycle rationale: ./otel-port.ts.
+import { ROOT_CONTEXT, SpanKind, SpanStatusCode, isSpanContextValid, trace, type Meter, type Span, type Tracer } from "@opentelemetry/api";
 import { getSharedConfigurationDefaults, OTLPExporterBase } from "@opentelemetry/otlp-exporter-base";
 import { createOtlpHttpExportDelegate, httpAgentFactoryFromOptions } from "@opentelemetry/otlp-exporter-base/node-http";
 import { JsonTraceSerializer, TraceExporterMetricsHelper, JsonMetricsSerializer, MetricsExporterMetricsHelper, type ISerializer, type IExporterMetricsHelper } from "@opentelemetry/otlp-transformer";
@@ -35,9 +35,14 @@ import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
 import { BatchSpanProcessor, ParentBasedSampler, AlwaysOnSampler, type ReadableSpan, type SpanProcessor } from "@opentelemetry/sdk-trace-base";
 import { MeterProvider, PeriodicExportingMetricReader, type IMetricReader } from "@opentelemetry/sdk-metrics";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
-import { createOtelObservabilityPort, redactOperationAttributes, type MetricInput, type MetricOptions, type ExporterFactory, type ObservabilityAdapter, type ObservabilityConfigEnabled, type TraceSpanKind, type TraceSpanPort, type TracerPort, type TracerProviderFactory } from "@jini-ai/diagnostics/observability";
-import { createAsyncLocalSpanScope } from "@jini-ai/diagnostics/observability/node";
-import { createProviderTelemetryReporter, type ProviderTelemetryOptions } from "../telemetry-reporter.js";
+import {
+  type MetricInput,
+  type MetricOptions,
+  type ObservabilityAdapter,
+} from "@jini-ai/core/contracts/observability";
+import type { ObservabilityConfigEnabled, ObservabilityProviderContext, SpanScopePort, TraceSpanPort } from "./contract.js";
+import { createOtelObservabilityPort, type ExporterFactory, type TraceSpanKind, type TracerPort, type TracerProviderFactory } from "./otel-port.js";
+import { createProviderTelemetryReporter, type DescribeTelemetryFailure, type ProviderTelemetryOptions } from "../telemetry-reporter.js";
 import { trimTrailingSlashes } from "../trim-trailing-slashes.js";
 
 export interface OtelAdapterOptions extends ProviderTelemetryOptions {
@@ -135,6 +140,11 @@ function adaptSpan({ span }: { span: Span }): TraceSpanPort {
       const { traceId, spanId } = span.spanContext();
       return { traceId, spanId };
     },
+    traceparent: () => {
+      if (ended) return undefined;
+      const { traceId, spanId, traceFlags } = span.spanContext();
+      return `00-${traceId}-${spanId}-${traceFlags.toString(16).padStart(2, '0')}`;
+    },
     updateName: ({ name }) => { span.updateName(name); },
     setAttribute: ({ name, value }) => { span.setAttribute(name, value); },
     setStatus: ({ description }) => { span.setStatus({ code: SpanStatusCode.ERROR, ...(description ? { message: description } : {}) }); },
@@ -155,9 +165,12 @@ function adaptSpan({ span }: { span: Span }): TraceSpanPort {
  */
 export function adaptTracer({ tracer }: { tracer: Tracer }, _options = {}): TracerPort {
   return {
-    startSpan: ({ name, kind, attributes }, { parent } = {}) => {
+    startSpan: ({ name, kind, attributes }, { parent, traceparent } = {}) => {
       const parentSpan = parent ? sdkSpans.get(parent) : undefined;
-      const context = parentSpan ? trace.setSpan(ROOT_CONTEXT, parentSpan) : ROOT_CONTEXT;
+      const remote = traceparent?.match(/^00-([a-f0-9]{32})-([a-f0-9]{16})-([a-f0-9]{2})(?![\s\S])/);
+      const remoteContext = remote ? { traceId: remote[1]!, spanId: remote[2]!, traceFlags: Number.parseInt(remote[3]!, 16), isRemote: true } : undefined;
+      const context = remoteContext && isSpanContextValid(remoteContext) ? trace.setSpanContext(ROOT_CONTEXT, remoteContext)
+        : parentSpan ? trace.setSpan(ROOT_CONTEXT, parentSpan) : ROOT_CONTEXT;
       return adaptSpan({ span: tracer.startSpan(name, { kind: SDK_SPAN_KINDS[kind], attributes }, context) });
     },
   };
@@ -171,7 +184,7 @@ export function adaptTracer({ tracer }: { tracer: Tracer }, _options = {}): Trac
  * O(1) — the SDK's real cost (the batching queue and its periodic HTTP export) lives in the span
  * processor's own background timer, not in any individual track/end call.
  */
-export function createOtelFactories(_required: Record<string, never>, options: OtelAdapterOptions = {}): {
+export function createOtelFactories({ describeTelemetryFailure }: { describeTelemetryFailure: DescribeTelemetryFailure }, options: OtelAdapterOptions = {}): {
   exporterFactory: ExporterFactory;
   tracerProviderFactory: TracerProviderFactory;
   /** Shuts down every provider these factories built (flush + stop the batch timer). */
@@ -186,7 +199,7 @@ export function createOtelFactories(_required: Record<string, never>, options: O
         if (options.exportEnabled !== true || options.spanProcessors !== undefined) return undefined;
         const exporter = createInjectedOtlpTraceExporter({ url: endpoint }, options);
         exporterPipelines.set(exporter, createReportingExporter({ exporter,
-          reporter: createProviderTelemetryReporter({ endpoint }, options) }, options));
+          reporter: createProviderTelemetryReporter({ endpoint, describeTelemetryFailure }, options) }, options));
         return exporter;
       },
     },
@@ -230,21 +243,21 @@ export function resolveMetricsEndpoint(
  * @returns A private provider; its shutdown flushes the reader and stops its timer.
  * @complexity O(h + r) headers and resource attributes at setup; SDK bounds series per instrument.
  */
-function createMetricProvider({ config }: { config: ObservabilityConfigEnabled }, options: OtelAdapterOptions = {}): MeterProvider {
+function createMetricProvider({ config, describeTelemetryFailure }: { config: ObservabilityConfigEnabled; describeTelemetryFailure: DescribeTelemetryFailure }, options: OtelAdapterOptions = {}): MeterProvider {
   const endpoint = resolveMetricsEndpoint({ tracesEndpoint: config.endpoint }, options);
   const readers = options.exportEnabled !== true ? [] : options.metricReaders ?? [new PeriodicExportingMetricReader({
     exporter: createReportingExporter({
       exporter: createInjectedOtlpExporter({
         url: endpoint, serializer: JsonMetricsSerializer, component: "otlp_http_metric_exporter", helper: MetricsExporterMetricsHelper,
       }, options),
-      reporter: createProviderTelemetryReporter({ endpoint }, options),
+      reporter: createProviderTelemetryReporter({ endpoint, describeTelemetryFailure }, options),
     }, options),
     exportIntervalMillis: 60_000, exportTimeoutMillis: 30_000,
   })];
   return new MeterProvider({ resource: resourceFromAttributes({ ...options.resourceAttributes, [ATTR_SERVICE_NAME]: config.serviceName }), readers });
 }
 
-type Measurement = { meter: Meter; name: string; value: number; settings: { unit?: string }; attributes: ReturnType<typeof redactOperationAttributes> };
+type Measurement = { meter: Meter; name: string; value: number; settings: { unit?: string }; attributes: Record<string, string | number> };
 /** One recorder per kind (a table keeps `metric` under the complexity ceiling); the SDK returns the
  * instrument already registered under the same name. An unknown kind from an untyped caller throws,
  * which the fan-out contains. */
@@ -261,7 +274,7 @@ const RECORD_METRIC: Readonly<Record<NonNullable<MetricOptions["kind"]>, (measur
  * @returns A metric port and shutdown hook; no pipeline starts until the first measurement.
  * @complexity O(a) per measurement for a attribute text; storage belongs to SDK instruments/readers.
  */
-function createMetrics({ config }: { config: ObservabilityConfigEnabled }, options: OtelAdapterOptions = {}): {
+function createMetrics({ config, context }: { config: ObservabilityConfigEnabled; context: ObservabilityProviderContext }, options: OtelAdapterOptions = {}): {
   metric: ObservabilityAdapter["port"]["metric"]; shutdown(): Promise<void>;
 } {
   let provider: MeterProvider | undefined;
@@ -271,9 +284,9 @@ function createMetrics({ config }: { config: ObservabilityConfigEnabled }, optio
       if (closed || !Number.isFinite(value)) return;
       // Reject rather than truncate: distinct dynamic names must never alias one instrument.
       if (name.length > 255) return;
-      provider ??= createMetricProvider({ config }, options);
+      provider ??= createMetricProvider({ config, describeTelemetryFailure: context.describeTelemetryFailure }, options);
       RECORD_METRIC[kind]({ meter: provider.getMeter(config.tracerName), name, value,
-        settings: unit === undefined ? {} : { unit }, attributes: redactOperationAttributes({ attributes }) });
+        settings: unit === undefined ? {} : { unit }, attributes: context.redactOperationAttributes({ attributes }) });
     },
     async shutdown() { closed = true; await provider?.shutdown(); },
   };
@@ -284,14 +297,15 @@ function createMetrics({ config }: { config: ObservabilityConfigEnabled }, optio
  * even when the host denies outbound telemetry.
  * The adapter plus its lifecycle (review 2026-10-25 #6): the host registers `dispose` with its own
  * teardown, so a closed site flushes and stops its provider.
+ * @param required The configuration, the host-bound diagnostics helpers (`context`) and the active-span `scope`; none is imported here.
  * @returns `{ port, dispose }`; `dispose` never throws.
  * @complexity O(1) setup.
  */
-export function createOtelObservabilityAdapter({ config }: { config: ObservabilityConfigEnabled }, options: OtelAdapterOptions = {}): ObservabilityAdapter {
-  const reporter = createProviderTelemetryReporter({ endpoint: config.endpoint }, options);
-  const { shutdown, ...factories } = createOtelFactories({}, options);
-  const metrics = createMetrics({ config }, options);
-  const port = { ...createOtelObservabilityPort({ config, ...factories }, { scope: createAsyncLocalSpanScope({}) }), metric: metrics.metric, supportsMetric: true };
+export function createOtelObservabilityAdapter({ config, context, scope }: { config: ObservabilityConfigEnabled; context: ObservabilityProviderContext; scope: SpanScopePort }, options: OtelAdapterOptions = {}): ObservabilityAdapter {
+  const reporter = createProviderTelemetryReporter({ endpoint: config.endpoint, describeTelemetryFailure: context.describeTelemetryFailure }, options);
+  const { shutdown, ...factories } = createOtelFactories({ describeTelemetryFailure: context.describeTelemetryFailure }, options);
+  const metrics = createMetrics({ config, context }, options);
+  const port = { ...createOtelObservabilityPort({ config, ...factories }, { scope, helpers: { errorType: context.errorType, redactOperationAttributes: context.redactOperationAttributes, redactLabel: context.redactLabel }, ...(options.exportEnabled === true ? { metric: metrics.metric } : {}) }), metric: metrics.metric, supportsMetric: true };
   reporter.initialized({ message: options.exportEnabled === true ? "OpenTelemetry exporting" : "OpenTelemetry export disabled" });
   return { port, dispose: async () => {
     try { await Promise.all([shutdown(), metrics.shutdown()]); reporter.result({ phase: "shutdown", outcome: "ok" }); }

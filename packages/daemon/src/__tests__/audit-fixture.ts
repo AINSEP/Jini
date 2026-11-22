@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { ToolExecutor, ToolExecutionResult } from '../tool-executor.js';
+import type { ToolExecutor, ToolExecutionResult } from "../tool-executor-types.js";
 import type { ToolAttemptEvent, ToolAttemptAuditSink, ToolAuditOptions } from '../tool-audit.js';
 import * as implementation from '../tool-audit.js';
 

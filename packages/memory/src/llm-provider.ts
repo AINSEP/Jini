@@ -102,7 +102,7 @@ interface ResolvedLlmCall {
 
 /** Normalize the host's endpoint; reject missing configuration before any I/O. */
 function resolveBaseUrl({ provider, baseUrl: configuredBaseUrl }: { provider: LlmProviderId; baseUrl: string | undefined }): string {
-  const baseUrl = trimTrailing((configuredBaseUrl ?? '').trim(), '/');
+  const baseUrl = trimTrailing({ text: (configuredBaseUrl ?? '').trim(), char: '/' });
   if (!baseUrl) {
     throw new Error(`llm-provider: baseUrl is required for the "${provider}" provider (the host must supply an endpoint)`);
   }
@@ -145,9 +145,9 @@ function resolveConfig(config: Omit<LlmProviderConfig, 'baseUrl'> & LlmProviderO
  * both follow this `/v1/<resource>` convention; `azure`/`google` build
  * their URLs differently and don't need it.
  */
-export function appendVersionedApiPath({ baseUrl, suffix }: { baseUrl: string; suffix: string }): string {
+export function appendVersionedApiPath({ baseUrl, suffix }: { baseUrl: string; suffix: string }, _optional: Record<string, never> = {}): string {
   const url = new URL(baseUrl);
-  const pathname = trimTrailing(url.pathname, '/');
+  const pathname = trimTrailing({ text: url.pathname, char: '/' });
   url.pathname = /\/v\d+(\/|$)/.test(pathname) ? `${pathname}${suffix}` : `${pathname}/v1${suffix}`;
   return url.toString();
 }
@@ -209,7 +209,7 @@ function describeCause({ cause, message }: {
  * read "fetch failed" with no indication of whether DNS broke, the
  * connection was reset, or the request timed out.
  */
-export function describeFetchError({ err }: { err: unknown }): string {
+export function describeFetchError({ err }: { err: unknown }, _optional: Record<string, never> = {}): string {
   const message = err instanceof Error ? err.message : String(err);
   const cause = err instanceof Error ? err.cause : undefined;
   if (!cause || typeof cause !== 'object') return message;
@@ -427,7 +427,7 @@ export function parseStrictJson<T = unknown>({ rawText }: { rawText: string }, _
   try {
     return JSON.parse(text) as T;
   } catch {
-    const match = outermostBraces(text);
+    const match = outermostBraces({ text });
     if (match !== null) {
       try {
         return JSON.parse(match) as T;

@@ -22,7 +22,7 @@ function safeEntry(value: string): void {
  * @returns POSIX-style relative paths, e.g. `"src/tracked-sites.ts"`.
  * @complexity O(n) in archive entries under the given prefixes.
  */
-export function filesUnderPrefixes({ headerFiles, prefixes }: { headerFiles: Record<string, AsarHeaderNode> | undefined; prefixes: readonly string[] }): string[] {
+export function filesUnderPrefixes({ headerFiles, prefixes }: { headerFiles: Record<string, AsarHeaderNode> | undefined; prefixes: readonly string[] }, _optional: Record<string, never> = {}): string[] {
   const paths = new Set<string>();
   function walk(node: AsarHeaderNode, current: string): void {
     safeEntry(current);
@@ -55,7 +55,7 @@ export function filesUnderPrefixes({ headerFiles, prefixes }: { headerFiles: Rec
  * @param sep the separator to convert to; defaults to this host's real `path.sep`.
  * @complexity O(n) in path length.
  */
-export function toArchiveEntryPath({ relPath, separator }: { relPath: string; separator: string }): string {
+export function toArchiveEntryPath({ relPath, separator }: { relPath: string; separator: string }, _optional: Record<string, never> = {}): string {
   safeEntry(relPath);
   return relPath.split('/').join(separator);
 }
@@ -109,12 +109,12 @@ export function verifyAsarAgainstSource(required: VerifyRequired, optional: Veri
  * @param checkedCount `verifyAsarAgainstSource`'s returned count.
  * @complexity O(1).
  */
-export function isEmptyVerification({ checkedCount }: { checkedCount: number }): boolean { return checkedCount === 0; }
-export function formatMismatchReport({ mismatches }: { mismatches: readonly AsarMismatch[] }): string {
+export function isEmptyVerification({ checkedCount }: { checkedCount: number }, _optional: Record<string, never> = {}): boolean { return checkedCount === 0; }
+export function formatMismatchReport({ mismatches }: { mismatches: readonly AsarMismatch[] }, _optional: Record<string, never> = {}): string {
   return [`${mismatches.length} file(s) in app.asar do NOT match source, byte-for-byte:`, ...mismatches.map(item => `  MISMATCH  ${item.relPath} — ${item.reason}`), 'Equal sizes can hide a packaging race that shifts archive offsets.'].join('\n');
 }
 /** Resources inventory is caller supplied; an empty inventory is a failure. */
-export function bundledNpmFailures(required: { resourcesDirs: readonly string[]; requiredFiles: readonly string[]; fs: PackagingFilesystemPort }): string[] {
+export function bundledNpmFailures(required: { resourcesDirs: readonly string[]; requiredFiles: readonly string[]; fs: PackagingFilesystemPort }, _optional: Record<string, never> = {}): string[] {
   if (!required.resourcesDirs.length) return ['no packaged resources directory was found to check for the bundled npm'];
   if (!required.requiredFiles.length) return ['no bundled npm files were specified to check'];
   return required.resourcesDirs.flatMap(dir => required.requiredFiles.map(relative => { safeEntry(relative); return path.join(dir, relative); }).filter(file => !required.fs.exists({ path: file })));

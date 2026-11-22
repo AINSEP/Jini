@@ -8,8 +8,7 @@ import {
   type RefObject,
   type SyntheticEvent,
 } from 'react';
-import { useNativeDialog } from '@jini-ai/ui-kit/react/native';
-import { useFocusTrap } from '@jini-ai/ui/panel-kit';
+import { useNativeDialog, useFocusTrap } from '../../kit.js';
 
 /**
  * @file `ConfirmDialog`'s open/close and focus-management state, split out of the component so it

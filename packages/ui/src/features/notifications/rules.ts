@@ -15,6 +15,6 @@ export type TestStatus = 'sent' | 'failed';
 /** Display text for a `TestStatus` — the one piece of copy-selection logic
  *  behind the "Test notification sent." / "Could not send a test
  *  notification." status line. */
-export function testStatusLabel(result: TestStatus, labels: { testSentLabel: string; testFailedLabel: string }): string {
+export function testStatusLabel({ result, labels }: { result: TestStatus; labels: { testSentLabel: string; testFailedLabel: string } }, _optional: Record<string, never> = {}): string {
   return result === 'sent' ? labels.testSentLabel : labels.testFailedLabel;
 }

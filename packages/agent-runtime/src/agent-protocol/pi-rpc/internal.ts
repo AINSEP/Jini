@@ -29,7 +29,7 @@ export function isRecord(value: unknown): value is JsonRecord {
  *
  * @param err - Any caught value from a try/catch or error callback.
  */
-export function errorMessage(err: unknown): string {
+export function errorMessage({ err }: { err: unknown }, _optional: Record<string, never> = {}): string {
   return err instanceof Error ? err.message : String(err);
 }
 /**
@@ -39,7 +39,7 @@ export function errorMessage(err: unknown): string {
  *
  * @param err - Any caught value from a try/catch or error callback.
  */
-export function errorCode(err: unknown): string | undefined {
+export function errorCode({ err }: { err: unknown }, _optional: Record<string, never> = {}): string | undefined {
   return isRecord(err) && typeof err.code === 'string' ? err.code : undefined;
 }
 /**
@@ -48,6 +48,6 @@ export function errorCode(err: unknown): string | undefined {
  *
  * @param value - An arbitrary value from a parsed JSON payload.
  */
-export function getRecord(value: unknown): JsonRecord | undefined {
+export function getRecord({ value }: { value: unknown }, _optional: Record<string, never> = {}): JsonRecord | undefined {
   return isRecord(value) ? value : undefined;
 }

@@ -316,13 +316,13 @@ export function useMediaProvidersTab({ port, catalogPolicy, initialProviders }: 
           setLoad({ status: 'unreachable' });
           return;
         }
-        const merged = mergeDaemonProviders(providersRef.current, normalizeMediaProviderMap({ providers: daemonResult }), {
+        const merged = mergeDaemonProviders({ localProviders: providersRef.current, daemonProviders: normalizeMediaProviderMap({ providers: daemonResult }) }, {
           preserveLocalProviderIds: pendingRef.current,
           dropProviderIds: clearedProviderIds.current,
         });
         applyProviders(merged);
         setLoad({ status: 'ok' });
-        if (migrateOnFirstUpload && shouldSyncLocalProvidersToDaemon(localBeforeMerge, daemonResult)) {
+        if (migrateOnFirstUpload && shouldSyncLocalProvidersToDaemon({ localProviders: localBeforeMerge, daemonProviders: daemonResult })) {
           void persist();
         }
       });
@@ -347,7 +347,7 @@ export function useMediaProvidersTab({ port, catalogPolicy, initialProviders }: 
       const current = providersRef.current;
       const nextEntry: MediaProviderCredentials = { ...(current[providerId] ?? {}), ...patch };
       const nextMap = { ...current };
-      if (isEntryEmpty(nextEntry)) {
+      if (isEntryEmpty({ entry: nextEntry })) {
         delete nextMap[providerId];
       } else {
         nextMap[providerId] = nextEntry;
@@ -404,7 +404,7 @@ export function useMediaProvidersTab({ port, catalogPolicy, initialProviders }: 
     providers,
     load,
     save,
-    hasAnyConfigured: hasAnyConfiguredProvider(providers),
+    hasAnyConfigured: hasAnyConfiguredProvider({ providers }),
     pendingProviderIds,
     updateProvider,
     clearProvider,

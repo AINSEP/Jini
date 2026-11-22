@@ -93,7 +93,7 @@ describe('useAssetGridLiveUpdates', () => {
     }
 
     expect(assets).toEqual(authoritative);
-    expect(diagnostic.mock.calls).toEqual([['[asset-grid] Live update failed.']]);
+    expect(diagnostic.mock.calls).toEqual([['[asset-grid] Live update failed.', 'Error']]);
   });
 
   it('does nothing when inactive or no liveUpdates port is supplied', () => {

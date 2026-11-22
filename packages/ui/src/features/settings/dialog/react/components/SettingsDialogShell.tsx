@@ -35,8 +35,8 @@ export type SettingsDialogShellProps<T extends SettingsDialogTab = SettingsDialo
  * Every other prop passes straight through to `TabbedDialog` unchanged — this component
  * owns no shell state and renders no shell markup of its own.
  */
-export function SettingsDialogShell<T extends SettingsDialogTab>(props: SettingsDialogShellProps<T>) {
-  const t = useT();
+export function SettingsDialogShell<T extends SettingsDialogTab>({ useTHook = useT, ...props }: SettingsDialogShellProps<T> & { useTHook?: typeof useT }) {
+  const t = useTHook();
   const labels: TabbedDialogChromeLabels = {
     kicker: t('Settings'),
     collapseSidebarLabel: t('Collapse settings sidebar'),

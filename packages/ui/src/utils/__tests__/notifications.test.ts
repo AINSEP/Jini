@@ -14,7 +14,7 @@
 // `// @vitest-environment node` companion file loses branch-hit merging
 // across the two instrumented instances (see this file's
 // `features/html-viewer/dependencies` precedent in
-// packages/ui/archived provenance ledger).
+// 070311a07^:packages/ui/source-map.md).
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   DEFAULT_FAILURE_SOUND_ID,
@@ -54,15 +54,15 @@ describe('playSound / previewSuccess / previewFailure', () => {
   });
 
   it('no-ops without throwing when window is absent (Node default, no DOM at all)', () => {
-    expect(() => playSound(DEFAULT_SUCCESS_SOUND_ID)).not.toThrow();
-    expect(() => previewSuccess(DEFAULT_SUCCESS_SOUND_ID)).not.toThrow();
-    expect(() => previewFailure(DEFAULT_FAILURE_SOUND_ID)).not.toThrow();
+    expect(() => playSound({ id: DEFAULT_SUCCESS_SOUND_ID })).not.toThrow();
+    expect(() => previewSuccess({ id: DEFAULT_SUCCESS_SOUND_ID })).not.toThrow();
+    expect(() => previewFailure({ id: DEFAULT_FAILURE_SOUND_ID })).not.toThrow();
   });
 
   it('no-ops when window exists but neither AudioContext nor webkitAudioContext is available', async () => {
     vi.stubGlobal('window', {});
     const { playSound: freshPlaySound } = await freshModule();
-    expect(() => freshPlaySound(DEFAULT_SUCCESS_SOUND_ID)).not.toThrow();
+    expect(() => freshPlaySound({ id: DEFAULT_SUCCESS_SOUND_ID })).not.toThrow();
   });
 
   it('falls back to webkitAudioContext when AudioContext is absent', async () => {
@@ -81,7 +81,7 @@ describe('playSound / previewSuccess / previewFailure', () => {
     }
     vi.stubGlobal('window', { webkitAudioContext: FakeAudioContext });
     const { playSound: freshPlaySound } = await freshModule();
-    freshPlaySound(DEFAULT_SUCCESS_SOUND_ID);
+    freshPlaySound({ id: DEFAULT_SUCCESS_SOUND_ID });
     expect(start).toHaveBeenCalled();
   });
 
@@ -93,7 +93,7 @@ describe('playSound / previewSuccess / previewFailure', () => {
     }
     vi.stubGlobal('window', { AudioContext: ThrowingAudioContext });
     const { playSound: freshPlaySound } = await freshModule();
-    expect(() => freshPlaySound(DEFAULT_SUCCESS_SOUND_ID)).not.toThrow();
+    expect(() => freshPlaySound({ id: DEFAULT_SUCCESS_SOUND_ID })).not.toThrow();
   });
 
   it('resumes a suspended AudioContext before playing', async () => {
@@ -111,7 +111,7 @@ describe('playSound / previewSuccess / previewFailure', () => {
     }
     vi.stubGlobal('window', { AudioContext: FakeAudioContext });
     const { playSound: freshPlaySound } = await freshModule();
-    freshPlaySound(DEFAULT_SUCCESS_SOUND_ID);
+    freshPlaySound({ id: DEFAULT_SUCCESS_SOUND_ID });
     expect(resume).toHaveBeenCalled();
     expect(start).toHaveBeenCalled();
   });
@@ -127,7 +127,7 @@ describe('playSound / previewSuccess / previewFailure', () => {
     }
     vi.stubGlobal('window', { AudioContext: FakeAudioContext });
     const { playSound: freshPlaySound } = await freshModule();
-    expect(() => freshPlaySound(DEFAULT_SUCCESS_SOUND_ID)).not.toThrow();
+    expect(() => freshPlaySound({ id: DEFAULT_SUCCESS_SOUND_ID })).not.toThrow();
     // Let the rejected promise's .catch() microtask actually run before the
     // test file's teardown, so the rejection is truly observed as handled.
     await Promise.resolve();
@@ -144,7 +144,7 @@ describe('playSound / previewSuccess / previewFailure', () => {
     }
     vi.stubGlobal('window', { AudioContext: FakeAudioContext });
     const { playSound: freshPlaySound } = await freshModule();
-    expect(() => freshPlaySound('not-a-real-sound')).not.toThrow();
+    expect(() => freshPlaySound({ id: 'not-a-real-sound' })).not.toThrow();
   });
 
   it('drives oscillator + gain node wiring for every registered sound id without throwing', async () => {
@@ -175,7 +175,7 @@ describe('playSound / previewSuccess / previewFailure', () => {
     // players and pluck's lowpass-filter branch — so every sound-id
     // closure body runs at least once.
     for (const id of ['ding', 'chime', 'two-tone-up', 'pluck', 'buzz', 'two-tone-down', 'thud']) {
-      freshPlaySound(id);
+      freshPlaySound({ id });
     }
 
     expect(start).toHaveBeenCalled();
@@ -195,7 +195,7 @@ describe('playSound / previewSuccess / previewFailure', () => {
     }
     vi.stubGlobal('window', { AudioContext: FakeAudioContext });
     const { playSound: freshPlaySound } = await freshModule();
-    expect(() => freshPlaySound(DEFAULT_SUCCESS_SOUND_ID)).not.toThrow();
+    expect(() => freshPlaySound({ id: DEFAULT_SUCCESS_SOUND_ID })).not.toThrow();
   });
 });
 

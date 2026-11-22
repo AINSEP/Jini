@@ -41,6 +41,8 @@ export type {
   TransformDefinitionRepoPort,
 } from "./ports.js";
 
+export { parseOptionalStringField, parseOptionalTitleField, parseOptionalSlugField } from "./metadata-fields.js";
+
 export { computeBlobStorageKey } from "./blob-key.js";
 export { preserveMediaCreator, mediaRepoWithCreator } from "./created-by.js";
 
@@ -77,6 +79,7 @@ export {
 
 export { InMemoryBlobStore } from "./blob-store.memory.js";
 export { blobStoreFromObjectStore } from "./blob-store.object-store.js";
+export * from "./blob-store.selection.js";
 
 export {
   DEFAULT_MAX_UPLOAD_BYTES,
@@ -189,3 +192,8 @@ export type { ImageCodecPort, ImageCodecLimits, ImageMetadata, ImageEncodeInput,
 // Document extraction policy/port only; optional SDK adapters have isolated plugin subpaths.
 export { DOCUMENT_EXTRACTION_LIMITS, DocumentTextExtractionError, type DocumentTextExtractorPort, type DocumentTextExtraction } from './document-text.js';
 export type { DocumentTextPage } from './document-read.js';
+
+export { InMemoryVersionedMediaRepo, type VersionedMediaRepoPort } from "./versioned-repo.js";
+export { guardMediaRenditionRepo } from "./guard-rendition-repo.js";
+
+export { withChatPreview } from "./chat-preview.js";

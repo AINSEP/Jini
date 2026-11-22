@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isLoopbackApiHost, isBlockedExternalApiHostname } from '../address.js';
+import { isLoopbackApiHost, isBlockedExternalApiHostname } from '@jini-ai/core/net';
 describe('isLoopbackApiHost', () => {
     // PARITY: copied literal-host policy vector.
     it('recognizes localhost (including trailing-dot FQDN form and mixed case)', () => {

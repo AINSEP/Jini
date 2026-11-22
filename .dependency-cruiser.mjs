@@ -14,7 +14,7 @@ const publicPaths = [...publicEntries.map(entry => entry.source), ...binSources]
 // Keep their edges in the graph, but resolve their host dependencies in that host.
 const consumerSources = [
   '^packages/agent-runtime/src/skills/chat-motion-overlay/assets/remotion-template/',
-  '^packages/agent-plugins/ui-ux-design/skills/shadcn-ui/examples/',
+  '^packages/agent-plugins/shadcn-ui/skills/shadcn-ui/examples/',
 ];
 const kernelCore = '^packages/db/src/kernel/kernel-core\\.ts$';
 const implicitEntries = [

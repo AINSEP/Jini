@@ -1,4 +1,5 @@
-import { act, render, screen } from '@testing-library/react';
+import { act, screen } from '@testing-library/react';
+import { renderWithChatSurfaces } from '../../../../__tests__/fake-chat-surfaces.js';
 import userEvent from '@testing-library/user-event';
 import { expect, it, vi } from 'vitest';
 import { AgentRuntimePicker } from '../../components/AgentRuntimePicker.js';
@@ -19,7 +20,7 @@ const policy = { nativeToolAccess: false, cliParity: false,
 
 it('shows the plain note through ChatPane without owner eligibility before any send', () => {
   const transport = createFakeChatTransport();
-  render(<ChatPane transport={transport} agents={agents} selection={{ agentId: 'antigravity' }} nativeToolPolicy={policy} />);
+  renderWithChatSurfaces(<ChatPane transport={transport} agents={agents} selection={{ agentId: 'antigravity' }} nativeToolPolicy={policy} />);
   expect(screen.getByText(note)).toBeInTheDocument();
   expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   expect(transport.calls).toHaveLength(0);
@@ -28,7 +29,7 @@ it('shows the plain note through ChatPane without owner eligibility before any s
 it.each([policy, undefined])('lets a non-owner pick Antigravity with current policy %s and shows the note', async nativeToolPolicy => {
   const user = userEvent.setup();
   const onChange = vi.fn();
-  render(<AgentRuntimePicker agents={agents} value={{ agentId: 'claude' }} onChange={onChange}
+  renderWithChatSurfaces(<AgentRuntimePicker agents={agents} value={{ agentId: 'claude' }} onChange={onChange}
     {...(nativeToolPolicy ? { nativeToolPolicy } : {})} />);
   await user.click(screen.getByRole('button', { name: 'Choose AI runtime' }));
   const agy = screen.getByRole('radio', { name: /Antigravity/ });
@@ -44,7 +45,7 @@ it('uses t() for the note without an owner warning, and clears the note in API m
   const t = (key: string) => `translated: ${key}`;
   const props = { agents, value: { agentId: 'antigravity' }, onChange: vi.fn(),
     nativeToolPolicy: policy };
-  const { rerender } = render(<I18nContext.Provider value={{ t, locale: 'test' }}><AgentRuntimePicker {...props} /></I18nContext.Provider>);
+  const { rerender } = renderWithChatSurfaces(<I18nContext.Provider value={{ t, locale: 'test' }}><AgentRuntimePicker {...props} /></I18nContext.Provider>);
   expect(screen.getByText(`translated: ${note}`)).toBeInTheDocument();
   expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   rerender(<I18nContext.Provider value={{ t, locale: 'test' }}><AgentRuntimePicker {...props} executionMode="api" /></I18nContext.Provider>);
@@ -54,7 +55,7 @@ it('uses t() for the note without an owner warning, and clears the note in API m
 
 it.each(['claude', 'codex'])('keeps %s selectable under the existing tool limits', async agentId => {
   const user = userEvent.setup();
-  render(<AgentRuntimePicker agents={agents} value={{ agentId }} onChange={vi.fn()} nativeToolPolicy={policy} />);
+  renderWithChatSurfaces(<AgentRuntimePicker agents={agents} value={{ agentId }} onChange={vi.fn()} nativeToolPolicy={policy} />);
   expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   await user.click(screen.getByRole('button', { name: 'Choose AI runtime' }));
   expect(screen.getByRole('radio', { name: agentId === 'claude' ? /Claude/ : /Codex/ })).toBeEnabled();
@@ -62,7 +63,7 @@ it.each(['claude', 'codex'])('keeps %s selectable under the existing tool limits
 
 it('discloses unsupported adapter limits through an accessible tip without a toolbar paragraph', async () => {
   const user = userEvent.setup();
-  render(<AgentRuntimePicker agents={agents} value={{ agentId: 'other' }} onChange={vi.fn()} nativeToolPolicy={policy} />);
+  renderWithChatSurfaces(<AgentRuntimePicker agents={agents} value={{ agentId: 'other' }} onChange={vi.fn()} nativeToolPolicy={policy} />);
   expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   const icon = screen.getByRole('button', { name: 'Agent permissions required' });
   expect(icon).toHaveAccessibleDescription(/Another CLI can't run/);

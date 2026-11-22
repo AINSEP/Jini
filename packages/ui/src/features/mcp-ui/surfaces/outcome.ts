@@ -47,7 +47,7 @@ export type { SurfaceOutcomeSpec } from '@jini-ai/core/contracts/cards';
  * cancel action answers the caller's existing exchange without confirming an operation or
  * navigating. Ordinary completed outcomes retain their read-only contract.
  */
-import { createUIResource, type UIResource, type UIResourceUri } from '../resource.js';
+import { createUIResource, type UIResource, type UIResourceUri } from '@jini-ai/protocol/mcp-ui';
 import { escapeHtml, escapeJsValue } from '../escape.js';
 import {
   DEFAULT_SURFACE_STATUS_TEXT,
@@ -87,7 +87,7 @@ function outcomeActions(spec: SurfaceOutcomeSpec): SurfaceAction[] {
 
 function renderOpenLinkActions(spec: SurfaceOutcomeSpec): string {
   const actions = outcomeActions(spec);
-  return actions.length === 0 ? '' : renderActions(actions);
+  return actions.length === 0 ? '' : renderActions({ actions });
 }
 
 /** Pending external work keeps its outbound link and answers cancellation through the same bridge.
@@ -97,11 +97,11 @@ function cancellableOutcomeScript(spec: SurfaceOutcomeSpec): string {
   return `(function () {
   "use strict";
 ${SURFACE_SCRIPT_PRELUDE}
-  var TEXT = ${escapeJsValue(DEFAULT_SURFACE_STATUS_TEXT)};
-  var CANCEL = ${escapeJsValue(spec.cancel)};
-  var OPEN_URL = ${escapeJsValue(spec.openLinkUrl ?? null)};
+  var TEXT = ${escapeJsValue({ value: DEFAULT_SURFACE_STATUS_TEXT })};
+  var CANCEL = ${escapeJsValue({ value: spec.cancel })};
+  var OPEN_URL = ${escapeJsValue({ value: spec.openLinkUrl ?? null })};
   var OPEN_TIMEOUT_MS = ${OPEN_LINK_TIMEOUT_MS};
-  var OPEN_TIMEOUT_TEXT = ${escapeJsValue(`The link did not open within ${OPEN_LINK_TIMEOUT_MS / 1000} seconds. Try again.`)};
+  var OPEN_TIMEOUT_TEXT = ${escapeJsValue({ value: `The link did not open within ${OPEN_LINK_TIMEOUT_MS / 1000} seconds. Try again.` })};
   var locked = false;
   var opening = null;
   function onClick(event) {
@@ -138,7 +138,7 @@ function outcomeScript(openLinkUrl: string | undefined): string {
   return `(function () {
   "use strict";
 ${SURFACE_SCRIPT_PRELUDE}
-  var OPEN_URL = ${escapeJsValue(openLinkUrl)};
+  var OPEN_URL = ${escapeJsValue({ value: openLinkUrl })};
   var OUTCOME = statusNode.textContent;
   // A refused or failed open keeps the outcome (it still happened) and says what to do instead.
   function reportOpenFailure() {
@@ -164,11 +164,11 @@ export function renderOutcomeDocument(spec: SurfaceOutcomeSpec): string {
   // has nothing further to wait on (unlike a confirmation, which starts idle and only reaches "done"
   // after a click), so the true outcome should be visible from the FIRST paint, not a moment after
   // the script runs.
-  const statusHtml = `<p class="mcpui-status" id="${SURFACE_STATUS_ELEMENT_ID}" role="status" aria-live="polite" data-state="${statusStateOf(spec.state)}">${escapeHtml(spec.message)}</p>`;
+  const statusHtml = `<p class="mcpui-status" id="${SURFACE_STATUS_ELEMENT_ID}" role="status" aria-live="polite" data-state="${statusStateOf(spec.state)}">${escapeHtml({ value: spec.message })}</p>`;
 
   const bodyHtml = [
     renderSurfaceHeader(spec.description === undefined ? { title: spec.title } : { title: spec.title, description: spec.description }),
-    renderDetailList(spec.details ?? [], { layout: 'outcome' }),
+    renderDetailList({ details: spec.details ?? [] }, { layout: 'outcome' }),
     statusHtml,
     renderOpenLinkActions(spec),
   ]

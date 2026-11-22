@@ -1,3 +1,4 @@
+import type { Logger } from '@jini-ai/core/primitives';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import grapesjs, { type Component, type Editor } from 'grapesjs';
 import { applyCanvasContentWrapper } from '../../canvas-content-wrapper.js';
@@ -120,7 +121,7 @@ function recordDirtyTextEdit(component: Component | undefined, dirty: Map<string
   if (!component || !component.is('text')) return;
   const path = computeComponentPath(component);
   if (!path) return;
-  dirty.set(pathKey(path), { path, tagName: component.tagName.toLowerCase(), component });
+  dirty.set(pathKey({ path }), { path, tagName: component.tagName.toLowerCase(), component });
 }
 
 /**
@@ -264,6 +265,7 @@ function revealCanvasWhenStylesheetsSettle(editor: Editor, body: HTMLElement, on
  * @overallScore 100
  */
 export interface InteractiveEditorOptions {
+  report?: Pick<Logger, 'warn'> | undefined;
   onRequestEditHtml?: RequestEditHtml | undefined;
   translate?: ((key: string) => string) | undefined;
   onSerializationError?: ((error: EditorSourceError) => void) | undefined;
@@ -308,14 +310,14 @@ export function useInteractiveHtmlEditor(
     const decorate = () => {
       protectTextAncestors({ editor }, {});
       const describe = sourcePlan.instances.length ? protectedCanvasDescriber({ editor }, {}) : describeEmbedPlaceholder;
-      if (describe) applyCanvasEmbedPlaceholders(editor.Canvas.getBody(), describe);
+      if (describe) applyCanvasEmbedPlaceholders({ body: editor.Canvas.getBody(), describe });
     };
     const serialize = () => {
       try {
         // No separate marker-leak check here: `serializeEditorSource` already throws an
         // `EditorSourceError` when its result carries `sourcePlan.markerAttribute`, so a second
         // identical check on the same result could never fire.
-        return serializeEditorSource({ editor, html, edits: dirty, sourcePlan }, { structuralChange });
+        return serializeEditorSource({ editor, html, edits: dirty, sourcePlan }, { structuralChange, report: options.report });
       } catch (error) {
         const failure = error instanceof EditorSourceError ? error : new EditorSourceError();
         reportSourceError(failure);
@@ -407,7 +409,7 @@ export function useInteractiveHtmlEditor(
         catch { reportSourceError(new EditorSourceError()); return; }
       }
       const body = editor.Canvas.getBody();
-      applyCanvasContentWrapper(body, canvasStyling.contentWrapper);
+      applyCanvasContentWrapper({ body, chain: canvasStyling.contentWrapper });
       decorate();
       // Runs LAST, after both decorations above — see `revealCanvasWhenStylesheetsSettle`'s own doc
       // for why that order matters even in the zero-stylesheet case.

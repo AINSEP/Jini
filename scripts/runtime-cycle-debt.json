@@ -1,0 +1,4 @@
+{
+  "_comment": "Files that are in a runtime import cycle today and may stay in one until their fix lands. Read by scripts/check-runtime-cycles.ts (R14 in `pnpm guard`). The list only shrinks: a cycle that involves any file not listed here fails the guard, and an entry whose file is no longer in a cycle also fails it, so the entry is deleted in the commit that removes the cycle. Never add an entry to pass a new cycle. It is empty: the last cycle (agent-executor/mcp-bridge.ts and the per-agent files) was removed by import-cycle step J2 (leaf `mcp-json-file.ts`).",
+  "files": []
+}

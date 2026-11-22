@@ -4,7 +4,7 @@ A standalone OAuth 2.x client for Node 20 or later, backed by `openid-client` 6.
 
 ## Protocol implementation and compatibility
 
-The existing exports and `(requiredArgs, optionalArgs = {})` contracts remain source-compatible. Consumers continue to import Jini's facade; upstream configuration objects and error types are internal. PKCE, state generation, authorization-URL formatting and redaction stay synchronous. PKCE hashing uses Node's standard crypto implementation because upstream hashing is asynchronous; entropy remains an injected port.
+The existing exports and `(requiredArgs, optionalArgs = {})` contracts remain source-compatible. Consumers continue to import Jini's facade; upstream configuration objects and error types are internal. PKCE, state generation, authorization-URL formatting stay synchronous. PKCE hashing uses Node's standard crypto implementation because upstream hashing is asynchronous; entropy remains an injected port.
 
 | Operation | Protocol implementation | Jini and host responsibilities |
 |---|---|---|
@@ -180,6 +180,7 @@ The DNS-pinned transport requires `OAuthDispatcherPort.dispatcher` to match Node
 |---|---|
 | `./discovery-policy` | `createIssuerBoundDiscoveryPolicy` and its metadata-policy port |
 | `./dns-pinned-transport` | `createDnsPinnedOAuthTransport`, transport result and DNS/address/dispatcher ports |
+| `./callback-page` | `renderOAuthCallbackPage`, `OAuthCallbackPageCopy`, `OAuthCallbackPageInput`, `OAuthCallbackPageOptions`: the popup landing page; the host supplies all copy |
 
 `startLoopbackAuthorizationReceiver`, its receiver/result/options/timer types and field limits are root exports.
 
@@ -187,7 +188,7 @@ Discovery defaults to `createIssuerBoundDiscoveryPolicy({})`: advertised issuers
 
 The provider primitives preserve the existing fixed-issuer raw token and error contracts. Their HTTP, entropy, clock and scheduler dependencies are required ports. Their synchronous pending cache is distinct from the owner-bound async pending-authorization store. The complete contracts and those distinctions are in [API.md](https://github.com/AINSEP/Jini/blob/main/packages/oauth/API.md).
 
-The main API now owns PKCE/state, fixed-issuer code exchange, refresh, URL redaction and pending storage. It depends on `@jini-ai/core`; clocks implement `nowMs()`. PKCE defaults to 32 bytes; `{ verifierBytes: 64 }` preserves provider verifier length. Grant results are normalized `OAuthTokenSet`; the redundant raw-wire API and subpath are removed. Hosts can replace reserved-parameter/registration prose with `defaultOAuthMessages` through the `messages` option. Registration wire identity remains `clientDisplayName`, `softwareId`, and `redirectUris`.
+The main API now owns PKCE/state, fixed-issuer code exchange, refresh and pending storage. It depends on `@jini-ai/core`; clocks implement `nowMs()`. PKCE defaults to 32 bytes; `{ verifierBytes: 64 }` preserves provider verifier length. Grant results are normalized `OAuthTokenSet`; the redundant raw-wire API and subpath are removed. Hosts can replace reserved-parameter/registration prose with `defaultOAuthMessages` through the `messages` option. Registration wire identity remains `clientDisplayName`, `softwareId`, and `redirectUris`.
 
 Path-scoped issuer discovery fails after its path candidates by default. Set `allowOriginFallback: true` explicitly to try origin-wide metadata; issuer binding remains enabled. The explicit `allowLoopbackHttp` exception includes all IPv4 loopback and mapped IPv6 loopback literals and still invokes the host policy. Synchronous callback storage is an expiry option of `createPendingAuthorizationStore`; see API.md for the scheduler and capacity contract.
 

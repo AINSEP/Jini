@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { ZodTypeAny } from 'zod';
+import type { ZodTypeAny } from 'zod/v3';
 import {
   RegistryDistSchema,
   RegistryDoctorIssueSchema,

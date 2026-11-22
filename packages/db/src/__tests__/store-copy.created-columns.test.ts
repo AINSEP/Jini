@@ -3,7 +3,7 @@ import { sql } from "kysely";
 import { afterEach, expect, it } from "vitest";
 
 import { openPgliteKernel } from "../kernel/pglite/index.js";
-import type { StorageKernel } from "../kernel/port.js";
+import type { KyselyKernel } from "../kernel/port.js";
 import { copyPgStore, readCatalog, StoreCopyError, type StoreCopyScope } from "../kernel/store-copy.js";
 
 /**
@@ -13,13 +13,13 @@ import { copyPgStore, readCatalog, StoreCopyError, type StoreCopyScope } from ".
  */
 
 const scope: StoreCopyScope = { schemas: ["app"], ledgers: [{ schema: "app", name: "applied" }] };
-const open: StorageKernel<unknown>[] = [];
+const open: KyselyKernel<unknown>[] = [];
 
 afterEach(async () => {
   for (const kernel of open.splice(0)) await kernel.close();
 });
 
-async function pair(): Promise<{ source: StorageKernel<unknown>; target: StorageKernel<unknown> }> {
+async function pair(): Promise<{ source: KyselyKernel<unknown>; target: KyselyKernel<unknown> }> {
   const source = openPgliteKernel<unknown>({ PGlite });
   const target = openPgliteKernel<unknown>({ PGlite });
   open.push(source, target);
@@ -32,7 +32,7 @@ async function pair(): Promise<{ source: StorageKernel<unknown>; target: Storage
 }
 
 /** A column's definition as the target's own catalog reports it. */
-async function columnsOf(kernel: StorageKernel<unknown>, table: string) {
+async function columnsOf(kernel: KyselyKernel<unknown>, table: string) {
   return kernel.query(
     sql`SELECT column_name, is_nullable, column_default, is_identity, identity_generation
         FROM information_schema.columns WHERE table_schema = 'app' AND table_name = ${table} ORDER BY ordinal_position`

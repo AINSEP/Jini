@@ -4,9 +4,9 @@
 // scoped-down local reimplementation of OD's `runtime/markdown.tsx` (2,881
 // lines, chat/artifact-rendering territory, explicitly deferred to
 // `@jini-ai/chat`'s `./react` subpath (formerly this package's own `./chat` export, extracted
-// 2026-08-03)/this package's own `./renderers` subpath — see `packages/ui/source-map.md`)
+// 2026-08-03)/this package's own `./renderers` subpath — see `archived UI source map`)
 // — just enough to render a saved memory's plain-text/Markdown body safely.
-import { agentHandleProps } from '@jini-ai/agentic';
+import { agentHandleProps } from '@jini-ai/core/agent-handles';
 import { Icon } from '../../../../react/components/Icon.js';
 import { useT } from '../../../i18n/index.js';
 import { renderMarkdown } from '../render-markdown.js';
@@ -20,6 +20,7 @@ export function MemoryEntryCard({
   onStartEdit,
   onDelete,
   agentHandle,
+  useTHook = useT,
 }: {
   entry: MemoryEntrySummary;
   previewId: string | null;
@@ -29,8 +30,9 @@ export function MemoryEntryCard({
   onDelete: (id: string) => void;
   /** This card's own agent handle — `MemoryList` derives one per entry. */
   agentHandle?: string;
+  useTHook?: typeof useT;
 }) {
-  const t = useT();
+  const t = useTHook();
   return (
     <div className="library-card">
       <div className="library-card-info">

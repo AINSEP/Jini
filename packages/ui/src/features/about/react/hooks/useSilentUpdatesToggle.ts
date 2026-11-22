@@ -63,13 +63,13 @@ export function useSilentUpdatesToggle({
       if (!onSilentUpdatePreferenceChange) return;
       const previous = state.allowSilentUpdates;
       const revision = guardRef.current.begin();
-      setState(beginSilentUpdatesWrite(next));
+      setState(beginSilentUpdatesWrite({ next }));
       void onSilentUpdatePreferenceChange(next).then(
         () => {
-          if (guardRef.current.isCurrent(revision)) setState(resolveSilentUpdatesWriteSuccess(next));
+          if (guardRef.current.isCurrent(revision)) setState(resolveSilentUpdatesWriteSuccess({ value: next }));
         },
         () => {
-          if (guardRef.current.isCurrent(revision)) setState(resolveSilentUpdatesWriteFailure(previous));
+          if (guardRef.current.isCurrent(revision)) setState(resolveSilentUpdatesWriteFailure({ previous }));
         },
       );
     },

@@ -46,16 +46,16 @@ export function assertJiniPackagePublicationAllowed(
   }
 }
 
-export function readPackageJson(dir: string): PackageJson {
+export function readPackageJson({ dir }: { dir: string }, _optional: Record<string, never> = {}): PackageJson {
   return JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8')) as PackageJson;
 }
 
-export function jiniDependencyNames(pkg: PackageJson): string[] {
+export function jiniDependencyNames(pkg: PackageJson, _optional: Record<string, never> = {}): string[] {
   return Object.keys(pkg.dependencies ?? {}).filter((name) => name.startsWith('@jini-ai/'));
 }
 
 /** The exact filename `npm pack`/`pnpm pack` produce for a scoped package: `@jini-ai/core@0.0.0` -> `jini-core-0.0.0.tgz`. */
-export function tarballFileName(name: string, version: string): string {
+export function tarballFileName({ name, version }: { name: string; version: string }, _optional: Record<string, never> = {}): string {
   return `${name.replace(/^@/, '').replace(/\//g, '-')}-${version}.tgz`;
 }
 
@@ -64,7 +64,7 @@ export function tarballFileName(name: string, version: string): string {
  * Only the two shapes the file uses are supported — `dir/*` (one level) and a literal path — and
  * anything else throws, so a new glob shape can't silently drop packages from publishing.
  */
-export function workspacePackageGlobs(workspaceRoot: string): string[] {
+export function workspacePackageGlobs({ workspaceRoot }: { workspaceRoot: string }, _optional: Record<string, never> = {}): string[] {
   const lines = readFileSync(join(workspaceRoot, 'pnpm-workspace.yaml'), 'utf8').split('\n');
   const start = lines.findIndex((line) => /^packages:\s*$/.test(line));
   if (start === -1) throw new Error('pack-jini-packages: pnpm-workspace.yaml has no top-level "packages:" list');
@@ -84,7 +84,7 @@ function isSupportedWorkspaceGlob(glob: string): boolean {
 
 function workspacePackageDirectories(workspaceRoot: string): string[] {
   const dirs: string[] = [];
-  for (const glob of workspacePackageGlobs(workspaceRoot)) {
+  for (const glob of workspacePackageGlobs({ workspaceRoot })) {
     if (!isSupportedWorkspaceGlob(glob)) {
       throw new Error(`pack-jini-packages: unsupported pnpm-workspace.yaml glob "${glob}" — only "dir/*" and literal paths`);
     }
@@ -107,12 +107,12 @@ function workspacePackageDirectories(workspaceRoot: string): string[] {
  * workspace file lists them; a one-level `packages/*` scan never saw them, so they never published.
  * Private packages are included (dependency closures need them); publish paths filter them out.
  */
-export function discoverJiniPackages(workspaceRoot: string): Map<string, JiniPackageEntry> {
+export function discoverJiniPackages({ workspaceRoot }: { workspaceRoot: string }, _optional: Record<string, never> = {}): Map<string, JiniPackageEntry> {
   const dirs = workspacePackageDirectories(workspaceRoot);
   const registry = new Map<string, JiniPackageEntry>();
   for (const dir of dirs) {
     if (!existsSync(join(dir, 'package.json'))) continue;
-    const pkg = readPackageJson(dir);
+    const pkg = readPackageJson({ dir });
     if (pkg.name && pkg.private !== true) assertJiniPackagePublicationAllowed({ name: pkg.name });
     if (pkg.name?.startsWith('@jini-ai/')) registry.set(pkg.name, { dir, pkg });
   }
@@ -125,7 +125,7 @@ export function discoverJiniPackages(workspaceRoot: string): Map<string, JiniPac
  * packages in dependency-first (topological) order, since building a dependent's TypeScript
  * project requires its `@jini-ai/*` dependencies' `dist/` to already exist.
  */
-export function computeClosure(registry: Map<string, JiniPackageEntry>, rootNames: readonly string[]): string[] {
+export function computeClosure({ registry, rootNames }: { registry: Map<string, JiniPackageEntry>; rootNames: readonly string[] }, _optional: Record<string, never> = {}): string[] {
   const order: string[] = [];
   const visited = new Set<string>();
 
@@ -154,13 +154,10 @@ export function computeClosure(registry: Map<string, JiniPackageEntry>, rootName
  * tarballs, with no workspace link and no dependency on any registry actually hosting `@jini-ai/*`.
  */
 export function packAndRewrite(
-  name: string,
-  dir: string,
-  destDir: string,
-  tarballPathByName: ReadonlyMap<string, string>,
+  { name, dir, destDir, tarballPathByName }: { name: string; dir: string; destDir: string; tarballPathByName: ReadonlyMap<string, string> }, _optional: Record<string, never> = {},
 ): string {
   assertJiniPackagePublicationAllowed({ name });
-  assertJiniPackagePublicationAllowed({ name: readPackageJson(dir).name ?? name });
+  assertJiniPackagePublicationAllowed({ name: readPackageJson({ dir }).name ?? name });
   const raw = execFileSync('pnpm', ['pack', '--json', '--pack-destination', destDir], {
     cwd: dir,
     encoding: 'utf8',
@@ -210,12 +207,10 @@ export function packAndRewrite(
  * for external consumption, as `pack-for-external-use.ts` does).
  */
 export function buildAndPackClosure(
-  repoRoot: string,
-  rootNames: readonly string[],
-  destDir: string,
+  { repoRoot, rootNames, destDir }: { repoRoot: string; rootNames: readonly string[]; destDir: string }, _optional: Record<string, never> = {},
 ): { readonly closure: readonly string[]; readonly tarballPathByName: ReadonlyMap<string, string> } {
-  const registry = discoverJiniPackages(repoRoot);
-  const closure = computeClosure(registry, rootNames);
+  const registry = discoverJiniPackages({ workspaceRoot: repoRoot });
+  const closure = computeClosure({ registry, rootNames });
 
   // Build each package's TypeScript project, producing the dist/ its own "files" field packs.
   for (const name of closure) {
@@ -228,12 +223,12 @@ export function buildAndPackClosure(
   for (const name of closure) {
     const entry = registry.get(name)!;
     const version = entry.pkg.version ?? '0.0.0';
-    tarballPathByName.set(name, join(destDir, tarballFileName(name, version)));
+    tarballPathByName.set(name, join(destDir, tarballFileName({ name, version })));
   }
 
   for (const name of closure) {
     const entry = registry.get(name)!;
-    packAndRewrite(name, entry.dir, destDir, tarballPathByName);
+    packAndRewrite({ name, dir: entry.dir, destDir, tarballPathByName });
   }
 
   return { closure, tarballPathByName };

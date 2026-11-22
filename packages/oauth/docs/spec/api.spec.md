@@ -118,7 +118,7 @@ finally { await http.close({}); }
 
 ## Main OAuth primitives
 
-PKCE, state, fixed-issuer URL building, code exchange, refresh, redaction and pending storage now live at the root. `createPkcePair` supports `{ verifierBytes = 32 }`; runtime providers pass 64. `generateOAuthState` defaults to 32 bytes; owner-bound storage passes 24. `exchangeOAuthAuthorizationCode` accepts the named main HTTP/clock/guard/client fields and returns `OAuthTokenSet`; raw snake_case response parsing stays internal. All grant requests use the bounded parser and typed errors.
+PKCE, state, fixed-issuer URL building, code exchange, refresh and pending storage now live at the root. `createPkcePair` supports `{ verifierBytes = 32 }`; runtime providers pass 64. `generateOAuthState` defaults to 32 bytes; owner-bound storage passes 24. `exchangeOAuthAuthorizationCode` accepts the named main HTTP/clock/guard/client fields and returns `OAuthTokenSet`; raw snake_case response parsing stays internal. All grant requests use the bounded parser and typed errors.
 
 `createPendingAuthorizationStore` also supports host payloads with `{ expiry, scheduler?, ttlMs?, maxEntries?, exclusiveExpiry? }` in argument two and `{ clock }` in argument one. The injected scheduler returns a cancellation closure. The default capacity is 256; owner-bound expiration is inclusive, with an explicit exclusive payload deadline for legacy adapters. Root and `/testing` expose the same implementation. See API.md for every current signature.
 
@@ -147,7 +147,7 @@ The consumer supplies the named provider, client, policy, owner identity and cal
 
 ## Consolidated helpers and defaults
 
-`generateOAuthState({ randomBytesFn }, { stateBytes = 32 } = {}): string` uses supplied entropy; this state helper does not validate the requested byte count. `buildOAuthAuthorizationUrl({ authorizationEndpoint, clientId, redirectUri, state, codeChallenge }, { scope?: string, resource?: string } = {}): string` builds fixed-issuer S256 authorization parameters. `exchangeOAuthAuthorizationCode({ fetchFn, guard, clock, tokenEndpoint, client, redirectUri, code, codeVerifier }, { resource?, timeoutMs? } = {}): Promise<OAuthTokenSet>` uses the main guarded bounded parser. `redactOAuthUrls({ text }): string` is a root export. No provider-primitives entry, raw wire-token response type or standalone pending-cache factory remains.
+`generateOAuthState({ randomBytesFn }, { stateBytes = 32 } = {}): string` uses supplied entropy; this state helper does not validate the requested byte count. `buildOAuthAuthorizationUrl({ authorizationEndpoint, clientId, redirectUri, state, codeChallenge }, { scope?: string, resource?: string } = {}): string` builds fixed-issuer S256 authorization parameters. `exchangeOAuthAuthorizationCode({ fetchFn, guard, clock, tokenEndpoint, client, redirectUri, code, codeVerifier }, { resource?, timeoutMs? } = {}): Promise<OAuthTokenSet>` uses the main guarded bounded parser. No provider-primitives entry, raw wire-token response type or standalone pending-cache factory remains.
 
 Root `defaultOAuthMessages`/`OAuthMessages` supply replaceable prose for browser and dynamic-registration flows through optional messages. `clientDisplayName`/`softwareId`/redirectUris remain required wire identity; productName is removed. Authorization-server metadata defaults to issuer binding and path candidates only; `allowOriginFallback: true` permits origin-wide discovery explicitly. Clock samples are epoch milliseconds; ISO token lifetimes are formatted through core.
 

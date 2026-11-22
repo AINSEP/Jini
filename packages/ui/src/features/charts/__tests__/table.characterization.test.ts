@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { applyChartTheme, renderChartTable } from '../table.js';
-import type { ChartSpec } from '../contract.js';
+import type { ChartSpec } from '@jini-ai/core/contracts/charts';
 
 const base: ChartSpec = { kind: 'unsupported', data: [], series: [] };
 

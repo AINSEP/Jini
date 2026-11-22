@@ -241,7 +241,7 @@ describe('renderFieldControl', () => {
   ];
 
   it('dispatches each kind to its own control', () => {
-    const docs = MINIMAL.map((field) => parse(renderFieldControl(field)));
+    const docs = MINIMAL.map((field) => parse(renderFieldControl({ field })));
     expect(docs[0]?.querySelector('input')?.type).toBe('text');
     expect(docs[1]?.querySelector('input')?.type).toBe('number');
     expect(docs[2]?.querySelector('input')?.type).toBe('checkbox');
@@ -249,7 +249,7 @@ describe('renderFieldControl', () => {
   });
 
   it('forwards every optional property when present', () => {
-    const docs = FULL.map((field) => parse(renderFieldControl(field)));
+    const docs = FULL.map((field) => parse(renderFieldControl({ field })));
     expect(docs[0]?.querySelector('textarea')?.rows).toBe(3);
     expect(docs[0]?.querySelector('textarea')?.required).toBe(true);
     expect(docs[1]?.querySelector('input')?.max).toBe('9');
@@ -259,7 +259,7 @@ describe('renderFieldControl', () => {
   });
 
   it('omits every optional property when absent, rather than emitting empty attributes', () => {
-    for (const doc of MINIMAL.map((field) => parse(renderFieldControl(field)))) {
+    for (const doc of MINIMAL.map((field) => parse(renderFieldControl({ field })))) {
       expect(doc.querySelector('.mcpui-hint')).toBeNull();
       expect(doc.querySelector('.mcpui-required')).toBeNull();
       expect(doc.querySelector('[aria-describedby]')).toBeNull();
@@ -267,13 +267,13 @@ describe('renderFieldControl', () => {
   });
 
   it('forwards secret through a string field to render a masked input', () => {
-    const doc = parse(renderFieldControl({ kind: 'string', name: 's', label: 'S', secret: true }));
+    const doc = parse(renderFieldControl({ field: { kind: 'string', name: 's', label: 'S', secret: true } }));
     expect(doc.querySelector('input')?.type).toBe('password');
     expect(doc.querySelector('input')?.getAttribute('autocomplete')).toBe('new-password');
   });
 
   it('renders a plain text input for a string field when secret is absent — no regression against the unmasked path', () => {
-    const doc = parse(renderFieldControl({ kind: 'string', name: 's', label: 'S' }));
+    const doc = parse(renderFieldControl({ field: { kind: 'string', name: 's', label: 'S' } }));
     expect(doc.querySelector('input')?.type).toBe('text');
   });
 });
@@ -281,10 +281,10 @@ describe('renderFieldControl', () => {
 describe('toFieldReadSpecs', () => {
   it('strips presentation down to what the inline script actually reads', () => {
     expect(
-      toFieldReadSpecs([
+      toFieldReadSpecs({ fields: [
         { kind: 'string', name: 's', label: 'S', hint: 'ignored', placeholder: 'ignored' },
         { kind: 'boolean', name: 'b', label: 'B', required: true },
-      ]),
+      ] }),
     ).toEqual([
       { name: 's', label: 'S', kind: 'string', required: false },
       { name: 'b', label: 'B', kind: 'boolean', required: true },
@@ -312,11 +312,11 @@ describe('renderFieldControl exact markup', () => {
     ['multi-enum, no props', { kind: 'multi-enum', name: 'm', label: 'M', options }],
   ];
   it.each(cases)('%s', (_name, field) => {
-    expect(renderFieldControl(field)).toMatchSnapshot();
+    expect(renderFieldControl({ field })).toMatchSnapshot();
   });
 
   it('forwards host secret-reveal text to a secret string field', () => {
-    expect(renderFieldControl({ kind: 'string', name: 's', label: 'S', secret: true, multiline: true }, { showSecret: 'Reveal', hideSecret: 'Conceal' })).toMatchSnapshot();
+    expect(renderFieldControl({ field: { kind: 'string', name: 's', label: 'S', secret: true, multiline: true } }, { text: { showSecret: 'Reveal', hideSecret: 'Conceal' } })).toMatchSnapshot();
   });
 });
 

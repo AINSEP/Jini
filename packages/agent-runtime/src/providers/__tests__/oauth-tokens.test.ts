@@ -129,7 +129,7 @@ describe('readOAuthTokenFile', () => {
   it('re-throws an unexpected (non-ENOENT, non-SyntaxError) read error', async () => {
     // Mocked rather than induced via real file permissions: this sandbox
     // runs as root, where chmod 000 does not actually deny a root reader
-    // (see packages/agent-runtime/archived provenance ledger's launch.test.ts note for
+    // (see 070311a07^:packages/agent-runtime/source-map.md's launch.test.ts note for
     // the same pre-existing environment caveat), so a real permission
     // error can't be reproduced here.
     fsMockState.readFileImpl = async () => {
@@ -149,7 +149,7 @@ describe('writeTokenFile chmod fallback', () => {
     expect(warnSpy).toHaveBeenCalledWith(
       '[oauth-tokens] could not chmod 0600',
       expect.stringContaining(FILE_NAME),
-      expect.stringContaining('Error: io error'),
+      'Error(EIO)',
     );
   });
 
@@ -170,7 +170,7 @@ describe('writeTokenFile chmod fallback', () => {
     };
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     await setStoredOAuthToken({ dataDir: dataDir, fileName: FILE_NAME, token: token() });
-    expect(warnSpy).toHaveBeenCalledWith('[oauth-tokens] could not chmod 0600', expect.stringContaining(FILE_NAME), "{ code: 'EIO' }");
+    expect(warnSpy).toHaveBeenCalledWith('[oauth-tokens] could not chmod 0600', expect.stringContaining(FILE_NAME), 'object');
   });
 });
 
@@ -242,15 +242,28 @@ describe('isOAuthTokenExpired', () => {
   });
 });
 
-it('redacts parser and chmod failures before logging OAuth token diagnostics', async () => {
+it('keeps a token out of parser and chmod failure diagnostics', async () => {
   const secret = 'ghp_' + 's'.repeat(36);
   const errorLog = vi.spyOn(console, 'error').mockImplementation(() => {});
   const warning = vi.spyOn(console, 'warn').mockImplementation(() => {});
   fsMockState.readFileImpl = async () => { throw new SyntaxError(`invalid token data ${secret}`); };
   await expect(readOAuthTokenFile({ dataDir, fileName: FILE_NAME })).resolves.toEqual({});
-  expect(errorLog).toHaveBeenCalledWith('[oauth-tokens] Corrupted JSON, returning empty:', expect.stringContaining('[REDACTED:github_token]'));
+  expect(errorLog).toHaveBeenCalledWith('[oauth-tokens] Corrupted JSON, returning empty:', 'SyntaxError');
   fsMockState.chmodImpl = async () => { throw Object.assign(new Error(`chmod failed ${secret}`), { code: 'EIO' }); };
   await setStoredOAuthToken({ dataDir, fileName: FILE_NAME, token: token() });
-  expect(warning).toHaveBeenCalledWith('[oauth-tokens] could not chmod 0600', expect.stringContaining(FILE_NAME), expect.stringContaining('[REDACTED:github_token]'));
+  expect(warning).toHaveBeenCalledWith('[oauth-tokens] could not chmod 0600', expect.stringContaining(FILE_NAME), 'Error(EIO)');
   expect(JSON.stringify([...errorLog.mock.calls, ...warning.mock.calls])).not.toContain(secret);
+});
+
+it('logs only the class of parser and chmod failures', async () => {
+  const errorLog = vi.spyOn(console, 'error').mockImplementation(() => {});
+  const warning = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  fsMockState.readFileImpl = async () => { throw new SyntaxError('boom api_key=SECRETSECRETSECRETSECRET'); };
+  await expect(readOAuthTokenFile({ dataDir, fileName: FILE_NAME })).resolves.toEqual({});
+  expect(errorLog).toHaveBeenCalledWith('[oauth-tokens] Corrupted JSON, returning empty:', 'SyntaxError');
+  fsMockState.readFileImpl = null;
+  fsMockState.chmodImpl = async () => { throw Object.assign(new Error('boom api_key=SECRETSECRETSECRETSECRET'), { code: 'EIO' }); };
+  await setStoredOAuthToken({ dataDir, fileName: FILE_NAME, token: token() });
+  expect(warning).toHaveBeenCalledWith('[oauth-tokens] could not chmod 0600', expect.stringContaining(FILE_NAME), 'Error(EIO)');
+  expect(JSON.stringify([...errorLog.mock.calls, ...warning.mock.calls])).not.toMatch(/boom|SECRETSECRET|oauth-tokens\.test/);
 });

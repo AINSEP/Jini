@@ -1,4 +1,4 @@
-import { agentHandle } from '@jini-ai/agentic';
+import { agentHandle } from '@jini-ai/core/agent-handles';
 import { FormFieldsEditor } from "./FormFieldsEditor.js";
 import type { useFormFieldsBodyView } from "../hooks/forms-view.hooks.js";
 import type { FormEditorFieldsBodyProps } from "./FormEditorFieldsBody.js";

@@ -35,8 +35,12 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+function invalidContextPrompt(prompt: unknown): boolean {
+  return prompt !== undefined && typeof prompt !== 'string';
+}
+
 /** Encodes `payload` into a `contextRef` string carrying the `jini-run-context:` prefix {@link decodeRunContextRef} checks for. */
-export function encodeRunContextRef({ payload }: { payload: RunContextPayload }): string {
+export function encodeRunContextRef({ payload }: { payload: RunContextPayload }, _optional: Record<string, never> = {}): string {
   return `${RUN_CONTEXT_PREFIX}${JSON.stringify(payload)}`;
 }
 
@@ -48,7 +52,7 @@ export function encodeRunContextRef({ payload }: { payload: RunContextPayload })
  * doesn't own), or if the prefixed payload fails to parse as valid JSON, or doesn't match
  * {@link RunContextPayload}'s shape.
  */
-export function decodeRunContextRef({ contextRef }: { contextRef: string }): RunContextPayload | undefined {
+export function decodeRunContextRef({ contextRef }: { contextRef: string }, _optional: Record<string, never> = {}): RunContextPayload | undefined {
   if (!contextRef.startsWith(RUN_CONTEXT_PREFIX)) return undefined;
   let parsed: unknown;
   try {
@@ -58,7 +62,7 @@ export function decodeRunContextRef({ contextRef }: { contextRef: string }): Run
   }
   if (!isPlainObject(parsed)) return undefined;
   const { prompt, history } = parsed;
-  if (prompt !== undefined && typeof prompt !== 'string') return undefined;
+  if (invalidContextPrompt(prompt)) return undefined;
   if (history !== undefined && !Array.isArray(history)) return undefined;
   return {
     ...(prompt === undefined ? {} : { prompt: prompt as string }),

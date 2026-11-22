@@ -78,6 +78,10 @@ function renderMessageRow(
   );
 }
 
+/** Hooks MessageList calls; defaults to the real ones, a test hands in fakes. */
+export const defaultMessageListHooks = { useConversationUsage, useMessageListAutoScroll };
+export type MessageListHooks = typeof defaultMessageListHooks;
+
 /**
  * Memoized: the pane re-renders on every composer keystroke, and re-rendering a long transcript
  * (hundreds of tool rows, MCP-UI cards, markdown) per key made typing lag (owner report
@@ -91,14 +95,14 @@ export const MessageList = memo(function MessageList({
   onScrolled,
   pendingPrompt,
   pendingPrompts,
-  ...rowProps
-}: MessageListProps) {
+  hooks = defaultMessageListHooks, ...rowProps
+}: MessageListProps & { hooks?: MessageListHooks | undefined }) {
   const messages = useMemo(() => projectAcceptedInputMessages({ messages: sourceMessages }), [sourceMessages]);
-  const usageByMessage = useConversationUsage({ messages });
+  const usageByMessage = hooks.useConversationUsage({ messages });
   // Derive from the conversation's saved events, so replay/remount does not repeat the notice.
   const accessNoticeId = useMemo(() => messages.find(message => message.role === 'assistant'
     && message.events?.some(event => event.kind === 'status' && event.label === 'full_cli_access' && event.detail))?.id, [messages]);
-  const { containerRef, onScroll, awayFromLatest, jumpToLatest, scrollable, jumpToTop } = useMessageListAutoScroll({ messages, scrollIntent }, onScrolled !== undefined ? { onScrolled } : {});
+  const { containerRef, onScroll, awayFromLatest, jumpToLatest, scrollable, jumpToTop } = hooks.useMessageListAutoScroll({ messages, scrollIntent }, onScrolled !== undefined ? { onScrolled } : {});
 
   return (
     <div
@@ -135,8 +139,8 @@ export const MessageList = memo(function MessageList({
  * now — down to the latest when scrolled away, up to the top when already there. The label lives in
  * aria-label/title only, so screen readers and hover still name it.
  */
-function JumpArrow({ direction, onJump }: { direction: 'up' | 'down'; onJump: () => void }) {
-  const t = useT();
+function JumpArrow({ direction, onJump, useTHook = useT }: { direction: 'up' | 'down'; onJump: () => void } & { useTHook?: typeof useT }) {
+  const t = useTHook();
   const label = direction === 'down' ? t('Jump to latest') : t('Jump to top');
   return (
     <div className="jini-message-list__jump">
@@ -151,13 +155,17 @@ function JumpArrow({ direction, onJump }: { direction: 'up' | 'down'; onJump: ()
   );
 }
 
+/** Hooks QueuedMessage calls; defaults to the real ones, a test hands in fakes. */
+const defaultQueuedMessageHooks = { useT, useAttachmentGallery };
+type QueuedMessageHooks = typeof defaultQueuedMessageHooks;
+
 /** One cancelable queue receipt; attachment rendering reuses the sent-message preview owner. */
-function QueuedMessage({ prompt, renderAttachment }: {
+function QueuedMessage({ prompt, renderAttachment, hooks = defaultQueuedMessageHooks }: {
   prompt: PendingPrompt; renderAttachment: MessageRowProps['renderAttachment'];
-}) {
-  const t = useT();
+} & { hooks?: QueuedMessageHooks | undefined }) {
+  const t = hooks.useT();
   const attachments = prompt.attachments ?? [];
-  const gallery = useAttachmentGallery({ attachments });
+  const gallery = hooks.useAttachmentGallery({ attachments });
   return (
     <div
       className="jini-chat-pane__queued"

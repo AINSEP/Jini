@@ -1,5 +1,5 @@
 import { DEFAULT_PROVIDER_PRESETS } from '@jini-ai/integrations/media-providers/catalog';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '../../../../../__tests__/ui-kit-render-support.js';
 import { describe, expect, it, vi } from 'vitest';
 import { AgentCliEnvFields } from '../../../react/components/AgentCliEnvFields.js';
 import { ByokProviderForm } from '../../../react/components/ByokProviderForm.js';

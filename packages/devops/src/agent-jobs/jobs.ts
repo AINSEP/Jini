@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { describeErrorForLog } from '@jini-ai/core';
 import type { AgentJob, AgentJobOptions, CodexInvocation, AgentCliRunnerPort, JobFilesystemPort, AgentEventDecoderPort, ParsedCodexRun, AgentJobResult } from './ports.js';
 
 const jsonDecoder: AgentEventDecoderPort = { decode: ({ line }) => JSON.parse(line) };
@@ -40,7 +41,7 @@ function codexVerdict({ completed, errors, lastMessage, usage }: CodexStreamStat
 }
 
 /** Construct argv without a shell; prompt content goes only on stdin. Effort is a TOML string. */
-export function buildCodexInvocation({ options, prompt }: { options: AgentJobOptions; prompt: string }): CodexInvocation {
+export function buildCodexInvocation({ options, prompt }: { options: AgentJobOptions; prompt: string }, _optional: Record<string, never> = {}): CodexInvocation {
   validateOptions(options);
   return {
     executable: options.executable, cwd: options.repository,
@@ -76,7 +77,7 @@ export async function runAgentJobs(required: {
       await fs.write({ path: base + '.err', text: '' });
       ({ exitCode } = await runner.run({ ...buildCodexInvocation({ options, prompt: job.prompt }), jsonlPath: base + '.jsonl', stderrPath: base + '.err' }));
       parsed = parseCodexRun({ jsonl: await fs.read({ path: base + '.jsonl' }) }, optional);
-    } catch (error) { parsed = { success: false, reason: `runner: ${error instanceof Error ? error.message : String(error)}` }; }
+    } catch (error) { parsed = { success: false, reason: `runner: ${describeErrorForLog({ err: error })}` }; }
     const exit = exitCode === undefined ? {} : { exitCode };
     // Persistence belongs to this job: an unavailable artifact must not strand the worker pool.
     try {
@@ -90,7 +91,7 @@ export async function runAgentJobs(required: {
       return { id: job.id, status: 'failed', reason: parsed.reason, ...exit };
     } catch (error) {
       // The filesystem may also reject a failure marker; retain the failure in the batch result.
-      return { id: job.id, status: 'failed', reason: `artifact: ${error instanceof Error ? error.message : String(error)}`, ...exit };
+      return { id: job.id, status: 'failed', reason: `artifact: ${describeErrorForLog({ err: error })}`, ...exit };
     }
   }
   async function worker(): Promise<void> {

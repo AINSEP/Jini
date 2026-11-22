@@ -6,7 +6,7 @@
  * submission was planned) into at most one spreadsheet row, and to report the outcome in the forms
  * delivery contract's vocabulary. Per attempt it: refuses while the Sheets product is off; finds
  * the tab by its numeric sheet id (renames are safe); matches columns by their field markers and
- * headers (`mapping.mjs`); scans the `_tovu_submission_id` column for this submission
+ * headers (`mapping.mjs`); scans the `_jini_submission_id` column for this submission
  * (`dedupe.mjs`) and stops as delivered when the row is already there (more than one such row is
  * reported as delivered, never appended again; its "review" note is dropped by the ledger); in one atomic batch grows the
  * grid, writes the new headers and tags new field columns; appends the row with RAW values. An append whose answer was lost is never replayed: the column is scanned again,

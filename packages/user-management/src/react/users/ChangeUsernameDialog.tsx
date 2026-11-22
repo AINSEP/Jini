@@ -1,12 +1,13 @@
-import { ConfirmDialog } from "@jini-ai/admin/react";
-import { agentHandle } from "@jini-ai/agentic";
-import type { Translate } from "@jini-ai/ui/panel-kit";
+import { ConfirmDialog } from "../kit.js";
+import { agentHandle } from "@jini-ai/core/agent-handles";
+
 import type { useChangeUsername } from "./hooks/use-change-username.hooks.js";
 
+import { type Translate } from '@jini-ai/core/text';
 /** Markup shared by row actions and the signed-in user's profile; state lives in the hook. */
 export function ChangeUsernameDialog({ controller, translate: t }: {
   controller: ReturnType<typeof useChangeUsername>; translate: Translate;
-}, _optional: Record<string, never> = {}) {
+}) {
   return <ConfirmDialog open={controller.target !== null} agentHandle="users-change-username"
     title={t("Change username")} cancelLabel={t("Cancel")} confirmLabel={t("Change username")}
     pending={controller.pending} onConfirm={() => void controller.confirm({})} onCancel={() => controller.cancel({})}

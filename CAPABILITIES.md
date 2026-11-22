@@ -65,7 +65,10 @@ kernel · [README](packages/core/README.md)
 | `@jini-ai/core` | Compose typed packs and register tools; shared auth, redaction and tool-registration rules. | `token`, `bindings`, `definePack`, `createDaemon`, `createToolRegistry` | universal | Tovu: desktop, website; Jini: agent-runtime, artifacts, capability-providers, cli, cms, commerce, daemon, db, desktop-host, devops, diagnostics, http-kit, integrations, mcp, server, sidecar, ui, user-management, vibecoding |
 | `@jini-ai/core/composition` | Internal authorization gate for daemon/server only; external hosts must use ToolExecutor. | `authorizeToolInvocation`, `RequiredTokenIds`, `MissingTokenIds` | universal | Jini: daemon, server |
 | `@jini-ai/core/gated-mutations` | Plan, confirm and execute mutations with bound, expiring, single-use approvals. | `authorizeForHooks`, `plan`, `confirm` | universal | Tovu: website |
+| `@jini-ai/core/approval-batch-chain` | Apply batch items that write the same target in order, each pinned to what the batch itself committed (never a re-read). | `createChainedBatchHandler` | universal | none yet |
 | `@jini-ai/core/model-facing-tool-errors` | Turn approved domain failures into safe errors a model can act on. | `forbiddenRule`, `reclassifyToolError`, `withModelFacingErrors` | universal | Tovu: website |
+| `@jini-ai/core/tool-call-text` | Plain-words sentences a model reads about how to call a tool (one builder per sentence). | `unknownToolSentence`, `toolFamilySentence`, `toolCallText` | universal | Jini: daemon, mcp |
+| `@jini-ai/core/tool-input-repairs` | Declared input repairs: `clamp: true` on a bounded numeric property moves an out-of-range number to the nearest bound with a note; `obtainFrom` on a required property names the tool that lists its valid values, so a call missing it is told where to look; a gate check for mistyped declarations. | `clampDeclaredBounds`, `assertRepairKeywords`, `missingArgumentGuidance` | universal | Jini: core, mcp; Tovu: website |
 | `@jini-ai/core/contribution-registry` | Own a contribution collection with replacement by key and detached snapshots. | `createContributionRegistry` | universal | none yet |
 | `@jini-ai/core/provider-registry` | One keyed provider registry per contract (core throws, plugin contributions become refusals) plus shared `ProviderResult`/`ProviderContext`/`DomainRequirement` types. Frozen contract: [docs](packages/core/docs/provider-registry.md). | `createProviderRegistry`, `PROVIDER_ID_PATTERN`, `ProviderResult`, `ProviderContext`, `DomainRequirement` | universal | none yet |
 | `@jini-ai/core/object-store` | The one object-storage contract (key → bytes, atomic create-only put, optional public-read access) and its keyed provider registry (default `local`). | `ObjectStore`, `ObjectStoreProvider`, `createObjectStoreRegistry`, `objectStoreProviderFault` | universal | Tovu media + shares |
@@ -128,7 +131,7 @@ runtime · [README](packages/daemon/README.md)
 | `@jini-ai/daemon/store/agent-sessions/sqlite` | Borrowed-kernel session store plus separate rich legacy SQLite sessions. | `createSqliteAgentSessionStore`, `getAgentSession`, `LEGACY_AGENT_SESSIONS_DDL` | node | Tovu: website; Jini: server, sqlite |
 | `@jini-ai/daemon/store/agent-sessions/pglite` | Persist agent session IDs through a borrowed PGlite kernel. | `createPgliteAgentSessionStore` | node | Tovu: website |
 | `@jini-ai/daemon/store/agent-sessions/postgres` | Persist agent session IDs through a borrowed Postgres kernel. | `createPostgresAgentSessionStore` | node | Tovu: website |
-| `@jini-ai/daemon/http` | Daemon route packs, attachments, frontend control and workspace-root policy. | `registerRunRoutes`, `registerAgentRoutes`, `JINI_ROUTE_MANIFEST` | node | Tovu: desktop, website; Jini: server |
+| `@jini-ai/daemon/http` | Daemon route packs, attachments, frontend control and workspace-root policy. | `runRoutes`, `agentRoutes`, `JINI_ROUTE_MANIFEST` | node | Tovu: desktop, website; Jini: server |
 | `@jini-ai/daemon/read-only-tools` | Fail closed on writes, including nested recovery dispatches. | `defaultDaemonMessages`, `constrainPrincipalToReadOnlyTools`, `principalIsReadOnlyConstrained` | node | Tovu: website |
 | `@jini-ai/daemon/scheduler` | Inject scheduling without coupling session/run services to native timers. | `SchedulerPort` | universal | none yet |
 | `@jini-ai/daemon/tool-audit` | Record tool attempts and tool-catalog audit events through injected sinks. | `describeInput`, `withToolAttemptAudit`, `searchToolsAuditDetail` | universal | none yet |
@@ -203,6 +206,7 @@ host · [README](packages/desktop-host/README.md)
 | Entry point | What it does | Key exports / assets | Runtime | Used by |
 |---|---|---|---|---|
 | `@jini-ai/desktop-host` | Desktop shell ports, host bridge, paths, logging, single instance and sidecar launch. | `DesktopHostPorts`, `getJiniHost`, `createNodeSidecarLauncher` | node (desktop) | none yet |
+| `@jini-ai/desktop-host/bridge` | Probe and call the `window.__jini__` desktop bridge from renderer code without the Node-side root entry. | `getJiniHost`, `isJiniHostAvailable`, `openHostExternalUrl`, `openHostPath` | universal | Tovu: desktop |
 | `@jini-ai/desktop-host/bridge-testing` | Mock/install the desktop bridge for renderer fixtures. | `createMockJiniHost`, `installMockJiniHost` | universal | none yet |
 | `@jini-ai/desktop-host/electron` | Assemble injected Electron window, protocol, shell and render-service ports. | `createElectronDesktopHost`, `createElectronRenderService` | node (desktop) | none yet |
 | `@jini-ai/desktop-host/tauri` | Assemble injected Tauri ports; render service remains unimplemented. | `createTauriDesktopHost`, `createTauriRenderService` | node (desktop) | none yet |
@@ -268,7 +272,9 @@ state · [README](packages/chat/README.md)
 | `@jini-ai/chat/store/legacy` | Local-project chat session-mode vocabulary. | `ChatSessionMode` | universal | Jini: sqlite |
 | `@jini-ai/chat/store/legacy/sqlite` | Synchronous legacy conversation/message CRUD and unchanged DDL. | `listConversations`, `upsertMessage`, `LEGACY_CHAT_DDL` | node | Jini: server, sqlite |
 | `@jini-ai/chat/core/run-events` | Translate daemon wire events to chat events and terminal notices. | `asString`, `parseUsageEvent`, `translateRunAgentPayload` | universal | none yet |
-| `@jini-ai/chat/core/ag-ui` | Project chat/run events into AG-UI and close interrupted message boundaries. | `reduceAgentWirePayload`, `createAgUiTranslationState`, `translateAgentEventToAgUi` | universal | none yet |
+| `@jini-ai/chat/core/ag-ui` | Project chat/run events into AG-UI and close interrupted message boundaries. | `createAgUiTranslationState`, `translateAgentEventToAgUi`, `closeAgUiRun` | universal | none yet |
+| `@jini-ai/chat/server/ag-ui/run-input` | Parse and bound an inbound AG-UI run request: history, ids, forwarded agent and tab binding. | `resolveAgUiRunInput`, `resolveAgUiMessages` | universal | none yet |
+| `@jini-ai/chat/core/ag-ui/reduction` | Reduce AG-UI events back into chat events, accumulating tool-call arguments per run. | `createAgUiToAgentTranslationState`, `translateAgUiEventToAgentEvent` | universal | none yet |
 | `@jini-ai/chat/server/run-finalizer` | Finalize assistant runs with injected ledger, clock and daemon ports. | `createAssistantRunFinalizer` | universal | none yet |
 | `@jini-ai/chat/react/embed` | Mount an embeddable chat widget with host copy and header. | `EmbedChatWidget`, `mountEmbedChat` | browser | none yet |
 | `@jini-ai/chat/transports/fetch-sse` | Fetch/SSE chat transport over an injected decoder and frame mapping. | `buildJsonChatRequest`, `mapJsonChatSseFrame`, `createFetchSseTransport` | universal | none yet |
@@ -328,7 +334,6 @@ react-library · [README](packages/ui/README.md)
 | `@jini-ai/ui` | Reusable React features: boards/assets/versions/browser chrome, dialogs, menus, dropzones and i18n. | `ResourceBoard`, `AssetGrid`, `TabbedDialog`, `CommandPalette` | browser | Tovu: admin; Jini: admin, chat |
 | `@jini-ai/ui/core` | Framework-free feature rules/ports for settings, agents, connectors, media and memory. | `ExecutionPort`, `DetectedAgent`, `resolveInitialActiveTabId` | universal | Tovu: admin |
 | `@jini-ai/ui/sketch-editor` | Excalidraw sketch integration with save/export/theme/DOM orchestration. | `SketchEditor`, `SketchScene` | browser | none yet |
-| `@jini-ai/ui/lexical-rich-text-editor` | Lexical editor, atomic mention tokens, caret layers and string serialization. | `RichTextInput`, `serializeRichText`, `MentionEntity` | browser | none yet |
 | `@jini-ai/ui/html-editor` | Interactive HTML canvas/editor integration and injected editor tools. | `InteractiveHtmlEditor`, `useInteractiveHtmlEditor` | browser | Tovu: admin; Jini: admin |
 | `@jini-ai/ui/mcp-ui` | Host official MCP-UI iframes with lifecycle, messaging and tool-call coordination. | `McpUiHost`, `useMcpUiHost` | browser | Jini: chat |
 | `@jini-ai/ui/mcp-ui/surfaces` | Build forms/approval cards and bind confirmation answers without React. | `buildFormSurface`, `buildConfirmationSurface`, `buildOutcomeSurface`, `createConfirmationStore` | universal | Tovu: admin, website |
@@ -589,7 +594,7 @@ langfuse, stripe and ui-ux-design. Provider runtime artifacts belong to
 | `@jini-ai/agent-plugins` | Validate portable Agent Plugins manifests and expose standard path/schema constants. | `isMcpManifest`, `isPluginManifest`, `validatePluginManifest` | universal | none yet |
 | `@jini-ai/agent-plugins/ui-ux-design/*` | Bundled installable plugin JSON/Markdown/static skill assets; no callable exports. | `plugin.json`, `mcp.json`, `skills/*/SKILL.md` | universal | none yet |
 | `@jini-ai/agent-plugins/lifecycle` | Install/activate/uninstall plugins with locks, bundles, digests, trust and MCP provisioning ports; plugin-contributed providers for core's provider registry. | `createAgentPluginLifecycle`, `createAgentPluginActivations`, `createAgentPluginLayout`, `defineProviderContribution`, `contributeProviders` | node | Tovu: website; Jini: admin |
-| `@jini-ai/agent-plugins/lifecycle/node` | Native filesystem/process effects for plugin lifecycle. | `createNodeAgentPluginEffects` | node | Tovu: website |
+| `@jini-ai/node-adapters/agent-plugins` | Native filesystem/process/file-lock/atomic-writer effects for plugin lifecycle (moved from `@jini-ai/agent-plugins/lifecycle/node`, R11a). | `createNodeAgentPluginEffects` | node | Tovu: website |
 | `@jini-ai/agent-plugins/lifecycle/yauzl` | ZIP archive reader over a host-supplied optional yauzl module. | `createYauzlAgentPluginArchiveReader` | node | Tovu: website |
 | `@jini-ai/agent-plugins/manifest` | Strict plugin/MCP manifest parsing and namespace metadata readers. | `parseAgentPluginManifest`, `parseAgentPluginMcpConfig`, `readAgentPluginExtension` | universal | none yet |
 | `@jini-ai/agent-plugins/persistent-state` | Locked plugin-owned memory/data paths and Layout B migration; state survives uninstall by default. | `pluginStatePaths`, `createPluginMemory`, `migratePluginLayout` | node | Tovu: website |
@@ -607,6 +612,8 @@ diagnostics · [README](packages/diagnostics/README.md) · [On-demand UI perform
 | `@jini-ai/diagnostics/web-evidence` | Capture bounded page structure, network/storage/cookie evidence with trusted host URLs. | `collectPageStructure`, `collectPageEvidence`, `normalizeSitePath` | universal | Tovu: website |
 | `@jini-ai/diagnostics/web-evidence/playwright` | Adapt injected Playwright browser operations to web evidence capture. | `openPlaywrightSiteEvidenceBrowser` | node | Tovu: website |
 | `@jini-ai/diagnostics/domain-dns` | Bounded public DNS/TLS/domain diagnostics over explicit resolver/network ports. | `readPublicDomain`, `readPublicDnsName`, `createDomainDnsChecks` | node | Tovu: website |
+| `@jini-ai/diagnostics/local-text` | Redact credentials and mask the literal home directory in local child, native and gate output. | `redactLocalText` | node | Tovu: desktop, website |
+| `@jini-ai/diagnostics/console-tee` | Redact then capture console output and child-process streams without ever breaking the original output. | `installConsoleTee`, `createRedactedOutputSink` | node | Tovu: desktop, website |
 
 ## tooling · `@jini-ai/plugins`
 
@@ -616,6 +623,7 @@ plugin-packaging · [README](packages/plugins/README.md)
 |---|---|---|---|---|
 | `@jini-ai/plugins/glue` | Validate host attachment vocabulary and gate/dispatch contributed capabilities; host loader is not implemented. | `validateGlueManifest`, `resolveCallSiteDispatch`, `buildGlueCapabilityGate` | universal | none yet |
 
-Legacy owner credentials: `@jini-ai/server/owner-store` reads an old owner store or its encrypted backup,
-read-only, for a host to import (`countLegacyOwnerStore`, `readLegacyOwnerStore`, `readLegacyOwnerBackup`).
-`@jini-ai/db/owner-store` owns the pinned SQL history.
+Legacy owner credentials: `@jini-ai/server/owner-store` reads an old owner store, read-only, for a host to
+import (`countLegacyOwnerStore`, `readLegacyOwnerStore`: file wiring only). `@jini-ai/platform/secrets/legacy-owner`
+decodes the encrypted backup (`readLegacyOwnerBackup`) and holds the legacy keyring and authorization policy.
+`@jini-ai/db/owner-store` owns the pinned SQL history and its row queries.

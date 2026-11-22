@@ -13,9 +13,12 @@
  * simplify, because a readiness probe that stops probing still answers `200`. Ownership by the base,
  * borrowing by features, is what makes the feature set genuinely independent.
  */
-import { openSqliteConnection, type SqliteDb, type SqliteSyncOpener } from '@jini-ai/db/sqlite';
+import { openSqliteConnection } from '@jini-ai/db/sqlite';
+import { type SqliteDb, type SqliteSyncOpener } from '@jini-ai/core/contracts/storage';
 import { join } from 'node:path';
-import { createNativeAgentRuntime, type AiTraceSink, type NativeAgentRuntime } from '@jini-ai/agent-runtime';
+import { createAgentRuntimeBindings, createNativeAgentRuntime, type AgentRuntimeState, type NativeAgentRuntime } from '@jini-ai/agent-runtime';
+import type { AgentRuntimePort } from '@jini-ai/daemon/ports/agent-runtime';
+import { type AiTraceSink } from '@jini-ai/core/contracts/ai-trace';
 
 import { createToolRegistry, type ToolRegistry } from '@jini-ai/core';
 import {
@@ -34,6 +37,10 @@ import {
   type ToolExecutor,
 } from '@jini-ai/daemon';
 import { openSqliteEventLog } from '@jini-ai/daemon/store/event-log/sqlite';
+import { createSystemClock } from '@jini-ai/platform/system';
+import { nodeAtomicWriter, nodeFileLock } from '@jini-ai/node-adapters/fs';
+import { nodeCommandShell, nodeProcessControl, nodeSpawnPort } from '@jini-ai/node-adapters/process';
+import type { AgentExecutorRuntimePorts } from '@jini-ai/daemon/ports/runtime';
 
 /** Where a composition's durable state lives. */
 export type JiniKernelStorage =
@@ -75,10 +82,20 @@ export interface JiniKernelBase {
   close(): Promise<void>;
 }
 
+/** What the preset builds its native agent runtime from: an owned state and the Codex / Pi definition policies. The executor takes the bound runtime, never these. */
+export interface KernelAgentRuntimeOptions {
+  readonly runtimeState?: AgentRuntimeState;
+  readonly codexDisablePlugins?: boolean;
+  readonly piGracefulShutdownMs?: number;
+  /** Binds the preset's native runtime to the executor's port; default `createAgentRuntimeBindings`. A host decorating the port (or a test scripting one member) wraps the default binding it is handed. */
+  readonly bindAgentRuntime?: (required: { runtime: NativeAgentRuntime }) => AgentRuntimePort;
+}
+
 export interface CreateJiniKernelBaseOptions {
   readonly storage: JiniKernelStorage;
   /** Extra `createAgentExecutor` options (e.g. `mcpJsonInjection`). `lifecycle`/`journal`/`classifyFailure` are kernel-owned. */
-  readonly agentExecutor?: Omit<NonNullable<Parameters<typeof createAgentExecutor>[1]>, 'journal' | 'classifyFailure'>;
+  readonly agentExecutor?: Omit<NonNullable<Parameters<typeof createAgentExecutor>[1]>, 'journal' | 'classifyFailure'>
+    & Partial<Pick<Parameters<typeof createAgentExecutor>[0], 'hostEnv' | 'runtime'>> & KernelAgentRuntimeOptions;
   /** Optional AI-run tracing: every run's normalized agent events are also recorded to `sink`. Absent = no tracing, no cost. */
   readonly aiTrace?: AiTracingOptions & { readonly sink: AiTraceSink };
 }
@@ -118,19 +135,32 @@ function createKernelAgentRuntime(
 ): NativeAgentRuntime {
   return createNativeAgentRuntime({ env: options.agentExecutor?.hostEnv ?? process.env }, {
     ...(options.agentExecutor?.runtimeState ? { state: options.agentExecutor.runtimeState } : {}),
-    ...(options.agentExecutor?.codexDisablePlugins !== undefined ? { codexDisablePlugins: options.agentExecutor.codexDisablePlugins } : {}),
-    ...(options.agentExecutor?.piGracefulShutdownMs !== undefined ? { piGracefulShutdownMs: options.agentExecutor.piGracefulShutdownMs } : {}),
+    ...(options.agentExecutor?.codexDisablePlugins !== undefined ? { codex: { disablePlugins: options.agentExecutor.codexDisablePlugins } } : {}),
+    ...(options.agentExecutor?.piGracefulShutdownMs !== undefined ? { pi: { gracefulShutdownMs: options.agentExecutor.piGracefulShutdownMs } } : {}),
   });
 }
 
-/**
- * Opens every kernel-owned resource and rehydrates durable run history.
- *
- * @throws If rehydration fails against a corrupt or unreadable durable history. Every handle this
- * call had already opened is closed before it rethrows, so a failed boot never leaks a sqlite file
- * handle — the invariant the standalone daemon has always maintained.
- */
-export async function createJiniKernelBase(options: CreateJiniKernelBaseOptions): Promise<JiniKernelBase> {
+/** The shared binding of a native runtime to the executor's port; the compiler proves it matches, with no cast. */
+function bindNativeAgentRuntime({ runtime }: { runtime: NativeAgentRuntime }, _optional: Record<string, never> = {}): AgentRuntimePort {
+  return createAgentRuntimeBindings({ runtime }) satisfies AgentRuntimePort;
+}
+
+/** The Node implementations of the OS-facing ports one agent executor needs, bound once from platform. */
+function nodeAgentExecutorRuntime({ hostEnv }: { hostEnv: NodeJS.ProcessEnv }, _optional: Record<string, never> = {}): AgentExecutorRuntimePorts {
+  return { spawn: nodeSpawnPort, processes: nodeProcessControl, fileLock: nodeFileLock, writer: nodeAtomicWriter, commandShell: nodeCommandShell({ env: hostEnv }) };
+}
+
+interface KernelStorageHandles {
+  eventLog: ClosableEventLog;
+  journalEventLog: ClosableEventLog;
+  lifecycle: RunLifecycle;
+  disposeTracing: () => void;
+  journal: ReturnType<typeof createRunByteJournal>;
+  sqlite: KernelSqliteAccess | null;
+}
+
+/** Open the event logs, byte journal and run lifecycle; a failure after any handle opened closes them all first. */
+async function openKernelStorage({ options }: { options: CreateJiniKernelBaseOptions }): Promise<KernelStorageHandles> {
   const sqliteStorage = options.storage.kind === 'sqlite' ? options.storage : null;
   const dataDir = sqliteStorage?.dataDir ?? null;
   const eventsDbPath = dataDir === null ? null : join(dataDir, 'events.db');
@@ -148,7 +178,7 @@ export async function createJiniKernelBase(options: CreateJiniKernelBaseOptions)
     if (path === null) log = createInMemoryEventLog({});
     else {
       // A non-null path is derived only from sqliteStorage above.
-      log = openSqliteEventLog({ file: path, open: sqliteStorage!.open });
+      log = openSqliteEventLog({ file: path, open: sqliteStorage!.open, clock: createSystemClock() });
     }
     opened.push(log);
     return log;
@@ -185,14 +215,24 @@ export async function createJiniKernelBase(options: CreateJiniKernelBaseOptions)
     await closeFailedAcquisition({ featureConnection, opened });
     throw error;
   }
+  return { eventLog, journalEventLog, lifecycle, disposeTracing, journal, sqlite };
+}
+
+/**
+ * Opens every kernel-owned resource and rehydrates durable run history.
+ *
+ * @throws If rehydration fails against a corrupt or unreadable durable history. Every handle this
+ * call had already opened is closed before it rethrows, so a failed boot never leaks a sqlite file
+ * handle — the invariant the standalone daemon has always maintained.
+ */
+export async function createJiniKernelBase(options: CreateJiniKernelBaseOptions): Promise<JiniKernelBase> {
+  const { eventLog, journalEventLog, lifecycle, disposeTracing, journal, sqlite } = await openKernelStorage({ options });
 
   const agentRuntime = createKernelAgentRuntime({ options });
-  const agentExecutor = createAgentExecutor({ lifecycle }, {
-    ...options.agentExecutor,
-    runtimeState: agentRuntime.state,
-    hostEnv: agentRuntime.hostEnv,
-    codexDisablePlugins: agentRuntime.codexDisablePlugins,
-    piGracefulShutdownMs: agentRuntime.piGracefulShutdownMs,
+  // The preset is a Node host: it binds the Node implementations unless the caller supplies its own.
+  const { runtime = nodeAgentExecutorRuntime({ hostEnv: agentRuntime.hostEnv }), runtimeState: _state, codexDisablePlugins: _codex, piGracefulShutdownMs: _pi, bindAgentRuntime = bindNativeAgentRuntime, ...executorOptions } = options.agentExecutor ?? {};
+  const agentExecutor = createAgentExecutor({ lifecycle, runtime, hostEnv: agentRuntime.hostEnv, agentRuntime: bindAgentRuntime({ runtime: agentRuntime }) }, {
+    ...executorOptions,
     journal,
     classifyFailure: classifyRunFailureForRetry,
   });

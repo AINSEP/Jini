@@ -5,7 +5,8 @@
  * required `grantSignedInDefaults` port (pinned by `portable-plugin-host.no-cycle` test).
  * Discovery is metadata-only and fresh on each call so disable/uninstall cannot leave stale grants. */
 import type { Clock } from "@jini-ai/core/primitives";
-import { redactSecrets, ToolInputError, type AccessApprovalResource } from '@jini-ai/core';
+import { describeErrorForLog, redactSecrets, ToolInputError, type AccessApprovalResource } from '@jini-ai/core';
+import type { Logger } from '@jini-ai/core/primitives';
 import { createPluginLookup, readPluginIdentity, assertPluginIdentityAvailable, type PluginIdentityCandidate, type PluginLookupPort, type PluginProvider } from '@jini-ai/core/plugin-directory';
 import type { InstalledAgentPlugin } from '../../lifecycle/types.js';
 import type { SetAgentPluginEnabledInput, SetAgentPluginEnabledResult } from '../../lifecycle/set-enabled.js';
@@ -81,17 +82,19 @@ export interface PluginHostMessages extends AgentPluginEnableAccessMessages {
    * been provisioned or granted when this is thrown. */
   approvedSnapshotMissing(): string;
   /** @agent-note Product copy when an approved enable's provisioning/grant threw; `detail` is the
-   * raw error message (unredacted) — the result is passed through `redactSecrets`. */
+   * safe error class/code summary — the result is passed through `redactSecrets`. */
   approvedLoadFailed(required: { detail: string }): string;
 }
 
 export interface PluginHostDeps<UninstallInput, Layout extends AgentPluginLayoutInput = AgentPluginLayoutInput> {
+  readonly report?: Pick<Logger, 'warn'>;
   readonly workspaceId: string;
   readonly agentPluginLayout: Layout;
   readonly clock: Clock;
   /** @agent-note Your app's id; it is the namespace of every plugin identity this host reads and
    * admits, so it must not change between installs. */
   readonly namespace: string;
+  readonly legacySiteIdentityNamespace?: string;
   /** @agent-note Provider: the site-runtime plugin discovery owner. Metadata only, fresh per call. */
   readonly discoverPlugins: () => Promise<readonly PluginHostDiscoveryRecord[]>;
   /** @agent-note Provider: the site-runtime activation repo point read (same repo the runtime uses). */
@@ -156,7 +159,8 @@ export interface PortablePluginHost<UninstallInput> extends PluginLookupPort {
  * report a partial failure to its caller. O(s) in failed declared servers, no extra I/O.
  */
 function reportProvisioningFailures({ pluginId, failed, approved, warn, messages }: { pluginId: string; failed: readonly ProvisioningFailure[]; approved: boolean; warn: (message: string) => void; messages: PluginHostMessages }): void {
-  for (const failure of failed) warn(redactSecrets({ input: `Plugin '${pluginId}': MCP provisioning for server '${failure.serverKey}' failed — ${failure.reason}` }));
+  // Provisioning already reported caught exceptions; this callback sees only safe failure reasons.
+  for (const { serverKey, reason: why } of failed) warn(redactSecrets({ input: `Plugin '${pluginId}': MCP provisioning for server '${serverKey}' failed — ${why}` }));
   if (approved && failed.length) throw new ToolInputError({ message: redactSecrets({ input: messages.provisioningFailed({ pluginId, failed }) }) });
 }
 
@@ -164,6 +168,111 @@ function reportProvisioningFailures({ pluginId, failed, approved, warn, messages
 function requireApprovedAccessKey(key: string | undefined, messages: PluginHostMessages): string {
   if (!key) throw new ToolInputError({ message: messages.approvedSnapshotMissing() });
   return key;
+}
+
+/** Test seams: replace the MCP server resolver and the provisioning call. */
+interface PluginHostOptional {
+  resolveMcpServers?: typeof resolveAgentPluginMcpServers;
+  provisionMcpServers?: typeof provisionAgentPluginMcpServers;
+}
+
+async function listSiteProviders<UninstallInput, Layout extends AgentPluginLayoutInput = AgentPluginLayoutInput>({ deps, forAdmission }: { deps: PluginHostDeps<UninstallInput, Layout>; forAdmission: boolean }): Promise<PluginProvider[]> {
+  const { warn } = deps;
+  const providers: PluginProvider[] = [];
+  for (const record of await deps.discoverPlugins()) {
+    if (record.status !== 'valid' || !record.manifest) {
+      warn(`Plugin '${record.id}': invalid installed manifest omitted from metadata lookup.`);
+      continue;
+    }
+    let parsed: ReturnType<typeof readPluginIdentity> | undefined;
+    try { parsed = readPluginIdentity({ manifest: record.manifest as Readonly<Record<string, unknown>>, name: record.id, namespace: deps.namespace, legacyNamespace: deps.legacySiteIdentityNamespace }); }
+    catch { warn(`Plugin '${record.id}': installed identity manifest is unreadable or invalid; omitted from metadata lookup.`); }
+    if (parsed) {
+      const { warnings, ...identity } = parsed;
+      warnings.forEach(warn);
+      const activation = forAdmission ? null : await deps.getActivation({ workspaceId: deps.workspaceId, pluginId: record.id });
+      providers.push({ ...identity, version: record.version, enabled: activation?.enabled === true, family: 'site-runtime', localId: record.id });
+    }
+  }
+  return providers;
+}
+
+async function resolveAgentProviders<UninstallInput, Layout extends AgentPluginLayoutInput = AgentPluginLayoutInput>({ deps, agentProviders }: { deps: PluginHostDeps<UninstallInput, Layout>; agentProviders: Map<string, PluginProvider[]> }): Promise<PluginProvider[]> {
+  const { warn, lifecycle } = deps;
+  const providers: PluginProvider[] = [];
+  for (const [pluginId, revisions] of agentProviders) {
+    // Multiple digests are revisions of one install, not duplicate provider registrations.
+    // Without a recorded winner the existing lifecycle refuses to guess; discovery follows it
+    // by omitting this plugin, while unrelated lookup and installation remain available.
+    if (revisions.length !== 1) {
+      const declaredIds = new Set(revisions.map(provider => provider.id).filter(id => id !== `unknown/${pluginId}`));
+      warn(`Plugin '${pluginId}': ${declaredIds.size > 1 ? 'conflicting publisher identities' : 'ambiguous installed revisions'}; omitted from metadata lookup.`);
+      continue;
+    }
+    providers.push({ ...revisions[0]!, enabled: await lifecycle.isEnabled({ pluginId }) });
+  }
+  return providers;
+}
+
+async function listAgentProviders<UninstallInput, Layout extends AgentPluginLayoutInput = AgentPluginLayoutInput>({ deps, forAdmission }: { deps: PluginHostDeps<UninstallInput, Layout>; forAdmission: boolean }): Promise<PluginProvider[]> {
+  const { warn, lifecycle } = deps;
+  const providers: PluginProvider[] = [];
+  const agentProviders = new Map<string, PluginProvider[]>();
+  // A legacy revision may acquire its first publisher identity at upgrade; old frozen
+  // digests can remain present from older installs until successful publication prunes them.
+  // Reuse that owner's selection; metadata lookup must not invent a newest-version policy.
+  const installed = await lifecycle.listInstalled();
+  const preferred = forAdmission ? installed : await lifecycle.preferInstalled({ installed });
+  const preferredKeys = new Set(preferred.map(plugin => `${plugin.pluginId}:${plugin.archiveDigest}`));
+  for (const plugin of installed) {
+    let parsed: ReturnType<typeof readPluginIdentity>;
+    try { parsed = await lifecycle.readIdentity({ plugin }); }
+    catch { warn(`Plugin '${plugin.pluginId}': installed identity manifest is unreadable or invalid; omitted from metadata lookup.`); continue; }
+    const { warnings, ...identity } = parsed;
+    warnings.forEach(warn);
+    const provider: PluginProvider = { ...identity, version: plugin.version ?? null, enabled: false, family: 'agent-plugin', localId: plugin.pluginId };
+    if (forAdmission) providers.push(provider);
+    else {
+      if (preferredKeys.has(`${plugin.pluginId}:${plugin.archiveDigest}`)) {
+        const revisions = agentProviders.get(plugin.pluginId) ?? [];
+        revisions.push(provider);
+        agentProviders.set(plugin.pluginId, revisions);
+      }
+    }
+  }
+  return providers.concat(await resolveAgentProviders({ deps, agentProviders }));
+}
+
+/** Provisioning must use the same two owners as the admin toggle. A failed connection never
+ * rolls back a successful activation; report fixed diagnostics without credential material. */
+async function provisionPluginMcp<UninstallInput, Layout extends AgentPluginLayoutInput = AgentPluginLayoutInput>({ deps, optional, pluginId, principalId, execution }: {
+  deps: PluginHostDeps<UninstallInput, Layout>; optional: PluginHostOptional; pluginId: string; principalId: string;
+  execution: { readonly approvedEnable?: boolean; readonly approvedEnableKey?: string };
+}): Promise<void> {
+  const { warn, mcp, mcpPorts } = deps;
+  const resolveServers = (id: string) => (optional.resolveMcpServers ?? resolveAgentPluginMcpServers)({ agentPluginLayout: deps.agentPluginLayout, lifecycle: deps.installedMcp, workspaceId: deps.workspaceId, pluginId: id });
+  try {
+    const approvedEnable = execution.approvedEnable ? { principalId, accessKey: requireApprovedAccessKey(execution.approvedEnableKey, deps.messages) } : undefined;
+    const servers = await resolveServers(pluginId);
+    const result = await (optional.provisionMcpServers ?? provisionAgentPluginMcpServers)({ deps: mcp, workspaceId: deps.workspaceId, pluginId, servers, principalId, classifyTrust: deps.classifyTrust, messages: deps.messages }, { report: deps.report });
+    reportProvisioningFailures({ pluginId, failed: result.failed, approved: execution.approvedEnable === true, warn, messages: deps.messages });
+    // Same as the admin toggle: an account signed in while the plugin was off gets the plugin's
+    // declared tools now (bug 2026-11-04, the host's sign-in grant owner).
+    await deps.grantSignedInDefaults({
+      deps: { workspaceId: deps.workspaceId, agentPluginLayout: deps.agentPluginLayout, repo: mcp.repo, applyAccess: mcp.applyAccess, clock: deps.clock, ...mcpPorts,
+        notifyRosterChanged: () => mcp.notifyRosterChanged({}, {}), warn: message => warn(redactSecrets({ input: message })) },
+      pluginId,
+      servers,
+    }, { skipServerKeys: result.failed.map(failure => failure.serverKey), ...(approvedEnable ? { approvedEnable } : {}) });
+  } catch (error) {
+    const detail = describeErrorForLog({ err: error });
+    if (execution.approvedEnable) throw new ToolInputError({ message: redactSecrets({ input: deps.messages.approvedLoadFailed({ detail }) }) });
+    // An injected reporter receives the caught value itself; the default channel logs its class only.
+    const logger = deps.report;
+    if (logger) logger.warn({ message: `Plugin '${pluginId}': MCP provisioning could not run.` }, { error });
+    else warn(redactSecrets({ input: `Plugin '${pluginId}': MCP provisioning could not run — ${detail}` }));
+  }
+
 }
 
 /** Bind both plugin families to one workspace. Read manifests through the same installed-package
@@ -175,80 +284,13 @@ function requireApprovedAccessKey(key: string | undefined, messages: PluginHostM
  */
 export function createPluginHost<UninstallInput, Layout extends AgentPluginLayoutInput = AgentPluginLayoutInput>(
   { deps }: { deps: PluginHostDeps<UninstallInput, Layout> },
-  optional: {
-    resolveMcpServers?: typeof resolveAgentPluginMcpServers;
-    provisionMcpServers?: typeof provisionAgentPluginMcpServers;
-  } = {},
+  optional: PluginHostOptional = {},
 ): PortablePluginHost<UninstallInput> {
   const { warn, lifecycle } = deps;
 
-  const listSiteProviders = async ({ forAdmission }: { forAdmission: boolean }, _options = {}): Promise<PluginProvider[]> => {
-    const providers: PluginProvider[] = [];
-    for (const record of await deps.discoverPlugins()) {
-      if (record.status !== 'valid' || !record.manifest) {
-        warn(`Plugin '${record.id}': invalid installed manifest omitted from metadata lookup.`);
-        continue;
-      }
-      let parsed: ReturnType<typeof readPluginIdentity> | undefined;
-      try { parsed = readPluginIdentity({ manifest: record.manifest as Readonly<Record<string, unknown>>, name: record.id, namespace: deps.namespace }); }
-      catch { warn(`Plugin '${record.id}': installed identity manifest is unreadable or invalid; omitted from metadata lookup.`); }
-      if (parsed) {
-        const { warnings, ...identity } = parsed;
-        warnings.forEach(warn);
-        const activation = forAdmission ? null : await deps.getActivation({ workspaceId: deps.workspaceId, pluginId: record.id });
-        providers.push({ ...identity, version: record.version, enabled: activation?.enabled === true, family: 'site-runtime', localId: record.id });
-      }
-    }
-    return providers;
-  };
-
-  const resolveAgentProviders = async ({ agentProviders }: { agentProviders: Map<string, PluginProvider[]> }, _options = {}): Promise<PluginProvider[]> => {
-    const providers: PluginProvider[] = [];
-    for (const [pluginId, revisions] of agentProviders) {
-      // Multiple digests are revisions of one install, not duplicate provider registrations.
-      // Without a recorded winner the existing lifecycle refuses to guess; discovery follows it
-      // by omitting this plugin, while unrelated lookup and installation remain available.
-      if (revisions.length !== 1) {
-        const declaredIds = new Set(revisions.map(provider => provider.id).filter(id => id !== `unknown/${pluginId}`));
-        warn(`Plugin '${pluginId}': ${declaredIds.size > 1 ? 'conflicting publisher identities' : 'ambiguous installed revisions'}; omitted from metadata lookup.`);
-        continue;
-      }
-      providers.push({ ...revisions[0]!, enabled: await lifecycle.isEnabled({ pluginId }) });
-    }
-    return providers;
-  };
-
-  const listAgentProviders = async ({ forAdmission }: { forAdmission: boolean }, _options = {}): Promise<PluginProvider[]> => {
-    const providers: PluginProvider[] = [];
-    const agentProviders = new Map<string, PluginProvider[]>();
-    // A legacy revision may acquire its first publisher identity at upgrade; old frozen
-    // digests can remain present from older installs until successful publication prunes them.
-    // Reuse that owner's selection; metadata lookup must not invent a newest-version policy.
-    const installed = await lifecycle.listInstalled();
-    const preferred = forAdmission ? installed : await lifecycle.preferInstalled({ installed });
-    const preferredKeys = new Set(preferred.map(plugin => `${plugin.pluginId}:${plugin.archiveDigest}`));
-    for (const plugin of installed) {
-      let parsed: ReturnType<typeof readPluginIdentity>;
-      try { parsed = await lifecycle.readIdentity({ plugin }); }
-      catch { warn(`Plugin '${plugin.pluginId}': installed identity manifest is unreadable or invalid; omitted from metadata lookup.`); continue; }
-      const { warnings, ...identity } = parsed;
-      warnings.forEach(warn);
-      const provider: PluginProvider = { ...identity, version: plugin.version ?? null, enabled: false, family: 'agent-plugin', localId: plugin.pluginId };
-      if (forAdmission) providers.push(provider);
-      else {
-        if (preferredKeys.has(`${plugin.pluginId}:${plugin.archiveDigest}`)) {
-          const revisions = agentProviders.get(plugin.pluginId) ?? [];
-          revisions.push(provider);
-          agentProviders.set(plugin.pluginId, revisions);
-        }
-      }
-    }
-    return providers.concat(await resolveAgentProviders({ agentProviders }));
-  };
-
   const listProviders = async ({ forAdmission = false }: { forAdmission?: boolean } = {}, _options = {}) => {
-    const providers = await listSiteProviders({ forAdmission });
-    return providers.concat(await listAgentProviders({ forAdmission }));
+    const providers = await listSiteProviders({ deps, forAdmission });
+    return providers.concat(await listAgentProviders({ deps, forAdmission }));
   };
   const lookup = createPluginLookup({ listPlugins: listProviders }, { warn });
   const resolveServers = (pluginId: string) => (optional.resolveMcpServers ?? resolveAgentPluginMcpServers)({ agentPluginLayout: deps.agentPluginLayout, lifecycle: deps.installedMcp, workspaceId: deps.workspaceId, pluginId });
@@ -265,28 +307,8 @@ export function createPluginHost<UninstallInput, Layout extends AgentPluginLayou
     preferInstalled: input => lifecycle.preferInstalled(input),
     assertWritable: () => lifecycle.assertWritable(),
     setEnabled: input => lifecycle.setEnabled(input),
-    /** Provisioning must use the same two owners as the admin toggle. A failed connection never
-     * rolls back a successful activation; report fixed diagnostics without credential material. */
-    provisionMcp: async ({ pluginId, principalId }, execution = {}) => {
-      try {
-        const approvedEnable = execution.approvedEnable ? { principalId, accessKey: requireApprovedAccessKey(execution.approvedEnableKey, deps.messages) } : undefined;
-        const servers = await resolveServers(pluginId);
-        const result = await (optional.provisionMcpServers ?? provisionAgentPluginMcpServers)(mcp, { workspaceId: deps.workspaceId, pluginId, servers, principalId, classifyTrust: deps.classifyTrust, messages: deps.messages });
-        reportProvisioningFailures({ pluginId, failed: result.failed, approved: execution.approvedEnable === true, warn, messages: deps.messages });
-        // Same as the admin toggle: an account signed in while the plugin was off gets the plugin's
-        // declared tools now (bug 2026-11-04, the host's sign-in grant owner).
-        await deps.grantSignedInDefaults({
-          deps: { workspaceId: deps.workspaceId, agentPluginLayout: deps.agentPluginLayout, repo: mcp.repo, applyAccess: mcp.applyAccess, clock: deps.clock, ...mcpPorts,
-            notifyRosterChanged: () => mcp.notifyRosterChanged({}, {}), warn: message => warn(redactSecrets({ input: message })) },
-          pluginId,
-          servers,
-        }, { skipServerKeys: result.failed.map(failure => failure.serverKey), ...(approvedEnable ? { approvedEnable } : {}) });
-      } catch (error) {
-        const detail = error instanceof Error ? error.message : String(error);
-        if (execution.approvedEnable) throw new ToolInputError({ message: redactSecrets({ input: deps.messages.approvedLoadFailed({ detail }) }) });
-        warn(redactSecrets({ input: `Plugin '${pluginId}': MCP provisioning could not run — ${detail}` }));
-      }
-    },
+    /** Provisioning must use the same two owners as the admin toggle; see `provisionPluginMcp`. */
+    provisionMcp: ({ pluginId, principalId }, execution = {}) => provisionPluginMcp({ deps, optional, pluginId, principalId, execution }),
     uninstall: input => lifecycle.uninstall(input),
   };
   return {

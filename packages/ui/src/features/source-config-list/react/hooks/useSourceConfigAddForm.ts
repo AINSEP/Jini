@@ -36,19 +36,19 @@ export interface SourceConfigAddFormController {
  * `PluginsView.tsx`'s `SourcesPanel`/`ConnectorsBrowser.tsx`'s "add
  * immediately on submit" shape rather than `McpClientSection.tsx`'s
  * draft-rows-with-a-separate-bulk-Save-button pattern — see
- * `packages/ui/archived provenance ledger` for why that behavior was not ported.
+ * `archived UI provenance ledger` for why that behavior was not ported.
  */
 export function useSourceConfigAddForm<TSource extends SourceConfigItem>(
   params: UseSourceConfigAddFormParams<TSource>,
 ): SourceConfigAddFormController {
   const { port, fieldSpecs, onAdded } = params;
-  const [values, setValues] = useState<SourceFieldValues>(() => emptySourceDraft(fieldSpecs));
+  const [values, setValues] = useState<SourceFieldValues>(() => emptySourceDraft({ fieldSpecs }));
   const [trust, setTrustState] = useState<string | undefined>(undefined);
   const [submitting, setSubmitting] = useState(false);
   const [submitAttempted, setSubmitAttempted] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  const validation = useMemo(() => validateSourceDraft(fieldSpecs, values), [fieldSpecs, values]);
+  const validation = useMemo(() => validateSourceDraft({ fieldSpecs, values }), [fieldSpecs, values]);
 
   const setField = useCallback((key: string, value: string) => {
     setValues((current) => ({ ...current, [key]: value }));
@@ -66,7 +66,7 @@ export function useSourceConfigAddForm<TSource extends SourceConfigItem>(
     try {
       const result = await port.addSource(trust !== undefined ? { fields: values, trust } : { fields: values });
       if (result.ok && result.source) {
-        setValues(emptySourceDraft(fieldSpecs));
+        setValues(emptySourceDraft({ fieldSpecs }));
         setTrustState(undefined);
         setSubmitAttempted(false);
         onAdded?.(result.source);
@@ -79,7 +79,7 @@ export function useSourceConfigAddForm<TSource extends SourceConfigItem>(
   }, [fieldSpecs, onAdded, port, trust, validation.ok, values]);
 
   const reset = useCallback(() => {
-    setValues(emptySourceDraft(fieldSpecs));
+    setValues(emptySourceDraft({ fieldSpecs }));
     setTrustState(undefined);
     setSubmitAttempted(false);
     setSubmitError(null);

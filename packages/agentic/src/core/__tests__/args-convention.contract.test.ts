@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
-  agentHandle, agentHandleProps, createGenUiEncoder, createJsonRpcRequest,
-  findCapability, PAGE_CAPABILITIES, toWebMcpTool,
+  createGenUiEncoder, PAGE_CAPABILITIES, toWebMcpTool,
 } from '../index.js';
-import { createA2uiInterpreter, createLabCatalog, resolveDynamicValue } from '../a2ui/index.js';
+import { findCapability } from '@jini-ai/core/contracts/capabilities';
+import { createJsonRpcRequest } from '@jini-ai/protocol/mcp-ui';
+import { agentHandle, agentHandleProps } from '@jini-ai/core/agent-handles';
+import { createA2uiInterpreter, createLabCatalog, resolveDynamicValue } from '@jini-ai/protocol/a2ui';
 
 describe('public argument-object contracts', () => {
   it('separates handle and RPC options while preserving attribute and wire data', () => {

@@ -1,10 +1,10 @@
-import { Dialog, Notice } from '@jini-ai/ui-kit/react';
+import { Dialog, Notice } from '../../../react/kit.js';
 import { useAgentPluginInspector, type AgentPluginInspectorProps } from '../hooks/AgentPluginInspector.hooks.js';
 import { AgentPluginFileTree } from './AgentPluginFileTree.js';
 import { AgentPluginFileContent } from './AgentPluginFileContent.js';
 import { agentPluginsMessagesEn as m } from '../../messages.en.js';
-export function AgentPluginInspector(props: AgentPluginInspectorProps, _optional = {}) {
-  const vm = useAgentPluginInspector(props);
+export function AgentPluginInspector({ useAgentPluginInspectorHook = useAgentPluginInspector, ...props }: AgentPluginInspectorProps & { useAgentPluginInspectorHook?: typeof useAgentPluginInspector }) {
+  const vm = useAgentPluginInspectorHook(props);
   if (vm.denied) return <Dialog open title={vm.title} closeLabel="Close package files" onClose={props.onClose}><Notice tone="danger">{m.denied}</Notice></Dialog>;
   const status = vm.status && <p role={vm.status.role}>{vm.status.text}</p>;
   return <Dialog open title={vm.title} closeLabel="Close package files" onClose={props.onClose}>

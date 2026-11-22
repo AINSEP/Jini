@@ -1,7 +1,10 @@
 import { expect, it, vi } from 'vitest';
-import { createAiTraceRecorder } from '@jini-ai/agent-runtime/ai-trace';
-import { createAiGenerationSink, createNoopProductAnalytics, isNoopProductAnalytics, withProductAnalyticsGuards,
-  type ProductAiGeneration, type ProductAnalyticsPort } from '../product/index.js';
+import { createAiTraceRecorder } from '@jini-ai/core/contracts/ai-trace';
+import { createAiGenerationSink, createNoopProductAnalytics, isNoopProductAnalytics, withProductAnalyticsGuards } from '../product/index.js';
+import {
+  type ProductAiGeneration,
+  type ProductAnalyticsPort,
+} from '@jini-ai/core/contracts/observability';
 import { injectBrowserAnalytics } from '../product/browser.js';
 
 it('keeps full-content generations sparse when the stream has no prompt or answer', () => {
@@ -40,7 +43,7 @@ it('returns a shared inert analytics port whose guard never consults consent', (
   const noop = createNoopProductAnalytics({});
   const consent = vi.fn(() => true);
   expect(createNoopProductAnalytics({})).toBe(noop);
-  expect(isNoopProductAnalytics(noop)).toBe(true);
+  expect(isNoopProductAnalytics({ port: noop })).toBe(true);
   expect(Object.isFrozen(noop)).toBe(true);
   expect(withProductAnalyticsGuards({ inner: noop, consent })).toBe(noop);
   expect(noop.capture({ name: 'fixture', userId: 'u' })).toBeUndefined();

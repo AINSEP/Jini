@@ -17,6 +17,7 @@ import {
   pruneConnectorAuthorizationPending,
   updateConnectorAuthorizationPendingFromConnectResponse,
   updateConnectorAuthorizationPendingFromStatuses,
+  withoutKey,
 } from '../rules.js';
 import type {
   Connector,
@@ -47,16 +48,6 @@ export interface ConnectorAuthorizationController {
   cancelAuthorization: (connectorId: string) => Promise<void>;
 }
 
-/** Removes `key` from `record`, preserving referential identity when the key
- *  was already absent — the shared shape behind this file's several
- *  "clear this connector's flag if it has one" state updates. */
-export function withoutKey<T>(record: Record<string, T>, key: string): Record<string, T> {
-  if (record[key] === undefined) return record;
-  const next = { ...record };
-  delete next[key];
-  return next;
-}
-
 export interface ConnectorActionSetters {
   onConnectorsChanged?: (() => void) | undefined;
   onAuthResult?: ((event: ConnectorAuthResultEvent) => void) | undefined;
@@ -70,9 +61,8 @@ export interface ConnectorActionSetters {
  *  catch blocks, which previously duplicated this formatting. Exported for
  *  direct unit testing. */
 export function reportThrownConnectorActionFailure(
-  { connectorId, action }: { connectorId: string; action: ConnectorAction },
-  { onAuthResult }: { onAuthResult?: ((event: ConnectorAuthResultEvent) => void) | undefined },
-  err: unknown,
+  { connectorId, action, err }: { connectorId: string; action: ConnectorAction; err: unknown },
+  { onAuthResult }: { onAuthResult?: ((event: ConnectorAuthResultEvent) => void) | undefined } = {},
 ): never {
   onAuthResult?.({
     connectorId,
@@ -91,7 +81,7 @@ function applyConnectorConnectSuccess(
   },
 ): void {
   if (result.connector?.status === 'connected') onConnectorsChanged?.();
-  setPending((curr) => updateConnectorAuthorizationPendingFromConnectResponse(curr, result, Date.now()));
+  setPending((curr) => updateConnectorAuthorizationPendingFromConnectResponse({ pending: curr, response: result, nowMs: Date.now() }));
   onAuthResult?.({ connectorId, action: 'connect', result: 'success' });
 }
 
@@ -101,7 +91,7 @@ function applyConnectorConnectFailureResult(
   { connectorId, result }: { connectorId: string; result: ConnectorActionResult },
   { onAuthResult, setPending, setAuthError }: ConnectorActionSetters,
 ): void {
-  setPending((curr) => clearConnectorAuthorizationPending(curr, connectorId));
+  setPending((curr) => clearConnectorAuthorizationPending({ pending: curr, connectorId }));
   if (result.error) {
     setAuthError((curr) => ({ ...curr, [connectorId]: result.error! }));
   }
@@ -118,8 +108,8 @@ export async function performConnectorConnect(
     setCancelFailed: Dispatch<SetStateAction<Record<string, boolean>>>;
   },
 ): Promise<void> {
-  setCancelFailed((curr) => withoutKey(curr, connectorId));
-  setAuthError((curr) => withoutKey(curr, connectorId));
+  setCancelFailed((curr) => withoutKey({ record: curr, key: connectorId }));
+  setAuthError((curr) => withoutKey({ record: curr, key: connectorId }));
   try {
     const result = await port.connectConnector(connectorId);
     updateConnector(result.connector);
@@ -129,7 +119,7 @@ export async function performConnectorConnect(
     }
     applyConnectorConnectFailureResult({ connectorId, result }, { onAuthResult, setPending, setAuthError });
   } catch (err) {
-    reportThrownConnectorActionFailure({ connectorId, action: 'connect' }, { onAuthResult }, err);
+    reportThrownConnectorActionFailure({ connectorId, action: 'connect', err }, { onAuthResult });
   }
 }
 
@@ -138,72 +128,30 @@ export async function performConnectorDisconnect(
   { connectorId, port, updateConnector }: { connectorId: string; port: ConnectorsPort; updateConnector: (next: Connector | null) => void },
   { onConnectorsChanged, onAuthResult, setPending, setAuthError }: ConnectorActionSetters,
 ): Promise<void> {
-  setPending((curr) => clearConnectorAuthorizationPending(curr, connectorId));
-  setAuthError((curr) => withoutKey(curr, connectorId));
+  setPending((curr) => clearConnectorAuthorizationPending({ pending: curr, connectorId }));
+  setAuthError((curr) => withoutKey({ record: curr, key: connectorId }));
   try {
     updateConnector(await port.disconnectConnector(connectorId));
     onConnectorsChanged?.();
     onAuthResult?.({ connectorId, action: 'disconnect', result: 'success' });
   } catch (err) {
-    reportThrownConnectorActionFailure({ connectorId, action: 'disconnect' }, { onAuthResult }, err);
+    reportThrownConnectorActionFailure({ connectorId, action: 'disconnect', err }, { onAuthResult });
   }
 }
 
-/**
- * The concurrency-correctness core: persists in-flight OAuth authorization
- * state, polls statuses while anything is pending, listens for the OAuth
- * popup's postMessage callback, and refreshes + auto-cancels stale
- * authorizations on window refocus (a system-browser auth flow has no
- * opener to post back to, so this is the only way that path resolves).
- */
-export function useConnectorAuthorization(
-  port: ConnectorsPort,
-  authPendingStorage: ConnectorAuthPendingStoragePort,
-  authBridge: ConnectorAuthBridgePort,
-  params: UseConnectorAuthorizationParams,
-): ConnectorAuthorizationController {
-  const { connectors, setConnectors, onConnectorsChanged, onAuthResult, pollMs = CONNECTOR_AUTH_PENDING_POLL_MS } = params;
+type PendingSetter = Dispatch<SetStateAction<ConnectorAuthorizationPendingState>>;
+type CancelFailedSetter = Dispatch<SetStateAction<Record<string, boolean>>>;
+type AuthErrorSetter = Dispatch<SetStateAction<Record<string, string>>>;
+type UpdateConnector = (next: Connector | null) => void;
 
-  const [pending, setPending] = useState<ConnectorAuthorizationPendingState>(() =>
-    pruneConnectorAuthorizationPending(authPendingStorage.load(), Date.now()),
-  );
-  const [cancelFailed, setCancelFailed] = useState<Record<string, boolean>>({});
-  const [authError, setAuthError] = useState<Record<string, string>>({});
-  const [pendingConnectorAction, setPendingConnectorAction] = useState<PendingConnectorAction | null>(null);
-
-  const connectorsRef = useRef(connectors);
-  useEffect(() => {
-    connectorsRef.current = connectors;
-  }, [connectors]);
-
-  const pendingRef = useRef(pending);
-  useEffect(() => {
-    pendingRef.current = pending;
-  }, [pending]);
-
-  const updateConnector = useCallback(
-    (next: Connector | null) => {
-      if (!next) return;
-      setConnectors((curr) => curr.map((c) => (c.id === next.id ? mergeConnectorActionResult(c, next) : c)));
-    },
-    [setConnectors],
-  );
-
-  const reloadStatuses = useCallback(async (): Promise<ConnectorStatusMap> => {
-    const statuses = await port.fetchConnectorStatuses();
-    const statusChanged = hasConnectorStatusChanges(connectorsRef.current, statuses);
-    setConnectors((curr) => applyConnectorStatuses(curr, statuses));
-    setPending((curr) => updateConnectorAuthorizationPendingFromStatuses(curr, statuses, Date.now()));
-    setAuthError((curr) => clearConnectorAuthorizationErrorsForConnected(curr, statuses));
-    setCancelFailed((curr) => clearConnectorAuthorizationCancelFailuresForConnected(curr, statuses));
-    if (statusChanged) onConnectorsChanged?.();
-    return statuses;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [port, setConnectors, onConnectorsChanged]);
-
-  const cancelStaleAuthorizations = useCallback(
+/** Cancels authorizations that were pending before a refocus reload but are no longer in flight. */
+function useCancelStaleAuthorizations({ port, updateConnector, setCancelFailed, setAuthError, setPending }: {
+  port: ConnectorsPort; updateConnector: UpdateConnector; setCancelFailed: CancelFailedSetter;
+  setAuthError: AuthErrorSetter; setPending: PendingSetter;
+}, _options = {}) {
+  return useCallback(
     async (pendingBeforeReload: ConnectorAuthorizationPendingState, statuses: ConnectorStatusMap) => {
-      const stuck = findStaleAuthorizations(pendingBeforeReload, statuses, Date.now());
+      const stuck = findStaleAuthorizations({ pendingBeforeReload, statuses, nowMs: Date.now() });
       if (stuck.length === 0) return;
       await Promise.allSettled(
         stuck.map(async (connectorId) => {
@@ -218,12 +166,7 @@ export function useConnectorAuthorization(
             return;
           }
           updateConnector(connector);
-          setCancelFailed((curr) => {
-            if (curr[connectorId] === undefined) return curr;
-            const next = { ...curr };
-            delete next[connectorId];
-            return next;
-          });
+          setCancelFailed((curr) => withoutKey({ record: curr, key: connectorId }));
           // This clear's `curr[connectorId] !== undefined` guard is
           // structurally unreachable as *true*: `authError[connectorId]`
           // and `pending[connectorId]` (this function only ever runs for
@@ -238,7 +181,7 @@ export function useConnectorAuthorization(
           // this stale-sweep success path with a real `pending[id]` entry,
           // `authError[id]` is guaranteed already absent. Left in place
           // (not stripped) as a guard against a future refactor breaking
-          // that invariant — see packages/ui/archived provenance ledger's 2026-07-22
+          // that invariant — see archived UI provenance ledger's 2026-07-22
           // dated entry for the full proof.
           // Correction (2026-10-21 coverage pass): the proof above misses one interleaving. While this
           // sweep's `cancelConnectorAuthorization` call is still awaiting, a `runConnectorAction(id,
@@ -246,30 +189,34 @@ export function useConnectorAuthorization(
           // this clear removes that NEWER error. Reproduced in
           // `__tests__/hooks/useConnectorAuthorization.stale-race.test.ts`; flagged for an owner decision
           // on whether the sweep should leave a fresher error alone.
-          setAuthError((curr) => {
-            if (curr[connectorId] === undefined) return curr;
-            const next = { ...curr };
-            delete next[connectorId];
-            return next;
-          });
-          setPending((curr) => clearConnectorAuthorizationPending(curr, connectorId));
+          setAuthError((curr) => withoutKey({ record: curr, key: connectorId }));
+          setPending((curr) => clearConnectorAuthorizationPending({ pending: curr, connectorId }));
         }),
       );
     },
     [port, updateConnector],
   );
+}
 
+/** Persists pending state, polls while anything is in flight, and listens for callback/refocus. */
+function useAuthorizationLifecycleEffects({ pending, pendingRef, authPendingStorage, authBridge, pollMs }: {
+  pending: ConnectorAuthorizationPendingState; pendingRef: { current: ConnectorAuthorizationPendingState };
+  authPendingStorage: ConnectorAuthPendingStoragePort; authBridge: ConnectorAuthBridgePort; pollMs: number;
+}, { setPending, reloadStatuses, cancelStaleAuthorizations }: {
+  setPending: PendingSetter; reloadStatuses: () => Promise<ConnectorStatusMap>;
+  cancelStaleAuthorizations: (before: ConnectorAuthorizationPendingState, statuses: ConnectorStatusMap) => Promise<void>;
+}) {
   // Persist pending state whenever it changes.
   useEffect(() => {
     authPendingStorage.save(pending);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- replacing storage requires rehydrating pending state before writing it.
   }, [pending]);
 
   // Poll statuses while any authorization is in flight.
   useEffect(() => {
     if (Object.keys(pending).length === 0) return undefined;
     const interval = setInterval(() => {
-      setPending((curr) => pruneConnectorAuthorizationPending(curr, Date.now()));
+      setPending((curr) => pruneConnectorAuthorizationPending({ pending: curr, nowMs: Date.now() }));
       void reloadStatuses();
     }, pollMs);
     return () => clearInterval(interval);
@@ -290,8 +237,17 @@ export function useConnectorAuthorization(
       }),
     [authBridge, reloadStatuses, cancelStaleAuthorizations],
   );
+}
 
-  const runConnectorAction = useCallback(
+/** Runs one connect/disconnect at a time, tracking the in-flight action. */
+function useRunConnectorAction({ port, updateConnector, pendingConnectorAction, setPendingConnectorAction }: {
+  port: ConnectorsPort; updateConnector: UpdateConnector; pendingConnectorAction: PendingConnectorAction | null;
+  setPendingConnectorAction: Dispatch<SetStateAction<PendingConnectorAction | null>>;
+}, { onConnectorsChanged, onAuthResult, setPending, setAuthError, setCancelFailed }: {
+  onConnectorsChanged: (() => void) | undefined; onAuthResult: ((event: ConnectorAuthResultEvent) => void) | undefined;
+  setPending: PendingSetter; setAuthError: AuthErrorSetter; setCancelFailed: CancelFailedSetter;
+}) {
+  return useCallback(
     async (connectorId: string, action: ConnectorAction) => {
       if (pendingConnectorAction) return;
       setPendingConnectorAction({ connectorId, action });
@@ -313,25 +269,21 @@ export function useConnectorAuthorization(
     },
     [pendingConnectorAction, port, updateConnector, onConnectorsChanged, onAuthResult],
   );
+}
 
-  const cancelAuthorization = useCallback(
+/** User-initiated cancel; falls back to a status reload when the cancel call returns nothing. */
+function useCancelAuthorization({ port, updateConnector, reloadStatuses, setCancelFailed, setAuthError, setPending }: {
+  port: ConnectorsPort; updateConnector: UpdateConnector; reloadStatuses: () => Promise<ConnectorStatusMap>;
+  setCancelFailed: CancelFailedSetter; setAuthError: AuthErrorSetter; setPending: PendingSetter;
+}, _options = {}) {
+  return useCallback(
     async (connectorId: string) => {
       const connector = await port.cancelConnectorAuthorization(connectorId);
       if (connector) {
         updateConnector(connector);
-        setCancelFailed((curr) => {
-          if (curr[connectorId] === undefined) return curr;
-          const next = { ...curr };
-          delete next[connectorId];
-          return next;
-        });
-        setAuthError((curr) => {
-          if (curr[connectorId] === undefined) return curr;
-          const next = { ...curr };
-          delete next[connectorId];
-          return next;
-        });
-        setPending((curr) => clearConnectorAuthorizationPending(curr, connectorId));
+        setCancelFailed((curr) => withoutKey({ record: curr, key: connectorId }));
+        setAuthError((curr) => withoutKey({ record: curr, key: connectorId }));
+        setPending((curr) => clearConnectorAuthorizationPending({ pending: curr, connectorId }));
         return;
       }
       try {
@@ -344,6 +296,69 @@ export function useConnectorAuthorization(
     },
     [port, updateConnector, reloadStatuses],
   );
+}
+
+/**
+ * The concurrency-correctness core: persists in-flight OAuth authorization
+ * state, polls statuses while anything is pending, listens for the OAuth
+ * popup's postMessage callback, and refreshes + auto-cancels stale
+ * authorizations on window refocus (a system-browser auth flow has no
+ * opener to post back to, so this is the only way that path resolves).
+ */
+export function useConnectorAuthorization({ port, authPendingStorage, authBridge, params }: {
+  port: ConnectorsPort;
+  authPendingStorage: ConnectorAuthPendingStoragePort;
+  authBridge: ConnectorAuthBridgePort;
+  params: UseConnectorAuthorizationParams;
+}): ConnectorAuthorizationController {
+  const { connectors, setConnectors, onConnectorsChanged, onAuthResult, pollMs = CONNECTOR_AUTH_PENDING_POLL_MS } = params;
+
+  const [pending, setPending] = useState<ConnectorAuthorizationPendingState>(() =>
+    pruneConnectorAuthorizationPending({ pending: authPendingStorage.load(), nowMs: Date.now() }),
+  );
+  const [cancelFailed, setCancelFailed] = useState<Record<string, boolean>>({});
+  const [authError, setAuthError] = useState<Record<string, string>>({});
+  const [pendingConnectorAction, setPendingConnectorAction] = useState<PendingConnectorAction | null>(null);
+
+  const connectorsRef = useRef(connectors);
+  useEffect(() => {
+    connectorsRef.current = connectors;
+  }, [connectors]);
+
+  const pendingRef = useRef(pending);
+  useEffect(() => {
+    pendingRef.current = pending;
+  }, [pending]);
+
+  const updateConnector = useCallback(
+    (next: Connector | null) => {
+      if (!next) return;
+      setConnectors((curr) => curr.map((c) => (c.id === next.id ? mergeConnectorActionResult({ current: c, next }) : c)));
+    },
+    [setConnectors],
+  );
+
+  const reloadStatuses = useCallback(async (): Promise<ConnectorStatusMap> => {
+    const statuses = await port.fetchConnectorStatuses();
+    const statusChanged = hasConnectorStatusChanges({ current: connectorsRef.current, statuses });
+    setConnectors((curr) => applyConnectorStatuses({ current: curr, statuses }));
+    setPending((curr) => updateConnectorAuthorizationPendingFromStatuses({ pending: curr, statuses, nowMs: Date.now() }));
+    setAuthError((curr) => clearConnectorAuthorizationErrorsForConnected({ errors: curr, statuses }));
+    setCancelFailed((curr) => clearConnectorAuthorizationCancelFailuresForConnected({ failures: curr, statuses }));
+    if (statusChanged) onConnectorsChanged?.();
+    return statuses;
+  }, [port, setConnectors, onConnectorsChanged]);
+
+  const cancelStaleAuthorizations = useCancelStaleAuthorizations({ port, updateConnector, setCancelFailed, setAuthError, setPending });
+  useAuthorizationLifecycleEffects(
+    { pending, pendingRef, authPendingStorage, authBridge, pollMs },
+    { setPending, reloadStatuses, cancelStaleAuthorizations },
+  );
+  const runConnectorAction = useRunConnectorAction(
+    { port, updateConnector, pendingConnectorAction, setPendingConnectorAction },
+    { onConnectorsChanged, onAuthResult, setPending, setAuthError, setCancelFailed },
+  );
+  const cancelAuthorization = useCancelAuthorization({ port, updateConnector, reloadStatuses, setCancelFailed, setAuthError, setPending });
 
   return { pending, cancelFailed, authError, pendingConnectorAction, reloadStatuses, runConnectorAction, cancelAuthorization };
 }

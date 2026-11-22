@@ -16,7 +16,7 @@ export interface UseAssetTreeBatchActionsResult {
 }
 
 /** Triggers a browser "save as" for `blob` under `filename`, then revokes the object URL after a minute — long enough for a slow save-dialog to still resolve it. */
-export function triggerBrowserDownload(blob: Blob, filename: string): void {
+export function triggerBrowserDownload({ blob, filename }: { blob: Blob; filename: string }, _optional = {}): void {
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
   anchor.href = url;
@@ -63,7 +63,7 @@ export function useAssetTreeBatchActions(params: UseAssetTreeBatchActionsParams)
     setDownloadError(null);
     try {
       const { blob, filename } = await downloadFiles(paths);
-      triggerBrowserDownload(blob, filename);
+      triggerBrowserDownload({ blob, filename });
     } catch (err) {
       setDownloadError(err instanceof Error ? err.message : String(err));
     } finally {

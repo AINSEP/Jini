@@ -3,10 +3,9 @@ import type { Readable, Writable } from "node:stream";
 import type { ChildProcess, SpawnOptions } from "node:child_process";
 import type { Serializable } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { createCommandInvocation } from "@jini-ai/platform/command";
-import { omitEnvironmentKeys } from "@jini-ai/platform/child-environment";
-import { collectProcessTreePids, listProcessSnapshots, stopProcesses, waitForProcessExit } from "@jini-ai/platform/process";
+import { omitEnvironmentKeys, collectProcessTreePids, planCommandInvocation, type ProcessControlPort, type RuntimePlatform } from "@jini-ai/core/contracts/runtime";
 import { readLiveDaemonRegistryRecord, removeDaemonRegistryRecordIfCurrent, writeDaemonRegistryRecord } from "../daemon-registry.js";
+import type { JsonFileWriter } from "../json-file.js";
 import type { LocalDaemonRegistryRecord } from "../daemon-registry.js";
 import type { SpawnedDaemonProcess, SupervisorScheduler } from "./supervisor.js";
 
@@ -19,14 +18,14 @@ export interface SupervisorRegistry {
 /**
  * Reuse the sidecar registry's atomic records, liveness checks and ownership-guarded removal.
  * The child calls write only after it actually starts listening.
- * @param required Host-owned registry path.
+ * @param required Host-owned registry path and the host's atomic JSON writer.
  * @returns A registry port with object arguments at all data-bearing boundaries.
  * @complexity O(1) operations, excluding filesystem I/O.
  */
-export function createSupervisorRegistry({ registryPath }: { registryPath: string }): SupervisorRegistry {
+export function createSupervisorRegistry({ registryPath, writer }: { registryPath: string; writer: JsonFileWriter }, _optional: Record<string, never> = {}): SupervisorRegistry {
   return {
     readLive: () => readLiveDaemonRegistryRecord({ registryPath }),
-    write: ({ record }) => writeDaemonRegistryRecord({ registryPath, record }),
+    write: ({ record }) => writeDaemonRegistryRecord({ registryPath, record, writer }),
     removeIfCurrent: ({ pid }) => removeDaemonRegistryRecordIfCurrent({ registryPath, pid }),
   };
 }
@@ -37,6 +36,12 @@ export interface NodeDaemonProcessRequired {
   cwd: string;
   env: NodeJS.ProcessEnv;
   registry: SupervisorRegistry;
+  /** The host's process control (snapshots, tree stop, exit wait); Node hosts pass `nodeProcessControl` of `@jini-ai/node-adapters/process`. */
+  process: ProcessControlPort;
+  /** The two host inputs of core's pure command planner: the platform and the `ComSpec` a Windows `.cmd` shim falls back to
+   * when the launch env has none. Node hosts pass `nodeCommandShell({ env: process.env })` of `@jini-ai/node-adapters/process`,
+   * which is what the platform builder read before. */
+  commandShell: { readonly platform: RuntimePlatform; readonly fallbackComSpec?: string | undefined };
 }
 export interface NodeDaemonProcessOptions {
   /** Inherit a separate native control channel; stdin remains the Windows EOF shutdown pipe. */
@@ -46,10 +51,6 @@ export interface NodeDaemonProcessOptions {
   stdout?: Writable; stderr?: Writable; platform?: NodeJS.Platform;
   /** Native spawn effect port; the adapter still constructs argv, environment and process options. */
   spawn?: (input: { command: string; args: string[]; options: SpawnOptions }, optional?: Record<string, never>) => ChildProcess;
-  /** Native effect ports retain their platform ABI so tests can supply DI fakes. */
-  listProcessSnapshots?: typeof listProcessSnapshots;
-  waitForProcessExit?: typeof waitForProcessExit;
-  stopProcesses?: typeof stopProcesses;
   signalProcess?: typeof process.kill;
   execFileSync?: (file: string, args: readonly string[], options: { stdio: "ignore" }) => unknown;
 }
@@ -64,7 +65,7 @@ function relayProcessOutput(
 }
 
 async function stopWindowsProcess(
-  { child, pid }: { child: SpawnedDaemonProcess; pid: number },
+  { child, pid, processes }: { child: SpawnedDaemonProcess; pid: number; processes: ProcessControlPort },
   options: NodeDaemonProcessOptions = {},
 ): Promise<void> {
   // Windows has no group signal, so taskkill supplies the tree-stop escalation.
@@ -75,7 +76,7 @@ async function stopWindowsProcess(
     try {
       child.closeStdin({});
       // Reuse platform's existing 5s grace before any forced Windows termination.
-      exited = await (options.waitForProcessExit ?? waitForProcessExit)(pid);
+      exited = await processes.waitForProcessExit({ pid });
     } catch { /* A broken pipe cannot request shutdown; escalate to the whole tree. */ }
   }
   if (!exited) {
@@ -101,7 +102,9 @@ function daemonLaunchEnvironment(required: NodeDaemonProcessRequired, options: N
 function daemonLaunchPlan(required: NodeDaemonProcessRequired, options: NodeDaemonProcessOptions = {}) {
   const win32 = (options.platform ?? process.platform) === 'win32';
   const env = daemonLaunchEnvironment(required, options);
-  const invocation = createCommandInvocation({ command: required.command, args: [...required.args], env });
+  const { commandShell } = required;
+  const invocation = planCommandInvocation({ command: required.command, platform: commandShell.platform, env },
+    { args: [...required.args], fallbackComSpec: commandShell.fallbackComSpec });
   const ipc = options.ipc || options.startupSecrets !== undefined;
   const spawnOptions: SpawnOptions = {
     cwd: required.cwd, env: { ...env, ...(win32 ? { JINI_STOP_ON_STDIN_EOF: '1' } : {}) }, detached: true, windowsHide: true,
@@ -112,8 +115,8 @@ function daemonLaunchPlan(required: NodeDaemonProcessRequired, options: NodeDaem
 }
 
 /**
- * Node launch/tree-stop adapter using platform command quoting, snapshots and signal escalation.
- * @param required Complete host launch settings and the shared sidecar registry port.
+ * Node launch/tree-stop adapter: core's command planner, the host's process control port and signal escalation.
+ * @param required Complete host launch settings, the shared sidecar registry port, the process control port and the command shell.
  * @param options Optional native spawn port and sinks; output is piped through the parent rather than inherited.
  * @returns Supervisor process ports. Construction has no process or filesystem effects.
  * @complexity Tree stop is O(p) for p process snapshots, plus platform exit polling.
@@ -154,17 +157,17 @@ export function createNodeDaemonProcessAdapter(required: NodeDaemonProcessRequir
     async terminateProcess({ child }) {
       if (child.pid === undefined) return;
       const pid = child.pid;
-      const snapshotRequest = (options.listProcessSnapshots ?? listProcessSnapshots)();
+      const snapshotRequest = required.process.listProcessSnapshots({}, {});
       // Request stop before the first await: even a parent exiting immediately starts tree teardown.
       if ((options.platform ?? process.platform) === "win32") {
-        await stopWindowsProcess({ child, pid }, options);
+        await stopWindowsProcess({ child, pid, processes: required.process }, options);
       } else {
         try { (options.signalProcess ?? process.kill)(-pid, "SIGTERM"); }
         catch { child.kill({}, { signal: "SIGTERM" }); }
       }
       const snapshots = await snapshotRequest;
-      const pids = collectProcessTreePids(snapshots, [pid]);
-      const result = await (options.stopProcesses ?? stopProcesses)(pids);
+      const pids = collectProcessTreePids({ processes: snapshots, rootPids: [pid] });
+      const result = await required.process.stopProcesses({ pids });
       if (result.remainingPids.length > 0) throw new Error(`daemon processes still running: ${result.remainingPids.join(", ")}`);
       await required.registry.removeIfCurrent({ pid });
     },
@@ -177,7 +180,7 @@ export function createNodeDaemonProcessAdapter(required: NodeDaemonProcessRequir
  * @returns Scheduler using setTimeout and clearTimeout.
  * @complexity O(1) per schedule/cancel.
  */
-export function createNodeSupervisorScheduler(_required: Record<string, never>): SupervisorScheduler {
+export function createNodeSupervisorScheduler(_required: Record<string, never>, _optional: Record<string, never> = {}): SupervisorScheduler {
   return { schedule: ({ delayMs, run }) => { const timer = setTimeout(run, delayMs); return () => clearTimeout(timer); } };
 }
 
@@ -205,6 +208,38 @@ export function ipcRefusalReason({ value }: { value: unknown }, _optional = {}):
   return reason.length > 0 && reason.length <= 1024 ? reason : undefined;
 }
 
+/** Complete only a matching request, preserving explicit public refusals. O(1) lookup. */
+function completePendingReply(
+  { pending, message }: { pending: Map<string, { finish(error: Error | null, payload?: unknown): void }>; message: { id: string; ok?: unknown; payload?: unknown } },
+  _optional = {},
+): void {
+  const refusalReason = ipcRefusalReason({ value: message });
+  const error = message.ok === true ? null : Object.assign(new Error(refusalReason ?? "IPC request refused"),
+    refusalReason === undefined ? {} : { refusalReason });
+  pending.get(message.id)?.finish(error, message.payload);
+}
+
+/** Run the handler for one inbound request and send exactly one reply; a handler error is never echoed, only its opt-in refusalReason. */
+function serveIpcRequest(
+  { id, payload, handle, reply, onSettled }: {
+    id: string; payload: unknown; handle: (payload: unknown) => Promise<Serializable>;
+    reply: (message: Record<string, Serializable>) => void; onSettled: () => void;
+  },
+): void {
+  void Promise.resolve().then(() => handle(payload)).then(
+    payload => reply({ jiniIpc: 1, kind: "reply", id, ok: true, payload }),
+    error => {
+      const refusalReason = ipcRefusalReason({ value: error });
+      reply({ jiniIpc: 1, kind: "reply", id, ok: false, ...(refusalReason ? { refusalReason } : {}) });
+    },
+  ).catch(() => {}).finally(onSettled); // A disconnected peer cannot receive its reply.
+}
+
+/** Only the size refusal is specific enough to surface; any other send failure stays generic. */
+function ipcSendFailure({ error }: { error: unknown }): Error {
+  return new Error(error instanceof Error && error.message === "IPC envelope too large" ? error.message : "IPC send failed");
+}
+
 /** Native request/reply with bounded pending work. Errors never echo a request, payload or raw handler error.
  * Handlers may opt into public diagnostics by throwing an error with a `refusalReason` string
  * (1–1024 characters), e.g. `Object.assign(new Error(), { refusalReason: "This session ended." })`.
@@ -229,28 +264,15 @@ export function createNodeIpcChannel({ peer }: { peer: NodeIpcPeer }, {
   function reply(message: Record<string, Serializable>): void {
     try { send(message); } catch { dispose({}); } // A departing peer cannot receive a refusal.
   }
-  /** Complete only a matching request, preserving explicit public refusals. O(1) lookup. */
-  function receiveReply({ message }: { message: { id: string; ok?: unknown; payload?: unknown } }, _optional = {}): void {
-    const refusalReason = ipcRefusalReason({ value: message });
-    const error = message.ok === true ? null : Object.assign(new Error(refusalReason ?? "IPC request refused"),
-      refusalReason === undefined ? {} : { refusalReason });
-    pending.get(message.id)?.finish(error, message.payload);
-  }
   function receive(message: unknown): void {
     if (disposed || !isIpcEnvelope(message) || message.channel !== channel) return;
     const { id } = message;
     if (message.kind === "reply") {
-      receiveReply({ message });
+      completePendingReply({ pending, message });
     } else if (message.kind === "request" && handle) {
       if (handling >= maxPending) { reply({ jiniIpc: 1, kind: "reply", id, ok: false }); return; }
       handling++;
-      void Promise.resolve().then(() => handle(message.payload)).then(
-        payload => reply({ jiniIpc: 1, kind: "reply", id, ok: true, payload }),
-        error => {
-          const refusalReason = ipcRefusalReason({ value: error });
-          reply({ jiniIpc: 1, kind: "reply", id, ok: false, ...(refusalReason ? { refusalReason } : {}) });
-        },
-      ).catch(() => {}).finally(() => { handling--; }); // A disconnected peer cannot receive its reply.
+      serveIpcRequest({ id, payload: message.payload, handle, reply, onSettled: () => { handling--; } });
     }
   }
   function dispose(_required: Record<string, never>, _optional = {}): void {
@@ -269,10 +291,7 @@ export function createNodeIpcChannel({ peer }: { peer: NodeIpcPeer }, {
         const timer = setTimeout(() => pending.get(id)?.finish(new Error("IPC request timed out")), timeoutMs);
         pending.set(id, { finish(error, value) { clearTimeout(timer); pending.delete(id); if (error) reject(error); else resolve(value); } });
         try { send({ jiniIpc: 1, kind: "request", id, payload }); }
-        catch (error) {
-          const reason = error instanceof Error && error.message === "IPC envelope too large" ? error.message : "IPC send failed";
-          pending.get(id)?.finish(new Error(reason));
-        }
+        catch (error) { pending.get(id)?.finish(ipcSendFailure({ error })); }
       });
     },
     dispose,
@@ -340,3 +359,15 @@ export async function receiveNodeStartupSecrets({ peer }: { peer: NodeIpcPeer },
   try { return startupSecretRecord(await channel.request({ payload: 'read' }, {})); }
   finally { channel.dispose({}); }
 }
+
+export { createChildRegistry } from "./child-registry.js";
+export type { ChildRegistry, ChildRegistryRequired, ChildRegistryStorage, ChildRegistryRead, ChildRegistrySnapshot, ChildRegistryReport } from "./child-registry.js";
+export type { ChildRegistryProcesses } from "./child-orphans.js";
+export { createChildProcessInspection } from "./child-process-inspection.js";
+export type { ChildProcessInspection, ChildProcessInspectionRequired } from "./child-process-inspection.js";
+export { waitForChildReady } from "./child-readiness.js";
+export type { ReadinessChild, ChildReadinessFailure, ChildReadinessOutputSink, ChildReadinessRequired } from "./child-readiness.js";
+export { stopSpawnedChild } from "./child-stop.js";
+export type { StoppableChild, ChildStopFailure, ChildStopRequired, ChildStopOptions } from "./child-stop.js";
+export { createChildExitSignal } from "./child-exit-signal.js";
+export type { ChildExitSignal, ChildExitOutcome, ExitSignalChild } from "./child-exit-signal.js";

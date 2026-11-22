@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { DEFAULT_VIEWPORT_PRESETS } from '../../../constants.js';
 import { ViewportSwitcher } from '../../../react/components/ViewportSwitcher.js';
+import { I18nProvider, type useT } from '../../../../i18n/index.js';
 
 describe('ViewportSwitcher', () => {
   it('shows the active preset label on the trigger', () => {
@@ -76,5 +77,13 @@ describe('ViewportSwitcher', () => {
     await userEvent.click(trigger);
     const option = screen.getByRole('option', { name: 'Other' });
     expect(option).toHaveAttribute('title', 'Other');
+  });
+
+  it('hands its dismiss behaviour to the injected hook', () => {
+    const useDismissOnOutsideOrEscapeHook = vi.fn();
+    render(
+      <ViewportSwitcher presets={DEFAULT_VIEWPORT_PRESETS} viewport="desktop" onViewport={() => {}} ariaLabel="Viewport" useDismissOnOutsideOrEscapeHook={useDismissOnOutsideOrEscapeHook} />,
+    );
+    expect(useDismissOnOutsideOrEscapeHook).toHaveBeenCalledWith(expect.objectContaining({ onDismiss: expect.any(Function) }), expect.objectContaining({ enabled: false }));
   });
 });

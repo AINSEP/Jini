@@ -48,5 +48,5 @@ it("concurrent settlement has exactly one paid result and one version increment"
 it("propagates storage failures", async () => {
   const { kernel, repo } = await world();
   await kernel.run(db => sql`DROP TABLE commerce_orders`.execute(db));
-  await expect(repo.markPaid(input)).rejects.toThrow();
+  await expect(repo.markPaid(input)).rejects.toThrow("no such table: commerce_orders");
 });

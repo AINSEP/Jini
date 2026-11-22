@@ -1,3 +1,4 @@
+import { webcrypto } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
 import type { JsonObject } from "@jini-ai/core/primitives";
 import { InMemoryEntryRepo, type EntryRecord } from "../../../entries/index.js";
@@ -12,7 +13,10 @@ import { buildWidgetAreaFieldsJson, buildWidgetInstanceFieldsJson } from "../../
 import type { PageHtmlEmbedRef } from "../../html/html-embeds.js";
 import type { MediaContentTypeStorePort, PostRecord, PostRepoPort, WidgetHostPorts } from "../../host-ports.js";
 import { InMemoryWidgetRegionBindingRepo } from "../../repo.memory.js";
-import { THEME_OWNED_MARKER_TYPES, HTML_EMBED_RESOLVERS, resolveGalleryWidgetMedia, resolvePageWidgets, type ResolveHtmlPageEmbedsDeps } from "../../resolver-service.js";
+import { THEME_OWNED_MARKER_TYPES, HTML_EMBED_RESOLVERS } from "../../resolver-service.js";
+import { resolveGalleryWidgetMedia } from "../../media-embed-resolution.js";
+import { resolvePageWidgets } from "../../page-widget-resolution.js";
+import { type ResolveHtmlPageEmbedsDeps } from "../../resolver-contracts.js";
 import { createContactFormResolver, registerCoreResolver } from "../../resolvers/index.js";
 import type { FormDefinitionReadPort, FormDefinitionView } from "../../resolvers/ports.js";
 import type { TaxonomyListPort, TermListPort } from "../../../taxonomy/index.js";
@@ -485,7 +489,7 @@ describe("form embed resolution", () => {
   };
   // Native forms carry the empty field schema's stable digest for stale-submission checks.
   const formIr = { componentId: "contact-form", props: { formDefinitionId: "form-1", schemaHash: "bfeb2da8e38c8c677855967b6f7a10e4ad36b23d8ef2ef19c4704863e5e1e837", slug: "contact", fields: [], successMessage: null } };
-  beforeEach(() => { registerCoreResolver({ typeKey: "contact-form", resolver: createContactFormResolver({ formDefinitionRepo: formRepo }) }); });
+  beforeEach(() => { registerCoreResolver({ typeKey: "contact-form", resolver: createContactFormResolver({ crypto: webcrypto, formDefinitionRepo: formRepo }) }); });
 
   it("resolves an id and a slug reference to the same contact form, keyed as authored", async () => {
     const resolved = await form([ref({ type: "form", id: "form-1" }), ref({ type: "form", slug: "contact" })], deps());
@@ -581,7 +585,7 @@ describe("gallery embed resolution", () => {
     expect({ ...(ir.props.media as JsonObject) }).toEqual({ a1: { assetId: "a1", slug: "a1-slug", sha256: "sha-a1", transformName: "public", version: 3, alt: "Alt", width: 640, height: 480, cssClass: null, htmlAttributes: null } });
   });
 
-  it("reports an invalid gallery with the workspace id and leaves it unresolved", async () => {
+  it("reports an invalid gallery with fixed diagnostic copy and leaves it unresolved", async () => {
     const resolved = await HTML_EMBED_RESOLVERS.gallery!([ref({ type: "gallery", id: "g1", config: { layout: "grid", images: [] } })], deps(), CTX);
     expect(resolved.size).toBe(0);
     expect(warn).toHaveBeenCalledWith("[widgets] unresolved gallery embed", { workspaceId: WS, key: "g1", messages: ["images must contain between 1 and 50 images"] });
@@ -669,10 +673,7 @@ describe("post embed resolution", () => {
 
   it("degrades every reference when no post repository is supplied", async () => {
     expect((await postEmbed([ref({ type: "post", id: "post-1" })], deps())).size).toBe(0);
-    expect(warn).toHaveBeenCalledWith(
-      '[widgets] resolveHtmlPageEmbeds: "post" embeds present but no postRepo dependency was supplied — every occurrence degrades to the placeholder',
-      { workspaceId: WS, occurrences: 1 },
-    );
+    expect(warn).toHaveBeenCalledWith('[widgets] resolveHtmlPageEmbeds: "post" embeds present but no postRepo dependency was supplied — every occurrence degrades to the placeholder', { workspaceId: WS, occurrences: 1 });
   });
 
   it("stays silent without a post repository when there are no references", async () => {

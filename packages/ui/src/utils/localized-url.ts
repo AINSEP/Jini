@@ -16,8 +16,8 @@ export interface LocalizedUrlOptions {
   localeSegments?: Record<string, string>;
 }
 
-export function buildLocalizedUrl(locale: string, options: LocalizedUrlOptions): string {
-  const base = trimTrailingChars(options.baseUrl, '/');
+export function buildLocalizedUrl({ locale, ...options }: { locale: string } & LocalizedUrlOptions, _optional: Record<string, never> = {}): string {
+  const base = trimTrailingChars({ value: options.baseUrl, chars: '/' });
   const segment = options.localeSegments?.[locale];
   return segment ? `${base}/${segment}/` : `${base}/`;
 }

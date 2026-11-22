@@ -1,4 +1,5 @@
-import { formatErrorForLog } from '@jini-ai/core';
+import { describeErrorForLog } from '@jini-ai/core/model-facing-tool-errors';
+import { createConsoleLogger, type Logger } from '@jini-ai/core/primitives';
 /**
  * @module ExtEventErrorBoundary
  *
@@ -18,6 +19,7 @@ import { formatErrorForLog } from '@jini-ai/core';
 import { Component, type ErrorInfo, type ReactNode } from 'react';
 
 export interface ExtEventErrorBoundaryProps {
+  report?: Pick<Logger, 'error'> | undefined;
   /** The ext-event `name` this boundary wraps — surfaced in the fallback and passed to `onError`, so a host can tell which protocol/renderer failed. */
   name: string;
   /** Called once per catch, in addition to always rendering the built-in fallback — for a host that wants to log/report beyond what this module does on its own. */
@@ -40,7 +42,8 @@ export class ExtEventErrorBoundary extends Component<ExtEventErrorBoundaryProps,
     // React already surfaces this in the dev console via its own error-boundary reporting; this
     // adds the ext-event `name` React's generic report has no way to know, and gives a host a
     // hook to route it into its own error reporting.
-    console.error(`[ExtEventErrorBoundary] ext event "${this.props.name}" failed to render:`, formatErrorForLog({ error }));
+    const logger = this.props.report ?? createConsoleLogger({ prefix: '' });
+    logger.error({ message: `[ExtEventErrorBoundary] ext event "${this.props.name}" failed to render:` }, { error });
     this.props.onError?.(error, info);
   }
 
@@ -48,7 +51,7 @@ export class ExtEventErrorBoundary extends Component<ExtEventErrorBoundaryProps,
     if (this.state.error) {
       return (
         <div className="jini-ext-event-error" role="alert" data-ext-event-name={this.props.name}>
-          {`"${this.props.name}" failed to render: ${this.state.error.message}`}
+          {`"${this.props.name}" could not be rendered (${describeErrorForLog({ err: this.state.error })}).`}
         </div>
       );
     }

@@ -8,6 +8,7 @@ import { join, relative } from 'node:path';
 import ts from 'typescript';
 import { REPO_ROOT } from './lib/walk-imports.js';
 import { packageSourceFiles, parseSource, sourcePackages, type SourcePackage } from './lib/package-sources.js';
+import { injectionViolations, type InjectionOptions } from './lib/injection-gate.js';
 
 export interface LayerViolation { rule: string; file: string; reason: string }
 const layers: Readonly<Record<string, number>> = {
@@ -21,11 +22,15 @@ const layers: Readonly<Record<string, number>> = {
   integrations: 4, 'agent-plugins': 4, devops: 4, chat: 4, plugins: 4, analytics: 4,
   // The search contribution entry composes agent-plugins (L4), so L5 is its lowest valid layer.
   ui: 5, admin: 5, search: 5,
+  // OD-3 runtime-adapter packages bind platform functions to domain ports and may name those ports'
+  // types, so they sit above every domain they bind; only a host or host preset imports them.
+  'node-adapters': 5,
   // Commerce composes CMS authorization and UI through opt-in entries; SI keeps its root isolated.
   server: 6, sqlite: 6, infra: 6, commerce: 6,
   // Provider plugin sources adapt lower-layer domain ports (diagnostics, analytics, agent-runtime,
   // capability-providers) and register through plugins; no core package may depend on them.
   'provider-plugins': 7,
+  'integration-tests': 7,
 };
 // Standalone distributions remain leaves; a catalog only describes those leaves. One rule covers
 // every `plugin-*` package, so adding a plugin package never edits this table.
@@ -36,13 +41,12 @@ function layerOf(name: string): number | undefined {
   if (Object.hasOwn(layers, name)) return layers[name];
   return name.startsWith('plugin-') ? pluginDistributionLayer : undefined;
 }
-const sameLayerEdges = new Set(['cli→sidecar', 'cms-forms→cms', 'admin→ui']);
+const sameLayerEdges = new Set(['cli→sidecar']);
 
 // Reviewed feature owners expose these contracts/catalogs without dispatch or service code.
 // Manifest declarations permit installation; each production import still needs its exact leaf/file.
 const leafEdges = [
   { owner: 'agent-runtime', target: 'integrations', spec: '@jini-ai/integrations/media-providers/catalog', sourcePath: 'src/model-discovery-adapters.ts' },
-  { owner: 'memory', target: 'integrations', spec: '@jini-ai/integrations/media-providers/catalog', sourcePath: 'src/llm-provider.ts' },
   { owner: 'db', target: 'platform', spec: '@jini-ai/platform/secrets/credential-sets/contracts', sourcePath: 'src/secrets-vault/repo.sql.ts' },
 ] as const;
 
@@ -176,63 +180,81 @@ function isLiteralModuleCall(node: ts.Node): node is ts.CallExpression & { argum
 
 export function checkPackageLayers(
   required: { repoRoot: string } = { repoRoot: REPO_ROOT },
-  _optional: Record<string, never> = {},
+  optional: { injection?: boolean } & InjectionOptions = {},
 ): LayerViolation[] {
   const root = required.repoRoot;
   const violations: LayerViolation[] = [];
   const packages = sourcePackages({ packagesDir: join(root, 'packages') });
   const byName = new Map(packages.map(pkg => [pkg.manifest.name, pkg]));
-  function check(pkg: SourcePackage, spec: string, file: string, sourcePath?: string, declaredPeer = false): void {
-    if (!spec.startsWith('@jini-ai/')) return;
-    const owner = pkg.manifest.name.slice('@jini-ai/'.length);
-    const target = spec.slice('@jini-ai/'.length).split('/')[0]!;
-    const ownerLayer = layerOf(owner);
-    const targetLayer = layerOf(target);
-    const reason = `${owner} → ${spec}`;
-    if (ownerLayer === undefined || targetLayer === undefined) {
-      violations.push({ rule: 'L0-unlisted-package', file, reason: `${reason}: package missing from the approved layer table` }); return;
-    }
-    if (isMcpOauthEdge(owner, target)) {
-      violations.push({ rule: 'L1-layer-edge', file, reason: `${reason}: MCP and OAuth must never depend on one another` }); return;
-    }
-    // Public self-imports select an isolated entry of the same package, not a dependency edge.
-    if (owner === target && sourcePath !== undefined) return;
-    const edge = { pkg, spec, owner, target, sourcePath, declaredPeer, byName };
-    if (!isAllowedLayerEdge(edge, ownerLayer, targetLayer)) {
-      violations.push({ rule: 'L1-layer-edge', file, reason: `${reason}: L${ownerLayer} cannot depend on L${targetLayer}` });
-    }
-    checkBrowserPlatform(edge, file, reason, violations);
-    checkSourceDeclaration(edge, file, reason, violations);
-  }
-  function checkManifest(pkg: SourcePackage): void {
-    const manifestFile = relative(root, join(pkg.directory, 'package.json')).split('\\').join('/');
-    if (layerOf(pkg.manifest.name.slice('@jini-ai/'.length)) === undefined) {
-      violations.push({ rule: 'L0-unlisted-package', file: manifestFile, reason: 'package missing from the approved layer table' });
-    }
-    for (const name of Object.keys(pkg.manifest.dependencies ?? {})) check(pkg, name, manifestFile);
-    for (const name of Object.keys(pkg.manifest.peerDependencies ?? {})) check(pkg, name, manifestFile,
-      undefined, true);
-
-  }
-  function checkSources(pkg: SourcePackage): void {
-    for (const filename of packageSourceFiles({ directory: pkg.directory })) {
-      if (filename.endsWith('.css')) continue;
-      const ast = parseSource({ file: filename, source: readFileSync(filename, 'utf8') });
-      const file = relative(root, filename).split('\\').join('/');
-      const sourcePath = relative(pkg.directory, filename).split('\\').join('/');
-      function visit(node: ts.Node): void {
-        if ((ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) && node.moduleSpecifier
-          && ts.isStringLiteral(node.moduleSpecifier)) check(pkg, node.moduleSpecifier.text, file, sourcePath);
-        // Dynamic and require imports are included so the rule cannot be bypassed by syntax.
-        if (isLiteralModuleCall(node)) check(pkg, node.arguments[0].text, file, sourcePath);
-        ts.forEachChild(node, visit);
-      }
-      visit(ast);
-    }
-  }
+  const context = { root, violations, byName };
   for (const pkg of packages) {
-    checkManifest(pkg);
-    checkSources(pkg);
+    checkManifest(pkg, context);
+    checkSources(pkg, context);
+  }
+  // L5-L7: the base-only rule, with its ratchet. Layer-table fixtures opt out; the real gate never does.
+  if (optional.injection !== false) {
+    const { injection: _injection, ...injection } = optional;
+    violations.push(...injectionViolations({ root, packages }, injection));
   }
   return violations;
+}
+
+interface LayerCheckContext {
+  root: string;
+  violations: LayerViolation[];
+  byName: Map<string, SourcePackage>;
+}
+
+function check({ pkg, spec, file, sourcePath, declaredPeer = false }: {
+  pkg: SourcePackage; spec: string; file: string; sourcePath?: string; declaredPeer?: boolean;
+}, { violations, byName }: LayerCheckContext): void {
+  if (!spec.startsWith('@jini-ai/')) return;
+  const owner = pkg.manifest.name.slice('@jini-ai/'.length);
+  const target = spec.slice('@jini-ai/'.length).split('/')[0]!;
+  const ownerLayer = layerOf(owner);
+  const targetLayer = layerOf(target);
+  const reason = `${owner} → ${spec}`;
+  if (ownerLayer === undefined || targetLayer === undefined) {
+    violations.push({ rule: 'L0-unlisted-package', file, reason: `${reason}: package missing from the approved layer table` }); return;
+  }
+  if (isMcpOauthEdge(owner, target)) {
+    violations.push({ rule: 'L1-layer-edge', file, reason: `${reason}: MCP and OAuth must never depend on one another` }); return;
+  }
+  // Public self-imports select an isolated entry of the same package, not a dependency edge.
+  if (owner === target && sourcePath !== undefined) return;
+  const edge = { pkg, spec, owner, target, sourcePath, declaredPeer, byName };
+  if (!isAllowedLayerEdge(edge, ownerLayer, targetLayer)) {
+    violations.push({ rule: 'L1-layer-edge', file, reason: `${reason}: L${ownerLayer} cannot depend on L${targetLayer}` });
+  }
+  checkBrowserPlatform(edge, file, reason, violations);
+  checkSourceDeclaration(edge, file, reason, violations);
+}
+
+function checkManifest(pkg: SourcePackage, context: LayerCheckContext): void {
+  const { root, violations } = context;
+  const manifestFile = relative(root, join(pkg.directory, 'package.json')).split('\\').join('/');
+  if (layerOf(pkg.manifest.name.slice('@jini-ai/'.length)) === undefined) {
+    violations.push({ rule: 'L0-unlisted-package', file: manifestFile, reason: 'package missing from the approved layer table' });
+  }
+  for (const name of Object.keys(pkg.manifest.dependencies ?? {})) check({ pkg, spec: name, file: manifestFile }, context);
+  for (const name of Object.keys(pkg.manifest.peerDependencies ?? {})) check({ pkg, spec: name, file: manifestFile, declaredPeer: true }, context);
+
+}
+
+function checkSources(pkg: SourcePackage, context: LayerCheckContext): void {
+  const { root } = context;
+  for (const filename of packageSourceFiles({ directory: pkg.directory })) {
+    if (filename.endsWith('.css')) continue;
+    const ast = parseSource({ file: filename, source: readFileSync(filename, 'utf8') });
+    const file = relative(root, filename).split('\\').join('/');
+    const sourcePath = relative(pkg.directory, filename).split('\\').join('/');
+    function visit(node: ts.Node): void {
+      if ((ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) && node.moduleSpecifier
+        && ts.isStringLiteral(node.moduleSpecifier)) check({ pkg, spec: node.moduleSpecifier.text, file, sourcePath }, context);
+      // Dynamic and require imports are included so the rule cannot be bypassed by syntax.
+      if (isLiteralModuleCall(node)) check({ pkg, spec: node.arguments[0].text, file, sourcePath }, context);
+      ts.forEachChild(node, visit);
+    }
+    visit(ast);
+  }
 }

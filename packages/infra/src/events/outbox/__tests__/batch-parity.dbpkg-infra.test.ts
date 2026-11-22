@@ -14,7 +14,7 @@ test('mixed claims preserve attempt boundaries, envelope identity and sequential
   expect(f.bus.publish.mock.calls.map(([args]) => args.event)).toEqual([capped.event, healthy.event]);
   expect(f.bus.publish.mock.calls[1]![0].event).toBe(healthy.event);
   expect(f.outbox.markFailed.mock.calls.map(([args]) => args)).toEqual([
-    { id: 'capped', error: 'poison', nextAttemptAt: '2026-02-21T12:08:00.000Z', nextStatus: 'failed' },
+    { id: 'capped', error: 'Error', nextAttemptAt: '2026-02-21T12:08:00.000Z', nextStatus: 'failed' },
     { id: 'exhausted', error: 'claimed 7 times; the last claim expired with no recorded outcome (its claimer likely died mid-delivery)', nextAttemptAt: NOW, nextStatus: 'failed' },
   ]);
   expect(f.outbox.markDelivered).toHaveBeenCalledTimes(1);

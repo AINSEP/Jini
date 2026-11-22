@@ -76,7 +76,8 @@ test('HTTP exchange omits absent body/signal and represents absent response head
 
 test('strict UTF-8 exchange refuses malformed bytes instead of returning replacement characters', async () => {
   const exchange = createFetchMcpHttpExchange({ fetch: async () => new Response(new Uint8Array([0xc3, 0x28])) },
-    { strictUtf8: true });
+    { strictUtf8: true, readResponseText: async ({ response }) =>
+      new TextDecoder("utf-8", { fatal: true }).decode(await response.arrayBuffer()) });
   await assert.rejects(exchange.send({ url: SPEC.url, method: 'POST', headers: {} }), TypeError);
 });
 

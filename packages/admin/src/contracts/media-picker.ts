@@ -1,4 +1,4 @@
-import { adminPort } from '../core/module/token.js';
+import { adminPort } from '@jini-ai/core/contracts/admin-module';
 /** Data returned across tab boundaries. Consumers need no media implementation import. */
 export interface MediaAsset {
   readonly id: string;

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 
-import type { NewPayment } from "../../ledger/rows.js";
+import type { NewPayment } from "../../ledger/row-records.js";
 import { newPayment } from "../../accounting/__tests__/harness.js";
 import type { LedgerTx, PaymentsLedger } from "../../ledger/repo.js";
 import { reconcileUnknown } from "../reconciler.js";
@@ -82,7 +82,7 @@ describe("reconcileUnknown: payments", () => {
     );
     expect((await w.operator.reconcileUnknown({ olderThanMs: AGE, limit: 10 })).payments).toEqual({ ...zero, scanned: 3, left: 2, errors: 1 });
     expect(alerts.raised.filter((a) => a.kind === "unknown-aged").map((a) => a.detail)).toEqual([
-      "payment p_a is unknown: timed out", "payment p_b is unknown: its snapshot was quarantined",
+      "payment p_a is unknown: The payment provider could not confirm the operation (TRANSPORT_ERROR); it will be reconciled", "payment p_b is unknown: its snapshot was quarantined",
     ]);
   });
 
@@ -110,8 +110,8 @@ describe("reconcileUnknown: payments", () => {
   });
 
   test.each([
-    ["throw", "provider threw: scripted retrieve exploded"],
-    ["throw-value", "provider threw: scripted retrieve threw a string"],
+    ["throw", "The payment provider threw instead of answering (Error); the payment will be reconciled"],
+    ["throw-value", "The payment provider threw instead of answering (string); the payment will be reconciled"],
     ["garbage", "provider returned no readable Outcome"],
   ] as const)("a retrieve that returns %s leaves money unknown even when the alert sink fails", async (answer, message) => {
     const alerts = recordingAlerts({ fail: true });
@@ -235,7 +235,7 @@ describe("reconcileUnknown: refunds", () => {
     const { refundId } = await unknownRefund(w, "payment+refunds");
     w.scripted.queue("retrieve", timedOut());
     expect((await w.operator.reconcileUnknown({ olderThanMs: AGE, limit: 10 })).refunds).toEqual({ ...zero, scanned: 1, left: 1 });
-    expect(alerts.raised.at(-1)?.detail).toBe(`refund ${refundId} is unsettled: timed out`);
+    expect(alerts.raised.at(-1)?.detail).toBe(`refund ${refundId} is unsettled: The payment provider could not confirm the operation (TRANSPORT_ERROR); it will be reconciled`);
   });
 
   test("a quarantined refund explicitly correlated to ours cannot prove that ours never existed", async () => {
@@ -354,7 +354,7 @@ describe("reconcileUnknown: capture/void attempts, without asking the provider o
     expect((await w.operator.reconcileUnknown({ olderThanMs: AGE, limit: 10 })).attempts).toEqual({ ...zero, scanned: 2, left: 2 });
     expect(await attemptOf(w, a.id, a.attemptId)).toMatchObject({ outcome: "unknown" });
     expect(alerts.raised.filter((x) => x.kind === "unknown-aged").map((x) => x.detail)).toEqual([
-      `void attempt ${a.attemptId} of payment ${a.id} is unknown: timed out`,
+      `void attempt ${a.attemptId} of payment ${a.id} is unknown: The payment provider could not confirm the operation (TRANSPORT_ERROR); it will be reconciled`,
       `capture attempt ${b.attemptId} of payment ${b.id} is unknown: its snapshot was quarantined`,
     ]);
   });

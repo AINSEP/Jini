@@ -19,6 +19,7 @@ export type {
 } from "./types.js";
 
 export type { EntryListPort } from "./list.js";
+export type { EntryPublishReadPort, TrashableEntryRecord } from "./publish-read-port.js";
 export { listEntries } from "./list.js";
 
 export type {
@@ -47,6 +48,7 @@ export {
   EntryFieldValidationError,
   entryVersionConflictError,
 } from "./errors.js";
+export { entryWriteErrorStatus } from "./write-error-status.js";
 
 export type { EntryLifecycleOp, EntryLifecycleHandler } from "./lifecycle-dispatch.js";
 export {
@@ -77,6 +79,14 @@ export { createEntry, updateEntry, publishEntry, unpublishEntry, importEntry } f
  */
 export { InMemoryEntryRepo, toEntryOutbox } from "./repo.memory.js";
 
+/**
+ * The in-memory repository that also models the Trash (a trashed row is hidden from every read and shown by the `findAny*`
+ * seam) and implements the display / exclude-types read ports. The host's `onWriteSettled` is required: a host that caches
+ * data derived from this repository's writes has to be told when one settles.
+ */
+export { TrashAwareInMemoryEntryRepo } from "./repo.trash-aware.memory.js";
+export type { TrashAwareMemoryEntryRepoRequired } from "./repo.trash-aware.memory.js";
+
 /** The agent-tool surface for this domain (see `agent-tools.ts` for what is deliberately omitted). */
 export {
   entriesAgentToolCatalog,
@@ -91,6 +101,7 @@ export {
  */
 export {
   buildEntriesRegistrations,
+  entriesDeps,
   entriesDerivedRisk,
   type EntriesToolDeps,
 } from "./tool-registrations.js";
@@ -101,3 +112,5 @@ export {
  * drag that host's schema into every consumer's dependency closure. Hosts compose their own; this
  * entry point exports the ports they compose against.
  */
+
+export { wentLiveSinceSave, goLiveEvent, announcePendingGoLive, announceDueGoLives, type GoLiveRow, type GoLiveCandidatesPort } from "./go-live.js";

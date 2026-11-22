@@ -56,6 +56,6 @@ describe('vanilla chat controller edges', () => {
   it('reports a start that rejects with a non-Error value as text', async () => {
     const f = controllerWith({ blockedPaths: new Set(), startRun: async () => { throw 'gateway down'; } });
     await f.controller.send({ text: 'hi' });
-    expect(f.controller.getState({})).toMatchObject({ busy: false, error: 'gateway down' });
+    expect(f.controller.getState({})).toMatchObject({ busy: false, error: 'The message could not be sent to the agent; send it again.' });
   });
 });

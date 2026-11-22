@@ -1,6 +1,7 @@
 import type { Clock } from "@jini-ai/core/primitives";
-import type { RequestIdGenerator, RequestLogPort, RequestMetricsPort, ObservabilityPort } from './ports.js';
-import { createNoopObservabilityPort } from './noop.js';
+import type { RequestIdGenerator, RequestLogPort, RequestMetricsPort } from './ports.js';
+import type { ObservabilityPort } from '@jini-ai/core/contracts/observability';
+import { createNoopObservabilityPort } from '@jini-ai/core/contracts/observability';
 export interface RequestHookOptions {
  logger?: RequestLogPort; metrics?: RequestMetricsPort; tracing?: ObservabilityPort;
 }
@@ -19,6 +20,7 @@ export function createHookObservabilityPort(
  return {
   get supportsMetric() { return signals.supportsMetric === true; },
   activeTraceIds: (_required = {}, _optional = {}) => signals.activeTraceIds?.(),
+  activeTraceparent: () => signals.activeTraceparent?.(),
   trackRequest(input, options = {}) {
    const requestId = options.requestId ?? requestIdGenerator.generate({});
    const startedAt = clock.nowMs();

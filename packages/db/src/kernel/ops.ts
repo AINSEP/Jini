@@ -1,6 +1,7 @@
 import { sql } from "kysely";
 
-import type { StorageKernel, StorageTransport } from "./port.js";
+import type { KyselyKernel } from "./port.js";
+import type { StorageTransport } from "@jini-ai/core/contracts/storage";
 
 /**
  * @file The storage ops port: whole-database FILE operations, which every dialect spells
@@ -51,7 +52,7 @@ export class StorageOpError extends Error {
  * A guard each op calls first: neither SQLite nor Postgres can `VACUUM` inside a transaction.
  * @throws {Error} when `kernel` is inside a transaction.
  */
-export function outsideTransactionOf(kernel: StorageKernel<unknown>): (op: keyof StorageOps) => void {
+export function outsideTransactionOf({ kernel }: { kernel: KyselyKernel<unknown> }, _optional: Record<string, never> = {}): (op: keyof StorageOps) => void {
   return (op) => {
     if (kernel.inTransaction()) throw new Error(`storage op ${op} must be called outside a transaction`);
   };
@@ -64,7 +65,7 @@ export function outsideTransactionOf(kernel: StorageKernel<unknown>): (op: keyof
  *
  * @throws {StorageOpError} the ledger cannot be read, or holds no rows.
  */
-export async function verifyLedgerReadBack(kernel: StorageKernel<unknown>, ledgerTable: string): Promise<void> {
+export async function verifyLedgerReadBack({ kernel, ledgerTable }: { kernel: KyselyKernel<unknown>; ledgerTable: string }, _optional: Record<string, never> = {}): Promise<void> {
   let anyStep: unknown[];
   try {
     // One row when the ledger holds any step, none when it is empty: no count to null-check.

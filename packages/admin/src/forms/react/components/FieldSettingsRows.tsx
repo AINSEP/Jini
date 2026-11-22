@@ -1,6 +1,5 @@
-import { agentHandle } from '@jini-ai/agentic';
-import { InfoTip } from '@jini-ai/ui/admin-widgets';
-import { MAX_UPLOAD_MB } from '../../field-settings.js';
+import { agentHandle } from '@jini-ai/core/agent-handles';
+import { InfoTip } from '../../../react/kit.js';
 import type { useFieldSettingsView } from '../hooks/forms-view.hooks.js';
 
 /**
@@ -188,7 +187,7 @@ export function FieldSettingsUploadRows({ view, t }: FieldSettingsRowsProps) {
       </div>
       <div className="field-settings-row">
         <label className="field-label" htmlFor="field-settings-max-size">{t('Max size (MB)')}</label>
-        <input id="field-settings-max-size" type="number" min={0} max={MAX_UPLOAD_MB} step="any" className="field-settings-num" placeholder={String(MAX_UPLOAD_MB)}
+        <input id="field-settings-max-size" type="number" min={0} max={view.maxUploadMb} step="any" className="field-settings-num" placeholder={String(view.maxUploadMb)}
           value={form.maxFileSizeMb} onChange={view.onMaxFileSize}
           {...agentHandle({ handle: 'form-field-settings-max-size' }, { role: 'field', label: 'Largest upload accepted, in megabytes' })} />
       </div>

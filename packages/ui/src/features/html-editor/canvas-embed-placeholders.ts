@@ -246,8 +246,8 @@ function removeStaleCards(body: HTMLElement): void {
  *   for its card's fixed-size DOM (icon plus three text nodes) — independent of document size.
  */
 export function applyCanvasEmbedPlaceholders(
-  body: HTMLElement,
-  describe: (el: Element) => CanvasEmbedPlaceholderDescriptor | undefined
+  { body, describe }: { body: HTMLElement; describe: (el: Element) => CanvasEmbedPlaceholderDescriptor | undefined },
+  _optional: Record<string, never> = {},
 ): void {
   const doc = body.ownerDocument;
   removeStaleCards(body);

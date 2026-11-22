@@ -18,11 +18,11 @@ There is no daemon, agent-runtime or CMS dependency.
 
 ## Surface
 
-- Route specs, `ok({ value })`, `err({ error })`, `defineJsonRoute` and `mountJsonRoute`.
-- Request parsing, `validationError`, `sendJson`, `sendApiError` and `statusForError`.
+- The Express `mountJsonRoute` and its route-spec shapes; the framework-free vocabulary (`Result`, `jsonRoute`, `validationError`, `statusForError`, origin checks, SSE stream) is `@jini-ai/core/contracts/server`.
+- Express request parsing, `sendJson` and `sendApiError`.
 - Origin and bearer guards, including core's canonical origin validation and Node token comparison.
 - Cursor-aware and raw SSE primitives, route registration inventory and `mountPackHttp`.
-- `./rate-limit`, `./middleware`, `./verified-origin` and `./observability`.
+- `./rate-limit`, `./middleware`, `./observability` and `./range`.
 
 - `rate-limit` exports `createRateLimiter({ profile, clock, store })`,
   `createMemoryCounterStore({})`, and `resolveClientIp({ source, policy })`.
@@ -51,7 +51,7 @@ no consumer used it and maintaining every route twice imposed recurring work. It
 and rationale remain on `future/fastify-transport` in `FASTIFY-TRANSPORT-PARKED.md`.
 
 Settings routes and their CMS adapters now live at `@jini-ai/cms/http/settings`; this
-package has no CMS dependency. `./verified-origin`
+package has no CMS dependency. The verified-origin registry (`@jini-ai/core/contracts/server/verified-origin`)
 is a separate canonical-origin registry with required configuration evidence and
 repository ports; it does not infer trust from request headers. Its canonical-origin
 request type is `VerifiedOriginRequestContext`.
@@ -67,8 +67,8 @@ Bearer gates require their environment and token variable names in argument one;
 The async limiter uses core `Clock.nowMs()` and keeps non-empty-key validation.
 
 `./observability` supplies `applyRequestTracking` and
-`createRequestTrackingMiddleware` over the diagnostics-compatible
-`HttpRequestObservabilityPort`. Mount first to include refusals and unmatched
+`createRequestTrackingMiddleware` over core's
+`ObservabilityPort` (`Pick<ObservabilityPort, 'trackRequest'>`). Mount first to include refusals and unmatched
 requests; route labels are read at response completion.
 
 

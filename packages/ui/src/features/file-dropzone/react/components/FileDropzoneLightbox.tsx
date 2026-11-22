@@ -11,6 +11,7 @@ export interface FileDropzoneLightboxProps {
   file: File;
   previews: FileDropzonePreviewState;
   onClose: () => void;
+  useTHook?: typeof useT;
 }
 
 type Translate = (key: string, vars?: TranslationVars) => string;
@@ -86,7 +87,7 @@ function renderFallback({ t, file, kind }: { t: Translate; file: File; kind: Fil
       </span>
       <p className="jini-file-dropzone__lightbox-fallback-name">{file.name}</p>
       <p className="jini-file-dropzone__lightbox-fallback-meta">
-        {fileDropzoneExtensionLabel(file)} · {fileDropzoneSizeLabel(file.size) || '—'}
+        {fileDropzoneExtensionLabel(file)} · {fileDropzoneSizeLabel({ bytes: file.size }) || '—'}
       </p>
       <p className="jini-file-dropzone__lightbox-fallback-hint">{t('No inline preview for this file type.')}</p>
     </div>
@@ -98,8 +99,8 @@ function renderStage({ t, file, kind, previews }: StageInput & { kind: FileDropz
 }
 
 /** Click-to-enlarge, kind-aware preview for one staged file — image, PDF embed, HTML mini-render, video/audio player, font specimen, or a text snippet, with a name/size fallback card for everything else. Rendered in the shared `Lightbox` (a top-layer native dialog, so no portal is needed). Ported from `DesignSystemAssetDropzone.tsx`'s lightbox. */
-export function FileDropzoneLightbox({ file, previews, onClose }: FileDropzoneLightboxProps) {
-  const t = useT();
+export function FileDropzoneLightbox({ file, previews, onClose, useTHook = useT }: FileDropzoneLightboxProps) {
+  const t = useTHook();
   const kind = fileDropzoneKind(file);
   return (
     <Lightbox
@@ -108,7 +109,7 @@ export function FileDropzoneLightbox({ file, previews, onClose }: FileDropzoneLi
       onClose={onClose}
       className="jini-file-dropzone__lightbox"
       labels={{ close: t('Close preview') }}
-      actions={<span className="jini-file-dropzone__lightbox-meta">{fileDropzoneSizeLabel(file.size)}</span>}
+      actions={<span className="jini-file-dropzone__lightbox-meta">{fileDropzoneSizeLabel({ bytes: file.size })}</span>}
     >
       <div className="jini-file-dropzone__lightbox-stage" data-kind={kind}>
         {renderStage({ t, file, kind, previews })}

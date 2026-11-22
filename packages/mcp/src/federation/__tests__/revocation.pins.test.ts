@@ -145,14 +145,14 @@ describe("createFederatedConnectionRevocationGate", () => {
 
 describe("revocationReasonForToolRefusal", () => {
   test("no tool refusal is no revocation", () => {
-    expect(revocationReasonForToolRefusal(null)).toBeNull();
+    expect(revocationReasonForToolRefusal({ refusal: null })).toBeNull();
   });
 
   test("a pre-G3 write refusal maps to write-not-allowed", () => {
-    expect(revocationReasonForToolRefusal("remote-declares-not-read-only")).toBe("write-not-allowed");
+    expect(revocationReasonForToolRefusal({ refusal: "remote-declares-not-read-only" })).toBe("write-not-allowed");
   });
 
   test("an allowlist refusal maps to tool-not-allowed", () => {
-    expect(revocationReasonForToolRefusal("not-in-operator-allowlist")).toBe("tool-not-allowed");
+    expect(revocationReasonForToolRefusal({ refusal: "not-in-operator-allowlist" })).toBe("tool-not-allowed");
   });
 });

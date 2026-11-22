@@ -1,4 +1,4 @@
-import { canonicalArgumentDigest } from "@jini-ai/core/records";
+import { canonicalArgumentDigest, type DigestCryptoPort } from "@jini-ai/core/records";
 import { submissionEvidenceSchema } from "../../core/form-schema.js";
 import type { FieldDescriptor } from "../../forms/types.js";
 import { createFormCollectionRegistry, resolveFormCollectionPlan, type FormCollectionRegistry } from "../../core/form-collection.js";
@@ -7,11 +7,11 @@ import type { FormDefinitionReadPort, FormDefinitionView } from "./ports.js";
 import type { WidgetResolveResult, WidgetResolver } from "../types.js";
 
 /**
- * @file `contact-form` widget resolver (SPEC-043 REQ-36..39, ADR-047 Debate Fold-In Amendment 4).
+ * @file `contact-form` widget resolver.
  *
  * Purpose:
  * A thin, READ-ONLY adapter over `src/forms/`'s definition read side. Imports ONLY the read-only
- * `FormDefinitionRepoPort` type, through `forms/index.ts` (ADR-009 §1's barrel; the type is
+ * `FormDefinitionRepoPort` type, through `forms/index.ts` (the barrel; the type is
  * declared in `forms/ports.ts`) — never the Forms library's own submission write path or its
  * outbox-driven mail-notification module — so this file can never persist a submission, send
  * mail, rate-limit, or duplicate any part of the Forms pipeline (INV-08, hard invariant; verified
@@ -30,6 +30,8 @@ export interface ContactFormResolverDeps {
   formCollectionProviders?: () => FormCollectionRegistry;
   /** Only explicit host consent-off policy enables immediate external embed delivery. */
   formEmbedConsentOff?: () => boolean;
+  /** Host WebCrypto port for the schema digest; core never reads a global. */
+  crypto: DigestCryptoPort;
 }
 
 export function createContactFormResolver(deps: ContactFormResolverDeps, _optional = {}): WidgetResolver {
@@ -39,7 +41,7 @@ export function createContactFormResolver(deps: ContactFormResolverDeps, _option
       const consentOff = deps.formEmbedConsentOff?.() === true;
       // Sequential: one instance's lookups finish before the next instance's lookups start.
       for (const instance of instances) {
-        results.set(instance.id, await resolveContactForm({ repo: deps.formDefinitionRepo, providers: deps.formCollectionProviders?.(), consentOff, config: instance.config, workspaceId: context.workspaceId }));
+        results.set(instance.id, await resolveContactForm({ repo: deps.formDefinitionRepo, providers: deps.formCollectionProviders?.(), consentOff, config: instance.config, workspaceId: context.workspaceId, crypto: deps.crypto }));
       }
       return results;
     },
@@ -53,7 +55,7 @@ function configString({ config, key }: { config: JsonObject; key: string }): str
 }
 
 /** Resolve one instance's config to its IR, or to the failure-isolation placeholder for it. */
-async function resolveContactForm({ repo, config, workspaceId, providers, consentOff }: { consentOff: boolean; providers: FormCollectionRegistry | undefined; repo: FormDefinitionReadPort; config: JsonObject; workspaceId: string }): Promise<WidgetResolveResult> {
+async function resolveContactForm({ repo, config, workspaceId, providers, consentOff, crypto }: { consentOff: boolean; crypto: DigestCryptoPort; providers: FormCollectionRegistry | undefined; repo: FormDefinitionReadPort; config: JsonObject; workspaceId: string }): Promise<WidgetResolveResult> {
   const formDefinitionId = configString({ config, key: "formDefinitionId" });
   const formDefinitionRef = configString({ config, key: "formDefinitionRef" });
   if (!formDefinitionId && !formDefinitionRef) return { ok: false, reason: "invalid-config" };
@@ -65,7 +67,7 @@ async function resolveContactForm({ repo, config, workspaceId, providers, consen
 
   return {
     ok: true,
-    ir: { componentId: "contact-form", props: await contactFormProps({ definition, successMessage: configString({ config, key: "successMessage" }) ?? null, providers, consentOff }) },
+    ir: { componentId: "contact-form", props: await contactFormProps({ definition, successMessage: configString({ config, key: "successMessage" }) ?? null, providers, consentOff, crypto }) },
     dependencyKeys: [definition.id],
   };
 }
@@ -81,22 +83,22 @@ async function findDefinition(
 
 /** The render component's current schema digest and props, derived from the already-loaded definition.
  * @complexity O(schema bytes + canonical key sorting) time/space; one local digest, no I/O. */
-async function contactFormProps({ definition, successMessage, providers, consentOff }: { consentOff: boolean; definition: FormDefinitionView; successMessage: string | null; providers: FormCollectionRegistry | undefined }): Promise<JsonObject> {
+async function contactFormProps({ definition, successMessage, providers, consentOff, crypto }: { consentOff: boolean; crypto: DigestCryptoPort; definition: FormDefinitionView; successMessage: string | null; providers: FormCollectionRegistry | undefined }): Promise<JsonObject> {
   const schema = submissionEvidenceSchema({ definition: { fields: definition.fields as FieldDescriptor[], ...(typeof definition.html === "string" ? { html: definition.html } : {}) } });
-  const schemaHash = await canonicalArgumentDigest({ args: schema });
+  const schemaHash = await canonicalArgumentDigest({ args: schema, crypto });
   const builtin = !definition.provider || definition.provider.id === "builtin";
   return {
     formDefinitionId: definition.id,
     ...(builtin ? { schemaHash } : {}),
     // Closes this file's own previously-disclosed deferral ("the actual submission still
     // posts to Forms' existing public route unmodified... that is a render-component/route
-    // concern, out of this resolver's scope") — the render component built for SPEC-043's
-    // routes/UI slice (`server/http/site/render.ts`'s `renderWidgetContactForm`) needs the
+    // concern, out of this resolver's scope") — the render component built for the
+    // routes/UI slice (the host app's `renderWidgetContactForm`) needs the
     // definition's `slug` to build `POST /forms/:slug/submit`'s URL (REQ-37's second half).
     slug: definition.slug,
     // REQ-37: Forms' own declared field vocabulary, passed through verbatim — never a
     // hardcoded field-type list. Cast: FieldDescriptor[] has no index signature of its
-    // own, but every field is plain JSON-serializable data (SPEC-010 forms/types.ts).
+    // own, but every field is plain JSON-serializable data (forms/types.ts).
     fields: definition.fields as unknown as JsonObject,
     ...(definition.mode === "html" ? {
       mode: "html", html: definition.html ?? "",

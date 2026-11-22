@@ -16,6 +16,6 @@ it("uses the shared rename service for normalization, Trash conflicts and owner-
   const result = await tool.handler(context(manager.principalId, target.principalId, " RENAMED "));
   expect(result).toEqual({ user: { principalId: target.principalId, username: "renamed", status: "active", roleIds: [], email: "kept@example.test" } });
   expect(h.audit).toHaveLength(1);
-  await expect(tool.handler({ ...context(manager.principalId, target.principalId, "again"), input: { principalId: target.principalId, username: "again", password: "forbidden-input" } })).rejects.toThrow();
+  await expect(tool.handler({ ...context(manager.principalId, target.principalId, "again"), input: { principalId: target.principalId, username: "again", password: "forbidden-input" } })).rejects.toThrow(`'password' is not a recognized input key. Fix the input and retry — this will not resolve on retry without an input change. Schema for 'identity_user_change_username': ${JSON.stringify(tool.descriptor.inputSchema)}`);
   expect(h.audit).toHaveLength(1);
 });

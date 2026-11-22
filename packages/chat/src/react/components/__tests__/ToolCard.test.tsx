@@ -37,14 +37,14 @@ describe('ToolCard', () => {
     expect(format).toHaveBeenCalledTimes(1);
     rerender(<ToolCard use={use} result={{ ...result, content: '{"value":2}' }} runSucceeded />);
     expect(format).toHaveBeenCalledTimes(2);
-    expect(container.querySelector('.op-card-reader-text')?.textContent).toContain('"value": 2');
+    expect(container.querySelector('.jini-op-card-reader-text')?.textContent).toContain('"value": 2');
   });
 
   it('refreshes the collapsed reader when input, empty-result error state, or missing-result run state changes', () => {
     const use = { kind: 'tool_use' as const, id: 'reader-state', name: 'CustomTool', input: { value: 1 } };
     const result = { kind: 'tool_result' as const, toolUseId: use.id, content: '', isError: false };
     const { container, rerender } = render(<ToolCard use={use} result={result} />);
-    const reader = () => container.querySelector('.op-card-reader-text')?.textContent;
+    const reader = () => container.querySelector('.jini-op-card-reader-text')?.textContent;
     expect(reader()).toContain('Finished with no output.');
     rerender(<ToolCard use={use} result={{ ...result, isError: true }} />);
     expect(reader()).toContain('Failed without an error message.');
@@ -98,12 +98,12 @@ describe('ToolCard', () => {
 
     it('prefers a human field from the args over an opaque id', () => {
       row({ id: UUID, kind: 'post', title: 'Spring menu' });
-      expect(document.querySelector('.op-meta')?.textContent).toBe('Spring menu');
+      expect(document.querySelector('.jini-op-meta')?.textContent).toBe('Spring menu');
     });
 
     it('takes the title from the result when the args carry only an id', () => {
       row({ id: UUID, kind: 'post', status: 'published' }, JSON.stringify({ post: { id: UUID, title: 'Spring menu', slug: 'spring-menu' } }));
-      expect(document.querySelector('.op-meta')?.textContent).toBe('Spring menu');
+      expect(document.querySelector('.jini-op-meta')?.textContent).toBe('Spring menu');
     });
 
     it.each([
@@ -119,12 +119,12 @@ describe('ToolCard', () => {
       { response: { status: 'error', name: 'NotFoundError' } },
     ])('never takes a target from an error-shaped result: %j', (content) => {
       row({ id: UUID, kind: 'post' }, JSON.stringify(content));
-      expect(document.querySelector('.op-target')?.textContent).toBe('post');
+      expect(document.querySelector('.jini-op-target')?.textContent).toBe('post');
     });
 
     it('ignores names in results marked as errors by the event envelope', () => {
       render(<ToolCard use={{ kind: 'tool_use', id: 'tr', name: 'content_post_update', input: { id: UUID, kind: 'post' } }} result={{ kind: 'tool_result', toolUseId: 'tr', content: '{"name":"NotFoundError"}', isError: true }} runSucceeded />);
-      expect(document.querySelector('.op-target')?.textContent).toBe('post');
+      expect(document.querySelector('.jini-op-target')?.textContent).toBe('post');
     });
 
     it('parses a result once across streaming rerenders, and refreshes when content or input changes', () => {
@@ -151,15 +151,15 @@ describe('ToolCard', () => {
           expect(rowParses).toBe(parsesOf(content) - beforeControl);
         }
         control.unmount();
-        expect(document.querySelector('.op-target')?.textContent).toBe('Spring menu');
+        expect(document.querySelector('.jini-op-target')?.textContent).toBe('Spring menu');
         const updated = JSON.stringify({ post: { title: 'Summer menu' } });
         rerender(<ToolCard use={use} result={{ ...result, content: updated }} runSucceeded />);
         expect(parsesOf(updated)).toBe(controlParses + 1);
-        expect(document.querySelector('.op-target')?.textContent).toBe('Summer menu');
+        expect(document.querySelector('.jini-op-target')?.textContent).toBe('Summer menu');
         rerender(<ToolCard use={{ ...use, input: { ...use.input, title: 'Argument title' } }} result={{ ...result, content: updated }} runSucceeded />);
-        expect(document.querySelector('.op-target')?.textContent).toBe('Argument title');
+        expect(document.querySelector('.jini-op-target')?.textContent).toBe('Argument title');
         rerender(<ToolCard use={use} result={{ ...result, content: updated, isError: true }} runSucceeded />);
-        expect(document.querySelector('.op-target')?.textContent).toBe('post');
+        expect(document.querySelector('.jini-op-target')?.textContent).toBe('post');
       } finally {
         parse.mockRestore();
       }
@@ -167,7 +167,7 @@ describe('ToolCard', () => {
 
     it('falls back to the kind, never a bare UUID', () => {
       row({ id: UUID, kind: 'post' }, 'Updated.');
-      expect(document.querySelector('.op-meta')?.textContent).toBe('post');
+      expect(document.querySelector('.jini-op-meta')?.textContent).toBe('post');
       row({ id: UUID });
       const heads = Array.from(document.querySelectorAll('.op-card-head'), (head) => head.textContent).join(' ');
       expect(heads).not.toContain(UUID.slice(0, 8));
@@ -176,7 +176,7 @@ describe('ToolCard', () => {
     it('puts the full name and target in tooltips', () => {
       row({ id: UUID, title: 'Spring menu' });
       expect(document.querySelector('.op-title')).toHaveAttribute('title', 'Content Post Update');
-      expect(document.querySelector('.op-meta')).toHaveAttribute('title', 'Spring menu');
+      expect(document.querySelector('.jini-op-meta')).toHaveAttribute('title', 'Spring menu');
     });
 
     // Owner bug 11-01 (ui-look-4): the visible "Tool call · " prefix took half a ~333px dock row, so
@@ -228,7 +228,7 @@ describe('ToolCard', () => {
         runSucceeded
       />,
     );
-    const img = container.querySelector('.op-media-image');
+    const img = container.querySelector('.jini-op-media-image');
     expect(img).toBeInTheDocument();
     const src = img!.getAttribute('src')!;
     expect(src).toBe(`data:image/png;base64,${REAL_PNG_BASE64}`);
@@ -247,7 +247,7 @@ describe('ToolCard', () => {
     );
     // This card's media sits inside its panel, which mounts only while the row is open.
     await userEvent.click(screen.getByRole('button'));
-    const img = container.querySelector('.op-media-image');
+    const img = container.querySelector('.jini-op-media-image');
     expect(img).toBeInTheDocument();
     const src = img!.getAttribute('src')!;
 
@@ -268,7 +268,7 @@ describe('ToolCard', () => {
       />,
     );
     await userEvent.click(screen.getByRole('button'));
-    const img = container.querySelector('.op-media-image');
+    const img = container.querySelector('.jini-op-media-image');
     const src = img!.getAttribute('src')!;
     // `ToolResultMedia` does not validate `mimeType` — it trusts the daemon's extraction, which only
     // requires a STRING (`@jini-ai/daemon`'s `tool-result-media.ts`'s `asImageBlock`:
@@ -324,14 +324,14 @@ describe('ToolCard', () => {
     const { container } = render(
       <ToolCard use={{ kind: 'tool_use', id: 't2f', name: 'CustomTool', input: {} }} result={{ kind: 'tool_result', toolUseId: 't2f', content: 'ok', isError: false, media: [{ type: 'text', text: 'note' }] }} runSucceeded />,
     );
-    expect(container.querySelector('.op-media')).not.toBeInTheDocument();
+    expect(container.querySelector('.jini-op-media')).not.toBeInTheDocument();
   });
 
   it('renders no media element at all for a result with none — every existing card stays visually unchanged', () => {
     const { container } = render(
       <ToolCard use={{ kind: 'tool_use', id: 't2d', name: 'CustomTool', input: {} }} result={{ kind: 'tool_result', toolUseId: 't2d', content: 'ok', isError: false }} runSucceeded />,
     );
-    expect(container.querySelector('.op-media')).not.toBeInTheDocument();
+    expect(container.querySelector('.jini-op-media')).not.toBeInTheDocument();
   });
 
   it('shows a spinner status while running with no result yet', () => {
@@ -352,14 +352,15 @@ describe('ToolCard', () => {
   });
 
   it('falls back to the built-in family card when a custom renderer throws', () => {
-    const err = new Error('boom');
+    const err = new Error('boom api_key=SECRETSECRETSECRETSECRET');
     registerToolRenderer({ name: 'Bash', renderer: () => {
       throw err;
     } });
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
     render(<ToolCard use={{ kind: 'tool_use', id: 't6', name: 'Bash', input: { command: 'x' } }} runSucceeded />);
     expect(screen.getByText('Bash')).toBeInTheDocument();
-    expect(spy).toHaveBeenCalledWith(expect.stringContaining('custom renderer for "Bash" threw'), err.stack);
+    expect(spy).toHaveBeenCalledWith(expect.stringContaining('custom renderer for "Bash" threw'), 'Error');
+    for (const leak of ['boom', 'SECRETSECRET', 'ToolCard.test']) expect(JSON.stringify(spy.mock.calls)).not.toContain(leak);
     spy.mockRestore();
   });
 
@@ -372,19 +373,19 @@ describe('ToolCard', () => {
         />,
       );
       expect(screen.getByText('Write')).toBeInTheDocument();
-      expect(document.querySelector('.op-meta')?.textContent).toBe('c.txt · 3 lines');
+      expect(document.querySelector('.jini-op-meta')?.textContent).toBe('c.txt · 3 lines');
       await userEvent.click(screen.getByRole('button'));
-      expect(document.querySelector('.op-path')?.textContent).toBe('/a/b/c.txt');
+      expect(document.querySelector('.jini-op-path')?.textContent).toBe('/a/b/c.txt');
     });
 
     it('falls back to filePath/path and omits line count when content is missing', () => {
       render(<ToolCard use={{ kind: 'tool_use', id: 'w2', name: 'write', input: { filePath: 'd.txt' } }} runSucceeded />);
-      expect(document.querySelector('.op-meta')?.textContent).toBe('d.txt');
+      expect(document.querySelector('.jini-op-meta')?.textContent).toBe('d.txt');
     });
 
     it('handles create_file alias, no file path at all, and shows the shimmer while streaming with no result', () => {
       render(<ToolCard use={{ kind: 'tool_use', id: 'w3', name: 'create_file', input: {} }} runStreaming />);
-      expect(document.querySelector('.op-meta')?.textContent).toBe('(unnamed)');
+      expect(document.querySelector('.jini-op-meta')?.textContent).toBe('(unnamed)');
       expect(document.querySelector('.shimmer-text')).not.toBeNull();
     });
 
@@ -439,12 +440,12 @@ describe('ToolCard', () => {
 
     it('defaults to an empty input object when input is null/undefined', () => {
       render(<ToolCard use={{ kind: 'tool_use', id: 'w7', name: 'Write', input: null }} runSucceeded />);
-      expect(document.querySelector('.op-meta')?.textContent).toBe('(unnamed)');
+      expect(document.querySelector('.jini-op-meta')?.textContent).toBe('(unnamed)');
     });
 
     it('falls back through the path field when file_path/filePath are absent', () => {
       render(<ToolCard use={{ kind: 'tool_use', id: 'w8', name: 'Write', input: { path: '/z/only-path.txt' } }} runSucceeded />);
-      expect(document.querySelector('.op-meta')?.textContent).toBe('only-path.txt');
+      expect(document.querySelector('.jini-op-meta')?.textContent).toBe('only-path.txt');
     });
 
     it('hides the open-in-tab button when file_path is an explicit empty string', () => {
@@ -485,12 +486,12 @@ describe('ToolCard', () => {
 
     it('defaults to an empty input object when input is null/undefined', () => {
       render(<ToolCard use={{ kind: 'tool_use', id: 'e3', name: 'Edit', input: undefined }} runSucceeded />);
-      expect(document.querySelector('.op-meta')?.textContent).toBe('(unnamed) · 1 change');
+      expect(document.querySelector('.jini-op-meta')?.textContent).toBe('(unnamed) · 1 change');
     });
 
     it('falls back through filePath when file_path/path are absent', () => {
       render(<ToolCard use={{ kind: 'tool_use', id: 'e4', name: 'Edit', input: { filePath: '/only/filePath.txt' } }} runSucceeded />);
-      expect(document.querySelector('.op-meta')?.textContent).toBe('filePath.txt · 1 change');
+      expect(document.querySelector('.jini-op-meta')?.textContent).toBe('filePath.txt · 1 change');
     });
   });
 
@@ -504,15 +505,15 @@ describe('ToolCard', () => {
 
     it('supports the read_file alias and the (unnamed) fallback', () => {
       render(<ToolCard use={{ kind: 'tool_use', id: 'r2', name: 'read_file', input: {} }} runSucceeded />);
-      expect(document.querySelector('.op-meta')?.textContent).toBe('(unnamed)');
+      expect(document.querySelector('.jini-op-meta')?.textContent).toBe('(unnamed)');
     });
 
     it('defaults to an empty input object when input is null, and falls back through filePath', () => {
       const { rerender } = render(<ToolCard use={{ kind: 'tool_use', id: 'r3', name: 'Read', input: null }} runSucceeded />);
-      expect(document.querySelector('.op-meta')?.textContent).toBe('(unnamed)');
+      expect(document.querySelector('.jini-op-meta')?.textContent).toBe('(unnamed)');
 
       rerender(<ToolCard use={{ kind: 'tool_use', id: 'r3', name: 'Read', input: { filePath: '/only/filePath.md' } }} runSucceeded />);
-      expect(document.querySelector('.op-meta')?.textContent).toBe('filePath.md');
+      expect(document.querySelector('.jini-op-meta')?.textContent).toBe('filePath.md');
     });
 
     it('shows the shimmer title while streaming with no result yet', () => {
@@ -525,7 +526,7 @@ describe('ToolCard', () => {
     it('defaults to an empty command and hides the description when absent', () => {
       render(<ToolCard use={{ kind: 'tool_use', id: 'b1', name: 'Bash', input: undefined }} runSucceeded />);
       expect(screen.getByText('Bash')).toBeInTheDocument();
-      expect(document.querySelector('.op-desc')).toBeNull();
+      expect(document.querySelector('.jini-op-desc')).toBeNull();
     });
 
     it('shows the description when provided', () => {
@@ -544,7 +545,7 @@ describe('ToolCard', () => {
       );
       expect(document.querySelectorAll('pre')).toHaveLength(0);
       await userEvent.click(screen.getByRole('button'));
-      const commandEl = document.querySelector('.op-command');
+      const commandEl = document.querySelector('.jini-op-command');
       const outputEl = document.querySelector('.op-output');
       expect(commandEl?.textContent).toBe(longCommand);
       expect(outputEl?.textContent).toBe(longOutput);
@@ -635,23 +636,23 @@ describe('ToolCard', () => {
     it('renders nothing extra when input is null/undefined', () => {
       render(<ToolCard use={{ kind: 'tool_use', id: 'gen1', name: 'Mystery', input: null }} runSucceeded />);
       expect(document.querySelector('.op-title')?.textContent).toBe('Mystery');
-      expect(document.querySelector('.op-meta')).toBeNull();
+      expect(document.querySelector('.jini-op-meta')).toBeNull();
     });
 
     it('uses a plain string input verbatim', () => {
       render(<ToolCard use={{ kind: 'tool_use', id: 'gen1b', name: 'Mystery', input: 'raw string input' }} runSucceeded />);
       // Scoped to the collapsed summary: the expandable detail shows the same input again in full.
-      expect(document.querySelector('.op-meta')?.textContent).toBe('raw string input');
+      expect(document.querySelector('.jini-op-meta')?.textContent).toBe('raw string input');
     });
 
     it('stringifies a non-object, non-string input', () => {
       render(<ToolCard use={{ kind: 'tool_use', id: 'gen2', name: 'Mystery', input: 42 }} runSucceeded />);
-      expect(document.querySelector('.op-meta')?.textContent).toBe('42');
+      expect(document.querySelector('.jini-op-meta')?.textContent).toBe('42');
     });
 
     it('falls back to the first string argument, never the JSON, when no known key matches', () => {
       render(<ToolCard use={{ kind: 'tool_use', id: 'gen3', name: 'Mystery', input: { foo: 'bar' } }} runSucceeded />);
-      expect(document.querySelector('.op-meta')?.textContent).toBe('bar');
+      expect(document.querySelector('.jini-op-meta')?.textContent).toBe('bar');
     });
 
     it('shows no summary for a circular object with no string argument', () => {
@@ -659,13 +660,13 @@ describe('ToolCard', () => {
       circular.self = circular;
       render(<ToolCard use={{ kind: 'tool_use', id: 'gen4', name: 'Mystery', input: circular }} runSucceeded />);
       expect(document.querySelector('.op-title')?.textContent).toBe('Mystery');
-      expect(document.querySelector('.op-meta')).toBeNull();
+      expect(document.querySelector('.jini-op-meta')).toBeNull();
     });
 
     it('truncates a long generic summary to 200 chars', () => {
       const longQuery = 'z'.repeat(250);
       render(<ToolCard use={{ kind: 'tool_use', id: 'gen5', name: 'Mystery', input: { query: longQuery } }} runSucceeded />);
-      const meta = document.querySelector('.op-meta');
+      const meta = document.querySelector('.jini-op-meta');
       expect(meta?.textContent).toHaveLength(200);
       expect(meta?.textContent?.endsWith('…')).toBe(true);
     });
@@ -705,31 +706,31 @@ describe('ToolCard', () => {
       const input = { id: '30127d31-2419-4e74-96e5-764442807909', kind: 'post', expectedVersion: 3, slug: 'ui-check-post', bodyJson: { type: 'doc' } };
       render(<ToolCard use={{ kind: 'tool_use', id: 'h1', name: 'content_post_update', input }} runSucceeded />);
       expect(document.querySelector('.op-title')?.textContent).toBe('Content Post Update');
-      expect(document.querySelector('.op-meta')?.textContent).toBe('ui-check-post');
+      expect(document.querySelector('.jini-op-meta')?.textContent).toBe('ui-check-post');
     });
 
     it('a question tool (assistant_ask_choice) shows its title, never {"title":…', () => {
       render(<ToolCard use={{ kind: 'tool_use', id: 'h2', name: 'assistant_ask_choice', input: { title: 'No hosting key yet', options: [{ id: 'a' }] } }} runSucceeded />);
       expect(document.querySelector('.op-title')?.textContent).toBe('Assistant Ask Choice');
-      expect(document.querySelector('.op-meta')?.textContent).toBe('No hosting key yet');
+      expect(document.querySelector('.jini-op-meta')?.textContent).toBe('No hosting key yet');
     });
 
     it('an MCP-prefixed name drops its mcp__server__ prefix in the title and the agent label', () => {
       const { container } = render(<ToolCard use={{ kind: 'tool_use', id: 'h3', name: 'mcp__tovu__theme_list_files', input: { themeId: 'basic-2' } }} runSucceeded />);
       expect(document.querySelector('.op-title')?.textContent).toBe('Theme List Files');
-      expect(document.querySelector('.op-meta')?.textContent).toBe('basic-2');
+      expect(document.querySelector('.jini-op-meta')?.textContent).toBe('basic-2');
       expect(container.querySelector('[data-agent-element="tool-call-h3"]')).toHaveAttribute('data-agent-label', 'A Theme List Files tool call the AI made');
     });
 
     it('args with no string value show no summary rather than JSON', () => {
       render(<ToolCard use={{ kind: 'tool_use', id: 'h4', name: 'content_stats', input: { limit: 5, nested: { a: 'b' } } }} runSucceeded />);
-      expect(document.querySelector('.op-meta')).toBeNull();
+      expect(document.querySelector('.jini-op-meta')).toBeNull();
     });
 
     it('the full JSON args are still available in the expanded detail', async () => {
       render(<ToolCard use={{ kind: 'tool_use', id: 'h5', name: 'content_post_update', input: { id: 'p1', expectedVersion: 2 } }} runSucceeded />);
       await userEvent.click(screen.getByRole('button'));
-      expect(document.querySelector('.op-command')?.textContent).toContain('expectedVersion');
+      expect(document.querySelector('.jini-op-command')?.textContent).toContain('expectedVersion');
     });
   });
 
@@ -743,9 +744,9 @@ describe('ToolCard', () => {
       );
       expect(screen.getByText(/Tool call/)).toBeInTheDocument();
       expect(screen.getByText('Page Fill', { exact: false })).toBeInTheDocument();
-      expect(document.querySelector('.op-meta')?.textContent).toBe('signup-name-input');
+      expect(document.querySelector('.jini-op-meta')?.textContent).toBe('signup-name-input');
       await userEvent.click(screen.getByRole('button'));
-      expect(document.querySelector('.op-command')?.textContent).toContain('signup-name-input');
+      expect(document.querySelector('.jini-op-command')?.textContent).toContain('signup-name-input');
     });
 
     it('humanizes a multi-segment tool id: daemon.db.vacuum -> Daemon Db Vacuum', () => {
@@ -841,22 +842,22 @@ describe('ToolCard', () => {
     it('renders a canonical tool call with no input at all, showing an empty argument object', async () => {
       render(<ToolCard use={{ kind: 'tool_use', id: 'd3', name: 'page.reload', input: null }} runSucceeded />);
       expect(screen.getByText('Page Reload', { exact: false })).toBeInTheDocument();
-      expect(document.querySelector('.op-meta')).toBeNull();
+      expect(document.querySelector('.jini-op-meta')).toBeNull();
       await userEvent.click(screen.getByRole('button'));
-      expect(document.querySelector('.op-command')?.textContent).toBe('{}');
+      expect(document.querySelector('.jini-op-command')?.textContent).toBe('{}');
     });
 
     it('shows a bare string input as the target, the same as every other tool row', () => {
       // One summary rule for every row (`argsSummary`): a bare string argument is what the call acted on.
       render(<ToolCard use={{ kind: 'tool_use', id: 'd4', name: 'page.snapshot', input: 'agent-lab' }} runSucceeded />);
-      expect(document.querySelector('.op-meta')?.textContent).toBe('agent-lab');
+      expect(document.querySelector('.jini-op-meta')?.textContent).toBe('agent-lab');
     });
 
     it('falls back to the first string-valued argument as the target when no conventional key is present', () => {
       // `page.*` tools name their target `element`/`page`/`handle`, but a host-registered tool need
       // not — showing *something* identifying beats a bare "Tool call" row.
       render(<ToolCard use={{ kind: 'tool_use', id: 'd5', name: 'forms.submit', input: { attempts: 2, form_name: 'signup' } }} runSucceeded />);
-      expect(document.querySelector('.op-meta')?.textContent).toBe('signup');
+      expect(document.querySelector('.jini-op-meta')?.textContent).toBe('signup');
     });
 
     it('humanizes a tool id containing a doubled underscore without crashing on the empty word', () => {
@@ -927,7 +928,7 @@ describe('ToolCard', () => {
       // must still render a titled row rather than crash or show an empty meta chip.
       render(<ToolCard use={{ kind: 'tool_use', id: 's7', name: 'search_tools', input: null }} runSucceeded />);
       expect(screen.getByText('Search tools')).toBeInTheDocument();
-      expect(document.querySelector('.op-meta')).toBeNull();
+      expect(document.querySelector('.jini-op-meta')).toBeNull();
     });
 
     it('opens the describe_tool accordion to reveal the returned tool schema', async () => {
@@ -961,7 +962,7 @@ describe('ToolCard', () => {
     it('renders describe_tool with no id and no input object at all', () => {
       render(<ToolCard use={{ kind: 'tool_use', id: 's11', name: 'describe_tool', input: null }} runSucceeded />);
       expect(screen.getByText('Describe tool')).toBeInTheDocument();
-      expect(document.querySelector('.op-meta')).toBeNull();
+      expect(document.querySelector('.jini-op-meta')).toBeNull();
     });
 
     it('surfaces a describe_tool error result as an error detail block, not a silent failure', async () => {
@@ -1006,7 +1007,7 @@ describe('ToolCard', () => {
       await userEvent.click(head);
       expect(head).toHaveAttribute('aria-expanded', 'true');
       expect(document.querySelector('.accordion-collapsible.open')).not.toBeNull();
-      expect(document.querySelector('.op-input')?.textContent).toBe(JSON.stringify(askInput, null, 2));
+      expect(document.querySelector('.jini-op-input')?.textContent).toBe(JSON.stringify(askInput, null, 2));
       expect(screen.getByText('Waiting for the result or answer…')).toBeInTheDocument();
     });
 
@@ -1051,7 +1052,7 @@ describe('ToolCard', () => {
       const head = screen.getByRole('button');
       await userEvent.click(head);
       expect(head).toHaveAttribute('aria-expanded', 'true');
-      expect(document.querySelector('.op-input')?.textContent).toBe(JSON.stringify(input, null, 2));
+      expect(document.querySelector('.jini-op-input')?.textContent).toBe(JSON.stringify(input, null, 2));
       expect(document.querySelector('.op-output')?.textContent).toBe('result body');
     });
 
@@ -1073,7 +1074,7 @@ describe('ToolCard', () => {
     it('shows the input a search_tools / describe_tool call sent, not only what came back', async () => {
       render(<ToolCard use={{ kind: 'tool_use', id: 'dt-in', name: 'describe_tool', input: { id: 'assistant_ask_choice' } }} runSucceeded />);
       await userEvent.click(screen.getByRole('button'));
-      expect(document.querySelector('.op-input')?.textContent).toBe(JSON.stringify({ id: 'assistant_ask_choice' }, null, 2));
+      expect(document.querySelector('.jini-op-input')?.textContent).toBe(JSON.stringify({ id: 'assistant_ask_choice' }, null, 2));
     });
 
     it.each([
@@ -1083,14 +1084,14 @@ describe('ToolCard', () => {
     ])('shows the full %s input beside the file path', async (name, input) => {
       render(<ToolCard use={{ kind: 'tool_use', id: `fi-${name}`, name: name, input: input }} result={{ kind: 'tool_result', toolUseId: `fi-${name}`, content: 'ok', isError: false }} runSucceeded />);
       await userEvent.click(screen.getByRole('button'));
-      expect(document.querySelector('.op-input')?.textContent).toBe(JSON.stringify(input, null, 2));
+      expect(document.querySelector('.jini-op-input')?.textContent).toBe(JSON.stringify(input, null, 2));
       expect(document.querySelector('.op-output')?.textContent).toBe('ok');
     });
 
     it('pretty-prints a delegated Jini tool call input', async () => {
       render(<ToolCard use={{ kind: 'tool_use', id: 'dg-in', name: 'page.fill', input: { element: 'name-input', value: 'Ada' } }} runSucceeded />);
       await userEvent.click(screen.getByRole('button'));
-      expect(document.querySelector('.op-input')?.textContent).toBe(JSON.stringify({ element: 'name-input', value: 'Ada' }, null, 2));
+      expect(document.querySelector('.jini-op-input')?.textContent).toBe(JSON.stringify({ element: 'name-input', value: 'Ada' }, null, 2));
     });
 
     it('keeps an error result readable inside the expanded row', async () => {
@@ -1109,10 +1110,10 @@ describe('ToolCard', () => {
       const key = 'sk-' + 'AbCdEf0123456789'.repeat(2);
       render(<ToolCard use={{ kind: 'tool_use', id: 'sec1', name: 'Mystery', input: { note: `use ${key}` } }} runSucceeded />);
       // The collapsed gist a page reader sees goes through the same redactor.
-      expect(document.querySelector('.op-card-reader-text')?.textContent).toContain('[token removed]');
-      expect(document.querySelector('.op-card-reader-text')?.textContent).not.toContain(key);
+      expect(document.querySelector('.jini-op-card-reader-text')?.textContent).toContain('[token removed]');
+      expect(document.querySelector('.jini-op-card-reader-text')?.textContent).not.toContain(key);
       await userEvent.click(screen.getByRole('button'));
-      const shown = document.querySelector('.op-input')?.textContent ?? '';
+      const shown = document.querySelector('.jini-op-input')?.textContent ?? '';
       expect(shown).not.toContain(key);
       expect(shown).toContain('[token removed]');
     });
@@ -1122,7 +1123,7 @@ describe('ToolCard', () => {
       circular.self = circular;
       render(<ToolCard use={{ kind: 'tool_use', id: 'circ1', name: 'Mystery', input: circular }} runSucceeded />);
       await userEvent.click(screen.getByRole('button'));
-      expect(document.querySelector('.op-input')).toBeNull();
+      expect(document.querySelector('.jini-op-input')).toBeNull();
       expect(screen.getByText('No result was recorded for this call.')).toBeInTheDocument();
     });
   });
@@ -1138,27 +1139,27 @@ describe('ToolCard', () => {
       const head = screen.getByRole('button');
       await userEvent.click(head);
       expect(document.querySelector('.op-output')?.textContent).toBe(longOutput);
-      expect(document.querySelector('.op-card-reader-text')).toBeNull();
+      expect(document.querySelector('.jini-op-card-reader-text')).toBeNull();
       await userEvent.click(head);
       expect(document.querySelectorAll('pre')).toHaveLength(0);
     });
 
     it('keeps the input and capped output readable through the tagged region\'s textContent', () => {
       const { container } = render(<ToolCard use={{ kind: 'tool_use', id: 'lz2', name: 'page.fill', input: { element: 'name-input' } }} result={{ kind: 'tool_result', toolUseId: 'lz2', content: longOutput, isError: false }} runSucceeded />);
-      const reader = container.querySelector('.op-card-reader-text');
+      const reader = container.querySelector('.jini-op-card-reader-text');
       expect(reader).not.toHaveAttribute('hidden');
-      expect(reader).toHaveClass('op-sr-prefix');
+      expect(reader).toHaveClass('jini-op-sr-prefix');
       expect(reader?.textContent).toBe(`${JSON.stringify({ element: 'name-input' }, null, 2)}\n${'x'.repeat(399)}…`);
       expect(container.querySelector('[data-agent-element="tool-call-lz2"]')?.textContent).toContain('name-input');
     });
 
     it('keeps the note explaining a missing result, and the output alone when the input has no JSON form', () => {
       const { container } = render(<ToolCard use={{ kind: 'tool_use', id: 'lz3', name: 'Mystery', input: null }} runStreaming />);
-      expect(container.querySelector('.op-card-reader-text')?.textContent).toBe('Waiting for the result or answer…');
+      expect(container.querySelector('.jini-op-card-reader-text')?.textContent).toBe('Waiting for the result or answer…');
       const circular: Record<string, unknown> = {};
       circular.self = circular;
       const { container: empty } = render(<ToolCard use={{ kind: 'tool_use', id: 'lz4', name: 'Mystery', input: circular }} result={{ kind: 'tool_result', toolUseId: 'lz4', content: 'ok', isError: false }} runSucceeded />);
-      expect(empty.querySelector('.op-card-reader-text')?.textContent).toBe('ok');
+      expect(empty.querySelector('.jini-op-card-reader-text')?.textContent).toBe('ok');
     });
   });
 });

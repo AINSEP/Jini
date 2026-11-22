@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useRef } from 'react';
 import { useT } from '../../../i18n/index.js';
 import type { CommandPaletteItem } from '../../types.js';
 import { useWiredCommandPalette } from '../hooks/useCommandPalette.js';
 import { CommandPaletteRow } from './CommandPaletteRow.js';
+import { useCommandPaletteView } from './CommandPalette.hooks.js';
 
 export interface CommandPaletteProps {
   items: readonly CommandPaletteItem[];
@@ -12,6 +12,8 @@ export interface CommandPaletteProps {
   placeholder?: string | undefined;
   /** Custom hook override for dependency injection / testing. */
   useWiredCommandPalette?: typeof useWiredCommandPalette;
+  useTHook?: typeof useT;
+  useCommandPaletteViewHook?: typeof useCommandPaletteView;
 }
 
 /**
@@ -23,7 +25,7 @@ export interface CommandPaletteProps {
  *
  * Origin: `QuickSwitcher.tsx` — the origin's `ProjectFile`/`WorkspaceContextItem`
  * split (files vs. tabs, two different shapes) is replaced by one generic
- * `CommandPaletteItem`; see `packages/ui/source-map.md` for the full
+ * `CommandPaletteItem`; see `archived UI source map` for the full
  * genericization writeup, including why this is a distinct primitive from
  * `features/mention-autocomplete/`.
  */
@@ -34,18 +36,12 @@ export function CommandPalette({
   scopeKey,
   placeholder,
   useWiredCommandPalette: useWiredCommandPaletteHook = useWiredCommandPalette,
+  useTHook = useT,
+  useCommandPaletteViewHook = useCommandPaletteView,
 }: CommandPaletteProps) {
-  const t = useT();
+  const t = useTHook();
   const palette = useWiredCommandPaletteHook({ items, onSelect, onClose, scopeKey });
-  const listRef = useRef<HTMLDivElement | null>(null);
-  const setInputRef = useCallback((node: HTMLInputElement | null) => {
-    node?.focus();
-  }, []);
-
-  useEffect(() => {
-    const el = listRef.current?.querySelector<HTMLDivElement>(`[data-idx="${palette.cursor}"]`);
-    el?.scrollIntoView({ block: 'nearest' });
-  }, [palette.cursor]);
+  const { listRef, setInputRef } = useCommandPaletteViewHook({ cursor: palette.cursor });
 
   const hasQuery = palette.query.trim().length > 0;
   const emptyLabel = hasQuery ? t('No matches') : t('No items');

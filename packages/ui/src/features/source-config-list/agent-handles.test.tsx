@@ -1,7 +1,7 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen } from '../../__tests__/ui-kit-render-support.js';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { AGENT_ELEMENT_ATTRIBUTE, isValidElementHandle } from '@jini-ai/agentic';
+import { AGENT_ELEMENT_ATTRIBUTE, isValidElementHandle } from '@jini-ai/core/agent-handles';
 import {
   sourceConfigActionHandle,
   sourceConfigAddFormHandle,
@@ -93,7 +93,7 @@ function listViewProps(overrides: Partial<Parameters<typeof SourceConfigListView
     testResults: {},
     addForm: {
       values,
-      validation: validateSourceDraft([URL_FIELD], values),
+      validation: validateSourceDraft({ fieldSpecs: [URL_FIELD], values }),
       submitAttempted: false,
       submitting: false,
       onFieldChange: vi.fn(),
@@ -111,11 +111,11 @@ function listViewProps(overrides: Partial<Parameters<typeof SourceConfigListView
 
 describe('handle derivation', () => {
   it('names an action directly under the base', () => {
-    expect(sourceConfigActionHandle('mcp-add', 'submit')).toBe('mcp-add-submit');
+    expect(sourceConfigActionHandle({ base: 'mcp-add', action: 'submit' })).toBe('mcp-add-submit');
   });
 
   it('kebab-cases a camelCase field key into the -field- namespace', () => {
-    expect(sourceConfigFieldHandle('mcp-add', 'oauthClientSecret')).toBe('mcp-add-field-oauth-client-secret');
+    expect(sourceConfigFieldHandle({ base: 'mcp-add', fieldKey: 'oauthClientSecret' })).toBe('mcp-add-field-oauth-client-secret');
   });
 
   it.each([
@@ -123,27 +123,27 @@ describe('handle derivation', () => {
     ['Base URL', 'mcp-add-field-base-url'],
     ['  spaced  ', 'mcp-add-field-spaced'],
   ])('sanitizes a host field key that is not already a valid handle (%s)', (key, expected) => {
-    expect(sourceConfigFieldHandle('mcp-add', key)).toBe(expected);
+    expect(sourceConfigFieldHandle({ base: 'mcp-add', fieldKey: key })).toBe(expected);
   });
 
   it('degrades a field key with nothing usable left in it to a resolvable handle rather than throwing', () => {
     // A throw here would take down the whole settings surface for one bad field spec.
-    expect(sourceConfigFieldHandle('mcp-add', '***')).toBe('mcp-add-field-unnamed');
+    expect(sourceConfigFieldHandle({ base: 'mcp-add', fieldKey: '***' })).toBe('mcp-add-field-unnamed');
   });
 
   it.each(['url', 'oauthClientSecret', 'api_key', 'Base URL', '***', 'Ünïcödé'])(
     'produces a handle the agentic layer will actually resolve, for key %s',
     (key) => {
-      expect(isValidElementHandle({ handle: sourceConfigFieldHandle('mcp-add', key) })).toBe(true);
+      expect(isValidElementHandle({ handle: sourceConfigFieldHandle({ base: 'mcp-add', fieldKey: key }) })).toBe(true);
     },
   );
 
   it('emits nothing at all when the host published no base handle', () => {
-    expect(sourceConfigAgentProps(undefined, { role: 'button', label: 'Save' })).toEqual({});
+    expect(sourceConfigAgentProps({ base: undefined, role: 'button', label: 'Save' })).toEqual({});
   });
 
   it('publishes the base itself when no action is named', () => {
-    expect(sourceConfigAgentProps('mcp-add', { role: 'form', label: 'Add server' })).toEqual({
+    expect(sourceConfigAgentProps({ base: 'mcp-add', role: 'form', label: 'Add server' })).toEqual({
       'data-agent-element': 'mcp-add',
       'data-agent-role': 'form',
       'data-agent-label': 'Add server',
@@ -151,7 +151,7 @@ describe('handle derivation', () => {
   });
 
   it('publishes base-plus-action when one is named', () => {
-    expect(sourceConfigAgentProps('mcp-add', { role: 'button', label: 'Add server', action: 'submit' })).toEqual({
+    expect(sourceConfigAgentProps({ base: 'mcp-add', role: 'button', label: 'Add server', action: 'submit' })).toEqual({
       'data-agent-element': 'mcp-add-submit',
       'data-agent-role': 'button',
       'data-agent-label': 'Add server',
@@ -159,17 +159,17 @@ describe('handle derivation', () => {
   });
 
   it('throws on a base handle the host got wrong, rather than answering to a name it never wrote', () => {
-    expect(() => sourceConfigAgentProps('Mcp Add', { role: 'form', label: 'Add server' })).toThrow(
+    expect(() => sourceConfigAgentProps({ base: 'Mcp Add', role: 'form', label: 'Add server' })).toThrow(
       'invalid element handle "Mcp Add": handles are lowercase words joined by single hyphens, and are never CSS selectors',
     );
   });
 
   it('derives the add form base from the list base', () => {
-    expect(sourceConfigAddFormHandle('mcp')).toBe('mcp-add');
+    expect(sourceConfigAddFormHandle({ listBase: 'mcp' })).toBe('mcp-add');
   });
 
   it("derives each item card's base from its own stable id, not its position", () => {
-    expect(sourceConfigItemHandles('mcp', ['higgsfield', 'github'])).toEqual([
+    expect(sourceConfigItemHandles({ listBase: 'mcp', sourceIds: ['higgsfield', 'github'] })).toEqual([
       'mcp-item-higgsfield',
       'mcp-item-github',
     ]);
@@ -178,12 +178,12 @@ describe('handle derivation', () => {
   it('never lets an item card base collide with the add form base', () => {
     // A source id of "add" is ordinary host data; the `-item-` namespace is what keeps it from
     // landing on the same handle as `sourceConfigAddFormHandle`'s own `<base>-add`.
-    expect(sourceConfigItemHandles('mcp', ['add'])).toEqual(['mcp-item-add']);
-    expect(sourceConfigItemHandles('mcp', ['add'])[0]).not.toBe(sourceConfigAddFormHandle('mcp'));
+    expect(sourceConfigItemHandles({ listBase: 'mcp', sourceIds: ['add'] })).toEqual(['mcp-item-add']);
+    expect(sourceConfigItemHandles({ listBase: 'mcp', sourceIds: ['add'] })[0]).not.toBe(sourceConfigAddFormHandle({ listBase: 'mcp' }));
   });
 
   it('keeps two ids that slugify identically apart, delegating dedup to @jini-ai/agentic', () => {
-    expect(sourceConfigItemHandles('mcp', ['My_Server', 'my.server'])).toEqual([
+    expect(sourceConfigItemHandles({ listBase: 'mcp', sourceIds: ['My_Server', 'my.server'] })).toEqual([
       'mcp-item-my-server',
       'mcp-item-my-server-2',
     ]);

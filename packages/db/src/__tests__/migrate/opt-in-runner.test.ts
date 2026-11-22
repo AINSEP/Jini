@@ -2,9 +2,10 @@ import assert from "node:assert/strict";
 import Database from "better-sqlite3";
 import { afterEach, describe, test } from "vitest";
 import { sql } from "kysely";
-import { listTables, UnsupportedCapabilityError } from "../../kernel/index.js";
+import { listTables, type KyselyKernel } from "../../kernel/index.js";
+import { UnsupportedCapabilityError, type MigrationStep } from "@jini-ai/core/contracts/storage";
 import { sqliteKernel } from "../../kernel/sqlite/index.js";
-import { migrate, runMigrations, type LegacyLedgerMapping, type MigrationStep } from "../../migrate/index.js";
+import { migrate, runMigrations, type LegacyLedgerMapping } from "../../migrate/index.js";
 
 const checksum = "a".repeat(64);
 const databases: Database.Database[] = [];
@@ -13,10 +14,10 @@ afterEach(() => { for (const db of databases.splice(0)) db.close(); });
 function fresh() {
   const database = new Database(":memory:");
   databases.push(database);
-  return { database, kernel: sqliteKernel<unknown>(database) };
+  return { database, kernel: sqliteKernel<unknown>({ source: database }) };
 }
 
-function step(id: string): MigrationStep {
+function step(id: string): MigrationStep<KyselyKernel<unknown>> {
   return { id, checksum, up: async (kernel) => { await kernel.execute(sql`CREATE TABLE ${sql.table(id)} (value text)`); } };
 }
 
@@ -35,14 +36,14 @@ function mapping(): LegacyLedgerMapping {
 
 describe("opt-in migration atomicity", () => {
   test("batch failure rolls back earlier DDL and the ledger while omission retains partial progress", async () => {
-    const failed: MigrationStep = { ...steps[1]!, up: async (kernel) => {
+    const failed: MigrationStep<KyselyKernel<unknown>> = { ...steps[1]!, up: async (kernel) => {
       await kernel.execute(sql`CREATE TABLE incomplete (value text)`);
       throw new Error("second step failed");
     } };
     for (const batch of [false, true]) {
       const { kernel } = fresh();
       await assert.rejects(migrate({ kernel, steps: [steps[0]!, failed], ledgerTable: "history" }, batch ? { atomicity: "batch" } : {}), /second step failed/);
-      assert.deepEqual(await listTables(kernel), batch ? [] : ["0001_first", "history"]);
+      assert.deepEqual(await listTables({ kernel }), batch ? [] : ["0001_first", "history"]);
       if (!batch) assert.deepEqual(await kernel.query(sql`select id from history`), [{ id: "0001_first" }]);
     }
   });
@@ -78,13 +79,13 @@ describe("opt-in migration atomicity", () => {
       kernel.backupTo = async () => { backups++; };
       await assert.rejects(migrate({ kernel, steps, ledgerTable: "history" }, { atomicity: "batch", backupPath: "/unused" }), (error) => error instanceof UnsupportedCapabilityError && error.capability === capability);
       assert.equal(backups, 0);
-      assert.deepEqual(await listTables(kernel), []);
+      assert.deepEqual(await listTables({ kernel }), []);
     }
     const { kernel } = fresh();
     let prepared = false;
     await assert.rejects(migrate({ kernel, steps: [{ ...steps[0]!, prepare: async () => { prepared = true; } }], ledgerTable: "history" }, { atomicity: "batch" }), /prepare hooks/);
     assert.equal(prepared, false);
-    assert.deepEqual(await listTables(kernel), []);
+    assert.deepEqual(await listTables({ kernel }), []);
     // Already-applied hooks are not part of the pending batch.
     await runMigrations(kernel, [steps[0]!], { ledgerTable: "history" });
     assert.deepEqual((await migrate({ kernel, steps: [{ ...steps[0]!, prepare: async () => { prepared = true; } }], ledgerTable: "history" }, { atomicity: "batch" })).applied, []);
@@ -99,7 +100,7 @@ describe("opt-in migration atomicity", () => {
     database.exec("BEGIN");
     await assert.rejects(run(), /cannot join/);
     database.exec("ROLLBACK");
-    assert.deepEqual(await listTables(kernel), []);
+    assert.deepEqual(await listTables({ kernel }), []);
   });
 });
 
@@ -143,14 +144,14 @@ describe("ordered-prefix history and migration clock", () => {
         await kernel.execute(sql`INSERT INTO history VALUES ('0003_third', ${checksum}, 'concurrent')`);
       };
       await assert.rejects(migrate({ kernel, steps, ledgerTable: "history" }, { atomicity, historyCheck: "ordered-prefix" }), /ordered prefix/);
-      assert.deepEqual(await listTables(kernel), ["0001_first", "history"]);
+      assert.deepEqual(await listTables({ kernel }), ["0001_first", "history"]);
     }
   });
 
   test("invalid clock output rolls back the step and its ledger insert", async () => {
     const { kernel } = fresh();
     await assert.rejects(migrate({ kernel, steps: steps.slice(0, 1), ledgerTable: "history" }, { clock: { nowMs: () => NaN } }), /Invalid time value/);
-    assert.deepEqual(await listTables(kernel), []);
+    assert.deepEqual(await listTables({ kernel }), []);
   });
 });
 
@@ -206,13 +207,13 @@ describe("explicit legacy ledger mapping", () => {
       const legacyLedger = mapping();
       change(legacyLedger);
       await assert.rejects(migrate({ kernel, steps, ledgerTable: "history" }, { legacyLedger }));
-      assert.deepEqual(await listTables(kernel), []);
+      assert.deepEqual(await listTables({ kernel }), []);
     }
     const { kernel } = fresh();
     let samples = 0;
     await assert.rejects(migrate({ kernel, steps, ledgerTable: "history" }, { legacyLedger: mapping(), clock: { nowMs: () => samples++ } }), /requires ISO/);
     assert.equal(samples, 0);
-    assert.deepEqual(await listTables(kernel), []);
+    assert.deepEqual(await listTables({ kernel }), []);
   });
 
   test("rejects persisted name or checksum drift before applying pending work", async () => {
@@ -224,7 +225,7 @@ describe("explicit legacy ledger mapping", () => {
       const mapped = mapping();
       const legacyLedger = { ...mapped, identities: { ...mapped.identities, "0004_later": { version: 12, name: "records-12" } } };
       await assert.rejects(migrate({ kernel, steps: [...steps, later], ledgerTable: "history" }, { legacyLedger }), column === "name" ? /name drift/ : /checksum/);
-      assert.ok(!(await listTables(kernel)).includes("0004_later"));
+      assert.ok(!(await listTables({ kernel })).includes("0004_later"));
     }
   });
 });

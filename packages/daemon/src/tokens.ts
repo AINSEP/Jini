@@ -5,7 +5,7 @@
  * `EventLog`, and `ToolExecutor` are themselves kernel nouns (§2.1), so
  * their tokens are defined here, alongside the services, rather than in
  * `@jini-ai/core` itself. A pack composes against them the same way
- * `packages/core/src/index.test.ts` demonstrates for its own example tokens.
+ * `packages/core/src/__tests__/index.test.ts` demonstrates for its own example tokens.
  *
  * `ArtifactStoreToken` used to live here too — moved to `@jini-ai/artifacts`'s own
  * `tokens.ts` on 2026-07-19 (see that file's doc comment) after the swarm-consensus
@@ -14,7 +14,7 @@
 import { token } from '@jini-ai/core';
 import type { EventLog } from './event-log.js';
 import type { RunLifecycle } from './run-lifecycle.js';
-import type { ToolExecutor } from './tool-executor.js';
+import type { ToolExecutor } from "./tool-executor-types.js";
 import type { AgentExecutor } from './agent-executor.js';
 
 export const RunLifecycleToken = token<RunLifecycle>({ id: 'jini.runLifecycle' });

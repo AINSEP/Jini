@@ -1,7 +1,11 @@
 import { configDefaults, defineConfig } from 'vitest/config';
+import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 
 export default defineConfig({
+  // Packages without their own config (plugins, ...) land here. Their host tests build plugin entries under
+  // os.tmpdir() and import them. Vite 6 applies server.fs.allow to Vitest's module loads, so allow that root.
+  server: { fs: { allow: [fileURLToPath(new URL('.', import.meta.url)), tmpdir()] } },
   // Run the new shared loader from source; production exports are emitted by the normal build.
   resolve: { alias: { '@jini-ai/core/optional-peer': fileURLToPath(new URL('./packages/core/src/optional-peer.ts', import.meta.url)) } },
   test: {
@@ -11,6 +15,7 @@ export default defineConfig({
       'scripts/__tests__/check-hardwiring.test.ts',
       'scripts/__tests__/integration/infra-retirement.integration.test.ts',
       'scripts/__tests__/sync-software-engineering.test.mjs',
+      'scripts/__tests__/check-hook-injection.test.mjs',
       // Agent plugin content suites are node:test files; test:agent-plugins:content runs them.
       'packages/agent-plugins/**/__tests__/**/*.mjs',
     ],

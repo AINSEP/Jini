@@ -49,7 +49,7 @@ export {
   type DefinitionInput,
   validateDefinitionInput,
   validateValueAgainstSchema,
-  registerCoercer,
+  type SettingCoercer,
   invalidateDefinitionNamespaceCache,
   invalidateWorkspaceSettingsCache,
   resolveDefinitionRaw,
@@ -58,30 +58,13 @@ export {
   getEffective,
 } from "./settings.js";
 
-export {
-  type AuthorizeFn,
-  type SettingsWriteServiceDeps,
-  deriveRequiredPermission,
-  type RegisterDefinitionsRequired,
-  registerDefinitions,
-  type SetValueRequired,
-  type SettingsValueWriteOptions,
-  set,
-  type ClearValueRequired,
-  clear,
-  type ResetNamespaceRequired,
-  resetNamespace,
-  type RenameDefinitionRequired,
-  renameDefinition,
-  type RetypeDefinitionRequired,
-  retypeDefinition,
-  type ReconcileDefinitionDefaultRequired,
-  reconcileDefinitionDefault,
-  type DeprecateDefinitionRequired,
-  deprecateDefinition,
-  type TombstoneDefinitionRequired,
-  tombstoneDefinition,
-} from "./write-service.js";
+export { type AuthorizeFn, type SettingsWriteServiceDeps, deriveRequiredPermission, type RegisterDefinitionsRequired, registerDefinitions } from "./write-service.js";
+export { type SetValueRequired, set, type ClearValueRequired, clear } from "./write-values.js";
+export { type SettingsValueWriteOptions } from "./write-value-revisions.js";
+export { type ResetNamespaceRequired, resetNamespace } from "./write-reset.js";
+export { type RenameDefinitionRequired, renameDefinition } from "./write-definition-rename.js";
+export { type RetypeDefinitionRequired, retypeDefinition } from "./write-definition-retype.js";
+export { type ReconcileDefinitionDefaultRequired, reconcileDefinitionDefault, type DeprecateDefinitionRequired, deprecateDefinition, type TombstoneDefinitionRequired, tombstoneDefinition } from "./write-definition-status.js";
 
 export {
   type PurgeServiceDeps,
@@ -156,3 +139,10 @@ export { AGENT_WRITE_CONFIRMATION_SETTINGS, AGENT_WRITE_DENIED_SETTINGS, findAge
 export type { SettingsWriteConfirmation, SettingsValueWriteToolId } from "./agent-value-write-tools.js";
 
 export type { SettingsPrincipalLookupPort } from "./principal-lookup.js";
+
+export type {
+  Authorize, SettingsPermissions, SettingsService, SettingsChangeFeed,
+  EffectiveSettingRow, RawSetting, DefinitionResult, TargetWorkspaceResolution, UserLayerReadTarget,
+} from "./route-policy.js";
+export { resolveTargetWorkspaceId, resolveUserLayerReadTarget, settingsWritePermission } from "./route-policy.js";
+export { createCmsSettingsService, createCmsSettingsChangeFeed } from "./cms-adapter.js";

@@ -1,7 +1,11 @@
 import { createAgentModelDiscovery } from '../model-discovery-native.js';
 import path from 'node:path';
 import { DEFAULT_MODEL_OPTION, execAgentFile, parsePiModels } from './shared.js';
-import type { RuntimeAgentDef, RuntimeBuildOptions, RuntimeModelOption } from '../types.js';
+import type {
+  RuntimeAgentDef,
+  RuntimeBuildOptions,
+  RuntimeModelOption,
+} from '@jini-ai/core/contracts/agents';
 
 function modelArgs({ options }: { options: RuntimeBuildOptions }): string[] {
   // pi --model accepts patterns ("sonnet", "anthropic/claude-sonnet-4-5",

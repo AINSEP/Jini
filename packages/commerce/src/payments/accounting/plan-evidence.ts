@@ -29,7 +29,7 @@ import {
   type IntentStatus,
   type RefundStatus,
 } from "../state/status.js";
-import type { LedgerOutboxTopic } from "../ledger/rows.js";
+import type { LedgerOutboxTopic } from "../ledger/row-records.js";
 
 /** The ledger's view of one payment, as the planner needs it. */
 export interface PaymentState {

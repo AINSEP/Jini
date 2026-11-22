@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/diagnostics",
-  "version": "0.7.2",
+  "version": "0.7.3-next.2",
   "description": "Diagnostics-bundle tooling: JSON/text secret redaction, log-source collection, manifest building, and zip packaging for support exports.",
   "license": "Apache-2.0",
   "repository": {
@@ -18,9 +18,18 @@
       "./observability/node": "node",
       "./web-evidence": "universal",
       "./web-evidence/playwright": "node",
-      "./domain-dns": "node"
+      "./web-evidence/page-body": "node",
+      "./web-evidence/testing": "universal",
+      "./web-evidence/capture-budget": "universal",
+      "./web-evidence/capture-clock": "universal",
+      "./domain-dns": "node",
+      "./local-text": "node",
+      "./console-tee": "node"
     },
-    "runtime": "node"
+    "runtime": "node",
+    "optionalPeers": {
+      "parse5": "opt-in: page body projection; import @jini-ai/diagnostics/web-evidence/page-body — The page body projection could not load parse5. Install parse5@7.3.0 to enable this feature, or check its installed version."
+    }
   },
   "type": "module",
   "sideEffects": false,
@@ -57,10 +66,40 @@
       "import": "./dist/web-evidence/playwright-browser.js",
       "default": "./dist/web-evidence/playwright-browser.js"
     },
+    "./web-evidence/page-body": {
+      "types": "./dist/web-evidence/page-body.d.ts",
+      "import": "./dist/web-evidence/page-body.js",
+      "default": "./dist/web-evidence/page-body.js"
+    },
+    "./web-evidence/testing": {
+      "types": "./dist/web-evidence/testing/fake-clock.d.ts",
+      "import": "./dist/web-evidence/testing/fake-clock.js",
+      "default": "./dist/web-evidence/testing/fake-clock.js"
+    },
+    "./web-evidence/capture-budget": {
+      "types": "./dist/web-evidence/capture-budget.d.ts",
+      "import": "./dist/web-evidence/capture-budget.js",
+      "default": "./dist/web-evidence/capture-budget.js"
+    },
+    "./web-evidence/capture-clock": {
+      "types": "./dist/web-evidence/capture-clock.d.ts",
+      "import": "./dist/web-evidence/capture-clock.js",
+      "default": "./dist/web-evidence/capture-clock.js"
+    },
     "./domain-dns": {
       "types": "./dist/domain-dns/index.d.ts",
       "import": "./dist/domain-dns/index.js",
       "default": "./dist/domain-dns/index.js"
+    },
+    "./local-text": {
+      "types": "./dist/local-text.d.ts",
+      "import": "./dist/local-text.js",
+      "default": "./dist/local-text.js"
+    },
+    "./console-tee": {
+      "types": "./dist/console-tee.d.ts",
+      "import": "./dist/console-tee.js",
+      "default": "./dist/console-tee.js"
     }
   },
   "files": [
@@ -87,13 +126,22 @@
   },
   "devDependencies": {
     "@jini-ai/analytics": "workspace:^",
-    "@vitest/coverage-v8": "^2.1.9",
     "@jini-ai/core": "workspace:^",
-    "jszip": "^3.10.1"
+    "@vitest/coverage-v8": "^3.2.6",
+    "jszip": "^3.10.1",
+    "parse5": "7.3.0"
   },
   "dependencies": {
     "@jini-ai/core": "workspace:^",
     "js-tokens": "^9.0.1",
     "jszip": "^3.10.1"
+  },
+  "peerDependencies": {
+    "parse5": "7.3.0"
+  },
+  "peerDependenciesMeta": {
+    "parse5": {
+      "optional": true
+    }
   }
 }

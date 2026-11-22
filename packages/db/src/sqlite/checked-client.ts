@@ -1,4 +1,4 @@
-import type { SqliteClient, SqliteStatement } from "./types.js";
+import type { SqliteClient, SqliteStatement } from "@jini-ai/core/contracts/storage";
 import { assertCheckedAvailable, checkedClients, checkedStates, rawKernelClients, SqliteClientError, type CheckedState } from "./checked-state.js";
 import { AsyncLocalStorage } from "node:async_hooks";
 

@@ -57,6 +57,19 @@ export interface OutboxRetryPolicy {
   backoffMs(required: { attempts: number; random: () => number; error: unknown }): number;
   /** `false` makes this failure terminal at once; absent means every failure is retryable. */
   retryable?(required: { error: unknown }): boolean;
+  /** The values this event's failures may store in `lastError`; absent means the class label only. */
+  readonly failureCodes?: OutboxFailureCodes;
+}
+/**
+ * A closed list of failure codes for one event. `lastError` is a persisted field a status view
+ * reads back, so the worker stores `codeOf(...)` only when the result is in `codes`: a code is
+ * approved by listing, never by shape, because a thrown value's own `code` is caller text and could
+ * be a secret. Anything else (no result, a result not on the list, a throw, which is reported) stores
+ * the class label, exactly as an event with no list does.
+ */
+export interface OutboxFailureCodes {
+  readonly codes: readonly string[];
+  codeOf(required: { error: unknown }): string | undefined;
 }
 /** The only per-event retry seam: return a policy for events that need one, `undefined` otherwise. */
 export type OutboxRetryPolicyResolver = (required: { event: EventEnvelope }) => OutboxRetryPolicy | undefined;

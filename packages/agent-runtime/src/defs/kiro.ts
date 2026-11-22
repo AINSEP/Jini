@@ -1,23 +1,15 @@
 import { createAgentModelDiscovery } from '../model-discovery-native.js';
-import { detectAcpModels, DEFAULT_MODEL_OPTION } from './shared.js';
-import type { RuntimeAgentDef } from '../types.js';
+import { acpModelFetcher, DEFAULT_MODEL_OPTION } from './shared.js';
+import type { RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 
 export const kiroAgentDef = {
   // UNVERIFIED live integration locally; source/category and limits are documented in model-discovery-adapters.ts.
-  ...createAgentModelDiscovery('kiro', { fallbackModels: (): readonly import('../types.js').RuntimeModelOption[] => kiroAgentDef.fallbackModels }),
+  ...createAgentModelDiscovery('kiro', { fallbackModels: (): readonly import('@jini-ai/core/contracts/agents').RuntimeModelOption[] => kiroAgentDef.fallbackModels }),
     id: 'kiro',
     name: 'Kiro CLI',
     bin: 'kiro-cli',
     versionArgs: ['--version'],
-    fetchModels: async ({ resolvedBin, env }, { acpModelProbe } = {}) =>
-      (({ bin, args, ...optionalArgs }: Parameters<typeof detectAcpModels>[0] & NonNullable<Parameters<typeof detectAcpModels>[1]>) => detectAcpModels({ bin, args }, optionalArgs))({
-        ...(acpModelProbe ? { probe: acpModelProbe } : {}),
-        bin: resolvedBin,
-        args: ['acp'],
-        env,
-        timeoutMs: 15_000,
-        defaultModelOption: DEFAULT_MODEL_OPTION,
-      }),
+    fetchModels: acpModelFetcher({ args: ['acp'] }),
     fallbackModels: [DEFAULT_MODEL_OPTION],
     buildArgs: () => ['acp'],
     streamFormat: 'acp-json-rpc',

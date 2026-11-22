@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { act, cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, render, screen } from '../../../__tests__/ui-kit-render-support.js';
 import { afterEach, expect, it, vi } from 'vitest';
 import userEvent from '@testing-library/user-event';
 import { createDomPageDriver } from '@jini-ai/agentic/dom';
@@ -136,7 +136,7 @@ it.each(['custom', 'shadcn', 'searchable'] as const)('keeps %s select privacy on
   expect(menu).toHaveAttribute('data-agent-page', 'profile');
   expect(await driver.findElements({}, {})).toEqual([]);
   if (kind === 'custom') {
-    await expect(driver.click({ handle: 'nested-action' })).rejects.toThrow();
+    await expect(driver.click({ handle: 'nested-action' })).rejects.toThrow('no element published as "nested-action" on this page');
     expect(nestedAction).not.toHaveBeenCalled();
   }
   if (kind === 'searchable') {

@@ -16,13 +16,13 @@ describe('html-viewer barrel (index.ts)', () => {
   });
 
   it('re-exports the pure rule functions', () => {
-    expect(htmlViewer.canGoPrev({ active: 1, count: 3 })).toBe(true);
-    expect(htmlViewer.canGoNext({ active: 1, count: 3 })).toBe(true);
-    expect(htmlViewer.clampSlideIndex(9, 3)).toBe(2);
-    expect(htmlViewer.isKnownZoomLevel(100, [100])).toBe(true);
-    expect(htmlViewer.parseDeckStateMessage({ active: 0, count: 1 })).toEqual({ active: 0, count: 1 });
-    expect(htmlViewer.slideCounterLabel({ active: 0, count: 1 })).toBe('1 / 1');
-    expect(htmlViewer.zoomToScale(200)).toBe(2);
+    expect(htmlViewer.canGoPrev({ state: { active: 1, count: 3 } })).toBe(true);
+    expect(htmlViewer.canGoNext({ state: { active: 1, count: 3 } })).toBe(true);
+    expect(htmlViewer.clampSlideIndex({ index: 9, count: 3 })).toBe(2);
+    expect(htmlViewer.isKnownZoomLevel({ zoom: 100, levels: [100] })).toBe(true);
+    expect(htmlViewer.parseDeckStateMessage({ data: { active: 0, count: 1 } })).toEqual({ active: 0, count: 1 });
+    expect(htmlViewer.slideCounterLabel({ state: { active: 0, count: 1 } })).toBe('1 / 1');
+    expect(htmlViewer.zoomToScale({ zoom: 200 })).toBe(2);
   });
 
   it('re-exports the dependency factories and hooks/components as functions', () => {

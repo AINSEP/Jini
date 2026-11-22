@@ -33,7 +33,7 @@ function openTwo() {
 test("concurrent transactions on two connections to one file both commit", async () => {
   const { a, b } = openTwo();
   const insert = (v: string) => sql`INSERT INTO probe (v) VALUES (${v})`;
-  const [ka, kb] = [sqliteKernel(a), sqliteKernel(b)];
+  const [ka, kb] = [sqliteKernel({ source: a }), sqliteKernel({ source: b })];
 
   await Promise.all([
     ka.transaction(async () => {
@@ -52,7 +52,7 @@ test("concurrent transactions on two connections to one file both commit", async
 
 test("a transaction that reaches for a second connection to the same file fails fast instead of waiting on itself", async () => {
   const { a, b } = openTwo();
-  const [ka, kb] = [sqliteKernel(a), sqliteKernel(b)];
+  const [ka, kb] = [sqliteKernel({ source: a }), sqliteKernel({ source: b })];
 
   await assert.rejects(
     ka.transaction(() => kb.transaction(async () => {})),

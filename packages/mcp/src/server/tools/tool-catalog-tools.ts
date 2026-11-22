@@ -15,7 +15,8 @@
 import { getDaemonJson } from '../daemon-client.js';
 import { isRecord } from '../tool-arguments.js';
 import type { ToolDescriptor } from '@jini-ai/core';
-import { daemonCallOptions, requireString, type McpToolDef } from '../tool-protocol.js';
+import { toolCallText } from '@jini-ai/core/tool-call-text';
+import { daemonCallOptions, requireString, type McpToolContext, type McpToolDef } from '../tool-protocol.js';
 
 const READ_ANNOTATIONS = {
   readOnlyHint: true,
@@ -49,7 +50,7 @@ interface ToolCatalogSearchResponse {
   }>;
 }
 
-/** `search_tools` -> `GET /api/tools/search` (`packages/http/src/tool-catalog.ts`'s `toolCatalogSearchRoute`). */
+/** `search_tools` -> `GET /api/tools/search` (`packages/daemon/src/http/tool-catalog.ts`'s `toolCatalogSearchRoute`). */
 export const searchToolsTool: McpToolDef = {
   name: 'search_tools',
   description:
@@ -77,7 +78,7 @@ export const searchToolsTool: McpToolDef = {
         description:
           'Describe what the tool you need DOES, the way its own documentation would describe it — a full phrase, not a keyword bag. Name the thing being acted on and the action, and include likely synonyms for both. Example: for a request like "how many people visited last week", write "retrieve site traffic and visitor analytics counts for a date range" rather than "visitors last week". Descriptive phrasing retrieves substantially better than terse keywords, because the catalog is matched on tool descriptions. Required.',
       },
-      // Bounds mirror `packages/http-kit/src/tool-catalog.ts`'s `parseSearchInput`
+      // Bounds mirror `packages/daemon/src/http/tool-catalog.ts`'s `parseSearchInput`
       // exactly (`MAX_SEARCH_LIMIT = 25`, `DEFAULT_SEARCH_LIMIT = 10`, integers only,
       // `>= 1`). Declared rather than left as a bare `number` so MCP validation and the
       // route agree: otherwise `0`/`1.5` pass here and are refused downstream, and `26`
@@ -95,6 +96,7 @@ export const searchToolsTool: McpToolDef = {
         type: 'integer',
         minimum: 1,
         maximum: 25,
+        clamp: true,
         description:
           'Max hits to return (1-25). Optional, defaults to 10. If none of the returned candidates fit what you need, search again with a HIGHER limit (try 25) or different phrasing before concluding no tool exists — a matching tool may rank below the default cutoff.',
       },
@@ -102,6 +104,7 @@ export const searchToolsTool: McpToolDef = {
         type: 'integer',
         minimum: 1,
         maximum: 25,
+        clamp: true,
         description: 'Alias of limit (1-25). Supply only one value when using both names.',
       },
     },
@@ -109,7 +112,7 @@ export const searchToolsTool: McpToolDef = {
     additionalProperties: false,
   },
   // Models also use this conventional search argument; normalize only the declared alias.
-  argumentNormalization: { aliases: { max_results: 'limit' } },
+  argumentNormalization: { aliases: { max_results: 'limit' }, clamp: true },
   annotations: { ...READ_ANNOTATIONS, title: 'Search the tool catalog' },
   handler: async ({ args, ctx }) => {
     const query = requireString({ value: args.query, name: 'query' });
@@ -120,11 +123,32 @@ export const searchToolsTool: McpToolDef = {
   },
 };
 
-/** `describe_tool` -> `GET /api/tools/:id` (`packages/http/src/tool-catalog.ts`'s `toolCatalogDescribeRoute`). */
+/**
+ * How the model calls a described tool, by the name this server actually offers: a published tool by its wire
+ * name (`direct`), any other tool through the gateway with its registry id (`gateway`, also when the publication
+ * was skipped because the tool list or schema budget is full), and a schema-less group not at all (`none`).
+ * Publishing happens here, so the answer is what `tools/list` shows, never a guess.
+ *
+ * @returns `{ callAs, call }`, or `{ callAs: 'none' }` for a descriptor without an input schema.
+ * @throws Whatever `publishTool` throws (a malformed schema), before any call text is built.
+ * @complexity O(1) plus one `publishTool` call; no daemon I/O.
+ */
+async function callInstructions({ descriptor, ctx }: { descriptor: ToolDescriptor; ctx: McpToolContext }): Promise<{ callAs: 'direct' | 'gateway' | 'none'; call?: string }> {
+  // A family can describe its members without owning an executable input contract.
+  if (descriptor.inputSchema == null) return { callAs: 'none' };
+  const readOnly = descriptor.readOnly === true;
+  const publication = ctx.publishTool === undefined ? undefined : await ctx.publishTool({ descriptor });
+  if (publication !== undefined && 'wireName' in publication) {
+    return { callAs: 'direct', call: toolCallText({ toolId: descriptor.id }, { wireName: publication.wireName }) };
+  }
+  return { callAs: 'gateway', call: toolCallText({ toolId: descriptor.id }, { readOnly }) };
+}
+
+/** `describe_tool` -> `GET /api/tools/:id` (`packages/daemon/src/http/tool-catalog.ts`'s `toolCatalogDescribeRoute`). */
 export const describeToolTool: McpToolDef = {
   name: 'describe_tool',
   description:
-    'Get the full descriptor for one tool id found via search_tools — description, input schema, readOnly and sideEffects. Schema-less descriptors are information only. When dynamic publication is enabled, descriptors with an input schema also expose that operation as a concrete tool in tools/list; call it with its own arguments. Legacy fallback: use execute_readonly_delegated_tool only when readOnly is true. Supply id (aliases: toolId or name). Paid for only on the candidates that survive search, per the tool catalog\'s staged-discovery design.',
+    'Get the full descriptor for one tool id found via search_tools — description, input schema, readOnly and sideEffects. Schema-less descriptors are information only. The result\'s callAs and call fields say exactly how to call it. Legacy fallback: use execute_readonly_delegated_tool only when readOnly is true. Supply id (aliases: toolId or name). Paid for only on the candidates that survive search, per the tool catalog\'s staged-discovery design.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -140,12 +164,11 @@ export const describeToolTool: McpToolDef = {
   handler: async ({ args, ctx }) => {
     const id = requireString({ value: args.id, name: 'id' });
     const data = await getDaemonJson({ baseUrl: ctx.baseUrl, route: `/api/tools/${encodeURIComponent(id)}` }, daemonCallOptions({ ctx }));
-    if (ctx.publishTool) {
-      const descriptor = describedDescriptor({ id, data });
-      // A family can describe its members without owning an executable input contract.
-      if (descriptor.inputSchema != null) await ctx.publishTool({ descriptor });
-    }
-    return data;
+    // A host that publishes validates the daemon's answer (a mismatch is an error, as before); one that does not
+    // passes an answer that is not this tool's descriptor through unchanged, with nothing to say about calling it.
+    if (ctx.publishTool === undefined && !(isRecord(data) && data.id === id)) return data;
+    const descriptor = describedDescriptor({ id, data });
+    return { ...(data as Record<string, unknown>), ...(await callInstructions({ descriptor, ctx })) };
   },
 };
 

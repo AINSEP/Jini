@@ -4,7 +4,7 @@ import type { EntryRecord } from "./types.js";
 
 /**
  * @file Entry publish/unpublish `op` dispatch (the closed-union-dispatch convention, same
- * shape as `features/content-types/lifecycle-dispatch.ts`).
+ * shape as `packages/cms/src/content-types/lifecycle-dispatch.ts`).
  */
 
 export const ENTRY_LIFECYCLE_OP_NAMES = ["publish", "unpublish"] as const;

@@ -1,5 +1,5 @@
 /** Headless kinds and admission for the ECharts browser provider (multi-series, axis labels and number formats). */
-import type { ChartSpec, ChartValue } from '@jini-ai/ui/charts';
+import type { ChartSpec, ChartValue } from '@jini-ai/core/contracts/charts';
 
 export const ECHARTS_PROVIDER_ID = 'plugin.echarts';
 export const ECHARTS_KINDS = ['bar', 'line', 'area', 'pie', 'donut', 'scatter', 'stacked-bar'] as const;

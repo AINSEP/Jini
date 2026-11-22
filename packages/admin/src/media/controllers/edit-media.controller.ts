@@ -1,7 +1,36 @@
-import { createControllerStore } from '../../core/module/controller-store.js';
+import { createControllerStore, describeApiError } from '@jini-ai/core/admin-runtime';
 import type { MediaApiPort } from '../ports.js';
 import type { MediaAsset, MediaMetadataPatch, UploadInput } from '../models.js';
 import { diffMediaMetadata, canReplaceMedia } from '../rules.js';
+function createMediaSavePerformer(
+  store: ReturnType<typeof createControllerStore<{ draft: MediaMetadataPatch; saving: boolean; error: string | null }>>,
+  accept: (saved: MediaAsset) => void,
+) {
+  return async function perform(run: () => Promise<MediaAsset>) {
+    if (store.signal.aborted || store.getSnapshot().saving) return false;
+    store.set({ patch: { saving: true, error: null } });
+    try {
+      const saved = await run();
+      if (store.signal.aborted) return false;
+      accept(saved);
+      store.set({
+        patch: {
+          draft: metadataDraft({ item: saved }),
+        },
+      });
+      return true;
+    } catch (error) {
+      store.set({
+        patch: { error: describeApiError({ e: error, fallback: 'Failed to save media metadata' }) },
+      });
+    } finally {
+      store.set({ patch: { saving: false } });
+    }
+    // Reached only through the catch above: the failure is already recorded in `error`.
+    return false;
+  }
+}
+
 export function createEditMediaController(
   { api, item }: { api: MediaApiPort; item: MediaAsset },
   _optional: Record<string, never> = {},
@@ -16,29 +45,7 @@ export function createEditMediaController(
       error: null as string | null,
     },
   });
-  async function perform(run: () => Promise<MediaAsset>) {
-    if (store.signal.aborted || store.getSnapshot().saving) return false;
-    store.set({ patch: { saving: true, error: null } });
-    try {
-      const saved = await run();
-      if (store.signal.aborted) return false;
-      baseline = saved;
-      store.set({
-        patch: {
-          draft: metadataDraft({ item: baseline }),
-        },
-      });
-      return true;
-    } catch (error) {
-      store.set({
-        patch: { error: error instanceof Error ? error.message : 'Failed to save media metadata' },
-      });
-    } finally {
-      store.set({ patch: { saving: false } });
-    }
-    // Reached only through the catch above: the failure is already recorded in `error`.
-    return false;
-  }
+  const perform = createMediaSavePerformer(store, saved => { baseline = saved; });
   return {
     getSnapshot: store.getSnapshot,
     subscribe: store.subscribe,

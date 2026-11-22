@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, within } from './harness.js';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 import { FetchQueryProvider } from '@jini-ai/ui/fetch-query';
@@ -10,6 +10,7 @@ import { FormEditor } from '../pages/FormEditor.js';
 import { FormsList } from '../pages/FormsList.js';
 import { FormEditorHeaderText } from '../components/FormEditorHeaderText.js';
 import { FormsPortsContext, FormsOptionsContext } from '../hooks/FormsPorts.hooks.js';
+import { fakeFormsCatalog } from '../../__tests__/fakes/forms-catalog.js';
 
 const form: AdminFormDefinition = {
   id: 'f1', name: 'Contact', slug: 'contact', status: 'active',
@@ -24,7 +25,7 @@ function renderForms(children: ReactNode, mode: 'builder' | 'html' = 'builder') 
     id: 's1', formDefinitionId: 'f1', sourceIp: '127.0.0.1', submittedAt: '2026-10-02T00:00:00.000Z',
     data: { full_name: 'Sample Visitor', accepted: false, removed_field: 'Retained answer' },
   }] });
-  return render(<FetchQueryProvider><FormsPortsContext.Provider value={{ formsApi: api, formsTrash: api.trash }}>
+  return render(<FetchQueryProvider><FormsPortsContext.Provider value={{ formsApi: api, formsCatalog: fakeFormsCatalog(), formsTrash: api.trash }}>
     <FormsOptionsContext.Provider value={{ locale: 'en' }}>{children}</FormsOptionsContext.Provider>
   </FormsPortsContext.Provider></FetchQueryProvider>);
 }

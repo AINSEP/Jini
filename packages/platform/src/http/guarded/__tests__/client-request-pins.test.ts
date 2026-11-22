@@ -2,7 +2,11 @@ import { expect, test } from "vitest";
 import type { HttpRequest, HttpResponse } from "@jini-ai/core/primitives";
 import { FetchTimeoutError } from "../../../fetch-with-timeout.js";
 import { createHttpClient } from "../client.js";
-import type { EgressPolicy, GuardedClock, HttpTransportAdapter } from "../ports.js";
+import type {
+  EgressPolicy,
+  GuardedClock,
+  PinnedHttpTransport,
+} from "@jini-ai/core/contracts/runtime";
 
 const policy: EgressPolicy = {
   allowedSchemes: ["https"], denyPrivateAddresses: true, devHostAllowlist: [], maxRedirects: 3,
@@ -10,7 +14,7 @@ const policy: EgressPolicy = {
 };
 const ok: HttpResponse = { status: 200, headers: {}, bodyText: "ok" };
 
-function fixture({ clock, transport }: { clock?: GuardedClock; transport?: HttpTransportAdapter }, _options: Record<string, never> = {}) {
+function fixture({ clock, transport }: { clock?: GuardedClock; transport?: PinnedHttpTransport }, _options: Record<string, never> = {}) {
   const sent: HttpRequest[] = [];
   const deadlines: number[] = [];
   const deadline = new AbortController();

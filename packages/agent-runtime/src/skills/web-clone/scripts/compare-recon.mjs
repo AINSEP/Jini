@@ -5,8 +5,10 @@
 import fs from "node:fs";
 import path from "node:path";
 import { flag, parseCliArgs, rejectUnknown, runIfMain, text } from "./lib/script-cli.mjs";
+import { errorClassLabel } from "./lib/diagnostic-labels.mjs";
+import { createCliStreams, CliUsageError } from "./lib/main-guard.mjs";
 
-export function usage(log) {
+export function usage({ log }, _optional = {}) {
   log(`Usage:
   node scripts/compare-recon.mjs --original <original-recon.json> --clone <clone-recon.json> [--visual-diff visual-diff.json] [--original-routes route-map.json] [--clone-routes route-map.json] [--original-interactions interactions.json] [--clone-interactions interactions.json] [--out CLONE_REPORT.md]
 `);
@@ -28,17 +30,17 @@ const ARG_SPEC = {
     out: "CLONE_REPORT.md",
   },
   flags: {
-    "--help": flag("help"),
-    "-h": flag("help"),
-    "--original": { key: "original", read: text() },
-    "--clone": { key: "clone", read: text() },
-    ...Object.fromEntries(Object.entries(EVIDENCE_FLAGS).map(([arg, key]) => [arg, { key, read: text() }])),
-    "--out": { key: "out", read: text("CLONE_REPORT.md") },
+    "--help": flag({ key: "help" }),
+    "-h": flag({ key: "help" }),
+    "--original": { key: "original", read: text({}) },
+    "--clone": { key: "clone", read: text({}) },
+    ...Object.fromEntries(Object.entries(EVIDENCE_FLAGS).map(([arg, key]) => [arg, { key, read: text({}) }])),
+    "--out": { key: "out", read: text({}, { fallback: "CLONE_REPORT.md" }) },
   },
   onOther: rejectUnknown,
 };
 
-export function parseArgs(argv) {
+export function parseArgs({ argv }, _optional = {}) {
   return parseCliArgs({ argv, ...ARG_SPEC });
 }
 
@@ -56,7 +58,7 @@ const countOf = (signals, key) => signals.counts?.[key] || 0;
 const RATIO_STEPS = [[0.9, 5], [0.75, 4], [0.55, 3], [0.3, 2]];
 
 /** 1..5 closeness of two counts; both zero is a perfect match, one zero the worst. */
-export function ratioScore(a, b) {
+export function ratioScore({ a, b }, _optional = {}) {
   if (a === 0 && b === 0) return 5;
   if (a === 0 || b === 0) return 1;
   const ratio = Math.min(a, b) / Math.max(a, b);
@@ -65,7 +67,7 @@ export function ratioScore(a, b) {
 }
 
 /** Share of `tag:text` heading keys present on both sides (1 when both are empty). */
-export function sequenceSimilarity(a, b) {
+export function sequenceSimilarity({ a, b }, _optional = {}) {
   const left = a.map((item) => `${item.tag}:${item.text}`).filter(Boolean);
   const right = b.map((item) => `${item.tag}:${item.text}`).filter(Boolean);
   if (!left.length && !right.length) return 1;
@@ -86,20 +88,20 @@ const COMPLEXITY_RULES = [
   ["L2", (s) => countOf(s, "links") > 80 || countOf(s, "images") > 40],
 ];
 
-export function inferComplexity(signals) {
+export function inferComplexity({ signals }, _optional = {}) {
   const rule = COMPLEXITY_RULES.find(([, test]) => test(signals));
   return rule ? rule[0] : "L1";
 }
 
 function averageRatio(o, c, keys) {
-  const scores = keys.map((key) => ratioScore(countOf(o, key), countOf(c, key)));
+  const scores = keys.map((key) => ratioScore({ a: countOf(o, key), b: countOf(c, key) }));
   return Math.round(scores.reduce((sum, value) => sum + value, 0) / scores.length);
 }
 
-export function score(original, clone, visualDiff) {
+export function score({ original, clone, visualDiff }, _optional = {}) {
   const o = firstSignals(original);
   const c = firstSignals(clone);
-  const structureSimilarity = sequenceSimilarity(o.headings || [], c.headings || []);
+  const structureSimilarity = sequenceSimilarity({ a: o.headings || [], b: c.headings || [] });
   return {
     sourceEvidence: 3,
     structure: Math.max(1, Math.round(structureSimilarity * 5)),
@@ -126,7 +128,7 @@ function routePath(url) {
   }
 }
 
-export function routesSection(files, evidence) {
+export function routesSection({ files, evidence }, _optional = {}) {
   if (!evidence.originalRoutes || !evidence.cloneRoutes) {
     return `## 路由覆盖
 - 未提供 route-crawl 结果。多页面站需要传 --original-routes / --clone-routes。
@@ -159,7 +161,7 @@ function interactionStats(probe) {
   };
 }
 
-export function interactionSection(files, evidence) {
+export function interactionSection({ files, evidence }, _optional = {}) {
   if (!evidence.originalInteractions || !evidence.cloneInteractions) {
     return `## 交互覆盖
 - 未提供 interaction-probe 结果。交互站需要传 --original-interactions / --clone-interactions。
@@ -195,7 +197,7 @@ function techSignalsTable(o, c) {
 }
 
 function countRows(o, c) {
-  return COUNT_KEYS.map((key) => `| ${key} | ${countOf(o, key)} | ${countOf(c, key)} | ${ratioScore(countOf(o, key), countOf(c, key))}/5 |`).join("\n");
+  return COUNT_KEYS.map((key) => `| ${key} | ${countOf(o, key)} | ${countOf(c, key)} | ${ratioScore({ a: countOf(o, key), b: countOf(c, key) })}/5 |`).join("\n");
 }
 
 function consoleCounts(recon) {
@@ -204,11 +206,11 @@ function consoleCounts(recon) {
 
 const screenshots = (recon) => (recon.captures || []).map((capture) => capture.screenshot).join(", ");
 
-export function report(files, original, clone, evidence) {
+export function report({ files, original, clone, evidence }, _optional = {}) {
   const o = firstSignals(original);
   const c = firstSignals(clone);
-  const scores = score(original, clone, evidence.visualDiff);
-  const complexity = inferComplexity(o);
+  const scores = score({ original, clone, visualDiff: evidence.visualDiff });
+  const complexity = inferComplexity({ signals: o });
   const oc = consoleCounts(original);
   const cc = consoleCounts(clone);
 
@@ -245,9 +247,9 @@ ${countRows(o, c)}
 - 原站 page errors: ${oc.pageErrors}
 - 克隆 page errors: ${cc.pageErrors}
 
-${routesSection(files, evidence)}
+${routesSection({ files, evidence })}
 
-${interactionSection(files, evidence)}
+${interactionSection({ files, evidence })}
 
 ## 截图证据
 - 原站侦察: ${files.original}
@@ -264,9 +266,9 @@ ${interactionSection(files, evidence)}
 }
 
 function compare(argv, io) {
-  const args = parseArgs(argv);
+  const args = parseArgs({ argv });
   if (args.help || !args.original || !args.clone) {
-    usage(io.log);
+    usage({ log: io.log });
     return args.help ? 0 : 1;
   }
   // Optional evidence files are read only when their flag was given.
@@ -276,12 +278,12 @@ function compare(argv, io) {
   const evidence = Object.fromEntries(Object.values(EVIDENCE_FLAGS).map((key) => [key, readJson(args[key])]));
   const output = path.resolve(io.cwd(), args.out);
   io.fs.mkdirSync(path.dirname(output), { recursive: true });
-  io.fs.writeFileSync(output, report(args, original, clone, evidence));
+  io.fs.writeFileSync(output, report({ files: args, original, clone, evidence }));
   io.log(output);
   return 0;
 }
 
-const DEFAULT_DEPS = { fs, log: console.log, error: console.error, cwd: process.cwd };
+const DEFAULT_DEPS = { fs, ...createCliStreams({}), cwd: process.cwd };
 
 /** CLI entry: writes the comparison report; returns 0 ok/help, 1 on usage error or failure. */
 export function main({ argv }, deps = {}) {
@@ -290,9 +292,9 @@ export function main({ argv }, deps = {}) {
   try {
     code = compare(argv, io);
   } catch (error) {
-    io.error(`compare-recon failed: ${error.message}`);
+    io.error(`compare-recon failed: ${error instanceof CliUsageError ? error.message : errorClassLabel({ error })}`);
   }
   return code;
 }
 
-await runIfMain({ moduleUrl: import.meta.url, main });
+await runIfMain({ moduleUrl: import.meta.url, main }, { stdout: process.stdout, stderr: process.stderr });

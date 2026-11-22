@@ -1,4 +1,5 @@
-import { AdminApiError } from '../../core/transport/errors.js';
+import { AdminApiError } from '@jini-ai/core/admin-runtime';
+/** Constructor bridge is test harness only, retaining the original error assertions. */
 export class ApiError extends AdminApiError {
   constructor(message: string, status: number, code?: string, body?: Record<string, unknown>) { super({ message, status }, { code, body }); }
 }

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { isPrivateAddress, expandIpv6 } from '../address.js';
+import { isPrivateAddress } from '../address.js';
+import { expandIpv6 } from '@jini-ai/core/net';
 // PARITY: the cache's strict IP and parser vectors follow their canonical implementation.
 describe('isPrivateAddress', () => {
   // PARITY: retained behavior against the canonical shared implementation.

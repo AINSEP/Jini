@@ -5,7 +5,7 @@
  * survive a process restart).
  *
  * Reuses this repo's existing durability pattern exactly —
- * `packages/sqlite/src/event-log.ts`'s `createSqliteEventLog`, the durable
+ * `packages/daemon/src/store/event-log/sqlite.ts`'s `createSqliteEventLog`, the durable
  * adapter for `@jini-ai/daemon`'s `EventLog` port — rather than inventing a
  * parallel one: `new Database(dbPath)`, `db.pragma('journal_mode = WAL')`,
  * `CREATE TABLE IF NOT EXISTS` (idempotent — reopening the same file
@@ -39,7 +39,7 @@
  * two-phase boot reconciliation. See `createInMemoryMediaTaskStore` in
  * `task-store.ts` for the reference behavior this mirrors.
  */
-import type { SqliteSyncOpener } from '@jini-ai/db/sqlite';
+import type { SqliteSyncOpener } from '@jini-ai/core/contracts/storage';
 import { loadMediaSqliteOpener } from './sqlite-driver.adapter.js';
 import type {
   MediaTask,
@@ -137,6 +137,15 @@ export async function createSqliteMediaTaskStore(
   const db = open(dbPath, {});
   db.pragma('journal_mode = WAL');
 
+  initializeMediaTaskSchema(db);
+  const statements = prepareMediaTaskStatements(db);
+  const writeRow = createMediaTaskRowWriter(statements);
+  const transactions = createMediaTaskWriteTransactions(db, statements, writeRow);
+  const reconcileTxn = createMediaTaskReconcileTransaction(db, statements, writeRow);
+  return createMediaTaskMethods(db, statements, { ...transactions, reconcileTxn });
+}
+
+function initializeMediaTaskSchema(db: ReturnType<SqliteSyncOpener>) {
   db.exec(`
     CREATE TABLE IF NOT EXISTS jini_media_tasks (
       id TEXT PRIMARY KEY,
@@ -156,7 +165,9 @@ export async function createSqliteMediaTaskStore(
     CREATE INDEX IF NOT EXISTS idx_jini_media_tasks_owner
       ON jini_media_tasks (owner_ref, status);
   `);
+}
 
+function prepareMediaTaskStatements(db: ReturnType<SqliteSyncOpener>) {
   const getStmt = db.prepare<[string], TaskRow>('SELECT * FROM jini_media_tasks WHERE id = ?');
   const insertStmt = db.prepare<
     [string, string, string, string | null, string | null, string, string | null, string | null, number, number | null, number, number]
@@ -180,7 +191,11 @@ export async function createSqliteMediaTaskStore(
     `SELECT * FROM jini_media_tasks WHERE owner_ref = ? AND status NOT IN ('done', 'failed', 'interrupted') ORDER BY started_at DESC`,
   );
   const selectAllStmt = db.prepare<[], TaskRow>('SELECT * FROM jini_media_tasks');
+  return { getStmt, insertStmt, updateStmt, deleteStmt, listAllForOwnerStmt, listInFlightForOwnerStmt, selectAllStmt };
+}
 
+function createMediaTaskRowWriter(statements: ReturnType<typeof prepareMediaTaskStatements>) {
+  const { insertStmt, updateStmt } = statements;
   function writeRow(task: MediaTask, isInsert: boolean): void {
     const progressJson = JSON.stringify(task.progress);
     const fileJson = task.file == null ? null : JSON.stringify(task.file);
@@ -206,12 +221,19 @@ export async function createSqliteMediaTaskStore(
       updateStmt.run(task.status, surface, model, progressJson, fileJson, errorJson, task.endedAt, task.updatedAt, task.id);
     }
   }
+  return writeRow;
+}
 
+function createMediaTaskWriteTransactions(
+  db: ReturnType<SqliteSyncOpener>, statements: ReturnType<typeof prepareMediaTaskStatements>,
+  writeRow: ReturnType<typeof createMediaTaskRowWriter>,
+) {
+  const { getStmt } = statements;
   const createTxn = db.transaction((input: MediaTaskCreateInput): MediaTask => {
     if (getStmt.get(input.id)) {
       throw new Error(`media task "${input.id}" already exists`);
     }
-    const task = buildNewTask(input, Date.now());
+    const task = buildNewTask({ input, now: Date.now() });
     writeRow(task, true);
     return task;
   });
@@ -219,11 +241,18 @@ export async function createSqliteMediaTaskStore(
   const updateTxn = db.transaction((id: string, patch: MediaTaskPatch): MediaTask | null => {
     const row = getStmt.get(id);
     if (!row) return null;
-    const next = applyTaskPatch(rowToTask(row), patch, Date.now());
+    const next = applyTaskPatch({ existing: rowToTask(row), patch, now: Date.now() });
     writeRow(next, false);
     return next;
   });
+  return { createTxn, updateTxn };
+}
 
+function createMediaTaskReconcileTransaction(
+  db: ReturnType<SqliteSyncOpener>, statements: ReturnType<typeof prepareMediaTaskStatements>,
+  writeRow: ReturnType<typeof createMediaTaskRowWriter>,
+) {
+  const { selectAllStmt, deleteStmt } = statements;
   const reconcileTxn = db.transaction((options: MediaTaskReconcileOptions): MediaTaskReconcileResult => {
     const now = options.now ?? Date.now();
     const cutoff = now - options.terminalTtlMs;
@@ -231,7 +260,7 @@ export async function createSqliteMediaTaskStore(
     let deleted = 0;
     for (const row of selectAllStmt.all()) {
       const task = rowToTask(row);
-      const action = reconcileAction(task, now, cutoff);
+      const action = reconcileAction({ task, now, cutoff });
       switch (action.kind) {
         case 'interrupt':
           writeRow(action.next, false);
@@ -248,7 +277,15 @@ export async function createSqliteMediaTaskStore(
     }
     return { interrupted, deleted };
   });
+  return reconcileTxn;
+}
 
+function createMediaTaskMethods(
+  db: ReturnType<SqliteSyncOpener>, statements: ReturnType<typeof prepareMediaTaskStatements>,
+  transactions: ReturnType<typeof createMediaTaskWriteTransactions> & { reconcileTxn: ReturnType<typeof createMediaTaskReconcileTransaction> },
+): SqliteMediaTaskStore {
+  const { getStmt, listAllForOwnerStmt, listInFlightForOwnerStmt, deleteStmt } = statements;
+  const { createTxn, updateTxn, reconcileTxn } = transactions;
   return {
     async create(input: MediaTaskCreateInput): Promise<MediaTask> {
       return createTxn(input);
@@ -274,7 +311,7 @@ export async function createSqliteMediaTaskStore(
     },
 
     async reconcileOnBoot(options: MediaTaskReconcileOptions): Promise<MediaTaskReconcileResult> {
-      assertValidTerminalTtl(options.terminalTtlMs);
+      assertValidTerminalTtl({ terminalTtlMs: options.terminalTtlMs });
       return reconcileTxn(options);
     },
 

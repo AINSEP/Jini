@@ -6,7 +6,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import express, { type Express } from 'express';
-import { getRouteRegistrationInventory, installRouteRegistrationGuard, type AdapterContext } from '@jini-ai/http-kit';
+import { getRouteRegistrationInventory, installRouteRegistrationGuard } from '@jini-ai/http-kit';
+import { createLocalSameOriginPolicy, type RouteHostContext } from '@jini-ai/core/contracts/server';
+import { createTestRouteHost } from '@jini-ai/core/contracts/server/testing';
 
 import { composeJiniKernel, type JiniKernel } from '../compose-jini-kernel.js';
 import { projectDetectedAgent, createBuiltInFeatures } from '../builtin-features.js';
@@ -38,13 +40,13 @@ interface Booted {
 const booted: { server: Server; kernel: JiniKernel }[] = [];
 
 async function boot(
-  config: Omit<Parameters<typeof composeJiniKernel>[0], 'app' | 'adapter'>,
+  config: Omit<Parameters<typeof composeJiniKernel>[0], 'app' | 'adapter' | 'resolvedPortRef'>,
 ): Promise<Booted> {
   const app = express();
   installRouteRegistrationGuard({ app });
   const resolvedPortRef = { current: 0 };
-  const adapter: AdapterContext = { resolvedPortRef, env: config.env ?? {}, allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST' };
-  const kernel = await composeJiniKernel({ ...config, app, adapter });
+  const adapter: RouteHostContext = { originPolicy: createLocalSameOriginPolicy({ port: () => resolvedPortRef.current, env: config.env ?? {}, config: { allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST' } }) };
+  const kernel = await composeJiniKernel({ ...config, app, adapter, resolvedPortRef });
   const server = await new Promise<Server>((resolve, reject) => {
     const s = app.listen(0, '127.0.0.1');
     s.once('listening', () => resolve(s));
@@ -281,7 +283,7 @@ describe('the families the standalone daemon never wired', () => {
       profile: 'agent-core-v1',
       capabilities: { 'ui:session': true },
       features: { frontendSessions: true },
-      featureOptions: { frontendSessions: { registry: {} as never } },
+      featureOptions: { frontendSessions: { registry: {} as never, setTimer: () => ({ cancel: () => undefined }) } },
     });
     expect(kernel.activation.active.map((r) => r.id)).toContain('frontendSessions');
   });
@@ -293,7 +295,7 @@ describe('the families the standalone daemon never wired', () => {
       composeJiniKernel({
         security: { mode: 'host' },
         app,
-        adapter: { resolvedPortRef: { current: 0 }, env: {}, allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST' },
+        adapter: createTestRouteHost(), resolvedPortRef: { current: 0 },
         storage: { kind: 'memory' },
         profile: 'agent-core-v1',
         capabilities: { 'memory:store': true },
@@ -309,7 +311,7 @@ describe('the families the standalone daemon never wired', () => {
       composeJiniKernel({
         security: { mode: 'host' },
         app,
-        adapter: { resolvedPortRef: { current: 0 }, env: {}, allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST' },
+        adapter: createTestRouteHost(), resolvedPortRef: { current: 0 },
         storage: { kind: 'sqlite', open: openSqlite, dataDir: makeTempDataDir() },
         profile: 'local-daemon-v1',
       }),
@@ -582,7 +584,7 @@ describe('kernel base failure cleanup', () => {
     // already open — the one path where a leak would otherwise be invisible.
     writeFileSync(join(dataDir, 'events.db'), 'not a sqlite file at all');
 
-    await expect(createJiniKernelBase({ storage: { kind: 'sqlite', open: openSqlite, dataDir } })).rejects.toThrow();
+    await expect(createJiniKernelBase({ storage: { kind: 'sqlite', open: openSqlite, dataDir } })).rejects.toThrow('file is not a database');
   });
 });
 

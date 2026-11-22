@@ -126,6 +126,9 @@ export type {
   FormDefinitionStatus,
   FormFieldType,
 } from './forms.js';
+export type { FormFieldKindInfo, FormsCatalogPort } from './forms-catalog.js';
+export type { EmbedPolicyPort } from './embed-policy.js';
+export type { AdminCommentRepo, AdminCommentRepoFactory } from './comment-repo.js';
 
 export type {
   AdminEntityDescriptor,

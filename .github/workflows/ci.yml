@@ -17,11 +17,10 @@
 # interface-shape mismatch after `DomPageDriverPage` gained a `label` field) was small and
 # mechanical enough to just fix directly; it runs here unmodified and fully blocking.
 #
-# `pnpm complexity` runs too, but purely for visibility, not as a blocking gate: `complexity` and
-# `sonarjs/cognitive-complexity` are configured `warn`, not `error`, repo-wide (`eslint.config.mjs`),
-# so this step cannot fail CI as configured — it currently reports ~15.6k warnings. Turning that into
-# a real gate (à la Tovu's `apps/admin`-scoped `check:admin-complexity-drift` ratchet) is a
-# repo-wide initiative at a much larger scale than guard's 25, and deliberately out of scope here.
+# `pnpm check:complexity` blocks new or worsened production-function complexity above 10/10,
+# and requires resolved entries to be removed from `scripts/complexity-debt.json`. It also checks
+# that the debt list has not grown relative to the base commit.
+# `pnpm check:size` applies the same blocking ratchet to production file and function sizes.
 #
 # 2026-08-17: `push: branches: [main]` meant this workflow had NEVER fired since it was added the
 # day before — all Jini work happens on `general-work` (Tovu and Jini are developed in lockstep on
@@ -34,8 +33,9 @@ name: CI
 
 on:
   push:
-    branches: ["**"]
+    branches: [main]
   pull_request:
+    branches: [main, general-work]
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
@@ -49,6 +49,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: pnpm/action-setup@v4
 
@@ -70,8 +72,18 @@ jobs:
       # which ones can skip it.
       - run: pnpm -r run build
 
+      # Public-API surface vs api-baseline/ (see scripts/check-api-surface.ts): fails only when a package
+      # removed/renamed an export or exports subpath with no pending major/minor changeset for it.
+      # After an intentional change run `pnpm api:update` and commit api-baseline/.
+      - name: api surface (removed exports need a major/minor changeset)
+        run: pnpm api:check
+
       - name: guard (ratcheted against scripts/guard-baseline.json — see that file and check-guard-drift.ts)
         id: guard
+        env:
+          # The injection debt (scripts/injection-debt.json) may only shrink against this base.
+          INJECTION_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before }}
+          INJECTION_FIRST_PUSH_COMMIT: ${{ github.event.commits[0].id }}
         run: pnpm guard:drift
         continue-on-error: true
 
@@ -79,6 +91,9 @@ jobs:
         id: typecheck
         run: pnpm typecheck
         continue-on-error: true
+
+      - name: integration workspace tests
+        run: pnpm --filter @jini-ai/integration-tests run test
 
       # The plugin-folder node:test suites (packages/agent-plugins/<id>/__tests__/*.test.mjs) are
       # excluded from every vitest config; this is their only automated caller besides publishing.
@@ -88,33 +103,44 @@ jobs:
         run: pnpm test:agent-plugins:content
         continue-on-error: true
 
-      # Not gated with continue-on-error/an id checked below: `complexity` and
-      # `sonarjs/cognitive-complexity` are `warn`-level repo-wide, so this step cannot exit non-zero
-      # as currently configured — it is here purely so the warning count is visible in every run's
-      # log, not to block anything.
-      - name: complexity (informational — warn-level, cannot fail; visibility only)
-        run: pnpm complexity
+      - name: complexity (blocking ratchet)
+        env:
+          COMPLEXITY_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before }}
+          COMPLEXITY_FIRST_PUSH_COMMIT: ${{ github.event.commits[0].id }}
+        run: pnpm check:complexity
 
-      - name: SonarJS (report-only; counts per rule)
-        if: ${{ !cancelled() }}
-        run: pnpm quality:sonar
-        continue-on-error: true
+      - name: size (blocking ratchet)
+        env:
+          SIZE_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before }}
+          SIZE_FIRST_PUSH_COMMIT: ${{ github.event.commits[0].id }}
+        run: pnpm check:size
 
-      # Initial quality-tool rollout: observations only, never included in the gate below.
-      - name: knip (report-only)
-        if: ${{ !cancelled() }}
-        run: pnpm quality:knip
-        continue-on-error: true
+      - name: hook injection (blocking ratchet)
+        # Owner HARD rule 2026-11-16: custom hooks are injected as props defaulted to the real hook.
+        # Baseline scripts/hook-injection-debt.json is keyed Component::hook, so moved files are not new debt.
+        run: pnpm check:hooks
 
-      - name: dependency-cruiser (report-only)
-        if: ${{ !cancelled() }}
-        run: pnpm quality:depcruise
-        continue-on-error: true
+      - name: why-comments (blocking ratchet)
+        # Owner HARD rule: refactors MOVE "why" comments with the code, never delete them. Fails when a
+        # comment block deleted in this push/PR survives nowhere (this repo or the Tovu sibling) and has
+        # no reasoned entry in scripts/why-comments-debt.json.
+        env:
+          WHY_COMMENTS_BASE_REF: ${{ github.event.pull_request.base.sha || (github.event.before != '0000000000000000000000000000000000000000' && github.event.before) || format('origin/{0}', github.event.repository.default_branch) }}
+        run: pnpm check:why-comments -- --merge-base
 
-      - name: fast-check properties (report-only)
+      - name: log safety (blocking ratchet)
+        env:
+          LOG_SAFETY_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before }}
+          LOG_SAFETY_FIRST_PUSH_COMMIT: ${{ github.event.commits[0].id }}
+        run: pnpm check:log-safety
+
+      - name: error gate (WARN mode; prints new entries, never fails the build yet)
         if: ${{ !cancelled() }}
-        run: pnpm quality:properties
-        continue-on-error: true
+        run: pnpm check:errors
+
+      - name: error gate rules on copied sites (the exemption's executable examples; blocking)
+        if: ${{ !cancelled() }}
+        run: pnpm exec vitest run scripts/__tests__/check-error-gate.test.ts scripts/__tests__/check-error-disclosure-callers.test.ts
 
       - name: fail if a blocking gate failed
         if: steps.guard.outcome == 'failure' || steps.typecheck.outcome == 'failure' || steps.agent_plugin_content.outcome == 'failure'

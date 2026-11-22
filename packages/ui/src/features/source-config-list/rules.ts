@@ -1,8 +1,9 @@
 /**
  * Pure logic for the generic source-config-list primitive. No React, no
- * transport, no DOM — see `packages/ui/archived provenance ledger` for full provenance.
+ * transport, no DOM — see `archived UI provenance ledger` for full provenance.
  */
 import { isAllowedEndpointUrl } from '../../utils/endpoint-policy.js';
+import { pendingActionKey as pendingActionKey_, isActionPending as isActionPending_, withPendingAction as withPendingAction_, withoutPendingAction as withoutPendingAction_ } from '../../utils/pending-actions.js';
 import { MASK_CHAR, MASKED_VALUE_MIN_MASK_LENGTH, MASKED_VALUE_VISIBLE_SUFFIX_LENGTH } from './constants.js';
 import type {
   SourceActionKind,
@@ -14,7 +15,7 @@ import type {
 } from './types.js';
 
 /** Builds an all-empty draft matching a field-spec list, used to seed (and reset) the add-source form. */
-export function emptySourceDraft(fieldSpecs: readonly SourceFieldSpec[]): SourceFieldValues {
+export function emptySourceDraft({ fieldSpecs }: { fieldSpecs: readonly SourceFieldSpec[] }, _optional: Record<string, never> = {}): SourceFieldValues {
   const draft: SourceFieldValues = {};
   for (const spec of fieldSpecs) draft[spec.key] = '';
   return draft;
@@ -55,8 +56,7 @@ function isValidHttpUrl(value: string): boolean {
  * `t('Trust level for {name}', { name: label })`).
  */
 export function validateSourceDraft(
-  fieldSpecs: readonly SourceFieldSpec[],
-  values: SourceFieldValues,
+  { fieldSpecs, values }: { fieldSpecs: readonly SourceFieldSpec[]; values: SourceFieldValues }, _optional: Record<string, never> = {}
 ): SourceDraftValidation {
   const issues: SourceDraftIssue[] = [];
   for (const spec of fieldSpecs) {
@@ -74,49 +74,36 @@ export function validateSourceDraft(
 }
 
 export function issueForField(
-  validation: SourceDraftValidation,
-  fieldKey: string,
+  { validation, fieldKey }: { validation: SourceDraftValidation; fieldKey: string }, _optional: Record<string, never> = {}
 ): SourceDraftIssue | undefined {
   return validation.issues.find((issue) => issue.field === fieldKey);
 }
 
 /** Stable per-(id, action) key used to track in-flight per-item actions independently, so one card's Refresh doesn't disable another card's Remove. */
-export function pendingActionKey(id: string, kind: SourceActionKind): string {
-  return `${kind}:${id}`;
+export function pendingActionKey({ id, kind }: { id: string; kind: SourceActionKind }, _optional: Record<string, never> = {}): string {
+  return pendingActionKey_({ id, kind });
 }
 
 export function isActionPending(
-  pendingKeys: ReadonlySet<string>,
-  id: string,
-  kind: SourceActionKind,
+  { pendingKeys, id, kind }: { pendingKeys: ReadonlySet<string>; id: string; kind: SourceActionKind }, _optional: Record<string, never> = {}
 ): boolean {
-  return pendingKeys.has(pendingActionKey(id, kind));
+  return isActionPending_({ pendingKeys, id, kind });
 }
 
 export function withPendingAction(
-  pendingKeys: ReadonlySet<string>,
-  id: string,
-  kind: SourceActionKind,
+  { pendingKeys, id, kind }: { pendingKeys: ReadonlySet<string>; id: string; kind: SourceActionKind }, _optional: Record<string, never> = {}
 ): ReadonlySet<string> {
-  const next = new Set(pendingKeys);
-  next.add(pendingActionKey(id, kind));
-  return next;
+  return withPendingAction_({ pendingKeys, id, kind });
 }
 
 export function withoutPendingAction(
-  pendingKeys: ReadonlySet<string>,
-  id: string,
-  kind: SourceActionKind,
+  { pendingKeys, id, kind }: { pendingKeys: ReadonlySet<string>; id: string; kind: SourceActionKind }, _optional: Record<string, never> = {}
 ): ReadonlySet<string> {
-  if (!pendingKeys.has(pendingActionKey(id, kind))) return pendingKeys;
-  const next = new Set(pendingKeys);
-  next.delete(pendingActionKey(id, kind));
-  return next;
+  return withoutPendingAction_({ pendingKeys, id, kind });
 }
 
 export function upsertSourceById<TSource extends SourceConfigItem>(
-  list: readonly TSource[],
-  next: TSource,
+  { list, next }: { list: readonly TSource[]; next: TSource }, _optional: Record<string, never> = {}
 ): TSource[] {
   const index = list.findIndex((source) => source.id === next.id);
   if (index === -1) return [...list, next];
@@ -126,16 +113,13 @@ export function upsertSourceById<TSource extends SourceConfigItem>(
 }
 
 export function removeSourceById<TSource extends SourceConfigItem>(
-  list: readonly TSource[],
-  id: string,
+  { list, id }: { list: readonly TSource[]; id: string }, _optional: Record<string, never> = {}
 ): TSource[] {
   return list.filter((source) => source.id !== id);
 }
 
 export function updateSourceById<TSource extends SourceConfigItem>(
-  list: readonly TSource[],
-  id: string,
-  patch: Partial<TSource>,
+  { list, id, patch }: { list: readonly TSource[]; id: string; patch: Partial<TSource> }, _optional: Record<string, never> = {}
 ): TSource[] {
   return list.map((source) => (source.id === id ? { ...source, ...patch } : source));
 }
@@ -164,7 +148,7 @@ function maskSecret(value: string): string {
  * verbatim in the always-expandable source card — on a field whose own
  * placeholder advertises that it holds exactly that.
  */
-export function maskFieldValue(kind: SourceFieldSpec['kind'], value: string): string {
+export function maskFieldValue({ kind, value }: { kind: SourceFieldSpec['kind']; value: string }, _optional: Record<string, never> = {}): string {
   if (!value) return value;
   if (kind === 'password') return maskSecret(value);
   if (kind === 'secret-textarea') {
@@ -190,13 +174,13 @@ export function maskFieldValue(kind: SourceFieldSpec['kind'], value: string): st
  * with no explicit label and a secret as its only field must never leak
  * that secret into the always-visible summary row), else the raw id.
  */
-export function sourceDisplayLabel(source: SourceConfigItem, fieldSpecs: readonly SourceFieldSpec[]): string {
+export function sourceDisplayLabel({ source, fieldSpecs }: { source: SourceConfigItem; fieldSpecs: readonly SourceFieldSpec[] }, _optional: Record<string, never> = {}): string {
   const label = source.label?.trim();
   if (label) return label;
   const firstSpec = fieldSpecs[0];
   if (firstSpec) {
     const value = source.fields[firstSpec.key]?.trim();
-    if (value) return maskFieldValue(firstSpec.kind, value);
+    if (value) return maskFieldValue({ kind: firstSpec.kind, value });
   }
   return source.id;
 }

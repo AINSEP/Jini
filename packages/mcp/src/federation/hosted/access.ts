@@ -3,7 +3,7 @@
 import { createHash } from "node:crypto";
 import { ToolInputError } from "@jini-ai/core";
 import type { ISODateTime } from "@jini-ai/core/primitives";
-import type { ExternalMcpAccessSnapshot } from "@jini-ai/core/contracts/hosted-mcp";
+import type { ExternalMcpAccessSnapshot, ExternalMcpServerRecord, SaveExternalMcpServerInput } from "@jini-ai/core/contracts/hosted-mcp";
 import { ExternalMcpValidationError } from "./validation-error.js";
 
 /** Only source identity is hashed; credentials are represented by their existing ciphertext. */
@@ -139,4 +139,108 @@ export function validateExternalMcpToolNames({ names, field }: { names: readonly
     }
   }
   return [...new Set(names)];
+}
+
+/**
+ * Splits an operator's comma-separated list of remote tool names, shared by {@link
+ * parseAllowedToolNames} and {@link parseWriteAllowedToolNames} — the two lists use the identical
+ * charset, cap and dedup rule, and differ only in which field a rejection names.
+ *
+ * An empty result is a legitimate, meaningful value on either list — it yields a server that
+ * contributes (or write-authorizes) zero tools — so it is returned rather than rejected. That is the
+ * safe direction and matches `trust.ts` R2's default-deny posture.
+ *
+ * @throws {ExternalMcpValidationError} On a name the trust tier would refuse anyway, so the operator
+ * learns at save time instead of discovering an unexplained absence after a restart.
+ * @complexity O(n) in the number of names.
+ */
+function parseToolNameList(raw: string, field: string): string[] {
+  const names = raw
+    .split(",")
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0);
+
+  return validateExternalMcpToolNames({ names, field });
+}
+
+/**
+ * Splits an operator's comma-separated allowlist of remote tool names.
+ *
+ * @throws {ExternalMcpValidationError} See {@link parseToolNameList}. `field` is `"allowedToolNames"`.
+ * @complexity O(n) in the number of names.
+ * @overallScore 100
+ */
+export function parseAllowedToolNames({ raw }: { raw: string }, _optional: Record<string, never> = {}): string[] {
+  return parseToolNameList(raw, "allowedToolNames");
+}
+
+/**
+ * Splits an operator's comma-separated list of remote tool names separately authorized to write —
+ * `trust.ts` R3's override, checked only after {@link parseAllowedToolNames}'s allowlist passes (see
+ * {@link assertWriteAllowlistSubset}).
+ *
+ * @throws {ExternalMcpValidationError} See {@link parseToolNameList}. `field` is
+ * `"writeAllowedToolNames"`.
+ * @complexity O(n) in the number of names.
+ * @overallScore 100
+ */
+export function parseWriteAllowedToolNames({ raw }: { raw: string }, _optional: Record<string, never> = {}): string[] {
+  return parseToolNameList(raw, "writeAllowedToolNames");
+}
+
+/**
+ * A tool may be write-authorized only if it is ALSO allowlisted. Enforced at save time so an
+ * operator learns of the mistake immediately rather than the entry sitting inert (or, worse, being
+ * misread as intentional) until a boot-time report surfaces it.
+ *
+ * @throws {ExternalMcpValidationError} Naming the first write-authorized tool absent from the
+ * allowlist, with `field === "writeAllowedToolNames"`.
+ * @complexity O(n) in the number of write-authorized names.
+ */
+export function assertWriteAllowlistSubset(writeAllowedToolNames: readonly string[], allowedToolNames: readonly string[]): void {
+  const allowed = new Set(allowedToolNames);
+  for (const name of writeAllowedToolNames) {
+    if (!allowed.has(name)) {
+      throw new ExternalMcpValidationError(
+        `'${name}' is authorized to write but is not in the allowlist — a tool must be allowlisted before it can be write-authorized`,
+        "writeAllowedToolNames",
+      );
+    }
+  }
+}
+
+/** Whether two tool-name lists name the same SET of tools, ignoring order — the write list is a set
+ *  of operator decisions, not an ordered sequence, so a save that re-sends the same names in a
+ *  different order must not read as a change. Used only to decide whether {@link
+ *  resolveWriteGrantAttribution} owes a new attribution.
+ *  @complexity O(n) in the longer list. */
+function toolNameSetsEqual(a: readonly string[], b: readonly string[]): boolean {
+  if (a.length !== b.length) return false;
+  const setB = new Set(b);
+  return a.every((name) => setB.has(name));
+}
+
+/**
+ * Resolves the two write-grant attribution columns for one save.
+ *
+ * Written ONLY when {@link writeAllowedToolNames}'s contents actually change — compared as a set
+ * against whatever the row already has — so a save that merely renames a connection or flips
+ * `enabled` does not stamp a new "authorized by / on" over an untouched grant. `input.principalId`
+ * is read only on the changed branch, which is what lets it stay a required TYPE without becoming a
+ * runtime hazard: a caller written before this field existed can only reach `undefined` here if it
+ * also never sets a non-empty {@link SaveExternalMcpServerInput.writeAllowedToolNames}, in which case
+ * the list never changes and this branch never runs.
+ *
+ * @complexity O(n) in the length of the longer list (via {@link toolNameSetsEqual}).
+ */
+export function resolveWriteGrantAttribution({ input, writeAllowedToolNames, existing, nowIso }: { input: Pick<SaveExternalMcpServerInput, "principalId">; writeAllowedToolNames: readonly string[]; existing: ExternalMcpServerRecord | null; nowIso: ISODateTime }, _optional = {}
+): Pick<ExternalMcpServerRecord, "writeGrantsUpdatedByPrincipalId" | "writeGrantsUpdatedAt"> {
+  const previousWriteAllowedToolNames = parseExternalMcpJsonArray({ raw: existing?.writeAllowedToolNames ?? null });
+  if (toolNameSetsEqual(previousWriteAllowedToolNames, writeAllowedToolNames)) {
+    return {
+      writeGrantsUpdatedByPrincipalId: existing?.writeGrantsUpdatedByPrincipalId ?? null,
+      writeGrantsUpdatedAt: existing?.writeGrantsUpdatedAt ?? null,
+    };
+  }
+  return { writeGrantsUpdatedByPrincipalId: input.principalId, writeGrantsUpdatedAt: nowIso };
 }

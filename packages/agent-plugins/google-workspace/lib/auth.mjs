@@ -1,9 +1,9 @@
 /**
- * @file The Google Workspace sign-in hooks (the `lib/auth.mjs` module `tovu-connections.json`
+ * @file The Google Workspace sign-in hooks (the `lib/auth.mjs` module `jini-connections.json`
  * names): which scopes a sign-in requests, who signed in, and how a grant is revoked at Google.
  *
  * Exists because the host's OAuth engine is provider-neutral: Google's endpoints live in
- * `tovu-connections.json`, and everything Google-specific the engine must call back into lives
+ * `jini-connections.json`, and everything Google-specific the engine must call back into lives
  * here. The engine handles state, PKCE, the code exchange, refresh and token storage.
  *
  * Revocation honesty: `revoke` resolves only when Google answered 200, or answered `invalid_token`

@@ -3,8 +3,14 @@ import assert from "node:assert/strict";
 import { describe, test, vi } from "vitest";
 import { AesGcmSecretSealer } from "../secret-sealer.aesgcm.js";
 import { InMemoryKeyring } from "../keyring.memory.js";
-import { SecretsVaultService, InMemoryVaultRepo, buildVaultAad, createVaultMetaParsers, type VaultContext,
-  type VaultCopyInput, type VaultIdentity, type VaultMetaParsers, type VaultPutInput, type VaultQuery, type VaultRecord } from "../credential-sets/index.js";
+import { SecretsVaultService, InMemoryVaultRepo, buildVaultAad, createVaultMetaParsers, type VaultCopyInput, type VaultPutInput } from "../credential-sets/index.js";
+import {
+  type VaultContext,
+  type VaultIdentity,
+  type VaultMetaParsers,
+  type VaultQuery,
+  type VaultRecord,
+} from "@jini-ai/core/contracts/vault";
 
 const NOW = "2026-10-11T00:00:00.000Z";
 const token = "abcdefghijklmnop";

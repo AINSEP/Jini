@@ -1,5 +1,9 @@
 /** The shared INV-03 read gate used by runtime resolution and host export. */
-import type { OriginRegistryPort, RedirectTargetContext, VerifiedOrigin } from "@jini-ai/http-kit/verified-origin";
+import type {
+  OriginRegistryPort,
+  RedirectTargetContext,
+  VerifiedOrigin,
+} from "@jini-ai/core/contracts/server/verified-origin";
 import { isReferrerAliasLocation } from "./referrer-alias.js";
 import { checkSameOriginDestination, type SameOriginDestinationCheck } from "./reserved-destination.js";
 

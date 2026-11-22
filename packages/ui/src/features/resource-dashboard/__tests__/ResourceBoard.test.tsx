@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ResourceBoard } from '../react/components/ResourceBoard.js';
 import { createFakeResourceBoardDependencies } from '../dependencies.js';
-import { I18nProvider } from '../../i18n/index.js';
+import { I18nProvider, type useT } from '../../i18n/index.js';
 import type { ResourceBoardItem, ResourceStatusOption } from '../types.js';
 
 // None of `createFakeResourceBoardDependencies`'s results below set a
@@ -12,7 +12,7 @@ import type { ResourceBoardItem, ResourceStatusOption } from '../types.js';
 // clearing it between tests, one test's persisted view-mode choice (e.g.
 // clicking "Kanban view") leaks into every later test in this file — see
 // `useResourceBoard.test.ts` for the first time this exact pitfall was
-// caught (documented in `packages/ui/source-map.md`).
+// caught (documented in `070311a07^:packages/ui/source-map.md`).
 beforeEach(() => {
   window.localStorage.clear();
 });
@@ -29,6 +29,9 @@ function seedItems(): ResourceBoardItem[] {
     { id: 'b', title: 'Beta', status: 'succeeded', menuActions: [{ kind: 'duplicate', label: 'Duplicate' }] },
   ];
 }
+
+/** A translator that is visibly not the key, so the assertion proves the injected hook ran. */
+const useQuotingT: typeof useT = () => (key) => `«${key}»`;
 
 describe('ResourceBoard', () => {
   it('loads and renders items', async () => {
@@ -466,5 +469,12 @@ describe('ResourceBoard 4-pattern hook override test suite', () => {
     const items: ResourceBoardItem[] = [{ id: 'a', title: 'Alpha', status: 'mystery' }];
     render(<ResourceBoard dependencies={createFakeResourceBoardDependencies({ items })} statusOptions={STATUS_OPTIONS} onOpenItem={() => {}} />);
     await waitFor(() => expect(screen.getByTestId('resource-status-pill')).toHaveTextContent('mystery'));
+  });
+
+  it('renders the translator supplied through useTHook', async () => {
+    const dependencies = createFakeResourceBoardDependencies({ items: seedItems() });
+    render(<ResourceBoard dependencies={dependencies} statusOptions={STATUS_OPTIONS} onOpenItem={() => {}} useTHook={useQuotingT} />);
+    await waitFor(() => expect(screen.getByText('Alpha')).toBeInTheDocument());
+    expect(screen.getByPlaceholderText('«Search…»')).toBeInTheDocument();
   });
 });

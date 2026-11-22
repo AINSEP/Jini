@@ -2,8 +2,8 @@
  * @module daemon-command
  *
  * `daemon status` / `daemon stop` — concrete commands over `@jini-ai/http-kit`'s
- * `daemonStatusRoute`/`daemonShutdownRoute` (`packages/http/src/daemon-status.ts`).
- * `packages/cli/archived provenance ledger`'s original UNCLEAR verdict on these two
+ * `daemonStatusRoute`/`daemonShutdownRoute` (`packages/daemon/src/http/daemon-status.ts`).
+ * `070311a07^:packages/cli/source-map.md`'s original UNCLEAR verdict on these two
  * blocked on `@jini-ai/http-kit` being a stub with no `/status`/`/shutdown` route to
  * call; that blocker no longer holds (both routes exist and are tested), and
  * `run-command.ts` is now a real, established "first concrete command"
@@ -17,33 +17,13 @@
  * daemon itself considers local. No special headers are added here for
  * that — it is the same call shape `run-command.ts` already uses.
  */
-import { exitWithStructuredError, type ExitCodeTable } from './errors.js';
+import { exitWithStructuredError } from './errors.js';
 import { getJsonFromDaemon, postJsonToDaemon } from './http.js';
 import { renderUsage } from './usage.js';
 import type { CommandRegistry } from './command-registry.js';
+import { defaultWrite, errorOptions, transportOptions, type DaemonCallDeps } from './daemon-call-deps.js';
 
-export interface DaemonCommandDeps {
-  /** Resolves the daemon HTTP base URL once per command invocation (e.g. wraps `resolveDaemonUrl`). */
-  resolveBaseUrl: () => Promise<string> | string;
-  /** Defaults to `process.stdout.write`; inject for tests. Used for successful command output. */
-  write?: (requiredArgs: { text: string }) => void;
-  /** Defaults to `process.stderr.write`; inject for tests. Used for usage/validation errors. */
-  writeErr?: (requiredArgs: { text: string }) => void;
-  /** Defaults to the global `fetch`; inject for tests. */
-  fetchImpl?: typeof fetch;
-  /** Defaults to `process.exit`; inject for tests (must not return). */
-  exit?: (requiredArgs: { code: number }) => never;
-  /** Extra/overriding `code -> exitCode` entries layered on the package default table. */
-  exitCodes?: ExitCodeTable;
-}
-
-function defaultWrite({ text }: { text: string }): void {
-  process.stdout.write(text);
-}
-
-function defaultWriteErr({ text }: { text: string }): void {
-  process.stderr.write(text);
-}
+export interface DaemonCommandDeps extends DaemonCallDeps {}
 
 const DAEMON_STATUS_USAGE = renderUsage({ usage: ['daemon status'] }, { description: 'Reports the running daemon\'s version/host/port/dataDir/shutdown state.' });
 
@@ -51,32 +31,8 @@ const DAEMON_STOP_USAGE = renderUsage({ usage: ['daemon stop'] }, { description:
 
 const DAEMON_USAGE = renderUsage({ usage: ['daemon <status|stop> ...'] }, { description: 'Inspect or control a running Jini daemon over HTTP.' });
 
-/** Builds `{write, exit, exitCodes?}` for `errors.ts`'s structured-error helpers, never assigning `exitCodes` when unset (required under `exactOptionalPropertyTypes`). */
-function errorOptions(deps: DaemonCommandDeps): { write: (requiredArgs: { text: string }) => void; exit: (requiredArgs: { code: number }) => never; exitCodes?: ExitCodeTable } {
-  return {
-    write: deps.writeErr ?? defaultWriteErr,
-    exit: deps.exit ?? (({ code }: { code: number }) => process.exit(code)),
-    ...(deps.exitCodes !== undefined ? { exitCodes: deps.exitCodes } : {}),
-  };
-}
-
-/** Builds the transport-call options object for `postJsonToDaemon`/`getJsonFromDaemon`, only ever including a key when its value is actually set. */
-function transportOptions(deps: DaemonCommandDeps): {
-  fetchImpl?: typeof fetch;
-  write?: (requiredArgs: { text: string }) => void;
-  exit?: (requiredArgs: { code: number }) => never;
-  exitCodes?: ExitCodeTable;
-} {
-  return {
-    ...(deps.fetchImpl !== undefined ? { fetchImpl: deps.fetchImpl } : {}),
-    ...(deps.writeErr !== undefined ? { write: deps.writeErr } : {}),
-    ...(deps.exit !== undefined ? { exit: deps.exit } : {}),
-    ...(deps.exitCodes !== undefined ? { exitCodes: deps.exitCodes } : {}),
-  };
-}
-
 function invalidFlag(deps: DaemonCommandDeps, message: string): never {
-  return exitWithStructuredError({ code: 'invalid-flag', message }, errorOptions(deps));
+  return exitWithStructuredError({ code: 'invalid-flag', message }, errorOptions({ deps }));
 }
 
 function printJsonResult(deps: DaemonCommandDeps, value: unknown): void {
@@ -91,7 +47,7 @@ export async function daemonStatusCommand({ args, resolveBaseUrl }: { args: read
     return;
   }
   const baseUrl = await deps.resolveBaseUrl();
-  const result = await getJsonFromDaemon({ base: baseUrl, route: '/api/daemon/status' }, transportOptions(deps));
+  const result = await getJsonFromDaemon({ base: baseUrl, route: '/api/daemon/status' }, transportOptions({ deps }));
   printJsonResult(deps, result);
 }
 
@@ -103,7 +59,7 @@ export async function daemonStopCommand({ args, resolveBaseUrl }: { args: readon
     return;
   }
   const baseUrl = await deps.resolveBaseUrl();
-  const result = await postJsonToDaemon({ base: baseUrl, route: '/api/daemon/shutdown', body: {} }, transportOptions(deps));
+  const result = await postJsonToDaemon({ base: baseUrl, route: '/api/daemon/shutdown', body: {} }, transportOptions({ deps }));
   printJsonResult(deps, result);
 }
 

@@ -1,42 +1,15 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { isLocalSameOrigin } from '@jini-ai/core';
+import { describe, expect, it, vi } from 'vitest';
+import { denyAllOrigins } from '@jini-ai/core/contracts/server/testing';
+import { fakeDaemonRouteHost } from './fakes/route-host.js';
+import { reportRouteInternalError } from '@jini-ai/http-kit';
+import { jsonRequest, serveRoutes } from './fakes/serve-routes.js';
+import { describeRoutes } from '../route-table.js';
 import {
   daemonShutdownRoute,
   daemonStatusRoute,
-  registerDaemonStatusRoutes,
+  daemonStatusRoutes,
   type DaemonStatusDeps,
 } from '../daemon-status.js';
-
-vi.mock('@jini-ai/core', async (importOriginal) => ({
-  ...await importOriginal<typeof import('@jini-ai/core')>(),
-  isLocalSameOrigin: vi.fn(() => true),
-}));
-
-interface MockApp {
-  get: (path: string, handler: any) => void;
-  post: (path: string, handler: any) => void;
-  put: (path: string, handler: any) => void;
-  delete: (path: string, handler: any) => void;
-  patch: (path: string, handler: any) => void;
-  handlers: Record<string, (req: any, res: any) => Promise<void> | void>;
-}
-
-function makeApp(): MockApp {
-  const handlers: MockApp['handlers'] = {};
-  const make = (method: string) => (path: string, handler: any) => {
-    handlers[`${method.toUpperCase()} ${path}`] = handler;
-  };
-  return { get: make('get'), post: make('post'), put: make('put'), delete: make('delete'), patch: make('patch'), handlers };
-}
-
-function makeRes() {
-  return {
-    status: vi.fn().mockReturnThis(),
-    json: vi.fn().mockReturnThis(),
-  };
-}
-
-const adapter = { allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST', env: {}, resolvedPortRef: { current: 7456 } };
 
 function makeDeps(overrides: Partial<DaemonStatusDeps> = {}): DaemonStatusDeps {
   return {
@@ -50,10 +23,11 @@ function makeDeps(overrides: Partial<DaemonStatusDeps> = {}): DaemonStatusDeps {
   };
 }
 
-beforeEach(() => {
-  vi.mocked(isLocalSameOrigin).mockReturnValue(true);
-  vi.useRealTimers();
-});
+/** The daemon-status routes on an in-memory server; `denyOrigins` makes the host refuse every origin. */
+function serve({ deps, denyOrigins = false }: { deps: DaemonStatusDeps; denyOrigins?: boolean }) {
+  const host = fakeDaemonRouteHost({}, denyOrigins ? { originPolicy: denyAllOrigins } : {});
+  return { fetch: serveRoutes({ routes: daemonStatusRoutes({ deps, host }) }), host };
+}
 
 describe('daemonStatusRoute', () => {
   it('reports version/host/port/dataDir/shuttingDown/pid on success', async () => {
@@ -115,31 +89,17 @@ describe('daemonStatusRoute', () => {
   });
 
   it('mounts on GET /api/daemon/status with no same-origin requirement', async () => {
-    const app = makeApp();
-    registerDaemonStatusRoutes({ app: app as any, deps: makeDeps(), adapter });
-    expect(app.handlers['GET /api/daemon/status']).toBeDefined();
-    vi.mocked(isLocalSameOrigin).mockReturnValue(false);
-    const res = makeRes();
-    await app.handlers['GET /api/daemon/status']!({ body: {}, query: {}, params: {} }, res);
-    expect(res.status).toHaveBeenCalledWith(200);
+    const response = await serve({ deps: makeDeps(), denyOrigins: true }).fetch(jsonRequest({ path: '/api/daemon/status' }));
+    expect(response.status).toBe(200);
   });
 
   it('surfaces an unexpected error through the mounted route as a 500 INTERNAL_ERROR (malformed-response category)', async () => {
-    const app = makeApp();
-    registerDaemonStatusRoutes({
-      app: app as any, deps: makeDeps({
-        getVersion: () => {
-          throw new Error('boom');
-        },
-      }), adapter
-    }
-    );
-    const res = makeRes();
-    await app.handlers['GET /api/daemon/status']!({ body: {}, query: {}, params: {} }, res);
-    expect(res.status).toHaveBeenCalledWith(500);
-    // Redacted, not echoed — the adapter's catch is a last-resort handler for unanticipated
-    // exceptions and must not forward their text to the caller (see `adapter.test.ts`).
-    const body = res.json.mock.calls[0]![0] as { error: { code: string; message: string } };
+    const host = { ...fakeDaemonRouteHost(), reportInternalError: reportRouteInternalError };
+    const fetch = serveRoutes({ routes: daemonStatusRoutes({ deps: makeDeps({ getVersion: () => { throw new Error('boom'); } }), host }) });
+    const response = await fetch(jsonRequest({ path: '/api/daemon/status' }));
+    expect(response.status).toBe(500);
+    // Redacted, not echoed: the route's catch is a last-resort handler for unanticipated exceptions and must not forward their text to the caller.
+    const body = await response.json() as { error: { code: string; message: string } };
     expect(body.error.code).toBe('INTERNAL_ERROR');
     expect(body.error.message).toBe('The server could not finish this request. Check whether your change was saved, then copy the request ID and report this problem.');
   });
@@ -186,35 +146,25 @@ describe('daemonShutdownRoute', () => {
   });
 
   it('requires same-origin when mounted: allows a same-origin request', async () => {
-    vi.mocked(isLocalSameOrigin).mockReturnValue(true);
-    const app = makeApp();
     const requestShutdown = vi.fn();
-    registerDaemonStatusRoutes({ app: app as any, deps: makeDeps({ requestShutdown }), adapter });
-    const res = makeRes();
-    await app.handlers['POST /api/daemon/shutdown']!({ body: {}, query: {}, params: {} }, res);
-    expect(res.status).toHaveBeenCalledWith(200);
-    expect(res.json).toHaveBeenCalledWith({ ok: true, scheduled: true });
+    const response = await serve({ deps: makeDeps({ requestShutdown }) }).fetch(jsonRequest({ path: '/api/daemon/shutdown', method: 'POST' }));
+    expect([response.status, await response.json()]).toEqual([200, { ok: true, scheduled: true }]);
   });
 
   it('requires same-origin when mounted: blocks a cross-origin request with 403 and never calls requestShutdown (stale-state-on-retry category: a rejected attempt must not silently schedule shutdown)', async () => {
-    vi.mocked(isLocalSameOrigin).mockReturnValue(false);
-    const app = makeApp();
     const requestShutdown = vi.fn();
-    registerDaemonStatusRoutes({ app: app as any, deps: makeDeps({ requestShutdown }), adapter });
-    const res = makeRes();
-    await app.handlers['POST /api/daemon/shutdown']!({ body: {}, query: {}, params: {} }, res);
-    expect(res.status).toHaveBeenCalledWith(403);
+    const response = await serve({ deps: makeDeps({ requestShutdown }), denyOrigins: true }).fetch(jsonRequest({ path: '/api/daemon/shutdown', method: 'POST' }));
+    expect(response.status).toBe(403);
     await new Promise((resolve) => setImmediate(resolve));
     expect(requestShutdown).not.toHaveBeenCalled();
   });
 });
 
-describe('registerDaemonStatusRoutes', () => {
-  it('mounts exactly the status and shutdown routes, nothing else', () => {
-    const app = makeApp();
-    registerDaemonStatusRoutes({ app: app as any, deps: makeDeps(), adapter });
-    expect(Object.keys(app.handlers).sort()).toEqual(
-      ['GET /api/daemon/status', 'POST /api/daemon/shutdown'].sort(),
-    );
+describe('daemonStatusRoutes', () => {
+  it('lists exactly the status and shutdown routes, only the shutdown behind the same-origin gate', () => {
+    expect(describeRoutes({ routes: daemonStatusRoutes({ deps: makeDeps(), host: fakeDaemonRouteHost() }) })).toEqual([
+      { method: 'GET', path: '/api/daemon/status', gates: [] },
+      { method: 'POST', path: '/api/daemon/shutdown', gates: ['same-origin'] },
+    ]);
   });
 });

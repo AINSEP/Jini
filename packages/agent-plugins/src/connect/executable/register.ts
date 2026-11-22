@@ -34,6 +34,46 @@ function ownersById({ contributions, toolIdFor }: { contributions: AgentPluginEx
   return owners;
 }
 
+function createExecutableRegistrationAdapter<Registry extends AgentPluginExecutableContributionRegistry>(
+  required: AgentPluginExecutableRegistrationRequired<Registry>,
+  { host, workspaceId, withExtensionApprovalPolicy, authorize, disclose, isAdminTool }: Pick<AgentPluginExecutableRegistrationRequired<Registry>, 'host' | 'workspaceId' | 'withExtensionApprovalPolicy'> & { authorize: ReturnType<typeof adaptLegacyAuthorize>; disclose: ReturnType<typeof createAgentPluginDisclosure>; isAdminTool: (toolId: string) => boolean },
+) {
+  return (registration: ToolRegistration, owner: ToolOwner): ToolRegistration => {
+    const toolId = registration.descriptor.id;
+    // The contract asks the executor to confirm; the host's executor has no transport for that and would
+    // park forever, so the approval owner's card below confirms instead (never less friction).
+    const { requiresConfirmation: _parked, timeoutMs, ...descriptor } = registration.descriptor;
+    const asks = owner.effect !== 'read';
+    const gated = isAdminTool(toolId) ? { ...registration, policy: { ...registration.policy, authorize: async (ctx: ToolAuthorizationContext) => {
+      if (await registration.policy.authorize(ctx) !== 'allow') return 'deny' as const;
+      try {
+        await requireToolPermission({ authorize, workspaceId, principalId: ctx.principal.id, permission: host.adminSurfaces!.permission });
+        return 'allow' as const;
+      } catch { return 'deny' as const; }
+    } } } : registration;
+    const nonDestructiveEffect = asks ? 'mutates-durable-state' : 'none';
+    const sideEffects = owner.effect === 'destructive' ? 'deletes-durable-state' : nonDestructiveEffect;
+    const classified = withExtensionApprovalPolicy({ registration: { ...gated, descriptor: { ...descriptor, readOnly: !asks, sideEffects, ...(asks ? {} : { timeoutMs }) } }, family: APPROVAL_FAMILY_BY_EFFECT[owner.effect] });
+    // An admin action may be the one that signs a connection in, so its unconnected ones are left unbound.
+    const skipUnconnected = isAdminTool(toolId);
+    return asks ? required.applyApproval({ registration: classified }, { disclose: ({ ctx }) => disclose({ ctx, toolId, pluginId: owner.pluginId, workspaceId }, { skipUnconnected }) }) : classified;
+  };
+}
+
+function createExecutableScopeRefresh(
+  { readOwners, registrations, scope, adapt }: { readOwners: () => Map<string, ToolOwner>; registrations: () => ToolRegistration[]; scope: ReturnType<typeof createToolRegistrationScope>; adapt: (registration: ToolRegistration, owner: ToolOwner) => ToolRegistration },
+) {
+  return () => {
+    const owners = readOwners();
+    scope.replace({ registrations: registrations().map((registration) => {
+      const owner = owners.get(registration.descriptor.id);
+      // Both come from the same snapshots; refusing beats registering a tool with no approval family.
+      if (!owner) throw new Error(`agent plugin tool '${registration.descriptor.id}' has no owning plugin, so its approval could not be classified`);
+      return adapt(registration, owner);
+    }) });
+  };
+}
+
 /**
  * Loads this workspace's executable Agent Plugin tools and keeps them registered on `registry`.
  * @param required.registry - The core ToolRegistry the assistant executes from (a registration scope needs it).
@@ -76,36 +116,9 @@ export async function registerAgentPluginExecutableTools<Registry extends AgentP
     },
     metadata: { approval: required.readApproval },
   };
-  const adapt = (registration: ToolRegistration, owner: ToolOwner): ToolRegistration => {
-    const toolId = registration.descriptor.id;
-    // The contract asks the executor to confirm; the host's executor has no transport for that and would
-    // park forever, so the approval owner's card below confirms instead (never less friction).
-    const { requiresConfirmation: _parked, timeoutMs, ...descriptor } = registration.descriptor;
-    const asks = owner.effect !== 'read';
-    const gated = adminToolIds.has(toolId) ? { ...registration, policy: { ...registration.policy, authorize: async (ctx: ToolAuthorizationContext) => {
-      if (await registration.policy.authorize(ctx) !== 'allow') return 'deny' as const;
-      try {
-        await requireToolPermission({ authorize, workspaceId, principalId: ctx.principal.id, permission: host.adminSurfaces!.permission });
-        return 'allow' as const;
-      } catch { return 'deny' as const; }
-    } } } : registration;
-    const nonDestructiveEffect = asks ? 'mutates-durable-state' : 'none';
-    const sideEffects = owner.effect === 'destructive' ? 'deletes-durable-state' : nonDestructiveEffect;
-    const classified = withExtensionApprovalPolicy({ registration: { ...gated, descriptor: { ...descriptor, readOnly: !asks, sideEffects, ...(asks ? {} : { timeoutMs }) } }, family: APPROVAL_FAMILY_BY_EFFECT[owner.effect] });
-    // An admin action may be the one that signs a connection in, so its unconnected ones are left unbound.
-    const skipUnconnected = adminToolIds.has(toolId);
-    return asks ? required.applyApproval({ registration: classified }, { disclose: ({ ctx }) => disclose({ ctx, toolId, pluginId: owner.pluginId, workspaceId }, { skipUnconnected }) }) : classified;
-  };
+  const adapt = createExecutableRegistrationAdapter(required, { host, workspaceId, withExtensionApprovalPolicy, authorize, disclose, isAdminTool: toolId => adminToolIds.has(toolId) });
   const scope = createToolRegistrationScope({ registry });
-  const refresh = () => {
-    const owners = ownersById({ contributions, toolIdFor: pluginToolIdFor });
-    scope.replace({ registrations: required.contributions.buildRegistrations(ports).map((registration) => {
-      const owner = owners.get(registration.descriptor.id);
-      // Both come from the same snapshots; refusing beats registering a tool with no approval family.
-      if (!owner) throw new Error(`agent plugin tool '${registration.descriptor.id}' has no owning plugin, so its approval could not be classified`);
-      return adapt(registration, owner);
-    }) });
-  };
+  const refresh = createExecutableScopeRefresh({ readOwners: () => ownersById({ contributions, toolIdFor: pluginToolIdFor }), registrations: () => required.contributions.buildRegistrations(ports), scope, adapt });
   refresh();
   const unsubscribe = contributions.subscribe({ onChanged: refresh });
   let disposed = false;

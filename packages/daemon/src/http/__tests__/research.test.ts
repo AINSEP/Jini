@@ -1,47 +1,10 @@
-import type { Server } from 'node:http';
-import type { AddressInfo } from 'node:net';
-import express from 'express';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { isLocalSameOrigin } from '@jini-ai/core';
-import { registerResearchRoutes, researchSearchRoute, type ResearchHttpDeps } from '../research.js';
-
-vi.mock('@jini-ai/core', async (importOriginal) => ({
-  ...await importOriginal<typeof import('@jini-ai/core')>(),
-  isLocalSameOrigin: vi.fn(() => true),
-}));
-
-interface MockApp {
-  get: (path: string, handler: any) => void;
-  post: (path: string, handler: any) => void;
-  put: (path: string, handler: any) => void;
-  delete: (path: string, handler: any) => void;
-  patch: (path: string, handler: any) => void;
-  handlers: Record<string, (req: any, res: any) => Promise<void> | void>;
-}
-
-function makeApp(): MockApp {
-  const handlers: MockApp['handlers'] = {};
-  const make = (method: string) => (path: string, handler: any) => {
-    handlers[`${method.toUpperCase()} ${path}`] = handler;
-  };
-  return { get: make('get'), post: make('post'), put: make('put'), delete: make('delete'), patch: make('patch'), handlers };
-}
-
-function makeRes() {
-  return {
-    status: vi.fn().mockReturnThis(),
-    json: vi.fn().mockReturnThis(),
-  };
-}
-
-const adapter = { allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST', env: {}, resolvedPortRef: { current: 7456 } };
-
-/**
- * The real `fetch`, captured before any test stubs the global. `research.ts` reaches for global
- * `fetch` to call Tavily (it has no injection seam), so the wire suite below has to stub the global
- * *and* still issue its own genuine HTTP requests — those go through this reference.
- */
-const realFetch: typeof fetch = globalThis.fetch.bind(globalThis);
+import { reportRouteInternalError } from '@jini-ai/http-kit';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { denyAllOrigins } from '@jini-ai/core/contracts/server/testing';
+import { fakeDaemonRouteHost } from './fakes/route-host.js';
+import { jsonRequest, serveRoutes } from './fakes/serve-routes.js';
+import { describeRoutes } from '../route-table.js';
+import { researchRoutes, researchSearchRoute, type ResearchHttpDeps } from '../research.js';
 
 function okFetchResponse(body: unknown) {
   return { ok: true, status: 200, json: async () => body, text: async () => JSON.stringify(body) };
@@ -49,14 +12,11 @@ function okFetchResponse(body: unknown) {
 
 function makeDeps(overrides: Partial<ResearchHttpDeps> = {}): ResearchHttpDeps {
   return {
+    reportInternalError: reportRouteInternalError,
     resolveCredentials: async () => ({ apiKey: 'tvly-test-key' }),
     ...overrides,
   };
 }
-
-beforeEach(() => {
-  vi.mocked(isLocalSameOrigin).mockReturnValue(true);
-});
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -208,7 +168,7 @@ describe('researchSearchRoute.handle', () => {
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.error.code).toBe('INTERNAL_ERROR');
-      expect(result.error.message).toBe('an internal error occurred');
+      expect(result.error.message).toBe('The web research request could not be completed. Try again; if it keeps failing, copy the request ID and report this problem.');
       expect(JSON.stringify(result.error)).not.toContain('tvly-test-key');
     }
     expect(onInternalError).toHaveBeenCalledTimes(1);
@@ -257,7 +217,7 @@ describe('researchSearchRoute.handle', () => {
           okFetchResponse({ answer: 'ok', results: [{ title: 'T', url: 'https://example.com/x', content: 'c' }] }),
         );
         vi.stubGlobal('fetch', fetchMock);
-        const result = await researchSearchRoute.handle({ input: { query: 'q' }, deps: {} });
+        const result = await researchSearchRoute.handle({ input: { query: 'q' }, deps: { reportInternalError: reportRouteInternalError } });
         expect(result.ok).toBe(true);
         // Whitespace is trimmed off the env value before it becomes a Bearer credential.
         const [, init] = fetchMock.mock.calls[0]!;
@@ -269,7 +229,7 @@ describe('researchSearchRoute.handle', () => {
       await withEnv(undefined, async () => {
         const fetchMock = vi.fn();
         vi.stubGlobal('fetch', fetchMock);
-        const result = await researchSearchRoute.handle({ input: { query: 'q' }, deps: {} });
+        const result = await researchSearchRoute.handle({ input: { query: 'q' }, deps: { reportInternalError: reportRouteInternalError } });
         expect(result).toEqual({ ok: false, error: { code: 'NOT_CONFIGURED', message: 'tavily provider not configured' } });
         expect(fetchMock).not.toHaveBeenCalled();
       });
@@ -279,7 +239,7 @@ describe('researchSearchRoute.handle', () => {
       await withEnv('   ', async () => {
         const fetchMock = vi.fn();
         vi.stubGlobal('fetch', fetchMock);
-        const result = await researchSearchRoute.handle({ input: { query: 'q' }, deps: {} });
+        const result = await researchSearchRoute.handle({ input: { query: 'q' }, deps: { reportInternalError: reportRouteInternalError } });
         expect(result).toMatchObject({ ok: false, error: { code: 'NOT_CONFIGURED' } });
         expect(fetchMock).not.toHaveBeenCalled();
       });
@@ -288,10 +248,11 @@ describe('researchSearchRoute.handle', () => {
     it('falls back to console.error when no onInternalError sink is supplied', async () => {
       const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
       vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('ECONNRESET')));
-      const result = await researchSearchRoute.handle({ input: { query: 'q' }, deps: { resolveCredentials: async () => ({ apiKey: 'k' }) } });
+      const result = await researchSearchRoute.handle({ input: { query: 'q' }, deps: { reportInternalError: reportRouteInternalError, resolveCredentials: async () => ({ apiKey: 'k' }) } });
       expect(result).toMatchObject({ ok: false, error: { code: 'INTERNAL_ERROR' } });
       expect(consoleErrorSpy).toHaveBeenCalledTimes(1);
       expect(consoleErrorSpy.mock.calls[0]![0]).toContain('internal error (research/search, correlationId=');
+      expect(consoleErrorSpy.mock.calls[0]?.[1]).toBe('Error');
       consoleErrorSpy.mockRestore();
     });
   });
@@ -401,88 +362,28 @@ describe('researchSearchRoute.handle', () => {
   });
 });
 
-describe('registerResearchRoutes', () => {
-  it('mounts exactly POST /api/research/search', () => {
-    const app = makeApp();
-    registerResearchRoutes({ app: app as any, deps: makeDeps(), adapter });
-    expect(Object.keys(app.handlers)).toEqual(['POST /api/research/search']);
+describe('researchRoutes', () => {
+  const serve = ({ deps, denyOrigins = false }: { deps: ResearchHttpDeps; denyOrigins?: boolean }) =>
+    serveRoutes({ routes: researchRoutes({ deps, host: fakeDaemonRouteHost({}, denyOrigins ? { originPolicy: denyAllOrigins } : {}) }) });
+  const search = async ({ deps, body, denyOrigins = false }: { deps: ResearchHttpDeps; body: unknown; denyOrigins?: boolean }) => {
+    const response = await serve({ deps, denyOrigins })(jsonRequest({ path: '/api/research/search', method: 'POST' }, { body }));
+    return { status: response.status, body: await response.json() as unknown };
+  };
+
+  it('lists exactly POST /api/research/search, behind the same-origin gate', () => {
+    expect(describeRoutes({ routes: researchRoutes({ deps: makeDeps(), host: fakeDaemonRouteHost() }) })).toEqual([{ method: 'POST', path: '/api/research/search', gates: ['same-origin'] }]);
   });
 
   it('requires same-origin: rejects a cross-origin request with 403 before touching fetch', async () => {
-    vi.mocked(isLocalSameOrigin).mockReturnValue(false);
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
-    const app = makeApp();
-    registerResearchRoutes({ app: app as any, deps: makeDeps(), adapter });
-    const res = makeRes();
-    await app.handlers['POST /api/research/search']!({ body: { query: 'q' }, query: {}, params: {} }, res);
-    expect(res.status).toHaveBeenCalledWith(403);
+    expect((await search({ deps: makeDeps(), body: { query: 'q' }, denyOrigins: true })).status).toBe(403);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('a same-origin request with a configured provider returns 200 with the OD-shaped ResearchFindings result', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue(okFetchResponse({ answer: 'ok', results: [{ title: 'T', url: 'https://example.com/x', content: 'c' }] })),
-    );
-    const app = makeApp();
-    registerResearchRoutes({ app: app as any, deps: makeDeps(), adapter });
-    const res = makeRes();
-    await app.handlers['POST /api/research/search']!({ body: { query: 'q' }, query: {}, params: {} }, res);
-    expect(res.status).toHaveBeenCalledWith(200);
-    expect(res.json).toHaveBeenCalledTimes(1);
-    const [body] = res.json.mock.calls[0]!;
-    expect(body).toMatchObject({
-      query: 'q',
-      summary: 'ok',
-      sources: [{ title: 'T', url: 'https://example.com/x', snippet: 'c', provider: 'tavily' }],
-      provider: 'tavily',
-      depth: 'shallow',
-    });
-    expect(typeof body.fetchedAt).toBe('number');
-  });
-});
-
-/**
- * Real Express app on a real socket. Everything above drives the route spec directly, which cannot
- * catch a path that does not resolve, a body Express parses differently than the spec's `parse`
- * expects, or a status code that never reaches the wire.
- */
-describe('registerResearchRoutes — real Express server on a real socket', () => {
-  const servers: Server[] = [];
-  const adapterRef = { allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST', env: {}, resolvedPortRef: { current: 0 } };
-
-  afterEach(() => {
-    for (const server of servers.splice(0)) server.close();
-  });
-
-  async function listen(deps: ResearchHttpDeps): Promise<string> {
-    const app = express();
-    app.use(express.json());
-    registerResearchRoutes({ app: app as never, deps, adapter: adapterRef as never });
-    const server = await new Promise<Server>((resolve) => {
-      const s = app.listen(0, '127.0.0.1', () => resolve(s));
-    });
-    servers.push(server);
-    adapterRef.resolvedPortRef.current = (server.address() as AddressInfo).port;
-    return `http://127.0.0.1:${adapterRef.resolvedPortRef.current}`;
-  }
-
-  async function search(base: string, body: unknown, origin = base) {
-    const response = await realFetch(`${base}/api/research/search`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', origin },
-      body: JSON.stringify(body),
-    });
-    return { status: response.status, body: await response.json() };
-  }
-
-  it('serves a real search round-trip and returns 200 with the full findings envelope', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
-      okFetchResponse({ answer: 'the answer', results: [{ title: 'T', url: 'https://example.com/x', content: 'c' }] }),
-    ));
-    const base = await listen(makeDeps());
-    const { status, body } = await search(base, { query: 'what is jini' });
+  it('a same-origin request with a configured provider returns 200 with the full OD-shaped ResearchFindings envelope', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(okFetchResponse({ answer: 'the answer', results: [{ title: 'T', url: 'https://example.com/x', content: 'c' }] })));
+    const { status, body } = await search({ deps: makeDeps(), body: { query: 'what is jini' } });
     expect(status).toBe(200);
     expect(body).toMatchObject({
       query: 'what is jini',
@@ -491,41 +392,29 @@ describe('registerResearchRoutes — real Express server on a real socket', () =
       provider: 'tavily',
       depth: 'shallow',
     });
+    expect(typeof (body as { fetchedAt: unknown }).fetchedAt).toBe('number');
   });
 
-  it('answers 404 over the wire when no usable source comes back', async () => {
+  it('answers 404 when no usable source comes back', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(okFetchResponse({ answer: 'none', results: [] })));
-    const base = await listen(makeDeps());
-    expect(await search(base, { query: 'q' })).toEqual({
-      status: 404,
-      body: { error: { code: 'NOT_FOUND', message: 'no sources found' } },
-    });
+    expect(await search({ deps: makeDeps(), body: { query: 'q' } })).toEqual({ status: 404, body: { error: { code: 'NOT_FOUND', message: 'no sources found' } } });
   });
 
-  it('answers 503 over the wire when no provider credential is configured', async () => {
-    const base = await listen({ resolveCredentials: async () => ({}) });
-    expect(await search(base, { query: 'q' })).toEqual({
+  it('answers 503 when no provider credential is configured', async () => {
+    expect(await search({ deps: { reportInternalError: reportRouteInternalError, resolveCredentials: async () => ({}) }, body: { query: 'q' } })).toEqual({
       status: 503,
       body: { error: { code: 'NOT_CONFIGURED', message: 'tavily provider not configured' } },
     });
   });
 
-  it('answers 400 over the wire for a malformed body', async () => {
-    const base = await listen(makeDeps());
-    expect((await search(base, { query: '   ' })).status).toBe(400);
+  it('answers 400 for a malformed body', async () => {
+    expect((await search({ deps: makeDeps(), body: { query: '   ' } })).status).toBe(400);
   });
 
-  it('answers 403 over the wire for a cross-origin request, before calling the provider', async () => {
-    vi.mocked(isLocalSameOrigin).mockReturnValue(false);
-    const upstream = vi.fn();
-    vi.stubGlobal('fetch', upstream);
-    const base = await listen(makeDeps());
-    const response = await realFetch(`${base}/api/research/search`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', origin: 'http://evil.example.com' },
-      body: JSON.stringify({ query: 'q' }),
-    });
-    expect(response.status).toBe(403);
-    expect(upstream).not.toHaveBeenCalled();
+  it("reports a provider failure through the host's reporter, with a request ID in the answer", async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('upstream down')));
+    const host = fakeDaemonRouteHost();
+    const response = await serveRoutes({ routes: researchRoutes({ deps: makeDeps(), host }) })(jsonRequest({ path: '/api/research/search', method: 'POST' }, { body: { query: 'q' } }));
+    expect([response.status, host.reports.map((report) => report.logSource), (await response.json() as { error: { requestId: string } }).error.requestId]).toEqual([500, ['research/search'], 'req-1']);
   });
 });

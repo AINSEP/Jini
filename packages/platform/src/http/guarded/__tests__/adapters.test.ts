@@ -3,7 +3,7 @@ import { createHttpClient } from "../client.js";
 import { guardedFetch } from "../fetch-adapter.js";
 import { createNodeGuardedHttpPorts } from "../node-ports.js";
 import type { HttpRequest } from "@jini-ai/core/primitives";
-import type { EgressPolicy, PinnedPeer } from "../index.js";
+import type { EgressPolicy, PinnedPeer } from "@jini-ai/core/contracts/runtime";
 const policy: EgressPolicy = { allowedSchemes: ["https"], denyPrivateAddresses: true, devHostAllowlist: [], maxRedirects: 3, connectTimeoutMs: 1000, maxResponseBytes: 10, maxDecompressedBytes: 10 };
 const clock = { nowMs: () => 0, timeoutSignal: () => new AbortController().signal };
 

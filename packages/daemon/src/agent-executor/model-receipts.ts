@@ -1,8 +1,12 @@
 import type { RunAgentPayload } from '@jini-ai/protocol';
-import { modelIdentityKind, type DiscoveredModel } from '@jini-ai/agent-runtime';
+import type { AgentRuntimePort } from '../ports/agent-runtime.js';
+import { type DiscoveredModel } from '@jini-ai/core/contracts/agents';
 /** Status metadata comes from CLI/RPC frames, never generated text. Dedupe repeats and record
  * each observed transition separately so durable run events can describe model switches. */
-export function createModelReceiptTracker(startingModel?: string, models: readonly DiscoveredModel[] = []): (payload: RunAgentPayload) => RunAgentPayload | null {
+export function createModelReceiptTracker(
+  { identityKind, startingModel }: { identityKind: AgentRuntimePort['models']['identityKind']; startingModel?: string | undefined },
+  { models = [] }: { models?: readonly DiscoveredModel[] | undefined } = {},
+): (payload: RunAgentPayload) => RunAgentPayload | null {
   // The catalog is launch-scoped evidence. Normalize both the pinned and reported names
   // so a CLI's alias/display spelling does not fabricate a durable model transition.
   const normalize = (id: string) => {
@@ -13,7 +17,7 @@ export function createModelReceiptTracker(startingModel?: string, models: readon
   return (payload) => {
     if (payload.type !== 'status' || !payload.model || typeof payload.model !== 'string') return null;
     const observed = normalize(payload.model);
-    if (modelIdentityKind(observed) !== 'concrete') return null;
+    if (identityKind({ id: observed }) !== 'concrete') return null;
     if (observed === current) return null;
     const prior = current;
     current = observed;

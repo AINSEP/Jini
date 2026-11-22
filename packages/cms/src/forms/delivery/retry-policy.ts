@@ -4,7 +4,7 @@
  * schedule, which is longer than the in-process default), and this package stays independent of
  * whichever package owns that curve.
  */
-import { FormDeliveryError } from "./errors.js";
+import { FORM_DELIVERY_LEDGER_CODES, FormDeliveryError } from "./errors.js";
 
 /** Structurally compatible with the outbox `OutboxRetryPolicy`, declared locally so forms does
  * not depend on the infra package. */
@@ -12,6 +12,10 @@ export interface FormDeliveryRetryPolicy {
   readonly maxAttempts: number;
   backoffMs(required: { attempts: number; random: () => number; error: unknown }): number;
   retryable(required: { error: unknown }): boolean;
+  /** The closed list the outbox worker may store in `lastError`, and the code of one failure.
+   * The worker stores `codeOf(...)` only when it is in `codes`; any other failure (a worker
+   * timeout, a storage error) stores its class label, which the status view reads as `delivery-failed`. */
+  readonly failureCodes: { readonly codes: readonly string[]; codeOf(required: { error: unknown }): string | undefined };
 }
 
 /**
@@ -28,6 +32,11 @@ export function formDeliveryRetryPolicy(
   return {
     maxAttempts: required.maxAttempts,
     retryable: ({ error }) => !(error instanceof FormDeliveryError) || error.retryable,
+    failureCodes: {
+      codes: FORM_DELIVERY_LEDGER_CODES,
+      // By class, never by a `code` property alone: any thrown value can carry one.
+      codeOf: ({ error }) => (error instanceof FormDeliveryError ? error.code : undefined),
+    },
     backoffMs: ({ attempts, random, error }) => {
       const backoff = required.backoffMs({ attempts, random });
       const retryAfterMs = error instanceof FormDeliveryError ? error.retryAfterMs : undefined;

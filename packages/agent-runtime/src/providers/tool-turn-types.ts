@@ -1,5 +1,6 @@
 import type { runAnthropicToolTurn, AnthropicToolDef } from './anthropic-messages.js';
-import type { runOpenAiToolTurn, OpenAiFunctionToolDef } from './openai-chat.js';
+import type { runOpenAiToolTurn } from './openai-chat.js';
+import type { OpenAiFunctionToolDef } from './openai-chat-types.js';
 import type { runAzureToolTurn, AzureFunctionToolDef } from './azure-chat.js';
 import type { runGoogleToolTurn, GoogleToolDef } from './google-messages.js';
 import type { ProviderToolSnapshotOptions, ProviderSchemaFallback, ProviderProtocol } from './provider-tool-policy.js';

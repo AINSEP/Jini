@@ -6,18 +6,20 @@ export interface VersionRestoreControlProps {
   disabled: boolean;
   restoring: boolean;
   onRestore: () => void;
+  useTHook?: typeof useT;
+  useDismissOnOutsideOrEscapeHook?: typeof useDismissOnOutsideOrEscape;
 }
 
 /** Restore button with a confirm-before-acting popover. Local
  *  open/close disclosure state per this package's hook-ownership
  *  discipline; the actual restore call is injected. */
-export function VersionRestoreControl({ disabled, restoring, onRestore }: VersionRestoreControlProps) {
-  const t = useT();
+export function VersionRestoreControl({ disabled, restoring, onRestore, useTHook = useT, useDismissOnOutsideOrEscapeHook = useDismissOnOutsideOrEscape }: VersionRestoreControlProps) {
+  const t = useTHook();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const popoverId = useId();
 
-  useDismissOnOutsideOrEscape({ onDismiss: () => setConfirmOpen(false) }, { enabled: confirmOpen, containerRef: wrapRef });
+  useDismissOnOutsideOrEscapeHook({ onDismiss: () => setConfirmOpen(false) }, { enabled: confirmOpen, containerRef: wrapRef });
 
   return (
     <div className="jini-version-restore-wrap" ref={wrapRef}>

@@ -132,23 +132,7 @@ interface AdmittedSurface {
 /** Plugin and surface ids cannot contain NUL, so the key is unambiguous. */
 const keyOf = (pluginId: string, surfaceId: string) => `${pluginId}\u0000${surfaceId}`;
 
-/**
- * Holds the admitted handler modules and answers for them. Call `sync` with every load of
- * `defineAdminSurfaceHandlerContribution` (on boot and on every activation change); a surface missing
- * from a load loses its handlers, and capabilities its module kept are revoked.
- * @param required.capabilities - Host port building one call's admin-surface capabilities.
- * @param required.issuedTokens - Per-plugin token memory shared with the plugin's tool projection.
- * @param required.hostKind - The kind of host this process is; every handler and bootstrap call sees it.
- * @throws TypeError when `hostKind` is neither `hosted` nor `desktop`.
- * @returns `sync`, plus `handlersFor` and `bootstrapData` for the host's action dispatcher and bootstrap route.
- * @complexity sync is O(s + a) surfaces and actions; lookups are O(1).
- */
-export function createAdminSurfaceHandlerHost(required: { readonly capabilities: AdminSurfaceCapabilitiesPort; readonly issuedTokens: IssuedTokenMemories; readonly hostKind: AdminSurfaceHostKind }, _optional: Record<string, never> = {}) {
-  // Checked at run time too: a JavaScript host may pass an unchecked config value, and a plugin would pick its flow from it.
-  if (!HOST_KINDS.includes(required.hostKind)) throw new TypeError("createAdminSurfaceHandlerHost: hostKind must be 'hosted' or 'desktop'.");
-  const { hostKind } = required;
-  let admitted = new Map<string, AdmittedSurface>();
-
+function createSurfaceCallHandlers(required: { readonly capabilities: AdminSurfaceCapabilitiesPort }, hostKind: AdminSurfaceHostKind) {
   /** One call's capability session, scoped to the loaded plugin and the route's workspace/principal. */
   function sessionFor(self: AdmittedSurface, context: AdminSurfaceHandlerContext): { session: ReturnType<typeof openAdminSurfaceCapabilitySession>; context: AdminSurfacePluginContext } {
     const { pluginId, descriptor } = self.loaded;
@@ -166,6 +150,28 @@ export function createAdminSurfaceHandlerHost(required: { readonly capabilities:
       return runInCapabilitySession({ session, run: async () => session.release({ value: await run({ input: payload, capabilities: session.capabilities, context, fail }) }) });
     };
   }
+
+  return { sessionFor, actionHandler };
+}
+
+/**
+ * Holds the admitted handler modules and answers for them. Call `sync` with every load of
+ * `defineAdminSurfaceHandlerContribution` (on boot and on every activation change); a surface missing
+ * from a load loses its handlers, and capabilities its module kept are revoked.
+ * @param required.capabilities - Host port building one call's admin-surface capabilities.
+ * @param required.issuedTokens - Per-plugin token memory shared with the plugin's tool projection.
+ * @param required.hostKind - The kind of host this process is; every handler and bootstrap call sees it.
+ * @throws TypeError when `hostKind` is neither `hosted` nor `desktop`.
+ * @returns `sync`, plus `handlersFor` and `bootstrapData` for the host's action dispatcher and bootstrap route.
+ * @complexity sync is O(s + a) surfaces and actions; lookups are O(1).
+ */
+export function createAdminSurfaceHandlerHost(required: { readonly capabilities: AdminSurfaceCapabilitiesPort; readonly issuedTokens: IssuedTokenMemories; readonly hostKind: AdminSurfaceHostKind }, _optional: Record<string, never> = {}) {
+  // Checked at run time too: a JavaScript host may pass an unchecked config value, and a plugin would pick its flow from it.
+  if (!HOST_KINDS.includes(required.hostKind)) throw new TypeError("createAdminSurfaceHandlerHost: hostKind must be 'hosted' or 'desktop'.");
+  const { hostKind } = required;
+  let admitted = new Map<string, AdmittedSurface>();
+
+  const { sessionFor, actionHandler } = createSurfaceCallHandlers(required, hostKind);
 
   /** A generation for one surface; live only while `admitted` holds this exact object. */
   function admit(key: string, loaded: LoadedAdminSurfaceHandlers): AdmittedSurface {

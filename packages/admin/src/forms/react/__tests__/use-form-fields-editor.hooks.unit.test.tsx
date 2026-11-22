@@ -1,8 +1,16 @@
+import type { ReactNode } from "react";
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 
 import type { AdminFormField } from "../../models.js";
 import { useFormFieldsEditor } from "../hooks/use-form-fields-editor.hooks.js";
+import { FormsControllerContext } from "../hooks/FormsPorts.hooks.js";
+import { useController } from "../../../core/react/use-controller.js";
+
+/** The host injects the controller hook (J4); this test plays the host. */
+function wrapper({ children }: { children: ReactNode }) {
+  return <FormsControllerContext.Provider value={useController}>{children}</FormsControllerContext.Provider>;
+}
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -13,7 +21,7 @@ it("edits only the requested field, adds a blank field, removes the chosen field
     { id: "message", label: "Message", type: "textarea", required: false },
   ];
   const onChange = vi.fn();
-  const { result, rerender } = renderHook((props) => useFormFieldsEditor(props), { initialProps: { fields, onChange } });
+  const { result, rerender } = renderHook((props) => useFormFieldsEditor(props), { initialProps: { fields, onChange }, wrapper });
   act(() => result.current.updateField(1, { label: "Your message", required: true }));
   expect(onChange.mock.calls).toEqual([[[
     { id: "email", label: "Email", type: "email", required: true },
@@ -41,7 +49,7 @@ it("returns focus to the chosen row's trigger when its attributes dialog closes"
   const editor = document.createElement("input");
   document.body.append(first, second, editor);
   try {
-    const { result } = renderHook(() => useFormFieldsEditor({ fields: [], onChange: vi.fn() }));
+    const { result } = renderHook(() => useFormFieldsEditor({ fields: [], onChange: vi.fn() }), { wrapper });
     expect(result.current.editingAttrsIndex).toBeNull();
     result.current.kebabRefs.current = [first, second];
     act(() => result.current.openAttrsDialog(1));

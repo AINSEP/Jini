@@ -15,8 +15,8 @@
  * separate, non-production stub under `src/unsafe-reference/` — see that
  * directory's `index.ts` header for the full warning.
  */
-import type { BlobFileMeta, BlobStorage } from '@jini-ai/platform';
-import { StorageError as BlobStorageError } from '@jini-ai/platform';
+import type { BlobFileMeta, BlobStorage } from '@jini-ai/core/contracts/blob';
+import { StorageError as BlobStorageError } from '@jini-ai/core/contracts/blob';
 import type { StorageObjectMeta, StorageProvider, StoragePutOptions } from '../../storage.js';
 
 export interface BlobStorageProviderOptions {

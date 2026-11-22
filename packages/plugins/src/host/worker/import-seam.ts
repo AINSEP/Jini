@@ -2,12 +2,12 @@
  * shared contribution-loader object contract and yields { exported }. */
 /**
  * @file `createTier2ImportSeam()` — the `importModule` a Tier-2 plugin's `loadPlugin()` call is
- * given (ADR-024 §3/§4). It never imports the plugin's code into the server process. Instead it
+ * given. It never imports the plugin's code into the server process. Instead it
  * probes the plugin in a fresh worker (import + setup + report attached hooks) and returns a
  * PROXY `definePlugin()` module whose `setup()` attaches an RPC filter: each filter call is one
  * more fresh worker that imports, sets up, runs the real filter and replies.
  *
- * Injected through `loadPlugin()`'s own `importModule` option, so CIC U-001 is untouched: integrity
+ * Injected through `loadPlugin()`'s own `importModule` option, so the ordering is untouched: integrity
  * and sdkRange are verified before this function is ever called (it IS step 3), and the proxy then
  * goes through the same export validation, capability-scoped `setup()` and attach path as an
  * in-process plugin. Probe failures are mapped onto the loader's own reasons rather than new ones:
@@ -17,7 +17,8 @@
  * A failed or timed-out filter call throws, so `hook-registry.ts` fails the save closed and counts
  * the failure toward quarantine exactly as it does for a throwing Tier-3 filter.
  */
-import type { ExtPatch, PluginSdkBinding, PluginModuleImportPort } from "../ports.js";
+import type { PluginSdkBinding, PluginModuleImportPort } from "../ports.js";
+import type { ExtPatch } from "@jini-ai/core/contracts/plugin-sdk";
 
 import type { PluginCapability, PluginManifest } from "../manifest.js";
 import type { Tier2CallRunner, Tier2PluginRef } from "./protocol.js";

@@ -3,7 +3,11 @@ import { test, vi, afterEach } from "vitest";
 afterEach(() => vi.restoreAllMocks());
 import { createHttpClient } from "../client.js";
 import type { HttpRequest, HttpResponse } from "@jini-ai/core/primitives";
-import type { EgressPolicy, HttpTransportAdapter, PinnedPeer } from "../ports.js";
+import type {
+  EgressPolicy,
+  PinnedHttpTransport,
+  PinnedPeer,
+} from "@jini-ai/core/contracts/runtime";
 /**
  * @file `HttpResponse.bodyBytes`/`bodyTruncated` — the byte-capable half of the guarded client,
  * added 2026-09-06 so `features/media-import` can fetch an image WITHOUT reaching past the 
@@ -40,7 +44,7 @@ function makePolicy(overrides: Partial<EgressPolicy> = {}): EgressPolicy {
     };
 }
 /** Mirrors what `transport.fetch.ts` actually does: ONE `Buffer.concat`, returned in both shapes. */
-class BinaryTransport implements HttpTransportAdapter {
+class BinaryTransport implements PinnedHttpTransport {
     constructor(private readonly bytes: Uint8Array) { }
     async requestPinned({ request: _req, peer: _peer }: { request: HttpRequest; peer: PinnedPeer }): Promise<HttpResponse> {
         const body = Buffer.from(this.bytes);
@@ -48,7 +52,7 @@ class BinaryTransport implements HttpTransportAdapter {
     }
 }
 /** A transport predating `bodyBytes` — the shape every hand-written double in the repo still has. */
-class LegacyTextTransport implements HttpTransportAdapter {
+class LegacyTextTransport implements PinnedHttpTransport {
     async requestPinned({ request: _req, peer: _peer }: { request: HttpRequest; peer: PinnedPeer }): Promise<HttpResponse> {
         return { status: 200, headers: {}, bodyText: "plain text body" };
     }
@@ -91,7 +95,7 @@ test("the tighter of maxResponseBytes/maxDecompressedBytes wins for the byte hal
     assert.equal(response.bodyTruncated, true);
 });
 test("a transport that reports its own truncation keeps that flag set even when the body is under the cap", async () => {
-    class SelfReportingTransport implements HttpTransportAdapter {
+    class SelfReportingTransport implements PinnedHttpTransport {
         async requestPinned(): Promise<HttpResponse> {
             return { status: 200, headers: {}, bodyText: "abc", bodyBytes: Uint8Array.from([1, 2, 3]), bodyTruncated: true };
         }
@@ -153,7 +157,7 @@ test("an untruncated response reports bodyBytesTruncated:false, so absence never
     assert.equal((await client.send({ request: request() })).bodyBytesTruncated, false);
 });
 test("a producer reporting only the coarse bodyTruncated is NOT downgraded to bodyBytesTruncated:false — a truncation report that names no shape has to count against both halves", async () => {
-    class SelfReportingTransport implements HttpTransportAdapter {
+    class SelfReportingTransport implements PinnedHttpTransport {
         async requestPinned(): Promise<HttpResponse> {
             return { status: 200, headers: {}, bodyText: "abc", bodyBytes: Uint8Array.from([1, 2, 3]), bodyTruncated: true };
         }

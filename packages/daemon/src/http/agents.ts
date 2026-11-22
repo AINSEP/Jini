@@ -14,10 +14,14 @@
  * timeouts, caching, PATH/env policy, and the projection of spawn-only
  * metadata; this transport only serializes the safe summary.
  */
-import type { Express } from 'express';
-import { defineJsonRoute, mountJsonRoute, type AdapterContext } from '@jini-ai/http-kit';
-import { ok } from '@jini-ai/http-kit';
-import type { ModelCatalogSnapshot, DefaultModelResolution, ModelIdentityKind } from '@jini-ai/agent-runtime';
+import { defineJsonRoute, ok } from '@jini-ai/core/contracts/server';
+import type {
+  ModelCatalogSnapshot,
+  DefaultModelResolution,
+  ModelIdentityKind,
+} from '@jini-ai/core/contracts/agents';
+import type { DaemonRouteHost } from './route-host.js';
+import { gatedJsonRoute, type DaemonRoute } from './route-table.js';
 
 export interface AgentModelSummary {
   readonly id: string;
@@ -85,8 +89,7 @@ function activeAgents(agents: readonly AgentSummary[]): readonly AgentSummary[] 
   return agents.filter((agent) => agent.id !== 'gemini');
 }
 
-/** Mounts the read and explicit-rescan agent discovery routes. */
-export function registerAgentRoutes({ app, deps, adapter }: { readonly app: Express; readonly deps: AgentsHttpDeps; readonly adapter: AdapterContext }, _optional: Record<string, never> = {}): void {
-  mountJsonRoute({ app, spec: agentListRoute, deps, adapter });
-  mountJsonRoute({ app, spec: agentRescanRoute, deps, adapter });
+/** The read and explicit-rescan agent discovery routes as data; the rescan sits behind the same-origin gate its spec declares. */
+export function agentRoutes({ deps, host }: { readonly deps: AgentsHttpDeps; readonly host: DaemonRouteHost }, _optional: Record<string, never> = {}): DaemonRoute[] {
+  return [gatedJsonRoute({ spec: agentListRoute, deps, host }), gatedJsonRoute({ spec: agentRescanRoute, deps, host })];
 }

@@ -27,12 +27,12 @@ test('fork archive changes identity and literal text without mutating source', a
 
 test.each(['../outside', '/absolute', 'skills\\SKILL.md', 'plugin.json'])('refuses an unsafe or identity edit path: %s', async file => {
   const input = await fixture();
-  await expect(zipCustomizedAgentPluginFolder({ ...input, edit: { ...input.edit, path: file } })).rejects.toThrow();
+  await expect(zipCustomizedAgentPluginFolder({ ...input, edit: { ...input.edit, path: file } })).rejects.toThrow('Choose an existing package-relative text file other than plugin.json.');
 });
 
 test.each(['', 'missing', 'e'])('refuses empty, missing and ambiguous old text: %j', async oldString => {
   const input = await fixture();
-  await expect(zipCustomizedAgentPluginFolder({ ...input, edit: { ...input.edit, oldString } })).rejects.toThrow();
+  await expect(zipCustomizedAgentPluginFolder({ ...input, edit: { ...input.edit, oldString } })).rejects.toThrow(oldString ? 'oldString must match exactly once. Read the file and send more context.' : 'oldString must not be empty.');
 });
 
 test('refuses a non-UTF-8 edit target as a named folder error, not a raw decoder error', async () => {
@@ -43,10 +43,10 @@ test('refuses a non-UTF-8 edit target as a named folder error, not a raw decoder
 
 test('refuses links, same identity and over-budget replacement bytes', async () => {
   const input = await fixture();
-  await expect(zipCustomizedAgentPluginFolder({ ...input, name: 'stock' })).rejects.toThrow();
-  await expect(zipCustomizedAgentPluginFolder({ ...input, maxBytes: 512, edit: { ...input.edit, newString: 'x'.repeat(1024) } })).rejects.toThrow();
+  await expect(zipCustomizedAgentPluginFolder({ ...input, name: 'stock' })).rejects.toThrow('Choose a valid new Agent Plugin id different from the source.');
+  await expect(zipCustomizedAgentPluginFolder({ ...input, maxBytes: 512, edit: { ...input.edit, newString: 'x'.repeat(1024) } })).rejects.toThrow('Folder is over the upload limit.');
   await symlink(path.join(input.path, input.edit.path), path.join(input.path, 'link'));
-  await expect(zipCustomizedAgentPluginFolder(input)).rejects.toThrow();
+  await expect(zipCustomizedAgentPluginFolder(input)).rejects.toThrow('Could not read that folder. Try again.');
 });
 
 // The upload and manifest parser share the spec's id grammar, including delimiter and size bounds.
@@ -77,10 +77,10 @@ async function forkManifest(extensions: Record<string, unknown> | undefined, ide
   return { manifest: JSON.parse(storedEntryText(archive, 'plugin.json')), text: Buffer.from(archive).toString('utf8') };
 }
 
-const HISTORY = { renamedFrom: ['tovu/old-stock'], supersedes: { plugins: ['tovu/older'] } };
+const HISTORY = { renamedFrom: ['jini/old-stock'], supersedes: { plugins: ['jini/older'] } };
 
 test('a portable fork preserves capabilities and presentation from an installed legacy manifest', async () => {
-  const metadata = { id: 'tovu/stock', provides: ['stock-data'], displayName: 'Stock', summary: 'Useful data', ...HISTORY };
+  const metadata = { id: 'jini/stock', provides: ['stock-data'], displayName: 'Stock', summary: 'Useful data', ...HISTORY };
   const { manifest } = await forkManifest({ tovu: metadata }, 'jini');
   expect(manifest.extensions.jini).toEqual({ id: 'local/custom', provides: ['stock-data'], displayName: 'Stock', summary: 'Useful data' });
   expect(manifest.extensions.tovu.id).toBe('local/custom');
@@ -88,15 +88,15 @@ test('a portable fork preserves capabilities and presentation from an installed 
 
 // Legacy-only: a moved plugin that still declares only the `tovu` host key.
 test.each(['tovu', 'open-marketing'])('a fork of a tovu-only manifest gets a fresh local id when forked by %s', async host => {
-  const { manifest, text } = await forkManifest({ tovu: { id: 'tovu/stock', provides: ['stock-data'], ...HISTORY } }, host);
+  const { manifest, text } = await forkManifest({ tovu: { id: 'jini/stock', provides: ['stock-data'], ...HISTORY } }, host);
   expect(manifest.extensions.tovu).toEqual({ id: 'local/custom', provides: ['stock-data'] });
   expect(manifest.extensions[host].id).toBe('local/custom');
-  for (const claim of ['tovu/stock', 'tovu/old-stock', 'tovu/older', 'renamedFrom', 'supersedes']) expect(text).not.toContain(claim);
+  for (const claim of ['jini/stock', 'jini/old-stock', 'jini/older', 'renamedFrom', 'supersedes']) expect(text).not.toContain(claim);
 });
 
 test('a fork of a dual-key manifest keeps no foreign publisher id, alias or supersession claim', async () => {
   const { manifest, text } = await forkManifest({
-    tovu: { id: 'tovu/stock', ...HISTORY },
+    tovu: { id: 'jini/stock', ...HISTORY },
     'open-marketing': { id: 'jini/stock', renamedFrom: ['jini/old-stock'], hostRange: '^1.0.0' },
     'com.example.client': { theme: 'dark' },
   }, 'open-marketing');
@@ -105,7 +105,7 @@ test('a fork of a dual-key manifest keeps no foreign publisher id, alias or supe
     'open-marketing': { id: 'local/custom', hostRange: '^1.0.0' },
     'com.example.client': { theme: 'dark' },
   });
-  for (const claim of ['tovu/stock', 'jini/stock', 'jini/old-stock', 'tovu/old-stock', 'tovu/older']) expect(text).not.toContain(claim);
+  for (const claim of ['jini/stock', 'jini/stock', 'jini/old-stock', 'jini/old-stock', 'jini/older']) expect(text).not.toContain(claim);
 });
 
 test('a fork of a manifest with no extensions declares a local id for the requesting host', async () => {

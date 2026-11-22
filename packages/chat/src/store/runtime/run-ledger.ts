@@ -189,8 +189,8 @@ export function createChatRunLedger<DB extends ChatDatabase>(
   }, _options = {}): Promise<void> {
     if (!optional.onPersisted) return;
     if (!exact) { optional.onPersisted(undefined); return; }
-    const receiptVersion = kernel.dialect === 'sqlite'
-      ? (await kernel.query<{ version: string }>(sql`select ${version} as version`))[0]!.version : nativeVersion!;
+    // `run` keeps this read on the open transaction, under the write lock.
+    const receiptVersion = kernel.dialect === 'sqlite' ? (await kernel.run((db) => sql<{ version: string }>`select ${version} as version`.execute(db))).rows[0]!.version : nativeVersion!;
     optional.onPersisted(checkpointState({ progress, length, contentLength, version: receiptVersion }));
   }
 

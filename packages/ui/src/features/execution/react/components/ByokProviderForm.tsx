@@ -1,5 +1,5 @@
-import { useEffect, useId, useState, type ReactNode } from 'react';
-import { agentHandleProps, agentSubHandle } from '@jini-ai/agentic';
+import { useId, type ReactNode } from 'react';
+import { agentHandleProps, agentSubHandle } from '@jini-ai/core/agent-handles';
 import { useT } from '../../../i18n/index.js';
 import { CUSTOM_MODEL_SENTINEL } from '../../constants.js';
 import {
@@ -11,7 +11,8 @@ import {
 } from '../../rules.js';
 import { SearchableModelSelect } from './SearchableModelSelect.js';
 import { SecretInput } from '../../../../react/components/SecretInput.js';
-import { useByokFieldValidation } from '../hooks/use-byok-field-validation.hooks.js';
+import { useByokProviderForm } from './ByokProviderForm.hooks.js';
+import type { useByokFieldValidation } from '../hooks/use-byok-field-validation.hooks.js';
 import type {
   ByokConfig,
   ConnectionTestState,
@@ -125,7 +126,12 @@ export interface ByokProviderFormProps {
   collapseAdvanced?: boolean;
   /** Paint required-field errors after that field loses focus; validation gates stay immediate. */
   deferMissingFeedback?: boolean;
+  /** Hooks the form calls; defaults to the real ones, a test hands in fakes. */
+  hooks?: ByokProviderFormHooks | undefined;
 }
+
+export const defaultByokProviderFormHooks = { useT, useByokProviderForm };
+export type ByokProviderFormHooks = typeof defaultByokProviderFormHooks;
 
 /** What every field part of the card shares: the config it edits, the one-key patcher, and the
  *  validation state from `useByokFieldValidation`. */
@@ -135,11 +141,17 @@ interface ByokFieldPartProps {
   preset: ProviderPreset | null;
   agentHandle: string | undefined;
   validation: ReturnType<typeof useByokFieldValidation>;
+  useTHook?: typeof useT;
 }
 
 /** `' is-missing'` when `field` is a required field the operator still has to fill. */
 function missingClass(validation: ByokFieldPartProps['validation'], field: 'apiKey' | 'baseUrl' | 'model'): string {
   return validation.isMissing({ field }) ? ' is-missing' : '';
+}
+
+function ByokCardTitle({ preset, useTHook = useT }: { preset: ProviderPreset | null; useTHook?: typeof useT }) {
+  const t = useTHook();
+  return <h4 className="jini-byok-card-title">{preset ? preset.title : t('Custom endpoint')}</h4>;
 }
 
 /**
@@ -166,36 +178,9 @@ export function ByokProviderForm({
   apiKeyActions,
   collapseAdvanced = false,
   deferMissingFeedback = false,
+  hooks = defaultByokProviderFormHooks,
 }: ByokProviderFormProps) {
-  const t = useT();
-  const [revealKey, setRevealKey] = useState(false);
-
-  /** Whether the operator explicitly picked "Custom…" in the model picker — distinct from "the
-   *  saved model simply isn't in the live list". Same UI-local toggle, for the same reason, as
-   *  `LocalCliAgentCard`'s: there is nowhere in `ByokConfig` for "mid-typing a custom id" to live. */
-  const [explicitCustomModel, setExplicitCustomModel] = useState(false);
-
-  // A different provider's model list is not this one's. Without this, switching from a provider
-  // whose model was custom leaves the free-text box open over the new provider's real list.
-  useEffect(() => {
-    setExplicitCustomModel(false);
-  }, [config.providerId]);
-
-  // Re-hide whenever the card switches to a different provider. `revealKey` is
-  // local state and this component is not keyed by provider, so without this it
-  // survives the switch: reveal provider A's key, pick provider B, and B's own
-  // saved key renders as `type="text"` without anyone asking for it. The
-  // credentials themselves ARE correctly per-provider (`nextConfigForPresetSelect`
-  // snapshots them into `savedByProviderId`); only this disclosure toggle
-  // escaped that isolation.
-  useEffect(() => {
-    setRevealKey(false);
-  }, [config.providerId]);
-
-  const validation = useByokFieldValidation(
-    { config, preset, apiKeyStoredExternally }, { deferMissingFeedback },
-  );
-  const patch = (next: Partial<ByokConfig>) => onConfigChange({ ...config, ...next });
+  const { revealKey, setRevealKey, explicitCustomModel, setExplicitCustomModel, validation, patch } = hooks.useByokProviderForm({ config, onConfigChange, preset, apiKeyStoredExternally, deferMissingFeedback });
   const part: ByokFieldPartProps = { config, patch, preset, agentHandle, validation };
 
   const connectionFields = <ByokConnectionFields {...part} />;
@@ -203,10 +188,10 @@ export function ByokProviderForm({
   return (
     <div className="jini-byok-card">
       <div className="jini-byok-card-head">
-        <h4 className="jini-byok-card-title">{preset ? preset.title : t('Custom endpoint')}</h4>
+        <ByokCardTitle preset={preset} useTHook={hooks.useT} />
       </div>
 
-      {presetRequiresApiKey(preset) ? (
+      {presetRequiresApiKey({ preset }) ? (
         <ByokApiKeyField
           {...part}
           presets={presets}
@@ -246,8 +231,8 @@ export function ByokProviderForm({
 }
 
 /** Base URL (unless the preset has a fixed origin) and Max tokens, on one wrapping row. */
-function ByokConnectionFields({ config, patch, preset, agentHandle, validation }: ByokFieldPartProps) {
-  const t = useT();
+function ByokConnectionFields({ config, patch, preset, agentHandle, validation, useTHook = useT }: ByokFieldPartProps) {
+  const t = useTHook();
   return (
     <>
       {/* Base URL and Max tokens share a row (owner ruling, 2026-09-02) — neither needs the card's
@@ -257,7 +242,7 @@ function ByokConnectionFields({ config, patch, preset, agentHandle, validation }
           BELOW it rather than two squeezed columns. Source order is therefore the stacking order.
           With `showsBaseUrlField` false the row holds one child, which then fills it. */}
       <div className="jini-byok-field-row">
-        {showsBaseUrlField(preset) ? (
+        {showsBaseUrlField({ preset }) ? (
           <label className="jini-field" onBlurCapture={() => validation.markTouched({ field: 'baseUrl' })}>
             <span className="jini-field-label">
               {t('Base URL')}
@@ -290,7 +275,7 @@ function ByokConnectionFields({ config, patch, preset, agentHandle, validation }
             min={1}
             step={1}
             value={config.maxTokens ?? ''}
-            onChange={(event) => patch({ maxTokens: parseMaxTokens(event.target.value) })}
+            onChange={(event) => patch({ maxTokens: parseMaxTokens({ raw: event.target.value }) })}
             {...agentHandleProps({}, { base: agentHandle, ...({ action: 'max-tokens', role: 'field', label: t('Max tokens (optional)') }) })}
           />
           <span className="jini-field-hint">
@@ -309,6 +294,7 @@ interface ByokApiKeyFieldProps extends ByokFieldPartProps {
   apiKeyFooter: ReactNode;
   apiKeyPlaceholder: string | undefined;
   apiKeyActions: ReactNode;
+  useTHook?: typeof useT;
 }
 
 /** The API-key field (with Show/Hide, host actions and the advisory format warning) plus the
@@ -316,12 +302,13 @@ interface ByokApiKeyFieldProps extends ByokFieldPartProps {
 function ByokApiKeyField({
   config, patch, preset, agentHandle, validation,
   presets, revealKey, onToggleReveal, apiKeyFooter, apiKeyPlaceholder, apiKeyActions,
+  useTHook = useT,
 }: ByokApiKeyFieldProps) {
-  const t = useT();
+  const t = useTHook();
   const keyInputId = useId();
   /** Deliberately NOT folded into `missing` above: that set drives `is-missing` styling and the
    *  Test-connection disable, and a wrong-SHAPED key must never reach either. */
-  const keyFormatWarning = apiKeyFormatWarning(config, preset, presets);
+  const keyFormatWarning = apiKeyFormatWarning({ config, preset }, { presets });
   return (
     <>
     {/* A `<div>` with a `<label htmlFor>`, never a wrapping `<label>`: the eye toggle's
@@ -390,8 +377,8 @@ function ByokApiKeyField({
 
 /** "API key *". The field is a `<div>` (the eye toggle must stay out of any wrapping label), so
  *  the name gets its own `<label>` pointing at the input by id. */
-function ByokApiKeyLabel({ keyInputId }: { keyInputId: string }) {
-  const t = useT();
+function ByokApiKeyLabel({ keyInputId, useTHook = useT }: { keyInputId: string; useTHook?: typeof useT; }) {
+  const t = useTHook();
   return (
     <label className="jini-field-label" htmlFor={keyInputId}>
       <span>{t('API key')}</span>
@@ -407,6 +394,7 @@ interface ByokModelRowProps extends ByokFieldPartProps {
   connectionTest: ConnectionTestState;
   onTestConnection: () => void;
   canTestConnection: boolean;
+  useTHook?: typeof useT;
 }
 
 /** The Model field (live picker, free-text box, or both) with "Test connection" beside it. */
@@ -414,8 +402,9 @@ function ByokModelRow({
   config, patch, preset, agentHandle, validation,
   modelDiscovery, explicitCustomModel, setExplicitCustomModel,
   connectionTest, onTestConnection, canTestConnection,
+  useTHook = useT,
 }: ByokModelRowProps) {
-  const t = useT();
+  const t = useTHook();
 
   /**
    * Live discovery turns the Model field from a text box into a real picker.
@@ -441,7 +430,7 @@ function ByokModelRow({
   // opens the box for an explicit "Custom…" pick AND for a value that simply isn't in the list, so
   // a hydrated or hand-typed id is never silently replaced by whatever sorts first.
   const customModelActive =
-    showModelPicker && shouldShowCustomModelInput(config.model, liveModels, explicitCustomModel);
+    showModelPicker && shouldShowCustomModelInput({ modelValue: config.model, knownModelIds: liveModels, explicitCustomMode: explicitCustomModel });
   const modelClassName = 'jini-input' + missingClass(validation, 'model');
 
   return (
@@ -505,11 +494,12 @@ function ByokModelRow({
 /** The probe's RESULT keeps its own full-width line. Beside the button it would have made the
  *  Model row's width depend on the length of a provider's error message. Renders nothing until
  *  the probe has finished. */
-function ByokConnectionResult({ connectionTest, canTestConnection }: {
+function ByokConnectionResult({ connectionTest, canTestConnection, useTHook = useT }: {
   connectionTest: ConnectionTestState;
   canTestConnection: boolean;
+  useTHook?: typeof useT;
 }) {
-  const t = useT();
+  const t = useTHook();
   if (!canTestConnection) return null;
   if (connectionTest.status !== 'ok' && connectionTest.status !== 'error') return null;
   return (
@@ -528,8 +518,8 @@ function ByokConnectionResult({ connectionTest, canTestConnection }: {
 }
 
 /** Discovery failure, as an inline hint below the Model row. Renders nothing otherwise. */
-function ByokDiscoveryError({ modelDiscovery }: { modelDiscovery: ModelDiscoveryState }) {
-  const t = useT();
+function ByokDiscoveryError({ modelDiscovery, useTHook = useT }: { modelDiscovery: ModelDiscoveryState; useTHook?: typeof useT; }) {
+  const t = useTHook();
   if (modelDiscovery.status !== 'error') return null;
   return (
     // Non-blocking (the field above stays editable, with the preset's static
@@ -557,8 +547,8 @@ function ByokSlot({ className, children }: { className: string; children: ReactN
 
 /** The collapsed "Advanced" disclosure for Base URL and Max tokens. Opens on its own while Base URL
  *  is invalid or missing, so a required-field problem is never hidden. */
-function ByokAdvanced({ validation, children }: { validation: ByokFieldPartProps['validation']; children: ReactNode }) {
-  const t = useT();
+function ByokAdvanced({ validation, children, useTHook = useT }: { validation: ByokFieldPartProps['validation']; children: ReactNode; useTHook?: typeof useT; }) {
+  const t = useTHook();
   return (
     <details className="jini-byok-advanced" open={validation.baseUrlInvalid || validation.missing.has('baseUrl') || undefined}>
       <summary>{t('Advanced')}</summary>
@@ -570,6 +560,7 @@ function ByokAdvanced({ validation, children }: { validation: ByokFieldPartProps
 /** The live-model picker. "Custom…" opens the free-text box beside it; any real pick closes it. */
 function ByokLiveModelSelect({
   className, agentHandle, value, liveModels, patch, setExplicitCustomModel,
+  useTHook = useT,
 }: {
   className: string;
   agentHandle: string | undefined;
@@ -577,8 +568,9 @@ function ByokLiveModelSelect({
   liveModels: readonly string[];
   patch: ByokFieldPartProps['patch'];
   setExplicitCustomModel: (custom: boolean) => void;
+  useTHook?: typeof useT;
 }) {
-  const t = useT();
+  const t = useTHook();
   return (
     <SearchableModelSelect
       className={className}
@@ -608,14 +600,16 @@ function ByokLiveModelSelect({
  *  blank; absent for hosts with no probe endpoint. */
 function ByokTestConnectionButton({
   agentHandle, validation, connectionTest, onTestConnection, canTestConnection,
+  useTHook = useT,
 }: {
   agentHandle: string | undefined;
   validation: ByokFieldPartProps['validation'];
   connectionTest: ConnectionTestState;
   onTestConnection: () => void;
   canTestConnection: boolean;
+  useTHook?: typeof useT;
 }) {
-  const t = useT();
+  const t = useTHook();
   if (!canTestConnection) return null;
   return (
     <button
@@ -639,14 +633,16 @@ function modelSuggestions(modelDiscovery: ModelDiscoveryState, preset: ProviderP
 /** The free-text Model box, with a `<datalist>` autocomplete when there are suggestions. */
 function ByokModelTextInput({
   className, value, patch, agentHandle, suggestions,
+  useTHook = useT,
 }: {
   className: string;
   value: string;
   patch: ByokFieldPartProps['patch'];
   agentHandle: string | undefined;
   suggestions: readonly string[];
+  useTHook?: typeof useT;
 }) {
-  const t = useT();
+  const t = useTHook();
   const modelListId = 'jini-byok-model-options';
   const showDatalist = suggestions.length > 0;
   return (

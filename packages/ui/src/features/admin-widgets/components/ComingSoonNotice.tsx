@@ -1,4 +1,4 @@
-import { agentHandle as handleProps } from '@jini-ai/agentic';
+import { agentHandle as handleProps } from '@jini-ai/core/agent-handles';
 
 export interface ComingSoonNoticeProps {
   kicker: string;
@@ -12,9 +12,9 @@ export interface ComingSoonNoticeProps {
 /** A notice without navigation lookup, route knowledge, or locale state. */
 export function ComingSoonNotice({ kicker, label, description, note, agentHandle }: ComingSoonNoticeProps) {
   return (
-    <div className="coming-soon-notice" {...(agentHandle ? handleProps({ handle: agentHandle }, { role: 'status', label }) : {})}>
-      <div className="coming-soon-notice-header">
-        <p className="coming-soon-notice-kicker">{kicker}</p>
+    <div className="jini-coming-soon-notice" {...(agentHandle ? handleProps({ handle: agentHandle }, { role: 'status', label }) : {})}>
+      <div className="jini-coming-soon-notice-header">
+        <p className="jini-coming-soon-notice-kicker">{kicker}</p>
         <h1>{label}</h1>
         <p>{description}</p>
         {note ? <p>{note}</p> : null}

@@ -101,24 +101,24 @@ describe('every endpoint-taking tab enforces the same policy', () => {
   const METADATA = 'http://169.254.169.254/latest/meta-data/';
 
   it('execution tab: isValidApiBaseUrl rejects the metadata service', () => {
-    expect(isValidApiBaseUrl(METADATA)).toBe(false);
-    expect(isValidApiBaseUrl('https://api.anthropic.com')).toBe(true);
-    expect(isValidApiBaseUrl('http://localhost:11434/v1')).toBe(true);
+    expect(isValidApiBaseUrl({ raw: METADATA })).toBe(false);
+    expect(isValidApiBaseUrl({ raw: 'https://api.anthropic.com' })).toBe(true);
+    expect(isValidApiBaseUrl({ raw: 'http://localhost:11434/v1' })).toBe(true);
   });
 
   it('media-providers tab: a typed metadata-service base URL is invalid', () => {
-    expect(isProviderBaseUrlInvalid({ baseUrl: METADATA })).toBe(true);
-    expect(isProviderBaseUrlInvalid({ baseUrl: 'https://api.example.com' })).toBe(false);
+    expect(isProviderBaseUrlInvalid({ entry: { baseUrl: METADATA } })).toBe(true);
+    expect(isProviderBaseUrlInvalid({ entry: { baseUrl: 'https://api.example.com' } })).toBe(false);
     // Blank is not an error state — the catalog default takes over.
-    expect(isProviderBaseUrlInvalid({ baseUrl: '' })).toBe(false);
-    expect(isProviderBaseUrlInvalid({ baseUrl: '   ' })).toBe(false);
-    expect(isProviderBaseUrlInvalid({})).toBe(false);
-    expect(isProviderBaseUrlInvalid(null)).toBe(false);
+    expect(isProviderBaseUrlInvalid({ entry: { baseUrl: '' } })).toBe(false);
+    expect(isProviderBaseUrlInvalid({ entry: { baseUrl: '   ' } })).toBe(false);
+    expect(isProviderBaseUrlInvalid({ entry: {} })).toBe(false);
+    expect(isProviderBaseUrlInvalid({ entry: null })).toBe(false);
   });
 
   it('source-config-list: a url-kind field rejects the metadata service', () => {
     const spec = [{ key: 'url', label: 'URL', kind: 'url', required: true }] as const;
-    expect(validateSourceDraft(spec, { url: METADATA }).ok).toBe(false);
-    expect(validateSourceDraft(spec, { url: 'https://example.com/mcp' }).ok).toBe(true);
+    expect(validateSourceDraft({ fieldSpecs: spec, values: { url: METADATA } }).ok).toBe(false);
+    expect(validateSourceDraft({ fieldSpecs: spec, values: { url: 'https://example.com/mcp' } }).ok).toBe(true);
   });
 });

@@ -2,7 +2,9 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useSyncExternalStore, type ReactNode } from 'react';
 import { isCancelledError, replaceEqualDeep, QueryClient, QueryClientProvider, useMutation, useQuery } from '@tanstack/react-query';
 import { DEFAULT_STALE_TIME, FetchQueryCache, IDLE_RETENTION, toQueryError, withCachedLoaderFetch, type FetchQueryEnvironmentPort } from '@jini-ai/core/fetch';
+import { observed } from '@jini-ai/core/errors/idioms';
 import { browserFetchQueryEnvironment } from './environment.browser.js';
+import { browserClock, browserScheduler } from './browser-timing.js';
 import { resolveFetchQueryError, resolveFetchQueryStatus } from './adapter.react.js';
 import { FetchQueryBinding } from './binding.react.js';
 import type { CachedLoader, CachedLoaderDefaults, CachedLoaderOptions, FetchMutationOptions, FetchQueryAdapter, FetchQueryOptions, MutationResult, QueryKey, QueryResult } from '@jini-ai/core/fetch';
@@ -30,7 +32,7 @@ function createScope({ environment }: { environment: FetchQueryEnvironmentPort }
     } }),
     // Reuse the existing connectivity gate; TanStack's online/focus managers are global
     // and cannot represent two providers with independent host environment ports.
-    gate: new FetchQueryCache({}, { environment }), environment, history: new WeakMap(),
+    gate: new FetchQueryCache({ clock: browserClock, scheduler: browserScheduler }, { environment }), environment, history: new WeakMap(),
   };
 }
 
@@ -113,7 +115,7 @@ function saveResult<T>({ scope, key, previous, incoming }: {
   if (result.generation !== history.replacement) return scope.client.getQueryData<PublishedResult<T>>(key)!;
   if ('error' in result) {
     // Earlier data stays useful, but a failed refresh is not a fresh cache hit.
-    if (result.request === history.request) { history.error = toQueryError(result.error); query.invalidate(); }
+    if (result.request === history.request) { history.error = toQueryError({ value: result.error }); query.invalidate(); }
     throw result.error;
   }
   if (result.request === history.request) history.error = null;
@@ -180,10 +182,10 @@ function useFetchMutation<TInput, TOutput>({ run }: Pick<FetchMutationOptions<TI
     const promise = mutateAsync(required);
     // Handle this same promise for callers that discard it, while still returning it so
     // await/catch observes the original rejection; discarding the derived promise is intentional.
-    void promise.catch(() => {});
+    observed({ promise });
     return promise;
   }, [mutateAsync]);
-  return { mutate, status: mutation.status, error: mutation.status === 'error' ? toQueryError(mutation.error) : null, reset };
+  return { mutate, status: mutation.status, error: mutation.status === 'error' ? toQueryError({ value: mutation.error }) : null, reset };
 }
 
 /** The query template a loader's reads start from (see `useCachedLoader`'s own comment on it). */
@@ -235,7 +237,7 @@ function useCachedLoader<T>({ key, fetch }: CachedLoaderDefaults<T>, { staleTime
       // `fetch` is the loader's optional default; `withCachedLoaderFetch` rejects an argument-less read
       // that has none before any query is built (see `CachedLoaderDefaults`).
       load: (requested: CachedLoaderDefaults<T> = { key, fetch }, { staleTime: readStaleTime = staleTime }: { staleTime?: number } = {}) =>
-        withCachedLoaderFetch(requested, required => loadLoaderQuery({ scope, options, required, staleTime: readStaleTime })),
+        withCachedLoaderFetch({ ...requested, read: required => loadLoaderQuery({ scope, options, required, staleTime: readStaleTime }) }),
       replace: ({ value }: { value: T }) => {
         const query = scope.client.getQueryCache().build(scope.client, options);
         const history = historyFor({ scope, query });

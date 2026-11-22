@@ -1,4 +1,4 @@
-import { buildDomainRegistrations, indexCatalogById, isRecord, redactSecrets, requireInputRecord, requireString, ToolInputError, requireToolPermission, adaptLegacyAuthorize, type DerivedRiskByToolId, type ToolHandler, type ToolRegistration, type ToolRegistry, type AgentToolDefinition, type LegacyToolAuthorizeFn, type ToolMetadata, type ToolMetadataById } from "@jini-ai/core";
+import { buildDomainRegistrations, indexCatalogById, isRecord, describeErrorForLog, requireInputRecord, requireString, ToolInputError, requireToolPermission, adaptLegacyAuthorize, type DerivedRiskByToolId, type ToolHandler, type ToolRegistration, type ToolRegistry, type AgentToolDefinition, type LegacyToolAuthorizeFn, type ToolMetadata, type ToolMetadataById } from "@jini-ai/core";
 import { readPluginIdentity } from "@jini-ai/core/plugin-directory";
 import type { JsonObject } from "@jini-ai/core/primitives";
 import { attachPluginContributionTools, type PluginToolContributionPorts } from "./tool-contributions.js";
@@ -10,7 +10,7 @@ import { capabilityToolIdFor } from "./plugin-claims.js";
 
 /**
  * @file Projects each ENABLED plugin-runtime plugin's own declared `fields[]` (manifest.ts,
- * SPEC-005 REQ-06) into one real, `search_tools`-discoverable tool per plugin — the fix for the
+ * the manifest contract) into one real, `search_tools`-discoverable tool per plugin — the fix for the
  * 2026-08-26 registration-gap audit (`ADS-memory/reports/2026-08-26-plugin-discoverability-audit.md`):
  * a live, valid, tier-3 Word Count plugin was computing and storing a real per-post word count on
  * every save, yet no agent-callable tool anywhere ever exposed it, so `search_tools` correctly
@@ -63,7 +63,7 @@ import { capabilityToolIdFor } from "./plugin-claims.js";
  * ---------------------------------------------------------------------------
  * Activation gate — the OPPOSITE default from Agent Plugins, and that is a real, disclosed decision
  * ---------------------------------------------------------------------------
- * `features/agent-plugins/activation.ts` treats an absent activation record as ACTIVE ("presence
+ * `packages/agent-plugins/src/lifecycle/activation.ts` treats an absent activation record as ACTIVE ("presence
  * implies consent"). Plugin-runtime's own projection (`admin-response.ts`: `enabled: activation?.
  * enabled ?? false`) is the opposite: absent means DISABLED. This loader follows plugin-runtime's own
  * convention, not the Agent Plugins one it sits next to — a disabled plugin's `content.entry.
@@ -138,7 +138,7 @@ export interface PluginCapabilityToolText {
    *  stays on `cause`; the model sees only this text. It must not claim a write happened. */
   readonly previewFailed: (required: { pluginName: string; postId: string }, optional?: Record<string, never>) => string;
   /** @agent-note Warning logged through `console.warn` when the per-call activation read throws and
-   *  the call is denied. `detail` is the error message, or `String(value)` for a non-Error. */
+   *  the call is denied. `detail` is `describeErrorForLog` of the thrown value: its class and approved code, never its text. */
   readonly activationReadDenied: (required: { pluginId: string; detail: string }, optional?: Record<string, never>) => string;
 }
 
@@ -279,6 +279,7 @@ export interface PluginCapabilitySourceDeps {
 export interface PluginCapabilityToolsRequired<TPost extends PluginCapabilityPost, TDraft, TFamily extends string> {
   /** @agent-note Namespace passed to `readPluginIdentity` for the discovery terms. */
   readonly identityNamespace: string;
+  readonly legacyIdentityNamespace?: string | undefined;
   /** The host SDK's before-save hook id (the same id its `PluginSdkBinding.hookIds` admits and its
    *  invocation binding receives as `beforeSaveHook`).
    *  @agent-note Second-host rule: required, no default. A tier-2 plugin whose manifest `hooks`
@@ -389,287 +390,294 @@ export function createPluginCapabilityTools<TPost extends PluginCapabilityPost, 
   required: PluginCapabilityToolsRequired<TPost, TDraft, TFamily>,
   _optional: Record<string, never> = {},
 ): PluginCapabilityTools<TPost, TDraft, TFamily> {
-  const { identityNamespace, beforeSaveHook, text, catalog, access, executableAccess, approvalFamily, toPreviewDraft } = required;
-  type Deps = PluginCapabilityToolDeps<TPost, TDraft>;
+  const { identityNamespace, legacyIdentityNamespace, beforeSaveHook, text, catalog, access, executableAccess, approvalFamily, toPreviewDraft } = required;
+  const host = { identityNamespace, legacyIdentityNamespace, beforeSaveHook, text, catalog, access, executableAccess, approvalFamily, toPreviewDraft };
+  return {
+    loadSources: (deps) => loadEnabledPluginCapabilityToolSources(host, deps),
+    buildRegistrations: (args) => buildPluginCapabilityToolRegistrations(host, args),
+    registerEnabled: (args) => registerEnabledPluginCapabilityTools(host, args),
+  };
+}
 
-  /** Fallback for a field whose manifest declares no `description` (see this file's header,
-   *  "description text IS the fix") — weaker (a noun-phrase, not an action), but still a usable,
-   *  non-empty tool description rather than no tool at all. */
-  function genericFieldDescription(pluginName: string, field: PluginManifestFieldDecl): string {
-    return text.genericFieldDescription({ pluginName, path: field.path, type: field.type });
+/** Fallback for a field whose manifest declares no `description` (see this file's header,
+ *  "description text IS the fix") — weaker (a noun-phrase, not an action), but still a usable,
+ *  non-empty tool description rather than no tool at all. */
+function genericFieldDescription<TPost extends PluginCapabilityPost, TDraft, TFamily extends string>(host: PluginCapabilityToolsRequired<TPost, TDraft, TFamily>, pluginName: string, field: PluginManifestFieldDecl): string {
+  const { text } = host;
+  return text.genericFieldDescription({ pluginName, path: field.path, type: field.type });
+}
+
+/**
+ * Resolves one valid manifest's declared fields into tool-ready sources — `expectedPrefix` mirrors
+ * `manifest.ts`'s own `validateFields` derivation exactly, so a field this function accepts is
+ * guaranteed already-validated namespacing, never a fresh assumption this file invents.
+ *
+ * @complexity O(fields.length) — one manifest's own declared array.
+ */
+function buildFieldSources<TPost extends PluginCapabilityPost, TDraft, TFamily extends string>(host: PluginCapabilityToolsRequired<TPost, TDraft, TFamily>, manifest: PluginManifest): readonly PluginCapabilityFieldSource[] {
+  const expectedPrefix = `ext.${manifest.id}.`;
+  return manifest.fields
+    .filter((field) => field.path.startsWith(expectedPrefix) && field.path.length > expectedPrefix.length)
+    .map((field) => ({
+      path: field.path,
+      fieldKey: field.path.slice(expectedPrefix.length),
+      type: field.type,
+      description: field.description ?? genericFieldDescription(host, manifest.name, field),
+    }));
+}
+
+/**
+ * Builds this plugin tool's model-facing description — an operator SEARCH TARGET, not a card blurb
+ * (mirrors `agent-plugins/tool-registrations.ts`'s `buildPluginToolDescription` doc on the same
+ * point). Leads with an imperative action clause, folds in every field's own description text (the
+ * actual indexed vocabulary a real query needs to match), and states the `postId` precondition and
+ * the "no data yet" outcome up front so a model reading only this description already knows how to
+ * call it and what an empty result means.
+ */
+function buildCapabilityToolDescription<TPost extends PluginCapabilityPost, TDraft, TFamily extends string>(host: PluginCapabilityToolsRequired<TPost, TDraft, TFamily>, manifest: PluginManifest, fields: readonly PluginCapabilityFieldSource[]): string {
+  const { identityNamespace, legacyIdentityNamespace, beforeSaveHook, text } = host;
+  const identity = readPluginIdentity({ manifest: manifest as unknown as Readonly<Record<string, unknown>>, name: manifest.id, namespace: identityNamespace, legacyNamespace: legacyIdentityNamespace });
+  const fieldText = fields.map((field) => field.description).join(" ") + text.discovery({ terms: [identity.id, ...identity.keywords, ...identity.provides].join(" ") });
+  if (runsFreshFor(manifest, beforeSaveHook)) {
+    return text.freshDescription({ pluginName: manifest.name, fieldText });
   }
+  return text.storedDescription({ pluginName: manifest.name, fieldText });
+}
 
-  /**
-   * Resolves one valid manifest's declared fields into tool-ready sources — `expectedPrefix` mirrors
-   * `manifest.ts`'s own `validateFields` derivation exactly, so a field this function accepts is
-   * guaranteed already-validated namespacing, never a fresh assumption this file invents.
-   *
-   * @complexity O(fields.length) — one manifest's own declared array.
-   */
-  function buildFieldSources(manifest: PluginManifest): readonly PluginCapabilityFieldSource[] {
-    const expectedPrefix = `ext.${manifest.id}.`;
-    return manifest.fields
-      .filter((field) => field.path.startsWith(expectedPrefix) && field.path.length > expectedPrefix.length)
-      .map((field) => ({
-        path: field.path,
-        fieldKey: field.path.slice(expectedPrefix.length),
-        type: field.type,
-        description: field.description ?? genericFieldDescription(manifest.name, field),
-      }));
-  }
+/**
+ * Loads every ENABLED, valid plugin-runtime plugin that declares at least one field, resolved into
+ * one tool-ready source per plugin. See this file's header, "Activation gate", for why "enabled"
+ * here means `activation.enabled === true` — the opposite default from Agent Plugins.
+ *
+ * @complexity O(p) plugin-discovery calls times one `pluginActivationRepo.getActivation` each,
+ * dominated by `discoverPlugins()`'s own I/O (unchanged, not re-read per plugin).
+ */
+async function loadEnabledPluginCapabilityToolSources<TPost extends PluginCapabilityPost, TDraft, TFamily extends string>(host: PluginCapabilityToolsRequired<TPost, TDraft, TFamily>, deps: PluginCapabilitySourceDeps): Promise<readonly PluginCapabilityToolSource[]> {
+  const { beforeSaveHook } = host;
+  const discovery = await deps.discoverPlugins();
+  const sources: PluginCapabilityToolSource[] = [];
 
-  /**
-   * Builds this plugin tool's model-facing description — an operator SEARCH TARGET, not a card blurb
-   * (mirrors `agent-plugins/tool-registrations.ts`'s `buildPluginToolDescription` doc on the same
-   * point). Leads with an imperative action clause, folds in every field's own description text (the
-   * actual indexed vocabulary a real query needs to match), and states the `postId` precondition and
-   * the "no data yet" outcome up front so a model reading only this description already knows how to
-   * call it and what an empty result means.
-   */
-  function buildCapabilityToolDescription(manifest: PluginManifest, fields: readonly PluginCapabilityFieldSource[]): string {
-    const identity = readPluginIdentity({ manifest: manifest as unknown as Readonly<Record<string, unknown>>, name: manifest.id, namespace: identityNamespace });
-    const fieldText = fields.map((field) => field.description).join(" ") + text.discovery({ terms: [identity.id, ...identity.keywords, ...identity.provides].join(" ") });
-    if (runsFreshFor(manifest, beforeSaveHook)) {
-      return text.freshDescription({ pluginName: manifest.name, fieldText });
-    }
-    return text.storedDescription({ pluginName: manifest.name, fieldText });
-  }
+  for (const record of discovery) {
+    // No fields means nothing this plugin's tool could ever return. Disabled (or never activated)
+    // plugins stay out too — see this file's header. Preserve that short-circuit order.
+    if (record.status !== "valid" || !record.manifest || record.manifest.fields.length === 0 ||
+      !(await isPluginEnabledInWorkspace(deps.pluginActivationRepo, deps.workspaceId, record.id))) continue;
 
-  /**
-   * Loads every ENABLED, valid plugin-runtime plugin that declares at least one field, resolved into
-   * one tool-ready source per plugin. See this file's header, "Activation gate", for why "enabled"
-   * here means `activation.enabled === true` — the opposite default from Agent Plugins.
-   *
-   * @complexity O(p) plugin-discovery calls times one `pluginActivationRepo.getActivation` each,
-   * dominated by `discoverPlugins()`'s own I/O (unchanged, not re-read per plugin).
-   */
-  async function loadEnabledPluginCapabilityToolSources(deps: PluginCapabilitySourceDeps): Promise<readonly PluginCapabilityToolSource[]> {
-    const discovery = await deps.discoverPlugins();
-    const sources: PluginCapabilityToolSource[] = [];
-
-    for (const record of discovery) {
-      // No fields means nothing this plugin's tool could ever return. Disabled (or never activated)
-      // plugins stay out too — see this file's header. Preserve that short-circuit order.
-      if (record.status !== "valid" || !record.manifest || record.manifest.fields.length === 0 ||
-        !(await isPluginEnabledInWorkspace(deps.pluginActivationRepo, deps.workspaceId, record.id))) continue;
-
-      const fields = buildFieldSources(record.manifest);
-      if (fields.length > 0) sources.push({
-        id: capabilityToolIdFor({ pluginId: record.id }),
-        pluginId: record.id,
-        pluginName: record.manifest.name,
-        description: buildCapabilityToolDescription(record.manifest, fields),
-        fields,
-        runsFresh: runsFreshFor(record.manifest, beforeSaveHook),
-      });
-    }
-
-    return sources;
-  }
-
-  function buildCapabilityInputSchema(): Record<string, unknown> {
-    return {
-      type: "object",
-      additionalProperties: false,
-      required: ["postId"],
-      properties: {
-        postId: {
-          type: "string",
-          minLength: 1,
-          description: text.postIdDescription,
-        },
-      },
-    };
-  }
-
-  /** Projects one plugin's field bag — stored, or fresh from the preview port (`computedNow`) — onto
-   *  its declared fields, adding the "not computed yet" note when none of them has a value. */
-  function buildCapabilityToolResult(
-    source: PluginCapabilityToolSource,
-    post: TPost,
-    bag: { values: Record<string, unknown> | undefined; computedNow: boolean },
-  ): Record<string, unknown> {
-    const pluginBag = bag.values;
-    const fields: Record<string, unknown> = {};
-    let anyComputed = false;
-    for (const field of source.fields) {
-      const value = pluginBag ? pluginBag[field.fieldKey] : undefined;
-      fields[field.fieldKey] = value === undefined ? null : decodeFieldValue(value);
-      if (value !== undefined) anyComputed = true;
-    }
-
-    return {
-      postId: post.id,
-      pluginId: source.pluginId,
-      computedNow: bag.computedNow,
+    const fields = buildFieldSources(host, record.manifest);
+    if (fields.length > 0) sources.push({
+      id: capabilityToolIdFor({ pluginId: record.id }),
+      pluginId: record.id,
+      pluginName: record.manifest.name,
+      description: buildCapabilityToolDescription(host, record.manifest, fields),
       fields,
-      ...(anyComputed
-        ? {}
-        : {
-            note: text.noDataNote({ pluginName: source.pluginName }),
-          }),
-    };
+      runsFresh: runsFreshFor(record.manifest, beforeSaveHook),
+    });
   }
 
-  /** The field bag one call answers with: a fresh preview for a {@link PluginCapabilityToolSource.runsFresh}
-   *  source when the port is injected and this process has the plugin attached, otherwise the stored one.
-   *  The draft is the post exactly as stored — the same fields `post.ts` hands the filter on an update.
-   *  @throws {ToolInputError} the fresh run failed; the cause stays on the error, the model sees fixed text.
-   *  @complexity one post-draft preview (a worker round trip for tier-2) or none. */
-  async function resolveFieldBag(
-    source: PluginCapabilityToolSource,
-    post: TPost,
-    deps: Deps,
-  ): Promise<{ values: Record<string, unknown> | undefined; computedNow: boolean }> {
-    const preview = source.runsFresh ? deps.previewPluginBeforeSave : undefined;
-    const fresh = preview
-      ? await preview(source.pluginId, toPreviewDraft({ post })).catch((error: unknown) => {
-          throw new ToolInputError(
-            {
-              message: text.previewFailed({ pluginName: source.pluginName, postId: post.id }),
-            },
-            { cause: error },
-          );
-        })
-      : null;
-    return fresh ? { values: fresh, computedNow: true } : { values: readStoredFieldBag(source, post), computedNow: false };
-  }
+  return sources;
+}
 
-  /** One source's catalog entry. The host's `access.permission` — the same object the handler checks. */
-  function capabilityCatalogEntry(source: PluginCapabilityToolSource): AgentToolDefinition {
-    return {
-      name: source.id,
-      description: source.description,
-      sideEffects: "none",
-      authorization: { permission: access.permission },
-      inputSchema: buildCapabilityInputSchema(),
-    };
-  }
-
-  /** One source's handler. @complexity one permission check, one post read, and at most one fresh preview. */
-  function capabilityToolHandler(source: PluginCapabilityToolSource, deps: Deps): ToolHandler {
-    return async (ctx) => {
-      const input = requireInputRecord({ input: ctx.input });
-      const postId = requireString({ input: input, key: "postId" });
-      await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: deps.authorize }), workspaceId: deps.workspaceId, principalId: ctx.principal.id, permission: access.permission }, { entityType: access.entityType, entityId: postId });
-
-      const post = await deps.postRead.readRequired({ workspaceId: deps.workspaceId, id: postId });
-      return buildCapabilityToolResult(source, post, await resolveFieldBag(source, post, deps));
-    };
-  }
-
-  /** Whether `pluginId` may run right now. A read that throws DENIES and is logged, rather than surfacing as a
-   *  failed execution whose cause the daemon redacts. @complexity one activation-row read. */
-  async function isCapabilityCallableNow(deps: Deps, pluginId: string): Promise<boolean> {
-    try {
-      return await isPluginEnabledInWorkspace(deps.pluginActivationRepo, deps.workspaceId, pluginId);
-    } catch (error) {
-      console.warn(
-        text.activationReadDenied({ pluginId, detail: redactSecrets({ input: error instanceof Error ? error.message : String(error) }, { redactPii: false }) }),
-      );
-      return false;
-    }
-  }
-
-  /**
-   * Wraps one registration's policy so the plugin's CURRENT activation is re-read before its handler can be
-   * reached, then defers to the policy `buildDomainRegistrations` attached — the same shape and reason as
-   * `agent-plugins/tool-registrations.ts`'s `withToolGate` (a future kit policy must not be silently dropped).
-   * @complexity O(1) plus one activation-row read per call.
-   */
-  function withActivationGate(registration: ToolRegistration, deps: Deps, pluginId: string): ToolRegistration {
-    const inner = registration.policy;
-    return {
-      ...registration,
-      policy: {
-        async authorize(authCtx) {
-          if (!(await isCapabilityCallableNow(deps, pluginId))) return "deny";
-          return inner.authorize(authCtx);
-        },
+function buildCapabilityInputSchema<TPost extends PluginCapabilityPost, TDraft, TFamily extends string>(host: PluginCapabilityToolsRequired<TPost, TDraft, TFamily>): Record<string, unknown> {
+  const { text } = host;
+  return {
+    type: "object",
+    additionalProperties: false,
+    required: ["postId"],
+    properties: {
+      postId: {
+        type: "string",
+        minLength: 1,
+        description: text.postIdDescription,
       },
-    };
-  }
+    },
+  };
+}
 
-  /**
-   * Turns already-resolved plugin capability sources into real `ToolRegistration`s — pure and
-   * synchronous, unlike {@link loadEnabledPluginCapabilityToolSources}, so this half is unit-tested
-   * without touching activation/discovery I/O. Uses the same `buildDomainRegistrations` gate every
-   * other domain's `tool-registrations.ts` uses (catalog/risk cross-check, `inputSchema` presence,
-   * drift tripwire) — not a parallel mechanism.
-   *
-   * Permission: the host's `access.permission`, the same permission its own post read tool requires —
-   * this tool reads a post's already-persisted data, nothing a plugin-specific permission would
-   * meaningfully narrow further (mirrors that tool's own inline `requireToolPermission` call exactly,
-   * including the `entityType`/`entityId` pair so a per-post authorization rule can still apply).
-   *
-   * Every registration carries the per-call activation gate (`withActivationGate`) — see this file's
-   * header, "Revocation". Built one source at a time so the owning plugin id is in scope for every
-   * registration the kit returns: there is no id-to-plugin lookup that could miss and leave a tool
-   * ungated. The build stays synchronous and touches no I/O; the gate reads only when a call is
-   * authorized.
-   */
-  function buildPluginCapabilityToolRegistrations(
-    { sources, deps, applyApprovalPolicy }: { sources: readonly PluginCapabilityToolSource[]; deps: Deps; applyApprovalPolicy: PluginCapabilityApprovalPort<TFamily> },
-    _optionalArgs: Record<string, never> = {},
-  ): ToolRegistration[] {
-    return sources.flatMap((source) =>
-      buildDomainRegistrations({ metadata: catalog.metadata,
-        domain: catalog.domain,
-        catalogModule: catalog.catalogModule,
-        catalog: indexCatalogById({ catalog: [capabilityCatalogEntry(source)] }),
-        handlers: { [source.id]: capabilityToolHandler(source, deps) },
-        derivedRisk: pluginCapabilityToolDerivedRisk({ sources: [source] }),
-      }).map((registration) => applyApprovalPolicy({ registration: withActivationGate(registration, deps, source.pluginId), family: approvalFamily })),
-    );
-  }
-
-  /** Product authorization and approval inputs for Jini's executable registration owner. */
-  function executablePluginToolPorts({ deps, contributions }: { deps: Deps; contributions: PluginContributionRegistry }): PluginToolContributionPorts {
-    // The caller passes the bound registry it just checked, so there is no unbound case to refuse here.
-    return {
-      contributions,
-      isEnabled: async ({ pluginId }) => (await deps.pluginActivationRepo.getActivation({ workspaceId: deps.workspaceId, pluginId }))?.enabled === true,
-      resolveAuth: async ({ pluginId, principalId }) => {
-        await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: deps.authorize }), workspaceId: deps.workspaceId, principalId, permission: executableAccess.permission }, { entityType: executableAccess.entityType, entityId: pluginId });
-        return { access: 'admin', principalId, workspaceId: deps.workspaceId };
-      },
-      // In-process arbitrary code can leave this site. Its prose cannot self-classify it as read-only.
-      // The assistant decides when to invoke it; only permanent-delete tools require confirmation.
-      metadata: executableAccess.metadata,
-    };
-  }
-
-  /**
-   * Composition-root entry point: loads every enabled, field-declaring plugin for one workspace and
-   * registers each as a real tool directly on `registry` — the same `registry.register(registration)`
-   * call `agent-daemon-server.ts`'s own loops make for every other contributor's output, just awaited
-   * first (mirrors `registerInstalledAgentPluginTools`'s identical shape and rationale).
-   *
-   * @throws Whatever `registry.register()` itself throws on an id collision (`@jini-ai/core`'s
-   * `createToolRegistry()` throws synchronously — see this file's header) — deliberately not caught
-   * here; the caller's own fail-open `try/catch` (matching `registerInstalledAgentPluginTools`'s and
-   * `registerInstalledSkillTools`'s call sites in `agent-daemon-server.ts`) is where that is handled,
-   * so all three optional registrars degrade identically on failure.
-   *
-   * Registers with the per-call activation gate, so a tool this puts into the daemon's registry is
-   * refused the moment its plugin is disabled, quarantined or uninstalled.
-   */
-  async function registerEnabledPluginCapabilityTools(
-    { registry, deps, applyApprovalPolicy }: { registry: PluginCapabilityRegistryPort; deps: Deps & PluginCapabilitySourceDeps; applyApprovalPolicy: PluginCapabilityApprovalPort<TFamily> },
-    _optionalArgs: Record<string, never> = {},
-  ): Promise<void> {
-    const sources = await loadEnabledPluginCapabilityToolSources(deps);
-    for (const registration of buildPluginCapabilityToolRegistrations({ sources, deps, applyApprovalPolicy })) {
-      registry.register(registration);
-    }
-    if (deps.pluginContributions && (deps.executablePluginToolRegistry || (registry.has && registry.list))) {
-      attachPluginContributionTools({ ...executablePluginToolPorts({ deps, contributions: deps.pluginContributions }), registry: deps.executablePluginToolRegistry ?? registry as ToolRegistry });
-    }
+/** Projects one plugin's field bag — stored, or fresh from the preview port (`computedNow`) — onto
+ *  its declared fields, adding the "not computed yet" note when none of them has a value. */
+function buildCapabilityToolResult<TPost extends PluginCapabilityPost, TDraft, TFamily extends string>(host: PluginCapabilityToolsRequired<TPost, TDraft, TFamily>,
+  { source, post, bag }: { source: PluginCapabilityToolSource; post: TPost;
+    bag: { values: Record<string, unknown> | undefined; computedNow: boolean } },
+): Record<string, unknown> {
+  const { text } = host;
+  const pluginBag = bag.values;
+  const fields: Record<string, unknown> = {};
+  let anyComputed = false;
+  for (const field of source.fields) {
+    const value = pluginBag ? pluginBag[field.fieldKey] : undefined;
+    fields[field.fieldKey] = value === undefined ? null : decodeFieldValue(value);
+    if (value !== undefined) anyComputed = true;
   }
 
   return {
-    loadSources: (deps) => loadEnabledPluginCapabilityToolSources(deps),
-    buildRegistrations: (args) => buildPluginCapabilityToolRegistrations(args),
-    registerEnabled: (args) => registerEnabledPluginCapabilityTools(args),
+    postId: post.id,
+    pluginId: source.pluginId,
+    computedNow: bag.computedNow,
+    fields,
+    ...(anyComputed
+      ? {}
+      : {
+          note: text.noDataNote({ pluginName: source.pluginName }),
+        }),
   };
+}
+
+/** The field bag one call answers with: a fresh preview for a {@link PluginCapabilityToolSource.runsFresh}
+ *  source when the port is injected and this process has the plugin attached, otherwise the stored one.
+ *  The draft is the post exactly as stored — the same fields `post.ts` hands the filter on an update.
+ *  @throws {ToolInputError} the fresh run failed; the cause stays on the error, the model sees fixed text.
+ *  @complexity one post-draft preview (a worker round trip for tier-2) or none. */
+async function resolveFieldBag<TPost extends PluginCapabilityPost, TDraft, TFamily extends string>(host: PluginCapabilityToolsRequired<TPost, TDraft, TFamily>,
+  { source, post, deps }: { source: PluginCapabilityToolSource; post: TPost; deps: PluginCapabilityToolDeps<TPost, TDraft> },
+): Promise<{ values: Record<string, unknown> | undefined; computedNow: boolean }> {
+  const { text, toPreviewDraft } = host;
+  const preview = source.runsFresh ? deps.previewPluginBeforeSave : undefined;
+  const fresh = preview
+    ? await preview(source.pluginId, toPreviewDraft({ post })).catch((error: unknown) => {
+        throw new ToolInputError(
+          {
+            message: text.previewFailed({ pluginName: source.pluginName, postId: post.id }),
+          },
+          { cause: error },
+        );
+      })
+    : null;
+  return fresh ? { values: fresh, computedNow: true } : { values: readStoredFieldBag(source, post), computedNow: false };
+}
+
+/** One source's catalog entry. The host's `access.permission` — the same object the handler checks. */
+function capabilityCatalogEntry<TPost extends PluginCapabilityPost, TDraft, TFamily extends string>(host: PluginCapabilityToolsRequired<TPost, TDraft, TFamily>, source: PluginCapabilityToolSource): AgentToolDefinition {
+  const { access } = host;
+  return {
+    name: source.id,
+    description: source.description,
+    sideEffects: "none",
+    authorization: { permission: access.permission },
+    inputSchema: buildCapabilityInputSchema(host),
+  };
+}
+
+/** One source's handler. @complexity one permission check, one post read, and at most one fresh preview. */
+function capabilityToolHandler<TPost extends PluginCapabilityPost, TDraft, TFamily extends string>(host: PluginCapabilityToolsRequired<TPost, TDraft, TFamily>, source: PluginCapabilityToolSource, deps: PluginCapabilityToolDeps<TPost, TDraft>): ToolHandler {
+  const { access } = host;
+  return async (ctx) => {
+    const input = requireInputRecord({ input: ctx.input });
+    const postId = requireString({ input: input, key: "postId" });
+    await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: deps.authorize }), workspaceId: deps.workspaceId, principalId: ctx.principal.id, permission: access.permission }, { entityType: access.entityType, entityId: postId });
+
+    const post = await deps.postRead.readRequired({ workspaceId: deps.workspaceId, id: postId });
+    return buildCapabilityToolResult(host, { source, post, bag: await resolveFieldBag(host, { source, post, deps }) });
+  };
+}
+
+/** Whether `pluginId` may run right now. A read that throws DENIES and is logged, rather than surfacing as a
+ *  failed execution whose cause the daemon redacts. @complexity one activation-row read. */
+async function isCapabilityCallableNow<TPost extends PluginCapabilityPost, TDraft, TFamily extends string>(host: PluginCapabilityToolsRequired<TPost, TDraft, TFamily>, deps: PluginCapabilityToolDeps<TPost, TDraft>, pluginId: string): Promise<boolean> {
+  const { text } = host;
+  try {
+    return await isPluginEnabledInWorkspace(deps.pluginActivationRepo, deps.workspaceId, pluginId);
+  } catch (error) {
+    console.warn(
+      text.activationReadDenied({ pluginId, detail: describeErrorForLog({ err: error }) }),
+    );
+    return false;
+  }
+}
+
+/**
+ * Wraps one registration's policy so the plugin's CURRENT activation is re-read before its handler can be
+ * reached, then defers to the policy `buildDomainRegistrations` attached — the same shape and reason as
+ * `agent-plugins/tool-registrations.ts`'s `withToolGate` (a future kit policy must not be silently dropped).
+ * @complexity O(1) plus one activation-row read per call.
+ */
+function withActivationGate<TPost extends PluginCapabilityPost, TDraft, TFamily extends string>(host: PluginCapabilityToolsRequired<TPost, TDraft, TFamily>, registration: ToolRegistration, { deps, pluginId }: { deps: PluginCapabilityToolDeps<TPost, TDraft>; pluginId: string }): ToolRegistration {
+  const inner = registration.policy;
+  return {
+    ...registration,
+    policy: {
+      async authorize(authCtx) {
+        if (!(await isCapabilityCallableNow(host, deps, pluginId))) return "deny";
+        return inner.authorize(authCtx);
+      },
+    },
+  };
+}
+
+/**
+ * Turns already-resolved plugin capability sources into real `ToolRegistration`s — pure and
+ * synchronous, unlike {@link loadEnabledPluginCapabilityToolSources}, so this half is unit-tested
+ * without touching activation/discovery I/O. Uses the same `buildDomainRegistrations` gate every
+ * other domain's `tool-registrations.ts` uses (catalog/risk cross-check, `inputSchema` presence,
+ * drift tripwire) — not a parallel mechanism.
+ *
+ * Permission: the host's `access.permission`, the same permission its own post read tool requires —
+ * this tool reads a post's already-persisted data, nothing a plugin-specific permission would
+ * meaningfully narrow further (mirrors that tool's own inline `requireToolPermission` call exactly,
+ * including the `entityType`/`entityId` pair so a per-post authorization rule can still apply).
+ *
+ * Every registration carries the per-call activation gate (`withActivationGate`) — see this file's
+ * header, "Revocation". Built one source at a time so the owning plugin id is in scope for every
+ * registration the kit returns: there is no id-to-plugin lookup that could miss and leave a tool
+ * ungated. The build stays synchronous and touches no I/O; the gate reads only when a call is
+ * authorized.
+ */
+function buildPluginCapabilityToolRegistrations<TPost extends PluginCapabilityPost, TDraft, TFamily extends string>(host: PluginCapabilityToolsRequired<TPost, TDraft, TFamily>, 
+  { sources, deps, applyApprovalPolicy }: { sources: readonly PluginCapabilityToolSource[]; deps: PluginCapabilityToolDeps<TPost, TDraft>; applyApprovalPolicy: PluginCapabilityApprovalPort<TFamily> },
+  _optionalArgs: Record<string, never> = {},
+): ToolRegistration[] {
+  const { catalog, approvalFamily } = host;
+  return sources.flatMap((source) =>
+    buildDomainRegistrations({ metadata: catalog.metadata,
+      domain: catalog.domain,
+      catalogModule: catalog.catalogModule,
+      catalog: indexCatalogById({ catalog: [capabilityCatalogEntry(host, source)] }),
+      handlers: { [source.id]: capabilityToolHandler(host, source, deps) },
+      derivedRisk: pluginCapabilityToolDerivedRisk({ sources: [source] }),
+    }).map((registration) => applyApprovalPolicy({ registration: withActivationGate(host, registration, { deps, pluginId: source.pluginId }), family: approvalFamily })),
+  );
+}
+
+/** Product authorization and approval inputs for Jini's executable registration owner. */
+function executablePluginToolPorts<TPost extends PluginCapabilityPost, TDraft, TFamily extends string>(host: PluginCapabilityToolsRequired<TPost, TDraft, TFamily>, { deps, contributions }: { deps: PluginCapabilityToolDeps<TPost, TDraft>; contributions: PluginContributionRegistry }): PluginToolContributionPorts {
+  const { executableAccess } = host;
+  // The caller passes the bound registry it just checked, so there is no unbound case to refuse here.
+  return {
+    contributions,
+    isEnabled: async ({ pluginId }) => (await deps.pluginActivationRepo.getActivation({ workspaceId: deps.workspaceId, pluginId }))?.enabled === true,
+    resolveAuth: async ({ pluginId, principalId }) => {
+      await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: deps.authorize }), workspaceId: deps.workspaceId, principalId, permission: executableAccess.permission }, { entityType: executableAccess.entityType, entityId: pluginId });
+      return { access: 'admin', principalId, workspaceId: deps.workspaceId };
+    },
+    // In-process arbitrary code can leave this site. Its prose cannot self-classify it as read-only.
+    // The assistant decides when to invoke it; only permanent-delete tools require confirmation.
+    metadata: executableAccess.metadata,
+  };
+}
+
+/**
+ * Composition-root entry point: loads every enabled, field-declaring plugin for one workspace and
+ * registers each as a real tool directly on `registry` — the same `registry.register(registration)`
+ * call `agent-daemon-server.ts`'s own loops make for every other contributor's output, just awaited
+ * first (mirrors `registerInstalledAgentPluginTools`'s identical shape and rationale).
+ *
+ * @throws Whatever `registry.register()` itself throws on an id collision (`@jini-ai/core`'s
+ * `createToolRegistry()` throws synchronously — see this file's header) — deliberately not caught
+ * here; the caller's own fail-open `try/catch` (matching `registerInstalledAgentPluginTools`'s and
+ * `registerInstalledSkillTools`'s call sites in `agent-daemon-server.ts`) is where that is handled,
+ * so all three optional registrars degrade identically on failure.
+ *
+ * Registers with the per-call activation gate, so a tool this puts into the daemon's registry is
+ * refused the moment its plugin is disabled, quarantined or uninstalled.
+ */
+async function registerEnabledPluginCapabilityTools<TPost extends PluginCapabilityPost, TDraft, TFamily extends string>(host: PluginCapabilityToolsRequired<TPost, TDraft, TFamily>, 
+  { registry, deps, applyApprovalPolicy }: { registry: PluginCapabilityRegistryPort; deps: PluginCapabilityToolDeps<TPost, TDraft> & PluginCapabilitySourceDeps; applyApprovalPolicy: PluginCapabilityApprovalPort<TFamily> },
+  _optionalArgs: Record<string, never> = {},
+): Promise<void> {
+  const sources = await loadEnabledPluginCapabilityToolSources(host, deps);
+  for (const registration of buildPluginCapabilityToolRegistrations(host, { sources, deps, applyApprovalPolicy })) {
+    registry.register(registration);
+  }
+  if (deps.pluginContributions && (deps.executablePluginToolRegistry || (registry.has && registry.list))) {
+    attachPluginContributionTools({ ...executablePluginToolPorts(host, { deps, contributions: deps.pluginContributions }), registry: deps.executablePluginToolRegistry ?? registry as ToolRegistry });
+  }
 }

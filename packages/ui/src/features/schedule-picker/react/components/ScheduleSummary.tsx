@@ -6,6 +6,7 @@ import type { ScheduleValue, WeekdayOption } from '../../types.js';
 export interface ScheduleSummaryProps {
   schedule: ScheduleValue;
   weekdays?: WeekdayOption[];
+  useTHook?: typeof useT;
 }
 
 /**
@@ -21,7 +22,7 @@ export function translatedScheduleSummaryLabel(
   schedule: ScheduleValue,
   weekdays?: WeekdayOption[],
 ): string {
-  const parts = decomposeSchedule(schedule, weekdays);
+  const parts = decomposeSchedule({ schedule }, { weekdays });
   if (parts.kind === 'hourly') return `${t('Hourly')} at :${parts.minute}`;
   return `${t(parts.freq)} at ${parts.time} · ${parts.tz}`;
 }
@@ -32,9 +33,9 @@ export function translatedScheduleSummaryLabel(
  * single concatenated string. Shares `decomposeSchedule` with the plain-string
  * `describeScheduleSummary` (`rules.ts`) so formatting only lives in one place.
  */
-export function ScheduleSummary({ schedule, weekdays }: ScheduleSummaryProps) {
-  const t = useT();
-  const parts = decomposeSchedule(schedule, weekdays);
+export function ScheduleSummary({ schedule, weekdays, useTHook = useT }: ScheduleSummaryProps) {
+  const t = useTHook();
+  const parts = decomposeSchedule({ schedule }, { weekdays });
 
   if (parts.kind === 'hourly') {
     return (

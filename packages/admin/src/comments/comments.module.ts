@@ -1,4 +1,4 @@
-import { defineAdminModule } from '../core/module/define-admin-module.js';
+import { defineAdminModule } from '@jini-ai/core/contracts/admin-module';
 import { commentsApiToken, commentsSessionToken, commentsEventsToken } from './ports.js';
 import { commentsMessagesEn } from './messages.en.js';
 

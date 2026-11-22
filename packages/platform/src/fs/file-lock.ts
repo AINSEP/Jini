@@ -11,76 +11,39 @@
  * torn content. Proven live owners are never age-evicted; staleMs: Infinity also disables age
  * recovery for owners whose liveness is unknown.
  */
-import { fromEarlierBoot, fromThisBoot, readBootIdentity, type BootIdentity } from "./boot-identity.js";
+import { fromEarlierBoot, fromThisBoot, readBootIdentity } from "./boot-identity.js";
+import { FileLockLostError, FileLockTimeoutError, type BootIdentity, type FileLockHolder, type FileLockPortOptions, type HeldFileLock, type HeldFileLockSync } from "@jini-ai/core/contracts/runtime";
 import fs from "node:fs";
 import * as asyncFs from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { hostname as nodeHostname } from "node:os";
 import path from "node:path";
-import { createSystemClock, type Clock } from "@jini-ai/core/primitives";
+import type { Clock } from "@jini-ai/core/primitives";
 import { defaultPlatformMessages, type PlatformMessages } from "../messages.js";
+import { createSystemClock } from "../system.js";
 import { errorCodeOf, fallbackIf } from "./errno.js";
 
 /** Re-exported so a host's own process port can record the boot its locks were taken in. */
-export { readBootIdentity, type BootIdentity } from "./boot-identity.js";
+export { readBootIdentity } from "./boot-identity.js";
 export const DEFAULT_LOCK_TIMEOUT_MS = 15_000;
 export const DEFAULT_LOCK_STALE_AFTER_MS = 10_000;
-export interface FileLockHolder { readonly pid: number; readonly hostname: string; readonly token: string; readonly acquiredAt: string; readonly bootId?: string; }
-export interface HeldFileLock { readonly lockPath: string; assertHeld(required: Record<string, never>): Promise<void>; }
-export interface HeldFileLockSync { readonly lockPath: string; assertHeld(required: Record<string, never>): void; }
 export type FileLockSyncFilesystem = Pick<typeof fs, "mkdirSync" | "openSync" | "writeSync" | "fstatSync" | "readFileSync" | "statSync" | "closeSync" | "rmSync">;
 export type FileLockAsyncFilesystem = Pick<typeof asyncFs, "mkdir" | "open" | "stat" | "rm">;
-export interface FileLockOptions {
-  /** Infinity follows an operation with its own deadline; dead local owners remain reclaimable. */
-  timeoutMs?: number;
-  /** Age threshold for unknown owners. Proven live owners are never evicted; Infinity disables age recovery. */
-  staleMs?: number;
-  pollMs?: number;
-  clock?: Clock;
-  /** Times the wait budget (start and timeout check). Defaults to `clock.nowMs`; hosts with a
-   * monotonic source pass it so a wall-clock jump can neither end nor stretch the wait. Stale age
-   * stays on `clock.nowMs`, because lock-file mtimes are wall-clock times. */
-  monotonicMs?: () => number;
-  sleep?: (required: { durationMs: number }) => void | Promise<void>;
-  process?: { pid: number; isAlive(required: { pid: number }): boolean; bootIdentity?: () => BootIdentity | undefined };
-  token?: () => string;
-  hostname?: () => string;
-  onStaleLockRemoved?: (required: { holder: FileLockHolder | undefined }) => void;
-  createParent?: boolean;
-  format?: "json" | "token";
-  /** Host stores keep their existing user-facing timeout copy. */
-  timeoutMessage?: (required: { lockPath: string; waitMs: number }) => string;
+export interface FileLockOptions extends Omit<FileLockPortOptions, "filesystem"> {
   messages?: PlatformMessages;
-  /** Durable stores historically ignored release failures to avoid masking their critical section. */
-  suppressReleaseErrors?: boolean;
-}
-export class FileLockTimeoutError extends Error {
-  readonly lockPath: string;
-  readonly holder: FileLockHolder | undefined;
-  readonly waitedMs: number;
-  constructor(required: { lockPath: string; holder: FileLockHolder | undefined; waitedMs: number }, optional: { message?: string; messages?: PlatformMessages } = {}) {
-    super(optional.message ?? (optional.messages ?? defaultPlatformMessages).fileLockTimeout({ waitedMs: required.waitedMs }));
-    this.name = "FileLockTimeoutError"; this.lockPath = required.lockPath; this.holder = required.holder; this.waitedMs = required.waitedMs;
-  }
-}
-export class FileLockLostError extends Error {
-  readonly lockPath: string;
-  constructor({ lockPath }: { lockPath: string }, { messages = defaultPlatformMessages }: { messages?: PlatformMessages } = {}) {
-    super(messages.fileLockLost()); this.name = "FileLockLostError"; this.lockPath = lockPath;
-  }
 }
 /** Platform-specific contention classification retains the Windows exclusive-open behavior. */
 export function isContendedLockError({ code, platform }: { code: string | undefined; platform: NodeJS.Platform }): boolean {
   return code === "EEXIST" || (code === "EPERM" && platform === "win32");
 }
 function isContended(error: unknown): boolean {
-  return isContendedLockError({ code: errorCodeOf(error), platform: process.platform });
+  return isContendedLockError({ code: errorCodeOf({ error }), platform: process.platform });
 }
 function isAbsentOrContended(error: unknown): boolean {
-  const code = errorCodeOf(error);
+  const code = errorCodeOf({ error });
   return code === "ENOENT" || isContendedLockError({ code, platform: process.platform });
 }
-function rethrowUnlessMissing(error: unknown): void { if (errorCodeOf(error) !== "ENOENT") throw error; }
+function rethrowUnlessMissing(error: unknown): void { if (errorCodeOf({ error }) !== "ENOENT") throw error; }
 function validPid(pid: unknown): pid is number { return typeof pid === "number" && Number.isSafeInteger(pid) && pid > 0; }
 function isHolderRecord(value: unknown): value is Omit<FileLockHolder, "bootId"> & { bootId?: unknown } {
   if (typeof value !== "object" || value === null) return false;
@@ -118,7 +81,7 @@ function intervals(options: FileLockOptions) {
   return { timeoutMs, staleMs, pollMs };
 }
 function defaultProcessPort(): NonNullable<FileLockOptions["process"]> {
-  return { pid: process.pid, bootIdentity: () => readBootIdentity({}), isAlive: ({ pid }: { pid: number }) => { try { process.kill(pid, 0); return true; } catch (error) { return errorCodeOf(error) !== "ESRCH"; } } };
+  return { pid: process.pid, bootIdentity: () => readBootIdentity({}), isAlive: ({ pid }: { pid: number }) => { try { process.kill(pid, 0); return true; } catch (error) { return errorCodeOf({ error }) !== "ESRCH"; } } };
 }
 function settings(options: FileLockOptions) {
   const checked = intervals(options);
@@ -179,7 +142,10 @@ function sameFile(a: FileIdentity, b: FileIdentity): boolean { return a.ino === 
 function sameStat(a: FileIdentity & { mtimeMs: number }, b: FileIdentity & { mtimeMs: number }): boolean { return sameFile(a, b) && a.mtimeMs === b.mtimeMs; }
 function unchanged(a: LockSnapshot, b: LockSnapshot): boolean { return sameStat(a, b) && a.raw === b.raw; }
 function stale(observed: LockSnapshot, current: LockSnapshot, s: Settings): boolean {
-  return unchanged(observed, current) && isLockStale({ nowMs: s.clock.nowMs(), mtimeMs: observed.mtimeMs, staleMs: s.staleMs, ownerAlive: ownerAlive(current, s), observedInode: observed.ino, currentInode: current.ino, observedDevice: observed.dev, currentDevice: current.dev });
+  if (!unchanged(observed, current)) return false;
+  const alive = ownerAlive(current, s);
+  if (current.holder !== undefined && alive !== false) return false;
+  return isLockStale({ nowMs: s.clock.nowMs(), mtimeMs: observed.mtimeMs, staleMs: s.staleMs, ownerAlive: alive, observedInode: observed.ino, currentInode: current.ino, observedDevice: observed.dev, currentDevice: current.dev });
 }
 function messagesOption(options: FileLockOptions): { messages?: PlatformMessages } { return options.messages ? { messages: options.messages } : {}; }
 function checkTimeout(lockPath: string, holder: FileLockHolder | undefined, start: number, s: Settings, options: FileLockOptions): void {
@@ -199,7 +165,7 @@ function rethrowReleaseError(error: unknown, completed: boolean, options: FileLo
 interface LockContext<Filesystem> { lockPath: string; raw: string; filesystem: Filesystem; s: Settings; options: FileLockOptions; }
 function inspectSync(lockPath: string, filesystem: FileLockSyncFilesystem): LockSnapshot | undefined {
   let descriptor: number;
-  try { descriptor = filesystem.openSync(lockPath, "r"); } catch (error) { return fallbackIf(error, isAbsentOrContended, undefined); }
+  try { descriptor = filesystem.openSync(lockPath, "r"); } catch (error) { return fallbackIf({ error, matches: isAbsentOrContended, fallback: undefined }); }
   try {
     const info = filesystem.fstatSync(descriptor), raw = filesystem.readFileSync(descriptor, "utf8");
     return { raw, holder: parseHolder(raw), mtimeMs: info.mtimeMs, ino: info.ino, dev: info.dev };
@@ -207,7 +173,7 @@ function inspectSync(lockPath: string, filesystem: FileLockSyncFilesystem): Lock
 }
 async function inspectAsync(lockPath: string, filesystem: FileLockAsyncFilesystem): Promise<LockSnapshot | undefined> {
   let handle: Awaited<ReturnType<FileLockAsyncFilesystem["open"]>>;
-  try { handle = await filesystem.open(lockPath, "r"); } catch (error) { return fallbackIf(error, isAbsentOrContended, undefined); }
+  try { handle = await filesystem.open(lockPath, "r"); } catch (error) { return fallbackIf({ error, matches: isAbsentOrContended, fallback: undefined }); }
   try {
     const info = await handle.stat(), raw = await handle.readFile("utf8");
     return { raw, holder: parseHolder(raw), mtimeMs: info.mtimeMs, ino: info.ino, dev: info.dev };
@@ -226,7 +192,7 @@ function tryCreateSync(ctx: LockContext<FileLockSyncFilesystem>): FileIdentity |
   const { lockPath, filesystem } = ctx;
   let descriptor: number;
   try { descriptor = filesystem.openSync(lockPath, "wx", 0o600); }
-  catch (error) { return fallbackIf(error, isContended, undefined); }
+  catch (error) { return fallbackIf({ error, matches: isContended, fallback: undefined }); }
   let identity: FileIdentity;
   try {
     identity = filesystem.fstatSync(descriptor);
@@ -291,7 +257,7 @@ async function removeFailedCreationAsync({ lockPath, filesystem }: LockContext<F
 async function tryCreateAsync(ctx: LockContext<FileLockAsyncFilesystem>): Promise<FileIdentity | undefined> {
   let handle: AsyncHandle;
   try { handle = await ctx.filesystem.open(ctx.lockPath, "wx", 0o600); }
-  catch (error) { return fallbackIf(error, isContended, undefined); }
+  catch (error) { return fallbackIf({ error, matches: isContended, fallback: undefined }); }
   let identity: FileIdentity;
   try { identity = await handle.stat(); await handle.writeFile(ctx.raw, "utf8"); }
   catch (error) { await removeFailedCreationAsync(ctx, handle); throw error; }

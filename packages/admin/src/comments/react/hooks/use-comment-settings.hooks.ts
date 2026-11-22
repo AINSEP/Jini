@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
-import { useFetchQuery, useInvalidate } from '@jini-ai/ui/fetch-query';
-import { useController } from '../../../core/react/use-controller.js';
+import { useFetchQuery, useInvalidate } from '../../../react/kit.js';
+import { useCommentsController } from './CommentsPorts.hooks.js';
 import type { AdminCommentsPort, CommentsSettings } from '../../../core/ports/comments.js';
 import { createCommentSettingsController } from '../../controllers/comment-settings.controller.js';
 import { KEYS } from '../../rules.js';
@@ -31,7 +31,7 @@ export function useCommentSettings(
   const list = useFetchQuery({ key: KEYS.settings, fetch: async () => ({ data: await api.getCommentsSettings({}) }) }, { enabled: canConfigure });
   const invalidate = useInvalidate();
   const grants = canConfigure ? CONFIGURE_GRANTS : NO_GRANTS;
-  const { controller, snapshot } = useController({
+  const { controller, snapshot } = useCommentsController({
     create: () => createCommentSettingsController({ api, permissions: grants }, { t, onInvalidate: () => invalidate({ key: KEYS.settings }) }),
     dependencies: [api, invalidate],
   });

@@ -1,4 +1,4 @@
-import { adminPort } from '../core/module/token.js';
+import { adminPort } from '@jini-ai/core/contracts/admin-module';
 import type { CredentialSummary, CredentialProvider, CredentialInput, CredentialPatch, RequestOptions, OtherStoreId, OtherCredentialSummary, RootKeyStatus, RootKeyPreview, RootKeyResult } from './models.js';
 /** Separate method groups: connection shapes differ, and deployment and source identities must never merge. */
 export interface CredentialStorePort {

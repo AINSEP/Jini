@@ -24,7 +24,7 @@ function optionalNonEmptyString(value: unknown): string | undefined {
   return typeof value === 'string' && value.length > 0 ? value : undefined;
 }
 
-/** `start_run` -> `POST /api/runs` (`packages/http/src/runs.ts`'s `runStartRoute`). */
+/** `start_run` -> `POST /api/runs` (`packages/daemon/src/http/runs.ts`'s `runStartRoute`). */
 export const startRunTool: McpToolDef = {
   name: 'start_run',
   description:
@@ -60,7 +60,7 @@ export const startRunTool: McpToolDef = {
   },
 };
 
-/** `get_run` -> `GET /api/runs/:runId` (`packages/http/src/runs.ts`'s `runStatusRoute`). */
+/** `get_run` -> `GET /api/runs/:runId` (`packages/daemon/src/http/runs.ts`'s `runStatusRoute`). */
 export const getRunTool: McpToolDef = {
   name: 'get_run',
   description: 'Poll a run started by start_run. Returns {run} with the run\'s current state (queued|starting|running|succeeded|failed|cancelled, per @jini-ai/protocol\'s RunState).',
@@ -79,7 +79,7 @@ export const getRunTool: McpToolDef = {
   },
 };
 
-/** `cancel_run` -> `POST /api/runs/:runId/cancel` (`packages/http/src/runs.ts`'s `runCancelRoute`). */
+/** `cancel_run` -> `POST /api/runs/:runId/cancel` (`packages/daemon/src/http/runs.ts`'s `runCancelRoute`). */
 export const cancelRunTool: McpToolDef = {
   name: 'cancel_run',
   description: 'Request cancellation of an in-flight run started by start_run. A no-op on an already-terminal run.',
@@ -125,7 +125,7 @@ async function fetchActiveContext(ctx: Parameters<McpToolDef['handler']>[0]['ctx
   }
 }
 
-/** `get_active_context` -> `GET /api/active` (`packages/http/src/active-context.ts`'s `getActiveRoute`). */
+/** `get_active_context` -> `GET /api/active` (`packages/daemon/src/http/active-context.ts`'s `getActiveRoute`). */
 export const getActiveContextTool: McpToolDef = {
   name: 'get_active_context',
   description:
@@ -144,7 +144,7 @@ export const getActiveContextTool: McpToolDef = {
   },
 };
 
-/** `list_agents` -> `GET /api/agents` (`packages/http/src/agents.ts`'s `agentListRoute`). */
+/** `list_agents` -> `GET /api/agents` (`packages/daemon/src/http/agents.ts`'s `agentListRoute`). */
 export const listAgentsTool: McpToolDef = {
   name: 'list_agents',
   description: 'List every agent def registered with this host\'s @jini-ai/agent-runtime — {id, name} pairs suitable for start_run\'s optional agentId argument. Static registration data only: this does not probe which agent binaries are actually installed on the host machine.',

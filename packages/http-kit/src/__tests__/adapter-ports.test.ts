@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { Express, Request, Response } from 'express';
 import { createApiError } from '@jini-ai/protocol';
 import { defineJsonRoute, mountJsonRoute } from '../adapter.js';
-import { err, ok } from '../types.js';
+import { err, ok } from '@jini-ai/core/contracts/server';
 
 /** A host-owned rejection is deliberately translated only by the injected error port. */
 class HostRejection extends Error {

@@ -7,7 +7,7 @@ import { test, vi, afterEach } from "vitest";
 afterEach(() => vi.restoreAllMocks());
 import { brotliCompressSync, deflateSync, gzipSync } from "node:zlib";
 import type { HttpRequest } from "@jini-ai/core/primitives";
-import type { PinnedPeer } from "../types.js";
+import type { PinnedPeer } from "@jini-ai/core/contracts/runtime";
 test("production transport response, request-body and failure contracts", async (t) => {
     async function subcase(_name: string, run: () => void | Promise<void>) { await run(); }
     // F2.6/F3.4: fake only Node's socket boundary; real transport and real zlib decoders run.

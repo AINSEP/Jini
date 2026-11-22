@@ -1,6 +1,3 @@
-import { inspect } from 'node:util';
-import { redactSecrets } from '@jini-ai/core';
-import { isLoopbackHostname } from '@jini-ai/platform/net';
 /**
  * @module @jini-ai/mcp/core/config
  * Config schema + on-disk store for the external MCP servers the daemon connects
@@ -23,12 +20,15 @@ import { isLoopbackHostname } from '@jini-ai/platform/net';
 // Cursor's MCP config — those are the de-facto interchange formats — so
 // users can copy-paste between tools without translation.
 
-import { readFile } from 'node:fs/promises';
 import { realpathSync } from 'node:fs';
 import path from 'node:path';
-import { pathContains } from '@jini-ai/core/primitives';
-import { writeFileAtomicAsync } from '@jini-ai/platform/fs';
-import { trimCharsEnd } from '@jini-ai/core/text';
+import { afterSettled, orFallbackSync } from '@jini-ai/core/errors/idioms';
+import { createConsoleLogger, pathContains, type Logger } from '@jini-ai/core/primitives';
+import type { AtomicFileWriterPort } from '@jini-ai/core/contracts/runtime';
+import { inferMcpAuthModeForUrl, isPlainObject } from './config-shared.js';
+export { inferMcpAuthModeForUrl } from './config-shared.js';
+export { buildClaudeMcpJson } from './claude/config.js';
+export { buildOpenCodeMcpConfigContent, type OpenCodeConfigBuildOptions } from './opencode/config.js';
 
 /** Wire-level transport discriminator for how the daemon connects to an external MCP server. */
 export type McpTransport = 'stdio' | 'sse' | 'http';
@@ -57,12 +57,12 @@ export interface McpConfig {
   servers: McpServerConfig[];
 }
 
-/** Text I/O boundary; secret writes must be atomic and owner-only from creation. */
-export interface McpConfigFilesystemPort {
+export interface McpConfigFilesPort {
   readText(args: { filePath: string }): Promise<string>;
-  writeSecretText(args: { filePath: string; contents: string }): Promise<void>;
+  readonly writer: Pick<AtomicFileWriterPort, 'writeText'>;
 }
 
+/** Text I/O boundary; secret writes must be atomic and owner-only from creation. */
 /** Shared atomic secret persistence (CR-006 / SEC-RB-002).
  * The previous pattern in each of those stores wrote the temp file with
  * default permissions and either never restricted it (config, OAuth client
@@ -88,10 +88,15 @@ export interface McpConfigFilesystemPort {
  *      flush can fail after replacement; it is reported rather than silently ignored.
  *
  */
-const defaultFilesystem: McpConfigFilesystemPort = {
-  readText: ({ filePath }) => readFile(filePath, 'utf8'),
-  writeSecretText: ({ filePath, contents }) => writeFileAtomicAsync({ filePath, content: contents }, { mode: 0o600, verifyOwnerOnly: true, createParent: true }),
-};
+export const MCP_SECRET_WRITE_OPTIONS = { mode: 0o600, verifyOwnerOnly: true, createParent: true } as const;
+
+/** Adapt secret text to the atomic writer with MCP's owner-only policy; writer errors propagate. */
+export function writeSecretText(
+  { files, filePath, contents }: { files: McpConfigFilesPort; filePath: string; contents: string },
+  _optional: Record<string, never> = {},
+): Promise<void> {
+  return files.writer.writeText({ filePath, content: contents }, MCP_SECRET_WRITE_OPTIONS);
+}
 
 const VALID_TRANSPORTS: ReadonlySet<McpTransport> = new Set([
   'stdio',
@@ -109,10 +114,6 @@ function configFile(dataDir: string): string {
   return path.join(dataDir, 'mcp-config.json');
 }
 
-function isPlainObject(v: unknown): v is Record<string, unknown> {
-  return Boolean(v) && typeof v === 'object' && !Array.isArray(v);
-}
-
 function isKeepableMapEntry(entry: [string, unknown]): entry is [string, string] {
   const [k, v] = entry;
   if (k === '__proto__' || k === 'constructor' || !k.trim()) return false;
@@ -126,9 +127,10 @@ function isKeepableMapEntry(entry: [string, unknown]): entry is [string, string]
 }
 
 function sanitizeStringMap(raw: unknown): Record<string, string> | undefined {
-  if (!isPlainObject(raw)) return undefined;
+  const input = { v: raw };
+  if (!isPlainObject(input)) return undefined;
   const out: Record<string, string> = {};
-  for (const [k, v] of Object.entries(raw).filter(isKeepableMapEntry)) out[k] = v;
+  for (const [k, v] of Object.entries(input.v).filter(isKeepableMapEntry)) out[k] = v;
   return Object.keys(out).length > 0 ? out : undefined;
 }
 
@@ -142,35 +144,10 @@ function sanitizeStringArray(raw: unknown): string[] | undefined {
   return out.length > 0 ? out : undefined;
 }
 
-// The shared classifier receives the URL parser's canonical hostname; IPv4-mapped
-// IPv6 is deliberately not a loopback exception for default authentication.
-/**
- * Infer the appropriate `McpAuthMode` for a given server URL.
- * Returns `'none'` for loopback targets (localhost, 127.x.x.x, ::1)
- * and `'oauth'` for everything else, including when `rawUrl` is absent or unparseable.
- * @param rawUrl The server URL string to inspect, if any.
- * @returns The inferred `McpAuthMode`.
- */
-export function inferMcpAuthModeForUrl({ rawUrl }: { rawUrl: string | undefined }): McpAuthMode {
-  if (!rawUrl) return 'oauth';
-  try {
-    return isLoopbackHostname({ hostname: new URL(rawUrl).hostname }) ? 'none' : 'oauth';
-  } catch {
-    return 'oauth';
-  }
-}
-
 function sanitizeMcpAuthMode(raw: unknown): McpAuthMode | undefined {
   return typeof raw === 'string' && VALID_AUTH_MODES.has(raw as McpAuthMode)
     ? (raw as McpAuthMode)
     : undefined;
-}
-
-// Only ever invoked for http/sse servers (the callers gate on transport), so
-// there is no stdio short-circuit here — the token merge just needs the
-// effective auth mode for a remote server.
-function effectiveMcpAuthMode(server: McpServerConfig): McpAuthMode {
-  return server.authMode ?? inferMcpAuthModeForUrl({ rawUrl: server.url });
 }
 
 /**
@@ -178,8 +155,10 @@ function effectiveMcpAuthMode(server: McpServerConfig): McpAuthMode {
  * one server doesn't tank the whole config. Returns null when the entry is
  * unsalvageable (no id, or no transport-required fields).
  */
-export function sanitizeMcpServer({ raw }: { raw: unknown }): McpServerConfig | null {
-  if (!isPlainObject(raw)) return null;
+export function sanitizeMcpServer({ raw: value }: { raw: unknown }): McpServerConfig | null {
+  const input = { v: value };
+  if (!isPlainObject(input)) return null;
+  const raw = input.v;
   const id = typeof raw.id === 'string' ? raw.id.trim() : '';
   if (!SERVER_ID_PATTERN.test(id)) return null;
   const transport = sanitizeTransport(raw.transport);
@@ -238,8 +217,10 @@ function sanitizeRemoteFields(raw: Record<string, unknown>): TransportFields | n
  * @param raw The raw parsed JSON to sanitize.
  * @returns A clean `McpConfig` guaranteed to have only valid, unique server entries.
  */
-export function sanitizeMcpConfig({ raw }: { raw: unknown }): McpConfig {
-  if (!isPlainObject(raw)) return { servers: [] };
+export function sanitizeMcpConfig({ raw: value }: { raw: unknown }): McpConfig {
+  const input = { v: value };
+  if (!isPlainObject(input)) return { servers: [] };
+  const raw = input.v;
   const list = Array.isArray(raw.servers) ? raw.servers : [];
   const seen = new Set<string>();
   const out: McpServerConfig[] = [];
@@ -258,16 +239,17 @@ export function sanitizeMcpConfig({ raw }: { raw: unknown }): McpConfig {
  * @param dataDir The resolved runtime data directory.
  * @returns The sanitized `McpConfig`, never rejects on missing-file or corrupt-JSON.
  */
-export async function readMcpConfig({ dataDir }: { dataDir: string }, { filesystem = defaultFilesystem }: { filesystem?: McpConfigFilesystemPort } = {}): Promise<McpConfig> {
+export async function readMcpConfig({ dataDir, files }: { dataDir: string; files: McpConfigFilesPort }, { report = createConsoleLogger({ prefix: '[mcp-config]' }) }: { report?: Pick<Logger, 'error'> } = {}): Promise<McpConfig> {
   try {
-    const raw = await filesystem.readText({ filePath: configFile(dataDir) });
+    const raw = await files.readText({ filePath: configFile(dataDir) });
     const parsed: unknown = JSON.parse(raw);
     return sanitizeMcpConfig({ raw: parsed });
   } catch (err: unknown) {
     const e = err as { code?: string; name?: string; message?: string };
     if (e.code === 'ENOENT') return { servers: [] };
     if (e.name === 'SyntaxError') {
-      console.error('[mcp-config] Corrupted JSON, returning empty:', redactSecrets({ input: inspect(e) }, { redactPii: false }));
+      const logger = report;
+      logger.error({ message: `The MCP config file ${configFile(dataDir)} is not valid JSON; reading it as an empty server list.` }, { error: err });
       return { servers: [] };
     }
     throw err;
@@ -283,18 +265,18 @@ const writeLocks = new Map<string, Promise<unknown>>();
  * being written. This file may carry environment variables and
  * `Authorization` header values (API keys, bearer tokens — see
  * `McpServerConfig.env`/`.headers`), so it is written with owner-only
- * (0600) permissions from the very first byte via `writeFileAtomicAsync`
+ * (0600) permissions from the very first byte via the injected atomic writer
  * rather than a post-rename chmod (CR-006 / SEC-RB-002).
  * @param dataDir The resolved runtime data directory.
  * @param body The raw config body to sanitize and persist.
  * @returns The sanitized `McpConfig` that was written to disk.
  */
 export async function writeMcpConfig(
-  { dataDir, body }: { dataDir: string; body: unknown },
-  { filesystem = defaultFilesystem }: { filesystem?: McpConfigFilesystemPort } = {},
+  { dataDir, body, files }: { dataDir: string; body: unknown; files: McpConfigFilesPort },
+  _optional: Record<string, never> = {},
 ): Promise<McpConfig> {
   const prev = writeLocks.get(dataDir) ?? Promise.resolve();
-  const task = prev.catch(() => {}).then(() => doWrite(dataDir, body, filesystem));
+  const task = afterSettled({ promise: prev }).then(() => doWrite(dataDir, body, files));
   writeLocks.set(dataDir, task);
   try {
     return await task;
@@ -303,9 +285,9 @@ export async function writeMcpConfig(
   }
 }
 
-async function doWrite(dataDir: string, body: unknown, filesystem: McpConfigFilesystemPort): Promise<McpConfig> {
+async function doWrite(dataDir: string, body: unknown, files: McpConfigFilesPort): Promise<McpConfig> {
   const next = sanitizeMcpConfig({ raw: body });
-  await filesystem.writeSecretText({ filePath: configFile(dataDir), contents: JSON.stringify(next, null, 2) });
+  await writeSecretText({ files, filePath: configFile(dataDir), contents: JSON.stringify(next, null, 2) });
   return next;
 }
 
@@ -319,11 +301,7 @@ async function doWrite(dataDir: string, body: unknown, filesystem: McpConfigFile
  * segments) when it does not exist yet, or the platform can't resolve it.
  */
 function resolveRealOrLexical({ filePath: p }: { filePath: string }): string {
-  try {
-    return realpathSync.native(p);
-  } catch {
-    return path.resolve(p);
-  }
+  return orFallbackSync({ work: () => realpathSync.native(p), fallback: undefined, step: 'Resolve MCP config path' }) ?? path.resolve(p);
 }
 
 /**
@@ -350,74 +328,6 @@ export function isManagedProjectCwd(
   const resolvedCwd = resolvePath({ filePath: cwd });
   if (resolvedCwd === resolvedProjectsDir) return false; // projects root, not a project
   return pathContains({ root: resolvedProjectsDir, target: resolvedCwd }, { caseSensitive: path.sep !== '\\', separator: path.sep });
-}
-
-/**
- * Project-cwd `.mcp.json` shape that Claude Code auto-loads on spawn (the
- * same format Claude Desktop and Cursor use). Returns null when the user
- * has no enabled servers — in that case the caller should NOT write the
- * file (and should clean up any stale one).
- *
- * `tokens` is an optional map of `serverId -> bearer access token`, used
- * for HTTP/SSE servers that completed the daemon's web OAuth flow. When a
- * token is present we inject `Authorization: Bearer <token>` into the
- * server's headers — this is what bypasses the per-spawn `mcp-remote`
- * dance and lets Claude Code talk directly to the upstream MCP using
- * pre-authenticated credentials. User-supplied headers always win on
- * conflict so they can pin a specific token if they really want to.
- */
-export function buildClaudeMcpJson(
-  { servers }: { servers: McpServerConfig[] },
-  { tokens = {} }: { tokens?: Record<string, string> } = {},
-): unknown | null {
-  const enabled = servers.filter((s) => s.enabled);
-  if (enabled.length === 0) return null;
-  const out: Record<string, Record<string, unknown>> = {};
-  for (const s of enabled) {
-    out[s.id] = s.transport === 'stdio'
-      ? { command: s.command, ...nonEmptyField({ key: 'args', value: s.args }), ...nonEmptyField({ key: 'env', value: s.env }) }
-      // type: 'sse' | 'http'
-      : { type: s.transport, url: s.url, ...remoteHeadersField({ server: s, tokens }) };
-  }
-  return { mcpServers: out };
-}
-
-/** `{ [key]: value }` when `value` has at least one element/key, else `{}` — for spreading optional fields. */
-function nonEmptyField({ key, value }: { key: string; value: object | undefined }): Record<string, unknown> {
-  return value && Object.keys(value).length > 0 ? { [key]: value } : {};
-}
-
-/** `{ headers }` for a remote server (user headers + its own stored OAuth bearer), or `{}` when empty. */
-function remoteHeadersField({ server, tokens }: { server: McpServerConfig; tokens: Record<string, string> }, _options = {}): Record<string, unknown> {
-  const bearer = effectiveMcpAuthMode(server) === 'oauth' && Object.hasOwn(tokens, server.id) ? tokens[server.id] : undefined;
-  return nonEmptyField({ key: 'headers', value: mergeAuthHeader(server.headers, bearer) });
-}
-
-/** Build a headers object that includes the daemon-issued bearer token when
- * the user hasn't already supplied a NON-EMPTY Authorization header. A
- * blank Authorization (empty string / whitespace only) is treated as
- * "not pinned" — historically the template UI persisted empty values from
- * unfilled fields, and we never want a blank Authorization to suppress a
- * valid OAuth Bearer (the upstream MCP would refuse the connection and
- * fall back to its in-tool re-auth dance). Real user-pinned values still
- * win so manually-set PATs aren't silently overwritten. */
-function mergeAuthHeader(
-  existing: Record<string, string> | undefined,
-  bearer: string | undefined,
-): Record<string, string> | undefined {
-  const merged: Record<string, string> = {};
-  let userAuth = false;
-  for (const [k, v] of Object.entries(existing ?? {})) {
-    const isAuth = k.toLowerCase() === 'authorization';
-    // empty / whitespace authorization is ignored, NOT carried through
-    if (isAuth && (typeof v !== 'string' || v.trim() === '')) continue;
-    userAuth ||= isAuth;
-    merged[k] = v;
-  }
-  if (bearer && !userAuth) {
-    merged['Authorization'] = `Bearer ${bearer}`;
-  }
-  return merged;
 }
 
 /**
@@ -452,125 +362,4 @@ export function buildAcpMcpServers({ servers }: { servers: McpServerConfig[] }):
         .filter(([, value]) => typeof value === 'string')
         .map(([name, value]) => ({ name, value })),
     }));
-}
-
-/**
- * OpenCode merges its config from multiple sources at boot — global
- * `~/.config/opencode/opencode.json`, the `OPENCODE_CONFIG` file path, the
- * project `opencode.json`, and the `OPENCODE_CONFIG_CONTENT` env var (an
- * inline JSON string). The env-var path is what lets a launcher hand servers
- * to a single `opencode run` invocation without writing into the user's
- * global config or leaving a temp file around on crash. We also use the same
- * payload to grant `external_directory` access to launcher-selected absolute
- * paths (project cwd, staged skill dirs, etc.) so headless OpenCode runs do
- * not auto-reject them.
- *
- * Returns `null` when nothing would be emitted — the caller must NOT set
- * `OPENCODE_CONFIG_CONTENT` to `null`/empty in that case, because doing so
- * would override the user's saved global config with an empty object. A
- * null return means "leave the env untouched and let OpenCode read the
- * user's home-dir config as-is."
- *
- * The OAuth Bearer merge mirrors `buildClaudeMcpJson` so a remote MCP
- * server the daemon already authenticated against works the same way for
- * OpenCode users without forcing them to re-authenticate inside OpenCode.
- */
-/** Options for `buildOpenCodeMcpConfigContent`. */
-export interface OpenCodeConfigBuildOptions {
-  /** Access tokens keyed by server id. */
-  tokens?: Record<string, string>;
-  /** Resolves symlinks for permission allowlists. */
-  resolvePath?: (args: { filePath: string }) => string;
-  /** Absolute filesystem paths OpenCode's `external_directory` permission should allow. */
-  allowedDirectories?: string[];
-  /** Additional top-level keys merged into the emitted config object (e.g. `provider`). */
-  extraConfig?: Record<string, unknown>;
-}
-
-export function buildOpenCodeMcpConfigContent(
-  { servers }: { servers: McpServerConfig[] },
-  options: OpenCodeConfigBuildOptions = {},
-): string | null {
-  const tokens = options.tokens ?? {};
-  const resolvePath = options.resolvePath ?? (({ filePath }: { filePath: string }) => realpathSync.native(filePath));
-  const mcp: Record<string, Record<string, unknown>> = {};
-  for (const s of servers.filter((server) => server.enabled)) {
-    const entry = buildOpenCodeServerEntry({ server: s, tokens });
-    if (entry) mcp[s.id] = entry;
-  }
-  const externalDirectory = buildOpenCodeExternalDirectoryAllowlist(
-    options.allowedDirectories, resolvePath,
-  );
-  const config: Record<string, unknown> = { ...options.extraConfig, ...nonEmptyField({ key: 'mcp', value: mcp }) };
-  if (externalDirectory) {
-    const priorPermission = isPlainObject(config.permission) ? config.permission : {};
-    config.permission = {
-      ...priorPermission,
-      external_directory: externalDirectory,
-    };
-  }
-  return Object.keys(config).length === 0 ? null : JSON.stringify(config);
-}
-
-/** One OpenCode `mcp` entry, or null when the server lacks its transport-required command/url. */
-function buildOpenCodeServerEntry(
-  { server: s, tokens }: { server: McpServerConfig; tokens: Record<string, string> },
-): Record<string, unknown> | null {
-  if (s.transport === 'stdio') {
-    const cmd = typeof s.command === 'string' ? s.command.trim() : '';
-    if (!cmd) return null;
-    return {
-      type: 'local',
-      command: [cmd, ...(Array.isArray(s.args) ? s.args : [])],
-      ...nonEmptyField({ key: 'environment', value: { ...s.env } }),
-      enabled: true,
-    };
-  }
-  if (typeof s.url !== 'string' || !s.url.trim()) return null;
-  return { type: 'remote', url: s.url, ...remoteHeadersField({ server: s, tokens }), enabled: true };
-}
-
-function buildOpenCodeExternalDirectoryAllowlist(
-  directories: string[] | undefined,
-  resolvePath: (args: { filePath: string }) => string,
-): Record<string, 'allow'> | null {
-  const normalized = Array.from(
-    new Set(
-      (directories ?? [])
-        .filter((dir) => typeof dir === 'string' && dir.trim().length > 0)
-        .filter((dir) => path.isAbsolute(dir))
-        .flatMap((dir) => normalizeAllowedDirectoryVariants(dir, resolvePath)),
-    ),
-  );
-  if (normalized.length === 0) return null;
-
-  const allowlist: Record<string, 'allow'> = {};
-  for (const dir of normalized) {
-    allowlist[dir] = 'allow';
-    allowlist[joinPermissionGlob(dir, '*')] = 'allow';
-    allowlist[joinPermissionGlob(dir, '**')] = 'allow';
-  }
-  return allowlist;
-}
-
-function normalizeAllowedDirectory(dir: string): string {
-  const resolved = path.resolve(dir);
-  const root = path.parse(resolved).root;
-  if (resolved === root) return root;
-  return trimCharsEnd({ text: resolved, chars: '\\/' });
-}
-
-function normalizeAllowedDirectoryVariants(dir: string, resolvePath: (args: { filePath: string }) => string): string[] {
-  const normalized = normalizeAllowedDirectory(dir);
-  let real: string | null = null;
-  try {
-    real = normalizeAllowedDirectory(resolvePath({ filePath: dir }));
-  } catch {
-    real = null;
-  }
-  return real && real !== normalized ? [normalized, real] : [normalized];
-}
-
-function joinPermissionGlob(dir: string, suffix: '*' | '**'): string {
-  return dir.endsWith(path.sep) ? `${dir}${suffix}` : `${dir}${path.sep}${suffix}`;
 }

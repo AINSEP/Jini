@@ -1,5 +1,5 @@
 /**
- * `registerAttachmentLookupRoutes` + `createRemoteAttachmentLookup` against a real disk store, on an
+ * `attachmentLookupRoutes` + `createRemoteAttachmentLookup` against a real disk store, on an
  * ephemeral 127.0.0.1 port, behind the host's own strict bearer middleware.
  */
 import * as http from 'node:http';
@@ -10,8 +10,12 @@ import { resolve } from 'node:path';
 import express from 'express';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { requireStrictBearerToken } from '@jini-ai/http-kit';
-import { AttachmentRejectedError, createDiskAttachmentStore, type AttachmentStore } from '../attachments.js';
-import { registerAttachmentLookupRoutes } from '../attachment-lookup-routes.js';
+import { AttachmentRejectedError } from '../attachment-types.js';
+import { createDiskAttachmentStore } from '../disk-attachment-store.js';
+import { type AttachmentStore } from '../attachment-store-types.js';
+import { createNodeDispatcher } from '@jini-ai/http-kit/node-bridge';
+import { attachmentLookupRoutes } from '../attachment-lookup-routes.js';
+import { fakeDaemonRouteHost } from './fakes/route-host.js';
 import { createRemoteAttachmentLookup } from '../../remote-attachment-lookup.js';
 
 const TOKEN = 'daemon-token';
@@ -29,7 +33,10 @@ async function setup(): Promise<{ baseUrl: string; store: AttachmentStore }> {
   cleanups.push(() => store.dispose());
   const app = express();
   app.use(requireStrictBearerToken({ tokenEnvVar: 'DAEMON_TOKEN', env: { DAEMON_TOKEN: TOKEN } }));
-  registerAttachmentLookupRoutes({ app, store });
+  // The way a host puts a route list on its Express app: one layer at this position, after the bearer gate above.
+  const dispatcher = createNodeDispatcher({}, { expressCompatible: true });
+  for (const route of attachmentLookupRoutes({ store, host: fakeDaemonRouteHost() })) dispatcher.server.route(route);
+  app.use((req, res, next) => { void dispatcher.handle({ incoming: req, out: res }, { next, parsedBody: (req as { body?: unknown }).body, locals: res.locals }); });
   const server = http.createServer(app);
   await new Promise<void>((done) => server.listen(0, '127.0.0.1', done));
   cleanups.push(() => new Promise<void>((done) => { server.closeAllConnections?.(); server.close(() => done()); }));

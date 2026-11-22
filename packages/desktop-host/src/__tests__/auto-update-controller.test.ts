@@ -132,7 +132,7 @@ test("a failed check is logged, not thrown, and frees the next due check", async
   t.updater.checkResult = Promise.reject(new Error("offline"));
   t.controller.tick();
   await flush();
-  assert.deepEqual(logs, ["auto-update: check failed: offline"]);
+  assert.deepEqual(logs, ["auto-update: check failed: Error"]);
   assert.deepEqual(t.calls, ["check"]);
   t.updater.checkResult = Promise.resolve(null);
   t.advance(UPDATE_CHECK_INTERVAL_MS);
@@ -264,7 +264,7 @@ test('a check stays busy through the download and frees a failed download for th
   reject(new Error('download failed')); await flush();
   t.updater.checkResult = Promise.resolve(null); t.controller.tick();
   assert.deepEqual(t.calls, ['check', 'check']);
-  assert.deepEqual(logs, ['auto-update: check failed: download failed']);
+  assert.deepEqual(logs, ['auto-update: check failed: Error']);
 });
 
 test('late prompt resolution after quit cannot restart the application', async () => {
@@ -281,21 +281,21 @@ test('synchronous updater failures are logged and let the current quit proceed',
   const t = setup({ log: ({ message }) => logs.push(message) });
   t.updater.checkForUpdates = () => { throw new Error('sync check'); };
   t.controller.tick();
-  assert.deepEqual(logs, ['auto-update: check failed: sync check']);
+  assert.deepEqual(logs, ['auto-update: check failed: Error']);
   t.updater.quitAndInstall = () => { throw new Error('sync install'); };
   t.updater.emit('update-downloaded', { version: '4' });
   assert.equal(t.controller.beforeFinalQuit(), false);
   assert.deepEqual(t.events, []);
-  assert.equal(logs.at(-1), 'auto-update: sync install');
+  assert.equal(logs.at(-1), 'auto-update: Error');
 });
 
-test('the converted log port retains downloaded and updater error message text', () => {
+test('the converted log port keeps the downloaded version and logs only the updater error class', () => {
   const logs: string[] = [];
   const t = setup({ log: ({ message }) => logs.push(message) });
   try {
     t.updater.emit('update-downloaded', { version: '9' });
     t.updater.emit('error', new Error('updater failed'));
-    assert.deepEqual(logs, ['auto-update: 9 downloaded', 'auto-update: updater failed']);
+    assert.deepEqual(logs, ['auto-update: 9 downloaded', 'auto-update: Error']);
   } finally {
     t.controller.willQuit();
     fs.rmSync(path.dirname(t.presenceDir), { recursive: true, force: true });

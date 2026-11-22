@@ -1,7 +1,7 @@
-import type { EventBusPort, OutboxPort } from "../core/index.js";
+import type { EventBusPort, OutboxPort } from "@jini-ai/core/contracts/events";
 import type { UUID } from "@jini-ai/core/primitives";
 import type { SeoPostRecord as PostRecord, SeoPostListPort, SeoSettingsReaderPort } from "./ports.js";
-import type { OriginRegistryPort } from "@jini-ai/http-kit/verified-origin";
+import type { OriginRegistryPort } from "@jini-ai/core/contracts/server/verified-origin";
 import { resolveWorkspaceOrigin, toAbsoluteUrl } from "./absolute-url.js";
 import { getEntryMeta, type GetEntryMetaDeps } from "./seo.js";
 import type { RobotsPolicy, SeoMeta, SitemapEntry } from "./types.js";
@@ -12,7 +12,7 @@ import type { SeoEventSubscriptions, SitemapCollectHook } from "./ports.js";
  * `invalidateSitemapCache` (ADR-PIPE-008 Decision §5/§7, C-008..C-011) — a
  * cache-backed sitemap/robots build over an in-module `Map<string,string>`
  * (no new `CachePort` — none exists in this codebase and none is warranted
- * for a single workspace-keyed value, ADR-006). Never leaks non-published or
+ * for a single workspace-keyed value). Never leaks non-published or
  * `noindex` entries (INV-04/05). The empty `seo.sitemap.collect` registry
  * (OQ-01) ships live-but-empty — a real seam, zero real registrants in v1.
  */
@@ -50,7 +50,7 @@ export interface IndexableEntry {
 /**
  * The single publish/visibility/indexability filter every public SEO document is built from
  * (INV-04/05): never a non-`published` post, never a members/paid/tiers-gated one
- * ({@link isPubliclyVisible}, ADR-030 §4), never an effective-`noindex` one. Returns the full
+ * ({@link isPubliclyVisible}), never an effective-`noindex` one. Returns the full
  * resolved `SeoMeta` per entry (not just `loc`/`lastmod`) so a consumer that needs a title or
  * description — `llms.txt` (`routes/site/llms.ts`), which `SitemapEntry` can't supply one for —
  * reads it from the same evaluator `sitemap.xml` does, instead of re-deriving a second, subtly
@@ -96,7 +96,7 @@ function isPublicCandidate(required: { deps: SeoSitemapDeps; post: PostRecord; n
   // `!isTrashed(post)` filter — this is that same filter, applied at this domain function's own
   // trash-aware read boundary rather than widening the shared repo port.
   if (deps.postRepo.isTrashed({ post })) return false;
-  // ADR-030 §4 (2026-09-03 sweep): a members/paid/tiers-gated post must not advertise its
+  // The 2026-09-03 sweep: a members/paid/tiers-gated post must not advertise its
   // canonical URL or existence to crawlers here, the same way it was already excluded from the
   // ungated home-page listing (`pages.ts`'s `filterVisiblePosts`).
   return deps.isPubliclyAccessible({ post });
@@ -110,7 +110,7 @@ function isPublicCandidate(required: { deps: SeoSitemapDeps; post: PostRecord; n
  * 2026-09-04 fix: the advertised sitemap URL is joined onto the workspace's
  * verified origin ({@link toAbsoluteUrl}, via {@link resolveWorkspaceOrigin}),
  * the same wiring `getEntryMeta`'s `canonical`/`og:url` already use (the
- * `ADR-040` origin-resolution source this doc used to say didn't exist yet —
+ * origin-resolution source this doc used to say didn't exist yet —
  * `features/origin`'s `OriginRegistryPort` — landed on 2026-09-03). Google
  * ignores a relative `Sitemap:` directive, so a bare `/sitemap.xml` made the
  * sitemap undiscoverable to crawlers even though `<loc>` entries inside it
@@ -156,21 +156,7 @@ export async function requestSitemapInvalidation(required: {
   await deps.dispatch({ outbox: deps.outbox, bus: deps.bus, clock: { nowMs: () => Date.parse(deps.clock.nowIso()) } });
 }
 
-/** Each service owns its hooks, build generations, cache and scheduled expiry; hosts never share state accidentally. */
-export function createSitemapService(required: { deps: SeoSitemapDeps }, _optional: Record<string, never> = {}) {
-  const { deps } = required;
-  /** Cached value is the `JSON.stringify`d `SitemapEntry[]` for that workspace. */
-  const sitemapCache = new Map<string, string>();
-  /** Only the most recently started build may publish into a workspace cache. */
-  const sitemapBuilds = new Map<string, symbol>();
-  /**
-   * Scheduled publishing (2026-10-05): the earliest future `publishAt` seen when a workspace's entry
-   * was built. Nothing emits an event when a scheduled post goes live (there is no job — see
-   * `contracts/core/scheduled-publish.ts`), so the cached sitemap simply stops being trusted at that
-   * instant and the next read rebuilds it.
-   */
-  const sitemapExpiry = new Map<string, string>();
-
+function createSitemapHooks() {
   // ---------------------------------------------------------------------------
   // `seo.sitemap.collect` (OQ-01) — a real, empty, in-module ordered registry.
   // ---------------------------------------------------------------------------
@@ -192,33 +178,10 @@ export function createSitemapService(required: { deps: SeoSitemapDeps }, _option
     sitemapCollectHooks.length = 0;
   }
 
-  /** The earliest go-live instant still ahead of `nowIso`, or `undefined` when nothing is scheduled.
-   *  @complexity O(n) in the workspace's post count. */
-  function nextScheduledGoLive(posts: readonly PostRecord[], nowIso: string): string | undefined {
-    let next: string | undefined;
-    for (const post of posts) {
-      if (deps.postRepo.isTrashed({ post }) || !deps.liveness.isScheduledAt({ post, nowIso })) continue;
-      if (next === undefined || post.publishAt! < next) next = post.publishAt!;
-    }
-    return next;
-  }
+  return { sitemapCollectHooks, registerSitemapCollectHook, resetSitemapCollectHooksForTests };
+}
 
-  /** Builds and (when still the latest build) caches one workspace's sitemap, with its expiry. */
-  async function rebuildSitemapCache(workspaceId: UUID): Promise<SitemapEntry[]> {
-    const key = cacheKey(workspaceId);
-    const build = Symbol();
-    sitemapBuilds.set(key, build);
-    const nowIso = deps.clock.nowIso();
-    const entries = await computeSitemapEntries(workspaceId, nowIso);
-    const expiry = nextScheduledGoLive(await deps.postRepo.list({ workspaceId }), nowIso);
-    if (sitemapBuilds.get(key) === build) {
-      sitemapCache.set(key, JSON.stringify(entries));
-      if (expiry === undefined) sitemapExpiry.delete(key);
-      else sitemapExpiry.set(key, expiry);
-    }
-    return entries;
-  }
-
+function createSitemapCollector(deps: SeoSitemapDeps, sitemapCollectHooks: SitemapCollectHook[]) {
   async function computeSitemapEntries(workspaceId: UUID, nowIso: string, renderDeps = deps): Promise<SitemapEntry[]> {
     // `meta.canonical` is absolute when the workspace has a verified origin (2026-09-03 fix,
     // `getEntryMeta`'s own `resolveCanonical`) — sitemap `loc` entries are required to be absolute
@@ -236,6 +199,72 @@ export function createSitemapService(required: { deps: SeoSitemapDeps }, _option
     }
 
     return renderDeps.renderBaseUrl ? entries.map(entry => ({ ...entry, loc: toAbsoluteUrl({ origin: undefined, baseUrl: renderDeps.renderBaseUrl, path: entry.loc }) })) : entries;
+  }
+
+  return computeSitemapEntries;
+}
+
+function createScheduledGoLiveFinder(deps: SeoSitemapDeps) {
+  /** The earliest go-live instant still ahead of `nowIso`, or `undefined` when nothing is scheduled.
+   *  @complexity O(n) in the workspace's post count. */
+  function nextScheduledGoLive(posts: readonly PostRecord[], nowIso: string): string | undefined {
+    let next: string | undefined;
+    for (const post of posts) {
+      if (deps.postRepo.isTrashed({ post }) || !deps.liveness.isScheduledAt({ post, nowIso })) continue;
+      if (next === undefined || post.publishAt! < next) next = post.publishAt!;
+    }
+    return next;
+  }
+
+  return nextScheduledGoLive;
+}
+
+function createSeoSubscriptionsFactory(invalidateSitemapCache: (input: { workspaceId: UUID }) => void) {
+  /**
+   * REQ-10 — the 3 outbox-event subscription handlers (idempotent per
+   * the outbox contract): any `entry.published`/`entry.updated`/`entry.unpublished`
+   * delivery invalidates that workspace's sitemap cache entry. Wired to
+   * `bus.subscribe` at the host app's `src/server/runtime/composition/app.ts` boot (T038).
+   */
+  function createSeoEventSubscriptions(_required: Record<string, never>, _optional: Record<string, never> = {}): SeoEventSubscriptions {
+    const handler = async (event: { workspaceId: UUID }, _optional: Record<string, never> = {}) => {
+      invalidateSitemapCache({ workspaceId: event.workspaceId });
+    };
+    return { onEntryPublished: handler, onEntryUpdated: handler, onEntryUnpublished: handler, onSitemapInvalidated: handler };
+  }
+
+  return createSeoEventSubscriptions;
+}
+
+function createSitemapCache(deps: SeoSitemapDeps, computeSitemapEntries: ReturnType<typeof createSitemapCollector>) {
+  /** Cached value is the `JSON.stringify`d `SitemapEntry[]` for that workspace. */
+  const sitemapCache = new Map<string, string>();
+  /** Only the most recently started build may publish into a workspace cache. */
+  const sitemapBuilds = new Map<string, symbol>();
+  /**
+   * Scheduled publishing (2026-10-05): the earliest future `publishAt` seen when a workspace's entry
+   * was built. Nothing emits an event when a scheduled post goes live (there is no job — see
+   * `contracts/core/scheduled-publish.ts`), so the cached sitemap simply stops being trusted at that
+   * instant and the next read rebuilds it.
+   */
+  const sitemapExpiry = new Map<string, string>();
+
+  const nextScheduledGoLive = createScheduledGoLiveFinder(deps);
+
+  /** Builds and (when still the latest build) caches one workspace's sitemap, with its expiry. */
+  async function rebuildSitemapCache(workspaceId: UUID): Promise<SitemapEntry[]> {
+    const key = cacheKey(workspaceId);
+    const build = Symbol();
+    sitemapBuilds.set(key, build);
+    const nowIso = deps.clock.nowIso();
+    const entries = await computeSitemapEntries(workspaceId, nowIso);
+    const expiry = nextScheduledGoLive(await deps.postRepo.list({ workspaceId }), nowIso);
+    if (sitemapBuilds.get(key) === build) {
+      sitemapCache.set(key, JSON.stringify(entries));
+      if (expiry === undefined) sitemapExpiry.delete(key);
+      else sitemapExpiry.set(key, expiry);
+    }
+    return entries;
   }
 
   /**
@@ -266,18 +295,17 @@ export function createSitemapService(required: { deps: SeoSitemapDeps }, _option
     sitemapExpiry.delete(cacheKey(input.workspaceId));
   }
 
-  /**
-   * REQ-10 — the 3 outbox-event subscription handlers (idempotent per
-   * ADR-009): any `entry.published`/`entry.updated`/`entry.unpublished`
-   * delivery invalidates that workspace's sitemap cache entry. Wired to
-   * `bus.subscribe` at `server/app.ts` boot (T038).
-   */
-  function createSeoEventSubscriptions(_required: Record<string, never>, _optional: Record<string, never> = {}): SeoEventSubscriptions {
-    const handler = async (event: { workspaceId: UUID }, _optional: Record<string, never> = {}) => {
-      invalidateSitemapCache({ workspaceId: event.workspaceId });
-    };
-    return { onEntryPublished: handler, onEntryUpdated: handler, onEntryUnpublished: handler, onSitemapInvalidated: handler };
-  }
+  const createSeoEventSubscriptions = createSeoSubscriptionsFactory(invalidateSitemapCache);
+
+  return { buildSitemap, regenerateSitemapCache, invalidateSitemapCache, createSeoEventSubscriptions };
+}
+
+/** Each service owns its hooks, build generations, cache and scheduled expiry; hosts never share state accidentally. */
+export function createSitemapService(required: { deps: SeoSitemapDeps }, _optional: Record<string, never> = {}) {
+  const { deps } = required;
+  const { sitemapCollectHooks, registerSitemapCollectHook, resetSitemapCollectHooksForTests } = createSitemapHooks();
+  const computeSitemapEntries = createSitemapCollector(deps, sitemapCollectHooks);
+  const { buildSitemap, regenerateSitemapCache, invalidateSitemapCache, createSeoEventSubscriptions } = createSitemapCache(deps, computeSitemapEntries);
 
   return {
     registerSitemapCollectHook, resetSitemapCollectHooksForTests,

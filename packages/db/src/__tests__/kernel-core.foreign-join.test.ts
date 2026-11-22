@@ -20,27 +20,27 @@ function fakeDriver() {
 
 describe("buildKernel foreign-transaction join", () => {
   it("joins an open foreign transaction instead of BEGINning", async () => {
-    const f = fakeDriver(); const kernel = buildKernel(f.driver);
+    const f = fakeDriver(); const kernel = buildKernel({ driver: f.driver });
     f.setForeign(true);
     await expect(kernel.transaction(async () => 1)).resolves.toBe(1);
     expect(f.calls).toEqual([]);
   });
   it("inside its own transaction a nested call never treats it as foreign; after success the counter is restored", async () => {
-    const f = fakeDriver(); const kernel = buildKernel(f.driver);
+    const f = fakeDriver(); const kernel = buildKernel({ driver: f.driver });
     await kernel.transaction(async () => { f.setForeign(true); return 0; });
     expect(f.calls).toEqual(["begin"]);
     await kernel.transaction(async () => 2);
     expect(f.calls).toEqual(["begin"]); // counter back to 0: the foreign transaction is joined
   });
   it("the counter is also restored after the body throws", async () => {
-    const f = fakeDriver(); const kernel = buildKernel(f.driver);
+    const f = fakeDriver(); const kernel = buildKernel({ driver: f.driver });
     await expect(kernel.transaction(async () => { throw new Error("boom"); })).rejects.toThrow("boom");
     f.setForeign(true);
     await kernel.transaction(async () => 3);
     expect(f.calls).toEqual(["begin"]);
   });
   it("a concurrent call while our own transaction is open does not join the foreign one", async () => {
-    const f = fakeDriver(); const kernel = buildKernel(f.driver);
+    const f = fakeDriver(); const kernel = buildKernel({ driver: f.driver });
     let release!: () => void;
     const held = kernel.transaction(() => new Promise<void>((resolve) => { release = resolve; }));
     await new Promise((r) => setImmediate(r));
@@ -52,7 +52,7 @@ describe("buildKernel foreign-transaction join", () => {
     expect(f.calls).toEqual(["begin", "begin"]);
   });
   it("close delegates to the driver", async () => {
-    const f = fakeDriver(); await buildKernel(f.driver).close();
+    const f = fakeDriver(); await buildKernel({ driver: f.driver }).close();
     expect(f.calls).toEqual(["close"]);
   });
 });

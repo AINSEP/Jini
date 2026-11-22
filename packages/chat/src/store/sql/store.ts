@@ -17,8 +17,8 @@ const CONVERSATION_UPDATED_AT = 'c.updated_at';
  * constraint remains the backstop, and nested appends join the host's existing transaction.
  */
 import { sql, type Kysely } from 'kysely';
-import { createSystemClock, type Clock } from '@jini-ai/core/primitives';
-import { isUniqueViolation, type StorageKernel } from '@jini-ai/db/kernel';
+import type { Clock } from '@jini-ai/core/primitives';
+import { isUniqueViolation, type StorageKernel } from '@jini-ai/core/contracts/storage';
 import { redactUserMessage, type UserTextRedactionOptions } from '../../core/user-text-redaction.js';
 import type { ChatMessage } from '../../core/messages.js';
 import { MID_RUN_USER_MESSAGE_EVENT_NAME } from '../../core/turn-usage.js';
@@ -218,6 +218,14 @@ function toHistoryMessage(row: HistoryRow, { includeToolEvents }: { includeToolE
   };
 }
 
+/** @throws {ChatStoreError} `invalid-input` for an out-of-range limit or an over-long/non-string query. */
+function assertHistoryListInputs({ limit, query }: { limit: number; query: unknown }, _optional = {}): void {
+  if (!Number.isInteger(limit) || limit < 1 || limit > 50) throw new ChatStoreError({ code: 'invalid-input' });
+  if (query !== undefined && (typeof query !== 'string' || query.length > 200)) {
+    throw new ChatStoreError({ code: 'invalid-input' });
+  }
+}
+
 /**
  * Returns a {@link ChatHistoryStore} that can only ever see `scope`'s own conversations.
  *
@@ -225,13 +233,13 @@ function toHistoryMessage(row: HistoryRow, { includeToolEvents }: { includeToolE
  *   `ON DELETE CASCADE` needs `foreign_keys = ON`, which the host must enable.
  * @param scope the isolation predicate, resolved from the host's authentication. For a guest,
  *   `ownerId` must already be a hash of the session key (`tenant-scope.ts`).
- * @param optional Optional core Clock for deterministic host/tests; defaults to system wall time.
+ * @param clock the host's core Clock; tests pass a fake for deterministic time.
  * @complexity each method is one to four indexed statements; conversation summaries scan their
  *   messages and embedded events in SQL; `messages` is O(messages in the conversation).
  */
 export function createSqlChatStore<DB extends ChatDatabase>(
-  { kernel, scope: inputScope }: { kernel: StorageKernel<DB>; scope: ChatOwnerScope },
-  { clock = createSystemClock(), ...redactionOptions }: { clock?: Clock } & UserTextRedactionOptions = {},
+  { kernel, scope: inputScope, clock }: { kernel: StorageKernel<Kysely<DB>, DB>; scope: ChatOwnerScope; clock: Clock },
+  redactionOptions: UserTextRedactionOptions = {},
 ): ChatStore {
   const scope = copyScope({ scope: inputScope });
   const { scopeId, ownerKind, ownerId } = scope;
@@ -381,13 +389,14 @@ export function createSqlChatStore<DB extends ChatDatabase>(
   const store: ChatStore = {
     history: {
       /** Literal search uses two scoped projections, not a transcript fetch per conversation.
-       * @complexity The database scans owned content for search; only limit rows cross the port.
+       * A continuation is bound to this owner and orders by activity descending, then ID ascending.
+       * @throws {ChatStoreError} For invalid inputs or a cursor belonging to another scope.
+       * @complexity The database scans owned content for search; at most limit+1 rows are returned.
        */
-      async list(_required, { query, limit = 20 } = {}) {
-        if (!Number.isInteger(limit) || limit < 1 || limit > 50) throw new ChatStoreError({ code: 'invalid-input' });
-        if (query !== undefined && (typeof query !== 'string' || query.length > 200)) {
-          throw new ChatStoreError({ code: 'invalid-input' });
-        }
+      async list(_required, { query, limit = 20, cursor } = {}) {
+        assertHistoryListInputs({ limit, query });
+        const anchor = decodeCursor({ cursor: cursor ?? undefined, kind: 'conversations', scope, conversation: null });
+        const id = ordinalId(kernel.dialect, 'c.id');
         const rows = await run(db => {
           let statement = ownedConversations(db).select(eb => eb.selectFrom('ai_chat_messages as first')
             .select('first.content').whereRef('first.conversation_id', '=', 'c.id').where('first.role', '=', 'user')
@@ -402,9 +411,18 @@ export function createSqlChatStore<DB extends ChatDatabase>(
                 .where(sql<boolean>`lower(found.content) like ${pattern} escape '!'`)),
             ]));
           }
-          return statement.orderBy(CONVERSATION_UPDATED_AT, 'desc').orderBy(ordinalId(kernel.dialect, 'c.id')).limit(limit).execute();
+          if (anchor) statement = statement.where(eb => eb.or([
+            eb(CONVERSATION_UPDATED_AT, '<', anchor[0]),
+            eb.and([eb(CONVERSATION_UPDATED_AT, '=', anchor[0]), eb(id, '>', anchor[1])]),
+          ]));
+          return statement.orderBy(CONVERSATION_UPDATED_AT, 'desc').orderBy(id, 'asc').limit(limit + 1).execute();
         });
-        return rows.map(row => ({ ...toConversation(row as ConversationRow), firstUserLine: row.first_user_line ?? '' }));
+        const items = rows.slice(0, limit).map(row => ({ ...toConversation(row as ConversationRow), firstUserLine: row.first_user_line ?? '' }));
+        const last = items.at(-1);
+        const nextCursor = rows.length > limit && last
+          ? encodeCursor({ kind: 'conversations', scope, conversation: null, anchor: [last.updatedAt, last.id] })
+          : null;
+        return { items, nextCursor };
       },
       /** No attachment column is read. O(limit) rows; default tail is reversed into position order. */
       async read({ chatId }, { fromPosition, limit = 50, includeToolEvents = false } = {}) {
@@ -449,7 +467,7 @@ export function createSqlChatStore<DB extends ChatDatabase>(
           .execute()
       );
       } catch (cause) {
-        if (isUniqueViolation(cause)) throw new ChatStoreError({ code: 'conflict' }, { cause });
+        if (isUniqueViolation({ err: cause })) throw new ChatStoreError({ code: 'conflict' }, { cause });
         throw cause;
       }
       const created = await get({ id: input.id });

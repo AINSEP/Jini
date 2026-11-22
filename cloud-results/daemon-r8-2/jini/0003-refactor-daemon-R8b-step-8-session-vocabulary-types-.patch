@@ -1,0 +1,83 @@
+From d6689142f87765f7c8e157da54fedfa9343a1a9b Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Wed, 18 Nov 2026 00:26:20 +0000
+Subject: [PATCH 3/6] refactor(daemon): R8b step 8 session vocabulary types
+ come from the daemon's own ports, not @jini-ai/agent-runtime
+
+AcpMcpServerInput, AcpPermissionHandler, AcpSessionController and PiRpcSession in events.ts, mcp-bridge.ts and contracts.ts now import
+the restated types in ports/agent-runtime-sessions.ts (C6 landed them and proved the real runtime satisfies them). Types only; tsc is the
+proof (the real attach functions still flow into them). Step 7 needed no change: ai-trace-lifecycle.ts and event-translation.ts already
+import createAiTraceRecorder / normalizeAiUsage from core (C6).
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01FiTZBoVsefwW5254ZQEFJi
+---
+ packages/daemon/src/agent-executor/contracts.ts  | 3 +--
+ packages/daemon/src/agent-executor/events.ts     | 5 +----
+ packages/daemon/src/agent-executor/mcp-bridge.ts | 4 +---
+ scripts/size-debt.json                           | 2 +-
+ 4 files changed, 4 insertions(+), 10 deletions(-)
+
+diff --git a/packages/daemon/src/agent-executor/contracts.ts b/packages/daemon/src/agent-executor/contracts.ts
+index acb0f5e1..d1e4b35f 100644
+--- a/packages/daemon/src/agent-executor/contracts.ts
++++ b/packages/daemon/src/agent-executor/contracts.ts
+@@ -34,9 +34,8 @@ import type {
+    attachPiRpcSession,
+    prepareAgentLogFile,
+    preparePromptFileForAgent,
+-   AcpMcpServerInput,
+-   AcpPermissionHandler,
+ } from '@jini-ai/agent-runtime';
++import type { AcpMcpServerInput, AcpPermissionHandler } from '../ports/agent-runtime-sessions.js';
+ import type { PromptAugmenter } from '@jini-ai/core/contracts/agents';
+ import type { ProcessSnapshot, StopProcessesResult } from '@jini-ai/core/contracts/runtime';
+ import type {
+diff --git a/packages/daemon/src/agent-executor/events.ts b/packages/daemon/src/agent-executor/events.ts
+index 535ce63a..e4870dc7 100644
+--- a/packages/daemon/src/agent-executor/events.ts
++++ b/packages/daemon/src/agent-executor/events.ts
+@@ -27,11 +27,8 @@ import {
+   createQoderStreamHandler,
+   attachAcpSession,
+   attachPiRpcSession,
+-  type AcpMcpServerInput,
+-  type AcpPermissionHandler,
+-  type AcpSessionController,
+-  type PiRpcSession,
+ } from '@jini-ai/agent-runtime';
++import type { AcpMcpServerInput, AcpPermissionHandler, AcpSessionController, PiRpcSession } from '../ports/agent-runtime-sessions.js';
+ import { type RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
+ import {
+   classifyRunCloseStatus,
+diff --git a/packages/daemon/src/agent-executor/mcp-bridge.ts b/packages/daemon/src/agent-executor/mcp-bridge.ts
+index 83cfcfdf..4fe87666 100644
+--- a/packages/daemon/src/agent-executor/mcp-bridge.ts
++++ b/packages/daemon/src/agent-executor/mcp-bridge.ts
+@@ -8,9 +8,7 @@ import { MIMO_CONFIG_ENV } from './mimo/constants.js';
+ import { buildClaudeMcpDelivery, writeMcpJsonForRun } from './claude/mcp-delivery.js';
+ import { buildCodexMcpDelivery } from './codex/mcp-delivery.js';
+ import type { McpDeliveryBuildInput } from './mcp-delivery-types.js';
+-import type {
+-   AcpMcpServerInput,
+-} from '@jini-ai/agent-runtime';
++import type { AcpMcpServerInput } from '../ports/agent-runtime-sessions.js';
+ import type { RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
+ import {
+   isRecord,
+diff --git a/scripts/size-debt.json b/scripts/size-debt.json
+index 15a3a60e..8dd24226 100644
+--- a/scripts/size-debt.json
++++ b/scripts/size-debt.json
+@@ -501,7 +501,7 @@
+     "function": "<file>",
+     "line": 820,
+     "rule": "max-lines",
+-    "value": 926
++    "value": 923
+   },
+   {
+     "file": "packages/daemon/src/agent-executor/launch.ts",
+-- 
+2.43.0
+

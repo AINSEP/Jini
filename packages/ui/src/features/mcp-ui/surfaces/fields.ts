@@ -66,7 +66,7 @@ function renderEnumField(field: EnumField, options: FieldRenderOptions): string 
  * @returns An HTML fragment.
  * @complexity O(n) in the rendered length.
  */
-export function renderFieldControl(field: SurfaceField, text?: Partial<SecretInputText>, options: FieldRenderOptions = {}): string {
+export function renderFieldControl({ field }: { field: SurfaceField }, { text, options = {} }: { text?: Partial<SecretInputText> | undefined; options?: FieldRenderOptions | undefined } = {}): string {
   switch (field.kind) {
     case 'string':
       return renderTextInput({ ...base(field, options), ...text, ...present(field, ['value', 'placeholder', 'multiline', 'rows', 'secret']) });
@@ -79,7 +79,7 @@ export function renderFieldControl(field: SurfaceField, text?: Partial<SecretInp
     case 'multi-enum':
       return renderChoiceGroup({ ...base(field, options), selection: 'multiple', options: field.options, ...present(field, ['value']) });
   }
-  return unhandledCase(field);
+  return unhandledCase({ _value: field });
 }
 
 /** What the surface's inline script needs to read a field's value back and coerce it — the runtime half of {@link SurfaceField}, with the presentation stripped out. */
@@ -96,7 +96,7 @@ export interface FieldReadSpec {
 }
 
 /** Projects fields to runtime validation data; conditional requirements also carry their guidance. */
-export function toFieldReadSpecs(fields: readonly SurfaceField[]): readonly FieldReadSpec[] {
+export function toFieldReadSpecs({ fields }: { fields: readonly SurfaceField[] }, _optional: Record<string, never> = {}): readonly FieldReadSpec[] {
   return fields.map((field) => ({
     name: field.name,
     label: field.label,

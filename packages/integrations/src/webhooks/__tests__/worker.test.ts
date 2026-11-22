@@ -96,21 +96,24 @@ test("a failed tick is logged scrubbed and the loop continues; the default log i
   );
   await worker.tick();
   await worker.tick();
-  assert.deepEqual(lines, [`${WEBHOOK_DELIVERY_FAILED_LINE}: RepoError: POST [url] refused (code ECONNRESET)`]);
+  assert.deepEqual(lines, [`${WEBHOOK_DELIVERY_FAILED_LINE}: Error(ECONNRESET)`]);
   assert.equal(calls, 2);
 
   const errors = vi.spyOn(console, "error").mockImplementation(() => {});
   try {
     await startWebhookDeliveryWorker({ processDue: async () => { throw new Error("db closed"); } }, { scheduler: fakeScheduler().scheduler }).tick();
-    assert.deepEqual(errors.mock.calls, [[`${WEBHOOK_DELIVERY_FAILED_LINE}: Error: db closed`]]);
+    assert.deepEqual(errors.mock.calls, [[WEBHOOK_DELIVERY_FAILED_LINE, "Error"]]);
   } finally { errors.mockRestore(); }
 });
 
-test("describeWebhookTickError never stringifies a non-Error, keeps numeric codes, drops other codes and caps the message", () => {
-  assert.equal(describeWebhookTickError({ error: { secret: "x" } }), `${WEBHOOK_DELIVERY_FAILED_LINE}: a non-Error value was thrown`);
-  assert.equal(describeWebhookTickError({ error: Object.assign(new Error("busy"), { code: 5 }) }), `${WEBHOOK_DELIVERY_FAILED_LINE}: Error: busy (code 5)`);
-  assert.equal(describeWebhookTickError({ error: Object.assign(new Error("odd"), { code: { secret: "x" } }) }), `${WEBHOOK_DELIVERY_FAILED_LINE}: Error: odd`);
-  assert.equal(describeWebhookTickError({ error: new Error("a".repeat(500)) }), `${WEBHOOK_DELIVERY_FAILED_LINE}: Error: ${"a".repeat(200)}`);
+test("describeWebhookTickError says the class and an approved code, never the message", () => {
+  const secret = new Error("boom api_key=SECRETSECRETSECRETSECRET");
+  const line = describeWebhookTickError({ error: secret });
+  assert.equal(line, `${WEBHOOK_DELIVERY_FAILED_LINE}: Error`);
+  for (const text of ["boom", "SECRETSECRET", "worker.test"]) assert.ok(!line.includes(text));
+  assert.equal(describeWebhookTickError({ error: { secret: "x" } }), `${WEBHOOK_DELIVERY_FAILED_LINE}: object`);
+  assert.equal(describeWebhookTickError({ error: Object.assign(new Error("busy"), { code: 5 }) }), `${WEBHOOK_DELIVERY_FAILED_LINE}: Error`);
+  assert.equal(describeWebhookTickError({ error: Object.assign(new Error("refused"), { code: "ECONNRESET" }) }), `${WEBHOOK_DELIVERY_FAILED_LINE}: Error(ECONNRESET)`);
 });
 
 test("each pass receives the worker's signal; stop aborts it with a stopped reason, then no tick runs", async () => {

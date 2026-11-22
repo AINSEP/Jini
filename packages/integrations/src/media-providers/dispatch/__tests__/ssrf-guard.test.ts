@@ -2,7 +2,7 @@ import { createNodeMediaHttpClient } from '../node.js';
 import { promises as dnsPromises } from 'node:dns';
 import type { LookupAddress } from 'node:dns';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { isBlockedExternalApiHostname, isLoopbackApiHost } from "@jini-ai/platform/net";
+import { isBlockedExternalApiHostname, isLoopbackApiHost } from "@jini-ai/core/net";
 import { assertAndFetchExternalAsset, assertExternalAssetUrl, validateBaseUrlResolved } from '../ssrf-guard.js';
 
 afterEach(() => {
@@ -140,7 +140,7 @@ describe('validateBaseUrlResolved', () => {
     it('accepts a public bracketed IPv6-literal hostname without calling lookup', async () => {
         // The WHATWG URL parser serializes an IPv6 host with brackets
         // (`.hostname === '[2001:db8::1]'`), so this also exercises
-        // looksLikeIpLiteral's bracket-stripping branch.
+        // isIpLiteralHostname's bracketed-IPv6 branch.
         const lookup = vi.fn();
         const result = await validateBaseUrlResolved({ baseUrl: 'http://[2001:db8::1]/asset.png' }, { lookup: lookup });
         expect(result).toEqual({ ok: true });

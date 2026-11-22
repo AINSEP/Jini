@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
-import { adaptSdkTransport, resolveSdkTransport } from '../sdk-transport.js';
+import { adaptSdkTransport, resolveSdkTransport } from '../adapters/sdk-transport.js';
 import type { McpTransportLike } from '../ports.js';
 
 /** A hand-written SDK transport: records what was sent and how often close ran. */

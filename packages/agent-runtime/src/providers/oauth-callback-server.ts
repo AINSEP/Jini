@@ -1,5 +1,4 @@
-import { inspect } from 'node:util';
-import { redactSecrets } from '@jini-ai/core';
+import { describeErrorForLog } from '@jini-ai/core';
 /**
  * @module providers/oauth-callback-server
  *
@@ -55,104 +54,134 @@ export interface OAuthCallbackListener {
 export async function startOAuthCallbackListener(requiredArgs: Pick<StartOAuthCallbackListenerInput, "host" | "port" | "path" | "expectedState" | "onCallback">, optionalArgs: Omit<StartOAuthCallbackListenerInput, "host" | "port" | "path" | "expectedState" | "onCallback"> = {}
 ): Promise<OAuthCallbackListener> {
   const input: StartOAuthCallbackListenerInput = { ...optionalArgs, ...requiredArgs };
-  const { host, port, path: callbackPath } = input;
-  const timeoutMs = input.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-
-  let consumed = false;
-  let stopped = false;
-  let serverRef: http.Server | null = null;
-  let timer: NodeJS.Timeout | null = null;
-
-  const closeServer = () =>
-    new Promise<void>((resolve) => {
-      // Non-null: `stop()` (this function's only caller) guards on `stopped`
-      // before ever reaching here, so this runs at most once — after
-      // `serverRef` was unconditionally set at listener-startup, before this
-      // closure's `stop`/`address` are ever handed to a caller.
-      const s = serverRef!;
-      serverRef = null;
-      if (timer) {
-        clearTimeout(timer);
-        timer = null;
-      }
-      s.close(() => resolve());
-      // Force close after a short grace period so lingering keep-alive
-      // sockets don't keep the event loop alive in tests.
-      const reaper = setTimeout(() => {
-        try {
-          s.closeAllConnections?.();
-        } catch {
-          // Best-effort cleanup only: node:http's closeAllConnections()
-          // doesn't document a throwing case in the supported Node range
-          // this package targets — this guard exists for a future/older
-          // runtime where it might, not a reachable path today.
-        }
-      }, 100);
-      reaper.unref?.();
-    });
-
-  const stop = async () => {
-    if (stopped) return;
-    stopped = true;
-    await closeServer();
-  };
-
-  const handle = async (req: http.IncomingMessage, res: http.ServerResponse) => {
-    if (consumed || !req.url) {
-      res.statusCode = 410;
-      res.setHeader('content-type', 'text/plain; charset=utf-8');
-      res.end('Listener already consumed.');
-      return;
-    }
-    let parsed: URL;
-    try {
-      parsed = new URL(req.url, `http://${host}:${port}`);
-    } catch {
-      res.statusCode = 400;
-      res.setHeader('content-type', 'text/plain; charset=utf-8');
-      res.end('Bad request.');
-      return;
-    }
-    // Ignore favicon.ico and any other path so the browser's incidental
-    // requests don't consume the slot meant for the callback path.
-    if (parsed.pathname !== callbackPath) {
-      res.statusCode = 404;
-      res.setHeader('content-type', 'text/plain; charset=utf-8');
-      res.end('Not found.');
-      return;
-    }
-
-    const outcome = callbackOutcome({ params: parsed.searchParams, expectedState: input.expectedState });
-    const consumesListener = callbackConsumesListener({ params: parsed.searchParams, expectedState: input.expectedState, outcome });
-    if (consumesListener) {
-      consumed = true;
-    }
-
-    res.statusCode = outcome.kind === 'ok' ? 200 : 400;
-    res.setHeader('content-type', 'text/html; charset=utf-8');
-    res.end(renderResultPage(outcome));
-
-    if (!consumesListener) {
-      // Stale-tab replay or malformed request — don't surface to the
-      // caller and don't tear down the listener. The browser sees the
-      // 400 page; the real flow can still complete on a later hit.
-      return;
-    }
-
-    try {
-      await input.onCallback(outcome);
-    } catch (err: unknown) {
-      console.error('[oauth-callback-server] onCallback failed:', redactSecrets({ input: inspect(err) }, { redactPii: false }));
-    } finally {
-      void stop();
-    }
-  };
-
+  const st: ListenerState = { input, consumed: false, stopped: false, server: null, timer: null };
   const server = http.createServer((req, res) => {
-    void handle(req, res);
+    void handleRequest({ st, req, res });
   });
+  await listenServer(server, { host: input.host, port: input.port });
+  st.server = server;
+  startTimeout({ st, timeoutMs: input.timeoutMs ?? DEFAULT_TIMEOUT_MS });
+  const addr = server.address() as AddressInfo;
+  return {
+    address: { host: addr.address, port: addr.port },
+    stop: () => stopListener(st),
+  };
+}
 
-  await new Promise<void>((resolve, reject) => {
+/** Mutable state of one running one-shot listener. */
+interface ListenerState {
+  input: StartOAuthCallbackListenerInput;
+  consumed: boolean;
+  stopped: boolean;
+  server: http.Server | null;
+  timer: NodeJS.Timeout | null;
+}
+
+function closeServer(st: ListenerState): Promise<void> {
+  return new Promise<void>((resolve) => {
+    // Non-null: `stopListener` (this function's only caller) guards on `stopped`
+    // before ever reaching here, so this runs at most once — after
+    // `st.server` was unconditionally set at listener-startup, before this
+    // listener's `stop`/`address` are ever handed to a caller.
+    const s = st.server!;
+    st.server = null;
+    if (st.timer) {
+      clearTimeout(st.timer);
+      st.timer = null;
+    }
+    s.close(() => resolve());
+    // Force close after a short grace period so lingering keep-alive
+    // sockets don't keep the event loop alive in tests.
+    const reaper = setTimeout(() => {
+      try {
+        s.closeAllConnections?.();
+      } catch {
+        // Best-effort cleanup only: node:http's closeAllConnections()
+        // doesn't document a throwing case in the supported Node range
+        // this package targets — this guard exists for a future/older
+        // runtime where it might, not a reachable path today.
+      }
+    }, 100);
+    reaper.unref?.();
+  });
+}
+
+async function stopListener(st: ListenerState): Promise<void> {
+  if (st.stopped) return;
+  st.stopped = true;
+  await closeServer(st);
+}
+
+function respondText({ res, status, body }: {
+  res: http.ServerResponse;
+  status: number;
+  body: string;
+}): void {
+  res.statusCode = status;
+  res.setHeader('content-type', 'text/plain; charset=utf-8');
+  res.end(body);
+}
+
+async function handleRequest({ st, req, res }: {
+  st: ListenerState;
+  req: http.IncomingMessage;
+  res: http.ServerResponse;
+}): Promise<void> {
+  const { host, port, path: callbackPath } = st.input;
+  if (st.consumed || !req.url) {
+    respondText({ res, status: 410, body: 'Listener already consumed.' });
+    return;
+  }
+  let parsed: URL;
+  try {
+    parsed = new URL(req.url, `http://${host}:${port}`);
+  } catch {
+    respondText({ res, status: 400, body: 'Bad request.' });
+    return;
+  }
+  // Ignore favicon.ico and any other path so the browser's incidental
+  // requests don't consume the slot meant for the callback path.
+  if (parsed.pathname !== callbackPath) {
+    respondText({ res, status: 404, body: 'Not found.' });
+    return;
+  }
+  await dispatchCallback({ st, params: parsed.searchParams, res });
+}
+
+async function dispatchCallback({ st, params, res }: {
+  st: ListenerState;
+  params: URLSearchParams;
+  res: http.ServerResponse;
+}): Promise<void> {
+  const { expectedState, onCallback } = st.input;
+  const outcome = callbackOutcome({ params, expectedState });
+  const consumesListener = callbackConsumesListener({ params, expectedState, outcome });
+  if (consumesListener) {
+    st.consumed = true;
+  }
+
+  res.statusCode = outcome.kind === 'ok' ? 200 : 400;
+  res.setHeader('content-type', 'text/html; charset=utf-8');
+  res.end(renderResultPage(outcome));
+
+  if (!consumesListener) {
+    // Stale-tab replay or malformed request — don't surface to the
+    // caller and don't tear down the listener. The browser sees the
+    // 400 page; the real flow can still complete on a later hit.
+    return;
+  }
+
+  try {
+    await onCallback(outcome);
+  } catch (err: unknown) {
+    console.error('[oauth-callback-server] onCallback failed:', describeErrorForLog({ err }));
+  } finally {
+    void stopListener(st);
+  }
+}
+
+function listenServer(server: http.Server, { host, port }: { host: string; port: number }): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
     const onError = (err: NodeJS.ErrnoException) => {
       if (err.code === 'EADDRINUSE') {
         reject(
@@ -170,27 +199,22 @@ export async function startOAuthCallbackListener(requiredArgs: Pick<StartOAuthCa
       resolve();
     });
   });
+}
 
-  serverRef = server;
-  timer = setTimeout(() => {
+function startTimeout({ st, timeoutMs }: { st: ListenerState; timeoutMs: number }): void {
+  st.timer = setTimeout(() => {
     Promise.resolve(
-      input.onCallback({
+      st.input.onCallback({
         kind: 'error',
         error: 'OAuth timed out — sign in again',
       }),
     ).catch(() => {
-      // already logging in handle(); this branch is best-effort cleanup.
+      // already logging in dispatchCallback(); this branch is best-effort cleanup.
     });
-    void stop();
+    void stopListener(st);
   }, timeoutMs);
   // unref so the timer doesn't keep the event loop alive in tests.
-  timer.unref?.();
-
-  const addr = server.address() as AddressInfo;
-  return {
-    address: { host: addr.address, port: addr.port },
-    stop,
-  };
+  st.timer.unref?.();
 }
 
 function renderResultPage(outcome: OAuthCallbackOutcome): string {

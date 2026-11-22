@@ -1,12 +1,12 @@
 /** SQL boundary validation and opaque driver error translation. */
-import type { StorageKernel, StorageTransport } from '@jini-ai/db/kernel';
+import type { StorageKernel, StorageTransport } from '@jini-ai/core/contracts/storage';
 import type { Kysely } from 'kysely';
 import type { ChatDatabase } from './tables.js';
 import type { ChatOwnerScope } from '../ports.js';
 import { ChatStoreError } from '../errors.js';
 
 /** Construction is validation-only: never query, migrate, reconfigure, open or close a kernel. */
-export function validateKernel<DB>({ kernel, transports, dialect }: { kernel: StorageKernel<DB>; transports: readonly StorageTransport[]; dialect: 'sqlite' | 'postgres' }): void {
+export function validateKernel<DB>({ kernel, transports, dialect }: { kernel: StorageKernel<Kysely<DB>, DB>; transports: readonly StorageTransport[]; dialect: 'sqlite' | 'postgres' }): void {
   if (!kernel || kernel.dialect !== dialect || !transports.includes(kernel.transport)) throw new ChatStoreError({ code: 'invalid-input' });
 }
 
@@ -35,12 +35,12 @@ export async function atStoreBoundary<T>({ operation }: { operation: () => Promi
  * @complexity O(1) time and space; no wrapper, connection or transaction is created.
  */
 export function chatKernelTables<DB extends Tables, Tables extends ChatDatabase = ChatDatabase>(
-  { kernel }: { kernel: StorageKernel<DB> }, _optional = {},
-): StorageKernel<Tables> {
-  return kernel as unknown as StorageKernel<Tables>;
+  { kernel }: { kernel: StorageKernel<Kysely<DB>, DB> }, _optional = {},
+): StorageKernel<Kysely<Tables>, Tables> {
+  return kernel as unknown as StorageKernel<Kysely<Tables>, Tables>;
 }
 
 /** Execute a transcript query through the shared table-subset projection. */
-export function runChatQuery<DB extends ChatDatabase, T>({ kernel, body }: { kernel: StorageKernel<DB>; body: (db: Kysely<ChatDatabase>) => T | Promise<T> }): Promise<T> {
+export function runChatQuery<DB extends ChatDatabase, T>({ kernel, body }: { kernel: StorageKernel<Kysely<DB>, DB>; body: (db: Kysely<ChatDatabase>) => T | Promise<T> }): Promise<T> {
   return chatKernelTables<DB>({ kernel }, {}).run(body);
 }

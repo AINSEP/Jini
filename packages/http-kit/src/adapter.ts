@@ -3,74 +3,13 @@
  * `handle`, and response serialization into a single Express route handler. This is the only
  * file in the module that knows about Express `req`/`res` on the mounting side.
  */
-import { inspect } from 'node:util';
-import { redactSecrets } from '@jini-ai/core';
-import { randomUUID } from 'node:crypto';
 import type { Express, Request, Response } from 'express';
-import { createApiError, type ApiError } from '@jini-ai/protocol';
+import { ClientFacingError, statusForError, type JsonRouteAuthorize, type Result, type RouteHostInternalErrorContext, type RouteHostContext } from '@jini-ai/core/contracts/server';
+import { reportRouteInternalError } from './internal-error.js';
 import { rawInput } from './request.js';
-import { sendApiError, sendJson, statusForError } from './response.js';
-import { guardSameOrigin, type OriginContext } from './origin.js';
-import type { JsonRouteAuthorize, JsonRouteSpec, Result } from './types.js';
-
-export interface AdapterInternalErrorContext {
-  /** HTTP method of the route whose handler threw. */
-  readonly method: string;
-  /** Registered path of the route whose handler threw. */
-  readonly path: string;
-  /** Echoed back to the caller as the response's `requestId`, so an operator can tie a user's report to this log line. */
-  readonly correlationId: string;
-  /** The exception exactly as thrown — never sent to the caller. */
-  readonly error: unknown;
-}
-
-/** Server startup state a mounted route needs to evaluate its same-origin guard. */
-export interface AdapterContext extends OriginContext {
-  /**
-   * Host-owned sink for the real exception behind a generic `INTERNAL_ERROR` response (SEC-005).
-   * Defaults to `console.error`. Mirrors the per-module `onInternalError` seams (`connectors.ts`,
-   * `delegated-tools.ts`, …); this one is the catch-all for a route that throws outside its own
-   * guarded path.
-   */
-  readonly onInternalError?: (context: AdapterInternalErrorContext) => void;
-}
-
-function defaultInternalErrorSink(context: AdapterInternalErrorContext): void {
-  // Exceptions can echo credentials; inspect preserves stacks and codes before shared redaction.
-  // eslint-disable-next-line no-console
-  console.error(`[@jini-ai/http-kit] internal error (${context.method.toUpperCase()} ${context.path}, correlationId=${context.correlationId})`, redactSecrets({ input: inspect(context.error) }, { redactPii: false }));
-}
-
-/**
- * Thrown by a route's `handle` — or by anything it calls, at any depth — to bypass the SEC-005
- * redaction below with an `ApiError` the throwing code has already decided is safe for the caller
- * to see. This is the general-purpose version of a carve-out every consuming module of this catch
- * otherwise hand-rolls for itself: `attachments.ts`'s `AttachmentRejectedError`/
- * `respondToUploadFailure`, and `delegated-tools.ts`'s `errorKind: 'validation'` split on
- * `ToolExecutionResult`, both exist because nothing at THIS layer distinguished "the code that threw
- * already classified this as caller-safe" from "something unanticipated happened" — so a route with
- * no such local carve-out has no way to disclose even a deliberately-safe failure, and everything it
- * throws redacts identically to a stray filesystem or driver error.
- *
- * Prefer returning `err(apiError)` from `handle` when the failure is anticipated at that point —
- * that path already reaches the caller with full fidelity and never touches this catch at all. This
- * class exists for the same kind of failure discovered a level deeper: inside an awaited call
- * `handle` itself did not (or could not) wrap in its own `try`.
- *
- * Not a way to defeat SEC-005: the only way to reach the branch that reads this class is for code to
- * construct one itself, naming the exact `ApiError` — code and message — it is choosing to disclose.
- * Any thrown value that is not this class (including a plain `Error` with an actionable-looking
- * message) still redacts exactly as before; nothing here widens what a route can leak by accident.
- */
-export class ClientFacingError extends Error {
-  readonly apiError: ApiError;
-
-  constructor({ apiError }: { readonly apiError: ApiError }, _optional: Record<string, never> = {}) {
-    super(apiError.message);
-    this.name = 'ClientFacingError';
-    this.apiError = apiError;
-  }
-}
+import { sendApiError, sendJson } from './response.js';
+import { passesSameOriginGuard } from './origin.js';
+import type { JsonRouteSpec } from './types.js';
 
 /**
  * Combines required route fields and optional settings into a fresh spec while pinning its generic
@@ -95,7 +34,7 @@ export function defineJsonRoute<Input, Output, Deps, Context = undefined>(requir
  * @returns Void; registers one handler, without starting a listener.
  * @complexity O(1) setup and per-request overhead, plus parsing, host ports and handling.
  */
-export function mountJsonRoute<Input, Output, Deps, Context = undefined>({ app, spec, deps, adapter }: { readonly app: Express; readonly spec: JsonRouteSpec<Input, Output, Deps, Context>; readonly deps: Deps; readonly adapter?: AdapterContext }, _optional: Record<string, never> = {}
+export function mountJsonRoute<Input, Output, Deps, Context = undefined>({ app, spec, deps, adapter }: { readonly app: Express; readonly spec: JsonRouteSpec<Input, Output, Deps, Context>; readonly deps: Deps; readonly adapter?: RouteHostContext }, _optional: Record<string, never> = {}
 ): void {
   app[spec.method](spec.path, async (req: Request, res: Response) => {
     // The client-disconnect signal a `handle` can opt into via optional arguments. Observed on `res`,
@@ -146,14 +85,11 @@ function allowRouteOrigin({ req, res, spec, adapter }: {
   readonly req: Request;
   readonly res: Response;
   readonly spec: Pick<JsonRouteSpec<unknown, unknown, unknown>, 'requireSameOrigin'>;
-  readonly adapter: AdapterContext | undefined;
+  readonly adapter: RouteHostContext | undefined;
 }, _optional: Record<string, never> = {}): boolean {
   if (!spec.requireSameOrigin) return true;
   if (!adapter) throw new Error('same-origin adapter context is required');
-  const origin = guardSameOrigin({ req, origin: adapter });
-  if (origin.ok) return true;
-  sendApiError({ res, status: statusForError({ error: origin.error }), error: origin.error });
-  return false;
+  return passesSameOriginGuard({ req, res, origin: adapter });
 }
 
 function sendRouteResult<Output>({ res, result, spec, signal }: {
@@ -178,7 +114,7 @@ function sendRouteResult<Output>({ res, result, spec, signal }: {
 function sendRouteException<Deps, Context>({ res, spec, adapter, error: e }: {
   readonly res: Response;
   readonly spec: Pick<JsonRouteSpec<unknown, unknown, Deps, Context>, 'method' | 'path' | 'ports'>;
-  readonly adapter: AdapterContext | undefined;
+  readonly adapter: RouteHostContext | undefined;
   readonly error: unknown;
 }, _optional: Record<string, never> = {}): void {
   // An explicit host error port owns exception classification and serialization, including
@@ -201,9 +137,11 @@ function sendRouteException<Deps, Context>({ res, spec, adapter, error: e }: {
   // mounted ahead of the security middleware and exempted from the bearer gate, an unauthorized
   // caller could read it too, simply by getting a readiness dependency to fail. The real error
   // still reaches the operator through the sink, correlated to what the caller was told.
-  const correlationId = randomUUID();
-  const sink = adapter?.onInternalError ?? defaultInternalErrorSink;
-  sink({ method: spec.method, path: spec.path, correlationId, error: e });
-  sendApiError({ res, status: 500, error: createApiError({ code: 'INTERNAL_ERROR', message: 'The server could not finish this request. Check whether your change was saved, then copy the request ID and report this problem.' },
-    { requestId: correlationId }) });
+  // Exceptions can echo credentials: the host sink gets the original; the default line prints class and code only.
+  const apiError = reportRouteInternalError<Omit<RouteHostInternalErrorContext, 'correlationId'>>({
+    report: { method: spec.method, path: spec.path, error: e },
+    logSource: `${spec.method.toUpperCase()} ${spec.path}`,
+    message: 'The server could not finish this request. Check whether your change was saved, then copy the request ID and report this problem.',
+  }, { onInternalError: adapter?.onInternalError });
+  sendApiError({ res, status: 500, error: apiError });
 }

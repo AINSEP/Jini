@@ -1,13 +1,13 @@
 /** Failed-tool redaction: model-facing failures carry only a redacted message plus an error id, the
  * real record goes to the host sink, and delegated internal errors get the same disclosure shape. */
 import { expect, test } from "vitest";
-import type { ToolExecutionResult, ToolExecutor } from "../../tool-executor.js";
+import { mintToolErrorId } from "@jini-ai/core/errors/error-id";
+import type { ToolExecutionResult, ToolExecutor } from "../../tool-executor-types.js";
 import {
   TOOL_ERROR_ID_PATTERN,
   delegatedToolErrorDisclosure,
   describeDelegatedInternalError,
   isRedactedToolFailure,
-  mintToolErrorId,
   readToolErrorId,
   withRedactedToolFailures,
   type ToolFailureRecord,
@@ -35,13 +35,11 @@ function executor(result: ToolExecutionResult, seen: unknown[] = []): ToolExecut
   };
 }
 
-test("mintToolErrorId formats 8 random bytes as an upper-case ERR id the pattern recognizes", () => {
-  const requested: number[] = [];
-  const id = mintToolErrorId({ randomHex: ({ bytes }) => { requested.push(bytes); return "0123456789abcdef"; } });
+test("the pattern recognizes an ID minted by core's one owner of the format, and not an empty one", () => {
+  const id = mintToolErrorId({ randomHex: () => "0123456789abcdef" });
   expect(id).toBe("ERR-0123-4567-89AB-CDEF");
-  expect(requested).toEqual([8]);
   expect(TOOL_ERROR_ID_PATTERN.test(`see ${id}`)).toBe(true);
-  expect(mintToolErrorId({ randomHex: () => "" })).toBe("ERR-");
+  expect(TOOL_ERROR_ID_PATTERN.test(mintToolErrorId({ randomHex: () => "" }))).toBe(false);
 });
 
 test("a non-validation failure is redacted, given an error id, and reported once to the host sink", async () => {

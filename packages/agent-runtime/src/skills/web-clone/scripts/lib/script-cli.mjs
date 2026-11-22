@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import { pathToFileURL } from "node:url";
+import { CliUsageError, createCliStreams, runCli } from "./main-guard.mjs";
 
 // Shared CLI plumbing for the web-clone scripts (asset-harvest, audit-clone,
 // compare-recon, dna-scaffold, init-clone). Each script exports its logic and
@@ -34,7 +35,7 @@ function entryUrl(file, realpath) {
 }
 
 /**
- * Runs `main({ argv: argv.slice(2) })` only when `moduleUrl` is the process entry
+ * Runs `main({ argv: argv.slice(2) }, io)` only when `moduleUrl` is the process entry
  * script, and records its return value as the process exit code. Uses
  * `process.exitCode` rather than `process.exit()` so piped stdout is
  * flushed; every script closes its own handles (browsers) before returning.
@@ -42,36 +43,40 @@ function entryUrl(file, realpath) {
  * @returns {Promise<boolean>} whether `main` ran
  */
 export async function runIfMain({ moduleUrl, main }, deps = {}) {
-  const { argv, realpath, setExitCode } = { ...DEFAULT_ENTRY_DEPS, ...deps };
+  const { argv, realpath, setExitCode, stdout = process.stdout, stderr = process.stderr } = { ...DEFAULT_ENTRY_DEPS, ...deps };
   const isEntry = Boolean(argv[1]) && entryUrl(argv[1], realpath) === moduleUrl;
-  if (isEntry) setExitCode(await main({ argv: argv.slice(2) }));
+  if (isEntry) {
+    const io = createCliStreams({ stdout, stderr });
+    const code = await runCli({ label: "web-clone", body: () => main({ argv: argv.slice(2) }, io), report: io.error });
+    setExitCode(code);
+  }
   return isEntry;
 }
 
 /** Flag reader: the next argv value, or `fallback` when it is missing/empty. */
-export const text = (fallback = "") => (raw) => raw || fallback;
+export const text = ({}, { fallback = "" } = {}) => (raw) => raw || fallback;
 
 /** Flag reader: comma-separated list, trimmed, empties dropped. */
 export const list = () => (raw) => (raw || "").split(",").map((s) => s.trim()).filter(Boolean);
 
 /** Boolean switch: sets `key` to `true` without consuming a value. */
-export const flag = (key) => ({ key, read: null });
+export const flag = ({ key }, _optional = {}) => ({ key, read: null });
 
 /** Unknown-argument policy shared by the strict scripts. */
 export function rejectUnknown(arg) {
-  throw new Error(`Unexpected argument: ${arg}`);
+  throw new CliUsageError(`Unexpected argument: ${arg}`);
 }
 
 /**
  * Table-driven argv parser over `argv`. `flags` maps an exact argument to either a
- * switch (`flag(key)`) or `{ key, read(raw, out) }`, where `raw` is the next
+ * switch (`flag({ key })`) or `{ key, read(raw, out) }`, where `raw` is the next
  * argv entry (consumed even when it is missing or looks like a flag — the
  * historical `argv[++i]` behaviour). Anything else goes to
  * `onOther(arg, out)`.
  *
  * @complexity O(n) in argv length
  */
-export function parseCliArgs({ argv, defaults, flags, onOther }) {
+export function parseCliArgs({ argv, defaults, flags, onOther }, _optional = {}) {
   const out = { ...defaults };
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];

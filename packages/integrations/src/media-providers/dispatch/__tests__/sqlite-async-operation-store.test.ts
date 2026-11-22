@@ -44,7 +44,7 @@ afterEach(async () => {
 
 describe('createSqliteAsyncOperationStore — lifecycle parity with the in-memory reference', () => {
     it('persists a new operation as "submitted" carrying both independent bounds', async () => {
-        const row = await store.create(...partitionArgs(BASE, ["id", "providerId", "routeKey", "ownerRef", "maxAttempts", "deadlineAt"]));
+        const row = await store.create(...partitionArgs({ value: BASE, requiredKeys: ["id", "providerId", "routeKey", "ownerRef", "maxAttempts", "deadlineAt"] }));
         expect(row.status).toBe('submitted');
         expect(row.attempts).toBe(0);
         expect(row.maxAttempts).toBe(5);
@@ -52,18 +52,18 @@ describe('createSqliteAsyncOperationStore — lifecycle parity with the in-memor
         expect(row.leaseOwner).toBeNull();
     });
     it('rejects a duplicate id instead of silently overwriting', async () => {
-        await store.create(...partitionArgs(BASE, ["id", "providerId", "routeKey", "ownerRef", "maxAttempts", "deadlineAt"]));
-        await expect(store.create(...partitionArgs(BASE, ["id", "providerId", "routeKey", "ownerRef", "maxAttempts", "deadlineAt"]))).rejects.toThrow(/already exists/);
+        await store.create(...partitionArgs({ value: BASE, requiredKeys: ["id", "providerId", "routeKey", "ownerRef", "maxAttempts", "deadlineAt"] }));
+        await expect(store.create(...partitionArgs({ value: BASE, requiredKeys: ["id", "providerId", "routeKey", "ownerRef", "maxAttempts", "deadlineAt"] }))).rejects.toThrow(/already exists/);
     });
     it('refuses to persist credential material in the operation state', async () => {
-        await expect(store.create(...partitionArgs({ ...BASE, state: { jobId: 'j1', apiKey: 'sk-live-123' } }, ["id", "providerId", "routeKey", "ownerRef", "maxAttempts", "deadlineAt"]))).rejects.toThrow(CREDENTIAL_IN_STATE_MESSAGE);
+        await expect(store.create(...partitionArgs({ value: { ...BASE, state: { jobId: 'j1', apiKey: 'sk-live-123' } }, requiredKeys: ["id", "providerId", "routeKey", "ownerRef", "maxAttempts", "deadlineAt"] }))).rejects.toThrow(CREDENTIAL_IN_STATE_MESSAGE);
     });
     it('refuses to smuggle credential material in on a later update', async () => {
-        await store.create(...partitionArgs(BASE, ["id", "providerId", "routeKey", "ownerRef", "maxAttempts", "deadlineAt"]));
+        await store.create(...partitionArgs({ value: BASE, requiredKeys: ["id", "providerId", "routeKey", "ownerRef", "maxAttempts", "deadlineAt"] }));
         await expect(store.update({ id: 'op-1', patch: { state: { authorization: 'Bearer sk-live-123' } } })).rejects.toThrow(CREDENTIAL_IN_STATE_MESSAGE);
     });
     it('round-trips a non-null state/result/error through the JSON columns', async () => {
-        await store.create(...partitionArgs({ ...BASE, state: { jobId: 'job-77' } }, ["id", "providerId", "routeKey", "ownerRef", "maxAttempts", "deadlineAt"]));
+        await store.create(...partitionArgs({ value: { ...BASE, state: { jobId: 'job-77' } }, requiredKeys: ["id", "providerId", "routeKey", "ownerRef", "maxAttempts", "deadlineAt"] }));
         const row = await store.update({ id: 'op-1', patch: {
                 status: 'succeeded',
                 result: { bytesBase64: 'AAAA', providerNote: 'ok', suggestedExt: 'mp4' },
@@ -73,53 +73,53 @@ describe('createSqliteAsyncOperationStore — lifecycle parity with the in-memor
         expect((await store.get({ id: 'op-1' }))?.result).toEqual({ bytesBase64: 'AAAA', providerNote: 'ok', suggestedExt: 'mp4' });
     });
     it('rejects an illegal lifecycle transition with the exact table-driven message', async () => {
-        await store.create(...partitionArgs(BASE, ["id", "providerId", "routeKey", "ownerRef", "maxAttempts", "deadlineAt"]));
+        await store.create(...partitionArgs({ value: BASE, requiredKeys: ["id", "providerId", "routeKey", "ownerRef", "maxAttempts", "deadlineAt"] }));
         await store.update({ id: 'op-1', patch: { status: 'succeeded' } });
         await expect(store.update({ id: 'op-1', patch: { status: 'polling' } })).rejects.toThrow('Invalid async operation transition: "succeeded" -> "polling"');
     });
     it('claims only operations that are due and unleased', async () => {
-        await store.create(...partitionArgs({ ...BASE, id: 'due', nextPollAt: 100 }, ["id", "providerId", "routeKey", "ownerRef", "maxAttempts", "deadlineAt"]));
-        await store.create(...partitionArgs({ ...BASE, id: 'not-due', nextPollAt: 900 }, ["id", "providerId", "routeKey", "ownerRef", "maxAttempts", "deadlineAt"]));
-        const claimed = await store.claimDue(...partitionArgs({ now: 500, leaseOwner: 'w1', leaseMs: 1000 }, ["now", "leaseOwner", "leaseMs"]));
+        await store.create(...partitionArgs({ value: { ...BASE, id: 'due', nextPollAt: 100 }, requiredKeys: ["id", "providerId", "routeKey", "ownerRef", "maxAttempts", "deadlineAt"] }));
+        await store.create(...partitionArgs({ value: { ...BASE, id: 'not-due', nextPollAt: 900 }, requiredKeys: ["id", "providerId", "routeKey", "ownerRef", "maxAttempts", "deadlineAt"] }));
+        const claimed = await store.claimDue(...partitionArgs({ value: { now: 500, leaseOwner: 'w1', leaseMs: 1000 }, requiredKeys: ["now", "leaseOwner", "leaseMs"] }));
         expect(claimed.map((r) => r.id)).toEqual(['due']);
     });
     it('leases exclusively — a second worker cannot claim the same row', async () => {
-        await store.create(...partitionArgs({ ...BASE, id: 'due', nextPollAt: 0 }, ["id", "providerId", "routeKey", "ownerRef", "maxAttempts", "deadlineAt"]));
-        const first = await store.claimDue(...partitionArgs({ now: 500, leaseOwner: 'w1', leaseMs: 1000 }, ["now", "leaseOwner", "leaseMs"]));
-        const second = await store.claimDue(...partitionArgs({ now: 500, leaseOwner: 'w2', leaseMs: 1000 }, ["now", "leaseOwner", "leaseMs"]));
+        await store.create(...partitionArgs({ value: { ...BASE, id: 'due', nextPollAt: 0 }, requiredKeys: ["id", "providerId", "routeKey", "ownerRef", "maxAttempts", "deadlineAt"] }));
+        const first = await store.claimDue(...partitionArgs({ value: { now: 500, leaseOwner: 'w1', leaseMs: 1000 }, requiredKeys: ["now", "leaseOwner", "leaseMs"] }));
+        const second = await store.claimDue(...partitionArgs({ value: { now: 500, leaseOwner: 'w2', leaseMs: 1000 }, requiredKeys: ["now", "leaseOwner", "leaseMs"] }));
         expect(first.map((r) => r.id)).toEqual(['due']);
         expect(second).toEqual([]);
     });
     it('lets another worker reclaim a row whose lease has expired', async () => {
-        await store.create(...partitionArgs({ ...BASE, id: 'due', nextPollAt: 0 }, ["id", "providerId", "routeKey", "ownerRef", "maxAttempts", "deadlineAt"]));
-        await store.claimDue(...partitionArgs({ now: 500, leaseOwner: 'w1', leaseMs: 1000 }, ["now", "leaseOwner", "leaseMs"]));
-        const reclaimed = await store.claimDue(...partitionArgs({ now: 2000, leaseOwner: 'w2', leaseMs: 1000 }, ["now", "leaseOwner", "leaseMs"]));
+        await store.create(...partitionArgs({ value: { ...BASE, id: 'due', nextPollAt: 0 }, requiredKeys: ["id", "providerId", "routeKey", "ownerRef", "maxAttempts", "deadlineAt"] }));
+        await store.claimDue(...partitionArgs({ value: { now: 500, leaseOwner: 'w1', leaseMs: 1000 }, requiredKeys: ["now", "leaseOwner", "leaseMs"] }));
+        const reclaimed = await store.claimDue(...partitionArgs({ value: { now: 2000, leaseOwner: 'w2', leaseMs: 1000 }, requiredKeys: ["now", "leaseOwner", "leaseMs"] }));
         expect(reclaimed.map((r) => r.id)).toEqual(['due']);
         expect(reclaimed[0]!.leaseOwner).toBe('w2');
     });
     it('fences lease release on ownership — a late release from the previous owner must not clear a lease another worker has since reclaimed', async () => {
-        await store.create(...partitionArgs({ ...BASE, id: 'due', nextPollAt: 0 }, ["id", "providerId", "routeKey", "ownerRef", "maxAttempts", "deadlineAt"]));
-        await store.claimDue(...partitionArgs({ now: 0, leaseOwner: 'worker-A', leaseMs: 10 }, ["now", "leaseOwner", "leaseMs"]));
-        await store.claimDue(...partitionArgs({ now: 11, leaseOwner: 'worker-B', leaseMs: 1000 }, ["now", "leaseOwner", "leaseMs"]));
+        await store.create(...partitionArgs({ value: { ...BASE, id: 'due', nextPollAt: 0 }, requiredKeys: ["id", "providerId", "routeKey", "ownerRef", "maxAttempts", "deadlineAt"] }));
+        await store.claimDue(...partitionArgs({ value: { now: 0, leaseOwner: 'worker-A', leaseMs: 10 }, requiredKeys: ["now", "leaseOwner", "leaseMs"] }));
+        await store.claimDue(...partitionArgs({ value: { now: 11, leaseOwner: 'worker-B', leaseMs: 1000 }, requiredKeys: ["now", "leaseOwner", "leaseMs"] }));
         await store.releaseLease({ id: 'due', leaseOwner: 'worker-A' });
         const row = await store.get({ id: 'due' });
         expect(row?.leaseOwner).toBe('worker-B');
-        const stolen = await store.claimDue(...partitionArgs({ now: 12, leaseOwner: 'worker-C', leaseMs: 1000 }, ["now", "leaseOwner", "leaseMs"]));
+        const stolen = await store.claimDue(...partitionArgs({ value: { now: 12, leaseOwner: 'worker-C', leaseMs: 1000 }, requiredKeys: ["now", "leaseOwner", "leaseMs"] }));
         expect(stolen).toEqual([]);
     });
     it('fences update() on lease ownership — a stale worker cannot overwrite the row a newer owner already claimed', async () => {
-        await store.create(...partitionArgs({ ...BASE, id: 'due', nextPollAt: 0 }, ["id", "providerId", "routeKey", "ownerRef", "maxAttempts", "deadlineAt"]));
-        await store.claimDue(...partitionArgs({ now: 0, leaseOwner: 'worker-A', leaseMs: 10 }, ["now", "leaseOwner", "leaseMs"]));
-        await store.claimDue(...partitionArgs({ now: 100, leaseOwner: 'worker-B', leaseMs: 1000 }, ["now", "leaseOwner", "leaseMs"]));
+        await store.create(...partitionArgs({ value: { ...BASE, id: 'due', nextPollAt: 0 }, requiredKeys: ["id", "providerId", "routeKey", "ownerRef", "maxAttempts", "deadlineAt"] }));
+        await store.claimDue(...partitionArgs({ value: { now: 0, leaseOwner: 'worker-A', leaseMs: 10 }, requiredKeys: ["now", "leaseOwner", "leaseMs"] }));
+        await store.claimDue(...partitionArgs({ value: { now: 100, leaseOwner: 'worker-B', leaseMs: 1000 }, requiredKeys: ["now", "leaseOwner", "leaseMs"] }));
         await store.update({ id: 'due', patch: { status: 'polling', attempts: 7 } }, { options: { leaseOwner: 'worker-B' } });
         const result = await store.update({ id: 'due', patch: { status: 'polling', attempts: 1 } }, { options: { leaseOwner: 'worker-A' } });
         expect((await store.get({ id: 'due' }))?.attempts).toBe(7);
         expect(result?.attempts).toBe(7);
     });
     it('releases expired leases on boot WITHOUT terminating in-flight work', async () => {
-        await store.create(...partitionArgs({ ...BASE, id: 'inflight', nextPollAt: 0 }, ["id", "providerId", "routeKey", "ownerRef", "maxAttempts", "deadlineAt"]));
+        await store.create(...partitionArgs({ value: { ...BASE, id: 'inflight', nextPollAt: 0 }, requiredKeys: ["id", "providerId", "routeKey", "ownerRef", "maxAttempts", "deadlineAt"] }));
         await store.update({ id: 'inflight', patch: { status: 'polling' } });
-        await store.claimDue(...partitionArgs({ now: 0, leaseOwner: 'dead-process', leaseMs: 1000 }, ["now", "leaseOwner", "leaseMs"]));
+        await store.claimDue(...partitionArgs({ value: { now: 0, leaseOwner: 'dead-process', leaseMs: 1000 }, requiredKeys: ["now", "leaseOwner", "leaseMs"] }));
         const result = await store.reconcileOnBoot({ now: 9000 });
         const row = await store.get({ id: 'inflight' });
         expect(result.leasesReleased).toBe(1);
@@ -127,16 +127,16 @@ describe('createSqliteAsyncOperationStore — lifecycle parity with the in-memor
         expect(row?.leaseOwner).toBeNull();
     });
     it('marks an operation past its absolute deadline as unknown on boot, not succeeded', async () => {
-        await store.create(...partitionArgs({ ...BASE, id: 'expired', nextPollAt: 0, deadlineAt: 1000 }, ["id", "providerId", "routeKey", "ownerRef", "maxAttempts", "deadlineAt"]));
+        await store.create(...partitionArgs({ value: { ...BASE, id: 'expired', nextPollAt: 0, deadlineAt: 1000 }, requiredKeys: ["id", "providerId", "routeKey", "ownerRef", "maxAttempts", "deadlineAt"] }));
         await store.update({ id: 'expired', patch: { status: 'polling' } });
         const result = await store.reconcileOnBoot({ now: 50000 });
         expect(result.deadlineExpired).toBe(1);
         expect((await store.get({ id: 'expired' }))?.status).toBe('unknown');
     });
     it('listByOwner returns only that owner\'s rows, oldest first', async () => {
-        await store.create(...partitionArgs({ ...BASE, id: 'a', ownerRef: 'run-1' }, ["id", "providerId", "routeKey", "ownerRef", "maxAttempts", "deadlineAt"]));
-        await store.create(...partitionArgs({ ...BASE, id: 'b', ownerRef: 'run-2' }, ["id", "providerId", "routeKey", "ownerRef", "maxAttempts", "deadlineAt"]));
-        await store.create(...partitionArgs({ ...BASE, id: 'c', ownerRef: 'run-1' }, ["id", "providerId", "routeKey", "ownerRef", "maxAttempts", "deadlineAt"]));
+        await store.create(...partitionArgs({ value: { ...BASE, id: 'a', ownerRef: 'run-1' }, requiredKeys: ["id", "providerId", "routeKey", "ownerRef", "maxAttempts", "deadlineAt"] }));
+        await store.create(...partitionArgs({ value: { ...BASE, id: 'b', ownerRef: 'run-2' }, requiredKeys: ["id", "providerId", "routeKey", "ownerRef", "maxAttempts", "deadlineAt"] }));
+        await store.create(...partitionArgs({ value: { ...BASE, id: 'c', ownerRef: 'run-1' }, requiredKeys: ["id", "providerId", "routeKey", "ownerRef", "maxAttempts", "deadlineAt"] }));
         const rows = await store.listByOwner({ ownerRef: 'run-1' });
         expect(rows.map((r) => r.id)).toEqual(['a', 'c']);
     });
@@ -144,9 +144,9 @@ describe('createSqliteAsyncOperationStore — lifecycle parity with the in-memor
 
 describe('createSqliteAsyncOperationStore — durability across a real restart', () => {
     it('survives a process restart: a fresh store opened against the same file sees the in-flight operation intact', async () => {
-        await store.create(...partitionArgs({ ...BASE, id: 'inflight', nextPollAt: 0, state: { jobId: 'job-77' } }, ["id", "providerId", "routeKey", "ownerRef", "maxAttempts", "deadlineAt"]));
+        await store.create(...partitionArgs({ value: { ...BASE, id: 'inflight', nextPollAt: 0, state: { jobId: 'job-77' } }, requiredKeys: ["id", "providerId", "routeKey", "ownerRef", "maxAttempts", "deadlineAt"] }));
         await store.update({ id: 'inflight', patch: { status: 'polling', attempts: 3 } });
-        await store.claimDue(...partitionArgs({ now: 0, leaseOwner: 'worker-that-died', leaseMs: 1000 }, ["now", "leaseOwner", "leaseMs"]));
+        await store.claimDue(...partitionArgs({ value: { now: 0, leaseOwner: 'worker-that-died', leaseMs: 1000 }, requiredKeys: ["now", "leaseOwner", "leaseMs"] }));
         // The only thing that models a process restart for a file-backed store: close this handle
         // (as if the process exited) and open an entirely new one against the same path.
         await store.close();
@@ -167,7 +167,7 @@ describe('createSqliteAsyncOperationStore — durability across a real restart',
         store = await createSqliteAsyncOperationStore({ dbPath: dbPath }); // so afterEach's close() has a live handle
     });
     it('survives a restart with a succeeded terminal result, byte-identical', async () => {
-        await store.create(...partitionArgs({ ...BASE, id: 'done' }, ["id", "providerId", "routeKey", "ownerRef", "maxAttempts", "deadlineAt"]));
+        await store.create(...partitionArgs({ value: { ...BASE, id: 'done' }, requiredKeys: ["id", "providerId", "routeKey", "ownerRef", "maxAttempts", "deadlineAt"] }));
         await store.update({ id: 'done', patch: {
                 status: 'succeeded',
                 result: { bytesBase64: Buffer.from('DURABLE').toString('base64'), providerNote: 'polled done' },

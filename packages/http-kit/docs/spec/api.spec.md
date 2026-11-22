@@ -29,13 +29,13 @@ type JsonRouteSpec<I, O, D> = {
 };
 ```
 
-`ApiError`, run protocol/status values and tool outcomes come from `@jini-ai/protocol`, `@jini-ai/core` and `@jini-ai/daemon`. The consumer supplies a real Express app and any body parser/security middleware. `AdapterContext` requires `resolvedPortRef: {current:number}`; required `env: NodeJS.ProcessEnv`, `allowedOriginsEnvVar`, `webPortEnvVar`, `bindHostEnvVar`, and optional `onInternalError(context)` control origin configuration and private exception reporting.
+`ApiError`, run protocol/status values and tool outcomes come from `@jini-ai/protocol`, `@jini-ai/core` and `@jini-ai/daemon`. The consumer supplies a real Express app and any body parser/security middleware. `RouteHostContext` (from `@jini-ai/core/contracts/server`) requires `resolvedPortRef: {current:number}`; required `env: NodeJS.ProcessEnv`, `allowedOriginsEnvVar`, `webPortEnvVar`, `bindHostEnvVar`, and optional `onInternalError(context: RouteHostInternalErrorContext)` control origin configuration and private exception reporting.
 
 | Root export | Required object; optional object → result |
 |---|---|
 | `ok<T,E>` / `err<T,E>` | `{value: T}` / `{error: E}` → `Result<T,E>` |
 | `defineJsonRoute<I,O,D>` | `{method, path, parse, handle}`; `{requireSameOrigin?, successStatus?}` → `JsonRouteSpec<I,O,D>` |
-| `mountJsonRoute<I,O,D>` | `{app: Express, spec, deps: D, adapter: AdapterContext}` → `void` |
+| `mountJsonRoute<I,O,D>` | `{app: Express, spec, deps: D, adapter: RouteHostContext}` → `void` |
 | `ClientFacingError` | `new ClientFacingError({apiError}, {})` → `Error` with `apiError` |
 | `createCompatApiError` | `{code, message}`; `Omit<ApiError, 'code' \| 'message'>` → `ApiError` |
 | `createCompatApiErrorResponse` | Same input → `{error: ApiError}` |
@@ -79,9 +79,8 @@ Core origin configuration names the host environment keys explicitly. Api bearer
 | `createSseChannel<E extends SseEvent>` | `({res: ServerResponse}, {maxQueuedEvents?, isEndEvent?: ({event}) => boolean, formatEvent?: ({event}) => string, onWriteError?: ({error}) => void} = {}) => SseChannel<E>` |
 | `requestedAfterCursor` | **One object:** `(req: {get(name: string): string \| undefined; query: Record<string,unknown>}) => string \| null` |
 | `sendRawApiError` | `({res: ServerResponse, status, error: ApiError}, {}) => void` |
-| `createSseResponse` | `({req: IncomingMessage, res: ServerResponse}, {keepAliveMs?, onClose?: () => void, maxQueuedMessages?} = {}) => SseConnection` |
 
-`SseEvent = {opaqueCursor: string, kind: string}`. `SseChannel` methods: `enqueue({event}, {})`, `onClose({callback}, {})`, `open()`, `end()`, `abandon()`, all void; `isClosed() => boolean`. `SseConnection.send({data}, {}) => void`, `close() => void`, readonly `closed: boolean`. `DEFAULT_MAX_QUEUED_SSE_EVENTS = 1000` is public at root; the raw-message default is also 1000 but its constant is not root-exported.
+`SseEvent = {opaqueCursor: string, kind: string}`. `SseChannel` methods: `enqueue({event}, {})`, `onClose({callback}, {})`, `open()`, `end()`, `abandon()`, all void; `isClosed() => boolean`. `DEFAULT_MAX_QUEUED_SSE_EVENTS = 1000` is public at root.
 
 ## `/rate-limit`
 
@@ -123,7 +122,7 @@ const allowed = await registry.isAllowedRedirectTarget({ context: { workspaceId 
 
 ## `/observability`
 
-**One-object** `createRequestTrackingMiddleware({observability:HttpRequestObservabilityPort}) => RequestHandler`, `applyRequestTracking({app:Express,observability}) => void`. Port `trackRequest({method,path}) => {end({statusCode,routePattern}):void}`. Mount first so refusals/unmatched requests are recorded.
+**One-object** `createRequestTrackingMiddleware({observability:Pick<ObservabilityPort,'trackRequest'>}) => RequestHandler`, `applyRequestTracking({app:Express,observability}) => void`. Core `ObservabilityPort`; the slice used is `trackRequest({method,path}) => {end({statusCode,routePattern}):void}`. Mount first so refusals/unmatched requests are recorded.
 
 ```ts
 import { applyRequestTracking } from '@jini-ai/http-kit/observability';
@@ -132,7 +131,7 @@ applyRequestTracking({ app, observability: hostRequestMetrics });
 
 ## Public request/response primitives
 
-Root also exports `rawInput`, parser helpers, `sendJson`, `sendApiError`, `statusForError`, and `guardSameOrigin({ req, origin }, {} = {}): Result<void>` through their source barrels. AdapterContext extends required OriginContext. Root SSE defaults remain 1000 queued events; shared origin, response and error rules operate without domain store or runtime dependencies. See `src/request.ts` and `src/response.ts` for the concrete parser and status exports.
+Root also exports `rawInput`, parser helpers, `sendJson`, `sendApiError`, `statusForError`, and `guardSameOrigin({ req, origin }, {} = {}): Result<void>` through their source barrels. RouteHostContext extends required OriginContext. Root SSE defaults remain 1000 queued events; shared origin, response and error rules operate without domain store or runtime dependencies. See `src/request.ts` and `src/response.ts` for the concrete parser and status exports.
 
 Source: the five package export targets and `src/index.ts`. This is source-level verification; distribution and runtime behavior were not executed.
 
@@ -160,7 +159,6 @@ These names are also reachable through the current export map. Parameter declara
 | `ApiBearerAuthMiddlewareDeps`, `ApiOriginGuardMiddlewareDeps`, `StrictBearerTokenDeps` | type; [api-security-middleware.ts](../../src/api-security-middleware.ts) |
 | `ConfiguredOriginRequired`, `OriginBootPlan`, `OriginBootRequired` | type; [configured-origin.ts](../../src/verified-origin/configured-origin.ts) |
 | `CreateSseChannelOptions` | type; [sse.ts](../../src/sse.ts) |
-| `CreateSseResponseOptions` | type; [raw-sse.ts](../../src/raw-sse.ts) |
 | `EgressTargetContext`, `OriginRegistryPort`, `RedirectTargetContext`, `VerifiedOriginRequestContext` | type; [ports.ts](../../src/verified-origin/ports.ts) |
 | `InstallRouteRegistrationGuardOptions` | type; [route-registration-guard.ts](../../src/route-registration-guard.ts) |
 | `NormalizedTarget`, `OriginRegistryDeps` | type; [origin.ts](../../src/verified-origin/origin.ts) |

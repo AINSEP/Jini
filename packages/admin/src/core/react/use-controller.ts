@@ -1,6 +1,6 @@
 import { useEffect, useState, useSyncExternalStore, useCallback } from 'react';
 import type { DependencyList } from 'react';
-import type { ControllerStore } from '../module/controller-store.js';
+import { type ControllerStore } from '@jini-ai/core/admin-runtime';
 /** Factory runs after commit, never during render. Each effect attachment owns a fresh
  * controller, so StrictMode's cleanup/replay cannot revive a disposed controller. */
 export function useController<C extends ControllerStore<unknown>>(
@@ -16,7 +16,7 @@ export function useController<C extends ControllerStore<unknown>>(
     start?.({ controller: current });
     return () => current.dispose();
     // Dependencies are explicitly supplied by the owning hook, like useMemo's contract.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- controller owners supply the dynamic dependency list.
   }, dependencies);
   const subscribe = useCallback(
     (listener: () => void) => controller?.subscribe({ listener }) ?? (() => {}),

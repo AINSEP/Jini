@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { findFieldReadRefusal, findFieldFillRefusal, type FieldDescriptor, type FieldReadRefusal } from '../guards.js';
+import { findFieldReadRefusal, findFieldFillRefusal, type FieldReadRefusal } from '../guards.js';
+import type { FieldDescriptor } from '@jini-ai/core/agent-handles';
 
 describe('L077 secrecy guard precedence', () => {
   it.each([

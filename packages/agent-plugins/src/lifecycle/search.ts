@@ -78,6 +78,7 @@ export interface AgentPluginSearchCandidate {
   readonly keywords: readonly string[];
   readonly id?: string | undefined;
   readonly provides?: readonly string[] | undefined;
+  readonly requires?: readonly string[] | undefined;
 
   /** Whether this workspace currently has the plugin enabled — reflects `activation.ts`'s
    *  absent-means-active default, same as everywhere else this codebase reads activation state. */
@@ -223,7 +224,7 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
 
 const instances = new WeakMap<AgentPluginLifecyclePorts, ReturnType<typeof buildModule>>();
 /** Internal composition; one state/queue instance per injected host context. */
-export function createSearchModule(ports: AgentPluginLifecyclePorts) {
+export function createSearchModule(ports: AgentPluginLifecyclePorts, _optional: Record<string, never> = {}) {
   let instance = instances.get(ports);
   if (!instance) { instance = buildModule(ports); instances.set(ports, instance); }
   return instance;

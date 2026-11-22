@@ -1,13 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import type { MediaAsset } from '../models.js';
 import {
-  countMediaTabs, diffMediaMetadata, filterMediaByTab, formatByteSize,
+  countMediaTabs, diffMediaMetadata, filterMediaByTab,
   mediaEmbedSnippet, parseOptionalPixelSize, queryMedia, resolveActiveTab,
 } from '../rules.js';
 import {
   describeMediaHtmlAttributeError, isAllowedMediaHtmlAttributeName,
   parseMediaHtmlAttributes,
 } from '../html-attributes.js';
+import { realEmbedPolicy } from './fakes/embed-policy.js';
 
 // Portable guards from the legacy byte-size, type/count, order, tab and HTML-attribute suites.
 // These test outcomes rather than executing lines: rejection reasons and surviving tokens matter.
@@ -22,26 +23,6 @@ function asset(required: Partial<MediaAsset>, _optional: Record<string, never> =
   };
 }
 
-describe('legacy byte-size formatting', () => {
-  // 1024-based units must agree with upload caps; MB/GB keep precision so different clips
-  // do not misleadingly collapse to the same whole-number size.
-  it.each([
-    [0, '0 B'], [823, '823 B'], [823.6, '824 B'], [1023, '1023 B'],
-    [1024, '1 KB'], [839_680, '820 KB'], [1023 * 1024, '1023 KB'],
-    [1024 * 1024, '1.0 MB'], [9_961_472, '9.5 MB'],
-    [10 * 1024 * 1024, '10.0 MB'], [1024 ** 3, '1.0 GB'],
-    [1_288_490_189, '1.2 GB'],
-  ])('formats %s bytes as %s', (bytes, expected) => {
-    expect(formatByteSize({ bytes: bytes as number })).toBe(expected);
-  });
-  it('uses locale decimal separators and defaults to en-US', () => {
-    expect(formatByteSize({ bytes: 9_961_472 }, { locale: 'de-DE' })).toBe('9,5 MB');
-    expect(formatByteSize({ bytes: 9_961_472 })).toBe(
-      formatByteSize({ bytes: 9_961_472 }, { locale: 'en-US' }),
-    );
-  });
-});
-
 describe('legacy attribute-name allowlist', () => {
   it.each([
     'data-motion', 'data-anything-at-all', 'data-x-1', 'aria-hidden', 'aria-label',
@@ -49,7 +30,7 @@ describe('legacy attribute-name allowlist', () => {
     'muted', 'loop', 'autoplay', 'poster', 'class', 'id', 'style', 'title', 'role',
     'tabindex', 'lang', 'dir', 'hidden', 'translate', 'draggable',
   ])('accepts well-formed allowed name %s', (name) => {
-    expect(isAllowedMediaHtmlAttributeName({ name })).toBe(true);
+    expect(isAllowedMediaHtmlAttributeName({ policy: realEmbedPolicy, name })).toBe(true);
   });
   // Prefix acceptance alone once admitted names that closed the tag. Escaping the VALUE
   // cannot protect a renderer that interpolates an unconstrained NAME.
@@ -57,22 +38,22 @@ describe('legacy attribute-name allowlist', () => {
     'href', 'srcdoc', 'formaction', 'x-data-foo', 'onerror', 'onclick',
     'data-x><svg/onload', 'data-a/onerror', 'aria-x<img', 'data-x`y', 'data-x>', 'aria-]',
   ])('rejects disallowed or tag-breaking name %s', (name) => {
-    expect(isAllowedMediaHtmlAttributeName({ name })).toBe(false);
+    expect(isAllowedMediaHtmlAttributeName({ policy: realEmbedPolicy, name })).toBe(false);
   });
 });
 
 describe('legacy HTML-attribute parsing', () => {
   it.each(['', '   '])('returns no attributes or errors for an empty draft %j', (text) => {
-    expect(parseMediaHtmlAttributes({ text })).toEqual({ attributes: {}, errors: [], error: null });
+    expect(parseMediaHtmlAttributes({ policy: realEmbedPolicy, text })).toEqual({ attributes: {}, errors: [], error: null });
   });
   it('parses quoted, single-quoted, unquoted and boolean tokens without changing values', () => {
-    expect(parseMediaHtmlAttributes({ text: `DATA-Motion="Fade" aria-label='hello' loading=lazy muted` })).toEqual({
+    expect(parseMediaHtmlAttributes({ policy: realEmbedPolicy, text: `DATA-Motion="Fade" aria-label='hello' loading=lazy muted` })).toEqual({
       attributes: { 'data-motion': 'Fade', 'aria-label': 'hello', loading: 'lazy', muted: '' },
       errors: [], error: null,
     });
   });
   it('accepts safe global styling/a11y attributes, including ordinary CSS url()', () => {
-    expect(parseMediaHtmlAttributes({ text: `style="color:red;background:url(/hero.png)" id="hero" role=img tabindex=0` })).toEqual({
+    expect(parseMediaHtmlAttributes({ policy: realEmbedPolicy, text: `style="color:red;background:url(/hero.png)" id="hero" role=img tabindex=0` })).toEqual({
       attributes: { style: 'color:red;background:url(/hero.png)', id: 'hero', role: 'img', tabindex: '0' },
       errors: [], error: null,
     });
@@ -93,7 +74,7 @@ describe('legacy HTML-attribute parsing', () => {
     ['data-x><svg/onload=alert(1)', 'disallowed-name', 'data-x><svg/onload'],
   ] as const)('rejects %s with its specific reason', (text, reason, attribute) => {
     const error = { reason, attribute };
-    expect(parseMediaHtmlAttributes({ text })).toEqual({ attributes: {}, errors: [error], error });
+    expect(parseMediaHtmlAttributes({ policy: realEmbedPolicy, text })).toEqual({ attributes: {}, errors: [error], error });
   });
   // Browsers strip interior ASCII whitespace from URL schemes. CSS escape sequences can
   // respell dangerous words, so a backslash is itself rejected rather than trusted.
@@ -102,14 +83,14 @@ describe('legacy HTML-attribute parsing', () => {
     '-moz-binding:url(x)', 'behavior:url(x)', '@import url(x)', 'color:\\65xpression(x)',
   ])('rejects CSS injection/escape vector %s despite allowing style itself', (value) => {
     const error = { reason: 'unsafe-style', attribute: 'style' };
-    expect(parseMediaHtmlAttributes({ text: `style="${value}"` })).toEqual({
+    expect(parseMediaHtmlAttributes({ policy: realEmbedPolicy, text: `style="${value}"` })).toEqual({
       attributes: {}, errors: [error], error,
     });
   });
   it('keeps good tokens around rejected tokens and records every rejection in order', () => {
     // A per-token rejection drops only that token. All-or-nothing rejection here would
     // silently remove independent, valid attributes from the operator's draft.
-    expect(parseMediaHtmlAttributes({ text: 'data-motion="fade-in" formaction="/x" loading="lazy" onerror="alert(1)" aria-label="hello"' })).toEqual({
+    expect(parseMediaHtmlAttributes({ policy: realEmbedPolicy, text: 'data-motion="fade-in" formaction="/x" loading="lazy" onerror="alert(1)" aria-label="hello"' })).toEqual({
       attributes: { 'data-motion': 'fade-in', loading: 'lazy', 'aria-label': 'hello' },
       errors: [
         { reason: 'disallowed-name', attribute: 'formaction' },
@@ -121,13 +102,13 @@ describe('legacy HTML-attribute parsing', () => {
   it.each(['loading="lazy" "stray-quote"', 'loading="lazy" "', '" loading="lazy"'])('fails the whole map closed when tokenization loses sync: %s', (text) => {
     // Malformed is different: downstream boundaries cannot be trusted because value
     // text might be misread as a new attribute name. Even already-accepted tokens are discarded.
-    const parsed = parseMediaHtmlAttributes({ text });
+    const parsed = parseMediaHtmlAttributes({ policy: realEmbedPolicy, text });
     expect(parsed.attributes).toEqual({});
     expect(parsed.error?.reason).toBe('malformed');
     expect(parsed.errors).toEqual([parsed.error]);
   });
   it('retains prior rejection diagnostics while a malformed fragment clears accepted tokens', () => {
-    const parsed = parseMediaHtmlAttributes({ text: 'onerror=x loading=lazy "' });
+    const parsed = parseMediaHtmlAttributes({ policy: realEmbedPolicy, text: 'onerror=x loading=lazy "' });
     expect(parsed.attributes).toEqual({});
     expect(parsed.errors).toEqual([
       { reason: 'event-handler', attribute: 'onerror' }, { reason: 'malformed', attribute: '"' },

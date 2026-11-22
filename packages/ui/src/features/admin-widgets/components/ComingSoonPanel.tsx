@@ -14,7 +14,7 @@ export interface ComingSoonPanelProps {
 /** Keeps preview content mounted inside an inert subtree, with caller-supplied status copy. */
 export function ComingSoonPanel({ label, note, children }: ComingSoonPanelProps) {
   return (
-    <div className="coming-soon-panel">
+    <div className="jini-coming-soon-panel">
       <p className="settings-ui-inert-note" role="note">
         <strong>{label}</strong>
         {note ? <> {note}</> : null}

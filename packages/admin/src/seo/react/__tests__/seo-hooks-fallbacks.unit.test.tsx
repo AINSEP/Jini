@@ -1,8 +1,8 @@
 import type { ReactNode } from 'react';
-import { act, cleanup, renderHook, waitFor } from '@testing-library/react';
+import { act, cleanup, renderHook, waitFor } from './harness/render.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { FetchQueryProvider } from '@jini-ai/ui/fetch-query';
-import { AdminConfigError } from '../../../core/module/index.js';
+import { AdminConfigError } from '@jini-ai/core/admin-runtime';
 import { createMemorySeoApi } from '../../adapters/memory.js';
 import type { AdminSeoPort } from '../../ports.js';
 import { sitemapStateLabel, useSeoPorts } from '../index.js';

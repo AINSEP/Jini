@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/agent-plugins",
-  "version": "0.7.2",
+  "version": "0.7.3-next.2",
   "description": "Support for Agent Plugins: vendor-neutral manifest types and validators, installation, activation, digests and trusted contribution loading. Every Jini agent plugin ships here as its own subpath (@jini-ai/agent-plugins/<id>); resolving one never loads another plugin's files.",
   "license": "Apache-2.0",
   "repository": {
@@ -15,7 +15,6 @@
     "entries": {
       ".": "universal",
       "./lifecycle": "node",
-      "./lifecycle/node": "node",
       "./lifecycle/yauzl": "node",
       "./lifecycle/tools": "node",
       "./lifecycle/host-tools": "node",
@@ -50,6 +49,8 @@
       "./higgsfield-media/*": "universal",
       "./jev": "universal",
       "./jev/*": "universal",
+      "./kuinetic": "universal",
+      "./kuinetic/*": "universal",
       "./meilisearch": "universal",
       "./meilisearch/*": "universal",
       "./netlify": "universal",
@@ -68,6 +69,8 @@
       "./s3-compatible/*": "universal",
       "./sentry": "universal",
       "./sentry/*": "universal",
+      "./shadcn-ui": "universal",
+      "./shadcn-ui/*": "universal",
       "./shopify": "universal",
       "./shopify/*": "universal",
       "./site-compliance": "universal",
@@ -100,7 +103,8 @@
       "./connect": "universal",
       "./connect/executable": "universal",
       "./connect/plugin-host": "universal",
-      "./admin-surfaces/connections": "universal"
+      "./admin-surfaces/connections": "universal",
+      "./admin-surfaces/node": "node"
     },
     "isolation": {
       "entries": {
@@ -119,7 +123,6 @@
     },
     "optionalPeers": {
       "yauzl": "opt-in: plugin zip import — Plugin ZIP import could not load yauzl. Install yauzl to enable this feature, or check its installed version and native binaries.",
-      "@jini-ai/platform": "opt-in: platform-backed adapters; import @jini-ai/agent-plugins/lifecycle — Platform-backed adapters could not load @jini-ai/platform. Install @jini-ai/platform to enable this feature, or check its installed version and native binaries.",
       "@cfworker/json-schema": "opt-in: json schema validation; import @jini-ai/agent-plugins/lifecycle/tools, import @jini-ai/agent-plugins/connect/executable — JSON Schema validation could not load @cfworker/json-schema. Install @cfworker/json-schema to enable this feature, or check its installed version and native binaries.",
       "semver": "opt-in: plugin version compatibility; import @jini-ai/agent-plugins/lifecycle, import @jini-ai/agent-plugins/lifecycle/host-tools — Plugin version compatibility could not load semver. Install semver to enable this feature, or check its installed version and native binaries.",
       "@jini-ai/commerce": "opt-in: commerce server; import @jini-ai/agent-plugins/commerce/server — Commerce checkout requires the host commerce kernel."
@@ -137,11 +140,6 @@
       "types": "./dist/lifecycle/index.d.ts",
       "import": "./dist/lifecycle/index.js",
       "default": "./dist/lifecycle/index.js"
-    },
-    "./lifecycle/node": {
-      "types": "./dist/lifecycle/node.d.ts",
-      "import": "./dist/lifecycle/node.js",
-      "default": "./dist/lifecycle/node.js"
     },
     "./lifecycle/yauzl": {
       "types": "./dist/lifecycle/yauzl-archive-reader.d.ts",
@@ -217,6 +215,8 @@
     "./higgsfield-media/*": "./higgsfield-media/*",
     "./jev": "./jev/plugin.json",
     "./jev/*": "./jev/*",
+    "./kuinetic": "./kuinetic/plugin.json",
+    "./kuinetic/*": "./kuinetic/*",
     "./meilisearch": "./meilisearch/plugin.json",
     "./meilisearch/*": "./meilisearch/*",
     "./netlify": "./netlify/plugin.json",
@@ -235,6 +235,8 @@
     "./s3-compatible/*": "./s3-compatible/*",
     "./sentry": "./sentry/plugin.json",
     "./sentry/*": "./sentry/*",
+    "./shadcn-ui": "./shadcn-ui/plugin.json",
+    "./shadcn-ui/*": "./shadcn-ui/*",
     "./shopify": "./shopify/plugin.json",
     "./shopify/*": "./shopify/*",
     "./site-compliance": "./site-compliance/plugin.json",
@@ -287,6 +289,11 @@
       "types": "./dist/admin-surfaces/connections/index.d.ts",
       "import": "./dist/admin-surfaces/connections/index.js",
       "default": "./dist/admin-surfaces/connections/index.js"
+    },
+    "./admin-surfaces/node": {
+      "types": "./dist/admin-surfaces/node.d.ts",
+      "import": "./dist/admin-surfaces/node.js",
+      "default": "./dist/admin-surfaces/node.js"
     }
   },
   "files": [
@@ -318,6 +325,7 @@
     "google-workspace",
     "higgsfield-media",
     "jev",
+    "kuinetic",
     "meilisearch",
     "netlify",
     "opentelemetry",
@@ -327,6 +335,7 @@
     "resend",
     "s3-compatible",
     "sentry",
+    "shadcn-ui",
     "shopify",
     "site-compliance",
     "site-import",
@@ -352,10 +361,10 @@
     "test:coverage": "vitest run --coverage"
   },
   "devDependencies": {
-    "@vitest/coverage-v8": "^2.1.9",
+    "@vitest/coverage-v8": "^3.2.6",
     "yazl": "^3.3.1",
-    "@jini-ai/core": "^0.7.2",
-    "@jini-ai/platform": "^0.7.2",
+    "@jini-ai/core": "workspace:^",
+    "@jini-ai/platform": "workspace:^",
     "@cfworker/json-schema": "^4.1.1",
     "@jini-ai/cms": "workspace:^",
     "@jini-ai/plugins": "workspace:^",
@@ -363,22 +372,18 @@
     "semver": "^7.6.2",
     "@jini-ai/oauth": "workspace:^",
     "fast-check": "4.3.0",
-    "jsdom": "^25.0.1",
+    "jsdom": "^26.1.0",
     "esbuild": "^0.28.1"
   },
   "peerDependencies": {
     "yauzl": "^3.4.0",
-    "@jini-ai/core": "^0.7.0",
-    "@jini-ai/platform": "^0.7.0",
+    "@jini-ai/core": "^0.7.3-next.2",
     "@cfworker/json-schema": "^4.1.1",
     "semver": "^7.6.2",
-    "@jini-ai/commerce": "^0.7.0"
+    "@jini-ai/commerce": "^0.7.3-next.2"
   },
   "peerDependenciesMeta": {
     "yauzl": {
-      "optional": true
-    },
-    "@jini-ai/platform": {
       "optional": true
     },
     "@cfworker/json-schema": {

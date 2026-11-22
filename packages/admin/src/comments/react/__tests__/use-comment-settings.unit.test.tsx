@@ -1,7 +1,8 @@
-import { act, renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "../../../__tests__/fetch-query-support.js";
 import { describe, expect, it, vi } from "vitest";
 
-import { FetchQueryProvider, useFetchQuery, useInvalidate } from "@jini-ai/ui/fetch-query";
+import { FetchQueryProvider } from "@jini-ai/ui/fetch-query";
+import { useFetchQuery, useInvalidate } from "../../../react/kit.js";
 import { createFakeCommentSettingsPort } from "./support.js";
 import { useCommentSettings } from "./support.js";
 import { KEYS } from "../../rules.js";
@@ -66,7 +67,8 @@ describe("useCommentSettings", () => {
     const { result } = renderHook(() => useCommentSettings(true, { port, locale: "en" }), { wrapper });
 
     await waitFor(() => expect(result.current.error).not.toBeNull());
-    expect(result.current.error).toBe("network down");
+    // Only an AdminApiError's own words reach the screen; a port's plain Error shows the fallback.
+    expect(result.current.error).toBe("failed to load Comments settings");
   });
 
   it("save sends only the changed field through the injected port and sets settings + notice", async () => {
@@ -159,7 +161,7 @@ describe("useCommentSettings", () => {
       await result.current.save(formWithMaxDepth("5"));
     });
 
-    expect(result.current.error).toBe("stale version");
+    expect(result.current.error).toBe("failed to save Comments settings");
     expect(result.current.notice).toBeNull();
   });
 });

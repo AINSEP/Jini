@@ -116,14 +116,92 @@ export interface MemoryConfigController {
   hydrate: (list: MemoryListResponse, revision: number) => void;
 }
 
-export function useMemoryConfig(port: MemoryConfigPort): MemoryConfigController {
-  const [enabled, setEnabled] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+type HydrationGuard = ReturnType<typeof createAsyncCommitGuard>;
+
+interface OptimisticToggleContext {
+  guard: HydrationGuard;
+  queue: ConfigWriteQueue;
+  setError: (error: string | null) => void;
+  setValue: (value: boolean) => void;
+  getConfirmed: () => boolean;
+  setConfirmed: (value: boolean) => void;
+  send: (value: boolean) => Promise<boolean>;
+}
+
+/** Optimistically set a flag, then write it through its queue; roll back to server truth on a failed write with no newer intent. */
+function runOptimisticToggle({ ctx, next }: { ctx: OptimisticToggleContext; next: boolean }): Promise<void> {
+  ctx.guard.invalidate();
+  ctx.setError(null);
+  ctx.setValue(next);
+  return enqueueConfigWrite(ctx.queue, next, ctx.send, (ok, value, hasNewerIntent) => {
+    // Invalidate again at SETTLE, not just at the optimistic start: a
+    // reload() can capture this guard's revision anywhere during the
+    // in-flight window (after the start-invalidate, before this callback
+    // runs) and still observe a pre-write server snapshot once its GET
+    // resolves. Only invalidating at start left that window open —
+    // hasUnsettledConfigWrite() had already flipped false by the time
+    // such a read's response arrived, so hydrate() applied it anyway.
+    ctx.guard.invalidate();
+    if (ok) {
+      ctx.setConfirmed(value);
+      if (!hasNewerIntent) ctx.setError(null);
+      return;
+    }
+    if (hasNewerIntent) return;
+    ctx.setValue(ctx.getConfirmed());
+    ctx.setError(CONFIG_SAVE_ERROR_MESSAGE);
+  });
+}
+
+/**
+ * A list response can have raced an optimistic PATCH. Keep both the
+ * visible value and its rollback baseline untouched until that setting's
+ * queue settles; the write's onSettled callback then reconciles it.
+ */
+function hydrateFlag({ queue, next, apply }: {
+  queue: ConfigWriteQueue;
+  next: boolean;
+  apply: (value: boolean) => void;
+}) {
+  if (!hasUnsettledConfigWrite(queue)) apply(next);
+}
+
+const HOOK_FLAG_KEYS: MemoryConfigFlagKey[] = ['chatExtractionEnabled', 'profileEnabled', 'rewriteEnabled', 'verifyEnabled'];
+
+/** The four per-hook flags: state plus a per-key setter. */
+function useHookFlagState() {
   const [chatExtractionEnabled, setChatExtractionEnabled] = useState(true);
   const [profileEnabled, setProfileEnabled] = useState(true);
   const [rewriteEnabled, setRewriteEnabled] = useState(true);
   const [verifyEnabled, setVerifyEnabled] = useState(true);
 
+  // Map each hook key to its setter so a single optimistic-set + rollback path
+  // covers all four toggles.
+  const setters = useMemo<Record<MemoryConfigFlagKey, (fn: (cur: boolean) => boolean) => void>>(
+    () => ({
+      profileEnabled: setProfileEnabled,
+      rewriteEnabled: setRewriteEnabled,
+      verifyEnabled: setVerifyEnabled,
+      chatExtractionEnabled: setChatExtractionEnabled,
+    }),
+    [],
+  );
+
+  const hookFlags = useMemo<Record<MemoryConfigFlagKey, boolean>>(
+    () => ({
+      profileEnabled,
+      rewriteEnabled,
+      verifyEnabled,
+      chatExtractionEnabled,
+    }),
+    [profileEnabled, rewriteEnabled, verifyEnabled, chatExtractionEnabled],
+  );
+
+  return { hookFlags, setters };
+}
+
+/** Write-queue and rollback bookkeeping refs shared by the toggles and hydration. */
+function useConfigWriteRefs() {
   // Each toggle flips its own state optimistically the instant it's clicked,
   // but the PATCHes themselves are serialized per setting through a write
   // queue: rollback bookkeeping alone would keep the LOCAL state consistent
@@ -149,134 +227,95 @@ export function useMemoryConfig(port: MemoryConfigPort): MemoryConfigController 
   // guard joins the two lifetimes: a reload captures before its GET begins and
   // hydrate ignores it when a toggle has invalidated that snapshot meanwhile.
   const hydrationGuardRef = useRef(createAsyncCommitGuard());
+  return { enabledConfirmedRef, enabledQueueRef, hookConfirmedRef, hookQueuesRef, hydrationGuardRef };
+}
 
-  const captureHydrationRevision = useCallback(() => hydrationGuardRef.current.capture(), []);
+interface ConfigHydrationDeps {
+  refs: ReturnType<typeof useConfigWriteRefs>;
+  setEnabled: (value: boolean) => void;
+  setters: ReturnType<typeof useHookFlagState>['setters'];
+}
+
+/** Hydrate every flag from a fresh list response, unless a toggle invalidated the capture or is still writing. */
+function useConfigHydration({ refs, setEnabled, setters }: ConfigHydrationDeps) {
+  const { enabledConfirmedRef, enabledQueueRef, hookConfirmedRef, hookQueuesRef, hydrationGuardRef } = refs;
+
+  const captureHydrationRevision = useCallback(() => hydrationGuardRef.current.capture(), [hydrationGuardRef]);
 
   const hydrate = useCallback((list: MemoryListResponse, revision: number) => {
     if (!hydrationGuardRef.current.isCurrent(revision)) return;
-    const next = {
-      enabled: list.enabled,
-      chatExtractionEnabled: list.chatExtractionEnabled !== false,
-      profileEnabled: list.profileEnabled !== false,
-      rewriteEnabled: list.rewriteEnabled !== false,
-      verifyEnabled: list.verifyEnabled !== false,
-    };
+    hydrateFlag({
+      queue: enabledQueueRef.current,
+      next: list.enabled,
+      apply: (value) => {
+      setEnabled(value);
+      enabledConfirmedRef.current = value;
+    },
+    });
+    for (const key of HOOK_FLAG_KEYS) {
+      hydrateFlag({
+        queue: hookQueuesRef.current[key],
+        next: list[key] !== false,
+        apply: (value) => {
+        setters[key](() => value);
+        hookConfirmedRef.current[key] = value;
+      },
+      });
+    }
+  }, [setters, enabledConfirmedRef, enabledQueueRef, hookConfirmedRef, hookQueuesRef, hydrationGuardRef, setEnabled]);
 
-    // A list response can have raced an optimistic PATCH. Keep both the
-    // visible value and its rollback baseline untouched until that setting's
-    // queue settles; the write's onSettled callback then reconciles it.
-    if (!hasUnsettledConfigWrite(enabledQueueRef.current)) {
-      setEnabled(next.enabled);
-      enabledConfirmedRef.current = next.enabled;
-    }
-    if (!hasUnsettledConfigWrite(hookQueuesRef.current.chatExtractionEnabled)) {
-      setChatExtractionEnabled(next.chatExtractionEnabled);
-      hookConfirmedRef.current.chatExtractionEnabled = next.chatExtractionEnabled;
-    }
-    if (!hasUnsettledConfigWrite(hookQueuesRef.current.profileEnabled)) {
-      setProfileEnabled(next.profileEnabled);
-      hookConfirmedRef.current.profileEnabled = next.profileEnabled;
-    }
-    if (!hasUnsettledConfigWrite(hookQueuesRef.current.rewriteEnabled)) {
-      setRewriteEnabled(next.rewriteEnabled);
-      hookConfirmedRef.current.rewriteEnabled = next.rewriteEnabled;
-    }
-    if (!hasUnsettledConfigWrite(hookQueuesRef.current.verifyEnabled)) {
-      setVerifyEnabled(next.verifyEnabled);
-      hookConfirmedRef.current.verifyEnabled = next.verifyEnabled;
-    }
-  }, []);
+  return { captureHydrationRevision, hydrate };
+}
+
+export function useMemoryConfig(port: MemoryConfigPort): MemoryConfigController {
+  const [enabled, setEnabled] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const { hookFlags, setters } = useHookFlagState();
+
+  const refs = useConfigWriteRefs();
+  const { enabledConfirmedRef, enabledQueueRef, hookConfirmedRef, hookQueuesRef, hydrationGuardRef } = refs;
+
+  const { captureHydrationRevision, hydrate } = useConfigHydration({ refs, setEnabled, setters });
 
   const onToggleEnabled = useCallback(
-    (next: boolean) => {
-      hydrationGuardRef.current.invalidate();
-      setError(null);
-      setEnabled(next);
-      return enqueueConfigWrite(
-        enabledQueueRef.current,
-        next,
-        (value) => port.patchConfig(enabledPatch(value)),
-        (ok, value, hasNewerIntent) => {
-          // Invalidate again at SETTLE, not just at the optimistic start: a
-          // reload() can capture this guard's revision anywhere during the
-          // in-flight window (after the start-invalidate, before this callback
-          // runs) and still observe a pre-write server snapshot once its GET
-          // resolves. Only invalidating at start left that window open —
-          // hasUnsettledConfigWrite() had already flipped false by the time
-          // such a read's response arrived, so hydrate() applied it anyway.
-          hydrationGuardRef.current.invalidate();
-          if (ok) {
+    (next: boolean) =>
+      runOptimisticToggle({
+        ctx: {
+          guard: hydrationGuardRef.current,
+          queue: enabledQueueRef.current,
+          setError,
+          setValue: setEnabled,
+          getConfirmed: () => enabledConfirmedRef.current,
+          setConfirmed: (value) => {
             enabledConfirmedRef.current = value;
-            if (!hasNewerIntent) setError(null);
-            return;
-          }
-          if (hasNewerIntent) return;
-          setEnabled(enabledConfirmedRef.current);
-          setError(CONFIG_SAVE_ERROR_MESSAGE);
+          },
+          send: (value) => port.patchConfig(enabledPatch({ enabled: value })),
         },
-      );
-    },
+        next,
+      }),
     [port],
   );
 
-  // Map each hook key to its setter so a single optimistic-set + rollback path
-  // covers all four toggles.
-  const setters = useMemo<Record<MemoryConfigFlagKey, (fn: (cur: boolean) => boolean) => void>>(
-    () => ({
-      profileEnabled: setProfileEnabled,
-      rewriteEnabled: setRewriteEnabled,
-      verifyEnabled: setVerifyEnabled,
-      chatExtractionEnabled: setChatExtractionEnabled,
-    }),
-    [],
-  );
-
   const onToggleHook = useCallback(
-    (key: MemoryConfigFlagKey, next: boolean) => {
-      hydrationGuardRef.current.invalidate();
-      setError(null);
-      const setter = setters[key];
-      setter(() => next);
-      return enqueueConfigWrite(
-        hookQueuesRef.current[key],
-        next,
-        (value) => port.patchConfig(singleFlagPatch(key, value)),
-        (ok, value, hasNewerIntent) => {
-          // See onToggleEnabled above for why settle needs its own invalidate.
-          hydrationGuardRef.current.invalidate();
-          if (ok) {
+    (key: MemoryConfigFlagKey, next: boolean) =>
+      runOptimisticToggle({
+        ctx: {
+          guard: hydrationGuardRef.current,
+          queue: hookQueuesRef.current[key],
+          setError,
+          setValue: (value) => setters[key](() => value),
+          getConfirmed: () => hookConfirmedRef.current[key],
+          setConfirmed: (value) => {
             hookConfirmedRef.current[key] = value;
-            if (!hasNewerIntent) setError(null);
-            return;
-          }
-          if (hasNewerIntent) return;
-          setter(() => hookConfirmedRef.current[key]);
-          setError(CONFIG_SAVE_ERROR_MESSAGE);
+          },
+          send: (value) => port.patchConfig(singleFlagPatch({ flag: key, value })),
         },
-      );
-    },
+        next,
+      }),
     [port, setters],
   );
 
-  const hookFlags = useMemo<Record<MemoryConfigFlagKey, boolean>>(
-    () => ({
-      profileEnabled,
-      rewriteEnabled,
-      verifyEnabled,
-      chatExtractionEnabled,
-    }),
-    [profileEnabled, rewriteEnabled, verifyEnabled, chatExtractionEnabled],
-  );
-
-  return {
-    enabled,
-    error,
-    hookFlags,
-    onToggleEnabled,
-    onToggleHook,
-    captureHydrationRevision,
-    hydrate,
-  };
+  return { enabled, error, hookFlags, onToggleEnabled, onToggleHook, captureHydrationRevision, hydrate };
 }
 
 /**

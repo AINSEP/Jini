@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { createVerifiedOrigin, InMemoryOriginSettingRepo, OriginRegistry } from "@jini-ai/http-kit/verified-origin";
+import {
+  createVerifiedOrigin,
+  InMemoryOriginSettingRepo,
+  OriginRegistry,
+} from "@jini-ai/core/contracts/server/verified-origin";
 import { toNetlifyRedirects, toVercelRedirects } from "../host-config/index.js";
 import type { RedirectTargetOracle } from "../target-gate.js";
 import type { RedirectRecord } from "../types.js";

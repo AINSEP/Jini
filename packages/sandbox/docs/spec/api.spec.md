@@ -11,7 +11,7 @@ spec_mode: reverse_spec
 
 The export map exposes `@jini-ai/sandbox/core`, `@jini-ai/sandbox/e2b`, and `@jini-ai/sandbox/node-worker`, with ESM and CommonJS branches. There is no root import. `./core` loads no optional adapter. `./e2b` requires the optional `@e2b/code-interpreter` peer; `./node-worker` uses Node worker threads.
 
-Signatures describe current source. `optional = {}` means a source default; `optional?` means the declaration permits omission. One-object and zero-argument APIs are current exceptions to the `(required, optional = {})` convention. This specification does not fabricate converted methods or relocate shared types.
+Signatures describe current source. `optional = {}` means a source default; `optional?` means the declaration permits omission. Plain helper functions take `(required, optional = {})`; signatures below may omit empty optional objects. Port methods retain their declared signatures. This specification does not fabricate converted methods or relocate shared types.
 
 ## `./core`: consumer-supplied provider
 

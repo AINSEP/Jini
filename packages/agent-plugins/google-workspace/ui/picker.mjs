@@ -20,22 +20,22 @@ function render(bootstrap) {
   const ready = bootstrap !== undefined && bootstrap.mode !== 'unavailable';
   // Ready: the intro is the heading's explanation and Choose sits in the header; otherwise the
   // reason it is unavailable is the visible notice.
-  show(app,
-    ready ? null : h('p', { class: 'notice warn intro' }, [pickerIntro({ bootstrap })]),
+  show({ root: app },
+    { nodes: [ready ? null : h({ tag: 'p' }, { props: { class: 'notice warn intro' }, children: [pickerIntro({ bootstrap })] }),
     status ? notice({ text: status, tone: statusTone }) : null,
-    h('section', { class: 'card', 'aria-labelledby': 'picked-heading' }, [
-      h('div', { class: 'head' }, [
-        h('h2', { id: 'picked-heading' }, ['Chosen spreadsheets']),
-        ready ? tip('About choosing a spreadsheet', pickerIntro({ bootstrap }), { bodyClass: 'intro' }) : null,
-        ready ? h('div', { class: 'actions end' }, [
-          h('button', { type: 'button', class: 'primary', disabled: waiting, onClick: () => choose(bootstrap) }, ['Choose spreadsheet']),
-          waiting && bootstrap.mode === 'system-browser' ? h('button', { type: 'button', onClick: () => { stopRequested = true; status = 'Stopping…'; render(bootstrap); } }, ['Stop waiting']) : null,
-        ]) : null,
-      ]),
-      picked.length === 0 ? h('p', { class: 'muted empty' }, ['None yet.']) : h('ul', { class: 'rows' }, picked.map((sheet) => h('li', { class: 'sheet' }, [
-        h('strong', {}, [sheet.title]), ' ', h('code', {}, [sheet.spreadsheetId]),
-      ]))),
-    ]));
+    h({ tag: 'section' }, { props: { class: 'card', 'aria-labelledby': 'picked-heading' }, children: [
+      h({ tag: 'div' }, { props: { class: 'head' }, children: [
+        h({ tag: 'h2' }, { props: { id: 'picked-heading' }, children: ['Chosen spreadsheets'] }),
+        ready ? tip({ label: 'About choosing a spreadsheet', text: pickerIntro({ bootstrap }) }, { bodyClass: 'intro' }) : null,
+        ready ? h({ tag: 'div' }, { props: { class: 'actions end' }, children: [
+          h({ tag: 'button' }, { props: { type: 'button', class: 'primary', disabled: waiting, onClick: () => choose(bootstrap) }, children: ['Choose spreadsheet'] }),
+          waiting && bootstrap.mode === 'system-browser' ? h({ tag: 'button' }, { props: { type: 'button', onClick: () => { stopRequested = true; status = 'Stopping…'; render(bootstrap); } }, children: ['Stop waiting'] }) : null,
+        ] }) : null,
+      ] }),
+      picked.length === 0 ? h({ tag: 'p' }, { props: { class: 'muted empty' }, children: ['None yet.'] }) : h({ tag: 'ul' }, { props: { class: 'rows' }, children: picked.map((sheet) => h({ tag: 'li' }, { props: { class: 'sheet' }, children: [
+        h({ tag: 'strong' }, { props: {}, children: [sheet.title] }), ' ', h({ tag: 'code' }, { props: {}, children: [sheet.spreadsheetId] }),
+      ] })) }),
+    ] })] });
 }
 
 async function refresh(bootstrap) {
@@ -55,12 +55,12 @@ async function choose(bootstrap) {
     if (chosen) status = selectedText({ spreadsheet: chosen });
     else status ||= CANCELLED_TEXT;
   } catch (error) {
-    status = failureText(error);
+    status = failureText({ error });
     statusTone = 'error';
   }
   waiting = false;
   // A failed refresh must still re-render: the last render showed Choose disabled (waiting).
-  await refresh(bootstrap).catch((error) => { status = failureText(error); statusTone = 'error'; render(bootstrap); });
+  await refresh(bootstrap).catch((error) => { status = failureText({ error }); statusTone = 'error'; render(bootstrap); });
 }
 
 /**
@@ -69,7 +69,7 @@ async function choose(bootstrap) {
  * last line starts the real one.
  * @param {{ window: Window, document: Document }} required
  */
-export function initPickerPanel(required) {
+export function initPickerPanel(required, _optional = {}) {
   client = connectToHost({ window: required.window });
   app = required.document.getElementById('app');
   status = '';
@@ -82,7 +82,7 @@ export function initPickerPanel(required) {
 
 /** The first list; a failure the host calls retryable offers "Try again" (another list). */
 function load() {
-  return refresh(client.bootstrap()).catch((error) => show(app, notice({ text: failureText(error), retry: error?.retryable === true ? load : undefined })));
+  return refresh(client.bootstrap()).catch((error) => show({ root: app }, { nodes: [notice({ text: failureText({ error }), retry: error?.retryable === true ? load : undefined })] }));
 }
 
 initPickerPanel({ window, document });

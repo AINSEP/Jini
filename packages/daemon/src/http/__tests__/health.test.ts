@@ -1,46 +1,18 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { isLocalSameOrigin } from '@jini-ai/core';
+import { describe, expect, it, vi } from 'vitest';
+import { denyAllOrigins } from '@jini-ai/core/contracts/server/testing';
+import { fakeDaemonRouteHost } from './fakes/route-host.js';
+import { jsonRequest, serveRoutes } from './fakes/serve-routes.js';
+import { describeRoutes } from '../route-table.js';
 import {
   apiHealthRoute,
   apiReadyRoute,
   apiVersionInfoRoute,
   healthRoute,
   readyRoute,
-  registerHealthRoutes,
+  healthRoutes,
   versionInfoRoute,
   type HealthHttpDeps,
 } from '../health.js';
-
-vi.mock('@jini-ai/core', async (importOriginal) => ({
-  ...await importOriginal<typeof import('@jini-ai/core')>(),
-  isLocalSameOrigin: vi.fn(() => true),
-}));
-
-interface MockApp {
-  get: (path: string, handler: any) => void;
-  post: (path: string, handler: any) => void;
-  put: (path: string, handler: any) => void;
-  delete: (path: string, handler: any) => void;
-  patch: (path: string, handler: any) => void;
-  handlers: Record<string, (req: any, res: any) => Promise<void> | void>;
-}
-
-function makeApp(): MockApp {
-  const handlers: MockApp['handlers'] = {};
-  const make = (method: string) => (path: string, handler: any) => {
-    handlers[`${method.toUpperCase()} ${path}`] = handler;
-  };
-  return { get: make('get'), post: make('post'), put: make('put'), delete: make('delete'), patch: make('patch'), handlers };
-}
-
-function makeRes() {
-  return {
-    status: vi.fn().mockReturnThis(),
-    json: vi.fn().mockReturnThis(),
-  };
-}
-
-const adapter = { allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST', env: {}, resolvedPortRef: { current: 7456 } };
 
 function makeDeps(overrides: Partial<HealthHttpDeps> = {}): HealthHttpDeps {
   return {
@@ -48,10 +20,6 @@ function makeDeps(overrides: Partial<HealthHttpDeps> = {}): HealthHttpDeps {
     ...overrides,
   };
 }
-
-beforeEach(() => {
-  vi.mocked(isLocalSameOrigin).mockReturnValue(true);
-});
 
 describe('healthRoute / apiHealthRoute', () => {
   it('always reports {ok: true, version} with no readiness check involved', async () => {
@@ -99,13 +67,9 @@ describe('readyRoute / apiReadyRoute', () => {
   });
 
   it('surfaces the not-ready response as a real 503 through the mounted route', async () => {
-    const app = makeApp();
     const checkReadiness = vi.fn().mockResolvedValue({ ok: false, checks: { db: false } });
-    registerHealthRoutes({ app: app as any, deps: makeDeps({ checkReadiness }), adapter });
-    const res = makeRes();
-    await app.handlers['GET /ready']!({ body: {}, query: {}, params: {} }, res);
-    expect(res.status).toHaveBeenCalledWith(503);
-    expect(res.json).toHaveBeenCalledWith({ error: { code: 'SERVICE_UNAVAILABLE', message: 'service not ready', details: { checks: { db: false } } } });
+    const response = await serveRoutes({ routes: healthRoutes({ deps: makeDeps({ checkReadiness }), host: fakeDaemonRouteHost() }) })(jsonRequest({ path: '/ready' }));
+    expect([response.status, await response.json()]).toEqual([503, { error: { code: 'SERVICE_UNAVAILABLE', message: 'service not ready', details: { checks: { db: false } } } }]);
   });
 });
 
@@ -126,24 +90,16 @@ describe('versionInfoRoute / apiVersionInfoRoute', () => {
   });
 });
 
-describe('registerHealthRoutes', () => {
-  it('mounts exactly the six liveness/readiness/version routes, nothing else', () => {
-    const app = makeApp();
-    registerHealthRoutes({ app: app as any, deps: makeDeps(), adapter });
-    expect(Object.keys(app.handlers).sort()).toEqual(
-      ['GET /health', 'GET /api/health', 'GET /ready', 'GET /api/ready', 'GET /version', 'GET /api/version'].sort(),
-    );
+describe('healthRoutes', () => {
+  const PATHS = ['/health', '/api/health', '/ready', '/api/ready', '/version', '/api/version'];
+
+  it('lists exactly the six liveness/readiness/version routes, none behind a gate', () => {
+    expect(describeRoutes({ routes: healthRoutes({ deps: makeDeps(), host: fakeDaemonRouteHost() }) })).toEqual(PATHS.map((path) => ({ method: 'GET', path, gates: [] })));
   });
 
-  it('every mounted route responds 200 for a normal request with no same-origin gate applied (reachable even when isLocalSameOrigin would say no)', async () => {
-    vi.mocked(isLocalSameOrigin).mockReturnValue(false);
-    const app = makeApp();
-    registerHealthRoutes({ app: app as any, deps: makeDeps(), adapter });
-    for (const key of Object.keys(app.handlers)) {
-      const res = makeRes();
-      // eslint-disable-next-line no-await-in-loop
-      await app.handlers[key]!({ body: {}, query: {}, params: {} }, res);
-      expect(res.status).toHaveBeenCalledWith(200);
-    }
+  it('every route responds 200 for a normal request with no same-origin gate applied (reachable even when the same-origin guard would say no)', async () => {
+    const fetch = serveRoutes({ routes: healthRoutes({ deps: makeDeps(), host: fakeDaemonRouteHost({}, { originPolicy: denyAllOrigins }) }) });
+    const statuses = await Promise.all(PATHS.map(async (path) => (await fetch(jsonRequest({ path }))).status));
+    expect(statuses).toEqual(PATHS.map(() => 200));
   });
 });

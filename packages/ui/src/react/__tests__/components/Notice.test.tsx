@@ -6,7 +6,7 @@ import { Notice } from '../../components/Notice.js';
 describe('Notice', () => {
   it('renders a success outcome with the success class', () => {
     const { container } = render(<Notice outcome={{ ok: true, message: 'Installed' }} />);
-    expect(container.firstChild).toHaveClass('is-success');
+    expect(container.firstChild).toHaveClass('jini-is-success');
     expect(screen.getByText('Installed')).toBeInTheDocument();
   });
 

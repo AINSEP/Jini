@@ -1,10 +1,10 @@
-import { inspect } from 'node:util';
+import { createConsoleLogger } from '@jini-ai/core/primitives';
 import type { DelegatedResultCorrelation } from '../delegated-result-correlation.js';
 /**
  * @module delegated-tools
  *
  * `POST /api/delegated-tool-calls` — the daemon-side half of gap 3's MCP-callback continuation
- * transport spike (see `packages/daemon/archived provenance ledger`'s "run/chat orchestration gap 3, part 1"
+ * transport spike (see `070311a07^:packages/daemon/source-map.md`'s "run/chat orchestration gap 3, part 1"
  * addition and this package's own dated section in `archived provenance ledger`). The swarm-consensus Final
  * Recommendation asked for exactly this round trip: "inject the already-shipped MCP host into
  * one MCP-capable CLI's launch config, prove a tool round-trip through the existing
@@ -28,12 +28,24 @@ import type { DelegatedResultCorrelation } from '../delegated-result-correlation
  * `runCancelRoute`).
  */
 import { randomUUID } from 'node:crypto';
-import type { Express } from 'express';
 import { createApiError } from '@jini-ai/protocol';
-import { redactSecrets, batchOutcomeFor, ToolInputError, type Principal, type ToolRegistry } from '@jini-ai/core';
+import { batchOutcomeFor, ToolInputError, type Principal, type ToolRegistry } from '@jini-ai/core';
 import { createDelegatedToolBridge, type RunLifecycle, type ToolExecutionResult, type ToolExecutor } from '../index.js';
-import { defineJsonRoute, err, mountJsonRoute, ok, validationError, type AdapterContext, type Result, type RouteInputContext } from '@jini-ai/http-kit';
+import type { DaemonRouteHost } from './route-host.js';
+import { gatedJsonRoute, withHostReporter, type DaemonRoute } from './route-table.js';
+import {
+  defineJsonRoute,
+  err,
+  ok,
+  validationError,
+  type ReportRouteInternalError,
+  type Result,
+  type RouteInputContext,
+} from '@jini-ai/core/contracts/server';
 import * as readOnlyTools from '../core/read-only-tools.js';
+import { resolveToolTarget, unknownToolDetails, unknownToolMessage } from '../core/tool-target.js';
+import { withValidationGuidance } from './validation-guidance.js';
+import type { ToolFamilyPort } from '../core/tool-family.js';
 
 export interface DelegatedToolExecuteRequest {
   readonly runId: string;
@@ -100,6 +112,8 @@ export interface DelegatedToolsHttpDeps {
   readonly resolvePrincipal: (requiredArgs: { readonly request: DelegatedToolExecuteRequest }) => Principal | Promise<Principal>;
   /** Host-owned sink for the real exception behind a generic `INTERNAL_ERROR` response (SEC-005). Defaults to `console.error`. */
   readonly onInternalError?: (context: DelegatedToolsInternalErrorContext) => void;
+  /** Required for direct handlers; {@link delegatedToolRoutes} binds the host's reporter. */
+  readonly reportInternalError: ReportRouteInternalError;
   /**
    * The same `ToolRegistry` `deps.toolExecutor` was built over, supplied so a
    * {@link DelegatedToolExecuteRequest.requireReadOnly} call can be checked against the descriptor
@@ -111,6 +125,15 @@ export interface DelegatedToolsHttpDeps {
    * waived. Unconstrained calls behave identically with or without it.
    */
   readonly toolRegistry?: Pick<ToolRegistry, 'list'>;
+  /**
+   * Host opt-in: names the groups of tools the host's ids belong to (an id that is a prefix of many tools, not
+   * a tool). When the request names an id the registry does not hold and this port knows it as a group, the
+   * `404 UNKNOWN_TOOL` says so and carries `details.family`: the members and selector this route's own registry
+   * holds. Nothing is executed or rerouted here: the caller picks one member and sends an ordinary request for it,
+   * so every host gate keyed on the tool id still sees the concrete id. Omitted (the default), no id is a group.
+   * Needs `toolRegistry`; without one the route decides nothing about the target.
+   */
+  readonly toolFamilies?: ToolFamilyPort;
   /**
    * Host opt-in: returns `true` for a `failed` result whose `error` text the HOST has already made
    * safe to show the model — secret values blanked, an error id minted — so this route answers it
@@ -124,7 +147,7 @@ export interface DelegatedToolsHttpDeps {
    */
   readonly isModelSafeToolFailure?: ({ result }: { result: ToolExecutionResult }) => boolean;
   /**
-   * Host opt-in: the model-safe text to send in place of `'an internal error occurred'` for every
+   * Host opt-in: the model-safe text to send in place of the default {@link DELEGATED_TOOL_FAULT_MESSAGE} for every
    * failure this route would otherwise answer with the SEC-005-redacted `500 INTERNAL_ERROR` — a
    * thrown executor infrastructure failure, a throwing `resolvePrincipal`, `timed-out`,
    * `cancelled`, and a `failed` result `isModelSafeToolFailure` did not vouch for. Without it, those
@@ -147,18 +170,39 @@ function checkReadOnlyConstraint(
 ): ReturnType<typeof createApiError> | null {
   if (input.requireReadOnly !== true) return null;
   const refusal = readOnlyTools.checkReadOnlyTool({
-    toolId: input.toolId, input: input.input, registry: deps.toolRegistry, messages: readOnlyTools.defaultDaemonMessages.readOnly,
+    toolId: input.toolId, registry: deps.toolRegistry, messages: readOnlyTools.defaultDaemonMessages.readOnly,
   });
   if (refusal === null) return null;
   return createApiError({ code: 'TOOL_OPERATION_DENIED', message: refusal });
 }
 
-/** Logs the real failure server-side and returns the generic, correlation-id-bearing public error (SEC-005: never the raw exception). */
-function defaultInternalErrorSink(context: DelegatedToolsInternalErrorContext): void {
-  // Exceptions can echo credentials; inspect preserves stacks and codes before shared redaction.
-  // eslint-disable-next-line no-console
-  console.error(`[@jini-ai/http-kit] internal error (${context.source}, correlationId=${context.correlationId})`, redactSecrets({ input: inspect(context.error) }, { redactPii: false }));
+/**
+ * The one answer to a tool id the route's registry does not hold, on both gateways: `404 UNKNOWN_TOOL`
+ * with the closest names, never a denial. Reads descriptors only. A route mounted without a
+ * `toolRegistry` has nothing to decide with: the unconstrained gateway leaves the decision to the
+ * executor (as before), and the read-only gateway refuses as unverifiable in the check after this one.
+ */
+function checkToolTarget(
+  deps: DelegatedToolsHttpDeps,
+  input: DelegatedToolExecuteRequest,
+): ReturnType<typeof createApiError> | null {
+  if (deps.toolRegistry === undefined) return null;
+  const target = resolveToolTarget({ toolId: input.toolId, input: input.input, registry: deps.toolRegistry }, deps.toolFamilies === undefined ? {} : { families: deps.toolFamilies });
+  if (target.kind === 'tool') return null;
+  const details = unknownToolDetails({ target });
+  return createApiError({ code: 'UNKNOWN_TOOL', message: unknownToolMessage({ target }) }, details === undefined ? {} : { details });
 }
+
+/** The gates that read descriptors only, in their one order: the target decision, then the read-only constraint. */
+function checkToolGates(
+  deps: DelegatedToolsHttpDeps,
+  input: DelegatedToolExecuteRequest,
+): ReturnType<typeof createApiError> | null {
+  return checkToolTarget(deps, input) ?? checkReadOnlyConstraint(deps, input);
+}
+
+/** Plain words for a server fault behind a tool call: the model reads them, so they say what to do next. */
+const DELEGATED_TOOL_FAULT_MESSAGE = 'The tool could not run because of a server fault. Do not retry the same call; tell the user to copy the request ID and report this problem.';
 
 /**
  * The host's {@link DelegatedToolsHttpDeps.describeInternalError} text for `context`, or `undefined`
@@ -172,8 +216,7 @@ function describeSafely(deps: DelegatedToolsHttpDeps, context: DelegatedToolsInt
     const text = deps.describeInternalError(context);
     return typeof text === 'string' && text.length > 0 ? text : undefined;
   } catch (error) {
-    // eslint-disable-next-line no-console
-    console.error(`[@jini-ai/http-kit] describeInternalError threw (correlationId=${context.correlationId})`, redactSecrets({ input: inspect(error) }, { redactPii: false }));
+    createConsoleLogger({ prefix: '' }).error({ message: `[@jini-ai/http-kit] describeInternalError threw (correlationId=${context.correlationId})` }, { error });
     return undefined;
   }
 }
@@ -181,14 +224,14 @@ function describeSafely(deps: DelegatedToolsHttpDeps, context: DelegatedToolsInt
 /** Which failure `reportInternalError` reports: everything in its context except the minted `correlationId`. */
 type InternalErrorReport = Omit<DelegatedToolsInternalErrorContext, 'correlationId'>;
 
-function reportInternalError(deps: DelegatedToolsHttpDeps, report: InternalErrorReport): ReturnType<typeof createApiError> {
-  const correlationId = randomUUID();
+/** Logs the real failure through the incident owner and returns plain words with the request ID (SEC-005: never the raw exception). */
+function reportInternalError({ deps, report }: { readonly deps: DelegatedToolsHttpDeps; readonly report: InternalErrorReport }, _optional: Record<string, never> = {}): ReturnType<typeof createApiError> {
+  // Exceptions can echo credentials: the default line prints class and code only; the host sink gets the original.
+  const apiError = deps.reportInternalError<InternalErrorReport>({ report, logSource: report.source, message: DELEGATED_TOOL_FAULT_MESSAGE }, { onInternalError: deps.onInternalError });
+  const requestId = String(apiError.requestId);
   // Every caller either omits `status` or sets it, so spreading keeps "absent" absent.
-  const context: DelegatedToolsInternalErrorContext = { ...report, correlationId };
-  const sink = deps.onInternalError ?? defaultInternalErrorSink;
-  sink(context);
-  const message = describeSafely(deps, context) ?? 'an internal error occurred';
-  return createApiError({ code: 'INTERNAL_ERROR', message }, { requestId: correlationId });
+  const described = describeSafely(deps, { ...report, correlationId: requestId });
+  return described === undefined ? apiError : createApiError({ code: 'INTERNAL_ERROR', message: described }, { requestId });
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -263,7 +306,7 @@ function toolExecutionResultToApiResult(
       return err({ error: createApiError({ code: 'TOOL_OPERATION_DENIED', message: 'this operation was denied during confirmation' }) });
     case 'timed-out':
     case 'cancelled':
-      return err({ error: reportInternalError(deps, { source: 'delegated-tool-execute', error: result.status, runId, toolId, ...(recoveryMessage ? { recoveryMessage } : {}), status: result.status }) });
+      return err({ error: reportInternalError({ deps, report: { source: 'delegated-tool-execute', error: result.status, runId, toolId, ...(recoveryMessage ? { recoveryMessage } : {}), status: result.status } }) });
     case 'failed':
       return err({ error: failedResultToApiError(deps, { runId, toolId, result }) });
     default: {
@@ -285,7 +328,7 @@ function failedResultToApiError(
   if (result.error && deps.isModelSafeToolFailure?.({ result }) === true) {
     return createApiError({ code: 'TOOL_EXECUTION_FAILED', message: result.error });
   }
-  return reportInternalError(deps, { source: 'delegated-tool-execute', error: result.error ?? result.status, runId, toolId, status: 'failed' });
+  return reportInternalError({ deps, report: { source: 'delegated-tool-execute', error: result.error ?? result.status, runId, toolId, status: 'failed' } });
 }
 
 /** Read host-owned recovery facts once after interruption. The host supplies the deadline and
@@ -308,8 +351,9 @@ async function toolExecutionResultWithRecovery(deps: DelegatedToolsHttpDeps, req
  * `POST /api/delegated-tool-calls` — executes one delegated tool call against an already-started
  * run. Maps `ToolExecutionResult.status` to the HTTP response via `toolExecutionResultToApiResult`
  * above — mirroring `db-ops.ts`'s precedent for the identical status union rather than treating
- * every business outcome as a `200`. An unregistered `toolId` throws `ToolInputError` and answers
- * `400 BAD_REQUEST`. A genuinely unexpected throw (such as a race where the run
+ * every business outcome as a `200`. A `toolId` the route's `toolRegistry` does not hold answers
+ * `404 UNKNOWN_TOOL` before anything else runs; without a `toolRegistry` the executor's `ToolInputError`
+ * for an unregistered `toolId` still answers `400 BAD_REQUEST`. A genuinely unexpected throw (such as a race where the run
  * became terminal between this route's existence check and the bridge's first emitted event)
  * reaches the same SEC-005 redaction path.
  */
@@ -324,18 +368,20 @@ export const delegatedToolExecuteRoute = defineJsonRoute<
       return err({ error: createApiError({ code: 'NOT_FOUND', message: `run "${input.runId}" was not found` }) });
     }
 
+    // The target decision comes first and answers before any other gate: a tool id the registry does
+    // not hold is a missing tool (404 UNKNOWN_TOOL), not a refused one.
     // Before `resolvePrincipal`, and long before the bridge: a refused call must cost nothing
     // downstream and must leave no trace of an execution that was never going to happen. It sits
     // after the run-existence check only so that a bad `runId` still answers 404 the way it always
     // did, regardless of the constraint.
-    const readOnlyRefusal = checkReadOnlyConstraint(deps, input);
-    if (readOnlyRefusal !== null) return err({ error: readOnlyRefusal });
+    const refusal = checkToolGates(deps, input);
+    if (refusal !== null) return err({ error: refusal });
 
     let principal: Principal;
     try {
       principal = await deps.resolvePrincipal({ request: input });
     } catch (error) {
-      return err({ error: reportInternalError(deps, { source: 'resolve-principal', error, runId: input.runId, toolId: input.toolId }) });
+      return err({ error: reportInternalError({ deps, report: { source: 'resolve-principal', error, runId: input.runId, toolId: input.toolId } }) });
     }
 
     // Attenuates the resolved principal itself for a `requireReadOnly` call, so the constraint
@@ -361,8 +407,8 @@ export const delegatedToolExecuteRoute = defineJsonRoute<
 
     const bridge = createDelegatedToolBridge({ lifecycle: deps.lifecycle, toolExecutor }, deps);
     try {
-      // `signal` carries the caller's HTTP connection dropping — see `mountJsonRoute`
-      // (`adapter.ts`). The bridge already combines it with the run's own cancellation
+      // `signal` carries the caller's HTTP connection dropping — see core's
+      // `jsonRoute`. The bridge already combines it with the run's own cancellation
       // (`DelegatedToolInvocation.signal`'s doc); this is the wire that was missing, not new
       // behaviour in the bridge or `ToolExecutor`.
       const result = await bridge.execute({
@@ -373,17 +419,17 @@ export const delegatedToolExecuteRoute = defineJsonRoute<
         input: input.input,
         ...(signal !== undefined ? { signal } : {}),
       });
-      return toolExecutionResultWithRecovery(deps, { principal, runId: input.runId, toolId: input.toolId, result });
+      return toolExecutionResultWithRecovery(deps, { principal, runId: input.runId, toolId: input.toolId, result: withValidationGuidance({ result, toolId: input.toolId, input: input.input, registry: deps.toolRegistry }) });
     } catch (error) {
       if (error instanceof ToolInputError) {
         return err({ error: createApiError({ code: 'BAD_REQUEST', message: error.message }) });
       }
-      return err({ error: reportInternalError(deps, { source: 'delegated-tool-execute', error, runId: input.runId, toolId: input.toolId }) });
+      return err({ error: reportInternalError({ deps, report: { source: 'delegated-tool-execute', error, runId: input.runId, toolId: input.toolId } }) });
     }
   }
 }, { requireSameOrigin: true });
 
-/** Mounts `POST /api/delegated-tool-calls` on `app`. A pack's `http(app, services)` calls this directly. */
-export function registerDelegatedToolRoutes({ app, deps, adapter }: { readonly app: Express; readonly deps: DelegatedToolsHttpDeps; readonly adapter: AdapterContext }, _optional: Record<string, never> = {}): void {
-  mountJsonRoute({ app, spec: delegatedToolExecuteRoute, deps, adapter });
+/** `POST /api/delegated-tool-calls` as data, behind the same-origin gate its spec declares. Internal failures are reported through the host's reporter. */
+export function delegatedToolRoutes({ deps, host }: { readonly deps: Omit<DelegatedToolsHttpDeps, 'reportInternalError'>; readonly host: DaemonRouteHost }, _optional: Record<string, never> = {}): DaemonRoute[] {
+  return [gatedJsonRoute({ spec: delegatedToolExecuteRoute, deps: withHostReporter({ deps, host }), host })];
 }

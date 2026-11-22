@@ -5,8 +5,10 @@
 import fs from "node:fs";
 import path from "node:path";
 import { flag, list, parseCliArgs, rejectUnknown, runIfMain, text as textValue } from "./lib/script-cli.mjs";
+import { errorClassLabel } from "./lib/diagnostic-labels.mjs";
+import { createCliStreams, CliUsageError } from "./lib/main-guard.mjs";
 
-export function usage(log) {
+export function usage({ log }, _optional = {}) {
   log(`Usage:
   node scripts/audit-clone.mjs --project <clone-dir> [--brand "KOKUYO,Original Brand"] [--out CLONE_AUDIT.md]
     [--recon RECON/original-recon.json] [--strict]
@@ -23,24 +25,24 @@ so the clone workflow can hard-gate on it.
 const ARG_SPEC = {
   defaults: { project: ".", brand: [], out: "CLONE_AUDIT.md", recon: "", strict: false },
   flags: {
-    "--help": flag("help"),
-    "-h": flag("help"),
-    "--project": { key: "project", read: textValue(".") },
+    "--help": flag({ key: "help" }),
+    "-h": flag({ key: "help" }),
+    "--project": { key: "project", read: textValue({}, { fallback: "." }) },
     "--brand": { key: "brand", read: list() },
-    "--out": { key: "out", read: textValue("CLONE_AUDIT.md") },
-    "--recon": { key: "recon", read: textValue() },
-    "--strict": flag("strict"),
+    "--out": { key: "out", read: textValue({}, { fallback: "CLONE_AUDIT.md" }) },
+    "--recon": { key: "recon", read: textValue({}) },
+    "--strict": flag({ key: "strict" }),
   },
   onOther: rejectUnknown,
 };
 
-export function parseArgs(argv) {
+export function parseArgs({ argv }, _optional = {}) {
   return parseCliArgs({ argv, ...ARG_SPEC });
 }
 
 // ---- Fidelity gates (fonts / images / palette vs. the original recon) ------
 
-const GENERIC_FONT_FAMILIES = new Set([
+const GENERIC_FONT_FAMILIES = Object.freeze([
   "serif", "sans-serif", "monospace", "cursive", "fantasy", "system-ui",
   "-apple-system", "blinkmacsystemfont", "segoe ui", "roboto", "helvetica",
   "helvetica neue", "arial", "pingfang sc", "microsoft yahei", "ui-sans-serif",
@@ -56,17 +58,17 @@ function declaredFamilies(signals) {
 function usedCustomFamilies(signals) {
   return (signals.fonts || [])
     .map((family) => String(family).replace(/['"]/g, "").trim())
-    .filter((clean) => clean && !GENERIC_FONT_FAMILIES.has(clean.toLowerCase()));
+    .filter((clean) => clean && !GENERIC_FONT_FAMILIES.includes(clean.toLowerCase()));
 }
 
-export function customFontFamilies(recon) {
+export function customFontFamilies({ recon }, _optional = {}) {
   const first = firstSignals(recon);
   return Array.from(new Set([...declaredFamilies(first), ...usedCustomFamilies(first)]));
 }
 
 // rgb()/rgba()/#hex → "r,g,b"; null for transparent (alpha 0) / unparseable —
 // a transparent original color enforces nothing on the clone.
-export function normalizeColor(value) {
+export function normalizeColor({ value }, _optional = {}) {
   const v = String(value || "").trim().toLowerCase();
   let m = v.match(/^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)(?:\s*,\s*([0-9.]+))?\s*\)/);
   if (m) {
@@ -87,7 +89,7 @@ function collectCloneColors(files, fsImpl) {
   for (const file of files.filter(isMarkup)) {
     const text = fsImpl.readFileSync(file, "utf8");
     for (const m of text.matchAll(/#[0-9a-f]{3}\b|#[0-9a-f]{6}\b|rgba?\([^)]*\)/gi)) {
-      const norm = normalizeColor(m[0]);
+      const norm = normalizeColor({ value: m[0] });
       if (norm) colors.add(norm);
     }
   }
@@ -96,7 +98,7 @@ function collectCloneColors(files, fsImpl) {
 
 // 字体: 原站有自定义字体 → 复刻必须有本地字体文件 + @font-face。
 function fontFindings(recon, files, fsImpl) {
-  const wantedFamilies = customFontFamilies(recon);
+  const wantedFamilies = customFontFamilies({ recon });
   if (!wantedFamilies.length) return [];
   const families = wantedFamilies.join(", ");
   if (!files.some((f) => /\.(woff2?|ttf|otf)$/i.test(f))) {
@@ -121,7 +123,7 @@ function paletteFindings(first, files, fsImpl) {
   for (const key of ["body", "header", "footer"]) {
     const section = first.palette?.[key] || {};
     for (const prop of ["backgroundColor", "color"]) {
-      const norm = normalizeColor(section[prop]);
+      const norm = normalizeColor({ value: section[prop] });
       if (norm && !cloneColors.has(norm)) {
         findings.push([`palette mismatch: ${key} ${prop}`, `original computed ${section[prop]} (rgb ${norm}) not found anywhere in clone css/html — copy the exact value from recon, do not eyeball`]);
       }
@@ -131,28 +133,28 @@ function paletteFindings(first, files, fsImpl) {
 }
 
 /** Fidelity gates (fonts / images / palette) of `files` (every file, binaries included) vs the recon. */
-export function fidelityFindings(recon, project, files, fsImpl = fs) {
+export function fidelityFindings({ recon, project, files }, { fsImpl = fs } = {}) {
   const first = firstSignals(recon);
   return [...fontFindings(recon, files, fsImpl), ...imageFindings(first, files), ...paletteFindings(first, files, fsImpl)]
     .map(([label, detail]) => ({ type: "fidelity", label, file: project, line: 0, match: detail }));
 }
 
-const includeExt = new Set([".html", ".css", ".js", ".jsx", ".ts", ".tsx", ".json", ".md", ".txt", ".svg"]);
-const skipDirs = new Set([".git", "node_modules", "dist", "build", ".next", ".nuxt", "coverage", "RECON"]);
-const skipFiles = new Set(["NOTES.md", "TEARDOWN.md", "CLONE_REPORT.md", "CLONE_AUDIT.md", "REPLACE_GUIDE.md"]);
+const includeExt = Object.freeze([".html", ".css", ".js", ".jsx", ".ts", ".tsx", ".json", ".md", ".txt", ".svg"]);
+const skipDirs = Object.freeze([".git", "node_modules", "dist", "build", ".next", ".nuxt", "coverage", "RECON"]);
+const skipFiles = Object.freeze(["NOTES.md", "TEARDOWN.md", "CLONE_REPORT.md", "CLONE_AUDIT.md", "REPLACE_GUIDE.md"]);
 
 // A scannable text file: an included extension, and not one of the notes files.
 function isTextSource(name) {
-  return !skipFiles.has(name) && includeExt.has(path.extname(name).toLowerCase());
+  return !skipFiles.includes(name) && includeExt.includes(path.extname(name).toLowerCase());
 }
 
 /** Text sources to scan: skips build/vendor dirs, screenshots/, notes files and binaries. */
-export function walk(dir, fsImpl = fs, files = []) {
+export function walk({ dir }, { fsImpl = fs, files = [] } = {}) {
   for (const entry of fsImpl.readdirSync(dir, { withFileTypes: true })) {
-    if (skipDirs.has(entry.name)) continue;
+    if (skipDirs.includes(entry.name)) continue;
     const full = path.join(dir, entry.name);
     const isDirectory = entry.isDirectory();
-    if (isDirectory && entry.name !== "screenshots") walk(full, fsImpl, files);
+    if (isDirectory && entry.name !== "screenshots") walk({ dir: full }, { fsImpl, files });
     if (!isDirectory && isTextSource(entry.name)) files.push(full);
   }
   return files;
@@ -161,7 +163,7 @@ export function walk(dir, fsImpl = fs, files = []) {
 // walk() 跳过了字体/图片二进制，保真门槛需要一份含它们的完整清单。
 function walkAll(dir, fsImpl, files = []) {
   for (const entry of fsImpl.readdirSync(dir, { withFileTypes: true })) {
-    if (skipDirs.has(entry.name)) continue;
+    if (skipDirs.includes(entry.name)) continue;
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) walkAll(full, fsImpl, files);
     else files.push(full);
@@ -175,7 +177,7 @@ function lineNumber(text, index) {
 
 const W3_URL = /^https?:\/\/(www\.)?w3\.org\//i;
 
-export function collectMatches(file, text, checks) {
+export function collectMatches({ file, text, checks }, _optional = {}) {
   const findings = [];
   for (const check of checks) {
     const regex = new RegExp(check.pattern, check.flags || "gi");
@@ -209,7 +211,7 @@ function sectionLines(title, items, project) {
   return lines;
 }
 
-export function markdown(findings, project, scannedFiles) {
+export function markdown({ findings, project, scannedFiles }, _optional = {}) {
   const lines = [
     `# Clone Audit`,
     "",
@@ -236,7 +238,7 @@ const BASE_CHECKS = [
   { type: "external", label: "external URL", pattern: "https?://[^\\s\"')<>]+", flags: "gi" },
 ];
 
-export function buildChecks(brands) {
+export function buildChecks({ brands }, _optional = {}) {
   const brandPatterns = brands.map((brand) => ({
     type: "brand",
     label: `brand residue: ${brand}`,
@@ -250,26 +252,26 @@ export function buildChecks(brands) {
 function reconFidelity(args, project, io) {
   if (!args.recon) return [];
   const recon = JSON.parse(io.fs.readFileSync(path.resolve(io.cwd(), args.recon), "utf8"));
-  return fidelityFindings(recon, project, walkAll(project, io.fs), io.fs);
+  return fidelityFindings({ recon, project, files: walkAll(project, io.fs) }, { fsImpl: io.fs });
 }
 
 function audit(argv, io) {
-  const args = parseArgs(argv);
+  const args = parseArgs({ argv });
   if (args.help) {
-    usage(io.log);
+    usage({ log: io.log });
     return 0;
   }
   const project = path.resolve(io.cwd(), args.project);
-  if (!io.fs.existsSync(project)) throw new Error(`Project not found: ${project}`);
+  if (!io.fs.existsSync(project)) throw new CliUsageError(`Project not found: ${project}`);
 
-  const checks = buildChecks(args.brand);
-  const files = walk(project, io.fs);
+  const checks = buildChecks({ brands: args.brand });
+  const files = walk({ dir: project }, { fsImpl: io.fs });
   const fidelity = reconFidelity(args, project, io);
-  const findings = [...fidelity, ...files.flatMap((file) => collectMatches(file, io.fs.readFileSync(file, "utf8"), checks))];
+  const findings = [...fidelity, ...files.flatMap((file) => collectMatches({ file, text: io.fs.readFileSync(file, "utf8"), checks }))];
 
   const output = path.resolve(io.cwd(), args.out);
   io.fs.mkdirSync(path.dirname(output), { recursive: true });
-  io.fs.writeFileSync(output, markdown(findings, project, files.length));
+  io.fs.writeFileSync(output, markdown({ findings, project, scannedFiles: files.length }));
   io.log(output);
   if (!fidelity.length) return 0;
   io.error(`⚠️ ${fidelity.length} 个保真度硬伤（详见 ${path.relative(io.cwd(), output)}）：`);
@@ -277,7 +279,7 @@ function audit(argv, io) {
   return args.strict ? 2 : 0;
 }
 
-const DEFAULT_DEPS = { fs, log: console.log, error: console.error, cwd: process.cwd };
+const DEFAULT_DEPS = { fs, ...createCliStreams({}), cwd: process.cwd };
 
 /**
  * CLI entry: writes the audit markdown and returns the exit code — 0 ok/help,
@@ -289,9 +291,9 @@ export function main({ argv }, deps = {}) {
   try {
     code = audit(argv, io);
   } catch (error) {
-    io.error(`audit-clone failed: ${error.message}`);
+    io.error(`audit-clone failed: ${error instanceof CliUsageError ? error.message : errorClassLabel({ error })}`);
   }
   return code;
 }
 
-await runIfMain({ moduleUrl: import.meta.url, main });
+await runIfMain({ moduleUrl: import.meta.url, main }, { stdout: process.stdout, stderr: process.stderr });

@@ -37,8 +37,8 @@ export interface TurnEndGuard {
 
 /** Builds a fresh, single-use end guard. `makeEndEvent` lets each turn-runner's own event union shape (`AnthropicTurnEvent`/`OpenAiTurnEvent`) stay independent — this module has no opinion on it. */
 export function createTurnEndGuard<Event>(
-  onEvent: (event: Event) => void,
-  makeEndEvent: (reason: TurnEndReason) => Event,
+  { onEvent,
+  makeEndEvent }: { onEvent: (event: Event) => void; makeEndEvent: (reason: TurnEndReason) => Event }, _optional: Record<string, never> = {},
 ): TurnEndGuard {
   let ended = false;
   return {

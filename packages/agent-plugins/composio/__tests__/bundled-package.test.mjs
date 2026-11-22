@@ -22,7 +22,7 @@ test('the composio package ships its manifest, hosted connection and one skill',
   assert.deepEqual(await shippedFiles(), ['mcp.json', 'plugin.json', 'skills/composio/SKILL.md']);
   const manifest = await readJson('plugin.json');
   assert.equal(manifest.name, 'composio');
-  assert.equal(manifest.extensions.jini.id, 'tovu/composio');
+  assert.equal(manifest.extensions.jini.id, 'jini/composio');
   assert.deepEqual(manifest.extensions.jini.provides, ['app-connectors']);
 });
 

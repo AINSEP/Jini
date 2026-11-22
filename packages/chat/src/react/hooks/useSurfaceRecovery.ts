@@ -1,5 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { parseUIResource, type McpUiToolCallHandler, type UIResource } from '@jini-ai/ui/mcp-ui';
+import {
+  parseUIResource,
+  type McpUiToolCallHandler,
+  type UIResource,
+} from '@jini-ai/protocol/mcp-ui';
 import type { SurfaceEmission } from '@jini-ai/core';
 import type { ExtEventCall } from '../ext-event-renderer-registry.js';
 import type { RecoverableMcpUiToolCaller } from '../features/chat-pane/create-mcp-ui-tool-caller.js';
@@ -35,7 +39,7 @@ export function useSurfaceRecovery({ resource, call, runStreaming, onToolCall }:
   const needsRecovery = surfaceNeedsRecovery({ call, runStreaming });
   const onSurface = (emission: SurfaceEmission) => {
     if (emission.channel !== 'mcp-ui') return;
-    const next = parseUIResource(recoverableSurfaceResource({ resource: emission.payload['resource'], exchange: emission.payload['surfaceExchange'] }));
+    const next = parseUIResource({ value: recoverableSurfaceResource({ resource: emission.payload['resource'], exchange: emission.payload['surfaceExchange'] }) });
     if (next) { setRestored(next); setLive(true); }
   };
   useEffect(() => {

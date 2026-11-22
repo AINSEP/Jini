@@ -5,7 +5,7 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { I18nProvider } from '../../../../i18n/index.js';
+import { I18nProvider, type useT } from '../../../../i18n/index.js';
 import { MemoryAdvancedModal } from '../../../react/components/MemoryAdvancedModal.js';
 import type { MemoryTreeNode } from '../../../types.js';
 
@@ -42,6 +42,9 @@ function renderModal(props: Partial<Parameters<typeof MemoryAdvancedModal>[0]> =
   return { ...utils, host, ...cbs };
 }
 
+/** A translator that is visibly not the key, so the assertion proves the injected hook ran. */
+const useQuotingT: typeof useT = () => (key) => `«${key}»`;
+
 describe('MemoryAdvancedModal', () => {
   it('renders nothing when closed', () => {
     const { host } = renderModal({ open: false });
@@ -76,7 +79,7 @@ describe('MemoryAdvancedModal', () => {
 
   it('closes when the backdrop (but not the dialog) is clicked', () => {
     const { onClose, host } = renderModal();
-    const backdrop = host.querySelector('.memory-action-modal-backdrop') as HTMLElement;
+    const backdrop = host.querySelector('.jini-memory-action-modal-backdrop') as HTMLElement;
     // Clicking the dialog itself must NOT close (stopPropagation / target guard).
     const dialog = host.querySelector('[role="dialog"]') as HTMLElement;
     dialog.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
@@ -185,5 +188,10 @@ describe('MemoryAdvancedModal', () => {
     );
     expect(host.querySelector('#memory-advanced-modal-title')?.textContent).toBe('Avancé');
     expect(host.querySelector('[aria-label="Fermer"]')).not.toBeNull();
+  });
+
+  it('renders the translator supplied through useTHook', () => {
+    const { host } = renderModal({ useTHook: useQuotingT });
+    expect(host.querySelector('#memory-advanced-modal-title')?.textContent).toBe('«Advanced»');
   });
 });

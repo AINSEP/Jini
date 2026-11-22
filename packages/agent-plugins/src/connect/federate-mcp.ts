@@ -1,6 +1,8 @@
+import { describeErrorForLog } from '@jini-ai/core';
+import { createConsoleLogger, type Logger } from '@jini-ai/core/primitives';
 import type { AgentPluginMcpPort } from "./ports.js";
 import type { AgentPluginMcpRecord, AgentPluginMcpProjections, AgentPluginMcpProjectionPorts } from "./ports.js";
-
+import { updateAgentPluginMcpRow } from "./row-update.js";
 import type { AgentPluginDefaultTools, McpServerConfig } from "../lifecycle/manifest.js";
 import type { createAgentPluginLifecycle } from "../lifecycle/index.js";
 
@@ -39,7 +41,7 @@ import type { createAgentPluginLifecycle } from "../lifecycle/index.js";
  *        .alreadyProvisioned}.
  *      - anything else (`null`, or a DIFFERENT plugin's id) — an operator's own hand-configured
  *        connection (with its earned OAuth tokens, allowlist, and write grants), or another plugin's
- *        row. This is ADOPTION: `deps.repo.upsert({ ...existing, provisionedByPluginId: input.pluginId })`
+ *        row. This is ADOPTION: `updateAgentPluginMcpRow` over `{ ...existing, provisionedByPluginId: input.pluginId }`
  *        is called directly against the repo port — the raw record, spread, with only that one field
  *        changed — never `saveExternalMcpServer`, which has no way to leave every other field
  *        untouched while changing just this one (even its "tri-state" fields resolve a default the
@@ -98,7 +100,7 @@ import type { createAgentPluginLifecycle } from "../lifecycle/index.js";
  * What happens on plugin disable or uninstall: THE ROW SURVIVES
  * ---------------------------------------------------------------------------
  * Nothing in this file, and nothing this dispatch added to `set-enabled.ts` or
- * `features/agent-plugins/uninstall.ts`, ever deletes or disables a provisioned row when its plugin
+ * `packages/agent-plugins/src/lifecycle/uninstall.ts`, ever deletes or disables a provisioned row when its plugin
  * is turned off or removed. This is a deliberate position, not an oversight: a provisioned row may
  * already hold OAuth tokens the operator earned through a real browser sign-in, and deleting an
  * external MCP connection is UNRECOVERABLE in this app (`project_external_mcp_delete_is_unrecoverable`
@@ -134,7 +136,7 @@ import type { createAgentPluginLifecycle } from "../lifecycle/index.js";
  * (`manifest.ts`) to say so explicitly.
  */
 
-/** `mcp-federation/trust.ts`'s `CONNECTION_ID_PATTERN` caps a connection id at 40 characters. */
+/** `packages/mcp/src/federation/trust.ts`'s `CONNECTION_ID_PATTERN` caps a connection id at 40 characters. */
 const MAX_CONNECTION_ID_LENGTH = 40;
 
 /**
@@ -165,7 +167,7 @@ export function deriveAgentPluginConnectionId({ serverKey }: { serverKey: string
 }
 
 /** One server this plugin declared that {@link planAgentPluginMcpFederation} will not attempt to
- *  provision, and why — reported rather than silently dropped, matching `mcp-federation/trust.ts`'s
+ *  provision, and why — reported rather than silently dropped, matching `packages/mcp/src/federation/trust.ts`'s
  *  own "every refusal is reportable, never silent" discipline. */
 export interface SkippedAgentPluginMcpServer {
   readonly serverKey: string;
@@ -190,7 +192,7 @@ export interface AgentPluginMcpFederationMessages {
 
 /** The host's plugin directory tree; only each workspace's root is read here. */
 export interface AgentPluginLayout {
-  forWorkspace(workspaceId: string): { readonly root: string };
+  forWorkspace(required: { readonly workspaceId: string }, optional?: Record<string, never>): { readonly root: string };
 }
 
 /** @agent-note Installed-package reads, bundled-digest preference and the declared `mcp.json` read,
@@ -279,7 +281,6 @@ function classifyAgentPluginMcpServerForFederation(
  */
 export function planAgentPluginMcpFederation(input: {
   readonly servers: Readonly<Record<string, McpServerConfig>>;
-}, options: {
   /** The trust rule consulted after the stdio narrowing. The host passes the real
    *  `classifyAgentPluginMcpServerTrust`; injectable so the drift guard above (a remote transport
    *  reclassified as "requires-confirmation") stays verifiable while today's rule never trips it.
@@ -287,13 +288,13 @@ export function planAgentPluginMcpFederation(input: {
    *  (object argument adapted to this positional shape); there is no default trust rule here. */
   readonly classifyTrust: AgentPluginMcpTrustClassifier;
   readonly messages: AgentPluginMcpFederationMessages;
-}): AgentPluginMcpFederationPlan {
-  const classifyTrust = options.classifyTrust;
+}, _optional: Record<string, never> = {}): AgentPluginMcpFederationPlan {
+  const classifyTrust = input.classifyTrust;
   const toUpsert: PlannedAgentPluginMcpUpsert[] = [];
   const skipped: SkippedAgentPluginMcpServer[] = [];
 
   for (const [serverKey, config] of Object.entries(input.servers)) {
-    const result = classifyAgentPluginMcpServerForFederation(serverKey, config, classifyTrust, options.messages);
+    const result = classifyAgentPluginMcpServerForFederation(serverKey, config, classifyTrust, input.messages);
     if (result.kind === "upsert") toUpsert.push(result.planned);
     else skipped.push({ serverKey, reason: result.reason });
   }
@@ -324,7 +325,7 @@ export async function resolveAgentPluginMcpServers(input: {
   /** Read-only trust grants require the build's bundled digest, never an arbitrary install. */
   readonly bundledOnly?: boolean;
 }, _optional = {}): Promise<Readonly<Record<string, McpServerConfig>>> {
-  const workspaceLayout = input.agentPluginLayout.forWorkspace(input.workspaceId);
+  const workspaceLayout = input.agentPluginLayout.forWorkspace({ workspaceId: input.workspaceId });
   // A bundled plugin that was upgraded in place has its superseded package dropped here, so the
   // servers this provisions come from the digest the running build published rather than whichever
   // one the directory walk happened to reach first (`bundled-digests.ts`).
@@ -346,8 +347,8 @@ export async function resolveAgentPluginMcpServers(input: {
  * @complexity O(s) time, O(1) space in declared servers.
  */
 export function findAgentPluginMcpServerDefaults(
-  servers: Readonly<Record<string, McpServerConfig>>,
-  row: { readonly serverId: string; readonly url: string | null },
+  { servers, row }: { servers: Readonly<Record<string, McpServerConfig>>; row: { readonly serverId: string; readonly url: string | null } },
+  _optional: Record<string, never> = {},
 ): AgentPluginDefaultTools | null {
   for (const [serverKey, config] of Object.entries(servers)) {
     if (config.type === "stdio" || deriveAgentPluginConnectionId({ serverKey }) !== row.serverId) continue;
@@ -371,7 +372,7 @@ export async function resolveAgentPluginReadOnlyRemoteNames(input: {
   readonly url: string;
 }, _optional = {}): Promise<ReadonlySet<string>> {
   const servers = await resolveAgentPluginMcpServers({ ...input, bundledOnly: true });
-  return new Set(findAgentPluginMcpServerDefaults(servers, input)?.read ?? []);
+  return new Set(findAgentPluginMcpServerDefaults({ servers, row: input })?.read ?? []);
 }
 
 export interface ProvisionAgentPluginMcpServersInput {
@@ -402,6 +403,7 @@ export interface ProvisionAgentPluginMcpServersResult {
    *  see {@link failed}. */
   readonly adopted: readonly string[];
   readonly skipped: readonly SkippedAgentPluginMcpServer[];
+  /** Safe caller-facing failure reasons; caught exceptions travel only through the report port. */
   readonly failed: readonly SkippedAgentPluginMcpServer[];
 }
 
@@ -477,7 +479,7 @@ export function isEmptyJsonList({ raw }: { raw: string | null }, _optional = {})
  *  out of {@link provisionAgentPluginMcpServers} purely to keep that function's complexity under the
  *  shop ceiling: the loop gets exactly one branch point per planned server instead of a nested
  *  try/catch inline.
- *  @complexity O(1) plus at most one `repo.upsert` for the adoption case. */
+ *  @complexity O(1) plus at most one conditional write for the adoption case. */
 async function adoptOrRecognizeExistingAgentPluginMcpServer(
   deps: AgentPluginMcpProjectionPorts & Pick<AgentPluginMcpPort, "repo">,
   existing: AgentPluginMcpRecord,
@@ -513,11 +515,11 @@ async function adoptOrRecognizeExistingAgentPluginMcpServer(
   }
   // Direct repo write, never `saveExternalMcpServer` — that function has no way to leave every
   // other field untouched while changing only this one (even its "tri-state" fields resolve a
-  // default the caller must supply). Spreading `existing` and changing one property is the only
+  // default the caller must supply). Spreading the row just read and changing one property is the only
   // way to guarantee byte-identical preservation of the operator's url/transport/auth/allowlist/
-  // write-grants/oauth state.
-  await deps.repo.upsert({ ...existing, provisionedByPluginId: pluginId });
-  return { kind: "adopted" };
+  // write-grants/oauth state; the write is conditional on that read's version (a missed write re-reads once).
+  const written = await updateAgentPluginMcpRow({ repo: deps.repo, key: existing, build: current => (current.provisionedByPluginId === existing.provisionedByPluginId ? { ...current, provisionedByPluginId: pluginId } : null) });
+  return written ? { kind: "adopted" } : { kind: "failed", reason: `connection id '${planned.connectionId}' changed owner or was removed while plugin '${pluginId}' was adopting it — nothing was changed` };
 }
 
 /**
@@ -528,12 +530,12 @@ async function adoptOrRecognizeExistingAgentPluginMcpServer(
  * Rule 1 is enforced per server, right here: `deps.repo.findByServerId` runs BEFORE any write. A row
  * already at the derived id is NEVER passed through `saveExternalMcpServer` — it is either
  * recognized as this same plugin's earlier work (`alreadyProvisioned`), adopted byte-identical
- * except for `provisionedByPluginId` via a direct `repo.upsert` (`adopted`), or, when it belongs to a
+ * except for `provisionedByPluginId` via a direct conditional repo write (`adopted`), or, when it belongs to a
  * DIFFERENT plugin at a non-matching endpoint/transport/auth mode, refused as a genuine collision
  * (`failed`). See {@link adoptOrRecognizeExistingAgentPluginMcpServer}.
  *
  * Per-server failures (a store validation error, an unconfigured secret store, a refused collision,
- * or an adoption's upsert failing) are caught and reported rather than thrown, matching
+ * or an adoption's write failing) are caught and reported rather than thrown, matching
  * `readEnabledExternalMcpConfigs`'s own fail-open posture: one unwritable row must not stop every
  * other server in the same plugin, or the plugin's own activation, from succeeding.
  *
@@ -541,10 +543,10 @@ async function adoptOrRecognizeExistingAgentPluginMcpServer(
  * one create or adopt.
  */
 export async function provisionAgentPluginMcpServers(
-  deps: AgentPluginMcpProjectionPorts & Pick<AgentPluginMcpPort, "repo" | "saveServer"> & Partial<Pick<AgentPluginMcpPort, "notifyRosterChanged">>,
-  input: ProvisionAgentPluginMcpServersInput,
+  { deps, ...input }: { deps: AgentPluginMcpProjectionPorts & Pick<AgentPluginMcpPort, "repo" | "saveServer"> & Partial<Pick<AgentPluginMcpPort, "notifyRosterChanged">> } & ProvisionAgentPluginMcpServersInput,
+  { report = createConsoleLogger({ prefix: '[agent-plugins]' }) }: { report?: Pick<Logger, 'warn'> | undefined } = {},
 ): Promise<ProvisionAgentPluginMcpServersResult> {
-  const plan = planAgentPluginMcpFederation(input, { classifyTrust: input.classifyTrust, messages: input.messages });
+  const plan = planAgentPluginMcpFederation(input);
   const provisioned: string[] = [];
   const alreadyProvisioned: string[] = [];
   const adopted: string[] = [];
@@ -554,7 +556,7 @@ export async function provisionAgentPluginMcpServers(
   const bound = { repo: deps.repo, saveServer: (save: Parameters<AgentPluginMcpPort['saveServer']>[0]) => deps.saveServer(save), projections: deps.projections, classifyError: deps.classifyError };
 
   for (const planned of plan.toUpsert) {
-    const outcome = await provisionPlannedServer({ deps: bound, input, planned });
+    const outcome = await provisionPlannedServer({ deps: bound, input, planned, report });
     if (outcome.kind === "failed") failed.push({ serverKey: planned.serverKey, reason: outcome.reason });
     else if (outcome.kind === "provisioned") provisioned.push(planned.connectionId);
     else if (outcome.kind === "adopted") adopted.push(planned.connectionId);
@@ -573,10 +575,11 @@ async function provisionPlannedServer(
     readonly deps: AgentPluginMcpProjectionPorts & Pick<AgentPluginMcpPort, "repo" | "saveServer">;
     readonly input: ProvisionAgentPluginMcpServersInput;
     readonly planned: PlannedAgentPluginMcpUpsert;
+    readonly report: Pick<Logger, 'warn'>;
   },
   _options = {},
 ): Promise<{ readonly kind: "provisioned" | "alreadyProvisioned" | "adopted" } | { readonly kind: "failed"; readonly reason: string }> {
-  const { deps, input, planned } = required;
+  const { deps, input, planned, report } = required;
   try {
     const existing = await deps.repo.findByServerId({ workspaceId: input.workspaceId, serverId: planned.connectionId });
     if (existing) {
@@ -589,6 +592,10 @@ async function provisionPlannedServer(
     await deps.saveServer(buildProvisioningSaveInput(planned, input));
     return { kind: "provisioned" };
   } catch (err) {
-    return { kind: "failed", reason: err instanceof Error ? err.message : String(err) };
+    const logger = report;
+    logger.warn({ message: `MCP provisioning write for server '${planned.serverKey}' of plugin '${input.pluginId}' failed.` }, { error: err });
+    // The caught error goes to `report` only; the answer text names the step and the error class,
+    // never the native message (it can carry credentials from the store).
+    return { kind: "failed", reason: `the MCP server row could not be saved (${describeErrorForLog({ err })})` };
   }
 }

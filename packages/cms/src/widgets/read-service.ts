@@ -1,9 +1,10 @@
+import { createConsoleLogger, type Logger } from "@jini-ai/core/primitives";
 /**
- * @file Widget-instance READ accessors (SPEC-043 REQ-04) — `write-service.ts` only ever exported
+ * @file Widget-instance READ accessors — `write-service.ts` only ever exported
  * create/update/trash/purge; this file is the missing `widgets.read`-gated get/list side, named
  * separately per `features/entries`' own `write-service.ts`/`list.ts` split convention.
  *
- * External /audit-work finding (2026-07-21, ADR-047): confirmed no read/list accessor existed in
+ * External /audit-work finding (2026-07-21): confirmed no read/list accessor existed in
  * this package at all — the admin `get-by-id`/`list` routes (`routes/admin/widgets/*.ts`) this
  * dispatch builds depend on it directly.
  *
@@ -13,7 +14,7 @@
  * `InMemoryEntryRepo` nor `SqliteEntryRepo` exposes one either, even as an extra, non-port method).
  * That is a real, pre-existing gap in the shared chokepoint, not a widgets-specific hole, and
  * meaningfully larger than the two additive fixes this dispatch already made to
- * `features/entries/write-service.ts` (the `onWritten` hook, the `bodyJson` parameter) — it needs
+ * `packages/cms/src/entries/write-service.ts` (the `onWritten` hook, the `bodyJson` parameter) — it needs
  * its own port + both adapters, a bigger shared-module change than this dispatch is authorized to
  * make unilaterally. `getWidgetInstance` below returns current state only; `revisions: []` is
  * returned as an honest placeholder shape (not a silently-dropped field) so callers/tests have a
@@ -31,6 +32,7 @@ import { WIDGET_CONTENT_TYPE } from "./types.js";
 import type { WidgetInstanceEntry } from "./types.js";
 
 export interface WidgetReadServiceDeps {
+  report?: Pick<Logger, "warn">;
   entryRepo: EntryRepoPort & EntryListPort;
   authorize: WidgetsAuthorizeFn;
 }
@@ -123,12 +125,9 @@ export async function listWidgetInstances(
       // never reached the caller, so a genuinely corrupted widget could vanish from the library with
       // zero trace. Kept the skip (a malformed row must not 500 the whole screen), added a
       // server-side log line plus returned count and IDs so it's observable instead of invisible.
-      // Deliberately logs only `row.id`/`workspaceId`, never `row.fieldsJson` — a malformed payload
+      // Deliberately logs only the malformed-row classification, never `row.fieldsJson` — a malformed payload
       // may hold arbitrary caller-supplied content, and this line is not the place to disclose it.
-      console.warn("[widgets] listWidgetInstances: skipping malformed widget-instance row", {
-        entryId: row.id,
-        workspaceId: input.workspaceId,
-      });
+      (deps.report ?? createConsoleLogger({ prefix: "widgets" })).warn({ message: "Skipping malformed widget-instance row." });
       skippedCount += 1;
       skippedIds.push(row.id);
       continue;

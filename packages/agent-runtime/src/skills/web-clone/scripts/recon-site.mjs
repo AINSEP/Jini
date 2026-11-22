@@ -3,13 +3,14 @@ import fs from "node:fs";
 import path from "node:path";
 import { loadPlaywright, launchChromium } from "./lib/playwright-loader.mjs";
 import { HELP_OPTIONS, num, parseCliArgs, text } from "./lib/cli-args.mjs";
-import { runCli, runIfMain } from "./lib/main-guard.mjs";
+import { createCliStreams, runCli, runIfMain } from "./lib/main-guard.mjs";
+import { errorClassLabel } from "./lib/diagnostic-labels.mjs";
 
 // Hard dependencies are ports with real defaults wired here at the CLI edge;
 // tests pass fakes (no real browser, captured output, fixed clock).
-const DEFAULT_DEPS = { fs, loadPlaywright, launchChromium, log: console.log, error: console.error, now: () => new Date() };
+const DEFAULT_DEPS = { fs, loadPlaywright, launchChromium, ...createCliStreams({}), now: () => new Date() };
 
-export function usage(log = console.log) {
+export function usage({}, { log = createCliStreams({}).log } = {}) {
   log(`Usage:
   node scripts/recon-site.mjs --url <url> --out <RECON dir> [--label original|clone] [--widths 1440,768,390] [--wait 1200]
 
@@ -30,19 +31,19 @@ const ARG_SPEC = {
   },
   options: {
     ...HELP_OPTIONS,
-    "--url": { key: "url", parse: text("") },
-    "--out": { key: "outDir", parse: text("") },
-    "--label": { key: "label", parse: text("site") },
+    "--url": { key: "url", parse: text({ fallback: "" }) },
+    "--out": { key: "outDir", parse: text({ fallback: "" }) },
+    "--label": { key: "label", parse: text({ fallback: "site" }) },
     "--widths": { key: "widths", parse: (raw) => (raw || "").split(",").map((n) => Number(n.trim())).filter(Boolean) },
-    "--wait": { key: "waitMs", parse: num("1200") },
+    "--wait": { key: "waitMs", parse: num({ fallback: "1200" }) },
   },
 };
 
-export function parseArgs(argv) {
+export function parseArgs({ argv }, _optional = {}) {
   return parseCliArgs({ argv, ...ARG_SPEC });
 }
 
-export function summarizeFlags(signals) {
+export function summarizeFlags({ signals }, _optional = {}) {
   return Object.entries(signals.frameworks || {})
     .filter(([, value]) => value)
     .map(([key]) => key);
@@ -56,7 +57,7 @@ function overviewLines(data, first) {
     `- Title: ${first.title || ""}`,
     `- Lang: ${first.lang || ""}`,
     `- Viewports: ${data.captures.map((c) => c.viewport.width).join(", ")}`,
-    `- Framework signals: ${summarizeFlags(first).join(", ") || "none"}`,
+    `- Framework signals: ${summarizeFlags({ signals: first }).join(", ") || "none"}`,
   ];
 }
 
@@ -94,7 +95,7 @@ function assetLines(first, resources = {}) {
 }
 
 /** The `<label>-summary.md` body for a recon result (first capture's signals). */
-export function summaryMarkdown(data) {
+export function summaryMarkdown({ data }, _optional = {}) {
   const first = data.captures[0]?.signals || {};
   const lines = [
     ...overviewLines(data, first),
@@ -112,7 +113,7 @@ export function summaryMarkdown(data) {
 // Runs inside the page via `page.evaluate`, so it must stay self-contained:
 // every helper is nested in the callback (Playwright serializes only the
 // function itself), and each nested helper keeps one concern.
-export async function collectSignals(page) {
+export async function collectSignals({ page }, _optional = {}) {
   return page.evaluate(() => {
     const bySelector = (selector) => Array.from(document.querySelectorAll(selector));
     const text = (node) => (node?.textContent || "").trim().replace(/\s+/g, " ");
@@ -390,7 +391,7 @@ export async function collectSignals(page) {
 
 // 全程滚动一遍再采集: 懒加载图(loading=lazy / IntersectionObserver)只有滚到才
 // 发请求; 不滚的话 images/resources 只覆盖首屏, 复刻必然缺图。
-export async function scrollThroughPage(page, stepPx = 700) {
+export async function scrollThroughPage({ page }, { stepPx = 700 } = {}) {
   const total = await page.evaluate(() => document.documentElement.scrollHeight);
   for (let y = 0; y <= total; y += stepPx) {
     await page.evaluate((yy) => window.scrollTo(0, yy), y);
@@ -410,15 +411,15 @@ async function captureWidth(browser, args, width, consoleState, dirs) {
     if (message.type() === "warning") consoleState.warnings.push(entry);
   });
   page.on("pageerror", (error) => {
-    consoleState.pageErrors.push({ message: error.message, viewport: width });
+    consoleState.pageErrors.push({ message: errorClassLabel({ error }), viewport: width });
   });
 
   await page.goto(args.url, { waitUntil: "domcontentloaded", timeout: 45000 });
   await page.waitForLoadState("networkidle", { timeout: 8000 }).catch(() => {});
   if (args.waitMs > 0) await page.waitForTimeout(args.waitMs);
-  await scrollThroughPage(page);
+  await scrollThroughPage({ page });
 
-  const signals = await collectSignals(page);
+  const signals = await collectSignals({ page });
   const screenshotPath = path.join(dirs.screenshotsDir, `${args.label}-${width}.png`);
   await page.screenshot({ path: screenshotPath, fullPage: true });
   await page.close();
@@ -452,7 +453,7 @@ async function recon(args, deps) {
   };
   const jsonFile = path.join(outDir, `${args.label}-recon.json`);
   deps.fs.writeFileSync(jsonFile, `${JSON.stringify(result, null, 2)}\n`);
-  deps.fs.writeFileSync(path.join(outDir, `${args.label}-summary.md`), summaryMarkdown(result));
+  deps.fs.writeFileSync(path.join(outDir, `${args.label}-summary.md`), summaryMarkdown({ data: result }));
   deps.log(jsonFile);
   return 0;
 }
@@ -464,13 +465,13 @@ async function recon(args, deps) {
 export async function main({ argv }, deps = {}) {
   const io = { ...DEFAULT_DEPS, ...deps };
   return runCli({ label: "recon-site", body: () => {
-    const args = parseArgs(argv);
+    const args = parseArgs({ argv });
     if (args.help || !args.url) {
-      usage(io.log);
+      usage({}, { log: io.log });
       return args.help ? 0 : 1;
     }
     return recon(args, io);
   }, report: io.error });
 }
 
-await runIfMain({ moduleUrl: import.meta.url, main });
+await runIfMain({ moduleUrl: import.meta.url, main }, { stdout: process.stdout, stderr: process.stderr });

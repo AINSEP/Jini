@@ -1,7 +1,13 @@
 import type { useT } from '../../../i18n/index.js';
 import type { ResourceRowListViewProps } from './ResourceRowListView.js';
+import type { ResourceStatusOption } from '../../types.js';
 
 type Translate = ReturnType<typeof useT>;
+
+/** Resolve an option label with the status itself as the fallback. */
+export function createResourceStatusLabel({ t, statusOptions }: { t: Translate; statusOptions: ResourceStatusOption[] }, _options = {}) {
+  return (status: string) => t(statusOptions.find((option) => option.value === status)?.label ?? status);
+}
 
 /**
  * The optional hero-header props `ResourceRowList` hands `ResourceRowListView`.

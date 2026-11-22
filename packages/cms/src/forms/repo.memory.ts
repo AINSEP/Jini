@@ -1,4 +1,5 @@
 import { deleteMapRecord } from "@jini-ai/core/records";
+import { assertVersionedWrite } from "@jini-ai/core/optimistic-concurrency";
 // The local trash fork was removed; @jini-ai/cms/trash owns the shared adapter/hooks.
 import { encodeKeysetCursor } from "../core/keyset-cursor.js";
 import type { UUID } from "@jini-ai/core/primitives";
@@ -7,7 +8,7 @@ import type { FormDefinitionRepoPort, FormSubmissionRepoPort } from "./ports.js"
 import type { FormDefinitionRecord, FormSubmissionPage, FormSubmissionRecord } from "./types.js";
 
 /**
- * @file In-memory adapters for `forms` (rule-of-two half #1, ADR-006).
+ * @file In-memory adapters for `forms` (rule-of-two half #1).
  *
  * Purpose:
  * Test/dev-default implementations of `FormDefinitionRepoPort`/`FormSubmissionRepoPort`. Emulates
@@ -92,8 +93,16 @@ export class InMemoryFormDefinitionRepo implements FormDefinitionRepoPort {
    * clear a marker it never knew was set. A record with no existing row at all is still accepted
    * (pre-existing behavior of this in-memory double, unrelated to trashing).
    */
-  async update(record: FormDefinitionRecord): Promise<void> {
+  async update(record: FormDefinitionRecord, optional: { expectedVersion?: number } = {}): Promise<void> {
     const existing = this.rows.get(record.id);
+    const { expectedVersion } = optional;
+    if (expectedVersion !== undefined && !isLiveVersionMatch({ existing, record, expectedVersion })) {
+      await assertVersionedWrite({
+        changedRows: 0, recordKind: "form", recordId: record.id, expectedVersion,
+        readCurrentVersion: async () => existing?.workspaceId === record.workspaceId && existing.deletedAt === null ? existing.version : null,
+      });
+    }
+    // Do not yield between the in-memory comparison and write: concurrent calls share this map.
     if (existing && existing.deletedAt !== null) return;
     this.rows.set(record.id, cloneStored({ ...record, deletedAt: existing?.deletedAt ?? null }));
   }
@@ -124,7 +133,7 @@ export class InMemoryFormDefinitionRepo implements FormDefinitionRepoPort {
 
   /** Memory-only, NOT part of `FormDefinitionRepoPort`. Removes only the definition row — the
    *  composition root pairs this with `InMemoryFormSubmissionRepo.deleteAllForDefinition` the same
-   *  way `features/trash/adapters/form.ts` deletes submissions before the definition. */
+   *  way the host app's `src/features/trash/registry.ts` deletes submissions before the definition. */
   async hardDelete(required: { workspaceId: UUID; id: UUID }): Promise<void> {
     deleteMapRecord({ records: this.rows, key: required.id, fields: { workspaceId: required.workspaceId } });
   }
@@ -249,4 +258,12 @@ export class InMemoryFormSubmissionRepo implements FormSubmissionRepoPort {
       .filter(row => row.workspaceId === required.workspaceId && row.formDefinitionId === required.formDefinitionId)
       .map(cloneSubmission);
   }
+}
+
+/** True when the stored row is live, in the same workspace, and at the expected version. */
+function isLiveVersionMatch(
+  { existing, record, expectedVersion }: { existing: StoredFormDefinition | undefined; record: FormDefinitionRecord; expectedVersion: number },
+  _optional = {},
+): boolean {
+  return !!existing && existing.workspaceId === record.workspaceId && existing.deletedAt === null && existing.version === expectedVersion;
 }

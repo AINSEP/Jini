@@ -1,7 +1,7 @@
-import { Button, TextField, TextArea, Select, Dialog } from '@jini-ai/ui-kit/react';
+import { Button, TextField, TextArea, Select, Dialog } from '../../../react/kit.js';
 import { useCredentialEditor, type CredentialEditorProps } from '../hooks/CredentialEditor.hooks.js';
-export function CredentialEditor(props: CredentialEditorProps, _optional = {}) {
-  const vm = useCredentialEditor(props);
+export function CredentialEditor({ useCredentialEditorHook = useCredentialEditor, ...props }: CredentialEditorProps & { useCredentialEditorHook?: typeof useCredentialEditor }) {
+  const vm = useCredentialEditorHook(props);
   return <Dialog open title={vm.title} onClose={vm.cancel} pending={vm.saving}>
     <TextField label="Name" value={props.draft.label} onValueChange={vm.onLabel} disabled={vm.saving} />
     <TextField label={vm.tokenLabel} type="password" value={props.draft.token} onValueChange={vm.onToken} disabled={vm.saving} attrs={{ 'data-agent-private': 'true' }} />

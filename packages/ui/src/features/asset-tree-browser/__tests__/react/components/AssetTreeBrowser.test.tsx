@@ -89,8 +89,8 @@ describe('AssetTreeBrowser', () => {
     expect(screen.getByText('Folders')).toBeInTheDocument();
     expect(screen.getByTestId('asset-tree-dir-row-docs')).toBeInTheDocument();
     expect(screen.getByTestId('asset-tree-dir-row-empty')).toBeInTheDocument();
-    expect(screen.getByText('Text file', { selector: '.asset-tree-section-label' })).toBeInTheDocument();
-    expect(screen.getByText('Image', { selector: '.asset-tree-section-label' })).toBeInTheDocument();
+    expect(screen.getByText('Text file', { selector: '.jini-asset-tree-section-label' })).toBeInTheDocument();
+    expect(screen.getByText('Image', { selector: '.jini-asset-tree-section-label' })).toBeInTheDocument();
     expect(screen.getByTestId('asset-tree-file-row-readme.txt')).toBeInTheDocument();
     expect(screen.getByTestId('asset-tree-file-row-photo.png')).toBeInTheDocument();
   });
@@ -119,7 +119,7 @@ describe('AssetTreeBrowser', () => {
   it('opens the preview pane on clicking a file name, and Open triggers onOpenFile', async () => {
     const onOpenFile = vi.fn();
     render(<AssetTreeBrowser {...baseProps({ onOpenFile })} />);
-    await userEvent.click(screen.getByTestId('asset-tree-file-row-readme.txt').querySelector('.asset-tree-row-name')!);
+    await userEvent.click(screen.getByTestId('asset-tree-file-row-readme.txt').querySelector('.jini-asset-tree-row-name')!);
     expect(screen.getByTestId('asset-tree-preview')).toBeInTheDocument();
     await userEvent.click(within(screen.getByTestId('asset-tree-preview')).getByRole('button', { name: 'Open' }));
     expect(onOpenFile).toHaveBeenCalledWith(expect.objectContaining({ path: 'readme.txt' }));
@@ -204,7 +204,7 @@ describe('AssetTreeBrowser', () => {
 
     // Select and preview readme.txt first.
     await userEvent.click(within(screen.getByTestId('asset-tree-file-row-readme.txt')).getByRole('checkbox'));
-    await userEvent.click(screen.getByTestId('asset-tree-file-row-readme.txt').querySelector('.asset-tree-row-name')!);
+    await userEvent.click(screen.getByTestId('asset-tree-file-row-readme.txt').querySelector('.jini-asset-tree-row-name')!);
     expect(screen.getByTestId('asset-tree-preview')).toBeInTheDocument();
 
     await userEvent.click(screen.getByTestId('asset-tree-file-menu-readme.txt'));
@@ -258,10 +258,10 @@ describe('AssetTreeBrowser', () => {
 
   it('shows each kind section\'s file count next to its label (root counts nested files too)', () => {
     render(<AssetTreeBrowser {...baseProps()} />);
-    const textLabel = screen.getByText('Text file', { selector: '.asset-tree-section-label' });
-    const imageLabel = screen.getByText('Image', { selector: '.asset-tree-section-label' });
-    expect(textLabel.querySelector('.asset-tree-section-count')).toHaveTextContent('2');
-    expect(imageLabel.querySelector('.asset-tree-section-count')).toHaveTextContent('1');
+    const textLabel = screen.getByText('Text file', { selector: '.jini-asset-tree-section-label' });
+    const imageLabel = screen.getByText('Image', { selector: '.jini-asset-tree-section-label' });
+    expect(textLabel.querySelector('.jini-asset-tree-section-count')).toHaveTextContent('2');
+    expect(imageLabel.querySelector('.jini-asset-tree-section-count')).toHaveTextContent('1');
   });
 
   it('keeps the preview thumbnail\'s click-to-open overlay by default', () => {
@@ -377,7 +377,7 @@ describe('AssetTreeBrowser', () => {
     fireEvent.drop(body, { dataTransfer: { items: [item], files: [] } });
     await waitFor(() => expect(screen.getByTestId('asset-tree-upload-error-banner')).toBeInTheDocument());
 
-    await userEvent.click(screen.getByTestId('asset-tree-file-row-readme.txt').querySelector('.asset-tree-row-name')!);
+    await userEvent.click(screen.getByTestId('asset-tree-file-row-readme.txt').querySelector('.jini-asset-tree-row-name')!);
     expect(screen.getByTestId('asset-tree-preview')).toBeInTheDocument();
     expect(screen.queryByTestId('asset-tree-upload-error-banner')).toBeNull();
   });
@@ -393,7 +393,7 @@ describe('AssetTreeBrowser', () => {
 
   it('shows a download link in the preview pane when getFileUrl is supplied while a file is previewed', async () => {
     render(<AssetTreeBrowser {...baseProps({ getFileUrl: (f: TestFile) => `/files/${f.path}` })} />);
-    await userEvent.click(screen.getByTestId('asset-tree-file-row-readme.txt').querySelector('.asset-tree-row-name')!);
+    await userEvent.click(screen.getByTestId('asset-tree-file-row-readme.txt').querySelector('.jini-asset-tree-row-name')!);
     const preview = screen.getByTestId('asset-tree-preview');
     expect(within(preview).getByRole('link', { name: /Download/ })).toHaveAttribute('href', '/files/readme.txt');
   });

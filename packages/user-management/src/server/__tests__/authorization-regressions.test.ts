@@ -181,13 +181,13 @@ test('unknown principal with a dangling wildcard is denied as principal_disabled
 const stringSchema = { type: 'object', properties: { value: { type: 'string', minLength: 2 } }, required: ['value'], additionalProperties: false };
 test('minLength counts raw code points and preserves accepted strings', () => {
   assert.equal(parseIdentityToolInput({ schema: stringSchema, input: { value: '😀' } }).ok, false);
-  assert.deepEqual(parseIdentityToolInput({ schema: stringSchema, input: { value: ' 😀' } }), { ok: true, value: { value: ' 😀' } });
-  assert.deepEqual(parseIdentityToolInput({ schema: stringSchema, input: { value: '  ' } }), { ok: true, value: { value: '  ' } });
+  assert.deepEqual(parseIdentityToolInput({ schema: stringSchema, input: { value: ' 😀' } }), { ok: true, value: { value: ' 😀' }, integers: {} });
+  assert.deepEqual(parseIdentityToolInput({ schema: stringSchema, input: { value: '  ' } }), { ok: true, value: { value: '  ' }, integers: {} });
 });
 test('absent optional non-string schema properties fail before invalid input is inspected', () => {
   const schema = { type: 'object', properties: { count: { type: 'number' } }, additionalProperties: false };
-  assert.throws(() => parseIdentityToolInput({ schema, input: {} }), /non-string property/);
-  assert.throws(() => parseIdentityToolInput({ schema, input: null }), /non-string property/);
+  assert.throws(() => parseIdentityToolInput({ schema, input: {} }), /unsupported type 'number'/);
+  assert.throws(() => parseIdentityToolInput({ schema, input: null }), /unsupported type 'number'/);
 });
 for (const minLength of [-1, 1.5, '2', NaN]) {
   test(`invalid schema minLength ${String(minLength)} is rejected eagerly`, () => {

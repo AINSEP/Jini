@@ -16,7 +16,7 @@
  * around the exported `<QuestionForm>` instead. className/structure (`qp-*`)
  * kept close to the original; every user-facing string wrapped in `useT()`.
  */
-import { useRef, useState } from 'react';
+import { useRef, useState, type RefObject } from 'react';
 import type { UserTextRedactionOptions } from '../../core/user-text-redaction.js';
 import type { QuestionForm as QuestionFormType } from '../../core/index.js';
 import { useT } from '../hooks/context.js';
@@ -31,10 +31,11 @@ export interface QuestionsPanelProps extends UserTextRedactionOptions {
   /** The assistant turn is still streaming the form — keeps Continue disabled and shows a generating hint. */
   generating?: boolean;
   onSubmit: (text: string, answers: Record<string, string | string[]>) => void;
+  useTHook?: typeof useT;
 }
 
-export function QuestionsPanel({ form, interactive, submitDisabled, submittedAnswers, generating = false, onSubmit, redactUserText, onSecretRedacted }: QuestionsPanelProps) {
-  const t = useT();
+export function QuestionsPanel({ form, interactive, submitDisabled, submittedAnswers, generating = false, onSubmit, redactUserText, onSecretRedacted, useTHook = useT }: QuestionsPanelProps) {
+  const t = useTHook();
   const formRef = useRef<QuestionFormHandle>(null);
   const [ready, setReady] = useState(false);
 
@@ -44,19 +45,30 @@ export function QuestionsPanel({ form, interactive, submitDisabled, submittedAns
   const busy = submitDisabled || generating;
 
   return (
-    <div className="qp-panel">
+    <div className="jini-qp-panel">
       <QuestionForm ref={formRef} form={form} interactive={interactive} {...(submittedAnswers !== undefined ? { submittedAnswers } : {})} hideInternalSubmit {...(redactUserText ? { redactUserText } : {})} {...(onSecretRedacted ? { onSecretRedacted } : {})} onReadyChange={setReady} onSubmit={onSubmit} />
-      {!answered ? (
-        <div className="qp-foot">
-          {generating ? <span className="qp-hint">{t('Still generating…')}</span> : null}
-          <button type="button" className="qp-skip" disabled={busy} onClick={() => formRef.current?.skipAll()}>
-            {t('Skip')}
-          </button>
-          <button type="button" className="qp-continue primary" disabled={busy || !ready} onClick={() => formRef.current?.submit()}>
-            {t('Continue')}
-          </button>
-        </div>
-      ) : null}
+      {!answered ? <QuestionsFooter formRef={formRef} generating={generating} busy={busy} ready={ready} t={t} /> : null}
+    </div>
+  );
+}
+
+/** Skip / Continue controls (and the still-generating hint) under an unanswered form. */
+function QuestionsFooter({ formRef, generating, busy, ready, t }: {
+  formRef: RefObject<QuestionFormHandle | null>;
+  generating: boolean;
+  busy: boolean;
+  ready: boolean;
+  t: ReturnType<typeof useT>;
+}) {
+  return (
+    <div className="jini-qp-foot">
+      {generating ? <span className="jini-qp-hint">{t('Still generating…')}</span> : null}
+      <button type="button" className="jini-qp-skip" disabled={busy} onClick={() => formRef.current?.skipAll()}>
+        {t('Skip')}
+      </button>
+      <button type="button" className="jini-qp-continue primary" disabled={busy || !ready} onClick={() => formRef.current?.submit()}>
+        {t('Continue')}
+      </button>
     </div>
   );
 }

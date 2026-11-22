@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 
 import { reserveRefund } from "../../accounting/apply-evidence.js";
-import type { NewOutbox } from "../../ledger/rows.js";
+import type { NewOutbox } from "../../ledger/row-records.js";
 import { lipayFakeContext } from "../../testkit/lipay-fake.js";
 import { createOutboxRelay, type OutboxPublisherPort, type PaymentsOutboxMessage } from "../outbox-relay.js";
 import { createInboxWorker } from "../worker.js";

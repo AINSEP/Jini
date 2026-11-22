@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { runInNewContext } from 'node:vm';
 import { setImmediate } from 'node:timers/promises';
-import { injectBrowserAnalytics, renderBrowserAnalytics, resolveBrowserAnalyticsMode, type BrowserAnalyticsContribution } from '../product/browser.js';
+import { injectBrowserAnalytics, renderBrowserAnalytics, resolveBrowserAnalyticsMode } from '../product/browser.js';
+import { type BrowserAnalyticsContribution } from '@jini-ai/core/contracts/observability';
 
 const contribution: BrowserAnalyticsContribution = { supportsStatic: false, origins: ['https://collector.example'],
   source: 'function(){window.created++;return function(mode){window.modes.push(mode);};}' };

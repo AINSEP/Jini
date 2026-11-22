@@ -1,5 +1,6 @@
+import { AdminApiError } from '@jini-ai/core/admin-runtime';
 // @vitest-environment jsdom
-import { act, render, renderHook, waitFor } from '@testing-library/react';
+import { act, render, renderHook, waitFor } from './fetch-query-support.js';
 import { describe, expect, it } from 'vitest';
 import type { ReactNode } from 'react';
 import { FetchQueryProvider as BuiltinProvider } from '@jini-ai/ui/fetch-query';
@@ -17,16 +18,17 @@ import { Seo } from '../seo/react/pages/SeoPage.js';
 import { SeoPortsContext, SeoOptionsContext } from '../seo/react/hooks/SeoPorts.hooks.js';
 import type { AdminWidget } from '../widgets/models.js';
 import type { SeoEntryMeta } from '../seo/models.js';
+import { realEmbedPolicy } from '../media/__tests__/fakes/embed-policy.js';
 
 it('clears a media failure after successful cache settlement, including an empty library', () => {
   const controller = createLibraryController({ api: createMemoryMediaApi({}) });
   try {
-    controller.settleLibrary({ error: new Error('Library unavailable') });
+    controller.settleLibrary({ error: new AdminApiError({ message: 'Library unavailable', status: 500 }) });
     expect(controller.getSnapshot().error).toBe('Library unavailable');
     controller.settleLibrary({ all: [] });
     expect(controller.getSnapshot().items).toEqual([]);
     expect(controller.getSnapshot().error).toBeNull();
-    controller.settleLibrary({ all: [], error: new Error('Latest read failed') });
+    controller.settleLibrary({ all: [], error: new AdminApiError({ message: 'Latest read failed', status: 500 }) });
     expect(controller.getSnapshot().error).toBe('Latest read failed');
   } finally { controller.dispose(); }
 });
@@ -97,7 +99,7 @@ describe.each(['builtin', 'tanstack'] as const)('editor/cache regressions with %
     const source = createMemoryMediaProviders({ providers: [{ id: 'example', label: 'Example', configured: false }] });
     let reads = 0;
     const port = { ...source, list: async () => { reads++; return source.list({}); } };
-    const portsWrapper = ({ children }: { children: ReactNode }) => <Provider><MediaPortsContext.Provider value={{ mediaApi: api, mediaProviders: port }}>{children}</MediaPortsContext.Provider></Provider>;
+    const portsWrapper = ({ children }: { children: ReactNode }) => <Provider><MediaPortsContext.Provider value={{ embedPolicy: realEmbedPolicy, mediaApi: api, mediaProviders: port }}>{children}</MediaPortsContext.Provider></Provider>;
     const { result } = renderHook(() => ({ providers: useProvidersTab(), library: useMediaLibraryQuery({ api }), catalogue: useMediaProvidersQuery({ port }) }), { wrapper: portsWrapper });
     await waitFor(() => expect(result.current.providers.reloadDisabled).toBe(false));
     await waitFor(() => expect(result.current.catalogue.query.data).toHaveLength(1));

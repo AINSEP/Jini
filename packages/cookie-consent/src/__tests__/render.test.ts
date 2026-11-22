@@ -115,12 +115,12 @@ describe('preview', () => {
 
 describe('safeHref', () => {
   test('local paths and https only', () => {
-    expect(safeHref(undefined)).toBeNull();
-    expect(safeHref('')).toBeNull();
-    expect(safeHref('/privacy#a')).toBe('/privacy#a');
-    expect(safeHref('https://example.com/p')).toBe('https://example.com/p');
+    expect(safeHref({ url: undefined })).toBeNull();
+    expect(safeHref({ url: '' })).toBeNull();
+    expect(safeHref({ url: '/privacy#a' })).toBe('/privacy#a');
+    expect(safeHref({ url: 'https://example.com/p' })).toBe('https://example.com/p');
     for (const bad of ['//evil.com', '/a b', '/a\\b', 'http://example.com', 'javascript:alert(1)', 'data:text/html,x', 'https://u:p@example.com', 'privacy', 'mailto:a@b.c']) {
-      expect(safeHref(bad), bad).toBeNull();
+      expect(safeHref({ url: bad }), bad).toBeNull();
     }
   });
 });

@@ -1,9 +1,10 @@
-import type { Server } from 'node:http';
-import type { AddressInfo } from 'node:net';
-import express from 'express';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { isLocalSameOrigin } from '@jini-ai/core';
-import { ClientFacingError } from '@jini-ai/http-kit';
+import { reportRouteInternalError } from '@jini-ai/http-kit';
+import { describe, expect, it, vi } from 'vitest';
+import { denyAllOrigins } from '@jini-ai/core/contracts/server/testing';
+import { fakeDaemonRouteHost } from './fakes/route-host.js';
+import { jsonRequest, serveRoutes } from './fakes/serve-routes.js';
+import { describeRoutes } from '../route-table.js';
+import { ClientFacingError } from '@jini-ai/core/contracts/server';
 import {
   type AuthCredentials,
   type AuthProvider,
@@ -25,43 +26,13 @@ import {
   connectorsStoragePutRoute,
   type DbProvider,
   type DbRecord,
-  registerConnectorsRoutes,
+  connectorsRoutes,
   type RealtimeProvider,
   type StorageObjectMeta,
   type StorageProvider,
   type ConnectorsHttpDeps,
 } from '../connectors.js';
 
-vi.mock('@jini-ai/core', async (importOriginal) => ({
-  ...await importOriginal<typeof import('@jini-ai/core')>(),
-  isLocalSameOrigin: vi.fn(() => true),
-}));
-
-interface MockApp {
-  get: (path: string, handler: any) => void;
-  post: (path: string, handler: any) => void;
-  put: (path: string, handler: any) => void;
-  delete: (path: string, handler: any) => void;
-  patch: (path: string, handler: any) => void;
-  handlers: Record<string, (req: any, res: any) => Promise<void> | void>;
-}
-
-function makeApp(): MockApp {
-  const handlers: MockApp['handlers'] = {};
-  const make = (method: string) => (path: string, handler: any) => {
-    handlers[`${method.toUpperCase()} ${path}`] = handler;
-  };
-  return { get: make('get'), post: make('post'), put: make('put'), delete: make('delete'), patch: make('patch'), handlers };
-}
-
-function makeRes() {
-  return {
-    status: vi.fn().mockReturnThis(),
-    json: vi.fn().mockReturnThis(),
-  };
-}
-
-const adapter = { allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST', env: {}, resolvedPortRef: { current: 7456 } };
 
 const fakeUser: AuthUser = { id: 'u1', email: 'a@example.com', createdAt: 0 };
 const fakeSession: AuthSession = { token: 'tok1', userId: 'u1', expiresAt: 0 };
@@ -110,12 +81,8 @@ function makeRealtimeProvider(overrides: Partial<RealtimeProvider> = {}): Realti
 }
 
 function makeDeps(overrides: Partial<ConnectorsHttpDeps> = {}): ConnectorsHttpDeps {
-  return { ...overrides };
+  return { reportInternalError: reportRouteInternalError, ...overrides };
 }
-
-beforeEach(() => {
-  vi.mocked(isLocalSameOrigin).mockReturnValue(true);
-});
 
 describe('auth routes', () => {
   it('signup: happy path calls signUp and wraps the result', async () => {
@@ -148,17 +115,12 @@ describe('auth routes', () => {
     const rejection = new ClientFacingError({ apiError: { code: 'UNAUTHORIZED', message: 'invalid email or password' } });
     const auth = makeAuthProvider({ signIn: vi.fn(async () => { throw rejection; }) });
     const onInternalError = vi.fn();
-    const app = makeApp();
-    registerConnectorsRoutes({ app: app as any, deps: makeDeps({ auth, onInternalError }), adapter: { ...adapter, onInternalError } });
-    const res = makeRes();
-
-    await app.handlers['POST /api/connectors/auth/signin']!({
-      body: { email: 'a@example.com', password: 'wrong-password' }, query: {}, params: {},
-    }, res);
+    const host = fakeDaemonRouteHost({}, { onInternalError });
+    const response = await serveRoutes({ routes: connectorsRoutes({ deps: makeDeps({ auth, onInternalError }), host }) })(
+      jsonRequest({ path: '/api/connectors/auth/signin', method: 'POST' }, { body: { email: 'a@example.com', password: 'wrong-password' } }));
 
     expect(auth.signIn).toHaveBeenCalledWith({ email: 'a@example.com', password: 'wrong-password' });
-    expect(res.status).toHaveBeenCalledWith(401);
-    expect(res.json).toHaveBeenCalledWith({ error: { code: 'UNAUTHORIZED', message: 'invalid email or password' } });
+    expect([response.status, await response.json()]).toEqual([401, { error: { code: 'UNAUTHORIZED', message: 'invalid email or password' } }]);
     expect(onInternalError).not.toHaveBeenCalled();
   });
 
@@ -200,7 +162,7 @@ describe('auth routes', () => {
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.error.code).toBe('INTERNAL_ERROR');
-      expect(result.error.message).toBe('an internal error occurred');
+      expect(result.error.message).toBe('The sign-in provider could not finish this request. Try again; if it keeps failing, copy the request ID and report this problem.');
       expect(result.error.requestId).toBeDefined();
     }
     expect(onInternalError).toHaveBeenCalledWith(
@@ -387,39 +349,30 @@ describe('realtime routes', () => {
   });
 });
 
-describe('registerConnectorsRoutes', () => {
-  it('mounts every connectors route (auth x4, storage x4, db x5, realtime x1 = 14) and nothing under /payments', () => {
-    const app = makeApp();
-    registerConnectorsRoutes({ app: app as any, deps: makeDeps(), adapter });
-    expect(Object.keys(app.handlers)).toHaveLength(14);
-    expect(Object.keys(app.handlers).filter((key) => key.includes('/payments'))).toEqual([]);
-    expect(app.handlers['PUT /api/connectors/storage/:key']).toBeDefined();
-    expect(app.handlers['GET /api/connectors/db/:collection']).toBeDefined();
-    expect(app.handlers['GET /api/connectors/db/:collection/:id']).toBeDefined();
-    expect(app.handlers['POST /api/connectors/realtime/:channel/publish']).toBeDefined();
+describe('connectorsRoutes', () => {
+  const serve = ({ deps, denyOrigins = false }: { deps: ConnectorsHttpDeps; denyOrigins?: boolean }) =>
+    serveRoutes({ routes: connectorsRoutes({ deps, host: fakeDaemonRouteHost({}, denyOrigins ? { originPolicy: denyAllOrigins } : {}) }) });
+
+  it('lists every connectors route (auth x4, storage x4, db x5, realtime x1 = 14) and nothing under /payments', () => {
+    const routes = describeRoutes({ routes: connectorsRoutes({ deps: makeDeps(), host: fakeDaemonRouteHost() }) });
+    const keys = routes.map((route) => `${route.method} ${route.path}`);
+    expect(keys).toHaveLength(14);
+    expect(keys.filter((key) => key.includes('/payments'))).toEqual([]);
+    expect(keys).toEqual(expect.arrayContaining(['PUT /api/connectors/storage/:key', 'GET /api/connectors/db/:collection', 'GET /api/connectors/db/:collection/:id', 'POST /api/connectors/realtime/:channel/publish']));
   });
 
   it('credential-bearing and mutating routes enforce same-origin; GET routes do not gate on it', async () => {
-    vi.mocked(isLocalSameOrigin).mockReturnValue(false);
-    const app = makeApp();
-    registerConnectorsRoutes({ app: app as any, deps: makeDeps({ auth: makeAuthProvider() }), adapter });
-
-    const res = makeRes();
-    await app.handlers['POST /api/connectors/auth/signup']!({ body: { email: 'a@example.com', password: 'x' }, query: {}, params: {} }, res);
-    expect(res.status).toHaveBeenCalledWith(403);
-
-    const sessionRes = makeRes();
-    await app.handlers['POST /api/connectors/auth/session']!({ body: { token: 't' }, query: {}, params: {} }, sessionRes);
-    expect(sessionRes.status).toHaveBeenCalledWith(403);
+    const routes = describeRoutes({ routes: connectorsRoutes({ deps: makeDeps(), host: fakeDaemonRouteHost() }) });
+    expect(routes.filter((route) => route.method === 'GET').flatMap((route) => route.gates)).toEqual([]);
+    const fetch = serve({ deps: makeDeps({ auth: makeAuthProvider() }), denyOrigins: true });
+    const signUp = await fetch(jsonRequest({ path: '/api/connectors/auth/signup', method: 'POST' }, { body: { email: 'a@example.com', password: 'x' } }));
+    const session = await fetch(jsonRequest({ path: '/api/connectors/auth/session', method: 'POST' }, { body: { token: 't' } }));
+    expect([signUp.status, session.status]).toEqual([403, 403]);
   });
 
   it('zero-config default (all five slots unconfigured) still responds 503, not a crash, for a real mounted request', async () => {
-    const app = makeApp();
-    registerConnectorsRoutes({ app: app as any, deps: makeDeps(), adapter });
-    const res = makeRes();
-    await app.handlers['POST /api/connectors/auth/session']!({ body: { token: 't' }, query: {}, params: {} }, res);
-    expect(res.status).toHaveBeenCalledWith(503);
-    expect(res.json).toHaveBeenCalledWith({ error: { code: 'NOT_CONFIGURED', message: 'auth provider not configured' } });
+    const response = await serve({ deps: makeDeps() })(jsonRequest({ path: '/api/connectors/auth/session', method: 'POST' }, { body: { token: 't' } }));
+    expect([response.status, await response.json()]).toEqual([503, { error: { code: 'NOT_CONFIGURED', message: 'auth provider not configured' } }]);
   });
 
   // SEC-005's default sink. Every other guardedCall test injects `onInternalError`, so the
@@ -432,6 +385,8 @@ describe('registerConnectorsRoutes', () => {
     expect(result).toMatchObject({ ok: false, error: { code: 'INTERNAL_ERROR' } });
     expect(consoleErrorSpy).toHaveBeenCalledTimes(1);
     expect(consoleErrorSpy.mock.calls[0]![0]).toContain('internal error (connectors/auth.signIn, correlationId=');
+    expect(consoleErrorSpy.mock.calls[0]?.[1]).toBe('Error');
+    expect(JSON.stringify(consoleErrorSpy.mock.calls)).not.toContain('db down');
     consoleErrorSpy.mockRestore();
   });
 });
@@ -486,7 +441,7 @@ describe('every connectors route', () => {
       expect(result.ok).toBe(false);
       if (!result.ok) {
         expect(result.error.code).toBe('INTERNAL_ERROR');
-        expect(result.error.message).toBe('an internal error occurred');
+        expect(result.error.message).toBe(({ auth: 'The sign-in provider could not finish this request. Try again; if it keeps failing, copy the request ID and report this problem.', storage: 'The file storage provider could not finish this request. Try again; if it keeps failing, copy the request ID and report this problem.', db: 'The database provider could not finish this request. Try again; if it keeps failing, copy the request ID and report this problem.', realtime: 'The realtime provider could not finish this request. Try again; if it keeps failing, copy the request ID and report this problem.' } as Record<string, string>)[entry.slot]);
         expect(result.error.requestId).toBeDefined();
         expect(JSON.stringify(result.error)).not.toContain(secret);
       }
@@ -603,32 +558,15 @@ describe('path-parameter parsers reject a missing segment', () => {
 });
 
 /**
- * Real Express app on a real socket, one genuine HTTP round-trip per mounted route. This is the only
- * place the connectors pack is exercised as a *server* rather than as a bag of handler functions:
- * it proves the paths actually resolve (including the two overlapping `/db/:collection` shapes and
- * the three same-path/different-verb storage routes), that Express's own body parsing and param
- * extraction feed the specs' `parse` steps the shape they expect, and that each route's declared
- * success status reaches the wire.
+ * One round-trip per route through the in-memory server. It proves the paths resolve (including the two
+ * overlapping `/db/:collection` shapes and the three same-path/different-verb storage routes), that the
+ * JSON body and path params reach the specs' `parse` steps in the shape they expect, and that each
+ * route's declared success status is answered.
  */
-describe('registerConnectorsRoutes — real Express server on a real socket', () => {
-  const servers: Server[] = [];
-  const adapterRef = { allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST', env: {}, resolvedPortRef: { current: 0 } };
-
-  afterEach(() => {
-    for (const server of servers.splice(0)) server.close();
-  });
-
-  async function listen(deps: ConnectorsHttpDeps): Promise<string> {
-    const app = express();
-    app.use(express.json());
-    registerConnectorsRoutes({ app: app as never, deps, adapter: adapterRef as never });
-    const server = await new Promise<Server>((resolve) => {
-      const s = app.listen(0, '127.0.0.1', () => resolve(s));
-    });
-    servers.push(server);
-    adapterRef.resolvedPortRef.current = (server.address() as AddressInfo).port;
-    return `http://127.0.0.1:${adapterRef.resolvedPortRef.current}`;
-  }
+describe('connectorsRoutes — one round-trip per route', () => {
+  type Served = (request: Request) => Promise<Response>;
+  const listen = (deps: Omit<ConnectorsHttpDeps, 'reportInternalError'>, { denyOrigins = false }: { denyOrigins?: boolean } = {}): Served =>
+    serveRoutes({ routes: connectorsRoutes({ deps, host: fakeDaemonRouteHost({}, denyOrigins ? { originPolicy: denyAllOrigins } : {}) }) });
 
   function fullyConfigured() {
     return {
@@ -639,18 +577,14 @@ describe('registerConnectorsRoutes — real Express server on a real socket', ()
     };
   }
 
-  async function send(base: string, method: string, path: string, body?: unknown) {
-    const response = await fetch(`${base}${path}`, {
-      method,
-      headers: { 'content-type': 'application/json', origin: base },
-      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-    });
-    return { status: response.status, body: await response.json() };
+  async function send(served: Served, method: string, path: string, body?: unknown) {
+    const response = await served(jsonRequest({ path, method }, { body }));
+    return { status: response.status, body: await response.json() as unknown };
   }
 
   it('serves all four auth routes end to end, with signup answering 201', async () => {
     const deps = fullyConfigured();
-    const base = await listen(deps);
+    const base = listen(deps);
     const credentials = { email: 'a@example.com', password: 'secret' };
 
     expect(await send(base, 'POST', '/api/connectors/auth/signup', credentials)).toEqual({ status: 201, body: { user: fakeUser } });
@@ -663,7 +597,7 @@ describe('registerConnectorsRoutes — real Express server on a real socket', ()
 
   it('serves all four storage routes end to end, distinguishing PUT/GET/DELETE on the same path from the list route', async () => {
     const deps = fullyConfigured();
-    const base = await listen(deps);
+    const base = listen(deps);
 
     const put = await send(base, 'PUT', '/api/connectors/storage/k1', {
       dataBase64: Buffer.from('hello').toString('base64'),
@@ -688,11 +622,11 @@ describe('registerConnectorsRoutes — real Express server on a real socket', ()
     const charge = vi.fn();
     const refund = vi.fn();
     const getCharge = vi.fn();
-    const base = await listen({ ...fullyConfigured(), payments: { charge, refund, getCharge } } as ConnectorsHttpDeps);
+    const base = listen({ ...fullyConfigured(), payments: { charge, refund, getCharge } } as Omit<ConnectorsHttpDeps, 'reportInternalError'>);
 
-    expect((await fetch(`${base}/api/connectors/payments/charge`, { method: 'POST', headers: { 'content-type': 'application/json', origin: base }, body: JSON.stringify({ amountCents: 500, currency: 'usd', customerRef: 'cus_1' }) })).status).toBe(404);
-    expect((await fetch(`${base}/api/connectors/payments/ch1/refund`, { method: 'POST', headers: { origin: base } })).status).toBe(404);
-    expect((await fetch(`${base}/api/connectors/payments/ch1`, { headers: { origin: base } })).status).toBe(404);
+    expect((await base(jsonRequest({ path: '/api/connectors/payments/charge', method: 'POST' }, { body: { amountCents: 500, currency: 'usd', customerRef: 'cus_1' } }))).status).toBe(404);
+    expect((await base(jsonRequest({ path: '/api/connectors/payments/ch1/refund', method: 'POST' }))).status).toBe(404);
+    expect((await base(jsonRequest({ path: '/api/connectors/payments/ch1' }))).status).toBe(404);
     expect(charge).not.toHaveBeenCalled();
     expect(refund).not.toHaveBeenCalled();
     expect(getCharge).not.toHaveBeenCalled();
@@ -700,7 +634,7 @@ describe('registerConnectorsRoutes — real Express server on a real socket', ()
 
   it('serves all five db routes end to end, resolving /db/:collection and /db/:collection/:id correctly', async () => {
     const deps = fullyConfigured();
-    const base = await listen(deps);
+    const base = listen(deps);
 
     expect(await send(base, 'POST', '/api/connectors/db/notes', { id: 'r1', name: 'hello' })).toEqual({
       status: 201,
@@ -730,7 +664,7 @@ describe('registerConnectorsRoutes — real Express server on a real socket', ()
 
   it('serves the realtime publish route end to end', async () => {
     const deps = fullyConfigured();
-    const base = await listen(deps);
+    const base = listen(deps);
     expect(await send(base, 'POST', '/api/connectors/realtime/room1/publish', { event: { type: 'ping' } })).toEqual({
       status: 200,
       body: { ok: true },
@@ -739,7 +673,7 @@ describe('registerConnectorsRoutes — real Express server on a real socket', ()
   });
 
   it('answers 404 over the wire for a missing storage object and a missing db record', async () => {
-    const base = await listen({
+    const base = listen({
       storage: makeStorageProvider({ get: vi.fn(async () => null) }),
       db: makeDbProvider({ get: vi.fn(async () => null) }),
     });
@@ -754,7 +688,7 @@ describe('registerConnectorsRoutes — real Express server on a real socket', ()
   });
 
   it('answers 503 over the wire for an unconfigured provider slot', async () => {
-    const base = await listen({});
+    const base = listen({});
     expect(await send(base, 'POST', '/api/connectors/auth/signin', { email: 'a@example.com', password: 'x' })).toEqual({
       status: 503,
       body: { error: { code: 'NOT_CONFIGURED', message: 'auth provider not configured' } },
@@ -762,21 +696,25 @@ describe('registerConnectorsRoutes — real Express server on a real socket', ()
   });
 
   it('answers 400 over the wire for a malformed body', async () => {
-    const base = await listen(fullyConfigured());
+    const base = listen(fullyConfigured());
     const response = await send(base, 'POST', '/api/connectors/auth/signup', { email: 'a@example.com' });
     expect(response.status).toBe(400);
   });
 
   it('rejects a cross-origin mutating request with 403 before reaching the provider', async () => {
-    vi.mocked(isLocalSameOrigin).mockReturnValue(false);
     const deps = fullyConfigured();
-    const base = await listen(deps);
-    const response = await fetch(`${base}/api/connectors/auth/signup`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', origin: 'http://evil.example.com' },
-      body: JSON.stringify({ email: 'a@example.com', password: 'x' }),
-    });
+    const response = await listen(deps, { denyOrigins: true })(jsonRequest({ path: '/api/connectors/auth/signup', method: 'POST' }, { body: { email: 'a@example.com', password: 'x' } }));
     expect(response.status).toBe(403);
     expect(deps.auth.signUp).not.toHaveBeenCalled();
   });
+});
+
+it('uses the injected reporter and its request ID on provider failure', async () => {
+  const host = fakeDaemonRouteHost();
+  const failure = new Error('provider secret');
+  const deps = makeDeps({ reportInternalError: host.reportInternalError, auth: makeAuthProvider({ signIn: async () => { throw failure; } }) });
+  const result = await connectorsAuthSignInRoute.handle({ input: { email: 'a@example.com', password: 'secret' }, deps });
+  expect(result).toMatchObject({ ok: false, error: { code: 'INTERNAL_ERROR', requestId: 'req-1' } });
+  expect(host.reports).toEqual([expect.objectContaining({ report: { source: 'auth', operation: 'signIn', error: failure }, requestId: 'req-1' })]);
+  expect(JSON.stringify(result)).not.toContain('provider secret');
 });

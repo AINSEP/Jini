@@ -26,7 +26,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function disclosure({ summary, body, kind = '' }: { summary: string; body: string; kind?: string }, _options = {}): string {
-  return `<details class="mcpui-detail-disclosure ${kind}"><summary aria-expanded="false">${escapeHtml(summary)}</summary>${body}</details>`;
+  return `<details class="mcpui-detail-disclosure ${kind}"><summary aria-expanded="false">${escapeHtml({ value: summary })}</summary>${body}</details>`;
 }
 
 /** JSON scalar display; missing override values use the same empty marker as null. */
@@ -51,7 +51,7 @@ function codeKind({ value, path, format }: { value: string; path: string; format
 
 /** Escapes all text once at the HTML sink. Long prose uses a three-line summary. */
 function renderText({ value, path, format }: { value: string; path: string; format?: SurfaceDetail['format'] }, _options = {}): string {
-  const text = escapeHtml(value);
+  const text = escapeHtml({ value });
   const kind = codeKind({ value, path, format });
   if (kind) {
     const lines = value.split(/\r\n|\r|\n/).length;
@@ -76,7 +76,7 @@ function renderArray({ value, ...context }: ValueContext & { value: readonly unk
 }
 
 function objectRow({ key, context, body }: { key: string; context: ValueContext; body: string }, _options = {}): string {
-  return `<div class="mcpui-detail-row"><dt>${escapeHtml(surfaceDetailLabel({ key, path: context.path, labels: context.labels }))}</dt><dd>${body}</dd></div>`;
+  return `<div class="mcpui-detail-row"><dt>${escapeHtml({ value: surfaceDetailLabel({ key, path: context.path, labels: context.labels }) })}</dt><dd>${body}</dd></div>`;
 }
 
 /** Nested objects stay definition lists, indented once per actual group. @complexity O(n) rendered bytes. */
@@ -96,7 +96,7 @@ function renderValue(context: ValueContext, _options = {}): string {
   if (Array.isArray(value)) return renderArray({ ...context, value });
   if (isRecord(value)) return renderObject({ ...context, value });
   if (typeof value === 'string' && value !== '') return renderText({ ...context, value });
-  return escapeHtml(scalarText({ value }));
+  return escapeHtml({ value: scalarText({ value }) });
 }
 
 /** Object order is immaterial; array order and missing keys matter to an approval diff. */
@@ -159,5 +159,5 @@ export function renderStructuredDetail({ detail }: { detail: SurfaceDetail }, _o
   const raw = hasPrevious ? { previous: detail.previous, value: detail.value } : detail.value;
   const showRaw = hasPrevious || (typeof detail.value === 'object' && detail.value !== null) || body.startsWith('<details ');
   if (!showRaw) return body;
-  return body + disclosure({ summary: 'View raw', body: `<pre class="mcpui-code">${escapeHtml(JSON.stringify(raw, null, 2))}</pre>`, kind: 'mcpui-detail-raw' });
+  return body + disclosure({ summary: 'View raw', body: `<pre class="mcpui-code">${escapeHtml({ value: JSON.stringify(raw, null, 2) })}</pre>`, kind: 'mcpui-detail-raw' });
 }

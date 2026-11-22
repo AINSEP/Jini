@@ -3,7 +3,7 @@ import { dirname } from "node:path";
 import { Kysely, PostgresDialect } from "kysely";
 
 import { PG_PARSERS, PGLITE_SOCKET_FILE } from "../../core/index.js";
-import { buildKernel, postgresLockKey, type StorageKernel } from "../index.js";
+import { buildKernel, postgresLockKey, type KyselyKernel } from "../index.js";
 import { type PgModule, pgTypesFor } from "../../core/pg-types.js";
 
 /**
@@ -23,7 +23,7 @@ import { type PgModule, pgTypesFor } from "../../core/pg-types.js";
  * @param required.pg the consumer's node-postgres module (`import pg from "pg"`).
  * @throws {Error} a path that does not end in the Postgres socket file name.
  */
-export function openPgliteSocketKernel<DB>(required: { pg: PgModule; socketPath: string }): StorageKernel<DB> {
+export function openPgliteSocketKernel<DB>(required: { pg: PgModule; socketPath: string }, _optional: Record<string, never> = {}): KyselyKernel<DB> {
   if (!required.socketPath.endsWith(`/${PGLITE_SOCKET_FILE}`)) {
     throw new Error(`a PGlite socket path ends in /${PGLITE_SOCKET_FILE}: ${required.socketPath}`);
   }
@@ -35,13 +35,13 @@ export function openPgliteSocketKernel<DB>(required: { pg: PgModule; socketPath:
     max: 1,
     // Keep the one connection: every new one's startup waits behind any open transaction.
     idleTimeoutMillis: 0,
-    types: pgTypesFor(required.pg, PG_PARSERS),
+    types: pgTypesFor({ pg: required.pg, parsers: PG_PARSERS }),
   });
   // An idle connection dropped by the owner (restart, idle-in-transaction timeout) is evicted by the
   // pool and reopened on next use; without a listener it would crash the process.
   pool.on("error", () => {});
   const base = new Kysely<DB>({ dialect: new PostgresDialect({ pool }) });
-  return buildKernel<DB>({
+  return buildKernel<DB>({ driver: {
     dialect: "postgres",
     transport: "pglite-socket",
     capabilities: { interactiveTransactions: true, atomicBatch: true, transactionalDdl: true, backup: false },
@@ -51,5 +51,5 @@ export function openPgliteSocketKernel<DB>(required: { pg: PgModule; socketPath:
     begin: (body) => base.transaction().execute((tx) => body(tx)),
     lockKey: postgresLockKey,
     close: () => base.destroy(),
-  });
+  } });
 }

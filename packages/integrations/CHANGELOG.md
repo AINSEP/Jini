@@ -163,7 +163,7 @@
   The existing `./media-providers` entry is `jini.runtime: "node"` and its barrel statically pulls in
   `node:crypto`/`node:fs`/`node:path` (`staging.ts`), `node:dns` (`dispatch/ssrf-guard.ts`), and
   `undici` (`dispatch/providers/openai.ts`). A browser consumer that only needs the provider list to
-  render a credentials screen — Tovu's admin SPA is the first — previously had no way to get it
+  render a credentials screen — the first host's admin SPA is the first — previously had no way to get it
   without dragging the whole dispatch engine into its bundle.
 
   `providers.ts` imports only types from `types.ts`, and `types.ts` imports nothing, so the pair is
@@ -201,7 +201,7 @@
 
 ### Patch Changes
 
-- Tovu clean-up release (2026-10-08): code Tovu moved into Jini, plus the Jini clean-up (see the commit log since 0.4.0).
+- Host clean-up release (2026-10-08): code the first host moved into Jini, plus the Jini clean-up (see the commit log since 0.4.0).
 
 ## 0.6.19
 

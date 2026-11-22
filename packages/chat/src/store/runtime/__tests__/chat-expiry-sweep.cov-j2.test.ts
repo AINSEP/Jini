@@ -135,13 +135,14 @@ describe('startChatExpirySweep', () => {
     await stop();
   });
 
-  it('warns on the console by default, naming Error messages and stringifying anything else', async () => {
+  it('warns on the console by default with the error class only, never its text', async () => {
     vi.useFakeTimers({ now: 0 });
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    const { maintenance } = scripted([new Error('locked'), () => Promise.reject('plain')]);
+    const { maintenance } = scripted([new Error('boom api_key=SECRETSECRETSECRETSECRET'), () => Promise.reject('plain')]);
     const stop = startChatExpirySweep({ maintenance }, { intervalMs: 10 });
     await vi.advanceTimersByTimeAsync(10);
-    expect(warn.mock.calls).toEqual([['[chat-expiry-sweep] sweep failed:', expect.stringContaining('Error: locked')], ['[chat-expiry-sweep] sweep failed:', "'plain'"]]);
+    expect(warn.mock.calls).toEqual([['[chat-expiry-sweep] sweep failed:', 'Error'], ['[chat-expiry-sweep] sweep failed:', 'string']]);
+    for (const leak of ['boom', 'SECRETSECRET', 'plain', 'chat-expiry-sweep.cov-j2']) expect(JSON.stringify(warn.mock.calls)).not.toContain(leak);
     await stop();
   });
 });

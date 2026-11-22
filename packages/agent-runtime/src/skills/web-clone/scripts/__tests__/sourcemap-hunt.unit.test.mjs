@@ -20,9 +20,9 @@ function fakeFetch(routes) {
 
 describe("argument parsing and helpers", () => {
   it("parses flags with defaults and rejects unknown ones", () => {
-    expect(parseArgs(["--recon", "r.json", "--all-external", "--out"])).toEqual({ recon: "r.json", outDir: "RECON/sourcemaps", allExternal: true });
-    expect(parseArgs(["-h"])).toMatchObject({ help: true, recon: "", allExternal: false });
-    expect(() => parseArgs(["--deep"])).toThrow("Unexpected argument: --deep");
+    expect(parseArgs({ argv: ["--recon", "r.json", "--all-external", "--out"] })).toEqual({ recon: "r.json", outDir: "RECON/sourcemaps", allExternal: true });
+    expect(parseArgs({ argv: ["-h"] })).toMatchObject({ help: true, recon: "", allExternal: false });
+    expect(() => parseArgs({ argv: ["--deep"] })).toThrow("Unexpected argument: --deep");
   });
 
   it("collectScripts dedupes absolute http(s) script URLs across captures", () => {
@@ -34,27 +34,27 @@ describe("argument parsing and helpers", () => {
         {},
       ],
     };
-    expect(collectScripts(recon)).toEqual(["https://s.test/a.js", "HTTP://s.test/b.js"]);
-    expect(collectScripts({})).toEqual([]);
+    expect(collectScripts({ recon })).toEqual(["https://s.test/a.js", "HTTP://s.test/b.js"]);
+    expect(collectScripts({ recon: {} })).toEqual([]);
   });
 
   it("fileNameFor sanitizes the basename, appends a hash and suffix, and falls back to bundle.js", () => {
-    expect(fileNameFor("https://s.test/static/app@chunk.js.map", ".map")).toMatch(/^app-chunk\.js\.map-[0-9a-f]{10}\.map$/);
-    expect(fileNameFor("https://s.test/")).toMatch(/^bundle\.js-[0-9a-f]{10}$/);
+    expect(fileNameFor({ url: "https://s.test/static/app@chunk.js.map" }, { suffix: ".map" })).toMatch(/^app-chunk\.js\.map-[0-9a-f]{10}\.map$/);
+    expect(fileNameFor({ url: "https://s.test/" })).toMatch(/^bundle\.js-[0-9a-f]{10}$/);
   });
 
   it("resolveMapUrl follows the hint, defaults to <script>.map, and skips data: maps", () => {
-    expect(resolveMapUrl("https://s.test/js/a.js", "")).toBe("https://s.test/js/a.js.map");
-    expect(resolveMapUrl("https://s.test/js/a.js", "a.js.map")).toBe("https://s.test/js/a.js.map");
-    expect(resolveMapUrl("https://s.test/js/a.js", "/maps/a.map")).toBe("https://s.test/maps/a.map");
-    expect(resolveMapUrl("https://s.test/js/a.js", "data:application/json;base64,e30=")).toBe("");
+    expect(resolveMapUrl({ scriptUrl: "https://s.test/js/a.js", mapHint: "" })).toBe("https://s.test/js/a.js.map");
+    expect(resolveMapUrl({ scriptUrl: "https://s.test/js/a.js", mapHint: "a.js.map" })).toBe("https://s.test/js/a.js.map");
+    expect(resolveMapUrl({ scriptUrl: "https://s.test/js/a.js", mapHint: "/maps/a.map" })).toBe("https://s.test/maps/a.map");
+    expect(resolveMapUrl({ scriptUrl: "https://s.test/js/a.js", mapHint: "data:application/json;base64,e30=" })).toBe("");
   });
 
   it("fetchText sends the skill user agent and throws on a non-ok status", async () => {
     const fetchImpl = fakeFetch({ "https://s.test/a.js": "code", "https://s.test/b.js": 503 });
-    expect(await fetchText(fetchImpl, "https://s.test/a.js")).toBe("code");
+    expect(await fetchText({ fetchImpl, url: "https://s.test/a.js" })).toBe("code");
     expect(fetchImpl.calls[0][1]).toEqual({ headers: { "user-agent": "web-clone-skill/1.0 sourcemap-hunt", accept: "*/*" } });
-    await expect(fetchText(fetchImpl, "https://s.test/b.js")).rejects.toThrow("503 Server Error");
+    await expect(fetchText({ fetchImpl, url: "https://s.test/b.js" })).rejects.toThrow("503 Server Error");
   });
 });
 
@@ -86,7 +86,7 @@ describe("main", () => {
       "https://s.test/js/vendor.js": "y();\n/*@ sourceMappingURL=/maps/vendor.map */",
       "https://s.test/maps/vendor.map": '{"version":3,"v":1}',
       "https://s.test/js/inline.js": "z();\n//# sourceMappingURL=data:application/json;base64,e30=",
-      "https://s.test/js/missing.js": new Error("fetch failed"),
+      "https://s.test/js/missing.js": new Error("fetch failed api_key=SECRETSECRETSECRETSECRET"),
       "https://s.test/js/nomap.js": "w();",
     });
     const outDir = path.join(dir, "maps");
@@ -102,8 +102,9 @@ describe("main", () => {
     expect(fs.readFileSync(byScript["https://s.test/js/app.js"].mapFile, "utf8")).toBe('{"version":3}');
     expect(byScript["https://s.test/js/vendor.js"]).toMatchObject({ status: "ok", mapUrl: "https://s.test/maps/vendor.map" });
     expect(byScript["https://s.test/js/inline.js"]).toMatchObject({ status: "inline-or-data-map", mapUrl: "", mapFile: "" });
-    expect(byScript["https://s.test/js/missing.js"]).toMatchObject({ status: "error", error: "fetch failed" });
-    expect(byScript["https://s.test/js/nomap.js"]).toMatchObject({ status: "error", mapUrl: "https://s.test/js/nomap.js.map", error: "404 Not Found" });
+    expect(byScript["https://s.test/js/missing.js"]).toMatchObject({ status: "error", error: "Error" });
+    expect(byScript["https://s.test/js/nomap.js"]).toMatchObject({ status: "error", mapUrl: "https://s.test/js/nomap.js.map", error: "Error" });
+    expect(fs.readFileSync(manifestFile, "utf8")).not.toMatch(/fetch failed|SECRETSECRET|Not Found/);
     expect(byScript["https://cdn.test/lib.js"]).toBeUndefined();
   });
 
@@ -125,6 +126,6 @@ describe("main", () => {
   it("fails with exit 1 when the recon file cannot be read", async () => {
     const out = createOutput();
     expect(await main({ argv: ["--recon", path.join(tempDir(), "nope.json")] }, out)).toBe(1);
-    expect(out.errors[0]).toMatch(/^sourcemap-hunt failed: ENOENT/);
+    expect(out.errors[0]).toBe("sourcemap-hunt failed: Error");
   });
 });

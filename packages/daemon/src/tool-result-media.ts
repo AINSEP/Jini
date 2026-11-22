@@ -1,5 +1,5 @@
 import { batchOutcomeFor } from '@jini-ai/core';
-import type { ToolExecutionResult } from './tool-executor.js';
+import type { ToolExecutionResult } from "./tool-executor-types.js";
 
 /**
  * Extracts UI-renderable media blocks from a tool handler's raw MCP-style content envelope

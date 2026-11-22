@@ -1,5 +1,5 @@
 import { afterEach, expect, test, vi } from 'vitest';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { check, diagnosePublishedTypes, parseDiagnosticBlocks, registryDependencies } from '../index.js';
@@ -194,4 +194,35 @@ test('diagnoses missing scoped exports/modules but retains unrelated failures', 
     { ...logs[1], hits: ["missing module '@example/core/new'"] },
     { ...logs[2], hits: [] },
   ] });
+});
+
+test('pins add or replace scoped registry specs for compile projects', async () => {
+  const f = fixture();
+  f.installer.install.mockImplementation(async ({ directory }) => {
+    const manifest = JSON.parse(readFileSync(path.join(directory, 'package.json'), 'utf8'));
+    expect(manifest.dependencies).toEqual({ '@example/core': '1.0.0', '@example/extra': '2.0.0' });
+    for (const name of ['core', 'extra']) {
+      const dir = path.join(directory, 'node_modules', '@example', name);
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(path.join(dir, 'package.json'), '{"version":"9.9.9"}');
+    }
+    return pass;
+  });
+  const report = await check(f.args, { pins: { '@example/core': '1.0.0', '@example/extra': '2.0.0' } });
+  expect(report.projects[0]?.versions).toEqual({ '@example/core': '9.9.9', '@example/extra': '9.9.9' });
+});
+
+test('a pin outside the scope is a caller error', async () => {
+  const f = fixture();
+  await expect(check(f.args, { pins: { 'other/core': '1.0.0' } })).rejects.toThrow(TypeError);
+  expect(f.installer.install).not.toHaveBeenCalled();
+});
+
+test('keepScratch leaves the scratch install for inspection; the default removes it', async () => {
+  const scratchDirs = (dir: string) => readdirSync(dir).filter((name) => name.startsWith('published-types-'));
+  const f = fixture();
+  await check(f.args);
+  expect(scratchDirs(f.directory)).toEqual([]);
+  await check(f.args, { keepScratch: true });
+  expect(scratchDirs(f.directory)).toHaveLength(1);
 });

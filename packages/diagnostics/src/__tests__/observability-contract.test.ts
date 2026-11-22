@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 
-import { InMemorySpanExporter, createPort } from "./observability-fakes.js";
-
-import { createNoopObservabilityPort } from "../observability/noop.js";
-import { createOtelObservabilityPort } from "../observability/otel.js";
-import type { ObservabilityConfigEnabled } from "../observability/config.js";
-import type { ObservabilityPort, RequestTrackingInput, RequestTrackingOutcome } from "../observability/ports.js";
+import { createNoopObservabilityPort } from "@jini-ai/core/contracts/observability";
+import type {
+  ObservabilityPort,
+  RequestTrackingInput,
+  RequestTrackingOutcome,
+} from "@jini-ai/core/contracts/observability";
 
 /**
  * @file Table-driven proof that every adapter satisfies `ObservabilityPort`'s CONTRACT (not just
@@ -15,13 +15,6 @@ import type { ObservabilityPort, RequestTrackingInput, RequestTrackingOutcome } 
  * actually exercises, expressed once and checked identically against every implementation.
  */
 
-const OTEL_CONFIG: ObservabilityConfigEnabled = {
-  enabled: true,
-  serviceName: "sample-test",
-  tracerName: "sample.requests",
-  endpoint: "http://collector/v1/traces",
-};
-
 interface AdapterUnderTest {
   name: string;
   build(): ObservabilityPort;
@@ -29,10 +22,6 @@ interface AdapterUnderTest {
 
 const ADAPTERS: AdapterUnderTest[] = [
   { name: "noop", build: () => createNoopObservabilityPort({}) },
-  {
-    name: "otel",
-    build: () => createPort(OTEL_CONFIG, new InMemorySpanExporter()),
-  },
 ];
 
 const REQUESTS: RequestTrackingInput[] = [

@@ -14,6 +14,54 @@ export interface DirectoryRegistry {
   relocate(required: { from: string; to: string }, options?: {}): void;
 }
 
+/** Load and shape-check the catalog; anything unreadable or malformed fails closed without overwriting. */
+function readRegistryState({ file }: { file: Pick<DurableJsonFile, "read"> }): RegistryState {
+  const result = file.read({});
+  if (result.state === "missing") return { version: 1, entries: [], migrations: [] };
+  if (result.state !== "ok") throw new Error("The shared directory registry is unreadable; nothing was overwritten.");
+  const state = result.value as RegistryState | null;
+  const shapeOk = state?.version === 1 && Array.isArray(state.entries) && Array.isArray(state.migrations);
+  if (!shapeOk || !state.migrations.every((item) => typeof item === "string") || !state.entries.every(validRecord)) {
+    throw new Error("The shared directory registry has an invalid format; nothing was overwritten.");
+  }
+  return state;
+}
+
+/** Fold incoming records and migration markers into the state; a migration already applied is a no-op. */
+function mergeRegistryState(
+  { state, entries, migration, migrations, canonical }: {
+    state: RegistryState; entries: readonly DirectoryRecord[]; migration: string | undefined; migrations: readonly string[]; canonical: (value: string) => string;
+  },
+): { result: DirectoryRecord[]; next: RegistryState } {
+  if (migration && state.migrations.includes(migration)) return { result: state.entries, next: state };
+  const byPath = new Map(state.entries.map((entry) => [canonical(entry.path), { ...entry, path: canonical(entry.path) }]));
+  const byId = new Map([...byPath.values()].map((entry) => [entry.id, entry.path]));
+  for (const entry of entries) mergeEntry({ entry, byPath, byId }, { canonical });
+  const result = [...byPath.values()];
+  return { result, next: { ...state, entries: result, migrations: [...new Set([...state.migrations, ...migrations, ...(migration ? [migration] : [])])] } };
+}
+
+/** Remove rejected entries under the mutation lock and report them once; returns the surviving entries. */
+function pruneDiscarded(
+  { update, discard, reportDiscarded }: {
+    update: (change: (state: RegistryState) => RegistryState) => void;
+    discard: (required: { entry: DirectoryRecord }) => boolean;
+    reportDiscarded: (required: { entries: DirectoryRecord[] }) => void;
+  },
+): DirectoryRecord[] {
+  let entries: DirectoryRecord[] = [];
+  let removed: DirectoryRecord[] = [];
+  // Re-read under the same mutation lock; never overwrite a sibling process's new rows.
+  update((state) => {
+    removed = state.entries.filter((entry) => discard({ entry }));
+    const discarded = new Set(removed);
+    entries = state.entries.filter((entry) => !discarded.has(entry));
+    return { ...state, entries };
+  });
+  if (removed.length) reportDiscarded({ entries: removed });
+  return entries;
+}
+
 /** Shared catalog: corrupt state fails closed; every update holds one durable file lock.
  * Canonical paths deduplicate symlink aliases. Identity collisions require explicit relocation.
  * Optional host admission prunes rejected entries on list under that same lock, then reports once.
@@ -27,17 +75,7 @@ export function createDirectoryRegistry(
     reportDiscarded?: (required: { entries: DirectoryRecord[] }) => void;
   } = {},
 ): DirectoryRegistry {
-  function read(): RegistryState {
-    const result = file.read({});
-    if (result.state === "missing") return { version: 1, entries: [], migrations: [] };
-    if (result.state !== "ok") throw new Error("The shared directory registry is unreadable; nothing was overwritten.");
-    const state = result.value as RegistryState | null;
-    const shapeOk = state?.version === 1 && Array.isArray(state.entries) && Array.isArray(state.migrations);
-    if (!shapeOk || !state.migrations.every((item) => typeof item === "string") || !state.entries.every(validRecord)) {
-      throw new Error("The shared directory registry has an invalid format; nothing was overwritten.");
-    }
-    return state;
-  }
+  const read = (): RegistryState => readRegistryState({ file });
   const canonical = (value: string) => canonicalPath({ path: value });
   const update = (change: (state: RegistryState) => RegistryState) => file.withLock({ critical: () => {
     const previous = read(), next = change(previous);
@@ -49,27 +87,14 @@ export function createDirectoryRegistry(
     list: (_required, _optional = {}) => {
       const current = read();
       if (!discard || !current.entries.some((entry) => discard({ entry }))) return current.entries;
-      let entries = current.entries;
-      let removed: DirectoryRecord[] = [];
-      // Re-read under the same mutation lock; never overwrite a sibling process's new rows.
-      update((state) => {
-        removed = state.entries.filter((entry) => discard({ entry }));
-        const discarded = new Set(removed);
-        entries = state.entries.filter((entry) => !discarded.has(entry));
-        return { ...state, entries };
-      });
-      if (removed.length) reportDiscarded({ entries: removed });
-      return entries;
+      return pruneDiscarded({ update, discard, reportDiscarded });
     },
     merge({ entries, migration, migrations = [] }, _optional = {}) {
       let result: DirectoryRecord[] = [];
       update((state) => {
-        if (migration && state.migrations.includes(migration)) { result = state.entries; return state; }
-        const byPath = new Map(state.entries.map((entry) => [canonical(entry.path), { ...entry, path: canonical(entry.path) }]));
-        const byId = new Map([...byPath.values()].map((entry) => [entry.id, entry.path]));
-        for (const entry of entries) mergeEntry({ entry, byPath, byId }, { canonical });
-        result = [...byPath.values()];
-        return { ...state, entries: result, migrations: [...new Set([...state.migrations, ...migrations, ...(migration ? [migration] : [])])] };
+        const merged = mergeRegistryState({ state, entries, migration, migrations, canonical });
+        result = merged.result;
+        return merged.next;
       });
       return result;
     },

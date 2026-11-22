@@ -1,6 +1,7 @@
+import { describeApiError } from '@jini-ai/core/admin-runtime';
 import { useMemo } from 'react';
 import { useSitemapQuery } from './SeoQuery.hooks.js';
-import { useController } from '../../../core/react/use-controller.js';
+import { useSeoController } from './SeoPorts.hooks.js';
 import { createSitemapController } from '../../controllers/sitemap.controller.js';
 import { parseSitemapXml, filterSitemapEntries } from '../../rules.js';
 import type { SitemapModalController, SitemapModalInputs, SitemapModalStatus, SitemapState } from '../../models.js';
@@ -13,10 +14,10 @@ function sitemapStatus({ enabled, query }: { enabled: boolean; query: { error?: 
   if (query.error) return 'error';
   return query.data ? 'ready' : 'loading';
 }
-export function useSitemapModal({ api, enabled }: { api: AdminSeoPort; enabled: boolean; onClose?: () => void }, _optional: Record<string, never> = {}): SitemapModalController {
-  const cached = useSitemapQuery({ api, enabled });
-  const { controller, snapshot } = useController({ create: () => createSitemapController({ api: cached.api, enabled }), dependencies: [cached.api, enabled] }, { start: ({ controller }) => { void controller.load({}); } });
-  const state: SitemapState = { ...(snapshot ?? { filter: '', view: 'table' as const }), status: sitemapStatus({ enabled, query: cached.query }), error: cached.query.error?.message ?? null, xmlText: cached.query.data?.text ?? '' };
+export function useSitemapModal({ api, enabled }: { api: AdminSeoPort; enabled: boolean; onClose?: () => void }, { useQuery = useSitemapQuery }: { useQuery?: typeof useSitemapQuery } = {}): SitemapModalController {
+  const cached = useQuery({ api, enabled });
+  const { controller, snapshot } = useSeoController({ create: () => createSitemapController({ api: cached.api, enabled }), dependencies: [cached.api, enabled] }, { start: ({ controller }) => { void controller.load({}); } });
+  const state: SitemapState = { ...(snapshot ?? { filter: '', view: 'table' as const }), status: sitemapStatus({ enabled, query: cached.query }), error: cached.query.error ? describeApiError({ e: cached.query.error, fallback: 'failed to load the sitemap' }) : null, xmlText: cached.query.data?.text ?? '' };
   // Parse only when text/status changes, never on each filter keystroke.
   const entries = useMemo(() => state.status === 'ready' ? parseSitemapXml({ xmlText: state.xmlText }) : [], [state.status, state.xmlText]);
   const filteredEntries = useMemo(() => filterSitemapEntries({ entries, query: state.filter }), [entries, state.filter]);

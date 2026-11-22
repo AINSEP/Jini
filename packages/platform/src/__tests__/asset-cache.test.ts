@@ -23,31 +23,31 @@ import {
 
 describe('isCacheableExternalUrl', () => {
   it('accepts absolute http(s) media urls', () => {
-    expect(isCacheableExternalUrl('https://res.cloudinary.com/x/portal_bg.png')).toBe(true);
-    expect(isCacheableExternalUrl('http://images.example.com/a/b.jpg?v=2')).toBe(true);
-    expect(isCacheableExternalUrl('https://d8j0.cloudfront.net/clip.mp4')).toBe(true);
-    expect(isCacheableExternalUrl('https://cdn.example.com/a.webp#frag')).toBe(true);
+    expect(isCacheableExternalUrl({ raw: 'https://res.cloudinary.com/x/portal_bg.png' })).toBe(true);
+    expect(isCacheableExternalUrl({ raw: 'http://images.example.com/a/b.jpg?v=2' })).toBe(true);
+    expect(isCacheableExternalUrl({ raw: 'https://d8j0.cloudfront.net/clip.mp4' })).toBe(true);
+    expect(isCacheableExternalUrl({ raw: 'https://cdn.example.com/a.webp#frag' })).toBe(true);
   });
 
   it('rejects non-media, relative, data, and non-http urls', () => {
-    expect(isCacheableExternalUrl('https://fonts.googleapis.com/css2?family=Inter')).toBe(false);
-    expect(isCacheableExternalUrl('https://cdn.example.com/app.js')).toBe(false);
-    expect(isCacheableExternalUrl('./hero.png')).toBe(false);
-    expect(isCacheableExternalUrl('/api/asset-cache/x/hero.png')).toBe(false);
-    expect(isCacheableExternalUrl('data:image/png;base64,AAAA')).toBe(false);
-    expect(isCacheableExternalUrl(42)).toBe(false);
+    expect(isCacheableExternalUrl({ raw: 'https://fonts.googleapis.com/css2?family=Inter' })).toBe(false);
+    expect(isCacheableExternalUrl({ raw: 'https://cdn.example.com/app.js' })).toBe(false);
+    expect(isCacheableExternalUrl({ raw: './hero.png' })).toBe(false);
+    expect(isCacheableExternalUrl({ raw: '/api/asset-cache/x/hero.png' })).toBe(false);
+    expect(isCacheableExternalUrl({ raw: 'data:image/png;base64,AAAA' })).toBe(false);
+    expect(isCacheableExternalUrl({ raw: 42 })).toBe(false);
   });
 });
 
 describe('assetCacheRewriteUrl', () => {
   it('encodes the full url into the default same-origin proxy path', () => {
-    expect(assetCacheRewriteUrl('https://res.cloudinary.com/x/a b.png')).toBe(
+    expect(assetCacheRewriteUrl({ raw: 'https://res.cloudinary.com/x/a b.png' })).toBe(
       '/api/asset-cache?url=https%3A%2F%2Fres.cloudinary.com%2Fx%2Fa%20b.png',
     );
   });
 
   it('honors a caller-supplied route path', () => {
-    expect(assetCacheRewriteUrl('https://res.cloudinary.com/x/a.png', '/media-proxy')).toBe(
+    expect(assetCacheRewriteUrl({ raw: 'https://res.cloudinary.com/x/a.png' }, { routePath: '/media-proxy' })).toBe(
       '/media-proxy?url=https%3A%2F%2Fres.cloudinary.com%2Fx%2Fa.png',
     );
   });
@@ -187,8 +187,8 @@ describe('createAssetCache', () => {
   }
 
   it('C17: rejects SVG media and ignores media extensions in URL queries', async () => {
-    expect.soft(isCacheableExternalUrl('https://cdn.example.com/active.svg')).toBe(false);
-    expect.soft(isCacheableExternalUrl('https://cdn.example.com/render?x=.png')).toBe(false);
+    expect.soft(isCacheableExternalUrl({ raw: 'https://cdn.example.com/active.svg' })).toBe(false);
+    expect.soft(isCacheableExternalUrl({ raw: 'https://cdn.example.com/render?x=.png' })).toBe(false);
 
     const url = 'https://cdn.example.com/disguised.png';
     const cache = createAssetCache({
@@ -222,7 +222,7 @@ describe('createAssetCache', () => {
     expect(first.contentType).toBe('image/png');
     expect(first.buf.byteLength).toBe(8);
     // On-disk blob exists under the sha256 key.
-    const onDisk = await readFile(path.join(dir, assetCacheKey(url)));
+    const onDisk = await readFile(path.join(dir, assetCacheKey({ rawUrl: url })));
     expect(onDisk.byteLength).toBe(8);
     // Second call is served from disk — no extra fetch.
     const second = await cache.get(url);
@@ -454,7 +454,7 @@ describe('createAssetCache', () => {
   it.each([42, undefined, '', 'image/svg+xml', 'image/x-unknown', 'text/html'])(
     'refetches instead of replaying a disk-cached sidecar with unsafe contentType %s', async (contentType) => {
       const url = 'https://res.cloudinary.com/x/corrupt-meta.png';
-      const key = assetCacheKey(url);
+      const key = assetCacheKey({ rawUrl: url });
       await writeFile(path.join(dir, key), Buffer.alloc(4, 5));
       // Missing/non-string metadata used to replay generic bytes. All cached
       // entries, including legacy SVG, must satisfy the passive-media allowlist.

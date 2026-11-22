@@ -33,8 +33,8 @@ export function ConnectorLogo({ connectorId, connectorName, logoUrl, size = 'sm'
     }
   }, [logoUrl]);
 
-  const initials = fallbackLogoInitials(connectorName);
-  const palette = fallbackLogoPaletteIndex(connectorId || connectorName, FALLBACK_PALETTE_SIZE);
+  const initials = fallbackLogoInitials({ name: connectorName });
+  const palette = fallbackLogoPaletteIndex({ seed: connectorId || connectorName, paletteSize: FALLBACK_PALETTE_SIZE });
   const showImage = Boolean(logoUrl) && state !== 'error';
 
   return (
@@ -47,7 +47,7 @@ export function ConnectorLogo({ connectorId, connectorName, logoUrl, size = 'sm'
         <img
           key={logoUrl}
           ref={imageRef}
-          className="connector-logo-img"
+          className="jini-connector-logo-img"
           src={logoUrl}
           alt=""
           loading="lazy"
@@ -58,7 +58,7 @@ export function ConnectorLogo({ connectorId, connectorName, logoUrl, size = 'sm'
           onError={() => setState('error')}
         />
       ) : null}
-      <span className="connector-logo-fallback">{initials}</span>
+      <span className="jini-connector-logo-fallback">{initials}</span>
     </span>
   );
 }

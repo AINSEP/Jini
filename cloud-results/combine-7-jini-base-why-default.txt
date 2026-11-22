@@ -1,0 +1,3 @@
+why-comments: 2092 files with removed lines checked against origin/refactor/terra..HEAD, 199 comment blocks lost (199 allow-listed)
+why-comments: ok
+exit=0

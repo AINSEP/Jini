@@ -1,6 +1,7 @@
-import { spawn as nodeSpawn, type ChildProcess } from 'node:child_process';
+import type { ChildProcess } from 'node:child_process';
 import { createInterface, type Interface } from 'node:readline';
 import { redactSecrets } from '@jini-ai/core';
+import type { ProcessSpawnPort } from '../ports/process.js';
 import { buildAgentEnv } from './agent-env.js';
 import { errorMessage, isRecord } from './values.js';
 
@@ -10,6 +11,16 @@ export interface McpBridgeProbeResult {
   readonly signal: string | null;
   readonly stderrTail: string;
   readonly elapsedMs: number;
+}
+
+/** The probe as the executor calls it: the host's `spawn` and env are already bound. */
+export type McpBridgeProbe = (required: { readonly entry: McpBridgeProbeEntry }) => Promise<McpBridgeProbeResult>;
+
+/** The bridge command to initialize: its argv and the env entries it adds to the baseline. */
+export interface McpBridgeProbeEntry {
+  readonly command: string;
+  readonly args: readonly string[];
+  readonly env?: Readonly<Record<string, string>>;
 }
 
 const STDERR_TAIL_BYTES = 2000;
@@ -57,10 +68,8 @@ function reapProbe({ timer, lines, child }: {
  * @complexity O(n) in received bytes; stderr storage is bounded independently of child output.
  */
 export async function probeMcpBridge(
-  { entry }: { readonly entry: { readonly command: string; readonly args: readonly string[]; readonly env?: Readonly<Record<string, string>> } },
-  { spawn = nodeSpawn, hostEnv = process.env, baseEnv = buildAgentEnv({ hostEnv }), timeoutMs = 15_000, now = Date.now }: {
-    readonly spawn?: typeof nodeSpawn;
-    readonly hostEnv?: Readonly<Record<string, string | undefined>>;
+  { entry, spawn, hostEnv }: { readonly entry: McpBridgeProbeEntry; readonly spawn: ProcessSpawnPort; readonly hostEnv: Readonly<Record<string, string | undefined>> },
+  { baseEnv = buildAgentEnv({ hostEnv }), timeoutMs = 15_000, now = Date.now }: {
     readonly baseEnv?: Readonly<Record<string, string>>;
     readonly timeoutMs?: number;
     readonly now?: () => number;
@@ -79,13 +88,13 @@ export async function probeMcpBridge(
   });
   let outcome: McpBridgeProbeResult;
   try {
-    child = spawn(entry.command, [...entry.args], { env, stdio: 'pipe' });
+    child = spawn({ command: entry.command, args: entry.args }, { env, stdio: 'pipe' });
     const bridge = child;
     lines = bridge.stdout ? createInterface({ input: bridge.stdout, crlfDelay: Infinity }) : undefined;
     const reader = lines;
     outcome = await new Promise<McpBridgeProbeResult>((resolve) => {
       const fail = (error: unknown): void => {
-        stderr.append(`\n${errorMessage(error)}`);
+        stderr.append(`\n${errorMessage({ err: error })}`);
         resolve(result(false));
       };
       timer = setTimeout(() => resolve(result(false)), timeoutMs);
@@ -101,7 +110,7 @@ export async function probeMcpBridge(
       } })}\n`);
     });
   } catch (error) {
-    stderr.append(`\n${errorMessage(error)}`);
+    stderr.append(`\n${errorMessage({ err: error })}`);
     outcome = result(false);
   } finally {
     reapProbe({ timer, lines, child });

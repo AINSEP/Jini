@@ -1,7 +1,8 @@
 import { inspect } from 'node:util';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { FETCH_TIMEOUT_MS, FetchTimeoutError, fetchWithTimeout } from '../fetch-with-timeout.js';
+import { FetchTimeoutError, fetchWithTimeout } from '../fetch-with-timeout.js';
+import { FETCH_TIMEOUT_MS } from '@jini-ai/core/net';
 
 /**
  * A `fetch` stand-in that mirrors real fetch/undici's abort contract: it never settles on its own
@@ -37,13 +38,13 @@ describe('fetchWithTimeout', () => {
     const response = new Response('ok', { status: 200 });
     vi.stubGlobal('fetch', vi.fn(async () => response));
 
-    await expect(fetchWithTimeout('https://example.test/', {}, { timeoutMs: 5000 })).resolves.toBe(response);
+    await expect(fetchWithTimeout({ url: 'https://example.test/', timeoutMs: 5000 }, { init: {} })).resolves.toBe(response);
   });
 
   it('rejects with FetchTimeoutError once the timeout elapses before a hung fetch ever settles', async () => {
     stubHangingFetch();
 
-    const promise = fetchWithTimeout('https://example.test/slow', {}, { timeoutMs: 20 });
+    const promise = fetchWithTimeout({ url: 'https://example.test/slow', timeoutMs: 20 }, { init: {} });
     await expect(promise).rejects.toBeInstanceOf(FetchTimeoutError);
     await expect(promise).rejects.toThrow('fetch timed out after 20ms: https://example.test');
   });
@@ -52,7 +53,7 @@ describe('fetchWithTimeout', () => {
     stubHangingFetch();
 
     try {
-      await fetchWithTimeout('https://example.test/slow', {}, { timeoutMs: 15 });
+      await fetchWithTimeout({ url: 'https://example.test/slow', timeoutMs: 15 }, { init: {} });
       expect.unreachable('expected fetchWithTimeout to reject');
     } catch (error) {
       expect(error).toBeInstanceOf(FetchTimeoutError);
@@ -69,7 +70,7 @@ describe('fetchWithTimeout', () => {
     const abortReason = new Error('user cancelled the upload');
     setTimeout(() => controller.abort(abortReason), 5);
 
-    const promise = fetchWithTimeout('https://example.test/upload', { signal: controller.signal }, { timeoutMs: 5000 });
+    const promise = fetchWithTimeout({ url: 'https://example.test/upload', timeoutMs: 5000 }, { init: { signal: controller.signal } });
     await expect(promise).rejects.toBe(abortReason);
     await expect(promise).rejects.not.toBeInstanceOf(FetchTimeoutError);
   });
@@ -79,7 +80,7 @@ describe('fetchWithTimeout', () => {
     const controller = new AbortController();
     // The caller's own signal never fires in this test — only the (much shorter) timeout should.
 
-    const promise = fetchWithTimeout('https://example.test/upload', { signal: controller.signal }, { timeoutMs: 20 });
+    const promise = fetchWithTimeout({ url: 'https://example.test/upload', timeoutMs: 20 }, { init: { signal: controller.signal } });
     await expect(promise).rejects.toBeInstanceOf(FetchTimeoutError);
   });
 
@@ -92,7 +93,7 @@ describe('fetchWithTimeout', () => {
       }),
     );
 
-    const promise = fetchWithTimeout('https://example.test/', {}, { timeoutMs: 5000 });
+    const promise = fetchWithTimeout({ url: 'https://example.test/', timeoutMs: 5000 }, { init: {} });
     await expect(promise).rejects.toBe(networkError);
     await expect(promise).rejects.not.toBeInstanceOf(FetchTimeoutError);
   });
@@ -102,9 +103,7 @@ describe('fetchWithTimeout', () => {
     vi.stubGlobal('fetch', fetchSpy);
 
     await fetchWithTimeout(
-      'https://example.test/',
-      { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{"a":1}' },
-      { timeoutMs: 5000 },
+      { url: 'https://example.test/', timeoutMs: 5000 }, { init: { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{"a":1}' } },
     );
 
     expect(fetchSpy).toHaveBeenCalledTimes(1);
@@ -120,7 +119,7 @@ describe('fetchWithTimeout', () => {
   it('accepts a URL object, not just a string', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response('ok')));
     await expect(
-      fetchWithTimeout(new URL('https://example.test/x'), {}, { timeoutMs: 5000 }),
+      fetchWithTimeout({ url: new URL('https://example.test/x'), timeoutMs: 5000 }, { init: {} }),
     ).resolves.toBeInstanceOf(Response);
   });
 });

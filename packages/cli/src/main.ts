@@ -6,7 +6,7 @@
  * other module in this package is a library building block — `run-command.ts`,
  * `daemon-command.ts`, and `version-command.ts` each export a `register*Commands(registry,
  * deps)` function ready for a pack to call, but until this file, nothing actually parsed
- * `process.argv` and called them: `packages/cli/archived provenance ledger`'s "Not built" note on
+ * `process.argv` and called them: `070311a07^:packages/cli/source-map.md`'s "Not built" note on
  * `run-command.ts`'s original addition said as much — "no wiring of this file's commands into
  * an actual bootable CLI entrypoint." This closes that gap.
  *
@@ -78,6 +78,7 @@ import { existsSync, realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { CommandRegistry, type CommandDispatchResult } from './command-registry.js';
 import { registerDaemonCommands } from './daemon-command.js';
+import { defaultWrite, defaultWriteErr } from './daemon-call-deps.js';
 import { resolveDaemonUrl, type ResolveDaemonUrlOptions } from './daemon-url.js';
 import { exitWithStructuredError } from './errors.js';
 import { createLocalDaemonDiscovery } from './local-daemon-discovery.js';
@@ -96,14 +97,6 @@ export interface MainDeps {
   fetchImpl?: typeof fetch;
   /** Defaults to `process.env`; inject for tests. */
   env?: NodeJS.ProcessEnv;
-}
-
-function defaultWrite({ text }: { text: string }): void {
-  process.stdout.write(text);
-}
-
-function defaultWriteErr({ text }: { text: string }): void {
-  process.stderr.write(text);
 }
 
 function defaultExit({ code }: { code: number }): never {
@@ -187,9 +180,8 @@ function buildResolveBaseUrl(globals: PartitionedArgv['globals'], env: NodeJS.Pr
   else if (dataDir !== undefined) discover = createLocalDaemonDiscovery({ dataDir });
   else discover = undefined;
   return () =>
-    resolveDaemonUrl({}, {
+    resolveDaemonUrl({ env }, {
       flagUrl: daemonUrl ?? null,
-      env,
       envVarName: DAEMON_URL_ENV_VAR,
       ...(discover !== undefined ? { discover } : {}),
       warn,

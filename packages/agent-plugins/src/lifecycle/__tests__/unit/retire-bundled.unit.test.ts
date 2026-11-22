@@ -528,13 +528,13 @@ test("a step that throws an Error is reported as that id's failed outcome", asyn
 
     const outcomes = await retireBundledAgentPlugins({ layout, workspaceId: WORKSPACE_ID }, { now: () => { throw new Error("clock unavailable"); } });
 
-    assert.deepEqual(outcomes, [{ pluginId: RETIRED, successorId: SUCCESSOR, status: "failed", reason: "clock unavailable" }]);
+    assert.deepEqual(outcomes, [{ pluginId: RETIRED, successorId: SUCCESSOR, status: "failed", reason: "Error" }]);
   } finally {
     await forceRemove(cwd);
   }
 });
 
-test("a step that throws a non-Error is reported by its string form", async () => {
+test("a step that throws a non-Error is reported by its type", async () => {
   const { cwd, layout, workspaceLayout } = await freshLayout();
   try {
     await installPackage(layout, RETIRED, "archive-fly");
@@ -542,7 +542,20 @@ test("a step that throws a non-Error is reported by its string form", async () =
 
     const outcomes = await retireBundledAgentPlugins({ layout, workspaceId: WORKSPACE_ID }, { now: () => { throw "clock gone"; } });
 
-    assert.deepEqual(outcomes, [{ pluginId: RETIRED, successorId: SUCCESSOR, status: "failed", reason: "clock gone" }]);
+    assert.deepEqual(outcomes, [{ pluginId: RETIRED, successorId: SUCCESSOR, status: "failed", reason: "string" }]);
+  } finally {
+    await forceRemove(cwd);
+  }
+});
+
+test("a step that throws a secret-bearing Error is reported by its class only", async () => {
+  const { cwd, layout, workspaceLayout } = await freshLayout();
+  try {
+    await installPackage(layout, RETIRED, "archive-fly");
+    await seedSuccessor(layout, workspaceLayout.root);
+    const outcomes = await retireBundledAgentPlugins({ layout, workspaceId: WORKSPACE_ID }, { now: () => { throw new Error("boom api_key=SECRETSECRETSECRETSECRET"); } });
+    assert.deepEqual(outcomes, [{ pluginId: RETIRED, successorId: SUCCESSOR, status: "failed", reason: "Error" }]);
+    assert.doesNotMatch(JSON.stringify(outcomes), /boom|SECRETSECRET|retire-bundled\.unit/);
   } finally {
     await forceRemove(cwd);
   }

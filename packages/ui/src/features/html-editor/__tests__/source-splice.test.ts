@@ -20,13 +20,13 @@ import { indexElementSourceRanges, pathKey, spliceElementInner } from '../source
 describe('indexElementSourceRanges', () => {
   it('indexes nested elements by element-only child path', () => {
     const html = '<div><p>one</p><section><span>two</span></section></div>';
-    const index = indexElementSourceRanges(html);
+    const index = indexElementSourceRanges({ html });
 
     // div -> path [0]; p -> [0,0]; section -> [0,1]; span -> [0,1,0]
-    expect(index.get(pathKey([0]))).toBeDefined();
-    expect(index.get(pathKey([0, 0]))).toEqual({ start: html.indexOf('one'), end: html.indexOf('</p>'), tagName: 'p' });
-    expect(index.get(pathKey([0, 1]))).toBeDefined();
-    expect(index.get(pathKey([0, 1, 0]))).toEqual({
+    expect(index.get(pathKey({ path: [0] }))).toBeDefined();
+    expect(index.get(pathKey({ path: [0, 0] }))).toEqual({ start: html.indexOf('one'), end: html.indexOf('</p>'), tagName: 'p' });
+    expect(index.get(pathKey({ path: [0, 1] }))).toBeDefined();
+    expect(index.get(pathKey({ path: [0, 1, 0] }))).toEqual({
       start: html.indexOf('two'),
       end: html.indexOf('</span>'),
       tagName: 'span',
@@ -35,21 +35,21 @@ describe('indexElementSourceRanges', () => {
 
   it('gives void elements (br, img) an empty range and still counts them as a path slot', () => {
     const html = '<div>a<br>b<img src="x.png">c<p>after</p></div>';
-    const index = indexElementSourceRanges(html);
+    const index = indexElementSourceRanges({ html });
 
-    const brRange = index.get(pathKey([0, 0]));
+    const brRange = index.get(pathKey({ path: [0, 0] }));
     expect(brRange).toBeDefined();
     expect(brRange!.tagName).toBe('br');
     expect(brRange!.start).toBe(brRange!.end); // void: no inner content, empty range
 
-    const imgRange = index.get(pathKey([0, 1]));
+    const imgRange = index.get(pathKey({ path: [0, 1] }));
     expect(imgRange).toBeDefined();
     expect(imgRange!.tagName).toBe('img');
     expect(imgRange!.start).toBe(imgRange!.end);
 
     // <p> is the third element child of <div> (index 2), not shifted by the void elements' own
     // lack of children — void elements still occupy one path slot each among their siblings.
-    const pRange = index.get(pathKey([0, 2]));
+    const pRange = index.get(pathKey({ path: [0, 2] }));
     expect(pRange).toBeDefined();
     expect(pRange!.tagName).toBe('p');
     expect(html.slice(pRange!.start, pRange!.end)).toBe('after');
@@ -57,10 +57,10 @@ describe('indexElementSourceRanges', () => {
 
   it('skips a leading <style> block entirely from the path — the next element is still index 0', () => {
     const html = '<style>.a{color:red}</style><p>first</p>';
-    const index = indexElementSourceRanges(html);
+    const index = indexElementSourceRanges({ html });
 
-    expect(index.has(pathKey([0]))).toBe(true);
-    expect(index.get(pathKey([0]))).toEqual({ start: html.indexOf('first'), end: html.indexOf('</p>'), tagName: 'p' });
+    expect(index.has(pathKey({ path: [0] }))).toBe(true);
+    expect(index.get(pathKey({ path: [0] }))).toEqual({ start: html.indexOf('first'), end: html.indexOf('</p>'), tagName: 'p' });
     // No entry was created for <style> under any path — it is never a splice target.
     for (const range of index.values()) {
       expect(range.tagName).not.toBe('style');
@@ -69,9 +69,9 @@ describe('indexElementSourceRanges', () => {
 
   it('skips comments and whitespace text nodes — they consume no path slot', () => {
     const html = '<div>\n  <!-- a comment -->\n  <p>content</p>\n</div>';
-    const index = indexElementSourceRanges(html);
+    const index = indexElementSourceRanges({ html });
 
-    expect(index.get(pathKey([0, 0]))).toEqual({
+    expect(index.get(pathKey({ path: [0, 0] }))).toEqual({
       start: html.indexOf('content'),
       end: html.indexOf('</p>'),
       tagName: 'p',
@@ -80,9 +80,9 @@ describe('indexElementSourceRanges', () => {
 
   it('parses single-quoted attributes (e.g. a data-embed-config marker) without breaking offsets', () => {
     const html = `<div data-embed-config='{"type":"collection","id":"k"}'><p>inner</p></div>`;
-    const index = indexElementSourceRanges(html);
+    const index = indexElementSourceRanges({ html });
 
-    const range = index.get(pathKey([0, 0]));
+    const range = index.get(pathKey({ path: [0, 0] }));
     expect(range).toBeDefined();
     expect(html.slice(range!.start, range!.end)).toBe('inner');
   });
@@ -99,10 +99,10 @@ describe('spliceElementInner', () => {
   it('replaces only the bytes between the tags of the addressed element', () => {
     // <div> is element index 0 (the leading <style> is skipped), first <p> inside it is index 0.
     const path = [0, 0] as const;
-    const result = spliceElementInner(fixture, path, 'p', 'Hi');
+    const result = spliceElementInner({ html: fixture, path, expectedTagName: 'p', newInner: 'Hi' });
 
     expect(result).not.toBeNull();
-    const range = indexElementSourceRanges(fixture).get(pathKey(path))!;
+    const range = indexElementSourceRanges({ html: fixture }).get(pathKey({ path }))!;
     const expectedPrefix = fixture.slice(0, range.start);
     const expectedSuffix = fixture.slice(range.end);
 
@@ -113,8 +113,8 @@ describe('spliceElementInner', () => {
 
   it('leaves every byte outside the edited element byte-identical, including entities and quoting', () => {
     const path = [0, 0] as const;
-    const result = spliceElementInner(fixture, path, 'p', 'replaced')!;
-    const range = indexElementSourceRanges(fixture).get(pathKey(path))!;
+    const result = spliceElementInner({ html: fixture, path, expectedTagName: 'p', newInner: 'replaced' })!;
+    const range = indexElementSourceRanges({ html: fixture }).get(pathKey({ path }))!;
 
     const originalPrefix = fixture.slice(0, range.start);
     const originalSuffix = fixture.slice(range.end);
@@ -133,7 +133,7 @@ describe('spliceElementInner', () => {
 
   it('drops nested inline markup inside the edited element — the new inner fully replaces the old', () => {
     const path = [0, 0] as const;
-    const result = spliceElementInner(fixture, path, 'p', 'plain text only')!;
+    const result = spliceElementInner({ html: fixture, path, expectedTagName: 'p', newInner: 'plain text only' })!;
 
     // The first <p>'s own <b>bold</b> is gone; the second (untouched) <p>'s <b>bold</b> survives.
     const firstP = result.slice(result.indexOf('<p>'), result.indexOf('</p>') + 4);
@@ -145,7 +145,7 @@ describe('spliceElementInner', () => {
     // Both <p> elements are byte-for-byte identical before the edit; only path [0,1] (the second)
     // should change.
     const secondPath = [0, 1] as const;
-    const result = spliceElementInner(fixture, secondPath, 'p', 'Second only')!;
+    const result = spliceElementInner({ html: fixture, path: secondPath, expectedTagName: 'p', newInner: 'Second only' })!;
 
     const paragraphs = [...result.matchAll(/<p>([\s\S]*?)<\/p>/g)].map((m) => m[1]);
     expect(paragraphs).toHaveLength(2);
@@ -156,26 +156,26 @@ describe('spliceElementInner', () => {
 
   it('preserves custom indentation and whitespace surrounding the edited element', () => {
     const path = [0, 0] as const;
-    const result = spliceElementInner(fixture, path, 'p', 'x')!;
+    const result = spliceElementInner({ html: fixture, path, expectedTagName: 'p', newInner: 'x' })!;
 
     expect(result).toContain('\n  <p>x</p>\n  <p>Café &mdash;');
   });
 
   it('returns null (a signalled fallback, never a silent wrong splice) for a path that does not resolve', () => {
-    expect(spliceElementInner(fixture, [9, 9], 'p', 'x')).toBeNull();
-    expect(spliceElementInner(fixture, [0, 0, 0], 'p', 'x')).toBeNull();
+    expect(spliceElementInner({ html: fixture, path: [9, 9], expectedTagName: 'p', newInner: 'x' })).toBeNull();
+    expect(spliceElementInner({ html: fixture, path: [0, 0, 0], expectedTagName: 'p', newInner: 'x' })).toBeNull();
   });
 
   it('returns null when the element at the path has a different tag than expected — a structural drift signal', () => {
     // Path [0,0] resolves to a <p> in the fixture; asking for a <div> at that same path is a
     // caller/document mismatch, not a location to blindly splice into.
-    expect(spliceElementInner(fixture, [0, 0], 'div', 'x')).toBeNull();
+    expect(spliceElementInner({ html: fixture, path: [0, 0], expectedTagName: 'div', newInner: 'x' })).toBeNull();
   });
 
   it('never treats <style> as reachable through a path — it is not indexed at all', () => {
     // Path [0] in this fixture is the wrapping <div>, not the leading <style> block (skipped from
     // the path entirely) — splicing it replaces the div's inner content, not the stylesheet.
-    const result = spliceElementInner(fixture, [0], 'div', 'x')!;
+    const result = spliceElementInner({ html: fixture, path: [0], expectedTagName: 'div', newInner: 'x' })!;
     expect(result).toContain('<style>.a { color: red; }</style>');
     expect(result).not.toContain('<p>');
   });

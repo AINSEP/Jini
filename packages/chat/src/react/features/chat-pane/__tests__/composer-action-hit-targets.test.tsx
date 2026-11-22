@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '../../../__tests__/ui-kit-render-support.js';
 import { afterEach, expect, it, vi } from 'vitest';
 import { Composer } from '../../../components/Composer.js';
 import { useComposer } from '../../../hooks/useComposer.js';

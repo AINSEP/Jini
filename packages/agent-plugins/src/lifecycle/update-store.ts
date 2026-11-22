@@ -1,5 +1,4 @@
 import path from 'node:path';
-import { writeJsonFileAtomicAsync } from '@jini-ai/platform/fs';
 import { createPersistentStateModule } from './persistent-state.js';
 import type { AgentPluginLifecyclePorts } from './ports.js';
 
@@ -63,6 +62,42 @@ function parseJournal({ value, pluginId }: { value: unknown; pluginId: string },
   return raw as unknown as AgentPluginUpdateJournal;
 }
 
+function createUpdateJournalOperations(
+  { ports, root, journalPath, pluginId }: { ports: AgentPluginLifecyclePorts; root: string; journalPath: string; pluginId: string },
+  contain: (input: { entryPath: string }) => Promise<void>,
+) {
+  async function read(_required: Record<string, never>, _optional = {}): Promise<AgentPluginUpdateJournal | undefined> {
+    await contain({ entryPath: journalPath });
+    let text: string;
+    try { text = await ports.filesystem.readFile(journalPath, 'utf8'); }
+    catch (error) {
+      if (!isMissing({ error })) throw error;
+      return undefined;
+    }
+    let value: unknown;
+    try { value = JSON.parse(text); }
+    catch (cause) { throw invalidJournal({ cause }); }
+    return parseJournal({ value, pluginId });
+  }
+  async function write({ journal, history = false }: { journal: AgentPluginUpdateJournal; history?: boolean }, _optional = {}): Promise<void> {
+    const filePath = history ? path.join(root, 'update-history', `${journal.transactionId}.json`) : journalPath;
+    await contain({ entryPath: filePath });
+    await ports.atomicWriter.writeJson({ filePath, data: journal }, { fs: ports.filesystem,
+      createParent: true, mode: 0o600, platform: ports.process.platform, tempName: () => ports.ids.newId() });
+  }
+  async function clear(_required: Record<string, never>, _optional = {}): Promise<void> {
+    await contain({ entryPath: journalPath });
+    await ports.filesystem.rm(journalPath, { force: true });
+  }
+  /** Audit first, then drop the active journal: a crash between the two leaves a finished journal
+   * that the next update or boot re-files (same transaction id, so the history write is idempotent). */
+  async function finish({ journal }: { journal: AgentPluginUpdateJournal }, _optional = {}): Promise<void> {
+    await write({ journal, history: true });
+    await clear({});
+  }
+  return { read, write, clear, finish };
+}
+
 /** Durable per-plugin journal, audit history and frozen rollback area, all under the plugin's own
  * state root (never under `package/sha256`, so a rollback copy is never a live digest). Files use
  * the existing platform atomic writer. Settings snapshots are private (0600) and never returned to
@@ -80,35 +115,7 @@ export function createAgentPluginUpdateStore({ ports, workspaceId, pluginId }: {
   async function contain({ entryPath }: { entryPath: string }, _optional = {}): Promise<void> {
     await persistent.assertOwnedPath({ workspaceRoot: workspace.root, entryPath: path.relative(workspace.root, entryPath) });
   }
-  async function read(_required: Record<string, never>, _optional = {}): Promise<AgentPluginUpdateJournal | undefined> {
-    await contain({ entryPath: journalPath });
-    let text: string;
-    try { text = await ports.filesystem.readFile(journalPath, 'utf8'); }
-    catch (error) {
-      if (!isMissing({ error })) throw error;
-      return undefined;
-    }
-    let value: unknown;
-    try { value = JSON.parse(text); }
-    catch (cause) { throw invalidJournal({ cause }); }
-    return parseJournal({ value, pluginId });
-  }
-  async function write({ journal, history = false }: { journal: AgentPluginUpdateJournal; history?: boolean }, _optional = {}): Promise<void> {
-    const filePath = history ? path.join(root, 'update-history', `${journal.transactionId}.json`) : journalPath;
-    await contain({ entryPath: filePath });
-    await writeJsonFileAtomicAsync({ filePath, data: journal }, { fs: ports.filesystem,
-      createParent: true, mode: 0o600, platform: ports.process.platform, tempName: () => ports.ids.newId() });
-  }
-  async function clear(_required: Record<string, never>, _optional = {}): Promise<void> {
-    await contain({ entryPath: journalPath });
-    await ports.filesystem.rm(journalPath, { force: true });
-  }
-  /** Audit first, then drop the active journal: a crash between the two leaves a finished journal
-   * that the next update or boot re-files (same transaction id, so the history write is idempotent). */
-  async function finish({ journal }: { journal: AgentPluginUpdateJournal }, _optional = {}): Promise<void> {
-    await write({ journal, history: true });
-    await clear({});
-  }
+  const { read, write, clear, finish } = createUpdateJournalOperations({ ports, root, journalPath, pluginId }, contain);
   async function prepare(_required: Record<string, never>, _optional = {}): Promise<void> {
     await contain({ entryPath: rollbackDir });
     await ports.filesystem.mkdir(rollbackDir, { recursive: true, mode: 0o700 });

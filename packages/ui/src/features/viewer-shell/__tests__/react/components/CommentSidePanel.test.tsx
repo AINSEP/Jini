@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import { I18nProvider } from '../../../../i18n/index.js';
+import { I18nProvider, type useT } from '../../../../i18n/index.js';
 import { CommentSidePanel } from '../../../react/components/CommentSidePanel.js';
 
 interface TestComment {
@@ -36,6 +36,9 @@ function baseProps(overrides: Partial<Parameters<typeof CommentSidePanel<TestCom
     ...overrides,
   };
 }
+
+/** A translator that is visibly not the key, so the assertion proves the injected hook ran. */
+const useQuotingT: typeof useT = () => (key) => `«${key}»`;
 
 describe('CommentSidePanel', () => {
   it('renders a collapsed rail with the comment count', () => {
@@ -365,14 +368,14 @@ describe('CommentSidePanel boundary pins', () => {
     const { container } = render(
       <CommentSidePanel {...baseProps({ getCommentAttachments: () => [], resolveAttachmentUrl: (a) => a.path })} />,
     );
-    expect(container.querySelector('.comment-side-attachments')).toBeNull();
+    expect(container.querySelector('.jini-comment-side-attachments')).toBeNull();
   });
 
   it('renders no attachment strip when attachments exist but no resolver is supplied', () => {
     const { container } = render(
       <CommentSidePanel {...baseProps({ getCommentAttachments: () => [{ path: 'a.png', name: 'a.png' }] })} />,
     );
-    expect(container.querySelector('.comment-side-attachments')).toBeNull();
+    expect(container.querySelector('.jini-comment-side-attachments')).toBeNull();
   });
 
   it('marks a selected row and its checkbox, and offers Deselect', () => {
@@ -496,5 +499,10 @@ describe('CommentSidePanel hook override 4-pattern test suite', () => {
     // Re-expand
     fireEvent.click(screen.getByTestId('comment-side-collapsed-rail'));
     expect(screen.getByText('Comments')).toBeInTheDocument();
+  });
+
+  it('renders the translator supplied through useTHook', () => {
+    render(<CommentSidePanel {...baseProps({ collapsed: true })} useTHook={useQuotingT} />);
+    expect(screen.getByRole('button', { name: /«Comments»/ })).toBeInTheDocument();
   });
 });

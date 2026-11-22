@@ -165,7 +165,7 @@ describe('createFakeSkillsPort', () => {
     it('removes an existing skill', async () => {
       const port = createFakeSkillsPort();
       await port.deleteSkill('skill-summarize');
-      await expect(port.fetchSkillDetail('skill-summarize')).rejects.toThrow();
+      await expect(port.fetchSkillDetail('skill-summarize')).rejects.toThrow('Unknown skill: skill-summarize');
     });
 
     it('rejects for an unknown id, and does not affect the existing list', async () => {
@@ -183,4 +183,25 @@ describe('createFakeSkillsPort', () => {
       expect(Date.now() - start).toBeGreaterThanOrEqual(4);
     });
   });
+});
+
+
+it('allocates independently across skill factories', async () => {
+  const a = createFakeSkillsPort();
+  const b = createFakeSkillsPort();
+  const payload = { name: 'new', body: 'new body', triggers: [] };
+  expect((await a.createSkill(payload)).id).toBe('fake-skill-1');
+  expect((await b.createSkill(payload)).id).toBe('fake-skill-1');
+});
+
+it('skips seeded IDs for both creation and built-in shadow copies', async () => {
+  const seed: SkillDetail = { id: 'fake-skill-1', name: 'built-in', body: 'original', description: '', mode: 'assistant', source: 'built-in' };
+  const retained: SkillDetail = { ...seed, id: 'fake-skill-2', name: 'user', source: 'user' };
+  const port = createFakeSkillsPort({ skills: [seed, retained] });
+  const payload = { name: 'new', body: 'new body', triggers: [] };
+  expect((await port.createSkill(payload)).id).toBe('fake-skill-3');
+  expect((await port.updateSkill(seed.id, payload)).id).toBe('fake-skill-4');
+  expect(await port.fetchSkillDetail(seed.id)).toEqual(seed);
+  expect(await port.fetchSkillDetail(retained.id)).toEqual(retained);
+  expect((await port.listSkills()).map(skill => skill.id)).toEqual(['fake-skill-1', 'fake-skill-2', 'fake-skill-3', 'fake-skill-4']);
 });

@@ -208,7 +208,7 @@ describe("SitemapModal — disabled and error states", () => {
 
   it("a fetch failure shows the error, not a blank modal", async () => {
     renderModal(createFakeSitemapPort({ error: "network exploded" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("network exploded");
+    expect(await screen.findByRole("alert")).toHaveTextContent("failed to load the sitemap");
   });
 });
 

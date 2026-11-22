@@ -1,4 +1,4 @@
-import { adminPort } from '../core/module/token.js';
+import { adminPort } from '@jini-ai/core/contracts/admin-module';
 import type { AdminShellNavigationPort } from '../core/ports/shell.js';
 import type { AdminWidget, AdminWidgetWhereUsed, AdminWidgetArea, AdminWidgetPlacement, AdminWidgetRegionBinding, AdminWidgetType, WidgetsRequestOptions } from './models.js';
 /** Instance and region administration share one workspace-scoped API. Hosts authorize widgets.*,

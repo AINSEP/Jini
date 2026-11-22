@@ -36,9 +36,9 @@ export function useKitProvider(required: KitProviderProps, _optional: Record<str
       queueMicrotask(() => { if (!required.toast && !activeServices.current.has(toast)) toast.dispose({}); });
     };
   }, [toast, required.toast]);
-  return useMemo<KitContextValue>(() => ({ kit, overlayContainer, toast, agent: required.agent,
+  return useMemo<KitContextValue>(() => ({ kit, overlayContainer, toast, agent: required.agent, report: required.report,
     cancelLabel: required.cancelLabel ?? 'Cancel', guard: required.guard ?? kit.guard }),
-  [kit, overlayContainer, toast, required.agent, required.cancelLabel, required.guard]);
+  [kit, overlayContainer, toast, required.agent, required.cancelLabel, required.guard, required.report]);
 }
 function useOverlayRoot(required: { supplied: HTMLElement | null | undefined }) {
   const [root, setRoot] = useState<HTMLElement | null>(required.supplied ?? null);

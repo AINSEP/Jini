@@ -1,6 +1,7 @@
+import { reactModuleUi } from '../../../core/react/module-ui.js';
 import { Suspense } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, renderHook, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, renderHook, screen } from '../../../__tests__/fetch-query-support.js';
 import { createAdmin } from '../../../core/module/index.js';
 import * as sourceControlCore from '../../index.js';
 import { createHttpSourceControlApi } from '../../adapters/http.js';
@@ -49,7 +50,7 @@ describe('source-control adapters', () => {
 });
 
 function mount({ api, permissions, navigation, tabOnly }: { api: SourceControlApiPort; permissions: readonly string[]; navigation?: CredentialManagementPort; tabOnly?: { permissions: readonly string[] } }) {
-  const feature = sourceControl({});
+  const feature = sourceControl({ ui: reactModuleUi });
   const admin = createAdmin({ modules: [feature], ports: { sourceControlApi: api, ...(navigation ? { sourceControlNavigation: navigation } : {}) } }, { permissions });
   const { Page, tabs } = feature.react.pages.sourceControl;
   const Providers = tabs.providers;
@@ -100,7 +101,7 @@ describe('source-control React', () => {
   });
 
   it('defaults to the providers tab and reports tab changes to the host', () => {
-    const feature = sourceControl({});
+    const feature = sourceControl({ ui: reactModuleUi });
     const admin = createAdmin({ modules: [feature], ports: { sourceControlApi: createMemorySourceControlApi({}) } }, { permissions: ['source-control.read'] });
     const { tabs } = feature.react.pages.sourceControl;
     const onTabChange = vi.fn();

@@ -1,6 +1,7 @@
 import './dom-setup.js';
 import { describe, expect, it } from 'vitest';
-import { chartCatalogManifests, createChartProviderRegistry, type ChartSpec } from '@jini-ai/ui/charts';
+import { chartCatalogManifests, createChartProviderRegistry } from '@jini-ai/ui/charts';
+import { type ChartSpec } from '@jini-ai/core/contracts/charts';
 import { mountChart } from '@jini-ai/ui/charts/browser';
 import { mount, supportsEChartsSpec, ECHARTS_PROVIDER_ID, ECHARTS_KINDS } from '../client/provider.js';
 

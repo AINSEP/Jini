@@ -24,7 +24,7 @@ test('the supabase package ships its manifest, hosted connection, skill and reco
   ]);
   const manifest = await readJson('plugin.json');
   assert.equal(manifest.name, 'supabase');
-  assert.equal(manifest.extensions.jini.id, 'tovu/supabase');
+  assert.equal(manifest.extensions.jini.id, 'jini/supabase');
   assert.deepEqual(manifest.extensions.jini.provides, ['database:supabase']);
   assert.match(await readText('SKILL.md'), /references\/failure-modes\.md/);
 });
@@ -43,12 +43,9 @@ test('OAuth and token fallback target the hosted service without inline secrets'
   assert.match(await readText('references/failure-modes.md'), /secure connection card/);
 });
 
-// Plan v2 §5.1: legacy env and auth metadata stay as they were.
-test('the legacy token import and retired env names are kept', async () => {
+test('the token import uses the current env name', async () => {
   const tokenAuth = (await readJson('mcp.json')).mcpServers.supabase.tokenAuth;
-  assert.equal(tokenAuth.importFromEnv, 'TOVU_SUPABASE_MCP_ACCESS_TOKEN');
-  assert.equal(tokenAuth.retiredEnv.length, 8);
-  assert.ok(tokenAuth.retiredEnv.includes('TOVU_SUPABASE_MCP_ENABLED'));
+  assert.equal(tokenAuth.importFromEnv, 'JINI_SUPABASE_MCP_ACCESS_TOKEN');
 });
 
 test('the cards are browser sign-in first, then a Management API token fallback', async () => {

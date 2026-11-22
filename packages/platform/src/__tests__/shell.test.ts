@@ -32,20 +32,20 @@ describe("@jini-ai/platform — shell", () => {
 
   describe("execCommandViaLoginShell", () => {
     it.skipIf(isWin32)("re-enters $SHELL -c and preserves PATH for the inner command", async () => {
-      const result = await execCommandViaLoginShell(process.execPath, [
+      const result = await execCommandViaLoginShell({ command: process.execPath, args: [
         "-e",
         "process.stdout.write(String(!!process.env.PATH))",
-      ]);
+      ] });
       expect(result.ok).toBe(true);
       expect(result.stdout).toBe("true");
     });
 
     it.skipIf(isWin32)("quotes arguments containing single quotes and whitespace safely", async () => {
-      const result = await execCommandViaLoginShell(process.execPath, [
+      const result = await execCommandViaLoginShell({ command: process.execPath, args: [
         "-e",
         "process.stdout.write(process.argv[1])",
         "it's a test with spaces",
-      ]);
+      ] });
       expect(result.ok).toBe(true);
       expect(result.stdout).toBe("it's a test with spaces");
     });
@@ -54,7 +54,7 @@ describe("@jini-ai/platform — shell", () => {
       const previous = process.env.SHELL;
       delete process.env.SHELL;
       try {
-        const result = await execCommandViaLoginShell(process.execPath, ["-e", "process.exit(0)"]);
+        const result = await execCommandViaLoginShell({ command: process.execPath, args: ["-e", "process.exit(0)"] });
         expect(result.ok).toBe(true);
       } finally {
         if (previous === undefined) delete process.env.SHELL;
@@ -66,7 +66,7 @@ describe("@jini-ai/platform — shell", () => {
       const previous = process.env.SHELL;
       process.env.SHELL = "   ";
       try {
-        const result = await execCommandViaLoginShell(process.execPath, ["-e", "process.exit(0)"]);
+        const result = await execCommandViaLoginShell({ command: process.execPath, args: ["-e", "process.exit(0)"] });
         expect(result.ok).toBe(true);
       } finally {
         if (previous === undefined) delete process.env.SHELL;
@@ -78,10 +78,10 @@ describe("@jini-ai/platform — shell", () => {
       const previousPath = process.env.PATH;
       delete process.env.PATH;
       try {
-        const result = await execCommandViaLoginShell(process.execPath, [
+        const result = await execCommandViaLoginShell({ command: process.execPath, args: [
           "-e",
           "process.stdout.write(JSON.stringify(process.env.PATH ?? null))",
-        ]);
+        ] });
         expect(result.ok).toBe(true);
         expect(result.stdout).toBe(JSON.stringify(""));
       } finally {
@@ -94,7 +94,7 @@ describe("@jini-ai/platform — shell", () => {
       const previousPlatform = process.platform;
       Object.defineProperty(process, "platform", { value: "win32" });
       try {
-        const result = await execCommandViaLoginShell(process.execPath, ["-e", "process.stdout.write('win')"]);
+        const result = await execCommandViaLoginShell({ command: process.execPath, args: ["-e", "process.stdout.write('win')"] });
         expect(result.ok).toBe(true);
         expect(result.stdout).toBe("win");
       } finally {

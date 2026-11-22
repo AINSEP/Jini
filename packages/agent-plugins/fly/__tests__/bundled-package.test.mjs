@@ -20,20 +20,20 @@ const readJson = async (file) => JSON.parse(await readFile(path.join(root, file)
 
 test("fly ships exactly its portable payload and none of the host's files", async () => {
   assert.deepEqual(await shippedFiles(), [
-    "deploy-configs/fly.mjs", "deploy-ops/fly.mjs", "mcp.json", "plugin.json", "scripts/render-deploy-workflow.mjs",
+    "deploy-configs/fly.mjs", "deploy-ops/fly.mjs", "jini-credential-schemes.json", "jini-deploy-configs.json", "jini-deploy-ops.json",
+    "mcp.json", "plugin.json", "scripts/render-deploy-workflow.mjs",
     "skills/fly/SKILL.md", "skills/fly/references/fly-deploy.template.yml", "skills/fly/references/fly.template.toml",
-    "tovu-credential-schemes.json", "tovu-deploy-configs.json", "tovu-deploy-ops.json",
   ]);
 });
 
 test("fly keeps its publisher id, contributions and frozen contribution file names", async () => {
   const manifest = await readJson("plugin.json");
   assert.equal(manifest.name, "fly");
-  assert.equal(manifest.version, "1.0.1");
-  assert.equal(manifest.extensions.jini.id, "tovu/fly");
+  assert.equal(manifest.version, "1.0.2");
+  assert.equal(manifest.extensions.jini.id, "jini/fly");
   assert.deepEqual(manifest.extensions.jini.provides, ["deploy-ops:fly", "deploy-config:fly", "credential-scheme:fly-io"]);
-  const configs = await readJson("tovu-deploy-configs.json");
-  const ops = await readJson("tovu-deploy-ops.json");
+  const configs = await readJson("jini-deploy-configs.json");
+  const ops = await readJson("jini-deploy-ops.json");
   const files = await shippedFiles();
   for (const entry of [...configs.generators, ...ops.platforms]) assert.ok(files.includes(entry.module), entry.module);
 });

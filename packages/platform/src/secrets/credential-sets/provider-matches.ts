@@ -1,4 +1,4 @@
-import { VaultError, type VaultOptions } from "./vault.types.js";
+import { VaultError, type VaultOptions } from "@jini-ai/core/contracts/vault";
 
 /** Host-supplied catalog identity and accepted payload shape; catalogs never live in the vault. */
 export interface CredentialProviderDescriptor {

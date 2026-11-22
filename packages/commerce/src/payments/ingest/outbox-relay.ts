@@ -13,7 +13,7 @@
  */
 import type { PaymentMode } from "../contract/scope.js";
 import type { PaymentsLedger } from "../ledger/repo.js";
-import type { LedgerOutboxTopic, OutboxRecord } from "../ledger/rows.js";
+import type { LedgerOutboxTopic, OutboxRecord } from "../ledger/row-records.js";
 
 /** What a consumer receives. Ids and amounts only: the writer puts no personal data in payloads. */
 export interface PaymentsOutboxMessage {

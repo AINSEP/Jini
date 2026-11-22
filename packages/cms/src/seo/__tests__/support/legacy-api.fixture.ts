@@ -4,7 +4,10 @@
  * production settings owner. Defaults below are today's test host policy, never package policy.
  */
 import { afterEach } from "vitest";
-import type { OriginRegistryPort, VerifiedOrigin } from "@jini-ai/http-kit/verified-origin";
+import type {
+  OriginRegistryPort,
+  VerifiedOrigin,
+} from "@jini-ai/core/contracts/server/verified-origin";
 import { findMediaByIdOrSlug, isValidMediaSlugFormat } from "../../../media/index.js";
 import type { MediaRepoPort, TransformDefinitionRepoPort } from "../../../media/index.js";
 import type { SeoSettings, SeoExtFieldsPatch, PageHeadContext } from "../../types.js";
@@ -23,7 +26,7 @@ import type { SeoSitemapDeps } from "../../sitemap.js";
 import type { SitemapCollectHook } from "../../ports.js";
 import { InMemoryPostRepo, ROOT_SLUG } from "./post.fixture.js";
 import type { PostRepoPort } from "./post.fixture.js";
-import { extractPlainTextFromHtml } from "./html-plain-text.fixture.js";
+import { extractPlainTextFromHtml } from "../../html-plain-text.js";
 
 export class InMemorySettingsRepo implements SeoSettingsReaderPort {
   private values = new Map<string, Partial<SeoSettings>>();
@@ -78,7 +81,7 @@ export function mediaPort(deps: LegacyMedia): SeoMediaPort {
 }
 
 function postReadPort(repo: Pick<PostRepoPort, "findById">): SeoPostReadPort {
-  return { findById: input => repo.findById(input), extractPlainText: ({ html }) => extractPlainTextFromHtml(html),
+  return { findById: input => repo.findById(input), extractPlainText: ({ html }) => extractPlainTextFromHtml({ html }),
     isTrashed: ({ post }) => post.deletedAt != null };
 }
 function postWritePort(repo: PostRepoPort): SeoPostWritePort {

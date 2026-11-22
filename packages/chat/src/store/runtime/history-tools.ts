@@ -1,6 +1,7 @@
 /** Model-facing history tools over an authenticated owner-scoped store; no database handles. */
 import { buildDomainRegistrations, indexCatalogById, requireInputRecord, ToolInputError,
   type AgentToolDefinition, type AgentToolSideEffect, type ToolExecutionContext, type ToolRegistration } from '@jini-ai/core';
+import { listPageForModel, parseListPageRequest } from '@jini-ai/core/list-page';
 import { redactUserText, type RedactUserText } from '../../core/user-text-redaction.js';
 import type { ChatHistoryReader, ChatHistoryStore } from '../ports.js';
 import type { AgentEvent } from '../../core/events.js';
@@ -19,6 +20,7 @@ export const assistantHistoryToolCatalog = indexCatalogById<AgentToolDefinition>
     description: "Lists the CURRENT user's own conversations on this site, newest first, optionally searching titles and message content. Returns id, title, updatedAt, messageCount and firstUserLine, with redacted, capped text. When the user refers to an earlier or interrupted chat ('continue what we were doing'), list first, then assistant_chat_read to read its tail, summarise the state and continue. No other user's chats are accessible; unavailable history is an error.",
     inputSchema: { type: 'object', additionalProperties: false, properties: {
       query: { type: 'string', maxLength: 200 }, limit: { type: 'integer', minimum: 1, maximum: 50, default: 20 },
+      cursor: { type: 'string', description: 'nextCursor from the previous call. Omit for the first page.' },
     } } },
   { name: 'assistant_chat_read', sideEffects: 'none', authorization: { permission: 'admin.assistant.use' },
     description: "Reads one of the CURRENT user's own chats in stored message order. Omit fromPosition to read the latest tail (default 50 messages); use fromPosition and nextPosition for forward pagination. List chats first when resuming earlier work, read the tail, summarise the state, then continue. Returns redacted messages, positions, continuation and truncated flags; each serialized message is capped at 8,000 characters and the result at 40,000 characters. Tool events, when requested, contain only tool name and outcome, never payloads. Attachments are omitted. Missing and other-user chats receive the same refusal.",
@@ -117,14 +119,17 @@ async function openHistory(
   return { store, history: store.history };
 }
 
-function listInput({ input: raw }: { input: unknown }, _options = {}): { query?: string; limit: number } {
-  const input = inputRecord({ input: raw, keys: ['query', 'limit'] });
+/** Validate the model's search and page request before opening an owner-scoped store.
+ * @throws {ToolInputError} If an input field, query, limit or cursor is malformed. @complexity O(1).
+ */
+function listInput({ input: raw }: { input: unknown }, _options = {}): { query?: string; limit: number; cursor?: string } {
+  const input = inputRecord({ input: raw, keys: ['query', 'limit', 'cursor'] });
   if (input.query !== undefined && (typeof input.query !== 'string' || input.query.length > 200)) throw new ToolInputError({ message: 'query must be a string of at most 200 characters.' });
-  const limit = integerOption({ input, key: 'limit', fallback: 20, max: 50 });
-  return { ...(input.query === undefined ? {} : { query: input.query }), limit };
+  const { limit, cursor } = parseListPageRequest({ value: input }, { defaultLimit: 20, maxLimit: 50 });
+  return { ...(input.query === undefined ? {} : { query: input.query }), limit, ...(cursor === null ? {} : { cursor }) };
 }
 
-type ChatListRow = Awaited<ReturnType<ChatHistoryReader['list']>>[number];
+type ChatListRow = Awaited<ReturnType<ChatHistoryReader['list']>>['items'][number];
 interface ChatListView { id: string; title: string; updatedAt: number; messageCount: number; firstUserLine: string }
 
 function projectChatRow({ row, redact }: { row: ChatListRow; redact: RedactUserText }, _options = {}): { chat: ChatListView; truncated: boolean } {
@@ -136,17 +141,34 @@ function projectChatRow({ row, redact }: { row: ChatListRow; redact: RedactUserT
     messageCount: row.messageCount, firstUserLine: first.slice(0, 500) } };
 }
 
+/** Return one redacted owner-scoped history page with a cursor for every omitted conversation.
+ * Oversized escaped text can force a repeat read with a smaller page; the limit decreases on every
+ * repeat, so at most 50 bounded reads occur. Store errors and invalid input propagate.
+ * @complexity At most 50 reads of at most 51 rows, plus bounded response serialization per read.
+ */
 async function listChats(
   { ports, redact, ctx }: { ports: AssistantHistoryToolPorts; redact: RedactUserText; ctx: ToolExecutionContext }, _options = {},
-): Promise<{ chats: ChatListView[]; truncated: boolean }> {
+): Promise<{ chats: ChatListView[]; truncated: boolean; nextCursor: string | null; more?: string }> {
   const options = listInput({ input: ctx.input });
   const { history } = await openHistory({ ports, principalId: ctx.principal.id });
-  const projected = (await history.list({}, options)).map(row => projectChatRow({ row, redact }));
-  const chats = projected.map(item => item.chat);
-  let truncated = projected.some(item => item.truncated);
-  // List is bounded too; serialized escaping can make text larger than its character count.
-  while (JSON.stringify({ chats, truncated }).length > HISTORY_TOTAL_CHAR_CAP) { chats.pop(); truncated = true; }
-  return { chats, truncated };
+  let limit = options.limit;
+  let trimmed = false;
+  for (;;) {
+    const page = await history.list({}, { ...options, limit });
+    const projected = page.items.map(row => projectChatRow({ row, redact }));
+    const chats = projected.map(item => item.chat);
+    let truncated = trimmed || projected.some(item => item.truncated);
+    const { items: _items, ...continuation } = listPageForModel({ page, toolId: 'assistant_chats_list' });
+    // Escaped text may exceed the output budget. Re-read with a smaller limit so the store issues
+    // the owner-bound cursor for the last chat actually returned, rather than skipping popped rows.
+    while (chats.length > 0 && JSON.stringify({ chats, truncated, ...continuation }).length > HISTORY_TOTAL_CHAR_CAP) {
+      chats.pop(); truncated = true;
+    }
+    if (chats.length === projected.length) return { chats, truncated, ...continuation };
+    if (chats.length === 0 || chats.length >= limit) throw new ToolInputError({ message: 'Chat list exceeds its response size limit.' });
+    limit = chats.length;
+    trimmed = true;
+  }
 }
 
 interface ReadInput { chatId: string; limit: number; fromPosition?: number; includeToolEvents: boolean }

@@ -31,7 +31,7 @@ type Parse5ParentNode = DefaultTreeAdapterMap['parentNode'];
 type Parse5Element = DefaultTreeAdapterMap['element'];
 
 /** Tags GrapesJS never represents as ordinary tree components — never indexed, never a path slot. */
-const UNINDEXED_TAGS = new Set(['style', 'script']);
+const UNINDEXED_TAGS: ReadonlySet<string> = new Set(['style', 'script']);
 
 /**
  * An element's position among its ancestors' **element-only** children, ignoring text nodes,
@@ -50,8 +50,8 @@ export interface ElementSourceRange {
   readonly tagName: string;
 }
 
-/** Canonical string key for a path, for use as a `Map` key (`Map<pathKey(path), ...>`). */
-export function pathKey(path: ElementPath): string {
+/** Canonical string key for a path, for use as a `Map` key (`Map<pathKey({ path }), ...>`). */
+export function pathKey({ path }: { path: ElementPath }, _optional: Record<string, never> = {}): string {
   return path.join('.');
 }
 
@@ -77,7 +77,7 @@ function recordInnerRange(
     // empty (`start === end`), anchored at the end of the start tag.
     const start = location.startTag.endOffset;
     const end = location.endTag ? location.endTag.startOffset : start;
-    out.set(pathKey(currentPath), { start, end, tagName: node.tagName });
+    out.set(pathKey({ path: currentPath }), { start, end, tagName: node.tagName });
   }
 }
 
@@ -108,13 +108,13 @@ function indexChildren(children: readonly Parse5Node[], parentPath: ElementPath,
  *
  * @param html Source HTML to index. Parsed as a fragment (`parse5.parseFragment`), so a leading
  *   `<html>`/`<body>` wrapper is not assumed and is not specially handled here.
- * @returns A map from `pathKey(path)` to that element's source range. `style`/`script` elements,
+ * @returns A map from `pathKey({ path })` to that element's source range. `style`/`script` elements,
  *   comments, and text nodes are never present as entries or path slots.
  * @complexity O(n) in the size of `html` (parse5's own parse cost dominates; indexing itself is
  *   a single linear tree walk).
  * @overallScore 100
  */
-export function indexElementSourceRanges(html: string): Map<string, ElementSourceRange> {
+export function indexElementSourceRanges({ html }: { html: string }, _optional: Record<string, never> = {}): Map<string, ElementSourceRange> {
   const fragment = parseFragment(html, { sourceCodeLocationInfo: true });
   const index = new Map<string, ElementSourceRange>();
   indexChildren(fragment.childNodes, [], index);
@@ -143,8 +143,8 @@ export function indexElementSourceRanges(html: string): Map<string, ElementSourc
  *   itself is two string slices and a concatenation.
  * @overallScore 100
  */
-export function spliceElementInner(html: string, path: ElementPath, expectedTagName: string, newInner: string): string | null {
-  const range = indexElementSourceRanges(html).get(pathKey(path));
+export function spliceElementInner({ html, path, expectedTagName, newInner }: { html: string; path: ElementPath; expectedTagName: string; newInner: string }, _optional: Record<string, never> = {}): string | null {
+  const range = indexElementSourceRanges({ html }).get(pathKey({ path }));
   if (!range || range.tagName !== expectedTagName) return null;
   return html.slice(0, range.start) + newInner + html.slice(range.end);
 }

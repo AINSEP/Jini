@@ -88,7 +88,14 @@ describe("collectLogSource / collectLogSources", () => {
 
     expect(collected.content).toBeNull();
     expect(collected.bytes).toBe(0);
-    expect(collected.error).toMatch(/ENOENT/);
+    expect(collected.error).toBe("Error(ENOENT)");
+  });
+
+  it("stores only the error class when the file cannot be read, never the message", async () => {
+    const filesystem = { ...ports.filesystem, readFile: async () => { throw new Error("boom api_key=SECRETSECRETSECRETSECRET"); } };
+    const collected = await collectLogSource({ source: { name: "secret.log", absolutePath: join(tempDir, "secret.log"), kind: "text" }, filesystem });
+    expect(collected.error).toBe("Error");
+    for (const text of ["boom", "SECRETSECRET", "sources.test"]) expect(JSON.stringify(collected)).not.toContain(text);
   });
 
   it("collects multiple sources concurrently", async () => {

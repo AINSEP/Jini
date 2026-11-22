@@ -18,7 +18,7 @@ import {
   parseVelaModelJson,
   parseVelaModels,
 } from '../amr.js';
-import type { RuntimeAgentDef } from '../../types.js';
+import type { RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 import { cliOutputDiscoveryDeps, discoveryContext, offlineDiscoveryDeps } from './discovery-fakes.js';
 
 afterEach(() => {
@@ -154,15 +154,15 @@ describe('parseVelaModels', () => {
     expect(result.map((m) => m.id)).toEqual(['deepseek-v3.2']);
   });
 
-  it('orders known preferred chat models by PREFERRED_AMR_CHAT_MODEL_ORDER, unknowns after in insertion order', () => {
+  it('keeps the discovered order: no hard-coded model preference (the saved choice is preselected elsewhere)', () => {
     const result = parseVelaModels({ stdout: ['gemini-2.5-flash', 'some-unknown-model', 'glm-5.1', 'deepseek-v3.2', 'deepseek-v4-flash'].join('\n') }
     );
     expect(result.map((m) => m.id)).toEqual([
-      'deepseek-v4-flash',
-      'deepseek-v3.2',
-      'glm-5.1',
       'gemini-2.5-flash',
       'some-unknown-model',
+      'glm-5.1',
+      'deepseek-v3.2',
+      'deepseek-v4-flash',
     ]);
   });
 
@@ -233,10 +233,10 @@ describe('parseVelaModelJson', () => {
     expect(result.map((m) => m.id)).toEqual(['deepseek-v3.2']);
   });
 
-  it('orders the resulting models by the preferred chat model order', () => {
+  it('keeps the discovered order of the resulting models', () => {
     const result = parseVelaModelJson({ stdout: JSON.stringify({ source: 'preset', data: [{ id: 'glm-5.1' }, { id: 'deepseek-v3.2' }] }), expectedSource: 'preset' }
     );
-    expect(result.map((m) => m.id)).toEqual(['deepseek-v3.2', 'glm-5.1']);
+    expect(result.map((m) => m.id)).toEqual(['glm-5.1', 'deepseek-v3.2']);
   });
 });
 
@@ -376,7 +376,7 @@ describe('amrAgentDef.discoverModels', () => {
   });
 
   it('parses the CLI listing as a remote-sourced vela model JSON document', async () => {
-    const catalog = await amrAgentDef.discoverModels({ context: discoveryContext }, { deps: cliOutputDiscoveryDeps(JSON.stringify({ source: 'remote', data: [{ id: 'glm-5.1' }] })) });
+    const catalog = await amrAgentDef.discoverModels({ context: discoveryContext }, { deps: cliOutputDiscoveryDeps({ stdout: JSON.stringify({ source: 'remote', data: [{ id: 'glm-5.1' }] }) }) });
     expect(catalog.freshness).toBe('fresh');
     expect(catalog.models.map((model) => model.id)).toEqual(['glm-5.1']);
   });

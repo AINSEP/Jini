@@ -16,8 +16,8 @@
  * ElevenLabs wire API once it has a key.
  */
 import { createHash } from 'node:crypto';
-import { createSystemClock, type Clock, type HttpClientPort } from '@jini-ai/core/primitives';
-import { FETCH_TIMEOUT_MS, fetchWithTimeout } from '@jini-ai/platform/fetch-with-timeout';
+import type { Clock, HttpClientPort } from '@jini-ai/core/primitives';
+import { FETCH_TIMEOUT_MS } from '@jini-ai/core/net';
 
 const ELEVENLABS_DEFAULT_BASE_URL = 'https://api.elevenlabs.io';
 const ELEVENLABS_DEFAULT_VOICE_LIMIT = 100;
@@ -141,6 +141,7 @@ function readVoiceCatalog({ payload }: { payload: unknown }, _options = {}): unk
 
 /** Owns transport, time and a bounded voice cache for one host lifecycle.
  * Supply the existing policy-enforcing HTTP client; this factory never constructs a raw transport.
+ * Hosts build one client with their clock and HttpClientPort, keep it for the process, and call clearCache() on shutdown.
  * @throws RangeError for an invalid cache bound; credential/transport/JSON errors propagate from listing.
  * @complexity O(c + v) per lookup, c <= maxCacheEntries and v <= the requested page size.
  */
@@ -203,38 +204,3 @@ export function createElevenLabsVoiceClient(
 }
 
 export type ElevenLabsVoiceClient = ReturnType<typeof createElevenLabsVoiceClient>;
-
-/** Native defaults stay in this compatibility assembly; injected clients use HttpClientPort directly. */
-function createCompatibilityClient(requestInit: Pick<RequestInit, 'dispatcher'> = {}): ElevenLabsVoiceClient {
-  return createElevenLabsVoiceClient({ clock: createSystemClock(), http: {
-    async send({ request }) {
-      const response = await fetchWithTimeout(request.url, {
-        ...requestInit, method: request.method, headers: request.headers,
-      }, { timeoutMs: FETCH_TIMEOUT_MS.QUICK });
-      // Same reads as before the port: json() on success, text() for the error message.
-      return { status: response.status, headers: {},
-        bodyText: response.ok ? JSON.stringify(await response.json()) : await response.text() };
-    },
-  } });
-}
-
-const compatibilityClient = createCompatibilityClient();
-const dispatcherClients = new WeakMap<object, ElevenLabsVoiceClient>();
-
-/** Compatibility wrapper for existing callers. New hosts retain an injected client and clear it on shutdown. */
-export async function listElevenLabsVoiceOptions(required: ElevenLabsVoiceListRequired, options: {
-  limit?: number;
-  requestInit?: Pick<RequestInit, 'dispatcher'>;
-} = {}): Promise<ElevenLabsVoiceOption[]> {
-  let client = compatibilityClient;
-  const dispatcher = options.requestInit?.dispatcher;
-  if (dispatcher && typeof dispatcher === 'object') {
-    let owned = dispatcherClients.get(dispatcher);
-    if (!owned) {
-      owned = createCompatibilityClient(options.requestInit);
-      dispatcherClients.set(dispatcher, owned);
-    }
-    client = owned;
-  }
-  return client.listVoiceOptions(required, options);
-}

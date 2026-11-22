@@ -138,7 +138,7 @@ function buildModule(ports: Pick<AgentPluginLifecyclePorts, "filesystem">) {
 
 const instances = new WeakMap<Pick<AgentPluginLifecyclePorts, "filesystem">, ReturnType<typeof buildModule>>();
 /** Internal composition; one state/queue instance per injected host context. */
-export function createPackagePathsModule(ports: Pick<AgentPluginLifecyclePorts, "filesystem">) {
+export function createPackagePathsModule(ports: Pick<AgentPluginLifecyclePorts, "filesystem">, _optional: Record<string, never> = {}) {
   let instance = instances.get(ports);
   if (!instance) { instance = buildModule(ports); instances.set(ports, instance); }
   return instance;

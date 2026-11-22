@@ -19,7 +19,7 @@
  * different shapes there. The host application supplies the actual server
  * name/command/args. See `archived provenance ledger`.
  */
-import type { RuntimeAgentDef } from './types.js';
+import type { RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 
 export type AcpMcpServerSpec = {
   /** MCP server name advertised to the agent. Host-supplied — no default. */
@@ -40,7 +40,7 @@ export type AcpMcpServerEntry = {
   env: Record<string, string> | Array<{ name: string; value: string }>;
 };
 
-export function buildAcpMcpServersForAgent({ def, spec }: { def: Pick<RuntimeAgentDef, 'mcpDiscovery' | 'acpMcpEnvFormat'>; spec: AcpMcpServerSpec }
+export function buildAcpMcpServersForAgent({ def, spec }: { def: Pick<RuntimeAgentDef, 'mcpDiscovery' | 'acpMcpEnvFormat'>; spec: AcpMcpServerSpec }, _optional: Record<string, never> = {}
 ): AcpMcpServerEntry[] {
   const { name, command, args = [], extraEnv = {}, enabled = true } = spec;
   if (!enabled || def?.mcpDiscovery !== 'mature-acp') return [];

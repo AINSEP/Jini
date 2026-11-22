@@ -22,8 +22,8 @@ const DNS_TYPES = new Set(['TXT', 'MX', 'CNAME']);
 /** @type {Readonly<Record<number, string>>} */
 const REJECTED_CODES = { 401: 'unauthorized', 403: 'forbidden', 404: 'not_found' };
 
-/** `Retry-After` (seconds) in ms, when present and sane. @param {Readonly<Record<string, string>> | undefined} headers */
-export function retryAfterMs(headers) {
+/** `Retry-After` (seconds) in ms, when present and sane. @param {{ headers: Readonly<Record<string, string>> | undefined }} required @param {Readonly<Record<string, string>> | undefined} required.headers */
+export function retryAfterMs({ headers }, _optional = {}) {
   const raw = headers?.['retry-after'] ?? headers?.['Retry-After'] ?? '';
   const seconds = raw.trim() === '' ? Number.NaN : Number(raw);
   return Number.isFinite(seconds) && seconds >= 0 ? Math.ceil(seconds * 1000) : undefined;
@@ -49,7 +49,7 @@ function failure(response) {
   const named = parsed.errorCode !== fallback.errorCode;
   const detail = { code: restricted ? 'forbidden' : fallback.errorCode, message: named ? `${parsed.errorCode}: ${parsed.message}` : parsed.message };
   if (status === 429) {
-    const wait = retryAfterMs(response.headers);
+    const wait = retryAfterMs({ headers: response.headers });
     return { status: 'rejected', error: { ...detail, ...(wait === undefined ? {} : { retryAfterMs: wait }) } };
   }
   if (status >= 500) return { status: 'unknown', error: { ...detail } };
@@ -86,14 +86,14 @@ async function findDomain(ctx, domain) {
   return { status: 'ok', value: rows.find((/** @type {any} */ row) => String(row?.name ?? '').toLowerCase() === wanted) ?? null };
 }
 
-/** Resend's domain status to the contract's four states. @param {unknown} status */
-export function domainState(status) {
+/** Resend's domain status to the contract's four states. @param {{ status: unknown }} required */
+export function domainState({ status }, _optional = {}) {
   if (status === 'verified') return 'verified';
   return status === 'failed' ? 'failed' : 'pending';
 }
 
 /** A relative record name under `domain` as a full name. @param {string} name @param {string} domain */
-export function qualify(name, domain) {
+export function qualify({ name, domain }, _optional = {}) {
   const lower = name.toLowerCase();
   if (lower === '' || lower === '@' || lower === domain) return domain;
   return lower.endsWith(`.${domain}`) ? lower : `${lower}.${domain}`;
@@ -102,7 +102,7 @@ export function qualify(name, domain) {
 /** @param {any} record @param {string} domain */
 function toRequirement(record, domain) {
   return {
-    type: record.type, name: qualify(String(record.name ?? ''), domain), value: String(record.value ?? ''),
+    type: record.type, name: qualify({ name: String(record.name ?? ''), domain }), value: String(record.value ?? ''),
     ...(typeof record.ttl === 'number' ? { ttl: record.ttl } : {}),
     ...(typeof record.priority === 'number' ? { priority: record.priority } : {}),
     note: `${record.record ?? 'Resend'} record`,
@@ -133,5 +133,5 @@ export async function domainStatus(ctx, { domain }) {
   const name = domain.toLowerCase();
   const found = await findDomain(ctx, name);
   if (found.status !== 'ok') return found;
-  return { status: 'ok', value: { domain: name, state: found.value === null ? 'not_found' : domainState(found.value.status) } };
+  return { status: 'ok', value: { domain: name, state: found.value === null ? 'not_found' : domainState({ status: found.value.status }) } };
 }

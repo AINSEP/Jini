@@ -5,7 +5,7 @@
  * chat transcript, the tool card, admin BYOK, the daemon's delegated-tool route, the MCP-UI
  * redemption endpoint, http-kit's server log), only a secret-shaped VALUE inside it never does.
  *
- * ## Position — see `tool-executor-stack.ts`'s own header
+ * ## Position — see `packages/daemon/src/tool-recovery/stack.ts`'s own header
  * Sits between `withReadOnlyToolConstraint` and `withToolAttemptAudit`, and INSIDE
  * `withToolFailureRecovery` (which calls `inner` for the original call, the remedy, and the retry —
  * each one redacted here). A read-only refusal is set by `withToolFailureRecovery` on the OUTER
@@ -24,31 +24,21 @@
  * for why only the VALUE is ever blanked, never the surrounding text.
  *
  * Architectural role: `src/assistant` composition-layer adapter, same layer as
- * `tool-executor-audit.ts` and `tool-failure-recovery.ts`. Depends only on the host policy
+ * `packages/daemon/src/core/tool-audit.ts` and `packages/daemon/src/tool-recovery/recovery.ts`. Depends only on the host policy
  * adapter over `@jini-ai/diagnostics/redaction/secrets-only` and `@jini-ai/daemon`'s `ToolExecutor` shape.
  */
 
 
-import type { Principal, RunRef, SurfaceEmitter } from "@jini-ai/core";
-import type { ToolExecutionResult, ToolExecutor } from "../tool-executor.js";
+import type { Principal, RunRef } from "@jini-ai/core";
+import type { ToolExecutionResult, ToolExecutor } from "../tool-executor-types.js";
+import { decorateToolExecutor } from "./decorate-executor.js";
 
 
 
 /** Matches a minted error ID anywhere in a string — exported for tests and for a later chat-side
- *  copy button (`ToolCard` matching this against `result.content`, tracked separately). */
+ *  copy button (`ToolCard` matching this against `result.content`, tracked separately). The IDs are
+ *  minted by `mintToolErrorId` in `@jini-ai/core/errors/error-id`, the one owner of the format. */
 export const TOOL_ERROR_ID_PATTERN = /\bERR-[0-9A-F]{4}(?:-[0-9A-F]{4}){3}\b/;
-
-/**
- * Mints one error ID: 64 bits of `crypto.randomBytes`, formatted `ERR-XXXX-XXXX-XXXX-XXXX`.
- *
- * @returns A string always matching {@link TOOL_ERROR_ID_PATTERN}.
- * @complexity O(1).
- */
-export function mintToolErrorId({ randomHex }: { randomHex: (required: { bytes: number }) => string }, _optional = {}): string {
-  const hex = randomHex({ bytes: 8 }).toUpperCase();
-  const groups = hex.match(/.{4}/g) ?? [];
-  return `ERR-${groups.join("-")}`;
-}
 
 /** A `ToolExecutionResult` that may additionally carry the minted error ID — the ONLY field this
  *  decorator ever adds. Every other field is `inner`'s own, untouched. */
@@ -144,7 +134,7 @@ export function describeDelegatedInternalError({ context, ...deps }: RedactedToo
 }
 
 /**
- * The two error-disclosure options the agent daemon spreads into `registerDelegatedToolRoutes`, as
+ * The two error-disclosure options the agent daemon spreads into `delegatedToolRoutes`, as
  * one value so the daemon and its tests wire the identical pair: a failure this layer already
  * ID-tagged answers `422 TOOL_EXECUTION_FAILED`, and every other internal error answers `500` with
  * {@link describeDelegatedInternalError}'s text.
@@ -188,7 +178,7 @@ export interface RedactedToolFailuresDeps {
 
 /** Calls `onFailure`, containing a throw so a hostile or buggy sink can never turn a
  *  redacted result into a thrown error — audit is observation, never a gate, the same rule
- *  `tool-executor-audit.ts`'s `appendSafely` enforces for its own sink. */
+ *  `packages/daemon/src/core/tool-audit.ts`'s `appendSafely` enforces for its own sink. */
 function safeOnFailure(onFailure: (record: ToolFailureRecord) => void, record: ToolFailureRecord): void {
   try {
     onFailure(record);
@@ -211,21 +201,21 @@ interface FailureContext {
  *
  * @complexity O(1) plus {@link redactSecretShapes}'s own O(text length) pass.
  */
-export function redactFailedResult(result: ToolExecutionResult, context: FailureContext, deps: RedactedToolFailuresDeps): ToolExecutionResult {
+export function redactFailedResult({ result, toolId, runId, principalId, deps }: { result: ToolExecutionResult; deps: RedactedToolFailuresDeps } & FailureContext, _optional: Record<string, never> = {}): ToolExecutionResult {
   if (result.errorKind === "validation") {
     if (result.error === undefined) return result;
     return { ...result, error: deps.redactSecretShapes({ text: result.error }).text };
   }
 
   const { mintErrorId, onFailure } = deps;
-  const { text, redactions } = deps.redactSecretShapes({ text: result.error ?? `tool "${context.toolId}" failed` });
+  const { text, redactions } = deps.redactSecretShapes({ text: result.error ?? `tool "${toolId}" failed` });
   const errorId = mintErrorId();
 
   safeOnFailure(onFailure, {
     errorId,
-    toolId: context.toolId,
-    runId: context.runId,
-    principalId: context.principalId,
+    toolId,
+    runId,
+    principalId,
     executionId: result.executionId,
     redactions,
     message: text,
@@ -244,21 +234,18 @@ export function redactFailedResult(result: ToolExecutionResult, context: Failure
  *   second-guessed here — this layer only ever transforms an already-`failed` result's `error` text.
  * @param deps - Test seams; production callers pass nothing and get the real minter and logger.
  * @returns A drop-in `ToolExecutor`. `resumeConfirmation`, `cancel`, `getAuditRecord` delegate
- *   straight through, matching `tool-failure-recovery.ts`'s and `tool-executor-audit.ts`'s own shape.
+ *   straight through, matching `packages/daemon/src/tool-recovery/recovery.ts`'s and `packages/daemon/src/core/tool-audit.ts`'s own shape.
  * @complexity O(1) beyond `inner`'s own cost and {@link redactFailedResult}'s.
  */
 export function withRedactedToolFailures({ inner, ...deps }: RedactedToolFailuresDeps & { inner: ToolExecutor }, _optional = {}): ToolExecutor {
-  return {
+  return decorateToolExecutor({ inner,
     execute: async (
       { principal, run, toolId, input }: { principal: Principal; run: RunRef; toolId: string; input: unknown },
-      { signal, emitSurface }: { signal?: AbortSignal; emitSurface?: SurfaceEmitter } = {},
+      options: Parameters<ToolExecutor['execute']>[1] = {},
     ): Promise<ToolExecutionResult> => {
-      const result = await inner.execute({ principal, run, toolId, input }, { ...(signal === undefined ? {} : { signal }), ...(emitSurface === undefined ? {} : { emitSurface }) });
+      const result = await inner.execute({ principal, run, toolId, input }, options);
       if (result.status !== "failed") return result;
-      return redactFailedResult(result, { toolId, runId: run.id, principalId: principal.id }, deps);
+      return redactFailedResult({ result, toolId, runId: run.id, principalId: principal.id, deps });
     },
-    resumeConfirmation: (args) => inner.resumeConfirmation(args),
-    cancel: (executionId) => inner.cancel(executionId),
-    getAuditRecord: (executionId) => inner.getAuditRecord(executionId),
-  };
+  });
 }

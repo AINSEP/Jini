@@ -1,5 +1,10 @@
 import { createProviderRegistry, type ProviderRegistry } from "@jini-ai/core/provider-registry";
-import { EmailSenderError, type EmailSender, type EmailSenderContext, type EmailSourceSummary } from "./email-sender.js";
+import {
+  EmailSenderError,
+  type EmailSender,
+  type EmailSenderContext,
+  type EmailSourceSummary,
+} from "@jini-ai/core/contracts/mail";
 
 /** Shares the existing keyed-registry admission rules; no plugin contribution category is added. */
 export type EmailSenderRegistry = ProviderRegistry<EmailSender>;

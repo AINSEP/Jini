@@ -91,6 +91,13 @@ export const DEFAULT_MEDIA_PROVIDER_CATALOG: readonly MediaProviderOption[] = st
  * ~30-entry list: that list is hand-curated product content that goes stale,
  * and this package's rule for tables like this (see `LanguageTab`) is that the
  * host owns them. Pass these explicitly as `presets` to the UI.
+ *
+ * `preferredModels` stay empty: models are discovered at runtime (live `listModels`) and the
+ * user's saved choice is used, never a hard-coded id. Two reasons, both seen live: a hard-coded
+ * first entry goes stale and silently pins new users to an old model generation (the Gemini
+ * field once defaulted to an older flash model than the one the operator was running), and a
+ * code-picked newer, pricier flagship as the silent default would jump an existing user's cost
+ * without them choosing it.
  */
 export const DEFAULT_PROVIDER_PRESETS: readonly ProviderPreset<'anthropic' | 'openai' | 'azure' | 'google'>[] = [
   {
@@ -98,7 +105,7 @@ export const DEFAULT_PROVIDER_PRESETS: readonly ProviderPreset<'anthropic' | 'op
     title: 'Anthropic',
     protocol: 'anthropic',
     baseUrl: VENDOR_API_BASE_URLS.anthropic,
-    preferredModels: ['claude-sonnet-5', 'claude-opus-5', 'claude-haiku-4-5'],
+    preferredModels: [],
     kind: 'protocol',
     apiKeyPrefix: 'sk-ant-',
   },
@@ -107,15 +114,7 @@ export const DEFAULT_PROVIDER_PRESETS: readonly ProviderPreset<'anthropic' | 'op
     title: 'OpenAI',
     protocol: 'openai',
     baseUrl: VENDOR_API_BASE_URLS.openai,
-    // `gpt-4o`/`gpt-4o-mini`/`o3`/`o4-mini` are stale: OpenAI's GPT-5.6 family
-    // (released 2026-07-09, per the API changelog) replaced the old
-    // flagship/mini/nano naming with named tiers — sol/terra/luna. `sol` is
-    // the one the changelog and pricing docs call out as "recommended for
-    // production API usage", so it leads (see `preferredModels[0]` default
-    // in `rules.ts`) rather than the newer, pricier `gpt-6-astra` flagship
-    // (released 2026-09-03) — picking that as the silent default would jump
-    // an existing user's cost without them choosing it.
-    preferredModels: ['gpt-5.6-sol', 'gpt-5.6-terra', 'gpt-5.6-luna'],
+    preferredModels: [],
     kind: 'protocol',
     apiKeyPrefix: 'sk-',
   },
@@ -137,12 +136,7 @@ export const DEFAULT_PROVIDER_PRESETS: readonly ProviderPreset<'anthropic' | 'op
     title: 'Google Gemini',
     protocol: 'google',
     baseUrl: VENDOR_API_BASE_URLS.google,
-    // Ordered newest-first: `rules.ts`'s `saved?.model ?? preset.preferredModels[0]` makes entry [0]
-    // the default for anyone who has never picked a model, so a stale head silently pins new users
-    // to an old generation. Reported live: the field defaulted to `gemini-2.5-flash` while the
-    // operator was actually running `gemini-3.6-flash`. This list is only a FALLBACK — the form
-    // prefers live `listModels` discovery and drops back here when that call fails.
-    preferredModels: ['gemini-3.6-flash', 'gemini-2.5-flash', 'gemini-2.5-pro'],
+    preferredModels: [],
     kind: 'protocol',
     // `AIza` + 35 characters is the classic Google key shape, and it is recorded here so a key of
     // this shape is recognised as GOOGLE'S when it turns up in some other provider's field.
@@ -155,7 +149,7 @@ export const DEFAULT_PROVIDER_PRESETS: readonly ProviderPreset<'anthropic' | 'op
     title: 'OpenRouter',
     protocol: 'openai',
     baseUrl: VENDOR_API_BASE_URLS.openrouter,
-    preferredModels: ['anthropic/claude-sonnet-5', 'google/gemini-2.5-pro', 'openai/gpt-5.6-sol'],
+    preferredModels: [],
     kind: 'gateway',
     // Longer than OpenAI's `sk-`, and deliberately so: `apiKeyFormatWarning` resolves a key to the
     // MOST specific prefix that claims it, so `sk-or-v1-…` is attributed here rather than to OpenAI.

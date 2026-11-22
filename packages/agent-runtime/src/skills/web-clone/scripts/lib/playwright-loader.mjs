@@ -1,5 +1,6 @@
 import path from "node:path";
 import { createRequire } from "node:module";
+import { CliUsageError } from "./main-guard.mjs";
 
 // Resolve Playwright from wherever it can actually be found:
 //   1. relative to this script (covers a checkout that has its own dep);
@@ -32,7 +33,7 @@ export function loadPlaywright({
       // Try next candidate.
     }
   }
-  throw new Error(
+  throw new CliUsageError(
     "Playwright not found. Fix (run in the project root, once per project):\n" +
       "  npm install -D playwright\n" +
       "Then re-run this script. If launch later fails with a missing-browser " +
@@ -43,6 +44,9 @@ export function loadPlaywright({
   );
 }
 
+// Bundled Chromium first, then the system Chrome channel. When both fail, runCli would print only
+// the class of Playwright's error (its text can quote paths), so the agent would never learn the fix:
+// fixed install words go out as a CliUsageError, and the first (more useful) error stays as its cause.
 export async function launchChromium(chromium) {
   try {
     return await chromium.launch({ headless: true });
@@ -50,7 +54,10 @@ export async function launchChromium(chromium) {
     try {
       return await chromium.launch({ headless: true, channel: "chrome" });
     } catch {
-      throw firstError;
+      throw new CliUsageError(
+        "Chromium could not start. Run `npx playwright install chromium` in the project root, then re-run.",
+        { cause: firstError },
+      );
     }
   }
 }

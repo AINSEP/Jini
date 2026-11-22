@@ -1,4 +1,4 @@
-import type { PaymentEvidence, PaymentMode, ProviderPaymentStatus } from "@jini-ai/commerce/payments/kernel";
+import type { PaymentEvidence, PaymentMode, ProviderPaymentStatus, StripeProviderContext } from "./contract.js";
 import { fromStripeAmount } from "./amount.js";
 
 export type SessionReading = { kind: "evidence"; evidence: PaymentEvidence } | { kind: "id_only"; sessionId: string }
@@ -15,6 +15,17 @@ function invalidIdentity({ session, mode }: { session: Record<string, unknown>; 
   return session.object !== "checkout.session" || session.mode !== "payment" || session.livemode !== (mode === "live");
 }
 
+/** Classifies a completed session without inferring failure from an unexpanded intent. O(1) time/space. */
+function completedSessionStatus(
+  { session }: { session: Record<string, unknown> }, _optional: Record<string, never> = {}
+): ProviderPaymentStatus | null {
+  if (session.payment_status === "paid") return "succeeded";
+  if (session.payment_status !== "unpaid") return null;
+  // An id-only PI says nothing about failure; only an expanded retrieval can establish it.
+  const pi = record({ value: session.payment_intent });
+  return FAILED_PI_STATUSES.has(pi.status) ? "failed" : "pending";
+}
+
 /** Maps provider facts without treating delayed payment completion as success. O(1) time/space. */
 function sessionStatus(
   { session, eventType }: { session: Record<string, unknown>; eventType: string | undefined }, _optional: Record<string, never> = {}
@@ -24,19 +35,15 @@ function sessionStatus(
   if (session.status === "open") return "requires_action";
   if (session.status === "expired") return "canceled";
   if (session.status !== "complete") return null;
-  if (session.payment_status === "paid") return "succeeded";
-  if (session.payment_status !== "unpaid") return null;
-  // An id-only PI says nothing about failure; only an expanded retrieval can establish it.
-  const pi = record({ value: session.payment_intent });
-  return FAILED_PI_STATUSES.has(pi.status) ? "failed" : "pending";
+  return completedSessionStatus({ session });
 }
 
 /** Translates an owned Checkout session, preserving incomplete facts for worker retrieval.
  * @returns Evidence, id-only, foreign, or a malformed reason; no I/O or thrown JSON errors.
- * @example readSession({ object: event.data.object, mode: ctx.account.mode }, { eventType: event.type })
+ * @example readSession({ object: event.data.object, mode: ctx.account.mode, errors }, { eventType: event.type })
  * @complexity O(n) in the currency string length; constant fields inspected. */
 export function readSession(
-  { object, mode }: { object: unknown; mode: PaymentMode }, optional: { eventType?: string } = {}
+  { object, mode, errors }: { object: unknown; mode: PaymentMode; errors: Pick<StripeProviderContext, "moneyProblem"> }, optional: { eventType?: string } = {}
 ): SessionReading {
   const session = record({ value: object });
   const correlationId = record({ value: session.metadata }).jini_payment_id;
@@ -46,7 +53,7 @@ export function readSession(
     kind: "malformed", reason: "invalid checkout session identity or mode",
   };
   const status = sessionStatus({ session, eventType: optional.eventType });
-  const amount = fromStripeAmount({ amount: session.amount_total, currency: session.currency });
+  const amount = fromStripeAmount({ amount: session.amount_total, currency: session.currency, errors });
   if (status === null || amount === null) return { kind: "id_only", sessionId: session.id };
   return { kind: "evidence", evidence: { providerRef: session.id, correlationId, status, amount, refunds: [], disputes: [] } };
 }

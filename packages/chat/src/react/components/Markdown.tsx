@@ -377,12 +377,16 @@ interface CopyCodeButtonProps {
   code: string;
 }
 
+/** Hooks CopyCodeButton calls; defaults to the real ones, a test hands in fakes. */
+const defaultCopyCodeButtonHooks = { useT, useCopyToClipboard };
+type CopyCodeButtonHooks = typeof defaultCopyCodeButtonHooks;
+
 // Per-block copy affordance for CodeBlock above. Mirrors MessageRow.tsx's CopyMessageButton
 // one-for-one in shape -- same hook, same icon swap, same visually-hidden aria-live announce --
 // but stays its own component rather than a shared one; see this module's header comment for why.
-function CopyCodeButton({ code }: CopyCodeButtonProps): ReactNode {
-  const t = useT();
-  const { copied, copy } = useCopyToClipboard();
+function CopyCodeButton({ code, hooks = defaultCopyCodeButtonHooks }: CopyCodeButtonProps & { hooks?: CopyCodeButtonHooks | undefined }): ReactNode {
+  const t = hooks.useT();
+  const { copied, copy } = hooks.useCopyToClipboard();
   return (
     <>
       <button
@@ -497,8 +501,8 @@ function closeTableDialog(dialog: HTMLDialogElement): void {
   dialog.removeAttribute('open');
 }
 
-function TableBlock(props: TableBlockProps): ReactNode {
-  const { wrapRef, isOverflowing } = useTableOverflow();
+function TableBlock({ useTableOverflowHook = useTableOverflow, ...props }: TableBlockProps & { useTableOverflowHook?: typeof useTableOverflow }): ReactNode {
+  const { wrapRef, isOverflowing } = useTableOverflowHook();
   const [expanded, setExpanded] = useState(false);
   const dialogRef = useRef<HTMLDialogElement>(null);
 

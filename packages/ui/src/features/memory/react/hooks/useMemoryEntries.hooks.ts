@@ -76,67 +76,49 @@ export interface MemoryEntriesController {
   onSaveIndex: () => Promise<void>;
 }
 
-export function useMemoryEntries(port: MemoryEntriesPort, coord: MemoryEntriesCoordination): MemoryEntriesController {
-  const { fireFlash, captureConfigHydrationRevision, hydrateConfig, openEditor, closeEditor } = coord;
+type SetLoadError = (error: string | null) => void;
 
+/** Filtered entries plus the folder / child-node views of the memory tree. */
+function useMemoryTreeViews({ entries, memoryTree, filter }: {
+  entries: MemoryEntrySummary[];
+  memoryTree: MemoryTreeNode[];
+  filter: 'all' | MemoryType;
+}) {
+  const filtered = useMemo(() => {
+    if (filter === 'all') return entries;
+    return entries.filter((e) => e.type === filter);
+  }, [entries, filter]);
+
+  const treeFolders = useMemo(() => memoryTree.filter((node) => node.kind === 'folder'), [memoryTree]);
+
+  const treeChildren = useMemo(() => {
+    const map = new Map<string, MemoryTreeNode[]>();
+    for (const node of memoryTree) {
+      if (node.kind !== 'entry' || !node.parentId) continue;
+      const list = map.get(node.parentId) ?? [];
+      list.push(node);
+      map.set(node.parentId, list);
+    }
+    return map;
+  }, [memoryTree]);
+
+  return { filtered, treeFolders, treeChildren };
+}
+
+/** The list/tree snapshot, its shared (commit-guarded) reload, filtering and the copy-path action. */
+function useEntriesSnapshot(port: MemoryEntriesPort, coord: MemoryEntriesCoordination) {
+  const { fireFlash, captureConfigHydrationRevision, hydrateConfig } = coord;
   const [rootDir, setRootDir] = useState('');
   const [index, setIndex] = useState('');
-  const [indexDraft, setIndexDraft] = useState<string | null>(null);
   const [entries, setEntries] = useState<MemoryEntrySummary[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [memoryTree, setMemoryTree] = useState<MemoryTreeNode[]>([]);
-  const [previewId, setPreviewId] = useState<string | null>(null);
-  const [previewBody, setPreviewBody] = useState<string | null>(null);
-  const [editing, setEditingState] = useState<DraftEntry | null>(null);
-  // The editor can remain interactive while a save is on the wire. Every edit
-  // change gets a revision, allowing the save completion to close only the
-  // exact draft it persisted rather than dismissing a newer draft.
-  const editingRevisionRef = useRef(0);
-  const setEditing = useCallback<Dispatch<SetStateAction<DraftEntry | null>>>((next) => {
-    editingRevisionRef.current += 1;
-    setEditingState(next);
-  }, []);
-  const [busy, setBusy] = useState(false);
-  // Entry and index writes can overlap after the user switches tabs. Keep the
-  // shared `busy` signal true until ALL writes finish, rather than letting the
-  // first completion re-enable controls while another request is still live.
-  const busyOperationCountRef = useRef(0);
-  const beginBusy = useCallback(() => {
-    busyOperationCountRef.current += 1;
-    setBusy(true);
-  }, []);
-  const endBusy = useCallback(() => {
-    busyOperationCountRef.current -= 1;
-    if (busyOperationCountRef.current <= 0) {
-      busyOperationCountRef.current = 0;
-      setBusy(false);
-    }
-  }, []);
-  const entrySaveInFlightRef = useRef(false);
-  const indexSaveInFlightRef = useRef(false);
-  const deletingEntryIdsRef = useRef<Set<string>>(new Set());
   const [filter, setFilter] = useState<'all' | MemoryType>('all');
-  const editorRef = useRef<HTMLDivElement | null>(null);
-  const editorNameRef = useRef<HTMLInputElement | null>(null);
-  const editingTarget = editing?.id ?? (editing ? 'new' : null);
-  // Each preview/edit action gets its own monotonic token, so a stale
-  // fetchMemoryEntry() response can never win over a newer action — even one
-  // that re-selects the SAME id (close then reopen, or cancel then restart
-  // the same entry) while the abandoned request is still in flight. Tracking
-  // by id alone can't distinguish that case since both requests share an id.
-  const previewRequestTokenRef = useRef(0);
-  const editRequestTokenRef = useRef(0);
   // reload() is the shared read path for mount, SSE change events, save/delete
   // flows, and connector refreshes, so overlapping calls are expected. Gate
   // every state commit behind a monotonic token so an older reload() that
   // resolves after a newer one can never overwrite the fresher snapshot.
   const reloadCommitGuardRef = useRef(createAsyncCommitGuard());
-
-  useEffect(() => {
-    if (!editingTarget) return;
-    editorRef.current?.scrollIntoView?.({ block: 'start', behavior: 'smooth' });
-    editorNameRef.current?.focus({ preventScroll: true });
-  }, [editingTarget]);
 
   const onCopyPath = useCallback(async () => {
     if (!rootDir) return;
@@ -185,23 +167,45 @@ export function useMemoryEntries(port: MemoryEntriesPort, coord: MemoryEntriesCo
     }
   }, [port, captureConfigHydrationRevision, hydrateConfig]);
 
-  const filtered = useMemo(() => {
-    if (filter === 'all') return entries;
-    return entries.filter((e) => e.type === filter);
-  }, [entries, filter]);
+  const views = useMemoryTreeViews({ entries, memoryTree, filter });
 
-  const treeFolders = useMemo(() => memoryTree.filter((node) => node.kind === 'folder'), [memoryTree]);
+  return {
+    rootDir, index, setIndex, entries, loadError, setLoadError, memoryTree, filter, setFilter,
+    ...views, reload, onCopyPath,
+  };
+}
 
-  const treeChildren = useMemo(() => {
-    const map = new Map<string, MemoryTreeNode[]>();
-    for (const node of memoryTree) {
-      if (node.kind !== 'entry' || !node.parentId) continue;
-      const list = map.get(node.parentId) ?? [];
-      list.push(node);
-      map.set(node.parentId, list);
+/** Counts overlapping writes so `busy` stays true until ALL of them finish. */
+function useBusyCounter() {
+  const [busy, setBusy] = useState(false);
+  // Entry and index writes can overlap after the user switches tabs. Keep the
+  // shared `busy` signal true until ALL writes finish, rather than letting the
+  // first completion re-enable controls while another request is still live.
+  const busyOperationCountRef = useRef(0);
+  const beginBusy = useCallback(() => {
+    busyOperationCountRef.current += 1;
+    setBusy(true);
+  }, []);
+  const endBusy = useCallback(() => {
+    busyOperationCountRef.current -= 1;
+    if (busyOperationCountRef.current <= 0) {
+      busyOperationCountRef.current = 0;
+      setBusy(false);
     }
-    return map;
-  }, [memoryTree]);
+  }, []);
+  return { busy, beginBusy, endBusy };
+}
+
+/** Inline preview of one entry's body. */
+function useEntryPreview(port: MemoryEntriesPort, setLoadError: SetLoadError) {
+  const [previewId, setPreviewId] = useState<string | null>(null);
+  const [previewBody, setPreviewBody] = useState<string | null>(null);
+  // Each preview/edit action gets its own monotonic token, so a stale
+  // fetchMemoryEntry() response can never win over a newer action — even one
+  // that re-selects the SAME id (close then reopen, or cancel then restart
+  // the same entry) while the abandoned request is still in flight. Tracking
+  // by id alone can't distinguish that case since both requests share an id.
+  const previewRequestTokenRef = useRef(0);
 
   const openPreview = useCallback(
     async (id: string) => {
@@ -233,49 +237,35 @@ export function useMemoryEntries(port: MemoryEntriesPort, coord: MemoryEntriesCo
       setLoadError(null);
       setPreviewBody(entry?.body ?? '');
     },
-    [previewId, port],
+    [previewId, port, setLoadError],
   );
 
-  const startEdit = useCallback(
-    async (id: string) => {
-      editRequestTokenRef.current += 1;
-      const token = editRequestTokenRef.current;
-      let entry;
-      try {
-        entry = await port.fetchMemoryEntry(id);
-      } catch {
-        // A stale request's failure must not clobber a newer action's state.
-        if (editRequestTokenRef.current !== token) return;
-        setLoadError(LOAD_ERROR_MESSAGE);
-        return;
-      }
-      if (editRequestTokenRef.current !== token) return;
-      setLoadError(null);
-      if (!entry) return;
-      openEditor();
-      setEditing({
-        id: entry.id,
-        name: entry.name,
-        description: entry.description,
-        type: entry.type,
-        body: entry.body,
-      });
-    },
-    [port, openEditor, setEditing],
-  );
+  return { previewId, previewBody, openPreview };
+}
 
-  const startNew = useCallback(() => {
-    editRequestTokenRef.current += 1;
-    openEditor();
-    setEditing({ ...EMPTY_DRAFT });
-  }, [openEditor, setEditing]);
+interface EntryEditorDeps {
+  port: MemoryEntriesPort;
+  coord: MemoryEntriesCoordination;
+  reload: () => Promise<void>;
+  setLoadError: SetLoadError;
+  beginBusy: () => void;
+  endBusy: () => void;
+}
 
-  const cancelEdit = useCallback(() => {
-    editRequestTokenRef.current += 1;
-    setEditing(null);
-  }, [setEditing]);
+interface EntrySaveDeps extends EntryEditorDeps {
+  editing: DraftEntry | null;
+  setEditing: Dispatch<SetStateAction<DraftEntry | null>>;
+  editingRevisionRef: MutableRefObject<number>;
+}
 
-  const onSave = useCallback(async () => {
+/** Save the current draft: guarded against overlap, and closes only the exact draft it persisted. */
+function useEntrySave({
+  port, coord, reload, setLoadError, beginBusy, endBusy, editing, setEditing, editingRevisionRef,
+}: EntrySaveDeps) {
+  const { fireFlash, closeEditor } = coord;
+  const entrySaveInFlightRef = useRef(false);
+
+  return useCallback(async () => {
     if (!editing) return;
     if (!editing.name.trim()) return;
     if (entrySaveInFlightRef.current) return;
@@ -307,9 +297,102 @@ export function useMemoryEntries(port: MemoryEntriesPort, coord: MemoryEntriesCo
       entrySaveInFlightRef.current = false;
       endBusy();
     }
-  }, [editing, reload, fireFlash, port, closeEditor, setEditing, beginBusy, endBusy]);
+  }, [editing, reload, fireFlash, port, closeEditor, setEditing, beginBusy, endBusy, setLoadError, editingRevisionRef]);
+}
 
-  const onDelete = useCallback(
+/** Begin editing an existing entry, start a new draft, or cancel; stale fetches never win over a newer action. */
+function useEditStarts(
+  port: MemoryEntriesPort,
+  { openEditor, setEditing, setLoadError }: {
+    openEditor: () => void;
+    setEditing: Dispatch<SetStateAction<DraftEntry | null>>;
+    setLoadError: SetLoadError;
+  },
+) {
+  const editRequestTokenRef = useRef(0);
+
+  const startEdit = useCallback(
+    async (id: string) => {
+      editRequestTokenRef.current += 1;
+      const token = editRequestTokenRef.current;
+      let entry;
+      try {
+        entry = await port.fetchMemoryEntry(id);
+      } catch {
+        // A stale request's failure must not clobber a newer action's state.
+        if (editRequestTokenRef.current !== token) return;
+        setLoadError(LOAD_ERROR_MESSAGE);
+        return;
+      }
+      if (editRequestTokenRef.current !== token) return;
+      setLoadError(null);
+      if (!entry) return;
+      openEditor();
+      setEditing({
+        id: entry.id,
+        name: entry.name,
+        description: entry.description,
+        type: entry.type,
+        body: entry.body,
+      });
+    },
+    [port, openEditor, setEditing, setLoadError],
+  );
+
+  const startNew = useCallback(() => {
+    editRequestTokenRef.current += 1;
+    openEditor();
+    setEditing({ ...EMPTY_DRAFT });
+  }, [openEditor, setEditing]);
+
+  const cancelEdit = useCallback(() => {
+    editRequestTokenRef.current += 1;
+    setEditing(null);
+  }, [setEditing]);
+
+  return { startEdit, startNew, cancelEdit };
+}
+
+/** The create/edit draft: start, cancel, and save (guarded against overlap and stale completion). */
+function useEntryEditor({ port, coord, reload, setLoadError, beginBusy, endBusy }: EntryEditorDeps) {
+  const { openEditor } = coord;
+  const [editing, setEditingState] = useState<DraftEntry | null>(null);
+  // The editor can remain interactive while a save is on the wire. Every edit
+  // change gets a revision, allowing the save completion to close only the
+  // exact draft it persisted rather than dismissing a newer draft.
+  const editingRevisionRef = useRef(0);
+  const setEditing = useCallback<Dispatch<SetStateAction<DraftEntry | null>>>((next) => {
+    editingRevisionRef.current += 1;
+    setEditingState(next);
+  }, []);
+  const editorRef = useRef<HTMLDivElement | null>(null);
+  const editorNameRef = useRef<HTMLInputElement | null>(null);
+  const editingTarget = editing?.id ?? (editing ? 'new' : null);
+
+  useEffect(() => {
+    if (!editingTarget) return;
+    editorRef.current?.scrollIntoView?.({ block: 'start', behavior: 'smooth' });
+    editorNameRef.current?.focus({ preventScroll: true });
+  }, [editingTarget]);
+
+  const { startEdit, startNew, cancelEdit } = useEditStarts(port, { openEditor, setEditing, setLoadError });
+  const onSave = useEntrySave({
+    port, coord, reload, setLoadError, beginBusy, endBusy, editing, setEditing, editingRevisionRef,
+  });
+
+  return { editing, setEditing, editorRef, editorNameRef, startEdit, startNew, cancelEdit, onSave };
+}
+
+/** Delete one entry (re-entrancy guarded per id), then reload. */
+function useEntryDelete(
+  port: MemoryEntriesPort,
+  { fireFlash }: MemoryEntriesCoordination,
+  reload: () => Promise<void>,
+  setLoadError: SetLoadError,
+) {
+  const deletingEntryIdsRef = useRef<Set<string>>(new Set());
+
+  return useCallback(
     async (id: string) => {
       if (deletingEntryIdsRef.current.has(id)) return;
       deletingEntryIdsRef.current.add(id);
@@ -327,8 +410,23 @@ export function useMemoryEntries(port: MemoryEntriesPort, coord: MemoryEntriesCo
         deletingEntryIdsRef.current.delete(id);
       }
     },
-    [reload, fireFlash, port],
+    [reload, fireFlash, port, setLoadError],
   );
+}
+
+/** The raw MEMORY.md index draft and its save. */
+function useIndexEditor(
+  port: MemoryEntriesPort,
+  { fireFlash }: MemoryEntriesCoordination,
+  { setIndex, setLoadError, beginBusy, endBusy }: {
+    setIndex: (index: string) => void;
+    setLoadError: SetLoadError;
+    beginBusy: () => void;
+    endBusy: () => void;
+  },
+) {
+  const [indexDraft, setIndexDraft] = useState<string | null>(null);
+  const indexSaveInFlightRef = useRef(false);
 
   const onSaveIndex = useCallback(async () => {
     if (indexDraft === null) return;
@@ -356,38 +454,21 @@ export function useMemoryEntries(port: MemoryEntriesPort, coord: MemoryEntriesCo
       indexSaveInFlightRef.current = false;
       endBusy();
     }
-  }, [indexDraft, fireFlash, port, beginBusy, endBusy]);
+  }, [indexDraft, fireFlash, port, beginBusy, endBusy, setIndex, setLoadError]);
 
-  return {
-    loadError,
-    entries,
-    filtered,
-    memoryTree,
-    treeFolders,
-    treeChildren,
-    rootDir,
-    index,
-    indexDraft,
-    setIndexDraft,
-    previewId,
-    previewBody,
-    editing,
-    setEditing,
-    busy,
-    filter,
-    setFilter,
-    editorRef,
-    editorNameRef,
-    reload,
-    onCopyPath,
-    openPreview,
-    startEdit,
-    startNew,
-    cancelEdit,
-    onSave,
-    onDelete,
-    onSaveIndex,
-  };
+  return { indexDraft, setIndexDraft, onSaveIndex };
+}
+
+export function useMemoryEntries(port: MemoryEntriesPort, coord: MemoryEntriesCoordination): MemoryEntriesController {
+  const snapshot = useEntriesSnapshot(port, coord);
+  const { reload, setLoadError, setIndex } = snapshot;
+  const { busy, beginBusy, endBusy } = useBusyCounter();
+  const preview = useEntryPreview(port, setLoadError);
+  const editor = useEntryEditor({ port, coord, reload, setLoadError, beginBusy, endBusy });
+  const onDelete = useEntryDelete(port, coord, reload, setLoadError);
+  const indexEditor = useIndexEditor(port, coord, { setIndex, setLoadError, beginBusy, endBusy });
+
+  return { ...snapshot, ...preview, ...editor, ...indexEditor, busy, onDelete };
 }
 
 /**

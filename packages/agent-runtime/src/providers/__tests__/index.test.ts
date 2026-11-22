@@ -9,7 +9,6 @@ describe('providers barrel', () => {
     // PARITY: runtime still exposes its validation/transport boundary after classifiers move.
     expect(typeof providers.validateBaseUrl).toBe('function');
     expect(typeof providers.listProviderModels).toBe('function');
-    expect(typeof providers.listElevenLabsVoiceOptions).toBe('function');
     expect(typeof providers.generateCodeVerifier).toBe('function');
     expect(typeof providers.beginOAuthPkce).toBe('function');
     expect(typeof providers.startOAuthCallbackListener).toBe('function');

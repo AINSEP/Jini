@@ -1,14 +1,13 @@
-import { formatErrorForLog } from '@jini-ai/core';
 import type { FormDefinitionRecord, FormSubmissionRecord } from "./types.js";
 /**
- * @file `registerFormNotifySubscriber` — the Forms-owned outbox subscriber (SPEC-010 REQ-12,
- * ADR-PIPE-010 C-009).
+ * @file `registerFormNotifySubscriber` — the Forms-owned outbox subscriber.
+ *
  *
  * Purpose:
  * Subscribes `form.submission.received`; on a notify-enabled definition, calls `MailerPort.send()`
  * per configured recipient. The one piece of Forms-owned business logic riding the outbox — kept
  * separate from the webhook-fanout forwarding (which is not Forms-owned logic; see
- * `server/app.ts`'s wiring). Legacy hosts log send failures outside the source
+ * the host app's `src/server/runtime/composition/app.ts`'s wiring). Legacy hosts log send failures outside the source
  * `EventBusPort.publish()` subscriber loop (`core/events/memory-bus.ts`'s `publish`
  * does not catch handler errors itself — a subscriber that fails to catch its own errors would
  * break every OTHER subscriber to the same event, including the webhook fan-out). Durable hosts
@@ -19,7 +18,7 @@ import type { FormDefinitionRecord, FormSubmissionRecord } from "./types.js";
  */
 import type { Logger } from "@jini-ai/core/primitives";
 /** Notification subscriber with host sender, mail and logging ports. Each recipient receives a stable per-submission dedup key; delivery and repository failures never block sibling subscribers. */
-import type { DomainEvent, EventBusPort } from "../core/index.js";
+import type { DomainEvent, EventBusPort } from "@jini-ai/core/contracts/events";
 import type { MailerPort, MailerSendResult, EmailAddress } from "./ports.js";
 import type { FormDefinitionRepoPort, FormSubmissionRepoPort } from "./ports.js";
 import { FormDeliveryError } from "./delivery/errors.js";
@@ -85,7 +84,7 @@ export async function registerFormNotifySubscriber(
           // Legacy hosts have no retry store: isolate errors from sibling handlers. Durable hosts
           // must fail source planning so missing recipient jobs are retried with stable ids.
           if (deps.outbox) throw err;
-          warn(deps.logger, "[forms:notify] subscriber failed:", err);
+          warn({ logger: deps.logger, message: "[forms:notify] subscriber failed:" }, { error: err });
         }
       }
     }
@@ -118,10 +117,11 @@ async function handleSubmissionReceived({ deps, event }: { deps: RegisterFormNot
   }
 }
 
-/** Provider refusals can echo credentials without throwing. Redact both the message and cause;
- * failure reporting is isolated too, so a logger cannot interrupt sibling event subscribers. */
-function warn(logger: Pick<Logger, 'warn'>, message: string, error?: unknown): void {
-  try { logger.warn({ message: formatErrorForLog({ error: message }) }, error === undefined ? {} : { error: formatErrorForLog({ error }) }); } catch { /* Host logging failure is terminal. */ }
+/** Provider refusals can echo credentials or private input without throwing. The message carries
+ * fixed words and IDs only; the refusal travels as the error object to the host's logger.
+ * Failure reporting is isolated too, so a logger cannot interrupt sibling event subscribers. */
+function warn({ logger, message }: { logger: Pick<Logger, 'warn'>; message: string }, { error }: { error?: unknown } = {}): void {
+  try { logger.warn({ message }, error === undefined ? {} : { error }); } catch { /* Host logging failure is terminal. */ }
 }
 
 /** Legacy delivery isolates recipients; durable jobs propagate a safe typed failure to the outbox.
@@ -158,19 +158,14 @@ async function sendNotification({ deps, definition, submission, recipient, paylo
     if (durable) throw err instanceof FormNotificationError ? err : new FormNotificationError({ submissionId, retryable: true });
     // A send failure is terminal for this delivery: log, never retry inline or alter
     // the persisted submission, and continue so the other recipients can still receive it.
-    warn(deps.logger,
-      `[forms:notify] mail send threw for submission '${submissionId}' recipient '${recipient}':`,
-      err
-    );
+    warn({ logger: deps.logger, message: `[forms:notify] mail send threw for submission '${submissionId}' (recipient address withheld from logs)` }, { error: err });
     return;
   }
   if (result.ok) return;
   if (durable) throw new FormNotificationError({ submissionId, retryable: result.retryable,
     retryAfterMs: result.retryAfterMs,
     outcome: result.unknown ? "unknown" : "not-applied" });
-  warn(deps.logger,
-    `[forms:notify] mail send failed for submission '${submissionId}' recipient '${recipient}': ${result.errorCode} (${result.message})`
-  );
+  warn({ logger: deps.logger, message: `[forms:notify] mail send failed for submission '${submissionId}' (recipient address withheld from logs)` }, { error: Object.assign(new Error(result.message), { code: result.errorCode }) });
 }
 
 /** Captured labels/options make a delayed notification describe the form the visitor answered.

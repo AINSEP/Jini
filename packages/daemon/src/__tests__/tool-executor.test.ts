@@ -11,11 +11,13 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
   createToolExecutor,
+} from '../tool-executor.js';
+import {
   type ConfirmationDecision,
   type ExecutionDelegate,
   type ToolAuthorizationRequest,
   type ToolConfirmationRequest,
-} from '../tool-executor.js';
+} from '../tool-executor-types.js';
 
 vi.mock('node:crypto', async (importOriginal) => {
   const actual = await importOriginal<typeof import('node:crypto')>();
@@ -49,7 +51,7 @@ describe('@jini-ai/daemon — ToolExecutor — authorization', () => {
       .rejects.toMatchObject({ name: 'ToolInputError', message: 'ToolExecutor: unknown tool "content_read"; did you mean content_read.menu, content_read.page?' });
   });
 
-  it('suggests the explicit resource first without dispatching or authorizing an alternate tool', async () => {
+  it('suggests by name similarity only: the input never picks a candidate, and no alternate tool is dispatched or authorized', async () => {
     const handler = vi.fn(async () => 'unused');
     const authorize = vi.fn(() => 'allow' as const);
     const registry = registryWith(...['content_read.backup_restore_point', 'content_read.theme'].map((id): ToolRegistration => ({
@@ -763,7 +765,7 @@ describe('advisory guidance at the authorized tool boundary', () => {
   it('attaches guidance to the first write result and still runs the writer once', async () => {
     const handler = vi.fn(async () => ({ version: 2 }));
     const registry = registryWith({ descriptor: { id: 'write', metadata: { guidanceCapabilities: ['theme-authoring'] } }, policy: allowAll(), handler });
-    const prepareGuidance = vi.fn(async (_input: Parameters<NonNullable<import('../tool-executor.js').CreateToolExecutorOptions['prepareGuidance']>>[0]) => 'Use the installed theme authoring guidance.');
+    const prepareGuidance = vi.fn(async (_input: Parameters<NonNullable<import('../tool-executor-types.js').CreateToolExecutorOptions['prepareGuidance']>>[0]) => 'Use the installed theme authoring guidance.');
     const result = await createToolExecutor({ registry }, { prepareGuidance }).execute({ principal, run, toolId: 'write', input: {} });
     expect(result).toMatchObject({ status: 'completed', output: { version: 2, agentPluginGuidance: 'Use the installed theme authoring guidance.' } });
     expect(handler).toHaveBeenCalledTimes(1);

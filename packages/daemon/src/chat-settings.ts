@@ -1,5 +1,5 @@
 import { ToolInputError, type ToolRegistration } from '@jini-ai/core';
-import type { NativeCapabilities } from '@jini-ai/agent-runtime/native-tool-policy';
+import type { NativeCapabilities } from '@jini-ai/core/contracts/agents';
 
 const CAPABILITY_KEYS = ['shell', 'fileWrite', 'userMcp', 'subagents', 'userSettings', 'web', 'workflows', 'loginEnvironment'] as const;
 const SETTING_KEYS = ['enabled', ...CAPABILITY_KEYS] as const;

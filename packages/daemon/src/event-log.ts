@@ -107,27 +107,7 @@ function compactRunLog(runLog: RunLog): void {
   }
 }
 
-/**
- * Reference `EventLog` implementation: a per-run FIFO array, optionally capped at
- * `maxEntriesPerRun` (opt-in — see {@link InMemoryEventLogOptions}), functionally a ring
- * buffer once a cap is set (oldest entries evicted once the cap is exceeded) without needing
- * an actual circular-index structure at this scale. This is the in-memory half only — no
- * durable copy — matching this task's scope (a real persistent adapter is `@jini-ai/daemon/store/event-log/sqlite`'s
- * job).
- *
- * Memory is bounded by default: an ended run is compacted to its `'end'` entry after
- * `terminalRetentionMs`, and at most `maxRuns` runs are held (ended ones evicted first).
- *
- * @param options.maxEntriesPerRun - Retention cap per run, see {@link InMemoryEventLogOptions}.
- * @param options.terminalRetentionMs - Post-`'end'` retention, see {@link InMemoryEventLogOptions}.
- * @param options.maxRuns - Run cap, see {@link InMemoryEventLogOptions}.
- * @returns An `EventLog` port implementation.
- * @complexity `append`/`drop` are O(1) amortized (O(k) only on the eviction
- * splice, k = entries over cap, which is normally 1; the run-cap pass is O(1)
- * per append once at the cap). `replay` is O(n) in the number of retained
- * entries for the run.
- */
-export function createInMemoryEventLog(_requiredArgs: Record<string, never>, options: InMemoryEventLogOptions = {}): EventLog {
+function createInMemoryLogState(options: InMemoryEventLogOptions) {
   const maxEntriesPerRun = options.maxEntriesPerRun;
   const now = options.now ?? Date.now;
   const terminalRetentionMs = options.terminalRetentionMs === undefined ? DEFAULT_TERMINAL_EVENT_RETENTION_MS : options.terminalRetentionMs;
@@ -137,15 +117,20 @@ export function createInMemoryEventLog(_requiredArgs: Record<string, never>, opt
   // Ended runs, oldest `'end'` first (Set insertion order): the only runs `enforceRunCap` may evict.
   const endedRuns = new Set<string>();
 
-  function getOrCreateRunLog(runId: string): RunLog {
-    let runLog = runs.get(runId);
-    if (!runLog) {
-      runLog = { entries: [], nextId: 1, dedupeIndex: new Map(), cancelCompaction: undefined };
-      runs.set(runId, runLog);
-    }
-    return runLog;
-  }
+  return { maxEntriesPerRun, now, terminalRetentionMs, maxRuns, scheduler, runs, endedRuns };
+}
 
+function getOrCreateRunLog(runs: Map<string, RunLog>, runId: string): RunLog {
+  let runLog = runs.get(runId);
+  if (!runLog) {
+    runLog = { entries: [], nextId: 1, dedupeIndex: new Map(), cancelCompaction: undefined };
+    runs.set(runId, runLog);
+  }
+  return runLog;
+}
+
+function createEventLogRetention(state: ReturnType<typeof createInMemoryLogState>) {
+  const { runs, endedRuns, terminalRetentionMs, maxRuns, scheduler } = state;
   function removeRun(runId: string): void {
     runs.get(runId)?.cancelCompaction?.();
     runs.delete(runId);
@@ -171,68 +156,103 @@ export function createInMemoryEventLog(_requiredArgs: Record<string, never>, opt
       removeRun(runId);
     }
   }
+  return { removeRun, noteRunPhase, enforceRunCap };
+}
 
+function createEventLogAppender(state: ReturnType<typeof createInMemoryLogState>, retention: ReturnType<typeof createEventLogRetention>) {
+  const { runs, now, maxEntriesPerRun } = state;
+  const { noteRunPhase, enforceRunCap } = retention;
+  return async function append<Payload>(input: EventLogAppendInput<Payload>, options: EventLogAppendOptions = {}): Promise<EventLogEntry<Payload>> {
+    const runLog = getOrCreateRunLog(runs, input.runId);
+    if (options.dedupeKey !== undefined) {
+      const existing = runLog.dedupeIndex.get(options.dedupeKey);
+      if (existing) {
+        return existing as EventLogEntry<Payload>;
+      }
+    }
+    const entry: EventLogEntry<Payload> = {
+      id: String(runLog.nextId),
+      event: input.event,
+      data: input.data,
+      recordedAt: now(),
+    };
+    runLog.nextId += 1;
+    runLog.entries.push(entry as EventLogEntry);
+    if (options.dedupeKey !== undefined) {
+      runLog.dedupeIndex.set(options.dedupeKey, entry as EventLogEntry);
+    }
+    if (maxEntriesPerRun !== undefined && runLog.entries.length > maxEntriesPerRun) {
+      runLog.entries.splice(0, runLog.entries.length - maxEntriesPerRun);
+    }
+    noteRunPhase(input.runId, runLog, input.event);
+    enforceRunCap();
+    return entry;
+  };
+}
+
+function replayRunLog(runLog: RunLog | undefined, afterCursor: string | null): EventLogReplayResult {
+  if (!runLog) {
+    return { kind: 'unknown-run' };
+  }
+  if (afterCursor === null) {
+    const oldest = runLog.entries[0];
+    const truncated = oldest !== undefined && Number(oldest.id) > 1;
+    return {
+      kind: 'ok',
+      entries: runLog.entries.slice(),
+      ...(truncated ? { truncated: true as const } : {}),
+    };
+  }
+  const afterCursorNum = Number(afterCursor);
+  if (!Number.isFinite(afterCursorNum)) {
+    return { kind: 'invalid-cursor', requestedCursor: afterCursor };
+  }
+  const oldestRetained = runLog.entries[0];
+  const oldestRetainedId = oldestRetained ? Number(oldestRetained.id) : runLog.nextId;
+  if (afterCursorNum < oldestRetainedId - 1) {
+    return {
+      kind: 'replay-gap',
+      requestedCursor: afterCursor,
+      oldestAvailableCursor: oldestRetained ? oldestRetained.id : null,
+    };
+  }
   return {
-    async append<Payload>(input: EventLogAppendInput<Payload>, options: EventLogAppendOptions = {}): Promise<EventLogEntry<Payload>> {
-      const runLog = getOrCreateRunLog(input.runId);
-      if (options.dedupeKey !== undefined) {
-        const existing = runLog.dedupeIndex.get(options.dedupeKey);
-        if (existing) {
-          return existing as EventLogEntry<Payload>;
-        }
-      }
-      const entry: EventLogEntry<Payload> = {
-        id: String(runLog.nextId),
-        event: input.event,
-        data: input.data,
-        recordedAt: now(),
-      };
-      runLog.nextId += 1;
-      runLog.entries.push(entry as EventLogEntry);
-      if (options.dedupeKey !== undefined) {
-        runLog.dedupeIndex.set(options.dedupeKey, entry as EventLogEntry);
-      }
-      if (maxEntriesPerRun !== undefined && runLog.entries.length > maxEntriesPerRun) {
-        runLog.entries.splice(0, runLog.entries.length - maxEntriesPerRun);
-      }
-      noteRunPhase(input.runId, runLog, input.event);
-      enforceRunCap();
-      return entry;
-    },
+    kind: 'ok',
+    entries: runLog.entries.filter((entry) => Number(entry.id) > afterCursorNum),
+  };
+}
 
+/**
+ * Reference `EventLog` implementation: a per-run FIFO array, optionally capped at
+ * `maxEntriesPerRun` (opt-in — see {@link InMemoryEventLogOptions}), functionally a ring
+ * buffer once a cap is set (oldest entries evicted once the cap is exceeded) without needing
+ * an actual circular-index structure at this scale. This is the in-memory half only — no
+ * durable copy — matching this task's scope (a real persistent adapter is `@jini-ai/daemon/store/event-log/sqlite`'s
+ * job).
+ *
+ * Memory is bounded by default: an ended run is compacted to its `'end'` entry after
+ * `terminalRetentionMs`, and at most `maxRuns` runs are held (ended ones evicted first).
+ *
+ * @param options.maxEntriesPerRun - Retention cap per run, see {@link InMemoryEventLogOptions}.
+ * @param options.terminalRetentionMs - Post-`'end'` retention, see {@link InMemoryEventLogOptions}.
+ * @param options.maxRuns - Run cap, see {@link InMemoryEventLogOptions}.
+ * @returns An `EventLog` port implementation.
+ * @complexity `append`/`drop` are O(1) amortized (O(k) only on the eviction
+ * splice, k = entries over cap, which is normally 1; the run-cap pass is O(1)
+ * per append once at the cap). `replay` is O(n) in the number of retained
+ * entries for the run.
+ */
+export function createInMemoryEventLog(_requiredArgs: Record<string, never>, options: InMemoryEventLogOptions = {}): EventLog {
+  const state = createInMemoryLogState(options);
+  const { runs } = state;
+  const retention = createEventLogRetention(state);
+  const { removeRun } = retention;
+  const append = createEventLogAppender(state, retention);
+  return {
+    append,
     async replay({ runId, afterCursor }: { runId: string; afterCursor: string | null }): Promise<EventLogReplayResult> {
-      const runLog = runs.get(runId);
-      if (!runLog) {
-        return { kind: 'unknown-run' };
-      }
-      if (afterCursor === null) {
-        const oldest = runLog.entries[0];
-        const truncated = oldest !== undefined && Number(oldest.id) > 1;
-        return {
-          kind: 'ok',
-          entries: runLog.entries.slice(),
-          ...(truncated ? { truncated: true as const } : {}),
-        };
-      }
-      const afterCursorNum = Number(afterCursor);
-      if (!Number.isFinite(afterCursorNum)) {
-        return { kind: 'invalid-cursor', requestedCursor: afterCursor };
-      }
-      const oldestRetained = runLog.entries[0];
-      const oldestRetainedId = oldestRetained ? Number(oldestRetained.id) : runLog.nextId;
-      if (afterCursorNum < oldestRetainedId - 1) {
-        return {
-          kind: 'replay-gap',
-          requestedCursor: afterCursor,
-          oldestAvailableCursor: oldestRetained ? oldestRetained.id : null,
-        };
-      }
-      return {
-        kind: 'ok',
-        entries: runLog.entries.filter((entry) => Number(entry.id) > afterCursorNum),
-      };
+      return replayRunLog(runs.get(runId), afterCursor);
     },
-
     async listRunIds(_requiredArgs: Record<string, never>): Promise<readonly string[]> {
       return Array.from(runs.keys()).sort();
     },

@@ -26,13 +26,13 @@
  * the asymmetry `examples/nlweb-demo`'s keyword-scoring spike measured) are passed to `bm25()` at
  * query time, not baked into the index.
  */
-import type { SqliteDb } from '@jini-ai/db/sqlite';
+import type { SqliteDb } from '@jini-ai/core/contracts/storage';
 
 import type { ToolCatalogEntry, ToolCatalogSearchHit } from './index.js';
 export type { ToolCatalogEntry, ToolCatalogSearchHit } from './index.js';
 
 /** Idempotent. Safe to call repeatedly (`IF NOT EXISTS`), matching `migrate()`'s own convention. */
-export function ensureToolCatalogTables({ db }: { db: SqliteDb }): void {
+export function ensureToolCatalogTables({ db }: { db: SqliteDb }, _optional: Record<string, never> = {}): void {
   db.exec(`
     CREATE TABLE IF NOT EXISTS tool_catalog (
       id                TEXT NOT NULL PRIMARY KEY,
@@ -87,7 +87,7 @@ export function reseedToolCatalog(
   replace(entries);
 }
 
-export function getToolCatalogEntry({ db, id }: { db: SqliteDb; id: string }): ToolCatalogEntry | null {
+export function getToolCatalogEntry({ db, id }: { db: SqliteDb; id: string }, _optional: Record<string, never> = {}): ToolCatalogEntry | null {
   const row = db.prepare('SELECT id, description, input_schema_json, source FROM tool_catalog WHERE id = ?').get(id) as
     | { id: string; description: string; input_schema_json: string | null; source: string }
     | undefined;

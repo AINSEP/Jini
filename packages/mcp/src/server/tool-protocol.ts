@@ -46,12 +46,19 @@
  */
 import { batchOutcomeFor, normalizeToolInput, withNormalizationNotes, type ToolDescriptor } from '@jini-ai/core';
 import { sanitizeUntrustedText } from '@jini-ai/core/text';
+import { clampDeclaredBounds } from '@jini-ai/core/tool-input-repairs';
+import { unknownToolSentence } from '@jini-ai/core/tool-call-text';
 import { Validator, type Schema } from '@cfworker/json-schema';
-import { ContentBlockSchema } from '@modelcontextprotocol/sdk/types.js';
-import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js';
+import { isPassthroughContentBlock, type CallToolResult, type Tool } from './adapters/sdk-wire.js';
 import { argumentShapeMessage, isRecord, normalizeToolArguments, resolveMcpToolName, withArgumentContract, type McpToolArgumentContract } from './tool-arguments.js';
 import { safeDiagnostic, type DaemonRequestOptions } from './daemon-client.js';
 import { scopeNestedSchemaRefs } from './schema-ref-scope.js';
+
+/** Why a described tool was not published as its own tool: a full list, a full schema budget, or no such descriptor. */
+export type ToolPublicationSkipReason = 'tool-limit' | 'schema-byte-limit' | 'not-found';
+
+/** The outcome of publishing one described tool. */
+export type ToolPublication = { readonly wireName: string } | { readonly skipped: ToolPublicationSkipReason };
 
 /** What every tool handler receives alongside its parsed arguments. */
 export interface McpToolContext {
@@ -59,8 +66,12 @@ export interface McpToolContext {
   readonly callLocalTool?: (required: {
     name: string; input: Record<string, unknown>; requireReadOnly: boolean;
   }, optional?: Record<string, never>) => Promise<CallToolResult | undefined>;
-  /** Publishes a successfully described, host-owned descriptor in this server run only. */
-  readonly publishTool?: (required: { descriptor: ToolDescriptor }, optional?: Record<string, never>) => Promise<void>;
+  /**
+   * Publishes a successfully described, host-owned descriptor in this server run only, and says what happened:
+   * the wire name it is now called by (an already published tool answers with its existing name), or why it was
+   * not published, so the caller can tell the model to use the gateway instead of promising a tool that is not there.
+   */
+  readonly publishTool?: (required: { descriptor: ToolDescriptor }, optional?: Record<string, never>) => Promise<ToolPublication>;
   /** Host registration metadata, supplied outside model-controlled arguments. */
   readonly diagnosticToolIds?: readonly string[];
   /** The resolved daemon HTTP base URL (no trailing slash), fixed for the lifetime of one server run. */
@@ -124,21 +135,6 @@ export interface McpToolDef<Args extends Record<string, unknown> = Record<string
 }
 
 /**
- * True when `block` is a well-formed MCP content block this module will pass through verbatim rather
- * than JSON-stringify. Delegates to the pinned `@modelcontextprotocol/sdk`'s own `ContentBlockSchema`
- * (the same union `CallToolResultSchema.content` is defined against) instead of a hand-maintained list
- * of per-type shape checks — see this module's own doc for why that matters: a manually maintained
- * allowlist only ever covers the block types someone remembered to add, so the *next* protocol content
- * type (this SDK version already knows five: `text`, `image`, `audio`, `resource`, `resource_link`)
- * would silently fall back to the stringify path exactly like `resource` did before this fix. A block
- * that merely claims a recognized `type` but is missing/mistyping its required field(s) still fails
- * `safeParse` and falls back to the stringify path rather than being forwarded malformed.
- */
-function isPassthroughContentBlock(block: unknown): boolean {
-  return ContentBlockSchema.safeParse(block).success;
-}
-
-/**
  * True when `payload` is already a well-formed MCP content envelope safe to hand back to the client
  * unchanged: a record whose `content` field is an array, and every entry in it is a recognized,
  * well-formed block (see {@link isPassthroughContentBlock}). A payload that merely has an array
@@ -150,7 +146,14 @@ function isPassthroughContentBlock(block: unknown): boolean {
 function isMcpContentEnvelope(payload: unknown): payload is { content: readonly unknown[]; structuredContent?: unknown } {
   if (!isRecord(payload)) return false;
   const content = payload['content'];
-  return Array.isArray(content) && content.every(isPassthroughContentBlock);
+  return Array.isArray(content) && content.every(block => isPassthroughContentBlock({ block }));
+}
+
+/** A payload is an error when it flags itself so or reports a failed batch outcome. */
+function isErrorPayload({ payload }: { payload: unknown }, _optional = {}): boolean {
+  const outcome = batchOutcomeFor({ output: payload });
+  const flaggedError = typeof payload === 'object' && payload !== null && 'isError' in payload && payload.isError === true;
+  return flaggedError || outcome === 'partial_failure' || outcome === 'error';
 }
 
 /**
@@ -167,9 +170,7 @@ function isMcpContentEnvelope(payload: unknown): payload is { content: readonly 
  * envelope or batch; O(1) otherwise.
  */
 export function okResult({ payload }: { payload: unknown }): CallToolResult {
-  const outcome = batchOutcomeFor({ output: payload });
-  const flaggedError = typeof payload === 'object' && payload !== null && 'isError' in payload && payload.isError === true;
-  const isError = flaggedError || outcome === 'partial_failure' || outcome === 'error';
+  const isError = isErrorPayload({ payload });
   if (isMcpContentEnvelope(payload)) {
     return { content: payload.content as CallToolResult['content'],
       ...(isRecord(payload.structuredContent) ? { structuredContent: payload.structuredContent } : {}),
@@ -254,6 +255,11 @@ async function normalizeCallArguments(
   { tool, rawArgs }: { tool: McpToolDef; rawArgs: unknown }, _options: Record<string, never> = {},
 ): Promise<{ args: Record<string, unknown>; notes: readonly string[] }> {
   const args = normalizeToolArguments({ tool, rawArgs });
+  if (tool.argumentNormalization?.clamp) {
+    // Local tools opt in to the clamp alone: the rest of their refusal texts stay as they are.
+    const clamped = clampDeclaredBounds({ input: args, inputSchema: tool.inputSchema });
+    return { args: clamped.input as Record<string, unknown>, notes: clamped.notes };
+  }
   if (!tool.argumentNormalization?.schemaInput) return { args, notes: [] };
   const normalized = await normalizeToolInput({ input: args, registration: { descriptor: { id: tool.name, inputSchema: tool.inputSchema } } });
   if (!isRecord(normalized.input)) throw new Error('normalization must produce one input object');
@@ -297,7 +303,7 @@ export async function handleToolCall(
   ctx = { ...ctx, diagnosticToolIds };
   const tool = tools.get(resolveMcpToolName({ name }, { isRegistered: candidate => tools.has(candidate) }));
   if (tool === undefined) {
-    return errorResult({ message: `unknown tool: ${name}` });
+    return errorResult({ message: unknownToolSentence({ toolId: name, candidates: [...tools.keys()] }) });
   }
   // Normalization and schema validation share an error boundary; handlers run only afterward.
   // See docs/decisions/DR-005-proxy-argument-shapes.md.
@@ -307,7 +313,7 @@ export async function handleToolCall(
     const { args, notes } = await normalizeCallArguments({ tool, rawArgs: rawArgs ?? {} });
     const validation = validatorForTool(tool).validate(args);
     if (!validation.valid) {
-      return errorResult({ message: `invalid arguments for ${tool.name}: ${sanitizeUntrustedText({ text: argumentShapeMessage({ errors: validation.errors, inputSchema: wireInputSchema(tool) }, { includeContract: tool.argumentNormalization?.schemaInput === true }) }, {
+      return errorResult({ message: `invalid arguments for ${tool.name}: ${sanitizeUntrustedText({ text: argumentShapeMessage({ errors: validation.errors, inputSchema: wireInputSchema(tool) }, { includeContract: tool.argumentNormalization?.schemaInput === true, isKnownTool: id => diagnosticToolIds.includes(id) }) }, {
         diagnosticToolIds,
         // A complete bounded contract must survive the default 500-character diagnostic cap.
         maxLength: 4608,

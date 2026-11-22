@@ -37,7 +37,7 @@ export interface ProviderConformanceOptional {
 const OUTCOME_KINDS: readonly unknown[] = ["ok", "rejected", "unknown"];
 
 function assertShape(provider: PaymentProvider): void {
-  const problem = paymentProviderModuleProblem(provider);
+  const problem = paymentProviderModuleProblem({ value: provider });
   assert.equal(problem, undefined, `provider shape is invalid: ${problem}`);
 }
 

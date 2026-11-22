@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/analytics",
-  "version": "0.7.2",
+  "version": "0.7.3-next.2",
   "description": "Framework-free visitor analytics ingestion, aggregation and storage contracts for marketing applications.",
   "license": "Apache-2.0",
   "repository": {
@@ -15,9 +15,6 @@
     "entries": {
       ".": "node",
       "./product": "universal"
-    },
-    "optionalPeers": {
-      "@jini-ai/agent-runtime": "opt-in: agent execution adapters — Agent execution adapters could not load @jini-ai/agent-runtime. Install @jini-ai/agent-runtime to enable this feature, or check its installed version and native binaries."
     }
   },
   "type": "module",
@@ -49,11 +46,7 @@
     "@jini-ai/core": "workspace:^"
   },
   "devDependencies": {
-    "@jini-ai/agent-runtime": "workspace:^",
     "esbuild": "^0.28.1"
-  },
-  "peerDependencies": {
-    "@jini-ai/agent-runtime": "^0.7.0"
   },
   "publishConfig": {
     "access": "public",
@@ -63,10 +56,5 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run"
-  },
-  "peerDependenciesMeta": {
-    "@jini-ai/agent-runtime": {
-      "optional": true
-    }
   }
 }

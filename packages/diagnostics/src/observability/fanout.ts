@@ -1,5 +1,12 @@
-import type { ErrorReport, ObservabilityPort, TrackerScope } from './ports.js';
-import { createNoopObservabilityPort, isNoopObservabilityPort } from './noop.js';
+import type {
+  ErrorReport,
+  ObservabilityPort,
+  TrackerScope,
+} from '@jini-ai/core/contracts/observability';
+import {
+  createNoopObservabilityPort,
+  isNoopObservabilityPort,
+} from '@jini-ai/core/contracts/observability';
 
 type Tracker<O> = Partial<TrackerScope> & { end(outcome: O): void };
 type Signal = 'trackRequest' | 'trackDbQuery' | 'trackOutboundCall' | 'trackAgentRun' | 'trackOperation';
@@ -102,8 +109,15 @@ export function combineObservabilityPorts({ ports }: { ports: readonly Observabi
   }
   return undefined;
  };
+ const activeTraceparent: NonNullable<ObservabilityPort['activeTraceparent']> = () => {
+  for (const port of live) {
+   try { const traceparent = port.activeTraceparent?.(); if (traceparent) return traceparent; } catch { failed(); }
+  }
+  return undefined;
+ };
  return {
   activeTraceIds,
+  activeTraceparent,
   get supportsMetric() { return live.some(port => port.supportsMetric === true); },
   trackRequest: (...args) => fanOut(live, 'trackRequest', args, failed),
   trackDbQuery: (...args) => fanOut(live, 'trackDbQuery', args, failed),

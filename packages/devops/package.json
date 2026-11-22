@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/devops",
-  "version": "0.7.2",
+  "version": "0.7.3-next.2",
   "description": "DevOps capabilities for deployment, source control, and CI/CD, exposed through independent subpaths.",
   "license": "Apache-2.0",
   "repository": {
@@ -21,15 +21,20 @@
       "./packaging/electron/typescript": "node",
       "./agent-jobs": "node",
       "./deploy": "node",
+      "./deploy/react": "browser",
       "./checks/published-types": "node",
       "./checks/coverage": "node",
       "./checks/node": "node",
       "./checks/memory-soak": "universal",
+      "./checks/env-access": "universal",
       "./local-dev": "node",
       "./deploy/node": "node",
       "./static-export/failure-summary": "universal",
       "./dns": "node",
-      "./dns/node": "node"
+      "./dns/node": "node",
+      "./backup/upload": "node",
+      "./backup/plan-store": "node",
+      "./backup/push-jobs": "universal"
     },
     "isolation": {
       "shared": [
@@ -39,9 +44,9 @@
     "optionalPeers": {
       "parse5": "opt-in: html parsing; import @jini-ai/devops/static-export — HTML parsing could not load parse5. Install parse5 to enable this feature, or check its installed version and native binaries.",
       "typescript": "opt-in: typescript source analysis — TypeScript source analysis could not load typescript. Install typescript to enable this feature, or check its installed version and native binaries.",
-      "@jini-ai/platform": "opt-in: platform-backed adapters; import @jini-ai/devops/deploy/node — Platform-backed adapters could not load @jini-ai/platform. Install @jini-ai/platform to enable this feature, or check its installed version and native binaries.",
       "undici": "opt-in: custom http dispatchers; import @jini-ai/devops/deploy/node — Custom HTTP dispatchers could not load undici. Install undici to enable this feature, or check its installed version and native binaries.",
-      "electron": "opt-in: desktop runtime selection; import @jini-ai/devops/local-dev — Desktop runtime selection could not load electron. Install electron to run the dev server on Electron-as-node, or use stock Node."
+      "electron": "opt-in: desktop runtime selection; import @jini-ai/devops/local-dev — Desktop runtime selection could not load electron. Install electron to run the dev server on Electron-as-node, or use stock Node.",
+      "react": "opt-in: react publish result view; import @jini-ai/devops/deploy/react — The publish result view could not load react. Install react to enable this feature, or check its installed version."
     }
   },
   "type": "module",
@@ -89,6 +94,11 @@
       "import": "./dist/deploy/index.js",
       "default": "./dist/deploy/index.js"
     },
+    "./deploy/react": {
+      "types": "./dist/deploy/react/index.d.ts",
+      "import": "./dist/deploy/react/index.js",
+      "default": "./dist/deploy/react/index.js"
+    },
     "./checks/published-types": {
       "types": "./dist/checks/published-types/index.d.ts",
       "import": "./dist/checks/published-types/index.js",
@@ -108,6 +118,11 @@
       "types": "./dist/checks/memory-soak.d.ts",
       "import": "./dist/checks/memory-soak.js",
       "default": "./dist/checks/memory-soak.js"
+    },
+    "./checks/env-access": {
+      "types": "./dist/checks/env-access.d.ts",
+      "import": "./dist/checks/env-access.js",
+      "default": "./dist/checks/env-access.js"
     },
     "./local-dev": {
       "types": "./dist/local-dev/index.d.ts",
@@ -133,6 +148,21 @@
       "types": "./dist/dns/node/index.d.ts",
       "import": "./dist/dns/node/index.js",
       "default": "./dist/dns/node/index.js"
+    },
+    "./backup/upload": {
+      "types": "./dist/backup/upload.node.d.ts",
+      "import": "./dist/backup/upload.node.js",
+      "default": "./dist/backup/upload.node.js"
+    },
+    "./backup/plan-store": {
+      "types": "./dist/backup/plan-store.node.d.ts",
+      "import": "./dist/backup/plan-store.node.js",
+      "default": "./dist/backup/plan-store.node.js"
+    },
+    "./backup/push-jobs": {
+      "types": "./dist/backup/push-jobs.d.ts",
+      "import": "./dist/backup/push-jobs.js",
+      "default": "./dist/backup/push-jobs.js"
     }
   },
   "files": [
@@ -158,22 +188,26 @@
     "test:coverage": "vitest run --coverage"
   },
   "devDependencies": {
-    "@jini-ai/daemon": "workspace:*",
-    "@vitest/coverage-v8": "^2.1.9",
     "@jini-ai/core": "workspace:^",
+    "@jini-ai/daemon": "workspace:*",
     "@jini-ai/platform": "workspace:^",
-    "undici": "^7.25.0",
-    "parse5": "7.3.0"
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@vitest/coverage-v8": "^3.2.6",
+    "parse5": "7.3.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "undici": "^7.30.1"
   },
   "dependencies": {
     "@jini-ai/core": "workspace:^"
   },
   "peerDependencies": {
     "typescript": "^5.6.0",
-    "@jini-ai/platform": "^0.7.0",
     "undici": "^7.25.0",
     "parse5": "7.3.0",
-    "electron": ">=30.0.0"
+    "electron": ">=30.0.0",
+    "react": "^18.3.0 || ^19.0.0"
   },
   "peerDependenciesMeta": {
     "parse5": {
@@ -182,13 +216,13 @@
     "typescript": {
       "optional": true
     },
-    "@jini-ai/platform": {
-      "optional": true
-    },
     "undici": {
       "optional": true
     },
     "electron": {
+      "optional": true
+    },
+    "react": {
       "optional": true
     }
   }

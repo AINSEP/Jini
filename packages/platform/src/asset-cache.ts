@@ -57,7 +57,8 @@ const CACHEABLE_MEDIA_MIME: ReadonlySet<string> = new Set(Object.values(EXT_TO_M
 /** True when `raw` is an absolute http(s) URL pointing at a media file we are
  *  willing to route through the cache. Pure + side-effect free so the URL
  *  rewriter and tests can share the exact predicate. */
-export function isCacheableExternalUrl(raw: unknown): raw is string {
+export function isCacheableExternalUrl(required: { raw: unknown }, _optional: Record<string, never> = {}): required is { raw: string } {
+  const { raw } = required;
   if (typeof raw !== 'string') return false;
   const value = raw.trim();
   if (!/^https?:\/\//i.test(value)) return false;
@@ -73,7 +74,7 @@ export function isCacheableExternalUrl(raw: unknown): raw is string {
 /** Map a cacheable external URL to its same-origin proxy URL. `routePath`
  *  defaults to `/api/asset-cache` but is caller-configurable since the route
  *  is mounted by the host application, not this package. */
-export function assetCacheRewriteUrl(raw: string, routePath = '/api/asset-cache'): string {
+export function assetCacheRewriteUrl({ raw }: { raw: string }, { routePath = '/api/asset-cache' }: { routePath?: string | undefined } = {}): string {
   return `${routePath}?url=${encodeURIComponent(raw.trim())}`;
 }
 
@@ -184,170 +185,201 @@ export function createAssetCacheDispatcher(_required: Record<string, never>, { l
   return createUndiciAssetCacheDispatcher({ lookup: createValidatingLookup(lookupImpl) as unknown as LookupFunction });
 }
 
+/** Resolved options, outbound dispatcher and in-flight table shared by the cache helpers below. */
+interface AssetCacheState {
+  readonly cacheDir: string;
+  readonly maxBytes: number;
+  readonly timeoutMs: number;
+  readonly fetchImpl: typeof fetch;
+  readonly dispatcher: Dispatcher;
+  readonly inflight: Map<string, Promise<AssetCacheResult>>;
+}
+
+async function readFromDisk({ s, key }: { s: AssetCacheState; key: string }): Promise<AssetCacheResult | null> {
+  const { cacheDir } = s;
+  const blobPath = path.join(cacheDir, key);
+  const metaPath = `${blobPath}.json`;
+  try {
+    const [buf, metaRaw] = await Promise.all([readFile(blobPath), readFile(metaPath, 'utf8')]);
+    const meta = JSON.parse(metaRaw) as { contentType?: unknown };
+    const contentType = meta.contentType;
+    // Old cache entries must satisfy the same passive-media policy as new fetches.
+    if (typeof contentType !== 'string' || !CACHEABLE_MEDIA_MIME.has(contentType)) return null;
+    return { buf, contentType };
+  } catch {
+    return null;
+  }
+}
+
+async function writeToDisk({ s, key, result }: {
+  s: AssetCacheState;
+  key: string;
+  result: AssetCacheResult;
+}): Promise<void> {
+  const { cacheDir } = s;
+  await mkdir(cacheDir, { recursive: true });
+  const blobPath = path.join(cacheDir, key);
+  const tmpPath = `${blobPath}.${process.pid}.tmp`;
+  await writeFile(tmpPath, result.buf);
+  await rename(tmpPath, blobPath);
+  await writeFile(`${blobPath}.json`, JSON.stringify({ contentType: result.contentType }));
+}
+
+function resolveContentType({ headerValue, url }: { headerValue: string | null; url: URL }, _options = {}): string {
+  // Moved from URL eligibility, which now uses URL.pathname instead of split:
+  // `String#split` always returns a non-empty array (even `''.split(x)` is
+  // `['']`), so index 0 is never `undefined` — the `!` narrows a
+  // `noUncheckedIndexedAccess` false positive, not a real fallback path.
+  // `(headerValue ?? '')` is reachable (no content-type header at all). The
+  // trailing `?? ''` after the optional-chained `.split(';')[0]?.trim()` is
+  // not: `String#split` always returns a non-empty array, so `[0]` is never
+  // `undefined` and `?.` never short-circuits — kept for
+  // `noUncheckedIndexedAccess`, not a real fallback path.
+  const header = (headerValue ?? '').split(';')[0]!.trim().toLowerCase();
+  if (CACHEABLE_MEDIA_MIME.has(header)) return header;
+  // An explicit active/unsupported type must never be relabelled by its URL.
+  if (header && header !== 'application/octet-stream') {
+    throw new AssetCacheError(415, `unsupported content-type: ${header}`);
+  }
+  const ext = path.posix.extname(url.pathname).toLowerCase();
+  const guessed = EXT_TO_MIME[ext];
+  if (guessed) return guessed;
+  throw new AssetCacheError(415, `unsupported content-type: ${header || 'unknown'}`);
+}
+
+function assertWithinLimit({ s, total }: { s: AssetCacheState; total: number }): void {
+  const { maxBytes } = s;
+  if (total > maxBytes) throw new AssetCacheError(413, 'asset exceeds size limit');
+}
+
+/** Pull chunks until done, failing as soon as the running total passes
+ *  `maxBytes`. Always releases the reader, even on the size-limit throw. */
+async function drainCapped({ s, reader, controller }: {
+  s: AssetCacheState;
+  reader: ReadableStreamDefaultReader<Uint8Array>;
+  controller: AbortController;
+}): Promise<Buffer> {
+  const { maxBytes } = s;
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    for (let next = await reader.read(); !next.done; next = await reader.read()) {
+      const value = next.value;
+      if (!value) continue;
+      total += value.byteLength;
+      if (total > maxBytes) {
+        controller.abort(); // stop pulling more bytes from upstream
+        throw new AssetCacheError(413, 'asset exceeds size limit');
+      }
+      chunks.push(value);
+    }
+  } finally {
+    try {
+      await reader.cancel();
+    } catch {
+      // reader already closed / errored — nothing to release
+    }
+  }
+  return Buffer.concat(chunks);
+}
+
+/** Drain the body, aborting the moment the accumulated size exceeds
+ *  `maxBytes`. A response without a trustworthy Content-Length must never be
+ *  fully buffered first — that would turn this caller-supplied proxy into a
+ *  memory-exhaustion path. */
+async function readBodyCapped({ s, response, controller }: {
+  s: AssetCacheState;
+  response: Response;
+  controller: AbortController;
+}): Promise<Buffer> {
+  const body = response.body;
+  if (body) return drainCapped({ s, reader: body.getReader(), controller });
+  const ab = await response.arrayBuffer();
+  assertWithinLimit({ s, total: ab.byteLength });
+  return Buffer.from(ab);
+}
+
+async function fetchAndStore({ s, rawUrl, key }: {
+  s: AssetCacheState;
+  rawUrl: string;
+  key: string;
+}): Promise<AssetCacheResult> {
+  const { timeoutMs, fetchImpl, dispatcher } = s;
+  const url = assertSafePublicUrl(rawUrl);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    let response: Response;
+    try {
+      // `dispatcher` carries the connection-time SSRF guard. It is an undici
+      // extension of RequestInit; attach it at runtime to avoid the
+      // undici-types (bundled with @types/node) vs undici@7 Dispatcher version
+      // skew that a typed field would trip over.
+      const init: RequestInit = { redirect: 'error', signal: controller.signal };
+      (init as { dispatcher?: unknown }).dispatcher = dispatcher;
+      response = await fetchImpl(url, init);
+    } catch (err) {
+      throw new AssetCacheError(502, `fetch failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+    if (!response.ok) {
+      throw new AssetCacheError(502, `upstream responded ${response.status}`);
+    }
+    const declaredLength = Number(response.headers.get('content-length') ?? '');
+    if (Number.isFinite(declaredLength)) assertWithinLimit({ s, total: declaredLength });
+    const contentType = resolveContentType({ headerValue: response.headers.get('content-type'), url });
+    const buf = await readBodyCapped({ s, response, controller });
+    const result: AssetCacheResult = { buf, contentType };
+    try {
+      await writeToDisk({ s, key, result });
+    } catch {
+      // A cache-write failure must not fail the request; serve from memory.
+    }
+    return result;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function get({ s, rawUrl }: { s: AssetCacheState; rawUrl: string }): Promise<AssetCacheResult> {
+  const { inflight } = s;
+  if (!isCacheableExternalUrl({ raw: rawUrl })) {
+    throw new AssetCacheError(400, 'url is not a cacheable external media url');
+  }
+  const url = rawUrl.trim();
+  const key = assetCacheKey({ rawUrl: url });
+  const cached = await readFromDisk({ s, key });
+  if (cached) return cached;
+  const existing = inflight.get(key);
+  if (existing) return existing;
+  const pending = fetchAndStore({ s, rawUrl: url, key }).finally(() => {
+    inflight.delete(key);
+  });
+  inflight.set(key, pending);
+  return pending;
+}
+
 /** Build a disk-backed cache for external sandboxed-content media. Concurrent
  *  requests for the same URL share one in-flight fetch; completed fetches
  *  persist to `<cacheDir>/<sha256>` (+ `.json` sidecar) and are replayed from
  *  disk. */
 export function createAssetCache(opts: AssetCacheOptions, options: { dispatcher?: Dispatcher } = {}): AssetCache {
-  const cacheDir = opts.cacheDir;
-  const maxBytes = opts.maxBytes ?? 64 * 1024 * 1024;
-  const timeoutMs = opts.fetchTimeoutMs ?? 15_000;
-  const fetchImpl = opts.fetchImpl ?? fetch;
   // Pin SSRF validation to the actual outbound connection: the Agent resolves
   // the host once, and `validatingLookup` rejects the connection if that exact
   // address is private. No separate pre-validation lookup to rebind around.
   const suppliedDispatcher = options.dispatcher ?? opts.dispatcher;
-  const dispatcher = suppliedDispatcher ?? createAssetCacheDispatcher({}, opts.lookupImpl ? { lookupImpl: opts.lookupImpl } : {});
-  const inflight = new Map<string, Promise<AssetCacheResult>>();
+  const s: AssetCacheState = {
+    cacheDir: opts.cacheDir,
+    maxBytes: opts.maxBytes ?? 64 * 1024 * 1024,
+    timeoutMs: opts.fetchTimeoutMs ?? 15_000,
+    fetchImpl: opts.fetchImpl ?? fetch,
+    dispatcher: suppliedDispatcher ?? createAssetCacheDispatcher({}, opts.lookupImpl ? { lookupImpl: opts.lookupImpl } : {}),
+    inflight: new Map<string, Promise<AssetCacheResult>>(),
+  };
 
-  async function readFromDisk({ key }: { key: string }, _options = {}): Promise<AssetCacheResult | null> {
-    const blobPath = path.join(cacheDir, key);
-    const metaPath = `${blobPath}.json`;
-    try {
-      const [buf, metaRaw] = await Promise.all([readFile(blobPath), readFile(metaPath, 'utf8')]);
-      const meta = JSON.parse(metaRaw) as { contentType?: unknown };
-      const contentType = meta.contentType;
-      // Old cache entries must satisfy the same passive-media policy as new fetches.
-      if (typeof contentType !== 'string' || !CACHEABLE_MEDIA_MIME.has(contentType)) return null;
-      return { buf, contentType };
-    } catch {
-      return null;
-    }
-  }
-
-  async function writeToDisk(key: string, result: AssetCacheResult): Promise<void> {
-    await mkdir(cacheDir, { recursive: true });
-    const blobPath = path.join(cacheDir, key);
-    const tmpPath = `${blobPath}.${process.pid}.tmp`;
-    await writeFile(tmpPath, result.buf);
-    await rename(tmpPath, blobPath);
-    await writeFile(`${blobPath}.json`, JSON.stringify({ contentType: result.contentType }));
-  }
-
-  function resolveContentType({ headerValue, url }: { headerValue: string | null; url: URL }, _options = {}): string {
-    // Moved from URL eligibility, which now uses URL.pathname instead of split:
-    // `String#split` always returns a non-empty array (even `''.split(x)` is
-    // `['']`), so index 0 is never `undefined` — the `!` narrows a
-    // `noUncheckedIndexedAccess` false positive, not a real fallback path.
-    // `(headerValue ?? '')` is reachable (no content-type header at all). The
-    // trailing `?? ''` after the optional-chained `.split(';')[0]?.trim()` is
-    // not: `String#split` always returns a non-empty array, so `[0]` is never
-    // `undefined` and `?.` never short-circuits — kept for
-    // `noUncheckedIndexedAccess`, not a real fallback path.
-    const header = (headerValue ?? '').split(';')[0]!.trim().toLowerCase();
-    if (CACHEABLE_MEDIA_MIME.has(header)) return header;
-    // An explicit active/unsupported type must never be relabelled by its URL.
-    if (header && header !== 'application/octet-stream') {
-      throw new AssetCacheError(415, `unsupported content-type: ${header}`);
-    }
-    const ext = path.posix.extname(url.pathname).toLowerCase();
-    const guessed = EXT_TO_MIME[ext];
-    if (guessed) return guessed;
-    throw new AssetCacheError(415, `unsupported content-type: ${header || 'unknown'}`);
-  }
-
-  function assertWithinLimit(total: number): void {
-    if (total > maxBytes) throw new AssetCacheError(413, 'asset exceeds size limit');
-  }
-
-  /** Pull chunks until done, failing as soon as the running total passes
-   *  `maxBytes`. Always releases the reader, even on the size-limit throw. */
-  async function drainCapped(
-    reader: ReadableStreamDefaultReader<Uint8Array>,
-    controller: AbortController,
-  ): Promise<Buffer> {
-    const chunks: Uint8Array[] = [];
-    let total = 0;
-    try {
-      for (let next = await reader.read(); !next.done; next = await reader.read()) {
-        const value = next.value;
-        if (!value) continue;
-        total += value.byteLength;
-        if (total > maxBytes) {
-          controller.abort(); // stop pulling more bytes from upstream
-          throw new AssetCacheError(413, 'asset exceeds size limit');
-        }
-        chunks.push(value);
-      }
-    } finally {
-      try {
-        await reader.cancel();
-      } catch {
-        // reader already closed / errored — nothing to release
-      }
-    }
-    return Buffer.concat(chunks);
-  }
-
-  /** Drain the body, aborting the moment the accumulated size exceeds
-   *  `maxBytes`. A response without a trustworthy Content-Length must never be
-   *  fully buffered first — that would turn this caller-supplied proxy into a
-   *  memory-exhaustion path. */
-  async function readBodyCapped(response: Response, controller: AbortController): Promise<Buffer> {
-    const body = response.body;
-    if (body) return drainCapped(body.getReader(), controller);
-    const ab = await response.arrayBuffer();
-    assertWithinLimit(ab.byteLength);
-    return Buffer.from(ab);
-  }
-
-  async function fetchAndStore(rawUrl: string, key: string): Promise<AssetCacheResult> {
-    const url = assertSafePublicUrl(rawUrl);
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
-    try {
-      let response: Response;
-      try {
-        // `dispatcher` carries the connection-time SSRF guard. It is an undici
-        // extension of RequestInit; attach it at runtime to avoid the
-        // undici-types (bundled with @types/node) vs undici@7 Dispatcher version
-        // skew that a typed field would trip over.
-        const init: RequestInit = { redirect: 'error', signal: controller.signal };
-        (init as { dispatcher?: unknown }).dispatcher = dispatcher;
-        response = await fetchImpl(url, init);
-      } catch (err) {
-        throw new AssetCacheError(502, `fetch failed: ${err instanceof Error ? err.message : String(err)}`);
-      }
-      if (!response.ok) {
-        throw new AssetCacheError(502, `upstream responded ${response.status}`);
-      }
-      const declaredLength = Number(response.headers.get('content-length') ?? '');
-      if (Number.isFinite(declaredLength)) assertWithinLimit(declaredLength);
-      const contentType = resolveContentType({ headerValue: response.headers.get('content-type'), url });
-      const buf = await readBodyCapped(response, controller);
-      const result: AssetCacheResult = { buf, contentType };
-      try {
-        await writeToDisk(key, result);
-      } catch {
-        // A cache-write failure must not fail the request; serve from memory.
-      }
-      return result;
-    } finally {
-      clearTimeout(timer);
-    }
-  }
-
-  async function get(rawUrl: string): Promise<AssetCacheResult> {
-    if (!isCacheableExternalUrl(rawUrl)) {
-      throw new AssetCacheError(400, 'url is not a cacheable external media url');
-    }
-    const url = rawUrl.trim();
-    const key = assetCacheKey(url);
-    const cached = await readFromDisk({ key });
-    if (cached) return cached;
-    const existing = inflight.get(key);
-    if (existing) return existing;
-    const pending = fetchAndStore(url, key).finally(() => {
-      inflight.delete(key);
-    });
-    inflight.set(key, pending);
-    return pending;
-  }
-
-  return { get, close: async () => { if (!suppliedDispatcher) await dispatcher.close(); } };
+  return { get: (rawUrl) => get({ s, rawUrl }), close: async () => { if (!suppliedDispatcher) await s.dispatcher.close(); } };
 }
 
 /** Exposed for tests that need to assert the on-disk key layout. */
-export function assetCacheKey(rawUrl: string): string {
+export function assetCacheKey({ rawUrl }: { rawUrl: string }, _optional: Record<string, never> = {}): string {
   return createHash('sha256').update(rawUrl.trim()).digest('hex');
 }

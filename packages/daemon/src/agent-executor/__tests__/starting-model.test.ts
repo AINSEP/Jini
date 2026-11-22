@@ -2,12 +2,14 @@ import { describe, expect, it } from 'vitest';
 import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
 import type { ChildProcess, spawn as nodeSpawn } from 'node:child_process';
-import type { RuntimeAgentDef, attachAcpSession, attachPiRpcSession } from '@jini-ai/agent-runtime';
+import type { attachAcpSession, attachPiRpcSession } from '@jini-ai/agent-runtime';
+import type { RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 import { createAgentExecutor as publicCreateAgentExecutor } from '../../index.js';
 import { createAgentExecutor, AgentExecutorError } from '../index.js';
 import { createInMemoryEventLog } from '../../event-log.js';
 import { createRunLifecycle } from '../../run-lifecycle.js';
 import { fixtureModelDiscovery } from './model-discovery-fixture.js';
+import { runtimeFixture, agentRuntimeFixture } from './runtime-fixture.js';
 
 function def(): RuntimeAgentDef {
   return { ...fixtureModelDiscovery, id: 'fixture', name: 'Fixture', bin: 'fixture', versionArgs: [], fallbackModels: [], streamFormat: 'plain', promptViaStdin: true,
@@ -24,8 +26,7 @@ it.each(['acp-json-rpc', 'pi-rpc'])('fails an empty %s result despite the transp
   const spawn = (() => { queueMicrotask(() => child.emit('spawn')); return child as unknown as ChildProcess; }) as typeof nodeSpawn;
   const acp: typeof attachAcpSession = () => ({ hasFatalError: () => false, getDurableSessionId: () => null, completedSuccessfully: () => true, abort() {} });
   const pi: typeof attachPiRpcSession = () => ({ hasFatalError: () => false, getLastSessionPath: () => null, abort() {} });
-  const executor = createAgentExecutor({ lifecycle }, { getAgentDef: () => agent, resolveAgentLaunch: () => launch,
-    ensureAgentCapabilities: async () => {}, applyAgentLaunchEnv: ({ env }) => env, spawn, attachAcpSession: acp, attachPiRpcSession: pi });
+  const executor = createAgentExecutor({ lifecycle, hostEnv: {}, runtime: runtimeFixture({ spawn: spawn }), agentRuntime: agentRuntimeFixture({ getAgentDef: () => agent, resolveAgentLaunch: () => launch, ensureAgentCapabilities: async () => {}, applyAgentLaunchEnv: ({ env }) => env, attachAcpSession: acp, attachPiRpcSession: pi }) });
   const { run } = await lifecycle.start({ contextRef: 'empty-rpc' });
   await executor.run({ runId: run.id, agentId: agent.id, cwd: '/workspace', prompt: 'hello' });
   child.emit('close', 0, null);
@@ -41,14 +42,7 @@ describe('starting-model launch agreement', () => {
     let registered = def();
     let lookups = 0;
     const args: string[][] = [];
-    const executor = createAgentExecutor({ lifecycle }, {
-      getAgentDef: () => { lookups++; return registered; },
-      resolveAgentLaunch: () => launch,
-      ensureAgentCapabilities: async () => {},
-      applyAgentLaunchEnv: ({ env }) => env,
-      createCommandInvocation: ({ command, args }) => ({ command, args: [...(args ?? [])], windowsVerbatimArguments: false }),
-      spawn: ((_command: string, argv: readonly string[]) => { args.push([...argv]); throw new Error('Fixture stops before a real process'); }) as unknown as typeof nodeSpawn,
-    });
+    const executor = createAgentExecutor({ lifecycle, hostEnv: {}, runtime: runtimeFixture({ spawn: ((_command: string, argv: readonly string[]) => { args.push([...argv]); throw new Error('Fixture stops before a real process'); }) as unknown as typeof nodeSpawn }), agentRuntime: agentRuntimeFixture({ getAgentDef: () => { lookups++; return registered; }, resolveAgentLaunch: () => launch, ensureAgentCapabilities: async () => {}, applyAgentLaunchEnv: ({ env }) => env }) });
     const { run } = await lifecycle.start({ contextRef: 'registry-replacement' });
     const pending = executor.run({ runId: run.id, agentId: registered.id, cwd: '/workspace', prompt: 'hello' });
     // Replace the registry entry in the caller's same turn, before any launch continuation resumes.
@@ -62,11 +56,7 @@ describe('starting-model launch agreement', () => {
   it('passes the resolved default into the native model-selection flag', async () => {
     const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
     const agent = def(); const args: string[][] = [];
-    const executor = createAgentExecutor({ lifecycle }, {
-      getAgentDef: () => agent, resolveAgentLaunch: () => launch, ensureAgentCapabilities: async () => {}, applyAgentLaunchEnv: ({ env }) => env,
-      createCommandInvocation: ({ command, args }) => ({ command, args: [...(args ?? [])], windowsVerbatimArguments: false }),
-      spawn: ((_command: string, argv: readonly string[]) => { args.push([...argv]); throw new Error('Fixture stops before a real process'); }) as unknown as typeof nodeSpawn,
-    });
+    const executor = createAgentExecutor({ lifecycle, hostEnv: {}, runtime: runtimeFixture({ spawn: ((_command: string, argv: readonly string[]) => { args.push([...argv]); throw new Error('Fixture stops before a real process'); }) as unknown as typeof nodeSpawn }), agentRuntime: agentRuntimeFixture({ getAgentDef: () => agent, resolveAgentLaunch: () => launch, ensureAgentCapabilities: async () => {}, applyAgentLaunchEnv: ({ env }) => env }) });
     const { run } = await lifecycle.start({ contextRef: 'fixture' });
     await expect(executor.run({ runId: run.id, agentId: 'fixture', cwd: '/workspace', prompt: 'hello' })).rejects.toMatchObject({ code: 'AGENT_SPAWN_FAILED' });
     expect(args).toEqual([['--model', 'cli-pinned']]);
@@ -75,8 +65,7 @@ describe('starting-model launch agreement', () => {
     const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
     const agent = def(); let spawned = false;
     agent.resolveDefaultModel = async () => ({ status: 'unresolved', selectionId: 'adaptive', reason: 'No concrete evidence' });
-    const executor = createAgentExecutor({ lifecycle }, { getAgentDef: () => agent, resolveAgentLaunch: () => launch, ensureAgentCapabilities: async () => {}, applyAgentLaunchEnv: ({ env }) => env,
-      spawn: (() => { spawned = true; throw new Error('Must not spawn'); }) as unknown as typeof nodeSpawn });
+    const executor = createAgentExecutor({ lifecycle, hostEnv: {}, runtime: runtimeFixture({ spawn: (() => { spawned = true; throw new Error('Must not spawn'); }) as unknown as typeof nodeSpawn }), agentRuntime: agentRuntimeFixture({ getAgentDef: () => agent, resolveAgentLaunch: () => launch, ensureAgentCapabilities: async () => {}, applyAgentLaunchEnv: ({ env }) => env }) });
     const { run } = await lifecycle.start({ contextRef: 'fixture' });
     await expect(executor.run({ runId: run.id, agentId: 'fixture', cwd: '/workspace', prompt: 'hello' })).rejects.toEqual(new AgentExecutorError({ code: 'AGENT_MODEL_UNRESOLVED', message: 'AgentExecutor: choose a concrete model and supported effort from this agent’s model list; the selection could not be resolved for this launch.' }));
     expect(spawned).toBe(false);
@@ -109,8 +98,8 @@ for (const [name, create] of [['split', createAgentExecutor], ['public', publicC
           report = model => send({ event: 'agent', payload: { type: 'status', label: 'model', model } });
           return { hasFatalError: () => false, getLastSessionPath: () => null, abort() {} };
         };
-        const executor = create({ lifecycle }, { getAgentDef: () => agent, resolveAgentLaunch: () => launch, ensureAgentCapabilities: async () => {},
-          applyAgentLaunchEnv: ({ env }) => env, spawn, attachAcpSession: acp, attachPiRpcSession: pi });
+        const executor = create({ lifecycle, hostEnv: {}, runtime: runtimeFixture({ spawn }), agentRuntime: agentRuntimeFixture({ getAgentDef: () => agent, resolveAgentLaunch: () => launch, ensureAgentCapabilities: async () => {},
+          applyAgentLaunchEnv: ({ env }) => env, attachAcpSession: acp, attachPiRpcSession: pi }) });
         const { run } = await lifecycle.start({ contextRef: 'aliases' });
         await executor.run({ runId: run.id, agentId: agent.id, cwd: '/workspace', prompt: 'hello' });
         if (format === 'claude-stream-json') report = model => child.stdout.emit('data', `${JSON.stringify({ type: 'system', subtype: 'init', model, tools: [] })}\n`);
@@ -134,13 +123,7 @@ it.each(['default', 'native-routing-alias'])('trusted parity leaves default or e
   const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
   const agent = def(); let selections = 0; const args: string[][] = [];
   agent.buildArgs = (_input, { options = {} } = {}) => options.model && options.model !== 'default' ? ['--model', options.model] : [];
-  const executor = createAgentExecutor({ lifecycle }, {
-    getAgentDef: () => agent, resolveAgentLaunch: () => launch,
-    resolveModelForLaunch: async () => { selections++; throw new Error('No concrete model evidence'); },
-    ensureAgentCapabilities: async () => {}, applyAgentLaunchEnv: ({ env }) => env,
-    createCommandInvocation: ({ command, args }) => ({ command, args: [...(args ?? [])], windowsVerbatimArguments: false }),
-    spawn: ((_command: string, argv: readonly string[]) => { args.push([...argv]); throw new Error('fixture stops before spawn'); }) as unknown as typeof nodeSpawn,
-  });
+  const executor = createAgentExecutor({ lifecycle, hostEnv: {}, runtime: runtimeFixture({ spawn: ((_command: string, argv: readonly string[]) => { args.push([...argv]); throw new Error('fixture stops before spawn'); }) as unknown as typeof nodeSpawn }), agentRuntime: agentRuntimeFixture({ getAgentDef: () => agent, resolveAgentLaunch: () => launch, resolveModelForLaunch: async () => { selections++; throw new Error('No concrete model evidence'); }, ensureAgentCapabilities: async () => {}, applyAgentLaunchEnv: ({ env }) => env }) });
   const { run } = await lifecycle.start({ contextRef: 'parity' });
   await expect(executor.run({ runId: run.id, agentId: agent.id, cwd: '/workspace', prompt: 'hello' },
     { cliParity: true, nativeToolAccess: true, nativeCapabilities: { userMcp: true }, permissionMode: 'bypass', model })).rejects.toMatchObject({ code: 'AGENT_SPAWN_FAILED' });
@@ -152,11 +135,7 @@ it('checks an explicit effort before a trusted parity launch sends a prompt', as
   const agent = def(); let spawned = false;
   agent.discoverModels = async ({ context }) => ({ ...(await fixtureModelDiscovery.discoverModels({ context })),
     models: [{ id: 'cli-pinned', label: 'Pinned', identityKind: 'concrete', reasoning: [{ id: 'high', label: 'High' }] }] });
-  const executor = createAgentExecutor({ lifecycle }, {
-    getAgentDef: () => agent, resolveAgentLaunch: () => launch,
-    ensureAgentCapabilities: async () => {}, applyAgentLaunchEnv: ({ env }) => env,
-    spawn: (() => { spawned = true; throw new Error('Must not spawn'); }) as unknown as typeof nodeSpawn,
-  });
+  const executor = createAgentExecutor({ lifecycle, hostEnv: {}, runtime: runtimeFixture({ spawn: (() => { spawned = true; throw new Error('Must not spawn'); }) as unknown as typeof nodeSpawn }), agentRuntime: agentRuntimeFixture({ getAgentDef: () => agent, resolveAgentLaunch: () => launch, ensureAgentCapabilities: async () => {}, applyAgentLaunchEnv: ({ env }) => env }) });
   const { run } = await lifecycle.start({ contextRef: 'parity-effort' });
   await expect(executor.run({ runId: run.id, agentId: agent.id, cwd: '/workspace', prompt: 'hello' },
     { cliParity: true, nativeToolAccess: true, nativeCapabilities: { userMcp: true }, permissionMode: 'bypass', model: 'cli-pinned', reasoning: 'minimal' }))
@@ -170,18 +149,13 @@ it.each([false, true])('W5 forwards launch-scoped discovery context and declared
   agent.env = { ENABLE_TOOL_SEARCH: 'false', DECLARED: 'default' };
   const contexts: unknown[] = [];
   const spawnEnvs: unknown[] = [];
-  const executor = createAgentExecutor({ lifecycle }, {
-    hostEnv: {}, getAgentDef: () => agent, resolveAgentLaunch: () => launch,
-    resolveModelForLaunch: async ({ context }) => {
+  const executor = createAgentExecutor({ lifecycle, hostEnv: {}, runtime: runtimeFixture({ spawn: ((_command: string, _args: readonly string[], options: { env?: NodeJS.ProcessEnv }) => {
+      spawnEnvs.push(options.env); throw new Error('Stop before process creation');
+    }) as unknown as typeof nodeSpawn }), agentRuntime: agentRuntimeFixture({ getAgentDef: () => agent, resolveAgentLaunch: () => launch, resolveModelForLaunch: async ({ context }) => {
       contexts.push(context);
       return { model: 'selected', catalog: await fixtureModelDiscovery.discoverModels({ context }),
         resolution: { status: 'resolved', id: 'selected', source: 'rpc', resolvedAt: '2026-10-06T00:00:00.000Z', launchFingerprint: 'fixture' } };
-    },
-    ensureAgentCapabilities: async () => {}, applyAgentLaunchEnv: ({ env }) => env,
-    spawn: ((_command: string, _args: readonly string[], options: { env?: NodeJS.ProcessEnv }) => {
-      spawnEnvs.push(options.env); throw new Error('Stop before process creation');
-    }) as unknown as typeof nodeSpawn,
-  });
+    }, ensureAgentCapabilities: async () => {}, applyAgentLaunchEnv: ({ env }) => env }) });
   const { run } = await lifecycle.start({ contextRef: 'w5-model-context' });
   await expect(executor.run({ runId: run.id, agentId: agent.id, prompt: 'hello', cwd: '/workspace' }, {
     cliParity, permissionMode: 'bypass', model: 'default', resumeSessionId: 'prior', newSessionId: 'new',

@@ -1,5 +1,4 @@
-import { inspect } from 'node:util';
-import { redactSecrets } from '@jini-ai/core';
+import { createConsoleLogger, type Logger } from "@jini-ai/core/primitives";
 import { createHash } from "node:crypto";
 
 import type { Request, RequestHandler } from "express";
@@ -8,12 +7,12 @@ import type { CommentRateLimiter } from "../ingress.js";
 import type { CommentSubmission } from "../types.js";
 
 /**
- * @file ADR-031 §4 (SPEC-033) — the public, unauthenticated comment submission route. The ONLY
+ * @file The public, unauthenticated comment submission route. The ONLY
  * route a hostile visitor can reach into the Comments plugin; everything downstream of this file
  * is `CommentIngressPolicy` (rate-limit, honeypot, sanitize, spam-classify — see `comments/ingress.ts`).
  *
  * `authorIpHash` is computed HERE, at the HTTP boundary, from the raw request IP — the raw IP
- * itself is never passed into `ingressContext` or stored (mirrors `analytics/ingest.ts`'s
+ * itself is never passed into `ingressContext` or stored (mirrors `packages/analytics/src/ingest.ts`'s
  * discard-raw-IP-at-the-boundary discipline). The host provides the salt at construction.
  */
 /** The handler needs only the accepted id/status, so a host may dispatch to any stored provider. */
@@ -96,11 +95,13 @@ function formOutcome(result: CommentSubmitResult): "comment-pending" | "comment-
  * @complexity O(body length) normalization and hashing plus the ingress port's work.
  */
 export function createCommentSubmitHandler(deps: CommentSubmitRequired, optional: {
+  report?: Pick<Logger, "error">;
   formRedirect?: (required: { request: Request }) => string | undefined;
   /** Best-effort notification after ingress accepts; failure cannot undo the committed comment. */
   onAccepted?: (required: { request: Request; submission: CommentSubmission; comment: { id: string; status: string } }) => void | Promise<void>;
 } = {}): RequestHandler {
   assertSubmitDeps(deps);
+  const logger = optional.report ?? createConsoleLogger({ prefix: "site/comments-submit" });
   return async (req, res) => {
     try {
       const body = req.body as Record<string, unknown>;
@@ -131,7 +132,7 @@ export function createCommentSubmitHandler(deps: CommentSubmitRequired, optional
       // Public, unauthenticated route (this file's own header) — any visitor's malformed or
       // hostile submission must still get a fast, honest response, never a hang; an unguarded
       // failure here is reachable by anyone, not just an authenticated admin.
-      console.error("[site/comments-submit] unexpected error", redactSecrets({ input: inspect(err) }, { redactPii: false }));
+      logger.error({ message: "Unexpected comment submission failure." }, { error: err });
       res.status(500).json({ error: "internal error", code: "INTERNAL_ERROR" });
     }
   };

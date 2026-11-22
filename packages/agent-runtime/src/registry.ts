@@ -47,7 +47,7 @@ import {
   traeCliAgentDef,
   vibeAgentDef,
 } from './defs/index.js';
-import type { RuntimeAgentDef } from './types.js';
+import type { RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 
 export const BASE_AGENT_DEFS: RuntimeAgentDef[] = [
   amrAgentDef,
@@ -91,7 +91,7 @@ for (const def of AGENT_DEFS) {
   ids.add(def.id);
 }
 
-export function getAgentDef({ id }: { id: string }): RuntimeAgentDef | null {
+export function getAgentDef({ id }: { id: string }, _optional: Record<string, never> = {}): RuntimeAgentDef | null {
   return AGENT_DEFS.find((a) => a.id === id) || null;
 }
 
@@ -111,7 +111,7 @@ export function getAgentDef({ id }: { id: string }): RuntimeAgentDef | null {
  *
  * @complexity Time/space: O(1).
  */
-export function runtimeSupportsExternalTools({ def }: { def: Pick<RuntimeAgentDef, 'externalMcpInjection'> }): boolean {
+export function runtimeSupportsExternalTools({ def }: { def: Pick<RuntimeAgentDef, 'externalMcpInjection'> }, _optional: Record<string, never> = {}): boolean {
   return def.externalMcpInjection !== undefined;
 }
 
@@ -122,7 +122,7 @@ export function runtimeSupportsExternalTools({ def }: { def: Pick<RuntimeAgentDe
  *
  * @complexity Time/space: O(1).
  */
-export function runtimeSupportsSubagents({ def }: { def: Pick<RuntimeAgentDef, 'supportsSubagents'> }): boolean {
+export function runtimeSupportsSubagents({ def }: { def: Pick<RuntimeAgentDef, 'supportsSubagents'> }, _optional: Record<string, never> = {}): boolean {
   return def.supportsSubagents === true;
 }
 
@@ -147,7 +147,7 @@ export function agentSupportsSubagents(
  *
  * @complexity Time/space: O(1).
  */
-export function runtimeSupportsChromeIntegration({ def }: { def: Pick<RuntimeAgentDef, 'supportsChromeIntegration'> }): boolean {
+export function runtimeSupportsChromeIntegration({ def }: { def: Pick<RuntimeAgentDef, 'supportsChromeIntegration'> }, _optional: Record<string, never> = {}): boolean {
   return def.supportsChromeIntegration === true;
 }
 

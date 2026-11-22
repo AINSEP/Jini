@@ -3,6 +3,7 @@ import {
   applyApprovalPolicy, createApprovalHandler, createApprovalProposalStore, createBatchApprovalHandler, resolveApproval,
   type ApprovalAnswer, type ApprovalPlan, type ApprovalSteps, type RememberedApprovalPort,
 } from '../approval.js';
+import { fakeScheduler, fixedIds } from './approval-fakes.js';
 import type { ToolExecutionContext, ToolRegistration } from '../tool-registry.js';
 
 const context = (signal: AbortSignal = new AbortController().signal, input: unknown = { id: 'a' }): ToolExecutionContext =>
@@ -204,18 +205,18 @@ describe('createApprovalProposalStore', () => {
 
   it('refuses a proposal whose signal is already aborted', () => {
     const controller = new AbortController(); controller.abort();
-    const s = createApprovalProposalStore({ responseTool: 'reply', messages });
+    const s = createApprovalProposalStore({ responseTool: 'reply', messages, ids: fixedIds('p'), scheduler: fakeScheduler() });
     expect(() => s.propose({ description: {}, execute: async () => {}, signal: controller.signal })).toThrow('closed');
   });
 
-  it('uses a random UUID id by default and reports the response tool', () => {
-    const s = createApprovalProposalStore({ responseTool: 'reply', messages });
+  it('takes its id from the injected generator and reports the response tool', () => {
+    const s = createApprovalProposalStore({ responseTool: 'reply', messages, ids: fixedIds('p'), scheduler: fakeScheduler() });
     const proposal = s.propose({ description: { a: 1 }, execute: async () => {}, signal: new AbortController().signal });
-    expect(proposal).toEqual({ status: 'approval_required', approvalId: expect.stringMatching(/^[0-9a-f-]{36}$/), description: { a: 1 }, responseTool: 'reply' });
+    expect(proposal).toEqual({ status: 'approval_required', approvalId: 'p', description: { a: 1 }, responseTool: 'reply' });
   });
 
   it('notifies subscribers on change and stops after unsubscribe', () => {
-    const s = createApprovalProposalStore({ responseTool: 'reply', messages }, { createId: () => 'p' });
+    const s = createApprovalProposalStore({ responseTool: 'reply', messages, ids: fixedIds('p'), scheduler: fakeScheduler() });
     const listener = vi.fn();
     const unsubscribe = s.subscribe({ listener });
     const controller = new AbortController();
@@ -227,7 +228,7 @@ describe('createApprovalProposalStore', () => {
   });
 
   it('declines without executing when the reply is not exactly true', async () => {
-    const s = createApprovalProposalStore({ responseTool: 'reply', messages }, { createId: () => 'p' });
+    const s = createApprovalProposalStore({ responseTool: 'reply', messages, ids: fixedIds('p'), scheduler: fakeScheduler() });
     const execute = vi.fn(async () => 'done');
     s.propose({ description: {}, execute, signal: new AbortController().signal });
     expect(await s.respond({ approvalId: 'p', approved: false })).toEqual({ status: 'declined' });
@@ -235,18 +236,18 @@ describe('createApprovalProposalStore', () => {
   });
 
   it('publishes an Error message from a failed execution and rethrows it', async () => {
-    const s = createApprovalProposalStore({ responseTool: 'reply', messages }, { createId: () => 'p' });
+    const s = createApprovalProposalStore({ responseTool: 'reply', messages, ids: fixedIds('p'), scheduler: fakeScheduler() });
     const failure = new Error('effect failed');
     s.propose({ description: {}, execute: async () => { throw failure; }, signal: new AbortController().signal });
     await expect(s.respond({ approvalId: 'p', approved: true })).rejects.toBe(failure);
-    expect(s.getSnapshot()).toEqual({ pending: null, error: 'effect failed' });
+    expect(s.getSnapshot()).toEqual({ pending: null, error: 'The approved action stopped with an error (Error).' });
   });
 
   it('publishes a non-Error rejection as a string', async () => {
-    const s = createApprovalProposalStore({ responseTool: 'reply', messages }, { createId: () => 'p' });
+    const s = createApprovalProposalStore({ responseTool: 'reply', messages, ids: fixedIds('p'), scheduler: fakeScheduler() });
     s.propose({ description: {}, execute: () => Promise.reject(42), signal: new AbortController().signal });
     await expect(s.respond({ approvalId: 'p', approved: true })).rejects.toBe(42);
-    expect(s.getSnapshot().error).toBe('42');
+    expect(s.getSnapshot().error).toBe('The approved action stopped with an error (number).');
   });
 });
 

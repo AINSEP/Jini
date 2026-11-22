@@ -1,22 +1,14 @@
-import { useCallback, useMemo, useState } from 'react';
-import { agentSubHandle } from '@jini-ai/agentic';
+import { agentSubHandle } from '@jini-ai/core/agent-handles';
 import { useT } from '../i18n/index.js';
 import {
-  AUTHORIZATION_CANCEL_FAILED_MESSAGE,
-  DEFAULT_PROVIDER_TAB_ID,
   DEFAULT_PROVIDER_TABS,
 } from './constants.js';
 import type { ConnectorsDependencies } from './ports.js';
-import {
-  connectorPanelAlerts,
-  scopeConnectorsToProvider,
-  sortConnectorsForSearch,
-} from './rules.js';
 import type { Connector, ConnectorAuthResultEvent, ProviderTab } from './types.js';
 import type { useConnectorCatalog } from './hooks/useConnectorCatalog.js';
 import type { ConnectorAuthorizationController, useConnectorAuthorization } from './hooks/useConnectorAuthorization.js';
 import type { ConnectorDetailController, useConnectorDetail } from './hooks/useConnectorDetail.js';
-import { useWiredConnectorsBrowser } from './hooks/useWiredConnectorsBrowser.js';
+import { useConnectorsBrowserView } from './ConnectorsBrowser.hooks.js';
 import { CenteredLoader } from '../../react/components/Loading.js';
 import { ProviderTabBar } from './components/ProviderTabBar.js';
 import { ConnectorSearchBar } from './components/ConnectorSearchBar.js';
@@ -49,6 +41,8 @@ export interface ConnectorsBrowserProps {
    * emitted anywhere — additive, never a behavior change.
    */
   agentHandle?: string;
+  useTHook?: typeof useT;
+  useConnectorsBrowserViewHook?: typeof useConnectorsBrowserView;
 }
 
 /** `{ agentHandle }` for a child derived from the browser's own handle, or `{}` when the host published none. */
@@ -57,7 +51,7 @@ function subHandleProp({ base, action }: { base: string | undefined; action: str
 }
 
 /** The connect/disconnect/cancel/open-url callbacks shared by the grid cards and the detail drawer. */
-interface ConnectorActionCallbacks {
+export interface ConnectorActionCallbacks {
   onConnect: (connectorId: string) => void;
   onDisconnect: (connectorId: string) => void;
   onCancelAuthorization: (connectorId: string) => void;
@@ -112,7 +106,7 @@ function ConnectorsDetailPane({
  * own data lifecycle: fetches the catalog on mount, lazily enriches once
  * `unlocked`, and rehydrates statuses on window focus and OAuth callback
  * messages. Ported from OD's `ConnectorsBrowser.tsx` — see
- * `packages/ui/source-map.md` for full provenance.
+ * `archived UI source map` for full provenance.
  */
 export function ConnectorsBrowser({
   unlocked,
@@ -129,73 +123,12 @@ export function ConnectorsBrowser({
   useConnectorAuthorization,
   useConnectorDetail,
   agentHandle,
+  useTHook = useT,
+  useConnectorsBrowserViewHook = useConnectorsBrowserView,
 }: ConnectorsBrowserProps) {
-  const t = useT();
-  const [filter, setFilter] = useState('');
-  const [selectedProvider, setSelectedProvider] = useState<string>(providerTabs[0]?.id ?? DEFAULT_PROVIDER_TAB_ID);
+  const t = useTHook();
+  const { filter, setFilter, selectedProvider, catalog, authorization, detail, filteredConnectors, hasNoResults, alerts, handleProviderTabSelect, actions, categoryLabelProps, gateProps } = useConnectorsBrowserViewHook({ unlocked, providerTabs, catalogRefreshKey, dependencies, getCategoryLabel, gate, onProviderTabClick, onConnectorAuthResult, onConnectorsChanged, useConnectorCatalog, useConnectorAuthorization, useConnectorDetail, t });
 
-  // Dependency resolution (host-supplied, or the package's in-memory fake)
-  // plus the catalog/authorization/detail cluster all live in one wirer —
-  // see `hooks/useWiredConnectorsBrowser.ts` — matching `features/asset-grid/`'s
-  // `useWiredAssetGridData` precedent for keeping "which adapter" out of the
-  // component. The three sub-hooks stay independently overridable for tests.
-  const { deps, catalog, authorization, detail } = useWiredConnectorsBrowser({
-    dependencies,
-    unlocked,
-    catalogRefreshKey,
-    onConnectorsChanged,
-    onConnectorAuthResult,
-    useConnectorCatalog,
-    useConnectorAuthorization,
-    useConnectorDetail,
-  });
-
-  const providerScopedConnectors = useMemo(
-    () => scopeConnectorsToProvider(catalog.connectors, providerTabs, selectedProvider),
-    [catalog.connectors, providerTabs, selectedProvider],
-  );
-
-  const filteredConnectors = useMemo(
-    () => sortConnectorsForSearch(providerScopedConnectors, filter),
-    [providerScopedConnectors, filter],
-  );
-
-  const hasNoResults = filter.trim().length > 0 && filteredConnectors.length === 0;
-
-  const alerts = useMemo(
-    () =>
-      connectorPanelAlerts(
-        catalog.connectors,
-        detail.detailConnectorId,
-        authorization.authError,
-        authorization.cancelFailed,
-        t(AUTHORIZATION_CANCEL_FAILED_MESSAGE),
-      ),
-    [catalog.connectors, detail.detailConnectorId, authorization.authError, authorization.cancelFailed, t],
-  );
-
-  const handleProviderTabSelect = useCallback(
-    (id: string) => {
-      onProviderTabClick?.('provider_chip');
-      setSelectedProvider(id);
-    },
-    [onProviderTabClick],
-  );
-
-  const handleGateClick = useCallback(() => {
-    onProviderTabClick?.('gate_card');
-    gate?.onClick?.();
-  }, [onProviderTabClick, gate]);
-
-  const actions: ConnectorActionCallbacks = {
-    onConnect: (connectorId) => void authorization.runConnectorAction(connectorId, 'connect'),
-    onDisconnect: (connectorId) => void authorization.runConnectorAction(connectorId, 'disconnect'),
-    onCancelAuthorization: (connectorId) => void authorization.cancelAuthorization(connectorId),
-    onOpenExternalUrl: (url) => void deps.data.openExternalUrl(url),
-  };
-
-  const categoryLabelProps = getCategoryLabel ? { getCategoryLabel } : {};
-  const gateProps = gate ? { gate: { ...gate, onClick: handleGateClick } } : {};
   return (
     <div className="tab-panel connectors-panel connectors-panel-embedded">
       <div className="tab-panel-toolbar">

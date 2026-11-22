@@ -9,7 +9,8 @@
 import { join, resolve } from 'node:path';
 import { parse } from 'smol-toml';
 import { describe, expect, it } from 'vitest';
-import { getAgentDef, type NativeCapabilities } from '@jini-ai/agent-runtime';
+import { getAgentDef } from '@jini-ai/agent-runtime';
+import { type NativeCapabilities } from '@jini-ai/core/contracts/agents';
 import { prepareCodexHomeIfNeeded } from '../home-staging.js';
 
 const root = resolve('/fx');

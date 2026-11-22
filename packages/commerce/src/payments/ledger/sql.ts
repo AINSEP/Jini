@@ -1,7 +1,8 @@
 /**
- * @file The payments ledger's SQL half: the `@jini-ai/db` storage-kernel adapter and the ADR-066
- * migration history. Kept out of the `payments/kernel` barrel because it loads `kysely` and
- * `@jini-ai/db` at runtime (optional peers); a host that persists payments imports this.
+ * @file The payments ledger's SQL half: the `@jini-ai/db` storage-kernel adapter and the
+ * migration history. Kept out of the `payments/kernel` barrel because it loads `kysely` at runtime
+ * (an optional peer); a host that persists payments imports this and injects its `@jini-ai/db`
+ * kernel and `runMigrations`.
  */
 export { constraintKindOf, sqlPaymentsLedger } from "./repo.sql.js";
 export {

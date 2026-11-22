@@ -88,7 +88,7 @@ function exportTargetMatches(pkg: SourcePackage, key: string, target: string, fi
   if (base.includes('*')) {
     const [before, after = ''] = base.split('*');
     const compiled = target.startsWith('./dist/');
-    const candidates = compiled ? files : listSourceFiles(pkg.directory, { includeJavaScript: true })
+    const candidates = compiled ? files : listSourceFiles({ dir: pkg.directory }, { includeJavaScript: true })
       .filter(file => !file.includes('/__tests__/') && !/\.test\./.test(file));
     matches = candidates.flatMap(file => {
       const emitted = compiled ? file.replace(/\.(?:tsx?|mts|cts)$/, extname(base) || '.js') : file;
@@ -136,7 +136,7 @@ function appendExportTarget(pkg: SourcePackage, manifest: Manifest, key: string,
 
 function exportEntries(pkg: SourcePackage): Entry[] {
   const manifest = pkg.manifest as Manifest;
-  const files = listSourceFiles(join(pkg.directory, 'src'), { includeJavaScript: true })
+  const files = listSourceFiles({ dir: join(pkg.directory, 'src') }, { includeJavaScript: true })
     .filter(file => !file.includes('/__tests__/') && !/\.test\./.test(file));
   const entries: Entry[] = [];
   const rawExports = manifest.exports ?? manifest.main;
@@ -297,7 +297,7 @@ export function auditSubpathIsolation(
   }
 
   function auditFile(pkg: Package, entry: Entry, file: string, dependencies: Set<string>, pending: string[]): void {
-    const refs = imports.get(file) ?? extractImports(file);
+    const refs = imports.get(file) ?? extractImports({ absFilePath: file });
     imports.set(file, refs);
     // Only this package's own source gets attributed to it; dependencies have their
     // own package audit. Cache per file even when several entries reach that module.

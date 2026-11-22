@@ -1,8 +1,8 @@
 import { expect, test } from 'vitest';
 import { aggregateProcessMemory, createMemoryGrowthDetector } from '../memory-growth.js';
 import { createTracker, runWithErrorReportScope } from '../observability/node.js';
-import { createNoopObservabilityPort } from '../observability/noop.js';
-import type { ErrorReport } from '../observability/ports.js';
+import { createNoopObservabilityPort } from '@jini-ai/core/contracts/observability';
+import type { ErrorReport } from '@jini-ai/core/contracts/observability';
 
 const MB = 1_000_000, MINUTE = 60_000, DAY = 24 * 60 * MINUTE;
 const row = (id: number, rssMb: number, kind = 'renderer') => ({ id, kind, rssBytes: rssMb * MB });

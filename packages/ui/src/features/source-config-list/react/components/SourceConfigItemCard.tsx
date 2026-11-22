@@ -91,17 +91,17 @@ export type SourceConfigItemCardProps<TSource extends SourceConfigItem> = Source
  * state privately. That sequencing is the honest shape of the card, not a
  * limitation of the markup.
  */
-export function SourceConfigItemCard<TSource extends SourceConfigItem>(props: SourceConfigItemCardProps<TSource>) {
+export function SourceConfigItemCard<TSource extends SourceConfigItem>({ useItemCardEditHook = useItemCardEdit, ...props }: SourceConfigItemCardProps<TSource> & { useItemCardEditHook?: typeof useItemCardEdit }) {
   const { source, fieldSpecs, agentHandle } = props;
   const [expanded, setExpanded] = useState(false);
-  const edit = useItemCardEdit(props);
-  const label = sourceDisplayLabel(source, fieldSpecs);
+  const edit = useItemCardEditHook(props);
+  const label = sourceDisplayLabel({ source, fieldSpecs });
 
   return (
     <article
       className={`source-config-item-card${expanded ? ' is-expanded' : ''}`}
       data-testid="source-config-item-card"
-      {...sourceConfigAgentProps(agentHandle, { role: 'region', label })}
+      {...sourceConfigAgentProps({ base: agentHandle, role: 'region', label })}
     >
       <div className="source-config-item-card-head">
         <ItemCardEnabledToggle {...props} label={label} />
@@ -121,8 +121,8 @@ function isAnyActionPending({ removing, refreshing, settingTrust, updating }: So
 }
 
 /** Always visible (no expand needed) — but only when the source declares `enabled` at all and the host can update it. */
-function ItemCardEnabledToggle<TSource extends SourceConfigItem>({ source, capabilities, updating, onUpdate, agentHandle, label }: ItemCardPartProps<TSource>) {
-  const t = useT();
+function ItemCardEnabledToggle<TSource extends SourceConfigItem>({ source, capabilities, updating, onUpdate, agentHandle, label, useTHook = useT }: ItemCardPartProps<TSource> & { useTHook?: typeof useT }) {
+  const t = useTHook();
   if (source.enabled === undefined || !capabilities.canUpdate) return null;
   const enabledLabel = t('Enable {name}', { name: label });
   return (
@@ -132,7 +132,7 @@ function ItemCardEnabledToggle<TSource extends SourceConfigItem>({ source, capab
         checked={source.enabled}
         disabled={updating}
         aria-label={enabledLabel}
-        {...sourceConfigAgentProps(agentHandle, { role: 'checkbox', label: enabledLabel, action: 'enabled' })}
+        {...sourceConfigAgentProps({ base: agentHandle, role: 'checkbox', label: enabledLabel, action: 'enabled' })}
         onChange={(event) => onUpdate({ enabled: event.target.checked })}
       />
     </label>
@@ -146,14 +146,15 @@ function ItemCardSummary<TSource extends SourceConfigItem>({
   label,
   expanded,
   onToggle,
-}: ItemCardPartProps<TSource> & { expanded: boolean; onToggle: () => void }) {
-  const t = useT();
+  useTHook = useT,
+}: ItemCardPartProps<TSource> & { expanded: boolean; onToggle: () => void } & { useTHook?: typeof useT }) {
+  const t = useTHook();
   const trustOption = trustOptions?.find((option) => option.value === source.trust);
   return (
     <button
       type="button"
-      className="source-config-item-card-summary"
-      {...sourceConfigAgentProps(agentHandle, {
+      className="jini-source-config-item-card-summary"
+      {...sourceConfigAgentProps({ base: agentHandle,
         role: 'button',
         // Stable ontology, so it must not read "Collapse" once expanded — see `agent-handles.ts`.
         label: t('Show or hide details for {name}', { name: label }),
@@ -163,15 +164,15 @@ function ItemCardSummary<TSource extends SourceConfigItem>({
       aria-expanded={expanded}
     >
       <span className="source-config-item-card-label">{label}</span>
-      {source.trust ? <span className="source-config-item-card-trust-badge">{t(trustOption?.label ?? source.trust)}</span> : null}
+      {source.trust ? <span className="jini-source-config-item-card-trust-badge">{t(trustOption?.label ?? source.trust)}</span> : null}
     </button>
   );
 }
 
 /** The trust selector (capability- and options-gated), Refresh (capability-gated) and the always-present Remove. */
-function ItemCardActions<TSource extends SourceConfigItem>(props: ItemCardPartProps<TSource>) {
+function ItemCardActions<TSource extends SourceConfigItem>({ useTHook = useT, ...props }: ItemCardPartProps<TSource> & { useTHook?: typeof useT }) {
   const { capabilities, refreshing, removing, onRefresh, onRemove, agentHandle } = props;
-  const t = useT();
+  const t = useTHook();
   const anyActionPending = isAnyActionPending(props);
   return (
     <div className="source-config-item-card-actions">
@@ -179,7 +180,7 @@ function ItemCardActions<TSource extends SourceConfigItem>(props: ItemCardPartPr
       {capabilities.canRefresh ? (
         <button
           type="button"
-          {...sourceConfigAgentProps(agentHandle, { role: 'button', label: t('Refresh'), action: 'refresh' })}
+          {...sourceConfigAgentProps({ base: agentHandle, role: 'button', label: t('Refresh'), action: 'refresh' })}
           onClick={onRefresh}
           disabled={anyActionPending}
         >
@@ -188,8 +189,8 @@ function ItemCardActions<TSource extends SourceConfigItem>(props: ItemCardPartPr
       ) : null}
       <button
         type="button"
-        className="source-config-item-card-remove"
-        {...sourceConfigAgentProps(agentHandle, { role: 'button', label: t('Remove'), action: 'remove' })}
+        className="jini-source-config-item-card-remove"
+        {...sourceConfigAgentProps({ base: agentHandle, role: 'button', label: t('Remove'), action: 'remove' })}
         onClick={onRemove}
         disabled={anyActionPending}
       >
@@ -199,8 +200,8 @@ function ItemCardActions<TSource extends SourceConfigItem>(props: ItemCardPartPr
   );
 }
 
-function ItemCardTrustSelect<TSource extends SourceConfigItem>(props: ItemCardPartProps<TSource>) {
-  const t = useT();
+function ItemCardTrustSelect<TSource extends SourceConfigItem>({ useTHook = useT, ...props }: ItemCardPartProps<TSource> & { useTHook?: typeof useT }) {
+  const t = useTHook();
   // Narrow on `props` itself (not a destructured copy) so the non-empty `trustOptions` check also
   // proves `onTrustChange` present — the `SourceTrustSelectorProps` union binds the two.
   if (!props.capabilities.canSetTrust || !props.trustOptions || props.trustOptions.length === 0) return null;
@@ -211,7 +212,7 @@ function ItemCardTrustSelect<TSource extends SourceConfigItem>(props: ItemCardPa
       value={source.trust ?? ''}
       disabled={settingTrust}
       aria-label={trustLabel}
-      {...sourceConfigAgentProps(agentHandle, { role: 'field', label: trustLabel, action: 'trust' })}
+      {...sourceConfigAgentProps({ base: agentHandle, role: 'field', label: trustLabel, action: 'trust' })}
       onChange={(event) => onTrustChange(event.target.value)}
     >
       <SourceConfigTrustOptions trust={source.trust} trustOptions={trustOptions} />
@@ -233,7 +234,7 @@ function useItemCardEdit<TSource extends SourceConfigItem>({ source, fieldSpecs,
   // path used to run none at all — not even the required-field check — so a
   // source added through a validated form could be edited into a state the form
   // would have refused to create, straight through `port.updateSource`.
-  const editValidation = validateSourceDraft(fieldSpecs, editFields);
+  const editValidation = validateSourceDraft({ fieldSpecs, values: editFields });
 
   const startEditing = () => {
     setEditLabel(source.label ?? '');
@@ -261,9 +262,9 @@ function useItemCardEdit<TSource extends SourceConfigItem>({ source, fieldSpecs,
 function ItemCardBody<TSource extends SourceConfigItem>(props: ItemCardPartProps<TSource> & { edit: ItemCardEdit }) {
   const { capabilities, testing, testResult, onTest, agentHandle, edit } = props;
   const testResultProps = testResult ? { result: testResult } : {};
-  const testHandleProps = agentHandle ? { agentHandle: sourceConfigActionHandle(agentHandle, 'test') } : {};
+  const testHandleProps = agentHandle ? { agentHandle: sourceConfigActionHandle({ base: agentHandle, action: 'test' }) } : {};
   return (
-    <div className="source-config-item-card-body">
+    <div className="jini-source-config-item-card-body">
       {capabilities.canUpdate ? <ItemCardEditToggle {...props} edit={edit} /> : null}
       {edit.editing ? <ItemCardEditFields {...props} edit={edit} /> : <ItemCardReadOnlyFields {...props} />}
       {capabilities.canTest ? (
@@ -279,15 +280,15 @@ function ItemCardBody<TSource extends SourceConfigItem>(props: ItemCardPartProps
   );
 }
 
-function ItemCardEditToggle<TSource extends SourceConfigItem>(props: ItemCardPartProps<TSource> & { edit: ItemCardEdit }) {
+function ItemCardEditToggle<TSource extends SourceConfigItem>({ useTHook = useT, ...props }: ItemCardPartProps<TSource> & { edit: ItemCardEdit } & { useTHook?: typeof useT }) {
   const { updating, agentHandle, edit } = props;
-  const t = useT();
+  const t = useTHook();
   if (!edit.editing) {
     return (
-      <div className="source-config-item-card-edit-toggle">
+      <div className="jini-source-config-item-card-edit-toggle">
         <button
           type="button"
-          {...sourceConfigAgentProps(agentHandle, { role: 'button', label: t('Edit'), action: 'edit' })}
+          {...sourceConfigAgentProps({ base: agentHandle, role: 'button', label: t('Edit'), action: 'edit' })}
           onClick={edit.startEditing}
           disabled={isAnyActionPending(props)}
         >
@@ -297,10 +298,10 @@ function ItemCardEditToggle<TSource extends SourceConfigItem>(props: ItemCardPar
     );
   }
   return (
-    <div className="source-config-item-card-edit-toggle">
+    <div className="jini-source-config-item-card-edit-toggle">
       <button
         type="button"
-        {...sourceConfigAgentProps(agentHandle, { role: 'button', label: t('Save'), action: 'save' })}
+        {...sourceConfigAgentProps({ base: agentHandle, role: 'button', label: t('Save'), action: 'save' })}
         onClick={edit.saveEditing}
         disabled={updating || (edit.saveAttempted && !edit.editValidation.ok)}
       >
@@ -308,7 +309,7 @@ function ItemCardEditToggle<TSource extends SourceConfigItem>(props: ItemCardPar
       </button>
       <button
         type="button"
-        {...sourceConfigAgentProps(agentHandle, { role: 'button', label: t('Cancel'), action: 'cancel' })}
+        {...sourceConfigAgentProps({ base: agentHandle, role: 'button', label: t('Cancel'), action: 'cancel' })}
         onClick={edit.cancelEditing}
         disabled={updating}
       >
@@ -318,10 +319,10 @@ function ItemCardEditToggle<TSource extends SourceConfigItem>(props: ItemCardPar
   );
 }
 
-function ItemCardEditFields<TSource extends SourceConfigItem>({ source, fieldSpecs, agentHandle, label, edit }: ItemCardPartProps<TSource> & { edit: ItemCardEdit }) {
-  const t = useT();
+function ItemCardEditFields<TSource extends SourceConfigItem>({ source, fieldSpecs, agentHandle, label, edit, useTHook = useT }: ItemCardPartProps<TSource> & { edit: ItemCardEdit } & { useTHook?: typeof useT }) {
+  const t = useTHook();
   return (
-    <div className="source-config-item-card-edit-fields">
+    <div className="jini-source-config-item-card-edit-fields">
       <label className="source-config-field" htmlFor={`source-config-item-card-${source.id}-label`}>
         <span className="source-config-field-label">{t('Label')}</span>
         <input
@@ -329,14 +330,14 @@ function ItemCardEditFields<TSource extends SourceConfigItem>({ source, fieldSpe
           type="text"
           value={edit.editLabel}
           placeholder={label}
-          {...sourceConfigAgentProps(agentHandle, { role: 'field', label: t('Label'), action: 'label' })}
+          {...sourceConfigAgentProps({ base: agentHandle, role: 'field', label: t('Label'), action: 'label' })}
           onChange={(event) => edit.setEditLabel(event.target.value)}
         />
       </label>
       {fieldSpecs.map((spec) => {
         // Same `{label}`-template wrapping the add form uses — `rules.ts`
         // stays hook-free and returns i18n templates, not sentences.
-        const issue = edit.saveAttempted ? issueForField(edit.editValidation, spec.key) : undefined;
+        const issue = edit.saveAttempted ? issueForField({ validation: edit.editValidation, fieldKey: spec.key }) : undefined;
         return (
           <SourceConfigField
             key={spec.key}
@@ -344,7 +345,7 @@ function ItemCardEditFields<TSource extends SourceConfigItem>({ source, fieldSpe
             value={edit.editFields[spec.key] ?? ''}
             idPrefix={`source-config-item-card-${source.id}-field`}
             {...(issue ? { error: t(issue.message, { label: t(spec.label) }) } : {})}
-            {...(agentHandle ? { agentHandle: sourceConfigFieldHandle(agentHandle, spec.key) } : {})}
+            {...(agentHandle ? { agentHandle: sourceConfigFieldHandle({ base: agentHandle, fieldKey: spec.key }) } : {})}
             onChange={(value) => edit.setEditField(spec.key, value)}
           />
         );
@@ -353,14 +354,14 @@ function ItemCardEditFields<TSource extends SourceConfigItem>({ source, fieldSpe
   );
 }
 
-function ItemCardReadOnlyFields<TSource extends SourceConfigItem>({ source, fieldSpecs }: SourceConfigItemCardProps<TSource>) {
-  const t = useT();
+function ItemCardReadOnlyFields<TSource extends SourceConfigItem>({ source, fieldSpecs, useTHook = useT }: SourceConfigItemCardProps<TSource> & { useTHook?: typeof useT }) {
+  const t = useTHook();
   return (
-    <dl className="source-config-item-card-fields">
+    <dl className="jini-source-config-item-card-fields">
       {fieldSpecs.map((spec) => (
-        <div key={spec.key} className="source-config-item-card-field">
+        <div key={spec.key} className="jini-source-config-item-card-field">
           <dt>{t(spec.label)}</dt>
-          <dd>{maskFieldValue(spec.kind, source.fields[spec.key] ?? '')}</dd>
+          <dd>{maskFieldValue({ kind: spec.kind, value: source.fields[spec.key] ?? '' })}</dd>
         </div>
       ))}
     </dl>

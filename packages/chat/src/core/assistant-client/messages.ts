@@ -13,7 +13,8 @@ export interface AssistantConversation {
 
 
 /**
- * The subset of a live transcript that is worth writing: accepted user turns, and assistant turns whose run
+ * The subset of a live transcript that is worth writing: accepted user turns (or pending ones when
+ * the host opts in), and assistant turns whose run
  * has reached a terminal status.
  *
  * An assistant message that is still `queued` or `running` is rewritten on every delta, so
@@ -30,9 +31,9 @@ export interface AssistantConversation {
  * side instead — see `assistant-transport.ts`'s `historyForTranscript`/`isAnsweredAssistantTurn`.
  * Deleting them here would trade a history bug for a forensics hole.
  */
-export function persistableMessages({ messages }: { messages: ChatMessage[] }, _options: Record<string, never> = {}): ChatMessage[] {
+export function persistableMessages({ messages }: { messages: readonly ChatMessage[] }, { includePendingUser = false }: { includePendingUser?: boolean } = {}): ChatMessage[] {
   return messages.filter(
-    (message) => message.role === "user" ? !message.inputPending : isTerminalRunStatus({ status: message.runStatus }),
+    (message) => message.role === "user" ? includePendingUser || !message.inputPending : isTerminalRunStatus({ status: message.runStatus }),
   );
 }
 
@@ -70,7 +71,7 @@ export function messageWriteKey({ message }: { message: Pick<ChatMessage, "id" |
  * race — recording ITS id as "the current run" would point a future reattach at the wrong turn.
  *
  * `saveMessage`'s server-side route upserts by message id (`ON CONFLICT(id) DO UPDATE`,
- * `Jini/packages/sqlite`'s `chat-history/store.ts`), so this stub write and the message's eventual
+ * `packages/chat/src/store/sql/store.ts`), so this stub write and the message's eventual
  * terminal-state write (through the normal {@link persistableMessages} path) converge on the same
  * row rather than creating two — the terminal write simply overwrites `run_status`/`content`/
  * `events_json` in place once the run settles.

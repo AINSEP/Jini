@@ -2,7 +2,8 @@ import type { ChildProcess } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { attachAcpSession, type AttachAcpSessionOptions } from '../session.js';
+import { attachAcpSession } from '../session.js';
+import { type AttachAcpSessionOptions } from '../session-types.js';
 
 function createFixture(optionalArgs: Omit<AttachAcpSessionOptions, 'child' | 'prompt' | 'send'> = {},
   { failInitialWrite = false }: { failInitialWrite?: boolean } = {}) {
@@ -18,7 +19,7 @@ function createFixture(optionalArgs: Omit<AttachAcpSessionOptions, 'child' | 'pr
     resumeSessionId: 'prior-session', stageTimeoutMs: 100, ...optionalArgs,
   });
   const frame = (value: unknown) => child.stdout.write(`${JSON.stringify(value)}\n`);
-  const initialize = () => frame({ jsonrpc: '2.0', id: 1, result: {} });
+  const initialize = () => frame({ jsonrpc: '2.0', id: 1, result: { agentCapabilities: { loadSession: true } } });
   const errorPayloads = () => send.mock.calls.filter(([args]) => args.event === 'error').map(([args]) => args.payload);
   return { child, controller, frame, initialize, errorPayloads };
 }

@@ -1,5 +1,6 @@
 import { sql } from "kysely";
-import type { StorageDialect, StorageKernel } from "@jini-ai/db/kernel";
+import type { KyselyKernel } from "@jini-ai/db/kernel";
+import type { StorageDialect } from "@jini-ai/core/contracts/storage";
 
 /** REFERENCE ONLY: the independent copy `create-tables.reference.test.ts` compares the production
  * `createFormsTables` against. Do not derive it from production code or "fix" it to match.
@@ -37,7 +38,7 @@ const postgresStatements: readonly string[] = [
 /** Apply the reference DDL (fixed names, see `referenceTables`).
  * @complexity O(s) statements plus database DDL cost, for fixed statement count s. */
 export async function createReferenceTables<DB>(
-  kernel: StorageKernel<DB>,
+  kernel: KyselyKernel<DB>,
   dialect: StorageDialect,
 ): Promise<void> {
   for (const statement of dialect === "sqlite" ? sqliteStatements : postgresStatements) {

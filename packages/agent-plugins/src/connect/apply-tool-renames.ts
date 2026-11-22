@@ -1,5 +1,7 @@
 import { type Clock as ClockPort, nowIso as clockNowIso } from "@jini-ai/core/primitives";
+import { describeErrorForLog } from "@jini-ai/core";
 import { deriveAgentPluginConnectionId } from "./federate-mcp.js";
+import { updateAgentPluginMcpRow } from "./row-update.js";
 import type { AgentPluginMcpRecord, AgentPluginMcpRepo } from "./ports.js";
 import type { McpServerConfig } from "../lifecycle/manifest.js";
 
@@ -115,19 +117,19 @@ async function applyServerToolRenames(
   if (config.type === "stdio" || !config.renamedTools) return false;
   const serverId = deriveAgentPluginConnectionId({ serverKey });
   if (serverId === null) return false;
+  const { renamedTools } = config;
   const result = { changed: false };
   try {
-    const row = await deps.externalMcpServerRepo.findByServerId({ workspaceId: deps.workspaceId, serverId });
-    if (!row) return false;
-    const renamed = renameRowTools({ row, renames: config.renamedTools, clock: deps.clock, actor: deps.actor, pluginId, url: config.url });
+    // Conditional on the version it read; a missed write re-reads and re-applies once (M4).
+    const renamed = await updateAgentPluginMcpRow({ repo: deps.externalMcpServerRepo, key: { workspaceId: deps.workspaceId, serverId },
+      build: row => renameRowTools({ row, renames: renamedTools, clock: deps.clock, actor: deps.actor, pluginId, url: config.url }) });
     if (!renamed) return false;
-    await deps.externalMcpServerRepo.upsert(renamed);
     result.changed = true;
-    const renames = Object.entries(config.renamedTools).map(([from, to]) => `${from} -> ${to}`).join(", ");
+    const renames = Object.entries(renamedTools).map(([from, to]) => `${from} -> ${to}`).join(", ");
     log.info(`[agent-plugins] '${serverId}': renamed saved tools to follow the '${pluginId}' plugin (${renames}).`);
     return true;
   } catch (err) {
-    log.warn(`[agent-plugins] could not apply the '${pluginId}' plugin's tool renames to '${serverId}': ${err instanceof Error ? err.message : String(err)}`);
+    log.warn(`[agent-plugins] could not apply the '${pluginId}' plugin's tool renames to '${serverId}': ${describeErrorForLog({ err })}`);
   }
   return result.changed;
 }
@@ -146,7 +148,7 @@ export async function applyAgentPluginToolRenames(required: { readonly deps: App
   try {
     plugins = await deps.listPlugins();
   } catch (err) {
-    log.warn(`[agent-plugins] could not list plugins to apply tool renames: ${err instanceof Error ? err.message : String(err)}`);
+    log.warn(`[agent-plugins] could not list plugins to apply tool renames: ${describeErrorForLog({ err })}`);
     return;
   }
 

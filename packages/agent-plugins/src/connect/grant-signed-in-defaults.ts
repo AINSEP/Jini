@@ -1,4 +1,4 @@
-import { ToolInputError, redactSecrets } from '@jini-ai/core';
+import { ToolInputError, describeErrorForLog, redactSecrets } from '@jini-ai/core';
 
 import { createApplyConnectDefaults, type ApplyConnectDefaultsDeps } from "./apply-connect-defaults.js";
 import { hasStoredAgentPluginCredential } from "./connect-tool.js";
@@ -87,7 +87,7 @@ async function grantConnection({ deps, pluginId, connectionId, onConnected, opti
 function grantFailure({ error, pluginId, connectionId, approved, warn, approvedFailure }: { error: unknown; pluginId: string; connectionId: string; approved: boolean; warn: (message: string) => void; approvedFailure: GrantSignedInDefaultsDeps['approvedFailure'] }): void {
   const detail = error instanceof Error ? error.message : String(error);
   if (approved) throw new ToolInputError({ message: redactSecrets({ input: approvedFailure({ connectionId, detail: detail.slice(0, 2000) }) }) });
-  warn(`[agent-plugins] '${pluginId}': could not turn on the '${connectionId}' connection with the tools the plugin declares — ${detail}`);
+  warn(`[agent-plugins] '${pluginId}': could not turn on the '${connectionId}' connection with the tools the plugin declares — ${describeErrorForLog({ err: error })}`);
 }
 
 /**
@@ -152,7 +152,7 @@ export async function grantDeclaredToolsAtBoot(
     plugins = await deps.listPlugins();
     activations = await deps.readActivations();
   } catch (error) {
-    log.warn(`[agent-plugins] could not check signed-in plugin connections for their declared tools: ${error instanceof Error ? error.message : String(error)}`);
+    log.warn(`[agent-plugins] could not check signed-in plugin connections for their declared tools: ${describeErrorForLog({ err: error })}`);
     return;
   }
   for (const { pluginId, servers } of plugins) {

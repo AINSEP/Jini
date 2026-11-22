@@ -1,12 +1,13 @@
-import type { StorageKernel } from "@jini-ai/db/kernel";
+import type { StorageKernel } from "@jini-ai/core/contracts/storage";
 import type { RedirectDbHandle } from "../ports.internal.js";
 import type { RedirectRepoPort } from "../ports.js";
 import { compareLongestFirst, compareSamePatternExactFirst, compareTieBreak } from "../order.js";
-import { sameRedirectPath } from "../path-key.js";
+import { redirectPrefixMatches, sameRedirectPath } from "../path-key.js";
 import { toRecord, toRevision, toRevisionRow, toRow, updatableColumns } from "./repo.rows.js";
 import { RedirectNotFoundError } from "../types.js";
 import type { ListRedirectsFilter, RedirectRecord, RedirectRevision } from "../types.js";
 import type { RedirectsTable, RedirectRevisionsTable } from "./row-types.js";
+import type { Kysely } from "kysely";
 
 /**
  * @file THE redirect repository: one Kysely query body for every database the storage kernel drives
@@ -23,10 +24,10 @@ import type { RedirectsTable, RedirectRevisionsTable } from "./row-types.js";
 
 /** Host-owned table names. No schema or product table defaults live in the adapter. */
 export interface RedirectTables { redirects: string; revisions: string }
-export interface RedirectSqlRequired { kernel: StorageKernel<unknown>; tables: RedirectTables }
+export interface RedirectSqlRequired { kernel: StorageKernel<Kysely<unknown>, unknown>; tables: RedirectTables }
 
 export class SqlRedirectRepo implements RedirectRepoPort, RedirectDbHandle {
-  protected readonly kernel: StorageKernel<unknown>;
+  protected readonly kernel: StorageKernel<Kysely<unknown>, unknown>;
   protected readonly tables: RedirectTables;
   constructor(
     { kernel, tables }: RedirectSqlRequired,
@@ -93,11 +94,7 @@ export class SqlRedirectRepo implements RedirectRepoPort, RedirectDbHandle {
         matchType: "prefix",
         overrideOnly: required.includeOverrideOnly,
       })
-    ).filter((r) => {
-      const pattern = r.fromPattern;
-      if (required.path === pattern) return true;
-      return required.path.startsWith(pattern.endsWith("/") ? pattern : `${pattern}/`);
-    });
+    ).filter((r) => redirectPrefixMatches({ path: required.path, pattern: r.fromPattern }));
     candidates.sort((a, b) => compareLongestFirst({ a, b }, {}));
     return candidates[0] ?? null;
   }
@@ -158,7 +155,7 @@ export class SqlRedirectRepo implements RedirectRepoPort, RedirectDbHandle {
   }
 
   // -------------------------------------------------------------------
-  // RedirectDbHandle (used by redirects.ts/capture.ts via ports.internal.ts)
+  // RedirectDbHandle (used by packages/cms/src/redirects/redirects.ts and packages/cms/src/redirects/capture.ts via ports.internal.ts)
   // -------------------------------------------------------------------
 
   /** Upsert-by-id; no transaction control of its own. */

@@ -18,16 +18,19 @@ Packed-consumer fixtures are local to this package. PostgreSQL test declarations
 npm install @jini-ai/daemon
 ```
 
-`node-pty` is an **optional peer dependency** — the package boots and every other capability
+`node-pty` is no longer a dependency of this package — it boots and every other capability
 (run lifecycle, tool executor, agent executor, routines) works without it. Only
-the native adapter at `@jini-ai/daemon/terminal` needs `node-pty` installed.
-The default entry's session manager requires a host-supplied `terminalService` or `loadSpawnPty`:
+the native adapter at `@jini-ai/server/adapters/node-pty` needs `node-pty` installed.
+The session manager wraps a host-built `TerminalService`; the host also owns the PTY loader and the
+service's tuning (buffer sizes, flush timing, TTL, shutdown grace):
 
 ```ts
 import { createTerminalSessionManager } from '@jini-ai/daemon';
-import { loadRealSpawnPty } from '@jini-ai/daemon/terminal';
+import { createTerminalService } from '@jini-ai/platform';
+import { loadRealSpawnPty } from '@jini-ai/server/adapters/node-pty';
 
-const manager = createTerminalSessionManager({}, { loadSpawnPty: () => loadRealSpawnPty({}) });
+const terminalService = createTerminalService({ loadSpawnPty: () => loadRealSpawnPty({}) });
+const manager = createTerminalSessionManager({ terminalService });
 ```
 
 With `@jini-ai/server`, pass that loader as `featureOptions.terminal.loadSpawnPty` to
@@ -58,7 +61,7 @@ With `@jini-ai/server`, pass that loader as `featureOptions.terminal.loadSpawnPt
   manifest into `ToolRegistry` registrations — the only door into it).
 - **Terminal sessions** — `createTerminalSessionManager`, `createTerminalToolRegistrations` — a
   session manager built on `@jini-ai/platform`'s generic ring-buffer engine, plus session-token
-  gating. The optional native `loadRealSpawnPty` adapter lives at `@jini-ai/daemon/terminal`.
+  gating. The optional native `loadRealSpawnPty` adapter lives at `@jini-ai/server/adapters/node-pty`.
 - **Routines** — `RoutineService`, `createInMemoryRoutineStore` (`routines/`) — a DST-safe
   wall-clock scheduler plus CRUD + run-history store port.
 - **Run-orchestration helpers** (`run/`) — `runResultFromStatus`, `deriveRunErrorCode`,
@@ -95,6 +98,13 @@ omit it for a headless caller. `PtySpawn` (terminal sessions) and `RoutineStore`
 persistence) are likewise ports with one reference implementation each. The state-machine logic
 itself (run transitions, the tool-execution audit trail, retry classification) is fixed.
 
+The agent runtime is one port too. `@jini-ai/daemon/ports/agent-runtime` states `AgentRuntimePort` (definitions, launch,
+filesystem policy, model resolution, ACP/PI sessions, stream parsers, startup failures) and `BaseUrlGuardPort`;
+`@jini-ai/agent-runtime`'s `createAgentRuntimeBindings` is the one binding, and the host proves it with
+`satisfies AgentRuntimePort`. The provider-facing HTTP routes take two more ports:
+`@jini-ai/daemon/ports/provider-http` (`ProviderToolTurnPort`, the pinned-fetch types) and
+`@jini-ai/daemon/ports/xai-oauth` (`XaiOAuthPort`). Each has a DI fake under `src/ports/__tests__/` for route and launcher tests.
+
 ## Runtime
 
 Node-only.
@@ -107,7 +117,7 @@ See the archived provenance ledger for per-file provenance and scope decisions. 
 ## Storage concern subpaths
 
 The root remains driver-free. `./store/event-log/sqlite` exports the unchanged cursor/dedupe/replay
-adapter. `createSqliteEventLog({ db }, { maxEntriesPerRun, clock })` borrows the host handle, ensures
+adapter. `createSqliteEventLog({ db, clock }, { maxEntriesPerRun })` borrows the host handle, ensures
 its dedicated schema idempotently, never changes pragmas, and has a harmless `close({})`.
 `openSqliteEventLog({ file, open }, options)` owns a host-acquired handle, sets WAL, cleans up failed
 setup, and closes once. Owned acquisition uses only `openSqliteEventLog`; borrowed creation takes `{ db }`. No ambient driver is loaded.
@@ -137,8 +147,10 @@ targeting a disposable `jini_daemon_test_*` database; `pnpm run test:postgres` f
 ## Optional HTTP surface
 
 `@jini-ai/daemon/http` exports daemon route packs, attachment storage, frontend control,
-workspace-root resolution and the live route manifest. Install `@jini-ai/http-kit` and
-`express` only when using this entry. `@jini-ai/daemon/read-only-tools` owns the fail-closed
+workspace-root resolution and the live route manifest. Hosts supply the route reporter.
+The Express credential middleware (`createDaemonAuthMiddleware`, `createRunOwnershipMiddleware`,
+and `createOwnedRunListHandler`) lives in `@jini-ai/http-kit/middleware`. Install
+`@jini-ai/http-kit` and `express` in the route-mounting host. `@jini-ai/daemon/read-only-tools` owns the fail-closed
 execution gate; compose it around the bare executor, beneath recovery decorators, since an
 outer wrapper cannot intercept references those decorators already hold.
 See [API.md](https://github.com/AINSEP/Jini/blob/main/packages/daemon/API.md) for route, credential, audit, surface and session contracts.

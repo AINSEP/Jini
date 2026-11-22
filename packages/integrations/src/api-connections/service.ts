@@ -10,7 +10,7 @@ import { completeApiConnectionAuthorization, startApiConnectionAuthorization } f
 import { assertClientWiring, type ApiConnectionServiceDeps } from './deps.js';
 import { getApiConnectionStatus } from './status.js';
 
-type Bound<F> = F extends (deps: ApiConnectionServiceDeps, ...rest: infer A) => infer R ? (...rest: A) => R : never;
+type Bound<F> = F extends (required: infer A, ...rest: infer O) => infer R ? (requiredArgs: Omit<A, 'deps'>, ...rest: O) => R : never;
 
 export interface ApiConnectionService {
   readonly start: Bound<typeof startApiConnectionAuthorization>;
@@ -27,12 +27,12 @@ export function createApiConnectionService(deps: ApiConnectionServiceDeps): ApiC
   assertClientWiring(deps);
   const accessTokens = createApiConnectionAccessTokens(deps);
   return {
-    start: (...args) => startApiConnectionAuthorization(deps, ...args),
-    complete: (...args) => completeApiConnectionAuthorization(deps, ...args),
-    confirmSwitchAccount: (...args) => confirmSwitchAccount(deps, ...args),
-    cancelSwitchAccount: (...args) => cancelSwitchAccount(deps, ...args),
-    disconnect: (...args) => disconnectApiConnection(deps, ...args),
-    getStatus: (...args) => getApiConnectionStatus(deps, ...args),
+    start: (requiredArgs, optionalArgs) => startApiConnectionAuthorization({ deps, ...requiredArgs }, optionalArgs),
+    complete: (requiredArgs) => completeApiConnectionAuthorization({ deps, ...requiredArgs }),
+    confirmSwitchAccount: (requiredArgs) => confirmSwitchAccount({ deps, ...requiredArgs }),
+    cancelSwitchAccount: (requiredArgs) => cancelSwitchAccount({ deps, ...requiredArgs }),
+    disconnect: (requiredArgs) => disconnectApiConnection({ deps, ...requiredArgs }),
+    getStatus: (requiredArgs) => getApiConnectionStatus({ deps, ...requiredArgs }),
     getAccessToken: (...args) => accessTokens.getAccessToken(...args),
   };
 }

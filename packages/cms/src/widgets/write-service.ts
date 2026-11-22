@@ -1,11 +1,11 @@
 import { nowIso as clockNowIso } from "@jini-ai/core/primitives";
 /**
- * @file Widget-instance CRUD through the existing entries chokepoint (SPEC-043 REQ-01..06, REQ-42/43).
+ * @file Widget-instance CRUD through the existing entries chokepoint.
  *
  * Purpose:
  * Same chokepoint discipline as `posts`/`menus`/`forms` — no parallel mutation path. A widget
- * instance is a `type='widget'` entries row (ADR-022 §1); every write here composes
- * `features/entries/write-service.ts`'s real `createEntry`/`updateEntry` chokepoint (never
+ * instance is a `type='widget'` entries row; every write here composes
+ * `packages/cms/src/entries/write-service.ts`'s real `createEntry`/`updateEntry` chokepoint (never
  * reimplemented) so revisions and slug-uniqueness come for free.
  *
  * Deleting (2026-09-21, generic Trash): `trashWidgetInstance` moves a widget to the Trash through
@@ -17,7 +17,7 @@ import { nowIso as clockNowIso } from "@jini-ai/core/primitives";
  *
  * `entry_refs` extraction (INV-06) runs inside the same DB transaction as the triggering
  * `createEntry`/`updateEntry` call, via that chokepoint's optional `deps.onWritten` hook (added
- * 2026-07-21 — a narrow, additive extension to `features/entries/write-service.ts`, invoked after
+ * 2026-07-21 — a narrow, additive extension to `packages/cms/src/entries/write-service.ts`, invoked after
  * `save`/`appendRevision` but before commit, so a failed extraction rolls back the whole write; see
  * the implementation report for why this was previously sequenced after instead).
  *
@@ -25,7 +25,7 @@ import { nowIso as clockNowIso } from "@jini-ai/core/primitives";
  * `widgets` domain logic (implementation outline C-005).
  */
 import type { Clock as ClockPort, JsonObject, UUID } from "@jini-ai/core/primitives";
-import type { OutboxPort } from "../core/index.js";
+import type { OutboxPort } from "@jini-ai/core/contracts/events";
 import type { EntryRefsRepoPort } from "./ports.js";
 
 import type { ContentTypeRepoPort } from "../content-types/index.js";
@@ -91,7 +91,7 @@ async function extractAndStoreInstanceRefs(deps: WidgetWriteServiceDeps, workspa
  * full-`DomainEvent` infra port — see `WidgetWriteServiceDeps.outbox`) through `toEntryOutbox` into
  * the narrower `{enqueue({name,payload})}` shape `createEntry`/`updateEntry` declare locally.
  * Previously each of the four call sites below passed `deps.outbox` straight through unwrapped —
- * compiled fine (`features/entries/write-service.ts`'s own narrow `OutboxPort` accepted it via a
+ * compiled fine (`packages/cms/src/entries/write-service.ts`'s own narrow `OutboxPort` accepted it via a
  * structural/bivariance loophole), but threw `NOT NULL constraint failed: outbox_events.id` against
  * the real SQLite outbox in production on every widget create/update/trash/purge, invisible against
  * the in-memory test double (which accepts any shape). One composer means the bridge can't be
@@ -109,6 +109,14 @@ function entriesWriteDeps(deps: WidgetWriteServiceDeps, workspaceId: UUID) {
     authorize: PRE_AUTHORIZED,
     outbox: deps.host.entries.toEntryOutbox({ outbox: deps.outbox, clock: deps.clock, idGen: deps.ids, workspaceId }),
   };
+}
+
+/** Adds instance reference extraction to the shared entry write dependencies. */
+function instanceEntriesWriteDeps(
+  { deps, workspaceId }: { deps: WidgetWriteServiceDeps; workspaceId: UUID },
+  _optional: Record<string, never> = {},
+) {
+  return { ...entriesWriteDeps(deps, workspaceId), onWritten: (entry: EntryRecord) => extractAndStoreInstanceRefs(deps, workspaceId, entry) };
 }
 
 /**
@@ -131,6 +139,17 @@ function widgetConfigValidationError(
     message: `config for widget type '${registration.typeKey}' failed schema validation: ${reasons}. Expected config keys: ${expectedKeys}`,
     fieldErrors,
   });
+}
+
+/** Rejects an unregistered widget type or a config that does not match its schema. */
+function assertValidWidgetConfig(
+  { widgetType, config }: { widgetType: string; config: Record<string, unknown> },
+  _optional: Record<string, never> = {},
+): void {
+  const registration = findWidgetTypeRegistration({ raw: widgetType });
+  if (!registration) throw new WidgetTypeUnregisteredError({ message: `widget type '${widgetType}' is not registered`, widgetType });
+  const validation = validateWidgetConfig({ schema: registration.configSchema, config });
+  if (!validation.valid) throw widgetConfigValidationError({ registration, fieldErrors: validation.fieldErrors });
 }
 
 export interface CreateWidgetInstanceInput {
@@ -159,28 +178,17 @@ export async function createWidgetInstance(required: CreateWidgetInstanceRequire
   });
 
   // `input.widgetType` is typed `WidgetTypeKey` but only ASSERTED to be one — HTTP routes
-  // (`server/routes/admin/widgets/create.ts`/`agent-tools.ts`) cast an unvalidated request-body
+  // (the host app's `src/server/inbound/admin-http/routes/widgets/create.ts`/`agent-tools.ts`) cast an unvalidated request-body
   // string to it. `findWidgetTypeRegistration` is the correct accessor here: `undefined` is
   // genuinely reachable, and this check is what catches an unregistered type at this boundary.
-  const registration = findWidgetTypeRegistration({ raw: input.widgetType });
-  if (!registration) {
-    throw new WidgetTypeUnregisteredError({ message: `widget type '${input.widgetType}' is not registered`, widgetType: input.widgetType });
-  }
-
-  const validation = validateWidgetConfig({ schema: registration.configSchema, config: input.config });
-  if (!validation.valid) {
-    throw widgetConfigValidationError({ registration, fieldErrors: validation.fieldErrors });
-  }
+  assertValidWidgetConfig({ widgetType: input.widgetType, config: input.config });
 
   await ensureWidgetContentTypesRegistered({ deps, workspaceId: input.workspaceId });
 
   const slug = input.slug ?? `${slugify(input.title, deps.host)}-${deps.ids.newId().slice(0, 8)}`;
 
   const created = await deps.host.entries.createEntry({
-    deps: {
-      ...entriesWriteDeps(deps, input.workspaceId),
-      onWritten: (entry) => extractAndStoreInstanceRefs(deps, input.workspaceId, entry),
-    },
+    deps: instanceEntriesWriteDeps({ deps, workspaceId: input.workspaceId }),
     input: {
       actorId: input.actor.principalId,
       workspaceId: input.workspaceId,
@@ -201,7 +209,7 @@ export interface UpdateWidgetInstanceInput {
   readonly widgetInstanceId: UUID;
   readonly baseVersion: number;
   readonly config: Record<string, unknown>;
-  /** Optional (SPEC-043 ui.spec §4.3): omitted keeps the current title, forwarded to
+  /** Optional: omitted keeps the current title, forwarded to
    *  `updateEntry`'s own `title` field (`input.title ?? current.title`) the same way create's
    *  `title` reaches the entry row — never folded into `fieldsJson`, which only carries
    *  widget-domain payload (`widgetType`/`config`/`status`). */
@@ -235,21 +243,10 @@ export async function updateWidgetInstance(required: UpdateWidgetInstanceRequire
       // `currentPayload.widgetType` is typed `WidgetTypeKey` but only ASSERTED to be one —
       // `parseWidgetInstancePayload` casts decoded, stored JSON (`entry-payload.ts`), so
       // `findWidgetTypeRegistration` is the correct, honestly-partial accessor here too.
-      const registration = findWidgetTypeRegistration({ raw: currentPayload.widgetType });
-      if (!registration) {
-        throw new WidgetTypeUnregisteredError({ message: `widget type '${currentPayload.widgetType}' is not registered`, widgetType: currentPayload.widgetType });
-      }
-
-      const validation = validateWidgetConfig({ schema: registration.configSchema, config: input.config });
-      if (!validation.valid) {
-        throw widgetConfigValidationError({ registration, fieldErrors: validation.fieldErrors });
-      }
+      assertValidWidgetConfig({ widgetType: currentPayload.widgetType, config: input.config });
 
       const result = await deps.host.entries.updateEntry({
-        deps: {
-          ...entriesWriteDeps(deps, input.workspaceId),
-          onWritten: (entry) => extractAndStoreInstanceRefs(deps, input.workspaceId, entry),
-        },
+        deps: instanceEntriesWriteDeps({ deps, workspaceId: input.workspaceId }),
         input: {
           actorId: input.actor.principalId,
           workspaceId: input.workspaceId,
@@ -307,14 +304,7 @@ export async function importWidgetInstance(required: ImportWidgetInstanceRequire
     permission: input.expectedVersion === undefined ? "widgets.create" : "widgets.update",
   });
 
-  const registration = findWidgetTypeRegistration({ raw: input.widgetType });
-  if (!registration) {
-    throw new WidgetTypeUnregisteredError({ message: `widget type '${input.widgetType}' is not registered`, widgetType: input.widgetType });
-  }
-  const validation = validateWidgetConfig({ schema: registration.configSchema, config: input.config });
-  if (!validation.valid) {
-    throw widgetConfigValidationError({ registration, fieldErrors: validation.fieldErrors });
-  }
+  assertValidWidgetConfig({ widgetType: input.widgetType, config: input.config });
 
   await ensureWidgetContentTypesRegistered({ deps, workspaceId: input.workspaceId });
 
@@ -322,10 +312,7 @@ export async function importWidgetInstance(required: ImportWidgetInstanceRequire
     key: `${input.workspaceId}::${input.id}`, fn: async () => {
       const current = await deps.entryRepo.findById({ workspaceId: input.workspaceId, id: input.id });
       const result = await deps.host.entries.importEntry({
-        deps: {
-          ...entriesWriteDeps(deps, input.workspaceId),
-          onWritten: (entry) => extractAndStoreInstanceRefs(deps, input.workspaceId, entry),
-        },
+        deps: instanceEntriesWriteDeps({ deps, workspaceId: input.workspaceId }),
         input: {
           actorId: input.actor.principalId,
           workspaceId: input.workspaceId,
@@ -369,8 +356,8 @@ export interface TrashWidgetInstanceRequired {
 }
 
 /**
- * Deleting a widget = moving it to the Trash (the injected `remove`). UNCONDITIONAL, per ADR-047 §7
- * and feature.spec.md EC-07: a widget still placed somewhere can be trashed, and every placement
+ * Deleting a widget = moving it to the Trash (the injected `remove`). UNCONDITIONAL,
+ * per feature.spec.md: a widget still placed somewhere can be trashed, and every placement
  * then renders the REQ-28 placeholder until it is restored. Only a purge from the Trash removes it
  * for good.
  *

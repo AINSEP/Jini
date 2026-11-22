@@ -1,12 +1,12 @@
 import { parse } from 'smol-toml';
-import { JINI_MCP_SERVER_KEY } from '../mcp-bridge.js';
+import { JINI_MCP_SERVER_KEY } from '../mcp-json-file.js';
 import { isRecord } from '../values.js';
 
 /** A run with personal MCP off that Codex cannot keep to the bridge alone: refused, never run with a leak. */
 export class CodexMcpIsolationError extends Error {}
 
 /** The user-facing refusal for a {@link CodexMcpIsolationError} reason. */
-export function codexIsolationRefusalMessage(reason: string): string {
+export function codexIsolationRefusalMessage({ reason }: { reason: string }, _optional: Record<string, never> = {}): string {
   return `Codex can't run with 'Your MCP servers' off: ${reason} Turn it on in the assistant settings, or choose Claude.`;
 }
 

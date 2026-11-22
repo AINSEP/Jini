@@ -26,34 +26,64 @@ import path from 'node:path';
 import { homedir } from 'node:os';
 import { wellKnownUserToolchainBins } from '@jini-ai/platform/toolchain';
 import { expandHomePath } from './paths.js';
-import type { RuntimeAgentDef } from './types.js';
+import type { RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
+import type { ExecutableResolutionHelpers, ResolvedExecutableOptions } from './executable-helpers.js';
+import { packagedAmrExecutable, resolveAmrCompanion } from './defs/amr/executable-resolution.js';
+import { codexAppBundleExecutable, codexBundleCandidates } from './defs/codex/executable-resolution.js';
 
-const AGENT_BIN_ENV_KEYS = new Map<string, string>([
-  ['amr', 'VELA_BIN'],
-  ['aider', 'AIDER_BIN'],
-  ['auggie', 'AUGGIE_BIN'],
-  ['claude', 'CLAUDE_BIN'],
-  ['cline', 'CLINE_BIN'],
-  ['codebuddy', 'CODEBUDDY_BIN'],
-  ['codex', 'CODEX_BIN'],
-  ['crush', 'CRUSH_BIN'],
-  ['cursor-agent', 'CURSOR_AGENT_BIN'],
-  ['deepseek', 'DEEPSEEK_BIN'],
-  ['devin', 'DEVIN_BIN'],
-  ['droid', 'DROID_BIN'],
-  ['goose', 'GOOSE_BIN'],
-  ['hermes', 'HERMES_BIN'],
-  ['kimi', 'KIMI_BIN'],
-  ['kiro', 'KIRO_BIN'],
-  ['kilo', 'KILO_BIN'],
-  ['mimo', 'MIMO_BIN'],
-  ['opencode', 'OPENCODE_BIN'],
-  ['pi', 'PI_BIN'],
-  ['qoder', 'QODER_BIN'],
-  ['qwen', 'QWEN_BIN'],
-  ['reasonix', 'REASONIX_BIN'],
-  ['trae-cli', 'TRAE_CLI_BIN'],
-  ['vibe', 'VIBE_BIN'],
+import { amrBinEnvKey } from './defs/amr/executable.js';
+import { aiderBinEnvKey } from './defs/aider/executable.js';
+import { auggieBinEnvKey } from './defs/auggie/executable.js';
+import { claudeBinEnvKey } from './defs/claude/executable.js';
+import { clineBinEnvKey } from './defs/cline/executable.js';
+import { codebuddyBinEnvKey } from './defs/codebuddy/executable.js';
+import { codexBinEnvKey } from './defs/codex/executable.js';
+import { crushBinEnvKey } from './defs/crush/executable.js';
+import { cursorAgentBinEnvKey } from './defs/cursor-agent/executable.js';
+import { deepseekBinEnvKey } from './defs/deepseek/executable.js';
+import { devinBinEnvKey } from './defs/devin/executable.js';
+import { droidBinEnvKey } from './defs/droid/executable.js';
+import { gooseBinEnvKey } from './defs/goose/executable.js';
+import { hermesBinEnvKey } from './defs/hermes/executable.js';
+import { kimiBinEnvKey } from './defs/kimi/executable.js';
+import { kiroBinEnvKey } from './defs/kiro/executable.js';
+import { kiloBinEnvKey } from './defs/kilo/executable.js';
+import { mimoBinEnvKey } from './defs/mimo/executable.js';
+import { opencodeBinEnvKey } from './defs/opencode/executable.js';
+import { piBinEnvKey } from './defs/pi/executable.js';
+import { qoderBinEnvKey } from './defs/qoder/executable.js';
+import { qwenBinEnvKey } from './defs/qwen/executable.js';
+import { reasonixBinEnvKey } from './defs/reasonix/executable.js';
+import { traeCliBinEnvKey } from './defs/trae-cli/executable.js';
+import { vibeBinEnvKey } from './defs/vibe/executable.js';
+
+const AGENT_BIN_ENV_KEYS: ReadonlyMap<string, string> = new Map<string, string>([
+  ['amr', amrBinEnvKey],
+  ['aider', aiderBinEnvKey],
+  ['auggie', auggieBinEnvKey],
+  ['claude', claudeBinEnvKey],
+  ['cline', clineBinEnvKey],
+  ['codebuddy', codebuddyBinEnvKey],
+  ['codex', codexBinEnvKey],
+  ['crush', crushBinEnvKey],
+  ['cursor-agent', cursorAgentBinEnvKey],
+  ['deepseek', deepseekBinEnvKey],
+  ['devin', devinBinEnvKey],
+  ['droid', droidBinEnvKey],
+  ['goose', gooseBinEnvKey],
+  ['hermes', hermesBinEnvKey],
+  ['kimi', kimiBinEnvKey],
+  ['kiro', kiroBinEnvKey],
+  ['kilo', kiloBinEnvKey],
+  ['mimo', mimoBinEnvKey],
+  ['opencode', opencodeBinEnvKey],
+  ['opencode-acp', opencodeBinEnvKey],
+  ['pi', piBinEnvKey],
+  ['qoder', qoderBinEnvKey],
+  ['qwen', qwenBinEnvKey],
+  ['reasonix', reasonixBinEnvKey],
+  ['trae-cli', traeCliBinEnvKey],
+  ['vibe', vibeBinEnvKey],
 ]);
 
 /** Host environment and runtime state used by executable resolution. */
@@ -61,7 +91,7 @@ export interface ExecutableResolutionOptions { env?: NodeJS.ProcessEnv; state?: 
 
 // Options with the process-level defaults applied once at the public entry
 // point, so internal helpers never re-derive them.
-interface ResolvedOptions { env: NodeJS.ProcessEnv; state: AgentRuntimeState }
+type ResolvedOptions = ResolvedExecutableOptions;
 
 function withDefaults(options: ExecutableResolutionOptions): ResolvedOptions {
   return { env: options.env ?? process.env, state: options.state ?? defaultRuntimeState };
@@ -172,7 +202,7 @@ export function agentSearchDirs(_required: Record<string, never> = {}, options: 
 // The `*_BIN` environment variable that overrides PATH detection for a given
 // agent id (e.g. `cursor-agent` → `CURSOR_AGENT_BIN`), or null when the agent
 // has no override key. Drives the `setEnv` / `clearEnv` fix intents.
-export function agentBinEnvKey({ agentId }: { agentId: string | undefined }): string | null {
+export function agentBinEnvKey({ agentId }: { agentId: string | undefined }, _optional: Record<string, never> = {}): string | null {
   if (!agentId) return null;
   return AGENT_BIN_ENV_KEYS.get(agentId) ?? null;
 }
@@ -235,80 +265,18 @@ function configuredExecutableOverride(
   return executableFilePath(configuredEnv?.[envKey], options);
 }
 
-export function resolveAmrOpenCodeExecutable({  }: {  }, { env = process.env, state = defaultRuntimeState }: ExecutableResolutionOptions = {}
-): string | null {
-  const options = { env, state };
-  // In packaged builds prefer the bundled companion under
-  // `<resourceRoot>/bin/libexec/opencode/opencode` so a stale global
-  // `opencode` on the user's PATH can't override the known-good build that
-  // shipped with this app. PATH is only consulted as a last resort.
-  return executableFilePath(env.VELA_OPENCODE_BIN, options)
-    ?? bundledAmrOpenCode({ resourceRoot: resourceRootOf(options) }, options)
-    ?? searchPath({ bin: 'opencode-cli' }, options)
-    ?? searchPath({ bin: 'opencode' }, options);
-}
-
 function resourceRootOf({ env, state }: ResolvedOptions): string | undefined {
   return env[state.executable.envNames.resourceRootEnvVar]?.trim();
 }
 
-function bundledAmrOpenCode({ resourceRoot }: { resourceRoot: string | undefined }, options: ResolvedOptions): string | null {
-  if (!resourceRoot) return null;
-  const bundledDir = packagedVelaOpenCodeCompanionTree(resourceRoot, options);
-  if (!bundledDir) return null;
-  return executableFilePath(path.join(bundledDir, platformExecutableName({ name: 'opencode' })), options);
-}
+const EXECUTABLE_HELPERS: ExecutableResolutionHelpers = {
+  executableFilePath, isRunnableFile, searchPath, platformExecutableName, resourceRootOf, resolveDetectionHome,
+};
+const PACKAGED_EXECUTABLES: ReadonlyMap<string, typeof packagedAmrExecutable> = new Map([['amr', packagedAmrExecutable]]);
+const APP_BUNDLE_EXECUTABLES: ReadonlyMap<string, typeof codexAppBundleExecutable> = new Map([['codex', codexAppBundleExecutable]]);
 
-// The AMR (vela) OpenCode companion ships as a
-// `<resourceRoot>/bin/libexec/opencode/opencode` *executable file*, not just
-// the directory. Treating any directory there as a valid companion produces
-// a false-positive availability path: `detectAgents()` would surface AMR as
-// available even though the first real run can't launch. Verify the inner
-// executable too.
-function packagedVelaOpenCodeCompanionTree(resourceRoot: string, options: ResolvedOptions): string | null {
-  const candidate = path.join(resourceRoot, 'bin', 'libexec', 'opencode');
-  try {
-    if (!statSync(candidate).isDirectory()) return null;
-  } catch {
-    return null;
-  }
-  return isRunnableFile(path.join(candidate, platformExecutableName({ name: 'opencode' })), options) ? candidate : null;
-}
-
-function packagedBuiltInExecutable(
-  def: RuntimeAgentDef,
-  configuredEnv: Record<string, string>,
-  options: ResolvedOptions,
-): string | null {
-  if (def.id !== 'amr') return null;
-  const resourceRoot = resourceRootOf(options);
-  if (!resourceRoot) return null;
-  if (
-    !resolveAmrOpenCodeExecutable({  }, { ...options, env: { ...options.env, ...configuredEnv } }) &&
-    !packagedVelaOpenCodeCompanionTree(resourceRoot, options)
-  ) {
-    return null;
-  }
-  const candidate = path.join(resourceRoot, 'bin', platformExecutableName({ name: 'vela' }));
-  return isRunnableFile(candidate, options) ? candidate : null;
-}
-
-// The official OpenAI Codex desktop app ships the `codex` CLI *inside* its
-// macOS application bundle and does NOT add it to PATH unless the user
-// explicitly runs the app's "Install command line tool" action. Users who
-// installed Codex only through the app therefore see a "not installed"
-// agent card even though a healthy native `codex` binary exists on disk,
-// because neither PATH nor the user-toolchain search dirs cover the app
-// bundle. Probe the well-known bundle locations so app-only installs are
-// detected. This is a last-resort fallback that ranks below PATH, so an
-// explicit `npm i -g` / Homebrew / version-manager install always wins.
-function codexAppBundleExecutable(def: RuntimeAgentDef, options: ResolvedOptions): string | null {
-  if (def?.id !== 'codex') return null;
-  for (const candidate of appBundleCandidates(options)) {
-    const resolved = executableFilePath(candidate, options);
-    if (resolved) return resolved;
-  }
-  return null;
+export function resolveAmrOpenCodeExecutable({  }: {  }, { env = process.env, state = defaultRuntimeState }: ExecutableResolutionOptions = {}): string | null {
+  return resolveAmrCompanion({ options: { env, state }, services: EXECUTABLE_HELPERS });
 }
 
 // Exported for tests: the no-override `/Applications` branch can't be
@@ -317,25 +285,7 @@ function codexAppBundleExecutable(def: RuntimeAgentDef, options: ResolvedOptions
 // assert the built candidate list directly to catch a path typo or
 // ordering regression in the common real-world install case.
 export function codexAppBundleCandidates(_required: Record<string, never> = {}, options: ExecutableResolutionOptions = {}): string[] {
-  return appBundleCandidates(withDefaults(options));
-}
-
-function appBundleCandidates(options: ResolvedOptions): string[] {
-  // The Codex app bundle is a macOS-only concept; other platforms have no
-  // analogous standalone install of the `codex` CLI to probe for here.
-  if (process.platform !== 'darwin') return [];
-  const { home, hasOverride } = resolveDetectionHome(options);
-  const bundleSuffix = ['Codex.app', 'Contents', 'Resources', 'codex'];
-  // User-scoped install (~/Applications). Honors the override home so
-  // sandboxed detection runs and tests stay deterministic.
-  const candidates = [path.join(home, 'Applications', ...bundleSuffix)];
-  // System-wide /Applications install. Skip it under an override home for
-  // the same isolation reason `userToolchainDirs` skips Homebrew/system
-  // bins.
-  if (!hasOverride) {
-    candidates.unshift(path.join('/Applications', ...bundleSuffix));
-  }
-  return candidates;
+  return codexBundleCandidates({ options: withDefaults(options), services: EXECUTABLE_HELPERS });
 }
 
 // Resolve the first available binary for an agent definition. Tries
@@ -359,6 +309,12 @@ export function resolveAgentExecutable({ def }: { def: RuntimeAgentDef }, option
   return inspectAgentExecutableResolution({ def: def }, options).selectedPath;
 }
 
+function bundledExecutablePaths(def: RuntimeAgentDef, configuredEnv: Record<string, string>, resolved: ResolvedOptions) {
+  const builtInPath = PACKAGED_EXECUTABLES.get(def.id)?.(configuredEnv, resolved, EXECUTABLE_HELPERS) ?? null;
+  const appBundlePath = APP_BUNDLE_EXECUTABLES.get(def.id)?.(resolved, EXECUTABLE_HELPERS) ?? null;
+  return { builtInPath, appBundlePath };
+}
+
 export function inspectAgentExecutableResolution({ def }: { def: RuntimeAgentDef }, options: ExecutableResolutionOptions & { configuredEnv?: Record<string, string> } = {}
 ): {
   configuredOverridePath: string | null;
@@ -376,8 +332,7 @@ export function inspectAgentExecutableResolution({ def }: { def: RuntimeAgentDef
   const configuredEnv = options.configuredEnv ?? {};
   const configuredOverridePath = configuredExecutableOverride(def, configuredEnv, resolved);
   const pathResolvedPath = firstBinOnPath(def, resolved);
-  const builtInPath = packagedBuiltInExecutable(def, configuredEnv, resolved);
-  const appBundlePath = codexAppBundleExecutable(def, resolved);
+  const { builtInPath, appBundlePath } = bundledExecutablePaths(def, configuredEnv, resolved);
   return {
     configuredOverridePath,
     pathResolvedPath,

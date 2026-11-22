@@ -1,7 +1,8 @@
 /** The existing wire schemas remain core-owned, even when no chart plugin is enabled. */
-import { z } from 'zod';
+import { z } from 'zod/v3';
 import type { InteractiveComponentManifest } from '../interactive-ui/types.js';
-import { chartSpecSchema, type ChartSpec } from './contract.js';
+import { chartSpecSchema } from './contract.js';
+import { type ChartSpec } from '@jini-ai/core/contracts/charts';
 
 /** Same passthrough/record reasoning as native data-table: A2UI action bindings and extra row data
  * belong to the wire protocol, not a renderer. Retain their established shapes during extraction. */

@@ -1,23 +1,15 @@
 import { createAgentModelDiscovery } from '../model-discovery-native.js';
-import { detectAcpModels, DEFAULT_MODEL_OPTION } from './shared.js';
-import type { RuntimeAgentDef } from '../types.js';
+import { acpModelFetcher, DEFAULT_MODEL_OPTION } from './shared.js';
+import type { RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 
 export const vibeAgentDef = {
   // UNVERIFIED live integration locally; source/category and limits are documented in model-discovery-adapters.ts.
-  ...createAgentModelDiscovery('vibe', { fallbackModels: (): readonly import('../types.js').RuntimeModelOption[] => vibeAgentDef.fallbackModels }),
+  ...createAgentModelDiscovery('vibe', { fallbackModels: (): readonly import('@jini-ai/core/contracts/agents').RuntimeModelOption[] => vibeAgentDef.fallbackModels }),
     id: 'vibe',
     name: 'Mistral Vibe CLI',
     bin: 'vibe-acp',
     versionArgs: ['--version'],
-    fetchModels: async ({ resolvedBin, env }, { acpModelProbe } = {}) =>
-      (({ bin, args, ...optionalArgs }: Parameters<typeof detectAcpModels>[0] & NonNullable<Parameters<typeof detectAcpModels>[1]>) => detectAcpModels({ bin, args }, optionalArgs))({
-        ...(acpModelProbe ? { probe: acpModelProbe } : {}),
-        bin: resolvedBin,
-        args: [],
-        env,
-        timeoutMs: 15_000,
-        defaultModelOption: DEFAULT_MODEL_OPTION,
-      }),
+    fetchModels: acpModelFetcher({ args: [] }),
     fallbackModels: [DEFAULT_MODEL_OPTION],
     buildArgs: () => [],
     streamFormat: 'acp-json-rpc',

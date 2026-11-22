@@ -5,11 +5,17 @@ import { join, resolve, sep } from 'node:path';
 import { tmpdir } from 'node:os';
 import type { ChildProcess, spawn } from 'node:child_process';
 import { describe, expect, it, vi } from 'vitest';
-import { claudeAgentDef, getAgentDef, type AgentLaunchResolution, type RuntimeBuildOptions, type RuntimeAgentDef } from '@jini-ai/agent-runtime';
+import { claudeAgentDef, getAgentDef } from '@jini-ai/agent-runtime';
+import {
+  type AgentLaunchResolution,
+  type RuntimeBuildOptions,
+  type RuntimeAgentDef,
+} from '@jini-ai/core/contracts/agents';
 import { createInMemoryEventLog } from '../../event-log.js';
 import { createRunLifecycle } from '../../run-lifecycle.js';
 import { createAgentExecutor } from '../index.js';
 import { fixtureLaunchModel } from './model-discovery-fixture.js';
+import { runtimeFixture, agentRuntimeFixture } from './runtime-fixture.js';
 
 // Only the simulated Claude adapter attests per-run MCP isolation; no real CLI capability is claimed.
 // Codex grants personal MCP independently because this filesystem fixture stages no isolated home.
@@ -49,15 +55,9 @@ describe('executor filesystem policy (owner 2026-10-23)', () => {
         }
         throw new Error('stop after policy capture');
       });
-      const executor = createAgentExecutor({ lifecycle }, {
-        // The daemon's own CLAUDE_CODE_TMPDIR must neither reach the child nor widen its policy (SEC-001).
-        hostEnv: { ...childEnv, CLAUDE_CODE_TMPDIR: '/ambient/claude-temp' },
-        getAgentDef: () => def, resolveModelForLaunch: fixtureLaunchModel,
-        resolveAgentLaunch: () => ({ selectedPath: executable, pathResolvedPath: executable, configuredOverridePath: null,
-          launchPath: executable, launchKind: 'selected', childPathPrepend: [], diagnostic: null }) as AgentLaunchResolution,
-        applyAgentLaunchEnv: ({ env }) => env, ensureAgentCapabilities: async () => {},
-        assertClaudeFilesystemSupport: verify, spawn: spawnChild as unknown as typeof spawn,
-      });
+      // The daemon's own CLAUDE_CODE_TMPDIR must neither reach the child nor widen its policy (SEC-001).
+      const executor = createAgentExecutor({ lifecycle, hostEnv: { ...childEnv, CLAUDE_CODE_TMPDIR: '/ambient/claude-temp' }, runtime: runtimeFixture({ spawn: spawnChild as unknown as typeof spawn }), agentRuntime: agentRuntimeFixture({ getAgentDef: () => def, resolveModelForLaunch: fixtureLaunchModel, resolveAgentLaunch: () => ({ selectedPath: executable, pathResolvedPath: executable, configuredOverridePath: null,
+          launchPath: executable, launchKind: 'selected', childPathPrepend: [], diagnostic: null }) as AgentLaunchResolution, applyAgentLaunchEnv: ({ env }) => env, ensureAgentCapabilities: async () => {}, assertClaudeFilesystemSupport: verify }) });
       const { run } = await lifecycle.start({ contextRef: 'filesystem-test' });
       const result = executor.run({ runId: run.id, agentId: def.id, cwd: scenario === 'wrong-cwd' ? base : site, prompt: 'hello' }, {
         filesystemRoot: site, nativeToolAccess: true, nativeCapabilities: { userMcp: scenario === 'codex' }, permissionMode: 'bypass', cliParity: true,
@@ -202,15 +202,7 @@ function scratchHarness({ failSecondSpawn = false }: { failSecondSpawn?: boolean
     children[0]!.emit('close', null, 'SIGTERM');
     return { alreadyStopped: false, forcedPids: [], matchedPids: [4242], remainingPids: [], stoppedPids: [4242] };
   });
-  const executor = createAgentExecutor({ lifecycle }, {
-    hostEnv: { PATH: '/bin', HOME: base, CLAUDE_CODE_TMPDIR: '/tmp/operator-session' },
-    getAgentDef: () => ({ ...claudeAgentDef, mcpIsolation: { perRun: 'fixture@2026-11-05' } }), resolveModelForLaunch: fixtureLaunchModel,
-    resolveAgentLaunch: () => ({ selectedPath: executable, pathResolvedPath: executable, configuredOverridePath: null,
-      launchPath: executable, launchKind: 'selected', childPathPrepend: [], diagnostic: null }) as AgentLaunchResolution,
-    applyAgentLaunchEnv: ({ env }) => env, ensureAgentCapabilities: async () => {},
-    assertClaudeFilesystemSupport: async () => true,
-    listProcessSnapshots: async () => [], collectProcessTreePids: () => [4242], stopProcesses,
-    spawn: ((_command: string, args: readonly string[], options: { env: NodeJS.ProcessEnv }) => {
+  const executor = createAgentExecutor({ lifecycle, hostEnv: { PATH: '/bin', HOME: base, CLAUDE_CODE_TMPDIR: '/tmp/operator-session' }, runtime: runtimeFixture({ listProcessSnapshots: async () => [], stopProcesses: stopProcesses, spawn: ((_command: string, args: readonly string[], options: { env: NodeJS.ProcessEnv }) => {
       const child = Object.assign(new EventEmitter(), { pid: 4242 + children.length, killed: false,
         stdout: new PassThrough(), stderr: new PassThrough(), stdin: new PassThrough(), kill: vi.fn(() => true) }) as unknown as ChildProcess;
       children.push(child); environments.push(options.env);
@@ -220,8 +212,8 @@ function scratchHarness({ failSecondSpawn = false }: { failSecondSpawn?: boolean
         else child.emit('spawn');
       });
       return child;
-    }) as unknown as typeof spawn,
-  });
+    }) as unknown as typeof spawn }), agentRuntime: agentRuntimeFixture({ getAgentDef: () => ({ ...claudeAgentDef, mcpIsolation: { perRun: 'fixture@2026-11-05' } }), resolveModelForLaunch: fixtureLaunchModel, resolveAgentLaunch: () => ({ selectedPath: executable, pathResolvedPath: executable, configuredOverridePath: null,
+      launchPath: executable, launchKind: 'selected', childPathPrepend: [], diagnostic: null }) as AgentLaunchResolution, applyAgentLaunchEnv: ({ env }) => env, ensureAgentCapabilities: async () => {}, assertClaudeFilesystemSupport: async () => true }) });
   return { children, environments, policies, lifecycle, stopProcesses,
     reply: async ({ index }: { index: number }, _options = {}) => {
       (children[index]!.stdout as PassThrough).write(`${JSON.stringify({ type: 'assistant', message: { content: [{ type: 'text', text: 'done' }] } })}\n`);

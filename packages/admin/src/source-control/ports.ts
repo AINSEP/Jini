@@ -1,4 +1,4 @@
-import { adminPort } from '../core/module/token.js';
+import { adminPort } from '@jini-ai/core/contracts/admin-module';
 import type { SourceControlProvider, SourceControlCredential, SourceControlCredentialInput, SourceControlCredentialPatch, SourceControlRequestOptions } from './models.js';
 export interface SourceControlApiPort {
   providers(required: Record<string, never>, optional?: SourceControlRequestOptions): Promise<readonly SourceControlProvider[]>;

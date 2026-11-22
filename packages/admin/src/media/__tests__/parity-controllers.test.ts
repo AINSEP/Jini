@@ -36,7 +36,7 @@ describe('legacy media controller guards', () => {
     expect((await api.list({}))[0]?.slug).toBe('new-slug');
     edit.dispose();
   });
-  it('sends invalid attribute drafts to the independent server validator and exposes its exact error', async () => {
+  it('sends invalid attribute drafts to the independent server validator and exposes safe failure copy', async () => {
     const { api, item } = await fixture();
     const update = vi.fn(async () => { throw new Error("'onclick' is not allowed by the server"); });
     const edit = createEditMediaController({ api: { ...api, update }, item });
@@ -44,7 +44,7 @@ describe('legacy media controller guards', () => {
     expect(await edit.save()).toBe(false);
     expect(update.mock.calls).toHaveLength(1);
     expect(update).toHaveBeenCalledWith({ id: item.id, patch: { title: 'edited', htmlAttributes: 'onclick="alert(1)"' } }, { signal: expect.any(AbortSignal) });
-    expect(edit.getSnapshot().error).toBe("'onclick' is not allowed by the server");
+    expect(edit.getSnapshot().error).toBe('Failed to save media metadata');
     expect((await api.list({}))[0]?.title).toBe('image.png');
     edit.dispose();
   });
@@ -86,7 +86,7 @@ describe('legacy media controller guards', () => {
     await api.trash({ id: item.id });
     await expect(api.replace!({ id: item.id, upload: input })).rejects.toThrow('trashed');
     const abort = new AbortController(); abort.abort();
-    await expect(api.replace!({ id: item.id, upload: input }, { signal: abort.signal })).rejects.toThrow();
+    await expect(api.replace!({ id: item.id, upload: input }, { signal: abort.signal })).rejects.toThrow(abort.signal.reason.message);
   });
   it('exposes replacement only with an HTTP route and forwards encoded identity and abort options', async () => {
     const { item } = await fixture();

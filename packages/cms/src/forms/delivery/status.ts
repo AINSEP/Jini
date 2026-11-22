@@ -2,7 +2,7 @@
  * @file Derives a binding's delivery status from its outbox row. The outbox is the only ledger;
  * keeping a second status table would let the two disagree after a crash or a manual retry.
  */
-import type { OutboxRecord } from "../../core/index.js";
+import type { OutboxRecord } from "@jini-ai/core/contracts/events";
 import { safeFormDeliveryErrorCode } from "./errors.js";
 import type { FormDeliveryErrorCode } from "./types.js";
 

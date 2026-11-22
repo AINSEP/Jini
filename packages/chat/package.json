@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/chat",
-  "version": "0.7.2",
+  "version": "0.7.3-next.2",
   "description": "Jini's chat/artifact frontend, consolidated into one package with two subpaths: framework-free chat vocabulary and pure parsers in `/core`, headless hooks + presentational components + slots in `/react`. Import only the layer you need.",
   "license": "Apache-2.0",
   "repository": {
@@ -27,12 +27,15 @@
       "./store/legacy/sqlite": "node",
       "./core/run-events": "universal",
       "./core/ag-ui": "universal",
+      "./core/ag-ui/reduction": "universal",
+      "./server/ag-ui/run-input": "universal",
       "./server/run-finalizer": "universal",
       "./react/embed": "browser",
       "./transports/fetch-sse": "universal",
       "./transports/http": "universal",
       "./transports/ag-ui": "universal",
       "./browser/session-store": "browser",
+      "./browser/agent-inventory": "browser",
       "./server/durable-runs": "node",
       "./store/runtime": "node",
       "./vanilla": "browser",
@@ -63,7 +66,6 @@
       "@radix-ui/react-select": "opt-in: interactive ui controls; import @jini-ai/chat/react — Interactive UI controls could not load @radix-ui/react-select. Install @radix-ui/react-select to enable this feature, or check its installed version and native binaries.",
       "@radix-ui/react-slot": "opt-in: interactive ui controls — Interactive UI controls could not load @radix-ui/react-slot. Install @radix-ui/react-slot to enable this feature, or check its installed version and native binaries.",
       "@jini-ai/agent-runtime": "opt-in: agent execution adapters; import @jini-ai/chat/react — Agent execution adapters could not load @jini-ai/agent-runtime. Install @jini-ai/agent-runtime to enable this feature, or check its installed version and native binaries.",
-      "@jini-ai/protocol": "opt-in: agent protocol adapters; import @jini-ai/chat/server/durable-runs — Agent protocol adapters could not load @jini-ai/protocol. Install @jini-ai/protocol to enable this feature, or check its installed version and native binaries.",
       "@jini-ai/ui": "opt-in: ui integrations; import @jini-ai/chat/react — UI integrations could not load @jini-ai/ui. Install @jini-ai/ui to enable this feature, or check its installed version and native binaries.",
       "react": "opt-in: react chat ui; import @jini-ai/chat/react — React chat UI could not load react. Install react to enable this feature, or check its installed version.",
       "react-dom": "opt-in: react chat ui; import @jini-ai/chat/react — React chat UI could not load react-dom. Install react-dom to enable this feature, or check its installed version."
@@ -134,9 +136,19 @@
       "default": "./dist/core/run-events/entry.js"
     },
     "./core/ag-ui": {
-      "types": "./dist/core/ag-ui/entry.d.ts",
-      "import": "./dist/core/ag-ui/entry.js",
-      "default": "./dist/core/ag-ui/entry.js"
+      "types": "./dist/core/ag-ui/event-projection.d.ts",
+      "import": "./dist/core/ag-ui/event-projection.js",
+      "default": "./dist/core/ag-ui/event-projection.js"
+    },
+    "./core/ag-ui/reduction": {
+      "types": "./dist/core/ag-ui/event-reduction.d.ts",
+      "import": "./dist/core/ag-ui/event-reduction.js",
+      "default": "./dist/core/ag-ui/event-reduction.js"
+    },
+    "./server/ag-ui/run-input": {
+      "types": "./dist/core/ag-ui/run-input.d.ts",
+      "import": "./dist/core/ag-ui/run-input.js",
+      "default": "./dist/core/ag-ui/run-input.js"
     },
     "./server/run-finalizer": {
       "types": "./dist/server/run-finalizer/entry.d.ts",
@@ -167,6 +179,11 @@
       "types": "./dist/embed-widget/browser/session-store.d.ts",
       "import": "./dist/embed-widget/browser/session-store.js",
       "default": "./dist/embed-widget/browser/session-store.js"
+    },
+    "./browser/agent-inventory": {
+      "types": "./dist/embed-widget/browser/agent-inventory.d.ts",
+      "import": "./dist/embed-widget/browser/agent-inventory.js",
+      "default": "./dist/embed-widget/browser/agent-inventory.js"
     },
     "./server/durable-runs": {
       "types": "./dist/server/durable-runs/entry.d.ts",
@@ -224,9 +241,9 @@
   },
   "dependencies": {
     "@jini-ai/core": "workspace:^",
-    "@jini-ai/agentic": "workspace:^",
     "@jini-ai/db": "workspace:^",
     "@jini-ai/diagnostics": "workspace:^",
+    "@jini-ai/protocol": "workspace:^",
     "kysely": "^0.29.6"
   },
   "peerDependencies": {
@@ -242,9 +259,8 @@
     "@radix-ui/react-radio-group": "^1.4.7",
     "@radix-ui/react-select": "^2.3.7",
     "@radix-ui/react-slot": "^1.3.3",
-    "@jini-ai/agent-runtime": "^0.7.0",
-    "@jini-ai/protocol": "^0.7.0",
-    "@jini-ai/ui": "^0.7.0"
+    "@jini-ai/agent-runtime": "^0.7.3-next.2",
+    "@jini-ai/ui": "^0.7.3-next.2"
   },
   "devDependencies": {
     "@jini-ai/ui-kit": "workspace:^",
@@ -261,9 +277,9 @@
     "@types/jsdom": "^21.1.7",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
-    "@vitest/coverage-v8": "^2.1.9",
-    "zod": "^3.25.76",
-    "jsdom": "^25.0.1",
+    "@vitest/coverage-v8": "^3.2.6",
+    "zod": "^4.6.6",
+    "jsdom": "^26.1.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "@jini-ai/db": "workspace:*",
@@ -310,7 +326,13 @@
         "./dist/core/run-events/entry.d.ts"
       ],
       "core/ag-ui": [
-        "./dist/core/ag-ui/entry.d.ts"
+        "./dist/core/ag-ui/event-projection.d.ts"
+      ],
+      "core/ag-ui/reduction": [
+        "./dist/core/ag-ui/event-reduction.d.ts"
+      ],
+      "server/ag-ui/run-input": [
+        "./dist/core/ag-ui/run-input.d.ts"
       ],
       "server/run-finalizer": [
         "./dist/server/run-finalizer/entry.d.ts"
@@ -329,6 +351,9 @@
       ],
       "browser/session-store": [
         "./dist/embed-widget/browser/session-store.d.ts"
+      ],
+      "browser/agent-inventory": [
+        "./dist/embed-widget/browser/agent-inventory.d.ts"
       ],
       "server/durable-runs": [
         "./dist/server/durable-runs/entry.d.ts"
@@ -379,9 +404,6 @@
       "optional": true
     },
     "@jini-ai/agent-runtime": {
-      "optional": true
-    },
-    "@jini-ai/protocol": {
       "optional": true
     },
     "@jini-ai/ui": {

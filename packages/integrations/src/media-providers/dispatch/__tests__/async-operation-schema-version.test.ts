@@ -19,13 +19,13 @@ const BASE = {
 describe('async operation schema versioning', () => {
     it('stamps every persisted row with the current schema version', async () => {
         const store = createInMemoryAsyncOperationStore();
-        const row = await store.create(...partitionArgs(BASE, ["id", "providerId", "routeKey", "ownerRef", "maxAttempts", "deadlineAt"]));
+        const row = await store.create(...partitionArgs({ value: BASE, requiredKeys: ["id", "providerId", "routeKey", "ownerRef", "maxAttempts", "deadlineAt"] }));
         expect(row.schemaVersion).toBe(ASYNC_OPERATION_SCHEMA_VERSION);
         expect(ASYNC_OPERATION_SCHEMA_VERSION).toBe(1);
     });
     it('keeps the stamped version stable across updates', async () => {
         const store = createInMemoryAsyncOperationStore();
-        await store.create(...partitionArgs(BASE, ["id", "providerId", "routeKey", "ownerRef", "maxAttempts", "deadlineAt"]));
+        await store.create(...partitionArgs({ value: BASE, requiredKeys: ["id", "providerId", "routeKey", "ownerRef", "maxAttempts", "deadlineAt"] }));
         const updated = await store.update({ id: 'op-1', patch: { status: 'polling' } });
         expect(updated?.schemaVersion).toBe(ASYNC_OPERATION_SCHEMA_VERSION);
     });

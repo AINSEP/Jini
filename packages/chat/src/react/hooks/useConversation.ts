@@ -1,4 +1,4 @@
-import { formatErrorForLog } from '@jini-ai/core';
+import { createConsoleLogger, type Logger } from '@jini-ai/core/primitives';
 import { acceptedInputUserEvent, projectAcceptedInputEvents, type AcceptedChatInput } from '../../core/accepted-input.js';
 import { redactUserHistory, redactUserMessage, type UserTextRedactionOptions } from '../../core/user-text-redaction.js';
 import { preserveAssistantContent, mergeRunEvents } from '../../core/durable-projection.js';
@@ -21,14 +21,17 @@ import type { ChatTransport, RunContext } from '../../core/index.js';
 import { useRunStream, type StartRunOptions } from './useRunStream.js';
 
 export interface UseConversationOptions extends UserTextRedactionOptions {
+  report?: Pick<Logger, 'error'> | undefined;
+  useRunStreamHook?: typeof useRunStream;
   transport: ChatTransport;
   initialMessages?: ChatMessage[];
   /** Optional host loader and browser ports, e.g. `{ loadMessages, visibility: document, focus: window }`; refresh stays passive. */
   refreshSignal?: { loadMessages: () => Promise<ChatMessage[]>; visibility: EventTarget & { readonly visibilityState: string }; focus: EventTarget };
   conversationId?: string | null;
   agentId?: string;
-  /** Defaults to a `crypto.randomUUID()`-based id generator when available, else a counter. */
+  /** Defaults to a `crypto.randomUUID()`-based id generator when available, else decimal entropy. */
   createMessageId?: () => string;
+  random?: () => number;
 }
 
 export interface SendMessageOptions {
@@ -69,11 +72,9 @@ export interface UseConversationResult {
   suppressScroll: () => void;
 }
 
-let fallbackIdCounter = 0;
-function defaultCreateMessageId(): string {
+function defaultCreateMessageId({ random }: { random: () => number }, _options = {}): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
-  fallbackIdCounter += 1;
-  return `msg-${Date.now()}-${fallbackIdCounter}`;
+  return `msg-${Date.now()}-${Math.floor(random() * Number.MAX_SAFE_INTEGER)}`;
 }
 
 function pendingUserMessage(
@@ -134,14 +135,13 @@ function runStartInput(
 }
 
 export function useConversation(options: UseConversationOptions): UseConversationResult {
-  const { transport, conversationId = null, agentId, createMessageId = defaultCreateMessageId } = options;
-  const [messages, setMessagesState] = useState<ChatMessage[]>(() => redactUserHistory(
-    { history: options.initialMessages ?? [] },
-    { ...(options.redactUserText ? { redactUserText: options.redactUserText } : {}) },
-  ));
+  const defaultMessageId = useCallback(() => defaultCreateMessageId({ random: options.random ?? Math.random }), [options.random]);
+  const { transport, conversationId = null, agentId, createMessageId = defaultMessageId, useRunStreamHook = useRunStream } = options;
+  const [messages, setMessagesState] = useState<ChatMessage[]>(() => redactUserHistory({ history: options.initialMessages ?? [] },
+    { ...(options.redactUserText ? { redactUserText: options.redactUserText } : {}) }));
   const [scrollIntent, setScrollIntent] = useState(false);
   const [sendRefused, setSendRefused] = useState(false);
-  const run = useRunStream({ transport });
+  const run = useRunStreamHook({ transport }, { report: options.report });
   // The assistant message id the currently-active run is writing into.
   const activeAssistantIdRef = useRef<string | null>(null);
   const messagesRef = useRef(messages);
@@ -162,7 +162,7 @@ export function useConversation(options: UseConversationOptions): UseConversatio
       try {
         const saved = await source.loadMessages();
         if (!disposed) setMessagesState(prev => mergeSavedMessages({ previous: prev, saved }));
-      } catch (error) { if (!disposed) console.error('[chat] conversation refresh failed', formatErrorForLog({ error })); }
+      } catch (error) { if (!disposed) { const logger = options.report ?? createConsoleLogger({ prefix: '' }); logger.error({ message: '[chat] conversation refresh failed' }, { error }); } }
       finally { pending = false; }
     };
     const schedule = () => {
@@ -172,7 +172,7 @@ export function useConversation(options: UseConversationOptions): UseConversatio
     const events: [EventTarget, string][] = [[source.visibility, 'visibilitychange'], [source.focus, 'focus']];
     for (const [target, event] of events) target.addEventListener(event, schedule);
     return () => { disposed = true; clearTimeout(timer); for (const [target, event] of events) target.removeEventListener(event, schedule); };
-  }, [options.refreshSignal, run.isStreaming]);
+  }, [options.refreshSignal, run.isStreaming, options.report]);
 
   /**
    * The mount-time snapshot of `initialMessages`, captured once — the same "read once, never react

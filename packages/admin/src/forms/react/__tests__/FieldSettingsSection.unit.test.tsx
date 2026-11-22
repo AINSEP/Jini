@@ -1,7 +1,9 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "./harness.js";
 import { describe, expect, it, vi } from "vitest";
 
 import type { AdminFormField } from "../../models.js";
+import { fakeFormsCatalog } from "../../__tests__/fakes/forms-catalog.js";
+import { FormsCatalogScope } from "./catalog-scope.js";
 import { settingsFormFromField, type FieldSettingsForm } from "../../field-settings.js";
 import type { FieldAttributesDialogController } from "../hooks/use-field-attributes-dialog.hooks.js";
 import { FieldSettingsSection } from "../components/FieldSettingsSection.js";
@@ -27,8 +29,8 @@ function fakeController(settings: FieldSettingsForm): FieldAttributesDialogContr
 }
 
 function renderFor(f: AdminFormField, patch: Partial<FieldSettingsForm> = {}) {
-  const controller = fakeController({ ...settingsFormFromField({ field: f }), ...patch });
-  const view = render(<FieldSettingsSection field={f} controller={controller} t={t} />);
+  const controller = fakeController({ ...settingsFormFromField({ catalog: fakeFormsCatalog(), field: f }), ...patch });
+  const view = render(<FormsCatalogScope><FieldSettingsSection field={f} controller={controller} t={t} /></FormsCatalogScope>);
   return { controller, ...view };
 }
 

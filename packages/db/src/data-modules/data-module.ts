@@ -1,5 +1,5 @@
 /**
- * @file The core-mediated plugin dataModule engine (ADR-023 §2/§3/§4/§5/§6/§9).
+ * @file The core-mediated plugin dataModule engine.
  *
  * A plugin DECLARES its desired tables as data; CORE alone executes the DDL. A plugin never
  * authors a migration and never holds a raw DB handle. The flow, in order:
@@ -211,8 +211,8 @@
  * in the other direction (the same principle `discardCommittedSnapshot` already documents: "must
  * not turn a successful migration into a reported failure").
  *
- * T2 (§4's exclusive cross-process lock) is DELIBERATELY NOT acquired here — SPEC-033 correction
- * (2026-07-16), superseding SPEC-032's original implementation. The ADR's own §4 text scopes T2's
+ * T2 (the exclusive cross-process lock) is DELIBERATELY NOT acquired here — correction
+ * (2026-07-16), superseding the original implementation. The original design scopes T2's
  * purpose narrowly: "The SQLite online backup API is safe under concurrent writers during
  * snapshot creation — that step needs no change here. Restore is a different, less-safe
  * operation" — the lock exists to guard RESTORE, not the live snapshot+DDL window. `restore.ts`'s
@@ -221,7 +221,7 @@
  * any other connection exists) — so T2's stated danger literally cannot occur here. Holding a
  * real `PRAGMA locking_mode=EXCLUSIVE` during the live window instead caused a genuine,
  * deterministic production bug: a live multi-boot smoke test against the real server found the
- * store plugin's own separate `content.db` connection (`store-plugin.ts#bootstrapStore`) failing
+ * store plugin's own separate `content.db` connection (`store plugin bootstrap`) failing
  * boot with "database is locked" every time, confirmed via A/B testing (disabling the lock calls
  * made the failure disappear immediately) — the exact interleaving mechanism was not fully
  * root-caused (multiple fire-and-forget dataModule declares and other writers share one
@@ -230,12 +230,12 @@
  * ADR-stated justification doesn't apply here, rather than debugging a specific interleaving
  * further, is the correct call.
  *
- * ADR-023 is ACCEPTED (2026-07-11) after a 3-round external audit whose T1-T8 findings are now
+ * The dataModule design is ACCEPTED (2026-07-11) after a 3-round external audit whose T1-T8 findings are now
  * ALL reflected in code across this file, `migration-journal.ts`, `disk-headroom.ts`,
- * `plugin-identity.ts`, `migration-recovery.ts`, and `restore.ts` — see SPEC-032/SPEC-033 for the
- * full record of which finding lives where. This engine exists ahead of §12's "v1 ships seams
+ * `plugin-identity.ts`, `migration-recovery.ts`, and `restore.ts` — see the original specs for the
+ * full record of which finding lives where. This engine exists ahead of the "v1 ships seams
  * only" schedule: §12's own last line permits shipping it early "against a concrete demand
- * plugin," and Newsletter (`src/newsletter/data-module-manifest.ts`) is exactly that — a real
+ * plugin," and Newsletter (a host module) is exactly that — a real
  * production consumer already calling this engine before this file's safety mechanics existed.
  *
  * STORAGE KERNEL (2026-09-28, storage plan P1): the engine runs on the storage kernel, so the same
@@ -249,11 +249,11 @@
  *
  * NOTE (§0 access-control caveat): a Tier-3 in-process plugin could bypass this by opening the db
  * file directly. The RECOVERABILITY guarantee here (who snapshots + who runs DDL = core) holds
- * unconditionally for core-mediated DDL; the access-control framing is advisory until ADR-024 §4
- * Rung 2 (capability sandbox) ships — see ADR-023 §0 for the full, precise wording.
+ * unconditionally for core-mediated DDL; the access-control framing is advisory until
+ * Rung 2 (capability sandbox) ships — see the original design for the full, precise wording.
  */
+import { createConsoleLogger, type Logger } from "@jini-ai/core/primitives";
 import { statSync } from "node:fs";
-
 import { sql } from "kysely";
 
 import {
@@ -265,10 +265,8 @@ import {
   listTables,
 } from "../kernel/index.js";
 import { checkDiskHeadroom, type HeadroomCheck } from "./disk-headroom.js";
-import { advanceJournalPhase, beginJournalEntry, ensureMigrationJournal, stageJournalPhase } from "./migration-journal.js";
-import type { JournalPhase } from "./migration-journal.js";
-import { checkNamespaceAdoption } from "./plugin-identity.js";
-import type { PluginProvenance } from "./plugin-identity.js";
+import { advanceJournalPhase, beginJournalEntry, ensureMigrationJournal, stageJournalPhase, type JournalPhase } from "./migration-journal.js";
+import { checkNamespaceAdoption, type PluginProvenance } from "./plugin-identity.js";
 import { type PluginKernel, type PluginStore, pluginKernel } from "./plugin-store.js";
 import { discardCommittedSnapshot, isInMemoryDbPath, snapshotDb } from "./snapshot.js";
 
@@ -283,11 +281,11 @@ export interface ColumnDecl {
 }
 
 /**
- * ADR-023 §2 ("declared FKs") / ADR-031 OQ-1 (SDK stress-test finding) — the dataModule seam's
+ * Declared FKs / the SDK stress-test finding — the dataModule seam's
  * declared-index grammar. Comments' moderation-queue query pattern
  * (`workspace_id, entry_id, status`) is the concrete demand this grows the seam against, per
  * OQ-1's own instruction not to silently work around the gap. Deliberately NOT a foreign-key
- * declaration seam too — ADR-031 §2 itself says referential integrity to `entries`/parent
+ * declaration seam too — the original design says referential integrity to `entries`/parent
  * comments is "chokepoint-validated, not FK-enforced (v1)", so only indexes are the real,
  * load-bearing need; adding FK-declaration grammar with no consumer would be speculative.
  */
@@ -453,7 +451,7 @@ function validate(decl: DataModuleDecl): void {
  * SQLite). The same text is what `_plugin_migrations.ddl` records.
  */
 function columnSql(kernel: PluginKernel, col: ColumnDecl): string {
-  let ddl = `"${col.name}" ${columnTypeSql(kernel.dialect, col.type)}`;
+  let ddl = `"${col.name}" ${columnTypeSql({ dialect: kernel.dialect, affinity: col.type })}`;
   if (col.primaryKey) ddl += " PRIMARY KEY";
   if (col.notNull) ddl += " NOT NULL";
   return ddl;
@@ -471,23 +469,23 @@ function indexSql(fqTableName: string, idx: IndexDecl): { indexName: string; sql
   return { indexName, sql: `CREATE ${unique}INDEX "${indexName}" ON "${fqTableName}" (${columns})` };
 }
 
-/** Core's own migration timeline, extended to admit plugin entries later (ADR-023 §12). */
+/** Core's own migration timeline, extended to admit plugin entries later. */
 async function ensureJournal(kernel: PluginKernel): Promise<void> {
-  const text = sql.raw(columnTypeSql(kernel.dialect, "TEXT"));
+  const text = sql.raw(columnTypeSql({ dialect: kernel.dialect, affinity: "TEXT" }));
   await kernel.execute(sql`CREATE TABLE IF NOT EXISTS _plugin_migrations (
-       id ${sql.raw(autoIdColumnSql(kernel.dialect))},
+       id ${sql.raw(autoIdColumnSql({ dialect: kernel.dialect }))},
        plugin_id ${text} NOT NULL,
        table_name ${text} NOT NULL,
        ddl ${text} NOT NULL,
        snapshot_path ${text},
-       at ${sql.raw(columnTypeSql(kernel.dialect, "INTEGER"))} NOT NULL
+       at ${sql.raw(columnTypeSql({ dialect: kernel.dialect, affinity: "INTEGER" }))} NOT NULL
      )`);
 }
 
 async function existingTables(kernel: PluginKernel, names: string[]): Promise<Set<string>> {
   if (names.length === 0) return new Set();
   const wanted = new Set(names);
-  return new Set((await listTables(kernel)).filter((name) => wanted.has(name)));
+  return new Set((await listTables({ kernel })).filter((name) => wanted.has(name)));
 }
 
 interface ExistingColumnInfo {
@@ -519,7 +517,7 @@ interface ReconciliationPlan {
  * `pragma_table_info`, whose ordinal `pk` it already reads as "is part of the primary key").
  */
 async function getExistingColumns(kernel: PluginKernel, fqTableName: string): Promise<Map<string, ExistingColumnInfo>> {
-  const columns = await listColumns(kernel, fqTableName);
+  const columns = await listColumns({ kernel, table: fqTableName });
   return new Map(columns.map((c) => [c.name, { type: c.type, notNull: c.notNull, primaryKey: c.primaryKey }]));
 }
 
@@ -559,7 +557,7 @@ function planMissingColumn(tableName: string, col: ColumnDecl): ColumnDecl {
  */
 function assertColumnTypeMatches(kernel: PluginKernel, tableName: string, col: ColumnDecl, existingCol: ExistingColumnInfo): void {
   // Type names compare case-insensitively (SQLite's own rule): `listColumns` reports lower case.
-  if (existingCol.type === columnTypeSql(kernel.dialect, col.type).toLowerCase()) return;
+  if (existingCol.type === columnTypeSql({ dialect: kernel.dialect, affinity: col.type }).toLowerCase()) return;
   throw new DeclError(
     "COLUMN_TYPE_MISMATCH",
     `table ${tableName} column "${col.name}" is declared ${col.type} but the live column is ` +
@@ -654,7 +652,7 @@ interface IndexReconciliationPlan {
  * indexes) were never declared through `IndexDecl` or created by this module's own `indexSql`.
  */
 async function planIndexReconciliation(kernel: PluginKernel, table: TableDecl, fqTableName: string): Promise<IndexReconciliationPlan> {
-  const existingIndexes = await listIndexes(kernel, fqTableName);
+  const existingIndexes = await listIndexes({ kernel, table: fqTableName });
   const indexesToAdd: IndexDecl[] = [];
   const indexesToRecreate: IndexDecl[] = [];
   for (const idx of table.indexes ?? []) {
@@ -722,7 +720,7 @@ async function recordMigration(
  * only covers the alter path this fix adds, matching `missingColumns`'s scope one level up.
  */
 async function verifyAlteredIndexes(kernel: PluginKernel, alteration: TableAlterationPlan): Promise<string[]> {
-  const nowExistingIndexes = await listIndexes(kernel, alteration.fqTableName);
+  const nowExistingIndexes = await listIndexes({ kernel, table: alteration.fqTableName });
   const declaredIndexes = [...alteration.indexesToAdd, ...alteration.indexesToRecreate];
   return declaredIndexes
     .map((idx) => indexSql(alteration.fqTableName, idx).indexName)
@@ -902,81 +900,41 @@ async function finishCommittedMigration(
   }
 }
 
-/**
- * Declare (reconcile) a plugin's tables. Core snapshots first, then runs the DDL transactionally.
- *
- * `db` is the storage kernel (or a SQLite connection, bridged to its kernel). `dbPath` names the
- * SQLite file behind it, for the snapshot; it is ignored for a Postgres/PGlite kernel.
- * `checkHeadroom` replaces only disk measurement; the existing disk-headroom adapter is the default.
- *
- * @agent-note `dbPath` must name the file behind `db`. `":memory:"`, `""` or a memory URI for a
- * file-backed database skips the snapshot, journal and headroom check with no error. Another
- * file's path still snapshots `db`, but beside that file, and sizes headroom from that file.
- * `decl.provenance` is checked against the stored identity row; see {@link PluginProvenance}.
- */
-export async function declareDataModule(
-  required: { db: PluginStore; dbPath: string; decl: DataModuleDecl },
-  { checkHeadroom = ({ dbPath }, _optional = {}) => checkDiskHeadroom({ dbPath }) }: {
-    checkHeadroom?: (required: { dbPath: string }, optional?: Record<string, never>) => HeadroomCheck;
-  } = {}
-): Promise<DeclareResult> {
-  const { dbPath, decl } = required;
-  const kernel = pluginKernel({ store: required.db });
-  let plan: ReconciliationPlan;
-  try {
-    // Validate entirely before any I/O (§5 namespace + column shape + §3/T6 tier), then diff
-    // declared-state against live-state (§2) — both table presence AND, for a table that already
-    // exists, its declared columns against its live columns (this file's header comment).
-    validate(decl);
-    kernel.require("transactionalDdl");
-    const fq = decl.tables.map((t) => fqName(decl.pluginId, t.name));
-    const existing = await existingTables(kernel, fq);
-    plan = await planReconciliation(kernel, decl, existing);
-  } catch (err) {
-    const e = err as DeclError;
-    return { ok: false, created: [], altered: [], snapshotPath: null, error: { code: e.code, message: e.message } };
-  }
-
-  if (plan.toCreate.length + plan.toAlter.length === 0) {
-    return { ok: true, created: [], altered: [], snapshotPath: null }; // idempotent no-op — nothing to snapshot
-  }
-
-  // Snapshot + journal exist for next-boot restore of a whole SQLite file (this file's header,
-  // STORAGE KERNEL): nothing to restore for an in-memory db or a Postgres/PGlite kernel.
-  // The snapshot, its boot restore and the headroom check bind to the file this connection has open,
-  // not to the named path. Identity is the filesystem's (dev, ino): two paths (a second bind mount,
-  // a hard link) can name one file. A path naming another file warns and never blocks the install.
+/** The SQLite file this connection really has open, warning when the configured path names another file.
+ * Unchanged for an in-memory path or a Postgres/PGlite kernel. */
+async function resolveOpenDbPath(
+  { kernel, dbPath, logger, pluginId }: { kernel: PluginKernel; dbPath: string; logger: Pick<Logger, "warn">; pluginId: string },
+  _optional: Record<string, never> = {}
+): Promise<string> {
   let openDbPath = dbPath;
   if (kernel.dialect === "sqlite" && !isInMemoryDbPath({ dbPath })) {
     const [main] = await kernel.query<{ file: string }>(sql`SELECT file FROM pragma_database_list WHERE name = 'main'`);
     openDbPath = main?.file || ":memory:";
-    const named = statSync(dbPath, { throwIfNoEntry: false });
-    const open = main?.file ? statSync(main.file, { throwIfNoEntry: false }) : undefined;
-    if (!named || !open || named.dev !== open.dev || named.ino !== open.ino) {
-      console.warn(`[data-module] ${decl.pluginId}: ${dbPath} is not the database this connection has open (${main?.file || "an in-memory database"}). Its tables are installed in the open database, and the safety snapshot and disk-space check use it too. Fix the configured database path.`);
-    }
+    warnIfNotOpenFile({ dbPath, openFile: main?.file, logger, pluginId });
   }
-  const recoverable = kernel.dialect === "sqlite" && !isInMemoryDbPath({ dbPath: openDbPath });
-  const preflight = await runPreflightChecks(kernel, openDbPath, decl, recoverable, checkHeadroom);
-  if (!preflight.ok) {
-    return { ok: false, created: [], altered: [], snapshotPath: null, error: preflight.error };
+  return openDbPath;
+}
+
+/** File identity is the filesystem's (dev, ino); a configured path naming another file warns and never blocks the install. */
+function warnIfNotOpenFile(
+  { dbPath, openFile, logger, pluginId }: { dbPath: string; openFile: string | undefined; logger: Pick<Logger, "warn">; pluginId: string },
+  _optional: Record<string, never> = {}
+): void {
+  const named = statSync(dbPath, { throwIfNoEntry: false });
+  const open = openFile ? statSync(openFile, { throwIfNoEntry: false }) : undefined;
+  if (!named || !open || named.dev !== open.dev || named.ino !== open.ino) {
+    // Paths are left out of the line (they can name private locations); the plugin id says which one.
+    logger.warn({ message: `${pluginId}: the configured database path is not the database this connection has open (${openFile ? "another file is open" : "an in-memory database is open"}). Its tables are installed in the open database, and the safety snapshot and disk-space check use it too. Fix the configured database path.` });
   }
+}
 
-  // §4 — snapshot the WHOLE db BEFORE any DDL. This is the never-brick anchor.
-  // `snapshotDb` returns `null` for an in-memory `dbPath` (BUG FIX 2026-07-28, see `snapshot.ts`) —
-  // no file was ever written, so there is nothing to journal a recovery pointer to.
-  const snapshotPath = recoverable ? await snapshotDb({ db: kernel, dbPath: openDbPath, label: decl.pluginId }) : null;
-
-  // The phase-journal (§2/T3) exists solely to let `migration-recovery.ts` restore a crash-
-  // interrupted attempt at NEXT BOOT. An in-memory db has no next boot — the whole database
-  // vanishes with the process — so there is nothing for the journal to ever recover, and
-  // `_plugin_migration_journal.snapshot_path` is `NOT NULL` (see `migration-journal.ts`) and could
-  // not hold a null `snapshotPath` even if we tried. `journalId` stays `null` and every phase
-  // transition below is then a no-op for this case; the transaction's own same-process rollback
-  // (§9, the only failure mode a same-process in-memory db can ever hit) is unaffected and remains
-  // the complete safety net.
-  const journalId = await openJournalIfFileBacked(kernel, decl.pluginId, snapshotPath);
-
+/** Run all DDL for the plan in one transaction; any throw rolls it back and is reported as DDL_FAILED. */
+async function applyPlanAtomically(
+  { kernel, decl, plan, journalId, snapshotPath, logger }: {
+    kernel: ReturnType<typeof pluginKernel>; decl: DataModuleDecl; plan: ReconciliationPlan;
+    journalId: Awaited<ReturnType<typeof openJournalIfFileBacked>>; snapshotPath: string | null; logger: Pick<Logger, "error">;
+  },
+): Promise<DeclareResult> {
   const created: string[] = [];
   const altered: string[] = [];
   try {
@@ -1013,18 +971,93 @@ export async function declareDataModule(
     // rollback just performed IS the full recovery, no crash-recovery boot path can ever exist for
     // `:memory:` to need one.
     await advancePhaseIfJournaled(kernel, journalId, "ROLLED_BACK");
-    const e = err as Error;
-    return {
-      ok: false,
-      created: [],
-      altered: [],
-      snapshotPath,
-      recoveryPoint: snapshotPath ?? undefined,
-      error: { code: "DDL_FAILED", message: e.message },
-    };
+    // The native DDL error goes to the reporter only; the result names the plugin and the rollback.
+    const error = reportedFailure({ code: "DDL_FAILED", message: `The tables for plugin ${decl.pluginId} could not be created or altered; the change was rolled back.`, err, logger });
+    return { ok: false, created: [], altered: [], snapshotPath, recoveryPoint: snapshotPath ?? undefined, error };
   }
 
-  await finishCommittedMigration({ kernel, journalId, snapshotPath });
-
   return { ok: true, created, altered, snapshotPath };
+}
+
+/** A declaration refusal keeps its own text; anything else is reported and named without native text. */
+function preflightError({ err, pluginId, logger }: { err: unknown; pluginId: string; logger: Pick<Logger, "error"> }, _optional: Record<string, never> = {}): { code: string; message: string } {
+  if (err instanceof DeclError) return { code: err.code, message: err.message };
+  return reportedFailure({ code: "PREFLIGHT_FAILED", message: `The existing tables for plugin ${pluginId} could not be read, so nothing was changed.`, err, logger });
+}
+
+/** Sends the native error to the reporter and returns only the plain-words answer. */
+function reportedFailure({ code, message, err, logger }: { code: string; message: string; err: unknown; logger: Pick<Logger, "error"> }, _optional: Record<string, never> = {}): { code: string; message: string } {
+  logger.error({ message }, { error: err });
+  return { code, message };
+}
+
+/**
+ * Declare (reconcile) a plugin's tables. Core snapshots first, then runs the DDL transactionally.
+ *
+ * `db` is the storage kernel (or a SQLite connection, bridged to its kernel). `dbPath` names the
+ * SQLite file behind it, for the snapshot; it is ignored for a Postgres/PGlite kernel.
+ * `checkHeadroom` replaces only disk measurement; the existing disk-headroom adapter is the default.
+ *
+ * @agent-note `dbPath` must name the file behind `db`. `":memory:"`, `""` or a memory URI for a
+ * file-backed database skips the snapshot, journal and headroom check with no error. Another
+ * file's path still snapshots `db`, but beside that file, and sizes headroom from that file.
+ * `decl.provenance` is checked against the stored identity row; see {@link PluginProvenance}.
+ */
+export async function declareDataModule(
+  required: { db: PluginStore; dbPath: string; decl: DataModuleDecl },
+  { checkHeadroom = ({ dbPath }, _optional = {}) => checkDiskHeadroom({ dbPath }), report: logger = createConsoleLogger({ prefix: "[data-module]" }) }: {
+    checkHeadroom?: (required: { dbPath: string }, optional?: Record<string, never>) => HeadroomCheck;
+    report?: Pick<Logger, "warn" | "error">;
+  } = {}
+): Promise<DeclareResult> {
+  const { dbPath, decl } = required;
+  const kernel = pluginKernel({ store: required.db });
+  let plan: ReconciliationPlan;
+  try {
+    // Validate entirely before any I/O (§5 namespace + column shape + §3/T6 tier), then diff
+    // declared-state against live-state (§2) — both table presence AND, for a table that already
+    // exists, its declared columns against its live columns (this file's header comment).
+    validate(decl);
+    kernel.require("transactionalDdl");
+    const fq = decl.tables.map((t) => fqName(decl.pluginId, t.name));
+    const existing = await existingTables(kernel, fq);
+    plan = await planReconciliation(kernel, decl, existing);
+  } catch (err) {
+    return { ok: false, created: [], altered: [], snapshotPath: null, error: preflightError({ err, pluginId: decl.pluginId, logger }) };
+  }
+
+  if (plan.toCreate.length + plan.toAlter.length === 0) {
+    return { ok: true, created: [], altered: [], snapshotPath: null }; // idempotent no-op — nothing to snapshot
+  }
+
+  // Snapshot + journal exist for next-boot restore of a whole SQLite file (this file's header,
+  // STORAGE KERNEL): nothing to restore for an in-memory db or a Postgres/PGlite kernel.
+  // The snapshot, its boot restore and the headroom check bind to the file this connection has open,
+  // not to the named path. Identity is the filesystem's (dev, ino): two paths (a second bind mount,
+  // a hard link) can name one file. A path naming another file warns and never blocks the install.
+  const openDbPath = await resolveOpenDbPath({ kernel, dbPath, logger, pluginId: decl.pluginId });
+  const recoverable = kernel.dialect === "sqlite" && !isInMemoryDbPath({ dbPath: openDbPath });
+  const preflight = await runPreflightChecks(kernel, openDbPath, decl, recoverable, checkHeadroom);
+  if (!preflight.ok) {
+    return { ok: false, created: [], altered: [], snapshotPath: null, error: preflight.error };
+  }
+
+  // §4 — snapshot the WHOLE db BEFORE any DDL. This is the never-brick anchor.
+  // `snapshotDb` returns `null` for an in-memory `dbPath` (BUG FIX 2026-07-28, see `snapshot.ts`) —
+  // no file was ever written, so there is nothing to journal a recovery pointer to.
+  const snapshotPath = recoverable ? await snapshotDb({ db: kernel, dbPath: openDbPath, label: decl.pluginId }) : null;
+
+  // The phase-journal (§2/T3) exists solely to let `migration-recovery.ts` restore a crash-
+  // interrupted attempt at NEXT BOOT. An in-memory db has no next boot — the whole database
+  // vanishes with the process — so there is nothing for the journal to ever recover, and
+  // `_plugin_migration_journal.snapshot_path` is `NOT NULL` (see `migration-journal.ts`) and could
+  // not hold a null `snapshotPath` even if we tried. `journalId` stays `null` and every phase
+  // transition below is then a no-op for this case; the transaction's own same-process rollback
+  // (§9, the only failure mode a same-process in-memory db can ever hit) is unaffected and remains
+  // the complete safety net.
+  const journalId = await openJournalIfFileBacked(kernel, decl.pluginId, snapshotPath);
+
+  const applied = await applyPlanAtomically({ kernel, decl, plan, journalId, snapshotPath, logger });
+  if (applied.ok) await finishCommittedMigration({ kernel, journalId, snapshotPath });
+  return applied;
 }

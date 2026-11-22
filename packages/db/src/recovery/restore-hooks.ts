@@ -14,7 +14,7 @@ import type {
 import type { LedgerAppendPort } from "./migrate-forward-hooks.js";
 
 /**
- * @file Recovery's `GatedMutationHooks` factory for the `restore` ceremony (SPEC-019 C-301/C-303),
+ * @file Recovery's `GatedMutationHooks` factory for the `restore` ceremony,
  * plus `toRecoveryResult` (the throwing-gateway-to-`Result` adapter `recovery-orchestrator.ts`'s
  * ports declare) — the domain-specific quarter of what used to be
  * `server/gated-mutations-composition.ts`, split out so Recovery no longer needs a back-edge into
@@ -37,7 +37,7 @@ export interface BuildRestoreHooksInput extends RecoveryHookPolicy {
   idGen: IdGeneratorPort;
   restorePointsRepo: { list(): Promise<Array<{ id: string; createdAt: string; artifactRef: string }>> };
   databaseLedgerRepo: LedgerAppendPort;
-  /** SPEC-016 `DbOpsPort` — real (SQLite) composition performs the physical file swap;
+  /** `DbOpsPort` — real (SQLite) composition performs the physical file swap;
    * hermetic-test composition's in-memory double is a no-op (`restartRequired: false`). */
   dbOps: { restoreFromArtifact(required: { artifactRef: string }): Promise<{ restartRequired: boolean }> };
   /** Round-5 re-audit (2026-07-16, TM-adr041-043-044-045-audit-001, R5-F2 / Fable
@@ -55,29 +55,29 @@ export class RestorePointNotFoundError extends Error {
 }
 
 /**
- * SPEC-019 C-301/C-303 — the Recovery `restore` ceremony's `GatedMutationHooks`.
+ * The Recovery `restore` ceremony's `GatedMutationHooks`.
  *
  * `executeMutation()` is a deliberately, disclosedly SCOPED implementation: it validates the
  * target restore point still exists and records a real `restore.executed` `database_ledger` row —
  * the honest, auditable half of a restore. It does NOT physically overwrite the live `content.db`
  * file. This codebase has no mechanism to hot-swap the shared, already-open `content.db`
- * connection every other repo across `server/deps.ts` holds a reference to (doing so would either
+ * connection every other repo across a host module holds a reference to (doing so would either
  * crash every other in-flight request against a closed handle, or silently leave every existing
  * repo instance reading the stale pre-restore file) — inventing an unreviewed live-swap or
  * process-restart mechanism here is exactly the kind of unrequested architecture this dispatch's
- * own guardrails warn against, and ADR-041/ADR-045 do not pin a specific mechanism for it either.
+ * own guardrails warn against, and the original designs do not pin a specific mechanism for it either.
  * `[CIC_REQUESTED]` Unit=gated-mutations-composition Trigger=recovery restore execute
  * Property=REQ-06/AC-XX "a confirmed restore actually replaces content.db's data"
  * PlausibleWrong=silently faking a full hot restore, or crashing the process mid-request
  * MissingConstraint=a defined live-swap-or-restart mechanism for the shared `content.db`
- * connection Evidence=ADR-041 §2 (`content.db` restore = whole-file copy), ADR-045 §3, this file.
+ * connection Evidence=the original design (`content.db` restore = whole-file copy), this file.
  * The plan -> confirm -> execute ceremony itself (token flow, authorize, operation-lock,
  * disclosure-acknowledgment gate) is fully real and this file's own test coverage exercises it
  * end-to-end; only the final byte-for-byte file replacement is the disclosed gap.
  *
  * `scopeKind: "instance"` (internal audit, 2026-08-12): `dbOps.restoreFromArtifact` (`db/sqlite/
  * db-ops.ts`) physically swaps the entire `content.db` file, and a `content.db` can hold more
- * than one workspace row (`site-dir/resolve-workspace.ts`, ADR-007, SPEC-044's admin CRUD). A
+ * than one workspace row (`site-dir/resolve-workspace.ts`, the host's admin CRUD). A
  * principal authorized only within one workspace has no standing to replace data belonging to
  * every OTHER workspace that file also holds — the ordinary workspace-scoped `authorize()` this
  * hook used before would either deny every principal (no real workspace ever matches a
@@ -86,7 +86,7 @@ export class RestorePointNotFoundError extends Error {
  * composition.ts`'s `buildOwnerOnlyInstanceAuthorize` for the evaluator this now routes through.
  *
  * @complexity O(n) in the number of restore points (one `list()` scan per `computePlan` and per
- * `executeMutation` — low-volume, ADR-041 §2).
+ * `executeMutation` — low-volume).
  */
 export function buildRestoreHooks(input: BuildRestoreHooksInput, _optional: Record<string, never> = {}): GatedMutationHooks<{ restorePointId: string }, { restoreRunId: string; state: string; restartRequired: boolean }> {
   return {
@@ -128,7 +128,7 @@ export function buildRestoreHooks(input: BuildRestoreHooksInput, _optional: Reco
       });
 
       // Round-5 re-audit (TM-adr041-043-044-045-audit-001, R5-F2 fix): a successful restore is the
-      // ceremony ADR-041 §3's own text names as how an operator "resolves" a crash-interrupted
+      // ceremony the original design names as how an operator "resolves" a crash-interrupted
       // migration -- so it must actually exit BLOCKED_PENDING_RECOVERY, not just record a ledger
       // row. Terminalize whatever non-terminal migration_runs row exists for this site (if any --
       // a restore can also be run for reasons unrelated to a crash-interrupted migration, in which

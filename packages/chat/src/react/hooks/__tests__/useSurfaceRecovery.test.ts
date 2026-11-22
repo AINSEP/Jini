@@ -2,7 +2,7 @@ import { act, renderHook } from '@testing-library/react';
 import { expect, test, vi } from 'vitest';
 import { useSurfaceRecovery } from '../useSurfaceRecovery.js';
 import { SURFACE_EXCHANGE_META } from '../../../core/surface-recovery.js';
-import type { UIResource } from '@jini-ai/ui/mcp-ui';
+import type { UIResource } from '@jini-ai/protocol/mcp-ui';
 
 const info = { exchangeId: 'old', toolId: 'save', runId: 'run' };
 const resource: UIResource = { type: 'resource', resource: {

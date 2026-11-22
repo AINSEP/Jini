@@ -1,3 +1,4 @@
+import { reportRouteInternalError } from '@jini-ai/http-kit';
 import { describe, expect, it, vi } from 'vitest';
 import { createToolRegistry, type Principal } from '@jini-ai/core';
 import {
@@ -23,7 +24,7 @@ function settlingExecutor(result: ToolExecutionResult): ToolExecutor {
 
 async function callRoute(result: ToolExecutionResult, overrides: Partial<DelegatedToolsHttpDeps> = {}) {
   const onInternalError = vi.fn<(context: DelegatedToolsInternalErrorContext) => void>();
-  const deps: DelegatedToolsHttpDeps = {
+  const deps: DelegatedToolsHttpDeps = { reportInternalError: reportRouteInternalError,
     lifecycle: createRunLifecycle({ eventLog: createInMemoryEventLog({}) }),
     toolExecutor: settlingExecutor(result),
     resolvePrincipal: () => PRINCIPAL,
@@ -55,7 +56,7 @@ describe('delegated tool route: ToolExecutionResult status mapping', () => {
 
   it('timed-out reports the status itself as the error and as context.status', async () => {
     const { response, onInternalError, runId } = await callRoute({ executionId: 'x', status: 'timed-out', error: 'ignored text' });
-    expect(response).toMatchObject({ ok: false, error: { code: 'INTERNAL_ERROR', message: 'an internal error occurred' } });
+    expect(response).toMatchObject({ ok: false, error: { code: 'INTERNAL_ERROR', message: 'The tool could not run because of a server fault. Do not retry the same call; tell the user to copy the request ID and report this problem.' } });
     expect(onInternalError).toHaveBeenCalledWith(expect.objectContaining({ source: 'delegated-tool-execute', runId, toolId: 'any', error: 'timed-out', status: 'timed-out' }));
   });
 
@@ -85,7 +86,7 @@ describe('delegated tool route: ToolExecutionResult status mapping', () => {
   it('failed with an empty error never consults the model-safe marker and stays the redacted 500', async () => {
     const isModelSafeToolFailure = vi.fn(() => true);
     const { response, onInternalError } = await callRoute({ executionId: 'x', status: 'failed', errorKind: 'internal', error: '' }, { isModelSafeToolFailure });
-    expect(response).toMatchObject({ ok: false, error: { code: 'INTERNAL_ERROR', message: 'an internal error occurred' } });
+    expect(response).toMatchObject({ ok: false, error: { code: 'INTERNAL_ERROR', message: 'The tool could not run because of a server fault. Do not retry the same call; tell the user to copy the request ID and report this problem.' } });
     expect(isModelSafeToolFailure).not.toHaveBeenCalled();
     // `''` is not nullish, so the sink receives the empty text rather than the status.
     expect(onInternalError).toHaveBeenCalledWith(expect.objectContaining({ error: '', status: 'failed' }));
@@ -100,7 +101,7 @@ describe('delegated tool route: ToolExecutionResult status mapping', () => {
     const result: ToolExecutionResult = { executionId: 'x', status: 'failed', errorKind: 'internal', error: 'secret detail' };
     const isModelSafeToolFailure = vi.fn(() => false);
     const { response, onInternalError } = await callRoute(result, { isModelSafeToolFailure });
-    expect(response).toMatchObject({ ok: false, error: { code: 'INTERNAL_ERROR', message: 'an internal error occurred' } });
+    expect(response).toMatchObject({ ok: false, error: { code: 'INTERNAL_ERROR', message: 'The tool could not run because of a server fault. Do not retry the same call; tell the user to copy the request ID and report this problem.' } });
     expect(isModelSafeToolFailure).toHaveBeenCalledWith({ result });
     expect(onInternalError).toHaveBeenCalledWith(expect.objectContaining({ error: 'secret detail', status: 'failed' }));
   });

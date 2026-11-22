@@ -11,6 +11,7 @@
  * a host only needs to supply its own `data` port (and, if it wants live
  * updates, the SSE endpoint URL).
  */
+import { fakeLatencyDelay } from '../../utils/fake-latency.js';
 import { parseLiveUpdateAssetId } from './rules.js';
 import type { AssetGridItem, AssetGridQuery } from './types.js';
 import type {
@@ -33,17 +34,15 @@ export function createFakeAssetGridDataPort<TAsset extends AssetGridItem>(
   options: FakeAssetGridDataPortOptions<TAsset> = {},
 ): AssetGridDataPort<TAsset> {
   const assets = options.assets ? [...options.assets] : [];
-  const latencyMs = options.latencyMs ?? 0;
   const matchesQuery = options.matchesQuery ?? (() => true);
-  const delay = <T>(value: T): Promise<T> =>
-    latencyMs > 0 ? new Promise((resolve) => setTimeout(() => resolve(value), latencyMs)) : Promise.resolve(value);
+  const delay = fakeLatencyDelay({}, { latencyMs: options.latencyMs });
 
   return {
     fetchAssets(query: AssetGridQuery) {
-      return delay(assets.filter((a) => matchesQuery(a, query)));
+      return delay({ value: assets.filter((a) => matchesQuery(a, query)) });
     },
     fetchAssetById(id: string) {
-      return delay(assets.find((a) => a.id === id) ?? null);
+      return delay({ value: assets.find((a) => a.id === id) ?? null });
     },
   };
 }
@@ -72,12 +71,12 @@ export function createBrowserSseLiveUpdatesPort(options: BrowserSseLiveUpdatesOp
         return () => {};
       }
       const onIngest = (ev: MessageEvent) => {
-        const id = parseLiveUpdateAssetId(ev.data, idField);
+        const id = parseLiveUpdateAssetId({ data: ev.data }, { idField });
         if (id) handlers.onIngest(id);
         else handlers.onFullReload();
       };
       const onDelete = (ev: MessageEvent) => {
-        const id = parseLiveUpdateAssetId(ev.data, idField);
+        const id = parseLiveUpdateAssetId({ data: ev.data }, { idField });
         if (id) handlers.onDelete(id);
         else handlers.onFullReload();
       };

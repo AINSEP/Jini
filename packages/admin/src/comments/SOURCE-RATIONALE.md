@@ -6,7 +6,7 @@ Historical source comments, retained for provenance. Current owners and contract
 
 ```ts
 /**
- * @file Comments admin screen (ADR-031, SPEC-033/035 backend; SPEC-036 this frontend) — markup
+ * @file Comments admin screen — markup
  * only.
  *
  * State and API calls live in `hooks/use-comments.hooks.ts` (permissions),
@@ -19,7 +19,7 @@ Historical source comments, retained for provenance. Current owners and contract
  * earlier "only the exported, tested screen gets a seam" rule gave for skipping them (no standalone
  * test existed), rather than overriding that rule's conclusion without addressing its premise.
  *
- * Closes the gap the SPEC-036 sweep found: the moderation-queue/moderate/settings backend
+ * Closes the gap the frontend sweep found: the moderation-queue/moderate/settings backend
  * routes were built and audit-clean but nothing in `apps/admin/` called any of them, so the
  * Comments nav entry fell through to the static `Placeholder`.
  *
@@ -108,7 +108,7 @@ Historical source comments, retained for provenance. Current owners and contract
  *  agent-tools.ts`), all of which move a comment between statuses this queue lists.
  *
  *  There is deliberately NO sibling `COMMENTS_SETTINGS_RESOURCE`: `use-comment-settings.hooks.ts`'s
- *  own header records a real, already-fixed lost-update bug (TM-TOVU-2026-08-12-A) whose fix is a
+ *  own header records a real, already-fixed lost-update bug (the 2026-08-12 lost-update incident) whose fix is a
  *  ONE-SHOT seed guard that refuses to re-seed `settings` from any later successful load, including
  *  this bus's own out-of-band notification. Wiring that hook to the bus would either do nothing
  *  (the guard blocks it) or, if the guard were bypassed instead, reintroduce the exact silent
@@ -421,7 +421,7 @@ Historical source comments, retained for provenance. Current owners and contract
  * inside `useFetchMutation` (`@jini-ai/ui/fetch-query`'s own comment), so the invalidated query's
  * background refetch is not guaranteed to have landed by then.
  *
- * `seededRef` below is a mandatory ONE-SHOT seed guard (round-2 fix for TM-TOVU-2026-08-12-A: a
+ * `seededRef` below is a mandatory ONE-SHOT seed guard (round-2 fix for the 2026-08-12 lost-update incident: a
  * concurrent two-operator lost update, confirmed against source and against a JSDOM probe). An
  * earlier revision of this comment argued no guard was needed because the form is uncontrolled
  * (`defaultChecked`/`defaultValue`, read via `FormData` on submit) — reasoning that a re-seed

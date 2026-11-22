@@ -14,14 +14,13 @@
 import {
   findCapability,
   findCapabilityInputError,
-} from './capability.js';
-import {
-  AGENT_ELEMENT_ROLES,
-  isValidElementHandle,
-  type AgentElementRawState,
-  type AgentElementRole,
-  type AgentElementState,
-} from './element-handles.js';
+} from '@jini-ai/core/contracts/capabilities';
+import { AGENT_ELEMENT_ROLES, isValidElementHandle } from '@jini-ai/core/agent-handles';
+import type {
+  AgentElementRawState,
+  AgentElementRole,
+  AgentElementState,
+} from '@jini-ai/core/agent-handles';
 import {
   describeFieldReadRefusal,
   describeFieldRefusal,

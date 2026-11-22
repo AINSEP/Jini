@@ -18,7 +18,7 @@ import type { CanvasContentWrapperNode } from './canvas-style.js';
  * nodes GrapesJS's component model has no reference to and never scans when serializing. The wrapper
  * therefore cannot appear in `getHtml()`/`getCss()` by construction, not because of a strip-on-export
  * step that could be forgotten or miss a case — see `__tests__/canvas-content-wrapper.test.ts`'s
- * "never touches componentless internals" framing and `useInteractiveHtmlEditor.test.ts`'s assertion
+ * "never touches componentless internals" framing and `packages/ui/src/features/html-editor/react/hooks/__tests__/useInteractiveHtmlEditor.test.tsx`'s assertion
  * that `components` passed to `grapesjs.init` is the raw, unwrapped host HTML.
  *
  * Existing content nodes are MOVED (native DOM re-parenting via `appendChild` on an already-attached
@@ -58,7 +58,7 @@ function buildWrapperElement(doc: Document, node: CanvasContentWrapperNode): HTM
  * @complexity O(d + c) — d = chain depth (elements created), c = body's current child-node count
  *   (each moved once, no copying).
  */
-export function applyCanvasContentWrapper(body: HTMLElement, chain: readonly CanvasContentWrapperNode[] | undefined): void {
+export function applyCanvasContentWrapper({ body, chain }: { body: HTMLElement; chain: readonly CanvasContentWrapperNode[] | undefined }, _optional: Record<string, never> = {}): void {
   if (!chain) return;
   // `[]` is the same no-op as `undefined`; reading the innermost node here doubles as that length check.
   const innermostNode = chain[chain.length - 1];

@@ -1,4 +1,4 @@
-import { useEffect, useRef, type MouseEvent, type RefObject, type SyntheticEvent } from "react";
+import { useCallback, useEffect, useRef, type MouseEvent, type RefObject, type SyntheticEvent } from "react";
 
 /**
  * Lifecycle for the shared `Lightbox`: native `<dialog>` open/close, focus capture and return,
@@ -98,10 +98,9 @@ export function useLightbox(input: LightboxHookInput): LightboxController {
     trigger?.focus?.({ preventScroll: true });
     // Keyed on `open`, not `index`: navigating while open must not reopen the dialog (showModal on
     // an open dialog throws) or recapture its trigger from inside the lightbox.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [input.open]);
 
-  function go(target: number) {
+  const go = useCallback((target: number) => {
     // Clamps rather than wrapping: staying on the last asset is the less surprising default for an
     // operator navigating a specific set of uploads, not a slideshow.
     if (!nav.navigable || target < 0 || target >= nav.count) return;
@@ -113,7 +112,7 @@ export function useLightbox(input: LightboxHookInput): LightboxController {
     if (target === 0 && active === prevRef.current) pendingFocusRef.current = nextRef;
     if (target === nav.count - 1 && active === nextRef.current) pendingFocusRef.current = prevRef;
     input.onNavigate?.(target);
-  }
+  }, [nav.navigable, nav.count, input.onNavigate]);
 
   // Listens on the document rather than the dialog: when the focused media is swapped out (an
   // image that failed over to a video) focus drops to the body, and arrow keys must keep working.
@@ -129,8 +128,7 @@ export function useLightbox(input: LightboxHookInput): LightboxController {
     };
     dialog.ownerDocument.addEventListener("keydown", onKey);
     return () => dialog.ownerDocument.removeEventListener("keydown", onKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [input.open, nav.index, nav.count, input.onNavigate]);
+  }, [input.open, nav.index, go]);
 
   return {
     dialogRef,

@@ -9,11 +9,11 @@ test("a listening service is not ready until its configured HTTP probe accepts i
     expect(timeoutMs).toBeLessThanOrEqual(5000);
     return statuses.shift() ?? false;
   });
-  await expect(waitForHttpOk("https://localhost:3002/readyz", { timeoutMs: 5000, probe })).resolves.toBe(true);
+  await expect(waitForHttpOk({ url: "https://localhost:3002/readyz" }, { timeoutMs: 5000, probe })).resolves.toBe(true);
   expect(probe).toHaveBeenCalledTimes(2);
 });
 
 test("a failed boot whose readiness probe never accepts times out", async () => {
   const probe = vi.fn(async () => false);
-  await expect(waitForHttpOk("https://localhost:3002/readyz", { timeoutMs: 1, probe })).rejects.toThrow("timed out waiting for");
+  await expect(waitForHttpOk({ url: "https://localhost:3002/readyz" }, { timeoutMs: 1, probe })).rejects.toThrow("timed out waiting for");
 });

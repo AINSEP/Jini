@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 
-import type { OutboxPort } from "../../../core/ports.js";
+import type { OutboxPort } from "@jini-ai/core/contracts/events";
 import {
   createMenu, createNavMenuReadModel, InMemoryMenuRepo, InMemoryNavLocationBindingRepo,
   resolveMenuDoc, updateMenuTree,

@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { createDictionaryTranslator, interpolate, pickPlural, splitOnPlaceholders } from '../../../i18n/index.js';
-import { formatTimestamp, formatRelativeMinutesAgo } from '../format-timestamp.js';
+
 import { hasPermission } from '../permissions.js';
-import { resolveActiveTabId } from '../resolve-active-tab-id.js';
+
 import { retryWhileUnreachable } from '../retry-unreachable.js';
 
+import { createDictionaryTranslator, interpolate, pickPlural, splitOnPlaceholders, formatTimestamp, formatRelativeMinutesAgo, resolveActiveTabId } from '@jini-ai/core/text';
 describe('integrated object argument API', () => {
   it('retains feature/common/fallback dictionary precedence', () => {
     const translate = createDictionaryTranslator({ featureDictionary: { es: { Save: 'Guardar todo' } } }, { commonDictionary: { es: { Save: 'Guardar', Close: 'Cerrar' } } });

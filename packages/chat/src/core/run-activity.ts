@@ -17,7 +17,7 @@
  * - `code: 'tool_progress'`, `data: { elapsedSeconds }` — a tool call is still running.
  * - `code: 'thinking'` — the model is reasoning (keeps the idle timer honest).
  */
-import { a2uiSurfaceIdOf, displayOnlySurfaceIdOf } from '@jini-ai/agentic/a2ui';
+import { a2uiSurfaceIdOf, displayOnlySurfaceIdOf } from '@jini-ai/protocol/a2ui';
 import type { AgentEvent } from './events.js';
 import { isDelegatedWrapperToolName } from './tool-events.js';
 import { MID_RUN_USER_MESSAGE_EVENT_NAME } from './turn-usage.js';
@@ -43,7 +43,7 @@ export interface RunActivityState {
 }
 
 /** Tool names whose only job is finding the right tool (MCP tool search / schema lookup). */
-const DISCOVERY_TOOL_NAMES = new Set([
+const DISCOVERY_TOOL_NAMES: ReadonlySet<string> = new Set([
   'ToolSearch',
   'search_tools',
   'describe_tool',
@@ -52,7 +52,7 @@ const DISCOVERY_TOOL_NAMES = new Set([
 ]);
 
 /** Ext events that are a card for the person (a form, a confirm, a sign-in). */
-const CARD_EXT_NAMES = new Set(['mcp-ui', 'a2ui']);
+const CARD_EXT_NAMES: ReadonlySet<string> = new Set(['mcp-ui', 'a2ui']);
 
 /** The A2UI ext name: its surfaces may declare themselves display-only (`@jini-ai/agentic/a2ui`). */
 const A2UI_EXT_NAME = 'a2ui';

@@ -3,13 +3,13 @@
  *
  * `execute_delegated_tool` and its read-only companion `execute_readonly_delegated_tool` — the
  * MCP-callback half of gap 3's continuation transport (see
- * `packages/daemon/archived provenance ledger`'s "run/chat orchestration gap 3, part 1" addition and this
+ * `070311a07^:packages/daemon/source-map.md`'s "run/chat orchestration gap 3, part 1" addition and this
  * package's own dated section in `archived provenance ledger` for the rest of the spike). The swarm-consensus
  * Final Recommendation asked for exactly this: "inject the already-shipped MCP host into one
  * MCP-capable CLI's launch config, prove a tool round-trip through the existing
  * `delegated-tool-bridge.ts`." Where `../tools/run-tools.js`'s tools proxy generic
  * run-lifecycle HTTP endpoints, this tool proxies the new `POST /api/delegated-tool-calls`
- * daemon route (`packages/http/src/delegated-tools.ts`), which is the one and only thing that
+ * daemon route (`packages/daemon/src/http/delegated-tools.ts`), which is the one and only thing that
  * calls into `createDelegatedToolBridge` (`packages/daemon/src/delegated-tool-bridge.ts`) — the
  * same `ToolExecutor` deny-by-default gate every other tool-execution path in this codebase
  * already uses. No parallel authorization mechanism is introduced anywhere on this path.
@@ -38,10 +38,10 @@ import { batchOutcomeFor, isReadOnlyTool, type ExposedToolDescriptor } from '@ji
 import { parseMcpToolInputSchema } from '../adapters/protocol.js';
 import { randomUUID } from 'node:crypto';
 import { postDaemonJson } from '../daemon-client.js';
-import { daemonCallOptions, requireString, type McpToolDef } from '../tool-protocol.js';
+import { daemonCallOptions, requireString, type McpToolContext, type McpToolDef } from '../tool-protocol.js';
 import { resolveMcpToolName } from '../tool-arguments.js';
 
-/** Response shape `POST /api/delegated-tool-calls` (`packages/http-kit/src/delegated-tools.ts`) returns. */
+/** Response shape `POST /api/delegated-tool-calls` (`packages/daemon/src/http/delegated-tools.ts`) returns. */
 interface DelegatedToolExecuteResponse {
   readonly result: unknown;
 }
@@ -176,32 +176,7 @@ function createDelegatedGateway(
     name: variant.name,
     description: `${variant.description} MCP-local tool names advertised here are also accepted through their existing handlers. ${APPROVAL_GUIDANCE} Put the tool's own arguments inside input; non-conflicting top-level tool arguments are moved there automatically.`,
     argumentNormalization: { foldIntoInput: true },
-    inputSchema: {
-      type: 'object',
-      properties: {
-        toolId: {
-          type: 'string',
-          description: 'Jini registry tool id to invoke. Required.',
-        },
-        input: {
-          // `type` is load-bearing, not decoration. Declared without one, an MCP client has no
-          // signal that this property carries structured data, and at least one real client
-          // (Claude Code, observed 2026-07-26) then delivers the model's object as a raw JSON
-          // *string* — which every Jini tool rejects, because a tool's input is a record or
-          // absent (`@jini-ai/daemon`'s `toCapabilityInput` refuses a string by name rather than
-          // coercing it). The effect was that only no-input tools were callable at all.
-          //
-          // Object-only is narrower than "arbitrary JSON" and deliberately so: it is exactly
-          // what every registered tool accepts today, it matches MCP's own convention that tool
-          // arguments are objects, and widening it later (a union type, say) is additive.
-          type: 'object',
-          additionalProperties: true,
-          description: 'JSON object of input fields for the tool. Optional; omit for a tool that takes no input. Must be an object, not a JSON-encoded string.',
-        },
-      },
-      required: ['toolId'],
-      additionalProperties: false,
-    },
+    inputSchema: delegatedGatewayInputSchema(),
     annotations: {
       readOnlyHint: variant.readOnlyHint,
       idempotentHint: variant.idempotentHint,
@@ -209,33 +184,70 @@ function createDelegatedGateway(
       openWorldHint: false,
       title: variant.title,
     },
-    handler: async ({ args, ctx }) => {
-      const toolId = requireString({ value: args.toolId, name: 'toolId' });
-      // Local tools are advertised by this MCP host, not registered in the daemon catalog.
-      // Use their existing handler/validator instead of inventing a second implementation there.
-      const local = await ctx.callLocalTool?.({ name: toolId, input: (args.input ?? {}) as Record<string, unknown>,
-        requireReadOnly: variant.requireReadOnly === true }, {});
-      if (local !== undefined) return local;
-      const toolUseId = generateToolUseId({});
-      const body: Record<string, unknown> = {
-        runId,
-        toolUseId,
-        toolId: resolveMcpToolName({ name: toolId }, { isRegistered: candidate => ctx.diagnosticToolIds?.includes(candidate) ?? false }),
-        // The schema tells the model to omit `input` for a tool that takes none, but most tool
-        // handlers refuse an absent input ("input must be an object"). Sending `{}` makes the
-        // schema's promise true instead of costing a red failed call and a retry.
-        input: args.input ?? {},
-        ...(variant.requireReadOnly === undefined ? {} : { requireReadOnly: variant.requireReadOnly }),
-      };
-      const data = await postDaemonJson<DelegatedToolExecuteResponse>({ baseUrl: ctx.baseUrl, route: '/api/delegated-tool-calls', body: body }, {
-        ...daemonCallOptions({ ctx }),
-        timeoutMs,
-      });
-      const output = unwrapMcpContentEnvelope(data.result);
-      // Only an unwrapped MCP envelope can correlate against the bridge's saved content digest.
-      if (!options.delegatedResultMarkers || !isRecord(output) || !Array.isArray(output.content)) return output;
-      return { ...output, content: [delegatedResultMarker({ toolUseId }), ...output.content] };
+    handler: delegatedGatewayHandler(variant, { runId, generateToolUseId, timeoutMs }, options),
+  };
+}
+
+function delegatedGatewayInputSchema(): McpToolDef['inputSchema'] {
+  return {
+    type: 'object',
+    properties: {
+      toolId: {
+        type: 'string',
+        description: 'Jini registry tool id to invoke. Required.',
+      },
+      input: {
+        // `type` is load-bearing, not decoration. Declared without one, an MCP client has no
+        // signal that this property carries structured data, and at least one real client
+        // (Claude Code, observed 2026-07-26) then delivers the model's object as a raw JSON
+        // *string* — which every Jini tool rejects, because a tool's input is a record or
+        // absent (`@jini-ai/daemon`'s `toCapabilityInput` refuses a string by name rather than
+        // coercing it). The effect was that only no-input tools were callable at all.
+        //
+        // Object-only is narrower than "arbitrary JSON" and deliberately so: it is exactly
+        // what every registered tool accepts today, it matches MCP's own convention that tool
+        // arguments are objects, and widening it later (a union type, say) is additive.
+        type: 'object',
+        additionalProperties: true,
+        description: 'JSON object of input fields for the tool. Optional; omit for a tool that takes no input. Must be an object, not a JSON-encoded string.',
+      },
     },
+    required: ['toolId'],
+    additionalProperties: false,
+  };
+}
+
+function delegatedGatewayHandler(variant: DelegatedGatewayVariant, scope: {
+  runId: string; generateToolUseId: (required: Record<string, never>) => string;
+  timeoutMs: number | null;
+}, options: CreateExecuteDelegatedToolToolOptions): McpToolDef['handler'] {
+  const { runId, generateToolUseId, timeoutMs } = scope;
+  return async ({ args, ctx }) => {
+    const toolId = requireString({ value: args.toolId, name: 'toolId' });
+    // Local tools are advertised by this MCP host, not registered in the daemon catalog.
+    // Use their existing handler/validator instead of inventing a second implementation there.
+    const local = await ctx.callLocalTool?.({ name: toolId, input: (args.input ?? {}) as Record<string, unknown>,
+      requireReadOnly: variant.requireReadOnly === true }, {});
+    if (local !== undefined) return local;
+    const toolUseId = generateToolUseId({});
+    const body: Record<string, unknown> = {
+      runId,
+      toolUseId,
+      toolId: resolveMcpToolName({ name: toolId }, { isRegistered: candidate => ctx.diagnosticToolIds?.includes(candidate) ?? false }),
+      // The schema tells the model to omit `input` for a tool that takes none, but most tool
+      // handlers refuse an absent input ("input must be an object"). Sending `{}` makes the
+      // schema's promise true instead of costing a red failed call and a retry.
+      input: args.input ?? {},
+      ...(variant.requireReadOnly === undefined ? {} : { requireReadOnly: variant.requireReadOnly }),
+    };
+    const data = await postDaemonJson<DelegatedToolExecuteResponse>({ baseUrl: ctx.baseUrl, route: '/api/delegated-tool-calls', body: body }, {
+      ...daemonCallOptions({ ctx }),
+      timeoutMs,
+    });
+    const output = unwrapMcpContentEnvelope(data.result);
+    // Only an unwrapped MCP envelope can correlate against the bridge's saved content digest.
+    if (!options.delegatedResultMarkers || !isRecord(output) || !Array.isArray(output.content)) return output;
+    return { ...output, content: [delegatedResultMarker({ toolUseId }), ...output.content] };
   };
 }
 
@@ -336,6 +348,17 @@ export function createTypedDelegatedToolTool(
     inputSchema: descriptor.inputSchema as typeof inputSchema,
     argumentNormalization: { schemaInput: true },
     annotations: { ...gateway.annotations, title: descriptor.id },
-    handler: ({ args, ctx }) => gateway.handler({ args: { toolId: descriptor.id, input: args }, ctx }),
+    // A published tool IS a daemon registry tool (it was described by the daemon's catalog). When the transport had to
+    // rename it (wireName differs from its id: a collision with a local tool, or an id that is not a safe name) the
+    // gateway must not resolve its registry id to an MCP-local tool that happens to share it: the call reaches the
+    // daemon with the registry id. When the names agree, the local entry the gateway finds is this tool itself.
+    handler: ({ args, ctx }) => gateway.handler({ args: { toolId: descriptor.id, input: args }, ctx: wireName === descriptor.id ? ctx : withoutLocalTools(ctx) }),
   };
+}
+
+/** The context a daemon-bound call runs under: same everything, but no MCP-local tool resolution. */
+function withoutLocalTools(ctx: McpToolContext): McpToolContext {
+  const daemonContext: { -readonly [Key in keyof McpToolContext]: McpToolContext[Key] } = { ...ctx };
+  delete daemonContext.callLocalTool;
+  return daemonContext;
 }

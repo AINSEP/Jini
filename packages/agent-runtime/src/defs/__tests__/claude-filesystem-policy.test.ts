@@ -1,6 +1,6 @@
 import { existsSync, mkdtempSync, mkdirSync, realpathSync, writeFileSync, rmSync, symlinkSync, unlinkSync, utimesSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { join, relative, resolve } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { assertClaudeFilesystemSupport, claudeFilesystemRuntimePaths, createClaudeFilesystemSupportProbe, claudeFilesystemSettings, validateFilesystemLaunch } from '../../claude-filesystem-policy.js';
 import { claudeAgentDef } from '../claude.js';
@@ -31,11 +31,12 @@ describe('host filesystem launch boundary', () => {
   it('refuses absolute outside paths, parent traversal and a sibling with the same prefix', () => {
     const { site, outside } = fixture();
     for (const path of [outside, '..', '../site-other', join(outside, 'outside-canary.txt')]) {
-      expect(() => validateFilesystemLaunch({ filesystemRoot: site, cwd: site, extraAllowedDirs: [path] }, {})).toThrow();
+      const rejectedPath = relative(realpathSync(site), realpathSync(resolve(site, path)));
+      expect(() => validateFilesystemLaunch({ filesystemRoot: site, cwd: site, extraAllowedDirs: [path] }, {})).toThrow(`path '${rejectedPath}' resolves outside the allowed root`);
     }
-    expect(() => validateFilesystemLaunch({ filesystemRoot: site, cwd: outside }, {})).toThrow();
-    expect(() => validateFilesystemLaunch({ filesystemRoot: 'relative', cwd: site }, {})).toThrow();
-    expect(() => validateFilesystemLaunch({ filesystemRoot: join(site, 'missing'), cwd: site }, {})).toThrow();
+    expect(() => validateFilesystemLaunch({ filesystemRoot: site, cwd: outside }, {})).toThrow('Working directory must equal filesystemRoot');
+    expect(() => validateFilesystemLaunch({ filesystemRoot: 'relative', cwd: site }, {})).toThrow('filesystemRoot must be an absolute directory');
+    expect(() => validateFilesystemLaunch({ filesystemRoot: join(site, 'missing'), cwd: site }, {})).toThrow(`ENOENT: no such file or directory, lstat '${join(realpathSync(site), 'missing')}'`);
   });
 
   it.skipIf(process.platform === 'win32')('refuses external, broken and replaced symlinks', () => {
@@ -44,15 +45,15 @@ describe('host filesystem launch boundary', () => {
     symlinkSync(site, alias);
     expect(validateFilesystemLaunch({ filesystemRoot: site, cwd: site, extraAllowedDirs: [alias] }, {})).toBe(realpathSync(site));
     unlinkSync(alias); symlinkSync(outside, alias);
-    expect(() => validateFilesystemLaunch({ filesystemRoot: site, cwd: site, extraAllowedDirs: [alias] }, {})).toThrow();
+    expect(() => validateFilesystemLaunch({ filesystemRoot: site, cwd: site, extraAllowedDirs: [alias] }, {})).toThrow(`path '${relative(realpathSync(site), realpathSync(outside))}' resolves outside the allowed root`);
     unlinkSync(alias); symlinkSync(join(outside, 'missing'), alias);
-    expect(() => validateFilesystemLaunch({ filesystemRoot: site, cwd: site, extraAllowedDirs: [alias] }, {})).toThrow();
+    expect(() => validateFilesystemLaunch({ filesystemRoot: site, cwd: site, extraAllowedDirs: [alias] }, {})).toThrow(`ENOENT: no such file or directory, stat '${join(realpathSync(site), 'alias')}'`);
   });
 
   it('refuses outside images independently of the original directory list', () => {
     const { site, outside } = fixture();
     const imagePaths = [join(outside, 'outside-canary.txt')];
-    expect(() => validateFilesystemLaunch({ filesystemRoot: site, cwd: site, extraAllowedDirs: [], imagePaths }, {})).toThrow();
+    expect(() => validateFilesystemLaunch({ filesystemRoot: site, cwd: site, extraAllowedDirs: [], imagePaths }, {})).toThrow(`path '${relative(realpathSync(site), realpathSync(join(outside, 'outside-canary.txt')))}' resolves outside the allowed root`);
   });
 });
 
@@ -256,7 +257,7 @@ describe('personal configuration disclosure contract', () => {
   it('honors personal MCP ON while OFF and unspecified site grants stay strict', () => {
     for (const runtimeContext of [{}, { mcpJsonPath: '/site/.mcp.jini.json' }]) {
       for (const userMcp of [true, false, undefined]) {
-        const args = buildClaudeMcpConfigArgs(runtimeContext, { filesystemRoot: '/site', cliParity: true,
+        const args = buildClaudeMcpConfigArgs({ runtimeContext }, { filesystemRoot: '/site', cliParity: true,
           permissionMode: 'bypass', nativeToolAccess: true, nativeCapabilities: userMcp === undefined ? {} : { userMcp } });
         expect(args.includes('--strict-mcp-config')).toBe(userMcp !== true);
         expect(args.join(' ')).not.toContain('OUTSIDE_CANARY');
@@ -340,7 +341,7 @@ describe('launch-boundary and settings refusals (F3 coverage)', () => {
     const { site, outside } = fixture();
     expect(validateFilesystemLaunch({ filesystemRoot: site, cwd: site }, {})).toBe(realpathSync(site));
     expect(validateFilesystemLaunch({ filesystemRoot: site, cwd: site, imagePaths: ['inside.txt'] }, {})).toBe(realpathSync(site));
-    expect(() => validateFilesystemLaunch({ filesystemRoot: site, cwd: site, imagePaths: [join(outside, 'outside-canary.txt')] }, {})).toThrow();
+    expect(() => validateFilesystemLaunch({ filesystemRoot: site, cwd: site, imagePaths: [join(outside, 'outside-canary.txt')] }, {})).toThrow(`path '${relative(realpathSync(site), realpathSync(join(outside, 'outside-canary.txt')))}' resolves outside the allowed root`);
   });
   it.each(['[]', 'null', '"text"', '3'])('refuses host settings %s that are not a JSON object', settings => {
     expect(() => claudeFilesystemSettings({ options: { filesystemRoot: '/site', settings } }, { platform: 'linux', homeDir: '/h', tempDir: '/t' }))

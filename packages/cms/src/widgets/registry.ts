@@ -1,5 +1,5 @@
 /**
- * @file The v1 widget-type registry (SPEC-043 REQ-07..10, ADR-047 Debate Fold-In Amendment 3).
+ * @file The v1 widget-type registry.
  *
  * Purpose:
  * Each `WidgetTypeRegistration` below is plain, JSON-serializable data — schema, capability
@@ -8,14 +8,14 @@
  * pointer that only ever resolves through `resolvers/index.ts`'s closed `CORE_RESOLVERS` map
  * (REQ-08) — never a dynamic import, `eval`, or arbitrary function reference. This is the split
  * Amendment 3 requires: type *registration* is data (Tier-1-safe, this file); type *behavior* is
- * core-owned code in v1, ADR-024 Tier-2/3-gated for any future plugin-contributed dynamic type
+ * core-owned code in v1, Tier-2/3-gated for any future plugin-contributed dynamic type
  * (`resolvers/`).
  *
  * `getWidgetTypeRegistration`/`findWidgetTypeRegistration` are the two lookup accessors over this
  * data — pure, O(1) functions with no I/O and no reference to resolver code, kept here (unlike
- * `forms/manifest.ts`'s stricter zero-function convention, which exists specifically for a
+ * `forms manifest`'s stricter zero-function convention, which exists specifically for a
  * hypothetical future loader retrofit this file has no equivalent of) because every other registry
- * in this codebase (`identity/permissions.ts`) pairs its data with a plain accessor the same way.
+ * in this codebase (`packages/user-management/src/core/permissions.ts`) pairs its data with a plain accessor the same way.
  * The split is deliberate, not incidental: `getWidgetTypeRegistration` is total and only accepts a
  * `typeKey` the type system has actually proven is one of the five registered keys; a caller
  * holding a merely-asserted `WidgetTypeKey` (cast from an HTTP body or decoded JSON, not narrowed)
@@ -224,7 +224,7 @@ export const WIDGET_TYPE_REGISTRATIONS = {
  * The total lookup accessor — pure, O(1), no I/O. Only valid for a `typeKey` already narrowed to
  * `WidgetTypeKey` by the type system itself (a literal, or a value whose type was proven, not
  * asserted). For a raw/untrusted string that merely claims to be a `WidgetTypeKey` (an HTTP body
- * field cast at the boundary, e.g. `server/routes/admin/widgets/create.ts`, or a value decoded out
+ * field cast at the boundary, e.g. the host app's `src/server/inbound/admin-http/routes/widgets/create.ts`, or a value decoded out
  * of stored JSON via `entry-payload.ts`'s `parseWidgetInstancePayload`), `undefined` is genuinely
  * reachable — use `findWidgetTypeRegistration` instead; do not smuggle an unverified string past
  * this signature with a cast.

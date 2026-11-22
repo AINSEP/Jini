@@ -257,7 +257,7 @@ describe("commerce_payments_capture", () => {
     expect(result).toMatchObject({ ok: false, reason: "payment-error", error: { code: "DECLINED" }, payment: { id: payment.id } });
     // Not retryable: the text must not invite a same-key retry that can only replay this answer (C-1).
     expect((result as { message: string }).message).toBe(
-      "the capture did not complete (DECLINED): provider said no. Retrying with the same idempotencyKey returns this same result."
+      "the capture did not complete (DECLINED): The payment provider refused the operation (DECLINED). Retrying with the same idempotencyKey returns this same result."
     );
   });
 
@@ -269,7 +269,7 @@ describe("commerce_payments_capture", () => {
     const result = await t.call(CAPTURE, { paymentId: payment.id, amount: USD(6_000) });
     expect(result).toMatchObject({ ok: false, error: { code: "TRANSPORT_ERROR", retryable: true } });
     expect((result as { message: string }).message).toBe(
-      "the capture did not complete (TRANSPORT_ERROR): timed out. Retrying with the same idempotencyKey is safe."
+      "the capture did not complete (TRANSPORT_ERROR): The payment provider could not confirm the operation (TRANSPORT_ERROR); it will be reconciled. Retrying with the same idempotencyKey is safe."
     );
   });
 

@@ -1,5 +1,5 @@
 /**
- * @file ADR-023 §5/§6 (T5 fix, round-2 revision) — permanent plugin-ID retirement plus the
+ * @file Permanent plugin-ID retirement (T5 fix, round-2 revision) plus the
  * two-track fail-closed namespace-adoption guard.
  *
  * A `pluginId` is permanently retired the moment it is first minted (this record is never
@@ -15,8 +15,8 @@
  * surfaced here as a typed refusal, since no consent-prompt UI exists in this codebase yet.
  *
  * Signature verification here is a same-string comparison, not real cryptographic verification —
- * ADR-004 leaves `signature` optional and no signing/verification infrastructure exists anywhere
- * in this codebase yet (confirmed: ADR-023 §6 itself says the same — "track (a) will rarely fire
+ * the original design leaves `signature` optional and no signing/verification infrastructure exists anywhere
+ * in this codebase yet (confirmed: the dataModule design says the same — "track (a) will rarely fire
  * ... track (b) is the load-bearing path" — this is the intended, honest degraded behavior, not
  * an unfinished shortcut).
  */
@@ -52,13 +52,13 @@ export async function ensurePluginIdentityTable(
   _optional: Record<string, never> = {}
 ): Promise<void> {
   const kernel = pluginKernel({ store });
-  const text = sql.raw(columnTypeSql(kernel.dialect, "TEXT"));
+  const text = sql.raw(columnTypeSql({ dialect: kernel.dialect, affinity: "TEXT" }));
   await kernel.execute(sql`CREATE TABLE IF NOT EXISTS _plugin_identity (
        plugin_id ${text} PRIMARY KEY,
        source_url ${text} NOT NULL,
        publisher ${text} NOT NULL,
        signature ${text},
-       minted_at ${sql.raw(columnTypeSql(kernel.dialect, "INTEGER"))} NOT NULL
+       minted_at ${sql.raw(columnTypeSql({ dialect: kernel.dialect, affinity: "INTEGER" }))} NOT NULL
      )`);
 }
 

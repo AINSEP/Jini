@@ -52,6 +52,11 @@ describe('scope and dependency validation', () => {
     expect(() => registryDependencies({ scope: '@example', manifest: { dependencies: { '@example/Bad': '1' } } })).toThrow(new TypeError('invalid dependency name: @example/Bad'));
     expect(registryDependencies({ scope: '@example', manifest: { dependencies: { '@examples/a': '1', '@example/ok.name-1': '2' } } })).toEqual({ '@example/ok.name-1': '2' });
     expect(registryDependencies({ scope: '@example', manifest: {} })).toEqual({});
+    // An optional or peer dependency is shipped the same way, so a linked or file-spec one must be visible to the release guard.
+    expect(registryDependencies({ scope: '@example', manifest: {
+      optionalDependencies: { '@example/opt': '1', '@example/opt-local': 'file:../opt' },
+      peerDependencies: { '@example/peer': '2', '@other/peer': '3' },
+    } })).toEqual({ '@example/opt': '1', '@example/peer': '2' });
   });
 
   it('dot in the scope is matched literally', () => {

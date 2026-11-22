@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createHash } from 'node:crypto';
 import { ToolInputError, type SurfaceEmission, type SurfaceExchange, type SurfaceMessage, type ToolExecutionContext } from '@jini-ai/core';
-import { parseUIResource } from '../resource.js';
+import { parseUIResource } from '@jini-ai/protocol/mcp-ui';
 import { defineSecretCardTool, type SecretCardDeps, type SecretCardField, type SecretCardForm, type SecretCardOptions, type SecretCardRun, type SecretCardSpec } from '../secret-card.js';
 
 // Synthetic input only. No stored credential is read by these specifications.
@@ -76,7 +76,7 @@ function fixture(options: SecretCardOptions = {}) {
 }
 
 function resourceAt(emissions: readonly SurfaceEmission[], index: number) {
-  const resource = parseUIResource(emissions[index]?.payload['resource']);
+  const resource = parseUIResource({ value: emissions[index]?.payload['resource'] });
   if (!resource) throw new Error('Expected an engine-produced UI resource');
   return resource.resource;
 }

@@ -1,4 +1,4 @@
-import type { TransactionalRepoPort } from "../core/ports.js";
+import type { TransactionalRepoPort } from "@jini-ai/core/contracts/events";
 import type { UUID } from "@jini-ai/core/primitives";
 import { WorkspaceLastRemainingError, WorkspaceNotFoundError, type WorkspaceRepoPort } from "./create.js";
 
@@ -17,7 +17,7 @@ import { WorkspaceLastRemainingError, WorkspaceNotFoundError, type WorkspaceRepo
  * Architectural role:
  * Ordinary slice function — not a port. `deps.repo.list` is the count source; the guard
  * check and the delete run in one transaction. The earlier single-Node-event-loop,
- * "atomic by construction" reasoning (also used for `identity/grant-service.ts`'s transitions
+ * "atomic by construction" reasoning (also used for `packages/user-management/src/server/grant-service.ts`'s transitions
  * and `DISABLE_PRINCIPAL`'s count-check-then-disable) was insufficient: awaits can
  * interleave even in one process. needs serialization across the count read and delete.
  * The memory adapter queues transactions; a multi-process/multi-connection deployment needs

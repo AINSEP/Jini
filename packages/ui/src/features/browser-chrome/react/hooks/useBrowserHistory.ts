@@ -33,7 +33,6 @@ export function useBrowserHistory(
     setHistory(storageRef.current.loadHistory(scopeKey));
     // Re-hydrating on scope change only; the storage port is read via a ref
     // above so a fresh `dependencies` object each render doesn't re-trigger this.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scopeKey]);
 
   useEffect(() => {
@@ -42,7 +41,7 @@ export function useBrowserHistory(
   }, [history, scopeKey, debounceMs]);
 
   const commitVisit = useCallback((url: string, meta?: MergeHistoryEntryMeta, mergeOptions?: MergeHistoryEntryOptions) => {
-    setHistory((current) => mergeHistoryEntry(current, url, meta ?? {}, mergeOptions ?? {}));
+    setHistory((current) => mergeHistoryEntry({ history: current, url }, { meta: meta ?? {}, options: mergeOptions ?? {} }));
   }, []);
 
   const clearHistory = useCallback(() => {
@@ -66,6 +65,6 @@ const defaultHistoryStorage: BrowserHistoryStoragePort = createBrowserHistorySto
  * or a swappable/test port, should call `useBrowserHistory` directly with
  * its own `{ historyStorage }` instead of this zero-arg wirer.
  */
-export function useWiredBrowserHistory(scopeKey: string, options?: UseBrowserHistoryOptions): BrowserHistoryController {
+export function useWiredBrowserHistory({ scopeKey, options }: { scopeKey: string; options?: UseBrowserHistoryOptions | undefined }, _optional = {}): BrowserHistoryController {
   return useBrowserHistory(scopeKey, { historyStorage: defaultHistoryStorage }, options);
 }

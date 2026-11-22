@@ -3,3 +3,5 @@ export * from './paths.js';
 export * from './html.js';
 export * from './see-more-script.js';
 export * from './paging.js';
+export * from './static-collections.js';
+export * from './entry-list.js';

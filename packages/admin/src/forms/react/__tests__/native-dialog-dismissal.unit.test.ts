@@ -1,8 +1,10 @@
 import { createElement, StrictMode, type ReactNode } from "react";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "./harness.js";
 import { expect, it, vi } from "vitest";
 
-import { Dialog } from "@jini-ai/ui-kit/react";
+import { nativeKit } from "@jini-ai/ui-kit/react/native";
+
+const Dialog = nativeKit.Dialog;
 
 // Author Checklist: deleting cleanup or retaining the first callback must fail (F2.3, F3.3).
 // Native cancellation and React effect replay; callback delivery is the contract.

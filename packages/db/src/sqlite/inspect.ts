@@ -12,7 +12,7 @@
  * file path. Neither function opens a new connection or mutates state.
  */
 import { promises as fsp } from 'node:fs';
-import type { SqliteDb } from './sync-types.js';
+import type { SqliteDb } from '@jini-ai/core/contracts/storage';
 
 export interface DaemonDbTableInfo {
   name: string;
@@ -48,7 +48,7 @@ function isSystemTable(name: string): boolean {
  * @returns The status report. Never throws — schema-read and per-table failures
  *   degrade to `null`/`0`/an empty list rather than failing the whole report.
  */
-export async function inspectSqliteDatabase(input: { db: SqliteDb; file: string }): Promise<DaemonDbStatusReport> {
+export async function inspectSqliteDatabase(input: { db: SqliteDb; file: string }, _optional: Record<string, never> = {}): Promise<DaemonDbStatusReport> {
   const { db, file } = input;
 
   // 1. Schema version (user_version pragma).

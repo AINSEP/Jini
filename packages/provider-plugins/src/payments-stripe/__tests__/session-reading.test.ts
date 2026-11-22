@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { readSession } from "../session-reading.js";
+import { readSession as read } from "../session-reading.js";
+import { realHelpers as errors } from "./fakes/domain-helpers.js";
+
+// The domain's own helpers, as a host registers them; provider-context.test.ts pins the helper calls with recording fakes.
+const readSession = (required: Omit<Parameters<typeof read>[0], "errors">, optional: Parameters<typeof read>[1] = {}) => read({ ...required, errors }, optional);
 
 const session = (patch: Record<string, unknown> = {}) => ({
   object: "checkout.session", id: "cs_1", mode: "payment", livemode: false, metadata: { jini_payment_id: "pay_1" },

@@ -1,17 +1,17 @@
 # Redirects source rationale
 
 Historical comments retained verbatim from the extraction inputs. Active ownership is mapped in PORT.md.
-References to Tovu hook/localization paths describe the source before extraction; the surviving owners
+References to the host hook/localization paths describe the source before extraction; the surviving owners
 are redirects controllers/React hooks, the core API, and the host localization/publication seams.
 
 ## Redirects.tsx
 
 ```text
 /**
- * @file Redirects admin screen (SPEC-009 ui.spec.md) — the `/admin/redirects` route.
+ * @file Redirects admin screen — the host-supplied example `/admin/redirects` route.
  * Single-screen list + inline create form + per-row disable/enable + tombstone.
  *
- * SPEC-037 REQ-03/REQ-04: `HitCountCell` wires the previously-unused `api.getRedirectHits` as a
+ * `HitCountCell` wires the previously-unused `api.getRedirectHits` as a
  * lazy per-row fetch (button-triggered, not fired for every row on mount — avoids an N+1 burst on
  * a large list), and `ImportRedirectsForm` wires the new `api.importRedirects` bulk-import
  * affordance, surfacing the route's own `207` per-item created/failed breakdown.
@@ -274,7 +274,7 @@ are redirects controllers/React hooks, the core API, and the host localization/p
 
 ```text
 /**
- * @file The lazy per-row hit-count cell (SPEC-037 REQ-03), so `HitCountCell` in `Redirects.tsx` is
+ * @file The lazy per-row hit-count cell, so `HitCountCell` in `Redirects.tsx` is
  * only markup.
  *
  * Extracted verbatim — same lazy-request gate, same query. `enabled` is what keeps this lazy: the
@@ -325,7 +325,7 @@ are redirects controllers/React hooks, the core API, and the host localization/p
 
 ```text
 /**
- * @file The bulk-import affordance (SPEC-037 REQ-04), so `ImportRedirectsForm` in `Redirects.tsx`
+ * @file The bulk-import affordance, so `ImportRedirectsForm` in `Redirects.tsx`
  * is only markup.
  *
  * Extracted verbatim — same client-side shape check (now `parseImportPayload` in `rules.ts`), same

@@ -1,25 +1,41 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   ElevenLabsCredentialMissingError,
-  listElevenLabsVoiceOptions,
+  createElevenLabsVoiceClient,
   type ElevenLabsCredentialResolver,
 } from '../elevenlabs.js';
+import type { HttpClientPort } from '@jini-ai/core/primitives';
+
+// A package test supplies its own clock port; the system clock lives in the platform package.
+const clock = { nowMs: () => Date.now() };
+
+// Wraps the test's global fetch mock in the HttpClientPort shape the client expects.
+const http: HttpClientPort = {
+  async send({ request }) {
+    const response = await fetch(request.url, { method: request.method, headers: request.headers });
+    return { status: response.status ?? 200, headers: {},
+      bodyText: response.ok ? JSON.stringify(await response.json()) : await response.text() };
+  },
+};
+const newClient = () => createElevenLabsVoiceClient({ clock, http });
 
 const resolver = (creds: { apiKey: string; baseUrl?: string }): ElevenLabsCredentialResolver =>
   vi.fn().mockResolvedValue(creds);
 
-describe('listElevenLabsVoiceOptions', () => {
+describe('ElevenLabs voice client listing', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
   });
 
   it('throws ElevenLabsCredentialMissingError when no api key is configured', async () => {
-    await expect(listElevenLabsVoiceOptions({ workspaceKey: 'ws-1', resolveCredentials: resolver({ apiKey: '' }) })).rejects.toBeInstanceOf(
+    const client = newClient();
+    await expect(client.listVoiceOptions({ workspaceKey: 'ws-1', resolveCredentials: resolver({ apiKey: '' }) })).rejects.toBeInstanceOf(
       ElevenLabsCredentialMissingError,
     );
   });
 
   it('fetches and normalizes the voice catalog', async () => {
+    const client = newClient();
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({
@@ -40,7 +56,7 @@ describe('listElevenLabsVoiceOptions', () => {
     });
     vi.stubGlobal('fetch', fetchMock);
 
-    const voices = await listElevenLabsVoiceOptions({ workspaceKey: 'ws-1', resolveCredentials: resolver({ apiKey: 'k1' }) }, { limit: 5 });
+    const voices = await client.listVoiceOptions({ workspaceKey: 'ws-1', resolveCredentials: resolver({ apiKey: 'k1' }) }, { limit: 5 });
     expect(voices).toEqual([
       {
         voiceId: 'v1',
@@ -59,9 +75,10 @@ describe('listElevenLabsVoiceOptions', () => {
   });
 
   it('uses a custom base url and strips a trailing slash', async () => {
+    const client = newClient();
     const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ voices: [] }) });
     vi.stubGlobal('fetch', fetchMock);
-    await listElevenLabsVoiceOptions({ workspaceKey: 'ws-2', resolveCredentials: resolver({ apiKey: 'k1', baseUrl: 'https://custom.example.com/' }) });
+    await client.listVoiceOptions({ workspaceKey: 'ws-2', resolveCredentials: resolver({ apiKey: 'k1', baseUrl: 'https://custom.example.com/' }) });
     expect(fetchMock).toHaveBeenCalledWith(
       'https://custom.example.com/v2/voices?page_size=100',
       expect.anything(),
@@ -69,84 +86,64 @@ describe('listElevenLabsVoiceOptions', () => {
   });
 
   it('clamps an out-of-range or non-numeric limit to the default/bounds', async () => {
+    const client = newClient();
     const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ voices: [] }) });
     vi.stubGlobal('fetch', fetchMock);
-    await listElevenLabsVoiceOptions({ workspaceKey: 'ws-3', resolveCredentials: resolver({ apiKey: 'k1' }) }, { limit: 'oops' as unknown as number });
+    await client.listVoiceOptions({ workspaceKey: 'ws-3', resolveCredentials: resolver({ apiKey: 'k1' }) }, { limit: 'oops' as unknown as number });
     expect(fetchMock).toHaveBeenCalledWith('https://api.elevenlabs.io/v2/voices?page_size=100', expect.anything());
 
-    await listElevenLabsVoiceOptions({ workspaceKey: 'ws-3', resolveCredentials: resolver({ apiKey: 'k1' }) }, { limit: 500 });
+    await client.listVoiceOptions({ workspaceKey: 'ws-3', resolveCredentials: resolver({ apiKey: 'k1' }) }, { limit: 500 });
     expect(fetchMock).toHaveBeenLastCalledWith(
       'https://api.elevenlabs.io/v2/voices?page_size=100',
       expect.anything(),
     );
 
-    await listElevenLabsVoiceOptions({ workspaceKey: 'ws-3', resolveCredentials: resolver({ apiKey: 'k1' }) }, { limit: -5 });
+    await client.listVoiceOptions({ workspaceKey: 'ws-3', resolveCredentials: resolver({ apiKey: 'k1' }) }, { limit: -5 });
     expect(fetchMock).toHaveBeenLastCalledWith('https://api.elevenlabs.io/v2/voices?page_size=1', expect.anything());
   });
 
   it('throws with the response body on a non-ok response', async () => {
+    const client = newClient();
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue({ ok: false, status: 401, text: async () => 'unauthorized' }),
     );
-    await expect(listElevenLabsVoiceOptions({ workspaceKey: 'ws-4', resolveCredentials: resolver({ apiKey: 'bad' }) })).rejects.toThrow(
+    await expect(client.listVoiceOptions({ workspaceKey: 'ws-4', resolveCredentials: resolver({ apiKey: 'bad' }) })).rejects.toThrow(
       /elevenlabs voices 401: unauthorized/,
     );
   });
 
   it('returns [] when the payload has no voices array', async () => {
+    const client = newClient();
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) }));
-    await expect(listElevenLabsVoiceOptions({ workspaceKey: 'ws-5', resolveCredentials: resolver({ apiKey: 'k1' }) })).resolves.toEqual([]);
+    await expect(client.listVoiceOptions({ workspaceKey: 'ws-5', resolveCredentials: resolver({ apiKey: 'k1' }) })).resolves.toEqual([]);
   });
 
   it('caches results per workspace+baseUrl+pageSize+credential fingerprint', async () => {
+    const client = newClient();
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({ voices: [{ voice_id: 'v1', name: 'Rachel' }] }),
     });
     vi.stubGlobal('fetch', fetchMock);
-    const first = await listElevenLabsVoiceOptions({ workspaceKey: 'ws-cache', resolveCredentials: resolver({ apiKey: 'same-key' }) });
-    const second = await listElevenLabsVoiceOptions({ workspaceKey: 'ws-cache', resolveCredentials: resolver({ apiKey: 'same-key' }) });
+    const first = await client.listVoiceOptions({ workspaceKey: 'ws-cache', resolveCredentials: resolver({ apiKey: 'same-key' }) });
+    const second = await client.listVoiceOptions({ workspaceKey: 'ws-cache', resolveCredentials: resolver({ apiKey: 'same-key' }) });
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(second).toEqual(first);
     // Mutating the returned array must not corrupt the cached copy.
     second[0]!.name = 'mutated';
     second[0]!.labels = { x: 'y' };
-    const third = await listElevenLabsVoiceOptions({ workspaceKey: 'ws-cache', resolveCredentials: resolver({ apiKey: 'same-key' }) });
+    const third = await client.listVoiceOptions({ workspaceKey: 'ws-cache', resolveCredentials: resolver({ apiKey: 'same-key' }) });
     expect(third[0]!.name).toBe('Rachel');
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it('does not cache across a different api key (cache key includes a credential fingerprint)', async () => {
+    const client = newClient();
     const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ voices: [] }) });
     vi.stubGlobal('fetch', fetchMock);
-    await listElevenLabsVoiceOptions({ workspaceKey: 'ws-fp', resolveCredentials: resolver({ apiKey: 'key-a' }) });
-    await listElevenLabsVoiceOptions({ workspaceKey: 'ws-fp', resolveCredentials: resolver({ apiKey: 'key-b' }) });
+    await client.listVoiceOptions({ workspaceKey: 'ws-fp', resolveCredentials: resolver({ apiKey: 'key-a' }) });
+    await client.listVoiceOptions({ workspaceKey: 'ws-fp', resolveCredentials: resolver({ apiKey: 'key-b' }) });
     expect(fetchMock).toHaveBeenCalledTimes(2);
-  });
-
-  it('routes requests through a caller-supplied dispatcher and keeps one cached client per dispatcher', async () => {
-    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ voices: [{ voice_id: 'v9', name: 'Proxy' }] }) });
-    vi.stubGlobal('fetch', fetchMock);
-    const dispatcherA = { name: 'proxy-a' } as never; // opaque token: only its identity matters to the client cache
-    const dispatcherB = { name: 'proxy-b' } as never; // opaque token: only its identity matters to the client cache
-    const required = { workspaceKey: 'ws-dispatcher', resolveCredentials: resolver({ apiKey: 'k-d' }) };
-    const first = await listElevenLabsVoiceOptions(required, { requestInit: { dispatcher: dispatcherA } });
-    const second = await listElevenLabsVoiceOptions(required, { requestInit: { dispatcher: dispatcherA } });
-    await listElevenLabsVoiceOptions(required, { requestInit: { dispatcher: dispatcherB } });
-    expect(first).toEqual([{ voiceId: 'v9', name: 'Proxy' }]);
-    expect(second).toEqual(first);
-    // dispatcher A's second call is served from that client's own cache; B gets a fresh client.
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(fetchMock.mock.calls[0]![1]).toMatchObject({ dispatcher: dispatcherA });
-    expect(fetchMock.mock.calls[1]![1]).toMatchObject({ dispatcher: dispatcherB });
-  });
-
-  it('uses the shared compatibility client when requestInit carries no dispatcher', async () => {
-    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ voices: [] }) });
-    vi.stubGlobal('fetch', fetchMock);
-    await listElevenLabsVoiceOptions({ workspaceKey: 'ws-no-dispatcher', resolveCredentials: resolver({ apiKey: 'k-n' }) }, { requestInit: {} });
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(fetchMock.mock.calls[0]![1]).not.toHaveProperty('dispatcher');
   });
 });

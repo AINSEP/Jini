@@ -139,7 +139,7 @@ describe('readPromptFromFlags', () => {
     try {
       const controller = new AbortController();
       controller.abort();
-      await expect(readPromptFromFlags({ flags: { 'prompt-file': file } }, { signal: controller.signal })).rejects.toThrow();
+      await expect(readPromptFromFlags({ flags: { 'prompt-file': file } }, { signal: controller.signal })).rejects.toThrow('The operation was aborted');
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
@@ -207,7 +207,7 @@ describe('readPromptFromFlags', () => {
       const pending = readPromptFromFlags({ flags: { 'prompt-file': '-' } }, { signal: controller.signal });
       fakeStdin.emit('data', 'partial ');
       controller.abort();
-      await expect(pending).rejects.toThrow();
+      await expect(pending).rejects.toThrow(controller.signal.reason.message);
     } finally {
       Object.defineProperty(process, 'stdin', { value: original, configurable: true });
     }
@@ -375,7 +375,7 @@ describe('readBodyFromFlags', () => {
     try {
       const controller = new AbortController();
       controller.abort();
-      await expect(readBodyFromFlags({ flags: { 'body-file': '-' } }, { signal: controller.signal })).rejects.toThrow();
+      await expect(readBodyFromFlags({ flags: { 'body-file': '-' } }, { signal: controller.signal })).rejects.toThrow(controller.signal.reason.message);
     } finally {
       Object.defineProperty(process, 'stdin', { value: original, configurable: true });
     }
@@ -405,7 +405,7 @@ describe('readBodyFromFlags', () => {
       fire(new Error('aborted mid-read'));
       expect(destroy).toHaveBeenCalledWith(expect.any(Error));
       resumeGen?.();
-      await expect(pending).rejects.toThrow();
+      await expect(pending).rejects.toThrow('aborted mid-read');
     } finally {
       Object.defineProperty(process, 'stdin', { value: original, configurable: true });
     }

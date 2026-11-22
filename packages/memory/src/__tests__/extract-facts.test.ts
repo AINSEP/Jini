@@ -203,7 +203,7 @@ describe('extractFacts', () => {
 
       await expect(
         extractFacts({ llmConfig: anthropicConfig(), content: 'x' }, { logging: { log, kind: 'note-extraction' } }),
-      ).rejects.toThrow();
+      ).rejects.toThrow('anthropic 500: request rejected');
 
       const record = log.list()[0]!;
       expect(record.phase).toBe('failed');
@@ -219,7 +219,7 @@ describe('extractFacts', () => {
 
       await expect(
         extractFacts({ llmConfig: anthropicConfig(), content: 'x' }, { logging: { log, kind: 'note-extraction' } }),
-      ).rejects.toThrow();
+      ).rejects.toThrow('llm-provider: response was not valid JSON');
 
       const record = log.list()[0]!;
       expect(record.phase).toBe('failed');

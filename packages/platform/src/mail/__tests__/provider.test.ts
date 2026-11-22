@@ -3,7 +3,7 @@ import { describe, test } from "vitest";
 import { ProviderRegistryError } from "@jini-ai/core/provider-registry";
 import { computeMailStatus, createMailProviderRegistry, initialMailProviderSetting, validateMailProvider, type MailProviderModule } from "../provider.js";
 import { createConsoleMailProvider, createSmtpMailProvider, parseSmtpEndpoint } from "../builtin-providers.js";
-import type { SmtpTransport } from "../smtp.js";
+import type { SmtpTransport } from "@jini-ai/core/contracts/mail";
 
 const CLOCK = { nowMs: () => Date.parse("2026-10-21T00:00:00Z") };
 
@@ -53,7 +53,7 @@ describe("createMailProviderRegistry", () => {
 });
 
 describe("initialMailProviderSetting", () => {
-  const registry = createMailProviderRegistry({}, { builtins: [hosted("smtp"), createConsoleMailProvider({ clock: CLOCK })] });
+  const registry = createMailProviderRegistry({}, { builtins: [hosted("smtp"), createConsoleMailProvider({ clock: CLOCK, preview: () => {} })] });
   test("keeps a hosted effective provider on both lanes", () => {
     assert.deepEqual(initialMailProviderSetting({}, { effectiveProviderId: "smtp", registry }), { transactional: "smtp", bulk: "smtp" });
   });
@@ -66,7 +66,7 @@ describe("initialMailProviderSetting", () => {
 });
 
 describe("computeMailStatus", () => {
-  const registry = createMailProviderRegistry({}, { builtins: [hosted("smtp"), createConsoleMailProvider({ clock: CLOCK })] });
+  const registry = createMailProviderRegistry({}, { builtins: [hosted("smtp"), createConsoleMailProvider({ clock: CLOCK, preview: () => {} })] });
   const yes = () => true;
   test("ready when both lanes have a credentialed hosted provider", () => {
     const status = computeMailStatus({ setting: { transactional: "smtp", bulk: "smtp" }, registry, hasCredential: yes }, { senderDomainState: "verified" });
@@ -113,7 +113,7 @@ describe("built-in providers", () => {
   });
   test("console provider logs, counts, batches and is not hosted", async () => {
     const lines: string[] = [];
-    const consoleProvider = createConsoleMailProvider({ clock: CLOCK }, { log: (line) => lines.push(line) });
+    const consoleProvider = createConsoleMailProvider({ clock: CLOCK, preview: ({ message }) => { lines.push(`[mail:console] to=${message.to.email} subject=${JSON.stringify(message.subject)}\n${message.text}`); } });
     assert.equal(consoleProvider.capabilities.hosted, false);
     const mailer = consoleProvider.create({ credential: { token: "" }, kit: { httpClient: {} as never } });
     assert.equal(mailer.capabilities({}).driver, "console");
@@ -125,7 +125,7 @@ describe("built-in providers", () => {
   });
   test("console provider previews the body, so a local sign-in or confirmation link is usable", async () => {
     const lines: string[] = [];
-    const mailer = createConsoleMailProvider({ clock: CLOCK }, { log: (line) => lines.push(line) }).create({ credential: { token: "" }, kit: { httpClient: {} as never } });
+    const mailer = createConsoleMailProvider({ clock: CLOCK, preview: ({ message }) => { const body = message.text ?? message.html; lines.push(`[mail:console] to=${message.to.email} subject=${JSON.stringify(message.subject)}${body === undefined ? '' : `\n${body}`}`); } }).create({ credential: { token: "" }, kit: { httpClient: {} as never } });
     const delivery = { idempotencyKey: "k", workspaceId: "w", sourceContext: { module: "members" } };
     const link = "http://localhost:4321/members/verify?token=abc";
     await mailer.send({ ...delivery, message: { workspaceId: "w", to: { email: "a@b.c" }, from: { email: "f@b.c" }, subject: "Sign in", text: `Sign in: ${link}`, html: "<a>ignored when text exists</a>" } });
@@ -135,16 +135,8 @@ describe("built-in providers", () => {
     assert.ok(lines[1]?.includes(`href="${link}"`), "an html-only message previews its html");
     assert.equal(lines[2], '[mail:console] to=a@b.c subject="Empty"');
   });
-  test("console provider defaults to console.log", async () => {
-    const original = console.log;
-    const seen: unknown[] = [];
-    console.log = (line: unknown) => { seen.push(line); };
-    try {
-      const mailer = createConsoleMailProvider({ clock: CLOCK }).create({ credential: { token: "" }, kit: { httpClient: {} as never } });
-      await mailer.send({ idempotencyKey: "k", workspaceId: "w", sourceContext: { module: "m" }, message: { workspaceId: "w", to: { email: "a@b.c" }, from: { email: "f@b.c" }, subject: "s", text: "t" } });
-    } finally {
-      console.log = original;
-    }
-    assert.equal(seen.length, 1);
+  test("console provider refuses a missing host preview", () => {
+    // @ts-expect-error A host must explicitly choose the development mail preview sink.
+    assert.throws(() => createConsoleMailProvider({ clock: CLOCK }), /A local mail preview callback is required/);
   });
 });

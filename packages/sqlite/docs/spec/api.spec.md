@@ -10,13 +10,13 @@ The sole entry `@jini-ai/sqlite` is a deprecated compatibility facade. Its barre
 
 ## Durable event log
 
-`createSqliteEventLog({db: SqliteDb}, {maxEntriesPerRun = 2000, clock?: Clock} = {}): SqliteEventLog` borrows a synchronous handle and creates its dedicated schema. Only the object form is accepted. Clock is core Clock.nowMs(). DEFAULT_MAX_ENTRIES_PER_RUN, SqliteEventLog and SqliteEventLogOptions are exported. Owned acquisition is available as openSqliteEventLog from daemon/store/event-log/sqlite; that factory is not a facade export.
+`createSqliteEventLog({db: SqliteDb, clock: Clock}, {maxEntriesPerRun = 2000} = {}): SqliteEventLog` borrows a synchronous handle and creates its dedicated schema. Only the object form is accepted. Clock is core Clock.nowMs(). DEFAULT_MAX_ENTRIES_PER_RUN, SqliteEventLog and SqliteEventLogOptions are exported. Owned acquisition is available as openSqliteEventLog from daemon/store/event-log/sqlite; that factory is not a facade export.
 
 Methods: `append({runId,event,data}, {dedupeKey?} = {})`, `replay({runId,afterCursor})`, `listRunIds({})`, `drop({runId})`, `close({})`. Append returns EventLogEntry; replay returns ok/unknown-run/replay-gap. Invalid Number-converted cursors reject. Close never closes the borrowed handle. The previous declaration/runtime argument mismatch is resolved. [Canonical log contract](../../../daemon/docs/spec/api.spec.md).
 
 ## Database values and inspection
 
-Runtime exports are `inspectSqliteDatabase({db,file})`, `verifySqliteIntegrity(options: VerifyDbOptions)` with quick still in its required options object, `parseJsonOrUndef(value)`, `row(value)` and `rows(values)`. The row helpers retain positional inputs. Types: DaemonDbStatusReport, DaemonDbTableInfo, DbIntegrityIssue, DbIntegrityIssueKind, DbIntegrityReport, SqliteDb, VerifyDbOptions, DbRow, JsonObject. JSON aliases are imported/re-exported by the db owner; no new facade wire model exists. [Canonical DB contract](../../../db/docs/spec/api.spec.md).
+Runtime exports are `inspectSqliteDatabase({db,file})`, `verifySqliteIntegrity(options: VerifyDbOptions)` with quick still in its required options object, `parseJsonOrUndef({ s: value }, optional = {})`, `row(value)` and `rows(values)`. The row helpers retain positional inputs. Types: DaemonDbStatusReport, DaemonDbTableInfo, DbIntegrityIssue, DbIntegrityIssueKind, DbIntegrityReport, SqliteDb, VerifyDbOptions, DbRow, JsonObject. JSON aliases are imported/re-exported by the db owner; no new facade wire model exists. [Canonical DB contract](../../../db/docs/spec/api.spec.md).
 
 ## Chat history and legacy rows
 
@@ -34,7 +34,7 @@ Runtime exports: `ensureToolCatalogTables({db})`, `reseedToolCatalog({db,entries
 
 ```ts
 import { createSqliteEventLog, ensureToolCatalogTables, searchToolCatalog } from '@jini-ai/sqlite';
-const log = createSqliteEventLog({ db }, { clock });
+const log = createSqliteEventLog({ db, clock }, {});
 await log.append({ runId: 'run-1', event: 'message', data: { text: 'hello' } }, { dedupeKey: 'producer-1' });
 ensureToolCatalogTables({ db });
 const hits = searchToolCatalog({ db, query: 'read item' });

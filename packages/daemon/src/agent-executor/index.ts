@@ -153,24 +153,20 @@ export {
   MCP_BRIDGE_UNAVAILABLE,
   unavailableJiniBridgeStatus,
   buildMcpJsonServerEntry,
-  mergeMcpJsonContent,
   buildAcpMcpBridgeServers,
-  mergeEnvContentMcpConfig,
-  mergeEnvContentInstructions,
   buildMcpBridgeDelivery,
-  resolveSourceClaudeConfigDir,
   resolveMcpBridgeForRun,
   writeMcpJsonIfNeeded,
-  prepareClaudeConfigDirIfNeeded,
 } from './mcp-bridge.js';
+export { prepareClaudeConfigDirIfNeeded, resolveSourceClaudeConfigDir } from './claude/config-dir.js';
+export { mergeEnvContentMcpConfig, mergeEnvContentInstructions } from './opencode/mcp-config.js';
+export { mergeMcpJsonContent } from './mcp-json-file.js';
 export { buildCodexMcpServerToml, buildCodexHomeConfigToml } from './codex/home-config.js';
 export { resolveSourceCodexHomeDir, prepareCodexHomeIfNeeded } from './codex/home-staging.js';
-export { probeMcpBridge, type McpBridgeProbeResult } from './mcp-bridge-probe.js';
-export {
-  DEFAULT_BUFFERED_STDOUT_MAX_BYTES,
-  runAcpDispatch,
-  runPiRpcDispatch,
-} from './events.js';
+export { probeMcpBridge, type McpBridgeProbe, type McpBridgeProbeEntry, type McpBridgeProbeResult } from './mcp-bridge-probe.js';
+export { DEFAULT_BUFFERED_STDOUT_MAX_BYTES } from './child-stdout.js';
+export { runAcpDispatch } from './acp-events.js';
+export { runPiRpcDispatch } from './pi-rpc-events.js';
 export {
   armHandoffWatcher,
 } from './handoff.js';

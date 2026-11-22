@@ -8,34 +8,34 @@ import { parseAgentPluginManifest } from '../lifecycle/manifest.js';
 
 describe('isPluginManifest', () => {
   it('accepts a manifest with a non-empty name', () => {
-    expect(isPluginManifest({ name: 'design' })).toBe(true);
-    expect(isPluginManifest({ $schema: 'https://example.com/schema.json', name: 'design' })).toBe(true);
+    expect(isPluginManifest({ value: { name: 'design' } })).toBe(true);
+    expect(isPluginManifest({ value: { $schema: 'https://example.com/schema.json', name: 'design' } })).toBe(true);
   });
 
   it('rejects non-objects, missing name, and blank name', () => {
-    expect(isPluginManifest(null)).toBe(false);
-    expect(isPluginManifest(undefined)).toBe(false);
-    expect(isPluginManifest('design')).toBe(false);
-    expect(isPluginManifest({})).toBe(false);
-    expect(isPluginManifest({ name: '' })).toBe(false);
-    expect(isPluginManifest({ name: '   ' })).toBe(false);
-    expect(isPluginManifest({ name: 42 })).toBe(false);
+    expect(isPluginManifest({ value: null })).toBe(false);
+    expect(isPluginManifest({ value: undefined })).toBe(false);
+    expect(isPluginManifest({ value: 'design' })).toBe(false);
+    expect(isPluginManifest({ value: {} })).toBe(false);
+    expect(isPluginManifest({ value: { name: '' } })).toBe(false);
+    expect(isPluginManifest({ value: { name: '   ' } })).toBe(false);
+    expect(isPluginManifest({ value: { name: 42 } })).toBe(false);
   });
 });
 
 describe('isMcpManifest', () => {
   it('accepts an mcpServers object, empty or populated', () => {
-    expect(isMcpManifest({ mcpServers: {} })).toBe(true);
+    expect(isMcpManifest({ value: { mcpServers: {} } })).toBe(true);
     expect(
-      isMcpManifest({ mcpServers: { local: { type: 'stdio', command: './bin/tool' } } }),
+      isMcpManifest({ value: { mcpServers: { local: { type: 'stdio', command: './bin/tool' } } } }),
     ).toBe(true);
   });
 
   it('rejects a missing or non-object mcpServers', () => {
-    expect(isMcpManifest(null)).toBe(false);
-    expect(isMcpManifest({})).toBe(false);
-    expect(isMcpManifest({ mcpServers: [] })).toBe(false);
-    expect(isMcpManifest({ mcpServers: 'nope' })).toBe(false);
+    expect(isMcpManifest({ value: null })).toBe(false);
+    expect(isMcpManifest({ value: {} })).toBe(false);
+    expect(isMcpManifest({ value: { mcpServers: [] } })).toBe(false);
+    expect(isMcpManifest({ value: { mcpServers: 'nope' } })).toBe(false);
   });
 });
 
@@ -45,18 +45,17 @@ describe('ui-ux-design plugin', () => {
 
   it('has a plugin.json that validates as a PluginManifest', () => {
     const manifest: unknown = JSON.parse(readFileSync(join(pluginRoot, 'plugin.json'), 'utf8'));
-    expect(isPluginManifest(manifest)).toBe(true);
+    expect(isPluginManifest({ value: manifest })).toBe(true);
     expect((manifest as { name: string }).name).toBe('ui-ux-design');
-    expect((manifest as { version: string }).version).toBe('0.6.3');
+    expect((manifest as { version: string }).version).toBe('0.7.0');
   });
 
-  it('bundles a skill directory per Web-Design-owned AI-Dev-Shop skill', () => {
+  it('bundles a skill directory per Web-Design-owned AI-Dev-Shop skill; shadcn-ui ships as its own plugin', () => {
     const skillDirs = readdirSync(join(pluginRoot, PLUGIN_SKILLS_DIRNAME)).sort();
     expect(skillDirs).toEqual([
       'frontend-accessibility',
       'gstack-design',
       'interface-design',
-      'shadcn-ui',
       'ui-ux-design',
       'vercel-web-design-guidelines',
       'web-compliance',
@@ -73,7 +72,7 @@ describe('ui-ux-design plugin', () => {
 
   it('has an mcp.json that validates as an McpManifest (empty — example only)', () => {
     const manifest: unknown = JSON.parse(readFileSync(join(pluginRoot, 'mcp.json'), 'utf8'));
-    expect(isMcpManifest(manifest)).toBe(true);
+    expect(isMcpManifest({ value: manifest })).toBe(true);
     expect((manifest as { mcpServers: Record<string, unknown> }).mcpServers).toEqual({});
   });
 
@@ -117,7 +116,7 @@ describe('slide-design plugin', () => {
 
   it('has an mcp.json that validates as an empty McpManifest', () => {
     const manifest: unknown = JSON.parse(readFileSync(join(pluginRoot, 'mcp.json'), 'utf8'));
-    expect(isMcpManifest(manifest)).toBe(true);
+    expect(isMcpManifest({ value: manifest })).toBe(true);
     expect((manifest as { mcpServers: Record<string, unknown> }).mcpServers).toEqual({});
   });
 

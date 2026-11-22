@@ -8,6 +8,14 @@ import { resolveDaemonRegistryPath, writeDaemonRegistryRecord } from '@jini-ai/s
 
 import { resolveDaemonUrl } from '../daemon-url.js';
 import { createLocalDaemonDiscovery } from '../local-daemon-discovery.js';
+import { mkdir as mkdirForWriter, writeFile as writeFileForWriter } from 'node:fs/promises';
+import { dirname as dirnameForWriter } from 'node:path';
+/** A plain JSON writer for seeding registry records: these tests read discovery, not write durability
+ * (sidecar's own tests cover the atomic writer); hosts pass node-adapters' `nodeAtomicWriter`. */
+const testWriter = { writeJson: async ({ filePath, data }: { filePath: string; data: unknown }) => {
+  await mkdirForWriter(dirnameForWriter(filePath), { recursive: true });
+  await writeFileForWriter(filePath, `${JSON.stringify(data, null, 2)}\n`);
+} };
 
 const tempDirs: string[] = [];
 async function makeTempDataDir(): Promise<string> {
@@ -39,7 +47,7 @@ async function spawnAndAwaitExit(): Promise<number> {
 describe('createLocalDaemonDiscovery', () => {
   it('discovers the url from a live registry record written for dataDir, by dataDir', async () => {
     const dataDir = await makeTempDataDir();
-    await writeDaemonRegistryRecord({ registryPath: resolveDaemonRegistryPath({ dataDir }), record: {
+    await writeDaemonRegistryRecord({ writer: testWriter, registryPath: resolveDaemonRegistryPath({ dataDir }), record: {
       url: 'http://127.0.0.1:54213',
       host: '127.0.0.1',
       port: 54213,
@@ -55,7 +63,7 @@ describe('createLocalDaemonDiscovery', () => {
     const dataDir = await makeTempDataDir();
     const customDir = await makeTempDataDir();
     const registryPath = join(customDir, 'custom.json');
-    await writeDaemonRegistryRecord({ registryPath, record: {
+    await writeDaemonRegistryRecord({ writer: testWriter, registryPath, record: {
       url: 'http://127.0.0.1:9999',
       host: '127.0.0.1',
       port: 9999,
@@ -64,7 +72,7 @@ describe('createLocalDaemonDiscovery', () => {
     } });
     // A record also exists at the dataDir-derived default, at a different port — proves
     // registryPath, not dataDir, wins when both are given.
-    await writeDaemonRegistryRecord({ registryPath: resolveDaemonRegistryPath({ dataDir }), record: {
+    await writeDaemonRegistryRecord({ writer: testWriter, registryPath: resolveDaemonRegistryPath({ dataDir }), record: {
       url: 'http://127.0.0.1:1111',
       host: '127.0.0.1',
       port: 1111,
@@ -85,7 +93,7 @@ describe('createLocalDaemonDiscovery', () => {
   it('resolves null for a stale record whose recording process has actually exited — would incorrectly resolve without the liveness check', async () => {
     const dataDir = await makeTempDataDir();
     const deadPid = await spawnAndAwaitExit();
-    await writeDaemonRegistryRecord({ registryPath: resolveDaemonRegistryPath({ dataDir }), record: {
+    await writeDaemonRegistryRecord({ writer: testWriter, registryPath: resolveDaemonRegistryPath({ dataDir }), record: {
       url: 'http://127.0.0.1:54213',
       host: '127.0.0.1',
       port: 54213,
@@ -105,7 +113,7 @@ describe('createLocalDaemonDiscovery', () => {
   describe('wired into resolveDaemonUrl', () => {
     it('is used as the discover fallback, below an explicit flag/env, above defaultUrl', async () => {
       const dataDir = await makeTempDataDir();
-      await writeDaemonRegistryRecord({ registryPath: resolveDaemonRegistryPath({ dataDir }), record: {
+      await writeDaemonRegistryRecord({ writer: testWriter, registryPath: resolveDaemonRegistryPath({ dataDir }), record: {
         url: 'http://127.0.0.1:54213',
         host: '127.0.0.1',
         port: 54213,
@@ -115,12 +123,12 @@ describe('createLocalDaemonDiscovery', () => {
       const discover = createLocalDaemonDiscovery({ dataDir });
 
       await expect(
-        resolveDaemonUrl({}, { discover, defaultUrl: 'http://default.example' }),
+        resolveDaemonUrl({ env: process.env }, { discover, defaultUrl: 'http://default.example' }),
       ).resolves.toBe('http://127.0.0.1:54213');
 
       // An explicit flag still wins over local discovery.
       await expect(
-        resolveDaemonUrl({}, { flagUrl: 'http://flag.example', discover, defaultUrl: 'http://default.example' }),
+        resolveDaemonUrl({ env: process.env }, { flagUrl: 'http://flag.example', discover, defaultUrl: 'http://default.example' }),
       ).resolves.toBe('http://flag.example');
     });
 
@@ -129,7 +137,7 @@ describe('createLocalDaemonDiscovery', () => {
       const discover = createLocalDaemonDiscovery({ dataDir });
 
       await expect(
-        resolveDaemonUrl({}, { discover, defaultUrl: 'http://default.example' }),
+        resolveDaemonUrl({ env: process.env }, { discover, defaultUrl: 'http://default.example' }),
       ).resolves.toBe('http://default.example');
     });
   });

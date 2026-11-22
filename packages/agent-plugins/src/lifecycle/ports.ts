@@ -1,5 +1,5 @@
 import type { Clock, IdGenerator } from "@jini-ai/core/primitives";
-import type { BootIdentity } from "@jini-ai/platform/fs/file-lock";
+import type { AtomicFileWriterPort, BootIdentity, FileLockPort } from "@jini-ai/core/contracts/runtime";
 import type { AgentPluginServerMetadataReader } from './manifest.js';
 import type { AgentPluginLayoutPort } from './layout.js';
 import type { AgentPluginDeliveryMode, InstalledAgentPlugin } from './types.js';
@@ -51,6 +51,10 @@ export interface AgentPluginLifecyclePorts {
   readonly retiredBundledPlugins: ReadonlyMap<string, string | readonly string[]>;
   readonly bundledArchiveMagic: string;
   readonly filesystem: FilesystemPort;
+  /** Exclusive file lock; the host binds it (`@jini-ai/node-adapters/agent-plugins`), never defaulted here. */
+  readonly fileLock: FileLockPort<FilesystemPort>;
+  /** Atomic JSON writer for the update journal; bound by the host like `fileLock`. */
+  readonly atomicWriter: Pick<AtomicFileWriterPort<FilesystemPort>, 'writeJson'>;
   readonly clock: AgentPluginClockPort;
   readonly ids: AgentPluginIdsPort;
   readonly process: AgentPluginProcessPort;

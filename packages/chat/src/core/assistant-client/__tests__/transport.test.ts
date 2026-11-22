@@ -38,6 +38,7 @@ function harness(overrides: Partial<AssistantTransportPorts> = {}) {
     reattachAgUiRun: async ({ handlers }) => { agUiReattached.push(handlers); },
     fetchAgUiRunStatus: async () => null,
     stopAgUiRun: async ({ runId }) => { agUiStopped.push(runId); },
+    resumeAgUiRun: async () => { throw new Error('resumeAgUiRun is not used by these transport cases'); },
   };
   const ports: AssistantTransportPorts = {
     runsUrl: '/runs', byokTurnUrl: '/byok', byokRunIdPrefix: 'byok:', notices,
@@ -698,7 +699,7 @@ it('leaves a refused pending composer input out of both browser persistence path
   const pending: ChatMessage = { id: 'pending-input', role: 'user', content: 'keep this draft', inputPending: true };
   const persist = vi.fn(async () => {});
   const h = harness({ acceptRun: async () => new Response(JSON.stringify({ error: { message: 'slot busy' } }), { status: 409 }) });
-  await expect(h.transport({ persistUserTurn: persist }).startRun(input([pending], { context: { conversationId: 'conv' } }), recorder().handlers)).rejects.toThrow();
+  await expect(h.transport({ persistUserTurn: persist }).startRun(input([pending], { context: { conversationId: 'conv' } }), recorder().handlers)).rejects.toThrow('agent run failed to start (409): {"error":{"message":"slot busy"}}');
   expect(persist).not.toHaveBeenCalled();
   expect(persistableMessages({ messages: [pending] })).toEqual([]);
   expect(persistableMessages({ messages: [{ ...pending, inputPending: false }] })).toEqual([{ ...pending, inputPending: false }]);

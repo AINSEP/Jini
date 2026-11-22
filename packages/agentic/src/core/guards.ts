@@ -10,38 +10,13 @@
  * the host had written it.
  */
 
-/** The subset of an input element these guards need. Framework- and DOM-free by design. */
-export interface FieldDescriptor {
-  /** The `type` attribute, lowercased. */
-  readonly type?: string | undefined;
-  /** The `autocomplete` attribute, lowercased. */
-  readonly autocomplete?: string | undefined;
-  readonly name?: string | undefined;
-  readonly id?: string | undefined;
-  /**
-   * **Every** human-visible naming of the field the driver could resolve — `aria-label`,
-   * `placeholder`, and the text of each associated `<label>`.
-   *
-   * Carried because `name`/`id` are the *machine* names, and a form builder or CMS that emits
-   * `name="field_47"` leaves the guard nothing to judge while the page still plainly reads
-   * "Card number" to the user. A field whose sensitivity is stated only in its label was
-   * invisible to every refusal here until this existed.
-   *
-   * Plural, and required to be exhaustive, because the singular form this replaced took whichever
-   * source resolved *first*: a page could then mask a sensitive field behind a benign one —
-   * `<label for=f>Card number</label><input id=f name=field_47 placeholder="Enter value">` reached
-   * the guard as the single label "Enter value", and its value was reported back in full.
-   */
-  readonly accessibleLabels?: readonly string[] | undefined;
-  readonly readOnly?: boolean | undefined;
-  readonly disabled?: boolean | undefined;
-}
+import type { FieldDescriptor } from '@jini-ai/core/agent-handles';
 
 /** Input types no automated caller may ever write to. */
-const DENIED_TYPES = new Set(['password', 'hidden', 'file', 'image']);
+const DENIED_TYPES: ReadonlySet<string> = new Set(['password', 'hidden', 'file', 'image']);
 
 /** Autocomplete tokens covering credentials, payment instruments and one-time codes. */
-const DENIED_AUTOCOMPLETE = new Set([
+const DENIED_AUTOCOMPLETE: ReadonlySet<string> = new Set([
   'current-password', 'new-password', 'one-time-code',
   'cc-number', 'cc-exp', 'cc-exp-month', 'cc-exp-year', 'cc-csc', 'cc-name', 'cc-type',
 ]);
@@ -116,7 +91,7 @@ export type FieldReadRefusal =
  * the fill worked and the box is still clear — a false success, which is worse than a refusal
  * because it is never retried.
  */
-const NON_TEXT_TYPES = new Set(['checkbox', 'radio', 'submit', 'reset', 'button']);
+const NON_TEXT_TYPES: ReadonlySet<string> = new Set(['checkbox', 'radio', 'submit', 'reset', 'button']);
 
 export type FieldRefusal = FieldReadRefusal | 'not-text' | 'read-only' | 'disabled';
 
@@ -235,9 +210,7 @@ export const MAX_AGENT_LABEL_LENGTH = 200;
  * render one way and read another, which is a direct way to smuggle a different instruction
  * into whatever reads the label back.
  */
-const CONTROL_AND_BIDI =
-  // eslint-disable-next-line no-control-regex
-  /[\u0000-\u001F\u007F-\u009F\u200B-\u200F\u202A-\u202E\u2060-\u2064\u2066-\u2069\uFEFF]/g;
+const CONTROL_AND_BIDI = /[\p{Cc}\u200B-\u200F\u202A-\u202E\u2060-\u2064\u2066-\u2069\uFEFF]/gu;
 
 export interface NormalizedLabel {
   readonly text: string;

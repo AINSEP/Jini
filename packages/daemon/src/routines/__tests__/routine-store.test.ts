@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createInMemoryRoutineStore, summarizeLastRun } from '../routine-store.js';
+import { ToolInputError } from '@jini-ai/core';
 import type { RoutineRun } from '../types.js';
 
 function fixtureRun(overrides: Partial<RoutineRun> = {}): RoutineRun {
@@ -208,7 +209,7 @@ describe('createInMemoryRoutineStore — CRUD', () => {
 describe('createInMemoryRoutineStore — run history (recordRun/patchRun/listRuns/getLatestRun)', () => {
   it('listRuns() and getLatestRun() return empty/null for a routine with no recorded runs', async () => {
     const store = createInMemoryRoutineStore({  });
-    expect(await store.listRuns({ routineId: 'routine-1', limit: 10 })).toEqual([]);
+    expect((await store.listRuns({ routineId: 'routine-1', limit: 10 })).items).toEqual([]);
     expect(await store.getLatestRun({ routineId: 'routine-1' })).toBeNull();
   });
 
@@ -216,7 +217,7 @@ describe('createInMemoryRoutineStore — run history (recordRun/patchRun/listRun
     const store = createInMemoryRoutineStore({  });
     expect(store.recordRun({ run: fixtureRun({ id: 'run-1' }) })).toBe(true);
     expect(store.recordRun({ run: fixtureRun({ id: 'run-1' }) })).toBe(false);
-    expect(await store.listRuns({ routineId: 'routine-1', limit: 10 })).toHaveLength(1);
+    expect((await store.listRuns({ routineId: 'routine-1', limit: 10 })).items).toHaveLength(1);
   });
 
   it('listRuns() returns runs newest-first and respects the limit', async () => {
@@ -225,19 +226,35 @@ describe('createInMemoryRoutineStore — run history (recordRun/patchRun/listRun
     store.recordRun({ run: fixtureRun({ id: 'run-2', startedAt: 3000 }) });
     store.recordRun({ run: fixtureRun({ id: 'run-3', startedAt: 2000 }) });
 
-    const all = await store.listRuns({ routineId: 'routine-1', limit: 10 });
+    const all = (await store.listRuns({ routineId: 'routine-1', limit: 10 })).items;
     expect(all.map((r) => r.id)).toEqual(['run-2', 'run-3', 'run-1']);
 
-    const limited = await store.listRuns({ routineId: 'routine-1', limit: 2 });
+    const limited = (await store.listRuns({ routineId: 'routine-1', limit: 2 })).items;
     expect(limited.map((r) => r.id)).toEqual(['run-2', 'run-3']);
+  });
+
+  it('listRuns() pages: limit+1 runs give two pages, each id once, the last with no cursor', async () => {
+    const store = createInMemoryRoutineStore({});
+    for (const n of [1, 2, 3]) store.recordRun({ run: fixtureRun({ id: `run-${n}`, startedAt: n * 1000 }) });
+    const first = await store.listRuns({ routineId: 'routine-1', limit: 2 });
+    expect(first.items.map((r) => r.id)).toEqual(['run-3', 'run-2']);
+    expect(first.nextCursor).not.toBeNull();
+    const second = await store.listRuns({ routineId: 'routine-1', limit: 2 }, { cursor: first.nextCursor });
+    expect(second.items.map((r) => r.id)).toEqual(['run-1']);
+    expect(second.nextCursor).toBeNull();
+  });
+
+  it('listRuns() refuses a malformed cursor', async () => {
+    const store = createInMemoryRoutineStore({});
+    await expect(store.listRuns({ routineId: 'routine-1', limit: 2 }, { cursor: 'garbage' })).rejects.toBeInstanceOf(ToolInputError);
   });
 
   it('listRuns() scopes strictly to the given routineId', async () => {
     const store = createInMemoryRoutineStore({  });
     store.recordRun({ run: fixtureRun({ id: 'run-1', routineId: 'routine-a' }) });
     store.recordRun({ run: fixtureRun({ id: 'run-2', routineId: 'routine-b' }) });
-    expect((await store.listRuns({ routineId: 'routine-a', limit: 10 })).map((r) => r.id)).toEqual(['run-1']);
-    expect((await store.listRuns({ routineId: 'routine-b', limit: 10 })).map((r) => r.id)).toEqual(['run-2']);
+    expect((await store.listRuns({ routineId: 'routine-a', limit: 10 })).items.map((r) => r.id)).toEqual(['run-1']);
+    expect((await store.listRuns({ routineId: 'routine-b', limit: 10 })).items.map((r) => r.id)).toEqual(['run-2']);
   });
 
   it('getLatestRun() returns the most recently started run', async () => {

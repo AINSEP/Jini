@@ -1,6 +1,7 @@
 import { act, cleanup, renderHook } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { useSettingsSlice, SAVE_DEBOUNCE_MS, type SettingsSliceRefreshPort } from '../use-settings-slice.hooks.js';
+import { useSettingsSlice } from '../use-settings-slice.hooks.js';
+import { SAVE_DEBOUNCE_MS, type SettingsSliceRefreshPort } from '../settings-slice.helpers.js';
 import { useStandingDraftAutosave, type StandingDraftAutosavePort } from '../use-standing-draft-autosave.hooks.js';
 import { createStandingDraftLocalBackup } from '../../helpers/standing-draft-local-backup.js';
 

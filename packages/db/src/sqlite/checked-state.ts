@@ -1,6 +1,6 @@
 import { AsyncLocalStorage } from "node:async_hooks";
-import type { SqliteClient } from "./types.js";
-import type { StorageKernel } from "../kernel/port.js";
+import type { SqliteClient } from "@jini-ai/core/contracts/storage";
+import type { KyselyKernel } from "../kernel/port.js";
 
 export interface SqliteLease { active: boolean; acquired: boolean }
 export interface CheckedState {
@@ -15,7 +15,7 @@ export const checkedClients = new WeakSet<SqliteClient>();
 export const rawKernelClients = new WeakSet<SqliteClient>();
 
 /** The reverse of the driver's kernel cache, plus the owning kernels openSqliteFileKernel returns. */
-export const connectionsByKernel = new WeakMap<StorageKernel<unknown>, SqliteClient>();
+export const connectionsByKernel = new WeakMap<KyselyKernel<unknown>, SqliteClient>();
 
 /** A typed failure from the opt-in checked client; the native failure remains its cause. */
 export class SqliteClientError extends Error {

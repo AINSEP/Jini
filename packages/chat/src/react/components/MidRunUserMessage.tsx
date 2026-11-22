@@ -34,7 +34,7 @@ export function midRunUserMessageSlotKey({ data }: { data: unknown }): string | 
 }
 
 /** The bubble for one mid-run message — the same classes as a sent user message, so it reads as one. */
-export function MidRunUserMessage({ events, runStreaming = false, transcriptRow = false }: Pick<ExtEventRenderProps, 'events'> & Partial<Pick<ExtEventRenderProps, 'runStreaming' | 'transcriptRow'>>) {
+export function MidRunUserMessage({ events, runStreaming = false, transcriptRow = false, useTHook, useAttachmentGalleryHook }: { useTHook?: typeof useT; useAttachmentGalleryHook?: typeof useAttachmentGallery } & Pick<ExtEventRenderProps, 'events'> & Partial<Pick<ExtEventRenderProps, 'runStreaming' | 'transcriptRow'>>) {
   const data = events.at(-1);
   const text = field(data, 'text');
   if (text === undefined) return null;
@@ -43,16 +43,17 @@ export function MidRunUserMessage({ events, runStreaming = false, transcriptRow 
   const inputs: readonly AcceptedChatInput[] = receipt?.data.inputs ?? [receipt?.data ?? { id: field(data, 'id') ?? 'mid-run', text }];
   // A run that ended without reading the message hands it to the next turn; it is no longer queued here.
   return <>{inputs.map(input => <MidRunInput key={input.id} input={input} transcriptRow={transcriptRow}
-    queued={runStreaming && (input.deliveryState ?? receipt?.data.deliveryState) === 'queued'} />)}</>;
+    queued={runStreaming && (input.deliveryState ?? receipt?.data.deliveryState) === 'queued'}
+    {...(useTHook ? { useTHook } : {})} {...(useAttachmentGalleryHook ? { useAttachmentGalleryHook } : {})} />)}</>;
 }
 
 /** One receipt's text, files and shared copy action; queued state belongs to this input alone.
  * @complexity O(a) time/space for a attachments; clipboard and gallery effects stay with their owners.
  */
-function MidRunInput({ input, queued, transcriptRow }: { input: AcceptedChatInput; queued: boolean; transcriptRow: boolean }) {
-  const t = useT();
+function MidRunInput({ input, queued, transcriptRow, useTHook = useT, useAttachmentGalleryHook = useAttachmentGallery }: { useTHook?: typeof useT; useAttachmentGalleryHook?: typeof useAttachmentGallery; input: AcceptedChatInput; queued: boolean; transcriptRow: boolean }) {
+  const t = useTHook();
   const attachments = input.attachments ?? [];
-  const gallery = useAttachmentGallery({ attachments });
+  const gallery = useAttachmentGalleryHook({ attachments });
   return (
     <div className={`jini-message jini-message-user${transcriptRow ? '' : ' jini-message-user--mid-run'}`} data-agent-role="region" data-agent-label="A message from the user, sent while the agent was working">
       {/* Same notice pill as the slow-run "Still working" status (owner 11-04), so system notes read alike. */}

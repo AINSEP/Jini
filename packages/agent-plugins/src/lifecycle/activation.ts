@@ -43,8 +43,12 @@
  * acquire within 15 seconds or loses the lock before rename reports busy and publishes nothing.
  */
 import path from "node:path";
-import { FileLockLostError, FileLockTimeoutError, type FileLockHolder, type HeldFileLock } from "@jini-ai/platform/fs/file-lock";
-import { withFileLock } from "@jini-ai/platform/fs/file-lock";
+import {
+  FileLockLostError,
+  FileLockTimeoutError,
+  type FileLockHolder,
+  type HeldFileLock,
+} from "@jini-ai/core/contracts/runtime";
 import type { AgentPluginLifecyclePorts } from "./ports.js";
 
 /**
@@ -108,7 +112,7 @@ export class AgentPluginActivationsUnreadableError extends Error {
 
 /**
  * A WRITER could not take (or lost) the cross-process write lock in time — see this file's header,
- *  "Concurrency", ACROSS processes, and `exclusive-file-lock.ts`. `lost: true` means the lock WAS
+ *  "Concurrency", ACROSS processes, and `packages/platform/src/fs/file-lock.ts`. `lost: true` means the lock WAS
  *  acquired but was judged stale by another process before this writer's own rename; `lost: false`
  *  means the initial acquisition itself timed out. Either way NOTHING was written. `message` names
  *  the host lock path: keep it in a server-side log, never in a model- or user-facing payload.
@@ -170,7 +174,7 @@ export interface DeleteAgentPluginActivationRequired {
   readonly pluginId: string;
 }
 
-type ActivationPorts = Pick<AgentPluginLifecyclePorts, "filesystem" | "clock" | "ids" | "process" | "onEvent">;
+type ActivationPorts = Pick<AgentPluginLifecyclePorts, "filesystem" | "fileLock" | "clock" | "ids" | "process" | "onEvent">;
 
 function buildModule(ports: ActivationPorts) {
   const randomUUID = () => ports.ids.newId();
@@ -811,7 +815,7 @@ function buildModule(ports: ActivationPorts) {
       await mkdir(workspaceRoot, { recursive: true, mode: 0o700 });
       const lockPath = path.join(workspaceRoot, ACTIVATIONS_LOCK_FILENAME);
       try {
-        return await withFileLock({ lockPath, run: write }, {
+        return await ports.fileLock.withFileLock({ lockPath, run: write }, {
           timeoutMs: 15_000, staleMs: 10_000, pollMs: 10,
           filesystem: ports.filesystem, clock: ports.clock, monotonicMs: () => ports.clock.monotonicMs(),
           process: ports.process,
@@ -897,7 +901,7 @@ function buildModule(ports: ActivationPorts) {
 
 const instances = new WeakMap<ActivationPorts, ReturnType<typeof buildModule>>();
 /** Internal composition; one state/queue instance per injected host context. */
-export function createActivationModule(ports: ActivationPorts) {
+export function createActivationModule(ports: ActivationPorts, _optional: Record<string, never> = {}) {
   let instance = instances.get(ports);
   if (!instance) { instance = buildModule(ports); instances.set(ports, instance); }
   return instance;

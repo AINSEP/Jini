@@ -17,7 +17,7 @@ import type { IntentLine, IntentRequest, Outcome, PaymentProvider, ProviderConte
 import { assessPreChargeRisk, type RiskDecision } from "../contract/risk.js";
 import { sameScope, type PaymentScope } from "../contract/scope.js";
 import { applyPaymentEvidence, recordIntentDispatchOutcome } from "../accounting/apply-evidence.js";
-import type { AttemptRecord, PaymentRecord } from "../ledger/rows.js";
+import type { AttemptRecord, PaymentRecord } from "../ledger/row-records.js";
 import {
   REPLAY_RISK, checkAmount, checkProvider, checkText, dispatch, fail, markAttempt, newAttempt, noteApplied, onUniqueRace,
   readPayment, rejectedReplay, resolveContext, type Failure,
@@ -104,7 +104,7 @@ async function riskGate(
   }
 ): Promise<{ readonly ok: true; readonly risk: RiskDecision; readonly captureMode: CaptureMode } | Failure> {
   const input = { scope: required.scope, amount: required.amount, paymentId, ...(optional.partyId === undefined ? {} : { partyId: optional.partyId }) };
-  const risk = deps.risk ? await assessPreChargeRisk({ deps: deps.risk, input }) : ALLOW;
+  const risk = deps.risk ? await assessPreChargeRisk({ deps: deps.risk, ...input }) : ALLOW;
   const codes = risk.reasons.join(", ");
   if (risk.verdict === "deny") return fail({ code: "RISK_DENIED", message: `the pre-charge risk gate denied this payment (${codes})` });
   if (risk.verdict === "allow") return { ok: true, risk, captureMode: optional.captureMode ?? "auto" };
@@ -181,7 +181,7 @@ async function settleIntent(
 }
 
 export async function createIntent(
-  { deps, required }: { deps: OpsDeps; required: IntentRequired },
+  { deps, ...required }: { deps: OpsDeps } & IntentRequired,
   optional: IntentOptional = {}
 ): Promise<IntentResult> {
   const checked = checkIntent({ deps, required, optional });

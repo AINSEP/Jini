@@ -45,6 +45,7 @@ exclude explicitly assigned `undefined`. Model parsers accept `{ stdout }`.
 | `@jini-ai/agent-runtime/providers/tool-turn` | Node | Provider-neutral tool turns, replaceable adapters, Gemini schema helpers |
 | `@jini-ai/agent-runtime/model-catalog/cache` | Universal | Instance-owned discovery cache and model union |
 | `@jini-ai/agent-runtime/providers/sse-decode` | Universal | Inbound SSE frame decoder over an async iterable |
+| `@jini-ai/agent-runtime/providers/credentials` | Universal | Bring-your-own-key credential resolution: request-supplied first, then a host-stored row through an injected `readStored` |
 
 Browser consumers import the universal subpaths directly. The package root and
 provider adapters load Node modules. Provider PKCE adapters delegate protocol

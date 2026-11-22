@@ -63,4 +63,6 @@ export type ProjectLocationsActionResult =
    *  existing projects under the newly-added root. */
   | { status: 'scan-complete'; imported: number; existing: number }
   | { status: 'save-error'; message: string }
+  /** `ProjectLocationsPort.fetchLocations` rejected, so the list could not load. */
+  | { status: 'load-error'; message: string }
   | { status: 'scan-error'; message: string };

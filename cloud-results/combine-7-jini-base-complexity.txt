@@ -1,0 +1,2 @@
+Complexity ratchet passed: 2 entries (0 cyclomatic, 2 cognitive).
+exit=0

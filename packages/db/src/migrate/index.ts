@@ -7,8 +7,6 @@ export type { LegacyLedgerMapping } from "./legacy-ledger.js";
 export {
   MIGRATION_ID,
   MigrationChecksumError,
-  type MigrationContext,
-  type MigrationStep,
   UnknownAppliedMigrationError,
 } from "./step.js";
 export { sourceChecksum } from "./checksum.js";

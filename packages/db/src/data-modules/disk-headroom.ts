@@ -1,5 +1,5 @@
 /**
- * @file ADR-023 §3 (T4 fix) — disk-headroom preflight. Before any snapshot, core computes
+ * @file Disk-headroom preflight (T4 fix). Before any snapshot, core computes
  * `required = 1.5 x (current DB file size + WAL file size)`. If free disk space on the volume
  * holding `content.db` is below that, the dataModule operation fails closed before any file is
  * touched.

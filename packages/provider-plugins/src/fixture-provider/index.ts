@@ -1,5 +1,5 @@
 /** Small conformance fixture, not a vendor adapter. Evaluation and setup allocate no resources. */
-import type { PluginSdk } from '@jini-ai/plugins/host';
+import type { PluginSdk } from '@jini-ai/core/contracts/plugin-sdk';
 
 export default {
   definition: {

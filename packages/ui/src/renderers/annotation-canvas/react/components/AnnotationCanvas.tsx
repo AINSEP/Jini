@@ -6,7 +6,7 @@
  * shell.
  *
  * Origin: `apps/web/src/components/PreviewDrawOverlay.tsx`. See
- * `../../source-map.md`.
+ * `070311a07^:packages/ui/src/renderers/source-map.md`.
  */
 import { createPortal } from 'react-dom';
 import type { ReactElement, ReactNode } from 'react';
@@ -37,6 +37,7 @@ export interface AnnotationCanvasProps {
   /** Override any of the toolbar's icons; unset ones fall back to a small built-in generic set (see `icons.tsx`). */
   icons?: Partial<Record<AnnotationCanvasIconName, () => ReactElement>> | undefined;
   className?: string | undefined;
+  useAnnotationCanvasHook?: typeof useAnnotationCanvas;
 }
 
 function maybePortal(node: ReactNode, host: HTMLElement | null | undefined) {
@@ -49,10 +50,10 @@ function annotationCursor(active: boolean, markTool: MarkTool): string {
   return markTool === 'text' ? 'text' : 'crosshair';
 }
 
-export function AnnotationCanvas(props: AnnotationCanvasProps) {
+export function AnnotationCanvas({ useAnnotationCanvasHook = useAnnotationCanvas, ...props }: AnnotationCanvasProps) {
   const { children, toolbarHost, icons: iconOverrides, className } = props;
   const icons = { ...DEFAULT_ANNOTATION_CANVAS_ICONS, ...iconOverrides };
-  const c = useAnnotationCanvas(props);
+  const c = useAnnotationCanvasHook(props);
 
   // `c.imagePreviews[c.previewIndex]` is a TS-only possibly-undefined lookup
   // (`noUncheckedIndexedAccess`): `previewIndex` is only ever set to a
@@ -119,8 +120,8 @@ function TextLayer({ c, icons }: { c: AnnotationCanvasController; icons: CanvasI
   );
 }
 
-function TextMarkItem({ c, icons, mark }: { c: AnnotationCanvasController; icons: CanvasIcons; mark: TextMarkController }) {
-  const t = useT();
+function TextMarkItem({ c, icons, mark, useTHook = useT }: { c: AnnotationCanvasController; icons: CanvasIcons; mark: TextMarkController; useTHook?: typeof useT; }) {
+  const t = useTHook();
   return (
     <div
       onPointerDown={(e) => c.onTextPointerDown(e, mark)}
@@ -197,16 +198,105 @@ function TextMarkItem({ c, icons, mark }: { c: AnnotationCanvasController; icons
   );
 }
 
-function AnnotationDock({
+function AttachImageControl({
   c,
   icons,
   onToolbarClick,
+  useTHook = useT,
 }: {
   c: AnnotationCanvasController;
   icons: CanvasIcons;
   onToolbarClick: AnnotationCanvasProps['onToolbarClick'];
+  useTHook?: typeof useT;
 }) {
-  const t = useT();
+  const t = useTHook();
+  return (
+    <>
+      <input
+        ref={c.fileInputRef}
+        type="file"
+        accept="image/*"
+        multiple
+        style={{ display: 'none' }}
+        onChange={c.onFileInputChange}
+      />
+      <button
+        type="button"
+        onClick={() => {
+          onToolbarClick?.('attach_image');
+          c.fileInputRef.current?.click();
+        }}
+        disabled={c.sending}
+        aria-label={t('Attach image')}
+        title={t('Attach image')}
+      >
+        {icons.attach()}
+      </button>
+    </>
+  );
+}
+
+function AnnotationNoteInput({ c, useTHook = useT }: { c: AnnotationCanvasController; useTHook?: typeof useT; }) {
+  const t = useTHook();
+  return (
+    <input
+      value={c.note}
+      onChange={(e) => c.setNote(e.target.value)}
+      onPaste={c.onNotePaste}
+      disabled={c.sending}
+      placeholder={t('Add a note…')}
+      aria-label={t('Annotation note')}
+      onCompositionStart={c.onCompositionStart}
+      onCompositionEnd={c.onCompositionEnd}
+      onKeyDown={c.onNoteKeyDown}
+    />
+  );
+}
+
+function AnnotationToolbar({
+  c,
+  icons,
+  onToolbarClick,
+  useTHook = useT,
+}: {
+  c: AnnotationCanvasController;
+  icons: CanvasIcons;
+  onToolbarClick: AnnotationCanvasProps['onToolbarClick'];
+  useTHook?: typeof useT;
+}) {
+  const t = useTHook();
+  return (
+    <div
+      role="toolbar"
+      aria-label={t('Annotation tools')}
+      style={{ display: 'flex', alignItems: 'center', gap: 6, visibility: c.chromeHidden ? 'hidden' : undefined }}
+    >
+      <MarkToolPicker c={c} icons={icons} />
+      <button type="button" onClick={c.undoStroke} disabled={!c.canUndo} aria-label={t('Undo')} title={t('Undo')}>
+        {icons.undo()}
+      </button>
+      <button type="button" onClick={c.redoStroke} disabled={!c.canRedo} aria-label={t('Redo')} title={t('Redo')}>
+        {icons.redo()}
+      </button>
+      <AttachImageControl c={c} icons={icons} onToolbarClick={onToolbarClick} />
+      <AnnotationNoteInput c={c} />
+      <SubmitPicker c={c} icons={icons} />
+    </div>
+  );
+}
+
+function AnnotationDock({
+  c,
+  icons,
+  onToolbarClick,
+  useTHook = useT,
+}: {
+  c: AnnotationCanvasController;
+  icons: CanvasIcons;
+  onToolbarClick: AnnotationCanvasProps['onToolbarClick'];
+  useTHook?: typeof useT;
+}) {
+  const t = useTHook();
   return (
     <div
       ref={c.dockRef}
@@ -220,51 +310,7 @@ function AnnotationDock({
         </div>
       ) : null}
       {c.imagePreviews.length > 0 ? <AttachedImages c={c} icons={icons} /> : null}
-      <div
-        role="toolbar"
-        aria-label={t('Annotation tools')}
-        style={{ display: 'flex', alignItems: 'center', gap: 6, visibility: c.chromeHidden ? 'hidden' : undefined }}
-      >
-        <MarkToolPicker c={c} icons={icons} />
-        <button type="button" onClick={c.undoStroke} disabled={!c.canUndo} aria-label={t('Undo')} title={t('Undo')}>
-          {icons.undo()}
-        </button>
-        <button type="button" onClick={c.redoStroke} disabled={!c.canRedo} aria-label={t('Redo')} title={t('Redo')}>
-          {icons.redo()}
-        </button>
-        <input
-          ref={c.fileInputRef}
-          type="file"
-          accept="image/*"
-          multiple
-          style={{ display: 'none' }}
-          onChange={c.onFileInputChange}
-        />
-        <button
-          type="button"
-          onClick={() => {
-            onToolbarClick?.('attach_image');
-            c.fileInputRef.current?.click();
-          }}
-          disabled={c.sending}
-          aria-label={t('Attach image')}
-          title={t('Attach image')}
-        >
-          {icons.attach()}
-        </button>
-        <input
-          value={c.note}
-          onChange={(e) => c.setNote(e.target.value)}
-          onPaste={c.onNotePaste}
-          disabled={c.sending}
-          placeholder={t('Add a note…')}
-          aria-label={t('Annotation note')}
-          onCompositionStart={c.onCompositionStart}
-          onCompositionEnd={c.onCompositionEnd}
-          onKeyDown={c.onNoteKeyDown}
-        />
-        <SubmitPicker c={c} icons={icons} />
-      </div>
+      <AnnotationToolbar c={c} icons={icons} onToolbarClick={onToolbarClick} />
       <button
         type="button"
         onClick={() => {
@@ -281,8 +327,8 @@ function AnnotationDock({
   );
 }
 
-function AttachedImages({ c, icons }: { c: AnnotationCanvasController; icons: CanvasIcons }) {
-  const t = useT();
+function AttachedImages({ c, icons, useTHook = useT }: { c: AnnotationCanvasController; icons: CanvasIcons; useTHook?: typeof useT; }) {
+  const t = useTHook();
   return (
     <div aria-label={t('Attached images')} style={{ display: 'flex', gap: 6, visibility: c.chromeHidden ? 'hidden' : undefined }}>
       {c.imagePreviews.map((item, i) => (
@@ -346,8 +392,8 @@ function MarkToolPicker({ c, icons }: { c: AnnotationCanvasController; icons: Ca
   );
 }
 
-function SubmitPicker({ c, icons }: { c: AnnotationCanvasController; icons: CanvasIcons }) {
-  const t = useT();
+function SubmitPicker({ c, icons, useTHook = useT }: { c: AnnotationCanvasController; icons: CanvasIcons; useTHook?: typeof useT; }) {
+  const t = useTHook();
   return (
     <div style={{ position: 'relative', display: 'inline-flex' }} ref={c.submitMenuRef}>
       <button
@@ -398,8 +444,8 @@ function SubmitPicker({ c, icons }: { c: AnnotationCanvasController; icons: Canv
   );
 }
 
-function ImagePreviewDialog({ c, icons, preview }: { c: AnnotationCanvasController; icons: CanvasIcons; preview: ImagePreview }) {
-  const t = useT();
+function ImagePreviewDialog({ c, icons, preview, useTHook = useT }: { c: AnnotationCanvasController; icons: CanvasIcons; preview: ImagePreview; useTHook?: typeof useT; }) {
+  const t = useTHook();
   return (
     <div role="dialog" aria-modal="true" aria-label={preview.file.name} onMouseDown={(e) => {
       if (e.target === e.currentTarget) c.setPreviewIndex(null);

@@ -153,7 +153,7 @@ function publishedVersionRecords({ entry }: { entry: RegistryEntry }, _options: 
  *
  * @param db - The sqlite connection to migrate.
  */
-export function ensureRegistryTables({ db }: { db: SqliteDb }): void {
+export function ensureRegistryTables({ db }: { db: SqliteDb }, _optional: Record<string, never> = {}): void {
   db.exec(`
     CREATE TABLE IF NOT EXISTS registry_entries (
       backend_id TEXT NOT NULL,

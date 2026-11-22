@@ -166,4 +166,16 @@ export interface AdminPanel<TRender = unknown> {
    * passing check here stand in for server-side authorization.
    */
   readonly permissions?: readonly string[];
+
+  /**
+   * Permission strings of which the operator must hold **at least one** (or the owner wildcard) for
+   * this panel to be usable. Use it where the panel's landing read admits several grants and none
+   * is implied by the others. When `permissions` is also declared, both must pass.
+   *
+   * Unlike `permissions`, this is not applied by `resolvePanels`: it is read by
+   * `isPanelAccessible` / `withoutInaccessiblePanels` (`@jini-ai/core/admin-runtime`), which the shell
+   * uses for nav visibility and the `noAccess` screen. Same contract: **affordance only, never an
+   * authorization boundary**; the server re-checks every operation.
+   */
+  readonly anyOfPermissions?: readonly string[];
 }

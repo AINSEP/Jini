@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "./support/node-test.fixture.js";
 
 import { InMemoryEventBus } from "./support/switch-bindings.fixture.js";
-import type { DomainEvent } from "../../core/index.js";
+import type { DomainEvent } from "@jini-ai/core/contracts/events";
 import type { MailerPort, MailerSendOptions, MailerSendResult, OutboundEmail } from "./support/switch-bindings.fixture.js";
 import { registerFormNotifySubscriber } from "./support/switch-bindings.fixture.js";
 import { InMemoryFormDefinitionRepo, InMemoryFormSubmissionRepo } from "../repo.memory.js";
@@ -181,7 +181,7 @@ test("registerFormNotifySubscriber: a throwing MailerPort.send() is caught, logg
   assert.equal(warnings.length, 1);
   assert.ok(warnings[0]);
   assert.match(String(warnings[0][0]), /mail send threw/);
-  assert.equal(warnings[0][1], failure.stack);
+  assert.equal(warnings[0][1], failure);
 });
 
 for (const scenario of ["missing definition", "missing submission", "empty recipients", "definition read fails", "submission read fails"] as const) {

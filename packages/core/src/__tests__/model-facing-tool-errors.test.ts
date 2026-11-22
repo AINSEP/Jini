@@ -72,12 +72,13 @@ test('every map and registration handler is wrapped; successful values retain id
 test('describeErrorForLog names the class and a constant-token code, never the message', () => {
   const secret = ['tok', 'en-', 'value'].join('');
   class SqliteError extends Error { code = 'SQLITE_BUSY'; }
-  assert.equal(describeErrorForLog({ err: new SqliteError(`database is locked near '${secret}'`) }), 'SqliteError(SQLITE_BUSY)');
+  // A subclass the core does not know is labelled by its built-in base: its own name is never read.
+  assert.equal(describeErrorForLog({ err: new SqliteError(`database is locked near '${secret}'`) }), 'Error(SQLITE_BUSY)');
   assert.equal(describeErrorForLog({ err: new SyntaxError(`Unexpected token in '${secret}'`) }), 'SyntaxError');
   assert.equal(describeErrorForLog({ err: new (class extends Error {})(secret) }), 'Error');
 });
 
-test('describeErrorForLog drops codes that are not short constant tokens', () => {
+test('describeErrorForLog drops codes that are not in the approved set', () => {
   const withCode = (code: unknown) => Object.assign(new Error('x'), { code });
   assert.equal(describeErrorForLog({ err: withCode('ECONNREFUSED') }), 'Error(ECONNREFUSED)');
   assert.equal(describeErrorForLog({ err: withCode('free text with secret') }), 'Error');

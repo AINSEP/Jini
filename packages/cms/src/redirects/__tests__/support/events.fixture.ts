@@ -1,4 +1,9 @@
-import type { DomainEvent, EventBusPort, OutboxPort, OutboxRecord } from "../../../core/index.js";
+import type {
+  DomainEvent,
+  EventBusPort,
+  OutboxPort,
+  OutboxRecord,
+} from "@jini-ai/core/contracts/events";
 
 const DEFAULT_OUTBOX_CLAIM_LEASE_MS = 30 * 60 * 1000; // Same test-double lease as source outbox-worker.ts:63.
 

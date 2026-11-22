@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
-import { useInvalidate } from '@jini-ai/ui/fetch-query';
+import { useInvalidate } from '../../../react/kit.js';
 import { SEO_KEYS, useSeoSettingsQuery } from './SeoQuery.hooks.js';
-import { useController } from '../../../core/react/use-controller.js';
+import { useSeoController } from './SeoPorts.hooks.js';
 import { createSeoController } from '../../controllers/seo.controller.js';
 import { initialSeoState } from '../../models.js';
 import type { SeoController, SeoTranslator } from '../../models.js';
@@ -13,7 +13,7 @@ export function useSeo({ api }: { api: AdminSeoPort }, { t, events }: { t?: SeoT
   const invalidate = useInvalidate();
   const translator = useRef(t);
   translator.current = t;
-  const { controller, snapshot } = useController({ create: () => createSeoController({ api: cached.api }, { t: (key, vars) => translator.current?.(key, vars) ?? key }), dependencies: [cached.api] }, {
+  const { controller, snapshot } = useSeoController({ create: () => createSeoController({ api: cached.api }, { t: (key, vars) => translator.current?.(key, vars) ?? key }), dependencies: [cached.api] }, {
     // Uncontrolled form fields must first mount with this open's fresh settings. The loader
     // joins the query's mount read; retained data would permanently fill defaultValue too early.
     start: ({ controller }) => { void controller.load({}); },

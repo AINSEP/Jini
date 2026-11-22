@@ -107,8 +107,8 @@ describe('members controller', () => {
   it('refresh is latest-wins and unsubscribes on disposal', async () => {
     const api = memberApi(), unsub = vi.fn(); let refresh!: () => void;
     const c = createMembersController({ api }, { refresh: { subscribe: r => { refresh = r.onRefresh; return unsub; } } });
-    const a = deferred<{ members: typeof member[] }>(), b = deferred<{ members: typeof member[] }>(); vi.spyOn(api, 'listMembers').mockReturnValueOnce(a.promise).mockReturnValueOnce(b.promise);
-    const first = c.load({}); refresh(); b.resolve({ members: [member2] }); await b.promise; await Promise.resolve(); a.resolve({ members: [member] }); await first;
+    const a = deferred<{ members: typeof member[]; nextCursor: string | null }>(), b = deferred<{ members: typeof member[]; nextCursor: string | null }>(); vi.spyOn(api, 'listMembers').mockReturnValueOnce(a.promise).mockReturnValueOnce(b.promise);
+    const first = c.load({}); refresh(); b.resolve({ members: [member2], nextCursor: null }); await b.promise; await Promise.resolve(); a.resolve({ members: [member], nextCursor: null }); await first;
     expect(c.getSnapshot({}).members![0]!.id).toBe('n'); c.dispose({}); expect(unsub).toHaveBeenCalledTimes(1); refresh(); expect(api.listMembers).toHaveBeenCalledTimes(2);
   });
 });

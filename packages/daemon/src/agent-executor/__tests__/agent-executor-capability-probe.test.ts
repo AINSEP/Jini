@@ -1,10 +1,12 @@
 import { fixtureModelDiscovery } from './model-discovery-fixture.js';
 import type { ChildProcess, spawn as nodeSpawn } from 'node:child_process';
 import { describe, expect, it } from 'vitest';
-import { agentCapabilities, type AgentLaunchResolution, type RuntimeAgentDef } from '@jini-ai/agent-runtime';
+import { agentCapabilities } from '@jini-ai/agent-runtime';
+import { type AgentLaunchResolution, type RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 import { createInMemoryEventLog } from '../../event-log.js';
 import { createRunLifecycle } from '../../run-lifecycle.js';
 import { createAgentExecutor } from '../index.js';
+import { runtimeFixture, agentRuntimeFixture } from './runtime-fixture.js';
 
 /**
  * The capability gate (`agentCapabilities`) used to be filled only by `detectAgents`, which a host's
@@ -31,7 +33,10 @@ describe('AgentExecutor — probes the def\'s --help capabilities before buildAr
       promptViaStdin: true,
     };
     const spawnedArgs: string[][] = [];
-    const executor = createAgentExecutor({ lifecycle }, { getAgentDef: ({ id }) => (id === def.id ? def : null), resolveAgentLaunch: () =>
+    const executor = createAgentExecutor({ lifecycle, hostEnv: {}, runtime: runtimeFixture({ spawn: ((_command: string, args: readonly string[]) => {
+        spawnedArgs.push([...args]);
+        throw new Error('stop after argv');
+      }) as unknown as typeof nodeSpawn }), agentRuntime: agentRuntimeFixture({ getAgentDef: ({ id }) => (id === def.id ? def : null), resolveAgentLaunch: () =>
         ({
           selectedPath: '/fake/probe-bin',
           pathResolvedPath: '/fake/probe-bin',
@@ -43,10 +48,7 @@ describe('AgentExecutor — probes the def\'s --help capabilities before buildAr
         }) as AgentLaunchResolution, applyAgentLaunchEnv: ({ env }) => env, ensureAgentCapabilities: async ({ def: probed, launchPath, env }) => {
         probeCalls.push({ id: probed.id, launchPath, hasEnv: typeof env === 'object' && env !== null });
         agentCapabilities.set(probed.id, { partialMessages: true });
-      }, spawn: ((_command: string, args: readonly string[]) => {
-        spawnedArgs.push([...args]);
-        throw new Error('stop after argv');
-      }) as unknown as typeof nodeSpawn });
+      } }) });
     try {
       const { run } = await lifecycle.start({ contextRef: 'ctx-probe' });
       await executor.run({ runId: run.id, agentId: def.id, prompt: 'hi', cwd: '/work' }).catch(() => undefined);

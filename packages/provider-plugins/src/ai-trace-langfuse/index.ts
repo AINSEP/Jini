@@ -1,5 +1,5 @@
 /** `ai-trace-langfuse`: setup only registers the factory; the Langfuse client is built when a host initializes it. */
-import type { PluginSdk } from '@jini-ai/plugins/host';
+import type { PluginSdk } from '@jini-ai/core/contracts/plugin-sdk';
 import { createLangfuseAiTraceSink, createLangfuseClient, type LangfuseClientPort } from './langfuse.js';
 import { attributionOf } from '../attribution.js';
 

@@ -7,10 +7,13 @@ export default defineConfig({
     alias: [{ find: /^@jini-ai\/agent-runtime$/, replacement: fileURLToPath(new URL('../agent-runtime/src/index.ts', import.meta.url)) }],
   },
   test: {
+    // Vitest 3 fakes every timer API by default, performance included, which drops getEntriesByType from
+    // the boot-timing tests. Keep Vitest 2's default set.
+    fakeTimers: { toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'setImmediate', 'clearImmediate', 'Date'] },
     // Package-wide default is jsdom (most tests in this package touch the
     // DOM). The few tests that assert real SSR/no-DOM behavior (e.g.
     // utils/dom-subscriptions, utils/zip) opt back into Node per-file via a
-    // `// @vitest-environment node` pragma — see packages/ui/archived provenance ledger.
+    // `// @vitest-environment node` pragma — see 070311a07^:packages/ui/source-map.md.
     environment: 'jsdom',
     // `src/__tests__/features/**`, `src/__tests__/utils/**`, and
     // `src/__tests__/rules.test.ts` are the former `@jini-ai/ui-core`
@@ -88,7 +91,7 @@ export default defineConfig({
         // the package, each re-verified zero-runtime-declaration via the
         // same `grep -nE '^(export )?(const|function|class|let|var) '`
         // check (plus a broader `enum|default` sweep) before being added
-        // here — see packages/ui/archived provenance ledger's dated entry for the full
+        // here — see 070311a07^:packages/ui/source-map.md's dated entry for the full
         // file-by-file record.
         'src/features/asset-grid/ports.ts',
         'src/features/asset-grid/types.ts',
@@ -123,9 +126,6 @@ export default defineConfig({
         // verified with the same grep before excluding.
         'src/features/resource-dashboard/types.ts',
         'src/features/resource-dashboard/ports.ts',
-        // lexical-rich-text-editor/types.ts is pure `interface`/`type`
-        // declarations, zero runtime statements (same verification check).
-        'src/features/lexical-rich-text-editor/types.ts',
         // iframe-pool/types.ts is likewise pure `interface` declarations,
         // zero runtime statements (same verification grep).
         'src/features/iframe-pool/types.ts',

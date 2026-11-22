@@ -1,8 +1,8 @@
 import { useFormTabStripView } from "../hooks/forms-view.hooks.js";
 import type * as React from 'react';
-import { agentHandle } from '@jini-ai/agentic';
+import { agentHandle } from '@jini-ai/core/agent-handles';
 
-export function FormEditorTabStrip(props: {
+export function FormEditorTabStrip({ showTabs, tab, onTabChange, tabRefs, onTabsKeyDown, t, useFormTabStripViewHook = useFormTabStripView }: {
   showTabs: boolean;
   tab: "fields" | "submissions";
   onTabChange: (tab: "fields" | "submissions") => void;
@@ -10,9 +10,10 @@ export function FormEditorTabStrip(props: {
   onTabsKeyDown: (e: React.KeyboardEvent) => void;
   /** Translator closure — see `FormEditor()`'s own `t`. */
   t: (key: string) => string;
-}, _optional: Record<string, never> = {}) {
-  const { showTabs, tab, onTabChange, tabRefs, onTabsKeyDown, t } = props;
-  const tabs = useFormTabStripView({ onTabChange, tabRefs });
+  /** Dependency injection seam for tests; defaulted to the real hook. */
+  useFormTabStripViewHook?: typeof useFormTabStripView;
+}) {
+  const tabs = useFormTabStripViewHook({ onTabChange, tabRefs });
   if (!showTabs) return null;
 
   return (

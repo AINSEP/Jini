@@ -18,7 +18,7 @@
  *    result and mints its `ERR-…` id, per the owner's "hide secrets only" ruling (see that file's own
  *    header). Sits ABOVE the read-only gate so a read-only refusal (`status: 'denied'`, set by layer
  *    1, never `'failed'`) is never touched by it, and BELOW `withToolAttemptAudit` so the audit sees
- *    the finished `errorId` and can store it (`tool-executor-audit.ts`). It sits INSIDE
+ *    the finished `errorId` and can store it (`packages/daemon/src/core/tool-audit.ts`). It sits INSIDE
  *    `withToolFailureRecovery` (layer 4) rather than outside it: recovery's own read-only-remedy
  *    refusal message is set on the OUTER result, after this layer has already run, so that message is
  *    never redacted either — only the original/remedy/retry calls recovery makes THROUGH `inner` pass
@@ -41,8 +41,10 @@
  * Architectural role: `src/assistant` composition-layer adapter. Takes its collaborators as
  * arguments and constructs no policy, sink, or registry of its own.
  */
-import { createToolExecutor, type ToolExecutor, type PrepareToolGuidance } from "../tool-executor.js";
+import { createToolExecutor } from '../tool-executor.js';
+import { type ToolExecutor, type PrepareToolGuidance } from '../tool-executor-types.js';
 import type { ToolRegistry } from "@jini-ai/core";
+import { isNoopObservabilityPort, type ObservabilityPort } from "@jini-ai/core/contracts/observability";
 import type { ToolAttemptAuditSink } from "../core/tool-audit.js";
 import type { SurfaceExchangeStore } from "../surface-exchanges.js";
 import { withReadOnlyToolConstraint } from "../core/read-only-tools.js";
@@ -50,6 +52,7 @@ import { withToolAttemptAudit } from "../core/tool-audit.js";
 import { withToolFailureRecovery, type ToolFailureRecoveryDeps } from "./recovery.js";
 import { withRedactedToolFailures, redactFailedResult, readToolErrorId, type RedactedToolFailuresDeps } from "./redaction.js";
 import { withSurfaceExchangeLifetime } from './surface-lifetime.js';
+import { withToolCallObservability } from "./observability.js";
 
 export interface AssistantToolExecutorDeps extends Omit<ToolFailureRecoveryDeps, "registry"> {
   readonly registry: ToolRegistry;
@@ -59,6 +62,8 @@ export interface AssistantToolExecutorDeps extends Omit<ToolFailureRecoveryDeps,
   /** Optional sink is a real supported configuration; never require a dummy observer. */
   readonly toolAttemptAudit?: { readonly sink: ToolAttemptAuditSink; readonly workspaceId: string; readonly now: () => string; readonly newAttemptId: () => string; readonly onSinkError?: (error: unknown) => void };
   readonly toolFailures: RedactedToolFailuresDeps;
+  readonly observability?: ObservabilityPort;
+  readonly observabilityEnabled?: () => boolean;
 }
 
 /** The audit wrapper's options: only an error sink the caller actually supplied. */
@@ -73,12 +78,18 @@ function auditOptions(audit: NonNullable<AssistantToolExecutorDeps['toolAttemptA
 export function createAssistantToolExecutor(deps: AssistantToolExecutorDeps, _optional = {}): ToolExecutor {
   const guarded = withReadOnlyToolConstraint({ inner: createToolExecutor({ registry: deps.registry }, {
     ...(deps.prepareGuidance ? { prepareGuidance: deps.prepareGuidance } : {}),
-    redactNestedFailure: ({ result, ...context }) => redactFailedResult(result, context, deps.toolFailures).error,
+    redactNestedFailure: ({ result, ...context }) => redactFailedResult({ result, ...context, deps: deps.toolFailures }).error,
   }),
     registry: deps.registry, idGenerator: { newId: deps.newExecutionId }, messages: deps.readOnlyMessages }, {});
   const redacted = withRedactedToolFailures({ inner: guarded, ...deps.toolFailures }, {});
-  const audited = deps.toolAttemptAudit
-    ? withToolAttemptAudit({ inner: redacted, ...deps.toolAttemptAudit, readErrorId: readToolErrorId }, auditOptions(deps.toolAttemptAudit))
+  const observed = deps.observability && !isNoopObservabilityPort(deps.observability)
+    ? withToolCallObservability({ inner: redacted, observability: deps.observability }, {
+      isRegisteredTool: ({ toolId }) => deps.registry.has({ toolId }),
+      ...(deps.observabilityEnabled ? { observabilityEnabled: deps.observabilityEnabled } : {}),
+    })
     : redacted;
+  const audited = deps.toolAttemptAudit
+    ? withToolAttemptAudit({ inner: observed, ...deps.toolAttemptAudit, readErrorId: readToolErrorId }, auditOptions(deps.toolAttemptAudit))
+    : observed;
   return withSurfaceExchangeLifetime({ inner: withToolFailureRecovery({ ...deps, inner: audited }, {}) });
 }

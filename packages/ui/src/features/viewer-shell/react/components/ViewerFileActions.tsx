@@ -9,6 +9,7 @@ export interface ViewerFileActionsProps {
   fileName?: string;
   downloadLabel?: string;
   openLabel?: string;
+  useTHook?: typeof useT;
 }
 
 /**
@@ -16,18 +17,18 @@ export interface ViewerFileActionsProps {
  * from a `projectFileUrl(projectId, file.name)` daemon route — that's
  * host-specific, so this version takes final, already-resolved URLs instead.
  */
-export function ViewerFileActions({ downloadUrl, openUrl, fileName, downloadLabel, openLabel }: ViewerFileActionsProps) {
-  const t = useT();
+export function ViewerFileActions({ downloadUrl, openUrl, fileName, downloadLabel, openLabel, useTHook = useT }: ViewerFileActionsProps) {
+  const t = useTHook();
   if (!downloadUrl && !openUrl) return null;
   return (
-    <div className="viewer-toolbar-actions">
+    <div className="jini-viewer-toolbar-actions">
       {downloadUrl ? (
-        <a className="ghost-link" href={downloadUrl} download={fileName}>
+        <a className="jini-ghost-link" href={downloadUrl} download={fileName}>
           {downloadLabel ?? t('Download')}
         </a>
       ) : null}
       {openUrl ? (
-        <a className="ghost-link" href={openUrl} target="_blank" rel="noreferrer noopener">
+        <a className="jini-ghost-link" href={openUrl} target="_blank" rel="noreferrer noopener">
           {openLabel ?? t('Open')}
         </a>
       ) : null}

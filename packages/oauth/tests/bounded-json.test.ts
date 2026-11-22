@@ -15,8 +15,8 @@ test("the text reader counts UTF-8 bytes across chunks and accepts exactly the c
     controller.enqueue(Uint8Array.from([0xa9, 0x21]));
     controller.close();
   } });
-  assert.equal(await readBoundedOAuthText(new Response(body), messages, 3), "é!");
-  assert.equal(await readBoundedOAuthText(new Response(null), messages, 0), "");
+  assert.equal(await readBoundedOAuthText({ response: new Response(body), messages }, { maxBytes: 3 }), "é!");
+  assert.equal(await readBoundedOAuthText({ response: new Response(null), messages }, { maxBytes: 0 }), "");
 });
 
 test("overflow cancels an unfinished stream immediately and retains the caller's error and action", async () => {
@@ -26,7 +26,7 @@ test("overflow cancels an unfinished stream immediately and retains the caller's
     pull(controller) { pulls += 1; controller.enqueue(Uint8Array.from([0xc3, 0xa9])); },
     cancel() { cancelled = true; },
   }, { highWaterMark: 0 });
-  await assert.rejects(readBoundedOAuthText(new Response(body), messages, 3), {
+  await assert.rejects(readBoundedOAuthText({ response: new Response(body), messages }, { maxBytes: 3 }), {
     name: "OAuthError", code: "OAUTH_MALFORMED_RESPONSE", message: "fixture body exceeds its limit",
     operatorAction: "Reduce the fixture body.", retryable: false,
   });
@@ -37,21 +37,21 @@ test("overflow cancels an unfinished stream immediately and retains the caller's
 test("a read failure stays a read failure even if cancelling the stream also fails", async () => {
   const failure = new Error("fixture connection reset");
   const body = new ReadableStream<Uint8Array>({ pull() { throw failure; } });
-  await assert.rejects(readBoundedOAuthText(new Response(body), messages), (error) => error === failure);
+  await assert.rejects(readBoundedOAuthText({ response: new Response(body), messages }), (error) => error === failure);
 });
 
 // Keep the transport cap pin after deleting the internal JSON-object parser.
 test("the bounded response preserves exact text and honors a supplied byte cap", async () => {
   const text = '{"scope":"read","nested":{"n":7}}';
-  assert.equal(await readBoundedOAuthText(new Response(text), messages, 40), text);
-  await assert.rejects(readBoundedOAuthText(new Response(text), messages, 4), {
+  assert.equal(await readBoundedOAuthText({ response: new Response(text), messages }, { maxBytes: 40 }), text);
+  await assert.rejects(readBoundedOAuthText({ response: new Response(text), messages }, { maxBytes: 4 }), {
     code: "OAUTH_MALFORMED_RESPONSE", message: "fixture body exceeds its limit",
   });
 });
 
 test("string readers filter invalid members without coercion and trim optional strings", () => {
-  assert.deepEqual(readStringArray(["read", "", 7, null, "write", false]), ["read", "write"]);
-  for (const input of [undefined, null, "read", { scope: "write" }]) assert.deepEqual(readStringArray(input), []);
-  assert.equal(readOptionalString(" \t credential \n"), "credential");
-  for (const input of [undefined, null, 7, false, {}, "", " \t "]) assert.equal(readOptionalString(input), null);
+  assert.deepEqual(readStringArray({ value: ["read", "", 7, null, "write", false] }), ["read", "write"]);
+  for (const input of [undefined, null, "read", { scope: "write" }]) assert.deepEqual(readStringArray({ value: input }), []);
+  assert.equal(readOptionalString({ value: " \t credential \n" }), "credential");
+  for (const input of [undefined, null, 7, false, {}, "", " \t "]) assert.equal(readOptionalString({ value: input }), null);
 });

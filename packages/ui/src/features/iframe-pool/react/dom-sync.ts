@@ -42,7 +42,7 @@ export function setAttribute(frame: HTMLIFrameElement, name: string, value: unkn
 // here because, unlike a normal React-rendered element, this frame's style
 // is synced manually (imperative DOM writes), so React's own auto-unit
 // behavior for e.g. `style={{ width: 10 }}` never runs for it.
-const UNITLESS_NUMBER_PROPERTIES = new Set([
+const UNITLESS_NUMBER_PROPERTIES: ReadonlySet<string> = new Set([
   'animation-iteration-count', 'aspect-ratio', 'border-image-outset', 'border-image-slice',
   'border-image-width', 'column-count', 'flex', 'flex-grow', 'flex-shrink', 'font-weight',
   'grid-area', 'grid-column', 'grid-column-end', 'grid-column-start', 'grid-row', 'grid-row-end',

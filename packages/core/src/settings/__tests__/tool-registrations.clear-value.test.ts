@@ -51,7 +51,7 @@ test("clear honors a denied alias target before changing either layer", async ()
 });
 
 for (const scope of ['workspace', 'user'] as const) test(`approved clear preserves a ${scope} edit arriving after the card recheck`, async () => {
-  const { set } = await import('../write-service.js');
+  const { set } = await import('../write-values.js');
   const def = definition({ namespace: 'core.instructions', key: 'custom' });
   const f = fixture([def], { confirmWrite: async () => true });
   const transaction = f.settingsRepo.transaction.bind(f.settingsRepo);

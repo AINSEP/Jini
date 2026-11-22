@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '../../../../__tests__/ui-kit-render-support.js';
 import { describe, expect, it, vi } from 'vitest';
 import { createDomPageDriver } from '@jini-ai/agentic/dom';
 // Exercise the existing shared overlay context without adding a chat runtime dependency.
@@ -31,7 +31,7 @@ describe('AgentRuntimePicker agent handles', () => {
       const handle = option.getAttribute('data-agent-element')!;
       expect(await driver.findElements({}, { query: handle })).toEqual([expect.objectContaining({ handle, page: 'settings' })]);
       const outside = createDomPageDriver({ root: document.createElement('main'), pages: {} });
-      await expect(outside.click({ handle })).rejects.toThrow();
+      await expect(outside.click({ handle })).rejects.toThrow(`no element published as "${handle}" on this page`);
       expect(onChange).not.toHaveBeenCalled();
       await act(async () => { await driver.click({ handle }); });
       expect(onChange).toHaveBeenCalledWith({ agentId: 'runtime-b' });

@@ -12,17 +12,33 @@ import { PAYMENTS_LEDGER_ID, paymentsLedger } from "../migrations/0001_payments_
 import { PAYMENTS_OPERATOR_ACTIONS_ID } from "../migrations/0002_payments_operator_actions.js";
 import { PAYMENTS_ATTEMPT_RECOVERY_ID } from "../migrations/0004_payments_attempt_recovery.js";
 import { PAYMENTS_INTENT_REPLAY_ID } from "../migrations/0005_payments_intent_replay.js";
-import { COMMERCE_PAYMENTS_MIGRATION_CHECKSUMS } from "../migrations/checksums.js";
+import { COMMERCE_PAYMENTS_MIGRATION_CHECKSUMS, COMMERCE_PAYMENTS_SOURCE_DIGESTS } from "../migrations/checksums.js";
 import { LEDGER_INTEGER_COLUMNS, LEDGER_TABLE_RULES, LEDGER_TABLES } from "../rows.js";
 import { sqlPaymentsLedger } from "../repo.sql.js";
 import { payment } from "./ledger-contract.js";
 
 /**
  * @file Holds the payments ledger's migration history immutable (ADR-066 §3) and proves it applies:
- * every step's pinned checksum equals the one derived from its source (comments removed,
+ * every step's source digest (the edit guard) equals the one derived from its source (comments removed,
  * whitespace collapsed), so editing a shipped step goes red here instead of differing silently
- * between databases. `UPDATE_COMMERCE_PAYMENTS_CHECKSUMS=1` pins NEW ids only.
+ * between databases. The ledger checksums are what databases recorded and are asserted as literals.
+ * `UPDATE_COMMERCE_PAYMENTS_CHECKSUMS=1` pins NEW ids only, into both maps.
  */
+
+/** The ledger identity: what shipped databases recorded. Never changes. */
+const LEDGER_CHECKSUM_LITERALS: Readonly<Record<string, string>> = {
+  "0001_payments_ledger": "484498a844675099a2cd1b6ddcaba4e2b0f2293597b4c4a8be81458bc9424749",
+  "0002_payments_operator_actions": "b25706b7606c5e9be93eba63ae2a415cf81212307e06bf511f158a14701aa74d",
+  "0004_payments_attempt_recovery": "902fb1230f456c3420e64c2093cbdbc0ab18ee65184febdc777c76a0574bbe4c",
+  "0005_payments_intent_replay": "7d49e170dbe7f7b89befc1bcc0d02429e0bbc6f169b3c7c597469038b15bbbac",
+};
+
+/** Appends `lines` before the closing brace of the exported map named `name`. */
+function appendToMap(text: string, name: string, lines: string): string {
+  const start = text.indexOf(`export const ${name}`);
+  const end = text.indexOf("\n};\n", start);
+  return `${text.slice(0, end)}\n${lines.replace(/\n$/, "")}${text.slice(end)}`;
+}
 
 const MIGRATIONS_DIR = path.resolve(import.meta.dirname, "../migrations");
 const CHECKSUMS_FILE = path.join(MIGRATIONS_DIR, "checksums.ts");
@@ -34,7 +50,7 @@ function derive(id: string): string {
     .replace(/(^|[^:])\/\/.*$/gm, "$1")
     .replace(/\s+/g, " ")
     .trim();
-  return sourceChecksum(text);
+  return sourceChecksum({ text });
 }
 
 /** Every `NNNN_name.ts` step file, so a step that exists but is not pinned (or not registered) is caught. */
@@ -49,20 +65,25 @@ function openKernel() {
 
 describe("payments ledger migrations", () => {
   test("every step's pinned checksum matches its source", async () => {
-    const unpinned = STEP_IDS.filter((id) => COMMERCE_PAYMENTS_MIGRATION_CHECKSUMS[id] === undefined);
+    const unpinned = STEP_IDS.filter((id) => COMMERCE_PAYMENTS_MIGRATION_CHECKSUMS[id] === undefined || COMMERCE_PAYMENTS_SOURCE_DIGESTS[id] === undefined);
     if (process.env.UPDATE_COMMERCE_PAYMENTS_CHECKSUMS === "1" && unpinned.length > 0) {
       const lines = unpinned.map((id) => `  "${id}": "${derive(id)}",\n`).join("");
-      fs.writeFileSync(CHECKSUMS_FILE, fs.readFileSync(CHECKSUMS_FILE, "utf8").replace(/\n};\n$/, `\n${lines}};\n`));
+      const text = fs.readFileSync(CHECKSUMS_FILE, "utf8");
+      fs.writeFileSync(CHECKSUMS_FILE, appendToMap(appendToMap(text, "COMMERCE_PAYMENTS_MIGRATION_CHECKSUMS", lines), "COMMERCE_PAYMENTS_SOURCE_DIGESTS", lines));
       return;
     }
     expect(unpinned, "pin new steps with UPDATE_COMMERCE_PAYMENTS_CHECKSUMS=1").toEqual([]);
     const { COMMERCE_PAYMENTS_MIGRATIONS } = await history();
     for (const step of COMMERCE_PAYMENTS_MIGRATIONS) {
-      expect(derive(step.id), `${step.id} changed after it was pinned; add a new step instead`).toBe(COMMERCE_PAYMENTS_MIGRATION_CHECKSUMS[step.id]);
+      expect(derive(step.id), `${step.id} changed after it was pinned; add a new step instead`).toBe(COMMERCE_PAYMENTS_SOURCE_DIGESTS[step.id]);
       expect(step.checksum).toBe(COMMERCE_PAYMENTS_MIGRATION_CHECKSUMS[step.id]);
     }
     expect(COMMERCE_PAYMENTS_MIGRATIONS.map((step) => step.id)).toEqual(STEP_IDS);
     expect(STEP_IDS).toEqual([PAYMENTS_LEDGER_ID, PAYMENTS_OPERATOR_ACTIONS_ID, PAYMENTS_ATTEMPT_RECOVERY_ID, PAYMENTS_INTENT_REPLAY_ID]);
+  });
+
+  test("the ledger checksums databases recorded are unchanged", () => {
+    expect(COMMERCE_PAYMENTS_MIGRATION_CHECKSUMS).toEqual(LEDGER_CHECKSUM_LITERALS);
   });
 
   test("pinnedChecksum refuses an id with no pin", async () => {
@@ -99,7 +120,7 @@ describe("payments ledger migrations", () => {
       await kernel.execute(sql`INSERT INTO commerce_outbox
         (id, workspace_id, mode, topic, aggregate_id, payload_json, created_at, published_at)
         VALUES ('z-legacy', 'ws-1', 'live', 'payment.succeeded', 'pay-1', '{"minor":101}', 307, NULL)`);
-      expect(await migrateCommercePayments({ kernel })).toEqual({
+      expect(await migrateCommercePayments({ kernel, runMigrations })).toEqual({
         applied: [PAYMENTS_OPERATOR_ACTIONS_ID, PAYMENTS_ATTEMPT_RECOVERY_ID, PAYMENTS_INTENT_REPLAY_ID], alreadyApplied: [PAYMENTS_LEDGER_ID], notes: [],
       });
       await ledger.transaction({ fn: async (tx) => {
@@ -127,7 +148,7 @@ describe("payments ledger migrations", () => {
           { id: "legacy-attempt", currency: null, amountMinor: null }, { id: "new-attempt", currency: "JPY", amountMinor: 601 },
         ]);
       } });
-      expect(await migrateCommercePayments({ kernel })).toEqual({
+      expect(await migrateCommercePayments({ kernel, runMigrations })).toEqual({
         applied: [], alreadyApplied: [PAYMENTS_LEDGER_ID, PAYMENTS_OPERATOR_ACTIONS_ID, PAYMENTS_ATTEMPT_RECOVERY_ID, PAYMENTS_INTENT_REPLAY_ID], notes: [],
       });
       expect(await ledger.transaction({ fn: (tx) => tx.getPayment({ workspaceId: "ws-1", mode: "live", id: "pay-1" }) })).toEqual({ ...payment(), version: 1 });
@@ -140,7 +161,7 @@ describe("payments ledger migrations", () => {
     const { COMMERCE_PAYMENTS_LEDGER_TABLE, migrateCommercePayments } = await history();
     const kernel = openKernel();
     try {
-      await migrateCommercePayments({ kernel }, { clock: { nowMs: () => 1_700_000_000_123 }, atomicity: "batch" });
+      await migrateCommercePayments({ kernel, runMigrations }, { clock: { nowMs: () => 1_700_000_000_123 }, atomicity: "batch" });
       const rows = await kernel.query<{ id: string; applied_at: string }>(sql.raw(`SELECT id, applied_at FROM ${COMMERCE_PAYMENTS_LEDGER_TABLE} ORDER BY id`));
       expect(rows).toEqual([
         { id: PAYMENTS_LEDGER_ID, applied_at: "2023-11-14T22:13:20.123Z" },
@@ -158,8 +179,8 @@ describe("payments ledger migrations", () => {
     const kernel = openKernel();
     try {
       await kernel.run((db) => db.schema.createTable("commerce_operator_actions").addColumn("id", "text").execute());
-      await expect(migrateCommercePayments({ kernel }, { atomicity })).rejects.toThrow(/commerce_operator_actions.*already exists/);
-      const tables = await listTables(kernel);
+      await expect(migrateCommercePayments({ kernel, runMigrations }, { atomicity })).rejects.toThrow(/commerce_operator_actions.*already exists/);
+      const tables = await listTables({ kernel });
       expect(tables.includes(LEDGER_TABLES.payments)).toBe(atomicity === "step");
       expect(tables.includes(COMMERCE_PAYMENTS_LEDGER_TABLE)).toBe(atomicity === "step");
       const auditColumns = await kernel.query<{ name: string }>(sql`PRAGMA table_info(commerce_operator_actions)`);
@@ -171,7 +192,7 @@ describe("payments ledger migrations", () => {
         expect(outboxColumns.map((row) => row.name)).toEqual(["id", "workspace_id", "mode", "topic", "aggregate_id", "payload_json", "created_at", "published_at"]);
       }
       await kernel.run((db) => db.schema.dropTable("commerce_operator_actions").execute());
-      expect(await migrateCommercePayments({ kernel }, { atomicity })).toEqual({
+      expect(await migrateCommercePayments({ kernel, runMigrations }, { atomicity })).toEqual({
         applied: atomicity === "step" ? [PAYMENTS_OPERATOR_ACTIONS_ID, PAYMENTS_ATTEMPT_RECOVERY_ID, PAYMENTS_INTENT_REPLAY_ID] : [PAYMENTS_LEDGER_ID, PAYMENTS_OPERATOR_ACTIONS_ID, PAYMENTS_ATTEMPT_RECOVERY_ID, PAYMENTS_INTENT_REPLAY_ID],
         alreadyApplied: atomicity === "step" ? [PAYMENTS_LEDGER_ID] : [], notes: [],
       });
@@ -184,11 +205,11 @@ describe("payments ledger migrations", () => {
     const { COMMERCE_PAYMENTS_LEDGER_TABLE, migrateCommercePayments } = await history();
     const kernel = openKernel();
     try {
-      const first = await migrateCommercePayments({ kernel });
+      const first = await migrateCommercePayments({ kernel, runMigrations });
       expect(first.applied).toEqual([PAYMENTS_LEDGER_ID, PAYMENTS_OPERATOR_ACTIONS_ID, PAYMENTS_ATTEMPT_RECOVERY_ID, PAYMENTS_INTENT_REPLAY_ID]);
-      const tables = await listTables(kernel);
+      const tables = await listTables({ kernel });
       expect(tables).toEqual(expect.arrayContaining([...Object.values(LEDGER_TABLES), COMMERCE_PAYMENTS_LEDGER_TABLE]));
-      const second = await migrateCommercePayments({ kernel });
+      const second = await migrateCommercePayments({ kernel, runMigrations });
       expect(second).toEqual({ applied: [], alreadyApplied: [PAYMENTS_LEDGER_ID, PAYMENTS_OPERATOR_ACTIONS_ID, PAYMENTS_ATTEMPT_RECOVERY_ID, PAYMENTS_INTENT_REPLAY_ID], notes: [] });
       const indexes = await kernel.query<{ name: string }>(sql`SELECT name FROM sqlite_master WHERE type = 'index' AND name LIKE 'commerce_%' ORDER BY name`);
       expect(indexes.map((row) => row.name)).toEqual(expect.arrayContaining([
@@ -206,7 +227,7 @@ describe("payments ledger migrations", () => {
     const { migrateCommercePayments } = await history();
     const kernel = openKernel();
     try {
-      await migrateCommercePayments({ kernel });
+      await migrateCommercePayments({ kernel, runMigrations });
       const integers = new Set<string>();
       for (const table of Object.values(LEDGER_TABLES)) {
         const columns = await kernel.query<{ name: string; type: string; notnull: number; pk: number }>(sql.raw(`PRAGMA table_info(${table})`));
@@ -240,7 +261,7 @@ describe("payments ledger migrations", () => {
     const kernel = openKernel();
     try {
       await runMigrations(kernel, [paymentsLedger({ checksum: "0".repeat(64) })], { ledgerTable: COMMERCE_PAYMENTS_LEDGER_TABLE });
-      await expect(migrateCommercePayments({ kernel })).rejects.toBeInstanceOf(MigrationChecksumError);
+      await expect(migrateCommercePayments({ kernel, runMigrations })).rejects.toBeInstanceOf(MigrationChecksumError);
     } finally {
       await kernel.close();
     }

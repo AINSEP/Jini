@@ -1,8 +1,9 @@
 import type { AdminIdentityUser } from "../models.js";
-import type { Translate, QueryKey } from "@jini-ai/ui/panel-kit";
+import type { QueryKey } from "@jini-ai/core/fetch";
 import { describeIdentityError } from "../errors.js";
-import type { RowMenuItem } from "@jini-ai/admin/react";
+import type { RowMenuItem } from "../kit.js";
 
+import { type Translate } from '@jini-ai/core/text';
 /**
  * @file Pure logic for the `users` feature — everything that computes a value rather than
  * rendering one. Follows the `posts/rules.ts` convention: no React import, no hooks, directly
@@ -40,7 +41,7 @@ const STATIC_ERROR_MESSAGES: Readonly<Record<string, string>> = {
   USERNAME_IN_TRASH: "A user with this username is in the Trash; restore or delete them permanently first.",
 };
 
-/** Server error `code` -> a plain-language prefix (SPEC-006 errors.spec.md §2), layered on the
+/** Server error `code` -> a plain-language prefix, layered on the
  *  shared default (`lib/api.ts`'s `describeApiError`) — this screen's `RESOURCE_CONFLICT` means
  *  "username already in use", a different meaning than `Roles.tsx`'s "still referenced" or
  *  `Workspace.tsx`'s "slug already taken" for the same code (audit cross-cutting finding #2 —
@@ -120,7 +121,7 @@ export function isOwnerAccount(required: { user: AdminIdentityUser; roles: Reado
  * `use-users.hooks.ts` — see that hook's `canManageUserTrash` state for where it comes from.
  *
  * Disable/Enable share a single "toggle" item (label follows status, same shape as
- * `Redirects.tsx`'s own toggle item) — Disable confirms via the modal below; Enable fires
+ * `packages/admin/src/redirects/rules.ts`'s own toggle item) — Disable confirms via the modal below; Enable fires
  * immediately, matching this screen's existing behavior (Enable was never confirm-gated). The
  * `toggleSaving` guard reproduces the original inline check (`if (toggleSavingId) return`) against
  * whatever row action is currently in flight, read fresh at click time.

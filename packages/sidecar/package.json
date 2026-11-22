@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/sidecar",
-  "version": "0.7.2",
+  "version": "0.7.3-next.2",
   "description": "Sidecar process runtime: JSON-IPC server and client, IPC path validation, namespace/runtime path resolution, port allocation, launch bootstrap, and a local daemon registry.",
   "license": "Apache-2.0",
   "repository": {
@@ -68,12 +68,11 @@
     "test:coverage": "vitest run --coverage"
   },
   "devDependencies": {
-    "@vitest/coverage-v8": "^2.1.9",
+    "@vitest/coverage-v8": "^3.2.6",
     "@jini-ai/core": "workspace:*",
     "@jini-ai/platform": "workspace:*"
   },
   "dependencies": {
-    "@jini-ai/core": "workspace:^",
-    "@jini-ai/platform": "workspace:^"
+    "@jini-ai/core": "workspace:^"
   }
 }

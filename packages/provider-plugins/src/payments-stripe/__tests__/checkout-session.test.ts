@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import type { IntentRequest, ProviderContext } from "@jini-ai/commerce/payments/kernel";
-import { checkoutSessionForm, createCheckoutSession } from "../checkout-session.js";
+import { checkoutSessionForm as buildForm, createCheckoutSession as create } from "../checkout-session.js";
+import { realHelpers as errors } from "./fakes/domain-helpers.js";
+
+// The domain's own helpers, as a host registers them; provider-context.test.ts pins the helper calls with recording fakes.
+const checkoutSessionForm = (required: Omit<Parameters<typeof buildForm>[0], "errors">, optional: Record<string, never> = {}) => buildForm({ ...required, errors }, optional);
+const createCheckoutSession = (required: Omit<Parameters<typeof create>[0], "errors">, optional: Record<string, never> = {}) => create({ ...required, errors }, optional);
 
 const req: IntentRequest = { amount: { minorUnits: 900, currency: "USD" }, correlationId: "pay_1", idempotencyKey: "order:1", captureMode: "auto" };
 const session = { id: "cs_1", url: "https://checkout.stripe.com/c/1", amount_total: 900, currency: "usd" };

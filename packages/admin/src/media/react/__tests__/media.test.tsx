@@ -1,19 +1,23 @@
+import { reactModuleUi } from '../../../core/react/module-ui.js';
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import { render as renderController } from '@testing-library/react';
-import { render, screen, fireEvent, waitFor, cleanup, act, configure } from '../../../__tests__/fetch-query-support.js';
+import { render, screen, fireEvent, waitFor, cleanup, act, configure, testAdminKit } from '../../../__tests__/fetch-query-support.js';
 import { StrictMode, Suspense, createRef } from 'react';
-import { createAdmin, defineAdminModule } from '../../../core/module/index.js';
+import { createAdmin } from '../../../core/module/index.js';
+import { defineAdminModule } from '@jini-ai/core/contracts/admin-module';
 import { mediaPickerToken } from '../../../contracts/media-picker.js';
 import type { MediaPickerPort } from '../../../contracts/media-picker.js';
 import { createMemoryMediaApi, createMemoryMediaProviders } from '../../adapters/memory.js';
 import { media } from '../index.js';
 import { createOverlayController } from '../../../react/overlays.js';
 import { OverlayHost } from '../../../react/OverlayHost.js';
-import { KitProvider, createKit, Button, Dialog, TextField } from '@jini-ai/ui-kit/react';
-import type { ButtonProps } from '@jini-ai/ui-kit/react';
+import { KitProvider, createKit } from '@jini-ai/ui-kit/react';
+import { AdminKitProvider, Button, Dialog, TextField } from '../../../react/kit.js';
+import type { ButtonProps } from '../../../react/kit.js';
 import { MediaPurgeDialog } from '../components/MediaPurgeDialog.js';
-import { useController } from '../../../react/use-controller.js';
-import { bindReact } from '../../../react/bind-react.js';
+import { useController } from '../../../core/react/use-controller.js';
+import { bindReact } from '../../../core/react/bind-react.js';
+import { realEmbedPolicy } from '../../__tests__/fakes/embed-policy.js';
 // Lazy tab imports can exceed the default 1s under concurrent workspace builds.
 configure({ asyncUtilTimeout: 5000 });
 afterEach(cleanup);
@@ -22,9 +26,9 @@ async function fixture() {
   await api.upload({ filename: 'photo.png', contentType: 'image/png', dataBase64: 'bytes' });
   await api.upload({ filename: 'clip.webm', contentType: 'video/webm', dataBase64: 'bytes' });
   const overlays = createOverlayController({});
-  const module = media({ overlays });
+  const module = media({ ui: reactModuleUi, overlays });
   const admin = createAdmin(
-    { modules: [module], ports: { mediaApi: api } },
+    { modules: [module], ports: { embedPolicy: realEmbedPolicy, mediaApi: api } },
     {
       permissions: [
         'media.read',
@@ -73,7 +77,7 @@ describe('media React slice', () => {
     });
     const consumerBinding = bindReact({ module: consumer, views: {} });
     const admin = createAdmin(
-      { modules: [module, consumer], ports: { mediaApi: api } },
+      { modules: [module, consumer], ports: { embedPolicy: realEmbedPolicy, mediaApi: api } },
       { permissions: ['media.read'] },
     );
     const selected = vi.fn();
@@ -117,7 +121,7 @@ describe('media React slice', () => {
       pages: {},
     });
     const admin = createAdmin(
-      { modules: [module, consumer], ports: { mediaApi: api } },
+      { modules: [module, consumer], ports: { embedPolicy: realEmbedPolicy, mediaApi: api } },
       { permissions: ['media.read'] },
     );
     const picker: MediaPickerPort = admin.scope({ module: consumer }).mediaPicker;
@@ -148,7 +152,7 @@ describe('media React slice', () => {
       requires: { mediaPicker: mediaPickerToken },
       pages: {},
     });
-    const admin = createAdmin({ modules: [module, consumer], ports: { mediaApi: api } });
+    const admin = createAdmin({ modules: [module, consumer], ports: { embedPolicy: realEmbedPolicy, mediaApi: api } });
     await expect(
       admin.scope({ module: consumer }).mediaPicker.pick({ accept: [] }),
     ).rejects.toThrow('Permission denied');
@@ -169,7 +173,7 @@ describe('media React slice', () => {
       );
     }
     render(
-      <KitProvider kit={createKit({ components: { Button: HostButton } })}>
+      <AdminKitProvider kit={{ ...testAdminKit, components: { ...testAdminKit.components, Button: HostButton } }}>
         <Button
           attrs={{ 'data-jini-part': 'test.button', 'data-agent-element': 'test-press' }}
           onPress={press}
@@ -182,7 +186,7 @@ describe('media React slice', () => {
           value="text"
           onValueChange={() => {}}
         />
-      </KitProvider>,
+      </AdminKitProvider>,
     );
     const button = screen.getByRole('button', { name: 'Host action' });
     expect(button).toHaveAttribute('data-host-button', 'yes');
@@ -257,8 +261,8 @@ describe('media React slice', () => {
       });
       return null;
     }
-    // This controller has no query dependency. Mount StrictMode at the root so
-    // React 19 replays its effects, rather than beneath the query helper's provider.
+    // This controller needs no kit or query scope. Mount StrictMode at the root so
+    // React 19 replays its effects (it does not when StrictMode sits beneath a provider).
     const view = renderController(<Probe id={1} />, { wrapper: StrictMode });
     await waitFor(() => expect(created).toBe(2));
     expect(disposed).toEqual([1]);
@@ -271,12 +275,12 @@ describe('media React slice', () => {
 
 it('renders the optional credential tab without exposing saved secrets', async () => {
   const { api, overlays } = await fixture();
-  const module = media({ overlays });
+  const module = media({ ui: reactModuleUi, overlays });
   const providers = createMemoryMediaProviders({
     providers: [{ id: 'example', label: 'Example', configured: false }],
   });
   const admin = createAdmin(
-    { modules: [module], ports: { mediaApi: api, mediaProviders: providers } },
+    { modules: [module], ports: { embedPolicy: realEmbedPolicy, mediaApi: api, mediaProviders: providers } },
     { permissions: ['media.read', 'media.providers'] },
   );
   const { Page, tabs } = module.react.pages.library;
@@ -314,9 +318,9 @@ it('renders the optional credential tab without exposing saved secrets', async (
 }, 30000);
 it('renders a read-only media page when write grants are absent', async () => {
   const { api, overlays } = await fixture();
-  const module = media({ overlays });
+  const module = media({ ui: reactModuleUi, overlays });
   const admin = createAdmin(
-    { modules: [module], ports: { mediaApi: api } },
+    { modules: [module], ports: { embedPolicy: realEmbedPolicy, mediaApi: api } },
     { permissions: ['media.read'] },
   );
   const { Page, tabs } = module.react.pages.library;

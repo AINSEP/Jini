@@ -13,6 +13,7 @@ import {
   findMidRunMessageRunId,
   isChatPaneQueueableBlocker,
   resolveChatPaneSelection,
+  type ChatPaneSendability,
   type ChatPaneSendBlocker,
 } from '../rules.js';
 import type {
@@ -41,14 +42,14 @@ import {
 import { useComposer, type UseComposerResult } from '../../../hooks/useComposer.js';
 import {
   useConversation,
-  type UseConversationResult,
+  type UseConversationResult, type UseConversationOptions,
 } from '../../../hooks/useConversation.js';
 import {
   useChatPaneWorkingDirectory,
   type UseChatPaneWorkingDirectoryResult,
 } from './useChatPaneWorkingDirectory.hooks.js';
 
-export interface UseChatPaneOptions extends UserTextRedactionOptions {
+export interface UseChatPaneOptions extends UserTextRedactionOptions, Pick<UseConversationOptions, 'report'> {
   transport: ChatTransport;
   agents: readonly ChatPaneAgent[];
   initialMessages?: ChatMessage[];
@@ -400,7 +401,7 @@ async function uploadAttachmentBatch(
   }
 }
 
-export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
+export function useChatPane(options: UseChatPaneOptions, { useConversationHook = useConversation }: { useConversationHook?: typeof useConversation } = {}): UseChatPaneResult {
   const guard = useUserTextGuard(options);
   const [activeUploadCount, setActiveUploadCount] = useState(0);
   const [attachmentError, setAttachmentError] = useState<Error | null>(null);
@@ -437,9 +438,8 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
   const attachmentBatchIdRef = useRef(initialAttachmentBatchId);
   const batchConversationIdRef = useRef(options.conversationId);
   const activeUploadsRef = useRef(new Set<AbortController>());
-  const [internalSelection, setInternalSelection] = useState<ChatPaneAgentSelection>(
-    options.initialSelection ?? { agentId: '' },
-  );
+  // A lazy initializer: the initial selection is read once, like every other `useState` seed here.
+  const [internalSelection, setInternalSelection] = useState<ChatPaneAgentSelection>(() => options.initialSelection ?? { agentId: '' });
   const workingDirectoryState = useChatPaneWorkingDirectory(definedProps({ source: {
     workingDirectory: options.workingDirectory,
     initialWorkingDirectory: options.initialWorkingDirectory,
@@ -459,8 +459,8 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
     reasoning: resolvedSelection.reasoning,
   } }), [resolvedSelection.agentId, resolvedSelection.model, resolvedSelection.reasoning]);
   const selectedAgent = options.agents.find((agent) => agent.id === selection.agentId);
-  const conversation = useConversation(definedProps({ source: {
-    transport: options.transport,
+  const conversation = useConversationHook(definedProps({ source: {
+    transport: options.transport, report: options.report,
     redactUserText: options.redactUserText,
     onSecretRedacted: guard.notifyRedaction,
     initialMessages: options.initialMessages,
@@ -560,20 +560,15 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
     options.onSelectionChange?.(validated);
   }, [composer, options.agents, options.onSelectionChange]);
 
-  const sendBlocker = findChatPaneSendBlocker({
-    ...(selection.model ? { model: selection.model } : {}),
+  const sendBlocker = resolvePaneSendBlocker({
+    model: selection.model,
     selectedAgent,
     isStreaming: conversation.isStreaming,
     activeUploadCount,
     workingDirectoryPending: workingDirectoryState.workingDirectoryPending,
     workingDirectoryInvalid: workingDirectoryState.workingDirectoryInvalid,
     workingDirectoryError: workingDirectoryState.workingDirectoryError,
-    // `exactOptionalPropertyTypes` rejects `apiModeConfigured: undefined` outright, so this stays a
-    // ternary rather than routing through `definedProps` — that helper would also make
-    // `selectedAgent` optional in its return type (its value type already includes `undefined`),
-    // which no longer structurally matches `ChatPaneSendability`'s required `selectedAgent` key.
-    ...(options.apiModeConfigured === undefined ? {} : { apiModeConfigured: options.apiModeConfigured }),
-  });
+  }, { apiModeConfigured: options.apiModeConfigured });
   const canSend = sendBlocker === null && composer.canSubmit;
   // Read after `await` in `answerWaitingQuestion`, where the render-time `composer.draft` is stale.
   const latestComposerRef = useRef(composer);
@@ -745,7 +740,7 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
   /** `composerDraft`: the composer text this send already took out of the composer, so the
    * composer is never cleared again on acceptance and a refusal hands the text back. */
   const sendGuardedPrompt = useCallback(async (
-    { redaction, inputs, attachments = composer.attachments, composerDraft, folders = inputs ? inputs.flatMap(input => input.folders ?? []) : composer.folders ?? [] }: {
+    { redaction, inputs, attachments = composer.attachments, composerDraft, folders = turnFolders({ inputs }, { composerFolders: composer.folders }) }: {
       redaction: UserTextRedaction; inputs?: AcceptedChatInput[]; attachments?: ChatAttachment[]; composerDraft?: string; folders?: string[];
     }, _options = {},
   ) => {
@@ -761,7 +756,7 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
       options.onActivityChange?.('queued');
       let accepted = false;
       await conversation.sendMessage(trimmed, definedProps({ source: {
-        secretRedaction: redaction.secretRedacted ? { secretRedacted: true as const, count: redaction.count } : undefined,
+        secretRedaction: transportSecretRedaction({ redaction }),
         agentId: selection.agentId,
         // Empty attachment arrays remain absent at the transport boundary.
         attachments: attachments.length === 0 ? undefined : attachments,
@@ -811,8 +806,7 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
       turn: UserTextRedaction; inputs?: QueuedChatInput[]; attachments?: ChatAttachment[];
     }, _options = {},
   ) => {
-    const accepted: QueuedChatInput[] = inputs ?? [{ id: createChatLocalId({}), text: turn.text, attachments, folders: composer.folders ?? [],
-      ...(turn.secretRedacted ? { secretRedaction: { secretRedacted: true as const, count: turn.count } } : {}) }];
+    const accepted: QueuedChatInput[] = inputs ?? [newQueuedInput({ turn, attachments, folders: composer.folders ?? [] })];
     const sameConversation = queuedConversationIdRef.current === options.conversationId;
     queuedConversationIdRef.current = options.conversationId;
     for (const controller of activeUploadsRef.current) {
@@ -940,12 +934,12 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
     if (waitingForLiveInput({ uploadPending, messages: conversation.messages })) {
       queuedForLiveDeliveryRef.current = queuedTurn === null || queuedForLiveDeliveryRef.current;
     }
-    // MOVE: The existing queue owns its files; a later steer must join it to preserve send order.
-    // Folder context is attached on ordinary run start; live messages have no such envelope.
-    const target = uploadPending || composer.folders?.length || queuedInputs.some(input => input.liveMessageId === undefined) ? null : findMidRunTarget({
+    const target = steerableMidRunTarget({
+      uploadPending,
+      composer,
+      queuedInputs,
       deliver: options.deliverMidRunMessage,
       blocker: sendBlocker,
-      attachmentCount: composer.attachments.length,
       messages: conversation.messages,
     });
     if (target !== null) {
@@ -981,13 +975,14 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
       await sendOrdinaryTurn(prompt);
       return;
     }
-    const typedAnswer = composer.folders?.length ? null : findTypedAnswerTarget({
+    const typedAnswer = unansweredTypedAnswerTarget({
+      composer,
       deliver: options.deliverTypedAnswer,
       blocker: sendBlocker,
-      attachmentCount: composer.attachments.length,
       messages: conversation.messages,
+      answeredQuestionId: answeredQuestionIdRef.current,
     });
-    if (typedAnswer !== null && typedAnswer.questionId !== answeredQuestionIdRef.current) {
+    if (typedAnswer !== null) {
       await answerWaitingQuestion({ ...typedAnswer, text: prompt });
       return;
     }
@@ -1065,10 +1060,13 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
       return;
     }
     if (activeUploadCount > 0 || attachmentError !== null) return;
-    const target = queuedForLiveDeliveryRef.current && !queuedInputs.some(input => input.folders?.length) ? findMidRunTarget({
+    const target = queuedMidRunTarget({
+      liveDelivery: queuedForLiveDeliveryRef.current,
+      queuedInputs,
       deliver: options.deliverMidRunMessage,
-      blocker: sendBlocker, attachmentCount: queuedInputs.flatMap(input => input.attachments).length, messages: conversation.messages,
-    }) : null;
+      blocker: sendBlocker,
+      messages: conversation.messages,
+    });
     if (target === null && (sendBlocker !== null || awaitingRunReceipts({ inputs: queuedInputs, messages: conversation.messages }))) return;
     queuedForLiveDeliveryRef.current = false;
     const inputs = queuedInputs;
@@ -1136,6 +1134,103 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
     interruptSend,
     reset,
   };
+}
+
+/** What blocks Send right now; optional sendability keys stay absent rather than `undefined`. */
+function resolvePaneSendBlocker(
+  { model, ...state }: Omit<ChatPaneSendability, 'model' | 'apiModeConfigured'> & { readonly model: string | undefined },
+  { apiModeConfigured }: { readonly apiModeConfigured?: boolean | undefined } = {},
+): ChatPaneSendBlocker | null {
+  return findChatPaneSendBlocker({
+    ...(model ? { model } : {}),
+    ...state,
+    // `exactOptionalPropertyTypes` rejects `apiModeConfigured: undefined` outright, so this stays a
+    // ternary rather than routing through `definedProps` — that helper would also make
+    // `selectedAgent` optional in its return type (its value type already includes `undefined`),
+    // which no longer structurally matches `ChatPaneSendability`'s required `selectedAgent` key.
+    ...(apiModeConfigured === undefined ? {} : { apiModeConfigured }),
+  });
+}
+
+/** Folders a send carries: those of the accepted inputs it delivers, else the composer's own. */
+function turnFolders(
+  { inputs }: { inputs: AcceptedChatInput[] | undefined },
+  { composerFolders }: { composerFolders?: string[] | undefined } = {},
+): string[] {
+  return inputs ? inputs.flatMap(input => input.folders ?? []) : composerFolders ?? [];
+}
+
+/** The transport's secret-redaction flag for a send; absent when nothing was redacted. */
+function transportSecretRedaction({ redaction }: { redaction: UserTextRedaction }, _options = {}) {
+  return redaction.secretRedacted ? { secretRedacted: true as const, count: redaction.count } : undefined;
+}
+
+/** A fresh queued input for one redacted turn; the secret-redaction flag travels with it. */
+function newQueuedInput(
+  { turn, attachments, folders }: { turn: UserTextRedaction; attachments: ChatAttachment[]; folders: string[] },
+  _options = {},
+): QueuedChatInput {
+  return { id: createChatLocalId({}), text: turn.text, attachments, folders,
+    ...(turn.secretRedacted ? { secretRedaction: { secretRedacted: true as const, count: turn.count } } : {}) };
+}
+
+/** The running run a new turn can steer into, or null when it must go through the queue. */
+function steerableMidRunTarget(
+  { uploadPending, composer, queuedInputs, deliver, blocker, messages }: {
+    uploadPending: boolean;
+    composer: UseComposerResult;
+    queuedInputs: readonly QueuedChatInput[];
+    deliver: DeliverMidRunMessage | undefined;
+    blocker: ChatPaneSendBlocker | null;
+    messages: readonly ChatMessage[];
+  },
+  _options = {},
+): { deliver: DeliverMidRunMessage; runId: string } | null {
+  // MOVE: The existing queue owns its files; a later steer must join it to preserve send order.
+  // Folder context is attached on ordinary run start; live messages have no such envelope.
+  return uploadPending || composer.folders?.length || queuedInputs.some(input => input.liveMessageId === undefined) ? null : findMidRunTarget({
+    deliver,
+    blocker,
+    attachmentCount: composer.attachments.length,
+    messages,
+  });
+}
+
+/** The question this send answers, or null; folder context and an already-answered question send normally. */
+function unansweredTypedAnswerTarget(
+  { composer, deliver, blocker, messages, answeredQuestionId }: {
+    composer: UseComposerResult;
+    deliver: DeliverTypedAnswer | undefined;
+    blocker: ChatPaneSendBlocker | null;
+    messages: readonly ChatMessage[];
+    answeredQuestionId: string | null;
+  },
+  _options = {},
+): { deliver: DeliverTypedAnswer; questionId: string } | null {
+  const typedAnswer = composer.folders?.length ? null : findTypedAnswerTarget({
+    deliver,
+    blocker,
+    attachmentCount: composer.attachments.length,
+    messages,
+  });
+  return typedAnswer !== null && typedAnswer.questionId !== answeredQuestionId ? typedAnswer : null;
+}
+
+/** Where a flushed queue can steer: only a live-delivery queue without folder context has a target. */
+function queuedMidRunTarget(
+  { liveDelivery, queuedInputs, deliver, blocker, messages }: {
+    liveDelivery: boolean;
+    queuedInputs: readonly QueuedChatInput[];
+    deliver: DeliverMidRunMessage | undefined;
+    blocker: ChatPaneSendBlocker | null;
+    messages: readonly ChatMessage[];
+  },
+  _options = {},
+): { deliver: DeliverMidRunMessage; runId: string } | null {
+  return liveDelivery && !queuedInputs.some(input => input.folders?.length) ? findMidRunTarget({
+    deliver,
+    blocker, attachmentCount: queuedInputs.flatMap(input => input.attachments).length, messages,
+  }) : null;
 }
 
 function attachQueuedInput({ inputs, inputId, attachment }: { inputs: QueuedChatInput[]; inputId: string; attachment: ChatAttachment }): QueuedChatInput[] {

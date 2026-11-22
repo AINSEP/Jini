@@ -30,7 +30,7 @@ test('the higgsfield-media package ships its skill and both references, each cit
   for (const name of references) assert.ok(skill.includes(`references/${name}`), name);
   const manifest = await readJson('plugin.json');
   assert.equal(manifest.name, 'higgsfield-media');
-  assert.equal(manifest.extensions.jini.id, 'tovu/higgsfield-media');
+  assert.equal(manifest.extensions.jini.id, 'jini/higgsfield-media');
   assert.deepEqual(manifest.extensions.jini.provides, ['media:image', 'media:video']);
 });
 

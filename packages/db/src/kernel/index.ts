@@ -3,24 +3,15 @@
  * dialect helpers and introspection, and the storage-ops contract. Imports kysely and Node builtins
  * only — never a database driver (`import-isolation.test.ts` and `loads-without-driver.test.ts` prove it).
  */
-export {
-  type StorageCapabilities,
-  type StorageCapability,
-  type StorageDialect,
-  type StorageKernel,
-  type StorageTransport,
-  UnsupportedCapabilityError,
-} from "./port.js";
+export type { DbTransport, KyselyKernel } from "./port.js";
 export { buildKernel, type KernelDriver } from "./kernel-core.js";
 export { TurnLock } from "./turn-lock.js";
 export {
   autoIdColumnSql,
   checkpointWal,
   type ColumnAffinity,
-  type ColumnInfo,
   columnTypeSql,
   type IndexInfo,
-  isUniqueViolation,
   jsonScalarEquals,
   jsonSet,
   jsonSortKey,
@@ -30,8 +21,6 @@ export {
   listTables,
   nowIso,
   tableExists,
-  toBool,
-  toBytes,
 } from "./dialect.js";
 export { scopeToSchema } from "./schema-scope.js";
 export { databaseFile, readSchemaShape, type SchemaShape, type TableShape } from "./schema-shape.js";

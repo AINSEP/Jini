@@ -1,8 +1,14 @@
 import { streamA2uiRun } from './a2ui-run-stream.js';
-import { createSystemClock } from "@jini-ai/core/primitives";
+import { createSystemClock } from "@jini-ai/platform/system";
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { FETCH_TIMEOUT_MS, fetchWithTimeout } from '@jini-ai/platform/fetch-with-timeout';
-import { createA2uiInterpreter, createLabCatalog, DynamicValueSchema, type A2uiInterpreter } from '@jini-ai/agentic/a2ui';
+import { fetchWithTimeout } from '@jini-ai/platform/fetch-with-timeout';
+import { FETCH_TIMEOUT_MS } from '@jini-ai/core/net';
+import { parseDynamicValue } from '@jini-ai/protocol/a2ui';
+import {
+  createA2uiInterpreter,
+  createLabCatalog,
+  type A2uiInterpreter,
+} from '@jini-ai/protocol/a2ui';
 import { A2uiSurfaceCard, registerExtEventRenderer } from '@jini-ai/chat/react';
 
 /**
@@ -11,7 +17,7 @@ import { A2uiSurfaceCard, registerExtEventRenderer } from '@jini-ai/chat/react';
  * `daemon.ts`'s `runA2uiDemo`), interpreted by `@jini-ai/agentic/a2ui`'s headless interpreter, and rendered
  * by the small React renderer below (Column/Row/Text/Button — the catalog validates all 18 of the
  * real basic catalog's components, but rendering still only draws these 4; see
- * `packages/agentic/source-map.md`'s "Folded from `@jini-ai/a2ui`" section for the renderer-coverage gap). Clicking the button builds a real,
+ * `070311a07^:packages/agentic/source-map.md`'s "Folded from `@jini-ai/a2ui`" section for the renderer-coverage gap). Clicking the button builds a real,
  * spec-shaped `action` envelope and POSTs it to a dedicated relay (`/a2ui-action`, proxied to
  * `daemon.ts`'s `startA2uiActionRelay`), which delivers it back into the running daemon-side demo —
  * a genuine renderer -> agent round trip, not a client-only simulation.
@@ -29,7 +35,8 @@ import { A2uiSurfaceCard, registerExtEventRenderer } from '@jini-ai/chat/react';
  * deliberately omitted here — see `A2uiSurfaceCard`'s own module doc for why an agent-directed
  * action has nowhere real to go yet outside this fixed lab demo's own `/a2ui-action` relay.
  */
-registerExtEventRenderer({ name: 'a2ui', renderer: (props) => <A2uiSurfaceCard {...props} /> });
+const hostClock = createSystemClock();
+registerExtEventRenderer({ name: 'a2ui', renderer: (props) => <A2uiSurfaceCard {...props} clock={hostClock} /> });
 
 const A2UI_DEMO_AGENT_ID = 'a2ui-demo';
 
@@ -59,7 +66,7 @@ async function readApiError(response: Response): Promise<Error> {
   }
 }
 
-/** Renders one component and its children by walking the surface's component map from `componentId`, degrading sanely (a visible, inert placeholder, never a crash) for a missing child id or a circular reference — the two adversarial cases `packages/agentic/src/a2ui/tree.ts` is built to answer. Only the static-array `ChildList` form is walked; a template (dynamic-list) `children` value renders a documented "not implemented" placeholder instead of expanding — see `packages/agentic/source-map.md`. */
+/** Renders one component and its children by walking the surface's component map from `componentId`, degrading sanely (a visible, inert placeholder, never a crash) for a missing child id or a circular reference — the two adversarial cases `packages/agentic/src/a2ui/tree.ts` is built to answer. Only the static-array `ChildList` form is walked; a template (dynamic-list) `children` value renders a documented "not implemented" placeholder instead of expanding — see `070311a07^:packages/agentic/source-map.md`. */
 function RenderComponent({
   interpreter,
   surfaceId,
@@ -95,9 +102,9 @@ function RenderComponent({
   const childProps = { interpreter, surfaceId, ancestors: nextAncestors, onAction };
 
   function resolveText(value: unknown): string {
-    const parsed = DynamicValueSchema.safeParse(value);
-    if (!parsed.success) return '⚠ unresolved (invalid dynamic value)';
-    const result = interpreter.resolve({ surfaceId, value: parsed.data });
+    const parsed = parseDynamicValue({ value });
+    if (!parsed.ok) return '⚠ unresolved (invalid dynamic value)';
+    const result = interpreter.resolve({ surfaceId, value: parsed.value });
     if (!result.ok) return `⚠ unresolved (${result.reason})`;
     return typeof result.value === 'string' ? result.value : JSON.stringify(result.value);
   }
@@ -183,14 +190,12 @@ export function A2uiLab() {
     async function start() {
       try {
         const response = await fetchWithTimeout(
-          '/api/runs',
-          {
+          { url: '/api/runs', timeoutMs: FETCH_TIMEOUT_MS.QUICK }, { init: {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({ contextRef: encodeA2uiRunContext(), agentId: A2UI_DEMO_AGENT_ID }),
             signal: controller.signal,
-          },
-          { timeoutMs: FETCH_TIMEOUT_MS.QUICK },
+          } },
         );
         if (!response.ok) throw await readApiError(response);
         const body = (await response.json()) as RunResponseWire;
@@ -264,13 +269,11 @@ export function A2uiLab() {
     appendLog(`[action -> agent] ${JSON.stringify(built.message)}`);
     try {
       const response = await fetchWithTimeout(
-        '/a2ui-action',
-        {
+        { url: '/a2ui-action', timeoutMs: FETCH_TIMEOUT_MS.QUICK }, { init: {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({ runId, message: built.message }),
-        },
-        { timeoutMs: FETCH_TIMEOUT_MS.QUICK },
+        } },
       );
       if (!response.ok) {
         const error = await readApiError(response);

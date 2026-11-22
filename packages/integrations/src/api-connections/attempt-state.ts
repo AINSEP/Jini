@@ -23,7 +23,7 @@ export const BROWSER_BINDING_BYTES = 32;
  * The stored form of a browser binding, so a leaked attempt row cannot be replayed as a cookie.
  * A host bug passing a non-string hashes as '', which no 32-byte binding ever matches.
  */
-export function hashBrowserBinding(value: unknown): string {
+export function hashBrowserBinding({ value }: { value: unknown }, _optional: Record<string, never> = {}): string {
   return createHash('sha256').update(typeof value === 'string' ? value : '').digest('base64url');
 }
 
@@ -43,7 +43,7 @@ async function refuseUnexpected(deps: AttemptDeps): Promise<never> {
 }
 
 /** Seal side: store the attempt under fresh random state. */
-export function attemptSealer(deps: AttemptDeps, requiredArgs: { readonly draft: AttemptDraft }): SealedAuthorizationState {
+export function attemptSealer({ deps, ...requiredArgs }: { deps: AttemptDeps } & { readonly draft: AttemptDraft }, _optional: Record<string, never> = {}): SealedAuthorizationState {
   return {
     async seal({ entry }) {
       const createdAt = nowIso({ clock: deps.clock });
@@ -66,18 +66,18 @@ function matchesBinding(deps: AttemptDeps, attempt: ApiConnectionAttempt, expect
     && deps.oauth.secureEquals({ a: attempt.ownerKey, b: expected.ownerKey })
     // The owner key alone cannot bind a hosted callback: a cookie-less callback route can only learn
     // the identities from the attempt itself. The browser binding is what the redirected browser carries.
-    && deps.oauth.secureEquals({ a: attempt.browserBindingHash, b: hashBrowserBinding(expected.browserBinding) })
+    && deps.oauth.secureEquals({ a: attempt.browserBindingHash, b: hashBrowserBinding({ value: expected.browserBinding }) })
     && attempt.redirectUri === expected.redirectUri;
 }
 
 /** Open side: consume first, then check binding, so a probe burns the state it guessed. */
 export function attemptOpener(
-  deps: AttemptDeps,
-  requiredArgs: {
+  { deps, ...requiredArgs }: { deps: AttemptDeps } & {
     /** The binding the callback's browser carried; the core's `open` arguments have no slot for it. */
     readonly browserBinding: string;
     readonly onOpen: (requiredArgs: { readonly attempt: ApiConnectionAttempt }) => void;
   },
+  _optional: Record<string, never> = {},
 ): SealedAuthorizationState {
   const { browserBinding } = requiredArgs;
   return {

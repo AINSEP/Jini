@@ -1,5 +1,4 @@
 export type { SealedSecret } from "./types.js";
-export type { KeyringPort, SecretSealerPort } from "./ports.js";
 export { AesGcmSecretSealer } from "./secret-sealer.aesgcm.js";
 export { sealWithPassphrase, openWithPassphrase } from "./passphrase-envelope.js";
 export type { PassphraseEnvelopeOptions } from "./passphrase-envelope.js";
@@ -7,7 +6,7 @@ export { EnvOrFileKeyring } from "./keyring.env.js";
 export type { EnvOrFileKeyringRequired, EnvOrFileKeyringOptions } from "./keyring.env.js";
 
 // Canonical public names; the implementation bindings retain compatibility for direct consumers.
-export type { RootKeyHandle as SiteKeyHandle } from "./ports.js"; // site-key-legacy: implementation binding; remove on/after 2026-11-01
+ // site-key-legacy: implementation binding; remove on/after 2026-11-01
 export { FixedRootKeyKeyring as FixedSiteKeyKeyring } from "./keyring.env.js"; // site-key-legacy: implementation binding; remove on/after 2026-11-01
 export { UnusableRootKeyError as UnusableSiteKeyError } from "./keyring.env.js"; // site-key-legacy: implementation binding; remove on/after 2026-11-01
 export { RootKeyFileAlreadyExistsError as SiteKeyFileAlreadyExistsError } from "./keyring.env.js"; // site-key-legacy: implementation binding; remove on/after 2026-11-01
@@ -28,7 +27,7 @@ export type { GeneratedFileRootKey as GeneratedFileSiteKey } from "./keyring.env
 
 // Temporary aliases preserve imports and constructor/function identity across the rename.
 /** @deprecated use SiteKeyHandle */
-export type { RootKeyHandle } from "./ports.js"; // site-key-legacy: deprecated alias; remove on/after 2026-11-01
+ // site-key-legacy: deprecated alias; remove on/after 2026-11-01
 /** @deprecated use FixedSiteKeyKeyring */
 export { FixedRootKeyKeyring } from "./keyring.env.js"; // site-key-legacy: deprecated alias; remove on/after 2026-11-01
 /** @deprecated use UnusableSiteKeyError */

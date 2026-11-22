@@ -41,7 +41,7 @@ export function forwardWindowMessages(scope: { readonly window?: MessageEventTar
   });
 }
 
-const buffer = createEarlyMessageBuffer();
+const buffer = createEarlyMessageBuffer({});
 
 // Module scope, on purpose — see the header: this runs at first import, before any Host mounts.
 forwardWindowMessages(globalThis as { readonly window?: MessageEventTarget }, buffer);

@@ -4,7 +4,7 @@
  *
  * Exists so a spreadsheet's columns never silently change meaning. Fields are identified by their
  * stable field id (`name`); the label is only the header text. The first time the plugin writes a field
- * to a column it tags that column with a developer-metadata marker (`tovu_form_field` = field id,
+ * to a column it tags that column with a developer-metadata marker (`jini_form_field` = field id,
  * attached to the column itself). From then on the marker decides the column: a label edited in
  * the form, a header renamed in the sheet, or columns inserted or moved before it do not move the
  * field's data (Google moves column metadata with its column). Why a marker in the sheet and not
@@ -18,12 +18,11 @@
  */
 import { DeliveryRefusal } from './delivery-result.mjs';
 
-// These names keep their `tovu` prefix: deliveries have already written them into people's
-// spreadsheets, and a renamed header or marker key would no longer match those columns.
-export const SUBMISSION_ID_HEADER = '_tovu_submission_id';
-export const SUBMITTED_AT_HEADER = '_tovu_submitted_at';
+// These fixed headers and the marker key identify the plugin's spreadsheet columns.
+export const SUBMISSION_ID_HEADER = '_jini_submission_id';
+export const SUBMITTED_AT_HEADER = '_jini_submitted_at';
 /** Developer-metadata key tagging a column with the form field id it holds. */
-export const FIELD_MARKER_KEY = 'tovu_form_field';
+export const FIELD_MARKER_KEY = 'jini_form_field';
 
 const mappingInvalid = () => new DeliveryRefusal({ code: 'mapping-invalid', retryable: false });
 
@@ -93,8 +92,8 @@ function addColumn(plan, header) {
   return index;
 }
 
-/** A plugin column (`_tovu_*` header): found once by its fixed header, or new on a fresh tab. @complexity O(width). */
-function tovuColumn(plan, entry) {
+/** A plugin column (`_jini_*` header): found once by its fixed header, or new on a fresh tab. @complexity O(width). */
+function managedColumn(plan, entry) {
   const positions = headerPositions(plan, entry.header);
   if (positions.length === 1) return positions[0];
   if (positions.length > 1 || !plan.fresh) throw mappingInvalid();
@@ -128,7 +127,7 @@ export function planColumns(required, _optional = {}) {
   const tagged = new Set([...markers.values()].flat());
   const headerRow = fresh ? [] : required.headerRow;
   const plan = { fresh, tagged, headerRow, width: Math.max(headerRow.length, ...[...tagged].map((index) => index + 1)), newHeaders: [], untagged: [] };
-  const columns = mapping.map((entry) => (entry.source ? tovuColumn(plan, entry) : fieldColumn(plan, entry, markers.get(entry.field) ?? [])));
+  const columns = mapping.map((entry) => (entry.source ? managedColumn(plan, entry) : fieldColumn(plan, entry, markers.get(entry.field) ?? [])));
   if (new Set(columns).size !== columns.length) throw mappingInvalid();
   return { columns, newHeaders: plan.newHeaders, untagged: plan.untagged, width: plan.width };
 }

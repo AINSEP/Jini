@@ -8,9 +8,10 @@
 export { createSqliteEventLog, DEFAULT_MAX_ENTRIES_PER_RUN } from '@jini-ai/daemon/store/event-log/sqlite';
 export type { SqliteEventLog, SqliteEventLogOptions } from '@jini-ai/daemon/store/event-log/sqlite';
 export { inspectSqliteDatabase, verifySqliteIntegrity } from '@jini-ai/db/sqlite';
-export type { DaemonDbStatusReport, DaemonDbTableInfo, DbIntegrityIssue, DbIntegrityIssueKind, DbIntegrityReport, SqliteDb, VerifyDbOptions } from '@jini-ai/db/sqlite';
-export { parseJsonOrUndef, row, rows } from '@jini-ai/db/core';
-export type { DbRow, JsonObject } from '@jini-ai/db/core';
+export type { DaemonDbStatusReport, DaemonDbTableInfo, DbIntegrityIssue, DbIntegrityIssueKind, DbIntegrityReport, VerifyDbOptions } from '@jini-ai/db/sqlite';
+export type { SqliteDb, DbRow } from '@jini-ai/core/contracts/storage';
+export { parseJsonOrUndef, row, rows } from '@jini-ai/core/contracts/storage';
+export type { JsonObject } from '@jini-ai/db/core';
 export type { ChatSessionMode } from '@jini-ai/chat/store/legacy';
 export { CHAT_HISTORY_DDL, createChatHistoryMaintenance, createChatHistoryStore, ensureChatHistoryTables } from '@jini-ai/chat/store/sqlite';
 export type { ToolCatalogEntry, ToolCatalogSearchHit } from '@jini-ai/registry/tool-catalog';

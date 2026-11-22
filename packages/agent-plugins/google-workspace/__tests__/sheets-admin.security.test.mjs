@@ -43,7 +43,7 @@ async function refusedBeforeGoogle(promise, code) {
 }
 
 test('approval: each G12 tool keeps its declared effect (destructive tools are the ones that delete, overwrite, reorder or re-point)', async () => {
-  const file = JSON.parse(await readFile(new URL('../tovu-agent-tools.json', import.meta.url), 'utf8'));
+  const file = JSON.parse(await readFile(new URL('../jini-agent-tools.json', import.meta.url), 'utf8'));
   const effects = Object.fromEntries(file.tools.filter((tool) => tool.module.startsWith('tools/sheets-admin/')).map((tool) => [tool.name, tool.effect]));
   assert.deepEqual(effects, {
     sheets_tab_modify: 'destructive', sheets_sort: 'destructive', sheets_basic_filter: 'write', sheets_filter_views: 'destructive', sheets_format: 'write',
@@ -53,7 +53,7 @@ test('approval: each G12 tool keeps its declared effect (destructive tools are t
 });
 
 test('schema: every G12 tool takes spreadsheetId only in Google\'s id alphabet and rejects unknown input keys', async () => {
-  const file = JSON.parse(await readFile(new URL('../tovu-agent-tools.json', import.meta.url), 'utf8'));
+  const file = JSON.parse(await readFile(new URL('../jini-agent-tools.json', import.meta.url), 'utf8'));
   for (const tool of file.tools.filter((entry) => entry.module.startsWith('tools/sheets-admin/'))) {
     assert.equal(tool.inputSchema.properties.spreadsheetId.pattern, '^[A-Za-z0-9_-]{10,200}$', tool.name);
     assert.equal(tool.inputSchema.additionalProperties, false, tool.name);
@@ -74,7 +74,7 @@ test('disclosure: every write and destructive tool names the spreadsheet and wha
 });
 
 test('basic filter cannot sort: the schema refuses sortSpecs, and a raw setBasicFilter is disclosed as destructive', async () => {
-  const file = JSON.parse(await readFile(new URL('../tovu-agent-tools.json', import.meta.url), 'utf8'));
+  const file = JSON.parse(await readFile(new URL('../jini-agent-tools.json', import.meta.url), 'utf8'));
   const tool = file.tools.find((entry) => entry.name === 'sheets_basic_filter');
   assert.equal(tool.effect, 'write');
   assert.equal(tool.inputSchema.additionalProperties, false);
@@ -165,7 +165,7 @@ test('paths: a spreadsheet id that is not a Google id never reaches a URL, and t
   for (const spreadsheetId of ['../../drive/v3/files/x', 'abc/def?x=1#y', 'short']) {
     await refusedBeforeGoogle(run(protectedRangesGet, { spreadsheetId }), 'invalid-input');
   }
-  const file = JSON.parse(await readFile(new URL('../tovu-agent-tools.json', import.meta.url), 'utf8'));
+  const file = JSON.parse(await readFile(new URL('../jini-agent-tools.json', import.meta.url), 'utf8'));
   const declared = file.tools.find((tool) => tool.name === 'sheets_protected_ranges_get');
   assert.equal(new RegExp(declared.inputSchema.properties.spreadsheetId.pattern).test('../x/y/zzzzzz'), false);
 });
@@ -229,7 +229,7 @@ test('format: the cell-format mask is always under userEnteredFormat, and the sc
   fake.route({ method: 'POST', path: BATCH_PATH }, () => [200, { replies: [{}] }]);
   await run(format, { range, cellFormat: { textFormat: { bold: true } }, fields: ['textFormat.bold'] });
   assert.equal(JSON.parse(fake.requests.at(-1).body).requests[0].repeatCell.fields, 'userEnteredFormat.textFormat.bold');
-  const file = JSON.parse(await readFile(new URL('../tovu-agent-tools.json', import.meta.url), 'utf8'));
+  const file = JSON.parse(await readFile(new URL('../jini-agent-tools.json', import.meta.url), 'utf8'));
   const pattern = new RegExp(file.tools.find((tool) => tool.name === 'sheets_format').inputSchema.properties.fields.items.pattern);
   for (const field of ['userEnteredValue', '*', 'note', 'textFormat.bold,userEnteredValue']) assert.equal(pattern.test(field), false, field);
 });

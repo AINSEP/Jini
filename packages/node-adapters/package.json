@@ -1,0 +1,81 @@
+{
+  "name": "@jini-ai/node-adapters",
+  "version": "0.7.3-next.2",
+  "description": "Node bindings of the engine's runtime ports (file lock, atomic file writer, process control) over @jini-ai/platform functions. Bindings only: assembles nothing.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AINSEP/Jini.git",
+    "directory": "packages/node-adapters"
+  },
+  "jini": {
+    "domain": "platform",
+    "kind": "runtime-adapter",
+    "runtime": "node",
+    "entries": {
+      "./fs": "node",
+      "./process": "node",
+      "./agent-plugins": "node"
+    },
+    "optionalPeers": {
+      "@jini-ai/agent-plugins": "opt-in: agent plugin lifecycle effects; import @jini-ai/node-adapters/agent-plugins — Agent plugin lifecycle effects name the port types of @jini-ai/agent-plugins. Install @jini-ai/agent-plugins to enable this feature, or check its installed version."
+    }
+  },
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    "./agent-plugins": {
+      "types": "./dist/agent-plugins.d.ts",
+      "import": "./dist/agent-plugins.js",
+      "default": "./dist/agent-plugins.js"
+    },
+    "./fs": {
+      "types": "./dist/fs.d.ts",
+      "import": "./dist/fs.js",
+      "default": "./dist/fs.js"
+    },
+    "./process": {
+      "types": "./dist/process.d.ts",
+      "import": "./dist/process.js",
+      "default": "./dist/process.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE",
+    "!dist/**/*.test.js",
+    "!dist/**/*.test.d.ts",
+    "!dist/**/*.test.js.map",
+    "!dist/**/*.test.d.ts.map",
+    "!dist/**/__tests__/**",
+    "!dist/**/*.map"
+  ],
+  "dependencies": {
+    "@jini-ai/core": "workspace:^",
+    "@jini-ai/platform": "workspace:^"
+  },
+  "peerDependencies": {
+    "@jini-ai/agent-plugins": "^0.7.3-next.2"
+  },
+  "peerDependenciesMeta": {
+    "@jini-ai/agent-plugins": {
+      "optional": true
+    }
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
+  },
+  "devDependencies": {
+    "@jini-ai/agent-plugins": "workspace:^",
+    "@vitest/coverage-v8": "^3.2.6"
+  }
+}

@@ -7,7 +7,7 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { createJsonIpcServer, jsonIpcError, prepareIpcPath, requestJsonIpc } from "../json-ipc.js";
+import { createJsonIpcServer, prepareIpcPath, requestJsonIpc } from "../json-ipc.js";
 
 /**
  * Real-socket contract tests (no node:net mock): the live-vs-stale socket decision that guards
@@ -127,20 +127,6 @@ describe("prepareIpcPath — live socket is never treated as stale", () => {
   });
 });
 
-describe("jsonIpcError", () => {
-  it.each([
-    [Object.assign(new Error("boom"), { code: "EPIPE" }), { code: "EPIPE", message: "boom" }],
-    [Object.assign(new Error("n"), { code: 42 }), { code: "42", message: "n" }],
-    [Object.assign(new Error("u"), { code: undefined }), { message: "u" }],
-    [Object.assign(new Error("z"), { code: null }), { message: "z" }],
-    [null, { message: "null" }],
-    ["text", { message: "text" }],
-    [{ code: "X" }, { code: "X", message: "[object Object]" }],
-  ])("%j → %j (no code key unless a code is present)", (error, expected) => {
-    expect(jsonIpcError({ error })).toStrictEqual(expected);
-  });
-});
-
 describe("JINI_JSON_IPC_TRACE gate", () => {
   it.each([
     ["1", true],
@@ -238,12 +224,13 @@ describe("trace vocabulary and details", () => {
     expect(rejection?.message).toBe("internal error");
     expect(rejection?.code).toBe("HANDLER_ERROR");
     const failed = traces.find((trace) => trace.event === "server.handler_failed");
-    expect(failed).toEqual({ event: "server.handler_failed", ...base(socketPath), message: { type: "X" }, error: expect.any(String) });
+    expect(failed).toEqual({ event: "server.handler_failed", ...base(socketPath), message: { type: "X" }, error: "Error" });
     expect(rejection?.requestId).toBe(failed?.traceId);
+    for (const text of ["/secret/path", "json-ipc.contract.test"]) expect(JSON.stringify(vi.mocked(console.error).mock.calls)).not.toContain(text);
     expect(traces.find((trace) => trace.event === "client.response_error")).toEqual({ event: "client.response_error", ...base(socketPath), message: { type: "X" }, error: "internal error" });
   });
 
-  it("unparseable frame: SyntaxError message relayed without a code; parse-failed trace", async () => {
+  it("unparseable frame: fixed BAD_FRAME refusal; parse-failed trace", async () => {
     process.env.JINI_JSON_IPC_TRACE = "1";
     const socketPath = join(root, "parse.sock");
     const server = await createJsonIpcServer({ handler: async () => 0, socketPath });
@@ -254,9 +241,8 @@ describe("trace vocabulary and details", () => {
       await server.close();
     }
     const parsed = JSON.parse(reply);
-    expect(parsed.ok).toBe(false);
-    expect(Object.keys(parsed.error)).toEqual(["message"]);
-    expect(traces.find((trace) => trace.event === "server.frame_parse_failed")).toEqual({ event: "server.frame_parse_failed", ...base(socketPath), error: parsed.error.message, frameBytes: 5 });
+    expect(parsed).toEqual({ ok: false, error: { code: "BAD_FRAME", message: "The sidecar could not read the request frame. Send one line of valid JSON." } });
+    expect(traces.find((trace) => trace.event === "server.frame_parse_failed")).toEqual({ event: "server.frame_parse_failed", ...base(socketPath), error: "SyntaxError", frameBytes: 5 });
   });
 
   it("client rejects with the server's message and no code when the error has none", async () => {
@@ -302,7 +288,7 @@ describe("trace vocabulary and details", () => {
     process.env.JINI_JSON_IPC_TRACE = "1";
     const socketPath = join(root, "absent.sock");
     await expect(requestJsonIpc({ socketPath, payload: {} })).rejects.toMatchObject({ code: "ENOENT" });
-    expect(traces.find((trace) => trace.event === "client.socket_error")).toEqual({ event: "client.socket_error", ...base(socketPath), message: { type: "undefined" }, error: expect.stringContaining("ENOENT") });
+    expect(traces.find((trace) => trace.event === "client.socket_error")).toEqual({ event: "client.socket_error", ...base(socketPath), message: { type: "undefined" }, error: "Error(ENOENT)" });
   });
 
   it("idle timeout trace carries idleTimeoutMs and drops the connection", async () => {

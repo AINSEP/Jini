@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
-import type { RefObject, SyntheticEvent } from 'react';
-import { agentHandleProps } from '@jini-ai/agentic';
+import type { RefObject } from 'react';
+import { agentHandleProps } from '@jini-ai/core/agent-handles';
 import { useT } from '../../i18n/index.js';
 import {
   connectorActionFlags,
@@ -12,6 +12,7 @@ import {
 import type { Connector, ConnectorAction, ConnectorActionFlags, ConnectorAuthorizationPending } from '../types.js';
 import { Icon } from '../../../react/components/Icon.js';
 import { ConnectorLogo } from './ConnectorLogo.js';
+import { createContinueAuthorization } from './ConnectorCard.hooks.js';
 
 export interface ConnectorDetailDrawerProps {
   connector: Connector;
@@ -34,7 +35,12 @@ export interface ConnectorDetailDrawerProps {
   continueInBrowserLabel?: string;
   /** This drawer's own agent handle — see `ConnectorsBrowser`'s `agentHandle` doc. */
   agentHandle?: string;
+  /** Hooks the drawer calls; defaults to the real ones, a test hands in fakes. */
+  hooks?: ConnectorDetailDrawerHooks | undefined;
 }
+
+export const defaultConnectorDetailDrawerHooks = { useT, useDrawerModalBehavior };
+export type ConnectorDetailDrawerHooks = typeof defaultConnectorDetailDrawerHooks;
 
 interface ConnectorDrawerHeadProps {
   connector: Connector;
@@ -44,6 +50,7 @@ interface ConnectorDrawerHeadProps {
   closeBtnRef: RefObject<HTMLButtonElement | null>;
   onClose: () => void;
   agentHandle: string | undefined;
+  useTHook?: typeof useT;
 }
 
 function ConnectorDrawerHead({
@@ -54,10 +61,11 @@ function ConnectorDrawerHead({
   closeBtnRef,
   onClose,
   agentHandle,
+  useTHook = useT,
 }: ConnectorDrawerHeadProps) {
-  const t = useT();
+  const t = useTHook();
   const showToolsBadge = connector.toolCount !== undefined || connector.tools.length > 0 || toolsLoaded;
-  const toolsBadge = toolsBadgeTranslation(getConnectorDisplayToolCount(connector));
+  const toolsBadge = toolsBadgeTranslation({ count: getConnectorDisplayToolCount(connector) });
   const toolsBadgeLabel = t(toolsBadge.key, toolsBadge.vars);
   const statusTone = isAuthorizationPending ? 'pending' : connector.status;
   return (
@@ -75,7 +83,7 @@ function ConnectorDrawerHead({
         <div className="connector-drawer-status">
           <span className={`connector-status-pill status-${statusTone}`}>
             <span className="connector-status-dot" aria-hidden />
-            {isAuthorizationPending ? t('Authorization pending') : t(statusLabel(connector.status))}
+            {isAuthorizationPending ? t('Authorization pending') : t(statusLabel({ status: connector.status }))}
           </span>
           {showToolsBadge ? (
             <span className="connector-drawer-tool-count-chip" title={toolsBadgeLabel}>
@@ -105,6 +113,7 @@ interface ConnectorDrawerAboutProps {
   redirectUrl: string | undefined;
   continueInBrowserLabel: string | undefined;
   onOpenExternalUrl: ((url: string) => void) | undefined;
+  useTHook?: typeof useT;
 }
 
 function ConnectorDrawerAbout({
@@ -113,30 +122,21 @@ function ConnectorDrawerAbout({
   redirectUrl,
   continueInBrowserLabel,
   onOpenExternalUrl,
+  useTHook = useT,
 }: ConnectorDrawerAboutProps) {
-  const t = useT();
+  const t = useTHook();
 
-  function continueAuthorization(event: SyntheticEvent) {
-    event.stopPropagation();
-    // `continueAuthorization`'s only call site (the "continue in browser"
-    // button below) only ever renders while `authorizationPending &&
-    // authorizationPending.redirectUrl` already holds in that same render,
-    // and React re-binds this closure fresh on every render — so a
-    // re-check here was dead code for every real click, removed rather
-    // than tested around (same pattern as this package's `ConnectorCard.tsx`
-    // precedent; see packages/ui/source-map.md's 2026-07-22 dated entry).
-    onOpenExternalUrl?.(redirectUrl!);
-  }
+  const continueAuthorization = redirectUrl ? createContinueAuthorization({ redirectUrl, onOpenExternalUrl }) : undefined;
 
   return (
     <section className="connector-drawer-section">
       <h3 className="connector-drawer-section-title">{t('About')}</h3>
-      <p className="connector-drawer-description">{description}</p>
+      <p className="jini-connector-drawer-description">{description}</p>
       {isAuthorizationPending ? (
-        <div className="connector-authorization-block" role="status">
-          <p className="connector-authorization-hint">{t('Authorization in progress. It should finish shortly.')}</p>
+        <div className="jini-connector-authorization-block" role="status">
+          <p className="jini-connector-authorization-hint">{t('Authorization in progress. It should finish shortly.')}</p>
           {redirectUrl ? (
-            <button type="button" className="connector-authorization-link" onClick={continueAuthorization}>
+            <button type="button" className="jini-connector-authorization-link" onClick={continueAuthorization}>
               {continueInBrowserLabel ?? t('Continue in browser')}
             </button>
           ) : null}
@@ -148,7 +148,7 @@ function ConnectorDrawerAbout({
 
 function ConnectorDrawerAlert({ message }: { message: string }) {
   return (
-    <p className="connector-authorization-hint connector-authorization-error" role="alert">
+    <p className="jini-connector-authorization-hint jini-connector-authorization-error" role="alert">
       {message}
     </p>
   );
@@ -161,19 +161,20 @@ interface ConnectorDrawerDetailsProps {
   flags: ConnectorActionFlags;
   onDisconnect: (connectorId: string) => void;
   agentHandle: string | undefined;
+  useTHook?: typeof useT;
 }
 
-function ConnectorDrawerDetails({ connector, categoryLabel, accountLabel, flags, onDisconnect, agentHandle }: ConnectorDrawerDetailsProps) {
-  const t = useT();
+function ConnectorDrawerDetails({ connector, categoryLabel, accountLabel, flags, onDisconnect, agentHandle, useTHook = useT }: ConnectorDrawerDetailsProps) {
+  const t = useTHook();
   const { isDisconnecting } = flags;
   return (
     <section className="connector-drawer-section">
-      <div className="connector-drawer-section-head">
+      <div className="jini-connector-drawer-section-head">
         <h3 className="connector-drawer-section-title">{t('Details')}</h3>
         {flags.isConnected ? (
           <button
             type="button"
-            className={`ghost connector-drawer-inline-action connector-action is-disconnect${isDisconnecting ? ' is-loading' : ''}`}
+            className={`ghost connector-drawer-inline-action jini-connector-action is-disconnect${isDisconnecting ? ' is-loading' : ''}`}
             disabled={!flags.canDisconnect}
             aria-busy={isDisconnecting || undefined}
             onClick={() => onDisconnect(connector.id)}
@@ -184,10 +185,10 @@ function ConnectorDrawerDetails({ connector, categoryLabel, accountLabel, flags,
           </button>
         ) : null}
       </div>
-      <dl className="connector-drawer-details">
+      <dl className="jini-connector-drawer-details">
         <div>
           <dt>{t('Status')}</dt>
-          <dd>{t(statusLabel(connector.status))}</dd>
+          <dd>{t(statusLabel({ status: connector.status }))}</dd>
         </div>
         <div>
           <dt>{t('Category')}</dt>
@@ -204,7 +205,7 @@ function ConnectorDrawerDetails({ connector, categoryLabel, accountLabel, flags,
           </div>
         ) : null}
         {connector.lastError ? (
-          <div className="connector-drawer-details-error">
+          <div className="jini-connector-drawer-details-error">
             <dt>{t('Error')}</dt>
             <dd>{connector.lastError}</dd>
           </div>
@@ -216,15 +217,15 @@ function ConnectorDrawerDetails({ connector, categoryLabel, accountLabel, flags,
 
 function ConnectorDrawerTool({ tool }: { tool: Connector['tools'][number] }) {
   return (
-    <li className="connector-drawer-tool">
-      <div className="connector-drawer-tool-head">
-        <span className="connector-drawer-tool-title">{tool.title || tool.name}</span>
+    <li className="jini-connector-drawer-tool">
+      <div className="jini-connector-drawer-tool-head">
+        <span className="jini-connector-drawer-tool-title">{tool.title || tool.name}</span>
         <span className={`connector-drawer-tool-badge side-${tool.safety.sideEffect}`} title={tool.safety.reason}>
           {tool.safety.sideEffect}
         </span>
       </div>
-      {tool.description ? <p className="connector-drawer-tool-desc">{tool.description}</p> : null}
-      <code className="connector-drawer-tool-name">{tool.name}</code>
+      {tool.description ? <p className="jini-connector-drawer-tool-desc">{tool.description}</p> : null}
+      <code className="jini-connector-drawer-tool-name">{tool.name}</code>
     </li>
   );
 }
@@ -234,27 +235,28 @@ interface ConnectorDrawerToolsProps {
   toolsPreviewLoading: boolean;
   toolsLoaded: boolean;
   onLoadMoreTools: (connectorId: string, cursor: string) => void;
+  useTHook?: typeof useT;
 }
 
 /** The tools section body: loading, unavailable, empty, or the list with an optional load-more. */
-function ConnectorDrawerToolsBody({ connector, toolsPreviewLoading, toolsLoaded, onLoadMoreTools }: ConnectorDrawerToolsProps) {
-  const t = useT();
+function ConnectorDrawerToolsBody({ connector, toolsPreviewLoading, toolsLoaded, onLoadMoreTools, useTHook = useT }: ConnectorDrawerToolsProps) {
+  const t = useTHook();
   const actualToolCount = connector.tools.length;
   const toolCount = getConnectorDisplayToolCount(connector);
   if (toolsPreviewLoading || !toolsLoaded) {
     return (
-      <p className="connector-drawer-empty">
+      <p className="jini-connector-drawer-empty">
         <Icon name="spinner" size={12} /> {t('Loading tools…')}
       </p>
     );
   }
   if (actualToolCount === 0 && toolCount > 0) {
-    return <p className="connector-drawer-empty">{t('Tool details unavailable ({count})', { count: toolCount })}</p>;
+    return <p className="jini-connector-drawer-empty">{t('Tool details unavailable ({count})', { count: toolCount })}</p>;
   }
-  if (actualToolCount === 0) return <p className="connector-drawer-empty">{t('No tools available')}</p>;
+  if (actualToolCount === 0) return <p className="jini-connector-drawer-empty">{t('No tools available')}</p>;
   return (
     <>
-      <ul className="connector-drawer-tools">
+      <ul className="jini-connector-drawer-tools">
         {connector.tools.map((tool) => (
           <ConnectorDrawerTool key={tool.name} tool={tool} />
         ))}
@@ -262,7 +264,7 @@ function ConnectorDrawerToolsBody({ connector, toolsPreviewLoading, toolsLoaded,
       {connector.toolsNextCursor ? (
         <button
           type="button"
-          className="ghost connector-drawer-load-more"
+          className="ghost jini-connector-drawer-load-more"
           disabled={toolsPreviewLoading}
           onClick={() => onLoadMoreTools(connector.id, connector.toolsNextCursor!)}
         >
@@ -274,7 +276,7 @@ function ConnectorDrawerToolsBody({ connector, toolsPreviewLoading, toolsLoaded,
               section instead swaps to the "Loading tools…" message
               above the moment `toolsPreviewLoading` flips true), so
               it was removed rather than tested around. See
-              packages/ui/source-map.md's 2026-07-22 dated entry. */}
+              070311a07^:packages/ui/source-map.md's 2026-07-22 dated entry. */}
           <span>{t('Load more tools')}</span>
         </button>
       ) : null}
@@ -288,17 +290,18 @@ interface ConnectorDrawerFootProps {
   onConnect: (connectorId: string) => void;
   onCancelAuthorization: (connectorId: string) => void;
   agentHandle: string | undefined;
+  useTHook?: typeof useT;
 }
 
-function ConnectorDrawerFoot({ connectorId, flags, onConnect, onCancelAuthorization, agentHandle }: ConnectorDrawerFootProps) {
-  const t = useT();
+function ConnectorDrawerFoot({ connectorId, flags, onConnect, onCancelAuthorization, agentHandle, useTHook = useT }: ConnectorDrawerFootProps) {
+  const t = useTHook();
   const { isAuthorizationPending } = flags;
   const isBusy = flags.isConnecting || isAuthorizationPending;
   return (
-    <footer className="connector-drawer-foot">
+    <footer className="jini-connector-drawer-foot">
       <button
         type="button"
-        className={`primary connector-action is-connect${isBusy ? ' is-loading' : ''}`}
+        className={`primary jini-connector-action is-connect${isBusy ? ' is-loading' : ''}`}
         disabled={!flags.canConnect}
         aria-busy={isBusy || undefined}
         onClick={() => onConnect(connectorId)}
@@ -310,7 +313,7 @@ function ConnectorDrawerFoot({ connectorId, flags, onConnect, onCancelAuthorizat
       {isAuthorizationPending ? (
         <button
           type="button"
-          className="ghost connector-action is-cancel-authorization"
+          className="ghost jini-connector-action jini-is-cancel-authorization"
           onClick={() => onCancelAuthorization(connectorId)}
           {...agentHandleProps({}, { base: agentHandle, action: 'cancel-authorization', role: 'button', label: t('Cancel authorization') })}
         >
@@ -347,11 +350,50 @@ function useDrawerModalBehavior({
   }, [onClose]);
 }
 
+/** The description with its browser-authorization prompt, then any authorization failure. */
+function ConnectorDrawerNotices({
+  connector,
+  flags,
+  authorizationError,
+  authorizationCancelFailed,
+  cancelFailedMessage,
+  continueInBrowserLabel,
+  onOpenExternalUrl,
+  t,
+}: {
+  connector: Connector;
+  flags: ConnectorActionFlags;
+  authorizationError: string | null;
+  authorizationCancelFailed: boolean;
+  cancelFailedMessage: string | undefined;
+  continueInBrowserLabel: string | undefined;
+  onOpenExternalUrl: ((url: string) => void) | undefined;
+  t: ReturnType<typeof useT>;
+}) {
+  return (
+    <>
+      {connector.description ? (
+        <ConnectorDrawerAbout
+          description={connector.description}
+          isAuthorizationPending={flags.isAuthorizationPending}
+          redirectUrl={flags.redirectUrl}
+          continueInBrowserLabel={continueInBrowserLabel}
+          onOpenExternalUrl={onOpenExternalUrl}
+        />
+      ) : null}
+      {authorizationError ? <ConnectorDrawerAlert message={authorizationError} /> : null}
+      {authorizationCancelFailed ? (
+        <ConnectorDrawerAlert message={cancelFailedMessage ?? t("Couldn't cancel authorization. Try again.")} />
+      ) : null}
+    </>
+  );
+}
+
 /**
  * Modal detail drawer with a paginated tool list. Keeps its own
  * escape-key-to-close and body-scroll-lock behavior inline (standard modal
  * a11y idioms, not business/transport logic) — see
- * `packages/ui/source-map.md`'s purity-check note for why these two
+ * `archived UI source map`'s purity-check note for why these two
  * `document`/`window` touches were kept here rather than routed through
  * `dependencies.ts`.
  */
@@ -375,12 +417,13 @@ export function ConnectorDetailDrawer({
   cancelFailedMessage,
   continueInBrowserLabel,
   agentHandle,
+  hooks = defaultConnectorDetailDrawerHooks,
 }: ConnectorDetailDrawerProps) {
-  const t = useT();
+  const t = hooks.useT();
   const flags = connectorActionFlags({ connector, pendingAction, authorizationPending, disabled });
   const closeBtnRef = useRef<HTMLButtonElement | null>(null);
   const categoryLabel = getCategoryLabel(connector.category);
-  useDrawerModalBehavior({ onClose, closeBtnRef });
+  hooks.useDrawerModalBehavior({ onClose, closeBtnRef });
 
   return (
     <div
@@ -410,19 +453,16 @@ export function ConnectorDetailDrawer({
         />
 
         <div className="connector-drawer-body">
-          {connector.description ? (
-            <ConnectorDrawerAbout
-              description={connector.description}
-              isAuthorizationPending={flags.isAuthorizationPending}
-              redirectUrl={flags.redirectUrl}
-              continueInBrowserLabel={continueInBrowserLabel}
-              onOpenExternalUrl={onOpenExternalUrl}
-            />
-          ) : null}
-          {authorizationError ? <ConnectorDrawerAlert message={authorizationError} /> : null}
-          {authorizationCancelFailed ? (
-            <ConnectorDrawerAlert message={cancelFailedMessage ?? t("Couldn't cancel authorization. Try again.")} />
-          ) : null}
+          <ConnectorDrawerNotices
+            connector={connector}
+            flags={flags}
+            authorizationError={authorizationError}
+            authorizationCancelFailed={authorizationCancelFailed}
+            cancelFailedMessage={cancelFailedMessage}
+            continueInBrowserLabel={continueInBrowserLabel}
+            onOpenExternalUrl={onOpenExternalUrl}
+            t={t}
+          />
 
           <ConnectorDrawerDetails
             connector={connector}

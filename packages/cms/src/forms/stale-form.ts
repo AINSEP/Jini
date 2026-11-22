@@ -1,4 +1,4 @@
-import { canonicalArgumentDigest } from '@jini-ai/core/records';
+import { canonicalArgumentDigest, type DigestCryptoPort } from '@jini-ai/core/records';
 import { FormSchemaChangedError } from './errors.js';
 import { FORM_SCHEMA_HASH_FIELD, matchesFormSchemaHash, resolvePortableFormField } from './portable-validation.js';
 import { submissionEvidenceSchema } from './submission-evidence.js';
@@ -52,11 +52,11 @@ function isDraftAnswer(value: unknown): value is FormRetryAnswer {
  * @throws FormSchemaChangedError with bounded text and current controls, never file bytes.
  * @complexity O(schema bytes + canonical key sorting + request bytes) time; bounded draft space, one local digest, no I/O. */
 export async function assertCurrentFormSchema(
-  { original, definition, body }: { original: FormDefinitionRecord & { html?: string }; definition: FormDefinitionRecord; body: Record<string, unknown> },
+  { original, definition, body, crypto }: { original: FormDefinitionRecord & { html?: string }; definition: FormDefinitionRecord; body: Record<string, unknown>; crypto: DigestCryptoPort },
   _optional = {},
 ): Promise<void> {
   if (!Object.hasOwn(body, FORM_SCHEMA_HASH_FIELD)) return;
-  const schemaHash = await canonicalArgumentDigest({ args: submissionEvidenceSchema({ definition: original }) });
+  const schemaHash = await canonicalArgumentDigest({ args: submissionEvidenceSchema({ definition: original }), crypto });
   if (matchesFormSchemaHash({ present: true, submittedHash: body[FORM_SCHEMA_HASH_FIELD], schemaHash })) return;
   throw new FormSchemaChangedError({ fields: definition.fields, schemaHash, draft: boundedFormRetryDraft({ body }), ...(original.html === undefined ? {} : { html: original.html }) });
 }

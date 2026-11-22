@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/agent-runtime",
-  "version": "0.7.2",
+  "version": "0.7.3-next.2",
   "description": "Coding-agent runtime adapters: runtime registry, detection, launch, stream parsers, and the ACP/pi-rpc subprocess transport.",
   "license": "Apache-2.0",
   "repository": {
@@ -17,10 +17,11 @@
       "./providers/tool-turn": "node",
       "./model-catalog/cache": "universal",
       "./providers/sse-decode": "universal",
+      "./providers/credentials": "universal",
       "./model-discovery": "node",
       "./model-selection": "universal",
       "./native-tool-policy": "universal",
-      "./ai-trace": "universal"
+      "./native-permissions": "universal"
     },
     "isolation": {
       "forbidden": {
@@ -41,6 +42,11 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
+    "./native-permissions": {
+      "types": "./dist/native-permissions.d.ts",
+      "import": "./dist/native-permissions.js",
+      "default": "./dist/native-permissions.js"
+    },
     "./native-tool-policy": {
       "types": "./dist/native-tool-policy.d.ts",
       "import": "./dist/native-tool-policy.js",
@@ -66,6 +72,11 @@
       "import": "./dist/providers/sse-decode.js",
       "default": "./dist/providers/sse-decode.js"
     },
+    "./providers/credentials": {
+      "types": "./dist/providers/credentials.d.ts",
+      "import": "./dist/providers/credentials.js",
+      "default": "./dist/providers/credentials.js"
+    },
     "./model-selection": {
       "types": "./dist/model-discovery-shared.d.ts",
       "import": "./dist/model-discovery-shared.js",
@@ -75,15 +86,13 @@
       "types": "./dist/model-discovery.d.ts",
       "import": "./dist/model-discovery.js",
       "default": "./dist/model-discovery.js"
-    },
-    "./ai-trace": {
-      "types": "./dist/ai-trace/index.d.ts",
-      "import": "./dist/ai-trace/index.js",
-      "default": "./dist/ai-trace/index.js"
     }
   },
   "typesVersions": {
     "*": {
+      "native-permissions": [
+        "./dist/native-permissions.d.ts"
+      ],
       "providers/tool-turn": [
         "./dist/providers/tool-turn.d.ts"
       ],
@@ -92,6 +101,9 @@
       ],
       "providers/sse-decode": [
         "./dist/providers/sse-decode.d.ts"
+      ],
+      "providers/credentials": [
+        "./dist/providers/credentials.d.ts"
       ],
       "model-selection": [
         "./dist/model-discovery-shared.d.ts"
@@ -125,9 +137,9 @@
   },
   "devDependencies": {
     "@jini-ai/integrations": "workspace:^",
-    "@vitest/coverage-v8": "^2.1.9",
+    "@vitest/coverage-v8": "^3.2.6",
     "@jini-ai/platform": "workspace:^",
-    "@jini-ai/core": "^0.7.2"
+    "@jini-ai/core": "workspace:^"
   },
   "dependencies": {
     "@jini-ai/core": "workspace:^",

@@ -8,7 +8,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createRef, type MutableRefObject } from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import { I18nProvider } from '../../../../i18n/index.js';
+import { I18nProvider, type useT } from '../../../../i18n/index.js';
 import { MemoryManualEditor } from '../../../react/components/MemoryManualEditor.js';
 import type { DraftEntry } from '../../../types.js';
 
@@ -36,6 +36,9 @@ function renderEditor(props: Partial<Parameters<typeof MemoryManualEditor>[0]> =
 }
 
 const newDraft: DraftEntry = { name: '', description: '', type: 'user', body: '' };
+
+/** A translator that is visibly not the key, so the assertion proves the injected hook ran. */
+const useQuotingT: typeof useT = () => (key) => `«${key}»`;
 
 describe('MemoryManualEditor', () => {
   it('renders the summary heading and the New button; hides the form when idle', () => {
@@ -173,5 +176,11 @@ describe('MemoryManualEditor', () => {
     );
     expect(screen.getByText('Ajouter manuellement')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Nouveau/ })).toBeInTheDocument();
+  });
+
+  it('renders the translator supplied through useTHook', () => {
+    renderEditor({ useTHook: useQuotingT });
+    expect(screen.getByText('«Add manually»')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /«New»/ })).toBeInTheDocument();
   });
 });

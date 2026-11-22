@@ -1,4 +1,4 @@
-import { createControllerStore } from '../../core/module/controller-store.js';
+import { createControllerStore } from '@jini-ai/core/admin-runtime';
 import type { PlaygroundRenderTargetPort } from '../../contracts/playground-render-target.js';
 import type { PlaygroundState } from '../models.js';
 import { canMountPlayground } from '../rules.js';

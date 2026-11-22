@@ -574,7 +574,7 @@ export const FEATURED_IMAGE_MARKER_TYPE = "featured-image";
 
 /**
  * The longest a target value ({@link embedMarkerTarget}'s `id`/`slug`/`typeKey`) may be before it
- * counts as absent rather than a usable reference. A duplicate of `features/widgets/html-embeds.ts`'s
+ * counts as absent rather than a usable reference. A duplicate of `packages/cms/src/widgets/html/html-embeds.ts`'s
  * `MAX_EMBED_ID_LENGTH` (same number, same reasoning: a bound too long to safely carry into a
  * `Map`/`Set` key or an `entry_refs` row), not a shared import — this module stays import-free (see
  * {@link maskNonRenderableRegions}'s file header and `marker-target-parity.unit.test.ts`'s boundary
@@ -643,7 +643,7 @@ export type EmbedMarkerTarget = { readonly key: EmbedMarkerTargetKey; readonly v
 
 /** `value` trimmed down to a usable target string, or `undefined` if it is not a non-empty string of
  *  at most {@link MAX_TARGET_VALUE_LENGTH} characters — the same absent-vs-present rule
- *  `features/widgets/html-embeds.ts`'s `normalizeEmbedId`/`normalizeEmbedSlug` apply to their own
+ *  `packages/cms/src/widgets/html/html-embeds.ts`'s `normalizeEmbedId`/`normalizeEmbedSlug` apply to their own
  *  config reads. @complexity O(1). */
 function normalizeTargetValue(value: unknown): string | undefined {
   if (typeof value !== "string" || value.length === 0 || value.length > MAX_TARGET_VALUE_LENGTH) return undefined;

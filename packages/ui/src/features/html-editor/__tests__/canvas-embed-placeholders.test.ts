@@ -35,19 +35,19 @@ function describeMarked(el: Element): CanvasEmbedPlaceholderDescriptor | undefin
 describe('applyCanvasEmbedPlaceholders', () => {
   it('does nothing when describe recognizes nothing in the body', () => {
     const body = bodyWith('<p>hello</p>');
-    applyCanvasEmbedPlaceholders(body, describeMarked);
+    applyCanvasEmbedPlaceholders({ body, describe: describeMarked });
     expect(body.innerHTML).toBe('<p>hello</p>');
   });
 
   it('leaves an unmatched sibling element completely untouched', () => {
     const body = bodyWith('<p id="untouched">hello</p><div data-marker="media" data-id="m1"></div>');
-    applyCanvasEmbedPlaceholders(body, describeMarked);
+    applyCanvasEmbedPlaceholders({ body, describe: describeMarked });
     expect(body.querySelector('#untouched')?.outerHTML).toBe('<p id="untouched">hello</p>');
   });
 
   it('wraps a matched marker in a card carrying the descriptor rather than leaving it bare', () => {
     const body = bodyWith('<div data-marker="Media" data-id="m1"></div>');
-    applyCanvasEmbedPlaceholders(body, describeMarked);
+    applyCanvasEmbedPlaceholders({ body, describe: describeMarked });
 
     const card = body.querySelector('[data-jini-embed-placeholder-root]');
     expect(card).not.toBeNull();
@@ -59,7 +59,7 @@ describe('applyCanvasEmbedPlaceholders', () => {
     const body = bodyWith('<div data-marker="widget" data-id="w1" data-embed-config=\'{"type":"widget"}\'>fallback</div>');
     const before = body.querySelector('[data-marker]')!.outerHTML;
 
-    applyCanvasEmbedPlaceholders(body, describeMarked);
+    applyCanvasEmbedPlaceholders({ body, describe: describeMarked });
 
     const marker = body.querySelector('[data-marker]')!;
     // Byte-identical to before decoration: same tag, same attributes (including the JSON config an
@@ -72,7 +72,7 @@ describe('applyCanvasEmbedPlaceholders', () => {
     const body = bodyWith('<div data-marker="media" data-id="m1" id="x"></div>');
     const original = body.querySelector('#x');
 
-    applyCanvasEmbedPlaceholders(body, describeMarked);
+    applyCanvasEmbedPlaceholders({ body, describe: describeMarked });
 
     const afterMove = body.querySelector('#x');
     expect(afterMove).toBe(original);
@@ -80,7 +80,7 @@ describe('applyCanvasEmbedPlaceholders', () => {
 
   it('inserts the card in the marker\'s original position, with the marker nested inside it', () => {
     const body = bodyWith('<p>before</p><div data-marker="post" data-id="p1"></div><p>after</p>');
-    applyCanvasEmbedPlaceholders(body, describeMarked);
+    applyCanvasEmbedPlaceholders({ body, describe: describeMarked });
 
     const children = Array.from(body.children);
     expect(children.map((c) => c.tagName)).toEqual(['P', 'DIV', 'P']);
@@ -90,7 +90,7 @@ describe('applyCanvasEmbedPlaceholders', () => {
 
   it('carries the marker\'s own inline style onto the card so an authored box constraint is respected', () => {
     const body = bodyWith('<div data-marker="media" data-id="m1" style="max-width: 600px;"></div>');
-    applyCanvasEmbedPlaceholders(body, describeMarked);
+    applyCanvasEmbedPlaceholders({ body, describe: describeMarked });
 
     const card = body.querySelector('[data-jini-embed-placeholder-root]')!;
     expect(card.getAttribute('style')).toContain('max-width: 600px');
@@ -100,7 +100,7 @@ describe('applyCanvasEmbedPlaceholders', () => {
 
   it('does not require a style attribute on the marker at all', () => {
     const body = bodyWith('<div data-marker="media" data-id="m1"></div>');
-    applyCanvasEmbedPlaceholders(body, describeMarked);
+    applyCanvasEmbedPlaceholders({ body, describe: describeMarked });
 
     const card = body.querySelector('[data-jini-embed-placeholder-root]')!;
     expect(card.getAttribute('style')).not.toMatch(/^;/);
@@ -128,7 +128,7 @@ describe('applyCanvasEmbedPlaceholders', () => {
       document.head.appendChild(style);
       document.body.innerHTML = '<div id="ruled-marker" data-marker="media" data-id="m1"></div>';
 
-      applyCanvasEmbedPlaceholders(document.body, describeMarked);
+      applyCanvasEmbedPlaceholders({ body: document.body, describe: describeMarked });
 
       const card = document.body.querySelector('[data-jini-embed-placeholder-root]') as HTMLElement;
       expect(card.style.maxWidth).toBe('480px');
@@ -138,7 +138,7 @@ describe('applyCanvasEmbedPlaceholders', () => {
     it('does not add a max-width when the marker resolves to none', () => {
       document.body.innerHTML = '<div data-marker="media" data-id="m1"></div>';
 
-      applyCanvasEmbedPlaceholders(document.body, describeMarked);
+      applyCanvasEmbedPlaceholders({ body: document.body, describe: describeMarked });
 
       const card = document.body.querySelector('[data-jini-embed-placeholder-root]') as HTMLElement;
       expect(card.style.maxWidth).toBe('');
@@ -149,7 +149,7 @@ describe('applyCanvasEmbedPlaceholders', () => {
     const body = bodyWith(
       '<div data-marker="media" data-id="m1"></div><div data-marker="widget" data-id="w1"></div>'
     );
-    applyCanvasEmbedPlaceholders(body, describeMarked);
+    applyCanvasEmbedPlaceholders({ body, describe: describeMarked });
 
     const cards = body.querySelectorAll('[data-jini-embed-placeholder-root]');
     expect(cards).toHaveLength(2);
@@ -161,8 +161,8 @@ describe('applyCanvasEmbedPlaceholders', () => {
 
   it('is idempotent: a second call does not nest a second card around an already-decorated marker', () => {
     const body = bodyWith('<div data-marker="media" data-id="m1"></div>');
-    applyCanvasEmbedPlaceholders(body, describeMarked);
-    applyCanvasEmbedPlaceholders(body, describeMarked);
+    applyCanvasEmbedPlaceholders({ body, describe: describeMarked });
+    applyCanvasEmbedPlaceholders({ body, describe: describeMarked });
 
     expect(body.querySelectorAll('[data-jini-embed-placeholder-root]')).toHaveLength(1);
     expect(body.querySelectorAll('[data-marker]')).toHaveLength(1);
@@ -171,11 +171,11 @@ describe('applyCanvasEmbedPlaceholders', () => {
   it('does not call describe again for an element already inside a placeholder card on a later pass', () => {
     const body = bodyWith('<div data-marker="media" data-id="m1"></div>');
     const spy = vi.fn(describeMarked);
-    applyCanvasEmbedPlaceholders(body, spy);
+    applyCanvasEmbedPlaceholders({ body, describe: spy });
     const callsAfterFirstPass = spy.mock.calls.length;
     spy.mockClear();
 
-    applyCanvasEmbedPlaceholders(body, spy);
+    applyCanvasEmbedPlaceholders({ body, describe: spy });
 
     // The card's own children (icon, heading, identity, note) ARE walked by the second pass's
     // `querySelectorAll('*')`, but every one of them — including the relocated marker itself — sits
@@ -187,7 +187,7 @@ describe('applyCanvasEmbedPlaceholders', () => {
 
   it('escapes descriptor text safely — a label containing markup-like characters renders as text, not HTML', () => {
     const body = bodyWith('<div data-marker="&lt;script&gt;" data-id="m1"></div>');
-    applyCanvasEmbedPlaceholders(body, describeMarked);
+    applyCanvasEmbedPlaceholders({ body, describe: describeMarked });
 
     const card = body.querySelector('[data-jini-embed-placeholder-root]')!;
     expect(card.querySelector('script')).toBeNull();
@@ -208,7 +208,7 @@ describe('applyCanvasEmbedPlaceholders — the marker is the card\'s clickable s
 
   it('flags every card-owned child as chrome, leaving the marker the one unflagged child', () => {
     const body = bodyWith('<div data-marker="media" data-id="m1"></div>');
-    applyCanvasEmbedPlaceholders(body, describeMarked);
+    applyCanvasEmbedPlaceholders({ body, describe: describeMarked });
 
     const card = body.querySelector('[data-jini-embed-placeholder-root]')!;
     const unflagged = Array.from(card.children).filter((c) => !c.hasAttribute('data-jini-embed-placeholder-chrome'));
@@ -218,8 +218,8 @@ describe('applyCanvasEmbedPlaceholders — the marker is the card\'s clickable s
 
   it('adds one overlay rule to the canvas document head, however many passes run', () => {
     const body = bodyWith('<div data-marker="media" data-id="m1"></div>');
-    applyCanvasEmbedPlaceholders(body, describeMarked);
-    applyCanvasEmbedPlaceholders(body, describeMarked);
+    applyCanvasEmbedPlaceholders({ body, describe: describeMarked });
+    applyCanvasEmbedPlaceholders({ body, describe: describeMarked });
 
     const styles = document.head.querySelectorAll(OVERLAY_STYLE);
     expect(styles).toHaveLength(1);
@@ -232,27 +232,27 @@ describe('applyCanvasEmbedPlaceholders — the marker is the card\'s clickable s
   });
 
   it('does not add the overlay rule when no marker was decorated', () => {
-    applyCanvasEmbedPlaceholders(bodyWith('<p>hello</p>'), describeMarked);
+    applyCanvasEmbedPlaceholders({ body: bodyWith('<p>hello</p>'), describe: describeMarked });
     expect(document.head.querySelectorAll(OVERLAY_STYLE)).toHaveLength(0);
   });
 
   it('removes a card whose marker is gone (the embed was deleted), so no ghost card stays behind', () => {
     const body = bodyWith('<p>before</p><div data-marker="media" data-id="m1"></div>');
-    applyCanvasEmbedPlaceholders(body, describeMarked);
+    applyCanvasEmbedPlaceholders({ body, describe: describeMarked });
     body.querySelector('[data-marker]')!.remove();
 
-    applyCanvasEmbedPlaceholders(body, describeMarked);
+    applyCanvasEmbedPlaceholders({ body, describe: describeMarked });
 
     expect(body.innerHTML).toBe('<p>before</p>');
   });
 
   it('re-wraps a marker moved out of its card, and drops the card it left', () => {
     const body = bodyWith('<div data-marker="media" data-id="m1"></div><p>after</p>');
-    applyCanvasEmbedPlaceholders(body, describeMarked);
+    applyCanvasEmbedPlaceholders({ body, describe: describeMarked });
     const marker = body.querySelector('[data-marker]')!;
     body.appendChild(marker);
 
-    applyCanvasEmbedPlaceholders(body, describeMarked);
+    applyCanvasEmbedPlaceholders({ body, describe: describeMarked });
 
     const cards = body.querySelectorAll('[data-jini-embed-placeholder-root]');
     expect(cards).toHaveLength(1);
@@ -266,10 +266,10 @@ describe('scriptblocks use the existing card and bounded canvas-only geometry', 
     const body = bodyWith('<div id="ring" style="height:4000px"></div>');
     const marker = body.querySelector('#ring')!;
     const original = marker.outerHTML;
-    applyCanvasEmbedPlaceholders(body, el => el === marker ? {
+    applyCanvasEmbedPlaceholders({ body, describe: el => el === marker ? {
       kindLabel: 'Animation · Kuinetic', identityLabel: '#ring', presentation: 'runtime',
       guidanceLabel: 'Locked · Edit in HTML · Preview plays it', declaredHeight: 4000,
-    } : undefined);
+    } : undefined });
     const card = marker.parentElement!;
     expect(card.textContent).toBe('Animation · Kuinetic#ringLocked · Edit in HTML · Preview plays it');
     expect(card.style.height).toBe('960px');
@@ -279,9 +279,9 @@ describe('scriptblocks use the existing card and bounded canvas-only geometry', 
   });
   it('inline cards stay inline and use the short footprint', () => {
     const body = bodyWith('<p>Hello <span id="word"></span></p>');
-    applyCanvasEmbedPlaceholders(body, el => el.id === 'word' ? {
+    applyCanvasEmbedPlaceholders({ body, describe: el => el.id === 'word' ? {
       kindLabel: 'Animation · Kuinetic', identityLabel: '#word', presentation: 'runtime', inline: true,
-    } : undefined);
+    } : undefined });
     const card = body.querySelector('#word')!.parentElement!;
     expect(card.tagName).toBe('SPAN');
     expect(card.style.display).toBe('inline-flex');
@@ -298,11 +298,11 @@ it('re-measures a runtime card after its authored height changes', () => {
     const marker = body.querySelector('#height-probe') as HTMLElement;
     const describe = vi.fn((el: Element): CanvasEmbedPlaceholderDescriptor | undefined => el === marker
       ? { kindLabel: 'Canvas', identityLabel: '#height-probe', presentation: 'runtime' } : undefined);
-    applyCanvasEmbedPlaceholders(body, describe);
+    applyCanvasEmbedPlaceholders({ body, describe });
     expect(marker.parentElement!.style.height).toBe('120px');
     describe.mockClear();
     marker.style.height = '640px';
-    applyCanvasEmbedPlaceholders(body, describe);
+    applyCanvasEmbedPlaceholders({ body, describe });
     expect(marker.parentElement!.style.height).toBe('640px');
     expect(body.querySelectorAll('[data-jini-embed-placeholder-root]')).toHaveLength(1);
     expect(describe).toHaveBeenCalledTimes(1);
@@ -322,11 +322,11 @@ describe('W5 placeholder characterization', () => {
   it('retains the parent guard when a host detaches a snapshotted marker', () => {
     const body = bodyWith('<div data-marker="x"></div>');
     const marker = body.firstElementChild!;
-    applyCanvasEmbedPlaceholders(body, el => {
+    applyCanvasEmbedPlaceholders({ body, describe: el => {
       if (el !== marker) return undefined;
       el.remove();
       return { kindLabel: 'x', identityLabel: 'detached' };
-    });
+    } });
     expect(body.innerHTML).toBe('');
     expect(marker.parentNode).toBeNull();
   });
@@ -338,19 +338,19 @@ describe('W5 placeholder characterization', () => {
     const marker = body.firstElementChild!;
     const describe = vi.fn((el: Element): CanvasEmbedPlaceholderDescriptor | undefined => el === marker
       ? { kindLabel: 'Runtime', identityLabel: 'r', presentation: 'runtime' } : undefined);
-    applyCanvasEmbedPlaceholders(body, describe);
+    applyCanvasEmbedPlaceholders({ body, describe });
     const card = marker.parentElement!;
     expect(card.style.height).toBe('120px');
     describe.mockClear();
     marker.setAttribute('style', 'height:220px');
-    applyCanvasEmbedPlaceholders(body, describe);
+    applyCanvasEmbedPlaceholders({ body, describe });
     expect(describe.mock.calls.map(call => call[0])).toEqual([marker]);
     expect(card.style.height).toBe('220px');
     const overlay = document.head.querySelector<HTMLStyleElement>('style[data-jini-embed-placeholder-style]')!;
     const sheet = overlay.sheet!;
     sheet.disabled = true;
     const computed = vi.spyOn(window, 'getComputedStyle').mockImplementation(() => { throw new Error('measure'); });
-    expect(() => applyCanvasEmbedPlaceholders(body, describe)).toThrow('measure');
+    expect(() => applyCanvasEmbedPlaceholders({ body, describe })).toThrow('measure');
     expect(sheet.disabled).toBe(true);
     computed.mockRestore();
     body.remove();
@@ -359,9 +359,9 @@ describe('W5 placeholder characterization', () => {
     const doc = document.implementation.createHTMLDocument('canvas');
     doc.body.innerHTML = '<canvas height="350"></canvas>';
     const marker = doc.body.firstElementChild!;
-    applyCanvasEmbedPlaceholders(doc.body, el => el === marker ? {
+    applyCanvasEmbedPlaceholders({ body: doc.body, describe: el => el === marker ? {
       kindLabel: 'Canvas', identityLabel: 'c', presentation: 'runtime', inline: true,
-    } : undefined);
+    } : undefined });
     expect(marker.parentElement!.style.height).toBe('160px');
     expect(marker.parentElement!.style.verticalAlign).toBe('middle');
   });
@@ -370,11 +370,11 @@ describe('W5 placeholder characterization', () => {
     const body = bodyWith('<canvas></canvas>');
     const marker = body.firstElementChild!;
     const runtime: CanvasEmbedPlaceholderDescriptor = { kindLabel: 'Canvas', identityLabel: 'c', presentation: 'runtime', declaredHeight: 300 };
-    applyCanvasEmbedPlaceholders(body, el => el === marker ? runtime : undefined);
+    applyCanvasEmbedPlaceholders({ body, describe: el => el === marker ? runtime : undefined });
     const card = marker.parentElement!;
-    applyCanvasEmbedPlaceholders(body, () => undefined);
+    applyCanvasEmbedPlaceholders({ body, describe: () => undefined });
     expect(card.style.height).toBe('300px');
-    applyCanvasEmbedPlaceholders(body, el => el === marker ? { ...runtime, presentation: 'embed', declaredHeight: 500 } : undefined);
+    applyCanvasEmbedPlaceholders({ body, describe: el => el === marker ? { ...runtime, presentation: 'embed', declaredHeight: 500 } : undefined });
     expect(card.style.height).toBe('300px');
     expect(marker.parentElement).toBe(card);
   });

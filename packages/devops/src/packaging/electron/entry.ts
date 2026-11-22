@@ -9,3 +9,7 @@ export * from './asar-adapter.js';
 export * from './optional-peers.js';
 export * from './staged-closure.js';
 export * from './staged-closure-node.js';
+export * from './tree-fingerprint.js';
+export * from './isolation.js';
+export * from './payload-scan.js';
+export { mergeMacManifests, type UpdateFileEntry, type UpdateManifest } from "./update-manifest-merge.js";

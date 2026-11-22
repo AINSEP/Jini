@@ -62,14 +62,14 @@ function ResourceBoardSelectControls({
 }: ResourceBoardSelectControlsProps) {
   if (!selectMode) {
     return (
-      <button type="button" className="resource-board-select-toggle" onClick={onEnterSelectMode}>
+      <button type="button" className="jini-resource-board-select-toggle" onClick={onEnterSelectMode}>
         {selectModeLabel}
       </button>
     );
   }
   return (
-    <div className="resource-board-select-bar" role="group">
-      <span className="resource-board-select-count">{selectedCountLabel(selectedCount)}</span>
+    <div className="jini-resource-board-select-bar" role="group">
+      <span className="jini-resource-board-select-count">{selectedCountLabel(selectedCount)}</span>
       <button type="button" disabled={selectedCount === 0 || bulkDeleteBusy} onClick={onBulkDelete}>
         {deleteSelectedLabel}
       </button>
@@ -80,103 +80,92 @@ function ResourceBoardSelectControls({
   );
 }
 
-/**
- * DesignsTab's toolbar: sub-tab sort pills + a create button + search +
- * select-mode/bulk-delete bar (grid view only) + the grid/kanban view
- * toggle. The origin's manual-refresh button and 15s auto-refresh polling
- * are deliberately NOT ported — see `packages/ui/source-map.md`'s "Dropped"
- * list; a host wanting that composes its own refresh affordance around the
- * hook's `reload()`.
- */
-export function ResourceBoardToolbar({
-  sortOptions,
-  activeSort,
-  onSortChange,
-  sortAriaLabel,
-  query,
-  onQueryChange,
-  searchPlaceholder,
+type ResourceBoardSortPillProps = Pick<
+  ResourceBoardToolbarProps,
+  'sortOptions' | 'activeSort' | 'onSortChange' | 'sortAriaLabel'
+>;
+
+function ResourceBoardSortPill({ sortOptions, activeSort, onSortChange, sortAriaLabel }: ResourceBoardSortPillProps) {
+  if (sortOptions.length === 0) return null;
+  return (
+    <div className="jini-resource-board-sort-pill" role="group" aria-label={sortAriaLabel}>
+      {sortOptions.map((option) => (
+        <button
+          key={option.value}
+          type="button"
+          aria-pressed={activeSort === option.value}
+          className={activeSort === option.value ? 'active' : ''}
+          onClick={() => onSortChange(option.value)}
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+type ResourceBoardViewPillProps = Pick<
+  ResourceBoardToolbarProps,
+  'viewMode' | 'onViewModeChange' | 'viewToggleAriaLabel' | 'gridViewLabel' | 'kanbanViewLabel'
+>;
+
+function ResourceBoardViewPill({
   viewMode,
   onViewModeChange,
   viewToggleAriaLabel,
   gridViewLabel,
   kanbanViewLabel,
-  enableBulkDelete,
-  selectMode,
-  selectedCount,
-  bulkDeleteBusy,
-  onEnterSelectMode,
-  onExitSelectMode,
-  onBulkDelete,
-  selectModeLabel,
-  selectedCountLabel,
-  deleteSelectedLabel,
-  cancelSelectLabel,
-  createLabel,
-  onCreate,
-}: ResourceBoardToolbarProps) {
-  const showSelectControls = enableBulkDelete && viewMode === 'grid';
+}: ResourceBoardViewPillProps) {
+  return (
+    <div className="jini-resource-board-view-pill" role="group" aria-label={viewToggleAriaLabel}>
+      <button
+        aria-pressed={viewMode === 'grid'}
+        className={viewMode === 'grid' ? 'active' : ''}
+        title={gridViewLabel}
+        onClick={() => onViewModeChange('grid')}
+      >
+        {gridViewLabel}
+      </button>
+      <button
+        aria-pressed={viewMode === 'kanban'}
+        className={viewMode === 'kanban' ? 'active' : ''}
+        title={kanbanViewLabel}
+        onClick={() => onViewModeChange('kanban')}
+      >
+        {kanbanViewLabel}
+      </button>
+    </div>
+  );
+}
+
+/**
+ * DesignsTab's toolbar: sub-tab sort pills + a create button + search +
+ * select-mode/bulk-delete bar (grid view only) + the grid/kanban view
+ * toggle. The origin's manual-refresh button and 15s auto-refresh polling
+ * are deliberately NOT ported — see `archived UI source map`'s "Dropped"
+ * list; a host wanting that composes its own refresh affordance around the
+ * hook's `reload()`.
+ */
+export function ResourceBoardToolbar(props: ResourceBoardToolbarProps) {
+  const { query, onQueryChange, searchPlaceholder, createLabel, onCreate } = props;
+  const showSelectControls = props.enableBulkDelete && props.viewMode === 'grid';
 
   return (
-    <div className="resource-board-toolbar">
-      <div className="resource-board-toolbar-left">
-        {sortOptions.length > 0 ? (
-          <div className="resource-board-sort-pill" role="group" aria-label={sortAriaLabel}>
-            {sortOptions.map((option) => (
-              <button
-                key={option.value}
-                type="button"
-                aria-pressed={activeSort === option.value}
-                className={activeSort === option.value ? 'active' : ''}
-                onClick={() => onSortChange(option.value)}
-              >
-                {option.label}
-              </button>
-            ))}
-          </div>
-        ) : null}
+    <div className="jini-resource-board-toolbar">
+      <div className="jini-resource-board-toolbar-left">
+        <ResourceBoardSortPill {...props} />
       </div>
-      <div className="resource-board-toolbar-right">
+      <div className="jini-resource-board-toolbar-right">
         {onCreate && createLabel ? (
-          <button type="button" className="resource-board-create-button" onClick={onCreate}>
+          <button type="button" className="jini-resource-board-create-button" onClick={onCreate}>
             {createLabel}
           </button>
         ) : null}
-        <div className="resource-board-search">
+        <div className="jini-resource-board-search">
           <input placeholder={searchPlaceholder} value={query} onChange={(event) => onQueryChange(event.target.value)} />
         </div>
-        {showSelectControls ? (
-          <ResourceBoardSelectControls
-            selectMode={selectMode}
-            selectedCount={selectedCount}
-            bulkDeleteBusy={bulkDeleteBusy}
-            onEnterSelectMode={onEnterSelectMode}
-            onExitSelectMode={onExitSelectMode}
-            onBulkDelete={onBulkDelete}
-            selectModeLabel={selectModeLabel}
-            selectedCountLabel={selectedCountLabel}
-            deleteSelectedLabel={deleteSelectedLabel}
-            cancelSelectLabel={cancelSelectLabel}
-          />
-        ) : null}
-        <div className="resource-board-view-pill" role="group" aria-label={viewToggleAriaLabel}>
-          <button
-            aria-pressed={viewMode === 'grid'}
-            className={viewMode === 'grid' ? 'active' : ''}
-            title={gridViewLabel}
-            onClick={() => onViewModeChange('grid')}
-          >
-            {gridViewLabel}
-          </button>
-          <button
-            aria-pressed={viewMode === 'kanban'}
-            className={viewMode === 'kanban' ? 'active' : ''}
-            title={kanbanViewLabel}
-            onClick={() => onViewModeChange('kanban')}
-          >
-            {kanbanViewLabel}
-          </button>
-        </div>
+        {showSelectControls ? <ResourceBoardSelectControls {...props} /> : null}
+        <ResourceBoardViewPill {...props} />
       </div>
     </div>
   );

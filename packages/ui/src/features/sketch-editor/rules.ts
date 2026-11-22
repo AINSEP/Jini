@@ -20,7 +20,7 @@ import {
   DEFAULT_SKETCH_LIGHT_TOOL_COLOR,
 } from './constants.js';
 
-export function cloneJson<T>(value: unknown, fallback: T): T {
+export function cloneJson<T>({ value, fallback }: { value: unknown; fallback: T }, _optional: Record<string, never> = {}): T {
   try {
     return JSON.parse(JSON.stringify(value)) as T;
   } catch {
@@ -34,9 +34,10 @@ export function cloneJson<T>(value: unknown, fallback: T): T {
  * cursors) so a persisted scene never rehydrates mid-interaction UI.
  */
 export function sanitizeExcalidrawAppState(
-  value: Record<string, unknown> | null,
+  { value }: { value: Record<string, unknown> | null },
+  _optional: Record<string, never> = {},
 ): Record<string, unknown> {
-  const appState = value ? cloneJson<Record<string, unknown>>(value, {}) : {};
+  const appState = value ? cloneJson<Record<string, unknown>>({ value, fallback: {} }) : {};
   delete appState.collaborators;
   delete appState.contextMenu;
   delete appState.draggingElement;
@@ -56,7 +57,7 @@ export function sanitizeExcalidrawAppState(
   return appState;
 }
 
-export function emptySketchScene(name?: string): SketchScene {
+export function emptySketchScene(_required: Record<string, never> = {}, { name }: { name?: string | undefined } = {}): SketchScene {
   return {
     elements: [],
     appState: {
@@ -68,7 +69,7 @@ export function emptySketchScene(name?: string): SketchScene {
   };
 }
 
-export function sketchSceneHasContent(scene: SketchScene | null | undefined): boolean {
+export function sketchSceneHasContent({ scene }: { scene: SketchScene | null | undefined }, _optional: Record<string, never> = {}): boolean {
   return Boolean(
     scene?.elements.some((element) => {
       if (!element || typeof element !== 'object') return false;
@@ -78,9 +79,8 @@ export function sketchSceneHasContent(scene: SketchScene | null | undefined): bo
 }
 
 export function buildInitialData(
-  scene: SketchScene,
-  fileName: string,
-  defaultStrokeColor: string,
+  { scene, fileName, defaultStrokeColor }: { scene: SketchScene; fileName: string; defaultStrokeColor: string },
+  _optional: Record<string, never> = {},
 ): {
   elements: readonly unknown[];
   appState: Record<string, unknown>;
@@ -90,7 +90,7 @@ export function buildInitialData(
   return {
     elements: scene.elements,
     appState: {
-      ...sanitizeExcalidrawAppState(scene.appState),
+      ...sanitizeExcalidrawAppState({ value: scene.appState }),
       name: fileName,
       currentItemStrokeColor: defaultStrokeColor,
       viewBackgroundColor:
@@ -104,14 +104,13 @@ export function buildInitialData(
 }
 
 export function sceneFromExcalidraw(
-  elements: readonly unknown[],
-  appState: Record<string, unknown>,
-  files: Record<string, unknown>,
+  { elements, appState, files }: { elements: readonly unknown[]; appState: Record<string, unknown>; files: Record<string, unknown> },
+  _optional: Record<string, never> = {},
 ): SketchScene {
   return {
-    elements: cloneJson<unknown[]>(elements, []),
-    appState: sanitizeExcalidrawAppState(cloneJson<Record<string, unknown> | null>(appState, null)),
-    files: cloneJson<Record<string, unknown>>(files, {}),
+    elements: cloneJson<unknown[]>({ value: elements, fallback: [] }),
+    appState: sanitizeExcalidrawAppState({ value: cloneJson<Record<string, unknown> | null>({ value: appState, fallback: null }) }),
+    files: cloneJson<Record<string, unknown>>({ value: files, fallback: {} }),
   };
 }
 
@@ -147,9 +146,8 @@ function sortJsonValue(value: unknown): unknown {
  * changes too, not just content edits).
  */
 export function sceneContentSignature(
-  elements: readonly unknown[],
-  appState: Record<string, unknown>,
-  files: Record<string, unknown>,
+  { elements, appState, files }: { elements: readonly unknown[]; appState: Record<string, unknown>; files: Record<string, unknown> },
+  _optional: Record<string, never> = {},
 ): string {
   const elementSignature = elements
     .map((element) => {
@@ -183,7 +181,7 @@ export function sceneContentSignature(
  * must be distinguishable from "not provided" (which strips the last
  * extension present) — a truthy check would silently treat both the same.
  */
-export function exportedImageFileName(fileName: string, sourceExtension?: string): string {
+export function exportedImageFileName({ fileName }: { fileName: string }, { sourceExtension }: { sourceExtension?: string | undefined } = {}): string {
   const slash = fileName.lastIndexOf('/');
   const baseName = slash >= 0 ? fileName.slice(slash + 1) : fileName;
   const stem = typeof sourceExtension === 'string'
@@ -198,7 +196,7 @@ function stripKnownExtension(baseName: string, extension: string): string {
     : baseName;
 }
 
-export function exportedImageResultFileName(result: SketchExportImageResult, fallback: string): string {
+export function exportedImageResultFileName({ result, fallback }: { result: SketchExportImageResult; fallback: string }, _optional: Record<string, never> = {}): string {
   if (result && typeof result === 'object' && typeof (result as SketchExportedImageResult).fileName === 'string') {
     return (result as SketchExportedImageResult).fileName;
   }
@@ -206,7 +204,7 @@ export function exportedImageResultFileName(result: SketchExportImageResult, fal
 }
 
 /** The default stroke color a new tool should start with, given the active theme. */
-export function resolveDefaultSketchToolColor(theme: string | null, prefersDark: boolean): string {
+export function resolveDefaultSketchToolColor({ theme, prefersDark }: { theme: string | null; prefersDark: boolean }, _optional: Record<string, never> = {}): string {
   if (theme === 'dark') return DEFAULT_SKETCH_DARK_TOOL_COLOR;
   if (theme === 'light') return DEFAULT_SKETCH_LIGHT_TOOL_COLOR;
   return prefersDark ? DEFAULT_SKETCH_DARK_TOOL_COLOR : DEFAULT_SKETCH_LIGHT_TOOL_COLOR;
@@ -219,7 +217,7 @@ export function defaultExcalidrawLangCode(
   return overrides[locale] ?? 'en';
 }
 
-export function normalizeTooltipLabel(value: string | null | undefined): string | null {
+export function normalizeTooltipLabel({ value }: { value: string | null | undefined }, _optional: Record<string, never> = {}): string | null {
   const normalized = value?.replace(/\s+/g, ' ').trim();
   return normalized ? normalized : null;
 }
@@ -245,7 +243,7 @@ const TOOLTIP_LABEL_KEYS: Record<SketchTooltipLabelKey, string> = {
 };
 
 /** Builds the toolbar-tooltip label table by routing each English string through `t()`. */
-export function buildSketchTooltipLabels(t: SketchTranslate): SketchTooltipLabels {
+export function buildSketchTooltipLabels({ t }: { t: SketchTranslate }, _optional: Record<string, never> = {}): SketchTooltipLabels {
   const labels = {} as SketchTooltipLabels;
   for (const key of Object.keys(TOOLTIP_LABEL_KEYS) as SketchTooltipLabelKey[]) {
     labels[key] = t(TOOLTIP_LABEL_KEYS[key]!);
@@ -259,7 +257,7 @@ export function buildSketchTooltipLabels(t: SketchTranslate): SketchTooltipLabel
  * `"English - rest"` / `"English: rest"` prefix. Returns `null` when nothing
  * in `overrides` matches (caller should leave the node untouched).
  */
-export function translateDomTextValue(value: string, overrides: SketchDomTextOverrides): string | null {
+export function translateDomTextValue({ value, overrides }: { value: string; overrides: SketchDomTextOverrides }, _optional: Record<string, never> = {}): string | null {
   // Split into leading whitespace, core, trailing whitespace (an all-whitespace
   // value is all leading). `trimStart`/`trimEnd` strip exactly regex `\s`.
   const coreStart = value.length - value.trimStart().length;
@@ -282,7 +280,7 @@ export function translateDomTextValue(value: string, overrides: SketchDomTextOve
 }
 
 /** Filters `actionNames` down to `allowList`, reordered to match `allowList`'s order. */
-export function orderContextMenuActions(actionNames: readonly string[], allowList: readonly string[]): string[] {
+export function orderContextMenuActions({ actionNames, allowList }: { actionNames: readonly string[]; allowList: readonly string[] }, _optional: Record<string, never> = {}): string[] {
   const present = new Set(actionNames);
   return allowList.filter((action) => present.has(action));
 }
@@ -306,7 +304,7 @@ export function validateSketchEmbeddableUrl(link: string): boolean {
  * whatever the host chose to translate, rather than hardcoding one
  * product's translations here).
  */
-export function isExcalidrawUnableToEmbedToast(message: string, additionalPhrases: readonly string[] = []): boolean {
+export function isExcalidrawUnableToEmbedToast({ message }: { message: string }, { additionalPhrases = [] }: { additionalPhrases?: readonly string[] | undefined } = {}): boolean {
   const lower = message.toLowerCase();
   if (lower.includes('embedding this url is currently not allowed')) return true;
   if (additionalPhrases.some((phrase) => message.includes(phrase))) return true;

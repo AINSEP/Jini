@@ -8,6 +8,7 @@ All entries use the Node runtime. Public operations take a required argument obj
 | `@jini-ai/oauth/testing` | Three independent memory store factories |
 | `@jini-ai/oauth/discovery-policy` | `createIssuerBoundDiscoveryPolicy`, `OAuthDiscoveryPolicy` |
 | `@jini-ai/oauth/dns-pinned-transport` | `createDnsPinnedOAuthTransport`, `DnsPinnedOAuthTransport`, `DnsPinnedOAuthTransportDeps` and DNS/address/dispatcher port types |
+| `@jini-ai/oauth/callback-page` | `renderOAuthCallbackPage`, `OAuthCallbackPageCopy`, `OAuthCallbackPageInput`, `OAuthCallbackPageOptions` |
 | `@jini-ai/oauth/loopback-receiver` | `startLoopbackAuthorizationReceiver`, `MAX_CALLBACK_FIELDS`, `MAX_CALLBACK_FIELD_LENGTH`, `LoopbackAuthorizationReceiver`, `LoopbackAuthorizationResult`, `LoopbackReceiverOptions`, `LoopbackReceiverTimers` |
 
 The direct entries and root export the same implementations. The package depends on the kernel `@jini-ai/core`; hosts supply network policy, identity and persistence.
@@ -102,8 +103,6 @@ The lookup copies and validates every resolved address before returning any addr
 `buildOAuthAuthorizationUrl({ authorizationEndpoint, clientId, redirectUri, state, codeChallenge }, { scope?, resource? })` formats a fixed-issuer authorization URL. `exchangeOAuthAuthorizationCode({ fetchFn, guard, clock, tokenEndpoint, client, redirectUri, code, codeVerifier }, { resource? })` uses the same guarded, bounded token parser as `refreshAccessToken`; both return `OAuthTokenSet`, never raw token JSON. Confidential clients use the main API's RFC 6749 percent-encoded Basic credentials, and provider errors are typed without echoing body secrets.
 
 `createPendingAuthorizationStore({ clock, randomBytesFn }, { ttlMs?, maxEntries?, scheduler? })` returns the async owner-bound contract and is available at the root and `/testing`. Its synchronous payload option is `createPendingAuthorizationStore<T>({ clock }, { expiry: ({ value, ttlMs }) => epochMs, scheduler?, ttlMs?, maxEntries?, exclusiveExpiry? })`. Payload methods are `put({ state, value })`, `consume({ state })`, `size({})`, `stop({})`. Both modes share a bounded map (256 by default), single-use consumption, a ten-minute default TTL, and timer cancellation when empty. `scheduler.every({ intervalMs, run })` returns a cancellation closure. `exclusiveExpiry: true` keeps legacy callback expiry at age > TTL; owner-bound state expires at the deadline.
-
-`redactOAuthUrls({ text, pattern, replacement })` preserves all unmatched bytes. Hosts own its pattern and replacement.
 
 `defaultOAuthMessages` supplies neutral reserved-parameter and registration-recovery copy. Pass `messages` in argument two of browser authorization or registration (including cached `getOrRegister`). Protocol identity is `clientDisplayName` (`client_name`), `softwareId`, and `redirectUris`; the obsolete prose-only `productName` option is removed.
 

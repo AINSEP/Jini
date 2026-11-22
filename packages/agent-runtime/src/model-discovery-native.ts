@@ -6,15 +6,20 @@ import {
   type ModelDiscoveryDefinition,
 } from './model-discovery.js';
 import { defaultModelDiscoveryDeps, modelProbeTimeoutMs, probeAgentCatalog, probeCliCache } from './model-discovery-adapters.js';
-import type { AgentDiscoveryConfiguration, AgentModelDiscoveryPort, ModelDiscoveryContext, ModelDiscoveryDeps, ModelDiscoveryProbes } from './model-discovery-types.js';
+import type { AgentDiscoveryConfiguration, ModelDiscoveryProbes } from './model-discovery-types.js';
+import type {
+  AgentModelDiscoveryPort,
+  ModelDiscoveryContext,
+  ModelDiscoveryDeps,
+} from '@jini-ai/core/contracts/agents';
 
 export * from './model-discovery.js';
 
 /** Reuse the existing probe owners, including their credential, cancellation and cache guards. */
 const nativeModelDiscoveryProbes: ModelDiscoveryProbes = {
-  catalog: ({ agentId, context, configuration, deps, signal }, _optional = {}) => probeAgentCatalog(agentId, context, configuration, deps, signal),
-  cliCache: ({ agentId, context, deps, signal }, _optional = {}) => probeCliCache(agentId, context, deps, signal),
-  timeoutMs: ({ agentId }, _optional = {}) => modelProbeTimeoutMs(agentId),
+  catalog: ({ agentId, context, configuration, deps, signal }, _optional = {}) => probeAgentCatalog({ agentId, context, configuration, deps, signal }),
+  cliCache: ({ agentId, context, deps, signal }, _optional = {}) => probeCliCache({ agentId, context, deps, signal }),
+  timeoutMs: ({ agentId }, _optional = {}) => modelProbeTimeoutMs({ agentId }),
 };
 
 // These forwarding signatures deliberately retain the published API. New policy APIs use

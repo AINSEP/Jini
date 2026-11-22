@@ -61,34 +61,34 @@ describe('source discovery', () => {
 });
 
 describe('faults become report entries', () => {
-  test('a non-Error thrown by the host migration port fails every plugin with its text', async () => {
+  test('a non-Error thrown by the host migration port fails every plugin with its type', async () => {
     const source = await sourceWithPlugin();
     const { report } = await seed(source, { migrateBeforeSeed: async () => { throw 'migration port offline'; } });
-    expect(report).toEqual({ sourceRoot: source, outcomes: [{ pluginId: 'seeded-one', status: 'failed', reason: 'migration port offline' }], retirements: [] });
+    expect(report).toEqual({ sourceRoot: source, outcomes: [{ pluginId: 'seeded-one', status: 'failed', reason: 'string' }], retirements: [] });
   });
   test('a non-Error activation-lock fault fails every plugin before any install', async () => {
     const source = await sourceWithPlugin();
     const { layout, report } = await seed(source, { filesystem: failingFs(target => target.endsWith(`${ACTIVATIONS_FILENAME}.lock`), 'lock device gone', 'open') });
-    expect(report.outcomes).toEqual([{ pluginId: 'seeded-one', status: 'failed', reason: 'lock device gone' }]);
+    expect(report.outcomes).toEqual([{ pluginId: 'seeded-one', status: 'failed', reason: 'string' }]);
     await expect(fs.stat(layout.forWorkspace({ workspaceId: 'ws' }).pluginRootDir({ pluginId: 'seeded-one' }))).rejects.toMatchObject({ code: 'ENOENT' });
   });
   test('a non-Error while packing one plugin fails only that plugin', async () => {
     const source = await sourceWithPlugin();
     const { report } = await seed(source, { filesystem: failingFs(target => target.endsWith(`${path.sep}seeded-one`), 'unreadable source', 'readdir') });
-    expect(report.outcomes).toEqual([{ pluginId: 'seeded-one', status: 'failed', reason: 'unreadable source' }]);
+    expect(report.outcomes).toEqual([{ pluginId: 'seeded-one', status: 'failed', reason: 'string' }]);
   });
   test('a ledger write fault is reported while the seeded plugin stays seeded', async () => {
     const source = await sourceWithPlugin();
     const { report } = await seed(source, { filesystem: failingFs(target => target.includes(`${BUNDLED_DIGESTS_FILENAME}.tmp-`), new Error('ledger disk full'), 'open') });
     expect(report.outcomes.map(outcome => outcome.status)).toEqual(['seeded']);
-    expect(report.ledgerFailure).toBe('ledger disk full');
+    expect(report.ledgerFailure).toBe('Error');
   });
-  test('a non-Error ledger write fault is rendered as text', async () => {
+  test('a non-Error ledger write fault is rendered as its type', async () => {
     const source = await sourceWithPlugin();
     const { report } = await seed(source, { filesystem: failingFs(target => target.includes(`${BUNDLED_DIGESTS_FILENAME}.tmp-`), 'ledger offline', 'open') });
-    expect(report.ledgerFailure).toBe('ledger offline');
+    expect(report.ledgerFailure).toBe('string');
   });
-  test('an unreadable activations file fails every plugin with the activation error message', async () => {
+  test('an unreadable activations file fails every plugin with the activation error class', async () => {
     const source = await sourceWithPlugin();
     const layout = createAgentPluginLayout({ root: await tempDir() });
     const workspaceRoot = layout.forWorkspace({ workspaceId: 'ws' }).root;
@@ -97,7 +97,17 @@ describe('faults become report entries', () => {
     const report = await seedBundledAgentPlugins({ layout, workspaceId: 'ws', sourceRoot: source });
     expect(report.outcomes).toHaveLength(1);
     expect(report.outcomes[0]).toMatchObject({ pluginId: 'seeded-one', status: 'failed' });
-    expect((report.outcomes[0] as { reason: string }).reason).toContain(`${ACTIVATIONS_FILENAME} could not be read (EISDIR`);
+    expect((report.outcomes[0] as { reason: string }).reason).toBe('Error');
+  });
+  test('a secret-bearing per-plugin fault is reported by its class only', async () => {
+    const sourceRoot = await sourceWithPlugin();
+    const layout = createAgentPluginLayout({ root: await tempDir() });
+    const api = createSeedBundledModule({ ...ports, layout });
+    const report = await api.seedBundledAgentPlugins({ layout, workspaceId: 'ws', sourceRoot }, {
+      packing: async () => { throw new Error('boom api_key=SECRETSECRETSECRETSECRET'); },
+    });
+    expect(report.outcomes).toEqual([{ pluginId: 'seeded-one', status: 'failed', reason: 'Error' }]);
+    expect(JSON.stringify(report)).not.toMatch(/boom|SECRETSECRET|seed-bundled-edges/);
   });
 });
 
@@ -141,7 +151,7 @@ describe('opt-in packing during seeding', () => {
     const report = await api.seedBundledAgentPlugins({ layout, workspaceId: 'ws', sourceRoot }, {
       packing: async () => { throw new Error('packing policy unavailable'); },
     });
-    expect(report.outcomes).toEqual([{ pluginId: 'seeded-one', status: 'failed', reason: 'packing policy unavailable' }]);
+    expect(report.outcomes).toEqual([{ pluginId: 'seeded-one', status: 'failed', reason: 'Error' }]);
   });
 });
 

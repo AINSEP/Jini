@@ -1,3 +1,4 @@
+import { createConsoleLogger, type Logger } from '@jini-ai/core/primitives';
 import { recoveredRunEvents, type AgentEvent } from "../../core/index.js";
 import { classifyAgentServiceFailure, startupFailureMessage } from "@jini-ai/agent-runtime";
 import { continuationRequest } from "../../core/durable-runs/continuation.js";
@@ -136,8 +137,8 @@ function continuesNow({ run, trigger, now }: { run: DurableRun; trigger: Recover
 interface Decision { readonly decision: RecoveryResult; readonly probe?: RunProbe; readonly failure?: FailureClass }
 
 /** Recovery coordinator behind explicit host ports. One CAS owns both the attempt and its conversation slot.
- * Each recovery decision logs one `logger.info` line (default console) of run metadata. */
-export function createDurableRecovery(ports: RecoveryPorts, { logger = console }: { logger?: Pick<Console, "info"> } = {}): DurableRecovery {
+ * Each recovery decision reports run metadata through the host port or the safe default logger. */
+export function createDurableRecovery(ports: RecoveryPorts, { report = createConsoleLogger({ prefix: '' }) }: { report?: Pick<Logger, "info"> } = {}): DurableRecovery {
   /** Replay starts from attemptBase. Carry this attempt's saved launch notice into it too, so
    * reconnect/reload cannot replace that evidence with the daemon's shorter replay prefix.
    * O(e) in saved events; no additional store read, write, or polling. */
@@ -301,7 +302,7 @@ export function createDurableRecovery(ports: RecoveryPorts, { logger = console }
       const { decision, probe, failure } = await decide(run, trigger, options.liveRunId);
       // The watcher re-confirms its own live run every resolution window; log only real recovery
       // decisions. Metadata only: diagnostics, answers and cancel reasons can hold secrets.
-      if (options.liveRunId !== run.runId) logger.info("[durable-recovery] " + JSON.stringify({ runId: run.runId, trigger, probe, decision, failureClass: failure }));
+      if (options.liveRunId !== run.runId) report.info({ message: "[durable-recovery] Recovery decision." }, { meta: { runId: run.runId, trigger, probe, decision, failureClass: failure } });
       return decision;
     },
   };

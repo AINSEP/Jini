@@ -1,6 +1,5 @@
-import { inspect } from 'node:util';
-import { redactSecrets } from '@jini-ai/core';
-import type { SqliteSyncOpener } from '@jini-ai/db/sqlite';
+import { createConsoleLogger } from '@jini-ai/core/primitives';
+import type { SqliteSyncOpener } from '@jini-ai/core/contracts/storage';
 /**
  * @module create-local-node-daemon
  *
@@ -40,15 +39,18 @@ import express, { type Express } from 'express';
 import type { DetectedAgent, OAuthCallbackListener } from '@jini-ai/agent-runtime';
 import type { Bindings, Principal, ToolRegistration } from '@jini-ai/core';
 import type { AnyPack, MissingTokenIds } from '@jini-ai/core/composition';
-import type { CreateTerminalSessionManagerOptions, ResolveRunInput, RunLifecycle } from '@jini-ai/daemon';
-import { installRouteRegistrationGuard, mountPackHttp, type AdapterContext } from '@jini-ai/http-kit';
-import type {  DelegatedToolExecuteRequest,  RunStartHandler,  WorkspaceRootResolver } from '@jini-ai/daemon/http';
+import type { ResolveRunInput, RunLifecycle } from '@jini-ai/daemon';
+import { installRouteRegistrationGuard, mountPackHttp } from '@jini-ai/http-kit';
+import { createLocalSameOriginPolicy, type RouteHostContext } from '@jini-ai/core/contracts/server';
+import type { DaemonRouteHost, DelegatedToolExecuteRequest,  RunStartHandler,  WorkspaceRootResolver } from '@jini-ai/daemon/http';
 import { removeDaemonRegistryRecordIfCurrent, resolveDaemonRegistryPath, writeDaemonRegistryRecord } from '@jini-ai/sidecar';
+import { nodeAtomicWriter } from '@jini-ai/node-adapters/fs';
 
 import { composeJiniKernel, type JiniKernelSecurity, type KernelBoundIds } from './compose-jini-kernel.js';
 import type { BuiltInFeatureOptions } from './builtin-features.js';
+import type { TerminalFeatureOptions } from './terminal-service.js';
 import type { CapabilityId, JiniProfileId } from './feature.js';
-import { closeHttpServer, normalizeDaemonBindHost } from './host-bootstrap.js';
+import { closeHttpServer, normalizeDaemonBindHost } from './host-bootstrap.js'; import { PRESET_JSON_PARSER_LIMIT_BYTES, presetRouteHost } from './route-host.js';
 
 const require = createRequire(import.meta.url);
 /** This package's own `package.json` version, echoed back by `GET /api/daemon/status`. */
@@ -73,7 +75,7 @@ export { classifyRunFailureForRetry } from './kernel-base.js';
  * @complexity O(1).
  * @overallScore 100/100
  */
-export function resolveBoundPort(address: { port: number } | string | null): number | null {
+export function resolveBoundPort({ address }: { address: { port: number } | string | null }, _optional: Record<string, never> = {}): number | null {
   if (address == null || typeof address === 'string') return null;
   return address.port > 0 ? address.port : null;
 }
@@ -95,7 +97,7 @@ export function resolveBoundPort(address: { port: number } | string | null): num
  * @complexity O(1).
  * @overallScore 100/100
  */
-export function resolveReportHost(bindHost: string): string {
+export function resolveReportHost({ bindHost }: { bindHost: string }, _optional: Record<string, never> = {}): string {
   if (bindHost === '0.0.0.0' || bindHost === '::') return '127.0.0.1';
   // A colon can only mean "IPv6 literal" here: a bind host is a host, never a `host:port` pair, and
   // no DNS name or IPv4 address contains one.
@@ -110,7 +112,9 @@ export type { KernelBoundIds };
  * of becoming downward dependencies of this locked host preset.
  */
 export interface LocalNodeHttpExtensionContext {
-  readonly adapter: AdapterContext;
+  readonly adapter: RouteHostContext;
+  /** The host object route lists are built with (`@jini-ai/daemon/http`'s `*Routes({ deps, host })`); mount the list with {@link mountRoutes}. Same origin policy as `adapter`. */
+  readonly routeHost: DaemonRouteHost;
   readonly lifecycle: RunLifecycle;
   readonly dataDir: string;
 }
@@ -172,8 +176,8 @@ export interface CreateLocalNodeDaemonConfig<
    * with `404`, never fabricating or guessing a path.
    */
   resolveWorkspaceRoot?: WorkspaceRootResolver;
-  /** Opt into PTYs with `() => loadRealSpawnPty({})` from `@jini-ai/daemon/terminal`. */
-  loadTerminalSpawnPty?: CreateTerminalSessionManagerOptions['loadSpawnPty'];
+  /** Opt into PTYs with `() => loadRealSpawnPty({})` from `@jini-ai/server/adapters/node-pty`. */
+  loadTerminalSpawnPty?: TerminalFeatureOptions['loadSpawnPty'];
   /**
    * Optional product/capability route registrars. They run after the host's security middleware
    * and locked route packs, before caller packs and daemon-status routes.
@@ -312,6 +316,143 @@ function localFeatureOptions(
   };
 }
 
+/** The daemon's own same-origin policy: the bound port is read on every call because routes are built before the listener binds. */
+function localOriginPolicy(
+  { env, resolvedPortRef }: { env: NodeJS.ProcessEnv; resolvedPortRef: { readonly current: number } },
+  _optional: Record<string, never> = {},
+) {
+  return createLocalSameOriginPolicy({
+    port: () => resolvedPortRef.current,
+    env,
+    config: { allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST' },
+  });
+}
+
+function createLocalDaemonApp(): Express {
+  const app: Express = express();
+  app.disable('x-powered-by');
+  installRouteRegistrationGuard({ app });
+  return app;
+}
+
+function requestLocalDaemonShutdown(stop: () => Promise<void>): void {
+  // `POST /api/daemon/shutdown` answers before shutdown begins, so nothing downstream can
+  // ever await this promise. Dropping it with a bare `void` turned any shutdown failure
+  // into a process-level unhandled rejection — which on Node's default policy terminates
+  // the very process this was trying to shut down gracefully. Reported here instead; the
+  // rejection stays on `stopPromise`, so an explicit `stop()` caller still observes it.
+  void stop().catch((error: unknown) => {
+    createConsoleLogger({ prefix: '' }).error({ message: '[@jini-ai/server] shutdown requested through POST /api/daemon/shutdown failed' }, { error });
+  });
+}
+
+function composeLocalDaemonKernel(config: LocalPresetConfig, context: {
+  app: Express;
+  adapter: RouteHostContext;
+  host: string;
+  env: NodeJS.ProcessEnv;
+  resolvedPortRef: { current: number };
+  xaiListenerRef: { current: OAuthCallbackListener | null };
+  isShuttingDown: () => boolean;
+  requestShutdown: () => void;
+}) {
+  const { app, adapter, host, env, resolvedPortRef, xaiListenerRef, isShuttingDown, requestShutdown } = context;
+  return composeJiniKernel({
+    app, adapter, resolvedPortRef,
+    storage: { kind: 'sqlite', dataDir: config.dataDir, open: config.open },
+    ...localKernelOptions({ config }),
+    security: localSecurity({ config, host }),
+    env,
+    ...(config.agentExecutor ? { agentExecutor: config.agentExecutor } : {}),
+    featureOptions: localFeatureOptions({ config, host, resolvedPortRef, xaiListenerRef,
+      isShuttingDown,
+      requestShutdown,
+    }),
+    // Product extensions, then caller-pack routes — the historical position, between the locked
+    // route families and the daemon-status routes.
+    onAfterApiRoutes: (mountedApp, daemon, base) => {
+      for (const registerExtension of config.httpExtensions ?? []) {
+        registerExtension(mountedApp, { adapter, routeHost: presetRouteHost({ context: adapter, parserLimitBytes: PRESET_JSON_PARSER_LIMIT_BYTES }), lifecycle: base.lifecycle, dataDir: config.dataDir });
+      }
+      mountPackHttp({ app: mountedApp, packs: config.packs, daemon });
+    },
+  });
+}
+
+function listenLocalNodeDaemon(app: Express, { requestedPort, host }: { requestedPort: number; host: string }): Promise<Server> {
+  return new Promise<Server>((resolve, reject) => {
+      let listeningServer: Server;
+      try {
+        listeningServer = app.listen(requestedPort, host);
+      } catch (error) {
+        reject(error);
+        return;
+      }
+      listeningServer.once('listening', () => resolve(listeningServer));
+      // `app.listen` throws synchronously when the port is already in use on some Node versions,
+      // but emits an `error` event on others — wiring both paths means this promise always settles.
+      listeningServer.on('error', (error) => reject(error));
+    });
+}
+
+function startLocalDaemonListener({ kernel, host, registryPath, resolvedPortRef, stop, activeFeatures, onListening }: {
+  kernel: Awaited<ReturnType<typeof composeJiniKernel>>;
+  host: string;
+  registryPath: string | null;
+  resolvedPortRef: { current: number };
+  stop: () => Promise<void>;
+  activeFeatures: readonly string[];
+  onListening: (server: Server) => void;
+}, listen: () => Promise<Server>): Promise<LocalNodeDaemon> {
+  return new Promise<LocalNodeDaemon>((resolve, reject) => {
+    const failToBind = (error: unknown) => {
+      // Best-effort: a failed boot must not leave any resource this call already opened dangling.
+      void kernel.close().then(() => reject(error), () => reject(error));
+    };
+
+    listen()
+      .then((listeningServer) => {
+        const server = listeningServer;
+        onListening(server);
+        // Widen the between-request idle window so kept-alive sockets survive gaps between bursts
+        // (e.g. an SSE stream's idle periods); `headersTimeout` must exceed `keepAliveTimeout`.
+        server.keepAliveTimeout = 120_000;
+        server.headersTimeout = 125_000;
+
+        const boundPort = resolveBoundPort({ address: server.address() });
+        if (!boundPort) {
+          failToBind(
+            new Error(`@jini-ai/server: daemon failed to resolve listening port (address=${JSON.stringify(server.address())})`),
+          );
+          return;
+        }
+        resolvedPortRef.current = boundPort;
+        const reportedUrl = `http://${resolveReportHost({ bindHost: host })}:${boundPort}`;
+
+        // Writing the discovery record is async; this promise must not resolve — handing the URL
+        // back to the caller — until the record a same-machine CLI would read is in place.
+        void (async () => {
+          if (registryPath !== null) {
+            try {
+              await writeDaemonRegistryRecord({ registryPath, writer: nodeAtomicWriter, record: {
+                url: reportedUrl,
+                host: resolveReportHost({ bindHost: host }),
+                port: boundPort,
+                pid: process.pid,
+                startedAt: new Date().toISOString(),
+              } });
+            } catch {
+              // Best-effort — a daemon that is otherwise fully up must not fail to boot just
+              // because its discovery record couldn't be written.
+            }
+          }
+          resolve({ url: reportedUrl, server, stop, activeFeatures });
+        })();
+      })
+      .catch((error) => failToBind(error));
+  });
+}
+
 /**
  * Boots a complete, runnable `@jini-ai/core` daemon process.
  *
@@ -353,7 +494,7 @@ export async function createLocalNodeDaemon<const Packs extends readonly AnyPack
 export async function createLocalNodeDaemon(
   config: CreateLocalNodeDaemonConfig<readonly AnyPack[], string>,
 ): Promise<LocalNodeDaemon> {
-  const host = normalizeDaemonBindHost(config.host ?? DEFAULT_HOST);
+  const host = normalizeDaemonBindHost({ input: config.host ?? DEFAULT_HOST });
   // Origin checks must retain this daemon's bind host without mutating the caller or process env.
   const env = { ...(config.env ?? process.env), [DEFAULT_BIND_HOST_ENV_VAR]: host };
   const requestedPort = config.port ?? 0;
@@ -362,7 +503,7 @@ export async function createLocalNodeDaemon(
 
   const resolvedPortRef = { current: requestedPort };
   // The kernel's origin middleware and per-route guards must share the same daemon-local env.
-  const adapter: AdapterContext = { resolvedPortRef, env, allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST' };
+  const adapter: RouteHostContext = { originPolicy: localOriginPolicy({ env, resolvedPortRef }) };
 
   let shuttingDown = false;
   let stopPromise: Promise<void> | null = null;
@@ -371,40 +512,12 @@ export async function createLocalNodeDaemon(
   // Owned here rather than by the xai feature so `stop()` observes the same ref the routes wrote to.
   const xaiListenerRef: { current: OAuthCallbackListener | null } = { current: null };
 
-  const app: Express = express();
-  app.disable('x-powered-by');
-  installRouteRegistrationGuard({ app });
+  const app = createLocalDaemonApp();
 
-  const kernel = await composeJiniKernel({
-    app,
-    adapter,
-    storage: { kind: 'sqlite', dataDir: config.dataDir, open: config.open },
-    ...localKernelOptions({ config }),
-    security: localSecurity({ config, host }),
-    env,
-    ...(config.agentExecutor ? { agentExecutor: config.agentExecutor } : {}),
-    featureOptions: localFeatureOptions({ config, host, resolvedPortRef, xaiListenerRef,
-      isShuttingDown: () => shuttingDown,
-      requestShutdown: () => {
-        // `POST /api/daemon/shutdown` answers before shutdown begins, so nothing downstream can
-        // ever await this promise. Dropping it with a bare `void` turned any shutdown failure
-        // into a process-level unhandled rejection — which on Node's default policy terminates
-        // the very process this was trying to shut down gracefully. Reported here instead; the
-        // rejection stays on `stopPromise`, so an explicit `stop()` caller still observes it.
-        void stop().catch((error: unknown) => {
-          // eslint-disable-next-line no-console
-          console.error('[@jini-ai/server] shutdown requested through POST /api/daemon/shutdown failed', redactSecrets({ input: inspect(error) }, { redactPii: false }));
-        });
-      },
-    }),
-    // Product extensions, then caller-pack routes — the historical position, between the locked
-    // route families and the daemon-status routes.
-    onAfterApiRoutes: (mountedApp, daemon, base) => {
-      for (const registerExtension of config.httpExtensions ?? []) {
-        registerExtension(mountedApp, { adapter, lifecycle: base.lifecycle, dataDir: config.dataDir });
-      }
-      mountPackHttp({ app: mountedApp, packs: config.packs, daemon });
-    },
+  const kernel = await composeLocalDaemonKernel(config, {
+    app, adapter, host, env, resolvedPortRef, xaiListenerRef,
+    isShuttingDown: () => shuttingDown,
+    requestShutdown: () => requestLocalDaemonShutdown(stop),
   });
 
   async function stop(): Promise<void> {
@@ -448,67 +561,10 @@ export async function createLocalNodeDaemon(
     return stopPromise;
   }
 
-  const listen = (): Promise<Server> =>
-    new Promise<Server>((resolve, reject) => {
-      let listeningServer: Server;
-      try {
-        listeningServer = app.listen(requestedPort, host);
-      } catch (error) {
-        reject(error);
-        return;
-      }
-      listeningServer.once('listening', () => resolve(listeningServer));
-      // `app.listen` throws synchronously when the port is already in use on some Node versions,
-      // but emits an `error` event on others — wiring both paths means this promise always settles.
-      listeningServer.on('error', (error) => reject(error));
-    });
-
   const activeFeatures = kernel.activation.active.map((record) => record.id);
 
-  return await new Promise<LocalNodeDaemon>((resolve, reject) => {
-    const failToBind = (error: unknown) => {
-      // Best-effort: a failed boot must not leave any resource this call already opened dangling.
-      void kernel.close().then(() => reject(error), () => reject(error));
-    };
-
-    listen()
-      .then((listeningServer) => {
-        server = listeningServer;
-        // Widen the between-request idle window so kept-alive sockets survive gaps between bursts
-        // (e.g. an SSE stream's idle periods); `headersTimeout` must exceed `keepAliveTimeout`.
-        server.keepAliveTimeout = 120_000;
-        server.headersTimeout = 125_000;
-
-        const boundPort = resolveBoundPort(server.address());
-        if (!boundPort) {
-          failToBind(
-            new Error(`@jini-ai/server: daemon failed to resolve listening port (address=${JSON.stringify(server.address())})`),
-          );
-          return;
-        }
-        resolvedPortRef.current = boundPort;
-        const reportedUrl = `http://${resolveReportHost(host)}:${boundPort}`;
-
-        // Writing the discovery record is async; this promise must not resolve — handing the URL
-        // back to the caller — until the record a same-machine CLI would read is in place.
-        void (async () => {
-          if (registryPath !== null) {
-            try {
-              await writeDaemonRegistryRecord({ registryPath, record: {
-                url: reportedUrl,
-                host: resolveReportHost(host),
-                port: boundPort,
-                pid: process.pid,
-                startedAt: new Date().toISOString(),
-              } });
-            } catch {
-              // Best-effort — a daemon that is otherwise fully up must not fail to boot just
-              // because its discovery record couldn't be written.
-            }
-          }
-          resolve({ url: reportedUrl, server, stop, activeFeatures });
-        })();
-      })
-      .catch((error) => failToBind(error));
-  });
+  return await startLocalDaemonListener({
+    kernel, host, registryPath, resolvedPortRef, stop, activeFeatures,
+    onListening: (listeningServer) => { server = listeningServer; },
+  }, () => listenLocalNodeDaemon(app, { requestedPort, host }));
 }

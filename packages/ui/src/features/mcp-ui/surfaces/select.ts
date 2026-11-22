@@ -41,21 +41,21 @@ export interface SelectProps {
  * @complexity O(n) in the number of options.
  */
 export function renderSelect(props: SelectProps): string {
-  const id = fieldElementId(props.name);
+  const id = fieldElementId({ name: props.name });
   const placeholderSelected = props.value === undefined ? 'selected ' : '';
   const placeholderOption =
     props.required === true
-      ? `\n  <option value="" ${placeholderSelected}disabled>${escapeHtml(props.placeholder ?? '—')}</option>`
+      ? `\n  <option value="" ${placeholderSelected}disabled>${escapeHtml({ value: props.placeholder ?? '—' })}</option>`
       : '';
   const options = props.options
     .map((option) => {
       const selected = option.value === props.value ? ' selected' : '';
       const disabled = option.disabled === true ? ' disabled' : '';
-      return `  <option value="${escapeHtml(option.value)}"${selected}${disabled}>${escapeHtml(option.label ?? option.value)}</option>`;
+      return `  <option value="${escapeHtml({ value: option.value })}"${selected}${disabled}>${escapeHtml({ value: option.label ?? option.value })}</option>`;
     })
     .join('\n');
   const attributes =
-    ` id="${escapeHtml(id)}" name="${escapeHtml(props.name)}"` +
+    ` id="${escapeHtml({ value: id })}" name="${escapeHtml({ value: props.name })}"` +
     (props.required === true ? ' required' : '') +
     (props.disabled === true ? ' disabled' : '') +
     fieldDescribedBy(props);

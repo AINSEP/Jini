@@ -32,10 +32,8 @@
  * Filesystem/network storage and its SigV4 signing belong here, with no kernel SQL-port dependency.
  */
 
-export type { CommandInvocation, CommandInvocationRequest } from "./command.js";
 export { createCommandInvocation, createPackageManagerInvocation } from "./command.js";
 
-export { omitEnvironmentKeys } from "./child-environment.js";
 
 export type { ResolveSystemProxyEnvOptions, SystemProxyCommandRunner } from "./proxy-env.js";
 export {
@@ -49,16 +47,13 @@ export type {
   ProcessUsage,
   ProcessUsagePorts,
   ProcessUsageOptions,
-  ProcessSnapshot,
   ProcessStampContract,
   ProcessStampField,
   ProcessStampShape,
   SpawnProcessRequest,
   StampedProcessMatchCriteria,
-  StopProcessesResult,
 } from "./process.js";
 export {
-  collectProcessTreePids,
   createProcessStampArgs,
   isProcessAlive,
   listProcessSnapshots,
@@ -86,7 +81,7 @@ export type { HttpWaitOptions } from "./http.js";
 export { waitForHttpOk } from "./http.js";
 
 export type { DeadlineSignalOptions, FetchWithTimeoutOptions } from "./fetch-with-timeout.js";
-export { FETCH_TIMEOUT_MS, FetchTimeoutError, ResponseLimitExceededError, createDeadlineSignal, fetchWithTimeout } from "./fetch-with-timeout.js";
+export { FetchTimeoutError, ResponseLimitExceededError, createDeadlineSignal, fetchWithTimeout } from "./fetch-with-timeout.js";
 
 export type { WellKnownUserToolchainOptions } from "./toolchain.js";
 export { wellKnownUserToolchainBins } from "./toolchain.js";
@@ -136,50 +131,18 @@ export {
   resolveProcessResourcesPath,
 } from "./resource-paths.js";
 
-export type {
-  CreateTerminalOptions,
-  CreateTerminalServiceOptions,
-  PtyProcess,
-  PtySpawn,
-  PtySpawnOptions,
-  TerminalEventData,
-  TerminalEventRecord,
-  TerminalService,
-  TerminalSession,
-  TerminalSseSink,
-} from "./terminal.js";
-export { createTerminalService, ensureSpawnHelperExecutable, resolveShell, spawnHelperCandidatePaths } from "./terminal.js";
+export { createTerminalService, ensureSpawnHelperExecutable, resolveShell, spawnHelperCandidatePaths, terminalSessionState } from "./terminal.js";
 
-export type {
-  DownloadCopyAndClearOptions,
-  DownloadCopyAndClearResult,
-  ManagedDownloadChecksum,
-  ManagedDownloadErrorCode,
-  ManagedDownloadInspection,
-  ManagedDownloadOptions,
-  ManagedDownloadPayload,
-  ManagedDownloadProgress,
-  ManagedDownloadResult,
-  PruneManagedDownloadsOptions,
-  PruneManagedDownloadsResult,
-  RemoveManagedDownloadOptions,
-  RemoveManagedDownloadResult,
-} from "./download.js";
-export {
-  MANAGED_DOWNLOAD_ERROR_CODES,
-  ManagedDownloadError,
-  downloadCopyAndClear,
-  inspectManagedDownload,
-  managedDownload,
-  pruneManagedDownloads,
-  removeManagedDownload,
-} from "./download.js";
+export type { DownloadCopyAndClearOptions, DownloadCopyAndClearResult, ManagedDownloadChecksum, ManagedDownloadErrorCode, ManagedDownloadInspection, ManagedDownloadOptions, ManagedDownloadPayload, ManagedDownloadProgress, ManagedDownloadResult, PruneManagedDownloadsOptions, PruneManagedDownloadsResult, RemoveManagedDownloadOptions, RemoveManagedDownloadResult } from "./download-types.js";
+export { MANAGED_DOWNLOAD_ERROR_CODES, ManagedDownloadError } from "./download-types.js";
+export { downloadCopyAndClear, managedDownload } from "./download.js";
+export { inspectManagedDownload, pruneManagedDownloads, removeManagedDownload } from "./download-maintenance.js";
 
 export type { SigV4Credentials, SignSigV4Input, SignSigV4Result } from "./aws-sigv4.js";
 export { encodeS3PathSegment, signSigV4 } from "./aws-sigv4.js";
 
-export type { BlobFileMeta, BlobStorage, S3BlobStorageOptions } from "./blob-storage.js";
-export { LocalBlobStorage, S3BlobStorage, StorageError } from "./blob-storage.js";
+export type { S3BlobStorageOptions } from "./blob-storage.js";
+export { LocalBlobStorage, S3BlobStorage } from "./blob-storage.js";
 
 // Cohesive subpaths remain available as namespaced APIs without colliding with legacy names.
 export * as filesystem from "./fs/index.js";

@@ -1,6 +1,6 @@
 import { sql } from "kysely";
 
-import type { StorageKernel } from "./port.js";
+import type { KyselyKernel } from "./port.js";
 
 /**
  * @file Kysely `Database` types generated from a migrated Postgres reference database — the typed
@@ -67,8 +67,8 @@ function columnType(column: ColumnRow): string {
  * @param required.source one line naming where the reference database came from (printed in the header).
  */
 export async function renderDatabaseTypes(
-  kernel: StorageKernel<unknown>,
-  required: { interfaceName: string; source: string; regenerate: string }
+  { kernel, ...required }: { kernel: KyselyKernel<unknown> } & { interfaceName: string; source: string; regenerate: string },
+  _optional: Record<string, never> = {}
 ): Promise<string> {
   if (kernel.dialect !== "postgres") throw new Error("typegen reads a Postgres reference database");
   const rows = await kernel.query<ColumnRow>(

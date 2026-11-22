@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { isActionPending, withoutPendingAction, withPendingAction } from '../../rules.js';
+import { isActionPending, withoutPendingAction, withPendingAction } from '../../../../utils/pending-actions.js';
 import type { ResourceRowListDependencies, ResourceRowListPort } from '../../ports.js';
 import type { ResourceRowItem, ResourceRunHistoryItem } from '../../types.js';
 
@@ -48,23 +48,14 @@ export interface ResourceRowListController<TRow extends ResourceRowItem> {
   toggleExpand: (id: string) => void;
 }
 
-export function useResourceRowList<TRow extends ResourceRowItem>(
-  params: UseResourceRowListParams<TRow>,
-): ResourceRowListController<TRow> {
-  const { port, refreshToken } = params;
+/** Loads the row list; bumping `refreshToken` re-fetches. */
+function useRowListLoader<TRow extends ResourceRowItem>({ port, refreshToken }: {
+  port: ResourceRowListPort<TRow>;
+  refreshToken: string | number | undefined;
+}) {
   const [rows, setRows] = useState<TRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [actionError, setActionError] = useState<string | null>(null);
-  const [pendingKeys, setPendingKeys] = useState<ReadonlySet<string>>(new Set());
-  const [expandedRowId, setExpandedRowId] = useState<string | null>(null);
-  const [historyLoadingRowId, setHistoryLoadingRowId] = useState<string | null>(null);
-  const [historyByRowId, setHistoryByRowId] = useState<Record<string, ResourceRunHistoryItem[] | undefined>>({});
-  // Per-row history request generation, so an older, slower fetch that
-  // resolves AFTER a newer one for the SAME row (collapse then re-expand
-  // before the first call settled) can detect it's stale and skip
-  // committing its result/loading-flag update over the newer call's.
-  const historyRequestSeqRef = useRef<Record<string, number>>({});
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -77,15 +68,24 @@ export function useResourceRowList<TRow extends ResourceRowItem>(
     } finally {
       setLoading(false);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [port]);
 
   useEffect(() => {
     void reload();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [port, refreshToken]);
+  }, [reload, refreshToken]);
 
-  const isRowBusy = useCallback((id: string) => isActionPending(pendingKeys, id, ROW_ACTION_KIND), [pendingKeys]);
+  return { rows, loading, error, reload };
+}
+
+/** Per-row run-history fetching with stale-request protection. */
+function useRowHistory<TRow extends ResourceRowItem>(port: ResourceRowListPort<TRow>) {
+  const [historyLoadingRowId, setHistoryLoadingRowId] = useState<string | null>(null);
+  const [historyByRowId, setHistoryByRowId] = useState<Record<string, ResourceRunHistoryItem[] | undefined>>({});
+  // Per-row history request generation, so an older, slower fetch that
+  // resolves AFTER a newer one for the SAME row (collapse then re-expand
+  // before the first call settled) can detect it's stale and skip
+  // committing its result/loading-flag update over the newer call's.
+  const historyRequestSeqRef = useRef<Record<string, number>>({});
 
   const fetchHistoryFor = useCallback(
     async (id: string) => {
@@ -128,21 +128,25 @@ export function useResourceRowList<TRow extends ResourceRowItem>(
     [port],
   );
 
-  const toggleExpand = useCallback(
-    (id: string) => {
-      if (!port.fetchRowHistory) return;
-      setExpandedRowId((current) => {
-        const next = current === id ? null : id;
-        if (next) void fetchHistoryFor(id);
-        return next;
-      });
-    },
-    [port, fetchHistoryFor],
-  );
+  return { historyLoadingRowId, historyByRowId, fetchHistoryFor };
+}
+
+interface RowActionDispatchParams {
+  reload: () => Promise<void>;
+  expandedRowId: string | null;
+  fetchHistoryFor: (id: string) => Promise<void>;
+}
+
+/** Busy tracking + error surface for host-supplied row actions. */
+function useRowActionDispatch({ reload, expandedRowId, fetchHistoryFor }: RowActionDispatchParams) {
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [pendingKeys, setPendingKeys] = useState<ReadonlySet<string>>(new Set());
+
+  const isRowBusy = useCallback((id: string) => isActionPending({ pendingKeys, id, kind: ROW_ACTION_KIND }), [pendingKeys]);
 
   const dispatchRowAction = useCallback(
     async (id: string, run: () => Promise<void> | void) => {
-      setPendingKeys((current) => withPendingAction(current, id, ROW_ACTION_KIND));
+      setPendingKeys((current) => withPendingAction({ pendingKeys: current, id, kind: ROW_ACTION_KIND }));
       setActionError(null);
       try {
         await run();
@@ -161,10 +165,34 @@ export function useResourceRowList<TRow extends ResourceRowItem>(
         setActionError(ROW_ACTION_FAILED_MESSAGE);
         throw err;
       } finally {
-        setPendingKeys((current) => withoutPendingAction(current, id, ROW_ACTION_KIND));
+        setPendingKeys((current) => withoutPendingAction({ pendingKeys: current, id, kind: ROW_ACTION_KIND }));
       }
     },
     [reload, expandedRowId, fetchHistoryFor],
+  );
+
+  return { actionError, isRowBusy, dispatchRowAction };
+}
+
+export function useResourceRowList<TRow extends ResourceRowItem>(
+  params: UseResourceRowListParams<TRow>,
+): ResourceRowListController<TRow> {
+  const { port, refreshToken } = params;
+  const { rows, loading, error, reload } = useRowListLoader({ port, refreshToken });
+  const { historyLoadingRowId, historyByRowId, fetchHistoryFor } = useRowHistory(port);
+  const [expandedRowId, setExpandedRowId] = useState<string | null>(null);
+  const { actionError, isRowBusy, dispatchRowAction } = useRowActionDispatch({ reload, expandedRowId, fetchHistoryFor });
+
+  const toggleExpand = useCallback(
+    (id: string) => {
+      if (!port.fetchRowHistory) return;
+      setExpandedRowId((current) => {
+        const next = current === id ? null : id;
+        if (next) void fetchHistoryFor(id);
+        return next;
+      });
+    },
+    [port, fetchHistoryFor],
   );
 
   return {

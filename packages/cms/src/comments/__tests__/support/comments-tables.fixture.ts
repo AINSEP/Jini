@@ -1,5 +1,6 @@
 import { sql } from "kysely";
-import type { StorageDialect, StorageKernel } from "@jini-ai/db/kernel";
+import type { KyselyKernel } from "@jini-ai/db/kernel";
+import type { StorageDialect } from "@jini-ai/core/contracts/storage";
 
 /**
  * Literal DDL emitted for COMMENTS_DATA_MODULE in
@@ -57,7 +58,7 @@ const postgresDdl = [
  * Errors reject, so a resolved fixture means every DDL statement succeeded.
  * @complexity O(1) statements and space; driver DDL cost depends on the database.
  */
-export async function createTables(kernel: StorageKernel<unknown>, dialect: StorageDialect): Promise<void> {
+export async function createTables(kernel: KyselyKernel<unknown>, dialect: StorageDialect): Promise<void> {
   for (const statement of dialect === "sqlite" ? sqliteDdl : postgresDdl) {
     await kernel.execute(sql.raw(statement));
   }

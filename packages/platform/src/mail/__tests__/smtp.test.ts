@@ -3,7 +3,8 @@ import { createRequire } from "node:module";
 import { test, vi, afterEach } from "vitest";
 afterEach(() => vi.restoreAllMocks());
 import type { MailerSendOptions, OutboundEmail } from "../index.js";
-import { createNodemailerSmtpTransport, SmtpMailerAdapter, type SmtpMailPayload, type SmtpTransport } from "../smtp.js";
+import { createNodemailerSmtpTransport, SmtpMailerAdapter } from "../smtp.js";
+import { type SmtpMailPayload, type SmtpTransport } from "@jini-ai/core/contracts/mail";
 /**
  * @file `SmtpMailerAdapter` — exercised against a fake `SmtpTransport`, NEVER a real SMTP socket
  * The factory is exercised at nodemailer's createTransport boundary, without opening a socket.

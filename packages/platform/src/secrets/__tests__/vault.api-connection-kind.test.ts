@@ -6,8 +6,8 @@ import assert from "node:assert/strict";
 import { test, vi } from "vitest";
 import { AesGcmSecretSealer } from "../secret-sealer.aesgcm.js";
 import { InMemoryKeyring } from "../keyring.memory.js";
-import { InMemoryVaultRepo, SecretsVaultService, VAULT_KINDS, createVaultMetaParsers, type VaultContext,
-  type VaultMeta } from "../credential-sets/index.js";
+import { InMemoryVaultRepo, SecretsVaultService, createVaultMetaParsers } from "../credential-sets/index.js";
+import { VAULT_KINDS, type VaultContext, type VaultMeta } from "@jini-ai/core/contracts/vault";
 
 const token = "connection-token-12345678";
 

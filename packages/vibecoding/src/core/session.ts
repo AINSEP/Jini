@@ -98,6 +98,11 @@ export interface VibecodingSession {
 
 const READY_ERROR = undefined;
 
+type SessionContext = {
+  target: EditTarget; history: EditHistory; applyTurn: VibecodingSessionOptions['applyTurn'];
+  listeners: Set<() => void>; partContent: Map<PartId, string>; current: VibecodingSessionSnapshot;
+};
+
 /**
  * Builds a session over `target`, with private history by default or injected project history.
  * Injected applyTurn owns whole-turn recording; this session owns notifications and cache invalidation.
@@ -118,7 +123,7 @@ export function createVibecodingSession(
   const listeners = new Set<() => void>();
 
   const partContent = new Map<PartId, string>();
-  let current: VibecodingSessionSnapshot = {
+  const current: VibecodingSessionSnapshot = {
     status: 'idle',
     parts: [],
     partContent,
@@ -127,153 +132,177 @@ export function createVibecodingSession(
     lastError: READY_ERROR,
   };
 
-  /** Replaces `current` with a fresh object carrying `patch`, then notifies subscribers. A fresh
-   *  `partContent` Map reference is handed out only when the map's contents actually changed
-   *  (callers pass a new Map in `patch` for that case); reusing the same Map reference otherwise
-   *  is what keeps an unrelated status change (e.g. `'loading'` -> `'ready'`) from invalidating a
-   *  component's memoized read of `partContent`. */
-  function commit(patch: Partial<VibecodingSessionSnapshot>): void {
-    current = { ...current, ...patch };
-    for (const listener of listeners) listener();
-  }
-
-  /**
-   * Runs `work`, tagging the session `'loading'` -> `'ready'`/`'error'` and always returning
-   * control to the caller — a rejection is recorded as `lastError` AND rethrown, so a component
-   * can render `lastError` passively while a tool handler that needs to fail loudly still can.
-   *
-   * `work` returns its data `patch` alongside its `result` rather than calling `commit` itself, so
-   * the success path here can fold that patch into the SAME commit as the `'ready'` status
-   * transition — one notification per operation instead of two, which matters to a
-   * `useSyncExternalStore` subscriber re-rendering on every commit.
-   */
-  async function run<T>(work: () => Promise<{ result: T; patch: Partial<VibecodingSessionSnapshot> }>): Promise<T> {
-    commit({ status: 'loading' });
-    try {
-      const { result, patch } = await work();
-      commit({ ...patch, status: 'ready', lastError: READY_ERROR });
-      return result;
-    } catch (thrown) {
-      const message = thrown instanceof Error ? thrown.message : String(thrown);
-      if (applyTurn) partContent.clear();
-      commit({ status: 'error', lastError: message, partContent: new Map(partContent), canUndo: history.canUndo(), canRedo: history.canRedo() });
-      throw thrown;
-    }
-  }
-
-  /** Mirrors a replayed change in the cache. Undoing creation keeps empty content because the
-   *  target's upsert port has no delete operation; see `./history.ts`. */
-  function cacheChange(change: PartChange, side: 'after' | 'before'): void {
-    partContent.set(change.id, side === 'after' ? change.after : change.before);
-  }
-
-  /** Mirrors a recorded snapshot restore in the cache and re-reads the part list it may have grown. */
-  async function restoredPatch(entry: HistoryEntry): Promise<Partial<VibecodingSessionSnapshot>> {
-    if (applyTurn) partContent.clear();
-    else for (const change of entry.changes) cacheChange(change, 'after');
-    const parts = await target.listParts();
-    return { parts, partContent: new Map(partContent), canUndo: history.canUndo(), canRedo: history.canRedo() };
-  }
-
+  const context: SessionContext = { target, history, applyTurn, listeners, partContent, current };
   return {
-    target,
-    history,
-
-    getSnapshot: () => current,
-
+    target, history,
+    getSnapshot: () => context.current,
     subscribe({ listener }) {
       listeners.add(listener);
       return () => listeners.delete(listener);
     },
-
-    refresh: () =>
-      run(async () => {
-        const parts = await target.listParts();
-        if (applyTurn) partContent.clear();
-        const known = new Set(parts.map((p) => p.id));
-        // Drop cached content for parts the host no longer lists — stale content for an
-        // unaddressable id would otherwise linger forever with nothing to invalidate it.
-        for (const id of partContent.keys()) if (!known.has(id)) partContent.delete(id);
-        return {
-          result: undefined,
-          patch: { parts, partContent: new Map(partContent), canUndo: history.canUndo(), canRedo: history.canRedo() },
-        };
-      }),
-
-    readPart: ({ id }) =>
-      run(async () => {
-        const cached = applyTurn ? undefined : partContent.get(id);
-        if (cached !== undefined) return { result: cached, patch: {} };
-        if (applyTurn) partContent.clear();
-        const content = await target.readPart({ id });
-        partContent.set(id, content);
-        return { result: content, patch: { partContent: new Map(partContent), canUndo: history.canUndo(), canRedo: history.canRedo() } };
-      }),
-
-    applyEdits: ({ edits }, options = {}) =>
-      run(async () => {
-        const outcomes = await (applyTurn
-          ? applyTurn({ edits }, options)
-          : history.transaction(
-              { work: (recording) => applyEditsToTarget({ target: recording, edits }) }, options,
-            ));
-        if (applyTurn) partContent.clear();
-        // Outcomes are aligned with proposals, including repeated ids. Matching only by id
-        // would cache the first proposal instead of the last successful write for that part.
-        // This pass is O(edits.length), with no additional reads through the target port.
-        for (const [index, outcome] of outcomes.entries()) {
-          if (outcome.status !== 'applied') continue;
-          const edit = edits[index];
-          if (edit && !applyTurn) partContent.set(edit.id, edit.content);
-        }
-        const parts = await target.listParts();
-        return {
-          result: { outcomes, corrections: correctionsFor({ outcomes }) },
-          patch: {
-            parts,
-            partContent: new Map(partContent),
-            canUndo: history.canUndo(),
-            canRedo: history.canRedo(),
-          },
-        };
-      }),
-
-    undo: () =>
-      run(async () => {
-        const entry = await history.undo();
-        if (!entry) return { result: entry, patch: {} };
-        // Undo replays in reverse order. Repeated ids must leave the earliest before value
-        // cached, matching what history wrote to the target.
-        if (applyTurn) partContent.clear();
-        else for (const change of [...entry.changes].reverse()) cacheChange(change, 'before');
-        const parts = applyTurn ? await target.listParts() : current.parts;
-        return {
-          result: entry,
-          patch: { parts, partContent: new Map(partContent), canUndo: history.canUndo(), canRedo: history.canRedo() },
-        };
-      }),
-
-    redo: () =>
-      run(async () => {
-        const entry = await history.redo();
-        if (!entry) return { result: entry, patch: {} };
-        if (applyTurn) partContent.clear();
-        else for (const change of entry.changes) cacheChange(change, 'after');
-        const parts = applyTurn ? await target.listParts() : current.parts;
-        return {
-          result: entry,
-          patch: { parts, partContent: new Map(partContent), canUndo: history.canUndo(), canRedo: history.canRedo() },
-        };
-      }),
-
-    takeSnapshot: () => run(async () => ({ result: await target.snapshot(), patch: {} })),
-
-    restoreSnapshot: ({ snapshot }) =>
-      run(async () => {
-        const entry = await history.restore({ snapshot });
-        // A restore that already matched records no entry and changes nothing to mirror.
-        return { result: entry, patch: entry ? await restoredPatch(entry) : {} };
-      }),
+    refresh: () => refresh(context),
+    readPart: input => readPart(context, input),
+    applyEdits: (input, options = {}) => applyEdits(context, input, options),
+    undo: () => undo(context),
+    redo: () => redo(context),
+    takeSnapshot: () => run(context, async () => ({ result: await target.snapshot(), patch: {} })),
+    restoreSnapshot: input => restoreSnapshot(context, input),
   };
+}
+
+/** Replaces `current` with a fresh object carrying `patch`, then notifies subscribers. A fresh
+ *  `partContent` Map reference is handed out only when the map's contents actually changed
+ *  (callers pass a new Map in `patch` for that case); reusing the same Map reference otherwise
+ *  is what keeps an unrelated status change (e.g. `'loading'` -> `'ready'`) from invalidating a
+ *  component's memoized read of `partContent`. */
+function commit(context: SessionContext, patch: Partial<VibecodingSessionSnapshot>): void {
+  const { listeners } = context;
+  context.current = { ...context.current, ...patch };
+  for (const listener of listeners) listener();
+}
+
+/**
+ * Runs `work`, tagging the session `'loading'` -> `'ready'`/`'error'` and always returning
+ * control to the caller — a rejection is recorded as `lastError` AND rethrown, so a component
+ * can render `lastError` passively while a tool handler that needs to fail loudly still can.
+ *
+ * `work` returns its data `patch` alongside its `result` rather than calling `commit` itself, so
+ * the success path here can fold that patch into the SAME commit as the `'ready'` status
+ * transition — one notification per operation instead of two, which matters to a
+ * `useSyncExternalStore` subscriber re-rendering on every commit.
+ */
+async function run<T>(context: SessionContext, work: () => Promise<{ result: T; patch: Partial<VibecodingSessionSnapshot> }>): Promise<T> {
+  const { history, applyTurn, partContent } = context;
+  commit(context, { status: 'loading' });
+  try {
+    const { result, patch } = await work();
+    commit(context, { ...patch, status: 'ready', lastError: READY_ERROR });
+    return result;
+  } catch (thrown) {
+    const message = thrown instanceof Error ? thrown.message : String(thrown);
+    if (applyTurn) partContent.clear();
+    commit(context, { status: 'error', lastError: message, partContent: new Map(partContent), canUndo: history.canUndo(), canRedo: history.canRedo() });
+    throw thrown;
+  }
+}
+
+/** Mirrors a replayed change in the cache. Undoing creation keeps empty content because the
+ *  target's upsert port has no delete operation; see `./history.ts`. */
+function cacheChange(context: SessionContext, change: PartChange, side: 'after' | 'before'): void {
+  const { partContent } = context;
+  partContent.set(change.id, side === 'after' ? change.after : change.before);
+}
+
+/** Mirrors a recorded snapshot restore in the cache and re-reads the part list it may have grown. */
+async function restoredPatch(context: SessionContext, entry: HistoryEntry): Promise<Partial<VibecodingSessionSnapshot>> {
+  const { target, history, applyTurn, partContent } = context;
+  if (applyTurn) partContent.clear();
+  else for (const change of entry.changes) cacheChange(context, change, 'after');
+  const parts = await target.listParts();
+  return { parts, partContent: new Map(partContent), canUndo: history.canUndo(), canRedo: history.canRedo() };
+}
+
+function refresh(context: SessionContext): Promise<void> {
+  const { target, history, applyTurn, partContent } = context;
+  return run(context, async () => {
+    const parts = await target.listParts();
+    if (applyTurn) partContent.clear();
+    const known = new Set(parts.map((p) => p.id));
+    // Drop cached content for parts the host no longer lists — stale content for an
+    // unaddressable id would otherwise linger forever with nothing to invalidate it.
+    for (const id of partContent.keys()) if (!known.has(id)) partContent.delete(id);
+    return {
+      result: undefined,
+      patch: { parts, partContent: new Map(partContent), canUndo: history.canUndo(), canRedo: history.canRedo() },
+    };
+  });
+}
+
+function readPart(context: SessionContext, { id }: { readonly id: PartId }): Promise<string> {
+  const { target, history, applyTurn, partContent } = context;
+  return run(context, async () => {
+    const cached = applyTurn ? undefined : partContent.get(id);
+    if (cached !== undefined) return { result: cached, patch: {} };
+    if (applyTurn) partContent.clear();
+    const content = await target.readPart({ id });
+    partContent.set(id, content);
+    return { result: content, patch: { partContent: new Map(partContent), canUndo: history.canUndo(), canRedo: history.canRedo() } };
+  });
+}
+
+function applyEdits(context: SessionContext, { edits }: { readonly edits: readonly ProposedEdit[] }, options: { readonly label?: string } = {}): Promise<ApplyEditsResult> {
+  const { target, history, applyTurn, partContent } = context;
+  return run(context, async () => {
+    const outcomes = await (applyTurn
+      ? applyTurn({ edits }, options)
+      : history.transaction(
+          { work: (recording) => applyEditsToTarget({ target: recording, edits }) }, options,
+        ));
+    if (applyTurn) partContent.clear();
+    cacheAppliedEdits(context, edits, outcomes);
+    const parts = await target.listParts();
+    return {
+      result: { outcomes, corrections: correctionsFor({ outcomes }) },
+      patch: {
+        parts,
+        partContent: new Map(partContent),
+        canUndo: history.canUndo(),
+        canRedo: history.canRedo(),
+      },
+    };
+  });
+}
+
+function cacheAppliedEdits(context: SessionContext, edits: readonly ProposedEdit[], outcomes: readonly ApplyOutcome[]): void {
+  const { applyTurn, partContent } = context;
+  // Outcomes are aligned with proposals, including repeated ids. Matching only by id
+  // would cache the first proposal instead of the last successful write for that part.
+  // This pass is O(edits.length), with no additional reads through the target port.
+  for (const [index, outcome] of outcomes.entries()) {
+    if (outcome.status !== 'applied') continue;
+    const edit = edits[index];
+    if (edit && !applyTurn) partContent.set(edit.id, edit.content);
+  }
+}
+
+function undo(context: SessionContext): Promise<HistoryEntry | null> {
+  const { target, history, applyTurn, partContent } = context;
+  return run(context, async () => {
+    const entry = await history.undo();
+    if (!entry) return { result: entry, patch: {} };
+    // Undo replays in reverse order. Repeated ids must leave the earliest before value
+    // cached, matching what history wrote to the target.
+    if (applyTurn) partContent.clear();
+    else for (const change of [...entry.changes].reverse()) cacheChange(context, change, 'before');
+    const parts = applyTurn ? await target.listParts() : context.current.parts;
+    return {
+      result: entry,
+      patch: { parts, partContent: new Map(partContent), canUndo: history.canUndo(), canRedo: history.canRedo() },
+    };
+  });
+}
+
+function redo(context: SessionContext): Promise<HistoryEntry | null> {
+  const { target, history, applyTurn, partContent } = context;
+  return run(context, async () => {
+    const entry = await history.redo();
+    if (!entry) return { result: entry, patch: {} };
+    if (applyTurn) partContent.clear();
+    else for (const change of entry.changes) cacheChange(context, change, 'after');
+    const parts = applyTurn ? await target.listParts() : context.current.parts;
+    return {
+      result: entry,
+      patch: { parts, partContent: new Map(partContent), canUndo: history.canUndo(), canRedo: history.canRedo() },
+    };
+  });
+}
+
+function restoreSnapshot(context: SessionContext, { snapshot }: { readonly snapshot: Snapshot }): Promise<HistoryEntry | null> {
+  const { history } = context;
+  return run(context, async () => {
+    const entry = await history.restore({ snapshot });
+    // A restore that already matched records no entry and changes nothing to mirror.
+    return { result: entry, patch: entry ? await restoredPatch(context, entry) : {} };
+  });
 }
 

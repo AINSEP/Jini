@@ -18,11 +18,11 @@ describe('version-manager barrel (index.ts)', () => {
   });
 
   it('re-exports the pure rule functions', () => {
-    expect(versionManager.versionSourceLabel('manual')).toBe('Manual');
-    expect(versionManager.versionSourceClassName('restore')).toBe('restore');
+    expect(versionManager.versionSourceLabel({ source: 'manual' })).toBe('Manual');
+    expect(versionManager.versionSourceClassName({ source: 'restore' })).toBe('restore');
     expect(versionManager.sortVersionsDescending([])).toEqual([]);
     expect(versionManager.buildVersionIndex([]).size).toBe(0);
-    expect(versionManager.shouldShowVersionSearch(1, 3)).toBe(false);
+    expect(versionManager.shouldShowVersionSearch({ versionCount: 1, threshold: 3 })).toBe(false);
   });
 
   it('re-exports the dependencies factories and singleton', () => {

@@ -160,7 +160,7 @@ describe("catalog repositories on a borrowed SQLite kernel", () => {
     await w.prices.save(price());
     let id = 0;
     const result = await checkout({ deps: { ...w, clock: { nowMs: () => Date.parse(AT) }, idGen: { newId: () => `new-${++id}` } },
-      input: { workspaceId: "ws-a", memberId: "member-a", priceId: "price-a", provider: "regional-pay", providerCustomerRef: "cus-a", quantity: 3 } });
+      workspaceId: "ws-a", memberId: "member-a", priceId: "price-a", provider: "regional-pay", providerCustomerRef: "cus-a", quantity: 3 });
     expect(result.order).toEqual(order({ id: "new-1", totalAmount: { minorUnits: 8103, currency: "USD" }, providerCustomerRef: "cus-a" }));
     expect(result.items).toEqual([item({ id: "new-2", orderId: "new-1", quantity: 3 })]);
     await w.products.save(product({ name: "Renamed" }));
@@ -274,5 +274,5 @@ describe("webhook event repo against a driver that omits the affected-row count"
   expect((await w.prices.findById({ workspaceId: "ws-a", id: "price-a" }))?.status).toBe("archived");
   expect((await w.prices.findById({ workspaceId: "ws-a", id: "corrected-price" }))?.status).toBe("active");
   expect((await w.orders.findById({ workspaceId: "ws-a", id: "order-a" }))?.totalAmount.minorUnits).toBe(5402);
-  await expect(checkout({ deps: { products: w.products, prices: w.prices, orders: w.orders, clock: { nowMs: () => Date.parse(AT) }, idGen: { newId: () => "new-order" } }, input: { workspaceId: "ws-a", memberId: "buyer", priceId: "price-a", provider: "regional-pay" } })).rejects.toThrow();
+  await expect(checkout({ deps: { products: w.products, prices: w.prices, orders: w.orders, clock: { nowMs: () => Date.parse(AT) }, idGen: { newId: () => "new-order" } }, workspaceId: "ws-a", memberId: "buyer", priceId: "price-a", provider: "regional-pay" })).rejects.toThrow("price 'price-a' was not found");
  });

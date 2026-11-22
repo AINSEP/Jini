@@ -1,8 +1,12 @@
 import './dom-setup.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { getInstanceByDom } from 'echarts/core';
-import type { ChartInstance, ChartSpec } from '@jini-ai/ui/charts';
-import { mount, UnsupportedChartSpecError } from '../client/provider.js';
+import type { ChartInstance, ChartSpec } from '@jini-ai/core/contracts/charts';
+import { applyChartTheme } from '@jini-ai/ui/charts/browser';
+import { mount as providerMount, UnsupportedChartSpecError } from '../client/provider.js';
+
+/** The host binds the UI's real theme applier through the mount input; tests do the same. */
+const mount = (input: Omit<Parameters<typeof providerMount>[0], 'applyTheme'>, options?: Parameters<typeof providerMount>[1]) => providerMount({ applyTheme: applyChartTheme, ...input }, options);
 
 const sales: ChartSpec = {
   kind: 'stacked-bar', categoryKey: 'month', series: [{ key: 'revenue' }, { key: 'cost' }, { key: 'tax' }],
@@ -78,6 +82,16 @@ describe('ECharts vanilla lifecycle', () => {
     instance.update({ spec: SPECS.pie!, theme: { mode: 'light' } });
     expect(optionOf(element).series.map(({ type }) => type)).toEqual(['pie']);
     expect(optionOf(element).xAxis ?? []).toEqual([]);
+    instance.destroy({});
+  });
+
+  it('applies the theme through the applier the host passed in the mount input, on mount and update', () => {
+    const element = host(); const calls: unknown[] = [];
+    const applyTheme = (input: { element: HTMLElement; theme: { mode: string } }) => { calls.push([input.element === element, input.theme.mode]); };
+    const instance = providerMount({ element, spec: SPECS.line!, theme: { mode: 'light' }, applyTheme });
+    instance.update({ spec: SPECS.line!, theme: { mode: 'dark' } });
+    expect(calls).toEqual([[true, 'light'], [true, 'dark']]);
+    expect(element.dataset.chartTheme).toBeUndefined();
     instance.destroy({});
   });
 

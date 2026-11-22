@@ -11,7 +11,7 @@ test('engine neutrality rejects product identity in JSON plugin manifests', asyn
     mkdirSync(directory, { recursive: true });
     writeFileSync(join(directory, 'package.json'), JSON.stringify({ name: '@jini-ai/fixture', jini: { domain: 'tooling', kind: 'fixture', runtime: 'universal' } }));
     writeFileSync(join(directory, 'jini.plugin.json'), JSON.stringify({ name: 'Open Design', url: 'https://opendesign.app' }));
-    writeFileSync(join(directory, 'plugin.json'), JSON.stringify({ name: 'neutral', extensions: { tovu: { id: 'publisher/legacy' } } }));
+    writeFileSync(join(directory, 'plugin.json'), JSON.stringify({ name: 'neutral', extensions: { jini: { id: 'publisher/legacy' } } }));
     const violations = (await checkEngineBoundaries({ repoRoot: root })).filter(item => item.rule === 'R5-neutrality');
     expect(violations).toEqual([
       { rule: 'R5-neutrality', file: 'packages/fixture/jini.plugin.json', reason: 'product-identity string "Open Design"' },

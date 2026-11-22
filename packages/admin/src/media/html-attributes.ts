@@ -5,25 +5,20 @@
  * One flat allowlist includes global and image/video extras: per-element name filtering is
  * unnecessary because an unused loading attribute on a wrapper is harmless. Extend the list,
  * not the tokenizer, when adding an allowed name. data-/aria- families remain open-ended. */
-import {
-  EMBED_HTML_ATTRIBUTE_ALLOWED_NAMES,
-  isAllowedEmbedHtmlAttributeName,
-  parseEmbedHtmlAttributes,
-} from "@jini-ai/cms/widgets/markers";
+import type { EmbedPolicyPort } from '../core/ports/embed-policy.js';
 
-export const MEDIA_HTML_ATTRIBUTE_ALLOWED_NAMES = EMBED_HTML_ATTRIBUTE_ALLOWED_NAMES;
-
-/** Whether `name` is on the allowlist — a well-formed attribute name
- *  (`/^[a-z][a-z0-9-]*$/`) that is either an exact match against
- *  {@link MEDIA_HTML_ATTRIBUTE_ALLOWED_NAMES} or carries a `data-`/`aria-` prefix (both open-ended
- *  families with no fixed suffix list). Case-insensitive: HTML attribute names are themselves
- *  case-insensitive, and an operator typing `DATA-FOO` should not slip past a lowercase-only check.
+/** Whether the host's embed policy lists `name` — by the content domain's rule, a well-formed attribute
+ *  name (`/^[a-z][a-z0-9-]*$/`) that is either an exact match against the policy's `allowedAttributeNames`
+ *  or carries a `data-`/`aria-` prefix (both open-ended families with no fixed suffix list).
+ *  Case-insensitive: HTML attribute names are themselves case-insensitive, and an operator typing
+ *  `DATA-FOO` should not slip past a lowercase-only check. The policy is the only authority; admin
+ *  keeps no allow-list of its own.
  *
- * @complexity O(n) in the name's length (one anchored regex test), then O(1) — one prefix check,
- * one fixed-length array lookup.
+ * @complexity One policy call; O(n) in the name's length for the real policy (one anchored regex test),
+ * then O(1) — one prefix check, one fixed-length array lookup.
  */
-export function isAllowedMediaHtmlAttributeName({ name }: { name: string }, _optional: Record<string, never> = {}): boolean {
-  return isAllowedEmbedHtmlAttributeName({ name });
+export function isAllowedMediaHtmlAttributeName({ name, policy }: { name: string; policy: EmbedPolicyPort }, _optional: Record<string, never> = {}): boolean {
+  return policy.isAllowedAttributeName({ name });
 }
 
 /** Why one parsed attribute token was rejected — see {@link parseMediaHtmlAttributes}'s own doc for
@@ -60,7 +55,7 @@ export interface ParsedMediaHtmlAttributes {
 /**
  * Parses the `HTML attributes` field's free text (`name="value" name2="value2"`, or a bare
  * boolean `name`) into a validated attribute map, per-token (ported 2026-09-23 from the shared
- * server parser, `html-attributes.ts`'s `parseEmbedHtmlAttributes`): an accepted token lands in
+ * server parser, now reached through the injected `EmbedPolicyPort.parseAttributes`): an accepted token lands in
  * `attributes`, a rejected one lands in `errors` and is simply omitted — this string never fails
  * closed as a whole EXCEPT when the tokenizer itself loses sync (a stray quote or other unparseable
  * fragment), in which case `attributes` is `{}` and the sole entry in `errors` has
@@ -70,8 +65,8 @@ export interface ParsedMediaHtmlAttributes {
  * This is a SECURITY boundary, not a syntax convenience: media metadata is authored in this admin
  * but rendered on the public site, so a free-text HTML-attribute passthrough is a stored-XSS vector
  * (`onerror`, `onclick`, `href="javascript:"`, any `on*` handler, an unsafe `style` value) the
- * moment it reaches a public page. The allowlist in {@link isAllowedMediaHtmlAttributeName} is
- * therefore the ONLY path to acceptance — nothing here tries to sanitize or escape an otherwise-
+ * moment it reaches a public page. The allowlist behind {@link isAllowedMediaHtmlAttributeName} (the injected
+ * `policy`) is therefore the ONLY path to acceptance — nothing here tries to sanitize or escape an otherwise-
  * disallowed name or value into something safe; it is rejected outright, and the caller must show
  * the reason (not silently drop it) so an operator can tell a typo from a hard "no". NOTE: this
  * validator runs in the admin only — see this repo's media-admin-ui report for where the write and
@@ -82,9 +77,9 @@ export interface ParsedMediaHtmlAttributes {
  * @complexity Time O(n) in `text`'s length (one regex pass over it), space O(k) for k accepted
  *   attributes plus O(e) for e rejected tokens.
  */
-export function parseMediaHtmlAttributes({ text }: { text: string }, _optional: Record<string, never> = {}): ParsedMediaHtmlAttributes {
+export function parseMediaHtmlAttributes({ text, policy }: { text: string; policy: EmbedPolicyPort }, _optional: Record<string, never> = {}): ParsedMediaHtmlAttributes {
   // Media hints always use inline-attribute policy; stylesheet escape allowances do not apply.
-  return parseEmbedHtmlAttributes({ text });
+  return policy.parseAttributes({ text });
 }
 
 /** The hint names the rejected token so operators can distinguish a typo from a hard no.

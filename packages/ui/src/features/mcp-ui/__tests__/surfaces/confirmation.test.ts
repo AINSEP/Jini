@@ -5,7 +5,11 @@ import {
   buildConfirmationSurface,
   renderConfirmationDocument,
 } from '../../surfaces/confirmation.js';
-import { MCP_UI_ACTION_PLAN_META_KEY, MCP_UI_EXPIRES_AT_META_KEY, MCP_UI_PREFERRED_FRAME_SIZE_META_KEY } from '../../resource.js';
+import {
+  MCP_UI_ACTION_PLAN_META_KEY,
+  MCP_UI_EXPIRES_AT_META_KEY,
+  MCP_UI_PREFERRED_FRAME_SIZE_META_KEY,
+} from '@jini-ai/protocol/mcp-ui';
 import { SURFACE_NOT_PENDING_ERROR_CODE } from '../../surfaces/document.js';
 import { mountSurface } from './mount-surface.js';
 import { renderChoiceGroup } from '../../surfaces/choice-group.js';

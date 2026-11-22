@@ -89,6 +89,7 @@ export type FrontendOutcome =
   | { readonly ok: false; readonly message: string };
 
 export interface FrontendSessionHandle {
+  begin(required: { runId: string; invocationId: string }, optional?: Record<string, never>): boolean;
   readonly sessionId: string;
   /**
    * Secret that proves a caller is the surface this handle belongs to, and the only thing that
@@ -109,6 +110,7 @@ export interface FrontendSessionHandle {
 }
 
 export interface FrontendSessionRegistry {
+  begin(required: { runId: string; invocationId: string; owner: FrontendSessionOwner }, optional?: Record<string, never>): boolean;
   /** HTTP response authentication; possession of a URL session id grants nothing. */
   ownsSession(args: { sessionId: string; owner: FrontendSessionOwner; bindToken: string }): boolean;
   /**
@@ -190,6 +192,8 @@ export interface CreateFrontendSessionRegistryOptions {
 }
 
 interface PendingInvocation {
+  readonly runId: string;
+  begun?: boolean;
   approvalPending?: boolean;
   approvalRecorded?: boolean;
   readonly onApprovalStateChange?: ToolExecutionOptions["onApprovalStateChange"];
@@ -211,6 +215,14 @@ export class FrontendSessionCapacityError extends Error {
   constructor() { super('Frontend session capacity reached'); this.name = 'FrontendSessionCapacityError'; }
 }
 
+function countSessionsForKey(sessions: ReadonlyMap<string, AttachedSession>, key: string): number {
+  let count = 0;
+  for (const session of sessions.values()) {
+    if (session.descriptor.capacityKeys?.includes(key)) count++;
+  }
+  return count;
+}
+
 /** Admission is synchronous with attach, so concurrent opens cannot oversubscribe a scope.
  * O(s × k) over the bounded live sessions and the host's quota keys; no retained IP counters.
  * Detach automatically releases capacity, including stale handles and expired connections. */
@@ -220,29 +232,12 @@ function assertSessionCapacity({ sessions, descriptor, options }: {
   if (options.maxSessions !== undefined && sessions.size >= options.maxSessions) throw new FrontendSessionCapacityError();
   if (options.maxSessionsPerKey === undefined) return;
   for (const key of descriptor.capacityKeys ?? []) {
-    let count = 0;
-    for (const session of sessions.values()) {
-      if (session.descriptor.capacityKeys?.includes(key)) count++;
-    }
+    const count = countSessionsForKey(sessions, key);
     if (count >= options.maxSessionsPerKey) throw new FrontendSessionCapacityError();
   }
 }
 
-/**
- * Creates an in-memory registry of attached surfaces.
- *
- * State is per-process and intentionally not persisted: an attached surface is a live connection,
- * so it cannot outlive the process that holds it, and a restart correctly presents as "nothing
- * attached" rather than as a stale route to a tab that is long gone.
- *
- * @complexity `attach` checks O(s × k) live sessions/quota keys when limits are configured;
- * `detach` is O(p + b) in pending invocations and bound runs. Other addressing operations are O(1).
- */
-export function createFrontendSessionRegistry(requiredArgs: Record<string, never>, optionalArgs: Pick<CreateFrontendSessionRegistryOptions, "newInvocationId" | "newBindToken" | "maxSessions" | "maxSessionsPerKey"> = {}
-): FrontendSessionRegistry {
-  const options: CreateFrontendSessionRegistryOptions = { ...requiredArgs, ...optionalArgs };
-  const newInvocationId = options.newInvocationId ?? randomUUID;
-  const newBindToken = options.newBindToken ?? randomUUID;
+function createFrontendRegistryState() {
   const sessions = new Map<string, AttachedSession>();
   /**
    * run id → the *attachment* serving it, deliberately not its session id.
@@ -257,43 +252,58 @@ export function createFrontendSessionRegistry(requiredArgs: Record<string, never
   /** bind token → session id. Cleared on detach, so a token dies with the surface it proves. */
   const bindTokens = new Map<string, string>();
 
-  /**
-   * Whether `claims` (one surface's `descriptor.capabilities`) covers `capabilityId` — either by
-   * naming it exactly, or by naming a trailing-dot PREFIX it falls under (`'webmcp.'` covers
-   * `'webmcp.add_note'`). No real capability id ends in `.` (every shipped manifest — `page.*`,
-   * `chat.*` — is `word.word`), so that trailing dot is an unambiguous, self-describing signal
-   * rather than a second field this descriptor would need to carry.
-   *
-   * This existed only as a doc-comment promise until found broken 2026-07-28: `@jini-ai/chat-react`'s
-   * `createFrontendSessionBridge({ executors })` claims a bare prefix precisely so "a consumer
-   * exposes verbs the engine has never heard of" (its own module doc), but this function used to
-   * do a plain `.includes(capabilityId)` — which a prefix can never satisfy, since the claimed
-   * string and the called id are never equal. Every `executors`-backed capability therefore failed
-   * every call with "does not offer", 100% of the time, for every consumer, since the feature
-   * shipped — caught by a real end-to-end run (a live browser, a live daemon, a real coding agent),
-   * not a unit test: the existing tests exercise the client's claim-construction and the server's
-   * exact-match check in isolation, and each was internally consistent, so neither caught the two
-   * disagreeing about what a prefix claim means.
-   */
-  function coversCapability(claims: readonly string[], capabilityId: string): boolean {
-    return claims.some((claim) => claim === capabilityId || (claim.endsWith('.') && capabilityId.startsWith(claim)));
-  }
+  return { sessions, runBindings, bindTokens };
+}
 
-  /** Resolves the surface that may serve this call, or explains precisely what is missing. */
-  function resolveTarget(runId: string, capabilityId: string): AttachedSession {
-    const session = runBindings.get(runId);
-    if (session === undefined) {
-      throw new Error(`no frontend is bound to run "${runId}", so "${capabilityId}" cannot be executed`);
-    }
-    if (!coversCapability(session.descriptor.capabilities, capabilityId)) {
-      throw new Error(
-        `the frontend bound to run "${runId}" does not offer "${capabilityId}" `
-        + `(it offers: ${session.descriptor.capabilities.join(', ') || 'nothing'})`,
-      );
-    }
-    return session;
-  }
+/**
+ * Whether `claims` (one surface's `descriptor.capabilities`) covers `capabilityId` — either by
+ * naming it exactly, or by naming a trailing-dot PREFIX it falls under (`'webmcp.'` covers
+ * `'webmcp.add_note'`). No real capability id ends in `.` (every shipped manifest — `page.*`,
+ * `chat.*` — is `word.word`), so that trailing dot is an unambiguous, self-describing signal
+ * rather than a second field this descriptor would need to carry.
+ *
+ * This existed only as a doc-comment promise until found broken 2026-07-28: `@jini-ai/chat-react`'s
+ * `createFrontendSessionBridge({ executors })` claims a bare prefix precisely so "a consumer
+ * exposes verbs the engine has never heard of" (its own module doc), but this function used to
+ * do a plain `.includes(capabilityId)` — which a prefix can never satisfy, since the claimed
+ * string and the called id are never equal. Every `executors`-backed capability therefore failed
+ * every call with "does not offer", 100% of the time, for every consumer, since the feature
+ * shipped — caught by a real end-to-end run (a live browser, a live daemon, a real coding agent),
+ * not a unit test: the existing tests exercise the client's claim-construction and the server's
+ * exact-match check in isolation, and each was internally consistent, so neither caught the two
+ * disagreeing about what a prefix claim means.
+ */
+function coversCapability(claims: readonly string[], capabilityId: string): boolean {
+  return claims.some((claim) => claim === capabilityId || (claim.endsWith('.') && capabilityId.startsWith(claim)));
+}
 
+/** Resolves the surface that may serve this call, or explains precisely what is missing. */
+function resolveTarget(runId: string, capabilityId: string, runBindings: ReadonlyMap<string, AttachedSession>): AttachedSession {
+  const session = runBindings.get(runId);
+  if (session === undefined) {
+    throw new Error(`no frontend is bound to run "${runId}", so "${capabilityId}" cannot be executed`);
+  }
+  if (!coversCapability(session.descriptor.capabilities, capabilityId)) {
+    throw new Error(
+      `the frontend bound to run "${runId}" does not offer "${capabilityId}" `
+      + `(it offers: ${session.descriptor.capabilities.join(', ') || 'nothing'})`,
+    );
+  }
+  return session;
+}
+
+function begin({ state, session, runId, invocationId }: {
+  state: ReturnType<typeof createFrontendRegistryState>; session: AttachedSession; runId: string; invocationId: string;
+}): boolean {
+  if (state.runBindings.get(runId) !== session) return false;
+  const entry = session.pending.get(invocationId);
+  if (!entry || entry.runId !== runId || entry.begun) return false;
+  entry.begun = true;
+  return true;
+}
+
+function createSessionAttachment(state: ReturnType<typeof createFrontendRegistryState>, options: CreateFrontendSessionRegistryOptions, newBindToken: () => string) {
+  const { sessions, runBindings, bindTokens } = state;
   function attach({ descriptor, deliver, cancel }: { readonly descriptor: FrontendSessionDescriptor; readonly deliver: (invocation: FrontendInvocation) => void; readonly cancel?: (args: { invocationId: string }) => void }
   ): FrontendSessionHandle {
     assertSessionCapacity({ sessions, descriptor, options });
@@ -308,6 +318,7 @@ export function createFrontendSessionRegistry(requiredArgs: Record<string, never
     return {
       sessionId: descriptor.sessionId,
       bindToken,
+      begin: ({ runId, invocationId }, _optional: Record<string, never> = {}) => begin({ state, session, runId, invocationId }),
       detach(_args: Record<string, never>): void {
         // Only tear down state this attachment still owns. A stale handle — one whose attachment
         // already detached and whose session id has since been re-attached — must not remove the
@@ -329,7 +340,11 @@ export function createFrontendSessionRegistry(requiredArgs: Record<string, never
       },
     };
   }
+  return attach;
+}
 
+function createRunBindings(state: ReturnType<typeof createFrontendRegistryState>) {
+  const { sessions, runBindings, bindTokens } = state;
   function bindRun({ runId, sessionId }: { readonly runId: string; readonly sessionId: string }): () => void {
     const session = sessions.get(sessionId);
     if (session === undefined) {
@@ -354,14 +369,18 @@ export function createFrontendSessionRegistry(requiredArgs: Record<string, never
     }
     return bindRun({ runId: runId, sessionId: sessionId });
   }
+  return { bindRun, bindRunByToken };
+}
 
+function createFrontendInvoker(state: ReturnType<typeof createFrontendRegistryState>, newInvocationId: () => string) {
+  const { runBindings } = state;
   // `async` so that a routing refusal from `resolveTarget` surfaces as a rejected promise like
   // every other failure here. Throwing synchronously out of a Promise-returning function would
   // make `invoke(...).catch(...)` an uncaught exception for exactly the fail-closed cases this
   // registry exists to report.
   async function invoke({ runId, capabilityId, input }: { readonly runId: string; readonly capabilityId: string; readonly input: Record<string, unknown> }, { signal, onApprovalStateChange }: { readonly signal?: AbortSignal; readonly onApprovalStateChange?: ToolExecutionOptions["onApprovalStateChange"] } = {}
   ): Promise<unknown> {
-    const target = resolveTarget(runId, capabilityId);
+    const target = resolveTarget(runId, capabilityId, runBindings);
     const invocationId = newInvocationId();
 
     return new Promise<unknown>((resolve, reject) => {
@@ -380,7 +399,7 @@ export function createFrontendSessionRegistry(requiredArgs: Record<string, never
         return;
       }
       signal?.addEventListener('abort', onAbort, { once: true });
-      target.pending.set(invocationId, { resolve, reject, dispose, ...(onApprovalStateChange ? { onApprovalStateChange } : {}) });
+      target.pending.set(invocationId, { runId, resolve, reject, dispose, ...(onApprovalStateChange ? { onApprovalStateChange } : {}) });
 
       try {
         target.deliver({ invocationId, capabilityId, input });
@@ -393,7 +412,11 @@ export function createFrontendSessionRegistry(requiredArgs: Record<string, never
       }
     });
   }
+  return invoke;
+}
 
+function createFrontendSessionAccess(state: ReturnType<typeof createFrontendRegistryState>) {
+  const { sessions, runBindings, bindTokens } = state;
   function progress({ sessionId, invocationId, pending, decision }: { sessionId: string; invocationId: string; pending: boolean; decision?: ToolApprovalDecision }): boolean {
     const entry = sessions.get(sessionId)?.pending.get(invocationId);
     if (!entry) return false;
@@ -428,6 +451,35 @@ export function createFrontendSessionRegistry(requiredArgs: Record<string, never
   function ownsSession({ sessionId, owner, bindToken }: { sessionId: string; owner: FrontendSessionOwner; bindToken: string }): boolean {
     return bindTokens.get(bindToken) === sessionId && sameFrontendOwner({ expected: sessions.get(sessionId)?.descriptor.owner, actual: owner });
   }
+  return { progress, settle, sessionFor, capabilitiesFor, ownsSession,
+    begin: ({ runId, invocationId, owner }: { runId: string; invocationId: string; owner: FrontendSessionOwner }, _optional: Record<string, never> = {}): boolean => {
+      const session = runBindings.get(runId);
+      if (!session || !sameFrontendOwner({ expected: session.descriptor.owner, actual: owner })) return false;
+      return begin({ state, session, runId, invocationId });
+    },
+  };
+}
 
-  return { attach, bindRun, bindRunByToken, invoke, settle, progress, capabilitiesFor, sessionFor, ownsSession };
+/**
+ * Creates an in-memory registry of attached surfaces.
+ *
+ * State is per-process and intentionally not persisted: an attached surface is a live connection,
+ * so it cannot outlive the process that holds it, and a restart correctly presents as "nothing
+ * attached" rather than as a stale route to a tab that is long gone.
+ *
+ * @complexity `attach` checks O(s × k) live sessions/quota keys when limits are configured;
+ * `detach` is O(p + b) in pending invocations and bound runs. Other addressing operations are O(1).
+ */
+export function createFrontendSessionRegistry(requiredArgs: Record<string, never>, optionalArgs: Pick<CreateFrontendSessionRegistryOptions, "newInvocationId" | "newBindToken" | "maxSessions" | "maxSessionsPerKey"> = {}
+): FrontendSessionRegistry {
+  const options: CreateFrontendSessionRegistryOptions = { ...requiredArgs, ...optionalArgs };
+  const newInvocationId = options.newInvocationId ?? randomUUID;
+  const newBindToken = options.newBindToken ?? randomUUID;
+  const state = createFrontendRegistryState();
+  const attach = createSessionAttachment(state, options, newBindToken);
+  const { bindRun, bindRunByToken } = createRunBindings(state);
+  const invoke = createFrontendInvoker(state, newInvocationId);
+  const { settle, progress, capabilitiesFor, sessionFor, ownsSession, begin } = createFrontendSessionAccess(state);
+
+  return { attach, bindRun, bindRunByToken, invoke, settle, progress, capabilitiesFor, sessionFor, ownsSession, begin };
 }

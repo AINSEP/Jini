@@ -71,6 +71,7 @@ export function buildCommerceCatalogRegistrations(deps: CommerceCatalogToolsDeps
         if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) throw new ToolInputError({ message: "slug must contain lowercase words separated by single hyphens" });
         const at = nowIso({ clock: deps.clock });
         const product = { id: deps.idGen.newId(), workspaceId: deps.workspaceId, name, slug, kind: "one_time" as const, status: "active" as const, createdAt: at, updatedAt: at, version: 1 };
+        ctx.signal.throwIfAborted();
         await deps.products.save(product);
         return { product, ...await storefrontWarnings(deps) };
       },
@@ -82,6 +83,7 @@ export function buildCommerceCatalogRegistrations(deps: CommerceCatalogToolsDeps
         const product = await deps.products.findById({ workspaceId: deps.workspaceId, id: productId });
         if (!product || product.workspaceId !== deps.workspaceId || product.status !== "active") throw new CommerceProductNotFoundError("Active product was not found in this workspace.");
         const price = { id: deps.idGen.newId(), workspaceId: deps.workspaceId, productId, unitAmount, status: "active" as const, createdAt: nowIso({ clock: deps.clock }), version: 1 };
+        ctx.signal.throwIfAborted();
         await deps.prices.save(price);
         return { price, ...await storefrontWarnings(deps) };
       },

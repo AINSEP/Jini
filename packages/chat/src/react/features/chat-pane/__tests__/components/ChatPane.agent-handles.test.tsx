@@ -1,4 +1,5 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, screen } from '@testing-library/react';
+import { renderWithChatSurfaces } from '../../../../__tests__/fake-chat-surfaces.js';
 import { describe, expect, it } from 'vitest';
 import { createFakeChatTransport } from '../../../../hooks/testing/fake-transport.js';
 import { ChatPane } from '../../components/ChatPane.js';
@@ -7,14 +8,14 @@ const agents = [{ id: 'local', name: 'Local runtime', available: true, models: [
 
 describe('ChatPane handle forwarding', () => {
   it('names the composer and runtime picker from one host base', () => {
-    render(<ChatPane agentHandle="help-pane" transport={createFakeChatTransport()} agents={agents} />);
+    renderWithChatSurfaces(<ChatPane agentHandle="help-pane" transport={createFakeChatTransport()} agents={agents} />);
     expect(screen.getByRole('textbox')).toHaveAttribute('data-agent-element', 'help-pane-composer-draft');
     expect(screen.getByRole('button', { name: 'Send' })).toHaveAttribute('data-agent-element', 'help-pane-composer-send');
     expect(screen.getByRole('button', { name: 'Choose AI runtime' })).toHaveAttribute('data-agent-element', 'help-pane-runtime-trigger');
   });
 
   it('keeps false through composer and opened runtime menus', () => {
-    render(<ChatPane agentHandle={false} transport={createFakeChatTransport()} agents={agents} />);
+    renderWithChatSurfaces(<ChatPane agentHandle={false} transport={createFakeChatTransport()} agents={agents} />);
     expect(screen.getByRole('textbox')).not.toHaveAttribute('data-agent-element');
     expect(screen.getByRole('button', { name: 'Send' })).not.toHaveAttribute('data-agent-element');
     fireEvent.click(screen.getByRole('button', { name: 'Choose AI runtime' }));

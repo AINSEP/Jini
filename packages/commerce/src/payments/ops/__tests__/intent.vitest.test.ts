@@ -40,7 +40,7 @@ describe("createIntent: idempotency", () => {
     expect(first).toMatchObject({ ok: false, error: { code: "INVALID_REQUEST" }, payment: { status: "failed" } });
     expect(await w.service.createIntent(request)).toEqual({
       ok: false, payment: first.payment,
-      error: { code: "INVALID_REQUEST", retryable: false, message: "provider said no (replayed: the earlier intent under this idempotencyKey was rejected and moved no money; a new attempt needs a new idempotencyKey)" },
+      error: { code: "INVALID_REQUEST", retryable: false, message: "The payment provider refused the operation (INVALID_REQUEST) (replayed: the earlier intent under this idempotencyKey was rejected and moved no money; a new attempt needs a new idempotencyKey)" },
     });
     expect(w.scripted.calls).toHaveLength(1);
   });
@@ -262,9 +262,9 @@ describe("createIntent: provider answers", () => {
     const w = await world();
     w.lipay.server.script({ op: "createIntent", behaviours: ["reject"] });
     const result = await w.service.createIntent(intent());
-    expect(result).toMatchObject({ ok: false, error: { code: "DECLINED", message: "card_declined" }, payment: { status: "failed" } });
+    expect(result).toMatchObject({ ok: false, error: { code: "DECLINED", message: "The payment provider refused the operation (DECLINED)" }, payment: { status: "failed" } });
     const { attempts } = await w.read((result as { payment: { id: string } }).payment.id);
-    expect(attempts[0]).toMatchObject({ outcome: "rejected", errorCode: "DECLINED", errorMessage: "card_declined" });
+    expect(attempts[0]).toMatchObject({ outcome: "rejected", errorCode: "DECLINED", errorMessage: "The payment provider refused the operation (DECLINED)" });
   });
 
   test("unknown (timeout): the payment stays unknown, never failed (B4)", async () => {
@@ -276,8 +276,8 @@ describe("createIntent: provider answers", () => {
   });
 
   test.each([
-    ["throws an Error", "throw", "provider threw: scripted createIntent exploded"],
-    ["throws a non-Error", "throw-value", "provider threw: scripted createIntent threw a string"],
+    ["throws an Error", "throw", "The payment provider threw instead of answering (Error); the payment will be reconciled"],
+    ["throws a non-Error", "throw-value", "The payment provider threw instead of answering (string); the payment will be reconciled"],
     ["answers no Outcome", "garbage", "provider returned no readable Outcome"],
     ["rejects without an error", { kind: "rejected" }, "provider returned no readable Outcome"],
     ["answers unknown without an error", { kind: "unknown" }, "provider returned no readable Outcome"],

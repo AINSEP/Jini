@@ -15,31 +15,32 @@
 
 import { loadPlaywright, launchChromium } from "./lib/playwright-loader.mjs";
 import { HELP_OPTIONS, int, parseCliArgs, text } from "./lib/cli-args.mjs";
-import { runIfMain } from "./lib/main-guard.mjs";
+import { createCliStreams, runIfMain } from "./lib/main-guard.mjs";
+import { assetId, errorClassLabel, hostLabel } from "./lib/diagnostic-labels.mjs";
 import fs from "node:fs";
 import path from "node:path";
 
 // 硬依赖(fs / Playwright / 输出)作为端口注入，默认值在 CLI 边界接好；测试传假实现。
-const DEFAULT_DEPS = { fs, loadPlaywright, launchChromium, log: console.log, warn: console.warn };
+const DEFAULT_DEPS = { fs, loadPlaywright, launchChromium, ...createCliStreams({}) };
 
 // 未知参数被静默忽略(与原脚本行为一致)，所以 strict: false。
 const ARG_SPEC = {
   defaults: { url: "", out: "", scrollStep: 700, settle: 2500, maxMs: 90000, help: false },
   options: {
     ...HELP_OPTIONS,
-    "--url": { key: "url", parse: text("") },
-    "--out": { key: "out", parse: text("") },
-    "--scroll-step": { key: "scrollStep", parse: int("700") },
-    "--settle": { key: "settle", parse: int("2500") },
-    "--max-ms": { key: "maxMs", parse: int("90000") },
+    "--url": { key: "url", parse: text({ fallback: "" }) },
+    "--out": { key: "out", parse: text({ fallback: "" }) },
+    "--scroll-step": { key: "scrollStep", parse: int({ fallback: "700" }) },
+    "--settle": { key: "settle", parse: int({ fallback: "2500" }) },
+    "--max-ms": { key: "maxMs", parse: int({ fallback: "90000" }) },
   },
 };
 
-export function parseArgs(argv) {
+export function parseArgs({ argv }, _optional = {}) {
   return parseCliArgs({ argv, ...ARG_SPEC }, { strict: false });
 }
 
-export function usage(log = console.log) {
+export function usage({}, { log = createCliStreams({}).log } = {}) {
   log(`mirror-site.mjs — 静态构建站全量资产镜像(1:1 忠实复刻)
 
   node scripts/mirror-site.mjs --url <URL> --out <dir> [--scroll-step 700] [--settle 2500] [--max-ms 90000]
@@ -50,7 +51,7 @@ export function usage(log = console.log) {
 }
 
 // 同源资产 URL → 本地相对路径(去 query；目录结尾存 index.html)
-export function urlToLocalPath(u, origin) {
+export function urlToLocalPath({ u, origin }, _optional = {}) {
   let p = u.slice(origin.length);
   const q = p.indexOf("?");
   if (q >= 0) p = p.slice(0, q);
@@ -60,8 +61,9 @@ export function urlToLocalPath(u, origin) {
 
 // 全程滚动捕获: 先加载，再按步长滚到底、停留 settle，最后回顶。
 async function captureAllRequests(page, args, deps) {
-  deps.log(`▸ 加载 + 全程滚动捕获: ${args.url}`);
-  await page.goto(args.url, { waitUntil: "networkidle", timeout: args.maxMs }).catch((e) => deps.warn("  goto:", e.message));
+  // Progress and failure lines carry the host and the error class only (see lib/diagnostic-labels.mjs).
+  deps.log(`▸ 加载 + 全程滚动捕获: ${hostLabel({ url: args.url })}`);
+  await page.goto(args.url, { waitUntil: "networkidle", timeout: args.maxMs }).catch((e) => deps.warn("  goto:", errorClassLabel({ error: e })));
   const total = await page.evaluate(() => document.documentElement.scrollHeight);
   for (let y = 0; y <= total; y += args.scrollStep) {
     await page.evaluate((yy) => window.scrollTo(0, yy), y);
@@ -74,24 +76,26 @@ async function captureAllRequests(page, args, deps) {
 }
 
 /** 同源资产(含 origin 本身与 origin/)。 */
-export function isOwnUrl(url, origin) {
+export function isOwnUrl({ url, origin }, _optional = {}) {
   return url.startsWith(origin + "/") || url === origin || url === origin + "/";
 }
 
+// A failure line names the asset by its manifest `id` and the error by its class: the URL path
+// and the error text can carry private values.
 async function downloadOwnAssets(ctx, ownUrls, origin, siteDir, deps) {
   const tally = { ok: 0, fail: 0, failed: [] };
   for (const r of ownUrls) {
-    const rel = urlToLocalPath(r.url, origin);
+    const rel = urlToLocalPath({ u: r.url, origin });
     const dest = path.join(siteDir, rel);
     try {
       const resp = await ctx.request.get(r.url); // 复用浏览器网络栈(cookie/TUN/代理一致)
-      if (!resp.ok()) { tally.fail++; tally.failed.push(`HTTP${resp.status()} ${rel}`); continue; }
+      if (!resp.ok()) { tally.fail++; tally.failed.push(`HTTP${resp.status()} ${r.id}`); continue; }
       const buf = await resp.body();
       deps.fs.mkdirSync(path.dirname(dest), { recursive: true });
       deps.fs.writeFileSync(dest, buf);
       tally.ok++;
     } catch (e) {
-      tally.fail++; tally.failed.push(`${e.message} ${rel}`);
+      tally.fail++; tally.failed.push(`${errorClassLabel({ error: e })} ${r.id}`);
     }
   }
   return tally;
@@ -102,7 +106,7 @@ function hostOf(url) {
 }
 
 // 第三方 + webfont 提示
-export function thirdPartyReport(all, origin) {
+export function thirdPartyReport({ all, origin }, _optional = {}) {
   const thirdHosts = [...new Set(all.filter((r) => !r.url.startsWith(origin)).map((r) => hostOf(r.url)))];
   const webfontCss = all.map((r) => r.url).filter((u) => /use\.typekit\.net\/[a-z0-9]+\.css|fonts\.googleapis\.com\/css/i.test(u));
   return { hosts: thirdHosts, webfont_css_to_selfhost: webfontCss };
@@ -112,7 +116,8 @@ function printReport({ tally, third, siteDir }, log) {
   log(`✅ 镜像完成: ${tally.ok} 成功 / ${tally.fail} 失败 → ${siteDir}`);
   if (tally.failed.length) log("  ⚠️ 失败:\n   " + tally.failed.slice(0, 20).join("\n   "));
   log(`▸ 第三方 host: ${third.hosts.join(", ") || "(无)"}`);
-  if (third.webfont_css_to_selfhost.length) log(`▸ 需自托管的 webfont CSS(锁域名,见 static-mirror.md): \n   ${third.webfont_css_to_selfhost.join("\n   ")}`);
+  // The stylesheet URLs themselves are in third-party.json; a printed URL can carry a private query.
+  if (third.webfont_css_to_selfhost.length) log(`▸ 需自托管的 webfont CSS(锁域名,见 static-mirror.md): ${third.webfont_css_to_selfhost.length} 个，见 third-party.json`);
   log(`▸ 下一步: 自托管字体 + 改写 CSS @import + 删追踪 → cd ${siteDir} && python3 -m http.server 8124`);
 }
 
@@ -136,15 +141,15 @@ async function mirror(args, deps) {
 
   await captureAllRequests(page, args, deps);
 
-  const all = [...responses.entries()].map(([url, m]) => ({ url, ...m }));
-  const ownUrls = all.filter((r) => isOwnUrl(r.url, origin));
+  const all = [...responses.entries()].map(([url, m], index) => ({ id: assetId({ index }), url, ...m }));
+  const ownUrls = all.filter((r) => isOwnUrl({ url: r.url, origin }));
 
   deps.log(`▸ 捕获请求 ${all.length} 个；同源 ${ownUrls.length} 个，开始下载…`);
   const tally = await downloadOwnAssets(ctx, ownUrls, origin, siteDir, deps);
 
-  const third = thirdPartyReport(all, origin);
+  const third = thirdPartyReport({ all, origin });
   deps.fs.writeFileSync(path.join(outRoot, "mirror-manifest.json"), JSON.stringify(all, null, 2));
-  deps.fs.writeFileSync(path.join(outRoot, "own-asset-urls.txt"), ownUrls.map((r) => urlToLocalPath(r.url, origin)).sort().join("\n") + "\n");
+  deps.fs.writeFileSync(path.join(outRoot, "own-asset-urls.txt"), ownUrls.map((r) => urlToLocalPath({ u: r.url, origin })).sort().join("\n") + "\n");
   deps.fs.writeFileSync(path.join(outRoot, "third-party.json"), JSON.stringify(third, null, 2));
 
   printReport({ tally, third, siteDir }, deps.log);
@@ -158,13 +163,13 @@ async function mirror(args, deps) {
  */
 export async function main({ argv }, deps = {}) {
   const io = { ...DEFAULT_DEPS, ...deps };
-  const args = parseArgs(argv);
+  const args = parseArgs({ argv });
   if (args.help || !args.url || !args.out) {
-    usage(io.log);
+    usage({}, { log: io.log });
     return args.help ? 0 : 1;
   }
   await mirror(args, io);
   return 0;
 }
 
-await runIfMain({ moduleUrl: import.meta.url, main });
+await runIfMain({ moduleUrl: import.meta.url, main }, { stdout: process.stdout, stderr: process.stderr });

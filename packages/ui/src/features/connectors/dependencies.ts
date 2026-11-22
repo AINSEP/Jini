@@ -13,6 +13,7 @@
  * implementations for those two — a host only needs to supply its own
  * `data` port.
  */
+import { fakeLatencyDelay } from '../../utils/fake-latency.js';
 import { CONNECTOR_AUTH_PENDING_STORAGE_KEY } from './constants.js';
 import type {
   ConnectorAuthBridgePort,
@@ -45,48 +46,46 @@ export interface FakeConnectorsPortOptions {
  */
 export function createFakeConnectorsPort(options: FakeConnectorsPortOptions = {}): ConnectorsPort {
   let connectors = options.connectors ? options.connectors.map((c) => ({ ...c })) : [];
-  const latencyMs = options.latencyMs ?? 0;
-  const delay = <T>(value: T): Promise<T> =>
-    latencyMs > 0 ? new Promise((resolve) => setTimeout(() => resolve(value), latencyMs)) : Promise.resolve(value);
+  const delay = fakeLatencyDelay({}, { latencyMs: options.latencyMs });
 
   return {
     fetchConnectors() {
-      return delay(connectors.map((c) => ({ ...c })));
+      return delay({ value: connectors.map((c) => ({ ...c })) });
     },
     fetchConnectorEnrichment() {
-      return delay(connectors.map((c) => ({ ...c })));
+      return delay({ value: connectors.map((c) => ({ ...c })) });
     },
     fetchConnectorStatuses() {
       const statuses: ConnectorStatusMap = {};
       for (const c of connectors) {
         statuses[c.id] = { status: c.status, ...(c.accountLabel ? { accountLabel: c.accountLabel } : {}) };
       }
-      return delay(statuses);
+      return delay({ value: statuses });
     },
     fetchConnectorDetail(connectorId: string, _options?: FetchConnectorDetailOptions) {
       const found = connectors.find((c) => c.id === connectorId) ?? null;
-      return delay(found ? { ...found } : null);
+      return delay({ value: found ? { ...found } : null });
     },
     connectConnector(connectorId: string): Promise<ConnectorActionResult> {
       const idx = connectors.findIndex((c) => c.id === connectorId);
-      if (idx === -1) return delay({ connector: null, error: 'Connector not found' });
+      if (idx === -1) return delay({ value: { connector: null, error: 'Connector not found' } });
       connectors[idx] = { ...connectors[idx]!, status: 'connected' };
-      return delay({ connector: { ...connectors[idx]! }, auth: { kind: 'connected' } });
+      return delay({ value: { connector: { ...connectors[idx]! }, auth: { kind: 'connected' } } });
     },
     disconnectConnector(connectorId: string) {
       const idx = connectors.findIndex((c) => c.id === connectorId);
-      if (idx === -1) return delay(null);
+      if (idx === -1) return delay({ value: null });
       connectors[idx] = { ...connectors[idx]!, status: 'available' };
-      return delay({ ...connectors[idx]! });
+      return delay({ value: { ...connectors[idx]! } });
     },
     cancelConnectorAuthorization(connectorId: string) {
       const idx = connectors.findIndex((c) => c.id === connectorId);
-      if (idx === -1) return delay(null);
+      if (idx === -1) return delay({ value: null });
       connectors[idx] = { ...connectors[idx]!, status: 'available' };
-      return delay({ ...connectors[idx]! });
+      return delay({ value: { ...connectors[idx]! } });
     },
     openExternalUrl(_url: string) {
-      return delay(true);
+      return delay({ value: true });
     },
   };
 }
@@ -98,7 +97,7 @@ export function createBrowserConnectorAuthPendingStorage(): ConnectorAuthPending
       try {
         const raw = window.sessionStorage.getItem(CONNECTOR_AUTH_PENDING_STORAGE_KEY);
         if (!raw) return {};
-        return parseConnectorAuthorizationPendingState(raw);
+        return parseConnectorAuthorizationPendingState({ raw });
       } catch {
         return {};
       }
@@ -127,7 +126,7 @@ export function createBrowserConnectorAuthBridge(): ConnectorAuthBridgePort {
       function onMessage(event: MessageEvent) {
         const data = event.data as { type?: unknown } | null;
         if (!data || typeof data !== 'object' || data.type !== CONNECTOR_CALLBACK_MESSAGE_TYPE) return;
-        if (!isTrustedConnectorCallbackOrigin(event.origin, window.location.origin)) return;
+        if (!isTrustedConnectorCallbackOrigin({ origin: event.origin, currentOrigin: window.location.origin })) return;
         onTrustedCallback();
       }
       window.addEventListener('message', onMessage);

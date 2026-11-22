@@ -1,13 +1,10 @@
-import { useCallback, useMemo } from 'react';
 import { EntityCell } from './EntityCell.js';
 import type { EntityDetailProps } from './types.js';
-import { loadEntityRow, useEntityRead } from './use-entity-read.js';
+import { useEntityDetail } from './EntityDetail.hooks.js';
 import { readTitle } from './rules.js';
 
-export function EntityDetail({ entityName, id, registry, translate, routes }: EntityDetailProps) {
-  const port = useMemo(() => registry.getEntity({ name: entityName }), [registry, entityName]);
-  const load = useCallback(() => loadEntityRow({ registry, entityName, id }), [registry, entityName, id, port]);
-  const result = useEntityRead({ load, scope: port });
+export function EntityDetail({ entityName, id, registry, translate, routes, refreshToken, useDetailHook = useEntityDetail }: EntityDetailProps & { readonly useDetailHook?: typeof useEntityDetail }) {
+  const { port, result } = useDetailHook({ registry, entityName, id, refreshToken });
   if (port === null) return <p role="alert">{translate({ key: 'Unknown entity' })}</p>;
   if (result.error) return <p role="alert">{translate({ key: 'Unable to load row' })}</p>;
   if (result.loading || !result.data) return <p role="status">{translate({ key: 'Loading' })}</p>;

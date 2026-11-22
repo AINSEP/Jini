@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { agentHandleProps, buildAgentListHandles } from '@jini-ai/agentic';
+import { agentHandleProps } from '@jini-ai/core/agent-handles';
 import { useT } from '../../../i18n/index.js';
 import type {
   AgentCliEnvFieldSpec,
@@ -8,7 +8,7 @@ import type {
   DetectedAgent,
   LocalCliConfig,
 } from '../../types.js';
-import { LocalCliAgentCard } from './LocalCliAgentCard.js';
+import { useLocalCliAgentCards } from './LocalCliAgentList.hooks.js';
 import { useLocalCliAgentList, type UseLocalCliAgentListResult } from '../hooks/useLocalCliAgentList.js';
 
 export interface LocalCliAgentListProps {
@@ -40,6 +40,8 @@ export interface LocalCliAgentListProps {
   agentHandle?: string;
   /** Injection seam for the not-installed disclosure state. */
   useAgentList?: typeof useLocalCliAgentList | undefined;
+  useTHook?: typeof useT;
+  useLocalCliAgentCardsHook?: typeof useLocalCliAgentCards;
 }
 
 /**
@@ -66,34 +68,13 @@ export function LocalCliAgentList({
   scopeLabel,
   agentHandle,
   useAgentList = useLocalCliAgentList,
+  useTHook = useT,
+  useLocalCliAgentCardsHook = useLocalCliAgentCards,
 }: LocalCliAgentListProps) {
-  const t = useT();
-  const installed = agents.filter((agent) => agent.installed);
+  const t = useTHook();
+  const { installed, renderCard } = useLocalCliAgentCardsHook({ agents, config, onSelect, onModelChange, onReasoningChange, onEnvChange, cliEnvFields, onRescan, onTest, agentTest, renderAgentIcon, agentHandle });
   const scope = scopeLabel ?? t('Runs a code-agent CLI detected by the host.');
-  const handleList = agentHandle ? buildAgentListHandles({ prefix: agentHandle, ids: agents.map((agent) => agent.id) }) : undefined;
-  const cardHandles = new Map(agents.map((agent, index) => [agent.id, handleList?.[index]]));
   const list = useAgentList({ agents, selectedAgentId: config.agentId });
-  const renderCard = (agent: DetectedAgent) => {
-    const handle = cardHandles.get(agent.id);
-    return (
-      <LocalCliAgentCard
-        key={agent.id}
-        agent={agent}
-        config={config}
-        selected={config.agentId === agent.id}
-        onSelect={onSelect}
-        onModelChange={onModelChange}
-        onReasoningChange={onReasoningChange}
-        onEnvChange={onEnvChange}
-        cliEnvFields={cliEnvFields}
-        renderIcon={renderAgentIcon}
-        onTest={onTest}
-        agentTest={agentTest}
-        onRescan={onRescan}
-        {...(handle ? { agentHandle: handle } : {})}
-      />
-    );
-  };
 
   return (
     <section className="jini-settings-section jini-local-cli">
@@ -135,14 +116,15 @@ export function LocalCliAgentList({
 }
 
 /** Scan-state precedence and the not-installed disclosure belong to one grid. */
-function LocalCliAgentGrid({ agents, scan, list, renderCard, agentHandle }: {
+function LocalCliAgentGrid({ agents, scan, list, renderCard, agentHandle, useTHook = useT }: {
   agents: readonly DetectedAgent[];
   scan: AgentScanState;
   list: UseLocalCliAgentListResult;
   renderCard: (agent: DetectedAgent) => ReactNode;
   agentHandle?: string | undefined;
+  useTHook?: typeof useT;
 }) {
-  const t = useT();
+  const t = useTHook();
   if (scan.status === 'scanning') {
     return (
       <div className="jini-agent-scan-card" role="status" aria-live="polite">

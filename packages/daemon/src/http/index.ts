@@ -1,5 +1,5 @@
 /** Daemon route packs; generic transport primitives live in @jini-ai/http-kit. */
-export { createMessageRelayClaimHandler, registerMessageRelayRoutes, type MessageRelayHttpDeps } from './message-relay.js';
+export { messageRelayRoutes, MESSAGE_RELAY_CLAIM_PATH, type MessageRelayHttpDeps } from './message-relay.js';
 export type {
   ResolveWorkspaceRootOptions,
   WorkspaceRootRequest,
@@ -12,7 +12,7 @@ export type { ActiveContextDeps, ActiveContextResource } from './active-context.
 export {
   ACTIVE_CONTEXT_TTL_MS,
   getActiveRoute,
-  registerActiveContextRoutes,
+  activeContextRoutes,
   setActiveRoute,
 } from './active-context.js';
 export type {
@@ -36,7 +36,7 @@ export {
   pathDirs,
   probeCommandOnPath,
   probeMacBundle,
-  registerHostToolsRoutes,
+  hostToolsRoutes,
   resolveEntry,
   resolveHostToolLaunchPlan,
 } from './host-tools.js';
@@ -45,7 +45,7 @@ export type {
   DaemonStatusDeps,
   DaemonStatusResponse,
 } from './daemon-status.js';
-export { daemonShutdownRoute, daemonStatusRoute, registerDaemonStatusRoutes } from './daemon-status.js';
+export { daemonShutdownRoute, daemonStatusRoute, daemonStatusRoutes } from './daemon-status.js';
 export type {
   RunCancelResponse,
   RunCreateRequest,
@@ -60,19 +60,20 @@ export type {
   RunStatusResponse,
 } from './runs.js';
 export {
-  registerRunEventStream,
-  registerRunRoutes,
   RUN_EVENTS_ROUTE_PATH,
   runCancelRoute,
   runListRoute,
   runMessageRoute,
   RUN_MESSAGE_MAX_CHARS,
+  runRoutes,
   runStartRoute,
   runStatusRoute,
 } from './runs.js';
 export { JINI_ROUTE_MANIFEST, manifestRoutesForFamilies, routeFamilyManifest } from './route-manifest.js';
+export type { RouteRegistration } from './route-manifest.js';
+export type { DaemonRouteHost } from './route-host.js';
 export type { AgentListResponse, AgentModelSummary, AgentsHttpDeps, AgentSummary } from './agents.js';
-export { agentListRoute, agentRescanRoute, registerAgentRoutes } from './agents.js';
+export { agentListRoute, agentRescanRoute, agentRoutes } from './agents.js';
 export type {
   MemoryChangeEmitter,
   MemoryConfigResponse,
@@ -82,6 +83,8 @@ export type {
   MemoryExtractionLog,
   MemoryExtractionsResponse,
   MemoryHttpDeps,
+  MemoryInternalErrorContext,
+  MemoryRouteDeps,
   MemoryIndexResponse,
   MemoryNoteEntry,
   MemoryNoteEntrySummary,
@@ -112,8 +115,7 @@ export {
   memoryUpdateTreeNodeRoute,
   memoryWriteConfigRoute,
   memoryWriteIndexRoute,
-  registerMemoryEventStream,
-  registerMemoryRoutes,
+  memoryRoutes,
 } from './memory.js';
 export type {
   RoutineDeleteResponse,
@@ -125,7 +127,7 @@ export type {
   RoutineScheduler,
 } from './routines.js';
 export {
-  registerRoutineRoutes,
+  routineRoutes,
   routineCreateRoute,
   routineDeleteRoute,
   routineGetRoute,
@@ -156,7 +158,7 @@ export {
   DB_VACUUM_TOOL_ID,
   DB_VERIFY_TOOL_ID,
   denyAllDaemonDbPolicy,
-  registerDaemonDbRoutes,
+  daemonDbRoutes,
 } from './db-ops.js';
 export type {
   ToolCatalogEntry,
@@ -166,7 +168,7 @@ export type {
   ToolCatalogSearchHit,
 } from './tool-catalog.js';
 export {
-  registerToolCatalogRoutes,
+  toolCatalogRoutes,
   toolCatalogDescribeRoute,
   toolCatalogSearchRoute,
 } from './tool-catalog.js';
@@ -177,7 +179,7 @@ export type {
   ComponentCatalogSearchHit,
 } from './component-catalog.js';
 export {
-  registerComponentCatalogRoutes,
+  componentCatalogRoutes,
   componentCatalogDescribeRoute,
   componentCatalogSearchRoute,
 } from './component-catalog.js';
@@ -189,8 +191,9 @@ export type {
 } from './delegated-tools.js';
 export {
   delegatedToolExecuteRoute,
-  registerDelegatedToolRoutes,
+  delegatedToolRoutes,
 } from './delegated-tools.js';
+export type { FamilySelector, ToolFamilyDescription, ToolFamilyPort } from '../core/tool-family.js';
 export type {
   RemoteRunEventHttpDeps,
   RemoteRunEventResponse,
@@ -199,10 +202,10 @@ export type {
   RemoteToolUseRequest,
 } from './remote-run-events.js';
 export {
-  registerRemoteRunEventRoutes,
+  remoteRunEventRoutes,
+  remoteToolBridgeTokenGate,
   remoteToolResultRoute,
   remoteToolUseRoute,
-  requireRemoteToolBridgeToken,
 } from './remote-run-events.js';
 export type {
   FrontendSessionAttachedEvent,
@@ -211,22 +214,21 @@ export type {
   FrontendSessionResponseBody,
   FrontendSessionResponseRequest,
   FrontendSessionStreamEvent,
+  FrontendSessionTimer,
   FrontendSessionsHttpDeps,
 } from './frontend-sessions.js';
 export {
   FRONTEND_SESSION_RESPONSE_ROUTE_PATH,
   FRONTEND_SESSION_STREAM_ROUTE_PATH,
   frontendSessionResponseRoute,
-  handleFrontendSessionStream,
+  frontendSessionRoutes,
   parseCapabilityQuery,
-  registerFrontendSessionRoutes,
 } from './frontend-sessions.js';
 export { createFrontendControl } from './frontend-control.js';
 export type {
   CreateFrontendControlOptions,
   FrontendBindErrorContext,
   FrontendControl,
-  FrontendHttpExtension,
 } from './frontend-control.js';
 export type {
   TerminalActionResponse,
@@ -236,17 +238,16 @@ export type {
   TerminalsInternalErrorContext,
 } from './terminals.js';
 export {
-  registerTerminalEventStream,
-  registerTerminalRoutes,
   terminalCreateRoute,
   terminalDeleteRoute,
   terminalKillRoute,
   terminalListRoute,
   terminalResizeRoute,
+  terminalRoutes,
   terminalStdinRoute,
 } from './terminals.js';
 export type { ModelProxyHttpDeps, ModelProxyInternalErrorContext } from './model-proxy.js';
-export { registerModelProxyRoutes } from './model-proxy.js';
+export { modelProxyRoutes } from './model-proxy.js';
 export type { HealthHttpDeps, HealthReadinessResult, LivenessResponse, ReadinessResponse, VersionResponse } from './health.js';
 export {
   apiHealthRoute,
@@ -254,7 +255,7 @@ export {
   apiVersionInfoRoute,
   healthRoute,
   readyRoute,
-  registerHealthRoutes,
+  healthRoutes,
   versionInfoRoute,
 } from './health.js';
 export type {
@@ -296,7 +297,7 @@ export {
   connectorsStorageGetRoute,
   connectorsStorageListRoute,
   connectorsStoragePutRoute,
-  registerConnectorsRoutes,
+  connectorsRoutes,
 } from './connectors.js';
 export type {
   ResearchProvider,
@@ -307,7 +308,7 @@ export type {
   ResearchSearchResponse,
   ResearchSource,
 } from './research.js';
-export { createResearchSearchRoute, registerResearchRoutes, researchSearchRoute } from './research.js';
+export { createResearchSearchRoute, researchRoutes, researchSearchRoute } from './research.js';
 export type {
   MediaGenerateResponse,
   MediaHttpDeps,
@@ -321,34 +322,20 @@ export {
   mediaTaskDeleteRoute,
   mediaTaskGetRoute,
   mediaTaskListRoute,
-  registerMediaRoutes,
+  mediaRoutes,
 } from './media.js';
-export type {
-  AttachmentClaim,
-  AttachmentRejectionReason,
-  AttachmentsHttpDeps,
-  AttachmentsInternalErrorContext,
-  AttachmentStore,
-  AttachmentUploadResponse,
-  CreateDiskAttachmentStoreOptions,
-  ObservedAttachmentIdentity,
-  PendingAttachmentSummary,
-  RecordedAttachmentIdentity,
-  StoredAttachment,
-} from './attachments.js';
-export {
-  ATTACHMENTS_ROUTE_PATH,
-  AttachmentRejectedError,
-  createDiskAttachmentStore,
-  detectAttachmentKind,
-  handleAttachmentCleanup,
-  handleAttachmentUpload,
-  isUnchangedAttachment,
-  registerAttachmentRoutes,
-  sanitizeAttachmentName,
-  stageAttachmentClaim,
-  writeBoundedAttachmentBody,
-} from './attachments.js';
+export type { AttachmentClaim, AttachmentRejectionReason, StoredAttachment } from './attachment-types.js';
+export type { AttachmentsHttpDeps, AttachmentsInternalErrorContext, AttachmentUploadResponse } from './attachments.js';
+export type { AttachmentStore, CreateDiskAttachmentStoreOptions } from './attachment-store-types.js';
+export type { ObservedAttachmentIdentity, PendingAttachmentSummary, RecordedAttachmentIdentity } from './attachment-records.js';
+export { ATTACHMENTS_ROUTE_PATH, handleAttachmentCleanup, handleAttachmentUpload, sanitizeAttachmentName } from './attachments.js';
+export { AttachmentRejectedError } from './attachment-types.js';
+export { createDiskAttachmentStore } from './disk-attachment-store.js';
+export { detectAttachmentKind } from './attachment-signatures.js';
+export { isUnchangedAttachment } from './attachment-records.js';
+export { stageAttachmentClaim } from './attachment-staging.js';
+export { writeBoundedAttachmentBody } from './attachment-body.js';
+export { attachmentCleanupRoutes, attachmentUploadRoutes } from './attachment-routes.js';
 export type {
   XaiAuthStatusResponse,
   XaiHttpDeps,
@@ -358,7 +345,7 @@ export type {
   XaiSearchResponse,
 } from './xai.js';
 export {
-  registerXaiRoutes,
+  xaiRoutes,
   xaiAuthStatusRoute,
   xaiOauthCancelRoute,
   xaiOauthCompleteRoute,
@@ -366,29 +353,32 @@ export {
   xaiOauthStartRoute,
   xaiSearchRoute,
 } from './xai.js';
-export * from './run-credentials.js';
+export type { RunWithToolContext } from './tool-execution-stream.js';
 export type {
-  RunWithToolContext,
-  ToolExecutionRouteTarget,
+  AuthorizeToolRun,
   ToolExecutionRoutesOptional,
   ToolExecutionRoutesRequired,
+  ToolRunAuthorization,
+  ToolRunVerdict,
 } from './tool-execution-routes.js';
 export {
   DEFAULT_TOOL_EXEC_MAX_BODY_BYTES,
-  DEFAULT_TOOL_EXEC_TOKEN_ENV_VAR,
-  registerToolExecutionRoutes,
-  requireToolExecutionCaller,
   TOOL_CATALOG_ROUTE_PATH,
   TOOL_EXECUTIONS_ROUTE_PATH,
+  toolExecutionRoutes,
 } from './tool-execution-routes.js';
+export type { ToolExecutionCallerRefusal } from './tool-execution-caller.js';
+export { DEFAULT_TOOL_EXEC_TOKEN_ENV_VAR, toolExecutionCallerRefusal } from './tool-execution-caller.js';
 export type { AttachmentLookup, AttachmentLookupRequest, AttachmentLookupRoutesRequired } from './attachment-lookup-routes.js';
-export { ATTACHMENT_LOOKUP_ROUTE_PATH, registerAttachmentLookupRoutes } from './attachment-lookup-routes.js';
+export { ATTACHMENT_LOOKUP_ROUTE_PATH, attachmentLookupRoutes } from './attachment-lookup-routes.js';
 export type { RemoteAttachmentLookupOptional, RemoteAttachmentLookupRequired } from '../remote-attachment-lookup.js';
 export { createRemoteAttachmentLookup } from '../remote-attachment-lookup.js';
 
 export { createTavilyResearchProvider } from './research-tavily.adapter.js';
 export { createFrontendGuestScope } from './frontend-guest-scope.js';
-export { tryRestoreSurface } from './surface-restoration.js';
-export { registerFrontendRequestRoute } from './frontend-request-route.js';
-export type { FrontendRequestRouteRequired } from './frontend-request-route.js';
+export type { FrontendHookInput } from './frontend-hook-input.js';
+export { restoreSurface } from './surface-restoration.js';
+export type { SurfaceHttpResult } from './surface-restoration.js';
+export { frontendRequestRoutes } from './frontend-request-route.js';
+export type { FrontendRequestRoutesRequired } from './frontend-request-route.js';
 export { deliverSurfaceCallback, isSurfaceCallbackPermitted, SURFACE_TYPED_ANSWER_REFUSAL, type SurfaceCallbackInput } from './surface-callback.js';

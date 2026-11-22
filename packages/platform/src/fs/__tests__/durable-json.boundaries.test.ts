@@ -1,7 +1,7 @@
 import nodeFs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, expect, test } from "vitest";
+import { afterEach, expect, test, vi } from "vitest";
 import {
   createDurableJsonFile, createNodeDurableJsonPorts, salvageJsonPrefix, updateDurableJsonFiles,
   type DurableJsonFile, type DurableJsonPorts,
@@ -51,11 +51,14 @@ test("quarantine of an already-moved file succeeds silently", () => {
 });
 test("quarantine that cannot move the file (e.g. EXDEV) leaves it untouched, reports and returns false", () => {
   const filePath = tempFile(), { messages, report } = reporting(); nodeFs.writeFileSync(filePath, "{torn");
-  const error = Object.assign(new Error("EXDEV: cross-device link not permitted"), { code: "EXDEV" });
+  const diagnostic = vi.spyOn(report, 'error');
+  const error = Object.assign(new Error("boom api_key=SECRETSECRETSECRETSECRET"), { code: "EXDEV" });
   const file = store(filePath, { report, clock: { nowMs: () => 7 }, filesystem: { ...nodeFs, renameSync: () => { throw error; } } });
   expect(file.quarantine({ notice: { label: "Profile", consequence: "x" } })).toBe(false);
   expect(nodeFs.readFileSync(filePath, "utf8")).toBe("{torn");
-  expect(messages).toEqual([`fixture: Profile ${filePath} is unreadable and could not be moved aside (${String(error)}). Left untouched; nothing was written over it.`]);
+  expect(messages).toEqual([`fixture: Profile ${filePath} is unreadable and could not be moved aside. Left untouched; nothing was written over it.`]);
+  expect(diagnostic).toHaveBeenCalledOnce(); expect(diagnostic).toHaveBeenCalledWith({ message: messages[0] }, { error });
+  expect(messages.join("\n")).not.toMatch(/boom|SECRETSECRET/);
 });
 
 // --- lock options ----------------------------------------------------------

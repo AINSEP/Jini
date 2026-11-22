@@ -54,3 +54,13 @@ describe('overlay controller', () => {
     expect(await pending).toBeNull();
   });
 });
+
+describe('OverlayHost injected hook', () => {
+  it('renders the entries returned by the injected overlay hook', () => {
+    const useFakeEntries = vi.fn(() => [{ id: 'a', content: 'fake overlay A' }, { id: 'b', content: 'fake overlay B' }]);
+    render(<OverlayHost controller={createOverlayController()} useOverlayHostHook={useFakeEntries as never} />);
+    expect(screen.getByText('fake overlay A')).toBeInTheDocument();
+    expect(screen.getByText('fake overlay B')).toBeInTheDocument();
+    expect(useFakeEntries).toHaveBeenCalledTimes(1);
+  });
+});

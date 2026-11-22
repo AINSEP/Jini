@@ -1,18 +1,18 @@
 /**
- * @file Resolution logic for the host `routing` Tier-2 library (ADR-039 v0).
+ * @file Resolution logic for the host `routing` Tier-2 library (v0).
  *
  * Purpose:
- * Implements the inverse resolver (`urlFor`/`isActive`) Menus (ADR-029) and
- * SEO (ADR-032) consume, the forward resolution pipeline registration seam
- * Redirects (ADR-033) will consume, the named-route registry backing `route`
- * targets, and the `SlugChangeCapture` registration slot (ADR-039 §4).
+ * Implements the inverse resolver (`urlFor`/`isActive`) Menus and
+ * SEO consume, the forward resolution pipeline registration seam
+ * Redirects will consume, the named-route registry backing `route`
+ * targets, and the `SlugChangeCapture` registration slot.
  *
  * How it relates to the project:
  * - `routing/types.ts` supplies the `RouteTarget` vocabulary and result shapes.
  * - `routing/ports.ts` supplies `RouteResolverDeps` (reuses `PostRepoPort`).
  * - Only `post` is a real implemented content type today, so `entryRef`
  *   resolution goes through `PostRepoPort` directly; `termRef` is a documented
- *   stub (taxonomy doesn't exist yet — ADR-029 Round-3 fold item 1).
+ *   stub (taxonomy doesn't exist yet — Round-3 fold item 1).
  *
  * Architectural role:
  * Core-owned Tier-2 library code. No Drizzle/SQLite adapter and no HTTP
@@ -31,7 +31,7 @@ export interface RegisterNamedRouteInput {
 }
 
 // ---------------------------------------------------------------------------
-// Inverse resolver — `urlFor` / `isActive` (ADR-039 §2, Round-2 amendment 4)
+// Inverse resolver — `urlFor` / `isActive` (Round-2 amendment 4)
 // ---------------------------------------------------------------------------
 
 export interface UrlForRequired {
@@ -52,7 +52,7 @@ export interface IsActiveRequired {
 export interface IsActiveOptional {}
 
 // ---------------------------------------------------------------------------
-// Forward resolution pipeline (ADR-039 §1) — registration seam for Redirects
+// Forward resolution pipeline — registration seam for Redirects
 // ---------------------------------------------------------------------------
 
 /**
@@ -130,20 +130,9 @@ export interface Routing {
   resetRoutingRegistrationsForTests(required: EmptyOptions, optional?: EmptyOptions): void;
 }
 
-/**
- * Create routing over host-owned content visibility and fault reporting.
- * Each instance owns its registrations; a host that historically shared one process registry
- * must bind one instance and reuse it across composition roots. No database or clock is constructed.
- * @param required Host ports; visibility errors propagate unchanged.
- * @param optional Initial named-route configuration (home/search by default).
- * @returns Resolvers and registration lifecycles sharing this instance's state.
- * @complexity O(r) initialization for r configured named routes.
- * @example const routing = createRouting({ ports }, { namedRoutes: [['home', '/']] });
- */
-export function createRouting(required: CreateRoutingRequired, optional: CreateRoutingOptional = {}): Routing {
-
+function createNamedRoutes(optional: CreateRoutingOptional) {
   // ---------------------------------------------------------------------------
-  // Named-route registry (backs `route` targets — ADR-039 §3)
+  // Named-route registry (backs `route` targets)
   // ---------------------------------------------------------------------------
 
   const DEFAULT_NAMED_ROUTES: ReadonlyArray<readonly [string, string]> = [
@@ -156,7 +145,7 @@ export function createRouting(required: CreateRoutingRequired, optional: CreateR
 
   /**
    * Register (or overwrite) a named core route. Core-owned registration, not an
-   * open plugin hook — matches ADR-039 §1's treatment of the forward pipeline.
+   * open plugin hook — matches the forward pipeline's treatment.
    *
    * @complexity O(1) time/space.
    */
@@ -175,34 +164,42 @@ export function createRouting(required: CreateRoutingRequired, optional: CreateR
     return namedRoutes.get(name) ?? null;
   }
 
-  // ---------------------------------------------------------------------------
-  // Path normalization + canonical URL composition
-  // ---------------------------------------------------------------------------
-
-  const ABSOLUTE_URL_PATTERN = /^[a-z][a-z0-9+.-]*:\/\//i;
-
-  function isAbsoluteUrl(value: string): boolean {
-    return ABSOLUTE_URL_PATTERN.test(value) || value.startsWith("//");
+  function resetNamedRoutes(): void {
+    namedRoutes.clear();
+    for (const [name, path] of initialNamedRoutes) namedRoutes.set(name, path);
   }
+  return { registerNamedRoute, getNamedRoute, resetNamedRoutes };
+}
 
-  /**
-   * Normalize a request/target path: strip query/hash, force a leading slash,
-   * and drop a trailing slash (except for the root path itself).
-   *
-   * @complexity O(n) in path length.
-   */
-  function normalizePath(rawPath: string): string {
-    // `split` always yields at least one element (an empty input gives [""]), so [0] is defined.
-    const withoutQueryOrHash = rawPath.split(/[?#]/, 1)[0]!;
-    const withLeadingSlash = withoutQueryOrHash.startsWith("/")
-      ? withoutQueryOrHash
-      : `/${withoutQueryOrHash}`;
-    if (withLeadingSlash.length > 1 && withLeadingSlash.endsWith("/")) {
-      return withLeadingSlash.slice(0, -1);
-    }
-    return withLeadingSlash;
+// ---------------------------------------------------------------------------
+// Path normalization + canonical URL composition
+// ---------------------------------------------------------------------------
+
+const ABSOLUTE_URL_PATTERN = /^[a-z][a-z0-9+.-]*:\/\//i;
+
+function isAbsoluteUrl(value: string): boolean {
+  return ABSOLUTE_URL_PATTERN.test(value) || value.startsWith("//");
+}
+
+/**
+ * Normalize a request/target path: strip query/hash, force a leading slash,
+ * and drop a trailing slash (except for the root path itself).
+ *
+ * @complexity O(n) in path length.
+ */
+function normalizePath(rawPath: string): string {
+  // `split` always yields at least one element (an empty input gives [""]), so [0] is defined.
+  const withoutQueryOrHash = rawPath.split(/[?#]/, 1)[0]!;
+  const withLeadingSlash = withoutQueryOrHash.startsWith("/")
+    ? withoutQueryOrHash
+    : `/${withoutQueryOrHash}`;
+  if (withLeadingSlash.length > 1 && withLeadingSlash.endsWith("/")) {
+    return withLeadingSlash.slice(0, -1);
   }
+  return withLeadingSlash;
+}
 
+function createPostPublicPath() {
   /**
    * Builds a post/page's own public path from its `slug` — the one point every call site that turns a
    * `PostRecord.slug` into a route string goes through, so the content-owned-homepage `"/"` root-slug
@@ -218,22 +215,52 @@ export function createRouting(required: CreateRoutingRequired, optional: CreateR
     return slug === "/" ? "/" : `/${slug}`;
   }
 
-  /**
-   * Compose the `canonicalUrl` a resolved `path` implies.
-   *
-   * TODO(ADR-040): compose canonicalUrl from OriginRegistryPort.canonicalOrigin(ctx)
-   * once `src/origin` exists, instead of `ctx.originOverride`. `src/origin` is
-   * being built in parallel by another agent and does not exist yet, so this
-   * library must not import it.
-   *
-   * @complexity O(1).
-   */
-  function composeCanonicalUrl(path: string, ctx: RouteResolveContext): string {
-    if (isAbsoluteUrl(path)) return path;
-    const origin = ctx.originOverride?.replace(/\/$/, "");
-    return origin ? `${origin}${path}` : path;
-  }
+  return postPublicPath;
+}
 
+/**
+ * Compose the `canonicalUrl` a resolved `path` implies.
+ *
+ * TODO: compose canonicalUrl from OriginRegistryPort.canonicalOrigin(ctx)
+ * once `src/origin` exists, instead of `ctx.originOverride`. `src/origin` is
+ * being built in parallel by another agent and does not exist yet, so this
+ * library must not import it.
+ *
+ * @complexity O(1).
+ */
+function composeCanonicalUrl(path: string, ctx: RouteResolveContext): string {
+  if (isAbsoluteUrl(path)) return path;
+  const origin = ctx.originOverride?.replace(/\/$/, "");
+  return origin ? `${origin}${path}` : path;
+}
+
+/**
+ * Stub: taxonomy isn't implemented in this repo. The Round-3 audit fold
+ * promoted "term-link schema" from an Open item to a Wave-1 acceptance
+ * blocker — `entry_refs` covers entry-to-entry references only,
+ * with no term-target schema yet (content-lib sign-off on a typed `term_refs`
+ * index, or an accepted `entry_refs` extension for term targets, is owed).
+ * Always resolves `null` until that schema lands.
+ */
+function resolveTermRefTarget(_target: TermRefTarget, _ctx: RouteResolveContext): RouteUrl | null {
+  return null;
+}
+
+const UNSAFE_URL_SCHEMES = ["javascript:", "data:"] as const;
+
+/**
+ * @complexity O(1) (bounded scheme-prefix check).
+ */
+function resolveUrlTarget(target: UrlTarget, ctx: RouteResolveContext): RouteUrl | null {
+  const href = target.href.trim();
+  const lowered = href.toLowerCase();
+  if (UNSAFE_URL_SCHEMES.some((scheme) => lowered.startsWith(scheme))) {
+    return null;
+  }
+  return { path: href, canonicalUrl: composeCanonicalUrl(href, ctx) };
+}
+
+function createEntryResolvers(required: CreateRoutingRequired, postPublicPath: Routing["postPublicPath"]) {
   // ---------------------------------------------------------------------------
   // Per-kind target resolvers (internal — dispatched by `urlFor`)
   // ---------------------------------------------------------------------------
@@ -289,32 +316,11 @@ export function createRouting(required: CreateRoutingRequired, optional: CreateR
     return entryPublicPath({ post: post, ctx: ctx });
   }
 
-  /**
-   * Stub: taxonomy isn't implemented in this repo. ADR-029's Round-3 audit fold
-   * promoted "term-link schema" from an Open item to a Wave-1 acceptance
-   * blocker — ADR-022 §5's `entry_refs` covers entry-to-entry references only,
-   * with no term-target schema yet (content-lib sign-off on a typed `term_refs`
-   * index, or an accepted `entry_refs` extension for term targets, is owed).
-   * Always resolves `null` until that schema lands.
-   */
-  function resolveTermRefTarget(_target: TermRefTarget, _ctx: RouteResolveContext): RouteUrl | null {
-    return null;
-  }
+  return { entryPublicPath, resolveEntryRefTarget };
+}
 
-  const UNSAFE_URL_SCHEMES = ["javascript:", "data:"] as const;
-
-  /**
-   * @complexity O(1) (bounded scheme-prefix check).
-   */
-  function resolveUrlTarget(target: UrlTarget, ctx: RouteResolveContext): RouteUrl | null {
-    const href = target.href.trim();
-    const lowered = href.toLowerCase();
-    if (UNSAFE_URL_SCHEMES.some((scheme) => lowered.startsWith(scheme))) {
-      return null;
-    }
-    return { path: href, canonicalUrl: composeCanonicalUrl(href, ctx) };
-  }
-
+function createInverseResolvers(required: CreateRoutingRequired, getNamedRoute: Routing["getNamedRoute"], postPublicPath: Routing["postPublicPath"]) {
+  const { entryPublicPath, resolveEntryRefTarget } = createEntryResolvers(required, postPublicPath);
   function resolveRouteRefTarget(target: RouteRefTarget, ctx: RouteResolveContext): RouteUrl | null {
     const path = getNamedRoute({ name: target.route });
     if (path === null) return null;
@@ -325,7 +331,7 @@ export function createRouting(required: CreateRoutingRequired, optional: CreateR
    * Resolve a `RouteTarget` to its concrete path + canonical URL.
    *
    * Purpose: the one inverse-resolution entrypoint Menus and SEO depend on.
-   * Deviates from ADR-039 §2's 2-arg pseudocode (`urlFor(target, ctx)`) by
+   * Deviates from the original 2-arg pseudocode (`urlFor(target, ctx)`) by
    * taking a required-object first parameter carrying `deps` — `entryRef`
    * resolution needs an async `PostRepoPort` call, so `urlFor` must be async and
    * (per this repo's house style) DI'd rather than reaching for a singleton.
@@ -368,7 +374,7 @@ export function createRouting(required: CreateRoutingRequired, optional: CreateR
    *
    * v0 does exact-path matching only, after normalization. Ancestor/prefix
    * semantics for nested menu highlighting (is `/blog` active on `/blog/post`?)
-   * are explicitly deferred to v0.1 (ADR-039 "Open" item 3) since they also
+   * are explicitly deferred to v0.1 (open design item 3) since they also
    * need the `urlFor → null` caller-render contract (hide vs. render inert)
    * pinned first.
    *
@@ -384,24 +390,23 @@ export function createRouting(required: CreateRoutingRequired, optional: CreateR
     return normalizePath(resolved.path) === normalizePath(required.currentPath);
   }
 
-  const phaseRegistry: PhaseRegistry = {
-    pre_content: [],
-    post_content: [],
-  };
+  return { entryPublicPath, urlFor, isActive };
+}
 
+function createPhaseRegistrations(phaseRegistry: PhaseRegistry) {
   /** Every phase, so an owner-wide revoke never has to be told which phases it used. */
   const ALL_PHASES: readonly RouteResolvePhaseName[] = ["pre_content", "post_content"];
 
   /**
    * Register a resolver into an ordered, core-owned pipeline phase
    * (`normalize → pre_content → content-resolve → post_content → 404`,
-   * ADR-039 §1). Not an open ADR-009 plugin hook in v1 — this is the seam
-   * Redirects (ADR-033) will register into once it exists; no real rules are
+   * in that order). Not an open plugin hook in v1 — this is the seam
+   * Redirects will register into once it exists; no real rules are
    * registered by this library itself.
    *
    * Resolvers within a phase run in registration order; the first non-`null`
    * outcome short-circuits the remaining resolvers in that phase and the rest
-   * of the pipeline. Per ADR-039 Round-2 amendment 5, a `pre_content` resolver
+   * of the pipeline. Per Round-2 amendment 5, a `pre_content` resolver
    * must only ever return a redirect/gone decision with an audited rule — it
    * must never fabricate a `not_found` for a path that live content could still
    * resolve. This library does not enforce that invariant (no rules exist yet
@@ -457,6 +462,10 @@ export function createRouting(required: CreateRoutingRequired, optional: CreateR
     }
   }
 
+  return { registerResolvePhase, unregisterResolvePhaseOwner };
+}
+
+function createPhaseRunner(required: CreateRoutingRequired, phaseRegistry: PhaseRegistry) {
   /**
    * Run one phase's handlers in registration order, first non-`null` outcome wins.
    *
@@ -500,6 +509,10 @@ export function createRouting(required: CreateRoutingRequired, optional: CreateR
     return null;
   }
 
+  return runPhase;
+}
+
+function createForwardResolvers(runPhase: ReturnType<typeof createPhaseRunner>) {
   /**
    * Run the forward resolution pipeline for an inbound request path.
    *
@@ -540,7 +553,7 @@ export function createRouting(required: CreateRoutingRequired, optional: CreateR
    * lookup in between. This additive, thin wrapper around the already-tested
    * module-private `runPhase()` lets a real site route run ONLY `pre_content`
    * before its own content lookup, and (separately) `runPostContentPhase` only
-   * after that lookup has failed — exactly ADR-039 §1's documented pipeline
+   * after that lookup has failed — exactly the documented pipeline
    * order (`pre_content -> content-resolve -> post_content`), which the single
    * `resolve()` export cannot reproduce when a real content lookup must run in
    * the middle. `resolve()`'s own SHAPE is UNCHANGED by this addition — this
@@ -574,15 +587,19 @@ export function createRouting(required: CreateRoutingRequired, optional: CreateR
     return runPhase("post_content", normalizePath(path), ctx);
   }
 
+  return { resolve, runPreContentPhase, runPostContentPhase };
+}
+
+function createSlugChangeCapture() {
   // ---------------------------------------------------------------------------
-  // SlugChangeCapture slot (ADR-039 §4)
+  // SlugChangeCapture slot
   // ---------------------------------------------------------------------------
 
   let boundSlugChangeCapture: SlugChangeCapture | undefined;
 
   /**
    * Bind the single `SlugChangeCapture` implementation the content write
-   * chokepoint calls inside a rename transaction. Per ADR-039 Round-2
+   * chokepoint calls inside a rename transaction. Per Round-2
    * amendment 1, no slot implementation may be plugin-supplied — this function
    * has no plugin-facing registration path today, only a core composition-root
    * call site.
@@ -612,6 +629,31 @@ export function createRouting(required: CreateRoutingRequired, optional: CreateR
     return boundSlugChangeCapture;
   }
 
+  function resetSlugChangeCapture(): void {
+    boundSlugChangeCapture = undefined;
+  }
+  return { registerSlugChangeCapture, getSlugChangeCapture, resetSlugChangeCapture };
+}
+
+/**
+ * Create routing over host-owned content visibility and fault reporting.
+ * Each instance owns its registrations; a host that historically shared one process registry
+ * must bind one instance and reuse it across composition roots. No database or clock is constructed.
+ * @param required Host ports; visibility errors propagate unchanged.
+ * @param optional Initial named-route configuration (home/search by default).
+ * @returns Resolvers and registration lifecycles sharing this instance's state.
+ * @complexity O(r) initialization for r configured named routes.
+ * @example const routing = createRouting({ ports }, { namedRoutes: [['home', '/']] });
+ */
+export function createRouting(required: CreateRoutingRequired, optional: CreateRoutingOptional = {}): Routing {
+  const { registerNamedRoute, getNamedRoute, resetNamedRoutes } = createNamedRoutes(optional);
+  const postPublicPath = createPostPublicPath();
+  const { entryPublicPath, urlFor, isActive } = createInverseResolvers(required, getNamedRoute, postPublicPath);
+  const phaseRegistry: PhaseRegistry = { pre_content: [], post_content: [] };
+  const { registerResolvePhase, unregisterResolvePhaseOwner } = createPhaseRegistrations(phaseRegistry);
+  const runPhase = createPhaseRunner(required, phaseRegistry);
+  const { resolve, runPreContentPhase, runPostContentPhase } = createForwardResolvers(runPhase);
+  const { registerSlugChangeCapture, getSlugChangeCapture, resetSlugChangeCapture } = createSlugChangeCapture();
   // ---------------------------------------------------------------------------
   // Test-only registry resets (deep-imported directly by this library's own
   // tests; deliberately NOT exported from index.ts's public barrel)
@@ -619,11 +661,10 @@ export function createRouting(required: CreateRoutingRequired, optional: CreateR
 
   /** Restore all module-level registries to their v0 defaults. Test use only. */
   function resetRoutingRegistrationsForTests(_required: EmptyOptions, _optional: EmptyOptions = {}): void {
-    namedRoutes.clear();
-    for (const [name, path] of initialNamedRoutes) namedRoutes.set(name, path);
+    resetNamedRoutes();
     phaseRegistry.pre_content = [];
     phaseRegistry.post_content = [];
-    boundSlugChangeCapture = undefined;
+    resetSlugChangeCapture();
   }
   return { entryPublicPath, getNamedRoute, getSlugChangeCapture, isActive, postPublicPath, registerNamedRoute, registerResolvePhase, registerSlugChangeCapture, resolve, runPostContentPhase, runPreContentPhase, unregisterResolvePhaseOwner, urlFor, resetRoutingRegistrationsForTests };
 }

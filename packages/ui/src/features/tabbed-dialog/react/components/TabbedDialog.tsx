@@ -78,7 +78,7 @@ export interface TabbedDialogProps<T extends TabbedDialogTab = TabbedDialogTab> 
  * it as the reference host, not a special case this component needs to know about.
  *
  * Proof this is separable from any one tab's content: in the origin `SettingsDialog.tsx`
- * (the 8,538-line vendored OD reference — see `packages/ui/source-map.md`), 8 of its 17
+ * (the 8,538-line vendored OD reference — see `archived UI source map`), 8 of its 17
  * real tabs were already separate files the original component merely mounted — the shell
  * itself never reached into a tab's internals.
  */
@@ -97,10 +97,12 @@ export function TabbedDialog<T extends TabbedDialogTab>({
   chromeExtra,
   dialogAriaLabelledBy = 'tabbed-dialog-title',
   className,
-}: TabbedDialogProps<T>) {
+  useTHook = useT,
+  useTabbedDialogHook = useTabbedDialog,
+}: TabbedDialogProps<T> & { useTHook?: typeof useT; useTabbedDialogHook?: typeof useTabbedDialog }) {
   const isModal = resolveIsModal({ hasOnClose: Boolean(onClose) }, { presentation });
-  const t = useT();
-  const shell = useTabbedDialog({
+  const t = useTHook();
+  const shell = useTabbedDialogHook({
     tabs,
     initialActiveTabId,
     activeTabId: controlledActiveTabId,
@@ -110,7 +112,7 @@ export function TabbedDialog<T extends TabbedDialogTab>({
     defaultFullscreen,
   });
 
-  const activeTab = findActiveTab(tabs, shell.activeTabId);
+  const activeTab = findActiveTab({ tabs, activeTabId: shell.activeTabId });
   const resolvedLabels = resolveTabbedDialogLabels({ t }, { labels });
 
   const body = (

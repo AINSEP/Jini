@@ -122,49 +122,14 @@ export function createFederationReloadCoordinator({ coordDeps, initiallyAdmitted
 ): FederationReloadCoordinator {
   const admitted = new Set(initiallyAdmitted);
   const awaitingGrants = new Set(initiallyAwaitingGrants);
-  const attach = coordDeps.attach ?? attachFederatedMcpTools;
+  const state = { coordDeps, admitted, awaitingGrants, attach: coordDeps.attach ?? attachFederatedMcpTools };
 
   let inFlight: Promise<FederationReloadResult> | null = null;
   let queuedNext: Promise<FederationReloadResult> | null = null;
 
-  async function runOnePass(): Promise<FederationReloadResult> {
-    const allConnections = await coordDeps.resolveConnections();
-    const refreshed = refreshFrozenFederationGrants({ registry: coordDeps.registry, connections: allConnections });
-    const eligibleIds = new Set(admitted);
-    for (const connection of allConnections) {
-      if (awaitingGrants.has(connection.config.connectionId) && connection.config.allowedToolNames.length > 0) eligibleIds.delete(connection.config.connectionId);
-    }
-    const unadmitted = selectUnadmittedConnections({ allConnections, admittedConnectionIds: eligibleIds });
-    if (unadmitted.length === 0) return { newlyAdmittedConnectionIds: refreshed.map(entry => entry.connectionId), reports: refreshed, connectFailures: [] };
-
-    // Empty, not omitted: omission resolves presets from the environment again, even though the
-    // boot pass already admitted them. Reload concerns only the operator-editable roster;
-    // environment presets cannot change without a real restart.
-    const attached = await attach({ registry: coordDeps.registry, deps: coordDeps.deps, connect: coordDeps.connect }, { connections: [], extraConnections: unadmitted, ...(coordDeps.logger ? { logger: coordDeps.logger } : {}) });
-
-    const attemptedConnections = new Map(unadmitted.map(connection => [connection.config.connectionId, connection]));
-    for (const entry of attached.reports) {
-      rememberAdmission({ entry, connection: attemptedConnections.get(entry.connectionId) });
-    }
-    return {
-      newlyAdmittedConnectionIds: [...refreshed, ...attached.reports].map((entry) => entry.connectionId),
-      reports: [...refreshed, ...attached.reports],
-      connectFailures: attached.connectFailures,
-    };
-  }
-
-  /** Only a successful empty-grant admission remains eligible for its first operator grant. O(1). */
-  function rememberAdmission({ entry, connection }: {
-    entry: AttachFederatedToolsResult['reports'][number]; connection: ResolvedFederatedConnection | undefined;
-  }, _options: Record<string, never> = {}): void {
-    admitted.add(entry.connectionId);
-    if (connection?.config.allowedToolNames.length === 0 && entry.report.admitted.length === 0) awaitingGrants.add(entry.connectionId);
-    else awaitingGrants.delete(entry.connectionId);
-  }
-
   function reload(_required: Record<string, never>): Promise<FederationReloadResult> {
     if (!inFlight) {
-      inFlight = runOnePass().finally(() => {
+      inFlight = runOnePass(state).finally(() => {
         inFlight = null;
       });
       return inFlight;
@@ -178,7 +143,7 @@ export function createFederationReloadCoordinator({ coordDeps, initiallyAdmitted
       // "never rejects") cannot wedge every future caller behind a permanently-rejected chain link.
       const runningPass = inFlight;
       queuedNext = runningPass.catch(() => undefined).then(() => {
-        const nextPass = runOnePass().finally(() => {
+        const nextPass = runOnePass(state).finally(() => {
           inFlight = null;
         });
         inFlight = nextPass;
@@ -191,3 +156,47 @@ export function createFederationReloadCoordinator({ coordDeps, initiallyAdmitted
 
   return { reload, admittedConnectionIds: () => admitted };
 }
+
+interface FederationReloadState {
+  coordDeps: FederationReloadCoordinatorDeps;
+  admitted: Set<string>;
+  awaitingGrants: Set<string>;
+  attach: typeof attachFederatedMcpTools;
+}
+
+async function runOnePass(state: FederationReloadState): Promise<FederationReloadResult> {
+  const { coordDeps, admitted, awaitingGrants, attach } = state;
+  const allConnections = await coordDeps.resolveConnections();
+  const refreshed = refreshFrozenFederationGrants({ registry: coordDeps.registry, connections: allConnections });
+  const eligibleIds = new Set(admitted);
+  for (const connection of allConnections) {
+    if (awaitingGrants.has(connection.config.connectionId) && connection.config.allowedToolNames.length > 0) eligibleIds.delete(connection.config.connectionId);
+  }
+  const unadmitted = selectUnadmittedConnections({ allConnections, admittedConnectionIds: eligibleIds });
+  if (unadmitted.length === 0) return { newlyAdmittedConnectionIds: refreshed.map(entry => entry.connectionId), reports: refreshed, connectFailures: [] };
+
+  // Empty, not omitted: omission resolves presets from the environment again, even though the
+  // boot pass already admitted them. Reload concerns only the operator-editable roster;
+  // environment presets cannot change without a real restart.
+  const attached = await attach({ registry: coordDeps.registry, deps: coordDeps.deps, connect: coordDeps.connect }, { connections: [], extraConnections: unadmitted, ...(coordDeps.logger ? { logger: coordDeps.logger } : {}) });
+
+  const attemptedConnections = new Map(unadmitted.map(connection => [connection.config.connectionId, connection]));
+  for (const entry of attached.reports) {
+    rememberAdmission(state, { entry, connection: attemptedConnections.get(entry.connectionId) });
+  }
+  return {
+    newlyAdmittedConnectionIds: [...refreshed, ...attached.reports].map((entry) => entry.connectionId),
+    reports: [...refreshed, ...attached.reports],
+    connectFailures: attached.connectFailures,
+  };
+}
+
+/** Only a successful empty-grant admission remains eligible for its first operator grant. O(1). */
+function rememberAdmission({ admitted, awaitingGrants }: FederationReloadState, { entry, connection }: {
+  entry: AttachFederatedToolsResult['reports'][number]; connection: ResolvedFederatedConnection | undefined;
+}): void {
+  admitted.add(entry.connectionId);
+  if (connection?.config.allowedToolNames.length === 0 && entry.report.admitted.length === 0) awaitingGrants.add(entry.connectionId);
+  else awaitingGrants.delete(entry.connectionId);
+}
+

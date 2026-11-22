@@ -1,13 +1,18 @@
+import { reportRouteInternalError } from '@jini-ai/http-kit';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it, vi } from 'vitest';
-import { ClientFacingError, defineJsonRoute, mountJsonRoute } from '@jini-ai/http-kit';
+import { createTestRouteHost } from '@jini-ai/core/contracts/server/testing';
+import { fakeDaemonRouteHost } from './fakes/route-host.js';
+import { describeRoutes } from '../route-table.js';
+import { defineJsonRoute, mountJsonRoute } from '@jini-ai/http-kit';
+import { ClientFacingError, ok, err } from '@jini-ai/core/contracts/server';
 import { createCompatApiError } from '@jini-ai/http-kit';
 import { sendApiError } from '@jini-ai/http-kit';
-import { bearerTokenFromHeader, timingSafeTokenMatch } from '@jini-ai/http-kit';
-import { registerConnectorsRoutes, connectorsStoragePutRoute, type StorageProvider } from '../connectors.js';
-import { ok, err } from '@jini-ai/http-kit';
+import { timingSafeTokenMatch } from '@jini-ai/http-kit';
+import { bearerTokenFromHeader } from '@jini-ai/core/contracts/server';
+import { connectorsRoutes, connectorsStoragePutRoute, type StorageProvider } from '../connectors.js';
 import { WorkspaceRootDeniedError } from '../workspace-root.js';
 
 describe('required and optional argument objects', () => {
@@ -40,7 +45,7 @@ describe('required and optional argument objects', () => {
       return ok({ value: `${supplied.tag}:${input}` });
     });
     const spec = defineJsonRoute({ method: 'post', path: '/example', parse: () => ok({ value: 'input' }), handle }, { successStatus: 201 });
-    mountJsonRoute({ app: app as never, spec, deps, adapter: { allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST', env: {}, resolvedPortRef: { current: 1234 } } });
+    mountJsonRoute({ app: app as never, spec, deps, adapter: createTestRouteHost() });
     const res = { status: vi.fn().mockReturnThis(), json: vi.fn().mockReturnThis() };
     await handler({ body: {}, params: {}, query: {} }, res);
     expect(app.post).toHaveBeenCalledWith('/example', expect.any(Function));
@@ -51,12 +56,11 @@ describe('required and optional argument objects', () => {
   it('passes storage inputs and content-type options to the injected port', async () => {
     const put = vi.fn(async () => ({ key: 'file', size: 1, updatedAt: 0 }));
     const storage: StorageProvider = { put, get: async () => null, delete: async () => { }, list: async () => [] };
-    const result = await connectorsStoragePutRoute.handle({ input: { key: 'file', dataBase64: 'YQ==', contentType: 'text/plain' }, deps: { storage } });
+    const result = await connectorsStoragePutRoute.handle({ input: { key: 'file', dataBase64: 'YQ==', contentType: 'text/plain' }, deps: { reportInternalError: reportRouteInternalError, storage } });
     expect(result).toEqual({ ok: true, value: { object: { key: 'file', size: 1, updatedAt: 0 } } });
     expect(put).toHaveBeenCalledWith({ key: 'file', data: Buffer.from('a') }, { contentType: 'text/plain' });
-    const app = { get: vi.fn(), post: vi.fn(), put: vi.fn(), delete: vi.fn(), patch: vi.fn() };
-    registerConnectorsRoutes({ app: app as never, deps: { storage }, adapter: { allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST', env: {}, resolvedPortRef: { current: 1234 } } });
-    expect(app.put.mock.calls.map(([path]) => path)).toContain('/api/connectors/storage/:key');
+    const routes = describeRoutes({ routes: connectorsRoutes({ deps: { storage }, host: fakeDaemonRouteHost() }) });
+    expect(routes).toContainEqual({ method: 'PUT', path: '/api/connectors/storage/:key', gates: ['same-origin'] });
   });
 });
 

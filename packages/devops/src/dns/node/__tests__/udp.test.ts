@@ -54,8 +54,8 @@ describe('createUdpDnsExchange', () => {
   test('picks udp6 for an IPv6 server and udp4 otherwise', async () => {
     const types: string[] = [];
     const exchange = createUdpDnsExchange({}, { createSocket: type => { types.push(type); return new FakeSocket(new Error('stop')) as never; } });
-    await expect(exchange({ address: '2001:db8::1', message: Uint8Array.from([1]), timeoutMs: 1 })).rejects.toThrow();
-    await expect(exchange({ address: '192.0.2.1', message: Uint8Array.from([1]), timeoutMs: 1 })).rejects.toThrow();
+    await expect(exchange({ address: '2001:db8::1', message: Uint8Array.from([1]), timeoutMs: 1 })).rejects.toThrow('stop');
+    await expect(exchange({ address: '192.0.2.1', message: Uint8Array.from([1]), timeoutMs: 1 })).rejects.toThrow('stop');
     expect(types).toEqual(['udp6', 'udp4']);
   });
 });

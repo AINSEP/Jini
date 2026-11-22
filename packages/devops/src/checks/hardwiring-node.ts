@@ -5,6 +5,7 @@ import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { isBuiltin } from 'node:module';
 import type ts from 'typescript';
+import { createConsoleLogger, type Logger } from '@jini-ai/core/primitives';
 import { diffHardwiringDebt, HARDWIRING_RULES, syntaxError } from './hardwiring.js';
 import type { HardwiringViolation } from './hardwiring.js';
 
@@ -181,16 +182,20 @@ export function installedPublicFunctions({ root, compiler: c }: { root: string; 
 }
 
 /** Shared occurrence ratchet and the sole debt generator. Never regenerate baselines in CI. */
-export async function runHardwiring({ collect, debtPath, baselineComment, logger = console }: {
+export async function runHardwiring({ collect, debtPath, baselineComment, report = createConsoleLogger({ prefix: '' }) }: {
   collect: () => readonly HardwiringViolation[] | Promise<readonly HardwiringViolation[]>;
-  debtPath: string; baselineComment: string; logger?: Pick<Console, 'log' | 'error'>;
-}, { writeBaseline = false }: { writeBaseline?: boolean } = {}): Promise<HardwiringViolation[]> {
+  debtPath: string; baselineComment: string; report?: Pick<Logger, 'info' | 'error'>;
+}, { writeBaseline = false, rules = HARDWIRING_RULES }: {
+  writeBaseline?: boolean;
+  /** The rule family this run reports on; a host with a separate debt file per family passes that family's rules. */
+  rules?: readonly string[];
+} = {}): Promise<HardwiringViolation[]> {
   const violations = await collect();
   if (writeBaseline) writeFileSync(debtPath, JSON.stringify({ _comment: baselineComment, violations }, null, 2) + '\n');
   const debt = JSON.parse(readFileSync(debtPath, 'utf8')) as { violations: HardwiringViolation[] };
   const { added, removed } = diffHardwiringDebt({ baseline: debt.violations, current: violations });
-  for (const rule of HARDWIRING_RULES) logger.log(`[hardwiring] ${rule}: ${violations.filter(v => v.rule === rule).length} total; ${added.filter(v => v.rule === rule).length} new`);
-  if (removed.length) logger.log(`[hardwiring] ${removed.length} stale debt occurrences; remove them from ${debtPath}.`);
-  for (const v of added) logger.error(`[hardwiring] ${v.rule} ${v.file}:${v.line}: ${v.reason}`);
+  for (const rule of rules) report.info({ message: `[hardwiring] ${rule}: ${violations.filter(v => v.rule === rule).length} total; ${added.filter(v => v.rule === rule).length} new` });
+  if (removed.length) report.info({ message: `[hardwiring] ${removed.length} stale debt occurrences; remove them from ${debtPath}.` });
+  for (const { rule, file, line, reason: why } of added) report.error({ message: `[hardwiring] ${rule} ${file}:${line}: ${why}` });
   return added;
 }

@@ -19,19 +19,21 @@ export interface VersionPromptPopoverProps {
    *  Escape handling while this popover is showing — without lifting the
    *  disclosure state itself out of this component. */
   onOpenChange?: (open: boolean) => void;
+  useTHook?: typeof useT;
+  useDismissOnOutsideOrEscapeHook?: typeof useDismissOnOutsideOrEscape;
 }
 
 /** Disclosure showing the AI-generation prompt behind the selected version,
  *  with a copy button. Open/close is small local UI state (acceptable per
  *  this package's hook-ownership discipline); copy-to-clipboard itself is
  *  injected, not reimplemented here. */
-export function VersionPromptPopover({ prompt, disabled, copied, onCopy, onOpenChange }: VersionPromptPopoverProps) {
-  const t = useT();
+export function VersionPromptPopover({ prompt, disabled, copied, onCopy, onOpenChange, useTHook = useT, useDismissOnOutsideOrEscapeHook = useDismissOnOutsideOrEscape }: VersionPromptPopoverProps) {
+  const t = useTHook();
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const popoverId = useId();
 
-  useDismissOnOutsideOrEscape({
+  useDismissOnOutsideOrEscapeHook({
     onDismiss: () => {
       setOpen(false);
       onOpenChange?.(false);

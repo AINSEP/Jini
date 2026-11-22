@@ -1,9 +1,9 @@
-import { useInvalidate } from '@jini-ai/ui/fetch-query';
+import { useInvalidate } from '../../../react/kit.js';
 import { MEDIA_QUERY_KEYS, useMediaLibraryQuery } from './MediaQuery.hooks.js';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { RefObject } from 'react';
-import type { TabViewProps } from '../../../core/react/bind-react.js';
-import { useController } from '../../../core/react/use-controller.js';
+import type { TabViewProps } from '@jini-ai/core/contracts/admin-module';
+import { useMediaController } from './MediaPorts.hooks.js';
 import { createLibraryController } from '../../controllers/library.controller.js';
 import { settleFromCache, useSharedMediaLibrary } from './MediaPage.hooks.js';
 import { useMediaPorts } from './MediaPorts.hooks.js';
@@ -111,16 +111,13 @@ function useFocusAfterWrites(
   }, [focusAfterPurge, snapshot?.pendingPurge, snapshot?.busy, snapshot?.items]);
   return { setFocusAfterAction, setFocusAfterPurge };
 }
-export function useLibraryTab(
-  { params, permissions = [] }: TabViewProps,
-  _optional: Record<string, never> = {},
-) {
+/** Ports, the shared-or-local controller, cache settling and the reload-on-error recovery. */
+function useLibraryController({ filter }: { filter: MediaContentTabId }, _optional: Record<string, never> = {}) {
   const { mediaApi, mediaEvents } = useMediaPorts();
-  const filter = contentFilter({ params });
   const shared = useSharedMediaLibrary();
   const cached = useMediaLibraryQuery({ api: mediaApi }, { enabled: !shared });
   const invalidate = useInvalidate();
-  const local = useController(
+  const local = useMediaController(
     {
       create: () => createLibraryController({ api: cached.api }, { query: { filter } }),
       dependencies: [cached.api, filter],
@@ -134,22 +131,22 @@ export function useLibraryTab(
   const { controller, snapshot } = shared ?? local;
   useEffect(() => !shared ? mediaEvents?.subscribe({ onRefresh: () => invalidate({ key: MEDIA_QUERY_KEYS.root }) }) : undefined, [mediaEvents, controller, shared, invalidate]);
   useEffect(() => { if (!shared) settleFromCache({ controller: local.controller, query: cached.query }); }, [shared, local.controller, cached.query.data, cached.query.error]);
-  const gridRef = useRef<HTMLDivElement>(null);
-  const [success, setSuccess] = useState<string | null>(null);
-  const { setFocusAfterAction, setFocusAfterPurge } = useFocusAfterWrites({ gridRef, snapshot });
   useEffect(() => {
     // A shared page controller survives tab unmounts. Re-entering after an error must
     // be a recovery opportunity even when its cached filter already matches this tab.
     if (controller?.getSnapshot().error && !controller.getSnapshot().loading) void controller.load();
   }, [controller]);
+  return { mediaApi, controller, snapshot };
+}
+/** The asset open in the edit dialog and what happens when it saves. */
+function useEditSession(
+  { controller, items, setSuccess, setFocusAfterAction }: {
+    controller: LibraryController | null; items: readonly MediaAsset[];
+    setSuccess: (message: string) => void; setFocusAfterAction: (focus: { id: string; index: number }) => void;
+  },
+  _optional: Record<string, never> = {},
+) {
   const [editing, setEditing] = useState<MediaAsset | null>(null);
-  // Lightbox — an index into the list, not the item itself, so arrow-key/navigation
-  // buttons move the number without re-deriving "what's next" from an item reference.
-  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
-  const items = snapshot?.items ?? [], pendingIds = snapshot?.pendingIds ?? [];
-  const can = libraryPermissions({ permissions, api: mediaApi });
-  const announce: Announce = ({ message, focus }) => { setSuccess(message); setFocusAfterAction(focus); };
-  const actions = cardActions({ items, pendingIds, can, controller, announce, onEdit: setEditing, onPreview: setLightboxIndex });
   function closeEdit() {
     setEditing(null);
   }
@@ -162,28 +159,17 @@ export function useLibraryTab(
     if (message) setSuccess(message);
     if (item) setFocusAfterAction({ id: item.id, index: Math.max(0, items.findIndex(row => row.id === item.id)) });
   }
+  return { editing, setEditing, closeEdit, saved };
+}
+/** Upload and purge writes of the library; announcements and focus return go through the passed setters. */
+function libraryWrites(
+  { controller, can, items, gridRef, setSuccess, setFocusAfterPurge }: {
+    controller: LibraryController | null; can: ReturnType<typeof libraryPermissions>; items: readonly MediaAsset[];
+    gridRef: RefObject<HTMLDivElement | null>; setSuccess: (message: string) => void; setFocusAfterPurge: (index: number) => void;
+  },
+  _optional: Record<string, never> = {},
+) {
   return {
-    emptyLabel: EMPTY_LABELS[filter],
-    canUpload: can.canUpload,
-    success,
-    gridRef,
-    onRetry: () => { void controller?.load(); },
-    canPurge: can.canPurge,
-    controller,
-    snapshot,
-    actions,
-    items,
-    mediaApi,
-    editing,
-    closeEdit,
-    saved,
-    lightboxIndex,
-    onNavigate: setLightboxIndex,
-    closeLightbox: () => setLightboxIndex(null),
-    ...queryHandlers({ controller }),
-    ...queryView({ snapshot }),
-    ...progressView({ snapshot, filter }),
-    purgeDialog: purgeDialogView({ snapshot }),
     async upload({ input, alt }: Parameters<LibraryController['upload']>[0]) {
       if (!can.canUpload) return false;
       const result = await controller?.upload({ input, ...(alt === undefined ? {} : { alt }) }) ?? false;
@@ -203,6 +189,48 @@ export function useLibraryTab(
         }
       });
     },
+  };
+}
+export function useLibraryTab(
+  { params, permissions = [] }: TabViewProps,
+  _optional: Record<string, never> = {},
+) {
+  const filter = contentFilter({ params });
+  const { mediaApi, controller, snapshot } = useLibraryController({ filter });
+  const gridRef = useRef<HTMLDivElement>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const { setFocusAfterAction, setFocusAfterPurge } = useFocusAfterWrites({ gridRef, snapshot });
+  const items = snapshot?.items ?? [], pendingIds = snapshot?.pendingIds ?? [];
+  const edit = useEditSession({ controller, items, setSuccess, setFocusAfterAction });
+  // Lightbox — an index into the list, not the item itself, so arrow-key/navigation
+  // buttons move the number without re-deriving "what's next" from an item reference.
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const can = libraryPermissions({ permissions, api: mediaApi });
+  const announce: Announce = ({ message, focus }) => { setSuccess(message); setFocusAfterAction(focus); };
+  const actions = cardActions({ items, pendingIds, can, controller, announce, onEdit: edit.setEditing, onPreview: setLightboxIndex });
+  return {
+    emptyLabel: EMPTY_LABELS[filter],
+    canUpload: can.canUpload,
+    success,
+    gridRef,
+    onRetry: () => { void controller?.load(); },
+    canPurge: can.canPurge,
+    controller,
+    snapshot,
+    actions,
+    items,
+    mediaApi,
+    editing: edit.editing,
+    closeEdit: edit.closeEdit,
+    saved: edit.saved,
+    lightboxIndex,
+    onNavigate: setLightboxIndex,
+    closeLightbox: () => setLightboxIndex(null),
+    ...queryHandlers({ controller }),
+    ...queryView({ snapshot }),
+    ...progressView({ snapshot, filter }),
+    purgeDialog: purgeDialogView({ snapshot }),
+    ...libraryWrites({ controller, can, items, gridRef, setSuccess, setFocusAfterPurge }),
     t: mediaMessagesEn,
   };
 }

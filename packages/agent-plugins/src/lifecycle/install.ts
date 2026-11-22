@@ -26,7 +26,7 @@ import { readPluginIdentity, assertPluginIdentityAvailable } from "@jini-ai/core
  *   bounding bytes actually observed leaving `openReadStream()`, not the archive's own declared
  *   size) and the "many small files" shape (caught by a running total across the whole archive).
  *
- * Why this is a SEPARATE format from the host runtime-plugin format's loader (`plugin-runtime/loader.ts`), not a
+ * Why this is a SEPARATE format from the host runtime-plugin format's loader (`packages/plugins/src/host/node/loader.ts`), not a
  * shared one: verified against that file directly. `loadPlugin()`'s BR-01 pipeline requires
  * `manifest.integrity` (a per-file SHA-256 map), `manifest.sdkRange` checked against a runtime
  * the host plugin SDK version, and a `server/index.mjs` ESM entry point it `import()`s. An Agent Plugin has
@@ -38,7 +38,7 @@ import { readPluginIdentity, assertPluginIdentityAvailable } from "@jini-ai/core
  * feature's own owner-locked decisions (see `CTX-AGENTPLUGINS-2026-08-12.md` F2) rule out.
  *
  * Why the archive itself is a `ArchiveReaderPort`, not a concrete zip/tar library call: this
- * codebase's own port+adapter discipline (`mcp-federation/ports.ts`'s `McpSessionPort`/
+ * codebase's own port+adapter discipline (`packages/mcp/src/federation/ports.ts`'s `McpSessionPort`/
  * `McpStdioChannel` split is the direct precedent) — and, concretely, no zip/tar dependency exists
  * in this repo's `package.json` today. Choosing and vetting one (license, maintenance, streaming
  * support) is a real decision outside a Programmer's scope to make silently; this module declares
@@ -167,92 +167,191 @@ export interface InstallAgentPluginOptional {
   readonly pruneSupersededRevisions?: boolean;
 }
 
-function buildModule(ports: AgentPluginLifecyclePorts) {
-  const persistentState = createPersistentStateModule(ports);
-  const chmod = ports.filesystem.chmod.bind(ports.filesystem);
-  const mkdir = ports.filesystem.mkdir.bind(ports.filesystem);
-  const mkdtemp = ports.filesystem.mkdtemp.bind(ports.filesystem);
-  const open = ports.filesystem.open.bind(ports.filesystem);
-  const readdir = ports.filesystem.readdir.bind(ports.filesystem);
-  const readFile = ports.filesystem.readFile.bind(ports.filesystem);
-  const rename = ports.filesystem.rename.bind(ports.filesystem);
-  const rm = ports.filesystem.rm.bind(ports.filesystem);
-  const stat = ports.filesystem.stat.bind(ports.filesystem);
-  const index = createInstalledPackageIndex({ ports });
-  const indexInstalledRoot = (packageRoot: string, archiveDigest: string) => index.indexInstalledRoot({ packageRoot, archiveDigest });
-  const { assertContainedOnDisk, normalizePackageEntryPath } = createPackagePathsModule(ports);
-  const LIMITS = {
-    maxArchiveBytes: 32 * 1024 * 1024,
-    maxEntries: 4096,
-    maxFileBytes: 16 * 1024 * 1024,
-    maxTotalExtractedBytes: 64 * 1024 * 1024,
-  } as const;
+const LIMITS = {
+  maxArchiveBytes: 32 * 1024 * 1024,
+  maxEntries: 4096,
+  maxFileBytes: 16 * 1024 * 1024,
+  maxTotalExtractedBytes: 64 * 1024 * 1024,
+} as const;
 
-  /** Publisher ids are metadata, never filesystem segments. The workspace identity lock
-   * serializes installs under different local names competing for one qualified id.
-   * @complexity O(d) manifest reads for d installed revisions; no executable imports. */
-  async function assertIdentityAvailable(workspaceRoot: string, candidate: InstalledAgentPlugin): Promise<void> {
-    // Installed roots are canonical paths; compare against the same root even when the host
-    // supplied an OS alias (macOS /var -> /private/var). Containment still rejects escaped links.
-    workspaceRoot = await ports.filesystem.realpath(workspaceRoot);
-    for (const root of await listInstalledPackageRoots({ ports, workspaceRoot })) {
-      const manifestPath = path.join(root.packageRoot, 'plugin.json');
-      await persistentState.assertOwnedPath({ workspaceRoot, entryPath: path.relative(workspaceRoot, manifestPath) });
-      let raw: Record<string, unknown>;
-      let identity: ReturnType<typeof readPluginIdentity>;
-      try {
-        raw = JSON.parse(await readFile(manifestPath, 'utf8'));
-        identity = readPluginIdentity({ manifest: raw, name: root.localId, namespace: resolveAgentPluginLifecycleNamespace({ value: raw, extensionNamespace: ports.extensionNamespace }) });
-      } catch {
-        // A damaged unrelated install must not block fresh installs or bundled seeding.
-        ports.onEvent?.({ event: 'agent-plugin-identity-warning', message: `Plugin '${root.localId}': installed identity manifest is unreadable or invalid; omitted from identity admission.` });
-        continue;
-      }
-      try {
-        assertPluginIdentityAvailable({ candidate: { id: candidate.id!, localId: candidate.pluginId, family: 'agent-plugin' },
-          installed: [{ ...identity, localId: root.localId, family: 'agent-plugin', version: typeof raw.version === 'string' ? raw.version : null, enabled: false }] });
-      } catch { throw new AgentPluginInstallError({ code: 'PLUGIN_ID_CONFLICT', message: 'The publisher-qualified plugin id conflicts with an installed package.' }); }
-    }
-  }
+const SHA256_HEX_PATTERN = /^[a-f0-9]{64}$/;
 
-  /** Retires only this plugin's superseded revisions after accepted publication, under the same
-   * identity/plugin locks. Persistent data, learned facts and notes never enter this operation.
-   * Reuse uninstall's frozen-tree staging so an interrupted removal is no longer a live digest.
-   * There is no previous-revision rollback slot in this lifecycle; failed publication keeps all
-   * prior bytes. Cleanup faults warn without turning an accepted install into a failed install.
-   * @complexity O(d + f), d workspace revisions, f files in this plugin's superseded packages.
-   */
-  async function pruneSupersededRevisions(
-    { workspaceRoot, installed }: { workspaceRoot: string; installed: InstalledAgentPlugin },
-    _optional: Record<string, never> = {},
-  ): Promise<void> {
+/** Publisher ids are metadata, never filesystem segments. The workspace identity lock
+ * serializes installs under different local names competing for one qualified id.
+ * @complexity O(d) manifest reads for d installed revisions; no executable imports. */
+async function assertIdentityAvailable({ ports, workspaceRoot, candidate }: {
+  ports: AgentPluginLifecyclePorts;
+  workspaceRoot: string;
+  candidate: InstalledAgentPlugin;
+}): Promise<void> {
+  // Installed roots are canonical paths; compare against the same root even when the host
+  // supplied an OS alias (macOS /var -> /private/var). Containment still rejects escaped links.
+  workspaceRoot = await ports.filesystem.realpath(workspaceRoot);
+  for (const root of await listInstalledPackageRoots({ ports, workspaceRoot })) {
+    const manifestPath = path.join(root.packageRoot, 'plugin.json');
+    await createPersistentStateModule(ports).assertOwnedPath({ workspaceRoot, entryPath: path.relative(workspaceRoot, manifestPath) });
+    let raw: Record<string, unknown>;
+    let identity: ReturnType<typeof readPluginIdentity>;
     try {
-      const removal = createUninstallModule(ports);
-      for (const root of await listInstalledPackageRoots({ ports, workspaceRoot })) {
-        if (root.localId !== installed.pluginId || root.archiveDigest === installed.archiveDigest) continue;
-        try {
-          const staged = await removal.stageForRemoval(path.dirname(root.packageRoot), root.packageRoot);
-          await removal.removeFrozenPackageTree(staged.quarantined);
-        } catch {
-          ports.onEvent?.({ event: 'agent-plugin-revision-prune-warning', message: `Plugin '${installed.pluginId}': a superseded revision could not be pruned.` });
-        }
-      }
+      raw = JSON.parse(await ports.filesystem.readFile(manifestPath, 'utf8'));
+      identity = readPluginIdentity({ manifest: raw, name: root.localId, namespace: resolveAgentPluginLifecycleNamespace({ value: raw, extensionNamespace: ports.extensionNamespace }) });
     } catch {
-      ports.onEvent?.({ event: 'agent-plugin-revision-prune-warning', message: `Plugin '${installed.pluginId}': superseded revisions could not be scanned for pruning.` });
+      // A damaged unrelated install must not block fresh installs or bundled seeding.
+      ports.onEvent?.({ event: 'agent-plugin-identity-warning', message: `Plugin '${root.localId}': installed identity manifest is unreadable or invalid; omitted from identity admission.` });
+      continue;
     }
+    try {
+      assertPluginIdentityAvailable({ candidate: { id: candidate.id!, localId: candidate.pluginId, family: 'agent-plugin' },
+        installed: [{ ...identity, localId: root.localId, family: 'agent-plugin', version: typeof raw.version === 'string' ? raw.version : null, enabled: false }] });
+    } catch { throw new AgentPluginInstallError({ code: 'PLUGIN_ID_CONFLICT', message: 'The publisher-qualified plugin id conflicts with an installed package.' }); }
   }
+}
 
-  /** Exposes `LIMITS.maxArchiveBytes` for a caller outside this module — concretely, a test asserting
+/** Retires only this plugin's superseded revisions after accepted publication, under the same
+ * identity/plugin locks. Persistent data, learned facts and notes never enter this operation.
+ * Reuse uninstall's frozen-tree staging so an interrupted removal is no longer a live digest.
+ * There is no previous-revision rollback slot in this lifecycle; failed publication keeps all
+ * prior bytes. Cleanup faults warn without turning an accepted install into a failed install.
+ * @complexity O(d + f), d workspace revisions, f files in this plugin's superseded packages.
+ */
+async function pruneSupersededRevisions({ ports, workspaceRoot, installed }: {
+  ports: AgentPluginLifecyclePorts;
+  workspaceRoot: string;
+  installed: InstalledAgentPlugin;
+}): Promise<void> {
+  try {
+    const removal = createUninstallModule(ports);
+    for (const root of await listInstalledPackageRoots({ ports, workspaceRoot })) {
+      if (root.localId !== installed.pluginId || root.archiveDigest === installed.archiveDigest) continue;
+      try {
+        const staged = await removal.stageForRemoval(path.dirname(root.packageRoot), root.packageRoot);
+        await removal.removeFrozenPackageTree(staged.quarantined);
+      } catch {
+        ports.onEvent?.({ event: 'agent-plugin-revision-prune-warning', message: `Plugin '${installed.pluginId}': a superseded revision could not be pruned.` });
+      }
+    }
+  } catch {
+    ports.onEvent?.({ event: 'agent-plugin-revision-prune-warning', message: `Plugin '${installed.pluginId}': superseded revisions could not be scanned for pruning.` });
+  }
+}
+
+/** Exposes `LIMITS.maxArchiveBytes` for a caller outside this module — concretely, a test asserting
  * `@jini-ai/agent-plugins/lifecycle`'s fetch cap constant stays pinned to this one. The local fetch-archive.ts fork was deleted; see the package's fetch module
  * for why it duplicates the number instead of importing it (no runtime dependency on `install.ts`);
  * this accessor is what lets a test assert the pairing without either module importing the other. */
-  function maxAgentPluginInstallArchiveBytes(): number {
-    return LIMITS.maxArchiveBytes;
+function maxAgentPluginInstallArchiveBytes(): number {
+  return LIMITS.maxArchiveBytes;
+}
+
+/** One install's resolved state, shared by the publish steps below. */
+interface InstallScope {
+  readonly ports: AgentPluginLifecyclePorts;
+  readonly required: InstallAgentPluginRequired;
+  readonly optional: InstallAgentPluginOptional;
+  readonly workspaceLayout: ReturnType<InstallAgentPluginRequired["layout"]["forWorkspace"]>;
+  readonly digest: string;
+  readonly indexed: InstalledAgentPlugin;
+  readonly extractionRoot: string;
+  readonly executablePaths: Awaited<ReturnType<typeof extractEntries>>;
+  published: InstalledAgentPlugin | undefined;
+}
+
+/** Size and digest gates on the archive bytes before anything touches disk; returns the verified digest. */
+function verifyArchiveBytes({ archive, expectedSha256 }: { archive: Uint8Array; expectedSha256: string }): string {
+  if (archive.byteLength > LIMITS.maxArchiveBytes) {
+    throw new AgentPluginInstallError({ code: "ARCHIVE_TOO_LARGE", message: `archive is ${archive.byteLength} bytes, over the ${LIMITS.maxArchiveBytes}-byte cap` });
   }
+  const digest = sha256(archive);
+  if (!SHA256_HEX_PATTERN.test(expectedSha256) || digest !== expectedSha256.toLowerCase()) {
+    throw new AgentPluginInstallError({ code: "DIGEST_MISMATCH", message: `archive SHA-256 '${digest}' does not match the expected '${expectedSha256}' — refusing to extract unverified bytes` });
+  }
+  return digest;
+}
 
-  const SHA256_HEX_PATTERN = /^[a-f0-9]{64}$/;
+/** Creates the workspace root and its owned staging directory. */
+async function ensureStagingArea(ports: AgentPluginLifecyclePorts, workspaceLayout: InstallScope["workspaceLayout"]): Promise<void> {
+  await ports.filesystem.mkdir(workspaceLayout.root, { recursive: true, mode: 0o700 });
+  await createPersistentStateModule(ports).assertOwnedPath({ workspaceRoot: workspaceLayout.root, entryPath: "staging" });
+  await ports.filesystem.mkdir(workspaceLayout.staging, { recursive: true, mode: 0o700 });
+}
 
-  /**
+/** Publishes the extracted package at its digest path (creating its owned dirs), reusing identical existing bytes. */
+async function publishPackage(scope: InstallScope): Promise<InstalledAgentPlugin> {
+  const { ports, workspaceLayout, digest, indexed, extractionRoot, executablePaths } = scope;
+  // Layout B needs the manifest id before choosing the package destination. Dedup still
+  // skips publication and freezing, after one bounded staging extraction.
+  // Owner decision 2026-10-04: learned facts begin empty for each site; author guidance stays
+  // in package docs. Package extension files never seed learned memory or the user's notes.
+  // Content-addressed dedup, scoped to THIS workspace's own tree (`workspaceLayout` was just
+  // resolved above, atomically, from this same `workspaceId`): identical bytes were already
+  // extracted, verified, and frozen by a prior install of this same workspace's — never
+  // re-extracted for a different workspace, by construction, since a different workspace's
+  // `workspaceLayout.packages` is a different path entirely. one bounded staging extraction precedes this check.
+  // Publish BEFORE freezing permissions, not after: `ports.filesystem.rename()` moves `extractionRoot` as a single
+  // directory-entry operation, and on this filesystem renaming an already-read-only (0o555)
+  // directory itself fails EACCES (observed, not merely theoretical — see the regression test this
+  // ordering fixed). Freezing after publish also closes a smaller race for free: nothing outside
+  // this function can observe the package at its live path while it is still writable, because the
+  // live path does not exist until `publish` returns.
+  // The manifest identifies the plugin only after bounded staging extraction (Layout B).
+  const pluginId = indexed.pluginId;
+  const packagesDir = workspaceLayout.pluginPackagesDir({ pluginId });
+  await createPersistentStateModule(ports).assertOwnedPath({ workspaceRoot: workspaceLayout.root, entryPath: path.relative(workspaceLayout.root, packagesDir) });
+  await ports.filesystem.mkdir(packagesDir, { recursive: true, mode: 0o700 });
+  const finalRoot = await createPackagePathsModule(ports).assertContainedOnDisk(packagesDir, digest);
+  await ensurePluginOwnedDirs({ ports, workspaceLayout, pluginId });
+  if (await reuseOrSetAsideExisting(ports, { packagesDir, finalRoot, extractionRoot, pluginId })) {
+    scope.published = await indexInstalledRoot({ ports, packageRoot: finalRoot, archiveDigest: digest });
+    return scope.published;
+  }
+  await publish({ ports, extractionRoot, finalRoot });
+  await freezeTree({ ports, root: finalRoot, executables: executablePaths });
+  /** Absolute, read-only (frozen) path to the extracted package root. */
+  scope.published = { ...indexed, packageRoot: finalRoot };
+  return scope.published;
+}
+
+/** Creates (owned, 0700) the plugin's data and learned/notes memory directories. */
+async function ensurePluginOwnedDirs({ ports, workspaceLayout, pluginId }: {
+  ports: AgentPluginLifecyclePorts;
+  workspaceLayout: InstallScope["workspaceLayout"];
+  pluginId: string;
+}): Promise<void> {
+  for (const directory of [workspaceLayout.pluginDataDir({ pluginId }),
+    workspaceLayout.pluginMemoryDir({ pluginId, kind: 'learned' }),
+    workspaceLayout.pluginMemoryDir({ pluginId, kind: 'notes' })]) {
+    await createPersistentStateModule(ports).assertOwnedPath({ workspaceRoot: workspaceLayout.root, entryPath: path.relative(workspaceLayout.root, directory) });
+    await ports.filesystem.mkdir(directory, { recursive: true, mode: 0o700 });
+  }
+}
+
+/** Publish under the plugin lock, then prune superseded revisions of the plugin just published. */
+function publishWithinPluginLock(scope: InstallScope) {
+  const { ports, required, optional, workspaceLayout, indexed } = scope;
+  return createPersistentStateModule(ports).withPluginLock({ workspaceRoot: workspaceLayout.root, pluginId: indexed.pluginId, run: async () => {
+    // Every install and replacement, not only an update, is a mutation of this plugin: an
+    // unfinished update journal refuses it here, under the same plugin lock, because boot
+    // recovery removes only the journal's own candidate digest and would otherwise restore the
+    // old revision beside whatever this install published.
+    // The journal lives under the layout this install was given, the one it publishes into.
+    await settleAgentPluginUpdateJournal({ store: createAgentPluginUpdateStore({ ports: { ...ports, layout: required.layout }, workspaceId: required.workspaceId, pluginId: indexed.pluginId }) });
+    const installed = await (optional.publishGuard ? optional.publishGuard({ plugin: indexed, publish: () => publishPackage(scope) }, {}) : publishPackage(scope));
+    if (scope.published && optional.pruneSupersededRevisions !== false) await pruneSupersededRevisions({ ports, workspaceRoot: workspaceLayout.root, installed: scope.published });
+    return installed;
+  } });
+}
+
+/** Publishes under the identity lock, asking the host's identity admission first when it has one. */
+function publishUnderIdentityLock(scope: InstallScope): Promise<InstalledAgentPlugin> {
+  const { ports, workspaceLayout, indexed } = scope;
+  return createPersistentStateModule(ports).withIdentityLock({ workspaceRoot: workspaceLayout.root, run: async () => {
+    await assertIdentityAvailable({ ports, workspaceRoot: workspaceLayout.root, candidate: indexed });
+    if (ports.identityAdmission) return ports.identityAdmission({ id: indexed.id!, localId: indexed.pluginId, run: () => publishWithinPluginLock(scope) }, {});
+    return publishWithinPluginLock(scope);
+  } });
+}
+
+/**
  * Verifies, extracts, and publishes one Agent Plugin archive.
  *
  * @throws {AgentPluginInstallError} For every expected failure — a hostile or malformed archive, a
@@ -266,171 +365,127 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
 // above for why this replaces accepting an already-resolved `AgentPluginWorkspaceLayout` directly.
 // `forWorkspace` itself still throws for a syntactically invalid `workspaceId`, unchanged.
 // Whether this install succeeded (bytes now live at `finalRoot`) or failed, the staging
-// transaction directory itself must never be left behind — on success `rename` already moved
+// transaction directory itself must never be left behind — on success `ports.filesystem.rename` already moved
 // `extractionRoot` out of it, so this only ever removes the (now-empty, or failure-abandoned)
 // temp directory, never the published package.
-  async function installAgentPlugin(
-    required: InstallAgentPluginRequired,
-    optional: InstallAgentPluginOptional = {}
-  ): Promise<InstalledAgentPlugin> {
-    const { archive, expectedSha256, archiveReader, layout, workspaceId } = required;
+async function installAgentPlugin({ ports, required }: {
+  ports: AgentPluginLifecyclePorts;
+  required: InstallAgentPluginRequired;
+}, optional: InstallAgentPluginOptional = {}): Promise<InstalledAgentPlugin> {
+  const { archive, expectedSha256, archiveReader, layout, workspaceId } = required;
+  const workspaceLayout = layout.forWorkspace({ workspaceId });
+  const digest = verifyArchiveBytes({ archive, expectedSha256 });
+  await ensureStagingArea(ports, workspaceLayout);
+  await assertEntryCountWithinCap(archiveReader.entries({ archive }));
+  const transactionRoot = await ports.filesystem.mkdtemp(path.join(workspaceLayout.staging, "install-"));
+  const extractionRoot = path.join(transactionRoot, "root");
+  await ports.filesystem.mkdir(extractionRoot, { mode: 0o700 });
 
-    const workspaceLayout = layout.forWorkspace({ workspaceId });
-
-    if (archive.byteLength > LIMITS.maxArchiveBytes) {
-      throw new AgentPluginInstallError({ code: "ARCHIVE_TOO_LARGE", message: `archive is ${archive.byteLength} bytes, over the ${LIMITS.maxArchiveBytes}-byte cap` });
-    }
-
-    const digest = sha256(archive);
-    if (!SHA256_HEX_PATTERN.test(expectedSha256) || digest !== expectedSha256.toLowerCase()) {
-      throw new AgentPluginInstallError({ code: "DIGEST_MISMATCH", message: `archive SHA-256 '${digest}' does not match the expected '${expectedSha256}' — refusing to extract unverified bytes` });
-    }
-
-    await mkdir(workspaceLayout.root, { recursive: true, mode: 0o700 });
-    await persistentState.assertOwnedPath({ workspaceRoot: workspaceLayout.root, entryPath: "staging" });
-    await mkdir(workspaceLayout.staging, { recursive: true, mode: 0o700 });
-    await assertEntryCountWithinCap(archiveReader.entries({ archive }));
-    const transactionRoot = await mkdtemp(path.join(workspaceLayout.staging, "install-"));
-    const extractionRoot = path.join(transactionRoot, "root");
-    await mkdir(extractionRoot, { mode: 0o700 });
-
-    try {
-      const executablePaths = await extractEntries(archiveReader.entries({ archive }), extractionRoot);
-      const indexed = await indexInstalledRoot(extractionRoot, digest);
-      if (optional.previewOnly) return indexed;
-
-      // Layout B needs the manifest id before choosing the package destination. Dedup still
-      // skips publication and freezing, after one bounded staging extraction.
-      // Owner decision 2026-10-04: learned facts begin empty for each site; author guidance stays
-      // in package docs. Package extension files never seed learned memory or the user's notes.
-      // Content-addressed dedup, scoped to THIS workspace's own tree (`workspaceLayout` was just
-      // resolved above, atomically, from this same `workspaceId`): identical bytes were already
-      // extracted, verified, and frozen by a prior install of this same workspace's — never
-      // re-extracted for a different workspace, by construction, since a different workspace's
-      // `workspaceLayout.packages` is a different path entirely. one bounded staging extraction precedes this check.
-      // Publish BEFORE freezing permissions, not after: `rename()` moves `extractionRoot` as a single
-      // directory-entry operation, and on this filesystem renaming an already-read-only (0o555)
-      // directory itself fails EACCES (observed, not merely theoretical — see the regression test this
-      // ordering fixed). Freezing after publish also closes a smaller race for free: nothing outside
-      // this function can observe the package at its live path while it is still writable, because the
-      // live path does not exist until `publish` returns.
-      let publishedPlugin: InstalledAgentPlugin | undefined;
-      const publishPackage = async (): Promise<InstalledAgentPlugin> => {
-        // The manifest identifies the plugin only after bounded staging extraction (Layout B).
-        const pluginId = indexed.pluginId;
-        const packagesDir = workspaceLayout.pluginPackagesDir({ pluginId });
-        await persistentState.assertOwnedPath({ workspaceRoot: workspaceLayout.root, entryPath: path.relative(workspaceLayout.root, packagesDir) });
-        await mkdir(packagesDir, { recursive: true, mode: 0o700 });
-        const finalRoot = await assertContainedOnDisk(packagesDir, digest);
-        for (const directory of [workspaceLayout.pluginDataDir({ pluginId }),
-          workspaceLayout.pluginMemoryDir({ pluginId, kind: 'learned' }),
-          workspaceLayout.pluginMemoryDir({ pluginId, kind: 'notes' })]) {
-          await persistentState.assertOwnedPath({ workspaceRoot: workspaceLayout.root, entryPath: path.relative(workspaceLayout.root, directory) });
-          await mkdir(directory, { recursive: true, mode: 0o700 });
-        }
-        if (await reuseOrSetAsideExisting({ packagesDir, finalRoot, extractionRoot, pluginId })) {
-          publishedPlugin = await indexInstalledRoot(finalRoot, digest);
-          return publishedPlugin;
-        }
-        await publish(extractionRoot, finalRoot);
-        await freezeTree(finalRoot, executablePaths);
-        /** Absolute, read-only (frozen) path to the extracted package root. */
-        publishedPlugin = { ...indexed, packageRoot: finalRoot };
-        return publishedPlugin;
-      };
-      const publishWithinPluginLock = () => persistentState.withPluginLock({ workspaceRoot: workspaceLayout.root, pluginId: indexed.pluginId, run: async () => {
-        // Every install and replacement, not only an update, is a mutation of this plugin: an
-        // unfinished update journal refuses it here, under the same plugin lock, because boot
-        // recovery removes only the journal's own candidate digest and would otherwise restore the
-        // old revision beside whatever this install published.
-        // The journal lives under the layout this install was given, the one it publishes into.
-        await settleAgentPluginUpdateJournal({ store: createAgentPluginUpdateStore({ ports: { ...ports, layout }, workspaceId, pluginId: indexed.pluginId }) });
-        const installed = await (optional.publishGuard ? optional.publishGuard({ plugin: indexed, publish: publishPackage }, {}) : publishPackage());
-        if (publishedPlugin && optional.pruneSupersededRevisions !== false) await pruneSupersededRevisions({ workspaceRoot: workspaceLayout.root, installed: publishedPlugin });
-        return installed;
-      } });
-      return await persistentState.withIdentityLock({ workspaceRoot: workspaceLayout.root, run: async () => {
-        await assertIdentityAvailable(workspaceLayout.root, indexed);
-        if (ports.identityAdmission) return ports.identityAdmission({ id: indexed.id!, localId: indexed.pluginId, run: publishWithinPluginLock }, {});
-        return publishWithinPluginLock();
-      } });
-    } finally {
-
-      await rm(transactionRoot, { recursive: true, force: true });
-    }
+  try {
+    const executablePaths = await extractEntries({ ports, entries: archiveReader.entries({ archive }), extractionRoot });
+    const indexed = await indexInstalledRoot({ ports, packageRoot: extractionRoot, archiveDigest: digest });
+    if (optional.previewOnly) return indexed;
+    return await publishUnderIdentityLock({ ports, required, optional, workspaceLayout, digest, indexed, extractionRoot, executablePaths, published: undefined });
+  } finally {
+    await ports.filesystem.rm(transactionRoot, { recursive: true, force: true });
   }
+}
 
-  /**
-   * Whether `finalRoot` already holds exactly the verified bytes in `extractionRoot`, so the install
-   * can deduplicate. A digest directory's NAME is only a claim: an operator with shell access can
-   * edit it in place ({@link freezeTree} is not a security boundary), and the ledger and the
-   * contribution trust gate check digest identity only — so reuse without comparing bytes would
-   * keep edited executable modules selected as shipped code. A mismatched copy is renamed aside
-   * under a non-digest name (kept for the operator, never indexed or selected) and `false` tells the
-   * caller to publish the pristine bytes in its place.
-   * @complexity O(f + b) in the file count and bytes of the two trees.
-   */
-  async function reuseOrSetAsideExisting(
-    { packagesDir, finalRoot, extractionRoot, pluginId }: { packagesDir: string; finalRoot: string; extractionRoot: string; pluginId: string },
-  ): Promise<boolean> {
-    if (!(await isRealDirectory(finalRoot))) return false;
-    if (await sameTree(finalRoot, extractionRoot)) return true;
-    const aside = path.join(packagesDir, `.modified-${path.basename(finalRoot).slice(0, 12)}-${randomUUID()}`);
-    await createUninstallModule(ports).stageForRemoval(packagesDir, finalRoot, { quarantined: aside });
-    ports.onEvent?.({ event: 'agent-plugin-modified-revision-preserved', message: `Plugin '${pluginId}': an installed revision no longer matched its digest; it was kept at '${aside}' and the verified bytes were reinstalled.` });
-    return false;
+/** Reads an extracted or installed package root into its indexed plugin record. */
+function indexInstalledRoot({ ports, packageRoot, archiveDigest }: {
+  ports: AgentPluginLifecyclePorts;
+  packageRoot: string;
+  archiveDigest: string;
+}) {
+  return createInstalledPackageIndex({ ports }).indexInstalledRoot({ packageRoot, archiveDigest });
+}
+
+/**
+ * Whether `finalRoot` already holds exactly the verified bytes in `extractionRoot`, so the install
+ * can deduplicate. A digest directory's NAME is only a claim: an operator with shell access can
+ * edit it in place ({@link freezeTree} is not a security boundary), and the ledger and the
+ * contribution trust gate check digest identity only — so reuse without comparing bytes would
+ * keep edited executable modules selected as shipped code. A mismatched copy is renamed aside
+ * under a non-digest name (kept for the operator, never indexed or selected) and `false` tells the
+ * caller to publish the pristine bytes in its place.
+ * @complexity O(f + b) in the file count and bytes of the two trees.
+ */
+async function reuseOrSetAsideExisting(ports: AgentPluginLifecyclePorts,
+  { packagesDir, finalRoot, extractionRoot, pluginId }: { packagesDir: string; finalRoot: string; extractionRoot: string; pluginId: string },
+): Promise<boolean> {
+  if (!(await isRealDirectory({ ports, target: finalRoot }))) return false;
+  if (await sameTree({ ports, left: finalRoot, right: extractionRoot })) return true;
+  const aside = path.join(packagesDir, `.modified-${path.basename(finalRoot).slice(0, 12)}-${randomUUID()}`);
+  await createUninstallModule(ports).stageForRemoval(packagesDir, finalRoot, { quarantined: aside });
+  ports.onEvent?.({ event: 'agent-plugin-modified-revision-preserved', message: `Plugin '${pluginId}': an installed revision no longer matched its digest; it was kept at '${aside}' and the verified bytes were reinstalled.` });
+  return false;
+}
+
+/** Same entry names, kinds and file bytes, recursively. @complexity O(f + b). */
+async function sameTree({ ports, left, right }: {
+  ports: AgentPluginLifecyclePorts;
+  left: string;
+  right: string;
+}): Promise<boolean> {
+  const [leftEntries, rightEntries] = await Promise.all([ports.filesystem.readdir(left, { withFileTypes: true }), ports.filesystem.readdir(right, { withFileTypes: true })]);
+  if (leftEntries.length !== rightEntries.length) return false;
+  const rightByName = new Map(rightEntries.map(entry => [entry.name, entry]));
+  for (const entry of leftEntries) {
+    const other = rightByName.get(entry.name);
+    if (!other || entry.isDirectory() !== other.isDirectory() || entry.isFile() !== other.isFile()) return false;
+    const [leftPath, rightPath] = [path.join(left, entry.name), path.join(right, entry.name)];
+    if (!(await (entry.isDirectory() ? sameTree({ ports, left: leftPath, right: rightPath }) : sameFile({ ports, left: leftPath, right: rightPath })))) return false;
   }
+  return true;
+}
 
-  /** Same entry names, kinds and file bytes, recursively. @complexity O(f + b). */
-  async function sameTree(left: string, right: string): Promise<boolean> {
-    const [leftEntries, rightEntries] = await Promise.all([readdir(left, { withFileTypes: true }), readdir(right, { withFileTypes: true })]);
-    if (leftEntries.length !== rightEntries.length) return false;
-    const rightByName = new Map(rightEntries.map(entry => [entry.name, entry]));
-    for (const entry of leftEntries) {
-      const other = rightByName.get(entry.name);
-      if (!other || entry.isDirectory() !== other.isDirectory() || entry.isFile() !== other.isFile()) return false;
-      const [leftPath, rightPath] = [path.join(left, entry.name), path.join(right, entry.name)];
-      if (!(await (entry.isDirectory() ? sameTree(leftPath, rightPath) : sameFile(leftPath, rightPath)))) return false;
-    }
-    return true;
-  }
+/** Size first, so a grown file is rejected without reading it. */
+async function sameFile({ ports, left, right }: {
+  ports: AgentPluginLifecyclePorts;
+  left: string;
+  right: string;
+}): Promise<boolean> {
+  if ((await ports.filesystem.stat(left)).size !== (await ports.filesystem.stat(right)).size) return false;
+  return Buffer.from(await ports.filesystem.readFile(left)).equals(Buffer.from(await ports.filesystem.readFile(right)));
+}
 
-  /** Size first, so a grown file is rejected without reading it. */
-  async function sameFile(left: string, right: string): Promise<boolean> {
-    if ((await stat(left)).size !== (await stat(right)).size) return false;
-    return Buffer.from(await readFile(left)).equals(Buffer.from(await readFile(right)));
-  }
-
-  /** The `(target '...')` suffix on the symlink-rejection message, or nothing when the entry carries
+/** The `(target '...')` suffix on the symlink-rejection message, or nothing when the entry carries
  * no `linkTarget` at all — split out purely to keep that `&&`/ternary pair out of
  * {@link extractOneEntry}'s own branch count. */
-  function symlinkRejectionMessage(entry: AgentPluginArchiveEntry): string {
-    const targetSuffix = "linkTarget" in entry && entry.linkTarget ? ` (target '${entry.linkTarget}')` : "";
-    return `archive entry '${entry.entryPath}' has kind '${entry.kind}', which Agent Plugin packages are not permitted to contain${targetSuffix}`;
-  }
+function symlinkRejectionMessage(entry: AgentPluginArchiveEntry): string {
+  const targetSuffix = "linkTarget" in entry && entry.linkTarget ? ` (target '${entry.linkTarget}')` : "";
+  return `archive entry '${entry.entryPath}' has kind '${entry.kind}', which Agent Plugin packages are not permitted to contain${targetSuffix}`;
+}
 
-  /** `normalizePackageEntryPath()`, with its thrown error re-shaped into the module's own
+/** `createPackagePathsModule(ports).normalizePackageEntryPath()`, with its thrown error re-shaped into the module's own
  * `AgentPluginInstallError` vocabulary. */
-  function normalizeEntryPathOrThrow(entryPath: string): string {
-    try {
-      return normalizePackageEntryPath(entryPath);
-    } catch (error) {
-      throw new AgentPluginInstallError({ code: "UNSAFE_ENTRY_PATH", message: `archive entry path is unsafe: '${entryPath}'` }, { cause: error });
-    }
+function normalizeEntryPathOrThrow({ ports, entryPath }: {
+  ports: AgentPluginLifecyclePorts;
+  entryPath: string;
+}): string {
+  try {
+    return createPackagePathsModule(ports).normalizePackageEntryPath(entryPath);
+  } catch (error) {
+    throw new AgentPluginInstallError({ code: "UNSAFE_ENTRY_PATH", message: `archive entry path is unsafe: '${entryPath}'` }, { cause: error });
   }
+}
 
-  /** `assertContainedOnDisk()`, with its thrown error re-shaped the same way. */
-  async function resolveContainedDestinationOrThrow(extractionRoot: string, normalized: string): Promise<string> {
-    try {
-      return await assertContainedOnDisk(extractionRoot, normalized);
-    } catch (error) {
-      throw new AgentPluginInstallError({ code: "UNSAFE_ENTRY_PATH", message: `archive entry resolves outside the package root: '${normalized}'` }, {
-        cause: error instanceof PackagePathViolation ? error : undefined,
-      });
-    }
+/** `createPackagePathsModule(ports).assertContainedOnDisk()`, with its thrown error re-shaped the same way. */
+async function resolveContainedDestinationOrThrow({ ports, extractionRoot, normalized }: {
+  ports: AgentPluginLifecyclePorts;
+  extractionRoot: string;
+  normalized: string;
+}): Promise<string> {
+  try {
+    return await createPackagePathsModule(ports).assertContainedOnDisk(extractionRoot, normalized);
+  } catch (error) {
+    throw new AgentPluginInstallError({ code: "UNSAFE_ENTRY_PATH", message: `archive entry resolves outside the package root: '${normalized}'` }, {
+      cause: error instanceof PackagePathViolation ? error : undefined,
+    });
   }
+}
 
-  /**
+/**
  * Applies every hardening rule in this module's header to one archive entry: symlink rejection,
  * path normalization, duplicate detection, containment, the per-file size cap, and (for a file
  * entry) the actual write. Returns the running total-extracted-bytes count, since that is the one
@@ -439,211 +494,228 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
 // Refused BEFORE path normalization: a symlink entry is never acceptable regardless of how
 // "safe" its own name looks, matching the ecosystem fix this module's header cites — validating
 // where a permitted symlink might point is more attack surface than refusing the entry kind.
-  async function extractOneEntry(args: {
-    entry: AgentPluginArchiveEntry;
-    extractionRoot: string;
-    seen: Set<string>;
-    executablePaths: Set<string>;
-    totalBytesSoFar: number;
-  }): Promise<number> {
-    const { entry, extractionRoot, seen, executablePaths, totalBytesSoFar } = args;
+async function extractOneEntry(ports: AgentPluginLifecyclePorts, args: {
+  entry: AgentPluginArchiveEntry;
+  extractionRoot: string;
+  seen: Set<string>;
+  executablePaths: Set<string>;
+  totalBytesSoFar: number;
+}): Promise<number> {
+  const { entry, extractionRoot, seen, executablePaths, totalBytesSoFar } = args;
 
-    if (entry.kind !== "file" && entry.kind !== "directory") {
-      throw new AgentPluginInstallError({ code: "SYMLINK_ENTRY_REJECTED", message: symlinkRejectionMessage(entry) });
-    }
-
-    const normalized = normalizeEntryPathOrThrow(entry.entryPath);
-
-    if (seen.has(normalized)) {
-      throw new AgentPluginInstallError({ code: "DUPLICATE_ENTRY", message: `duplicate archive entry '${normalized}' — refusing a second write over an already-vetted first one` });
-    }
-    seen.add(normalized);
-
-    const destination = await resolveContainedDestinationOrThrow(extractionRoot, normalized);
-
-    if (entry.kind === "directory") {
-      await mkdir(destination, { recursive: true, mode: 0o700 });
-      return totalBytesSoFar;
-    }
-
-    if ((entry.declaredSize ?? 0) > LIMITS.maxFileBytes) {
-      throw new AgentPluginInstallError({ code: "FILE_TOO_LARGE", message: `archive file '${normalized}' declares ${entry.declaredSize} bytes, over the ${LIMITS.maxFileBytes}-byte cap` });
-    }
-
-    await mkdir(path.dirname(destination), { recursive: true, mode: 0o700 });
-    const totalBytes = await writeContainedFile({
-      destination,
-      normalized,
-      stream: entry.openReadStream({}),
-      totalBytesSoFar,
-    });
-
-    if (entry.executable) executablePaths.add(normalized);
-    return totalBytes;
+  if (entry.kind !== "file" && entry.kind !== "directory") {
+    throw new AgentPluginInstallError({ code: "SYMLINK_ENTRY_REJECTED", message: symlinkRejectionMessage(entry) });
   }
 
-  /**
-   * Refuses a "million small files" archive from entry metadata alone, before a staging
-   * transaction exists. Checking only inside the extraction loop meant an over-cap archive first
-   * had the cap's worth of files contained, written and then deleted again. Every reader derives
-   * its entries from the archive bytes, so a second iteration costs one central-directory walk
-   * and opens no content stream.
-   */
-  /** Ported from Jini 78d4b60b: reject from metadata before a staging transaction exists.
+  const normalized = normalizeEntryPathOrThrow({ ports, entryPath: entry.entryPath });
+
+  if (seen.has(normalized)) {
+    throw new AgentPluginInstallError({ code: "DUPLICATE_ENTRY", message: `duplicate archive entry '${normalized}' — refusing a second write over an already-vetted first one` });
+  }
+  seen.add(normalized);
+
+  const destination = await resolveContainedDestinationOrThrow({ ports, extractionRoot, normalized });
+
+  if (entry.kind === "directory") {
+    await ports.filesystem.mkdir(destination, { recursive: true, mode: 0o700 });
+    return totalBytesSoFar;
+  }
+
+  if ((entry.declaredSize ?? 0) > LIMITS.maxFileBytes) {
+    throw new AgentPluginInstallError({ code: "FILE_TOO_LARGE", message: `archive file '${normalized}' declares ${entry.declaredSize} bytes, over the ${LIMITS.maxFileBytes}-byte cap` });
+  }
+
+  await ports.filesystem.mkdir(path.dirname(destination), { recursive: true, mode: 0o700 });
+  const totalBytes = await writeContainedFile(ports, {
+    destination,
+    normalized,
+    stream: entry.openReadStream({}),
+    totalBytesSoFar,
+  });
+
+  if (entry.executable) executablePaths.add(normalized);
+  return totalBytes;
+}
+
+/**
+ * Refuses a "million small files" archive from entry metadata alone, before a staging
+ * transaction exists. Checking only inside the extraction loop meant an over-cap archive first
+ * had the cap's worth of files contained, written and then deleted again. Every reader derives
+ * its entries from the archive bytes, so a second iteration costs one central-directory walk
+ * and opens no content stream.
+ */
+/** Ported from Jini 78d4b60b: reject from metadata before a staging transaction exists.
  * A second central-directory walk opens no content streams and avoids over-cap disk churn. */
-  async function assertEntryCountWithinCap(entries: AsyncIterable<AgentPluginArchiveEntry>): Promise<void> {
-    // Only the count matters, so the entries are stepped through without being bound to a name.
-    // Leaving early closes the walk the way for-await would, without letting a failing close
-    // replace the cap error.
-    const iterator = entries[Symbol.asyncIterator]();
-    let entryCount = 0;
-    for (let next = await iterator.next(); !next.done; next = await iterator.next()) {
-      entryCount += 1;
-      if (entryCount > LIMITS.maxEntries) {
-        await Promise.resolve(iterator.return?.()).catch(() => undefined);
-        throw tooManyEntriesError();
-      }
+async function assertEntryCountWithinCap(entries: AsyncIterable<AgentPluginArchiveEntry>): Promise<void> {
+  // Only the count matters, so the entries are stepped through without being bound to a name.
+  // Leaving early closes the walk the way for-await would, without letting a failing close
+  // replace the cap error.
+  const iterator = entries[Symbol.asyncIterator]();
+  let entryCount = 0;
+  for (let next = await iterator.next(); !next.done; next = await iterator.next()) {
+    entryCount += 1;
+    if (entryCount > LIMITS.maxEntries) {
+      await Promise.resolve(iterator.return?.()).catch(() => undefined);
+      throw tooManyEntriesError();
     }
   }
+}
 
-  function tooManyEntriesError(): AgentPluginInstallError {
-    return new AgentPluginInstallError({ code: "TOO_MANY_ENTRIES", message: `archive exceeds the ${LIMITS.maxEntries}-entry cap` });
-  }
+function tooManyEntriesError(): AgentPluginInstallError {
+  return new AgentPluginInstallError({ code: "TOO_MANY_ENTRIES", message: `archive exceeds the ${LIMITS.maxEntries}-entry cap` });
+}
 
-  /** Extracts every entry into `extractionRoot`, enforcing every hardening rule in this module's
+/** Extracts every entry into `extractionRoot`, enforcing every hardening rule in this module's
  * header. Returns the set of archive-relative paths the archive marked executable, for
  * {@link freezeTree} to preserve the `+x` bit on. */
-  async function extractEntries(
-    entries: AsyncIterable<AgentPluginArchiveEntry>,
-    extractionRoot: string,
-  ): Promise<ReadonlySet<string>> {
-    const seen = new Set<string>();
-    const executablePaths = new Set<string>();
-    let entryCount = 0;
-    let totalBytes = 0;
+async function extractEntries({ ports, entries, extractionRoot }: {
+  ports: AgentPluginLifecyclePorts;
+  entries: AsyncIterable<AgentPluginArchiveEntry>;
+  extractionRoot: string;
+}): Promise<ReadonlySet<string>> {
+  const seen = new Set<string>();
+  const executablePaths = new Set<string>();
+  let entryCount = 0;
+  let totalBytes = 0;
 
-    for await (const entry of entries) {
-      entryCount += 1;
-      // Still enforced here: the pre-pass trusts the reader to yield the same entries twice.
-      if (entryCount > LIMITS.maxEntries) throw tooManyEntriesError();
+  for await (const entry of entries) {
+    entryCount += 1;
+    // Still enforced here: the pre-pass trusts the reader to yield the same entries twice.
+    if (entryCount > LIMITS.maxEntries) throw tooManyEntriesError();
 
-      totalBytes = await extractOneEntry({ entry, extractionRoot, seen, executablePaths, totalBytesSoFar: totalBytes });
-    }
-
-    return executablePaths;
+    totalBytes = await extractOneEntry(ports, { entry, extractionRoot, seen, executablePaths, totalBytesSoFar: totalBytes });
   }
 
-  /** Streams one file entry to disk, bounding both its own size and the running archive total against
+  return executablePaths;
+}
+
+/** Streams one file entry to disk, bounding both its own size and the running archive total against
  * bytes ACTUALLY observed — never the archive format's declared size, which a decompression bomb
  * lies about by construction. `O_EXCL` refuses to write over anything already at `destination`
  * (there cannot legitimately be one — `extractEntries`'s duplicate check already refused a second
  * entry for the same path); `O_NOFOLLOW` refuses to follow a final-component symlink if the
  * filesystem somehow already had one (defense in depth — this module never creates one itself). */
-  async function writeContainedFile(params: {
-    destination: string;
-    normalized: string;
-    stream: AsyncIterable<Uint8Array>;
-    totalBytesSoFar: number;
-  }): Promise<number> {
-    let flags = constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL;
-    if (ports.process.platform !== "win32") flags |= constants.O_NOFOLLOW;
+async function writeContainedFile(ports: AgentPluginLifecyclePorts, params: {
+  destination: string;
+  normalized: string;
+  stream: AsyncIterable<Uint8Array>;
+  totalBytesSoFar: number;
+}): Promise<number> {
+  let flags = constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL;
+  if (ports.process.platform !== "win32") flags |= constants.O_NOFOLLOW;
 
-    const handle = await open(params.destination, flags, 0o600);
-    let fileBytes = 0;
-    let totalBytes = params.totalBytesSoFar;
+  const handle = await ports.filesystem.open(params.destination, flags, 0o600);
+  let fileBytes = 0;
+  let totalBytes = params.totalBytesSoFar;
 
-    try {
-      for await (const chunk of params.stream) {
-        fileBytes += chunk.byteLength;
-        totalBytes += chunk.byteLength;
+  try {
+    for await (const chunk of params.stream) {
+      fileBytes += chunk.byteLength;
+      totalBytes += chunk.byteLength;
 
-        if (fileBytes > LIMITS.maxFileBytes) {
-          throw new AgentPluginInstallError({ code: "DECOMPRESSION_BOMB", message: `archive file '${params.normalized}' exceeded the ${LIMITS.maxFileBytes}-byte cap while decompressing — its declared size was a lie` });
-        }
-        if (totalBytes > LIMITS.maxTotalExtractedBytes) {
-          throw new AgentPluginInstallError({ code: "TOTAL_SIZE_EXCEEDED", message: `archive exceeds the ${LIMITS.maxTotalExtractedBytes}-byte total extracted-size cap` });
-        }
-
-        await handle.write(chunk instanceof Buffer ? chunk : Buffer.from(chunk));
+      if (fileBytes > LIMITS.maxFileBytes) {
+        throw new AgentPluginInstallError({ code: "DECOMPRESSION_BOMB", message: `archive file '${params.normalized}' exceeded the ${LIMITS.maxFileBytes}-byte cap while decompressing — its declared size was a lie` });
       }
-    } finally {
-      await handle.close();
-    }
+      if (totalBytes > LIMITS.maxTotalExtractedBytes) {
+        throw new AgentPluginInstallError({ code: "TOTAL_SIZE_EXCEEDED", message: `archive exceeds the ${LIMITS.maxTotalExtractedBytes}-byte total extracted-size cap` });
+      }
 
-    return totalBytes;
+      await handle.write(chunk instanceof Buffer ? chunk : Buffer.from(chunk));
+    }
+  } finally {
+    await handle.close();
   }
 
-  /** Makes every file/directory under `root` read-only (executables keep `+x`, per the Agent Plugins
+  return totalBytes;
+}
+
+/** Makes every file/directory under `root` read-only (executables keep `+x`, per the Agent Plugins
  * spec's own MCP `command` needing to launch a `./`-relative script — not exercised by anything in
  * this slice, since MCP execution is out of scope for v1, but the bit is preserved now rather than
  * silently dropped for whenever it is).
  *
- * Stated plainly rather than implied (`mcp-federation/trust.ts`'s own "what this tier deliberately
+ * Stated plainly rather than implied (`packages/mcp/src/federation/trust.ts`'s own "what this tier deliberately
  * does NOT claim" discipline): this is best-effort defense against an ACCIDENTAL same-process write
  * into what is supposed to be a read-only `PLUGIN_ROOT`, not a security boundary against a
- * determined attacker already running code as this same OS user — that user can `chmod` again. */
-  async function freezeTree(root: string, executables: ReadonlySet<string>, prefix = ""): Promise<void> {
-    for (const entry of await readdir(root, { withFileTypes: true })) {
-      const relative = prefix ? `${prefix}/${entry.name}` : entry.name;
-      const absolute = path.join(root, entry.name);
+ * determined attacker already running code as this same OS user — that user can `ports.filesystem.chmod` again. */
+async function freezeTree({ ports, root, executables }: {
+  ports: AgentPluginLifecyclePorts;
+  root: string;
+  executables: ReadonlySet<string>;
+}, { prefix = "" }: { prefix?: string } = {}): Promise<void> {
+  for (const entry of await ports.filesystem.readdir(root, { withFileTypes: true })) {
+    const relative = prefix ? `${prefix}/${entry.name}` : entry.name;
+    const absolute = path.join(root, entry.name);
 
-      if (entry.isDirectory()) {
-        await freezeTree(absolute, executables, relative);
-        await chmod(absolute, 0o555);
-      } else {
-        await chmod(absolute, executables.has(relative) ? 0o555 : 0o444);
-      }
-    }
-    await chmod(root, 0o555);
-  }
-
-  /** Publishes `extractionRoot` to `finalRoot` by rename — atomic on the same filesystem, so a reader
-   * can never observe a partially-extracted package at the live path. Tolerates losing a race against
-   * a concurrent install of the byte-identical digest (the same content, published a moment earlier by
-   * another process) rather than treating that as a failure. */
-  // macOS reports EACCES, rather than ENOTEMPTY, when the winning install has already
-  // frozen its destination directory. Still require a real directory below: a permission
-  // failure with no published winner must remain PUBLISH_FAILED.
-  async function publish(extractionRoot: string, finalRoot: string): Promise<void> {
-    try {
-      await rename(extractionRoot, finalRoot);
-    } catch (error) {
-
-      if (!isErrnoException(error) || (error.code !== "EEXIST" && error.code !== "ENOTEMPTY" && error.code !== "EACCES")) {
-        throw new AgentPluginInstallError({ code: "PUBLISH_FAILED", message: `failed to publish the extracted package to '${finalRoot}'` }, { cause: error });
-      }
-      if (!(await isRealDirectory(finalRoot))) {
-        throw new AgentPluginInstallError({ code: "PUBLISH_FAILED", message: `'${finalRoot}' exists but is not a real, published package directory` }, { cause: error });
-      }
-      // Lost the race to a concurrent install of identical bytes — the bytes at `finalRoot` are the
-      // ones this install itself would have written, so this is not a failure.
+    if (entry.isDirectory()) {
+      await freezeTree({ ports, root: absolute, executables }, { prefix: relative });
+      await ports.filesystem.chmod(absolute, 0o555);
+    } else {
+      await ports.filesystem.chmod(absolute, executables.has(relative) ? 0o555 : 0o444);
     }
   }
+  await ports.filesystem.chmod(root, 0o555);
+}
 
-  async function isRealDirectory(target: string): Promise<boolean> {
-    try {
-      const info = await stat(target);
-      return info.isDirectory();
-    } catch (error) {
-      if (isErrnoException(error) && error.code === "ENOENT") return false;
-      throw error;
+/** Publishes `extractionRoot` to `finalRoot` by ports.filesystem.rename — atomic on the same filesystem, so a reader
+ * can never observe a partially-extracted package at the live path. Tolerates losing a race against
+ * a concurrent install of the byte-identical digest (the same content, published a moment earlier by
+ * another process) rather than treating that as a failure. */
+// macOS reports EACCES, rather than ENOTEMPTY, when the winning install has already
+// frozen its destination directory. Still require a real directory below: a permission
+// failure with no published winner must remain PUBLISH_FAILED.
+async function publish({ ports, extractionRoot, finalRoot }: {
+  ports: AgentPluginLifecyclePorts;
+  extractionRoot: string;
+  finalRoot: string;
+}): Promise<void> {
+  try {
+    await ports.filesystem.rename(extractionRoot, finalRoot);
+  } catch (error) {
+
+    if (!isErrnoException(error) || (error.code !== "EEXIST" && error.code !== "ENOTEMPTY" && error.code !== "EACCES")) {
+      throw new AgentPluginInstallError({ code: "PUBLISH_FAILED", message: `failed to publish the extracted package to '${finalRoot}'` }, { cause: error });
     }
+    if (!(await isRealDirectory({ ports, target: finalRoot }))) {
+      throw new AgentPluginInstallError({ code: "PUBLISH_FAILED", message: `'${finalRoot}' exists but is not a real, published package directory` }, { cause: error });
+    }
+    // Lost the race to a concurrent install of identical bytes — the bytes at `finalRoot` are the
+    // ones this install itself would have written, so this is not a failure.
   }
+}
 
-  function sha256(value: Uint8Array): string {
-    return createHash("sha256").update(value).digest("hex");
+async function isRealDirectory({ ports, target }: {
+  ports: AgentPluginLifecyclePorts;
+  target: string;
+}): Promise<boolean> {
+  try {
+    const info = await ports.filesystem.stat(target);
+    return info.isDirectory();
+  } catch (error) {
+    if (isErrnoException(error) && error.code === "ENOENT") return false;
+    throw error;
   }
+}
 
-  function isErrnoException(error: unknown): error is NodeJS.ErrnoException {
-    return typeof error === "object" && error !== null && "code" in error;
-  }
+function sha256(value: Uint8Array): string {
+  return createHash("sha256").update(value).digest("hex");
+}
 
-  return { maxAgentPluginInstallArchiveBytes, installAgentPlugin, indexInstalledRoot };
+function isErrnoException(error: unknown): error is NodeJS.ErrnoException {
+  return typeof error === "object" && error !== null && "code" in error;
+}
+
+function buildModule(ports: AgentPluginLifecyclePorts) {
+  return {
+    maxAgentPluginInstallArchiveBytes,
+    installAgentPlugin: (required: InstallAgentPluginRequired, optional: InstallAgentPluginOptional = {}) => installAgentPlugin({ ports, required }, optional),
+    indexInstalledRoot: (packageRoot: string, archiveDigest: string) => indexInstalledRoot({ ports, packageRoot, archiveDigest }),
+  };
 }
 
 const instances = new WeakMap<AgentPluginLifecyclePorts, ReturnType<typeof buildModule>>();
 /** Internal composition; one state/queue instance per injected host context. */
-export function createInstallModule(ports: AgentPluginLifecyclePorts) {
+export function createInstallModule(ports: AgentPluginLifecyclePorts, _optional: Record<string, never> = {}) {
   let instance = instances.get(ports);
   if (!instance) { instance = buildModule(ports); instances.set(ports, instance); }
   return instance;

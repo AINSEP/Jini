@@ -25,7 +25,7 @@ function acmeHost(steps: Step[]) {
     projections,
   } as unknown as PluginHostDeps<never>['mcp'];
   const deps: PluginHostDeps<never> = {
-    workspaceId: 'acme-ws', agentPluginLayout: { forWorkspace: (id: string) => ({ root: `/srv/acme/${id}` }) }, clock: { now: () => new Date(0) } as never,
+    workspaceId: 'acme-ws', agentPluginLayout: { forWorkspace: ({ workspaceId }: { workspaceId: string }) => ({ root: `/srv/acme/${workspaceId}` }) }, clock: { now: () => new Date(0) } as never,
     namespace: 'acme',
     discoverPlugins: async () => [], getActivation: async () => null,
     lifecycle: {
@@ -62,7 +62,9 @@ it('moved plugin host provisions with the real bodies, warns, then grants with t
   expect(grant.required.pluginId).toBe('weather');
   expect(grant.required.deps.workspaceId).toBe('acme-ws');
   expect(grant.optional).toEqual({ skipServerKeys: ['beta'] });
-  expect(String(steps[4]!.detail)).toContain('acme store full');
+  // The warning carries fixed words plus the error class; the original text ('acme store full') goes to the host's sink.
+  expect(String(steps[4]!.detail)).toContain("MCP provisioning for server 'beta' failed");
+  expect(String(steps[4]!.detail)).not.toContain('acme store full');
   expect(JSON.stringify(steps)).not.toMatch(/tovu|Tovu|plugins_set_enabled|system:/);
 });
 
@@ -73,7 +75,7 @@ it('declined access is attributed to the host actor, and skip reasons are the ho
   const accessKey = JSON.stringify([{ connectionId: 'c1', grant: { enabled: true, allow: [], write: [] }, expected: { writeGrantsUpdatedByPrincipalId: null }, current: { enabled: false, allow: [], write: [] } }]);
   await capability.recordDeclinedAccess({ accessKey });
   expect(applied).toMatchObject([{ workspaceId: 'acme-ws', serverId: 'c1', principalId: 'acme:declined' }]);
-  const plan = planAgentPluginMcpFederation({ servers: { old: { type: 'sse', url: 'https://old.acme.test' } as never } }, {
+  const plan = planAgentPluginMcpFederation({ servers: { old: { type: 'sse', url: 'https://old.acme.test' } as never },
     classifyTrust: () => 'auto-admit', messages: { sseTransportUnsupported: () => 'acme: sse unsupported', headersUnsupported: () => 'acme: headers unsupported' },
   });
   expect(plan.skipped).toEqual([{ serverKey: 'old', reason: 'acme: sse unsupported' }]);

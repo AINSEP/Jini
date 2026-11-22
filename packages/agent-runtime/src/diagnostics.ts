@@ -3,9 +3,9 @@
  * Explain executable/authentication detection failures and preserve safe startup evidence.
  */
 import { agentBinEnvKey, agentSearchDirs, type ExecutableResolutionOptions } from './executables.js';
-import type { AgentLaunchResolution } from './launch.js';
+import type { AgentLaunchResolution, RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 import type { AgentAuthProbeResult } from './auth.js';
-import type { AgentDiagnostic, AgentFixIntent, RuntimeAgentDef } from './types.js';
+import type { AgentDiagnostic, AgentFixIntent } from '@jini-ai/protocol';
 import { formatErrorForLog } from '@jini-ai/core';
 
 /** Pasteable startup evidence, redacted before a UTF-8 byte cap is applied. No stack or input
@@ -94,7 +94,7 @@ export type NotInvocableCause = 'not-executable' | 'missing-target';
 // are real binaries that need their executable bit restored; missing-target
 // failures are usually leftover npm/nvm/mise shims whose underlying target
 // was uninstalled.
-export function buildNotInvocableDiagnostic({ def, launch, cause }: { def: Pick<RuntimeAgentDef, 'id' | 'name'>; launch: Pick<AgentLaunchResolution, 'selectedPath' | 'launchPath'>; cause: NotInvocableCause }
+export function buildNotInvocableDiagnostic({ def, launch, cause }: { def: Pick<RuntimeAgentDef, 'id' | 'name'>; launch: Pick<AgentLaunchResolution, 'selectedPath' | 'launchPath'>; cause: NotInvocableCause }, _optional: Record<string, never> = {}
 ): AgentDiagnostic {
   if (cause === 'not-executable') {
     return {
@@ -119,7 +119,7 @@ export function buildNotInvocableDiagnostic({ def, launch, cause }: { def: Pick<
 // for adapters that declare a cheap, side-effect-free authProbe; until an
 // adapter also declares a spawn-safe OAuth producer, diagnostics point at
 // docs.
-export function buildAuthDiagnostic({ def, auth }: { def: Pick<RuntimeAgentDef, 'id' | 'name'>; auth: AgentAuthProbeResult }
+export function buildAuthDiagnostic({ def, auth }: { def: Pick<RuntimeAgentDef, 'id' | 'name'>; auth: AgentAuthProbeResult }, _optional: Record<string, never> = {}
 ): AgentDiagnostic | null {
   if (auth.status === 'ok') return null;
   const signInIntent: AgentFixIntent = { kind: 'openDocs' };

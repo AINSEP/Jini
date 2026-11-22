@@ -141,7 +141,7 @@ export function EditorIcon({ editorId, size = 16 }: Props) {
   if (!visual) {
     return (
       <span
-        className="editor-icon"
+        className="jini-editor-icon"
         style={{
           width: size,
           height: size,
@@ -167,7 +167,7 @@ export function EditorIcon({ editorId, size = 16 }: Props) {
   }
   return (
     <span
-      className="editor-icon"
+      className="jini-editor-icon"
       style={{ width: size, height: size, background: visual.bg, color: visual.fg }}
     >
       {visual.glyph(size)}

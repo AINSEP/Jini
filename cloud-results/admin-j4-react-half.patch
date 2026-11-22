@@ -1,0 +1,1086 @@
+diff --git a/packages/admin/package.json b/packages/admin/package.json
+index 72acb4a8..3829fbbb 100644
+--- a/packages/admin/package.json
++++ b/packages/admin/package.json
+@@ -24,8 +24,6 @@
+       "./react/entities": "browser",
+       "./browser/shell-navigation": "browser",
+       "./core/module": "universal",
+-      "./react/bind-react": "browser",
+-      "./react/use-controller": "browser",
+       "./react/overlays": "browser",
+       "./react/kit": "browser",
+       "./react/testing-kit": "browser",
+@@ -55,7 +53,6 @@
+       "./agent-plugins/adapters/http": "universal",
+       "./agent-plugins/adapters/memory": "universal",
+       "./agent-plugins/conformance": "universal",
+-      "./core/react": "browser",
+       "./forms": "universal",
+       "./forms/react": "browser",
+       "./forms/adapters/http": "universal",
+@@ -101,6 +98,7 @@
+     },
+     "optionalPeers": {
+       "@jini-ai/ui": "opt-in: ui integrations; import @jini-ai/admin/react — UI integrations could not load @jini-ai/ui. Install @jini-ai/ui to enable this feature, or check its installed version and native binaries.",
++      "@jini-ai/ui-kit": "opt-in: module bindings; import @jini-ai/admin/react — module bindings could not load @jini-ai/ui-kit. Install @jini-ai/ui-kit to enable this feature, or check its installed version and native binaries.",
+       "@jini-ai/agent-plugins": "opt-in: agent plugin integrations — Agent plugin integrations could not load @jini-ai/agent-plugins. Install @jini-ai/agent-plugins to enable this feature, or check its installed version and native binaries.",
+       "@jini-ai/cms": "opt-in: cms integrations; import @jini-ai/admin/media — CMS integrations could not load @jini-ai/cms. Install @jini-ai/cms to enable this feature, or check its installed version and native binaries.",
+       "react": "opt-in: react admin bindings; import @jini-ai/admin/react — React admin bindings could not load react. Install react to enable this feature, or check its installed version.",
+@@ -157,16 +155,6 @@
+       "import": "./dist/core/module/index.js",
+       "default": "./dist/core/module/index.js"
+     },
+-    "./react/bind-react": {
+-      "types": "./dist/react/bind-react.d.ts",
+-      "import": "./dist/react/bind-react.js",
+-      "default": "./dist/react/bind-react.js"
+-    },
+-    "./react/use-controller": {
+-      "types": "./dist/react/use-controller.d.ts",
+-      "import": "./dist/react/use-controller.js",
+-      "default": "./dist/react/use-controller.js"
+-    },
+     "./react/overlays": {
+       "types": "./dist/react/overlays.d.ts",
+       "import": "./dist/react/overlays.js",
+@@ -312,11 +300,6 @@
+       "import": "./dist/agent-plugins/conformance/agent-plugins-api.conformance.js",
+       "default": "./dist/agent-plugins/conformance/agent-plugins-api.conformance.js"
+     },
+-    "./core/react": {
+-      "types": "./dist/core/react/index.d.ts",
+-      "import": "./dist/core/react/index.js",
+-      "default": "./dist/core/react/index.js"
+-    },
+     "./forms": {
+       "types": "./dist/forms/index.d.ts",
+       "import": "./dist/forms/index.js",
+@@ -477,7 +460,8 @@
+     "@jini-ai/ui": "^0.7.0",
+     "@jini-ai/agent-plugins": "^0.7.0",
+     "@jini-ai/cms": "^0.7.0",
+-    "@jini-ai/core": "^0.7.0"
++    "@jini-ai/core": "^0.7.0",
++    "@jini-ai/ui-kit": "^0.7.0"
+   },
+   "devDependencies": {
+     "@testing-library/jest-dom": "^6.6.3",
+@@ -496,17 +480,13 @@
+     "@jini-ai/core": "workspace:^",
+     "@testing-library/user-event": "^14.6.1"
+   },
+-  "typesVersions": {
+-    "*": {
+-      "core/react": [
+-        "./dist/core/react/index.d.ts"
+-      ]
+-    }
+-  },
+   "peerDependenciesMeta": {
+     "@jini-ai/ui": {
+       "optional": true
+     },
++    "@jini-ai/ui-kit": {
++      "optional": true
++    },
+     "@jini-ai/agent-plugins": {
+       "optional": true
+     },
+diff --git a/packages/admin/src/agent-plugins/react/__tests__/agent-plugins-hooks.test.tsx b/packages/admin/src/agent-plugins/react/__tests__/agent-plugins-hooks.test.tsx
+index 0d811045..a7ba6ad9 100644
+--- a/packages/admin/src/agent-plugins/react/__tests__/agent-plugins-hooks.test.tsx
++++ b/packages/admin/src/agent-plugins/react/__tests__/agent-plugins-hooks.test.tsx
+@@ -10,7 +10,7 @@ import { useAgentPluginPanel } from '../hooks/AgentPluginPanel.hooks.js';
+ import { AgentPluginsPageContext, useAgentPluginsPage, useAgentPluginsPageScope } from '../hooks/AgentPluginsPage.hooks.js';
+ import type { AgentPluginsPageScope } from '../hooks/AgentPluginsPage.hooks.js';
+ import { AgentPluginsPortsContext } from '../hooks/AgentPluginsPorts.hooks.js';
+-import type { ModulePageProps } from '../../../react/bind-react.js';
++import { type ModulePageProps } from '@jini-ai/ui-kit/react';
+ import { agentPluginsMessagesEn as m } from '../../messages.en.js';
+ import type { AgentPluginFiles, AgentPluginSummary, AgentPluginsState } from '../../models.js';
+ import type { AgentPluginsApiPort } from '../../ports.js';
+diff --git a/packages/admin/src/agent-plugins/react/components/AgentPluginListPanel.tsx b/packages/admin/src/agent-plugins/react/components/AgentPluginListPanel.tsx
+index 7b8a8bb1..04c08b6b 100644
+--- a/packages/admin/src/agent-plugins/react/components/AgentPluginListPanel.tsx
++++ b/packages/admin/src/agent-plugins/react/components/AgentPluginListPanel.tsx
+@@ -1,5 +1,5 @@
+ import { Button, Notice, Spinner } from '../../../react/kit.js';
+-import type { TabViewProps } from '../../../core/react/bind-react.js';
++import { type TabViewProps } from '@jini-ai/ui-kit/react';
+ import { useAgentPluginPanel } from '../hooks/AgentPluginPanel.hooks.js';
+ import { AgentPluginRow } from './AgentPluginRow.js';
+ import { agentPluginsMessagesEn as m } from '../../messages.en.js';
+diff --git a/packages/admin/src/agent-plugins/react/hooks/AgentPluginInspector.hooks.ts b/packages/admin/src/agent-plugins/react/hooks/AgentPluginInspector.hooks.ts
+index 427ef860..75005842 100644
+--- a/packages/admin/src/agent-plugins/react/hooks/AgentPluginInspector.hooks.ts
++++ b/packages/admin/src/agent-plugins/react/hooks/AgentPluginInspector.hooks.ts
+@@ -1,5 +1,5 @@
+ import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react';
+-import { useController } from '../../../core/react/use-controller.js';
++import { useController } from '@jini-ai/ui-kit/react';
+ import { createAgentPluginFilesController } from '../../controllers/agent-plugin-files.controller.js';
+ import { useAgentPluginsPorts } from './AgentPluginsPorts.hooks.js';
+ import type { AgentPluginFilesState, AgentPluginPackageFile } from '../../models.js';
+diff --git a/packages/admin/src/agent-plugins/react/hooks/AgentPluginPanel.hooks.ts b/packages/admin/src/agent-plugins/react/hooks/AgentPluginPanel.hooks.ts
+index b3813e86..84bd1c20 100644
+--- a/packages/admin/src/agent-plugins/react/hooks/AgentPluginPanel.hooks.ts
++++ b/packages/admin/src/agent-plugins/react/hooks/AgentPluginPanel.hooks.ts
+@@ -1,4 +1,4 @@
+-import type { TabViewProps } from '../../../core/react/bind-react.js';
++import { type TabViewProps } from '@jini-ai/ui-kit/react';
+ import { agentPluginsMessagesEn as m } from '../../messages.en.js';
+ import type { AgentPluginSummary, AgentPluginsState } from '../../models.js';
+ import { AGENT_PLUGINS_READ, AGENT_PLUGINS_WRITE, AGENT_PLUGINS_SPEC_URL, humanizeAgentPluginId, agentPluginGlyphKind } from '../../rules.js';
+diff --git a/packages/admin/src/agent-plugins/react/hooks/AgentPluginsPage.hooks.ts b/packages/admin/src/agent-plugins/react/hooks/AgentPluginsPage.hooks.ts
+index 26a11f68..31ff937a 100644
+--- a/packages/admin/src/agent-plugins/react/hooks/AgentPluginsPage.hooks.ts
++++ b/packages/admin/src/agent-plugins/react/hooks/AgentPluginsPage.hooks.ts
+@@ -1,6 +1,5 @@
+ import { createContext, useContext, useId, useState } from 'react';
+-import type { ModulePageProps } from '../../../core/react/bind-react.js';
+-import { useController } from '../../../core/react/use-controller.js';
++import { type ModulePageProps, useController } from '@jini-ai/ui-kit/react';
+ import { createAgentPluginsController } from '../../controllers/agent-plugins.controller.js';
+ import type { AgentPluginsState } from '../../models.js';
+ import { AGENT_PLUGINS_READ, agentPluginDisableCopy, humanizeAgentPluginId } from '../../rules.js';
+diff --git a/packages/admin/src/agent-plugins/react/hooks/MarketplaceTab.hooks.ts b/packages/admin/src/agent-plugins/react/hooks/MarketplaceTab.hooks.ts
+index b42c7b9d..d60dae3d 100644
+--- a/packages/admin/src/agent-plugins/react/hooks/MarketplaceTab.hooks.ts
++++ b/packages/admin/src/agent-plugins/react/hooks/MarketplaceTab.hooks.ts
+@@ -1,3 +1,3 @@
+-import type { TabViewProps } from '../../../core/react/bind-react.js';
++import { type TabViewProps } from '@jini-ai/ui-kit/react';
+ import { AGENT_PLUGINS_READ, AGENT_PLUGINS_SPEC_URL } from '../../rules.js';
+ export function useMarketplaceTab({ permissions = [] }: TabViewProps, _optional = {}) { return { denied: !permissions.includes(AGENT_PLUGINS_READ), specUrl: AGENT_PLUGINS_SPEC_URL }; }
+diff --git a/packages/admin/src/agent-plugins/react/index.ts b/packages/admin/src/agent-plugins/react/index.ts
+index dfb7bc42..3dc003fa 100644
+--- a/packages/admin/src/agent-plugins/react/index.ts
++++ b/packages/admin/src/agent-plugins/react/index.ts
+@@ -1,4 +1,4 @@
+-import { bindReact } from '../../core/react/bind-react.js';
++import { bindReact } from '@jini-ai/ui-kit/react';
+ import { agentPluginsModule } from '../agent-plugins.module.js';
+ import { AgentPluginsPortsContext } from './hooks/AgentPluginsPorts.hooks.js';
+ import { agentPluginsMessagesEn as m } from '../messages.en.js';
+diff --git a/packages/admin/src/agent-plugins/react/pages/AgentPluginsPage.tsx b/packages/admin/src/agent-plugins/react/pages/AgentPluginsPage.tsx
+index 05d64012..c33ea384 100644
+--- a/packages/admin/src/agent-plugins/react/pages/AgentPluginsPage.tsx
++++ b/packages/admin/src/agent-plugins/react/pages/AgentPluginsPage.tsx
+@@ -1,6 +1,6 @@
+ import { Suspense } from 'react';
+ import { ConfirmDialog, Notice, Spinner, Tabs } from '../../../react/kit.js';
+-import type { ModulePageProps } from '../../../core/react/bind-react.js';
++import { type ModulePageProps } from '@jini-ai/ui-kit/react';
+ import { AgentPluginsPageContext, useAgentPluginsPage } from '../hooks/AgentPluginsPage.hooks.js';
+ import { AgentPluginInspector } from '../components/AgentPluginInspector.js';
+ import { agentPluginsMessagesEn as m } from '../../messages.en.js';
+diff --git a/packages/admin/src/agent-plugins/react/tabs/DownloadedTab.tsx b/packages/admin/src/agent-plugins/react/tabs/DownloadedTab.tsx
+index 822b9f6e..21fb86a9 100644
+--- a/packages/admin/src/agent-plugins/react/tabs/DownloadedTab.tsx
++++ b/packages/admin/src/agent-plugins/react/tabs/DownloadedTab.tsx
+@@ -1,4 +1,4 @@
+-import type { TabViewProps } from '../../../core/react/bind-react.js';
++import { type TabViewProps } from '@jini-ai/ui-kit/react';
+ import { AgentPluginListPanel } from '../components/AgentPluginListPanel.js';
+ export function DownloadedTab(props: TabViewProps, _optional = {}) { return <AgentPluginListPanel props={props} mode="downloaded" />; }
+ export default DownloadedTab;
+diff --git a/packages/admin/src/agent-plugins/react/tabs/InstalledTab.tsx b/packages/admin/src/agent-plugins/react/tabs/InstalledTab.tsx
+index ee38c843..55858119 100644
+--- a/packages/admin/src/agent-plugins/react/tabs/InstalledTab.tsx
++++ b/packages/admin/src/agent-plugins/react/tabs/InstalledTab.tsx
+@@ -1,4 +1,4 @@
+-import type { TabViewProps } from '../../../core/react/bind-react.js';
++import { type TabViewProps } from '@jini-ai/ui-kit/react';
+ import { AgentPluginListPanel } from '../components/AgentPluginListPanel.js';
+ export function InstalledTab(props: TabViewProps, _optional = {}) { return <AgentPluginListPanel props={props} mode="installed" />; }
+ export default InstalledTab;
+diff --git a/packages/admin/src/agent-plugins/react/tabs/MarketplaceTab.tsx b/packages/admin/src/agent-plugins/react/tabs/MarketplaceTab.tsx
+index ec049b7d..e6a17f92 100644
+--- a/packages/admin/src/agent-plugins/react/tabs/MarketplaceTab.tsx
++++ b/packages/admin/src/agent-plugins/react/tabs/MarketplaceTab.tsx
+@@ -1,5 +1,5 @@
+ import { Notice } from '../../../react/kit.js';
+-import type { TabViewProps } from '../../../core/react/bind-react.js';
++import { type TabViewProps } from '@jini-ai/ui-kit/react';
+ import { useMarketplaceTab } from '../hooks/MarketplaceTab.hooks.js';
+ import { agentPluginsMessagesEn as m } from '../../messages.en.js';
+ export function MarketplaceTab(props: TabViewProps, _optional = {}) {
+diff --git a/packages/admin/src/comments/react/hooks/use-comment-queue.hooks.ts b/packages/admin/src/comments/react/hooks/use-comment-queue.hooks.ts
+index 5af2bdd6..76fdc5b5 100644
+--- a/packages/admin/src/comments/react/hooks/use-comment-queue.hooks.ts
++++ b/packages/admin/src/comments/react/hooks/use-comment-queue.hooks.ts
+@@ -6,7 +6,7 @@ import {
+   useFetchQueryScope,
+ } from '../../../react/kit.js';
+ import { AdminConfigError } from '@jini-ai/core/admin-runtime';
+-import { useController } from '../../../core/react/use-controller.js';
++import { useController } from '@jini-ai/ui-kit/react';
+ import type { AdminComment, AdminCommentsPort, AdminCommentsQueuePage, CommentModerationAction, CommentStatus } from '../../../core/ports/comments.js';
+ import type { CommentQueueState } from '../../models.js';
+ import { createCommentQueueController } from '../../controllers/comment-queue.controller.js';
+diff --git a/packages/admin/src/comments/react/hooks/use-comment-settings.hooks.ts b/packages/admin/src/comments/react/hooks/use-comment-settings.hooks.ts
+index a9ebfbe5..8b056c62 100644
+--- a/packages/admin/src/comments/react/hooks/use-comment-settings.hooks.ts
++++ b/packages/admin/src/comments/react/hooks/use-comment-settings.hooks.ts
+@@ -1,6 +1,6 @@
+ import { useEffect } from 'react';
+ import { useFetchQuery, useInvalidate } from '../../../react/kit.js';
+-import { useController } from '../../../core/react/use-controller.js';
++import { useController } from '@jini-ai/ui-kit/react';
+ import type { AdminCommentsPort, CommentsSettings } from '../../../core/ports/comments.js';
+ import { createCommentSettingsController } from '../../controllers/comment-settings.controller.js';
+ import { KEYS } from '../../rules.js';
+diff --git a/packages/admin/src/comments/react/hooks/use-comments.hooks.ts b/packages/admin/src/comments/react/hooks/use-comments.hooks.ts
+index b9c50048..7a1a6b2a 100644
+--- a/packages/admin/src/comments/react/hooks/use-comments.hooks.ts
++++ b/packages/admin/src/comments/react/hooks/use-comments.hooks.ts
+@@ -1,6 +1,6 @@
+ import { useEffect } from 'react';
+ import { useFetchQuery } from '../../../react/kit.js';
+-import { useController } from '../../../core/react/use-controller.js';
++import { useController } from '@jini-ai/ui-kit/react';
+ import { createCommentsController } from '../../controllers/comments.controller.js';
+ import type { CommentsSessionPort } from '../../ports.js';
+ import { KEYS } from '../../rules.js';
+diff --git a/packages/admin/src/comments/react/index.ts b/packages/admin/src/comments/react/index.ts
+index 3182f4a0..c63973b4 100644
+--- a/packages/admin/src/comments/react/index.ts
++++ b/packages/admin/src/comments/react/index.ts
+@@ -1,5 +1,5 @@
+ import { createElement } from 'react';
+-import { bindReact } from '../../core/react/bind-react.js';
++import { bindReact } from '@jini-ai/ui-kit/react';
+ import { commentsModule } from '../comments.module.js';
+ import { englishComments, type CommentsTranslator } from '../messages.en.js';
+ import { CommentsPortsContext, CommentsTranslationContext } from './hooks/CommentsPorts.hooks.js';
+@@ -26,7 +26,7 @@ export function comments(
+     queue: {
+       page: async () => {
+         const { CommentsPage } = await import('./pages/CommentsPage.js');
+-        return { default: (_props: import('../../core/react/bind-react.js').ModulePageProps) => createElement(CommentsPage, {}) };
++        return { default: (_props: import('@jini-ai/ui-kit/react').ModulePageProps) => createElement(CommentsPage, {}) };
+       },
+       tabs: {},
+     },
+diff --git a/packages/admin/src/core/react/index.ts b/packages/admin/src/core/react/index.ts
+deleted file mode 100644
+index 66f27332..00000000
+--- a/packages/admin/src/core/react/index.ts
++++ /dev/null
+@@ -1,2 +0,0 @@
+-export * from './bind-react.js';
+-export * from './use-controller.js';
+diff --git a/packages/admin/src/forms/react/hooks/use-field-attributes-dialog.hooks.ts b/packages/admin/src/forms/react/hooks/use-field-attributes-dialog.hooks.ts
+index be1f92f0..6edca562 100644
+--- a/packages/admin/src/forms/react/hooks/use-field-attributes-dialog.hooks.ts
++++ b/packages/admin/src/forms/react/hooks/use-field-attributes-dialog.hooks.ts
+@@ -1,4 +1,4 @@
+-import { useController } from "../../../core/react/use-controller.js";
++import { useController } from '@jini-ai/ui-kit/react';
+ import { createFieldAttributesDialogController, type FieldAttributesDialogState } from "../../controllers/field-attributes-dialog.controller.js";
+ import type { AdminFormField } from "../../models.js";
+ import { type AttrRow } from "../../rules.js";
+diff --git a/packages/admin/src/forms/react/hooks/use-form-editor.hooks.ts b/packages/admin/src/forms/react/hooks/use-form-editor.hooks.ts
+index 4e779e1a..bfc2fd7f 100644
+--- a/packages/admin/src/forms/react/hooks/use-form-editor.hooks.ts
++++ b/packages/admin/src/forms/react/hooks/use-form-editor.hooks.ts
+@@ -3,7 +3,7 @@ import type { AdminFormProviderSelection, AdminFormsPort } from "../../../core/p
+ import { formView } from "../../models.js";
+ import { describeApiError } from '@jini-ai/core/admin-runtime';
+ import { useFormsPorts, useFormsOptions } from "./FormsPorts.hooks.js";
+-import { useController } from "../../../core/react/use-controller.js";
++import { useController } from '@jini-ai/ui-kit/react';
+ import { createFormEditorController, initialFormEditorState, type FormEditorState } from "../../controllers/form-editor.controller.js";
+ import { formHtmlEmbed, formAnswerColumns, type FormAnswerColumn } from "../../html-rules.js";
+ import { useEffect, useRef, useState } from "react";
+diff --git a/packages/admin/src/forms/react/hooks/use-form-fields-editor.hooks.ts b/packages/admin/src/forms/react/hooks/use-form-fields-editor.hooks.ts
+index d37c9119..fe177a6c 100644
+--- a/packages/admin/src/forms/react/hooks/use-form-fields-editor.hooks.ts
++++ b/packages/admin/src/forms/react/hooks/use-form-fields-editor.hooks.ts
+@@ -1,4 +1,4 @@
+-import { useController } from "../../../core/react/use-controller.js";
++import { useController } from '@jini-ai/ui-kit/react';
+ import { createFormFieldsEditorController, initialFormFieldsEditorState, type FormFieldsEditorState } from "../../controllers/form-fields-editor.controller.js";
+ import { useRef } from "react";
+ import type { AdminFormField } from "../../models.js";
+diff --git a/packages/admin/src/forms/react/hooks/use-form-submission-detail.hooks.ts b/packages/admin/src/forms/react/hooks/use-form-submission-detail.hooks.ts
+index 2c462dc8..6236e186 100644
+--- a/packages/admin/src/forms/react/hooks/use-form-submission-detail.hooks.ts
++++ b/packages/admin/src/forms/react/hooks/use-form-submission-detail.hooks.ts
+@@ -2,7 +2,7 @@ import type { AdminFormsPort } from "../../../core/ports/forms.js";
+ import { submissionView } from "../../models.js";
+ import type { FormsTrashPort } from "../../ports.js";
+ import { useFormsPorts, useFormsOptions } from "./FormsPorts.hooks.js";
+-import { useController } from "../../../core/react/use-controller.js";
++import { useController } from '@jini-ai/ui-kit/react';
+ import { createFormSubmissionDetailController, initialFormSubmissionDetailState, type FormSubmissionDetailState } from "../../controllers/form-submission-detail.controller.js";
+ import type { AdminFormSubmission } from "../../models.js";
+ import { describeApiError as describeCoreApiError } from '@jini-ai/core/admin-runtime';
+diff --git a/packages/admin/src/forms/react/hooks/use-form-submissions.hooks.ts b/packages/admin/src/forms/react/hooks/use-form-submissions.hooks.ts
+index e33f0ded..6af384a2 100644
+--- a/packages/admin/src/forms/react/hooks/use-form-submissions.hooks.ts
++++ b/packages/admin/src/forms/react/hooks/use-form-submissions.hooks.ts
+@@ -1,7 +1,7 @@
+ import type { AdminFormsPort } from "../../../core/ports/forms.js";
+ import { submissionView } from "../../models.js";
+ import { useFormsPorts } from "./FormsPorts.hooks.js";
+-import { useController } from "../../../core/react/use-controller.js";
++import { useController } from '@jini-ai/ui-kit/react';
+ import { createFormSubmissionsController, initialFormSubmissionsState, type FormSubmissionsState } from "../../controllers/form-submissions.controller.js";
+ import { useCallback, useEffect, useRef } from "react";
+ import type { AdminFormSubmission } from "../../models.js";
+diff --git a/packages/admin/src/forms/react/hooks/use-forms-list.hooks.ts b/packages/admin/src/forms/react/hooks/use-forms-list.hooks.ts
+index 4bfe14e6..684973e8 100644
+--- a/packages/admin/src/forms/react/hooks/use-forms-list.hooks.ts
++++ b/packages/admin/src/forms/react/hooks/use-forms-list.hooks.ts
+@@ -2,7 +2,7 @@ import type { AdminFormsPort } from "../../../core/ports/forms.js";
+ import { formView } from "../../models.js";
+ import type { FormsTrashPort, FormsEventsPort } from "../../ports.js";
+ import { useFormsPorts, useFormsOptions } from "./FormsPorts.hooks.js";
+-import { useController } from "../../../core/react/use-controller.js";
++import { useController } from '@jini-ai/ui-kit/react';
+ import { createFormsListController, initialFormsListState, type FormsListState } from "../../controllers/forms-list.controller.js";
+ import { useCallback, useEffect, useMemo } from "react";
+ import type { AdminFormDefinition } from "../../models.js";
+diff --git a/packages/admin/src/forms/react/index.ts b/packages/admin/src/forms/react/index.ts
+index a53e6f01..e9b70ad4 100644
+--- a/packages/admin/src/forms/react/index.ts
++++ b/packages/admin/src/forms/react/index.ts
+@@ -1,6 +1,5 @@
+ import { createElement } from 'react';
+-import { bindReact } from '../../core/react/bind-react.js';
+-import type { ModulePageProps } from '../../core/react/bind-react.js';
++import { bindReact, type ModulePageProps } from '@jini-ai/ui-kit/react';
+ import type { AdminInstance } from '@jini-ai/core/contracts/admin-module';
+ import type { ReactNode } from 'react';
+ import { formsModule } from '../forms.module.js';
+diff --git a/packages/admin/src/media/react/__tests__/media.test.tsx b/packages/admin/src/media/react/__tests__/media.test.tsx
+index a18fe08f..205befa3 100644
+--- a/packages/admin/src/media/react/__tests__/media.test.tsx
++++ b/packages/admin/src/media/react/__tests__/media.test.tsx
+@@ -10,12 +10,10 @@ import { createMemoryMediaApi, createMemoryMediaProviders } from '../../adapters
+ import { media } from '../index.js';
+ import { createOverlayController } from '../../../react/overlays.js';
+ import { OverlayHost } from '../../../react/OverlayHost.js';
+-import { KitProvider, createKit } from '@jini-ai/ui-kit/react';
++import { KitProvider, createKit, useController, bindReact } from '@jini-ai/ui-kit/react';
+ import { AdminKitProvider, Button, Dialog, TextField } from '../../../react/kit.js';
+ import type { ButtonProps } from '../../../react/kit.js';
+ import { MediaPurgeDialog } from '../components/MediaPurgeDialog.js';
+-import { useController } from '../../../react/use-controller.js';
+-import { bindReact } from '../../../react/bind-react.js';
+ // Lazy tab imports can exceed the default 1s under concurrent workspace builds.
+ configure({ asyncUtilTimeout: 5000 });
+ afterEach(cleanup);
+diff --git a/packages/admin/src/media/react/hooks/EditMediaPanel.hooks.ts b/packages/admin/src/media/react/hooks/EditMediaPanel.hooks.ts
+index 26012b01..923562a2 100644
+--- a/packages/admin/src/media/react/hooks/EditMediaPanel.hooks.ts
++++ b/packages/admin/src/media/react/hooks/EditMediaPanel.hooks.ts
+@@ -1,6 +1,6 @@
+ import { useMediaLibraryQuery } from './MediaQuery.hooks.js';
+ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+-import { useController } from '../../../core/react/use-controller.js';
++import { useController } from '@jini-ai/ui-kit/react';
+ import { createEditMediaController } from '../../controllers/edit-media.controller.js';
+ import type { MediaApiPort } from '../../ports.js';
+ import type { MediaAsset, MediaMetadataPatch, UploadInput } from '../../models.js';
+diff --git a/packages/admin/src/media/react/hooks/LibraryTab.hooks.ts b/packages/admin/src/media/react/hooks/LibraryTab.hooks.ts
+index 5b714cd4..f4fc0b77 100644
+--- a/packages/admin/src/media/react/hooks/LibraryTab.hooks.ts
++++ b/packages/admin/src/media/react/hooks/LibraryTab.hooks.ts
+@@ -2,8 +2,7 @@ import { useInvalidate } from '../../../react/kit.js';
+ import { MEDIA_QUERY_KEYS, useMediaLibraryQuery } from './MediaQuery.hooks.js';
+ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+ import type { RefObject } from 'react';
+-import type { TabViewProps } from '../../../core/react/bind-react.js';
+-import { useController } from '../../../core/react/use-controller.js';
++import { type TabViewProps, useController } from '@jini-ai/ui-kit/react';
+ import { createLibraryController } from '../../controllers/library.controller.js';
+ import { settleFromCache, useSharedMediaLibrary } from './MediaPage.hooks.js';
+ import { useMediaPorts } from './MediaPorts.hooks.js';
+diff --git a/packages/admin/src/media/react/hooks/MediaPage.hooks.ts b/packages/admin/src/media/react/hooks/MediaPage.hooks.ts
+index 2ef82237..bb767f7b 100644
+--- a/packages/admin/src/media/react/hooks/MediaPage.hooks.ts
++++ b/packages/admin/src/media/react/hooks/MediaPage.hooks.ts
+@@ -2,8 +2,7 @@ import { useInvalidate } from '../../../react/kit.js';
+ import { MEDIA_QUERY_KEYS, useMediaLibraryQuery, useMediaProvidersQuery } from './MediaQuery.hooks.js';
+ import type { ReactNode } from 'react';
+ import { createElement, createContext, useContext, useEffect, useState } from 'react';
+-import type { ModulePageProps } from '../../../core/react/bind-react.js';
+-import { useController } from '../../../core/react/use-controller.js';
++import { type ModulePageProps, useController } from '@jini-ai/ui-kit/react';
+ import { createLibraryController } from '../../controllers/library.controller.js';
+ import { useMediaPorts } from './MediaPorts.hooks.js';
+ import type { LibraryState } from '../../controllers/library.controller.js';
+diff --git a/packages/admin/src/media/react/hooks/MediaPicker.hooks.ts b/packages/admin/src/media/react/hooks/MediaPicker.hooks.ts
+index fe9663eb..705815e9 100644
+--- a/packages/admin/src/media/react/hooks/MediaPicker.hooks.ts
++++ b/packages/admin/src/media/react/hooks/MediaPicker.hooks.ts
+@@ -1,6 +1,6 @@
+ import { useEffect } from 'react';
+ import { useMediaLibraryQuery } from './MediaQuery.hooks.js';
+-import { useController } from '../../../core/react/use-controller.js';
++import { useController } from '@jini-ai/ui-kit/react';
+ import { createLibraryController } from '../../controllers/library.controller.js';
+ import type { MediaAsset } from '../../models.js';
+ import type { MediaApiPort } from '../../ports.js';
+diff --git a/packages/admin/src/media/react/index.ts b/packages/admin/src/media/react/index.ts
+index 3d602b01..488749e1 100644
+--- a/packages/admin/src/media/react/index.ts
++++ b/packages/admin/src/media/react/index.ts
+@@ -5,7 +5,7 @@
+ export { useGallerySelection, type GallerySelectionImage } from './hooks/GallerySelection.hooks.js';
+ import type { ReactNode } from 'react';
+ import { createElement } from 'react';
+-import { bindReact } from '../../core/react/bind-react.js';
++import { bindReact } from '@jini-ai/ui-kit/react';
+ import type { OverlayPort } from '../../react/overlays.js';
+ import { mediaModule } from '../media.module.js';
+ import type { MediaApiPort } from '../ports.js';
+@@ -76,7 +76,7 @@ export function media(
+         library: {
+           page: async () => {
+             const { MediaPage } = await import('./pages/MediaPage.js');
+-            return { default: (props: import('../../react/bind-react.js').ModulePageProps) =>
++            return { default: (props: import('@jini-ai/ui-kit/react').ModulePageProps) =>
+               createElement(MediaPage, { ...props, headerActions }) };
+           },
+           tabs: {
+diff --git a/packages/admin/src/media/react/tabs/LibraryTab.tsx b/packages/admin/src/media/react/tabs/LibraryTab.tsx
+index 3331b754..b3f71031 100644
+--- a/packages/admin/src/media/react/tabs/LibraryTab.tsx
++++ b/packages/admin/src/media/react/tabs/LibraryTab.tsx
+@@ -1,5 +1,5 @@
+ import { Button, Select, TextField } from '../../../react/kit.js';
+-import type { TabViewProps } from '../../../core/react/bind-react.js';
++import { type TabViewProps } from '@jini-ai/ui-kit/react';
+ import { useLibraryTab } from '../hooks/LibraryTab.hooks.js';
+ import { MediaGrid } from '../components/MediaGrid.js';
+ import { UploadButton } from '../components/UploadButton.js';
+diff --git a/packages/admin/src/media/react/tabs/ProvidersTab.tsx b/packages/admin/src/media/react/tabs/ProvidersTab.tsx
+index 5e76f8c5..12768ba8 100644
+--- a/packages/admin/src/media/react/tabs/ProvidersTab.tsx
++++ b/packages/admin/src/media/react/tabs/ProvidersTab.tsx
+@@ -1,5 +1,5 @@
+ import { Fragment } from 'react';
+-import type { TabViewProps } from '../../../core/react/bind-react.js';
++import { type TabViewProps } from '@jini-ai/ui-kit/react';
+ import { useProvidersTab } from '../hooks/ProvidersTab.hooks.js';
+ import { EyeIcon, HiddenEyeIcon, ReloadIcon } from '../components/MediaIcons.js';
+ export function ProvidersTab(_props: TabViewProps, _optional: Record<string, never> = {}) {
+diff --git a/packages/admin/src/playground/react/components/Canvas.tsx b/packages/admin/src/playground/react/components/Canvas.tsx
+index dd441e54..a981877a 100644
+--- a/packages/admin/src/playground/react/components/Canvas.tsx
++++ b/packages/admin/src/playground/react/components/Canvas.tsx
+@@ -1,5 +1,5 @@
+ import { Notice } from '../../../react/kit.js';
+-import type { TabViewProps } from '../../../core/react/bind-react.js';
++import { type TabViewProps } from '@jini-ai/ui-kit/react';
+ import { useCanvas } from '../hooks/Canvas.hooks.js';
+ import { playgroundMessagesEn as m } from '../../messages.en.js';
+ export function Canvas(props: TabViewProps, _optional = {}) {
+diff --git a/packages/admin/src/playground/react/hooks/Canvas.hooks.ts b/packages/admin/src/playground/react/hooks/Canvas.hooks.ts
+index 545f1dc5..ed775f1c 100644
+--- a/packages/admin/src/playground/react/hooks/Canvas.hooks.ts
++++ b/packages/admin/src/playground/react/hooks/Canvas.hooks.ts
+@@ -1,8 +1,7 @@
+ import { useCallback } from 'react';
+-import { useController } from '../../../core/react/use-controller.js';
++import { useController, type TabViewProps } from '@jini-ai/ui-kit/react';
+ import { createPlaygroundController } from '../../controllers/playground.controller.js';
+ import { canMountPlayground } from '../../rules.js';
+-import type { TabViewProps } from '../../../core/react/bind-react.js';
+ import { usePlaygroundPorts } from './PlaygroundPorts.hooks.js';
+ export function useCanvas({ permissions = [] }: TabViewProps, _optional = {}) {
+   const { playgroundTargets } = usePlaygroundPorts({}); const key = permissions.join('\0');
+diff --git a/packages/admin/src/playground/react/hooks/PlaygroundPage.hooks.ts b/packages/admin/src/playground/react/hooks/PlaygroundPage.hooks.ts
+index fdc6b176..b06343f8 100644
+--- a/packages/admin/src/playground/react/hooks/PlaygroundPage.hooks.ts
++++ b/packages/admin/src/playground/react/hooks/PlaygroundPage.hooks.ts
+@@ -1,2 +1,2 @@
+-import type { ModulePageProps } from '../../../core/react/bind-react.js';
++import { type ModulePageProps } from '@jini-ai/ui-kit/react';
+ export function usePlaygroundPage(props: ModulePageProps, _optional = {}) { const tab = props.description.tabs.find(t => t.visible); return { denied: !props.description.visible, ActiveTab: tab ? props.tabs.canvas : undefined, params: tab?.params ?? {}, permissions: props.description.grants }; }
+diff --git a/packages/admin/src/playground/react/index.ts b/packages/admin/src/playground/react/index.ts
+index 1f24b28b..293b00f0 100644
+--- a/packages/admin/src/playground/react/index.ts
++++ b/packages/admin/src/playground/react/index.ts
+@@ -1,4 +1,4 @@
+-import { bindReact } from '../../core/react/bind-react.js';
++import { bindReact } from '@jini-ai/ui-kit/react';
+ import { playgroundModule } from '../playground.module.js';
+ import { PlaygroundPortsContext } from './hooks/PlaygroundPorts.hooks.js';
+ export { usePlaygroundPorts } from './hooks/PlaygroundPorts.hooks.js';
+diff --git a/packages/admin/src/playground/react/pages/PlaygroundPage.tsx b/packages/admin/src/playground/react/pages/PlaygroundPage.tsx
+index 8d333964..1e0a8bdc 100644
+--- a/packages/admin/src/playground/react/pages/PlaygroundPage.tsx
++++ b/packages/admin/src/playground/react/pages/PlaygroundPage.tsx
+@@ -1,6 +1,6 @@
+ import { Suspense } from 'react';
+ import { Notice, Spinner } from '../../../react/kit.js';
+-import type { ModulePageProps } from '../../../core/react/bind-react.js';
++import { type ModulePageProps } from '@jini-ai/ui-kit/react';
+ import { usePlaygroundPage } from '../hooks/PlaygroundPage.hooks.js';
+ import { playgroundMessagesEn as m } from '../../messages.en.js';
+ export function PlaygroundPage(props: ModulePageProps, _optional = {}) {
+diff --git a/packages/admin/src/playground/react/tabs/CanvasTab.tsx b/packages/admin/src/playground/react/tabs/CanvasTab.tsx
+index 5561ae28..98183cbe 100644
+--- a/packages/admin/src/playground/react/tabs/CanvasTab.tsx
++++ b/packages/admin/src/playground/react/tabs/CanvasTab.tsx
+@@ -1,4 +1,4 @@
+-import type { TabViewProps } from '../../../core/react/bind-react.js';
++import { type TabViewProps } from '@jini-ai/ui-kit/react';
+ import { Canvas } from '../components/Canvas.js';
+ export function CanvasTab(props: TabViewProps, _optional = {}) { return <Canvas {...props} />; }
+ export default CanvasTab;
+diff --git a/packages/admin/src/core/react/__tests__/bind-react.test.tsx b/packages/admin/src/react/__tests__/bind-react.integration.test.tsx
+similarity index 96%
+rename from packages/admin/src/core/react/__tests__/bind-react.test.tsx
+rename to packages/admin/src/react/__tests__/bind-react.integration.test.tsx
+index 29e4ec93..39972568 100644
+--- a/packages/admin/src/core/react/__tests__/bind-react.test.tsx
++++ b/packages/admin/src/react/__tests__/bind-react.integration.test.tsx
+@@ -2,9 +2,9 @@ import { Suspense } from 'react';
+ import { afterEach, expect, it, vi } from 'vitest';
+ import { cleanup, render, renderHook, screen } from '@testing-library/react';
+ import { AdminConfigError } from '@jini-ai/core/admin-runtime';
+-import { createAdmin } from '../../module/index.js';
++import { createAdmin } from '../../core/module/index.js';
+ import { defineAdminModule, adminPort } from '@jini-ai/core/contracts/admin-module';
+-import { bindReact, type ModulePageProps, type TabViewProps } from '../index.js';
++import { bindReact, type ModulePageProps, type TabViewProps } from '@jini-ai/ui-kit/react';
+ 
+ afterEach(cleanup);
+ 
+diff --git a/packages/admin/src/react/bind-react.ts b/packages/admin/src/react/bind-react.ts
+deleted file mode 100644
+index 0160df24..00000000
+--- a/packages/admin/src/react/bind-react.ts
++++ /dev/null
+@@ -1,2 +0,0 @@
+-// Compatibility path; the shared implementation lives in core.
+-export * from '../core/react/bind-react.js';
+diff --git a/packages/admin/src/react/use-controller.ts b/packages/admin/src/react/use-controller.ts
+deleted file mode 100644
+index 905a5f8f..00000000
+--- a/packages/admin/src/react/use-controller.ts
++++ /dev/null
+@@ -1,2 +0,0 @@
+-// Compatibility path; the shared implementation lives in core.
+-export * from '../core/react/use-controller.js';
+diff --git a/packages/admin/src/redirects/react/hooks/use-hit-count-cell.hooks.ts b/packages/admin/src/redirects/react/hooks/use-hit-count-cell.hooks.ts
+index f47885e5..d1103dfe 100644
+--- a/packages/admin/src/redirects/react/hooks/use-hit-count-cell.hooks.ts
++++ b/packages/admin/src/redirects/react/hooks/use-hit-count-cell.hooks.ts
+@@ -1,5 +1,5 @@
+ import { useFetchQuery } from '../../../react/kit.js';
+-import { useController } from '../../../core/react/use-controller.js';
++import { useController } from '@jini-ai/ui-kit/react';
+ import type { AdminRedirectsPort } from '../../../core/ports/redirects.js';
+ import type { RedirectsTranslate } from '../../models.js';
+ import { createHitCountController } from '../../controllers/hit-count.controller.js';
+diff --git a/packages/admin/src/redirects/react/hooks/use-import-redirects-form.hooks.ts b/packages/admin/src/redirects/react/hooks/use-import-redirects-form.hooks.ts
+index 70046b95..648e3c25 100644
+--- a/packages/admin/src/redirects/react/hooks/use-import-redirects-form.hooks.ts
++++ b/packages/admin/src/redirects/react/hooks/use-import-redirects-form.hooks.ts
+@@ -2,7 +2,7 @@ import { useRef } from 'react';
+ import type { FormEvent } from 'react';
+ import { useFetchMutation } from '../../../react/kit.js';
+ import { describeApiError } from '@jini-ai/core/admin-runtime';
+-import { useController } from '../../../core/react/use-controller.js';
++import { useController } from '@jini-ai/ui-kit/react';
+ import type { AdminRedirectCreateInput, AdminRedirectsPort } from '../../../core/ports/redirects.js';
+ import type { RedirectsTranslate } from '../../models.js';
+ import { createImportRedirectsController } from '../../controllers/import-redirects.controller.js';
+diff --git a/packages/admin/src/redirects/react/hooks/use-redirects.hooks.ts b/packages/admin/src/redirects/react/hooks/use-redirects.hooks.ts
+index 33f96964..4cb863f0 100644
+--- a/packages/admin/src/redirects/react/hooks/use-redirects.hooks.ts
++++ b/packages/admin/src/redirects/react/hooks/use-redirects.hooks.ts
+@@ -3,7 +3,7 @@ import type { FormEvent } from 'react';
+ import { useFetchQuery, useFetchMutation, useInvalidate } from '../../../react/kit.js';
+ import { buildAgentListHandles } from '@jini-ai/core/agent-handles';
+ import type { AdminRedirect, AdminRedirectsPort } from '../../../core/ports/redirects.js';
+-import { useController } from '../../../core/react/use-controller.js';
++import { useController } from '@jini-ai/ui-kit/react';
+ import { createRedirectsController } from '../../controllers/redirects.controller.js';
+ import type { RedirectsActions } from '../../controllers/redirects.controller.js';
+ import type { RedirectsTranslate } from '../../models.js';
+diff --git a/packages/admin/src/redirects/react/index.ts b/packages/admin/src/redirects/react/index.ts
+index e377b946..ce9ef672 100644
+--- a/packages/admin/src/redirects/react/index.ts
++++ b/packages/admin/src/redirects/react/index.ts
+@@ -1,5 +1,5 @@
+ import { createElement } from 'react';
+-import { bindReact } from '../../core/react/bind-react.js';
++import { bindReact } from '@jini-ai/ui-kit/react';
+ import { redirectsModule } from '../redirects.module.js';
+ import { RedirectsPortsContext } from './hooks/RedirectsPorts.hooks.js';
+ import { RedirectsOptionsContext } from './hooks/RedirectsOptions.hooks.js';
+diff --git a/packages/admin/src/security/react/hooks/AccessTokensTab.hooks.ts b/packages/admin/src/security/react/hooks/AccessTokensTab.hooks.ts
+index 89b203ce..6781271c 100644
+--- a/packages/admin/src/security/react/hooks/AccessTokensTab.hooks.ts
++++ b/packages/admin/src/security/react/hooks/AccessTokensTab.hooks.ts
+@@ -1,6 +1,5 @@
+ import { useState } from 'react';
+-import { useController } from '../../../core/react/use-controller.js';
+-import type { TabViewProps } from '../../../core/react/bind-react.js';
++import { useController, type TabViewProps } from '@jini-ai/ui-kit/react';
+ import { createAccessTokensController } from '../../controllers/access-tokens.controller.js';
+ import { createOtherCredentialsController } from '../../controllers/other-credentials.controller.js';
+ import type { CredentialSummary, OtherCredentialSummary, CredentialCategory } from '../../models.js';
+diff --git a/packages/admin/src/security/react/hooks/RootKeyTab.hooks.ts b/packages/admin/src/security/react/hooks/RootKeyTab.hooks.ts
+index 492e40f2..12fa469d 100644
+--- a/packages/admin/src/security/react/hooks/RootKeyTab.hooks.ts
++++ b/packages/admin/src/security/react/hooks/RootKeyTab.hooks.ts
+@@ -1,5 +1,4 @@
+-import type { TabViewProps } from '../../../core/react/bind-react.js';
+-import { useController } from '../../../core/react/use-controller.js';
++import { type TabViewProps, useController } from '@jini-ai/ui-kit/react';
+ import { createRootKeyController } from '../../controllers/root-key.controller.js';
+ import { ROOT_KEY_PERMISSION, START_FRESH_CONFIRMATION, isRootKeyLocked } from '../../rules.js';
+ import { unavailableRootKey, useSecurityPorts } from './SecurityPorts.hooks.js';
+diff --git a/packages/admin/src/security/react/hooks/SecurityPage.hooks.ts b/packages/admin/src/security/react/hooks/SecurityPage.hooks.ts
+index b36f9042..f010de45 100644
+--- a/packages/admin/src/security/react/hooks/SecurityPage.hooks.ts
++++ b/packages/admin/src/security/react/hooks/SecurityPage.hooks.ts
+@@ -1,5 +1,5 @@
+ import { useState } from 'react';
+-import type { ModulePageProps } from '../../../core/react/bind-react.js';
++import { type ModulePageProps } from '@jini-ai/ui-kit/react';
+ export function useSecurityPage(props: ModulePageProps, _optional = {}) {
+   const [local, setLocal] = useState('access-tokens');
+   const visible = props.description.visible ? props.description.tabs.filter(t => t.visible) : [];
+diff --git a/packages/admin/src/security/react/index.ts b/packages/admin/src/security/react/index.ts
+index b9416b34..1954225c 100644
+--- a/packages/admin/src/security/react/index.ts
++++ b/packages/admin/src/security/react/index.ts
+@@ -1,4 +1,4 @@
+-import { bindReact } from '../../core/react/bind-react.js';
++import { bindReact } from '@jini-ai/ui-kit/react';
+ import { securityModule } from '../security.module.js';
+ import { SecurityPortsContext } from './hooks/SecurityPorts.hooks.js';
+ export { useSecurityPorts } from './hooks/SecurityPorts.hooks.js';
+diff --git a/packages/admin/src/security/react/pages/SecurityPage.tsx b/packages/admin/src/security/react/pages/SecurityPage.tsx
+index 92082dc7..e795ef88 100644
+--- a/packages/admin/src/security/react/pages/SecurityPage.tsx
++++ b/packages/admin/src/security/react/pages/SecurityPage.tsx
+@@ -1,6 +1,6 @@
+ import { Suspense } from 'react';
+ import { Tabs, Notice, Spinner } from '../../../react/kit.js';
+-import type { ModulePageProps } from '../../../core/react/bind-react.js';
++import { type ModulePageProps } from '@jini-ai/ui-kit/react';
+ import { useSecurityPage } from '../hooks/SecurityPage.hooks.js';
+ export function SecurityPage(props: ModulePageProps, _optional = {}) {
+   const vm = useSecurityPage(props);
+diff --git a/packages/admin/src/security/react/tabs/AccessTokensTab.tsx b/packages/admin/src/security/react/tabs/AccessTokensTab.tsx
+index 02f24b49..61529d8b 100644
+--- a/packages/admin/src/security/react/tabs/AccessTokensTab.tsx
++++ b/packages/admin/src/security/react/tabs/AccessTokensTab.tsx
+@@ -1,5 +1,5 @@
+ import { Button, TextField, Select, Notice, ConfirmDialog, Spinner } from '../../../react/kit.js';
+-import type { TabViewProps } from '../../../core/react/bind-react.js';
++import { type TabViewProps } from '@jini-ai/ui-kit/react';
+ import { useAccessTokensTab } from '../hooks/AccessTokensTab.hooks.js';
+ import { CredentialEditor } from '../components/CredentialEditor.js';
+ export function AccessTokensTab(props: TabViewProps, _optional = {}) {
+diff --git a/packages/admin/src/security/react/tabs/RootKeyTab.tsx b/packages/admin/src/security/react/tabs/RootKeyTab.tsx
+index a4ba1685..c8d83c40 100644
+--- a/packages/admin/src/security/react/tabs/RootKeyTab.tsx
++++ b/packages/admin/src/security/react/tabs/RootKeyTab.tsx
+@@ -1,5 +1,5 @@
+ import { Button, TextField, Notice, ConfirmDialog, Spinner } from '../../../react/kit.js';
+-import type { TabViewProps } from '../../../core/react/bind-react.js';
++import { type TabViewProps } from '@jini-ai/ui-kit/react';
+ import { useRootKeyTab } from '../hooks/RootKeyTab.hooks.js';
+ type RootKeyView = ReturnType<typeof useRootKeyTab>;
+ function RootKeyMessages({ vm }: { vm: RootKeyView }) {
+diff --git a/packages/admin/src/seo/react/hooks/MediaRefField.hooks.ts b/packages/admin/src/seo/react/hooks/MediaRefField.hooks.ts
+index e1800f81..afb3d0ba 100644
+--- a/packages/admin/src/seo/react/hooks/MediaRefField.hooks.ts
++++ b/packages/admin/src/seo/react/hooks/MediaRefField.hooks.ts
+@@ -1,7 +1,7 @@
+ import { useRef } from 'react';
+ import { useShareImageWarning } from './use-share-image-warning.hooks.js';
+ import { agentHandle } from '@jini-ai/core/agent-handles';
+-import { useController } from '../../../core/react/use-controller.js';
++import { useController } from '@jini-ai/ui-kit/react';
+ import { createMediaRefController } from '../../controllers/media-ref.controller.js';
+ import { describeMediaRef, isStoredMediaRef, resolveMediaRefPreviewUrl } from '../../rules.js';
+ import { useFetchQuery } from '../../../react/kit.js';
+diff --git a/packages/admin/src/seo/react/hooks/SeoModuleTabs.ts b/packages/admin/src/seo/react/hooks/SeoModuleTabs.ts
+index 40a14516..9f46fa0c 100644
+--- a/packages/admin/src/seo/react/hooks/SeoModuleTabs.ts
++++ b/packages/admin/src/seo/react/hooks/SeoModuleTabs.ts
+@@ -1,6 +1,6 @@
+ import { createElement } from 'react';
+ import type { ComponentType } from 'react';
+-import type { TabViewProps } from '../../../core/react/bind-react.js';
++import { type TabViewProps } from '@jini-ai/ui-kit/react';
+ import { SeoDefaultsTab, SeoSitemapTab, SeoEntrySection } from '../pages/SeoPage.js';
+ import { useWiredSeo } from './use-seo.hooks.js';
+ import { useSeoCopy } from './SeoPorts.hooks.js';
+diff --git a/packages/admin/src/seo/react/hooks/use-seo-entry-panel.hooks.ts b/packages/admin/src/seo/react/hooks/use-seo-entry-panel.hooks.ts
+index 26e65194..162ab381 100644
+--- a/packages/admin/src/seo/react/hooks/use-seo-entry-panel.hooks.ts
++++ b/packages/admin/src/seo/react/hooks/use-seo-entry-panel.hooks.ts
+@@ -2,7 +2,7 @@ import { describeSeoError } from '../../models.js';
+ import { useEffect, useRef } from 'react';
+ import { useSeoEntryQuery, SEO_KEYS } from './SeoQuery.hooks.js';
+ import { useFetchQuery } from '../../../react/kit.js';
+-import { useController } from '../../../core/react/use-controller.js';
++import { useController } from '@jini-ai/ui-kit/react';
+ import { createSeoEntryController } from '../../controllers/seo-entry.controller.js';
+ import { initialSeoEntryState } from '../../models.js';
+ import { inheritedXFor, ogImageInherited } from '../../rules.js';
+diff --git a/packages/admin/src/seo/react/hooks/use-seo-entry-section.hooks.ts b/packages/admin/src/seo/react/hooks/use-seo-entry-section.hooks.ts
+index 8b1328ab..9b35fed9 100644
+--- a/packages/admin/src/seo/react/hooks/use-seo-entry-section.hooks.ts
++++ b/packages/admin/src/seo/react/hooks/use-seo-entry-section.hooks.ts
+@@ -1,4 +1,4 @@
+-import { useController } from '../../../core/react/use-controller.js';
++import { useController } from '@jini-ai/ui-kit/react';
+ import { createSeoEntrySectionController } from '../../controllers/entry-section.controller.js';
+ import type { SeoEntrySectionController } from '../../models.js';
+ export type { SeoEntrySectionController } from '../../models.js';
+diff --git a/packages/admin/src/seo/react/hooks/use-seo.hooks.ts b/packages/admin/src/seo/react/hooks/use-seo.hooks.ts
+index c1b0b499..c83c1111 100644
+--- a/packages/admin/src/seo/react/hooks/use-seo.hooks.ts
++++ b/packages/admin/src/seo/react/hooks/use-seo.hooks.ts
+@@ -1,7 +1,7 @@
+ import { useEffect, useRef } from 'react';
+ import { useInvalidate } from '../../../react/kit.js';
+ import { SEO_KEYS, useSeoSettingsQuery } from './SeoQuery.hooks.js';
+-import { useController } from '../../../core/react/use-controller.js';
++import { useController } from '@jini-ai/ui-kit/react';
+ import { createSeoController } from '../../controllers/seo.controller.js';
+ import { initialSeoState } from '../../models.js';
+ import type { SeoController, SeoTranslator } from '../../models.js';
+diff --git a/packages/admin/src/seo/react/hooks/use-sitemap-modal.hooks.ts b/packages/admin/src/seo/react/hooks/use-sitemap-modal.hooks.ts
+index 2943ced2..dac6487c 100644
+--- a/packages/admin/src/seo/react/hooks/use-sitemap-modal.hooks.ts
++++ b/packages/admin/src/seo/react/hooks/use-sitemap-modal.hooks.ts
+@@ -1,6 +1,6 @@
+ import { useMemo } from 'react';
+ import { useSitemapQuery } from './SeoQuery.hooks.js';
+-import { useController } from '../../../core/react/use-controller.js';
++import { useController } from '@jini-ai/ui-kit/react';
+ import { createSitemapController } from '../../controllers/sitemap.controller.js';
+ import { parseSitemapXml, filterSitemapEntries } from '../../rules.js';
+ import type { SitemapModalController, SitemapModalInputs, SitemapModalStatus, SitemapState } from '../../models.js';
+diff --git a/packages/admin/src/seo/react/index.ts b/packages/admin/src/seo/react/index.ts
+index 14289629..558cfd6f 100644
+--- a/packages/admin/src/seo/react/index.ts
++++ b/packages/admin/src/seo/react/index.ts
+@@ -1,6 +1,6 @@
+ import { createElement, type ReactNode } from 'react';
+ import type { AdminInstance } from '@jini-ai/core/contracts/admin-module';
+-import { bindReact } from '../../core/react/bind-react.js';
++import { bindReact } from '@jini-ai/ui-kit/react';
+ import { seoModule } from '../seo.module.js';
+ import { SeoPortsContext, SeoOptionsContext } from './hooks/SeoPorts.hooks.js';
+ import type { SeoReactOptions } from './options.js';
+@@ -16,12 +16,12 @@ export function seo(
+   const defaults: SeoReactOptions = { siteUrl, ...optional };
+   const page = async () => {
+     const { SeoPage } = await import('./pages/SeoPage.js');
+-    return { default: (props: import('../../core/react/bind-react.js').ModulePageProps) =>
++    return { default: (props: import('@jini-ai/ui-kit/react').ModulePageProps) =>
+       createElement<import('./pages/SeoPage.js').SeoProps>(SeoPage, { tabId: props.requestedTab, onTabChange: props.onTabChange }) };
+   };
+   const tab = (id: 'SeoDefaultsModuleTab' | 'SeoSitemapModuleTab' | 'SeoEntriesModuleTab') => async () => {
+     const views = await import('./hooks/SeoModuleTabs.js');
+-    return { default: (props: import('../../core/react/bind-react.js').TabViewProps) =>
++    return { default: (props: import('@jini-ai/ui-kit/react').TabViewProps) =>
+       createElement(views[id], props) };
+   };
+   // The unchanged shell owns its active panel and banners. Standalone lazy tab mounts reuse those
+diff --git a/packages/admin/src/source-control/react/hooks/ProvidersTab.hooks.ts b/packages/admin/src/source-control/react/hooks/ProvidersTab.hooks.ts
+index 9a2c5385..deaec236 100644
+--- a/packages/admin/src/source-control/react/hooks/ProvidersTab.hooks.ts
++++ b/packages/admin/src/source-control/react/hooks/ProvidersTab.hooks.ts
+@@ -1,5 +1,4 @@
+-import type { TabViewProps } from '../../../core/react/bind-react.js';
+-import { useController } from '../../../core/react/use-controller.js';
++import { type TabViewProps, useController } from '@jini-ai/ui-kit/react';
+ import { createSourceControlController } from '../../controllers/source-control.controller.js';
+ import type { SourceControlCredential, SourceControlDraft, SourceControlField, SourceControlProviderInfo, SourceControlState } from '../../models.js';
+ import { blankSourceControlDraft, sourceControlProviders, defaultSourceControlCredential, sourceControlReady, safeSourceControlUrl } from '../../rules.js';
+diff --git a/packages/admin/src/source-control/react/hooks/SourceControlPage.hooks.ts b/packages/admin/src/source-control/react/hooks/SourceControlPage.hooks.ts
+index 8bef9eb0..be3587f5 100644
+--- a/packages/admin/src/source-control/react/hooks/SourceControlPage.hooks.ts
++++ b/packages/admin/src/source-control/react/hooks/SourceControlPage.hooks.ts
+@@ -1,4 +1,4 @@
+-import type { ModulePageProps } from '../../../core/react/bind-react.js';
++import { type ModulePageProps } from '@jini-ai/ui-kit/react';
+ export function useSourceControlPage(props: ModulePageProps, _optional = {}) {
+   const active = props.description.tabs.find(t => t.visible && t.id.endsWith(`.${props.requestedTab ?? 'providers'}`)) ?? props.description.tabs.find(t => t.visible);
+   return { denied: !props.description.visible, ActiveTab: active ? props.tabs.providers : undefined, params: active?.params ?? {}, permissions: props.description.grants, active: 'providers', items: [{ id: 'providers', label: 'Providers', content: null }], onValueChange({ value }: { value: string }) { props.onTabChange?.({ tab: value }); } };
+diff --git a/packages/admin/src/source-control/react/index.ts b/packages/admin/src/source-control/react/index.ts
+index 04bab8a2..a2fa4b15 100644
+--- a/packages/admin/src/source-control/react/index.ts
++++ b/packages/admin/src/source-control/react/index.ts
+@@ -1,4 +1,4 @@
+-import { bindReact } from '../../core/react/bind-react.js';
++import { bindReact } from '@jini-ai/ui-kit/react';
+ import { sourceControlModule } from '../source-control.module.js';
+ import { SourceControlPortsContext } from './hooks/SourceControlPorts.hooks.js';
+ export { useSourceControlPorts } from './hooks/SourceControlPorts.hooks.js';
+diff --git a/packages/admin/src/source-control/react/pages/SourceControlPage.tsx b/packages/admin/src/source-control/react/pages/SourceControlPage.tsx
+index 46ab57b7..58e58e74 100644
+--- a/packages/admin/src/source-control/react/pages/SourceControlPage.tsx
++++ b/packages/admin/src/source-control/react/pages/SourceControlPage.tsx
+@@ -1,6 +1,6 @@
+ import { Suspense } from 'react';
+ import { Notice, Spinner, Tabs } from '../../../react/kit.js';
+-import type { ModulePageProps } from '../../../core/react/bind-react.js';
++import { type ModulePageProps } from '@jini-ai/ui-kit/react';
+ import { useSourceControlPage } from '../hooks/SourceControlPage.hooks.js';
+ import { sourceControlMessagesEn as m } from '../../messages.en.js';
+ export function SourceControlPage(props: ModulePageProps, _optional = {}) {
+diff --git a/packages/admin/src/source-control/react/tabs/ProvidersTab.tsx b/packages/admin/src/source-control/react/tabs/ProvidersTab.tsx
+index 6dcecfed..7b924669 100644
+--- a/packages/admin/src/source-control/react/tabs/ProvidersTab.tsx
++++ b/packages/admin/src/source-control/react/tabs/ProvidersTab.tsx
+@@ -1,5 +1,5 @@
+ import { Button, Notice, Spinner } from '../../../react/kit.js';
+-import type { TabViewProps } from '../../../core/react/bind-react.js';
++import { type TabViewProps } from '@jini-ai/ui-kit/react';
+ import { useProvidersTab } from '../hooks/ProvidersTab.hooks.js';
+ import { SourceControlProviderRow } from '../components/SourceControlProviderRow.js';
+ export function ProvidersTab(props: TabViewProps, _optional = {}) {
+diff --git a/packages/admin/src/widgets/react/hooks/use-widget-instance-editor.hooks.ts b/packages/admin/src/widgets/react/hooks/use-widget-instance-editor.hooks.ts
+index 04a0dfdc..e32726a7 100644
+--- a/packages/admin/src/widgets/react/hooks/use-widget-instance-editor.hooks.ts
++++ b/packages/admin/src/widgets/react/hooks/use-widget-instance-editor.hooks.ts
+@@ -34,7 +34,7 @@ export interface WidgetInstanceEditorController {
+ }
+ import { useEffect, useRef } from 'react';
+ import { useDirtyGuard } from '../../../react/kit.js';
+-import { useController } from '../../../core/react/use-controller.js';
++import { useController } from '@jini-ai/ui-kit/react';
+ import { createWidgetInstanceEditorController } from '../../controllers/instance-editor.controller.js';
+ import type { AdminWidgetsPort } from '../../ports.js';
+ import type { WidgetEditorParams, WidgetSlugRedirectPath } from '../../models.js';
+diff --git a/packages/admin/src/widgets/react/hooks/use-widget-region-editor.hooks.ts b/packages/admin/src/widgets/react/hooks/use-widget-region-editor.hooks.ts
+index ab70933a..eb5967a6 100644
+--- a/packages/admin/src/widgets/react/hooks/use-widget-region-editor.hooks.ts
++++ b/packages/admin/src/widgets/react/hooks/use-widget-region-editor.hooks.ts
+@@ -19,7 +19,7 @@ export interface WidgetRegionEditorController {
+   locale: string;
+ }
+ import { useEffect, useRef } from 'react';
+-import { useController } from '../../../core/react/use-controller.js';
++import { useController } from '@jini-ai/ui-kit/react';
+ import { createWidgetRegionEditorController } from '../../controllers/region-editor.controller.js';
+ import type { AdminWidgetsPort } from '../../ports.js';
+ import { widgetsEnglish } from '../../messages.en.js';
+diff --git a/packages/admin/src/widgets/react/hooks/use-widget-regions.hooks.ts b/packages/admin/src/widgets/react/hooks/use-widget-regions.hooks.ts
+index a1b4a862..4a846f06 100644
+--- a/packages/admin/src/widgets/react/hooks/use-widget-regions.hooks.ts
++++ b/packages/admin/src/widgets/react/hooks/use-widget-regions.hooks.ts
+@@ -13,7 +13,7 @@ export interface WidgetRegionsController {
+   t: Translate;
+ }
+ import { useEffect, useRef } from 'react';
+-import { useController } from '../../../core/react/use-controller.js';
++import { useController } from '@jini-ai/ui-kit/react';
+ import { createWidgetRegionsController, type WidgetRegionsState } from '../../controllers/regions.controller.js';
+ import type { AdminWidgetsPort, WidgetsEventsPort } from '../../ports.js';
+ import { widgetsEnglish } from '../../messages.en.js';
+diff --git a/packages/admin/src/widgets/react/hooks/use-widgets-library.hooks.ts b/packages/admin/src/widgets/react/hooks/use-widgets-library.hooks.ts
+index e17e71fe..191c0759 100644
+--- a/packages/admin/src/widgets/react/hooks/use-widgets-library.hooks.ts
++++ b/packages/admin/src/widgets/react/hooks/use-widgets-library.hooks.ts
+@@ -28,7 +28,7 @@ export interface WidgetsLibraryController {
+   locale: string;
+ }
+ import { useEffect, useRef } from 'react';
+-import { useController } from '../../../core/react/use-controller.js';
++import { useController } from '@jini-ai/ui-kit/react';
+ import { createWidgetsLibraryController, type WidgetsLibraryState } from '../../controllers/library.controller.js';
+ import type { AdminWidgetsPort, WidgetsEventsPort } from '../../ports.js';
+ import { widgetsEnglish } from '../../messages.en.js';
+diff --git a/packages/admin/src/widgets/react/index.ts b/packages/admin/src/widgets/react/index.ts
+index bf622fb9..0fb03e07 100644
+--- a/packages/admin/src/widgets/react/index.ts
++++ b/packages/admin/src/widgets/react/index.ts
+@@ -1,8 +1,7 @@
+ import { createElement } from 'react';
+ import type { ComponentType, ReactNode } from 'react';
+ import type { AdminInstance } from '@jini-ai/core/contracts/admin-module';
+-import { bindReact } from '../../core/react/bind-react.js';
+-import type { ModulePageProps } from '../../core/react/bind-react.js';
++import { bindReact, type ModulePageProps } from '@jini-ai/ui-kit/react';
+ import { widgetsModule } from '../widgets.module.js';
+ import { WidgetsPortsContext, WidgetsOptionsContext } from './hooks/WidgetsPorts.hooks.js';
+ import type { WidgetsReactOptions } from './hooks/WidgetsPorts.hooks.js';
+diff --git a/packages/ui-kit/src/react/admin-module/__tests__/bind-react.test.ts b/packages/ui-kit/src/react/admin-module/__tests__/bind-react.test.ts
+new file mode 100644
+index 00000000..847e30e0
+--- /dev/null
++++ b/packages/ui-kit/src/react/admin-module/__tests__/bind-react.test.ts
+@@ -0,0 +1,66 @@
++import { createContext, createElement } from 'react';
++import { afterEach, describe, expect, it } from 'vitest';
++import { cleanup, render, renderHook, screen } from '@testing-library/react';
++import { AdminConfigError } from '@jini-ai/core/admin-runtime';
++import { adminPort, defineAdminModule } from '@jini-ai/core/contracts/admin-module';
++import type { ScopedPorts } from '@jini-ai/core/contracts/admin-module';
++import { bindReact } from '../bind-react.js';
++
++afterEach(cleanup);
++
++const clock = adminPort<{ now(): string }>({ id: 'test.clock' });
++const module = defineAdminModule({
++  id: 'test.clock-module',
++  requires: { clock },
++  pages: { home: { path: '/home', label: 'Home', tabs: { main: { label: 'Main' } } } },
++});
++const views = {
++  home: {
++    page: async () => ({ default: () => createElement('p', null, 'page loaded') }),
++    tabs: { main: async () => ({ default: () => createElement('p', null, 'tab loaded') }) },
++  },
++};
++
++describe('bindReact', () => {
++  it('returns the module, one lazy page and one lazy component per tab', () => {
++    const react = bindReact({ module, views });
++    expect(react.module).toBe(module);
++    expect(Object.keys(react.pages)).toEqual(['home']);
++    expect(Object.keys(react.pages.home.tabs)).toEqual(['main']);
++    expect(react.pages.home.Page).toBeDefined();
++  });
++
++  it('serves the scoped ports held by the context it was bound to', () => {
++    const context = createContext<ScopedPorts<typeof module> | null>(null);
++    const react = bindReact({ module, views }, { context });
++    const ports = { clock: { now: () => 'noon' } };
++    const { result } = renderHook(() => react.usePorts(), {
++      wrapper: ({ children }) => createElement(context.Provider, { value: ports, children }),
++    });
++    expect(result.current).toBe(ports);
++  });
++
++  it('refuses to hand out ports outside its Provider, naming the module', () => {
++    const react = bindReact({ module, views });
++    expect(() => renderHook(() => react.usePorts())).toThrow(AdminConfigError);
++    expect(() => renderHook(() => react.usePorts())).toThrow(/React scope unavailable: test\.clock-module/);
++  });
++
++  it("keeps one binding's ports private: a sibling never reads this module's context", () => {
++    const own = createContext<ScopedPorts<typeof module> | null>(null);
++    const b = bindReact({ module, views });
++    expect(() =>
++      renderHook(() => b.usePorts(), {
++        wrapper: ({ children }) => createElement(own.Provider, { value: { clock: { now: () => 'noon' } }, children }),
++      }),
++    ).toThrow(AdminConfigError);
++  });
++
++  it('renders a lazy page only when it is used', async () => {
++    const react = bindReact({ module, views });
++    render(createElement(react.pages.home.Page, {
++      tabs: {}, description: { id: 'home', path: '/home', label: 'Home', visible: true, agentReachable: false, permissions: [], grants: [], tabs: [] },
++    }));
++    expect(await screen.findByText('page loaded')).toBeTruthy();
++  });
++});
+diff --git a/packages/ui-kit/src/react/admin-module/__tests__/use-controller.test.ts b/packages/ui-kit/src/react/admin-module/__tests__/use-controller.test.ts
+new file mode 100644
+index 00000000..4ea523d2
+--- /dev/null
++++ b/packages/ui-kit/src/react/admin-module/__tests__/use-controller.test.ts
+@@ -0,0 +1,61 @@
++import { StrictMode, createElement } from 'react';
++import { afterEach, describe, expect, it } from 'vitest';
++import { act, cleanup, renderHook } from '@testing-library/react';
++import { createControllerStore } from '@jini-ai/core/admin-runtime';
++import { useController } from '../use-controller.js';
++
++afterEach(cleanup);
++
++const make = () => createControllerStore({ initial: { count: 0 } });
++
++describe('useController', () => {
++  it('has no controller during render and owns a fresh one after commit', () => {
++    const created: unknown[] = [];
++    const { result } = renderHook(() =>
++      useController({ create: () => { const c = make(); created.push(c); return c; }, dependencies: [] }),
++    );
++    expect(created).toHaveLength(1);
++    expect(result.current.controller).toBe(created[0]);
++    expect(result.current.snapshot).toEqual({ count: 0 });
++  });
++
++  it('re-renders with the new snapshot after the controller writes', () => {
++    const { result } = renderHook(() => useController({ create: make, dependencies: [] }));
++    act(() => result.current.controller?.set({ patch: { count: 3 } }));
++    expect(result.current.snapshot).toEqual({ count: 3 });
++  });
++
++  it('hands the controller to start once, after it is created', () => {
++    const started: unknown[] = [];
++    const { result } = renderHook(() =>
++      useController({ create: make, dependencies: [] }, { start: ({ controller }) => started.push(controller) }),
++    );
++    expect(started).toEqual([result.current.controller]);
++  });
++
++  it('disposes the controller on unmount, aborting its signal', () => {
++    const { result, unmount } = renderHook(() => useController({ create: make, dependencies: [] }));
++    const controller = result.current.controller!;
++    expect(controller.signal.aborted).toBe(false);
++    unmount();
++    expect(controller.signal.aborted).toBe(true);
++  });
++
++  it('replaces and disposes the controller when the dependencies change', () => {
++    const { result, rerender } = renderHook(({ id }) => useController({ create: make, dependencies: [id] }), {
++      initialProps: { id: 'a' },
++    });
++    const first = result.current.controller!;
++    rerender({ id: 'b' });
++    expect(first.signal.aborted).toBe(true);
++    expect(result.current.controller).not.toBe(first);
++    expect(result.current.controller!.signal.aborted).toBe(false);
++  });
++
++  it("StrictMode's cleanup/replay never leaves a disposed controller as the current one", () => {
++    const { result } = renderHook(() => useController({ create: make, dependencies: [] }), {
++      wrapper: ({ children }) => createElement(StrictMode, null, children),
++    });
++    expect(result.current.controller!.signal.aborted).toBe(false);
++  });
++});
+diff --git a/packages/admin/src/core/react/bind-react.ts b/packages/ui-kit/src/react/admin-module/bind-react.ts
+similarity index 100%
+rename from packages/admin/src/core/react/bind-react.ts
+rename to packages/ui-kit/src/react/admin-module/bind-react.ts
+diff --git a/packages/admin/src/core/react/use-controller.ts b/packages/ui-kit/src/react/admin-module/use-controller.ts
+similarity index 95%
+rename from packages/admin/src/core/react/use-controller.ts
+rename to packages/ui-kit/src/react/admin-module/use-controller.ts
+index 9b9b74ca..79e23152 100644
+--- a/packages/admin/src/core/react/use-controller.ts
++++ b/packages/ui-kit/src/react/admin-module/use-controller.ts
+@@ -1,6 +1,6 @@
+ import { useEffect, useState, useSyncExternalStore, useCallback } from 'react';
+ import type { DependencyList } from 'react';
+-import { type ControllerStore } from '@jini-ai/core/admin-runtime';
++import type { ControllerStore } from '@jini-ai/core/admin-runtime';
+ /** Factory runs after commit, never during render. Each effect attachment owns a fresh
+  * controller, so StrictMode's cleanup/replay cannot revive a disposed controller. */
+ export function useController<C extends ControllerStore<unknown>>(
+diff --git a/packages/ui-kit/src/react/index.ts b/packages/ui-kit/src/react/index.ts
+index f4c191a3..fa19cdbf 100644
+--- a/packages/ui-kit/src/react/index.ts
++++ b/packages/ui-kit/src/react/index.ts
+@@ -7,3 +7,6 @@ export { useConfirmController } from './confirm/ConfirmDialog.hooks.js';
+ export type * from './types.js';
+ export { SecretInput, type SecretInputProps } from './SecretInput.js';
+ export { useSecretReveal, type SecretRevealRequired, type SecretRevealOptional } from './secret-reveal.hooks.js';
++export { bindReact } from './admin-module/bind-react.js';
++export type { ModulePageProps, ReactViews, TabViewProps } from './admin-module/bind-react.js';
++export { useController } from './admin-module/use-controller.js';

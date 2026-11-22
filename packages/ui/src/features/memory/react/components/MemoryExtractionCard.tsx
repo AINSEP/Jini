@@ -2,7 +2,7 @@
 // optional failure explanation, the written-entry chips, and a delete action.
 // Shared by the saved-memory list and the connected-apps scan history. Pure
 // formatting comes from the slice formatters; state lives in the hooks.
-import { agentHandleProps } from '@jini-ai/agentic';
+import { agentHandleProps } from '@jini-ai/core/agent-handles';
 import { Icon } from '../../../../react/components/Icon.js';
 import { useT } from '../../../i18n/index.js';
 import {
@@ -19,6 +19,7 @@ export function MemoryExtractionCard({
   onOpenPreview,
   onDelete,
   agentHandle,
+  useTHook = useT,
 }: {
   record: MemoryExtractionRecord;
   /** Wall clock so relative ages ("12s ago") re-render without freezing. */
@@ -27,11 +28,12 @@ export function MemoryExtractionCard({
   onDelete: (id: string) => void;
   /** This card's own agent handle — `MemoryList` derives one per extraction record. */
   agentHandle?: string;
+  useTHook?: typeof useT;
 }) {
-  const t = useT();
-  const desc = describeRecord(record, t);
-  const title = extractionCardTitle(record, t);
-  const meta = extractionCardMeta(record, nowClock, t);
+  const t = useTHook();
+  const desc = describeRecord({ record, t });
+  const title = extractionCardTitle({ record, t });
+  const meta = extractionCardMeta({ record, now: nowClock, t });
   // `describeExtractionFailure` already gates on phase/error (returns null when
   // the record didn't fail), so we render off its result directly instead of
   // duplicating that guard here.

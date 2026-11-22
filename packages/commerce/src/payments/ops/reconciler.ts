@@ -28,7 +28,7 @@
 import type { PaymentEvidence, RefundEvidence } from "../contract/evidence.js";
 import type { PaymentProvider } from "../contract/provider.js";
 import type { LedgerKeyScope, ScanCursor } from "../ledger/repo.js";
-import type { PaymentRecord, RefundRecord } from "../ledger/rows.js";
+import type { PaymentRecord, RefundRecord } from "../ledger/row-records.js";
 import { recordRefundDispatchOutcome, settleUnknownRefund } from "../accounting/apply-evidence.js";
 import type { OpsDeps } from "./deps.js";
 import { RECONCILED_ATTEMPT_OPS, reconcileAttempt } from "./reconcile-attempts.js";
@@ -75,7 +75,7 @@ async function reconcilePayment({ deps, payment, checked }: { deps: OpsDeps; pay
   try {
     const snapshot = await retrieveSnapshot({ deps, payment });
     if (!snapshot.ok) return leave({ deps, payment, detail: `payment ${payment.id} is unknown: ${snapshot.why}` });
-    accepted = await applySnapshot({ deps, payment, ...snapshot });
+    accepted = await applySnapshot({ deps, payment, evidence: snapshot.evidence }, snapshot);
     if (accepted) return "settled";
     return leave({ deps, payment, detail: `payment ${payment.id} is unknown: its snapshot was quarantined` });
   } finally {
@@ -122,7 +122,7 @@ async function reconcileRefund({ deps, refund }: { deps: OpsDeps; refund: Refund
   const snapshot = await retrieveSnapshot({ deps, payment });
   if (!snapshot.ok) return leave({ deps, payment, detail: `refund ${refund.id} is unsettled: ${snapshot.why}` });
   // A snapshot the writer refused is not evidence of anything: its empty refund list must not fail ours.
-  if (!(await applySnapshot({ deps, payment, ...snapshot }))) return leave({ deps, payment, detail: `refund ${refund.id} is unsettled: its snapshot was quarantined` });
+  if (!(await applySnapshot({ deps, payment, evidence: snapshot.evidence }, snapshot))) return leave({ deps, payment, detail: `refund ${refund.id} is unsettled: its snapshot was quarantined` });
   return judgeRefund({ deps, payment, refundId: refund.id, snapshot });
 }
 

@@ -63,7 +63,7 @@ export function createOAuthUrlGuard(requiredArgs: OAuthRequiredArgs<OAuthUrlGuar
     };
 }
 /** Internal endpoint gate; exported flows always require an application guard. */
-export function assertSafeProviderEndpoint(raw: string, label: string, guard: OAuthUrlGuard): URL {
+export function assertSafeProviderEndpoint({ raw, label, guard }: { raw: string; label: string; guard: OAuthUrlGuard }, _optional: Record<string, never> = {}): URL {
     return guard.assertSafeUrl({ raw, label });
 }
 /** Validate provider-supplied device links before showing them to an operator. */

@@ -78,7 +78,7 @@ function namesFromClause(body: string): string[] {
 
 /** Parses every name the public barrel exports (value or type — this check does not distinguish). */
 function parsePublicSurface(absBarrelPath: string): Set<string> {
-  const content = stripComments(readFileSync(absBarrelPath, 'utf8'));
+  const content = stripComments({ source: readFileSync(absBarrelPath, 'utf8') });
   const names = new Set<string>();
   for (const m of content.matchAll(NAMED_EXPORT_RE)) {
     for (const name of namesFromClause(m[2]!)) names.add(name);
@@ -141,10 +141,10 @@ export async function checkChatPanePublicSurface(
   const chatPaneDirRel = relative(root, chatPaneDir).split('\\').join('/');
   const publicSurface = parsePublicSurface(barrelAbs);
 
-  for (const absFile of listSourceFiles(chatPaneDir)) {
+  for (const absFile of listSourceFiles({ dir: chatPaneDir })) {
     const file = relative(root, absFile).split('\\').join('/');
     if (isTestFile(file)) continue;
-    const content = stripComments(readFileSync(absFile, 'utf8'));
+    const content = stripComments({ source: readFileSync(absFile, 'utf8') });
 
     checkEscapingNames({ root, absFile, file, content, chatPaneDirRel, publicSurface, barrelAbs, violations });
   }

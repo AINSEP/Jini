@@ -5,7 +5,7 @@ import { sql } from "kysely";
 import pg from "pg";
 
 import { openPostgresKernel } from "../kernel/postgres/index.js";
-import type { StorageKernel } from "../kernel/port.js";
+import type { KyselyKernel } from "../kernel/port.js";
 import { freshPostgresDatabase } from "../testing/postgres-database.js";
 
 /**
@@ -17,8 +17,8 @@ import { freshPostgresDatabase } from "../testing/postgres-database.js";
 
 const APP = "jini_pool_error_probe";
 const url = `${freshPostgresDatabase("jini_kernel_pg_pool_error_fixture")}&application_name=${APP}`;
-const probed: StorageKernel<unknown> = openPostgresKernel<unknown>({ pg, connectionString: url });
-const killer: StorageKernel<unknown> = openPostgresKernel<unknown>({ pg, connectionString: url.replace(APP, `${APP}_killer`) });
+const probed: KyselyKernel<unknown> = openPostgresKernel<unknown>({ pg, connectionString: url });
+const killer: KyselyKernel<unknown> = openPostgresKernel<unknown>({ pg, connectionString: url.replace(APP, `${APP}_killer`) });
 
 after(async () => {
   await probed.close();

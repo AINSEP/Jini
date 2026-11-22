@@ -4,7 +4,7 @@
  * host fires `start()` without awaiting it.
  */
 import { afterEach, describe, expect, test } from "vitest";
-import type { DomainEvent, EventBusPort } from "../../../core/index.js";
+import type { DomainEvent, EventBusPort } from "@jini-ai/core/contracts/events";
 import { createFormDeliverySubscriptions, FORM_DELIVERY_EVENT, FORM_SUBMISSION_RECEIVED_EVENT, FormDeliveryError, type FormDeliveryJob,
   type FormDeliveryResult } from "../../index.js";
 

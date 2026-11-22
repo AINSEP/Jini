@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 /** Owner decisions R2/R3, 2026-10-26: real render/client/server boundaries, no vendor assumptions. */
 import { afterEach, expect, test, vi } from 'vitest';
-import { boot, browserPorts } from '../client/index.js';
+import { boot, browserPorts, purgeStorage } from '../client/index.js';
 import { renderBanner } from '../render/index.js';
 import { readConsent, handleReceipt } from '../server/index.js';
 import type { ConsentState } from '../contract.js';
@@ -35,7 +35,7 @@ function page({ gpc = false, dnt = '0' } = {}) {
   const storageWrite = vi.spyOn(Storage.prototype, 'setItem');
   const storageRemove = vi.spyOn(Storage.prototype, 'removeItem');
   const network = vi.fn();
-  const api = boot(window, { ports: { ...browserPorts(window), fetch: network } });
+  const api = boot({ win: window }, { ports: { ...browserPorts({ win: window }), fetch: network } });
   return { api, grant, unsafe, cookieWrite, cookieRead, storageWrite, storageRemove, network };
 }
 
@@ -81,7 +81,7 @@ for (const signal of [{ gpc: true }, { dnt: '1' }]) test(`off + ${Object.keys(si
 
 test('DNT browser boundary clamps a US no-choice grant just like GPC', () => {
   Object.defineProperty(navigator, 'doNotTrack', { value: '1', configurable: true });
-  expect(browserPorts(window).gpc()).toBe(true);
+  expect(browserPorts({ win: window }).gpc()).toBe(true);
 });
 
 test('server: off is anonymous; GPC/DNT deny it, US defaults remain, EU/UK/unknown stay strict', () => {
@@ -115,7 +115,7 @@ test('browser US no-choice DNT blocks adapters and raw tags, and Accept cannot l
   document.body.innerHTML = '<script type="text/plain" data-consent-category="analytics" id="raw">window.rawRan=true</script>';
   const grant = vi.fn();
   window.jiniConsentQueue = [{ id: 'stats', kind: 'consent-adapter', category: 'analytics', grant }];
-  const api = boot(window, { ports: { ...browserPorts(window), fetch: vi.fn() } })!;
+  const api = boot({ win: window }, { ports: { ...browserPorts({ win: window }), fetch: vi.fn() } })!;
   expect(api.get().region).toBe('opt-out');
   expect(api.get().allowed.analytics).toBe(false);
   await api.set({ action: 'accept' });
@@ -146,10 +146,10 @@ for (const gpc of [false, true]) test(`off lazy adapters receive the current lev
   const onState = vi.fn();
   const importModule = vi.fn(async () => ({ default: { id: 'safe', kind: 'consent-adapter' as const, category: 'analytics' as const, supportsAnonymous: true as const, grant, onState } }));
   window.jiniConsentQueue = [{ id: 'safe', kind: 'consent-adapter', category: 'analytics', supportsAnonymous: true, src: '/adapter.js' }];
-  const api = boot(window, { ports: { ...browserPorts(window), importModule, fetch: vi.fn() } })!;
+  const api = boot({ win: window }, { ports: { ...browserPorts({ win: window }), importModule, fetch: vi.fn() } })!;
   await new Promise(r => setTimeout(r, 0));
   expect(importModule).toHaveBeenCalledOnce();
-  expect(onState).toHaveBeenCalledWith({ state: api.get() });
+  expect(onState).toHaveBeenCalledWith({ state: api.get(), purge: purgeStorage });
   expect(api.get().allowed.analytics).toBe(false);
   expect(grant).toHaveBeenCalledTimes(gpc ? 0 : 1);
 });

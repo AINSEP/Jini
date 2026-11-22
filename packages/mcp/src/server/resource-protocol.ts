@@ -10,7 +10,7 @@
  * wired to `ListToolsRequestSchema`/`CallToolRequestSchema`.
  */
 import { sanitizeUntrustedText } from '@jini-ai/core/text';
-import type { ReadResourceResult, Resource } from '@modelcontextprotocol/sdk/types.js';
+import type { ReadResourceResult, Resource } from './adapters/sdk-wire.js';
 import type { McpToolContext } from './tool-protocol.js';
 
 /** What one resource's `read` returns before this module wraps it into the MCP wire shape. */

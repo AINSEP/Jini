@@ -4,7 +4,9 @@ import { test } from "vitest";
 import { ForbiddenError, SettingsRevisionConflictError, ValueValidationFailedError } from "../errors.js";
 import { SettingsRevisionConflictError as PublicConflictError } from "../index.js";
 import { InMemorySettingsRepo } from "../repo.memory.js";
-import { clear, renameDefinition, set, type SettingsWriteServiceDeps } from "../write-service.js";
+import { clear, set } from "../write-values.js";
+import { renameDefinition } from "../write-definition-rename.js";
+import { type SettingsWriteServiceDeps } from "../write-service.js";
 import type { SettingDefinitionRecord, SettingScope } from "../types.js";
 
 function fixture(required: { scope: SettingScope }, _optional = {}) {

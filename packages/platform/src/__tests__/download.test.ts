@@ -17,15 +17,9 @@ import { setTimeout as sleep } from "node:timers/promises";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import {
-  MANAGED_DOWNLOAD_ERROR_CODES,
-  downloadCopyAndClear,
-  inspectManagedDownload,
-  managedDownload,
-  pruneManagedDownloads,
-  removeManagedDownload,
-  type ManagedDownloadProgress,
-} from "../download.js";
+import { MANAGED_DOWNLOAD_ERROR_CODES, type ManagedDownloadProgress } from "../download-types.js";
+import { downloadCopyAndClear, managedDownload } from "../download.js";
+import { inspectManagedDownload, pruneManagedDownloads, removeManagedDownload } from "../download-maintenance.js";
 
 // root (CAP_DAC_OVERRIDE) always bypasses a directory's own permission bits, so `chmodSync(dir,
 // 0o000)` cannot actually block root's own read/write/remove access the way these tests rely on —
@@ -37,7 +31,7 @@ const isRoot = typeof process.getuid === "function" && process.getuid() === 0;
 // `vi.spyOn` cannot redefine, and download.ts calls them as plain destructured
 // imports (not `fsp.stat(x)`), so a property-mutation spy on an imported
 // namespace object never reaches those call sites either (verified
-// empirically — see packages/platform/archived provenance ledger's 2026-07-22 entry).
+// empirically — see 070311a07^:packages/platform/source-map.md's 2026-07-22 entry).
 // `vi.mock` replaces the module for every importer before any of them load,
 // so a per-test `.mockImplementationOnce` on the wrapped `vi.fn()` reaches
 // the real call site deterministically, without any OS permission
@@ -1163,7 +1157,7 @@ describe("managed download engine", () => {
           fileName,
           payload: { checksum: { algorithm: "sha256", value: "0".repeat(64) }, url: "https://example.invalid/x.bin" },
         }),
-      ).rejects.toThrow();
+      ).rejects.toThrow(`EACCES: permission denied, open '${join(locksDir, `${sha256(`${bucket}\0${fileName}`)}.lock`)}'`);
     } finally {
       chmodSync(locksDir, 0o755);
     }
@@ -1670,7 +1664,7 @@ describe("managed download engine", () => {
           outputPath,
           payload: { checksum: { algorithm: "sha256", value: sha256(body) }, url: fixture.url },
         }),
-      ).rejects.toThrow();
+      ).rejects.toThrow(`destination already exists: ${outputPath}`);
     } finally {
       await fixture.close();
     }

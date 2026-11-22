@@ -13,7 +13,7 @@ const manifest = { forms: [
 function setup({ fail } = {}) {
   const d1 = fakeD1({ fail });
   const assets = [];
-  const env = { TOVU_FORMS: d1.binding, TOVU_FORMS_SECRET: SECRET, ASSETS: { fetch: async request => { assets.push(request.url); return new Response('asset'); } } };
+  const env = { JINI_FORMS: d1.binding, JINI_FORMS_SECRET: SECRET, ASSETS: { fetch: async request => { assets.push(request.url); return new Response('asset'); } } };
   let clock = Date.parse('2026-10-19T10:00:00Z');
   let ids = 0;
   const options = { now: () => clock, randomId: () => `id-${++ids}` };
@@ -149,47 +149,47 @@ const privateCall = (s, path, { method = 'GET', token = SECRET, body } = {}) => 
 
 test('private API requires the exact bearer key', async () => {
   const s = setup();
-  assert.equal((await privateCall(s, '/_tovu/forms/pending', { token: null })).status, 401);
-  assert.equal((await privateCall(s, '/_tovu/forms/pending', { token: 'wrong' })).status, 401);
-  assert.equal((await privateCall(s, '/_tovu/forms/pending', { token: `${SECRET}x` })).status, 401);
-  s.env.TOVU_FORMS_SECRET = 'short';
-  assert.equal((await privateCall(s, '/_tovu/forms/pending', { token: 'short' })).status, 401);
-  assert.equal((await privateCall(s, '/_tovu/forms/pending', { method: 'POST' })).status, 405);
-  assert.equal((await privateCall(s, '/_tovu/forms/ack')).status, 405);
+  assert.equal((await privateCall(s, '/_jini/forms/pending', { token: null })).status, 401);
+  assert.equal((await privateCall(s, '/_jini/forms/pending', { token: 'wrong' })).status, 401);
+  assert.equal((await privateCall(s, '/_jini/forms/pending', { token: `${SECRET}x` })).status, 401);
+  s.env.JINI_FORMS_SECRET = 'short';
+  assert.equal((await privateCall(s, '/_jini/forms/pending', { token: 'short' })).status, 401);
+  assert.equal((await privateCall(s, '/_jini/forms/pending', { method: 'POST' })).status, 405);
+  assert.equal((await privateCall(s, '/_jini/forms/ack')).status, 405);
 });
 
 test('pending pages oldest first after a cursor; ack marks only listed unpulled rows', async () => {
   const s = setup();
   for (let i = 0; i < 3; i += 1) { await s.call(post(valid)); }
-  const first = await (await privateCall(s, '/_tovu/forms/pending?limit=2')).json();
+  const first = await (await privateCall(s, '/_jini/forms/pending?limit=2')).json();
   assert.deepEqual(first.items.map(item => item.seq), [1, 2]);
   assert.equal(first.items[0].formSlug, 'waitlist');
   assert.deepEqual(first.items[0].answers.interests, ['attending', 'hosting']);
   assert.equal(first.hasMore, true);
-  const second = await (await privateCall(s, `/_tovu/forms/pending?after=${first.nextAfter}&limit=500`)).json();
+  const second = await (await privateCall(s, `/_jini/forms/pending?after=${first.nextAfter}&limit=500`)).json();
   assert.deepEqual(second.items.map(item => item.id), ['id-3']);
   assert.equal(second.hasMore, false);
-  const acked = await (await privateCall(s, '/_tovu/forms/ack', { method: 'POST', body: { ids: ['id-1', 'id-2', 'unknown'] } })).json();
+  const acked = await (await privateCall(s, '/_jini/forms/ack', { method: 'POST', body: { ids: ['id-1', 'id-2', 'unknown'] } })).json();
   assert.equal(acked.acknowledged, 2);
-  assert.equal((await (await privateCall(s, '/_tovu/forms/ack', { method: 'POST', body: { ids: ['id-1'] } })).json()).acknowledged, 0);
-  const rest = await (await privateCall(s, '/_tovu/forms/pending?after=garbage&limit=0')).json();
+  assert.equal((await (await privateCall(s, '/_jini/forms/ack', { method: 'POST', body: { ids: ['id-1'] } })).json()).acknowledged, 0);
+  const rest = await (await privateCall(s, '/_jini/forms/pending?after=garbage&limit=0')).json();
   assert.deepEqual(rest.items.map(item => item.id), ['id-3']);
-  const empty = await (await privateCall(s, '/_tovu/forms/pending?after=9')).json();
+  const empty = await (await privateCall(s, '/_jini/forms/pending?after=9')).json();
   assert.deepEqual(empty, { items: [], nextAfter: 9, hasMore: false });
 });
 
 test('ack refuses malformed id lists; storage failure on the private API is 503', async () => {
   const s = setup();
   for (const body of [{}, { ids: [] }, { ids: [1] }, { ids: [''] }, { ids: ['x'.repeat(65)] }, { ids: Array.from({ length: 101 }, (_, i) => `i${i}`) }]) {
-    assert.equal((await privateCall(s, '/_tovu/forms/ack', { method: 'POST', body })).status, 400);
+    assert.equal((await privateCall(s, '/_jini/forms/ack', { method: 'POST', body })).status, 400);
   }
-  const notJson = await s.call(new Request('https://site.example/_tovu/forms/ack', { method: 'POST', body: 'nope', headers: { Authorization: `Bearer ${SECRET}` } }));
+  const notJson = await s.call(new Request('https://site.example/_jini/forms/ack', { method: 'POST', body: 'nope', headers: { Authorization: `Bearer ${SECRET}` } }));
   assert.equal(notJson.status, 400);
   const original = console.error;
   console.error = () => {};
   try {
     const broken = setup({ fail: sql => sql.startsWith('SELECT') });
-    assert.equal((await privateCall(broken, '/_tovu/forms/pending')).status, 503);
+    assert.equal((await privateCall(broken, '/_jini/forms/pending')).status, 503);
   } finally { console.error = original; }
 });
 
@@ -199,7 +199,7 @@ test('default clock and id ports are the platform ones', async () => {
   assert.equal((await handleRequest({ request: post(valid), env, manifest })).status, 303);
   const [row] = s.d1.rows('SELECT id, submitted_at FROM submissions');
   assert.match(row.id, /^[0-9a-f-]{36}$/);
-  const ack = await handleRequest({ request: new Request('https://site.example/_tovu/forms/ack', { method: 'POST', body: JSON.stringify({ ids: [row.id] }), headers: { Authorization: `Bearer ${SECRET}` } }), env, manifest });
+  const ack = await handleRequest({ request: new Request('https://site.example/_jini/forms/ack', { method: 'POST', body: JSON.stringify({ ids: [row.id] }), headers: { Authorization: `Bearer ${SECRET}` } }), env, manifest });
   assert.equal((await ack.json()).acknowledged, 1);
   assert.deepEqual(s.d1.rows('SELECT * FROM submissions'), [], 'ack removes the remote copy');
 });
@@ -230,7 +230,7 @@ function pageEnv({ contentType = 'text/html; charset=utf-8', status = 200 } = {}
 const sent = (query = '?form=waitlist&form_status=success', method = 'GET') => new Request(`https://site.example/join/${query}`, { method });
 
 test('a page GET after a successful submission shows the form\'s own success slot and hides the form', async () => {
-  const slot = element('div.tovu-form-success[data-form-slug="waitlist"]');
+  const slot = element('div.jini-form-success[data-form-slug="waitlist"]');
   const form = element('form[data-form-slug="waitlist"]');
   const { env, seen } = pageEnv();
   const resp = await handleRequest({ request: sent(), env, manifest }, { Rewriter: fakeRewriter([slot, form]) });
@@ -241,8 +241,8 @@ test('a page GET after a successful submission shows the form\'s own success slo
   assert.deepEqual(form.inserted, [], 'the host\'s own message is used, nothing is added');
 });
 
-test('the plain data-tovu-form-success slot is revealed the same way', async () => {
-  const slot = element('div[data-tovu-form-success][data-form-slug="waitlist"]');
+test('the plain data-jini-form-success slot is revealed the same way', async () => {
+  const slot = element('div[data-jini-form-success][data-form-slug="waitlist"]');
   const form = element('form[data-form-slug="waitlist"]');
   await handleRequest({ request: sent(), env: pageEnv().env, manifest }, { Rewriter: fakeRewriter([slot, form]) });
   assert.equal(slot.attributes.has('hidden'), false);
@@ -253,7 +253,7 @@ test('a page without a success slot gets one minimal accessible message after th
   const first = element('form[data-form-slug="waitlist"]');
   const second = element('form[data-form-slug="waitlist"]');
   await handleRequest({ request: sent(), env: pageEnv().env, manifest }, { Rewriter: fakeRewriter([first, second]) });
-  assert.deepEqual(first.inserted, [{ content: '<p class="tovu-form-success" data-form-slug="waitlist" role="status">Thanks, your submission was received.</p>', options: { html: true } }]);
+  assert.deepEqual(first.inserted, [{ content: '<p class="jini-form-success" data-form-slug="waitlist" role="status">Thanks, your submission was received.</p>', options: { html: true } }]);
   assert.deepEqual(second.inserted, []);
   assert.equal(second.attributes.get('hidden'), '');
 });

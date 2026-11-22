@@ -1,8 +1,8 @@
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, within } from './legacy-harness.js';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 import { FetchQueryProvider } from '@jini-ai/ui/fetch-query';
-import type { AdminRedirect } from '../../../core/ports/redirects.js';
+import type { AdminRedirect } from '@jini-ai/admin/core';
 import { createMemoryRedirectsApi } from '../../adapters/memory.js';
 import { RedirectsPage } from '../pages/RedirectsPage.js';
 import { RedirectsPortsContext } from '../hooks/RedirectsPorts.hooks.js';

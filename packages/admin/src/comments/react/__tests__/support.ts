@@ -2,12 +2,13 @@
  * Production consumes the core port with two-object calls. These test-only facades translate
  * the old fixture call shape; they contain no alternate screen or controller implementation.
  */
+import { reactModuleUi } from '../../../core/react/module-ui.js';
 import { createElement, useMemo, type ReactNode } from 'react';
 import { createAdmin } from '../../../core/module/create-admin.js';
 import { createHttpTransport } from '../../../core/transport/http.js';
-import { AdminApiError } from '../../../core/transport/errors.js';
+import { AdminApiError } from '@jini-ai/core/admin-runtime';
 import type { AdminComment, AdminCommentsPort, AdminCommentsQueuePage, CommentsSettings, CommentModerationAction, CommentStatus } from '../../../core/ports/comments.js';
-import { createMemoryCommentsApi } from '../../adapters/memory.js';
+import { memoryCommentsApi } from '../../__tests__/fakes/comment-repo.js';
 import { createHttpCommentsApi, createHttpCommentsSession, type CommentsTransportPort } from '../../adapters/http.js';
 import { comments } from '../index.js';
 import { QueueSection as QueueView } from '../components/QueueSection.js';
@@ -52,8 +53,8 @@ function createTestTransport(): CommentsTransportPort {
 export function CommentsTestProvider({ children, http = false }: { children: ReactNode; http?: boolean }) {
   const scope = useMemo(() => {
     const transport = createTestTransport();
-    const module = comments({}, { t: englishComments });
-    const api = http ? createHttpCommentsApi({ transport, basePath: '/workspaces/workspace-local/comments' }) : createMemoryCommentsApi({});
+    const module = comments({ ui: reactModuleUi }, { t: englishComments });
+    const api = http ? createHttpCommentsApi({ transport, basePath: '/workspaces/workspace-local/comments' }) : memoryCommentsApi({});
     const session = createHttpCommentsSession({ transport, path: '/auth/me' });
     const admin = createAdmin({ modules: [module], ports: { commentsApi: api, commentsSession: session, commentsEvents: testEvents } }, { permissions: TEST_GRANTS });
     return { module, admin };
@@ -108,7 +109,7 @@ const queueApis = new WeakMap<CommentQueuePort, AdminCommentsPort>();
 export function commentQueueApi({ port }: { port: CommentQueuePort }): AdminCommentsPort {
   const existing = queueApis.get(port);
   if (existing) return existing;
-  const api: AdminCommentsPort = { ...createMemoryCommentsApi({}),
+  const api: AdminCommentsPort = { ...memoryCommentsApi({}),
     listCommentsQueue: (_required, options = {}) => port.listCommentsQueue({ ...(options.status ? { status: options.status } : {}), ...(options.cursor ? { cursor: options.cursor } : {}) }),
     moderateComment: input => port.moderateComment(input), purgeComment: input => port.purgeComment(input),
   };
@@ -121,7 +122,7 @@ export function useCommentQueue({ port, locale }: { port: CommentQueuePort; loca
 }
 
 export function createFakeCommentSettingsPort(options: { settings?: CommentsSettings; getError?: Error; putError?: Error } = {}) {
-  const api = createMemoryCommentsApi({ settings: options.settings ?? TEST_SETTINGS });
+  const api = memoryCommentsApi({ settings: options.settings ?? TEST_SETTINGS });
   return {
     settings: options.settings ?? TEST_SETTINGS,
     async getCommentsSettings() { if (options.getError) throw options.getError; return { data: await api.getCommentsSettings({}) }; },
@@ -133,7 +134,7 @@ export function createFakeCommentSettingsPort(options: { settings?: CommentsSett
   };
 }
 export function useCommentSettings(canConfigure: boolean, { port, locale }: { port: ReturnType<typeof createFakeCommentSettingsPort>; locale: string }) {
-  const api = useMemo<AdminCommentsPort>(() => ({ ...createMemoryCommentsApi({}),
+  const api = useMemo<AdminCommentsPort>(() => ({ ...memoryCommentsApi({}),
     getCommentsSettings: async () => (await port.getCommentsSettings()).data,
     putCommentsSettings: async (_required, patch = {}) => (await port.putCommentsSettings(patch)).data,
   }), [port]);

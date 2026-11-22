@@ -1,0 +1,2413 @@
+From 8684423246af2cae3cc7f41c188daf5e8355723a Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Wed, 18 Nov 2026 00:11:20 +0000
+Subject: [PATCH 1/6] refactor(daemon): R8a step 5 the executor takes its OS
+ ports from the host (runtime, hostEnv required; planCommandInvocation direct;
+ probe takes spawn and hostEnv)
+
+platform gains nodeSpawnPort / createSpawnPort / nodeCommandShell (binding tests first, red then green). The executor's
+spawn, process-control and command-planning defaults are deleted with resolveProcessDeps; the five hosts
+(server preset, minimal-host, reference-web and the executor tests via one fixture) bind the Node implementations.
+The real-stopper default test moves to platform's binding suite; the child_process vi.mock in split-parity is gone.
+Debt rows lowered (injection, env-access, size).
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01FiTZBoVsefwW5254ZQEFJi
+---
+ .../daemon-executor-runtime-required.md       |   7 +
+ examples/minimal-host/package.json            |   1 +
+ examples/minimal-host/src/acp-fixture.test.ts |   8 +-
+ examples/minimal-host/src/index.ts            |  10 +-
+ examples/reference-web/package.json           |   1 +
+ examples/reference-web/src/daemon.ts          |  10 +-
+ packages/daemon/package.json                  |   1 +
+ .../claude-bash-sandbox.live.test.ts          |   8 +-
+ packages/daemon/src/agent-executor.ts         |   2 +
+ .../agent-executor-acp.integration.test.ts    |  11 +-
+ .../agent-executor-capability-probe.test.ts   |  11 +-
+ .../agent-executor-filesystem-policy.test.ts  |  26 +--
+ .../__tests__/agent-executor-helpers.test.ts  |   2 +-
+ .../agent-executor-read-only-dirs.test.ts     |   7 +-
+ .../__tests__/agent-executor.test.ts          | 168 ++++++++----------
+ .../claude-background-ceiling.test.ts         |   7 +-
+ .../__tests__/host-env-ports.test.ts          |   7 +-
+ .../http-mcp-launch.integration.test.ts       |  16 +-
+ .../launch-defaults-and-staging.test.ts       |  65 +++----
+ .../__tests__/launch-relay-m1.unit.test.ts    |   7 +-
+ .../__tests__/mcp-bridge-probe.unit.test.ts   |  58 +++---
+ .../__tests__/mid-run-user-message.test.ts    |   9 +-
+ .../__tests__/r8a-characterization.test.ts    |  31 ++--
+ .../src/agent-executor/__tests__/r8a-rig.ts   |  29 ++-
+ .../__tests__/runtime-fixture.ts              |  48 +++++
+ .../__tests__/runtime-policy.test.ts          |  15 +-
+ .../__tests__/split-parity.test.ts            |  15 +-
+ .../__tests__/starting-model.test.ts          |  41 ++---
+ .../__tests__/usage-cost-basis.test.ts        |   5 +-
+ .../daemon/src/agent-executor/contracts.ts    |  28 +--
+ packages/daemon/src/agent-executor/events.ts  |  10 +-
+ packages/daemon/src/agent-executor/index.ts   |   2 +-
+ packages/daemon/src/agent-executor/launch.ts  |  57 ++----
+ .../src/agent-executor/mcp-bridge-probe.ts    |  21 ++-
+ .../src/agent-executor/runtime-bindings.ts    |  28 +++
+ packages/node-adapters/source-map.md          |   2 +-
+ .../src/__tests__/runtime-ports.test.ts       |  53 +++++-
+ .../src/__tests__/surface.test.ts             |   2 +-
+ packages/node-adapters/src/process.ts         |  37 +++-
+ packages/server/package.json                  |   1 +
+ .../src/__tests__/kernel-runtime.test.ts      |   8 +-
+ packages/server/src/kernel-base.ts            |  18 +-
+ scripts/env-access-debt.json                  |  21 ---
+ scripts/injection-debt.json                   |   5 -
+ scripts/size-debt.json                        |   8 +-
+ 45 files changed, 524 insertions(+), 403 deletions(-)
+ create mode 100644 .changeset/daemon-executor-runtime-required.md
+ create mode 100644 packages/daemon/src/agent-executor/__tests__/runtime-fixture.ts
+ create mode 100644 packages/daemon/src/agent-executor/runtime-bindings.ts
+
+diff --git a/.changeset/daemon-executor-runtime-required.md b/.changeset/daemon-executor-runtime-required.md
+new file mode 100644
+index 00000000..8360c000
+--- /dev/null
++++ b/.changeset/daemon-executor-runtime-required.md
+@@ -0,0 +1,7 @@
++---
++"@jini-ai/daemon": minor
++"@jini-ai/node-adapters": minor
++"@jini-ai/server": minor
++---
++
++`createAgentExecutor` takes `{ lifecycle, runtime, hostEnv }` as its required first argument. `runtime` is the host's `AgentExecutorRuntimePorts` (`spawn`, `processes`, `fileLock`, `writer`, `commandShell`); `hostEnv` is required instead of falling back to the ambient process env. The options `spawn`, `createCommandInvocation`, `listProcessSnapshots`, `collectProcessTreePids` and `stopProcesses` are removed, and the executor plans commands with core's pure `planCommandInvocation` from the stated `commandShell`. `probeMcpBridge({ entry, spawn, hostEnv }, options)` takes the spawn port and host env as required fields; `CreateAgentExecutorOptions.probeMcpBridge` is the bound `McpBridgeProbe`. `@jini-ai/node-adapters/process` adds `nodeSpawnPort`, `createSpawnPort` and `nodeCommandShell`. The `server` preset binds the Node implementations unless `agentExecutor.runtime` is given, and so depends on `@jini-ai/node-adapters`.
+diff --git a/examples/minimal-host/package.json b/examples/minimal-host/package.json
+index 30f37d53..e3e9eda7 100644
+--- a/examples/minimal-host/package.json
++++ b/examples/minimal-host/package.json
+@@ -13,6 +13,7 @@
+     "@jini-ai/db": "workspace:*",
+     "@jini-ai/http-kit": "workspace:*",
+     "@jini-ai/oauth": "workspace:*",
++    "@jini-ai/node-adapters": "workspace:*",
+     "@jini-ai/platform": "workspace:*",
+     "@jini-ai/registry": "workspace:*",
+     "@jini-ai/server": "workspace:*",
+diff --git a/examples/minimal-host/src/acp-fixture.test.ts b/examples/minimal-host/src/acp-fixture.test.ts
+index 1ec56c7c..f7d47d6e 100644
+--- a/examples/minimal-host/src/acp-fixture.test.ts
++++ b/examples/minimal-host/src/acp-fixture.test.ts
+@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest';
+ import { createAgentExecutor, createInMemoryEventLog, createRunLifecycle } from '@jini-ai/daemon';
+ import type { AgentLaunchResolution } from '@jini-ai/core/contracts/agents';
+ import { acpFixtureDef } from './acp-fixture.js';
++import { nodeAtomicWriter, nodeFileLock } from '@jini-ai/node-adapters/fs';
++import { nodeCommandShell, nodeProcessControl, nodeSpawnPort } from '@jini-ai/node-adapters/process';
++import type { AgentExecutorRuntimePorts } from '@jini-ai/daemon/ports/runtime';
+ 
+ describe('minimal host static ACP definition', () => {
+   it('runs the real permission and prompt exchange with no discovery ports', async () => {
+@@ -11,7 +14,10 @@ describe('minimal host static ACP definition', () => {
+     const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
+     const launch: AgentLaunchResolution = { selectedPath: process.execPath, pathResolvedPath: process.execPath, configuredOverridePath: null, launchPath: process.execPath, launchKind: 'selected', childPathPrepend: [], diagnostic: null };
+     let permissions = 0;
+-    const executor = createAgentExecutor({ lifecycle }, {
++    const executor = createAgentExecutor({
++      lifecycle, hostEnv: process.env,
++      runtime: { spawn: nodeSpawnPort, processes: nodeProcessControl, fileLock: nodeFileLock, writer: nodeAtomicWriter, commandShell: nodeCommandShell({ env: process.env }) },
++    }, {
+       getAgentDef: () => def, resolveAgentLaunch: () => launch, applyAgentLaunchEnv: ({ env }) => env,
+       ensureAgentCapabilities: async () => {},
+       acpPermissionHandler: async () => { permissions++; return { outcome: 'selected', optionId: 'allow' }; },
+diff --git a/examples/minimal-host/src/index.ts b/examples/minimal-host/src/index.ts
+index e58e2435..7b4ed2a8 100644
+--- a/examples/minimal-host/src/index.ts
++++ b/examples/minimal-host/src/index.ts
+@@ -21,6 +21,14 @@ import { type AgentLaunchResolution } from '@jini-ai/core/contracts/agents';
+ import { fetchWithTimeout } from '@jini-ai/platform';
+ import { FETCH_TIMEOUT_MS } from '@jini-ai/core/net';
+ import { createLocalNodeDaemon } from '@jini-ai/server';
++import { nodeAtomicWriter, nodeFileLock } from '@jini-ai/node-adapters/fs';
++import { nodeCommandShell, nodeProcessControl, nodeSpawnPort } from '@jini-ai/node-adapters/process';
++import type { AgentExecutorRuntimePorts } from '@jini-ai/daemon/ports/runtime';
++
++/** The Node implementations of the OS-facing ports the agent executor needs, bound from the env this host owns. */
++function executorRuntimeFor({ hostEnv }: { hostEnv: NodeJS.ProcessEnv }, _optional: Record<string, never> = {}): AgentExecutorRuntimePorts {
++  return { spawn: nodeSpawnPort, processes: nodeProcessControl, fileLock: nodeFileLock, writer: nodeAtomicWriter, commandShell: nodeCommandShell({ env: hostEnv }) };
++}
+ 
+ interface DaemonStatusBody {
+   ok?: boolean;
+@@ -69,7 +77,7 @@ async function main(): Promise<void> {
+         }
+ 
+         if (request.agentId === 'acp-fixture') {
+-          const executor = createAgentExecutor({ lifecycle }, {
++          const executor = createAgentExecutor({ lifecycle, hostEnv: runtime.hostEnv, runtime: executorRuntimeFor({ hostEnv: runtime.hostEnv }) }, {
+             ...runtimeExecutorOptions,
+             getAgentDef: ({ id }) => (id === 'acp-fixture' ? acpFixtureDef() : null),
+             resolveAgentLaunch: () =>
+diff --git a/examples/reference-web/package.json b/examples/reference-web/package.json
+index f4300f77..95335f7d 100644
+--- a/examples/reference-web/package.json
++++ b/examples/reference-web/package.json
+@@ -21,6 +21,7 @@
+     "@jini-ai/mcp": "workspace:*",
+     "@jini-ai/integrations": "workspace:*",
+     "@jini-ai/memory": "workspace:*",
++    "@jini-ai/node-adapters": "workspace:*",
+     "@jini-ai/platform": "workspace:*",
+     "@jini-ai/server": "workspace:*",
+     "@jini-ai/protocol": "workspace:*",
+diff --git a/examples/reference-web/src/daemon.ts b/examples/reference-web/src/daemon.ts
+index e4b6e493..043d28f6 100644
+--- a/examples/reference-web/src/daemon.ts
++++ b/examples/reference-web/src/daemon.ts
+@@ -8,6 +8,9 @@ import { dirname, extname, join, resolve } from 'node:path';
+ import { parseRendererToAgentMessage, type RendererToAgentMessage } from '@jini-ai/protocol/a2ui';
+ import Database from 'better-sqlite3';
+ import { createAgentExecutor } from '@jini-ai/daemon';
++import { nodeAtomicWriter, nodeFileLock } from '@jini-ai/node-adapters/fs';
++import { nodeCommandShell, nodeProcessControl, nodeSpawnPort } from '@jini-ai/node-adapters/process';
++import type { AgentExecutorRuntimePorts } from '@jini-ai/daemon/ports/runtime';
+ import { createNativeAgentRuntime } from '@jini-ai/agent-runtime';
+ import type { ToolRegistration } from '@jini-ai/core';
+ import { createDiskAttachmentStore, createFrontendControl, registerAttachmentRoutes, registerMediaRoutes, registerMemoryRoutes } from '@jini-ai/daemon/http';
+@@ -32,6 +35,11 @@ import {
+ } from './working-directory-authority.js';
+ import { resolveJiniMcpBridge, type JiniMcpBridgeInjection } from './mcp-bridge.js';
+ 
++/** The Node implementations of the OS-facing ports the agent executor needs, bound from the env this host owns. */
++function executorRuntimeFor({ hostEnv }: { hostEnv: NodeJS.ProcessEnv }, _optional: Record<string, never> = {}): AgentExecutorRuntimePorts {
++  return { spawn: nodeSpawnPort, processes: nodeProcessControl, fileLock: nodeFileLock, writer: nodeAtomicWriter, commandShell: nodeCommandShell({ env: hostEnv }) };
++}
++
+ const PLAYGROUND_PREFIX = 'playground:';
+ 
+ /**
+@@ -529,7 +537,7 @@ async function main(): Promise<void> {
+               decoded.workingDirectory,
+               decoded.project,
+             );
+-            const executor = createAgentExecutor({ lifecycle }, {
++            const executor = createAgentExecutor({ lifecycle, hostEnv: runtimeExecutorOptions.hostEnv, runtime: executorRuntimeFor({ hostEnv: runtimeExecutorOptions.hostEnv }) }, {
+               ...runtimeExecutorOptions,
+               // Gives the spawned CLI `execute_delegated_tool`, the agent-native route into the
+               // same `ToolExecutor` gate `frontendControl` registers its capabilities behind.
+diff --git a/packages/daemon/package.json b/packages/daemon/package.json
+index cf1f1e22..dbe68e8e 100644
+--- a/packages/daemon/package.json
++++ b/packages/daemon/package.json
+@@ -199,6 +199,7 @@
+     "@types/express": "^4.17.21",
+     "@jini-ai/agent-runtime": "workspace:^",
+     "@jini-ai/core": "workspace:^",
++    "@jini-ai/node-adapters": "workspace:^",
+     "@jini-ai/platform": "workspace:^",
+     "@jini-ai/protocol": "workspace:^"
+   },
+diff --git a/packages/daemon/src/__tests__/integration/claude-bash-sandbox.live.test.ts b/packages/daemon/src/__tests__/integration/claude-bash-sandbox.live.test.ts
+index a78fa56b..5cfff180 100644
+--- a/packages/daemon/src/__tests__/integration/claude-bash-sandbox.live.test.ts
++++ b/packages/daemon/src/__tests__/integration/claude-bash-sandbox.live.test.ts
+@@ -6,6 +6,8 @@ import { delimiter, join, resolve, sep } from 'node:path';
+ import { pathToFileURL } from 'node:url';
+ import { expect, it } from 'vitest';
+ import type { RunProtocolEvent } from '@jini-ai/protocol';
++import { nodeAtomicWriter, nodeFileLock } from '@jini-ai/node-adapters/fs';
++import { createSpawnPort, nodeCommandShell, nodeProcessControl, type SpawnFunction } from '@jini-ai/node-adapters/process';
+ 
+ const COMMAND = 'pwd && echo REPRO_OK';
+ 
+@@ -116,8 +118,10 @@ it.skipIf(Boolean(reason))('runs one real Claude Bash command inside the daemon
+     child.stdout?.on('data', (chunk: Buffer) => { stdout += chunk.toString('utf8'); });
+     child.stderr?.on('data', (chunk: Buffer) => { stderr += chunk.toString('utf8'); });
+     return child;
+-  }) as typeof spawn;
+-  const executor = daemon.createAgentExecutor({ lifecycle }, { spawn: spawnLive });
++  }) satisfies SpawnFunction;
++  const executor = daemon.createAgentExecutor({ lifecycle, hostEnv: process.env, runtime: {
++    spawn: createSpawnPort({ spawn: spawnLive }), processes: nodeProcessControl, fileLock: nodeFileLock, writer: nodeAtomicWriter, commandShell: nodeCommandShell({ env: process.env }),
++  } });
+   const timeout = setTimeout(() => {
+     controller.abort(new Error('Claude live run exceeded 120 seconds'));
+     void lifecycle.cancel({ runId: run.id, reason: 'live test timeout' });
+diff --git a/packages/daemon/src/agent-executor.ts b/packages/daemon/src/agent-executor.ts
+index 12af07d6..b42442cc 100644
+--- a/packages/daemon/src/agent-executor.ts
++++ b/packages/daemon/src/agent-executor.ts
+@@ -33,6 +33,8 @@ export {
+   type McpJsonInjectionOptions,
+   MCP_BRIDGE_UNAVAILABLE,
+   probeMcpBridge,
++  type McpBridgeProbe,
++  type McpBridgeProbeEntry,
+   type McpBridgeProbeResult,
+   unavailableJiniBridgeStatus,
+   buildMcpJsonServerEntry,
+diff --git a/packages/daemon/src/agent-executor/__tests__/agent-executor-acp.integration.test.ts b/packages/daemon/src/agent-executor/__tests__/agent-executor-acp.integration.test.ts
+index 95f65ae3..567f2245 100644
+--- a/packages/daemon/src/agent-executor/__tests__/agent-executor-acp.integration.test.ts
++++ b/packages/daemon/src/agent-executor/__tests__/agent-executor-acp.integration.test.ts
+@@ -5,6 +5,7 @@ import { createRunLifecycle, type RunLifecycle } from '../../run-lifecycle.js';
+ import { createAgentExecutor } from '../../index.js';
+ import type { AgentLaunchResolution, RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
+ import type { RunAgentPayload, RunProtocolEvent } from '@jini-ai/protocol';
++import { nodeRuntime } from './runtime-fixture.js';
+ 
+ /**
+  * A real Node subprocess speaking the smallest useful ACP conversation. It
+@@ -144,7 +145,7 @@ describe('AgentExecutor — ACP subprocess integration', () => {
+       });
+       return { outcome: 'selected' as const, optionId: 'allow' };
+     });
+-    const executor = createAgentExecutor({ lifecycle }, { getAgentDef: ({ id: agentId }) => (agentId === 'acp-fixture' ? fixtureDef() : null), resolveAgentLaunch: fixtureLaunch, applyAgentLaunchEnv: ({ env }) => env, acpPermissionHandler: onPermissionRequest });
++    const executor = createAgentExecutor({ lifecycle, hostEnv: process.env, runtime: nodeRuntime() }, { getAgentDef: ({ id: agentId }) => (agentId === 'acp-fixture' ? fixtureDef() : null), resolveAgentLaunch: fixtureLaunch, applyAgentLaunchEnv: ({ env }) => env, acpPermissionHandler: onPermissionRequest });
+     const { run } = await lifecycle.start({ contextRef: 'acp-fixture' });
+ 
+     await executor.run({ runId: run.id, agentId: 'acp-fixture', prompt: 'say hello', cwd: process.cwd() });
+@@ -175,7 +176,7 @@ describe('AgentExecutor — ACP subprocess integration', () => {
+  */
+ describe("AgentExecutor — ACP subprocess integration: 'acp-merge' MCP bridge delivery", () => {
+   function createExecutorFor(def: RuntimeAgentDef, lifecycle: RunLifecycle) {
+-    return createAgentExecutor({ lifecycle }, { getAgentDef: ({ id: agentId }) => (agentId === 'acp-fixture' ? def : null), resolveAgentLaunch: fixtureLaunch, applyAgentLaunchEnv: ({ env }) => env, acpPermissionHandler: async () => ({ outcome: 'selected' as const, optionId: 'allow' }), mcpJsonInjection: {
++    return createAgentExecutor({ lifecycle, hostEnv: process.env, runtime: nodeRuntime() }, { getAgentDef: ({ id: agentId }) => (agentId === 'acp-fixture' ? def : null), resolveAgentLaunch: fixtureLaunch, applyAgentLaunchEnv: ({ env }) => env, acpPermissionHandler: async () => ({ outcome: 'selected' as const, optionId: 'allow' }), mcpJsonInjection: {
+         command: '/usr/bin/jini-mcp',
+         args: ['--quiet'],
+         daemonUrl: 'http://127.0.0.1:4242',
+@@ -243,11 +244,7 @@ describe("AgentExecutor — ACP subprocess integration: 'acp-merge' MCP bridge d
+     const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
+     const def = fixtureDef({ externalMcpInjection: 'acp-merge' });
+     const spawnArgs: string[][] = [];
+-    const executor = createAgentExecutor({ lifecycle }, { getAgentDef: ({ id: agentId }) => (agentId === 'acp-fixture' ? def : null), resolveAgentLaunch: fixtureLaunch, applyAgentLaunchEnv: ({ env }) => env, acpPermissionHandler: async () => ({ outcome: 'selected' as const, optionId: 'allow' }), createCommandInvocation: (input) => {
+-        const args = [...(input.args ?? [])];
+-        spawnArgs.push(args);
+-        return { command: input.command, args, windowsVerbatimArguments: false };
+-      }, mcpJsonInjection: {
++    const executor = createAgentExecutor({ lifecycle, hostEnv: process.env, runtime: nodeRuntime({ onSpawn: ({ args }) => { spawnArgs.push([...args]); } }) }, { getAgentDef: ({ id: agentId }) => (agentId === 'acp-fixture' ? def : null), resolveAgentLaunch: fixtureLaunch, applyAgentLaunchEnv: ({ env }) => env, acpPermissionHandler: async () => ({ outcome: 'selected' as const, optionId: 'allow' }), mcpJsonInjection: {
+         command: '/usr/bin/jini-mcp',
+         daemonUrl: 'http://127.0.0.1:4242',
+         credential: () => 'run-scoped-secret',
+diff --git a/packages/daemon/src/agent-executor/__tests__/agent-executor-capability-probe.test.ts b/packages/daemon/src/agent-executor/__tests__/agent-executor-capability-probe.test.ts
+index 844a5f84..7bec9a68 100644
+--- a/packages/daemon/src/agent-executor/__tests__/agent-executor-capability-probe.test.ts
++++ b/packages/daemon/src/agent-executor/__tests__/agent-executor-capability-probe.test.ts
+@@ -6,6 +6,7 @@ import { type AgentLaunchResolution, type RuntimeAgentDef } from '@jini-ai/core/
+ import { createInMemoryEventLog } from '../../event-log.js';
+ import { createRunLifecycle } from '../../run-lifecycle.js';
+ import { createAgentExecutor } from '../index.js';
++import { runtimeFixture } from './runtime-fixture.js';
+ 
+ /**
+  * The capability gate (`agentCapabilities`) used to be filled only by `detectAgents`, which a host's
+@@ -32,7 +33,10 @@ describe('AgentExecutor — probes the def\'s --help capabilities before buildAr
+       promptViaStdin: true,
+     };
+     const spawnedArgs: string[][] = [];
+-    const executor = createAgentExecutor({ lifecycle }, { getAgentDef: ({ id }) => (id === def.id ? def : null), resolveAgentLaunch: () =>
++    const executor = createAgentExecutor({ lifecycle, hostEnv: {}, runtime: runtimeFixture({ spawn: ((_command: string, args: readonly string[]) => {
++        spawnedArgs.push([...args]);
++        throw new Error('stop after argv');
++      }) as unknown as typeof nodeSpawn }) }, { getAgentDef: ({ id }) => (id === def.id ? def : null), resolveAgentLaunch: () =>
+         ({
+           selectedPath: '/fake/probe-bin',
+           pathResolvedPath: '/fake/probe-bin',
+@@ -44,10 +48,7 @@ describe('AgentExecutor — probes the def\'s --help capabilities before buildAr
+         }) as AgentLaunchResolution, applyAgentLaunchEnv: ({ env }) => env, ensureAgentCapabilities: async ({ def: probed, launchPath, env }) => {
+         probeCalls.push({ id: probed.id, launchPath, hasEnv: typeof env === 'object' && env !== null });
+         agentCapabilities.set(probed.id, { partialMessages: true });
+-      }, spawn: ((_command: string, args: readonly string[]) => {
+-        spawnedArgs.push([...args]);
+-        throw new Error('stop after argv');
+-      }) as unknown as typeof nodeSpawn });
++      } });
+     try {
+       const { run } = await lifecycle.start({ contextRef: 'ctx-probe' });
+       await executor.run({ runId: run.id, agentId: def.id, prompt: 'hi', cwd: '/work' }).catch(() => undefined);
+diff --git a/packages/daemon/src/agent-executor/__tests__/agent-executor-filesystem-policy.test.ts b/packages/daemon/src/agent-executor/__tests__/agent-executor-filesystem-policy.test.ts
+index 02ea74c5..a470e971 100644
+--- a/packages/daemon/src/agent-executor/__tests__/agent-executor-filesystem-policy.test.ts
++++ b/packages/daemon/src/agent-executor/__tests__/agent-executor-filesystem-policy.test.ts
+@@ -15,6 +15,7 @@ import { createInMemoryEventLog } from '../../event-log.js';
+ import { createRunLifecycle } from '../../run-lifecycle.js';
+ import { createAgentExecutor } from '../index.js';
+ import { fixtureLaunchModel } from './model-discovery-fixture.js';
++import { runtimeFixture } from './runtime-fixture.js';
+ 
+ // Only the simulated Claude adapter attests per-run MCP isolation; no real CLI capability is claimed.
+ // Codex grants personal MCP independently because this filesystem fixture stages no isolated home.
+@@ -54,14 +55,14 @@ describe('executor filesystem policy (owner 2026-10-23)', () => {
+         }
+         throw new Error('stop after policy capture');
+       });
+-      const executor = createAgentExecutor({ lifecycle }, {
++      const executor = createAgentExecutor({ lifecycle, hostEnv: { ...childEnv, CLAUDE_CODE_TMPDIR: '/ambient/claude-temp' }, runtime: runtimeFixture({ spawn: spawnChild as unknown as typeof spawn }) }, {
+         // The daemon's own CLAUDE_CODE_TMPDIR must neither reach the child nor widen its policy (SEC-001).
+-        hostEnv: { ...childEnv, CLAUDE_CODE_TMPDIR: '/ambient/claude-temp' },
++        
+         getAgentDef: () => def, resolveModelForLaunch: fixtureLaunchModel,
+         resolveAgentLaunch: () => ({ selectedPath: executable, pathResolvedPath: executable, configuredOverridePath: null,
+           launchPath: executable, launchKind: 'selected', childPathPrepend: [], diagnostic: null }) as AgentLaunchResolution,
+         applyAgentLaunchEnv: ({ env }) => env, ensureAgentCapabilities: async () => {},
+-        assertClaudeFilesystemSupport: verify, spawn: spawnChild as unknown as typeof spawn,
++        assertClaudeFilesystemSupport: verify, 
+       });
+       const { run } = await lifecycle.start({ contextRef: 'filesystem-test' });
+       const result = executor.run({ runId: run.id, agentId: def.id, cwd: scenario === 'wrong-cwd' ? base : site, prompt: 'hello' }, {
+@@ -207,15 +208,7 @@ function scratchHarness({ failSecondSpawn = false }: { failSecondSpawn?: boolean
+     children[0]!.emit('close', null, 'SIGTERM');
+     return { alreadyStopped: false, forcedPids: [], matchedPids: [4242], remainingPids: [], stoppedPids: [4242] };
+   });
+-  const executor = createAgentExecutor({ lifecycle }, {
+-    hostEnv: { PATH: '/bin', HOME: base, CLAUDE_CODE_TMPDIR: '/tmp/operator-session' },
+-    getAgentDef: () => ({ ...claudeAgentDef, mcpIsolation: { perRun: 'fixture@2026-11-05' } }), resolveModelForLaunch: fixtureLaunchModel,
+-    resolveAgentLaunch: () => ({ selectedPath: executable, pathResolvedPath: executable, configuredOverridePath: null,
+-      launchPath: executable, launchKind: 'selected', childPathPrepend: [], diagnostic: null }) as AgentLaunchResolution,
+-    applyAgentLaunchEnv: ({ env }) => env, ensureAgentCapabilities: async () => {},
+-    assertClaudeFilesystemSupport: async () => true,
+-    listProcessSnapshots: async () => [], collectProcessTreePids: () => [4242], stopProcesses,
+-    spawn: ((_command: string, args: readonly string[], options: { env: NodeJS.ProcessEnv }) => {
++  const executor = createAgentExecutor({ lifecycle, hostEnv: { PATH: '/bin', HOME: base, CLAUDE_CODE_TMPDIR: '/tmp/operator-session' }, runtime: runtimeFixture({ listProcessSnapshots: async () => [], stopProcesses: stopProcesses, spawn: ((_command: string, args: readonly string[], options: { env: NodeJS.ProcessEnv }) => {
+       const child = Object.assign(new EventEmitter(), { pid: 4242 + children.length, killed: false,
+         stdout: new PassThrough(), stderr: new PassThrough(), stdin: new PassThrough(), kill: vi.fn(() => true) }) as unknown as ChildProcess;
+       children.push(child); environments.push(options.env);
+@@ -225,7 +218,14 @@ function scratchHarness({ failSecondSpawn = false }: { failSecondSpawn?: boolean
+         else child.emit('spawn');
+       });
+       return child;
+-    }) as unknown as typeof spawn,
++    }) as unknown as typeof spawn }) }, {
++    
++    getAgentDef: () => ({ ...claudeAgentDef, mcpIsolation: { perRun: 'fixture@2026-11-05' } }), resolveModelForLaunch: fixtureLaunchModel,
++    resolveAgentLaunch: () => ({ selectedPath: executable, pathResolvedPath: executable, configuredOverridePath: null,
++      launchPath: executable, launchKind: 'selected', childPathPrepend: [], diagnostic: null }) as AgentLaunchResolution,
++    applyAgentLaunchEnv: ({ env }) => env, ensureAgentCapabilities: async () => {},
++    assertClaudeFilesystemSupport: async () => true,
++    
+   });
+   return { children, environments, policies, lifecycle, stopProcesses,
+     reply: async ({ index }: { index: number }, _options = {}) => {
+diff --git a/packages/daemon/src/agent-executor/__tests__/agent-executor-helpers.test.ts b/packages/daemon/src/agent-executor/__tests__/agent-executor-helpers.test.ts
+index 757c4ad8..02f79feb 100644
+--- a/packages/daemon/src/agent-executor/__tests__/agent-executor-helpers.test.ts
++++ b/packages/daemon/src/agent-executor/__tests__/agent-executor-helpers.test.ts
+@@ -342,7 +342,7 @@ describe('spawnAgentChildProcess', () => {
+     const result = spawnAgentChildProcess({ input: { cwd: '/work', childEnv: { PATH: '/bin' }, invocation: { command: 'claude', args: ['-p'], windowsVerbatimArguments: false } }, deps: { spawn } }
+     );
+     expect(result).toEqual({ kind: 'ok', child: fakeChild });
+-    expect(spawn).toHaveBeenCalledWith('claude', ['-p'], {
++    expect(spawn).toHaveBeenCalledWith({ command: 'claude', args: ['-p'] }, {
+       cwd: '/work',
+       env: { PATH: '/bin' },
+       stdio: ['pipe', 'pipe', 'pipe'],
+diff --git a/packages/daemon/src/agent-executor/__tests__/agent-executor-read-only-dirs.test.ts b/packages/daemon/src/agent-executor/__tests__/agent-executor-read-only-dirs.test.ts
+index b30f2c0a..6251d8ed 100644
+--- a/packages/daemon/src/agent-executor/__tests__/agent-executor-read-only-dirs.test.ts
++++ b/packages/daemon/src/agent-executor/__tests__/agent-executor-read-only-dirs.test.ts
+@@ -13,6 +13,7 @@ import { createInMemoryEventLog } from '../../event-log.js';
+ import { createRunLifecycle } from '../../run-lifecycle.js';
+ import { createAgentExecutor } from '../index.js';
+ import { fixtureLaunchModel } from './model-discovery-fixture.js';
++import { runtimeFixture } from './runtime-fixture.js';
+ 
+ // Only simulated Claude attests per-run MCP isolation; Codex grants personal MCP independently.
+ // These fixtures make no claim about real CLI isolation capability.
+@@ -35,12 +36,12 @@ describe('executor read-only extra directories', () => {
+       const argsSeen: string[][] = [];
+       const spawnChild = vi.fn((_command: string, args: readonly string[]) => { argsSeen.push([...args]); throw new Error('stop after policy capture'); });
+       const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
+-      const executor = createAgentExecutor({ lifecycle }, {
+-        hostEnv: { PATH: '/bin', HOME: base }, getAgentDef: () => def, resolveModelForLaunch: fixtureLaunchModel,
++      const executor = createAgentExecutor({ lifecycle, hostEnv: { PATH: '/bin', HOME: base }, runtime: runtimeFixture({ spawn: spawnChild as unknown as typeof spawn }) }, {
++         getAgentDef: () => def, resolveModelForLaunch: fixtureLaunchModel,
+         resolveAgentLaunch: () => ({ selectedPath: executable, pathResolvedPath: executable, configuredOverridePath: null,
+           launchPath: executable, launchKind: 'selected', childPathPrepend: [], diagnostic: null }) as AgentLaunchResolution,
+         applyAgentLaunchEnv: ({ env }) => env, ensureAgentCapabilities: async () => {},
+-        assertClaudeFilesystemSupport: vi.fn(async () => scenario !== 'codex'), spawn: spawnChild as unknown as typeof spawn,
++        assertClaudeFilesystemSupport: vi.fn(async () => scenario !== 'codex'), 
+       });
+       const { run } = await lifecycle.start({ contextRef: 'read-only-test' });
+       const result = executor.run({ runId: run.id, agentId: def.id, cwd: site, prompt: 'hello' }, {
+diff --git a/packages/daemon/src/agent-executor/__tests__/agent-executor.test.ts b/packages/daemon/src/agent-executor/__tests__/agent-executor.test.ts
+index 0ef46075..0a986282 100644
+--- a/packages/daemon/src/agent-executor/__tests__/agent-executor.test.ts
++++ b/packages/daemon/src/agent-executor/__tests__/agent-executor.test.ts
+@@ -65,8 +65,9 @@ import {
+   type McpBridgeDelivery,
+   type McpJsonInjectionOptions,
+   type McpBridgeProbeResult,
+-  probeMcpBridge,
++  type McpBridgeProbe,
+ } from '../../index.js';
++import { runtimeFixture } from './runtime-fixture.js';
+ 
+ // Fake defs take no stream-json stdin, so every bridged run also carries the mid-run message
+ // relay (f40db242) with a fresh per-run nonce.
+@@ -365,9 +366,11 @@ interface SpawnCall {
+ }
+ 
+ interface HarnessOptions {
++  /** The host env the executor is given (it never reads the ambient process env). Default: empty. */
++  hostEnv?: NodeJS.ProcessEnv;
+   delegatedResultCorrelation?: DelegatedResultCorrelation;
+   stdoutJournalBlobs?: StdoutJournalBlobPort;
+-  probeMcpBridge?: typeof probeMcpBridge;
++  probeMcpBridge?: McpBridgeProbe;
+   def?: RuntimeAgentDef | null;
+   launchPath?: string | null;
+   spawnThrows?: unknown;
+@@ -435,18 +438,7 @@ function createHarness(options: HarnessOptions = {}): Harness {
+ 
+   const onCleanupFailure = vi.fn();
+ 
+-  const executor = createAgentExecutor({ lifecycle }, { ...(options.delegatedResultCorrelation ? { delegatedResultCorrelation: options.delegatedResultCorrelation } : {}), ...(options.stdoutJournalBlobs ? { stdoutJournalBlobs: options.stdoutJournalBlobs } : {}), ...(options.probeMcpBridge ? { probeMcpBridge: options.probeMcpBridge } : {}), resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (def && def.id === id ? def : null), resolveAgentLaunch: () =>
+-      ({
+-        selectedPath: launchPath,
+-        pathResolvedPath: launchPath,
+-        configuredOverridePath: null,
+-        launchPath,
+-        launchKind: 'selected',
+-        childPathPrepend: [],
+-        diagnostic: null,
+-      }) as AgentLaunchResolution, applyAgentLaunchEnv: ({ env }) => env, spawn: fakeSpawn, ...(options.preparePromptFileForAgent !== undefined
+-      ? { preparePromptFileForAgent: options.preparePromptFileForAgent }
+-      : {}), ...(options.prepareAgentLogFile !== undefined ? { prepareAgentLogFile: options.prepareAgentLogFile } : {}), listProcessSnapshots: async () => {
++  const executor = createAgentExecutor({ lifecycle, hostEnv: options.hostEnv ?? {}, runtime: runtimeFixture({ spawn: fakeSpawn, listProcessSnapshots: async () => {
+       if (options.listProcessSnapshotsRejects !== undefined) throw options.listProcessSnapshotsRejects;
+       const pid = child.pid ?? 0;
+       return [
+@@ -454,11 +446,22 @@ function createHarness(options: HarnessOptions = {}): Harness {
+         { pid: pid + 1, ppid: pid, command: 'fake-bin --mcp-helper' },
+       ];
+     }, stopProcesses: async ({ pids }) => {
+-      stopProcessesCalls.push(pids);
++      stopProcessesCalls.push([...pids]);
+       if (options.stopProcessesRejects !== undefined) throw options.stopProcessesRejects;
+       const numericPids = pids.filter((pid): pid is number => typeof pid === 'number');
+       return { alreadyStopped: false, forcedPids: [], matchedPids: numericPids, remainingPids: [], stoppedPids: numericPids };
+-    }, onCleanupFailure, ...(options.journal !== undefined ? { journal: options.journal } : {}), ...(options.continuation !== undefined ? { continuation: options.continuation } : {}), ...(options.classifyFailure !== undefined ? { classifyFailure: options.classifyFailure } : {}), ...(options.mcpJsonInjection !== undefined ? { mcpJsonInjection: options.mcpJsonInjection } : {}), ...(options.claudeConfigDirIsolation !== undefined
++    } }) }, { ...(options.delegatedResultCorrelation ? { delegatedResultCorrelation: options.delegatedResultCorrelation } : {}), ...(options.stdoutJournalBlobs ? { stdoutJournalBlobs: options.stdoutJournalBlobs } : {}), ...(options.probeMcpBridge ? { probeMcpBridge: options.probeMcpBridge } : {}), resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (def && def.id === id ? def : null), resolveAgentLaunch: () =>
++      ({
++        selectedPath: launchPath,
++        pathResolvedPath: launchPath,
++        configuredOverridePath: null,
++        launchPath,
++        launchKind: 'selected',
++        childPathPrepend: [],
++        diagnostic: null,
++      }) as AgentLaunchResolution, applyAgentLaunchEnv: ({ env }) => env,  ...(options.preparePromptFileForAgent !== undefined
++      ? { preparePromptFileForAgent: options.preparePromptFileForAgent }
++      : {}), ...(options.prepareAgentLogFile !== undefined ? { prepareAgentLogFile: options.prepareAgentLogFile } : {}),   onCleanupFailure, ...(options.journal !== undefined ? { journal: options.journal } : {}), ...(options.continuation !== undefined ? { continuation: options.continuation } : {}), ...(options.classifyFailure !== undefined ? { classifyFailure: options.classifyFailure } : {}), ...(options.mcpJsonInjection !== undefined ? { mcpJsonInjection: options.mcpJsonInjection } : {}), ...(options.claudeConfigDirIsolation !== undefined
+       ? { claudeConfigDirIsolation: options.claudeConfigDirIsolation }
+       : {}), ...(options.claudeConfigDirIsolationEnabled !== undefined
+       ? { claudeConfigDirIsolationEnabled: options.claudeConfigDirIsolationEnabled }
+@@ -1124,7 +1127,9 @@ describe('AgentExecutor — cancellation', () => {
+       return child as unknown as ChildProcess;
+     }) as unknown as typeof nodeSpawn;
+     const def = createFakeDef();
+-    const executor = createAgentExecutor({ lifecycle }, { resolveModelForLaunch: fixtureLaunchModel, getAgentDef: () => def, resolveAgentLaunch: () =>
++    const executor = createAgentExecutor({ lifecycle, hostEnv: {}, runtime: runtimeFixture({ spawn: fakeSpawn, listProcessSnapshots: async () => [{ pid: 4242, ppid: 1, command: 'fake-bin' }], stopProcesses: async () => {
++        throw new Error('EPERM: secret/token/abc123 not permitted');
++      } }) }, { resolveModelForLaunch: fixtureLaunchModel, getAgentDef: () => def, resolveAgentLaunch: () =>
+         ({
+           selectedPath: '/fake/bin',
+           pathResolvedPath: '/fake/bin',
+@@ -1133,9 +1138,7 @@ describe('AgentExecutor — cancellation', () => {
+           launchKind: 'selected',
+           childPathPrepend: [],
+           diagnostic: null,
+-        }) as AgentLaunchResolution, applyAgentLaunchEnv: ({ env }) => env, spawn: fakeSpawn, listProcessSnapshots: async () => [{ pid: 4242, ppid: 1, command: 'fake-bin' }], stopProcesses: async () => {
+-        throw new Error('EPERM: secret/token/abc123 not permitted');
+-      } });
++        }) as AgentLaunchResolution, applyAgentLaunchEnv: ({ env }) => env,  });
+     const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+     const runPromise = executor.run({ runId: run.id, agentId: 'fake-agent', prompt: 'x', cwd: '/work' });
+     await flushAsync();
+@@ -1211,7 +1214,7 @@ describe('isSupportedStreamFormat', () => {
+ describe('createAgentExecutor — real default collaborators', () => {
+   it('constructs cleanly with only { lifecycle } — every collaborator falls back to its real @jini-ai/agent-runtime / @jini-ai/platform / node:child_process default', () => {
+     const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
+-    const executor = createAgentExecutor({ lifecycle });
++    const executor = createAgentExecutor({ lifecycle, hostEnv: {}, runtime: runtimeFixture() });
+     expect(typeof executor.run).toBe('function');
+   });
+ 
+@@ -1233,7 +1236,9 @@ describe('createAgentExecutor — real default collaborators', () => {
+         throw new Error('sensitive-path/should-be-redacted rpc init rejected');
+       }) as unknown as typeof attachPiRpcSession;
+ 
+-      const executor = createAgentExecutor({ lifecycle }, { resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (def.id === id ? def : null), resolveAgentLaunch: () =>
++      const executor = createAgentExecutor({ lifecycle, hostEnv: {}, runtime: runtimeFixture({ spawn: fakeSpawn, listProcessSnapshots: async () => [], stopProcesses: async () => {
++          throw Object.assign(new Error('EPERM: not permitted api_key=SECRETSECRETSECRETSECRET'), { code: 'EPERM' });
++        } }) }, { resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (def.id === id ? def : null), resolveAgentLaunch: () =>
+           ({
+             selectedPath: '/fake/pi-bin',
+             pathResolvedPath: '/fake/pi-bin',
+@@ -1242,9 +1247,7 @@ describe('createAgentExecutor — real default collaborators', () => {
+             launchKind: 'selected',
+             childPathPrepend: [],
+             diagnostic: null,
+-          }) as AgentLaunchResolution, applyAgentLaunchEnv: ({ env }) => env, spawn: fakeSpawn, attachPiRpcSession: fakeAttachPiRpcSession, listProcessSnapshots: async () => [], stopProcesses: async () => {
+-          throw Object.assign(new Error('EPERM: not permitted api_key=SECRETSECRETSECRETSECRET'), { code: 'EPERM' });
+-        } });
++          }) as AgentLaunchResolution, applyAgentLaunchEnv: ({ env }) => env,  attachPiRpcSession: fakeAttachPiRpcSession, });
+ 
+       const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+       await expect(executor.run({ runId: run.id, agentId: 'fake-agent', prompt: 'x', cwd: '/work' })).rejects.toMatchObject({
+@@ -1278,7 +1281,7 @@ describe('createAgentExecutor — real default collaborators', () => {
+         return child as unknown as ChildProcess;
+       }) as unknown as typeof nodeSpawn;
+ 
+-      const executor = createAgentExecutor({ lifecycle }, { resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (def.id === id ? def : null), resolveAgentLaunch: () =>
++      const executor = createAgentExecutor({ lifecycle, hostEnv: {}, runtime: runtimeFixture({ spawn: fakeSpawn, listProcessSnapshots: async () => [], stopProcesses: async () => ({ alreadyStopped: false, forcedPids: [], matchedPids: [], remainingPids: [], stoppedPids: [] }) }) }, { resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (def.id === id ? def : null), resolveAgentLaunch: () =>
+           ({
+             selectedPath: '/fake/claude-bin',
+             pathResolvedPath: '/fake/claude-bin',
+@@ -1287,7 +1290,7 @@ describe('createAgentExecutor — real default collaborators', () => {
+             launchKind: 'selected',
+             childPathPrepend: [],
+             diagnostic: null,
+-          }) as AgentLaunchResolution, applyAgentLaunchEnv: ({ env }) => env, spawn: fakeSpawn, listProcessSnapshots: async () => [], stopProcesses: async () => ({ alreadyStopped: false, forcedPids: [], matchedPids: [], remainingPids: [], stoppedPids: [] }), mcpJsonInjection: { command: '/usr/bin/jini-mcp', daemonUrl: 'http://127.0.0.1:4242' } });
++          }) as AgentLaunchResolution, applyAgentLaunchEnv: ({ env }) => env,    mcpJsonInjection: { command: '/usr/bin/jini-mcp', daemonUrl: 'http://127.0.0.1:4242' } });
+ 
+       const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+       await executor.run({ runId: run.id, agentId: 'claude', prompt: 'hi', cwd: tmpDir });
+@@ -1331,7 +1334,7 @@ describe('createAgentExecutor — real default collaborators', () => {
+         return child as unknown as ChildProcess;
+       }) as unknown as typeof nodeSpawn;
+ 
+-      const executor = createAgentExecutor({ lifecycle }, { resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (def.id === id ? def : null), resolveAgentLaunch: () =>
++      const executor = createAgentExecutor({ lifecycle, hostEnv: {}, runtime: runtimeFixture({ spawn: fakeSpawn, listProcessSnapshots: async () => [], stopProcesses: async () => ({ alreadyStopped: false, forcedPids: [], matchedPids: [], remainingPids: [], stoppedPids: [] }) }) }, { resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (def.id === id ? def : null), resolveAgentLaunch: () =>
+           ({
+             selectedPath: '/fake/claude-bin',
+             pathResolvedPath: '/fake/claude-bin',
+@@ -1340,7 +1343,7 @@ describe('createAgentExecutor — real default collaborators', () => {
+             launchKind: 'selected',
+             childPathPrepend: [],
+             diagnostic: null,
+-          }) as AgentLaunchResolution, applyAgentLaunchEnv: ({ env }) => env, spawn: fakeSpawn, listProcessSnapshots: async () => [], stopProcesses: async () => ({ alreadyStopped: false, forcedPids: [], matchedPids: [], remainingPids: [], stoppedPids: [] }), mcpJsonInjection: { command: '/usr/bin/jini-mcp', daemonUrl: 'http://127.0.0.1:4242' } });
++          }) as AgentLaunchResolution, applyAgentLaunchEnv: ({ env }) => env,    mcpJsonInjection: { command: '/usr/bin/jini-mcp', daemonUrl: 'http://127.0.0.1:4242' } });
+ 
+       const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+       await executor.run({ runId: run.id, agentId: 'claude', prompt: 'hi', cwd: tmpDir });
+@@ -1375,7 +1378,7 @@ describe('createAgentExecutor — real default collaborators', () => {
+       return child as unknown as ChildProcess;
+     }) as unknown as typeof nodeSpawn;
+ 
+-    const executor = createAgentExecutor({ lifecycle }, { resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (def.id === id ? def : null), resolveAgentLaunch: () =>
++    const executor = createAgentExecutor({ lifecycle, hostEnv: {}, runtime: runtimeFixture({ spawn: fakeSpawn, listProcessSnapshots: async () => [], stopProcesses: async () => ({ alreadyStopped: false, forcedPids: [], matchedPids: [], remainingPids: [], stoppedPids: [] }) }) }, { resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (def.id === id ? def : null), resolveAgentLaunch: () =>
+         ({
+           selectedPath: '/fake/bin',
+           pathResolvedPath: '/fake/bin',
+@@ -1384,7 +1387,7 @@ describe('createAgentExecutor — real default collaborators', () => {
+           launchKind: 'selected',
+           childPathPrepend: [],
+           diagnostic: null,
+-        }) as AgentLaunchResolution, applyAgentLaunchEnv: ({ env }) => env, spawn: fakeSpawn, listProcessSnapshots: async () => [], stopProcesses: async () => ({ alreadyStopped: false, forcedPids: [], matchedPids: [], remainingPids: [], stoppedPids: [] }), mcpJsonInjection: { command: '/usr/bin/jini-mcp', daemonUrl: 'http://127.0.0.1:4242' } });
++        }) as AgentLaunchResolution, applyAgentLaunchEnv: ({ env }) => env,    mcpJsonInjection: { command: '/usr/bin/jini-mcp', daemonUrl: 'http://127.0.0.1:4242' } });
+ 
+     const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+     await executor.run({ runId: run.id, agentId: 'fake-agent', prompt: 'hi', cwd: '/tmp' });
+@@ -1707,27 +1710,27 @@ function createAcpHarness(options: AcpHarnessOptions = {}): AcpHarness {
+     return controller;
+   }) as unknown as typeof attachAcpSession;
+ 
+-  const executor = createAgentExecutor({ lifecycle }, { resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (def.id === id ? def : null), resolveAgentLaunch: () =>
+-      ({
+-        selectedPath: '/fake/acp-bin',
+-        pathResolvedPath: '/fake/acp-bin',
+-        configuredOverridePath: null,
+-        launchPath: '/fake/acp-bin',
+-        launchKind: 'selected',
+-        childPathPrepend: [],
+-        diagnostic: null,
+-      }) as AgentLaunchResolution, applyAgentLaunchEnv: ({ env }) => env, spawn: fakeSpawn, attachAcpSession: fakeAttachAcpSession, ...(options.acpPermissionHandler !== undefined ? { acpPermissionHandler: options.acpPermissionHandler as never } : {}), listProcessSnapshots: async () => {
++  const executor = createAgentExecutor({ lifecycle, hostEnv: {}, runtime: runtimeFixture({ spawn: fakeSpawn, listProcessSnapshots: async () => {
+       const pid = child.pid ?? 0;
+       return [
+         { pid, ppid: 1, command: 'fake-acp-bin' },
+         { pid: pid + 1, ppid: pid, command: 'fake-acp-bin --mcp-helper' },
+       ];
+     }, stopProcesses: async ({ pids }) => {
+-      stopProcessesCalls.push(pids);
++      stopProcessesCalls.push([...pids]);
+       if (options.stopProcessesRejects !== undefined) throw options.stopProcessesRejects;
+       const numericPids = pids.filter((pid): pid is number => typeof pid === 'number');
+       return { alreadyStopped: false, forcedPids: [], matchedPids: numericPids, remainingPids: [], stoppedPids: numericPids };
+-    }, onCleanupFailure, ...(options.journal !== undefined ? { journal: options.journal } : {}), ...(options.classifyFailure !== undefined ? { classifyFailure: options.classifyFailure } : {}), ...(options.prepareAgentLogFile !== undefined ? { prepareAgentLogFile: options.prepareAgentLogFile } : {}), ...(options.mcpJsonInjection !== undefined ? { mcpJsonInjection: options.mcpJsonInjection } : {}) });
++    } }) }, { resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (def.id === id ? def : null), resolveAgentLaunch: () =>
++      ({
++        selectedPath: '/fake/acp-bin',
++        pathResolvedPath: '/fake/acp-bin',
++        configuredOverridePath: null,
++        launchPath: '/fake/acp-bin',
++        launchKind: 'selected',
++        childPathPrepend: [],
++        diagnostic: null,
++      }) as AgentLaunchResolution, applyAgentLaunchEnv: ({ env }) => env,  attachAcpSession: fakeAttachAcpSession, ...(options.acpPermissionHandler !== undefined ? { acpPermissionHandler: options.acpPermissionHandler as never } : {}),   onCleanupFailure, ...(options.journal !== undefined ? { journal: options.journal } : {}), ...(options.classifyFailure !== undefined ? { classifyFailure: options.classifyFailure } : {}), ...(options.prepareAgentLogFile !== undefined ? { prepareAgentLogFile: options.prepareAgentLogFile } : {}), ...(options.mcpJsonInjection !== undefined ? { mcpJsonInjection: options.mcpJsonInjection } : {}) });
+ 
+   return { lifecycle, executor, child, attachCalls, abort, stopProcessesCalls, onCleanupFailure };
+ }
+@@ -2129,27 +2132,27 @@ function createPiRpcHarness(options: PiRpcHarnessOptions = {}): PiRpcHarness {
+     return session;
+   }) as unknown as typeof attachPiRpcSession;
+ 
+-  const executor = createAgentExecutor({ lifecycle }, { resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (def.id === id ? def : null), resolveAgentLaunch: () =>
+-      ({
+-        selectedPath: '/fake/pi-bin',
+-        pathResolvedPath: '/fake/pi-bin',
+-        configuredOverridePath: null,
+-        launchPath: '/fake/pi-bin',
+-        launchKind: 'selected',
+-        childPathPrepend: [],
+-        diagnostic: null,
+-      }) as AgentLaunchResolution, applyAgentLaunchEnv: ({ env }) => env, spawn: fakeSpawn, attachPiRpcSession: fakeAttachPiRpcSession, listProcessSnapshots: async () => {
++  const executor = createAgentExecutor({ lifecycle, hostEnv: {}, runtime: runtimeFixture({ spawn: fakeSpawn, listProcessSnapshots: async () => {
+       const pid = child.pid ?? 0;
+       return [
+         { pid, ppid: 1, command: 'fake-pi-bin' },
+         { pid: pid + 1, ppid: pid, command: 'fake-pi-bin --mcp-helper' },
+       ];
+     }, stopProcesses: async ({ pids }) => {
+-      stopProcessesCalls.push(pids);
++      stopProcessesCalls.push([...pids]);
+       if (options.stopProcessesRejects !== undefined) throw options.stopProcessesRejects;
+       const numericPids = pids.filter((pid): pid is number => typeof pid === 'number');
+       return { alreadyStopped: false, forcedPids: [], matchedPids: numericPids, remainingPids: [], stoppedPids: numericPids };
+-    }, onCleanupFailure, ...(options.journal !== undefined ? { journal: options.journal } : {}), ...(options.classifyFailure !== undefined ? { classifyFailure: options.classifyFailure } : {}), ...(options.prepareAgentLogFile !== undefined ? { prepareAgentLogFile: options.prepareAgentLogFile } : {}) });
++    } }) }, { resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (def.id === id ? def : null), resolveAgentLaunch: () =>
++      ({
++        selectedPath: '/fake/pi-bin',
++        pathResolvedPath: '/fake/pi-bin',
++        configuredOverridePath: null,
++        launchPath: '/fake/pi-bin',
++        launchKind: 'selected',
++        childPathPrepend: [],
++        diagnostic: null,
++      }) as AgentLaunchResolution, applyAgentLaunchEnv: ({ env }) => env,  attachPiRpcSession: fakeAttachPiRpcSession,   onCleanupFailure, ...(options.journal !== undefined ? { journal: options.journal } : {}), ...(options.classifyFailure !== undefined ? { classifyFailure: options.classifyFailure } : {}), ...(options.prepareAgentLogFile !== undefined ? { prepareAgentLogFile: options.prepareAgentLogFile } : {}) });
+ 
+   return { lifecycle, executor, child, attachCalls, abort, stopProcessesCalls, onCleanupFailure };
+ }
+@@ -5926,12 +5929,11 @@ describe("AgentExecutor — 'codex-toml' MCP bridge delivery (Codex CODEX_HOME r
+   });
+ 
+   it('stages a scratch config.toml (real config appended) and sets CODEX_HOME on the spawned env, strictly before spawn', async () => {
+-    vi.stubEnv('CODEX_HOME', '/real/codex/home');
+     const { mcpJsonInjection, mkdtempCalls, readCalls, writeCalls } = createCodexHomeFsSpies({
+       existingConfigToml: '[sandbox]\nmode = "workspace-write"\n',
+     });
+     const def = createFakeDef({ id: 'codex', externalMcpInjection: 'codex-toml' });
+-    const { lifecycle, executor, spawnCalls } = createHarness({ def, mcpJsonInjection });
++    const { lifecycle, executor, spawnCalls } = createHarness({ def, mcpJsonInjection, hostEnv: { CODEX_HOME: '/real/codex/home' } });
+     const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+     await executor.run({ runId: run.id, agentId: 'codex', prompt: 'hi', cwd: '/work' });
+ 
+@@ -6392,35 +6394,23 @@ describe('AgentExecutor — SEC-001 deny-by-default subprocess environment', ()
+   });
+ 
+   it('still forwards the baseline allowlist (PATH/HOME/locale) so the spawned agent can actually run', async () => {
+-    vi.stubEnv('PATH', '/usr/bin:/bin');
+-    vi.stubEnv('HOME', '/home/test-user');
+-    vi.stubEnv('LANG', 'en_US.UTF-8');
+-    try {
+-      const { lifecycle, executor, spawnCalls } = createHarness();
+-      const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+-      await executor.run({ runId: run.id, agentId: 'fake-agent', prompt: 'hi', cwd: '/work' });
++    const { lifecycle, executor, spawnCalls } = createHarness({ hostEnv: { PATH: '/usr/bin:/bin', HOME: '/home/test-user', LANG: 'en_US.UTF-8' } });
++    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
++    await executor.run({ runId: run.id, agentId: 'fake-agent', prompt: 'hi', cwd: '/work' });
+ 
+-      const env = spawnCalls[0]!.options.env as Record<string, string>;
+-      expect(env.PATH).toBe('/usr/bin:/bin');
+-      expect(env.HOME).toBe('/home/test-user');
+-      expect(env.LANG).toBe('en_US.UTF-8');
+-    } finally {
+-      vi.unstubAllEnvs();
+-    }
++    const env = spawnCalls[0]!.options.env as Record<string, string>;
++    expect(env.PATH).toBe('/usr/bin:/bin');
++    expect(env.HOME).toBe('/home/test-user');
++    expect(env.LANG).toBe('en_US.UTF-8');
+   });
+ 
+   it('forwards USER — a spawned `claude` CLI cannot find its own login state without it, even with HOME present (see the host CLI credential investigation §9)', async () => {
+-    vi.stubEnv('USER', 'test-user');
+-    try {
+-      const { lifecycle, executor, spawnCalls } = createHarness();
+-      const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+-      await executor.run({ runId: run.id, agentId: 'fake-agent', prompt: 'hi', cwd: '/work' });
++    const { lifecycle, executor, spawnCalls } = createHarness({ hostEnv: { USER: 'test-user' } });
++    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
++    await executor.run({ runId: run.id, agentId: 'fake-agent', prompt: 'hi', cwd: '/work' });
+ 
+-      const env = spawnCalls[0]!.options.env as Record<string, string>;
+-      expect(env.USER).toBe('test-user');
+-    } finally {
+-      vi.unstubAllEnvs();
+-    }
++    const env = spawnCalls[0]!.options.env as Record<string, string>;
++    expect(env.USER).toBe('test-user');
+   });
+ 
+   it('delegates a run-specific credential via credentialEnv even though it is absent from process.env', async () => {
+@@ -6672,7 +6662,7 @@ async function probeOverlayDelivery(
+     return child as unknown as ChildProcess;
+   }) as unknown as typeof nodeSpawn;
+ 
+-  const executor = createAgentExecutor({ lifecycle }, { resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (def.id === id ? def : null), resolveAgentLaunch: () =>
++  const executor = createAgentExecutor({ lifecycle, hostEnv: {}, runtime: runtimeFixture({ spawn: fakeSpawn, listProcessSnapshots: async () => [{ pid: child.pid ?? 0, ppid: 1, command: 'fake-bin' }], stopProcesses: async () => ({ alreadyStopped: true, forcedPids: [], matchedPids: [], remainingPids: [], stoppedPids: [] }) }) }, { resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (def.id === id ? def : null), resolveAgentLaunch: () =>
+       ({
+         selectedPath: '/fake/bin',
+         pathResolvedPath: '/fake/bin',
+@@ -6681,7 +6671,7 @@ async function probeOverlayDelivery(
+         launchKind: 'selected',
+         childPathPrepend: [],
+         diagnostic: null,
+-      }) as AgentLaunchResolution, applyAgentLaunchEnv: ({ env }) => env, spawn: fakeSpawn, promptAugmenter: createOverlayAugmenter(options.overlay === undefined ? OVERLAY_TEXT : options.overlay), preparePromptFileForAgent: (async ({ def: promptFileDef, prompt }: { def: RuntimeAgentDef | null | undefined; prompt: string }) => {
++      }) as AgentLaunchResolution, applyAgentLaunchEnv: ({ env }) => env,  promptAugmenter: createOverlayAugmenter(options.overlay === undefined ? OVERLAY_TEXT : options.overlay), preparePromptFileForAgent: (async ({ def: promptFileDef, prompt }: { def: RuntimeAgentDef | null | undefined; prompt: string }) => {
+       if (!promptFileDef?.promptViaFile) return null;
+       promptFile = prompt;
+       return { path: '/fake/staged/prompt.md', cleanup: async () => {} };
+@@ -6699,7 +6689,7 @@ async function probeOverlayDelivery(
+     }) as unknown as typeof attachAcpSession, attachPiRpcSession: ((attachOptions: { prompt: string }) => {
+       piRpcPrompt = attachOptions.prompt;
+       return { hasFatalError: () => false, getLastSessionPath: () => null, abort: vi.fn() } as PiRpcSession;
+-    }) as unknown as typeof attachPiRpcSession, listProcessSnapshots: async () => [{ pid: child.pid ?? 0, ppid: 1, command: 'fake-bin' }], stopProcesses: async () => ({ alreadyStopped: true, forcedPids: [], matchedPids: [], remainingPids: [], stoppedPids: [] }), onCleanupFailure: vi.fn() });
++    }) as unknown as typeof attachPiRpcSession,   onCleanupFailure: vi.fn() });
+ 
+   const { run } = await lifecycle.start({ contextRef: `ctx-overlay-${def.id}` });
+   const runPromise = executor.run({ runId: run.id, agentId: def.id, prompt: OVERLAY_USER_PROMPT, cwd: '/work' }, { ...(options.resumeSessionId !== undefined ? { resumeSessionId: options.resumeSessionId } : {}) });
+@@ -6959,7 +6949,7 @@ describe('AgentExecutor — a run whose jini MCP bridge did not connect fails lo
+   const assistantFrame =
+     '{"type":"assistant","message":{"id":"m1","content":[{"type":"text","text":"I cannot see any host tools."}],"stop_reason":"end_turn"}}\n';
+ 
+-  async function startClaudeRun(options: { mcpJsonInjection?: McpJsonInjectionOptions; probeMcpBridge?: typeof probeMcpBridge } = { mcpJsonInjection: injection }) {
++  async function startClaudeRun(options: { mcpJsonInjection?: McpJsonInjectionOptions; probeMcpBridge?: McpBridgeProbe } = { mcpJsonInjection: injection }) {
+     const harness = createHarness({ def: claudeDef(), ...options });
+     const { run } = await harness.lifecycle.start({ contextRef: 'ctx-1' });
+     await harness.executor.run({ runId: run.id, agentId: 'claude', prompt: 'hi', cwd: '/work' });
+@@ -6971,7 +6961,7 @@ describe('AgentExecutor — a run whose jini MCP bridge did not connect fails lo
+     const probeResult: McpBridgeProbeResult = { ok: false, exitCode: 1, signal: null, stderrTail, elapsedMs: 12 };
+     let finishProbe!: (result: McpBridgeProbeResult) => void;
+     const pendingProbe = new Promise<McpBridgeProbeResult>((resolve) => { finishProbe = resolve; });
+-    const probe = vi.fn<typeof probeMcpBridge>(() => pendingProbe);
++    const probe = vi.fn<McpBridgeProbe>(() => pendingProbe);
+     const { probeOnFailure: _disabled, ...defaultInjection } = injection;
+     const { lifecycle, child, runId, stopProcessesCalls } = await startClaudeRun({
+       mcpJsonInjection: { ...defaultInjection, args: ['serve.js'], env: { ELECTRON_RUN_AS_NODE: '1' }, credential: () => 'fixture-run-token' },
+@@ -7001,7 +6991,7 @@ describe('AgentExecutor — a run whose jini MCP bridge did not connect fails lo
+   });
+ 
+   it('keeps the existing message when the probe initializes successfully', async () => {
+-    const probe = vi.fn<typeof probeMcpBridge>(async () => ({ ok: true, exitCode: null, signal: null, stderrTail: '', elapsedMs: 3 }));
++    const probe = vi.fn<McpBridgeProbe>(async () => ({ ok: true, exitCode: null, signal: null, stderrTail: '', elapsedMs: 3 }));
+     const { lifecycle, child, runId } = await startClaudeRun({ mcpJsonInjection: { ...injection, probeOnFailure: true }, probeMcpBridge: probe });
+     child.stdout.emit('data', initFrame([{ name: 'jini', status: 'failed' }]));
+     child.emit('close', 1, null);
+@@ -7014,7 +7004,7 @@ describe('AgentExecutor — a run whose jini MCP bridge did not connect fails lo
+   });
+ 
+   it('skips the probe when disabled and still emits the original error', async () => {
+-    const probe = vi.fn<typeof probeMcpBridge>();
++    const probe = vi.fn<McpBridgeProbe>();
+     const { lifecycle, child, runId } = await startClaudeRun({ mcpJsonInjection: injection, probeMcpBridge: probe });
+     child.stdout.emit('data', initFrame([{ name: 'jini', status: 'failed' }]));
+     child.emit('close', 1, null);
+@@ -7027,7 +7017,7 @@ describe('AgentExecutor — a run whose jini MCP bridge did not connect fails lo
+   });
+ 
+   it('preserves the original error and end if an injected probe rejects', async () => {
+-    const probe = vi.fn<typeof probeMcpBridge>(async () => { throw new Error('diagnostic unavailable'); });
++    const probe = vi.fn<McpBridgeProbe>(async () => { throw new Error('diagnostic unavailable'); });
+     const { lifecycle, child, runId } = await startClaudeRun({ mcpJsonInjection: { ...injection, probeOnFailure: true }, probeMcpBridge: probe });
+     child.stdout.emit('data', initFrame([{ name: 'jini', status: 'failed' }]));
+     child.emit('close', 1, null);
+diff --git a/packages/daemon/src/agent-executor/__tests__/claude-background-ceiling.test.ts b/packages/daemon/src/agent-executor/__tests__/claude-background-ceiling.test.ts
+index d860a53e..e99ade43 100644
+--- a/packages/daemon/src/agent-executor/__tests__/claude-background-ceiling.test.ts
++++ b/packages/daemon/src/agent-executor/__tests__/claude-background-ceiling.test.ts
+@@ -5,6 +5,7 @@ import { createInMemoryEventLog } from '../../event-log.js';
+ import { createRunLifecycle } from '../../run-lifecycle.js';
+ import { createAgentExecutor } from '../index.js';
+ import { fixtureLaunchModel } from './model-discovery-fixture.js';
++import { runtimeFixture } from './runtime-fixture.js';
+ 
+ const CEILING_ENV = 'CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS';
+ 
+@@ -20,8 +21,8 @@ async function captureSpawnEnv(
+     captured = argsOrOptions && 'env' in argsOrOptions ? argsOrOptions.env : options?.env;
+     throw new Error('Fixture stops after capturing spawn');
+   };
+-  const executor = createAgentExecutor({ lifecycle }, {
+-    hostEnv: {},
++  const executor = createAgentExecutor({ lifecycle, hostEnv: {}, runtime: runtimeFixture({ spawn: spawn }) }, {
++    
+     getAgentDef,
+     resolveModelForLaunch: fixtureLaunchModel,
+     ensureAgentCapabilities: async () => {},
+@@ -30,7 +31,7 @@ async function captureSpawnEnv(
+       launchPath: '/fake/agent', launchKind: 'selected', childPathPrepend: [], diagnostic: null,
+     }),
+     applyAgentLaunchEnv: ({ env: launchEnv }) => launchEnv,
+-    spawn,
++    
+   });
+   const { run } = await lifecycle.start({ contextRef: 'background-ceiling' });
+   await expect(executor.run(
+diff --git a/packages/daemon/src/agent-executor/__tests__/host-env-ports.test.ts b/packages/daemon/src/agent-executor/__tests__/host-env-ports.test.ts
+index 6c48ce51..763e4711 100644
+--- a/packages/daemon/src/agent-executor/__tests__/host-env-ports.test.ts
++++ b/packages/daemon/src/agent-executor/__tests__/host-env-ports.test.ts
+@@ -7,6 +7,7 @@ import type { RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
+ import { expect, it } from 'vitest';
+ import { resolveRunEnv, selectAgentExecutorHostEnv, resolveSystemPromptOverlayDelivery } from '../launch.js';
+ import { configureExecutableResolutionEnv, createAgentRuntimeState, defaultRuntimeState } from '@jini-ai/agent-runtime';
++import { runtimeFixture } from './runtime-fixture.js';
+ 
+ it('preserves configured default resolution paths without passing a runtime state', () => {
+   const previous = { ...defaultRuntimeState.executable.envNames };
+@@ -55,11 +56,11 @@ it('threads the host snapshot and bound capabilities through a real executor run
+   };
+   const hostEnv = { PATH: '/host/bin', HOME: '/host/home', UNRELATED_TOKEN: 'fixture-secret' };
+   const calls: unknown[] = [];
+-  const executor = createAgentExecutor({ lifecycle }, {
+-    hostEnv, runtimeState: state, getAgentDef: () => def,
++  const executor = createAgentExecutor({ lifecycle, hostEnv: hostEnv, runtime: runtimeFixture({ spawn: ((_command: string, args: readonly string[], options?: { env?: NodeJS.ProcessEnv }) => { calls.push({ args, env: options?.env }); throw new Error('stop after capturing spawn'); }) as unknown as typeof nodeSpawn }) }, {
++     runtimeState: state, getAgentDef: () => def,
+     resolveAgentLaunch: () => ({ selectedPath: '/fake/host-agent', pathResolvedPath: '/fake/host-agent', configuredOverridePath: null, launchPath: '/fake/host-agent', launchKind: 'selected', childPathPrepend: [], diagnostic: null }),
+     applyAgentLaunchEnv: ({ env }) => env, ensureAgentCapabilities: async () => {},
+-    spawn: ((_command: string, args: readonly string[], options?: { env?: NodeJS.ProcessEnv }) => { calls.push({ args, env: options?.env }); throw new Error('stop after capturing spawn'); }) as unknown as typeof nodeSpawn,
++    
+   });
+   hostEnv.HOME = '/changed';
+   const { run } = await lifecycle.start({ contextRef: 'host-port-test' });
+diff --git a/packages/daemon/src/agent-executor/__tests__/http-mcp-launch.integration.test.ts b/packages/daemon/src/agent-executor/__tests__/http-mcp-launch.integration.test.ts
+index 09a5ca80..8f04d001 100644
+--- a/packages/daemon/src/agent-executor/__tests__/http-mcp-launch.integration.test.ts
++++ b/packages/daemon/src/agent-executor/__tests__/http-mcp-launch.integration.test.ts
+@@ -2,7 +2,6 @@ import { EventEmitter } from 'node:events';
+ import { PassThrough } from 'node:stream';
+ import type { ChildProcess, spawn as nodeSpawn } from 'node:child_process';
+ import { readFile, access } from 'node:fs/promises';
+-import { createCommandInvocation } from '@jini-ai/platform/command';
+ import { getAgentDef } from '@jini-ai/agent-runtime';
+ import { type RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
+ import { expect, it, vi } from 'vitest';
+@@ -11,6 +10,7 @@ import { createRunLifecycle } from '../../run-lifecycle.js';
+ import { createInMemoryEventLog } from '../../event-log.js';
+ import { fixtureLaunchModel, fixtureModelDiscovery } from './model-discovery-fixture.js';
+ import { parse } from 'smol-toml';
++import { runtimeFixture } from './runtime-fixture.js';
+ 
+ /** Runs the real executor and vendor argv/config writers with only process launch replaced.
+  * Packaged CLI consumption remains a cloud gate; this fixture makes no version claim. */
+@@ -35,14 +35,12 @@ async function launch(vendor: 'claude' | 'codex' | 'opencode', failHttp = false,
+     queueMicrotask(() => failure === 'async-spawn' ? child.emit('error', new Error('spawn failed')) : child.emit('spawn'));
+     return child as unknown as ChildProcess;
+   });
+-  const executor = createAgentExecutor({ lifecycle }, { getAgentDef: () => definition, hostEnv: {},
++  const executor = createAgentExecutor({ lifecycle, hostEnv: {}, runtime: runtimeFixture({ ...(failure === 'invocation' ? { platform: 'win32' as const } : {}), spawn: spawn as unknown as typeof nodeSpawn, listProcessSnapshots: async () => [], stopProcesses: async () => ({ alreadyStopped: false, forcedPids: [], matchedPids: [], remainingPids: [], stoppedPids: [] }) }) }, { getAgentDef: () => definition, 
+     resolveAgentLaunch: () => ({ selectedPath: '/fixture', pathResolvedPath: '/fixture', configuredOverridePath: null,
+-      launchPath: '/fixture', launchKind: 'selected', childPathPrepend: [], diagnostic: null }),
++      launchPath: failure === 'invocation' ? 'C:\\fixture\\agent.cmd' : '/fixture', launchKind: 'selected', childPathPrepend: [], diagnostic: null }),
+     applyAgentLaunchEnv: ({ env }) => env, ensureAgentCapabilities: async () => {}, resolveModelForLaunch: fixtureLaunchModel,
+-    spawn: spawn as unknown as typeof nodeSpawn, probeMcpBridge: probe,
+-    createCommandInvocation: input => { if (failure === 'invocation') throw new Error('invocation failed'); return createCommandInvocation(input); },
+-    listProcessSnapshots: async () => [], collectProcessTreePids: () => [],
+-    stopProcesses: async () => ({ alreadyStopped: false, forcedPids: [], matchedPids: [], remainingPids: [], stoppedPids: [] }),
++     probeMcpBridge: probe,
++    
+     mcpJsonInjection: { command: 'node', args: ['serve.js'], daemonUrl: 'http://daemon.invalid', credential: mint, prepareHttp,
+       ...(locked ? { toolApprovalOwner: 'host' as const } : {}),
+       readFile: async () => '', writeFile: async ({ content }) => { config = content; },
+@@ -52,7 +50,9 @@ async function launch(vendor: 'claude' | 'codex' | 'opencode', failHttp = false,
+   });
+   const { run } = await lifecycle.start({ contextRef: 'http-launch' });
+   const runError: unknown = await executor.run({ runId: run.id, agentId: vendor, cwd: '/fixture', prompt: 'Hello' }, {
+-    permissionMode: 'bypass', ...(locked ? { nativeToolAccess: false, resumeSessionId: locked.resume ? 'session-fixture' : null,
++    permissionMode: 'bypass',
++    // On the pinned win32 `.cmd` shim an argument with a line break is refused by the command planner.
++    ...(failure === 'invocation' ? { model: 'bad\nmodel' } : {}), ...(locked ? { nativeToolAccess: false, resumeSessionId: locked.resume ? 'session-fixture' : null,
+       // A staged config cannot isolate Codex's plugin/App MCP sources; approve that independent
+       // dimension while keeping the native shell/file policy and host tool approval restricted.
+       nativeCapabilities: { shell: false, fileWrite: false, userMcp: true, subagents: false, userSettings: false, web: false, workflows: false, loginEnvironment: false },
+diff --git a/packages/daemon/src/agent-executor/__tests__/launch-defaults-and-staging.test.ts b/packages/daemon/src/agent-executor/__tests__/launch-defaults-and-staging.test.ts
+index af625310..16938b68 100644
+--- a/packages/daemon/src/agent-executor/__tests__/launch-defaults-and-staging.test.ts
++++ b/packages/daemon/src/agent-executor/__tests__/launch-defaults-and-staging.test.ts
+@@ -1,5 +1,5 @@
+ import { EventEmitter } from 'node:events';
+-import { spawn as realSpawn, type ChildProcess, type spawn as nodeSpawn } from 'node:child_process';
++import type { ChildProcess, spawn as nodeSpawn } from 'node:child_process';
+ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+ import { mkdtemp } from 'node:fs/promises';
+ import { tmpdir } from 'node:os';
+@@ -16,11 +16,11 @@ import { createRunLifecycle } from '../../run-lifecycle.js';
+ import { createAgentExecutor } from '../../index.js';
+ import { prepareSystemPromptOverlayFileIfNeeded } from '../launch.js';
+ import { fixtureLaunchModel, fixtureModelDiscovery } from './model-discovery-fixture.js';
++import { runtimeFixture } from './runtime-fixture.js';
+ 
+ /**
+  * @file The launch composition's own defaults and its staged-file cleanup, through the real
+- * executor: the real launch resolver and PATH builder when a host injects none, the real process
+- * stopper on cancellation, a refused permission mode, and the system-prompt overlay file a failed
++ * executor: the real launch resolver and PATH builder when a host injects none, a refused permission mode, and the system-prompt overlay file a failed
+  * spawn must not leave behind.
+  */
+ 
+@@ -82,11 +82,11 @@ describe('launch defaults (no launch seams injected)', () => {
+     const child = createFakeChild(4300);
+     const calls: SpawnRecord[] = [];
+     const def = createDef();
+-    const executor = createAgentExecutor({ lifecycle }, {
+-      hostEnv: { PATH: binDir, HOME: join(scratch, 'home') }, runtimeState: createAgentRuntimeState({}),
++    const executor = createAgentExecutor({ lifecycle, hostEnv: { PATH: binDir, HOME: join(scratch, 'home') }, runtime: runtimeFixture({ spawn: recordingSpawn(child, calls), listProcessSnapshots: async () => [], stopProcesses: async () => ({ alreadyStopped: true, forcedPids: [], matchedPids: [], remainingPids: [], stoppedPids: [] }) }) }, {
++       runtimeState: createAgentRuntimeState({}),
+       resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (id === def.id ? def : null),
+-      ensureAgentCapabilities: async () => {}, spawn: recordingSpawn(child, calls),
+-      listProcessSnapshots: async () => [], stopProcesses: async () => ({ alreadyStopped: true, forcedPids: [], matchedPids: [], remainingPids: [], stoppedPids: [] }),
++      ensureAgentCapabilities: async () => {}, 
++       
+     });
+     const { run } = await lifecycle.start({ contextRef: 'defaults' });
+     await executor.run({ runId: run.id, agentId: def.id, prompt: 'hi', cwd: scratch });
+@@ -96,38 +96,15 @@ describe('launch defaults (no launch seams injected)', () => {
+     child.emit('close', 0, null);
+     await lifecycle.waitForTerminal({ runId: run.id });
+   });
+-
+-  it('stops the real process tree with the real stopper when a run is cancelled', async () => {
+-    const sleeper = realSpawn('sleep', ['30'], { stdio: 'ignore' });
+-    const exited = new Promise<NodeJS.Signals | null>((resolve) => sleeper.once('exit', (_code, signal) => resolve(signal)));
+-    try {
+-      const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
+-      const child = createFakeChild(sleeper.pid);
+-      const def = createDef();
+-      const executor = createAgentExecutor({ lifecycle }, {
+-        hostEnv: {}, resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (id === def.id ? def : null),
+-        resolveAgentLaunch: fixedLaunch, applyAgentLaunchEnv: ({ env }) => env, spawn: recordingSpawn(child, []),
+-        listProcessSnapshots: async () => [{ pid: sleeper.pid!, ppid: 1, command: 'sleep 30' }],
+-      });
+-      const { run } = await lifecycle.start({ contextRef: 'cancel' });
+-      await executor.run({ runId: run.id, agentId: def.id, prompt: 'hi', cwd: scratch });
+-      await lifecycle.cancel({ runId: run.id });
+-      expect(await exited).toBe('SIGTERM');
+-      child.emit('close', null, 'SIGTERM');
+-      expect((await lifecycle.waitForTerminal({ runId: run.id })).state).toBe('cancelled');
+-    } finally {
+-      sleeper.kill('SIGKILL');
+-    }
+-  });
+ });
+ 
+ it('refuses a permission mode other than restricted or bypass before anything is spawned', async () => {
+   const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
+   const calls: SpawnRecord[] = [];
+   const def = createDef();
+-  const executor = createAgentExecutor({ lifecycle }, {
+-    hostEnv: {}, resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (id === def.id ? def : null),
+-    resolveAgentLaunch: fixedLaunch, applyAgentLaunchEnv: ({ env }) => env, spawn: recordingSpawn(createFakeChild(4301), calls),
++  const executor = createAgentExecutor({ lifecycle, hostEnv: {}, runtime: runtimeFixture({ spawn: recordingSpawn(createFakeChild(4301), calls) }) }, {
++     resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (id === def.id ? def : null),
++    resolveAgentLaunch: fixedLaunch, applyAgentLaunchEnv: ({ env }) => env, 
+   });
+   const { run } = await lifecycle.start({ contextRef: 'mode' });
+   // A JavaScript or wire caller is not held to the TypeScript union.
+@@ -142,7 +119,7 @@ it('streams the typed native-policy failure once without spawning any CLI', asyn
+   const lifecycle = createRunLifecycle({ eventLog });
+   const calls: SpawnRecord[] = [];
+   const def = createDef({ supportsNativeToolAccess: false });
+-  const executor = createAgentExecutor({ lifecycle }, { hostEnv: {}, getAgentDef: () => def, spawn: recordingSpawn(createFakeChild(4303), calls) });
++  const executor = createAgentExecutor({ lifecycle, hostEnv: {}, runtime: runtimeFixture({ spawn: recordingSpawn(createFakeChild(4303), calls) }) }, {  getAgentDef: () => def });
+   const { run } = await lifecycle.start({ contextRef: 'native-policy' });
+   await expect(executor.run({ runId: run.id, agentId: def.id, prompt: 'hi', cwd: scratch }, { nativeToolAccess: false }))
+     .rejects.toMatchObject({ code: 'NATIVE_TOOL_POLICY_UNSUPPORTED' });
+@@ -160,10 +137,10 @@ it('removes the staged system-prompt overlay file when the spawn itself throws',
+   const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
+   const calls: SpawnRecord[] = [];
+   const def = createDef({ systemPromptDelivery: { strategy: 'config-instructions-file', varName: 'FAKE_CONFIG_CONTENT' } });
+-  const executor = createAgentExecutor({ lifecycle }, {
+-    hostEnv: {}, resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (id === def.id ? def : null),
++  const executor = createAgentExecutor({ lifecycle, hostEnv: {}, runtime: runtimeFixture({ spawn: recordingSpawn(createFakeChild(4302), calls, new Error('spawn EACCES')) }) }, {
++     resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (id === def.id ? def : null),
+     resolveAgentLaunch: fixedLaunch, applyAgentLaunchEnv: ({ env }) => env,
+-    spawn: recordingSpawn(createFakeChild(4302), calls, new Error('spawn EACCES')),
++    
+     promptAugmenter: { contextKinds: () => [], augmentUserRequest: ({ basePrompt }) => basePrompt, systemOverlay: () => 'Answer briefly.' },
+   });
+   const { run } = await lifecycle.start({ contextRef: 'overlay' });
+@@ -213,8 +190,8 @@ describe('launch selection refuses before dispatch', () => {
+     const error = validated ? new RuntimeSelectionError("Unknown effort 'ultra'. Available effort levels: high.") : new Error('private provider detail');
+     const select = vi.fn(async () => { throw error; });
+     const spawn = vi.fn();
+-    const executor = createAgentExecutor({ lifecycle }, { getAgentDef: () => def, resolveAgentLaunch: fixedLaunch,
+-      ensureAgentCapabilities: async () => {}, resolveModelForLaunch: select, spawn,
++    const executor = createAgentExecutor({ lifecycle, hostEnv: {}, runtime: runtimeFixture({ spawn: spawn }) }, { getAgentDef: () => def, resolveAgentLaunch: fixedLaunch,
++      ensureAgentCapabilities: async () => {}, resolveModelForLaunch: select, 
+     });
+     const { run } = await lifecycle.start({ contextRef: 'selection' });
+     const result = executor.run({ runId: run.id, agentId: def.id, cwd: scratch, prompt: 'hello' }, { reasoning: 'ultra' });
+@@ -236,8 +213,8 @@ it('required HTTP failure reports the transport policy and never falls back or m
+   const spawn = vi.fn();
+   const credential = vi.fn(() => 'private-stdio-token');
+   const prepareHttp = vi.fn(async () => { throw new Error('private listener failure'); });
+-  const executor = createAgentExecutor({ lifecycle }, { getAgentDef: () => def, resolveAgentLaunch: fixedLaunch,
+-    resolveModelForLaunch: fixtureLaunchModel, ensureAgentCapabilities: async () => {}, spawn,
++  const executor = createAgentExecutor({ lifecycle, hostEnv: {}, runtime: runtimeFixture({ spawn: spawn }) }, { getAgentDef: () => def, resolveAgentLaunch: fixedLaunch,
++    resolveModelForLaunch: fixtureLaunchModel, ensureAgentCapabilities: async () => {}, 
+     mcpJsonInjection: { command: 'stdio-bridge', daemonUrl: 'http://daemon.invalid', credential, prepareHttp, httpPolicy: 'required' },
+   });
+   const { run } = await lifecycle.start({ contextRef: 'required-http' });
+@@ -259,10 +236,10 @@ it.each(['complete', 'manifest', 'oversized', 'staging-failure', 'subagents-deni
+   const def = createDef({ ...getAgentDef({ id: 'claude' })!, ...fixtureModelDiscovery, mcpIsolation: { perRun: 'fixture@2026-11-05' },
+     id: scenario === 'adapter-no-hook' ? 'claude' : 'hook-fixture', subagentStartHook: scenario !== 'adapter-no-hook', supportsSubagents: scenario !== 'unsupported-subagents' });
+   let directory = '';
+-  const executor = createAgentExecutor({ lifecycle }, {
+-    hostEnv: {}, getAgentDef: () => def, resolveAgentLaunch: () => ({ ...fixedLaunch(), launchPath: process.execPath }),
++  const executor = createAgentExecutor({ lifecycle, hostEnv: {}, runtime: runtimeFixture({ spawn: recordingSpawn(child, calls) }) }, {
++     getAgentDef: () => def, resolveAgentLaunch: () => ({ ...fixedLaunch(), launchPath: process.execPath }),
+     resolveModelForLaunch: fixtureLaunchModel, ensureAgentCapabilities: async () => {},
+-    assertClaudeFilesystemSupport: async () => true, spawn: recordingSpawn(child, calls),
++    assertClaudeFilesystemSupport: async () => true, 
+     promptAugmenter: { contextKinds: () => [], augmentUserRequest: ({ basePrompt }) => basePrompt, systemOverlay: () => {
+       directory = join(site, '.agent-runtime', readdirSync(join(site, '.agent-runtime')).find(name => name.startsWith('tmp-'))!);
+       if (scenario === 'staging-failure') writeFileSync(join(directory, 'subagent-start.json'), 'reserved');
+diff --git a/packages/daemon/src/agent-executor/__tests__/launch-relay-m1.unit.test.ts b/packages/daemon/src/agent-executor/__tests__/launch-relay-m1.unit.test.ts
+index fd6f8c2f..ca2a0cc2 100644
+--- a/packages/daemon/src/agent-executor/__tests__/launch-relay-m1.unit.test.ts
++++ b/packages/daemon/src/agent-executor/__tests__/launch-relay-m1.unit.test.ts
+@@ -7,6 +7,7 @@ import { createAgentExecutor } from '../index.js';
+ import { createRunLifecycle } from '../../run-lifecycle.js';
+ import { createInMemoryEventLog } from '../../event-log.js';
+ import { fixtureLaunchModel, fixtureModelDiscovery } from './model-discovery-fixture.js';
++import { runtimeFixture } from './runtime-fixture.js';
+ 
+ const definition: RuntimeAgentDef = { ...fixtureModelDiscovery, id: 'm1-cli', name: 'Fixture CLI', bin: 'fixture',
+   versionArgs: [], fallbackModels: [], streamFormat: 'acp-json-rpc', buildArgs: () => [], supportsNativeToolAccess: true };
+@@ -15,11 +16,11 @@ async function start({ bridge }: { bridge: boolean }) {
+   const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
+   const child = Object.assign(new EventEmitter(), { stdin: new PassThrough(), stdout: new PassThrough(), stderr: new PassThrough(), exitCode: null, signalCode: null });
+   const def = { ...definition, ...(bridge ? { externalMcpInjection: 'acp-merge' as const } : {}) };
+-  const executor = createAgentExecutor({ lifecycle }, { getAgentDef: () => def, hostEnv: {},
++  const executor = createAgentExecutor({ lifecycle, hostEnv: {}, runtime: runtimeFixture({ spawn: (() => { queueMicrotask(() => child.emit('spawn')); return child as unknown as ChildProcess; }) as typeof nodeSpawn }) }, { getAgentDef: () => def, 
+     resolveAgentLaunch: () => ({ selectedPath: '/fixture', pathResolvedPath: '/fixture', configuredOverridePath: null,
+       launchPath: '/fixture', launchKind: 'selected', childPathPrepend: [], diagnostic: null }),
+     applyAgentLaunchEnv: ({ env }) => env, ensureAgentCapabilities: async () => {}, resolveModelForLaunch: fixtureLaunchModel,
+-    spawn: (() => { queueMicrotask(() => child.emit('spawn')); return child as unknown as ChildProcess; }) as typeof nodeSpawn,
++    
+     attachAcpSession: () => ({ hasFatalError: () => false, getDurableSessionId: () => null, completedSuccessfully: () => true, abort() {} }),
+     ...(bridge ? { mcpJsonInjection: { command: 'fixture-bridge', daemonUrl: 'http://daemon.invalid' } } : {}),
+   });
+@@ -52,7 +53,7 @@ it('names an unknown disabled capability in the refusal before any model probe o
+   const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
+   const spawn = vi.fn();
+   const resolveModelForLaunch = vi.fn();
+-  const executor = createAgentExecutor({ lifecycle }, { getAgentDef: () => ({ ...definition, supportsNativeToolAccess: false }), spawn, resolveModelForLaunch });
++  const executor = createAgentExecutor({ lifecycle, hostEnv: {}, runtime: runtimeFixture({ spawn: spawn }) }, { getAgentDef: () => ({ ...definition, supportsNativeToolAccess: false }),  resolveModelForLaunch });
+   const { run } = await lifecycle.start({ contextRef: 'm1-unknown-switch' });
+   await expect(executor.run({ runId: run.id, agentId: definition.id, cwd: '/fixture', prompt: 'Hello' }, {
+     nativeCapabilities: JSON.parse('{"futureSwitch":false}'),
+diff --git a/packages/daemon/src/agent-executor/__tests__/mcp-bridge-probe.unit.test.ts b/packages/daemon/src/agent-executor/__tests__/mcp-bridge-probe.unit.test.ts
+index 0417c8e7..5c274504 100644
+--- a/packages/daemon/src/agent-executor/__tests__/mcp-bridge-probe.unit.test.ts
++++ b/packages/daemon/src/agent-executor/__tests__/mcp-bridge-probe.unit.test.ts
+@@ -1,6 +1,7 @@
+ import { EventEmitter } from 'node:events';
+ import { PassThrough } from 'node:stream';
+-import type { spawn as nodeSpawn, ChildProcess } from 'node:child_process';
++import type { ChildProcess } from 'node:child_process';
++import { createSpawnPort, type SpawnFunction } from '@jini-ai/node-adapters/process';
+ import { afterEach, describe, expect, it, vi } from 'vitest';
+ import { probeMcpBridge } from '../mcp-bridge-probe.js';
+ import { bridgeUnavailableMessage } from '../mcp-bridge.js';
+@@ -11,10 +12,11 @@ function fakeBridge() {
+     kill: vi.fn(() => true),
+   });
+   const calls: unknown[][] = [];
+-  const spawn = ((...args: unknown[]) => {
++  const nodeShapedSpawn = ((...args: unknown[]) => {
+     calls.push(args);
+     return child as unknown as ChildProcess;
+-  }) as typeof nodeSpawn;
++  }) as SpawnFunction;
++  const spawn = createSpawnPort({ spawn: nodeShapedSpawn });
+   const writes: string[] = [];
+   child.stdin.on('data', (chunk) => writes.push(chunk.toString()));
+   return { child, spawn, calls, writes };
+@@ -30,7 +32,7 @@ describe('probeMcpBridge', () => {
+     vi.useFakeTimers();
+     const fake = fakeBridge();
+     let time = 100;
+-    const pending = probeMcpBridge({ entry }, { spawn: fake.spawn, baseEnv: {}, now: () => time });
++    const pending = probeMcpBridge({ entry, spawn: fake.spawn, hostEnv: {} }, { baseEnv: {}, now: () => time });
+     expect(fake.writes).toEqual([
+       '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"jini-bridge-probe","version":"0"}}}\n',
+     ]);
+@@ -44,7 +46,7 @@ describe('probeMcpBridge', () => {
+ 
+   it('returns the exact missing-package diagnostic and exit code', async () => {
+     const fake = fakeBridge();
+-    const pending = probeMcpBridge({ entry }, { spawn: fake.spawn, baseEnv: {}, now: () => 0 });
++    const pending = probeMcpBridge({ entry, spawn: fake.spawn, hostEnv: {} }, { baseEnv: {}, now: () => 0 });
+     fake.child.stderr.write(`${missingSdk}\n`);
+     fake.child.emit('exit', 1, null);
+     expect(await pending).toEqual({ ok: false, exitCode: 1, signal: null, stderrTail: missingSdk, elapsedMs: 0 });
+@@ -54,7 +56,7 @@ describe('probeMcpBridge', () => {
+   it('times out and kills a bridge that never replies', async () => {
+     vi.useFakeTimers();
+     const fake = fakeBridge();
+-    const pending = probeMcpBridge({ entry }, { spawn: fake.spawn, baseEnv: {}, timeoutMs: 5 });
++    const pending = probeMcpBridge({ entry, spawn: fake.spawn, hostEnv: {} }, { baseEnv: {}, timeoutMs: 5 });
+     await vi.advanceTimersByTimeAsync(5);
+     expect(await pending).toEqual({ ok: false, exitCode: null, signal: null, stderrTail: '', elapsedMs: 5 });
+     expect(fake.child.kill.mock.calls).toEqual([['SIGKILL']]);
+@@ -65,7 +67,7 @@ describe('probeMcpBridge', () => {
+     const fake = fakeBridge();
+     const pending = probeMcpBridge({ entry: { ...entry, env: {
+       ELECTRON_RUN_AS_NODE: '1', PATH: '/bridge/bin', JINI_RUN_ID: 'real-run', JINI_DAEMON_TOKEN: 'entry-fixture',
+-    } } }, { spawn: fake.spawn, baseEnv: { PATH: '/bin', HOME: '/home', JINI_DAEMON_TOKEN: 'base-fixture' } });
++    } } , spawn: fake.spawn, hostEnv: {} }, { baseEnv: { PATH: '/bin', HOME: '/home', JINI_DAEMON_TOKEN: 'base-fixture' } });
+     fake.child.stdout.write('{"id":1,"result":{}}\n');
+     await pending;
+     expect(fake.calls).toEqual([['/node', ['bridge.js'], { stdio: 'pipe', env: {
+@@ -75,29 +77,25 @@ describe('probeMcpBridge', () => {
+ 
+   it('keeps exactly the last 2000 stderr bytes across chunks', async () => {
+     const fake = fakeBridge();
+-    const pending = probeMcpBridge({ entry }, { spawn: fake.spawn, baseEnv: {}, now: () => 0 });
++    const pending = probeMcpBridge({ entry, spawn: fake.spawn, hostEnv: {} }, { baseEnv: {}, now: () => 0 });
+     fake.child.stderr.write('discard'.repeat(500));
+     fake.child.stderr.write('z'.repeat(1999) + '!');
+     fake.child.emit('exit', 1, null);
+     expect((await pending).stderrTail).toBe('z'.repeat(1999) + '!');
+   });
+ 
+-  it('uses only the baseline launch environment by default', async () => {
++  it('uses only the baseline launch environment of the host env it is given', async () => {
+     const fake = fakeBridge();
+-    const pending = probeMcpBridge({ entry }, { spawn: fake.spawn });
++    const pending = probeMcpBridge({ entry, spawn: fake.spawn, hostEnv: { PATH: '/bin', HOME: '/home/pinned', USER: 'pinned', SECRET_TOKEN: 'must-not-leak' } });
+     fake.child.stdout.write('{"id":1,"result":{}}\n');
+     await pending;
+     const options = fake.calls[0]?.[2] as { env: Record<string, string> };
+-    const baselineKeys = ['PATH', 'HOME', 'USERPROFILE', 'TMPDIR', 'TEMP', 'TMP', 'SHELL',
+-      'LANG', 'LC_ALL', 'LC_CTYPE', 'USER', 'SystemRoot', 'windir', 'ComSpec', 'PATHEXT'];
+-    expect(Object.keys(options.env).sort()).toEqual([
+-      ...baselineKeys.filter((key) => typeof process.env[key] === 'string'), 'JINI_RUN_ID',
+-    ].sort());
++    expect(options.env).toEqual({ PATH: '/bin', HOME: '/home/pinned', USER: 'pinned', JINI_RUN_ID: 'bridge-probe' });
+   });
+ 
+   it('redacts credential assignments and bearer values even when split across chunks', async () => {
+     const fake = fakeBridge();
+-    const pending = probeMcpBridge({ entry }, { spawn: fake.spawn, baseEnv: {} });
++    const pending = probeMcpBridge({ entry, spawn: fake.spawn, hostEnv: {} }, { baseEnv: {} });
+     fake.child.stderr.write('JINI_DAEMON_TOKEN=fixture-');
+     fake.child.stderr.write('token\nBearer fixture-bearer\n');
+     fake.child.emit('exit', 1, null);
+@@ -106,7 +104,7 @@ describe('probeMcpBridge', () => {
+ 
+   it('reports an asynchronous ENOENT spawn error', async () => {
+     const fake = fakeBridge();
+-    const pending = probeMcpBridge({ entry }, { spawn: fake.spawn, baseEnv: {}, now: () => 0 });
++    const pending = probeMcpBridge({ entry, spawn: fake.spawn, hostEnv: {} }, { baseEnv: {}, now: () => 0 });
+     fake.child.emit('error', new Error('spawn /node ENOENT'));
+     expect(await pending).toEqual({ ok: false, exitCode: null, signal: null, stderrTail: 'spawn /node ENOENT', elapsedMs: 0 });
+     expect(fake.child.kill.mock.calls).toEqual([['SIGKILL']]);
+@@ -114,15 +112,15 @@ describe('probeMcpBridge', () => {
+ 
+   it('reports close with its signal even without an exit event', async () => {
+     const fake = fakeBridge();
+-    const pending = probeMcpBridge({ entry }, { spawn: fake.spawn, baseEnv: {}, now: () => 0 });
++    const pending = probeMcpBridge({ entry, spawn: fake.spawn, hostEnv: {} }, { baseEnv: {}, now: () => 0 });
+     fake.child.emit('close', null, 'SIGTERM');
+     expect(await pending).toEqual({ ok: false, exitCode: null, signal: 'SIGTERM', stderrTail: '', elapsedMs: 0 });
+   });
+ 
+   it('reports a synchronous spawn throw and clears its timer', async () => {
+     vi.useFakeTimers();
+-    const spawn = (() => { throw new Error('spawn EACCES'); }) as typeof nodeSpawn;
+-    expect(await probeMcpBridge({ entry }, { spawn, baseEnv: {}, now: () => 0 })).toEqual({
++    const spawn = (() => { throw new Error('spawn EACCES'); }) as SpawnFunction;
++    expect(await probeMcpBridge({ entry, spawn: createSpawnPort({ spawn }), hostEnv: {} }, { baseEnv: {}, now: () => 0 })).toEqual({
+       ok: false, exitCode: null, signal: null, stderrTail: 'spawn EACCES', elapsedMs: 0,
+     });
+     expect(vi.getTimerCount()).toBe(0);
+@@ -130,7 +128,7 @@ describe('probeMcpBridge', () => {
+ 
+   it('reports stdin failure rather than leaving an unhandled stream error', async () => {
+     const fake = fakeBridge();
+-    const pending = probeMcpBridge({ entry }, { spawn: fake.spawn, baseEnv: {}, now: () => 0 });
++    const pending = probeMcpBridge({ entry, spawn: fake.spawn, hostEnv: {} }, { baseEnv: {}, now: () => 0 });
+     fake.child.stdin.emit('error', new Error('write EPIPE'));
+     expect((await pending).stderrTail).toBe('write EPIPE');
+     expect(fake.child.kill.mock.calls).toEqual([['SIGKILL']]);
+@@ -154,7 +152,7 @@ describe('probeMcpBridge (characterization)', () => {
+   it('still returns the original diagnostic when killing the bridge throws', async () => {
+     const fake = fakeBridge();
+     fake.child.kill.mockImplementation(() => { throw new Error('kill ESRCH'); });
+-    const pending = probeMcpBridge({ entry }, { spawn: fake.spawn, baseEnv: {}, now: () => 0 });
++    const pending = probeMcpBridge({ entry, spawn: fake.spawn, hostEnv: {} }, { baseEnv: {}, now: () => 0 });
+     fake.child.emit('exit', 3, null);
+     expect(await pending).toEqual({ ok: false, exitCode: 3, signal: null, stderrTail: '', elapsedMs: 0 });
+     expect(fake.child.kill.mock.calls).toEqual([['SIGKILL']]);
+@@ -163,8 +161,8 @@ describe('probeMcpBridge (characterization)', () => {
+   it('tolerates a child without stdio streams and reports its exit', async () => {
+     const child = Object.assign(new EventEmitter(), { stdin: null, stdout: null, stderr: null, kill: vi.fn(() => true) });
+     // Malformed-input fixture: a ChildProcess whose stdio pipes are all absent.
+-    const spawn = (() => child as unknown as ChildProcess) as typeof nodeSpawn;
+-    const pending = probeMcpBridge({ entry }, { spawn, baseEnv: {}, now: () => 0 });
++    const spawn = (() => child as unknown as ChildProcess) as SpawnFunction;
++    const pending = probeMcpBridge({ entry, spawn: createSpawnPort({ spawn }), hostEnv: {} }, { baseEnv: {}, now: () => 0 });
+     child.emit('exit', 0, null);
+     expect(await pending).toEqual({ ok: false, exitCode: 0, signal: null, stderrTail: '', elapsedMs: 0 });
+     expect(child.kill.mock.calls).toEqual([['SIGKILL']]);
+@@ -173,7 +171,7 @@ describe('probeMcpBridge (characterization)', () => {
+   it('keeps waiting past non-object and result-less id 1 replies', async () => {
+     vi.useFakeTimers();
+     const fake = fakeBridge();
+-    const pending = probeMcpBridge({ entry }, { spawn: fake.spawn, baseEnv: {}, timeoutMs: 5, now: () => 0 });
++    const pending = probeMcpBridge({ entry, spawn: fake.spawn, hostEnv: {} }, { baseEnv: {}, timeoutMs: 5, now: () => 0 });
+     fake.child.stdout.write('1\n[{"id":1,"result":{}}]\n{"id":"1","result":{}}\n{"id":1}\nnull\n');
+     await vi.advanceTimersByTimeAsync(5);
+     expect((await pending).ok).toBe(false);
+@@ -181,21 +179,21 @@ describe('probeMcpBridge (characterization)', () => {
+ 
+   it('accepts an id 1 reply whose result is null', async () => {
+     const fake = fakeBridge();
+-    const pending = probeMcpBridge({ entry }, { spawn: fake.spawn, baseEnv: {}, now: () => 0 });
++    const pending = probeMcpBridge({ entry, spawn: fake.spawn, hostEnv: {} }, { baseEnv: {}, now: () => 0 });
+     fake.child.stdout.write('{"id":1,"result":null}\n');
+     expect((await pending).ok).toBe(true);
+   });
+ 
+   it('reports a stdout stream error through the line reader', async () => {
+     const fake = fakeBridge();
+-    const pending = probeMcpBridge({ entry }, { spawn: fake.spawn, baseEnv: {}, now: () => 0 });
++    const pending = probeMcpBridge({ entry, spawn: fake.spawn, hostEnv: {} }, { baseEnv: {}, now: () => 0 });
+     fake.child.stdout.emit('error', new Error('read EIO'));
+     expect(await pending).toEqual({ ok: false, exitCode: null, signal: null, stderrTail: 'read EIO', elapsedMs: 0 });
+   });
+ 
+   it('closes its line reader so the bridge stdout is left without probe listeners', async () => {
+     const fake = fakeBridge();
+-    const pending = probeMcpBridge({ entry }, { spawn: fake.spawn, baseEnv: {}, now: () => 0 });
++    const pending = probeMcpBridge({ entry, spawn: fake.spawn, hostEnv: {} }, { baseEnv: {}, now: () => 0 });
+     expect(fake.child.stdout.listenerCount('data')).toBeGreaterThan(0);
+     fake.child.emit('exit', 1, null);
+     await pending;
+@@ -204,7 +202,7 @@ describe('probeMcpBridge (characterization)', () => {
+ 
+   it('keeps the first outcome when the bridge exits after replying', async () => {
+     const fake = fakeBridge();
+-    const pending = probeMcpBridge({ entry }, { spawn: fake.spawn, baseEnv: {}, now: () => 0 });
++    const pending = probeMcpBridge({ entry, spawn: fake.spawn, hostEnv: {} }, { baseEnv: {}, now: () => 0 });
+     fake.child.stdout.write('{"id":1,"result":{}}\n');
+     fake.child.emit('exit', 9, null);
+     expect((await pending).ok).toBe(true);
+@@ -212,7 +210,7 @@ describe('probeMcpBridge (characterization)', () => {
+ 
+   it('appends an error message after existing stderr and redacts a daemon token assignment in any case', async () => {
+     const fake = fakeBridge();
+-    const pending = probeMcpBridge({ entry }, { spawn: fake.spawn, baseEnv: {}, now: () => 0 });
++    const pending = probeMcpBridge({ entry, spawn: fake.spawn, hostEnv: {} }, { baseEnv: {}, now: () => 0 });
+     fake.child.stderr.write(['jini_daemon_token', '=abc'].join(''));
+     fake.child.emit('error', new Error('boom'));
+     expect((await pending).stderrTail).toBe('[REDACTED:daemon_token]\nboom');
+diff --git a/packages/daemon/src/agent-executor/__tests__/mid-run-user-message.test.ts b/packages/daemon/src/agent-executor/__tests__/mid-run-user-message.test.ts
+index ca621281..68026710 100644
+--- a/packages/daemon/src/agent-executor/__tests__/mid-run-user-message.test.ts
++++ b/packages/daemon/src/agent-executor/__tests__/mid-run-user-message.test.ts
+@@ -8,6 +8,7 @@ import { createRunLifecycle, type RunLifecycle } from '../../run-lifecycle.js';
+ import type { RunByteJournal } from '../../continuation/journal.js';
+ import { createAgentExecutor } from '../../index.js';
+ import { fixtureLaunchModel, fixtureModelDiscovery } from './model-discovery-fixture.js';
++import { runtimeFixture } from './runtime-fixture.js';
+ 
+ /** A message sent during tools/background work is queued on the same session without aborting
+  * anything. HTTP acceptance means queued; only UUID-attributed CLI replies confirm consumption.
+@@ -71,16 +72,16 @@ function createHarness(def: RuntimeAgentDef, options: HarnessOptions = {}) {
+   const child = createFakeChild();
+   const spawn = (() => { queueMicrotask(() => child.emit('spawn')); return child as unknown as ChildProcess; }) as unknown as typeof nodeSpawn;
+   const onCleanupFailure = vi.fn();
+-  const executor = createAgentExecutor({ lifecycle: executorLifecycle(lifecycle, options) }, {
++  const executor = createAgentExecutor({ lifecycle: executorLifecycle(lifecycle, options), hostEnv: {}, runtime: runtimeFixture({ spawn: spawn, listProcessSnapshots: async () => [], stopProcesses: async () => ({ alreadyStopped: true, forcedPids: [], matchedPids: [], remainingPids: [], stoppedPids: [] }) }) }, {
+     ...(options.bridge ? { mcpJsonInjection: { command: 'node', args: ['serve.js'], daemonUrl: 'http://127.0.0.1:4317' } } : {}),
+     ...(options.journal ? { journal: options.journal } : {}),
+     resolveModelForLaunch: fixtureLaunchModel,
+     getAgentDef: ({ id }) => (id === def.id ? def : null),
+     resolveAgentLaunch: () => ({ selectedPath: '/fake/bin', pathResolvedPath: '/fake/bin', configuredOverridePath: null, launchPath: '/fake/bin', launchKind: 'selected', childPathPrepend: [], diagnostic: null }) as AgentLaunchResolution,
+     applyAgentLaunchEnv: ({ env }) => env,
+-    spawn,
+-    listProcessSnapshots: async () => [],
+-    stopProcesses: async () => ({ alreadyStopped: true, forcedPids: [], matchedPids: [], remainingPids: [], stoppedPids: [] }),
++    
++    
++    
+     onCleanupFailure,
+   });
+   return { lifecycle, executor, child, onCleanupFailure };
+diff --git a/packages/daemon/src/agent-executor/__tests__/r8a-characterization.test.ts b/packages/daemon/src/agent-executor/__tests__/r8a-characterization.test.ts
+index dbda259d..51629c4e 100644
+--- a/packages/daemon/src/agent-executor/__tests__/r8a-characterization.test.ts
++++ b/packages/daemon/src/agent-executor/__tests__/r8a-characterization.test.ts
+@@ -147,23 +147,18 @@ describe('R14: every CLI argument reaches spawn', () => {
+   });
+ 
+   it('quotes and percent-escapes (exact golden) and marks verbatim a win32 .cmd shim without dropping an argument', async () => {
+-    const platform = Object.getOwnPropertyDescriptor(process, 'platform')!;
+-    Object.defineProperty(process, 'platform', { ...platform, value: 'win32' });
+-    try {
+-      const child = createFakeChild(6201);
+-      const calls: Array<{ command: string; args: readonly string[]; options: Record<string, unknown> }> = [];
+-      const rig = createRig({ def: createDef({ buildArgs: () => ARGS }), spawn: recordSpawn(child, calls), launchPath: 'C:\\agent\\agent.cmd' });
+-      const runId = await rig.start();
+-      await rig.executor.run({ runId, agentId: 'r8a-agent', prompt: 'hi', cwd: '/work' });
+-      expect(calls).toHaveLength(1);
+-      const spawned = calls[0]!;
+-      expect(spawned.options.windowsVerbatimArguments).toBe(true);
+-      // Golden: the planner's exact output today (quoting and the `^%` escape), joined for readability.
+-      expect(spawned.args.join(' ')).toBe('/d /s /c "C:\\agent\\agent.cmd --mode plan "a b" "50"^%"""');
+-      child.emit('close', 0, null);
+-      await rig.lifecycle.waitForTerminal({ runId });
+-    } finally {
+-      Object.defineProperty(process, 'platform', platform);
+-    }
++    // The shell's platform is a host-stated input, so a Linux run pins win32 without touching `process`.
++    const child = createFakeChild(6201);
++    const calls: Array<{ command: string; args: readonly string[]; options: Record<string, unknown> }> = [];
++    const rig = createRig({ def: createDef({ buildArgs: () => ARGS }), spawn: recordSpawn(child, calls), launchPath: 'C:\\agent\\agent.cmd', platform: 'win32' });
++    const runId = await rig.start();
++    await rig.executor.run({ runId, agentId: 'r8a-agent', prompt: 'hi', cwd: '/work' });
++    expect(calls).toHaveLength(1);
++    const spawned = calls[0]!;
++    expect(spawned.options.windowsVerbatimArguments).toBe(true);
++    // Golden: the planner's exact output today (quoting and the `^%` escape), joined for readability.
++    expect(spawned.args.join(' ')).toBe('/d /s /c "C:\\agent\\agent.cmd --mode plan "a b" "50"^%"""');
++    child.emit('close', 0, null);
++    await rig.lifecycle.waitForTerminal({ runId });
+   });
+ });
+diff --git a/packages/daemon/src/agent-executor/__tests__/r8a-rig.ts b/packages/daemon/src/agent-executor/__tests__/r8a-rig.ts
+index bc30866c..3297fe03 100644
+--- a/packages/daemon/src/agent-executor/__tests__/r8a-rig.ts
++++ b/packages/daemon/src/agent-executor/__tests__/r8a-rig.ts
+@@ -1,5 +1,8 @@
+ import { EventEmitter } from 'node:events';
+-import type { ChildProcess, spawn as nodeSpawn } from 'node:child_process';
++import type { ChildProcess } from 'node:child_process';
++import type { RuntimePlatform } from '@jini-ai/core/contracts/runtime';
++import type { SpawnFunction } from '@jini-ai/node-adapters/process';
++import { runtimeFixture, type RuntimeFixtureScript } from './runtime-fixture.js';
+ import { vi } from 'vitest';
+ import type { AgentLaunchResolution, RuntimeAgentDef, RuntimeLock } from '@jini-ai/core/contracts/agents';
+ import { createInMemoryEventLog } from '../../event-log.js';
+@@ -49,9 +52,10 @@ export const launchAt = (launchPath: string) => (): AgentLaunchResolution => ({
+ 
+ export const stopResult = { alreadyStopped: false, forcedPids: [], matchedPids: [], remainingPids: [], stoppedPids: [] };
+ 
+-export type SpawnPort = typeof nodeSpawn;
+-type StopPort = NonNullable<Parameters<typeof createAgentExecutor>[1]>['stopProcesses'];
+-type ListPort = NonNullable<Parameters<typeof createAgentExecutor>[1]>['listProcessSnapshots'];
++/** Node's own positional spawn shape: the spies keep asserting `(command, args, options)`. */
++export type SpawnPort = SpawnFunction;
++type StopPort = NonNullable<RuntimeFixtureScript['stopProcesses']>;
++type ListPort = NonNullable<RuntimeFixtureScript['listProcessSnapshots']>;
+ 
+ export interface Rig {
+   readonly events: string[];
+@@ -69,6 +73,8 @@ export function createRig(input: {
+   readonly listProcessSnapshots?: ListPort;
+   readonly stopProcesses?: StopPort;
+   readonly hostEnv?: NodeJS.ProcessEnv;
++  /** The command shell's pinned platform; default Linux. */
++  readonly platform?: RuntimePlatform;
+ }): Rig {
+   const events: string[] = [];
+   const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
+@@ -77,14 +83,19 @@ export function createRig(input: {
+     acquire: async () => { events.push('acquire'); return { release: () => { events.push('release'); } }; },
+   };
+   const def = { ...input.def, runtimeLock: lock, needsAgentLogFile: true } satisfies RuntimeAgentDef;
+-  const executor = createAgentExecutor({ lifecycle }, {
+-    hostEnv: input.hostEnv ?? { PATH: '/bin' }, resolveModelForLaunch: fixtureLaunchModel,
++  const executor = createAgentExecutor({
++    lifecycle, hostEnv: input.hostEnv ?? { PATH: '/bin' },
++    runtime: runtimeFixture({
++      spawn: input.spawn,
++      listProcessSnapshots: input.listProcessSnapshots ?? (async () => []),
++      stopProcesses: input.stopProcesses ?? (async () => stopResult),
++      ...(input.platform ? { platform: input.platform } : {}),
++    }),
++  }, {
++    resolveModelForLaunch: fixtureLaunchModel,
+     getAgentDef: ({ id }) => (id === def.id ? def : null),
+     resolveAgentLaunch: launchAt(input.launchPath ?? '/fake/bin'), applyAgentLaunchEnv: ({ env }) => env,
+     prepareAgentLogFile: (async () => ({ path: '/fake/agent.log', cleanup: async () => { events.push('cleanup'); } })) as never,
+-    spawn: input.spawn,
+-    listProcessSnapshots: input.listProcessSnapshots ?? (async () => []),
+-    stopProcesses: input.stopProcesses ?? (async () => stopResult),
+     onCleanupFailure,
+   });
+   const start = async (): Promise<string> => (await lifecycle.start({ contextRef: 'r8a' })).run.id;
+diff --git a/packages/daemon/src/agent-executor/__tests__/runtime-fixture.ts b/packages/daemon/src/agent-executor/__tests__/runtime-fixture.ts
+new file mode 100644
+index 00000000..87dc1ce2
+--- /dev/null
++++ b/packages/daemon/src/agent-executor/__tests__/runtime-fixture.ts
+@@ -0,0 +1,48 @@
++import type { ProcessSnapshot, RuntimePlatform, StopProcessesResult } from '@jini-ai/core/contracts/runtime';
++import { nodeAtomicWriter, nodeFileLock } from '@jini-ai/node-adapters/fs';
++import { createSpawnPort, nodeCommandShell, nodeProcessControl, nodeSpawnPort, type SpawnFunction } from '@jini-ai/node-adapters/process';
++import type { AgentExecutorRuntimePorts } from '../../ports/runtime.js';
++import { fakeRuntimePorts } from '../../ports/__tests__/fakes/runtime.js';
++
++/**
++ * What an executor test scripts: Node's own positional `spawn` shape (a spy keeps asserting
++ * `(command, args, options)`), a process table, a stopper, and the pinned command shell. Everything
++ * else comes from the shared fakes. The spawn spy is bound by the real platform binding, so these
++ * tests also run the object-to-positional adapter the hosts use.
++ */
++export interface RuntimeFixtureScript {
++  readonly spawn?: SpawnFunction;
++  readonly listProcessSnapshots?: () => Promise<ProcessSnapshot[]>;
++  readonly stopProcesses?: (required: { readonly pids: ReadonlyArray<number | null | undefined> }) => Promise<StopProcessesResult>;
++  readonly platform?: RuntimePlatform;
++  readonly fallbackComSpec?: string;
++}
++
++const NOTHING_STOPPED: StopProcessesResult = { alreadyStopped: true, forcedPids: [], matchedPids: [], remainingPids: [], stoppedPids: [] };
++
++/** A full {@link AgentExecutorRuntimePorts} for an executor test; pinned to Linux unless `platform` says otherwise. */
++export function runtimeFixture(script: RuntimeFixtureScript = {}, _optional: Record<string, never> = {}): AgentExecutorRuntimePorts {
++  const base = fakeRuntimePorts();
++  return {
++    ...base,
++    ...(script.spawn ? { spawn: createSpawnPort({ spawn: script.spawn }) } : {}),
++    processes: {
++      listProcessSnapshots: script.listProcessSnapshots ?? (async () => []),
++      stopProcesses: script.stopProcesses ?? (async () => NOTHING_STOPPED),
++      waitForProcessExit: async () => true,
++    },
++    commandShell: { platform: script.platform ?? 'linux', fallbackComSpec: script.fallbackComSpec },
++  };
++}
++
++/**
++ * The real Node bindings, for the few integration tests that run an actual child process. `onSpawn`
++ * sees each command and argv the executor hands the port, before the real process starts.
++ */
++export function nodeRuntime(script: { readonly onSpawn?: (required: { readonly command: string; readonly args: readonly string[] }) => void } = {}, _optional: Record<string, never> = {}): AgentExecutorRuntimePorts {
++  const { onSpawn } = script;
++  return {
++    spawn: onSpawn ? (required, options) => { onSpawn(required); return nodeSpawnPort(required, options); } : nodeSpawnPort,
++    processes: nodeProcessControl, fileLock: nodeFileLock, writer: nodeAtomicWriter, commandShell: nodeCommandShell({ env: process.env }),
++  };
++}
+diff --git a/packages/daemon/src/agent-executor/__tests__/runtime-policy.test.ts b/packages/daemon/src/agent-executor/__tests__/runtime-policy.test.ts
+index 46bcb153..7930d495 100644
+--- a/packages/daemon/src/agent-executor/__tests__/runtime-policy.test.ts
++++ b/packages/daemon/src/agent-executor/__tests__/runtime-policy.test.ts
+@@ -10,6 +10,7 @@ import { createRunLifecycle } from '../../run-lifecycle.js';
+ import { createInMemoryEventLog } from '../../event-log.js';
+ import { fixtureModelDiscovery } from './model-discovery-fixture.js';
+ import type { McpJsonInjectionOptions } from '../index.js';
++import { runtimeFixture } from './runtime-fixture.js';
+ 
+ class FakeChild extends EventEmitter {
+   stdin = new PassThrough();
+@@ -33,17 +34,17 @@ async function startFixture(
+   const calls: { args: readonly string[]; env: NodeJS.ProcessEnv | undefined }[] = [];
+   const def: RuntimeAgentDef = { ...getAgentDef({ id: agentId })!, ...fixtureModelDiscovery,
+     ...(['claude', 'codex'].includes(agentId) ? { mcpIsolation: { perRun: 'fixture@2026-11-05' } } : {}) };
+-  const executor = createAgentExecutor({ lifecycle }, {
+-    ...policies, hostEnv, ...(ownRuntimeState ? { runtimeState: createAgentRuntimeState({}) } : {}),
++  const executor = createAgentExecutor({ lifecycle, hostEnv: hostEnv, runtime: runtimeFixture({ spawn: ((_command: string, args: readonly string[], options: { env?: NodeJS.ProcessEnv }) => {
++      calls.push({ args, env: options.env });
++      queueMicrotask(() => child.emit('spawn'));
++      return child as unknown as ChildProcess;
++    }) as typeof nodeSpawn }) }, {
++    ...policies,  ...(ownRuntimeState ? { runtimeState: createAgentRuntimeState({}) } : {}),
+     getAgentDef: () => def,
+     resolveAgentLaunch: () => ({ selectedPath: '/fake/cli', pathResolvedPath: '/fake/cli',
+       configuredOverridePath: null, launchPath: '/fake/cli', launchKind: 'selected', childPathPrepend: [], diagnostic: null }),
+     applyAgentLaunchEnv: ({ env }) => env, ensureAgentCapabilities: async () => {},
+-    spawn: ((_command: string, args: readonly string[], options: { env?: NodeJS.ProcessEnv }) => {
+-      calls.push({ args, env: options.env });
+-      queueMicrotask(() => child.emit('spawn'));
+-      return child as unknown as ChildProcess;
+-    }) as typeof nodeSpawn,
++    
+   });
+   const { run } = await lifecycle.start({ contextRef: 'host-policy' });
+   await executor.run({ runId: run.id, agentId, prompt: 'question', cwd: '/missing-fixture-workspace' }, runPolicy);
+diff --git a/packages/daemon/src/agent-executor/__tests__/split-parity.test.ts b/packages/daemon/src/agent-executor/__tests__/split-parity.test.ts
+index f7ea8a58..6e80fbac 100644
+--- a/packages/daemon/src/agent-executor/__tests__/split-parity.test.ts
++++ b/packages/daemon/src/agent-executor/__tests__/split-parity.test.ts
+@@ -1,5 +1,4 @@
+-import { ChildProcess } from 'node:child_process';
+-import * as childProcess from 'node:child_process';
++import { ChildProcess, type SpawnOptions } from 'node:child_process';
+ import { describe, expect, it, vi } from 'vitest';
+ import type { RuntimeLockHandoffContext, RuntimeLockHold } from '@jini-ai/core/contracts/agents';
+ import * as executor from '../../index.js';
+@@ -7,11 +6,6 @@ import * as compatibilityEntry from '../../agent-executor.js';
+ import * as splitEntry from '../index.js';
+ import { armHandoffWatcher } from '../handoff.js';
+ 
+-vi.mock('node:child_process', async (importOriginal) => ({
+-  ...await importOriginal<typeof import('node:child_process')>(),
+-  spawn: vi.fn(),
+-}));
+-
+ describe('agent executor split parity', () => {
+   it('preserves every published runtime export and shares function and error-class identity across entries', () => {
+     const publishedNames = [
+@@ -83,15 +77,15 @@ describe('agent executor split parity', () => {
+   // PARITY
+   it('keeps spawn synchronous so the caller can immediately register listeners', () => {
+     const child = new ChildProcess();
+-    const spawnChild = vi.mocked(childProcess.spawn).mockReturnValue(child);
++    const spawnChild = vi.fn((_required: { command: string; args: readonly string[] }, _options?: SpawnOptions) => child);
+     const childEnv = { PATH: '/bin' };
+     const result = executor.spawnAgentChildProcess({ input: {
+       cwd: '/workspace', childEnv,
+       invocation: { command: 'agent', args: ['--stdio'], windowsVerbatimArguments: false },
+-    }, deps: { spawn: childProcess.spawn } });
++    }, deps: { spawn: spawnChild } });
+     expect(result).toEqual({ kind: 'ok', child });
+     expect(spawnChild).toHaveBeenCalledTimes(1);
+-    expect(spawnChild).toHaveBeenCalledWith('agent', ['--stdio'], {
++    expect(spawnChild).toHaveBeenCalledWith({ command: 'agent', args: ['--stdio'] }, {
+       cwd: '/workspace', env: childEnv, stdio: ['pipe', 'pipe', 'pipe'], windowsVerbatimArguments: false,
+     });
+     if (result.kind !== 'ok') throw new Error('Expected synchronous spawn success');
+@@ -100,7 +94,6 @@ describe('agent executor split parity', () => {
+     const failure = new Error('early spawn error');
+     child.emit('error', failure);
+     expect(onError).toHaveBeenCalledWith(failure);
+-    spawnChild.mockReset();
+   });
+ 
+   // PARITY
+diff --git a/packages/daemon/src/agent-executor/__tests__/starting-model.test.ts b/packages/daemon/src/agent-executor/__tests__/starting-model.test.ts
+index a41559e6..5d5839fd 100644
+--- a/packages/daemon/src/agent-executor/__tests__/starting-model.test.ts
++++ b/packages/daemon/src/agent-executor/__tests__/starting-model.test.ts
+@@ -9,6 +9,7 @@ import { createAgentExecutor, AgentExecutorError } from '../index.js';
+ import { createInMemoryEventLog } from '../../event-log.js';
+ import { createRunLifecycle } from '../../run-lifecycle.js';
+ import { fixtureModelDiscovery } from './model-discovery-fixture.js';
++import { runtimeFixture } from './runtime-fixture.js';
+ 
+ function def(): RuntimeAgentDef {
+   return { ...fixtureModelDiscovery, id: 'fixture', name: 'Fixture', bin: 'fixture', versionArgs: [], fallbackModels: [], streamFormat: 'plain', promptViaStdin: true,
+@@ -25,8 +26,8 @@ it.each(['acp-json-rpc', 'pi-rpc'])('fails an empty %s result despite the transp
+   const spawn = (() => { queueMicrotask(() => child.emit('spawn')); return child as unknown as ChildProcess; }) as typeof nodeSpawn;
+   const acp: typeof attachAcpSession = () => ({ hasFatalError: () => false, getDurableSessionId: () => null, completedSuccessfully: () => true, abort() {} });
+   const pi: typeof attachPiRpcSession = () => ({ hasFatalError: () => false, getLastSessionPath: () => null, abort() {} });
+-  const executor = createAgentExecutor({ lifecycle }, { getAgentDef: () => agent, resolveAgentLaunch: () => launch,
+-    ensureAgentCapabilities: async () => {}, applyAgentLaunchEnv: ({ env }) => env, spawn, attachAcpSession: acp, attachPiRpcSession: pi });
++  const executor = createAgentExecutor({ lifecycle, hostEnv: {}, runtime: runtimeFixture({ spawn: spawn }) }, { getAgentDef: () => agent, resolveAgentLaunch: () => launch,
++    ensureAgentCapabilities: async () => {}, applyAgentLaunchEnv: ({ env }) => env,  attachAcpSession: acp, attachPiRpcSession: pi });
+   const { run } = await lifecycle.start({ contextRef: 'empty-rpc' });
+   await executor.run({ runId: run.id, agentId: agent.id, cwd: '/workspace', prompt: 'hello' });
+   child.emit('close', 0, null);
+@@ -42,13 +43,12 @@ describe('starting-model launch agreement', () => {
+     let registered = def();
+     let lookups = 0;
+     const args: string[][] = [];
+-    const executor = createAgentExecutor({ lifecycle }, {
++    const executor = createAgentExecutor({ lifecycle, hostEnv: {}, runtime: runtimeFixture({ spawn: ((_command: string, argv: readonly string[]) => { args.push([...argv]); throw new Error('Fixture stops before a real process'); }) as unknown as typeof nodeSpawn }) }, {
+       getAgentDef: () => { lookups++; return registered; },
+       resolveAgentLaunch: () => launch,
+       ensureAgentCapabilities: async () => {},
+       applyAgentLaunchEnv: ({ env }) => env,
+-      createCommandInvocation: ({ command, args }) => ({ command, args: [...(args ?? [])], windowsVerbatimArguments: false }),
+-      spawn: ((_command: string, argv: readonly string[]) => { args.push([...argv]); throw new Error('Fixture stops before a real process'); }) as unknown as typeof nodeSpawn,
++      
+     });
+     const { run } = await lifecycle.start({ contextRef: 'registry-replacement' });
+     const pending = executor.run({ runId: run.id, agentId: registered.id, cwd: '/workspace', prompt: 'hello' });
+@@ -63,10 +63,9 @@ describe('starting-model launch agreement', () => {
+   it('passes the resolved default into the native model-selection flag', async () => {
+     const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
+     const agent = def(); const args: string[][] = [];
+-    const executor = createAgentExecutor({ lifecycle }, {
++    const executor = createAgentExecutor({ lifecycle, hostEnv: {}, runtime: runtimeFixture({ spawn: ((_command: string, argv: readonly string[]) => { args.push([...argv]); throw new Error('Fixture stops before a real process'); }) as unknown as typeof nodeSpawn }) }, {
+       getAgentDef: () => agent, resolveAgentLaunch: () => launch, ensureAgentCapabilities: async () => {}, applyAgentLaunchEnv: ({ env }) => env,
+-      createCommandInvocation: ({ command, args }) => ({ command, args: [...(args ?? [])], windowsVerbatimArguments: false }),
+-      spawn: ((_command: string, argv: readonly string[]) => { args.push([...argv]); throw new Error('Fixture stops before a real process'); }) as unknown as typeof nodeSpawn,
++      
+     });
+     const { run } = await lifecycle.start({ contextRef: 'fixture' });
+     await expect(executor.run({ runId: run.id, agentId: 'fixture', cwd: '/workspace', prompt: 'hello' })).rejects.toMatchObject({ code: 'AGENT_SPAWN_FAILED' });
+@@ -76,8 +75,7 @@ describe('starting-model launch agreement', () => {
+     const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
+     const agent = def(); let spawned = false;
+     agent.resolveDefaultModel = async () => ({ status: 'unresolved', selectionId: 'adaptive', reason: 'No concrete evidence' });
+-    const executor = createAgentExecutor({ lifecycle }, { getAgentDef: () => agent, resolveAgentLaunch: () => launch, ensureAgentCapabilities: async () => {}, applyAgentLaunchEnv: ({ env }) => env,
+-      spawn: (() => { spawned = true; throw new Error('Must not spawn'); }) as unknown as typeof nodeSpawn });
++    const executor = createAgentExecutor({ lifecycle, hostEnv: {}, runtime: runtimeFixture({ spawn: (() => { spawned = true; throw new Error('Must not spawn'); }) as unknown as typeof nodeSpawn }) }, { getAgentDef: () => agent, resolveAgentLaunch: () => launch, ensureAgentCapabilities: async () => {}, applyAgentLaunchEnv: ({ env }) => env });
+     const { run } = await lifecycle.start({ contextRef: 'fixture' });
+     await expect(executor.run({ runId: run.id, agentId: 'fixture', cwd: '/workspace', prompt: 'hello' })).rejects.toEqual(new AgentExecutorError({ code: 'AGENT_MODEL_UNRESOLVED', message: 'AgentExecutor: choose a concrete model and supported effort from this agent’s model list; the selection could not be resolved for this launch.' }));
+     expect(spawned).toBe(false);
+@@ -110,8 +108,8 @@ for (const [name, create] of [['split', createAgentExecutor], ['public', publicC
+           report = model => send({ event: 'agent', payload: { type: 'status', label: 'model', model } });
+           return { hasFatalError: () => false, getLastSessionPath: () => null, abort() {} };
+         };
+-        const executor = create({ lifecycle }, { getAgentDef: () => agent, resolveAgentLaunch: () => launch, ensureAgentCapabilities: async () => {},
+-          applyAgentLaunchEnv: ({ env }) => env, spawn, attachAcpSession: acp, attachPiRpcSession: pi });
++        const executor = create({ lifecycle, hostEnv: {}, runtime: runtimeFixture({ spawn }) }, { getAgentDef: () => agent, resolveAgentLaunch: () => launch, ensureAgentCapabilities: async () => {},
++          applyAgentLaunchEnv: ({ env }) => env, attachAcpSession: acp, attachPiRpcSession: pi });
+         const { run } = await lifecycle.start({ contextRef: 'aliases' });
+         await executor.run({ runId: run.id, agentId: agent.id, cwd: '/workspace', prompt: 'hello' });
+         if (format === 'claude-stream-json') report = model => child.stdout.emit('data', `${JSON.stringify({ type: 'system', subtype: 'init', model, tools: [] })}\n`);
+@@ -135,12 +133,11 @@ it.each(['default', 'native-routing-alias'])('trusted parity leaves default or e
+   const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
+   const agent = def(); let selections = 0; const args: string[][] = [];
+   agent.buildArgs = (_input, { options = {} } = {}) => options.model && options.model !== 'default' ? ['--model', options.model] : [];
+-  const executor = createAgentExecutor({ lifecycle }, {
++  const executor = createAgentExecutor({ lifecycle, hostEnv: {}, runtime: runtimeFixture({ spawn: ((_command: string, argv: readonly string[]) => { args.push([...argv]); throw new Error('fixture stops before spawn'); }) as unknown as typeof nodeSpawn }) }, {
+     getAgentDef: () => agent, resolveAgentLaunch: () => launch,
+     resolveModelForLaunch: async () => { selections++; throw new Error('No concrete model evidence'); },
+     ensureAgentCapabilities: async () => {}, applyAgentLaunchEnv: ({ env }) => env,
+-    createCommandInvocation: ({ command, args }) => ({ command, args: [...(args ?? [])], windowsVerbatimArguments: false }),
+-    spawn: ((_command: string, argv: readonly string[]) => { args.push([...argv]); throw new Error('fixture stops before spawn'); }) as unknown as typeof nodeSpawn,
++    
+   });
+   const { run } = await lifecycle.start({ contextRef: 'parity' });
+   await expect(executor.run({ runId: run.id, agentId: agent.id, cwd: '/workspace', prompt: 'hello' },
+@@ -153,10 +150,10 @@ it('checks an explicit effort before a trusted parity launch sends a prompt', as
+   const agent = def(); let spawned = false;
+   agent.discoverModels = async ({ context }) => ({ ...(await fixtureModelDiscovery.discoverModels({ context })),
+     models: [{ id: 'cli-pinned', label: 'Pinned', identityKind: 'concrete', reasoning: [{ id: 'high', label: 'High' }] }] });
+-  const executor = createAgentExecutor({ lifecycle }, {
++  const executor = createAgentExecutor({ lifecycle, hostEnv: {}, runtime: runtimeFixture({ spawn: (() => { spawned = true; throw new Error('Must not spawn'); }) as unknown as typeof nodeSpawn }) }, {
+     getAgentDef: () => agent, resolveAgentLaunch: () => launch,
+     ensureAgentCapabilities: async () => {}, applyAgentLaunchEnv: ({ env }) => env,
+-    spawn: (() => { spawned = true; throw new Error('Must not spawn'); }) as unknown as typeof nodeSpawn,
++    
+   });
+   const { run } = await lifecycle.start({ contextRef: 'parity-effort' });
+   await expect(executor.run({ runId: run.id, agentId: agent.id, cwd: '/workspace', prompt: 'hello' },
+@@ -171,17 +168,17 @@ it.each([false, true])('W5 forwards launch-scoped discovery context and declared
+   agent.env = { ENABLE_TOOL_SEARCH: 'false', DECLARED: 'default' };
+   const contexts: unknown[] = [];
+   const spawnEnvs: unknown[] = [];
+-  const executor = createAgentExecutor({ lifecycle }, {
+-    hostEnv: {}, getAgentDef: () => agent, resolveAgentLaunch: () => launch,
++  const executor = createAgentExecutor({ lifecycle, hostEnv: {}, runtime: runtimeFixture({ spawn: ((_command: string, _args: readonly string[], options: { env?: NodeJS.ProcessEnv }) => {
++      spawnEnvs.push(options.env); throw new Error('Stop before process creation');
++    }) as unknown as typeof nodeSpawn }) }, {
++     getAgentDef: () => agent, resolveAgentLaunch: () => launch,
+     resolveModelForLaunch: async ({ context }) => {
+       contexts.push(context);
+       return { model: 'selected', catalog: await fixtureModelDiscovery.discoverModels({ context }),
+         resolution: { status: 'resolved', id: 'selected', source: 'rpc', resolvedAt: '2026-10-06T00:00:00.000Z', launchFingerprint: 'fixture' } };
+     },
+     ensureAgentCapabilities: async () => {}, applyAgentLaunchEnv: ({ env }) => env,
+-    spawn: ((_command: string, _args: readonly string[], options: { env?: NodeJS.ProcessEnv }) => {
+-      spawnEnvs.push(options.env); throw new Error('Stop before process creation');
+-    }) as unknown as typeof nodeSpawn,
++    
+   });
+   const { run } = await lifecycle.start({ contextRef: 'w5-model-context' });
+   await expect(executor.run({ runId: run.id, agentId: agent.id, prompt: 'hello', cwd: '/workspace' }, {
+diff --git a/packages/daemon/src/agent-executor/__tests__/usage-cost-basis.test.ts b/packages/daemon/src/agent-executor/__tests__/usage-cost-basis.test.ts
+index aef82d8b..30c1536f 100644
+--- a/packages/daemon/src/agent-executor/__tests__/usage-cost-basis.test.ts
++++ b/packages/daemon/src/agent-executor/__tests__/usage-cost-basis.test.ts
+@@ -7,6 +7,7 @@ import { createAgentExecutor } from '../index.js';
+ import { createInMemoryEventLog } from '../../event-log.js';
+ import { createRunLifecycle } from '../../run-lifecycle.js';
+ import { fixtureModelDiscovery } from './model-discovery-fixture.js';
++import { runtimeFixture } from './runtime-fixture.js';
+ 
+ // The transport and reported dollars are identical; only adapter metadata changes.
+ // A renamed adapter must retain its cost semantics without a vendor-id branch.
+@@ -23,10 +24,10 @@ for (const id of ['third-party', 'claude']) for (const basis of ['session', 'run
+       stdin: new PassThrough(), stdout: new PassThrough(), stderr: new PassThrough(), exitCode: null, signalCode: null,
+     });
+     const spawn = (() => { queueMicrotask(() => child.emit('spawn')); return child as unknown as ChildProcess; }) as typeof nodeSpawn;
+-    const executor = createAgentExecutor({ lifecycle }, {
++    const executor = createAgentExecutor({ lifecycle, hostEnv: {}, runtime: runtimeFixture({ spawn: spawn }) }, {
+       getAgentDef: () => def,
+       resolveAgentLaunch: () => ({ selectedPath: '/fixture', pathResolvedPath: '/fixture', configuredOverridePath: null, launchPath: '/fixture', launchKind: 'selected', childPathPrepend: [], diagnostic: null }),
+-      ensureAgentCapabilities: async () => {}, applyAgentLaunchEnv: ({ env }) => env, spawn,
++      ensureAgentCapabilities: async () => {}, applyAgentLaunchEnv: ({ env }) => env, 
+     });
+     const { run } = await lifecycle.start({ contextRef: 'cost-basis-fixture' });
+     await executor.run({ runId: run.id, agentId: id, cwd: '/workspace', prompt: 'hello' });
+diff --git a/packages/daemon/src/agent-executor/contracts.ts b/packages/daemon/src/agent-executor/contracts.ts
+index 1c321f32..acb0f5e1 100644
+--- a/packages/daemon/src/agent-executor/contracts.ts
++++ b/packages/daemon/src/agent-executor/contracts.ts
+@@ -8,9 +8,9 @@ export type { PreparedClaudeConfigDir, ClaudeConfigDirSeams, ClaudeConfigDirIsol
+ import type { DelegatedResultCorrelation } from '../delegated-result-correlation.js';
+ import type { StdoutJournalBlobPort } from '../tool-result-diagnostics.js';
+ import type { MessageAttachmentImage } from '../attachment-content.js';
+-import type { probeMcpBridge } from './mcp-bridge-probe.js';
++import type { McpBridgeProbe } from './mcp-bridge-probe.js';
++import type { AgentExecutorRuntimePorts } from '../ports/runtime.js';
+ import type {
+-   spawn as nodeSpawn,
+    ChildProcess,
+ } from 'node:child_process';
+ import type {
+@@ -38,10 +38,6 @@ import type {
+    AcpPermissionHandler,
+ } from '@jini-ai/agent-runtime';
+ import type { PromptAugmenter } from '@jini-ai/core/contracts/agents';
+-import type { createCommandInvocation } from '@jini-ai/platform/command';
+-import type {
+-   listProcessSnapshots,
+-} from '@jini-ai/platform/process';
+ import type { ProcessSnapshot, StopProcessesResult } from '@jini-ai/core/contracts/runtime';
+ import type {
+    RunByteJournal,
+@@ -556,8 +552,10 @@ export interface CreateAgentExecutorOptions extends ClaudeExecutorOptions, Codex
+   readonly delegatedResultCorrelation?: DelegatedResultCorrelation;
+   /** Required with correlation + byte journal: exact stdout blobs and durable reference records. */
+   readonly stdoutJournalBlobs?: StdoutJournalBlobPort;
+-  /** Host environment snapshot; baseline spawn keys and source config paths are allowlisted. */
+-  readonly hostEnv?: NodeJS.ProcessEnv;
++  /** Host environment snapshot; baseline spawn keys and source config paths are allowlisted. Required: the executor never reads the ambient process env. */
++  readonly hostEnv: NodeJS.ProcessEnv;
++  /** The host's OS-facing implementations (spawn, process control, file lock, atomic writer, command shell). */
++  readonly runtime: AgentExecutorRuntimePorts;
+   readonly runtimeState?: AgentRuntimeState;
+   readonly lifecycle: RunLifecycle;
+   /** Resolves/pins the concrete starting model against the actual launch scope. */
+@@ -572,12 +570,8 @@ export interface CreateAgentExecutorOptions extends ClaudeExecutorOptions, Codex
+   readonly assertClaudeFilesystemSupport?: typeof assertClaudeFilesystemSupport;
+   /** @default the real `@jini-ai/agent-runtime` PATH-env composer */
+   readonly applyAgentLaunchEnv?: typeof applyAgentLaunchEnv;
+-  /** @default the real `@jini-ai/platform` cross-platform invocation builder */
+-  readonly createCommandInvocation?: typeof createCommandInvocation;
+-  /** @default `node:child_process`'s `spawn` */
+-  readonly spawn?: typeof nodeSpawn;
+-  /** Diagnostic bridge probe; independent of the agent spawn seam. @default the real MCP initialize probe. */
+-  readonly probeMcpBridge?: typeof probeMcpBridge;
++  /** Diagnostic bridge probe; independent of the agent spawn seam. @default the real MCP initialize probe, spawned through `runtime.spawn`. */
++  readonly probeMcpBridge?: McpBridgeProbe;
+   /** @default the real `@jini-ai/agent-runtime` ACP session transport */
+   readonly attachAcpSession?: typeof attachAcpSession;
+   /**
+@@ -605,12 +599,6 @@ export interface CreateAgentExecutorOptions extends ClaudeExecutorOptions, Codex
+    * @default the real `@jini-ai/agent-runtime` log-file stager
+    */
+   readonly prepareAgentLogFile?: typeof prepareAgentLogFile;
+-  /** @default the real `@jini-ai/platform` process-snapshot enumerator */
+-  readonly listProcessSnapshots?: typeof listProcessSnapshots;
+-  /** @default the real `@jini-ai/platform` descendant-PID collector */
+-  readonly collectProcessTreePids?: CollectProcessTreePidsPort;
+-  /** @default the real `@jini-ai/platform` SIGTERM→SIGKILL escalator */
+-  readonly stopProcesses?: StopProcessesPort;
+   /** Host-owned sink for a process-tree cleanup failure (SEC-007) — e.g. EPERM stopping descendants. @default logs a redacted diagnostic via `console.error` */
+   readonly onCleanupFailure?: (context: AgentCleanupFailureContext) => void;
+   /**
+diff --git a/packages/daemon/src/agent-executor/events.ts b/packages/daemon/src/agent-executor/events.ts
+index 7e6ebb6f..535ce63a 100644
+--- a/packages/daemon/src/agent-executor/events.ts
++++ b/packages/daemon/src/agent-executor/events.ts
+@@ -6,7 +6,7 @@ import { createLiveSessionState } from './live-session-state.js';
+ import { createSanitizedLineStream } from './sanitized-line-stream.js';
+ import { acceptsMidRunUserMessages, createMessageRelay, type RunMessageRelay } from './message-relay.js';
+ import { randomUUID } from 'node:crypto';
+-import type { probeMcpBridge, McpBridgeProbeResult } from './mcp-bridge-probe.js';
++import type { McpBridgeProbe, McpBridgeProbeEntry, McpBridgeProbeResult } from './mcp-bridge-probe.js';
+ import type { ModelCatalogSnapshot } from '@jini-ai/core/contracts/agents';
+ import { createModelReceiptTracker } from './model-receipts.js';
+ import { observeRunOutput } from './run-output.js';
+@@ -33,10 +33,6 @@ import {
+   type PiRpcSession,
+ } from '@jini-ai/agent-runtime';
+ import { type RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
+-import {
+-  listProcessSnapshots,
+-  stopProcesses,
+-} from '@jini-ai/platform/process';
+ import {
+   classifyRunCloseStatus,
+ } from '../close-status.js';
+@@ -369,8 +365,8 @@ interface WireChildLifecycleContext extends TerminateChildTreeDeps {
+    * {@link MCP_BRIDGE_UNAVAILABLE} instead of letting it continue without the host's tools.
+    */
+   readonly expectsJiniBridge: boolean;
+-  readonly bridgeProbeEntry: Parameters<typeof probeMcpBridge>[0]['entry'] | undefined;
+-  readonly probeMcpBridge: typeof probeMcpBridge;
++  readonly bridgeProbeEntry: McpBridgeProbeEntry | undefined;
++  readonly probeMcpBridge: McpBridgeProbe;
+ }
+ 
+ /** Keeps exact-byte auditing separate from retained diagnostics on the run's existing FIFO.
+diff --git a/packages/daemon/src/agent-executor/index.ts b/packages/daemon/src/agent-executor/index.ts
+index ede28ded..d5bddfcc 100644
+--- a/packages/daemon/src/agent-executor/index.ts
++++ b/packages/daemon/src/agent-executor/index.ts
+@@ -163,7 +163,7 @@ export { mergeEnvContentMcpConfig, mergeEnvContentInstructions } from './opencod
+ export { mergeMcpJsonContent } from './mcp-json-file.js';
+ export { buildCodexMcpServerToml, buildCodexHomeConfigToml } from './codex/home-config.js';
+ export { resolveSourceCodexHomeDir, prepareCodexHomeIfNeeded } from './codex/home-staging.js';
+-export { probeMcpBridge, type McpBridgeProbeResult } from './mcp-bridge-probe.js';
++export { probeMcpBridge, type McpBridgeProbe, type McpBridgeProbeEntry, type McpBridgeProbeResult } from './mcp-bridge-probe.js';
+ export {
+   DEFAULT_BUFFERED_STDOUT_MAX_BYTES,
+   runAcpDispatch,
+diff --git a/packages/daemon/src/agent-executor/launch.ts b/packages/daemon/src/agent-executor/launch.ts
+index c79a106f..798541bd 100644
+--- a/packages/daemon/src/agent-executor/launch.ts
++++ b/packages/daemon/src/agent-executor/launch.ts
+@@ -6,8 +6,9 @@ import { randomUUID } from 'node:crypto';
+ import { supportsMessageRelay, type RunMessageRelay } from './message-relay.js';
+ import type { MessageAttachmentImage } from '../attachment-content.js';
+ import { probeMcpBridge } from './mcp-bridge-probe.js';
++import { createCommandPlanner, createProcessTreeDeps } from './runtime-bindings.js';
++import type { ProcessSpawnPort } from '../ports/process.js';
+ import {
+-  spawn as nodeSpawn,
+   type ChildProcess,
+ } from 'node:child_process';
+ import {
+@@ -52,12 +53,7 @@ import {
+   type RuntimeAgentDef,
+   type RuntimeBuildOptions, type RuntimeContext,
+ } from '@jini-ai/core/contracts/agents';
+-import { createCommandInvocation } from '@jini-ai/platform/command';
+-import {
+-  listProcessSnapshots,
+-  stopProcesses,
+-} from '@jini-ai/platform/process';
+-import { collectProcessTreePids } from '@jini-ai/core/contracts/runtime';
++import type { CommandInvocation } from '@jini-ai/core/contracts/runtime';
+ import {
+   applyImagePromptDelivery,
+   type ImagePromptDelivery,
+@@ -71,8 +67,6 @@ import {
+   AgentExecutorError,
+   type AgentExecutorRunInput,
+   type AgentExecutor,
+-  type CollectProcessTreePidsPort,
+-  type StopProcessesPort,
+   type AgentCleanupFailureContext,
+   type McpBridgeDelivery,
+   type PreparedCodexHome,
+@@ -283,25 +277,6 @@ function resolveAgentRuntimeDeps(
+   };
+ }
+ 
+-interface ResolvedProcessDeps {
+-  readonly createCommandInvocation: typeof createCommandInvocation;
+-  readonly spawn: typeof nodeSpawn;
+-  readonly listProcessSnapshots: typeof listProcessSnapshots;
+-  readonly collectProcessTreePids: CollectProcessTreePidsPort;
+-  readonly stopProcesses: StopProcessesPort;
+-}
+-
+-/** Resolves the OS-process-facing collaborator seams — see {@link resolveAgentRuntimeDeps}'s doc. Pure. */
+-function resolveProcessDeps(options: CreateAgentExecutorOptions): ResolvedProcessDeps {
+-  return {
+-    createCommandInvocation: options.createCommandInvocation ?? createCommandInvocation,
+-    spawn: options.spawn ?? nodeSpawn,
+-    listProcessSnapshots: options.listProcessSnapshots ?? listProcessSnapshots,
+-    collectProcessTreePids: options.collectProcessTreePids ?? (({ processes, rootPids }) => collectProcessTreePids(processes, rootPids)),
+-    stopProcesses: options.stopProcesses ?? (({ pids }) => stopProcesses(pids)),
+-  };
+-}
+-
+ interface ResolvedMiscExecutorDeps {
+   readonly onCleanupFailure: (context: AgentCleanupFailureContext) => void;
+   readonly bufferedStdoutMaxBytes: number;
+@@ -870,13 +845,13 @@ export async function guardWindowsCommandLineBudget({ input, deps }: { readonly
+ export function spawnAgentChildProcess({ input, deps }: { readonly input: {
+     readonly cwd: string;
+     readonly childEnv: NodeJS.ProcessEnv;
+-    readonly invocation: ReturnType<typeof createCommandInvocation>;
+-  }; readonly deps: { readonly spawn: typeof nodeSpawn } }
++    readonly invocation: CommandInvocation;
++  }; readonly deps: { readonly spawn: ProcessSpawnPort } }
+ ): SpawnAgentChildProcessResult {
+   try {
+     return {
+       kind: 'ok',
+-      child: deps.spawn(input.invocation.command, input.invocation.args, {
++      child: deps.spawn({ command: input.invocation.command, args: input.invocation.args }, {
+         cwd: input.cwd,
+         env: input.childEnv,
+         stdio: ['pipe', 'pipe', 'pipe'],
+@@ -891,7 +866,7 @@ export function spawnAgentChildProcess({ input, deps }: { readonly input: {
+ /** Command preparation is part of pre-spawn staging, so failures must release all owned resources. */
+ async function prepareRunCommand({ command, args, env, runId }: { command: string; args: string[]; env: NodeJS.ProcessEnv; runId: string }, {
+   createInvocation, release, failBeforeSpawn,
+-}: { createInvocation: typeof createCommandInvocation; release: () => Promise<void>; failBeforeSpawn: FailBeforeSpawn }): Promise<ReturnType<typeof createCommandInvocation>> {
++}: { createInvocation: ReturnType<typeof createCommandPlanner>; release: () => Promise<void>; failBeforeSpawn: FailBeforeSpawn }): Promise<CommandInvocation> {
+   try { return createInvocation({ command, args, env }); }
+   catch {
+     await release();
+@@ -1004,15 +979,15 @@ function httpMcpPreparationMessage(injection: CreateAgentExecutorOptions['mcpJso
+  * @complexity `run()`'s own setup is O(1); steady-state cost is the chosen stream parser's.
+  * @overallScore 100/100
+  */
+-export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOptions, "lifecycle">, optionalArgs: Pick<CreateAgentExecutorOptions, "runtimeState" | "codexDisablePlugins" | "piGracefulShutdownMs" | "hostEnv" | "getAgentDef" | "resolveAgentLaunch" | "resolveModelForLaunch" | "ensureAgentCapabilities" | "assertClaudeFilesystemSupport" | "applyAgentLaunchEnv" | "createCommandInvocation" | "spawn" | "probeMcpBridge" | "attachAcpSession" | "acpPermissionHandler" | "attachPiRpcSession" | "preparePromptFileForAgent" | "prepareAgentLogFile" | "listProcessSnapshots" | "collectProcessTreePids" | "stopProcesses" | "onCleanupFailure" | "journal" | "delegatedResultCorrelation" | "stdoutJournalBlobs" | "continuation" | "classifyFailure" | "mcpJsonInjection" | "claudeConfigDirIsolation" | "claudeConfigDirIsolationEnabled" | "bufferedStdoutMaxBytes" | "promptAugmenter"> = {}): AgentExecutor {
+-  // This native composition boundary resolves ambient defaults once, before allowlisting child env.
+-  const env = optionalArgs.hostEnv ?? process.env;
++export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOptions, "lifecycle" | "runtime" | "hostEnv">, optionalArgs: Pick<CreateAgentExecutorOptions, "runtimeState" | "codexDisablePlugins" | "piGracefulShutdownMs" | "getAgentDef" | "resolveAgentLaunch" | "resolveModelForLaunch" | "ensureAgentCapabilities" | "assertClaudeFilesystemSupport" | "applyAgentLaunchEnv" | "probeMcpBridge" | "attachAcpSession" | "acpPermissionHandler" | "attachPiRpcSession" | "preparePromptFileForAgent" | "prepareAgentLogFile" | "onCleanupFailure" | "journal" | "delegatedResultCorrelation" | "stdoutJournalBlobs" | "continuation" | "classifyFailure" | "mcpJsonInjection" | "claudeConfigDirIsolation" | "claudeConfigDirIsolationEnabled" | "bufferedStdoutMaxBytes" | "promptAugmenter"> = {}): AgentExecutor {
++  // The host passes its env; nothing here reads the ambient process env.
++  const env = requiredArgs.hostEnv;
+   const options: CreateAgentExecutorOptions & { readonly piGracefulShutdownMs: number } = { ...requiredArgs, ...optionalArgs,
+     codexDisablePlugins: resolveCodexDisablePlugins(optionalArgs.codexDisablePlugins, env),
+     piGracefulShutdownMs: resolvePiGracefulShutdownMs(optionalArgs.piGracefulShutdownMs, env),
+   };
+   const lifecycle = options.lifecycle;
+-  const hostEnv = selectAgentExecutorHostEnv({ env: options.hostEnv ?? process.env }, options.runtimeState ? { runtimeState: options.runtimeState } : {});
++  const hostEnv = selectAgentExecutorHostEnv({ env: options.hostEnv }, options.runtimeState ? { runtimeState: options.runtimeState } : {});
+   const {
+     getAgentDef: getAgentDefFn,
+     resolveAgentLaunch: resolveAgentLaunchFn,
+@@ -1023,13 +998,13 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
+     preparePromptFileForAgent: preparePromptFileForAgentFn,
+     prepareAgentLogFile: prepareAgentLogFileFn,
+   } = resolveAgentRuntimeDeps({ ...options, hostEnv });
++  const { runtime } = options;
++  const createCommandInvocationFn = createCommandPlanner({ commandShell: runtime.commandShell });
+   const {
+-    createCommandInvocation: createCommandInvocationFn,
+-    spawn: spawnFn,
+     listProcessSnapshots: listProcessSnapshotsFn,
+     collectProcessTreePids: collectProcessTreePidsFn,
+     stopProcesses: stopProcessesFn,
+-  } = resolveProcessDeps(options);
++  } = createProcessTreeDeps({ processes: runtime.processes });
+   const { onCleanupFailure: onCleanupFailureFn, bufferedStdoutMaxBytes } = resolveMiscExecutorDeps(options);
+   validateStdoutJournalOptions(options);
+   const { journal, continuation, classifyFailure, mcpJsonInjection, claudeConfigDirIsolation, promptAugmenter } = options;
+@@ -1286,7 +1261,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
+           bufferedStdoutMaxBytes,
+           expectsJiniBridge: writtenMcpJsonPath !== undefined || httpMcp === true,
+           bridgeProbeEntry: bridgeProbeEntryForRun({ mcpBridge }, {}),
+-          probeMcpBridge: options.probeMcpBridge ?? probeMcpBridge,
++          probeMcpBridge: options.probeMcpBridge ?? (({ entry }) => probeMcpBridge({ entry, spawn: runtime.spawn, hostEnv })),
+         })
+       : null;
+ 
+@@ -1664,7 +1639,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
+     // Kept a synchronous call (no `await`) on purpose — see `spawnAgentChildProcess`'s own doc for
+     // the microtask-timing race this avoids. The error branch's own cleanup/failBeforeSpawn calls are
+     // async, which is fine: no child exists yet on that path, so nothing is racing a listener.
+-    const spawnResult = spawnAgentChildProcess({ input: { cwd: input.cwd, childEnv, invocation }, deps: { spawn: spawnFn } });
++    const spawnResult = spawnAgentChildProcess({ input: { cwd: input.cwd, childEnv, invocation }, deps: { spawn: runtime.spawn } });
+     if (spawnResult.kind === 'error') {
+       await releaseStagedResources();
+       await failBeforeSpawn(
+diff --git a/packages/daemon/src/agent-executor/mcp-bridge-probe.ts b/packages/daemon/src/agent-executor/mcp-bridge-probe.ts
+index f0d65e99..1fa3ee1a 100644
+--- a/packages/daemon/src/agent-executor/mcp-bridge-probe.ts
++++ b/packages/daemon/src/agent-executor/mcp-bridge-probe.ts
+@@ -1,6 +1,7 @@
+-import { spawn as nodeSpawn, type ChildProcess } from 'node:child_process';
++import type { ChildProcess } from 'node:child_process';
+ import { createInterface, type Interface } from 'node:readline';
+ import { redactSecrets } from '@jini-ai/core';
++import type { ProcessSpawnPort } from '../ports/process.js';
+ import { buildAgentEnv } from './agent-env.js';
+ import { errorMessage, isRecord } from './values.js';
+ 
+@@ -12,6 +13,16 @@ export interface McpBridgeProbeResult {
+   readonly elapsedMs: number;
+ }
+ 
++/** The probe as the executor calls it: the host's `spawn` and env are already bound. */
++export type McpBridgeProbe = (required: { readonly entry: McpBridgeProbeEntry }) => Promise<McpBridgeProbeResult>;
++
++/** The bridge command to initialize: its argv and the env entries it adds to the baseline. */
++export interface McpBridgeProbeEntry {
++  readonly command: string;
++  readonly args: readonly string[];
++  readonly env?: Readonly<Record<string, string>>;
++}
++
+ const STDERR_TAIL_BYTES = 2000;
+ 
+ /** Bounded stderr tail: keeps only the last STDERR_TAIL_BYTES bytes, redacted when read. */
+@@ -57,10 +68,8 @@ function reapProbe({ timer, lines, child }: {
+  * @complexity O(n) in received bytes; stderr storage is bounded independently of child output.
+  */
+ export async function probeMcpBridge(
+-  { entry }: { readonly entry: { readonly command: string; readonly args: readonly string[]; readonly env?: Readonly<Record<string, string>> } },
+-  { spawn = nodeSpawn, hostEnv = process.env, baseEnv = buildAgentEnv({ hostEnv }), timeoutMs = 15_000, now = Date.now }: {
+-    readonly spawn?: typeof nodeSpawn;
+-    readonly hostEnv?: Readonly<Record<string, string | undefined>>;
++  { entry, spawn, hostEnv }: { readonly entry: McpBridgeProbeEntry; readonly spawn: ProcessSpawnPort; readonly hostEnv: Readonly<Record<string, string | undefined>> },
++  { baseEnv = buildAgentEnv({ hostEnv }), timeoutMs = 15_000, now = Date.now }: {
+     readonly baseEnv?: Readonly<Record<string, string>>;
+     readonly timeoutMs?: number;
+     readonly now?: () => number;
+@@ -79,7 +88,7 @@ export async function probeMcpBridge(
+   });
+   let outcome: McpBridgeProbeResult;
+   try {
+-    child = spawn(entry.command, [...entry.args], { env, stdio: 'pipe' });
++    child = spawn({ command: entry.command, args: entry.args }, { env, stdio: 'pipe' });
+     const bridge = child;
+     lines = bridge.stdout ? createInterface({ input: bridge.stdout, crlfDelay: Infinity }) : undefined;
+     const reader = lines;
+diff --git a/packages/daemon/src/agent-executor/runtime-bindings.ts b/packages/daemon/src/agent-executor/runtime-bindings.ts
+new file mode 100644
+index 00000000..486d2a01
+--- /dev/null
++++ b/packages/daemon/src/agent-executor/runtime-bindings.ts
+@@ -0,0 +1,28 @@
++import { collectProcessTreePids, planCommandInvocation, type CommandInvocation, type ProcessControlPort } from '@jini-ai/core/contracts/runtime';
++import type { AgentExecutorRuntimePorts } from '../ports/runtime.js';
++import type { TerminateChildTreeDeps } from './contracts.js';
++
++/**
++ * The executor's process-tree cleanup deps, over the host's `ProcessControlPort`. Each member keeps the
++ * argument shape the cleanup code already calls: discovery is a getter (called once per cancel, never per
++ * event), collection is core's pure walk, and stopping hands the port its `{ pids }` object.
++ * @complexity O(1) construction; a call costs what the port's function costs.
++ */
++export function createProcessTreeDeps({ processes }: { readonly processes: ProcessControlPort }, _optional: Record<string, never> = {}): TerminateChildTreeDeps {
++  return {
++    listProcessSnapshots: () => processes.listProcessSnapshots({}, {}),
++    collectProcessTreePids: ({ processes: snapshots, rootPids }) => collectProcessTreePids(snapshots, rootPids),
++    stopProcesses: ({ pids }) => processes.stopProcesses({ pids }),
++  };
++}
++
++/**
++ * Plans the concrete `{ command, args }` to spawn with core's pure planner, using the platform and
++ * fallback `ComSpec` the host stated. There is no command port: the planner is a pure function, and a port
++ * in front of it has one implementation and one more way to be bound wrong (args sit in the second object).
++ * @complexity O(a) in the argument count on a win32 `.cmd` shim, O(1) otherwise.
++ */
++export function createCommandPlanner({ commandShell }: { readonly commandShell: AgentExecutorRuntimePorts['commandShell'] }, _optional: Record<string, never> = {}) {
++  return ({ command, args, env }: { readonly command: string; readonly args: string[]; readonly env: NodeJS.ProcessEnv }): CommandInvocation =>
++    planCommandInvocation({ command, platform: commandShell.platform, env }, { args, fallbackComSpec: commandShell.fallbackComSpec });
++}
+diff --git a/packages/node-adapters/source-map.md b/packages/node-adapters/source-map.md
+index 00eaa7a7..165b6b73 100644
+--- a/packages/node-adapters/source-map.md
++++ b/packages/node-adapters/source-map.md
+@@ -8,7 +8,7 @@ and the sentence that named the old `./runtime-ports/*` entries.
+ | File | Public entry | Responsibility |
+ | --- | --- | --- |
+ | `src/fs.ts` | `./fs` | `nodeFileLock`, `nodeAtomicWriter`: naming maps from platform functions to core's file-lock and atomic-writer ports. |
+-| `src/process.ts` | `./process` | `createProcessControlPort` (argument-shape adapter over three injected functions) and `nodeProcessControl` (the real ones). |
++| `src/process.ts` | `./process` | `createProcessControlPort` (argument-shape adapter over three injected functions) and `nodeProcessControl` (the real ones); `createSpawnPort` / `nodeSpawnPort` (Node's positional `spawn` as the object-argument spawn port, child returned in the same turn) and `nodeCommandShell` (the planner's platform + `ComSpec`, from the host's own env). Added by daemon R8a step 5; they were written in `platform/runtime-ports/process.ts` on `wave2/daemon-r8` before the N1 move. |
+ | `src/__tests__/runtime-ports.test.ts` | | Recording-fake argument-shape tests plus real-function tests (moved unchanged apart from import paths). |
+ | `src/__tests__/runtime-ports.typecheck.ts` | | Compile-time proof that the platform functions still satisfy the three ports. |
+ | `src/__tests__/surface.test.ts` | | Pins the manifest `exports` keys, their dist/src mapping and each entry's exported names. |
+diff --git a/packages/node-adapters/src/__tests__/runtime-ports.test.ts b/packages/node-adapters/src/__tests__/runtime-ports.test.ts
+index 8ec2ae92..8442283d 100644
+--- a/packages/node-adapters/src/__tests__/runtime-ports.test.ts
++++ b/packages/node-adapters/src/__tests__/runtime-ports.test.ts
+@@ -2,7 +2,8 @@ import { mkdtemp, readFile, rm, writeFile, access } from 'node:fs/promises';
+ import { tmpdir } from 'node:os';
+ import { join } from 'node:path';
+ import { afterEach, describe, expect, it, vi } from 'vitest';
+-import { createProcessControlPort, nodeProcessControl, type ProcessFunctions } from '../process.js';
++import { spawn as realSpawn, type ChildProcess, type SpawnOptions } from 'node:child_process';
++import { createProcessControlPort, createSpawnPort, nodeCommandShell, nodeProcessControl, type ProcessFunctions } from '../process.js';
+ import { nodeAtomicWriter, nodeFileLock } from '../fs.js';
+ 
+ const stopped = { alreadyStopped: false, forcedPids: [], matchedPids: [3], remainingPids: [], stoppedPids: [3] };
+@@ -48,11 +49,61 @@ describe('createProcessControlPort argument shapes', () => {
+   });
+ });
+ 
++describe('createSpawnPort argument shape', () => {
++  const child = { pid: 42 } as ChildProcess;
++
++  it('hands spawn the command, a new mutable copy of the args, and the options, and returns the child itself', () => {
++    const spawn = vi.fn((_command: string, _args: string[], _options: SpawnOptions) => child);
++    const port = createSpawnPort({ spawn });
++    const args = ['--mode', 'plan', 'a b'] as const;
++    const options: SpawnOptions = { cwd: '/work', stdio: 'pipe' };
++    expect(port({ command: '/bin/agent', args }, options)).toBe(child);
++    const [command, received, passed] = spawn.mock.calls[0]!;
++    expect(command).toBe('/bin/agent');
++    expect(received).toEqual(['--mode', 'plan', 'a b']);
++    expect(received).not.toBe(args);
++    expect(passed).toBe(options);
++  });
++
++  it('defaults absent options to an empty object, and returns synchronously (never a promise)', () => {
++    const spawn = vi.fn((_command: string, _args: string[], _options: SpawnOptions) => child);
++    const result = createSpawnPort({ spawn })({ command: 'x', args: [] });
++    expect(spawn.mock.calls[0]![2]).toEqual({});
++    expect(result).not.toBeInstanceOf(Promise);
++  });
++
++  it('lets a throwing spawn throw in the same turn', () => {
++    const port = createSpawnPort({ spawn: () => { throw new Error('EACCES'); } });
++    expect(() => port({ command: 'x', args: [] })).toThrow('EACCES');
++  });
++});
++
++describe('nodeCommandShell', () => {
++  it('states the running platform by default, takes the ComSpec from the env the host passes, and a given platform wins', () => {
++    expect(nodeCommandShell({ env: { ComSpec: 'C:\\cmd.exe' } })).toEqual({ platform: process.platform, fallbackComSpec: 'C:\\cmd.exe' });
++    expect(nodeCommandShell({ env: { ComSpec: 'C:\\cmd.exe' } }, { platform: 'win32' })).toEqual({ platform: 'win32', fallbackComSpec: 'C:\\cmd.exe' });
++    expect(nodeCommandShell({ env: {} }, { platform: 'linux' })).toEqual({ platform: 'linux', fallbackComSpec: undefined });
++  });
++});
++
+ describe('node runtime ports over the real platform functions', () => {
+   const roots: string[] = [];
+   afterEach(async () => { await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true }))); });
+   const scratch = async (): Promise<string> => { const root = await mkdtemp(join(tmpdir(), 'runtime-ports-')); roots.push(root); return root; };
+ 
++  // Moved from daemon's launch-defaults suite: daemon no longer defaults to the real stopper, so the
++  // proof that the real one stops a live process lives with the binding that owns it.
++  it('stopProcesses stops a live process with SIGTERM', async () => {
++    const sleeper = realSpawn('sleep', ['30'], { stdio: 'ignore' });
++    const exited = new Promise<NodeJS.Signals | null>((resolve) => sleeper.once('exit', (_code, signal) => resolve(signal)));
++    try {
++      await expect(nodeProcessControl.stopProcesses({ pids: [sleeper.pid] })).resolves.toMatchObject({ alreadyStopped: false });
++      expect(await exited).toBe('SIGTERM');
++    } finally {
++      sleeper.kill('SIGKILL');
++    }
++  });
++
+   it('stopProcesses with only unusable pids reports alreadyStopped without touching anything', async () => {
+     await expect(nodeProcessControl.stopProcesses({ pids: [null, undefined] })).resolves.toMatchObject({ alreadyStopped: true });
+   });
+diff --git a/packages/node-adapters/src/__tests__/surface.test.ts b/packages/node-adapters/src/__tests__/surface.test.ts
+index 1eb1beca..fe06dc03 100644
+--- a/packages/node-adapters/src/__tests__/surface.test.ts
++++ b/packages/node-adapters/src/__tests__/surface.test.ts
+@@ -12,7 +12,7 @@ const manifest = JSON.parse(readFileSync(new URL('package.json', root), 'utf8'))
+ /** One subpath per binding family; a later lane adds its own entry in its own commit. */
+ const SURFACE: Readonly<Record<string, { readonly module: object; readonly names: readonly string[] }>> = {
+   './fs': { module: fsBindings, names: ['nodeAtomicWriter', 'nodeFileLock'] },
+-  './process': { module: processBindings, names: ['createProcessControlPort', 'nodeProcessControl'] },
++  './process': { module: processBindings, names: ['createProcessControlPort', 'createSpawnPort', 'nodeCommandShell', 'nodeProcessControl', 'nodeSpawnPort'] },
+ };
+ 
+ describe('@jini-ai/node-adapters public surface', () => {
+diff --git a/packages/node-adapters/src/process.ts b/packages/node-adapters/src/process.ts
+index 9a2b3a95..0b652af7 100644
+--- a/packages/node-adapters/src/process.ts
++++ b/packages/node-adapters/src/process.ts
+@@ -9,9 +9,11 @@
+  * fakes and assert exactly what each receives. The file lock and atomic writer bind in
+  * `@jini-ai/node-adapters/fs` (a separate entry: subpath isolation keeps the `os` and `fs` domains apart).
+  * `command` has no binding on purpose: core's pure `planCommandInvocation` is the planner, and
+- * `createCommandInvocation` reads its arguments from the other object.
++ * `createCommandInvocation` reads its arguments from the other object. The planner's two host inputs
++ * come from {@link nodeCommandShell}; process start comes from {@link nodeSpawnPort}.
+  */
+-import type { ProcessControlPort } from "@jini-ai/core/contracts/runtime";
++import { spawn, type ChildProcess, type SpawnOptions } from "node:child_process";
++import type { ProcessControlPort, RuntimePlatform } from "@jini-ai/core/contracts/runtime";
+ import { listProcessSnapshots, stopProcesses, waitForProcessExit } from "@jini-ai/platform/process";
+ 
+ /** The three platform process functions the process-control port wraps. */
+@@ -38,3 +40,34 @@ export function createProcessControlPort(required: { readonly functions: Process
+ 
+ /** The Node implementation, ready for a host to hand to daemon. */
+ export const nodeProcessControl: ProcessControlPort = createProcessControlPort({ functions: { listProcessSnapshots, stopProcesses, waitForProcessExit } });
++
++/** The one `node:child_process` function the spawn port wraps. */
++export type SpawnFunction = (command: string, args: string[], options: SpawnOptions) => ChildProcess;
++
++/**
++ * Adapts Node's positional `spawn(command, args, options)` to the object-argument spawn port. Returns the
++ * child in the same synchronous turn it was spawned: the caller attaches its `'error'` listeners before
++ * yielding, and an `async` adapter here would let the child's first event fire with nobody listening.
++ * The args reach `spawn` as a new mutable array (the port's array is readonly); an absent `options` is `{}`.
++ * @complexity O(a) in the argument count for the copy; otherwise what `spawn` costs.
++ */
++export function createSpawnPort(required: { readonly spawn: SpawnFunction }, _optional: Record<string, never> = {}) {
++  const { spawn: spawnFunction } = required;
++  return ({ command, args }: { readonly command: string; readonly args: readonly string[] }, options: SpawnOptions = {}): ChildProcess =>
++    spawnFunction(command, [...args], options);
++}
++
++/** The Node implementation of the spawn port, ready for a host to hand to daemon. */
++export const nodeSpawnPort = createSpawnPort({ spawn });
++
++/**
++ * The two host inputs of core's pure `planCommandInvocation`: the platform and the `ComSpec` a Windows
++ * `.cmd` shim falls back to when the child's own env has none. The host passes the env it already owns
++ * (this module never reads the ambient process env); the platform defaults to the running one.
++ */
++export function nodeCommandShell(
++  { env }: { readonly env: Readonly<Record<string, string | undefined>> },
++  { platform = process.platform }: { readonly platform?: RuntimePlatform } = {},
++): { readonly platform: RuntimePlatform; readonly fallbackComSpec: string | undefined } {
++  return { platform, fallbackComSpec: env.ComSpec };
++}
+diff --git a/packages/server/package.json b/packages/server/package.json
+index 9df4af49..3866b4ff 100644
+--- a/packages/server/package.json
++++ b/packages/server/package.json
+@@ -106,6 +106,7 @@
+     "@jini-ai/http-kit": "workspace:^",
+     "@jini-ai/registry": "workspace:^",
+     "@jini-ai/sidecar": "workspace:^",
++    "@jini-ai/node-adapters": "workspace:^",
+     "@jini-ai/platform": "workspace:^"
+   },
+   "peerDependencies": {
+diff --git a/packages/server/src/__tests__/kernel-runtime.test.ts b/packages/server/src/__tests__/kernel-runtime.test.ts
+index 38f445fc..8e731a42 100644
+--- a/packages/server/src/__tests__/kernel-runtime.test.ts
++++ b/packages/server/src/__tests__/kernel-runtime.test.ts
+@@ -1,5 +1,4 @@
+ /** The shipped kernel composition owns runtime state and uses it for real executor argument binding. */
+-import type { spawn as nodeSpawn } from 'node:child_process';
+ import { expect, it } from 'vitest';
+ import { getAgentDef } from '@jini-ai/agent-runtime';
+ import { createJiniKernelBase } from '../kernel-base.js';
+@@ -9,6 +8,8 @@ import { tmpdir } from 'node:os';
+ import { join } from 'node:path';
+ import { createNativeAgentRuntime } from '@jini-ai/agent-runtime';
+ import { createLocalNodeDaemon } from '../create-local-node-daemon.js';
++import { nodeAtomicWriter, nodeFileLock } from '@jini-ai/node-adapters/fs';
++import { createSpawnPort, nodeCommandShell, nodeProcessControl, type SpawnFunction } from '@jini-ai/node-adapters/process';
+ 
+ it('gives each kernel a separate state, shares it with its executor, and clears it on close', async () => {
+   const def = getAgentDef({ id: 'codex' })!;
+@@ -25,7 +26,10 @@ it('gives each kernel a separate state, shares it with its executor, and clears
+         catalog: { models: [{ id: 'fixture-model', label: 'fixture-model', identityKind: 'concrete' }], source: 'rpc', freshness: 'fresh', fetchedAt: '2026-10-13T00:00:00.000Z', expiresAt: '2026-10-13T01:00:00.000Z', coverage: 'account', launchFingerprint: 'fixture', diagnostics: [] },
+       }),
+       applyAgentLaunchEnv: ({ env }) => env, ensureAgentCapabilities: async () => {},
+-      spawn: ((_command: string, argv: readonly string[]) => { captured.push([...argv]); throw new Error('fixture spawn stop'); }) as unknown as typeof nodeSpawn,
++      runtime: {
++        spawn: createSpawnPort({ spawn: ((_command: string, argv: readonly string[]) => { captured.push([...argv]); throw new Error('fixture spawn stop'); }) as SpawnFunction }),
++        processes: nodeProcessControl, fileLock: nodeFileLock, writer: nodeAtomicWriter, commandShell: nodeCommandShell({ env: {} }),
++      },
+     } }) };
+   };
+   const aFixture = makeBase(); const bFixture = makeBase();
+diff --git a/packages/server/src/kernel-base.ts b/packages/server/src/kernel-base.ts
+index f5364289..b66c252e 100644
+--- a/packages/server/src/kernel-base.ts
++++ b/packages/server/src/kernel-base.ts
+@@ -37,6 +37,9 @@ import {
+ } from '@jini-ai/daemon';
+ import { openSqliteEventLog } from '@jini-ai/daemon/store/event-log/sqlite';
+ import { createSystemClock } from '@jini-ai/platform/system';
++import { nodeAtomicWriter, nodeFileLock } from '@jini-ai/node-adapters/fs';
++import { nodeCommandShell, nodeProcessControl, nodeSpawnPort } from '@jini-ai/node-adapters/process';
++import type { AgentExecutorRuntimePorts } from '@jini-ai/daemon/ports/runtime';
+ 
+ /** Where a composition's durable state lives. */
+ export type JiniKernelStorage =
+@@ -81,7 +84,8 @@ export interface JiniKernelBase {
+ export interface CreateJiniKernelBaseOptions {
+   readonly storage: JiniKernelStorage;
+   /** Extra `createAgentExecutor` options (e.g. `mcpJsonInjection`). `lifecycle`/`journal`/`classifyFailure` are kernel-owned. */
+-  readonly agentExecutor?: Omit<NonNullable<Parameters<typeof createAgentExecutor>[1]>, 'journal' | 'classifyFailure'>;
++  readonly agentExecutor?: Omit<NonNullable<Parameters<typeof createAgentExecutor>[1]>, 'journal' | 'classifyFailure'>
++    & Partial<Pick<Parameters<typeof createAgentExecutor>[0], 'hostEnv' | 'runtime'>>;
+   /** Optional AI-run tracing: every run's normalized agent events are also recorded to `sink`. Absent = no tracing, no cost. */
+   readonly aiTrace?: AiTracingOptions & { readonly sink: AiTraceSink };
+ }
+@@ -126,6 +130,11 @@ function createKernelAgentRuntime(
+   });
+ }
+ 
++/** The Node implementations of the OS-facing ports one agent executor needs, bound once from platform. */
++function nodeAgentExecutorRuntime({ hostEnv }: { hostEnv: NodeJS.ProcessEnv }, _optional: Record<string, never> = {}): AgentExecutorRuntimePorts {
++  return { spawn: nodeSpawnPort, processes: nodeProcessControl, fileLock: nodeFileLock, writer: nodeAtomicWriter, commandShell: nodeCommandShell({ env: hostEnv }) };
++}
++
+ /** Until the executor takes the bound runtime port (R8b), it still receives the two definition policies by value. */
+ function executorDefinitionPolicies(
+   { agentRuntime }: { agentRuntime: NativeAgentRuntime },
+@@ -213,10 +222,11 @@ export async function createJiniKernelBase(options: CreateJiniKernelBaseOptions)
+   const { eventLog, journalEventLog, lifecycle, disposeTracing, journal, sqlite } = await openKernelStorage({ options });
+ 
+   const agentRuntime = createKernelAgentRuntime({ options });
+-  const agentExecutor = createAgentExecutor({ lifecycle }, {
+-    ...options.agentExecutor,
++  // The preset is a Node host: it binds the Node implementations unless the caller supplies its own.
++  const { runtime = nodeAgentExecutorRuntime({ hostEnv: agentRuntime.hostEnv }), ...executorOptions } = options.agentExecutor ?? {};
++  const agentExecutor = createAgentExecutor({ lifecycle, runtime, hostEnv: agentRuntime.hostEnv }, {
++    ...executorOptions,
+     runtimeState: agentRuntime.state,
+-    hostEnv: agentRuntime.hostEnv,
+     ...executorDefinitionPolicies({ agentRuntime }),
+     journal,
+     classifyFailure: classifyRunFailureForRetry,
+diff --git a/scripts/env-access-debt.json b/scripts/env-access-debt.json
+index aadc55ce..55357b2d 100644
+--- a/scripts/env-access-debt.json
++++ b/scripts/env-access-debt.json
+@@ -92,27 +92,6 @@
+       "reason": "Only a declared process entry may touch process.env or import.meta.env; take the value or an environment map from the host.",
+       "fingerprint": "a97d7492edeb30eaf7b260e2b02ffe125474c2adcf5764051a055aeb22e51457"
+     },
+-    {
+-      "rule": "HW9-env-access",
+-      "file": "packages/daemon/src/agent-executor/launch.ts",
+-      "line": 1011,
+-      "reason": "Only a declared process entry may touch process.env or import.meta.env; take the value or an environment map from the host.",
+-      "fingerprint": "a97d7492edeb30eaf7b260e2b02ffe125474c2adcf5764051a055aeb22e51457"
+-    },
+-    {
+-      "rule": "HW9-env-access",
+-      "file": "packages/daemon/src/agent-executor/launch.ts",
+-      "line": 1017,
+-      "reason": "Only a declared process entry may touch process.env or import.meta.env; take the value or an environment map from the host.",
+-      "fingerprint": "a97d7492edeb30eaf7b260e2b02ffe125474c2adcf5764051a055aeb22e51457"
+-    },
+-    {
+-      "rule": "HW9-env-access",
+-      "file": "packages/daemon/src/agent-executor/mcp-bridge-probe.ts",
+-      "line": 61,
+-      "reason": "Only a declared process entry may touch process.env or import.meta.env; take the value or an environment map from the host.",
+-      "fingerprint": "a97d7492edeb30eaf7b260e2b02ffe125474c2adcf5764051a055aeb22e51457"
+-    },
+     {
+       "rule": "HW9-env-access",
+       "file": "packages/daemon/src/close-status.ts",
+diff --git a/scripts/injection-debt.json b/scripts/injection-debt.json
+index 91540144..cb940d78 100644
+--- a/scripts/injection-debt.json
++++ b/scripts/injection-debt.json
+@@ -48,13 +48,8 @@
+   {"rule": "L5-injected-edge", "file": "packages/daemon/src/agent-executor/antigravity/permissions.ts", "spec": "@jini-ai/platform/fs", "kind": "import", "count": 1, "lane": "L-PLATFORM"},
+   {"rule": "L5-injected-edge", "file": "packages/daemon/src/agent-executor/claude/filesystem.ts", "spec": "@jini-ai/agent-runtime", "kind": "import", "count": 1, "lane": "L-AGENTS"},
+   {"rule": "L5-injected-edge", "file": "packages/daemon/src/agent-executor/contracts.ts", "spec": "@jini-ai/agent-runtime", "kind": "type-import", "count": 1, "lane": "L-AGENTS"},
+-  {"rule": "L5-injected-edge", "file": "packages/daemon/src/agent-executor/contracts.ts", "spec": "@jini-ai/platform/command", "kind": "type-import", "count": 1, "lane": "L-PLATFORM"},
+-  {"rule": "L5-injected-edge", "file": "packages/daemon/src/agent-executor/contracts.ts", "spec": "@jini-ai/platform/process", "kind": "type-import", "count": 1, "lane": "L-PLATFORM"},
+   {"rule": "L5-injected-edge", "file": "packages/daemon/src/agent-executor/events.ts", "spec": "@jini-ai/agent-runtime", "kind": "import", "count": 1, "lane": "L-AGENTS"},
+-  {"rule": "L5-injected-edge", "file": "packages/daemon/src/agent-executor/events.ts", "spec": "@jini-ai/platform/process", "kind": "import", "count": 1, "lane": "L-PLATFORM"},
+   {"rule": "L5-injected-edge", "file": "packages/daemon/src/agent-executor/launch.ts", "spec": "@jini-ai/agent-runtime", "kind": "import", "count": 1, "lane": "L-AGENTS"},
+-  {"rule": "L5-injected-edge", "file": "packages/daemon/src/agent-executor/launch.ts", "spec": "@jini-ai/platform/command", "kind": "import", "count": 1, "lane": "L-PLATFORM"},
+-  {"rule": "L5-injected-edge", "file": "packages/daemon/src/agent-executor/launch.ts", "spec": "@jini-ai/platform/process", "kind": "import", "count": 1, "lane": "L-PLATFORM"},
+   {"rule": "L5-injected-edge", "file": "packages/daemon/src/agent-executor/mcp-bridge.ts", "spec": "@jini-ai/agent-runtime", "kind": "type-import", "count": 1, "lane": "L-AGENTS"},
+   {"rule": "L5-injected-edge", "file": "packages/daemon/src/agent-executor/model-receipts.ts", "spec": "@jini-ai/agent-runtime", "kind": "import", "count": 1, "lane": "L-AGENTS"},
+   {"rule": "L5-injected-edge", "file": "packages/daemon/src/http/active-context.ts", "spec": "@jini-ai/http-kit", "kind": "import", "count": 1, "lane": "L-ROUTES"},
+diff --git a/scripts/size-debt.json b/scripts/size-debt.json
+index a4b7af22..15a3a60e 100644
+--- a/scripts/size-debt.json
++++ b/scripts/size-debt.json
+@@ -499,16 +499,16 @@
+   {
+     "file": "packages/daemon/src/agent-executor/events.ts",
+     "function": "<file>",
+-    "line": 812,
++    "line": 820,
+     "rule": "max-lines",
+-    "value": 930
++    "value": 926
+   },
+   {
+     "file": "packages/daemon/src/agent-executor/launch.ts",
+     "function": "<file>",
+-    "line": 826,
++    "line": 848,
+     "rule": "max-lines",
+-    "value": 1046
++    "value": 1024
+   },
+   {
+     "file": "packages/daemon/src/agent-executor/launch.ts",
+-- 
+2.43.0
+

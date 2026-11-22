@@ -8,7 +8,7 @@
  * else" block; this file is that one copy. Not re-exported from the package barrel.
  */
 import { createApiError } from '@jini-ai/protocol';
-import { err, ok, validationError, type Result } from '@jini-ai/http-kit';
+import { err, ok, validationError, type Result } from '@jini-ai/core/contracts/server';
 import { resolveWorkspaceRoot, WorkspaceRootDeniedError, type WorkspaceRootResolver } from './workspace-root.js';
 
 /** A plain JSON object body (not `null`, not an array). */

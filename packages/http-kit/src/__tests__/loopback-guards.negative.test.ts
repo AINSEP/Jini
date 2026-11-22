@@ -1,28 +1,9 @@
 import type { Express } from 'express';
 import { describe, expect, it, vi } from 'vitest';
 import { registerApiBearerAuthMiddleware, registerApiOriginGuardMiddleware, requireStrictBearerToken } from '../api-security-middleware.js';
-import { isLoopbackPeerAddress } from '../local-daemon-request.js';
 
 /** Negative tables for the loopback trust decisions (L9 §8.1, TEST-ANTIPATTERNS AP4/AP7):
  *  look-alike peers and origins must be refused, and each refusal asserts the exact body. */
-describe('isLoopbackPeerAddress', () => {
-  it.each([
-    '127.0.0.1', '127.255.255.254', '127.0.0.2', '::1', '0:0:0:0:0:0:0:1', '[::1]', '::ffff:127.0.0.1', '::FFFF:127.0.0.9',
-    ' 127.0.0.1 ', '[::1', '::1]',
-  ])('trusts %j', (address) => {
-    expect(isLoopbackPeerAddress({ address })).toBe(true);
-  });
-  it.each([
-    '10.0.0.127', '1.127.0.0', '128.0.0.1', '126.255.255.255', '127.0.0.1.evil.com', '127.0.0.1x', 'x127.0.0.1', '127.1',
-    '::2', '::', '::ffff:10.0.0.1', '::ffff:', 'localhost', '', '   ', '[]', '12[7.0.0.1', '::]1', '[[::1]]', '0.0.0.0',
-  ])('refuses look-alike %j', (address) => {
-    expect(isLoopbackPeerAddress({ address })).toBe(false);
-  });
-  it.each([undefined, null, 127, ['127.0.0.1'], { address: '127.0.0.1' }])('refuses non-string %j', (address) => {
-    expect(isLoopbackPeerAddress({ address })).toBe(false);
-  });
-});
-
 function gate(register: (app: Express) => void) {
   const handlers: Array<(req: any, res: any, next: any) => void> = [];
   register({ use: (_path: string, handler: (req: any, res: any, next: any) => void) => handlers.push(handler) } as unknown as Express);
@@ -113,15 +94,5 @@ describe('requireStrictBearerToken', () => {
       expect(res.status).toHaveBeenCalledWith(503);
       expect(res.json).toHaveBeenCalledWith({ error: { code: 'API_TOKEN_NOT_CONFIGURED', message: 'T is not set — this daemon refuses to serve unauthenticated callers' } });
     }
-  });
-});
-
-describe('bearerTokenFromHeader grammar', () => {
-  it.each([
-    ['Bearer abc', 'abc'], ['bearer abc', 'abc'], ['BEARER  abc  ', 'abc'], ['Bearer\tabc', 'abc'],
-    ['xBearer abc', null], ['Bearer abc def', null], ['Bearer', null], ['Bearer ', null], ['Basic abc', null], ['', null], [undefined, null], ['Token Bearer abc', null],
-  ])('%j → %j', async (header, expected) => {
-    const { bearerTokenFromHeader } = await import('../api-security-middleware.js');
-    expect(bearerTokenFromHeader({ header })).toBe(expected);
   });
 });

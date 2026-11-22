@@ -23,9 +23,9 @@ describe('video sampling', () => {
     expect(planVideoFrames({ duration: 10 }, { frames: 1, start: 7, at: [20, 2, 0, 2] })).toEqual([9.9, 2, 0, 2]);
     expect(planVideoFrames({ duration: 10 }, { at: Array(80).fill(1) })).toHaveLength(64);
     for (const optional of [{ at: [] }, { at: [NaN] }, { at: [Infinity] }, { frames: NaN }]) {
-      expect(() => planVideoFrames({ duration: 10 }, optional)).toThrow();
+      expect(() => planVideoFrames({ duration: 10 }, optional)).toThrow('frames' in optional ? 'Frame count must be finite.' : 'at must contain finite timestamps in seconds.');
     }
-    expect(() => planVideoFrames({ duration: 0 }, {})).toThrow();
+    expect(() => planVideoFrames({ duration: 0 }, {})).toThrow('Video duration must be positive and finite.');
   });
   it('uses the requested gap and count from zero or an explicit starting time', () => {
     expect(planVideoFrames({ duration: 10 }, { every: 0.5, frames: 4 })).toEqual([0, 0.5, 1, 1.5]);
@@ -93,8 +93,13 @@ describe('ffprobe metadata', () => {
       .toEqual({ duration: 3, width: 8, height: 6, codec: 'unknown', container: 'unknown', sizeBytes: 7, hasAudio: true });
   });
   it('rejects invalid/missing duration, dimensions, or video stream', () => {
+    let syntaxError: SyntaxError;
+    try { JSON.parse('invalid JSON'); throw new Error('Expected invalid JSON'); } catch (error) {
+      if (error instanceof SyntaxError) syntaxError = error;
+      else throw error;
+    }
     for (const output of ['{}', 'invalid JSON', JSON.stringify({ format: { duration: 'NaN' }, streams: [{ codec_type: 'video', width: 10, height: 10 }] }), JSON.stringify({ format: { duration: '1' }, streams: [{ codec_type: 'video', width: 0, height: 10 }] })]) {
-      expect(() => parseVideoProbe({ output, sizeBytes: 42 }, {})).toThrow();
+      expect(() => parseVideoProbe({ output, sizeBytes: 42 }, {})).toThrow(output === 'invalid JSON' ? syntaxError.message : 'Video metadata is missing or invalid.');
     }
   });
 });
@@ -155,7 +160,7 @@ describe('contact sheet planning', () => {
   });
   it('refuses empty, oversized and invalid timestamp lists', () => {
     for (const times of [[], Array(65).fill(0), [-1], [NaN], [Infinity]]) {
-      expect(() => planVideoContactSheets({ times }, {})).toThrow();
+      expect(() => planVideoContactSheets({ times }, {})).toThrow('Sheets require 1 to 64 finite nonnegative timestamps.');
     }
   });
 });

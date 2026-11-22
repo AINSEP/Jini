@@ -22,7 +22,7 @@ export interface UseSketchDomEnhancementsParams {
   containerRef: RefObject<HTMLElement | null>;
   t: SketchTranslate;
   /** Host-supplied translations for Excalidraw's own baked-in English UI
-   *  text — no default translated copy ships (see `packages/ui/archived provenance ledger`). */
+   *  text — no default translated copy ships (see `archived UI provenance ledger`). */
   domTextOverrides?: SketchDomTextOverrides | undefined;
   tooltipTargets?: readonly SketchTooltipTarget[] | undefined;
   contextMenuActionOrder?: readonly string[] | undefined;
@@ -53,7 +53,7 @@ export function useSketchDomEnhancements({
   mermaidInsertLabelPattern = DEFAULT_MERMAID_INSERT_LABEL_PATTERN,
   onCloseActiveDialog,
 }: UseSketchDomEnhancementsParams): void {
-  const tooltipLabels = useMemo(() => buildSketchTooltipLabels(t), [t]);
+  const tooltipLabels = useMemo(() => buildSketchTooltipLabels({ t }), [t]);
   const closeLabel = t('Close');
 
   useEffect(() => {
@@ -63,13 +63,13 @@ export function useSketchDomEnhancements({
     let frame: number | null = null;
     const applyEnhancements = () => {
       frame = null;
-      applySketchEditorTooltips(root, tooltipLabels, tooltipTargets);
-      applySketchDomTextOverrides(root, domTextOverrides);
-      applySketchContextMenuSimplification(root, root, contextMenuActionOrder, contextMenuRecognizedActions);
-      applySketchContextMenuSimplification(document.body, root, contextMenuActionOrder, contextMenuRecognizedActions);
-      rewriteExcalidrawUnableToEmbedToasts(root, tooltipLabels.embeddable, embedUnavailableAdditionalPhrases);
-      rewriteExcalidrawUnableToEmbedToasts(document.body, tooltipLabels.embeddable, embedUnavailableAdditionalPhrases);
-      enhanceSketchExcalidrawPortals(closeLabel, onCloseActiveDialog, domTextOverrides, mermaidInsertLabelPattern);
+      applySketchEditorTooltips({ root, labels: tooltipLabels, targets: tooltipTargets });
+      applySketchDomTextOverrides({ root, overrides: domTextOverrides });
+      applySketchContextMenuSimplification({ root, viewportRoot: root, allowList: contextMenuActionOrder, recognizedActions: contextMenuRecognizedActions });
+      applySketchContextMenuSimplification({ root: document.body, viewportRoot: root, allowList: contextMenuActionOrder, recognizedActions: contextMenuRecognizedActions });
+      rewriteExcalidrawUnableToEmbedToasts({ root, replacement: tooltipLabels.embeddable }, { additionalPhrases: embedUnavailableAdditionalPhrases });
+      rewriteExcalidrawUnableToEmbedToasts({ root: document.body, replacement: tooltipLabels.embeddable }, { additionalPhrases: embedUnavailableAdditionalPhrases });
+      enhanceSketchExcalidrawPortals({ closeLabel, onClose: onCloseActiveDialog, domTextOverrides, insertLabelPattern: mermaidInsertLabelPattern });
     };
     const scheduleEnhancements = () => {
       if (frame !== null) return;
@@ -114,7 +114,7 @@ export function useSketchDomEnhancements({
     },
   }, { target: 'document', capture: true });
 
-  useGlobalKeydown({ handler: (event) => handleSketchPortalCommandEnter(event, mermaidInsertLabelPattern) }, {
+  useGlobalKeydown({ handler: (event) => handleSketchPortalCommandEnter({ event, insertLabelPattern: mermaidInsertLabelPattern }) }, {
     target: 'document',
     capture: true,
   });

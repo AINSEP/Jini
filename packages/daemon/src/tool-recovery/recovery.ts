@@ -1,6 +1,6 @@
 
 import type { Principal, SurfaceEmitter, ToolDescriptor, ToolRegistry } from "@jini-ai/core";
-import type { ToolExecutionResult, ToolExecutor } from "../tool-executor.js";
+import type { ToolExecutionResult, ToolExecutor } from "../tool-executor-types.js";
 
 
 import { isIssuedToolFailureDiagnostic, type ToolFailureDiagnostic } from "./diagnostics.js";
@@ -25,7 +25,7 @@ import { refuseNonReadOnlyDispatch, type ReadOnlyToolMessages } from "../core/re
  * ## The seam: a `ToolExecutor` decorator, not a tool
  *
  * `withToolFailureRecovery` wraps `@jini-ai/daemon`'s `ToolExecutor` — the SAME kind of drop-in
- * `tool-executor-audit.ts`'s `withToolAttemptAudit` already is, for the same reason: this is the one
+ * `packages/daemon/src/core/tool-audit.ts`'s `withToolAttemptAudit` already is, for the same reason: this is the one
  * layer that (a) sees every completed tool result BEFORE it reaches the model, (b) is handed the
  * live `emitSurface` a handler would use to raise a human-facing surface, and (c) can re-invoke a
  * tool — the remedy, then the original again — with the SAME `principal`/`run`/`signal` the first
@@ -102,7 +102,7 @@ import { refuseNonReadOnlyDispatch, type ReadOnlyToolMessages } from "../core/re
  * - Never adds cost to the overwhelmingly common no-hint case: the scan is one bounded, pure walk of
  *   an already-in-memory value, no I/O, no surface, no second call.
  *
- * Architectural role: `src/assistant` composition-layer adapter, mirroring `tool-executor-audit.ts`'s
+ * Architectural role: `src/assistant` composition-layer adapter, mirroring `packages/daemon/src/core/tool-audit.ts`'s
  * own role — depends on the domain-agnostic surface-exchange contract and the kernel's own
  * `ToolExecutor`/`ToolRegistry` shapes, never on any domain feature.
  */
@@ -485,7 +485,7 @@ function remedyApplied(remedyResult: ToolExecutionResult): boolean {
 /**
  * Wraps `inner` with the generic ask -> apply -> retry-once recovery loop described in this file's
  * header. A drop-in `ToolExecutor` — every method other than `execute` delegates straight through,
- * matching `tool-executor-audit.ts`'s own `withToolAttemptAudit` shape.
+ * matching `packages/daemon/src/core/tool-audit.ts`'s own `withToolAttemptAudit` shape.
  *
  * @complexity The no-hint path (the overwhelming majority) is one `inner.execute` call plus one bounded
  *   output scan — O(1) beyond `inner`'s own cost. The recovery path adds at most two further

@@ -1,10 +1,21 @@
 import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
 import express from 'express';
-import type { AdapterContext } from '@jini-ai/http-kit';
+import { reportRouteInternalError } from '@jini-ai/http-kit';
+import { createNodeDispatcher } from '@jini-ai/http-kit/node-bridge';
+import { createInMemoryServer } from '@jini-ai/core/contracts/server/testing';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { createLocalTestOrigin } from './fixtures/local-origin.js';
 
-import { createFrontendControl } from '../frontend-control.js';
+import { fakeDaemonRouteHost } from './fakes/route-host.js';
+import { createFrontendControl as createControl } from '../frontend-control.js';
+
+/** The host's timer: nothing in these tests waits for a session TTL, so a timer that never fires is the honest fake. */
+const NO_TIMER = (): { cancel(): void } => ({ cancel: () => undefined });
+
+/** `createFrontendControl` with the host's timer supplied, which every caller must do. */
+const createFrontendControl: (required: Omit<Parameters<typeof createControl>[0], 'setTimer'>, optional?: Parameters<typeof createControl>[1]) => ReturnType<typeof createControl> =
+  (required, optional = {}) => createControl({ ...required, setTimer: NO_TIMER }, optional);
 
 const PAGE_CLICK = { id: 'page.click', description: 'Activate one control.' } as const;
 const PAGE_FILL = { id: 'page.fill', description: 'Type into one field.' } as const;
@@ -31,16 +42,14 @@ describe('createFrontendControl', () => {
     }
   });
 
-  /** Mounts the bundle's own extension — the only route to the registry a host is given. */
+  /** Mounts the bundle's own routes — the only route to the registry a host is given. */
   async function listen(control: ReturnType<typeof createFrontendControl>): Promise<string> {
     const app = express();
     app.use(express.json());
-    const resolvedPortRef = { current: 0 };
-    const adapter: AdapterContext = {
-      resolvedPortRef, env: {}, allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS',
-      webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST',
-    };
-    control.httpExtension({ app, context: { adapter } });
+    const { adapter, portRef: resolvedPortRef } = createLocalTestOrigin();
+    const dispatcher = createNodeDispatcher({}, { expressCompatible: true });
+    for (const route of control.routes({ host: { ...fakeDaemonRouteHost(), context: adapter, reportInternalError: reportRouteInternalError } })) dispatcher.server.route(route);
+    app.use((req, res, next) => { void dispatcher.handle({ incoming: req, out: res }, { next, parsedBody: (req as { body?: unknown }).body, locals: res.locals }); });
     const server = await new Promise<Server>((resolve, reject) => {
       const s = app.listen(0, '127.0.0.1', () => resolve(s));
       s.once('error', reject);
@@ -86,10 +95,10 @@ describe('createFrontendControl', () => {
   }
 
   describe('what a host is given', () => {
-    it('exposes only the extension, the registrations and the run/request bind hooks', () => {
+    it('exposes only the extension, the registrations, the owner-checked begin and the run/request bind hooks', () => {
       const control = createFrontendControl({ capabilities: [PAGE_CLICK], resolveBindToken: () => undefined });
 
-      expect(Object.keys(control).sort()).toEqual(['bindOnStarted', 'bindRequest', 'httpExtension', 'toolRegistrations']);
+      expect(Object.keys(control).sort()).toEqual(['begin', 'bindOnStarted', 'bindRequest', 'routes', 'toolRegistrations']);
     });
 
     // The registry's invoke() drives a real user's screen with no policy, confirmation, timeout or
@@ -230,7 +239,7 @@ describe('createFrontendControl', () => {
 
       expect(consoleError).toHaveBeenCalledWith(
         expect.stringContaining('could not bind run "run-1"'),
-        expect.stringContaining('unknown or expired bind token'),
+        'Error',
       );
       consoleError.mockRestore();
     });
@@ -270,6 +279,23 @@ describe('createFrontendControl', () => {
         input: {}, signal: new AbortController().signal,
       } as never)).rejects.toThrow(/no frontend is bound/);
       surface.close();
+    });
+  });
+
+  describe('host reporter (log safety, row 5d)', () => {
+    it('hands a stream failure to the host reporter with the request ID the 500 answer carries, and keeps the error out of the body', async () => {
+      const failure = new Error('boom api_key=SECRETSECRETSECRETSECRET');
+      const control = createFrontendControl({ capabilities: [PAGE_CLICK], resolveBindToken: () => undefined, session: { resolveOwner: async () => { throw failure; } } });
+      const host = fakeDaemonRouteHost();
+      const { server, fetch } = createInMemoryServer();
+      for (const route of control.routes({ host })) server.route(route);
+
+      const response = await fetch(new Request('http://local/api/frontend-sessions/stream'));
+
+      expect(response.status).toBe(500);
+      expect(host.reports).toHaveLength(1);
+      expect(host.reports[0]).toMatchObject({ logSource: 'frontend-sessions:stream', report: { source: 'stream', error: failure } });
+      expect(await response.json()).toEqual({ error: { code: 'INTERNAL_ERROR', message: 'The page connection could not be opened. Reload the page; if it keeps failing, copy the request ID and report this problem.', requestId: host.reports[0]?.requestId } });
     });
   });
 });

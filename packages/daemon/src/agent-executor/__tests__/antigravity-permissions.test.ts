@@ -1,8 +1,10 @@
+import { nodeAtomicWriter, nodeFileLock } from '@jini-ai/node-adapters/fs';
+import { fakeRuntimePorts } from '../../ports/__tests__/fakes/runtime.js';
 import { constants, promises as fs } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, expect, it, vi } from 'vitest';
-import type { RuntimeAgentDef } from '@jini-ai/agent-runtime';
+import type { RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 import { resolveMcpBridgeForRun } from '../mcp-bridge.js';
 
 const home = vi.hoisted(() => ({ path: '' }));
@@ -27,7 +29,7 @@ function prepare() {
   return resolveMcpBridgeForRun({
     input: { nativeCapabilities: { userMcp: true }, runId: 'run', cwd: '/isolated', def: { id: 'antigravity', externalMcpInjection: 'env-passthrough' } as RuntimeAgentDef },
     deps: {
-      mcpJsonInjection: { command: 'jini-mcp', daemonUrl: 'http://localhost:4317' },
+      mcpJsonInjection: { command: 'jini-mcp', daemonUrl: 'http://localhost:4317' }, fileLock: nodeFileLock, writer: nodeAtomicWriter,
       cleanupStagedFiles: async () => {},
       failBeforeSpawn: async ({ message }) => { throw new Error(message); },
     },
@@ -67,7 +69,14 @@ it('serializes concurrent setup and creates a missing settings file with only th
 
 it.each(['{broken', '[]', '{"permissions":[]}', '{"permissions":null}', '{"permissions":{"allow":"mcp(*)"}}'])('refuses malformed settings without replacing them: %s', async raw => {
   const settingsPath = await fixture(raw);
-  await expect(prepare()).rejects.toThrow();
+  let message = raw === '[]' ? 'Antigravity settings must be an object' : 'Antigravity permissions.allow must be an array';
+  if (raw === '{broken') {
+    try { JSON.parse(raw); } catch (error) {
+      if (error instanceof SyntaxError) message = error.message;
+      else throw error;
+    }
+  }
+  await expect(prepare()).rejects.toThrow(message);
   expect(await fs.readFile(settingsPath, 'utf8')).toBe(raw);
 });
 
@@ -78,7 +87,7 @@ it('launch preparation authorizes the Jini bridge before returning delivery, and
   const cleanupStagedFiles = vi.fn(async () => {});
   const failBeforeSpawn = vi.fn(async (input: { message: string }): Promise<never> => { throw new Error(input.message); });
   const input = { nativeCapabilities: { userMcp: true }, runId: 'run', cwd: '/isolated', def: { id: 'antigravity', externalMcpInjection: 'env-passthrough' } as RuntimeAgentDef };
-  const deps = { mcpJsonInjection: { command: 'jini-mcp', daemonUrl: 'http://localhost:4317' }, cleanupStagedFiles, failBeforeSpawn, ensureAntigravityMcpPermission: authorize };
+  const deps = { mcpJsonInjection: { command: 'jini-mcp', daemonUrl: 'http://localhost:4317' }, cleanupStagedFiles, failBeforeSpawn, ...fakeRuntimePorts(), ensureAntigravityMcpPermission: authorize };
   let ready = false;
   const pending = resolveMcpBridgeForRun({ input, deps }).then(value => { ready = true; return value; });
   await new Promise(resolve => setImmediate(resolve));
@@ -101,7 +110,7 @@ it('mints no credential and writes no personal permission without explicit conse
   const authorize = vi.fn(async () => {});
   const input = { runId: 'unapproved', cwd: '/site', def: { id: 'antigravity', externalMcpInjection: 'env-passthrough' } as RuntimeAgentDef };
   const deps = { mcpJsonInjection: { command: 'bridge', daemonUrl: 'http://localhost', credential },
-    cleanupStagedFiles: async () => {}, ensureAntigravityMcpPermission: authorize,
+    cleanupStagedFiles: async () => {}, ...fakeRuntimePorts(), ensureAntigravityMcpPermission: authorize,
     failBeforeSpawn: async ({ message }: { message: string }): Promise<never> => { throw new Error(message); } };
   await expect(resolveMcpBridgeForRun({ input, deps })).rejects.toThrow(/approval/);
   expect(credential).not.toHaveBeenCalled();

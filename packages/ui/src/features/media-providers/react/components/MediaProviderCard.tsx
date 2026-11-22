@@ -1,5 +1,5 @@
 import { Fragment, useId } from 'react';
-import { agentHandleProps } from '@jini-ai/agentic';
+import { agentHandleProps } from '@jini-ai/core/agent-handles';
 import type { I18nContextValue } from '../../../i18n/index.js';
 import { SecretInput } from '../../../../react/components/SecretInput.js';
 import {
@@ -41,11 +41,11 @@ export interface MediaProviderCardProps {
 /** One provider's credential card: API key, base URL, optional model, clear, and the base-URL hint. */
 export function MediaProviderCard(props: MediaProviderCardProps) {
   const { option, entry, labels, t, providerHandle, onUpdate } = props;
-  const saved = isMarkerOnlyEntry(entry);
+  const saved = isMarkerOnlyEntry({ entry });
   // Guaranteed non-null: `isMarkerOnlyEntry` only holds when a server
   // marker is present, and `maskedKeyLabel` always resolves a string
   // for exactly that case — see both functions' doc comments.
-  const maskedLabel = saved ? maskedKeyLabel(entry)! : null;
+  const maskedLabel = saved ? maskedKeyLabel({ entry })! : null;
   const fields: CardFieldContext = { option, entry, labels, providerHandle, onUpdate };
 
   return (
@@ -62,7 +62,7 @@ export function MediaProviderCard(props: MediaProviderCardProps) {
         <button
           type="button"
           className="jini-button jini-button-ghost"
-          disabled={!isEntryPresent(entry)}
+          disabled={!isEntryPresent({ entry })}
           aria-label={`${option.label} ${labels.clearLabel}`}
           onClick={props.onClear}
           {...agentHandleProps({}, { base: providerHandle, ...({ action: 'clear', role: 'button', label: `${option.label} ${labels.clearLabel}` }) })}
@@ -157,7 +157,7 @@ function BaseUrlField({ option, entry, labels, providerHandle, onUpdate }: CardF
         placeholder={option.defaultBaseUrl || labels.baseUrlPlaceholder}
         aria-label={`${option.label} ${labels.baseUrlLabel}`}
         value={entry.baseUrl ?? ''}
-        aria-invalid={isProviderBaseUrlInvalid(entry) || undefined}
+        aria-invalid={isProviderBaseUrlInvalid({ entry }) || undefined}
         onChange={(event) => onUpdate({ baseUrl: event.target.value })}
         {...agentHandleProps({}, { base: providerHandle, ...({ action: 'base-url', role: 'field', label: `${option.label} ${labels.baseUrlLabel}` }) })}
       />
@@ -201,14 +201,14 @@ function BaseUrlHint({
   labels: ResolvedMediaProvidersTabLabels;
   t: Translate;
 }) {
-  if (isProviderBaseUrlInvalid(entry)) {
+  if (isProviderBaseUrlInvalid({ entry })) {
     return (
       <span className="jini-field-hint jini-hint-error" role="alert">
         {labels.baseUrlInvalidLabel}
       </span>
     );
   }
-  const effectiveBaseUrl = resolveProviderBaseUrl(entry, option.defaultBaseUrl);
+  const effectiveBaseUrl = resolveProviderBaseUrl({ entry, defaultBaseUrl: option.defaultBaseUrl });
   if ((entry.baseUrl ?? '').trim() || !effectiveBaseUrl) return null;
   return <span className="jini-field-hint">{t(labels.baseUrlDefaultHintTemplate, { url: effectiveBaseUrl })}</span>;
 }

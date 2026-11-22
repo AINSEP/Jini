@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 
-import type { OutboxPort, OutboxRecord } from "../../core/ports.js";
+import type { OutboxPort, OutboxRecord } from "@jini-ai/core/contracts/events";
 import { createWorkspace, WorkspaceConflictError, WorkspaceValidationError } from "../create.js";
 import { InMemoryWorkspaceRepo } from "../repo.memory.js";
 

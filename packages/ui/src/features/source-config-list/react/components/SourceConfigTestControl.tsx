@@ -17,6 +17,7 @@ export interface SourceConfigTestControlProps {
    */
   agentHandle?: string;
   onTest: () => void;
+  useTHook?: typeof useT;
 }
 
 /**
@@ -25,7 +26,7 @@ export interface SourceConfigTestControlProps {
  * and `McpClientSection.tsx`'s `McpOAuthControl` status/action shape, but
  * deliberately simplified — the OAuth-specific postMessage/polling handshake
  * and the "ready to test" pre-flight hint are origin-source-specific UX, not
- * part of this generic primitive. See `packages/ui/source-map.md`.
+ * part of this generic primitive. See `archived UI source map`.
  *
  * ## Agent handles
  *
@@ -36,13 +37,13 @@ export interface SourceConfigTestControlProps {
  * stable handle instead of one that only exists once there is something to
  * say.
  */
-export function SourceConfigTestControl({ running, result, disabled = false, agentHandle, onTest }: SourceConfigTestControlProps) {
-  const t = useT();
+export function SourceConfigTestControl({ running, result, disabled = false, agentHandle, onTest, useTHook = useT }: SourceConfigTestControlProps) {
+  const t = useTHook();
   return (
-    <div className="source-config-test-control">
+    <div className="jini-source-config-test-control">
       <div
-        className="source-config-test-control-status"
-        {...sourceConfigAgentProps(agentHandle, {
+        className="jini-source-config-test-control-status"
+        {...sourceConfigAgentProps({ base: agentHandle,
           role: 'status',
           label: t('Connection test result'),
           action: 'status',
@@ -52,8 +53,8 @@ export function SourceConfigTestControl({ running, result, disabled = false, age
       </div>
       <button
         type="button"
-        className="source-config-test-button"
-        {...sourceConfigAgentProps(agentHandle, { role: 'button', label: t('Test connection') })}
+        className="jini-source-config-test-button"
+        {...sourceConfigAgentProps({ base: agentHandle, role: 'button', label: t('Test connection') })}
         onClick={onTest}
         disabled={disabled || running}
       >
@@ -66,11 +67,11 @@ export function SourceConfigTestControl({ running, result, disabled = false, age
 type Translate = ReturnType<typeof useT>;
 
 /** The status line's content: "Testing…" while running, the last result once one exists, nothing before the first test. */
-function TestStatusMessage({ running, result }: { running: boolean; result?: SourceTestResult | undefined }) {
-  const t = useT();
+function TestStatusMessage({ running, result, useTHook = useT }: { running: boolean; result?: SourceTestResult | undefined; useTHook?: typeof useT; }) {
+  const t = useTHook();
   if (running) {
     return (
-      <span className="source-config-test-status is-running" role="status" aria-live="polite">
+      <span className="jini-source-config-test-status is-running" role="status" aria-live="polite">
         {t('Testing…')}
       </span>
     );
@@ -78,7 +79,7 @@ function TestStatusMessage({ running, result }: { running: boolean; result?: Sou
   if (!result) return null;
   return (
     <span
-      className={result.ok ? 'source-config-test-status is-success' : 'source-config-test-status is-error'}
+      className={result.ok ? 'jini-source-config-test-status jini-is-success' : 'jini-source-config-test-status is-error'}
       role={result.ok ? 'status' : 'alert'}
     >
       {result.message ?? (result.ok ? t('Connection ok.') : t('Connection failed.'))}

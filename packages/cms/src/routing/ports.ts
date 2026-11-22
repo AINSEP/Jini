@@ -1,15 +1,15 @@
 /**
- * @file Dependency contracts for the host `routing` Tier-2 library (ADR-039 v0).
+ * @file Dependency contracts for the host `routing` Tier-2 library (v0).
  *
- * ADR-006 accounting (rule-of-two):
+ * Rule-of-two accounting:
  * - `routing` introduces NO new persistence port. Resolving an `entryRef`
  *   target reuses the existing `PostRepoPort` (`src/features/post/post.ts`) —
  *   `post` is the only content type implemented in this repo today. Inventing
  *   a routing-owned repo for data that already has one would fail rule-of-two.
  * - The named-route registry and the resolve-phase/`SlugChangeCapture`
- *   registration slots are core-owned registration mechanisms (ADR-039 §1/§4),
- *   NOT open ADR-009 plugin hooks and NOT ports — they are ordinary in-module
- *   state with a typed register/get surface, same treatment ADR-029/ADR-032
+ *   registration slots are core-owned registration mechanisms,
+ *   NOT open plugin hooks and NOT ports — they are ordinary in-module
+ *   state with a typed register/get surface, same treatment Menus/SEO
  *   give their single-evaluator resolvers.
  *
  * Architectural role:

@@ -44,12 +44,12 @@ export function useAssetTreeSelection<TFile extends AssetTreeFileItem>(
     setSelected((prev) => {
       const livePaths = filesAtCurrentDir.map((f) => f.path);
       if (pendingRenamePath) livePaths.push(pendingRenamePath);
-      return pruneMissingPaths(prev, livePaths);
+      return pruneMissingPaths({ prev, livePaths });
     });
   }, [filesAtCurrentDir, pendingRenamePath]);
 
   const toggleSelect = useCallback((path: string) => {
-    setSelected((prev) => toggleInSet(prev, path));
+    setSelected((prev) => toggleInSet({ prev, path }));
   }, []);
 
   const clearSelection = useCallback(() => setSelected(new Set()), []);

@@ -3,18 +3,20 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { describe, expect, it } from "vitest";
 import { HELP_OPTIONS, int, num, parseCliArgs, text } from "../lib/cli-args.mjs";
-import { exitOnFailure, isMainModule, runCli, runIfMain } from "../lib/main-guard.mjs";
+import { CliUsageError, createCliStreams, exitOnFailure, isMainModule, runCli, runIfMain } from "../lib/main-guard.mjs";
 import { launchChromium, loadPlaywright } from "../lib/playwright-loader.mjs";
 import { tempDir } from "./fakes-wc2.mjs";
+import { main as routeCrawl } from "../route-crawl.mjs";
+import { main as mirrorSite } from "../mirror-site.mjs";
 
 describe("parseCliArgs", () => {
   const spec = {
     defaults: { url: "", wait: 5, steps: 7, quiet: false },
     options: {
       ...HELP_OPTIONS,
-      "--url": { key: "url", parse: text("none") },
-      "--wait": { key: "wait", parse: num("5") },
-      "--steps": { key: "steps", parse: int("7") },
+      "--url": { key: "url", parse: text({ fallback: "none" }) },
+      "--wait": { key: "wait", parse: num({ fallback: "5" }) },
+      "--steps": { key: "steps", parse: int({ fallback: "7" }) },
       "--quiet": { key: "quiet", flag: true },
     },
   };
@@ -32,6 +34,7 @@ describe("parseCliArgs", () => {
 
   it("throws on unknown arguments in strict mode, including prototype keys", () => {
     expect(() => parseCliArgs({ argv: ["--nope"], ...spec })).toThrow("Unexpected argument: --nope");
+    expect(() => parseCliArgs({ argv: ["--nope"], ...spec })).toThrow(CliUsageError);
     expect(() => parseCliArgs({ argv: ["constructor"], ...spec })).toThrow("Unexpected argument: constructor");
   });
 
@@ -41,6 +44,42 @@ describe("parseCliArgs", () => {
 });
 
 describe("main guard", () => {
+  it("writes progress to stdout and warnings/errors to stderr with console-style spacing", () => {
+    const stdout = [];
+    const stderr = [];
+    const io = createCliStreams({ stdout: { write: (line) => stdout.push(line) }, stderr: { write: (line) => stderr.push(line) } });
+    io.log("progress", 2);
+    io.warn("warning", "Error");
+    io.error("failed", "TypeError");
+    expect(stdout).toEqual(["progress 2\n"]);
+    expect(stderr).toEqual(["warning Error\n", "failed TypeError\n"]);
+  });
+
+  it.each([
+    { name: "help", args: ["--help"], code: 0, output: "route-crawl.mjs", error: "" },
+    { name: "bad argv", args: ["--bad"], code: 1, output: "", error: "route-crawl failed: Unexpected argument: --bad\n" },
+    { name: "failed dependency", args: ["--url", "https://example.com", "--out", "/work"], code: 1, output: "", error: "web-clone failed: Error\n" },
+  ])("routes $name through stdout/stderr and calls onExit exactly once", async ({ name, args, code, output, error }) => {
+    const stdout = [];
+    const stderr = [];
+    const exits = [];
+    const failure = new Error("PRIVATE_MESSAGE_SENTINEL");
+    failure.stack = "PRIVATE_STACK_SENTINEL";
+    const main = (input, io) => name === "failed dependency"
+      ? mirrorSite(input, { ...io, fs: { mkdirSync: () => { throw failure; } }, loadPlaywright: () => { throw failure; } })
+      : routeCrawl(input, io);
+    expect(await runIfMain({ moduleUrl: "file:///scripts/tool.mjs", main }, {
+      argv: ["node", "/scripts/tool.mjs", ...args], realpath: (p) => p,
+      stdout: { write: (line) => stdout.push(line) }, stderr: { write: (line) => stderr.push(line) },
+      onExit: ({ code: value }) => exits.push(value),
+    })).toBe(true);
+    expect(exits).toEqual([code]);
+    if (output) expect(stdout.join("")).toContain(output);
+    else expect(stdout).toEqual([]);
+    expect(stderr.join("")).toBe(error);
+    if (name === "failed dependency") expect([...stdout, ...stderr].join("")).not.toMatch(/PRIVATE_(MESSAGE|STACK)_SENTINEL/);
+  });
+
   it("isMainModule matches the entry path, resolving symlinks", () => {
     const dir = tempDir();
     const real = path.join(dir, "real.mjs");
@@ -96,7 +135,16 @@ describe("main guard", () => {
         throw new Error("boom");
       }, report: (m) => reports.push(m) }),
     ).toBe(1);
-    expect(reports).toEqual(["tool failed: boom"]);
+    expect(reports).toEqual(["tool failed: Error"]);
+  });
+
+  it("runCli prints a CliUsageError's own words and only the class of any other error", async () => {
+    const reports = [];
+    const report = (m) => reports.push(m);
+    await runCli({ label: "tool", body: () => { throw new Error("boom api_key=SECRETSECRETSECRETSECRET"); }, report });
+    await runCli({ label: "tool", body: () => { throw new CliUsageError("Unexpected argument: --x"); }, report });
+    expect(reports).toEqual(["tool failed: Error", "tool failed: Unexpected argument: --x"]);
+    expect(JSON.stringify(reports)).not.toMatch(/boom|SECRETSECRET|lib-wc2/);
   });
 });
 
@@ -125,6 +173,7 @@ describe("loadPlaywright", () => {
     expect(() => loadPlaywright({ requireFromScript: fail("script"), requireFromCwd: fail("cwd"), env: {} })).toThrow(
       /Playwright not found\. Fix \(run in the project root, once per project\):\n {2}npm install -D playwright/,
     );
+    expect(() => loadPlaywright({ requireFromScript: fail("script"), requireFromCwd: fail("cwd"), env: {} })).toThrow(CliUsageError);
   });
 
   it("resolves with the real require/env defaults (result depends on the install)", () => {
@@ -159,7 +208,9 @@ describe("launchChromium", () => {
     expect(calls).toEqual([{ headless: true }, { headless: true, channel: "chrome" }]);
   });
 
-  it("rethrows the first (more useful) error when both launches fail", async () => {
+  // Review jini-batch1 M3: runCli prints only the class of a plain error, so a missing browser
+  // must arrive as a CliUsageError with fixed install words; the first error stays as its cause.
+  it("throws fixed install words, keeping the first error as the cause, when both launches fail", async () => {
     let n = 0;
     const chromium = {
       launch: async () => {
@@ -167,6 +218,13 @@ describe("launchChromium", () => {
         throw new Error(`launch ${n}`);
       },
     };
-    await expect(launchChromium(chromium)).rejects.toThrow("launch 1");
+    const failure = await launchChromium(chromium).catch((error) => error);
+    expect(failure).toBeInstanceOf(CliUsageError);
+    expect(failure.message).toContain("npx playwright install chromium");
+    expect(failure.message).not.toContain("launch");
+    expect(failure.cause).toEqual(new Error("launch 1"));
+    const lines = [];
+    await runCli({ label: "recon-site", body: () => launchChromium(chromium), report: (line) => lines.push(line) });
+    expect(lines.join("\n")).toContain("recon-site failed: Chromium could not start.");
   });
 });

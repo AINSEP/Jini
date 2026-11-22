@@ -88,11 +88,8 @@ export type {
   KernelSqliteAccess,
 } from './kernel-base.js';
 export { createJiniKernelBase } from './kernel-base.js';
-
-// Frontend control belongs to the daemon HTTP surface: hosts that build their own Express app
-// can compose it without the server kernel. This server entry keeps its existing public export.
-export { createFrontendControl } from '@jini-ai/daemon/http';
-export type { CreateFrontendControlOptions, FrontendBindErrorContext, FrontendControl, FrontendHttpExtension } from '@jini-ai/daemon/http';
+export { mountRoutes } from './mount-routes.js';
+export { nodeSessionTimer } from './route-host.js';
 
 export type { CloseHttpServerOptions, GracefulShutdownHandle, GracefulShutdownOptions } from './host-bootstrap.js';
 export {

@@ -7,7 +7,6 @@ import {
   applyTaskUpdate,
   artifactOpenCandidateLength,
   assistantText,
-  createClaudeStreamHandler,
   emitAssistantErrorIfPresent,
   emitCanonicalTaskSnapshot,
   fileWriteContent,
@@ -22,10 +21,13 @@ import {
   runtimeTaskIdFromCreate,
   stringifyToolResult,
   toolInputPath,
-  type ClaudeStreamEvent,
   type RuntimeTask,
   type RuntimeTaskIdCounter,
   type TaskRegistry,
+} from '../claude-stream-frames.js';
+import {
+  createClaudeStreamHandler,
+  type ClaudeStreamEvent,
 } from '../claude-stream.js';
 
 function freshTaskRegistry(): TaskRegistry {
@@ -72,7 +74,7 @@ describe('delegated tool-result correlation hints', () => {
   it('preserves CLI identity and all original content until daemon validation', () => {
     const content = [delegatedResultMarker({ toolUseId: 'B' }), image, { type: 'text', text: 'caption' }];
     const events = run([{ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 'C', content, is_error: true }] } }]);
-    expect(events).toEqual([{ type: 'tool_result', toolUseId: 'C', content: stringifyToolResult(content), isError: true, delegatedToolUseId: 'B', delegatedResultContent: [image, { type: 'text', text: 'caption' }] }]);
+    expect(events).toEqual([{ type: 'tool_result', toolUseId: 'C', content: stringifyToolResult({ content }), isError: true, delegatedToolUseId: 'B', delegatedResultContent: [image, { type: 'text', text: 'caption' }] }]);
     expect(events[0]!.content).toContain('ORIGINAL_PIXELS');
   });
   it('recognizes metadata across arbitrary chunk boundaries', () => {
@@ -87,7 +89,7 @@ describe('delegated tool-result correlation hints', () => {
   });
   it.each([{ content: [image] }, { content: [{ type: 'text', text: '{"jiniDelegatedResult":{"version":2,"toolUseId":"B"}}' }, image] }])('keeps legacy content without inventing correlation: %j', ({ content }) => {
     const events = run([{ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 'C', content }] } }]);
-    expect(events).toEqual([{ type: 'tool_result', toolUseId: 'C', content: stringifyToolResult(content), isError: false }]);
+    expect(events).toEqual([{ type: 'tool_result', toolUseId: 'C', content: stringifyToolResult({ content }), isError: false }]);
   });
 });
 
@@ -1325,84 +1327,84 @@ describe('createClaudeStreamHandler', () => {
 
 describe('toolInputPath', () => {
   it('prefers file_path over path', () => {
-    expect(toolInputPath({ file_path: 'a.txt', path: 'b.txt' })).toBe('a.txt');
+    expect(toolInputPath({ input: { file_path: 'a.txt', path: 'b.txt' } })).toBe('a.txt');
   });
 
   it('falls back to path when file_path is absent', () => {
-    expect(toolInputPath({ path: 'b.txt' })).toBe('b.txt');
+    expect(toolInputPath({ input: { path: 'b.txt' } })).toBe('b.txt');
   });
 
   it('returns an empty string when neither field is a string', () => {
-    expect(toolInputPath({})).toBe('');
-    expect(toolInputPath({ file_path: 42 })).toBe('');
+    expect(toolInputPath({ input: {} })).toBe('');
+    expect(toolInputPath({ input: { file_path: 42 } })).toBe('');
   });
 });
 
 describe('normalizeTaskStatus', () => {
   it('passes through the four canonical statuses unchanged', () => {
-    expect(normalizeTaskStatus('completed')).toBe('completed');
-    expect(normalizeTaskStatus('in_progress')).toBe('in_progress');
-    expect(normalizeTaskStatus('stopped')).toBe('stopped');
-    expect(normalizeTaskStatus('pending')).toBe('pending');
+    expect(normalizeTaskStatus({ value: 'completed' })).toBe('completed');
+    expect(normalizeTaskStatus({ value: 'in_progress' })).toBe('in_progress');
+    expect(normalizeTaskStatus({ value: 'stopped' })).toBe('stopped');
+    expect(normalizeTaskStatus({ value: 'pending' })).toBe('pending');
   });
 
   it('maps known wire-format aliases to their canonical status', () => {
-    expect(normalizeTaskStatus('complete')).toBe('completed');
-    expect(normalizeTaskStatus('done')).toBe('completed');
-    expect(normalizeTaskStatus('doing')).toBe('in_progress');
-    expect(normalizeTaskStatus('active')).toBe('in_progress');
-    expect(normalizeTaskStatus('failed')).toBe('stopped');
-    expect(normalizeTaskStatus('canceled')).toBe('stopped');
-    expect(normalizeTaskStatus('cancelled')).toBe('stopped');
+    expect(normalizeTaskStatus({ value: 'complete' })).toBe('completed');
+    expect(normalizeTaskStatus({ value: 'done' })).toBe('completed');
+    expect(normalizeTaskStatus({ value: 'doing' })).toBe('in_progress');
+    expect(normalizeTaskStatus({ value: 'active' })).toBe('in_progress');
+    expect(normalizeTaskStatus({ value: 'failed' })).toBe('stopped');
+    expect(normalizeTaskStatus({ value: 'canceled' })).toBe('stopped');
+    expect(normalizeTaskStatus({ value: 'cancelled' })).toBe('stopped');
   });
 
   it('defaults to pending for an unrecognized string', () => {
-    expect(normalizeTaskStatus('bogus')).toBe('pending');
+    expect(normalizeTaskStatus({ value: 'bogus' })).toBe('pending');
   });
 
   it('defaults to pending for a non-string value', () => {
-    expect(normalizeTaskStatus(undefined)).toBe('pending');
-    expect(normalizeTaskStatus(42)).toBe('pending');
-    expect(normalizeTaskStatus(null)).toBe('pending');
+    expect(normalizeTaskStatus({ value: undefined })).toBe('pending');
+    expect(normalizeTaskStatus({ value: 42 })).toBe('pending');
+    expect(normalizeTaskStatus({ value: null })).toBe('pending');
   });
 });
 
 describe('runtimeTaskIdFromCreate', () => {
   it('generates a sequential id when taskId is absent', () => {
     const counter: RuntimeTaskIdCounter = { next: 1 };
-    expect(runtimeTaskIdFromCreate({}, counter)).toBe('1');
-    expect(runtimeTaskIdFromCreate({}, counter)).toBe('2');
+    expect(runtimeTaskIdFromCreate({ input: {}, counter })).toBe('1');
+    expect(runtimeTaskIdFromCreate({ input: {}, counter })).toBe('2');
     expect(counter.next).toBe(3);
   });
 
   it('uses an explicit taskId verbatim', () => {
     const counter: RuntimeTaskIdCounter = { next: 1 };
-    expect(runtimeTaskIdFromCreate({ taskId: 'custom-id' }, counter)).toBe('custom-id');
+    expect(runtimeTaskIdFromCreate({ input: { taskId: 'custom-id' }, counter })).toBe('custom-id');
     expect(counter.next).toBe(1);
   });
 
   it('bumps the counter past a numeric explicit taskId so future generated ids never collide', () => {
     const counter: RuntimeTaskIdCounter = { next: 1 };
-    expect(runtimeTaskIdFromCreate({ taskId: '5' }, counter)).toBe('5');
+    expect(runtimeTaskIdFromCreate({ input: { taskId: '5' }, counter })).toBe('5');
     expect(counter.next).toBe(6);
-    expect(runtimeTaskIdFromCreate({}, counter)).toBe('6');
+    expect(runtimeTaskIdFromCreate({ input: {}, counter })).toBe('6');
   });
 
   it('does not move the counter backwards for a numeric taskId below the current counter', () => {
     const counter: RuntimeTaskIdCounter = { next: 10 };
-    expect(runtimeTaskIdFromCreate({ taskId: '3' }, counter)).toBe('3');
+    expect(runtimeTaskIdFromCreate({ input: { taskId: '3' }, counter })).toBe('3');
     expect(counter.next).toBe(10);
   });
 
   it('treats a non-numeric explicit taskId as opaque and does not touch the counter', () => {
     const counter: RuntimeTaskIdCounter = { next: 1 };
-    expect(runtimeTaskIdFromCreate({ taskId: 'abc' }, counter)).toBe('abc');
+    expect(runtimeTaskIdFromCreate({ input: { taskId: 'abc' }, counter })).toBe('abc');
     expect(counter.next).toBe(1);
   });
 
   it('treats an empty-string taskId as absent and generates one instead', () => {
     const counter: RuntimeTaskIdCounter = { next: 1 };
-    expect(runtimeTaskIdFromCreate({ taskId: '' }, counter)).toBe('1');
+    expect(runtimeTaskIdFromCreate({ input: { taskId: '' }, counter })).toBe('1');
   });
 });
 
@@ -1410,38 +1412,38 @@ describe('applyTaskCreate', () => {
   it('creates a task from subject and returns true', () => {
     const tasks = new Map<string, RuntimeTask>();
     const counter: RuntimeTaskIdCounter = { next: 1 };
-    expect(applyTaskCreate({ subject: 'Write tests' }, tasks, counter)).toBe(true);
+    expect(applyTaskCreate({ input: { subject: 'Write tests' }, tasks, counter })).toBe(true);
     expect(tasks.get('1')).toEqual({ id: '1', content: 'Write tests', status: 'pending' });
   });
 
   it('falls back to description when subject is absent', () => {
     const tasks = new Map<string, RuntimeTask>();
     const counter: RuntimeTaskIdCounter = { next: 1 };
-    applyTaskCreate({ description: 'Refactor module' }, tasks, counter);
+    applyTaskCreate({ input: { description: 'Refactor module' }, tasks, counter });
     expect(tasks.get('1')?.content).toBe('Refactor module');
   });
 
   it('returns false and creates nothing when neither subject nor description is present', () => {
     const tasks = new Map<string, RuntimeTask>();
     const counter: RuntimeTaskIdCounter = { next: 1 };
-    expect(applyTaskCreate({}, tasks, counter)).toBe(false);
+    expect(applyTaskCreate({ input: {}, tasks, counter })).toBe(false);
     expect(tasks.size).toBe(0);
   });
 
   it('includes activeForm only when provided as a string', () => {
     const tasks = new Map<string, RuntimeTask>();
     const counter: RuntimeTaskIdCounter = { next: 1 };
-    applyTaskCreate({ subject: 'A', activeForm: 'Doing A' }, tasks, counter);
+    applyTaskCreate({ input: { subject: 'A', activeForm: 'Doing A' }, tasks, counter });
     expect(tasks.get('1')?.activeForm).toBe('Doing A');
 
-    applyTaskCreate({ subject: 'B' }, tasks, counter);
+    applyTaskCreate({ input: { subject: 'B' }, tasks, counter });
     expect(tasks.get('2')).not.toHaveProperty('activeForm');
   });
 
   it('normalizes status through normalizeTaskStatus', () => {
     const tasks = new Map<string, RuntimeTask>();
     const counter: RuntimeTaskIdCounter = { next: 1 };
-    applyTaskCreate({ subject: 'A', status: 'doing' }, tasks, counter);
+    applyTaskCreate({ input: { subject: 'A', status: 'doing' }, tasks, counter });
     expect(tasks.get('1')?.status).toBe('in_progress');
   });
 });
@@ -1449,23 +1451,23 @@ describe('applyTaskCreate', () => {
 describe('applyTaskUpdate', () => {
   it('returns false when taskId is not a string', () => {
     const tasks = new Map<string, RuntimeTask>();
-    expect(applyTaskUpdate({}, tasks)).toBe(false);
+    expect(applyTaskUpdate({ input: {}, tasks })).toBe(false);
   });
 
   it('returns false when the referenced task does not exist', () => {
     const tasks = new Map<string, RuntimeTask>();
-    expect(applyTaskUpdate({ taskId: 'missing' }, tasks)).toBe(false);
+    expect(applyTaskUpdate({ input: { taskId: 'missing' }, tasks })).toBe(false);
   });
 
   it('updates content from subject, falling back to description, then to the existing content', () => {
     const tasks = new Map<string, RuntimeTask>([['1', { id: '1', content: 'orig', status: 'pending' }]]);
-    applyTaskUpdate({ taskId: '1', subject: 'new subject' }, tasks);
+    applyTaskUpdate({ input: { taskId: '1', subject: 'new subject' }, tasks });
     expect(tasks.get('1')?.content).toBe('new subject');
 
-    applyTaskUpdate({ taskId: '1', description: 'new description' }, tasks);
+    applyTaskUpdate({ input: { taskId: '1', description: 'new description' }, tasks });
     expect(tasks.get('1')?.content).toBe('new description');
 
-    applyTaskUpdate({ taskId: '1' }, tasks);
+    applyTaskUpdate({ input: { taskId: '1' }, tasks });
     expect(tasks.get('1')?.content).toBe('new description');
   });
 
@@ -1473,16 +1475,16 @@ describe('applyTaskUpdate', () => {
     const tasks = new Map<string, RuntimeTask>([
       ['1', { id: '1', content: 'orig', status: 'pending', activeForm: 'Doing orig' }],
     ]);
-    applyTaskUpdate({ taskId: '1' }, tasks);
+    applyTaskUpdate({ input: { taskId: '1' }, tasks });
     expect(tasks.get('1')?.activeForm).toBe('Doing orig');
 
-    applyTaskUpdate({ taskId: '1', activeForm: 'Doing new' }, tasks);
+    applyTaskUpdate({ input: { taskId: '1', activeForm: 'Doing new' }, tasks });
     expect(tasks.get('1')?.activeForm).toBe('Doing new');
   });
 
   it('normalizes status through normalizeTaskStatus and returns true', () => {
     const tasks = new Map<string, RuntimeTask>([['1', { id: '1', content: 'orig', status: 'pending' }]]);
-    expect(applyTaskUpdate({ taskId: '1', status: 'done' }, tasks)).toBe(true);
+    expect(applyTaskUpdate({ input: { taskId: '1', status: 'done' }, tasks })).toBe(true);
     expect(tasks.get('1')?.status).toBe('completed');
   });
 });
@@ -1490,9 +1492,9 @@ describe('applyTaskUpdate', () => {
 describe('emitCanonicalTaskSnapshot', () => {
   it('returns false for a non-string toolUseId, non-string name, or non-record input', () => {
     const onEvent = vi.fn();
-    expect(emitCanonicalTaskSnapshot(42, 'TaskCreate', {}, freshTaskRegistry(), onEvent)).toBe(false);
-    expect(emitCanonicalTaskSnapshot('t1', 42, {}, freshTaskRegistry(), onEvent)).toBe(false);
-    expect(emitCanonicalTaskSnapshot('t1', 'TaskCreate', 'not-a-record', freshTaskRegistry(), onEvent)).toBe(false);
+    expect(emitCanonicalTaskSnapshot({ toolUseId: 42, name: 'TaskCreate', input: {}, registry: freshTaskRegistry(), onEvent })).toBe(false);
+    expect(emitCanonicalTaskSnapshot({ toolUseId: 't1', name: 42, input: {}, registry: freshTaskRegistry(), onEvent })).toBe(false);
+    expect(emitCanonicalTaskSnapshot({ toolUseId: 't1', name: 'TaskCreate', input: 'not-a-record', registry: freshTaskRegistry(), onEvent })).toBe(false);
     expect(onEvent).not.toHaveBeenCalled();
   });
 
@@ -1500,26 +1502,26 @@ describe('emitCanonicalTaskSnapshot', () => {
     const registry = freshTaskRegistry();
     registry.seenToolUseIds.add('t1');
     const onEvent = vi.fn();
-    expect(emitCanonicalTaskSnapshot('t1', 'TaskCreate', { subject: 'x' }, registry, onEvent)).toBe(true);
+    expect(emitCanonicalTaskSnapshot({ toolUseId: 't1', name: 'TaskCreate', input: { subject: 'x' }, registry, onEvent })).toBe(true);
     expect(onEvent).not.toHaveBeenCalled();
   });
 
   it('returns false for a tool name that is neither TaskCreate nor TaskUpdate', () => {
     const onEvent = vi.fn();
-    expect(emitCanonicalTaskSnapshot('t1', 'Read', { file_path: 'a' }, freshTaskRegistry(), onEvent)).toBe(false);
+    expect(emitCanonicalTaskSnapshot({ toolUseId: 't1', name: 'Read', input: { file_path: 'a' }, registry: freshTaskRegistry(), onEvent })).toBe(false);
     expect(onEvent).not.toHaveBeenCalled();
   });
 
   it('returns false when TaskCreate has no usable content', () => {
     const onEvent = vi.fn();
-    expect(emitCanonicalTaskSnapshot('t1', 'TaskCreate', {}, freshTaskRegistry(), onEvent)).toBe(false);
+    expect(emitCanonicalTaskSnapshot({ toolUseId: 't1', name: 'TaskCreate', input: {}, registry: freshTaskRegistry(), onEvent })).toBe(false);
     expect(onEvent).not.toHaveBeenCalled();
   });
 
   it('applies a TaskCreate, marks the id seen, and emits a TodoWrite snapshot', () => {
     const registry = freshTaskRegistry();
     const onEvent = vi.fn();
-    const applied = emitCanonicalTaskSnapshot('t1', 'TaskCreate', { subject: 'Write tests' }, registry, onEvent);
+    const applied = emitCanonicalTaskSnapshot({ toolUseId: 't1', name: 'TaskCreate', input: { subject: 'Write tests' }, registry, onEvent });
     expect(applied).toBe(true);
     expect(registry.seenToolUseIds.has('t1')).toBe(true);
     expect(onEvent).toHaveBeenCalledWith({
@@ -1534,7 +1536,7 @@ describe('emitCanonicalTaskSnapshot', () => {
     const registry = freshTaskRegistry();
     registry.tasks.set('1', { id: '1', content: 'orig', status: 'pending' });
     const onEvent = vi.fn();
-    const applied = emitCanonicalTaskSnapshot('t2', 'TaskUpdate', { taskId: '1', status: 'done' }, registry, onEvent);
+    const applied = emitCanonicalTaskSnapshot({ toolUseId: 't2', name: 'TaskUpdate', input: { taskId: '1', status: 'done' }, registry, onEvent });
     expect(applied).toBe(true);
     expect(registry.tasks.get('1')?.status).toBe('completed');
     expect(onEvent).toHaveBeenCalledOnce();
@@ -1552,12 +1554,12 @@ describe('emitCanonicalTaskSnapshot', () => {
     const registry = freshTaskRegistry();
     const onEvent = vi.fn();
 
-    emitCanonicalTaskSnapshot('t-a', 'TaskCreate', { taskId: 'a', subject: 'first' }, registry, onEvent);
-    emitCanonicalTaskSnapshot('t-b', 'TaskCreate', { taskId: 'b', subject: 'second' }, registry, onEvent);
-    emitCanonicalTaskSnapshot('t-c', 'TaskCreate', { taskId: 'c', subject: 'third' }, registry, onEvent);
+    emitCanonicalTaskSnapshot({ toolUseId: 't-a', name: 'TaskCreate', input: { taskId: 'a', subject: 'first' }, registry, onEvent });
+    emitCanonicalTaskSnapshot({ toolUseId: 't-b', name: 'TaskCreate', input: { taskId: 'b', subject: 'second' }, registry, onEvent });
+    emitCanonicalTaskSnapshot({ toolUseId: 't-c', name: 'TaskCreate', input: { taskId: 'c', subject: 'third' }, registry, onEvent });
     // Update the *first* task last — if update reordered it, "first" would
     // land at the end of the array below.
-    emitCanonicalTaskSnapshot('t-a2', 'TaskUpdate', { taskId: 'a', status: 'completed' }, registry, onEvent);
+    emitCanonicalTaskSnapshot({ toolUseId: 't-a2', name: 'TaskUpdate', input: { taskId: 'a', status: 'completed' }, registry, onEvent });
 
     expect(onEvent).toHaveBeenCalledTimes(4);
     const lastSnapshot = onEvent.mock.calls.at(-1)![0] as ClaudeStreamEvent & { input: { todos: unknown[] } };
@@ -1571,75 +1573,75 @@ describe('emitCanonicalTaskSnapshot', () => {
 
 describe('isFileWriteToolUse', () => {
   it('returns false for a non-string name or non-record input', () => {
-    expect(isFileWriteToolUse(42, {})).toBe(false);
-    expect(isFileWriteToolUse('Write', 'not-a-record')).toBe(false);
+    expect(isFileWriteToolUse({ name: 42, input: {} })).toBe(false);
+    expect(isFileWriteToolUse({ name: 'Write', input: 'not-a-record' })).toBe(false);
   });
 
   it('returns false for a tool name that does not write files', () => {
-    expect(isFileWriteToolUse('Read', { file_path: 'a.txt', content: 'x' })).toBe(false);
+    expect(isFileWriteToolUse({ name: 'Read', input: { file_path: 'a.txt', content: 'x' } })).toBe(false);
   });
 
   it('returns true when the path has a recognized text-file extension', () => {
-    expect(isFileWriteToolUse('Write', { file_path: 'index.html' })).toBe(true);
-    expect(isFileWriteToolUse('Edit', { path: 'styles.css' })).toBe(true);
+    expect(isFileWriteToolUse({ name: 'Write', input: { file_path: 'index.html' } })).toBe(true);
+    expect(isFileWriteToolUse({ name: 'Edit', input: { path: 'styles.css' } })).toBe(true);
   });
 
   it('returns true for a write tool with a content or new_string field even without a recognized extension', () => {
-    expect(isFileWriteToolUse('write_file', { path: 'noext', content: 'hi' })).toBe(true);
-    expect(isFileWriteToolUse('replace', { path: 'noext', new_string: 'hi' })).toBe(true);
+    expect(isFileWriteToolUse({ name: 'write_file', input: { path: 'noext', content: 'hi' } })).toBe(true);
+    expect(isFileWriteToolUse({ name: 'replace', input: { path: 'noext', new_string: 'hi' } })).toBe(true);
   });
 
   it('returns false for a write tool with no recognized extension and no content/new_string field', () => {
-    expect(isFileWriteToolUse('Write', { file_path: 'noext' })).toBe(false);
+    expect(isFileWriteToolUse({ name: 'Write', input: { file_path: 'noext' } })).toBe(false);
   });
 });
 
 describe('fileWriteContent', () => {
   it('returns the content field when present', () => {
-    expect(fileWriteContent({ content: 'hello' })).toBe('hello');
+    expect(fileWriteContent({ input: { content: 'hello' } })).toBe('hello');
   });
 
   it('falls back to new_string when content is absent', () => {
-    expect(fileWriteContent({ new_string: 'hello' })).toBe('hello');
+    expect(fileWriteContent({ input: { new_string: 'hello' } })).toBe('hello');
   });
 
   it('returns null when neither field is a string', () => {
-    expect(fileWriteContent({})).toBeNull();
+    expect(fileWriteContent({ input: {} })).toBeNull();
   });
 });
 
 describe('isHtmlWriteToolInput', () => {
   it('returns true for a recognized html file_path extension', () => {
-    expect(isHtmlWriteToolInput({ file_path: 'index.html' })).toBe(true);
-    expect(isHtmlWriteToolInput({ file_path: 'page.xhtml' })).toBe(true);
+    expect(isHtmlWriteToolInput({ input: { file_path: 'index.html' } })).toBe(true);
+    expect(isHtmlWriteToolInput({ input: { file_path: 'page.xhtml' } })).toBe(true);
   });
 
   it('falls back to filePath when file_path is absent', () => {
-    expect(isHtmlWriteToolInput({ filePath: 'index.htm' })).toBe(true);
+    expect(isHtmlWriteToolInput({ input: { filePath: 'index.htm' } })).toBe(true);
   });
 
   it('returns true when the content looks like an HTML document', () => {
-    expect(isHtmlWriteToolInput({ path: 'noext', content: '<!doctype html><html></html>' })).toBe(true);
-    expect(isHtmlWriteToolInput({ path: 'noext', content: '<html><body/></html>' })).toBe(true);
+    expect(isHtmlWriteToolInput({ input: { path: 'noext', content: '<!doctype html><html></html>' } })).toBe(true);
+    expect(isHtmlWriteToolInput({ input: { path: 'noext', content: '<html><body/></html>' } })).toBe(true);
   });
 
   it('returns false when neither the path nor the content indicates HTML', () => {
-    expect(isHtmlWriteToolInput({ path: 'noext', content: 'plain text' })).toBe(false);
+    expect(isHtmlWriteToolInput({ input: { path: 'noext', content: 'plain text' } })).toBe(false);
   });
 });
 
 describe('artifactOpenCandidateLength', () => {
   it('returns the length of the longest suffix that is a prefix of the open tag', () => {
-    expect(artifactOpenCandidateLength('hello <art', '<artifact')).toBe(4);
-    expect(artifactOpenCandidateLength('hello <', '<artifact')).toBe(1);
+    expect(artifactOpenCandidateLength({ text: 'hello <art', openTag: '<artifact' })).toBe(4);
+    expect(artifactOpenCandidateLength({ text: 'hello <', openTag: '<artifact' })).toBe(1);
   });
 
   it('returns 0 when no suffix matches the open tag prefix', () => {
-    expect(artifactOpenCandidateLength('hello world', '<artifact')).toBe(0);
+    expect(artifactOpenCandidateLength({ text: 'hello world', openTag: '<artifact' })).toBe(0);
   });
 
   it('matches a suffix one character short of the full open tag', () => {
-    expect(artifactOpenCandidateLength('x<artifac', '<artifact')).toBe(8);
+    expect(artifactOpenCandidateLength({ text: 'x<artifac', openTag: '<artifact' })).toBe(8);
   });
 });
 
@@ -1647,128 +1649,128 @@ describe('isRedundantWrittenArtifact', () => {
   const baseCtx = { suppressHtmlArtifactsAfterFileWrite: false, wroteHtmlFileThisTurn: false, recentWriteContents: [] as string[] };
 
   it('returns false when the candidate has no `>` or no closing tag', () => {
-    expect(isRedundantWrittenArtifact('<artifact', baseCtx)).toBe(false);
-    expect(isRedundantWrittenArtifact('<artifact>no close', baseCtx)).toBe(false);
+    expect(isRedundantWrittenArtifact({ candidate: '<artifact', ctx: baseCtx })).toBe(false);
+    expect(isRedundantWrittenArtifact({ candidate: '<artifact>no close', ctx: baseCtx })).toBe(false);
   });
 
   it('returns true for an html artifact after a file write when suppression is enabled', () => {
     const ctx = { suppressHtmlArtifactsAfterFileWrite: true, wroteHtmlFileThisTurn: true, recentWriteContents: [] };
     const candidate = '<artifact type="text/html">whatever</artifact>';
-    expect(isRedundantWrittenArtifact(candidate, ctx)).toBe(true);
+    expect(isRedundantWrittenArtifact({ candidate, ctx })).toBe(true);
   });
 
   it('does not take the html short-circuit when suppression is disabled, wroteHtmlFileThisTurn is false, or the artifact is not html', () => {
     const candidate = '<artifact type="text/html">body</artifact>';
-    expect(isRedundantWrittenArtifact(candidate, { ...baseCtx, suppressHtmlArtifactsAfterFileWrite: false, wroteHtmlFileThisTurn: true })).toBe(false);
-    expect(isRedundantWrittenArtifact(candidate, { ...baseCtx, suppressHtmlArtifactsAfterFileWrite: true, wroteHtmlFileThisTurn: false })).toBe(false);
+    expect(isRedundantWrittenArtifact({ candidate, ctx: { ...baseCtx, suppressHtmlArtifactsAfterFileWrite: false, wroteHtmlFileThisTurn: true } })).toBe(false);
+    expect(isRedundantWrittenArtifact({ candidate, ctx: { ...baseCtx, suppressHtmlArtifactsAfterFileWrite: true, wroteHtmlFileThisTurn: false } })).toBe(false);
     const nonHtmlCandidate = '<artifact type="text/markdown">body</artifact>';
-    expect(isRedundantWrittenArtifact(nonHtmlCandidate, { ...baseCtx, suppressHtmlArtifactsAfterFileWrite: true, wroteHtmlFileThisTurn: true })).toBe(false);
+    expect(isRedundantWrittenArtifact({ candidate: nonHtmlCandidate, ctx: { ...baseCtx, suppressHtmlArtifactsAfterFileWrite: true, wroteHtmlFileThisTurn: true } })).toBe(false);
   });
 
   it('returns true when the artifact body matches a recent write, after normalization', () => {
     const ctx = { ...baseCtx, recentWriteContents: ['hello world'] };
-    expect(isRedundantWrittenArtifact('<artifact>hello world</artifact>', ctx)).toBe(true);
+    expect(isRedundantWrittenArtifact({ candidate: '<artifact>hello world</artifact>', ctx })).toBe(true);
     // Normalization strips a BOM, normalizes CRLF, and trims surrounding whitespace/escaped-whitespace.
-    expect(isRedundantWrittenArtifact('<artifact>\r\n  hello world  \r\n</artifact>', ctx)).toBe(true);
+    expect(isRedundantWrittenArtifact({ candidate: '<artifact>\r\n  hello world  \r\n</artifact>', ctx })).toBe(true);
   });
 
   it('returns false when the artifact body does not match any recent write', () => {
     const ctx = { ...baseCtx, recentWriteContents: ['something else'] };
-    expect(isRedundantWrittenArtifact('<artifact>hello world</artifact>', ctx)).toBe(false);
+    expect(isRedundantWrittenArtifact({ candidate: '<artifact>hello world</artifact>', ctx })).toBe(false);
   });
 });
 
 describe('assistantText', () => {
   it('joins text blocks with a newline', () => {
-    expect(assistantText([{ type: 'text', text: 'line one' }, { type: 'text', text: 'line two' }])).toBe(
+    expect(assistantText({ content: [{ type: 'text', text: 'line one' }, { type: 'text', text: 'line two' }] })).toBe(
       'line one\nline two',
     );
   });
 
   it('skips non-record and non-text blocks', () => {
-    expect(assistantText([null, 42, { type: 'thinking', thinking: 'nope' }, { type: 'text', text: 'kept' }])).toBe(
+    expect(assistantText({ content: [null, 42, { type: 'thinking', thinking: 'nope' }, { type: 'text', text: 'kept' }] })).toBe(
       'kept',
     );
   });
 
   it('trims surrounding whitespace from the joined result', () => {
-    expect(assistantText([{ type: 'text', text: '  padded  ' }])).toBe('padded');
+    expect(assistantText({ content: [{ type: 'text', text: '  padded  ' }] })).toBe('padded');
   });
 
   it('returns an empty string for content with no text blocks', () => {
-    expect(assistantText([])).toBe('');
+    expect(assistantText({ content: [] })).toBe('');
   });
 });
 
 describe('isUnstreamedTextBlock', () => {
   it('returns true for a non-empty text block that has not already streamed', () => {
-    expect(isUnstreamedTextBlock({ type: 'text', text: 'hi' }, false)).toBe(true);
+    expect(isUnstreamedTextBlock({ type: 'text', text: 'hi' }, { alreadyStreamed: false })).toBe(true);
   });
 
   it('returns false when alreadyStreamed is true', () => {
-    expect(isUnstreamedTextBlock({ type: 'text', text: 'hi' }, true)).toBe(false);
+    expect(isUnstreamedTextBlock({ type: 'text', text: 'hi' }, { alreadyStreamed: true })).toBe(false);
   });
 
   it('returns false for a non-text block type', () => {
-    expect(isUnstreamedTextBlock({ type: 'thinking', text: 'hi' }, false)).toBe(false);
+    expect(isUnstreamedTextBlock({ type: 'thinking', text: 'hi' }, { alreadyStreamed: false })).toBe(false);
   });
 
   it('returns false when text is missing or not a string', () => {
-    expect(isUnstreamedTextBlock({ type: 'text' }, false)).toBe(false);
-    expect(isUnstreamedTextBlock({ type: 'text', text: 42 }, false)).toBe(false);
+    expect(isUnstreamedTextBlock({ type: 'text' }, { alreadyStreamed: false })).toBe(false);
+    expect(isUnstreamedTextBlock({ type: 'text', text: 42 }, { alreadyStreamed: false })).toBe(false);
   });
 
   it('returns false for an empty text string', () => {
-    expect(isUnstreamedTextBlock({ type: 'text', text: '' }, false)).toBe(false);
+    expect(isUnstreamedTextBlock({ type: 'text', text: '' }, { alreadyStreamed: false })).toBe(false);
   });
 });
 
 describe('isUnstreamedThinkingBlock', () => {
   it('returns true for a non-empty thinking block that has not already streamed', () => {
-    expect(isUnstreamedThinkingBlock({ type: 'thinking', thinking: 'hmm' }, false)).toBe(true);
+    expect(isUnstreamedThinkingBlock({ type: 'thinking', thinking: 'hmm' }, { alreadyStreamed: false })).toBe(true);
   });
 
   it('returns false when alreadyStreamed is true', () => {
-    expect(isUnstreamedThinkingBlock({ type: 'thinking', thinking: 'hmm' }, true)).toBe(false);
+    expect(isUnstreamedThinkingBlock({ type: 'thinking', thinking: 'hmm' }, { alreadyStreamed: true })).toBe(false);
   });
 
   it('returns false for a non-thinking block type', () => {
-    expect(isUnstreamedThinkingBlock({ type: 'text', thinking: 'hmm' }, false)).toBe(false);
+    expect(isUnstreamedThinkingBlock({ type: 'text', thinking: 'hmm' }, { alreadyStreamed: false })).toBe(false);
   });
 
   it('returns false when thinking is missing, not a string, or empty', () => {
-    expect(isUnstreamedThinkingBlock({ type: 'thinking' }, false)).toBe(false);
-    expect(isUnstreamedThinkingBlock({ type: 'thinking', thinking: 42 }, false)).toBe(false);
-    expect(isUnstreamedThinkingBlock({ type: 'thinking', thinking: '' }, false)).toBe(false);
+    expect(isUnstreamedThinkingBlock({ type: 'thinking' }, { alreadyStreamed: false })).toBe(false);
+    expect(isUnstreamedThinkingBlock({ type: 'thinking', thinking: 42 }, { alreadyStreamed: false })).toBe(false);
+    expect(isUnstreamedThinkingBlock({ type: 'thinking', thinking: '' }, { alreadyStreamed: false })).toBe(false);
   });
 });
 
 describe('handleSystemMessage', () => {
   it('emits an initializing status for subtype init, defaulting model/sessionId to null', () => {
     const onEvent = vi.fn();
-    handleSystemMessage({ type: 'system', subtype: 'init' }, onEvent);
+    handleSystemMessage({ obj: { type: 'system', subtype: 'init' }, onEvent });
     expect(onEvent).toHaveBeenCalledWith({ type: 'status', label: 'initializing', model: null, sessionId: null });
   });
 
   it('passes through model and session_id for subtype init', () => {
     const onEvent = vi.fn();
-    handleSystemMessage({ type: 'system', subtype: 'init', model: 'claude-x', session_id: 's1' }, onEvent);
+    handleSystemMessage({ obj: { type: 'system', subtype: 'init', model: 'claude-x', session_id: 's1' }, onEvent });
     expect(onEvent).toHaveBeenCalledWith({ type: 'status', label: 'initializing', model: 'claude-x', sessionId: 's1' });
   });
 
   it('emits a status event for subtype status, defaulting the label to working', () => {
     const onEvent = vi.fn();
-    handleSystemMessage({ type: 'system', subtype: 'status' }, onEvent);
+    handleSystemMessage({ obj: { type: 'system', subtype: 'status' }, onEvent });
     expect(onEvent).toHaveBeenCalledWith({ type: 'status', label: 'working' });
 
     onEvent.mockClear();
-    handleSystemMessage({ type: 'system', subtype: 'status', status: 'thinking' }, onEvent);
+    handleSystemMessage({ obj: { type: 'system', subtype: 'status', status: 'thinking' }, onEvent });
     expect(onEvent).toHaveBeenCalledWith({ type: 'status', label: 'thinking' });
   });
 
   it('does nothing for an unrecognized subtype', () => {
     const onEvent = vi.fn();
-    handleSystemMessage({ type: 'system', subtype: 'other' }, onEvent);
+    handleSystemMessage({ obj: { type: 'system', subtype: 'other' }, onEvent });
     expect(onEvent).not.toHaveBeenCalled();
   });
 
@@ -1778,7 +1780,7 @@ describe('handleSystemMessage', () => {
   it('reports each MCP server status from a real init frame whose jini bridge failed', () => {
     const line = readFileSync(new URL('./fixtures/claude-init-jini-bridge-failed.jsonl', import.meta.url), 'utf8');
     const onEvent = vi.fn();
-    handleSystemMessage(JSON.parse(line) as Record<string, unknown>, onEvent);
+    handleSystemMessage({ obj: JSON.parse(line) as Record<string, unknown>, onEvent });
     expect(onEvent).toHaveBeenCalledTimes(1);
     expect(onEvent).toHaveBeenCalledWith({
       type: 'status',
@@ -1792,8 +1794,8 @@ describe('handleSystemMessage', () => {
   it('reports an empty server list as empty, and skips entries without a string name and status', () => {
     const onEvent = vi.fn();
     handleSystemMessage(
-      { type: 'system', subtype: 'init', mcp_servers: [{ name: 'jini' }, 'jini', { name: 'x', status: 'connected' }] },
-      onEvent,
+      { obj: { type: 'system', subtype: 'init', mcp_servers: [{ name: 'jini' }, 'jini', { name: 'x', status: 'connected' }] },
+      onEvent },
     );
     expect(onEvent).toHaveBeenCalledWith({
       type: 'status',
@@ -1804,47 +1806,47 @@ describe('handleSystemMessage', () => {
     });
 
     onEvent.mockClear();
-    handleSystemMessage({ type: 'system', subtype: 'init', mcp_servers: [] }, onEvent);
+    handleSystemMessage({ obj: { type: 'system', subtype: 'init', mcp_servers: [] }, onEvent });
     expect(onEvent).toHaveBeenCalledWith({ type: 'status', label: 'initializing', model: null, sessionId: null, mcpServers: [] });
   });
 });
 
 describe('stringifyToolResult', () => {
   it('returns a string content as-is', () => {
-    expect(stringifyToolResult('hello')).toBe('hello');
+    expect(stringifyToolResult({ content: 'hello' })).toBe('hello');
   });
 
   it('joins an array of blocks, extracting text from text blocks and JSON-stringifying the rest', () => {
-    expect(stringifyToolResult([{ type: 'text', text: 'line one' }, { type: 'image', data: 'xyz' }])).toBe(
+    expect(stringifyToolResult({ content: [{ type: 'text', text: 'line one' }, { type: 'image', data: 'xyz' }] })).toBe(
       `line one\n${JSON.stringify({ type: 'image', data: 'xyz' })}`,
     );
   });
 
   it('JSON-stringifies a non-string, non-array content value', () => {
-    expect(stringifyToolResult({ code: 1 })).toBe(JSON.stringify({ code: 1 }));
+    expect(stringifyToolResult({ content: { code: 1 } })).toBe(JSON.stringify({ code: 1 }));
   });
 });
 
 describe('handleUserMessage', () => {
   it('does nothing when message is not a record or content is not an array', () => {
     const onEvent = vi.fn();
-    handleUserMessage({}, onEvent);
-    handleUserMessage({ message: 'not-a-record' }, onEvent);
-    handleUserMessage({ message: { content: 'not-an-array' } }, onEvent);
+    handleUserMessage({ obj: {}, onEvent });
+    handleUserMessage({ obj: { message: 'not-a-record' }, onEvent });
+    handleUserMessage({ obj: { message: { content: 'not-an-array' } }, onEvent });
     expect(onEvent).not.toHaveBeenCalled();
   });
 
   it('skips non-record and non-tool_result content blocks', () => {
     const onEvent = vi.fn();
-    handleUserMessage({ message: { content: [null, { type: 'text', text: 'ignored' }] } }, onEvent);
+    handleUserMessage({ obj: { message: { content: [null, { type: 'text', text: 'ignored' }] } }, onEvent });
     expect(onEvent).not.toHaveBeenCalled();
   });
 
   it('emits a tool_result event, defaulting isError to false when is_error is absent', () => {
     const onEvent = vi.fn();
     handleUserMessage(
-      { message: { content: [{ type: 'tool_result', tool_use_id: 't1', content: 'ok' }] } },
-      onEvent,
+      { obj: { message: { content: [{ type: 'tool_result', tool_use_id: 't1', content: 'ok' }] } },
+      onEvent },
     );
     expect(onEvent).toHaveBeenCalledWith({ type: 'tool_result', toolUseId: 't1', content: 'ok', isError: false });
   });
@@ -1853,14 +1855,14 @@ describe('handleUserMessage', () => {
 describe('applyInputJsonDelta', () => {
   it('does nothing when state is undefined', () => {
     const onEvent = vi.fn();
-    expect(() => applyInputJsonDelta(undefined, '{}', onEvent)).not.toThrow();
+    expect(() => applyInputJsonDelta({ state: undefined, partialJson: '{}', onEvent })).not.toThrow();
     expect(onEvent).not.toHaveBeenCalled();
   });
 
   it('does nothing when state.type is not tool_use', () => {
     const onEvent = vi.fn();
     const state = { type: 'text', input: '' };
-    applyInputJsonDelta(state, 'x', onEvent);
+    applyInputJsonDelta({ state, partialJson: 'x', onEvent });
     expect(state.input).toBe('');
     expect(onEvent).not.toHaveBeenCalled();
   });
@@ -1868,7 +1870,7 @@ describe('applyInputJsonDelta', () => {
   it('appends partialJson to state.input and emits tool_input_delta when id and name are strings', () => {
     const onEvent = vi.fn();
     const state = { type: 'tool_use', id: 'id1', name: 'Write', input: '{"a":' };
-    applyInputJsonDelta(state, '1}', onEvent);
+    applyInputJsonDelta({ state, partialJson: '1}', onEvent });
     expect(state.input).toBe('{"a":1}');
     expect(onEvent).toHaveBeenCalledWith({ type: 'tool_input_delta', id: 'id1', name: 'Write', delta: '1}' });
   });
@@ -1876,7 +1878,7 @@ describe('applyInputJsonDelta', () => {
   it('still appends to state.input but does not emit when id or name is missing', () => {
     const onEvent = vi.fn();
     const state = { type: 'tool_use', input: '' };
-    applyInputJsonDelta(state, 'x', onEvent);
+    applyInputJsonDelta({ state, partialJson: 'x', onEvent });
     expect(state.input).toBe('x');
     expect(onEvent).not.toHaveBeenCalled();
   });
@@ -1885,25 +1887,25 @@ describe('applyInputJsonDelta', () => {
 describe('emitAssistantErrorIfPresent', () => {
   it('does nothing when error is not a string', () => {
     const onEvent = vi.fn();
-    emitAssistantErrorIfPresent({}, [], onEvent);
+    emitAssistantErrorIfPresent({ obj: {}, content: [], onEvent });
     expect(onEvent).not.toHaveBeenCalled();
   });
 
   it('does nothing when error is an empty or whitespace-only string', () => {
     const onEvent = vi.fn();
-    emitAssistantErrorIfPresent({ error: '   ' }, [], onEvent);
+    emitAssistantErrorIfPresent({ obj: { error: '   ' }, content: [], onEvent });
     expect(onEvent).not.toHaveBeenCalled();
   });
 
   it('emits an error event using assistantText(content) as the message when available', () => {
     const onEvent = vi.fn();
-    emitAssistantErrorIfPresent({ error: 'boom' }, [{ type: 'text', text: 'context' }], onEvent);
+    emitAssistantErrorIfPresent({ obj: { error: 'boom' }, content: [{ type: 'text', text: 'context' }], onEvent });
     expect(onEvent).toHaveBeenCalledWith({ type: 'error', message: 'context', code: 'boom' });
   });
 
   it('falls back to the raw error string as the message when assistantText(content) is empty', () => {
     const onEvent = vi.fn();
-    emitAssistantErrorIfPresent({ error: 'boom' }, [], onEvent);
+    emitAssistantErrorIfPresent({ obj: { error: 'boom' }, content: [], onEvent });
     expect(onEvent).toHaveBeenCalledWith({ type: 'error', message: 'boom', code: 'boom' });
   });
 });

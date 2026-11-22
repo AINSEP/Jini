@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { isBlockedExternalApiHostname, isLoopbackApiHost } from '@jini-ai/platform/net/endpoint-policy';
+import { isBlockedExternalApiHostname, isLoopbackApiHost } from '@jini-ai/core/net';
 import { isAllowedEndpointUrl, isBlockedEndpointHost, isLoopbackEndpointHost } from '../../utils/endpoint-policy.js';
 
 // Browser settings must load without evaluating Node IP or DNS adapters,

@@ -20,7 +20,7 @@ export interface AgentModelChoice {
  * doesn't require credentials is always `available`; otherwise the status
  * depends on whether a credential has actually been stored.
  */
-export function resolveCredentialStatus({ provider, hasStoredCredential }: { provider: Pick<ModelProvider, 'credentialsRequired'>; hasStoredCredential: boolean }
+export function resolveCredentialStatus({ provider, hasStoredCredential }: { provider: Pick<ModelProvider, 'credentialsRequired'>; hasStoredCredential: boolean }, _optional: Record<string, never> = {}
 ): CredentialStatus {
   if (provider.credentialsRequired === false) return 'available';
   return hasStoredCredential ? 'configured' : 'unconfigured';
@@ -31,7 +31,7 @@ export function resolveCredentialStatus({ provider, hasStoredCredential }: { pro
  * fetched entries first and deduping by id (first write wins). Blank ids are
  * dropped; blank labels fall back to the id.
  */
-export function mergeModelOptions({ fetchedModels, suggestedModels }: { fetchedModels: readonly ModelCatalogOption[]; suggestedModels: readonly ModelCatalogOption[] }
+export function mergeModelOptions({ fetchedModels, suggestedModels }: { fetchedModels: readonly ModelCatalogOption[]; suggestedModels: readonly ModelCatalogOption[] }, _optional: Record<string, never> = {}
 ): ModelCatalogOption[] {
   const seen = new Set<string>();
   const merged: ModelCatalogOption[] = [];
@@ -47,7 +47,7 @@ export function mergeModelOptions({ fetchedModels, suggestedModels }: { fetchedM
 }
 
 /** Deterministic, non-reversible fingerprint — never persist or transmit the raw credential. */
-export function fingerprintCredential({ value }: { value: string }): string {
+export function fingerprintCredential({ value }: { value: string }, _optional: Record<string, never> = {}): string {
   let hash = 0x811c9dc5;
   for (let i = 0; i < value.length; i += 1) {
     hash ^= value.charCodeAt(i);
@@ -75,15 +75,16 @@ export function modelCatalogCacheKey({ providerId, baseUrl, credential }: { prov
   ].join('\n');
 }
 
+function configuredModelId(choice: AgentModelChoice | undefined): string | null { return typeof choice?.model === 'string' && choice.model ? choice.model : null; }
 /**
  * If `choice` names a model no longer in the agent's current catalogue,
  * falls back to the agent's first available model. Returns `null` when no
  * normalization is needed (nothing to change) or possible (no configured
  * model, or the agent has no models to fall back to).
  */
-export function normalizeAgentModelChoice({ agent, choice }: { agent: Pick<AgentDefinition, 'models'> | null | undefined; choice: AgentModelChoice | undefined }
+export function normalizeAgentModelChoice({ agent, choice }: { agent: Pick<AgentDefinition, 'models'> | null | undefined; choice: AgentModelChoice | undefined }, _optional: Record<string, never> = {}
 ): AgentModelChoice | null {
-  const configuredModel = typeof choice?.model === 'string' && choice.model ? choice.model : null;
+  const configuredModel = configuredModelId(choice);
   if (!configuredModel) return null;
 
   const modelIds = agent?.models?.map((model) => model.id) ?? [];
@@ -95,7 +96,7 @@ export function normalizeAgentModelChoice({ agent, choice }: { agent: Pick<Agent
 }
 
 /** `normalizeAgentModelChoice`'s result if normalization applied, else the original choice. */
-export function effectiveAgentModelChoice({ agent, choice }: { agent: Pick<AgentDefinition, 'models'> | null | undefined; choice: AgentModelChoice | undefined }
+export function effectiveAgentModelChoice({ agent, choice }: { agent: Pick<AgentDefinition, 'models'> | null | undefined; choice: AgentModelChoice | undefined }, _optional: Record<string, never> = {}
 ): AgentModelChoice | undefined {
   return normalizeAgentModelChoice({ agent: agent, choice: choice }) ?? choice;
 }

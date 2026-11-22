@@ -10,6 +10,7 @@ import * as agentJobs from '../agent-jobs/entry.js';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const subpaths = {
+  './backup/plan-store': 'backup/plan-store.node',
   './source-control': 'source-control/entry',
   './static-export': 'static-export/entry',
   './static-export/node': 'static-export/node-adapters',
@@ -24,6 +25,9 @@ test('each extracted subpath has matching declarations, ESM and runtime metadata
     expect(manifest.exports[name]).toEqual({ types: `./dist/${entry}.d.ts`, import: `./dist/${entry}.js`, default: `./dist/${entry}.js` });
     expect(manifest.jini.entries[name]).toBe('node');
   }
+  // push-jobs imports nothing from node, so it ships as a universal entry.
+  expect(manifest.exports['./backup/push-jobs']).toEqual({ types: './dist/backup/push-jobs.d.ts', import: './dist/backup/push-jobs.js', default: './dist/backup/push-jobs.js' });
+  expect(manifest.jini.entries['./backup/push-jobs']).toBe('universal');
   expect(manifest.peerDependencies.typescript).toBe('^5.6.0');
   expect(manifest.peerDependenciesMeta.typescript).toEqual({ optional: true });
 });

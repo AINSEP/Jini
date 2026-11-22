@@ -1,35 +1,37 @@
 import { trimChars } from "@jini-ai/core/text";
-import { FIELD_TYPE_REGISTRY, isBrowserSafeFieldPattern, MAX_FORM_FILE_BYTES, SAFE_FORM_FILE_TYPES, type FieldType } from "@jini-ai/cms/forms";
+import type { FormFieldKindInfo, FormsCatalogPort } from "../core/ports/forms-catalog.js";
 import type { AdminFormField } from "./models.js";
 
 /**
- * @file Builder settings for every registered field type, derived from the CMS field registry.
+ * @file Builder settings for every registered field type, derived from the forms catalog.
  *
- * The registry (`@jini-ai/cms/forms` `FIELD_TYPE_REGISTRY`) already says how each type renders and
+ * The catalog (`FormsCatalogPort.fieldKinds`, the host's binding of the CMS field registry) already says how each type renders and
  * validates: its control, native input type, and whether it is textual, a choice list or multiple.
  * Which settings the builder offers follows from those flags, never from a per-type switch, so a
  * type added to the registry gets a working editor. Only the human type name is per type, and
- * `FIELD_TYPE_LABELS` is a `Record<FieldType, …>`: a new registry key without a name fails typecheck.
+ * `FIELD_TYPE_LABELS` names the types admin knows; a catalog type without a name is listed under its own
+ * id, so a host-added kind still works in the editor (the registry key set is the host's, not admin's, to fix).
  *
  * Everything here is pure. The settings dialog keeps a string draft ({@link FieldSettingsForm}) so
  * half-typed numbers survive; {@link buildFieldSettingsPatch} parses it once on Save. That check is
  * a fast pre-save rejection only: the CMS write service's descriptor rules stay authoritative.
  */
 
-type RegistryKind = { control: string; htmlType: string; textual?: boolean; choices?: boolean; multiple?: boolean };
-const kindOf = (type: string): RegistryKind | undefined =>
-  Object.hasOwn(FIELD_TYPE_REGISTRY, type) ? FIELD_TYPE_REGISTRY[type as FieldType] as RegistryKind : undefined;
+type RegistryKind = FormFieldKindInfo;
+// `hasOwn`: a stored type named like an inherited object member (`constructor`) is not a kind.
+const kindOf = ({ catalog, type }: { catalog: FormsCatalogPort; type: string }): RegistryKind | undefined =>
+  Object.hasOwn(catalog.fieldKinds, type) ? catalog.fieldKinds[type] : undefined;
 
-/** Plain-language type names (translation keys). Exhaustive over the registry by type. */
-export const FIELD_TYPE_LABELS: Record<FieldType, string> = {
+/** Plain-language type names (translation keys) for the types admin knows. */
+export const FIELD_TYPE_LABELS: Readonly<Record<string, string>> = {
   text: "Short text", textarea: "Paragraph", email: "Email", phone: "Phone", url: "Website address",
   number: "Number", range: "Slider", date: "Date", time: "Time", datetime: "Date and time",
   select: "Dropdown", "multi-select": "Multi-select list", radio: "Radio buttons", checkbox: "Checkbox",
   "checkbox-group": "Checkboxes", toggle: "Toggle switch", file: "File upload", hidden: "Hidden value",
 };
 
-export type FieldBounds = "number" | "date" | "time" | "datetime-local";
-export type FieldDefaultKind = "text" | "textarea" | "number" | "temporal" | "boolean" | "choice" | "choices";
+type FieldBounds = "number" | "date" | "time" | "datetime-local";
+type FieldDefaultKind = "text" | "textarea" | "number" | "temporal" | "boolean" | "choice" | "choices";
 
 /** Which builder settings apply to one field type. */
 export interface FieldSettings {
@@ -79,8 +81,8 @@ function takesPlaceholder({ kind }: { kind: RegistryKind }): boolean {
  * text only, so the editor never offers a setting the server would refuse.
  * @complexity O(1).
  */
-export function fieldSettingsFor({ type }: { type: string }, _optional: Record<string, never> = {}): FieldSettings {
-  const kind = kindOf(type);
+export function fieldSettingsFor({ type, catalog }: { type: string; catalog: FormsCatalogPort }, _optional: Record<string, never> = {}): FieldSettings {
+  const kind = kindOf({ catalog, type });
   if (!kind) return NO_SETTINGS;
   const hidden = kind.htmlType === "hidden";
   const numeric = isNumeric({ kind });
@@ -98,11 +100,11 @@ export function fieldSettingsFor({ type }: { type: string }, _optional: Record<s
   };
 }
 
-export type FieldTypeGroup = "Text" | "Numbers and dates" | "Choices" | "Other";
+type FieldTypeGroup = "Text" | "Numbers and dates" | "Choices" | "Other";
 const GROUP_ORDER: FieldTypeGroup[] = ["Text", "Choices", "Numbers and dates", "Other"];
 
-function groupOf(type: string): FieldTypeGroup {
-  const settings = fieldSettingsFor({ type });
+function groupOf({ type, catalog }: { type: string; catalog: FormsCatalogPort }): FieldTypeGroup {
+  const settings = fieldSettingsFor({ type, catalog });
   if (settings.options || settings.defaultKind === "boolean") return "Choices";
   if (settings.bounds) return "Numbers and dates";
   if (settings.length && settings.helpText) return "Text";
@@ -114,10 +116,11 @@ function groupOf(type: string): FieldTypeGroup {
  * registry does not know is kept as its own trailing option so loading never changes it.
  * @complexity O(t) in registered types.
  */
-export function fieldTypeGroups({ current }: { current?: string }, _optional: Record<string, never> = {}): Array<{ group: FieldTypeGroup; types: Array<{ type: string; label: string }> }> {
-  const types = Object.keys(FIELD_TYPE_REGISTRY) as FieldType[];
-  const groups = GROUP_ORDER.map((group) => ({ group, types: types.filter((type) => groupOf(type) === group).map((type): { type: AdminFormField["type"]; label: string } => ({ type, label: FIELD_TYPE_LABELS[type] })) }));
-  if (current && !kindOf(current)) groups[groups.length - 1]!.types.push({ type: current, label: current });
+export function fieldTypeGroups({ current, catalog }: { current?: string; catalog: FormsCatalogPort }, _optional: Record<string, never> = {}): Array<{ group: FieldTypeGroup; types: Array<{ type: string; label: string }> }> {
+  const types = Object.keys(catalog.fieldKinds);
+  const typed = (type: string): { type: string; label: string } => ({ type, label: FIELD_TYPE_LABELS[type] ?? type });
+  const groups = GROUP_ORDER.map((group) => ({ group, types: types.filter((type) => groupOf({ type, catalog }) === group).map(typed) }));
+  if (current && !kindOf({ catalog, type: current })) groups[groups.length - 1]!.types.push({ type: current, label: current });
   return groups.filter((entry) => entry.types.length > 0);
 }
 
@@ -150,9 +153,9 @@ const SEED_OPTIONS = [{ value: "Option 1", label: "Option 1" }, { value: "Option
  * Identity, label, help text and styling always survive.
  * @complexity O(1) apart from copying the option list.
  */
-export function retypeField({ field, type }: { field: AdminFormField; type: AdminFormField["type"] }, _optional: Record<string, never> = {}): AdminFormField {
-  const before = fieldSettingsFor({ type: field.type });
-  const after = fieldSettingsFor({ type });
+export function retypeField({ field, type, catalog }: { field: AdminFormField; type: AdminFormField["type"]; catalog: FormsCatalogPort }, _optional: Record<string, never> = {}): AdminFormField {
+  const before = fieldSettingsFor({ type: field.type, catalog });
+  const after = fieldSettingsFor({ type, catalog });
   return {
     id: field.id, label: field.label, type, required: after.helpText ? field.required : false,
     ...setKeys({ field, keys: retainedKeys({ field, before, after }) }),
@@ -226,10 +229,10 @@ export interface FieldSettingsForm {
 const text = (value: unknown): string => (value === undefined || value === null ? "" : String(value));
 
 /** Seed the draft from a stored field. @complexity O(o) in options. */
-export function settingsFormFromField({ field }: { field: AdminFormField }, _optional: Record<string, never> = {}): FieldSettingsForm {
+export function settingsFormFromField({ field, catalog }: { field: AdminFormField; catalog: FormsCatalogPort }, _optional: Record<string, never> = {}): FieldSettingsForm {
   return {
     placeholder: text(field.placeholder), helpText: text(field.helpText),
-    ...defaultDraft({ field }),
+    ...defaultDraft({ field, catalog }),
     minLength: text(field.minLength), maxLength: text(field.maxLength), pattern: text(field.pattern),
     min: text(field.min), max: text(field.max), step: text(field.step),
     options: (field.options ?? []).map((option, index) => ({ _rowId: index, value: option.value, label: option.label })),
@@ -239,19 +242,19 @@ export function settingsFormFromField({ field }: { field: AdminFormField }, _opt
 }
 
 /** The stored default as the dialog's three default controls. */
-function defaultDraft({ field }: { field: AdminFormField }): Pick<FieldSettingsForm, "defaultText" | "defaultChecked" | "defaultChoices"> {
+function defaultDraft({ field, catalog }: { field: AdminFormField; catalog: FormsCatalogPort }): Pick<FieldSettingsForm, "defaultText" | "defaultChecked" | "defaultChoices"> {
   const defaults = field.default;
   return {
     defaultText: typeof defaults === "boolean" || Array.isArray(defaults) ? "" : text(defaults),
     defaultChecked: defaults === true || (field.checkboxValue !== undefined && defaults === field.checkboxValue),
-    defaultChoices: defaultChoicesOf({ field }),
+    defaultChoices: defaultChoicesOf({ field, catalog }),
   };
 }
 
-function defaultChoicesOf({ field }: { field: AdminFormField }): string[] {
+function defaultChoicesOf({ field, catalog }: { field: AdminFormField; catalog: FormsCatalogPort }): string[] {
   const defaults = field.default;
   if (Array.isArray(defaults)) return [...defaults];
-  return typeof defaults === "string" && fieldSettingsFor({ type: field.type }).options ? [defaults] : [];
+  return typeof defaults === "string" && fieldSettingsFor({ type: field.type, catalog }).options ? [defaults] : [];
 }
 
 /**
@@ -289,16 +292,26 @@ export function moveOptionRow({ rows, rowId, offset }: { rows: OptionRow[]; rowI
   return next;
 }
 
-/** Upload groups offered as checkboxes; values are accept entries the CMS recognizes. */
-// The CMS widens `image/*`/`video/*` to its safe formats only; PDF is its one safe document type.
-export const UPLOAD_CHOICES = [
-  { value: "image/*", label: "Images" },
-  { value: "video/*", label: "Videos" },
-  ...(Object.hasOwn(SAFE_FORM_FILE_TYPES, "application/pdf") ? [{ value: "application/pdf", label: "PDF" }] : []),
-];
-export const MAX_UPLOAD_MB = MAX_FORM_FILE_BYTES / 1024 / 1024;
+/**
+ * Upload groups offered as checkboxes; values are accept entries the CMS recognizes.
+ * The CMS widens `image/*`/`video/*` to its safe formats only; PDF is its one safe document type.
+ * Read from the catalog at call time: a port cannot be read when this module loads.
+ * @complexity O(1).
+ */
+export function uploadChoices({ catalog }: { catalog: FormsCatalogPort }, _optional: Record<string, never> = {}): Array<{ value: string; label: string }> {
+  return [
+    { value: "image/*", label: "Images" },
+    { value: "video/*", label: "Videos" },
+    ...(Object.hasOwn(catalog.safeFileTypes, "application/pdf") ? [{ value: "application/pdf", label: "PDF" }] : []),
+  ];
+}
 
-export type FieldSettingsPatchResult = { ok: true; patch: Partial<AdminFormField> } | { ok: false; error: string };
+/** The largest upload the form builder offers, in megabytes: the catalog's byte cap. @complexity O(1). */
+export function maxUploadMb({ catalog }: { catalog: FormsCatalogPort }, _optional: Record<string, never> = {}): number {
+  return catalog.maxFileBytes / 1024 / 1024;
+}
+
+type FieldSettingsPatchResult = { ok: true; patch: Partial<AdminFormField> } | { ok: false; error: string };
 type Parsed<T> = { ok: true; value: T } | { ok: false; error: string };
 
 const isBlank = (value: string): boolean => value.trim() === "";
@@ -310,10 +323,10 @@ function optionalNumber(value: string, error: string, { integer = false } = {}):
 }
 
 /** Text length, pattern and placeholder settings. */
-function textPatch({ form, settings }: { form: FieldSettingsForm; settings: FieldSettings }): Parsed<Partial<AdminFormField>> {
+function textPatch({ form, settings, catalog }: { form: FieldSettingsForm; settings: FieldSettings; catalog: FormsCatalogPort }): Parsed<Partial<AdminFormField>> {
   const length = settings.length ? lengthPatch({ form }) : { ok: true as const, value: {} };
   if (!length.ok) return length;
-  const pattern = settings.pattern ? patternOf({ form }) : { ok: true as const, value: undefined };
+  const pattern = settings.pattern ? patternOf({ form, catalog }) : { ok: true as const, value: undefined };
   if (!pattern.ok) return pattern;
   return { ok: true, value: {
     placeholder: settings.placeholder && !isBlank(form.placeholder) ? form.placeholder : undefined,
@@ -334,10 +347,10 @@ function lengthPatch({ form }: { form: FieldSettingsForm }): Parsed<Pick<AdminFo
   return { ok: true, value: { minLength: min.value, maxLength: max.value ?? null } };
 }
 
-function patternOf({ form }: { form: FieldSettingsForm }): Parsed<string | undefined> {
+function patternOf({ form, catalog }: { form: FieldSettingsForm; catalog: FormsCatalogPort }): Parsed<string | undefined> {
   if (isBlank(form.pattern)) return { ok: true, value: undefined };
   // Browser-safe too: a `v`-flag-invalid pattern is silently ignored by browsers (2026-10-11).
-  if (!isBrowserSafeFieldPattern({ pattern: form.pattern })) return { ok: false, error: "That pattern isn't supported." };
+  if (!catalog.isBrowserSafePattern({ pattern: form.pattern })) return { ok: false, error: "That pattern isn't supported." };
   return { ok: true, value: form.pattern };
 }
 
@@ -404,14 +417,15 @@ function defaultValue(
 }
 
 /** Upload limits: no boxes ticked means every safe type; size is whole megabytes up to the cap. */
-function uploadPatch({ form, settings }: { form: FieldSettingsForm; settings: FieldSettings }): Parsed<Partial<AdminFormField>> {
+function uploadPatch({ form, settings, catalog }: { form: FieldSettingsForm; settings: FieldSettings; catalog: FormsCatalogPort }): Parsed<Partial<AdminFormField>> {
   if (!settings.upload) return { ok: true, value: {} };
-  const size = optionalNumber(form.maxFileSizeMb, "Max size must be up to 10 MB.");
+  const error = `Max size must be up to ${maxUploadMb({ catalog })} MB.`;
+  const size = optionalNumber(form.maxFileSizeMb, error);
   if (!size.ok) return size;
-  if (size.value !== undefined && (size.value <= 0 || size.value > MAX_UPLOAD_MB)) return { ok: false, error: "Max size must be up to 10 MB." };
+  if (size.value !== undefined && (size.value <= 0 || size.value > maxUploadMb({ catalog }))) return { ok: false, error };
   return { ok: true, value: {
     accept: form.accept.length ? [...form.accept] : undefined,
-    maxFileSize: size.value === undefined ? undefined : Math.min(MAX_FORM_FILE_BYTES, Math.max(1, Math.round(size.value * 1024 * 1024))),
+    maxFileSize: size.value === undefined ? undefined : Math.min(catalog.maxFileBytes, Math.max(1, Math.round(size.value * 1024 * 1024))),
   } };
 }
 
@@ -422,11 +436,11 @@ function uploadPatch({ form, settings }: { form: FieldSettingsForm; settings: Fi
  * @complexity O(o) in options.
  */
 export function buildFieldSettingsPatch(
-  { form, field }: { form: FieldSettingsForm; field: Pick<AdminFormField, "type" | "checkboxValue"> },
+  { form, field, catalog }: { form: FieldSettingsForm; field: Pick<AdminFormField, "type" | "checkboxValue">; catalog: FormsCatalogPort },
   _optional: Record<string, never> = {},
 ): FieldSettingsPatchResult {
-  const settings = fieldSettingsFor({ type: field.type });
-  const textual = textPatch({ form, settings });
+  const settings = fieldSettingsFor({ type: field.type, catalog });
+  const textual = textPatch({ form, settings, catalog });
   if (!textual.ok) return textual;
   const bounds = boundsPatch({ form, settings });
   if (!bounds.ok) return bounds;
@@ -434,7 +448,7 @@ export function buildFieldSettingsPatch(
   if (!options.ok) return options;
   const fallback = defaultValue({ form, settings }, { options: options.value, checkboxValue: field.checkboxValue });
   if (!fallback.ok) return fallback;
-  const upload = uploadPatch({ form, settings });
+  const upload = uploadPatch({ form, settings, catalog });
   if (!upload.ok) return upload;
   return { ok: true, patch: {
     ...textual.value, ...bounds.value, ...upload.value,

@@ -13,13 +13,13 @@ export interface ViewportToggleGroupProps {
  * source component's `FileVersionViewportControls` (used in its file-version
  * manager's tighter toolbar, where a dropdown menu didn't fit). See
  * `ViewportSwitcher` for the dropdown-menu variant used by the main preview
- * toolbar (`PreviewViewportControls`), and `packages/ui/source-map.md` for
+ * toolbar (`PreviewViewportControls`), and `archived UI source map` for
  * why both ship rather than just one.
  */
 export function ViewportToggleGroup({ presets, viewport, onViewport, ariaLabel }: ViewportToggleGroupProps) {
   return (
     <SegmentedToggle
-      className="viewer-viewport-toggle-group"
+      className="jini-viewer-viewport-toggle-group"
       ariaLabel={ariaLabel}
       value={viewport}
       onChange={onViewport}

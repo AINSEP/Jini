@@ -1,5 +1,5 @@
 import { describeSeoError } from '../../models.js';
-import { useFetchQuery } from '@jini-ai/ui/fetch-query';
+import { useFetchQuery } from '../../../react/kit.js';
 import { SEO_KEYS } from './SeoQuery.hooks.js';
 import { initialEntryPickerState } from '../../models.js';
 import { entryPickerOptions } from '../../rules.js';

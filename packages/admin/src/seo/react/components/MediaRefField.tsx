@@ -1,11 +1,11 @@
-import { agentHandle } from "@jini-ai/agentic";
-import { interpolate } from "@jini-ai/ui/i18n";
+import { agentHandle } from "@jini-ai/core/agent-handles";
+
 import { MediaPickerBridge } from "./MediaPickerBridge.js";
 import { useSeoCopy } from "../hooks/SeoPorts.hooks.js";
 import { useWiredMediaRefField, useMediaRefPresentation, handleSpread } from "../hooks/MediaRefField.hooks.js";
 import type { MediaRefFieldController } from "../hooks/MediaRefField.hooks.js";
 
-
+import { interpolate } from '@jini-ai/core/text';
 /**
  * @file `MediaRefField` — an `{assetId}:{transformName}` media reference (or an absolute URL),
  * shown as the chosen file's thumbnail and name, plus a "Choose image" affordance that opens the existing
@@ -55,6 +55,8 @@ export interface MediaRefFieldProps {
   /** Injectable seam for the picker's own state — same convention as `MediaPickerDialog`'s own
    *  `useDialog` prop. Defaults to the real {@link useWiredMediaRefField}. */
   useField?: typeof useWiredMediaRefField;
+  useSeoCopyHook?: typeof useSeoCopy;
+  useMediaRefPresentationHook?: typeof useMediaRefPresentation;
 }
 
 export function MediaRefField({
@@ -68,9 +70,11 @@ export function MediaRefField({
   emptyHint,
   inherited = false,
   useField = useWiredMediaRefField,
+  useSeoCopyHook = useSeoCopy,
+  useMediaRefPresentationHook = useMediaRefPresentation,
 }: MediaRefFieldProps) {
-  const t = useSeoCopy();
-  const { Picker = MediaPickerBridge } = useMediaRefPresentation({ value });
+  const t = useSeoCopyHook();
+  const { Picker = MediaPickerBridge } = useMediaRefPresentationHook({ value });
   const { pickerOpen, openPicker, closePicker, handleSelect, clear, previewUrl, file, accept, onPreviewLoad, onPreviewError } = useField({ value, onChange });
   const labelId = `${id}-label`;
 

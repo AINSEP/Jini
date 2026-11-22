@@ -24,7 +24,7 @@ describe('startOAuthCallbackListener', () => {
     expect(outcomes).toEqual([{ kind: 'ok', code: 'abc', state: 'state-1' }]);
 
     // The listener already self-closed; a second hit should fail to connect.
-    await expect(get(`${base}/callback?code=x&state=state-1`)).rejects.toThrow();
+    await expect(get(`${base}/callback?code=x&state=state-1`)).rejects.toThrow('fetch failed');
   });
 
   it('rejects a state mismatch without consuming the listener, then still accepts the real callback', async () => {
@@ -73,7 +73,7 @@ describe('startOAuthCallbackListener', () => {
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(outcomes).toEqual([{ kind: 'error', error: 'access_denied' }]);
     // Listener consumed itself — a follow-up request should fail to connect.
-    await expect(get(`${base}/callback?code=x&state=state-1`)).rejects.toThrow();
+    await expect(get(`${base}/callback?code=x&state=state-1`)).rejects.toThrow('fetch failed');
   });
 
   it('consumes on an explicit provider error with a matching state', async () => {
@@ -126,13 +126,28 @@ describe('startOAuthCallbackListener', () => {
     expect(result.status).toBe(200);
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(errSpy).toHaveBeenCalledTimes(1);
-    expect(errSpy).toHaveBeenCalledWith('[oauth-callback-server] onCallback failed:', 'Error: handler boom\n    at callback fixture');
+    expect(errSpy).toHaveBeenCalledWith('[oauth-callback-server] onCallback failed:', 'Error');
+  });
+
+  it('logs only the class when onCallback throws a secret-bearing error', async () => {
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const listener = await startOAuthCallbackListener({ host: '127.0.0.1', port: 0, path: '/callback', expectedState: 'state-1', onCallback: () => {
+          throw new Error('boom api_key=SECRETSECRETSECRETSECRET');
+        } });
+      await get(`http://${listener.address.host}:${listener.address.port}/callback?code=abc&state=state-1`);
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      expect(errSpy).toHaveBeenCalledWith('[oauth-callback-server] onCallback failed:', 'Error');
+      expect(JSON.stringify(errSpy.mock.calls)).not.toMatch(/boom|SECRETSECRET|oauth-callback-server\.test/);
+    } finally {
+      errSpy.mockRestore();
+    }
   });
 
   it('can be stopped early before any callback arrives', async () => {
     const listener = await startOAuthCallbackListener({ host: '127.0.0.1', port: 0, path: '/callback', expectedState: 'state-1', onCallback: () => {} });
     await listener.stop();
-    await expect(get(`http://${listener.address.host}:${listener.address.port}/callback?code=x&state=state-1`)).rejects.toThrow();
+    await expect(get(`http://${listener.address.host}:${listener.address.port}/callback?code=x&state=state-1`)).rejects.toThrow('fetch failed');
     // stop() is idempotent.
     await expect(listener.stop()).resolves.toBeUndefined();
   });
@@ -163,7 +178,7 @@ describe('startOAuthCallbackListener', () => {
     expect(outcomes).toEqual([{ kind: 'error', error: 'OAuth timed out — sign in again' }]);
     await expect(
       get(`http://${listener.address.host}:${listener.address.port}/callback?code=x&state=state-1`),
-    ).rejects.toThrow();
+    ).rejects.toThrow('fetch failed');
   });
 
   it('rejects with a descriptive error when the port is already in use', async () => {
@@ -230,6 +245,6 @@ describe('startOAuthCallbackListener', () => {
   it('rejects with the raw listen error when it is not EADDRINUSE', async () => {
     await expect(
       startOAuthCallbackListener({ host: '256.256.256.256', port: 12345, path: '/callback', expectedState: 's1', onCallback: () => {} }),
-    ).rejects.toThrow();
+    ).rejects.toThrow('getaddrinfo ENOTFOUND 256.256.256.256');
   });
 });

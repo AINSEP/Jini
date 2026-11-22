@@ -5,7 +5,7 @@
  */
 import type { PaymentEvidence } from "../contract/evidence.js";
 import type { PaymentProvider } from "../contract/provider.js";
-import type { PaymentRecord } from "../ledger/rows.js";
+import type { PaymentRecord } from "../ledger/row-records.js";
 import { applyPaymentEvidence } from "../accounting/apply-evidence.js";
 import { dispatch, markAttempt, noteApplied, raiseAlert, resolveContext } from "./common.js";
 import type { OpsDeps } from "./deps.js";
@@ -40,8 +40,8 @@ export async function retrieveSnapshot({ deps, payment }: { deps: OpsDeps; payme
 
 /** True when the writer applied the snapshot; a quarantined one is evidence of nothing. */
 export async function applySnapshot(
-  { deps, payment, evidence, recoveryAttemptId }: { deps: OpsDeps; payment: PaymentRecord; evidence: PaymentEvidence; recoveryAttemptId?: string },
-  _optional: Record<string, never> = {}
+  { deps, payment, evidence }: { deps: OpsDeps; payment: PaymentRecord; evidence: PaymentEvidence },
+  { recoveryAttemptId }: { recoveryAttemptId?: string } = {}
 ): Promise<boolean> {
   const result = await deps.ledger.transaction({ fn: async tx => {
     const applied = await applyPaymentEvidence({

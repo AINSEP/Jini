@@ -3,7 +3,8 @@ import * as asyncFs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, expect, test, vi } from "vitest";
-import { isLockStale, withFileLockSync, withFileLock, FileLockTimeoutError } from "../file-lock.js";
+import { isLockStale, withFileLockSync, withFileLock } from "../file-lock.js";
+import { FileLockTimeoutError } from "@jini-ai/core/contracts/runtime";
 const roots: string[] = [];
 function target(): string { const root = fs.mkdtempSync(path.join(os.tmpdir(), "inode-lock-")); roots.push(root); return path.join(root, "file.lock"); }
 afterEach(() => { vi.restoreAllMocks(); for (const root of roots.splice(0)) fs.rmSync(root, { recursive: true, force: true }); });
@@ -137,12 +138,12 @@ test("monotonicMs times the wait while clock.nowMs alone ages the holder", async
   expect(reclaimed).toBe("ran");
 });
 
-// REGRESSION: fails if stale() drops its unchanged(observed, current) term. A foreign holder whose lock
+// REGRESSION: fails if stale() drops its unchanged(observed, current) term. An unidentified holder whose lock
 // was 60s old at the first inspection refreshes it (same inode, new mtime) before the second
 // inspection: the age seen first must not authorize deleting the refreshed lock.
 test("async contender leaves a lock its holder refreshed between the two stale inspections untouched", async () => {
   const lockPath = target();
-  const holderBytes = JSON.stringify({ pid: process.pid, hostname: "foreign-host", token: "foreign-holder", acquiredAt: new Date(Date.now() - 60_000).toISOString() });
+  const holderBytes = "unidentified-holder";
   fs.writeFileSync(lockPath, holderBytes);
   const old = new Date(Date.now() - 60_000); fs.utimesSync(lockPath, old, old);
   const inodeBefore = fs.statSync(lockPath).ino;

@@ -1,11 +1,11 @@
 import { type Kysely, sql } from "kysely";
-import type { MigrationStep } from "./step.js";
+import type { MigrationStep, StorageDialect } from "@jini-ai/core/contracts/storage";
 import type { Ledger, LedgerRow, LegacyLedgerMapping } from "./ledger-contracts.js";
 export type { LegacyLedgerMapping } from "./ledger-contracts.js";
-import type { StorageDialect } from "../kernel/port.js";
+import type { KyselyKernel } from "../kernel/index.js";
 
 /** Validate the whole map before backups, DDL or migration work. O(steps + identities). */
-export function validateLegacyMapping({ mapping, steps }: { mapping: LegacyLedgerMapping; steps: readonly MigrationStep[] }, _optional: {} = {}): void {
+export function validateLegacyMapping({ mapping, steps }: { mapping: LegacyLedgerMapping; steps: readonly MigrationStep<KyselyKernel<unknown>>[] }, _optional: {} = {}): void {
   const columns = Object.values(mapping.columns);
   if (columns.some((column) => typeof column !== "string" || column.length === 0) || new Set(columns).size !== 4) {
     throw new Error("legacy ledger columns must be four distinct nonempty identifiers");
@@ -58,7 +58,7 @@ export async function readLegacyLedger({ ledger, mapping }: { ledger: Ledger; ma
   });
 }
 
-export async function insertLegacyRow({ ledger, mapping, step, timestamp }: { ledger: Ledger; mapping: LegacyLedgerMapping; step: MigrationStep; timestamp: () => string }, _optional: {} = {}): Promise<void> {
+export async function insertLegacyRow({ ledger, mapping, step, timestamp }: { ledger: Ledger; mapping: LegacyLedgerMapping; step: MigrationStep<KyselyKernel<unknown>>; timestamp: () => string }, _optional: {} = {}): Promise<void> {
   const c = mapping.columns;
   const identity = mapping.identities[step.id]!;
   const row: Record<string, unknown> = { [c.version]: identity.version, [c.name]: identity.name, [c.checksum]: step.checksum };

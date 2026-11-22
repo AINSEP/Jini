@@ -2,7 +2,8 @@ import { promises as fs } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { ensureAntigravityMcpPermission } from '../antigravity-permissions.js';
+import { nodeAtomicWriter, nodeFileLock } from '@jini-ai/node-adapters/fs';
+import { ensureAntigravityMcpPermission } from '../antigravity/permissions.js';
 
 // Direct characterization of the permission writer: every branch of the grant decision is pinned
 // here, independently of the launch seam exercised by antigravity-permissions.test.ts.
@@ -20,7 +21,7 @@ async function settingsFile(raw?: string): Promise<string> {
   if (raw !== undefined) await fs.writeFile(settingsPath, raw);
   return settingsPath;
 }
-const grant = (settingsPath: string, serverName = 'jini') => ensureAntigravityMcpPermission({ settingsPath, serverName });
+const grant = (settingsPath: string, serverName = 'jini') => ensureAntigravityMcpPermission({ settingsPath, serverName, fileLock: nodeFileLock, writer: nodeAtomicWriter });
 const read = (path: string) => fs.readFile(path, 'utf8');
 const exists = (path: string) => fs.access(path).then(() => true, () => false);
 

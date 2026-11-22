@@ -15,7 +15,7 @@ export function computeOutboxBackoffMs(required: { attempts: number; random: () 
 }
 
 export interface ResolvedPolicy { batchSize: number; deliveryTimeoutMs: number; claimLeaseMs: number; retryPolicyForEvent: OutboxRetryPolicyResolver | undefined }
-export function resolvePolicy(required: { options: OutboxWorkerOptions }): ResolvedPolicy {
+export function resolvePolicy(required: { options: OutboxWorkerOptions }, _optional: Record<string, never> = {}): ResolvedPolicy {
   const bounds = {
     batchSize: required.options.batchSize ?? 20,
     deliveryTimeoutMs: required.options.deliveryTimeoutMs ?? DEFAULT_OUTBOX_DELIVERY_TIMEOUT_MS,

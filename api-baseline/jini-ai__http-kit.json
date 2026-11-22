@@ -1,0 +1,147 @@
+{
+ ".": {
+  "types": "./dist/index.d.ts",
+  "symbols": {
+   "ApiBearerAuthMiddlewareDeps": "interface:be155804c6",
+   "ApiErrorResponseWriter": "interface:17cd7c7fdc",
+   "ApiOriginGuardMiddlewareDeps": "interface:511d3d77c4",
+   "BodySizeLimitOptional": "type:dc426235a1",
+   "BodySizeLimitRequired": "interface:36ae3bae47",
+   "ClientIpPolicy": "interface:9966bdd24f",
+   "ClientIpSource": "interface:2a90fadba4",
+   "Clock": "interface:7229e2675d",
+   "CounterStore": "interface:09e952eedd",
+   "CounterWindow": "interface:addca4e755",
+   "CreateSseChannelOptions": "interface:30c311a7c4",
+   "DaemonAuthRequired": "interface:07290521ae",
+   "ErrorResponseFactory": "type:7bca76d8d1",
+   "InstallRouteRegistrationGuardOptions": "interface:8f1f6ec850",
+   "JsonRoutePorts": "interface:c027f86b02",
+   "JsonRouteSpec": "interface:249060e3b1",
+   "OwnedRunListRequired": "interface:5b1e4bbc29",
+   "RateLimitProfile": "interface:371075b603",
+   "RouteInternalErrorContext": "interface:a7266168db",
+   "RouteInternalErrorSink": "type:4919a01145",
+   "RouteRegistration": "interface:dd8f03278d",
+   "RunAccessDecision": "type:8c32e6c63b",
+   "RunOwnershipRequired": "interface:aea1c988a8",
+   "SseChannel": "interface:0f3bbfc83b",
+   "StrictBearerTokenDeps": "interface:202e2692f9",
+   "TrustProxySetting": "type:4402ca5eb5",
+   "applyRequestTracking": "function:ac06147353",
+   "createCompatApiError": "function:b72ee5c81d",
+   "createCompatApiErrorResponse": "function:6ace5d310f",
+   "createDaemonAuthMiddleware": "function:2daa3c56c7",
+   "createMemoryCounterStore": "function:99c1f89bab",
+   "createOwnedRunListHandler": "function:f867dc5bbe",
+   "createRateLimiter": "function:117b280693",
+   "createRequestTrackingMiddleware": "function:d8e6648f69",
+   "createRunOwnershipMiddleware": "function:8b1fc6fffa",
+   "createSseChannel": "function:6b5949a137",
+   "defineJsonRoute": "function:c429567bcb",
+   "getRouteRegistrationInventory": "function:06809fd314",
+   "guardedRouteKey": "function:c04e992e0f",
+   "installRouteRegistrationGuard": "function:da822df729",
+   "localOriginFromHeader": "function:83ea0a0288",
+   "logCompletedRequest": "function:621db323d4",
+   "mountJsonRoute": "function:6dfd7fdce8",
+   "mountPackHttp": "function:5bca9d0d56",
+   "normalizeLocalAuthority": "function:bd90bc6a31",
+   "passesSameOriginGuard": "function:cff4462e58",
+   "rawInput": "function:42089ccc5f",
+   "recordRouteRegistrations": "function:f8f43d79ac",
+   "registerApiBearerAuthMiddleware": "function:a1563bf718",
+   "registerApiOriginGuardMiddleware": "function:81fe30bb0e",
+   "rejectOversizedJsonBody": "function:d053045660",
+   "reportRouteInternalError": "function:e75cae7f47",
+   "requestedAfterCursor": "function:fa080c39af",
+   "requireLocalDaemonRequest": "function:55b9ae8f35",
+   "requireStrictBearerToken": "function:5c4cf0a586",
+   "resolveClientIp": "function:cf6f709e8a",
+   "resolveTrustProxySetting": "function:997e16aadd",
+   "sendApiError": "function:3f461596e0",
+   "sendJson": "function:0f6d7ef441",
+   "sendRawApiError": "function:331a5d2c98",
+   "timingSafeTokenMatch": "function:83a5a4c58d",
+   "validateLocalDaemonRequest": "function:9de8fc35cb"
+  }
+ },
+ "./html-response": {
+  "types": "./dist/html-response.d.ts",
+  "symbols": {
+   "captureHtmlResponse": "function:6da08d3cf7"
+  }
+ },
+ "./middleware": {
+  "types": "./dist/middleware.d.ts",
+  "symbols": {
+   "BodySizeLimitOptional": "type:dc426235a1",
+   "BodySizeLimitRequired": "interface:36ae3bae47",
+   "DaemonAuthRequired": "interface:07290521ae",
+   "ErrorResponseFactory": "type:7bca76d8d1",
+   "OwnedRunListRequired": "interface:5b1e4bbc29",
+   "RunAccessDecision": "type:8c32e6c63b",
+   "RunOwnershipRequired": "interface:aea1c988a8",
+   "createDaemonAuthMiddleware": "function:2daa3c56c7",
+   "createOwnedRunListHandler": "function:f867dc5bbe",
+   "createRunOwnershipMiddleware": "function:8b1fc6fffa",
+   "rejectOversizedJsonBody": "function:d053045660"
+  }
+ },
+ "./node-bridge": {
+  "types": "./dist/node-bridge.d.ts",
+  "symbols": {
+   "NodeDispatchOptions": "interface:0ffe326cd2",
+   "NodeDispatcher": "interface:ffabbd8dfe",
+   "NodeDispatcherOptions": "interface:4de2a14ae8",
+   "UnhandledErrorReport": "interface:2bd72ddd17",
+   "createNodeDispatcher": "function:0aa7998e61",
+   "maxReserializedJsonBytes": "function:6c318b6388",
+   "nodeRequestHeaders": "function:0fb47c7701",
+   "sendWebResponse": "function:acf54277f6"
+  }
+ },
+ "./observability": {
+  "types": "./dist/observability.d.ts",
+  "symbols": {
+   "applyRequestTracking": "function:ac06147353",
+   "createRequestTrackingMiddleware": "function:d8e6648f69",
+   "logCompletedRequest": "function:621db323d4"
+  }
+ },
+ "./range": {
+  "types": "./dist/range.d.ts",
+  "symbols": {
+   "ParseRangeHeaderRequired": "interface:d5dd85ba3a",
+   "ParsedRange": "type:a363fccca9",
+   "parseRangeHeader": "function:1c549e1f06"
+  }
+ },
+ "./rate-limit": {
+  "types": "./dist/rate-limit.d.ts",
+  "symbols": {
+   "ClientIpPolicy": "interface:9966bdd24f",
+   "ClientIpSource": "interface:2a90fadba4",
+   "Clock": "interface:7229e2675d",
+   "CounterStore": "interface:09e952eedd",
+   "CounterWindow": "interface:addca4e755",
+   "RateLimitProfile": "interface:371075b603",
+   "createMemoryCounterStore": "function:99c1f89bab",
+   "createRateLimiter": "function:117b280693",
+   "resolveClientIp": "function:cf6f709e8a"
+  }
+ },
+ "./settings": {
+  "types": "./dist/settings/index.d.ts",
+  "symbols": {
+   "PrincipalResolver": "type:37660976cc",
+   "Scheduler": "interface:51c8453667",
+   "SettingsErrorMapping": "interface:828bcf14f3",
+   "SettingsHttpOptions": "interface:6b40d1ee6a",
+   "SettingsHttpRequired": "interface:83b3e83fd3",
+   "SettingsRoutes": "interface:0bf9d5477a",
+   "registerSettingsRoutes": "function:70c12d6341",
+   "respondToSettingsError": "function:bb37e9c016"
+  }
+ }
+}

@@ -8,7 +8,7 @@
  * `POST /api/daemon/db/verify`, `POST /api/daemon/db/vacuum` (see
  * `archived provenance ledger`'s routes-classification table, row `#12 daemon.ts`: "generic
  * in shape but depend on a separate `storage/db-inspect.ts` port not built
- * this round" — that port now exists as `@jini-ai/sqlite-chat`'s `db-inspect.ts`).
+ * this round" — that port now exists as `@jini-ai/sqlite-chat`'s `packages/db/src/sqlite/inspect.ts`).
  *
  * This module does **not** depend on `@jini-ai/sqlite-chat` or `better-sqlite3` at
  * all: `DaemonDbOperations` is a plain injected interface (structurally
@@ -26,26 +26,23 @@
  * `verify`/`vacuum` behind `requireLocalDaemonRequest` and left `GET
  * /api/daemon/db` completely ungated — a real pre-existing gap, not carried
  * forward here. Per this repo's binding tool-execution-boundary precedent
- * (`packages/deploy/src/tool.ts`'s `deploy.publish`, `packages/daemon/src/
+ * (`packages/devops/src/deploy/tool.ts`'s `deploy.publish`, `packages/daemon/src/
  * delegated-tool-bridge.ts`), the actual work happens only inside a
  * `ToolHandler` `ToolExecutor.execute` invokes after `ToolPolicy.authorize`
- * allows it — never directly from `registerDaemonDbRoutes`' handlers. All
+ * allows it — never directly from `daemonDbRoutes`' handlers. All
  * three routes also keep `requireSameOrigin: true` as a first line of
  * defense (matching `daemon-status.ts`'s shutdown route), but that transport
  * gate is defense in depth, not a substitute for the tool-execution
  * boundary — see {@link denyAllDaemonDbPolicy}'s doc for why the default
  * policy denies every call rather than allowing one.
  */
-import { inspect } from 'node:util';
-import { redactSecrets } from '@jini-ai/core';
 import { randomUUID } from 'node:crypto';
-import type { Express } from 'express';
 import type { Principal, RunRef, ToolPolicy, ToolRegistration } from '@jini-ai/core';
 import type { ToolExecutionResult, ToolExecutor } from '../index.js';
 import { createApiError } from '@jini-ai/protocol';
-import { defineJsonRoute, mountJsonRoute, type AdapterContext } from '@jini-ai/http-kit';
-import { validationError } from '@jini-ai/http-kit';
-import { err, ok, type Result, type RouteInputContext } from '@jini-ai/http-kit';
+import { defineJsonRoute, validationError, err, ok, type ReportRouteInternalError, type Result, type RouteInputContext } from '@jini-ai/core/contracts/server';
+import type { DaemonRouteHost } from './route-host.js';
+import { gatedJsonRoute, withHostReporter, type DaemonRoute } from './route-table.js';
 
 /** The `ToolRegistry` id `GET /api/daemon/db` executes through. */
 export const DB_INSPECT_TOOL_ID = 'daemon.db.inspect';
@@ -194,17 +191,19 @@ export interface DaemonDbInternalErrorContext {
   readonly error: unknown;
 }
 
-function defaultDaemonDbInternalErrorSink(context: DaemonDbInternalErrorContext): void {
-  // eslint-disable-next-line no-console
-  console.error(`[@jini-ai/http-kit] internal error (${context.source}, correlationId=${context.correlationId})`, redactSecrets({ input: inspect(context.error) }, { redactPii: false }));
-}
+/** Plain words per failing operation; the caller also gets the request ID. */
+const DB_FAILURE_MESSAGES: Readonly<Record<DaemonDbInternalErrorContext['source'], string>> = {
+  'db-inspect': 'The database could not be inspected. Try again; if it keeps failing, copy the request ID and report this problem.',
+  'db-verify': 'The database check could not finish. Try again; if it keeps failing, copy the request ID and report this problem.',
+  'db-vacuum': 'The database could not be compacted. Try again; if it keeps failing, copy the request ID and report this problem.',
+};
 
 export interface DaemonDbHttpDeps {
   readonly toolExecutor: ToolExecutor;
   /**
    * The identity these routes execute tool calls as. A fixed, host-supplied
    * value rather than derived per-request — this transport has no session/
-   * identity subsystem of its own (see `packages/http/archived provenance ledger`'s
+   * identity subsystem of its own (see `5bd5e6b3d^:packages/http/source-map.md`'s
    * `ExecutionDelegate` design-decision note); a host that needs per-request
    * principals should resolve one from its own auth layer and construct
    * `DaemonDbHttpDeps` per request, or supply a `ToolPolicy` that inspects
@@ -213,6 +212,8 @@ export interface DaemonDbHttpDeps {
   readonly principal: Principal;
   /** Host-owned sink for the real exception behind a generic `INTERNAL_ERROR` response (SEC-005). Defaults to `console.error`. */
   readonly onInternalError?: (context: DaemonDbInternalErrorContext) => void;
+  /** Required for direct handlers; {@link daemonDbRoutes} binds the host's reporter. */
+  readonly reportInternalError: ReportRouteInternalError;
 }
 
 /** Every DB-ops call gets its own opaque, single-use `RunRef` — these are one-off operations requests, not steps of a longer-lived agent run, so there is no real run to attach the audit trail to. */
@@ -235,10 +236,7 @@ function toolResultToApiResult<T>(
     case 'timed-out':
     case 'cancelled':
     case 'failed': {
-      const correlationId = randomUUID();
-      const sink = deps.onInternalError ?? defaultDaemonDbInternalErrorSink;
-      sink({ source, correlationId, error: result.status === 'failed' ? result.error : result.status });
-      return err({ error: createApiError({ code: 'INTERNAL_ERROR', message: 'an internal error occurred' }, { requestId: correlationId }) });
+      return err({ error: deps.reportInternalError<Omit<DaemonDbInternalErrorContext, 'correlationId'>>({ report: { source, error: result.status === 'failed' ? result.error : result.status }, logSource: source, message: DB_FAILURE_MESSAGES[source] }, { onInternalError: deps.onInternalError }) });
     }
     default: {
       // Unreachable: every tool result status has a case above, and a new one fails typecheck here.
@@ -291,9 +289,8 @@ export const daemonDbVacuumRoute = defineJsonRoute<void, DaemonDbVacuumResult, D
   },
 }, { requireSameOrigin: true });
 
-/** Mounts all three DB-ops routes on `app`. A pack's `http({ app, services })` calls this directly. */
-export function registerDaemonDbRoutes({ app, deps, adapter }: { readonly app: Express; readonly deps: DaemonDbHttpDeps; readonly adapter: AdapterContext }, _optional: Record<string, never> = {}): void {
-  mountJsonRoute({ app, spec: daemonDbInspectRoute, deps, adapter });
-  mountJsonRoute({ app, spec: daemonDbVerifyRoute, deps, adapter });
-  mountJsonRoute({ app, spec: daemonDbVacuumRoute, deps, adapter });
+/** All three DB-ops routes as data, each behind the same-origin gate its spec declares. Internal failures are reported through the host's reporter. */
+export function daemonDbRoutes({ deps, host }: { readonly deps: Omit<DaemonDbHttpDeps, 'reportInternalError'>; readonly host: DaemonRouteHost }, _optional: Record<string, never> = {}): DaemonRoute[] {
+  const routeDeps: DaemonDbHttpDeps = withHostReporter({ deps, host });
+  return [gatedJsonRoute({ spec: daemonDbInspectRoute, deps: routeDeps, host }), gatedJsonRoute({ spec: daemonDbVerifyRoute, deps: routeDeps, host }), gatedJsonRoute({ spec: daemonDbVacuumRoute, deps: routeDeps, host })];
 }

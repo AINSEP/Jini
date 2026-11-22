@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { EmailSenderError, prepareSenderEmail, type EmailBindingInput, type EmailTemplatePort } from "@jini-ai/platform/mail/senders";
+import { prepareSenderEmail } from "@jini-ai/platform/mail/senders";
+import {
+  EmailSenderError,
+  type EmailBindingInput,
+  type EmailTemplatePort,
+} from "@jini-ai/core/contracts/mail";
 import { createFormsEmailSender, type FormEmailAction, type FormsEmailSenderDeps } from "../email-sender.js";
 import { deriveHtmlForm } from "../html/html-authoring.js";
 import type { FieldDescriptor, FormDefinitionRecord, FormSubmissionRecord } from "../types.js";

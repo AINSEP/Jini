@@ -204,14 +204,14 @@ test("a schema that grows an unimplemented keyword is refused loudly, not silent
   );
 });
 
-test("a non-string property is refused — the parser states that limit rather than quietly passing the value through", () => {
+test("a property type the parser does not implement is refused — it states that limit rather than quietly passing the value through", () => {
   assert.throws(
     () =>
       parseIdentityToolInput({
-        schema: { type: "object", additionalProperties: false, required: [], properties: { count: { type: "integer" } } },
+        schema: { type: "object", additionalProperties: false, required: [], properties: { count: { type: "number" } } },
         input: { count: 3 },
       }),
-    /only implements string properties/,
+    /implements string and integer properties/,
   );
 });
 

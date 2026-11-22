@@ -8,8 +8,8 @@ import { openDatabase as openInjectedDatabase, closeDatabase, migrate } from '..
 import { listConversations,getConversation,normalizeConversationSessionMode,insertConversation,updateConversation,deleteConversation,listMessages,upsertMessage,getMessageTelemetryFinalizationState,appendMessageStatusEvent,appendMessageAgentEvent,deleteMessage } from '@jini-ai/chat/store/legacy/sqlite';
 import { listProjects,listLatestProjectRunStatuses,listLatestConversationRunStatuses,listFirstConversationRunStatuses,listLatestRunStatuses,listProjectsAwaitingInput,listConversationsAwaitingInput,getProject,insertProject,updateProject,deleteProject } from '../../store/projects/sqlite.js';
 import { getAgentSession,upsertAgentSession,getAgentSessionRecord,latestCompletedAssistantMessageId,updateAgentSessionStableHash,clearAgentSession } from '@jini-ai/daemon/store/agent-sessions/sqlite';
-import { parseJsonOrUndef,row,rows } from '@jini-ai/db/core';
-import type { SqliteDb } from '@jini-ai/db/sqlite';
+import { parseJsonOrUndef, row, rows } from '@jini-ai/core/contracts/storage';
+import type { SqliteDb } from '@jini-ai/core/contracts/storage';
 /** The fixture injects the host's actual driver; public calls use argument objects. */
 function openDatabase({ projectRoot }: { projectRoot: string },options:{dataDir?:string}={}) {
  return openInjectedDatabase({ projectRoot, open: (file, settings) => new Database(file, settings) }, options);
@@ -130,7 +130,7 @@ describe('connection + schema', () => {
     const a = openDatabase({ projectRoot: '/r' }, { dataDir: tmp() });
     const b = openDatabase({ projectRoot: '/r' }, { dataDir: tmp() });
     expect(b).not.toBe(a);
-    expect(() => a.prepare('SELECT 1')).toThrow(); // previous handle is closed
+    expect(() => a.prepare('SELECT 1')).toThrow('The database connection is not open'); // previous handle is closed
   });
 
   it('closeDatabase is a safe no-op when nothing is open', () => {
@@ -586,7 +586,7 @@ describe('messages CRUD', () => {
         // instead of reading a stale MAX(position) and silently colliding with db1's in-flight row.
         expect(() =>
           upsertMessage({ db: db2, conversationId: 'c1', m: { id: 'm2', role: 'user', content: 'from db2' } }),
-        ).toThrow();
+        ).toThrow('database is locked');
 
         // Once db1 commits, db2's upsert succeeds and correctly continues the position sequence
         // past db1's now-committed row instead of reusing position 1.
@@ -932,12 +932,12 @@ describe('agent-sessions CRUD', () => {
 
 describe('core helpers', () => {
   it('parseJsonOrUndef parses valid JSON and swallows everything else', () => {
-    expect(parseJsonOrUndef('{"a":1}')).toEqual({ a: 1 });
-    expect(parseJsonOrUndef('[1,2]')).toEqual([1, 2]);
-    expect(parseJsonOrUndef('not json')).toBeUndefined();
-    expect(parseJsonOrUndef('')).toBeUndefined();
-    expect(parseJsonOrUndef(null)).toBeUndefined();
-    expect(parseJsonOrUndef(42)).toBeUndefined();
+    expect(parseJsonOrUndef({ s: '{"a":1}' })).toEqual({ a: 1 });
+    expect(parseJsonOrUndef({ s: '[1,2]' })).toEqual([1, 2]);
+    expect(parseJsonOrUndef({ s: 'not json' })).toBeUndefined();
+    expect(parseJsonOrUndef({ s: '' })).toBeUndefined();
+    expect(parseJsonOrUndef({ s: null })).toBeUndefined();
+    expect(parseJsonOrUndef({ s: 42 })).toBeUndefined();
   });
 
   it('row narrows a get() result to DbRow | null', () => {

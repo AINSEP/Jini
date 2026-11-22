@@ -21,6 +21,7 @@
     "@jini-ai/mcp": "workspace:*",
     "@jini-ai/integrations": "workspace:*",
     "@jini-ai/memory": "workspace:*",
+    "@jini-ai/node-adapters": "workspace:*",
     "@jini-ai/platform": "workspace:*",
     "@jini-ai/server": "workspace:*",
     "@jini-ai/protocol": "workspace:*",
@@ -32,7 +33,7 @@
   "devDependencies": {
     "@mcp-b/webmcp-polyfill": "^4.0.0",
     "@modelcontextprotocol/ext-apps": "^1.7.0",
-    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@modelcontextprotocol/sdk": "^1.32.2",
     "@types/better-sqlite3": "^7.6.11",
     "@types/node": "^24.0.0",
     "@types/react": "^19.2.0",
@@ -40,7 +41,7 @@
     "tsx": "^4.19.0",
     "vite": "^8.1.5",
     "vite-plugin-singlefile": "^2.3.0",
-    "vitest": "^2.1.0",
-    "zod": "^4.0.0"
+    "vitest": "^3.2.6",
+    "zod": "^4.6.6"
   }
 }

@@ -46,7 +46,7 @@ describe('model-discovery policy import isolation', () => {
       'packages/agent-runtime/src/model-discovery.ts',
     ]);
     expect(entry?.dependencies).toEqual([]);
-    const runtimeImports = entry!.files.flatMap(file => extractImports(fileURLToPath(new URL(file, new URL('../../', import.meta.url)))))
+    const runtimeImports = entry!.files.flatMap(file => extractImports({ absFilePath: fileURLToPath(new URL(file, new URL('../../', import.meta.url))) }))
       .filter(ref => !ref.typeOnly).map(ref => ref.specifier);
     expect(runtimeImports.filter(specifier => /^(?:node:)?(?:child_process|fs)(?:\/|$)/.test(specifier))).toEqual([]);
     expect(audit.findings.filter(finding => finding.package === '@jini-ai/agent-runtime'
@@ -99,7 +99,7 @@ describe('re-verify dependency and state regressions', () => {
   });
 
   it('declares the shared secret-input owner on the permitted optional UI layer edge', () => {
-    expect(checkPackageLayers({ repoRoot }).filter(finding => finding.file.startsWith('packages/ui/')
+    expect(checkPackageLayers({ repoRoot }, { injection: false }).filter(finding => finding.file.startsWith('packages/ui/')
       && finding.reason.startsWith('ui → @jini-ai/ui-kit'))).toEqual([]);
     expect(audit.findings.filter(finding => finding.package === '@jini-ai/ui'
       && finding.rule === 'SI-dependency')).toEqual([]);

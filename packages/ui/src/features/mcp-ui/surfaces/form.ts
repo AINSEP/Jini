@@ -25,7 +25,7 @@ export type { FormSurfaceSpec } from '@jini-ai/core/contracts/cards';
  * conversion at the only point that knows it: `number` becomes a number or `null` when blank,
  * `boolean` reads `checked`, and `string`/`enum` pass through.
  */
-import { createUIResource, type UIResource, type UIResourceUri } from '../resource.js';
+import { createUIResource, type UIResource, type UIResourceUri } from '@jini-ai/protocol/mcp-ui';
 import { escapeHtml, escapeJsValue } from '../escape.js';
 import {
   DEFAULT_SURFACE_STATUS_TEXT,
@@ -83,15 +83,15 @@ function sameText(a: string, b: string): boolean {
 /** Header, context, the `<form>` itself and the status region. @complexity O(n) in the rendered length. */
 function formBodyHtml(spec: FormSurfaceSpec, text: FormText): string {
   const controls = spec.fields
-    .map((field) => renderFieldControl(field, { showSecret: text.showSecret, hideSecret: text.hideSecret }, { labelHidden: sameText(field.label, spec.title) }))
+    .map((field) => renderFieldControl({ field }, { text: { showSecret: text.showSecret, hideSecret: text.hideSecret }, options: { labelHidden: sameText(field.label, spec.title) } }))
     .join('\n');
-  const warning = spec.warning === undefined ? '' : `<p class="mcpui-warning">${escapeHtml(spec.warning)}</p>`;
+  const warning = spec.warning === undefined ? '' : `<p class="mcpui-warning">${escapeHtml({ value: spec.warning })}</p>`;
   return [
     renderSurfaceHeader(
       spec.description === undefined ? { title: spec.title } : { title: spec.title, description: spec.description },
     ),
-    renderDetailList(spec.details ?? []),
-    `<form id="${FORM_ELEMENT_ID}" novalidate>\n<fieldset class="mcpui-fields">\n${controls}\n</fieldset>\n${warning}\n${renderActions(formActions(spec))}\n</form>`,
+    renderDetailList({ details: spec.details ?? [] }),
+    `<form id="${FORM_ELEMENT_ID}" novalidate>\n<fieldset class="mcpui-fields">\n${controls}\n</fieldset>\n${warning}\n${renderActions({ actions: formActions(spec) })}\n</form>`,
     renderStatusRegion(),
   ]
     .filter((fragment) => fragment !== '')
@@ -112,13 +112,13 @@ function formScript(spec: FormSurfaceSpec, text: FormText): string {
   return `(function () {
   "use strict";
 ${SURFACE_SCRIPT_PRELUDE}
-  var FIELDS = ${escapeJsValue(toFieldReadSpecs(spec.fields))};
-  var TOOL = ${escapeJsValue(spec.toolName)};
-  var BASE_PARAMS = ${escapeJsValue(spec.baseParams ?? {})};
-  var CANCEL = ${escapeJsValue(cancelPlan)};
-  var SUBMIT_ACTIONS = ${escapeJsValue(Object.fromEntries((spec.additionalSubmitActions ?? []).map(action => [`submit:${action.id}`, action.params])))};
-  var TEXT = ${escapeJsValue(text)};
-  var form = document.getElementById(${escapeJsValue(FORM_ELEMENT_ID)});
+  var FIELDS = ${escapeJsValue({ value: toFieldReadSpecs({ fields: spec.fields }) })};
+  var TOOL = ${escapeJsValue({ value: spec.toolName })};
+  var BASE_PARAMS = ${escapeJsValue({ value: spec.baseParams ?? {} })};
+  var CANCEL = ${escapeJsValue({ value: cancelPlan })};
+  var SUBMIT_ACTIONS = ${escapeJsValue({ value: Object.fromEntries((spec.additionalSubmitActions ?? []).map(action => [`submit:${action.id}`, action.params])) })};
+  var TEXT = ${escapeJsValue({ value: text })};
+  var form = document.getElementById(${escapeJsValue({ value: FORM_ELEMENT_ID })});
 
   // A textarea normalizes CRLF/CR to LF even on .value assignment. Keep the original trusted paste
   // privately, outside DOM/HTML, so multiline credentials reach the tool with their original bytes.

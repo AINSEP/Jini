@@ -1,6 +1,4 @@
-import { inspect } from 'node:util';
-import { redactSecrets } from '@jini-ai/core';
-import { createSystemClock, type Clock } from "@jini-ai/core/primitives";
+import { createConsoleLogger, type Clock, type Logger } from "@jini-ai/core/primitives";
 /**
  * @module @jini-ai/mcp/core/tokens
  * Persistent, 0600-guarded OAuth-token store for remote MCP servers, keyed by
@@ -26,11 +24,9 @@ import { createSystemClock, type Clock } from "@jini-ai/core/primitives";
 // throwing) if a POSIX platform did not honor that mode; it skips
 // verification on `win32`, which has no POSIX permission-bit model.
 
-import { readFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
-import type { McpConfigFilesystemPort } from './config.js';
-import { writeFileAtomicAsync } from '@jini-ai/platform/fs';
+import { writeSecretText, type McpConfigFilesPort } from './config.js';
 
 /**
  * Stored OAuth token for a single MCP server. Mirrors the relevant subset
@@ -74,40 +70,6 @@ export interface McpTokensFile {
   servers: Record<string, StoredMcpToken>;
 }
 
-/** Optional clock used when imported tokens have no saved timestamp. */
-export interface McpTokenClockOptions { clock?: Clock; }
-/** Injectable store boundaries; defaults use the Node filesystem and wall clock. */
-export interface McpTokenStoreOptions extends McpTokenClockOptions { filesystem?: McpConfigFilesystemPort; }
-/** Shared atomic secret persistence (CR-006 / SEC-RB-002).
- * The previous pattern in each of those stores wrote the temp file with
- * default permissions and either never restricted it (config, OAuth client
- * cache) or `chmod(0600)`'d it *after* the atomic rename and silently
- * continued when the chmod failed (tokens) — both leave a window where the
- * file exists world/group-readable, and the latter makes the "protection"
- * advisory rather than enforced. The platform writer instead:
- *
- *   1. Creates the temp file *exclusively* (`wx`) with mode 0600 supplied to
- *      the same `open()`/`writeFile()` call that creates it — POSIX applies
- *      the requested mode atomically at creation time, so there is no
- *      window where the file exists with a broader mode. Creation-mode enforcement
- *      follows the existing prompt-file precedent; the shared writer also reapplies
- *      0600 before checking the mode and flushing the file, never after rename.
- *   2. On POSIX platforms, verifies the on-disk mode actually landed as
- *      owner-only before renaming into place, and fails closed — removing
- *      the temp file and throwing — if it did not (e.g. an unusual umask or
- *      a filesystem that doesn't honor `mode`).
- *   3. Skips that verification on `win32`: Windows has no POSIX permission-
- *      bit model (`mode` there only toggles the read-only attribute), so
- *      there is nothing meaningful to enforce or fail closed on.
- *   4. Flushes file content before rename and the parent directory after it. A directory
- *      flush can fail after replacement; it is reported rather than silently ignored.
- *
- */
-const defaultFilesystem: McpConfigFilesystemPort = {
-  readText: ({ filePath }) => readFile(filePath, 'utf8'),
-  writeSecretText: ({ filePath, contents }) => writeFileAtomicAsync({ filePath, content: contents }, { mode: 0o600, verifyOwnerOnly: true, createParent: true }),
-};
-
 const EMPTY: McpTokensFile = { servers: {} };
 
 function tokensFile(dataDir: string): string {
@@ -121,7 +83,7 @@ function isPlainObject(v: unknown): v is Record<string, unknown> {
 /** Coerce a freeform JSON blob into the typed shape, dropping anything that
  * doesn't deserialize cleanly. Used both at read time and as a defensive
  * pass when third-party tooling has hand-edited the file. */
-export function sanitizeTokensFile({ raw }: { raw: unknown }, { clock = createSystemClock() }: McpTokenClockOptions = {}): McpTokensFile {
+export function sanitizeTokensFile({ raw, clock }: { raw: unknown; clock: Clock }, _optional = {}): McpTokensFile {
   if (!isPlainObject(raw)) return { servers: {} };
   const servers = raw.servers;
   if (!isPlainObject(servers)) return { servers: {} };
@@ -181,23 +143,24 @@ function sanitizeToken(raw: unknown, clock: Clock): StoredMcpToken | null {
  * @throws On unexpected read errors or a failed backup; the damaged file is left untouched.
  * @complexity O(n) time and space in the token file length, including a backup write on corruption.
  */
-export async function readTokensFile({ dataDir }: { dataDir: string }, options: McpTokenStoreOptions = {}): Promise<McpTokensFile> {
-  const filesystem = options.filesystem ?? defaultFilesystem;
+export async function readTokensFile({ dataDir, clock, files }: { dataDir: string; clock: Clock; files: McpConfigFilesPort }, { report = createConsoleLogger({ prefix: '[mcp-tokens]' }) }: { report?: Pick<Logger, 'error'> } = {}): Promise<McpTokensFile> {
   let raw: string | undefined;
   try {
-    raw = await filesystem.readText({ filePath: tokensFile(dataDir) });
-    return sanitizeTokensFile({ raw: JSON.parse(raw) }, options);
+    raw = await files.readText({ filePath: tokensFile(dataDir) });
+    return sanitizeTokensFile({ raw: JSON.parse(raw), clock });
   } catch (err: unknown) {
     const e = err as { code?: string; name?: string; message?: string };
     if (e.code === 'ENOENT') return { ...EMPTY, servers: { ...EMPTY.servers } };
     if (e.name === 'SyntaxError' && raw !== undefined) {
       // Different corrupt contents must not overwrite each other's recovery copy.
       const digest = createHash('sha256').update(raw).digest('hex');
-      await filesystem.writeSecretText({
+      await writeSecretText({
+        files,
         filePath: `${tokensFile(dataDir)}.corrupt-${digest}`,
         contents: raw,
       });
-      console.error('[mcp-tokens] Corrupted JSON, returning empty:', redactSecrets({ input: inspect(e) }, { redactPii: false }));
+      const logger = report;
+      logger.error({ message: `The MCP token file ${tokensFile(dataDir)} is not valid JSON; kept a copy beside it and reading it as an empty store.` }, { error: err });
       return { ...EMPTY, servers: { ...EMPTY.servers } };
     }
     throw err;
@@ -220,59 +183,59 @@ async function withLock<T>(dataDir: string, fn: () => Promise<T>): Promise<T> {
 async function writeTokensFile(
   dataDir: string,
   next: McpTokensFile,
-  options: McpTokenStoreOptions,
+  files: McpConfigFilesPort,
 ): Promise<McpTokensFile> {
   const file = tokensFile(dataDir);
   // Bearer tokens can hand someone posting-as-you against the upstream MCP,
   // so the file is created with owner-only (0600) permissions from the
   // first byte and the write fails closed if that can't be guaranteed on a
   // POSIX platform — see `writeFileAtomicAsync`.
-  await (options.filesystem ?? defaultFilesystem).writeSecretText({ filePath: file, contents: JSON.stringify(next, null, 2) });
+  await writeSecretText({ files, filePath: file, contents: JSON.stringify(next, null, 2) });
   return next;
 }
 
 /** Get the current token for a given server, or null when none is stored
  * (or the persisted entry is malformed). */
 export async function getToken(
-  { dataDir, serverId }: { dataDir: string; serverId: string },
-  options: McpTokenStoreOptions = {},
+  { dataDir, serverId, clock, files }: { dataDir: string; serverId: string; clock: Clock; files: McpConfigFilesPort },
+  { report }: { report?: Pick<Logger, 'error'> } = {},
 ): Promise<StoredMcpToken | null> {
-  const file = await readTokensFile({ dataDir }, options);
+  const file = await readTokensFile({ dataDir, clock, files }, report ? { report } : {});
   return Object.hasOwn(file.servers, serverId) ? file.servers[serverId]! : null;
 }
 
 /** Atomically merge a new token for `serverId` into the tokens file. */
 export async function setToken(
-  { dataDir, serverId, token }: { dataDir: string; serverId: string; token: StoredMcpToken },
-  options: McpTokenStoreOptions = {},
+  { dataDir, serverId, token, clock, files }: { dataDir: string; serverId: string; token: StoredMcpToken; clock: Clock; files: McpConfigFilesPort },
+  { report }: { report?: Pick<Logger, 'error'> } = {},
 ): Promise<void> {
   await withLock(dataDir, async () => {
-    const file = await readTokensFile({ dataDir }, options);
+    const file = await readTokensFile({ dataDir, clock, files }, report ? { report } : {});
     file.servers[serverId] = token;
-    await writeTokensFile(dataDir, file, options);
+    await writeTokensFile(dataDir, file, files);
   });
 }
 
 /** Atomically delete the stored token for `serverId`. No-op when absent. */
 export async function clearToken(
-  { dataDir, serverId }: { dataDir: string; serverId: string },
-  options: McpTokenStoreOptions = {},
+  { dataDir, serverId, clock, files }: { dataDir: string; serverId: string; clock: Clock; files: McpConfigFilesPort },
+  { report }: { report?: Pick<Logger, 'error'> } = {},
 ): Promise<void> {
   await withLock(dataDir, async () => {
-    const file = await readTokensFile({ dataDir }, options);
+    const file = await readTokensFile({ dataDir, clock, files }, report ? { report } : {});
     if (!(serverId in file.servers)) return;
     delete file.servers[serverId];
-    await writeTokensFile(dataDir, file, options);
+    await writeTokensFile(dataDir, file, files);
   });
 }
 
 /** Bulk read used by the spawn pipeline so we make one disk hit per spawn,
  * not one per server. */
 export async function readAllTokens(
-  { dataDir }: { dataDir: string },
-  options: McpTokenStoreOptions = {},
+  { dataDir, clock, files }: { dataDir: string; clock: Clock; files: McpConfigFilesPort },
+  { report }: { report?: Pick<Logger, 'error'> } = {},
 ): Promise<Record<string, StoredMcpToken>> {
-  const file = await readTokensFile({ dataDir }, options);
+  const file = await readTokensFile({ dataDir, clock, files }, report ? { report } : {});
   return file.servers;
 }
 
@@ -280,8 +243,8 @@ export async function readAllTokens(
  * milliseconds of expiring). Returns false when no `expiresAt` is recorded
  * — many providers issue non-expiring tokens. */
 export function isTokenExpired(
-  { token }: { token: StoredMcpToken },
-  { clock = createSystemClock(), now = clock.nowMs(), skew = 30_000 }: { clock?: Clock; now?: number; skew?: number } = {},
+  { token, clock }: { token: StoredMcpToken; clock: Clock },
+  { now = clock.nowMs(), skew = 30_000 }: { now?: number; skew?: number } = {},
 ): boolean {
   if (typeof token.expiresAt !== 'number') return false;
   return token.expiresAt - skew <= now;

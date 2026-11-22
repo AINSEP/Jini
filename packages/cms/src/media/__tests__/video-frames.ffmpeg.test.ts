@@ -102,8 +102,8 @@ it('seeks each input independently in one niced ffmpeg, limits all threads and c
   expect(values(args, '-filter_threads')).toEqual(['1']);
   expect(values(args, '-filter_complex_threads')).toEqual(['1']);
   expect(args[args.indexOf('-filter_complex') + 1]).toContain("scale=w='min(768,iw)'");
-  await expect(access(inputPath)).rejects.toThrow();
-  for (const path of outputPaths) await expect(access(path)).rejects.toThrow();
+  await expect(access(inputPath)).rejects.toThrow(`ENOENT: no such file or directory, access '${inputPath}'`);
+  for (const path of outputPaths) await expect(access(path)).rejects.toThrow(`ENOENT: no such file or directory, access '${path}'`);
 });
 
 it.each(['frames', 'sheet'] as const)('uses output-scoped passthrough without removed vsync across all batches (%s)', async layout => {
@@ -182,7 +182,7 @@ it('accepts exactly the aggregate JPEG budget and refuses file overflow without 
   expect(exact.frames.reduce((sum, frame) => sum + frame.bytes.byteLength, 0)).toBe(VIDEO_MAX_OUTPUT_BYTES);
   emitted = Buffer.alloc(VIDEO_MAX_FRAME_BYTES + 1);
   expect(await extractor.extract({ bytes: mp4 }, { frames: 16 })).toEqual({ ok: false, reason: 'invalid', message: 'Video preview exceeded its output limit.' });
-  await expect(access(inputPath)).rejects.toThrow();
+  await expect(access(inputPath)).rejects.toThrow(`ENOENT: no such file or directory, access '${inputPath}'`);
 });
 
 it('allocates an aggregate-safe per-image file budget and refuses a runner that ignores it', async () => {
@@ -486,7 +486,7 @@ it.each(['frames', 'sheet'] as const)('stops after the first batch when the shar
   } }, {});
   expect(await extractor.extract({ bytes: mp4 }, { frames: 64, layout })).toEqual({ ok: false, reason: 'timeout', message: 'Video preview timed out.' });
   expect(calls).toBe(2);
-  for (const path of paths) await expect(access(path)).rejects.toThrow();
+  for (const path of paths) await expect(access(path)).rejects.toThrow(`ENOENT: no such file or directory, access '${path}'`);
 });
 
 it.each(['frames', 'sheet'] as const)('cancellation in batch two kills the group, waits for close and removes all private files (%s)', async layout => {
@@ -521,8 +521,8 @@ it.each(['frames', 'sheet'] as const)('cancellation in batch two kills the group
   codec.emit('close', null, 'SIGKILL');
   expect(await pending).toEqual({ ok: false, reason: 'canceled', message: 'Video preview canceled.' });
   expect(codecCalls).toBe(2);
-  for (const path of paths) await expect(access(path)).rejects.toThrow();
-  await expect(access(directory)).rejects.toThrow();
+  for (const path of paths) await expect(access(path)).rejects.toThrow(`ENOENT: no such file or directory, access '${path}'`);
+  await expect(access(directory)).rejects.toThrow(`ENOENT: no such file or directory, access '${directory}'`);
   expect(await other.extract({ bytes: mp4 }, {})).toMatchObject({ reason: 'unavailable' });
 });
 
@@ -536,16 +536,16 @@ it('validates sheet output after bounded tile extraction, removes used tiles bef
     directory = inputs[0]!.replace(/[/](?:input|tile-\d+\.jpg)$/, '');
     if (inputs[0]!.endsWith('/input')) return emitImages(required.args, [jpeg]);
     if (assemblies++ === 1) {
-      for (let i = 0; i < 16; i++) await expect(access(`${directory}/tile-${i}.jpg`)).rejects.toThrow();
+      for (let i = 0; i < 16; i++) await expect(access(`${directory}/tile-${i}.jpg`)).rejects.toThrow(`ENOENT: no such file or directory, access '${directory}/tile-${i}.jpg'`);
     }
     return emitImages(required.args, [invalidFinal ? Buffer.from([1, 2, 3, 4]) : jpeg]);
   } }, {});
   expect(await extractor.extract({ bytes: mp4 }, { frames: 32, layout: 'sheet' })).toMatchObject({ ok: true });
   expect(assemblies).toBe(2);
-  await expect(access(directory)).rejects.toThrow();
+  await expect(access(directory)).rejects.toThrow(`ENOENT: no such file or directory, access '${directory}'`);
   invalidFinal = true;
   expect(await extractor.extract({ bytes: mp4 }, { frames: 16, layout: 'sheet' })).toEqual({ ok: false, reason: 'invalid', message: 'Video preview returned no JPEG frame.' });
-  await expect(access(directory)).rejects.toThrow();
+  await expect(access(directory)).rejects.toThrow(`ENOENT: no such file or directory, access '${directory}'`);
 });
 
 
@@ -581,7 +581,7 @@ it('observes cancellation after a runner returns, before starting any later batc
   } }, {});
   expect(await extractor.extract({ bytes: mp4 }, { frames: 64, signal: controller.signal })).toEqual({ ok: false, reason: 'canceled', message: 'Video preview canceled.' });
   expect(calls).toBe(2);
-  await expect(access(inputPath)).rejects.toThrow();
+  await expect(access(inputPath)).rejects.toThrow(`ENOENT: no such file or directory, access '${inputPath}'`);
 });
 
 function jpegOf(size: number) {

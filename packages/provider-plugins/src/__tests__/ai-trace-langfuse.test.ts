@@ -1,7 +1,13 @@
 /** The Langfuse provider plugin: event mapping through the real agent-runtime recorder, and the factory (recording client, no network). Moved from `@jini-ai/agent-runtime`. */
 import { describe, expect, it, vi } from 'vitest';
 import { Langfuse } from 'langfuse';
-import { createAiTraceRecorder, createFanOutAiTraceSink, createRecordingAiTraceSink, noopAiTraceSink, type AiTraceSink } from '@jini-ai/agent-runtime/ai-trace';
+import {
+  createAiTraceRecorder,
+  createFanOutAiTraceSink,
+  createRecordingAiTraceSink,
+  noopAiTraceSink,
+  type AiTraceSink,
+} from '@jini-ai/core/contracts/ai-trace';
 import { createLangfuseAiTraceSink, createLangfuseClient, toLangfuseCall, type LangfuseCall, type LangfuseClientPort } from '../ai-trace-langfuse/langfuse.js';
 import plugin, { createLangfuseProvider } from '../ai-trace-langfuse/index.js';
 import { SCENARIO_EVENTS, steppingClock } from './ai-trace-scenario.js';

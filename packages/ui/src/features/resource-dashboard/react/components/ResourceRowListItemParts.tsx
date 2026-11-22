@@ -13,12 +13,12 @@ export function ResourceRowListItemContent({
 }) {
   const toneMapProps = toneMap ? { toneMap } : {};
   return (
-    <div className="resource-row-list-item-content">
-      <span className="resource-row-list-item-title">{row.title}</span>
-      {row.metaLine ? <span className="resource-row-list-item-meta">{row.metaLine}</span> : null}
-      {row.detailLine ? <span className="resource-row-list-item-detail">{row.detailLine}</span> : null}
+    <div className="jini-resource-row-list-item-content">
+      <span className="jini-resource-row-list-item-title">{row.title}</span>
+      {row.metaLine ? <span className="jini-resource-row-list-item-meta">{row.metaLine}</span> : null}
+      {row.detailLine ? <span className="jini-resource-row-list-item-detail">{row.detailLine}</span> : null}
       {row.lastRunStatus ? (
-        <span className="resource-row-list-item-last-run">
+        <span className="jini-resource-row-list-item-last-run">
           <StatusPill status={row.lastRunStatus} label={statusLabel(row.lastRunStatus)} {...toneMapProps} />
           {row.lastRunLabel ? <span>{row.lastRunLabel}</span> : null}
         </span>
@@ -48,7 +48,7 @@ export function ResourceRowListItemActions({
   onAction: (kind: string) => void;
 }) {
   return (
-    <div className="resource-row-list-item-actions">
+    <div className="jini-resource-row-list-item-actions">
       {row.actions.map((action) => (
         <button
           key={action.kind}

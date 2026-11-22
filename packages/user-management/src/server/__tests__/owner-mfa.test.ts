@@ -9,6 +9,8 @@ import { login as legacyLogin, type AuthServiceDeps } from '../auth-service.js';
 import type { MfaFactor, MfaPending, OwnerMfaDeps } from '../mfa/ports.js';
 import { beginOwnerLogin, completeOwnerLogin, beginOwnerEnrollment, confirmOwnerEnrollment, removeOwnerFactor } from '../mfa/service.js';
 
+const authenticatorRefusal = 'The authenticator code was not accepted or has expired. Enter a fresh code, or sign in again to start a new attempt.';
+
 async function fixture() {
   const repos = createTransactionalInMemoryIdentityRepos({ repos: {
     principals: new memory.InMemoryPrincipalRepo({}), users: new memory.InMemoryUserRepo({}),
@@ -75,17 +77,17 @@ test('one concurrent completion wins; pending proof and accepted timestep cannot
   const outcomes = await Promise.allSettled([finish(),finish()]);
   expect(outcomes.filter(x => x.status === 'fulfilled')).toHaveLength(1); expect(await f.sessions()).toHaveLength(1);
   const next = await f.login(); if (!('pendingToken' in next)) throw Error('missing');
-  await expect(completeOwnerLogin({deps:f.deps,input:{workspaceId:'a',pendingToken:next.pendingToken,code:'123456'}})).rejects.toThrow();
+  await expect(completeOwnerLogin({deps:f.deps,input:{workspaceId:'a',pendingToken:next.pendingToken,code:'123456'}})).rejects.toThrow(authenticatorRefusal);
 });
 
 test('bad attempts stay spent, exhaust after five, and expiry/wrong workspace grant no session', async () => {
   const f = await fixture(); await f.enroll(); const r = await f.login(); if (!('pendingToken' in r)) throw Error('missing');
-  for (let i=0;i<5;i++) await expect(completeOwnerLogin({deps:f.deps,input:{workspaceId:'a',pendingToken:r.pendingToken,code:'000000'}})).rejects.toThrow();
-  await expect(completeOwnerLogin({deps:f.deps,input:{workspaceId:'a',pendingToken:r.pendingToken,code:'123456'}})).rejects.toThrow();
+  for (let i=0;i<5;i++) await expect(completeOwnerLogin({deps:f.deps,input:{workspaceId:'a',pendingToken:r.pendingToken,code:'000000'}})).rejects.toThrow(authenticatorRefusal);
+  await expect(completeOwnerLogin({deps:f.deps,input:{workspaceId:'a',pendingToken:r.pendingToken,code:'123456'}})).rejects.toThrow(authenticatorRefusal);
   const r2 = await f.login(); if (!('pendingToken' in r2)) throw Error('missing');
-  await expect(completeOwnerLogin({deps:f.deps,input:{workspaceId:'b',pendingToken:r2.pendingToken,code:'123456'}})).rejects.toThrow();
+  await expect(completeOwnerLogin({deps:f.deps,input:{workspaceId:'b',pendingToken:r2.pendingToken,code:'123456'}})).rejects.toThrow(authenticatorRefusal);
   f.advance(300001);
-  await expect(completeOwnerLogin({deps:f.deps,input:{workspaceId:'a',pendingToken:r2.pendingToken,code:'123456'}})).rejects.toThrow();
+  await expect(completeOwnerLogin({deps:f.deps,input:{workspaceId:'a',pendingToken:r2.pendingToken,code:'123456'}})).rejects.toThrow(authenticatorRefusal);
   expect(await f.sessions()).toHaveLength(0);
 });
 
@@ -100,9 +102,9 @@ test('session persistence failure rolls back consumption and factor advancement'
 
 test('replacement/removal require current password and factor; staff cannot enroll', async () => {
   const f = await fixture(); await f.enroll();
-  await expect(beginOwnerEnrollment({deps:f.deps,input:{...f.scope,password:'old',label:'O',issuer:'T'}})).rejects.toThrow();
-  await expect(removeOwnerFactor({deps:f.deps,input:{...f.scope,password:'wrong',code:'123456'}})).rejects.toThrow();
-  await expect(beginOwnerEnrollment({deps:f.deps,input:{...f.scope,principalId:'staff',password:'old',label:'S',issuer:'T'}})).rejects.toThrow();
+  await expect(beginOwnerEnrollment({deps:f.deps,input:{...f.scope,password:'old',label:'O',issuer:'T'}})).rejects.toThrow(authenticatorRefusal);
+  await expect(removeOwnerFactor({deps:f.deps,input:{...f.scope,password:'wrong',code:'123456'}})).rejects.toThrow('The current owner password was not accepted. Enter your current password and try again.');
+  await expect(beginOwnerEnrollment({deps:f.deps,input:{...f.scope,principalId:'staff',password:'old',label:'S',issuer:'T'}})).rejects.toThrow('Only the active site owner can change this authenticator. Sign in as the owner and try again.');
   await removeOwnerFactor({deps:f.deps,input:{...f.scope,password:'old',code:'123456'}});
   expect(await f.deps.store.factor(f.scope)).toBeNull();
 });
@@ -112,7 +114,7 @@ test('ordinary password reset preserves factor and invalidates pending proofs ma
   const f = await fixture(); await f.enroll(); const r = await f.login(); if (!('pendingToken' in r)) throw Error('missing');
   await resetUserPassword({deps:f.deps.auth,input:{...f.scope,password:'new',callerPrincipalId:f.scope.principalId,seededOwnerPrincipalId:f.scope.principalId}});
   expect(await f.deps.store.factor(f.scope)).not.toBeNull();
-  await expect(completeOwnerLogin({deps:f.deps,input:{workspaceId:'a',pendingToken:r.pendingToken,code:'123456'}})).rejects.toThrow();
+  await expect(completeOwnerLogin({deps:f.deps,input:{workspaceId:'a',pendingToken:r.pendingToken,code:'123456'}})).rejects.toThrow(authenticatorRefusal);
   expect(await f.sessions()).toHaveLength(0);
 });
 
@@ -122,7 +124,7 @@ test('recovery kit rotation needs the existing factor, and explicit host recover
   const deps = {auth:f.deps.auth,mfa:f.deps,seededOwnerPrincipalId:f.scope.principalId,codes:{
     replace: async (s:{hashes:string[]}) => { hashes=s.hashes; }, clear:async()=>{hashes=[];}, contains:async()=>false,
   }};
-  await expect(issueRecoveryCodes({deps,input:{...f.scope,password:'old'}})).rejects.toThrow();
+  await expect(issueRecoveryCodes({deps,input:{...f.scope,password:'old'}})).rejects.toThrow(authenticatorRefusal);
   expect(hashes).toEqual([]);
   const kit = await issueRecoveryCodes({deps,input:{...f.scope,password:'old',code:'123456'}});
   expect(kit.codes).toHaveLength(10);

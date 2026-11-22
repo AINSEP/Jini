@@ -1,6 +1,6 @@
 /**
  * @file In-memory `RedirectRepoPort` adapter (rule-of-two adapter #1,
- * ADR-006). Test/dev double — no persistence beyond process lifetime.
+ * test/dev). No persistence beyond process lifetime.
  *
  * Also satisfies `RedirectDbHandle` (`ports.internal.ts`) directly — `save()`
  * is implemented as the same two-step write (`insertRedirect` then
@@ -9,7 +9,7 @@
  * semantics without this file importing `ports.internal.ts`'s function value
  * (only its `RedirectDbHandle` type, structurally satisfied here).
  */
-import { sameRedirectPath } from "./path-key.js";
+import { redirectPrefixMatches, sameRedirectPath } from "./path-key.js";
 import { compareLongestFirst, compareSamePatternExactFirst, compareTieBreak } from "./order.js";
 import type { RedirectDbHandle } from "./ports.internal.js";
 import type { RedirectRepoPort } from "./ports.js";
@@ -57,9 +57,7 @@ export class InMemoryRedirectRepo implements RedirectRepoPort, RedirectDbHandle 
     const candidates = this.all(required.workspaceId).filter((r) => {
       if (r.status !== "active" || r.matchType !== "prefix") return false;
       if (required.includeOverrideOnly && !r.override) return false;
-      const pattern = r.fromPattern;
-      if (required.path === pattern) return true;
-      return required.path.startsWith(pattern.endsWith("/") ? pattern : `${pattern}/`);
+      return redirectPrefixMatches({ path: required.path, pattern: r.fromPattern });
     });
     candidates.sort((a, b) => compareLongestFirst({ a, b }, {}));
     return candidates[0] ? { ...candidates[0] } : null;
@@ -115,7 +113,7 @@ export class InMemoryRedirectRepo implements RedirectRepoPort, RedirectDbHandle 
   }
 
   // -------------------------------------------------------------------
-  // RedirectDbHandle (used by redirects.ts/capture.ts via ports.internal.ts)
+  // RedirectDbHandle (used by packages/cms/src/redirects/redirects.ts and packages/cms/src/redirects/capture.ts via ports.internal.ts)
   // -------------------------------------------------------------------
 
   insertRedirect(record: RedirectRecord, _optional: Record<string, never> = {}): void {

@@ -15,10 +15,12 @@ public subpath and permission boundary.
 | `./packaging/electron` | Dependency staging, staged runtime closure checks, optional-peer contracts, archive byte verification, freshness and quiet-tree policies. |
 | `./packaging/electron/typescript` | Host-supplied TypeScript AST adapter; TypeScript is a required peer. |
 | `./agent-jobs` | Bounded CLI jobs with resume, stdin prompts, raw logs and stream-based completion. |
+| `./backup/plan-store` | Node-backed in-memory backup plans with expiry and principal/workspace binding. |
+| `./backup/push-jobs` | In-memory backup push jobs with progress, cancellation and bounded waits. |
 | `./checks/published-types` | Published type-surface, registry-drift, linked-package and captured-log checks. |
 | `./checks/coverage` | LCOV, floor, diff, disk-inventory and contamination/baseline policies. |
 | `./checks/node` | Explicit filesystem, process, environment-loader and installer adapters. |
-| `./local-dev` | Environment-file and listener lookup helpers with host-supplied paths/commands. |
+| `./local-dev` | Environment-file, listener lookup and advisory free-port helpers with host-supplied paths/commands. |
 | `./ci-cd` | Reserved for pipeline definitions, run status, logs, cancellation, and deployment orchestration. |
 
 ```ts
@@ -78,13 +80,15 @@ The deploy core imports neither platform nor undici.
 ```ts
 import { checkDeploymentUrl } from '@jini-ai/devops/deploy';
 import { createNodeReachabilityPorts } from '@jini-ai/devops/deploy/node';
-const ports = createNodeReachabilityPorts({});
+import { assertSafePublicUrl, createValidatingLookup } from '@jini-ai/platform';
+const ports = createNodeReachabilityPorts({ assertSafeUrl: assertSafePublicUrl, createValidatingLookup });
 await checkDeploymentUrl({ url: 'https://example.com', ...ports });
 ```
 
 The Node defaults reject unsafe public URLs and pin validation to the connection
-through platform's validating lookup. `lookupImpl` overrides move from probe
-options to `createNodeReachabilityPorts({}, { lookupImpl?, fetch? })`.
+through platform's validating lookup, which the host passes in (`assertSafeUrl`,
+`createValidatingLookup`); devops no longer imports platform. `lookupImpl` overrides move from probe
+options to `createNodeReachabilityPorts(required, { lookupImpl?, fetch? })`.
 Default dispatchers remain shared; each override binding retains its own lazy
 pool. HTTPS-only probes, manual redirects and existing deadlines are preserved.
 The Node adapter attaches the validating Agent as a native fetch runtime extension,

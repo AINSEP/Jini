@@ -1,19 +1,21 @@
-import { act, render, renderHook, screen, waitFor } from "@testing-library/react";
+import { act, render, renderHook, screen, waitFor } from "./harness.js";
 import userEvent from "@testing-library/user-event";
 import { assert, afterEach, describe, expect, it, vi } from "vitest";
 import { FetchQueryProvider } from "@jini-ai/ui/fetch-query";
 import type { AdminFormDefinition } from "../../models.js";
 import { FormEditor } from "../pages/FormEditor.js";
 import { useFormEditor } from "./legacy-ports.js";
+import { FormsCatalogScope } from "./catalog-scope.js";
 import { createFakeFormsPort } from "./legacy-ports.js";
 import { formHtmlEmbed, formHtmlStarter, formAnswerColumns } from "../../html-rules.js";
+import { fakeFormsCatalog } from '../../__tests__/fakes/forms-catalog.js';
 
 const form: AdminFormDefinition = {
   id: "f1", workspaceId: "ws", name: "Contact", slug: "contact", status: "active",
   fields: [{ id: "email", label: "Email", type: "email", required: true }],
   notify: { enabled: false, recipients: [] }, createdAt: "2026-10-04", updatedAt: "2026-10-04",
 };
-const wrapper = ({ children }: { children: React.ReactNode }) => <FetchQueryProvider>{children}</FetchQueryProvider>;
+const wrapper = ({ children }: { children: React.ReactNode }) => <FetchQueryProvider><FormsCatalogScope>{children}</FormsCatalogScope></FetchQueryProvider>;
 afterEach(() => vi.unstubAllGlobals());
 
 describe("HTML form authoring — owner acceptance 2026-10-04", () => {
@@ -25,7 +27,7 @@ describe("HTML form authoring — owner acceptance 2026-10-04", () => {
     render(<FormEditor formId="contact" tab="fields" useFormEditorHook={controller} />, { wrapper });
     await user.click(await screen.findByRole("button", { name: "HTML" }));
     const source = screen.getByRole("textbox", { name: "Form HTML" });
-    expect(source).toHaveValue(formHtmlStarter({ fields: form.fields }));
+    expect(source).toHaveValue(formHtmlStarter({ fields: form.fields, catalog: fakeFormsCatalog() }));
     await user.clear(source);
     await user.type(source, '<input name="message">');
     await user.click(screen.getByRole("button", { name: "Builder" }));

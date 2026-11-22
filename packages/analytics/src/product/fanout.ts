@@ -1,4 +1,4 @@
-import type { ProductAnalyticsPort } from "./index.js";
+import type { ProductAnalyticsPort } from "@jini-ai/core/contracts/observability";
 
 /** Fans product events out to every configured analytics port (normally one), isolating failures
  * and each provider's content opt-in. The singular browser hook delegates to the first capable port;

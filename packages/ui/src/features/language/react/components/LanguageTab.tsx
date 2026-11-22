@@ -1,4 +1,4 @@
-import { agentHandleProps, buildAgentListHandles } from '@jini-ai/agentic';
+import { agentHandleProps, buildAgentListHandles } from '@jini-ai/core/agent-handles';
 import { useT } from '../../../i18n/index.js';
 import { Icon } from '../../../../react/components/Icon.js';
 import type { LocaleOption } from '../../types.js';
@@ -11,6 +11,7 @@ export interface LanguageTabProps {
   /** This tab's own agent handle. One distinct sub-handle per locale tile, derived from the
    *  locale's own code. */
   agentHandle?: string;
+  useTHook?: typeof useT;
 }
 
 /**
@@ -19,8 +20,8 @@ export interface LanguageTabProps {
  * dropped) analytics tracking call and OD's own fixed locale list (now a
  * host-supplied `locales` prop).
  */
-export function LanguageTab({ locales, selectedLocale, onSelectLocale, ariaLabel, agentHandle }: LanguageTabProps) {
-  const t = useT();
+export function LanguageTab({ locales, selectedLocale, onSelectLocale, ariaLabel, agentHandle, useTHook = useT }: LanguageTabProps) {
+  const t = useTHook();
   const resolvedAriaLabel = ariaLabel ?? t('Language');
   const tileHandles = agentHandle ? buildAgentListHandles({ prefix: agentHandle, ids: locales.map((l) => l.code) }) : undefined;
 

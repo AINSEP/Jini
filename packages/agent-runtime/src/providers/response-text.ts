@@ -21,3 +21,19 @@ export async function readProviderResponseText(
   }
   return Buffer.concat(chunks, size).toString('utf8');
 }
+
+/** Extracts an upstream error message or a trimmed, bounded raw response. */
+export function extractProviderErrorDetail({ rawText }: { rawText: string }, _optional: Record<string, never> = {}): string {
+  try {
+    const parsed: unknown = JSON.parse(rawText);
+    if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+      const error: unknown = (parsed as Record<string, unknown>).error;
+      if (typeof error === 'object' && error !== null && !Array.isArray(error) && typeof (error as Record<string, unknown>).message === 'string') {
+        return (error as { message: string }).message;
+      }
+    }
+  } catch {
+    // Non-JSON error body — fall through to the raw text below.
+  }
+  return rawText.trim().slice(0, 500);
+}

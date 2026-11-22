@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createPluginContributionCapture, type PluginToolContribution } from '../../contributions.js';
+import { createPluginContributionCapture } from '../../contributions.js';
+import { type PluginToolContribution } from '@jini-ai/core/contracts/plugin-sdk';
 import type { PluginManifest } from '../../manifest.js';
-import type { PluginSdk } from '../../ports.js';
+import type { PluginSdk } from '@jini-ai/core/contracts/plugin-sdk';
 
 const manifest: PluginManifest = { id: 'sample', name: 'Sample', version: '1.0.0', sdkRange: '*', engine: 1, tier: 'tier-3', capabilities: [], hooks: [], fields: [], integrity: {}, contributes: { tools: ['hello', 'other'], widgets: ['hello'] } };
 const sdk: PluginSdk = {

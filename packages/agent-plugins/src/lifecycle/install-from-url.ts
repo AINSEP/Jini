@@ -81,7 +81,7 @@ export interface InstalledAgentPluginFromUrl {
   readonly digestWasPinned: boolean;
 }
 
-export function createInstallFromUrlModule(ports: AgentPluginLifecyclePorts) {
+export function createInstallFromUrlModule(ports: AgentPluginLifecyclePorts, _optional: Record<string, never> = {}) {
 const { installAgentPlugin } = createInstallModule(ports);
 /**
  * The URL the bytes actually came from, after redirects.

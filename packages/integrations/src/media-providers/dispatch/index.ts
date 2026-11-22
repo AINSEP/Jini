@@ -15,7 +15,7 @@ export { renderSenseAudioImage, renderSenseAudioTTS } from './providers/senseaud
 export { renderVolcengineImage } from './providers/volcengine.js';
 export { renderStub, svgPlaceholder } from './stub.js';
 export { assertAndFetchExternalAsset, assertExternalAssetUrl, validateBaseUrlResolved } from './ssrf-guard.js';
-export { isBlockedExternalApiHostname, isLoopbackApiHost } from '@jini-ai/platform/net';
+export { isBlockedExternalApiHostname, isLoopbackApiHost } from '@jini-ai/core/net';
 export type { DnsLookupAddress, DnsLookupFn } from './ssrf-guard.js';
 export type {
   MediaDispatchEngine,

@@ -78,6 +78,31 @@ async function normalKeyCard({ ctx, options, deps, host, saveNew }: {
   return deps.projectKeys ? deps.projectKeys.savedResult({ result }) : result;
 }
 
+type KeyChoice = Awaited<ReturnType<CredentialCopyProjectKeysPort['listChoices']>>[number];
+
+/** The held key-picker card: selectable keys, locked keys as details, and an Enter a new key option. */
+function keyPickerSurface({ host, uri, exchangeId, site, rows, available }: {
+  host: CredentialCopyToolHost; uri: SurfaceCardUri; exchangeId: string; site: CredentialCopyProjectKeysPort['site'];
+  rows: readonly KeyChoice[]; available: readonly KeyChoice[];
+}, _options = {}) {
+  const { messages } = host;
+  const { toolId } = host.vocabulary;
+  return host.protocol.buildFormSurface({ uri,
+    title: messages.cardTitle, details: [{ label: messages.siteLabel, value: site?.name ?? messages.siteFallback }, ...lockedDetails({ rows, host })],
+    // A site key is added to Shared Keys on approval; the host's description says so, the owner is approving it.
+    description: available.length ? messages.cardDescription : messages.emptyCardDescription,
+    fields: [{ kind: 'enum', name: 'credentialId', label: messages.fieldLabel, required: true, placeholder: messages.fieldPlaceholder,
+      options: [...available.map(row => ({ value: row.keyId, label: row.name })), { value: host.vocabulary.newKeyValue, label: messages.newKeyLabel }] }],
+    // Keys and OAuth accounts stay in the owner store; shared OAuth keeps its original sign-in account and client.
+    // The label fits both a saved key and Enter a new key, which goes on to the normal key card.
+    // Start compact; Jini's shared bridge fits the body on load and content changes.
+    preferredFrameSize: ['100%', '1px'],
+    submitLabel: messages.submitLabel, toolName: toolId,
+    baseParams: { [SURFACE_EXCHANGE_ID_PARAM]: exchangeId },
+    cancel: { label: messages.cancelLabel, toolName: toolId, params: { [SURFACE_EXCHANGE_ID_PARAM]: exchangeId, [SURFACE_DISMISSED_PARAM]: true } },
+  });
+}
+
 /** One human card selects and approves a CMS site grant. Jini owns actor binding, expiry and replay
  * protection. The site is captured by the project-keys port at host composition, never by submitted input.
  * @returns Only the approved reference, or a cancellation result; no owner inventory reaches chat.
@@ -107,23 +132,9 @@ export function createCredentialCopyRegistrations({ deps, surfaces, host }: {
       ctx.signal.addEventListener('abort', abort, { once: true });
       if (ctx.signal.aborted) abort();
       try {
-        const { messages } = host;
         const available = rows.filter(row => !row.locked);
         const result = await host.protocol.askThenReport<{ granted: boolean; credentialId?: string; newKey?: boolean; reason?: string; message?: string }>({ exchange,
-          confirmationEmission: { channel: 'mcp-ui', payload: { resource: host.protocol.buildFormSurface({ uri,
-            title: messages.cardTitle, details: [{ label: messages.siteLabel, value: projectKeys.site?.name ?? messages.siteFallback }, ...lockedDetails({ rows, host })],
-            // A site key is added to Shared Keys on approval; the host's description says so, the owner is approving it.
-            description: available.length ? messages.cardDescription : messages.emptyCardDescription,
-            fields: [{ kind: 'enum', name: 'credentialId', label: messages.fieldLabel, required: true, placeholder: messages.fieldPlaceholder,
-              options: [...available.map(row => ({ value: row.keyId, label: row.name })), { value: host.vocabulary.newKeyValue, label: messages.newKeyLabel }] }],
-            // Keys and OAuth accounts stay in the owner store; shared OAuth keeps its original sign-in account and client.
-            // The label fits both a saved key and Enter a new key, which goes on to the normal key card.
-            // Start compact; Jini's shared bridge fits the body on load and content changes.
-            preferredFrameSize: ['100%', '1px'],
-            submitLabel: messages.submitLabel, toolName: toolId,
-            baseParams: { [SURFACE_EXCHANGE_ID_PARAM]: exchange.id },
-            cancel: { label: messages.cancelLabel, toolName: toolId, params: { [SURFACE_EXCHANGE_ID_PARAM]: exchange.id, [SURFACE_DISMISSED_PARAM]: true } },
-          }) } },
+          confirmationEmission: { channel: 'mcp-ui', payload: { resource: keyPickerSurface({ host, uri, exchangeId: exchange.id, site: projectKeys.site, rows, available }) } },
           handle: async answer => {
             if (answer.status !== 'received' || ctx.signal.aborted) return { result: declined({ reason: 'interrupted', host }) };
             if (answer.params[SURFACE_DISMISSED_PARAM] === true) return { result: declined({ reason: available.length ? 'dismissed' : 'nothing-to-pick', host }) };

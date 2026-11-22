@@ -1,3 +1,5 @@
+import { useRuntimeDropUp } from '../../hooks/useRuntimeDropUp.hooks.js';
+import { useInfoTip } from '@jini-ai/ui';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -62,4 +64,27 @@ describe('RuntimeDropUp Escape', () => {
     expect(escape.defaultPrevented).toBe(true);
     expect(trigger).toHaveFocus();
   });
+});
+
+
+it('uses the injected menu and tooltip controllers independently', () => {
+  const show = vi.fn(), hide = vi.fn(), onSelect = vi.fn();
+  const useRuntimeDropUpHook: typeof useRuntimeDropUp = (required) => ({
+    ...useRuntimeDropUp(required), open: true, position: { left: 5, bottom: 10 },
+  });
+  const useInfoTipHook: typeof useInfoTip = (required, optional) => ({ ...useInfoTip(required, optional), open: true, show, hide });
+  const view = render(<RuntimeDropUp {...props} onSelect={onSelect} useAgentHandleHook={() => 'injected-model'}
+    useRuntimeDropUpHook={useRuntimeDropUpHook} useInfoTipHook={useInfoTipHook} />);
+  expect(screen.getByRole('menu', { name: 'Model' })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Model: GPT-5.6-Terra' })).toHaveAttribute('data-agent-element', 'injected-model');
+  fireEvent.click(screen.getByRole('menuitemradio', { name: 'GPT-5.6-Terra' }));
+  expect(onSelect).toHaveBeenCalledWith('terra');
+  expect(bubble()).toBeNull();
+  const closed: typeof useRuntimeDropUp = (required) => ({ ...useRuntimeDropUp(required), open: false });
+  view.rerender(<RuntimeDropUp {...props} useAgentHandleHook={() => 'injected-model'} useRuntimeDropUpHook={closed} useInfoTipHook={useInfoTipHook} />);
+  expect(bubble()).toHaveTextContent('GPT-5.6-Terra');
+  fireEvent.mouseEnter(screen.getByRole('button', { name: 'Model: GPT-5.6-Terra' }));
+  expect(show).toHaveBeenCalledOnce();
+  fireEvent.keyDown(screen.getByRole('button', { name: 'Model: GPT-5.6-Terra' }), { key: 'Escape' });
+  expect(hide).toHaveBeenCalledOnce();
 });

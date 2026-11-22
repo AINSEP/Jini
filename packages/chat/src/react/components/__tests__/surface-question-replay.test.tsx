@@ -1,4 +1,5 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
+import { fakeChatSurfaces, renderWithChatSurfaces as renderWithSurfaces } from '../../__tests__/fake-chat-surfaces.js';
 import userEvent from '@testing-library/user-event';
 import { afterEach, expect, it, vi } from 'vitest';
 import { buildFormSurface, buildOutcomeSurface, type McpUiHostProps } from '@jini-ai/ui/mcp-ui';
@@ -9,14 +10,13 @@ import { clearExtEventRenderers } from '../../ext-event-renderer-registry.js';
 import { McpUiSurfaceCard, registerMcpUiSurfaceRenderer } from '../McpUiSurfaceCard.js';
 import { MessageRow } from '../MessageRow.js';
 
-vi.mock('@jini-ai/ui/mcp-ui', async original => ({
-  ...await original<typeof import('@jini-ai/ui/mcp-ui')>(),
-  McpUiHost: ({ onToolCall, title, html }: McpUiHostProps) => <section aria-label={title} data-surface-html={html}>
+// The surfaces port supplies the MCP-UI host; this stub replaces the sandbox so tests drive its props boundary.
+const StubHost = ({ onToolCall, title, html }: McpUiHostProps) => <section aria-label={title} data-surface-html={html}>
     <button onClick={() => { void onToolCall?.({ name: 'answer', arguments: { selections: ['github'], __choiceAction: 'use' } }); }}>Use</button>
     <button onClick={() => { void onToolCall?.({ name: 'answer', arguments: { selections: ['github'], __choiceAction: 'auto' } }); }}>Don't ask again</button>
     <button onClick={() => { void onToolCall?.({ name: 'answer', arguments: { __dismissed: true } }); }}>Skip</button>
-  </section>,
-}));
+  </section>;
+const renderWithChatSurfaces = (ui: Parameters<typeof renderWithSurfaces>[0]) => renderWithSurfaces(ui, { surfaces: fakeChatSurfaces({ mcpUi: { Host: StubHost } }) });
 
 const uri = 'ui://host/ask-choice/principal/one';
 const question = { title: 'Agent plugins', options: [{ value: 'github', label: 'GitHub' }] };
@@ -51,7 +51,7 @@ it.each([false, true])('uses the resource question for live title/labels with an
   registerMcpUiSurfaceRenderer({ sandboxProxyUrl: new URL('https://sandbox.test/proxy.html'), onToolCall: execute });
   const events: AgentEvent[] = enclosing ? [{ kind: 'tool_use', id: 'parent', name: 'update',
     input: { options: [{ value: 'github', label: 'Unrelated option' }] } }, card()] : [card()];
-  const view = render(<MessageRow message={message(events)} runStreaming />);
+  const view = renderWithChatSurfaces(<MessageRow message={message(events)} runStreaming />);
   expect(screen.getByRole('region', { name: 'Agent plugins' }).getAttribute('aria-label')).toBe('Agent plugins');
   expect(screen.getByText('Waiting for your answer above').textContent).toBe('Waiting for your answer above');
   await userEvent.click(screen.getByRole('button', { name: 'Use' }));
@@ -68,7 +68,7 @@ it.each(['running', 'succeeded', 'failed', 'canceled'] as const)('keeps a resour
   const execute = vi.fn();
   registerMcpUiSurfaceRenderer({ sandboxProxyUrl: new URL('https://sandbox.test/proxy.html'), onToolCall: execute });
   const saved: AgentEvent[] = JSON.parse(JSON.stringify([card(), receipt(), receipt()]));
-  const mount = () => render(<MessageRow message={message(saved, runStatus)} runStreaming />);
+  const mount = () => renderWithChatSurfaces(<MessageRow message={message(saved, runStatus)} runStreaming />);
   const first = mount();
   expect(bubbles(first.container)).toEqual(['Agent plugins: GitHub']);
   first.unmount();
@@ -85,7 +85,7 @@ it.each(['running', 'succeeded', 'failed', 'canceled'] as const)('keeps a resour
 
 it('does not close a second surface with the same labels when the first receipt is replayed', () => {
   registerMcpUiSurfaceRenderer({ sandboxProxyUrl: new URL('https://sandbox.test/proxy.html') });
-  const view = render(<MessageRow message={message([card(), receipt(), card('ui://host/ask-choice/principal/two')])} runStreaming />);
+  const view = renderWithChatSurfaces(<MessageRow message={message([card(), receipt(), card('ui://host/ask-choice/principal/two')])} runStreaming />);
   expect(bubbles(view.container)).toEqual(['Agent plugins: GitHub']);
   expect(view.container.querySelectorAll('.mcpui-surface-card-closed')).toHaveLength(1);
   expect(screen.getAllByRole('button', { name: 'Use' })).toHaveLength(1);
@@ -96,7 +96,7 @@ it.each(['earlier receipt', 'retry', 'duplicate receipt'] as const)('keeps the l
   registerMcpUiSurfaceRenderer({ sandboxProxyUrl: new URL('https://sandbox.test/proxy.html') });
   const events = scenario === 'earlier receipt' ? [receipt(), card()]
     : scenario === 'retry' ? [card(), receipt(), card()] : [card(), receipt(), card(), receipt()];
-  const view = render(<MessageRow message={message(JSON.parse(JSON.stringify(events)))} runStreaming />);
+  const view = renderWithChatSurfaces(<MessageRow message={message(JSON.parse(JSON.stringify(events)))} runStreaming />);
   expect(view.container.querySelector('.mcpui-surface-card-closed')).toBeNull();
   expect(screen.getByRole('button', { name: 'Use' })).toBeInTheDocument();
   expect(screen.getByText('Waiting for your answer above')).toBeInTheDocument();
@@ -107,7 +107,7 @@ it('renders the outcome at the confirmation URI after its receipt, including JSO
   registerMcpUiSurfaceRenderer({ sandboxProxyUrl: new URL('https://sandbox.test/proxy.html') });
   const outcome = buildOutcomeSurface({ uri, title: 'Saved', state: 'success', message: 'The operation completed.' });
   const events: AgentEvent[] = [card(), receipt(), { kind: 'ext', name: 'mcp-ui', data: outcome }];
-  const view = render(<MessageRow message={message(JSON.parse(JSON.stringify(events)), 'succeeded')} />);
+  const view = renderWithChatSurfaces(<MessageRow message={message(JSON.parse(JSON.stringify(events)), 'succeeded')} />);
   expect(screen.getByRole('region', { name: 'Saved' }).getAttribute('data-surface-html')).toBe(outcome.resource.text);
   expect(view.container.querySelector('.mcpui-surface-card-closed')).toBeNull();
   expect(bubbles(view.container)).toEqual(['Agent plugins: GitHub']);
@@ -121,7 +121,7 @@ it('keeps an outcome visible when the original tool result produces a later answ
     { kind: 'ext', name: 'mcp-ui', data: outcome },
     { kind: 'tool_result', toolUseId: 'ask', content: '{"submitted":true,"selections":["github"]}', isError: false },
   ];
-  const view = render(<MessageRow message={message(events, 'succeeded')} />);
+  const view = renderWithChatSurfaces(<MessageRow message={message(events, 'succeeded')} />);
   expect(screen.getByRole('region', { name: 'Saved' }).getAttribute('data-surface-html')).toBe(outcome.resource.text);
   expect(view.container.querySelector('.mcpui-surface-card-closed')).toBeNull();
 });
@@ -130,7 +130,7 @@ it('reopens a reused URI after a live answer without carrying the previous deliv
   const execute = vi.fn().mockResolvedValue({ delivered: true });
   registerMcpUiSurfaceRenderer({ sandboxProxyUrl: new URL('https://sandbox.test/proxy.html'), onToolCall: execute });
   const first = card();
-  const view = render(<MessageRow message={message([first])} runStreaming />);
+  const view = renderWithChatSurfaces(<MessageRow message={message([first])} runStreaming />);
   await userEvent.click(screen.getByRole('button', { name: 'Use' }));
   await waitFor(() => expect(view.container.querySelector('.mcpui-surface-card-closed')?.textContent).toBe('Agent plugins: GitHub'));
   view.rerender(<MessageRow message={message([first, receipt(), card()])} runStreaming />);
@@ -148,7 +148,7 @@ it('labels an answer from the retried question instead of the document it replac
       title: 'Retry plugins', options: [{ value: 'github', label: 'GitHub retry' }],
     } },
   } } };
-  const view = render(<MessageRow message={message([card(), receipt(), retry])} runStreaming />);
+  const view = renderWithChatSurfaces(<MessageRow message={message([card(), receipt(), retry])} runStreaming />);
   await userEvent.click(screen.getByRole('button', { name: 'Use' }));
   // 2f5311748: a reused URI updates its original slot; its inline answer precedes the saved receipt.
   await waitFor(() => expect(bubbles(view.container)).toEqual(['Retry plugins: GitHub retry', 'Agent plugins: GitHub']));
@@ -160,7 +160,7 @@ it('keeps rendering the same document without parsing its HTML again', () => {
   const events = [resource];
   const parser = vi.spyOn(DOMParser.prototype, 'parseFromString');
   const sandboxProxyUrl = new URL('https://sandbox.test/proxy.html');
-  const view = render(<McpUiSurfaceCard name="mcp-ui" events={events} sandboxProxyUrl={sandboxProxyUrl} runStreaming={false} runSucceeded runId={undefined} />);
+  const view = renderWithChatSurfaces(<McpUiSurfaceCard name="mcp-ui" events={events} sandboxProxyUrl={sandboxProxyUrl} runStreaming={false} runSucceeded runId={undefined} />);
   expect(screen.getByRole('region', { name: 'Saved' })).toBeInTheDocument();
   const parsed = parser.mock.calls.length;
   view.rerender(<McpUiSurfaceCard name="mcp-ui" events={[...events]} sandboxProxyUrl={sandboxProxyUrl} runStreaming={false} runSucceeded runId={undefined} maxHeight={480} />);
@@ -172,7 +172,7 @@ it('closes a retried question only when its own new receipt follows it', () => {
   registerMcpUiSurfaceRenderer({ sandboxProxyUrl: new URL('https://sandbox.test/proxy.html') });
   const second = acceptedInputUserEvent({ input: { id: 'retry-answer', text: 'Agent plugins: Declined',
     answerText: 'Declined', surfaceUri: uri } }, { receipt: 'accepted' });
-  const view = render(<MessageRow message={message([card(), receipt(), card(), second])} runStreaming />);
+  const view = renderWithChatSurfaces(<MessageRow message={message([card(), receipt(), card(), second])} runStreaming />);
   expect(view.container.querySelector('.mcpui-surface-card-closed')?.textContent).toBe('Agent plugins: Declined');
   expect(bubbles(view.container)).toEqual(['Agent plugins: GitHub', 'Agent plugins: Declined']);
   expect(screen.queryByRole('button', { name: 'Use' })).toBeNull();

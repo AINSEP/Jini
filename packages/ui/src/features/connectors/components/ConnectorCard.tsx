@@ -1,10 +1,11 @@
-import type { KeyboardEvent as ReactKeyboardEvent, SyntheticEvent } from 'react';
-import { agentHandleProps } from '@jini-ai/agentic';
+import type { SyntheticEvent } from 'react';
+import { agentHandleProps } from '@jini-ai/core/agent-handles';
 import { useT } from '../../i18n/index.js';
 import { connectorActionFlags, getConnectorDisplayToolCount, statusLabel, toolsBadgeTranslation } from '../rules.js';
 import type { Connector, ConnectorAction, ConnectorActionFlags, ConnectorAuthorizationPending } from '../types.js';
 import { Icon } from '../../../react/components/Icon.js';
 import { ConnectorLogo } from './ConnectorLogo.js';
+import { createContinueAuthorization, useConnectorCard } from './ConnectorCard.hooks.js';
 
 export interface ConnectorCardProps {
   connector: Connector;
@@ -24,6 +25,8 @@ export interface ConnectorCardProps {
   /** This card's own agent handle — see `ConnectorsBrowser`'s `agentHandle` doc; `ConnectorGrid`
    *  derives one distinct handle per connector and passes it here. */
   agentHandle?: string;
+  useTHook?: typeof useT;
+  useConnectorCardHook?: typeof useConnectorCard;
 }
 
 type ConnectorStatusValue = Connector['status'];
@@ -40,14 +43,14 @@ function stopThen(onActivate: () => void) {
   };
 }
 
-function ConnectorCardTitleDot({ status, isAuthorizationPending }: { status: ConnectorStatusValue; isAuthorizationPending: boolean }) {
-  const t = useT();
+function ConnectorCardTitleDot({ status, isAuthorizationPending, useTHook = useT }: { status: ConnectorStatusValue; isAuthorizationPending: boolean; useTHook?: typeof useT; }) {
+  const t = useTHook();
   if (status === 'connected') {
     return (
       <span
-        className={`connector-status-dot connector-card-title-dot status-${status}`}
-        aria-label={t(statusLabel(status))}
-        title={t(statusLabel(status))}
+        className={`connector-status-dot jini-connector-card-title-dot status-${status}`}
+        aria-label={t(statusLabel({ status }))}
+        title={t(statusLabel({ status }))}
         role="img"
       />
     );
@@ -55,7 +58,7 @@ function ConnectorCardTitleDot({ status, isAuthorizationPending }: { status: Con
   if (!isAuthorizationPending) return null;
   return (
     <span
-      className="connector-status-dot connector-card-title-dot status-pending"
+      className="connector-status-dot jini-connector-card-title-dot status-pending"
       aria-label={t('Authorization pending')}
       title={t('Authorization pending')}
       role="img"
@@ -63,15 +66,15 @@ function ConnectorCardTitleDot({ status, isAuthorizationPending }: { status: Con
   );
 }
 
-function ConnectorCardToolsBadge({ connector, toolsLoaded }: { connector: Connector; toolsLoaded: boolean }) {
-  const t = useT();
+function ConnectorCardToolsBadge({ connector, toolsLoaded, useTHook = useT }: { connector: Connector; toolsLoaded: boolean; useTHook?: typeof useT; }) {
+  const t = useTHook();
   const showToolsBadge = connector.toolCount !== undefined || connector.tools.length > 0 || toolsLoaded;
-  const toolsBadge = toolsBadgeTranslation(getConnectorDisplayToolCount(connector));
+  const toolsBadge = toolsBadgeTranslation({ count: getConnectorDisplayToolCount(connector) });
   const toolsBadgeLabel = t(toolsBadge.key, toolsBadge.vars);
   return (
-    <span className="connector-meta-tools" aria-hidden={!showToolsBadge}>
+    <span className="jini-connector-meta-tools" aria-hidden={!showToolsBadge}>
       {showToolsBadge ? (
-        <span className="connector-tools-badge is-ready" title={toolsBadgeLabel}>
+        <span className="jini-connector-tools-badge is-ready" title={toolsBadgeLabel}>
           <span>{toolsBadgeLabel}</span>
         </span>
       ) : null}
@@ -84,15 +87,16 @@ interface ConnectorCardActionButtonProps {
   disabled: boolean;
   agentHandle: string | undefined;
   onActivate: () => void;
+  useTHook?: typeof useT;
 }
 
-function ConnectorDisconnectButton({ flags, disabled, agentHandle, onActivate }: ConnectorCardActionButtonProps) {
-  const t = useT();
+function ConnectorDisconnectButton({ flags, disabled, agentHandle, onActivate, useTHook = useT }: ConnectorCardActionButtonProps) {
+  const t = useTHook();
   const { isDisconnecting } = flags;
   return (
     <button
       type="button"
-      className={`icon-only connector-action is-disconnect${isDisconnecting ? ' is-loading' : ''}`}
+      className={`icon-only jini-connector-action is-disconnect${isDisconnecting ? ' is-loading' : ''}`}
       disabled={!flags.canDisconnect}
       aria-busy={isDisconnecting || undefined}
       aria-label={t('Disconnect')}
@@ -108,14 +112,14 @@ function ConnectorDisconnectButton({ flags, disabled, agentHandle, onActivate }:
   );
 }
 
-function ConnectorConnectButton({ flags, disabled, agentHandle, onActivate }: ConnectorCardActionButtonProps) {
-  const t = useT();
+function ConnectorConnectButton({ flags, disabled, agentHandle, onActivate, useTHook = useT }: ConnectorCardActionButtonProps) {
+  const t = useTHook();
   const { isAuthorizationPending } = flags;
   const isBusy = flags.isConnecting || isAuthorizationPending;
   return (
     <button
       type="button"
-      className={`icon-only connector-action is-connect${isBusy ? ' is-loading' : ''}`}
+      className={`icon-only jini-connector-action is-connect${isBusy ? ' is-loading' : ''}`}
       disabled={!flags.canConnect}
       aria-busy={isBusy || undefined}
       aria-label={isAuthorizationPending ? t('Authorization pending') : t('Connect')}
@@ -131,12 +135,12 @@ function ConnectorConnectButton({ flags, disabled, agentHandle, onActivate }: Co
   );
 }
 
-function ConnectorCancelAuthorizationButton({ onActivate }: { onActivate: () => void }) {
-  const t = useT();
+function ConnectorCancelAuthorizationButton({ onActivate, useTHook = useT }: { onActivate: () => void; useTHook?: typeof useT; }) {
+  const t = useTHook();
   return (
     <button
       type="button"
-      className="icon-only connector-action is-cancel-authorization"
+      className="icon-only jini-connector-action jini-is-cancel-authorization"
       aria-label={t('Cancel authorization')}
       title={t('Cancel authorization')}
       onMouseDown={stopPropagation}
@@ -148,10 +152,10 @@ function ConnectorCancelAuthorizationButton({ onActivate }: { onActivate: () => 
   );
 }
 
-function ConnectorStatusPill({ status }: { status: ConnectorStatusValue }) {
-  const t = useT();
+function ConnectorStatusPill({ status, useTHook = useT }: { status: ConnectorStatusValue; useTHook?: typeof useT; }) {
+  const t = useTHook();
   if (status !== 'error' && status !== 'disabled') return null;
-  return <span className={`connector-status-pill status-${status}`}>{t(statusLabel(status))}</span>;
+  return <span className={`connector-status-pill status-${status}`}>{t(statusLabel({ status }))}</span>;
 }
 
 interface ConnectorCardHintsProps {
@@ -160,6 +164,7 @@ interface ConnectorCardHintsProps {
   cancelFailedMessage: string | undefined;
   continueInBrowserLabel: string | undefined;
   onOpenExternalUrl: ((url: string) => void) | undefined;
+  useTHook?: typeof useT;
 }
 
 /** The cancel-failed alert and the continue-in-browser link under the card body. */
@@ -169,30 +174,21 @@ function ConnectorCardHints({
   cancelFailedMessage,
   continueInBrowserLabel,
   onOpenExternalUrl,
+  useTHook = useT,
 }: ConnectorCardHintsProps) {
-  const t = useT();
+  const t = useTHook();
 
-  function continueAuthorization(event: SyntheticEvent) {
-    stopPropagation(event);
-    // `continueAuthorization`'s only call site (the "continue in browser"
-    // button below) only ever renders while
-    // `isAuthorizationPending && authorizationPending.redirectUrl` already
-    // holds in that same render, and React re-binds this closure fresh on
-    // every render — so a re-check here was dead code for every real
-    // click, removed rather than tested around (see
-    // packages/ui/source-map.md's 2026-07-22 dated entry).
-    onOpenExternalUrl?.(redirectUrl!);
-  }
+  const continueAuthorization = redirectUrl ? createContinueAuthorization({ redirectUrl, onOpenExternalUrl }) : undefined;
 
   return (
     <>
       {authorizationCancelFailed ? (
-        <p className="connector-authorization-hint connector-authorization-error" role="alert">
+        <p className="jini-connector-authorization-hint jini-connector-authorization-error" role="alert">
           {cancelFailedMessage ?? t("Couldn't cancel authorization. Try again.")}
         </p>
       ) : null}
       {redirectUrl ? (
-        <button type="button" className="connector-authorization-link" title={t('Authorization in progress')} onClick={continueAuthorization}>
+        <button type="button" className="jini-connector-authorization-link" title={t('Authorization in progress')} onClick={continueAuthorization}>
           {continueInBrowserLabel ?? t('Continue in browser')}
         </button>
       ) : null}
@@ -216,23 +212,15 @@ export function ConnectorCard({
   continueInBrowserLabel,
   onOpenExternalUrl,
   agentHandle,
+  useTHook = useT,
+  useConnectorCardHook = useConnectorCard,
 }: ConnectorCardProps) {
-  const t = useT();
+  const t = useTHook();
   const flags = connectorActionFlags({ connector, pendingAction, authorizationPending, disabled });
   const categoryLabel = getCategoryLabel(connector.category);
   const actionProps = { flags, disabled, agentHandle };
 
-  function openDetails() {
-    if (disabled) return;
-    onOpenDetails(connector.id);
-  }
-
-  function onKeyActivate(event: ReactKeyboardEvent<HTMLElement>) {
-    if (event.key !== 'Enter' && event.key !== ' ') return;
-    if (event.target !== event.currentTarget) return;
-    event.preventDefault();
-    openDetails();
-  }
+  const { openDetails, onKeyActivate } = useConnectorCardHook({ connector, disabled, onOpenDetails });
 
   return (
     <article

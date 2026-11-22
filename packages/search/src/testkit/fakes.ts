@@ -57,7 +57,12 @@ function createIndexState(): SearchIndexStatePort {
   const rowsOf = (target: SearchTarget) => [...rows.values()].filter(row => sameTarget(row.target, target));
   return {
     async get({ target, key }) { return rows.get(rowId(target, key)) ?? null; },
-    async put({ row }) { rows.set(rowId(row.target, row.key), Object.freeze({ ...row })); },
+    async put({ row }) {
+      const stored = rows.get(rowId(row.target, row.key));
+      if (stored && stored.revision > row.revision) return false;
+      rows.set(rowId(row.target, row.key), Object.freeze({ ...row }));
+      return true;
+    },
     async settle({ row, expected }) {
       const stored = rows.get(rowId(row.target, row.key));
       // Compare-and-swap: only the settle that still sees the row it observed may replace it.

@@ -12,9 +12,9 @@
  * branch) per the decisions in `ADS-memory/reports/proposals/
  * PROP-http-route-packs-automation-routines-2026-07-21.md` (Finding 2). That proposal identified
  * two separable gaps blocking this route pack: (1) no scheduler existed anywhere in this repo —
- * closed by porting `routines.ts` into `@jini-ai/daemon/src/routines/scheduler.ts` this same pass;
+ * closed by porting `routines.ts` into `packages/daemon/src/routines/scheduler.ts` this same pass;
  * (2) no `RoutineStore` persistence port existed for the CRUD side — closed by
- * `@jini-ai/daemon/src/routines/routine-store.ts`, designed the same way `EventLog` is designed.
+ * `packages/daemon/src/routines/routine-store.ts`, designed the same way `EventLog` is designed.
  * This file is the third piece: the actual HTTP routes, now that both ports exist.
  *
  * **Confirmed bug fixed while porting** (per the proposal's own finding, not carried forward):
@@ -63,7 +63,6 @@
  * reflect the real, just-started run regardless of that wiring, since those come directly from
  * `scheduler.runNow`'s own return value.
  */
-import type { Express } from 'express';
 import {
   validateSchedule,
   validateTarget,
@@ -77,10 +76,11 @@ import {
   type RoutineStore,
   type RoutineUpdateInput,
 } from '../index.js';
+import { ToolInputError } from '@jini-ai/core';
 import { createApiError, type ApiError } from '@jini-ai/protocol';
-import { defineJsonRoute, mountJsonRoute, type AdapterContext } from '@jini-ai/http-kit';
-import { validationError } from '@jini-ai/http-kit';
-import { err, ok, type Result, type RouteInputContext } from '@jini-ai/http-kit';
+import { defineJsonRoute, validationError, err, ok, type Result, type RouteInputContext } from '@jini-ai/core/contracts/server';
+import type { DaemonRouteHost } from './route-host.js';
+import { gatedJsonRoute, type DaemonRoute } from './route-table.js';
 
 /** The 404 message for an unknown routine id. */
 const ROUTINE_NOT_FOUND_MESSAGE = 'routine not found';
@@ -252,6 +252,7 @@ function parseRoutineUpdate(input: RouteInputContext): Result<RoutineUpdateReque
 interface RoutineRunsQuery {
   readonly id: string;
   readonly limit: number;
+  readonly cursor: string | null;
 }
 
 function parseRoutineRunsQuery(input: RouteInputContext): Result<RoutineRunsQuery> {
@@ -264,7 +265,11 @@ function parseRoutineRunsQuery(input: RouteInputContext): Result<RoutineRunsQuer
   const parsed = Number(rawValue);
   const numeric = parsed > 0 ? parsed : 20;
   const limit = Math.min(100, Math.max(1, numeric));
-  return ok({ value: { id: idResult.value, limit } });
+  const rawCursor = Array.isArray(input.query.cursor) ? input.query.cursor[0] : input.query.cursor;
+  if (rawCursor !== undefined && (typeof rawCursor !== 'string' || rawCursor.length === 0)) {
+    return err({ error: validationError({ message: 'cursor must be a non-empty string' }) });
+  }
+  return ok({ value: { id: idResult.value, limit, cursor: rawCursor ?? null } });
 }
 
 // ---------------------------------------------------------------------------
@@ -370,24 +375,37 @@ export const routineRunNowRoute = defineJsonRoute<string, RoutineRunNowResponse,
 
 export interface RoutineRunsResponse {
   readonly runs: readonly RoutineRun[];
+  /** Opaque cursor for the next (older) page, or `null` on the last page. */
+  readonly nextCursor: string | null;
 }
 
 export const routineRunsListRoute = defineJsonRoute<RoutineRunsQuery, RoutineRunsResponse, RoutineHttpDeps>({
-  method: 'get', path: '/api/routines/:id/runs', parse: parseRoutineRunsQuery, handle: async ({ input: { id, limit }, deps }) => {
+  method: 'get', path: '/api/routines/:id/runs', parse: parseRoutineRunsQuery, handle: async ({ input: { id, limit, cursor }, deps }) => {
     const existing = await deps.store.get({ id });
     if (existing === null) return err({ error: createApiError({ code: 'NOT_FOUND', message: ROUTINE_NOT_FOUND_MESSAGE }) });
-    const runs = await deps.store.listRuns({ routineId: id, limit });
-    return ok({ value: { runs } });
+    try {
+      const page = await deps.store.listRuns({ routineId: id, limit }, { cursor });
+      return ok({ value: { runs: page.items, nextCursor: page.nextCursor } });
+    } catch (error) {
+      if (error instanceof ToolInputError) {
+        // `ToolInputError` text is Jini's own plain-words input refusal (an invalid cursor), meant for the caller.
+        const refusal = validationError({ message: error.message });
+        return err({ error: refusal });
+      }
+      throw error;
+    }
   }
 });
 
-/** Mounts every routine route on `app`. A pack's `http(app, services)` calls this directly. */
-export function registerRoutineRoutes({ app, deps, adapter }: { readonly app: Express; readonly deps: RoutineHttpDeps; readonly adapter: AdapterContext }, _optional: Record<string, never> = {}): void {
-  mountJsonRoute({ app, spec: routineListRoute, deps, adapter });
-  mountJsonRoute({ app, spec: routineCreateRoute, deps, adapter });
-  mountJsonRoute({ app, spec: routineGetRoute, deps, adapter });
-  mountJsonRoute({ app, spec: routineUpdateRoute, deps, adapter });
-  mountJsonRoute({ app, spec: routineDeleteRoute, deps, adapter });
-  mountJsonRoute({ app, spec: routineRunNowRoute, deps, adapter });
-  mountJsonRoute({ app, spec: routineRunsListRoute, deps, adapter });
+/** Every routine route as data; the four writes sit behind the same-origin gate their specs declare. */
+export function routineRoutes({ deps, host }: { readonly deps: RoutineHttpDeps; readonly host: DaemonRouteHost }, _optional: Record<string, never> = {}): DaemonRoute[] {
+  return [
+    gatedJsonRoute({ spec: routineListRoute, deps, host }),
+    gatedJsonRoute({ spec: routineCreateRoute, deps, host }),
+    gatedJsonRoute({ spec: routineGetRoute, deps, host }),
+    gatedJsonRoute({ spec: routineUpdateRoute, deps, host }),
+    gatedJsonRoute({ spec: routineDeleteRoute, deps, host }),
+    gatedJsonRoute({ spec: routineRunNowRoute, deps, host }),
+    gatedJsonRoute({ spec: routineRunsListRoute, deps, host }),
+  ];
 }

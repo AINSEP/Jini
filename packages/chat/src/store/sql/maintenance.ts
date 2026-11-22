@@ -1,14 +1,15 @@
 /** Privileged bounded retention, kept separate from every request-scoped store. */
 // A sweep crosses owners; attaching it to ChatStore would require the unscoped escape hatch
 // owner-bound construction deliberately removes. Give this factory only to maintenance callers.
-import type { StorageKernel } from '@jini-ai/db/kernel';
+import type { StorageKernel } from '@jini-ai/core/contracts/storage';
 import type { ChatDatabase } from './tables.js';
 import type { ChatHistoryMaintenance } from '../ports.js';
 import { ChatStoreError } from '../errors.js';
 import { atStoreBoundary, runChatQuery } from './boundary.js';
+import type { Kysely } from 'kysely';
 
 /** Delete at most 500 expired parents; the host schema/foreign-key policy supplies cascades. */
-export function createSqlChatMaintenance<DB extends ChatDatabase>({ kernel }: { kernel: StorageKernel<DB> }): ChatHistoryMaintenance {
+export function createSqlChatMaintenance<DB extends ChatDatabase>({ kernel }: { kernel: StorageKernel<Kysely<DB>, DB> }): ChatHistoryMaintenance {
   return {
     sweepExpired: ({ now }, { limit = 500 } = {}) => atStoreBoundary({ operation: async () => {
       // Drain a backlog in chunks: an unbounded delete can hold the write lock until concurrent

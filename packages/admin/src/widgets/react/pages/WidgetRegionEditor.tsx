@@ -1,7 +1,9 @@
 import { useWidgetRegionEditorView } from '../hooks/page-views.hooks.js';
+import { RegionPlacementRow } from '../components/RegionPlacementRow.js';
+import { WidgetRegionEditorHeader } from '../components/WidgetPageHeaders.js';
 import { useWidgetsOptions } from '../hooks/WidgetsPorts.hooks.js';
 
-import { agentHandle } from "@jini-ai/agentic";
+import { agentHandle } from "@jini-ai/core/agent-handles";
 import { useWiredWidgetRegionEditor } from "../hooks/use-widget-region-editor.hooks.js";
 import { widgetTypeLabel } from "../../rules.js";
 
@@ -21,16 +23,17 @@ export interface WidgetRegionEditorProps {
    * Defaulted to the real hook, so production callers pass nothing and behave exactly as before.
    */
   useWidgetRegionEditorHook?: typeof useWiredWidgetRegionEditor | undefined;
+  useWidgetRegionEditorViewHook?: typeof useWidgetRegionEditorView | undefined;
+  useWidgetsOptionsHook?: typeof useWidgetsOptions | undefined;
 }
 
 export { WidgetRegionEditorHeaderActions } from '../components/WidgetRegionEditorHeaderActions.js';
 import { WidgetRegionEditorHeaderActions } from '../components/WidgetRegionEditorHeaderActions.js';
 
-export function WidgetRegionEditor(props: WidgetRegionEditorProps) {
-  const { slots: { AddControl: WidgetAddControl }, widgetTypes } = useWidgetsOptions();
-  const { regionKey, useWidgetRegionEditorHook = useWiredWidgetRegionEditor } = props;
+export function WidgetRegionEditor({ regionKey, useWidgetRegionEditorHook = useWiredWidgetRegionEditor, useWidgetRegionEditorViewHook = useWidgetRegionEditorView, useWidgetsOptionsHook = useWidgetsOptions }: WidgetRegionEditorProps) {
+  const { slots: { AddControl: WidgetAddControl }, widgetTypes } = useWidgetsOptionsHook();
   const { area, placements, message, error, loading, saving, removeAt, moveAt, toggleEnabled, addPlacement, save, t, placementHandles } =
-    useWidgetRegionEditorView({ regionKey, useWidgetRegionEditorHook });
+    useWidgetRegionEditorViewHook({ regionKey, useWidgetRegionEditorHook });
 
   if (error && !area) return <div className="notice error">{error}</div>;
   if (loading) return <div className="notice">{t("Loading region…")}</div>;
@@ -38,40 +41,7 @@ export function WidgetRegionEditor(props: WidgetRegionEditorProps) {
 
   return (
     <div className="page">
-      {/* `page-header-split` (`styles.css`) — same shared idiom Pages/Posts/Forms already use:
-          back link alone at the left rail, title block centred. Widget Regions never grew a
-          separate `.editor-action-row` below a toolbar, so Save/status (`.page-header-actions`)
-          stay IN the header instead of an empty third rail (owner, 2026-09-22: "put the back
-          button on the left, like the other editors" — see `WidgetRegionEditorHeaderActions`'s own
-          comment for why the back link moved out of that component). */}
-      <div
-        className="page-header page-header-split"
-        {...agentHandle({ handle: "widget-region-editor-header" }, {
-          role: "region",
-          label: "Widget region editor header — the back link, the region's title, and the Save button",
-        })}
-      >
-        <div className="page-header-lead">
-          {/* Visible label shortened to a plain "← Back" (owner, 2026-09-22 — every editor's back
-              button reads the same short way now). `aria-label` keeps "Back: Regions" —
-              colon-joined rather than concatenated into a sentence so it needs no new per-locale
-              phrase key and still starts with the exact visible text (WCAG 2.5.3 Label in Name). */}
-          <a
-            className="btn-secondary"
-            href="/admin/widgets/regions"
-            aria-label={`${t("Back")}: ${t("Regions")}`}
-            {...agentHandle({ handle: "widget-region-editor-back" }, { role: "link", label: "Back to Widget Regions" })}
-          >
-            ← {t("Back")}
-          </a>
-        </div>
-        <div className="page-header-text">
-          <p className="page-kicker">{t("Content")}</p>
-          <h1 className="page-title">{t("Region:")} {regionKey}</h1>
-          <p className="page-description">{t("Manage which widgets appear in this region and their order.")}</p>
-        </div>
-        <WidgetRegionEditorHeaderActions message={message} error={error} saving={saving} onSave={save} t={t} />
-      </div>
+      <WidgetRegionEditorHeader t={t} regionKey={regionKey} message={message} error={error} saving={saving} onSave={save} />
 
       <div className="jini-widget-region-placements">
         {placements.length === 0 ? (
@@ -82,59 +52,17 @@ export function WidgetRegionEditor(props: WidgetRegionEditorProps) {
           </div>
         ) : (
           placements.map((placement, i) => (
-            <div key={placement.placementId} className="menu-item-row">
-              <div className="menu-item-fields">
-                {placement.broken ? (
-                  <span className="widget-embed-node--broken">{t("⚠ Broken reference")}</span>
-                ) : (
-                  <span>
-                    <strong>{placement.widgetTitle}</strong>
-                    {placement.widgetType ? (
-                      <>
-                        {" "}
-                        <span className="muted-cell">({widgetTypeLabel({ widgetType: placement.widgetType, types: widgetTypes }, { t })})</span>
-                      </>
-                    ) : null}
-                  </span>
-                )}
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={placement.enabled}
-                    onChange={() => toggleEnabled(placement.placementId)}
-                    {...agentHandle({ handle: `${placementHandles[i]}-enabled` }, { role: "field", label: `Whether "${placement.widgetTitle}" is enabled` })}
-                  />
-                  {t("Enabled")}
-                </label>
-                <button
-                  className="tb-btn"
-                  onClick={() => moveAt(i, -1)}
-                  title={t("Move up")}
-                  aria-label={t("Move up")}
-                  {...agentHandle({ handle: `${placementHandles[i]}-move-up` }, { role: "button", label: `Move "${placement.widgetTitle}" up` })}
-                >
-                  ↑
-                </button>
-                <button
-                  className="tb-btn"
-                  onClick={() => moveAt(i, 1)}
-                  title={t("Move down")}
-                  aria-label={t("Move down")}
-                  {...agentHandle({ handle: `${placementHandles[i]}-move-down` }, { role: "button", label: `Move "${placement.widgetTitle}" down` })}
-                >
-                  ↓
-                </button>
-                <button
-                  className="tb-btn"
-                  onClick={() => removeAt(placement.placementId)}
-                  title={t("Remove")}
-                  aria-label={t("Remove")}
-                  {...agentHandle({ handle: `${placementHandles[i]}-remove` }, { role: "button", label: `Remove "${placement.widgetTitle}" from this region` })}
-                >
-                  ✕
-                </button>
-              </div>
-            </div>
+            <RegionPlacementRow
+              key={placement.placementId}
+              placement={placement}
+              handle={placementHandles[i]}
+              widgetTypes={widgetTypes}
+              t={t}
+              toggleEnabled={toggleEnabled}
+              moveUp={() => moveAt(i, -1)}
+              moveDown={() => moveAt(i, 1)}
+              remove={removeAt}
+            />
           ))
         )}
         <WidgetAddControl

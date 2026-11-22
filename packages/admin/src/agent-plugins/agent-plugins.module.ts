@@ -1,4 +1,4 @@
-import { defineAdminModule } from '../core/module/index.js';
+import { defineAdminModule } from '@jini-ai/core/contracts/admin-module';
 import { agentPluginsApiToken } from './ports.js';
 import { agentPluginsMessagesEn as m } from './messages.en.js';
 import { AGENT_PLUGINS_READ } from './rules.js';

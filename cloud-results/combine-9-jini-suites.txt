@@ -1,0 +1,34 @@
+install exit=0
+build exit=0 errorTS=0
+packages/daemon exit=0 82s  Tests 4854 passed | 1 skipped (4855);
+packages/sidecar exit=0 7s  Tests 408 passed | 3 skipped (411);
+packages/server exit=0 28s  Tests 469 passed | 1 skipped (470);
+packages/mcp exit=0 26s  Tests 1885 passed (1885);
+packages/node-adapters exit=0 2s  Tests 35 passed (35);
+packages/agent-plugins exit=0 53s  Tests 2187 passed | 2 skipped (2189);
+packages/plugins exit=0 24s  Tests 1017 passed (1017);
+packages/plugin-catalog exit=0 1s  Tests 68 passed (68);
+packages/provider-plugins exit=0 54s  Tests 901 passed (901);
+packages/chat exit=0 352s  Tests 4486 passed | 1 skipped (4487);
+packages/cli exit=0 5s  Tests 605 passed (605);
+packages/infra exit=0 4s  Tests 155 passed (155);
+packages/agent-runtime exit=0 37s  Tests 4537 passed | 1 skipped (4538);
+packages/core exit=0 26s  Tests 2947 passed (2947);
+packages/platform exit=0 36s  Tests 3354 passed | 6 skipped (3360);
+packages/devops exit=0 22s  Tests 1327 passed (1327);
+packages/diagnostics exit=0 10s  Tests 1090 passed (1090);
+packages/integrations exit=0 17s  Tests 2077 passed (2077);
+packages/cms exit=1 104s  Tests 1 failed | 5001 passed (5002);
+packages/ui exit=0 238s  Tests 8818 passed (8818);
+examples/minimal-host exit=0 92s  Tests 3 passed (3);
+examples/neutral-host exit=1 6s  Tests 1 failed | 38 passed | 13 todo (52);
+DONE
+
+### cms red
+475:   × forms keeps its own published root entry and CMS exposes no forms alias 7ms
+539: FAIL  forms/src/__tests__/package-boundary.test.ts > forms keeps its own published root entry and CMS exposes no forms alias
+540:AssertionError: expected '0.7.1' to be '0.7.3-next.1' // Object.is equality
+### neutral-host red
+23:   × contribution contracts > walks every contribution file, and each kind is in the contract table 5ms
+33: FAIL  src/contribution-contracts.test.ts > contribution contracts > walks every contribution file, and each kind is in the contract table
+34:AssertionError: expected 0 to be greater than or equal to 27

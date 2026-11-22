@@ -1,5 +1,6 @@
-import type { StorageKernel } from "@jini-ai/db/kernel";
+import type { StorageKernel } from "@jini-ai/core/contracts/storage";
 import type { ChatDatabase as TranscriptDatabase } from "../sql/tables.js";
+import type { Kysely } from "kysely";
 
 /** Borrowed existing chat tables; the host owns migrations and connection lifetime. */
 export type ChatDatabase = TranscriptDatabase & {
@@ -21,4 +22,4 @@ export type ChatDatabase = TranscriptDatabase & {
     attempt_base_json: string;
   };
 };
-export type ChatKernel<DB extends ChatDatabase = ChatDatabase> = StorageKernel<DB>;
+export type ChatKernel<DB extends ChatDatabase = ChatDatabase> = StorageKernel<Kysely<DB>, DB>;

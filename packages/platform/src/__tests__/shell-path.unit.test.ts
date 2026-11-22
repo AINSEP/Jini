@@ -21,7 +21,7 @@ it('uses a non-login shell and preserves the process PATH even when a custom env
   vi.stubEnv('SHELL', '/custom/shell');
   vi.stubEnv('PATH', '/host/shims:/usr/bin');
   const env = { PATH: '/custom/env' };
-  await expect(execCommandViaLoginShell('inspect', ['plain'], { env })).resolves.toEqual({
+  await expect(execCommandViaLoginShell({ command: 'inspect', args: ['plain'] }, { env })).resolves.toEqual({
     code: undefined, error: null, ok: true, stderr: '', stdout: 'ready',
   });
   expect(execFile).toHaveBeenCalledTimes(1);

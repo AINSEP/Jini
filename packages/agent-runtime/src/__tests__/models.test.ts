@@ -10,7 +10,7 @@ import {
   validateRuntimeSelection,
 } from '../models.js';
 import { modelReasoningOptions } from '../model-discovery-shared.js';
-import type { RuntimeAgentDef } from '../types.js';
+import type { RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 
 describe('validateRuntimeSelection', () => {
   const agents = [{ id: 'runtime', available: true, authStatus: 'ok' as const, modelsSource: 'live' as const, models: [

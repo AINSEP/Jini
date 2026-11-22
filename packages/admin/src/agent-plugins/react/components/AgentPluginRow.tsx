@@ -1,9 +1,9 @@
-import { Badge, Button, IconButton, Switch } from '@jini-ai/ui-kit/react';
+import { Badge, Button, IconButton, Switch } from '../../../react/kit.js';
 import type { AgentPluginRowView } from '../hooks/AgentPluginPanel.hooks.js';
 import { useAgentPluginRow } from '../hooks/AgentPluginRow.hooks.js';
 type RowViewModel = ReturnType<typeof useAgentPluginRow>;
-export function AgentPluginRow({ row }: { row: AgentPluginRowView }) {
-  const vm = useAgentPluginRow({ row });
+export function AgentPluginRow({ row, useAgentPluginRowHook = useAgentPluginRow }: { row: AgentPluginRowView; useAgentPluginRowHook?: typeof useAgentPluginRow }) {
+  const vm = useAgentPluginRowHook({ row });
   return <li data-jini-part="agent-plugins.row"><span aria-hidden>{vm.glyph}</span><h3>{vm.name} {vm.version && <small>{vm.version}</small>}</h3>
     {vm.description && <p>{vm.description}</p>}
     <Badge>{vm.stateLabel}</Badge>

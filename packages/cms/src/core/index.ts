@@ -45,23 +45,6 @@
  * behind a registration call the host makes, not behind a kernel barrel.
  */
 
-export type {
-  DomainEvent,
-  EventBusPort,
-  OutboxRecord,
-  OutboxPort,
-  TransactionalRepoPort,
-} from './ports.js';
-
-export type {
-  ChangeSetStatus,
-  ChangeSetOperation,
-  ChangeSetRecord,
-  ChangeSetItemRecord,
-  ChangeSetWithItems,
-  ChangeSetRepoPort,
-} from './commands/change-set.js';
-
 export * from './commands/command.js';
 export * from './entity-liveness.js';
 export * from './tools/args.js';
@@ -69,3 +52,4 @@ export * from './tools/args.js';
 export type { AuthorizationPort, AuthorizationRequired, AuthorizationOptional } from './authorization.js';
 
 export { encodeKeysetCursor, decodeKeysetCursor, type KeysetPosition } from "./keyset-cursor.js";
+export type { PostStatus, PublicPostKind } from "./post-vocabulary.js";

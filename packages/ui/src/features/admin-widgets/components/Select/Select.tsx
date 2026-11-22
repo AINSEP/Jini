@@ -1,13 +1,13 @@
-import { useOverlayContainer } from '@jini-ai/ui-kit/react';
+import { useOverlayContainer } from '../../../../react/kit.js';
 import { useAgentHandle } from '../../../../react/hooks/useAgentHandle.js';
 import { resolveSelectPortalContainer, resolveSelectOriginPage } from '../../../../react/components/select-popover.js';
 import { createPortal } from "react-dom";
-import { agentHandle } from "@jini-ai/agentic";
-import { agentHandleSegment } from "@jini-ai/agentic";
-import type { Translate } from "../../../i18n/dictionary-translator.js";
-import { Fragment } from "react";
-import { useSelectDropdown, groupHeadingAt, type PanelPosition, type SelectOption } from "./Select.hooks.js";
+import { agentHandle, agentHandleSegment } from "@jini-ai/core/agent-handles";
 
+import { Fragment } from "react";
+import { useSelectDropdown, useSelectOptionRef, groupHeadingAt, type PanelPosition, type SelectOption } from "./Select.hooks.js";
+
+import { type Translate } from '@jini-ai/core/text';
 export type { SelectOption };
 /** Use this custom listbox when in-panel search is needed: a native OS option list cannot host it.
  * Native selects otherwise avoid the accessibility/behavior tradeoffs of a simulated listbox.
@@ -88,27 +88,7 @@ function SelectOptionRow({
   );
 }
 
-function SelectPanel({
-  panelRef,
-  page,
-  position,
-  showSearch,
-  searchInputRef,
-  query,
-  setQuery,
-  filtered,
-  value,
-  highlightedIndex,
-  listboxId,
-  optionId,
-  setOptionRef,
-  onHighlight,
-  onSelect,
-  onKeyDown,
-  searchHandle,
-  optionHandles,
-  t,
-}: {
+function SelectPanel(props: {
   panelRef: React.RefObject<HTMLDivElement | null>;
   page?: string | undefined;
   position: PanelPosition;
@@ -129,6 +109,7 @@ function SelectPanel({
   optionHandles?: readonly string[] | undefined;
   t: Translate;
 }) {
+  const { panelRef, page, position, onKeyDown, searchHandle } = props;
   const searchHandleProps = searchHandle ? agentHandle({ handle: searchHandle }, { role: "field", label: "Search the option list" }) : {};
   return (
     <div
@@ -139,7 +120,17 @@ function SelectPanel({
       tabIndex={-1}
       onKeyDown={onKeyDown}
     >
-      {showSearch ? (
+      {renderSelectSearch(props, searchHandleProps)}
+      {renderSelectOptions(props)}
+    </div>
+  );
+}
+
+function renderSelectSearch(
+  { showSearch, searchInputRef, query, setQuery, t }: Parameters<typeof SelectPanel>[0],
+  searchHandleProps: Record<string, unknown>,
+): React.ReactNode {
+  return showSearch ? (
         <input
           ref={searchInputRef}
           type="text"
@@ -150,7 +141,13 @@ function SelectPanel({
           onChange={(e) => setQuery(e.target.value)}
           {...searchHandleProps}
         />
-      ) : null}
+      ) : null;
+}
+
+function renderSelectOptions(
+  { listboxId, filtered, value, highlightedIndex, optionId, setOptionRef, onHighlight, onSelect, optionHandles, t }: Parameters<typeof SelectPanel>[0],
+): React.JSX.Element {
+  return (
       <ul className="select-list" role="listbox" id={listboxId}>
         {filtered.length === 0 ? (
           <li className="select-empty" role="presentation">
@@ -177,7 +174,6 @@ function SelectPanel({
           ))
         )}
       </ul>
-    </div>
   );
 }
 
@@ -203,41 +199,25 @@ function resolveSelectTriggerHandleProps(
   return base ? agentHandle({ handle: base }, { role: "button", label: ariaLabel ?? placeholder ?? "Select an option" }) : {};
 }
 
+/** Hooks Select calls; defaults to the real ones, a test hands in fakes. */
+export const defaultSelectHooks = { useAgentHandle, useOverlayContainer, useSelectOptionRef };
+export type SelectHooks = typeof defaultSelectHooks;
+
 /** Controlled searchable listbox with viewport positioning, dialog-local portals and keyboard navigation. */
-export function Select(props: SelectProps, _optional: Record<string, never> = {}) {
-  const { value, onChange, options, placeholder, id, disabled, useDropdown = useSelectDropdown, agentHandle: suppliedBase, translate, t = translate ?? ((key: string) => key) } = props;
-  const base = useAgentHandle({ agentHandle: suppliedBase });
-  const overlayContainer = useOverlayContainer({});
+export function Select({ hooks = defaultSelectHooks, useDropdown = useSelectDropdown, ...props }: SelectProps & { hooks?: SelectHooks | undefined }) {
+  const { value, onChange, options, placeholder, id, disabled, agentHandle: suppliedBase, translate, t = translate ?? ((key: string) => key) } = props;
+  const base = hooks.useAgentHandle({ agentHandle: suppliedBase });
+  const overlayContainer = hooks.useOverlayContainer({});
   const ariaLabel = props["aria-label"];
   const ariaLabelledBy = props["aria-labelledby"];
 
   const {
-    open,
-    highlightedIndex,
-    setHighlightedIndex,
-    position,
-    triggerRef,
-    panelRef,
-    searchInputRef,
-    optionRefs,
-    listboxId,
-    showSearch,
-    filtered,
-    selectedOption,
-    openPanel,
-    closePanel,
-    selectOption,
-    handleTriggerKeyDown,
-    handlePanelKeyDown,
-    optionId,
-    query,
-    setQuery,
+    open, highlightedIndex, setHighlightedIndex, position, triggerRef, panelRef, searchInputRef,
+    optionRefs, listboxId, showSearch, filtered, selectedOption, openPanel, closePanel, selectOption,
+    handleTriggerKeyDown, handlePanelKeyDown, optionId, query, setQuery,
   } = useDropdown({ value, onChange, options }, { disabled });
 
-  function setOptionRef(index: number, el: HTMLLIElement | null) {
-    if (el) optionRefs.current.set(index, el);
-    else optionRefs.current.delete(index);
-  }
+  const setOptionRef = hooks.useSelectOptionRef({ optionRefs });
 
   const triggerLabel = resolveSelectTriggerLabel({ selectedOption: selectedOption, placeholder: placeholder }, { t: t });
   const activeDescendant = resolveSelectTriggerActiveDescendant(open, highlightedIndex, optionId);
@@ -249,6 +229,24 @@ export function Select(props: SelectProps, _optional: Record<string, never> = {}
 
   return (
     <>
+      {renderSelectTrigger({ triggerRef, id, open, listboxId, activeDescendant, ariaLabel, ariaLabelledBy, disabled, closePanel, openPanel, handleTriggerKeyDown, base, placeholder, triggerLabel })}
+      {renderSelectPortal(
+        { open, position, panelRef, triggerRef, showSearch, searchInputRef, query, setQuery, filtered, highlightedIndex, listboxId, optionId, setHighlightedIndex, selectOption, handlePanelKeyDown },
+        { value, setOptionRef, base, optionHandles, t, portalContainer: props.portalContainer, overlayContainer },
+      )}
+    </>
+  );
+}
+
+function renderSelectTrigger({
+  triggerRef, id, open, listboxId, activeDescendant, ariaLabel, ariaLabelledBy, disabled,
+  closePanel, openPanel, handleTriggerKeyDown, base, placeholder, triggerLabel,
+}: Pick<ReturnType<typeof useSelectDropdown>, 'triggerRef' | 'open' | 'listboxId' | 'closePanel' | 'openPanel' | 'handleTriggerKeyDown'> & {
+  id: SelectProps['id']; activeDescendant: string | undefined; ariaLabel: string | undefined;
+  ariaLabelledBy: string | undefined; disabled: SelectProps['disabled']; base: string | undefined;
+  placeholder: SelectProps['placeholder']; triggerLabel: ReturnType<typeof resolveSelectTriggerLabel>;
+}): React.JSX.Element {
+  return (
       <button
         type="button"
         ref={triggerRef}
@@ -269,8 +267,19 @@ export function Select(props: SelectProps, _optional: Record<string, never> = {}
         <span className={triggerLabel.className}>{triggerLabel.text}</span>
         <span className="select-trigger-chevron" aria-hidden="true" />
       </button>
+  );
+}
 
-      {open && position
+function renderSelectPortal(
+  { open, position, panelRef, triggerRef, showSearch, searchInputRef, query, setQuery, filtered, highlightedIndex, listboxId, optionId, setHighlightedIndex, selectOption, handlePanelKeyDown }:
+    Pick<ReturnType<typeof useSelectDropdown>, 'open' | 'position' | 'panelRef' | 'triggerRef' | 'showSearch' | 'searchInputRef' | 'query' | 'setQuery' | 'filtered' | 'highlightedIndex' | 'listboxId' | 'optionId' | 'setHighlightedIndex' | 'selectOption' | 'handlePanelKeyDown'>,
+  { value, setOptionRef, base, optionHandles, t, portalContainer, overlayContainer }: {
+    value: string; setOptionRef: ReturnType<typeof useSelectOptionRef>; base: string | undefined;
+    optionHandles: readonly string[] | undefined; t: Translate; portalContainer: SelectProps['portalContainer'];
+    overlayContainer: ReturnType<typeof useOverlayContainer>;
+  },
+): React.ReactNode {
+  return open && position
         ? createPortal(
             <SelectPanel
               panelRef={panelRef}
@@ -293,9 +302,7 @@ export function Select(props: SelectProps, _optional: Record<string, never> = {}
               optionHandles={optionHandles}
               t={t}
             />,
-            resolveSelectPortalContainer({ trigger: triggerRef.current }, { container: props.portalContainer, fallbackContainer: overlayContainer })
+            resolveSelectPortalContainer({ trigger: triggerRef.current }, { container: portalContainer, fallbackContainer: overlayContainer })
           )
-        : null}
-    </>
-  );
+        : null;
 }

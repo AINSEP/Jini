@@ -1,13 +1,19 @@
 /** Resource lifecycle for the existing contribution snapshots. Domain validation stays injected. */
 import { createProviderRegistry, type ProviderDefinition } from '@jini-ai/core/provider-registry';
 import type { PluginContributionRegistry, PluginContributionsSnapshot } from './contributions.js';
-import type { PluginProviderContribution, PluginProviderResource } from './provider-contributions.js';
+import type {
+  PluginProviderContribution,
+  PluginProviderResource,
+} from '@jini-ai/core/contracts/plugin-sdk';
 
 export interface PluginProviderContract {
   readonly contract: string;
   /** Supplied by the domain owner; plugins never select or replace this validator. */
   readonly validate: (required: { provider: unknown }, optional?: Record<string, never>) => string | undefined;
   readonly seed?: readonly ProviderDefinition<unknown>[];
+  /** Domain-owned helper values handed to every provider of this contract as the factory's
+   * `optional.context`. Providers restate their shape and never import the domain. */
+  readonly context?: Readonly<Record<string, unknown>>;
 }
 export interface PluginProviderFailure {
   readonly pluginId: string;
@@ -34,26 +40,6 @@ export class PluginProviderError extends Error {
     super(required.message); this.name = 'PluginProviderError';
   }
 }
-/** Explicit plugin-authored startup guidance. Raw SDK errors must never be shown to users. */
-export class PluginProviderStartupError extends Error {
-  readonly reason: string;
-  readonly action: string;
-  constructor({ reason, action, cause }: { reason: string; action: string; cause?: unknown }, _optional = {}) {
-    super(reason, { cause });
-    this.name = 'PluginProviderStartupError';
-    this.reason = reason;
-    this.action = action;
-  }
-}
-
-/** Startup guidance from a {@link PluginProviderStartupError}, matched by shape: each provider plugin
- *  artifact bundles its own copy of this class, so `instanceof` against the host's copy is always false. */
-export function pluginProviderStartupGuidance({ error }: { error: unknown }, _optional = {}): { reason: string; action: string } | undefined {
-  if (!(error instanceof Error) || error.name !== 'PluginProviderStartupError') return undefined;
-  const { reason, action } = error as Partial<PluginProviderStartupError>;
-  return typeof reason === 'string' && typeof action === 'string' ? { reason, action } : undefined;
-}
-
 /** Applying saved settings either succeeds, requires a browser/process refresh, or fails to start. */
 export type PluginProviderApplyResult = 'now' | 'restart' | { appliesAt: 'failed'; reason: string; action: string };
 
@@ -102,39 +88,25 @@ function timeoutOption(value: number | undefined, fallback: number, name: string
   return timeoutMs;
 }
 
-/**
- * Track resources against snapshot identity, so replacement retires even the same plugin version.
- * @param required.contributions Existing executable contribution owner; detach retires immediately.
- * @param required.contracts Domain validators and optional built-in providers.
- * @param optional.disposeTimeoutMs Positive finite bound for each resource's teardown (default 2000).
- * @param optional.initializeTimeoutMs Positive finite bound for awaiting a factory (default 10000).
- * @returns A host whose shutdown is idempotent and whose late factory results are disposed.
- * @throws RangeError for invalid timeouts; PluginProviderError for unknown/invalid contracts or ports.
- */
-export function createPluginProviderHost(required: {
-  contributions: PluginContributionRegistry; contracts: readonly PluginProviderContract[];
-}, optional: {
-  disposeTimeoutMs?: number;
-  initializeTimeoutMs?: number;
-  onError?: (required: PluginProviderFailure, optional?: Record<string, never>) => void | Promise<void>;
-} = {}): PluginProviderHost {
-  const timeoutMs = timeoutOption(optional.disposeTimeoutMs, 2000, 'disposal');
-  const initializeTimeoutMs = timeoutOption(optional.initializeTimeoutMs, 10_000, 'initialization');
+function createProviderContracts(definitions: readonly PluginProviderContract[]) {
   const contracts = new Map<string, PluginProviderContract>();
-  for (const contract of required.contracts) {
+  for (const contract of definitions) {
     if (contracts.has(contract.contract)) throw new PluginProviderError({ message: 'duplicate provider contract' });
     // Validate built-in definitions eagerly, using core's throwing composition policy.
     createProviderRegistry<unknown>({ contract: contract.contract }, { validate: contract.validate, seed: contract.seed ?? [] });
     contracts.set(contract.contract, contract);
   }
+  return contracts;
+}
+
+function createProviderHostState(required: Parameters<typeof createPluginProviderHost>[0], optional: NonNullable<Parameters<typeof createPluginProviderHost>[1]>) {
   const acquired = new Set<Acquired>();
   const cleanups = new Set<Promise<void>>();
   const disposers = new WeakMap<PluginProviderResource, () => Promise<void>>();
   // Pending initializations re-check their generation on each change, so retirement settles them.
   const wakers = new Set<() => void>();
-  let closed = false;
-  let shutdown: Promise<void> | undefined;
-  const current = (snapshot: PluginContributionsSnapshot): boolean => !closed && required.contributions.list({}).includes(snapshot);
+  const lifecycle: { closed: boolean; shutdown: Promise<void> | undefined } = { closed: false, shutdown: undefined };
+  const current = (snapshot: PluginContributionsSnapshot): boolean => !lifecycle.closed && required.contributions.list({}).includes(snapshot);
   // Every started teardown, direct or host-triggered, is awaited by shutdown.
   const track = (pending: Promise<void>): Promise<void> => {
     cleanups.add(pending);
@@ -154,7 +126,14 @@ export function createPluginProviderHost(required: {
     // Diagnostics must never prevent another provider from releasing its resources.
     try { void Promise.resolve(optional.onError?.(failure, {})).catch(() => {}); } catch { /* Failure reporting is a borrowed host effect. */ }
   };
-  function releaserFor(input: {
+  return { acquired, cleanups, disposers, wakers, lifecycle, current, track, cleanup, unsubscribe, report };
+}
+
+type ProviderHostState = ReturnType<typeof createProviderHostState>;
+
+function createProviderReleaser(state: ProviderHostState, timeoutMs: number) {
+  const { disposers, report } = state;
+  return function releaserFor(input: {
     resource: PluginProviderResource; snapshot: PluginContributionsSnapshot; provider: PluginProviderContribution;
   }): () => Promise<void> {
     let release = disposers.get(input.resource);
@@ -165,8 +144,12 @@ export function createPluginProviderHost(required: {
       disposers.set(input.resource, release);
     }
     return release;
-  }
-  function leaseResource(input: { port: unknown; release: () => Promise<void>; snapshot: PluginContributionsSnapshot }): Acquired {
+  };
+}
+
+function createProviderLease(state: ProviderHostState) {
+  const { current, acquired, track } = state;
+  return function leaseResource(input: { port: unknown; release: () => Promise<void>; snapshot: PluginContributionsSnapshot }): Acquired {
     let retired = false;
     const item: Acquired = { snapshot: input.snapshot, lease: {
       port: input.port,
@@ -174,24 +157,32 @@ export function createPluginProviderHost(required: {
       dispose: () => { retired = true; acquired.delete(item); return track(input.release()); },
     } };
     return item;
+  };
+}
+
+function validatePort(input: { port: unknown; contract: PluginProviderContract; snapshot: PluginContributionsSnapshot; provider: PluginProviderContribution }): void {
+  const registry = createProviderRegistry<unknown>({ contract: input.contract.contract }, {
+    validate: input.contract.validate, seed: input.contract.seed ?? [],
+  });
+  if (!registry.contribute({ definition: { id: input.provider.id, provider: input.port }, pluginId: input.snapshot.pluginId, contract: input.provider.contract })) {
+    throw new PluginProviderError({ message: registry.refusals()[0]!.message });
   }
-  function validatePort(input: { port: unknown; contract: PluginProviderContract; snapshot: PluginContributionsSnapshot; provider: PluginProviderContribution }): void {
-    const registry = createProviderRegistry<unknown>({ contract: input.contract.contract }, {
-      validate: input.contract.validate, seed: input.contract.seed ?? [],
-    });
-    if (!registry.contribute({ definition: { id: input.provider.id, provider: input.port }, pluginId: input.snapshot.pluginId, contract: input.provider.contract })) {
-      throw new PluginProviderError({ message: registry.refusals()[0]!.message });
-    }
-  }
-  function findProvider(input: { contract: string; id: string }): { snapshot: PluginContributionsSnapshot; provider: PluginProviderContribution } | undefined {
+}
+
+function createProviderFinder(required: Parameters<typeof createPluginProviderHost>[0]) {
+  return function findProvider(input: { contract: string; id: string }): { snapshot: PluginContributionsSnapshot; provider: PluginProviderContribution } | undefined {
     for (const snapshot of required.contributions.list({})) {
       const provider = snapshot.providers?.find(value => value.contract === input.contract && value.id === input.id);
       if (provider) return { snapshot, provider };
     }
     return undefined;
-  }
+  };
+}
+
+function createProviderAdmission(state: ProviderHostState, releaserFor: ReturnType<typeof createProviderReleaser>, leaseResource: ReturnType<typeof createProviderLease>) {
+  const { current, cleanup, acquired, track } = state;
   /** Admit one factory result; anything not handed out as a lease is released before settling. */
-  async function admit(input: {
+  return async function admit(input: {
     resource: PluginProviderResource; contract: PluginProviderContract; snapshot: PluginContributionsSnapshot;
     provider: PluginProviderContribution; abandoned: () => boolean;
   }): Promise<PluginProviderLease | undefined> {
@@ -208,9 +199,13 @@ export function createPluginProviderHost(required: {
     if (input.abandoned() || !current(snapshot)) { await cleanup(item); return undefined; }
     acquired.add(item);
     return item.lease;
-  }
+  };
+}
+
+function createProviderDeadline(state: ProviderHostState, initializeTimeoutMs: number) {
+  const { current, wakers } = state;
   /** Settle on the factory, retirement (undefined) or the deadline; admit() still releases late results. */
-  function untilRetiredOrDeadline(input: {
+  return function untilRetiredOrDeadline(input: {
     produced: Promise<PluginProviderLease | undefined>; snapshot: PluginContributionsSnapshot; abandon: () => void;
   }): Promise<PluginProviderLease | undefined> {
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -226,33 +221,67 @@ export function createPluginProviderHost(required: {
     // The factory may already have retired the generation (e.g. a borrowed callback shut the host down).
     wake();
     return Promise.race([input.produced, stopped]).finally(() => { wakers.delete(wake); clearTimeout(timer); });
-  }
-  async function initialize(
+  };
+}
+
+function createProviderInitializer(state: ProviderHostState, contracts: Map<string, PluginProviderContract>, operations: { findProvider: ReturnType<typeof createProviderFinder>; admit: ReturnType<typeof createProviderAdmission>; untilRetiredOrDeadline: ReturnType<typeof createProviderDeadline> }) {
+  const { findProvider, admit, untilRetiredOrDeadline } = operations;
+  return async function initialize(
     input: Parameters<PluginProviderHost['initialize']>[0], options: NonNullable<Parameters<PluginProviderHost['initialize']>[1]> = {},
   ): Promise<PluginProviderLease | undefined> {
-    if (closed) throw new PluginProviderError({ message: 'provider host is closed' });
+    if (state.lifecycle.closed) throw new PluginProviderError({ message: 'provider host is closed' });
     const contract = contracts.get(input.contract);
     if (!contract) throw new PluginProviderError({ message: `unknown provider contract '${input.contract}'` });
     const selected = findProvider(input);
     if (!selected) return undefined;
     const { snapshot, provider } = selected;
     let abandoned = false;
-    const produced = Promise.resolve(provider.factory(input.input, options.factoryOptions ?? {}))
+    const produced = Promise.resolve(provider.factory(input.input, { ...(contract.context ? { context: contract.context } : {}), ...(options.factoryOptions ?? {}) }))
       .then(resource => admit({ resource, contract, snapshot, provider, abandoned: () => abandoned }));
     return untilRetiredOrDeadline({ produced, snapshot, abandon: () => { abandoned = true; } });
-  }
-  return {
-    initialize,
-    dispose() {
-      shutdown ??= (async () => {
-        closed = true;
+  };
+}
+
+function createProviderShutdown(state: ProviderHostState): PluginProviderHost['dispose'] {
+  const { lifecycle, unsubscribe, acquired, cleanup, wakers, cleanups } = state;
+  return function dispose() {
+      lifecycle.shutdown ??= (async () => {
+        lifecycle.closed = true;
         unsubscribe();
         // Begin every teardown before awaiting any: a hung or rejected sink cannot block peers.
         for (const item of acquired) void cleanup(item);
         for (const wake of wakers) wake();
         await Promise.all([...cleanups]);
       })();
-      return shutdown;
-    },
+      return lifecycle.shutdown;
   };
+}
+
+/**
+ * Track resources against snapshot identity, so replacement retires even the same plugin version.
+ * @param required.contributions Existing executable contribution owner; detach retires immediately.
+ * @param required.contracts Domain validators and optional built-in providers.
+ * @param optional.disposeTimeoutMs Positive finite bound for each resource's teardown (default 2000).
+ * @param optional.initializeTimeoutMs Positive finite bound for awaiting a factory (default 10000).
+ * @returns A host whose shutdown is idempotent and whose late factory results are disposed.
+ * @throws RangeError for invalid timeouts; PluginProviderError for unknown/invalid contracts or ports.
+ */
+export function createPluginProviderHost(required: {
+  contributions: PluginContributionRegistry; contracts: readonly PluginProviderContract[];
+}, optional: {
+  disposeTimeoutMs?: number;
+  initializeTimeoutMs?: number;
+  onError?: (required: PluginProviderFailure, optional?: Record<string, never>) => void | Promise<void>;
+} = {}): PluginProviderHost {
+  const timeoutMs = timeoutOption(optional.disposeTimeoutMs, 2000, 'disposal');
+  const initializeTimeoutMs = timeoutOption(optional.initializeTimeoutMs, 10_000, 'initialization');
+  const contracts = createProviderContracts(required.contracts);
+  const state = createProviderHostState(required, optional);
+  const releaserFor = createProviderReleaser(state, timeoutMs);
+  const leaseResource = createProviderLease(state);
+  const findProvider = createProviderFinder(required);
+  const admit = createProviderAdmission(state, releaserFor, leaseResource);
+  const untilRetiredOrDeadline = createProviderDeadline(state, initializeTimeoutMs);
+  const initialize = createProviderInitializer(state, contracts, { findProvider, admit, untilRetiredOrDeadline });
+  return { initialize, dispose: createProviderShutdown(state) };
 }

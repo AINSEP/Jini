@@ -1,10 +1,10 @@
 /** Capability ordering belongs to InteractiveUiRegistry, including framework-neutral entries. */
-import { z } from 'zod';
+import { z } from 'zod/v3';
 import { InteractiveUiRegistry } from '../interactive-ui/registry.js';
 import type { InteractiveComponentManifest } from '../interactive-ui/types.js';
-import type { ChartKind, ChartProviderEntry, ChartSpec } from './contract.js';
+import type { ChartKind, ChartProviderEntry, ChartSpec } from '@jini-ai/core/contracts/charts';
 
-export type RegisteredChartProvider = ChartProviderEntry & InteractiveComponentManifest;
+export type RegisteredChartProvider = ChartProviderEntry<HTMLElement> & InteractiveComponentManifest;
 export type ChartProviderRegistry = InteractiveUiRegistry<RegisteredChartProvider>;
 
 /** Each kind has a distinct capability, so a pie-only provider can never satisfy a bar request. */
@@ -16,7 +16,7 @@ export function chartCapability({ kind }: { kind: ChartKind }, _options: Record<
  * @example createChartProviderRegistry({ providers: admittedProviders })
  */
 export function createChartProviderRegistry(
-  { providers }: { providers: readonly ChartProviderEntry[] }, _options: Record<string, never> = {},
+  { providers }: { providers: readonly ChartProviderEntry<HTMLElement>[] }, _options: Record<string, never> = {},
 ): ChartProviderRegistry {
   let registry = new InteractiveUiRegistry<RegisteredChartProvider>({ entries: [] });
   for (const provider of providers) {

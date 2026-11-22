@@ -1,4 +1,4 @@
-import { createControllerStore } from '../../core/module/controller-store.js';
+import { createControllerStore } from '@jini-ai/core/admin-runtime';
 import type { AdminRedirectCreateInput, AdminRedirectImportResult } from '../../core/ports/redirects.js';
 import type { RedirectsTranslate } from '../models.js';
 import { parseImportPayload } from '../rules.js';

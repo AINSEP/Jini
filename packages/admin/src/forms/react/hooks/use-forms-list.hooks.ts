@@ -2,11 +2,11 @@ import type { AdminFormsPort } from "../../../core/ports/forms.js";
 import { formView } from "../../models.js";
 import type { FormsTrashPort, FormsEventsPort } from "../../ports.js";
 import { useFormsPorts, useFormsOptions } from "./FormsPorts.hooks.js";
-import { useController } from "../../../core/react/use-controller.js";
+import { useFormsController } from "./FormsPorts.hooks.js";
 import { createFormsListController, initialFormsListState, type FormsListState } from "../../controllers/forms-list.controller.js";
 import { useCallback, useEffect, useMemo } from "react";
 import type { AdminFormDefinition } from "../../models.js";
-import { useFetchMutation, useFetchQuery, useInvalidate } from "@jini-ai/ui/fetch-query";
+import { useFetchMutation, useFetchQuery, useInvalidate } from "../../../react/kit.js";
 import { KEYS, describeTrashError, formDatesLines, formsListError, newestUpdatedForms, type FormDateLine } from "../../rules.js";
 
 /**
@@ -86,7 +86,7 @@ export function useFormsList(
   // here would resubscribe the scoped formsEvents subscription on every render for no benefit.
   const invalidateList = useCallback(() => invalidate({ key: KEYS.list }), [invalidate]);
   useEffect(() => events?.subscribe({ onRefresh: invalidateList }), [events, invalidateList]);
-  const { controller: stateController, snapshot: stateSnapshot } = useController({ create: () => createFormsListController({}), dependencies: [] });
+  const { controller: stateController, snapshot: stateSnapshot } = useFormsController({ create: () => createFormsListController({}), dependencies: [] });
   const state = stateSnapshot ?? initialFormsListState({});
   const { rowSavingId, pendingDelete } = state;
   const setRowSavingId = (value: FormsListStateValue<"rowSavingId">) => stateController?.update({ key: "rowSavingId", value });

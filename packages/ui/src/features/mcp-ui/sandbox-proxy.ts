@@ -72,7 +72,7 @@
  * configurable away without also breaking the ready/resource-ready handshake, which this package's
  * script needs `window.parent` for regardless of same-origin status). Combined with `document.write`
  * happening in that SAME window, the guest surface gets full same-origin access to whatever origin
- * this proxy page is served from. This is the exact hazard `../protocol.ts`'s `MCP_UI_VIEW_SANDBOX`
+ * this proxy page is served from. This is the exact hazard `packages/ui/src/features/mcp-ui/protocol.ts`'s `MCP_UI_VIEW_SANDBOX`
  * comment warns about for a `srcdoc` frame — and it is why the official guidance is explicit that a
  * production sandbox proxy MUST be served from an origin distinct from the host application's own,
  * so "full same-origin access" only ever reaches an origin that holds nothing sensitive (no cookies,
@@ -203,7 +203,7 @@ export const SANDBOX_PROXY_HTML = `<!doctype html>
  * @param hostOrigin - The embedder's own real origin, computed by the embedder itself (e.g. its own
  *   `window.location.origin`) — never a value parsed out of this proxy document's own URL.
  */
-export function buildIsolatedSandboxProxyHtml(hostOrigin: string): string {
+export function buildIsolatedSandboxProxyHtml({ hostOrigin }: { hostOrigin: string }, _optional: Record<string, never> = {}): string {
   const hostOriginLiteral = JSON.stringify(hostOrigin);
   // A `data:` document has no HTTP response of its own to carry a CSP header, so per CSP3's
   // "local scheme" inheritance rule this inline <script> runs under whatever CSP the embedder's
@@ -264,6 +264,6 @@ export function buildIsolatedSandboxProxyHtml(hostOrigin: string): string {
  * @param hostOrigin - Forwarded verbatim to {@link buildIsolatedSandboxProxyHtml} — see that
  *   function's own doc for the contract.
  */
-export function buildSandboxProxyDataUrl(hostOrigin: string): string {
-  return `data:text/html;charset=utf-8,${encodeURIComponent(buildIsolatedSandboxProxyHtml(hostOrigin))}`;
+export function buildSandboxProxyDataUrl({ hostOrigin }: { hostOrigin: string }, _optional: Record<string, never> = {}): string {
+  return `data:text/html;charset=utf-8,${encodeURIComponent(buildIsolatedSandboxProxyHtml({ hostOrigin }))}`;
 }

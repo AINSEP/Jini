@@ -11,6 +11,7 @@ export interface CollectionListQuery {
   readonly where: readonly { readonly field: string; readonly value: string | number | boolean }[];
   readonly sort: { readonly by: "published" | "updated" | "title" | { readonly field: string }; readonly dir: "asc" | "desc" };
   readonly limit: number;
+  readonly offset?: number;
 }
 export interface EntryDisplayListPort {
   listPublishedForDisplay(required: { readonly workspaceId: string; readonly query: CollectionListQuery }): Promise<EntryRecord[]>;
@@ -39,7 +40,7 @@ export interface FormDefinitionView {
   readonly fields: readonly unknown[];
   readonly mode?: string;
   readonly html?: string | null;
-  readonly provider?: import("../../forms/provider.js").FormProviderSelection;
+  readonly provider?: import("@jini-ai/core/contracts/forms").FormProviderSelection;
 }
 /** Both lookup methods are used by today's resolver (id first, then authored slug). */
 export interface FormDefinitionReadPort {

@@ -6,17 +6,11 @@ import type {
   AdminTab,
   TabId,
   ScopedPorts,
-} from './types.js';
-import type { AdminPortToken, PortMap, PortValues } from './token.js';
-const bulletLine = (issue: string) => `- ${issue}`;
-export class AdminConfigError extends Error {
-  readonly issues: readonly string[];
-  constructor({ issues }: { issues: readonly string[] }, _optional: Record<string, never> = {}) {
-    super(`Invalid admin configuration:\n${issues.map(bulletLine).join('\n')}`);
-    this.name = 'AdminConfigError';
-    this.issues = Object.freeze([...issues]);
-  }
-}
+  AdminPortToken,
+  PortMap,
+  PortValues,
+} from '@jini-ai/core/contracts/admin-module';
+import { AdminConfigError } from '@jini-ai/core/admin-runtime';
 type UnionToIntersection<U> = (U extends unknown ? (x: U) => void : never) extends (
   x: infer I,
 ) => void
@@ -429,6 +423,13 @@ export function createAdmin<
     registry,
     context: { values, omitted, grants },
   });
+  return createAdminInstance({ modules, values, description }, disposables);
+}
+
+function createAdminInstance(
+  { modules, values, description }: { modules: readonly AdminModule[]; values: Record<string, unknown>; description: AdminDescription },
+  disposables: Disposable[],
+): AdminInstance {
   let disposed = false;
   return {
     describe: () => description,

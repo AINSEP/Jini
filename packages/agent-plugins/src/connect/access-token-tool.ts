@@ -1,6 +1,7 @@
 import type { PluginCredentialCard } from "@jini-ai/core/contracts/credentials";
 import type { SurfaceCardSecretForm, SurfaceCardSecretRun as SecretCardRun, SurfaceCardsPort } from "@jini-ai/core/contracts/cards";
 import { adaptLegacyAuthorize, requireToolPermission, type LegacyToolAuthorizeFn as AuthorizeFn } from "@jini-ai/core";
+import { type Logger } from "@jini-ai/core/primitives";
 import { requireInputRecord, ToolInputError, type ToolExecutionOptions, type ToolExecutionContext } from "@jini-ai/core";
 import type { SurfaceAskThenReport, SurfaceExchangeStore } from "@jini-ai/core";
 import { deriveAgentPluginConnectionId, provisionAgentPluginMcpServers, type AgentPluginMcpTrustClassifier, type AgentPluginMcpFederationMessages } from "./federate-mcp.js";
@@ -19,7 +20,7 @@ import { titleCaseFromPluginId, type ResolvedAgentPluginForConnect } from "./con
  * remote server declares `tokenAuth { helpUrl, probeUrl }` in its `mcp.json` (`manifest.ts`).
  * Used when `agent_plugin_connect`'s sign-in cannot start.
  *
- * Moved here on 2026-09-29 from `features/supabase-connect/` (SPEC-052's `supabase_set_access_token`),
+ * Moved here on 2026-09-29 from `features/supabase-connect/` (`supabase_set_access_token`),
  * so no vendor code is left in core: the tokens page and the probe URL now come from the plugin.
  *
  * A Jini secret-card spec with domain copy from `connect-card-ui.ts`; the submitted token is probed with one GET to the declared
@@ -80,6 +81,7 @@ export interface AgentPluginTokenCredentialsPort {
  * your installed-declaration read (no filesystem default here); `federation` is your trust rule and
  * federation refusal copy, the same pair your connect tool passes. */
 export interface AgentPluginTokenTargetDeps {
+  readonly report?: Pick<Logger, 'warn'>;
   readonly workspaceId: string;
   readonly mcp: AgentPluginMcpProjectionPorts & Pick<AgentPluginMcpPort, "repo" | "saveServer"> & Partial<Pick<AgentPluginMcpPort, "notifyRosterChanged">>;
   readonly resolveInstalledPlugin: (pluginId: string) => Promise<ResolvedAgentPluginForConnect | null>;
@@ -114,7 +116,7 @@ export interface AgentPluginAccessTokenToolDeps extends AgentPluginTokenTargetDe
   readonly host: AgentPluginAccessTokenHost;
 }
 
-/** Plain-language messages from SPEC-052's errors.spec.md. None ever carries a token or a vendor body. */
+/** Plain-language messages from errors.spec.md. None ever carries a token or a vendor body. */
 const MESSAGES = {
   tokenInvalid: "The server rejected this token.",
   blankToken: "The access token cannot be blank. Nothing was saved.",
@@ -193,8 +195,8 @@ export async function resolveTarget(
 
   optional.signal?.throwIfAborted();
   await provisionAgentPluginMcpServers(
-    routeDeps.mcp,
-    { workspaceId: routeDeps.workspaceId, pluginId, servers: plugin.servers, principalId, ...routeDeps.federation },
+    { deps: routeDeps.mcp, workspaceId: routeDeps.workspaceId, pluginId, servers: plugin.servers, principalId, ...routeDeps.federation },
+    { report: routeDeps.report },
   );
   return { pluginId, displayName: titleCaseFromPluginId({ pluginId }), connectionId, config };
 }

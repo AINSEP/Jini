@@ -1,3 +1,4 @@
+import { reportRouteInternalError } from '@jini-ai/http-kit';
 import { describe, expect, it, vi } from 'vitest';
 import { createToolRegistry, type Principal } from '@jini-ai/core';
 import {
@@ -9,13 +10,8 @@ import {
 } from '../../index.js';
 import { delegatedToolExecuteRoute, type DelegatedToolsHttpDeps, type DelegatedToolsInternalErrorContext } from '../delegated-tools.js';
 
-vi.mock('@jini-ai/core', async (importOriginal) => ({
-  ...await importOriginal<typeof import('@jini-ai/core')>(),
-  isLocalSameOrigin: vi.fn(() => true),
-}));
-
 const PRINCIPAL: Principal = { id: 'test-principal' };
-const GENERIC = 'an internal error occurred';
+const GENERIC = 'The tool could not run because of a server fault. Do not retry the same call; tell the user to copy the request ID and report this problem.';
 
 /** Injects an infrastructure failure; unknown tool ids are caller input errors. */
 function throwingExecutor(): ToolExecutor {
@@ -36,7 +32,7 @@ async function callRoute(
   toolId = 'nope',
 ) {
   const onInternalError = vi.fn();
-  const deps: DelegatedToolsHttpDeps = {
+  const deps: DelegatedToolsHttpDeps = { reportInternalError: reportRouteInternalError,
     lifecycle: createRunLifecycle({ eventLog: createInMemoryEventLog({}) }),
     toolExecutor,
     resolvePrincipal: () => PRINCIPAL,
@@ -61,7 +57,7 @@ describe('delegated tool route: describeInternalError (host-supplied model-safe 
     const secret = 'sk-live-0123456789abcdefghijklmnopqrstuv';
     const failure = Object.assign(new Error(`UPSTREAM_FAILED ${secret} Bearer abcdefghijklmnopqrst password=hunter2`), { code: 'ECONNREFUSED' });
     const executor = { ...throwingExecutor(), execute: async () => { throw failure; } };
-    const deps: DelegatedToolsHttpDeps = {
+    const deps: DelegatedToolsHttpDeps = { reportInternalError: reportRouteInternalError,
       lifecycle: createRunLifecycle({ eventLog: createInMemoryEventLog({}) }),
       toolExecutor: executor,
       resolvePrincipal: () => PRINCIPAL,
@@ -76,8 +72,7 @@ describe('delegated tool route: describeInternalError (host-supplied model-safe 
       for (const line of log.mock.calls) {
         const output = line.map(String).join(' ');
         expect(output).toContain(requestId);
-        expect(output).toContain('UPSTREAM_FAILED');
-        expect(output).toContain('[REDACTED:');
+        expect(output).not.toContain('UPSTREAM_FAILED');
         for (const value of [secret, 'abcdefghijklmnopqrst', 'hunter2']) expect(output).not.toContain(value);
         expect(output).toContain('ECONNREFUSED');
       }

@@ -1,9 +1,11 @@
+import { webcrypto } from "node:crypto";
 import { toDefinitionRecord, toDefinitionRow, type FormDefinitionRow } from "../../sql/repo.rows.js";
 import type { RateLimiterPort } from "../../index.js";
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { ForbiddenError } from "../../../core/index.js";
 import { FormSubmissionValidationError, FormRateLimitExceededError } from "../../index.js";
+import { FormFieldValidationError } from "../../errors.js";
 import { executeCommand, InMemoryChangeSetRepo } from "../../__tests__/support/host-ports.fixture.js";
 import { InMemoryEventBus, InMemoryOutbox } from "../../__tests__/eventing.fixture.js";
 import { InMemoryFormDefinitionRepo, InMemoryFormSubmissionRepo } from "../../__tests__/support/repo-ports.fixture.js";
@@ -19,7 +21,7 @@ function harness() {
   const idGen = { newId: () => `html-${++counter}` };
   const writeDeps = { repo, clock, idGen, executeCommand, changeSets: new InMemoryChangeSetRepo(), authorize: async () => ({ allowed: true, reason: "ok" }) };
   const submissions = new InMemoryFormSubmissionRepo();
-  const submitDeps = { definitionRepo: repo, submissionRepo: submissions, clock, idGen, outbox: new InMemoryOutbox(), bus: new InMemoryEventBus(), rateLimiter: { check: async (_required: { key: string }) => ({ allowed: true }) } as RateLimiterPort };
+  const submitDeps = { definitionRepo: repo, submissionRepo: submissions, clock, idGen, crypto: webcrypto, outbox: new InMemoryOutbox(), bus: new InMemoryEventBus(), rateLimiter: { check: async (_required: { key: string }) => ({ allowed: true }) } as RateLimiterPort };
   return { repo, submissions, writeDeps, submitDeps };
 }
 const target = { workspaceId: "ws", actor: { id: "owner", kind: "user" as const } };
@@ -74,8 +76,12 @@ test("HTML authoring requires raw-HTML permission even when forms.manage is allo
 });
 
 test("reserved names and password controls cannot become submission columns", () => {
-  for (const html of ['<input name="_hp">', '<input name="constructor">', '<input name="secret" type="password">']) {
-    assert.throws(() => deriveHtmlForm({ html }));
+  for (const [html, message] of [
+    ['<input name="_hp">', "Reserved field name '_hp'"],
+    ['<input name="constructor">', "Reserved field name 'constructor'"],
+    ['<input name="secret" type="password">', 'Password fields are not supported'],
+  ] as const) {
+    assert.throws(() => deriveHtmlForm({ html }), { constructor: FormFieldValidationError, message });
   }
 });
 

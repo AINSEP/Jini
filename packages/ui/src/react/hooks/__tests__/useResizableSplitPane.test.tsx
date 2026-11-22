@@ -603,13 +603,13 @@ describe('useResizableSplitPane', () => {
     it('readSavedWidth returns the default width when window is undefined', () => {
       vi.stubGlobal('window', undefined);
       expect(typeof window).toBe('undefined');
-      expect(readSavedWidth('any-key', 460, 345, 720)).toBe(460);
+      expect(readSavedWidth({ storageKey: 'any-key', defaultWidth: 460, min: 345, max: 720 })).toBe(460);
     });
 
     it('saveWidth is a no-op when window is undefined', () => {
       vi.stubGlobal('window', undefined);
       expect(typeof window).toBe('undefined');
-      expect(() => saveWidth('any-key', 500, 345, 720)).not.toThrow();
+      expect(() => saveWidth({ storageKey: 'any-key', width: 500, min: 345, max: 720 })).not.toThrow();
     });
   });
 });

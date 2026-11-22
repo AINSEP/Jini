@@ -1,9 +1,9 @@
-import type { Server } from 'node:http';
-import type { AddressInfo } from 'node:net';
-import express from 'express';
-import { afterEach, describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
+import { createInMemoryServer, denyAllOrigins } from '@jini-ai/core/contracts/server/testing';
+import { fakeDaemonRouteHost } from './fakes/route-host.js';
+import { describeRoutes } from '../route-table.js';
 import {
-  registerComponentCatalogRoutes,
+  componentCatalogRoutes,
   componentCatalogDescribeRoute,
   componentCatalogSearchRoute,
   type ComponentCatalogEntry,
@@ -104,60 +104,47 @@ describe('componentCatalogDescribeRoute', () => {
   });
 });
 
-describe('registerComponentCatalogRoutes — real Express server on a real socket', () => {
-  const servers: Server[] = [];
-  const adapter = { allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST', env: {}, resolvedPortRef: { current: 0 } };
+/** The two routes on an in-memory server (exact matching: the Express spellings are the host bridge's job). */
+function serve(deps: ComponentCatalogHttpDeps, { denyOrigins = false }: { denyOrigins?: boolean } = {}) {
+  const host = fakeDaemonRouteHost({}, denyOrigins ? { originPolicy: denyAllOrigins } : {});
+  const { server, fetch } = createInMemoryServer();
+  for (const route of componentCatalogRoutes({ deps, host })) server.route(route);
+  return fetch;
+}
 
-  afterEach(() => {
-    for (const server of servers.splice(0)) server.close();
+it('lists the two component routes in order, each behind the same-origin gate', () => {
+  expect(describeRoutes({ routes: componentCatalogRoutes({ deps: makeDeps(), host: fakeDaemonRouteHost() }) })).toEqual([
+    { method: 'GET', path: '/api/components/search', gates: ['same-origin'] },
+    { method: 'GET', path: '/api/components/:id', gates: ['same-origin'] },
+  ]);
+});
+
+describe('componentCatalogRoutes — answers a client sees', () => {
+  const get = async (deps: ComponentCatalogHttpDeps, path: string, options: { denyOrigins?: boolean } = {}) =>
+    serve(deps, options)(new Request(`http://local${path}`));
+
+  it('serves GET /api/components/search, ranked hits only', async () => {
+    const response = await get(makeDeps(), '/api/components/search?q=table');
+    expect([response.status, await response.json()]).toEqual([200, { hits: HITS }]);
   });
 
-  async function listen(deps: ComponentCatalogHttpDeps): Promise<string> {
-    const app = express();
-    app.use(express.json());
-    registerComponentCatalogRoutes({ app: app as never, deps, adapter: adapter as never });
-    const server = await new Promise<Server>((resolve) => {
-      const s = app.listen(0, '127.0.0.1', () => resolve(s));
-    });
-    servers.push(server);
-    adapter.resolvedPortRef.current = (server.address() as AddressInfo).port;
-    return `http://127.0.0.1:${adapter.resolvedPortRef.current}`;
-  }
-
-  it('serves GET /api/components/search over the wire, ranked hits only', async () => {
-    const base = await listen(makeDeps());
-    const response = await fetch(`${base}/api/components/search?q=table`, { headers: { origin: base } });
-    expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ hits: HITS });
+  it('serves GET /api/components/:id, including propsSchema', async () => {
+    const response = await get(makeDeps(), '/api/components/native.data-table');
+    expect([response.status, await response.json()]).toEqual([200, ENTRY]);
   });
 
-  it('serves GET /api/components/:id over the wire, including propsSchema', async () => {
-    const base = await listen(makeDeps());
-    const response = await fetch(`${base}/api/components/native.data-table`, { headers: { origin: base } });
-    expect(response.status).toBe(200);
-    expect(await response.json()).toEqual(ENTRY);
+  it('answers 404 for an unknown component id', async () => {
+    const response = await get(makeDeps(), '/api/components/no.such.component');
+    expect([response.status, await response.json()]).toEqual([404, { error: { code: 'NOT_FOUND', message: 'no catalog entry for component id "no.such.component"' } }]);
   });
 
-  it('answers 404 over the wire for an unknown component id', async () => {
-    const base = await listen(makeDeps());
-    const response = await fetch(`${base}/api/components/no.such.component`, { headers: { origin: base } });
-    expect(response.status).toBe(404);
-    expect(await response.json()).toEqual({
-      error: { code: 'NOT_FOUND', message: 'no catalog entry for component id "no.such.component"' },
-    });
-  });
-
-  it('still answers 400 over the wire for a malformed search request', async () => {
-    const base = await listen(makeDeps());
-    const response = await fetch(`${base}/api/components/search?q=`, { headers: { origin: base } });
-    expect(response.status).toBe(400);
+  it('still answers 400 for a malformed search request', async () => {
+    expect((await get(makeDeps(), '/api/components/search?q=')).status).toBe(400);
   });
 
   it('rejects a cross-origin request with 403 before consulting the catalog', async () => {
     let consulted = false;
-    const base = await listen(makeDeps({ describe: ({ id }) => { consulted = true; return id === ENTRY.id ? ENTRY : null; } }));
-    const response = await fetch(`${base}/api/components/native.data-table`, { headers: { origin: 'http://evil.example.com' } });
-    expect(response.status).toBe(403);
-    expect(consulted).toBe(false);
+    const response = await get(makeDeps({ describe: ({ id }) => { consulted = true; return id === ENTRY.id ? ENTRY : null; } }), '/api/components/native.data-table', { denyOrigins: true });
+    expect([response.status, consulted]).toEqual([403, false]);
   });
 });

@@ -3,7 +3,8 @@ import { test } from "vitest";
 
 import { ForbiddenError } from "../errors.js";
 import { InMemorySettingsRepo } from "../repo.memory.js";
-import { resetNamespace, set } from "../write-service.js";
+import { resetNamespace } from "../write-reset.js";
+import { set } from "../write-values.js";
 import { InMemorySettingsPrincipalLookup } from "./principal.fixture.js";
 import type { SettingDefinitionRecord } from "../types.js";
 
@@ -53,8 +54,8 @@ test("resetNamespace clears every key in the namespace, each with its own op='cl
   });
 
   const result = await resetNamespace(
-    { deps, input: { namespace: "core.ns", scope: "workspace", workspaceId: "ws-1", callerPrincipalId: "actor-1" } },
-    ["a", "b"]
+    { deps, input: { namespace: "core.ns", scope: "workspace", workspaceId: "ws-1", callerPrincipalId: "actor-1" },
+    keysInNamespace: ["a", "b"] }
   );
 
   assert.equal(result.clearedCount, 2);
@@ -81,8 +82,8 @@ test("resetNamespace succeeds for a caller holding only settings.reset.workspace
     {
       deps: { repo, clock, ids, authorize: trackingAuthorize, principals },
       input: { namespace: "core.ns", scope: "workspace", workspaceId: "ws-1", callerPrincipalId: "actor-1" },
-    },
-    ["a"]
+      keysInNamespace: ["a"]
+    }
   );
 
   // Only the outer settings.reset.workspace check ran — clear's inner
@@ -103,8 +104,8 @@ test("resetNamespace is rejected FORBIDDEN and clears nothing when the caller la
         {
           deps: { repo, clock, ids, authorize: alwaysDeny, principals },
           input: { namespace: "core.ns", scope: "workspace", workspaceId: "ws-1", callerPrincipalId: "actor-1" },
-        },
-        ["a"]
+          keysInNamespace: ["a"]
+        }
       ),
     ForbiddenError
   );

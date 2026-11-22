@@ -1,0 +1,59 @@
+import type { Clock, HttpClientPort, HttpRequest, HttpResponse } from "../../primitives/index.js";
+import type { TextReadOptions } from "../../net/fetch-timeouts.js";
+
+export interface PinnedPeer {
+  ip: string;
+  port: number;
+  authority: string;
+
+  /** RFC 6066 permits hostnames in SNI, never IP literals. Undefined means omit the extension. */
+  tlsServerName: string | undefined;
+}
+
+/** Resolver returns every peer address; a mixed public/private answer is refused as a whole. */
+export interface DnsResolver { resolve(required: { hostname: string }): Promise<readonly string[]>; }
+/** Supplies time and deadline cancellation without a global timer dependency in the guard. */
+export type GuardedClock = Clock & { timeoutSignal(required: { timeoutMs: number }): AbortSignal };
+/** Transport must dial the supplied IP, preserve authority/SNI, bound decoded bytes,
+ * enforce idleTimeoutMs per socket, and honor request.signal through body completion. */
+// Re-resolving the original hostname would undo peer vetting and reopen a DNS-rebinding race.
+// The buffered response is bounded by byte/decompression caps; it is not a streaming response contract.
+export interface PinnedHttpTransport { requestPinned(required: { request: HttpRequest; peer: PinnedPeer }): Promise<HttpResponse>; }
+/** Policy must cover IPv4 and IPv6, mapped-address/hostname normalization, URL credentials and
+ * redirects. Re-verify each redirected peer and strip sensitive headers across origins. */
+export interface EgressPolicy {
+  readonly allowedSchemes: readonly string[];
+  readonly denyPrivateAddresses: boolean;
+
+  /** Explicit development capability; IPv6 literals use their bracket-free hostname (e.g. fd00::1). */
+  readonly devHostAllowlist: readonly string[];
+  /** Trusted host configuration only: exact normalized scheme+host+port origins on localhost
+   * or loopback IP literals whose loopback peers may be dialed. Public DNS names cannot rebind
+   * to loopback through this exception. Other private classes remain denied, including mixed answers.
+   * Rechecked on every redirect; this never grants other ports or hostname aliases. */
+  readonly loopbackOriginAllowlist?: readonly string[];
+  readonly maxRedirects: number;
+  /** Historical name: ceiling on each socket's idle timeout, not total transfer time. */
+  readonly connectTimeoutMs: number;
+  readonly maxResponseBytes: number;
+  readonly maxDecompressedBytes: number;
+
+  /** Reserved descriptor, not an implemented pacing mechanism. Untrusted fan-out requires a host
+   * concurrency/budget limiter; omission is appropriate only for trusted low-fan-out callers. */
+  readonly rateLimit?: { readonly maxConcurrent: number; readonly maxPerMinute: number };
+}
+
+export type GuardedHttpRequired = { transport: PinnedHttpTransport; policy: EgressPolicy; dns: DnsResolver; clock: GuardedClock; userAgent: string };
+
+export interface HttpFetchPort {
+  fetchWithTimeout(required: { url: string | URL; timeoutMs: number }, optional?: { init?: RequestInit }): Promise<Response>;
+  readResponseText(required: { response: Response }, optional?: TextReadOptions): Promise<string>;
+}
+
+export interface GuardedHttpPort {
+  createClient(required: GuardedHttpRequired): HttpClientPort;
+  /** Projects guarded bytes into a Response (adapter for SDK/OAuth fetch signatures). */
+  fetch(required: { client: HttpClientPort; url: string; timeoutMs: number }, optional?: {
+    method?: string; headers?: Record<string, string>; body?: string | URLSearchParams; signal?: AbortSignal;
+    redirect?: "follow" | "error" | "manual"; idleTimeoutMs?: number; totalDeadlineMs?: number }): Promise<Response>;
+}

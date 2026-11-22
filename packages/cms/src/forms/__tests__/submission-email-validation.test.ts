@@ -1,3 +1,4 @@
+import { webcrypto } from "node:crypto";
 /** Todo 15b: the public submission boundary must enforce native email syntax before writes. */
 import assert from "node:assert/strict";
 import { test } from "vitest";
@@ -19,7 +20,7 @@ async function fixture(overrides: Partial<FormDefinitionRecord> = {}) {
   await definitionRepo.create(definition);
   let rateChecks = 0;
   let ids = 0;
-  const deps = { definitionRepo, submissionRepo, outbox, bus: new InMemoryEventBus(), clock: { nowMs: () => 1 }, idGen: { newId: () => `id-${++ids}` }, rateLimiter: { check: async () => { rateChecks++; return { allowed: true as const }; } } };
+  const deps = { definitionRepo, submissionRepo, outbox, bus: new InMemoryEventBus(), clock: { nowMs: () => 1 }, crypto: webcrypto, idGen: { newId: () => `id-${++ids}` }, rateLimiter: { check: async () => { rateChecks++; return { allowed: true as const }; } } };
   return {
     submit: (body: Record<string, unknown>) => submitForm({ deps, input: { workspaceId: "w1", slug: "contact", sourceIp: "127.0.0.1", body } }),
     rows: () => submissionRepo.listByDefinition({ workspaceId: "w1", formDefinitionId: "f1", limit: 10 }),

@@ -23,9 +23,9 @@ function readOptionalNumber(value: unknown): number | null {
 function resolveAuthMethod({ document }: { document: Record<string, unknown> },
     input: Pick<DynamicClientRegistrationInput, "tokenEndpointAuthMethod" | "authMethodsSupported"> = {}): OAuthClientAuthMethod {
     // An echoed or requested secret-based method is unusable without a secret.
-    if (readOptionalString(document.client_secret) === null) return 'none';
+    if (readOptionalString({ value: document.client_secret }) === null) return 'none';
     const requested = input.tokenEndpointAuthMethod ?? 'none';
-    const echoed = SUPPORTED_AUTH_METHODS.find(method => method === readOptionalString(document.token_endpoint_auth_method));
+    const echoed = SUPPORTED_AUTH_METHODS.find(method => method === readOptionalString({ value: document.token_endpoint_auth_method }));
     if (echoed) return echoed;
     if (requested !== 'none') return requested;
     const supported = input.authMethodsSupported ?? [];
@@ -38,7 +38,7 @@ function resolveAuthMethod({ document }: { document: Record<string, unknown> },
 export async function registerOAuthClientDynamically(requiredArgs: OAuthRequiredArgs<DynamicClientRegistrationDeps & DynamicClientRegistrationInput>, optionalArgs: OAuthOptionalArgs<DynamicClientRegistrationDeps & DynamicClientRegistrationInput> = {}): Promise<RegisteredOAuthClient> {
     assertOAuthAppOptions(requiredArgs.options);
     const input = { ...optionalArgs, ...requiredArgs };
-    const endpoint = assertSafeProviderEndpoint(input.registrationEndpoint, 'registration endpoint', input.guard);
+    const endpoint = assertSafeProviderEndpoint({ raw: input.registrationEndpoint, label: 'registration endpoint', guard: input.guard });
     const guardedFetch = createOAuthCustomFetch({
         ...requiredArgs, timeoutMs: optionalArgs.timeoutMs ?? DEFAULT_REGISTRATION_TIMEOUT_MS,
         endpointLabel: 'registration endpoint', responseMessages: {
@@ -75,14 +75,14 @@ export async function registerOAuthClientDynamically(requiredArgs: OAuthRequired
 function projectRegisteredClient({ client, input }: {
     client: Record<string, unknown>; input: DynamicClientRegistrationInput;
 }): RegisteredOAuthClient {
-    const clientId = readOptionalString(client.client_id);
+    const clientId = readOptionalString({ value: client.client_id });
     if (clientId === null) throw new OAuthError({ code: 'OAUTH_MALFORMED_RESPONSE',
         message: 'the client registration response contained no client id',
         operatorAction: "This server's dynamic client registration endpoint is not behaving like an RFC 7591 endpoint." });
     return {
-        clientId, clientSecret: readOptionalString(client.client_secret),
+        clientId, clientSecret: readOptionalString({ value: client.client_secret }),
         tokenEndpointAuthMethod: resolveAuthMethod({ document: client }, input),
-        registrationClientUri: readOptionalString(client.registration_client_uri),
+        registrationClientUri: readOptionalString({ value: client.registration_client_uri }),
         clientIdIssuedAt: readOptionalNumber(client.client_id_issued_at),
         clientSecretExpiresAt: readOptionalNumber(client.client_secret_expires_at),
     };

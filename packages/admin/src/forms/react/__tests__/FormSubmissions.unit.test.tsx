@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "./harness.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { AdminFormSubmission } from "../../models.js";

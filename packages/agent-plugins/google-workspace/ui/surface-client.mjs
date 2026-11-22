@@ -96,33 +96,8 @@ function documentSize() {
 function isWellFormedResponse(message) {
     return message.ok === true ? Object.hasOwn(message, 'result') : message.ok === false && isFailure(message.error);
 }
-/**
- * Connects a surface to its host. In a browser:
- * `createAdminSurfaceClient({ parent: window.parent, listen: (h) => { addEventListener('message', h); return () => removeEventListener('message', h); } })`.
- * @param optional.timeoutMs - How long `call` waits for a response before rejecting with `timeout`.
- * @complexity O(1) per message.
- */
-export function createAdminSurfaceClient(required, optional = {}) {
-    const timeoutMs = optional.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-    const nowMs = optional.nowMs ?? Date.now;
-    const pending = new Map();
-    let init;
-    let nextRequest = 0;
-    // The Promise executor runs synchronously, so `resolveReady` is assigned before anything can call it.
-    let resolveReady;
-    const ready = new Promise((resolve) => { resolveReady = resolve; });
-    const themeRoot = optional.themeRoot === undefined ? documentRoot() : optional.themeRoot;
+function createSurfaceTheme(themeRoot) {
     let currentTheme;
-    const size = optional.size === undefined ? documentSize() : optional.size;
-    let stopSize;
-    let lastHeight = -1;
-    /** Tells the host this surface's height (only when it changed), so the frame fits its content. */
-    function reportHeight(height) {
-        if (init === undefined || !Number.isFinite(height) || height === lastHeight)
-            return;
-        lastHeight = height;
-        required.parent.postMessage({ protocol: PROTOCOL, version: VERSION, kind: 'resize', mountId: init.mountId, height }, init.origin);
-    }
     /** Replaces the applied tokens: a token the new theme no longer sends falls back to the surface's CSS. */
     function applyTheme(value) {
         const next = acceptedTheme(value);
@@ -139,15 +114,16 @@ export function createAdminSurfaceClient(required, optional = {}) {
         }
         currentTheme = next;
     }
-    function onInit(event, data) {
-        if (init !== undefined || typeof data.mountId !== 'string')
-            return;
-        init = { mountId: data.mountId, origin: event.origin, bootstrap: data.bootstrap };
-        applyTheme(data.theme);
-        stopSize = size?.(reportHeight);
-        resolveReady();
+    /** The host's theme as applied, or `undefined` when the host sent none. */
+    function theme() {
+        return currentTheme;
     }
-    function onResponse(event, data) {
+    return { applyTheme, theme };
+}
+
+function createSurfaceResponseReceiver(pending, current) {
+    return function onResponse(event, data) {
+        const init = current();
         if (event.origin !== init?.origin || data.mountId !== init.mountId || typeof data.requestId !== 'string')
             return;
         const waiting = pending.get(data.requestId);
@@ -160,6 +136,92 @@ export function createAdminSurfaceClient(required, optional = {}) {
         else
             waiting.reject(new AdminSurfaceCallError(data.error));
     }
+}
+
+function createSurfaceSender(required, { pending, ready, timeoutMs }, current) {
+    let nextRequest = 0;
+    /** Posts one request of `kind` to the host origin and waits for its `action-response`. */
+    return async function send(kind, fields) {
+        if (current() === undefined)
+            await ready;
+        const { mountId, origin } = current();
+        nextRequest += 1;
+        const requestId = `r${nextRequest}`;
+        return new Promise((resolve, reject) => {
+            const timer = setTimeout(() => {
+                pending.delete(requestId);
+                reject(new AdminSurfaceCallError({ code: 'timeout', message: 'The host did not answer in time. Try again.', retryable: true }));
+            }, timeoutMs);
+            pending.set(requestId, { resolve, reject, timer });
+            required.parent.postMessage({ protocol: PROTOCOL, version: VERSION, kind, mountId, requestId, ...fields }, origin);
+        });
+    }
+}
+
+function createSurfaceBootstrapReader(current, nowMs) {
+    /** The bootstrap `data` the host sent with init, or `undefined` once it has expired (or none was sent). */
+    return function bootstrap() {
+        const envelope = current()?.bootstrap;
+        if (typeof envelope !== 'object' || envelope === null)
+            return undefined;
+        const { expiresAt, data } = envelope;
+        return typeof expiresAt === 'number' && nowMs() < expiresAt ? data : undefined;
+    }
+}
+
+function createSurfaceCloser(pending, unsubscribe, stopSize) {
+    /** Stops listening and rejects every pending call. */
+    return function close() {
+        unsubscribe();
+        stopSize();
+        for (const [requestId, waiting] of pending) {
+            clearTimeout(waiting.timer);
+            waiting.reject(new AdminSurfaceCallError({ code: 'closed', message: 'The surface was closed before the host answered.', retryable: false }));
+            pending.delete(requestId);
+        }
+    }
+}
+
+function createSurfaceHeightReporter(required, current) {
+    let lastHeight = -1;
+    /** Tells the host this surface's height (only when it changed), so the frame fits its content. */
+    return function reportHeight(height) {
+        const init = current();
+        if (init === undefined || !Number.isFinite(height) || height === lastHeight)
+            return;
+        lastHeight = height;
+        required.parent.postMessage({ protocol: PROTOCOL, version: VERSION, kind: 'resize', mountId: init.mountId, height }, init.origin);
+    }
+}
+
+/**
+ * Connects a surface to its host. In a browser:
+ * `createAdminSurfaceClient({ parent: window.parent, listen: (h) => { addEventListener('message', h); return () => removeEventListener('message', h); } })`.
+ * @param optional.timeoutMs - How long `call` waits for a response before rejecting with `timeout`.
+ * @complexity O(1) per message.
+ */
+export function createAdminSurfaceClient(required, optional = {}) {
+    const timeoutMs = optional.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+    const nowMs = optional.nowMs ?? Date.now;
+    const pending = new Map();
+    let init;
+    // The Promise executor runs synchronously, so `resolveReady` is assigned before anything can call it.
+    let resolveReady;
+    const ready = new Promise((resolve) => { resolveReady = resolve; });
+    const themeRoot = optional.themeRoot === undefined ? documentRoot() : optional.themeRoot;
+    const size = optional.size === undefined ? documentSize() : optional.size;
+    let stopSize;
+    const reportHeight = createSurfaceHeightReporter(required, () => init);
+    const { applyTheme, theme } = createSurfaceTheme(themeRoot);
+    function onInit(event, data) {
+        if (init !== undefined || typeof data.mountId !== 'string')
+            return;
+        init = { mountId: data.mountId, origin: event.origin, bootstrap: data.bootstrap };
+        applyTheme(data.theme);
+        stopSize = size?.(reportHeight);
+        resolveReady();
+    }
+    const onResponse = createSurfaceResponseReceiver(pending, () => init);
     const unsubscribe = required.listen((event) => {
         if (event.source !== required.parent)
             return;
@@ -175,22 +237,7 @@ export function createAdminSurfaceClient(required, optional = {}) {
             // Ignore message kinds outside the admin-surface protocol.
         }
     });
-    /** Posts one request of `kind` to the host origin and waits for its `action-response`. */
-    async function send(kind, fields) {
-        if (init === undefined)
-            await ready;
-        const { mountId, origin } = init;
-        nextRequest += 1;
-        const requestId = `r${nextRequest}`;
-        return new Promise((resolve, reject) => {
-            const timer = setTimeout(() => {
-                pending.delete(requestId);
-                reject(new AdminSurfaceCallError({ code: 'timeout', message: 'The host did not answer in time. Try again.', retryable: true }));
-            }, timeoutMs);
-            pending.set(requestId, { resolve, reject, timer });
-            required.parent.postMessage({ protocol: PROTOCOL, version: VERSION, kind, mountId, requestId, ...fields }, origin);
-        });
-    }
+    const send = createSurfaceSender(required, { pending, ready, timeoutMs }, () => init);
     /** Asks the host to run one declared action; resolves with its result. */
     function call(input) {
         return send('action-request', { action: input.action, payload: input.payload });
@@ -200,28 +247,8 @@ export function createAdminSurfaceClient(required, optional = {}) {
     async function openLink(input) {
         await send('open-link', { url: input.url });
     }
-    /** The bootstrap `data` the host sent with init, or `undefined` once it has expired (or none was sent). */
-    function bootstrap() {
-        const envelope = init?.bootstrap;
-        if (typeof envelope !== 'object' || envelope === null)
-            return undefined;
-        const { expiresAt, data } = envelope;
-        return typeof expiresAt === 'number' && nowMs() < expiresAt ? data : undefined;
-    }
-    /** The host's theme as applied, or `undefined` when the host sent none. */
-    function theme() {
-        return currentTheme;
-    }
-    /** Stops listening and rejects every pending call. */
-    function close() {
-        unsubscribe();
-        stopSize?.();
-        for (const [requestId, waiting] of pending) {
-            clearTimeout(waiting.timer);
-            waiting.reject(new AdminSurfaceCallError({ code: 'closed', message: 'The surface was closed before the host answered.', retryable: false }));
-            pending.delete(requestId);
-        }
-    }
+    const bootstrap = createSurfaceBootstrapReader(() => init, nowMs);
+    const close = createSurfaceCloser(pending, unsubscribe, () => stopSize?.());
     return { ready, call, openLink, bootstrap, theme, close };
 }
 //# sourceMappingURL=surface-client.js.map

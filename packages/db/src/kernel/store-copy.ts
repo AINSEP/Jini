@@ -1,6 +1,6 @@
 import { type RawBuilder, sql } from "kysely";
 
-import type { StorageKernel } from "./port.js";
+import type { KyselyKernel } from "./port.js";
 
 /**
  * @file A Postgres-to-Postgres copy of a site's whole store (R1g, the host storage move command): every table
@@ -89,7 +89,7 @@ const quotedName = (table: { schema: string; name: string }): string =>
 const isLedger = (table: { schema: string; name: string }, scope: StoreCopyScope) => scope.ledgers.some((l) => l.schema === table.schema && l.name === table.name);
 
 /** Every non-excluded base table in the moved schemas, with columns and primary key, in a stable order. */
-async function readCatalogInternal(kernel: StorageKernel<unknown>, scope: StoreCopyScope): Promise<CatalogTable[]> {
+async function readCatalogInternal(kernel: KyselyKernel<unknown>, scope: StoreCopyScope): Promise<CatalogTable[]> {
   const schemas = sql.join(scope.schemas.map((s) => sql.lit(s)));
   const columns = await kernel.query<{
     schema: string;
@@ -140,7 +140,7 @@ async function readCatalogInternal(kernel: StorageKernel<unknown>, scope: StoreC
   return [...tables.values()].filter((table) => !scope.excludeTable?.(table));
 }
 
-async function readConstraints(kernel: StorageKernel<unknown>, scope: StoreCopyScope): Promise<CatalogConstraint[]> {
+async function readConstraints(kernel: KyselyKernel<unknown>, scope: StoreCopyScope): Promise<CatalogConstraint[]> {
   return (await kernel.query<CatalogConstraint>(sql`
     SELECT n.nspname AS schema, c.relname AS table, con.conname AS name, con.contype::text AS type,
            pg_get_constraintdef(con.oid) AS definition
@@ -153,7 +153,7 @@ async function readConstraints(kernel: StorageKernel<unknown>, scope: StoreCopyS
 }
 
 /** Indexes that are not a constraint's own (those come back with the constraint). */
-async function readIndexes(kernel: StorageKernel<unknown>, scope: StoreCopyScope): Promise<{ schema: string; table: string; definition: string }[]> {
+async function readIndexes(kernel: KyselyKernel<unknown>, scope: StoreCopyScope): Promise<{ schema: string; table: string; definition: string }[]> {
   return kernel.query(sql`
     SELECT n.nspname AS schema, t.relname AS table, pg_get_indexdef(i.indexrelid) AS definition
     FROM pg_index i
@@ -168,7 +168,7 @@ async function readIndexes(kernel: StorageKernel<unknown>, scope: StoreCopyScope
  * The target's tables that hold rows (ledgers aside). A move goes into an empty database only.
  * @returns `schema.table` names, empty when the target may be used.
  */
-async function nonEmptyTablesInternal(kernel: StorageKernel<unknown>, scope: StoreCopyScope): Promise<string[]> {
+async function nonEmptyTablesInternal(kernel: KyselyKernel<unknown>, scope: StoreCopyScope): Promise<string[]> {
   const found: string[] = [];
   for (const table of await readCatalogInternal(kernel, scope)) {
     if (isLedger(table, scope)) continue;
@@ -179,9 +179,9 @@ async function nonEmptyTablesInternal(kernel: StorageKernel<unknown>, scope: Sto
 }
 
 /** Throws unless both ledgers hold the same steps with the same checksums on both sides. */
-async function assertLedgersAgreeInternal(source: StorageKernel<unknown>, target: StorageKernel<unknown>, scope: StoreCopyScope): Promise<void> {
+async function assertLedgersAgreeInternal(source: KyselyKernel<unknown>, target: KyselyKernel<unknown>, scope: StoreCopyScope): Promise<void> {
   for (const ledger of scope.ledgers) {
-    const read = async (kernel: StorageKernel<unknown>) =>
+    const read = async (kernel: KyselyKernel<unknown>) =>
       (await kernel.query<{ id: string; checksum: string }>(sql`SELECT id, checksum FROM ${tableRef(ledger)} ORDER BY id`))
         .map((r) => `${r.id}:${r.checksum}`)
         .join(",");
@@ -214,7 +214,7 @@ const copiedColumns = (table: CatalogTable) => table.columns.filter((c) => !c.ge
  * @returns Number of inserted rows.
  * @complexity O(rows × columns) work and O(batch rows × columns) memory.
  */
-async function copyRows(source: StorageKernel<unknown>, target: StorageKernel<unknown>, table: CatalogTable): Promise<number> {
+async function copyRows(source: KyselyKernel<unknown>, target: KyselyKernel<unknown>, table: CatalogTable): Promise<number> {
   const columns = copiedColumns(table);
   if (columns.length === 0) return 0;
   const batch = Math.max(1, Math.min(BATCH_ROWS, Math.floor(MAX_BIND_PARAMETERS / columns.length)));
@@ -245,7 +245,7 @@ function primaryKeyTexts(table: CatalogTable) {
 }
 
 /** Row count and an order-independent checksum of the primary keys (count only without one). */
-async function fingerprint(kernel: StorageKernel<unknown>, table: CatalogTable): Promise<string> {
+async function fingerprint(kernel: KyselyKernel<unknown>, table: CatalogTable): Promise<string> {
   const key =
     table.primaryKey.length === 0 ? sql`''` : sql`concat_ws(E'\\t', ${sql.join(primaryKeyTexts(table))})`;
   const [row] = await kernel.query<{ n: number; sum: string }>(
@@ -256,7 +256,7 @@ async function fingerprint(kernel: StorageKernel<unknown>, table: CatalogTable):
 }
 
 async function addConstraints(
-  { target, constraints }: { target: StorageKernel<unknown>; constraints: readonly CatalogConstraint[] },
+  { target, constraints }: { target: KyselyKernel<unknown>; constraints: readonly CatalogConstraint[] },
   _optional = {}
 ): Promise<void> {
   for (const constraint of constraints) {
@@ -267,7 +267,7 @@ async function addConstraints(
 }
 
 async function advanceIdentityCounters(
-  { target, tables }: { target: StorageKernel<unknown>; tables: readonly CatalogTable[] },
+  { target, tables }: { target: KyselyKernel<unknown>; tables: readonly CatalogTable[] },
   _optional = {}
 ): Promise<void> {
   // Identity counters past the copied ids, or the first insert after the move collides.
@@ -278,6 +278,30 @@ async function advanceIdentityCounters(
                           COALESCE((SELECT max(${sql.ref(column.name)}) FROM ${tableRef(table)}), 0) + 1, false)`
       );
     }
+  }
+}
+
+/** A table present on both sides must have identical columns; copying into a different shape would corrupt rows. */
+function assertSharedTableShapesAgree(
+  { sourceTables, targetTables }: { sourceTables: CatalogTable[]; targetTables: Map<string, CatalogTable> },
+): void {
+  for (const table of sourceTables) {
+    const other = targetTables.get(qualified(table));
+    if (other === undefined) continue;
+    const shape = (t: CatalogTable) => t.columns.map((c) => `${c.name} ${c.type}`).join(", ");
+    if (shape(table) !== shape(other)) {
+      throw new StoreCopyError(`table ${qualified(table)} differs: source (${shape(table)}), target (${shape(other)})`);
+    }
+  }
+}
+
+/** Every copied table must hash identically on both sides, or the copy is rolled back. */
+async function verifyFingerprints(
+  { source, target, tables }: { source: KyselyKernel<unknown>; target: KyselyKernel<unknown>; tables: CatalogTable[] },
+): Promise<void> {
+  for (const table of tables) {
+    const [a, b] = [await fingerprint(source, table), await fingerprint(target, table)];
+    if (a !== b) throw new StoreCopyError(`table ${qualified(table)} did not verify after the copy: source ${a}, target ${b}`);
   }
 }
 
@@ -292,22 +316,15 @@ async function advanceIdentityCounters(
  * @complexity O(total rows) reads and writes, in batches of {@link BATCH_ROWS}.
  */
 async function copyPgStoreInternal(
-  source: StorageKernel<unknown>,
-  target: StorageKernel<unknown>,
+  source: KyselyKernel<unknown>,
+  target: KyselyKernel<unknown>,
   scope: StoreCopyScope,
   optional: { onCopied?: () => Promise<void> } = {}
 ): Promise<CopiedTable[]> {
   await assertLedgersAgreeInternal(source, target, scope);
   const sourceTables = (await readCatalogInternal(source, scope)).filter((t) => !isLedger(t, scope));
   const targetTables = new Map((await readCatalogInternal(target, scope)).map((t) => [qualified(t), t]));
-  for (const table of sourceTables) {
-    const other = targetTables.get(qualified(table));
-    if (other === undefined) continue;
-    const shape = (t: CatalogTable) => t.columns.map((c) => `${c.name} ${c.type}`).join(", ");
-    if (shape(table) !== shape(other)) {
-      throw new StoreCopyError(`table ${qualified(table)} differs: source (${shape(table)}), target (${shape(other)})`);
-    }
-  }
+  assertSharedTableShapesAgree({ sourceTables, targetTables });
   const created = sourceTables.filter((t) => !targetTables.has(qualified(t)));
   const createdIds = new Set(created.map(qualified));
   const sourceConstraints = await readConstraints(source, scope);
@@ -343,17 +360,14 @@ async function copyPgStoreInternal(
 
     await addConstraints({ target, constraints: [...foreignKeys, ...createdConstraints.filter((c) => c.type === "f")] });
     await advanceIdentityCounters({ target, tables: sourceTables });
-    for (const table of sourceTables) {
-      const [a, b] = [await fingerprint(source, table), await fingerprint(target, table)];
-      if (a !== b) throw new StoreCopyError(`table ${qualified(table)} did not verify after the copy: source ${a}, target ${b}`);
-    }
+    await verifyFingerprints({ source, target, tables: sourceTables });
     await optional.onCopied?.();
     return report;
   });
 }
 
 /** Public copy API: required host scope and borrowed kernels; no new kernel is opened. */
-export function readCatalog({ kernel, scope }: { kernel: StorageKernel<unknown>; scope: StoreCopyScope }, _optional = {}) { return readCatalogInternal(kernel, scope); }
-export function nonEmptyTables({ kernel, scope }: { kernel: StorageKernel<unknown>; scope: StoreCopyScope }, _optional = {}) { return nonEmptyTablesInternal(kernel, scope); }
-export function assertLedgersAgree({ source, target, scope }: { source: StorageKernel<unknown>; target: StorageKernel<unknown>; scope: StoreCopyScope }, _optional = {}) { return assertLedgersAgreeInternal(source, target, scope); }
-export function copyPgStore({ source, target, scope }: { source: StorageKernel<unknown>; target: StorageKernel<unknown>; scope: StoreCopyScope }, optional: { onCopied?: () => Promise<void> } = {}) { return copyPgStoreInternal(source, target, scope, optional); }
+export function readCatalog({ kernel, scope }: { kernel: KyselyKernel<unknown>; scope: StoreCopyScope }, _optional = {}) { return readCatalogInternal(kernel, scope); }
+export function nonEmptyTables({ kernel, scope }: { kernel: KyselyKernel<unknown>; scope: StoreCopyScope }, _optional = {}) { return nonEmptyTablesInternal(kernel, scope); }
+export function assertLedgersAgree({ source, target, scope }: { source: KyselyKernel<unknown>; target: KyselyKernel<unknown>; scope: StoreCopyScope }, _optional = {}) { return assertLedgersAgreeInternal(source, target, scope); }
+export function copyPgStore({ source, target, scope }: { source: KyselyKernel<unknown>; target: KyselyKernel<unknown>; scope: StoreCopyScope }, optional: { onCopied?: () => Promise<void> } = {}) { return copyPgStoreInternal(source, target, scope, optional); }

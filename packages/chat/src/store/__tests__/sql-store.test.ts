@@ -12,6 +12,9 @@ import { ChatStoreError } from '../errors.js';
 import type { ChatOwnerScope } from '../ports.js';
 import type { RedactUserText } from '../../core/user-text-redaction.js';
 
+// A package test supplies its own clock port; the system clock lives in the platform package.
+const testClock = { nowMs: () => Date.now() };
+
 const scope: ChatOwnerScope = { scopeId: 's', ownerKind: 'user', ownerId: 'u' };
 
 async function caught(run: () => Promise<unknown>): Promise<unknown> {
@@ -23,7 +26,7 @@ describe('history.read tool-event projection', () => {
   it('includes an events key holding undefined for a message stored without events when includeToolEvents is set', async () => {
     const fixture = await sqliteFixture();
     try {
-      const store = createSqliteChatStore({ kernel: fixture.kernel, scope });
+      const store = createSqliteChatStore({ clock: testClock, kernel: fixture.kernel, scope });
       await store.create({ id: 'c' });
       await store.appendMessage({ conversationId: 'c', message: { id: 'm', role: 'assistant', content: 'hi' } });
       const page = await store.history!.read({ chatId: 'c' }, { includeToolEvents: true });
@@ -39,7 +42,7 @@ describe('create failure paths', () => {
     const fixture = await sqliteFixture();
     try {
       await fixture.kernel.query(sql`CREATE TRIGGER refuse BEFORE INSERT ON ai_chats BEGIN SELECT RAISE(ABORT, 'host policy refused'); END`);
-      const store = createSqliteChatStore({ kernel: fixture.kernel, scope });
+      const store = createSqliteChatStore({ clock: testClock, kernel: fixture.kernel, scope });
       const error = await caught(() => store.create({ id: 'c' }));
       expect(error).toBeInstanceOf(ChatStoreError);
       expect((error as ChatStoreError).code).toBe('unavailable');
@@ -51,7 +54,7 @@ describe('create failure paths', () => {
     const fixture = await sqliteFixture();
     try {
       await fixture.kernel.query(sql`CREATE TRIGGER vanish AFTER INSERT ON ai_chats BEGIN DELETE FROM ai_chats WHERE id = NEW.id; END`);
-      const store = createSqliteChatStore({ kernel: fixture.kernel, scope });
+      const store = createSqliteChatStore({ clock: testClock, kernel: fixture.kernel, scope });
       const error = await caught(() => store.create({ id: 'gone' }));
       expect(error).toBeInstanceOf(ChatStoreError);
       expect((error as ChatStoreError).code).toBe('unavailable');
@@ -66,7 +69,7 @@ describe('appendMessage with a host redactor', () => {
     try {
       const redactUserText: RedactUserText = ({ text }) => ({ text: text.replace('hunter2', '[host removed]'), secretRedacted: true, count: 2 });
       const signals: unknown[] = [];
-      const store = createSqliteChatStore({ kernel: fixture.kernel, scope }, { redactUserText, onSecretRedacted: signal => signals.push(signal) });
+      const store = createSqliteChatStore({ clock: testClock, kernel: fixture.kernel, scope }, { redactUserText, onSecretRedacted: signal => signals.push(signal) });
       await store.create({ id: 'c' });
       const saved = await store.appendMessage({ conversationId: 'c', message: { id: 'm', role: 'user', content: 'pw hunter2' } });
       expect(saved?.content).toBe('pw [host removed]');

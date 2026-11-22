@@ -9,10 +9,15 @@ import {
   type SqliteEventLogDatabase, type SqliteEventLogOptions,
 } from '../sqlite.js';
 
+// A package test supplies its own clock port; the system clock lives in the platform package.
+const testClock = { nowMs: () => Date.now() };
+
+type ReceiptOptions = SqliteEventLogOptions & { clock?: { nowMs(): number } };
+
 const factories = {
-  sync: async (db: Database.Database, options: SqliteEventLogOptions) => createSqliteEventLog({ db }, options),
-  kernel: (db: Database.Database, options: SqliteEventLogOptions) =>
-    createKernelSqliteEventLog({ kernel: sqliteKernel<SqliteEventLogDatabase>(db) }, options),
+  sync: async (db: Database.Database, { clock = testClock, ...options }: ReceiptOptions) => createSqliteEventLog({ db, clock }, options),
+  kernel: (db: Database.Database, { clock = testClock, ...options }: ReceiptOptions) =>
+    createKernelSqliteEventLog({ kernel: sqliteKernel<SqliteEventLogDatabase>({ source: db }), clock }, options),
 };
 
 // Shared contracts must hold under both the sync driver and kernel transaction mechanisms.
@@ -114,12 +119,12 @@ describe.each(Object.entries(factories))('%s opt-in receipts', (_name, create) =
 it('detects conflicting retries after an owned connection is closed and reopened', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'jini-receipts-'));
   const input = { file: join(dir, 'events.db'), open: (file: string) => new Database(file) };
-  let log = openSqliteEventLog(input, { clock: { nowMs: () => 123 } });
+  let log = openSqliteEventLog({ ...input, clock: { nowMs: () => 123 } });
   try {
     const event = { runId: 'r', event: 'e', data: { n: 1 } };
     const first = await log.appendWithResult(event, { dedupeKey: 'k' });
     await log.close({});
-    log = openSqliteEventLog(input);
+    log = openSqliteEventLog({ ...input, clock: testClock });
     expect(await log.appendWithResult(event, { dedupeKey: 'k', detectConflicts: true })).toEqual({ ...first, kind: 'existing' });
     expect(await log.appendWithResult({ ...event, data: { n: 2 } }, { dedupeKey: 'k', detectConflicts: true })).toEqual({ kind: 'conflict' });
     expect((await log.append({ ...event, data: { n: 3 } })).id).toBe('2');

@@ -1,8 +1,11 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { I18nProvider } from '../../../../i18n/index.js';
+import { I18nProvider, type useT } from '../../../../i18n/index.js';
 import { ZoomMenu } from '../../../react/components/ZoomMenu.js';
+
+/** A translator that is visibly not the key, so the assertion proves the injected hook ran. */
+const useQuotingT: typeof useT = () => (key) => `«${key}»`;
 
 describe('ZoomMenu', () => {
   it('shows the current zoom on the trigger and no popover when closed', () => {
@@ -51,5 +54,14 @@ describe('ZoomMenu', () => {
       </I18nProvider>,
     );
     expect(screen.getByTitle('Réinitialiser le zoom')).toBeInTheDocument();
+  });
+
+  it('renders the translator supplied through useTHook and hands dismissal to the injected hook', () => {
+    const useDismissOnOutsideOrEscapeHook = vi.fn();
+    render(
+      <ZoomMenu zoom={100} levels={[50, 100, 150]} isOpen onToggle={vi.fn()} onClose={vi.fn()} onSelect={vi.fn()} useTHook={useQuotingT} useDismissOnOutsideOrEscapeHook={useDismissOnOutsideOrEscapeHook} />,
+    );
+    expect(screen.getByTitle('«Reset zoom»')).toBeInTheDocument();
+    expect(useDismissOnOutsideOrEscapeHook).toHaveBeenCalled();
   });
 });

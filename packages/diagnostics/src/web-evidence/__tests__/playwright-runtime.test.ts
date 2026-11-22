@@ -17,9 +17,9 @@ describe("openPlaywrightRenderBrowser", () => {
     expect(launches).toEqual([{ headless: true, args: ["--no-first-run"] }]);
   });
 
-  it("reports a module-load Error as unavailable, quoting its message", async () => {
+  it("reports a module-load Error as unavailable with fixed install guidance", async () => {
     const result = await openPlaywrightRenderBrowser({}, { moduleLoader: { load: async () => { throw new Error("Cannot find package 'playwright'"); } } });
-    expect(result).toMatchObject({ available: false, reason: expect.stringContaining("(Cannot find package 'playwright')") });
+    expect(result).toMatchObject({ available: false, reason: expect.stringContaining("npm install -D playwright") });
   });
 
   it("falls back to system Chrome without weakening the launch security options", async () => {
@@ -36,11 +36,11 @@ describe("openPlaywrightRenderBrowser", () => {
     expect(launches).toEqual([PUBLIC_RENDER_LAUNCH_OPTIONS, { ...PUBLIC_RENDER_LAUNCH_OPTIONS, channel: "chrome" }]);
   });
 
-  it("reports a non-Error module-load failure as unavailable, with its string form", async () => {
+  it("reports a non-Error module-load failure without its text", async () => {
     const result = await openPlaywrightRenderBrowser({}, { moduleLoader: { load: async () => { throw "ERR_MODULE_NOT_FOUND"; } } });
     expect(result.available).toBe(false);
     expect(result).toMatchObject({ reason: expect.stringContaining("the 'playwright' package is not installed") });
-    expect(result).toMatchObject({ reason: expect.stringContaining("(ERR_MODULE_NOT_FOUND)") });
+    expect(JSON.stringify(result)).not.toContain("ERR_MODULE_NOT_FOUND");
   });
 
   it("reports a launch failure as unavailable with install guidance, for Error and non-Error failures alike", async () => {
@@ -50,7 +50,7 @@ describe("openPlaywrightRenderBrowser", () => {
       expect(channels).toEqual([undefined, "chrome"]);
       expect(result).toMatchObject({ reason: expect.stringContaining("system Chrome") });
       expect(result).toMatchObject({ available: false, reason: expect.stringContaining("npx playwright install --with-deps chromium") });
-      expect(result).toMatchObject({ reason: expect.stringMatching(new RegExp(`Underlying error: ${detail}$`)) });
+      expect(JSON.stringify(result)).not.toContain(`Underlying error: ${detail}`);
     }
   });
 });
@@ -62,6 +62,6 @@ describe("nodeModuleLoader", () => {
   });
 
   it("rejects for a module that is not installed", async () => {
-    await expect(nodeModuleLoader.load({ moduleName: "jini-diagnostics-no-such-module" })).rejects.toThrow();
+    await expect(nodeModuleLoader.load({ moduleName: "jini-diagnostics-no-such-module" })).rejects.toThrow("Cannot find package 'jini-diagnostics-no-such-module' imported from");
   });
 });

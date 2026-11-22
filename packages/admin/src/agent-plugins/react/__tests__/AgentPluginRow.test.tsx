@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '../../../__tests__/fetch-query-support.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AgentPluginRow } from '../components/AgentPluginRow.js';
 import type { AgentPluginRowView } from '../hooks/AgentPluginPanel.hooks.js';

@@ -1,22 +1,12 @@
 /**
  * Direct tests for `utils/file-transfer.ts`, filling what `asset-tree-browser/__tests__/rules.test.ts`
- * (which reaches it through a re-export) leaves open: the AVIF extension, and the exact synthetic
+ * (which reaches it through a re-export) leaves open: the exact synthetic
  * name, type and lastModified of an unnamed pasted file under a pinned clock.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { extensionForMimeType, filesFromClipboardData, normalizePastedFile } from '../file-transfer.js';
+import { filesFromClipboardData, normalizePastedFile } from '../file-transfer.js';
 
 afterEach(() => { vi.useRealTimers(); });
-
-describe('extensionForMimeType', () => {
-  it('maps image/avif to .avif', () => {
-    expect(extensionForMimeType('image/avif')).toBe('.avif');
-  });
-  it('does not match by prefix or case', () => {
-    expect(extensionForMimeType('image/png; charset=binary')).toBe('');
-    expect(extensionForMimeType('IMAGE/PNG')).toBe('');
-  });
-});
 
 describe('normalizePastedFile', () => {
   it('names an unnamed paste pasted-<UTC second stamp><ext>, keeping its bytes, type and lastModified', async () => {
@@ -38,14 +28,14 @@ describe('normalizePastedFile', () => {
   it('applies the rename to clipboard files from both the files list and the items list', () => {
     vi.useFakeTimers({ now: new Date('2026-01-02T03:04:05.000Z') });
     const unnamed = new File(['x'], '', { type: 'image/png' });
-    const viaFiles = filesFromClipboardData({ files: [unnamed], items: [] } as unknown as DataTransfer);
+    const viaFiles = filesFromClipboardData({ clipboardData: { files: [unnamed], items: [] } as unknown as DataTransfer });
     expect(viaFiles.map((f) => f.name)).toEqual(['pasted-2026-01-02T03-04-05.png']);
-    const viaItems = filesFromClipboardData({ files: [], items: [
+    const viaItems = filesFromClipboardData({ clipboardData: { files: [], items: [
       { kind: 'string', getAsFile: () => null },
       { kind: 'file', getAsFile: () => null },
       { kind: 'file', getAsFile: () => unnamed },
-    ] } as unknown as DataTransfer);
+    ] } as unknown as DataTransfer });
     expect(viaItems.map((f) => f.name)).toEqual(['pasted-2026-01-02T03-04-05.png']);
-    expect(filesFromClipboardData(null)).toEqual([]);
+    expect(filesFromClipboardData({ clipboardData: null })).toEqual([]);
   });
 });

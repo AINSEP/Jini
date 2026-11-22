@@ -1,4 +1,7 @@
+import { createApiError } from '@jini-ai/protocol';
 import { mkdtemp, rm, symlink } from 'node:fs/promises';
+import { createServer as createHttpServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { PassThrough } from 'node:stream';
@@ -196,7 +199,7 @@ describe('serve() — wiring, with a fully-injected fake createMcpToolServer', (
     expect(seenOptions?.instructions).not.toContain('Before planning or building a site');
   });
 
-  it('omits fetchImpl/stdin/stdout from the built options entirely when not injected', async () => {
+  it('omits stdin/stdout from the built options entirely when not injected, and defaults fetchImpl to the loopback fetch', async () => {
     let seenOptions: (McpToolServerRequiredArgs & McpToolServerOptions) | undefined;
     const createMcpToolServer = vi.fn((requiredArgs: McpToolServerRequiredArgs, optionalArgs: McpToolServerOptions = {}) => {
       const options = { ...requiredArgs, ...optionalArgs };
@@ -204,9 +207,25 @@ describe('serve() — wiring, with a fully-injected fake createMcpToolServer', (
       return { run: async () => {} };
     });
     await serve({}, makeDeps({ createMcpToolServer }));
-    expect('fetchImpl' in (seenOptions as object)).toBe(false);
+    expect(typeof seenOptions?.fetchImpl).toBe('function');
     expect('stdin' in (seenOptions as object)).toBe(false);
     expect('stdout' in (seenOptions as object)).toBe(false);
+  });
+
+  it('the default fetchImpl reaches a loopback daemon without the global fetch', async () => {
+    let seenOptions: (McpToolServerRequiredArgs & McpToolServerOptions) | undefined;
+    const createMcpToolServer = vi.fn((requiredArgs: McpToolServerRequiredArgs, optionalArgs: McpToolServerOptions = {}) => {
+      seenOptions = { ...requiredArgs, ...optionalArgs };
+      return { run: async () => {} };
+    });
+    const daemon = createHttpServer((_request, response) => { response.writeHead(200, { 'content-type': 'application/json' }); response.end('{"alive":true}'); });
+    await new Promise<void>(resolve => daemon.listen(0, '127.0.0.1', () => resolve()));
+    onTestFinished(async () => { await new Promise<void>(resolve => daemon.close(() => resolve())); });
+    vi.stubGlobal('fetch', async () => { throw new Error('the global fetch must not carry a loopback daemon call'); });
+    onTestFinished(() => { vi.unstubAllGlobals(); });
+    await serve({}, makeDeps({ createMcpToolServer }));
+    const response = await seenOptions!.fetchImpl!(`http://127.0.0.1:${(daemon.address() as AddressInfo).port}/api/ping`);
+    expect(await response.json()).toEqual({ alive: true });
   });
 
   it('threads fetchImpl/stdin/stdout through to createMcpToolServer when injected', async () => {
@@ -764,6 +783,7 @@ describe('serve() — startup descriptors and live publication', () => {
       if (!parsed.ok) throw new Error('invalid delegated request');
       const result = await delegatedToolExecuteRoute.handle({ input: parsed.value, deps: {
         lifecycle, toolExecutor, toolRegistry: registry, resolvePrincipal: () => ({ id: 'host' }), onInternalError: () => {},
+        reportInternalError: ({ message }) => createApiError({ code: 'INTERNAL_ERROR', message }),
       } }, init.signal ? { signal: init.signal } : {});
       return result.ok ? Response.json(result.value) : Response.json({ error: result.error }, { status: 403 });
     };

@@ -4,7 +4,10 @@ import { test, vi, afterEach } from "vitest";
 import { InMemoryPostRepo, type PostRecord } from "./support/post.fixture.js";
 import { InMemorySettingsRepo } from "./support/legacy-api.fixture.js";
 import { InMemoryAssetRenditionRepo, InMemoryMediaRepo, InMemoryTransformDefinitionRepo } from "../../media/index.js";
-import { OriginNotVerifiedError, type OriginRegistryPort } from "@jini-ai/http-kit/verified-origin";
+import {
+  OriginNotVerifiedError,
+  type OriginRegistryPort,
+} from "@jini-ai/core/contracts/server/verified-origin";
 import { ensureSeoSettingDefinitions } from "./support/legacy-api.fixture.js";
 import { analyzeEntry } from "./support/legacy-api.fixture.js";
 import { buildPostRecord } from "./support/post.fixture.js";
@@ -111,6 +114,8 @@ test("analyzeEntry: carries the fully-resolved SeoMeta in `resolved`", async () 
     openGraph: { title: "Social title", description: "Social description", type: "website", url: "https://canonical.test/article", image: "https://cdn.test/social.png", imageOverridden: true, imageSource: "override", siteName: undefined },
     twitter: { title: "Twitter title", description: "Twitter description", card: "summary", image: "https://cdn.test/twitter.jpg", site: undefined },
     jsonLd: [{ "@context": "https://schema.org", "@type": "NewsArticle", headline: "Search title", description: "Search description" }],
+    // getEntryMeta returns the entry's row version (its optimistic-concurrency token) with the meta.
+    version: 1,
   });
   assert.equal(analysis.entryId, "post-1");
 });

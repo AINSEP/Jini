@@ -1,7 +1,7 @@
 import { promises as fs } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { preparePromptFileForAgent } from '../prompt-file.js';
-import type { RuntimeAgentDef } from '../types.js';
+import type { RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 
 function makeDef(overrides: Partial<RuntimeAgentDef> = {}): RuntimeAgentDef {
   return {
@@ -38,7 +38,9 @@ describe('preparePromptFileForAgent', () => {
     expect(contents).toBe('the prompt body');
 
     await prepared!.cleanup();
-    await expect(fs.access(prepared!.path)).rejects.toThrow();
+    if (prepared === null) throw new Error('Expected a prepared prompt file');
+    const preparedPath = prepared.path;
+    await expect(fs.access(preparedPath)).rejects.toThrow(`ENOENT: no such file or directory, access '${preparedPath}'`);
   });
 
   it('sanitizes unsafe characters out of the label and truncates to 80 chars', async () => {

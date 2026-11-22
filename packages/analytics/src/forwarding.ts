@@ -177,7 +177,7 @@ async function forwardOne(required: { bound: BoundAnalyticsForwarder; hit: Forwa
   }
 }
 
-/** Default: detach. The beacon response must never wait on a vendor (ADR-035 §5). */
+/** Default: detach. The beacon response must never wait on a vendor. */
 const detach = (_task: Promise<void>): void => undefined;
 
 /**

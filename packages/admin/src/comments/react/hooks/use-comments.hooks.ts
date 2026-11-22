@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
-import { useFetchQuery } from '@jini-ai/ui/fetch-query';
-import { useController } from '../../../core/react/use-controller.js';
+import { useFetchQuery } from '../../../react/kit.js';
+import { useCommentsController } from './CommentsPorts.hooks.js';
 import { createCommentsController } from '../../controllers/comments.controller.js';
 import type { CommentsSessionPort } from '../../ports.js';
 import { KEYS } from '../../rules.js';
@@ -18,7 +18,7 @@ export function useComments(
   { t = englishComments }: { t?: CommentsTranslator } = {},
 ): CommentsController {
   const list = useFetchQuery({ key: KEYS.permissions, fetch: () => session.me({}) });
-  const { controller, snapshot } = useController({ create: () => createCommentsController({}), dependencies: [session] });
+  const { controller, snapshot } = useCommentsController({ create: () => createCommentsController({}), dependencies: [session] });
   useEffect(() => { controller?.settle({ data: list.data ?? null, error: list.error }); }, [controller, list.data, list.error]);
   return { permissions: snapshot?.permissions ?? null, error: snapshot?.error ?? null, t };
 }

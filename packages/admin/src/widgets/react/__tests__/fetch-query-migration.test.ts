@@ -1,4 +1,4 @@
-import { useFetchQuery } from "@jini-ai/ui/fetch-query";
+import { useFetchQuery } from "../../../react/kit.js";
 import { act, renderHook, waitFor } from '../../../__tests__/fetch-query-support.js';
 import { describe, expect, it } from 'vitest';
 import { createMemoryWidgetsApi } from '../../adapters/memory.js';
@@ -26,7 +26,8 @@ describe('widgets shared query ownership', () => {
     await waitFor(() => expect(result.current.second.widgets).toEqual([widget]));
     act(() => result.current.first.requestTrash(widget));
     await act(async () => { await result.current.first.confirmTrash(); });
-    expect(result.current.first.error).toBe('offline');
+    // A port's plain Error is not approved copy, so the library shows its own fallback.
+    expect(result.current.first.error).toBe('delete failed');
     expect(result.current.first.widgets).toEqual([widget]);
     expect(result.current.second.widgets).toEqual([widget]);
   });

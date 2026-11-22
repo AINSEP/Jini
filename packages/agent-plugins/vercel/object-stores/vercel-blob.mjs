@@ -15,6 +15,16 @@
  * Plain JS by owner decision (2026-09-29), like `targets/vercel.mjs`.
  */
 
+/**
+ * Structural copy of the `@jini-ai/devops/deploy` `ArtifactStorePort` (a plugin cannot import the
+ * package that defines its host): the share-facing single-object store. The host proves the fit.
+ * @typedef {{
+ *   upload(required: { readonly key: string, readonly bytes: Uint8Array, readonly headers: Readonly<Record<string, string>> }, optional?: { signal?: AbortSignal }): Promise<{ url: string }>,
+ *   delete(required: { key: string }, optional?: { signal?: AbortSignal }): Promise<void>,
+ *   verify(required: { key: string, url: string, present: boolean, bytes?: number }, optional?: { signal?: AbortSignal }): Promise<boolean>,
+ * }} ArtifactStorePort
+ */
+
 const BLOB_API = "https://vercel.com/api/blob";
 /** Matches `@vercel/blob` 2.8.2 (`BLOB_API_VERSION = 13`, sent on every API call). */
 const BLOB_API_VERSION = "13";
@@ -73,7 +83,7 @@ function isExactBlobUrl(required) {
 /**
  * The share-facing artifact store over one Blob store.
  * @param {{ blobToken: string, kit: any }} required
- * @returns {import("@jini-ai/devops/deploy").ArtifactStorePort & { binding: string }}
+ * @returns {ArtifactStorePort & { binding: string }}
  * @complexity O(1) to build; each call is one request.
  */
 function createBlobArtifactStore(required) {
@@ -104,7 +114,7 @@ function createBlobArtifactStore(required) {
       } });
     },
     /**
-     * Anonymous HEAD of the public URL. Blob does not serve the no-store/robots headers the Tovu
+     * Anonymous HEAD of the public URL. Blob does not serve the no-store/robots headers the host
      * delivery contract checks, so this checks what Blob does guarantee: exact size and ZIP type.
      */
     async verify({ key, url, present, bytes }, options = {}) {

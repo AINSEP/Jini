@@ -1,39 +1,24 @@
-import { formatErrorForLog } from '@jini-ai/core';
+import { describeErrorForLog } from '@jini-ai/core';
 /** Executable contribution admission on the existing plugin loader, never a second loader.
  * Captures stay private until setup succeeds. A sealed generation cannot register from a timer.
  * Tier-3 currently runs with full in-process authority; a hardened worker at this boundary is
  * still to come. */
-import { PLUGIN_PROVIDER_CAPABILITY, isPluginProviderDeclaration, type PluginProviderContribution } from './provider-contributions.js';
+import { isPluginProviderDeclaration } from './provider-contributions.js';
+import {
+  PLUGIN_PROVIDER_CAPABILITY,
+  type PluginProviderContribution,
+} from '@jini-ai/core/contracts/plugin-sdk';
 import { createContributionRegistry } from '@jini-ai/core/contribution-registry';
 import { normalizeRoute, resolveClaimConflicts, type ExtensionClaim } from './claim-conflicts.js';
 import type { PluginManifest } from './manifest-types.js';
-import type { PluginSdk } from './ports.js';
+import type {
+  PluginRouteContribution,
+  PluginSdk,
+  PluginToolContribution,
+  PluginWidgetContribution,
+} from '@jini-ai/core/contracts/plugin-sdk';
 
 export const PLUGIN_CONTRIBUTION_CAPABILITIES = ['http.route.register', 'tools.register', 'render.contribute', PLUGIN_PROVIDER_CAPABILITY] as const;
-export type PluginRouteAccess = 'public' | 'member' | 'admin';
-export interface PluginAuthContext { readonly access: PluginRouteAccess; readonly principalId?: string; readonly workspaceId: string }
-export interface PluginInvocationContext { readonly pluginId: string; readonly auth: PluginAuthContext; readonly sdk: PluginSdk; readonly signal?: AbortSignal }
-export interface PluginRouteInput extends PluginInvocationContext {
-  readonly body: unknown; readonly params: Readonly<Record<string, string>>; readonly query: Readonly<Record<string, unknown>>;
-}
-export interface PluginRouteResult { readonly status?: number; readonly body?: unknown }
-export interface PluginRouteContribution {
-  readonly method: string; readonly path: string; readonly access: PluginRouteAccess;
-  readonly handler: (required: PluginRouteInput, optional?: Record<string, never>) => PluginRouteResult | void | Promise<PluginRouteResult | void>;
-}
-/** Declared change class. Only ever tightens host policy: `destructive` forces confirmation. */
-export type PluginToolEffect = 'read' | 'write' | 'destructive';
-export interface PluginToolContribution {
-  readonly name: string; readonly description: string; readonly inputSchema: Readonly<Record<string, unknown>>;
-  readonly effect?: PluginToolEffect;
-  readonly handler: (required: PluginInvocationContext & { readonly input: unknown }, optional?: Record<string, never>) => unknown | Promise<unknown>;
-}
-export interface PluginWidgetContribution {
-  readonly name: string;
-  /** Public SSR only. Host sanitizes the bounded HTML before partial placement (ADR-025). */
-  readonly render: (required: PluginInvocationContext, optional?: Record<string, never>) => string | Promise<string>;
-}
-export type PluginContribution = { readonly kind: 'route'; readonly value: PluginRouteContribution } | { readonly kind: 'tool'; readonly value: PluginToolContribution } | { readonly kind: 'widget'; readonly value: PluginWidgetContribution };
 export interface PluginContributionsSnapshot {
   readonly pluginId: string; readonly sdk: PluginSdk;
   readonly providers?: readonly PluginProviderContribution[];
@@ -92,46 +77,64 @@ export function createPluginContributionCapture(required: { manifest: PluginMani
     // Worker proxy currently transports only beforeSave; accepting these there would lose them.
     if (manifest.tier === 'tier-2') throw new Error('worker contributions are not supported yet');
   };
-  const named = (name: string, declarations: readonly string[] | undefined) => {
-    if (!/^[a-z][a-z0-9_-]{0,63}$/.test(name) || !declarations?.includes(name)) throw new Error(`undeclared plugin contribution '${name}'`);
-  };
   return {
-    providers: { register(value: PluginProviderContribution, _optional: Record<string, never> = {}) {
-      check();
-      if (manifest.tier !== 'tier-3' || !isPluginProviderDeclaration({ value }) || typeof value.factory !== 'function') throw new Error('invalid plugin provider factory');
-      if (!manifest.contributes?.providers?.some(declaration => declaration.contract === value.contract && declaration.id === value.id && declaration.contractVersion === value.contractVersion)) throw new Error('undeclared plugin provider');
-      if (providers.some(provider => provider.contract === value.contract && provider.id === value.id)) throw new Error('duplicate plugin provider');
-      providers.push(Object.freeze({ contract: value.contract, id: value.id, contractVersion: value.contractVersion, factory: value.factory }));
-    } },
-    routes: { add(value: PluginRouteContribution, _optional: Record<string, never> = {}) {
-      check(); validatePluginRoute(value);
-      if (!['public','member','admin'].includes(value.access)) throw new Error('invalid plugin route access');
-      if (typeof value.handler !== 'function') throw new Error('plugin route handler is required');
-      const slot = normalizeRoute({ key: `${value.method} ${value.path}` })[0]!;
-      if (!manifest.contributes?.routes?.some(key => normalizeRoute({ key }).includes(slot))) throw new Error(`undeclared plugin route '${slot}'`);
-      if (routes.some(route => normalizeRoute({ key: `${route.method} ${route.path}` }).includes(slot))) throw new Error('duplicate plugin route');
-      routes.push(Object.freeze({ ...value }));
-    } },
-    tools: { add(value: PluginToolContribution, _optional: Record<string, never> = {}) {
-      check(); named(value.name, manifest.contributes?.tools);
-      if (tools.some(tool => tool.name === value.name)) throw new Error('duplicate plugin tool');
-      if (typeof value.handler !== 'function' || typeof value.description !== 'string' || !value.description.trim() || value.description.length > 8000) throw new Error('plugin tool handler and description are required');
-      const json = serializePluginToolSchema({ schema: value.inputSchema });
-      const captured = { ...value };
-      const inputSchema = requireObjectSchema({ schema: JSON.parse(json) });
-      tools.push(Object.freeze({ ...captured, inputSchema }));
-    } },
-    widgets: { add(value: PluginWidgetContribution, _optional: Record<string, never> = {}) {
-      check(); named(value.name, manifest.contributes?.widgets);
-      if (typeof value.render !== 'function' || widgets.some(widget => widget.name === value.name)) throw new Error('invalid or duplicate plugin widget');
-      widgets.push(Object.freeze({ ...value }));
-    } },
+    providers: capturedProvidersSurface({ manifest, providers }, check),
+    routes: capturedRoutesSurface({ manifest, routes }, check),
+    tools: capturedToolsSurface({ manifest, tools }, check),
+    widgets: capturedWidgetsSurface({ manifest, widgets }, check),
     seal({ sdk }: { sdk: PluginSdk }, _optional: Record<string, never> = {}): PluginContributionsSnapshot {
       sealed = true;
       return Object.freeze({ pluginId: manifest.id, sdk, routes: Object.freeze([...routes]), tools: Object.freeze([...tools]), widgets: Object.freeze([...widgets]), providers: Object.freeze([...providers]) });
     },
   };
 }
+
+function named(name: string, declarations: readonly string[] | undefined): void {
+  if (!/^[a-z][a-z0-9_-]{0,63}$/.test(name) || !declarations?.includes(name)) throw new Error(`undeclared plugin contribution '${name}'`);
+}
+
+function capturedProvidersSurface({ manifest, providers }: { manifest: PluginManifest; providers: PluginProviderContribution[] }, check: () => void): PluginSdk['providers'] {
+  return { register(value: PluginProviderContribution, _optional: Record<string, never> = {}) {
+    check();
+    if (manifest.tier !== 'tier-3' || !isPluginProviderDeclaration({ value }) || typeof value.factory !== 'function') throw new Error('invalid plugin provider factory');
+    if (!manifest.contributes?.providers?.some(declaration => declaration.contract === value.contract && declaration.id === value.id && declaration.contractVersion === value.contractVersion)) throw new Error('undeclared plugin provider');
+    if (providers.some(provider => provider.contract === value.contract && provider.id === value.id)) throw new Error('duplicate plugin provider');
+    providers.push(Object.freeze({ contract: value.contract, id: value.id, contractVersion: value.contractVersion, factory: value.factory }));
+  } };
+}
+
+function capturedRoutesSurface({ manifest, routes }: { manifest: PluginManifest; routes: PluginRouteContribution[] }, check: () => void): PluginSdk['routes'] {
+  return { add(value: PluginRouteContribution, _optional: Record<string, never> = {}) {
+    check(); validatePluginRoute(value);
+    if (!['public','member','admin'].includes(value.access)) throw new Error('invalid plugin route access');
+    if (typeof value.handler !== 'function') throw new Error('plugin route handler is required');
+    const slot = normalizeRoute({ key: `${value.method} ${value.path}` })[0]!;
+    if (!manifest.contributes?.routes?.some(key => normalizeRoute({ key }).includes(slot))) throw new Error(`undeclared plugin route '${slot}'`);
+    if (routes.some(route => normalizeRoute({ key: `${route.method} ${route.path}` }).includes(slot))) throw new Error('duplicate plugin route');
+    routes.push(Object.freeze({ ...value }));
+  } };
+}
+
+function capturedToolsSurface({ manifest, tools }: { manifest: PluginManifest; tools: PluginToolContribution[] }, check: () => void): PluginSdk['tools'] {
+  return { add(value: PluginToolContribution, _optional: Record<string, never> = {}) {
+    check(); named(value.name, manifest.contributes?.tools);
+    if (tools.some(tool => tool.name === value.name)) throw new Error('duplicate plugin tool');
+    if (typeof value.handler !== 'function' || typeof value.description !== 'string' || !value.description.trim() || value.description.length > 8000) throw new Error('plugin tool handler and description are required');
+    const json = serializePluginToolSchema({ schema: value.inputSchema });
+    const captured = { ...value };
+    const inputSchema = requireObjectSchema({ schema: JSON.parse(json) });
+    tools.push(Object.freeze({ ...captured, inputSchema }));
+  } };
+}
+
+function capturedWidgetsSurface({ manifest, widgets }: { manifest: PluginManifest; widgets: PluginWidgetContribution[] }, check: () => void): PluginSdk['widgets'] {
+  return { add(value: PluginWidgetContribution, _optional: Record<string, never> = {}) {
+    check(); named(value.name, manifest.contributes?.widgets);
+    if (typeof value.render !== 'function' || widgets.some(widget => widget.name === value.name)) throw new Error('invalid or duplicate plugin widget');
+    widgets.push(Object.freeze({ ...value }));
+  } };
+}
+
 export interface PluginContributionRegistry {
   replace(required: { contributions: PluginContributionsSnapshot }, optional?: Record<string, never>): void;
   detach(required: { pluginId: string }, optional?: Record<string, never>): void;
@@ -176,7 +179,7 @@ export function createPluginContributionRegistry(_required: Record<string, never
 
 /** Resolves only named public fragments, isolating failures and bounding the awaited work.
  * Validation is an injected host renderer port; plugins cannot substitute their own validator.
- * Client enhancement JS is still pending: it waits for an ADR-025 owner amendment. */
+ * Client enhancement JS is still pending: it waits for an owner amendment. */
 export async function renderPluginWidgetFragments(required: {
   registry: PluginContributionRegistry; names: readonly string[]; workspaceId: string;
   isEnabled: (required: { pluginId: string }, optional?: Record<string, never>) => Promise<boolean>;
@@ -201,7 +204,7 @@ export async function renderPluginWidgetFragments(required: {
         if (typeof html !== 'string' || !required.registry.list({}).includes(snapshot) || !await required.isEnabled({ pluginId: snapshot.pluginId })) return;
         fragments[widget.name] = required.validateHtml({ html });
       } catch (error) {
-        (optional.onError ?? (({ pluginId, widgetName, error: failureError }) => console.warn(`[plugins] Plugin '${pluginId}' widget '${widgetName}' failed`, formatErrorForLog({ error: failureError }))))({ pluginId: snapshot.pluginId, widgetName: widget.name, error }, {});
+        (optional.onError ?? (({ pluginId, widgetName, error: failureError }) => console.warn(`[plugins] Plugin '${pluginId}' widget '${widgetName}' failed`, describeErrorForLog({ err: failureError }))))({ pluginId: snapshot.pluginId, widgetName: widget.name, error }, {});
         fragments[widget.name] = '';
       } finally { if (timer !== undefined) clearTimeout(timer); }
     }));

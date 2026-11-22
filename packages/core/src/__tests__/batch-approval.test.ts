@@ -45,13 +45,16 @@ it('a later invalid target prevents both approval and earlier effects', async ()
   expect(f.events).toEqual(['prepare:a']);
 });
 
-for (const input of [
-  { items: [] }, { items: 'a' }, { items: [null] }, { items: [{ items: [{}] }] },
-  { items: [{ id: 'a', site: 's' }, { site: 's', id: 'a' }] },
-  { items: Array.from({ length: 26 }, (_, id) => ({ id: String(id) })) },
-]) it(`refuses malformed/duplicate/over-cap inputs before preparation: ${JSON.stringify(input)}`, async () => {
+for (const [input, message] of [
+  [{ items: [] }, 'items must contain between 1 and 25 inputs.'],
+  [{ items: 'a' }, 'items must contain between 1 and 25 inputs.'],
+  [{ items: [null] }, 'input must be an object'],
+  [{ items: [{ items: [{}] }] }, 'Nested items batches are not supported.'],
+  [{ items: [{ id: 'a', site: 's' }, { site: 's', id: 'a' }] }, 'Duplicate batch inputs are not allowed.'],
+  [{ items: Array.from({ length: 26 }, (_, id) => ({ id: String(id) })) }, 'items must contain between 1 and 25 inputs.'],
+] as const) it(`refuses malformed/duplicate/over-cap inputs before preparation: ${JSON.stringify(input)}`, async () => {
   const f = fixture();
-  await expect(f.handler(f.ctx(input))).rejects.toThrow();
+  await expect(f.handler(f.ctx(input))).rejects.toThrow(message);
   expect(f.events).toEqual([]);
 });
 

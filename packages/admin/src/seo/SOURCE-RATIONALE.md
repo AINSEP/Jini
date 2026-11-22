@@ -236,15 +236,15 @@ export function useMediaRefField(
 ## Seo.tsx
 
 /**
- * `SeoSettingsScreen` (SPEC-008 ui.spec.md §2.4) — the site-wide `seo.*` settings form +
- * `SitemapRegenerateButton` (§2.6). Coordinator-authored 2026-07-13, post-session-limit resume.
+ * `SeoSettingsScreen` — the site-wide `seo.*` settings form +
+ * `SitemapRegenerateButton`. Coordinator-authored 2026-07-13, post-session-limit resume.
  * Markup only.
  *
  * State and API calls live in one hook per component: `hooks/use-seo.hooks.ts` (top-level
  * defaults form + sitemap button), `hooks/use-entry-picker.hooks.ts`, `hooks/use-seo-entry-panel
  * .hooks.ts`, `hooks/use-seo-entry-section.hooks.ts`. The issue-severity sort lives in `rules.ts`.
  *
- * SPEC-037 REQ-06/07/08: `SeoEntryPanel` closes the deferred per-entry gap this file's own header
+ * `SeoEntryPanel` closes the deferred per-entry gap this file's own header
  * used to disclose — a standalone entry picker (dropdown over `listPosts`/`listPages`, cheaper
  * than threading a new panel through `PostEditor.tsx`, per REQ-06's own "implementer's choice")
  * plus a partial-override edit form and a read-only analyze view. `RobotsRuleEditor` (§2.5) is
@@ -632,7 +632,7 @@ export function useMediaRefField(
  * directly — see `sitemap-port.hooks.ts` for why this is a separate port from `SeoPort`.
  *
  * Uses `siteUrl()` (`lib/site-url.ts`), the same helper the admin already has for "link to a page
- * on the public Tovu site, not the admin SPA": in production the admin SPA and the public site are
+ * on the public host site, not the admin SPA": in production the admin SPA and the public site are
  * one server/one origin, so a relative path is correct; when Vite serves the admin SPA on its own
  * origin (:5173 by default) it knows nothing about `/sitemap.xml`, so `siteUrl` resolves an
  * absolute `http://localhost:3000/sitemap.xml` instead. (Not every dev bundle: under `apps/desktop`'s
@@ -1051,7 +1051,7 @@ export function useMediaRefField(
 
 ## Part B input comment updates (2026-10-08)
 
-Historical source comments retained verbatim; active owners are core AdminSeoPort and the Tovu seo-ports host binding.
+Historical source comments retained; active owners are core AdminSeoPort and the host seo-ports binding.
 
 ### hooks/seo-dependencies.hooks.ts
 

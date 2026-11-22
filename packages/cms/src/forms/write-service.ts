@@ -1,5 +1,5 @@
 /**
- * @file `write-service.ts` — the admin-CRUD write chokepoint (SPEC-010 REQ-01..04, ADR-PIPE-010).
+ * @file `write-service.ts` — the admin-CRUD write chokepoint.
  *
  * Purpose:
  * `createFormDefinition`/`updateFormDefinition`/`setFormDefinitionStatus`, each wrapping the
@@ -15,12 +15,8 @@
  */
 import { nowIso as kernelNowIso } from "@jini-ai/core/primitives";
 /** Audited definition writes through the CMS command gateway. Host permissions and reserved slugs are explicit policies; notify, idempotency and optional outbox wiring live in the second argument. */
-import type { ChangeSetRepoPort } from "../core/index.js";
+import type { ChangeSetRepoPort, AuthorizeFn, CommandActor } from "@jini-ai/core/contracts/events";
 import type { Clock, IdGenerator, UUID } from "@jini-ai/core/primitives";
-import type {
-  AuthorizeFn,
-  CommandActor,
-} from "../core/index.js";
 import { FormDefinitionNotFoundError, FormFieldValidationError } from "./errors.js";
 import { validateFieldDescriptors } from "./forms.js";
 import type { FormAuthoringPort, FormCommandExecutorPort, FormDefinitionRepoPort } from "./ports.js";
@@ -46,6 +42,24 @@ export interface FormWriteServiceDeps {
   permission: string;
   reservedSlugs: ReadonlySet<string>;
   authorize: AuthorizeFn;
+}
+
+/** Supplies the common gateway dependencies for a form-definition command. */
+function formCommandDeps(
+  { deps }: { deps: FormWriteServiceDeps },
+  { outbox }: { outbox?: FormWriteOptional["outbox"] } = {},
+) {
+  return { clock: deps.clock, idGen: deps.idGen, changeSets: deps.changeSets, outbox, authorize: deps.authorize };
+}
+
+/** Loads a live definition or raises the form service's existing not-found error. */
+async function requireFormDefinition(
+  { repo, workspaceId, formId }: { repo: FormDefinitionRepoPort; workspaceId: UUID; formId: UUID },
+  _optional: Record<string, never> = {},
+): Promise<FormDefinitionRecord> {
+  const existing = await repo.findById({ workspaceId, id: formId });
+  if (!existing) throw new FormDefinitionNotFoundError({ message: `form definition '${formId}' was not found` });
+  return existing;
 }
 
 // Export validation bounds so host tool schemas can share them rather than drift from the service.
@@ -133,6 +147,26 @@ export interface CreateFormDefinitionRequired {
   } & FormAuthoring;
 }
 
+function newFormDefinition(
+  { input }: Pick<CreateFormDefinitionRequired, 'input'>,
+  { definitionId, notify, now }: { definitionId: UUID; notify: NotifyConfig; now: string },
+): HtmlFormDefinitionRecord {
+  return {
+    id: definitionId,
+    workspaceId: input.workspaceId,
+    name: input.name,
+    slug: input.slug,
+    fields: input.fields,
+    ...(input.provider ? { provider: input.provider } : {}),
+    notify,
+    status: "active",
+    createdAt: now,
+    updatedAt: now,
+    // Start the optimistic-concurrency version at 1 for the trash compare-and-set lifecycle.
+    version: 1,
+  };
+}
+
 /**
  * All definition writes pass through the injected command gateway for authorization, audit
  * capture and optional change-set event enqueue. There is no delete here: permanent removal
@@ -160,13 +194,7 @@ export async function createFormDefinition(
   const definitionId = deps.idGen.newId();
 
   const { result } = await deps.executeCommand({
-    deps: {
-      clock: deps.clock,
-      idGen: deps.idGen,
-      changeSets: deps.changeSets,
-      outbox: optional.outbox,
-      authorize: deps.authorize,
-    },
+    deps: formCommandDeps({ deps }, { outbox: optional.outbox }),
     command: {
       workspaceId: input.workspaceId,
       actor: input.actor,
@@ -181,20 +209,7 @@ export async function createFormDefinition(
       captureInverse: async () => null,
       execute: async () => {
         const now = kernelNowIso({ clock: deps.clock });
-        const definition: HtmlFormDefinitionRecord = {
-          id: definitionId,
-          workspaceId: input.workspaceId,
-          name: input.name,
-          slug: input.slug,
-          fields: input.fields,
-          ...(input.provider ? { provider: input.provider } : {}),
-          notify,
-          status: "active",
-          createdAt: now,
-          updatedAt: now,
-          // Start the optimistic-concurrency version at 1 for the trash compare-and-set lifecycle.
-          version: 1,
-        };
+        const definition = newFormDefinition({ input }, { definitionId, notify, now });
         await deps.repo.create(definition);
         return { definition };
       },
@@ -221,6 +236,22 @@ export interface UpdateFormDefinitionRequired {
   };
 }
 
+function updatedFormFields(existing: FormDefinitionRecord, patch: UpdateFormDefinitionRequired['input']['patch']): FieldDescriptor[] {
+  let fields = existing.fields;
+  if (patch.fields !== undefined) {
+    assertValidFields(patch.fields);
+    const existingIds = new Set(existing.fields.map((f) => f.id));
+    const newIds = new Set(patch.fields.map((f) => f.id));
+    const missing = [...existingIds].filter((id) => !newIds.has(id));
+    if (missing.length > 0) {
+      throw new FormFieldValidationError({ message: `patch omits existing field id(s): ${missing.join(", ")} (behavior.spec.md §1.2)`, fieldErrors: missing.map((id) => ({ field: id, reason: "existing field ids cannot be removed" })) });
+    }
+    fields = patch.fields;
+  }
+
+  return fields;
+}
+
 export async function updateFormDefinition(
   required: UpdateFormDefinitionRequired,
   optional: UpdateFormDefinitionOptional = {}
@@ -229,13 +260,7 @@ export async function updateFormDefinition(
   const { deps, input } = required;
 
   const { result } = await deps.executeCommand({
-    deps: {
-      clock: deps.clock,
-      idGen: deps.idGen,
-      changeSets: deps.changeSets,
-      outbox: optional.outbox,
-      authorize: deps.authorize,
-    },
+    deps: formCommandDeps({ deps }, { outbox: optional.outbox }),
     command: {
       workspaceId: input.workspaceId,
       actor: input.actor,
@@ -249,27 +274,14 @@ export async function updateFormDefinition(
       operation: "update",
       captureInverse: async () => null,
       execute: async () => {
-        const existing = await deps.repo.findById({ workspaceId: input.workspaceId, id: input.formId });
-        if (!existing) {
-          throw new FormDefinitionNotFoundError({ message: `form definition '${input.formId}' was not found` });
-        }
+        const existing = await requireFormDefinition({ repo: deps.repo, workspaceId: input.workspaceId, formId: input.formId });
 
         const name = input.patch.name !== undefined ? input.patch.name : existing.name;
         if (input.patch.name !== undefined) {
           validateNameAndSlug(name, existing.slug, deps.reservedSlugs);
         }
 
-        let fields = existing.fields;
-        if (input.patch.fields !== undefined) {
-          assertValidFields(input.patch.fields);
-          const existingIds = new Set(existing.fields.map((f) => f.id));
-          const newIds = new Set(input.patch.fields.map((f) => f.id));
-          const missing = [...existingIds].filter((id) => !newIds.has(id));
-          if (missing.length > 0) {
-            throw new FormFieldValidationError({ message: `patch omits existing field id(s): ${missing.join(", ")} (behavior.spec.md §1.2)`, fieldErrors: missing.map((id) => ({ field: id, reason: "existing field ids cannot be removed" })) });
-          }
-          fields = input.patch.fields;
-        }
+        const fields = updatedFormFields(existing, input.patch);
 
         const notify = input.patch.notify !== undefined ? validateNotify(input.patch.notify) : existing.notify;
         assertProvider({ provider: input.patch.provider, stored: (existing as HtmlFormDefinitionRecord).provider, slug: existing.slug, providers: deps.formCollectionProviders?.() });
@@ -282,8 +294,11 @@ export async function updateFormDefinition(
           notify,
           slug: existing.slug,
           updatedAt: kernelNowIso({ clock: deps.clock }),
+          version: existing.version + 1,
         };
-        await deps.repo.update(definition);
+        // The editor's basis when sent; otherwise this request's own read, so a basis-less (legacy
+        // API) edit still cannot write its whole row over an edit that landed after that read.
+        await deps.repo.update(definition, { expectedVersion: optional.expectedVersion ?? existing.version });
         return { definition };
       },
     },
@@ -310,13 +325,7 @@ export async function setFormDefinitionStatus(
   const { deps, input } = required;
 
   const { result } = await deps.executeCommand({
-    deps: {
-      clock: deps.clock,
-      idGen: deps.idGen,
-      changeSets: deps.changeSets,
-      outbox: optional.outbox,
-      authorize: deps.authorize,
-    },
+    deps: formCommandDeps({ deps }, { outbox: optional.outbox }),
     command: {
       workspaceId: input.workspaceId,
       actor: input.actor,
@@ -330,16 +339,16 @@ export async function setFormDefinitionStatus(
       operation: "update",
       captureInverse: async () => null,
       execute: async () => {
-        const existing = await deps.repo.findById({ workspaceId: input.workspaceId, id: input.formId });
-        if (!existing) {
-          throw new FormDefinitionNotFoundError({ message: `form definition '${input.formId}' was not found` });
-        }
+        const existing = await requireFormDefinition({ repo: deps.repo, workspaceId: input.workspaceId, formId: input.formId });
         const definition: HtmlFormDefinitionRecord = {
           ...existing,
           status: input.status,
           updatedAt: kernelNowIso({ clock: deps.clock }),
+          version: existing.version + 1,
         };
-        await deps.repo.update(definition);
+        // The flip writes the whole row it read; comparing against that read keeps it from reverting
+        // a field edit that landed in between (the flip itself needs no editor basis: E2).
+        await deps.repo.update(definition, { expectedVersion: existing.version });
         return { definition };
       },
     },
@@ -350,10 +359,10 @@ export async function setFormDefinitionStatus(
 
 export interface FormWriteOptional {
   idempotencyKey?: string;
-  outbox?: import("../core/index.js").OutboxPort;
+  outbox?: import("@jini-ai/core/contracts/events").OutboxPort;
 }
 export interface CreateFormDefinitionOptional extends FormWriteOptional { notify?: NotifyConfig; authoring?: FormAuthoringPort; }
-export interface UpdateFormDefinitionOptional extends FormWriteOptional { authoring?: FormAuthoringPort; }
+export interface UpdateFormDefinitionOptional extends FormWriteOptional { authoring?: FormAuthoringPort; expectedVersion?: number; }
 
 /** Authoring pre-reads are authorized once; the audited gateway replays that decision.
  * @complexity O(f + h) authoring/validation, with fixed-count repository and command calls. */
@@ -364,7 +373,7 @@ async function updateAuthoredFormDefinition(
   // Authorize BEFORE the authoring pre-read below, so a denied caller is refused before any
   // lookup and the refusal never discloses whether the form exists (5e9f338f6 put the read
   // first). The gateway then replays this one decision instead of evaluating a second time —
-  // ADR-021 §2 "one evaluator". Its only authorize() caller is executeCommand's single gate,
+   // "one evaluator". Its only authorize() caller is executeCommand's single gate,
   // pinned to FORMS_PERMISSION by packageDeps; prepareFormAuthoring keeps the real authorize.
   const decision = await deps.authorize({
     principalId: input.actor.id,

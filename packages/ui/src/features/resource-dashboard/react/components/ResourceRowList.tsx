@@ -1,7 +1,7 @@
 import { useT } from '../../../i18n/index.js';
 import { useWiredResourceRowList } from '../hooks/useResourceRowList.js';
 import { ResourceRowListView } from './ResourceRowListView.js';
-import { rowListHeaderProps } from './resourceRowListProps.js';
+import { createResourceStatusLabel, rowListHeaderProps } from './resourceRowListProps.js';
 import { translatedErrorLabelProps } from './translatedErrorLabelProps.js';
 import type { ResourceRowListDependencies } from '../../ports.js';
 import type { ResourceMetric, ResourceRowItem, ResourceStatusOption, ResourceStatusToneMap } from '../../types.js';
@@ -48,14 +48,16 @@ export function ResourceRowList<TRow extends ResourceRowItem>({
   onCreate,
   createLabel,
   refreshToken,
-}: ResourceRowListProps<TRow>) {
-  const t = useT();
-  const list = useWiredResourceRowList<TRow>({
+  useTHook = useT,
+  useWiredResourceRowListHook = useWiredResourceRowList,
+}: ResourceRowListProps<TRow> & { useTHook?: typeof useT; useWiredResourceRowListHook?: typeof useWiredResourceRowList }) {
+  const t = useTHook();
+  const list = useWiredResourceRowListHook<TRow>({
     dependencies,
     ...(refreshToken !== undefined ? { refreshToken } : {}),
   });
 
-  const statusLabel = (status: string) => t(statusOptions.find((option) => option.value === status)?.label ?? status);
+  const statusLabel = createResourceStatusLabel({ t, statusOptions });
 
   return (
     <ResourceRowListView

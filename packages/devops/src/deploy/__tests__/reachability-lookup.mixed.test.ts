@@ -1,6 +1,7 @@
 import type { lookup } from 'node:dns';
 import { describe, expect, it, vi } from 'vitest';
 import { createReachabilityLookup } from '../node.js';
+import { platformBindings } from './platform-bindings.js';
 
 /** AP2/AP3: one bad entry placed first, middle and last of a ≥3-item list, and one malformed
  *  shape per `isLookupAddress` clause — every variant must be refused, never forwarded. */
@@ -9,7 +10,7 @@ const resolver = (address: unknown, family?: number): typeof lookup =>
   ((_hostname: string, _options: unknown, callback: ResolverCallback) => callback(null, address, family)) as unknown as typeof lookup;
 const run = (address: unknown) => {
   const callback = vi.fn();
-  createReachabilityLookup({}, { lookupImpl: resolver(address) })('deploy.example', { all: true }, callback);
+  createReachabilityLookup(platformBindings, { lookupImpl: resolver(address) })('deploy.example', { all: true }, callback);
   return callback;
 };
 const good = (n: number) => ({ address: `93.184.216.${n}`, family: 4 });
@@ -59,7 +60,7 @@ describe('reachability lookup refuses any single malformed entry', () => {
 
   it.each([undefined, null, 4, { address: '93.184.216.1', family: 4 }])('a non-string, non-array answer %j is refused', (address) => {
     const callback = vi.fn();
-    createReachabilityLookup({}, { lookupImpl: resolver(address, 4) })('deploy.example', {}, callback);
+    createReachabilityLookup(platformBindings, { lookupImpl: resolver(address, 4) })('deploy.example', {}, callback);
     expect(callback.mock.calls[0]![1]).toBe('');
     expect(callback.mock.calls[0]![0]).toBeInstanceOf(Error);
   });

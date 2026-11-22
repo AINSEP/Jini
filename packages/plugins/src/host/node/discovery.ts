@@ -2,8 +2,7 @@ import { readPluginIdentity } from "@jini-ai/core/plugin-directory";
 /** Site tier admission belongs to tierPolicy.siteErrors; static validation uses host-supplied
  * catalogs and declaration grammar. */
 /**
- * @file `discoverPlugins()` — enumerate built-in + site plugins with status (SPEC-005 REQ-02/03,
- * EC-08/EC-09, TB-01, DUP-01).
+ * @file `discoverPlugins()` — enumerate built-in + site plugins with status.
  *
  * Purpose:
  * Read-only enumeration. Scans the install-dir's `plugins/<id>/<version>/` tree (REQ-02) plus the
@@ -16,7 +15,7 @@ import { readPluginIdentity } from "@jini-ai/core/plugin-directory";
  * not).
  *
  * Never `import()`s plugin code — that is `loader.ts`'s job, gated by integrity/`sdkRange` first
- * (BR-01, CIC U-001). Discovery only reads bytes to hash/measure/list them.
+ * Discovery only reads bytes to hash/measure/list them.
  *
  * Architectural role:
  * TDD-certified implementation (implementation outline C-007). Signature and JSDoc are
@@ -63,7 +62,7 @@ export class PluginDiscoveryVersionError extends Error {
  * @complexity O(n) over installed-plugin count, bounded I/O per candidate (one directory listing
  * + manifest read + per-file size stat).
  */
-const VALID_TIERS = new Set<PluginTier>(["tier-1", "tier-2", "tier-3"]);
+const VALID_TIERS: ReadonlySet<PluginTier> = new Set<PluginTier>(["tier-1", "tier-2", "tier-3"]);
 /** Last-resort display tier when a malformed manifest has no validated tier. Every discovery
  * record needs a renderable tier (REQ-18/AC-26); this fallback does not grant executable admission. */
 const FALLBACK_TIER: PluginTier = "tier-3";
@@ -117,7 +116,7 @@ function toDiscoveryRecord(params: {
 
 /**
  * The absolute entry-file path for a discovered SITE plugin (REQ-02's fixed `server/index.mjs`
- * package layout, ADR-004) — the exact path `loadPlugin()`'s `entryPath` param expects, and the
+ * package layout) — the exact path `loadPlugin()`'s `entryPath` param expects, and the
  * same join `discoverOneSiteCandidate()` below already performs internally for its manifest read.
  * Exported so a composition root resolving a dynamic site-sourced load target (`plugin-runtime.ts`)
  * does not re-derive this convention independently and risk it drifting from discovery's own.
@@ -205,7 +204,7 @@ async function readOpenManifest(handle: FileHandle): Promise<SiteManifestRead> {
   const refused = (unreadable: string): SiteManifestRead => ({ missing: false, manifestValue: null, unreadable });
   if (!(await handle.stat()).isFile()) return refused("is not a regular file");
   // `+ 1` catches a file that grew past the cap after `stat`.
-  const bytes = await readAtMost(handle, MAX_SITE_MANIFEST_BYTES + 1);
+  const bytes = await readAtMost({ handle, maxBytes: MAX_SITE_MANIFEST_BYTES + 1 });
   if (bytes.length > MAX_SITE_MANIFEST_BYTES) return refused(`is larger than ${MAX_SITE_MANIFEST_BYTES} bytes`);
   return { missing: false, manifestValue: parseManifestJson(bytes.toString("utf8")) };
 }
@@ -342,7 +341,7 @@ export async function discoverPlugins(
   // Disabled valid installs still own ids.
   return records.map(record => {
     if (record.status !== "valid" || !record.manifest) return record;
-    const identity = readPluginIdentity({ manifest: record.manifest as unknown as Readonly<Record<string, unknown>>, name: record.id, namespace: required.identityNamespace });
+    const identity = readPluginIdentity({ manifest: record.manifest as unknown as Readonly<Record<string, unknown>>, name: record.id, namespace: required.identityNamespace, legacyNamespace: required.legacyIdentityNamespace });
     if (!qualifiedIds.has(identity.id)) {
       qualifiedIds.add(identity.id);
       return { ...record, warnings: identity.warnings };

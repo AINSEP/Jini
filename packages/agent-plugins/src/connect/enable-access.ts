@@ -29,17 +29,17 @@ export function storedAgentPluginGrants({ row, projections }: { row: Pick<AgentP
  * @complexity O(a+w) names; no I/O or schema changes.
  */
 export function validatedAgentPluginToolGrant(
-  required: { current: AgentPluginToolGrant; declared: AgentPluginDeclaredTools },
-  options: { reason?: 'sign-in' | 'owner-enable'; ports: AgentPluginMcpProjectionPorts; messages: Pick<AgentPluginEnableAccessMessages, 'combinedGrantRejected'> },
+  required: { current: AgentPluginToolGrant; declared: AgentPluginDeclaredTools; ports: AgentPluginMcpProjectionPorts; messages: Pick<AgentPluginEnableAccessMessages, 'combinedGrantRejected'> },
+  options: { reason?: 'sign-in' | 'owner-enable' } = {},
 ): AgentPluginToolGrant | null {
-  const ports = options.ports;
+  const ports = required.ports;
   const grant = planAgentPluginToolGrant(required, options);
   if (!grant) return null;
   try {
     return { enabled: true, allow: ports.projections.validateToolNames({ names: grant.allow, field: 'allowedToolNames' }), write: ports.projections.validateToolNames({ names: grant.write, field: 'writeAllowedToolNames' }) };
   } catch (error) {
     if (ports.classifyError({ error }) !== 'validation') throw error;
-    throw new ToolInputError({ message: options.messages.combinedGrantRejected({ detail: redactSecrets({ input: (error as Error).message }, { redactPii: false }) }) });
+    throw new ToolInputError({ message: required.messages.combinedGrantRejected({ detail: redactSecrets({ input: (error as Error).message }, { redactPii: false }) }) });
   }
 }
 
@@ -57,8 +57,8 @@ async function previewSource({ workspaceId, pluginId, source, servers, repo, por
   const row = await repo.findByServerId({ workspaceId, serverId: source.connectionId });
   assertPluginSource({ row, pluginId, source, messages });
   const current = storedAgentPluginGrants({ row, projections: ports.projections });
-  const declared = findAgentPluginMcpServerDefaults(servers, { serverId: source.connectionId, url: source.url });
-  const grant = declared ? validatedAgentPluginToolGrant({ current, declared }, { reason: 'owner-enable', ports, messages }) : null;
+  const declared = findAgentPluginMcpServerDefaults({ servers, row: { serverId: source.connectionId, url: source.url } });
+  const grant = declared ? validatedAgentPluginToolGrant({ current, declared, ports, messages }, { reason: 'owner-enable' }) : null;
   const snapshot = { pluginId, connectionId: source.connectionId, url: source.url, revision: row ? ports.projections.admissionRevision(row) : null, expected: row ? ports.projections.accessSnapshot({ record: row }) : null, current, declared, grant };
   const resource: Omit<AccessApprovalResource, 'scope'> | null = grant ? { id: source.connectionId, label: `External MCP source: ${redactSecrets({ input: source.url }, { redactPii: false })}`, previous: current, proposed: grant, revision: snapshot.revision } : null;
   return { snapshot, resource };
@@ -76,7 +76,7 @@ export async function previewAgentPluginEnableAccess(
   _options = {},
 ) {
   const ports: AgentPluginMcpProjectionPorts = { projections: context.projections, classifyError: context.classifyError };
-  const planned = planAgentPluginMcpFederation({ servers }, { classifyTrust, messages });
+  const planned = planAgentPluginMcpFederation({ servers, classifyTrust, messages });
   if (planned.skipped.length) throw new ToolInputError({ message: `The plugin connection cannot be enabled here: ${planned.skipped.map(entry => `${entry.serverKey}: ${entry.reason}`).join('; ')}` });
   const snapshots = [];
   const resources: Omit<AccessApprovalResource, 'scope'>[] = [];

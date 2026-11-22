@@ -22,7 +22,7 @@ test.each([
   f.args.random = () => random;
   f.bus.publish.mockRejectedValueOnce(new Error('offline'));
   await processOutbox(f.args);
-  expect(f.outbox.markFailed).toHaveBeenCalledWith({ id: 'evt', error: 'offline', nextAttemptAt: at(delayMs), nextStatus: status });
+  expect(f.outbox.markFailed).toHaveBeenCalledWith({ id: 'evt', error: 'Error', nextAttemptAt: at(delayMs), nextStatus: status });
 });
 
 test('a timeout at the default cap seals the row at the lease horizon', async () => {

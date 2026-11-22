@@ -19,11 +19,11 @@
  * (`packages/daemon/src/delegated-tool-bridge.ts`) — finding a tool id here grants nothing.
  */
 import type { AgentToolSideEffect } from '@jini-ai/core';
-import type { Express } from 'express';
 import { createApiError } from '@jini-ai/protocol';
-import { defineJsonRoute, mountJsonRoute, type AdapterContext } from '@jini-ai/http-kit';
-import { validationError } from '@jini-ai/http-kit';
-import { err, ok, type Result, type RouteInputContext } from '@jini-ai/http-kit';
+import { defineJsonRoute, err, ok } from '@jini-ai/core/contracts/server';
+import { parseCatalogDescribeInput, parseCatalogSearchInput } from './catalog-route-input.js';
+import type { DaemonRouteHost } from './route-host.js';
+import { gatedJsonRoute, type DaemonRoute } from './route-table.js';
 
 export interface ToolCatalogSearchHit {
   readonly readOnly?: boolean;
@@ -68,23 +68,6 @@ export interface ToolCatalogHttpDeps {
   readonly catalog: ToolCatalogQuery;
 }
 
-const MAX_SEARCH_LIMIT = 25;
-const DEFAULT_SEARCH_LIMIT = 10;
-
-function parseSearchInput(input: RouteInputContext): Result<{ query: string; limit: number }> {
-  const rawQuery = input.query.q;
-  if (typeof rawQuery !== 'string' || rawQuery.trim().length === 0) {
-    return err({ error: validationError({ message: 'q (search query) is required and must be a non-empty string' }) });
-  }
-  const rawLimit = input.query.limit;
-  if (rawLimit === undefined) return ok({ value: { query: rawQuery, limit: DEFAULT_SEARCH_LIMIT } });
-  if (typeof rawLimit !== 'string' || !/^\d+$/.test(rawLimit)) {
-    return err({ error: validationError({ message: 'limit must be a single positive-integer query-string value when provided' }) });
-  }
-  const parsed = Number(rawLimit);
-  if (parsed < 1) return err({ error: validationError({ message: 'limit must be at least 1' }) });
-  return ok({ value: { query: rawQuery, limit: Math.min(parsed, MAX_SEARCH_LIMIT) } });
-}
 
 /** `GET /api/tools/search?q=...&limit=...` — ranked candidates only, never schemas (`PROP` §6.1). */
 export const toolCatalogSearchRoute = defineJsonRoute<
@@ -94,17 +77,10 @@ export const toolCatalogSearchRoute = defineJsonRoute<
 >({
   method: 'get',
   path: '/api/tools/search',
-  parse: parseSearchInput,
+  parse: (input) => parseCatalogSearchInput({ input }),
   handle: ({ input, deps }) => ok({ value: { hits: deps.catalog.search({ query: input.query }, { limit: input.limit }) } }),
 }, { requireSameOrigin: true });
 
-function parseDescribeInput(input: RouteInputContext): Result<{ id: string }> {
-  const id = input.params.id;
-  if (typeof id !== 'string' || id.length === 0) {
-    return err({ error: validationError({ message: 'id path segment is required' }) });
-  }
-  return ok({ value: { id } });
-}
 
 /**
  * `GET /api/tools/:id` — full descriptor (schema included), paid for only once a candidate survives
@@ -122,7 +98,7 @@ function parseDescribeInput(input: RouteInputContext): Result<{ id: string }> {
 export const toolCatalogDescribeRoute = defineJsonRoute<{ id: string }, ToolCatalogEntry, ToolCatalogHttpDeps>({
   method: 'get',
   path: '/api/tools/:id',
-  parse: parseDescribeInput,
+  parse: (input) => parseCatalogDescribeInput({ input }),
   handle: ({ input, deps }) => {
     const entry = deps.catalog.describe({ id: input.id });
     if (!entry) return err({ error: createApiError({ code: 'NOT_FOUND', message: `no catalog entry for tool id "${input.id}"` }) });
@@ -130,8 +106,10 @@ export const toolCatalogDescribeRoute = defineJsonRoute<{ id: string }, ToolCata
   },
 }, { requireSameOrigin: true });
 
-/** Mounts both tool-catalog routes on `app`. A pack's `http({ app, services })` calls this directly. */
-export function registerToolCatalogRoutes({ app, deps, adapter }: { readonly app: Express; readonly deps: ToolCatalogHttpDeps; readonly adapter: AdapterContext }, _optional: Record<string, never> = {}): void {
-  mountJsonRoute({ app, spec: toolCatalogSearchRoute, deps, adapter });
-  mountJsonRoute({ app, spec: toolCatalogDescribeRoute, deps, adapter });
+/**
+ * Both tool-catalog routes as data, each behind the same-origin gate its spec declares. A host
+ * mounts the list; the routes never see the host's app.
+ */
+export function toolCatalogRoutes({ deps, host }: { readonly deps: ToolCatalogHttpDeps; readonly host: DaemonRouteHost }, _optional: Record<string, never> = {}): DaemonRoute[] {
+  return [gatedJsonRoute({ spec: toolCatalogSearchRoute, deps, host }), gatedJsonRoute({ spec: toolCatalogDescribeRoute, deps, host })];
 }

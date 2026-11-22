@@ -31,7 +31,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { RunProtocolEvent } from '@jini-ai/protocol';
 import { createInMemoryEventLog } from '../event-log.js';
 import type { EventLog } from '../event-log.js';
-import { createRunLifecycle, DEFAULT_SLOW_RUN_THRESHOLD_MS } from '../run-lifecycle.js';
+import { createRunLifecycle } from '../run-lifecycle.js';
+import { DEFAULT_SLOW_RUN_THRESHOLD_MS } from '../run-lifecycle-registry.js';
 
 function makeLifecycle(overrides?: Partial<Omit<Parameters<typeof createRunLifecycle>[0], 'eventLog'>>) {
   const eventLog = createInMemoryEventLog({});
@@ -271,7 +272,7 @@ describe('RunLifecycle — slow-run notice', () => {
       const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
       try {
         await vi.advanceTimersByTimeAsync(1_000);
-        expect(consoleError).toHaveBeenCalledWith(`[@jini-ai/daemon] internal error (slow-run-notice, runId=${run.id})`, expect.stringContaining(`Error: ${appendError.message}`));
+        expect(consoleError).toHaveBeenCalledWith(`[@jini-ai/daemon] internal error (slow-run-notice, runId=${run.id})`, 'Error');
       } finally { consoleError.mockRestore(); }
       expect((await lifecycle.get({ runId: run.id }))?.state).toBe('running');
     });
@@ -285,7 +286,7 @@ describe('RunLifecycle — slow-run notice', () => {
       const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
       try {
         await vi.advanceTimersByTimeAsync(1_000);
-        expect(consoleError).toHaveBeenCalledWith(`[@jini-ai/daemon] internal error sink failed (slow-run-notice, runId=${run.id})`, expect.stringContaining(`Error: ${sinkError.message}`));
+        expect(consoleError).toHaveBeenCalledWith(`[@jini-ai/daemon] internal error sink failed (slow-run-notice, runId=${run.id})`, 'Error');
       } finally { consoleError.mockRestore(); }
       expect((await lifecycle.get({ runId: run.id }))?.state).toBe('running');
     });

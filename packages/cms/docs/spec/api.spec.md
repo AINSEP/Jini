@@ -72,11 +72,12 @@ const applied = await executeCommand({
 
 ### `./navigation`
 
-Source: [types.ts](../../src/navigation/types.ts), [ports.ts](../../src/navigation/ports.ts), [contracts.ts](../../src/navigation/contracts.ts), [read-model.ts](../../src/navigation/read-model.ts), [repo.memory.ts](../../src/navigation/repo.memory.ts), [menu-service.ts](../../src/navigation/menu-service.ts), [resolver.ts](../../src/navigation/resolver.ts), [reconcile.ts](../../src/navigation/reconcile.ts), [agent-tools.ts](../../src/navigation/agent-tools.ts), [tool-registrations.ts](../../src/navigation/tool-registrations.ts).
+Source: [types.ts](../../src/navigation/types.ts), [ports.ts](../../src/navigation/ports.ts), [contracts.ts](../../src/navigation/contracts.ts), [read-model.ts](../../src/navigation/read-model.ts), [repo.memory.ts](../../src/navigation/repo.memory.ts), [menu-service.ts](../../src/navigation/menu-service.ts), [href.ts](../../src/navigation/href.ts), [resolver.ts](../../src/navigation/resolver.ts), [reconcile.ts](../../src/navigation/reconcile.ts), [agent-tools.ts](../../src/navigation/agent-tools.ts), [tool-registrations.ts](../../src/navigation/tool-registrations.ts).
 
 ```ts
 declare function createNavMenuReadModel(deps: NavMenuReadModelDeps, optional: NavMenuReadModelOptions = {}): NavMenuReadModel;
-declare function isAllowedHref({ rawHref }: { rawHref: string }, _optional: Record<string, never> = {}): boolean;
+declare function isAllowedHref({ rawHref }: { rawHref: unknown }, _optional: Record<string, never> = {}): boolean;
+declare function toAllowedHref({ rawHref }: { rawHref: unknown }, _optional: Record<string, never> = {}): string;
 declare function validateAndCloneTree( { items }: { items: readonly NavItemNode[] }, limits: TreeValidationLimits = {} ): NavItemNode[];
 declare function createMenu( required: CreateMenuRequired, optional: CreateMenuOptional = {} ): Promise<{ menu: NavMenuEntry }>;
 declare function updateMenuTree( required: UpdateMenuTreeRequired, optional: UpdateMenuTreeOptional = {} ): Promise<{ menu: NavMenuEntry }>;
@@ -139,6 +140,9 @@ Source: [types.ts](../../src/media/types.ts), [ports.ts](../../src/media/ports.t
 
 ```ts
 declare function computeBlobStorageKey(input: { workspaceId: UUID; sha256: string }): string;
+declare function parseOptionalStringField({ raw, field }: { raw: unknown; field: string }, _optional = {}): string | undefined;
+declare function parseOptionalTitleField({ raw }: { raw: unknown }, _optional = {}): string | undefined;
+declare function parseOptionalSlugField({ raw }: { raw: unknown }, _optional = {}): string | undefined;
 declare function isAllowedMediaHtmlAttributeName(requiredArgs: { name: string }, optionalArgs: Record<string, never> = {}): boolean;
 declare function parseMediaHtmlAttributes(requiredArgs: { text: string }, optionalArgs: Record<string, never> = {}): ParsedMediaHtmlAttributes;
 declare function describeMediaHtmlAttributeError(error: MediaHtmlAttributeError): string;
@@ -242,18 +246,17 @@ Source: [types.ts](../../src/settings/types.ts), [ports.ts](../../src/settings/p
 
 ```ts
 declare function validateDefinitionInput( input: DefinitionInput ): { valid: true } | { valid: false; error: DefinitionInvalidError | SecretNotSupportedError };
-declare function validateValueAgainstSchema(schema: SettingValueSchema, value: JsonValue): boolean;
-declare function registerCoercer({ tag, fn }: { tag: string; fn: (required: { value: JsonValue }) => JsonValue }, _optional: Record<string, never> = {}): void;
-declare function invalidateDefinitionNamespaceCache(repo: SettingsRepoPort, namespace: string): void;
+declare function validateValueAgainstSchema(required: { schema: SettingValueSchema; value: JsonValue }, optional: Record<string, never> = {}): boolean;
+declare function invalidateDefinitionNamespaceCache(required: { repo: SettingsRepoPort; namespace: string }, optional: Record<string, never> = {}): void;
 declare function invalidateWorkspaceSettingsCache(_required: { repo: SettingsRepoPort; workspaceId: string }, _optional: { principalId?: string | undefined } = {}): void;
 declare function resolveDefinitionRaw( deps: { repo: SettingsRepoPort }, input: { namespace: string; key: string; workspaceId: string | null } ): Promise<SettingDefinitionRecord | null>;
 declare function resolveDefinition( deps: { repo: SettingsRepoPort }, input: { namespace: string; key: string; workspaceId: string | null } ): Promise<SettingDefinitionRecord | null>;
-declare function getEffective( deps: { repo: SettingsRepoPort }, input: { namespace: string; key: string; scopeContext: SettingScopeContext } ): Promise<ResolvedSetting | null>;
+declare function getEffective( required: { deps: { repo: SettingsRepoPort }; namespace: string; key: string; scopeContext: SettingScopeContext }, optional: { coercers?: ReadonlyMap<string, SettingCoercer> } = {} ): Promise<ResolvedSetting | null>;
 declare function deriveRequiredPermission(input: { scope: SettingScope; targetPrincipalId?: UUID | undefined; callerPrincipalId: UUID; }): string;
 declare function registerDefinitions( required: RegisterDefinitionsRequired ): Promise<{ registered: string[] }>;
 declare function set(required: SetValueRequired): Promise<{ value: JsonValue; revisionSeq: number }>;
 declare function clear(required: ClearValueRequired): Promise<{ revisionSeq: number }>;
-declare function resetNamespace( required: ResetNamespaceRequired, keysInNamespace: string[] ): Promise<{ clearedCount: number; revisionSeqs: number[] }>;
+declare function resetNamespace( required: ResetNamespaceRequired & { keysInNamespace: string[] }, optional: Record<string, never> = {} ): Promise<{ clearedCount: number; revisionSeqs: number[] }>;
 declare function renameDefinition( required: RenameDefinitionRequired ): Promise<{ settingId: string; markerSettingId: string }>;
 declare function retypeDefinition( required: RetypeDefinitionRequired ): Promise<{ settingId: string; version: number }>;
 declare function reconcileDefinitionDefault( required: ReconcileDefinitionDefaultRequired ): Promise<{ settingId: string; changed: boolean }>;
@@ -265,11 +268,11 @@ declare function collectChangedNamespaces( { revisions, viewer, resolveNamespace
 declare function parseNonRegisterDefinitionOp({ op }: { op: string }, _optional: Record<string, never> = {}): NonRegisterDefinitionOp | null;
 declare function ensureSettingDefinitions( deps: EnsureSettingDefinitionsDeps, input: EnsureSettingDefinitionsInput, ): Promise<void>;
 declare function ensureSettingsUiTabDefinitions( deps: EnsureSettingDefinitionsDeps, input: EnsureSettingsUiTabDefinitionsInput, ): Promise<void>;
-declare function resolveAgentWritablePreference(settingId: string): AgentWritablePreference | undefined;
+declare function resolveAgentWritablePreference(required: { settingId: string }, optional: Record<string, never> = {}): AgentWritablePreference | undefined;
 declare function getSettingsAgentToolCatalog(): AgentToolDefinition[];
 declare function buildSettingsRegistrations(routeDeps: SettingsToolDeps): ToolRegistration[];
 declare function translateSettingsDialog({ locale, key }: { locale: string; key: string }, _optional: Record<string, never> = {}): string;
-declare function findAgentWriteRule(rules: readonly AgentSettingWriteRule[], target: { namespace: string; key: string }): AgentSettingWriteRule | undefined;
+declare function findAgentWriteRule(required: { rules: readonly AgentSettingWriteRule[]; target: { namespace: string; key: string } }, optional: Record<string, never> = {}): AgentSettingWriteRule | undefined;
 ```
 
 Types/data: `SettingScope`, `SettingOwnerKind`, `DefinitionStatus`, `ValueState`, `RevisionEntityKind`, `RevisionOp`, `SCOPE_BIT`, `SettingValueSchema`, `SettingDefinitionRecord`, `SettingValueRecord`, `SettingRevisionRecord`, `SettingScopeContext`, `SettingsRepoPort`, `DefinitionInput`, `ResolvedSetting`, `AuthorizeFn`, `SettingsWriteServiceDeps`, `RegisterDefinitionsRequired`, `SetValueRequired`, `ClearValueRequired`, `ResetNamespaceRequired`, `RenameDefinitionRequired`, `RetypeDefinitionRequired`, `ReconcileDefinitionDefaultRequired`, `DeprecateDefinitionRequired`, `TombstoneDefinitionRequired`, `PurgeServiceDeps`, `PurgeTenantSettingsRequired`, `ChangeFeedViewer`, `ChangeFeedBatch`, `DefinitionOpRequestItem`, `DefinitionOpContext`, `DefinitionOpHandler`, `NON_REGISTER_DEFINITION_OP_NAMES`, `NonRegisterDefinitionOp`, `NON_REGISTER_DEFINITION_OPS`, `SettingDefinitionSpec`, `EnsureSettingDefinitionsDeps`, `EnsureSettingDefinitionsInput`, `INSTRUCTIONS_NAMESPACE`, `NOTIFICATIONS_NAMESPACE`, `PRIVACY_NAMESPACE`, `APPEARANCE_NAMESPACE`, `LANGUAGE_NAMESPACE`, `EnsureSettingsUiTabDefinitionsInput`, `AgentWritablePreference`, `AGENT_PREFERENCE_WRITE_SCOPE`, `AGENT_WRITABLE_PREFERENCES`, `AGENT_WRITABLE_PREFERENCE_IDS`, `AGENT_PREFERENCE_REQUIRED_SCOPE_BIT`, `SettingsAgentToolSideEffect`, `SettingsAgentToolDefinition`, `SettingsToolDeps`, `settingsDerivedRisk`, `SETTINGS_DIALOG_DICTIONARIES`, `AgentSettingWriteRule`, `AGENT_WRITE_CONFIRMATION_SETTINGS`, `AGENT_WRITE_DENIED_SETTINGS`, `SettingsValueWriteToolId`, `SettingsWriteConfirmation`.
@@ -300,8 +303,8 @@ Wiring (adapters/context are host-provided):
 
 ```ts
 import { getEffective, set } from "@jini-ai/cms/settings";
-const resolved = await getEffective({ repo: settingsRepo },
-  { namespace, key, scopeContext: { workspaceId, principalId } });
+const resolved = await getEffective({ deps: { repo: settingsRepo },
+  namespace, key, scopeContext: { workspaceId, principalId } });
 const written = await set({ deps: { repo: settingsRepo, clock, ids: idGen, authorize, principals },
   input: { namespace, key, scope: "workspace", workspaceId, callerPrincipalId, value } });
 ```
@@ -347,7 +350,7 @@ const created = await createWorkspace({ deps: { repo: workspaceRepo, clock, idGe
 
 ### `./entries`
 
-Source: [types.ts](../../src/entries/types.ts), [list.ts](../../src/entries/list.ts), [field-validation.ts](../../src/entries/field-validation.ts), [lifecycle-dispatch.ts](../../src/entries/lifecycle-dispatch.ts), [write-service.ts](../../src/entries/write-service.ts), [repo.memory.ts](../../src/entries/repo.memory.ts), [agent-tools.ts](../../src/entries/agent-tools.ts), [tool-registrations.ts](../../src/entries/tool-registrations.ts).
+Source: [types.ts](../../src/entries/types.ts), [list.ts](../../src/entries/list.ts), [field-validation.ts](../../src/entries/field-validation.ts), [lifecycle-dispatch.ts](../../src/entries/lifecycle-dispatch.ts), [write-service.ts](../../src/entries/write-service.ts), [write-error-status.ts](../../src/entries/write-error-status.ts), [repo.memory.ts](../../src/entries/repo.memory.ts), [agent-tools.ts](../../src/entries/agent-tools.ts), [tool-registrations.ts](../../src/entries/tool-registrations.ts).
 
 ```ts
 declare function listEntries( required: { repo: EntryListPort; workspaceId: string }, optional: { type?: string | undefined } = {} ): Promise<{ items: EntryRecord[] }>;
@@ -361,6 +364,8 @@ declare function publishEntry(required: PublishUnpublishEntryRequired): Promise<
 declare function unpublishEntry(required: PublishUnpublishEntryRequired): Promise<Result<{ entry: EntryRecord }, Error>>;
 declare function toEntryOutbox(deps: { outbox: { enqueue(event: { id: string; workspaceId: string; name: string; occurredAt: string; payload: Record<string, unknown>; }): Promise<void>; }; clock: Clock; idGen: { newId(): string }; workspaceId: string; }): OutboxPort;
 declare function buildEntriesRegistrations(routeDeps: EntriesToolDeps): ToolRegistration[];
+declare function entryWriteErrorStatus(required: { error: Error }, optional: Record<string, never> = {}): { status: number; code: string };
+declare function entriesDeps(routeDeps: EntriesToolDeps): { entryRepo; contentTypeRepo; clock; ids; authorize; outbox };
 ```
 
 Types/data: `EntryStatus`, `EntryFieldsJson`, `EntryRecord`, `OwningContentType`, `ActorIdentityInput`, `Result`, `EntryListPort`, `FieldValidationError`, `ValidateFieldsResult`, `EntryLifecycleOp`, `EntryLifecycleHandler`, `ENTRY_LIFECYCLE_OP_NAMES`, `ENTRY_LIFECYCLE_OPS`, `EntryRevisionInput`, `EntryRepoPort`, `ContentTypeLookupPort`, `OutboxPort`, `WatermarkPort`, `CreateEntryRequired`, `UpdateEntryRequired`, `ImportEntryRequired`, `PublishUnpublishEntryRequired`, `EntriesAgentToolSideEffect`, `EntriesAgentToolDefinition`, `entriesAgentToolCatalog`, `EntriesToolDeps`, `entriesDerivedRisk`.
@@ -411,6 +416,7 @@ declare function planCleanup( required: PlanCleanupRequired ): Promise<Result<{ 
 declare function executeCleanup( required: ExecuteCleanupRequired ): Promise<Result<{ removedEntryCount: number }, unknown>>;
 declare function toContentTypeOutbox(deps: { outbox: { enqueue(event: { id: string; workspaceId: string; name: string; occurredAt: string; payload: Record<string, unknown>; }): Promise<void>; }; clock: Clock; idGen: { newId(): string }; workspaceId: string; }): OutboxPort;
 declare function buildContentTypesRegistrations(routeDeps: ContentTypesToolDeps): ToolRegistration[];
+declare function contentTypeWriteErrorStatus(required: { error: Error }, optional: Record<string, never> = {}): { status: number; code: string };
 ```
 
 Types/data: `IndexableFieldKind`, `StorageOnlyFieldKind`, `ContentTypeFieldKind`, `ContentTypeFieldDef`, `ContentTypeStatus`, `ContentTypeRecord`, `ActorPrincipalKind`, `ActorIdentityInput`, `Result`, `CONTENT_TYPE_SCALAR_KINDS`, `INDEXABLE_FIELD_KINDS`, `STORAGE_ONLY_FIELD_KINDS`, `CONTENT_TYPE_FIELD_KINDS`, `ContentTypeListPort`, `FieldIndexState`, `FieldIndexTransition`, `IDENTIFIER_GRAMMAR_PATTERN`, `ContentTypeRevisionInput`, `ContentTypeRepoPort`, `IndexProvisionerPort`, `OutboxPort`, `WatermarkPort`, `ContentTypeWriteServiceDeps`, `RegisterContentTypeRequired`, `UpdateContentTypeFieldsRequired`, `LifecycleTransitionInput`, `DeprecateContentTypeRequired`, `ReactivateContentTypeRequired`, `TeardownIndexProvisionerPort`, `TombstoneContentTypeRequired`, `ContentTypeLifecycleOp`, `LifecycleDispatchDeps`, `LifecycleDispatchInput`, `ContentTypeLifecycleHandler`, `CONTENT_TYPE_LIFECYCLE_OP_NAMES`, `CONTENT_TYPE_LIFECYCLE_OPS`, `CleanupEligibilityCheckRepoPort`, `PlanCleanupGatewayPort`, `PlanCleanupRequired`, `ExecuteCleanupGatewayPort`, `CleanupRemovalRepoPort`, `ExecuteCleanupRequired`, `ContentTypesAgentToolSideEffect`, `ContentTypesAgentToolActorClassRule`, `ContentTypesAgentToolDefinition`, `contentTypesAgentToolCatalog`, `ContentTypesToolDeps`, `contentTypesDerivedRisk`.
@@ -476,7 +482,7 @@ declare function createEntryBackedContentLookup(deps: { entryRepo: EntryRecordLo
 declare function createContentLookup(deps: { postRepo: ContentRecordLookupPort; entryRepo: EntryRecordLookupPort; workspaceId: string; }): ContentLookupPort;
 ```
 
-Types/data: `TermTreeLookup`, `AuthorizeFn`, `Taxonomy`, `Term`, `TaxonomyRepoPort`, `TermRepoPort`, `EntryTermRepoPort`, `ContentLookupPort`, `ContentTypeTaxonomyPolicyPort`, `TAXONOMY_ALLOWED_CONTENT_TYPES`, `TaxonomyRevisionRow`, `TaxonomyRevisionRepoPort`, `WriteServiceDeps`, `CreateTaxonomyRequired`, `CreateTermRequired`, `CreateTermOptional`, `ImportableTaxonomyRepoPort`, `ImportTaxonomyRequired`, `ImportableTermRepoPort`, `ImportTermRequired`, `ImportTermOptional`, `RenameTermRequired`, `AssignTermsRequired`, `UnassignableEntryTermRepoPort`, `UnassignTermsRequired`, `EntryTermsCleanupPort`, `OnContentDeletedRequired`, `DeletableTaxonomyRepoPort`, `DeletableTermRepoPort`, `AssignmentCountEntryTermRepoPort`, `TransactionalRepoPort`, `DeleteTermRequired`, `DeleteTaxonomyRequired`, `TaxonomyListPort`, `TermListPort`, `TaxonomyWithTerms`, `MergeTermPlanDetails`, `PlanMergeTermRequired`, `ConfirmMergeTermRequired`, `ExecuteMergeTermRequired`, `ContentRecordLookupPort`, `EntryRecordLookupPort`, `TaxonomyAgentToolSideEffect`, `TaxonomyAgentToolActorClassRule`, `TaxonomyAgentToolDefinition`, `taxonomyAgentToolCatalog`.
+Types/data: `TermTreeLookup`, `AuthorizeFn`, `Taxonomy`, `Term`, `TaxonomyRepoPort`, `TermRepoPort`, `EntryTermRepoPort`, `ContentLookupPort`, `ContentTypeTaxonomyPolicyPort`, `TAXONOMY_ALLOWED_CONTENT_TYPES`, `TaxonomyRevisionRow`, `TaxonomyRevisionRepoPort`, `WriteServiceDeps`, `CreateTaxonomyRequired`, `CreateTermRequired`, `CreateTermOptional`, `ImportableTaxonomyRepoPort`, `ImportTaxonomyRequired`, `ImportableTermRepoPort`, `ImportTermRequired`, `ImportTermOptional`, `RenameTermRequired`, `AssignTermsRequired`, `UnassignableEntryTermRepoPort`, `UnassignTermsRequired`, `EntryTermsCleanupPort`, `OnContentDeletedRequired`, `DeletableTaxonomyRepoPort`, `DeletableTermRepoPort`, `AssignmentCountEntryTermRepoPort`, `DeleteTermRequired`, `DeleteTaxonomyRequired`, `TaxonomyListPort`, `TermListPort`, `TaxonomyWithTerms`, `MergeTermPlanDetails`, `PlanMergeTermRequired`, `ConfirmMergeTermRequired`, `ExecuteMergeTermRequired`, `ContentRecordLookupPort`, `EntryRecordLookupPort`, `TaxonomyAgentToolSideEffect`, `TaxonomyAgentToolActorClassRule`, `TaxonomyAgentToolDefinition`, `taxonomyAgentToolCatalog`.
 
 ```ts
 interface WriteServiceDeps { authorize: AuthorizeFn; clock: Clock; idGen: IdGenerator; taxonomies: TaxonomyRepoPort; terms: TermRepoPort; entryTerms: EntryTermRepoPort; revisions: TaxonomyRevisionRepoPort; stampWatermark: (required: Record<string, never>, optional?: { tx?: unknown }) => Promise<void> | void; outbox: { enqueue: ({ event }: { event: unknown }) => Promise<void> }; workspaceId: string; contentLookup: ContentLookupPort; contentTypeTaxonomyPolicy?: ContentTypeTaxonomyPolicyPort; }

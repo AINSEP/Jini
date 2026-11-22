@@ -3,7 +3,7 @@
  * so the def's `fallbackModels`/`parse` configuration lambdas are exercised through the real
  * discovery policy rather than called directly.
  */
-import type { ModelDiscoveryContext, ModelDiscoveryDeps } from '../../model-discovery-types.js';
+import type { ModelDiscoveryContext, ModelDiscoveryDeps } from '@jini-ai/core/contracts/agents';
 
 export const discoveryContext: ModelDiscoveryContext = { executable: '/cli', version: '1', cwd: '/workspace', env: { HOME: '/home/fake' } };
 
@@ -23,6 +23,6 @@ export function offlineDiscoveryDeps(): ModelDiscoveryDeps {
 }
 
 /** The CLI listing call prints `stdout`; every other probe behaves as offline. */
-export function cliOutputDiscoveryDeps(stdout: string): ModelDiscoveryDeps {
+export function cliOutputDiscoveryDeps({ stdout }: { stdout: string }, _optional: Record<string, never> = {}): ModelDiscoveryDeps {
   return { ...offlineDiscoveryDeps(), process: { async run() { return { stdout, stderr: '' }; } } };
 }

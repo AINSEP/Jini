@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createCommentQueueController } from '../controllers/comment-queue.controller.js';
 import type { AdminComment, AdminCommentsPort, AdminCommentsQueuePage, CommentStatus } from '../../core/ports/comments.js';
-import { AdminApiError } from '../../core/transport/errors.js';
+import { AdminApiError } from '@jini-ai/core/admin-runtime';
 import type { CommentsTranslator } from '../messages.en.js';
 
 const ALL = ['comments.moderate', 'comments.delete', 'comments.delete.force'];
@@ -182,7 +182,7 @@ describe('createCommentQueueController page one and status', () => {
   it('keeps rendered rows and appended pages on an error-only notification', async () => {
     const { controller, page } = seeded({}, { loadPage: async () => ({ items: [C2], nextCursor: null }) });
     await controller.loadMore();
-    controller.settleFirstPage({ page, error: new Error('refresh failed'), status: 'pending' });
+    controller.settleFirstPage({ page, error: new AdminApiError({ message: 'refresh failed', status: 500 }), status: 'pending' });
     expect(controller.getSnapshot()).toMatchObject({ items: [C1, C2], error: 'refresh failed' });
   });
 

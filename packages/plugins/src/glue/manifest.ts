@@ -1,3 +1,4 @@
+import { collectManifestKeyErrors } from "../core/manifest-keys.js";
 /** Host-independent collect-all manifest validation; vocabularies are host inputs. */
 export interface GlueVocabulary { readonly capabilities: readonly string[]; readonly callSites: readonly string[] }
 
@@ -36,7 +37,7 @@ export interface ValidateGlueManifestResult {
 }
 
 const REQUIRED_KEYS = ["id", "version", "sdkRange", "capabilities", "attachments"] as const;
-const ALLOWED_KEYS = new Set<string>(REQUIRED_KEYS);
+const ALLOWED_KEYS: ReadonlySet<string> = new Set<string>(REQUIRED_KEYS);
 
 const ID_PATTERN = /^[a-z0-9-]+$/;
 const MAX_ID_LENGTH = 50;
@@ -48,18 +49,7 @@ function malformed(message: string): GlueManifestValidationError {
 }
 
 function validateKeys(raw: Readonly<Record<string, unknown>>): GlueManifestValidationError[] {
-  const errors: GlueManifestValidationError[] = [];
-  for (const key of Object.keys(raw)) {
-    if (!ALLOWED_KEYS.has(key)) {
-      errors.push(malformed(`unknown manifest key '${key}'`));
-    }
-  }
-  for (const key of REQUIRED_KEYS) {
-    if (raw[key] === undefined) {
-      errors.push(malformed(`missing required manifest field '${key}'`));
-    }
-  }
-  return errors;
+  return collectManifestKeyErrors({ raw, allowedKeys: ALLOWED_KEYS, requiredKeys: REQUIRED_KEYS, malformed });
 }
 
 function validateId(raw: Readonly<Record<string, unknown>>): GlueManifestValidationError[] {

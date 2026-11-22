@@ -1,13 +1,13 @@
 import { nowIso as clockNowIso } from "@jini-ai/core/primitives";
 /**
- * @file ADR-031 §3/§8 — the moderation write-service: wraps `CommentRepoPort.applyModeration`/
+ * @file The moderation write-service: wraps `CommentRepoPort.applyModeration`/
  * `purge` with outbox event emission and the `comments.statusChanged` action hook. Routes call
- * `authorize()` first (ADR-021 flat `comments.*` strings), then this service, never the repo
- * directly — the same "typed, core-owned write, no side-door" discipline ADR-023 §7 requires of
+ * `authorize()` first (flat `comments.*` strings), then this service, never the repo
+ * directly — the same "typed, core-owned write, no side-door" discipline required of
  * the repo itself, one layer up.
  */
 import type { Clock as ClockPort, IdGenerator as IdGeneratorPort, UUID } from "@jini-ai/core/primitives";
-import type { OutboxPort } from "../core/index.js";
+import type { OutboxPort } from "@jini-ai/core/contracts/events";
 import type { CommentHookRegistry } from "./hooks.js";
 import type { CommentEventName, CommentRepoPort } from "./ports.js";
 import type { CommentRecord, CommentStatus, ModerationAction, ModerationLogEntry } from "./types.js";
@@ -185,6 +185,36 @@ async function syncRemovalIndex(
   }
 }
 
+function createCommentPurger(deps: CommentWriteServiceDeps): Pick<CommentWriteService, 'purge'> {
+  return {
+    async purge(required) {
+      const at = clockNowIso({ clock: deps.clock });
+      const before = await deps.repo.findById({ workspaceId: required.workspaceId, id: required.id });
+      const result = await deps.runInTransaction(async () => {
+        const purged = await deps.repo.purge({ ...required, at });
+        // The row is gone for good, so its index row would otherwise outlive it and offer the Trash
+        // screen a "Restore" that can never succeed. Same both-or-neither transaction as the
+        // moderation path above.
+        if (purged.ok) await deps.forgetRemoved({ workspaceId: required.workspaceId, id: required.id });
+        return purged;
+      });
+      if (!result.ok) return result;
+
+      if (before) {
+        await emitEvent(deps, {
+          workspaceId: required.workspaceId,
+          name: "comments.purged",
+          commentId: required.id,
+          entryId: before.entryId,
+          status: before.status,
+        });
+      }
+
+      return { ok: true };
+    },
+  };
+}
+
 export function createCommentWriteService(deps: CommentWriteServiceDeps, _optional: Record<string, never> = {}): CommentWriteService {
   return {
     async applyModeration(required) {
@@ -224,30 +254,6 @@ export function createCommentWriteService(deps: CommentWriteServiceDeps, _option
       return { ok: true };
     },
 
-    async purge(required) {
-      const at = clockNowIso({ clock: deps.clock });
-      const before = await deps.repo.findById({ workspaceId: required.workspaceId, id: required.id });
-      const result = await deps.runInTransaction(async () => {
-        const purged = await deps.repo.purge({ ...required, at });
-        // The row is gone for good, so its index row would otherwise outlive it and offer the Trash
-        // screen a "Restore" that can never succeed. Same both-or-neither transaction as the
-        // moderation path above.
-        if (purged.ok) await deps.forgetRemoved({ workspaceId: required.workspaceId, id: required.id });
-        return purged;
-      });
-      if (!result.ok) return result;
-
-      if (before) {
-        await emitEvent(deps, {
-          workspaceId: required.workspaceId,
-          name: "comments.purged",
-          commentId: required.id,
-          entryId: before.entryId,
-          status: before.status,
-        });
-      }
-
-      return { ok: true };
-    },
+    ...createCommentPurger(deps),
   };
 }

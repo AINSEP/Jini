@@ -5,7 +5,7 @@ import { inputSignature } from './input-signature.js';
 
 /** Live overview, preserving registration order; vocabulary and source policy are host-owned. */
 export function listToolCatalogEntries(
-  required: Pick<CatalogBuilderArgs, 'source' | 'enricher' | 'classifier'>,
+  required: Pick<CatalogBuilderArgs, 'source' | 'enricher' | 'classifier'>, _optional: Record<string, never> = {},
 ): ToolCatalogEntry[] {
   return required.source.list().map(descriptor => ({
     id: descriptor.id,
@@ -80,7 +80,7 @@ export interface LiveToolCatalogQuery {
  * Rebinding swaps subsequent requests without changing the object routes already hold.
  * Backend retirement is separate and host-owned; the live overview re-reads the descriptor
  * source each time rather than promising that a disposable search snapshot is automatically fresh. */
-export function createLiveToolCatalogQuery(required: { initial: ToolCatalogQuery }): LiveToolCatalogQuery {
+export function createLiveToolCatalogQuery(required: { initial: ToolCatalogQuery }, _optional: Record<string, never> = {}): LiveToolCatalogQuery {
   let current = required.initial;
   return {
     query: {

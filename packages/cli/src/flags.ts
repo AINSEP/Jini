@@ -113,11 +113,15 @@ export function positionalArgs({ argv }: { argv: readonly string[] }, opts: Posi
     if (!a.startsWith('--')) {
       out.push(a);
     } else {
-      const { key, inlineValue } = splitFlagToken({ token: a });
-      if (inlineValue === undefined && stringFlags.has(key)) i++;
+      if (positionalFlagConsumesNext(a, stringFlags)) i++;
     }
   }
   return out;
+}
+
+function positionalFlagConsumesNext(token: string, stringFlags: ReadonlySet<string>): boolean {
+  const { key, inlineValue } = splitFlagToken({ token });
+  return inlineValue === undefined && stringFlags.has(key);
 }
 
 /** The native type {@link coerceCliValue} can produce from a raw string flag value. */

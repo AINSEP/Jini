@@ -1,9 +1,10 @@
 import { Button, TextField, Notice } from '@jini-ai/ui-kit/react';
-import { usePoliciesTab } from '../hooks/PoliciesTab.hooks.js';
+import { usePoliciesTab as usePoliciesTab_ } from '../hooks/PoliciesTab.hooks.js';
 import { PolicyRow } from '../components/PolicyRow.js';
-export default function PoliciesTab(_props: {
+export default function PoliciesTab({ usePoliciesTab = usePoliciesTab_ }: {
     readonly params?: Readonly<Record<string, unknown>>;
-}, _optional: Record<string, never> = {}) {
+    usePoliciesTab?: typeof usePoliciesTab_;
+}) {
     const v = usePoliciesTab({});
     return <section><h2>Policies</h2>
     {v.canManage ? <form onSubmit={v.submit}>{v.error ? <Notice tone="danger">{v.error}</Notice> : null}

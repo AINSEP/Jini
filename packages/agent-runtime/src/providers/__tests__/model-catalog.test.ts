@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { listProviderModels, type ProviderModelsInput } from '../model-catalog.js';
-import type { DnsLookupAddress } from '../connection-guard.js';
+import type { DnsLookupAddress } from '@jini-ai/core/contracts/agents';
 
 // Exercise defaultDnsLookup without relying on the machine's network.
 vi.mock('node:dns', () => ({

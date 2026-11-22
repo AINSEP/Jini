@@ -3,6 +3,8 @@
 // per-flag fallbacks ("--wait" with no value → the default) stay identical
 // to the hand-written parsers they replace while keeping each script small.
 
+import { CliUsageError } from "./main-guard.mjs";
+
 /**
  * Parse `argv` against an option table.
  *
@@ -30,7 +32,7 @@ function applyArg({ out, argv, i, options, strict }) {
   // Own-property lookup only: "constructor"/"__proto__" are not flags.
   const option = Object.hasOwn(options, arg) ? options[arg] : undefined;
   if (!option) {
-    if (strict) throw new Error(`Unexpected argument: ${arg}`);
+    if (strict) throw new CliUsageError(`Unexpected argument: ${arg}`);
     return 1;
   }
   if (option.flag) {
@@ -42,13 +44,13 @@ function applyArg({ out, argv, i, options, strict }) {
 }
 
 /** Value parser: the raw string, or `fallback` when missing/empty. */
-export const text = (fallback) => (raw) => raw || fallback;
+export const text = ({ fallback }, _optional = {}) => (raw) => raw || fallback;
 
 /** Value parser: `Number(raw || fallback)` (so "--wait" alone → the default). */
-export const num = (fallback) => (raw) => Number(raw || fallback);
+export const num = ({ fallback }, _optional = {}) => (raw) => Number(raw || fallback);
 
 /** Value parser: `parseInt(raw || fallback, 10)`. */
-export const int = (fallback) => (raw) => parseInt(raw || fallback, 10);
+export const int = ({ fallback }, _optional = {}) => (raw) => parseInt(raw || fallback, 10);
 
 /** The `--help` / `-h` pair every script accepts. */
 export const HELP_OPTIONS = {

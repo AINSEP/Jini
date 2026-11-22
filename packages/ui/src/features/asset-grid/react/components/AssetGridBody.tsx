@@ -27,28 +27,29 @@ export function AssetGridBody<TAsset extends AssetGridItem>({
   onMouseDown,
   selecting,
   renderCard,
-}: AssetGridBodyProps<TAsset>) {
-  const t = useT();
+  useTHook = useT,
+}: AssetGridBodyProps<TAsset> & { useTHook?: typeof useT }) {
+  const t = useTHook();
 
   if (viewMode === 'timeline') {
-    const groups = groupByDay(assets, getDayKey);
+    const groups = groupByDay({ items: assets, getDayKey });
     return (
       <div
-        className="asset-grid-timeline"
+        className="jini-asset-grid-timeline"
         ref={containerRef}
         onMouseDown={onMouseDown}
         data-selecting={selecting ? 'true' : 'false'}
       >
         {groups.map((group) => {
-          const heading = dayHeadingResult(group.key);
+          const heading = dayHeadingResult({ key: group.key });
           return (
-            <section key={group.key} className="asset-grid-timeline-day">
-              <div className="asset-grid-timeline-head">
-                <span className="asset-grid-timeline-dot" aria-hidden />
-                <h2 className="asset-grid-timeline-date">{heading.translatable ? t(heading.label) : heading.label}</h2>
-                <span className="asset-grid-timeline-count">{group.items.length}</span>
+            <section key={group.key} className="jini-asset-grid-timeline-day">
+              <div className="jini-asset-grid-timeline-head">
+                <span className="jini-asset-grid-timeline-dot" aria-hidden />
+                <h2 className="jini-asset-grid-timeline-date">{heading.translatable ? t(heading.label) : heading.label}</h2>
+                <span className="jini-asset-grid-timeline-count">{group.items.length}</span>
               </div>
-              <div className="asset-grid-timeline-grid">
+              <div className="jini-asset-grid-timeline-grid">
                 {group.items.map(({ asset, index }) => renderCard(asset, index))}
               </div>
             </section>
@@ -59,7 +60,7 @@ export function AssetGridBody<TAsset extends AssetGridItem>({
   }
 
   return (
-    <div className="asset-grid-grid" ref={containerRef} onMouseDown={onMouseDown} data-selecting={selecting ? 'true' : 'false'}>
+    <div className="jini-asset-grid-grid" ref={containerRef} onMouseDown={onMouseDown} data-selecting={selecting ? 'true' : 'false'}>
       {assets.map((asset, index) => renderCard(asset, index))}
     </div>
   );

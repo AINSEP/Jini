@@ -61,7 +61,7 @@ export const MAX_BUFFERED_MESSAGES = 200;
  * @param maxBuffered - Backlog cap. See {@link MAX_BUFFERED_MESSAGES}.
  * @complexity O(1) per push, O(n) per subscribe in the backlog length.
  */
-export function createEarlyMessageBuffer(maxBuffered: number = MAX_BUFFERED_MESSAGES): EarlyMessageBuffer {
+export function createEarlyMessageBuffer(_required: Record<string, never>, { maxBuffered = MAX_BUFFERED_MESSAGES }: { maxBuffered?: number | undefined } = {}): EarlyMessageBuffer {
   const backlog: BufferedWindowMessage[] = [];
   const liveHandlers = new Set<(message: BufferedWindowMessage) => void>();
 

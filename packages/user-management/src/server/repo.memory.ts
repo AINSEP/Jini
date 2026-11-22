@@ -27,7 +27,7 @@ import type {
  *
  * Purpose:
  * Test/dev implementations of the nine identity repo ports. Mirrors the exact
- * style of `src/features/post/repo.memory.ts` / `src/members/repo.memory.ts`:
+ * style of `src/features/post/repo.memory.ts` / the host app's `src/features/members/repo.memory.ts`:
  * constructor takes seed rows, methods filter/mutate an internal array. No
  * business rules live here — that belongs to `authorize.ts`/`auth-service.ts`/
  * `seed.ts`.
@@ -55,6 +55,14 @@ export abstract class InMemoryIdentityRows<Row> {
   restoreRows(required: { rows: Row[] }): void {
     this.rows = required.rows;
   }
+}
+
+/** Workspace-scoped rows keyed by `id`: the generic find/list/save/delete every identity repo shares. */
+export abstract class InMemoryWorkspaceRecords<Row extends { workspaceId: string; id: string }> extends InMemoryIdentityRows<Row> {
+  async findById(required: { workspaceId: string; id: string }, _optional: Record<string, never> = {}): Promise<Row | null> { return this.rows.find(record => matchesRecordFields({ record, fields: { workspaceId: required.workspaceId, id: required.id } as Partial<Row> })) ?? null; }
+  async list(required: { workspaceId: string }, _optional: Record<string, never> = {}): Promise<Row[]> { return this.rows.filter(record => matchesRecordFields({ record, fields: { workspaceId: required.workspaceId } as Partial<Row> })); }
+  async save(record: Row, _optional: Record<string, never> = {}): Promise<void> { upsertRecord({ records: this.rows, record, identity: { workspaceId: record.workspaceId, id: record.id } as Partial<Row> }); }
+  async delete(required: { workspaceId: string; id: string }, _optional: Record<string, never> = {}): Promise<void> { this.rows = this.rows.filter(record => !matchesRecordFields({ record, fields: { workspaceId: required.workspaceId, id: required.id } as Partial<Row> })); }
 }
 
 export class InMemoryPrincipalRepo extends InMemoryIdentityRows<PrincipalRecord> implements PrincipalRepoPort {
@@ -131,7 +139,9 @@ export class InMemorySessionRepo extends InMemoryIdentityRows<SessionRecord> imp
   }
 
   async save(record: SessionRecord): Promise<void> {
-    upsertRecord({ records: this.rows, record, identity: { workspaceId: record.workspaceId, id: record.id } });
+    // Revocation is one-way: a record read before a logout/reset/disable carries no `revokedAt` and must not restore the session.
+    const revokedAt = (await this.findById(record))?.revokedAt;
+    upsertRecord({ records: this.rows, record: revokedAt ? { ...record, revokedAt } : record, identity: { workspaceId: record.workspaceId, id: record.id } });
   }
 
   async revoke(required: { workspaceId: string; id: string; revokedAt: string }): Promise<void> {
@@ -149,57 +159,15 @@ export class InMemorySessionRepo extends InMemoryIdentityRows<SessionRecord> imp
   }
 }
 
-export class InMemoryRoleRepo extends InMemoryIdentityRows<RoleRecord> implements RoleRepoPort {
-
-  constructor(_required: Record<string, never>, { initialRows = [] }: { initialRows?: RoleRecord[] } = {}) {
-    super(_required, { initialRows });
-  }
-
-  async findById(required: { workspaceId: string; id: string }): Promise<RoleRecord | null> {
-    return this.rows.find(record => matchesRecordFields({ record, fields: { workspaceId: required.workspaceId, id: required.id } })) ?? null;
-  }
-
+export class InMemoryRoleRepo extends InMemoryWorkspaceRecords<RoleRecord> implements RoleRepoPort {
   async findByName(required: { workspaceId: string; name: string }): Promise<RoleRecord | null> {
     return this.rows.find(record => matchesRecordFields({ record, fields: { workspaceId: required.workspaceId, name: required.name } })) ?? null;
   }
-
-  async list(required: { workspaceId: string }): Promise<RoleRecord[]> {
-    return this.rows.filter(record => matchesRecordFields({ record, fields: { workspaceId: required.workspaceId } }));
-  }
-
-  async save(record: RoleRecord): Promise<void> {
-    upsertRecord({ records: this.rows, record, identity: { workspaceId: record.workspaceId, id: record.id } });
-  }
-
-  async delete(required: { workspaceId: string; id: string }): Promise<void> {
-    this.rows = this.rows.filter(record => !matchesRecordFields({ record, fields: { workspaceId: required.workspaceId, id: required.id } }));
-  }
 }
 
-export class InMemoryPolicyRepo extends InMemoryIdentityRows<PolicyRecord> implements PolicyRepoPort {
-
-  constructor(_required: Record<string, never>, { initialRows = [] }: { initialRows?: PolicyRecord[] } = {}) {
-    super(_required, { initialRows });
-  }
-
-  async findById(required: { workspaceId: string; id: string }): Promise<PolicyRecord | null> {
-    return this.rows.find(record => matchesRecordFields({ record, fields: { workspaceId: required.workspaceId, id: required.id } })) ?? null;
-  }
-
+export class InMemoryPolicyRepo extends InMemoryWorkspaceRecords<PolicyRecord> implements PolicyRepoPort {
   async findByName(required: { workspaceId: string; name: string }): Promise<PolicyRecord | null> {
     return this.rows.find(record => matchesRecordFields({ record, fields: { workspaceId: required.workspaceId, name: required.name } })) ?? null;
-  }
-
-  async list(required: { workspaceId: string }): Promise<PolicyRecord[]> {
-    return this.rows.filter(record => matchesRecordFields({ record, fields: { workspaceId: required.workspaceId } }));
-  }
-
-  async save(record: PolicyRecord): Promise<void> {
-    upsertRecord({ records: this.rows, record, identity: { workspaceId: record.workspaceId, id: record.id } });
-  }
-
-  async delete(required: { workspaceId: string; id: string }): Promise<void> {
-    this.rows = this.rows.filter(record => !matchesRecordFields({ record, fields: { workspaceId: required.workspaceId, id: required.id } }));
   }
 }
 

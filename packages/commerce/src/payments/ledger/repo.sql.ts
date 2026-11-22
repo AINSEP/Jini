@@ -2,17 +2,12 @@ import { OPEN_INTENT_STATUSES } from "../state/status.js";
 import type { PaymentMode } from "../contract/scope.js";
 import { type Kysely, type RawBuilder, type Selectable, sql } from "kysely";
 
-import type { StorageKernel } from "@jini-ai/db/kernel";
-import {
-  ATTEMPT_PATCH_COLUMNS, DISPUTE_PATCH_COLUMNS, LEDGER_TABLES, OPEN_INBOX_STATES, PAYMENT_PATCH_COLUMNS, REFUND_PATCH_COLUMNS,
-  attemptFromRow, attemptToRow, disputeFromRow, disputeToRow, encodeColumns, encodeMinor, evidenceFromRow, evidenceToRow,
-  inboxFromRow, inboxToRow, outboxFromRow, outboxToRow, patchColumns, paymentFromRow, paymentToRow, quarantineFromRow,
-  quarantineToRow, refundFromRow, refundToRow, operatorActionFromRow, operatorActionToRow, revivedPayload, UNSETTLED_REFUND_STATUSES,
-  OPEN_ATTEMPT_OUTCOMES, type AttemptOp, type OperatorActionRecord, type AttemptPatch, type AttemptRecord, type DisputePatch, type DisputeRecord, type EvidenceRecord, type InboxRecord,
-  type NewInbox, type NewOutbox, type NewPayment, type NewQuarantine, type OutboxRecord, type PaymentPatch,
-  type PaymentRecord, type PaymentsLedgerDatabase, type PaymentsTable, type QuarantineRecord, type RefundPatch, type RefundRecord,
-  type RefundsTable,
-} from "./rows.js";
+import type { StorageKernel } from "@jini-ai/core/contracts/storage";
+import { ATTEMPT_PATCH_COLUMNS, DISPUTE_PATCH_COLUMNS, PAYMENT_PATCH_COLUMNS, REFUND_PATCH_COLUMNS, patchColumns, type AttemptPatch, type DisputePatch, type PaymentPatch, type RefundPatch } from "./row-patches.js";
+import { LEDGER_TABLES, attemptToRow, disputeToRow, encodeColumns, encodeMinor, evidenceToRow, inboxToRow, outboxToRow, paymentToRow, quarantineToRow, refundToRow, operatorActionToRow } from "./rows.js";
+import { OPEN_INBOX_STATES, revivedPayload, UNSETTLED_REFUND_STATUSES, OPEN_ATTEMPT_OUTCOMES, type AttemptOp, type OperatorActionRecord, type AttemptRecord, type DisputeRecord, type EvidenceRecord, type InboxRecord, type NewInbox, type NewOutbox, type NewPayment, type NewQuarantine, type OutboxRecord, type PaymentRecord, type QuarantineRecord, type RefundRecord } from "./row-records.js";
+import { attemptFromRow, disputeFromRow, evidenceFromRow, inboxFromRow, outboxFromRow, paymentFromRow, quarantineFromRow, refundFromRow, operatorActionFromRow } from "./row-decoders.js";
+import { type PaymentsLedgerDatabase, type PaymentsTable, type RefundsTable } from "./row-tables.js";
 import {
   LedgerConstraintError, type LedgerConstraintKind, type LedgerKeyScope, type LedgerTx, type PaymentsLedger, type ProviderRefScope,
   type ScanCursor, type ScanOptions,
@@ -71,7 +66,7 @@ function inScanScope({ scope }: { scope?: LedgerKeyScope }, _optional: Record<st
 }
 
 class SqlLedgerTx implements LedgerTx {
-  constructor(private readonly kernel: StorageKernel<PaymentsLedgerDatabase>) {}
+  constructor(private readonly kernel: StorageKernel<Kysely<PaymentsLedgerDatabase>, PaymentsLedgerDatabase>) {}
 
   private read<T>(fn: (db: Db) => Promise<T>): Promise<T> {
     return this.kernel.run(fn);
@@ -311,7 +306,7 @@ class SqlLedgerTx implements LedgerTx {
     { id, nextAttemptAt }: { id: string; nextAttemptAt: number },
     optional: { payload?: { factsJson: string; bodySha256: string } } = {}
   ): Promise<boolean> {
-    const set = encodeColumns({ state: "received", attempts: 0, next_attempt_at: nextAttemptAt, ...revivedPayload(optional) });
+    const set = encodeColumns({ state: "received", attempts: 0, next_attempt_at: nextAttemptAt, ...revivedPayload({}, optional) });
     return this.updateById({ table: LEDGER_TABLES.inbox, id, set }, { states: ["dead"] });
   }
 
@@ -434,12 +429,12 @@ class SqlLedgerTx implements LedgerTx {
 
 /**
  * The SQL ledger over the host's storage kernel. The tables must exist: run
- * `migrateCommercePayments({ kernel })` first. No connection work happens here.
+ * `migrateCommercePayments({ kernel, runMigrations })` first (the host's runner, `@jini-ai/db/migrate`). No connection work happens here.
  *
  * @example const ledger = sqlPaymentsLedger({ kernel }); await ledger.transaction({ fn: async (tx) => tx.lockPayment({ workspaceId, mode, id }) });
  */
-export function sqlPaymentsLedger<DB>(required: { kernel: StorageKernel<DB> }, _optional: Record<string, never> = {}): PaymentsLedger {
-  const kernel = required.kernel as unknown as StorageKernel<PaymentsLedgerDatabase>;
+export function sqlPaymentsLedger<DB>(required: { kernel: StorageKernel<Kysely<DB>, DB> }, _optional: Record<string, never> = {}): PaymentsLedger {
+  const kernel = required.kernel as unknown as StorageKernel<Kysely<PaymentsLedgerDatabase>, PaymentsLedgerDatabase>;
   const tx = new SqlLedgerTx(kernel);
   return { transaction: ({ fn }) => kernel.transaction(() => fn(tx)) };
 }

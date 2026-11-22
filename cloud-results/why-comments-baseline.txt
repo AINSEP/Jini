@@ -1,0 +1,61 @@
+# command: node scripts/check-why-comments.mjs --base 02edbb68 --head 65d73b0d  (exit 1 expected: baseline lists lost comments; none restored in this run)
+why-comments: 460 files with removed lines checked against 02edbb68..65d73b0d, 55 comment blocks lost (0 allow-listed)
+packages/admin/src/media/__tests__/legacy-rules.test.ts:26-27  [db335e88b1bf]  1024-based units must agree with upload caps; mb/gb keep precision so different clips do not misleadingly collapse to the same whole-numb...
+packages/admin/src/media/rules.ts:123-124  [f6832ef8c8ce]  1024-based to agree with upload limits. whole b/kb, one decimal mb/gb distinguishes similarly sized clips; locale controls the decimal se...
+packages/agent-runtime/src/agent-protocol/pi-rpc/session.ts:366-366  [fa278bdf008c]  ---- outbound: send new_session (if parentsession provided) then prompt via rpc ----
+packages/agent-runtime/src/defs/codex/types.ts:2-2  [4c4105a63e63]  explicit host/run policy; environment defaults belong to native composition.
+packages/agent-runtime/src/providers/oauth-callback-server.ts:181-181  [0df8fa4ad951]  already logging in handle(); this branch is best-effort cleanup.
+packages/agent-runtime/src/providers/types.ts:13-13  [52dd8558b575]  category of outcome a provider model/connection probe can report.
+packages/agent-runtime/src/types.ts:759-763  [4affbb6c73ce]  agent unavailability/fix-affordance vocabulary. moved to `@jini-ai/protocol` on 2026-07-29 (see that package's `agent-catalog.ts`) so a b...
+packages/agent-runtime/vitest.config.ts:41-43  [6b97fbcabdcf]  same carve-out as `src/types.ts` above: pure `export type`/ `export interface` file, zero runtime declarations (verified via the same gre...
+packages/chat/src/core/ag-ui/entry.ts:1-6  [f159774f3016]  pure chat-event to ag-ui projection; lifecycle state belongs to one run. this legacy wire reducer is independent of saved-chat reduction:...
+packages/chat/src/core/ag-ui/entry.ts:60-61  [deeb820b0e87]  preserve the legacy ag-ui wire reduction, including partial input as extension events. unlike the saved-chat reducer, this projection car...
+packages/chat/src/core/ag-ui/entry.ts:296-298  [32e31150055f]  ag-ui's `toolcallresultevent` carries no `iserror` field (verified against the real schema) — a genuine protocol-level fidelity gap, not ...
+packages/core/src/contracts/server/__tests__/origin.test.ts:14-15  [c05bbf016ff9]  the guard reads the context's own env (the one a host injected), not the real process env: the middleware is handed the same env, so both...
+packages/core/src/contracts/server/origin.ts:9-10  [e5c80d9bac89]  the subset of server startup state `guardsameorigin` needs: the resolved local port, and the environment the origin policy is read from.
+packages/core/src/contracts/server/origin.ts:13-21  [461a9a95758f]  host-supplied environment; the host also names the bind-host, allowed-origin and web-port vars. present because a host can inject its own...
+packages/core/src/contracts/server/origin.ts:25-28  [d52b8242ee25]  wraps `islocalsameorigin` so a route host can fold the origin decision into the same error-handling pipeline as parse/handle failures.
+packages/daemon/src/__tests__/terminal-session.test.ts:26-29  [0742a2545f37]  `loadrealspawnpty` touches the real filesystem (`ensurespawnhelperexecutable`) and dynamically imports the real `node-pty` addon — mocked...
+packages/daemon/src/__tests__/terminal-session.test.ts:32-32  [9bb69b503369]  records the options each manager hands the real engine, so knob forwarding is asserted, not assumed.
+packages/daemon/src/http/__tests__/active-context.test.ts:13-13  [17de6e09aa2c]  the same-origin gate is spied where routes import it; see fixtures/same-origin-gate.ts.
+packages/daemon/src/http/__tests__/agents.test.ts:11-11  [17de6e09aa2c]  the same-origin gate is spied where routes import it; see fixtures/same-origin-gate.ts.
+packages/daemon/src/http/__tests__/connectors.test.ts:35-35  [17de6e09aa2c]  the same-origin gate is spied where routes import it; see fixtures/same-origin-gate.ts.
+packages/daemon/src/http/__tests__/daemon-status.test.ts:10-10  [17de6e09aa2c]  the same-origin gate is spied where routes import it; see fixtures/same-origin-gate.ts.
+packages/daemon/src/http/__tests__/db-ops.test.ts:21-21  [17de6e09aa2c]  the same-origin gate is spied where routes import it; see fixtures/same-origin-gate.ts.
+packages/daemon/src/http/__tests__/delegated-tools-host-described-internal-error.test.ts:12-12  [17de6e09aa2c]  the same-origin gate is spied where routes import it; see fixtures/same-origin-gate.ts.
+packages/daemon/src/http/__tests__/delegated-tools-host-safe-failure.test.ts:12-12  [17de6e09aa2c]  the same-origin gate is spied where routes import it; see fixtures/same-origin-gate.ts.
+packages/daemon/src/http/__tests__/delegated-tools.test.ts:20-20  [17de6e09aa2c]  the same-origin gate is spied where routes import it; see fixtures/same-origin-gate.ts.
+packages/daemon/src/http/__tests__/fixtures/same-origin-gate.ts:1-17  [1c2b4ab5fcfd]  @file the same-origin gate seam for route tests. routes reach the gate through `guardsameorigin` from `@jini-ai/core/contracts/server` — ...
+packages/daemon/src/http/__tests__/fixtures/same-origin-gate.ts:23-23  [77b987a5e4dc]  the spied guard, for one-off implementations (e.g. a guard that throws).
+packages/daemon/src/http/__tests__/fixtures/same-origin-gate.ts:28-28  [97991e658665]  every request passes the gate: the tests' request literals carry no host or origin header.
+packages/daemon/src/http/__tests__/fixtures/same-origin-gate.ts:33-33  [b7546a9fb0a5]  core's real guard decides. a header-less test request has no local host, so it is rejected.
+packages/daemon/src/http/__tests__/health.test.ts:14-14  [17de6e09aa2c]  the same-origin gate is spied where routes import it; see fixtures/same-origin-gate.ts.
+packages/daemon/src/http/__tests__/host-tools.test.ts:23-23  [17de6e09aa2c]  the same-origin gate is spied where routes import it; see fixtures/same-origin-gate.ts.
+packages/daemon/src/http/__tests__/media.test.ts:88-88  [17de6e09aa2c]  the same-origin gate is spied where routes import it; see fixtures/same-origin-gate.ts.
+packages/daemon/src/http/__tests__/memory.test.ts:45-45  [17de6e09aa2c]  the same-origin gate is spied where routes import it; see fixtures/same-origin-gate.ts.
+packages/daemon/src/http/__tests__/model-proxy.test.ts:5-5  [17de6e09aa2c]  the same-origin gate is spied where routes import it; see fixtures/same-origin-gate.ts.
+packages/daemon/src/http/__tests__/research-handle.test.ts:13-13  [17de6e09aa2c]  the same-origin gate is spied where routes import it; see fixtures/same-origin-gate.ts.
+packages/daemon/src/http/__tests__/research.test.ts:8-8  [17de6e09aa2c]  the same-origin gate is spied where routes import it; see fixtures/same-origin-gate.ts.
+packages/daemon/src/http/__tests__/routines.test.ts:26-26  [17de6e09aa2c]  the same-origin gate is spied where routes import it; see fixtures/same-origin-gate.ts.
+packages/daemon/src/http/__tests__/run-messages.test.ts:6-6  [17de6e09aa2c]  the same-origin gate is spied where routes import it; see fixtures/same-origin-gate.ts.
+packages/daemon/src/http/__tests__/runs.test.ts:17-17  [17de6e09aa2c]  the same-origin gate is spied where routes import it; see fixtures/same-origin-gate.ts.
+packages/daemon/src/http/__tests__/terminals.test.ts:29-29  [17de6e09aa2c]  the same-origin gate is spied where routes import it; see fixtures/same-origin-gate.ts.
+packages/daemon/src/terminal-session.ts:156-156  [490796c361f1]  host-owned session service. otherwise a fresh platform service uses the injected `loadspawnpty`.
+packages/daemon/src/terminal-session.ts:158-158  [c60be620a8a5]  host-owned pty loader, e.g. `() => loadrealspawnpty({})` from `@jini-ai/daemon/terminal`. required for creation unless `terminalservice` ...
+packages/daemon/src/terminal-session.ts:201-208  [a87ae8fa0c5d]  builds the reference `terminalsessionmanager`: an in-process wrapper around a `@jini-ai/platform` `terminalservice` adding session owners...
+packages/daemon/src/tool-recovery/redaction.ts:42-47  [5f7d56df73ba]  mints one error id: 64 bits of `crypto.randombytes`, formatted `err-xxxx-xxxx-xxxx-xxxx`. @returns a string always matching {@link tool_e...
+packages/provider-plugins/src/__tests__/ai-trace-scenario.ts:1-1  [55bf2b580d65]  copied from @jini-ai/agent-runtime src/ai-trace/__tests__/scenario.ts for the langfuse plugin mapping test.
+packages/server/src/__tests__/builtin-features.terminal-lifecycle.test.ts:15-15  [ef454bb06c25]  keep the real manager and session service; replace only the os spawn boundary.
+packages/ui/src/features/memory/dependencies.ts:75-75  [818263e30d9f]  ─── config cluster (real http) ─────────────────────────────────────────────
+packages/ui/src/features/memory/dependencies.ts:90-90  [8663777d8275]  ─── entries/index cluster (real http) ──────────────────────────────────────
+packages/ui/src/features/memory/dependencies.ts:180-180  [45db51807f8e]  ─── extraction history cluster (real http) ─────────────────────────────────
+packages/ui/src/features/memory/react/hooks/useMemoryConfig.hooks.ts:165-167  [54d82690c055]  a list response can have raced an optimistic patch. keep both the visible value and its rollback baseline untouched until that setting's ...
+packages/ui/src/features/memory/react/hooks/useMemoryConfig.hooks.ts:245-245  [ee94f8c26bd1]  see ontoggleenabled above for why settle needs its own invalidate.
+packages/ui/src/features/memory/react/hooks/useMemoryConnectors.hooks.ts:227-229  [cc3f22904092]  button disabled state is only visible after react commits. these refs make the scan/save re-entrancy guards synchronous too, so two calls...
+packages/ui/src/features/memory/react/hooks/useMemoryConnectors.hooks.ts:435-438  [8bda31e201b0]  note: the oauth mid-auth status poll and popup-callback message listener are deliberately not effects here — they open accumulating brows...
+packages/ui/src/features/version-manager/react/hooks/useVersionManager.ts:83-90  [65377600f4f5]  owns the whole version-manager state machine: list fetch, selection, content cache/prefetch, search, restore, and viewport choice. kept a...
+packages/ui/src/renderers/preview-modal-shell/react/hooks/usePreviewModalShell.ts:114-114  [93cd9eb08af7]  outside-click / escape dismissal for the split-button's secondary menu.
+why-comments: 55 deleted comment blocks appear nowhere else (owner rule: refactors move "why" comments with the code, never delete them)
+  fix: put the comment back next to the code it explains, or move it with that code.
+  last resort: add { "id": "<id above>", "reason": "<why this comment is truly obsolete>" } to the debt file (`pnpm check:why-comments`).
+# exit: 1

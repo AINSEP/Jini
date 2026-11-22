@@ -2,22 +2,23 @@ import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
 import type { ChildProcess, spawn as nodeSpawn } from 'node:child_process';
 import { readFile, access } from 'node:fs/promises';
-import { createCommandInvocation } from '@jini-ai/platform/command';
-import { getAgentDef, type RuntimeAgentDef } from '@jini-ai/agent-runtime';
+import { getAgentDef, opencodeAcpAgentDef } from '@jini-ai/agent-runtime';
+import { type RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 import { expect, it, vi } from 'vitest';
 import { createAgentExecutor } from '../index.js';
 import { createRunLifecycle } from '../../run-lifecycle.js';
 import { createInMemoryEventLog } from '../../event-log.js';
 import { fixtureLaunchModel, fixtureModelDiscovery } from './model-discovery-fixture.js';
 import { parse } from 'smol-toml';
+import { runtimeFixture, agentRuntimeFixture } from './runtime-fixture.js';
 
 /** Runs the real executor and vendor argv/config writers with only process launch replaced.
  * Packaged CLI consumption remains a cloud gate; this fixture makes no version claim. */
-async function launch(vendor: 'claude' | 'codex' | 'opencode', failHttp = false, failure?: 'sync-spawn' | 'async-spawn' | 'invocation', locked?: { resume: boolean }) {
+async function launch(vendor: 'claude' | 'codex' | 'opencode' | 'opencode-acp', failHttp = false, failure?: 'sync-spawn' | 'async-spawn' | 'invocation', locked?: { resume: boolean }) {
   const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
   const child = Object.assign(new EventEmitter(), { stdin: new PassThrough(), stdout: new PassThrough(), stderr: new PassThrough(),
-    exitCode: null, signalCode: null, pid: 56789 });
-  const definition: RuntimeAgentDef & { mcpHttp: boolean } = { ...getAgentDef({ id: vendor })!, ...fixtureModelDiscovery, mcpHttp: true };
+    exitCode: null, signalCode: null, pid: 56789, killed: false, kill: vi.fn(() => true) });
+  const definition: RuntimeAgentDef & { mcpHttp: boolean } = { ...(vendor === 'opencode-acp' ? opencodeAcpAgentDef : getAgentDef({ id: vendor })!), ...fixtureModelDiscovery, mcpHttp: true };
   const endpointClose = vi.fn(async () => {});
   const prepareHttp = vi.fn(async () => {
     if (failHttp) throw new Error('listener did not bind');
@@ -34,24 +35,18 @@ async function launch(vendor: 'claude' | 'codex' | 'opencode', failHttp = false,
     queueMicrotask(() => failure === 'async-spawn' ? child.emit('error', new Error('spawn failed')) : child.emit('spawn'));
     return child as unknown as ChildProcess;
   });
-  const executor = createAgentExecutor({ lifecycle }, { getAgentDef: () => definition, hostEnv: {},
-    resolveAgentLaunch: () => ({ selectedPath: '/fixture', pathResolvedPath: '/fixture', configuredOverridePath: null,
-      launchPath: '/fixture', launchKind: 'selected', childPathPrepend: [], diagnostic: null }),
-    applyAgentLaunchEnv: ({ env }) => env, ensureAgentCapabilities: async () => {}, resolveModelForLaunch: fixtureLaunchModel,
-    spawn: spawn as unknown as typeof nodeSpawn, probeMcpBridge: probe,
-    createCommandInvocation: input => { if (failure === 'invocation') throw new Error('invocation failed'); return createCommandInvocation(input); },
-    listProcessSnapshots: async () => [], collectProcessTreePids: () => [],
-    stopProcesses: async () => ({ alreadyStopped: false, forcedPids: [], matchedPids: [], remainingPids: [], stoppedPids: [] }),
-    mcpJsonInjection: { command: 'node', args: ['serve.js'], daemonUrl: 'http://daemon.invalid', credential: mint, prepareHttp,
+  const executor = createAgentExecutor({ lifecycle, hostEnv: {}, runtime: runtimeFixture({ ...(failure === 'invocation' ? { platform: 'win32' as const } : {}), spawn: spawn as unknown as typeof nodeSpawn, listProcessSnapshots: async () => [], stopProcesses: async () => ({ alreadyStopped: false, forcedPids: [], matchedPids: [], remainingPids: [], stoppedPids: [] }) }), agentRuntime: agentRuntimeFixture({ getAgentDef: () => definition, resolveAgentLaunch: () => ({ selectedPath: '/fixture', pathResolvedPath: '/fixture', configuredOverridePath: null,
+      launchPath: failure === 'invocation' ? 'C:\\fixture\\agent.cmd' : '/fixture', launchKind: 'selected', childPathPrepend: [], diagnostic: null }), applyAgentLaunchEnv: ({ env }) => env, ensureAgentCapabilities: async () => {}, resolveModelForLaunch: fixtureLaunchModel }) }, { probeMcpBridge: probe, mcpJsonInjection: { command: 'node', args: ['serve.js'], daemonUrl: 'http://daemon.invalid', credential: mint, prepareHttp,
       ...(locked ? { toolApprovalOwner: 'host' as const } : {}),
       readFile: async () => '', writeFile: async ({ content }) => { config = content; },
       mkdtemp: async () => '/fixture-codex-home', removeDir: async () => {}, linkSessionStore: async () => {},
       removeFile: async () => {},
-    },
-  });
+    } });
   const { run } = await lifecycle.start({ contextRef: 'http-launch' });
   const runError: unknown = await executor.run({ runId: run.id, agentId: vendor, cwd: '/fixture', prompt: 'Hello' }, {
-    permissionMode: 'bypass', ...(locked ? { nativeToolAccess: false, resumeSessionId: locked.resume ? 'session-fixture' : null,
+    permissionMode: 'bypass',
+    // On the pinned win32 `.cmd` shim an argument with a line break is refused by the command planner.
+    ...(failure === 'invocation' ? { model: 'bad\nmodel' } : {}), ...(locked ? { nativeToolAccess: false, resumeSessionId: locked.resume ? 'session-fixture' : null,
       // A staged config cannot isolate Codex's plugin/App MCP sources; approve that independent
       // dimension while keeping the native shell/file policy and host tool approval restricted.
       nativeCapabilities: { shell: false, fileWrite: false, userMcp: true, subagents: false, userSettings: false, web: false, workflows: false, loginEnvironment: false },
@@ -108,6 +103,13 @@ it.each(['claude', 'codex', 'opencode'] as const)('HTTP %s launch contains no se
   } finally { await f.finish(); }
   expect(f.endpointClose).toHaveBeenCalledTimes(1);
   if (claudePath) await expect(access(claudePath)).rejects.toMatchObject({ code: 'ENOENT' });
+});
+
+it('OpenCode ACP pilot receives its HTTP endpoint through inline config', async () => {
+  const f = await launch('opencode-acp');
+  try {
+    expect(JSON.parse(f.environment.OPENCODE_CONFIG_CONTENT!).mcp.jini).toEqual({ type: 'remote', url: 'http://127.0.0.1:12345/mcp', headers: { Authorization: 'Bearer endpoint-only' } });
+  } finally { await f.finish(); }
 });
 
 it('prelaunch HTTP failure selects stdio once through the real executor', async () => {

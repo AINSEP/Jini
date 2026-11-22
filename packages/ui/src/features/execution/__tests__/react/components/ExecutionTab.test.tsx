@@ -1,7 +1,7 @@
-import { act, render, screen, waitFor, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '../../../../../__tests__/ui-kit-render-support.js';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { AGENT_ELEMENT_ATTRIBUTE } from '@jini-ai/agentic';
+import { AGENT_ELEMENT_ATTRIBUTE } from '@jini-ai/core/agent-handles';
 import { I18nProvider } from '../../../../i18n/index.js';
 import { createFakeExecutionPort } from '../../../dependencies.js';
 import type { ExecutionPort } from '../../../ports.js';

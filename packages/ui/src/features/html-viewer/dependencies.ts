@@ -31,7 +31,7 @@ export function createBrowserFullscreenPort(): FullscreenPort {
 export function createBrowserNewTabPreviewPort(): NewTabPreviewPort {
   return {
     openInNewTab(html, title) {
-      openSandboxedPreviewInNewTab(html, title);
+      openSandboxedPreviewInNewTab({ html, title });
     },
   };
 }

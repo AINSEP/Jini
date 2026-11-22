@@ -9,19 +9,19 @@ import {
 
 describe('extractMarkdownBlockLines', () => {
   it('returns an empty array for empty input', () => {
-    expect(extractMarkdownBlockLines('')).toEqual([]);
+    expect(extractMarkdownBlockLines({ markdown: '' })).toEqual([]);
   });
 
   it('finds one start line per top-level block', () => {
     const markdown = '# Heading\n\nParagraph one.\n\n- item one\n- item two\n\nParagraph two.\n';
-    const lines = extractMarkdownBlockLines(markdown);
+    const lines = extractMarkdownBlockLines({ markdown });
     // heading, paragraph, list (collapsed to one entry), paragraph
     expect(lines).toEqual([1, 3, 5, 8]);
   });
 
   it('collapses nested list-item content into the list container', () => {
     const markdown = '- one\n  more text\n- two\n';
-    expect(extractMarkdownBlockLines(markdown)).toEqual([1]);
+    expect(extractMarkdownBlockLines({ markdown })).toEqual([1]);
   });
 
   it('lists every top-level flow block kind and collapses blockquotes and lists with nested content', () => {
@@ -38,11 +38,11 @@ describe('extractMarkdownBlockLines', () => {
     ].join('\n');
     // setext, blockquote, ordered list, table, fenced code, indented code,
     // html, thematic break, unordered list (its nested quote/code collapse in)
-    expect(extractMarkdownBlockLines(markdown)).toEqual([1, 4, 7, 10, 14, 18, 20, 24, 26]);
+    expect(extractMarkdownBlockLines({ markdown })).toEqual([1, 4, 7, 10, 14, 18, 20, 24, 26]);
   });
 
   it('returns no lines for a whitespace-only document', () => {
-    expect(extractMarkdownBlockLines('\n\n   \n')).toEqual([]);
+    expect(extractMarkdownBlockLines({ markdown: '\n\n   \n' })).toEqual([]);
   });
 
   it('returns an empty array rather than throwing when the underlying parser throws', async () => {
@@ -60,7 +60,7 @@ describe('extractMarkdownBlockLines', () => {
     }));
     vi.resetModules();
     const fresh = await import('../markdown-scroll-sync.js');
-    expect(fresh.extractMarkdownBlockLines('# still valid input')).toEqual([]);
+    expect(fresh.extractMarkdownBlockLines({ markdown: '# still valid input' })).toEqual([]);
     vi.doUnmock('micromark');
     vi.resetModules();
   });
@@ -68,18 +68,18 @@ describe('extractMarkdownBlockLines', () => {
 
 describe('buildScrollAnchors', () => {
   it('wraps offsets with a leading 0 and trailing scrollHeight', () => {
-    expect(buildScrollAnchors([10, 20], 100)).toEqual([0, 10, 20, 100]);
+    expect(buildScrollAnchors({ blockOffsets: [10, 20], scrollHeight: 100 })).toEqual([0, 10, 20, 100]);
   });
 
   it('clamps out-of-range and non-finite offsets, staying non-decreasing', () => {
-    expect(buildScrollAnchors([-5, Number.NaN, 500], 100)).toEqual([0, 0, 0, 100, 100]);
+    expect(buildScrollAnchors({ blockOffsets: [-5, Number.NaN, 500], scrollHeight: 100 })).toEqual([0, 0, 0, 100, 100]);
   });
 
   it('clamps a value that dips below the running previous anchor (out-of-order input)', () => {
     // 80 then 10: the second anchor would otherwise regress below the
     // first, which the caller relies on never happening (interpolation
     // assumes non-decreasing anchors).
-    expect(buildScrollAnchors([80, 10], 100)).toEqual([0, 80, 80, 100]);
+    expect(buildScrollAnchors({ blockOffsets: [80, 10], scrollHeight: 100 })).toEqual([0, 80, 80, 100]);
   });
 
   it('treats a hole in the offsets array as 0, still clamped non-decreasing (defensive against non-TS callers)', () => {
@@ -87,7 +87,7 @@ describe('buildScrollAnchors', () => {
     holey[2] = 30; // index 1 is a genuine array hole, not `undefined` assigned
     // The hole normalizes to raw value 0, but the running non-decreasing
     // clamp then pulls it back up to the previous anchor (10).
-    expect(buildScrollAnchors(holey, 100)).toEqual([0, 10, 10, 30, 100]);
+    expect(buildScrollAnchors({ blockOffsets: holey, scrollHeight: 100 })).toEqual([0, 10, 10, 30, 100]);
   });
 });
 
@@ -95,29 +95,29 @@ describe('mapScrollPosition', () => {
   it('interpolates linearly within a bracketing segment', () => {
     const source = [0, 100];
     const target = [0, 200];
-    expect(mapScrollPosition(50, source, target)).toBe(100);
+    expect(mapScrollPosition({ value: 50, source, target })).toBe(100);
   });
 
   it('clamps below the first anchor to the first target', () => {
-    expect(mapScrollPosition(-10, [0, 100], [0, 200])).toBe(0);
+    expect(mapScrollPosition({ value: -10, source: [0, 100], target: [0, 200] })).toBe(0);
   });
 
   it('clamps above the last anchor to the last target', () => {
-    expect(mapScrollPosition(999, [0, 100], [0, 200])).toBe(200);
+    expect(mapScrollPosition({ value: 999, source: [0, 100], target: [0, 200] })).toBe(200);
   });
 
   it('returns the input value when either anchor array is empty', () => {
-    expect(mapScrollPosition(42, [], [])).toBe(42);
+    expect(mapScrollPosition({ value: 42, source: [], target: [] })).toBe(42);
   });
 
   it('returns the sole target when arrays have exactly one anchor', () => {
-    expect(mapScrollPosition(42, [10], [99])).toBe(99);
+    expect(mapScrollPosition({ value: 42, source: [10], target: [99] })).toBe(99);
   });
 
   it('treats a hole in a length-1 target array as 0', () => {
     const holeyTarget: number[] = [];
     holeyTarget[0] = undefined as unknown as number;
-    expect(mapScrollPosition(5, [10], holeyTarget)).toBe(0);
+    expect(mapScrollPosition({ value: 5, source: [10], target: holeyTarget })).toBe(0);
   });
 
   it('treats holes in the first-anchor position of both arrays as 0', () => {
@@ -127,14 +127,14 @@ describe('mapScrollPosition', () => {
     holeyTarget[1] = 20;
     // value <= source[0]??0 (0) is true for a negative value, returning
     // target[0]??0.
-    expect(mapScrollPosition(-5, holeySource, holeyTarget)).toBe(0);
+    expect(mapScrollPosition({ value: -5, source: holeySource, target: holeyTarget })).toBe(0);
   });
 
   it('treats holes in the last-anchor position of both arrays as 0', () => {
     const holeySource = [0, undefined as unknown as number];
     const holeyTarget = [0, undefined as unknown as number];
     // value >= source[last]??0 (0) is true for any non-negative value.
-    expect(mapScrollPosition(999, holeySource, holeyTarget)).toBe(0);
+    expect(mapScrollPosition({ value: 999, source: holeySource, target: holeyTarget })).toBe(0);
   });
 
   it('treats a hole at the binary-search midpoint as 0', () => {
@@ -142,7 +142,7 @@ describe('mapScrollPosition', () => {
     const target = [0, 10, 100, 200];
     // Midpoint index 1 is a hole; source[1]??0 (0) <= 50 is true, so `low`
     // advances past it during the search rather than throwing.
-    expect(mapScrollPosition(50, source, target)).toBeGreaterThanOrEqual(0);
+    expect(mapScrollPosition({ value: 50, source, target })).toBeGreaterThanOrEqual(0);
   });
 
   it('treats a hole at the bracketing low index as 0 for both source and target', () => {
@@ -150,7 +150,7 @@ describe('mapScrollPosition', () => {
     const target = [0, undefined as unknown as number, 200];
     // Binary search settles on low=1 (hole -> 0), high=2 (100): value 50
     // lands here.
-    expect(mapScrollPosition(50, source, target)).toBe(100);
+    expect(mapScrollPosition({ value: 50, source, target })).toBe(100);
   });
 
   it('treats a hole at the bracketing high index as 0 for both source and target', () => {
@@ -160,7 +160,7 @@ describe('mapScrollPosition', () => {
     // so `high` (not `low`) lands on the hole this time.
     const source = [-100, undefined as unknown as number, 100];
     const target = [-200, undefined as unknown as number, 200];
-    expect(mapScrollPosition(-50, source, target)).toBe(-100);
+    expect(mapScrollPosition({ value: -50, source, target })).toBe(-100);
   });
 
 });
@@ -172,13 +172,13 @@ describe('measureEditorBlockOffsets', () => {
 
   it('returns null when there are no blocks to measure', () => {
     const textarea = document.createElement('textarea');
-    expect(measureEditorBlockOffsets(textarea, [], 'hello')).toBeNull();
+    expect(measureEditorBlockOffsets({ textarea, blockLines: [], text: 'hello' })).toBeNull();
   });
 
   it('returns null when the mirror measurement shows no vertical progression (jsdom default zero layout)', () => {
     const textarea = document.createElement('textarea');
     document.body.appendChild(textarea);
-    const offsets = measureEditorBlockOffsets(textarea, [1, 3], 'first\n\nsecond');
+    const offsets = measureEditorBlockOffsets({ textarea, blockLines: [1, 3], text: 'first\n\nsecond' });
     expect(offsets).toBeNull();
   });
 
@@ -197,7 +197,7 @@ describe('measureEditorBlockOffsets', () => {
       // Two blocks starting on distinct, non-first, non-last lines so the
       // multi-line buffer-building loop's newline-join branch (not the
       // last line) runs at least once for a real, non-degenerate line set.
-      const offsets = measureEditorBlockOffsets(textarea, [1, 3], 'first\nsecond\nthird');
+      const offsets = measureEditorBlockOffsets({ textarea, blockLines: [1, 3], text: 'first\nsecond\nthird' });
       expect(offsets).toEqual([0, 20]);
     } finally {
       Object.defineProperty(HTMLElement.prototype, 'offsetTop', originalDescriptor);
@@ -221,7 +221,7 @@ describe('measureEditorBlockOffsets', () => {
       // same line) branch in the marker-grouping loop. Both markers still
       // render (as separate spans on that one line), each keeping its own
       // block index and offset.
-      const offsets = measureEditorBlockOffsets(textarea, [1, 5], 'only one line');
+      const offsets = measureEditorBlockOffsets({ textarea, blockLines: [1, 5], text: 'only one line' });
       expect(offsets).toEqual([0, 20]);
     } finally {
       Object.defineProperty(HTMLElement.prototype, 'offsetTop', originalDescriptor);
@@ -249,7 +249,7 @@ describe('measureEditorBlockOffsets', () => {
       return HTMLElement.prototype.appendChild.call(this, node);
     });
     try {
-      measureEditorBlockOffsets(textarea, [1, 2], 'a\nb');
+      measureEditorBlockOffsets({ textarea, blockLines: [1, 2], text: 'a\nb' });
       const mirror = appended.find((node) => node instanceof HTMLDivElement) as HTMLDivElement | undefined;
       expect(mirror?.style.whiteSpace).toBe('nowrap');
     } finally {
@@ -271,7 +271,7 @@ describe('measureEditorBlockOffsets', () => {
       return HTMLElement.prototype.appendChild.call(this, node);
     });
     try {
-      measureEditorBlockOffsets(textarea, [1], 'a');
+      measureEditorBlockOffsets({ textarea, blockLines: [1], text: 'a' });
       const mirror = appended.find((node) => node instanceof HTMLDivElement) as HTMLDivElement | undefined;
       expect(mirror?.style.whiteSpace).toBe('pre-wrap');
     } finally {
@@ -306,7 +306,7 @@ describe('measureEditorBlockOffsets mirror markup', () => {
     const textarea = document.createElement('textarea');
     document.body.appendChild(textarea);
     const mirror = captureMirror(() => {
-      measureEditorBlockOffsets(textarea, [0, 2, 9], 'a<b>&\n<span data-md-block="7"></span>\nlast');
+      measureEditorBlockOffsets({ textarea, blockLines: [0, 2, 9], text: 'a<b>&\n<span data-md-block="7"></span>\nlast' });
     });
     expect(mirror?.innerHTML).toBe(
       '<span data-md-block="0"></span>a&lt;b&gt;&amp;\n' +
@@ -318,7 +318,7 @@ describe('measureEditorBlockOffsets mirror markup', () => {
   it('removes the mirror from the document after measuring', () => {
     const textarea = document.createElement('textarea');
     document.body.appendChild(textarea);
-    measureEditorBlockOffsets(textarea, [1, 2], 'a\nb');
+    measureEditorBlockOffsets({ textarea, blockLines: [1, 2], text: 'a\nb' });
     expect(document.body.children).toHaveLength(1);
   });
 
@@ -327,7 +327,7 @@ describe('measureEditorBlockOffsets mirror markup', () => {
     document.body.appendChild(textarea);
     Object.defineProperty(textarea, 'clientWidth', { configurable: true, value: 321 });
     const mirror = captureMirror(() => {
-      measureEditorBlockOffsets(textarea, [1], 'a');
+      measureEditorBlockOffsets({ textarea, blockLines: [1], text: 'a' });
     });
     // The leading entries are jsdom's computed defaults copied from the textarea.
     expect(mirror?.style.cssText).toBe(
@@ -343,19 +343,19 @@ describe('mapScrollPosition bracketing', () => {
   it('interpolates within the correct segment of a many-anchor array', () => {
     const source = [0, 10, 20, 30, 40, 50];
     const target = [0, 100, 200, 300, 400, 500];
-    expect(mapScrollPosition(35, source, target)).toBe(350);
+    expect(mapScrollPosition({ value: 35, source, target })).toBe(350);
   });
 
   it('maps a value exactly on an interior anchor to that anchor\'s target', () => {
-    expect(mapScrollPosition(20, [0, 10, 20, 30], [0, 5, 60, 70])).toBe(60);
+    expect(mapScrollPosition({ value: 20, source: [0, 10, 20, 30], target: [0, 5, 60, 70] })).toBe(60);
   });
 
   it('only uses the shorter array\'s length when the arrays differ in length', () => {
-    expect(mapScrollPosition(99, [0, 10, 20, 30], [0, 100, 200])).toBe(200);
+    expect(mapScrollPosition({ value: 99, source: [0, 10, 20, 30], target: [0, 100, 200] })).toBe(200);
   });
 
   it('returns the first target for a value equal to the first source anchor', () => {
-    expect(mapScrollPosition(5, [5, 10], [7, 70])).toBe(7);
+    expect(mapScrollPosition({ value: 5, source: [5, 10], target: [7, 70] })).toBe(7);
   });
 });
 
@@ -366,25 +366,25 @@ describe('measurePreviewBlockOffsets', () => {
 
   it('returns null when blockCount is 0', () => {
     const pane = document.createElement('div');
-    expect(measurePreviewBlockOffsets(pane, 0)).toBeNull();
+    expect(measurePreviewBlockOffsets({ pane, blockCount: 0 })).toBeNull();
   });
 
   it('returns null when the preview selector matches nothing', () => {
     const pane = document.createElement('div');
     pane.innerHTML = '<div class="not-the-article"></div>';
-    expect(measurePreviewBlockOffsets(pane, 1)).toBeNull();
+    expect(measurePreviewBlockOffsets({ pane, blockCount: 1 })).toBeNull();
   });
 
   it('returns null when the rendered child count does not match blockCount', () => {
     const pane = document.createElement('div');
     pane.innerHTML = '<article class="markdown-rendered"><p>one</p><p>two</p></article>';
-    expect(measurePreviewBlockOffsets(pane, 3)).toBeNull();
+    expect(measurePreviewBlockOffsets({ pane, blockCount: 3 })).toBeNull();
   });
 
   it('returns null when the measured children show no vertical progression (jsdom default zero layout)', () => {
     const pane = document.createElement('div');
     pane.innerHTML = '<article class="markdown-rendered"><p>one</p><p>two</p></article>';
-    expect(measurePreviewBlockOffsets(pane, 2)).toBeNull();
+    expect(measurePreviewBlockOffsets({ pane, blockCount: 2 })).toBeNull();
   });
 
   it('measures real per-child pixel offsets via getBoundingClientRect', () => {
@@ -402,7 +402,7 @@ describe('measurePreviewBlockOffsets', () => {
       return { top: i !== null && i !== undefined ? Number(i) * 40 : 0 } as DOMRect;
     };
     try {
-      const offsets = measurePreviewBlockOffsets(pane, 2);
+      const offsets = measurePreviewBlockOffsets({ pane, blockCount: 2 });
       expect(offsets).toEqual([0, 40]);
     } finally {
       Element.prototype.getBoundingClientRect = original;
@@ -418,7 +418,7 @@ describe('measurePreviewBlockOffsets', () => {
     };
     try {
       // Single child trivially "has progression" (length <= 1 short-circuit).
-      expect(measurePreviewBlockOffsets(pane, 1, '.custom-root')).toEqual([0]);
+      expect(measurePreviewBlockOffsets({ pane, blockCount: 1 }, { previewSelector: '.custom-root' })).toEqual([0]);
     } finally {
       Element.prototype.getBoundingClientRect = original;
     }

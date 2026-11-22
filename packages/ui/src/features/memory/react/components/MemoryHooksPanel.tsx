@@ -11,8 +11,8 @@
 // the reload()/SSE wiring; this panel is presentational and calls the passed
 // toggle callbacks. Folded into this slice from OD's separate
 // `components/MemoryHooksPanel.tsx` (single consumer, `MemoryHowPanel`) — see
-// `packages/ui/source-map.md`.
-import { agentHandleProps } from '@jini-ai/agentic';
+// `archived UI source map`.
+import { agentHandleProps } from '@jini-ai/core/agent-handles';
 import { Icon, type IconName } from '../../../../react/components/Icon.js';
 import { useT } from '../../../i18n/index.js';
 
@@ -64,6 +64,7 @@ export function MemoryHooksPanel({
   flags,
   onToggle,
   agentHandle,
+  useTHook = useT,
 }: {
   /** Master memory switch — when off, every hook toggle is disabled. */
   enabled: boolean;
@@ -71,8 +72,9 @@ export function MemoryHooksPanel({
   onToggle: (key: MemoryHookKey, next: boolean) => void;
   /** This panel's own agent handle — one distinct sub-handle per hook toggle. */
   agentHandle?: string;
+  useTHook?: typeof useT;
 }) {
-  const t = useT();
+  const t = useTHook();
   return (
     <div className="memory-hooks-panel" data-testid="memory-hooks-panel">
       <div className="memory-hooks-panel-head">

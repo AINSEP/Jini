@@ -1,11 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { isLocalSameOrigin } from '@jini-ai/core';
-import { registerModelProxyRoutes, type ModelProxyHttpDeps } from '../model-proxy.js';
-
-vi.mock('@jini-ai/core', async (importOriginal) => ({
-  ...await importOriginal<typeof import('@jini-ai/core')>(),
-  isLocalSameOrigin: vi.fn(() => true),
-}));
+import { createRecordingOriginPolicy } from '@jini-ai/core/contracts/server/testing';
+import { modelProxyRoutes, type ModelProxyHttpDeps } from '../model-proxy.js';
+import { describeRoutes } from '../route-table.js';
+import { fakeDaemonRouteHost } from './fakes/route-host.js';
+import { serveRoutes } from './fakes/serve-routes.js';
 
 // `@jini-ai/agent-runtime`'s provider adapters (anthropic-messages.ts, openai-chat.ts — azure-chat.ts
 // delegates to the latter — google-messages.ts, ollama-chat.ts) all call `pinnedFetch` from
@@ -26,23 +24,6 @@ const injectedFetch = vi.fn();
 // Supply a fixed public address through the DNS port so tests exercise the provider path without
 // resolver traffic; a DNS failure now correctly fails closed instead of reaching the transport.
 const injectedDnsLookup = async (_args: { hostname: string }) => [{ address: '8.8.8.8', family: 4 }];
-
-interface MockApp {
-  get: (path: string, handler: any) => void;
-  post: (path: string, handler: any) => void;
-  put: (path: string, handler: any) => void;
-  delete: (path: string, handler: any) => void;
-  patch: (path: string, handler: any) => void;
-  handlers: Record<string, (req: any, res: any) => Promise<void> | void>;
-}
-
-function makeApp(): MockApp {
-  const handlers: MockApp['handlers'] = {};
-  const make = (method: string) => (path: string, handler: any) => {
-    handlers[`${method.toUpperCase()} ${path}`] = handler;
-  };
-  return { get: make('get'), post: make('post'), put: make('put'), delete: make('delete'), patch: make('patch'), handlers };
-}
 
 function makeReq(body: unknown) {
   return { body };
@@ -76,13 +57,76 @@ function makeSseRes() {
   return res;
 }
 
-const adapter = { allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST', env: {}, resolvedPortRef: { current: 7456 } };
+const baseOriginPolicy = createRecordingOriginPolicy();
+// Scripted verdicts consumed before the recording policy answers: lets a test make the Nth origin check throw.
+const scriptedOrigin: Array<() => boolean> = [];
+const testOriginPolicy = {
+  isSameOrigin: (required: Parameters<typeof baseOriginPolicy.isSameOrigin>[0]) => (scriptedOrigin.length > 0 ? scriptedOrigin.shift()!() : baseOriginPolicy.isSameOrigin(required)),
+  set: (required: { readonly allow: boolean }) => baseOriginPolicy.set(required),
+};
+const throwFromOriginCheck = (message: string) => scriptedOrigin.push(() => { throw new Error(message); });
 
-/** Always injects `injectedFetch`/`injectedDnsLookup` as the transport/resolver — a caller-supplied `deps.fetchImpl`/`deps.dnsLookup` would still win (spread order), but nothing in this file ever passes one. */
+/** The host the routes are built for: the recording origin policy and a recording incident reporter (the real reporter's log line and sink containment are http-kit's own pinned behaviour). */
+function proxyHost({ onInternalError }: { readonly onInternalError?: (context: never) => void } = {}) {
+  return fakeDaemonRouteHost({}, { originPolicy: testOriginPolicy, ...(onInternalError ? { onInternalError: onInternalError as never } : {}) });
+}
+
+/** The host the last `mountWith` built its routes for: its `reports` say what the routes asked the reporter to record. */
+let lastHost = proxyHost();
+
+type RecordedRes = ReturnType<typeof makeSseRes>;
+type RouteCall = (req: { body: unknown; params?: Record<string, string> }, res: RecordedRes) => Promise<void>;
+
+/**
+ * Pours a route's `Response` onto the recording `res` the assertions below were written against: a JSON
+ * answer becomes `status` + `json`; an event stream becomes `statusCode`, the content type and one `write`
+ * per frame, then `end` when the stream ends.
+ */
+async function recordAnswer({ response, res }: { readonly response: Response; readonly res: RecordedRes }): Promise<void> {
+  const type = response.headers.get('content-type') ?? '';
+  if (!type.startsWith('text/event-stream')) {
+    res.status(response.status);
+    res.json(await response.json());
+    return;
+  }
+  res.statusCode = response.status;
+  res.setHeader('Content-Type', type);
+  const reader = response.body!.getReader();
+  const decoder = new TextDecoder();
+  let pending = '';
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    pending += decoder.decode(value, { stream: true });
+    for (let at = pending.indexOf('\n\n'); at >= 0; at = pending.indexOf('\n\n')) {
+      res.write(pending.slice(0, at + 2));
+      pending = pending.slice(at + 2);
+    }
+  }
+  res.end();
+}
+
+/** JSON text for a test body; an infinite number is written as `1e999`, which a JSON reader turns back into one. */
+function bodyText(body: unknown): string {
+  return JSON.stringify(body, (_key, value: unknown) => (value === Number.POSITIVE_INFINITY ? '__INFINITY__' : value)).replaceAll('"__INFINITY__"', '1e999');
+}
+
+/** Calls each route's handler directly (so the catch-all is reachable with any provider name, as the old mock app allowed) and records the answer. */
+function mountWith({ deps, host }: { readonly deps: ModelProxyHttpDeps; readonly host: ReturnType<typeof proxyHost> }) {
+  lastHost = host;
+  const handlers: Record<string, RouteCall> = {};
+  for (const route of modelProxyRoutes({ deps, host })) {
+    handlers[`${route.method} ${route.path}`] = async (req, res) => {
+      const request = new Request(`http://local${route.path.replace(':provider', req.params?.provider ?? '')}`, { method: route.method, headers: { 'content-type': 'application/json' }, body: bodyText(req.body) });
+      await recordAnswer({ response: await route.handler({ request, params: req.params ?? {}, locals: {} }), res });
+    };
+  }
+  return { handlers };
+}
+
+/** Always injects `injectedFetch`/`injectedDnsLookup` as the transport/resolver — a caller-supplied `deps.fetchImpl`/`deps.dnsLookup` would still win (spread order). */
 function mount(deps: ModelProxyHttpDeps = {}) {
-  const app = makeApp();
-  registerModelProxyRoutes({ app: app as any, deps: { fetchImpl: injectedFetch, dnsLookup: injectedDnsLookup, ...deps }, adapter });
-  return app;
+  return mountWith({ deps: { fetchImpl: injectedFetch, dnsLookup: injectedDnsLookup, ...deps }, host: proxyHost() });
 }
 
 /** Every SSE `data:` line's JSON payload, in write order, for a mocked `res.write`. */
@@ -224,7 +268,8 @@ const validOllamaBody = {
 };
 
 beforeEach(() => {
-  vi.mocked(isLocalSameOrigin).mockReturnValue(true);
+  testOriginPolicy.set({ allow: true });
+  scriptedOrigin.length = 0;
   injectedFetch.mockReset();
 });
 
@@ -233,28 +278,20 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe('registerModelProxyRoutes — route registration', () => {
-  it('mounts all five fixed provider streaming routes plus the generic :provider catch-all', () => {
-    const app = mount();
-    expect(Object.keys(app.handlers)).toEqual(
-      expect.arrayContaining([
-        'POST /api/proxy/anthropic/stream',
-        'POST /api/proxy/openai/stream',
-        'POST /api/proxy/azure/stream',
-        'POST /api/proxy/google/stream',
-        'POST /api/proxy/ollama/stream',
-        'POST /api/proxy/:provider/stream',
-      ]),
-    );
+describe('modelProxyRoutes — route list', () => {
+  it('lists all five fixed provider streaming routes plus the generic :provider catch-all, each behind the same-origin gate', () => {
+    expect(describeRoutes({ routes: modelProxyRoutes({ deps: {}, host: proxyHost() }) })).toEqual([
+      ...['anthropic', 'openai', 'azure', 'google', 'ollama'].map((provider) => ({ method: 'POST', path: `/api/proxy/${provider}/stream`, gates: ['same-origin'] })),
+      { method: 'POST', path: '/api/proxy/:provider/stream', gates: ['same-origin'] },
+    ]);
   });
 
-  // Registration order is load-bearing, not incidental: Express matches in registration order, so
-  // the five literal paths must precede the catch-all or `/api/proxy/anthropic/stream` would be
-  // served by the generic handler instead of its own strongly-typed one (see module doc).
-  it('registers the catch-all last, so a fixed path always wins the match', () => {
-    const app = mount();
-    const paths = Object.keys(app.handlers);
-    expect(paths.at(-1)).toBe('POST /api/proxy/:provider/stream');
+  // The old "registered last" rule is gone: the route table matches a literal segment before `:provider`.
+  it('a fixed path is answered by its own typed handler, an unknown provider by the catch-all', async () => {
+    const fetch = serveRoutes({ routes: modelProxyRoutes({ deps: {}, host: proxyHost() }) });
+    const send = (provider: string) => fetch(new Request(`http://local/api/proxy/${provider}/stream`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' }));
+    expect(await (await send('anthropic')).json()).toMatchObject({ error: { message: 'apiKey must be a non-empty string' } });
+    expect(await (await send('nope')).json()).toEqual({ error: { code: 'BAD_REQUEST', message: 'unknown provider: nope' } });
   });
 });
 
@@ -264,7 +301,7 @@ describe('POST /api/proxy/anthropic/stream', () => {
   }
 
   it('rejects a cross-origin request with 403 before touching fetch', async () => {
-    vi.mocked(isLocalSameOrigin).mockReturnValue(false);
+    testOriginPolicy.set({ allow: false });
     const fetchMock = vi.fn();
     injectedFetch.mockImplementation(fetchMock);
     const res = makeSseRes();
@@ -275,7 +312,7 @@ describe('POST /api/proxy/anthropic/stream', () => {
   });
 
   it.each([
-    ['a non-object body', 'not an object', 'body must be a JSON object'],
+    ['a non-object body (an array: a JSON string never reaches the route)', ['not an object'], 'body must be a JSON object'],
     ['a missing apiKey', { ...validAnthropicBody, apiKey: undefined }, 'apiKey must be a non-empty string'],
     ['an empty-string apiKey', { ...validAnthropicBody, apiKey: '  ' }, 'apiKey must be a non-empty string'],
     ['a missing model', { ...validAnthropicBody, model: undefined }, 'model must be a non-empty string'],
@@ -431,14 +468,18 @@ describe('POST /api/proxy/anthropic/stream', () => {
     expect(res.end).toHaveBeenCalledOnce();
   });
 
-  it('SEC-005: falls back to console.error when no onInternalError sink is supplied', async () => {
-    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
+  // The reporter, not the route, decides what a log line carries; the route hands it the real error and the fixed label.
+  it('SEC-005: a failing tool is reported once with the provider label and the real error, and the client sees only the request ID', async () => {
     const fetchMock = vi.fn().mockResolvedValue(okResponse(sseBody(anthropicToolUseChunk('toolu_1', 'boom_tool', {}))));
     injectedFetch.mockImplementation(fetchMock);
-    const anthropicExecuteTool = vi.fn().mockRejectedValue(new Error('boom'));
+    const anthropicExecuteTool = vi.fn().mockRejectedValue(new Error('boom api_key=SECRETSECRETSECRETSECRET'));
     const res = makeSseRes();
     await handler({ anthropicExecuteTool })(makeReq(validAnthropicBody), res);
-    expect(consoleErrorSpy).toHaveBeenCalledTimes(1);
+    const errorEvent = writtenEvents(res).find((e) => e.kind === 'error')!;
+    const requestId = (errorEvent.data as { code: string }).code;
+    expect(lastHost.reports).toHaveLength(1);
+    expect(lastHost.reports[0]).toMatchObject({ logSource: 'model-proxy/anthropic', requestId, report: { provider: 'anthropic', error: expect.objectContaining({ message: 'boom api_key=SECRETSECRETSECRETSECRET' }) } });
+    expect(JSON.stringify(writtenEvents(res))).not.toContain('SECRETSECRET');
   });
 
   // Regression test for the process-crash class of bug this route family is structurally exposed
@@ -459,9 +500,7 @@ describe('POST /api/proxy/anthropic/stream', () => {
     };
     process.on('unhandledRejection', onUnhandledRejection);
     try {
-      vi.mocked(isLocalSameOrigin).mockImplementationOnce(() => {
-        throw new Error('same-origin check exploded unexpectedly');
-      });
+      throwFromOriginCheck('same-origin check exploded unexpectedly');
       const res = makeSseRes();
       // Mirrors real Express dispatch exactly: call the handler and discard its return value,
       // never `await` or `.catch()` it — that is the one thing Express itself never does either.
@@ -490,7 +529,7 @@ describe('POST /api/proxy/openai/stream', () => {
   }
 
   it('rejects a cross-origin request with 403 before touching fetch', async () => {
-    vi.mocked(isLocalSameOrigin).mockReturnValue(false);
+    testOriginPolicy.set({ allow: false });
     const fetchMock = vi.fn();
     injectedFetch.mockImplementation(fetchMock);
     const res = makeSseRes();
@@ -588,7 +627,7 @@ describe('POST /api/proxy/azure/stream', () => {
   }
 
   it('rejects a cross-origin request with 403 before touching fetch', async () => {
-    vi.mocked(isLocalSameOrigin).mockReturnValue(false);
+    testOriginPolicy.set({ allow: false });
     const fetchMock = vi.fn();
     injectedFetch.mockImplementation(fetchMock);
     const res = makeSseRes();
@@ -692,7 +731,7 @@ describe('POST /api/proxy/google/stream', () => {
   }
 
   it('rejects a cross-origin request with 403 before touching fetch', async () => {
-    vi.mocked(isLocalSameOrigin).mockReturnValue(false);
+    testOriginPolicy.set({ allow: false });
     const fetchMock = vi.fn();
     injectedFetch.mockImplementation(fetchMock);
     const res = makeSseRes();
@@ -803,7 +842,7 @@ describe('POST /api/proxy/ollama/stream', () => {
   }
 
   it('rejects a cross-origin request with 403 before touching fetch', async () => {
-    vi.mocked(isLocalSameOrigin).mockReturnValue(false);
+    testOriginPolicy.set({ allow: false });
     const fetchMock = vi.fn();
     injectedFetch.mockImplementation(fetchMock);
     const res = makeSseRes();
@@ -949,7 +988,7 @@ describe('POST /api/proxy/:provider/stream — the generic catch-all', () => {
   }
 
   it('rejects a cross-origin request with 403 before looking at the provider param', async () => {
-    vi.mocked(isLocalSameOrigin).mockReturnValue(false);
+    testOriginPolicy.set({ allow: false });
     const fetchMock = vi.fn();
     injectedFetch.mockImplementation(fetchMock);
     const res = makeSseRes();
@@ -972,9 +1011,7 @@ describe('POST /api/proxy/:provider/stream — the generic catch-all', () => {
     };
     process.on('unhandledRejection', onUnhandledRejection);
     try {
-      vi.mocked(isLocalSameOrigin).mockImplementationOnce(() => {
-        throw new Error('same-origin check exploded unexpectedly');
-      });
+      throwFromOriginCheck('same-origin check exploded unexpectedly');
       const res = makeSseRes();
       handler()(makeParamReq({ provider: 'anthropic' }, validAnthropicBody), res);
       await new Promise((resolve) => setImmediate(resolve));
@@ -1206,9 +1243,7 @@ async function callCatchAll(provider: string, body: unknown, deps: ModelProxyHtt
 
 describe('model-proxy pins — shared request validation (every provider, both route shapes)', () => {
   const commonRefusals: Array<[string, (base: Record<string, unknown>) => unknown, ReturnType<typeof badRequest>]> = [
-    ['a null body', () => null, badRequest('body must be a JSON object')],
     ['an array body', () => [], badRequest('body must be a JSON object')],
-    ['a string body', () => 'hi', badRequest('body must be a JSON object')],
     ['a missing apiKey', (b) => ({ ...b, apiKey: undefined }), badRequest('apiKey must be a non-empty string', 'apiKey', 'required non-empty string')],
     ['a whitespace-only apiKey', (b) => ({ ...b, apiKey: '   ' }), badRequest('apiKey must be a non-empty string', 'apiKey', 'required non-empty string')],
     ['a numeric apiKey', (b) => ({ ...b, apiKey: 42 }), badRequest('apiKey must be a non-empty string', 'apiKey', 'required non-empty string')],
@@ -1241,12 +1276,37 @@ describe('model-proxy pins — shared request validation (every provider, both r
   });
 });
 
+describe('model-proxy pins — the provider is not awaited before the stream is returned', () => {
+  it('answers 200 with an open event stream while the provider call has not finished, and a client that leaves closes it', async () => {
+    injectedFetch.mockImplementation(() => new Promise(() => undefined));
+    const controller = new AbortController();
+    const route = modelProxyRoutes({ deps: { fetchImpl: injectedFetch, dnsLookup: injectedDnsLookup }, host: proxyHost() }).find((candidate) => candidate.path === '/api/proxy/anthropic/stream')!;
+    const request = new Request('http://local/api/proxy/anthropic/stream', { method: 'POST', headers: { 'content-type': 'application/json' }, body: bodyText(validAnthropicBody), signal: controller.signal });
+    const response = await route.handler({ request, params: {}, locals: {} });
+    expect([response.status, response.headers.get('content-type')]).toEqual([200, 'text/event-stream; charset=utf-8']);
+    await vi.waitFor(() => expect(injectedFetch).toHaveBeenCalledTimes(1));
+    controller.abort();
+    expect((await response.body!.getReader().read()).done).toBe(true);
+  });
+});
+
+describe('model-proxy pins — a body that is neither an object nor an array', () => {
+  // The host's JSON parser used to refuse these before the route ran; the route now reads the body itself and refuses them the same way (400) with core's message.
+  it.each(['null', '"hi"', '42'])('%s is refused as invalid JSON before any validation and before fetch', async (raw) => {
+    const routes = modelProxyRoutes({ deps: { fetchImpl: injectedFetch, dnsLookup: injectedDnsLookup }, host: proxyHost() });
+    const fixed = routes.find((route) => route.path === '/api/proxy/openai/stream')!;
+    const response = await fixed.handler({ request: new Request('http://local/api/proxy/openai/stream', { method: 'POST', headers: { 'content-type': 'application/json' }, body: raw }), params: {}, locals: {} });
+    expect([response.status, await response.json()]).toEqual([400, { error: { code: 'BAD_REQUEST', message: 'The request body is not valid JSON. Send a JSON object or array.' } }]);
+    expect(injectedFetch).not.toHaveBeenCalled();
+  });
+});
+
 describe('model-proxy pins — provider-specific request validation', () => {
   const providerRefusals: Array<[PinProvider, string, Record<string, unknown>, ReturnType<typeof badRequest>]> = [
     ['anthropic', 'a missing maxTokens', { maxTokens: undefined }, badRequest('maxTokens must be a positive number', 'maxTokens', 'required positive number')],
     ['anthropic', 'a zero maxTokens', { maxTokens: 0 }, badRequest('maxTokens must be a positive number', 'maxTokens', 'required positive number')],
     ['anthropic', 'a negative maxTokens', { maxTokens: -1 }, badRequest('maxTokens must be a positive number', 'maxTokens', 'required positive number')],
-    ['anthropic', 'a NaN maxTokens', { maxTokens: Number.NaN }, badRequest('maxTokens must be a positive number', 'maxTokens', 'required positive number')],
+    // A NaN maxTokens is not a row any more: JSON has no NaN, so a request body can never carry one (the infinite row below is sent as `1e999`).
     ['anthropic', 'an infinite maxTokens', { maxTokens: Number.POSITIVE_INFINITY }, badRequest('maxTokens must be a positive number', 'maxTokens', 'required positive number')],
     ['anthropic', 'a bad maxTokens ahead of a bad apiVersion', { maxTokens: 0, apiVersion: 5 }, badRequest('maxTokens must be a positive number', 'maxTokens', 'required positive number')],
     ['anthropic', 'a numeric apiVersion', { apiVersion: 5 }, badRequest('apiVersion must be a string when provided')],
@@ -1357,9 +1417,7 @@ describe('model-proxy pins — the real guarded transport is the default when no
   });
 
   function rawMount(deps: ModelProxyHttpDeps) {
-    const app = makeApp();
-    registerModelProxyRoutes({ app: app as any, deps, adapter });
-    return app;
+    return mountWith({ deps, host: proxyHost() });
   }
 
   const rows = PIN_PROVIDERS.flatMap((provider) => [[provider, 'fixed'] as const, [provider, 'catch-all'] as const]);
@@ -1392,7 +1450,10 @@ describe('model-proxy pins — the real guarded transport is the default when no
     }
     expect(injectedFetch).not.toHaveBeenCalled();
     const events = writtenEvents(res);
-    expect(JSON.stringify(events[0]!.data)).toContain('Internal IPs blocked');
+    // DM-R3-3: the client gets fixed words and the request ID; the guard's own text goes to the host's sink.
+    expect(events[0]!.data).toEqual({ type: 'error', message: expect.stringContaining('The assistant response stopped.'), code: lastHost.reports[0]!.requestId });
+    expect(JSON.stringify(events)).not.toContain('Internal IPs blocked');
+    expect(JSON.stringify(lastHost.reports[0]!.report)).toContain('Internal IPs blocked');
     expect(events.at(-1)!.kind).toBe('end');
   });
 });
@@ -1432,33 +1493,11 @@ describe('model-proxy pins — executeTool wiring per provider', () => {
   });
 });
 
-describe('model-proxy pins — catch-block fallbacks once headers are already committed', () => {
+// A handler returns exactly one answer, chosen before it returns, so the old "response already sent / already ended" fallbacks no longer exist.
+describe('model-proxy pins — failures before the stream exists', () => {
   function throwingOriginOnce() {
-    vi.mocked(isLocalSameOrigin).mockImplementationOnce(() => {
-      throw new Error('origin check exploded');
-    });
+    throwFromOriginCheck('origin check exploded');
   }
-
-  it('fixed route: ends a response whose headers were already sent instead of writing JSON', async () => {
-    throwingOriginOnce();
-    const onInternalError = vi.fn();
-    const res = makeSseRes();
-    res.headersSent = true;
-    await mount({ onInternalError }).handlers['POST /api/proxy/openai/stream']!(makeReq(validOpenAiBody), res);
-    expect(onInternalError.mock.calls[0]![0].provider).toBe('openai');
-    expect(res.status).not.toHaveBeenCalled();
-    expect(res.end).toHaveBeenCalledOnce();
-  });
-
-  it('fixed route: leaves an already-ended response alone', async () => {
-    throwingOriginOnce();
-    const res = makeSseRes();
-    res.headersSent = true;
-    res.writableEnded = true;
-    await mount({ onInternalError: vi.fn() }).handlers['POST /api/proxy/openai/stream']!(makeReq(validOpenAiBody), res);
-    expect(res.status).not.toHaveBeenCalled();
-    expect(res.end).not.toHaveBeenCalled();
-  });
 
   it('fixed route: answers a pre-stream throw with a redacted 500 carrying the correlation id', async () => {
     throwingOriginOnce();
@@ -1470,68 +1509,47 @@ describe('model-proxy pins — catch-block fallbacks once headers are already co
     expect(res.json).toHaveBeenCalledWith({ error: { code: 'INTERNAL_ERROR', message: 'The assistant response stopped. Review any completed actions before starting another turn. Copy the request ID and report this problem.', requestId: correlationId } });
   });
 
-  it('catch-all: logs an unrecognized provider via console.error, never via the typed sink', async () => {
+  // The provider param is request input: an unrecognized one is never reported as a provider, and never handed to
+  // the typed provider sink as if it were confirmed.
+  it('catch-all: an unrecognized provider is reported under the fixed label model-proxy/unknown, never the raw param or the typed sink', async () => {
     throwingOriginOnce();
-    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
     const onInternalError = vi.fn();
     const res = makeSseRes();
-    await callCatchAll('openrouter', validOpenAiBody, { onInternalError });
+    await callCatchAll('PRIVATEVALUE', validOpenAiBody, { onInternalError }, res);
     expect(onInternalError).not.toHaveBeenCalled();
-    expect(consoleErrorSpy).toHaveBeenCalledTimes(1);
-    expect(String(consoleErrorSpy.mock.calls[0]![0])).toMatch(/^\[@jini-ai\/http-kit\] internal error \(model-proxy\/openrouter, correlationId=[0-9a-f-]{36}\)$/);
-    expect(res.status).not.toHaveBeenCalled();
+    expect(lastHost.reports).toHaveLength(1);
+    expect(lastHost.reports[0]).toMatchObject({ logSource: 'model-proxy/unknown', report: { method: 'POST', path: '/api/proxy/:provider/stream' } });
+    expect(JSON.stringify(lastHost.reports)).not.toContain('PRIVATEVALUE');
+    expect(res.status).toHaveBeenCalledWith(500);
   });
 
-  it('catch-all: labels an empty provider param as "unknown" in the console line and answers 500', async () => {
+  // The incident still reaches the host: through the adapter's generic route sink (method +
+  // registered path), with the same request ID the caller was given.
+  it('catch-all: an unrecognized provider reaches the adapter sink with the registered path and the answered request ID', async () => {
     throwingOriginOnce();
-    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
+    const adapterSink = vi.fn();
+    const onInternalError = vi.fn();
+    const app = mountWith({ deps: { fetchImpl: injectedFetch, dnsLookup: injectedDnsLookup, onInternalError }, host: proxyHost({ onInternalError: adapterSink }) });
+    const res = makeSseRes();
+    await app.handlers['POST /api/proxy/:provider/stream']!(makeParamReq({ provider: 'PRIVATEVALUE' }, validOpenAiBody), res);
+    expect(onInternalError).not.toHaveBeenCalled();
+    expect(adapterSink).toHaveBeenCalledTimes(1);
+    const [context] = adapterSink.mock.calls[0]!;
+    expect(context).toEqual({ method: 'POST', path: '/api/proxy/:provider/stream', error: expect.any(Error), correlationId: expect.any(String), logSource: 'model-proxy/unknown' });
+    expect(res.json.mock.calls[0]![0].error.requestId).toBe(context.correlationId);
+    expect(JSON.stringify(context)).not.toContain('PRIVATEVALUE');
+  });
+
+  it('catch-all: labels an empty provider param as "unknown" and answers 500', async () => {
+    throwingOriginOnce();
     const res = makeSseRes();
     await mount({ onInternalError: vi.fn() }).handlers['POST /api/proxy/:provider/stream']!(makeParamReq({}, validOpenAiBody), res);
-    expect(String(consoleErrorSpy.mock.calls[0]![0])).toContain('model-proxy/unknown,');
+    expect(lastHost.reports[0]).toMatchObject({ logSource: 'model-proxy/unknown' });
     expect(res.status).toHaveBeenCalledWith(500);
     expect(res.json.mock.calls[0]![0].error).toMatchObject({ code: 'INTERNAL_ERROR', message: 'The assistant response stopped. Review any completed actions before starting another turn. Copy the request ID and report this problem.' });
   });
 
-  it('catch-all: ends a response whose headers were already sent instead of writing JSON', async () => {
-    throwingOriginOnce();
-    const res = makeSseRes();
-    res.headersSent = true;
-    await callCatchAll('anthropic', validAnthropicBody, { onInternalError: vi.fn() }, res);
-    expect(res.status).not.toHaveBeenCalled();
-    expect(res.end).toHaveBeenCalledOnce();
-  });
-
-  it('catch-all: leaves an already-ended response alone', async () => {
-    throwingOriginOnce();
-    const res = makeSseRes();
-    res.headersSent = true;
-    res.writableEnded = true;
-    await mount({ onInternalError: vi.fn() }).handlers['POST /api/proxy/:provider/stream']!(makeParamReq({ provider: 'anthropic' }, validAnthropicBody), res);
-    expect(res.status).not.toHaveBeenCalled();
-    expect(res.end).not.toHaveBeenCalled();
-  });
-
-  // A host sink that throws is re-invoked by the catch-all's outer catch, which throws again and
-  // escapes as a rejection — the unhandled-rejection class the outer catch exists to prevent.
-  it('catch-all: a throwing onInternalError escapes as a rejection after being called twice (reported, not fixed)', async () => {
-    const onInternalError = vi.fn(() => { throw new Error('sink exploded'); });
-    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
-    const res = makeSseRes();
-    // The catch-all's own origin check passes; the one inside runProxyStream throws.
-    vi.mocked(isLocalSameOrigin).mockReturnValueOnce(true).mockImplementationOnce(() => {
-      throw new Error('origin check exploded');
-    });
-    await expect(callCatchAll('anthropic', validAnthropicBody, { onInternalError }, res)).rejects.toThrow('sink exploded');
-    expect(onInternalError).toHaveBeenCalledTimes(2);
-    expect(consoleErrorSpy).not.toHaveBeenCalled();
-  });
-
-  it('fixed route: a throwing onInternalError escapes as a rejection (reported, not fixed)', async () => {
-    throwingOriginOnce();
-    const onInternalError = vi.fn(() => { throw new Error('sink exploded'); });
-    await expect(callFixed('ollama', validOllamaBody, { onInternalError })).rejects.toThrow('sink exploded');
-    expect(onInternalError).toHaveBeenCalledTimes(1);
-  });
+  // A throwing host sink is contained by the reporter itself (http-kit's internal-error tests pin that); the route only hands the reporter the error.
 });
 
 describe('model-proxy pins — azure required fields', () => {

@@ -1,6 +1,6 @@
 /**
- * Contract tests for the remote tool RPC: `registerToolExecutionRoutes` (server end) and
- * `createRemoteToolExecutor` (client end), in-process on an ephemeral 127.0.0.1 port.
+ * Contract tests for the remote tool RPC: `toolExecutionRoutes` (server end, mounted through the Node bridge
+ * as a host mounts it) and `createRemoteToolExecutor` (client end), in-process on an ephemeral 127.0.0.1 port.
  */
 import * as http from 'node:http';
 import * as https from 'node:https';
@@ -10,9 +10,14 @@ import type { AddressInfo } from 'node:net';
 import express, { type Request, type RequestHandler, type Response } from 'express';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createToolRegistry, ToolInputError, type Principal, type SurfaceEmission, type ToolRegistration } from '@jini-ai/core';
-import { createToolExecutor, type ToolExecutor } from '../../tool-executor.js';
+import { createToolExecutor } from '../../tool-executor.js';
+import { type ToolExecutor } from '../../tool-executor-types.js';
 import { createRemoteToolExecutor, ToolRpcError } from '../../remote-tool-executor.js';
-import { registerToolExecutionRoutes, type ToolExecutionRoutesOptional, type ToolExecutionRoutesRequired } from '../tool-execution-routes.js';
+import { toolExecutionRoutes, type AuthorizeToolRun, type ToolExecutionRoutesOptional, type ToolExecutionRoutesRequired } from '../tool-execution-routes.js';
+import { jsonResponse } from '@jini-ai/core/contracts/server';
+import { reportRouteInternalError } from '@jini-ai/http-kit';
+import { createNodeDispatcher } from '@jini-ai/http-kit/node-bridge';
+import { fakeDaemonRouteHost } from './fakes/route-host.js';
 import { createDelegatedToolBridge } from '../../delegated-tool-bridge.js';
 import { createInMemoryEventLog } from '../../event-log.js';
 import { createRunLifecycle } from '../../run-lifecycle.js';
@@ -59,21 +64,23 @@ interface Served {
 }
 
 /**
- * The route on a Router placed BEFORE an app-level 128 kb parser, the way a host with a small global
- * limit mounts it. `before` runs first on every request (peer overrides, request capture).
+ * The route list mounted the way a host mounts it: one layer through the Node bridge with NO body parser above
+ * it (the route reads its own body), ahead of an app-level 128 kb parser. `before` runs first on every request
+ * (peer overrides, request capture).
  */
 async function serve(
-  required: Partial<ToolExecutionRoutesRequired> & Pick<ToolExecutionRoutesRequired, 'executor'>,
-  optional: ToolExecutionRoutesOptional & { before?: RequestHandler; tls?: boolean } = {},
+  required: Partial<Omit<ToolExecutionRoutesRequired, 'host'>> & Pick<ToolExecutionRoutesRequired, 'executor'>,
+  optional: ToolExecutionRoutesOptional & { before?: RequestHandler; tls?: boolean; env?: Record<string, string | undefined> } = {},
 ): Promise<Served> {
   const seen: Served['seen'] = [];
   const app = express();
   app.use((req, res, next) => { seen.push({ req, res, closeListeners: res.listenerCount('close') }); next(); });
   if (optional.before) app.use(optional.before);
-  const router = express.Router();
-  const { before: _before, tls: _tls, ...routeOptions } = optional;
-  registerToolExecutionRoutes({ app: router, listToolsFor: () => [], ...required }, { env, ...routeOptions });
-  app.use(router);
+  const { before: _before, tls: _tls, env: hostEnv = env, ...routeOptions } = optional;
+  const host = { ...fakeDaemonRouteHost(), reportInternalError: reportRouteInternalError };
+  const dispatcher = createNodeDispatcher({}, { expressCompatible: true });
+  for (const route of toolExecutionRoutes({ listToolsFor: () => [], env: hostEnv, host, ...required }, routeOptions)) dispatcher.server.route(route);
+  app.use((req, res, next) => { void dispatcher.handle({ incoming: req, out: res }, { next, locals: res.locals }); });
   app.use(express.json({ limit: '128kb' }));
   return { baseUrl: await listen(optional.tls ? https.createServer({ cert: LOOPBACK_TLS_CERT, key: LOOPBACK_TLS_KEY }, app) : app), seen };
 }
@@ -103,9 +110,9 @@ describe('remote tool RPC — results', () => {
     const listToolsFor = vi.fn(() => []);
     const admitted: string[] = [];
     const { baseUrl } = await serve({ executor: executorWith(tool('probe', execute)), listToolsFor }, {
-      authorizeRun: (req, res) => {
-        admitted.push(req.method === 'POST' ? String(req.body.run.id) : String(req.query.runId));
-        res.status(403).json({ error: { code: 'FORBIDDEN', message: 'run refused' } });
+      authorizeRun: async (request) => {
+        admitted.push(request.kind === 'execute' ? String((request.body as { run: { id: unknown } }).run.id) : String(request.query.runId));
+        return { allowed: false, response: jsonResponse({ status: 403, body: { error: { code: 'FORBIDDEN', message: 'run refused' } } }) };
       },
     });
     const headers = { authorization: `Bearer ${TOKEN}`, 'content-type': 'application/json' };
@@ -182,14 +189,13 @@ describe('remote tool RPC — results', () => {
 });
 
 describe('remote tool RPC — cancellation', () => {
-  it('a normally completed request body does not abort the handler, and listeners are detached', async () => {
+  it('a normally completed request body does not abort the handler, and the response keeps no listener of the route\'s', async () => {
     let abortedDuringHandler: boolean | undefined;
     const executor = executorWith(tool('slow', async ({ signal }) => { await tick(50); abortedDuringHandler = signal.aborted; return 'done'; }));
     const { baseUrl, seen } = await serve({ executor });
     await expect(client(baseUrl).execute({ principal, run, toolId: 'slow', input: {} })).resolves.toMatchObject({ status: 'completed', output: 'done' });
     expect(abortedDuringHandler).toBe(false);
     expect(seen[0]!.res.listenerCount('close')).toBe(seen[0]!.closeListeners);
-    expect(seen[0]!.req.listenerCount('error')).toBe(0);
   });
 
   it('a client abort mid-handler aborts the far signal and settles locally as cancelled', async () => {
@@ -344,7 +350,7 @@ function rawRequest(baseUrl: string, { method, path, token, body, headers = {} }
 }
 
 describe('remote tool RPC — body parser and gate order', () => {
-  it('accepts an authenticated 1 MB body on a Router mounted before an app-level 128 kb parser', async () => {
+  it('accepts an authenticated 1 MB body on a list mounted before an app-level 128 kb parser', async () => {
     const executor = executorWith(tool('size', async ({ input }) => (input as { blob: string }).blob.length));
     const { baseUrl } = await serve({ executor });
     const blob = 'y'.repeat(1024 * 1024);
@@ -357,18 +363,15 @@ describe('remote tool RPC — body parser and gate order', () => {
     expect((await rawRequest(baseUrl, { method: 'POST', path: '/internal/tool-executions', token: TOKEN, body })).status).toBe(413);
   });
 
-  it('refuses an unauthenticated 1 MB body with 401 before its parser runs', async () => {
-    const realJson = express.json;
-    const parserCalls = vi.fn();
-    vi.spyOn(express, 'json').mockImplementation((options) => {
-      const parser = realJson(options);
-      return (req, res, next) => { parserCalls(); parser(req, res, next); };
-    });
-    const { baseUrl } = await serve({ executor: executorWith() });
+  it('refuses an unauthenticated body with 401 before it is read: an over-limit body is a 401, not a 413', async () => {
+    const executeCalls = vi.fn();
+    const { baseUrl } = await serve({ executor: { ...executorWith(), execute: executeCalls } }, { maxBodyBytes: 1024 });
     const body = JSON.stringify({ executionId: 'e', principal, run, toolId: 'x', input: 'z'.repeat(1024 * 1024) });
-    const response = await rawRequest(baseUrl, { method: 'POST', path: '/internal/tool-executions', body });
+    const response = await rawRequest(baseUrl, { method: 'POST', path: '/internal/tool-executions', headers: { 'content-type': 'application/json', 'content-length': String(Buffer.byteLength(body)) } });
     expect(response.status).toBe(401);
-    expect(parserCalls).not.toHaveBeenCalled();
+    expect(executeCalls).not.toHaveBeenCalled();
+    // The same body, authenticated, is read and refused for its size: the 401 above is the gate's, not the limit's.
+    expect((await rawRequest(baseUrl, { method: 'POST', path: '/internal/tool-executions', token: TOKEN, body })).status).toBe(413);
   });
 
   it('checks loopback on the socket peer and ignores X-Forwarded-For', async () => {
@@ -460,5 +463,31 @@ describe('remote tool catalog', () => {
     const response = await rawRequest(baseUrl, { method: 'GET', path: '/internal/tool-catalog?principalId=p1', token: TOKEN });
     expect(response.status).toBe(500);
     expect(response.text).not.toContain('secret path');
+  });
+
+  it('answers a listToolsFor failure with plain words and a request ID the host sink receives with the cause', async () => {
+    const thrown = new Error('boom api_key=SECRETSECRETSECRETSECRET');
+    const onInternalError = vi.fn();
+    const { baseUrl } = await serve({ executor: executorWith(), listToolsFor: () => { throw thrown; } }, { onInternalError });
+    const response = await rawRequest(baseUrl, { method: 'GET', path: '/internal/tool-catalog?principalId=p1', token: TOKEN });
+    const { error } = JSON.parse(response.text) as { error: { code: string; message: string; requestId?: string } };
+    expect(response.status).toBe(500);
+    expect(error.code).toBe('INTERNAL_ERROR');
+    expect(error.message).toBe('The tool list could not be loaded. Try again; if it keeps failing, copy the request ID and report this problem.');
+    expect(error.requestId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
+    expect(response.text).not.toContain('SECRETSECRET');
+    expect(onInternalError).toHaveBeenCalledWith({ source: 'tool-catalog', correlationId: error.requestId, error: thrown, logSource: 'tool-catalog' });
+  });
+
+  it('logs only the class and request ID of a listToolsFor failure when the host gives no sink', async () => {
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const { baseUrl } = await serve({ executor: executorWith(), listToolsFor: () => { throw new Error('boom api_key=SECRETSECRETSECRETSECRET'); } });
+    const response = await rawRequest(baseUrl, { method: 'GET', path: '/internal/tool-catalog?principalId=p1', token: TOKEN });
+    const { error } = JSON.parse(response.text) as { error: { requestId: string } };
+    const line = logged.mock.calls.map((args) => args.join(' ')).join('\n');
+    expect(line).toContain(`correlationId=${error.requestId}) Error`);
+    expect(line).not.toContain('boom');
+    expect(line).not.toContain('tool-execution-rpc.test.ts');
+    expect(line).not.toContain('SECRETSECRET');
   });
 });

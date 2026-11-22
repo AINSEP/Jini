@@ -1,3 +1,4 @@
+import { AdminApiError } from '@jini-ai/core/admin-runtime';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createLibraryController } from '../controllers/library.controller.js';
 import { createMemoryMediaApi } from '../adapters/memory.js';
@@ -34,7 +35,7 @@ describe('library controller load', () => {
   it('does not schedule a retry for a non-retryable read failure', async () => {
     vi.useFakeTimers();
     const { api } = await seeded();
-    const list = vi.fn(() => Promise.reject(Object.assign(new Error('HTTP 403'), { retryable: false })));
+    const list = vi.fn(() => Promise.reject(Object.assign(new AdminApiError({ message: 'HTTP 403', status: 403 }), { retryable: false })));
     const controller = createLibraryController({ api: { ...api, list } });
     await controller.load();
     expect(controller.getSnapshot().error).toBe('HTTP 403');
@@ -123,7 +124,7 @@ describe('library controller settleLibrary', () => {
     const { api, item } = await seeded();
     const controller = createLibraryController({ api });
     controller.settleLibrary({ all: [item], error: new Error('Latest read failed') });
-    expect(controller.getSnapshot()).toMatchObject({ error: 'Latest read failed', hasUntyped: false });
+    expect(controller.getSnapshot()).toMatchObject({ error: 'Failed to load media', hasUntyped: false });
     expect(controller.getSnapshot().items).toHaveLength(1);
   });
   it('reads on a tab change before any library is known', async () => {
@@ -137,7 +138,7 @@ describe('library controller settleLibrary', () => {
   it('re-reads on a tab change after the last read failed, filtering known rows first', async () => {
     const { api, item } = await seeded();
     let calls = 0;
-    const list: MediaApiPort['list'] = (query, options) => (++calls === 2 ? Promise.reject(new Error('HTTP 403')) : api.list(query, options));
+    const list: MediaApiPort['list'] = (query, options) => (++calls === 2 ? Promise.reject(new AdminApiError({ message: 'HTTP 403', status: 403 })) : api.list(query, options));
     const controller = createLibraryController({ api: { ...api, list } });
     await controller.load();
     await controller.load();
@@ -195,7 +196,7 @@ describe('library controller writes', () => {
     const trashed = controller.getSnapshot().items![0]!;
     controller.requestPurge({ item: trashed });
     expect(await controller.confirmPurge({ confirmed: true })).toBe(false);
-    expect(controller.getSnapshot().error).toBe('The file was not permanently deleted');
+    expect(controller.getSnapshot().error).toBe('Media write failed');
     expect(controller.getSnapshot().pendingPurge).toBe(trashed);
   });
   it('removes a purged card even when the follow-up read fails', async () => {
@@ -207,7 +208,7 @@ describe('library controller writes', () => {
     await controller.load();
     controller.requestPurge({ item: controller.getSnapshot().items![0]! });
     expect(await controller.confirmPurge({ confirmed: true })).toBe(true);
-    expect(controller.getSnapshot()).toMatchObject({ items: [], counts: { all: 0, images: 0, videos: 0 }, error: 'offline' });
+    expect(controller.getSnapshot()).toMatchObject({ items: [], counts: { all: 0, images: 0, videos: 0 }, error: 'Failed to load media' });
   });
   it('reports false for a write whose call finished after dispose', async () => {
     const { api, item } = await seeded();

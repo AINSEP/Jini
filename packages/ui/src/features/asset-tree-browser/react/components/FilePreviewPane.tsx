@@ -19,7 +19,7 @@ export interface FilePreviewPaneProps<TFile> {
    * Host-supplied, kind-aware thumbnail. Defaults to a generic glyph
    * placeholder — this package ships no file-kind-specific rendering (no
    * HTML-iframe preview, no design-canvas preview; see
-   * `packages/ui/source-map.md` for what the origin `DesignFilesPanel`
+   * `archived UI source map` for what the origin `DesignFilesPanel`
    * shipped there instead and why it isn't ported).
    */
   renderThumbnail?: ((file: TFile) => ReactNode) | undefined;
@@ -52,9 +52,10 @@ export function FilePreviewPane<TFile>({
   downloadHref,
   renderThumbnail,
   thumbnailIsInteractive = false,
-}: FilePreviewPaneProps<TFile>) {
-  const t = useT();
-  const relativeTime = relativeTimeResult(modifiedAt);
+  useTHook = useT,
+}: FilePreviewPaneProps<TFile> & { useTHook?: typeof useT }) {
+  const t = useTHook();
+  const relativeTime = relativeTimeResult({ ts: modifiedAt });
   const timeLabel = relativeTime.translatable ? t(relativeTime.label, relativeTime.params) : relativeTime.label;
   const openLabel = `${t('Open')} ${path}`;
 
@@ -97,8 +98,8 @@ export function FilePreviewPane<TFile>({
         <div className="asset-tree-preview-stats">
           {t('Modified {time} · {size} · {ext}', {
             time: timeLabel,
-            size: humanBytes(size),
-            ext: fileExtensionLabel(path),
+            size: humanBytes({ n: size }),
+            ext: fileExtensionLabel({ path }),
           })}
         </div>
         {downloadHref ? (

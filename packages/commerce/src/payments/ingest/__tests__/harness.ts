@@ -4,10 +4,11 @@ import type { PaymentProvider } from "../../contract/provider.js";
 import type { PaymentScope } from "../../contract/scope.js";
 import type { LedgerTx, PaymentsLedger } from "../../ledger/repo.js";
 import { memoryPaymentsLedger } from "../../ledger/repo.memory.js";
-import type { NewInbox, NewPayment } from "../../ledger/rows.js";
+import type { NewInbox, NewPayment } from "../../ledger/row-records.js";
 import { createKernelProviderRegistry, type ProviderContextPort } from "../../provider-registry.js";
 import { createLipayFake, lipayFakeContext } from "../../testkit/lipay-fake.js";
 import { createWebhookReceiver, type WebhookEndpointPort } from "../receive.js";
+import { runMigrations } from "@jini-ai/db/migrate";
 
 /**
  * @file Ingest test harness: a ledger (memory or SQL over in-memory SQLite), the deterministic
@@ -28,7 +29,7 @@ export async function openLedger(kind: LedgerKind): Promise<PaymentsLedger> {
     import("better-sqlite3"), import("@jini-ai/db/kernel/sqlite"), import("../../ledger/sql.js"),
   ]);
   const kernel = openMemorySqliteKernel<unknown>({ open: (filePath, options) => new Database(filePath, options) });
-  await migrateCommercePayments({ kernel });
+  await migrateCommercePayments({ kernel, runMigrations });
   return sqlPaymentsLedger({ kernel });
 }
 

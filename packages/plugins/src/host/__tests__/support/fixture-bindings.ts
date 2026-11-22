@@ -4,7 +4,8 @@ import { PLUGIN_MANIFEST_FILENAME } from '../../plugin-format.js';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { definePlugin, readDefinedPlugin, HOOK_CONTENT_ENTRY_BEFORE_SAVE, type BeforeSaveFilter, type ContentEntryDraft } from './fixture-sdk.js';
 import type { CapabilityScopedSdkCoreDeps } from '../../capability-sdk.js';
-import type { DeclarativeContentTypesPort, ManifestHostPorts, PluginSdkBinding, PluginTierPolicy, BeforeSaveFilter as HostFilter } from '../../ports.js';
+import type { DeclarativeContentTypesPort, ManifestHostPorts, PluginSdkBinding, PluginTierPolicy } from '../../ports.js';
+import type { BeforeSaveFilter as HostFilter } from '@jini-ai/core/contracts/plugin-sdk';
 
 export const pluginSdkBinding: PluginSdkBinding = {
   hookIds: [HOOK_CONTENT_ENTRY_BEFORE_SAVE], beforeSaveHook: HOOK_CONTENT_ENTRY_BEFORE_SAVE,

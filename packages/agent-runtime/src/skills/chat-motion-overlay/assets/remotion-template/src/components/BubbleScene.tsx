@@ -90,6 +90,7 @@ const bubbleWidthFor = (text: string, maxTextWidth: number) => {
 
 type Container = ChatSpec["sceneConfig"]["container"];
 type Message = ChatSpec["messages"][number];
+type BubbleHooks = {useCurrentFrameHook?: typeof useCurrentFrame; useVideoConfigHook?: typeof useVideoConfig};
 
 const SIDE_STYLE = {
   left: {align: "flex-start", flexDirection: "row", transformOrigin: "left center", slideFrom: -26},
@@ -132,14 +133,16 @@ const Bubble = ({
   participant,
   chatSpec,
   seenBySpeaker,
+  useCurrentFrameHook = useCurrentFrame,
+  useVideoConfigHook = useVideoConfig,
 }: {
   message: Message;
   participant: ChatSpec["participants"][number];
   chatSpec: ChatSpec;
   seenBySpeaker: boolean;
-}) => {
-  const frame = useCurrentFrame();
-  const {fps} = useVideoConfig();
+} & BubbleHooks) => {
+  const frame = useCurrentFrameHook();
+  const {fps} = useVideoConfigHook();
   const {container, nicknameMode} = chatSpec.sceneConfig;
   const isRight = message.side === "right";
   if (frame < message.appearAt) {
@@ -160,7 +163,7 @@ const Bubble = ({
       }}
     >
       <div style={{display: "flex", gap: 12, alignItems: "flex-start", flexDirection: side.flexDirection, maxWidth: "86%"}}>
-        <AvatarImage src={avatarSrcFor(participant)} />
+        <AvatarImage src={avatarSrcFor({ participant })} />
         <div style={{maxWidth: "calc(100% - 76px)", display: "flex", flexDirection: "column", alignItems: side.align, gap: 6}}>
           {isNameShown({nicknameMode, seenBySpeaker}) ? <div style={{fontSize: 18, color: "#7C8490", fontWeight: 700}}>{message.speaker}</div> : null}
           <div
@@ -193,8 +196,8 @@ const Bubble = ({
   );
 };
 
-export const BubbleScene = ({chatSpec}: {chatSpec: ChatSpec}) => {
-  const frame = useCurrentFrame();
+export const BubbleScene = ({chatSpec, useCurrentFrameHook = useCurrentFrame, useVideoConfigHook = useVideoConfig}: {chatSpec: ChatSpec} & BubbleHooks) => {
+  const frame = useCurrentFrameHook();
   const theme = CONTAINER_THEME[chatSpec.sceneConfig.container];
   const headerOpacity = interpolate(frame, [0, 12], [0, 1], {extrapolateRight: "clamp"});
   const seen = new Set<string>();
@@ -233,7 +236,7 @@ export const BubbleScene = ({chatSpec}: {chatSpec: ChatSpec}) => {
           seen.add(message.speaker);
           const participant = participantsByName.get(message.speaker);
           if (!participant) return null;
-          return <Bubble key={message.id} message={message} participant={participant} chatSpec={chatSpec} seenBySpeaker={seenBefore} />;
+          return <Bubble key={message.id} message={message} participant={participant} chatSpec={chatSpec} seenBySpeaker={seenBefore} useCurrentFrameHook={useCurrentFrameHook} useVideoConfigHook={useVideoConfigHook} />;
         })}
       </div>
     </>

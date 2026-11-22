@@ -1,14 +1,19 @@
 import { createElement, type ChangeEvent } from 'react';
-import { buildAgentListHandles } from '@jini-ai/agentic';
-import { formatTimestamp } from '@jini-ai/ui/panel-kit';
+import { buildAgentListHandles } from '@jini-ai/core/agent-handles';
+
 import type { DataTableColumn } from '../../../react/components/DataTable.js';
 import type { AdminComment, CommentModerationAction, CommentStatus } from '../../../core/ports/comments.js';
-import { commentRowMenuItems, truncate, type RowActionState } from '../../rules.js';
+import { truncate, type RowActionState } from '../../rules.js';
 import type { CommentsTranslator } from '../../messages.en.js';
-import { QueueActionsCell, type QueueSectionProps } from '../components/QueueSection.js';
+import { QueueActionsCell } from '../components/QueueActionsCell.js';
+// Statement-level `import type` on purpose: QueueSection.tsx imports this file's hooks, and under
+// `verbatimModuleSyntax` an inline `import { type QueueSectionProps }` is emitted as `import {} from`,
+// which still loads the component module and makes the two files a runtime cycle.
+import type { QueueSectionProps } from '../components/QueueSection.js';
 import { useWiredCommentQueue } from './use-comment-queue.hooks.js';
 import { useCommentsTranslation } from './CommentsPorts.hooks.js';
 
+import { formatTimestamp } from '@jini-ai/core/text';
 export function useQueueSection(props: QueueSectionProps, _optional: Record<string, never> = {}) {
   const contextT = useCommentsTranslation();
   const useQueue = props.useCommentQueueHook ?? useWiredCommentQueue;
@@ -19,15 +24,6 @@ export function useQueueSection(props: QueueSectionProps, _optional: Record<stri
 }
 export function useQueueToolbar({ onStatusChange }: { onStatusChange: (status: CommentStatus) => void }, _optional: Record<string, never> = {}) {
   return { onChange: (event: ChangeEvent<HTMLSelectElement>) => onStatusChange(event.target.value as CommentStatus) };
-}
-export function useQueueActionsCell(props: {
-  comment: AdminComment; permissions: readonly string[]; status: CommentStatus; t: CommentsTranslator;
-  onModerate: (comment: AdminComment, action: CommentModerationAction) => void;
-  onRequestPurge: (comment: AdminComment) => void;
-}, _optional: Record<string, never> = {}) {
-  return { menuItems: commentRowMenuItems({ comment: props.comment,
-    context: { permissions: props.permissions, currentFilterStatus: props.status },
-    handlers: { onModerate: props.onModerate, onRequestPurge: props.onRequestPurge } }, { t: props.t }) };
 }
 /** Builds the `DataTable` column descriptors. A plain function rather than a closure declared
  *  inside `QueueTable`'s body — it doesn't need to be a hook-scoped closure, only the values
@@ -40,6 +36,8 @@ export function queueColumns(props: {
   onModerate: (comment: AdminComment, action: CommentModerationAction) => void;
   onRequestPurge: (comment: AdminComment) => void;
   handleForRow: (commentId: string) => string;
+  /** IANA zone the Created column renders in; resolved by the browser-side hook, never inside core. */
+  viewerTimeZone: string;
 }, _optional: Record<string, never> = {}): DataTableColumn<AdminComment>[] {
   return [
     { key: "author", header: props.t("Author"), cell: (comment) => comment.authorName },
@@ -50,7 +48,7 @@ export function queueColumns(props: {
       cell: (comment) => createElement('span', { className: `status status-${comment.status}` }, props.t(comment.status)),
     },
     { key: "depth", header: props.t("Depth"), cell: (comment) => comment.depth },
-    { key: "created", header: props.t("Created"), cell: (comment) => formatTimestamp({ iso: comment.createdAt }, { timeZone: "local" }) },
+    { key: "created", header: props.t("Created"), cell: (comment) => formatTimestamp({ iso: comment.createdAt }, { viewerTimeZone: props.viewerTimeZone }) },
     {
       key: "actions",
       header: props.t("More"),
@@ -62,7 +60,6 @@ export function queueColumns(props: {
     },
   ];
 }
-
 
 export function useQueueTable(props: {
   items: readonly AdminComment[]; permissions: readonly string[]; status: CommentStatus;
@@ -77,5 +74,7 @@ export function useQueueTable(props: {
   );
   const handleById = new Map(props.items.map((comment, index) => [comment.id, rowHandles[index]!]));
 
-  return { columns: queueColumns({ ...props, handleForRow: commentId => handleById.get(commentId)! }) };
+  // The browser is the host boundary for viewer-local time: core's formatTimestamp takes the zone explicitly.
+  const viewerTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  return { columns: queueColumns({ ...props, handleForRow: commentId => handleById.get(commentId)!, viewerTimeZone }) };
 }

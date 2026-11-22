@@ -15,14 +15,10 @@ export type {
 export { DEFAULT_BOARD_VIEW_MODE, DEFAULT_STATUS_TONE, UNMATCHED_STATUS_BUCKET } from './constants.js';
 
 // `isActionPending`/`pendingActionKey`/`withPendingAction`/`withoutPendingAction`
-// are deliberately NOT re-exported here even though `rules.ts` defines them
-// (used internally by this feature's own hooks) — `features/source-config-list`
-// already exports identically-named, identically-behaved helpers from the
-// package's top-level barrel (both independently re-derived the same small
-// pending-action-tracking pattern; see this feature's `rules.ts` doc
-// comment), and re-exporting a second copy under the same names would create
-// an ambiguous-export error at `src/index.ts`. A host needing this exact
-// utility already has it via `@jini-ai/ui`'s `source-config-list` re-export.
+// have one shared implementation in `utils/pending-actions.ts` and are not
+// re-exported here: `features/source-config-list` already exports their
+// positional adapters through the top-level barrel. Re-exporting these names
+// here would create an ambiguous export at `src/index.ts`.
 export { filterBoardItemsByQuery, groupItemsByStatus, pruneSelectedIds, sortBoardItems, statusToneFor, toggleSelectedId } from './rules.js';
 
 export type {

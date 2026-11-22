@@ -1,12 +1,12 @@
 import type { Clock as ClockPort } from "@jini-ai/core/primitives";
 
 /**
- * @file SPEC-017 C-105 / CIC U-003 (binding reference to SPEC-019 CIC U-001) / REQ-08 / AC-09 /
- * AC-41 / AC-42 — the `executeMigrateForward` orchestration wrapper (ADR-041 §3).
+ * @file The `executeMigrateForward` orchestration wrapper.
+ *
  *
  * Purpose:
  * Wires the cross-domain shared operation lock (`core/operation-lock.ts`, designated/tested by
- * SPEC-019) and the `costClass: 'unavailable'` refusal (REQ-08) around the actual gated mutation.
+ * the recovery specification) and the `costClass: 'unavailable'` refusal around the actual gated mutation.
  * This module does not implement or test the lock primitive itself, nor the state machine or
  * `core/gated-mutations.execute()` sequence — `gatewayExecute` is the caller's own composition of
  * those (typically closing over the state machine's `advance()` and the gateway's `execute()`).
@@ -14,7 +14,7 @@ import type { Clock as ClockPort } from "@jini-ai/core/primitives";
  * How it relates to the project:
  * `costClass === 'unavailable'` is checked BEFORE the lock is ever consulted (AC-09) — refusing
  * before any side effect runs, so no lock is ever left held for a migration that was always going
- * to be refused. The lock is acquired strictly before `gatewayExecute()` runs (U-003-ORD1) and
+ * to be refused. The lock is acquired strictly before `gatewayExecute()` runs and
  * released in a `finally`, so a mutation failure never leaks a held site-wide lock.
  *
  * Architectural role:
@@ -62,7 +62,7 @@ export class RestorePointUnavailableError extends Error {
 
 /**
  * Orchestrates a forward-migrate execution: refuses `costClass: 'unavailable'` outright, acquires
- * the shared cross-domain lock (U-003-ORD1), runs the caller's gated mutation, and always releases
+ * the shared cross-domain lock, runs the caller's gated mutation, and always releases
  * the lock afterward.
  *
  * @complexity O(1) plus the lock acquire/release and the injected `gatewayExecute()` call.

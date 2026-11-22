@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/core",
-  "version": "0.7.2",
+  "version": "0.7.3-next.2",
   "description": "The Jini kernel: typed DI tokens, pack composition and lifecycle, the tool registry, redaction, and origin/API-token auth primitives. Zero dependencies.",
   "license": "Apache-2.0",
   "repository": {
@@ -16,18 +16,27 @@
       ".": "universal",
       "./composition": "universal",
       "./gated-mutations": "universal",
+      "./approval-batch-chain": "universal",
       "./model-facing-tool-errors": "universal",
+      "./tool-call-text": "universal",
+      "./tool-input-repairs": "universal",
       "./contribution-registry": "universal",
       "./provider-registry": "universal",
       "./object-store": "universal",
       "./contracts/server": "universal",
+      "./contracts/server/verified-origin": "universal",
+      "./contracts/server/security-headers": "universal",
+      "./contracts/server/testing": "universal",
+      "./contracts/server/conformance": "universal",
       "./naming": "universal",
       "./records": "universal",
+      "./optimistic-concurrency": "universal",
+      "./list-page": "universal",
       "./primitives": "universal",
       "./fetch": "universal",
       "./text": "universal",
+      "./agent-handles": "universal",
       "./settings": "universal",
-      "./settings/express": "node",
       "./plugin-directory": "universal",
       "./filesystem": "universal",
       "./optional-peer": "universal",
@@ -37,14 +46,41 @@
       "./contracts/vault": "universal",
       "./contracts/oauth": "universal",
       "./contracts/content-types": "universal",
-      "./contracts/hosted-mcp": "universal"
+      "./contracts/hosted-mcp": "universal",
+      "./contracts/agents": "universal",
+      "./contracts/ai-trace": "universal",
+      "./contracts/observability": "universal",
+      "./contracts/storage": "universal",
+      "./contracts/events": "universal",
+      "./contracts/capabilities": "universal",
+      "./net": "universal",
+      "./contracts/blob": "universal",
+      "./contracts/runtime": "universal",
+      "./contracts/runtime/testing": "universal",
+      "./contracts/admin-module": "universal",
+      "./admin-runtime": "universal",
+      "./contracts/forms": "universal",
+      "./contracts/charts": "universal",
+      "./contracts/plugin-sdk": "universal",
+      "./errors/sentences": "universal",
+      "./errors/bindings": "universal",
+      "./errors/catalog": "universal",
+      "./errors/reporter": "universal",
+      "./errors/approved-cause": "universal",
+      "./errors/disclosure": "universal",
+      "./errors/idioms": "universal",
+      "./errors/error-id": "universal",
+      "./errors/testing": "universal",
+      "./contracts/env": "universal",
+      "./env/parse-env": "universal",
+      "./env/format-env-issue": "universal",
+      "./env/describe-env-for-diagnostics": "universal"
     },
     "isolation": {
       "entries": {
         "./primitives": "core",
         "./fetch": "fetch",
         "./settings": "settings",
-        "./settings/express": "settings",
         "./provider-registry": "providers",
         "./object-store": "providers"
       },
@@ -61,8 +97,11 @@
         ]
       },
       "shared": [
+        "src/text",
+        "src/model-facing-tool-errors.ts",
         "src/tool-permissions.ts",
-        "src/records.ts"
+        "src/records.ts",
+        "src/tool-input-repairs.ts"
       ],
       "forbidden": {
         "universal": [
@@ -79,9 +118,6 @@
           "@jini-ai/core/settings",
           "./settings",
           "../settings"
-        ],
-        "./settings/express": [
-          "@jini-ai/cms"
         ]
       }
     }
@@ -106,10 +142,25 @@
       "import": "./dist/gated-mutations.js",
       "default": "./dist/gated-mutations.js"
     },
+    "./approval-batch-chain": {
+      "types": "./dist/approval-batch-chain.d.ts",
+      "import": "./dist/approval-batch-chain.js",
+      "default": "./dist/approval-batch-chain.js"
+    },
     "./model-facing-tool-errors": {
       "types": "./dist/model-facing-tool-errors.d.ts",
       "import": "./dist/model-facing-tool-errors.js",
       "default": "./dist/model-facing-tool-errors.js"
+    },
+    "./tool-call-text": {
+      "types": "./dist/tool-call-text.d.ts",
+      "import": "./dist/tool-call-text.js",
+      "default": "./dist/tool-call-text.js"
+    },
+    "./tool-input-repairs": {
+      "types": "./dist/tool-input-repairs.d.ts",
+      "import": "./dist/tool-input-repairs.js",
+      "default": "./dist/tool-input-repairs.js"
     },
     "./contribution-registry": {
       "types": "./dist/contribution-registry.d.ts",
@@ -131,6 +182,26 @@
       "import": "./dist/contracts/server.js",
       "default": "./dist/contracts/server.js"
     },
+    "./contracts/server/verified-origin": {
+      "types": "./dist/contracts/server/verified-origin/index.d.ts",
+      "import": "./dist/contracts/server/verified-origin/index.js",
+      "default": "./dist/contracts/server/verified-origin/index.js"
+    },
+    "./contracts/server/security-headers": {
+      "types": "./dist/contracts/server/security-headers.d.ts",
+      "import": "./dist/contracts/server/security-headers.js",
+      "default": "./dist/contracts/server/security-headers.js"
+    },
+    "./contracts/server/testing": {
+      "types": "./dist/contracts/server/testing.d.ts",
+      "import": "./dist/contracts/server/testing.js",
+      "default": "./dist/contracts/server/testing.js"
+    },
+    "./contracts/server/conformance": {
+      "types": "./dist/contracts/server/conformance.d.ts",
+      "import": "./dist/contracts/server/conformance.js",
+      "default": "./dist/contracts/server/conformance.js"
+    },
     "./naming": {
       "types": "./dist/naming.d.ts",
       "import": "./dist/naming.js",
@@ -140,6 +211,16 @@
       "types": "./dist/records.d.ts",
       "import": "./dist/records.js",
       "default": "./dist/records.js"
+    },
+    "./optimistic-concurrency": {
+      "types": "./dist/optimistic-concurrency.d.ts",
+      "import": "./dist/optimistic-concurrency.js",
+      "default": "./dist/optimistic-concurrency.js"
+    },
+    "./list-page": {
+      "types": "./dist/list-page.d.ts",
+      "import": "./dist/list-page.js",
+      "default": "./dist/list-page.js"
     },
     "./primitives": {
       "types": "./dist/primitives/index.d.ts",
@@ -156,15 +237,15 @@
       "import": "./dist/text/index.js",
       "default": "./dist/text/index.js"
     },
+    "./agent-handles": {
+      "types": "./dist/agent-handles/index.d.ts",
+      "import": "./dist/agent-handles/index.js",
+      "default": "./dist/agent-handles/index.js"
+    },
     "./settings": {
       "types": "./dist/settings/index.d.ts",
       "import": "./dist/settings/index.js",
       "default": "./dist/settings/index.js"
-    },
-    "./settings/express": {
-      "types": "./dist/settings/express/index.d.ts",
-      "import": "./dist/settings/express/index.js",
-      "default": "./dist/settings/express/index.js"
     },
     "./plugin-directory": {
       "types": "./plugin-directory.d.ts",
@@ -175,6 +256,26 @@
       "types": "./dist/filesystem.d.ts",
       "import": "./dist/filesystem.js",
       "default": "./dist/filesystem.js"
+    },
+    "./contracts/env": {
+      "types": "./dist/contracts/env.d.ts",
+      "import": "./dist/contracts/env.js",
+      "default": "./dist/contracts/env.js"
+    },
+    "./env/parse-env": {
+      "types": "./dist/env/parse-env.d.ts",
+      "import": "./dist/env/parse-env.js",
+      "default": "./dist/env/parse-env.js"
+    },
+    "./env/format-env-issue": {
+      "types": "./dist/env/format-env-issue.d.ts",
+      "import": "./dist/env/format-env-issue.js",
+      "default": "./dist/env/format-env-issue.js"
+    },
+    "./env/describe-env-for-diagnostics": {
+      "types": "./dist/env/describe-env-for-diagnostics.d.ts",
+      "import": "./dist/env/describe-env-for-diagnostics.js",
+      "default": "./dist/env/describe-env-for-diagnostics.js"
     },
     "./optional-peer": {
       "types": "./dist/optional-peer.d.ts",
@@ -215,6 +316,126 @@
       "types": "./dist/contracts/hosted-mcp.d.ts",
       "import": "./dist/contracts/hosted-mcp.js",
       "default": "./dist/contracts/hosted-mcp.js"
+    },
+    "./contracts/agents": {
+      "types": "./dist/contracts/agents/index.d.ts",
+      "import": "./dist/contracts/agents/index.js",
+      "default": "./dist/contracts/agents/index.js"
+    },
+    "./contracts/ai-trace": {
+      "types": "./dist/contracts/ai-trace/index.d.ts",
+      "import": "./dist/contracts/ai-trace/index.js",
+      "default": "./dist/contracts/ai-trace/index.js"
+    },
+    "./contracts/observability": {
+      "types": "./dist/contracts/observability.d.ts",
+      "import": "./dist/contracts/observability.js",
+      "default": "./dist/contracts/observability.js"
+    },
+    "./contracts/storage": {
+      "types": "./dist/contracts/storage.d.ts",
+      "import": "./dist/contracts/storage.js",
+      "default": "./dist/contracts/storage.js"
+    },
+    "./contracts/events": {
+      "types": "./dist/contracts/events.d.ts",
+      "import": "./dist/contracts/events.js",
+      "default": "./dist/contracts/events.js"
+    },
+    "./contracts/capabilities": {
+      "types": "./dist/contracts/capabilities.d.ts",
+      "import": "./dist/contracts/capabilities.js",
+      "default": "./dist/contracts/capabilities.js"
+    },
+    "./net": {
+      "types": "./dist/net/index.d.ts",
+      "import": "./dist/net/index.js",
+      "default": "./dist/net/index.js"
+    },
+    "./contracts/blob": {
+      "types": "./dist/contracts/blob.d.ts",
+      "import": "./dist/contracts/blob.js",
+      "default": "./dist/contracts/blob.js"
+    },
+    "./contracts/runtime": {
+      "types": "./dist/contracts/runtime.d.ts",
+      "import": "./dist/contracts/runtime.js",
+      "default": "./dist/contracts/runtime.js"
+    },
+    "./contracts/runtime/testing": {
+      "types": "./dist/contracts/runtime/testing.d.ts",
+      "import": "./dist/contracts/runtime/testing.js",
+      "default": "./dist/contracts/runtime/testing.js"
+    },
+    "./contracts/admin-module": {
+      "types": "./dist/contracts/admin-module.d.ts",
+      "import": "./dist/contracts/admin-module.js",
+      "default": "./dist/contracts/admin-module.js"
+    },
+    "./admin-runtime": {
+      "types": "./dist/admin-runtime/index.d.ts",
+      "import": "./dist/admin-runtime/index.js",
+      "default": "./dist/admin-runtime/index.js"
+    },
+    "./contracts/forms": {
+      "types": "./dist/contracts/forms.d.ts",
+      "import": "./dist/contracts/forms.js",
+      "default": "./dist/contracts/forms.js"
+    },
+    "./contracts/charts": {
+      "types": "./dist/contracts/charts.d.ts",
+      "import": "./dist/contracts/charts.js",
+      "default": "./dist/contracts/charts.js"
+    },
+    "./contracts/plugin-sdk": {
+      "types": "./dist/contracts/plugin-sdk.d.ts",
+      "import": "./dist/contracts/plugin-sdk.js",
+      "default": "./dist/contracts/plugin-sdk.js"
+    },
+    "./errors/sentences": {
+      "types": "./dist/errors/sentences.d.ts",
+      "import": "./dist/errors/sentences.js",
+      "default": "./dist/errors/sentences.js"
+    },
+    "./errors/bindings": {
+      "types": "./dist/errors/bindings.d.ts",
+      "import": "./dist/errors/bindings.js",
+      "default": "./dist/errors/bindings.js"
+    },
+    "./errors/catalog": {
+      "types": "./dist/errors/catalog.d.ts",
+      "import": "./dist/errors/catalog.js",
+      "default": "./dist/errors/catalog.js"
+    },
+    "./errors/reporter": {
+      "types": "./dist/errors/reporter.d.ts",
+      "import": "./dist/errors/reporter.js",
+      "default": "./dist/errors/reporter.js"
+    },
+    "./errors/approved-cause": {
+      "types": "./dist/errors/approved-cause.d.ts",
+      "import": "./dist/errors/approved-cause.js",
+      "default": "./dist/errors/approved-cause.js"
+    },
+    "./errors/disclosure": {
+      "types": "./dist/errors/disclosure.d.ts",
+      "import": "./dist/errors/disclosure.js",
+      "default": "./dist/errors/disclosure.js"
+    },
+    "./errors/idioms": {
+      "types": "./dist/errors/idioms.d.ts",
+      "import": "./dist/errors/idioms.js",
+      "default": "./dist/errors/idioms.js"
+    },
+    "./errors/error-id": {
+      "types": "./dist/errors/error-id.d.ts",
+      "import": "./dist/errors/error-id.js",
+      "default": "./dist/errors/error-id.js"
+    },
+    "./errors/testing": {
+      "types": "./dist/errors/testing.d.ts",
+      "import": "./dist/errors/testing.js",
+      "default": "./dist/errors/testing.js"
     }
   },
   "files": [
@@ -243,7 +464,7 @@
     "test:coverage": "vitest run --coverage"
   },
   "devDependencies": {
-    "@vitest/coverage-v8": "^2.1.9",
+    "@vitest/coverage-v8": "^3.2.6",
     "express": "^4.21.0",
     "@types/express": "^4.17.21"
   }

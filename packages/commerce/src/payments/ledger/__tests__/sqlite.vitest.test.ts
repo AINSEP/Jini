@@ -5,6 +5,7 @@ import { openMemorySqliteKernel } from "@jini-ai/db/kernel/sqlite";
 import { LedgerConstraintError } from "../repo.js";
 import { constraintKindOf, migrateCommercePayments, sqlPaymentsLedger } from "../sql.js";
 import { ledgerContract, payment } from "./ledger-contract.js";
+import { runMigrations } from "@jini-ai/db/migrate";
 
 /**
  * @file The SQL adapter on SQLite (better-sqlite3, in memory): the shared contract, plus what only
@@ -17,7 +18,7 @@ function openKernel() {
 
 ledgerContract("sql/sqlite", async () => {
   const kernel = openKernel();
-  await migrateCommercePayments({ kernel });
+  await migrateCommercePayments({ kernel, runMigrations });
   return { ledger: sqlPaymentsLedger({ kernel }), close: () => kernel.close() };
 });
 
@@ -55,7 +56,7 @@ describe("SQL adapter: driver errors", () => {
   test("a translated constraint error keeps the driver error as its cause", async () => {
     const kernel = openKernel();
     try {
-      await migrateCommercePayments({ kernel });
+      await migrateCommercePayments({ kernel, runMigrations });
       const ledger = sqlPaymentsLedger({ kernel });
       await ledger.transaction({ fn: (tx) => tx.insertPayment({ payment: payment() }) });
       const insert = (overrides: Parameters<typeof payment>[0]) =>

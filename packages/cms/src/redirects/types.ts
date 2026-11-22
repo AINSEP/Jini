@@ -1,25 +1,25 @@
 /**
- * @file Core type definitions for the `redirects` Tier-2 library (ADR-033).
+ * @file Core type definitions for the `redirects` Tier-2 library.
  *
  * Purpose:
  * Declares the row/record shapes, the resolution result, and the command
  * envelopes the redirects subsystem introduces. Redirect rules are operational
  * routing state layered over the (future) `routing` library — they are NOT
- * `entries` (ADR-022): modelling them as content would generate an editorial
+ * `entries`: modelling them as content would generate an editorial
  * revision on every hit-count touch (INV-3 violation) and put high-write
  * telemetry on the content chokepoint. Redirects therefore own dedicated,
- * core-owned tables that reuse ADR-022's *discipline* (single write chokepoint,
+ * core-owned tables that reuse the content-write *discipline* (single write chokepoint,
  * append-only revisions, ULIDs, bounded validation, CI canary) — the same call
- * ADR-027 (media sidecars) and ADR-028 (settings ledger) made.
+ * media sidecars and the settings ledger use.
  *
  * Architectural role:
  * INTERFACES AND TYPES ONLY — no feature logic. Concrete matchers, repos, and
  * the resolver service satisfy these contracts elsewhere.
  *
- * Grounding: ADR-033 (this subsystem), ADR-022 (chokepoint/revision discipline,
- * pluginId attribution, bounded expression language), ADR-021 (flat permission
- * strings, composite workspace scoping), ADR-007 (workspaceId everywhere),
- * ADR-009 (typed calls / outbox events / hooks), ADR-015 (repo behind a port).
+ * Grounding: this subsystem, chokepoint/revision discipline,
+ * pluginId attribution, bounded expression language, flat permission
+ * strings, composite workspace scoping, workspaceId everywhere,
+ * typed calls / outbox events / hooks, repo behind a port.
  */
 import type { ISODateTime, UUID } from "@jini-ai/core/primitives";
 
@@ -40,16 +40,16 @@ export type RedirectStatusCode = 301 | 302 | 307 | 308;
  *                via `$1..$n`. Part of the bounded "dynamic" seam.
  * - `regex`    — anchored, bounded (linear-time / RE2-semantics) regular
  *                expression with `$1..$n` capture interpolation. Authoring is
- *                gated behind `redirects.use_regex` (ADR-021) and OFF by default:
+ *                gated behind `redirects.use_regex` and OFF by default:
  *                arbitrary regex is exactly the unbounded-expression trust hazard
- *                ADR-022's amendment forbids, so it stays a named, gated seam.
+ *                the bounded-expression rule forbids, so it stays a named, gated seam.
  */
 export const REDIRECT_MATCH_TYPES = ["exact", "prefix", "wildcard", "regex"] as const;
 export type RedirectMatchType = (typeof REDIRECT_MATCH_TYPES)[number];
 
 /**
  * Provenance of a rule. `auto_slug_change` rows are minted by core inside the
- * content write transaction (never-break-links, ADR-033 §5) and carry the entry
+ * content write transaction (never-break-links) and carry the entry
  * lineage below; `manual` and `import` come from operators/AI/migration.
  */
 export const REDIRECT_SOURCES = ["manual", "auto_slug_change", "import"] as const;
@@ -62,12 +62,12 @@ export type RedirectStatus = (typeof REDIRECT_STATUSES)[number];
 /**
  * A single redirect rule — a row in the core-owned `redirects` table.
  * Written only through the redirects chokepoint, which records a
- * {@link RedirectRevision} in the same transaction (ADR-022 §4a).
+ * {@link RedirectRevision} in the same transaction.
  */
 export interface RedirectRecord {
-  /** ULID — stable identity (ADR-022 §4c). */
+  /** ULID — stable identity. */
   id: UUID;
-  /** Tenant boundary; part of every composite FK (ADR-007/021). */
+  /** Tenant boundary; part of every composite FK. */
   workspaceId: UUID;
   matchType: RedirectMatchType;
   /** Normalized source pattern (leading slash, no trailing slash, lower-cased host-relative path). */
@@ -75,7 +75,7 @@ export interface RedirectRecord {
   /**
    * Resolved destination — a normalized site-relative path, or an absolute URL.
    * Absolute/off-site targets are an open-redirect vector: they require
-   * `redirects.manage` + host allowlist (ADR-033 §7), enforced at write time.
+   * `redirects.manage` + host allowlist, enforced at write time.
    */
   toTarget: string;
   statusCode: RedirectStatusCode;
@@ -95,18 +95,18 @@ export interface RedirectRecord {
   /** Old/new path captured at the slug change (auto rows only). */
   fromPathAtCapture?: string | undefined;
   toPathAtCapture?: string | undefined;
-  /** Principal that caused the write (ADR-021). For auto rows, the slug-change actor. */
+  /** Principal that caused the write. For auto rows, the slug-change actor. */
   createdByPrincipal: UUID;
-  /** Originating plugin, or undefined for core/operator writes (ADR-022 attribution). */
+  /** Originating plugin, or undefined for core/operator writes (attribution). */
   createdByPluginId?: string | undefined;
   createdAt: ISODateTime;
   updatedAt: ISODateTime;
-  /** Monotonic per-record revision counter (ADR-022 §4c). */
+  /** Monotonic per-record revision counter. */
   version: number;
 }
 
 /**
- * Append-only revision of a rule (ADR-022 §4b): full post-state snapshot +
+ * Append-only revision of a rule: full post-state snapshot +
  * actor + attribution + monotonic sequence, written in the same transaction as
  * the mutation. Deletes tombstone; the ledger is never rewritten.
  */
@@ -125,10 +125,10 @@ export interface RedirectRevision {
 
 /**
  * Operational hit telemetry — a row in the core-owned `redirect_hits` sidecar.
- * DELIBERATELY excluded from the revision discipline above (narrows ADR-022
- * INV-3, exactly as ADR-027 does for `asset_renditions`): counters are
+ * DELIBERATELY excluded from the revision discipline above (narrows the revision-per-write
+ * invariant, exactly as for `asset_renditions`): counters are
  * high-write, best-effort, and non-critical to the never-break-links guarantee.
- * Updated asynchronously off the request hot path (ADR-009 outbox lane), so a
+ * Updated asynchronously off the request hot path (outbox lane), so a
  * dropped increment loses a statistic, never a redirect.
  */
 export interface RedirectHitStats {
@@ -156,7 +156,7 @@ export interface RedirectRequest {
 /**
  * Outcome of a resolution attempt. `location` already has wildcard/regex
  * captures interpolated and (for prefix rules) any tail appended. Resolution
- * follows AT MOST ONE hop — chains are collapsed at write time (ADR-033 §6), so
+ * follows AT MOST ONE hop — chains are collapsed at write time, so
  * the request path never chases A→B→C.
  */
 export type RedirectResolution =

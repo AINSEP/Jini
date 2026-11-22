@@ -8,7 +8,7 @@
  * else - a non-image, a reload, the cache's eviction cap, a browser that cannot decode the format -
  * stays the filename chip, which still opens the preview modal's honest fallback.
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { ChatAttachment } from '../../core/index.js';
 import { getAttachmentPreviewSource } from '../hooks/attachment-preview-cache.js';
 import { canCreateObjectUrl, looksLikeImageAttachment } from './AttachmentPreviewModal.hooks.js';
@@ -55,11 +55,13 @@ export interface SentAttachmentThumbnail {
  */
 export function useSentAttachmentThumbnail(
   { attachment, hostRendered = false }: { attachment: ChatAttachment; hostRendered?: boolean },
-  { objectUrls = platformObjectUrls(), getSource = getAttachmentPreviewSource }: {
+  { objectUrls: suppliedObjectUrls, getSource = getAttachmentPreviewSource }: {
     objectUrls?: ObjectUrlPort | undefined;
     getSource?: (required: { path: string }) => File | undefined;
   } = {},
 ): SentAttachmentThumbnail {
+  // The default factory returns a fresh object, so keep it stable until the supplied port changes.
+  const objectUrls = useMemo(() => suppliedObjectUrls ?? platformObjectUrls(), [suppliedObjectUrls]);
   const [failed, setFailed] = useState(false);
   const [thumbnailUrl, setThumbnailUrl] = useState<string | undefined>(undefined);
   // A host `renderAttachment` owns the chip's content, so no thumbnail URL is made for it.
@@ -73,9 +75,8 @@ export function useSentAttachmentThumbnail(
     const url = objectUrls.create(source);
     setThumbnailUrl(url);
     return () => objectUrls.revoke(url);
-    // `objectUrls` is a fresh object per render by default; the file is what the URL is made from.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [source]);
+    // The stable port and the source file both determine the URL and its matching cleanup.
+  }, [source, objectUrls]);
 
   return { thumbnailUrl, onThumbnailError: () => setFailed(true) };
 }

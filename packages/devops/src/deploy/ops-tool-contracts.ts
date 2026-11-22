@@ -1,5 +1,5 @@
 import type { AgentToolDefinition, DerivedRiskByToolId, ToolMetadataById, ToolExecutionContext, ToolExecutionOptions, SurfaceAskThenReport, SurfaceExchangeStore } from '@jini-ai/core';
-import type { Clock } from '@jini-ai/core/primitives';
+import type { Clock, Logger } from '@jini-ai/core/primitives';
 import type { SurfaceCardsPort, SurfaceCardSecretForm } from '@jini-ai/core/contracts/cards';
 import type { CredentialedRequestRequired, CredentialedRequestOptional, CredentialedRequestResult, CredentialedRequestPort } from '@jini-ai/core/contracts/credentials';
 import type { DeployOpsRegistry, DeployOpsSecretAppliesOn } from './ops-contracts.js';
@@ -43,6 +43,7 @@ export interface DeployCredentialDiagnostic { readonly setupToolId?: string; rea
 export interface DeployOpsToolIds { status: string; logs: string; wait: string; listTargets: string; deploy: string; listSecrets: string; setSecret: string; unsetSecret: string; credentialVerify: string }
 /** @agent-note Use the SAME workspace and saved store as host request routes so inventory and target authorization describe the same credentials. */
 export interface DeployOpsRuntime {
+  report?: Pick<Logger, 'warn'>;
   workspaceId: string;
   clock: Clock;
   loadDeployOps(input: {workspaceId:string}): Promise<DeployOpsRegistry>;

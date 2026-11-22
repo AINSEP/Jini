@@ -11,13 +11,14 @@
  * the IPC-path recognizer, and the public IPC types.
  */
 
+import { createConsoleLogger } from '@jini-ai/core/primitives';
 import { lstat, mkdir, rm } from "node:fs/promises";
 import { createConnection } from "node:net";
 import { createServer as createNetServer } from "node:net";
 import { dirname } from "node:path";
 import { StringDecoder } from "node:string_decoder";
 
-import { redactSecrets } from "@jini-ai/core";
+import { describeErrorForLog } from "@jini-ai/core";
 
 import { isWindowsNamedPipePath } from "./ipc-path.js";
 import { closeServer } from "./net.js";
@@ -93,31 +94,6 @@ function errorCode(error: unknown): string | null {
 }
 
 /**
- * @internal Extract a human-readable message from an unknown thrown value.
- */
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
-/**
- * Shape an unknown error into the `{code?,message}` IPC error payload.
- *
- * Exported (previously module-private) for direct unit testing: its only
- * current caller (a `JSON.parse` frame-parse failure) always passes a
- * codeless `SyntaxError`, so the `code`-present branch below is real,
- * generically useful behavior (any future caller with a Node-style errno
- * error benefits from it) with no in-tree caller that happens to have one in
- * hand today — matching this repo's "extract into a directly-testable pure
- * function" convention rather than narrowing the type away.
- */
-export function jsonIpcError({ error }: { error: unknown }): { code?: string; message: string } {
-  return {
-    ...(errorCode(error) == null ? {} : { code: errorCode(error) as string }),
-    message: errorMessage(error),
-  };
-}
-
-/**
  * @internal Decide whether a unix socket path is a stale (dead) endpoint safe to
  * unlink: it exists as a socket but refuses/ENOENTs on connect.
  */
@@ -172,7 +148,7 @@ async function staleUnixSocketExists(socketPath: string): Promise<boolean> {
  * Windows. Testing this function directly (asserting no filesystem call
  * happens) verifies the real behavior on every platform this runs on.
  */
-export async function prepareIpcPath({ socketPath }: { socketPath: string }): Promise<void> {
+export async function prepareIpcPath({ socketPath }: { socketPath: string }, _optional: Record<string, never> = {}): Promise<void> {
   if (isWindowsNamedPipePath({ value: socketPath })) return;
   await mkdir(dirname(socketPath), { recursive: true });
   if (await staleUnixSocketExists(socketPath)) await rm(socketPath, { force: true });
@@ -255,7 +231,7 @@ export async function createJsonIpcServer({
       // behavior (see archived provenance ledger's 2026-07-22 entry).
       traceJsonIpc("server.socket_error", {
         durationMs: jsonIpcTraceDurationMs(startedAt),
-        error: errorMessage(error),
+        error: describeErrorForLog({ err: error }),
         socketPath,
         traceId,
       });
@@ -312,7 +288,7 @@ export async function createJsonIpcServer({
         // archived provenance ledger's 2026-07-22 entry).
         traceJsonIpc("server.frame_parse_failed", {
           durationMs: jsonIpcTraceDurationMs(startedAt),
-          error: errorMessage(error),
+          error: describeErrorForLog({ err: error }),
           frameBytes: Buffer.byteLength(frame),
           socketPath,
           traceId,
@@ -320,7 +296,7 @@ export async function createJsonIpcServer({
         socket.end(
           `${JSON.stringify({
             ok: false,
-            error: jsonIpcError({ error }),
+            error: { code: "BAD_FRAME", message: "The sidecar could not read the request frame. Send one line of valid JSON." },
           })}\n`,
         );
         return;
@@ -351,14 +327,12 @@ export async function createJsonIpcServer({
       } catch (error) {
         // SEC-004: a handler failure can embed paths, credentials, or other host detail (the
         // same trust-boundary concern as SEC-005's HTTP fix). The peer gets a stable code plus
-        // the traceId as a correlation handle; the real detail is redacted and logged
+        // the traceId as a correlation handle; the error's class and code are logged
         // server-side only, unconditionally (not gated behind JINI_JSON_IPC_TRACE).
-        const redactedDetail = redactSecrets({ input: errorMessage(error) });
-        // eslint-disable-next-line no-console
-        console.error(`[@jini-ai/sidecar] json-ipc handler failed (traceId=${traceId})`, redactedDetail);
+        createConsoleLogger({ prefix: '' }).error({ message: `[@jini-ai/sidecar] json-ipc handler failed (traceId=${traceId})` }, { error });
         traceJsonIpc("server.handler_failed", {
           durationMs: jsonIpcTraceDurationMs(startedAt),
-          error: redactedDetail,
+          error: describeErrorForLog({ err: error }),
           message: messageSummary,
           socketPath,
           traceId,
@@ -383,7 +357,7 @@ export async function createJsonIpcServer({
 
   return {
     async close() {
-      await closeServer(server);
+      await closeServer({ server });
       if (!isWindowsNamedPipePath({ value: socketPath })) await rm(socketPath, { force: true });
     },
   };
@@ -513,7 +487,7 @@ export async function requestJsonIpc<T = any>(
       // comment + archived provenance ledger's 2026-07-22 entry).
       traceJsonIpc("client.socket_error", {
         durationMs: jsonIpcTraceDurationMs(startedAt),
-        error: errorMessage(error),
+        error: describeErrorForLog({ err: error }),
         message: messageSummary,
         socketPath,
         traceId,

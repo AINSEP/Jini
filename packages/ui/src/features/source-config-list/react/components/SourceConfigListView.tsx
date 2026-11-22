@@ -51,7 +51,7 @@ export interface SourceConfigListViewProps<TSource extends SourceConfigItem> {
  */
 export function SourceConfigListView<TSource extends SourceConfigItem>(props: SourceConfigListViewProps<TSource>) {
   const { title, subtitle, fieldSpecs, trustOptions, addForm, agentHandle } = props;
-  const resolvedAddFormHandle = addForm.agentHandle ?? (agentHandle ? sourceConfigAddFormHandle(agentHandle) : undefined);
+  const resolvedAddFormHandle = addForm.agentHandle ?? (agentHandle ? sourceConfigAddFormHandle({ listBase: agentHandle }) : undefined);
 
   return (
     <section className="source-config-list">
@@ -72,30 +72,30 @@ export function SourceConfigListView<TSource extends SourceConfigItem>(props: So
 }
 
 /** The optional title/subtitle block — omitted entirely when neither is given. */
-function SourceConfigListHead({ title, subtitle }: { title?: string | undefined; subtitle?: string | undefined }) {
-  const t = useT();
+function SourceConfigListHead({ title, subtitle, useTHook = useT }: { title?: string | undefined; subtitle?: string | undefined; useTHook?: typeof useT; }) {
+  const t = useTHook();
   if (!title && !subtitle) return null;
   return (
-    <div className="source-config-list-head">
+    <div className="jini-source-config-list-head">
       {title ? <h3>{t(title)}</h3> : null}
-      {subtitle ? <p className="source-config-list-subtitle">{t(subtitle)}</p> : null}
+      {subtitle ? <p className="jini-source-config-list-subtitle">{t(subtitle)}</p> : null}
     </div>
   );
 }
 
-function SourceConfigListError({ loadError }: { loadError?: string | null | undefined }) {
-  const t = useT();
+function SourceConfigListError({ loadError, useTHook = useT }: { loadError?: string | null | undefined; useTHook?: typeof useT; }) {
+  const t = useTHook();
   if (!loadError) return null;
   return (
-    <div className="source-config-list-error" role="alert">
+    <div className="jini-source-config-list-error" role="alert">
       {t(loadError)}
     </div>
   );
 }
 
 /** The loading indicator, the empty message, or one item card per source — in that order of precedence. */
-function SourceConfigListBody<TSource extends SourceConfigItem>(props: SourceConfigListViewProps<TSource>) {
-  const t = useT();
+function SourceConfigListBody<TSource extends SourceConfigItem>({ useTHook = useT, ...props }: SourceConfigListViewProps<TSource> & { useTHook?: typeof useT }) {
+  const t = useTHook();
   const { sources, loading, emptyMessage, agentHandle } = props;
   if (loading) {
     return (
@@ -105,12 +105,12 @@ function SourceConfigListBody<TSource extends SourceConfigItem>(props: SourceCon
     );
   }
   if (sources.length === 0) {
-    return <div className="source-config-list-empty">{emptyMessage ? t(emptyMessage) : t('No sources configured yet.')}</div>;
+    return <div className="jini-source-config-list-empty">{emptyMessage ? t(emptyMessage) : t('No sources configured yet.')}</div>;
   }
   // Positionally aligned with `sources` below — computed once per render rather than per card, so
   // the O(n) suffix-search dedup in `buildAgentListHandles` runs once for the whole list, not once
   // per item.
-  const itemHandles = agentHandle ? sourceConfigItemHandles(agentHandle, sources.map((source) => source.id)) : undefined;
+  const itemHandles = agentHandle ? sourceConfigItemHandles({ listBase: agentHandle, sourceIds: sources.map((source) => source.id) }) : undefined;
   return (
     <div className="source-config-list-items">
       {sources.map((source, index) => (
@@ -141,11 +141,11 @@ function SourceConfigListItem<TSource extends SourceConfigItem>({
       source={source}
       fieldSpecs={fieldSpecs}
       capabilities={capabilities}
-      removing={isActionPending(pendingKeys, source.id, 'remove')}
-      refreshing={isActionPending(pendingKeys, source.id, 'refresh')}
-      settingTrust={isActionPending(pendingKeys, source.id, 'trust')}
-      testing={isActionPending(pendingKeys, source.id, 'test')}
-      updating={isActionPending(pendingKeys, source.id, 'update')}
+      removing={isActionPending({ pendingKeys, id: source.id, kind: 'remove' })}
+      refreshing={isActionPending({ pendingKeys, id: source.id, kind: 'refresh' })}
+      settingTrust={isActionPending({ pendingKeys, id: source.id, kind: 'trust' })}
+      testing={isActionPending({ pendingKeys, id: source.id, kind: 'test' })}
+      updating={isActionPending({ pendingKeys, id: source.id, kind: 'update' })}
       onRefresh={() => onRefresh(source.id)}
       onRemove={() => onRemove(source.id)}
       onTrustChange={(trust) => onTrustChange(source.id, trust)}

@@ -56,7 +56,7 @@ test('bounded workers retain raw logs, skip final results and preserve original 
 test('zero exit with partial stream fails; one spawn error does not stop remaining jobs', async () => {
   const { fs, files } = memoryFs();
   const runner: AgentCliRunnerPort = { async run(request) {
-    if (request.stdin.endsWith('throw')) throw new Error('spawn unavailable');
+    if (request.stdin.endsWith('throw')) throw new Error('boom api_key=SECRETSECRETSECRETSECRET');
     files.set(request.jsonlPath, request.stdin.endsWith('partial') ? message : successful);
     files.set(request.stderrPath, ''); return { exitCode: 0 };
   } };
@@ -64,7 +64,9 @@ test('zero exit with partial stream fails; one spawn error does not stop remaini
   assert.equal(report.success, false);
   assert.deepEqual(report.results.map(x => x.status), ['failed', 'failed', 'succeeded']);
   assert.equal(files.has('/out/partial.md'), false); assert.equal(files.get('/out/partial.failed'), 'no turn.completed event\n');
-  assert.equal(files.get('/out/throw.failed'), 'runner: spawn unavailable\n');
+  assert.equal(files.get('/out/throw.failed'), 'runner: Error\n');
+  assert.equal(report.results[0]?.reason, 'runner: Error');
+  assert.doesNotMatch(JSON.stringify([...files.values(), report]), /boom|SECRETSECRET/);
 });
 test('rerun clears failed marker on success and rejects duplicate/unsafe IDs before any writes', async () => {
   const { fs, files } = memoryFs(); files.set('/out/one.failed', 'old');
@@ -132,14 +134,14 @@ test('option validation names the failing option', () => {
   for (const [change, messageText] of cases) assert.throws(() => buildCodexInvocation({ options: { ...options, ...change }, prompt: 'p' }), { message: messageText });
 });
 
-test('non-Error runner and artifact failures are stringified into the job reason', async () => {
+test('non-Error runner and artifact failures are described by type in the job reason', async () => {
   const { fs } = memoryFs();
   const runner: AgentCliRunnerPort = { run: async () => { throw 'spawn refused'; } };
   const first = await runAgentJobs({ jobs: [{ id: 'a', prompt: 'p' }], options, fs, runner });
-  assert.deepEqual(first.results, [{ id: 'a', status: 'failed', reason: 'runner: spawn refused' }]);
+  assert.deepEqual(first.results, [{ id: 'a', status: 'failed', reason: 'runner: string' }]);
   const failingFs: JobFilesystemPort = { ...memoryFs().fs, write: async ({ path }) => { if (path.endsWith('.failed')) throw 'disk full'; } };
   const second = await runAgentJobs({ jobs: [{ id: 'a', prompt: 'p' }], options, fs: failingFs, runner: { run: async () => ({ exitCode: 1 }) } });
-  assert.deepEqual(second.results, [{ id: 'a', status: 'failed', reason: 'artifact: disk full', exitCode: 1 }]);
+  assert.deepEqual(second.results, [{ id: 'a', status: 'failed', reason: 'artifact: string', exitCode: 1 }]);
 });
 
 test('event types that name Object prototype members are ignored', () => {

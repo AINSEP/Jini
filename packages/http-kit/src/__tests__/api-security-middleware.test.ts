@@ -1,7 +1,6 @@
 import type { Express } from 'express';
 import { describe, expect, it, vi } from 'vitest';
 import {
-  bearerTokenFromHeader,
   registerApiBearerAuthMiddleware,
   registerApiOriginGuardMiddleware,
   requireStrictBearerToken,
@@ -414,26 +413,6 @@ describe('registerApiOriginGuardMiddleware', () => {
       if (original === undefined) delete process.env.JINI_WEB_PORT;
       else process.env.JINI_WEB_PORT = original;
     }
-  });
-});
-
-describe('bearerTokenFromHeader', () => {
-  it('extracts the token from a well-formed header, scheme case-insensitively', () => {
-    expect(bearerTokenFromHeader({ header: 'Bearer abc123' })).toBe('abc123');
-    expect(bearerTokenFromHeader({ header: 'bearer abc123' })).toBe('abc123');
-    expect(bearerTokenFromHeader({ header: 'BEARER abc123' })).toBe('abc123');
-  });
-
-  it('tolerates extra surrounding whitespace', () => {
-    expect(bearerTokenFromHeader({ header: 'Bearer   abc123  ' })).toBe('abc123');
-  });
-
-  it('returns null for an absent, empty, or non-bearer header', () => {
-    expect(bearerTokenFromHeader({ header: undefined })).toBeNull();
-    expect(bearerTokenFromHeader({ header: '' })).toBeNull();
-    expect(bearerTokenFromHeader({ header: 'Basic abc123' })).toBeNull();
-    expect(bearerTokenFromHeader({ header: 'Bearer' })).toBeNull();
-    expect(bearerTokenFromHeader({ header: 'Bearer ' })).toBeNull();
   });
 });
 

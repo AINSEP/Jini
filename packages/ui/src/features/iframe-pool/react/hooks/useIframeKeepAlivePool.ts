@@ -46,7 +46,7 @@ export function useIframeKeepAlivePool(): IframeKeepAlivePoolValue {
         // parks, so `includeActive` makes no practical difference here — a
         // matching entry is always removed regardless of that option.
         const entries = Array.from(fallbackEntriesRef.current.values());
-        const keys = selectMatchingEvictions(entries, fallbackActiveKeysRef.current, predicate, true);
+        const keys = selectMatchingEvictions({ entries, activeKeys: fallbackActiveKeysRef.current, predicate, includeActive: true });
         for (const key of keys) removeFallbackEntry(key);
       },
     };

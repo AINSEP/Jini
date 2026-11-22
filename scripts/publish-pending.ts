@@ -152,13 +152,19 @@ function publicationStates({ registry, order }: { registry: ReadonlyMap<string, 
 /** Execute the selected release or read-only plan and retain its step summary.
  * @throws Registry, package validation or publication failures after recording a stopped result.
  * @complexity O(p + e) package planning plus one pack/publication per pending package. */
+/** A prerelease (e.g. `0.7.3-next.1`) goes to the `next` dist-tag; npm 11 refuses one without a tag, and it must never become `latest`. */
+export function npmPublishArgs(required: { tarball: string; version: string }): string[] {
+  const args = ['publish', required.tarball, '--access', 'public', '--provenance'];
+  return required.version.includes('-') ? [...args, '--tag', 'next'] : args;
+}
+
 export async function main(): Promise<void> {
   const argv = process.argv.slice(2);
   const planOnly = argv.includes('--plan');
-  const registry = discoverJiniPackages(repoRoot);
+  const registry = discoverJiniPackages({ workspaceRoot: repoRoot });
   // Check the full public release set, including already-published and optional peer declarations.
   assertCompatiblePeerRanges({ packages: [...registry.values()].map(entry => entry.pkg) });
-  const publicNames = publishOrder(registry, computeClosure(registry, [...registry.keys()])).filter(
+  const publicNames = publishOrder(registry, computeClosure({ registry, rootNames: [...registry.keys()] })).filter(
     (name) => registry.get(name)!.pkg.private !== true,
   );
   const only = parseOnly(argv, new Set(publicNames));
@@ -174,7 +180,7 @@ export async function main(): Promise<void> {
     const tarballs = await preparePluginRelease({ repoRoot, registry, pending });
     for (const name of pending) {
       const tarball = tarballs.get(name)!;
-      execFileSync('npm', ['publish', tarball, '--access', 'public', '--provenance'], { stdio: 'inherit' });
+      execFileSync('npm', npmPublishArgs({ tarball, version: registry.get(name)!.pkg.version! }), { stdio: 'inherit' });
       rows.push([`${name}@${registry.get(name)!.pkg.version}`, 'published']);
     }
   } catch (error) {

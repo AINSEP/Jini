@@ -337,20 +337,60 @@ type DeliveryAttemptOutcome =
   | { ok: true; responseStatus: number }
   | { ok: false; error: string; responseStatus: number | null };
 
+type DeliveryAttemptDeps = {
+  subscriptionRepo: WebhookSubscriptionRepoPort;
+  envelopeStore: DeliveryEnvelopeStorePort;
+  httpClient: HttpClientPort;
+  signer: WebhookSigner;
+  headers: WebhookHeaderVocabulary;
+  hooks: readonly WebhookBeforeDispatchHook[];
+  request: DeliveryRequestBounds;
+  clock: Clock;
+};
+
+
+/** Sign the envelope for the subscription, POST it, and map the response to an attempt outcome. */
+async function postSignedDelivery(
+  { row, subscription, envelope, deps }: {
+    row: WebhookDeliveryRecord; subscription: WebhookSubscriptionRecord; envelope: WebhookEventEnvelope; deps: DeliveryAttemptDeps;
+  },
+): Promise<DeliveryAttemptOutcome> {
+  const rawBody = JSON.stringify(envelope);
+  const timestampSeconds = Math.floor(Date.parse(nowIso({ clock: deps.clock })) / 1000);
+  const signatureHeader = await deps.signer.signForSubscription({
+    subscription,
+    rawBody,
+    timestampSeconds,
+  });
+
+  const response = await deps.httpClient.send({ request: {
+    method: "POST",
+    url: subscription.targetUrl,
+    headers: {
+      "content-type": "application/json",
+      [deps.headers.signature]: signatureHeader,
+      [deps.headers.deliveryId]: row.id,
+      [deps.headers.eventId]: row.eventId,
+    },
+    ...deps.request,
+    body: rawBody,
+  } });
+
+  if (response.status >= 200 && response.status < 300) {
+    return { ok: true, responseStatus: response.status };
+  }
+  return {
+    ok: false,
+    error: `non-2xx response: ${response.status}`,
+    responseStatus: response.status,
+  };
+}
+
 // Missing/inactive subscriptions, missing envelopes, hook failures, transport failures and
 // non-2xx responses all use one failed-attempt outcome so retry/dead-letter policy cannot drift.
 async function attemptOneDelivery(
   row: WebhookDeliveryRecord,
-  deps: {
-    subscriptionRepo: WebhookSubscriptionRepoPort;
-    envelopeStore: DeliveryEnvelopeStorePort;
-    httpClient: HttpClientPort;
-    signer: WebhookSigner;
-    headers: WebhookHeaderVocabulary;
-    hooks: readonly WebhookBeforeDispatchHook[];
-    request: DeliveryRequestBounds;
-    clock: Clock;
-  }
+  deps: DeliveryAttemptDeps
 ): Promise<DeliveryAttemptOutcome> {
   try {
     const subscription = await deps.subscriptionRepo.findById({
@@ -375,35 +415,7 @@ async function attemptOneDelivery(
     // Older queued events and hooks also pass this boundary before signing/sending.
     const envelope = publicWebhookEnvelope({ envelope: await runBeforeDispatchHooks(deps.hooks, { subscription, envelope: storedEnvelope }) });
 
-    const rawBody = JSON.stringify(envelope);
-    const timestampSeconds = Math.floor(Date.parse(nowIso({ clock: deps.clock })) / 1000);
-    const signatureHeader = await deps.signer.signForSubscription({
-      subscription,
-      rawBody,
-      timestampSeconds,
-    });
-
-    const response = await deps.httpClient.send({ request: {
-      method: "POST",
-      url: subscription.targetUrl,
-      headers: {
-        "content-type": "application/json",
-        [deps.headers.signature]: signatureHeader,
-        [deps.headers.deliveryId]: row.id,
-        [deps.headers.eventId]: row.eventId,
-      },
-      ...deps.request,
-      body: rawBody,
-    } });
-
-    if (response.status >= 200 && response.status < 300) {
-      return { ok: true, responseStatus: response.status };
-    }
-    return {
-      ok: false,
-      error: `non-2xx response: ${response.status}`,
-      responseStatus: response.status,
-    };
+    return await postSignedDelivery({ row, subscription, envelope, deps });
   } catch (err) {
     const message = err instanceof Error ? err.message : "unknown webhook delivery error";
     return { ok: false, error: message, responseStatus: null };

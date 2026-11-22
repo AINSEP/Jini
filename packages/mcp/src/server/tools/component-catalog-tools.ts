@@ -29,7 +29,7 @@ interface ComponentCatalogSearchResponse {
   }>;
 }
 
-/** `search_components` -> `GET /api/components/search` (`packages/http-kit/src/component-catalog.ts`'s `componentCatalogSearchRoute`). */
+/** `search_components` -> `GET /api/components/search` (`packages/daemon/src/http/component-catalog.ts`'s `componentCatalogSearchRoute`). */
 export const searchComponentsTool: McpToolDef = {
   name: 'search_components',
   description:
@@ -64,7 +64,7 @@ export const searchComponentsTool: McpToolDef = {
   },
 };
 
-/** `describe_component` -> `GET /api/components/:id` (`packages/http-kit/src/component-catalog.ts`'s `componentCatalogDescribeRoute`). */
+/** `describe_component` -> `GET /api/components/:id` (`packages/daemon/src/http/component-catalog.ts`'s `componentCatalogDescribeRoute`). */
 export const describeComponentTool: McpToolDef = {
   name: 'describe_component',
   description:

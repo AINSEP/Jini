@@ -82,7 +82,7 @@ describe('members conformance rejects broken adapters', () => {
     const real = createMemoryMembersApi({ workspaceId: 'w' }, { permissions: ['member.manage'], members: [member] });
     const api: MembersApiPort = {
       ...real,
-      listMembers: async () => ({ members: [] }),
+      listMembers: async () => ({ members: [], nextCursor: null }),
       getMember: async () => ({ member: row }),
       disableMember: async () => { row.status = 'disabled'; return { member: row }; },
     };

@@ -1,6 +1,7 @@
 import { createToolRegistry, type Principal } from '@jini-ai/core';
 import { describe, expect, it, vi } from 'vitest';
-import { createToolExecutor, type ToolExecutor } from '../tool-executor.js';
+import { createToolExecutor } from '../tool-executor.js';
+import { type ToolExecutor } from '../tool-executor-types.js';
 import { createRoutingToolExecutor } from '../routing-tool-executor.js';
 
 const principal: Principal = { id: 'user-1' };
@@ -65,7 +66,7 @@ describe('createRoutingToolExecutor', () => {
     expect(remote.getAuditRecord).toHaveBeenCalledWith({ executionId: 'remote-1' });
     routing.cancel({ executionId: 'remote-1' });
     expect(remote.cancel).toHaveBeenCalledWith({ executionId: 'remote-1' });
-    expect(() => routing.resumeConfirmation({ executionId: 'nope', decision: 'confirm' })).toThrow();
+    expect(() => routing.resumeConfirmation({ executionId: 'nope', decision: 'confirm' })).toThrow('ToolExecutor: no pending confirmation for execution "nope"');
     expect(remote.resumeConfirmation).not.toHaveBeenCalled();
   });
 });

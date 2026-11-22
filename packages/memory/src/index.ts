@@ -29,11 +29,11 @@ export type {
   NoteUpsertInput,
   NoteTreePatch,
 } from './note-store.js';
+export { createNoteStore, NoteStoreConfigError } from './note-store.js';
 export {
-  createNoteStore, NoteStoreConfigError, hasInvalidSubdirLength, isReservedRelativeSegment,
-  containsPathSeparatorOrNul, isMultiSegmentOrAbsoluteWin32Path,
-  isValidUpsertInput, resolveUpsertEntryId, buildUpsertChangeEvent,
-} from './note-store.js';
+  hasInvalidSubdirLength, isReservedRelativeSegment, containsPathSeparatorOrNul, isMultiSegmentOrAbsoluteWin32Path,
+} from './note-subdir.js';
+export { isValidUpsertInput, resolveUpsertEntryId, buildUpsertChangeEvent } from './note-upsert.js';
 
 export type { ExtractionLog, ExtractionPhase, ExtractionProvider, ExtractionRecord } from './extraction-log.js';
 export { createExtractionLog } from './extraction-log.js';

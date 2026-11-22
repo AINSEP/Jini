@@ -9,7 +9,7 @@ export function SelectionBand({ band }: SelectionBandProps) {
   if (!band) return null;
   return (
     <div
-      className="asset-grid-band"
+      className="jini-asset-grid-band"
       aria-hidden
       style={{ position: 'fixed', left: band.x, top: band.y, width: band.w, height: band.h }}
     />

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { DuplicateCommandError, executeCommand, type ExecuteCommandDeps, type CommandMutation } from "../command.js";
+import { DuplicateCommandError, executeCommand } from "../command.js";
+import { type ExecuteCommandDeps, type CommandMutation } from "@jini-ai/core/contracts/events";
 
 function fixture(failAt: "version" | "clock" | "id" | "insert" | "none" = "none") {
   let value = "before";

@@ -1,6 +1,6 @@
 /**
  * R9: `@jini-ai/agentic`'s DOM-free guarantee is compile-time, not conventional — see
- * `packages/agentic/source-map.md`'s "The DOM split". `packages/agentic/tsconfig.json` (the root
+ * `070311a07^:packages/agentic/source-map.md`'s "The DOM split". `packages/agentic/tsconfig.json` (the root
  * entry, `.`) excludes `src/dom` and resolves to a DOM-free `lib`; only
  * `packages/agentic/tsconfig.dom.json` (the `./dom` entry) resolves a DOM `lib`, and it is scoped
  * to `src/dom/**` only. Given that, a `document`/`window` reference anywhere outside `src/dom/**`
@@ -103,7 +103,7 @@ export interface CheckAgenticDomPurityOptions {
    * The package-relative path the DOM-only entry point (`tsconfig.dom.json`) must be scoped to,
    * and the root entry point (`tsconfig.json`) must exclude. Defaults to `DOM_SUBDIR` (`src/dom`),
    * which matches the self-test's synthetic fixtures but no longer matches the real package:
-   * `packages/agentic/source-map.md` §"The DOM split" records that the 2026-08 addition of the
+   * `070311a07^:packages/agentic/source-map.md` §"The DOM split" records that the 2026-08 addition of the
    * `./core` export subpath relocated the DOM-bearing tree from `src/dom` to `src/core/dom` (a
    * verbatim `git mv`, contents and provenance unchanged) — both real tsconfigs were updated to
    * `src/core/dom` at the time, but this check's hardcoded default was not, so it had been

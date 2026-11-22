@@ -1,15 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { EventLogEntry } from '../event-log.js';
-import {
-  armWatchdogIfConfigured,
-  buildStartPayload,
-  clearIdempotencyIndexEntryIfMatching,
-  deliverReplayedEvents,
-  deliverUndeliveredEvents,
-  finishStreamSubscription,
-  registerIdempotencyKeyIfPresent,
-  resolveIdempotentReplayRunId,
-} from '../run-lifecycle.js';
+import { armWatchdogIfConfigured } from '../run-lifecycle-timers.js';
+import { buildStartPayload } from '../run-lifecycle-registration.js';
+import { clearIdempotencyIndexEntryIfMatching, registerIdempotencyKeyIfPresent, resolveIdempotentReplayRunId } from '../run-lifecycle-registry.js';
+import { deliverReplayedEvents, deliverUndeliveredEvents, finishStreamSubscription } from '../run-lifecycle-events.js';
 
 // Pure/near-pure helpers extracted from `start()`/`stream()` during the complexity refactor that
 // brought both methods under the ≤10 cyclomatic/cognitive gate. `run-lifecycle.test.ts`'s existing

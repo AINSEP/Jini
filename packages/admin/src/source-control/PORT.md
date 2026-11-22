@@ -56,7 +56,7 @@ Pending scoped commands; results/inventory will be appended.
 Commands from `/Users/la/Programming/Jini`:
 
 - `pnpm --filter @jini-ai/admin exec tsc --noEmit` — exit 0, no diagnostics.
-- `env -u TOVU_ADMIN_PASSWORD pnpm --filter @jini-ai/admin exec vitest run src/source-control` — exit 0; 4 files / 18 tests (controllers 10, HTTP 2, rules 3, React 3), 2.61s.
+- With the host admin-password override cleared, `pnpm --filter @jini-ai/admin exec vitest run src/source-control` — exit 0; 4 files / 18 tests (controllers 10, HTTP 2, rules 3, React 3), 2.61s.
 
 Initial typecheck rejected unsupported kit autoComplete attrs and implicit test-transport
 parameters. Corrected with forwarded refs in a hook and explicit parameter types; tests

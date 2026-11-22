@@ -1,4 +1,4 @@
-import { agentHandle } from "@jini-ai/agentic";
+import { agentHandle } from "@jini-ai/core/agent-handles";
 
 /** The page header's Save-side actions cluster — the save-status message/error and the Save
  *  button — pulled out of `WidgetRegionEditor`'s own render body as a top-level component under

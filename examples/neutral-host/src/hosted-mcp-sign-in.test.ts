@@ -155,7 +155,7 @@ function studioHost() {
     },
     store: {
       openPayload: (open, record) => hosted.openExternalMcpOAuthPayload({ sealer: open, ...storePorts }, record),
-      sealPayload: (deps, identity, payload) => hosted.sealExternalMcpOAuthPayload({ ...deps, ...storePorts }, identity, payload),
+      sealPayload: (deps, identity, payload) => hosted.sealExternalMcpOAuthPayload({ deps: { ...deps, ...storePorts }, identity, payload }),
     },
     projections: { authMode: hosted.resolveExternalMcpAuthMode, oauthStatus: hosted.resolveExternalMcpOAuthStatus },
     aad: { format: formatAad },

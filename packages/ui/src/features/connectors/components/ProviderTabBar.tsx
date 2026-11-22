@@ -1,4 +1,4 @@
-import { agentHandleProps, buildAgentListHandles } from '@jini-ai/agentic';
+import { agentHandleProps, buildAgentListHandles } from '@jini-ai/core/agent-handles';
 import { useT } from '../../i18n/index.js';
 import type { ProviderTab } from '../types.js';
 
@@ -10,15 +10,16 @@ export interface ProviderTabBarProps {
   /** This bar's own agent handle — see `ConnectorsBrowser`'s `agentHandle` doc. One distinct
    *  sub-handle per provider tab, derived from the tab's own id. */
   agentHandle?: string;
+  useTHook?: typeof useT;
 }
 
 /** Config-driven provider-tab bar. A single-provider host still renders one tab. */
-export function ProviderTabBar({ tabs, selectedId, onSelect, ariaLabel, agentHandle }: ProviderTabBarProps) {
-  const t = useT();
+export function ProviderTabBar({ tabs, selectedId, onSelect, ariaLabel, agentHandle, useTHook = useT }: ProviderTabBarProps) {
+  const t = useTHook();
   const resolvedAriaLabel = ariaLabel ?? t('Connector provider');
   const tabHandles = agentHandle ? buildAgentListHandles({ prefix: agentHandle, ids: tabs.map((tab) => tab.id) }) : undefined;
   return (
-    <div className="connectors-provider-tabs" role="tablist" aria-label={resolvedAriaLabel}>
+    <div className="jini-connectors-provider-tabs" role="tablist" aria-label={resolvedAriaLabel}>
       {tabs.map((tab, index) => {
         const active = tab.id === selectedId;
         return (

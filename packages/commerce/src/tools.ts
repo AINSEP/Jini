@@ -1,4 +1,4 @@
-import { buildDomainRegistrations, indexCatalogById, type DerivedRiskByToolId, type ToolRegistration, type AgentToolDefinition } from "@jini-ai/core";
+import { buildDomainRegistrations, indexCatalogById, type AgentToolSideEffect, type DerivedRiskByToolId, type ToolRegistration, type AgentToolDefinition } from "@jini-ai/core";
 import { adaptLegacyAuthorize, requireToolPermission, type LegacyToolAuthorizeFn as AuthorizeFn } from "@jini-ai/core";
 import { readCommerceStatus } from "./catalog/status.js";
 import type { CommerceCheckoutReadiness, CommercePaymentRuntimePort } from "./catalog/contracts.js";
@@ -19,7 +19,7 @@ export const catalog: AgentToolDefinition[] = [{
   inputSchema: { type: "object", additionalProperties: false, properties: {} },
 }];
 /** Independently derived from the service calls below. */
-export const derivedRisk: DerivedRiskByToolId = new Map([
+export const derivedRisk: ReadonlyMap<string, AgentToolSideEffect> = new Map([
   // readCommerceStatus -> paymentRuntime.listProviders: reads the runtime provider catalog only.
   // commerce.status reads operational readiness; hosts must not run activation/migrations here.
   ["commerce_get_status", "none"],
@@ -39,10 +39,10 @@ export function buildRegistrations(deps: Deps, _optional: Record<string, never> 
       await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: deps.authorize }), workspaceId: deps.workspaceId, principalId: ctx.principal.id, permission: "admin.integrations.manage" }, { entityType: "integration" });
       const checkout = await deps.commerce?.status();
       if (checkout?.scope && checkout.scope.workspaceId !== deps.workspaceId) throw new CommerceUnavailableError("Commerce status belongs to another workspace.");
-      return readCommerceStatus({ workspaceId: deps.workspaceId, resolvePaymentRuntime: () => deps.paymentRuntime ?? null,
-        ...(checkout ? { checkout: { active: checkout.active, ready: checkout.ready, reason: checkout.reason,
+      return readCommerceStatus({ workspaceId: deps.workspaceId, resolvePaymentRuntime: () => deps.paymentRuntime ?? null },
+        (checkout ? { checkout: { active: checkout.active, ready: checkout.ready, reason: checkout.reason,
           ...(checkout.webhookUrl === undefined ? {} : { webhookUrl: checkout.webhookUrl }),
-          ...(checkout.needsAttention === undefined ? {} : { needsAttention: checkout.needsAttention.slice(0, 10) }) } } : {}) });
+          ...(checkout.needsAttention === undefined ? {} : { needsAttention: checkout.needsAttention.slice(0, 10) }) } } : {}));
     } },
   });
 }

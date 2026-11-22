@@ -1,8 +1,8 @@
 /**
- * @file A tiny per-key async mutex (SPEC-043 REQ-06/15, AC-04/EC-02).
+ * @file A tiny per-key async mutex.
  *
  * Purpose:
- * `features/entries/write-service.ts`'s `updateEntry` reads the current row, checks
+ * `packages/cms/src/entries/write-service.ts`'s `updateEntry` reads the current row, checks
  * `expectedVersion`, then writes — but `InMemoryEntryRepo.transaction` provides no real
  * serialization (`async transaction(fn) { return fn(); }`), and the version check itself happens
  * BEFORE that transaction call. Two truly concurrent callers racing the same entry id can both

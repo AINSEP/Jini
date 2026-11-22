@@ -22,7 +22,7 @@
 import { useCallback } from 'react';
 import type { MouseEvent as ReactMouseEvent } from 'react';
 
-const NEW_TAB_PROTOCOLS = new Set(['http:', 'https:']);
+const NEW_TAB_PROTOCOLS: ReadonlySet<string> = new Set(['http:', 'https:']);
 
 /** Opens `url` in a new tab with no opener or referrer — `rel="noopener noreferrer"` for `window.open`. */
 function openInNewTabDefault(url: string): void {

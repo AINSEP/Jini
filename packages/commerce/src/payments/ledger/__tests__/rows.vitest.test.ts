@@ -1,12 +1,9 @@
 import { describe, expect, test } from "vitest";
 
-import {
-  decodeMinor, decodeNullableMinor, encodeColumns, encodeMinor, encodeNullableMinor, inboxFromRow, PAYMENT_PATCH_COLUMNS, patchColumns,
-  paymentFromRow,
-  attemptFromRow, attemptToRow, disputeFromRow, disputeToRow, evidenceFromRow, evidenceToRow,
-  operatorActionFromRow, operatorActionToRow, outboxFromRow, outboxToRow, quarantineFromRow, quarantineToRow,
-  refundFromRow, refundToRow, revivedPayload,
-} from "../rows.js";
+import { decodeMinor, decodeNullableMinor, encodeColumns, encodeMinor, encodeNullableMinor, attemptToRow, disputeToRow, evidenceToRow, operatorActionToRow, outboxToRow, quarantineToRow, refundToRow } from "../rows.js";
+import { inboxFromRow, paymentFromRow, attemptFromRow, disputeFromRow, evidenceFromRow, operatorActionFromRow, outboxFromRow, quarantineFromRow, refundFromRow } from "../row-decoders.js";
+import { PAYMENT_PATCH_COLUMNS, patchColumns } from "../row-patches.js";
+import { revivedPayload } from "../row-records.js";
 
 describe("decodeMinor: the one integer decoder every row mapper uses", () => {
   test("numbers, decimal strings (node-pg BIGINT) and bigints (safeIntegers, PGlite) decode to the same number", () => {
@@ -76,7 +73,7 @@ describe("integer boundaries refuse coercion and rounding", () => {
   test("a revived payload replaces only verified facts, hash and purge time", () => {
     expect(revivedPayload({}, {})).toEqual({});
     const payload = Object.freeze({ factsJson: '{"verified":true}', bodySha256: "cd".repeat(32) });
-    expect(revivedPayload({ payload }, {})).toEqual({ facts_json: '{"verified":true}', body_sha256: "cd".repeat(32), purged_at: null });
+    expect(revivedPayload({}, { payload })).toEqual({ facts_json: '{"verified":true}', body_sha256: "cd".repeat(32), purged_at: null });
     expect(payload).toEqual({ factsJson: '{"verified":true}', bodySha256: "cd".repeat(32) });
   });
 });
@@ -190,7 +187,7 @@ describe("encodeMinor: the one integer encoder every write uses", () => {
 });
 
 describe("entry points", () => {
-  test("payments/kernel carries the port, records and memory adapter; the SQL half (kysely, @jini-ai/db at runtime) is ledger/sql", async () => {
+  test("payments/kernel carries the port, records and memory adapter; the SQL half (kysely at runtime, the host's @jini-ai/db kernel injected) is ledger/sql", async () => {
     const kernel: Record<string, unknown> = await import("../../kernel.js");
     expect(typeof kernel.memoryPaymentsLedger).toBe("function");
     expect(typeof kernel.decodeMinor).toBe("function");

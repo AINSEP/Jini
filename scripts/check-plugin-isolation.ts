@@ -202,11 +202,15 @@ function isRetainedLicenseRecord(required: { rest: readonly string[] }): boolean
  * reviewed provider source that has no package of its own and names no other plugin inside it. */
 function assertProviderDistributionPath(required: {
   path: string; pluginIds: ReadonlySet<string>; providerSourceExists: (input: { id: string }) => boolean;
+  exports: unknown;
 }): void {
   const { path, pluginIds } = required;
   if (documentation.has(path) || path === 'catalog.json') return;
   const [root, id = '', ...rest] = path.split('/');
-  if (root !== 'plugins' || !required.providerSourceExists({ id })) throw new TypeError(`${PROVIDER_PLUGINS_PACKAGE}: unexpected packed file ${path}`);
+  const libraryPort = Object.entries(required.exports ?? {}).some(([key, target]) =>
+    root === 'dist' && rest.length === 1 && key === `./${id}/port`
+    && exportTargets({ target }).some(target => target.startsWith(`./dist/${id}/`)));
+  if ((!libraryPort && root !== 'plugins') || !required.providerSourceExists({ id })) throw new TypeError(`${PROVIDER_PLUGINS_PACKAGE}: unexpected packed file ${path}`);
   // `<version>/licenses/<npm-package>/<record>`: the folder is named after a bundled npm package
   // (`licenses/langfuse/`), which may equal an agent plugin name; only that segment is exempt, and
   // only for the license records build.ts writes there.
@@ -218,13 +222,14 @@ function assertProviderDistributionPath(required: {
 
 /** Every packed path of the provider distribution; agent plugin names count as plugin ids, so no face rides along. */
 function assertProviderPluginsPackage(
-  required: { packedPaths: readonly string[]; pluginIds: readonly string[] },
+  required: { manifest: PluginIsolationManifest; packedPaths: readonly string[]; pluginIds: readonly string[] },
   optional: PluginIsolationPorts,
 ): void {
   const providerSourceExists = optional.providerSourceExists ?? checkoutProviderSourceExists;
   const pluginIds = new Set([...required.pluginIds, ...(optional.agentPluginPackages ?? agentPluginPackages).map(row => row.name)]);
   for (const input of required.packedPaths) {
-    if (input && !input.endsWith('/')) assertProviderDistributionPath({ path: packedPath({ path: input }), pluginIds, providerSourceExists });
+    if (input && !input.endsWith('/')) assertProviderDistributionPath({ path: packedPath({ path: input }), pluginIds, providerSourceExists,
+      exports: required.manifest.exports });
   }
 }
 

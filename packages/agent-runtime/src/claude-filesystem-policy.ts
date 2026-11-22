@@ -3,7 +3,7 @@ import { homedir, tmpdir } from 'node:os';
 import { basename, dirname, isAbsolute, relative, resolve, sep } from 'node:path';
 import { createGuardedFileReader, createNodeGuardedReaderFilesystem } from '@jini-ai/platform/fs/guarded-reader';
 import { execAgentFile } from './invocation.js';
-import type { RuntimeBuildOptions } from './types.js';
+import type { RuntimeBuildOptions } from '@jini-ai/core/contracts/agents';
 
 /** Canonical host directory and attachment grants, checked again after image augmentation.
  * Throws before spawn on missing/non-directory roots, conflicting cwd, traversal or symlinks.

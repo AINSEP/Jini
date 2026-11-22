@@ -15,8 +15,7 @@ import type { Clock } from "@jini-ai/core/primitives";
  * `admin.collections.read` first") — so `collections_entry_list`'s handler performs that identical
  * inline check itself, mirroring `entries/list.ts`'s admin route.
  */
-import type { AuthorizeFn } from "../core/commands/command.js";
-import type { OutboxPort } from "../core/ports.js";
+import type { AuthorizeFn, OutboxPort } from "@jini-ai/core/contracts/events";
 import { AGENT_TOOL_PRINCIPAL_KIND, buildDomainRegistrations, fromResult, indexCatalogById, optionalString, requireInputRecord, requireNumber, requireString, withSchemaOnRejection, type AgentToolSideEffect, type DerivedRiskByToolId, type ToolHandler, type ToolRegistration } from "@jini-ai/core";
 import { adaptLegacyAuthorize, requireToolPermission } from "../core/tools/index.js";
 import { entriesAgentToolCatalog } from "./agent-tools.js";
@@ -54,7 +53,7 @@ export interface EntriesToolDeps {
  * calls. See `DerivedRiskByToolId` in the kit for why it is independent of the catalog's own
  * `sideEffects` declaration.
  */
-export const entriesDerivedRisk: DerivedRiskByToolId = new Map<string, AgentToolSideEffect>([
+export const entriesDerivedRisk: ReadonlyMap<string, AgentToolSideEffect> = new Map<string, AgentToolSideEffect>([
   // -> listEntries (list.ts): entryRepo.listByWorkspace only, no write.
   ["collections_entry_list", "none"],
   // -> createEntry (write-service.ts): entryRepo.save + appendRevision in one tx.
@@ -79,7 +78,7 @@ function isEntriesShapeRejection({ error }: { error: unknown }): boolean {
 /** Shared dependency bag for `write-service.ts` calls — every mutating handler here takes this
  * identical shape (a superset of what `updateEntry`/`publishEntry`/`unpublishEntry` individually
  * need; passing the extra `ids` field to those is harmless since none of them declare it). */
-function entriesDeps(routeDeps: EntriesToolDeps) {
+export function entriesDeps(routeDeps: EntriesToolDeps) {
   return {
     entryRepo: routeDeps.entryRepo,
     contentTypeRepo: routeDeps.contentTypeRepo,
@@ -127,17 +126,26 @@ function fromEntryResult(fn: () => ReturnType<typeof createEntry>): Promise<{ en
   return fromResult({ fn: fn }).then(({ entry }) => ({ entry: toEntryToolView(entry) }));
 }
 
-export function buildEntriesRegistrations(routeDeps: EntriesToolDeps): ToolRegistration[] {
-  const handlers: Record<string, ToolHandler> = {
-    collections_entry_list: async (ctx) => {
-      const input = ctx.input !== undefined ? requireInputRecord({ input: ctx.input }) : {};
-      await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }), workspaceId: routeDeps.workspaceId, principalId: ctx.principal.id, permission: "admin.collections.read" }, { entityType: "entry" });
+/** Builds the common tool handler for publishing or unpublishing an entry. */
+function entryStatusHandler(
+  { routeDeps, transition }: { routeDeps: EntriesToolDeps; transition: typeof publishEntry },
+  _optional: Record<string, never> = {},
+): ToolHandler {
+  return async (ctx) => {
+    const input = requireInputRecord({ input: ctx.input });
+    return fromEntryResult(() => transition({
+      deps: entriesDeps(routeDeps),
+      input: {
+        actorId: ctx.principal.id, principalKind: AGENT_TOOL_PRINCIPAL_KIND,
+        workspaceId: routeDeps.workspaceId, id: requireString({ input, key: "id" }),
+        expectedVersion: requireNumber({ input, key: "expectedVersion" }),
+      },
+    }));
+  };
+}
 
-      const { items } = await listEntries({ repo: routeDeps.entryRepo, workspaceId: routeDeps.workspaceId }, { type: optionalString({ input, key: "type" }) });
-      return { items: items.map(toEntryToolView) };
-    },
-
-    collections_entry_create: async (ctx) => {
+function createEntryCreationHandler(routeDeps: EntriesToolDeps): ToolHandler {
+  return async (ctx) => {
       const input = requireInputRecord({ input: ctx.input });
       return withSchemaOnRejection({ toolId: "collections_entry_create", catalog: CATALOG_BY_ID, isShapeRejection: isEntriesShapeRejection, fn: () =>
         fromEntryResult(() =>
@@ -155,7 +163,20 @@ export function buildEntriesRegistrations(routeDeps: EntriesToolDeps): ToolRegis
             },
           }),
         ) });
+    };
+}
+
+export function buildEntriesRegistrations(routeDeps: EntriesToolDeps): ToolRegistration[] {
+  const handlers: Record<string, ToolHandler> = {
+    collections_entry_list: async (ctx) => {
+      const input = ctx.input !== undefined ? requireInputRecord({ input: ctx.input }) : {};
+      await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }), workspaceId: routeDeps.workspaceId, principalId: ctx.principal.id, permission: "admin.collections.read" }, { entityType: "entry" });
+
+      const { items } = await listEntries({ repo: routeDeps.entryRepo, workspaceId: routeDeps.workspaceId }, { type: optionalString({ input, key: "type" }) });
+      return { items: items.map(toEntryToolView) };
     },
+
+    collections_entry_create: createEntryCreationHandler(routeDeps),
 
     collections_entry_update: async (ctx) => {
       const input = requireInputRecord({ input: ctx.input });
@@ -172,41 +193,13 @@ export function buildEntriesRegistrations(routeDeps: EntriesToolDeps): ToolRegis
               fieldsJson: input.fieldsJson,
               expectedVersion: requireNumber({ input, key: "expectedVersion" }),
             },
-          }),
+          }, { signal: ctx.signal }),
         ) });
     },
 
-    collections_entry_publish: async (ctx) => {
-      const input = requireInputRecord({ input: ctx.input });
-      return fromEntryResult(() =>
-        publishEntry({
-          deps: entriesDeps(routeDeps),
-          input: {
-            actorId: ctx.principal.id,
-            principalKind: AGENT_TOOL_PRINCIPAL_KIND,
-            workspaceId: routeDeps.workspaceId,
-            id: requireString({ input, key: "id" }),
-            expectedVersion: requireNumber({ input, key: "expectedVersion" }),
-          },
-        }),
-      );
-    },
+    collections_entry_publish: entryStatusHandler({ routeDeps, transition: publishEntry }),
 
-    collections_entry_unpublish: async (ctx) => {
-      const input = requireInputRecord({ input: ctx.input });
-      return fromEntryResult(() =>
-        unpublishEntry({
-          deps: entriesDeps(routeDeps),
-          input: {
-            actorId: ctx.principal.id,
-            principalKind: AGENT_TOOL_PRINCIPAL_KIND,
-            workspaceId: routeDeps.workspaceId,
-            id: requireString({ input, key: "id" }),
-            expectedVersion: requireNumber({ input, key: "expectedVersion" }),
-          },
-        }),
-      );
-    },
+    collections_entry_unpublish: entryStatusHandler({ routeDeps, transition: unpublishEntry }),
   };
 
   // No `unwiredToolIds`: Entries wires its ENTIRE catalog, same tripwire discipline as Widgets/Forms.

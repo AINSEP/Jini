@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { OriginNotVerifiedError } from "@jini-ai/http-kit/verified-origin";
+import { OriginNotVerifiedError } from "@jini-ai/core/contracts/server/verified-origin";
 import { createSitemapService, SITEMAP_INVALIDATED_EVENT } from "../sitemap.js";
 import { setEntrySeoOverrides } from "../write-service.js";
 import { SeoFieldValidationError } from "../errors.js";
 import { buildPostRecord, InMemoryPostRepo } from "./support/post.fixture.js";
 import { InMemorySettingsRepo, seoDeps } from "./support/legacy-api.fixture.js";
 import { InMemoryMediaRepo, InMemoryTransformDefinitionRepo } from "../../media/index.js";
-import type { EventBusPort, OutboxPort } from "../../core/index.js";
+import type { EventBusPort, OutboxPort } from "@jini-ai/core/contracts/events";
 
 function harness(slug: string) {
   const postRepo = new InMemoryPostRepo([buildPostRecord({ slug })]);

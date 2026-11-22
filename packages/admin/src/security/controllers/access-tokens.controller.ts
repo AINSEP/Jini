@@ -1,4 +1,4 @@
-import { createControllerStore } from '../../core/module/controller-store.js';
+import { createControllerStore } from '@jini-ai/core/admin-runtime';
 import type { SecurityApiPort } from '../ports.js';
 import type { CredentialSummary, CredentialProvider, CredentialDraft, CredentialKind, CredentialCategory, CredentialInput } from '../models.js';
 import { blankCredentialDraft, buildCredentialPatch, credentialCategory, credentialStore, validateCredentialDraft, writePermission, credentialLabel } from '../rules.js';
@@ -6,24 +6,35 @@ import { blankCredentialDraft, buildCredentialPatch, credentialCategory, credent
 function draftFromRow({ row, providers }: { row: CredentialSummary; providers: readonly CredentialProvider[] }, _optional = {}): CredentialDraft {
   return { ...blankCredentialDraft({ kind: row.kind, providerId: row.providerId }), id: row.id, label: credentialLabel({ row, providers }), category: credentialCategory({ row }), baseUrl: row.baseUrl ?? '', additionalHosts: row.additionalHosts?.join('\n') ?? '', username: row.username ?? '' };
 }
-export function createAccessTokensController({ api, permissions = [] }: { api: SecurityApiPort; permissions?: readonly string[] }, _optional = {}) {
-  const grants = new Set(permissions);
-  const store = createControllerStore({ initial: { rows: [] as readonly CredentialSummary[], providers: [] as readonly CredentialProvider[], draft: null as CredentialDraft | null, loading: false, saving: false, error: null as string | null, errors: {} as Readonly<Record<string, string>>, query: '', category: 'all' as CredentialCategory | 'all' } });
-  let generation = 0;
-  const allowed = (kind: CredentialKind) => !store.signal.aborted && grants.has('security.read') && grants.has(writePermission({ kind }));
-  async function load(_required: Record<string, never>, _optional = {}) {
+function createAccessTokenStore() {
+  return createControllerStore({ initial: { rows: [] as readonly CredentialSummary[], providers: [] as readonly CredentialProvider[], draft: null as CredentialDraft | null, loading: false, saving: false, error: null as string | null, errors: {} as Readonly<Record<string, string>>, query: '', category: 'all' as CredentialCategory | 'all' } });
+}
+
+function createCredentialLoader(
+  api: SecurityApiPort,
+  store: ReturnType<typeof createAccessTokenStore>,
+  { grants, nextGeneration, isCurrent }: { grants: Set<string>; nextGeneration: () => number; isCurrent: (ticket: number) => boolean },
+) {
+  return async function load(_required: Record<string, never>, _optional = {}) {
     if (store.signal.aborted || !grants.has('security.read')) return;
-    generation += 1;
-    const ticket = generation; store.set({ patch: { loading: true } });
+    const ticket = nextGeneration(); store.set({ patch: { loading: true } });
     // Independent stores retain their own successful results; one unavailable store cannot hide the rest.
     const kinds = ['publish', 'source-control', 'custom'] as const;
     const tasks = kinds.map(async kind => {
-      try { const rows = await credentialStore({ api, kind }).list({}, { signal: store.signal }); if (ticket === generation) { const errors = { ...store.getSnapshot().errors }; delete errors[kind]; store.set({ patch: { rows: Object.freeze([...store.getSnapshot().rows.filter(r => r.kind !== kind), ...rows]), errors } }); } }
-      catch { if (ticket === generation) store.set({ patch: { errors: { ...store.getSnapshot().errors, [kind]: 'Credential store unavailable' } } }); }
+      try { const rows = await credentialStore({ api, kind }).list({}, { signal: store.signal }); if (isCurrent(ticket)) { const errors = { ...store.getSnapshot().errors }; delete errors[kind]; store.set({ patch: { rows: Object.freeze([...store.getSnapshot().rows.filter(r => r.kind !== kind), ...rows]), errors } }); } }
+      catch { if (isCurrent(ticket)) store.set({ patch: { errors: { ...store.getSnapshot().errors, [kind]: 'Credential store unavailable' } } }); }
     });
-    tasks.push((async () => { try { const providers = await api.providers({}, { signal: store.signal }); if (ticket === generation) store.set({ patch: { providers, error: null } }); } catch { if (ticket === generation) store.set({ patch: { error: 'Provider catalog unavailable' } }); } })());
-    await Promise.all(tasks); if (ticket === generation) store.set({ patch: { loading: false } });
+    tasks.push((async () => { try { const providers = await api.providers({}, { signal: store.signal }); if (isCurrent(ticket)) store.set({ patch: { providers, error: null } }); } catch { if (isCurrent(ticket)) store.set({ patch: { error: 'Provider catalog unavailable' } }); } })());
+    await Promise.all(tasks); if (isCurrent(ticket)) store.set({ patch: { loading: false } });
   }
+}
+
+export function createAccessTokensController({ api, permissions = [] }: { api: SecurityApiPort; permissions?: readonly string[] }, _optional = {}) {
+  const grants = new Set(permissions);
+  const store = createAccessTokenStore();
+  let generation = 0;
+  const allowed = (kind: CredentialKind) => !store.signal.aborted && grants.has('security.read') && grants.has(writePermission({ kind }));
+  const load = createCredentialLoader(api, store, { grants, nextGeneration: () => ++generation, isCurrent: ticket => ticket === generation });
   function begin({ row, kind, providerId }: { row?: CredentialSummary; kind?: CredentialKind; providerId?: string }, _optional = {}) {
     const k = row?.kind ?? kind ?? 'custom'; if (!allowed(k) || store.getSnapshot().saving) return;
     const draft = row ? draftFromRow({ row, providers: store.getSnapshot().providers }) : blankCredentialDraft({ kind: k, ...(providerId ? { providerId } : {}) });

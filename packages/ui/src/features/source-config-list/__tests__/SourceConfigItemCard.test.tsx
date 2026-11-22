@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { render, screen } from '@testing-library/react';
+import { render, screen } from '../../../__tests__/ui-kit-render-support.js';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../../i18n/index.js';
@@ -73,7 +73,7 @@ describe('SourceConfigItemCard', () => {
     // one field is password-kind — see rules.ts's `sourceDisplayLabel`).
     await userEvent.click(screen.getByRole('button', { name: /wxyz$/ }));
     expect(screen.getByText('API Key')).toBeInTheDocument();
-    const maskedValue = container.querySelector('.source-config-item-card-fields dd');
+    const maskedValue = container.querySelector('.jini-source-config-item-card-fields dd');
     expect(maskedValue?.textContent).toMatch(/^•+wxyz$/);
     expect(screen.queryByText('sk-ant-1234567890wxyz')).toBeNull();
   });
@@ -90,7 +90,7 @@ describe('SourceConfigItemCard', () => {
   it('renders a trust badge when the source has a trust value, using the option label when known', () => {
     const source: SourceConfigItem = { id: 's1', fields: {}, trust: 'trusted' };
     const { container } = render(<SourceConfigItemCard {...baseProps({ source, trustOptions: TRUST_OPTIONS })} />);
-    expect(container.querySelector('.source-config-item-card-trust-badge')?.textContent).toBe('Trusted');
+    expect(container.querySelector('.jini-source-config-item-card-trust-badge')?.textContent).toBe('Trusted');
   });
 
   it('falls back to the raw trust value in the badge when no matching option exists', () => {
@@ -184,7 +184,7 @@ describe('SourceConfigItemCard', () => {
     const source: SourceConfigItem = { id: 's1', fields: {} };
     const { container } = render(<SourceConfigItemCard {...baseProps({ source, fieldSpecs: [URL_FIELD] })} />);
     await userEvent.click(screen.getByRole('button', { name: 's1' }));
-    const value = container.querySelector('.source-config-item-card-fields dd');
+    const value = container.querySelector('.jini-source-config-item-card-fields dd');
     expect(value?.textContent).toBe('');
   });
 
@@ -332,7 +332,7 @@ describe('SourceConfigItemCard', () => {
 
       expect(onUpdate).not.toHaveBeenCalled();
       // Back to read-only, showing the ORIGINAL (unsaved edit discarded) value.
-      const fieldValue = document.querySelector('.source-config-item-card-fields dd');
+      const fieldValue = document.querySelector('.jini-source-config-item-card-fields dd');
       expect(fieldValue?.textContent).toBe('https://a.example');
       expect(screen.queryByText('https://discarded.example')).toBeNull();
     });
@@ -412,7 +412,7 @@ describe('SourceConfigItemCard', () => {
       // than nothing, so it kept applying color even after this rule's `background` override took —
       // making Edit/Save/Cancel render as blank pills (off-white text on the light panel background)
       // while every other field on the same card, which DOES set its own color, rendered fine.
-      expect(ruleBody('.source-config-item-card-edit-toggle button')).toMatch(/color:\s*var\(--jini-text\)/);
+      expect(ruleBody('.jini-source-config-item-card-edit-toggle button')).toMatch(/color:\s*var\(--jini-text\)/);
     });
 
     it('disables Save/Cancel while updating', async () => {
@@ -434,7 +434,7 @@ describe('SourceConfigItemCard', () => {
           <SourceConfigItemCard {...baseProps({ source, trustOptions: TRUST_OPTIONS })} />
         </I18nProvider>,
       );
-      expect(container.querySelector('.source-config-item-card-trust-badge')?.textContent).toBe('Fiable');
+      expect(container.querySelector('.jini-source-config-item-card-trust-badge')?.textContent).toBe('Fiable');
     });
 
     it('translates trust select option labels under a matching dictionary', () => {

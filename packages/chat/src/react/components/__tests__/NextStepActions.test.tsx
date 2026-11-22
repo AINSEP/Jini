@@ -2,7 +2,10 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { NextStepActions } from '../NextStepActions.js';
-import { I18nContext } from '../../hooks/context.js';
+import { I18nContext, type useT } from '../../hooks/context.js';
+
+/** A translator that is visibly not the key, so the assertion proves the injected hook ran. */
+const useQuotingT: typeof useT = () => (key) => `«${key}»`;
 
 const actions = [
   { id: 'continue', label: 'Continue' },
@@ -61,5 +64,10 @@ describe('NextStepActions', () => {
     expect(screen.getByText('Artefakt erzeugen')).toBeInTheDocument();
     expect(screen.getByText('Fehlendes Ergebnis erstellen')).toBeInTheDocument();
     expect(screen.queryByText('Continue')).not.toBeInTheDocument();
+  });
+
+  it('renders the translator supplied through useTHook', () => {
+    render(<NextStepActions actions={actions} onSelect={() => {}} useTHook={useQuotingT} />);
+    expect(screen.getByText('«Generate artifact»')).toBeInTheDocument();
   });
 });

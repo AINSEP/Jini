@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { resolveSelectOriginPage } from '../../../../react/components/select-popover.js';
-import { agentHandleProps, agentHandleSegment } from '@jini-ai/agentic';
+import { agentHandleProps, agentHandleSegment } from '@jini-ai/core/agent-handles';
 import { useAgentHandle, type AgentControlProps } from '../../../../react/hooks/useAgentHandle.js';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './select.js';
 
@@ -17,10 +17,11 @@ export interface SelectFieldProps extends AgentControlProps {
   readonly placeholder?: string;
   readonly disabled?: boolean;
   readonly onValueChange?: (value: string) => void;
+  useAgentHandleHook?: typeof useAgentHandle;
 }
 
-export function SelectField({ options, value, placeholder, disabled, onValueChange, portalContainer, ...agentProps }: SelectFieldProps) {
-  const base = useAgentHandle(agentProps);
+export function SelectField({ options, value, placeholder, disabled, onValueChange, portalContainer, useAgentHandleHook = useAgentHandle, ...agentProps }: SelectFieldProps) {
+  const base = useAgentHandleHook(agentProps);
   const [trigger, setTrigger] = useState<HTMLButtonElement | null>(null);
   const page = agentProps['data-agent-page'] ?? resolveSelectOriginPage({ trigger });
   return (

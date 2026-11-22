@@ -1,10 +1,10 @@
 import { MediaDialog } from './MediaDialog.js';
-import { Button, TextField } from '@jini-ai/ui-kit/react';
+import { Button, TextField } from '../../../react/kit.js';
 import { useEditMediaPanel } from '../hooks/EditMediaPanel.hooks.js';
 import type { EditMediaPanelProps } from '../hooks/EditMediaPanel.hooks.js';
 import { UploadButton } from './UploadButton.js';
-export function EditMediaPanel(props: EditMediaPanelProps, _optional: Record<string, never> = {}) {
-  const vm = useEditMediaPanel(props);
+export function EditMediaPanel({ useEditMediaPanelHook = useEditMediaPanel, ...props }: EditMediaPanelProps & { useEditMediaPanelHook?: typeof useEditMediaPanel }) {
+  const vm = useEditMediaPanelHook(props);
   return (
     <MediaDialog className="jini-media-edit-dialog" attrs={{ 'data-jini-part': 'media.editor', 'data-agent-element': 'media-edit-dialog' }}
       title={vm.title} open onClose={vm.close} pending={vm.saving}>

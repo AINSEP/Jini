@@ -5,15 +5,13 @@ import { join } from 'node:path';
 import { expect, it } from 'vitest';
 import { allocatePort, createJsonIpcServer } from '../index.js';
 
-it('returns the actual parse diagnostic for a malformed IPC frame', async () => {
+it('a malformed IPC frame gets a fixed BAD_FRAME refusal and no input echo', async () => {
   const root = await mkdtemp(join(tmpdir(), 'sidecar-parse-'));
   const socketPath = process.platform === 'win32'
     ? `\\\\.\\pipe\\sidecar-parse-${process.pid}-${Date.now()}`
     : join(root, 'ipc.sock');
   const server = await createJsonIpcServer({ socketPath, handler: async () => { throw new Error('must not dispatch'); } });
-  const frame = '{invalid';
-  let expectedMessage = '';
-  try { JSON.parse(frame); } catch (error) { expectedMessage = (error as SyntaxError).message; }
+  const frame = '{"secret-canary';
   try {
     const response = await new Promise<string>((resolve, reject) => {
       const socket = createConnection(socketPath);
@@ -25,7 +23,8 @@ it('returns the actual parse diagnostic for a malformed IPC frame', async () => 
       socket.on('end', () => resolve(received));
       socket.on('connect', () => socket.write(`${frame}\n`));
     });
-    expect(JSON.parse(response)).toEqual({ ok: false, error: { message: expectedMessage } });
+    expect(JSON.parse(response)).toEqual({ ok: false, error: { code: 'BAD_FRAME', message: 'The sidecar could not read the request frame. Send one line of valid JSON.' } });
+    expect(response).not.toContain('secret-canary');
   } finally {
     await server.close();
     await rm(root, { recursive: true, force: true });

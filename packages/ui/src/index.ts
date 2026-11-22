@@ -38,7 +38,7 @@
  *   fallback. Choosing one fallback for both would change public behavior.
  *
  * Heavy editors use dedicated @jini-ai/ui/sketch-editor and
- * @jini-ai/ui/lexical-rich-text-editor entries so ordinary root imports do not
+ * @jini-ai/ui/html-editor entries so ordinary root imports do not
  * load their editor dependencies. See packages/ui/README.md for package scope.
  */
 export * from './features/i18n/index.js';
@@ -107,6 +107,7 @@ export * from './react/hooks/useDebouncedValue.js';
 export * from './react/hooks/useResizableSplitPane.js';
 export * from './react/hooks/useBrandFonts.js';
 export * from './react/hooks/useEdgeAutoScroll.js';
+export * from './react/hooks/usePersistedDisclosure.js';
 
 export * from './browser/useModalWindowDragGuard.js';
 
@@ -115,7 +116,8 @@ export * from './browser/index.js';
 // Named (not `export *`): Icon.tsx also exports `ICON_RENDERERS`, a test
 // seam for asserting the name -> renderer lookup table directly. It must
 // not reach this published package's public surface.
-export { Icon, ICON_PATH_DATA, type IconName } from './react/components/Icon.js';
+export { Icon, type IconName } from './react/components/Icon.js';
+export { ICON_PATH_DATA } from './react/components/icon-path-data.js';
 export * from './react/components/RemixIcon.js';
 export { SecretInput, SecretTextarea, type SecretInputProps, type SecretTextareaProps } from './react/components/SecretInput.js';
 export * from './react/components/AgentIcon.js';
@@ -123,6 +125,7 @@ export * from './react/components/Toast.js';
 export * from './react/components/Loading.js';
 export * from './react/components/TooltipLayer.js';
 export * from './react/components/CustomSelect.js';
+export type { CustomSelectProps, UseCustomSelectParams, UseCustomSelectResult } from './react/components/CustomSelect.types.js';
 export * from './react/components/KitErrorBoundary.js';
 export * from './react/components/LanguageMenu.js';
 export * from './react/components/WorkingDirPicker.js';
@@ -151,4 +154,4 @@ export * from './react/components/ValueChip.js';
 export * from './react/components/ComponentKitPreview.js';
 
 // Share the existing kit overlay context with consumers of these React primitives.
-export { useOverlayContainer } from '@jini-ai/ui-kit/react';
+export { useOverlayContainer, UiKitProvider, type UiKit } from './react/kit.js';

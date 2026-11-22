@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { EventType, type RunAgentInput } from "@ag-ui/core";
 import { createAgUiRunClient, type AgUiClient } from "../ag-ui-transport.js";
-import { createAgUiToAgentTranslationState } from "../../ag-ui/entry.js";
+import { createAgUiToAgentTranslationState } from "../../ag-ui/event-reduction.js";
 import type { ChatMessage } from "../../messages.js";
 import type { RunHandlers } from "../../transport.js";
 
@@ -96,7 +96,18 @@ describe("createAgUiRunClient", () => {
     const { client, agents, handlers } = setup();
     const started = client.startAgUiRun({ input: { history, signal: new AbortController().signal }, handlers });
     agents[0]!.observer!.error("401 unauthorized");
-    await expect(started).rejects.toEqual(new Error("401 unauthorized"));
+    await expect(started).rejects.toEqual(new Error("The agent run stream stopped with an error (string); send the message again."));
+    expect(handlers.onDone).not.toHaveBeenCalled();
+  });
+
+  it("rejects the start with the HTTP status and keeps the original error as the cause", async () => {
+    const { client, agents, handlers } = setup();
+    const started = client.startAgUiRun({ input: { history, signal: new AbortController().signal }, handlers });
+    const failure = Object.assign(new Error("HTTP 502: upstream refused"), { status: 502 });
+    agents[0]!.observer!.error(failure);
+    const rejection = await started.then(() => undefined, (error: unknown) => error);
+    expect(rejection).toHaveProperty("message", "The agent run stream stopped with an error (HTTP 502, Error); send the message again.");
+    expect(rejection).toHaveProperty("cause", failure);
     expect(handlers.onDone).not.toHaveBeenCalled();
   });
 
@@ -106,7 +117,8 @@ describe("createAgUiRunClient", () => {
     agents[0]!.observer!.next({ type: EventType.TEXT_MESSAGE_CONTENT, messageId: "m", delta: "partial" });
     const failure = new Error("socket reset");
     agents[0]!.observer!.error(failure);
-    expect(handlers.onError).toHaveBeenCalledWith(failure);
+    expect(handlers.onError).toHaveBeenCalledWith(new Error("The agent run stream stopped with an error (Error); send the message again."));
+    expect(handlers.onError.mock.calls[0]![0]).toHaveProperty("cause", failure);
     expect(handlers.onDone).toHaveBeenCalledWith([{ kind: "text", text: "partial" }]);
   });
 
@@ -162,4 +174,93 @@ it.each([undefined, "", 17])("omits an absent or malformed originating tab id (%
   expect(agents[0]!.inputs[0]!.forwardedProps).not.toHaveProperty("frontendTabId");
   agents[0]!.observer!.complete();
   await started;
+});
+
+/** Pins for the A3 split: each one names a line the split moves between functions. */
+describe("createAgUiRunClient run lifetime", () => {
+  it("refuses a run whose signal is already aborted, before the agent runs or is registered", async () => {
+    const { client, agents, handlers } = setup();
+    const signal = new AbortController();
+    signal.abort();
+    const failure = await client.startAgUiRun({ input: { history, signal: signal.signal }, handlers }).catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(DOMException);
+    expect((failure as DOMException).name).toBe("AbortError");
+    expect((failure as DOMException).message).toBe("Run cancelled");
+    expect(agents[0]!.inputs).toEqual([]);
+    await client.stopAgUiRun({ runId: "agui-id1" });
+    expect(agents[0]!.abortRun).not.toHaveBeenCalled();
+    expect(handlers.onDone).not.toHaveBeenCalled();
+  });
+
+  it("forgets a finished run: neither the host signal nor stopAgUiRun reaches its agent afterwards", async () => {
+    const { client, agents, handlers } = setup();
+    const signal = new AbortController();
+    const started = client.startAgUiRun({ input: { history, signal: signal.signal }, handlers });
+    agents[0]!.observer!.next({ type: EventType.RUN_FINISHED, threadId: "t", runId: "agui-id1" });
+    await expect(started).resolves.toEqual({ runId: "agui-id1" });
+    signal.abort();
+    await client.stopAgUiRun({ runId: "agui-id1" });
+    expect(agents[0]!.abortRun).not.toHaveBeenCalled();
+    expect(handlers.onDone).toHaveBeenCalledTimes(1);
+  });
+
+  it("forgets a run that failed before its first event, without calling onError or onDone", async () => {
+    const { client, agents, handlers } = setup();
+    const signal = new AbortController();
+    const started = client.startAgUiRun({ input: { history, signal: signal.signal }, handlers });
+    const failure = new Error("503 unavailable");
+    agents[0]!.observer!.error(failure);
+    await expect(started).rejects.toEqual(new Error("The agent run stream stopped with an error (Error); send the message again."));
+    signal.abort();
+    await client.stopAgUiRun({ runId: "agui-id1" });
+    expect(agents[0]!.abortRun).not.toHaveBeenCalled();
+    expect(handlers.onError).not.toHaveBeenCalled();
+    expect(handlers.onDone).not.toHaveBeenCalled();
+  });
+
+  it("reports a mid-stream failure before it settles, wraps a non-Error, and forgets the run", async () => {
+    const { client, agents, handlers } = setup();
+    const signal = new AbortController();
+    const order: string[] = [];
+    handlers.onError.mockImplementation(() => order.push("error"));
+    handlers.onDone.mockImplementation(() => order.push("done"));
+    void client.startAgUiRun({ input: { history, signal: signal.signal }, handlers });
+    agents[0]!.observer!.next({ type: EventType.TEXT_MESSAGE_CONTENT, messageId: "m", delta: "partial" });
+    agents[0]!.observer!.error("socket reset");
+    expect(order).toEqual(["error", "done"]);
+    expect(handlers.onError.mock.calls[0]![0]).toEqual(new Error("The agent run stream stopped with an error (string); send the message again."));
+    signal.abort();
+    await client.stopAgUiRun({ runId: "agui-id1" });
+    expect(agents[0]!.abortRun).not.toHaveBeenCalled();
+  });
+
+  it("settles once: a stream that errors after RUN_FINISHED reports the error and does not finish twice", async () => {
+    const { client, agents, handlers } = setup();
+    void client.startAgUiRun({ input: { history, signal: new AbortController().signal }, handlers });
+    agents[0]!.observer!.next({ type: EventType.TEXT_MESSAGE_CONTENT, messageId: "m", delta: "a" });
+    agents[0]!.observer!.next({ type: EventType.RUN_FINISHED, threadId: "t", runId: "agui-id1" });
+    const failure = new Error("late reset");
+    agents[0]!.observer!.error(failure);
+    agents[0]!.observer!.complete();
+    expect(handlers.onError).toHaveBeenCalledTimes(1);
+    expect(handlers.onError).toHaveBeenCalledWith(new Error("The agent run stream stopped with an error (Error); send the message again."));
+    expect(handlers.onDone).toHaveBeenCalledTimes(1);
+    expect(handlers.onDone).toHaveBeenCalledWith([{ kind: "text", text: "a" }]);
+  });
+
+  it("keeps two runs apart: stopping one aborts only its own agent and each keeps its own events", async () => {
+    const { client, agents, handlers } = setup();
+    const second = { onEvent: vi.fn(), onDone: vi.fn(), onError: vi.fn() };
+    void client.startAgUiRun({ input: { history, conversationId: "c1", signal: new AbortController().signal }, handlers });
+    void client.startAgUiRun({ input: { history, conversationId: "c2", signal: new AbortController().signal }, handlers: second as unknown as RunHandlers });
+    agents[0]!.observer!.next({ type: EventType.TEXT_MESSAGE_CONTENT, messageId: "m", delta: "one" });
+    agents[1]!.observer!.next({ type: EventType.TEXT_MESSAGE_CONTENT, messageId: "m", delta: "two" });
+    await client.stopAgUiRun({ runId: "agui-id2" });
+    expect(agents[0]!.abortRun).not.toHaveBeenCalled();
+    expect(agents[1]!.abortRun).toHaveBeenCalledTimes(1);
+    agents[0]!.observer!.complete();
+    agents[1]!.observer!.complete();
+    expect(handlers.onDone).toHaveBeenCalledWith([{ kind: "text", text: "one" }]);
+    expect(second.onDone).toHaveBeenCalledWith([{ kind: "text", text: "two" }]);
+  });
 });

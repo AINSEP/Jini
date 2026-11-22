@@ -7,7 +7,6 @@ import {
   computeMenuPosition,
   countFilesUnderDir,
   deriveTreeChildren,
-  extensionForMimeType,
   fileExtensionLabel,
   filesFromClipboardData,
   filesFromDataTransfer,
@@ -24,6 +23,7 @@ import {
   shouldIgnoreClipboardFilePaste,
   toggleInSet,
 } from '../rules.js';
+import { extensionForMimeType } from '@jini-ai/core/text';
 import type { AssetTreeSelectors } from '../types.js';
 
 interface TestFile {
@@ -40,37 +40,37 @@ function file(path: string, kind = 'text', mtime = 0, localPath: string | null =
 describe('deriveTreeChildren', () => {
   it('at the root, flattens every file (including nested) and surfaces the top-level dir', () => {
     const files = [file('a.txt'), file('dir/b.txt'), file('dir/sub/c.txt')];
-    const result = deriveTreeChildren(files, [], '');
+    const result = deriveTreeChildren({ files, folders: [], currentDir: '' });
     expect(result.dirsAtCurrentDir).toEqual(['dir']);
     expect(result.filesAtCurrentDir.map((f) => f.path).sort()).toEqual(['a.txt', 'dir/b.txt', 'dir/sub/c.txt']);
   });
 
   it('inside a directory, scopes to files exactly one level deep', () => {
     const files = [file('dir/b.txt'), file('dir/sub/c.txt')];
-    const result = deriveTreeChildren(files, [], 'dir');
+    const result = deriveTreeChildren({ files, folders: [], currentDir: 'dir' });
     expect(result.dirsAtCurrentDir).toEqual(['sub']);
     expect(result.filesAtCurrentDir.map((f) => f.path)).toEqual(['dir/b.txt']);
   });
 
   it('ignores files outside the current prefix', () => {
     const files = [file('other/x.txt')];
-    const result = deriveTreeChildren(files, [], 'dir');
+    const result = deriveTreeChildren({ files, folders: [], currentDir: 'dir' });
     expect(result.filesAtCurrentDir).toEqual([]);
     expect(result.dirsAtCurrentDir).toEqual([]);
   });
 
   it('surfaces a persisted empty folder as a subdirectory', () => {
-    const result = deriveTreeChildren([], [{ path: 'empty' }], '');
+    const result = deriveTreeChildren({ files: [], folders: [{ path: 'empty' }], currentDir: '' });
     expect(result.dirsAtCurrentDir).toEqual(['empty']);
   });
 
   it('surfaces a nested persisted folder correctly scoped to its parent', () => {
-    const result = deriveTreeChildren([], [{ path: 'dir/nested-empty' }], 'dir');
+    const result = deriveTreeChildren({ files: [], folders: [{ path: 'dir/nested-empty' }], currentDir: 'dir' });
     expect(result.dirsAtCurrentDir).toEqual(['nested-empty']);
   });
 
   it('skips a persisted folder path that equals the current directory itself (via prefix mismatch: "dir" never starts with "dir/")', () => {
-    const result = deriveTreeChildren([], [{ path: 'dir' }], 'dir');
+    const result = deriveTreeChildren({ files: [], folders: [{ path: 'dir' }], currentDir: 'dir' });
     expect(result.dirsAtCurrentDir).toEqual([]);
   });
 
@@ -80,44 +80,44 @@ describe('deriveTreeChildren', () => {
     // equal the prefix (here, the root's prefix is `''`, so an empty-path
     // folder record matches it) rather than fail the earlier
     // `startsWith(prefix)` check.
-    const result = deriveTreeChildren([], [{ path: '' }], '');
+    const result = deriveTreeChildren({ files: [], folders: [{ path: '' }], currentDir: '' });
     expect(result.dirsAtCurrentDir).toEqual([]);
   });
 
   it('scopes a persisted folder nested two levels below the current directory to its immediate child segment', () => {
-    const result = deriveTreeChildren([], [{ path: 'dir/sub/deep' }], 'dir');
+    const result = deriveTreeChildren({ files: [], folders: [{ path: 'dir/sub/deep' }], currentDir: 'dir' });
     expect(result.dirsAtCurrentDir).toEqual(['sub']);
   });
 
   it('sorts dirsAtCurrentDir alphabetically', () => {
     const files = [file('zeta/x.txt'), file('alpha/x.txt')];
-    const result = deriveTreeChildren(files, [], '');
+    const result = deriveTreeChildren({ files, folders: [], currentDir: '' });
     expect(result.dirsAtCurrentDir).toEqual(['alpha', 'zeta']);
   });
 
   it('lists a directory once when both a file and a persisted folder contribute it', () => {
-    const result = deriveTreeChildren([file('dir/a.txt')], [{ path: 'dir' }, { path: 'dir/sub' }], '');
+    const result = deriveTreeChildren({ files: [file('dir/a.txt')], folders: [{ path: 'dir' }, { path: 'dir/sub' }], currentDir: '' });
     expect(result.dirsAtCurrentDir).toEqual(['dir']);
   });
 
   it('excludes a sibling directory that merely shares the current directory name as a prefix', () => {
-    const result = deriveTreeChildren([file('dirx/a.txt')], [{ path: 'dirx/sub' }], 'dir');
+    const result = deriveTreeChildren({ files: [file('dirx/a.txt')], folders: [{ path: 'dirx/sub' }], currentDir: 'dir' });
     expect(result).toEqual({ dirsAtCurrentDir: [], filesAtCurrentDir: [] });
   });
 
   it('keeps files in their input order (no sorting of filesAtCurrentDir)', () => {
     const files = [file('dir/z.txt'), file('dir/a.txt')];
-    const result = deriveTreeChildren(files, [], 'dir');
+    const result = deriveTreeChildren({ files, folders: [], currentDir: 'dir' });
     expect(result.filesAtCurrentDir.map((f) => f.path)).toEqual(['dir/z.txt', 'dir/a.txt']);
   });
 
   it('treats a file whose path equals the root prefix as a root-level file', () => {
-    const result = deriveTreeChildren([file('')], [], '');
+    const result = deriveTreeChildren({ files: [file('')], folders: [], currentDir: '' });
     expect(result).toEqual({ dirsAtCurrentDir: [], filesAtCurrentDir: [file('')] });
   });
 
   it('surfaces an empty first segment for a folder path with a doubled slash below the current directory', () => {
-    const result = deriveTreeChildren([], [{ path: 'dir//x' }], 'dir');
+    const result = deriveTreeChildren({ files: [], folders: [{ path: 'dir//x' }], currentDir: 'dir' });
     expect(result.dirsAtCurrentDir).toEqual(['']);
   });
 });
@@ -125,94 +125,94 @@ describe('deriveTreeChildren', () => {
 describe('countFilesUnderDir', () => {
   it('counts files at every depth under the directory, not just the immediate level', () => {
     const files = [file('dir/a.txt'), file('dir/sub/b.txt'), file('dir/sub/deep/c.txt'), file('other/x.txt')];
-    expect(countFilesUnderDir(files, 'dir')).toBe(3);
+    expect(countFilesUnderDir({ files, dirPath: 'dir' })).toBe(3);
   });
 
   it('returns 0 for a directory with no files under it', () => {
-    expect(countFilesUnderDir([file('a.txt')], 'empty')).toBe(0);
+    expect(countFilesUnderDir({ files: [file('a.txt')], dirPath: 'empty' })).toBe(0);
   });
 
   it('does not count a file whose name merely starts with the dir name as a prefix (no slash)', () => {
-    expect(countFilesUnderDir([file('dirextra.txt')], 'dir')).toBe(0);
+    expect(countFilesUnderDir({ files: [file('dirextra.txt')], dirPath: 'dir' })).toBe(0);
   });
 });
 
 describe('fileExtensionLabel', () => {
-  it('uppercases the extension', () => expect(fileExtensionLabel('a/b.txt')).toBe('TXT'));
-  it('empty for a path with no extension', () => expect(fileExtensionLabel('README')).toBe(''));
-  it('empty for a path ending in a bare dot', () => expect(fileExtensionLabel('a.')).toBe(''));
+  it('uppercases the extension', () => expect(fileExtensionLabel({ path: 'a/b.txt' })).toBe('TXT'));
+  it('empty for a path with no extension', () => expect(fileExtensionLabel({ path: 'README' })).toBe(''));
+  it('empty for a path ending in a bare dot', () => expect(fileExtensionLabel({ path: 'a.' })).toBe(''));
 });
 
 describe('groupFilesByKind', () => {
   it('orders configured kinds first, then unconfigured kinds in first-seen order', () => {
     const files = [file('a.css', 'stylesheet', 1), file('b.mp3', 'audio', 2), file('c.ts', 'code', 3)];
-    const sections = groupFilesByKind(files, ['code', 'stylesheet'], (f) => f.kind, (f) => f.mtime);
+    const sections = groupFilesByKind({ files, sectionOrder: ['code', 'stylesheet'], getKind: (f) => f.kind, getModifiedAt: (f) => f.mtime });
     expect(sections.map((s) => s.kind)).toEqual(['code', 'stylesheet', 'audio']);
   });
 
   it('sorts files within each section by most-recently-modified first', () => {
     const files = [file('old.txt', 'text', 1), file('mid.txt', 'text', 5), file('new.txt', 'text', 10)];
-    const sections = groupFilesByKind(files, [], (f) => f.kind, (f) => f.mtime);
+    const sections = groupFilesByKind({ files, sectionOrder: [], getKind: (f) => f.kind, getModifiedAt: (f) => f.mtime });
     expect(sections[0]!.files.map((f) => f.path)).toEqual(['new.txt', 'mid.txt', 'old.txt']);
   });
 
   it('returns no sections for an empty file list', () => {
-    expect(groupFilesByKind([], ['code'], (f: TestFile) => f.kind, (f: TestFile) => f.mtime)).toEqual([]);
+    expect(groupFilesByKind({ files: [], sectionOrder: ['code'], getKind: (f: TestFile) => f.kind, getModifiedAt: (f: TestFile) => f.mtime })).toEqual([]);
   });
 
   it('omits a configured kind absent from the files', () => {
-    const sections = groupFilesByKind([file('a.ts', 'code')], ['code', 'stylesheet'], (f) => f.kind, (f) => f.mtime);
+    const sections = groupFilesByKind({ files: [file('a.ts', 'code')], sectionOrder: ['code', 'stylesheet'], getKind: (f) => f.kind, getModifiedAt: (f) => f.mtime });
     expect(sections.map((s) => s.kind)).toEqual(['code']);
   });
 });
 
 describe('nextExistingAncestorDir', () => {
   it('returns null at the root', () => {
-    expect(nextExistingAncestorDir([], [], '')).toBeNull();
+    expect(nextExistingAncestorDir({ files: [], folders: [], currentDir: '' })).toBeNull();
   });
 
   it('returns null when the current directory still has files under it', () => {
-    expect(nextExistingAncestorDir([file('dir/a.txt')], [], 'dir')).toBeNull();
+    expect(nextExistingAncestorDir({ files: [file('dir/a.txt')], folders: [], currentDir: 'dir' })).toBeNull();
   });
 
   it('returns null when the current directory is itself a persisted folder', () => {
-    expect(nextExistingAncestorDir([], [{ path: 'dir' }], 'dir')).toBeNull();
+    expect(nextExistingAncestorDir({ files: [], folders: [{ path: 'dir' }], currentDir: 'dir' })).toBeNull();
   });
 
   it('walks up to the nearest existing ancestor', () => {
-    expect(nextExistingAncestorDir([file('a/other.txt')], [], 'a/b/c')).toBe('a');
+    expect(nextExistingAncestorDir({ files: [file('a/other.txt')], folders: [], currentDir: 'a/b/c' })).toBe('a');
   });
 
   it('falls back to the root when no ancestor exists', () => {
-    expect(nextExistingAncestorDir([], [], 'a/b/c')).toBe('');
+    expect(nextExistingAncestorDir({ files: [], folders: [], currentDir: 'a/b/c' })).toBe('');
   });
 
   it('treats a persisted folder nested under an ancestor as proof the ancestor exists', () => {
-    expect(nextExistingAncestorDir([], [{ path: 'a/kept' }], 'a/b/c')).toBe('a');
+    expect(nextExistingAncestorDir({ files: [], folders: [{ path: 'a/kept' }], currentDir: 'a/b/c' })).toBe('a');
   });
 });
 
 describe('selection helpers', () => {
   it('toggleInSet adds then removes', () => {
-    let s = toggleInSet(new Set(), 'a');
+    let s = toggleInSet({ prev: new Set(), path: 'a' });
     expect([...s]).toEqual(['a']);
-    s = toggleInSet(s, 'a');
+    s = toggleInSet({ prev: s, path: 'a' });
     expect(s.size).toBe(0);
   });
 
   it('pruneMissingPaths returns the exact same reference when prev is empty', () => {
     const prev = new Set<string>();
-    expect(pruneMissingPaths(prev, [])).toBe(prev);
+    expect(pruneMissingPaths({ prev, livePaths: [] })).toBe(prev);
   });
 
   it('pruneMissingPaths returns the exact same reference when nothing was pruned', () => {
     const prev = new Set(['a']);
-    expect(pruneMissingPaths(prev, ['a', 'b'])).toBe(prev);
+    expect(pruneMissingPaths({ prev, livePaths: ['a', 'b'] })).toBe(prev);
   });
 
   it('pruneMissingPaths drops paths absent from livePaths', () => {
     const prev = new Set(['a', 'b']);
-    const next = pruneMissingPaths(prev, ['b']);
+    const next = pruneMissingPaths({ prev, livePaths: ['b'] });
     expect([...next]).toEqual(['b']);
     expect(next).not.toBe(prev);
   });
@@ -220,48 +220,48 @@ describe('selection helpers', () => {
 
 describe('rename helpers', () => {
   it('basenameForRename strips the currentDir prefix', () => {
-    expect(basenameForRename('dir/file.txt', 'dir')).toBe('file.txt');
-    expect(basenameForRename('file.txt', '')).toBe('file.txt');
+    expect(basenameForRename({ path: 'dir/file.txt', currentDir: 'dir' })).toBe('file.txt');
+    expect(basenameForRename({ path: 'file.txt', currentDir: '' })).toBe('file.txt');
   });
 
   it('resolveRenameCommit rejects an empty draft', () => {
-    expect(resolveRenameCommit('a.txt', '', '   ')).toBeNull();
+    expect(resolveRenameCommit({ path: 'a.txt', currentDir: '', draft: '   ' })).toBeNull();
   });
 
   it('resolveRenameCommit rejects a no-op rename (draft resolves back to the same path)', () => {
-    expect(resolveRenameCommit('a.txt', '', 'a.txt')).toBeNull();
+    expect(resolveRenameCommit({ path: 'a.txt', currentDir: '', draft: 'a.txt' })).toBeNull();
   });
 
   it('resolveRenameCommit returns the resolved next path at the root', () => {
-    expect(resolveRenameCommit('a.txt', '', 'b.txt')).toEqual({ nextPath: 'b.txt' });
+    expect(resolveRenameCommit({ path: 'a.txt', currentDir: '', draft: 'b.txt' })).toEqual({ nextPath: 'b.txt' });
   });
 
   it('resolveRenameCommit prefixes currentDir for a nested rename', () => {
-    expect(resolveRenameCommit('dir/a.txt', 'dir', 'b.txt')).toEqual({ nextPath: 'dir/b.txt' });
+    expect(resolveRenameCommit({ path: 'dir/a.txt', currentDir: 'dir', draft: 'b.txt' })).toEqual({ nextPath: 'dir/b.txt' });
   });
 });
 
 describe('computeMenuPosition', () => {
   it('opens below the anchor when there is room', () => {
-    expect(computeMenuPosition({ top: 100, bottom: 120, right: 300 }, 800)).toEqual({ top: 124, left: 140 });
+    expect(computeMenuPosition({ anchor: { top: 100, bottom: 120, right: 300 }, viewportHeight: 800 })).toEqual({ top: 124, left: 140 });
   });
 
   it('opens above the anchor when there is no room below but room above', () => {
-    expect(computeMenuPosition({ top: 700, bottom: 720, right: 300 }, 750)).toEqual({ top: 516, left: 140 });
+    expect(computeMenuPosition({ anchor: { top: 700, bottom: 720, right: 300 }, viewportHeight: 750 })).toEqual({ top: 516, left: 140 });
   });
 
   it('clamps to the viewport when there is no room above or below', () => {
-    const result = computeMenuPosition({ top: 100, bottom: 110, right: 300 }, 200);
+    const result = computeMenuPosition({ anchor: { top: 100, bottom: 110, right: 300 }, viewportHeight: 200 });
     expect(result.top).toBe(12);
   });
 
   it('clamps left to the safe padding when the anchor is near the left edge', () => {
-    const result = computeMenuPosition({ top: 0, bottom: 20, right: 50 }, 800);
+    const result = computeMenuPosition({ anchor: { top: 0, bottom: 20, right: 50 }, viewportHeight: 800 });
     expect(result.left).toBe(8);
   });
 
   it('honors custom estimatedHeight/safePadding options', () => {
-    const result = computeMenuPosition({ top: 0, bottom: 20, right: 300 }, 100, { estimatedHeight: 10, safePadding: 2 });
+    const result = computeMenuPosition({ anchor: { top: 0, bottom: 20, right: 300 }, viewportHeight: 100 }, { estimatedHeight: 10, safePadding: 2 });
     expect(result.top).toBe(24);
   });
 });
@@ -280,78 +280,78 @@ describe('canCopyLocalPath', () => {
   };
 
   it('true when getLocalPath returns a non-empty string', () => {
-    expect(canCopyLocalPath(file('a.txt', 'text', 0, '/a.txt'), selectorsWithLocal)).toBe(true);
+    expect(canCopyLocalPath({ file: file('a.txt', 'text', 0, '/a.txt'), selectors: selectorsWithLocal })).toBe(true);
   });
 
   it('false when getLocalPath returns null', () => {
-    expect(canCopyLocalPath(file('a.txt', 'text', 0, null), selectorsWithLocal)).toBe(false);
+    expect(canCopyLocalPath({ file: file('a.txt', 'text', 0, null), selectors: selectorsWithLocal })).toBe(false);
   });
 
   it('false when the selectors have no getLocalPath at all', () => {
-    expect(canCopyLocalPath(file('a.txt'), selectorsWithoutLocal)).toBe(false);
+    expect(canCopyLocalPath({ file: file('a.txt'), selectors: selectorsWithoutLocal })).toBe(false);
   });
 });
 
 describe('isDoubleActivation', () => {
   it('false when there is no prior timestamp', () => {
-    expect(isDoubleActivation(undefined, 1000)).toBe(false);
+    expect(isDoubleActivation({ lastTimestampMs: undefined, nowMs: 1000 })).toBe(false);
   });
 
   it('true within the window', () => {
-    expect(isDoubleActivation(1000, 1200, 300)).toBe(true);
+    expect(isDoubleActivation({ lastTimestampMs: 1000, nowMs: 1200 }, { windowMs: 300 })).toBe(true);
   });
 
   it('false outside the window', () => {
-    expect(isDoubleActivation(1000, 1400, 300)).toBe(false);
+    expect(isDoubleActivation({ lastTimestampMs: 1000, nowMs: 1400 }, { windowMs: 300 })).toBe(false);
   });
 });
 
 describe('resolveKindConfig', () => {
   it('returns the configured entry when present', () => {
-    expect(resolveKindConfig('image', { image: { label: 'Images', glyph: 'IMG' } })).toEqual({
+    expect(resolveKindConfig({ kind: 'image', kindConfig: { image: { label: 'Images', glyph: 'IMG' } } })).toEqual({
       label: 'Images',
       glyph: 'IMG',
     });
   });
 
   it('falls back to the raw kind key and the default glyph when unconfigured', () => {
-    expect(resolveKindConfig('mystery', {})).toEqual({ label: 'mystery', glyph: '·' });
+    expect(resolveKindConfig({ kind: 'mystery', kindConfig: {} })).toEqual({ label: 'mystery', glyph: '·' });
   });
 });
 
 describe('humanBytes', () => {
-  it('formats bytes', () => expect(humanBytes(500)).toBe('500 B'));
-  it('formats kilobytes', () => expect(humanBytes(2048)).toBe('2.0 KB'));
-  it('formats megabytes', () => expect(humanBytes(5 * 1024 * 1024)).toBe('5.0 MB'));
+  it('formats bytes', () => expect(humanBytes({ n: 500 })).toBe('500 B'));
+  it('formats kilobytes', () => expect(humanBytes({ n: 2048 })).toBe('2.0 KB'));
+  it('formats megabytes', () => expect(humanBytes({ n: 5 * 1024 * 1024 })).toBe('5.0 MB'));
 });
 
 describe('relativeTimeResult', () => {
   const now = 1_000_000_000;
-  it('just now', () => expect(relativeTimeResult(now - 1000, now)).toEqual({ label: 'Just now', translatable: true }));
+  it('just now', () => expect(relativeTimeResult({ ts: now - 1000 }, { nowMs: now })).toEqual({ label: 'Just now', translatable: true }));
   it('minutes ago', () =>
-    expect(relativeTimeResult(now - 5 * 60_000, now)).toEqual({ label: '{n}m ago', translatable: true, params: { n: 5 } }));
+    expect(relativeTimeResult({ ts: now - 5 * 60_000 }, { nowMs: now })).toEqual({ label: '{n}m ago', translatable: true, params: { n: 5 } }));
   it('hours ago', () =>
-    expect(relativeTimeResult(now - 3 * 3_600_000, now)).toEqual({ label: '{n}h ago', translatable: true, params: { n: 3 } }));
+    expect(relativeTimeResult({ ts: now - 3 * 3_600_000 }, { nowMs: now })).toEqual({ label: '{n}h ago', translatable: true, params: { n: 3 } }));
   it('days ago', () =>
-    expect(relativeTimeResult(now - 2 * 86_400_000, now)).toEqual({ label: '{n}d ago', translatable: true, params: { n: 2 } }));
+    expect(relativeTimeResult({ ts: now - 2 * 86_400_000 }, { nowMs: now })).toEqual({ label: '{n}d ago', translatable: true, params: { n: 2 } }));
   it('weeks ago', () =>
-    expect(relativeTimeResult(now - 10 * 86_400_000, now)).toEqual({
+    expect(relativeTimeResult({ ts: now - 10 * 86_400_000 }, { nowMs: now })).toEqual({
       label: '{n}w ago',
       translatable: true,
       params: { n: 1 },
     }));
   it('falls back to a locale date beyond 30 days, non-translatable', () => {
     const ts = now - 40 * 86_400_000;
-    const result = relativeTimeResult(ts, now);
+    const result = relativeTimeResult({ ts }, { nowMs: now });
     expect(result.translatable).toBe(false);
     expect(result.label).toBe(new Date(ts).toLocaleDateString());
   });
 });
 
 describe('buildBreadcrumbSegments', () => {
-  it('empty at the root', () => expect(buildBreadcrumbSegments('')).toEqual([]));
+  it('empty at the root', () => expect(buildBreadcrumbSegments({ currentDir: '' })).toEqual([]));
   it('one segment per path component, marking the last', () => {
-    expect(buildBreadcrumbSegments('a/b/c')).toEqual([
+    expect(buildBreadcrumbSegments({ currentDir: 'a/b/c' })).toEqual([
       { path: 'a', label: 'a', isLast: false },
       { path: 'a/b', label: 'b', isLast: false },
       { path: 'a/b/c', label: 'c', isLast: true },
@@ -361,12 +361,12 @@ describe('buildBreadcrumbSegments', () => {
 
 describe('filesFromClipboardData', () => {
   it('null clipboardData yields no files', () => {
-    expect(filesFromClipboardData(null)).toEqual([]);
+    expect(filesFromClipboardData({ clipboardData: null })).toEqual([]);
   });
 
   it('prefers clipboardData.files when present', () => {
     const f = new File(['x'], 'x.png');
-    const files = filesFromClipboardData({ files: [f], items: [] } as unknown as DataTransfer);
+    const files = filesFromClipboardData({ clipboardData: { files: [f], items: [] } as unknown as DataTransfer });
     expect(files).toEqual([f]);
   });
 
@@ -377,7 +377,7 @@ describe('filesFromClipboardData', () => {
       { kind: 'string', getAsFile: () => null },
       { kind: 'file', getAsFile: () => null },
     ];
-    const files = filesFromClipboardData({ files: [], items } as unknown as DataTransfer);
+    const files = filesFromClipboardData({ clipboardData: { files: [], items } as unknown as DataTransfer });
     expect(files).toEqual([f]);
   });
 });
@@ -406,13 +406,13 @@ describe('extensionForMimeType', () => {
     ['text/plain', '.txt'],
     ['application/octet-stream', ''],
   ])('%s -> %s', (mime, ext) => {
-    expect(extensionForMimeType(mime)).toBe(ext);
+    expect(extensionForMimeType({ mimeType: mime })).toBe(ext);
   });
 });
 
 describe('shouldIgnoreClipboardFilePaste', () => {
   it('false for a non-HTMLElement target', () => {
-    expect(shouldIgnoreClipboardFilePaste(null)).toBe(false);
+    expect(shouldIgnoreClipboardFilePaste({ target: null })).toBe(false);
   });
 
   it('true for a contenteditable ancestor', () => {
@@ -420,15 +420,15 @@ describe('shouldIgnoreClipboardFilePaste', () => {
     div.setAttribute('contenteditable', 'true');
     const span = document.createElement('span');
     div.appendChild(span);
-    expect(shouldIgnoreClipboardFilePaste(span)).toBe(true);
+    expect(shouldIgnoreClipboardFilePaste({ target: span })).toBe(true);
   });
 
   it.each(['input', 'textarea', 'select'])('true for a %s target', (tag) => {
-    expect(shouldIgnoreClipboardFilePaste(document.createElement(tag))).toBe(true);
+    expect(shouldIgnoreClipboardFilePaste({ target: document.createElement(tag) })).toBe(true);
   });
 
   it('false for a generic element', () => {
-    expect(shouldIgnoreClipboardFilePaste(document.createElement('div'))).toBe(false);
+    expect(shouldIgnoreClipboardFilePaste({ target: document.createElement('div') })).toBe(false);
   });
 });
 
@@ -557,7 +557,7 @@ describe('filesFromDataTransfer', () => {
       file: (_success: (f: File) => void, error: (e: DOMException) => void) => error(new DOMException('nope')),
     } as unknown as FileSystemEntry;
     const item = { kind: 'file', webkitGetAsEntry: () => failingEntry } as unknown as DataTransferItem;
-    await expect(filesFromDataTransfer({ items: [item], files: [] } as unknown as DataTransfer)).rejects.toThrow();
+    await expect(filesFromDataTransfer({ items: [item], files: [] } as unknown as DataTransfer)).rejects.toThrow('nope');
   });
 });
 

@@ -1,5 +1,5 @@
 import { CommentsTestProvider } from "./support.js";
-import { renderHook, waitFor } from "@testing-library/react";
+import { renderHook, waitFor } from "../../../__tests__/fetch-query-support.js";
 import { describe, expect, it, vi } from "vitest";
 
 import { FetchQueryProvider } from "@jini-ai/ui/fetch-query";
@@ -42,7 +42,7 @@ describe("useComments", () => {
     const port = createFakeCommentsPort({ meError: new Error("boom") });
     const { result } = renderHook(() => useComments({ port, locale: "en" }), { wrapper });
     await waitFor(() => expect(result.current.error).not.toBeNull());
-    expect(result.current.error).toBe("boom");
+    expect(result.current.error).toBe("failed to load permissions");
     expect(result.current.permissions).toBeNull();
   });
 

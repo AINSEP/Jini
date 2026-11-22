@@ -76,7 +76,7 @@ export interface VerifyRecord extends VerifyResult {
   contextId?: string | null;
 }
 
-const STOPWORDS = new Set([
+const STOPWORDS: ReadonlySet<string> = new Set([
   'the', 'and', 'for', 'with', 'that', 'this', 'must', 'should', 'have',
   'from', 'into', 'when', 'then', 'than', 'your', 'over', 'every',
   'check', 'verify', 'rule', 'future', 'artifacts', 'satisfy', 'ensure',
@@ -185,7 +185,7 @@ function findUncoveredRules({ activeRules, rows }: {
  *   the host's scorecard extractor.
  * @returns The verify verdict.
  */
-export function enforceVerify(input: EnforceVerifyInput): VerifyResult {
+export function enforceVerify(input: EnforceVerifyInput, _optional: Record<string, never> = {}): VerifyResult {
   const activeRules = input.activeRules;
   const base: VerifyResult = {
     status: 'skipped',

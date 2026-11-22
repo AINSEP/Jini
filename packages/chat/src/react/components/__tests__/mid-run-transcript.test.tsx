@@ -1,10 +1,11 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor } from '@testing-library/react';
+import { renderWithChatSurfaces } from '../../__tests__/fake-chat-surfaces.js';
 import { afterEach, expect, it } from 'vitest';
 import { acceptedInputUserEvent } from '../../../core/accepted-input.js';
 import { translateRunAgentPayload } from '../../../core/run-events/entry.js';
 import type { AgentEvent, ChatMessage } from '../../../core/index.js';
 import { clearExtEventRenderers } from '../../ext-event-renderer-registry.js';
-import { registerMidRunUserMessageRenderer } from '../MidRunUserMessage.js';
+import { registerMidRunUserMessageRenderer, MidRunUserMessage } from '../MidRunUserMessage.js';
 import { MessageRow } from '../MessageRow.js';
 import { MessageList } from '../MessageList.js';
 import { ChatPane } from '../../features/chat-pane/components/ChatPane.js';
@@ -18,7 +19,7 @@ const receipt = (deliveryState: 'queued' | 'consumed') => translateRunAgentPaylo
 it('keeps the emitted queued state visible until the reading step consumes it, including a stream disconnect', () => {
   const queued = receipt('queued');
   const message: ChatMessage = { id: 'run', role: 'assistant', content: '', events: [queued], runStatus: 'running' };
-  const view = render(<MessageRow message={message} runStreaming />);
+  const view = renderWithChatSurfaces(<MessageRow message={message} runStreaming />);
   expect(screen.getByText('Queued — read after the current step')).toBeInTheDocument();
   view.rerender(<MessageRow message={message} runStreaming={false} />);
   expect(screen.getByText('Queued — read after the current step')).toBeInTheDocument();
@@ -34,7 +35,7 @@ it.each([false, true])('keeps a late receipt at send time as an ordinary transcr
     { kind: 'text', text: 'Initial work.' }, optimistic,
     { kind: 'text', text: 'Footer checked.' }, receipt('queued'), receipt('consumed'),
   ];
-  const view = render(<div className="jini-message-list"><MessageRow message={{
+  const view = renderWithChatSurfaces(<div className="jini-message-list"><MessageRow message={{
     id: 'run', role: 'assistant', content: 'Initial work.\n\nFooter checked.', events, runStatus: 'succeeded',
   }} /></div>);
   const rows = [...view.container.querySelector('.jini-message-list')!.children];
@@ -49,7 +50,7 @@ it.each([false, true])('keeps a late receipt at send time as an ordinary transcr
 
 it('does not leave an empty assistant row below a final mid-run bubble after completion', () => {
   const events: AgentEvent[] = [{ kind: 'text', text: 'Earlier work.' }, receipt('queued')];
-  const view = render(<div className="jini-message-list"><MessageRow message={{
+  const view = renderWithChatSurfaces(<div className="jini-message-list"><MessageRow message={{
     id: 'run', role: 'assistant', content: 'Earlier work.', events, runStatus: 'succeeded',
   }} /></div>);
   const list = view.container.querySelector('.jini-message-list')!;
@@ -68,11 +69,11 @@ it.each(['queued', 'consumed'] as const)('renders one mid-run bubble across even
     { id: 'fallback-row', role: 'user', content: input.text, events: [acceptedInputUserEvent({ input }, { receipt: 'accepted' })] },
     { id: 'new-run', role: 'assistant', content: '', runStatus: 'running', runId: 'run-2' },
   ];
-  const view = render(<MessageList messages={messages} isStreaming />);
+  const view = renderWithChatSurfaces(<MessageList messages={messages} isStreaming />);
   expect(screen.getAllByText(input.text)).toHaveLength(1);
   expect(view.container.querySelectorAll('.jini-message-user')).toHaveLength(2);
   view.unmount();
-  const restored = render(<MessageList messages={JSON.parse(JSON.stringify(messages))} isStreaming />);
+  const restored = renderWithChatSurfaces(<MessageList messages={JSON.parse(JSON.stringify(messages))} isStreaming />);
   expect(screen.getAllByText(input.text)).toHaveLength(1);
   expect(restored.container.querySelectorAll('.jini-message-user')).toHaveLength(2);
 });
@@ -81,7 +82,7 @@ it.each(['button', 'shortcut'] as const)('one %s send is one bubble during a cap
   const transport = createFakeChatTransport();
   let saved: ChatMessage[] = [];
   const agents = [{ id: 'assistant', name: 'Assistant', available: true }];
-  const view = render(<ChatPane transport={transport} agents={agents}
+  const view = renderWithChatSurfaces(<ChatPane transport={transport} agents={agents}
     deliverMidRunMessage={async () => ({ delivery: 'delivered', id: 'publish-input' })}
     onMessagesChange={messages => { saved = messages; }} />);
   fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Start the work' } });
@@ -103,10 +104,22 @@ it.each(['button', 'shortcut'] as const)('one %s send is one bubble during a cap
   expect(screen.queryByText('Queued — read after the current step')).toBeNull();
   expect(screen.getAllByText(text)).toHaveLength(1);
   view.unmount();
-  render(<ChatPane transport={transport} agents={agents} initialMessages={JSON.parse(JSON.stringify(saved))} />);
+  renderWithChatSurfaces(<ChatPane transport={transport} agents={agents} initialMessages={JSON.parse(JSON.stringify(saved))} />);
   await waitFor(() => expect(transport.reattachCalls).toHaveLength(1));
   expect(screen.getAllByText(text)).toHaveLength(1);
   expect(screen.queryByText('Sending…')).toBeNull();
   expect(transport.calls).toHaveLength(1);
   expect(transport.stoppedRunIds).toEqual([]);
+});
+
+
+it('passes injected queued copy and gallery state through to each receipt', async () => {
+  renderWithChatSurfaces(<MidRunUserMessage runStreaming events={[
+    { id: 'receipt', text: 'Read this file', deliveryState: 'queued', attachments: [{ path: '/a.zip', name: 'a.zip', kind: 'file' }] },
+  ]} useTHook={() => (key) => `injected:${key}`} useAttachmentGalleryHook={() => ({
+    opened: { path: '/preview.zip', name: 'preview.zip', kind: 'file' },
+    navigation: undefined, open: () => {}, close: () => {},
+  })} />);
+  expect(screen.getByText('injected:Queued — read after the current step')).toBeInTheDocument();
+  expect(await screen.findByRole('dialog', { name: 'preview.zip preview' })).toBeInTheDocument();
 });

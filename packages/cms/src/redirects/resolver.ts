@@ -1,7 +1,7 @@
 import { nowIso as clockNowIso } from "@jini-ai/core/primitives";
 /**
  * @file `RedirectResolver` (read-path resolution) + `registerRedirectsPhaseHandlers`
- * (routing-chain adapter) — SPEC-009 REQ-09/10/18/19/20; ADR-PIPE-009 C-006/C-007.
+ * (routing-chain adapter).
  *
  * Purpose:
  * Owns the read-path open-redirect oracle call (C-013 in the implementation
@@ -19,7 +19,7 @@ import { nowIso as clockNowIso } from "@jini-ai/core/primitives";
  *
  * Oracle-call discipline (documented, load-bearing): `isAllowedRedirectTarget`
  * only accepts a fully-qualified, WHATWG-parseable candidate URL (see
- * `origin/origin.ts`'s `normalizeOriginCandidate` — a bare relative path like
+ * `packages/http-kit/src/verified-origin/origin.ts`'s `normalizeOriginCandidate` — a bare relative path like
  * `/new` fails to parse with no base and would otherwise always resolve to
  * "not allowed"). So a plain relative `location` is first resolved to an
  * absolute URL against the workspace's own verified canonical origin (making
@@ -41,7 +41,7 @@ import { nowIso as clockNowIso } from "@jini-ai/core/primitives";
  * `RouteResolvePhaseHandler` shape. No Express/route code.
  */
 import type { Clock as ClockPort, IdGenerator as IdGeneratorPort } from "@jini-ai/core/primitives";
-import type { DomainEvent, OutboxPort } from "../core/index.js";
+import type { DomainEvent, OutboxPort } from "@jini-ai/core/contracts/events";
 import { checkRedirectLocation, type RedirectTargetOracle } from "./target-gate.js";
 
 import type {
@@ -54,7 +54,7 @@ import type {
 import type { RedirectRecord, RedirectRequest, RedirectResolution } from "./types.js";
 
 /** The bounded dynamic (wildcard) set cap (behavior.spec.md §3/§4, OQ-01). */
-const DYNAMIC_SET_LIMIT = 500;
+export const DYNAMIC_SET_LIMIT = 500;
 
 export interface RedirectPhaseHandlerDeps {
   repo: RedirectRepoPort;

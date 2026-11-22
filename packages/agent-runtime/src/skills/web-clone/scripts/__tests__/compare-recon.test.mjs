@@ -22,61 +22,61 @@ const recon = (signals, extra = {}) => ({ captures: [{ signals, screenshot: "s.p
 
 describe("parseArgs", () => {
   it("defaults every input to empty and the report to CLONE_REPORT.md", () => {
-    expect(parseArgs([])).toEqual({
+    expect(parseArgs({ argv: [] })).toEqual({
       original: "", clone: "", visualDiff: "", originalRoutes: "", cloneRoutes: "",
       originalInteractions: "", cloneInteractions: "", out: "CLONE_REPORT.md",
     });
   });
 
   it("maps every flag to its key", () => {
-    expect(parseArgs([
+    expect(parseArgs({ argv: [
       "--original", "o", "--clone", "c", "--visual-diff", "v", "--original-routes", "or", "--clone-routes", "cr",
       "--original-interactions", "oi", "--clone-interactions", "ci", "--out", "r.md", "-h",
-    ])).toEqual({
+    ] })).toEqual({
       original: "o", clone: "c", visualDiff: "v", originalRoutes: "or", cloneRoutes: "cr",
       originalInteractions: "oi", cloneInteractions: "ci", out: "r.md", help: true,
     });
-    expect(parseArgs(["--out"]).out).toBe("CLONE_REPORT.md");
-    expect(parseArgs(["--help"]).help).toBe(true);
-    expect(() => parseArgs(["o.json"])).toThrow("Unexpected argument: o.json");
+    expect(parseArgs({ argv: ["--out"] }).out).toBe("CLONE_REPORT.md");
+    expect(parseArgs({ argv: ["--help"] }).help).toBe(true);
+    expect(() => parseArgs({ argv: ["o.json"] })).toThrow("Unexpected argument: o.json");
   });
 });
 
 describe("ratioScore", () => {
   it("scores closeness of two counts on a 1..5 scale", () => {
-    expect(ratioScore(0, 0)).toBe(5);
-    expect(ratioScore(0, 3)).toBe(1);
-    expect(ratioScore(4, 0)).toBe(1);
-    expect(ratioScore(100, 95)).toBe(5);
-    expect(ratioScore(80, 100)).toBe(4);
-    expect(ratioScore(60, 100)).toBe(3);
-    expect(ratioScore(100, 40)).toBe(2);
-    expect(ratioScore(30, 100)).toBe(1);
+    expect(ratioScore({ a: 0, b: 0 })).toBe(5);
+    expect(ratioScore({ a: 0, b: 3 })).toBe(1);
+    expect(ratioScore({ a: 4, b: 0 })).toBe(1);
+    expect(ratioScore({ a: 100, b: 95 })).toBe(5);
+    expect(ratioScore({ a: 80, b: 100 })).toBe(4);
+    expect(ratioScore({ a: 60, b: 100 })).toBe(3);
+    expect(ratioScore({ a: 100, b: 40 })).toBe(2);
+    expect(ratioScore({ a: 30, b: 100 })).toBe(1);
   });
 });
 
 describe("sequenceSimilarity", () => {
   it("is the share of tag:text keys present on both sides", () => {
     const h = (tag, text) => ({ tag, text });
-    expect(sequenceSimilarity([], [])).toBe(1);
-    expect(sequenceSimilarity([h("h1", "A")], [])).toBe(0);
-    expect(sequenceSimilarity([], [h("h1", "A")])).toBe(0);
-    expect(sequenceSimilarity([h("h1", "A"), h("h2", "B")], [h("h1", "A"), h("h2", "C"), h("h2", "D")])).toBeCloseTo(1 / 3);
+    expect(sequenceSimilarity({ a: [], b: [] })).toBe(1);
+    expect(sequenceSimilarity({ a: [h("h1", "A")], b: [] })).toBe(0);
+    expect(sequenceSimilarity({ a: [], b: [h("h1", "A")] })).toBe(0);
+    expect(sequenceSimilarity({ a: [h("h1", "A"), h("h2", "B")], b: [h("h1", "A"), h("h2", "C"), h("h2", "D")] })).toBeCloseTo(1 / 3);
   });
 });
 
 describe("inferComplexity", () => {
   it("picks the most demanding matching level", () => {
-    expect(inferComplexity({ counts: { forms: 3, inputs: 11, canvas: 1 } })).toBe("L6");
-    expect(inferComplexity({ counts: { forms: 3, inputs: 10, canvas: 1 } })).toBe("L5");
-    expect(inferComplexity({ frameworks: { three: true } })).toBe("L5");
-    expect(inferComplexity({ frameworks: { gsap: true } })).toBe("L4");
-    expect(inferComplexity({ frameworks: { lenis: true } })).toBe("L4");
-    expect(inferComplexity({ counts: { video: 3 } })).toBe("L4");
-    expect(inferComplexity({ frameworks: { next: true, jquery: true } })).toBe("L3");
-    expect(inferComplexity({ frameworks: { jquery: true, react: false }, counts: { links: 81 } })).toBe("L2");
-    expect(inferComplexity({ counts: { images: 41 } })).toBe("L2");
-    expect(inferComplexity({})).toBe("L1");
+    expect(inferComplexity({ signals: { counts: { forms: 3, inputs: 11, canvas: 1 } } })).toBe("L6");
+    expect(inferComplexity({ signals: { counts: { forms: 3, inputs: 10, canvas: 1 } } })).toBe("L5");
+    expect(inferComplexity({ signals: { frameworks: { three: true } } })).toBe("L5");
+    expect(inferComplexity({ signals: { frameworks: { gsap: true } } })).toBe("L4");
+    expect(inferComplexity({ signals: { frameworks: { lenis: true } } })).toBe("L4");
+    expect(inferComplexity({ signals: { counts: { video: 3 } } })).toBe("L4");
+    expect(inferComplexity({ signals: { frameworks: { next: true, jquery: true } } })).toBe("L3");
+    expect(inferComplexity({ signals: { frameworks: { jquery: true, react: false }, counts: { links: 81 } } })).toBe("L2");
+    expect(inferComplexity({ signals: { counts: { images: 41 } } })).toBe("L2");
+    expect(inferComplexity({ signals: {} })).toBe("L1");
   });
 });
 
@@ -84,7 +84,7 @@ describe("score", () => {
   it("derives structure, interaction, responsive and functional scores from the first capture", () => {
     const original = { captures: [{ signals: { headings: [{ tag: "h1", text: "A" }], counts: { links: 10, forms: 1, buttons: 2, inputs: 2, canvas: 1 } } }, {}] };
     const clone = { captures: [{ signals: { headings: [{ tag: "h1", text: "B" }], counts: { links: 10, forms: 1, buttons: 2, inputs: 2 } } }] };
-    expect(score(original, clone, null)).toEqual({
+    expect(score({ original, clone, visualDiff: null })).toEqual({
       sourceEvidence: 3,
       structure: 1,
       visual: "需人工看截图或传 --visual-diff",
@@ -94,25 +94,25 @@ describe("score", () => {
       contentReplacement: "需人工看文案残留",
       legalRisk: "需人工核查 license / 素材",
     });
-    const same = score(original, original, { visualScore: 4 });
+    const same = score({ original, clone: original, visualDiff: { visualScore: 4 } });
     expect(same).toMatchObject({ structure: 5, visual: "4/5", interaction: 5, responsive: 4 });
-    expect(score({}, {}, null)).toMatchObject({ structure: 5, responsive: 4, functional: 5 });
+    expect(score({ original: {}, clone: {}, visualDiff: null })).toMatchObject({ structure: 5, responsive: 4, functional: 5 });
   });
 });
 
 describe("routesSection", () => {
   it("asks for route maps when either side is missing", () => {
-    expect(routesSection({}, { originalRoutes: { routes: [] }, cloneRoutes: null })).toContain("未提供 route-crawl 结果");
+    expect(routesSection({ files: {}, evidence: { originalRoutes: { routes: [] }, cloneRoutes: null } })).toContain("未提供 route-crawl 结果");
   });
 
   it("compares path+query across hosts and lists missing/extra routes", () => {
     // "x:" has an empty path and query, so it counts as "/"; unparseable URLs are compared verbatim.
-    const section = routesSection(
-      { originalRoutes: "o.json", cloneRoutes: "c.json" },
-      {
+    const section = routesSection({
+      files: { originalRoutes: "o.json", cloneRoutes: "c.json" },
+      evidence: {
         originalRoutes: { routes: [{ url: "https://o.test/" }, { url: "https://o.test/a?x=1" }, { url: "not a url" }, { url: "x:" }] },
         cloneRoutes: { routes: [{ url: "http://localhost:8123/" }, { url: "http://localhost:8123/b" }] },
-      },
+      } }
     );
     expect(section).toBe(`## 路由覆盖
 - 原站路由: 3
@@ -126,7 +126,7 @@ describe("routesSection", () => {
   });
 
   it("reports full coverage and 无 when nothing differs or nothing was crawled", () => {
-    const section = routesSection({}, { originalRoutes: {}, cloneRoutes: {} });
+    const section = routesSection({ files: {}, evidence: { originalRoutes: {}, cloneRoutes: {} } });
     expect(section).toContain("- 覆盖率: 100%\n");
     expect(section).toContain("- 缺失路由: 无\n- 额外路由: 无\n");
   });
@@ -134,21 +134,21 @@ describe("routesSection", () => {
 
 describe("interactionSection", () => {
   it("asks for probes when either side is missing", () => {
-    expect(interactionSection({}, { originalInteractions: null, cloneInteractions: {} })).toContain("未提供 interaction-probe 结果");
+    expect(interactionSection({ files: {}, evidence: { originalInteractions: null, cloneInteractions: {} } })).toContain("未提供 interaction-probe 结果");
   });
 
   it("compares changed actions and canvas targets", () => {
     const files = { originalInteractions: "oi.json", cloneInteractions: "ci.json" };
     const probe = { actions: [{ changed: true }, { changed: false }], discovered: { canvases: [1], interactive: [1, 2, 3] } };
-    const close = interactionSection(files, { originalInteractions: probe, cloneInteractions: probe });
+    const close = interactionSection({ files, evidence: { originalInteractions: probe, cloneInteractions: probe } });
     expect(close).toContain("- 原站可见交互目标: 3\n- 克隆可见交互目标: 3\n- 原站 canvas 目标: 1\n");
     expect(close).toContain("- 原站 changed actions: 1/2\n");
     expect(close).toContain("- 原站 interaction probe: oi.json\n- 克隆 interaction probe: ci.json\n");
     expect(close).toContain("交互数量信号接近");
-    const sparse = interactionSection(files, { originalInteractions: probe, cloneInteractions: { actions: [{ changed: true }] } });
+    const sparse = interactionSection({ files, evidence: { originalInteractions: probe, cloneInteractions: { actions: [{ changed: true }] } } });
     expect(sparse).toContain("- 克隆 canvas 目标: 0\n");
     expect(sparse).toContain("交互数量信号不一致");
-    expect(interactionSection(files, { originalInteractions: probe, cloneInteractions: {} })).toContain("- 克隆 changed actions: 0/0\n");
+    expect(interactionSection({ files, evidence: { originalInteractions: probe, cloneInteractions: {} } })).toContain("- 克隆 changed actions: 0/0\n");
   });
 });
 
@@ -161,7 +161,7 @@ describe("report", () => {
       { label: "nike", url: "https://o.test/", console: { errors: [1], pageErrors: [1, 2] } },
     );
     const clone = recon({ h1: [], counts: { links: 20 } }, { url: "http://localhost/" });
-    const md = report({ original: "o.json", clone: "c.json", visualDiff: "v.json" }, original, clone, { ...noEvidence, visualDiff: { visualScore: 3, diffPixelRatio: 0.2 } });
+    const md = report({ files: { original: "o.json", clone: "c.json", visualDiff: "v.json" }, original, clone, evidence: { ...noEvidence, visualDiff: { visualScore: 3, diffPixelRatio: 0.2 } } });
     expect(md.startsWith("# nike vs clone · 克隆评估报告\n")).toBe(true);
     expect(md).toContain("- 自动推断复杂度: L5\n- 复刻模式建议: 技术拆解 / 忠实复刻优先\n");
     expect(md).toContain("| title | Orig |  |\n| lang | ja |  |\n| frameworks | three | none |\n| scrollHeight | 4200 | 0 |\n| h1 | Hello, World | none |");
@@ -174,12 +174,12 @@ describe("report", () => {
 
   it("falls back to default labels, the L6 and generic modes, and 未提供 evidence", () => {
     const l6 = recon({ counts: { forms: 3, inputs: 11 } }, { label: "", url: "u" });
-    const md = report({ original: "o", clone: "c" }, l6, { url: "v" }, noEvidence);
+    const md = report({ files: { original: "o", clone: "c" }, original: l6, clone: { url: "v" }, evidence: noEvidence });
     expect(md.startsWith("# original vs clone · 克隆评估报告\n")).toBe(true);
     expect(md).toContain("- 复刻模式建议: 展示层视觉复刻\n");
     expect(md).toContain("| h1 |  |  |");
     expect(md).toContain("- 像素差异: 未提供\n- 像素差异率: 未提供\n- 原站截图: s.png\n- 克隆截图: \n");
-    expect(report({}, recon({}), recon({}), noEvidence)).toContain("- 复刻模式建议: 视觉复刻 / 内容爆改\n");
+    expect(report({ files: {}, original: recon({}), clone: recon({}), evidence: noEvidence })).toContain("- 复刻模式建议: 视觉复刻 / 内容爆改\n");
   });
 });
 
@@ -221,7 +221,7 @@ describe("main", () => {
     const { io, out } = makeIo(dir);
     expect(main({ argv: ["--original", "o.json", "--clone", "missing.json"] }, io)).toBe(1);
     expect(main({ argv: ["--bogus"] }, io)).toBe(1);
-    expect(out.errors[0]).toMatch(/^compare-recon failed: ENOENT/);
+    expect(out.errors[0]).toBe("compare-recon failed: Error");
     expect(out.errors[1]).toBe("compare-recon failed: Unexpected argument: --bogus");
   });
 

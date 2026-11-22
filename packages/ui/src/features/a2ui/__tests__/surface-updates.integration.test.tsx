@@ -3,7 +3,7 @@ import { act, render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { A2uiSurfaceRenderer } from '../renderer.js';
 import { useA2uiSurfaceRoot } from '../use-a2ui-surface.js';
-import { createA2uiInterpreter, createLabCatalog } from '../protocol.js';
+import { createA2uiInterpreter, createLabCatalog } from '@jini-ai/protocol/a2ui';
 import { InteractiveUiRegistry } from '../../interactive-ui/registry.js';
 
 function fixture() {

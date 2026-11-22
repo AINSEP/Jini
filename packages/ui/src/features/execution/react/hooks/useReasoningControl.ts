@@ -118,7 +118,7 @@ export function useReasoningControl(
 
   const models = agent.models ?? [];
   const hasModels = models.length > 0;
-  const resolvedModel = selectedAgentModel(config, agent);
+  const resolvedModel = selectedAgentModel({ config, agent });
   const rawModel = config.modelByAgentId?.[agent.id] ?? '';
 
   const { suffixLevels, suffixLevelIds, modelGroups, activeGroup, activeLevel } =
@@ -165,7 +165,7 @@ export function useReasoningControl(
       // slug (see `modelIdForReasoningLevel`), so `gemini-3.1-pro-medium` cannot be
       // produced from a `medium` carried off `gemini-3.8-flash`.
       const nextGroup = modelGroups.find((group) => group.baseId === nextValue);
-      return nextGroup ? modelIdForReasoningLevel(nextGroup, activeLevel) : nextValue;
+      return nextGroup ? modelIdForReasoningLevel({ group: nextGroup, level: activeLevel }) : nextValue;
     },
     [modelGroups, activeLevel],
   );
@@ -175,7 +175,7 @@ export function useReasoningControl(
       // A model-suffix agent has no reasoning value of its own to record: the choice
       // is which model id runs, so it goes back out through `onModelChange`.
       if (activeGroup) {
-        return modelIdForReasoningLevel(activeGroup, level);
+        return modelIdForReasoningLevel({ group: activeGroup, level });
       }
       return null;
     },
@@ -252,9 +252,9 @@ function suffixReasoning({ agent, models, resolvedModel }: {
   if (suffixLevels.length === 0) {
     return { suffixLevels, suffixLevelIds, modelGroups: null, activeGroup: null, activeLevel: null };
   }
-  const modelGroups = reasoningModelGroups(models, suffixLevels);
-  const activeGroup = reasoningModelGroupFor(modelGroups, resolvedModel, suffixLevelIds);
-  const activeLevel = splitReasoningModelId(resolvedModel, suffixLevelIds).level;
+  const modelGroups = reasoningModelGroups({ models, levels: suffixLevels });
+  const activeGroup = reasoningModelGroupFor({ groups: modelGroups, modelId: resolvedModel, levelIds: suffixLevelIds });
+  const activeLevel = splitReasoningModelId({ modelId: resolvedModel, levelIds: suffixLevelIds }).level;
   return { suffixLevels, suffixLevelIds, modelGroups, activeGroup, activeLevel };
 }
 
@@ -290,7 +290,7 @@ function effortValue({ agent, config, flatReasoningOptions, activeLevel, reasoni
 }): string {
   const rawReasoningValue =
     flatReasoningOptions.length > 0
-      ? selectedAgentReasoning(config, agent)
+      ? selectedAgentReasoning({ config, agent })
       : (activeLevel ?? reasoningOptions[0]?.id ?? '');
   // The persisted (or agent-wide-default) pick can name a level the narrowed list above does not
   // actually offer for the CURRENT model — that is the whole point of narrowing. Rendering it anyway
@@ -349,6 +349,6 @@ function customModelState({ agent, modelGroups, models, resolvedModel, explicitC
   const allowCustomModel = agent.supportsCustomModel !== false && modelGroups === null;
   const knownModelIds = models.map((model) => model.id);
   const customActive =
-    allowCustomModel && models.length > 0 && shouldShowCustomModelInput(resolvedModel, knownModelIds, explicitCustomMode);
+    allowCustomModel && models.length > 0 && shouldShowCustomModelInput({ modelValue: resolvedModel, knownModelIds, explicitCustomMode });
   return { allowCustomModel, knownModelIds, customActive };
 }

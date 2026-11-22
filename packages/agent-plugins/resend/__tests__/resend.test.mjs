@@ -32,10 +32,10 @@ test('the module is a valid Jini mail provider and matches its v2 descriptor', a
   assert.equal(resend.id, 'resend');
   assert.deepEqual(resend.credentialKeys, ['token']);
   assert.deepEqual(resend.capabilities, { hosted: true, feedback: true, domainVerification: true, rateLimit: { perSecond: 2, burst: 2 } });
-  const descriptor = JSON.parse(await readFile(new URL('../tovu-mail-adapters.json', import.meta.url), 'utf8'));
+  const descriptor = JSON.parse(await readFile(new URL('../jini-mail-adapters.json', import.meta.url), 'utf8'));
   assert.equal(descriptor.schemaVersion, 2);
   assert.deepEqual(descriptor.adapters[0], {
-    id: 'resend', label: 'Resend', module: 'adapters/resend.mjs', credentialLabel: 'Tovu Mail — Resend API', credentialKeys: ['token'], feedback: true,
+    id: 'resend', label: 'Resend', module: 'adapters/resend.mjs', credentialLabel: 'Mail — Resend API', credentialKeys: ['token'], feedback: true,
     credentialCard: {
       title: 'Connect Resend',
       // 7d1f99532 declares each card's display-only purpose.
@@ -186,7 +186,7 @@ test('domainStatus maps Resend states and the custom base URL is used', async ()
   assert.deepEqual([await state('v.test'), await state('F.test'), await state('p.test'), await state('none.test')], ['verified', 'failed', 'pending', 'not_found']);
   assert.equal(http.requests[0].request.url, 'https://proxy.test/v1/domains');
   assert.equal((await resend.domainStatus(ctxWith(fakeHttp({})), { domain: 'x.test' })).error.code, 'not_found', 'an API 404 is a rejection');
-  assert.deepEqual([domainState(undefined), qualify('', 'a.test'), qualify('A.TEST', 'a.test')], ['pending', 'a.test', 'a.test']);
+  assert.deepEqual([domainState({ status: undefined }), qualify({ name: '', domain: 'a.test' }), qualify({ name: 'A.TEST', domain: 'a.test' })], ['pending', 'a.test', 'a.test']);
 });
 
 test('domain calls never throw: HTTP failures, network errors and non-JSON bodies become results', async () => {
@@ -199,7 +199,7 @@ test('domain calls never throw: HTTP failures, network errors and non-JSON bodie
   assert.deepEqual(await status(new Error('socket hang up')), { status: 'unknown', error: { code: 'network', message: 'socket hang up' } });
   const thrown = await resend.domainStatus(ctxWith({ send: async () => { throw 'boom'; } }), { domain: 'a.test' });
   assert.deepEqual(thrown.error, { code: 'network', message: 'boom' });
-  assert.deepEqual([retryAfterMs({ 'Retry-After': '0.5' }), retryAfterMs({ 'retry-after': '' }), retryAfterMs({ 'retry-after': 'soon' }), retryAfterMs({ 'retry-after': '-1' }), retryAfterMs(undefined)], [500, undefined, undefined, undefined, undefined]);
+  assert.deepEqual([retryAfterMs({ headers: { 'Retry-After': '0.5' } }), retryAfterMs({ headers: { 'retry-after': '' } }), retryAfterMs({ headers: { 'retry-after': 'soon' } }), retryAfterMs({ headers: { 'retry-after': '-1' } }), retryAfterMs({ headers: undefined })], [500, undefined, undefined, undefined, undefined]);
 });
 
 /** The send path keeps its positional Tovu client shape. */

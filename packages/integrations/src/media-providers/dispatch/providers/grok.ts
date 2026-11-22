@@ -36,7 +36,7 @@
  * `fishaudio.ts`/`openai.ts`'s speech renderer return, so it now shares
  * `response-parsers.ts`'s `createRawBytesParser`.
  */
-import { buildOpenAIImageUrl, bytesFromOpenAICompatibleData, parseOpenAICompatibleJson, sniffImageExt, standardImageAspectFor as grokAspectFor, withRequestInit } from '../openai-compatible.js';
+import { buildOpenAIImageUrl, bytesFromOpenAICompatibleData, parseOpenAICompatibleJson, sniffImageExt, standardImageAspectFor as grokAspectFor, jsonPostInit } from '../openai-compatible.js';
 import { createRawBytesParser } from '../response-parsers.js';
 import type { ProviderCredentials, RenderContext, RenderResult } from '../types.js';
 import { dispatchVendorRequest, requireApiKey } from '../vendor-adapter.js';
@@ -68,21 +68,14 @@ const grokImageAdapter: VendorAdapter<GrokImageMeta> = {
     };
 
     return {
-      url: buildOpenAIImageUrl(baseUrl, false),
-      init: withRequestInit(ctx, {
-        method: 'POST',
-        headers: {
-          authorization: `Bearer ${apiKey}`,
-          'content-type': 'application/json',
-        },
-        body: JSON.stringify(body),
-      }),
+      url: buildOpenAIImageUrl({ baseUrl, isAzure: false }),
+      init: jsonPostInit({ ctx, body }, { apiKey }),
       meta: { wireModel: ctx.wireModel, aspectRatio },
     };
   },
 
   async parseResponse({ resp, ctx, request }: { resp: Response; ctx: RenderContext; request: VendorRequest<GrokImageMeta> }): Promise<RenderResult> {
-    const data = await parseOpenAICompatibleJson(resp, 'grok image');
+    const data = await parseOpenAICompatibleJson({ resp, providerTag: 'grok image' });
     const bytes = await bytesFromOpenAICompatibleData({ data, providerTag: 'grok image' }, ctx);
     return {
       bytes,
@@ -126,14 +119,7 @@ const xaiTTSAdapter: VendorAdapter<XAITTSMeta> = {
 
     return {
       url: `${baseUrl}/tts`,
-      init: withRequestInit(ctx, {
-        method: 'POST',
-        headers: {
-          authorization: `Bearer ${apiKey}`,
-          'content-type': 'application/json',
-        },
-        body: JSON.stringify(body),
-      }),
+      init: jsonPostInit({ ctx, body }, { apiKey }),
       meta: { wireModel: ctx.wireModel, voiceId, language },
     };
   },

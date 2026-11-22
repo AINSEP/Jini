@@ -1,4 +1,4 @@
-import { createSystemClock } from '@jini-ai/core/primitives';
+import type { Clock } from '@jini-ai/core/primitives';
 /**
  * `createSqliteEventLog` — the durable `EventLog` adapter (extraction-plan §8 task 8,
  * §2.6: "`@jini-ai/daemon/store/event-log/sqlite` is the default adapter... an adapter conformance suite covers
@@ -22,7 +22,7 @@ import { createSystemClock } from '@jini-ai/core/primitives';
  * FIFO window. Memory keeps dedupe evidence until drop, including evicted entries. This durable
  * adapter preserves its existing bounded SQL/schema behavior rather than adding a hidden archive.
  */
-import { openSqliteConnection, type SqliteDb, type SqliteSyncOpener } from '@jini-ai/db/sqlite';
+import { type SqliteDb, type SqliteSyncOpener } from '@jini-ai/core/contracts/storage';
 import type {
   EventLogAppendInput,
   EventLogAppendOptions,
@@ -51,14 +51,14 @@ export { createKernelSqliteEventLog } from './sqlite-kernel.js';
  * @complexity Setup O(1) statements; append costs depend on the retained per-run cap.
  */
 export function createSqliteEventLog(
-  input: { db: SqliteDb },
+  input: { db: SqliteDb; clock: Clock },
   options: SqliteEventLogOptions = {},
 ): SqliteEventLogWithReceipts {
-  resolveMaxEntriesPerRun(options.maxEntriesPerRun);
+  resolveMaxEntriesPerRun({ value: options.maxEntriesPerRun });
   if (!input || typeof input !== 'object' || !input.db) {
     throw new Error('createSqliteEventLog: pass a borrowed SqliteDb');
   }
-  return bindSqliteEventLog(input.db, options);
+  return bindSqliteEventLog(input.db, input.clock, options);
 }
 
 /**
@@ -70,17 +70,16 @@ export function createSqliteEventLog(
  * @complexity O(1) acquisition calls; subsequent costs are the borrowed adapter's.
  */
 export function openSqliteEventLog(
-  input: { file: string; open: SqliteSyncOpener },
+  input: { file: string; open: SqliteSyncOpener; clock: Clock },
   options: SqliteEventLogOptions = {},
 ): SqliteEventLogWithReceipts {
-  resolveMaxEntriesPerRun(options.maxEntriesPerRun);
+  resolveMaxEntriesPerRun({ value: options.maxEntriesPerRun });
   let db: SqliteDb | undefined;
   try {
-    db = openSqliteConnection({ filePath: input.file, open({ filePath }, settings) {
-      db = input.open(filePath, settings);
-      return db;
-    } }, { pragmas: ['journal_mode = WAL'] });
-    const log = bindSqliteEventLog(db, options);
+    // The handle is captured before anything that can throw, so the catch below closes what was opened.
+    db = input.open(input.file, {});
+    db.pragma('journal_mode = WAL');
+    const log = bindSqliteEventLog(db, input.clock, options);
     let closed = false;
     return { ...log, async close(_args: Record<string, never>) { if (closed) return;
       closed = true; db!.close(); } };
@@ -90,12 +89,7 @@ export function openSqliteEventLog(
   }
 }
 
-/** Binds event-log policies to a borrowed synchronous connection and its atomic transactions. */
-function bindSqliteEventLog(db: SqliteDb, options: SqliteEventLogOptions): SqliteEventLogWithReceipts {
-  const maxEntriesPerRun = resolveMaxEntriesPerRun(options.maxEntriesPerRun);
-  const clock = options.clock ?? createSystemClock();
-  if (options.schemaSetup !== 'host') db.exec(SQLITE_EVENT_LOG_SCHEMA);
-
+function prepareEventLogStatements(db: SqliteDb) {
   const getRunStmt = db.prepare<[string], RunRow>(
     'SELECT run_id, next_cursor FROM jini_event_log_runs WHERE run_id = ?',
   );
@@ -137,11 +131,20 @@ function bindSqliteEventLog(db: SqliteDb, options: SqliteEventLogOptions): Sqlit
   );
   const deleteRunStmt = db.prepare<[string]>('DELETE FROM jini_event_log_runs WHERE run_id = ?');
 
+  return { getRunStmt, insertRunStmt, updateNextCursorStmt, getByDedupeStmt, insertEntryStmt, countEntriesStmt, evictOldestStmt,
+    selectAllStmt, selectAfterStmt, selectOldestStmt, selectRunIdsStmt, deleteRunEntriesStmt, deleteRunStmt };
+}
+
+function createSqliteAppendTransaction(db: SqliteDb, clock: Clock, storage: {
+  statements: ReturnType<typeof prepareEventLogStatements>; maxEntriesPerRun: number;
+}) {
+  const { statements, maxEntriesPerRun } = storage;
+  const { getByDedupeStmt, countEntriesStmt, getRunStmt, insertRunStmt, insertEntryStmt, updateNextCursorStmt, evictOldestStmt } = statements;
   // `db.transaction()` does not preserve a wrapped callback's own generic parameter (the
   // returned `Transaction` type is non-generic), so this runs on `unknown` payloads and the
   // public `append<Payload>` method below casts at the boundary — the same pattern
   // `createInMemoryEventLog` uses for its dedupe-hit early return.
-  const appendTxn = db.transaction(
+  return db.transaction(
     (input: EventLogAppendInput<unknown>, options: SqliteEventLogAppendOptions): SqliteEventLogAppendResult<unknown> => {
       if (options.dedupeKey !== undefined) {
         const existing = getByDedupeStmt.get(input.runId, options.dedupeKey);
@@ -168,21 +171,32 @@ function bindSqliteEventLog(db: SqliteDb, options: SqliteEventLogOptions): Sqlit
       return { kind: 'inserted', entry: { id: String(cursor), event: input.event, data: input.data, recordedAt } };
     },
   );
+}
 
-  function replaySync(runId: string, afterCursor: string | null): EventLogReplayResult {
-    // Validated up front, independent of whether `runId` is known: a malformed cursor is a
-    // caller/transport bug regardless of run state, so it throws rather than being folded into
-    // (or masked by) an `'unknown-run'`/`'replay-gap'` result.
-    assertValidReplayCursor(afterCursor);
-    const run = getRunStmt.get(runId);
-    if (!run) return { kind: 'unknown-run' };
-    const oldest = selectOldestStmt.get(runId);
-    const result = replayResult({ run, oldest, afterCursor });
-    if (result.kind !== 'ok') return result;
-    // Safe: assertValidReplayCursor already proved this parses to a non-negative safe integer.
-    const rows = afterCursor === null ? selectAllStmt.all(runId) : selectAfterStmt.all(runId, Number(afterCursor));
-    return { ...result, entries: rows.map(rowToEntry) };
-  }
+function replaySync(statements: ReturnType<typeof prepareEventLogStatements>, runId: string, afterCursor: string | null): EventLogReplayResult {
+  const { getRunStmt, selectOldestStmt, selectAllStmt, selectAfterStmt } = statements;
+  // Validated up front, independent of whether `runId` is known: a malformed cursor is a
+  // caller/transport bug regardless of run state, so it throws rather than being folded into
+  // (or masked by) an `'unknown-run'`/`'replay-gap'` result.
+  assertValidReplayCursor({ afterCursor });
+  const run = getRunStmt.get(runId);
+  if (!run) return { kind: 'unknown-run' };
+  const oldest = selectOldestStmt.get(runId);
+  const result = replayResult({ run, oldest, afterCursor });
+  if (result.kind !== 'ok') return result;
+  // Safe: assertValidReplayCursor already proved this parses to a non-negative safe integer.
+  const rows = afterCursor === null ? selectAllStmt.all(runId) : selectAfterStmt.all(runId, Number(afterCursor));
+  return { ...result, entries: rows.map(rowToEntry) };
+}
+
+/** Binds event-log policies to a borrowed synchronous connection and its atomic transactions. */
+function bindSqliteEventLog(db: SqliteDb, clock: Clock, options: SqliteEventLogOptions): SqliteEventLogWithReceipts {
+  const maxEntriesPerRun = resolveMaxEntriesPerRun({ value: options.maxEntriesPerRun });
+  if (options.schemaSetup !== 'host') db.exec(SQLITE_EVENT_LOG_SCHEMA);
+
+  const statements = prepareEventLogStatements(db);
+  const { deleteRunEntriesStmt, deleteRunStmt, selectRunIdsStmt } = statements;
+  const appendTxn = createSqliteAppendTransaction(db, clock, { statements, maxEntriesPerRun });
 
   const dropTxn = db.transaction((runId: string) => {
     deleteRunEntriesStmt.run(runId);
@@ -199,7 +213,7 @@ function bindSqliteEventLog(db: SqliteDb, options: SqliteEventLogOptions): Sqlit
       return appendTxn(input, options) as SqliteEventLogAppendResult<P>;
     },
     async replay({ runId, afterCursor }: { runId: string; afterCursor: string | null }): Promise<EventLogReplayResult> {
-      return replaySync(runId, afterCursor);
+      return replaySync(statements, runId, afterCursor);
     },
     async listRunIds(_args: Record<string, never>): Promise<readonly string[]> {
       return selectRunIdsStmt.all().map((row) => row.run_id);

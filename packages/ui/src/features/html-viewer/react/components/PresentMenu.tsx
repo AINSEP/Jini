@@ -1,6 +1,5 @@
-import { useRef, useState } from 'react';
-import { useDismissOnOutsideOrEscape } from '../../../../browser/index.js';
 import { useT } from '../../../i18n/index.js';
+import { usePresentMenu } from './PresentMenu.hooks.js';
 
 export interface PresentMenuProps {
   disabled?: boolean;
@@ -8,20 +7,14 @@ export interface PresentMenuProps {
   onPresentInline(): void;
   onPresentFullscreen(): void;
   onPresentInNewTab(): void;
+  useTHook?: typeof useT;
+  usePresentMenuHook?: typeof usePresentMenu;
 }
 
 /** The three present actions (source's `presentInThisTab`/`presentFullscreen`/`presentNewTab`), as a disclosure menu. Open/close is local UI state, same shape as `ZoomMenu`. */
-export function PresentMenu({ disabled, onPresentInline, onPresentFullscreen, onPresentInNewTab }: PresentMenuProps) {
-  const t = useT();
-  const [open, setOpen] = useState(false);
-  const wrapRef = useRef<HTMLDivElement | null>(null);
-
-  useDismissOnOutsideOrEscape({ onDismiss: () => setOpen(false) }, { enabled: open, containerRef: wrapRef });
-
-  function select(action: () => void) {
-    setOpen(false);
-    action();
-  }
+export function PresentMenu({ disabled, onPresentInline, onPresentFullscreen, onPresentInNewTab, useTHook = useT, usePresentMenuHook = usePresentMenu }: PresentMenuProps) {
+  const t = useTHook();
+  const { open, setOpen, wrapRef, select } = usePresentMenuHook({});
 
   return (
     <div className="jini-present-menu" ref={wrapRef}>

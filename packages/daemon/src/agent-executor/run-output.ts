@@ -1,3 +1,4 @@
+import { createConsoleLogger } from '@jini-ai/core/primitives';
 import { redactSecrets } from '@jini-ai/core';
 import type { RunProtocolEvent } from '@jini-ai/protocol';
 import type { TerminalRunOutcome } from '../close-status.js';
@@ -71,9 +72,7 @@ export function observeRunOutput(
     noteDiagnostic({ seen, tails, event, plainStdout });
   } }).catch(error => {
     // An observer failure is a daemon diagnostic, not evidence that the agent failed.
-    // eslint-disable-next-line no-console
-    console.warn(`[@jini-ai/daemon] agent-executor: output observer unavailable for run "${runId}"`,
-      redactSecrets({ input: error instanceof Error ? error.message : String(error) }));
+    createConsoleLogger({ prefix: '' }).warn({ message: `[@jini-ai/daemon] agent-executor: output observer unavailable for run "${runId}"` }, { error });
     return null;
   });
 

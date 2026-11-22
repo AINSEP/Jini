@@ -3,12 +3,11 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ChatMessage } from '@jini-ai/chat/core';
 import { ChatFab, ChatPane, createFrontendSessionBridge, type FrontendSessionBridge } from '@jini-ai/chat/react';
 import {
-  findCapabilityInputError,
   toWebMcpTool,
   toWebMcpTools,
-  type CapabilityDef,
   type WebMcpUserInteraction,
 } from '@jini-ai/agentic';
+import { findCapabilityInputError, type CapabilityDef } from '@jini-ai/core/contracts/capabilities';
 import { getAgentModelContext } from '@jini-ai/agentic/dom';
 import { PLAYGROUND_ATTACHMENT_UPLOADER } from './attachment-uploader.js';
 import { createDaemonChatTransport } from './daemon-transport.js';
@@ -250,7 +249,7 @@ export function WebMcpLab() {
   // The daemon-relay half: claims the whole `webmcp.` prefix, so a real agent run (bound to this
   // tab via runContext below) reaches the exact same executeWebMcpLabCapability function above.
   useEffect(() => {
-    const session = createFrontendSessionBridge({ baseUrl: '', fetch: globalThis.fetch, openStream: ({ url }) => new EventSource(url), request: ({ url, init, timeoutMs }) => fetchWithTimeout(url, init, { timeoutMs }) }, {
+    const session = createFrontendSessionBridge({ baseUrl: '', fetch: globalThis.fetch, openStream: ({ url }) => new EventSource(url), request: ({ url, init, timeoutMs }) => fetchWithTimeout({ url, timeoutMs }, { init }) }, {
       executors: { 'webmcp.': (id, args) => executeWebMcpLabCapability({ id, args }) },
       onInvocation: (action) => appendLog(`daemon → ${action.capabilityId}`),
       onError: (error) => appendLog(`bridge error: ${String(error)}`),

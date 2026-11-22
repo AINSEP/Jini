@@ -13,7 +13,7 @@ import {
   resolveOnPath,
   userToolchainBinDirs,
 } from '../executables.js';
-import type { RuntimeAgentDef } from '../types.js';
+import type { RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 import { createAgentRuntimeState, type AgentRuntimeState } from '../runtime-state.js';
 
 function makeDef(overrides: Partial<RuntimeAgentDef> = {}): RuntimeAgentDef {

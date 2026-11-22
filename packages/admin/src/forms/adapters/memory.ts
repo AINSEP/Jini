@@ -1,6 +1,6 @@
-import type { FormProviderDescription } from '@jini-ai/cms/forms';
+import type { FormProviderDescription } from '@jini-ai/core/contracts/forms';
 import type { AdminFormsPort, AdminFormDefinition, AdminFormSubmission, AdminFormUpdatePatch } from '../../core/ports/forms.js';
-import { AdminApiError } from '../../core/transport/errors.js';
+import { AdminApiError } from '@jini-ai/core/admin-runtime';
 import type { FormsTrashPort } from '../ports.js';
 // Keep this disposable browser fixture independent of the CMS runtime.
 const DEFAULT_PROVIDERS: readonly FormProviderDescription[] = [{ id: 'builtin', label: 'Built-in', fields: [], answers: 'Answers are stored in the built-in inbox.', validation: 'The built-in receiver validates the declared form fields.', frameOrigins: [], available: true }];
@@ -18,6 +18,39 @@ function assertNoFieldRemoved({ current, patch }: { current: AdminFormDefinition
     throw new AdminApiError({ message: 'existing form fields cannot be removed', status: 400 }, { code: 'FORMS_FIELD_VALIDATION_ERROR' });
   }
 }
+function createMemoryFormWriters(
+  definitions: AdminFormDefinition[],
+  { now, nextId, nextFakeId, missing }: { now: () => string; nextId: (() => string) | undefined; nextFakeId: () => string; missing: (id: string) => never },
+): Pick<AdminFormsPort, 'createFormDefinition' | 'updateFormDefinition'> {
+  return {
+    async createFormDefinition(input, options = {}) {
+      if (definitions.some(form => form.slug === input.slug)) throw new AdminApiError({ message: 'form slug already exists', status: 409 });
+      let id = nextId?.() ?? nextFakeId();
+      if (!nextId) while (definitions.some(form => form.id === id)) id = nextFakeId();
+      if (definitions.some(form => form.id === id)) throw new AdminApiError({ message: 'form id already exists', status: 409 });
+      const created: AdminFormDefinition = { ...structuredClone(input), id, notify: structuredClone(options.notify ?? { enabled: false, recipients: [] }), status: 'active', createdAt: now(), updatedAt: now() };
+      definitions.push(created);
+      return structuredClone(created);
+    },
+    async updateFormDefinition({ id }, patch = {}) {
+      const current = definitions.find(form => form.id === id) ?? missing(id);
+      assertNoFieldRemoved({ current, patch });
+      const updated = { ...current, ...structuredClone(suppliedPatch(patch)), updatedAt: now() };
+      definitions[definitions.indexOf(current)] = updated;
+      return structuredClone(updated);
+    },
+  };
+}
+
+function createMemoryFormLookup(definitions: AdminFormDefinition[]) {
+  const missing = (id: string, { kind = 'form definition' }: { kind?: 'form definition' | 'form submission' } = {}): never => {
+    throw new AdminApiError({ message: `${kind} '${id}' was not found`, status: 404 });
+  };
+  const find = (id: string) => definitions.find(form => form.slug === id) ?? definitions.find(form => form.id === id) ?? missing(id);
+  const definitionId = (id: string) => definitions.find(form => form.slug === id)?.id ?? id;
+  return { missing, find, definitionId };
+}
+
 /** A scoped, deterministic in-memory API with the core contract's add/edit-only invariant. */
 export function createMemoryFormsApi(
   _required: Record<string, never> = {},
@@ -31,11 +64,7 @@ export function createMemoryFormsApi(
   const answers = structuredClone([...submissions]);
   let sequence = definitions.length;
   const nextFakeId = () => { sequence += 1; return `fake-${sequence}`; };
-  const missing = (id: string, { kind = 'form definition' }: { kind?: 'form definition' | 'form submission' } = {}): never => {
-    throw new AdminApiError({ message: `${kind} '${id}' was not found`, status: 404 });
-  };
-  const find = (id: string) => definitions.find(form => form.slug === id) ?? definitions.find(form => form.id === id) ?? missing(id);
-  const definitionId = (id: string) => definitions.find(form => form.slug === id)?.id ?? id;
+  const { missing, find, definitionId } = createMemoryFormLookup(definitions);
   const findSubmission = (formId: string, id: string) => {
     const resolvedId = definitionId(formId);
     return answers.find(item => item.id === id && item.formDefinitionId === resolvedId && item.status !== 'trash') ?? missing(id, { kind: 'form submission' });
@@ -54,22 +83,7 @@ export function createMemoryFormsApi(
     async listFormProviders(_required, _optional = {}) { return structuredClone(descriptions); },
     async listFormDefinitions(_required, _optional = {}) { return structuredClone(definitions); },
     async getFormDefinition({ id }, _optional = {}) { return structuredClone(find(id)); },
-    async createFormDefinition(input, options = {}) {
-      if (definitions.some(form => form.slug === input.slug)) throw new AdminApiError({ message: 'form slug already exists', status: 409 });
-      let id = nextId?.() ?? nextFakeId();
-      if (!nextId) while (definitions.some(form => form.id === id)) id = nextFakeId();
-      if (definitions.some(form => form.id === id)) throw new AdminApiError({ message: 'form id already exists', status: 409 });
-      const created: AdminFormDefinition = { ...structuredClone(input), id, notify: structuredClone(options.notify ?? { enabled: false, recipients: [] }), status: 'active', createdAt: now(), updatedAt: now() };
-      definitions.push(created);
-      return structuredClone(created);
-    },
-    async updateFormDefinition({ id }, patch = {}) {
-      const current = definitions.find(form => form.id === id) ?? missing(id);
-      assertNoFieldRemoved({ current, patch });
-      const updated = { ...current, ...structuredClone(suppliedPatch(patch)), updatedAt: now() };
-      definitions[definitions.indexOf(current)] = updated;
-      return structuredClone(updated);
-    },
+    ...createMemoryFormWriters(definitions, { now, nextId, nextFakeId, missing }),
     // O(n log n) time/O(n) space over the fixture submissions; one filtered cursor page,
     // no per-row I/O. This adapter is a disposable contract fixture, not a production store.
     async listFormSubmissions({ formId }, { cursor, limit = 50 } = {}) {

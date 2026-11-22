@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { RuntimeModelOption } from '../../types.js';
+import type { RuntimeModelOption } from '@jini-ai/core/contracts/agents';
 
 const mockState = vi.hoisted(() => ({
   execImpl: async (

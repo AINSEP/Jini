@@ -2,7 +2,6 @@
  * per-attempt audit — wired once so every host gets the same order. */
 import { expect, test, vi } from "vitest";
 import { createToolRegistry, withBatchInput, ToolInputError, type BatchResult, type ToolRegistration } from "@jini-ai/core";
-import { createSystemClock } from "@jini-ai/core/primitives";
 import { createSurfaceExchangeStore } from "../../surface-exchanges.js";
 import { createTimeoutScheduler } from "../../scheduler.js";
 import { createAssistantToolExecutor, issueCredentialSetup, type ToolFailureRecord, type RedactedToolFailuresDeps } from "../index.js";
@@ -22,7 +21,7 @@ function assemble({ audit, guided, toolFailures }: { audit?: { appended: unknown
   let ids = 0;
   const executor = createAssistantToolExecutor({
     registry,
-    surfaceExchanges: createSurfaceExchangeStore({ scheduler: createTimeoutScheduler({}, {}), clock: createSystemClock(),
+    surfaceExchanges: createSurfaceExchangeStore({ scheduler: createTimeoutScheduler({}, {}), clock: { nowMs: () => Date.now() },
       idGenerator: { newId: () => "exchange" }, defaultChannel: "mcp-ui" }),
     newExecutionId: () => `exec-${++ids}`,
     recoveryToolId: "host-recovery",

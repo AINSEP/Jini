@@ -1,23 +1,7 @@
 /** Server factories are inert registrations. Clients and timers belong to initialized resources. */
 import { PROVIDER_ID_PATTERN } from '@jini-ai/core/provider-registry';
-import type { PluginProviderDeclaration, PluginValidationError } from './manifest-types.js';
-
-export const PLUGIN_PROVIDER_CAPABILITY = 'providers.register' as const;
-export interface PluginProviderResource<T = unknown> {
-  readonly port: T;
-  /** Release owned resources only; borrowed effect ports remain host-owned. */
-  readonly dispose: (required: Record<string, never>, optional?: Record<string, never>) => void | Promise<void>;
-}
-export type PluginProviderFactory = (
-  required: Readonly<Record<string, unknown>>,
-  optional?: Readonly<Record<string, unknown>>,
-) => PluginProviderResource | Promise<PluginProviderResource>;
-export interface PluginProviderContribution extends PluginProviderDeclaration {
-  readonly factory: PluginProviderFactory;
-}
-export interface PluginProvidersSdk {
-  register(required: PluginProviderContribution, optional?: Record<string, never>): void;
-}
+import type { PluginValidationError } from './manifest-types.js';
+import { PLUGIN_PROVIDER_CAPABILITY, type PluginProviderDeclaration } from '@jini-ai/core/contracts/plugin-sdk';
 
 /** Shared grammar for manifest validation and runtime capture, using core's frozen id contract. */
 export function isPluginProviderDeclaration(
@@ -124,7 +108,7 @@ export function providerSettingsErrors({ settings }: { settings: unknown }, _opt
   return problems;
 }
 
-type MigrationFields = readonly import('./manifest-types.js').PluginProviderSettingField[];
+type MigrationFields = readonly import('@jini-ai/core/contracts/plugin-sdk').PluginProviderSettingField[];
 const publicSetting = ({ fields, name }: { fields: MigrationFields; name: unknown }, _optional = {}) =>
   fields.some(field => field.name === name && !field.secret);
 
@@ -151,7 +135,7 @@ function migrationValid({ rule, fields }: { rule: unknown; fields: MigrationFiel
 }
 
 /** Reject malformed migration hooks before a host can read them. */
-function migrationsValid({ provider }: { provider: import('./manifest-types.js').PluginProviderDeclaration }, _optional = {}): boolean {
+function migrationsValid({ provider }: { provider: import('@jini-ai/core/contracts/plugin-sdk').PluginProviderDeclaration }, _optional = {}): boolean {
   if (provider.settingsMigrations === undefined) return true;
   return Array.isArray(provider.settings) && providerSettingsErrors({ settings: provider.settings }).length === 0
     && Array.isArray(provider.settingsMigrations)

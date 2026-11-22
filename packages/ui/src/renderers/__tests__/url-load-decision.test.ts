@@ -45,60 +45,60 @@ describe('shouldUrlLoadHtmlPreview', () => {
 
 describe('parseForceInline', () => {
   it.each(['1', 'true', 'YES', 'On'])('accepts %s', (value) => {
-    expect(parseForceInline(`forceInline=${value}`)).toBe(true);
+    expect(parseForceInline({ search: `forceInline=${value}` })).toBe(true);
   });
 
   it.each(['0', 'false', 'nah', ''])('rejects %s', (value) => {
-    expect(parseForceInline(`forceInline=${value}`)).toBe(false);
+    expect(parseForceInline({ search: `forceInline=${value}` })).toBe(false);
   });
 
   it('returns false when the param is missing', () => {
-    expect(parseForceInline('other=1')).toBe(false);
+    expect(parseForceInline({ search: 'other=1' })).toBe(false);
   });
 
   it('returns false for null/undefined input', () => {
-    expect(parseForceInline(null)).toBe(false);
-    expect(parseForceInline(undefined)).toBe(false);
+    expect(parseForceInline({ search: null })).toBe(false);
+    expect(parseForceInline({ search: undefined })).toBe(false);
   });
 
   it('accepts a URLSearchParams instance directly', () => {
-    expect(parseForceInline(new URLSearchParams('forceInline=1'))).toBe(true);
+    expect(parseForceInline({ search: new URLSearchParams('forceInline=1') })).toBe(true);
   });
 });
 
 describe('htmlNeedsFocusGuard', () => {
   it('detects inline .focus( calls', () => {
-    expect(htmlNeedsFocusGuard('<script>window.focus();</script>')).toBe(true);
+    expect(htmlNeedsFocusGuard({ source: '<script>window.focus();</script>' })).toBe(true);
   });
 
   it('detects the autofocus attribute', () => {
-    expect(htmlNeedsFocusGuard('<input autofocus>')).toBe(true);
+    expect(htmlNeedsFocusGuard({ source: '<input autofocus>' })).toBe(true);
   });
 
   it('detects external scripts conservatively', () => {
-    expect(htmlNeedsFocusGuard('<script src="app.js"></script>')).toBe(true);
+    expect(htmlNeedsFocusGuard({ source: '<script src="app.js"></script>' })).toBe(true);
   });
 
   it('returns false for plain markup', () => {
-    expect(htmlNeedsFocusGuard('<div>hello</div>')).toBe(false);
+    expect(htmlNeedsFocusGuard({ source: '<div>hello</div>' })).toBe(false);
   });
 });
 
 describe('htmlNeedsSandboxShim', () => {
   it('detects babel-standalone script tags', () => {
-    expect(htmlNeedsSandboxShim('<script type="text/babel">1</script>')).toBe(true);
+    expect(htmlNeedsSandboxShim({ source: '<script type="text/babel">1</script>' })).toBe(true);
   });
 
   it('detects direct localStorage/sessionStorage mentions', () => {
-    expect(htmlNeedsSandboxShim('<script>localStorage.getItem("x")</script>')).toBe(true);
-    expect(htmlNeedsSandboxShim('<script>sessionStorage.setItem("x", "1")</script>')).toBe(true);
+    expect(htmlNeedsSandboxShim({ source: '<script>localStorage.getItem("x")</script>' })).toBe(true);
+    expect(htmlNeedsSandboxShim({ source: '<script>sessionStorage.setItem("x", "1")</script>' })).toBe(true);
   });
 
   it('detects external scripts conservatively', () => {
-    expect(htmlNeedsSandboxShim('<script src="boot.js"></script>')).toBe(true);
+    expect(htmlNeedsSandboxShim({ source: '<script src="boot.js"></script>' })).toBe(true);
   });
 
   it('returns false for inert markup', () => {
-    expect(htmlNeedsSandboxShim('<div>hello</div>')).toBe(false);
+    expect(htmlNeedsSandboxShim({ source: '<div>hello</div>' })).toBe(false);
   });
 });

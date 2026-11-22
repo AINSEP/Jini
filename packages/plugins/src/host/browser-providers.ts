@@ -1,4 +1,4 @@
-/** Bundled chart declarations only. ADR-025 trust comes from composition, never the manifest. */
+/** Bundled chart declarations only. Trust comes from composition, never the manifest. */
 import type { BrowserProviderDeclaration, PluginValidationError } from './manifest-types.js';
 export type { BrowserProviderDeclaration } from './manifest-types.js';
 import { isNonArrayRecord } from '@jini-ai/core/records';

@@ -66,5 +66,10 @@ it('refuses to overwrite a staged pointer and rejects invalid settings', async (
   await mkdir(directory);
   await prepareClaudeSubagentStartSettings({ directory, context }, {});
   await expect(prepareClaudeSubagentStartSettings({ directory, context }, {})).rejects.toMatchObject({ code: 'EEXIST' });
-  await expect(prepareClaudeSubagentStartSettings({ directory, context, settings: '{' }, {})).rejects.toThrow();
+  let syntaxError: SyntaxError;
+  try { JSON.parse('{'); throw new Error('Expected invalid JSON'); } catch (error) {
+    if (error instanceof SyntaxError) syntaxError = error;
+    else throw error;
+  }
+  await expect(prepareClaudeSubagentStartSettings({ directory, context, settings: '{' }, {})).rejects.toThrow(syntaxError.message);
 });

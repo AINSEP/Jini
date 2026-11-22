@@ -1,6 +1,5 @@
 import type { AdminComment, CommentModerationAction, CommentsSettings, CommentStatus } from '../core/ports/comments.js';
-import { describeApiError } from '../core/transport/errors.js';
-import { hasPermission } from '../core/permissions/rules.js';
+import { describeApiError, hasPermission } from '@jini-ai/core/admin-runtime';
 import type { RowMenuItem } from '../react/components/RowMenu/RowMenu.js';
 import { englishComments, type CommentsTranslator } from './messages.en.js';
 
@@ -245,7 +244,7 @@ export function buildSettingsPatch(required: { form: FormData; current: Comments
 }
 
 /** REQ-09: client-side validates `spamAutoRejectScore` before the network call — mirrors the
- * backend's own `validateCommentsSettingsPatch` bound (`src/comments/settings.ts`). Returns the
+ * backend's own `validateCommentsSettingsPatch` bound (the host app's `src/features/comments/settings.ts`). Returns the
  * error message to show, or `null` when the patch is valid. Split out of `save`'s body (originally
  * an inline `if`) because it is the one piece of that flow that computes a value rather than
  * performing an effect. */

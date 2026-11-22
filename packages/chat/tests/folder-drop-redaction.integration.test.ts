@@ -12,6 +12,8 @@ it.each([
   const text = formatDroppedFolderPaths([path, '/Users/la/proj']);
   expect(text).toBe(`"${path}" /Users/la/proj`);
   expect(redactUserText({ text })).toEqual({ text, secretRedacted: false, count: 0 });
-  const secret = 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY';
+  // A known key format, built at runtime: unlabelled long ids are no longer masked
+  // (chat-recognisable-secrets), but a recognisable key after the paths still is.
+  const secret = 'ghp_' + 'a1'.repeat(18);
   expect(redactUserText({ text: `${text} ${secret}` })).toEqual({ text: `${text} [token removed]`, secretRedacted: true, count: 1 });
 });

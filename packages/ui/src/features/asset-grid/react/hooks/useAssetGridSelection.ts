@@ -20,23 +20,23 @@ export function useAssetGridSelection<TAsset extends AssetGridItem>(
 
   // Drop selected ids that no longer exist after a reload/delete.
   useEffect(() => {
-    setSelectedIds((prev) => pruneMissingSelection(prev, items));
+    setSelectedIds((prev) => pruneMissingSelection({ prev, items }));
   }, [items]);
 
   const toggleOne = useCallback((id: string, index: number) => {
-    setSelectedIds((prev) => toggleSelection(prev, id));
+    setSelectedIds((prev) => toggleSelection({ prev, id }));
     anchorRef.current = index;
   }, []);
 
   const rangeTo = useCallback(
     (index: number) => {
       const anchor = anchorRef.current ?? index;
-      setSelectedIds((prev) => rangeSelection(prev, items, anchor, index));
+      setSelectedIds((prev) => rangeSelection({ prev, items, anchorIndex: anchor, targetIndex: index }));
     },
     [items],
   );
 
-  const selectAll = useCallback(() => setSelectedIds(selectAllIds(items)), [items]);
+  const selectAll = useCallback(() => setSelectedIds(selectAllIds({ items })), [items]);
   const clearSelection = useCallback(() => setSelectedIds(new Set()), []);
 
   return { selectedIds, setSelectedIds, toggleOne, rangeTo, selectAll, clearSelection };

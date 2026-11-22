@@ -16,7 +16,7 @@
  * desktop/Electron-bridge concept and never will, so this is where the
  * capability actually belongs: the same `ShellPort` a chat UI's
  * `window.__jini__` bridge already reaches for `openExternal`/`openPath`.
- * See `packages/desktop-host/archived provenance ledger`'s dated entry for the full
+ * See `070311a07^:packages/desktop-host/source-map.md`'s dated entry for the full
  * per-adapter provenance, including the one deliberate gap:
  * `recentDirs` has no Tauri equivalent and throws `NotImplementedError`
  * there rather than being silently stubbed to an empty array.

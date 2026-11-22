@@ -1,8 +1,8 @@
 /** Explicit Node adapter entry. Hosts construct this once and inject it into media services. */
 import type { HttpClientPort } from '@jini-ai/core/primitives';
-import { FETCH_TIMEOUT_MS } from '@jini-ai/platform/fetch-with-timeout';
+import { FETCH_TIMEOUT_MS } from '@jini-ai/core/net';
 import { createHttpClient, createNodeGuardedHttpPorts } from '@jini-ai/platform/http/guarded';
-import type { DnsResolver } from '@jini-ai/platform/http/guarded';
+import type { DnsResolver } from '@jini-ai/core/contracts/runtime';
 
 export interface NodeMediaHttpClientOptions {
   readonly allowPrivateNetwork?: boolean;

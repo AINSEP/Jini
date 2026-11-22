@@ -12,9 +12,21 @@ import { detectAcpModels } from '../acp-model-probe.js';
 import { parsePiModels } from '../pi-models.js';
 import { execAgentFile } from '../invocation.js';
 import { DEFAULT_MODEL_OPTION } from '../models.js';
-import type { RuntimeContext, RuntimeModelOption } from '../types.js';
+import type {
+  RuntimeAgentDef,
+  RuntimeContext,
+  RuntimeModelOption,
+} from '@jini-ai/core/contracts/agents';
 
 export { detectAcpModels, parsePiModels, execAgentFile, DEFAULT_MODEL_OPTION };
+
+/** Probe an ACP CLI session for its model options, with the default option first. */
+export function acpModelFetcher({ args }: { args: readonly string[] }, { timeoutMs = 15_000 }: { timeoutMs?: number } = {}): NonNullable<RuntimeAgentDef['fetchModels']> {
+  return async ({ resolvedBin, env }, { acpModelProbe } = {}) => detectAcpModels(
+    { bin: resolvedBin, args: [...args] },
+    { ...(acpModelProbe ? { probe: acpModelProbe } : {}), env, timeoutMs, defaultModelOption: DEFAULT_MODEL_OPTION },
+  );
+}
 
 type ClaudeMcpOptions = { filesystemRoot?: string; cliParity?: boolean; permissionMode?: string; nativeToolAccess?: boolean; nativeCapabilities?: { userMcp?: boolean } };
 
@@ -55,7 +67,7 @@ function trustedMcpBypass({ options, userMcpLocked }: { options: ClaudeMcpOption
  * @complexity O(1).
  * @overallScore 100/100
  */
-export function buildClaudeMcpConfigArgs(runtimeContext: RuntimeContext, options: ClaudeMcpOptions = {}): string[] {
+export function buildClaudeMcpConfigArgs({ runtimeContext }: { runtimeContext: RuntimeContext }, options: ClaudeMcpOptions = {}): string[] {
   const mcpJsonPath = runtimeContext.mcpJsonPath;
   const userMcpLocked = claudeUserMcpLocked({ options }, {});
   if (typeof mcpJsonPath !== 'string' || mcpJsonPath.length === 0) return userMcpLocked ? ['--strict-mcp-config'] : [];

@@ -1,0 +1,131 @@
+Auto-merging examples/minimal-host/package.json
+Auto-merging examples/notes-app/package.json
+Auto-merging examples/reference-desktop/package.json
+Auto-merging examples/reference-web/package.json
+Auto-merging packages/admin/CHANGELOG.md
+Auto-merging packages/admin/package.json
+CONFLICT (content): Merge conflict in packages/admin/package.json
+Auto-merging packages/agent-plugins/CHANGELOG.md
+Auto-merging packages/agent-plugins/package.json
+CONFLICT (content): Merge conflict in packages/agent-plugins/package.json
+Auto-merging packages/agent-runtime/CHANGELOG.md
+Auto-merging packages/agent-runtime/package.json
+CONFLICT (content): Merge conflict in packages/agent-runtime/package.json
+Auto-merging packages/agentic/CHANGELOG.md
+Auto-merging packages/agentic/package.json
+CONFLICT (content): Merge conflict in packages/agentic/package.json
+Auto-merging packages/analytics/CHANGELOG.md
+Auto-merging packages/analytics/package.json
+CONFLICT (content): Merge conflict in packages/analytics/package.json
+Auto-merging packages/artifacts/CHANGELOG.md
+Auto-merging packages/artifacts/package.json
+CONFLICT (content): Merge conflict in packages/artifacts/package.json
+Auto-merging packages/capability-providers/CHANGELOG.md
+Auto-merging packages/capability-providers/package.json
+CONFLICT (content): Merge conflict in packages/capability-providers/package.json
+Auto-merging packages/chat/CHANGELOG.md
+Auto-merging packages/chat/package.json
+CONFLICT (content): Merge conflict in packages/chat/package.json
+Auto-merging packages/chat/src/react/components/MessageList.hooks.ts
+Auto-merging packages/chat/src/react/components/MessageList.tsx
+CONFLICT (content): Merge conflict in packages/chat/src/react/components/MessageList.tsx
+Auto-merging packages/chat/src/react/features/chat-pane/styles.ts
+Auto-merging packages/cli/CHANGELOG.md
+Auto-merging packages/cli/package.json
+CONFLICT (content): Merge conflict in packages/cli/package.json
+Auto-merging packages/cms/forms/package.json
+CONFLICT (content): Merge conflict in packages/cms/forms/package.json
+Auto-merging packages/cms/package.json
+CONFLICT (content): Merge conflict in packages/cms/package.json
+Auto-merging packages/commerce/CHANGELOG.md
+Auto-merging packages/commerce/package.json
+CONFLICT (content): Merge conflict in packages/commerce/package.json
+Auto-merging packages/cookie-consent/package.json
+CONFLICT (content): Merge conflict in packages/cookie-consent/package.json
+Auto-merging packages/core/package.json
+CONFLICT (content): Merge conflict in packages/core/package.json
+Auto-merging packages/daemon/CHANGELOG.md
+Auto-merging packages/daemon/package.json
+CONFLICT (content): Merge conflict in packages/daemon/package.json
+Auto-merging packages/db/CHANGELOG.md
+Auto-merging packages/db/package.json
+CONFLICT (content): Merge conflict in packages/db/package.json
+Auto-merging packages/desktop-host/CHANGELOG.md
+Auto-merging packages/desktop-host/package.json
+CONFLICT (content): Merge conflict in packages/desktop-host/package.json
+Auto-merging packages/devops/CHANGELOG.md
+Auto-merging packages/devops/package.json
+CONFLICT (content): Merge conflict in packages/devops/package.json
+Auto-merging packages/diagnostics/CHANGELOG.md
+Auto-merging packages/diagnostics/package.json
+CONFLICT (content): Merge conflict in packages/diagnostics/package.json
+Auto-merging packages/http-kit/CHANGELOG.md
+Auto-merging packages/http-kit/package.json
+CONFLICT (content): Merge conflict in packages/http-kit/package.json
+Auto-merging packages/infra/CHANGELOG.md
+Auto-merging packages/infra/package.json
+CONFLICT (content): Merge conflict in packages/infra/package.json
+Auto-merging packages/integrations/CHANGELOG.md
+Auto-merging packages/integrations/package.json
+CONFLICT (content): Merge conflict in packages/integrations/package.json
+Auto-merging packages/mcp/CHANGELOG.md
+Auto-merging packages/mcp/package.json
+CONFLICT (content): Merge conflict in packages/mcp/package.json
+Auto-merging packages/memory/package.json
+CONFLICT (content): Merge conflict in packages/memory/package.json
+Auto-merging packages/oauth/CHANGELOG.md
+Auto-merging packages/oauth/package.json
+CONFLICT (content): Merge conflict in packages/oauth/package.json
+Auto-merging packages/platform/CHANGELOG.md
+Auto-merging packages/platform/package.json
+CONFLICT (content): Merge conflict in packages/platform/package.json
+Auto-merging packages/plugin-catalog/catalog.json
+CONFLICT (content): Merge conflict in packages/plugin-catalog/catalog.json
+Auto-merging packages/plugin-catalog/package.json
+CONFLICT (content): Merge conflict in packages/plugin-catalog/package.json
+Auto-merging packages/plugins/package.json
+CONFLICT (content): Merge conflict in packages/plugins/package.json
+Auto-merging packages/protocol/CHANGELOG.md
+Auto-merging packages/protocol/package.json
+CONFLICT (content): Merge conflict in packages/protocol/package.json
+Auto-merging packages/provider-plugins/CHANGELOG.md
+Auto-merging packages/provider-plugins/catalog.json
+CONFLICT (content): Merge conflict in packages/provider-plugins/catalog.json
+Auto-merging packages/provider-plugins/package.json
+CONFLICT (content): Merge conflict in packages/provider-plugins/package.json
+Auto-merging packages/provider-plugins/src/analytics-posthog/README.md
+CONFLICT (content): Merge conflict in packages/provider-plugins/src/analytics-posthog/README.md
+Auto-merging packages/provider-plugins/src/observability-opentelemetry/README.md
+CONFLICT (content): Merge conflict in packages/provider-plugins/src/observability-opentelemetry/README.md
+Auto-merging packages/provider-plugins/src/observability-sentry/README.md
+CONFLICT (content): Merge conflict in packages/provider-plugins/src/observability-sentry/README.md
+Auto-merging packages/registry/CHANGELOG.md
+Auto-merging packages/registry/package.json
+CONFLICT (content): Merge conflict in packages/registry/package.json
+Auto-merging packages/sandbox/CHANGELOG.md
+Auto-merging packages/sandbox/package.json
+CONFLICT (content): Merge conflict in packages/sandbox/package.json
+Auto-merging packages/search/package.json
+CONFLICT (content): Merge conflict in packages/search/package.json
+Auto-merging packages/server/package.json
+CONFLICT (content): Merge conflict in packages/server/package.json
+Auto-merging packages/sidecar/CHANGELOG.md
+Auto-merging packages/sidecar/package.json
+CONFLICT (content): Merge conflict in packages/sidecar/package.json
+Auto-merging packages/sqlite/package.json
+CONFLICT (content): Merge conflict in packages/sqlite/package.json
+Auto-merging packages/ui-kit/CHANGELOG.md
+Auto-merging packages/ui-kit/package.json
+CONFLICT (content): Merge conflict in packages/ui-kit/package.json
+Auto-merging packages/ui/CHANGELOG.md
+Auto-merging packages/ui/package.json
+CONFLICT (content): Merge conflict in packages/ui/package.json
+Auto-merging packages/user-management/CHANGELOG.md
+Auto-merging packages/user-management/package.json
+CONFLICT (content): Merge conflict in packages/user-management/package.json
+Auto-merging packages/vibecoding/CHANGELOG.md
+Auto-merging packages/vibecoding/package.json
+CONFLICT (content): Merge conflict in packages/vibecoding/package.json
+Auto-merging pnpm-lock.yaml
+CONFLICT (content): Merge conflict in pnpm-lock.yaml
+Automatic merge failed; fix conflicts and then commit the result.

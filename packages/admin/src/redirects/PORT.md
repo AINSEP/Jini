@@ -9,7 +9,7 @@ C3-redirects-admin.md SHA256 `4d697a99129f371bba9ef984fdbd9a05c7591668feab90a00f
 CMS-JINI-MODULAR-DESIGN.md Rev 3 decision 1, section 4 C3; the coordinator's Part-A-only dispatch,
 including landed native dialogs/tab-strip source, is authoritative. C0 explicitly selects the existing
 media and agent-plugins examples as the approved seed patterns; no new architectural choice is introduced.
-Tovu architecture sections 13/14 remain constraints, not claims about deployed capabilities.
+The host architecture sections 13/14 remain constraints, not claims about deployed capabilities.
 
 The binding API owner is `../core/ports/redirects.ts` (`AdminRedirectsPort`).
 **New core operations: none.** Import and hit counts are already represented. There is no parallel
@@ -23,7 +23,7 @@ prefix and wildcard, just as the source does. A type accepting regex does not es
 
 ## Source mapping and lifecycle ownership
 
-| Tovu source | Surviving Jini owner |
+| Original host source | Surviving Jini owner |
 |---|---|
 | rules.ts | rules.ts; translator is injected and boundaries take two objects |
 | hooks/redirects-port.hooks.ts | existing core/ports/redirects.ts, exposed by ports.ts token |
@@ -62,9 +62,9 @@ preserves wire response objects, unwrapping only the existing `{ data }` envelop
 such as workspaceId remain untouched at runtime and are unnecessary to the universal core contract.
 
 `t(key, vars)` binds the existing redirects dictionary/common copy to the host locale. The following
-existing helper messages also need bridging, since their tables are private to the Tovu dictionary:
+existing helper messages also need bridging, since their tables are private to the host dictionary:
 
-| Key requested by Jini | Existing Tovu helper |
+| Key requested by Jini | Existing host helper |
 |---|---|
 | `{created} created, {failed} failed.` (`vars.created`, `vars.failed`) | importResultSummary(locale, created, failed) |
 | `Created` | createdLabel(locale) |
@@ -92,7 +92,7 @@ Localization never independently reads settings per row.
 ## Existing HTTP contract
 
 Base is `/api/admin/v1/workspaces/<workspaceId>/redirects` supplied by the host, never hardcoded here.
-Verified against the current Tovu route registrars at dispatch:
+Verified against the current host route registrars at dispatch:
 
 | Operation | Request | Response mapping |
 |---|---|---|
@@ -116,7 +116,7 @@ imports and reference regex rejection; a supplied `validate` callback owns alter
 Five copied suites retain **68 test cases with byte-identical non-import bodies**:
 `Redirects.unit`, `use-redirects.hooks.unit`, `use-import-redirects-form.hooks.unit`,
 `use-hit-count-cell.hooks.unit` in react/__tests__, and `rules.unit` in __tests__.
-`redirects-i18n.unit.test.tsx` stays Tovu: its subject is the host dictionary/locale helper tables.
+`redirects-i18n.unit.test.tsx` stays in the host: its subject is the host dictionary/locale helper tables.
 The one new test is __tests__/memory.conformance.test.ts, which calls the framework-free checklist.
 Its referenceRegexRejection option defaults true for the reference host; hosts implementing regex set it
 false, preserving the core's open-vocabulary contract instead of enforcing the reference profile globally.
@@ -124,7 +124,7 @@ false, preserving the core's open-vocabulary contract instead of enforcing the r
 Test-only harnesses bridge old positional calls/envelopes and host slots to the new owners. The source
 fake's mutable `.rules`, update-without-version-bump and physical-removal behavior are preserved only
 there to keep assertions intact; the shipped memory adapter follows the core's snapshot/soft-delete
-contract. The publish assertion verifies host-slot placement; host publish behavior tests stay Tovu.
+contract. The publish assertion verifies host-slot placement; host publish behavior tests stay in the host.
 Network-fixture tests inject a fetch-backed host transport; production code never constructs fetch/auth.
 
 Static evidence: 31 TS/TSX files parsed with TypeScript's syntax parser, zero syntax diagnostics;
@@ -134,15 +134,15 @@ no host source imports. This is not test execution, type checking, packaging, DO
 No build/test/typecheck/install/server/commit/indexing was run, per dispatch. Coordinator must run copied
 suites and conformance, pnpm guard, and packaging after M2 consumes out/c3-exports.json. Owner diff
 acceptance, publication, published-typecheck and post-switch browser validation remain Part B gates.
-No Tovu source, other domain, manifest, shared core, shared React component or dist file was edited.
+No host source, other domain, manifest, shared core, shared React component or dist file was edited.
 
 ## Reuse decisions
 
 Reuse: redirects API; queried graph for AdminRedirectsPort and inspected core/ports/redirects.ts,
-Tovu lib/api.ts and all redirects HTTP registrars; reused the existing core port, no added operations;
+The host lib/api.ts and all redirects HTTP registrars; reused the existing core port, no added operations;
 owner record C0 and C3 API-port clauses.
 
-Reuse: errors; queried graph for describeApiError and inspected core/transport/errors.ts versus Tovu
+Reuse: errors; queried graph for describeApiError and inspected core/transport/errors.ts versus the host
 lib/api.ts; reused core's formatter and typed error instead of copying the fallback; owner record core
 transport file header.
 
@@ -170,7 +170,7 @@ The existing React Provider additionally accepts `options?: RedirectsReactOption
 the factory options. Options context is owned by that stable Provider rather than captured inside
 the lazy page. Host locale/slot changes update the mounted page while retaining draft inputs and
 requested hit state; no new module/API/controller owner or DOM wrapper is introduced.
-Tovu's host integration injects the current locale, the existing dictionary/helper translators,
+The host integration injects the current locale, the existing dictionary/helper translators,
 both node slots and PublishSectionButton. Host ApiError identity maps to existing core AdminApiError
 with message/status/code/body retained. No new API operation or dependency. Host swap suites cover
 live options, node-message ordering, partial import and lazy zero hits; execution is deferred to the

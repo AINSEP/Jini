@@ -4,8 +4,10 @@
  * and never names a concrete server, so any host adapter (plain Node `http`, Express, a Fetch
  * runtime, an in-memory test fake) can serve the same routes.
  *
- * Types only. Path matching, dispatch and every other piece of server code belong to the host's
- * adapter, which the host passes in as `app`.
+ * The contract itself is types. Beside it live the framework-free pieces every host adapter
+ * shares (route table, middleware decorator, JSON route builder, bounded body reading, query
+ * parsing, SSE stream, origin checks), all on web-standard `Request`/`Response`. Dispatch onto a
+ * concrete server belongs to the host's adapter, which the host passes in as `app`.
  *
  * Overlap, kept deliberately: `@jini-ai/http-kit` has its own Express-bound route-spec shapes
  * (`HttpMethod` in lowercase, `RouteInputContext.params`). Core is the bottom layer and must not
@@ -42,6 +44,34 @@ export type ServerHandler = (
     readonly request: Request;
     readonly params: Readonly<Record<string, string>>;
     readonly client?: { readonly address: string };
+    /**
+     * Per-request values that middleware hands to the handler (what Express calls `res.locals`).
+     * Adapters and `withServerMiddleware` always pass one object per request; it is optional here
+     * only so an adapter written before middleware existed still satisfies the contract.
+     */
+    readonly locals?: Record<string, unknown>;
+  },
+  optionalArgs?: Record<string, never>,
+) => Response | Promise<Response>;
+
+/**
+ * Runs before a route's handler and may answer instead of it. Call `next()` to continue to the
+ * next middleware or the handler and get its `Response` back (to read its status, or to add a
+ * header); return a `Response` without calling `next()` to refuse the request. Write values for
+ * the handler into `locals`. `route` is the registered method + path pattern that matched (for
+ * logs and metrics), never the raw URL.
+ *
+ * @agent-note Middleware never writes to a socket or framework response object, and never
+ * forwards an error by calling something: throw it, and the adapter's error path answers.
+ */
+export type ServerMiddleware = (
+  requiredArgs: {
+    readonly request: Request;
+    readonly params: Readonly<Record<string, string>>;
+    readonly client?: { readonly address: string };
+    readonly locals: Record<string, unknown>;
+    readonly route: { readonly method: ServerMethod; readonly path: string };
+    readonly next: () => Promise<Response>;
   },
   optionalArgs?: Record<string, never>,
 ) => Response | Promise<Response>;
@@ -86,3 +116,17 @@ export interface ServerRoute {
 export interface Server {
   route(requiredArgs: ServerRoute, optionalArgs?: Record<string, never>): void;
 }
+
+export * from './server/result.js';
+export * from './server/api-error.js';
+export * from './server/auth.js';
+export * from './server/origin.js';
+export * from './server/security-headers.js';
+export * from './server/same-origin-write.js';
+export * from './server/route-table.js';
+export * from './server/middleware.js';
+export * from './server/query.js';
+export * from './server/request-body.js';
+export * from './server/json-route.js';
+export * from './server/sse.js';
+export * from './server/rate-limit.js';

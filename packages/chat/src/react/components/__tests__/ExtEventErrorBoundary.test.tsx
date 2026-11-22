@@ -44,7 +44,7 @@ describe('ExtEventErrorBoundary', () => {
       </div>,
     );
     expect(screen.getByText('the rest of the transcript')).toBeInTheDocument();
-    expect(screen.getByRole('alert')).toHaveTextContent('"a2ui" failed to render: unbounded recursive component tree');
+    expect(screen.getByRole('alert')).toHaveTextContent('"a2ui" could not be rendered (Error).');
   });
 
   it('names the failing ext event on the fallback so a host can tell which protocol broke', () => {
@@ -61,13 +61,15 @@ describe('ExtEventErrorBoundary', () => {
     const spy = silenceReactErrorLogging();
     render(
       <ExtEventErrorBoundary name="a2ui">
-        <Boom message="boom" />
+        <Boom message="boom api_key=SECRETSECRETSECRETSECRET" />
       </ExtEventErrorBoundary>,
     );
     expect(spy).toHaveBeenCalledWith(
       '[ExtEventErrorBoundary] ext event "a2ui" failed to render:',
-      expect.stringContaining('Error: boom'),
+      'Error',
     );
+    const ours = spy.mock.calls.filter(([first]) => typeof first === 'string' && first.startsWith('[ExtEventErrorBoundary]'));
+    for (const leak of ['boom', 'SECRETSECRET', 'ExtEventErrorBoundary.test']) expect(JSON.stringify(ours)).not.toContain(leak);
   });
 
   it('calls onError with the error and React\'s component stack, in addition to rendering the fallback', () => {
@@ -84,7 +86,7 @@ describe('ExtEventErrorBoundary', () => {
     expect(info.componentStack).toContain('Boom');
     // The built-in fallback is not opt-out: a host that only wants to log must still not get a
     // silently blank slot where the surface was.
-    expect(screen.getByRole('alert')).toHaveTextContent('reporting hook');
+    expect(screen.getByRole('alert')).toHaveTextContent('"a2ui" could not be rendered (Error).');
   });
 
   it('still renders the fallback when no onError handler is supplied', () => {
@@ -96,6 +98,6 @@ describe('ExtEventErrorBoundary', () => {
         <Boom message="no handler" />
       </ExtEventErrorBoundary>,
     );
-    expect(screen.getByRole('alert')).toHaveTextContent('"a2ui" failed to render: no handler');
+    expect(screen.getByRole('alert')).toHaveTextContent('"a2ui" could not be rendered (Error).');
   });
 });

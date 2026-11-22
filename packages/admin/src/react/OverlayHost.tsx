@@ -1,7 +1,7 @@
 import { useOverlayHost } from './OverlayHost.hooks.js';
 import type { OverlayHostProps } from './OverlayHost.hooks.js';
-export function OverlayHost(props: OverlayHostProps, _optional: Record<string, never> = {}) {
-  const entries = useOverlayHost(props);
+export function OverlayHost({ useOverlayHostHook = useOverlayHost, ...props }: OverlayHostProps & { useOverlayHostHook?: typeof useOverlayHost }) {
+  const entries = useOverlayHostHook(props);
   return (
     <div data-jini-part="admin.overlays">
       {entries.map((entry) => (

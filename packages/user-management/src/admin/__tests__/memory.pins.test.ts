@@ -301,7 +301,7 @@ describe('createMemoryMembersApi (pin)', () => {
     expect(await ids({ afterId: 'b' })).toEqual(['c', 'd']);
     expect(await ids({ limit: 2.9 })).toEqual(['a', 'b']);
     for (const limit of [0, -1, Number.NaN, Number.POSITIVE_INFINITY]) expect(await ids({ limit })).toEqual(['a', 'b', 'c', 'd']);
-    expect(await createMemoryMembersApi({ workspaceId: 'w' }).listMembers({})).toEqual({ members: [] });
+    expect(await createMemoryMembersApi({ workspaceId: 'w' }).listMembers({})).toEqual({ members: [], nextCursor: null });
   });
 
   it('caps an unset limit at 100 members', async () => {

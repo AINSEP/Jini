@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { redactSecrets, redactSecretsWithCounts, SECRET_SHAPE_PATTERNS } from '../redact.js';
+import { redactSecrets, redactSecretsWithCounts } from '../redact.js';
+import { SECRET_SHAPE_PATTERNS } from '../secret-shapes.js';
 import { legacyCoreRedactSecrets, legacyCoreWithCounts, legacyCliRedactSecretLike, legacyProviderRedactSecrets } from './fixtures/legacy-redactors.js';
 import { LEGACY_SECRET_SHAPE_PATTERNS } from './fixtures/legacy-secret-shapes.js';
 

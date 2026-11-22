@@ -21,13 +21,13 @@ it('SQL factory declarations accept the host numeric timestamp and extra tables 
  const dir=fixture({prefix:'c2-session-host-types-'});try {
   for(const name of ['core','protocol','db','daemon'])pack({dir,name});
   copyPackage({dir,name:'kysely',source:join(packages,'db/node_modules/kysely')});
-  writeFileSync(join(dir,'consumer.ts'),`import type {StorageKernel} from '@jini-ai/db/kernel';
+  writeFileSync(join(dir,'consumer.ts'),`import type {KyselyKernel} from '@jini-ai/db/kernel';
 import {createSqliteAgentSessionStore} from '@jini-ai/daemon/store/agent-sessions/sqlite';
 import {createPgliteAgentSessionStore} from '@jini-ai/daemon/store/agent-sessions/pglite';
 import {createPostgresAgentSessionStore} from '@jini-ai/daemon/store/agent-sessions/postgres';
 type HostDatabase={assistant_agent_sessions:{conversation_id:string;agent_id:string;session_id:string;updated_at:number};ai_chats:{id:string};assistant_conversation_tool_approvals:{conversation_id:string}};
-declare const kernel:StorageKernel<HostDatabase>;
-void [createSqliteAgentSessionStore({kernel}),createPgliteAgentSessionStore({kernel}),createPostgresAgentSessionStore({kernel})];`);
+declare const kernel:KyselyKernel<HostDatabase>;
+void [createSqliteAgentSessionStore({clock:{nowMs:()=>0},kernel}),createPgliteAgentSessionStore({clock:{nowMs:()=>0},kernel}),createPostgresAgentSessionStore({clock:{nowMs:()=>0},kernel})];`);
   const req=createRequire(join(packages,'daemon/package.json'));const check=spawnSync(process.execPath,[req.resolve('typescript/bin/tsc'),'--noEmit','--strict','--skipLibCheck','--module','NodeNext','--moduleResolution','NodeNext','--target','ES2022','consumer.ts'],{cwd:dir,encoding:'utf8'});
   expect(check.stdout+check.stderr).toBe('');expect(check.status).toBe(0);
  }finally{rmSync(dir,{recursive:true,force:true});}

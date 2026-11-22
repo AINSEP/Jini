@@ -23,7 +23,7 @@ export type ResolveSystemProxyEnvOptions = {
 /** @internal Canonical spelling of every proxy env variable this module normalizes. */
 type CanonicalProxyKey = "ALL_PROXY" | "HTTP_PROXY" | "HTTPS_PROXY" | "NODE_USE_ENV_PROXY" | "NO_PROXY";
 
-const CANONICAL_PROXY_ENV_KEYS = new Map<string, CanonicalProxyKey>([
+const CANONICAL_PROXY_ENV_KEYS: ReadonlyMap<string, CanonicalProxyKey> = new Map<string, CanonicalProxyKey>([
   ["all_proxy", "ALL_PROXY"],
   ["http_proxy", "HTTP_PROXY"],
   ["https_proxy", "HTTPS_PROXY"],
@@ -79,8 +79,8 @@ function setCanonicalProxyEnvValue(
  * @returns A new merged environment with normalized proxy variables.
  */
 export function mergeProxyAwareEnv(
-  platform: NodeJS.Platform,
-  ...sources: Array<NodeJS.ProcessEnv | Record<string, string | undefined>>
+  { platform, sources }: { platform: NodeJS.Platform; sources: Array<NodeJS.ProcessEnv | Record<string, string | undefined>> },
+  _optional: Record<string, never> = {}
 ): NodeJS.ProcessEnv {
   const merged: NodeJS.ProcessEnv = {};
   for (const source of sources) {
@@ -271,8 +271,8 @@ function finalizeSystemProxyEnv(values: SystemProxyValues, platform: NodeJS.Plat
  * @returns A normalized proxy environment (empty when no proxy is enabled).
  */
 export function parseMacosScutilProxyOutput(
-  stdout: string,
-  platform: NodeJS.Platform = "darwin",
+  { stdout }: { stdout: string },
+  { platform = "darwin" }: { platform?: NodeJS.Platform | undefined } = {},
 ): NodeJS.ProcessEnv {
   const { exceptions, scalars } = parseScutilLines(stdout);
   return finalizeSystemProxyEnv(
@@ -360,6 +360,10 @@ function sharedProxyServer(proxyServer: string): Omit<SystemProxyValues, "noProx
   return { httpProxy: shared, httpsProxy: shared };
 }
 
+function parseProxyServer(proxyServer: string): Omit<SystemProxyValues, "noProxy"> {
+  return proxyServer.includes("=") ? parsePerProtocolProxyServer(proxyServer) : sharedProxyServer(proxyServer);
+}
+
 /**
  * Parse Windows Internet Settings proxy registry output into a normalized proxy
  * environment. Handles both the per-protocol (`http=…;https=…`) and shared
@@ -371,7 +375,7 @@ function sharedProxyServer(proxyServer: string): Omit<SystemProxyValues, "noProx
  */
 export function parseWindowsInternetSettingsProxyOutput(
   input: { proxyEnable: string; proxyOverride?: string; proxyServer?: string },
-  platform: NodeJS.Platform = "win32",
+  { platform = "win32" }: { platform?: NodeJS.Platform | undefined } = {},
 ): NodeJS.ProcessEnv {
   const enabled = parseRegistryValue(input.proxyEnable, "ProxyEnable");
   if (enabled == null || !/^(1|0x1)$/i.test(enabled)) return {};
@@ -379,9 +383,7 @@ export function parseWindowsInternetSettingsProxyOutput(
   const proxyOverride = parseRegistryValue(input.proxyOverride ?? "", "ProxyOverride") ?? "";
   if (!proxyServer.trim()) return {};
 
-  const proxies = proxyServer.includes("=")
-    ? parsePerProtocolProxyServer(proxyServer)
-    : sharedProxyServer(proxyServer);
+  const proxies = parseProxyServer(proxyServer);
   return finalizeSystemProxyEnv(
     {
       ...proxies,
@@ -425,7 +427,7 @@ export function resolveSystemProxyEnv(options: ResolveSystemProxyEnvOptions = {}
   const regQuery = (valueName: string): string =>
     tryRun("reg", ["query", WINDOWS_INTERNET_SETTINGS_KEY, "/v", valueName]);
   if (platform === "darwin") {
-    return parseMacosScutilProxyOutput(tryRun("scutil", ["--proxy"]), platform);
+    return parseMacosScutilProxyOutput({ stdout: tryRun("scutil", ["--proxy"]) }, { platform });
   }
   if (platform === "win32") {
     return parseWindowsInternetSettingsProxyOutput(
@@ -434,7 +436,7 @@ export function resolveSystemProxyEnv(options: ResolveSystemProxyEnvOptions = {}
         proxyOverride: regQuery("ProxyOverride"),
         proxyServer: regQuery("ProxyServer"),
       },
-      platform,
+      { platform },
     );
   }
   return {};

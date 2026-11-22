@@ -1,4 +1,4 @@
-import { isLoopbackHostname } from '@jini-ai/platform/net';
+import { isLoopbackHostname } from '@jini-ai/core/net';
 /**
  * @module daemon-url
  *
@@ -15,8 +15,6 @@ import { isLoopbackHostname } from '@jini-ai/platform/net';
 export interface ResolveDaemonUrlOptions {
   /** Value passed via a `--daemon-url`-shaped flag. Empty string is treated as unset. */
   flagUrl?: string | null;
-  /** Defaults to `process.env`; inject for tests. */
-  env?: NodeJS.ProcessEnv;
   /**
    * Name of the environment variable to check (e.g. `'JINI_DAEMON_URL'`).
    * Omit to skip the env step entirely — this package has no baked-in
@@ -50,8 +48,8 @@ export interface ResolveDaemonUrlOptions {
  * `http://127.0.0.1:0`-style fallback would be worse than a clear error,
  * and this package has no locked default port to fall back to on its own.
  */
-export async function resolveDaemonUrl(_requiredArgs: Record<string, never>, options: ResolveDaemonUrlOptions = {}): Promise<string> {
-  const env = options.env ?? process.env;
+export async function resolveDaemonUrl(required: { env: NodeJS.ProcessEnv }, options: ResolveDaemonUrlOptions = {}): Promise<string> {
+  const { env } = required;
   // `??` short-circuits, so discover() is only probed when flag and env both came up empty.
   // defaultUrl is taken as-is (even `''`): only `undefined` skips it.
   const url =

@@ -18,6 +18,7 @@
     "@jini-ai/http-kit": "workspace:*",
     "@jini-ai/integrations": "workspace:*",
     "@jini-ai/mcp": "workspace:*",
+    "@jini-ai/node-adapters": "workspace:*",
     "@jini-ai/oauth": "workspace:*",
     "@jini-ai/platform": "workspace:*",
     "@jini-ai/plugins": "workspace:*",
@@ -25,6 +26,6 @@
     "@jini-ai/user-management": "workspace:*",
     "@types/node": "^24.0.0",
     "typescript": "^5.6.0",
-    "vitest": "^2.1.0"
+    "vitest": "^3.2.6"
   }
 }

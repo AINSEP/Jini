@@ -11,7 +11,7 @@ import {
   noopStampWatermark,
   toTaxonomyOutbox,
 } from "../repo.memory.js";
-import type { Taxonomy, Term, WriteServiceDeps } from "../write-service.js";
+import type { Taxonomy, Term, WriteServiceDeps } from "../write-contracts.js";
 
 /**
  * @file The in-memory taxonomy adapters — the dev/test persistence a hermetic host composes. Each

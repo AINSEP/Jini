@@ -4,8 +4,7 @@ import type { ChatMessage } from '../messages.js';
 import { conversationUsage } from '../turn-usage.js';
 import { formatUsageCost } from '../usage-format.js';
 import { mergeRunEvents } from '../durable-projection.js';
-import { parseUsageEvent } from '../run-events/entry.js';
-import { reduceAgentWirePayload } from '../ag-ui/entry.js';
+import { parseUsageEvent, translateRunAgentPayload } from '../run-events/entry.js';
 
 const message = (id: string, events: AgentEvent[], agentId = 'claude'): ChatMessage => ({ id, role: 'assistant', content: '', agentId, events });
 const snapshot = (session: string, cumulative: number): AgentEvent => ({ kind: 'usage', costSessionId: session, cumulativeCostUsd: cumulative });
@@ -54,7 +53,7 @@ it('preserves missing costs and does not estimate money from tokens or invalid v
 it('preserves metadata in both native and AG-UI persisted event projections', () => {
   const payload = { type: 'usage', cumulativeCostUsd: 2.5, costSessionId: 's' };
   expect(parseUsageEvent({ payload })).toEqual(snapshot('s', 2.5));
-  expect(reduceAgentWirePayload({ payload })).toEqual(snapshot('s', 2.5));
+  expect(translateRunAgentPayload({ payload })).toEqual(snapshot('s', 2.5));
 });
 
 it.each([

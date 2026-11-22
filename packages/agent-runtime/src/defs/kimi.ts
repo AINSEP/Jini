@@ -1,10 +1,10 @@
 import { createAgentModelDiscovery } from '../model-discovery-native.js';
-import { detectAcpModels, DEFAULT_MODEL_OPTION } from './shared.js';
-import type { RuntimeAgentDef } from '../types.js';
+import { acpModelFetcher, DEFAULT_MODEL_OPTION } from './shared.js';
+import type { RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 
 export const kimiAgentDef = {
   // UNVERIFIED live integration locally; source/category and limits are documented in model-discovery-adapters.ts.
-  ...createAgentModelDiscovery('kimi', { fallbackModels: (): readonly import('../types.js').RuntimeModelOption[] => kimiAgentDef.fallbackModels }),
+  ...createAgentModelDiscovery('kimi', { fallbackModels: (): readonly import('@jini-ai/core/contracts/agents').RuntimeModelOption[] => kimiAgentDef.fallbackModels }),
     id: 'kimi',
     name: 'Kimi CLI',
     bin: 'kimi',
@@ -15,15 +15,7 @@ export const kimiAgentDef = {
       { id: 'moonshot-v1-8k', label: 'moonshot-v1-8k' },
       { id: 'moonshot-v1-32k', label: 'moonshot-v1-32k' },
     ],
-    fetchModels: async ({ resolvedBin, env }, { acpModelProbe } = {}) =>
-      (({ bin, args, ...optionalArgs }: Parameters<typeof detectAcpModels>[0] & NonNullable<Parameters<typeof detectAcpModels>[1]>) => detectAcpModels({ bin, args }, optionalArgs))({
-        ...(acpModelProbe ? { probe: acpModelProbe } : {}),
-        bin: resolvedBin,
-        args: ['acp'],
-        env,
-        timeoutMs: 15_000,
-        defaultModelOption: DEFAULT_MODEL_OPTION,
-      }),
+    fetchModels: acpModelFetcher({ args: ['acp'] }),
     buildArgs: () => ['acp'],
     streamFormat: 'acp-json-rpc',
     mcpDiscovery: 'mature-acp',

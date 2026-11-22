@@ -37,9 +37,9 @@ describe('tool approval presentation', () => {
     } };
     const { labels } = toolApprovalPresentation({ descriptor: { id: 'publish', inputSchema } }, { text });
     expect(labels).toEqual({ projectName: 'Site name', 'config.branchName': 'Release branch' });
-    const html = renderDetailList([{ label: 'Input', labels, value: {
+    const html = renderDetailList({ details: [{ label: 'Input', labels, value: {
       projectName: 'new-site', target: 'host', config: { branchName: 'main' }, privacyPolicyUrl: '/privacy',
-    } }]);
+    } }] });
     const doc = new DOMParser().parseFromString(html, 'text/html');
     expect([...doc.querySelectorAll('dt')].map(node => node.textContent)).toEqual([
       'Input', 'Site name', 'Target', 'Config', 'Release branch', 'Privacy policy URL',
@@ -63,7 +63,7 @@ describe('tool approval presentation', () => {
       inputSchema: { properties: { bad: false, value: { title: '<img src=x>', properties: [] } } },
     } }, { text });
     expect(result).toMatchObject({ title: 'Remote action?', confirmLabel: 'Confirm' });
-    expect(renderDetailList([{ label: 'Input', value: { value: 'safe' }, labels: result.labels }])).toContain('&lt;img src=x&gt;');
+    expect(renderDetailList({ details: [{ label: 'Input', value: { value: 'safe' }, labels: result.labels }] })).toContain('&lt;img src=x&gt;');
     expect(toolApprovalPresentation({ descriptor: { id: 'confirm', inputSchema: null } }, { text }).labels).toEqual({});
   });
 

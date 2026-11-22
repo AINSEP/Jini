@@ -2,12 +2,12 @@ import type { AdminFormsPort } from "../../../core/ports/forms.js";
 import { submissionView } from "../../models.js";
 import type { FormsTrashPort } from "../../ports.js";
 import { useFormsPorts, useFormsOptions } from "./FormsPorts.hooks.js";
-import { useController } from "../../../core/react/use-controller.js";
+import { useFormsController } from "./FormsPorts.hooks.js";
 import { createFormSubmissionDetailController, initialFormSubmissionDetailState, type FormSubmissionDetailState } from "../../controllers/form-submission-detail.controller.js";
 import type { AdminFormSubmission } from "../../models.js";
-import { describeApiError as describeCoreApiError } from "../../../core/transport/errors.js";
+import { describeApiError as describeCoreApiError } from '@jini-ai/core/admin-runtime';
 const describeApiError = (e: unknown, fallback: string) => describeCoreApiError({ e, fallback });
-import { useFetchMutation, useFetchQuery, useInvalidate } from "@jini-ai/ui/fetch-query";
+import { useFetchMutation, useFetchQuery, useInvalidate } from "../../../react/kit.js";
 import { KEYS, describeTrashError } from "../../rules.js";
 
 /**
@@ -24,8 +24,8 @@ import { KEYS, describeTrashError } from "../../rules.js";
  * Naming follows `hooks/use-settings-slice.hooks.ts`: `use-<thing>.hooks.ts`. Feature-local because
  * nothing outside `features/forms` needs it.
  *
- * `port` is injected — see `core/ports/forms.ts` (shared with `use-form-
- * submissions.hooks.ts`, since both read/write the same submissions list for a form) — rather than
+ * `port` is injected — see `core/ports/forms.ts` (shared with `packages/admin/src/forms/react/hooks/use-form-submissions.hooks.ts`,
+ * since both read/write the same submissions list for a form) — rather than
  * importing `lib/api` directly, so a test can describe load/delete outcomes against
  * `the memory adapter` instead of stubbing global `fetch`.
  * `useWiredFormSubmissionDetail` below is the zero-argument pair `FormEditor.tsx` actually mounts.
@@ -78,7 +78,7 @@ export function useFormSubmissionDetail(
 ): FormSubmissionDetailController {
   const { port, trash } = props;
   const t = props.t ?? ((key: string) => key);
-  const { controller: stateController, snapshot: stateSnapshot } = useController({ create: () => createFormSubmissionDetailController({}), dependencies: [] });
+  const { controller: stateController, snapshot: stateSnapshot } = useFormsController({ create: () => createFormSubmissionDetailController({}), dependencies: [] });
   const state = stateSnapshot ?? initialFormSubmissionDetailState({});
   const confirmOpen = state.confirmOpen;
   const setConfirmOpen = (value: FormSubmissionDetailStateValue<"confirmOpen">) => stateController?.update({ key: "confirmOpen", value });

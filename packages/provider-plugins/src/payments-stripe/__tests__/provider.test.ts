@@ -3,8 +3,9 @@ import { describe, expect, it, vi } from "vitest";
 import type { ProviderContext } from "@jini-ai/commerce/payments/kernel";
 import { providerConformanceCases } from "@jini-ai/commerce/payments/testkit";
 import { createStripePaymentProvider } from "../provider.js";
+import { realHelpers as errors } from "./fakes/domain-helpers.js";
 
-const provider = createStripePaymentProvider({}, {});
+const provider = createStripePaymentProvider({ errors }, {});
 const session = { object: "checkout.session", id: "cs_1", mode: "payment", livemode: false, metadata: { jini_payment_id: "pay_1" },
   amount_total: 900, currency: "usd", status: "complete", payment_status: "paid", url: "https://checkout.stripe.com/c/1" };
 const evidence = { providerRef: "cs_1", correlationId: "pay_1", status: "succeeded", amount: { minorUnits: 900, currency: "USD" }, refunds: [], disputes: [] };
@@ -25,7 +26,7 @@ const event = (object: unknown = session, type = "checkout.session.completed") =
 describe("Stripe commerce provider", () => {
   it.each(providerConformanceCases({ provider, makeContext: () => context().ctx }))("conforms: $name", async entry => entry.run());
   it("declares only Phase 1 capabilities and the credential slots", () => {
-    expect(createStripePaymentProvider({})).toMatchObject({ id: "stripe", displayName: "Stripe", credentialKeys: ["secretKey", "webhookSecret"],
+    expect(createStripePaymentProvider({ errors })).toMatchObject({ id: "stripe", displayName: "Stripe", credentialKeys: ["secretKey", "webhookSecret"],
       capabilities: { refunds: "none", capture: "auto", void: false, disputes: false, retrieve: "payment", echoesCorrelation: true, confirmation: ["redirect"],
         currencies: ["AUD", "BRL", "CAD", "CHF", "CZK", "DKK", "EUR", "GBP", "HKD", "JPY", "KRW", "MXN", "NOK", "NZD", "PLN", "SEK", "SGD", "USD"] } });
     expect([provider.refund, provider.capture, provider.void]).toEqual([undefined, undefined, undefined]);

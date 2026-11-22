@@ -3,11 +3,12 @@ import Database from "better-sqlite3";
 import { openMemorySqliteKernel } from "@jini-ai/db/kernel/sqlite";
 import { sqlPaymentsLedger } from "../repo.sql.js";
 import { migrateCommercePayments } from "../migrations/index.js";
+import { runMigrations } from "@jini-ai/db/migrate";
 
 test("an empty attempt operation selection returns no rows without reading the database", async () => {
   const kernel = openMemorySqliteKernel<unknown>({ open: (file, options) => new Database(file, options) });
   try {
-    await migrateCommercePayments({ kernel });
+    await migrateCommercePayments({ kernel, runMigrations });
     const read = vi.spyOn(kernel, "run");
     const ledger = sqlPaymentsLedger({ kernel });
     const attempts = await ledger.transaction({ fn: (tx) => tx.listOpenAttempts({ ops: [], updatedBefore: 102, limit: 10 }) });

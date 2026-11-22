@@ -1,7 +1,7 @@
 // Scope and page contracts must not import the lazy page/binding assembly.
 import { createContext, useContext } from 'react';
 import type { ComponentType, LazyExoticComponent } from 'react';
-import type { AdminInstance } from '@jini-ai/admin/core/module';
+import type { AdminInstance } from '@jini-ai/core/contracts/admin-module';
 import type { UsersApiPort, UsersSafetyPort } from '../../ports.js';
 export interface UsersScope { readonly api: UsersApiPort; readonly permissions: readonly string[]; readonly safety: UsersSafetyPort; }
 export const ScopeContext = createContext<UsersScope | null>(null);

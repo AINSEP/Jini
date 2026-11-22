@@ -152,32 +152,7 @@ function createSession(required: SearchProviderConformanceRequired & { readonly 
   const { asyncIndexing, maxBatch } = provider.capabilities;
   const base = `conformance_${required.name.toLowerCase().replace(/[^a-z0-9]+/g, '_')}_${required.caseId}`;
 
-  async function settle(ctx: SearchProviderContext, value: SearchWriteResult, label: string): Promise<void> {
-    if (!value.outcomes.some(outcome => outcome.status === 'pending')) return;
-    check(asyncIndexing && typeof provider.awaitTask === 'function', `${label} answered pending, but the provider does not declare asyncIndexing with an awaitTask`);
-    check(typeof value.taskId === 'string', `${label} answered pending without a taskId`);
-    const { taskId } = value;
-    const awaitTask = provider.awaitTask;
-    for (let poll = 0; poll < required.maxAwaitPolls; poll += 1) {
-      const state = expectOk(await attempt('awaitTask', () => awaitTask.call(provider, ctx, { taskId })), 'awaitTask');
-      check(state !== 'failed', `task ${taskId} of ${label} failed`);
-      if (state === 'succeeded') return;
-    }
-    check(false, `task ${taskId} of ${label} was still pending after ${required.maxAwaitPolls} polls`);
-  }
-
-  async function write<I extends { readonly key: SearchDocumentKey; readonly revision: number }>(
-    ctx: SearchProviderContext, items: readonly I[], label: string, send: (chunk: readonly I[]) => Promise<ProviderResult<SearchWriteResult>>,
-  ): Promise<readonly SearchWriteOutcome[]> {
-    const outcomes: SearchWriteOutcome[] = [];
-    for (const chunk of chunks(items, maxBatch)) {
-      const value = expectOk(await attempt(label, () => send(chunk)), label);
-      checkOutcomes(value.outcomes, chunk, label);
-      await settle(ctx, value, label);
-      outcomes.push(...value.outcomes);
-    }
-    return outcomes;
-  }
+  const { settle, write } = createSessionWrites(provider, required, { asyncIndexing, maxBatch });
 
   return {
     provider,
@@ -192,8 +167,8 @@ function createSession(required: SearchProviderConformanceRequired & { readonly 
       return ctx;
     },
     sibling: (ctx, { siteId }) => Promise.resolve(required.makeContext({ siteId, indexName: ctx.indexName })),
-    upsert: (ctx, documents) => write(ctx, documents, 'upsert', chunk => provider.upsert(ctx, { documents: chunk })),
-    remove: (ctx, tombstones) => write(ctx, tombstones, 'remove', chunk => provider.remove(ctx, { tombstones: chunk })),
+    upsert: (ctx, documents) => write({ ctx, items: documents, label: 'upsert' }, chunk => provider.upsert(ctx, { documents: chunk })),
+    remove: (ctx, tombstones) => write({ ctx, items: tombstones, label: 'remove' }, chunk => provider.remove(ctx, { tombstones: chunk })),
     async search(ctx, query) {
       const page = expectOk(await attempt('query', () => provider.query(ctx, { query: { text: TERM, ...query } })), 'query');
       checkPage(page, query.limit ?? 10);
@@ -214,6 +189,36 @@ function createSession(required: SearchProviderConformanceRequired & { readonly 
       return states;
     },
   };
+}
+
+function createSessionWrites(provider: SearchProvider, required: { readonly maxAwaitPolls: number }, { asyncIndexing, maxBatch }: Pick<SearchProvider['capabilities'], 'asyncIndexing' | 'maxBatch'>) {
+  async function settle(ctx: SearchProviderContext, value: SearchWriteResult, label: string): Promise<void> {
+    if (!value.outcomes.some(outcome => outcome.status === 'pending')) return;
+    check(asyncIndexing && typeof provider.awaitTask === 'function', `${label} answered pending, but the provider does not declare asyncIndexing with an awaitTask`);
+    check(typeof value.taskId === 'string', `${label} answered pending without a taskId`);
+    const { taskId } = value;
+    const awaitTask = provider.awaitTask;
+    for (let poll = 0; poll < required.maxAwaitPolls; poll += 1) {
+      const state = expectOk(await attempt('awaitTask', () => awaitTask.call(provider, ctx, { taskId })), 'awaitTask');
+      check(state !== 'failed', `task ${taskId} of ${label} failed`);
+      if (state === 'succeeded') return;
+    }
+    check(false, `task ${taskId} of ${label} was still pending after ${required.maxAwaitPolls} polls`);
+  }
+
+  async function write<I extends { readonly key: SearchDocumentKey; readonly revision: number }>(
+    { ctx, items, label }: { ctx: SearchProviderContext; items: readonly I[]; label: string }, send: (chunk: readonly I[]) => Promise<ProviderResult<SearchWriteResult>>,
+  ): Promise<readonly SearchWriteOutcome[]> {
+    const outcomes: SearchWriteOutcome[] = [];
+    for (const chunk of chunks(items, maxBatch)) {
+      const value = expectOk(await attempt(label, () => send(chunk)), label);
+      checkOutcomes(value.outcomes, chunk, label);
+      await settle(ctx, value, label);
+      outcomes.push(...value.outcomes);
+    }
+    return outcomes;
+  }
+  return { settle, write };
 }
 
 // --------------------------------------------------------------------------------------------

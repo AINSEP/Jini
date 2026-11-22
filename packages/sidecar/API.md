@@ -1,6 +1,6 @@
 # Sidecar API
 
-Public calls use `(requiredArgs, optionalArgs?)`. Required data and dependency ports belong in the first object; optional policy belongs in the second. Generic export names are retained; Node supervisor defaults moved to their isolated subpath. This is a breaking signature change; the full legacy-helper inventory is in the archived migration inventory.
+Plain functions use `(requiredArgs, optionalArgs = {})`. Required data and dependency ports belong in the first object; optional policy belongs in the second. Generic export names are retained; Node supervisor defaults moved to their isolated subpath. This is a breaking signature change; the full legacy-helper inventory is in the archived migration inventory.
 
 | Entry | Runtime | API |
 | --- | --- | --- |

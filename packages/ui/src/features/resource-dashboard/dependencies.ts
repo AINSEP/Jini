@@ -6,11 +6,12 @@
  * `ResourceBoardPort` nor `ResourceRowListPort` has an "add" concept at all
  * — both origins delegate creation entirely to host UI (DesignsTab's
  * `onNewProject`, TasksView's template-gallery + `NewAutomationModal`, both
- * out of this primitive's scope, see `packages/ui/archived provenance ledger`'s
+ * out of this primitive's scope, see `archived UI provenance ledger`'s
  * "Dropped" list). So both fakes below can ship a genuinely useful
  * zero-config default, same reasoning as `features/asset-grid`'s read-only
  * fake.
  */
+import { fakeLatencyDelay } from '../../utils/fake-latency.js';
 import type {
   ResourceBoardDependencies,
   ResourceBoardPort,
@@ -39,42 +40,40 @@ export function createFakeResourceBoardPort<TItem extends ResourceBoardItem>(
   options: FakeResourceBoardPortOptions<TItem> = {},
 ): ResourceBoardPort<TItem> {
   const store = options.items ? [...options.items] : [];
-  const latencyMs = options.latencyMs ?? 0;
-  const delay = <T>(value: T): Promise<T> =>
-    latencyMs > 0 ? new Promise((resolve) => setTimeout(() => resolve(value), latencyMs)) : Promise.resolve(value);
+  const delay = fakeLatencyDelay({}, { latencyMs: options.latencyMs });
 
   const port: ResourceBoardPort<TItem> = {
     fetchItems() {
-      return delay([...store]);
+      return delay({ value: [...store] });
     },
     deleteItem(id: string): Promise<boolean> {
       const index = store.findIndex((item) => item.id === id);
-      if (index === -1) return delay(false);
+      if (index === -1) return delay({ value: false });
       store.splice(index, 1);
-      return delay(true);
+      return delay({ value: true });
     },
   };
 
   if (options.supportsRename ?? true) {
     port.renameItem = (id: string, name: string): Promise<TItem | null> => {
       const index = store.findIndex((item) => item.id === id);
-      if (index === -1) return delay(null);
+      if (index === -1) return delay({ value: null });
       const updated = { ...store[index]!, title: name };
       store[index] = updated;
-      return delay(updated);
+      return delay({ value: updated });
     };
   }
 
   if (options.supportsDuplicate ?? true) {
     port.duplicateItem = (id: string): Promise<TItem | null> => {
       const index = store.findIndex((item) => item.id === id);
-      if (index === -1) return delay(null);
+      if (index === -1) return delay({ value: null });
       const original = store[index]!;
       const duplicate = options.onDuplicate
         ? options.onDuplicate(original)
         : ({ ...original, id: `${original.id}-copy`, title: `${original.title} copy` } as TItem);
       store.push(duplicate);
-      return delay(duplicate);
+      return delay({ value: duplicate });
     };
   }
 
@@ -131,18 +130,16 @@ export function createFakeResourceRowListPort<TRow extends ResourceRowItem>(
   options: FakeResourceRowListPortOptions<TRow> = {},
 ): ResourceRowListPort<TRow> {
   const rows = options.rows ? [...options.rows] : [];
-  const latencyMs = options.latencyMs ?? 0;
-  const delay = <T>(value: T): Promise<T> =>
-    latencyMs > 0 ? new Promise((resolve) => setTimeout(() => resolve(value), latencyMs)) : Promise.resolve(value);
+  const delay = fakeLatencyDelay({}, { latencyMs: options.latencyMs });
 
   const port: ResourceRowListPort<TRow> = {
     fetchRows() {
-      return delay([...rows]);
+      return delay({ value: [...rows] });
     },
   };
 
   if (options.supportsHistory ?? true) {
-    port.fetchRowHistory = (id: string): Promise<ResourceRunHistoryItem[]> => delay([...(options.historyByRowId?.[id] ?? [])]);
+    port.fetchRowHistory = (id: string): Promise<ResourceRunHistoryItem[]> => delay({ value: [...(options.historyByRowId?.[id] ?? [])] });
   }
 
   return port;

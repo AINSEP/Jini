@@ -2,7 +2,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, expect, test, vi } from "vitest";
-import { FileLockTimeoutError, withFileLock, withFileLockSync } from "../file-lock.js";
+import { withFileLock, withFileLockSync } from "../file-lock.js";
+import { FileLockTimeoutError } from "@jini-ai/core/contracts/runtime";
 
 // Demo practice run (2026-11-02): on every boot of one site an Agent Plugin timed out on its state
 // lock and stayed off. Those locks never age out (`staleMs: Infinity`), so a lock a killed process

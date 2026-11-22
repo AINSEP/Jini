@@ -108,7 +108,7 @@ test('loopback HTTP requires the explicit test option and still invokes the supp
     expect(() => guard.assertSafeUrl({
         raw: 'http://127.0.0.1/token',
         label: 'token'
-    })).toThrow();
+    })).toThrow("token: provider endpoint must use https (http is permitted only for loopback)");
     expect(localGuard.assertSafeUrl({
         raw: 'http://127.0.0.1/token',
         label: 'token'
@@ -116,7 +116,7 @@ test('loopback HTTP requires the explicit test option and still invokes the supp
     expect(() => localGuard.assertSafeUrl({
         raw: 'http://api.example.com/token',
         label: 'token'
-    })).toThrow();
+    })).toThrow("token: provider endpoint must use https (http is permitted only for loopback)");
     expect(seen).toEqual(['http://127.0.0.1/token']);
 });
 test('provider registries are empty independent instances and own their descriptor snapshots', () => {
@@ -132,7 +132,7 @@ test('provider registries are empty independent instances and own their descript
     expect(second.list({})).toEqual([]);
     expect(() => second.get({
         providerId: TEST_PROVIDER.providerId
-    })).toThrow();
+    })).toThrow(`no OAuth provider is registered as '${TEST_PROVIDER.providerId}'`);
     const leaked = first.get({
         providerId: TEST_PROVIDER.providerId
     }) as {

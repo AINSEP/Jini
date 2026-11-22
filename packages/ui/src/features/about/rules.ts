@@ -222,8 +222,7 @@ const STATE_DERIVERS: ReadonlyMap<UpdaterStatusState, (model: UpdaterModel) => A
  * @complexity O(1) — a fixed-size map lookup, no iteration.
  */
 export function deriveAboutUpdateControl(
-  model: UpdaterModel,
-  appVersionInfo: AppVersionInfo | null,
+  { model, appVersionInfo }: { model: UpdaterModel; appVersionInfo: AppVersionInfo | null }, _optional: Record<string, never> = {},
 ): AboutUpdateControl {
   if (appVersionInfo?.packaged === false) return { ...DEVELOPMENT_CONTROL };
   if (model.environment !== 'desktop' || !model.enabled || !model.supported) return { ...UNSUPPORTED_CONTROL };
@@ -239,9 +238,8 @@ export function deriveAboutUpdateControl(
  * awaiting its own async work.
  */
 export function isAboutUpdateActionDisabled(
-  control: AboutUpdateControl,
-  model: UpdaterModel,
-  actionBusy = false,
+  { control, model }: { control: AboutUpdateControl; model: UpdaterModel },
+  { actionBusy = false }: { actionBusy?: boolean | undefined } = {},
 ): boolean {
   return control.primaryAction === null || Boolean(model.busy) || actionBusy;
 }
@@ -260,7 +258,7 @@ export function isAboutUpdateActionDisabled(
  *
  * @complexity O(1)
  */
-export function beginSilentUpdatesWrite(next: boolean): SilentUpdatesState {
+export function beginSilentUpdatesWrite({ next }: { next: boolean }, _optional: Record<string, never> = {}): SilentUpdatesState {
   return { allowSilentUpdates: next, busy: true };
 }
 
@@ -273,7 +271,7 @@ export function beginSilentUpdatesWrite(next: boolean): SilentUpdatesState {
  *
  * @complexity O(1)
  */
-export function resolveSilentUpdatesWriteSuccess(value: boolean): SilentUpdatesState {
+export function resolveSilentUpdatesWriteSuccess({ value }: { value: boolean }, _optional: Record<string, never> = {}): SilentUpdatesState {
   return { allowSilentUpdates: value, busy: false };
 }
 
@@ -286,6 +284,6 @@ export function resolveSilentUpdatesWriteSuccess(value: boolean): SilentUpdatesS
  *
  * @complexity O(1)
  */
-export function resolveSilentUpdatesWriteFailure(previous: boolean): SilentUpdatesState {
+export function resolveSilentUpdatesWriteFailure({ previous }: { previous: boolean }, _optional: Record<string, never> = {}): SilentUpdatesState {
   return { allowSilentUpdates: previous, busy: false };
 }

@@ -1,37 +1,15 @@
 /**
  * Pure logic shared by `ResourceBoard` and `ResourceRowList`. No React, no
- * transport, no DOM. See `packages/ui/archived provenance ledger` for full provenance.
+ * transport, no DOM. See `archived UI provenance ledger` for full provenance.
  */
 import { DEFAULT_STATUS_TONE, UNMATCHED_STATUS_BUCKET } from './constants.js';
 import type { ResourceBoardItem, ResourceStatusTone, ResourceStatusToneMap } from './types.js';
 
-// --- Shared: status tone + pending-action tracking ----------------------
+// --- Shared: status tone ------------------------------------------------
 
 /** Resolves a status value's visual tone from a host-supplied map, defaulting to `'neutral'` for any status the host didn't classify. */
-export function statusToneFor(status: string, toneMap: ResourceStatusToneMap | undefined): ResourceStatusTone {
+export function statusToneFor({ status, toneMap }: { status: string; toneMap: ResourceStatusToneMap | undefined }, _optional: Record<string, never> = {}): ResourceStatusTone {
   return toneMap?.[status] ?? DEFAULT_STATUS_TONE;
-}
-
-/** Stable per-(id, kind) key used to track in-flight per-item actions independently, so one item's busy action never disables an unrelated item — same pattern already established by `features/source-config-list`'s `pendingActionKey`, re-derived fresh here (deliberately not imported cross-feature; see `packages/ui/archived provenance ledger`'s "share only what correctness forces" note). */
-export function pendingActionKey(id: string, kind: string): string {
-  return `${kind}:${id}`;
-}
-
-export function isActionPending(pendingKeys: ReadonlySet<string>, id: string, kind: string): boolean {
-  return pendingKeys.has(pendingActionKey(id, kind));
-}
-
-export function withPendingAction(pendingKeys: ReadonlySet<string>, id: string, kind: string): ReadonlySet<string> {
-  const next = new Set(pendingKeys);
-  next.add(pendingActionKey(id, kind));
-  return next;
-}
-
-export function withoutPendingAction(pendingKeys: ReadonlySet<string>, id: string, kind: string): ReadonlySet<string> {
-  if (!pendingKeys.has(pendingActionKey(id, kind))) return pendingKeys;
-  const next = new Set(pendingKeys);
-  next.delete(pendingActionKey(id, kind));
-  return next;
 }
 
 // --- ResourceBoard rules -------------------------------------------------
@@ -46,8 +24,7 @@ export function withoutPendingAction(pendingKeys: ReadonlySet<string>, id: strin
  * isn't in `statusOrder` at all, rather than silently dropping it.
  */
 export function groupItemsByStatus<TItem extends { status?: string }>(
-  items: readonly TItem[],
-  statusOrder: readonly string[],
+  { items, statusOrder }: { items: readonly TItem[]; statusOrder: readonly string[] },
   options?: {
     defaultStatus?: string;
     normalizeStatus?: (status: string) => string;
@@ -69,7 +46,7 @@ export function groupItemsByStatus<TItem extends { status?: string }>(
 }
 
 /** Case-insensitive substring match over an item's `title`/`subtitle` — mirrors DesignsTab's own `filter.trim().toLowerCase()` project-name (+ live-artifact title) search. An empty/whitespace-only query returns every item unchanged. */
-export function filterBoardItemsByQuery<TItem extends ResourceBoardItem>(items: readonly TItem[], query: string): TItem[] {
+export function filterBoardItemsByQuery<TItem extends ResourceBoardItem>({ items, query }: { items: readonly TItem[]; query: string }, _optional: Record<string, never> = {}): TItem[] {
   const trimmed = query.trim().toLowerCase();
   if (!trimmed) return [...items];
   return items.filter((item) => {
@@ -86,7 +63,7 @@ export function filterBoardItemsByQuery<TItem extends ResourceBoardItem>(items: 
  * (returns items in their original order) rather than an error, so a host
  * can safely add a sort option before wiring every item's `sortValues`.
  */
-export function sortBoardItems<TItem extends ResourceBoardItem>(items: readonly TItem[], sortOptionValue: string | undefined): TItem[] {
+export function sortBoardItems<TItem extends ResourceBoardItem>({ items, sortOptionValue }: { items: readonly TItem[]; sortOptionValue: string | undefined }, _optional: Record<string, never> = {}): TItem[] {
   if (!sortOptionValue) return [...items];
   return [...items]
     .map((item, index) => ({ item, index, value: item.sortValues?.[sortOptionValue] }))
@@ -101,7 +78,7 @@ export function sortBoardItems<TItem extends ResourceBoardItem>(items: readonly 
 }
 
 /** Toggles one id in a selection set, returning a new `Set` (DesignsTab's `toggleSelected`). */
-export function toggleSelectedId(selected: ReadonlySet<string>, id: string): Set<string> {
+export function toggleSelectedId({ selected, id }: { selected: ReadonlySet<string>; id: string }, _optional: Record<string, never> = {}): Set<string> {
   const next = new Set(selected);
   if (next.has(id)) next.delete(id);
   else next.add(id);
@@ -114,7 +91,7 @@ export function toggleSelectedId(selected: ReadonlySet<string>, id: string): Set
  * the SAME set instance when nothing needed pruning, so a caller can skip a
  * re-render via reference equality.
  */
-export function pruneSelectedIds(selected: ReadonlySet<string>, validIds: ReadonlySet<string>): ReadonlySet<string> {
+export function pruneSelectedIds({ selected, validIds }: { selected: ReadonlySet<string>; validIds: ReadonlySet<string> }, _optional: Record<string, never> = {}): ReadonlySet<string> {
   let changed = false;
   const next = new Set<string>();
   for (const id of selected) {

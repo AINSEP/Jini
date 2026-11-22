@@ -3,12 +3,14 @@ import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
 import type { ChildProcess, spawn as nodeSpawn } from 'node:child_process';
 import { afterEach, expect, it, vi } from 'vitest';
-import { createAgentRuntimeState, getAgentDef, type RuntimeAgentDef } from '@jini-ai/agent-runtime';
+import { createAgentRuntimeState, getAgentDef } from '@jini-ai/agent-runtime';
+import { type RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 import { createAgentExecutor } from '../index.js';
 import { createRunLifecycle } from '../../run-lifecycle.js';
 import { createInMemoryEventLog } from '../../event-log.js';
 import { fixtureModelDiscovery } from './model-discovery-fixture.js';
 import type { McpJsonInjectionOptions } from '../index.js';
+import { runtimeFixture, agentRuntimeFixture } from './runtime-fixture.js';
 
 class FakeChild extends EventEmitter {
   stdin = new PassThrough();
@@ -24,26 +26,20 @@ afterEach(() => vi.useRealTimers());
 async function startFixture(
   { agentId, hostEnv }: { agentId: 'codex' | 'pi' | 'claude' | 'antigravity' | 'opencode'; hostEnv: NodeJS.ProcessEnv },
   policies: { codexDisablePlugins?: boolean; piGracefulShutdownMs?: number; mcpJsonInjection?: McpJsonInjectionOptions; bufferedStdoutMaxBytes?: number } = {},
-  runPolicy: { nativeToolAccess?: boolean; nativeCapabilities?: Partial<import('@jini-ai/agent-runtime').NativeCapabilities>; cliParity?: boolean; permissionMode?: 'bypass' | 'restricted' } = {},
-  { ownRuntimeState = true }: { ownRuntimeState?: boolean } = {},
+  runPolicy: { nativeToolAccess?: boolean; nativeCapabilities?: Partial<import('@jini-ai/core/contracts/agents').NativeCapabilities>; cliParity?: boolean; permissionMode?: 'bypass' | 'restricted' } = {},
 ) {
+  const { codexDisablePlugins, piGracefulShutdownMs, ...executorPolicies } = policies;
   const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
   const child = new FakeChild();
   const calls: { args: readonly string[]; env: NodeJS.ProcessEnv | undefined }[] = [];
   const def: RuntimeAgentDef = { ...getAgentDef({ id: agentId })!, ...fixtureModelDiscovery,
     ...(['claude', 'codex'].includes(agentId) ? { mcpIsolation: { perRun: 'fixture@2026-11-05' } } : {}) };
-  const executor = createAgentExecutor({ lifecycle }, {
-    ...policies, hostEnv, ...(ownRuntimeState ? { runtimeState: createAgentRuntimeState({}) } : {}),
-    getAgentDef: () => def,
-    resolveAgentLaunch: () => ({ selectedPath: '/fake/cli', pathResolvedPath: '/fake/cli',
-      configuredOverridePath: null, launchPath: '/fake/cli', launchKind: 'selected', childPathPrepend: [], diagnostic: null }),
-    applyAgentLaunchEnv: ({ env }) => env, ensureAgentCapabilities: async () => {},
-    spawn: ((_command: string, args: readonly string[], options: { env?: NodeJS.ProcessEnv }) => {
+  const executor = createAgentExecutor({ lifecycle, hostEnv: hostEnv, runtime: runtimeFixture({ spawn: ((_command: string, args: readonly string[], options: { env?: NodeJS.ProcessEnv }) => {
       calls.push({ args, env: options.env });
       queueMicrotask(() => child.emit('spawn'));
       return child as unknown as ChildProcess;
-    }) as typeof nodeSpawn,
-  });
+    }) as typeof nodeSpawn }), agentRuntime: agentRuntimeFixture({ getAgentDef: () => def, resolveAgentLaunch: () => ({ selectedPath: '/fake/cli', pathResolvedPath: '/fake/cli',
+      configuredOverridePath: null, launchPath: '/fake/cli', launchKind: 'selected', childPathPrepend: [], diagnostic: null }), applyAgentLaunchEnv: ({ env }) => env, ensureAgentCapabilities: async () => {}, codexDisablePlugins, piGracefulShutdownMs }, { env: hostEnv }) }, executorPolicies);
   const { run } = await lifecycle.start({ contextRef: 'host-policy' });
   await executor.run({ runId: run.id, agentId, prompt: 'question', cwd: '/missing-fixture-workspace' }, runPolicy);
   return { child, calls, lifecycle, runId: run.id };
@@ -207,20 +203,6 @@ it('passes explicit plugin policy through the executor instead of consulting amb
     expect(baseline.calls[0]!.env).toEqual({ PATH: '/fake/bin' });
   } finally {
     baseline.child.emit('close', 0, null); treatment.child.emit('close', 0, null);
-  }
-});
-
-it('binds the plugin policy against the process default runtime state when the host owns none', async () => {
-  const hostEnv = { PATH: '/fake/bin' };
-  const disabled = await startFixture({ agentId: 'codex', hostEnv }, { codexDisablePlugins: true }, {}, { ownRuntimeState: false });
-  const enabled = await startFixture({ agentId: 'codex', hostEnv }, { codexDisablePlugins: false }, {}, { ownRuntimeState: false });
-  try {
-    const args = disabled.calls[0]!.args;
-    const i = args.indexOf('--disable');
-    expect(args.slice(i, i + 2)).toEqual(['--disable', 'plugins']);
-    expect(enabled.calls[0]!.args).toEqual([...args.slice(0, i), ...args.slice(i + 2)]);
-  } finally {
-    disabled.child.emit('close', 0, null); enabled.child.emit('close', 0, null);
   }
 });
 

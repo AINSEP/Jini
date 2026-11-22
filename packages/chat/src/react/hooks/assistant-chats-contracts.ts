@@ -13,7 +13,7 @@ import type { AssistantConversation } from "../../core/assistant-client/messages
  * Declaring the seam here follows the `useX(dependencies)` / `useWiredX()` pair this workspace
  * already uses throughout `@jini-ai/ui` (see `features/html-viewer/react/hooks/usePresentMode.ts`
  * for the canonical shape, and `foundry/docs/jini-port/skills/fixing-open-design-web.md` for the
- * rules). `ports.ts` declares, `assistant-chats-dependencies.ts` binds, and nothing else imports the
+ * rules). `ports.ts` declares, the host app's `src/hooks/assistant-chats-dependencies.hooks.ts` binds, and nothing else imports the
  * real provider.
  *
  * `AssistantConversation` is imported here `import type`, which is erased at compile time — so this

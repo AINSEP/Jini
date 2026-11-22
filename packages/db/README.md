@@ -29,14 +29,29 @@ the tsx CommonJS bootstrap can resolve the subpaths without an active `import` c
 
 ## Import and driver isolation
 
-`@jini-ai/db/secrets-vault` requires the optional `@jini-ai/platform` peer at import
-time for the canonical credential validation and error contracts, plus Kysely for
-SQL. Install platform explicitly when using this subpath; existing vault consumers
-that relied on transitive installation must add it before upgrading. Other database
-entries do not load platform.
+`@jini-ai/db/secrets-vault` takes its credential validation and error contracts from `@jini-ai/core/contracts/vault`
+(plus Kysely for SQL); it no longer needs `@jini-ai/platform`, which is not a peer of this package.
 
-`kysely` is an optional peer (`^0.29.6`), imported as a value or type only under `src/kernel/`
-and `src/migrate/`. `better-sqlite3`, `pg` and `@electric-sql/pglite` are also optional peers.
+`@jini-ai/db/settings` is the Kysely adapter (`SqlSettingsRepo`) for the settings repository port declared in
+`@jini-ai/core/settings`. It takes the kernel and five host-owned table names; it owns no schema, no default table name and no
+migration. Value writes are unconditional last-write-wins upserts and every revision append serializes on the
+one install-wide `setting_revisions` lock.
+
+`@jini-ai/db/gated-mutations` is the Kysely adapter (`SqlTokenStore`) for the confirmation-token store port declared in
+`@jini-ai/core/gated-mutations`. It takes the kernel and one host-owned table name; redemption is single-use under a
+per-token lock, and the plan binding is checked by the core service, not the store.
+
+`@jini-ai/db/verified-origin` is the Kysely adapter (`SqlOriginSettingRepo`) for the verified-origin port declared in
+`@jini-ai/core/contracts/server/verified-origin`, plus `registerConfiguredOrigin`, the insert-or-correct writer for an
+operator-declared origin (origin columns only, under a per-workspace lock). It takes the kernel and one host-owned table name.
+
+`@jini-ai/db/events` holds the Kysely adapters for the event ports declared in `@jini-ai/core/contracts/events`:
+`SqlChangeSetRepo` (change sets, with the optional outbox event written in the same transaction), `SqlOutboxAdapter`
+(claim as a lease under one install-wide lock) and `outboxEventValues`, the one definition of the stored outbox row.
+They take the kernel and the host-owned table names; the outbox adapter also requires `claimLeaseMs`.
+
+`kysely` is an optional peer (`^0.29.6`), imported as a value or type only under `src/kernel/`,
+`src/migrate/`, `src/settings/`, `src/gated-mutations/`, `src/events/`, `src/verified-origin/` and `src/secrets-vault/`. `better-sqlite3`, `pg` and `@electric-sql/pglite` are also optional peers.
 Production code never imports a driver at runtime. PGlite type imports are confined to
 `src/pglite/` and `src/kernel/pglite/`; SQLite and Postgres use structural types.
 
@@ -64,7 +79,7 @@ const connection = openSqliteConnection({
   filePath: 'app.db',
   open: (filePath, options) => new Database(filePath, options),
 });
-const local = sqliteKernel<MyDb>(connection);
+const local = sqliteKernel<MyDb>({ source: connection });
 const embedded = openPgliteKernel<MyDb>({ PGlite }, { dataDir: './pgdata' });
 const server = openPostgresKernel<MyDb>({ pg, connectionString: process.env.DATABASE_URL! });
 await runMigrations(local, steps, { ledgerTable: 'app_migrations', appName: 'My app' });
@@ -91,8 +106,8 @@ application name, owner lock filename, run directory name, driver modules and wa
 - `runMigrations(kernel, steps, { ledgerTable, appName })`: the ledger name is required.
 - `startPgliteOwner({ dataDir, PGlite, lockFileName, runDirName })`: both filesystem names belong to
   the consumer. The socket uses a private short Unix path rather than TCP.
-- `pgliteOps(kernel, { PGlite, ledgerTable, ownerLockFileName }, { pgliteOwner })` and
-  `postgresOps(kernel, { ledgerTable })`: compaction verifies the host's ledger.
+- `pgliteOps({ kernel, PGlite, ledgerTable, ownerLockFileName }, { pgliteOwner })` and
+  `postgresOps({ kernel, ledgerTable })`: compaction verifies the host's ledger.
 
 `DbOpsPort` is the restore-point contract with an injected watermark reader. `StorageOps` is the
 kernel copy/compaction contract. They remain distinct because their operations and inputs differ.
@@ -146,7 +161,7 @@ file/table/integrity reports. Neither opens a connection. `./core` exports the g
 ## Transfer and assistant tools (j03)
 
 `@jini-ai/db/transfer` imports without Kysely, a driver, or core. Supply an opener to
-`openSqliteSnapshotSource({ bytes }, { open })`. A consumer owns its table layouts, order,
+`openSqliteSnapshotSource({ bytes, open })`. A consumer owns its table layouts, order,
 exclusion reasons and all four required `TransferNaming` fields (`defaultSchema`, `markerTable`,
 `unvalidatedTable`, `schemaPrefix`). `planTransfer({ sources })` raises
 `IncompleteTransferPlanError` for every source table lacking a copied layout or a nonblank
@@ -175,7 +190,7 @@ independent risk checks and error adapters around the returned registrations.
 
 `DatabaseReadToolPorts.clock` uses `Clock` from `@jini-ai/core/primitives` and exposes
 `nowMs()`. Restore-point timestamps use the canonical `nowIso({ clock })` helper.
-`databaseFile<DB>(kernel: StorageKernel<DB>)` accepts a typed kernel without erasing
+`databaseFile<DB>({ kernel }: { kernel: StorageKernel<DB> }, _optional = {})` accepts a typed kernel without erasing
 its database schema; SQLite file lookup and null results are unchanged.
 
 Interactive transfer handlers follow core's two-object invocation contract:
@@ -216,7 +231,7 @@ declare function withSqliteTransaction<T>(
 ```
 
 The host's `database` must support `statement.safeIntegers(true)`. The factory memoizes one
-borrowed wrapper per handle; `sqliteKernel(client)` supplies its matching kernel. Safe bigint
+borrowed wrapper per handle; `sqliteKernel({ source: client })` supplies its matching kernel. Safe bigint
 cells and write metadata become numbers; overflow throws `SqliteClientError` with code
 `unsafe_integer`. Blobs and floats retain their values. Iteration decodes one row at a time.
 The wrapper's `close()` does nothing. Mixing raw and checked kernel ownership is refused.
@@ -281,9 +296,10 @@ missing-source-table/column formatter subset. Messages never select a schema or 
 Persisted `TransferNaming` remains required with no fallback; its display-only catalog
 examples still default to `app` / `app_`. Keep each host's existing wire names explicit.
 
-`@jini-ai/db/owner-store` exports the independent owner schema and pinned migration history.
-The concrete owner-vault assembly moved to `@jini-ai/server/owner-store`; use that entry for
-`openOwnerStore`, `OwnerStoreService` and encrypted backup operations.
+`@jini-ai/db/owner-store` exports the independent owner schema and pinned migration history, plus its
+read-only row queries (`countOwnerStoreRows`, `listOwnerEntryRows`, `listOwnerDestinations`). Decryption lives
+in `@jini-ai/platform/secrets/legacy-owner`; the file wiring (`countLegacyOwnerStore`, `readLegacyOwnerStore`)
+lives in `@jini-ai/server/owner-store`.
 
 **Migration (breaking, next release):** replace
 `import { openOwnerStore, OwnerStoreService, exportOwnerStore, restoreOwnerStore, OwnerStoreBackupError, OwnerStoreRecoveryError } from '@jini-ai/db/owner-store'`

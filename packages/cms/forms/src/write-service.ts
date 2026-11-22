@@ -1,11 +1,7 @@
 import { nowIso as kernelNowIso } from "@jini-ai/core/primitives";
 /** Audited definition writes through the CMS command gateway. Host permissions and reserved slugs are explicit policies; notify, idempotency and optional outbox wiring live in the second argument. */
-import type { ChangeSetRepoPort } from "@jini-ai/cms/core";
+import type { ChangeSetRepoPort, AuthorizeFn, CommandActor } from "@jini-ai/core/contracts/events";
 import type { Clock, IdGenerator, UUID } from "@jini-ai/core/primitives";
-import type {
-  AuthorizeFn,
-  CommandActor,
-} from "@jini-ai/cms/core";
 import { FormDefinitionNotFoundError, FormFieldValidationError } from "./errors.js";
 import { validateFieldDescriptors } from "./forms.js";
 import type { FormCommandExecutorPort, FormDefinitionRepoPort } from "./ports.js";
@@ -192,6 +188,32 @@ export interface UpdateFormDefinitionRequired {
   };
 }
 
+function formCommandDeps(deps: FormWriteServiceDeps, optional: FormWriteOptional) {
+  return {
+    clock: deps.clock,
+    idGen: deps.idGen,
+    changeSets: deps.changeSets,
+    outbox: optional.outbox,
+    authorize: deps.authorize,
+  };
+}
+
+function updatedFormFields(existing: FormDefinitionRecord, patch: UpdateFormDefinitionRequired['input']['patch']): FieldDescriptor[] {
+  let fields = existing.fields;
+  if (patch.fields !== undefined) {
+    assertValidFields(patch.fields);
+    const existingIds = new Set(existing.fields.map((f) => f.id));
+    const newIds = new Set(patch.fields.map((f) => f.id));
+    const missing = [...existingIds].filter((id) => !newIds.has(id));
+    if (missing.length > 0) {
+      throw new FormFieldValidationError({ message: `patch omits existing field id(s): ${missing.join(", ")} (behavior.spec.md §1.2)`, fieldErrors: missing.map((id) => ({ field: id, reason: "existing field ids cannot be removed" })) });
+    }
+    fields = patch.fields;
+  }
+
+  return fields;
+}
+
 export async function updateFormDefinition(
   required: UpdateFormDefinitionRequired,
   optional: FormWriteOptional = {}
@@ -199,13 +221,7 @@ export async function updateFormDefinition(
   const { deps, input } = required;
 
   const { result } = await deps.executeCommand({
-    deps: {
-      clock: deps.clock,
-      idGen: deps.idGen,
-      changeSets: deps.changeSets,
-      outbox: optional.outbox,
-      authorize: deps.authorize,
-    },
+    deps: formCommandDeps(deps, optional),
     command: {
       workspaceId: input.workspaceId,
       actor: input.actor,
@@ -229,17 +245,7 @@ export async function updateFormDefinition(
           validateNameAndSlug(name, existing.slug, deps.reservedSlugs);
         }
 
-        let fields = existing.fields;
-        if (input.patch.fields !== undefined) {
-          assertValidFields(input.patch.fields);
-          const existingIds = new Set(existing.fields.map((f) => f.id));
-          const newIds = new Set(input.patch.fields.map((f) => f.id));
-          const missing = [...existingIds].filter((id) => !newIds.has(id));
-          if (missing.length > 0) {
-            throw new FormFieldValidationError({ message: `patch omits existing field id(s): ${missing.join(", ")} (behavior.spec.md §1.2)`, fieldErrors: missing.map((id) => ({ field: id, reason: "existing field ids cannot be removed" })) });
-          }
-          fields = input.patch.fields;
-        }
+        const fields = updatedFormFields(existing, input.patch);
 
         const notify = input.patch.notify !== undefined ? validateNotify(input.patch.notify) : existing.notify;
 
@@ -318,6 +324,6 @@ export async function setFormDefinitionStatus(
 
 export interface FormWriteOptional {
   idempotencyKey?: string;
-  outbox?: import("@jini-ai/cms/core").OutboxPort;
+  outbox?: import("@jini-ai/core/contracts/events").OutboxPort;
 }
 export interface CreateFormDefinitionOptional extends FormWriteOptional { notify?: NotifyConfig; }

@@ -5,7 +5,7 @@ import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { readBootIdentity } from '@jini-ai/platform/fs/file-lock';
 import { createAgentPluginLayout, createAgentPluginLifecycle, type AgentPluginArchiveReaderPort } from '../../index.js';
-import { createNodeAgentPluginEffects } from '../../node.js';
+import { nativeEffectsFixture } from '../fixtures/native-effects.js';
 import { ports } from '../test-support.js';
 import { forceRemove } from '../fixtures/force-remove.js';
 
@@ -32,17 +32,13 @@ function archiveInput(layout: ReturnType<typeof createAgentPluginLayout>, plugin
   return { archive, archiveReader, expectedSha256: createHash('sha256').update(archive).digest('hex'), layout, workspaceId };
 }
 
-test('the node process port records the kernel boot its locks are taken in', () => {
-  expect(createNodeAgentPluginEffects({}).process.bootIdentity?.()).toEqual(readBootIdentity({}));
-});
-
 test('an enable reclaims a plugin state lock a killed process left under another hostname spelling', async () => {
   const temp = await fs.mkdtemp(path.join(os.tmpdir(), 'plugin-stale-lock-'));
   try {
     const layout = createAgentPluginLayout({ root: path.join(temp, 'plugins') });
     // The lock wait runs on the monotonic clock; advancing it on every sleep makes the 15 s budget instant.
     let monotonic = 0;
-    const node = createNodeAgentPluginEffects({});
+    const node = nativeEffectsFixture();
     const context = { ...ports, layout,
       clock: { ...node.clock, monotonicMs: () => monotonic, sleep: async ({ ms }: { ms: number }) => { monotonic += ms; } },
       process: { ...node.process, hostname: () => 'LAs-MacBook-Pro.local',

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { useState } from 'react';
-import { render, screen } from '@testing-library/react';
+import { render, screen } from '../../__tests__/ui-kit-render-support.js';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { SecretInput, SecretTextarea } from './SecretInput.js';

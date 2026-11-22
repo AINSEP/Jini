@@ -59,7 +59,7 @@
  * richer form builder needs room to add its own without this contract standing in the way.
  */
 
-import type { FormAnswer } from "@jini-ai/cms/forms";
+import type { FormAnswer } from "@jini-ai/core/contracts/forms";
 
 /** A form field's input kind — open, see file header. */
 export type FormFieldType = "text" | "email" | "textarea" | "checkbox" | (string & {});
@@ -119,7 +119,7 @@ export interface AdminFormDefinition {
 }
 
 export interface AdminFormSubmission {
-  readonly evidence?: import("@jini-ai/cms/forms").FormSubmissionEvidence;
+  readonly evidence?: import("@jini-ai/core/contracts/forms").FormSubmissionEvidence;
   readonly schemaHash?: string;
   /** Optional host notification summary, with no recipient/provider details. */
   readonly notificationDelivery?: { readonly failed: number; readonly pending: number };
@@ -165,7 +165,7 @@ export interface AdminFormUpdatePatch {
 
 export interface AdminFormsPort {
   /** Current public collection settings. Older hosts may omit discovery; editors preserve their stored selection. */
-  listFormProviders?(requiredArgs: Record<string, never>, optionalArgs?: Record<string, never>): Promise<readonly import("@jini-ai/cms/forms").FormProviderDescription[]>;
+  listFormProviders?(requiredArgs: Record<string, never>, optionalArgs?: Record<string, never>): Promise<readonly import("@jini-ai/core/contracts/forms").FormProviderDescription[]>;
   listFormDefinitions(requiredArgs: Record<string, never>): Promise<readonly AdminFormDefinition[]>;
   getFormDefinition(requiredArgs: { id: string }): Promise<AdminFormDefinition>;
   createFormDefinition(requiredArgs: Omit<AdminFormCreateInput, "notify">, optionalArgs?: Pick<AdminFormCreateInput, "notify">): Promise<AdminFormDefinition>;

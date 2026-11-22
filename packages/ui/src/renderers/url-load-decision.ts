@@ -56,7 +56,7 @@ export function shouldUrlLoadHtmlPreview(
  * Anything else — including `0`, `false`, an unrelated value, or a missing
  * parameter — returns false.
  */
-export function parseForceInline(search: string | URLSearchParams | null | undefined): boolean {
+export function parseForceInline({ search }: { search: string | URLSearchParams | null | undefined }, _optional: Record<string, never> = {}): boolean {
   if (!search) return false;
   const params = typeof search === 'string' ? new URLSearchParams(search) : search;
   const value = params.get('forceInline');
@@ -80,7 +80,7 @@ export function parseForceInline(search: string | URLSearchParams | null | undef
  * False positives just route the artifact through the slightly slower
  * srcDoc path, which is the safe direction.
  */
-export function htmlNeedsFocusGuard(source: string): boolean {
+export function htmlNeedsFocusGuard({ source }: { source: string }, _optional: Record<string, never> = {}): boolean {
   if (/\.\s*focus\s*\(/i.test(source)) return true;
   if (/\bautofocus\b/i.test(source)) return true;
   if (/<script\b[^>]*\bsrc\s*=/i.test(source)) return true;
@@ -115,7 +115,7 @@ export function htmlNeedsFocusGuard(source: string): boolean {
  * scan since the literal `<script src=…>` tag never appears in the source;
  * such artifacts still URL-load and can still throw on Web Storage access.
  */
-export function htmlNeedsSandboxShim(source: string): boolean {
+export function htmlNeedsSandboxShim({ source }: { source: string }, _optional: Record<string, never> = {}): boolean {
   if (/<script\s[^>]*\btype\s*=\s*["']?text\/babel\b/i.test(source)) return true;
   if (/\b(?:local|session)Storage\b/.test(source)) return true;
   if (/<script\s[^>]*?\bsrc\s*=/i.test(source)) return true;

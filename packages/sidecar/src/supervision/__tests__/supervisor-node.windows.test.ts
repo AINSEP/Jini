@@ -2,6 +2,8 @@ import { EventEmitter } from "node:events";
 import type { ChildProcess, SpawnOptions } from "node:child_process";
 import { PassThrough } from "node:stream";
 import { expect, test, vi } from "vitest";
+import { platformProcessPort } from "./platform-process-port.js";
+import type { ProcessControlPort } from "@jini-ai/core/contracts/runtime";
 import { spawnSync } from "node:child_process";
 import { createNodeDaemonProcessAdapter, createNodeSupervisorScheduler, type NodeDaemonProcessOptions, type SupervisorRegistry } from "../supervisor-node.js";
 
@@ -14,24 +16,25 @@ function harness({ platform = "win32", pipe = true }: { platform?: NodeJS.Platfo
     kill: vi.fn(() => { order.push("child-kill"); return true; }),
   }) as unknown as ChildProcess;
   const spawn = vi.fn<NonNullable<NodeDaemonProcessOptions["spawn"]>>(() => native);
-  const snapshots = vi.fn<NonNullable<NodeDaemonProcessOptions["listProcessSnapshots"]>>(async () => [
+  const snapshots = vi.fn<ProcessControlPort["listProcessSnapshots"]>(async () => [
     { pid: 43, ppid: 42, command: "worker" },
   ]);
-  const wait = vi.fn<NonNullable<NodeDaemonProcessOptions["waitForProcessExit"]>>(async () => true);
+  const wait = vi.fn<ProcessControlPort["waitForProcessExit"]>(async () => true);
   const force = vi.fn<NonNullable<NodeDaemonProcessOptions["execFileSync"]>>(() => {
     order.push("tree-kill"); return Buffer.alloc(0);
   });
   const signal = vi.fn<NonNullable<NodeDaemonProcessOptions["signalProcess"]>>(() => true);
-  const stop = vi.fn<NonNullable<NodeDaemonProcessOptions["stopProcesses"]>>(async () => {
+  const stop = vi.fn<ProcessControlPort["stopProcesses"]>(async () => {
     order.push("descendants");
     return { alreadyStopped: false, forcedPids: [], matchedPids: [43, 42], remainingPids: [], stoppedPids: [43, 42] };
   });
   const remove = vi.fn<SupervisorRegistry["removeIfCurrent"]>(async () => { order.push("registry"); });
   const registry: SupervisorRegistry = { readLive: async () => null, write: async () => {}, removeIfCurrent: remove };
   const env = { HOST_ENV: "1" };
-  const required = { command: process.execPath, args: ["daemon.js"], cwd: "/host", env, registry };
-  const options = { platform, spawn, listProcessSnapshots: snapshots, waitForProcessExit: wait,
-    execFileSync: force, signalProcess: signal, stopProcesses: stop };
+  const required = { command: process.execPath, args: ["daemon.js"], cwd: "/host", env, registry,
+    process: { listProcessSnapshots: snapshots, waitForProcessExit: wait, stopProcesses: stop }, commandShell: { platform: process.platform, fallbackComSpec: undefined } };
+  const options = { platform, spawn,
+    execFileSync: force, signalProcess: signal };
   const adapter = createNodeDaemonProcessAdapter(required, options);
   return { adapter, required, options, native, stdin, spawn, snapshots, wait, force, signal, stop, remove, env, order };
 }
@@ -57,7 +60,7 @@ test("win32 closes stdin synchronously, waits for graceful exit, then cleans des
   const cleanup = createNodeDaemonProcessAdapter(h.required, h.options);
   const pending = cleanup.terminateProcess({ child });
   expect(h.stdin.writableEnded).toBe(true);
-  expect(h.wait).toHaveBeenCalledWith(42); // platform's default 5000ms grace
+  expect(h.wait).toHaveBeenCalledWith({ pid: 42 }); // platform's default 5000ms grace
   expect(h.force).not.toHaveBeenCalled();
   expect(h.stop).not.toHaveBeenCalled();
   expect(h.remove).not.toHaveBeenCalled();
@@ -66,7 +69,7 @@ test("win32 closes stdin synchronously, waits for graceful exit, then cleans des
   expect(h.force).not.toHaveBeenCalled();
   expect(h.signal).not.toHaveBeenCalled();
   expect(h.native.kill).not.toHaveBeenCalled();
-  expect(h.stop).toHaveBeenCalledWith([43, 42]);
+  expect(h.stop).toHaveBeenCalledWith({ pids: [43, 42] });
   expect(h.remove).toHaveBeenCalledWith({ pid: 42 });
   expect(h.order).toEqual(["descendants", "registry"]);
 });
@@ -120,7 +123,7 @@ test("win32 falls back to the direct child when taskkill fails after the grace",
   h.force.mockImplementation(() => { throw new Error("taskkill unavailable"); });
   await h.adapter.terminateProcess({ child: h.adapter.spawnDaemonProcess() });
   expect(h.native.kill).toHaveBeenCalledWith("SIGTERM");
-  expect(h.stop).toHaveBeenCalledWith([43, 42]);
+  expect(h.stop).toHaveBeenCalledWith({ pids: [43, 42] });
   expect(h.remove).toHaveBeenCalledWith({ pid: 42 });
 });
 
@@ -146,7 +149,7 @@ test("POSIX still ignores stdin and synchronously signals the process group befo
   expect(h.wait).not.toHaveBeenCalled();
   expect(h.force).not.toHaveBeenCalled();
   await pending;
-  expect(h.stop).toHaveBeenCalledWith([43, 42]);
+  expect(h.stop).toHaveBeenCalledWith({ pids: [43, 42] });
   expect(h.order).toEqual(["descendants", "registry"]);
 });
 
@@ -159,12 +162,12 @@ test.skipIf(process.platform === "win32")("without a platform override the host'
   expect(h.force).not.toHaveBeenCalled();
 });
 
-test("win32 without an injected exit wait uses the platform wait, which sees an already-exited daemon at once", async () => {
+test("win32 with the real exit wait behind the port, which sees an already-exited daemon at once", async () => {
   const exitedPid = spawnSync(process.execPath, ["-e", ""]).pid;
   const h = harness();
-  const { waitForProcessExit: _wait, ...realWait } = h.options;
   const native = Object.assign(new EventEmitter(), { pid: exitedPid, stdin: new PassThrough(), kill: vi.fn() }) as unknown as ChildProcess;
-  const adapter = createNodeDaemonProcessAdapter(h.required, { ...realWait, spawn: () => native });
+  // The real exit wait behind the port; snapshots and the tree stop stay the harness fakes.
+  const adapter = createNodeDaemonProcessAdapter({ ...h.required, process: { ...h.required.process, waitForProcessExit: platformProcessPort.waitForProcessExit } }, { ...h.options, spawn: () => native });
   await adapter.terminateProcess({ child: adapter.spawnDaemonProcess() });
   expect(h.force).not.toHaveBeenCalled();
   expect(h.remove).toHaveBeenCalledWith({ pid: exitedPid });

@@ -21,6 +21,31 @@ describe("SiteCard", () => {
     expect(css).toMatch(/\.jini-site-card__menu \{[^}]*align-self: start;/);
   });
 
+  it.each([
+    [".jini-site-card", ["border: 1px solid var(--jini-border);", "border-radius: var(--jini-radius-md);", "background: var(--jini-bg-panel);", "color: var(--jini-text);", "box-shadow: var(--jini-shadow-sm);"]],
+    [".jini-site-card__tile", ["background: var(--jini-bg-subtle);", "border-bottom: 1px solid var(--jini-border);"]],
+    [".jini-site-card__placeholder", ["color: var(--jini-text-faint);"]],
+    [".jini-site-card__details", ["color: var(--jini-text-faint);", "font-family: var(--jini-font-mono);"]],
+    [".jini-site-card__status", ["color: var(--jini-text-faint);"]],
+    [".jini-site-card__status--running", ["color: var(--jini-accent);"]],
+    [".jini-site-card__status--running .jini-site-card__status-dot", ["box-shadow: 0 0 0 3px var(--jini-accent-ring);"]],
+    [".jini-site-card__status--busy, .jini-site-card__status--warning", ["color: var(--jini-warning);"]],
+    [".jini-site-card__status--danger", ["color: var(--jini-danger);"]],
+    [".jini-site-list-toolbar__view", ["border: 1px solid var(--jini-border);", "color: var(--jini-text-muted);"]],
+    [".jini-site-list-toolbar__view:hover", ["background: var(--jini-bg-subtle);", "color: var(--jini-text);"]],
+    ['.jini-site-list-toolbar__view[aria-pressed="true"]', ["background: var(--jini-bg-subtle);", "color: var(--jini-text);", "border-color: var(--jini-border-strong);"]],
+    [".jini-site-card__pin:focus-visible", ["outline: 2px solid var(--jini-accent);"]],
+    [".jini-site-list-toolbar__sort", ["color: var(--jini-text-muted);"]],
+    [".jini-site-list-toolbar__sort select", ["border: 1px solid var(--jini-border);", "border-radius: var(--jini-radius-sm);", "background-color: var(--jini-bg-panel);", "color: var(--jini-text);"]],
+    [".jini-site-card__pin", ["border-radius: var(--jini-radius-sm);", "color: var(--jini-text-faint);"]],
+    [".jini-site-card__pin:hover", ["background: var(--jini-bg-subtle);", "color: var(--jini-text);"]],
+    ['.jini-site-card__pin[aria-pressed="true"]', ["color: var(--jini-accent);"]],
+  ] as const)("themes %s through shared tokens", (selector, declarations) => {
+    const css = readFileSync(`${__dirname}/../site-card.css`, "utf8");
+    const rule = css.split(`${selector} {`)[1]!.split("}")[0];
+    for (const declaration of declarations) expect(rule).toContain(declaration);
+  });
+
   it("keeps the menu's cell when it has no menu, so the details stay in the first column", () => {
     const { container } = render(<SiteCard name="Atlas" details="SQLite" />);
     expect(container.querySelector(".jini-site-card__head")!.children[1]!.className).toBe("jini-site-card__menu");

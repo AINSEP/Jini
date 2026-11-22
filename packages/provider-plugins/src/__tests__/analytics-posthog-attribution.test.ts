@@ -1,10 +1,12 @@
 import { runInNewContext } from 'node:vm';
 import { expect, it } from 'vitest';
+import { purgeStorage } from '@jini-ai/cookie-consent/client';
 import type { ConsentState } from '@jini-ai/cookie-consent';
 import { createPostHogProvider } from '../analytics-posthog/index.js';
 import { postHogBrowserContribution } from '../analytics-posthog/browser.js';
 import { postHogConsentContribution } from '../analytics-posthog/consent.js';
 import { anonymousPageview, createPostHogConsentAdapter, sanitizeEvent } from '../analytics-posthog/consent-adapter.js';
+import { withHost } from "./observability-host.js";
 
 const attributes = { site_id: 'site-1', release: 'web@abc123', environment: 'staging', project_id: 'private-project', site_slug: 'private-slug' };
 const expected = { site_id: 'site-1', release: 'web@abc123', environment: 'staging' };
@@ -13,7 +15,7 @@ const consent = { ...base, siteId: attributes.site_id, release: attributes.relea
 const location = { origin: 'https://site.example', pathname: '/account', hostname: 'site.example' };
 
 it('wires host release and environment to both browser contributions while keeping other site metadata private', async () => {
-  const resource = createPostHogProvider({ ...base, attribution: { attributes, groups: { site: 'site-1' } } });
+  const resource = createPostHogProvider({ ...base, attribution: { attributes, groups: { site: 'site-1' } } }, withHost());
   try {
     const browser = resource.port.browserAnalytics({ surface: 'site' });
     expect(browser.source).toContain('web@abc123');
@@ -52,7 +54,7 @@ it('carries trusted release metadata through full-consent SDK sanitization', asy
     configs.push(config);
     return { set_config() {}, get_distinct_id: () => 'visitor:1', identify() {} };
   } }) } });
-  await adapter.grant({ config: postHogConsentContribution(consent).adapter.config, state: { analyticsLevel: 'full' } as ConsentState, signal: new AbortController().signal });
+  await adapter.grant({ purge: purgeStorage, config: postHogConsentContribution(consent).adapter.config, state: { analyticsLevel: 'full' } as ConsentState, signal: new AbortController().signal });
   const event = configs[0]!.before_send({ event: '$pageview', properties: { release: 'forged-release', environment: 'forged-environment', project_id: 'private-project' } });
   expect(event.properties).toEqual({ ...expected, surface: 'site', $process_person_profile: true, $pathname: '/account', $current_url: 'https://site.example/account', $host: 'site.example' });
 });
@@ -62,7 +64,7 @@ it('keeps release attribution in anonymous browser delivery and the authoritativ
   const request: typeof fetch = async (_url, init) => { sent.push(init!); return new Response('1'); };
   const contribution = postHogConsentContribution(consent, { request });
   const adapter = createPostHogConsentAdapter({ ports: { location, request, loadSdk: async () => { throw new Error('anonymous must not load SDK'); } } });
-  await adapter.grant({ config: contribution.adapter.config, state: { analyticsLevel: 'anonymous' } as ConsentState, signal: new AbortController().signal });
+  await adapter.grant({ purge: purgeStorage, config: contribution.adapter.config, state: { analyticsLevel: 'anonymous' } as ConsentState, signal: new AbortController().signal });
   await contribution.http.handle({ method: 'POST', path: '/e/', contentType: 'application/json', analyticsLevel: 'anonymous',
     body: new TextEncoder().encode(JSON.stringify({ event: '$identify', properties: { release: 'forged-release', environment: 'forged-environment', project_id: 'private-project' } })) });
   expect(sent).toHaveLength(2);

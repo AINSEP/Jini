@@ -2,6 +2,7 @@ import type { ProcessRequest, ProcessRunnerPort } from '../checks/ports.js';
 export { selectNodeRuntime } from './node-runtime.js';
 export { sourceTreeStamp } from './source-tree-stamp.js';
 export { createDevServerRetirement } from './server-retirement.js';
+export { isPortFree, pickFreePort, LOOPBACK_HOSTS } from './free-port.js';
 
 export interface EnvLoaderPort { load(args: { path: string }): void }
 export interface EnvironmentFilesystemPort { exists(args: { path: string }): boolean }
@@ -10,14 +11,14 @@ export interface PortListener { pid: string; command: string }
 /** Load the required environment-file path, if present. Loader errors propagate to the caller. */
 export function loadRepoRootEnvFile({ environmentFile, fs, loader }: {
   environmentFile: string; fs: EnvironmentFilesystemPort; loader: EnvLoaderPort;
-}): boolean {
+}, _optional: Record<string, never> = {}): boolean {
   if (!fs.exists({ path: environmentFile })) return false;
   loader.load({ path: environmentFile });
   return true;
 }
 
 /** Parse lsof's field format, dropping incomplete records. Does not spawn a process. */
-export function parseLsofListeners({ stdout }: { stdout: string }): PortListener[] {
+export function parseLsofListeners({ stdout }: { stdout: string }, _optional: Record<string, never> = {}): PortListener[] {
   const found: PortListener[] = [];
   let pid: string | undefined;
   for (const line of stdout.replace(/\r\n/g, '\n').split('\n')) {
@@ -37,7 +38,7 @@ export function parseLsofListeners({ stdout }: { stdout: string }): PortListener
 export async function listenersOn({ port, runner, listenerCommand }: {
   port: number; runner: ProcessRunnerPort;
   listenerCommand: (args: { port: number }) => ProcessRequest;
-}): Promise<PortListener[]> {
+}, _optional: Record<string, never> = {}): Promise<PortListener[]> {
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw new RangeError('port must be an integer from 1 to 65535');
   const request = listenerCommand({ port });
   try {

@@ -29,7 +29,7 @@ const subscription: WebhookSubscriptionRecord = {
   id: "sub-1", workspaceId: "workspace-1", ownerPrincipalId: "principal-1", label: "Endpoint",
   targetUrl: "https://example.com/hooks", topics: ["post.published"], secretVersion: 1,
   previousSecretVersion: null, status: "active", createdByPrincipalId: "principal-1", createdByPluginId: null,
-  createdAt: NOW, updatedAt: NOW, disabledAt: null,
+  createdAt: NOW, updatedAt: NOW, disabledAt: null, version: 1,
 };
 
 async function rig(rows: WebhookDeliveryRecord[], httpClient: HttpClientPort, deliveryRepo: WebhookDeliveryRepoPort = new InMemoryWebhookDeliveryRepo(rows)) {

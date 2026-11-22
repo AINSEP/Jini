@@ -15,42 +15,42 @@ function writer(script, options) {
 test("path helpers: base URL with or without a trailing slash, per-segment encoding, non-object fields", () => {
   assert.equal(repoPathOf({ ...TARGET, baseUrl: "https://ghe.example/api/v3" }), "https://ghe.example/api/v3/repos/acme/site");
   assert.equal(repoPathOf({ ...TARGET, owner: "a b", repo: "c/d" }), "https://api.github.com/repos/a%20b/c%2Fd");
-  assert.equal(encPath("a b/c#d"), "a%20b/c%23d");
-  assert.equal(extractStringField(null, "x"), "");
-  assert.equal(extractStringField("str", "x"), "");
-  assert.equal(extractStringField({ x: 1 }, "x"), "");
-  assert.equal(extractStringField({ x: "v" }, "x"), "v");
-  assert.equal(providerErrorMessage({ status: 400, bodyText: '{"message":5}' }, "F"), "F (status 400)");
+  assert.equal(encPath({ path: "a b/c#d" }), "a%20b/c%23d");
+  assert.equal(extractStringField({ value: null, field: "x" }), "");
+  assert.equal(extractStringField({ value: "str", field: "x" }), "");
+  assert.equal(extractStringField({ value: { x: 1 }, field: "x" }), "");
+  assert.equal(extractStringField({ value: { x: "v" }, field: "x" }), "v");
+  assert.equal(providerErrorMessage({ response: { status: 400, bodyText: '{"message":5}' }, fallback: "F" }), "F (status 400)");
 });
 
 test("retryDelayMs: transport failures back off unless the egress policy refused", () => {
-  assert.equal(retryDelayMs({ kind: "network-unreachable", refused: false }, 1, POLICY), 100);
-  assert.equal(retryDelayMs({ kind: "network-unreachable", refused: false }, 2, POLICY), 200);
-  assert.equal(retryDelayMs({ kind: "network-unreachable", refused: false }, 3, POLICY), 250);
-  assert.equal(retryDelayMs({ kind: "network-unreachable", refused: true }, 1, POLICY), undefined);
+  assert.equal(retryDelayMs({ result: { kind: "network-unreachable", refused: false }, attempt: 1, policy: POLICY }), 100);
+  assert.equal(retryDelayMs({ result: { kind: "network-unreachable", refused: false }, attempt: 2, policy: POLICY }), 200);
+  assert.equal(retryDelayMs({ result: { kind: "network-unreachable", refused: false }, attempt: 3, policy: POLICY }), 250);
+  assert.equal(retryDelayMs({ result: { kind: "network-unreachable", refused: true }, attempt: 1, policy: POLICY }), undefined);
 });
 
 test("retryDelayMs: 5xx backs off, a plain 4xx is final", () => {
-  assert.equal(retryDelayMs(resp(503), 1, POLICY), 100);
-  assert.equal(retryDelayMs(resp(500), 2, POLICY), 200);
-  assert.equal(retryDelayMs(resp(404), 1, POLICY), undefined);
-  assert.equal(retryDelayMs(resp(403, { "x-ratelimit-remaining": "12" }, "forbidden"), 1, POLICY), undefined);
+  assert.equal(retryDelayMs({ result: resp(503), attempt: 1, policy: POLICY }), 100);
+  assert.equal(retryDelayMs({ result: resp(500), attempt: 2, policy: POLICY }), 200);
+  assert.equal(retryDelayMs({ result: resp(404), attempt: 1, policy: POLICY }), undefined);
+  assert.equal(retryDelayMs({ result: resp(403, { "x-ratelimit-remaining": "12" }, "forbidden"), attempt: 1, policy: POLICY }), undefined);
 });
 
 test("retryDelayMs: rate limits follow GitHub's documented order", () => {
-  assert.equal(retryDelayMs(resp(429, { "Retry-After": "7" }), 1, POLICY), 7_000);
-  assert.equal(retryDelayMs(resp(403, { "retry-after": "0" }), 1, POLICY), 0);
+  assert.equal(retryDelayMs({ result: resp(429, { "Retry-After": "7" }), attempt: 1, policy: POLICY }), 7_000);
+  assert.equal(retryDelayMs({ result: resp(403, { "retry-after": "0" }), attempt: 1, policy: POLICY }), 0);
   // An unusable retry-after falls through to the reset header, then to the fixed secondary-limit wait.
-  assert.equal(retryDelayMs(resp(429, { "retry-after": "-1" }), 1, POLICY), 60_000);
-  assert.equal(retryDelayMs(resp(429, { "retry-after": "soon" }), 1, POLICY), 60_000);
-  assert.equal(retryDelayMs(resp(429), 1, POLICY), 60_000);
-  assert.equal(retryDelayMs(resp(403, { "X-RateLimit-Remaining": "0", "X-RateLimit-Reset": "1" }), 1, POLICY), 1_000);
+  assert.equal(retryDelayMs({ result: resp(429, { "retry-after": "-1" }), attempt: 1, policy: POLICY }), 60_000);
+  assert.equal(retryDelayMs({ result: resp(429, { "retry-after": "soon" }), attempt: 1, policy: POLICY }), 60_000);
+  assert.equal(retryDelayMs({ result: resp(429), attempt: 1, policy: POLICY }), 60_000);
+  assert.equal(retryDelayMs({ result: resp(403, { "X-RateLimit-Remaining": "0", "X-RateLimit-Reset": "1" }), attempt: 1, policy: POLICY }), 1_000);
   const future = Math.floor(Date.now() / 1000) + 100;
-  const wait = retryDelayMs(resp(403, { "x-ratelimit-remaining": "0", "x-ratelimit-reset": String(future) }), 1, POLICY);
+  const wait = retryDelayMs({ result: resp(403, { "x-ratelimit-remaining": "0", "x-ratelimit-reset": String(future) }), attempt: 1, policy: POLICY });
   assert.ok(wait > 90_000 && wait <= 101_000, `waits until the reset, got ${wait}`);
-  assert.equal(retryDelayMs(resp(403, { "x-ratelimit-remaining": "0" }), 1, POLICY), 60_000);
-  assert.equal(retryDelayMs(resp(403, undefined, "You have exceeded a secondary rate limit"), 1, POLICY), 60_000);
-  assert.equal(retryDelayMs(resp(403, undefined, "Abuse Detection mechanism"), 1, POLICY), 60_000);
+  assert.equal(retryDelayMs({ result: resp(403, { "x-ratelimit-remaining": "0" }), attempt: 1, policy: POLICY }), 60_000);
+  assert.equal(retryDelayMs({ result: resp(403, undefined, "You have exceeded a secondary rate limit"), attempt: 1, policy: POLICY }), 60_000);
+  assert.equal(retryDelayMs({ result: resp(403, undefined, "Abuse Detection mechanism"), attempt: 1, policy: POLICY }), 60_000);
 });
 
 test("client: retries a transient failure with the kit's sleep, and stops at maxAttempts", async () => {

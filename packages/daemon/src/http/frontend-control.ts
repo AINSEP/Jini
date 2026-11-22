@@ -24,7 +24,7 @@
  * confirmation, no timeout, and no audit record — it is safe only because the sole thing that can
  * reach it is a `ToolHandler` that `ToolExecutor` already gated. Handing a host the registry so it
  * could "wire something custom" would hand it a bypass, and a bypass that exists gets used. The
- * host gets an HTTP extension, a set of registrations, and a bind hook; none of them can execute a
+ * host gets a route list, a set of registrations, and a bind hook; none of them can execute a
  * capability directly.
  *
  * **The bind token is not a field on the run DTO.** A run is a neutral kernel noun and a browser
@@ -34,10 +34,8 @@
  * envelope that host already uses — `contextRef` is an opaque host blob precisely so hosts can put
  * their own metadata in it. The engine stays neutral and the host keeps one place to look.
  */
-import { inspect } from 'node:util';
-import { redactSecrets } from '@jini-ai/core';
-import type { Express } from 'express';
-import type { FrontendSessionOwner } from '../frontend-session-registry.js';
+import { createConsoleLogger } from '@jini-ai/core/primitives';
+import type { FrontendSessionOwner, FrontendSessionRegistry } from '../frontend-session-registry.js';
 import type { FrontendSessionsHttpDeps } from './frontend-sessions.js';
 import type { ToolPolicy, ToolRegistration } from '@jini-ai/core';
 import {
@@ -46,22 +44,10 @@ import {
   type FrontendCapabilitySpec,
 } from '../index.js';
 
-import type { AdapterContext } from '@jini-ai/http-kit';
-import { registerFrontendSessionRoutes } from './frontend-sessions.js';
+import type { DaemonRouteHost } from './route-host.js';
+import type { DaemonRoute } from './route-table.js';
+import { frontendSessionRoutes } from './frontend-sessions.js';
 import type { RunCreateRequest, RunStartContext, RunStartHandler } from './runs.js';
-
-/**
- * The context {@link FrontendControl.httpExtension} actually reads — just the adapter.
- *
- * Declared structurally here rather than importing `@jini-ai/server`'s `LocalNodeHttpExtension`,
- * which is what used to keep this module in that package. A function taking this narrower context
- * stays assignable to one taking the wider `{adapter, lifecycle, dataDir}`, so passing the result
- * to `createLocalNodeDaemon`'s `httpExtensions` still typechecks — while a host that builds its own
- * Express app (and so has no `dataDir` or `LocalNodeHttpExtensionContext` to hand over) can now use
- * this facade too, instead of reimplementing it. The reference implementation had to do exactly
- * that.
- */
-export type FrontendHttpExtension = (requiredArgs: { readonly app: Express; readonly context: { readonly adapter: AdapterContext } }, optionalArgs?: Record<string, never>) => void;
 
 export interface FrontendBindErrorContext {
   readonly runId: string;
@@ -75,6 +61,8 @@ export interface CreateFrontendControlOptions {
    * (see `frontend-capability-tools.ts`'s module doc for why the edge points one way).
    */
   readonly capabilities: readonly FrontendCapabilitySpec[];
+  /** Ends an owned session whose client never disconnects. Required: the host owns timers (a Node host passes one that `unref`s its `setTimeout`). */
+  readonly setTimer: FrontendSessionsHttpDeps['setTimer'];
   readonly session?: Pick<FrontendSessionsHttpDeps, 'routePrefix' | 'resolveOwner' | 'sessionTtlMs' | 'resolveCapacityKeys'> & { readonly maxSessions?: number; readonly maxSessionsPerKey?: number };
   /**
    * Reads this run's bind token out of the host's own run request, or returns `undefined` when the
@@ -108,14 +96,14 @@ export interface CreateFrontendControlOptions {
 }
 
 export interface FrontendControl {
+  begin(required: { runId: string; invocationId: string; owner: FrontendSessionOwner }, optional?: Record<string, never>): boolean;
   /** Request-lifetime binding for hosts without daemon runs; release in finally and on cancel. */
   bindRequest(required: { runId: string; bindToken: string; owner: FrontendSessionOwner; signal: AbortSignal }, optional?: Record<string, never>): () => void;
   /**
-   * Mounts the frontend-session stream and response routes. Pass in `createLocalNodeDaemon`'s
-   * `httpExtensions`, or call it directly with `(app, { adapter })` from a host that owns its own
-   * Express app — see {@link FrontendHttpExtension}.
+   * The frontend-session stream and response routes, as data. A host mounts the list on its own
+   * server (`mountRoutes` on a Node preset) with the host it built.
    */
-  readonly httpExtension: FrontendHttpExtension;
+  readonly routes: (required: { readonly host: DaemonRouteHost }, optional?: Record<string, never>) => DaemonRoute[];
   /** One gated tool per capability. Pass in `toolRegistrations`. */
   readonly toolRegistrations: readonly ToolRegistration[];
   /**
@@ -136,42 +124,11 @@ export interface FrontendControl {
 }
 
 function defaultBindErrorSink(context: FrontendBindErrorContext): void {
-  // eslint-disable-next-line no-console
-  console.error(`[@jini-ai/server] could not bind run "${context.runId}" to a frontend surface`, redactSecrets({ input: inspect(context.error) }, { redactPii: false }));
+  createConsoleLogger({ prefix: '' }).error({ message: `[@jini-ai/server] could not bind run "${context.runId}" to a frontend surface` }, { error: context.error });
 }
 
-/**
- * Builds the frontend-control bundle.
- *
- * @param options - Capabilities to expose, how to find the bind token, and the gate to apply.
- * @returns An HTTP extension, tool registrations, and a run-start bind hook — never the registry.
- * @throws Never at construction. A duplicate capability id throws later, when the registrations are
- * registered, naming the id (`ToolRegistry.register`'s own error).
- *
- * @complexity O(n) in `capabilities`.
- */
-export function createFrontendControl(requiredArgs: Omit<CreateFrontendControlOptions, 'policy' | 'timeoutMs' | 'maxOutputBytes' | 'onBindError'>, optionalArgs: Pick<CreateFrontendControlOptions, 'policy' | 'timeoutMs' | 'maxOutputBytes' | 'onBindError'> = {}): FrontendControl {
-  const options = { ...requiredArgs, ...optionalArgs };
-  // Closed over, never exposed. See the module doc: reaching this is reaching an ungated `invoke`.
-  const registry = createFrontendSessionRegistry({}, {
-    ...(options.session?.maxSessions !== undefined ? { maxSessions: options.session.maxSessions } : {}),
-    ...(options.session?.maxSessionsPerKey !== undefined ? { maxSessionsPerKey: options.session.maxSessionsPerKey } : {}),
-  });
-  const onBindError = options.onBindError ?? defaultBindErrorSink;
-
-  const toolRegistrations = createFrontendCapabilityRegistrations({
-    registry,
-    capabilities: options.capabilities,
-  }, {
-    ...(options.policy !== undefined ? { policy: options.policy } : {}),
-    ...(options.timeoutMs !== undefined ? { timeoutMs: options.timeoutMs } : {}),
-    ...(options.maxOutputBytes !== undefined ? { maxOutputBytes: options.maxOutputBytes } : {}),
-  });
-
-  const httpExtension: FrontendHttpExtension = ({ app, context }) => {
-    registerFrontendSessionRoutes({ app, deps: { registry, ...options.session, allowedCapabilities: options.capabilities.map(c => c.id) }, adapter: context.adapter });
-  };
-
+/** The run-start hook of {@link createFrontendControl}: binds a starting run to its surface, never failing the run. */
+function createBindOnStarted({ registry, options }: { readonly registry: FrontendSessionRegistry; readonly options: Pick<CreateFrontendControlOptions, 'resolveBindToken' | 'resolveBindOwner'> & { readonly onBindError: (context: FrontendBindErrorContext) => void } }): RunStartHandler {
   /**
    * The error boundary the `onBindError` contract actually needs. A `RunStartHandler` throwing is
    * not a no-op: the daemon HTTP run-start route catches it, marks the run `failed` and answers
@@ -182,7 +139,7 @@ export function createFrontendControl(requiredArgs: Omit<CreateFrontendControlOp
    */
   const reportBindError = (context: FrontendBindErrorContext): void => {
     try {
-      onBindError(context);
+      options.onBindError(context);
     } catch {
       // Deliberately terminal: the reporting channel is what failed.
     }
@@ -216,7 +173,11 @@ export function createFrontendControl(requiredArgs: Omit<CreateFrontendControlOp
       .then(release, release)
       .catch(() => undefined);
   };
+  return bindOnStarted;
+}
 
+/** Request-lifetime binding for hosts without daemon runs. */
+function createBindRequest({ registry }: { readonly registry: FrontendSessionRegistry }): FrontendControl['bindRequest'] {
   const bindRequest: FrontendControl['bindRequest'] = ({ runId, bindToken, owner, signal }) => {
     if (signal.aborted) throw new Error('Frontend request cancelled');
     const unbind = registry.bindRunByToken({ runId, bindToken, owner });
@@ -224,5 +185,42 @@ export function createFrontendControl(requiredArgs: Omit<CreateFrontendControlOp
     signal.addEventListener('abort', release, { once: true });
     return release;
   };
-  return { httpExtension, toolRegistrations, bindOnStarted, bindRequest };
+  return bindRequest;
+}
+
+/**
+ * Builds the frontend-control bundle.
+ *
+ * @param options - Capabilities to expose, how to find the bind token, and the gate to apply.
+ * @returns A route list, tool registrations, and a run-start bind hook — never the registry.
+ * @throws Never at construction. A duplicate capability id throws later, when the registrations are
+ * registered, naming the id (`ToolRegistry.register`'s own error).
+ *
+ * @complexity O(n) in `capabilities`.
+ */
+export function createFrontendControl(requiredArgs: Omit<CreateFrontendControlOptions, 'policy' | 'timeoutMs' | 'maxOutputBytes' | 'onBindError'>, optionalArgs: Pick<CreateFrontendControlOptions, 'policy' | 'timeoutMs' | 'maxOutputBytes' | 'onBindError'> = {}): FrontendControl {
+  const options = { ...requiredArgs, ...optionalArgs };
+  // Closed over, never exposed. See the module doc: reaching this is reaching an ungated `invoke`.
+  const registry = createFrontendSessionRegistry({}, {
+    ...(options.session?.maxSessions !== undefined ? { maxSessions: options.session.maxSessions } : {}),
+    ...(options.session?.maxSessionsPerKey !== undefined ? { maxSessionsPerKey: options.session.maxSessionsPerKey } : {}),
+  });
+  const onBindError = options.onBindError ?? defaultBindErrorSink;
+
+  const toolRegistrations = createFrontendCapabilityRegistrations({
+    registry,
+    capabilities: options.capabilities,
+  }, {
+    ...(options.policy !== undefined ? { policy: options.policy } : {}),
+    ...(options.timeoutMs !== undefined ? { timeoutMs: options.timeoutMs } : {}),
+    ...(options.maxOutputBytes !== undefined ? { maxOutputBytes: options.maxOutputBytes } : {}),
+  });
+
+  const routes: FrontendControl['routes'] = ({ host }) => frontendSessionRoutes({
+    deps: { registry, ...options.session, setTimer: options.setTimer, allowedCapabilities: options.capabilities.map(c => c.id) }, host,
+  });
+
+  const bindOnStarted = createBindOnStarted({ registry, options: { ...options, onBindError } });
+  const bindRequest = createBindRequest({ registry });
+  return { routes, toolRegistrations, bindOnStarted, bindRequest, begin: registry.begin };
 }

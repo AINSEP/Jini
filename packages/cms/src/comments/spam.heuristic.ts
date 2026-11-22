@@ -1,5 +1,5 @@
 /**
- * @file ADR-031 §5 — the local heuristic `SpamCheckPort` adapter (ADR-006 rule-of-two "built
+ * @file The local heuristic `SpamCheckPort` adapter (rule-of-two "built
  * now" half; an external service adapter remains a plausible second adapter).
  * No network I/O.
  *

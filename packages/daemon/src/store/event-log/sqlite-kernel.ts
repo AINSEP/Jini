@@ -1,7 +1,9 @@
 /** Async SQLite execution over the host kernel; event-log policy lives in sqlite-policy. */
-import { loadOptionalPeer } from '@jini-ai/core/optional-peer';
-import { createSystemClock, type Clock } from '@jini-ai/core/primitives';
-import type { StorageKernel } from '@jini-ai/db/kernel';
+// Previously kept the synchronous factory free of an eager peer import; Kysely is declared,
+// so this adapter now imports sql statically.
+import { sql } from 'kysely';
+import type { Clock } from '@jini-ai/core/primitives';
+import type { StorageKernel } from '@jini-ai/core/contracts/storage';
 import type { Kysely } from 'kysely';
 import type { EventLogAppendInput, EventLogAppendOptions, EventLogEntry, EventLogReplayResult } from '@jini-ai/protocol';
 import {
@@ -18,19 +20,19 @@ type EventDatabase = Kysely<SqliteEventLogDatabase>;
  * Every operation joins the caller's kernel context; append/drop/replay use kernel transactions.
  * Refusals are values: hosts aborting a composed operation must use their exception/rollback path.
  * Close leaves the borrowed kernel open. Driver, readiness and serialization failures propagate.
- * @param required Host kernel with the event-log table subset.
- * @param optional Schema setup, retention cap and clock; defaults match the synchronous adapter.
+ * @param required Host kernel with the event-log table subset, plus the host's core Clock.
+ * @param optional Schema setup and retention cap; defaults match the synchronous adapter.
  * @returns Concrete log with optional conflict/capacity receipts.
  * @complexity Setup uses a fixed number of statements; replay is O(n) in retained entries.
  * @example
- * const log = await createKernelSqliteEventLog({ kernel }, { schemaSetup: 'host' });
+ * const log = await createKernelSqliteEventLog({ kernel, clock }, { schemaSetup: 'host' });
  */
 export async function createKernelSqliteEventLog<DB extends SqliteEventLogDatabase>(
-  required: { kernel: StorageKernel<DB> },
+  required: { kernel: StorageKernel<Kysely<DB>, DB>; clock: Clock },
   optional: SqliteEventLogOptions = {},
 ): Promise<SqliteEventLogWithReceipts> {
-  const { kernel } = required;
-  const maxEntriesPerRun = resolveMaxEntriesPerRun(optional.maxEntriesPerRun);
+  const { kernel, clock } = required;
+  const maxEntriesPerRun = resolveMaxEntriesPerRun({ value: optional.maxEntriesPerRun });
   if (!kernel || kernel.dialect !== 'sqlite' || kernel.transport !== 'better-sqlite3') {
     throw new Error('createKernelSqliteEventLog: pass a SQLite better-sqlite3 kernel');
   }
@@ -39,7 +41,6 @@ export async function createKernelSqliteEventLog<DB extends SqliteEventLogDataba
   const run = <T>(body: (db: EventDatabase) => Promise<T>): Promise<T> =>
     kernel.run(db => body(db as unknown as EventDatabase));
   await run(db => setupSchema({ db }, optional));
-  const clock = optional.clock ?? createSystemClock();
   const appendWithResult = <P>(input: EventLogAppendInput<P>, options: SqliteEventLogAppendOptions = {}): Promise<SqliteEventLogAppendResult<P>> =>
     kernel.transaction(() => run(db => appendInKernel({ db, input, clock, maxEntriesPerRun }, options)));
   return {
@@ -51,7 +52,7 @@ export async function createKernelSqliteEventLog<DB extends SqliteEventLogDataba
     },
     async replay({ runId, afterCursor }: { runId: string; afterCursor: string | null }): Promise<EventLogReplayResult> {
       // Validate even when the run is unknown, matching the synchronous adapter.
-      assertValidReplayCursor(afterCursor);
+      assertValidReplayCursor({ afterCursor });
       // One statement for all three reads: another process cannot evict between the gap check
       // and the entry read, which would otherwise return a gap reported as ok. A statement, not a
       // transaction, so replay works on read-only kernels and inside a host's run() body.
@@ -74,8 +75,6 @@ export async function createKernelSqliteEventLog<DB extends SqliteEventLogDataba
 /** Ensure using the shared DDL, or validate all required columns without issuing DDL/writes. */
 async function setupSchema({ db }: { db: EventDatabase }, options: SqliteEventLogOptions = {}): Promise<void> {
   if (options.schemaSetup !== 'host') {
-    // Keep the existing synchronous factory free of a new eager peer import.
-    const { sql } = await loadOptionalPeer({ feature: 'SQL storage adapters', dependency: 'kysely', load: () => import('kysely') });
     // Kysely executes one statement at a time; the owner DDL contains no embedded semicolons.
     for (const statement of SQLITE_EVENT_LOG_SCHEMA.split(';').filter(part => part.trim())) {
       await sql.raw(statement).execute(db);

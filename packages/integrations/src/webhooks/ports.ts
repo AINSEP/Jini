@@ -35,7 +35,8 @@ export interface SecretSealerPort {
 
 export interface WebhookSubscriptionRepoPort {
   insert(record: WebhookSubscriptionRecord): Promise<void>;
-  save(record: WebhookSubscriptionRecord): Promise<void>;
+  /** Upsert without a basis; with one, compare-and-set or throw RecordVersionConflictError. */
+  save(record: WebhookSubscriptionRecord, optional?: { expectedVersion?: number }): Promise<void>;
   findById(required: { workspaceId: UUID; id: IntegrationId }): Promise<WebhookSubscriptionRecord | null>;
   listByWorkspace(required: { workspaceId: UUID }): Promise<WebhookSubscriptionRecord[]>;
 

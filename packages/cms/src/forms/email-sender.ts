@@ -1,8 +1,16 @@
 /** MOVE: Forms owns submission identity, exported answers and recipient selection. This adapter
  * extends that ownership; it never creates a settings store, queue, renderer or notification path. */
-import { EmailSenderError, validateEmailSourceTemplate, type EmailBinding, type EmailReadiness,
-  type EmailSender, type EmailSenderContext, type EmailSourceRequest, type EmailSourceSummary,
-  type EmailTemplatePort } from "@jini-ai/platform/mail/senders";
+import {
+  EmailSenderError,
+  validateEmailSourceTemplate,
+  type EmailBinding,
+  type EmailReadiness,
+  type EmailSender,
+  type EmailSenderContext,
+  type EmailSourceRequest,
+  type EmailSourceSummary,
+  type EmailTemplatePort,
+} from "@jini-ai/core/contracts/mail";
 import { describeFormEmailFields, emailAnswerFields, formEmailFieldToken, resolveFormEmailValues } from "./email-sender-fields.js";
 import { isValidFormEmail } from "./email-format.js";
 import type { FormDefinitionRepoPort, FormSubmissionRepoPort } from "./ports.js";
@@ -52,23 +60,20 @@ function recipientFields({ definition }: { definition: FormDefinitionRecord }, _
   return emailAnswerFields({ definition }).filter(field => field.type === "email");
 }
 
-/** Forms implementation of the vendor-neutral sender contract. All data reads are workspace
- * scoped and checked again before export, even if a host repository violates its scope contract.
- * @throws EmailSenderError on denied access, ownership mismatch or invalid configuration.
- * @complexity O(forms) listing authorization calls; other methods O(fields), plus bounded port I/O. */
-export function createFormsEmailSender(
-  { deps }: { readonly deps: FormsEmailSenderDeps }, _optional: Record<string, never> = {},
-): EmailSender {
+function createFormsSourceReader(deps: FormsEmailSenderDeps) {
   /** MOVE: Repository lookups own id matching; this boundary enforces authorization and workspace scope. */
-  async function definitionFor({ request, operation }: { request: EmailSourceRequest; operation: "describe" | "resolve" | "configure" }, _optional: Record<string, never> = {}) {
+  return async function definitionFor({ request, operation }: { request: EmailSourceRequest; operation: "describe" | "resolve" | "configure" }, _optional: Record<string, never> = {}) {
     if (!await deps.authorize({ workspaceId: request.workspaceId, principalId: request.principalId, sourceId: request.sourceId, operation })) throw new EmailSenderError({ code: "forbidden" });
     const definition = await deps.definitions.findById({ workspaceId: request.workspaceId, id: request.sourceId });
     if (!definition) throw new EmailSenderError({ code: "not_found" });
     if (definition.workspaceId !== request.workspaceId) throw new EmailSenderError({ code: "ownership" });
     return definition;
   }
+}
+
+function createFormsSourceDescriber(deps: FormsEmailSenderDeps) {
   /** Describes an authorized source using the existing binding and capability-readiness ports. */
-  async function describe({ request, definition }: { request: EmailSourceRequest; definition: FormDefinitionRecord }, _optional: Record<string, never> = {}) {
+  return async function describe({ request, definition }: { request: EmailSourceRequest; definition: FormDefinitionRecord }, _optional: Record<string, never> = {}) {
     const binding = await deps.readEmailBinding({ workspaceId: request.workspaceId, formId: definition.id });
     if (binding && binding.formId !== definition.id) throw new EmailSenderError({ code: "ownership" });
     const permittedRecipients = recipientFields({ definition }).map(field => ({ id: field.id, label: field.label }));
@@ -80,8 +85,10 @@ export function createFormsEmailSender(
       purpose: "transactional" as const, lane: "notification" as const, binding: binding ? bindingView({ binding }) : null,
       readiness: { ready: readiness.ready && blockers.length === 0, blockers } };
   }
+}
+
+function createFormSourceLister(deps: FormsEmailSenderDeps): Pick<EmailSender, 'listSources'> {
   return {
-    id: "forms", label: "Forms",
     async listSources(request, _options = {}) {
       if (!await deps.authorize({ workspaceId: request.workspaceId, principalId: request.principalId, operation: "list" })) return [];
       const definitions = await deps.definitions.list({ workspaceId: request.workspaceId });
@@ -92,6 +99,21 @@ export function createFormsEmailSender(
       }
       return sources;
     },
+  };
+}
+
+/** Forms implementation of the vendor-neutral sender contract. All data reads are workspace
+ * scoped and checked again before export, even if a host repository violates its scope contract.
+ * @throws EmailSenderError on denied access, ownership mismatch or invalid configuration.
+ * @complexity O(forms) listing authorization calls; other methods O(fields), plus bounded port I/O. */
+export function createFormsEmailSender(
+  { deps }: { readonly deps: FormsEmailSenderDeps }, _optional: Record<string, never> = {},
+): EmailSender {
+  const definitionFor = createFormsSourceReader(deps);
+  const describe = createFormsSourceDescriber(deps);
+  return {
+    id: "forms", label: "Forms",
+    ...createFormSourceLister(deps),
     async describeSource(request, _options = {}) {
       return describe({ request, definition: await definitionFor({ request, operation: "describe" }) });
     },

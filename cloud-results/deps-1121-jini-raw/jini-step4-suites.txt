@@ -1,0 +1,6 @@
+packages/protocol EXIT 0  Tests 794 passed (794);  (5s)
+packages/agentic EXIT 0  Tests 1149 passed (1149);  (20s)
+packages/chat EXIT 0  Tests 4486 passed | 1 skipped (4487);  (455s)
+packages/ui EXIT 1  Tests 12 failed | 8806 passed (8818);  (388s)
+examples/reference-web EXIT 1  Tests 54 passed (54);  (5s)
+DONE

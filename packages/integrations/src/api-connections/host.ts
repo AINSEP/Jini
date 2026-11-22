@@ -6,7 +6,7 @@ import { deriveApiConnectionKey } from './keys.js';
 import { ApiConnectionError } from './errors.js';
 import { createConnectionBudgets } from './budgets.js';
 import { resolveByoClient, type ByoClient } from './byo-client.js';
-import type { ApiConnectionRuntimeHostDeps, ApiConnectionRuntimeHostOptions, ApiConnectionHostMessages, ApiConnectionSignInAttempt, ApiConnectionRuntime, ApiConnectionHostRecordStore, DeclaredApiConnection } from './host-ports.js';
+import type { ApiConnectionSharedConnections, ApiConnectionRuntimeHostDeps, ApiConnectionRuntimeHostOptions, ApiConnectionHostMessages, ApiConnectionSignInAttempt, ApiConnectionRuntime, ApiConnectionHostRecordStore, DeclaredApiConnection } from './host-ports.js';
 import type { ApiConnectionClientConfig } from './declarations.js';
 import type { ApiConnectionClientKind } from './deps.js';
 import type { OAuthClient } from "@jini-ai/core/contracts/oauth";
@@ -112,6 +112,258 @@ function connectionStatus({ connectionRef, record }: { connectionRef: string; re
   return { connectionRef, status: record?.status ?? "disconnected", grantedScopes: record?.grantedScopes ?? [] };
 }
 
+type HostDeps<State> = ApiConnectionRuntimeHostDeps<State>;
+type ConnectionTarget = { readonly workspaceId: string; readonly pluginId: string; readonly connectionRef: string };
+type AccessOptions = { readonly expectedAccountId?: string };
+
+/** What every helper below shares: the host's inputs, its per-workspace state and the late-bound shared sign-in. */
+interface HostCtx<State> {
+  readonly required: HostDeps<State>;
+  readonly optional: ApiConnectionRuntimeHostOptions;
+  readonly budgets: ReturnType<typeof createConnectionBudgets>;
+  // Per host (so per workspace) and per loaded declaration object: a BYO client never travels with a
+  // connection object into another host, and the secret is never a field anything could serialize.
+  readonly byoClients: WeakMap<DeclaredApiConnection, ByoClient | ApiConnectionError>;
+  /** Set once, right after the helpers are bound; read lazily by calls that arrive later. */
+  shared: ApiConnectionSharedConnections | undefined;
+}
+
+/** The declared connections, each with this workspace's BYO client resolved fresh. @complexity O(p + c) plus one credential open per BYO connection. */
+async function listConnections<State>({ required, byoClients }: HostCtx<State>, input: { readonly pluginId?: string } = {}): Promise<readonly DeclaredApiConnection[]> {
+  const { connections } = await required.loadDeclaredConnections({ workspaceId: required.workspaceId });
+  const listed = input.pluginId === undefined ? connections : connections.filter((connection) => connection.pluginId === input.pluginId);
+  for (const connection of listed) {
+    const byo = await resolveByoClient({ byoCredentials: required.byoCredentials, workspaceId: required.workspaceId, connection });
+    if (byo) byoClients.set(connection, byo);
+  }
+  return listed;
+}
+
+/** The connection's OAuth client here: the admin's own when saved (an unusable one refuses), else the host's. @complexity O(1). */
+function clientFor<State>({ required, byoClients }: HostCtx<State>, connection: DeclaredApiConnection): ResolvedClient {
+  const byo = byoClients.get(connection);
+  if (byo instanceof ApiConnectionError) throw byo;
+  return byo ? byoOAuthClient(byo, required.runtime) : resolveClient(connection, required.runtime, required.env, required.messages);
+}
+
+function tokensFor<State>({ required }: HostCtx<State>, { connection, clientId }: {
+  connection: DeclaredApiConnection;
+  clientId: string;
+}) {
+  const owner = { workspaceId: required.workspaceId, pluginId: connection.pluginId, connectionId: connection.descriptor.connectionId, clientId };
+  return required.apiConnectionStorage.tokensFor({ owner });
+}
+
+/** Durably moves a record to `reconnect-required` (revision CAS); a lost race returns what won. @complexity Two vault calls at most. */
+async function markReconnectRequired<State>({ required }: HostCtx<State>, record: ApiConnectionRecord): Promise<ApiConnectionRecord | null> {
+  const { records } = required.apiConnectionStorage;
+  const next: ApiConnectionRecord = { ...record, status: "reconnect-required", revision: record.revision + 1, updatedAt: new Date(required.clock.nowMs()).toISOString() };
+  return (await records.compareAndSet({ key: record.key, expectedRevision: record.revision, record: next })) ? next : records.read({ key: record.key });
+}
+
+/**
+ * True when a connected record's tokens were sealed for another client than the one this host
+ * would use now. A connection no longer declared, or with no usable client, is left as it is: its
+ * actions already refuse with their own reason.
+ * @complexity One contribution load and one token-row open.
+ */
+async function tokensForAnotherClient<State>(ctx: HostCtx<State>, record: ApiConnectionRecord): Promise<boolean> {
+  if (record.status !== "connected") return false;
+  const connection = (await listConnections(ctx, { pluginId: record.pluginId })).find((candidate) => candidate.descriptor.connectionId === record.connectionId);
+  if (!connection) return false;
+  let clientId: string;
+  try { clientId = clientFor(ctx, connection).client.clientId; } catch { return false; }
+  return tokensFor(ctx, { connection, clientId }).load({ key: record.key }).then(() => false, (error: unknown) => {
+    if (isUnreadableTokenRecord(error)) return true;
+    throw error;
+  });
+}
+
+/** The record as it really stands: a connected record whose tokens belong to another client reads (and is stored) as reconnect-required. */
+async function readHonestRecord<State>(ctx: HostCtx<State>, input: { readonly key: string }): Promise<ApiConnectionRecord | null> {
+  const record = await ctx.required.apiConnectionStorage.records.read(input);
+  return record && (await tokensForAnotherClient(ctx, record)) ? markReconnectRequired(ctx, record) : record;
+}
+
+/** The https origins `pluginId`'s connections declare here (union); another workspace declares none. @complexity O(p + c). */
+async function apiOriginsFor<State>(ctx: HostCtx<State>, input: { readonly workspaceId: string; readonly pluginId: string }): Promise<readonly string[]> {
+  if (input.workspaceId !== ctx.required.workspaceId) return [];
+  return (await listConnections(ctx, { pluginId: input.pluginId })).flatMap((connection) => connection.apiOrigins);
+}
+
+function byoCallbackUrl<State>({ required }: HostCtx<State>, { connection, origin }: {
+  connection: DeclaredApiConnection;
+  origin: string | undefined;
+}): string {
+  if (!origin) throw setupRefused(required.messages.noPublicOrigin({ label: connection.descriptor.label }));
+  return `${origin}${required.callbackPath}`;
+}
+
+/**
+ * The hosted callback URL. Fails closed: refused when no return address is registered at all
+ * (declared or configured), when this site has no public origin, or when its origin is not one of
+ * them, so an unregistered site gets this actionable refusal instead of the provider's error page.
+ */
+function hostedCallbackUrl<State>(ctx: HostCtx<State>, { connection }: { readonly connection: DeclaredApiConnection }): string {
+  const { required } = ctx;
+  const origin = required.publicOrigin();
+  // A BYO web client is the admin's own registration: they registered this site's own callback.
+  const byo = ctx.byoClients.get(connection);
+  if (byo && !(byo instanceof ApiConnectionError)) return byoCallbackUrl(ctx, { connection, origin });
+  const allowed = [...(connection.clients.web?.redirectOrigins ?? []), ...configuredOrigins(required.env, required.messages.callbackOriginsEnv)];
+  if (allowed.length === 0) {
+    throw setupRefused(required.messages.missingReturnAddress({ label: connection.descriptor.label }));
+  }
+  if (!origin || !allowed.includes(origin)) {
+    throw setupRefused(required.messages.unregisteredOrigin({ label: connection.descriptor.label }));
+  }
+  return `${origin}${required.callbackPath}`;
+}
+
+/** The connection's hooks over HTTP limited to its declared API origins and token endpoint origin. @complexity O(1). */
+function hooksFor<State>({ required }: HostCtx<State>, connection: DeclaredApiConnection) {
+  return connection.module.createHooks({ http: createConnectionHookHttp({ http: required.pluginHttp, connection }) });
+}
+
+/** One connection's service. Desktop passes the loopback redirect URI its attempt listens on. @complexity O(1). */
+function serviceFor<State>(ctx: HostCtx<State>, input: { readonly connection: DeclaredApiConnection; readonly redirectUri?: string }): ApiConnectionService {
+  const { required } = ctx;
+  const { connection } = input;
+  const { client, clientKind } = clientFor(ctx, connection);
+  const redirectUri = input.redirectUri ?? (required.runtime === "hosted" ? hostedCallbackUrl(ctx, { connection }) : undefined);
+  return createApiConnectionService({
+    descriptor: connection.descriptor, client, clientKind,
+    appOptions: { ...required.appIdentity, redirectUris: redirectUri ? [redirectUri] : [] },
+    hooks: hooksFor(ctx, connection),
+    records: required.apiConnectionStorage.records, tokens: tokensFor(ctx, { connection, clientId: client.clientId }),
+    fetchFn: required.oauthHttp.fetchFn, guard: required.oauthHttp.guard, clock: required.clock, oauth: required.oauth,
+    randomBytesFn: ({ byteLength }) => randomBytes(byteLength),
+    sleep: ({ ms }) => new Promise((resolve) => { setTimeout(resolve, ms); }),
+  });
+}
+
+/** The connection `connectionRef` names, only when THIS plugin declares it in THIS workspace. @complexity O(p + c). */
+async function declaredFor<State>(ctx: HostCtx<State>, input: { readonly pluginId: string; readonly connectionRef: string }): Promise<DeclaredApiConnection | undefined> {
+  return (await listConnections(ctx, { pluginId: input.pluginId })).find((candidate) =>
+    deriveApiConnectionKey({ workspaceId: ctx.required.workspaceId, pluginId: input.pluginId, connectionId: candidate.descriptor.connectionId }) === input.connectionRef);
+}
+
+/** A token read whose stored tokens belong to another client turns into a durable reconnect-required refusal. */
+async function refuseChangedClient<State>({ ctx, connectionRef, error }: {
+  ctx: HostCtx<State>;
+  connectionRef: string;
+  error: unknown;
+}): Promise<never> {
+  if (!isUnreadableTokenRecord(error) && !wrapsUnreadableTokenRecord(error)) throw error;
+  const record = await ctx.required.apiConnectionStorage.records.read({ key: connectionRef });
+  if (record?.status === "connected") await markReconnectRequired(ctx, record);
+  throw clientChanged(error);
+}
+
+async function getScopedAccessToken<State>({ ctx, scope, input, options }: {
+  ctx: HostCtx<State>;
+  scope: { readonly pluginId: string };
+  input: { readonly connectionRef: string };
+  options: AccessOptions;
+}): Promise<string> {
+  const { required, shared } = ctx;
+  const connection = await declaredFor(ctx, { pluginId: scope.pluginId, connectionRef: input.connectionRef });
+  if (!connection) throw notAvailable();
+  await ctx.budgets.charge({ workspaceId: required.workspaceId, pluginId: scope.pluginId, connectionId: connection.descriptor.connectionId, connectionRef: input.connectionRef, budgets: connection.budgets });
+  if (shared && await shared.hasBinding(connection)) return shared.getAccessToken(connection, options);
+  return serviceFor(ctx, { connection }).getAccessToken({ connectionRef: input.connectionRef, workspaceId: required.workspaceId }, options)
+    .catch((error: unknown) => refuseChangedClient({ ctx, connectionRef: input.connectionRef, error }));
+}
+
+/**
+ * The plugin host capability `connections.getAccessToken({ connectionRef })`, scoped to one plugin.
+ * The ref must be the key of a connection THIS plugin declares in THIS workspace; anything else is
+ * the same refusal, so a plugin cannot probe other plugins' or workspaces' refs. Only an access
+ * token ever leaves: the refresh token stays inside the vault token store.
+ * @complexity O(p + c) contribution load, then one token read (and at most one refresh).
+ */
+function accessTokensFor<State>(ctx: HostCtx<State>, scope: { readonly pluginId: string }) {
+  return {
+    getAccessToken: (input: { readonly connectionRef: string }, options: AccessOptions = {}): Promise<string> => getScopedAccessToken({ ctx, scope, input, options }),
+  };
+}
+
+/**
+ * The connection port executable tools and admin-surface handlers receive (one per site; each
+ * call names its workspace and plugin). A target in another workspace, or a ref its plugin does
+ * not declare here, reads as no account and is refused exactly like an unknown ref.
+ * @complexity As {@link accessTokensFor}; `readAccount` is one contribution load and one record read.
+ */
+function createToolConnections<State>(ctx: HostCtx<State>) {
+  return {
+    async readAccount(target: ConnectionTarget) {
+      if (target.workspaceId !== ctx.required.workspaceId || !(await declaredFor(ctx, target))) return null;
+      if (ctx.shared) {
+        const connection = await declaredFor(ctx, target);
+        if (connection && await ctx.shared.hasBinding(connection)) {
+          return ctx.shared.readAccount(connection);
+        }
+      }
+      const record = await readHonestRecord(ctx, { key: target.connectionRef });
+      return record?.status === "connected" && record.account ? { accountId: record.account.accountId, displayName: record.account.displayName } : null;
+    },
+    async getAccessToken(target: ConnectionTarget, options: AccessOptions = {}): Promise<string> {
+      if (target.workspaceId !== ctx.required.workspaceId) throw notAvailable();
+      return accessTokensFor(ctx, { pluginId: target.pluginId }).getAccessToken({ connectionRef: target.connectionRef }, options);
+    },
+  };
+}
+
+/** The scopes a sign-in for these scope sets would request, via the plugin's own hook. @complexity One hook call. */
+async function requestedScopes<State>(ctx: HostCtx<State>, input: { readonly connection: DeclaredApiConnection; readonly scopeSetIds: readonly string[] }): Promise<readonly string[]> {
+  return hooksFor(ctx, input.connection).resolveScopes({ scopeSetIds: [...input.scopeSetIds] });
+}
+
+/** Token-free status straight from the record; a connection never created reads as disconnected. @complexity One read. */
+async function statusOf<State>(ctx: HostCtx<State>, { connection, local = false }: { readonly connection: DeclaredApiConnection; readonly local?: boolean }) {
+  const key = deriveApiConnectionKey({ workspaceId: ctx.required.workspaceId, pluginId: connection.pluginId, connectionId: connection.descriptor.connectionId });
+  if (!local && ctx.shared && await ctx.shared.hasBinding(connection)) {
+    const shared = await ctx.shared.getStatus(connection);
+    return connectionStatus({ connectionRef: key, record: shared });
+  }
+  const record = await readHonestRecord(ctx, { key });
+  return connectionStatus({ connectionRef: key, record });
+}
+
+function createSharedOAuth<State>(ctx: HostCtx<State>): ApiConnectionSharedConnections | undefined {
+  const { required, optional } = ctx;
+  if (!optional.shared || required.runtime !== "desktop") return undefined;
+  const shared = optional.shared;
+  return required.createSharedConnections({
+    workspaceId: required.workspaceId, listConnections: (input) => listConnections(ctx, input), requestedScopes: (input) => requestedScopes(ctx, input),
+    createService: ({ connection, context, redirectUri }) => createApiConnectionService({
+      descriptor: context.descriptor, client: context.client, clientKind: context.clientKind,
+      appOptions: { ...required.appIdentity, redirectUris: redirectUri ? [redirectUri] : [] },
+      hooks: hooksFor(ctx, connection), records: shared.records, tokens: shared.tokensFor({ context }),
+      fetchFn: required.oauthHttp.fetchFn, guard: required.oauthHttp.guard, clock: required.clock, oauth: required.oauth,
+      randomBytesFn: ({ byteLength }) => randomBytes(byteLength), sleep: ({ ms }) => new Promise(resolve => { setTimeout(resolve, ms); }),
+    }),
+  });
+}
+
+type SignInInput = { connection: DeclaredApiConnection; actorId: string; destination?: "site" | "shared" | undefined; redirectUri?: string };
+
+async function prepareSignIn<State>(ctx: HostCtx<State>, input: SignInInput) {
+  const { connection } = input;
+  const { shared } = ctx;
+  if (input.destination !== "shared") return { service: serviceFor(ctx, input), workspaceId: ctx.required.workspaceId, onCompleted: async () => {
+    if (input.destination === "site") await shared?.selectLocal(connection);
+  } };
+  if (!shared) throw notAvailable();
+  const credentialId = deriveApiConnectionKey({ workspaceId: "project", pluginId: connection.pluginId, connectionId: connection.descriptor.connectionId });
+  const existing = await ctx.optional.shared!.readContext({ credentialId });
+  if (existing) return shared.prepare({ ...input, context: existing });
+  const { client, clientKind } = clientFor(ctx, connection);
+  const context = { credentialId, client, clientKind, descriptor: connection.descriptor,
+    identity: { pluginId: connection.pluginId, connectionId: connection.descriptor.connectionId, tokenEndpoint: connection.descriptor.tokenEndpoint, authorizationEndpoint: connection.descriptor.authorizationEndpoint, clientId: client.clientId } };
+  return shared.prepare({ ...input, context });
+}
+
 /**
  * Builds the workspace host. Declarations are read fresh per call, so enabling or disabling a
  * plugin takes effect without a restart (Node caches each hooks module per file URL).
@@ -121,225 +373,33 @@ export function createApiConnectionHost<State>(
   required: ApiConnectionRuntimeHostDeps<State>,
   optional: ApiConnectionRuntimeHostOptions = {},
 ) {
-  const { records } = required.apiConnectionStorage;
-  const budgets = createConnectionBudgets({ clock: required.clock, createLimiter: required.createLimiter });
-  // In-process: the public callback and the admin-surface routes run in this host's process.
-  const callbackInbox = required.callbackInbox;
-  const pluginState = required.pluginState;
-  // In-process, by connection ref: the last desktop sign-in that failed after the browser opened, so
+  const ctx: HostCtx<State> = {
+    required, optional, byoClients: new WeakMap(), shared: undefined,
+    budgets: createConnectionBudgets({ clock: required.clock, createLimiter: required.createLimiter }),
+  };
+  // In-process: the last desktop sign-in that failed after the browser opened, by connection ref, so
   // the plugin's panel can say so (the loopback page is all the user saw). At most one per declared
   // connection; a later success deletes it.
   const lastSignInAttempts = new Map<string, ApiConnectionSignInAttempt>();
   // Hosted sign-ins started here, waiting for their starter's browser to open the host link.
   const signInHandoffs = createSignInHandoffs({ clock: required.clock, randomBytesFn: ({ byteLength }) => randomBytes(byteLength), oauth: required.oauth });
-  // Per host (so per workspace) and per loaded declaration object: a BYO client never travels with a
-  // connection object into another host, and the secret is never a field anything could serialize.
-  const byoClients = new WeakMap<DeclaredApiConnection, ByoClient | ApiConnectionError>();
-
-  /** The declared connections, each with this workspace's BYO client resolved fresh. @complexity O(p + c) plus one credential open per BYO connection. */
-  async function listConnections(input: { readonly pluginId?: string } = {}): Promise<readonly DeclaredApiConnection[]> {
-    const { connections } = await required.loadDeclaredConnections({ workspaceId: required.workspaceId });
-    const listed = input.pluginId === undefined ? connections : connections.filter((connection) => connection.pluginId === input.pluginId);
-    for (const connection of listed) {
-      const byo = await resolveByoClient({ byoCredentials: required.byoCredentials, workspaceId: required.workspaceId, connection });
-      if (byo) byoClients.set(connection, byo);
-    }
-    return listed;
-  }
-
-  /** The connection's OAuth client here: the admin's own when saved (an unusable one refuses), else the host's. @complexity O(1). */
-  function clientFor(connection: DeclaredApiConnection): ResolvedClient {
-    const byo = byoClients.get(connection);
-    if (byo instanceof ApiConnectionError) throw byo;
-    return byo ? byoOAuthClient(byo, required.runtime) : resolveClient(connection, required.runtime, required.env, required.messages);
-  }
-
-  function tokensFor(connection: DeclaredApiConnection, clientId: string) {
-    const owner = { workspaceId: required.workspaceId, pluginId: connection.pluginId, connectionId: connection.descriptor.connectionId, clientId };
-    return required.apiConnectionStorage.tokensFor({ owner });
-  }
-
-  /** Durably moves a record to `reconnect-required` (revision CAS); a lost race returns what won. @complexity Two vault calls at most. */
-  async function markReconnectRequired(record: ApiConnectionRecord): Promise<ApiConnectionRecord | null> {
-    const next: ApiConnectionRecord = { ...record, status: "reconnect-required", revision: record.revision + 1, updatedAt: new Date(required.clock.nowMs()).toISOString() };
-    return (await records.compareAndSet({ key: record.key, expectedRevision: record.revision, record: next })) ? next : records.read({ key: record.key });
-  }
-
-  /**
-   * True when a connected record's tokens were sealed for another client than the one this host
-   * would use now. A connection no longer declared, or with no usable client, is left as it is: its
-   * actions already refuse with their own reason.
-   * @complexity One contribution load and one token-row open.
-   */
-  async function tokensForAnotherClient(record: ApiConnectionRecord): Promise<boolean> {
-    if (record.status !== "connected") return false;
-    const connection = (await listConnections({ pluginId: record.pluginId })).find((candidate) => candidate.descriptor.connectionId === record.connectionId);
-    if (!connection) return false;
-    let clientId: string;
-    try { clientId = clientFor(connection).client.clientId; } catch { return false; }
-    return tokensFor(connection, clientId).load({ key: record.key }).then(() => false, (error: unknown) => {
-      if (isUnreadableTokenRecord(error)) return true;
-      throw error;
-    });
-  }
-
-  /** The record as it really stands: a connected record whose tokens belong to another client reads (and is stored) as reconnect-required. */
-  async function readHonestRecord(input: { readonly key: string }): Promise<ApiConnectionRecord | null> {
-    const record = await records.read(input);
-    return record && (await tokensForAnotherClient(record)) ? markReconnectRequired(record) : record;
-  }
-  const honestRecords: ApiConnectionHostRecordStore = { ...records, read: readHonestRecord };
-
-  /** The https origins `pluginId`'s connections declare here (union); another workspace declares none. @complexity O(p + c). */
-  async function apiOriginsFor(input: { readonly workspaceId: string; readonly pluginId: string }): Promise<readonly string[]> {
-    if (input.workspaceId !== required.workspaceId) return [];
-    return (await listConnections({ pluginId: input.pluginId })).flatMap((connection) => connection.apiOrigins);
-  }
-
-  /**
-   * The hosted callback URL. Fails closed: refused when no return address is registered at all
-   * (declared or configured), when this site has no public origin, or when its origin is not one of
-   * them, so an unregistered site gets this actionable refusal instead of the provider's error page.
-   */
-  function hostedCallbackUrl({ connection }: { readonly connection: DeclaredApiConnection }): string {
-    const origin = required.publicOrigin();
-    // A BYO web client is the admin's own registration: they registered this site's own callback.
-    const byo = byoClients.get(connection);
-    if (byo && !(byo instanceof ApiConnectionError)) return byoCallbackUrl(connection, origin);
-    const allowed = [...(connection.clients.web?.redirectOrigins ?? []), ...configuredOrigins(required.env, required.messages.callbackOriginsEnv)];
-    if (allowed.length === 0) {
-      throw setupRefused(required.messages.missingReturnAddress({ label: connection.descriptor.label }));
-    }
-    if (!origin || !allowed.includes(origin)) {
-      throw setupRefused(required.messages.unregisteredOrigin({ label: connection.descriptor.label }));
-    }
-    return `${origin}${required.callbackPath}`;
-  }
-
-  function byoCallbackUrl(connection: DeclaredApiConnection, origin: string | undefined): string {
-    if (!origin) throw setupRefused(required.messages.noPublicOrigin({ label: connection.descriptor.label }));
-    return `${origin}${required.callbackPath}`;
-  }
-
-  /** The connection's hooks over HTTP limited to its declared API origins and token endpoint origin. @complexity O(1). */
-  function hooksFor(connection: DeclaredApiConnection) {
-    return connection.module.createHooks({ http: createConnectionHookHttp({ http: required.pluginHttp, connection }) });
-  }
-
-  /** One connection's service. Desktop passes the loopback redirect URI its attempt listens on. @complexity O(1). */
-  function serviceFor(input: { readonly connection: DeclaredApiConnection; readonly redirectUri?: string }): ApiConnectionService {
-    const { connection } = input;
-    const { client, clientKind } = clientFor(connection);
-    const redirectUri = input.redirectUri ?? (required.runtime === "hosted" ? hostedCallbackUrl({ connection }) : undefined);
-    return createApiConnectionService({
-      descriptor: connection.descriptor, client, clientKind,
-      appOptions: { ...required.appIdentity, redirectUris: redirectUri ? [redirectUri] : [] },
-      hooks: hooksFor(connection),
-      records, tokens: tokensFor(connection, client.clientId),
-      fetchFn: required.oauthHttp.fetchFn, guard: required.oauthHttp.guard, clock: required.clock, oauth: required.oauth,
-      randomBytesFn: ({ byteLength }) => randomBytes(byteLength),
-      sleep: ({ ms }) => new Promise((resolve) => { setTimeout(resolve, ms); }),
-    });
-  }
-
-  /** The connection `connectionRef` names, only when THIS plugin declares it in THIS workspace. @complexity O(p + c). */
-  async function declaredFor(input: { readonly pluginId: string; readonly connectionRef: string }): Promise<DeclaredApiConnection | undefined> {
-    return (await listConnections({ pluginId: input.pluginId })).find((candidate) =>
-      deriveApiConnectionKey({ workspaceId: required.workspaceId, pluginId: input.pluginId, connectionId: candidate.descriptor.connectionId }) === input.connectionRef);
-  }
-
-  /**
-   * The plugin host capability `connections.getAccessToken({ connectionRef })`, scoped to one plugin.
-   * The ref must be the key of a connection THIS plugin declares in THIS workspace; anything else is
-   * the same refusal, so a plugin cannot probe other plugins' or workspaces' refs. Only an access
-   * token ever leaves: the refresh token stays inside the vault token store.
-   * @complexity O(p + c) contribution load, then one token read (and at most one refresh).
-   */
-  function accessTokensFor(scope: { readonly pluginId: string }) {
-    return {
-      async getAccessToken(input: { readonly connectionRef: string }, options: { readonly expectedAccountId?: string } = {}): Promise<string> {
-        const connection = await declaredFor({ pluginId: scope.pluginId, connectionRef: input.connectionRef });
-        if (!connection) throw notAvailable();
-        await budgets.charge({ workspaceId: required.workspaceId, pluginId: scope.pluginId, connectionId: connection.descriptor.connectionId, connectionRef: input.connectionRef, budgets: connection.budgets });
-        if (sharedOAuth && await sharedOAuth.hasBinding(connection)) return sharedOAuth.getAccessToken(connection, options);
-        return serviceFor({ connection }).getAccessToken({ connectionRef: input.connectionRef, workspaceId: required.workspaceId }, options).catch(async (error: unknown) => {
-          if (!isUnreadableTokenRecord(error) && !wrapsUnreadableTokenRecord(error)) throw error;
-          const record = await records.read({ key: input.connectionRef });
-          if (record?.status === "connected") await markReconnectRequired(record);
-          throw clientChanged(error);
-        });
-      },
-    };
-  }
-
-  /**
-   * The connection port executable tools and admin-surface handlers receive (one per site; each
-   * call names its workspace and plugin). A target in another workspace, or a ref its plugin does
-   * not declare here, reads as no account and is refused exactly like an unknown ref.
-   * @complexity As {@link accessTokensFor}; `readAccount` is one contribution load and one record read.
-   */
-  const toolConnections = {
-    async readAccount(target: { readonly workspaceId: string; readonly pluginId: string; readonly connectionRef: string }) {
-      if (target.workspaceId !== required.workspaceId || !(await declaredFor(target))) return null;
-      if (sharedOAuth) {
-        const connection = await declaredFor(target);
-        if (connection && await sharedOAuth.hasBinding(connection)) {
-          return sharedOAuth.readAccount(connection);
-        }
-      }
-      const record = await readHonestRecord({ key: target.connectionRef });
-      return record?.status === "connected" && record.account ? { accountId: record.account.accountId, displayName: record.account.displayName } : null;
-    },
-    async getAccessToken(target: { readonly workspaceId: string; readonly pluginId: string; readonly connectionRef: string }, options: { readonly expectedAccountId?: string } = {}): Promise<string> {
-      if (target.workspaceId !== required.workspaceId) throw notAvailable();
-      return accessTokensFor({ pluginId: target.pluginId }).getAccessToken({ connectionRef: target.connectionRef }, options);
-    },
+  ctx.shared = createSharedOAuth(ctx);
+  const honestRecords: ApiConnectionHostRecordStore = { ...required.apiConnectionStorage.records, read: (input) => readHonestRecord(ctx, input) };
+  return {
+    sharingAvailable: Boolean(ctx.shared), sharedOAuth: ctx.shared, workspaceId: required.workspaceId, runtime: required.runtime, clock: required.clock,
+    records: honestRecords, startLoopback: required.startLoopback, toolConnections: createToolConnections(ctx),
+    // In-process: the public callback and the admin-surface routes run in this host's process.
+    callbackInbox: required.callbackInbox, pluginState: required.pluginState, lastSignInAttempts, signInHandoffs,
+    prepareSignIn: (input: SignInInput) => prepareSignIn(ctx, input),
+    listConnections: (input: { readonly pluginId?: string } = {}) => listConnections(ctx, input),
+    serviceFor: (input: { readonly connection: DeclaredApiConnection; readonly redirectUri?: string }) => serviceFor(ctx, input),
+    accessTokensFor: (scope: { readonly pluginId: string }) => accessTokensFor(ctx, scope),
+    apiOriginsFor: (input: { readonly workspaceId: string; readonly pluginId: string }) => apiOriginsFor(ctx, input),
+    declaredFor: (input: { readonly pluginId: string; readonly connectionRef: string }) => declaredFor(ctx, input),
+    requestedScopes: (input: { readonly connection: DeclaredApiConnection; readonly scopeSetIds: readonly string[] }) => requestedScopes(ctx, input),
+    hostedCallbackUrl: (input: { readonly connection: DeclaredApiConnection }) => hostedCallbackUrl(ctx, input),
+    statusOf: (input: { readonly connection: DeclaredApiConnection; readonly local?: boolean }) => statusOf(ctx, input),
   };
-
-  /** The scopes a sign-in for these scope sets would request, via the plugin's own hook. @complexity One hook call. */
-  async function requestedScopes(input: { readonly connection: DeclaredApiConnection; readonly scopeSetIds: readonly string[] }): Promise<readonly string[]> {
-    return hooksFor(input.connection).resolveScopes({ scopeSetIds: [...input.scopeSetIds] });
-  }
-
-  /** Token-free status straight from the record; a connection never created reads as disconnected. @complexity One read. */
-  async function statusOf({ connection, local = false }: { readonly connection: DeclaredApiConnection; readonly local?: boolean }) {
-    const key = deriveApiConnectionKey({ workspaceId: required.workspaceId, pluginId: connection.pluginId, connectionId: connection.descriptor.connectionId });
-    if (!local && sharedOAuth && await sharedOAuth.hasBinding(connection)) {
-      const shared = await sharedOAuth.getStatus(connection);
-      return connectionStatus({ connectionRef: key, record: shared });
-    }
-    const record = await readHonestRecord({ key });
-    return connectionStatus({ connectionRef: key, record });
-  }
-
-  const sharedOAuth = optional.shared && required.runtime === "desktop" ? required.createSharedConnections({
-    workspaceId: required.workspaceId, listConnections, requestedScopes,
-    createService: ({ connection, context, redirectUri }) => createApiConnectionService({
-      descriptor: context.descriptor, client: context.client, clientKind: context.clientKind,
-      appOptions: { ...required.appIdentity, redirectUris: redirectUri ? [redirectUri] : [] },
-      hooks: hooksFor(connection), records: optional.shared!.records, tokens: optional.shared!.tokensFor({ context }),
-      fetchFn: required.oauthHttp.fetchFn, guard: required.oauthHttp.guard, clock: required.clock, oauth: required.oauth,
-      randomBytesFn: ({ byteLength }) => randomBytes(byteLength), sleep: ({ ms }) => new Promise(resolve => { setTimeout(resolve, ms); }),
-    }),
-  }) : undefined;
-
-  async function prepareSignIn(input: { connection: DeclaredApiConnection; actorId: string; destination?: "site" | "shared" | undefined; redirectUri?: string }) {
-    const { connection } = input;
-    if (input.destination !== "shared") return { service: serviceFor(input), workspaceId: required.workspaceId, onCompleted: async () => {
-      if (input.destination === "site") await sharedOAuth?.selectLocal(connection);
-    } };
-    if (!sharedOAuth) throw notAvailable();
-    const credentialId = deriveApiConnectionKey({ workspaceId: "project", pluginId: connection.pluginId, connectionId: connection.descriptor.connectionId });
-    const existing = await optional.shared!.readContext({ credentialId });
-    if (existing) return sharedOAuth.prepare({ ...input, context: existing });
-    const { client, clientKind } = clientFor(connection);
-    const context = { credentialId, client, clientKind, descriptor: connection.descriptor,
-      identity: { pluginId: connection.pluginId, connectionId: connection.descriptor.connectionId, tokenEndpoint: connection.descriptor.tokenEndpoint, authorizationEndpoint: connection.descriptor.authorizationEndpoint, clientId: client.clientId } };
-    return sharedOAuth.prepare({ ...input, context });
-  }
-
-  return { sharingAvailable: Boolean(sharedOAuth), sharedOAuth, prepareSignIn, workspaceId: required.workspaceId, runtime: required.runtime, clock: required.clock, records: honestRecords, startLoopback: required.startLoopback, listConnections, serviceFor, accessTokensFor,
-    toolConnections, apiOriginsFor, declaredFor, requestedScopes, hostedCallbackUrl, statusOf, callbackInbox, lastSignInAttempts, signInHandoffs, pluginState };
 }
 
 export type ApiConnectionHost<State = unknown> = ReturnType<typeof createApiConnectionHost<State>>;

@@ -9,16 +9,17 @@ export interface ScheduleFieldsProps {
   onMinuteChange: (minute: number) => void;
   onTimeChange: (time: string) => void;
   onTimezoneChange: (timezone: string) => void;
+  useTHook?: typeof useT;
 }
 
 /**
  * The kind-dependent input row: an "hour minute" number field for
  * `'hourly'`, or a time + timezone pair for every other kind.
  */
-export function ScheduleFields({ state, timezones, onMinuteChange, onTimeChange, onTimezoneChange }: ScheduleFieldsProps) {
-  const t = useT();
+export function ScheduleFields({ state, timezones, onMinuteChange, onTimeChange, onTimezoneChange, useTHook = useT }: ScheduleFieldsProps) {
+  const t = useTHook();
 
-  if (!showsTimeFields(state.kind)) {
+  if (!showsTimeFields({ kind: state.kind })) {
     return (
       <label className="jini-schedule-picker__field">
         <span>{t('Minute of every hour')}</span>
@@ -45,7 +46,7 @@ export function ScheduleFields({ state, timezones, onMinuteChange, onTimeChange,
         <select value={state.timezone} onChange={(e) => onTimezoneChange(e.target.value)}>
           {timezones.map((tz) => (
             <option key={tz} value={tz}>
-              {tzCityLabel(tz)}
+              {tzCityLabel({ timezone: tz })}
             </option>
           ))}
         </select>

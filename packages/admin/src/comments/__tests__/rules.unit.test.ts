@@ -91,7 +91,8 @@ describe("describeModerationError", () => {
 
   it("any other status falls through to the shared default", () => {
     expect(describeModerationError(new ApiError("nope", 403, "FORBIDDEN"))).toBe("nope");
-    expect(describeModerationError(new Error("boom"))).toBe("boom");
+    // A plain Error is not approved copy: it shows the fallback, never its own words.
+    expect(describeModerationError(new Error("boom"))).toBe("Failed to update comment.");
     expect(describeModerationError("not an error")).toBe("Failed to update comment.");
   });
 });

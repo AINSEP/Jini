@@ -1,5 +1,5 @@
-import { nowIso as kernelNowIso } from "@jini-ai/core/primitives";
-import type { Clock } from "@jini-ai/core/primitives";
+import { toKernelOutbox } from "../core/kernel-outbox.js";
+import type { KernelOutboxAdapterDeps } from "../core/kernel-outbox.js";
 import type { ContentTypeRepoPort, ContentTypeRevisionInput, IndexProvisionerPort, OutboxPort } from "./write-service.js";
 import type { TeardownIndexProvisionerPort } from "./lifecycle.js";
 import type { ContentTypeListPort } from "./list.js";
@@ -7,7 +7,7 @@ import type { ContentTypeRecord } from "./types.js";
 
 /**
  * @file In-memory adapters for the `content-types` package's write/list ports (port/adapter rule-of-two
- * "one being built now" half). Backs `server/app.ts`'s hermetic test/dev composition AND, until a
+ * "one being built now" half). Backs the host app's `src/server/runtime/composition/app.ts`'s hermetic test/dev composition AND, until a
  * real SQLite adapter is built for this domain (a disclosed gap — see this dispatch's handoff),
  * `server/deps.ts`'s real running-server composition too — the same precedent `mediaRepo`/
  * `transformDefinitionRepo`/`memberRepo` already establish in both those files (in-process,
@@ -71,32 +71,8 @@ export class NoopContentTypeIndexProvisioner implements IndexProvisionerPort, Te
 
 /** Adapts a real `core/ports` `OutboxPort` (`{name,payload}` -> full `DomainEvent`) into the
  * narrower `{enqueue({name,payload})}` shape this package's write-service/lifecycle modules
- * declare locally (mirrors their own "no shared import, kept decoupled" convention). */
-export function toContentTypeOutbox(deps: {
-  outbox: {
-    enqueue(event: {
-      id: string;
-      workspaceId: string;
-      name: string;
-      occurredAt: string;
-      payload: Record<string, unknown>;
-    }): Promise<void>;
-  };
-  clock: Clock;
-  idGen: { newId(): string };
-  /** Required — see `entries/repo.memory.ts`'s `toEntryOutbox` for the full rationale (workspace
-   * tenant boundary, NOT NULL in persistent adapters, previously under-declared and omitted). */
-  workspaceId: string;
-}): OutboxPort {
-  return {
-    enqueue: async (event) => {
-      await deps.outbox.enqueue({
-        id: deps.idGen.newId(),
-        workspaceId: deps.workspaceId,
-        name: event.name,
-        occurredAt: kernelNowIso({ clock: deps.clock }),
-        payload: event.payload,
-      });
-    },
-  };
+ * declare locally (mirrors their own "no shared import, kept decoupled" convention).
+ * See `core/kernel-outbox.ts` for the tenant-boundary rationale. */
+export function toContentTypeOutbox(deps: KernelOutboxAdapterDeps): OutboxPort {
+  return toKernelOutbox(deps);
 }

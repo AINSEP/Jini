@@ -1,3 +1,4 @@
+import { webcrypto } from "node:crypto";
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { validateFieldDescriptors, validateSubmissionPayload } from "../forms.js";
@@ -6,7 +7,8 @@ import { submitForm, type SubmitFormDeps } from "../submit-service.js";
 import { createSubmissionAttempts, FORM_ATTEMPT_FIELD, submissionAttemptKey } from "../submission-attempts.js";
 import { InMemoryFormDefinitionRepo, InMemoryFormSubmissionRepo } from "../repo.memory.js";
 import { toSubmissionRecord, toSubmissionRow, toDefinitionRecord, toDefinitionRow } from "../sql/repo.rows.js";
-import type { FieldDescriptor, FormDefinitionRecord, FormFileInput, FormFileReference } from "../types.js";
+import type { FieldDescriptor, FormDefinitionRecord, FormFileInput } from "../types.js";
+import type { FormFileReference } from "@jini-ai/core/contracts/forms";
 import { FormSubmissionValidationError } from "../errors.js";
 const png = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10, 1]);
 const file: FormFileInput = { filename: "photo.png", contentType: "image/png", bytes: png };
@@ -16,7 +18,7 @@ const detectContentType = ({ bytes }: { bytes: Uint8Array }) => bytes[0] === 137
 function fixture() {
   const definitionRepo = new InMemoryFormDefinitionRepo(); const submissionRepo = new InMemoryFormSubmissionRepo();
   const stored: FormFileInput[] = []; const discarded: FormFileReference[] = []; let id = 0; let events = 0;
-  const deps: SubmitFormDeps = { definitionRepo, submissionRepo, clock: { nowMs: () => 0 }, idGen: { newId: () => `id-${++id}` }, rateLimiter: { check: async () => ({ allowed: true }) }, outbox: { enqueue: async () => { events++; } }, dispatcher: { dispatch: async () => {} }, logger: { warn() {} },
+  const deps: SubmitFormDeps = { definitionRepo, submissionRepo, clock: { nowMs: () => 0 }, crypto: webcrypto, idGen: { newId: () => `id-${++id}` }, rateLimiter: { check: async () => ({ allowed: true }) }, outbox: { enqueue: async () => { events++; } }, dispatcher: { dispatch: async () => {} }, logger: { warn() {} },
     files: { detectContentType, store: async ({ file }) => { stored.push(file); return { mediaId: "asset", filename: file.filename, contentType: file.contentType, byteSize: file.bytes.byteLength }; }, discard: async ({ reference }) => { discarded.push(reference); } }, transaction: (work) => submissionRepo.transaction(work),
   };
   return { deps, stored, discarded, events: () => events, input: { workspaceId: "ws", slug: "upload", sourceIp: "127.0.0.1", body: { attachment: file } } };

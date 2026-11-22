@@ -32,7 +32,7 @@ import type { ActorIdentityInput, EntryRecord, EntryStatus, OwningContentType } 
  * How it relates to the project:
  * `deps.watermark` and the actor-identity delegation fields mirror
  * `features/content-types/write-service.ts`'s identical optional/additive shape —
- * `watermark-stamping.integration.test.ts` exercises both packages side by side to prove they
+ * `packages/cms/src/content-types/__tests__/watermark-stamping.test.ts` exercises both packages side by side to prove they
  * share the same chokepoint discipline.
  *
  * Architectural role:
@@ -45,7 +45,7 @@ import type { ActorIdentityInput, EntryRecord, EntryStatus, OwningContentType } 
  * `entityType`/`entityId` are threaded through so `createEntry`/`resolveExistingEntryForTransition`
  * below can pass `entityType: "entry"` to `deps.authorize()` — matching every fronting HTTP route's
  * own `entityType: "entry"` pre-check exactly. Before this, this chokepoint's calls omitted
- * `entityType` entirely, so `identity/authorize.ts`'s evaluator (`resourceType != null &&
+ * `entityType` entirely, so `packages/user-management/src/server/authorize.ts`'s evaluator (`resourceType != null &&
  * resourceType !== context.entityType` never matches a missing `entityType`) denied a principal
  * holding ONLY an entry-scoped grant with `resource_scope_mismatch`, even though the route's own
  * pre-check — and any owner/unscoped grant — allowed the identical request. This chokepoint is also
@@ -381,7 +381,7 @@ export interface UpdateEntryRequired {
  * @overallScore 100
  * See docs/decisions/DR-002-content-lifecycle-and-cleanup.md.
  */
-export async function updateEntry(required: UpdateEntryRequired): Promise<Result<{ entry: EntryRecord }, Error>> {
+export async function updateEntry(required: UpdateEntryRequired, optional: { signal?: AbortSignal | undefined } = {}): Promise<Result<{ entry: EntryRecord }, Error>> {
   const { deps, input } = required;
 
   const resolved = await resolveExistingEntryForTransition(deps, input);
@@ -401,8 +401,10 @@ export async function updateEntry(required: UpdateEntryRequired): Promise<Result
     version: current.version + 1,
   };
 
-  const conflict = await runVersionedWrite(deps.entryRepo, () =>
-    persistEntryWrite({ deps, entry: updated, op: "update", input, recordedAt: now }, { saveOptions: { expectedVersion: input.expectedVersion }, onWritten: deps.onWritten }),
+  const conflict = await runVersionedWrite(deps.entryRepo, () => {
+    optional.signal?.throwIfAborted();
+    return persistEntryWrite({ deps, entry: updated, op: "update", input, recordedAt: now }, { saveOptions: { expectedVersion: input.expectedVersion }, onWritten: deps.onWritten });
+  },
   );
   if (conflict) return { ok: false, error: conflict };
 

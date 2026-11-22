@@ -155,8 +155,8 @@ describe('L039a runtime option pins', () => {
     } });
     try {
       expect(base.agentRuntime.hostEnv).toEqual(hostEnv);
-      expect(base.agentRuntime.piGracefulShutdownMs).toBe(0);
-      expect(base.agentRuntime.codexDisablePlugins).toBe(codexDisablePlugins ?? false);
+      expect(base.agentRuntime.pi.gracefulShutdownMs).toBe(0);
+      expect(base.agentRuntime.codex.disablePlugins).toBe(codexDisablePlugins ?? false);
     } finally { await base.close(); }
   });
   it('shares a supplied runtime state and disposes it only once', async () => {
@@ -204,7 +204,7 @@ it.each([false, true])('preserves a feature-connection boot error while closing 
 
 describe('createJiniKernelBase aiTrace option', () => {
   it('traces runs through the kernel lifecycle when a sink is configured, and leaves it unwrapped otherwise', async () => {
-    const { createRecordingAiTraceSink } = await import('@jini-ai/agent-runtime');
+    const { createRecordingAiTraceSink } = await import('@jini-ai/core/contracts/ai-trace');
     const sink = createRecordingAiTraceSink();
     const traced = await createJiniKernelBase({ storage: { kind: 'memory' }, aiTrace: { sink, capture: 'off' } });
     const plain = await createJiniKernelBase({ storage: { kind: 'memory' } });

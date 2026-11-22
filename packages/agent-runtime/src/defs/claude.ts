@@ -14,7 +14,12 @@ import { buildClaudeMcpConfigArgs, DEFAULT_MODEL_OPTION } from './shared.js';
 import { loadMmdRouteModels } from '../mmd-routes.js';
 import { loadAnthropicLiveModels, mergeLiveModels } from '../anthropic-live-models.js';
 import { loadClaudeCodeModels } from '../claude-code-models.js';
-import type { RuntimeAgentDef, RuntimeBuildOptions, RuntimeCapabilityMap, RuntimeContext } from '../types.js';
+import type {
+  RuntimeAgentDef,
+  RuntimeBuildOptions,
+  RuntimeCapabilityMap,
+  RuntimeContext,
+} from '@jini-ai/core/contracts/agents';
 
 /**
  * The levels `claude --effort` accepts, as the CLI itself reports them when
@@ -64,6 +69,7 @@ const CLAUDE_FALLBACK_MODELS = [
   { id: 'claude-sonnet-5-5', label: 'claude-sonnet-5-5' },
   { id: 'claude-haiku-5-5', label: 'claude-haiku-5-5' },
   { id: 'claude-haiku-4-5-20251001', label: 'claude-haiku-4-5-20251001' },
+  { id: 'claude-fable-5-2', label: 'claude-fable-5-2' },
   { id: 'claude-fable-5-1', label: 'claude-fable-5-1' },
   { id: 'claude-fable-5', label: 'claude-fable-5' },
   { id: 'claude-opus-5', label: 'claude-opus-5' },
@@ -146,7 +152,7 @@ function claudeLaunchPolicy({ options, caps, extraAllowedDirs, imagePaths, runti
 }
 
 export const claudeAgentDef = {
-  ...createAgentModelDiscovery('claude', { fallbackModels: (): readonly import('../types.js').RuntimeModelOption[] => claudeAgentDef.fallbackModels }),
+  ...createAgentModelDiscovery('claude', { fallbackModels: (): readonly import('@jini-ai/core/contracts/agents').RuntimeModelOption[] => claudeAgentDef.fallbackModels }),
     id: 'claude',
   subagentStartHook: true,
     supportsNativeToolAccess: true,
@@ -213,7 +219,7 @@ export const claudeAgentDef = {
         loadAnthropicLiveModels({ env, fallbackModels: CLAUDE_FALLBACK_MODELS }),
       ]);
       if (!fromCli) return fromApi;
-      return fromApi ? mergeLiveModels(fromCli, fromApi) : fromCli;
+      return fromApi ? mergeLiveModels({ fallback: fromCli, live: fromApi }) : fromCli;
     },
     // `claude --effort <level>`. The set differs from codex's on both ends — it
     // has `max` and has no `none`/`minimal` — so it is spelled out rather than
@@ -265,18 +271,18 @@ export const claudeAgentDef = {
         // same `capabilityFlags` probe above — moving the *call site* changed nothing about the gate
         // itself.
         // Continue Claude's own CLI session across turns (see `sessionArgs`).
-        ...sessionArgs(runtimeContext),
+        ...sessionArgs({ runtimeContext }),
         // The permission mode is unchanged for folder-limited runs: blockReadsOutsideWorkingDirectories
         // and the Bash sandbox hold in every mode, including bypassPermissions (verified live on
         // 2.1.309, 2026-10-23). dontAsk would deny Edit/Write and every MCP tool, because the CLI skips
         // an unanchored `--allowedTools '*'` (permissions docs, "Tool name wildcards").
-        ...permissionModeArgs(options),
+        ...permissionModeArgs({ options }),
         // Explicit `--strict-mcp-config --mcp-config <path>` instead of relying on Claude Code's
         // auto-discovery of `.mcp.json` from cwd. Shared with every other `'claude-mcp-json'` def —
         // see `buildClaudeMcpConfigArgs`'s own doc for why explicit, why strict, and why this is one
         // implementation rather than a copy per def. A no-op (`[]`) whenever the caller staged no
         // file, so a host that never configured MCP injection sees no argv change.
-        ...buildClaudeMcpConfigArgs(runtimeContext, options),
+        ...buildClaudeMcpConfigArgs({ runtimeContext }, options),
         ...claudeToolPolicyArgs(options),
         ...claudeSettingSourcesArgs({ options, caps }),
         // See `RuntimeBuildOptions.settings`. Not probe-gated: `--settings` long predates `--setting-sources`.

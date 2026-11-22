@@ -23,27 +23,40 @@ import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
 
+import type { PtyProcess, PtySpawnOptions, PtySpawn, TerminalEventData, TerminalEventRecord, TerminalSseSink, TerminalSessionState, TerminalSession, CreateTerminalOptions, CreateTerminalServiceOptions, TerminalService } from "@jini-ai/core/contracts/runtime";
 const require = createRequire(import.meta.url);
 
-/** A single running PTY child process, however the caller's backend spawns it. */
-export interface PtyProcess {
-  onData(cb: (chunk: string) => void): void;
-  onExit(cb: (event: { exitCode: number; signal?: number }) => void): void;
-  write(input: string): void;
-  resize(cols: number, rows: number): void;
-  kill(signal?: string): void;
-}
 
-export interface PtySpawnOptions {
-  name: string;
-  cols: number;
-  rows: number;
-  cwd: string;
-  env: Record<string, string>;
-}
 
-/** Spawns a PTY. The caller supplies this — e.g. a thin wrapper around `node-pty`'s `spawn`. */
-export type PtySpawn = (shell: string, args: string[], options: PtySpawnOptions) => PtyProcess;
+
+/** A fresh running session record: empty replay buffer, no clients, nothing pending to flush. */
+function newInternalSession(
+  { id, createOptions, shell, cols, rows, pty, now }: {
+    id: string; createOptions: CreateTerminalOptions; shell: string; cols: number; rows: number; pty: InternalSession['pty']; now: number;
+  },
+): InternalSession {
+  return {
+    id,
+    projectId:
+      typeof createOptions.projectId === 'string' && createOptions.projectId ? createOptions.projectId : null,
+    cwd: createOptions.cwd,
+    shell,
+    cols,
+    rows,
+    status: 'running',
+    createdAt: now,
+    updatedAt: now,
+    exitCode: null,
+    signal: null,
+    events: [],
+    nextEventId: 1,
+    clients: new Set(),
+    pty,
+    bufferedBytes: 0,
+    pendingData: '',
+    flushTimer: null,
+  };
+}
 
 /**
  * Resolves the candidate paths to node-pty's `spawn-helper` binary. On
@@ -98,7 +111,7 @@ function resolveNodePtyEntryPoint(specifier: string): string {
  *
  * @param candidatePaths - Defaults to {@link spawnHelperCandidatePaths}'s result.
  */
-export function ensureSpawnHelperExecutable(candidatePaths: string[] = spawnHelperCandidatePaths()): void {
+export function ensureSpawnHelperExecutable(_required: Record<string, never>, { candidatePaths = spawnHelperCandidatePaths() }: { candidatePaths?: string[] | undefined } = {}): void {
   for (const file of candidatePaths) {
     try {
       const stat = fs.statSync(file);
@@ -117,8 +130,8 @@ export function ensureSpawnHelperExecutable(candidatePaths: string[] = spawnHelp
  * win32), and finally a per-platform default.
  */
 export function resolveShell(
-  requested?: string | null,
-  options: { platform?: NodeJS.Platform; env?: NodeJS.ProcessEnv } = {},
+  _required: Record<string, never>,
+  { requested, ...options }: { requested?: string | null | undefined; platform?: NodeJS.Platform; env?: NodeJS.ProcessEnv | undefined } = {},
 ): string {
   const explicit = typeof requested === 'string' && requested.trim() ? requested.trim() : null;
   if (explicit) return explicit;
@@ -140,34 +153,14 @@ const TERMINAL_STATUSES = new Set(['exited']);
 const DEFAULT_COLS = 80;
 const DEFAULT_ROWS = 24;
 
-export type TerminalEventData = { data: string } | { code: number | null; signal: string | null };
 
-export interface TerminalEventRecord {
-  id: number;
-  event: 'data' | 'exit';
-  data: TerminalEventData;
-  timestamp: number;
-  byteLength: number;
-}
 
-/** A minimal push sink a transport adapts its live connection to (e.g. SSE). */
-export interface TerminalSseSink {
-  send(event: string, data: TerminalEventData, id: number): void;
-  end(): void;
-}
 
-export interface TerminalSession {
-  readonly id: string;
-  readonly projectId: string | null;
-  readonly cwd: string;
-  readonly shell: string;
-  readonly cols: number;
-  readonly rows: number;
-  readonly status: 'running' | 'exited';
-  readonly createdAt: number;
-  readonly updatedAt: number;
-  readonly exitCode: number | null;
-  readonly signal: string | null;
+
+
+/** The grouping-key-free session fields, copied field by field so a richer internal record never leaks extra keys. */
+export function terminalSessionState({ session }: { session: TerminalSessionState }, _optional: Record<string, never> = {}): TerminalSessionState {
+  return { id: session.id, cwd: session.cwd, shell: session.shell, cols: session.cols, rows: session.rows, status: session.status, createdAt: session.createdAt, updatedAt: session.updatedAt, exitCode: session.exitCode, signal: session.signal };
 }
 
 interface InternalSession {
@@ -192,61 +185,11 @@ interface InternalSession {
 }
 
 function toPublicSession(session: InternalSession): TerminalSession {
-  return {
-    id: session.id,
-    projectId: session.projectId,
-    cwd: session.cwd,
-    shell: session.shell,
-    cols: session.cols,
-    rows: session.rows,
-    status: session.status,
-    createdAt: session.createdAt,
-    updatedAt: session.updatedAt,
-    exitCode: session.exitCode,
-    signal: session.signal,
-  };
+  return { ...terminalSessionState({ session }), projectId: session.projectId };
 }
 
-export interface CreateTerminalOptions {
-  projectId?: string | null;
-  cwd: string;
-  cols?: number;
-  rows?: number;
-  shell?: string | null;
-}
 
-export interface CreateTerminalServiceOptions {
-  /** Lazily loads the PTY spawner. Concurrent `create()` calls share one attempt; success is cached, failure permits retry. */
-  loadSpawnPty: () => Promise<PtySpawn>;
-  /** Count backstop for the per-session output ring-buffer; `maxBufferBytes` is the real ceiling. */
-  maxEvents?: number;
-  /** UTF-8 byte ceiling for retained reattach scrollback (evicted oldest-first; the newest event is always kept). */
-  maxBufferBytes?: number;
-  /** Trailing scrollback kept once a shell exits, so an unreaped session doesn't pin memory. */
-  exitTailBytes?: number;
-  /** Coalesces PTY output for roughly one animation frame before fanning out one `data` event. */
-  flushIntervalMs?: number;
-  /** Flushes immediately once buffered output crosses this size, bypassing the frame timer. */
-  flushThresholdBytes?: number;
-  /** Drops an exited session from the registry after this idle window. */
-  ttlMs?: number;
-  /** Grace window given to children to exit during {@link TerminalService.shutdownActive}. */
-  shutdownGraceMs?: number;
-}
 
-export interface TerminalService {
-  create(options: CreateTerminalOptions): Promise<TerminalSession>;
-  get(id: string): TerminalSession | null;
-  list(filter?: { projectId?: string | null }): TerminalSession[];
-  write(id: string, input: string): boolean;
-  resize(id: string, cols: number, rows: number): boolean;
-  kill(id: string, signal?: string): boolean;
-  /** Replays scrollback after `lastEventId`, then attaches `sink` for live output if still running. */
-  attach(id: string, lastEventId: number, sink: TerminalSseSink): 'attached' | 'ended' | 'not-found';
-  detach(id: string, sink: TerminalSseSink): void;
-  shutdownActive(options?: { graceMs?: number }): Promise<void>;
-  isTerminal(status: string): boolean;
-}
 
 /**
  * Builds an in-memory terminal session manager. See the module docblock for
@@ -265,6 +208,31 @@ export function createTerminalService(options: CreateTerminalServiceOptions): Te
   } = options;
 
   const sessions = new Map<string, InternalSession>();
+  const loadPty = createPtyLoader(loadSpawnPty);
+  const { emit, flushData } = createTerminalEventBuffer(maxBufferBytes, maxEvents);
+  const finish = createTerminalFinisher({ sessions, flushData, emit }, { ttlMs, exitTailBytes });
+  const create = createTerminalSessionCreator({ sessions, loadPty, flushData, finish }, { flushThresholdBytes, flushIntervalMs });
+  const { get, list, attach, detach } = createTerminalSessionReaders(sessions);
+  const { write, resize, kill } = createTerminalSessionControls(sessions, finish);
+  const shutdownActive = createTerminalShutdown(sessions, finish, shutdownGraceMs);
+
+  return {
+    create,
+    get,
+    list,
+    write,
+    resize,
+    kill,
+    attach,
+    detach,
+    shutdownActive,
+    isTerminal(status: string) {
+      return TERMINAL_STATUSES.has(status);
+    },
+  };
+}
+
+function createPtyLoader(loadSpawnPty: CreateTerminalServiceOptions['loadSpawnPty']) {
   let cachedSpawnPty: Promise<PtySpawn> | null = null;
 
   const loadPty = (): Promise<PtySpawn> => {
@@ -277,12 +245,10 @@ export function createTerminalService(options: CreateTerminalServiceOptions): Te
     return cachedSpawnPty;
   };
 
-  const scheduleCleanup = (session: InternalSession) => {
-    setTimeout(() => {
-      if (TERMINAL_STATUSES.has(session.status)) sessions.delete(session.id);
-    }, ttlMs).unref?.();
-  };
+  return loadPty;
+}
 
+function createTerminalEventBuffer(maxBufferBytes: number, maxEvents: number) {
   const recordByteLength = (data: TerminalEventData): number => ('data' in data ? Buffer.byteLength(data.data, 'utf8') : 0);
 
   const trimBuffer = (session: InternalSession) => {
@@ -327,6 +293,16 @@ export function createTerminalService(options: CreateTerminalServiceOptions): Te
     emit(session, 'data', { data: chunk });
   };
 
+  return { emit, flushData };
+}
+
+function createTerminalFinisher({ sessions, flushData, emit }: { sessions: Map<string, InternalSession>; flushData: (session: InternalSession) => void; emit: ReturnType<typeof createTerminalEventBuffer>['emit'] }, { ttlMs, exitTailBytes }: { ttlMs: number; exitTailBytes: number }) {
+  const scheduleCleanup = (session: InternalSession) => {
+    setTimeout(() => {
+      if (TERMINAL_STATUSES.has(session.status)) sessions.delete(session.id);
+    }, ttlMs).unref?.();
+  };
+
   const finish = (session: InternalSession, code: number | null, signal: string | null) => {
     if (TERMINAL_STATUSES.has(session.status)) return;
     flushData(session);
@@ -353,13 +329,17 @@ export function createTerminalService(options: CreateTerminalServiceOptions): Te
     scheduleCleanup(session);
   };
 
+  return finish;
+}
+
+function createTerminalSessionCreator({ sessions, loadPty, flushData, finish }: { sessions: Map<string, InternalSession>; loadPty: () => Promise<PtySpawn>; flushData: (session: InternalSession) => void; finish: ReturnType<typeof createTerminalFinisher> }, { flushThresholdBytes, flushIntervalMs }: { flushThresholdBytes: number; flushIntervalMs: number }) {
   const create = async (createOptions: CreateTerminalOptions): Promise<TerminalSession> => {
     const spawnPty = await loadPty();
     const now = Date.now();
     const id = randomUUID();
     const cols = clampDimension(createOptions.cols, DEFAULT_COLS);
     const rows = clampDimension(createOptions.rows, DEFAULT_ROWS);
-    const shell = resolveShell(createOptions.shell);
+    const shell = resolveShell({}, { requested: createOptions.shell });
     const pty = spawnPty(shell, [], {
       name: 'xterm-color',
       cols,
@@ -367,27 +347,7 @@ export function createTerminalService(options: CreateTerminalServiceOptions): Te
       cwd: createOptions.cwd,
       env: { ...process.env } as Record<string, string>,
     });
-    const session: InternalSession = {
-      id,
-      projectId:
-        typeof createOptions.projectId === 'string' && createOptions.projectId ? createOptions.projectId : null,
-      cwd: createOptions.cwd,
-      shell,
-      cols,
-      rows,
-      status: 'running',
-      createdAt: now,
-      updatedAt: now,
-      exitCode: null,
-      signal: null,
-      events: [],
-      nextEventId: 1,
-      clients: new Set(),
-      pty,
-      bufferedBytes: 0,
-      pendingData: '',
-      flushTimer: null,
-    };
+    const session = newInternalSession({ id, createOptions, shell, cols, rows, pty, now });
     sessions.set(id, session);
     pty.onData((chunk: string) => {
       session.pendingData += chunk;
@@ -410,6 +370,10 @@ export function createTerminalService(options: CreateTerminalServiceOptions): Te
     return toPublicSession(session);
   };
 
+  return create;
+}
+
+function createTerminalSessionReaders(sessions: Map<string, InternalSession>) {
   const get = (id: string): TerminalSession | null => {
     const session = sessions.get(id);
     return session ? toPublicSession(session) : null;
@@ -449,6 +413,10 @@ export function createTerminalService(options: CreateTerminalServiceOptions): Te
     sessions.get(id)?.clients.delete(sink);
   };
 
+  return { get, list, attach, detach };
+}
+
+function createTerminalSessionControls(sessions: Map<string, InternalSession>, finish: ReturnType<typeof createTerminalFinisher>) {
   const write = (id: string, input: string): boolean => {
     const session = sessions.get(id);
     if (!session || TERMINAL_STATUSES.has(session.status)) return false;
@@ -489,6 +457,10 @@ export function createTerminalService(options: CreateTerminalServiceOptions): Te
     }
   };
 
+  return { write, resize, kill };
+}
+
+function createTerminalShutdown(sessions: Map<string, InternalSession>, finish: ReturnType<typeof createTerminalFinisher>, shutdownGraceMs: number) {
   const shutdownActive = async ({ graceMs = shutdownGraceMs }: { graceMs?: number } = {}): Promise<void> => {
     const active = Array.from(sessions.values()).filter((session) => !TERMINAL_STATUSES.has(session.status));
     for (const session of active) {
@@ -507,20 +479,7 @@ export function createTerminalService(options: CreateTerminalServiceOptions): Te
     }
   };
 
-  return {
-    create,
-    get,
-    list,
-    write,
-    resize,
-    kill,
-    attach,
-    detach,
-    shutdownActive,
-    isTerminal(status: string) {
-      return TERMINAL_STATUSES.has(status);
-    },
-  };
+  return shutdownActive;
 }
 
 // Map the numeric signal node-pty reports on exit back to a name. Only

@@ -1,9 +1,9 @@
-import { Button, TextField, Select, Notice, ConfirmDialog, Spinner } from '@jini-ai/ui-kit/react';
-import type { TabViewProps } from '../../../core/react/bind-react.js';
+import { Button, TextField, Select, Notice, ConfirmDialog, Spinner } from '../../../react/kit.js';
+import type { TabViewProps } from '@jini-ai/core/contracts/admin-module';
 import { useAccessTokensTab } from '../hooks/AccessTokensTab.hooks.js';
 import { CredentialEditor } from '../components/CredentialEditor.js';
-export function AccessTokensTab(props: TabViewProps, _optional = {}) {
-  const vm = useAccessTokensTab(props);
+export function AccessTokensTab({ useAccessTokensTabHook = useAccessTokensTab, ...props }: TabViewProps & { useAccessTokensTabHook?: typeof useAccessTokensTab }) {
+  const vm = useAccessTokensTabHook(props);
   return vm.denied ? <Notice tone="danger">Permission denied</Notice> : <section aria-label="Access tokens">
     <TextField label="Search tokens" type="search" value={vm.query} onValueChange={vm.onQuery} /><Select label="Category" value={vm.category} options={vm.categories} onValueChange={vm.onCategory} />
     <p role="status">{vm.matched} of {vm.total} tokens saved</p><Button onPress={vm.reload} disabled={vm.saving}>Reload</Button>

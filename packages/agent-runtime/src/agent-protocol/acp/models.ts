@@ -9,7 +9,7 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { createJsonLineStream } from '../core/index.js';
 import type { JsonRpcId, UnknownRecord, TimerHandle } from './types.js';
-import { ACP_PROTOCOL_VERSION, DEFAULT_TIMEOUT_MS, MODEL_CONFIG_OPTION_IDS } from './constants.js';
+import { ACP_PROTOCOL_VERSION, DEFAULT_TIMEOUT_MS, MODEL_CONFIG_OPTION_IDS, unsupportedAcpProtocolVersionMessage } from './constants.js';
 import { errorMessage, resolveAcpTimeoutMs, asObject } from './json.js';
 import { sendRpc, rpcErrorMessage } from './rpc.js';
 import { buildAcpSessionNewParams } from './session-params.js';
@@ -47,7 +47,7 @@ export interface DetectAcpModelsOptions {
  * @param value - A raw field value from an ACP config option object.
  * @returns A normalised token string, or `''` when `value` is not a string.
  */
-export function normalizeConfigOptionToken(value: unknown): string {
+export function normalizeConfigOptionToken({ value }: { value: unknown }, _optional: Record<string, never> = {}): string {
   return typeof value === 'string'
     ? value.trim().toLowerCase().replace(/[\s_-]+/g, '')
     : '';
@@ -60,13 +60,13 @@ export function normalizeConfigOptionToken(value: unknown): string {
  * @param option - A single item from the `configOptions` array.
  * @param configId - The trimmed `id` field of that item.
  */
-export function isModelConfigOption(option: UnknownRecord, configId: string): boolean {
-  const category = normalizeConfigOptionToken(option.category);
+export function isModelConfigOption({ option, configId }: { option: UnknownRecord; configId: string }, _optional: Record<string, never> = {}): boolean {
+  const category = normalizeConfigOptionToken({ value: option.category });
   if (category === 'model') return true;
-  const id = normalizeConfigOptionToken(configId);
+  const id = normalizeConfigOptionToken({ value: configId });
   if (id === 'model') return true;
   if (category) return false;
-  const name = normalizeConfigOptionToken(option.name);
+  const name = normalizeConfigOptionToken({ value: option.name });
   return MODEL_CONFIG_OPTION_IDS.has(id) || name === 'model';
 }
 /**
@@ -77,7 +77,7 @@ export function isModelConfigOption(option: UnknownRecord, configId: string): bo
  * @param configOptions - The raw `result.configOptions` value from a session response.
  * @returns A parsed `AcpModelConfigOption` or `null` when absent.
  */
-export function findModelConfigOption(configOptions: unknown): AcpModelConfigOption | null {
+export function findModelConfigOption({ configOptions }: { configOptions: unknown }, _optional: Record<string, never> = {}): AcpModelConfigOption | null {
   const options = Array.isArray(configOptions) ? configOptions : [];
   for (const rawOption of options) {
     const parsed = parseModelConfigOption(rawOption);
@@ -85,6 +85,20 @@ export function findModelConfigOption(configOptions: unknown): AcpModelConfigOpt
   }
   return null;
 }
+export function findEffortConfigOption({ configOptions }: { configOptions: unknown }, _optional: Record<string, never> = {}): { configId: string; values: string[] } | null {
+  const options = Array.isArray(configOptions) ? configOptions : [];
+  for (const rawOption of options) {
+    const option = asObject({ value: rawOption });
+    if (option?.category !== 'thought_level' || typeof option.id !== 'string') continue;
+    const values = Array.isArray(option.options) ? option.options.flatMap((rawValue: unknown) => {
+      const value = asObject({ value: rawValue })?.value;
+      return typeof value === 'string' ? [value] : [];
+    }) : [];
+    return { configId: option.id, values };
+  }
+  return null;
+}
+
 /** Returns the trimmed string when `value` is a string, else `''`. */
 function trimmedOrEmpty(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
@@ -92,13 +106,13 @@ function trimmedOrEmpty(value: unknown): string {
 /** Parses one `configOptions` entry, returning it only when it is a
  * select-type (or untyped) model-selection option with a non-blank id. */
 function parseModelConfigOption(rawOption: unknown): AcpModelConfigOption | null {
-  const option = asObject(rawOption);
+  const option = asObject({ value: rawOption });
   if (!option) return null;
   const configId = trimmedOrEmpty(option.id);
   if (!configId) return null;
   const type = trimmedOrEmpty(option.type);
   if (type && type !== 'select') return null;
-  if (!isModelConfigOption(option, configId)) return null;
+  if (!isModelConfigOption({ option, configId })) return null;
   return {
     configId,
     currentValue: trimmedOrEmpty(option.currentValue) || null,
@@ -141,7 +155,7 @@ function configOptionEntry(value: UnknownRecord): ModelEntry {
 }
 /** Reads a legacy `models.availableModels` entry. */
 function legacyModelEntry(model: unknown): ModelEntry {
-  const obj = asObject(model);
+  const obj = asObject({ value: model });
   return { id: trimmedOrEmpty(obj?.modelId), name: trimmedOrEmpty(obj?.name) };
 }
 /**
@@ -155,14 +169,13 @@ function legacyModelEntry(model: unknown): ModelEntry {
  * @returns `{ currentModelId, models }` or `null` when no config option is found.
  */
 export function normalizeModelConfigOptions(
-  configOptions: unknown,
-  defaultModelOption: ModelOption,
+  { configOptions, defaultModelOption }: { configOptions: unknown; defaultModelOption: ModelOption }, _optional: Record<string, never> = {},
 ): { currentModelId: string | null; models: ModelOption[] } | null {
-  const modelConfig = findModelConfigOption(configOptions);
+  const modelConfig = findModelConfigOption({ configOptions });
   if (!modelConfig) return null;
   const entries: ModelEntry[] = [];
   for (const rawValue of modelConfig.values) {
-    const value = asObject(rawValue);
+    const value = asObject({ value: rawValue });
     if (value) entries.push(configOptionEntry(value));
   }
   const models = buildModelOptions({
@@ -185,7 +198,7 @@ export function normalizeModelConfigOptions(
  */
 export function normalizeModels({ models, defaultModelOption }: { models: unknown; defaultModelOption: ModelOption }, { configOptions }: { configOptions?: unknown } = {}
 ): ModelOption[] {
-  const configModels = normalizeModelConfigOptions(configOptions, defaultModelOption);
+  const configModels = normalizeModelConfigOptions({ configOptions, defaultModelOption });
   if (configModels && configModels.models.length > 1) {
     return configModels.models;
   }
@@ -200,7 +213,7 @@ function legacyModelOptions({
   models: unknown;
   defaultModelOption: ModelOption;
 }): ModelOption[] {
-  const modelsObj = asObject(models);
+  const modelsObj = asObject({ value: models });
   const available: unknown[] = Array.isArray(modelsObj?.availableModels) ? modelsObj.availableModels : [];
   const currentId =
     typeof modelsObj?.currentModelId === 'string' ? modelsObj.currentModelId : null;
@@ -213,7 +226,7 @@ function legacyModelOptions({
  *
  * @param code - The `error.code` value from a JSON-RPC error response.
  */
-export function modelSelectionErrorIsRecoverable(code: unknown): boolean {
+export function modelSelectionErrorIsRecoverable({ code }: { code: unknown }, _optional: Record<string, never> = {}): boolean {
   return code === -32603 || code === -32602 || code === -32601 || code === -32002;
 }
 /**
@@ -223,10 +236,10 @@ export function modelSelectionErrorIsRecoverable(code: unknown): boolean {
  *
  * @param result - The parsed `result` object from a session handshake response.
  */
-export function currentModelFromSessionResult(result: UnknownRecord): string | null {
-  const configCurrent = findModelConfigOption(result.configOptions)?.currentValue;
+export function currentModelFromSessionResult({ result }: { result: UnknownRecord }, _optional: Record<string, never> = {}): string | null {
+  const configCurrent = findModelConfigOption({ configOptions: result.configOptions })?.currentValue;
   if (configCurrent) return configCurrent;
-  const models = asObject(result.models);
+  const models = asObject({ value: result.models });
   return typeof models?.currentModelId === 'string' && models.currentModelId.trim()
     ? models.currentModelId.trim()
     : null;
@@ -251,126 +264,185 @@ export function currentModelFromSessionResult(result: UnknownRecord): string | n
  * @returns A promise resolving to the available `ModelOption[]`.
  */
 export async function detectAcpModels(requiredArgs: Pick<DetectAcpModelsOptions, "bin" | "args">, optionalArgs: Omit<DetectAcpModelsOptions, "bin" | "args"> = {}): Promise<ModelOption[]> {
+  const config = resolveProbeConfig({ ...optionalArgs, ...requiredArgs });
+  return await new Promise<ModelOption[]>((resolve, reject) => startProbe({ config, resolve, reject }));
+}
+
+type ProbeConfig = Required<Omit<DetectAcpModelsOptions, 'signal' | 'onSessionResult'>>
+  & { signal: AbortSignal | undefined; onSessionResult: DetectAcpModelsOptions['onSessionResult'] | undefined }
+  & { effectiveTimeoutMs: number };
+
+/** Mutable state of one in-flight model probe, shared by its handlers. */
+interface ProbeRun {
+  config: ProbeConfig;
+  child: ChildProcessWithoutNullStreams;
+  resolve: (value: ModelOption[]) => void;
+  reject: (error: Error) => void;
+  settled: boolean;
+  closed: boolean;
+  stderrBuf: string;
+  stdoutBytes: number;
+  expectedId: number;
+  timer: TimerHandle | null;
+  abort: () => void;
+}
+
+function resolveProbeConfig(options: DetectAcpModelsOptions): ProbeConfig {
   const {
-  bin,
-  args,
-  cwd = process.cwd(),
-  env = process.env,
-  timeoutMs = DEFAULT_TIMEOUT_MS,
-  clientName = 'agent-runtime-detect',
-  clientVersion = 'runtime-adapter',
-  defaultModelOption = { id: 'default', label: 'Default (CLI config)' },
-  signal,
-  onSessionResult,
-  spawnProcess = spawn,
-}: DetectAcpModelsOptions = { ...optionalArgs, ...requiredArgs };
-  const effectiveTimeoutMs = resolveAcpTimeoutMs(env, timeoutMs);
-  return await new Promise<ModelOption[]>((resolve, reject) => {
-    if (signal?.aborted) throw new Error('ACP model detection aborted');
-    const child = spawnProcess(bin, args, {
-      cwd,
-      stdio: ['pipe', 'pipe', 'pipe'],
-      env: { ...env },
-    });
-    child.stdout.setEncoding('utf8');
-    child.stderr.setEncoding('utf8');
+    cwd = process.cwd(),
+    env = process.env,
+    timeoutMs = DEFAULT_TIMEOUT_MS,
+    clientName = 'agent-runtime-detect',
+    clientVersion = 'runtime-adapter',
+    defaultModelOption = { id: 'default', label: 'Default (CLI config)' },
+    spawnProcess = spawn,
+  } = options;
+  return {
+    bin: options.bin, args: options.args, cwd, env, timeoutMs, clientName, clientVersion,
+    defaultModelOption, spawnProcess, signal: options.signal, onSessionResult: options.onSessionResult,
+    effectiveTimeoutMs: resolveAcpTimeoutMs({ env, fallbackMs: timeoutMs }),
+  };
+}
 
-    let settled = false;
-    let closed = false;
-    let stderrBuf = '';
-    let stdoutBytes = 0;
-    let expectedId = 1;
+function finishProbe<T extends ModelOption[] | Error>({ run, fn, value }: {
+  run: ProbeRun;
+  fn: (value: T) => void;
+  value: T;
+}): void {
+  if (run.settled) return;
+  run.settled = true;
+  if (run.timer) clearTimeout(run.timer);
+  run.config.signal?.removeEventListener('abort', run.abort);
+  if (run.closed) fn(value);
+  else finishAcpProbeProcess({ child: run.child, complete: () => fn(value) });
+}
 
-    let timer: TimerHandle | null = null;
-    const finish = <T extends ModelOption[] | Error>(fn: (value: T) => void, value: T) => {
-      if (settled) return;
-      settled = true;
-      if (timer) clearTimeout(timer);
-      signal?.removeEventListener('abort', abort);
-      if (closed) fn(value);
-      else finishAcpProbeProcess({ child, complete: () => fn(value) });
-    };
+function failProbe({ run, message }: { run: ProbeRun; message: string }): void {
+  finishProbe({ run, fn: run.reject, value: new Error(message) });
+}
 
-    const fail = (message: string) => {
-      finish(reject, new Error(message));
-    };
-    const abort = () => fail('ACP model detection aborted');
-    signal?.addEventListener('abort', abort, { once: true });
-    if (signal?.aborted) { abort(); return; }
+function writeProbeRpc(run: ProbeRun, rpc: { id: JsonRpcId; method: string; params: unknown }): void {
+  try {
+    sendRpc({ writable: run.child.stdin, id: rpc.id, method: rpc.method, params: rpc.params });
+  } catch (err) {
+    failProbe({ run, message: `stdin write failed: ${errorMessage({ err })}` });
+  }
+}
 
-    const writeRpc = (id: JsonRpcId, method: string, params: unknown) => {
-      try {
-        sendRpc(child.stdin, id, method, params);
-      } catch (err) {
-        fail(`stdin write failed: ${errorMessage(err)}`);
-      }
-    };
+function handleProbeRpcError({ run, obj, rpcErr }: {
+  run: ProbeRun;
+  obj: UnknownRecord | null;
+  rpcErr: string;
+}): void {
+  // JSON-RPC -32603 "Internal error" during model detection:
+  // If this is for the current expected-id (initialize/session/new),
+  // it's a real probe failure — reject immediately.
+  // Otherwise it's cleanup noise — suppress it.
+  if (asObject({ value: obj?.error })?.code === -32603 && obj?.id !== run.expectedId) return;
+  failProbe({ run, message: rpcErr });
+}
 
-    const handleRpcError = (obj: UnknownRecord | null, rpcErr: string) => {
-      // JSON-RPC -32603 "Internal error" during model detection:
-      // If this is for the current expected-id (initialize/session/new),
-      // it's a real probe failure — reject immediately.
-      // Otherwise it's cleanup noise — suppress it.
-      if (asObject(obj?.error)?.code === -32603 && obj?.id !== expectedId) return;
-      fail(rpcErr);
-    };
-
-    const handleResult = (result: UnknownRecord) => {
-      if (expectedId === 1) {
-        expectedId = 2;
-        writeRpc(2, 'session/new', buildAcpSessionNewParams({ cwd: cwd }));
-        return;
-      }
-      onSessionResult?.(result);
-      const models = normalizeModels({ models: result.models, defaultModelOption: defaultModelOption }, { configOptions: result.configOptions });
-      finish(resolve, models);
-    };
-
-    const parser = createJsonLineStream({ onError: error => fail(error.message), onMessage: ({ message: raw }) => {
-      const obj = asObject(raw);
-      const rpcErr = rpcErrorMessage(raw);
-      if (rpcErr) {
-        handleRpcError(obj, rpcErr);
-        return;
-      }
-      const result = asObject(obj?.result);
-      if (obj?.id !== expectedId || !result) return;
-      handleResult(result);
-    } });
-
-    child.stdout.on('data', (chunk) => {
-      stdoutBytes += Buffer.byteLength(String(chunk), 'utf8');
-      if (stdoutBytes > 8 * 1024 * 1024) { fail('ACP metadata output exceeded its limit'); return; }
-      parser.feed({ chunk: chunk });
-    });
-    child.stdout.on('close', () => parser.flush());
-    child.stdin.on('error', (err) => fail(`stdin error: ${err.message}`));
-    child.stderr.on('data', (chunk) => {
-      stderrBuf = `${stderrBuf}${chunk}`.slice(-16_000);
-    });
-    child.on('error', (err) => fail(`spawn failed: ${err.message}`));
-    child.on('close', (code, signal) => {
-      closed = true;
-      parser.flush();
-      if (!settled) {
-        const errTail = stderrBuf.trim();
-        const suffix = errTail ? ` stderr=${errTail}` : '';
-        fail(`ACP model detection exited code=${code} signal=${signal ?? 'none'}${suffix}`);
-      }
-    });
-
-    if (effectiveTimeoutMs > 0) {
-      timer = setTimeout(() => {
-        fail(`ACP model detection timed out after ${effectiveTimeoutMs}ms`);
-      }, effectiveTimeoutMs);
+function handleProbeResult(run: ProbeRun, result: UnknownRecord): void {
+  const { config } = run;
+  if (run.expectedId === 1) {
+    const message = unsupportedAcpProtocolVersionMessage({ protocolVersion: result.protocolVersion });
+    if (message) {
+      failProbe({ run, message });
+      return;
     }
+    run.expectedId = 2;
+    writeProbeRpc(run, { id: 2, method: 'session/new', params: buildAcpSessionNewParams({ cwd: config.cwd }) });
+    return;
+  }
+  config.onSessionResult?.(result);
+  const models = normalizeModels({ models: result.models, defaultModelOption: config.defaultModelOption }, { configOptions: result.configOptions });
+  finishProbe({ run, fn: run.resolve, value: models });
+}
 
-    writeRpc(1, 'initialize', {
-      protocolVersion: ACP_PROTOCOL_VERSION,
-      clientCapabilities: { terminal: false },
-      clientInfo: { name: clientName, version: clientVersion },
-    });
+function handleProbeMessage({ run, raw }: { run: ProbeRun; raw: unknown }): void {
+  const obj = asObject({ value: raw });
+  const rpcErr = rpcErrorMessage({ raw });
+  if (rpcErr) {
+    handleProbeRpcError({ run, obj, rpcErr });
+    return;
+  }
+  const result = asObject({ value: obj?.result });
+  if (obj?.id !== run.expectedId || !result) return;
+  handleProbeResult(run, result);
+}
+
+type ProbeParser = ReturnType<typeof createJsonLineStream>;
+
+function handleProbeStdout({ run, parser, chunk }: {
+  run: ProbeRun;
+  parser: ProbeParser;
+  chunk: string;
+}): void {
+  run.stdoutBytes += Buffer.byteLength(String(chunk), 'utf8');
+  if (run.stdoutBytes > 8 * 1024 * 1024) { failProbe({ run, message: 'ACP metadata output exceeded its limit' }); return; }
+  parser.feed({ chunk: chunk });
+}
+
+function handleProbeClose({ run, parser, exit }: {
+  run: ProbeRun;
+  parser: ProbeParser;
+  exit: { code: number | null; signal: NodeJS.Signals | null };
+}): void {
+  run.closed = true;
+  parser.flush();
+  if (run.settled) return;
+  const errTail = run.stderrBuf.trim();
+  const suffix = errTail ? ` stderr=${errTail}` : '';
+  failProbe({
+    run,
+    message: `ACP model detection exited code=${exit.code} signal=${exit.signal ?? 'none'}${suffix}`,
   });
+}
+
+function wireProbeListeners(run: ProbeRun): void {
+  const { child } = run;
+  const parser = createJsonLineStream({
+    onMessage: ({ message: raw }) => handleProbeMessage({ run, raw }),
+  }, { onError: error => failProbe({ run, message: error.message }) });
+  child.stdout.on('data', (chunk) => handleProbeStdout({ run, parser, chunk }));
+  child.stdout.on('close', () => parser.flush());
+  child.stdin.on('error', (err) => failProbe({ run, message: `stdin error: ${err.message}` }));
+  child.stderr.on('data', (chunk) => {
+    run.stderrBuf = `${run.stderrBuf}${chunk}`.slice(-16_000);
+  });
+  child.on('error', (err) => failProbe({ run, message: `spawn failed: ${err.message}` }));
+  child.on('close', (code, signal) => handleProbeClose({ run, parser, exit: { code, signal } }));
+}
+
+function startProbe({ config, resolve, reject }: {
+  config: ProbeConfig;
+  resolve: ProbeRun['resolve'];
+  reject: ProbeRun['reject'];
+}): void {
+  if (config.signal?.aborted) throw new Error('ACP model detection aborted');
+  const child = config.spawnProcess(config.bin, config.args, {
+    cwd: config.cwd,
+    stdio: ['pipe', 'pipe', 'pipe'],
+    env: { ...config.env },
+  });
+  child.stdout.setEncoding('utf8');
+  child.stderr.setEncoding('utf8');
+  const run: ProbeRun = {
+    config, child, resolve, reject, settled: false, closed: false, stderrBuf: '', stdoutBytes: 0,
+    expectedId: 1, timer: null, abort: () => failProbe({ run, message: 'ACP model detection aborted' }),
+  };
+  config.signal?.addEventListener('abort', run.abort, { once: true });
+  wireProbeListeners(run);
+  if (config.effectiveTimeoutMs > 0) {
+    run.timer = setTimeout(() => {
+      failProbe({ run, message: `ACP model detection timed out after ${config.effectiveTimeoutMs}ms` });
+    }, config.effectiveTimeoutMs);
+  }
+  writeProbeRpc(run, { id: 1, method: 'initialize', params: {
+    protocolVersion: ACP_PROTOCOL_VERSION,
+    clientCapabilities: { terminal: false },
+    clientInfo: { name: config.clientName, version: config.clientVersion },
+  } });
 }
 
 /**
@@ -427,7 +499,7 @@ export async function detectAcpModelMetadata(requiredArgs: Pick<DetectAcpModelsO
 ): Promise<{ models: ModelOption[]; currentModelId: string | null }> {
   let currentModelId: string | null = null;
   const models = await detectAcpModels(requiredArgs, { ...optionalArgs, onSessionResult: (result) => {
-    currentModelId = currentModelFromSessionResult(result);
+    currentModelId = currentModelFromSessionResult({ result });
     optionalArgs.onSessionResult?.(result);
   } });
   return { models: models.filter((model) => model.id !== 'default').map((model) => {

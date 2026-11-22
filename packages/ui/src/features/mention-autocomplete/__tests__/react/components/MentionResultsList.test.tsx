@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { MentionResultsList } from '../../../react/components/MentionResultsList.js';
-import { I18nProvider } from '../../../../i18n/index.js';
+import { I18nProvider, type useT } from '../../../../i18n/index.js';
 import type { MentionResultGroup } from '../../../rules.js';
 import type { MentionItem } from '../../../types.js';
 import type { ReactNode } from 'react';
@@ -13,6 +13,9 @@ const GROUPS: MentionResultGroup<MentionItem<ReactNode>>[] = [
     items: [{ id: '1', label: 'Alpha', category: 'skills' }],
   },
 ];
+
+/** A translator that is visibly not the key, so the assertion proves the injected hook ran. */
+const useQuotingT: typeof useT = () => (key) => `«${key}»`;
 
 describe('MentionResultsList', () => {
   it('renders each group with a translated section label and its items', () => {
@@ -68,5 +71,10 @@ describe('MentionResultsList', () => {
       </I18nProvider>,
     );
     expect(screen.getByText('Compétences')).toBeInTheDocument();
+  });
+
+  it('renders the translator supplied through useTHook', () => {
+    render(<MentionResultsList groups={[]} hasResults={false} query="zzz" selectedIds={new Set()} onPick={vi.fn()} useTHook={useQuotingT} />);
+    expect(screen.getByText('«No results for "{query}".»')).toBeInTheDocument();
   });
 });

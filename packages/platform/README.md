@@ -61,9 +61,9 @@ need a `PtySpawn` implementation supplied by the caller — this package defines
 ```ts
 import { waitForHttpOk, pathContains, spawnBackgroundProcess, LocalBlobStorage } from '@jini-ai/platform';
 
-await waitForHttpOk('http://127.0.0.1:4317/api/daemon/status', { timeoutMs: 15000 });
+await waitForHttpOk({ url: 'http://127.0.0.1:4317/api/daemon/status' }, { timeoutMs: 15000 });
 
-if (!pathContains('/workspace/project', requestedPath)) {
+if (!pathContains({ root: '/workspace/project', target: requestedPath })) {
   throw new Error('path escapes project root');
 }
 
@@ -97,6 +97,13 @@ The package also exposes `./http/guarded`, `./mail`, `./mail/smtp`,
 `./fs/guarded-reader`, `./fs/durable-json`, and `./secrets`. New APIs take a required
 object followed by an optional object. Application identity and policy values belong to the caller.
 
+`@jini-ai/platform/secrets/root-key` (Node) exports the pure provisioning table
+`planSiteKeyEnsure`, the payload-preserving `decideLocalSiteKeyEnsure`, and the
+`verdictOfCheck`, `verdictOf`, and `matchesFingerprint` helpers. Callers supply the runtime
+mode and resolved material checks; source selection, reads and writes belong to the host.
+
+`@jini-ai/platform/system` (universal) exports `createSystemClock()` (wall `Clock`) and `createRandomUuidGenerator()` (cryptographic `IdGenerator`); Jini packages take these ports as required arguments and hosts pass these adapters.
+
 Email event senders use the universal `@jini-ai/platform/mail/senders` entry (also exported by `/mail`).
 `EmailSender` exposes `listSources`, `describeSource`, `resolveEvent`, and `configureEmail`.
 Each operation authorizes its workspace and principal; the sender owns values, recipients and binding.
@@ -111,6 +118,10 @@ Its result can be frozen in the feature's existing job; missing optional values 
 `mdast-util-to-markdown@2.1.2`, and `mdast-util-gfm-table@2.0.0`. Install all five
 when using that subpath; the other entries do not load them. Existing web consumers that
 relied on transitive installation must add them before upgrading.
+
+`@jini-ai/platform/mail/email-template` (pure email-template renders: `{{field}}` fill-ins, preview and send) loads only `parse5@7.3.0`.
+
+`@jini-ai/platform/mail/email-template-operations` (create/edit/rename/list/get/preview/send-render over a host `EmailTemplateStore` port) loads `parse5@7.3.0` through `./mail/email-template`.
 
 ```sh
 npm install parse5@7.3.0 hast-util-from-parse5@8.0.3 hast-util-to-mdast@10.1.2 mdast-util-to-markdown@2.1.2 mdast-util-gfm-table@2.0.0
@@ -168,8 +179,8 @@ malformed/truncated input. Streamed bytes are counted before decoding, independe
 failed guarded consumption cancels and releases the reader without masking the original error.
 Incoming chunk allocation is controlled by the upstream stream. The text-fetch helper maps timeout
 errors during both headers and body consumption to `FetchTimeoutError`, returns `{ response, text }`,
-and leaves the response metadata available with its body consumed. The existing positional
-`fetchWithTimeout(url, init, { timeoutMs, fetch? })` now accepts transport injection and still returns
+and leaves the response metadata available with its body consumed. The
+`fetchWithTimeout({ url, timeoutMs, fetch? }, { init })` now accepts transport injection and still returns
 the original unconsumed response. Neither function retries.
 
 For retained-byte metadata and optional truncation, use the single-object overload:
@@ -221,6 +232,7 @@ vendor-shaped `NativeSmtpTransport` so the factory adapts the payload once. Poli
 
 | Subpath | API and required host ports/policy |
 | --- | --- |
+| `./secrets/legacy-owner` | `readLegacyOwnerBackup({ envelope, passphrase })` decodes a legacy `jini-owner-store` v1/v2 passphrase backup read-only; `openLegacyOwnerVault({ repo, keyFilePath }, { metaParsers })` is the legacy keyring + authorize policy (owner workspace, no principal, copyable kind; never generates a key) over a host-supplied `VaultRepoPort`; `readLegacyOwnerEntry({ vault, row })` is one decrypt whose every failure is the fixed `OwnerStoreRecoveryError`. Entries are `VaultArchiveEntry`. The SQL reads are `@jini-ai/db/owner-store`; the file wiring is `@jini-ai/server/owner-store`. |
 | `./mail` | `createMailAdapterContext({ credential, kit }, { now, settings })` supplies a live clock and fresh empty settings by default; modules validate opaque per-install settings. |
 | `@jini-ai/analytics` (separate package) | `ingestHit({ input, deps }, { hooks, hash })`, `normalizeIngestContext({ input, dailySalt }, { hash })`, `deriveDailySalt({ rootKeySeed, workspaceId, utcDate, saltContext })`. The host supplies sink/config, host resolution, HKDF context, and privacy bounds. `LocalBufferSink({}, { initialHits })` is process-local. |
 | `@jini-ai/cms/trash` (separate package) | `createTrashService({ repo, adapters, transaction, idGen, entityPolicy }, { retentionDays, ...optional })`, `createTrashSweep({ repo, adapters, transaction, entityPolicy })`, and `startTrashSweeper({ sweep, clock, scheduler, leaseOwner }, optional)`. The host owns authorization, transactions, retention, scheduling, and adapters; follow-up hooks are in argument two. |

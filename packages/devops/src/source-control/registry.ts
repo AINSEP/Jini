@@ -122,7 +122,7 @@ async function loadCatalogItem(required: { item: CatalogItem; args: RegistryLoad
 export async function loadSourceControlProviderRegistry(required: {
   workspaceId: string; descriptorFileName: string; catalog: ProviderCatalogPort; readExtensions: DescriptorExtensionReader;
   describeError(required: { error: unknown }): string;
-}): Promise<SourceControlProviderRegistry> {
+}, _optional: Record<string, never> = {}): Promise<SourceControlProviderRegistry> {
   const packages = [...await required.catalog.list({ workspaceId: required.workspaceId, descriptorFileName: required.descriptorFileName })].sort(byPluginId);
   const into: RegistryAccumulator = { providers: [], refusals: [], switchedOff: new Map<string, string>() };
   for (const item of packages) await loadCatalogItem({ item, args: required, into });
@@ -191,7 +191,7 @@ export function isUnderWorkflowPath(required: { filePath: string }, optional: { 
   return optional.workflowPaths?.some(folder => required.filePath.startsWith(`${folder}/`)) ?? false;
 }
 /** URL origin or undefined for malformed URLs. */
-export function originOf(required: { url: string }): string | undefined {
+export function originOf(required: { url: string }, _optional: Record<string, never> = {}): string | undefined {
   try { return new URL(required.url).origin; } catch { return undefined; }
 }
 /** Exact API-origin match first; a sole provider may serve a self-hosted origin. */

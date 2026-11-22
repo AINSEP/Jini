@@ -1,6 +1,6 @@
 /**
  * @file Best-effort dedupe for the Google Sheets form destination: finds the rows whose
- * `_tovu_submission_id` cell holds a submission id, by reading that one column in bounded chunks.
+ * `_jini_submission_id` cell holds a submission id, by reading that one column in bounded chunks.
  *
  * Exists because a retry (a lost answer, a replayed job) must not add the same submission twice,
  * and Google's append has no idempotency key. The delivery scans before every append and again

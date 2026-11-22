@@ -1,5 +1,9 @@
 import { useRef, useState } from 'react';
-import { agentHandleProps, agentSubHandle, buildAgentListHandles } from '@jini-ai/agentic';
+import {
+  agentHandleProps,
+  agentSubHandle,
+  buildAgentListHandles,
+} from '@jini-ai/core/agent-handles';
 import { useT } from '../../../i18n/index.js';
 import { Icon } from '../../../../react/components/Icon.js';
 import { useDismissOnOutsideOrEscape } from '../../../../browser/useDismissOnOutsideOrEscape.js';
@@ -27,14 +31,19 @@ export interface ClientPickerProps {
   /** This picker's own agent handle. The trigger button and each dropdown option get their own
    *  derived sub-handle — see `IntegrationsTab`'s `agentHandle` doc. */
   agentHandle?: string;
+  /** Hooks the picker calls; defaults to the real ones, a test hands in fakes. */
+  hooks?: ClientPickerHooks | undefined;
 }
+
+export const defaultClientPickerHooks = { useT, useDismissOnOutsideOrEscape };
+export type ClientPickerHooks = typeof defaultClientPickerHooks;
 
 /**
  * Dropdown client picker. Origin: the `ds-picker` markup inline in
  * `IntegrationsSection` — closes on outside click or Escape.
  */
-export function ClientPicker({ clients, selectedClientId, onSelect, methodLabel, methodLabels, agentHandle }: ClientPickerProps) {
-  const t = useT();
+export function ClientPicker({ clients, selectedClientId, onSelect, methodLabel, methodLabels, agentHandle, hooks = defaultClientPickerHooks }: ClientPickerProps) {
+  const t = hooks.useT();
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const selected = clients.find((c) => c.id === selectedClientId) ?? clients[0];
@@ -49,7 +58,7 @@ export function ClientPicker({ clients, selectedClientId, onSelect, methodLabel,
   // popover/dropdown call site — see that hook's own doc comment), a
   // behaviorally-equivalent upgrade for this same dismiss-on-outside-click
   // pattern.
-  useDismissOnOutsideOrEscape({ onDismiss: () => setOpen(false) }, { enabled: open, containerRef: rootRef });
+  hooks.useDismissOnOutsideOrEscape({ onDismiss: () => setOpen(false) }, { enabled: open, containerRef: rootRef });
 
   return (
     <div className="jini-picker" ref={rootRef}>

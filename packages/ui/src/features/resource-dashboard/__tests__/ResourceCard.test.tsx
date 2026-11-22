@@ -140,6 +140,23 @@ describe('ResourceCard', () => {
     expect(onOpen).not.toHaveBeenCalled();
   });
 
+  it('moves focus between menu items with the arrow keys', async () => {
+    const props = baseProps({ menuOpen: true, item: { id: 'p1', title: 'X', menuActions: [
+      { kind: 'rename', label: 'Rename' },
+      { kind: 'delete', label: 'Delete' },
+    ] } });
+    render(<ResourceCard {...props} />);
+    const first = screen.getByRole('menuitem', { name: 'Rename' });
+    const second = screen.getByRole('menuitem', { name: 'Delete' });
+    first.focus();
+    await userEvent.keyboard('{ArrowDown}');
+    expect(second).toHaveFocus();
+    await userEvent.keyboard('{ArrowUp}');
+    expect(first).toHaveFocus();
+    expect(props.onOpen).not.toHaveBeenCalled();
+    expect(props.onToggleSelected).not.toHaveBeenCalled();
+  });
+
   it('renders menu items when menuOpen is true and dispatches onAction with the clicked kind', async () => {
     const item: ResourceBoardItem = {
       id: 'p1',
@@ -199,7 +216,7 @@ describe('ResourceCard', () => {
     const { rerender } = render(<ResourceCard {...baseProps({ item, menuContainerRef })} />);
     expect(menuContainerRef.current).toBeNull();
     rerender(<ResourceCard {...baseProps({ item, menuContainerRef, menuOpen: true })} />);
-    expect(menuContainerRef.current).toHaveClass('resource-board-card-menu-anchor');
+    expect(menuContainerRef.current).toHaveClass('jini-resource-board-card-menu-anchor');
   });
 
   it('leaves a non-danger menu item without a class attribute', () => {
@@ -221,5 +238,14 @@ describe('ResourceCard', () => {
     await userEvent.keyboard(' ');
     expect(onToggleSelected).toHaveBeenCalledTimes(1);
     expect(onOpen).not.toHaveBeenCalled();
+  });
+
+  it('activates through the handler supplied by useResourceCardHook', async () => {
+    const handleActivate = vi.fn();
+    const props = baseProps();
+    render(<ResourceCard {...props} useResourceCardHook={() => ({ handleActivate, menuActions: [] })} />);
+    await userEvent.click(screen.getByText('Marketing site'));
+    expect(handleActivate).toHaveBeenCalledTimes(1);
+    expect(props.onOpen).not.toHaveBeenCalled();
   });
 });

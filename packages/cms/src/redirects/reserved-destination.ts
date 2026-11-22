@@ -28,8 +28,13 @@
  * Feature logic, pure, no I/O. Imports only through `features/origin` and `platform/routing`'s own
  * barrels (both are `no-deep-imports` promoted in `.dependency-cruiser.mjs`).
  */
-import { isSameOrigin, normalizeOriginCandidate, type VerifiedOrigin } from "@jini-ai/http-kit/verified-origin";
-import { checkSitePathname, type SitePathCheck } from "@jini-ai/http-kit/verified-origin";
+import {
+  isSameOrigin,
+  normalizeOriginCandidate,
+  type VerifiedOrigin,
+  checkSitePathname,
+  type SitePathCheck,
+} from "@jini-ai/core/contracts/server/verified-origin";
 
 /** {@link checkSameOriginDestination}'s verdict — every arm but `ok` is a refusal. */
 export type SameOriginDestinationCheck = SitePathCheck | { kind: "unparseable" };

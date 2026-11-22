@@ -1,0 +1,5 @@
+---
+"@jini-ai/core": minor
+---
+
+Error-logging design: log lines name an error, never quote it. `describeErrorForLog({ err })` no longer prints a constructor name or any constant-shaped code: it prints a fixed class label (built-ins, `ToolInputError`, registered classes, `AbortError`/`TimeoutError`, else `Error`) and only approved codes, so an unregistered `PostgresError` now reads as `Error`. New: `registerLoggableErrors({ codes, classes })`, `LOGGABLE_ERROR_CODES`, `describeErrorParts({ err })` (the same label and code as fields, for telemetry) and `describeLogMeta({ meta })`. `createConsoleLogger(required, { diagnostics })` takes an optional host sink that receives every record unchanged; the default console line prints error meta as its class label only, and one call projects at most 200 meta entries (`[too many entries]` after that). **Host action:** to keep full error text in your logs, pass `diagnostics`; to have your own error classes or codes named instead of `Error`, call `registerLoggableErrors` once at startup.

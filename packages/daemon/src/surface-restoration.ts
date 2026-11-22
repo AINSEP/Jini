@@ -101,6 +101,27 @@ async function deliverLate({ entry, principalId, params, deliver }: {
   deliver({ exchangeId, principalId, params }, options);
 }
 
+/** A still-running exchange takes a supplied answer directly; otherwise the caller observes it until it ends. */
+function joinRunning({ entry, exchangeId, principalId, emit, deliver }: {
+  entry: Entry; exchangeId: string; principalId: string; emit: SurfaceEmitter; deliver: Delivery;
+}, options: NonNullable<Parameters<Restore>[1]> = {}) {
+  if (options.params) return deliver({ exchangeId, principalId, params: options.params }, options);
+  return join({ entry, emit, work: entry.ended.then(() => ({ ok: true })), signal: options.signal },
+    entry.emission ? { initial: entry.emission } : {});
+}
+
+/** An ended exchange restarts its call; the caller observes the retry, and a supplied answer waits for its card. */
+async function restartAndObserve({ entry, principalId, emit, deliver }: {
+  entry: Entry; principalId: string; emit: SurfaceEmitter; deliver: Delivery;
+}, options: NonNullable<Parameters<Restore>[1]> = {}): Promise<DeliverResult> {
+  const work = restart({ entry });
+  // Subscribe synchronously before the retry's microtask can emit the first card.
+  const observed = join({ entry, emit, work, signal: options.signal },
+    entry.replacementId && entry.emission ? { initial: entry.emission } : {});
+  if (options.params) await deliverLate({ entry, principalId, params: options.params, deliver }, options);
+  return observed;
+}
+
 /** Shared recovery owner for every exchange channel. The store supplies delivery; the executor
  * supplies retry, so recovery cannot bypass authorization or invent a second handler.
  * @complexity O(n) per open/restore/accepted answer in active entries plus at most 128 retained
@@ -152,17 +173,8 @@ export function createSurfaceRestoration(
     if (!entry) return unavailable();
     if (!matches({ entry, principalId, toolId: options.toolId, channel: options.channel, defaultChannel })) return { ok: false, reason: 'binding-mismatch' };
     if (options.signal?.aborted) return unavailable();
-    if (entry.endedAt === undefined) {
-      if (options.params) return deliver({ exchangeId, principalId, params: options.params }, options);
-      return join({ entry, emit, work: entry.ended.then(() => ({ ok: true })), signal: options.signal },
-        entry.emission ? { initial: entry.emission } : {});
-    }
-    const work = restart({ entry });
-    // Subscribe synchronously before the retry's microtask can emit the first card.
-    const observed = join({ entry, emit, work, signal: options.signal },
-      entry.replacementId && entry.emission ? { initial: entry.emission } : {});
-    if (options.params) await deliverLate({ entry, principalId, params: options.params, deliver }, options);
-    return observed;
+    if (entry.endedAt === undefined) return joinRunning({ entry, exchangeId, principalId, emit, deliver }, options);
+    return restartAndObserve({ entry, principalId, emit, deliver }, options);
   };
   return { track, restore };
 }

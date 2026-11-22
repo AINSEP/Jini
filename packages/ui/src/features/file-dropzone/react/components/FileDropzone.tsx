@@ -62,6 +62,26 @@ export interface FileDropzoneProps {
   /** Custom hook overrides for dependency injection / testing. */
   useFileDropzone?: typeof useFileDropzone;
   useFileDropzonePreviews?: typeof useFileDropzonePreviews;
+  /** The other hooks the dropzone calls; defaults to the real ones, a test hands in fakes. */
+  hooks?: FileDropzoneHooks | undefined;
+}
+
+export const defaultFileDropzoneHooks = { useT, useGlobalKeydown };
+export type FileDropzoneHooks = typeof defaultFileDropzoneHooks;
+
+/** The heading above the zone; a bare zone has none. */
+function FileDropzoneLabel({ label, t }: { label: string | undefined; t: (key: string) => string }) {
+  return label ? <strong className="jini-file-dropzone__label">{t(label)}</strong> : null;
+}
+
+/** The external browse-folder trigger a desktop host supplies, beside the zone. */
+function FileDropzoneBrowseFolder({ onBrowseFolder, t }: { onBrowseFolder: (() => void) | undefined; t: (key: string) => string }) {
+  if (!onBrowseFolder) return null;
+  return (
+    <button type="button" className="jini-file-dropzone__browse-folder" onClick={onBrowseFolder}>
+      {t('Browse folder')}
+    </button>
+  );
 }
 
 /**
@@ -72,7 +92,7 @@ export interface FileDropzoneProps {
  * file-dialog cancel-vs-still-loading detection heuristic and a plain
  * staged-names list). Both are the same underlying interaction — native
  * drag/drop + click-to-browse resolving to a flat `File[]` — configured
- * differently; see `packages/ui/source-map.md` for the full writeup.
+ * differently; see `archived UI source map` for the full writeup.
  */
 export function FileDropzone({
   label,
@@ -93,14 +113,15 @@ export function FileDropzone({
   secondaryAction,
   useFileDropzone: useFileDropzoneHook = useFileDropzone,
   useFileDropzonePreviews: useFileDropzonePreviewsHook = useFileDropzonePreviews,
+  hooks = defaultFileDropzoneHooks,
 }: FileDropzoneProps) {
-  const t = useT();
+  const t = hooks.useT();
   const [lightboxFile, setLightboxFile] = useState<File | null>(null);
 
   const dropzone = useFileDropzoneHook({ onFiles, onZoneClick, onError, onProcessingStart, enablePaste });
   const previews = useFileDropzonePreviewsHook(files ?? NO_FILES);
 
-  useGlobalKeydown({
+  hooks.useGlobalKeydown({
     handler: (event) => {
       if (event.key === 'Escape') setLightboxFile(null);
     },
@@ -113,7 +134,7 @@ export function FileDropzone({
 
   return (
     <div className="jini-file-dropzone">
-      {label ? <strong className="jini-file-dropzone__label">{t(label)}</strong> : null}
+      <FileDropzoneLabel label={label} t={t} />
       <div className="jini-file-dropzone__wrap">
         <FileDropzoneZone
           dropzone={dropzone}
@@ -123,11 +144,7 @@ export function FileDropzone({
           enablePaste={enablePaste}
           hint={isSimpleVariant ? undefined : helperText}
         />
-        {onBrowseFolder ? (
-          <button type="button" className="jini-file-dropzone__browse-folder" onClick={onBrowseFolder}>
-            {t('Browse folder')}
-          </button>
-        ) : null}
+        <FileDropzoneBrowseFolder onBrowseFolder={onBrowseFolder} t={t} />
       </div>
 
       <FileDropzoneStaged
@@ -172,6 +189,7 @@ interface FileDropzoneStagedProps {
   onRemove?: ((file: File) => void) | undefined;
   /** Already-translated helper paragraph for the simple variant. */
   simpleHelper?: string | undefined;
+  useTHook?: typeof useT;
 }
 
 /** Everything below the zone: the secondary action, the staged names/thumbnails, the simple-variant helper, and the lightbox. Empty `names`/`files` render nothing — `FileDropzoneNameList` and `FileDropzoneThumbnailGrid` both return `null` for an empty list. */
@@ -186,8 +204,9 @@ function FileDropzoneStaged({
   files,
   onRemove,
   simpleHelper,
+  useTHook = useT,
 }: FileDropzoneStagedProps) {
-  const t = useT();
+  const t = useTHook();
   return (
     <>
       {secondaryAction ? (

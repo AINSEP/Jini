@@ -33,3 +33,7 @@ export { defaultMailProviderSetup, parseMailProviderSetup, parseMailProviderSetu
 
 export * from "./plugin-abi.js";
 export * from "./provider-mailer.js";
+export * from "./activity/vocabulary.js";
+export type * from "./activity/ports.js";
+export * from "./activity/activity.js";
+export * from "./activity/suppressions.js";

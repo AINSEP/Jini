@@ -1,16 +1,15 @@
 import { WidgetForbiddenError } from "./errors.js";
 
 /**
- * @file Shared `authorize()` plumbing for `write-service.ts`/`region-area-service.ts` (SPEC-043
- * REQ-40/41, INV-07).
+ * @file Shared `authorize()` plumbing for `write-service.ts`/`region-area-service.ts`.
  *
  * Purpose:
- * `AuthorizeFn` mirrors `features/entries/write-service.ts`'s `AuthorizeFn` shape structurally (no
+ * `AuthorizeFn` mirrors `packages/cms/src/entries/write-service.ts`'s `AuthorizeFn` shape structurally (no
  * shared import, kept decoupled — the same "no shared import" convention that file's own header
  * documents against `features/content-types`). `requireWidgetPermission` is the ONE place a
  * `widgets.*` permission string gets checked before a mutation proceeds.
  *
- * `PRE_AUTHORIZED` exists because this library composes `features/entries/write-service.ts`'s
+ * `PRE_AUTHORIZED` exists because this library composes `packages/cms/src/entries/write-service.ts`'s
  * `createEntry`/`updateEntry` and `features/content-types/write-service.ts`'s `registerContentType`
  * — both of which perform their OWN internal `authorize()` call, hardcoded to the
  * `admin.collections.manage` permission (the generic Collections-domain permission, unrelated to

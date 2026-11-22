@@ -4,13 +4,14 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { loadPlaywright, launchChromium } from "./lib/playwright-loader.mjs";
 import { HELP_OPTIONS, num, parseCliArgs, text } from "./lib/cli-args.mjs";
-import { runCli, runIfMain } from "./lib/main-guard.mjs";
+import { createCliStreams, runCli, runIfMain } from "./lib/main-guard.mjs";
 import { trimDashes } from "./lib/trim-dashes.mjs";
+import { errorClassLabel } from "./lib/diagnostic-labels.mjs";
 
 // Hard dependencies are ports with real defaults wired here at the CLI edge.
-const DEFAULT_DEPS = { fs, loadPlaywright, launchChromium, log: console.log, error: console.error, now: () => new Date() };
+const DEFAULT_DEPS = { fs, loadPlaywright, launchChromium, ...createCliStreams({}), now: () => new Date() };
 
-export function usage(log = console.log) {
+export function usage({}, { log = createCliStreams({}).log } = {}) {
   log(`Usage:
   node scripts/network-capture.mjs --url <url> --out RECON/network [--label original] [--wait 5000] [--max-bytes 1000000]
 
@@ -22,27 +23,27 @@ const ARG_SPEC = {
   defaults: { url: "", outDir: "RECON/network", label: "site", waitMs: 5000, maxBytes: 1_000_000 },
   options: {
     ...HELP_OPTIONS,
-    "--url": { key: "url", parse: text("") },
-    "--out": { key: "outDir", parse: text("RECON/network") },
-    "--label": { key: "label", parse: text("site") },
-    "--wait": { key: "waitMs", parse: num("5000") },
-    "--max-bytes": { key: "maxBytes", parse: num("1000000") },
+    "--url": { key: "url", parse: text({ fallback: "" }) },
+    "--out": { key: "outDir", parse: text({ fallback: "RECON/network" }) },
+    "--label": { key: "label", parse: text({ fallback: "site" }) },
+    "--wait": { key: "waitMs", parse: num({ fallback: "5000" }) },
+    "--max-bytes": { key: "maxBytes", parse: num({ fallback: "1000000" }) },
   },
 };
 
-export function parseArgs(argv) {
+export function parseArgs({ argv }, _optional = {}) {
   return parseCliArgs({ argv, ...ARG_SPEC });
 }
 
-export function safeFixtureName(url, contentType) {
+export function safeFixtureName({ url, contentType }, _optional = {}) {
   const parsed = new URL(url);
-  const cleanPath = trimDashes(parsed.pathname.replace(/[^a-z0-9._-]+/gi, "-")).slice(0, 80) || "response";
+  const cleanPath = trimDashes({ text: parsed.pathname.replace(/[^a-z0-9._-]+/gi, "-") }).slice(0, 80) || "response";
   const hash = crypto.createHash("sha1").update(url).digest("hex").slice(0, 10);
   const ext = contentType.includes("json") ? ".json" : ".txt";
   return `${cleanPath}-${hash}${ext}`;
 }
 
-export function shouldSave(resourceType, contentType) {
+export function shouldSave({ resourceType, contentType }, _optional = {}) {
   if (!["xhr", "fetch"].includes(resourceType)) return false;
   return /json|text|graphql|javascript/i.test(contentType || "");
 }
@@ -63,7 +64,7 @@ async function saveFixture(response, entry, args, dirs, deps) {
   try {
     const body = await response.body();
     if (body.length <= args.maxBytes) {
-      const file = path.join(dirs.fixturesDir, safeFixtureName(response.url(), entry.contentType));
+      const file = path.join(dirs.fixturesDir, safeFixtureName({ url: response.url(), contentType: entry.contentType }));
       deps.fs.writeFileSync(file, body);
       entry.fixture = path.relative(dirs.outDir, file);
       entry.bytes = body.length;
@@ -71,7 +72,7 @@ async function saveFixture(response, entry, args, dirs, deps) {
       entry.error = `body too large: ${body.length}`;
     }
   } catch (error) {
-    entry.error = error.message;
+    entry.error = errorClassLabel({ error });
   }
 }
 
@@ -89,7 +90,7 @@ async function responseEntry(response, args, dirs, deps) {
     fixture: "",
     error: "",
   };
-  if (shouldSave(request.resourceType(), contentType)) await saveFixture(response, entry, args, dirs, deps);
+  if (shouldSave({ resourceType: request.resourceType(), contentType })) await saveFixture(response, entry, args, dirs, deps);
   return entry;
 }
 
@@ -144,13 +145,13 @@ async function capture(args, deps) {
 export async function main({ argv }, deps = {}) {
   const io = { ...DEFAULT_DEPS, ...deps };
   return runCli({ label: "network-capture", body: () => {
-    const args = parseArgs(argv);
+    const args = parseArgs({ argv });
     if (args.help || !args.url) {
-      usage(io.log);
+      usage({}, { log: io.log });
       return args.help ? 0 : 1;
     }
     return capture(args, io);
   }, report: io.error });
 }
 
-await runIfMain({ moduleUrl: import.meta.url, main });
+await runIfMain({ moduleUrl: import.meta.url, main }, { stdout: process.stdout, stderr: process.stderr });

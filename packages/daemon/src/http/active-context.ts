@@ -19,10 +19,10 @@
  * `daemon-status.ts`/`host-tools.ts`: real collaborators supplied by the
  * caller rather than read from a global store).
  */
-import type { Express } from 'express';
 import { createApiError } from '@jini-ai/protocol';
-import { defineJsonRoute, mountJsonRoute, type AdapterContext } from '@jini-ai/http-kit';
-import { err, ok, type Result } from '@jini-ai/http-kit';
+import { defineJsonRoute, err, ok, type Result } from '@jini-ai/core/contracts/server';
+import type { DaemonRouteHost } from './route-host.js';
+import { gatedJsonRoute, type DaemonRoute } from './route-table.js';
 
 /** How long a recorded focus stays valid before a GET treats it as stale and clears it. */
 export const ACTIVE_CONTEXT_TTL_MS = 5 * 60 * 1000;
@@ -75,7 +75,7 @@ export interface ActiveContextDeps {
 /**
  * Internal deps threaded to both handlers: the caller-supplied
  * {@link ActiveContextDeps} plus the shared in-memory store built once per
- * `registerActiveContextRoutes` call, so the two routes see the same state.
+ * `activeContextRoutes` call, so the two routes see the same state.
  */
 interface ActiveContextRouteDeps {
   store: ActiveContextStore;
@@ -138,14 +138,13 @@ export const setActiveRoute = defineJsonRoute<SetActiveInput, SetActiveOutput, A
  */
 export const getActiveRoute = defineJsonRoute<void, GetActiveOutput, ActiveContextRouteDeps>({ method: 'get', path: '/api/active', parse: () => ok({ value: undefined }), handle: handleGetActive }, { requireSameOrigin: true });
 
-/** Mounts both active-context routes on `app`, sharing one in-memory store between them. A pack's `http(app, services)` calls this directly. */
-export function registerActiveContextRoutes({ app, deps, adapter }: { readonly app: Express; readonly deps: ActiveContextDeps; readonly adapter: AdapterContext }, _optional: Record<string, never> = {}): void {
+/** Both active-context routes as data, behind the same-origin gate their specs declare. They share one in-memory store, built per call. */
+export function activeContextRoutes({ deps, host }: { readonly deps: ActiveContextDeps; readonly host: DaemonRouteHost }, _optional: Record<string, never> = {}): DaemonRoute[] {
   const store: ActiveContextStore = { current: null };
   const routeDeps: ActiveContextRouteDeps = {
     store,
     resolveResource: deps.resolveResource,
     now: deps.now ?? (() => Date.now()),
   };
-  mountJsonRoute({ app, spec: setActiveRoute, deps: routeDeps, adapter });
-  mountJsonRoute({ app, spec: getActiveRoute, deps: routeDeps, adapter });
+  return [gatedJsonRoute({ spec: setActiveRoute, deps: routeDeps, host }), gatedJsonRoute({ spec: getActiveRoute, deps: routeDeps, host })];
 }

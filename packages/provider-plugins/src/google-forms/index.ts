@@ -1,4 +1,4 @@
-import type { PluginSdk } from '@jini-ai/plugins/host';
+import type { PluginSdk } from '@jini-ai/core/contracts/plugin-sdk';
 import { createGoogleFormsProvider } from './provider.js';
 /** Trusted setup registers a pure embed plan; installation performs no vendor requests. */
 export default { definition: { setup(sdk: PluginSdk): void {

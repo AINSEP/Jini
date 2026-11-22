@@ -416,7 +416,7 @@ describe('TAG-A: handles do not adopt unrelated descendant actions', () => {
     const outside = document.createElement('input'); outside.id = 'outside'; outside.type = 'checkbox'; document.body.append(outside);
     try {
       root.querySelector('label')!.htmlFor = 'outside';
-      await expect(makeDriver().click({ handle: 'target' })).rejects.toThrow();
+      await expect(makeDriver().click({ handle: 'target' })).rejects.toThrow('The labelled control is unavailable in this page');
       expect(outside.checked).toBe(false);
     } finally { outside.remove(); }
   });
@@ -437,7 +437,7 @@ describe('TAG-A: inactive or disabled controls never receive effects', () => {
     const effect = vi.fn(); root.querySelector('button')!.addEventListener('click', effect);
     expect(await makeDriver().findElements({})).toEqual([]);
     expect(await makeDriver().describeState!({ handle: 'target' })).toBeNull();
-    await expect(makeDriver().click({ handle: 'target' })).rejects.toThrow();
+    await expect(makeDriver().click({ handle: 'target' })).rejects.toThrow('no element published as "target" on this page');
     expect(effect).not.toHaveBeenCalled();
   });
 
@@ -454,7 +454,7 @@ describe('TAG-A: inactive or disabled controls never receive effects', () => {
 
   it('rechecks an adopted label control instead of trusting its visible wrapper', async () => {
     mount('<li data-agent-element="target"><label><input type="checkbox" hidden>Choice</label></li>');
-    await expect(makeDriver().click({ handle: 'target' })).rejects.toThrow();
+    await expect(makeDriver().click({ handle: 'target' })).rejects.toThrow('"target" is hidden or inactive on this page');
     expect(root.querySelector('input')!.checked).toBe(false);
   });
 
@@ -474,7 +474,7 @@ describe('TAG-A: inactive or disabled controls never receive effects', () => {
     mount('<input data-agent-element="target" value="original">');
     const driver = makeDriver(); expect(await driver.describeField({ handle: 'target' })).toMatchObject({ type: 'text' });
     root.querySelector('input')!.setAttribute('inert', '');
-    await expect(driver.fill({ handle: 'target', text: 'changed' })).rejects.toThrow();
+    await expect(driver.fill({ handle: 'target', text: 'changed' })).rejects.toThrow('no element published as "target" on this page');
     expect(root.querySelector('input')!.value).toBe('original');
   });
 });

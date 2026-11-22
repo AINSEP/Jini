@@ -32,6 +32,64 @@ Every place the app had to write something Jini could own is marked `// GAP:` in
 
 Routes: `GET /`, `POST /notes`, `GET /notes/:slug`, `POST /notes/:slug/edit`,
 `POST /notes/:slug/publish`, `POST /forms/:slug`, `GET /api/notes`,
-`GET /api/forms/:slug/submissions`.
+`GET /api/forms/:slug/submissions`, `GET /api/session` and the entity routes below.
 
 The app has one local owner and no login; it is meant to run on localhost.
+
+## Admin bundle (`/admin/`)
+
+`node src/main.ts --admin-dir <path>` serves a built admin app (default `../notes-web/dist`) under `/admin/`
+(`src/admin-bundle.ts`, bound to the adapter's `onUnmatched`, so it only sees requests no route matched).
+GET and HEAD only; a path with no file extension answers `index.html`; a path that could leave the folder
+(`..`, an encoded slash, a symlink out) or a missing file answers the plain 404. The admin app itself
+(`examples/notes-web`) is not in this branch: see the wave report.
+
+## Entity API (what the admin screens call)
+
+`/api/entities/note` is the notes as one `AdminEntityPort` (`src/notes-entity.ts`, a mapping over `@jini-ai/cms/entries`;
+`src/gaps/entity-routes.ts` is the generic JSON layer). `GET /api/session` answers the fixed local owner.
+
+| Route | Answer |
+|---|---|
+| `GET /api/entities/note?limit=&cursor=&search=` | `{ items, nextCursor, total }`, newest first; `cursor` is the last id of the previous page |
+| `GET /api/entities/note/:id` | the row, or 404 |
+| `POST /api/entities/note` | 201 + the row. `{ title, body?, slug?, status? }`; the slug is made from the title when not given |
+| `PATCH /api/entities/note/:id` | the row. Needs `version` (the version you read); `title`, `body`, `status` are optional. A stale `version` is 409 `CONFLICT` and nothing changes |
+
+Row: `{ id, title, slug, body, status, version, updatedAt }`. `status` is `draft`, `published` or `unpublished`
+(publish then unpublish ends in `unpublished`). `slug`, `version` and `updatedAt` are read-only (`persistedOnly`
+in the descriptor): the slug cannot change after creation. There is no delete: the entry services have none.
+Errors are `{ error: { code, message } }`: `VALIDATION` 400, `NOT_FOUND` 404, `CONFLICT` 409, `BAD_REQUEST` 400
+(invalid JSON), `PAYLOAD_TOO_LARGE` 413 (body over 256 KB). Every route is behind the guard below.
+
+Search reads the whole collection and filters in memory (title and body, case-insensitive): fine for a demo,
+not a database bound (gap G20). The port types come from `@jini-ai/admin/core` through a `paths` entry in
+`tsconfig.json` (a type-only import, erased at run time) instead of a dependency, because the lockfile cannot be
+regenerated under the repo's `minimumReleaseAge` policy at this base; make it a `workspace:*` dependency and drop
+the `paths` entry when it can.
+
+## Request guard
+
+Every route `registerNotesApp` registers runs behind a Host/Origin guard (`src/gaps/origin-guard.ts`).
+A request is refused with 403 and `{ error: { code, message } }` when:
+
+- its `Host` is not loopback (`127.0.0.1`, `localhost`, `[::1]`) on the port the server really bound
+  (`HOST_REJECTED`, any method; the port is read after `listen`, never from a header),
+- it carries an `Origin` that is not the app's own (`ORIGIN_REJECTED`),
+- or it is a state-changing request the browser marks `Sec-Fetch-Site: cross-site` (`ORIGIN_REJECTED`).
+
+A POST with no `Origin` from the same host (curl, scripts) is allowed. Requests that match no route
+(the adapter's 404 and any `onUnmatched` hook) are not behind the guard.
+
+## Unmatched requests
+
+`createNodeServer({}, { onUnmatched })`: `onUnmatched({ request })` may return a `Response` for a request
+whose path matches no route (return `undefined` to keep the plain 404). It is never called for a matched path,
+so a wrong method still gets the 405. A hook that throws gets a 500 and the error goes to `reportError`
+(default `console.error`).
+
+## Gaps
+
+`GAPS.json` lists every file that holds code Jini should own, with its gap id and a line budget.
+`pnpm --filter @jini-example/notes-app run gaps` fails when a listed file is missing, lacks its
+`// GAP: <id>` header, or has grown past its budget. The counts only go down.

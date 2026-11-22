@@ -1,12 +1,12 @@
 /**
- * @file SEO contract interfaces (SPEC-008, ADR-PIPE-008). Interfaces ONLY.
+ * @file SEO contract interfaces. Interfaces ONLY.
  *
- * ADR-006 note (rule-of-two): introduces NO new infrastructure port. Every
+ * Rule-of-two note: introduces NO new infrastructure port. Every
  * dependency `seo` needs is a typed call to an already-ported existing module
  * (`post` via `PostRepoPort`, `routing` via `urlFor`, `settings` via
  * `getEffective`/write-service, `media` via its existing read repos,
  * `identity` via `authorize()`) — plain dependency-injected function params,
- * not the ADR-032 stub's "capability handle" abstraction
+ * not the original stub's "capability handle" abstraction
  * (`SeoContentReadCap`/`SeoUrlCap`/`SeoSettingsCap`/`SeoCacheCap`/
  * `SeoPluginCaps`). Those five stub-era interfaces are dropped here (zero
  * call sites existed, ADR-PIPE-008 Context) — every real function in this
@@ -25,7 +25,7 @@
  */
 
 /**
- * @file SEO contracts (SPEC-008, ADR-PIPE-008). Interfaces only.
+ * @file SEO contracts. Interfaces only.
  *
  * Dependencies are explicit function ports. The host binds its post, routing, settings and
  * featured-image owners; SEO never constructs a second implementation of those domains.
@@ -35,6 +35,7 @@
 import type { JsonValue } from "@jini-ai/core/primitives";
 import type { MediaRecord } from "../media/types.js";
 import type { TransformDefinitionRepoPort } from "../media/ports.js";
+import type { PublicPostKind } from "../core/post-vocabulary.js";
 import type {
   HeadElement, PageHeadContext, RobotsPolicy, SeoAnalysis, SeoMeta, SeoSettings,
   SitemapCollectContext, SitemapEntry,
@@ -46,7 +47,7 @@ export interface SeoPostRecord {
   workspaceId: string;
   title: string;
   slug: string;
-  kind: "post" | "page";
+  kind: PublicPostKind;
   status: string;
   bodyFormat: "doc" | "html";
   bodyJson: JsonValue;

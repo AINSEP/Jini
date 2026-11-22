@@ -1,6 +1,6 @@
 import { createElement } from 'react';
 import type { FormEvent } from 'react';
-import type { TabBarTab } from '@jini-ai/ui/tab-strip';
+import type { TabBarTab } from '../../../react/kit.js';
 import { SeoDefaultsIcon, SeoSitemapIcon, SeoEntriesIcon } from '../components/SeoIcons.js';
 import { buildSeoSettingsPatch, resolveSeoTabId, sortIssuesBySeverity, scoreTone } from '../../rules.js';
 import type { SeoTranslator, SeoSettingsPatch, SeoSettings, SeoEntryAnalysis } from '../../models.js';

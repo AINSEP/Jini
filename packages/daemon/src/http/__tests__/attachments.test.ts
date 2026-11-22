@@ -6,7 +6,7 @@
  * - `createDiskAttachmentStore` against a real temp filesystem, including the security properties
  *   that are the whole point of the store (opaque capability ids, forged renderer metadata being
  *   discarded, one-time claim, symlink retargeting, quota race safety);
- * - `registerAttachmentRoutes` over a real `express()` app on `app.listen(0)` driven by real
+ * - `attachmentUploadRoutes`/`attachmentCleanupRoutes` over a real `express()` app on `app.listen(0)` driven by real
  *   `fetch`, which is what proves the status-code mapping and the concurrency limiter as a caller
  *   actually experiences them.
  *
@@ -14,6 +14,7 @@
  * "playground upload boundaries" cases in its `playground-request.test.ts` (2 cases) when that
  * host-local implementation was generalized into this package.
  */
+import { mountAttachmentRoutes, mountRoutes, testRouteHost } from './fakes/mount-attachments.js';
 import type { Server } from 'node:http';
 import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
@@ -34,36 +35,17 @@ import {
 } from 'node:fs/promises';
 import express from 'express';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { createLocalTestOrigin } from './fixtures/local-origin.js';
 import type { ChatAttachment } from '@jini-ai/chat';
-import {
-  ATTACHMENTS_ROUTE_PATH,
-  AttachmentRejectedError,
-  attachmentSidecarFileName,
-  createDiskAttachmentStore,
-  detectAttachmentKind,
-  handleAttachmentUpload,
-  hasAvifSignature,
-  hasGifSignature,
-  hasJpegSignature,
-  hasPngSignature,
-  hasWebpSignature,
-  isUnchangedAttachment,
-  loadPersistedAttachments,
-  parsePersistedAttachment,
-  prepareAttachmentStorage,
-  registerAttachmentRoutes,
-  removeUnadoptedUploads,
-  reserveAttachmentRecords,
-  sanitizeAttachmentName,
-  stageAttachmentClaim,
-  verifyClaimedAttachments,
-  writeBoundedAttachmentBody,
-  type AttachmentRecord,
-  type AttachmentsHttpDeps,
-  type AttachmentStore,
-  type CreateDiskAttachmentStoreOptions,
-  type StoredAttachment,
-} from '../attachments.js';
+import { ATTACHMENTS_ROUTE_PATH, handleAttachmentUpload, sanitizeAttachmentName, type AttachmentsHttpDeps } from '../attachments.js';
+import { AttachmentRejectedError, type StoredAttachment } from '../attachment-types.js';
+import { attachmentSidecarFileName, loadPersistedAttachments, parsePersistedAttachment, prepareAttachmentStorage, removeUnadoptedUploads } from '../attachment-persistence.js';
+import { createDiskAttachmentStore } from '../disk-attachment-store.js';
+import { detectAttachmentKind, hasAvifSignature, hasGifSignature, hasJpegSignature, hasPngSignature, hasWebpSignature } from '../attachment-signatures.js';
+import { isUnchangedAttachment, reserveAttachmentRecords, verifyClaimedAttachments, type AttachmentRecord } from '../attachment-records.js';
+import { stageAttachmentClaim } from '../attachment-staging.js';
+import { writeBoundedAttachmentBody } from '../attachment-body.js';
+import { type AttachmentStore, type CreateDiskAttachmentStoreOptions } from '../attachment-store-types.js';
 
 // ---------------------------------------------------------------------------
 // The mirrored wire type must stay assignable to `@jini-ai/chat/core`'s `ChatAttachment`
@@ -169,12 +151,12 @@ async function harness(
   // does this for every daemon). `DELETE` needs it, and having it present is also what makes the
   // "body already drained" case below a genuine reproduction rather than a contrived one.
   app.use(express.json());
-  const adapter = { allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST', env: {}, resolvedPortRef: { current: 0 } };
-  registerAttachmentRoutes({ app, deps, adapter });
+  const { adapter: adapter, portRef: adapterPortRef } = createLocalTestOrigin({}, { port: 0 });
+  mountAttachmentRoutes({ app, deps, adapter });
   const server: Server = app.listen(0);
   await new Promise((ready) => server.once('listening', ready));
   const { port } = server.address() as { port: number };
-  adapter.resolvedPortRef.current = port;
+  adapterPortRef.current = port;
   cleanups.push(
     () => new Promise<void>((closed) => {
       server.close(() => closed());
@@ -1493,7 +1475,7 @@ describe('POST /api/attachments', () => {
 
     expect(response.status).toBe(500);
     const body = await response.json() as { error: { message: string; requestId?: string } };
-    expect(body.error.message).toBe('an internal error occurred');
+    expect(body.error.message).toBe('The file could not be attached. Try again; if it keeps failing, copy the request ID and report this problem.');
     expect(body.error.message).not.toContain('secret');
     expect(onInternalError).toHaveBeenCalledWith(expect.objectContaining({
       source: 'attachment-upload',
@@ -1516,7 +1498,7 @@ describe('POST /api/attachments', () => {
     const response = await upload(url, { batch: 'batch-upload-7', name: 'a.txt' });
 
     expect(response.status).toBe(500);
-    expect(await response.json()).toMatchObject({ error: { message: 'an internal error occurred' } });
+    expect(await response.json()).toMatchObject({ error: { message: 'The file could not be attached. Try again; if it keeps failing, copy the request ID and report this problem.' } });
     expect(onInternalError).toHaveBeenCalledTimes(1);
   });
 
@@ -1555,7 +1537,7 @@ describe('POST /api/attachments', () => {
     });
 
     expect(response.status).toBe(500);
-    expect(await response.json()).toMatchObject({ error: { message: 'an internal error occurred' } });
+    expect(await response.json()).toMatchObject({ error: { message: 'The file could not be attached. Try again; if it keeps failing, copy the request ID and report this problem.' } });
     expect(onInternalError).toHaveBeenCalledWith(expect.objectContaining({
       error: expect.objectContaining({ reason: 'attachment-body-consumed' }),
     }));
@@ -1688,7 +1670,7 @@ describe('DELETE /api/attachments', () => {
     });
 
     expect(response.status).toBe(500);
-    expect(await response.json()).toMatchObject({ error: { message: 'an internal error occurred' } });
+    expect(await response.json()).toMatchObject({ error: { message: 'The attachment could not be removed. Try again; if it keeps failing, copy the request ID and report this problem.' } });
     expect(onInternalError).toHaveBeenCalledWith(expect.objectContaining({
       source: 'attachment-cleanup',
       batchId: 'batch-delete-4',
@@ -1732,12 +1714,12 @@ describe('attachment routes — same-origin guard', () => {
   it('defaults the guard on, so a host must opt out deliberately', async () => {
     const { store } = await diskStore();
     const app = express();
-    const adapter = { allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST', env: {}, resolvedPortRef: { current: 0 } };
-    registerAttachmentRoutes({ app, deps: { store }, adapter });
+    const { adapter: adapter, portRef: adapterPortRef } = createLocalTestOrigin({}, { port: 0 });
+    mountAttachmentRoutes({ app, deps: { store }, adapter });
     const server: Server = app.listen(0);
     await new Promise((ready) => server.once('listening', ready));
     const { port } = server.address() as { port: number };
-    adapter.resolvedPortRef.current = port;
+    adapterPortRef.current = port;
     cleanups.push(
       () => new Promise<void>((closed) => {
         server.close(() => closed());
@@ -1759,7 +1741,7 @@ describe('attachment routes — same-origin guard', () => {
 
 describe('attachment routes — origin guard throwing before either handler starts', () => {
   // `passesOriginGuard` runs ahead of `handleAttachmentUpload`/`handleAttachmentCleanup` inside
-  // `registerAttachmentRoutes`'s `app.post`/`app.delete` callbacks — see that function's own doc
+  // `attachmentUploadRoutes`/`attachmentCleanupRoutes`'s `app.post`/`app.delete` callbacks — see that function's own doc
   // for why (raw-stream upload, 204-no-body cleanup) it bypasses `mountJsonRoute`'s adapter, which
   // would otherwise have caught this for free. `guardSameOrigin`/`isLocalSameOrigin` are
   // Result/boolean-returning by contract, but `isLocalSameOrigin` unconditionally calls
@@ -1843,7 +1825,7 @@ describe('attachment routes — default internal-error sink', () => {
     expect(response.status).toBe(500);
     expect(consoleError).toHaveBeenCalledWith(
       expect.stringContaining('internal error (attachment-upload, correlationId='),
-      expect.stringContaining('Error: boom'),
+      'Error',
     );
   });
 });
@@ -2264,7 +2246,7 @@ describe('removeUnadoptedUploads', () => {
 // ---------------------------------------------------------------------------
 
 /**
- * Mounts `handleAttachmentUpload` itself (no origin guard, no `registerAttachmentRoutes` wrapper)
+ * Mounts `handleAttachmentUpload` itself (no origin guard, no `attachmentUploadRoutes`/`attachmentCleanupRoutes` wrapper)
  * so a test owns the `state` object and can stage `activeUploads` at a boundary and read it back
  * afterwards — the route-level cases above can only observe the limiter from outside.
  */
@@ -2274,7 +2256,9 @@ async function directUploadHarness(
 ): Promise<string> {
   const app = express();
   if (jsonParser) app.use(express.json());
-  app.post(ATTACHMENTS_ROUTE_PATH, (req, res) => handleAttachmentUpload({ req, res, deps, state }));
+  const { adapter } = createLocalTestOrigin({}, { port: 0 });
+  const host = testRouteHost({ context: adapter });
+  mountRoutes({ app, routes: [{ method: 'POST', path: ATTACHMENTS_ROUTE_PATH, handler: ({ request, locals }) => handleAttachmentUpload({ request, locals: locals ?? {}, deps, host, state }) }] }, { rawBody: true });
   const server: Server = app.listen(0);
   await new Promise((ready) => server.once('listening', ready));
   const { port } = server.address() as { port: number };
@@ -2440,7 +2424,7 @@ describe('handleAttachmentUpload', () => {
     const response = await upload(url, { batch: 'batch-direct-5', name: 'a.json', body: '{"a":1}', contentType: 'application/json' });
 
     expect(response.status).toBe(500);
-    expect(await response.json()).toMatchObject({ error: { code: 'INTERNAL_ERROR', message: 'an internal error occurred' } });
+    expect(await response.json()).toMatchObject({ error: { code: 'INTERNAL_ERROR', message: 'The file could not be attached. Try again; if it keeps failing, copy the request ID and report this problem.' } });
     expect(onInternalError).toHaveBeenCalledWith(expect.objectContaining({
       source: 'attachment-upload',
       batchId: 'batch-direct-5',
@@ -2579,7 +2563,7 @@ describe('handleAttachmentUpload', () => {
 
     expect(response.status).toBe(500);
     const body = await response.json() as { error: { message: string; requestId?: string } };
-    expect(body.error.message).toBe('an internal error occurred');
+    expect(body.error.message).toBe('The file could not be attached. Try again; if it keeps failing, copy the request ID and report this problem.');
     expect(onInternalError).toHaveBeenCalledWith(expect.objectContaining({
       source: 'attachment-upload', batchId: 'batch-direct-15', correlationId: body.error.requestId,
     }));

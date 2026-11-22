@@ -4,7 +4,7 @@ import { FetchQueryCache } from '../index.js';
 describe('replacement writes supersede read failures', () => {
   it.each([false, true])('keeps a replacement successful after an older read rejects (cached: %s)', async cached => {
     let now = 100;
-    const cache = new FetchQueryCache({}, {
+    const cache = new FetchQueryCache({
       clock: { nowMs: () => now },
       scheduler: { schedule: () => 0, cancel: () => {} },
     });
@@ -35,7 +35,7 @@ describe('replacement writes supersede read failures', () => {
   });
 
   it('still publishes and rejects the current read failure when no write replaces it', async () => {
-    const cache = new FetchQueryCache({}, { scheduler: { schedule: () => 0, cancel: () => {} } });
+    const cache = new FetchQueryCache({ clock: { nowMs: () => 0 }, scheduler: { schedule: () => 0, cancel: () => {} } });
     const entry = cache.entry({ key: ['record'] });
     const error = new Error('current read failed');
     try {
@@ -51,7 +51,7 @@ describe('replacement writes supersede read failures', () => {
 
 describe('replacement between transport resolution and publication', () => {
   it.each([false, true])('keeps the newer value for both callers and the cache (cached: %s)', async cached => {
-    const cache = new FetchQueryCache({}, { scheduler: { schedule: () => 0, cancel: () => {} } });
+    const cache = new FetchQueryCache({ clock: { nowMs: () => 0 }, scheduler: { schedule: () => 0, cancel: () => {} } });
     const entry = cache.entry({ key: ['publication'] });
     if (cached) cache.replace({ entry, data: 'cached' });
     let resolve!: (value: string) => void;

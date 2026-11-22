@@ -1,5 +1,5 @@
 import type { AdminFormDefinition as Definition, AdminFormField as Field, AdminFormSubmission as Submission } from '../core/ports/forms.js';
-import type { FormAnswer } from '@jini-ai/cms/forms';
+import type { FormAnswer } from '@jini-ai/core/contracts/forms';
 /** Mutable editor drafts project the core contract; they never define another API. */
 export type AdminFormField = { -readonly [K in keyof Field]: Field[K] } & { attributes?: Record<string, string> | undefined };
 export type AdminFormNotify = { enabled: boolean; recipients: string[] };

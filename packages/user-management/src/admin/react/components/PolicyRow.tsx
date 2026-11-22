@@ -1,10 +1,11 @@
 import { Button, TextField, Menu, Badge } from '@jini-ai/ui-kit/react';
 import type { PolicyRecord } from '../../models.js';
-import { usePolicyRow } from '../hooks/PoliciesTab.hooks.js';
+import { usePolicyRow as usePolicyRow_ } from '../hooks/PoliciesTab.hooks.js';
 import { PermissionPanel } from './PermissionPanel.js';
-export function PolicyRow(props: {
+export function PolicyRow({ usePolicyRow = usePolicyRow_, ...props }: {
     policy: PolicyRecord;
-}, _optional: Record<string, never> = {}) {
+    usePolicyRow?: typeof usePolicyRow_;
+}) {
     const v = usePolicyRow(props);
     const editActions = v.editing ? <><Button onPress={v.save} pending={v.pending} disabled={v.saveDisabled}>Save</Button><Button onPress={v.cancel}>Cancel</Button></> :
         <Menu label={v.menuLabel} items={v.menu} />;

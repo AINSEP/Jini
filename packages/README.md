@@ -27,6 +27,20 @@ between packages based on one — the locked/incubating/admitted gate (and the "
 locked 14" framing behind it) was removed 2026-07-28 at the user's explicit direction. `UNLOCKED.md`
 is a historical record of that removed mechanism, not something `pnpm guard` enforces.
 
+### `kind: "runtime-adapter"` — Node bindings of ports (owner decision OD-3, 2026-11-16)
+
+A package with `jini.kind: "runtime-adapter"` (today `@jini-ai/node-adapters`) binds `@jini-ai/platform`
+functions to the ports a domain package declares, and does nothing else: it exports bindings only and
+assembles no daemon, server or kernel. `pnpm guard` (rule `L5-injected-edge`) holds it to three lines:
+
+- it may import `core`, `protocol` and `platform`, and may name a domain's port **types** (a type-only import,
+  declared as a peer); a value import of a domain package, or a domain package in `dependencies`, fails;
+- only a host or a host preset (`server`, `cli`) may import it, never a domain package;
+- it never imports a host preset.
+
+It has no root barrel: one `exports` subpath per binding family, each added in the commit that adds its
+source file and test. `node-pty` stays in the `server` preset because it carries a native build.
+
 ### `entries` — when one `runtime` can't describe every export subpath
 
 `runtime` is a single value, but a package can ship more than one `exports` subpath (`.`,
@@ -69,7 +83,7 @@ consumer-adoption pass — see each package's own the archived provenance ledger
 | `@jini-ai/registry` | `better-sqlite3` | `peerDependencies` (optional) — `database-backend.ts` only needs the *type*, the caller owns/opens the real handle | Only pay the native-compile cost if you actually install `better-sqlite3` yourself to use `DatabaseRegistryBackend`; `StaticRegistryBackend` and friends need nothing. |
 | `@jini-ai/capability-providers` | `better-sqlite3` | `peerDependencies` (optional), and the code that needs it is behind the `./adapters/sqlite` subpath | Nothing on the root barrel references it, in code *or* in emitted `.d.ts`. Only pay the native-compile cost if you import `./adapters/sqlite` for `SqliteDbProvider`. |
 | `@jini-ai/integrations` (`./media-providers`) | `better-sqlite3` | Dynamically imported (`await import('better-sqlite3')`) inside `createSqliteMediaTaskStore` only | Importing anything else from `./media-providers` (e.g. `renderStub`) never touches the native binary at all; the cost is paid only if you actually call that one factory. |
-| `@jini-ai/daemon` | `node-pty` | Optional peer; native adapter at `./terminal` | The default entry uses an injected PTY port. Only hosts opting into `loadRealSpawnPty` from `@jini-ai/daemon/terminal` install the native addon. |
+| `@jini-ai/server` | `node-pty` | Optional peer; native adapter at `./adapters/node-pty` | `@jini-ai/daemon`'s session manager uses an injected PTY port. Only hosts opting into `loadRealSpawnPty` from `@jini-ai/server/adapters/node-pty` install the native addon. |
 
 Everything else in the workspace (`shiki` in `@jini-ai/ui`'s `./renderers` subpath, the various
 vendor SDKs in `@jini-ai/integrations`'s `./media-providers` dispatch providers) is pure JS — no
@@ -88,7 +102,6 @@ Default-entry runtime libraries require regular dependencies.
 | `@jini-ai/capability-providers` | `ws` | `./adapters/ws` (`WebSocketRealtimeProvider`) |
 | `@jini-ai/capability-providers` | `better-sqlite3` | `./adapters/sqlite` (`SqliteDbProvider`) |
 | `@jini-ai/ui` | `@excalidraw/excalidraw` | `./sketch-editor` |
-| `@jini-ai/ui` | `lexical`, `@lexical/react`, `@lexical/utils` | `./lexical-rich-text-editor` |
 | `@jini-ai/ui` | `@radix-ui/react-checkbox`, `@radix-ui/react-label`, `@radix-ui/react-radio-group`, `@radix-ui/react-select`, `@radix-ui/react-slot` | `./interactive-ui` (shadcn provider components) |
 | `@jini-ai/ui` | `recharts` | `./interactive-ui` (chart provider components) |
 | `@jini-ai/ui` | `@mcp-ui/client` | `./mcp-ui` (`McpUiHost`) |

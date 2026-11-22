@@ -8,7 +8,7 @@
  * comment in the response body to return. A panel must re-fetch (or optimistically patch its own
  * local copy of) `listCommentsQueue` to see the new state; do not assume this port hands back the
  * post-moderation row. On a version conflict, expect a conflict-class rejection whose error body
- * carries `currentVersion` (see `../transport/errors.ts`'s "`body` is kept raw" decision) so a
+ * carries `currentVersion` (see `@jini-ai/core/admin-runtime`'s `admin-api-error.ts`'s "`body` is kept raw" decision) so a
  * panel can refresh and retry without a second round-trip just to learn the current value.
  *
  * ## `purgeComment` has no `expectedVersion` and a different permission than moderation actions

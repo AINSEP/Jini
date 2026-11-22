@@ -79,8 +79,8 @@ const PREVIEW_PANE_STYLE: CSSProperties = { flex: 1, minWidth: 0, minHeight: 0 }
  *
  * @complexity O(parts.length) to render the viewer; content fetches are cached — see `../session.js`.
  */
-export function VibecodingWorkbench({ session, documentHtml, className, style }: VibecodingWorkbenchProps) {
-  const { parts, partContent, canUndo, canRedo, lastError, readPart, undo, redo } = useVibecodingSession({ session });
+export function VibecodingWorkbench({ session, documentHtml, className, style, useVibecodingSessionHook = useVibecodingSession }: VibecodingWorkbenchProps & { useVibecodingSessionHook?: typeof useVibecodingSession }) {
+  const { parts, partContent, canUndo, canRedo, lastError, readPart, undo, redo } = useVibecodingSessionHook({ session });
   const [selectedId, setSelectedId] = useState<PartId | null>(null);
   const [selectedContent, setSelectedContent] = useState<string | undefined>(undefined);
   const [contentLoading, setContentLoading] = useState(false);

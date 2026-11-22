@@ -32,9 +32,10 @@ function httpStatus(value: unknown): number | undefined {
 export function describeTelemetryFailure({ error }: { error: unknown }, _options = {}): Pick<ProviderTelemetryReport, "errorClass" | "statusCode"> {
   if (typeof error !== "object" || error === null) return { errorClass: "Error" };
   try {
-    const value = error as { name?: unknown; statusCode?: unknown; status?: unknown; code?: unknown };
-    const errorClass = typeof value.name === "string" && ERROR_CLASSES.has(value.name) ? value.name : "Error";
-    const statusCode = httpStatus(value.statusCode ?? value.status ?? value.code);
+    // Each field is read once: a getter cannot pass the check with one value and be stored with another.
+    const { name, statusCode: statusField, status, code } = error as { name?: unknown; statusCode?: unknown; status?: unknown; code?: unknown };
+    const errorClass = typeof name === "string" && ERROR_CLASSES.has(name) ? name : "Error";
+    const statusCode = httpStatus(statusField ?? status ?? code);
     return { errorClass, ...(statusCode === undefined ? {} : { statusCode }) };
   } catch { return { errorClass: "Error" }; }
 }

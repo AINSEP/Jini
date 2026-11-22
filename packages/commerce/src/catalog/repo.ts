@@ -1,5 +1,5 @@
 export { commerceStorefrontFor, STOREFRONT_PRODUCT_LIMIT } from "./repo.storefront.js";
-import type { StorageKernel } from "@jini-ai/db/kernel";
+import type { StorageKernel } from "@jini-ai/core/contracts/storage";
 export type { CommerceKernel, CommerceDatabase } from "./database.js";
 export { commercePriceProviderRefRepoFor } from "./repo.price-refs.js";
 export { commerceOrderPaymentRepoFor } from "./repo.order-payments.js";
@@ -34,6 +34,7 @@ import type {
   CommerceProductImageRecord,
   CommerceProductRecord,
 } from "./types.js";
+import type { Kysely } from "kysely";
 
 /**
  * @file THE commerce repositories: one Kysely query body for every database the storage kernel
@@ -333,27 +334,27 @@ export class SqlCommerceWebhookEventRepo implements CommerceWebhookEventRepoPort
 /** The commerce product repo for `kernel`.
  * Kysely is invariant in its table type: each factory borrows only the commerce view of the same
  * injected kernel. No connection, schema preparation or reconciliation is performed here. */
-export function commerceProductRepoFor<DB>({ kernel }: { kernel: StorageKernel<DB> }, _optional: Record<string, never> = {}): SqlCommerceProductRepo {
+export function commerceProductRepoFor<DB>({ kernel }: { kernel: StorageKernel<Kysely<DB>, DB> }, _optional: Record<string, never> = {}): SqlCommerceProductRepo {
   return new SqlCommerceProductRepo({ kernel: kernel as unknown as ContentKernel });
 }
 
 /** The commerce product-image repo for `kernel`. */
-export function commerceProductImageRepoFor<DB>({ kernel }: { kernel: StorageKernel<DB> }, _optional: Record<string, never> = {}): SqlCommerceProductImageRepo {
+export function commerceProductImageRepoFor<DB>({ kernel }: { kernel: StorageKernel<Kysely<DB>, DB> }, _optional: Record<string, never> = {}): SqlCommerceProductImageRepo {
   return new SqlCommerceProductImageRepo({ kernel: kernel as unknown as ContentKernel });
 }
 
 /** The commerce price repo for `kernel`. */
-export function commercePriceRepoFor<DB>({ kernel }: { kernel: StorageKernel<DB> }, _optional: Record<string, never> = {}): SqlCommercePriceRepo {
+export function commercePriceRepoFor<DB>({ kernel }: { kernel: StorageKernel<Kysely<DB>, DB> }, _optional: Record<string, never> = {}): SqlCommercePriceRepo {
   return new SqlCommercePriceRepo({ kernel: kernel as unknown as ContentKernel });
 }
 
 /** The commerce order repo for `kernel`. */
-export function commerceOrderRepoFor<DB>({ kernel }: { kernel: StorageKernel<DB> }, _optional: Record<string, never> = {}): SqlCommerceOrderRepo {
+export function commerceOrderRepoFor<DB>({ kernel }: { kernel: StorageKernel<Kysely<DB>, DB> }, _optional: Record<string, never> = {}): SqlCommerceOrderRepo {
   return new SqlCommerceOrderRepo({ kernel: kernel as unknown as ContentKernel });
 }
 
 /** The commerce webhook-event (inbox) repo for `kernel`. */
-export function commerceWebhookEventRepoFor<DB>({ kernel }: { kernel: StorageKernel<DB> }, _optional: Record<string, never> = {}): SqlCommerceWebhookEventRepo {
+export function commerceWebhookEventRepoFor<DB>({ kernel }: { kernel: StorageKernel<Kysely<DB>, DB> }, _optional: Record<string, never> = {}): SqlCommerceWebhookEventRepo {
   return new SqlCommerceWebhookEventRepo({ kernel: kernel as unknown as ContentKernel });
 }
 

@@ -4,8 +4,8 @@ import type { GatedMutationHooks } from "@jini-ai/core/gated-mutations";
 import type { RecoveryHookPolicy } from "./hook-policy.js";
 
 /**
- * @file Database's `GatedMutationHooks` factory for the `migrate-forward` ceremony (SPEC-017
- * C-103/C-105) — the domain-specific quarter of what used to be
+ * @file Database's `GatedMutationHooks` factory for the `migrate-forward` ceremony
+ * — the domain-specific quarter of what used to be
  * `server/gated-mutations-composition.ts`, split out so Database no longer needs a back-edge into
  * `server/` for its own hook builder. The generic pieces every ceremony shares (`buildGatewayDeps`,
  * `planHashOf`, `resolveActorClassIdentity`, `buildConfirmOnlyHooks`) stayed in
@@ -56,13 +56,13 @@ export interface BuildMigrateForwardHooksInput extends RecoveryHookPolicy {
 }
 
 /**
- * SPEC-017 C-103/C-105 — the Database `migrate-forward` ceremony's `GatedMutationHooks`.
+ * The Database `migrate-forward` ceremony's `GatedMutationHooks`.
  *
  * `computePlan()` reads live `dbOps.getCapabilities()` every call (never cached) — a site whose
  * capability changes between plan and execute (e.g. `cheap` -> `unavailable`) correctly produces a
  * different plan hash.
  *
- * `executeMutation()` performs the two safe, real, ADR-041 §2/§3-mandated actions this composition
+ * `executeMutation()` performs the two safe, real, mandated actions this composition
  * root can perform without inventing an unreviewed live-schema-swap mechanism: it captures a real
  * restore point (`dbOps.captureRestorePoint` — an online-backup file copy in the real SQLite
  * composition, a deterministic double in the hermetic one) and appends a `core.migration`
@@ -71,7 +71,7 @@ export interface BuildMigrateForwardHooksInput extends RecoveryHookPolicy {
  * at `openContentDb()` boot time (`db/sqlite/content-db.ts`), so by the time any ceremony could
  * run, the schema is already at head; re-invoking the migrator here would be a no-op in every
  * environment this dispatch can actually exercise, and this file has no reachable seam into the
- * hermetic (`server/app.ts`) composition's non-existent `content.db` at all. Persisting a
+ * hermetic (a host module) composition's non-existent `content.db` at all. Persisting a
  * `migration_runs` row (the former state machine's attempt ledger) is likewise
  * out of this pass's scope — no composition root wires `SqliteMigrationRunsRepo`/an in-memory
  * counterpart into `RouteDeps` yet; disclosed, not silently skipped.
@@ -82,7 +82,7 @@ export interface BuildMigrateForwardHooksInput extends RecoveryHookPolicy {
  * so the resulting artifact carries every workspace's data, not just the caller's) plus one
  * `restorePointsRepo`/`databaseLedgerRepo` write each. The restore-points subsystem this feeds is
  * itself not workspace-partitioned in practice: the real SQLite repo is nominally `siteId`-scoped
- * but bound to exactly one `siteId` for a whole process's lifetime (`server/deps.ts`), the
+ * but bound to exactly one `siteId` for a whole process's lifetime (a host module), the
  * in-memory test double has no partitioning field at all (`features/database/repo.memory.ts`),
  * and `features/recovery/gated-hooks.ts`'s `buildRestoreHooks` reads `restorePointsRepo.list()`
  * completely unfiltered — so a restore point this ceremony captures is exactly as instance-wide
@@ -106,7 +106,7 @@ export function buildMigrateForwardHooks(input: BuildMigrateForwardHooksInput, _
       return { planHash: input.planHashOf({ details }, {}), details };
     },
     executeMutation: async () => {
-      // Read fresh, not the `computePlan()` value — CIC U-003: a capability check cached across the
+      // Read fresh, not the `computePlan()` value — a capability check cached across the
       // plan/execute boundary can go stale, and the saved row must reflect what was ACTUALLY captured.
       const capabilities = await input.dbOps.getCapabilities();
       const captured = await input.dbOps.captureRestorePoint({ scopeId: input.workspaceId });

@@ -19,6 +19,22 @@ export interface VersionPreviewFrameProps {
   error: string | null;
   loading: boolean;
   loadingContent: boolean;
+  /** Hooks the frame calls; defaults to the real ones, a test hands in fakes. */
+  hooks?: VersionPreviewFrameHooks | undefined;
+}
+
+export const defaultVersionPreviewFrameHooks = { useT, usePreviewCanvasSize };
+export type VersionPreviewFrameHooks = typeof defaultVersionPreviewFrameHooks;
+
+/** Which of the empty and loading overlays the preview pane shows right now. */
+function previewStatus(
+  { previewDocument, frameReady, loading, loadingContent }: Pick<VersionPreviewFrameProps, 'previewDocument' | 'frameReady' | 'loading' | 'loadingContent'>,
+  _options: Record<string, never> = {},
+): { showEmpty: boolean; showLoading: boolean } {
+  return {
+    showEmpty: !previewDocument && !loading && !loadingContent,
+    showLoading: Boolean(loading || loadingContent || (previewDocument && !frameReady)),
+  };
 }
 
 /** The scaled, sandboxed preview iframe + its loading overlay. Measures its
@@ -34,14 +50,14 @@ export function VersionPreviewFrame({
   error,
   loading,
   loadingContent,
+  hooks = defaultVersionPreviewFrameHooks,
 }: VersionPreviewFrameProps) {
-  const t = useT();
-  const [frameRef, canvasSize] = usePreviewCanvasSize<HTMLDivElement>();
-  const preset = findViewportPreset(viewportPresets, viewport);
-  const scale = effectivePreviewScale(preset, 1, canvasSize, DEFAULT_PREVIEW_CANVAS_PADDING);
+  const t = hooks.useT();
+  const [frameRef, canvasSize] = hooks.usePreviewCanvasSize<HTMLDivElement>();
+  const preset = findViewportPreset({ presets: viewportPresets, id: viewport });
+  const scale = effectivePreviewScale({ preset, previewScale: 1, canvasSize, canvasPadding: DEFAULT_PREVIEW_CANVAS_PADDING });
 
-  const showEmpty = !previewDocument && !loading && !loadingContent;
-  const showLoading = loading || loadingContent || (previewDocument && !frameReady);
+  const { showEmpty, showLoading } = previewStatus({ previewDocument, frameReady, loading, loadingContent });
 
   const emptyState = showEmpty ? <div className="jini-viewer-empty">{t('No preview available.')}</div> : null;
 
@@ -54,9 +70,9 @@ export function VersionPreviewFrame({
       ) : (
         <>
           {previewDocument ? (
-            <div className="jini-preview-viewport" style={previewViewportStyle(preset, scale, 1)}>
+            <div className="jini-preview-viewport" style={previewViewportStyle({ preset, effectiveScale: scale, previewScale: 1 })}>
               <div className="jini-preview-frame-clip">
-                <div style={previewScaleShellStyle(preset, 1)}>
+                <div style={previewScaleShellStyle({ preset, previewScale: 1 })}>
                   <iframe
                     title={title}
                     sandbox="allow-scripts allow-downloads"

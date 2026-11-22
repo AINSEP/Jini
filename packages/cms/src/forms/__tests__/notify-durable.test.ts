@@ -3,7 +3,7 @@ import { test } from 'vitest';
 import { registerFormNotifySubscriber, FORM_NOTIFY_DELIVERY_EVENT, FormNotificationError } from '../notify-subscriber.js';
 import { InMemoryEventBus } from './eventing.fixture.js';
 import { InMemoryFormDefinitionRepo, InMemoryFormSubmissionRepo } from './repo.fixture.js';
-import type { DomainEvent } from '../../core/index.js';
+import type { DomainEvent } from '@jini-ai/core/contracts/events';
 import type { MailerPort } from '../ports.js';
 
 async function fixture(mailer?: MailerPort) {

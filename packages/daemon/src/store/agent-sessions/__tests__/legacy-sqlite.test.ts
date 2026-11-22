@@ -1,7 +1,7 @@
 /** The legacy raw-SQLite agent-session helpers, exercised against a real in-memory SQLite database. */
 import Database from 'better-sqlite3';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import type { SqliteDb } from '@jini-ai/db/sqlite';
+import type { SqliteDb } from '@jini-ai/core/contracts/storage';
 import {
   LEGACY_AGENT_SESSIONS_DDL,
   clearAgentSession,

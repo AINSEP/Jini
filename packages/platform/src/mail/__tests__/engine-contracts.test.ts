@@ -16,7 +16,7 @@ const delivery: MailerSendRequired = {
 
 describe("mail adapter compatibility", () => {
   test("legacy create-only adapters keep single and batch signatures", async () => {
-    const adapter: MailAdapterModule = createConsoleMailProvider({ clock }, { log: () => {} });
+    const adapter: MailAdapterModule = createConsoleMailProvider({ clock, preview: () => {} });
     assert.equal(adapter.domainReadConnection, undefined);
     const mailer = adapter.create({ credential: { token: "sending" }, kit: { httpClient } });
     assert.equal(mailer.capabilities({}).driver, "console");
@@ -28,7 +28,7 @@ describe("mail adapter compatibility", () => {
 
   test("optional domain-read metadata survives registration without entering sending context", async () => {
     const provider = {
-      ...createConsoleMailProvider({ clock }, { log: () => {} }),
+      ...createConsoleMailProvider({ clock, preview: () => {} }),
       domainReadConnection: { serverId: "domain-reader", baseUrl: "https://api.example.com" },
     };
     assert.equal(validateMailProvider({ provider }), undefined);

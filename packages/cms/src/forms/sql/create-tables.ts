@@ -68,7 +68,7 @@ function submissionsTable(n: Names, dialect: FormsTablesDialect, fk: string): Ra
  * longer than 63 bytes (Postgres' identifier limit) is shortened to 63 with a hash of the full name.
  *
  * @agent-note `kernel`: in your app, pass the SQLite or Postgres kernel you already opened (for
- *   SQLite, `sqliteKernel(openSqliteConnection({ filePath, open }))` from `@jini-ai/db/kernel/sqlite`
+ *   SQLite, `sqliteKernel({ source: openSqliteConnection({ filePath, open }) })` from `@jini-ai/db/kernel/sqlite`
  *   and `@jini-ai/db/sqlite`), the same one you then hand to `formDefinitionRepoFor` and
  *   `formSubmissionRepoFor`. `tables`: the names your app chose, passed unchanged to those repos.
  * @param required.kernel the host's storage kernel; its `dialect` picks the column types.

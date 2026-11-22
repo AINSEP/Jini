@@ -4,12 +4,15 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import type { Kysely } from "kysely";
 
 import {
+  type KyselyKernel,
+} from "./port.js";
+import {
   type StorageCapabilities,
   type StorageDialect,
-  type StorageKernel,
   type StorageTransport,
   UnsupportedCapabilityError,
-} from "./port.js";
+} from "@jini-ai/core/contracts/storage";
+import type { DbTransport } from "./port.js";
 import { TurnLock } from "./turn-lock.js";
 import { registerOwnedTransaction } from "./owned-transaction.js";
 
@@ -28,7 +31,7 @@ interface OwnedTurn { onSettled?: () => void }
 /** What a driver supplies. Everything else about a kernel is built here. */
 export interface KernelDriver<DB> {
   dialect: StorageDialect;
-  transport: StorageTransport;
+  transport: DbTransport;
   capabilities: StorageCapabilities;
   ready: Promise<void>;
   base: Kysely<DB>;
@@ -83,92 +86,112 @@ async function takingTurn<T>(lock: TurnLock | undefined, kind: "shared" | "exclu
   }
 }
 
-export function buildKernel<DB>(driver: KernelDriver<DB>): StorageKernel<DB> {
-  const scope = new AsyncLocalStorage<Scope<DB>>();
+/** The mutable state one kernel's operations share: its driver, async scope, turn lock and own-transaction count. */
+interface KernelRuntime<DB> {
+  driver: KernelDriver<DB>;
+  scope: AsyncLocalStorage<Scope<DB>>;
+  lock: TurnLock | undefined;
+  own: { transactions: number };
+}
+
+function joinsForeign<DB>({ rt }: { rt: KernelRuntime<DB> }): boolean {
+  return rt.own.transactions === 0 && rt.driver.foreignTransactionOpen?.() === true;
+}
+
+function requireCapability<DB>({ rt, capability }: { rt: KernelRuntime<DB>; capability: keyof StorageCapabilities }): void {
+  if (!rt.driver.capabilities[capability]) throw new UnsupportedCapabilityError(capability, rt.driver.transport);
+}
+
+function assertOwnedAvailable<DB>({ rt }: { rt: KernelRuntime<DB> }): void {
+  if (rt.scope.getStore() !== undefined || joinsForeign({ rt })) {
+    throw new Error("an owned transaction cannot join an existing run or foreign transaction");
+  }
+}
+
+async function kernelRun<DB, T>({ rt, fn }: { rt: KernelRuntime<DB>; fn: (db: Kysely<DB>) => T | Promise<T> }): Promise<T> {
+  const { driver, scope, lock } = rt;
+  await driver.ready;
+  const current = scope.getStore();
+  if (current !== undefined) return fn(current.db);
+  if (joinsForeign({ rt })) return fn(driver.base);
+  return takingTurn(lock, "shared", async () => scope.run({ kind: "run", db: driver.base }, () => fn(driver.base)));
+}
+
+async function kernelTransaction<DB, T>(
+  { rt, fn, owned }: { rt: KernelRuntime<DB>; fn: () => Promise<T>; owned?: OwnedTurn | undefined },
+): Promise<T> {
+  const { driver, scope, lock } = rt;
+  requireCapability({ rt, capability: "interactiveTransactions" });
+  await driver.ready;
+  if (owned !== undefined) assertOwnedAvailable({ rt });
+  const current = scope.getStore();
+  if (current?.kind === "transaction") return fn();
+  if (current?.kind === "run") {
+    throw new Error(
+      "transaction() was called inside a run() body; start the transaction first and call run() inside it"
+    );
+  }
+  if (joinsForeign({ rt })) return scope.run({ kind: "transaction", db: driver.base }, fn);
+  return takingTurn(lock, "exclusive", async () => {
+    if (owned !== undefined) assertOwnedAvailable({ rt });
+    rt.own.transactions += 1;
+    try {
+      return await driver.begin((tx) => scope.run({ kind: "transaction", db: tx }, fn));
+    } finally {
+      rt.own.transactions -= 1;
+      // Still inside the turn: the next queued caller must not see this owner's state.
+      owned?.onSettled?.();
+    }
+  });
+}
+
+async function kernelLockKey<DB>({ rt, key }: { rt: KernelRuntime<DB>; key: string }): Promise<void> {
+  const current = rt.scope.getStore();
+  // A joined legacy transaction counts: it is the same `BEGIN IMMEDIATE` on SQLite.
+  if (current?.kind !== "transaction" && !joinsForeign({ rt })) {
+    throw new Error("lockKey() must be called inside transaction()");
+  }
+  await rt.driver.lockKey(current?.db ?? rt.driver.base, key);
+}
+
+async function kernelBackup<DB>({ rt, destPath }: { rt: KernelRuntime<DB>; destPath: string }): Promise<void> {
+  const { driver, scope, lock } = rt;
+  requireCapability({ rt, capability: "backup" });
+  if (driver.backup === undefined) throw new UnsupportedCapabilityError("backup", driver.transport);
+  if (scope.getStore()?.kind === "transaction") throw new Error("backupTo() must be called outside a transaction");
+  await driver.ready;
+  // A copy must wait for unrelated work to commit or roll back on the shared connection.
+  await takingTurn(lock, "exclusive", () => driver.backup!(destPath));
+}
+
+export function buildKernel<DB>({ driver }: { driver: KernelDriver<DB> }, _optional: Record<string, never> = {}): KyselyKernel<DB> {
   const lock = driver.oneConnection ? (driver.turnLock ?? new TurnLock()) : undefined;
-  let ownTransactions = 0;
-  const joinsForeign = () => ownTransactions === 0 && driver.foreignTransactionOpen?.() === true;
+  const rt: KernelRuntime<DB> = { driver, scope: new AsyncLocalStorage<Scope<DB>>(), lock, own: { transactions: 0 } };
+  const require = (capability: keyof StorageCapabilities): void => requireCapability({ rt, capability });
+  const run = <T>(fn: (db: Kysely<DB>) => T | Promise<T>): Promise<T> => kernelRun({ rt, fn });
+  const transaction = <T>(fn: () => Promise<T>, owned?: OwnedTurn): Promise<T> => kernelTransaction({ rt, fn, owned });
 
-  function require(capability: keyof StorageCapabilities): void {
-    if (!driver.capabilities[capability]) throw new UnsupportedCapabilityError(capability, driver.transport);
-  }
-
-  async function run<T>(fn: (db: Kysely<DB>) => T | Promise<T>): Promise<T> {
-    await driver.ready;
-    const current = scope.getStore();
-    if (current !== undefined) return fn(current.db);
-    if (joinsForeign()) return fn(driver.base);
-    return takingTurn(lock, "shared", async () => scope.run({ kind: "run", db: driver.base }, () => fn(driver.base)));
-  }
-
-  function assertOwnedAvailable(): void {
-    if (scope.getStore() !== undefined || joinsForeign()) {
-      throw new Error("an owned transaction cannot join an existing run or foreign transaction");
-    }
-  }
-
-  async function transaction<T>(fn: () => Promise<T>, owned?: OwnedTurn): Promise<T> {
-    require("interactiveTransactions");
-    await driver.ready;
-    if (owned !== undefined) assertOwnedAvailable();
-    const current = scope.getStore();
-    if (current?.kind === "transaction") return fn();
-    if (current?.kind === "run") {
-      throw new Error(
-        "transaction() was called inside a run() body; start the transaction first and call run() inside it"
-      );
-    }
-    if (joinsForeign()) return scope.run({ kind: "transaction", db: driver.base }, fn);
-    return takingTurn(lock, "exclusive", async () => {
-      if (owned !== undefined) assertOwnedAvailable();
-      ownTransactions += 1;
-      try {
-        return await driver.begin((tx) => scope.run({ kind: "transaction", db: tx }, fn));
-      } finally {
-        ownTransactions -= 1;
-        // Still inside the turn: the next queued caller must not see this owner's state.
-        owned?.onSettled?.();
-      }
-    });
-  }
-
-  async function lockKey(key: string): Promise<void> {
-    const current = scope.getStore();
-    // A joined legacy transaction counts: it is the same `BEGIN IMMEDIATE` on SQLite.
-    if (current?.kind !== "transaction" && !joinsForeign()) {
-      throw new Error("lockKey() must be called inside transaction()");
-    }
-    await driver.lockKey(current?.db ?? driver.base, key);
-  }
-
-  const kernel: StorageKernel<DB> = {
+  const kernel: KyselyKernel<DB> = {
     dialect: driver.dialect,
     transport: driver.transport,
     capabilities: driver.capabilities,
     ready: driver.ready,
     run,
     transaction,
-    lockKey,
+    lockKey: (key) => kernelLockKey({ rt, key }),
     query: async (statement) => (await run((db) => statement.execute(db))).rows,
     execute: async (statement) => {
       await run((db) => statement.execute(db));
     },
-    inTransaction: () => scope.getStore()?.kind === "transaction",
+    inTransaction: () => rt.scope.getStore()?.kind === "transaction",
     require,
-    async backupTo(destPath) {
-      require("backup");
-      if (driver.backup === undefined) throw new UnsupportedCapabilityError("backup", driver.transport);
-      if (scope.getStore()?.kind === "transaction") throw new Error("backupTo() must be called outside a transaction");
-      await driver.ready;
-      // A copy must wait for unrelated work to commit or roll back on the shared connection.
-      await takingTurn(lock, "exclusive", () => driver.backup!(destPath));
-    },
+    backupTo: (destPath) => kernelBackup({ rt, destPath }),
     close: () => driver.close(),
   };
-  registerOwnedTransaction({ kernel: kernel as StorageKernel<unknown>, control: {
-    assertAvailable: assertOwnedAvailable,
+  registerOwnedTransaction({ kernel: kernel as KyselyKernel<unknown>, control: {
+    assertAvailable: () => assertOwnedAvailable({ rt }),
     transaction: (work, optional = {}) => transaction(work, optional),
   } });
-  registerKernelSessionDatabase({ kernel: kernel as StorageKernel<unknown>, database: driver.base as Kysely<unknown>, ...(driver.poolMax === undefined ? {} : { poolMax: driver.poolMax }) });
+  registerKernelSessionDatabase({ kernel: kernel as KyselyKernel<unknown>, database: driver.base as Kysely<unknown>, ...(driver.poolMax === undefined ? {} : { poolMax: driver.poolMax }) });
   return kernel;
 }

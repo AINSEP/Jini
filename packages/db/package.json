@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/db",
-  "version": "0.7.2",
+  "version": "0.7.3-next.2",
   "description": "Database ports, connection helpers, ownership, isolated Kysely kernels and migrations. All peers are optional; drivers are injected.",
   "license": "Apache-2.0",
   "repository": {
@@ -41,8 +41,7 @@
     "optionalPeers": {
       "better-sqlite3": "opt-in: sqlite storage — SQLite storage could not load better-sqlite3. Install better-sqlite3 to enable this feature, or check its installed version and native binaries.",
       "@electric-sql/pglite": "opt-in: embedded postgresql storage — Embedded PostgreSQL storage could not load @electric-sql/pglite. Install @electric-sql/pglite to enable this feature, or check its installed version and native binaries.",
-      "pg": "opt-in: postgresql storage — PostgreSQL storage could not load pg. Install pg to enable this feature, or check its installed version and native binaries.",
-      "@jini-ai/platform": "opt-in: platform-backed adapters; import @jini-ai/db/secrets-vault — Platform-backed adapters could not load @jini-ai/platform. Install @jini-ai/platform to enable this feature, or check its installed version and native binaries."
+      "pg": "opt-in: postgresql storage — PostgreSQL storage could not load pg. Install pg to enable this feature, or check its installed version and native binaries."
     }
   },
   "type": "module",
@@ -134,6 +133,26 @@
       "import": "./dist/secrets-vault/index.js",
       "default": "./dist/secrets-vault/index.js"
     },
+    "./settings": {
+      "types": "./dist/settings/index.d.ts",
+      "import": "./dist/settings/index.js",
+      "default": "./dist/settings/index.js"
+    },
+    "./events": {
+      "types": "./dist/events/index.d.ts",
+      "import": "./dist/events/index.js",
+      "default": "./dist/events/index.js"
+    },
+    "./gated-mutations": {
+      "types": "./dist/gated-mutations/index.d.ts",
+      "import": "./dist/gated-mutations/index.js",
+      "default": "./dist/gated-mutations/index.js"
+    },
+    "./verified-origin": {
+      "types": "./dist/verified-origin/index.d.ts",
+      "import": "./dist/verified-origin/index.js",
+      "default": "./dist/verified-origin/index.js"
+    },
     "./data-modules": {
       "types": "./dist/data-modules/index.d.ts",
       "import": "./dist/data-modules/index.js",
@@ -196,6 +215,18 @@
       "secrets-vault": [
         "./dist/secrets-vault/index.d.ts"
       ],
+      "settings": [
+        "./dist/settings/index.d.ts"
+      ],
+      "events": [
+        "./dist/events/index.d.ts"
+      ],
+      "gated-mutations": [
+        "./dist/gated-mutations/index.d.ts"
+      ],
+      "verified-origin": [
+        "./dist/verified-origin/index.d.ts"
+      ],
       "data-modules": [
         "./dist/data-modules/index.d.ts"
       ]
@@ -232,14 +263,13 @@
   "peerDependencies": {
     "better-sqlite3": "^13.0.0",
     "@electric-sql/pglite": "0.5.8",
-    "pg": "^8.23.0",
-    "@jini-ai/platform": "^0.7.0"
+    "pg": "^8.23.0"
   },
   "devDependencies": {
     "@electric-sql/pglite": "0.5.8",
     "@types/better-sqlite3": "7.6.13",
     "@types/pg": "8.23.1",
-    "@vitest/coverage-v8": "^2.1.9",
+    "@vitest/coverage-v8": "^3.2.6",
     "better-sqlite3": "13.0.3",
     "kysely": "0.29.6",
     "pg": "8.23.0",
@@ -254,9 +284,6 @@
       "optional": true
     },
     "pg": {
-      "optional": true
-    },
-    "@jini-ai/platform": {
       "optional": true
     }
   }

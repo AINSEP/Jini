@@ -1,6 +1,8 @@
+import { fakeRuntimePorts } from '../../ports/__tests__/fakes/runtime.js';
 import { describe, expect, it } from 'vitest';
 import { parse } from 'smol-toml';
-import { AGENT_DEFS, buildAcpSessionNewParams, runtimeSupportsExternalTools, type RuntimeAgentDef } from '@jini-ai/agent-runtime';
+import { AGENT_DEFS, buildAcpSessionNewParams, runtimeSupportsExternalTools } from '@jini-ai/agent-runtime';
+import { type RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 import { createApprovalHandler, createToolRegistry, type AccessApprovalDescription } from '@jini-ai/core';
 import { createDelegatedToolBridge } from '../../delegated-tool-bridge.js';
 import { createInMemoryEventLog } from '../../event-log.js';
@@ -32,7 +34,7 @@ async function stage(def: RuntimeAgentDef, runId: string, credential: string) {
   };
   const delivery = await resolveMcpBridgeForRun({
     input: { runId, cwd: '/fixture', def, nativeCapabilities: { userMcp: true } },
-    deps: { mcpJsonInjection: options, cleanupStagedFiles: async () => {}, failBeforeSpawn: refuse,
+    deps: { mcpJsonInjection: options, cleanupStagedFiles: async () => {}, failBeforeSpawn: refuse, ...fakeRuntimePorts(),
       ensureAntigravityMcpPermission: async () => {} },
   });
   if (delivery === null) {

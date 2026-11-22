@@ -1,9 +1,8 @@
-import { type CreateTableBuilder, sql } from "kysely";
-import type { MigrationStep } from "@jini-ai/db/migrate";
-import type { StorageKernel } from "@jini-ai/db/kernel";
+import { type CreateTableBuilder, sql, type Kysely } from "kysely";
+import type { MigrationStep, StorageKernel } from "@jini-ai/core/contracts/storage";
 
 /**
- * @file Payments ledger step 2 (ADR-066; lot L4): the append-only operator-action audit, the
+ * @file Payments ledger step 2 (lot L4): the append-only operator-action audit, the
  * two indexes the reconciler's scans need, and the outbox enqueue order. Same portable-DDL rules as `0001_payments_ledger`
  * (TEXT/BIGINT only, NOT NULL primary key, mode CHECK, a foreign key over the payment's
  * id + workspace + mode). Step 1 is frozen, so the table is added here rather than there.
@@ -33,7 +32,7 @@ const INDEXES: readonly (readonly [name: string, table: string, columns: readonl
   ["commerce_outbox_seq", "commerce_outbox", ["seq"]],
 ];
 
-async function up(kernel: StorageKernel<unknown>): Promise<void> {
+async function up(kernel: StorageKernel<Kysely<unknown>, unknown>): Promise<void> {
   await kernel.run((db) => {
     // Columns are added in a loop, so Kysely cannot track their names: widen the builder to `string`.
     let builder = db.schema.createTable("commerce_operator_actions") as unknown as CreateTableBuilder<string, string>;
@@ -53,6 +52,6 @@ async function up(kernel: StorageKernel<unknown>): Promise<void> {
 }
 
 /** The step, carrying its pinned checksum. @example paymentsOperatorActions({ checksum }) */
-export function paymentsOperatorActions(required: { checksum: string }, _optional: Record<string, never> = {}): MigrationStep {
+export function paymentsOperatorActions(required: { checksum: string }, _optional: Record<string, never> = {}): MigrationStep<StorageKernel<Kysely<unknown>, unknown>> {
   return { id: PAYMENTS_OPERATOR_ACTIONS_ID, checksum: required.checksum, up };
 }

@@ -1,6 +1,10 @@
 import type { CredentialedRequestAuditPort, makeCredentialedRequest } from "../credentialed-http/credentialed-request.js";
 import type { CredentialSchemeRegistryPort, ResolvedCredential } from "../credentialed-http/ports.js";
-import type { DnsResolver, GuardedClock, PinnedHttpTransport } from "@jini-ai/platform/http/guarded";
+import type {
+  DnsResolver,
+  GuardedClock,
+  PinnedHttpTransport,
+} from "@jini-ai/core/contracts/runtime";
 
 /** Persisted data only. Identity, policy, consent and quotas belong to the calling host. */
 export interface SavedRequestDefinition {

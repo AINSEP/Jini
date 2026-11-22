@@ -65,7 +65,7 @@ const isDisabled = (error) => error.name === 'GoogleWorkspaceError' && error.cod
 
 /** The plugin's Sheets tools (named with the product's toolPrefix) and their loaded modules. */
 async function sheetsTools() {
-  const file = JSON.parse(await readFile(new URL('../tovu-agent-tools.json', import.meta.url), 'utf8'));
+  const file = JSON.parse(await readFile(new URL('../jini-agent-tools.json', import.meta.url), 'utf8'));
   const tools = file.tools.filter((tool) => tool.name.startsWith(SHEETS.toolPrefix));
   return Promise.all(tools.map(async (tool) => ({ name: tool.name, module: (await import(new URL(tool.module, new URL(`file://${PLUGIN_ROOT}/`)))).default })));
 }

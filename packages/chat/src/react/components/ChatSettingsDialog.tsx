@@ -13,7 +13,7 @@ function SettingSwitch(required: {
   label: string; checked: boolean; disabled?: boolean | undefined; onChange: (checked: boolean) => void;
   description?: string | undefined; descriptionId: string; className?: string | undefined;
   tooltip?: string | undefined;
-}, _optional: Record<string, never> = {}) {
+}) {
   const inputId = useId();
   return <div className={['jini-chat-settings-row', required.className].filter(Boolean).join(' ')}>
     <input id={inputId} type="checkbox" role="switch" className="jini-checkbox jini-chat-settings-switch"
@@ -34,11 +34,12 @@ function SettingSwitch(required: {
  * Native dialog semantics own modal focus containment; closing restores the opener.
  * Header and tabs stay fixed while only the active panel scrolls.
  */
-export function ChatSettingsDialog(required: {
+export function ChatSettingsDialog({ useChatSettingsViewHook = useChatSettingsView, ...required }: {
+  useChatSettingsViewHook?: typeof useChatSettingsView;
   open: boolean; onClose: () => void; displaySections: readonly ChatSettingsSection[];
   permissions: ChatPermissionsPort; t?: (key: string) => string;
-}, _optional: Record<string, never> = {}) {
-  const vm = useChatSettingsView(required);
+}) {
+  const vm = useChatSettingsViewHook(required);
   const dialogRef = useRef<HTMLDialogElement>(null), closeRef = useRef<HTMLButtonElement>(null), titleId = useId();
   const openerRef = useRef<Element | null>(null);
   useLayoutEffect(() => {
@@ -75,17 +76,7 @@ export function ChatSettingsDialog(required: {
       const verticalOutside = y < box.top || y > box.bottom;
       if ((x === 0 && y === 0) || horizontalOutside || verticalOutside) required.onClose();
     }}>
-    <header className="jini-chat-settings-header">
-      <h2 id={titleId} className="jini-dialog-title">{vm.t('Chat settings')}</h2>
-      <button ref={closeRef} type="button" className="jini-dialog-close jini-chat-settings-close"
-        aria-label={vm.t('Close')} onClick={required.onClose}><span aria-hidden="true">×</span></button>
-    </header>
-    <TabBar tabs={vm.tabs} activeId={vm.tab} onChange={vm.setTab} ariaLabel={vm.t('Chat settings')} />
-    <div className="jini-chat-settings-body" role="tabpanel"
-      aria-label={vm.tab === 'display' ? vm.t('Display') : vm.t('Agent permissions')}>
-      {vm.tab === 'display' ? vm.display.map(renderDisplaySection)
-      : renderPermissions(vm)}
-    </div>
+    <ChatSettingsBody vm={vm} titleId={titleId} closeRef={closeRef} onClose={required.onClose} />
   </dialog>;
 }
 
@@ -125,4 +116,21 @@ function renderPermissions(vm: ReturnType<typeof useChatSettingsView>) {
     {vm.permissions.busy && <p role="status" className="jini-chat-settings-note">{vm.t('Saving…')}</p>}
     {vm.permissions.error && <p role="alert" className="jini-chat-settings-error">{vm.permissions.error}</p>}
   </>;
+}
+
+function ChatSettingsBody({ vm, titleId, closeRef, onClose }: {
+  vm: ReturnType<typeof useChatSettingsView>; titleId: string; closeRef: React.RefObject<HTMLButtonElement | null>; onClose: () => void;
+}) {
+  return <>
+    <header className="jini-chat-settings-header">
+      <h2 id={titleId} className="jini-dialog-title">{vm.t('Chat settings')}</h2>
+      <button ref={closeRef} type="button" className="jini-dialog-close jini-chat-settings-close"
+        aria-label={vm.t('Close')} onClick={onClose}><span aria-hidden="true">×</span></button>
+    </header>
+    <TabBar tabs={vm.tabs} activeId={vm.tab} onChange={vm.setTab} ariaLabel={vm.t('Chat settings')} />
+    <div className="jini-chat-settings-body" role="tabpanel"
+      aria-label={vm.tab === 'display' ? vm.t('Display') : vm.t('Agent permissions')}>
+      {vm.tab === 'display' ? vm.display.map(renderDisplaySection)
+      : renderPermissions(vm)}
+    </div>  </>;
 }

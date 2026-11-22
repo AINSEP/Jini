@@ -13,7 +13,8 @@
  * call the kit's `requireToolPermission` themselves, mirroring those routes' identical
  * `workspace.manage` check.
  */
-import type { AuthorizeFn } from "../core/commands/command.js";
+import type { AuthorizeFn } from "@jini-ai/core/contracts/events";
+import { requireExpectedVersion } from "@jini-ai/core/optimistic-concurrency";
 import { buildDomainRegistrations, indexCatalogById, optionalString, requireInputRecord, requireNoInput, type AgentToolSideEffect, type DerivedRiskByToolId, type ToolHandler, type ToolRegistration } from "@jini-ai/core";
 import { adaptLegacyAuthorize, requireToolPermission } from "../core/tools/index.js";
 import { getWorkspaceAgentToolCatalog } from "./agent-tools.js";
@@ -40,7 +41,7 @@ export interface WorkspaceToolDeps {
  * `sideEffects` declaration — and note that the two excluded tools appear NOWHERE here, which is
  * itself the strongest of the guards: an unclassified id cannot be wired at all.
  */
-export const workspaceDerivedRisk: DerivedRiskByToolId = new Map<string, AgentToolSideEffect>([
+export const workspaceDerivedRisk: ReadonlyMap<string, AgentToolSideEffect> = new Map<string, AgentToolSideEffect>([
   // -> routeDeps.workspaceRepo.findById(): one read, no domain function of its own (mirrors a
   //    host's own admin workspace-get route making the same direct repo call).
   ["workspace_get", "none"],
@@ -51,7 +52,7 @@ export const workspaceDerivedRisk: DerivedRiskByToolId = new Map<string, AgentTo
 ]);
 
 /** Workspace catalog entries this pass does not wire, and why — see `./agent-tools.ts`'s own per-entry comments for the full reasoning. */
-const UNWIRED_WORKSPACE_TOOL_IDS = new Set([
+const UNWIRED_WORKSPACE_TOOL_IDS: ReadonlySet<string> = new Set([
   // EXCLUDED BY DESIGN: inserts a row no other route can ever address (every workspace route
   // resolves strictly against the boot-wired `workspaceId`) — zero utility, non-zero
   // orphaned-row/clutter surface.
@@ -62,7 +63,7 @@ const UNWIRED_WORKSPACE_TOOL_IDS = new Set([
   "workspace_delete",
 ]);
 
-export function buildWorkspaceRegistrations(routeDeps: WorkspaceToolDeps): ToolRegistration[] {
+export function buildWorkspaceRegistrations(routeDeps: WorkspaceToolDeps, optional: { readToolId?: string } = {}): ToolRegistration[] {
   const handlers: Record<string, ToolHandler> = {
     workspace_get: async (ctx) => {
       requireNoInput({ input: ctx.input });
@@ -80,11 +81,13 @@ export function buildWorkspaceRegistrations(routeDeps: WorkspaceToolDeps): ToolR
     workspace_update: async (ctx) => {
       const input = requireInputRecord({ input: ctx.input });
       await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }), workspaceId: routeDeps.workspaceId, principalId: ctx.principal.id, permission: "workspace.manage" }, { entityType: "workspace" });
+      const expectedVersion = requireExpectedVersion({ value: input.expectedVersion, readToolId: optional.readToolId ?? "workspace_get" });
 
       // WorkspaceValidationError/WorkspaceConflictError/WorkspaceNotFoundError (all real `Error`
       // subclasses, see `create.ts`) propagate as-is — a `ToolExecutor` treats any thrown error as
       // a failed execution, matching every other domain's handler convention of not rewrapping
       // typed domain errors before letting them surface.
+      ctx.signal.throwIfAborted();
       const { workspace } = await updateWorkspace({
         deps: { repo: routeDeps.workspaceRepo },
         input: {
@@ -92,7 +95,7 @@ export function buildWorkspaceRegistrations(routeDeps: WorkspaceToolDeps): ToolR
           name: optionalString({ input, key: "name" }),
           slug: optionalString({ input, key: "slug" }),
         },
-      });
+      }, { expectedVersion });
       return { workspace };
     },
   };

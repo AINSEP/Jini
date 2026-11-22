@@ -1,5 +1,5 @@
 /**
- * @file SPIKE — whole-file snapshot before a schema change (ADR-023 §4, §11).
+ * @file SPIKE — whole-file snapshot before a schema change.
  *
  * The never-brick reversibility anchor: core takes a whole-file snapshot via SQLite's ONLINE
  * BACKUP API (not a raw `fs` copy — the backup API is WAL-safe on a live db) before ANY plugin
@@ -14,7 +14,7 @@
  * snapshot exists. Before this fix, `path.dirname(":memory:")` resolved to `"."` (the process's
  * current working directory) and `path.basename(":memory:")` resolved to the literal string
  * `":memory:"`, so every call against an in-memory test db (used pervasively by this repo's test
- * suite, e.g. `src/newsletter/__tests__/repo.contract.test.ts` via `openContentDb(":memory:")`)
+ * suite, e.g. a host module via `openContentDb(":memory:")`)
  * wrote a REAL, non-empty SQLite backup file literally named `:memory:.snapshot-<label>-<ts>` into
  * the repo root — hundreds of MB accumulated across a single session's test runs.
  */
@@ -77,7 +77,7 @@ export async function snapshotDb(
  * AFTER the migration it guarded is already committed, so a failure to unlink is untidy, not
  * unsafe, and must not turn a successful migration into a reported failure.
  *
- * ADR-023 §4 amendment (2026-08-02). §4 specified taking the snapshot but never said when one
+ * Amendment (2026-08-02). The original design specified taking the snapshot but never said when one
  * stops being needed, so nothing ever deleted them: every plugin that declared tables left a
  * whole-database copy on disk permanently, three at a time for a stock install (`store`,
  * `newsletter`, `comments`), each the full size of `content.db`.

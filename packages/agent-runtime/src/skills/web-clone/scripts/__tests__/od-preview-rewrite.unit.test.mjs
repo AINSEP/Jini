@@ -19,10 +19,10 @@ function makeProject() {
 
 describe("parseArgs", () => {
   it("defaults --project to the given cwd, including when the value is missing", () => {
-    expect(parseArgs([], "/work")).toEqual({ project: "/work", help: false });
-    expect(parseArgs(["--project"], "/work").project).toBe("/work");
-    expect(parseArgs(["--project", "clone", "-h"], "/work")).toEqual({ project: "clone", help: true });
-    expect(() => parseArgs(["x"], "/work")).toThrow("Unexpected argument: x");
+    expect(parseArgs({ argv: [], cwd: "/work" })).toEqual({ project: "/work", help: false });
+    expect(parseArgs({ argv: ["--project"], cwd: "/work" }).project).toBe("/work");
+    expect(parseArgs({ argv: ["--project", "clone", "-h"], cwd: "/work" })).toEqual({ project: "clone", help: true });
+    expect(() => parseArgs({ argv: ["x"], cwd: "/work" })).toThrow("Unexpected argument: x");
   });
 });
 
@@ -31,33 +31,33 @@ describe("rootAssetPath", () => {
   const project = { root, fs };
 
   it("resolves existing project-root asset references", () => {
-    expect(rootAssetPath(project, " /assets/logo.png?v=1#x ")).toBe("assets/logo.png");
-    expect(rootAssetPath(project, "/data.json")).toBe("data.json");
-    expect(rootAssetPath(project, "/fonts/a%20b.woff2")).toBe("fonts/a b.woff2");
-    expect(rootAssetPath(project, "/assets\\logo.png")).toBe("assets/logo.png");
+    expect(rootAssetPath({ project, value: " /assets/logo.png?v=1#x " })).toBe("assets/logo.png");
+    expect(rootAssetPath({ project, value: "/data.json" })).toBe("data.json");
+    expect(rootAssetPath({ project, value: "/fonts/a%20b.woff2" })).toBe("fonts/a b.woff2");
+    expect(rootAssetPath({ project, value: "/assets\\logo.png" })).toBe("assets/logo.png");
   });
 
   it("keeps a malformed percent-encoding as-is", () => {
-    expect(rootAssetPath(project, "/%E0%A4%A.png")).toBe("%E0%A4%A.png");
+    expect(rootAssetPath({ project, value: "/%E0%A4%A.png" })).toBe("%E0%A4%A.png");
   });
 
   it("rejects relative, protocol-relative, bare-root, traversal, host-route, non-asset, and missing references", () => {
     for (const value of ["assets/logo.png", "//cdn.test/a.png", "/", "/?q", "/assets/../assets/logo.png", "/api/thing.png", "/README", "/%2Fassets/logo.png", "/assets/none.png"]) {
-      expect(rootAssetPath(project, value)).toBeNull();
+      expect(rootAssetPath({ project, value })).toBeNull();
     }
   });
 });
 
 describe("helpers", () => {
   it("suffixFor returns the query/hash tail or an empty string", () => {
-    expect(suffixFor("/a.png?v=1#h")).toBe("?v=1#h");
-    expect(suffixFor("/a.png")).toBe("");
+    expect(suffixFor({ value: "/a.png?v=1#h" })).toBe("?v=1#h");
+    expect(suffixFor({ value: "/a.png" })).toBe("");
   });
 
   it("rewriteSrcset rewrites each candidate, keeping descriptors, spacing, and empty slots", () => {
     const root = makeProject();
     const owner = path.join(root, "pages", "index.html");
-    expect(rewriteSrcset({ root, fs }, owner, "/assets/logo.png 1x,  /assets/hero.jpg 2x , , /missing.png 3x")).toBe(
+    expect(rewriteSrcset({ project: { root, fs }, ownerFile: owner, srcset: "/assets/logo.png 1x,  /assets/hero.jpg 2x , , /missing.png 3x" })).toBe(
       "../assets/logo.png 1x,  ../assets/hero.jpg 2x , , /missing.png 3x",
     );
   });
@@ -65,7 +65,7 @@ describe("helpers", () => {
   it("walk collects html/htm/css/svg files and skips build/vendor directories", () => {
     const root = tempDir();
     for (const rel of ["a.html", "b.HTM", "c.css", "d.svg", "e.txt", "sub/f.html", "node_modules/p/g.html", "RECON/h.html", ".git/i.html", "dist/j.css"]) write(root, rel);
-    const found = walk(fs, root).map((file) => path.relative(root, file)).sort();
+    const found = walk({ fsPort: fs, dir: root }).map((file) => path.relative(root, file)).sort();
     expect(found).toEqual(["a.html", "b.HTM", "c.css", "d.svg", path.join("sub", "f.html")]);
   });
 });
@@ -139,6 +139,15 @@ describe("main", () => {
   it("fails with exit 1 when the project directory does not exist", async () => {
     const out = createOutput();
     expect(await main({ argv: ["--project", path.join(tempDir(), "missing")] }, out)).toBe(1);
-    expect(out.errors[0]).toMatch(/^od-preview-rewrite failed: ENOENT/);
+    expect(out.errors[0]).toBe("od-preview-rewrite failed: Error");
   });
+});
+
+
+it("preserves all host root routes even when a matching asset exists", () => {
+  const root = tempDir();
+  for (const prefix of ["api", "artifacts", "frames"]) {
+    write(root, `${prefix}/image.png`);
+    expect(rootAssetPath({ project: { root, fs }, value: `/${prefix}/image.png` })).toBeNull();
+  }
 });

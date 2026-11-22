@@ -1,4 +1,4 @@
-import type { FormProviderDescription } from "@jini-ai/cms/forms";
+import type { FormProviderDescription } from "@jini-ai/core/contracts/forms";
 import type { FormEditorFieldsBodyProps } from './FormEditorFieldsBody.js';
 
 /** Runtime metadata owns choices and public fields. Missing discovery never rewrites the saved draft.

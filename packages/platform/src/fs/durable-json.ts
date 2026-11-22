@@ -5,11 +5,12 @@
  * Recovery policy stays with each store: salvage, restart, or leave untouched is not decided here.
  * Native effects are Electron-free so desktop, CLI, and bridge processes can share the mechanism.
  */
-import { readBootIdentity, type BootIdentity } from "./boot-identity.js";
+import { readBootIdentity } from "./boot-identity.js";
+import { type BootIdentity } from "@jini-ai/core/contracts/runtime";
 import nodeFs from "node:fs";
 import path from "node:path";
 import { randomBytes } from "node:crypto";
-import type { Clock } from "@jini-ai/core/primitives";
+import { createConsoleLogger, type Clock, type Logger } from "@jini-ai/core/primitives";
 import { createNodeAtomicFilesystem, writeJsonFileAtomic } from "./atomic-write.js";
 import { withFileLockSync } from "./file-lock.js";
 // Missing is not unreadable: a damaged file holds unknown records, not a valid empty list. Retain
@@ -23,11 +24,11 @@ export interface DurableJsonPorts {
   sleep: { sleep(required: { durationMs: number }): void };
   process: { pid: number; isAlive(required: { pid: number }): boolean; bootIdentity?: () => BootIdentity | undefined };
   random: { token(_required: Record<string, never>): string };
-  report: { error(required: { message: string }): void };
+  report: Pick<Logger, 'error'>;
 }
 export interface DurableJsonNotices { prefix: string; lockTimeout(required: { lockPath: string; waitMs: number }): string; }
 /** Native synchronous adapters. Liveness probes treat permission errors as alive. */
-export function createNodeDurableJsonPorts(_required: Record<string, never>): DurableJsonPorts {
+export function createNodeDurableJsonPorts(_required: Record<string, never>, { report = createConsoleLogger({ prefix: '' }) }: { report?: DurableJsonPorts['report'] | undefined } = {}): DurableJsonPorts {
   const cell = new Int32Array(new SharedArrayBuffer(4));
   return {
     filesystem: nodeFs,
@@ -40,7 +41,7 @@ export function createNodeDurableJsonPorts(_required: Record<string, never>): Du
       try { process.kill(pid, 0); return true; } catch (error) { return (error as NodeJS.ErrnoException).code !== "ESRCH"; }
     } },
     random: { token: (_required) => randomBytes(4).toString("hex") },
-    report: { error: ({ message }) => console.error(message) },
+    report,
   };
 }
 export interface DurableJsonFile {
@@ -50,6 +51,41 @@ export interface DurableJsonFile {
   quarantine(required: { notice: QuarantineNotice }): boolean;
   withLock<T>(required: { critical: () => T }, optional?: FileLockOptions): T;
 }
+function readJsonFile({ filePath, fs }: { filePath: string; fs: DurableJsonPorts["filesystem"] }): JsonFileRead {
+let text: string;
+try {
+  text = fs.readFileSync(filePath, "utf8");
+} catch (error) {
+  return (error as NodeJS.ErrnoException).code === "ENOENT" ? { state: "missing" } : { state: "unreadable" };
+}
+try {
+  return { state: "ok", value: JSON.parse(text) as unknown };
+} catch {
+  return { state: "unreadable", text };
+}
+}
+
+// Preserve damaged bytes for inspection instead of deleting/overwriting them. False means callers
+// must leave the original alone; an already-moved file is safe because another process cleared it.
+function quarantineUnreadableFile(
+  { filePath, notice, fs, clock, report, notices }: {
+    filePath: string; notice: QuarantineNotice; fs: DurableJsonPorts["filesystem"]; clock: DurableJsonPorts["clock"];
+    report: DurableJsonPorts["report"]; notices: DurableJsonNotices;
+  },
+): boolean {
+const asidePath = `${filePath}.corrupt-${clock.nowMs()}`;
+try {
+  fs.renameSync(filePath, asidePath);
+} catch (error) {
+  if ((error as NodeJS.ErrnoException).code === "ENOENT") return true;
+  const logger = report;
+  logger.error({ message: `${notices.prefix}: ${notice.label} ${filePath} is unreadable and could not be moved aside. Left untouched; nothing was written over it.` }, { error });
+  return false;
+}
+report.error({ message: `${notices.prefix}: ${notice.label} ${filePath} was unreadable (torn or corrupt). Moved it aside to ${asidePath}; ${notice.consequence}` });
+return true;
+}
+
 /** Atomic replacement, distinct corrupt reads, quarantine, and token-owned synchronous locks.
  * Lock stealing rechecks inode, bytes and mtime; conditional unlink is not available on all hosts.
  * File fsync precedes rename; directory flush afterwards is best-effort: skipped on Windows,
@@ -69,20 +105,6 @@ export function createDurableJsonFile(
   // Thirty-second staleness also handles pid reuse after a crash:
   // an unrelated live process must not hold the abandoned file forever merely by inheriting its pid.
   const LOCK_WAIT_MS = 5000, LOCK_POLL_MS = pollMs, LOCK_STALE_MS = staleMs;
-function readJsonFile(filePath: string): JsonFileRead {
-  let text: string;
-  try {
-    text = fs.readFileSync(filePath, "utf8");
-  } catch (error) {
-    return (error as NodeJS.ErrnoException).code === "ENOENT" ? { state: "missing" } : { state: "unreadable" };
-  }
-  try {
-    return { state: "ok", value: JSON.parse(text) as unknown };
-  } catch {
-    return { state: "unreadable", text };
-  }
-}
-
 // Per-process sibling temps prevent one writer truncating another's pending replacement. Writes
 // within one process are synchronous, so it cannot collide with itself; its next write reuses the temp.
 function tempPathFor(filePath: string, pid: number = process.pid): string {
@@ -101,29 +123,14 @@ function writeJson(filePath: string, value: unknown): void {
   });
 }
 
-// Preserve damaged bytes for inspection instead of deleting/overwriting them. False means callers
-// must leave the original alone; an already-moved file is safe because another process cleared it.
-function quarantineUnreadableFile(filePath: string, notice: QuarantineNotice): boolean {
-  const asidePath = `${filePath}.corrupt-${clock.nowMs()}`;
-  try {
-    fs.renameSync(filePath, asidePath);
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return true;
-    report.error({ message: `${notices.prefix}: ${notice.label} ${filePath} is unreadable and could not be moved aside (${String(error)}). Left untouched; nothing was written over it.` });
-    return false;
-  }
-  report.error({ message: `${notices.prefix}: ${notice.label} ${filePath} was unreadable (torn or corrupt). Moved it aside to ${asidePath}; ${notice.consequence}` });
-  return true;
-}
-
 // Atomic replacement prevents tears; this lock serializes shared read-modify-write operations.
 // Deliberately non-reentrant. Token-owned release must not evict a later owner after a stale break.
 // The canonical lock rechecks the inode at steal time; its documented check-to-unlink race remains.
   return {
-    read: (_required) => readJsonFile(filePath),
+    read: (_required) => readJsonFile({ filePath, fs }),
     tempPath: (_required, { pid = process.pid } = {}) => tempPathFor(filePath, pid),
     write: ({ value }) => writeJson(filePath, value),
-    quarantine: ({ notice }) => quarantineUnreadableFile(filePath, notice),
+    quarantine: ({ notice }) => quarantineUnreadableFile({ filePath, notice, fs, clock, report, notices }),
     withLock: ({ critical }, optional = {}) => {
       if (optional.waitMs !== undefined && (!Number.isSafeInteger(optional.waitMs) || optional.waitMs < 0)) throw new TypeError("waitMs must be a nonnegative safe integer");
       return withFileLockSync({ lockPath: `${filePath}.lock`, run: critical }, {

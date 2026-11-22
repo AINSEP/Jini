@@ -290,7 +290,13 @@ describe('buildToolIndex', () => {
 describe('handleToolCall', () => {
   it('returns an error result for an unknown tool name', async () => {
     const result = await handleToolCall({ name: 'missing', tools: buildToolIndex({ tools: [] }), ctx }, { rawArgs: {} });
-    expect(result).toEqual({ isError: true, content: [{ type: 'text', text: 'unknown tool: missing' }] });
+    expect(result).toEqual({ isError: true, content: [{ type: 'text', text: 'There is no tool named "missing". Find tools with search_tools.' }] });
+  });
+
+  it('names the local tools as the closest names for an unknown tool name', async () => {
+    const tools = buildToolIndex({ tools: [makeTool({ name: 'search_tools' }), makeTool({ name: 'wait_for' })] });
+    const result = await handleToolCall({ name: 'missing', tools, ctx }, { rawArgs: {} });
+    expect(result).toEqual({ isError: true, content: [{ type: 'text', text: 'There is no tool named "missing". Closest names: search_tools, wait_for. Find tools with search_tools.' }] });
   });
 
   it('invokes the matched handler with args defaulted to {} and wraps a successful result', async () => {
@@ -608,4 +614,14 @@ it('MCP marks partial and total batch failures as errors while retaining every i
   }
   const payload = { isError: true, content: [{ type: 'text', text: 'refused' }] };
   expect(okResult({ payload })).toEqual(payload);
+});
+
+
+it.each([
+  { type: 'text', text: 7 },
+  { type: 'audio', data: 7, mimeType: 'audio/wav' },
+  { type: 'resource_link', uri: 7, name: 'bad' },
+])('stringifies a mixed content envelope when any SDK block is malformed: %j', malformed => {
+  const payload = { content: [{ type: 'text', text: 'valid' }, malformed] };
+  expect(okResult({ payload })).toEqual({ content: [{ type: 'text', text: JSON.stringify(payload) }] });
 });

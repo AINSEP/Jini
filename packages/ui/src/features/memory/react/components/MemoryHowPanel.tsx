@@ -11,17 +11,19 @@ export function MemoryHowPanel({
   hookFlags,
   onToggleHook,
   agentHandle,
+  useTHook = useT,
 }: {
   enabled: boolean;
   hookFlags: Record<MemoryConfigFlagKey, boolean>;
   onToggleHook: (key: MemoryConfigFlagKey, next: boolean) => void;
   /** This panel's own agent handle, forwarded unchanged to `MemoryHooksPanel`. */
   agentHandle?: string;
+  useTHook?: typeof useT;
 }) {
-  const t = useT();
+  const t = useTHook();
   return (
-    <div className="memory-how-panel">
-      <div className="memory-auto-flow">
+    <div className="jini-memory-how-panel">
+      <div className="jini-memory-auto-flow">
         <span>{t('Onboarding')}</span>
         <Icon name="chevron-right" size={13} />
         <span>{t('Brand context')}</span>
@@ -30,7 +32,7 @@ export function MemoryHowPanel({
         <Icon name="chevron-right" size={13} />
         <strong>{t('Saved memory')}</strong>
       </div>
-      <p className="memory-how-copy">
+      <p className="jini-memory-how-copy">
         {t(
           'Memory is gathered automatically from profile setup, project and brand extraction, connected apps, and useful facts learned during chats. The saved list below is the review surface; everything else stays quiet unless you open Add or Advanced.',
         )}

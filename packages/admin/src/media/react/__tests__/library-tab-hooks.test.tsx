@@ -1,4 +1,4 @@
-import { useFetchQuery } from "@jini-ai/ui/fetch-query";
+import { useFetchQuery } from "../../../react/kit.js";
 import { act, cleanup, render, waitFor } from '../../../__tests__/fetch-query-support.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useLibraryTab } from '../hooks/LibraryTab.hooks.js';
@@ -8,6 +8,7 @@ import { createMemoryMediaApi } from '../../adapters/memory.js';
 import type { LibraryState, createLibraryController } from '../../controllers/library.controller.js';
 import type { MediaAsset } from '../../models.js';
 import type { MediaApiPort, MediaEventsPort } from '../../ports.js';
+import { realEmbedPolicy } from '../../__tests__/fakes/embed-policy.js';
 
 afterEach(cleanup);
 const ALL = ['media.upload', 'media.update', 'media.trash', 'media.restore', 'media.delete.force'];
@@ -35,7 +36,7 @@ function mount({ permissions = ALL, params = {}, api = createMemoryMediaApi({ as
     ) : null;
   }
   const view = render(
-    <MediaPortsContext.Provider value={{ mediaApi: api, ...(events ? { mediaEvents: events } : {}) }}>
+    <MediaPortsContext.Provider value={{ embedPolicy: realEmbedPolicy, mediaApi: api, ...(events ? { mediaEvents: events } : {}) }}>
       <MediaLibraryContext.Provider value={shared}><Harness /></MediaLibraryContext.Provider>
     </MediaPortsContext.Provider>,
   );
@@ -332,7 +333,7 @@ describe('media shared query ownership', () => {
       second = useLibraryTab({ params: {}, permissions: ALL });
       return null;
     }
-    render(<MediaPortsContext.Provider value={{ mediaApi: api }}><Consumers /></MediaPortsContext.Provider>);
+    render(<MediaPortsContext.Provider value={{ embedPolicy: realEmbedPolicy, mediaApi: api }}><Consumers /></MediaPortsContext.Provider>);
     await waitFor(() => expect(second.items.map(item => item.id)).toEqual(['a', 'b', 'c']));
     await act(async () => { first.actions.find(action => action.item.id === 'a')!.onTrash!(); });
     await waitFor(() => expect(second.items.find(item => item.id === 'a')?.status).toBe('trashed'));
@@ -350,7 +351,7 @@ it('invalidates the host media list contract after a library write', async () =>
     hostItems = host.data?.media;
     return null;
   }
-  render(<MediaPortsContext.Provider value={{ mediaApi: api }}><Pair /></MediaPortsContext.Provider>);
+  render(<MediaPortsContext.Provider value={{ embedPolicy: realEmbedPolicy, mediaApi: api }}><Pair /></MediaPortsContext.Provider>);
   await waitFor(() => expect(hostItems?.find(item => item.id === 'a')?.status).toBe('active'));
   await waitFor(() => expect(view.items.length).toBe(3));
   await act(async () => { await view.actions.find(action => action.item.id === 'a')!.onTrash!(); });

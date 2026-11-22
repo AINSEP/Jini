@@ -1,4 +1,5 @@
-import type { AgentModelDiscoveryPort, resolveModelForLaunch } from '@jini-ai/agent-runtime';
+import type { resolveModelForLaunch } from '@jini-ai/agent-runtime';
+import type { AgentModelDiscoveryPort } from '@jini-ai/core/contracts/agents';
 /** A deterministic metadata port for executor fixture binaries; never reads the real host. */
 export const fixtureModelDiscovery: AgentModelDiscoveryPort = {
   async discoverModels({ context }) {

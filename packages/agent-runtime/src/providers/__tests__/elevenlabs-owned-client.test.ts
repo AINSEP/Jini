@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { HttpClientPort, HttpRequest, HttpResponse } from '@jini-ai/core/primitives';
-import { FETCH_TIMEOUT_MS } from '@jini-ai/platform/fetch-with-timeout';
+import { FETCH_TIMEOUT_MS } from '@jini-ai/core/net';
 import {
   createElevenLabsVoiceClient, ElevenLabsCredentialMissingError,
   type ElevenLabsCredentials, type ElevenLabsVoiceClientOptions,

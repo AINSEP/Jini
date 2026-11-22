@@ -4,7 +4,7 @@
 // Forced to the `node` environment (overriding this package's package-wide
 // `jsdom` default, added by the parallel i18n/observability porting task)
 // because jsdom's `Blob` shim doesn't implement `.arrayBuffer()` the way
-// Node's native `Blob` does — see `packages/ui/archived provenance ledger`.
+// Node's native `Blob` does — see `070311a07^:packages/ui/source-map.md`.
 import { describe, expect, it } from 'vitest';
 import { buildZip } from '../zip.js';
 
@@ -27,7 +27,7 @@ function readFirstLocalEntry(buffer: ArrayBuffer): { name: string; content: stri
 
 describe('buildZip', () => {
   it('round-trips a single UTF-8 text entry', async () => {
-    const blob = buildZip([{ path: 'DESIGN-HANDOFF.md', content: '# Hello\n' }]);
+    const blob = buildZip({ entries: [{ path: 'DESIGN-HANDOFF.md', content: '# Hello\n' }] });
     expect(blob.type).toBe('application/zip');
     const buffer = await blob.arrayBuffer();
     const entry = readFirstLocalEntry(buffer);
@@ -36,18 +36,18 @@ describe('buildZip', () => {
   });
 
   it('sets the UTF-8 filename flag only when the name has non-ASCII bytes', async () => {
-    const asciiBlob = buildZip([{ path: 'notes.md', content: 'x' }]);
+    const asciiBlob = buildZip({ entries: [{ path: 'notes.md', content: 'x' }] });
     const asciiEntry = readFirstLocalEntry(await asciiBlob.arrayBuffer());
     expect(asciiEntry.flags & 0x0800).toBe(0);
 
-    const unicodeBlob = buildZip([{ path: '日本.md', content: 'x' }]);
+    const unicodeBlob = buildZip({ entries: [{ path: '日本.md', content: 'x' }] });
     const unicodeEntry = readFirstLocalEntry(await unicodeBlob.arrayBuffer());
     expect(unicodeEntry.flags & 0x0800).toBe(0x0800);
     expect(unicodeEntry.name).toBe('日本.md');
   });
 
   it('produces a valid (empty) archive for zero entries', async () => {
-    const blob = buildZip([]);
+    const blob = buildZip({ entries: [] });
     const buffer = await blob.arrayBuffer();
     expect(buffer.byteLength).toBe(22); // EOCD record only
     const view = new DataView(buffer);
@@ -55,10 +55,10 @@ describe('buildZip', () => {
   });
 
   it('packs multiple entries with independent CRCs', async () => {
-    const blob = buildZip([
+    const blob = buildZip({ entries: [
       { path: 'a.txt', content: 'aaa' },
       { path: 'b.txt', content: 'bbb' },
-    ]);
+    ] });
     const buffer = await blob.arrayBuffer();
     const first = readFirstLocalEntry(buffer);
     expect(first.name).toBe('a.txt');

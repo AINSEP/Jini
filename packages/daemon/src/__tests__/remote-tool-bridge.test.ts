@@ -63,7 +63,7 @@ describe('createRemoteToolEventRecorder', () => {
   it('propagates RunLifecycle.emit()\'s own throw for an unknown run', async () => {
     const lifecycle = makeLifecycle();
     const recorder = createRemoteToolEventRecorder({ lifecycle });
-    await expect(recorder.recordToolUse({ runId: 'never-started', record: { toolUseId: 'tu-1', toolId: 'echo', input: null } })).rejects.toThrow();
+    await expect(recorder.recordToolUse({ runId: 'never-started', record: { toolUseId: 'tu-1', toolId: 'echo', input: null } })).rejects.toThrow('RunLifecycle: unknown run "never-started"');
   });
 
   it('propagates RunLifecycle.emit()\'s own throw for an already-terminal run', async () => {

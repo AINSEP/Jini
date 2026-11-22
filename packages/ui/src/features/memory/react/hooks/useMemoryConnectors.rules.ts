@@ -4,19 +4,12 @@
 // transport, no side effects — same charter as this feature's rules.ts files.
 import { describeConnectorReadIssue } from '../../formatters.js';
 import type { ConnectorMemorySuggestionResponse, FriendlyExtractionFailure, MemorySuggestion } from '../../types.js';
+import { withoutKey } from '../../../connectors/rules.js';
 
 /** Removes `key` from `record`, preserving referential identity when the key
- *  was already absent. Small generic utility, intentionally duplicated per
- *  slice rather than shared cross-feature — see this file's sibling
- *  `../../rules.js`'s header comment on the slice's duplication convention;
- *  `features/connectors/hooks/useConnectorAuthorization.ts` has the same
- *  helper for its own Record<string, T> state. */
-export function withoutKey<T>(record: Record<string, T>, key: string): Record<string, T> {
-  if (record[key] === undefined) return record;
-  const next = { ...record };
-  delete next[key];
-  return next;
-}
+ *  was already absent. Shared with `features/connectors/rules.ts` (one copy):
+ *  this slice already imports connector reducers from there, per `../../rules.ts`'s header. */
+export { withoutKey } from '../../../connectors/rules.js';
 
 /** `Set` counterpart to {@link withoutKey}: removes `value`, preserving
  *  referential identity when it was already absent. */

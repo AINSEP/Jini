@@ -1,3 +1,4 @@
+import { assertVersionedWrite } from "@jini-ai/core/optimistic-concurrency";
 import type {
   WebhookDeliveryRepoPort,
   WebhookSubscriptionRepoPort,
@@ -43,7 +44,13 @@ export class InMemoryWebhookSubscriptionRepo implements WebhookSubscriptionRepoP
     this.rows.set(key, record);
   }
 
-  async save(record: WebhookSubscriptionRecord): Promise<void> {
+  async save(record: WebhookSubscriptionRecord, optional: { expectedVersion?: number } = {}): Promise<void> {
+    const current = this.rows.get(rowKey(record.workspaceId, record.id));
+    if (optional.expectedVersion !== undefined && current?.version !== optional.expectedVersion) {
+      await assertVersionedWrite({ changedRows: 0, recordKind: "webhook subscription", recordId: record.id,
+        expectedVersion: optional.expectedVersion, readCurrentVersion: async () => current?.version ?? null });
+    }
+    // No await after a successful comparison: concurrent memory saves cannot both win.
     this.rows.set(rowKey(record.workspaceId, record.id), record);
   }
 

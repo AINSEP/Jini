@@ -10,7 +10,7 @@
  * No such port existed anywhere in this repo before this file — OD's own `routine.ts` route file
  * called eight raw `db.js` SQL functions directly (`getRoutine`/`insertRoutine`/`updateRoutine`/
  * `deleteRoutine`/`listRoutines`/`listRoutineRuns`/`getLatestRoutineRun`/`getRoutineRun`) against
- * `routines`/`routine_runs` tables that `packages/sqlite/archived provenance ledger` already documents as
+ * `routines`/`routine_runs` tables that `3bdace890^:packages/sqlite/source-map.md` already documents as
  * explicitly out of scope for the db-barrel port. This is the missing design.
  *
  * **Deliberately separate from `./scheduler.js`'s `RoutinePersistence`, not a shared interface**,
@@ -26,6 +26,7 @@
  * not attempted here, out of this port's scope.
  */
 import { randomUUID } from 'node:crypto';
+import { pageFromArray, type ListPage } from '@jini-ai/core/list-page';
 import type { Routine, RoutineContextSelection, RoutineProjectTarget, RoutineRun, RoutineSchedule } from './types.js';
 
 export interface RoutineCreateInput {
@@ -66,8 +67,8 @@ export interface RoutineStore {
   update(args: { readonly id: string; readonly patch: RoutineUpdateInput }): Promise<Routine | null>;
   /** Returns whether a routine with `id` existed (and was removed). */
   delete(args: { readonly id: string }): Promise<boolean>;
-  /** Returns up to `limit` runs for `routineId`, newest first. Returns `[]` for an unknown routine rather than throwing — mirrors `list()`'s empty-collection convention. */
-  listRuns(args: { readonly routineId: string; readonly limit: number }): Promise<readonly RoutineRun[]>;
+  /** Returns up to `limit` runs for `routineId`, newest first, with a `nextCursor` when older runs exist. Returns an empty last page for an unknown routine rather than throwing — mirrors `list()`'s empty-collection convention. A malformed `cursor` throws `ToolInputError`. */
+  listRuns(required: { readonly routineId: string; readonly limit: number }, optional?: { readonly cursor?: string | null }): Promise<ListPage<RoutineRun>>;
   /** Returns the most recently started run for `routineId`, or `null` if none has ever run. */
   getLatestRun(args: { readonly routineId: string }): Promise<RoutineRun | null>;
 }
@@ -148,7 +149,7 @@ export function createInMemoryRoutineStore(_requiredArgs: Record<string, never>,
   function runsFor(routineId: string): RoutineRun[] {
     return runs
       .filter((run) => run.routineId === routineId)
-      .sort((a, b) => b.startedAt - a.startedAt);
+      .sort((a, b) => b.startedAt - a.startedAt || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   }
 
   async function withLastRun(routine: Routine): Promise<Routine> {
@@ -212,8 +213,8 @@ export function createInMemoryRoutineStore(_requiredArgs: Record<string, never>,
       return routines.delete(id);
     },
 
-    async listRuns({ routineId, limit }: { readonly routineId: string; readonly limit: number }): Promise<readonly RoutineRun[]> {
-      return runsFor(routineId).slice(0, limit);
+    async listRuns({ routineId, limit }: { readonly routineId: string; readonly limit: number }, optional: { readonly cursor?: string | null } = {}): Promise<ListPage<RoutineRun>> {
+      return pageFromArray({ rows: runsFor(routineId), limit, cursor: optional.cursor ?? null, positionOf: (run) => [-run.startedAt, run.id], shape: ['number', 'string'] });
     },
 
     async getLatestRun({ routineId }: { readonly routineId: string }): Promise<RoutineRun | null> {

@@ -85,8 +85,8 @@ export interface PgModule {
 
 /** node-postgres type parsing aligned with PGlite's (`PG_PARSERS`), for one pool only. */
 export function pgTypesFor(
-  pg: PgModule,
-  parsers: Readonly<Record<number, (text: string) => unknown>>
+  { pg, parsers }: { pg: PgModule; parsers: Readonly<Record<number, (text: string) => unknown>> },
+  _optional: Record<string, never> = {}
 ): NonNullable<PgPoolOptions["types"]> {
   return {
     getTypeParser(oid, format) {

@@ -1,4 +1,4 @@
-import { agentHandleProps, agentSubHandle } from '@jini-ai/agentic';
+import { agentHandleProps, agentSubHandle } from '@jini-ai/core/agent-handles';
 import { useT } from '../../../i18n/index.js';
 import { Icon } from '../../../../react/components/Icon.js';
 import {
@@ -99,10 +99,10 @@ function resolveInstallationLabels(
  * mounted by `SettingsDialog.tsx`'s `privacy` tab — flagged "likely
  * generic, not fully verified" by
  * `ADS-memory/reports/jini-port/recon/r6-god-component-internals.md` §1.3; this task is
- * the first full verification (see `packages/ui/source-map.md`).
+ * the first full verification (see `archived UI source map`).
  */
-export function PrivacyTab({ state, onChange, labels, now = Date.now, agentHandle }: PrivacyTabProps) {
-  const t = useT();
+export function PrivacyTab({ state, onChange, labels, now = Date.now, agentHandle, useTHook = useT }: PrivacyTabProps & { useTHook?: typeof useT }) {
+  const t = useTHook();
   const decided = hasMadeConsentDecision(state);
 
   const labelOverrides = labels ?? {};
@@ -132,14 +132,14 @@ export function PrivacyTab({ state, onChange, labels, now = Date.now, agentHandl
             label={metricsLabel}
             hint={metricsHint}
             checked={state.telemetry.metrics === true}
-            onChange={(v) => onChange(nextStateForTelemetryPatch(state, { metrics: v }, now()))}
+            onChange={(v) => onChange(nextStateForTelemetryPatch({ state, patch: { metrics: v }, now: now() }))}
             {...(agentHandle ? { agentHandle: agentSubHandle({ base: agentHandle, action: 'metrics-toggle' }) } : {})}
           />
           <ToggleRow
             label={contentLabel}
             hint={contentHint}
             checked={state.telemetry.content === true}
-            onChange={(v) => onChange(nextStateForTelemetryPatch(state, { content: v }, now()))}
+            onChange={(v) => onChange(nextStateForTelemetryPatch({ state, patch: { content: v }, now: now() }))}
             {...(agentHandle ? { agentHandle: agentSubHandle({ base: agentHandle, action: 'content-toggle' }) } : {})}
           />
         </div>
@@ -167,7 +167,7 @@ export function PrivacyTab({ state, onChange, labels, now = Date.now, agentHandl
           <button
             type="button"
             className="jini-button jini-button-ghost"
-            onClick={() => onChange(nextStateForDeleteMyData(state, now()))}
+            onClick={() => onChange(nextStateForDeleteMyData({ state, now: now() }))}
             {...agentHandleProps({}, { base: agentHandle, ...({ action: 'delete-my-data', role: 'button', label: deleteMyDataLabel }) })}
           >
             <Icon name="trash" size={13} />

@@ -45,8 +45,10 @@ import { readProviderResponseText, MAX_PROVIDER_ERROR_BYTES } from './response-t
  * that actually matters, the UI accepts one this guard would have refused.
  */
 
-import { isLoopbackApiHost, isBlockedExternalApiHostname } from '@jini-ai/platform/net';
+import { isLoopbackApiHost, isBlockedExternalApiHostname } from '@jini-ai/core/net';
+import { isIpLiteralHostname } from '@jini-ai/core';
 import { trimCharsEnd } from '@jini-ai/core/text';
+import type { DnsLookupAddress, DnsLookupFn } from '@jini-ai/core/contracts/agents';
 
 export interface BaseUrlValidationResult {
   parsed?: URL;
@@ -83,7 +85,7 @@ export interface BaseUrlValidationResult {
  * is the only shape that would let the block-list inspect one string while the
  * network used another.
  */
-export function validateBaseUrl({ baseUrl }: { baseUrl: string }): BaseUrlValidationResult {
+export function validateBaseUrl({ baseUrl }: { baseUrl: string }, _optional: Record<string, never> = {}): BaseUrlValidationResult {
   let parsed: URL;
   try {
     // Trim BEFORE stripping trailing slashes: in `"https://x/ "` the trailing
@@ -100,17 +102,6 @@ export function validateBaseUrl({ baseUrl }: { baseUrl: string }): BaseUrlValida
     return { error: 'Internal IPs blocked', forbidden: true };
   }
   return { parsed };
-}
-
-export type DnsLookupAddress = { address: string; family: number };
-export type DnsLookupFn = (requiredArgs: { hostname: string }) => Promise<DnsLookupAddress[]>;
-
-function looksLikeIpLiteral(hostname: string): boolean {
-  const host = hostname.startsWith('[') && hostname.endsWith(']')
-    ? hostname.slice(1, -1)
-    : hostname;
-  if (/^\d{1,3}(?:\.\d{1,3}){3}$/.test(host)) return true;
-  return host.includes(':');
 }
 
 /**
@@ -153,14 +144,13 @@ function looksLikeIpLiteral(hostname: string): boolean {
  * a Node host can wrap `node:dns`'s promise
  * `lookup(hostname, { all: true, family: 0 })` in this port's object signature.
  */
-export async function validateBaseUrlResolved({ baseUrl, lookup }: { baseUrl: string; lookup: DnsLookupFn }
+export async function validateBaseUrlResolved({ baseUrl, lookup }: { baseUrl: string; lookup: DnsLookupFn }, _optional: Record<string, never> = {}
 ): Promise<BaseUrlValidationResult> {
   const sync = validateBaseUrl({ baseUrl: baseUrl });
   if (sync.error || !sync.parsed) return sync;
 
   const hostname = sync.parsed.hostname.toLowerCase();
-  if (isLoopbackApiHost({ hostname: hostname })) return sync;
-  if (looksLikeIpLiteral(hostname)) return sync;
+  if (skipsApiDnsLookup(hostname)) return sync;
 
   let addresses: DnsLookupAddress[];
   try {
@@ -186,6 +176,7 @@ export async function validateBaseUrlResolved({ baseUrl, lookup }: { baseUrl: st
   return { ...sync, pinnedAddress: addresses[0]! };
 }
 
+function skipsApiDnsLookup(hostname: string): boolean { return isLoopbackApiHost({ hostname }) || isIpLiteralHostname({ hostname }); }
 /** Request options accepted by {@link pinnedFetch} — the subset of `fetch`'s `init` this package's provider adapters actually pass. `redirect` is accepted only as documentation of intent: `pinnedFetch` never follows a redirect regardless of this field, so a caller cannot opt back into `fetch`'s default follow-redirects behavior. */
 export interface PinnedFetchInit {
   readonly method: string;

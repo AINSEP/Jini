@@ -9,46 +9,19 @@
  * owns sending. See the capability owners for raw-stream uploads, bodyless cleanup, attachment
  * rejection mapping and host-owned claim/cleanup lifecycle rather than duplicating those rules here.
  */
-export type {
-  Handler,
-  HttpMethod,
-  InputParser,
-  JsonRouteSpec,
-  JsonRoutePorts,
-  JsonRouteAuthorize,
-  Result,
-  RouteInputContext,
-} from './types.js';
-export { err, ok } from './types.js';
-export type {
-  ParsedHostHeader,
-  RequestWithOriginHeaders,
-} from '@jini-ai/core';
-export {
-  allowedBrowserPorts,
-  assertValidAllowedOrigins,
-  configuredAllowedHosts,
-  configuredAllowedOrigins,
-  isAllowedBrowserHost,
-  isAllowedBrowserOrigin,
-  isIpLiteralHostname,
-  isLoopbackOrPrivateLanHost,
-  isLocalSameOrigin,
-  isPrivateIpv4,
-  parseHostHeader,
-} from '@jini-ai/core';
-export type { AdapterContext } from './adapter.js';
-export { ClientFacingError, defineJsonRoute, mountJsonRoute } from './adapter.js';
+export type { JsonRouteSpec, JsonRoutePorts } from './types.js';
+export { defineJsonRoute, mountJsonRoute } from './adapter.js';
+export type { RouteInternalErrorContext, RouteInternalErrorSink } from './internal-error.js';
+export { reportRouteInternalError } from './internal-error.js';
 export type { InstallRouteRegistrationGuardOptions, RouteRegistration } from './route-registration-guard.js';
 export {
   getRouteRegistrationInventory,
   guardedRouteKey,
   installRouteRegistrationGuard,
+  recordRouteRegistrations,
 } from './route-registration-guard.js';
-export type { CreateSseChannelOptions, SseChannel, SseEvent } from './sse.js';
-export { createSseChannel, DEFAULT_MAX_QUEUED_SSE_EVENTS, requestedAfterCursor, sendRawApiError } from './sse.js';
-export type { CreateSseResponseOptions, SseConnection } from './raw-sse.js';
-export { createSseResponse } from './raw-sse.js';
+export type { CreateSseChannelOptions, SseChannel } from './sse.js';
+export { createSseChannel, requestedAfterCursor, sendRawApiError } from './sse.js';
 export { mountPackHttp } from './pack-http.js';
 export type {
   ApiBearerAuthMiddlewareDeps,
@@ -56,15 +29,12 @@ export type {
   StrictBearerTokenDeps,
 } from './api-security-middleware.js';
 export {
-  bearerTokenFromHeader,
   registerApiBearerAuthMiddleware,
   registerApiOriginGuardMiddleware,
   requireStrictBearerToken,
   timingSafeTokenMatch,
 } from './api-security-middleware.js';
-export { isLoopbackHostname } from '@jini-ai/platform/net';
 export {
-  isLoopbackPeerAddress,
   localOriginFromHeader,
   normalizeLocalAuthority,
   requireLocalDaemonRequest,
@@ -76,10 +46,10 @@ export {
 } from './compat.js';
 export * from './rate-limit.js';
 export * from './middleware.js';
-export * from './verified-origin.js';
 export * from './observability.js';
 
 // Generic request/response and origin primitives used by capability-owned route packs.
 export * from './request.js';
 export * from './response.js';
 export * from './origin.js';
+export * from './trust-proxy.js';

@@ -7,7 +7,7 @@ import { resolveAnnotationTheme } from './theme.js';
  * layer.
  *
  * Origin: `apps/web/src/components/PreviewDrawOverlay.tsx`. See
- * `../archived provenance ledger`.
+ * `070311a07^:packages/ui/src/renderers/source-map.md`.
  */
 import type { CaptureTarget, NormalizedRect, Stroke, TextMark } from './types.js';
 
@@ -15,16 +15,15 @@ export const STROKE_COLOR = defaultAdminTheme.light.danger;
 export const STROKE_WIDTH = 4;
 export const TARGET_COLOR = defaultAdminTheme.light.primary;
 /** Text-annotation glyph height as a fraction of the frame height, so a dropped label reads at a consistent size across differently-sized frames and its on-screen size matches what gets baked into an exported screenshot. */
-export const TEXT_FONT_FRACTION = 0.03;
-export const TEXT_LINE_HEIGHT = 1.25;
-export const TEXT_MIN_FONT_PX = 12;
-export const TEXT_FONT_FAMILY = defaultAdminTheme.fonts.body;
+const TEXT_FONT_FRACTION = 0.03;
+const TEXT_LINE_HEIGHT = 1.25;
+const TEXT_MIN_FONT_PX = 12;
 
-export function textFontSizePx(frameHeight: number): number {
+export function textFontSizePx({ frameHeight }: { frameHeight: number }, _optional: Record<string, never> = {}): number {
   return Math.max(TEXT_MIN_FONT_PX, TEXT_FONT_FRACTION * frameHeight);
 }
 
-export function drawNormalizedBox(ctx: CanvasRenderingContext2D, box: NormalizedRect, width: number, height: number): void {
+export function drawNormalizedBox({ ctx, box, width, height }: { ctx: CanvasRenderingContext2D; box: NormalizedRect; width: number; height: number }, _optional: Record<string, never> = {}): void {
   const theme = resolveAnnotationTheme({ canvas: ctx.canvas });
   const left = box.x * width;
   const top = box.y * height;
@@ -45,16 +44,8 @@ export function drawNormalizedBox(ctx: CanvasRenderingContext2D, box: Normalized
 
 /** Redraws every committed stroke, the in-progress draft stroke, committed selection boxes, and the in-progress box draft. Called on every pointer move (rAF-coalesced by the caller) and on every history mutation. */
 export function redrawStrokesAndBoxes(
-  ctx: CanvasRenderingContext2D,
-  input: {
-    strokes: readonly Stroke[];
-    drawingStroke: Stroke | null;
-    selectionBoxes: readonly NormalizedRect[];
-    boxDraft: NormalizedRect | null;
-  },
-  width: number,
-  height: number,
-  dpr: number,
+  { ctx, strokes, drawingStroke, selectionBoxes, boxDraft, width, height, dpr }: { ctx: CanvasRenderingContext2D; strokes: readonly Stroke[]; drawingStroke: Stroke | null; selectionBoxes: readonly NormalizedRect[]; boxDraft: NormalizedRect | null; width: number; height: number; dpr: number },
+  _optional: Record<string, never> = {},
 ): void {
   const theme = resolveAnnotationTheme({ canvas: ctx.canvas });
   ctx.clearRect(0, 0, width, height);
@@ -62,9 +53,9 @@ export function redrawStrokesAndBoxes(
   ctx.lineWidth = STROKE_WIDTH * dpr;
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
-  const all = input.drawingStroke ? [...input.strokes, input.drawingStroke] : input.strokes;
-  for (const box of input.selectionBoxes) drawNormalizedBox(ctx, box, width, height);
-  if (input.boxDraft) drawNormalizedBox(ctx, input.boxDraft, width, height);
+  const all = drawingStroke ? [...strokes, drawingStroke] : strokes;
+  for (const box of selectionBoxes) drawNormalizedBox({ ctx, box, width, height });
+  if (boxDraft) drawNormalizedBox({ ctx, box: boxDraft, width, height });
   for (const s of all) {
     const first = s.points[0];
     if (!first) continue;
@@ -79,9 +70,9 @@ export function redrawStrokesAndBoxes(
 }
 
 /** Bakes the transparent on-screen text labels into an exported screenshot. Uses the same frame-height-fraction glyph size the DOM textareas use, so what the user typed lands at the same size/position in the captured image. */
-export function drawTextMarks(ctx: CanvasRenderingContext2D, marks: readonly TextMark[], width: number, height: number): void {
+export function drawTextMarks({ ctx, marks, width, height }: { ctx: CanvasRenderingContext2D; marks: readonly TextMark[]; width: number; height: number }, _optional: Record<string, never> = {}): void {
   const theme = resolveAnnotationTheme({ canvas: ctx.canvas });
-  const fontPx = textFontSizePx(height);
+  const fontPx = textFontSizePx({ frameHeight: height });
   const lineHeight = fontPx * TEXT_LINE_HEIGHT;
   const topPad = (lineHeight - fontPx) / 2;
   ctx.save();
@@ -103,10 +94,8 @@ export function drawTextMarks(ctx: CanvasRenderingContext2D, marks: readonly Tex
 
 /** Draws the host-supplied capture target's highlight box + label onto a composited export canvas. */
 export function drawCaptureTarget(
-  ctx: CanvasRenderingContext2D,
-  scaleX: number,
-  scaleY: number,
-  target: CaptureTarget | null,
+  { ctx, scaleX, scaleY, target }: { ctx: CanvasRenderingContext2D; scaleX: number; scaleY: number; target: CaptureTarget | null },
+  _optional: Record<string, never> = {},
 ): void {
   if (!target) return;
   const { x, y, width, height } = target.position;
@@ -149,26 +138,17 @@ export function drawCaptureTarget(
 
 /** Composites the current marks (capture-target highlight, selection boxes, strokes, text labels) onto an already-drawn background image at export resolution. */
 export function compositeMarksOntoCanvas(
-  ctx: CanvasRenderingContext2D,
-  input: {
-    target: CaptureTarget | null;
-    selectionBoxes: readonly NormalizedRect[];
-    strokes: readonly Stroke[];
-    textMarks: readonly TextMark[];
-  },
-  outputWidth: number,
-  outputHeight: number,
-  scaleX: number,
-  scaleY: number,
+  { ctx, target, selectionBoxes, strokes, textMarks, outputWidth, outputHeight, scaleX, scaleY }: { ctx: CanvasRenderingContext2D; target: CaptureTarget | null; selectionBoxes: readonly NormalizedRect[]; strokes: readonly Stroke[]; textMarks: readonly TextMark[]; outputWidth: number; outputHeight: number; scaleX: number; scaleY: number },
+  _optional: Record<string, never> = {},
 ): void {
   const theme = resolveAnnotationTheme({ canvas: ctx.canvas });
-  drawCaptureTarget(ctx, scaleX, scaleY, input.target);
-  for (const box of input.selectionBoxes) drawNormalizedBox(ctx, box, outputWidth, outputHeight);
+  drawCaptureTarget({ ctx, scaleX, scaleY, target });
+  for (const box of selectionBoxes) drawNormalizedBox({ ctx, box, width: outputWidth, height: outputHeight });
   ctx.strokeStyle = theme.stroke;
   ctx.lineWidth = STROKE_WIDTH * Math.max(scaleX, scaleY);
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
-  for (const s of input.strokes) {
+  for (const s of strokes) {
     const first = s.points[0];
     if (!first) continue;
     ctx.beginPath();
@@ -179,5 +159,5 @@ export function compositeMarksOntoCanvas(
     }
     ctx.stroke();
   }
-  drawTextMarks(ctx, input.textMarks, outputWidth, outputHeight);
+  drawTextMarks({ ctx, marks: textMarks, width: outputWidth, height: outputHeight });
 }

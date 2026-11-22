@@ -40,10 +40,11 @@ import { readFile } from 'node:fs/promises';
 import os from 'node:os';
 import { join } from 'node:path';
 
-import { createCommandInvocation } from '@jini-ai/platform/command';
+import { planCommandInvocation } from '@jini-ai/core/contracts/runtime';
 
+import { ambientCommandShell } from './invocation.js';
 import { sanitizeCustomModel } from './models.js';
-import type { RuntimeEnv, RuntimeModelOption } from './types.js';
+import type { RuntimeEnv, RuntimeModelOption } from '@jini-ai/core/contracts/agents';
 
 /** A spawn costs ~2.5s and the picker list only moves when Claude Code updates or the server's
  *  "additional" options change, so one answer is trusted for this long per process. Failures are
@@ -102,7 +103,7 @@ export type ClaudeCodePickerCacheParse =
  * @returns Normalized ids (bracket suffix stripped), or a typed reason. Never throws.
  * @complexity O(n) over the cache entries (plus the JSON parse of the whole file).
  */
-export function parseClaudeCodePickerCache(raw: string): ClaudeCodePickerCacheParse {
+export function parseClaudeCodePickerCache({ raw }: { raw: string }, _optional: Record<string, never> = {}): ClaudeCodePickerCacheParse {
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);
@@ -169,7 +170,7 @@ function initializeEntryRows(entry: InitializeModelEntry): RuntimeModelOption[] 
  * @returns The rows, or `null` when no well-formed response with at least one usable model exists.
  * @complexity O(s + n) over the stdout length and the n models listed.
  */
-export function parseClaudeInitializeModels(stdout: string): RuntimeModelOption[] | null {
+export function parseClaudeInitializeModels({ stdout }: { stdout: string }, _optional: Record<string, never> = {}): RuntimeModelOption[] | null {
   const models = findInitializeModels(String(stdout || ''));
   if (!models) return null;
   const seen = new Set<string>();
@@ -186,7 +187,7 @@ export function parseClaudeInitializeModels(stdout: string): RuntimeModelOption[
 }
 
 /** Where Claude Code keeps `.claude.json` for this env: `$CLAUDE_CONFIG_DIR` when set, else HOME. */
-export function resolveClaudeConfigPath(env: RuntimeEnv): string {
+export function resolveClaudeConfigPath({ env }: { env: RuntimeEnv }, _optional: Record<string, never> = {}): string {
   const configDir = typeof env.CLAUDE_CONFIG_DIR === 'string' ? env.CLAUDE_CONFIG_DIR.trim() : '';
   if (configDir) return join(configDir, '.claude.json');
   const home = typeof env.HOME === 'string' && env.HOME.trim() ? env.HOME.trim() : os.homedir();
@@ -204,7 +205,8 @@ export interface ClaudeCodeModelIo {
 function runInitializeProbe(bin: string, env: RuntimeEnv): Promise<string | null> {
   return new Promise((resolve) => {
     try {
-      const invocation = createCommandInvocation({ command: bin, args: [...CLAUDE_CODE_INITIALIZE_ARGS], env });
+      const { platform, fallbackComSpec } = ambientCommandShell({});
+      const invocation = planCommandInvocation({ command: bin, platform, env }, { args: [...CLAUDE_CODE_INITIALIZE_ARGS], fallbackComSpec });
       const child = execFile(
         invocation.command,
         invocation.args,
@@ -236,7 +238,7 @@ const defaultIo: ClaudeCodeModelIo = {
 let activeIo: ClaudeCodeModelIo = defaultIo;
 
 /** Test-only: install fake I/O (or `null` to restore the real one) and clear the process cache. */
-export function setClaudeCodeModelIoForTesting(io: ClaudeCodeModelIo | null): void {
+export function setClaudeCodeModelIoForTesting({ io }: { io: ClaudeCodeModelIo | null }, _optional: Record<string, never> = {}): void {
   activeIo = io ?? defaultIo;
   defaultRuntimeState.claudeModels.clear();
 }
@@ -248,17 +250,17 @@ function cacheKeyFor(bin: string, env: RuntimeEnv): string {
     .map((name) => (typeof env[name] === 'string' ? env[name] : ''))
     .join('\u0000');
   const fingerprint = createHash('sha256').update(auth).digest('hex').slice(0, 16);
-  return `${bin}\u0000${resolveClaudeConfigPath(env)}\u0000${fingerprint}`;
+  return `${bin}\u0000${resolveClaudeConfigPath({ env })}\u0000${fingerprint}`;
 }
 
 /** Source (1), then source (2). Never rejects. */
 async function discoverClaudeCodeModels(bin: string, env: RuntimeEnv, io: ClaudeCodeModelIo): Promise<readonly RuntimeModelOption[] | null> {
   try {
     const stdout = await io.runInitialize(bin, env);
-    const fromCli = stdout ? parseClaudeInitializeModels(stdout) : null;
+    const fromCli = stdout ? parseClaudeInitializeModels({ stdout }) : null;
     if (fromCli) return fromCli;
-    const raw = await io.readConfigFile(resolveClaudeConfigPath(env));
-    const cached = raw === null ? null : parseClaudeCodePickerCache(raw);
+    const raw = await io.readConfigFile(resolveClaudeConfigPath({ env }));
+    const cached = raw === null ? null : parseClaudeCodePickerCache({ raw });
     if (!cached?.ok) return null;
     return cached.ids
       .filter((id) => sanitizeCustomModel({ id: id }) === id)

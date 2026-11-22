@@ -40,7 +40,7 @@ describe('AppChromeHeader', () => {
         <span data-testid="kids" />
       </AppChromeHeader>,
     );
-    expect(container.querySelector('.app-chrome-traffic-space')).toBeNull();
+    expect(container.querySelector('.jini-app-chrome-traffic-space')).toBeNull();
     expect(screen.getByTestId('kids')).toBeTruthy();
     expect(screen.getByTestId('fab')).toBeTruthy();
     expect(screen.getByTestId('acts')).toBeTruthy();

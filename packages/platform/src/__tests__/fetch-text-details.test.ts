@@ -69,7 +69,9 @@ describe("readFetchResponseText details", () => {
   it.each([undefined, "reject"] as const)("rejects overflow before decoding with policy %s", async onLimit => {
     const fake = fakeResponse({ chunks: [encoder.encode("abc"), Uint8Array.of(0xff)] });
     const result = readFetchResponseText({ response: fake.response, maxResponseBytes: 3, result: "details", strictUtf8: true, ...(onLimit === undefined ? {} : { onLimit }) });
-    await expect(result).rejects.toThrow(new RangeError("response exceeds the 3-byte limit"));
+    // Vitest 3 compares an Error instance by class and own props; keep the RangeError and exact-message checks.
+    await expect(result).rejects.toBeInstanceOf(RangeError);
+    await expect(result).rejects.toThrow(expect.objectContaining({ message: "response exceeds the 3-byte limit" }));
     expect(fake.reader.cancel).toHaveBeenCalledWith(expect.any(RangeError));
     expect(fake.reader.releaseLock).toHaveBeenCalledTimes(1);
   });

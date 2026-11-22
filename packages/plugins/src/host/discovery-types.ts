@@ -17,7 +17,7 @@ export interface PluginDiscoveryRecord {
   readonly version: string;
   readonly source: "built-in" | "site";
   /** (1.1.2, REQ-10/REQ-18) The plugin's trust tier, projected verbatim from the already-required
-   * `PluginManifest.tier` (REQ-01/ADR-024 §1) — mirrors how `source` already passes through
+   * `PluginManifest.tier` — mirrors how `source` already passes through
    * unchanged. Optional on this stub type only so pre-existing fixtures in unrelated test files
    * (`activation.integration.test.ts`, `loader.integration.test.ts`) that construct
    * `PluginDiscoveryRecord` literals for concerns unrelated to REQ-10/`PLUGINS_LIST` are not forced
@@ -36,12 +36,12 @@ export interface PluginDiscoveryRecord {
    * A later whole-set publisher collision omits the losing manifest and marks its record invalid.
    * The incumbent keeps its reservation; the rejected claim must not reappear in host lookup.
    *
-   * Exists so a composition root's enable path (`server/plugin-runtime.ts`'s `onPluginEnabled()`)
+   * Exists so a composition root's enable path (`packages/plugins/src/host/node/runtime-core.ts`'s `onPluginEnabled()`)
    * can hand `loadPlugin()` the SAME manifest object this discovery pass already parsed, instead of
    * re-reading `jini.plugin.json` a second time. This matters beyond avoiding duplicate I/O: every
    * real caller of `onPluginEnabled` (`activation.ts`'s `setPluginEnabled`, BR-05 step 1) already
    * calls `discoverPlugins()` fresh, in the SAME request, immediately before invoking it (see
-   * `routes/admin/plugins/set-enabled.ts`) — so reusing that record's manifest is not a staleness
+   * a host module) — so reusing that record's manifest is not a staleness
    * risk, it is the one-and-only read for this attempt. A second, independent load-time re-read
    * would instead open a narrow TOCTOU window: an attacker who can write to `installDir` between
    * the discovery read and a second load-time read could swap in a self-consistent tampered

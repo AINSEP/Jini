@@ -1,5 +1,6 @@
 /** Pure field/submission validation and honeypot decisions. Error order and stored value normalization are stable. */
-import type { FieldDescriptor, FormDefinitionRecord, FormAnswer, FormFileInput, FormFileStoragePort } from "./types.js";
+import type { FieldDescriptor, FormDefinitionRecord, FormFileInput, FormFileStoragePort } from "./types.js";
+import type { FormAnswer } from "@jini-ai/core/contracts/forms";
 import { ATTRIBUTE_NAME_PATTERN, FIELD_TYPE_REGISTRY, resolveFormField, type FieldResolution } from "./field-registry.js";
 import { commonDescriptorErrors } from "./descriptor-rules.js";
 
@@ -16,7 +17,7 @@ export const MAX_LABEL_LENGTH = 200;
 export const MIN_MAX_LENGTH = 1;
 export const MAX_MAX_LENGTH = 5000;
 export const FIELD_ID_PATTERN = /^[a-z][a-z0-9_]*$/;
-export const FIELD_TYPES = new Set<string>(Object.keys(FIELD_TYPE_REGISTRY));
+export const FIELD_TYPES: ReadonlySet<string> = new Set<string>(Object.keys(FIELD_TYPE_REGISTRY));
 
 export const MAX_CLASS_NAME_LENGTH = 300;
 export const MAX_ATTRIBUTES_PER_FIELD = 12;

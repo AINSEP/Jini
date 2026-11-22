@@ -8,29 +8,16 @@
  * with nominal private fields; default adapters translate those contracts to the real SDK.
  */
 import type { Readable, Writable } from 'node:stream';
-import { createToolExposure, type ToolDescriptor } from '@jini-ai/core';
+import { createToolExposure, type ToolDescriptor, type ToolExposurePromotion } from '@jini-ai/core';
+import type { Logger } from '@jini-ai/core/primitives';
 import type { McpTransportLike } from './ports.js';
 export type { McpTransportLike } from './ports.js';
-import { adaptSdkTransport, resolveSdkTransport } from './sdk-transport.js';
-import { Server } from '@modelcontextprotocol/sdk/server/index.js';
-import type { ServerOptions } from '@modelcontextprotocol/sdk/server/index.js';
-import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import {
-  CallToolRequestSchema,
-  ListResourcesRequestSchema,
-  ListToolsRequestSchema,
-  ReadResourceRequestSchema,
-} from '@modelcontextprotocol/sdk/types.js';
-import type {
-  CallToolResult,
-  Implementation,
-  ListResourcesResult,
-  ListToolsResult,
-  ReadResourceResult,
-} from '@modelcontextprotocol/sdk/types.js';
+import { defaultCreateServer, defaultCreateTransport, bindSdkToolHandlers, bindSdkResourceHandlers, type McpServerLike, type SdkServerInfo, type SdkServerOptions } from './adapters/sdk-server.js';
+import type { CallToolResult, ListResourcesResult, ListToolsResult, ReadResourceResult } from './adapters/sdk-wire.js';
 import { createMcpIdleExitController } from '../client/client.js';
+import { startCallProgress, type CallProgressExtra, type CallProgressScheduler } from './call-progress.js';
 import { buildResourceIndex, handleResourceRead, resourcesToList, type McpResourceDef } from './resource-protocol.js';
-import { buildToolIndex, handleToolCall, toolsToList, type McpToolContext, type McpToolDef } from './tool-protocol.js';
+import { buildToolIndex, handleToolCall, toolsToList, type McpToolContext, type McpToolDef, type ToolPublication } from './tool-protocol.js';
 import { createTypedDelegatedToolTool, type CreateExecuteDelegatedToolToolOptions } from './tools/delegated-tool.js';
 import { resolveMcpToolName } from './tool-arguments.js';
 import { createToolResultPages } from './tool-result-pages.js';
@@ -39,28 +26,6 @@ import { createStdioHosting, validateFrameLimit, wantsStdioHosting, type StdioHo
 
 /** Auto-exit an idle server after this long without tool activity. */
 const DEFAULT_IDLE_MS = 30 * 60 * 1000;
-
-/** Object-shaped server port. The default adapter translates it to the SDK interface. */
-// Method shorthand deliberately keeps parameter checking bivariant under strict TypeScript,
-// allowing handlers narrowed to the specific request schema each overload registers.
-export interface McpServerLike {
-  setRequestHandler(args: { schema: typeof ListToolsRequestSchema; handler: () => Promise<ListToolsResult> }): void;
-  setRequestHandler(args: {
-    schema: typeof CallToolRequestSchema;
-    handler: (
-      requiredArgs: { request: { params: { name: string; arguments?: Record<string, unknown> } } },
-      optionalArgs?: { extra?: { signal?: AbortSignal } },
-    ) => Promise<CallToolResult>;
-  }): void;
-  setRequestHandler(args: { schema: typeof ListResourcesRequestSchema; handler: () => Promise<ListResourcesResult> }): void;
-  setRequestHandler(args: {
-    schema: typeof ReadResourceRequestSchema;
-    handler: (requiredArgs: { request: { params: { uri: string } } }) => Promise<ReadResourceResult>;
-  }): void;
-  connect(args: { transport: McpTransportLike }): Promise<void>;
-  /** Optional for static embeddings; required when delegated publication is enabled. */
-  sendToolListChanged?(required: Record<string, never>, optional?: Record<string, never>): Promise<void>;
-}
 
 /** Required identity, tool surface, and daemon URL resolver. */
 export interface McpToolServerRequiredArgs {
@@ -87,6 +52,9 @@ export interface McpToolServerOptions extends StdioHostingOptions {
   readonly resources?: readonly McpResourceDef[];
   /** Free-text guidance surfaced to the MCP client alongside the tool list. Optional — omit for a caller with nothing to add beyond each tool's own `description`. */
   readonly instructions?: string;
+  /** Progress keepalive of a slow `tools/call`: its timer (default real timers) and the log for a failed send (default stderr console). */
+  readonly progressScheduler?: CallProgressScheduler;
+  readonly logger?: Logger;
   /** Idle-exit window in ms. Defaults to {@link DEFAULT_IDLE_MS}. */
   readonly idleMs?: number;
   /** Defaults to the global `fetch`; threaded into every tool call's {@link McpToolContext}. */
@@ -102,7 +70,7 @@ export interface McpToolServerOptions extends StdioHostingOptions {
   /** Defaults to `process.stdout`; inject for tests. */
   readonly stdout?: Writable;
   /** Test/embedding seam: builds the underlying `Server`. Defaults to the real `@modelcontextprotocol/sdk` `Server`. */
-  readonly createServer?: (args: { info: Implementation; options: ServerOptions }) => McpServerLike;
+  readonly createServer?: (args: { info: SdkServerInfo; options: SdkServerOptions }) => McpServerLike;
   /** Test/embedding seam: builds the underlying transport. Defaults to the real `StdioServerTransport`. */
   readonly createTransport?: (requiredArgs: Record<string, never>, optionalArgs?: { stdin?: Readable; stdout?: Writable }) => McpTransportLike;
 }
@@ -127,23 +95,6 @@ export interface McpToolServerHandle {
    * the embedding owns closure, without stdin or an idle-exit timer.
    */
   run(required: { transport?: McpTransportLike }): Promise<void>;
-}
-
-// SDK objects remain behind these adapters; hosts implement the object-shaped ports above.
-function defaultCreateServer({ info, options }: { info: Implementation; options: ServerOptions }): McpServerLike {
-  const server = new Server(info, options);
-  return {
-    setRequestHandler: (({ schema, handler }: {
-      schema: Parameters<Server['setRequestHandler']>[0];
-      handler: (...args: any[]) => Promise<any>;
-    }) => server.setRequestHandler(schema, (request, extra) => handler({ request }, { extra }))) as McpServerLike['setRequestHandler'],
-    connect: ({ transport }) => server.connect(resolveSdkTransport({ transport })),
-    sendToolListChanged: () => server.sendToolListChanged(),
-  };
-}
-
-function defaultCreateTransport(_requiredArgs: Record<string, never>, { stdin, stdout }: { stdin?: Readable; stdout?: Writable } = {}): McpTransportLike {
-  return adaptSdkTransport({ transport: new StdioServerTransport(stdin, stdout) });
 }
 
 /**
@@ -236,6 +187,20 @@ function createHostedTransport({ createTransport, options, hosting }: {
 }
 
 /**
+ * What a promotion did for one tool: the wire name it is published under (also when it was already
+ * published before this call), or the reason it was skipped. The model is told this, so a full list is
+ * never silent.
+ * @returns The name from the exposure's own snapshot, never one derived from the id.
+ * @complexity O(n) for n published tools; no effects.
+ */
+function publicationOutcome({ toolId, delta }: { toolId: string; delta: ToolExposurePromotion }): ToolPublication {
+  const skipped = delta.skipped.find(entry => entry.toolId === toolId);
+  if (skipped !== undefined) return { skipped: skipped.reason };
+  const published = delta.snapshot.tools.find(tool => tool.descriptor.id === toolId);
+  return published === undefined ? { skipped: 'not-found' } : { wireName: published.wireName };
+}
+
+/**
  * Own only the MCP projection/dispatch index. F0 owns immutable exposure, and the daemon catalog
  * supplies each descriptor; the temporary source below is not another definition catalog.
  * @returns An install-before-notify publisher, or undefined for a static server.
@@ -270,11 +235,145 @@ function createToolPublisher({ index, server, options }: {
       if (!index.has(tool.wireName)) index.set(tool.wireName, createTypedDelegatedToolTool({ runId: options.runId, tool }, options));
     }
     if (delta.added.length > 0) notificationPending = true;
-    if (!notificationPending) return;
-    // Clear before awaiting: a concurrent promotion must retain its own unsent notification.
-    notificationPending = false;
-    try { await notify({}); } catch (error) { notificationPending = true; throw error; }
+    if (notificationPending) {
+      // Clear before awaiting: a concurrent promotion must retain its own unsent notification.
+      notificationPending = false;
+      try { await notify({}); } catch (error) { notificationPending = true; throw error; }
+    }
+    return publicationOutcome({ toolId: descriptor.id, delta });
   };
+}
+
+type HostConfig = {
+  readonly requiredArgs: McpToolServerRequiredArgs;
+  readonly options: McpToolServerOptions;
+  readonly resources: readonly McpResourceDef[];
+  readonly resourceIndex: ReturnType<typeof buildResourceIndex>;
+  readonly createServer: NonNullable<McpToolServerOptions['createServer']>;
+  readonly createTransport: NonNullable<McpToolServerOptions['createTransport']>;
+};
+type ActivityTracker = ReturnType<typeof createActivityTracker>;
+
+/** Per-connection pieces the tool-call handler reads: the tool table, base context and optional result pages. */
+type ToolCallScope = {
+  readonly toolIndex: ReturnType<typeof buildToolIndex>;
+  readonly ctx: McpToolContext;
+  readonly resultPages: ReturnType<typeof createToolResultPages> | undefined;
+};
+
+function createCallToolHandler(cfg: HostConfig, { toolIndex, ctx, resultPages }: ToolCallScope) {
+  const { options } = cfg;
+  return async ({ request }: { request: { params: { name: string; arguments?: Record<string, unknown> } } }, { extra }: { extra?: CallProgressExtra } = {}) => {
+    const callContext = extra?.signal !== undefined ? { ...ctx, signal: extra.signal } : ctx;
+    let checkedMessages = resolveMcpToolName({ name: request.params.name }, { isRegistered: candidate => toolIndex.has(candidate) }) === 'check_messages';
+    const callLocalTool: NonNullable<McpToolContext['callLocalTool']> = async ({ name, input, requireReadOnly }, _optional = {}) => {
+      const tool = toolIndex.get(resolveMcpToolName({ name }, { isRegistered: candidate => toolIndex.has(candidate) }));
+      if (!tool) return undefined;
+      if (requireReadOnly && tool.annotations?.readOnlyHint !== true) {
+        throw new Error(`Tool "${name}" is not declared read-only; use execute_delegated_tool.`);
+      }
+      checkedMessages = tool.name === 'check_messages';
+      // Keep nesting bounded: a local gateway's own handler receives the base context.
+      return handleToolCall({ name, tools: toolIndex, ctx: callContext }, { rawArgs: input });
+    };
+    // One keepalive per CLI call: the nested `callLocalTool` await above is deliberately not wrapped.
+    const progress = startCallProgress({ extra }, { scheduler: options.progressScheduler, logger: options.logger });
+    const result = await handleToolCall({ name: request.params.name, tools: toolIndex,
+      ctx: { ...callContext, callLocalTool } }, { rawArgs: request.params.arguments }).finally(progress.stop);
+    // A delegated check must keep its trusted nonce and claim only once, just like a direct check.
+    const readableResult = checkedMessages ? result : (resultPages?.project({ result }) ?? result);
+    if (!options.messageRelay || checkedMessages) return readableResult;
+    return prependRunUserMessages({ result: readableResult, relay: options.messageRelay, ctx: callContext });
+  };
+}
+
+function registerResourceHandlers({ cfg, server, ctx, withActivity }: {
+  cfg: HostConfig;
+  server: ReturnType<HostConfig['createServer']>;
+  ctx: McpToolContext;
+  withActivity: ActivityTracker;
+}): void {
+  const { resources, resourceIndex } = cfg;
+  bindSdkResourceHandlers({ server,
+    listResources: withActivity(async () => ({ resources: resourcesToList({ resources }) })),
+    readResource: () => withActivity(async ({ request }: { request: { params: { uri: string } } }) => handleResourceRead({ uri: request.params.uri, resources: resourceIndex, ctx })),
+  });
+}
+
+/** Install the shared tool/resource dispatch for either hosting lifecycle. O(tools + resources).
+ * Transport closure clears result pages; the returned cleanup also covers failed stdio closure.
+ */
+async function connectHost(cfg: HostConfig, { transport, withActivity }: {
+  transport: McpTransportLike;
+  withActivity: ActivityTracker;
+}): Promise<() => void> {
+  const { requiredArgs, options, resources } = cfg;
+  const resultPages = options.resultPaging ? createToolResultPages({}) : undefined;
+  const toolIndex = buildToolIndex({ tools: [...requiredArgs.tools, ...(resultPages ? [resultPages.tool] : [])] });
+  let ctx = buildToolContext({ resolvedBaseUrl: await requiredArgs.resolveBaseUrl() }, options);
+
+  const server = cfg.createServer({
+    info: { name: requiredArgs.name, version: requiredArgs.version },
+    options: {
+      capabilities: { tools: options.delegatedTools ? { listChanged: true } : {}, ...(resources.length > 0 ? { resources: {} } : {}) },
+      ...(options.instructions !== undefined ? { instructions: options.instructions } : {}),
+    },
+  });
+
+  const publishTool = createToolPublisher({ index: toolIndex, server, options: options.delegatedTools });
+  if (publishTool) ctx = { ...ctx, publishTool };
+
+  bindSdkToolHandlers({ server,
+    listTools: withActivity(async () => ({ tools: toolsToList({ tools: [...toolIndex.values()] }) })),
+    callTool: () => withActivity(createCallToolHandler(cfg, { toolIndex, ctx, resultPages })),
+  });
+  if (resources.length > 0) registerResourceHandlers({ cfg, server, ctx, withActivity });
+
+  try {
+    await server.connect({ transport });
+    const onclose = transport.onclose;
+    transport.onclose = () => { onclose?.(); resultPages?.clear({}); };
+    return () => resultPages?.clear({});
+  } catch (error) {
+    resultPages?.clear({});
+    throw error;
+  }
+}
+
+/** Own the stdio lifecycle: idle exit, optional hosting guards and teardown. */
+async function runOwnedTransport(cfg: HostConfig): Promise<void> {
+  const { options } = cfg;
+  let closeTransportForIdle: (() => void) | null = null;
+  const idleExit = createMcpIdleExitController({
+    idleMs: options.idleMs ?? DEFAULT_IDLE_MS,
+    onIdle: () => closeTransportForIdle?.(),
+  });
+  const hosting = hostingForOptions(options);
+  const withActivity = createActivityTracker({ idleExit, hosting });
+  const transport = createHostedTransport({ createTransport: cfg.createTransport, options, hosting });
+  let disposeHost: (() => void) | undefined;
+  try {
+    closeTransportForIdle = () => {
+      void transport.close({}).catch(() => {});
+    };
+    disposeHost = await connectHost(cfg, { transport, withActivity });
+
+    // `connect()` sets `transport.onmessage` to its own protocol-dispatch handler; wrap it so
+    // every inbound message also counts as activity for the idle-exit timer, without losing
+    // the SDK's own routing.
+    const sdkOnMessage = transport.onmessage;
+    transport.onmessage = ({ message }) => {
+      idleExit.noteActivity({});
+      sdkOnMessage?.({ message });
+    };
+
+    await waitForTransportClose({ transport, idleExit, hosting, stdin: options.stdin ?? process.stdin });
+  } finally {
+    disposeHost?.();
+    idleExit.dispose({});
+    if (hosting) void hosting.dispose();
+    closeTransportForIdle = null;
+  }
 }
 
 /**
@@ -289,121 +388,19 @@ export function createMcpToolServer(requiredArgs: McpToolServerRequiredArgs, opt
   // Validate eagerly, but keep the mutable dispatch index inside run() so re-runs are isolated.
   buildToolIndex({ tools: requiredArgs.tools });
   const resources = options.resources ?? [];
-  const resourceIndex = buildResourceIndex({ resources });
-  const createServer = options.createServer ?? defaultCreateServer;
-  const createTransport = options.createTransport ?? defaultCreateTransport;
-
-  /** Install the shared tool/resource dispatch for either hosting lifecycle. O(tools + resources).
-   * Transport closure clears result pages; the returned cleanup also covers failed stdio closure.
-   */
-  async function connectHost({ transport, withActivity }: {
-    transport: McpTransportLike;
-    withActivity: ReturnType<typeof createActivityTracker>;
-  }): Promise<() => void> {
-    const resultPages = options.resultPaging ? createToolResultPages({}) : undefined;
-    const toolIndex = buildToolIndex({ tools: [...requiredArgs.tools, ...(resultPages ? [resultPages.tool] : [])] });
-    let ctx = buildToolContext({ resolvedBaseUrl: await requiredArgs.resolveBaseUrl() }, options);
-
-    const server = createServer({
-      info: { name: requiredArgs.name, version: requiredArgs.version },
-      options: {
-        capabilities: { tools: options.delegatedTools ? { listChanged: true } : {}, ...(resources.length > 0 ? { resources: {} } : {}) },
-        ...(options.instructions !== undefined ? { instructions: options.instructions } : {}),
-      },
-    });
-
-    const publishTool = createToolPublisher({ index: toolIndex, server, options: options.delegatedTools });
-    if (publishTool) ctx = { ...ctx, publishTool };
-
-    server.setRequestHandler({
-      schema: ListToolsRequestSchema,
-      handler: withActivity(async () => ({ tools: toolsToList({ tools: [...toolIndex.values()] }) })),
-    });
-
-    server.setRequestHandler({
-      schema: CallToolRequestSchema,
-      handler: withActivity(async ({ request }: { request: { params: { name: string; arguments?: Record<string, unknown> } } }, { extra }: { extra?: { signal?: AbortSignal } } = {}) => {
-        const callContext = extra?.signal !== undefined ? { ...ctx, signal: extra.signal } : ctx;
-        let checkedMessages = resolveMcpToolName({ name: request.params.name }, { isRegistered: candidate => toolIndex.has(candidate) }) === 'check_messages';
-        const callLocalTool: NonNullable<McpToolContext['callLocalTool']> = async ({ name, input, requireReadOnly }, _optional = {}) => {
-          const tool = toolIndex.get(resolveMcpToolName({ name }, { isRegistered: candidate => toolIndex.has(candidate) }));
-          if (!tool) return undefined;
-          if (requireReadOnly && tool.annotations?.readOnlyHint !== true) {
-            throw new Error(`Tool "${name}" is not declared read-only; use execute_delegated_tool.`);
-          }
-          checkedMessages = tool.name === 'check_messages';
-          // Keep nesting bounded: a local gateway's own handler receives the base context.
-          return handleToolCall({ name, tools: toolIndex, ctx: callContext }, { rawArgs: input });
-        };
-        const result = await handleToolCall({ name: request.params.name, tools: toolIndex,
-          ctx: { ...callContext, callLocalTool } }, { rawArgs: request.params.arguments });
-        // A delegated check must keep its trusted nonce and claim only once, just like a direct check.
-        const readableResult = checkedMessages ? result : (resultPages?.project({ result }) ?? result);
-        if (!options.messageRelay || checkedMessages) return readableResult;
-        return prependRunUserMessages({ result: readableResult, relay: options.messageRelay, ctx: callContext });
-      }),
-    });
-
-    if (resources.length > 0) {
-      server.setRequestHandler({
-        schema: ListResourcesRequestSchema,
-        handler: withActivity(async () => ({ resources: resourcesToList({ resources }) })),
-      });
-
-      server.setRequestHandler({
-        schema: ReadResourceRequestSchema,
-        handler: withActivity(async ({ request }: { request: { params: { uri: string } } }) => handleResourceRead({ uri: request.params.uri, resources: resourceIndex, ctx })),
-      });
-    }
-
-    try {
-      await server.connect({ transport });
-      const onclose = transport.onclose;
-      transport.onclose = () => { onclose?.(); resultPages?.clear({}); };
-      return () => resultPages?.clear({});
-    } catch (error) {
-      resultPages?.clear({});
-      throw error;
-    }
-  }
+  const cfg: HostConfig = {
+    requiredArgs, options, resources, resourceIndex: buildResourceIndex({ resources }),
+    createServer: options.createServer ?? defaultCreateServer,
+    createTransport: options.createTransport ?? defaultCreateTransport,
+  };
 
   return {
     async run({ transport: externalTransport }: { transport?: McpTransportLike }): Promise<void> {
       if (externalTransport) {
-        await connectHost({ transport: externalTransport, withActivity: handler => async (...args) => handler(...args) });
+        await connectHost(cfg, { transport: externalTransport, withActivity: handler => async (...args) => handler(...args) });
         return;
       }
-      let closeTransportForIdle: (() => void) | null = null;
-      const idleExit = createMcpIdleExitController({
-        idleMs: options.idleMs ?? DEFAULT_IDLE_MS,
-        onIdle: () => closeTransportForIdle?.(),
-      });
-      const hosting = hostingForOptions(options);
-      const withActivity = createActivityTracker({ idleExit, hosting });
-      const transport = createHostedTransport({ createTransport, options, hosting });
-      let disposeHost: (() => void) | undefined;
-      try {
-        closeTransportForIdle = () => {
-          void transport.close({}).catch(() => {});
-        };
-        disposeHost = await connectHost({ transport, withActivity });
-
-        // `connect()` sets `transport.onmessage` to its own protocol-dispatch handler; wrap it so
-        // every inbound message also counts as activity for the idle-exit timer, without losing
-        // the SDK's own routing.
-        const sdkOnMessage = transport.onmessage;
-        transport.onmessage = ({ message }) => {
-          idleExit.noteActivity({});
-          sdkOnMessage?.({ message });
-        };
-
-        await waitForTransportClose({ transport, idleExit, hosting, stdin: options.stdin ?? process.stdin });
-      } finally {
-        disposeHost?.();
-        idleExit.dispose({});
-        if (hosting) void hosting.dispose();
-        closeTransportForIdle = null;
-      }
+      await runOwnedTransport(cfg);
     },
   };
 }

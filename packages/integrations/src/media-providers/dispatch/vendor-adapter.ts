@@ -26,7 +26,7 @@
  * `response-parsers.ts`'s `createHexEnvelopeAudioParser` for the shared,
  * reusable piece.
  */
-import { FETCH_TIMEOUT_MS } from '@jini-ai/platform/fetch-with-timeout';
+import { FETCH_TIMEOUT_MS } from '@jini-ai/core/net';
 import { fetchMediaOutbound, requireMediaHttpClient } from './outbound.js';
 import type { ProviderCredentials, RenderContext, RenderResult, VendorAdapter, VendorCredentialGuard } from './types.js';
 export type { VendorRequest, VendorRequestBuilder, VendorResponseParser, VendorCredentialGuard, VendorAdapter } from './types.js';
@@ -55,7 +55,7 @@ export async function dispatchVendorRequest<Meta = undefined>({ adapter, ctx, cr
   // still applies unchanged; `GENERATE` (10min) matches what those two vendors already picked
   // deliberately for the same reason — media generation genuinely finishes on that order, not in
   // seconds, so anything shorter would abort a legitimately still-generating request.
-  const resp = await fetchMediaOutbound({ url: request.url, timeoutMs: FETCH_TIMEOUT_MS.GENERATE }, { ...ctx, httpClient: requireMediaHttpClient(ctx), init: request.init });
+  const resp = await fetchMediaOutbound({ url: request.url, timeoutMs: FETCH_TIMEOUT_MS.GENERATE, httpClient: requireMediaHttpClient(ctx) }, { ...ctx, init: request.init });
   return adapter.parseResponse({ resp: resp, ctx: ctx, request: request });
 }
 

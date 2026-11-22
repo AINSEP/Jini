@@ -65,7 +65,7 @@ function requirePluginDocuments({ inventory }: { inventory: PackageInventory }, 
 export function checkPluginPackages(
   required: { repoRoot: string }, optional: PluginPackageCheckPorts = {},
 ): PluginPackageViolation[] {
-  const packages = [...discoverJiniPackages(required.repoRoot).values()];
+  const packages = [...discoverJiniPackages({ workspaceRoot: required.repoRoot }).values()];
   const sourceRoot = join(required.repoRoot, 'packages/provider-plugins/src');
   const providerIds = existsSync(sourceRoot) ? readdirSync(sourceRoot, { withFileTypes: true }).filter(entry => entry.isDirectory() && !entry.name.startsWith('__')).map(entry => entry.name) : [];
   const pluginIds = [...providerIds, ...packages.map(entry => entry.pkg.name!)

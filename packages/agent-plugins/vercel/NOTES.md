@@ -12,7 +12,7 @@ behaviours generically; the vendor detail lives here.
 - **Errors.** No code path puts `credential.token` into a `DeployError` message (verified when core's
   adapter boundary was written); core's message-only boundary holds regardless.
 - **Share links (Vercel Blob).** `object-stores/vercel-blob.mjs` is the plugin's artifact store for site
-  export share links, registered through `tovu-object-stores.json` as provider `vercel` so the share path
+  export share links, registered through `jini-object-stores.json` as provider `vercel` so the share path
   resolves the saved Vercel connection. It needs the optional `blobToken` credential field (a Blob
   store's read-write token); without it the share falls back to download-only. Wire format mirrors
   `@vercel/blob` 2.8.2 `put()`/`del()` (API version 13, `x-vercel-blob-access: public` on put) and has

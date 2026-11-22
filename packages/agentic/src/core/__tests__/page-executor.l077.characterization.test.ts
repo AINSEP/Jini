@@ -1,9 +1,14 @@
 import { describe, expect, it, vi } from 'vitest';
 import { executePageCapability, projectElementState, MAX_STATEFUL_ELEMENTS } from '../page-executor.js';
 import { PAGE_CAPABILITIES } from '../page-capabilities.js';
-import type { AgentElementRawState, AgentElementState, AgentElementDescriptor } from '../element-handles.js';
+import type {
+  AgentElementRawState,
+  AgentElementState,
+  AgentElementDescriptor,
+  FieldDescriptor,
+} from '@jini-ai/core/agent-handles';
 import type { PageDriver, PageSummary } from '../page-driver.js';
-import type { FieldDescriptor, FieldRefusal } from '../guards.js';
+import type { FieldRefusal } from '../guards.js';
 import { describeFieldRefusal } from '../guards.js';
 
 function fakeDriver(_required: Record<string, never>, overrides: Partial<PageDriver> = {}): PageDriver {

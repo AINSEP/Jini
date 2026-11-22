@@ -45,7 +45,7 @@ function presetById(id: string): ProviderPreset {
 
 /** The rule as the shipped screen calls it: against the whole default catalog. */
 function warnFor(apiKey: string, preset: ProviderPreset | null) {
-  return apiKeyFormatWarning(configWith(apiKey, preset), preset, DEFAULT_PROVIDER_PRESETS);
+  return apiKeyFormatWarning({ config: configWith(apiKey, preset), preset }, { presets: DEFAULT_PROVIDER_PRESETS });
 }
 
 describe('apiKeyFormatWarning — silence on anything not positively recognised', () => {
@@ -90,8 +90,8 @@ describe('apiKeyFormatWarning — silence on anything not positively recognised'
     // A host calling the rule with only the selected preset loses the cross-vendor arm. It must lose
     // it by going QUIET, never by falling back to "does this match my own prefix".
     const google = presetById('google-gemini');
-    expect(apiKeyFormatWarning(configWith(UNRECOGNISED_BUT_PLAUSIBLE_GOOGLE_KEY, google), google)).toBeNull();
-    expect(apiKeyFormatWarning(configWith(`sk-ant-api03-${'0'.repeat(95)}`, google), google)).toBeNull();
+    expect(apiKeyFormatWarning({ config: configWith(UNRECOGNISED_BUT_PLAUSIBLE_GOOGLE_KEY, google), preset: google })).toBeNull();
+    expect(apiKeyFormatWarning({ config: configWith(`sk-ant-api03-${'0'.repeat(95)}`, google), preset: google })).toBeNull();
   });
 });
 
@@ -145,13 +145,13 @@ describe('apiKeyFormatWarning — cross-vendor paste', () => {
     };
     const catalog = [...DEFAULT_PROVIDER_PRESETS, proxy];
     const config = configWith(`sk-ant-api03-${'0'.repeat(95)}`, proxy);
-    expect(apiKeyFormatWarning(config, proxy, catalog)).toBeNull();
+    expect(apiKeyFormatWarning({ config, preset: proxy }, { presets: catalog })).toBeNull();
   });
 
   it('says nothing on custom/manual, where any vendor key may legitimately be right', () => {
     // `resolveSelectedPreset` returns null for Custom. An operator pointing a custom base URL at an
     // Anthropic-compatible proxy is pasting an Anthropic key on purpose.
-    expect(apiKeyFormatWarning(configWith(`sk-ant-api03-${'0'.repeat(95)}`, null), null, DEFAULT_PROVIDER_PRESETS))
+    expect(apiKeyFormatWarning({ config: configWith(`sk-ant-api03-${'0'.repeat(95)}`, null), preset: null }, { presets: DEFAULT_PROVIDER_PRESETS }))
       .toBeNull();
   });
 });
@@ -166,7 +166,7 @@ describe('apiKeyFormatWarning — implausibly short', () => {
   });
 
   it('warns on a short value even with no preset selected', () => {
-    expect(apiKeyFormatWarning(configWith(AUTOFILLED_PASSWORD, null), null, DEFAULT_PROVIDER_PRESETS)).toEqual({
+    expect(apiKeyFormatWarning({ config: configWith(AUTOFILLED_PASSWORD, null), preset: null }, { presets: DEFAULT_PROVIDER_PRESETS })).toEqual({
       message: API_KEY_TOO_SHORT_WARNING,
       vars: {},
     });
@@ -203,13 +203,13 @@ describe('apiKeyFormatWarning — structural properties', () => {
     const catalog = [...DEFAULT_PROVIDER_PRESETS, acme];
     const google = presetById('google-gemini');
     // An Acme key in the Google field is named as Acme's, purely because Acme is a catalog row.
-    expect(apiKeyFormatWarning(configWith(`acme_${'0'.repeat(48)}`, google), google, catalog)).toEqual({
+    expect(apiKeyFormatWarning({ config: configWith(`acme_${'0'.repeat(48)}`, google), preset: google }, { presets: catalog })).toEqual({
       message: API_KEY_CROSS_VENDOR_WARNING,
       vars: { vendor: 'Acme LLM', provider: 'Google Gemini' },
     });
     // And Acme's own field accepts both its own keys and shapes nobody recognises.
-    expect(apiKeyFormatWarning(configWith(`acme_${'0'.repeat(48)}`, acme), acme, catalog)).toBeNull();
-    expect(apiKeyFormatWarning(configWith('0'.repeat(48), acme), acme, catalog)).toBeNull();
+    expect(apiKeyFormatWarning({ config: configWith(`acme_${'0'.repeat(48)}`, acme), preset: acme }, { presets: catalog })).toBeNull();
+    expect(apiKeyFormatWarning({ config: configWith('0'.repeat(48), acme), preset: acme }, { presets: catalog })).toBeNull();
   });
 
   it('is ADVISORY: a cross-vendor key is not a missing required field', () => {
@@ -217,18 +217,18 @@ describe('apiKeyFormatWarning — structural properties', () => {
     // reach it, or a format guess becomes a block.
     const google = presetById('google-gemini');
     const config = configWith(`sk-ant-api03-${'0'.repeat(95)}`, google);
-    expect(apiKeyFormatWarning(config, google, DEFAULT_PROVIDER_PRESETS)).not.toBeNull();
-    expect(missingRequiredFields(config, google)).toEqual([]);
+    expect(apiKeyFormatWarning({ config, preset: google }, { presets: DEFAULT_PROVIDER_PRESETS })).not.toBeNull();
+    expect(missingRequiredFields({ config, preset: google })).toEqual([]);
   });
 
   it('reaches the preset the live Gemini form actually resolves', () => {
     // Ties the rule to the selection path the screen uses — a rule that warned on an unreachable
     // preset would pass every test above and reach nobody.
     const google = presetById('google-gemini');
-    const selected = resolveSelectedPreset(DEFAULT_PROVIDER_PRESETS, configWith('x', google));
+    const selected = resolveSelectedPreset({ presets: DEFAULT_PROVIDER_PRESETS, config: configWith('x', google) });
     expect(selected?.id).toBe('google-gemini');
     expect(
-      apiKeyFormatWarning(configWith(`sk-ant-api03-${'0'.repeat(95)}`, selected), selected, DEFAULT_PROVIDER_PRESETS)
+      apiKeyFormatWarning({ config: configWith(`sk-ant-api03-${'0'.repeat(95)}`, selected), preset: selected }, { presets: DEFAULT_PROVIDER_PRESETS })
         ?.vars,
     ).toEqual({ vendor: 'Anthropic', provider: 'Google Gemini' });
   });

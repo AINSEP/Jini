@@ -1,4 +1,4 @@
-import type { PluginProviderDeclaration } from './manifest-types.js';
+import type { PluginProviderDeclaration } from '@jini-ai/core/contracts/plugin-sdk';
 
 /** Apply the plugin's declared public-setting migrations to a copy; inputs and secrets stay intact.
  * @complexity O(f + m * c) for fields, ordered migrations and their declared choices. */

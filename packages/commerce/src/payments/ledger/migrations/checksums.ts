@@ -1,5 +1,5 @@
 /**
- * @file Pinned checksums of the payments ledger's migration steps (ADR-066 §3). The runner records
+ * @file Pinned checksums of the payments ledger's migration steps. The runner records
  * these in `commerce_payments_migrations` and refuses a database whose recorded checksum differs.
  * `../__tests__/migrations.vitest.test.ts` re-derives each from its `NNNN_name.ts` source (comments
  * removed, whitespace collapsed, sha256 via `sourceChecksum`), so an edit to a shipped step goes red
@@ -13,4 +13,14 @@ export const COMMERCE_PAYMENTS_MIGRATION_CHECKSUMS: Readonly<Record<string, stri
   "0002_payments_operator_actions": "b25706b7606c5e9be93eba63ae2a415cf81212307e06bf511f158a14701aa74d",
   "0004_payments_attempt_recovery": "902fb1230f456c3420e64c2093cbdbc0ab18ee65184febdc777c76a0574bbe4c",
   "0005_payments_intent_replay": "7d49e170dbe7f7b89befc1bcc0d02429e0bbc6f169b3c7c597469038b15bbbac",
+};
+
+/** sha256 of each step file's normalized source as it stands now (the edit guard). It differs from the ledger
+ * checksum above only after a reviewed edit that changes no behavior (2026-11-15, C3: import specifiers and kernel
+ * type arguments). The ledger checksum is what databases recorded; it never changes. */
+export const COMMERCE_PAYMENTS_SOURCE_DIGESTS: Readonly<Record<string, string>> = {
+  "0001_payments_ledger": "1fdbfa3fcee461c76a4109f2a86c358b118189185e13745b329b8562bc4b4e83",
+  "0002_payments_operator_actions": "13d656a8bcf4dd4ac2a510fb380617b368b2d76ebd2dbf1a178ff05e0c6e20ae",
+  "0004_payments_attempt_recovery": "ca640f01f97cfc62176e008e1253f226f47a70c53442dea45334b79648b329b6",
+  "0005_payments_intent_replay": "e9daa73f617c1d66c339beed46161cc3ac4f57fd336f41f54f141cc5f22bf244",
 };

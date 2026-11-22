@@ -1,3 +1,4 @@
+import { fakeLatencyDelay } from '../../utils/fake-latency.js';
 import type { McpIntegrationsPort } from './ports.js';
 import type { CodexInstallStatus, McpInstallInfo } from './types.js';
 
@@ -27,24 +28,22 @@ const DEFAULT_FAKE_INFO: McpInstallInfo = {
 export function createFakeMcpIntegrationsPort(options: FakeMcpIntegrationsPortOptions = {}): McpIntegrationsPort {
   const info = options.info ?? DEFAULT_FAKE_INFO;
   let codexStatus = options.codexStatus ?? { available: true, installed: false };
-  const latencyMs = options.latencyMs ?? 0;
-  const delay = <T>(value: T): Promise<T> =>
-    latencyMs > 0 ? new Promise((resolve) => setTimeout(() => resolve(value), latencyMs)) : Promise.resolve(value);
+  const delay = fakeLatencyDelay({}, { latencyMs: options.latencyMs });
 
   return {
     fetchInstallInfo() {
-      return delay({ ...info });
+      return delay({ value: { ...info } });
     },
     fetchCodexInstallStatus() {
-      return delay({ ...codexStatus });
+      return delay({ value: { ...codexStatus } });
     },
     installCodexMcp() {
       codexStatus = { ...codexStatus, installed: true };
-      return delay(undefined);
+      return delay({ value: undefined });
     },
     uninstallCodexMcp() {
       codexStatus = { ...codexStatus, installed: false };
-      return delay(undefined);
+      return delay({ value: undefined });
     },
   };
 }

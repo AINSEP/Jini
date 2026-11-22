@@ -1,21 +1,19 @@
 import { useId, type Dispatch, type FormEvent, type SetStateAction } from "react";
 import type { AdminIdentityUser, AdminPolicy, AdminRole } from "../models.js";
-import { RowMenu, ConfirmDialog } from "@jini-ai/admin/react";
-import { agentHandle } from "@jini-ai/agentic";
-import { buildAgentListHandles } from "@jini-ai/ui/panel-kit";
+import { RowMenu, ConfirmDialog, InfoTip, SecretInput } from "../kit.js";
+import { agentHandle, buildAgentListHandles } from "@jini-ai/core/agent-handles";
 
 import { grantOptionLabel, type UserAccountCapabilities } from "./rules.js";
 import { UserGrantCells, UserNameCell, UserStatusCell, userRowMenuItemsFor } from "./UserRowParts.js";
 import { useUsers, type UsersController, type UsersDependencies, type UsersOptions } from "./hooks/use-users.hooks.js";
 import type { ReactNode } from "react";
-import type { Translate } from "@jini-ai/ui/panel-kit";
-import { InfoTip } from "@jini-ai/ui/admin-widgets";
-import { SecretInput } from "@jini-ai/ui";
-import { useResetPasswordFields } from "./hooks/use-reset-password-fields.hooks.js";
+
+import { createResetPasswordConfirmHandler, useResetPasswordFields } from "./hooks/use-reset-password-fields.hooks.js";
 import { ChangeUsernameDialog } from "./ChangeUsernameDialog.js";
 
+import { type Translate } from '@jini-ai/core/text';
 /**
- * @file Admin "Users" screen (SPEC-006 §3 human grant-writing transitions + 0.6.0 CRUD-completion
+ * @file Admin "Users" screen (human grant-writing transitions + 0.6.0 CRUD-completion
  * amendment) — markup only.
  *
  * State and API calls live in `hooks/use-users.hooks.ts`; the row-menu logic and the
@@ -52,7 +50,7 @@ import { ChangeUsernameDialog } from "./ChangeUsernameDialog.js";
  * thin composition of those, none of them exported, so no test does anything `Users.tsx`
  * didn't already support — see `__tests__/Users.unit.test.tsx`/`Users.crud.unit.test.tsx` for the
  * full-render tests these were extracted underneath (unchanged), plus new
- * `__tests__/users-components.unit.test.tsx` for direct component-level tests of each piece.
+ * `packages/user-management/src/react/users/__tests__/Users.coverage.test.tsx` for direct component-level tests of each piece.
  *
  * Second complexity pass (lot L182a): `UserRow` was back at cyclomatic 16 and `Users` at 11. The
  * row's cells and its menu-item wiring moved to `UserRowParts.tsx` (`UserNameCell`,
@@ -637,16 +635,6 @@ interface UserResetPasswordDialogProps {
   useFields?: typeof useResetPasswordFields;
 }
 
-/** Resolves `useFields` to the real hook when no override is passed, because ESLint's
- *  cyclomatic-complexity rule counts a default parameter value evaluated inside a function's OWN
- *  body as one of that function's own branches; a call out to a separately-scoped resolver does
- *  not. */
-function resolveResetPasswordFieldsHook(
-  override: typeof useResetPasswordFields | undefined,
-): typeof useResetPasswordFields {
-  return override ?? useResetPasswordFields;
-}
-
 /** The reset-password dialog — extracted from `Users` verbatim, since extended with the confirm
  *  field and both reveal toggles (see this file's header). */
 function UserResetPasswordDialog({
@@ -659,20 +647,17 @@ function UserResetPasswordDialog({
   passwordSaving,
   confirmResetPassword,
   t,
-  useFields: useFieldsProp,
+  // A `resolveResetPasswordFieldsHook` helper used to do this: it resolved `useFields` to the real
+  // hook when no override is passed, because ESLint's cyclomatic-complexity rule counts a default
+  // parameter value evaluated inside a function's OWN body as one of that function's own branches;
+  // a call out to a separately-scoped resolver does not. The hook-injection gate only accepts a
+  // defaulted prop, and with it this dialog is complexity 6 (limit 10), so the default lives here.
+  useFields = useResetPasswordFields,
 }: UserResetPasswordDialogProps) {
-  const useFields = resolveResetPasswordFieldsHook(useFieldsProp);
   const fields = useFields({ resetPasswordFor, newPassword });
   const displayedError = fields.mismatch ? t("Passwords do not match.") : passwordError;
 
-  /** Blocks the reset entirely when the two fields disagree — a mismatch never reaches
-   *  `confirmResetPassword`/the server. The inline message below is driven by the same `mismatch`
-   *  value, so it is already visible by the time a blocked click can happen; there is nothing
-   *  further to surface here. */
-  function handleConfirm() {
-    if (fields.mismatch) return;
-    void confirmResetPassword();
-  }
+  const handleConfirm = createResetPasswordConfirmHandler({ mismatch: fields.mismatch, confirmResetPassword });
 
   return (
     <ConfirmDialog
@@ -830,13 +815,12 @@ function userManageController({ controller, roles, policies }: {
   };
 }
 
-export function Users({ useUsersHook, port, translate: injectedTranslate, queryScope,
+export function Users({ useUsersHook = useUsers, port, translate: injectedTranslate, queryScope,
   openOwnPasswordReset, onOwnPasswordResetClosed, passwordResetNotice, renderServerLabel }: UsersProps) {
   // Widening `useUsers` to `UsersHook` is sound only through the `UsersProps` union: whenever
   // `useUsersHook` is omitted or typed as `useUsers`, `translate` is required, so the default hook
   // never runs without it. TypeScript cannot correlate the two destructured props itself.
-  const useSelectedUsersHook = (useUsersHook ?? useUsers) as UsersHook;
-  const controller = useSelectedUsersHook({ port, translate: injectedTranslate, queryScope }, {
+  const controller = (useUsersHook as UsersHook)({ port, translate: injectedTranslate, queryScope }, {
     openOwnPasswordReset, onOwnPasswordResetClosed, passwordResetNotice,
   });
   const {

@@ -3,10 +3,10 @@ import Database from "better-sqlite3";
 import { PGlite, type PGliteOptions } from "@electric-sql/pglite";
 import { sql } from "kysely";
 import { afterEach, describe, test } from "vitest";
-import { VaultError, type VaultRecord } from "@jini-ai/platform/secrets/credential-sets/contracts";
+import { VaultError, type VaultRecord } from "@jini-ai/core/contracts/vault";
 
 import { openPgliteKernel } from "../../kernel/pglite/index.js";
-import type { StorageKernel } from "../../kernel/port.js";
+import type { KyselyKernel } from "../../kernel/port.js";
 import { sqliteKernel } from "../../kernel/sqlite/index.js";
 import { SqlSecretsVaultRepo, type SecretsVaultDatabase } from "../repo.sql.js";
 
@@ -16,14 +16,14 @@ import { SqlSecretsVaultRepo, type SecretsVaultDatabase } from "../repo.sql.js";
  * (no constraint stops it), or come back from a driver that already parsed `jsonb` into an object.
  */
 
-const kernels: Array<StorageKernel<SecretsVaultDatabase>> = [];
+const kernels: Array<KyselyKernel<SecretsVaultDatabase>> = [];
 afterEach(async () => {
   for (const kernel of kernels.splice(0)) await kernel.close();
 });
 
 /** The adapter's columns with no NOT NULL and no key: the loosest schema a host could give it. */
-async function looseSqliteVault(): Promise<{ kernel: StorageKernel<SecretsVaultDatabase>; repo: SqlSecretsVaultRepo }> {
-  const kernel = sqliteKernel<SecretsVaultDatabase>(new Database(":memory:"));
+async function looseSqliteVault(): Promise<{ kernel: KyselyKernel<SecretsVaultDatabase>; repo: SqlSecretsVaultRepo }> {
+  const kernel = sqliteKernel<SecretsVaultDatabase>({ source: new Database(":memory:") });
   kernels.push(kernel);
   await kernel.execute(sql`CREATE TABLE secrets_vault (
     workspace_id TEXT, id TEXT, kind TEXT, owner_key TEXT, principal_id TEXT, binding TEXT, provider TEXT,
@@ -34,7 +34,7 @@ async function looseSqliteVault(): Promise<{ kernel: StorageKernel<SecretsVaultD
 
 /** Inserts a raw row: `id`, the default flag, the sealed parts and meta exactly as given. */
 async function insertRaw(
-  kernel: StorageKernel<SecretsVaultDatabase>,
+  kernel: KyselyKernel<SecretsVaultDatabase>,
   row: { id: string; isDefault: number | null; sealed: [string | null, string | null, string | null, string | null]; meta: string }
 ): Promise<void> {
   const [keyId, ciphertext, nonce, alg] = row.sealed;

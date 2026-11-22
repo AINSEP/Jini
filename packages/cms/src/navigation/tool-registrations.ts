@@ -13,8 +13,7 @@ import type { Clock } from "@jini-ai/core/primitives";
  * single evaluation for these tools, located where the real route locates it.
  */
 import { ToolInputError } from "@jini-ai/core";
-import type { AuthorizeFn } from "../core/commands/command.js";
-import type { OutboxPort } from "../core/ports.js";
+import type { AuthorizeFn, OutboxPort } from "@jini-ai/core/contracts/events";
 import { buildDomainRegistrations, indexCatalogById, requireInputRecord, requireNumber, requireString, withSchemaOnRejection, type AgentToolSideEffect, type DerivedRiskByToolId, type ToolHandler, type ToolRegistration } from "@jini-ai/core";
 import { requireToolPermission } from "../core/tools/index.js";
 import { menusAgentToolCatalog } from "./agent-tools.js";
@@ -54,7 +53,7 @@ export interface MenusToolDeps {
  * calls. See `DerivedRiskByToolId` in the kit for why it is independent of the catalog's own
  * `sideEffects` declaration.
  */
-export const menusDerivedRisk: DerivedRiskByToolId = new Map<string, AgentToolSideEffect>([
+export const menusDerivedRisk: ReadonlyMap<string, AgentToolSideEffect> = new Map<string, AgentToolSideEffect>([
   // -> menuRepo.list: reads only.
   ["menus_list_menus", "none"],
   // -> menuRepo.findById: reads only.
@@ -156,8 +155,8 @@ function normalizeMenuUpdateInput(
   return { input: { ...rest, id: menuId }, notes: [`${alias}→id`] };
 }
 
-export function buildMenusRegistrations(routeDeps: MenusToolDeps): ToolRegistration[] {
-  const handlers: Record<string, ToolHandler> = {
+function menuReadHandlers(routeDeps: MenusToolDeps): Record<string, ToolHandler> {
+  return {
     menus_list_menus: async (ctx) => {
       await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }), workspaceId: routeDeps.workspaceId, principalId: ctx.principal.id, permission: "admin.menus.read" }, { entityType: "menu" });
       const menus = await routeDeps.menuRepo.list({ workspaceId: routeDeps.workspaceId });
@@ -171,7 +170,11 @@ export function buildMenusRegistrations(routeDeps: MenusToolDeps): ToolRegistrat
       if (!menu) throw new MenuNotFoundError({ message: `menu '${menuId}' was not found` });
       return { menu: toMenuToolView(menu) };
     },
+  };
+}
 
+function menuCreateHandlers(routeDeps: MenusToolDeps): Record<string, ToolHandler> {
+  return {
     menus_create_menu: async (ctx) => {
       const input = requireInputRecord({ input: ctx.input });
       await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }), workspaceId: routeDeps.workspaceId, principalId: ctx.principal.id, permission: "admin.menus.create" }, { entityType: "menu" });
@@ -181,6 +184,7 @@ export function buildMenusRegistrations(routeDeps: MenusToolDeps): ToolRegistrat
       const authoring = htmlAuthoring(input);
       await requireHtmlAuthoringPermission({ routeDeps, principalId: ctx.principal.id, authoring });
       return withSchemaOnRejection({ toolId: "menus_create_menu", catalog: CATALOG_BY_ID, isShapeRejection: ({ error }) => isMenusShapeRejection(error), fn: async () => {
+        ctx.signal.throwIfAborted();
         const { menu } = await createMenu({
           deps: menusDeps(routeDeps),
           input: {
@@ -194,7 +198,11 @@ export function buildMenusRegistrations(routeDeps: MenusToolDeps): ToolRegistrat
         return { menu: toMenuToolView(menu) };
       } });
     },
+  };
+}
 
+function menuUpdateHandlers(routeDeps: MenusToolDeps): Record<string, ToolHandler> {
+  return {
     menus_update_menu_tree: async (ctx) => {
       const { input } = normalizeMenuUpdateInput({ input: requireInputRecord({ input: ctx.input }) });
       const menuId = requireString({ input: input, key: "id" });
@@ -206,6 +214,7 @@ export function buildMenusRegistrations(routeDeps: MenusToolDeps): ToolRegistrat
       if (input.items !== undefined && !Array.isArray(input.items)) throw new Error("'items' must be an array of nav items");
       await requireHtmlAuthoringPermission({ routeDeps, principalId: ctx.principal.id, authoring, menuId });
       return withSchemaOnRejection({ toolId: "menus_update_menu_tree", catalog: CATALOG_BY_ID, isShapeRejection: ({ error }) => isMenusShapeRejection(error), fn: async () => {
+        ctx.signal.throwIfAborted();
         const { menu } = await updateMenuTree({
           deps: menusDeps(routeDeps),
           input: {
@@ -221,7 +230,11 @@ export function buildMenusRegistrations(routeDeps: MenusToolDeps): ToolRegistrat
         return { menu: toMenuToolView(menu) };
       } });
     },
+  };
+}
 
+function menuLocationHandlers(routeDeps: MenusToolDeps): Record<string, ToolHandler> {
+  return {
     menus_assign_location: async (ctx) => {
       const input = requireInputRecord({ input: ctx.input });
       const menuId = requireString({ input: input, key: "menuId" });
@@ -236,6 +249,15 @@ export function buildMenusRegistrations(routeDeps: MenusToolDeps): ToolRegistrat
         displacedMenu: displacedMenu ? toMenuToolView(displacedMenu) : null,
       };
     },
+  };
+}
+
+export function buildMenusRegistrations(routeDeps: MenusToolDeps): ToolRegistration[] {
+  const handlers: Record<string, ToolHandler> = {
+    ...menuReadHandlers(routeDeps),
+    ...menuCreateHandlers(routeDeps),
+    ...menuUpdateHandlers(routeDeps),
+    ...menuLocationHandlers(routeDeps),
   };
 
   // No `unwiredToolIds`: Menus wires its ENTIRE catalog, same tripwire discipline as Forms.

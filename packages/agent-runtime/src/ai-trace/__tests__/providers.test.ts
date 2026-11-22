@@ -5,16 +5,25 @@
  * cannot supply — a `null` here is the provider's gap, recorded honestly, not a test shortcut.
  */
 import { describe, expect, it, vi } from 'vitest';
-import { createAiTraceRecorder, createRecordingAiTraceSink, type AiTraceEvent } from '../index.js';
+import {
+  createAiTraceRecorder,
+  createRecordingAiTraceSink,
+  type AiTraceEvent,
+} from '@jini-ai/core/contracts/ai-trace';
 import { createClaudeStreamHandler } from '../../claude-stream.js';
 import { createQoderStreamHandler } from '../../qoder-stream.js';
 import { createJsonEventStreamHandler } from '../../json-event-stream.js';
-import { createAcpSessionState, handleSessionUpdate, type AcpSessionEffects } from '../../agent-protocol/acp/session.js';
+import { handleSessionUpdate } from '../../agent-protocol/acp/session.js';
+import { type AcpSessionEffects } from '../../agent-protocol/acp/session-types.js';
+import { createAcpSessionState } from '../../agent-protocol/acp/session-state.js';
 import { createToolCallTextSuppressor } from '../../agent-protocol/acp/text-suppression.js';
 import { noopAccountFailureClassifier } from '../../agent-protocol/acp/account-failure.js';
 import { formatUsage } from '../../agent-protocol/acp/rpc.js';
 import { runProviderToolTurn, providerTurnAdapters } from '../../providers/tool-turn.js';
-import { processOpenAiStreamFrame, resolveOpenAiToolCalls, executeOpenAiToolCalls, type OpenAiStreamState } from '../../providers/openai-chat.js';
+import { processOpenAiStreamFrame } from '../../providers/openai-chat-request.js';
+import { resolveOpenAiToolCalls } from '../../providers/openai-chat-stream.js';
+import { executeOpenAiToolCalls } from '../../providers/openai-chat-tool-results.js';
+import { type OpenAiStreamState } from '../../providers/openai-chat-types.js';
 import { createRoleMarkerGuard } from '../../role-marker-guard.js';
 import { steppingClock } from './scenario.js';
 
@@ -24,7 +33,7 @@ type Finished = AiTraceEvent & { kind: 'run_finished' };
 
 function traceOf(feed: (observe: (event: Record<string, unknown>) => void) => void | Promise<void>, provider: string) {
   const sink = createRecordingAiTraceSink();
-  const recorder = createAiTraceRecorder({ sink, runId: provider, agentId: provider }, { provider, now: steppingClock() });
+  const recorder = createAiTraceRecorder({ sink, runId: provider, agentId: provider }, { provider, now: steppingClock({}) });
   recorder.start({ input: 'prompt' });
   const done = feed((event) => recorder.observe(event));
   const finish = () => {
@@ -105,7 +114,7 @@ describe('ACP agents (Gemini CLI / Codex / others over ACP) — real session-upd
         send: ({ payload }: { payload: Record<string, unknown> }) => observe(payload),
         fail: vi.fn(), failWithPayload: vi.fn(), writeRpc: vi.fn(), sendPrompt: vi.fn(), recoverFromModelSelectionError: vi.fn(),
         // Mirrors session.ts finishCleanPrompt: formatUsage(result.usage) → { type: 'usage', usage, durationMs }.
-        finishCleanPrompt: (usage: unknown) => observe({ type: 'usage', usage: formatUsage(usage), durationMs: 10 }),
+        finishCleanPrompt: (usage: unknown) => observe({ type: 'usage', usage: formatUsage({ usage }), durationMs: 10 }),
         emitVisibleTextDelta: (delta: string) => observe({ type: 'text_delta', delta }),
         noteArtifactTextSuppression: vi.fn(), noteToolCallTextSuppression: vi.fn(), emitAcpRawShapeDiagnostic: vi.fn(),
         toolCallTextSuppressor: createToolCallTextSuppressor(), runStartedAt: Date.now(), modelUnavailableErrorCode: undefined,

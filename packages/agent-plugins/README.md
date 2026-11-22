@@ -35,12 +35,8 @@ metadata from partial manifests. `parseAgentPluginMcpConfig({ value }, { pluginM
 `authMode`, `defaultTools`, `tokenAuth`, and `renamedTools` without a product namespace. Reviewed
 `defaultTools.read` declarations must come from `plugin.json`, never an inline transport entry.
 
-Compatibility with installed `extensions.tovu` manifests and prefixed MCP metadata is retained
-through **at least 2027-05-06**. Removal requires an explicit future release decision; the date
-never causes a plugin to stop loading. A present `extensions.jini` wins as a whole, and a present
-new MCP field wins over its legacy alias even when malformed. Parsers return compatibility
-warnings; lifecycle indexing and MCP loading forward them through the host's `onEvent` port.
-Existing publisher ids remain stable during this namespace migration.
+Portable manifests use `extensions.jini` and unprefixed MCP metadata. A malformed
+`extensions.jini` entry is refused. Bundled publisher ids use the `jini/<name>` namespace.
 
 A plugin is a directory. Example (this package publishes it as `@jini-ai/agent-plugins/ui-ux-design`):
 
@@ -114,16 +110,16 @@ Catalog format) that this package does not implement.
 
 | export | runtime | contents |
 |---|---|---|
-| `.` (root) | universal | `PluginManifest`/`McpManifest` types, `validatePluginManifest({ value })`/`validateMcpManifest({ value })` structural validators (plus compatible `isPluginManifest(value)`/`isMcpManifest(value)` wrappers), and the known path constants (`PLUGIN_MANIFEST_FILENAME`, `PLUGIN_SKILLS_DIRNAME`, `PLUGIN_MCP_MANIFEST_FILENAME`). No filesystem access, no DOM. |
+| `.` (root) | universal | `PluginManifest`/`McpManifest` types, `validatePluginManifest({ value })`/`validateMcpManifest({ value })` structural validators (plus `isPluginManifest({ value })`/`isMcpManifest({ value })` predicates), and the known path constants (`PLUGIN_MANIFEST_FILENAME`, `PLUGIN_SKILLS_DIRNAME`, `PLUGIN_MCP_MANIFEST_FILENAME`). No filesystem access, no DOM. |
 | `./manifest` | universal | Strict manifest/MCP parsing and typed namespace readers; object structural validators are also re-exported here. |
 | `./lifecycle` | node | Host-injected installation, activation, locks, digests, bundles, trusted files, reference resolution, ranking and MCP provisioning helpers. |
 | `./lifecycle` packing | node | `createAgentPluginLifecycle(ports).packAgentPluginDirectory({ sourceDir }, { allowPaths, excludeNames, excludeSuffixes, includeTests })`; explicit allow-paths and their ancestors beat name exclusions; excluded descendants still skip. Suffix exclusions always win; test skips require `includeTests: true` to disable. |
-| `./lifecycle/node` | node | `createNodeAgentPluginEffects({})` opt-in native effects. |
 | `./lifecycle/yauzl` | node | `createYauzlAgentPluginArchiveReader({ yauzl })`; the host supplies the optional peer library. |
 | `./folder-zip` | universal | `zipFolderFiles({ files, maxBytes })`: packs picked folder `File`s into one stored-mode, binary-safe `.zip` `File` (the admin "Upload a folder" encoder). |
 | `./folder-zip/node` | node | `zipLocalFolder({ path, maxBytes })`: the same encoder over a local folder; refuses symlinks/special files, bounds entries and bytes. |
 | `./admin-surfaces` | universal | Plugin-owned admin surfaces: the contribution definition (host-named file), sandboxed-iframe/CSP/bootstrap helpers, the host-page message gate and the server-side action dispatcher. See "Admin surfaces" below. |
 | `./admin-surfaces/client` | universal | `createAdminSurfaceClient(...)`: the self-contained surface-side protocol client a plugin's UI imports or copies. |
+| `./admin-surfaces/node` | node | `createIssuedSignInCollector({ admitHttp })`: per-request (AsyncLocalStorage) registry of the sign-in links the connections port issued during one action, for the host page to open. |
 
 The universal root handles structural validation. The separate Node lifecycle entry implements
 local archive installation and host-owned activation policy; it does not implement remote catalog discovery.
@@ -201,12 +197,12 @@ manifest and test installation through this package's existing lifecycle.
 
 ## Lifecycle API and ports
 
-New public callables use `(requiredArgs, optionalArgs)`, with effects supplied as ports.
+New public callables use `(requiredArgs, optionalArgs = {})`, with effects supplied as ports.
 Create and retain one lifecycle per host context:
 
 ```ts
 import { createAgentPluginLifecycle, createAgentPluginLayout } from '@jini-ai/agent-plugins/lifecycle';
-import { createNodeAgentPluginEffects } from '@jini-ai/agent-plugins/lifecycle/node';
+import { createNodeAgentPluginEffects } from '@jini-ai/node-adapters/agent-plugins';
 
 const layout = createAgentPluginLayout({ root: pluginRoot });
 const lifecycle = createAgentPluginLifecycle({
@@ -267,7 +263,7 @@ shaped authors and older string authors. Inline transport fields never become re
 metadata. MCP provisioning helpers delegate to the host and notify only after success;
 filesystem installation and federation remain separate operations with host-owned recovery.
 
-The legacy root validators keep their positional shape and behavior. New code can use the
+The root predicates take `{ value }` and narrow that object's `value`. New code can use the
 object-shaped `validatePluginManifest` and `validateMcpManifest` facades. Internal composition
 factories are implementation details and are not package exports.
 
@@ -282,11 +278,11 @@ object-shaped reads, filters and optional legacy metadata reader.
 ### Extension namespaces
 
 `extensions` keys in `plugin.json` are **host keys**. A plugin declares one entry per host it
-supports, for example `"tovu": { "id": "tovu/stock" }` beside `"open-marketing": { "id": "tovu/stock" }`.
+supports, for example `"example-host": { "id": "publisher/stock" }` beside `"open-marketing": { "id": "publisher/stock" }`.
 
 - A host reads only its own key, the `extensionNamespace` it passes to the lifecycle.
-- Without a host namespace, exported parsers and validators read `jini`, falling back to the legacy
-  `tovu` key only when `jini` is absent. A present malformed `jini` entry is refused, never bypassed.
+- Without a host namespace, exported parsers and validators read `jini`.
+  A present malformed `jini` entry is refused, never bypassed.
   Passing a namespace explicitly reads only that key, with no fallback to another host.
 - Publisher ids stay as declared. There is no alias between keys and no content rewrite.
 - A customized fork (`zipCustomizedAgentPluginFolder`) gets `local/<name>` under every host key
@@ -312,7 +308,7 @@ Uninstall keeps persistent state by default; deleting it requires a matching con
 The reserved workspace directory ids `staging`, `packages`, `memory`, and `data` are refused
 as plugin ids so package state cannot overlap migration inputs or installation scratch.
 
-The `dev.tovu.memory` proposal is consumer policy and is not implemented by this neutral entry.
+The memory proposal belongs to the consumer and is not implemented by this neutral entry.
 No version bump or publishing accompanies this workspace implementation.
 
 Admin-screen actions can also be assistant tools. Declare `effect: "read" | "write" |

@@ -3,10 +3,9 @@
  * Owns conversation CRUD and list/get queries with per-conversation run summaries and
  * total run-duration aggregation. Imports only the core/ kernel (types + rows helper).
  */
-import type { SqliteDb } from '@jini-ai/db/sqlite';
-import type { DbRow } from '@jini-ai/db/core';
+import type { SqliteDb, DbRow } from '@jini-ai/core/contracts/storage';
 import type { ChatSessionMode } from '../index.js';
-import { rows } from '@jini-ai/db/core';
+import { rows } from '@jini-ai/core/contracts/storage';
 
 /**
  * @internal Builds the summary query shared by `listConversations` and `getConversation`: every

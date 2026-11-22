@@ -191,8 +191,7 @@ The root wildcard exposes the following functions. These are composition/testing
 ## Terminal manager
 
 ```ts
-createTerminalSessionManager(requiredArgs: Record<string, never>, optionalArgs: Pick<CreateTerminalSessionManagerOptions, "terminalService" | "loadSpawnPty" | "maxEvents" | "maxBufferBytes" | "exitTailBytes" | "flushIntervalMs" | "flushThresholdBytes" | "ttlMs" | "shutdownGraceMs"> = {}): TerminalSessionManager;
-loadRealSpawnPty(_requiredArgs: Record<string, never>): Promise<PtySpawn>;
+createTerminalSessionManager(requiredArgs: CreateTerminalSessionManagerRequired, _optionalArgs: Record<string, never> = {}): TerminalSessionManager;
 createTerminalToolRegistrations(requiredArgs: Pick<CreateTerminalToolRegistrationsOptions, "manager">, optionalArgs: Pick<CreateTerminalToolRegistrationsOptions, "policy" | "requiresConfirmation" | "timeoutMs"> = {}): TerminalToolRegistrations;
 ```
 
@@ -231,7 +230,7 @@ RoutinePersistence is synchronous: list(); insertRun({run},{scheduledSlotAt?}); 
 | `rescheduleOne({routineId})` / `unschedule({routineId})` | void |
 | `nextRunAt({routineId})` / `runNow({routineId})` | Date or null / Promise<RoutineRunHandlerStart> |
 
-RoutineStore methods are async: list(); get({id}); create({name,prompt,schedule,target},{skillId?,agentId?,context?,enabled?}); update({id,patch}); delete({id}):boolean; listRuns({routineId,limit}); getLatestRun({routineId}). InMemoryRoutineStore additionally has recordRun({run}) and patchRun({id,patch}). enabled defaults true; validation helpers are separate from create.
+RoutineStore methods are async: list(); get({id}); create({name,prompt,schedule,target},{skillId?,agentId?,context?,enabled?}); update({id,patch}); delete({id}):boolean; listRuns({routineId,limit},{cursor?}) → {items,nextCursor} (newest first; nextCursor is null on the last page, a bad cursor is refused); getLatestRun({routineId}). InMemoryRoutineStore additionally has recordRun({run}) and patchRun({id,patch}). enabled defaults true; validation helpers are separate from create.
 
 Example: use createInMemoryRoutineStore for CRUD, adapt its recordRun/patchRun to RoutinePersistence, set the host's run handler, then start the scheduler. stop clears future scheduling; it does not stop already running agent work.
 
@@ -261,7 +260,7 @@ RoutineSchedule supports hourly minute, daily/weekdays time+timezone, weekly tim
 ## SQLite event log
 
 ```ts
-createSqliteEventLog(input: { db: SqliteDb }, options: SqliteEventLogOptions = {}): SqliteEventLog;
+createSqliteEventLog(input: { db: SqliteDb; clock: Clock }, options: SqliteEventLogOptions = {}): SqliteEventLog;
 openSqliteEventLog(input: { file: string; open: SqliteSyncOpener }, options: SqliteEventLogOptions = {}): SqliteEventLog;
 ```
 
@@ -318,31 +317,31 @@ Evidence: exported source and tests covering lifecycle replay/recovery, cancella
 ## ./http: domain routes and ports
 
 
-Registrars use `({app: Express, deps: D, adapter: AdapterContext}, {}) => void`. They register paths; they do not open a listening server. Stream-only `registerRunEventStream({app, deps}, {}) => void` omits adapter. Public route constants are `JsonRouteSpec<I,O,D>` with `parse(raw)` and `handle({input, deps}, {signal?})`; return values are `Result<O>`. Table response names are public interfaces unless a structural shape is shown.
+Registrars use `({app: Express, deps: D, adapter: AdapterContext}, {}) => void`. They register paths; they do not open a listening server. Public route constants are `JsonRouteSpec<I,O,D>` with `parse(raw)` and `handle({input, deps}, {signal?})`; return values are `Result<O>`. Table response names are public interfaces unless a structural shape is shown.
 
 | Registrar | Consumer dependency contract |
 |---|---|
-| `registerRunRoutes` / `registerRunEventStream` | `RunHttpDeps`: `lifecycle: RunLifecycle`; optional `onStarted(RunStartContext)`, `onInternalError(RunInternalErrorContext)` |
-| `registerAgentRoutes` | `AgentsHttpDeps`: `listAgents() => AgentSummary[] \| Promise<readonly AgentSummary[]>`; optional `rescanAgents()` |
-| `registerHealthRoutes` | `HealthHttpDeps`: `getVersion() => string \| Promise<string>`; optional async `checkReadiness() => {ok, checks: Record<string,boolean>}` |
-| `registerDaemonStatusRoutes` | `DaemonStatusDeps`: `getVersion`, `host`, `getPort`, `dataDir`, `isShuttingDown`, `requestShutdown` callbacks/values |
-| `registerActiveContextRoutes` | `ActiveContextDeps`: `resolveResource({resourceRef}) => {name?: string \| null} \| null \| undefined`; optional `now() => number` |
-| `registerRoutineRoutes` | `RoutineHttpDeps`: `store: RoutineStore`, `scheduler: Pick<RoutineService,'nextRunAt' \| 'rescheduleOne' \| 'runNow' \| 'unschedule'>`; optional `projectExists({projectId})` |
-| `registerDaemonDbRoutes` | `({app, deps: DaemonDbHttpDeps, adapter}, {}) => void`; deps requires `toolExecutor: ToolExecutor`, explicit `principal: Principal`; optional private `onInternalError` sink |
-| `registerComponentCatalogRoutes` | `ComponentCatalogHttpDeps.catalog.search({query}, {limit?}) => readonly ComponentCatalogSearchHit[]`, `describe({id}, {}) => ComponentCatalogEntry \| null` |
-| `registerDelegatedToolRoutes` | `DelegatedToolsHttpDeps`: `lifecycle`, `toolExecutor`, `resolvePrincipal({request}) => Principal \| Promise<Principal>`; optional `toolRegistry`, `onInternalError`, `isModelSafeToolFailure({result})`, `describeInternalError(context)` |
-| `registerRemoteRunEventRoutes` | `RemoteRunEventHttpDeps`: `lifecycle`, `recorder: RemoteToolEventRecorder`; optional `tokenConfig`, `env`, `onInternalError` |
-| `registerFrontendSessionRoutes` | `FrontendSessionsHttpDeps`: `registry: FrontendSessionRegistry`; optional `newSessionId()`, `onInternalError` |
-| `registerTerminalRoutes` / `registerTerminalEventStream` | `TerminalsHttpDeps`: `manager: TerminalSessionManager`, `toolExecutor`, `principal`; optional `resolveRoot`, `onInternalError` |
-| `registerModelProxyRoutes` | `ModelProxyHttpDeps`: optional provider tool executors `anthropicExecuteTool`, `openaiExecuteTool`, `azureExecuteTool`, `googleExecuteTool`, `ollamaExecuteTool`; optional `onInternalError`, `fetchImpl`, `dnsLookup` |
-| `registerConnectorsRoutes` | `ConnectorsHttpDeps`: optional `auth`, `storage`, `db`, `realtime` provider ports (no payments slot — removed 2026-10-21, ungated money movement) and `onInternalError`; omitted providers return unavailable |
-| `registerResearchRoutes` | `ResearchHttpDeps`: optional `resolveCredentials({providerId}) => Promise<{apiKey?, baseUrl?, model?}>`, `onInternalError` |
-| `registerMediaRoutes` | `MediaHttpDeps`: `engine.generate({surface, model}, remainingOptions)`, `taskStore` with async create/get/update/listByOwner/delete, optional `onInternalError` |
+| `runRoutes` | `({ deps: RunHttpDeps, host: DaemonRouteHost }) => DaemonRoute[]`; `RunHttpDeps`: `lifecycle: RunLifecycle`; optional `onStarted(RunStartContext)`, `onInternalError(RunInternalErrorContext)`. Includes the SSE event stream |
+| `agentRoutes` | `({deps, host}, {}) => DaemonRoute[]` (routes as data; a host mounts them); `AgentsHttpDeps`: `listAgents() => AgentSummary[] \| Promise<readonly AgentSummary[]>`; optional `rescanAgents()` |
+| `healthRoutes` | `({deps, host}, {}) => DaemonRoute[]` (routes as data; a host mounts them); `HealthHttpDeps`: `getVersion() => string \| Promise<string>`; optional async `checkReadiness() => {ok, checks: Record<string,boolean>}` |
+| `daemonStatusRoutes` | `({deps, host}, {}) => DaemonRoute[]` (routes as data; a host mounts them); `DaemonStatusDeps`: `getVersion`, `host`, `getPort`, `dataDir`, `isShuttingDown`, `requestShutdown` callbacks/values |
+| `activeContextRoutes` | `({deps, host}, {}) => DaemonRoute[]` (routes as data; a host mounts them); `ActiveContextDeps`: `resolveResource({resourceRef}) => {name?: string \| null} \| null \| undefined`; optional `now() => number` |
+| `routineRoutes` | `({deps, host}, {}) => DaemonRoute[]` (routes as data; a host mounts them); `RoutineHttpDeps`: `store: RoutineStore`, `scheduler: Pick<RoutineService,'nextRunAt' \| 'rescheduleOne' \| 'runNow' \| 'unschedule'>`; optional `projectExists({projectId})` |
+| `daemonDbRoutes` | `({deps, host}, {}) => DaemonRoute[]` (routes as data; a host mounts them); deps requires `toolExecutor: ToolExecutor`, explicit `principal: Principal`; optional private `onInternalError` sink |
+| `componentCatalogRoutes` | `({deps: ComponentCatalogHttpDeps, host: DaemonRouteHost}, {}) => DaemonRoute[]`; catalog declares `search({query}, {limit?}) => readonly ComponentCatalogSearchHit[]`, `describe({id}, {}) => ComponentCatalogEntry \| null`; the routes are data a host mounts |
+| `delegatedToolRoutes` | `({deps, host}, {}) => DaemonRoute[]` (routes as data; a host mounts them); `DelegatedToolsHttpDeps`: `lifecycle`, `toolExecutor`, `resolvePrincipal({request}) => Principal \| Promise<Principal>`; optional `toolRegistry`, `toolFamilies: ToolFamilyPort` (`describeFamily({familyId}) => {members, selector?} | undefined`; a group id answers `404 UNKNOWN_TOOL` with `details.family`, filtered by `toolRegistry`), `onInternalError`, `isModelSafeToolFailure({result})`, `describeInternalError(context)` |
+| `remoteRunEventRoutes` | `({ deps: RemoteRunEventHttpDeps, host: DaemonRouteHost }) => DaemonRoute[]`; deps: `lifecycle`, `recorder: RemoteToolEventRecorder`, `env`; optional `tokenConfig`, `onInternalError`. Both routes are returned behind the `remote-bridge-token` gate |
+| `frontendSessionRoutes` | `({ deps: FrontendSessionsHttpDeps, host: DaemonRouteHost }, {}) => DaemonRoute[]`; `FrontendSessionsHttpDeps`: `registry: FrontendSessionRegistry`, required `setTimer`; optional `newSessionId()`, `resolveOwner(FrontendHookInput)`, `resolveCapacityKeys(FrontendHookInput & { owner? })` |
+| `terminalRoutes` | `TerminalsHttpDeps`: `manager: TerminalSessionManager`, `toolExecutor`, `principal`; optional `resolveRoot`, `onInternalError` |
+| `modelProxyRoutes` | `ModelProxyHttpDeps`: optional provider tool executors `anthropicExecuteTool`, `openaiExecuteTool`, `azureExecuteTool`, `googleExecuteTool`, `ollamaExecuteTool`; optional `onInternalError`, `fetchImpl`, `dnsLookup` |
+| `connectorsRoutes` | `({deps, host}, {}) => DaemonRoute[]` (routes as data; a host mounts them); `ConnectorsHttpDeps`: optional `auth`, `storage`, `db`, `realtime` provider ports (no payments slot — removed 2026-10-21, ungated money movement) and `onInternalError`; omitted providers return unavailable |
+| `researchRoutes` | `({deps, host}, {}) => DaemonRoute[]` (routes as data; a host mounts them); `ResearchHttpDeps`: optional `resolveCredentials({providerId}) => Promise<{apiKey?, baseUrl?, model?}>`, `onInternalError` |
+| `mediaRoutes` | `({deps, host}, {}) => DaemonRoute[]` (routes as data; a host mounts them); `MediaHttpDeps`: `engine.generate({surface, model}, remainingOptions)`, `taskStore` with async create/get/update/listByOwner/delete, optional `onInternalError` |
 | `registerAttachmentRoutes` | `AttachmentsHttpDeps`: `store: AttachmentStore`; optional `maxConcurrentUploads`, `maxAttachmentBytes`, `maxCleanupPaths`, `requireSameOrigin`, `onInternalError`, trusted `resolveOwnerId({req})` |
-| `registerXaiRoutes` | `XaiHttpDeps`: every dependency field is optional: data/token path, provider config, callback host/port/path, pending cache, listener slot/factory, search base/model/fetch/deadline, private error sink |
-| `registerHostToolsRoutes` | `({app, adapter}, {resolveRoot?, probeEnv?, spawnImpl?} = {}) => void` |
-| `registerMemoryRoutes` / `registerMemoryEventStream` | `({app, deps: MemoryHttpDeps, adapter}, {}) => void`; `deps = {notes, extractions, verifications, dataDir}` |
-| `registerToolCatalogRoutes` | `({app, deps: ToolCatalogHttpDeps, adapter}, {}) => void`; catalog declares `search({query}, {limit?})`, `describe({id}, {})` |
+| `xaiRoutes` | `({deps, host}, {}) => DaemonRoute[]` (routes as data; a host mounts them); `XaiHttpDeps`: every dependency field is optional: data/token path, provider config, callback host/port/path, pending cache, listener slot/factory, search base/model/fetch/deadline, private error sink |
+| `hostToolsRoutes` | `({deps, host}, {}) => DaemonRoute[]` (routes as data; a host mounts them);  |
+| `memoryRoutes` | `({ deps: MemoryHttpDeps, host: DaemonRouteHost }) => DaemonRoute[]`; `deps = {notes, extractions, verifications, dataDir}`. Includes the SSE change feed |
+| `toolCatalogRoutes` | `({deps: ToolCatalogHttpDeps, host: DaemonRouteHost}, {}) => DaemonRoute[]`; catalog declares `search({query}, {limit?})`, `describe({id}, {})`; the routes are data a host mounts |
 
 Auth/ownership/rate limits are host composition concerns unless a registrar explicitly installs a gate. Same-origin is not user authentication. JSON routes default to status 200; exceptions are noted below. Response records and structural ports are defined in the corresponding `src/<family>.ts` files; no database driver or domain store is created implicitly.
 
@@ -410,10 +409,9 @@ MemoryNoteStore methods take objects: `dir/readConfig/readIndex/listEntries/buil
 |---|---|
 | `createDaemonDbToolRegistrations` | `({operations: {inspect(), verify({quick}), vacuum()}}, {policy?, requiresConfirmation?, timeoutMs?} = {}) => {inspect,verify,vacuum: ToolRegistration}` |
 | `denyAllDaemonDbPolicy` | `ToolPolicy`, always denies; tool ids `DB_INSPECT_TOOL_ID = 'daemon.db.inspect'`, `DB_VERIFY_TOOL_ID = 'daemon.db.verify'`, `DB_VACUUM_TOOL_ID = 'daemon.db.vacuum'` |
-| `requireRemoteToolBridgeToken` | `({}, {tokenConfig?: {tokenEnvVar?}, env?} = {}) => RequestHandler` |
+| `remoteToolBridgeTokenGate` | `({ env, timingSafeEqual }, { tokenConfig?: {tokenEnvVar?} } = {}) => ServerMiddleware` |
 | `readOnlyRefusalMessage` | `({toolId}, {}) => string`; gateway compatibility wording; `READ_ONLY_UNVERIFIABLE_MESSAGE` is also public |
-| `parseCapabilityQuery` | `({raw: unknown}, {}) => readonly string[] \| null` |
-| `handleFrontendSessionStream` | `({req,res,deps: FrontendSessionsHttpDeps}, {}) => void`; caller must apply authorization/origin guard first |
+| `parseCapabilityQuery` | `({ searchParams }, {}) => readonly string[] | null`; a bracketed `capability[` key is refused |
 | `createFrontendControl` | `({capabilities: readonly FrontendCapabilitySpec[], resolveBindToken: ({request:RunCreateRequest}) => string \| undefined}, {policy?, timeoutMs?, maxOutputBytes?, onBindError?} = {}) => FrontendControl` |
 | `currentPlatform` / `applicableForPlatform` | `({}, {nodePlatform?} = {}) => Platform`; `({entry:CatalogueEntry,platform}, {}) => boolean` |
 | `defaultProbeEnv`, `pathDirs` | `({}, {}) => HostToolProbeEnv`; **one object** `(probeEnv) => string[]` |
@@ -429,12 +427,12 @@ MemoryNoteStore methods take objects: `dir/readConfig/readIndex/listEntries/buil
 | `handleAttachmentUpload` / `handleAttachmentCleanup` | `({req,res,deps,state:{activeUploads:number}}, {})` / `({req,res,deps}, {}) => Promise<void>`; origin/auth is the caller's responsibility |
 | `AttachmentRejectedError` | `new AttachmentRejectedError({reason,message}, {})`; exposes reason |
 
-`FrontendControl` exposes `httpExtension({app,context:{adapter}}, {}) => void`, `toolRegistrations`, and `bindOnStarted(context: RunStartContext) => void | Promise<void>`. It hides its session registry. `RunStartContext = {request,run,lifecycle}`. `HostToolProbeEnv = {access({path,mode}):Promise<void>,env,platform}`; native spawn is optional. `Platform` is `darwin | win32 | linux | unknown`; `RealPlatform` excludes unknown. `HostEditor` and `HostEditorsResponse` expose display/availability metadata rather than tool execution authority.
+`FrontendControl` exposes `routes({ host }, {}) => DaemonRoute[]`, `toolRegistrations`, and `bindOnStarted(context: RunStartContext) => void | Promise<void>`. It hides its session registry. `RunStartContext = {request,run,lifecycle}`. `HostToolProbeEnv = {access({path,mode}):Promise<void>,env,platform}`; native spawn is optional. `Platform` is `darwin | win32 | linux | unknown`; `RealPlatform` excludes unknown. `HostEditor` and `HostEditorsResponse` expose display/availability metadata rather than tool execution authority.
 
 `AttachmentStore` async methods: `createBatchDirectory({batchId}) => string`, `register({input:{batchId,path,name,kind,size,ownerId?}}) => StoredAttachment`, `claim({attachments,runId}) => AttachmentClaim`, `resolveForRun({ref,runId}) => StoredAttachment | undefined`, `listPendingForOwner({ownerId}) => PendingAttachmentSummary[]`, `deleteUnclaimed({batchId,paths}) => void`, `cleanupRun({runId}) => void`, `pruneExpired({}, {now?}) => void`, and current parameterless `dispose() => void`. `StoredAttachment = {path,name,kind,size?,order?}`; upload path is an opaque capability, claimed path is absolute and server-private. `AttachmentClaim = {attachments,batchDirectory?}`. POST `/api/attachments?batch=...&name=...` accepts raw bytes and returns 201 `{attachment}`; DELETE same path accepts `{batchId,paths:string[]}` and returns 204. `ATTACHMENTS_ROUTE_PATH` is public.
 
 
-## ./http: run credential middleware
+## @jini-ai/http-kit/middleware: run credential middleware
 
 
 `createDaemonAuthMiddleware({authorizationHeaderName,authorize}, {validateDelegatedRunId = false} = {}) => RequestHandler`. Policy `authorize({request:{method,path,headers,body?}}, {validateDelegatedRunId}) => RunAccessDecision` is synchronous. **One-object** factories `createRunOwnershipMiddleware({principalHeaderName,isEventStream:({path})=>boolean,authorize:({runId,principalId,eventStream})=>Promise<RunAccessDecision>})` and `createOwnedRunListHandler<Run>({principalHeaderName,listRuns:({}, {contextRef?})=>Promise<readonly Run[]>,filterOwnedRuns:({runs,principalId})=>decision})` return RequestHandlers.
@@ -442,7 +440,7 @@ MemoryNoteStore methods take objects: `dir/readConfig/readIndex/listEntries/buil
 `RunAccessDecision = {allowed:true,principalHeader?:{name,value}} | {allowed:false,status:400|401|403|404|503,body:unknown}`. List filtering's allowed branch instead carries `runs:Run[]`. Required interface names are `DaemonAuthRequired`, `RunOwnershipRequired`, `OwnedRunListRequired`.
 
 ```ts
-import { createDaemonAuthMiddleware, createRunOwnershipMiddleware } from '@jini-ai/daemon/http';
+import { createDaemonAuthMiddleware, createRunOwnershipMiddleware, createOwnedRunListHandler } from '@jini-ai/http-kit/middleware';
 app.use(createDaemonAuthMiddleware({ authorizationHeaderName, authorize: daemonPolicy }));
 app.use('/api/runs/:runId', createRunOwnershipMiddleware({ principalHeaderName, isEventStream, authorize: ownershipPolicy }));
 ```
@@ -513,7 +511,7 @@ These names are also reachable through the current export map. Parameter declara
 | `ContinuationTransport` | type; [continuation-transport.ts](../../src/continuation/continuation-transport.ts) |
 | `CreateDaemonDbToolRegistrationsOptions`, `DaemonDbInternalErrorContext`, `DaemonDbOperations`, `DaemonDbTableInfo`, `DaemonDbToolRegistrations`, `DbIntegrityIssue`, `DbIntegrityIssueKind` | type; [db-ops.ts](../../src/http/db-ops.ts) |
 | `CreateDefaultRunStartHandlerOptions`, `ResolveRunInputContext`, `ResolvedRunInput`, `RunStartDriverContext` | interface; [run-start-handler.ts](../../src/continuation/run-start-handler.ts) |
-| `CreateFrontendControlOptions`, `FrontendBindErrorContext`, `FrontendHttpExtension` | type; [frontend-control.ts](../../src/http/frontend-control.ts) |
+| `CreateFrontendControlOptions`, `FrontendBindErrorContext` | type; [frontend-control.ts](../../src/http/frontend-control.ts) |
 | `CreateRunScopedContextStoreOptions` | interface; [run-scoped-context-store.ts](../../src/continuation/run-scoped-context-store.ts) |
 | `CreateTerminalSessionOptions`, `TerminalSessionListFilter` | interface; [terminal-session.ts](../../src/terminal-session.ts) |
 | `DEFAULT_SURFACE_IDLE_TTL_MS`, `DEFAULT_SURFACE_MAX_LIFETIME_MS` | const; [surface-exchanges.ts](../../src/surface-exchanges.ts) |

@@ -43,7 +43,12 @@ export interface ExternalMcpTabProps {
    *  non-empty AND the port implements `setTrust`; without it the tab's `setTrust` wiring had no
    *  control that could ever reach it. Omit for no trust picker (the previous, and still default, look). */
   trustOptions?: readonly SourceTrustOption[];
+  /** Hooks the tab calls; defaults to the real ones, a test hands in fakes. */
+  hooks?: ExternalMcpTabHooks | undefined;
 }
+
+export const defaultExternalMcpTabHooks = { useT, useWiredSourceConfigList, useWiredSourceConfigAddForm };
+export type ExternalMcpTabHooks = typeof defaultExternalMcpTabHooks;
 
 /**
  * OD as an MCP *client* — distinct from the "MCP server" tab, where the host
@@ -59,11 +64,12 @@ export function ExternalMcpTab({
   saveStatusLabel,
   configPath,
   trustOptions,
+  hooks = defaultExternalMcpTabHooks,
 }: ExternalMcpTabProps) {
-  const t = useT();
+  const t = hooks.useT();
   const [formOpen, setFormOpen] = useState(false);
-  const list = useWiredSourceConfigList<SourceConfigItem>({ dependencies });
-  const addForm = useWiredSourceConfigAddForm<SourceConfigItem>({
+  const list = hooks.useWiredSourceConfigList<SourceConfigItem>({ dependencies });
+  const addForm = hooks.useWiredSourceConfigAddForm<SourceConfigItem>({
     dependencies,
     fieldSpecs,
     onAdded: (source) => {
@@ -137,12 +143,14 @@ function ExternalMcpSources({
   list,
   fieldSpecs,
   trustOptions,
+  useTHook = useT,
 }: {
   list: ReturnType<typeof useWiredSourceConfigList<SourceConfigItem>>;
   fieldSpecs: NonNullable<ExternalMcpTabProps['fieldSpecs']>;
   trustOptions: ExternalMcpTabProps['trustOptions'];
+  useTHook?: typeof useT;
 }) {
-  const t = useT();
+  const t = useTHook();
   if (list.sources.length === 0) {
     return (
       <div className="external-mcp-empty">
@@ -180,11 +188,12 @@ function ExternalMcpSources({
 }
 
 /** Renders the save-status footer as one unit; a path alone does not show it. */
-function ExternalMcpFooter({ saveStatusLabel, configPath }: {
+function ExternalMcpFooter({ saveStatusLabel, configPath, useTHook = useT }: {
   saveStatusLabel: string | undefined;
   configPath: string | undefined;
+  useTHook?: typeof useT;
 }) {
-  const t = useT();
+  const t = useTHook();
   if (!saveStatusLabel) return null;
   return (
     <div className="external-mcp-footer">

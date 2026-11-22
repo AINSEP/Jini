@@ -51,7 +51,7 @@ export function useTabbedDialog<T extends TabbedDialogTabMeta>({
   defaultFullscreen = false,
 }: UseTabbedDialogParams<T>): TabbedDialogController {
   const [uncontrolledActiveTabId, setUncontrolledActiveTabId] = useState<string | null>(() =>
-    resolveInitialActiveTabId(tabs, initialActiveTabId),
+    resolveInitialActiveTabId({ tabs }, { initialTabId: initialActiveTabId }),
   );
   const isControlled = controlledActiveTabId !== undefined;
   const activeTabId = isControlled ? controlledActiveTabId : uncontrolledActiveTabId;

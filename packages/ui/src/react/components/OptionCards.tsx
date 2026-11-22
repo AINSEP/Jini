@@ -2,7 +2,7 @@
 // compact card grid rather than a native <select>. Origin: `OptionCards<T>`
 // in `NewProjectPanel.tsx` (OD) — the component itself carried no
 // product-specific typing or copy (label/options come entirely from props),
-// so this is a verbatim structural port. See packages/ui/source-map.md.
+// so this is a verbatim structural port. See archived UI source map.
 
 export interface OptionCardsOption<T extends string | number> {
   value: T;
@@ -27,8 +27,8 @@ export function OptionCards<T extends string | number>({
 }: OptionCardsProps<T>) {
   return (
     <div className={['newproj-media-field', className].filter(Boolean).join(' ')}>
-      <div className="newproj-label">{label}</div>
-      <div className="newproj-option-grid compact">
+      <div className="jini-newproj-label">{label}</div>
+      <div className="jini-newproj-option-grid compact">
         {options.map((option) => (
           <button
             key={String(option.value)}

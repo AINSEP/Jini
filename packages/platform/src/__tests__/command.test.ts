@@ -113,7 +113,7 @@ describe('@jini-ai/platform — command — createCommandInvocation', () => {
         for (const arg of ['first\nsecond', 'first\rsecond']) {
           expect.soft(() => createCommandInvocation({
             args: [arg], command, env: { ComSpec: 'cmd.exe' },
-          })).toThrow();
+          })).toThrow("Windows command shim arguments cannot contain line breaks");
         }
       }
     });
@@ -136,29 +136,29 @@ describe('@jini-ai/platform — command — createCommandInvocation', () => {
 
 describe('@jini-ai/platform — command — createPackageManagerInvocation', () => {
   it('routes a Node-loadable npm_execpath through process.execPath, case-insensitively', () => {
-    const invocation = createPackageManagerInvocation(['install'], { npm_execpath: '/usr/lib/pnpm/bin/pnpm.CJS' });
+    const invocation = createPackageManagerInvocation({ args: ['install'] }, { env: { npm_execpath: '/usr/lib/pnpm/bin/pnpm.CJS' } });
     expect(invocation).toEqual({ args: ['/usr/lib/pnpm/bin/pnpm.CJS', 'install'], command: process.execPath });
   });
 
   it('routes an .mjs npm_execpath through process.execPath', () => {
-    const invocation = createPackageManagerInvocation([], { npm_execpath: '/usr/lib/pnpm/bin/pnpm.mjs' });
+    const invocation = createPackageManagerInvocation({ args: [] }, { env: { npm_execpath: '/usr/lib/pnpm/bin/pnpm.mjs' } });
     expect(invocation.command).toBe(process.execPath);
     expect(invocation.args).toEqual(['/usr/lib/pnpm/bin/pnpm.mjs']);
   });
 
   it('passes a non-Node-loadable npm_execpath straight through via createCommandInvocation', () => {
     withPlatform('darwin', () => {
-      const invocation = createPackageManagerInvocation(['run', 'build'], { npm_execpath: '/usr/local/bin/pnpm' });
+      const invocation = createPackageManagerInvocation({ args: ['run', 'build'] }, { env: { npm_execpath: '/usr/local/bin/pnpm' } });
       expect(invocation).toEqual({ args: ['run', 'build'], command: '/usr/local/bin/pnpm' });
     });
   });
 
   it('rewraps a non-Node-loadable npm_execpath as a cmd.exe shim on Windows', () => {
     withPlatform('win32', () => {
-      const invocation = createPackageManagerInvocation(['install'], {
+      const invocation = createPackageManagerInvocation({ args: ['install'] }, { env: {
         npm_execpath: 'C:\\pnpm\\pnpm.cmd',
         ComSpec: 'cmd.exe',
-      });
+      } });
       expect(invocation.windowsVerbatimArguments).toBe(true);
       expect(invocation.args[3]).toBe('"C:\\pnpm\\pnpm.cmd install"');
     });
@@ -166,24 +166,37 @@ describe('@jini-ai/platform — command — createPackageManagerInvocation', () 
 
   it('passes a non-Node-loadable, non-shim npm_execpath straight through on Windows', () => {
     withPlatform('win32', () => {
-      const invocation = createPackageManagerInvocation(['install'], { npm_execpath: 'C:\\pnpm\\pnpm.exe' });
+      const invocation = createPackageManagerInvocation({ args: ['install'] }, { env: { npm_execpath: 'C:\\pnpm\\pnpm.exe' } });
       expect(invocation).toEqual({ args: ['install'], command: 'C:\\pnpm\\pnpm.exe' });
     });
   });
 
   it('falls back to "corepack pnpm …" on POSIX when npm_execpath is unset', () => {
     withPlatform('darwin', () => {
-      const invocation = createPackageManagerInvocation(['install', '--frozen-lockfile'], {});
+      const invocation = createPackageManagerInvocation({ args: ['install', '--frozen-lockfile'] }, { env: {} });
       expect(invocation).toEqual({ args: ['pnpm', 'install', '--frozen-lockfile'], command: 'corepack' });
     });
   });
 
   it('falls back to a corepack cmd.exe shim on Windows when npm_execpath is unset', () => {
     withPlatform('win32', () => {
-      const invocation = createPackageManagerInvocation(['install'], { ComSpec: 'cmd.exe' });
+      const invocation = createPackageManagerInvocation({ args: ['install'] }, { env: { ComSpec: 'cmd.exe' } });
       expect(invocation.command).toBe('cmd.exe');
       expect(invocation.windowsVerbatimArguments).toBe(true);
       expect(invocation.args[3]).toBe('"corepack pnpm install"');
+    });
+  });
+
+  it('falls back to process.env.ComSpec for the corepack shim when env has none', () => {
+    withPlatform('win32', () => {
+      const previousComSpec = process.env.ComSpec;
+      process.env.ComSpec = 'C:\\real\\cmd.exe';
+      try {
+        expect(createPackageManagerInvocation({ args: ['install'] }, { env: {} }).command).toBe('C:\\real\\cmd.exe');
+      } finally {
+        if (previousComSpec === undefined) delete process.env.ComSpec;
+        else process.env.ComSpec = previousComSpec;
+      }
     });
   });
 
@@ -192,7 +205,7 @@ describe('@jini-ai/platform — command — createPackageManagerInvocation', () 
     delete process.env.npm_execpath;
     try {
       withPlatform('darwin', () => {
-        const invocation = createPackageManagerInvocation(['install']);
+        const invocation = createPackageManagerInvocation({ args: ['install'] });
         expect(invocation).toEqual({ args: ['pnpm', 'install'], command: 'corepack' });
       });
     } finally {

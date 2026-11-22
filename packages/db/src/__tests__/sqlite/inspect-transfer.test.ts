@@ -1,7 +1,7 @@
 import Database from 'better-sqlite3';
 import { expect, it } from 'vitest';
 import { inspectSqliteDatabase, verifySqliteIntegrity } from '../../sqlite/inspect.js';
-import type { SqliteDb } from '../../sqlite/sync-types.js';
+import type { SqliteDb } from '@jini-ai/core/contracts/storage';
 
 it('strict transfers count every schema-owned table, including quoted names, without changing diagnostics', async () => {
   const db = new Database(':memory:');

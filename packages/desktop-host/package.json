@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/desktop-host",
-  "version": "0.7.2",
+  "version": "0.7.3-next.2",
   "description": "Shell-agnostic desktop-host ports: single-instance lock, window lifecycle, protocol handling, sidecar launch, paths, and config. Electron and Tauri assemblies live behind ./electron and ./tauri.",
   "license": "Apache-2.0",
   "repository": {
@@ -15,6 +15,7 @@
     "entries": {
       ".": "desktop",
       "./bridge-testing": "universal",
+      "./app-version": "universal",
       "./render-bridge": "node",
       "./electron": "desktop",
       "./tauri": "desktop",
@@ -25,7 +26,13 @@
       "./electron/usability": "desktop",
       "./speech": "desktop",
       "./speech/macos": "node",
-      "./speech/macos/speech-helper.swift": "node"
+      "./speech/macos/speech-helper.swift": "node",
+      "./bridge": "universal"
+    },
+    "isolation": {
+      "entries": {
+        "./bridge-testing": "bridge"
+      }
     }
   },
   "type": "module",
@@ -43,10 +50,20 @@
       "import": "./dist/index.js",
       "default": "./dist/index.js"
     },
+    "./bridge": {
+      "types": "./dist/bridge.d.ts",
+      "import": "./dist/bridge.js",
+      "default": "./dist/bridge.js"
+    },
     "./bridge-testing": {
       "types": "./dist/bridge-testing.d.ts",
       "import": "./dist/bridge-testing.js",
       "default": "./dist/bridge-testing.js"
+    },
+    "./app-version": {
+      "types": "./dist/app-version/index.d.ts",
+      "import": "./dist/app-version/index.js",
+      "default": "./dist/app-version/index.js"
     },
     "./electron": {
       "types": "./dist/electron/index.d.ts",
@@ -118,7 +135,7 @@
     "test:coverage": "vitest run --coverage"
   },
   "devDependencies": {
-    "@vitest/coverage-v8": "^2.1.9",
+    "@vitest/coverage-v8": "^3.2.6",
     "@jini-ai/core": "workspace:^"
   },
   "dependencies": {

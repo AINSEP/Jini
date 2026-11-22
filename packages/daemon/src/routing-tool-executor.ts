@@ -12,7 +12,7 @@
  * `resumeConfirmation` is local-only because remote confirmations park on the far side. That keeps
  * routing correct without a per-call map that would grow for the life of the process.
  */
-import type { ToolExecutor } from './tool-executor.js';
+import type { ToolExecutor } from "./tool-executor-types.js";
 
 export interface RoutingToolExecutorRequired {
   readonly local: ToolExecutor;

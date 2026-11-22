@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 import { JSDOM } from "jsdom";
 import { sanitizeSvg } from "../sanitize-svg.js";
+import { MediaValidationError } from "../types.js";
 
 const encode = (source: string) => new TextEncoder().encode(source);
 const parse = (bytes: Uint8Array) => new JSDOM(new TextDecoder().decode(bytes), { contentType: "image/svg+xml" }).window.document;
@@ -46,14 +47,14 @@ test("a normal logo preserves viewBox, paths, styling, gradients, local use and 
   assert.deepEqual(await sanitizeSvg({ bytes: clean }), clean, "sanitizing again must be stable for deduplication");
 });
 
-for (const source of [
-  '<svg xmlns="http://www.w3.org/2000/svg"><font><font-face font-family="bad"/></font></svg>',
-  '<!DOCTYPE svg [<!ENTITY x "bad">]><svg xmlns="http://www.w3.org/2000/svg">&x;</svg>',
-  '<svg xmlns="http://www.w3.org/2000/svg"><broken></svg>',
-  '<html xmlns="http://www.w3.org/1999/xhtml"/>',
-]) {
+for (const [source, message] of [
+  ['<svg xmlns="http://www.w3.org/2000/svg"><font><font-face font-family="bad"/></font></svg>', 'SVG fonts are not allowed'],
+  ['<!DOCTYPE svg [<!ENTITY x "bad">]><svg xmlns="http://www.w3.org/2000/svg">&x;</svg>', 'SVG DTDs and entities are not allowed'],
+  ['<svg xmlns="http://www.w3.org/2000/svg"><broken></svg>', 'invalid SVG document'],
+  ['<html xmlns="http://www.w3.org/1999/xhtml"/>', 'invalid SVG document'],
+] as const) {
   test(`rejects fonts, DTDs and malformed/non-SVG XML: ${source.slice(0, 50)}`, async () => {
-    await assert.rejects(() => sanitizeSvg({ bytes: encode(source) }));
+    await assert.rejects(() => sanitizeSvg({ bytes: encode(source) }), { constructor: MediaValidationError, message });
   });
 }
 

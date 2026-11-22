@@ -19,15 +19,7 @@ export async function runRolesApiConformance({ api }: {
         error: unknown;
     }[] = [];
 
-    async function check(name: string, run: () => Promise<void>) {
-        try {
-            await run();
-            passed.push(name);
-        }
-        catch (error) {
-            failed.push({ name, error });
-        }
-    }
+    const check = createRoleConformanceCheck(passed, failed);
     let roleId: string | undefined, policyId: string | undefined, otherPolicyId: string | undefined, rowId: string | undefined;
     try {
         await check('create custom role', async () => { const { role } = await api.createRole({ name: `${prefix}-role` }); roleId = role.id; assert(!role.isBuiltin, 'created role must be custom'); });
@@ -59,6 +51,12 @@ export async function runRolesApiConformance({ api }: {
         await check('policy deletion cascades own permissions', async () => { await api.writePolicyPermission({ policyId: policyId!, permission }); await api.deletePolicy({ policyId: policyId! }); assert(!(await api.listPolicies({})).policies.some(p => p.id === policyId), 'policy deletion absent'); policyId = undefined; });
     }
     finally {
+        await cleanupRoleConformance(api, check, { roleId, policyId, otherPolicyId });
+    }
+    return { passed, failed };
+}
+
+async function cleanupRoleConformance(api: RolesApiPort, check: ReturnType<typeof createRoleConformanceCheck>, { roleId, policyId, otherPolicyId }: { roleId: string | undefined; policyId: string | undefined; otherPolicyId: string | undefined }): Promise<void> {
         if (roleId) {
             await check('cleanup role', async () => { await api.deleteRole({ roleId: roleId! }); assert(!(await api.listRoles({})).roles.some(r => r.id === roleId), 'role deletion absent'); });
         }
@@ -72,7 +70,19 @@ export async function runRolesApiConformance({ api }: {
         }
 
     }
-    return { passed, failed };
+
+
+function createRoleConformanceCheck(passed: string[], failed: { name: string; error: unknown }[]) {
+  async function check(name: string, run: () => Promise<void>) {
+        try {
+            await run();
+            passed.push(name);
+        }
+        catch (error) {
+            failed.push({ name, error });
+        }
+    }
+  return check;
 }
 
 import type { UsersApiPort,MembersApiPort,AuthApiPort } from '../ports.js';
@@ -112,7 +122,19 @@ export async function runMembersApiConformance({ api,memberId }: { api: MembersA
   const passed: string[]=[],failed: { name: string; error: unknown }[]=[];
 
   const check=async (name: string,run: () => Promise<void>) => { try { await run(); passed.push(name); } catch(error) { failed.push({ name,error }); } };
-  await check('list and read member',async () => { assert((await api.listMembers({})).members.some(m => m.id===memberId),'member absent'); assert((await api.getMember({ id: memberId })).member.id===memberId,'wrong member'); });
+  await check('list and read member',async () => {
+    let cursor: string | null = null, found = false;
+    const seen = new Set<string>();
+    do {
+      const page = await api.listMembers({}, { limit: 100, cursor });
+      assert(page.nextCursor === null || typeof page.nextCursor === 'string', 'missing nextCursor');
+      found ||= page.members.some(m => m.id === memberId);
+      cursor = page.nextCursor;
+      if (cursor !== null) { assert(!seen.has(cursor), 'repeated cursor'); seen.add(cursor); }
+    } while (!found && cursor !== null);
+    assert(found, 'member absent');
+    assert((await api.getMember({ id: memberId })).member.id===memberId,'wrong member');
+  });
   await check('snapshot isolation',async () => { const { member }=await api.getMember({ id: memberId }); member.email='mutated@example.test'; assert((await api.getMember({ id: memberId })).member.email!==member.email,'mutable storage exposed'); });
   await check('constant magic-link response',async () => { assert((await api.requestMemberMagicLink({ email: 'unregistered@example.test' })).delivered===true,'enumeration response'); });
   await check('aborted disable does not persist',async () => { const before=(await api.getMember({ id: memberId })).member; const abort=new AbortController(); abort.abort(); let rejected=false; try { await api.disableMember({ id: memberId },{ signal: abort.signal }); } catch { rejected=true; } assert(rejected&&(await api.getMember({ id: memberId })).member.status===before.status,'abort ignored'); });

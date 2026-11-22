@@ -1,5 +1,5 @@
 /** Read display context from a standalone form; its host may not have emitted a tool call. */
-import { parseUIResource, readActionPlan, type UIResource } from '@jini-ai/ui/mcp-ui';
+import { parseUIResource, readActionPlan, type UIResource } from '@jini-ai/protocol/mcp-ui';
 import { useMemo, useRef } from 'react';
 import type { AgentEvent } from '../../core/events.js';
 import type { AcceptedInputProjectionOptions } from '../../core/accepted-input.js';
@@ -21,7 +21,7 @@ export function useSurfaceAnswerContexts({ events }: { events: AgentEvent[] | un
     const data = group.events[0];
     let cached = cache.current.get(data);
     if (cached === undefined || cached.sourceInput !== group.call.input) {
-      const input = surfaceQuestionInput({ resource: parseUIResource(data), input: group.call.input });
+      const input = surfaceQuestionInput({ resource: parseUIResource({ value: data }), input: group.call.input });
       cached = { sourceInput: group.call.input, context: { input, includeTitle: input !== group.call.input } };
       cache.current.set(data, cached);
     }
@@ -54,7 +54,7 @@ function surfaceQuestionContext({ resource }: { resource: UIResource | undefined
 /** The title and offered choices an inert parse of the surface document shows. */
 function markupQuestion({ resource }: { resource: UIResource }, _options = {}) {
   const document = new DOMParser().parseFromString(resource.resource.text, 'text/html');
-  const title = readActionPlan(resource)?.title ?? document.querySelector('h1')?.textContent?.trim();
+  const title = readActionPlan({ resource })?.title ?? document.querySelector('h1')?.textContent?.trim();
   const labels = new Map([...document.querySelectorAll('label')].map(label => [label.htmlFor, label.textContent?.trim() ?? '']));
   const options = [...document.querySelectorAll<HTMLInputElement | HTMLOptionElement>(
     'input[type="radio"], input[type="checkbox"], option',

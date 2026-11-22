@@ -1,13 +1,13 @@
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '../../../../__tests__/ui-kit-render-support.js';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
   AgentRuntimePicker,
-  runtimeAgentStatus,
   runtimeOptionLabel,
   runtimePopoverPosition,
 } from '../../components/AgentRuntimePicker.js';
+import { runtimeAgentStatus } from '../../components/RuntimePickerSections.js';
 import { runtimeDropUpPosition } from '../../hooks/useRuntimeDropUp.hooks.js';
 import { I18nContext } from '../../../../hooks/context.js';
 import type { ChatPaneAgent, ChatPaneAgentSelection } from '../../types.js';

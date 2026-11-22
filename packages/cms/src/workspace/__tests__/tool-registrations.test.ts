@@ -3,7 +3,7 @@ import { test } from "vitest";
 
 import { ToolInputError, ToolPermissionDeniedError, type ToolExecutionContext, type ToolRegistration } from "@jini-ai/core";
 
-import type { AuthorizeFn } from "../../core/commands/command.js";
+import type { AuthorizeFn } from "@jini-ai/core/contracts/events";
 import { getWorkspaceAgentToolCatalog } from "../agent-tools.js";
 import { WorkspaceConflictError, WorkspaceValidationError, type WorkspaceRecord } from "../create.js";
 import * as workspaceBarrel from "../index.js";
@@ -18,8 +18,8 @@ import { buildWorkspaceRegistrations, workspaceDerivedRisk, type WorkspaceToolDe
 
 const WORKSPACE_ID = "ws-boot-wired";
 const PRINCIPAL_ID = "principal-under-test";
-const SEED: WorkspaceRecord = { id: WORKSPACE_ID, name: "Main Site", slug: "main-site", createdAt: "2026-01-01T00:00:00.000Z" };
-const OTHER: WorkspaceRecord = { id: "ws-other", name: "Other", slug: "taken", createdAt: "2026-01-02T00:00:00.000Z" };
+const SEED: WorkspaceRecord = { id: WORKSPACE_ID, name: "Main Site", slug: "main-site", createdAt: "2026-01-01T00:00:00.000Z", version: 1 };
+const OTHER: WorkspaceRecord = { id: "ws-other", name: "Other", slug: "taken", createdAt: "2026-01-02T00:00:00.000Z", version: 1 };
 
 type AuthorizeCall = Parameters<AuthorizeFn>[0];
 
@@ -58,7 +58,7 @@ test("the catalog declares get/update with schemas and create/delete as schema-l
   ]);
   const byName = new Map(catalog.map((entry) => [entry.name, entry]));
   assert.deepEqual(byName.get("workspace_get")?.inputSchema, { type: "object", additionalProperties: false, required: [], properties: {} });
-  assert.deepEqual(Object.keys(byName.get("workspace_update")?.inputSchema?.["properties"] as object), ["name", "slug"]);
+  assert.deepEqual(Object.keys(byName.get("workspace_update")?.inputSchema?.["properties"] as object), ["expectedVersion", "name", "slug"]);
   assert.equal(byName.get("workspace_create")?.inputSchema, undefined);
   assert.equal(byName.get("workspace_delete")?.inputSchema, undefined);
   assert.notEqual(getWorkspaceAgentToolCatalog(), catalog, "each call returns a fresh array a caller may not mutate shared state through");
@@ -118,8 +118,8 @@ test("workspace_update renames only the boot-wired workspace and persists the no
   const { deps, repo, calls } = fakeDeps();
   const update = registrationFor({ deps, toolId: "workspace_update" });
 
-  const result = await update.handler(executionContext({ name: "  Renamed  ", slug: "Renamed-Site" }));
-  const expected = { ...SEED, name: "Renamed", slug: "renamed-site" };
+  const result = await update.handler(executionContext({ name: "  Renamed  ", slug: "Renamed-Site", expectedVersion: 1 }));
+  const expected = { ...SEED, name: "Renamed", slug: "renamed-site", version: 2 };
   assert.deepEqual(result, { workspace: expected });
   assert.deepEqual(await repo.findById({ id: WORKSPACE_ID }), expected);
   assert.deepEqual(await repo.findById({ id: OTHER.id }), OTHER, "the other row is untouched");
@@ -129,15 +129,15 @@ test("workspace_update renames only the boot-wired workspace and persists the no
 test("workspace_update accepts a slug-only change and keeps the existing name", async () => {
   const { deps } = fakeDeps();
   const update = registrationFor({ deps, toolId: "workspace_update" });
-  assert.deepEqual(await update.handler(executionContext({ slug: "fresh" })), { workspace: { ...SEED, slug: "fresh" } });
+  assert.deepEqual(await update.handler(executionContext({ slug: "fresh", expectedVersion: 1 })), { workspace: { ...SEED, slug: "fresh", version: 2 } });
 });
 
 test("workspace_update propagates typed domain errors for empty, invalid and conflicting updates", async () => {
   const { deps, repo } = fakeDeps();
   const update = registrationFor({ deps, toolId: "workspace_update" });
-  await assert.rejects(() => update.handler(executionContext({})), WorkspaceValidationError);
-  await assert.rejects(() => update.handler(executionContext({ slug: "bad slug" })), WorkspaceValidationError);
-  await assert.rejects(() => update.handler(executionContext({ slug: OTHER.slug })), WorkspaceConflictError);
+  await assert.rejects(() => update.handler(executionContext({ expectedVersion: 1 })), WorkspaceValidationError);
+  await assert.rejects(() => update.handler(executionContext({ slug: "bad slug", expectedVersion: 1 })), WorkspaceValidationError);
+  await assert.rejects(() => update.handler(executionContext({ slug: OTHER.slug, expectedVersion: 1 })), WorkspaceConflictError);
   assert.deepEqual(await repo.findById({ id: WORKSPACE_ID }), SEED);
 });
 
@@ -146,7 +146,7 @@ test("workspace_update rejects non-object input and non-string fields before aut
   const update = registrationFor({ deps, toolId: "workspace_update" });
   await assert.rejects(() => update.handler(executionContext("rename")), ToolInputError);
   assert.equal(calls.length, 0);
-  await assert.rejects(() => update.handler(executionContext({ name: 42 })), { message: "'name' must be a string" });
+  await assert.rejects(() => update.handler(executionContext({ name: 42, expectedVersion: 1 })), { message: "'name' must be a string" });
 });
 
 test("workspace_update denied by authorization leaves the row unchanged", async () => {

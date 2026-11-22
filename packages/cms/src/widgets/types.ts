@@ -1,14 +1,15 @@
+import type { Logger } from "@jini-ai/core/primitives";
 /**
- * @file Core type definitions for the host `widgets` library (ADR-047, SPEC-043).
+ * @file Core type definitions for the host `widgets` library.
  *
  * Purpose:
  * Widgets are placeable, reusable, individually-configured components (a contact
  * form, a recent-posts list, a text block, social links, a menu) placed either
  * into a theme-declared region (an ordered list, backed by a seeded
  * `widget_area` entry) or embedded inline inside a page's rich-text body (a
- * `widgetEmbed` TipTap node). A widget instance is a seeded ADR-022 content
- * entry (type `widget`), exactly as a menu is (ADR-029) — this file mirrors
- * `navigation/types.ts` deliberately, per the ADR-047 debate's finding that the
+ * `widgetEmbed` TipTap node). A widget instance is a seeded content
+ * entry (type `widget`), exactly as a menu is — this file mirrors
+ * `navigation/types.ts` deliberately, per the debate's finding that the
  * region-binding mechanism must structurally match `nav_location_bindings`
  * (source-of-truth-on-the-entry + a derived, reconciled binding index), not
  * merely resemble it.
@@ -19,14 +20,13 @@
  *   (`WidgetRegionBindingRepoPort`, mirroring `NavLocationBindingRepoPort`).
  * - `widgets/registry.ts` declares the v1 widget-type registry as plain data —
  *   see that file for why type *registration* and type *behavior* are split.
- * - The theme renderer never resolves a widget reference itself (ADR-020 §7 /
- *   ADR-029 §7's "theme receives resolved data" boundary, unchanged here).
+ * - The theme renderer never resolves a widget reference itself (the
+ *   "theme receives resolved data" boundary, unchanged here).
  *
  * Architectural role:
  * INTERFACES + TYPES ONLY (no feature logic). This is the design-frozen shape
- * ADR-047 (as amended by its 2026-07-21 debate fold-in) introduces; the entries
- * repo, revisions, and the command gateway are reused unchanged from ADR-022 /
- * ADR-008.
+ * the design (as amended by its 2026-07-21 debate fold-in) introduces; the entries
+ * repo, revisions, and the command gateway are reused unchanged.
  */
 import type { ISODateTime, JsonObject, UUID } from "@jini-ai/core/primitives";
 
@@ -34,7 +34,7 @@ import type { ISODateTime, JsonObject, UUID } from "@jini-ai/core/primitives";
 // Content-type identity
 // ---------------------------------------------------------------------------
 
-/** `widget` ships as a seeded content-type registry row (ADR-022 §1), like `post`/`page`/`menu`. */
+/** `widget` ships as a seeded content-type registry row, like `post`/`page`/`menu`. */
 export const WIDGET_CONTENT_TYPE = "widget" as const;
 
 /**
@@ -56,15 +56,15 @@ export const WIDGET_AREA_FIELD_NAMESPACE = "widgets" as const;
 // ---------------------------------------------------------------------------
 
 /**
- * The v1 widget-type keys (SPEC-043 REQ-09). Kept as a closed union rather than
+ * The v1 widget-type keys. Kept as a closed union rather than
  * a bare `string` so a typo in a registration or a call site is a compile error,
  * not a runtime `unknown-type` surprise.
  */
 export type WidgetTypeKey = "text" | "social-links" | "recent-entries" | "menu" | "contact-form" | "gallery" | "media";
 
 /**
- * A widget type's declared capability class (ADR-047 Debate Fold-In Amendment
- * 3). `static` types render validated config directly with no resolver;
+ * A widget type's declared capability class.
+ * `static` types render validated config directly with no resolver;
  * `query`/`form`/`entry-reference` types have a registered resolver in the
  * closed `CORE_RESOLVERS` map (`resolvers/index.ts`).
  */
@@ -74,8 +74,8 @@ export type WidgetCapability = "static" | "query" | "form" | "entry-reference";
 export type WidgetPlacementContext = "region" | "inline";
 
 /**
- * A widget type's **registration** — plain, JSON-serializable data (SPEC-043
- * REQ-07). Never imports or references executable behavior; the only pointer
+ * A widget type's **registration** — plain, JSON-serializable data.
+ * Never imports or references executable behavior; the only pointer
  * to code this record carries is `resolverId`, which must resolve *only*
  * through the closed `CORE_RESOLVERS` map (REQ-08) — never a module path,
  * function name, query string, or expression.
@@ -96,7 +96,7 @@ export interface WidgetTypeRegistration {
 }
 
 // ---------------------------------------------------------------------------
-// The widget instance (a typed view over an ADR-022 `entries` row)
+// The widget instance (a typed view over an `entries` row)
 // ---------------------------------------------------------------------------
 
 /**
@@ -119,7 +119,7 @@ export interface WidgetTypeRegistration {
 export type WidgetInstanceStatus = "active" | "trash" | "purged";
 
 /**
- * A typed read model over a `type='widget'` entries row (ADR-022 §2 universal
+ * A typed read model over a `type='widget'` entries row (universal
  * columns) plus the parsed `fields.ext.widget.*` config bag. A projection, not
  * a new table — widget instances are entries (REQ-01).
  */
@@ -163,7 +163,6 @@ export interface WidgetAreaDoc {
  * A typed read model over a `type='widget_area'` entries row. `regionKey` is
  * the **source of truth** for which region this area fills
  * (`fields.ext.widgets.regionKey`) — mirrors `NavMenuEntry.locations` exactly
- * (ADR-047 Debate Fold-In Amendment 1).
  */
 export interface WidgetAreaEntry {
   readonly id: UUID;
@@ -181,8 +180,8 @@ export interface WidgetAreaEntry {
 /**
  * A row of the derived `widget_region_bindings` index. **Derived + rebuildable**
  * from `WidgetAreaEntry.regionKey` at the write chokepoint (same species as
- * `nav_location_bindings` and ADR-022 §5 `entry_refs`), NOT a source of truth
- * and NOT revision-generating (INV-02). Reconciled by exactly one code path
+ * `nav_location_bindings` and `entry_refs`), NOT a source of truth
+ * and NOT revision-generating. Reconciled by exactly one code path
  * (`region-area-service.ts`'s `reconcileWidgetRegionBindings`) — never
  * hand-authored.
  */
@@ -221,7 +220,7 @@ export interface WidgetEmbedNode {
 // Resolution (the render-time contract — Debate Fold-In Amendment 2)
 // ---------------------------------------------------------------------------
 
-/** The internal render IR node shape every resolved widget produces (ADR-020's canonical render IR). */
+/** The internal render IR node shape every resolved widget produces (the canonical render IR). */
 export interface WidgetRenderIR {
   readonly componentId: string;
   readonly props: JsonObject;
@@ -230,19 +229,20 @@ export interface WidgetRenderIR {
 
 /** Context passed to a resolver for one page render (REQ-23). */
 export interface WidgetResolveContext {
+  readonly report?: Pick<Logger, "warn">;
   readonly workspaceId: UUID;
   readonly locale?: string;
   readonly preview: boolean;
 }
 
-/** A minimal, read-only view of a widget instance passed into a resolver — never a raw DB handle (SPEC-043's REQ-24 batching contract). */
+/** A minimal, read-only view of a widget instance passed into a resolver — never a raw DB handle (the batching contract). */
 export interface WidgetInstanceView {
   readonly id: UUID;
   readonly widgetType: WidgetTypeKey;
   readonly config: JsonObject;
 }
 
-/** Why a widget resolution failed (SPEC-043 REQ-27's closed failure taxonomy). */
+/** Why a widget resolution failed (the closed failure taxonomy). */
 export type WidgetResolveFailureReason =
   | "unknown-type"
   | "invalid-config"

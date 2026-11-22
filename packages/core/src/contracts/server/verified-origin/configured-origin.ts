@@ -1,0 +1,114 @@
+import { trimCharsEnd } from '../../../primitives/trim-chars.js';
+import { hasForbiddenRawUrlCharacter } from "./origin.js";
+import { createVerifiedOrigin, type VerifiedOrigin } from "./types.js";
+import { isLoopbackHost } from "./loopback-host.js";
+
+// Match candidate-origin normalization so a trailing DNS dot has one meaning across decisions.
+function normalizeHost(hostname: string): string {
+  const lowered = hostname.toLowerCase();
+  return lowered.endsWith(".") ? lowered.slice(0, -1) : lowered;
+}
+
+// Reject ambiguous raw characters before parsing can erase them; use the redirect predicate
+// rather than introducing a second URL acceptance rule.
+function parseConfiguredUrl(raw: string): URL | null {
+  if (hasForbiddenRawUrlCharacter({ raw })) return null;
+  try {
+    return new URL(raw);
+  } catch {
+    return null;
+  }
+}
+
+// Workspace-setting evidence permits HTTPS only. Refuse HTTP before constructing evidence so
+// an invalid operator setting cannot make origin construction throw during boot.
+function refusalReason(url: URL): string | null {
+  if (url.protocol !== "https:") return "its scheme must be https";
+  if (url.username !== "" || url.password !== "") return "it carries a userinfo component";
+  if (url.search !== "" || url.hash !== "") return "it carries a query string or fragment";
+
+  const host = normalizeHost(url.hostname);
+  if (host === "") return "its host is empty";
+  if (isLoopbackHost({ host })) return `'${host}' is a loopback host, not a public origin`;
+  return null;
+}
+
+// Omit absent port/basePath keys entirely: explicit undefined differs from an omitted optional
+// property under strict equality, and storage adapters preserve that distinction.
+function buildConfiguredOrigin(url: URL, now: string): VerifiedOrigin {
+  const candidate: VerifiedOrigin = {
+    scheme: "https",
+    host: normalizeHost(url.hostname),
+    verifiedAt: now,
+    source: "workspace-setting",
+  };
+  if (url.port !== "") candidate.port = Number(url.port);
+  const basePath = trimCharsEnd({ text: url.pathname, chars: "/" });
+  if (basePath !== "") candidate.basePath = basePath;
+  return createVerifiedOrigin(candidate);
+}
+
+/** Operator declaration is evidence of configured trust, not DNS or ownership proof. */
+export interface ConfiguredOriginRequired {
+  env: Readonly<Record<string, string | undefined>>;
+  envVarName: string;
+  clock: { nowIso(): string };
+  warn: (message: string) => void;
+}
+
+// Environment authority already controls deployed code; accepting an operator declaration adds
+// no request-derived authority. Never feed a request-host fallback into this durable trust root.
+// Malformed values leave no evidence, with one diagnostic warning; unset/blank local settings stay
+// quiet. Use the host's boot clock so this evidence and other boot rows carry the same timestamp.
+/** Accept a caller-named operator declaration or return undefined with a refusal warning.
+ * No ambient environment lookup. The injected clock stamps accepted evidence only.
+ * @complexity O(configured URL length) time/space; no network or storage effects.
+ * @example resolveConfiguredOrigin({ env, envVarName: "APP_PUBLIC_URL", clock, warn });
+ */
+export function resolveConfiguredOrigin(required: ConfiguredOriginRequired): VerifiedOrigin | undefined {
+  const { env, envVarName, clock, warn } = required;
+  const raw = env[envVarName]?.trim();
+  if (!raw) return undefined;
+  // The refused value is never echoed: it may be refused precisely because it carries userinfo or a
+  // query/fragment credential, and the warning reaches the operator's console and logs. The refusal
+  // is fixed words (a loopback refusal names only the host).
+  const refuse = (refusal: string): undefined => {
+    warn(`${envVarName} is set but was refused as this deployment's public origin (${refusal}); ` +
+      `no origin was registered from it. Set ${envVarName} to this site's public https address, ` +
+      "with no user name, password, query string or fragment.");
+    return undefined;
+  };
+  const url = parseConfiguredUrl(raw);
+  if (!url) return refuse("it is not a parseable URL");
+  const reason = refusalReason(url);
+  if (reason) return refuse(reason);
+  return buildConfiguredOrigin(url, clock.nowIso());
+}
+
+export type OriginBootPlan =
+  | { kind: "configured"; origin: VerifiedOrigin }
+  | { kind: "dev-seed" }
+  | { kind: "none" };
+
+export interface OriginBootRequired extends ConfiguredOriginRequired {
+  /** The host decides whether this runtime may seed a development capability. */
+  allowDevSeed: () => boolean;
+  missingOriginWarning: string;
+}
+
+// A disallowed development seed must produce no registration: persisting localhost in a public
+// deployment poisons generated links, and find-or-create storage can preserve the row forever.
+// Avoiding new seeds does not repair old rows; registering accepted configured evidence does.
+/** Pure boot decision; registration effects and runtime selection stay in the host. */
+/** Choose configured evidence, an allowed development seed, or no registration.
+ * Warnings use caller-supplied policy; registration effects remain host-owned.
+ * @complexity O(configured URL length) time/space.
+ * @example planOriginBoot({ env, envVarName, clock, warn, allowDevSeed, missingOriginWarning });
+ */
+export function planOriginBoot(required: OriginBootRequired): OriginBootPlan {
+  const origin = resolveConfiguredOrigin(required);
+  if (origin) return { kind: "configured", origin };
+  if (required.allowDevSeed()) return { kind: "dev-seed" };
+  required.warn(required.missingOriginWarning);
+  return { kind: "none" };
+}

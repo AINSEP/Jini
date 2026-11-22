@@ -12,8 +12,8 @@
  * Built directly against GitHub's published REST API docs (Contents API,
  * Git Data API, Pulls API — see each function's doc comment for the exact
  * endpoint/behavior it was verified against), following the same "raw
- * `fetch`, no SDK dependency" convention `@jini-ai/deploy`'s `netlify.ts`/
- * `github-pages.ts` already establish (this package has no `@jini-ai/deploy`
+ * `fetch`, no SDK dependency" convention `@jini-ai/deploy`'s `packages/agent-plugins/netlify/targets/netlify.mjs`/
+ * `packages/agent-plugins/github-pages/targets/github-pages.mjs` already establish (this package has no `@jini-ai/deploy`
  * dependency and does not gain one — the blob/tree/commit/ref mechanics
  * below are written fresh for this package, not shared cross-package, since
  * there is no existing shared low-level GitHub REST helper package).
@@ -24,14 +24,10 @@
  * the QUICK total bound and an explicit idle budget; request orchestration never chooses global
  * fetch. Hosts can bind the existing helper or a policy-enforcing egress client without a new port.
  */
-import { FETCH_TIMEOUT_MS } from '@jini-ai/platform/fetch-with-timeout';
-import type { HttpClientPort, HttpRequest, HttpResponse } from '@jini-ai/core/primitives';
+import type { HttpClientPort, HttpResponse } from '@jini-ai/core/primitives';
 import type { RegistryManifest } from '@jini-ai/protocol';
 import type { GithubPublishMutation, GithubRegistryClient } from './github-backend.js';
-
-const GITHUB_API = 'https://api.github.com';
-/** Pinned per GitHub's own recommendation (`X-GitHub-Api-Version` header), matching `@jini-ai/deploy`'s `github-pages.ts` — see that file's doc comment for the sourcing rationale. */
-const GITHUB_API_VERSION = '2026-03-10';
+import { createGithubSender } from './providers/github-http.js';
 
 type JsonObject = Record<string, unknown>;
 
@@ -58,14 +54,11 @@ export interface GithubApiRegistryClientOptions {
  */
 export class GithubApiRegistryClient implements GithubRegistryClient {
   private readonly token: string | undefined;
-  private readonly apiUrl: string;
-
-  private readonly http: HttpClientPort;
+  private readonly send: ReturnType<typeof createGithubSender>;
 
   constructor({ http }: { http: HttpClientPort }, options: GithubApiRegistryClientOptions = {}) {
-    this.http = http;
     this.token = options.token;
-    this.apiUrl = options.apiUrl ?? GITHUB_API;
+    this.send = createGithubSender({ http, token: this.token }, options);
   }
 
   /**
@@ -109,7 +102,7 @@ export class GithubApiRegistryClient implements GithubRegistryClient {
    * `request.baseRef`) via the Git Data API — create a blob per file, a tree
    * layered on the base commit's tree, a commit, and a branch ref — then
    * opens a pull request via `POST /repos/{owner}/{repo}/pulls`. Mirrors the
-   * blob→tree→commit→ref mechanics `@jini-ai/deploy`'s `github-pages.ts` already
+   * blob→tree→commit→ref mechanics `@jini-ai/deploy`'s `packages/agent-plugins/github-pages/targets/github-pages.mjs` already
    * verified against GitHub's Git Data API docs, extended with an actual
    * Pulls API call (that file force-pushes a branch directly; this one opens
    * a PR against `baseRef` instead, matching `GithubPublishMutation`'s shape).
@@ -177,7 +170,7 @@ export class GithubApiRegistryClient implements GithubRegistryClient {
    * against GitHub's Git Data Refs API docs: create returns `409 Conflict`
    * when the ref already exists; update accepts `force: true` to bypass the
    * fast-forward-only default — same "last publish wins" reasoning
-   * `@jini-ai/deploy`'s `github-pages.ts` already documents for its own ref update.
+   * `@jini-ai/deploy`'s `packages/agent-plugins/github-pages/targets/github-pages.mjs` already documents for its own ref update.
    */
   private async ensureBranch(owner: string, repo: string, branch: string, sha: string): Promise<void> {
     const createResp = await this.send('POST', `${repoPath(owner, repo)}/git/refs`, { ref: `refs/heads/${branch}`, sha });
@@ -195,7 +188,7 @@ export class GithubApiRegistryClient implements GithubRegistryClient {
    * because a pull request for this exact head/base already exists (the
    * documented shape of that failure is a `422` whose `message` says so) —
    * looks up and returns the existing PR's URL instead. Same
-   * try-then-recover-on-conflict shape `@jini-ai/deploy`'s `netlify.ts`
+   * try-then-recover-on-conflict shape `@jini-ai/deploy`'s `packages/agent-plugins/netlify/targets/netlify.mjs`
    * (`ensureNetlifySite`) already establishes for a different provider's
    * analogous "create-or-find" race.
    */
@@ -220,18 +213,6 @@ export class GithubApiRegistryClient implements GithubRegistryClient {
     if (!isOk(resp.status) || !Array.isArray(json)) return undefined;
     const first = json[0];
     return first && typeof first.html_url === 'string' ? first.html_url : undefined;
-  }
-
-  /**
-   * The single request builder: every call goes to `apiUrl` with the GitHub
-   * headers (bearer auth only when a token is configured) and the QUICK
-   * idle/total bounds. A JSON `body` adds the JSON content type.
-   */
-  private send(method: 'GET' | 'POST' | 'PATCH', path: string, body?: JsonObject): Promise<HttpResponse> {
-    const json = body === undefined ? undefined : JSON.stringify(body);
-    const headers = githubHeaders(this.token, json === undefined ? {} : { 'Content-Type': 'application/json' });
-    const request: HttpRequest = { url: `${this.apiUrl}${path}`, method, headers, idleTimeoutMs: FETCH_TIMEOUT_MS.QUICK, totalDeadlineMs: FETCH_TIMEOUT_MS.QUICK, ...(json === undefined ? {} : { body: json }) };
-    return this.http.send({ request });
   }
 }
 
@@ -307,15 +288,6 @@ function parseManifest(content: string, where: string): RegistryManifest {
 /** URL-encodes each path segment individually so directory separators survive but special characters within a segment don't. */
 function encPath(path: string): string {
   return path.split('/').filter(Boolean).map(encodeURIComponent).join('/');
-}
-
-function githubHeaders(token: string | undefined, extra: Record<string, string> = {}): Record<string, string> {
-  return {
-    Accept: 'application/vnd.github+json',
-    'X-GitHub-Api-Version': GITHUB_API_VERSION,
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    ...extra,
-  };
 }
 
 async function readGithubJson<T>(resp: HttpResponse): Promise<T> {

@@ -19,3 +19,6 @@ export { reportErrorOnce, redactedError, runWithErrorReportScope, type ErrorRepo
 
 export { createTracker, createTrackerWarning } from "./tracker.js";
 export { createTelemetryTestProbe } from "./telemetry-test.js";
+
+/** Node-only helper values for observability providers; a host merges them into the contract's `context`. */
+export const observabilityNodeProviderContext: { readonly createAsyncLocalSpanScope: typeof createAsyncLocalSpanScope } = { createAsyncLocalSpanScope };

@@ -1,6 +1,8 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { FetchQueryProvider } from "@jini-ai/ui/panel-kit";
+import { realUmKit } from "../../__tests__/fetch-query-support.js";
+import { UserManagementKitProvider } from "../../kit.js";
 import type { AdminIdentityUser, AdminRole } from "../../models.js";
 import type { UsersPort } from "../../ports.js";
 import { createFakeUsersPort, type FakeUsersPortOptions } from "../../testing.js";
@@ -9,7 +11,7 @@ import { useUsers, type UsersOptions } from "../hooks/use-users.hooks.js";
 // Characterization pins for `useUsers`, written against the pre-refactor hook: the list-derived
 // fields, the caller's own row, rename permission, the grant runner, and the email/status failures.
 const translate = (key: string) => key;
-function wrapper({ children }: { children: React.ReactNode }) { return <FetchQueryProvider>{children}</FetchQueryProvider>; }
+function wrapper({ children }: { children: React.ReactNode }) { return <FetchQueryProvider><UserManagementKitProvider kit={realUmKit}>{children}</UserManagementKitProvider></FetchQueryProvider>; }
 const base: AdminIdentityUser = { principalId: "u1", workspaceId: "w", username: "alice", email: "alice@example.com",
   status: "active", createdAt: "2026-08-01T00:00:00.000Z", roleIds: [], policyIds: [] };
 const CALLER: AdminIdentityUser = { ...base, principalId: "caller", username: "caller" };

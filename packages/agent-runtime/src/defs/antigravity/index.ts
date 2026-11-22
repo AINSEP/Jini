@@ -1,7 +1,12 @@
 import { createAgentModelDiscovery } from '../../model-discovery-native.js';
-import { redactOAuthUrls } from '@jini-ai/oauth';
+import { redactOAuthUrls } from '@jini-ai/core/text';
 import { DEFAULT_MODEL_OPTION } from '../shared.js';
-import type { RuntimeAgentDef, RuntimeBuildOptions, RuntimeContext, RuntimeModelOption } from '../../types.js';
+import type {
+  RuntimeAgentDef,
+  RuntimeBuildOptions,
+  RuntimeContext,
+  RuntimeModelOption,
+} from '@jini-ai/core/contracts/agents';
 
 // `agy` v1.1.24 has a real `--model <id>` flag (`agy --help`: "Model for the current CLI
 // session") plus a machine-readable `agy models` subcommand that lists every selectable model as
@@ -25,7 +30,7 @@ import type { RuntimeAgentDef, RuntimeBuildOptions, RuntimeContext, RuntimeModel
 // (verified live), rather than the old settings.json path's silent `availableModels` cache miss +
 // empty print-mode output. Kept `false` anyway: nothing here validates a typed id before spawn, so
 // letting a UI send arbitrary text would just move that same failure into production instead of
-// preventing it — `isKnownModel` (`../models.ts`) is what actually gates a caller-supplied id
+// preventing it — `isKnownModel` (`packages/agent-runtime/src/models.ts`) is what actually gates a caller-supplied id
 // against this list before it ever reaches `buildArgs`.
 //
 // The 14 slugs/labels below are `agy models`' full live output as of agy v1.1.24 (2026-09-02), not
@@ -84,7 +89,7 @@ const OAUTH_URL_PLACEHOLDER = '[redacted sign-in URL]';
  * @complexity O(n) in the buffered text length.
  * @overallScore 100/100
  */
-export function redactAntigravityAuthUrls({ fullText }: { fullText: string }): string {
+export function redactAntigravityAuthUrls({ fullText }: { fullText: string }, _optional: Record<string, never> = {}): string {
   return redactOAuthUrls({ text: fullText, pattern: OAUTH_URL_PATTERN, replacement: OAUTH_URL_PLACEHOLDER });
 }
 

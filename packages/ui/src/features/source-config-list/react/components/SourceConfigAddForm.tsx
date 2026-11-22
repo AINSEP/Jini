@@ -87,15 +87,15 @@ export type SourceConfigAddFormProps = SourceConfigAddFormBaseProps & SourceTrus
  * caller's next `page.find_elements` sees them, because that verb re-queries
  * the DOM rather than replaying an earlier snapshot.
  */
-export function SourceConfigAddForm(props: SourceConfigAddFormProps) {
+export function SourceConfigAddForm({ useTHook = useT, ...props }: SourceConfigAddFormProps & { useTHook?: typeof useT }) {
   const { addLabel, onSubmit, agentHandle, submitError } = props;
-  const t = useT();
+  const t = useTHook();
   const submitLabel = addLabel ? t(addLabel) : t('Add source');
 
   return (
     <form
       className="source-config-add-form"
-      {...sourceConfigAgentProps(agentHandle, { role: 'form', label: submitLabel })}
+      {...sourceConfigAgentProps({ base: agentHandle, role: 'form', label: submitLabel })}
       onSubmit={(event) => {
         event.preventDefault();
         onSubmit();
@@ -105,7 +105,7 @@ export function SourceConfigAddForm(props: SourceConfigAddFormProps) {
       <AddFormTrustSelect {...props} />
       <AddFormTestControl {...props} />
       {submitError ? (
-        <div className="source-config-add-form-error" role="alert">
+        <div className="jini-source-config-add-form-error" role="alert">
           {t(submitError)}
         </div>
       ) : null}
@@ -115,10 +115,10 @@ export function SourceConfigAddForm(props: SourceConfigAddFormProps) {
 }
 
 /** One `SourceConfigField` per spec; a field's error only shows once a submit has been attempted. */
-function AddFormFields({ fieldSpecs, values, validation, submitAttempted, submitting, onFieldChange, agentHandle }: SourceConfigAddFormProps) {
-  const t = useT();
+function AddFormFields({ fieldSpecs, values, validation, submitAttempted, submitting, onFieldChange, agentHandle, useTHook = useT }: SourceConfigAddFormProps & { useTHook?: typeof useT }) {
+  const t = useTHook();
   return fieldSpecs.map((spec) => {
-    const issue = submitAttempted ? issueForField(validation, spec.key) : undefined;
+    const issue = submitAttempted ? issueForField({ validation, fieldKey: spec.key }) : undefined;
     return (
       <SourceConfigField
         key={spec.key}
@@ -127,15 +127,15 @@ function AddFormFields({ fieldSpecs, values, validation, submitAttempted, submit
         disabled={submitting}
         onChange={(value) => onFieldChange(spec.key, value)}
         {...(issue ? { error: t(issue.message, { label: t(spec.label) }) } : {})}
-        {...(agentHandle ? { agentHandle: sourceConfigFieldHandle(agentHandle, spec.key) } : {})}
+        {...(agentHandle ? { agentHandle: sourceConfigFieldHandle({ base: agentHandle, fieldKey: spec.key }) } : {})}
       />
     );
   });
 }
 
 /** Rendered only when `trustOptions` is non-empty — the origin MCP-server shape has no trust concept at all. */
-function AddFormTrustSelect(props: SourceConfigAddFormProps) {
-  const t = useT();
+function AddFormTrustSelect({ useTHook = useT, ...props }: SourceConfigAddFormProps & { useTHook?: typeof useT }) {
+  const t = useTHook();
   // Narrow on `props` itself (not a destructured copy) so the non-empty `trustOptions` check also
   // proves `onTrustChange` present — the `SourceTrustSelectorProps` union binds the two.
   if (!props.trustOptions || props.trustOptions.length === 0) return null;
@@ -149,7 +149,7 @@ function AddFormTrustSelect(props: SourceConfigAddFormProps) {
         value={trust ?? ''}
         disabled={submitting}
         aria-label={trustLabel}
-        {...sourceConfigAgentProps(agentHandle, { role: 'field', label: trustLabel, action: 'trust' })}
+        {...sourceConfigAgentProps({ base: agentHandle, role: 'field', label: trustLabel, action: 'trust' })}
         onChange={(event) => onTrustChange(event.target.value)}
       >
         <SourceConfigTrustOptions trust={trust} trustOptions={trustOptions} />
@@ -167,20 +167,20 @@ function AddFormTestControl({ canTest = false, onTest, testing = false, submitti
       disabled={submitting || !validation.ok}
       onTest={onTest}
       {...(testResult ? { result: testResult } : {})}
-      {...(agentHandle ? { agentHandle: sourceConfigActionHandle(agentHandle, 'test') } : {})}
+      {...(agentHandle ? { agentHandle: sourceConfigActionHandle({ base: agentHandle, action: 'test' }) } : {})}
     />
   );
 }
 
 /** The submit button alone, or wrapped beside a Cancel button when `onCancel` is given. */
-function AddFormActions({ submitting, agentHandle, onCancel, cancelLabel, submitLabel }: SourceConfigAddFormProps & { submitLabel: string }) {
-  const t = useT();
+function AddFormActions({ submitting, agentHandle, onCancel, cancelLabel, submitLabel, useTHook = useT }: SourceConfigAddFormProps & { submitLabel: string } & { useTHook?: typeof useT }) {
+  const t = useTHook();
   const submitButton = (
     <button
       type="submit"
-      className="source-config-add-form-submit"
+      className="jini-source-config-add-form-submit"
       disabled={submitting}
-      {...sourceConfigAgentProps(agentHandle, { role: 'button', label: submitLabel, action: 'submit' })}
+      {...sourceConfigAgentProps({ base: agentHandle, role: 'button', label: submitLabel, action: 'submit' })}
     >
       {submitting ? t('Adding…') : submitLabel}
     </button>
@@ -188,13 +188,13 @@ function AddFormActions({ submitting, agentHandle, onCancel, cancelLabel, submit
   if (!onCancel) return submitButton;
   const resolvedCancelLabel = t(cancelLabel ?? 'Cancel');
   return (
-    <div className="source-config-add-form-actions">
+    <div className="jini-source-config-add-form-actions">
       {submitButton}
       <button
         type="button"
-        className="source-config-add-form-cancel"
+        className="jini-source-config-add-form-cancel"
         disabled={submitting}
-        {...sourceConfigAgentProps(agentHandle, { role: 'button', label: resolvedCancelLabel, action: 'cancel' })}
+        {...sourceConfigAgentProps({ base: agentHandle, role: 'button', label: resolvedCancelLabel, action: 'cancel' })}
         onClick={onCancel}
       >
         {resolvedCancelLabel}

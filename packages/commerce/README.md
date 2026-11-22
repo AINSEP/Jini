@@ -2,7 +2,7 @@
 
 Opt-in catalog contracts, checkout and webhook-inbox services, SQL repositories, payment providers,
 payment/refund state machines, the sample store runtime, and a read-only React Payments overview.
-Moved from Tovu for future reuse; Tovu keeps commerce off.
+Moved from the first host for future reuse; the first host keeps commerce off.
 
 Importing this package never activates a provider, registers a route/tool/panel, seeds products, or
 creates/reconciles tables. Payment and store activation require an injected `kernel` and an awaited
@@ -27,7 +27,7 @@ HTTP, UI or agent infrastructure. It reuses `@jini-ai/db/kernel`, `@jini-ai/core
 core tool registration builder, CMS authorization and UI dictionary translation.
 
 Public runtime helpers use object inputs and an options object. A host constructing environment
-credentials can pass `{ prefix: "TOVU_PAYMENT" }` to preserve its existing namespace; the generic
+credentials can pass `{ prefix: "HOST_PAYMENT" }` to preserve its existing namespace; the generic
 default is `JINI_PAYMENT`. Credentials remain outside portable databases.
 
 An opting-in HTTP host must register the webhook handler before a blanket JSON parser: signatures
@@ -44,8 +44,8 @@ The order becomes paid only through `settleOrderPayment`, after its association,
 reference, amount, currency and captured total match verified payment truth. A return-page visit
 never establishes payment success.
 
-Before enabling `payOrder`, the host must migrate its catalog schema. For Tovu this is an
-ADR-066 TypeScript host migration; this package does not ship or run that host migration.
+Before enabling `payOrder`, the host must migrate its catalog schema. For the first host this is a
+TypeScript host migration; this package does not ship or run that host migration.
 The two required tables, in addition to the original six, are:
 
 ```sql
@@ -117,9 +117,9 @@ const publish: OutboxPublisherPort = { publish: async ({ message }) => { await p
 const relay = createOutboxRelay({ ledger, now, publish });
 
 const placed = await checkout({ deps: { products, prices, orders, clock, idGen },
-  input: { workspaceId: scope.workspaceId, memberId, priceId, quantity: 1, provider: scope.providerId } });
+  workspaceId: scope.workspaceId, memberId, priceId, quantity: 1, provider: scope.providerId });
 const result = await payOrder({ deps: { orders, prices, priceRefs, orderPayments, payments, settle },
-  input: { workspaceId: scope.workspaceId, orderId: placed.order.id, scope } });
+  workspaceId: scope.workspaceId, orderId: placed.order.id, scope });
 // Return result to the browser; keep credentials, the provider port and ledger on the server.
 ```
 
@@ -160,7 +160,7 @@ The implementation adapts Open SaaS at `c2c6285bdb14b040584505372ad9bb062a0bca11
 See [NOTICE](NOTICE); both commerce and the provider artifact retain attribution.
 
 Runtime tests use real kernels and fixed test-only schemas. CMS schema, snapshots and cross-table
-foreign-key integration tests remain in Tovu. See [source-map.md](source-map.md) for the extraction
+foreign-key integration tests remain in the first host. See [source-map.md](source-map.md) for the extraction
 boundary and coordinator build requirements. Phase 1's cross-package E2E specification is
 `../provider-plugins/src/payments-stripe/__tests__/payments-stripe-kernel.test.ts`. Tests, builds, typechecks and
 coverage were not run during this dispatch; validation and measured coverage remain pending.

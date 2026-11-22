@@ -3,7 +3,8 @@ import type { Readable } from 'node:stream';
 import { CallToolRequestSchema, type CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { expect, it, vi } from 'vitest';
 import { createCheckMessagesTool, messageRelayInstructions, prependRunUserMessages } from '../message-relay.js';
-import { createMcpToolServer, type McpServerLike, type McpTransportLike } from '../tool-server.js';
+import { createMcpToolServer, type McpTransportLike } from '../tool-server.js';
+import type { McpServerLike } from '../adapters/sdk-server.js';
 import type { McpToolContext, McpToolDef } from '../tool-protocol.js';
 
 const scope = { runId: 'run-a', nonce: 'a'.repeat(48) };

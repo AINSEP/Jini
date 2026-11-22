@@ -1,10 +1,10 @@
-import type { BeforeSaveFilter } from "./ports.js";
+import type { BeforeSaveFilter } from "@jini-ai/core/contracts/plugin-sdk";
 import type { AttachmentSource, HookRegistry, HookRegistryFieldDecl } from "./hook-registry.js";
 
 export interface AttachLoadedPluginRequired {
   /** The plugin/glue-module id `hookRegistry.attach()` files this attachment under. */
   readonly pluginId: string;
-  /** Who attached this filter — widened by ADR-057 Decision 3 to include `"glue"`, so Site Glue's
+  /** Who attached this filter — widened to include `"glue"`, so Site Glue's
    * content-lifecycle attachment point can call this function directly rather than forking it. */
   readonly source: AttachmentSource;
   /** The live registry this load's filter attaches to — one long-lived instance per process
@@ -23,9 +23,9 @@ export interface AttachLoadedPluginRequired {
 export type AttachLoadedPluginOptional = Record<string, never>;
 
 /**
- * The real (not stub) extraction of `loadPlugin()`'s dead step (5) — ADR-057 Decision 2.1. Attaches
+ * The real (not stub) extraction of `loadPlugin()`'s dead step (5). Attaches
  * one already-obtained filter to the given hook registry under `(pluginId, source)`, widened beyond
- * `loader.ts`'s original `"built-in" | "site"` scope to also accept `"glue"`. Before ADR-057, no
+ * `loader.ts`'s original `"built-in" | "site"` scope to also accept `"glue"`. Before this extraction, no
  * production code ever called `hookRegistry.attach()` at all (verified by grep, see `hook-registry.ts`'s
  * corrected header) — Site Glue's content-lifecycle attachment point is this function's first real
  * caller; a future fix to `loadPlugin()`'s own dead steps (4)-(5) is expected to call this same

@@ -141,19 +141,20 @@ describe('observeRunOutput without an observer', () => {
   it('keeps the real outcome and warns when the event stream cannot be opened', async () => {
     const { lifecycle, runId } = await startRun();
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    const broken: RunLifecycle = { ...lifecycle, stream: async () => { throw new Error('log offline'); } };
+    const broken: RunLifecycle = { ...lifecycle, stream: async () => { throw new Error('log offline api_key=SECRETSECRETSECRETSECRET'); } };
     const guard = observeRunOutput({ lifecycle: broken, runId, agentName: 'Fixture' });
     expect(await guard.settle({ status: 'succeeded' })).toBe('succeeded');
-    expect(warn).toHaveBeenCalledWith(`[@jini-ai/daemon] agent-executor: output observer unavailable for run "${runId}"`, 'log offline');
+    expect(warn).toHaveBeenCalledWith(`[@jini-ai/daemon] agent-executor: output observer unavailable for run "${runId}"`, 'Error');
+    expect(JSON.stringify(warn.mock.calls)).not.toContain('SECRETSECRET');
     expect(await errorMessages(lifecycle, runId)).toEqual([]);
   });
 
-  it('warns with a non-Error rejection as text', async () => {
+  it('warns with a non-Error rejection as its type only', async () => {
     const { lifecycle, runId } = await startRun();
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const broken: RunLifecycle = { ...lifecycle, stream: () => Promise.reject('plain reason') };
     await observeRunOutput({ lifecycle: broken, runId, agentName: 'Fixture' }).settle({ status: 'succeeded' });
-    expect(warn).toHaveBeenCalledWith(expect.any(String), 'plain reason');
+    expect(warn).toHaveBeenCalledWith(expect.any(String), 'string');
   });
 
   it('keeps the real outcome when the stream reports a replay gap', async () => {

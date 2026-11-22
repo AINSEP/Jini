@@ -1,3 +1,4 @@
+import type { Logger } from '@jini-ai/core/primitives';
 import { useRef } from 'react';
 import { useI18n } from '../../../i18n/index.js';
 import { Toast } from '../../../../react/components/Toast.js';
@@ -20,6 +21,7 @@ import { SketchMainMenu } from './SketchMainMenu.js';
 import { SketchSaveStateBadge, type SketchSaveStateBadgeProps } from './SketchSaveStateBadge.js';
 
 export interface SketchEditorProps {
+  report?: Pick<Logger, 'warn'> | undefined;
   scene: SketchScene;
   onSceneChange: (scene: SketchScene, options?: SketchSceneChangeOptions) => void;
   onClear?: () => void;
@@ -37,7 +39,7 @@ export interface SketchEditorProps {
   /** Overrides the default locale → Excalidraw `langCode` mapping. */
   excalidrawLangCode?: (locale: string) => string;
   /** Host translations for Excalidraw's own baked-in English UI text — no
-   *  default translated copy ships (see `packages/ui/source-map.md`). */
+   *  default translated copy ships (see `archived UI source map`). */
   domTextOverrides?: SketchDomTextOverrides;
   tooltipTargets?: readonly SketchTooltipTarget[];
   contextMenuActionOrder?: readonly string[];
@@ -61,6 +63,10 @@ export interface SketchEditorProps {
   dependencies?: SketchEditorDependencies;
   /** Custom hook override for dependency injection / testing. */
   useSketchTheme?: typeof useSketchTheme;
+  useI18nHook?: typeof useI18n;
+  useSketchSceneHook?: typeof useSketchScene;
+  useSketchSaveWorkflowHook?: typeof useSketchSaveWorkflow;
+  useSketchDomEnhancementsHook?: typeof useSketchDomEnhancements;
 }
 
 const EXCALIDRAW_UI_OPTIONS = {
@@ -95,131 +101,131 @@ function sketchToastActionProps({
   return actionFileName ? { ttlMs: 5000, actionLabel: t('Open file'), onAction } : { ttlMs: 2200 };
 }
 
+type SketchSceneState = ReturnType<typeof useSketchScene>;
+type SketchSaveWorkflow = ReturnType<typeof useSketchSaveWorkflow>;
+
+function SketchSaveToast({ workflow, t }: { workflow: SketchSaveWorkflow; t: ReturnType<typeof useI18n>['t'] }) {
+  const { toast } = workflow;
+  if (!toast) return null;
+  return (
+    <Toast
+      message={toast.message}
+      details={toast.details ?? null}
+      tone={toast.tone}
+      onDismiss={workflow.dismissToast}
+      {...sketchToastActionProps({ actionFileName: toast.actionFileName, t, onAction: workflow.handleToastAction })}
+    />
+  );
+}
+
+interface SketchCanvasProps {
+  props: SketchEditorProps;
+  engine: SketchEditorDependencies['engine'];
+  theme: ReturnType<typeof useSketchTheme>;
+  sceneState: SketchSceneState;
+  workflow: SketchSaveWorkflow;
+  hasContent: boolean;
+  useI18nHook?: typeof useI18n;
+}
+
+function SketchCanvas({ props, engine, theme, sceneState, workflow, hasContent, useI18nHook = useI18n }: SketchCanvasProps) {
+  const { t, locale } = useI18nHook();
+  const { saving = false, dirty = false } = props;
+  const { Excalidraw, MainMenu } = engine;
+  return (
+    <Excalidraw
+      key={sceneState.editorInstanceKey}
+      initialData={sceneState.initialData as unknown as ExcalidrawInitialDataState}
+      excalidrawAPI={sceneState.handleExcalidrawAPI}
+      onChange={sceneState.handleChange}
+      langCode={(props.excalidrawLangCode ?? defaultExcalidrawLangCode)(locale)}
+      theme={theme}
+      detectScroll={false}
+      handleKeyboardGlobally={false}
+      autoFocus
+      name={props.fileName}
+      UIOptions={EXCALIDRAW_UI_OPTIONS}
+      renderTopRightUI={() => <SketchSaveStateBadge {...resolveSaveStatus({ saving, dirty, t })} />}
+      validateEmbeddable={validateSketchEmbeddableUrl}
+    >
+      <SketchMainMenu
+        MainMenu={MainMenu}
+        t={t}
+        saving={saving}
+        showSaved={workflow.showSaved}
+        canSave={dirty || hasContent}
+        onSave={() => void workflow.handleSave()}
+        exportAvailable={Boolean(props.onExportImage)}
+        exporting={workflow.exporting}
+        canExport={hasContent}
+        onExportImage={() => void workflow.handleExportImage()}
+        canClear={hasContent}
+        onClear={sceneState.handleClear}
+      />
+    </Excalidraw>
+  );
+}
+
 /**
  * An Excalidraw-backed sketch surface: theme sync, dirty/save/export
  * orchestration with content-signature deduping, and a DOM-enhancement
  * toolkit (tooltips, simplified context menu, DOM text overrides, portal
  * polish) that makes embedding a third-party editor with no extension
- * hooks feel native. See `packages/ui/source-map.md` for what stayed
+ * hooks feel native. See `archived UI source map` for what stayed
  * behind (the source product's legacy pre-Excalidraw item migration, its
  * `.sketch.json` naming convention, and its own translated copy).
  */
-export function SketchEditor({
-  scene,
-  onSceneChange,
-  onClear,
-  onSave,
-  onExportImage,
-  onOpenExportedImage,
-  saving = false,
-  dirty = false,
-  savedAt,
-  fileName,
-  excalidrawLangCode = defaultExcalidrawLangCode,
-  domTextOverrides,
-  tooltipTargets,
-  contextMenuActionOrder,
-  contextMenuRecognizedActions,
-  embedUnavailableAdditionalPhrases,
-  mermaidInsertLabelPattern,
-  sourceFileExtension,
-  dependencies = defaultSketchEditorDependencies,
-  useSketchTheme: useSketchThemeHook = useSketchTheme,
-}: SketchEditorProps) {
-  const { t, locale } = useI18n();
-  const { engine } = dependencies;
+export function SketchEditor({ useI18nHook = useI18n, useSketchSceneHook = useSketchScene, useSketchSaveWorkflowHook = useSketchSaveWorkflow, useSketchDomEnhancementsHook = useSketchDomEnhancements, ...props }: SketchEditorProps) {
+  const { scene, fileName, onSceneChange, onClear, saving = false, dirty = false } = props;
+  const { t } = useI18nHook();
+  const { engine } = props.dependencies ?? defaultSketchEditorDependencies;
   const canvasWrapRef = useRef<HTMLDivElement | null>(null);
-  const theme = useSketchThemeHook();
-
-  const {
-    initialData,
-    editorInstanceKey,
-    handleChange,
-    currentScene,
-    handleClear,
-    handleExcalidrawAPI,
-    closeActiveDialog,
-  } = useSketchScene({ scene, fileName, onSceneChange, onClear });
+  const theme = (props.useSketchTheme ?? useSketchTheme)();
+  const sceneState = useSketchSceneHook({ scene, fileName, onSceneChange, onClear });
 
   // Calls the raw hook (not `useWiredSketchSaveWorkflow`) and threads `engine`
   // explicitly: `SketchEditor` itself accepts a swappable `dependencies` prop
   // (see `SketchEditorProps.dependencies` above) so hosts/tests can inject a
   // fake engine, and the wired hook would bypass that override.
-  const { showSaved, exporting, toast, handleSave, handleExportImage, dismissToast, handleToastAction } = useSketchSaveWorkflow({
+  const workflow = useSketchSaveWorkflowHook({
     dirty,
     saving,
-    savedAt,
+    savedAt: props.savedAt,
     fileName,
-    currentScene,
-    onSave,
-    onExportImage,
-    onOpenExportedImage,
+    currentScene: sceneState.currentScene,
+    onSave: props.onSave,
+    onExportImage: props.onExportImage,
+    onOpenExportedImage: props.onOpenExportedImage,
     engine,
     t,
-    sourceFileExtension,
+    sourceFileExtension: props.sourceFileExtension, report: props.report,
   });
 
-  useSketchDomEnhancements({
+  useSketchDomEnhancementsHook({
     containerRef: canvasWrapRef,
     t,
-    domTextOverrides,
-    tooltipTargets,
-    contextMenuActionOrder,
-    contextMenuRecognizedActions,
-    embedUnavailableAdditionalPhrases,
-    mermaidInsertLabelPattern,
-    onCloseActiveDialog: closeActiveDialog,
+    domTextOverrides: props.domTextOverrides,
+    tooltipTargets: props.tooltipTargets,
+    contextMenuActionOrder: props.contextMenuActionOrder,
+    contextMenuRecognizedActions: props.contextMenuRecognizedActions,
+    embedUnavailableAdditionalPhrases: props.embedUnavailableAdditionalPhrases,
+    mermaidInsertLabelPattern: props.mermaidInsertLabelPattern,
+    onCloseActiveDialog: sceneState.closeActiveDialog,
   });
-
-  const hasContent = sketchSceneHasContent(scene);
-  const canSave = dirty || hasContent;
-  const saveStatus = resolveSaveStatus({ saving, dirty, t });
-
-  const { Excalidraw, MainMenu } = engine;
 
   return (
     <div className="sketch-editor">
       <div ref={canvasWrapRef} className="sketch-canvas-wrap sketch-excalidraw-wrap" data-testid="sketch-excalidraw-editor">
-        <Excalidraw
-          key={editorInstanceKey}
-          initialData={initialData as unknown as ExcalidrawInitialDataState}
-          excalidrawAPI={handleExcalidrawAPI}
-          onChange={handleChange}
-          langCode={excalidrawLangCode(locale)}
+        <SketchCanvas
+          props={props}
+          engine={engine}
           theme={theme}
-          detectScroll={false}
-          handleKeyboardGlobally={false}
-          autoFocus
-          name={fileName}
-          UIOptions={EXCALIDRAW_UI_OPTIONS}
-          renderTopRightUI={() => <SketchSaveStateBadge {...saveStatus} />}
-          validateEmbeddable={validateSketchEmbeddableUrl}
-        >
-          <SketchMainMenu
-            MainMenu={MainMenu}
-            t={t}
-            saving={saving}
-            showSaved={showSaved}
-            canSave={canSave}
-            onSave={() => void handleSave()}
-            exportAvailable={Boolean(onExportImage)}
-            exporting={exporting}
-            canExport={hasContent}
-            onExportImage={() => void handleExportImage()}
-            canClear={hasContent}
-            onClear={handleClear}
-          />
-        </Excalidraw>
-      </div>
-      {toast ? (
-        <Toast
-          message={toast.message}
-          details={toast.details ?? null}
-          tone={toast.tone}
-          onDismiss={dismissToast}
-          {...sketchToastActionProps({ actionFileName: toast.actionFileName, t, onAction: handleToastAction })}
+          sceneState={sceneState}
+          workflow={workflow}
+          hasContent={sketchSceneHasContent({ scene })}
         />
-      ) : null}
+      </div>
+      <SketchSaveToast workflow={workflow} t={t} />
     </div>
   );
 }

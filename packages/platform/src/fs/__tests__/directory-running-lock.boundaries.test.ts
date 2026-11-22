@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import type { BootIdentity } from "../boot-identity.js";
+import type { BootIdentity } from "@jini-ai/core/contracts/runtime";
 import { createDirectoryRunningLock, type DirectoryRunningRecord } from "../directory-running-lock.js";
 import type { DurableJsonFile, JsonFileRead } from "../durable-json.js";
 

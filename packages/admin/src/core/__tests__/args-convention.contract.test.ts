@@ -1,7 +1,8 @@
 import { describe, expect, expectTypeOf, it, vi } from 'vitest';
+import { AdminApiError, describeApiError, hasPermission } from '@jini-ai/core/admin-runtime';
 import {
-  AdminApiError, adminHref, buildNav, createAdminClient, createHttpTransport,
-  currentRoutePath, describeApiError, hasPermission, matchRoute, resolvePanels,
+  adminHref, buildNav, createAdminClient, createHttpTransport,
+  currentRoutePath, matchRoute, resolvePanels,
 } from '../index.js';
 import type { AdminPanel, AdminCommentsPort, AdminIdentityPort, AdminTransport } from '../index.js';
 

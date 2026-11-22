@@ -6,30 +6,12 @@
  * session (which acp/__tests__/session.test.ts already covers end-to-end).
  */
 import { describe, expect, it, vi } from 'vitest';
-import {
-  createAcpSessionState,
-  handleRpcError,
-  tryPromoteAmrRetryStatus,
-  handleThoughtChunkUpdate,
-  stripToolCallText,
-  shouldPreserveIncrementalProse,
-  isPlainIncrementalDelta,
-  applyDsmlArtifactSuppression,
-  handleMessageChunkUpdate,
-  mirrorArtifactWriteToolEvent,
-  updateDsmlSuppressorForToolCall,
-  handleToolCallUpdate,
-  handleSessionUpdate,
-  handleInitializeAck,
-  triggerSetModelIfNeeded,
-  handleSessionNewAck,
-  handlePromptResult,
-  isModelSetAckExpected,
-  handleModelSetAck,
-  routeResultById,
-  type AcpSessionState,
-  type AcpSessionEffects,
-} from '../session.js';
+import { createAcpSessionState } from '../session-state.js';
+import { handleRpcError, handleInitializeAck, triggerSetModelIfNeeded, handleSessionNewAck, handlePromptResult, isModelSetAckExpected, handleModelSetAck, routeResultById } from '../session-results.js';
+import { tryPromoteAmrRetryStatus, handleSessionUpdate } from '../session.js';
+import { handleThoughtChunkUpdate, stripToolCallText, shouldPreserveIncrementalProse, isPlainIncrementalDelta, applyDsmlArtifactSuppression, handleMessageChunkUpdate } from '../session-text-updates.js';
+import { mirrorArtifactWriteToolEvent, updateDsmlSuppressorForToolCall, handleToolCallUpdate } from '../session-tool-updates.js';
+import { type AcpSessionState, type AcpSessionEffects } from '../session-types.js';
 import { createDsmlArtifactTextSuppressor, createToolCallTextSuppressor } from '../text-suppression.js';
 import { noopAccountFailureClassifier, type AccountFailureClassifier } from '../account-failure.js';
 import type { UnknownRecord } from '../types.js';
@@ -581,7 +563,7 @@ describe('handleInitializeAck', () => {
   it('sends session/load with the resume session id when resuming', () => {
     const state = createAcpSessionState();
     const effects = fakeEffects({ resumeSessionId: 'sess-old', effectiveCwd: '/work' });
-    handleInitializeAck({ state, effects });
+    handleInitializeAck({ state, effects, result: { agentCapabilities: { loadSession: true } } });
     expect(effects.writeRpc).toHaveBeenCalledWith(2, 'session/load', { sessionId: 'sess-old', cwd: '/work', mcpServers: [] }, 'session/load');
     expect(state.expectedId).toBe(2);
     expect(state.nextId).toBe(3);
@@ -590,7 +572,7 @@ describe('handleInitializeAck', () => {
   it('sends session/new with mcpServers forwarded when no resume id is set', () => {
     const state = createAcpSessionState();
     const effects = fakeEffects({ mcpServers: [{ name: 'fs', command: 'x' }] as never });
-    handleInitializeAck({ state, effects });
+    handleInitializeAck({ state, effects, result: {} });
     expect(effects.writeRpc).toHaveBeenCalledWith(2, 'session/new', expect.anything(), 'session/new');
   });
 });

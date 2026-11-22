@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/platform",
-  "version": "0.7.2",
+  "version": "0.7.3-next.2",
   "description": "Generic OS/platform primitives: process exec and lifecycle, filesystem containment, HTTP readiness polling, toolchain discovery, blob storage, AWS signing, and an SSRF-safe asset cache.",
   "license": "Apache-2.0",
   "repository": {
@@ -18,21 +18,25 @@
       "./asset-cache": "node",
       "./secrets": "node",
       "./secrets/credential-sets": "node",
+      "./secrets/root-key": "node",
       "./secrets/credential-sets/contracts": "universal",
       "./secrets/testing": "node",
       "./http/guarded": "node",
       "./http/multipart": "node",
       "./mail": "node",
       "./mail/senders": "universal",
+      "./system": "universal",
+      "./mail/email-template": "node",
+      "./mail/email-template-operations": "node",
       "./mail/smtp": "node",
       "./fs/guarded-reader": "node",
       "./fs/durable-json": "node",
       "./fs": "node",
       "./object-store": "node",
       "./net": "node",
-      "./net/endpoint-policy": "universal",
       "./fs/file-lock": "node",
       "./secrets/credential-token": "universal",
+      "./secrets/legacy-owner": "node",
       "./web": "node",
       "./command": "node",
       "./process": "node",
@@ -51,8 +55,10 @@
         "./child-environment": "os"
       },
       "shared": [
+        "src/web/html-document.ts",
+        "src/web/first-distinct.ts",
+        "src/system.ts",
         "src/net/address.ts",
-        "src/net/endpoint-policy.ts",
         "src/fetch-with-timeout.ts",
         "src/http/guarded/errors.ts"
       ]
@@ -62,7 +68,7 @@
       "hast-util-to-mdast": "opt-in: html to markdown conversion; import @jini-ai/platform/web — HTML to Markdown conversion could not load hast-util-to-mdast. Install hast-util-to-mdast to enable this feature, or check its installed version and native binaries.",
       "mdast-util-to-markdown": "opt-in: html to markdown conversion; import @jini-ai/platform/web — HTML to Markdown conversion could not load mdast-util-to-markdown. Install mdast-util-to-markdown to enable this feature, or check its installed version and native binaries.",
       "mdast-util-gfm-table": "opt-in: markdown table conversion; import @jini-ai/platform/web — Markdown table conversion could not load mdast-util-gfm-table. Install mdast-util-gfm-table to enable this feature, or check its installed version and native binaries.",
-      "parse5": "opt-in: html parsing; import @jini-ai/platform/web — HTML parsing could not load parse5. Install parse5 to enable this feature, or check its installed version and native binaries."
+      "parse5": "opt-in: html parsing; import @jini-ai/platform/web, @jini-ai/platform/mail/email-template or @jini-ai/platform/mail/email-template-operations — HTML parsing could not load parse5. Install parse5 to enable this feature, or check its installed version and native binaries."
     }
   },
   "type": "module",
@@ -95,6 +101,11 @@
       "import": "./dist/secrets/credential-sets/index.js",
       "default": "./dist/secrets/credential-sets/index.js"
     },
+    "./secrets/root-key": {
+      "types": "./dist/secrets/root-key/decide.d.ts",
+      "import": "./dist/secrets/root-key/decide.js",
+      "default": "./dist/secrets/root-key/decide.js"
+    },
     "./secrets/credential-sets/contracts": {
       "types": "./dist/secrets/credential-sets/contracts.d.ts",
       "import": "./dist/secrets/credential-sets/contracts.js",
@@ -120,10 +131,25 @@
       "import": "./dist/mail/index.js",
       "default": "./dist/mail/index.js"
     },
+    "./system": {
+      "types": "./dist/system.d.ts",
+      "import": "./dist/system.js",
+      "default": "./dist/system.js"
+    },
     "./mail/senders": {
       "types": "./dist/mail/senders.d.ts",
       "import": "./dist/mail/senders.js",
       "default": "./dist/mail/senders.js"
+    },
+    "./mail/email-template": {
+      "types": "./dist/mail/email-template.d.ts",
+      "import": "./dist/mail/email-template.js",
+      "default": "./dist/mail/email-template.js"
+    },
+    "./mail/email-template-operations": {
+      "types": "./dist/mail/email-template-operations.d.ts",
+      "import": "./dist/mail/email-template-operations.js",
+      "default": "./dist/mail/email-template-operations.js"
     },
     "./mail/smtp": {
       "types": "./dist/mail/smtp.d.ts",
@@ -155,11 +181,6 @@
       "import": "./dist/net/index.js",
       "default": "./dist/net/index.js"
     },
-    "./net/endpoint-policy": {
-      "types": "./dist/net/endpoint-policy.d.ts",
-      "import": "./dist/net/endpoint-policy.js",
-      "default": "./dist/net/endpoint-policy.js"
-    },
     "./fs/file-lock": {
       "types": "./dist/fs/file-lock.d.ts",
       "import": "./dist/fs/file-lock.js",
@@ -169,6 +190,11 @@
       "types": "./dist/secrets/credential-token.d.ts",
       "import": "./dist/secrets/credential-token.js",
       "default": "./dist/secrets/credential-token.js"
+    },
+    "./secrets/legacy-owner": {
+      "types": "./dist/secrets/legacy-owner.d.ts",
+      "import": "./dist/secrets/legacy-owner.js",
+      "default": "./dist/secrets/legacy-owner.js"
     },
     "./web": {
       "types": "./dist/web/index.d.ts",
@@ -219,8 +245,8 @@
     "!dist/**/*.map"
   ],
   "dependencies": {
-    "@jini-ai/core": "^0.7.2",
-    "undici": "^7.25.0"
+    "@jini-ai/core": "workspace:^",
+    "undici": "^7.30.1"
   },
   "publishConfig": {
     "access": "public",
@@ -234,8 +260,8 @@
     "test:properties": "vitest run src/net/__tests__/unit/address.property.unit.test.ts"
   },
   "devDependencies": {
-    "@vitest/coverage-v8": "^2.1.9",
-    "undici": "^7.25.0",
+    "@vitest/coverage-v8": "^3.2.6",
+    "undici": "^7.30.1",
     "hast-util-from-parse5": "8.0.3",
     "hast-util-to-mdast": "10.1.2",
     "mdast-util-to-markdown": "2.1.2",

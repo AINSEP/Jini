@@ -1,5 +1,7 @@
 # `@jini-ai/ui` — generic, product-neutral UI primitives
 
+`@jini-ai/ui/browser` exports browser interaction hooks, including IME-safe outside/Escape dismissal with opt-in capture and menu keyboard navigation with injectable document focus.
+
 `@jini-ai/ui/mcp-ui/secret-card` exports the framework-free `defineSecretCardTool` lifecycle.
 Provide a spec with `prepare`, `form`, `save`, `outcome` and `result`, then register
 `tool.handler({ surfaceExchanges, askThenReport })`; both dependencies come from
@@ -373,31 +375,13 @@ the archived provenance ledger for full per-section provenance:
   the archived provenance ledger for the full writeup, including what was
   deliberately left behind (the OD-specific color-selection heuristic that
   consumes the math, not the math itself).
-- `src/features/lexical-rich-text-editor/` (renamed from `rich-text-input/`,
-  2026-07-26 — the feature is Lexical specifically, not a general rich-text
-  input, so the old name promised an engine-neutrality its Lexical-shaped API
-  never had; see the archived provenance ledger's dated rename entry) — a real Lexical (Meta's
-  rich-text framework) editor integration ported from OD's chat composer
-  (2026-07-18): editor setup/config, an atomic `@mention`/`/command`
-  token node type (generic, host-injected `resolveMentionColor` instead of
-  importing OD's connector-brand-color logic), a caret-floating-layer
-  positioning hook/component, and serialize/deserialize between the
-  editor's document model and a plain `@token` string. Named by three
-  prior tasks (`mention-autocomplete`'s own "3-way overlap" note among
-  them) as this exact destination. See the archived provenance ledger,
-  including four dead branches found and refactored away during the
-  coverage-driven-refactor loop (a `mention-parser.ts` merge pass, a
-  `rules.ts` selection catch-all, a `useSeededValue` StrictMode guard, and
-  two `$isRangeSelection`/`$isMentionNode` re-checks) — all four provably
-  unreachable given Lexical's own selection/point invariants, not padded
-  with contrived tests.
 
 Section B (vertical-slice `features/<domain>/` work: `byok-config`,
 `mcp-config`) and section C (cross-package routing) of the extraction plan
 are not started. `workspace-tabs` (renamed `tab-strip`, see the
-Consolidation map's naming-reconciliation note) and `rich-text-input`
-(renamed `lexical-rich-text-editor`, 2026-07-26) are now landed, per above —
-no longer in this "not started" list. The god-components-extraction-plan.md
+Consolidation map's naming-reconciliation note) is now landed, per above, and
+`rich-text-input` (later `lexical-rich-text-editor`) was landed, then deleted
+2026-11 as unused — neither is in this "not started" list. The god-components-extraction-plan.md
 list beyond the features enumerated above is also not started.
 
 ## Integrated widgets and panel APIs
@@ -474,7 +458,7 @@ extraction job at the owner's direction.
 Import `FetchQueryCache` and neutral query contracts from `@jini-ai/core/fetch`.
 The existing UI fetch-query entries retain deprecated type re-exports for compatibility.
 Fetch-query caches accept the shared `Clock` from `@jini-ai/core/primitives` through
-`new FetchQueryCache({}, { clock })`; clocks implement `nowMs()`. Freshness remains ten seconds
+`new FetchQueryCache({ clock, scheduler })` (both required in core; the provider here defaults them to browser adapters in `browser-timing.ts`); clocks implement `nowMs()`. Freshness remains ten seconds
 by default and idle retention five minutes. Browser HTTP defaults now use injected
 native fetch ports and have no platform imports.
 
@@ -538,3 +522,12 @@ automatically. `refetch()` retries a failed read explicitly. Set
 `staleTime: 0` when every focus should revalidate. The optional `environment` port
 controls offline pausing and reconnect/focus events independently per provider.
 Keep the selected adapter fixed for a provider's lifetime; remount to switch it.
+
+## Component kit (`@jini-ai/ui/react-kit`)
+
+Selects and secret inputs render through a host-supplied `UiKit` (`components.SecretInput`,
+`hooks.useOverlayContainer`, `hooks.useSecretReveal`). Mount `<UiKitProvider kit={kit}>` once at each
+React root; without it these components throw a message naming the missing provider.
+
+Tests of ui and of packages whose screens render under it import `fakeUiKit`, an in-memory `UiKit`, from
+`@jini-ai/ui/react/testing` (test-only; never import it from production code).

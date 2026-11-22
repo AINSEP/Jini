@@ -1,4 +1,10 @@
-import type { AdminThemeDocument, AdminThemeTarget, ColorScheme, ColorSchemePreference, MatchMediaPort } from '@jini-ai/ui/theme';
+import type {
+  AdminThemeDocument,
+  AdminThemeTarget,
+  ColorScheme,
+  ColorSchemePreference,
+  MatchMediaPort,
+} from '../kit.js';
 
 /** The host chooses storage and keys. Preferences are always scoped to a user and workspace. */
 export interface AdminThemePreferenceStorePort {

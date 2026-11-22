@@ -3,6 +3,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { CommandPalette } from './CommandPalette.js';
 import type { CommandPaletteItem, CommandPaletteResult } from '../../types.js';
+import { I18nProvider, type useT } from '../../../i18n/index.js';
 
 Element.prototype.scrollIntoView = vi.fn();
 
@@ -10,6 +11,9 @@ const SAMPLE_ITEMS: CommandPaletteItem[] = [
   { id: '1', name: 'File A', kind: 'file' },
   { id: '2', name: 'File B', kind: 'file' },
 ];
+
+/** A translator that is visibly not the key, so the assertion proves the injected hook ran. */
+const useQuotingT: typeof useT = () => (key) => `«${key}»`;
 
 describe('CommandPalette 4-pattern hook override test suite', () => {
   it('Pattern 1 — State 1: Empty results state via hook override', () => {
@@ -116,5 +120,19 @@ describe('CommandPalette 4-pattern hook override test suite', () => {
 
     fireEvent.change(input, { target: { value: 'File A' } });
     expect(screen.getByText('File A')).toBeInTheDocument();
+  });
+
+  it('renders the translator supplied through useTHook', () => {
+    render(<CommandPalette items={SAMPLE_ITEMS} onSelect={vi.fn()} onClose={vi.fn()} useTHook={useQuotingT} />);
+    expect(screen.getByPlaceholderText('«Search…»')).toBeInTheDocument();
+  });
+
+  it('renders the translated placeholder from the real provider, not the key', () => {
+    render(
+      <I18nProvider dictionaries={{ fr: { 'Search…': 'Rechercher…' } }} initialLocale="fr">
+        <CommandPalette items={SAMPLE_ITEMS} onSelect={vi.fn()} onClose={vi.fn()} />
+      </I18nProvider>,
+    );
+    expect(screen.getByPlaceholderText('Rechercher…')).toBeInTheDocument();
   });
 });

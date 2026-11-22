@@ -1,7 +1,7 @@
 /**
  * Generic "a run/job in progress" domain shape — a progress bar + status icon
  * + step list, the pattern independently reimplemented twice against two
- * different source shapes. See `packages/ui/archived provenance ledger` for provenance.
+ * different source shapes. See `archived UI provenance ledger` for provenance.
  * Deliberately maps close to Jini's own Run/Agent/Tool vocabulary rather than
  * either source's own naming.
  */

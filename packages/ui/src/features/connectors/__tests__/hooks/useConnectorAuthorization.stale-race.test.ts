@@ -40,7 +40,12 @@ describe('useConnectorAuthorization stale sweep against live state', () => {
     const { bridge, fireRefocus } = makeRefocusBridge();
     const { result } = renderHook(() => {
       const [connectors, setConnectors] = useState<Connector[]>([makeConnector(), github]);
-      return { connectors, auth: useConnectorAuthorization(port, storage, bridge, { connectors, setConnectors }) };
+      return { connectors, auth: useConnectorAuthorization({
+        port,
+        authPendingStorage: storage,
+        authBridge: bridge,
+        params: { connectors, setConnectors },
+      }) };
     });
 
     vi.setSystemTime(Date.now() + 30);
@@ -66,7 +71,12 @@ describe('useConnectorAuthorization stale sweep against live state', () => {
     const { bridge, fireRefocus } = makeRefocusBridge();
     const { result } = renderHook(() => {
       const [connectors, setConnectors] = useState<Connector[]>([makeConnector()]);
-      return useConnectorAuthorization(port, storage, bridge, { connectors, setConnectors });
+      return useConnectorAuthorization({
+        port,
+        authPendingStorage: storage,
+        authBridge: bridge,
+        params: { connectors, setConnectors },
+      });
     });
 
     vi.setSystemTime(Date.now() + 30);

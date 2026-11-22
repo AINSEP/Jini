@@ -1,11 +1,10 @@
-import { sql } from "kysely";
-import type { MigrationStep } from "@jini-ai/db/migrate";
-import type { StorageKernel } from "@jini-ai/db/kernel";
+import { sql, type Kysely } from "kysely";
+import type { MigrationStep, StorageKernel } from "@jini-ai/core/contracts/storage";
 
-/** ADR-066: durable, credential-free intent replay state; historical rows stay ineligible. */
+/** Durable, credential-free intent replay state; historical rows stay ineligible. */
 export const PAYMENTS_INTENT_REPLAY_ID = "0005_payments_intent_replay";
 
-async function up(kernel: StorageKernel<unknown>): Promise<void> {
+async function up(kernel: StorageKernel<Kysely<unknown>, unknown>): Promise<void> {
   await kernel.run(db => db.schema.alterTable("commerce_payment_attempts").addColumn("dispatch_json", "text").execute());
   await kernel.run(db => db.schema.alterTable("commerce_payment_attempts")
     .addColumn("recovery_attempts", "bigint", column => column.notNull().defaultTo(0).check(sql`recovery_attempts >= 0`)).execute());
@@ -13,6 +12,6 @@ async function up(kernel: StorageKernel<unknown>): Promise<void> {
 }
 
 /** Adds only the recovery fields missing from existing attempts. */
-export function paymentsIntentReplay(required: { checksum: string }, _optional: Record<string, never> = {}): MigrationStep {
+export function paymentsIntentReplay(required: { checksum: string }, _optional: Record<string, never> = {}): MigrationStep<StorageKernel<Kysely<unknown>, unknown>> {
   return { id: PAYMENTS_INTENT_REPLAY_ID, checksum: required.checksum, up };
 }

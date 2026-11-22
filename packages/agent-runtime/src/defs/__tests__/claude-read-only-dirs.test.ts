@@ -28,15 +28,19 @@ describe('validateReadOnlyExtraDirs', () => {
     const { base, home, site } = fixture();
     mkdirSync(join(site, 'inner'));
     for (const dir of ['/', home, join(base, 'users'), base, join(base, 'sites'), site, join(site, 'inner')]) {
-      expect(() => validateReadOnlyExtraDirs({ filesystemRoot: site, dirs: [dir] }, { homeDir: home }), dir).toThrow();
+      expect(() => validateReadOnlyExtraDirs({ filesystemRoot: site, dirs: [dir] }, { homeDir: home }), dir).toThrow('Read-only directory must not contain home or the site, nor lie inside the site');
     }
   });
 
   it('refuses relative, missing and non-directory paths', () => {
     const { home, site, picked } = fixture();
     writeFileSync(join(picked, 'file.txt'), 'x');
-    for (const dir of ['Desktop/Picked Folder', join(home, 'missing'), join(picked, 'file.txt')]) {
-      expect(() => validateReadOnlyExtraDirs({ filesystemRoot: site, dirs: [dir] }, { homeDir: home }), dir).toThrow();
+    for (const [dir, message] of [
+      ['Desktop/Picked Folder', 'Read-only directory must be absolute'],
+      [join(home, 'missing'), `ENOENT: no such file or directory, lstat '${join(home, 'missing')}'`],
+      [join(picked, 'file.txt'), 'Read-only directory must be a directory'],
+    ] as const) {
+      expect(() => validateReadOnlyExtraDirs({ filesystemRoot: site, dirs: [dir] }, { homeDir: home }), dir).toThrow(message);
     }
   });
 
@@ -85,6 +89,6 @@ describe('Claude read-only settings for the picked folder', () => {
     const { base, site } = fixture();
     expect(() => claudeAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, {
       options: { filesystemRoot: site, filesystemReadOnlyDirs: [join(base, 'sites')] }, runtimeContext: { cwd: site },
-    })).toThrow();
+    })).toThrow('Read-only directory must not contain home or the site, nor lie inside the site');
   });
 });

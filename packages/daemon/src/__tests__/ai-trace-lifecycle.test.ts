@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createRecordingAiTraceSink } from '@jini-ai/agent-runtime';
+import { createRecordingAiTraceSink } from '@jini-ai/core/contracts/ai-trace';
 import { createInMemoryEventLog } from '../event-log.js';
 import { createRunLifecycle } from '../run-lifecycle.js';
 import { withAiTracing } from '../ai-trace-lifecycle.js';

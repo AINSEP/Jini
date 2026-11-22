@@ -1,5 +1,5 @@
 import type { IdGenerator } from "@jini-ai/core/primitives";
-import type { Clock } from "@jini-ai/core/primitives";
+import type { Clock, Result } from "@jini-ai/core/primitives";
 /**
  * @file Content-types' half of the agent-tool authorization wiring: maps `agent-tools.ts`'s catalog entries onto the
  * `write-service.ts`/`lifecycle.ts` functions the admin HTTP routes call, as `ToolRegistration`s.
@@ -17,9 +17,9 @@ import type { Clock } from "@jini-ai/core/primitives";
  * `ToolPolicy.authorize` is a pass-through for every entry here (see `buildDomainRegistrations`).
  * For the five mutations, that is the "one evaluator" rule: each domain entrypoint —
  * `registerContentType`, `updateContentTypeFields` (`write-service.ts`), `deprecateContentType`,
- * `reactivateContentType`, `tombstoneContentType` (`lifecycle.ts`) — opens with an
- * `await deps.authorize({ permission: 'admin.collections.manage', ... })` that returns
- * `ForbiddenError` before any repo read, repo write, or index-provisioner call, and
+ * `reactivateContentType`, `tombstoneContentType` (`lifecycle.ts`) — first calls the shared
+ * `admin.collections.manage` authorization helper, which returns `ForbiddenError` before any
+ * repo read, repo write, or index-provisioner call, and
  * `admin.collections.manage` is exactly what each of their five catalog entries declares under
  * `authorization.permission`. `assistant/__tests__/tool-registrations.authorization.test.ts` drives
  * all five through a denying `authorize` and asserts each refuses and writes nothing, deriving its
@@ -27,19 +27,18 @@ import type { Clock } from "@jini-ai/core/primitives";
  * self-enforce fails rather than silently inheriting the pass-through.
  *
  * `collections_content_type_list` is the exception: `listContentTypes` (`list.ts`) is a pure
- * pass-through read with no `authorize()` call of its own — exactly like `routes/admin/content-
- * types/list.ts`, which checks `admin.collections.read` in the route BEFORE calling it. Its handler
+ * pass-through read with no `authorize()` call of its own — exactly like the host app's `src/server/inbound/admin-http/routes/content-types/list.ts`,
+ * which checks `admin.collections.read` in the route BEFORE calling it. Its handler
  * below does the identical explicit `requireToolPermission` check, in the route's place, the same
  * pattern `comments/tool-registrations.ts` uses for `comments_list_moderation_queue`.
  */
-import type { AuthorizeFn } from "../core/commands/command.js";
-import type { OutboxPort } from "../core/ports.js";
+import type { AuthorizeFn, OutboxPort } from "@jini-ai/core/contracts/events";
 import { AGENT_TOOL_PRINCIPAL_KIND, buildDomainRegistrations, decorateWithSchema, fromResult, indexCatalogById, requireInputRecord, requireNoInput, requireNumber, requireString, type AgentToolSideEffect, type DerivedRiskByToolId, type ToolHandler, type ToolRegistration } from "@jini-ai/core";
 import { adaptLegacyAuthorize, requireToolPermission } from "../core/tools/index.js";
 import { contentTypesAgentToolCatalog } from "./agent-tools.js";
 import { parseContentTypeFieldDefs } from "./field-defs.js";
 import { listContentTypes, type ContentTypeListPort } from "./list.js";
-import { deprecateContentType, reactivateContentType, tombstoneContentType, type TeardownIndexProvisionerPort } from "./lifecycle.js";
+import { deprecateContentType, reactivateContentType, tombstoneContentType, type LifecycleTransitionInput, type TeardownIndexProvisionerPort } from "./lifecycle.js";
 import { toContentTypeOutbox } from "./repo.memory.js";
 import type { ContentTypeFieldDef, ContentTypeRecord } from "./types.js";
 import { registerContentType, updateContentTypeFields, type ContentTypeRepoPort, type IndexProvisionerPort } from "./write-service.js";
@@ -68,14 +67,14 @@ export interface ContentTypesToolDeps {
 }
 
 /** Descriptors for the 2 cleanup tools this pass does not wire — see file header. */
-const UNWIRED_CONTENT_TYPES_TOOL_IDS = new Set(["collections_plan_cleanup", "collections_execute_cleanup"]);
+const UNWIRED_CONTENT_TYPES_TOOL_IDS: ReadonlySet<string> = new Set(["collections_plan_cleanup", "collections_execute_cleanup"]);
 
 /**
  * This wiring layer's OWN risk classification, authored from what each handler below actually
  * calls — deliberately a second, independent source rather than a read of the catalog's own
  * `sideEffects` field. See `DerivedRiskByToolId` in the kit for why that independence matters.
  */
-export const contentTypesDerivedRisk: DerivedRiskByToolId = new Map<string, AgentToolSideEffect>([
+export const contentTypesDerivedRisk: ReadonlyMap<string, AgentToolSideEffect> = new Map<string, AgentToolSideEffect>([
   // -> listContentTypes (list.ts): one repo.listByWorkspace read, no write of any kind.
   ["collections_content_type_list", "none"],
   // -> registerContentType (write-service.ts): repo.save + appendRevision in one tx.
@@ -171,15 +170,26 @@ function contentTypesDeps(routeDeps: ContentTypesToolDeps) {
   };
 }
 
-export function buildContentTypesRegistrations(routeDeps: ContentTypesToolDeps): ToolRegistration[] {
-  const handlers: Record<string, ToolHandler> = {
-    collections_content_type_list: async (ctx) => {
-      requireNoInput({ input: ctx.input });
-      await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }), workspaceId: routeDeps.workspaceId, principalId: ctx.principal.id, permission: "admin.collections.read" }, { entityType: "content-type" });
-      const { items } = await listContentTypes({ repo: routeDeps.contentTypeRepo, workspaceId: routeDeps.workspaceId });
-      return { contentTypes: items.map(toContentTypeView) };
-    },
-    collections_content_type_define: async (ctx) => {
+/** Builds the common tool handler for a content-type lifecycle transition. */
+function contentTypeLifecycleHandler(
+  { routeDeps, transition }: { routeDeps: ContentTypesToolDeps; transition: (required: { deps: ReturnType<typeof contentTypesDeps>; input: LifecycleTransitionInput }) => Promise<Result<{ contentType: ContentTypeRecord }, Error>> },
+  _optional: Record<string, never> = {},
+): ToolHandler {
+  return async (ctx) => {
+    const input = requireInputRecord({ input: ctx.input });
+    return fromContentTypeResult(() => transition({
+      deps: contentTypesDeps(routeDeps),
+      input: {
+        actorId: ctx.principal.id, principalKind: AGENT_TOOL_PRINCIPAL_KIND,
+        workspaceId: routeDeps.workspaceId, key: requireString({ input, key: "key" }),
+        expectedVersion: requireNumber({ input, key: "expectedVersion" }),
+      },
+    }));
+  };
+}
+
+function createContentTypeDefinitionHandler(routeDeps: ContentTypesToolDeps): ToolHandler {
+  return async (ctx) => {
       const input = requireInputRecord({ input: ctx.input });
       return fromContentTypeResult(() =>
         registerContentType({
@@ -194,7 +204,18 @@ export function buildContentTypesRegistrations(routeDeps: ContentTypesToolDeps):
           },
         }),
       );
+    };
+}
+
+export function buildContentTypesRegistrations(routeDeps: ContentTypesToolDeps): ToolRegistration[] {
+  const handlers: Record<string, ToolHandler> = {
+    collections_content_type_list: async (ctx) => {
+      requireNoInput({ input: ctx.input });
+      await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }), workspaceId: routeDeps.workspaceId, principalId: ctx.principal.id, permission: "admin.collections.read" }, { entityType: "content-type" });
+      const { items } = await listContentTypes({ repo: routeDeps.contentTypeRepo, workspaceId: routeDeps.workspaceId });
+      return { contentTypes: items.map(toContentTypeView) };
     },
+    collections_content_type_define: createContentTypeDefinitionHandler(routeDeps),
     collections_content_type_update_fields: async (ctx) => {
       const input = requireInputRecord({ input: ctx.input });
       return fromContentTypeResult(() =>
@@ -208,54 +229,12 @@ export function buildContentTypesRegistrations(routeDeps: ContentTypesToolDeps):
             fields: requireFields(input, "collections_content_type_update_fields"),
             expectedVersion: requireNumber({ input, key: "expectedVersion" }),
           },
-        }),
+        }, { signal: ctx.signal }),
       );
     },
-    collections_content_type_deprecate: async (ctx) => {
-      const input = requireInputRecord({ input: ctx.input });
-      return fromContentTypeResult(() =>
-        deprecateContentType({
-          deps: contentTypesDeps(routeDeps),
-          input: {
-            actorId: ctx.principal.id,
-            principalKind: AGENT_TOOL_PRINCIPAL_KIND,
-            workspaceId: routeDeps.workspaceId,
-            key: requireString({ input, key: "key" }),
-            expectedVersion: requireNumber({ input, key: "expectedVersion" }),
-          },
-        }),
-      );
-    },
-    collections_content_type_reactivate: async (ctx) => {
-      const input = requireInputRecord({ input: ctx.input });
-      return fromContentTypeResult(() =>
-        reactivateContentType({
-          deps: contentTypesDeps(routeDeps),
-          input: {
-            actorId: ctx.principal.id,
-            principalKind: AGENT_TOOL_PRINCIPAL_KIND,
-            workspaceId: routeDeps.workspaceId,
-            key: requireString({ input, key: "key" }),
-            expectedVersion: requireNumber({ input, key: "expectedVersion" }),
-          },
-        }),
-      );
-    },
-    collections_content_type_tombstone: async (ctx) => {
-      const input = requireInputRecord({ input: ctx.input });
-      return fromContentTypeResult(() =>
-        tombstoneContentType({
-          deps: contentTypesDeps(routeDeps),
-          input: {
-            actorId: ctx.principal.id,
-            principalKind: AGENT_TOOL_PRINCIPAL_KIND,
-            workspaceId: routeDeps.workspaceId,
-            key: requireString({ input, key: "key" }),
-            expectedVersion: requireNumber({ input, key: "expectedVersion" }),
-          },
-        }),
-      );
-    },
+    collections_content_type_deprecate: contentTypeLifecycleHandler({ routeDeps, transition: deprecateContentType }),
+    collections_content_type_reactivate: contentTypeLifecycleHandler({ routeDeps, transition: reactivateContentType }),
+    collections_content_type_tombstone: contentTypeLifecycleHandler({ routeDeps, transition: tombstoneContentType }),
   };
 
   return buildDomainRegistrations({

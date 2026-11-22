@@ -1,9 +1,8 @@
 import type { RowMenuItem } from "../react/components/RowMenu/RowMenu.js";
-import { AdminApiError as ApiError, describeApiError as describeCoreApiError } from "../core/transport/errors.js";
+import { AdminApiError as ApiError, describeApiError as describeCoreApiError } from '@jini-ai/core/admin-runtime';
 import type { AdminFormDefinition, AdminFormField } from "./models.js";
 const describeApiError = (e: unknown, fallback: string) => describeCoreApiError({ e, fallback });
-import type { QueryKey } from "@jini-ai/ui/fetch-query";
-import { FIELD_TYPE_REGISTRY, type FieldType } from "@jini-ai/cms/forms";
+import type { QueryKey } from "@jini-ai/core/fetch";
 
 /**
  * @file Pure logic for the `forms` feature (`FormEditor.tsx` — see `FormsList.tsx`'s own
@@ -103,13 +102,13 @@ export function formDatesLines(
   const updated = formDateDisplay({ iso: form.updatedAt, locale }, options);
   if (created.text === updated.text) {
     const label = t("Created {created} · Updated {updated}")
-      .replace("{created}", created.full)
-      .replace("{updated}", updated.full);
+      .replace("{created}", () => created.full)
+      .replace("{updated}", () => updated.full);
     return [{ kind: "both", text: created.text, dateTime: created.dateTime, label }];
   }
   return [
-    { kind: "created", text: created.text, dateTime: created.dateTime, label: t("Created {date}").replace("{date}", created.full) },
-    { kind: "updated", text: updated.text, dateTime: updated.dateTime, label: t("Updated {date}").replace("{date}", updated.full) },
+    { kind: "created", text: created.text, dateTime: created.dateTime, label: t("Created {date}").replace("{date}", () => created.full) },
+    { kind: "updated", text: updated.text, dateTime: updated.dateTime, label: t("Updated {date}").replace("{date}", () => updated.full) },
   ];
 }
 
@@ -261,9 +260,6 @@ export function formRowMenuItems({ form, handlers, t }: { form: AdminFormDefinit
   ];
 }
 
-/** Every registered field type, in registry order; the picker groups them via `field-settings.ts`. */
-export const FIELD_TYPES = Object.keys(FIELD_TYPE_REGISTRY) as FieldType[];
-
 /** The two tab-panel views on an existing form's editor (`formId !== "new"`). */
 export const FORM_TABS = [
   { id: "fields", label: "Fields" },
@@ -359,16 +355,8 @@ export const ATTRIBUTE_NAME_SUGGESTIONS = [
   "readonly",
 ];
 
-/** Local-only row key for the modal's attribute list, so React can key a row before it has a
- *  stable identity — same `_rowId`/module-counter pattern `collections/rules.ts`'s
- *  `EditFieldsDialog` support uses for its own draft field rows. */
-let nextAttrRowId = 0;
-function takeAttrRowId(): number {
-  const id = nextAttrRowId;
-  nextAttrRowId += 1;
-  return id;
-}
-
+/** Local-only row keys let React identify draft attributes before they have stable identity.
+ * Controllers own monotonic allocation so deleting a row never reuses its key. */
 export interface AttrRow {
   _rowId: number;
   name: string;
@@ -376,7 +364,7 @@ export interface AttrRow {
 }
 
 export function attrRowsFromField({ field }: { field: AdminFormField }, _optional: Record<string, never> = {}): AttrRow[] {
-  return Object.entries(field.attributes ?? {}).map(([name, value]) => ({ _rowId: takeAttrRowId(), name, value }));
+  return Object.entries(field.attributes ?? {}).map(([name, value], index) => ({ _rowId: index, name, value }));
 }
 
 /** @complexity O(n) in `rows.length`. */
@@ -390,8 +378,8 @@ export function removeAttrRow({ rows, rowId }: { rows: AttrRow[]; rowId: number 
 }
 
 /** @complexity O(n) in `rows.length`. */
-export function addAttrRow({ rows }: { rows: AttrRow[] }, _optional: Record<string, never> = {}): AttrRow[] {
-  return [...rows, { _rowId: takeAttrRowId(), name: "", value: "" }];
+export function addAttrRow({ rows, rowId = Math.max(-1, ...rows.map(row => row._rowId)) + 1 }: { rows: AttrRow[]; rowId?: number }, _optional: Record<string, never> = {}): AttrRow[] {
+  return [...rows, { _rowId: rowId, name: "", value: "" }];
 }
 
 export type FieldAttributesSubmitResult = { ok: true; patch: Partial<AdminFormField> } | { ok: false; error: string };

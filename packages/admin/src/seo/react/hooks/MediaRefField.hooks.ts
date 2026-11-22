@@ -1,11 +1,11 @@
 import { useRef } from 'react';
 import { useShareImageWarning } from './use-share-image-warning.hooks.js';
-import { agentHandle } from '@jini-ai/agentic';
-import { useController } from '../../../core/react/use-controller.js';
+import { agentHandle } from '@jini-ai/core/agent-handles';
+import { useSeoController } from './SeoPorts.hooks.js';
 import { createMediaRefController } from '../../controllers/media-ref.controller.js';
 import { describeMediaRef, isStoredMediaRef, resolveMediaRefPreviewUrl } from '../../rules.js';
-import { useFetchQuery } from '@jini-ai/ui/fetch-query';
-import { extensionForMimeType } from '@jini-ai/ui';
+import { useFetchQuery } from '../../../react/kit.js';
+import { extensionForMimeType } from '@jini-ai/core/text';
 import { SEO_KEYS } from './SeoQuery.hooks.js';
 import type { MediaRefFieldController, SeoTranslator } from '../../models.js';
 import type { AdminSeoPort } from '../../ports.js';
@@ -16,7 +16,7 @@ export function useMediaRefField(
 ): MediaRefFieldController {
   const change = useRef(onChange);
   change.current = onChange;
-  const { controller, snapshot } = useController({ create: () => createMediaRefController({ onChange: value => change.current(value) }), dependencies: [] });
+  const { controller, snapshot } = useSeoController({ create: () => createMediaRefController({ onChange: value => change.current(value) }), dependencies: [] });
   const previewUrl = api.mediaPreviewUrl ? api.mediaPreviewUrl({ value }) : resolveMediaRefPreviewUrl({ value, mediaOriginalUrl: id => api.mediaOriginalUrl({ id }) });
   const { naturalWidth, naturalHeight, ...diagnostics } = useShareImageWarning({ value, previewUrl, api }, { t });
   // One cached library read shared by every image field on the screen; only a library reference
@@ -27,7 +27,7 @@ export function useMediaRefField(
   const media = useFetchQuery({ key: SEO_KEYS.media, fetch: () => list!.call(api, {}) }, { enabled: Boolean(list) && isStoredMediaRef({ value }) });
   return {
     ...diagnostics,
-    file: describeMediaRef({ value, media: media.data }, { width: naturalWidth, height: naturalHeight, t, extensionFor: extensionForMimeType }),
+    file: describeMediaRef({ value, media: media.data }, { width: naturalWidth, height: naturalHeight, t, extensionFor: contentType => extensionForMimeType({ mimeType: contentType }) }),
     pickerOpen: snapshot?.pickerOpen ?? false,
     openPicker: () => controller?.openPicker({}), closePicker: () => controller?.closePicker({}),
     handleSelect: item => controller?.handleSelect({ item }), clear: () => controller?.clear({}),

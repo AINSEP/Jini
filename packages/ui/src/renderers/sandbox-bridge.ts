@@ -59,7 +59,6 @@ export function useSandboxBridge(options: UseSandboxBridgeOptions): SandboxBridg
     }
     window.addEventListener('message', onMessage);
     return () => window.removeEventListener('message', onMessage);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [iframeRef]);
 
   const post = useCallback(

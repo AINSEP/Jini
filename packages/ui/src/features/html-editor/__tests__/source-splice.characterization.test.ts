@@ -4,7 +4,7 @@ import { indexElementSourceRanges, indexSourceElements } from '../source-splice.
 
 it('indexes void, implicit, raw and nested nodes with the original element slots', () => {
   const html = 'text<!--c--><style>x{}</style><div><img><script>x()</script><br><p>x</p></div>';
-  expect([...indexElementSourceRanges(html)].map(([key, range]) => [key, range.tagName, html.slice(range.start, range.end)])).toEqual([
+  expect([...indexElementSourceRanges({ html })].map(([key, range]) => [key, range.tagName, html.slice(range.start, range.end)])).toEqual([
     ['0', 'div', '<img><script>x()</script><br><p>x</p>'], ['0.0', 'img', ''], ['0.1', 'br', ''], ['0.2', 'p', 'x'],
   ]);
   const [root] = indexSourceElements({ html }, {});
@@ -25,7 +25,7 @@ it('distinguishes foreign self-closing tags, templates, missing end tags and imp
   const [table] = indexSourceElements({ html: '<table><tr><td>x</td></tr></table>' }, {});
   expect(table!.sourceSupported).toBe(false);
   expect(table!.children[0]!.outerRange).toBeNull();
-  expect([...indexElementSourceRanges('<table><tr><td>x</td></tr></table>').keys()]).toEqual(['0', '0.0.0', '0.0.0.0']);
+  expect([...indexElementSourceRanges({ html: '<table><tr><td>x</td></tr></table>' }).keys()]).toEqual(['0', '0.0.0', '0.0.0.0']);
 });
 it('marks both siblings unsafe when foster parenting reverses source order', () => {
   const elements = indexSourceElements({ html: '<table><div>x</div></table>' }, {});

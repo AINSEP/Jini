@@ -45,7 +45,7 @@ settleOrderPayment: association by (workspace, reference) → scope-fenced getPa
 | # | Decision | Effect on this plan |
 |---|---|---|
 | D1 | Delete the legacy `payments-stripe/stripe.ts` and its 2 tests | P30 |
-| D2 | The **host** ships catalog schema changes through its own migration (Tovu ADR-066 TS migrations); borrowed-schema fixtures are updated in the same shard | §4, P14–P16 |
+| D2 | The **host** ships catalog schema changes through its own migration (TypeScript migrations); borrowed-schema fixtures are updated in the same shard | §4, P14–P16 |
 | D3 | The catalog's second webhook inbox is retired in Phase 2 | Untouched |
 | D11 | The Stripe plugin is the default production provider; the LiPay fake is test-only, enforced fake-locally | P03 |
 | D12 | Keep manifest `contributes.providers`: the loader needs it today | §0.3 |
@@ -365,10 +365,10 @@ is added in the shard that introduces it (P14, P15).
 ### 2.10 `catalog/load-payable-order.ts` + `catalog/pay-order.ts` (#12, R13)
 
 ```ts
-export async function loadPayableOrder(required: { deps: { orders; prices }; input: { workspaceId; orderId; scope: PaymentScope } }, optional?: Record<string, never>):
+export async function loadPayableOrder(required: { deps: { orders; prices }; workspaceId; orderId; scope: PaymentScope }, _optional: Record<string, never> = {}):
   Promise<{ order: CommerceOrderRecord; item: CommerceOrderItemRecord; price: CommercePriceRecord }>;
 export interface PayOrderDeps { orders; prices; priceRefs; orderPayments: CommerceOrderPaymentRepoPort; payments: PaymentsPort; settle: SettleOrderPaymentDeps; }
-export async function payOrder(required: { deps: PayOrderDeps; input: { workspaceId: UUID; orderId: UUID; scope: PaymentScope } }, optional?: Record<string, never>): Promise<PayOrderResult>;
+export async function payOrder(required: { deps: PayOrderDeps; workspaceId: UUID; orderId: UUID; scope: PaymentScope }, _optional: Record<string, never> = {}): Promise<PayOrderResult>;
 ```
 
 `loadPayableOrder` raises typed errors:
@@ -400,7 +400,7 @@ export async function payOrder(required: { deps: PayOrderDeps; input: { workspac
      `same_scope`, replays, and binds.
    - A **crash between dispatch and bind** is safe: the reservation already exists, so settlement
      binds it (§2.11).
-4. **Settle.** Call `settleOrderPayment` with `(paymentId, reference = order.id)`. This covers
+4. **Settle.** Call `settleOrderPayment({ deps: settle, workspaceId, mode, paymentId, reference: order.id })`. This covers
    providers that succeed synchronously.
 
 ### 2.11 `catalog/settle-order-payment.ts` + `catalog/order-projection.ts` (R4, R13, r2-association)
@@ -408,7 +408,7 @@ export async function payOrder(required: { deps: PayOrderDeps; input: { workspac
 ```ts
 export interface SettleOrderPaymentDeps { orders; orderPayments; payments: PaymentsPort; alerts: PaymentsAlertPort; clock: ClockPort; }
 export type SettleOutcome = "paid" | "already_paid" | "not_ours" | "not_succeeded" | "blocked";
-export async function settleOrderPayment(required: { deps: SettleOrderPaymentDeps; input: { workspaceId: string; mode: PaymentMode; paymentId: string; reference: string } }, optional?: Record<string, never>): Promise<SettleOutcome>;
+export async function settleOrderPayment(required: { deps: SettleOrderPaymentDeps; workspaceId: string; mode: PaymentMode; paymentId: string; reference: string }, _optional: Record<string, never> = {}): Promise<SettleOutcome>;
 export function createOrderPaymentProjector(required: { deps: SettleOrderPaymentDeps }, optional?: Record<string, never>):
   { handle(required: { message: PaymentsOutboxMessage }, optional?: Record<string, never>): Promise<SettleOutcome | "ignored"> };
 ```
@@ -599,7 +599,7 @@ session status alone decides.
 payments-side change is the `reference` key added to the JSON outbox payload, which needs no
 schema change.
 
-**Catalog: a host migration (D2).** This is a prerequisite: Tovu ships an ADR-066 TS migration
+**Catalog: a host migration (D2).** This is a prerequisite: the host ships a TypeScript migration
 **before** the host enables `payOrder`. Commerce never creates catalog tables (`database.ts:3`).
 The DDL below is documented in the README and mirrored in the borrowed-schema fixture
 `repo.vitest.test.ts:37-55` **in the same shard** that edits `database.ts`.

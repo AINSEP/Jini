@@ -10,3 +10,6 @@ export * from './provider-artifact.js';
 export * from './invocation-binding.js';
 export * from './archive-policy.js';
 export * from './runtime-core.js';
+export type * from './runtime-contracts.js';
+export { PluginUninstallPathError } from './runtime-package-location.js';
+export * from './integrity-command.js';

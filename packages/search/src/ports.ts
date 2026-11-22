@@ -109,7 +109,8 @@ export type SearchStatusCounts = Readonly<Record<SearchIndexStatus, number>>;
  */
 export interface SearchIndexStatePort {
   get(required: { readonly target: SearchTarget; readonly key: SearchDocumentKey }): Promise<SearchIndexStateRow | null>;
-  put(required: { readonly row: SearchIndexStateRow }): Promise<void>;
+  /** Writes only when absent or stored revision ≤ row.revision; resolves whether it wrote. */
+  put(required: { readonly row: SearchIndexStateRow }): Promise<boolean>;
   /**
    * Compare-and-swap settle: write `row` iff the stored row for (row.target, row.key) still carries
    * `expected.revision` and `expected.taskId` (`null` = no task), atomically. Resolves whether it

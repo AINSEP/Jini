@@ -5,7 +5,13 @@ import { FetchTimeoutError } from "../../../fetch-with-timeout.js";
 import { classifyAddress, createHttpClient } from "../client.js";
 import { EgressRefusedError } from "../errors.js";
 import type { HttpRequest, HttpResponse } from "@jini-ai/core/primitives";
-import type { DnsResolver, GuardedClock, EgressPolicy, HttpTransportAdapter, PinnedPeer } from "../ports.js";
+import type {
+  DnsResolver,
+  GuardedClock,
+  EgressPolicy,
+  PinnedHttpTransport,
+  PinnedPeer,
+} from "@jini-ai/core/contracts/runtime";
 
 const policy: EgressPolicy = {
   allowedSchemes: ["https"], denyPrivateAddresses: true, devHostAllowlist: [], maxRedirects: 3,
@@ -14,7 +20,7 @@ const policy: EgressPolicy = {
 const publicDns: DnsResolver = { resolve: async () => ["93.184.216.34"] };
 const idleClock: GuardedClock = { nowMs: () => 0, timeoutSignal: () => new AbortController().signal };
 
-class Recorder implements HttpTransportAdapter {
+class Recorder implements PinnedHttpTransport {
   readonly calls: { request: HttpRequest; peer: PinnedPeer }[] = [];
   constructor(private readonly responses: HttpResponse[]) {}
   async requestPinned(input: { request: HttpRequest; peer: PinnedPeer }): Promise<HttpResponse> {
@@ -24,7 +30,7 @@ class Recorder implements HttpTransportAdapter {
 }
 const ok: HttpResponse = { status: 200, headers: {}, bodyText: "ok" };
 const get = (overrides: Partial<HttpRequest> = {}): HttpRequest => ({ method: "GET", url: "https://example.com/", headers: {}, timeoutMs: 500, ...overrides });
-const unreachable: HttpTransportAdapter = { requestPinned: async () => { throw new Error("unexpected transport"); } };
+const unreachable: PinnedHttpTransport = { requestPinned: async () => { throw new Error("unexpected transport"); } };
 
 test("classifyAddress: IPv4-compatible ::0.0.0.2 is reserved like its embedded IPv4", () => {
   expect(classifyAddress({ ip: "::0.0.0.2" })).toBe("reserved");

@@ -1,7 +1,11 @@
 import { createAgentModelDiscovery } from '../model-discovery-native.js';
 import { DEFAULT_MODEL_OPTION } from './shared.js';
 import { agentCapabilities } from '../capabilities.js';
-import type { RuntimeAgentDef, RuntimeBuildOptions, RuntimeModelOption } from '../types.js';
+import type {
+  RuntimeAgentDef,
+  RuntimeBuildOptions,
+  RuntimeModelOption,
+} from '@jini-ai/core/contracts/agents';
 
 /** Agent id, binary name and event-parser key: one string for all three. */
 const CURSOR_AGENT_ID = 'cursor-agent';
@@ -16,7 +20,7 @@ function parseCursorAgentModelLine(line: string): RuntimeModelOption | null {
   return { id, label: match[2]?.trim() || id };
 }
 
-export function parseCursorAgentModels({ stdout }: { stdout: string }): RuntimeModelOption[] | null {
+export function parseCursorAgentModels({ stdout }: { stdout: string }, _optional: Record<string, never> = {}): RuntimeModelOption[] | null {
   const lines = String(stdout || '')
     .split('\n')
     .map((line) => line.trim())
@@ -62,7 +66,7 @@ function bypassArgs(options: RuntimeBuildOptions): string[] {
 
 export const cursorAgentDef = {
   // UNVERIFIED live integration locally; source/category and limits are documented in model-discovery-adapters.ts.
-  ...createAgentModelDiscovery(CURSOR_AGENT_ID, { fallbackModels: (): readonly import('../types.js').RuntimeModelOption[] => cursorAgentDef.fallbackModels, args: ['models'], parse: parseCursorAgentListing }),
+  ...createAgentModelDiscovery(CURSOR_AGENT_ID, { fallbackModels: (): readonly import('@jini-ai/core/contracts/agents').RuntimeModelOption[] => cursorAgentDef.fallbackModels, args: ['models'], parse: parseCursorAgentListing }),
     id: CURSOR_AGENT_ID,
     name: 'Cursor Agent',
     bin: CURSOR_AGENT_ID,

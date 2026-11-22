@@ -1,5 +1,5 @@
-import { Button, TextField, Notice, ConfirmDialog, Spinner } from '@jini-ai/ui-kit/react';
-import type { TabViewProps } from '../../../core/react/bind-react.js';
+import { Button, TextField, Notice, ConfirmDialog, Spinner } from '../../../react/kit.js';
+import type { TabViewProps } from '@jini-ai/core/contracts/admin-module';
 import { useRootKeyTab } from '../hooks/RootKeyTab.hooks.js';
 type RootKeyView = ReturnType<typeof useRootKeyTab>;
 function RootKeyMessages({ vm }: { vm: RootKeyView }) {
@@ -11,8 +11,8 @@ function LockedActions({ vm }: { vm: RootKeyView }) {
 function StartFreshBody({ vm }: { vm: RootKeyView }) {
   return <><p>{vm.preview?.detail}</p><p>{vm.preview?.removes} credentials will be removed.</p>{vm.preview?.affectedWebhooks.map(w => <p key={`${w.label}:${w.targetUrl}`}>{w.label} · {w.targetUrl}</p>)}<TextField label="Type START FRESH" value={vm.confirm} onValueChange={vm.onConfirmText} disabled={vm.saving} /></>;
 }
-export function RootKeyTab(props: TabViewProps) {
-  const vm = useRootKeyTab(props);
+export function RootKeyTab({ useRootKeyTabHook = useRootKeyTab, ...props }: TabViewProps & { useRootKeyTabHook?: typeof useRootKeyTab }) {
+  const vm = useRootKeyTabHook(props);
   return vm.denied ? <Notice tone="danger">Permission denied</Notice> : <section aria-label="Root key"><Notice>{vm.scopeNotice}</Notice><RootKeyMessages vm={vm} />
     {vm.status && <p>{vm.status.state} · {vm.status.fingerprint} · {vm.status.source}</p>}{vm.canGenerate && <Button onPress={vm.generate} pending={vm.saving}>Create root key</Button>}
     {vm.locked && <LockedActions vm={vm} />}

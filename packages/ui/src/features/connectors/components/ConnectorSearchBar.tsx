@@ -1,8 +1,7 @@
-import { useRef } from 'react';
-import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
-import { agentHandleProps } from '@jini-ai/agentic';
+import { agentHandleProps } from '@jini-ai/core/agent-handles';
 import { useT } from '../../i18n/index.js';
 import { Icon } from '../../../react/components/Icon.js';
+import { useConnectorSearchBar } from './ConnectorSearchBar.hooks.js';
 
 export interface ConnectorSearchBarProps {
   value: string;
@@ -14,6 +13,8 @@ export interface ConnectorSearchBarProps {
   clearAriaLabel?: string;
   /** This search bar's own agent handle — see `ConnectorsBrowser`'s `agentHandle` doc. */
   agentHandle?: string;
+  useTHook?: typeof useT;
+  useConnectorSearchBarHook?: typeof useConnectorSearchBar;
 }
 
 export function ConnectorSearchBar({
@@ -25,21 +26,14 @@ export function ConnectorSearchBar({
   ariaLabel,
   clearAriaLabel,
   agentHandle,
+  useTHook = useT,
+  useConnectorSearchBarHook = useConnectorSearchBar,
 }: ConnectorSearchBarProps) {
-  const t = useT();
+  const t = useTHook();
   const resolvedPlaceholder = placeholder ?? t('Search connectors');
   const resolvedAriaLabel = ariaLabel ?? t('Search connectors');
   const resolvedClearAriaLabel = clearAriaLabel ?? t('Clear search');
-  const inputRef = useRef<HTMLInputElement | null>(null);
-  const hasQuery = value.trim().length > 0;
-
-  function onKeyDown(event: ReactKeyboardEvent<HTMLInputElement>) {
-    if (event.key === 'Escape' && value) {
-      event.preventDefault();
-      event.stopPropagation();
-      onChange('');
-    }
-  }
+  const { inputRef, hasQuery, onKeyDown } = useConnectorSearchBarHook({ value, onChange });
 
   return (
     <div className="toolbar-search connectors-search">

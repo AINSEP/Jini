@@ -24,15 +24,13 @@ export interface FetchQueryEnvironmentPort {
   subscribeOnline(required: { listener: (online: boolean) => void }): () => void;
   subscribeFocus(required: { listener: () => void }): () => void;
 }
+export interface FetchQueryCacheRequired {
+  clock: Clock;
+  scheduler: QueryCacheSchedulerPort;
+}
 export interface FetchQueryCacheOptions {
-  clock?: Clock;
-  scheduler?: QueryCacheSchedulerPort;
   environment?: FetchQueryEnvironmentPort;
 }
-const browserScheduler: QueryCacheSchedulerPort = {
-  schedule: ({ callback, delayMs }) => setTimeout(callback, delayMs),
-  cancel: ({ handle }) => clearTimeout(handle as ReturnType<typeof setTimeout>),
-};
 
 export interface QueryState {
   data: unknown;
@@ -64,7 +62,7 @@ export interface CacheEntry {
 
 // Normalize unknown promise rejections once so consumers receive Error without repeating
 // the same narrowing boilerplate at every read and write call site.
-export function toQueryError(value: unknown): Error {
+export function toQueryError({ value }: { value: unknown }, _optional: Record<string, never> = {}): Error {
   if (value instanceof Error) return value;
   return new Error(typeof value === 'string' && value.trim() ? value : 'request failed');
 }
@@ -82,7 +80,7 @@ export class FetchQueryCache {
   private readonly onlineWaiters = new Set<() => void>();
   private releaseEnvironment: (() => void) | undefined;
 
-  constructor(_required: Record<string, never> = {}, { clock = { nowMs: () => Date.now() }, scheduler = browserScheduler, environment }: FetchQueryCacheOptions = {}) {
+  constructor({ clock, scheduler }: FetchQueryCacheRequired, { environment }: FetchQueryCacheOptions = {}) {
     this.clock = clock;
     this.scheduler = scheduler;
     this.environment = environment;
@@ -124,7 +122,7 @@ export class FetchQueryCache {
 
   /** Cache hits respect freshness; explicit refreshes restart background reads.
    * Initial reads still deduplicate because no earlier successful data exists to refresh. */
-  load<T>({ entry, fetch, staleTime }: { entry: CacheEntry; fetch: () => Promise<T>; staleTime: number }, { force = false }: { force?: boolean } = {}): Promise<T> {
+  load<T>({ entry, fetch: read, staleTime }: { entry: CacheEntry; fetch: () => Promise<T>; staleTime: number }, { force = false }: { force?: boolean } = {}): Promise<T> {
     this.cancelEviction(entry);
     if (entry.pending && (!force || entry.state.data === undefined)) return entry.pending as Promise<T>;
     if (!force && this.fresh({ entry: entry, staleTime: staleTime })) {
@@ -138,7 +136,7 @@ export class FetchQueryCache {
       // A queued offline refresh may have been superseded before reconnection.
       if (entry.pending !== pending) return this.supersedingResult<T>({ entry });
       this.publish(entry, { ...entry.state, isFetching: true });
-      return fetch();
+      return read();
     };
     const pending: Promise<T> = Promise.resolve().then(() => {
       if (this.online) return run();
@@ -149,43 +147,12 @@ export class FetchQueryCache {
       // Thrown here so the rejection path below handles it (a replacement still supersedes it).
       if (value === undefined) throw new Error(`${JSON.stringify(entry.key)} data is undefined`);
       return value;
-    }).then(value => {
-      // Only the current request may publish or clear invalidation. An older transport
-      // need not support abort: its callers follow the replacement request instead.
-      if (entry.pending !== pending) return this.supersedingResult<T>({ entry });
-      // Arbitration and publication share this continuation: a microtask between them would
-      // let an older result overwrite a replacement accepted after arbitration.
-      if (replacement !== entry.replacement) {
-        this.publish(entry, { ...entry.state, isFetching: false });
-        return entry.state.data as T;
-      }
-      entry.updatedAt = this.clock.nowMs();
-      entry.invalidated = false;
-      this.publish(entry, { data: value, error: null, status: 'success', isFetching: false });
-      return value;
-    }, error => {
-      if (entry.pending !== pending) return this.supersedingResult<T>({ entry });
-      // A replacement write is newer than this read's failure as well as its data.
-      // Keep the write's timestamp and freshness; only settle the obsolete fetch flag.
-      if (replacement !== entry.replacement) {
-        this.publish(entry, { ...entry.state, isFetching: false });
-        return entry.state.data as T;
-      }
-      entry.invalidated = true;
-      this.publish(entry, { ...entry.state, error: toQueryError(error), status: 'error', isFetching: false });
-      throw error;
-    }).finally(() => {
-      if (entry.pending !== pending) return;
-      entry.pending = undefined;
-      entry.pendingRead = undefined;
-      if (entry.refreshAfterPending) {
-        entry.refreshAfterPending = false;
-        this.refresh(entry);
-      }
-      this.scheduleEviction(entry);
-    });
+    }).then(
+      value => this.settleSuccess<T>({ entry, pending, replacement, value }),
+      error => this.settleFailure<T>({ entry, pending, replacement, error }),
+    ).finally(() => this.finishPending({ entry, pending }));
     entry.pending = pending;
-    entry.pendingRead = { fetch, staleTime };
+    entry.pendingRead = { fetch: read, staleTime };
     // Mark handled even when a UI caller deliberately discards the promise.
     void pending.catch(() => {});
     // Like TanStack's background refetches, retain the last error until success clears it
@@ -194,6 +161,46 @@ export class FetchQueryCache {
     const state = entry.state.data === undefined ? { ...entry.state, status: 'pending' as const } : entry.state;
     this.publish(entry, { ...state, isFetching: this.online });
     return pending;
+  }
+
+  private settleSuccess<T>({ entry, pending, replacement, value }: { entry: CacheEntry; pending: Promise<T>; replacement: number; value: T }): T | Promise<T> {
+    // Only the current request may publish or clear invalidation. An older transport
+    // need not support abort: its callers follow the replacement request instead.
+    if (entry.pending !== pending) return this.supersedingResult<T>({ entry });
+    // Arbitration and publication share this continuation: a microtask between them would
+    // let an older result overwrite a replacement accepted after arbitration.
+    if (replacement !== entry.replacement) {
+      this.publish(entry, { ...entry.state, isFetching: false });
+      return entry.state.data as T;
+    }
+    entry.updatedAt = this.clock.nowMs();
+    entry.invalidated = false;
+    this.publish(entry, { data: value, error: null, status: 'success', isFetching: false });
+    return value;
+  }
+
+  private settleFailure<T>({ entry, pending, replacement, error }: { entry: CacheEntry; pending: Promise<T>; replacement: number; error: unknown }): T | Promise<T> {
+    if (entry.pending !== pending) return this.supersedingResult<T>({ entry });
+    // A replacement write is newer than this read's failure as well as its data.
+    // Keep the write's timestamp and freshness; only settle the obsolete fetch flag.
+    if (replacement !== entry.replacement) {
+      this.publish(entry, { ...entry.state, isFetching: false });
+      return entry.state.data as T;
+    }
+    entry.invalidated = true;
+    this.publish(entry, { ...entry.state, error: toQueryError({ value: error }), status: 'error', isFetching: false });
+    throw error;
+  }
+
+  private finishPending<T>({ entry, pending }: { entry: CacheEntry; pending: Promise<T> }): void {
+    if (entry.pending !== pending) return;
+    entry.pending = undefined;
+    entry.pendingRead = undefined;
+    if (entry.refreshAfterPending) {
+      entry.refreshAfterPending = false;
+      this.refresh(entry);
+    }
+    this.scheduleEviction(entry);
   }
 
   replace({ entry, data }: { entry: CacheEntry; data: unknown }): void {

@@ -1,10 +1,10 @@
+import type { DigestCryptoPort } from "@jini-ai/core/records";
 import { assertCurrentFormSchema } from "./stale-form.js";
 import { FORM_SCHEMA_HASH_FIELD } from "./portable-validation.js";
 import { captureSubmissionEvidence } from "./submission-evidence.js";
-import { formatErrorForLog } from '@jini-ai/core';
 /**
- * @file `submit-service.ts` — the sole public submission write path (SPEC-010 REQ-05..09/16,
- * ADR-PIPE-010 C-008).
+ * @file `submit-service.ts` — the sole public submission write path.
+ *
  *
  * Purpose:
  * `submitForm` deliberately bypasses `executeCommand` (no actor/permission fits an anonymous
@@ -46,7 +46,8 @@ import type { FormDefinitionRepoPort, FormSubmissionRepoPort } from "./ports.js"
 import type { FormDefinitionViewPort } from "./ports.js";
 import { assertSubmissionEmails } from "./submission-email-validation.js";
 import { DUPLICATE_ATTEMPT, FORM_ATTEMPT_FIELD, MIN_FORM_SUBMISSION_AGE_MS, type SubmissionAttempts } from "./submission-attempts.js";
-import { FORM_SUBMISSION_RECEIVED_EVENT, type FormDefinitionRecord, type FormSubmissionRecord, type FormFileStoragePort, type FormFileReference, type FormFileInput } from "./types.js";
+import { FORM_SUBMISSION_RECEIVED_EVENT, type FormDefinitionRecord, type FormSubmissionRecord, type FormFileStoragePort, type FormFileInput } from "./types.js";
+import { type FormFileReference } from "@jini-ai/core/contracts/forms";
 
 export interface SubmitFormDeps {
   definitionRepo: FormDefinitionRepoPort;
@@ -56,6 +57,8 @@ export interface SubmitFormDeps {
   logger: Pick<Logger, 'warn'>;
   clock: Clock;
   idGen: IdGenerator;
+  /** Host WebCrypto port for the schema digest and submission evidence. */
+  crypto: DigestCryptoPort;
   rateLimiter: RateLimiterPort;
   /** Anonymous uploads go through the host media owner only after validation/rate/dedupe. */
   files?: FormFileStoragePort;
@@ -105,7 +108,7 @@ export async function submitForm(required: SubmitFormRequired, optional: SubmitF
     return { status: "accepted" };
   }
 
-  await assertCurrentFormSchema({ original: originalDefinition, definition, body: pageInput.body });
+  await assertCurrentFormSchema({ original: originalDefinition, definition, body: pageInput.body, crypto: deps.crypto });
   if (optional.validateEmails) assertSubmissionEmails({ definition, body: input.body });
   const validation = assertValidSubmission({ deps, definition, body: input.body });
   assertSubmissionTiming({ deps, input, attemptToken }, optional);
@@ -216,7 +219,7 @@ async function buildSubmissionRecords(
     workspaceId: input.workspaceId,
     formDefinitionId: definition.id,
     data,
-    evidence: await captureSubmissionEvidence({ definition, capturedAt: now, source: "native" }),
+    evidence: await captureSubmissionEvidence({ definition, capturedAt: now, source: "native", crypto: deps.crypto }),
     sourceIp: input.sourceIp,
     submittedAt: now,
   };
@@ -278,7 +281,7 @@ async function discardUploads(
     try { await deps.files!.discard({ workspaceId: input.workspaceId, reference }); }
     catch (cleanupError) {
       // Retain the original submission failure; a failed cleanup is visible to operators.
-      try { deps.logger.warn({ message: "form upload cleanup failed" }, { error: formatErrorForLog({ error: cleanupError }) }); } catch { /* Logging cannot replace the original error. */ }
+      try { deps.logger.warn({ message: "form upload cleanup failed" }, { error: cleanupError }); } catch { /* Logging cannot replace the original error. */ }
     }
   }
 }
@@ -288,7 +291,7 @@ function dispatchInBackground({ deps }: { deps: SubmitFormDeps }, { dispatch }: 
   // Never await delivery here: a subscriber sends mail, so awaiting it would reintroduce the
   // response-blocking bug. Persistence/enqueue are awaited; outbox drainage remains background work.
   void Promise.resolve().then(() => (dispatch ?? deps.dispatcher.dispatch.bind(deps.dispatcher))({})).catch((error: unknown) => {
-    try { deps.logger.warn({ message: "form outbox dispatch failed" }, { error: formatErrorForLog({ error }) }); } catch { /* Logging must not reject background work. */ }
+    try { deps.logger.warn({ message: "form outbox dispatch failed" }, { error }); } catch { /* Logging must not reject background work. */ }
   });
 }
 

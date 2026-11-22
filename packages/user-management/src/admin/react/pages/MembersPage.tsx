@@ -1,10 +1,10 @@
 import { Suspense } from 'react';
 import { Notice, Spinner, Button } from '@jini-ai/ui-kit/react';
 import type { MembersPageProps } from '../hooks/MembersScope.hooks.js';
-import { MembersViewContext, useMembersPage } from '../hooks/MembersPage.hooks.js';
+import { MembersViewContext, useMembersPage as useMembersPage_ } from '../hooks/MembersPage.hooks.js';
 import { membersMessagesEn as m } from '../../messages.en.js';
 import { MembersConfirmation } from '../components/MembersConfirmation.js';
-export default function MembersPage(props: MembersPageProps, _optional: Record<string, never> = {}) {
+export default function MembersPage({ useMembersPage = useMembersPage_, ...props }: MembersPageProps & { useMembersPage?: typeof useMembersPage_ }) {
   const v = useMembersPage(props);
   if (!v.visible) return <Notice>Members administration is unavailable.</Notice>;
   if (!v.state) return <Spinner label={m.loading}/>;

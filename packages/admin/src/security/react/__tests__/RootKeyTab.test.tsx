@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen } from '../../../__tests__/fetch-query-support.js';
 import { KitProvider } from '@jini-ai/ui-kit/react';
 import type { useRootKeyTab } from '../hooks/RootKeyTab.hooks.js';
 import { RootKeyTab } from '../tabs/RootKeyTab.js';
@@ -33,4 +33,12 @@ describe('RootKeyTab', () => {
     expect(screen.getByText('Preview detail')).toBeTruthy(); expect(screen.getByText('3 credentials will be removed.')).toBeTruthy(); expect(screen.getByText('Hook · https://h')).toBeTruthy(); expect(screen.getByLabelText('Type START FRESH')).toBeTruthy();
   });
   it('shows the start-fresh dialog before a preview arrives', () => { show({ confirming: true }); expect(screen.getByText('credentials will be removed.')).toBeTruthy(); });
+});
+
+
+it('uses an injected root-key denial instead of the ambient available view', () => {
+  state.vm = view({ canGenerate: true });
+  render(<RootKeyTab params={{}} useRootKeyTabHook={() => view({ denied: true })} />);
+  expect(screen.getByText('Permission denied')).toBeVisible();
+  expect(screen.queryByRole('button', { name: 'Create root key' })).toBeNull();
 });

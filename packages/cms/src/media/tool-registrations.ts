@@ -34,7 +34,7 @@ import type { Clock } from "@jini-ai/core/primitives";
  * edited/trashed, not to answer "where does this live".
  * See docs/decisions/DR-004-journaled-blob-gc.md.
  */
-import type { AuthorizeFn } from "../core/commands/command.js";
+import type { AuthorizeFn } from "@jini-ai/core/contracts/events";
 import { buildDomainRegistrations, indexCatalogById, requireInputRecord, requireString, withSchemaOnRejection, type AgentToolSideEffect, type DerivedRiskByToolId, type ToolHandler, type ToolRegistration } from "@jini-ai/core";
 import { adaptLegacyAuthorize, requireToolPermission } from "../core/tools/index.js";
 import { mediaAgentToolCatalog } from "./agent-tools.js";
@@ -121,7 +121,7 @@ export interface MediaToolDeps {
  * calls. See `DerivedRiskByToolId` in the kit for why it is independent of the catalog's own
  * `sideEffects` declaration.
  */
-export const mediaDerivedRisk: DerivedRiskByToolId = new Map<string, AgentToolSideEffect>([
+export const mediaDerivedRisk: ReadonlyMap<string, AgentToolSideEffect> = new Map<string, AgentToolSideEffect>([
   // -> listMedia (media-service.ts): mediaRepo.list only, no write.
   ["media_list_assets", "none"],
   ["library_list", "none"],
@@ -206,29 +206,8 @@ async function toMediaToolViewsWithPublicUrls(routeDeps: MediaToolDeps, records:
   return records.map((record) => ({ ...toMediaToolView(record), publicUrl: urls.get(record.id) ?? null }));
 }
 
-export function buildMediaRegistrations(required: Omit<MediaToolDeps, "resolvePublicUrls" | "recordUploadContentType" | "maxUploadBytes" | "listContentTypes">, optional: Pick<MediaToolDeps, "resolvePublicUrls" | "recordUploadContentType" | "maxUploadBytes" | "listContentTypes"> = {}): ToolRegistration[] {
-  const routeDeps: MediaToolDeps = {
-    authorize: required.authorize,
-    workspaceId: required.workspaceId,
-    clock: required.clock,
-    idGen: required.idGen,
-    mediaRepo: required.mediaRepo,
-    assetBlobRepo: required.assetBlobRepo,
-    assetRenditionRepo: required.assetRenditionRepo,
-    blobStore: required.blobStore,
-    documentTextExtractors: required.documentTextExtractors,
-    ...optional,
-  };
-  const mediaWriteDeps = () => ({
-    clock: routeDeps.clock,
-    idGen: routeDeps.idGen,
-    mediaRepo: routeDeps.mediaRepo,
-    blobRepo: routeDeps.assetBlobRepo,
-    renditionRepo: routeDeps.assetRenditionRepo,
-    blobStore: routeDeps.blobStore,
-  });
-
-  const handlers: Record<string, ToolHandler> = {
+function libraryListHandlers(routeDeps: MediaToolDeps): Record<string, ToolHandler> {
+  return {
     library_list: async (ctx) => {
       await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }), workspaceId: routeDeps.workspaceId, principalId: ctx.principal.id, permission: "media.read" }, { entityType: "media" });
       const { media, nextCursor } = await listMediaPage({ mediaRepo: routeDeps.mediaRepo, workspaceId: routeDeps.workspaceId,
@@ -244,6 +223,11 @@ export function buildMediaRegistrations(required: Omit<MediaToolDeps, "resolvePu
       }
       return { documents, nextCursor };
     },
+  };
+}
+
+function libraryReadHandlers(routeDeps: MediaToolDeps): Record<string, ToolHandler> {
+  return {
     library_read: async (ctx) => {
       const input = requireInputRecord({ input: ctx.input });
       const id = requireString({ input, key: "documentId" });
@@ -258,19 +242,37 @@ export function buildMediaRegistrations(required: Omit<MediaToolDeps, "resolvePu
               input: { workspaceId: routeDeps.workspaceId, id, offset: input.offset as number | undefined } }, { signal: ctx.signal });
           } catch (error) {
             if (!(error instanceof DocumentTextExtractionError)) throw error;
-            return { untrusted: true, error: { code: error.code, message: error.message,
+            return { untrusted: true, error: { code: error.code, message: { DOCUMENT_TEXT_UNAVAILABLE: "No document-text extractor is installed for this file's format; see install.", DOCUMENT_TEXT_FAILED: "The document-text extractor could not read this file." }[error.code],
               ...(error.install ? { install: error.install } : {}) } };
           }
         },
       });
     },
+  };
+}
+
+function mediaListHandlers(routeDeps: MediaToolDeps): Record<string, ToolHandler> {
+  return {
     media_list_assets: async (ctx) => {
       await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }), workspaceId: routeDeps.workspaceId, principalId: ctx.principal.id, permission: "media.read" }, { entityType: "media" });
       const { media, nextCursor } = await listMediaPage({ mediaRepo: routeDeps.mediaRepo, workspaceId: routeDeps.workspaceId,
         input: requireInputRecord({ input: ctx.input ?? {} }), library: false }, { contentTypes: routeDeps.listContentTypes });
       return { media: await toMediaToolViewsWithPublicUrls(routeDeps, media), nextCursor };
     },
+  };
+}
 
+function mediaUploadHandlers(routeDeps: MediaToolDeps): Record<string, ToolHandler> {
+  const mediaWriteDeps = () => ({
+    clock: routeDeps.clock,
+    idGen: routeDeps.idGen,
+    mediaRepo: routeDeps.mediaRepo,
+    blobRepo: routeDeps.assetBlobRepo,
+    renditionRepo: routeDeps.assetRenditionRepo,
+    blobStore: routeDeps.blobStore,
+  });
+
+  return {
     media_upload_asset: async (ctx) => {
       const input = requireInputRecord({ input: ctx.input });
       await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }), workspaceId: routeDeps.workspaceId, principalId: ctx.principal.id, permission: "media.upload" }, { entityType: "media" });
@@ -315,12 +317,17 @@ export function buildMediaRegistrations(required: Omit<MediaToolDeps, "resolvePu
         return { media: view };
       } });
     },
+  };
+}
 
+function mediaUpdateHandlers(routeDeps: MediaToolDeps): Record<string, ToolHandler> {
+  return {
     media_update_metadata: async (ctx) => {
       const input = requireInputRecord({ input: ctx.input });
       const mediaId = requireString({ input, key: "mediaId" });
       await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }), workspaceId: routeDeps.workspaceId, principalId: ctx.principal.id, permission: "media.update" }, { entityType: "media", entityId: mediaId });
       return withSchemaOnRejection({ toolId: "media_update_metadata", catalog: CATALOG_BY_ID, isShapeRejection: isMediaShapeRejection, fn: async () => {
+        ctx.signal.throwIfAborted();
         const { media } = await updateMediaMetadata({
           deps: { clock: routeDeps.clock, mediaRepo: routeDeps.mediaRepo },
           input: {
@@ -338,16 +345,44 @@ export function buildMediaRegistrations(required: Omit<MediaToolDeps, "resolvePu
         return { media: toMediaToolView(media) };
       } });
     },
+  };
+}
 
+function mediaTrashHandlers(routeDeps: MediaToolDeps): Record<string, ToolHandler> {
+  return {
     media_trash_asset: async (ctx) => {
       const mediaId = requireString({ input: requireInputRecord({ input: ctx.input }), key: "mediaId" });
       await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }), workspaceId: routeDeps.workspaceId, principalId: ctx.principal.id, permission: "media.delete" }, { entityType: "media", entityId: mediaId });
+      ctx.signal.throwIfAborted();
       const { media } = await trashMedia({
         deps: { clock: routeDeps.clock, mediaRepo: routeDeps.mediaRepo },
         input: { workspaceId: routeDeps.workspaceId, id: mediaId },
       });
       return { media: toMediaToolView(media) };
     },
+  };
+}
+
+export function buildMediaRegistrations(required: Omit<MediaToolDeps, "resolvePublicUrls" | "recordUploadContentType" | "maxUploadBytes" | "listContentTypes">, optional: Pick<MediaToolDeps, "resolvePublicUrls" | "recordUploadContentType" | "maxUploadBytes" | "listContentTypes"> = {}): ToolRegistration[] {
+  const routeDeps: MediaToolDeps = {
+    authorize: required.authorize,
+    workspaceId: required.workspaceId,
+    clock: required.clock,
+    idGen: required.idGen,
+    mediaRepo: required.mediaRepo,
+    assetBlobRepo: required.assetBlobRepo,
+    assetRenditionRepo: required.assetRenditionRepo,
+    blobStore: required.blobStore,
+    documentTextExtractors: required.documentTextExtractors,
+    ...optional,
+  };
+  const handlers: Record<string, ToolHandler> = {
+    ...libraryListHandlers(routeDeps),
+    ...libraryReadHandlers(routeDeps),
+    ...mediaListHandlers(routeDeps),
+    ...mediaUploadHandlers(routeDeps),
+    ...mediaUpdateHandlers(routeDeps),
+    ...mediaTrashHandlers(routeDeps),
   };
 
   // No `unwiredToolIds`: Media wires its ENTIRE catalog, same tripwire discipline as Forms.

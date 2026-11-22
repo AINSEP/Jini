@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import { AdminApiError } from '../transport/errors.js';
+import { AdminApiError } from '@jini-ai/core/admin-runtime';
 import { createHttpTransport, type AdminFetch } from '../transport/http.js';
 
 afterEach(() => { vi.restoreAllMocks(); vi.useRealTimers(); });
@@ -36,11 +36,11 @@ it('honors caller cancellation without replacing its signal or translating its e
   expect(timeout).not.toHaveBeenCalled();
 });
 
-it('translates network failures into typed reachability errors and keeps the original cause', async () => {
+it('translates network failures into typed reachability errors and keeps a classified cause', async () => {
   const transport = createHttpTransport({ baseUrl: '/api', fetch: async () => { throw new TypeError('Failed to fetch'); } });
   const error = await transport.request({ path: '/x' }).catch((error: unknown) => error);
   expect(error).toBeInstanceOf(AdminApiError);
-  expect(error).toMatchObject({ status: 0, code: 'API_UNREACHABLE', body: { cause: 'Failed to fetch' } });
+  expect(error).toMatchObject({ status: 0, code: 'API_UNREACHABLE', body: { cause: 'TypeError' } });
   expect((error as AdminApiError).message).toBe('cannot reach the API — is the server running?');
 });
 
@@ -48,7 +48,7 @@ it('recognizes a timeout from another realm by name', async () => {
   const cause = { name: 'TimeoutError', toString: () => 'TimeoutError: deadline reached' };
   const transport = createHttpTransport({ baseUrl: '/api', fetch: async () => { throw cause; } });
   await expect(transport.request({ path: '/x' })).rejects.toMatchObject({
-    status: 0, code: 'REQUEST_TIMEOUT', body: { cause: 'TimeoutError: deadline reached' },
+    status: 0, code: 'REQUEST_TIMEOUT', body: { cause: 'TimeoutError' },
   });
 });
 

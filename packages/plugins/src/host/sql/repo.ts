@@ -1,12 +1,13 @@
-import type { StorageKernel } from "@jini-ai/db/kernel";
+import type { StorageKernel } from "@jini-ai/core/contracts/storage";
 import type { PluginActivationTable } from "./repo.rows.js";
 export interface PluginActivationDatabase { [table: string]: PluginActivationTable }
 export interface PluginActivationSqlRequired {
-  readonly kernel: StorageKernel<PluginActivationDatabase>;
+  readonly kernel: StorageKernel<Kysely<PluginActivationDatabase>, PluginActivationDatabase>;
   readonly tables: { readonly activations: string };
 }
 import type { PluginActivationRecord, PluginActivationRepoPort } from "../activation.js";
 import { toActivationRecord, toActivationRow } from "./repo.rows.js";
+import type { Kysely } from "kysely";
 
 /**
  * @file THE `PluginActivationRepoPort` adapter: one Kysely query body for every database the
@@ -15,7 +16,7 @@ import { toActivationRecord, toActivationRow } from "./repo.rows.js";
  * `__tests__/integration/repo.contract.test.ts`, the suite `repo.memory.ts` runs identically.
  */
 export class SqlPluginActivationRepo implements PluginActivationRepoPort {
-  protected readonly kernel: StorageKernel<PluginActivationDatabase>;
+  protected readonly kernel: StorageKernel<Kysely<PluginActivationDatabase>, PluginActivationDatabase>;
   protected readonly tables: { readonly activations: string };
   constructor(required: PluginActivationSqlRequired, _optional: Record<string, never> = {}) {
     this.kernel = required.kernel;

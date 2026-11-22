@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 
-import { createVerifiedOrigin } from "@jini-ai/http-kit/verified-origin";
-import type { VerifiedOrigin } from "@jini-ai/http-kit/verified-origin";
+import { createVerifiedOrigin } from "@jini-ai/core/contracts/server/verified-origin";
+import type { VerifiedOrigin } from "@jini-ai/core/contracts/server/verified-origin";
 import { checkSameOriginDestination } from "../reserved-destination.js";
 
 /**

@@ -1,7 +1,7 @@
 import { X509Certificate } from 'node:crypto';
 import { get as httpGet, type IncomingMessage } from 'node:http';
 import { get as httpsGet } from 'node:https';
-import { isLoopbackHostname } from './address.js';
+import { isLoopbackHostname } from '@jini-ai/core/net';
 
 /**
  * Probe a loopback service once, accepting only HTTP 200 without following redirects.

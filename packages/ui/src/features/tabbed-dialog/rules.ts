@@ -9,8 +9,8 @@ import type { TabbedDialogTabMeta } from './types.js';
  * a valid tab instead of a blank content pane.
  */
 export function resolveInitialActiveTabId<T extends TabbedDialogTabMeta>(
-  tabs: readonly T[],
-  initialTabId?: string | null,
+  { tabs }: { tabs: readonly T[] },
+  { initialTabId }: { initialTabId?: string | null | undefined } = {},
 ): string | null {
   if (initialTabId != null && tabs.some((tab) => tab.id === initialTabId)) {
     return initialTabId;
@@ -20,8 +20,8 @@ export function resolveInitialActiveTabId<T extends TabbedDialogTabMeta>(
 
 /** Finds a tab by id, or `undefined` if `activeTabId` is `null`/not present. */
 export function findActiveTab<T extends TabbedDialogTabMeta>(
-  tabs: readonly T[],
-  activeTabId: string | null,
+  { tabs, activeTabId }: { tabs: readonly T[]; activeTabId: string | null },
+  _optional: Record<string, never> = {},
 ): T | undefined {
   if (activeTabId == null) return undefined;
   return tabs.find((tab) => tab.id === activeTabId);

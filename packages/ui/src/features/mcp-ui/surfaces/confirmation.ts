@@ -29,7 +29,7 @@ export type { ConfirmationToolAction } from '@jini-ai/core/contracts/cards';
  * than deferring it by the TTL. It stays optional because a non-destructive confirmation has nothing
  * to burn.
  */
-import { createUIResource, type UIResource, type UIResourceUri } from '../resource.js';
+import { createUIResource, type UIResource, type UIResourceUri } from '@jini-ai/protocol/mcp-ui';
 import { escapeHtml, escapeJsValue } from '../escape.js';
 import {
   DEFAULT_SURFACE_STATUS_TEXT,
@@ -236,20 +236,20 @@ function assertChoicesParamFree(spec: ConfirmationSurfaceSpec, required: { choic
 /** Header, context, choices, warning, actions and the status region. @complexity O(n) in the rendered length. */
 function confirmationBodyHtml(spec: ConfirmationSurfaceSpec, required: { affirmative: ReadonlySet<string> }): string {
   const { affirmative } = required;
-  const warning = spec.warning === undefined ? '' : `<p class="mcpui-warning">${escapeHtml(spec.warning)}</p>`;
+  const warning = spec.warning === undefined ? '' : `<p class="mcpui-warning">${escapeHtml({ value: spec.warning })}</p>`;
   // Styled inline, from the same tokens, so the shared stylesheet (and every pinned card digest) stays as it was.
-  const notice = spec.notice === undefined ? '' : `<p class="mcpui-notice" style="margin:14px 0 0;padding:9px 11px;border:1px solid var(--jini-mcpui-border);border-radius:var(--jini-mcpui-radius-md);background:var(--jini-mcpui-panel);color:var(--jini-mcpui-text)">${escapeHtml(spec.notice)}</p>`;
+  const notice = spec.notice === undefined ? '' : `<p class="mcpui-notice" style="margin:14px 0 0;padding:9px 11px;border:1px solid var(--jini-mcpui-border);border-radius:var(--jini-mcpui-radius-md);background:var(--jini-mcpui-panel);color:var(--jini-mcpui-text)">${escapeHtml({ value: spec.notice })}</p>`;
   return [
     renderSurfaceHeader(
       spec.description === undefined ? { title: spec.title } : { title: spec.title, description: spec.description },
     ),
-    renderDetailList(spec.details ?? []),
-    spec.detailDisclosure === undefined ? '' : `<details class="mcpui-detail-disclosure mcpui-technical-details"><summary aria-expanded="false">${escapeHtml(spec.detailDisclosure.label)}</summary>${renderDetailList(spec.detailDisclosure.details)}</details>`,
+    renderDetailList({ details: spec.details ?? [] }),
+    spec.detailDisclosure === undefined ? '' : `<details class="mcpui-detail-disclosure mcpui-technical-details"><summary aria-expanded="false">${escapeHtml({ value: spec.detailDisclosure.label })}</summary>${renderDetailList({ details: spec.detailDisclosure.details })}</details>`,
     renderChoices(spec.choices ?? [], spec.choicesLabel),
     notice,
     warning,
     // Confirm starts disabled; the script enables it once the dwell has run out.
-    renderActions(confirmationActions(spec).map((action) => (affirmative.has(action.id) ? { ...action, disabled: true } : action)), { humanOnly: true }),
+    renderActions({ actions: confirmationActions(spec).map((action) => (affirmative.has(action.id) ? { ...action, disabled: true } : action)) }, { humanOnly: true }),
     renderStatusRegion(),
   ]
     .filter((fragment) => fragment !== '')
@@ -282,18 +282,18 @@ function confirmationScript(required: {
 }): string {
   const { plan, text, choicesParam, affirmative, groupedChoices, initiallyCheckedIds } = required;
   const checkedSeed = initiallyCheckedIds.length === 0 ? '' : `
-  var initiallyCheckedIds = ${escapeJsValue(initiallyCheckedIds)};
+  var initiallyCheckedIds = ${escapeJsValue({ value: initiallyCheckedIds })};
   for (var d = 0; d < initiallyCheckedIds.length; d++) checkedIds[initiallyCheckedIds[d]] = true;`;
   const groupedChoiceIdentity = groupedChoices ? `
     if (!choiceInputs[c].hasAttribute("data-mcpui-choice")) choiceInputs[c].setAttribute("data-mcpui-choice", choiceInputs[c].value);` : '';
   return `(function () {
   "use strict";
 ${SURFACE_SCRIPT_PRELUDE}
-  var PLAN = ${escapeJsValue(plan)};
-  var TEXT = ${escapeJsValue(text)};
+  var PLAN = ${escapeJsValue({ value: plan })};
+  var TEXT = ${escapeJsValue({ value: text })};
   var DWELL_MS = ${CONFIRM_DWELL_MS};
-  var CHOICES_PARAM = ${escapeJsValue(choicesParam)};
-  var AFFIRMATIVE = ${escapeJsValue([...affirmative])};
+  var CHOICES_PARAM = ${escapeJsValue({ value: choicesParam })};
+  var AFFIRMATIVE = ${escapeJsValue({ value: [...affirmative] })};
   function isAffirmative(action) {
     return AFFIRMATIVE.indexOf(action) !== -1;
   }
@@ -356,7 +356,7 @@ ${SURFACE_SCRIPT_PRELUDE}
   // the buttons, extended to the one other interactive element this document can contain. Keyed by
   // \`data-mcpui-choice\` (the caller's id), not DOM order, so a checkbox reordering upstream could
   // never silently swap which id a tick reports.
-  var choiceInputs = Array.prototype.slice.call(document.querySelectorAll(${escapeJsValue(groupedChoices ? '[data-mcpui-choice], .mcpui-choice-group input' : '[data-mcpui-choice]')}));
+  var choiceInputs = Array.prototype.slice.call(document.querySelectorAll(${escapeJsValue({ value: groupedChoices ? '[data-mcpui-choice], .mcpui-choice-group input' : '[data-mcpui-choice]' })}));
   var checkedIds = Object.create(null);${checkedSeed}
   for (var c = 0; c < choiceInputs.length; c++) {${groupedChoiceIdentity}
     choiceInputs[c].addEventListener("change", onChoiceChange);

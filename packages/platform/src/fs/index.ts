@@ -1,6 +1,7 @@
 // Filesystem exports share atomic replacement and token/inode-owned lock primitives.
 export * from "../fs.js";
 export * from "./atomic-write.js";
+export * from "./app-data-root.js";
 export * from "./env-text.js";
 export * from "./strict-containment.js";
 export * from "./guarded-reader.js";
@@ -17,3 +18,8 @@ export * from "./verified-directory-move.js";
 export * from "./reviewed-file.js";
 
 export { backupOriginalOnce } from './backup-once.js';
+
+export * from "./directory-delete-guard.js";
+export * from "./remove-directory-tree.js";
+export * from "./directory-relocation.js";
+export * from "./recent-directories.js";

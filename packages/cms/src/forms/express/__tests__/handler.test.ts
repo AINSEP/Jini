@@ -1,6 +1,6 @@
+import { webcrypto } from "node:crypto";
 import { parseFragment, type DefaultTreeAdapterMap } from "parse5";
 import assert from "node:assert/strict";
-import { inspect } from "node:util";
 import type { Request, Response } from "express";
 import { afterEach, test, vi } from "vitest";
 import { FormDefinitionNotFoundError, FormRateLimitExceededError, FormSubmissionValidationError, FormSubmissionTooFastError } from "../../errors.js";
@@ -135,7 +135,7 @@ test("a caller with no Accept header keeps the JSON contract", async () => {
   const { deps } = harness({ submit: async () => { throw new FormDefinitionNotFoundError({ message: "form 'x' not found" }); } });
   const sent = await send(deps, request({ slug: "x" }));
   assert.equal(sent.status, 404);
-  assert.deepEqual(sent.json, { error: "form 'x' not found", code: "FORMS_DEFINITION_NOT_FOUND" });
+  assert.deepEqual(sent.json, { error: "Form was not found.", code: "FORMS_DEFINITION_NOT_FOUND" });
 });
 
 test("a JSON validation failure answers 400 with field errors and never reads the definition for a flash cookie", async () => {
@@ -143,7 +143,7 @@ test("a JSON validation failure answers 400 with field errors and never reads th
   const { deps, calls } = harness({ submit: async () => { throw new FormSubmissionValidationError({ message: "invalid", fieldErrors }); } });
   const sent = await send(deps, request({ slug: "contact", body: { email: "nope" }, headers: { accept: "*/*" } }));
   assert.equal(sent.status, 400);
-  assert.deepEqual(sent.json, { error: "invalid", code: "FORMS_SUBMISSION_VALIDATION_ERROR", details: { fieldErrors } });
+  assert.deepEqual(sent.json, { error: "Please check the form fields and try again.", code: "FORMS_SUBMISSION_VALIDATION_ERROR", details: { fieldErrors } });
   assert.deepEqual(calls.lookups, []);
   assert.deepEqual(sent.cookies, []);
 });
@@ -152,7 +152,7 @@ test("a JSON rate-limited submission answers 429 with the retry delay", async ()
   const { deps } = harness({ submit: async () => { throw new FormRateLimitExceededError({ message: "slow down", retryAfterSeconds: 42 }); } });
   const sent = await send(deps, request({ slug: "contact" }));
   assert.equal(sent.status, 429);
-  assert.deepEqual(sent.json, { error: "slow down", code: "FORMS_RATE_LIMIT_EXCEEDED", details: { retryAfterSeconds: 42 } });
+  assert.deepEqual(sent.json, { error: "Too many submissions. Please try again later.", code: "FORMS_RATE_LIMIT_EXCEEDED", details: { retryAfterSeconds: 42 } });
 });
 
 test("an unexpected failure answers a generic 500 without leaking the error message", async () => {
@@ -259,19 +259,20 @@ test("an oversized flash payload the codec refuses still redirects, just without
 test("a failing definition lookup is logged and the validation redirect still happens", async () => {
   const logged: unknown[][] = [];
   vi.spyOn(console, "error").mockImplementation((...args: unknown[]) => { logged.push(args); });
-  const lookupError = new Error("db down");
+  const lookupError = new Error("boom api_key=SECRETSECRETSECRETSECRET");
   const { deps } = harness({
     submit: async () => { throw new FormSubmissionValidationError({ message: "invalid" }); },
     definitionRepo: { findBySlug: async () => { throw lookupError; } },
   });
   const sent = await send(deps, request({ slug: "contact", body: { name: "Ada" }, headers: HTML_HEADERS }));
-  assert.deepEqual(logged, [["[site/forms-submit] failed to set validation flash cookie (slug=contact)", inspect(lookupError)]]);
+  assert.deepEqual(logged, [["site/forms-submit Failed to set form validation flash cookie.", "Error"]]);
+  for (const leak of ["boom", "SECRETSECRET", "handler.test"]) assert.ok(!JSON.stringify(logged).includes(leak));
   assert.deepEqual(sent.cookies, []);
   assert.deepEqual(sent.redirect, { status: 303, location: "/?form_result=validation&form_slug=contact" });
 });
 
 test("disk refusal keeps all validated answers without a cookie, escapes HTML, and never echoes files or control tokens", async () => {
-  const { FormAttachmentSpaceError } = await import("../../errors.js"); const message = "This site has no room for another attachment. Your answers are kept below. Your form has not been sent."; const answers = { name: '<script>alert(1)</script>', message: "x".repeat(6000), consent: true };
+  const { FormAttachmentSpaceError } = await import("../../errors.js"); const message = "There is no room for another attachment. Your answers are kept below. Your form has not been sent."; const answers = { name: '<script>alert(1)</script>', message: "x".repeat(6000), consent: true };
   const { deps } = harness({ definitionRepo: { findBySlug: async () => { throw new Error("retry lookup unavailable"); } }, submit: async () => { throw new FormAttachmentSpaceError({ answers, fields: [...DEFINITION.fields, { id: "attachment", label: "Attachment", type: "file", required: false }], message }); } });
   const json = await send(deps, request({ slug: "contact" })); assert.equal(json.status, 507); assert.deepEqual((json.json as any).answers, answers); assert.equal((json.json as any).error, message);
   const html = await send(deps, request({ slug: "contact", headers: HTML_HEADERS })); assert.equal(html.status, 507); assert.equal(html.cookies.length, 0); assert.equal(html.headers?.["Cache-Control"], "no-store"); assert.equal(json.headers?.["Cache-Control"], "no-store");
@@ -356,7 +357,7 @@ test('double clicking the form on a schema retry stores one submission', async (
   await definitionRepo.create(DEFINITION);
   let id = 0;
   const attempts = createSubmissionAttempts({ hash: value => value });
-  const service = { definitionRepo, submissionRepo, clock: { nowMs: () => 0 }, idGen: { newId: () => String(++id) },
+  const service = { definitionRepo, submissionRepo, clock: { nowMs: () => 0 }, crypto: webcrypto, idGen: { newId: () => String(++id) },
     outbox: { enqueue: async () => {} }, dispatcher: { dispatch: async () => {} }, logger: { warn: () => {} },
     rateLimiter: { check: async () => ({ allowed: true as const }) } };
   const { deps } = harness({ definitionRepo, submit: ({ input }) => submitForm({ deps: service, input }, { attempts }) });

@@ -67,3 +67,37 @@ export function parseSource(required: { file: string; source: string }, _optiona
   return ts.createSourceFile(required.file, required.source, ts.ScriptTarget.Latest, true,
     required.file.endsWith('.tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS);
 }
+
+function walkFiles(required: { directory: string; skip: readonly string[]; accept: (name: string) => boolean }): string[] {
+  const files: string[] = [];
+  function visit(directory: string): void {
+    if (!existsSync(directory)) return;
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      if (required.skip.includes(entry.name)) continue;
+      const child = join(directory, entry.name);
+      if (entry.isDirectory()) visit(child);
+      else if (required.accept(entry.name)) files.push(child);
+    }
+  }
+  visit(required.directory);
+  return files.sort();
+}
+
+/** Plugin payloads: the `.mjs`/`.js`/`.d.ts` content that ships beside the agent-plugins `src`
+ * (each top-level plugin folder). It is published code, so the base rule covers it like source. */
+export function payloadSourceFiles(required: { directory: string }, _optional: Record<string, never> = {}): string[] {
+  return walkFiles({
+    directory: required.directory,
+    skip: ['__tests__', 'node_modules', 'dist', '.git', 'src'],
+    accept: name => /\.(?:[cm]?jsx?|d\.[cm]?ts)$/.test(name) && !/\.test\./.test(name),
+  });
+}
+
+/** Test files under `src`: advisory only (unit tests may fake across packages until the tests are moved). */
+export function packageTestFiles(required: { directory: string }, _optional: Record<string, never> = {}): string[] {
+  return walkFiles({
+    directory: join(required.directory, 'src'),
+    skip: ['node_modules', 'dist', '.git'],
+    accept: name => /\.(?:ts|tsx|mts|cts)$/.test(name),
+  }).filter(file => /(?:^|\/)__tests__\//.test(file) || /\.test\./.test(file));
+}

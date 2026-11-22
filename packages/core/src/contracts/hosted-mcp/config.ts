@@ -115,6 +115,8 @@ export interface ExternalMcpServerView<TokenHint = never> {
   /** For `stdio` + `static_env`: the child env variable that receives that token. A NAME, so plaintext. */
   accessTokenEnvName: string | null;
   oauth: ExternalMcpOAuthView;
+  /** Edit revision; send it back as `expectedVersion` on the next save so an edit from an old screen is refused. */
+  version: number;
 }
 
 /**
@@ -179,6 +181,12 @@ export interface SaveExternalMcpServerInput {
    *  keeps the stored name. */
   accessTokenEnvName?: string;
   oauth?: SaveExternalMcpOAuthInput;
+  /**
+   * The `version` the person (or tool) loaded this row at. Present: an edit from an older screen is refused with a
+   * `RecordVersionConflictError`. Absent: the save is compared against the version read in the same request, which does
+   * not protect against a stale screen (kept only until every caller sends it).
+   */
+  expectedVersion?: number;
   /**
    * Set ONLY by the host's trusted plugin provisioner, on the ONE save that creates a brand-new
    * plugin-provisioned row. Every other caller (including administrative routes and assistant
@@ -260,3 +268,16 @@ export interface ExternalMcpDeviceStart {
 
 /** @agent-note Discriminated by `kind`; hosts render each arm, packages never build host links here. */
 export type ExternalMcpConnectStart = ExternalMcpAuthorizationStart | ExternalMcpDeviceStart;
+
+/** Machine-readable reason a saved, enabled server could not become a usable config. Only reauthorization is
+ *  distinguished today; callers branch on this, never on `reason` wording. */
+export type ExternalMcpConfigFailureCategory = "reauth_required";
+
+/** @agent-note One saved, enabled server the hosted store could not resolve. `reason` is operator-facing prose
+ *  (the host's settings link interpolated; never a secret or provider text). `category` is absent for an
+ *  ordinary resolution failure (unreadable credentials, misconfigured row, token endpoint unreachable). */
+export interface ExternalMcpConfigFailure {
+  readonly serverId: string;
+  readonly reason: string;
+  readonly category?: ExternalMcpConfigFailureCategory;
+}

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import { CONNECTOR_TOOL_PREVIEW_LIMIT } from '../constants.js';
 import type { ConnectorsPort } from '../ports.js';
-import { hasLoadedAllAdvertisedConnectorTools, mergeConnectorToolPreview } from '../rules.js';
+import { hasLoadedAllAdvertisedConnectorTools, mergeConnectorToolPreview, withoutKey } from '../rules.js';
 import type { Connector } from '../types.js';
 
 export interface UseConnectorDetailParams {
@@ -51,14 +51,9 @@ export function useConnectorDetail(port: ConnectorsPort, params: UseConnectorDet
           ...(cursor === undefined ? {} : { toolsCursor: cursor }),
         });
         if (next) {
-          setConnectors((curr) => curr.map((c) => (c.id === next.id ? mergeConnectorToolPreview(c, next, cursor !== undefined) : c)));
+          setConnectors((curr) => curr.map((c) => (c.id === next.id ? mergeConnectorToolPreview({ current: c, next, append: cursor !== undefined }) : c)));
           setFetchedIds((curr) => ({ ...curr, [connectorId]: true }));
-          setFailedIds((curr) => {
-            if (curr[connectorId] === undefined) return curr;
-            const nextFailed = { ...curr };
-            delete nextFailed[connectorId];
-            return nextFailed;
-          });
+          setFailedIds((curr) => withoutKey({ record: curr, key: connectorId }));
         } else {
           setFailedIds((curr) => ({ ...curr, [connectorId]: retryToken }));
         }
@@ -79,16 +74,10 @@ export function useConnectorDetail(port: ConnectorsPort, params: UseConnectorDet
     if (failedIds[detailConnector.id] === retryToken) return;
     if (loadingIds[detailConnector.id]) return;
     void hydrateToolPreview(detailConnector.id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [unlocked, detailConnector, failedIds, fetchedIds, loadingIds, retryToken]);
+  }, [unlocked, detailConnector, failedIds, fetchedIds, loadingIds, retryToken, hydrateToolPreview]);
 
   const openDetails = useCallback((connectorId: string) => {
-    setFailedIds((curr) => {
-      if (curr[connectorId] === undefined) return curr;
-      const next = { ...curr };
-      delete next[connectorId];
-      return next;
-    });
+    setFailedIds((curr) => withoutKey({ record: curr, key: connectorId }));
     setDetailConnectorId(connectorId);
   }, []);
 

@@ -15,7 +15,7 @@
  * `install.ts`'s hardening logic.
  *
  * ---------------------------------------------------------------------------
- * Symlink detection — the one thing this file has to get right that yauzl doesn't do for you
+ * Unix entry classification — symlinks, FIFOs and other special types are refused kinds
  * ---------------------------------------------------------------------------
  * The base ZIP spec has no first-class symlink concept. The de facto convention (Info-ZIP, Python's
  * `zipfile`, and this module's own `yazl`-based test fixtures all follow it) is: when an entry's
@@ -59,6 +59,9 @@ import type { AgentPluginArchiveEntry, AgentPluginArchiveReaderPort } from "./in
  */
 const S_IFMT = 0xf000;
 const S_IFLNK = 0xa000;
+const S_IFIFO = 0x1000;
+const S_IFDIR = 0x4000;
+const S_IFREG = 0x8000;
 
 /**
  * "Version made by" host-system byte for Unix, per the ZIP spec's APPNOTE.TXT §4.4.2.2.
@@ -70,7 +73,7 @@ const UNIX_HOST_SYSTEM = 3;
  */
 const EXECUTABLE_MODE_MASK = 0o111;
 
-export function createYauzlAgentPluginArchiveReader({ yauzl }: { readonly yauzl: YauzlPort }): AgentPluginArchiveReaderPort {
+export function createYauzlAgentPluginArchiveReader({ yauzl }: { readonly yauzl: YauzlPort }, _optional: Record<string, never> = {}): AgentPluginArchiveReaderPort {
 return {
   async *entries({ archive }: { readonly archive: Uint8Array }): AsyncIterable<AgentPluginArchiveEntry> {
     /**
@@ -110,7 +113,9 @@ function archiveEntryFor(zipfile: YauzlZipFile, entry: YauzlEntry): AgentPluginA
    * module's header. `install.ts` rejects every symlink entry unconditionally.
    */
   const unixMode = readUnixMode(entry);
-  if (unixMode !== null && (unixMode & S_IFMT) === S_IFLNK) return { kind: "symlink", entryPath: entry.fileName };
+  const fileType = unixMode === null ? 0 : unixMode & S_IFMT;
+  if (fileType === S_IFLNK) return { kind: "symlink", entryPath: entry.fileName };
+  if (![0, S_IFREG, S_IFDIR].includes(fileType)) return { kind: fileType === S_IFIFO ? "fifo" : "device", entryPath: entry.fileName };
   // File mode defines links even when a hostile filename masquerades as a directory.
   if (entry.fileName.endsWith("/")) return { kind: "directory", entryPath: entry.fileName };
   return {

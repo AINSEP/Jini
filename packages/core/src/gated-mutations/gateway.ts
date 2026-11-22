@@ -154,6 +154,7 @@ export async function confirm(
     hooks: GatedMutationHooks<unknown, unknown>;
     planId: string;
     planHash: string;
+    signal?: AbortSignal;
   },
   _optional: Record<string, never> = {}
 ): Promise<ConfirmationTokenRecord> {
@@ -174,6 +175,7 @@ export async function confirm(
     generateToken: deps.generateToken,
     ttlSeconds: deps.ttlSeconds,
   });
+  required.signal?.throwIfAborted();
   await deps.tokens.save({ record: token });
   return token;
 }
@@ -191,6 +193,7 @@ export async function execute<TResult>(
     principalKind: PrincipalKind;
     hooks: GatedMutationHooks<unknown, TResult>;
     confirmationToken: string;
+    signal?: AbortSignal;
   },
   _optional: Record<string, never> = {}
 ): Promise<TResult> {
@@ -215,7 +218,9 @@ export async function execute<TResult>(
   }
   // Concurrent executions can pass every earlier check; atomic redemption makes the loser fail
   // before its domain mutation, preventing a second application of the same approval.
-  const { redeemed, record: latestRecord } = await deps.tokens.tryRedeem({ token: confirmationToken, now: nowIso({ clock: deps.clock }) });
+  const now = nowIso({ clock: deps.clock });
+  required.signal?.throwIfAborted();
+  const { redeemed, record: latestRecord } = await deps.tokens.tryRedeem({ token: confirmationToken, now });
   if (!redeemed) throw unredeemableTokenError(latestRecord);
 
   return hooks.executeMutation({ planHash, details });

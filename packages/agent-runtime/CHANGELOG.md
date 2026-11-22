@@ -221,11 +221,11 @@
 
 ## 0.4.10 — 2026-10-13
 
-- ACP `session/request_permission` no longer fails the run. Without an injected `onPermissionRequest`, the session answers by the new `AttachAcpSessionOptions.permissionMode`: `bypass` selects `allow_once`; otherwise `reject_once`, falling back to `reject_always` or `cancelled`. It never picks an "always" approval. A handler that throws, rejects, or selects an unoffered option cancels the request. Each request emits one `status` event (`label: 'acp_permission'`) with only the tool kind and decision. `choosePermissionOutcome(options, { permissionMode })` follows the same policy.
+- ACP `session/request_permission` no longer fails the run. Without an injected `onPermissionRequest`, the session answers by the new `AttachAcpSessionOptions.permissionMode`: `bypass` selects `allow_once`; otherwise `reject_once`, falling back to `reject_always` or `cancelled`. It never picks an "always" approval. A handler that throws, rejects, or selects an unoffered option cancels the request. Each request emits one `status` event (`label: 'acp_permission'`) with only the tool kind and decision. `choosePermissionOutcome({ options }, { permissionMode })` follows the same policy.
 
 ## 0.4.9 — 2026-10-13
 
-- `@jini-ai/oauth` is a regular dependency, no longer an optional peer: the root imports it statically, so a consumer without its own copy (Tovu Desktop 0.1.15) crashed at load with ERR_MODULE_NOT_FOUND.
+- `@jini-ai/oauth` is a regular dependency, no longer an optional peer: the root imports it statically, so a consumer without its own copy (the first host's desktop 0.1.15) crashed at load with ERR_MODULE_NOT_FOUND.
 
 ## 0.4.8 — 2026-10-13
 
@@ -249,7 +249,7 @@
 
 ## 0.4.2 — 2026-10-08
 
-- Tovu clean-up release: code Tovu moved into Jini, plus the Jini clean-up (see the commit log).
+- Host clean-up release: code the first host moved into Jini, plus the Jini clean-up (see the commit log).
 
 ## 0.4.1 — 2026-10-06
 

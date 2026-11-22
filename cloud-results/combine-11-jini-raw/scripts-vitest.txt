@@ -1,0 +1,712 @@
+
+ RUN  v3.2.7 /home/user/Jini
+
+▸ 候选资产 0 个(图片 0 / 字体 0)，开始下载…
+✅ 下载 0 成功 / 0 失败 → /tmp/wc1-KL2XsD/out
+/tmp/wc1-KL2XsD/out/asset-manifest.json
+ ✓ packages/agent-runtime/src/skills/web-clone/scripts/__tests__/asset-harvest.test.mjs (24 tests) 33ms
+ ✓ scripts/__tests__/check-plugin-isolation.test.ts (96 tests) 41ms
+ ✓ packages/agent-runtime/src/skills/web-clone/scripts/__tests__/interaction-probe.unit.test.mjs (20 tests) 42ms
+ ✓ packages/agent-runtime/src/skills/web-clone/scripts/__tests__/recon-site.unit.test.mjs (10 tests) 41ms
+stderr | scripts/__tests__/check-error-gate.test.ts > a full update refuses new and worsened debt without changing ledger bytes
+Cannot update the error gate debt list with new or worsened entries.
+
+stderr | scripts/__tests__/check-error-gate.test.ts > a scoped update refuses an apparent shrink without changing ledger bytes
+Cannot update the error gate debt list with --files; run a full scan.
+
+stdout | scripts/__tests__/check-error-gate.test.ts > a full shrink writes only the surviving debt rows
+Wrote 1 entries to scripts/error-gate-debt.json.
+
+stdout | scripts/__tests__/check-error-gate.test.ts > the first full update creates an absent ledger
+Wrote 1 entries to scripts/error-gate-debt.json.
+
+ ✓ scripts/__tests__/check-error-gate.test.ts (107 tests) 1713ms
+   ✓ precedence step 1: a sanctioned reporting module is skipped by every rule  1098ms
+ ✓ scripts/__tests__/check-package-layers.test.ts (59 tests) 387ms
+/tmp/wc1-compare-MXDZg5/R.md
+ ✓ packages/agent-runtime/src/skills/web-clone/scripts/__tests__/compare-recon.test.mjs (17 tests) 24ms
+/tmp/wc1-audit-48M1J4/out.md
+ ✓ packages/agent-runtime/src/skills/web-clone/scripts/__tests__/audit-clone.test.mjs (22 tests) 28ms
+ ✓ scripts/__tests__/check-subpath-isolation.test.ts (33 tests) 329ms
+ ✓ packages/cms/scripts/__tests__/check-packaging.test.ts (22 tests) 15ms
+ ✓ packages/agent-runtime/src/skills/web-clone/scripts/__tests__/lib-wc2.unit.test.mjs (22 tests) 372ms
+   ✓ loadPlaywright > resolves with the real require/env defaults (result depends on the install)  358ms
+ ✓ packages/agent-runtime/src/skills/web-clone/scripts/__tests__/route-crawl.unit.test.mjs (11 tests) 17ms
+ ✓ scripts/__tests__/plugin-release-consistency.test.ts (9 tests) 2937ms
+   ✓ imports the release preparation path in Node without running a release  446ms
+   ✓ compares two packed release sets and keeps same-version byte changes explicit  2333ms
+npm notice
+npm notice New major version of npm available! 11.19.1 -> 12.2.3
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.3
+npm notice To update run: npm install -g npm@12.2.3
+npm notice
+stderr | scripts/__tests__/standalone-agent-plugin.integration.test.ts > subpath 'calendly' > real seeding of the staged folder installs only this plugin with readable skills; repeat boots keep operator disablement
+/tmp/agent-plugin-subpaths-nfS4SH/calendly-seeding/ws/workspace-a
+
+stderr | scripts/__tests__/standalone-agent-plugin.integration.test.ts > subpath 'charts-echarts' > real seeding of the staged folder installs only this plugin with readable skills; repeat boots keep operator disablement
+/tmp/agent-plugin-subpaths-nfS4SH/charts-echarts-seeding/ws/workspace-a
+
+stderr | scripts/__tests__/standalone-agent-plugin.integration.test.ts > subpath 'charts-recharts' > real seeding of the staged folder installs only this plugin with readable skills; repeat boots keep operator disablement
+/tmp/agent-plugin-subpaths-nfS4SH/charts-recharts-seeding/ws/workspace-a
+
+stderr | scripts/__tests__/standalone-agent-plugin.integration.test.ts > subpath 'cloudflare' > real seeding of the staged folder installs only this plugin with readable skills; repeat boots keep operator disablement
+/tmp/agent-plugin-subpaths-nfS4SH/cloudflare-seeding/ws/workspace-a
+
+stderr | scripts/__tests__/standalone-agent-plugin.integration.test.ts > subpath 'commerce' > real seeding of the staged folder installs only this plugin with readable skills; repeat boots keep operator disablement
+/tmp/agent-plugin-subpaths-nfS4SH/commerce-seeding/ws/workspace-a
+
+stderr | scripts/__tests__/standalone-agent-plugin.integration.test.ts > subpath 'composio' > real seeding of the staged folder installs only this plugin with readable skills; repeat boots keep operator disablement
+/tmp/agent-plugin-subpaths-nfS4SH/composio-seeding/ws/workspace-a
+
+stderr | scripts/__tests__/standalone-agent-plugin.integration.test.ts > subpath 'fly' > real seeding of the staged folder installs only this plugin with readable skills; repeat boots keep operator disablement
+/tmp/agent-plugin-subpaths-nfS4SH/fly-seeding/ws/workspace-a
+
+stderr | scripts/__tests__/standalone-agent-plugin.integration.test.ts > subpath 'formspree' > real seeding of the staged folder installs only this plugin with readable skills; repeat boots keep operator disablement
+/tmp/agent-plugin-subpaths-nfS4SH/formspree-seeding/ws/workspace-a
+
+stderr | scripts/__tests__/standalone-agent-plugin.integration.test.ts > subpath 'github' > real seeding of the staged folder installs only this plugin with readable skills; repeat boots keep operator disablement
+/tmp/agent-plugin-subpaths-nfS4SH/github-seeding/ws/workspace-a
+
+stderr | scripts/__tests__/standalone-agent-plugin.integration.test.ts > subpath 'github-pages' > real seeding of the staged folder installs only this plugin with readable skills; repeat boots keep operator disablement
+/tmp/agent-plugin-subpaths-nfS4SH/github-pages-seeding/ws/workspace-a
+
+stderr | scripts/__tests__/standalone-agent-plugin.integration.test.ts > subpath 'google-forms' > real seeding of the staged folder installs only this plugin with readable skills; repeat boots keep operator disablement
+/tmp/agent-plugin-subpaths-nfS4SH/google-forms-seeding/ws/workspace-a
+
+stderr | scripts/__tests__/standalone-agent-plugin.integration.test.ts > subpath 'google-login' > real seeding of the staged folder installs only this plugin with readable skills; repeat boots keep operator disablement
+/tmp/agent-plugin-subpaths-nfS4SH/google-login-seeding/ws/workspace-a
+
+stderr | scripts/__tests__/standalone-agent-plugin.integration.test.ts > subpath 'google-workspace' > real seeding of the staged folder installs only this plugin with readable skills; repeat boots keep operator disablement
+/tmp/agent-plugin-subpaths-nfS4SH/google-workspace-seeding/ws/workspace-a
+
+stderr | scripts/__tests__/standalone-agent-plugin.integration.test.ts > subpath 'higgsfield-media' > real seeding of the staged folder installs only this plugin with readable skills; repeat boots keep operator disablement
+/tmp/agent-plugin-subpaths-nfS4SH/higgsfield-media-seeding/ws/workspace-a
+
+ ✓ scripts/__tests__/check-package-layers.injection.test.ts (48 tests) 26593ms
+   ✓ the real workspace baseline > ships a parsable debt file, only Q2 exceptions (pinned exactly in injection-exceptions.q2.test.ts), and passes the gate  25980ms
+stderr | scripts/__tests__/standalone-agent-plugin.integration.test.ts > subpath 'jev' > real seeding of the staged folder installs only this plugin with readable skills; repeat boots keep operator disablement
+/tmp/agent-plugin-subpaths-nfS4SH/jev-seeding/ws/workspace-a
+
+stderr | scripts/__tests__/standalone-agent-plugin.integration.test.ts > subpath 'kuinetic' > real seeding of the staged folder installs only this plugin with readable skills; repeat boots keep operator disablement
+/tmp/agent-plugin-subpaths-nfS4SH/kuinetic-seeding/ws/workspace-a
+
+stderr | scripts/__tests__/standalone-agent-plugin.integration.test.ts > subpath 'kuinetic' > the seeded digest selects the subpath payload over a retained legacy revision
+/tmp/agent-plugin-subpaths-nfS4SH/kuinetic-digest-selection/ws/workspace-a
+
+stderr | scripts/__tests__/standalone-agent-plugin.integration.test.ts > subpath 'langfuse' > real seeding of the staged folder installs only this plugin with readable skills; repeat boots keep operator disablement
+/tmp/agent-plugin-subpaths-nfS4SH/langfuse-seeding/ws/workspace-a
+
+stderr | scripts/__tests__/standalone-agent-plugin.integration.test.ts > subpath 'meilisearch' > real seeding of the staged folder installs only this plugin with readable skills; repeat boots keep operator disablement
+/tmp/agent-plugin-subpaths-nfS4SH/meilisearch-seeding/ws/workspace-a
+
+stderr | scripts/__tests__/standalone-agent-plugin.integration.test.ts > subpath 'netlify' > real seeding of the staged folder installs only this plugin with readable skills; repeat boots keep operator disablement
+/tmp/agent-plugin-subpaths-nfS4SH/netlify-seeding/ws/workspace-a
+
+stderr | scripts/__tests__/standalone-agent-plugin.integration.test.ts > subpath 'opentelemetry' > real seeding of the staged folder installs only this plugin with readable skills; repeat boots keep operator disablement
+/tmp/agent-plugin-subpaths-nfS4SH/opentelemetry-seeding/ws/workspace-a
+
+stderr | scripts/__tests__/standalone-agent-plugin.integration.test.ts > subpath 'posthog' > real seeding of the staged folder installs only this plugin with readable skills; repeat boots keep operator disablement
+/tmp/agent-plugin-subpaths-nfS4SH/posthog-seeding/ws/workspace-a
+
+stderr | scripts/__tests__/standalone-agent-plugin.integration.test.ts > subpath 'railway' > real seeding of the staged folder installs only this plugin with readable skills; repeat boots keep operator disablement
+/tmp/agent-plugin-subpaths-nfS4SH/railway-seeding/ws/workspace-a
+
+stderr | scripts/__tests__/standalone-agent-plugin.integration.test.ts > subpath 'render' > real seeding of the staged folder installs only this plugin with readable skills; repeat boots keep operator disablement
+/tmp/agent-plugin-subpaths-nfS4SH/render-seeding/ws/workspace-a
+
+stderr | scripts/__tests__/standalone-agent-plugin.integration.test.ts > subpath 'resend' > real seeding of the staged folder installs only this plugin with readable skills; repeat boots keep operator disablement
+/tmp/agent-plugin-subpaths-nfS4SH/resend-seeding/ws/workspace-a
+
+stderr | scripts/__tests__/standalone-agent-plugin.integration.test.ts > subpath 's3-compatible' > real seeding of the staged folder installs only this plugin with readable skills; repeat boots keep operator disablement
+/tmp/agent-plugin-subpaths-nfS4SH/s3-compatible-seeding/ws/workspace-a
+
+stderr | scripts/__tests__/standalone-agent-plugin.integration.test.ts > subpath 'sentry' > real seeding of the staged folder installs only this plugin with readable skills; repeat boots keep operator disablement
+/tmp/agent-plugin-subpaths-nfS4SH/sentry-seeding/ws/workspace-a
+
+stderr | scripts/__tests__/standalone-agent-plugin.integration.test.ts > subpath 'shadcn-ui' > real seeding of the staged folder installs only this plugin with readable skills; repeat boots keep operator disablement
+/tmp/agent-plugin-subpaths-nfS4SH/shadcn-ui-seeding/ws/workspace-a
+
+stderr | scripts/__tests__/standalone-agent-plugin.integration.test.ts > subpath 'shadcn-ui' > the seeded digest selects the subpath payload over a retained legacy revision
+/tmp/agent-plugin-subpaths-nfS4SH/shadcn-ui-digest-selection/ws/workspace-a
+
+stderr | scripts/__tests__/standalone-agent-plugin.integration.test.ts > subpath 'shopify' > real seeding of the staged folder installs only this plugin with readable skills; repeat boots keep operator disablement
+/tmp/agent-plugin-subpaths-nfS4SH/shopify-seeding/ws/workspace-a
+
+stderr | scripts/__tests__/standalone-agent-plugin.integration.test.ts > subpath 'site-compliance' > real seeding of the staged folder installs only this plugin with readable skills; repeat boots keep operator disablement
+/tmp/agent-plugin-subpaths-nfS4SH/site-compliance-seeding/ws/workspace-a
+
+stderr | scripts/__tests__/standalone-agent-plugin.integration.test.ts > subpath 'site-import' > real seeding of the staged folder installs only this plugin with readable skills; repeat boots keep operator disablement
+/tmp/agent-plugin-subpaths-nfS4SH/site-import-seeding/ws/workspace-a
+
+ ❯ scripts/__tests__/optional-peer-contract.test.ts (58 tests | 3 failed) 31112ms
+   ✓ rejects an unclassified optional peer 34ms
+   ✓ rejects a default path reaching an opt-in peer: import 'driver'; 23ms
+   ✓ rejects a default path reaching an opt-in peer: export * from './feature.js'; 9ms
+   ✓ rejects a default path reaching an opt-in peer: const load = () => createRequire(import.meta.url)('driver'); 5ms
+   ✓ rejects a default path reaching an opt-in peer: require.resolve('driver'); 9ms
+   ✓ permits a classified peer used exclusively by an opt-in subpath: import 'driver'; 3ms
+   ✓ permits a classified peer used exclusively by an opt-in subpath: export * from 'driver'; 4ms
+   ✓ permits a classified peer used exclusively by an opt-in subpath: export const enable = () => import('driver'); 5ms
+   ✓ checks published packages even without an exports map 9ms
+   ✓ never recommends turning required subset dependencies into optional peers 20ms
+   ✓ rejects default reachability even with deferred-module metadata: export const enable = () => import('driver'); 6ms
+   ✓ rejects default reachability even with deferred-module metadata: import 'driver'; export const enable = true; 5ms
+   ✓ current published package manifests all satisfy the opt-in classification contract 18ms
+   ✓ making a backend peer required must not disable neutral-driver isolation 101ms
+   ✓ required integration peers keep their approved adapter boundary, never the neutral core 28ms
+   ✓ keeps db → better-sqlite3 an explicitly classified opt-in peer 1ms
+   ✓ keeps db → pg an explicitly classified opt-in peer 1ms
+   ✓ keeps db → @electric-sql/pglite an explicitly classified opt-in peer 2ms
+   ✓ keeps server → node-pty an explicitly classified opt-in peer 1ms
+   ✓ keeps capability-providers → ws an explicitly classified opt-in peer 1ms
+   ✓ keeps user-management → argon2 an explicitly classified opt-in peer 1ms
+   ✓ keeps cms → sharp an explicitly classified opt-in peer 1ms
+   ✓ keeps cms → jsdom an explicitly classified opt-in peer 2ms
+   ✓ keeps ui → @excalidraw/excalidraw an explicitly classified opt-in peer 22ms
+   ✓ keeps ui → grapesjs an explicitly classified opt-in peer 1ms
+   × keeps ui → lexical an explicitly classified opt-in peer 23ms
+     → expected undefined to be true // Object.is equality
+   ✓ keeps ui → shiki an explicitly classified opt-in peer 1ms
+   ✓ keeps sandbox → @e2b/code-interpreter an explicitly classified opt-in peer 1ms
+   ✓ keeps cms → express an explicitly classified opt-in peer 2ms
+   ✓ keeps commerce → express an explicitly classified opt-in peer 19ms
+   ✓ keeps commerce → react an explicitly classified opt-in peer 1ms
+   ✓ keeps admin → react an explicitly classified opt-in peer 3ms
+   ✓ keeps chat → react an explicitly classified opt-in peer 1ms
+   ✓ keeps user-management → react an explicitly classified opt-in peer 1ms
+   ✓ keeps vibecoding → react an explicitly classified opt-in peer 1ms
+   ✓ keeps default-path daemon → smol-toml a production dependency 1ms
+   ✓ keeps default-path cms → mammoth a production dependency 1ms
+   ✓ keeps default-path cms → unpdf a production dependency 13ms
+   ✓ keeps default-path agent-runtime → @jini-ai/integrations a production dependency 2ms
+   ✓ keeps default-path agent-runtime → @jini-ai/platform a production dependency 3ms
+   ✓ keeps default-path mcp → @modelcontextprotocol/sdk a production dependency 7ms
+   ✓ keeps default-path mcp → @cfworker/json-schema a production dependency 2ms
+   ✓ rejects demoting default library smol-toml even with a valid classification 14ms
+   ✓ rejects demoting default library mammoth even with a valid classification 25ms
+   ✓ feature load messages match the owning manifest classifications 298ms
+   ✓ agent-runtime default source entry never reaches an opt-in peer  1080ms
+   × all real default entries keep runtime libraries required and classify opt-in subpaths 14558ms
+     → expected [ { …(3) }, { …(3) }, { …(3) }, …(1) ] to deeply equal []
+   ✓ cms forms entries reach only required libraries or optional peers that name that entry  14721ms
+   ✓ keeps default-entry host framework ui → react required 2ms
+   ✓ keeps default-entry host framework ui → react-dom required 1ms
+   × keeps default-entry host framework daemon → express required 3ms
+     → expected undefined to be truthy
+   ✓ keeps default-entry host framework server → express required 1ms
+   ✓ keeps default-entry host framework ui-kit → react required 1ms
+   ✓ keeps default-entry host framework ui-kit → react-dom required 2ms
+   ✓ removes core → express when no runtime entry loads it 3ms
+   ✓ removes http-kit → express when no runtime entry loads it 2ms
+   ✓ removes ui-kit → vue when no runtime entry loads it 1ms
+   ✓ removes vibecoding → react-dom when no runtime entry loads it 1ms
+stderr | scripts/__tests__/standalone-agent-plugin.integration.test.ts > subpath 'slide-design' > real seeding of the staged folder installs only this plugin with readable skills; repeat boots keep operator disablement
+/tmp/agent-plugin-subpaths-nfS4SH/slide-design-seeding/ws/workspace-a
+
+✅ design-dna 骨架已写入: /tmp/wc1-dna-yb5R1t/d.json
+   下一步: 人工 Analyze 补全 ""，并从 _recon_signals 指派颜色角色。schema → references/design-dna.md
+ ✓ packages/agent-runtime/src/skills/web-clone/scripts/__tests__/dna-scaffold.test.mjs (13 tests) 30ms
+stderr | scripts/__tests__/standalone-agent-plugin.integration.test.ts > subpath 'slide-design' > the seeded digest selects the subpath payload over a retained legacy revision
+/tmp/agent-plugin-subpaths-nfS4SH/slide-design-digest-selection/ws/workspace-a
+
+stderr | scripts/__tests__/standalone-agent-plugin.integration.test.ts > subpath 'software-engineering' > real seeding of the staged folder installs only this plugin with readable skills; repeat boots keep operator disablement
+/tmp/agent-plugin-subpaths-nfS4SH/software-engineering-seeding/ws/workspace-a
+
+stderr | scripts/__tests__/standalone-agent-plugin.integration.test.ts > subpath 'stripe' > real seeding of the staged folder installs only this plugin with readable skills; repeat boots keep operator disablement
+/tmp/agent-plugin-subpaths-nfS4SH/stripe-seeding/ws/workspace-a
+
+stderr | scripts/__tests__/standalone-agent-plugin.integration.test.ts > subpath 'supabase' > real seeding of the staged folder installs only this plugin with readable skills; repeat boots keep operator disablement
+/tmp/agent-plugin-subpaths-nfS4SH/supabase-seeding/ws/workspace-a
+
+stderr | scripts/__tests__/standalone-agent-plugin.integration.test.ts > subpath 'ui-ux-design' > real seeding of the staged folder installs only this plugin with readable skills; repeat boots keep operator disablement
+/tmp/agent-plugin-subpaths-nfS4SH/ui-ux-design-seeding/ws/workspace-a
+
+stderr | scripts/__tests__/standalone-agent-plugin.integration.test.ts > subpath 'ui-ux-design' > the seeded digest selects the subpath payload over a retained legacy revision
+/tmp/agent-plugin-subpaths-nfS4SH/ui-ux-design-digest-selection/ws/workspace-a
+
+stderr | scripts/__tests__/standalone-agent-plugin.integration.test.ts > subpath 'vercel' > real seeding of the staged folder installs only this plugin with readable skills; repeat boots keep operator disablement
+/tmp/agent-plugin-subpaths-nfS4SH/vercel-seeding/ws/workspace-a
+
+stderr | scripts/__tests__/standalone-agent-plugin.integration.test.ts > subpath 'wordpress' > real seeding of the staged folder installs only this plugin with readable skills; repeat boots keep operator disablement
+/tmp/agent-plugin-subpaths-nfS4SH/wordpress-seeding/ws/workspace-a
+
+ ✓ scripts/__tests__/standalone-agent-plugin.integration.test.ts (112 tests | 33 skipped) 23544ms
+   ✓ subpath 'calendly' > real seeding of the staged folder installs only this plugin with readable skills; repeat boots keep operator disablement  307ms
+   ✓ subpath 'charts-recharts' > real seeding of the staged folder installs only this plugin with readable skills; repeat boots keep operator disablement  478ms
+   ✓ subpath 'cloudflare' > real seeding of the staged folder installs only this plugin with readable skills; repeat boots keep operator disablement  2136ms
+   ✓ subpath 'fly' > real seeding of the staged folder installs only this plugin with readable skills; repeat boots keep operator disablement  570ms
+   ✓ subpath 'github' > real seeding of the staged folder installs only this plugin with readable skills; repeat boots keep operator disablement  1241ms
+   ✓ subpath 'github-pages' > real seeding of the staged folder installs only this plugin with readable skills; repeat boots keep operator disablement  341ms
+   ✓ subpath 'google-workspace' > real seeding of the staged folder installs only this plugin with readable skills; repeat boots keep operator disablement  2583ms
+   ✓ subpath 'higgsfield-media' > real seeding of the staged folder installs only this plugin with readable skills; repeat boots keep operator disablement  414ms
+   ✓ subpath 'jev' > real seeding of the staged folder installs only this plugin with readable skills; repeat boots keep operator disablement  626ms
+   ✓ subpath 'kuinetic' > the seeded digest selects the subpath payload over a retained legacy revision  448ms
+   ✓ subpath 'langfuse' > real seeding of the staged folder installs only this plugin with readable skills; repeat boots keep operator disablement  328ms
+   ✓ subpath 'railway' > real seeding of the staged folder installs only this plugin with readable skills; repeat boots keep operator disablement  504ms
+   ✓ subpath 'render' > real seeding of the staged folder installs only this plugin with readable skills; repeat boots keep operator disablement  301ms
+   ✓ subpath 's3-compatible' > real seeding of the staged folder installs only this plugin with readable skills; repeat boots keep operator disablement  792ms
+   ✓ subpath 'shadcn-ui' > real seeding of the staged folder installs only this plugin with readable skills; repeat boots keep operator disablement  561ms
+   ✓ subpath 'site-import' > real seeding of the staged folder installs only this plugin with readable skills; repeat boots keep operator disablement  571ms
+   ✓ subpath 'slide-design' > real seeding of the staged folder installs only this plugin with readable skills; repeat boots keep operator disablement  619ms
+   ✓ subpath 'software-engineering' > real seeding of the staged folder installs only this plugin with readable skills; repeat boots keep operator disablement  318ms
+   ✓ subpath 'ui-ux-design' > real seeding of the staged folder installs only this plugin with readable skills; repeat boots keep operator disablement  885ms
+   ✓ subpath 'vercel' > real seeding of the staged folder installs only this plugin with readable skills; repeat boots keep operator disablement  556ms
+fatal: bad revision 'no-such-ref'
+✔ mutation: deleting a why comment makes the gate fire with file, line and id (344.083758ms)
+✔ mutation reverted: keeping the comment passes (452.507787ms)
+✔ a comment moved to another file with the code is not lost (403.503824ms)
+✔ a rewrapped comment (different line breaks and markers) is not lost (380.596943ms)
+✔ a comment folded into a longer comment elsewhere is not lost (545.182556ms)
+✔ the text surviving in the other repo counts as not lost (699.222049ms)
+✔ a comment reworded in place (a few words changed) is not lost (391.747479ms)
+✔ editing one line of a multi-line comment keeps the rest, so it is not lost (263.534206ms)
+✔ a report that quotes the deleted comment does not make it survive (349.43665ms)
+✔ shortening a comment by dropping a sentence is flagged (253.848126ms)
+✔ an allow-listed block passes, and the entry needs a reason (239.229399ms)
+✔ exempt comments are never reported: directives, licenses, labels, commented-out code (218.974508ms)
+✔ non-source files and added-only files are out of scope (295.927591ms)
+✔ a bad ref is a loud error, not a pass (277.576903ms)
+✔ --merge-base diffs from the common ancestor (293.506544ms)
+✔ an unknown flag is rejected (0.899925ms)
+✔ lexer: comment markers inside strings, templates and regexes are not comments (1.132844ms)
+✔ lexer: consecutive standalone line comments form one block; trailing ones stay apart (0.212372ms)
+✔ lexer: an apostrophe in JSX text cannot swallow later comments (0.086836ms)
+✔ normalizeText ignores markers, case and whitespace; classifyBlock gives a stable id (0.199476ms)
+✔ parseDiff reads removed ranges and treats "+++" content lines as content (0.201411ms)
+✔ parseDebt rejects a malformed file (0.416929ms)
+ ✓ packages/agent-runtime/src/skills/web-clone/scripts/__tests__/mirror-site.unit.test.mjs (9 tests) 19ms
+ ✓ scripts/__tests__/plugin-package-gates.test.ts (14 tests) 543ms
+   ✓ inspects actual tar bytes without executing package lifecycle hooks  434ms
+ ✓ packages/agent-runtime/src/skills/web-clone/scripts/__tests__/visual-diff.unit.test.mjs (9 tests) 28ms
+ ✓ scripts/__tests__/check-log-safety.test.ts (10 tests) 232ms
+ ✓ packages/agent-runtime/src/skills/web-clone/scripts/__tests__/network-capture.unit.test.mjs (7 tests) 38ms
+ ✓ scripts/__tests__/extract-s3-checker.test.ts (23 tests) 18263ms
+   ✓ F1 CLI writes a reproducible original-pin manifest with the actual nonstandard build mapping  1217ms
+   ✓ F1 roundtrip preserves unchanged old declaration edges and rejects a newly emitted forbidden edge  1546ms
+   ✓ F1 actual build mapping excludes noEmit configs without inventing declarations  1165ms
+   ✓ F1 writer refuses HEAD different from the requested provenance  1005ms
+   ✓ F1 writer refuses dirty tracked source  798ms
+   ✓ F1 writer refuses a missing emitted declaration  1006ms
+   ✓ F1 writer refuses unsafe source destination  1058ms
+   ✓ F1 writer refuses unsafe ancestor destination  952ms
+   ✓ F1 writer refuses unsafe relative destination  1183ms
+   ✓ F1 writer refuses unsafe symlink destination  997ms
+   ✓ F1 writer refuses to overwrite an immutable snapshot  1538ms
+   ✓ F6 XP2/XP3 compare modified type reference directive against the original source and emits  1069ms
+   ✓ F6 XP3 detects declaration-only added type reference directive and preserves an old edge  946ms
+   ✓ F6 XP2/XP3 compare modified ambient module declaration against the original source and emits  852ms
+   ✓ F6 XP3 detects declaration-only added ambient module declaration and preserves an old edge  915ms
+   ✓ F6 ambient module declaration allows core/self for a domain and forbids a Jini edge from core  357ms
+ ✓ packages/agent-runtime/src/skills/web-clone/scripts/__tests__/sourcemap-hunt.unit.test.mjs (9 tests) 36ms
+ ✓ packages/agent-runtime/src/skills/web-clone/scripts/__tests__/od-preview-rewrite.unit.test.mjs (12 tests) 37ms
+stdout | scripts/__tests__/check-env-access.test.ts > env-access host scan (where it looks and which files are process entries) > returns only occurrences that are not in the debt file, and says when debt is stale
+[hardwiring] HW9-env-access: 2 total; 1 new
+[hardwiring] HW12-env-import-time: 0 total; 0 new
+[hardwiring] 1 stale debt occurrences; remove them from scripts/env-access-debt.json.
+
+ ✓ scripts/__tests__/check-no-cross-package.test.ts (41 tests) 10255ms
+   ✓ XP1 rejects a new source with type-only import  376ms
+   ✓ XP1 rejects a new source with import type node  303ms
+   ✓ XP3 fails closed on missing or invalid baseline declarations  392ms
+   ✓ XP3 fails closed on missing or invalid mapping declarations  392ms
+   ✓ XP3 fails closed on missing or invalid directory declarations  318ms
+   ✓ XP3 fails closed on missing or invalid provenance declarations  309ms
+   ✓ XP5 permits added core and unchanged pre-existing dependencies  425ms
+ ✓ scripts/__tests__/check-agent-plugin-content.test.ts (20 tests) 840ms
+   ✓ agent plugin content imports > the checked-in agent plugin content passes  736ms
+ ✓ scripts/__tests__/extract-s4-import-equals.test.ts (6 tests) 3533ms
+   ✓ XP1 and XP3 reject a new source with an import-equals edge  309ms
+   ✓ XP2 rejects a newly added import-equals specifier and permits the unchanged one  377ms
+   ✓ XP3 rejects a declaration-only import-equals edge and permits the unchanged pinned one  533ms
+   ✓ import-equals of core and of the own package are allowed; core may import no neighbour  639ms
+   ✓ the declaration tsc actually emits for import-equals is caught by XP3  1381ms
+ ✓ scripts/__tests__/build-script-workspace-deps.test.ts (2 tests) 168ms
+stdout | scripts/__tests__/check-env-access.test.ts > env-access debt file of this repository > is current: no occurrence is missing from it and none in it is stale
+[hardwiring] HW9-env-access: 70 total; 0 new
+[hardwiring] HW12-env-import-time: 9 total; 0 new
+[hardwiring] 2 stale debt occurrences; remove them from scripts/env-access-debt.json.
+
+ ❯ scripts/__tests__/check-env-access.test.ts (6 tests | 2 failed) 10993ms
+   ✓ env-access host scan (where it looks and which files are process entries) > scans package source, including nested packages and .mjs, and skips tests 33ms
+   ✓ env-access host scan (where it looks and which files are process entries) > treats src/bin/** and the source of each manifest bin target as process entries, and nothing else 17ms
+   ✓ env-access host scan (where it looks and which files are process entries) > allows the NODE_ENV build define by the package runtime, not by the file 13ms
+   ✓ env-access host scan (where it looks and which files are process entries) > scans plugin payloads under lib, worker and ui, and example sources 12ms
+   × env-access host scan (where it looks and which files are process entries) > returns only occurrences that are not in the debt file, and says when debt is stale 28ms
+     → expected [] to deeply equal [ …(3) ]
+   × env-access debt file of this repository > is current: no occurrence is missing from it and none in it is stale 10876ms
+     → expected [ …(79) ] to have a length of 81 but got 79
+/tmp/wc1-init-h881ru/demo-clone
+ ✓ packages/agent-runtime/src/skills/web-clone/scripts/__tests__/init-clone.test.mjs (11 tests) 25ms
+ ✓ packages/agent-runtime/src/skills/web-clone/scripts/__tests__/script-cli.test.mjs (11 tests) 28ms
+ ✓ scripts/__tests__/script-entrypoints.test.ts (6 tests) 4332ms
+   ✓ patch canary applies a real patch and refuses missing arguments through a canonical entry  654ms
+   ✓ guard drift actually reports its result through a canonical entry  619ms
+   ✓ patch canary applies a real patch and refuses missing arguments through a symlink entry  437ms
+   ✓ guard drift actually reports its result through a symlink entry  839ms
+   ✓ check-guard-drift.ts remains importable from stdin without running the command  1542ms
+ ✓ scripts/__tests__/check-guard-drift.test.ts (10 tests) 6ms
+ ❯ scripts/__tests__/coupling-isolation.test.ts (21 tests | 21 skipped) 16292ms
+   ↓ platform OS helper import isolation > command reaches only its existing OS owners
+   ↓ platform OS helper import isolation > process reaches only its existing OS owners
+   ↓ platform OS helper import isolation > toolchain reaches only its existing OS owners
+   ↓ platform OS helper import isolation > proxy-env reaches only its existing OS owners
+   ↓ platform OS helper import isolation > shell reaches only its existing OS owners
+   ↓ platform OS helper import isolation > child-environment reaches only its existing OS owners
+   ↓ model-discovery policy import isolation > cannot reach native process/filesystem modules or its adapter implementations
+   ↓ verified shared leaves retain their existing owners > @jini-ai/platform./http/guarded crosses no domain boundary
+   ↓ verified shared leaves retain their existing owners > @jini-ai/platform./mail crosses no domain boundary
+   ↓ verified shared leaves retain their existing owners > @jini-ai/platform./net crosses no domain boundary
+   ↓ verified shared leaves retain their existing owners > @jini-ai/platform./web crosses no domain boundary
+   ↓ verified shared leaves retain their existing owners > @jini-ai/platform./asset-cache crosses no domain boundary
+   ↓ verified shared leaves retain their existing owners > @jini-ai/devops./source-control crosses no domain boundary
+   ↓ verified shared leaves retain their existing owners > @jini-ai/devops./static-export/failure-summary crosses no domain boundary
+   ↓ verified shared leaves retain their existing owners > only the web entry reaches HTML peers; the root and asset cache retain lazy Undici access
+   ↓ verified shared leaves retain their existing owners > clears platform and infra subset dependency findings without weakening the guard
+   ↓ re-verify dependency and state regressions > keeps standalone plugin tooling on package public entries
+   ↓ re-verify dependency and state regressions > declares the shared secret-input owner on the permitted optional UI layer edge
+   ↓ re-verify dependency and state regressions > packages/devops/src/static-export/css-urls.ts owns no mutable module state
+   ↓ re-verify dependency and state regressions > packages/provider-plugins/src/payments-stripe/webhook.ts owns no mutable module state
+   ↓ commerce shared value and input owners > shares money and strict tool inputs without crossing catalog/payment domains
+ ✓ scripts/__tests__/peer-range-compatibility.unit.test.ts (11 tests) 34ms
+ ✓ scripts/__tests__/injection-exceptions.q2.test.ts (9 tests) 538ms
+npm notice
+npm notice New major version of npm available! 11.19.1 -> 12.2.3
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.3
+npm notice To update run: npm install -g npm@12.2.3
+npm notice
+ ❯ scripts/__tests__/check-error-disclosure-callers.test.ts (5 tests | 1 failed) 8154ms
+   ✓ a production file that approves a cause or skips the tracker must be on its reviewed list 3ms
+   ✓ each list is per call: being listed for one does not allow the other 0ms
+   ✓ a listed file that no longer makes the call is reported, so the lists stay true 0ms
+   ✓ tests, the defining modules, comments and other readers of the same words are not callers 0ms
+   × the real tree has no caller outside the reviewed lists 8149ms
+     → Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ✓ scripts/__tests__/api-surface.test.ts (8 tests) 1686ms
+   ✓ surface extraction + diff > is identical for identical input and ignores comments/whitespace  398ms
+   ✓ surface extraction + diff > flags removed + renamed exports as breaking  387ms
+   ✓ surface extraction + diff > flags removed subpath as breaking, added as not  605ms
+ ✓ scripts/__tests__/walk-imports.test.ts (7 tests) 41ms
+ ❯ scripts/__tests__/leaf-import-closures.test.ts (7 tests | 1 failed) 17679ms
+   ✓ HTML viewer leaf imports > cannot reach the renderer barrel, Markdown renderers or srcdoc assembly 247ms
+   ✓ preview-modal-shell entry > cannot reach the renderer barrel, Markdown renderers or artifact views 107ms
+   ✓ native kit assembly cycles > packages/ui-kit/src/react/KitProvider.tsx has no runtime dependency cycle 145ms
+   ✓ native kit assembly cycles > packages/ui-kit/src/react/native/index.ts has no runtime dependency cycle 62ms
+   ✓ native kit assembly cycles > packages/ui-kit/src/react/context.ts has no runtime dependency cycle 33ms
+   ✓ native kit assembly cycles > native views and context-only lookup never load the facade or default assembly 43ms
+   × universal translation owner and SEO entries > keeps SEO and its HTTP adapter free of React and preserves the existing interpolation owner 17034ms
+     → Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ✓ scripts/__tests__/plugin-release-prepare.test.ts (2 tests) 13ms
+fatal: path 'packages/ui/package.json' exists on disk, but not in '35c4961af718f0f30591c46d2ea2756c4484a731'
+ ✓ scripts/__tests__/packed-exports.unit.test.ts (11 tests) 9ms
+ ✓ scripts/__tests__/agent-plugin-subpaths.test.ts (3 tests) 28ms
+ ✓ scripts/__tests__/guard-drift-cli.unit.test.ts (1 test) 319ms
+   ✓ reports success when the command finds no drift against an empty baseline  318ms
+ ✓ scripts/__tests__/storage-public-entries.test.ts (23 tests) 284ms
+ ✓ scripts/__tests__/npm-pack-json.test.ts (5 tests) 114ms
+ ✓ scripts/__tests__/retired-plugin-packages.test.ts (13 tests) 10ms
+ ❯ scripts/__tests__/connection-card.packed.test.ts (1 test | 1 failed) 23792ms
+   × packed connection-card consumer > renders different host copy and delivers a real exchange through published entries 23791ms
+     → node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+
+AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+undefined !== 202
+
+    at file:///tmp/connection-card-5iZDOT/[eval1]:37:16 {
+  generatedMessage: true,
+  code: 'ERR_ASSERTION',
+  actual: undefined,
+  expected: 202,
+  operator: 'strictEqual',
+  diff: 'simple'
+}
+
+Node.js v24.22.3
+: expected 1 to be +0 // Object.is equality
+ ✓ packages/agent-runtime/src/skills/web-clone/scripts/__tests__/diagnostic-labels.unit.test.mjs (3 tests) 14ms
+ ✓ scripts/__tests__/packed-fixture.test.ts (7 tests) 25ms
+stderr | scripts/__tests__/gen-host-ports.test.ts > renders one table per package and detects a stale file with --check
+HOST-PORTS.md is stale: run node --import tsx scripts/gen-host-ports.ts
+
+ ✓ scripts/__tests__/gen-host-ports.test.ts (2 tests) 34ms
+stdout | scripts/__tests__/publish-pending-summary.test.ts > writes the step summary for a read-only publication plan
+
+0 of 0 package(s) to publish.
+
+stdout | scripts/__tests__/publish-pending-summary.test.ts > writes a stopped result when release consistency fails before any upload
+
+0 of 0 package(s) to publish.
+
+ ✓ scripts/__tests__/publish-pending-summary.test.ts (2 tests) 12ms
+ ✓ scripts/__tests__/engine-neutrality-tool-names.test.ts (1 test) 22ms
+ ✓ scripts/__tests__/engine-neutrality-json.test.ts (1 test) 31ms
+ ✓ packages/agent-runtime/src/skills/web-clone/scripts/__tests__/log-safety-e.test.mjs (2 tests) 7ms
+ ✓ scripts/__tests__/sonar-standalone-config.test.ts (2 tests) 1406ms
+   ✓ does not activate unavailable rules from copied directives in generated payloads  1306ms
+ ✓ scripts/__tests__/publish-pending-args.test.ts (2 tests) 4ms
+ ✓ scripts/__tests__/check-model-fallback-freshness.test.ts (1 test) 729ms
+   ✓ guards Antigravity against newly reported models missing from its fallback  727ms
+ ✓ scripts/__tests__/guard-self-test.unit.test.ts (1 test) 154ms
+ ❯ scripts/__tests__/fetch-query-isolation.test.ts (3 tests | 1 failed) 19348ms
+   × fetch-query optional adapter isolation > keeps TanStack out of the default runtime closure while the optional entry reaches it 19345ms
+     → Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+   ✓ fetch-query optional adapter isolation > publishes a universal fetch entry with both runtime and declaration targets required by the packed-exports guard 2ms
+   ✓ fetch-query optional adapter isolation > declares an optional v5 peer and keeps JavaScript free of package side effects 1ms
+ ✓ scripts/__tests__/check-runtime-cycles.test.ts (2 tests) 31587ms
+   ✓ flags value cycles and kept-import cycles, ignores type-only and test loops, and keeps the debt list shrink-only  3461ms
+   ✓ finds no runtime module cycle in the real packages beyond the recorded debt  28124ms
+
+⎯⎯⎯⎯⎯⎯ Failed Suites 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  scripts/__tests__/check-why-comments.test.mjs [ scripts/__tests__/check-why-comments.test.mjs ]
+Error: No test suite found in file /home/user/Jini/scripts/__tests__/check-why-comments.test.mjs
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/12]⎯
+
+ FAIL  scripts/__tests__/coupling-isolation.test.ts [ scripts/__tests__/coupling-isolation.test.ts ]
+Error: Hook timed out in 10000ms.
+If this is a long-running hook, pass a timeout value as the last argument or configure it globally with "hookTimeout".
+ ❯ scripts/__tests__/coupling-isolation.test.ts:14:1
+     12| const repoRoot = fileURLToPath(new URL('../../', import.meta.url));
+     13| let audit: SubpathIsolationAudit;
+     14| beforeAll(() => { audit = auditSubpathIsolation({ repoRoot }); });
+       | ^
+     15| 
+     16| describe('platform OS helper import isolation', () => {
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/12]⎯
+
+ FAIL  scripts/__tests__/extract-s3-source-contracts.test.ts [ scripts/__tests__/extract-s3-source-contracts.test.ts ]
+Error: Command failed: git show 35c4961af718f0f30591c46d2ea2756c4484a731:packages/ui/package.json
+fatal: path 'packages/ui/package.json' exists on disk, but not in '35c4961af718f0f30591c46d2ea2756c4484a731'
+
+ ❯ scripts/__tests__/extract-s3-source-contracts.test.ts:8:20
+      6| const root = fileURLToPath(new URL('../../', import.meta.url));
+      7| const read = (file: string) => readFileSync(new URL('../../' + file, i…
+      8| const originalUi = execFileSync('git', ['show', '35c4961af718f0f30591c…
+       |                    ^
+      9| const optionalPeers = (source: string) => source.match(/"optionalPeers…
+     10| 
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/12]⎯
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 9 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  scripts/__tests__/check-env-access.test.ts > env-access host scan (where it looks and which files are process entries) > returns only occurrences that are not in the debt file, and says when debt is stale
+AssertionError: expected [] to deeply equal [ …(3) ]
+
+- Expected
++ Received
+
+- [
+-   "[hardwiring] HW9-env-access: 2 total; 1 new",
+-   "[hardwiring] HW12-env-import-time: 0 total; 0 new",
+-   "[hardwiring] 1 stale debt occurrences; remove them from scripts/env-access-debt.json.",
+- ]
++ []
+
+ ❯ scripts/__tests__/check-env-access.test.ts:112:50
+    110|     const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    111|     expect(checkEnvAccess({ repoRoot: root })).toEqual([all[1]]);
+    112|     expect(log.mock.calls.map(([line]) => line)).toEqual([
+       |                                                  ^
+    113|       '[hardwiring] HW9-env-access: 2 total; 1 new',
+    114|       '[hardwiring] HW12-env-import-time: 0 total; 0 new',
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/12]⎯
+
+ FAIL  scripts/__tests__/check-env-access.test.ts > env-access debt file of this repository > is current: no occurrence is missing from it and none in it is stale
+AssertionError: expected [ …(79) ] to have a length of 81 but got 79
+
+- Expected
++ Received
+
+- 81
++ 79
+
+ ❯ scripts/__tests__/check-env-access.test.ts:126:44
+    124|     const debt = JSON.parse(readFileSync(join(repoRoot, 'scripts/env-a…
+    125|     expect(checkEnvAccess({ repoRoot })).toEqual([]);
+    126|     expect(collectEnvAccess({ repoRoot })).toHaveLength(debt.violation…
+       |                                            ^
+    127|   });
+    128| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/12]⎯
+
+ FAIL  scripts/__tests__/check-error-disclosure-callers.test.ts > the real tree has no caller outside the reviewed lists
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ scripts/__tests__/check-error-disclosure-callers.test.ts:46:1
+     44| });
+     45| 
+     46| test('the real tree has no caller outside the reviewed lists', () => {
+       | ^
+     47|   expect(checkErrorDisclosureCallers()).toEqual([]);
+     48| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/12]⎯
+
+ FAIL  scripts/__tests__/connection-card.packed.test.ts > packed connection-card consumer > renders different host copy and delivers a real exchange through published entries
+AssertionError: node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+
+AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+undefined !== 202
+
+    at file:///tmp/connection-card-5iZDOT/[eval1]:37:16 {
+  generatedMessage: true,
+  code: 'ERR_ASSERTION',
+  actual: undefined,
+  expected: 202,
+  operator: 'strictEqual',
+  diff: 'simple'
+}
+
+Node.js v24.22.3
+: expected 1 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 1
+
+ ❯ scripts/__tests__/connection-card.packed.test.ts:65:61
+     63|         assert.equal(typeof waitForHostedSignIn, 'function'); assert.e…
+     64|       `);
+     65|       expect(result.status, result.stderr || result.stdout).toBe(0);
+       |                                                             ^
+     66|     } finally { rmSync(dir, { recursive: true, force: true }); }
+     67|   }, 120_000);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/12]⎯
+
+ FAIL  scripts/__tests__/fetch-query-isolation.test.ts > fetch-query optional adapter isolation > keeps TanStack out of the default runtime closure while the optional entry reaches it
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ scripts/__tests__/fetch-query-isolation.test.ts:9:3
+      7| 
+      8| describe('fetch-query optional adapter isolation', () => {
+      9|   it('keeps TanStack out of the default runtime closure while the opti…
+       |   ^
+     10|     // Use the repository's AST import-closure owner, including transi…
+     11|     // checking only index.ts would miss a hidden SDK import in a re-e…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/12]⎯
+
+ FAIL  scripts/__tests__/leaf-import-closures.test.ts > universal translation owner and SEO entries > keeps SEO and its HTTP adapter free of React and preserves the existing interpolation owner
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ scripts/__tests__/leaf-import-closures.test.ts:63:3
+     61| 
+     62| describe('universal translation owner and SEO entries', () => {
+     63|   it('keeps SEO and its HTTP adapter free of React and preserves the e…
+       |   ^
+     64|     const audit = auditSubpathIsolation({ repoRoot });
+     65|     for (const [owner, subpath] of [['@jini-ai/core', './text'], ['@ji…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/12]⎯
+
+ FAIL  scripts/__tests__/optional-peer-contract.test.ts > keeps ui → lexical an explicitly classified opt-in peer
+AssertionError: expected undefined to be true // Object.is equality
+
+- Expected: 
+true
+
++ Received: 
+undefined
+
+ ❯ scripts/__tests__/optional-peer-contract.test.ts:86:65
+     84|   const { readFileSync } = await import('node:fs');
+     85|   const manifest = JSON.parse(readFileSync(new URL(`../../packages/${d…
+     86|   expect(manifest.peerDependenciesMeta?.[dependency]?.optional).toBe(t…
+       |                                                                 ^
+     87|   expect(manifest.jini.optionalPeers[dependency]).toMatch(/^opt-in: .+…
+     88|   expect(manifest.dependencies?.[dependency]).toBeUndefined();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/12]⎯
+
+ FAIL  scripts/__tests__/optional-peer-contract.test.ts > all real default entries keep runtime libraries required and classify opt-in subpaths
+AssertionError: expected [ { …(3) }, { …(3) }, { …(3) }, …(1) ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   {
++     "package": "@jini-ai/agentic",
++     "peer": "@jini-ai/protocol",
++     "subpaths": [
++       "@jini-ai/agentic/render-surface",
++     ],
++   },
++   {
++     "package": "@jini-ai/platform",
++     "peer": "parse5",
++     "subpaths": [
++       "@jini-ai/platform/mail/email-template",
++       "@jini-ai/platform/mail/email-template-operations",
++       "@jini-ai/platform/web",
++     ],
++   },
++   {
++     "package": "@jini-ai/user-management",
++     "peer": "@jini-ai/ui-kit",
++     "subpaths": [
++       "@jini-ai/user-management/admin/react",
++     ],
++   },
++   {
++     "package": "@jini-ai/user-management",
++     "peer": "react-dom",
++     "subpaths": [
++       "@jini-ai/user-management/admin/react",
++     ],
++   },
++ ]
+
+ ❯ scripts/__tests__/optional-peer-contract.test.ts:176:27
+    174|     });
+    175|   });
+    176|   expect(missingSubpaths).toEqual([]);
+       |                           ^
+    177| }, 120000);
+    178| 
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[11/12]⎯
+
+ FAIL  scripts/__tests__/optional-peer-contract.test.ts > keeps default-entry host framework daemon → express required
+AssertionError: expected undefined to be truthy
+
+- Expected: 
+true
+
++ Received: 
+undefined
+
+ ❯ scripts/__tests__/optional-peer-contract.test.ts:199:49
+    197|   const { readFileSync } = await import('node:fs');
+    198|   const manifest = JSON.parse(readFileSync(new URL(`../../packages/${d…
+    199|   expect(manifest.peerDependencies[dependency]).toBeTruthy();
+       |                                                 ^
+    200|   expect(manifest.peerDependenciesMeta?.[dependency]?.optional).not.to…
+    201|   expect(manifest.jini.optionalPeers?.[dependency]).toBeUndefined();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[12/12]⎯
+
+
+ Test Files  9 failed | 55 passed (64)
+      Tests  9 failed | 982 passed | 54 skipped (1045)
+   Start at  20:24:24
+   Duration  119.58s (transform 4.96s, setup 0ms, collect 23.08s, tests 259.00s, environment 12ms, prepare 5.56s)
+
+EXIT 1

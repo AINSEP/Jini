@@ -15,7 +15,7 @@ export async function exerciseDataModules({ store }: { store: PluginKernel }): P
   expect(await declareDataModule({ db: store, dbPath: ":memory:", decl }, {})).toEqual({
     ok: true, created: ["p_example__records"], altered: [], snapshotPath: null,
   });
-  expect(await listTables(store)).toEqual(expect.arrayContaining(["p_example__records", "_plugin_identity", "_plugin_migrations"]));
+  expect(await listTables({ kernel: store })).toEqual(expect.arrayContaining(["p_example__records", "_plugin_identity", "_plugin_migrations"]));
   expect((await store.run(db => db.selectFrom("_plugin_migrations").selectAll().execute()))[0]?.table_name).toBe("p_example__records");
   expect((await store.run(db => db.selectFrom("_plugin_identity").selectAll().execute()))[0]).toMatchObject({
     plugin_id: "example", source_url: "builtin://example", publisher: "example-core",
@@ -31,7 +31,7 @@ export async function exerciseDataModules({ store }: { store: PluginKernel }): P
     ok: true, created: [], altered: [], snapshotPath: null,
   });
   await ensureMigrationJournal({ store }, {});
-  expect(await listTables(store)).toContain("_plugin_migration_journal");
+  expect(await listTables({ kernel: store })).toContain("_plugin_migration_journal");
   const id = await beginJournalEntry({ db: store, pluginId: "example", snapshotPath: "fixture.snapshot" }, {});
   const phases: JournalPhase[] = ["PREPARED_SNAPSHOT", "DDL_IN_PROGRESS", "VERIFYING", "COMMITTED", "ROLLED_BACK"];
   for (const phase of phases) {

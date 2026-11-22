@@ -1,0 +1,39 @@
+install exit=0
+build exit=0 errTS=0
+agent-runtime exit=0 60s  Tests 4530 passed | 1 skipped (4531); 
+daemon exit=0 115s  Tests 4831 passed | 1 skipped (4832); 
+cms exit=1 133s  Tests 1 failed | 4999 passed (5000); 
+platform exit=0 41s  Tests 3353 passed | 6 skipped (3359); 
+search exit=1 0s  (duplicate --maxWorkers arg; re-run: exit=0 Tests 371 passed (371))
+agent-plugins exit=0 47s  Tests 2198 passed | 2 skipped (2200); 
+chat exit=1 351s  Tests 4 failed | 4464 passed | 1 skipped (4469); 
+ui exit=0 283s  Tests 8816 passed (8816); 
+admin exit=1 121s  Tests 1 failed | 3072 passed (3073); 
+core exit=0 31s  Tests 2947 passed (2947); 
+devops exit=0 26s  Tests 1326 passed (1326); 
+http-kit exit=0 11s  Tests 750 passed (750); 
+integrations exit=0 18s  Tests 2077 passed (2077); 
+plugins exit=0 22s  Tests 1015 passed (1015); 
+provider-plugins exit=0 54s  Tests 901 passed (901); 
+plugin-catalog exit=0 1s  Tests 68 passed (68); 
+commerce exit=1 3s (duplicate --maxWorkers arg on the last command; re-run: exit=0 node 52/52, vitest 11, kernel 1421 passed | 1 skipped)
+oauth exit=0 9s  Tests 824 passed (824); 
+mcp exit=0 27s  Tests 1882 passed (1882); 
+db exit=0 138s  Tests 950 passed (950); 
+diagnostics exit=0 11s  Tests 1090 passed (1090); 
+desktop-host exit=0 13s  Tests 749 passed | 1 skipped (750); 
+sidecar exit=0 7s  Tests 416 passed | 3 skipped (419); 
+agentic exit=0 12s  Tests 1149 passed (1149); 
+analytics exit=0 3s  Tests 226 passed (226); 
+artifacts exit=0 3s  Tests 242 passed (242); 
+capability-providers exit=0 3s  Tests 198 passed (198); 
+cli exit=0 7s  Tests 604 passed (604); 
+infra exit=0 4s  Tests 155 passed (155); 
+node-adapters exit=0 1s  Tests 11 passed (11); 
+protocol exit=0 4s  Tests 794 passed (794); 
+registry exit=0 6s  Tests 392 passed (392); 
+sandbox exit=0 5s  Tests 179 passed (179); 
+ui-kit exit=0 8s  Tests 232 passed (232); 
+user-management exit=0 52s  Tests 1353 passed (1353); 
+vibecoding exit=0 9s  Tests 364 passed (364); 
+ALLDONE

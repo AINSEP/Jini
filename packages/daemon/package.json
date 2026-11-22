@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/daemon",
-  "version": "0.7.2",
+  "version": "0.7.3-next.2",
   "description": "The stateful agent daemon runtime: run lifecycle, durable event-log port, the tool-execution boundary, agent executor, terminal sessions, and routines.",
   "license": "Apache-2.0",
   "repository": {
@@ -14,7 +14,8 @@
     "runtime": "node",
     "entries": {
       ".": "node",
-      "./terminal": "node",
+      "./ports/process": "node",
+      "./ports/runtime": "node",
       "./store/event-log/sqlite": "node",
       "./store/agent-sessions": "universal",
       "./store/agent-sessions/sqlite": "node",
@@ -28,7 +29,11 @@
       "./session-coordination": "universal",
       "./run-credentials": "node",
       "./tool-recovery": "node",
-      "./chat-settings": "node"
+      "./chat-settings": "node",
+      "./ports/agent-runtime": "node",
+      "./ports/provider-http": "node",
+      "./ports/xai-oauth": "node",
+      "./exclusive-run-lease": "universal"
     },
     "isolation": {
       "shared": [
@@ -38,7 +43,6 @@
       ]
     },
     "optionalPeers": {
-      "node-pty": "opt-in: import @jini-ai/daemon/terminal — Interactive terminals could not load node-pty. Install node-pty to enable this feature, or check its installed version and native binaries.",
       "better-sqlite3": "opt-in: sqlite storage — SQLite storage could not load better-sqlite3. Install better-sqlite3 to enable this feature, or check its installed version and native binaries.",
       "@electric-sql/pglite": "opt-in: embedded postgresql storage — Embedded PostgreSQL storage could not load @electric-sql/pglite. Install @electric-sql/pglite to enable this feature, or check its installed version and native binaries.",
       "pg": "opt-in: postgresql storage — PostgreSQL storage could not load pg. Install pg to enable this feature, or check its installed version and native binaries."
@@ -54,10 +58,30 @@
       "import": "./dist/index.js",
       "default": "./dist/index.js"
     },
-    "./terminal": {
-      "types": "./dist/terminal.adapter.d.ts",
-      "import": "./dist/terminal.adapter.js",
-      "default": "./dist/terminal.adapter.js"
+    "./ports/process": {
+      "types": "./dist/ports/process.d.ts",
+      "import": "./dist/ports/process.js",
+      "default": "./dist/ports/process.js"
+    },
+    "./ports/runtime": {
+      "types": "./dist/ports/runtime.d.ts",
+      "import": "./dist/ports/runtime.js",
+      "default": "./dist/ports/runtime.js"
+    },
+    "./ports/agent-runtime": {
+      "types": "./dist/ports/agent-runtime.d.ts",
+      "import": "./dist/ports/agent-runtime.js",
+      "default": "./dist/ports/agent-runtime.js"
+    },
+    "./ports/provider-http": {
+      "types": "./dist/ports/provider-http.d.ts",
+      "import": "./dist/ports/provider-http.js",
+      "default": "./dist/ports/provider-http.js"
+    },
+    "./ports/xai-oauth": {
+      "types": "./dist/ports/xai-oauth.d.ts",
+      "import": "./dist/ports/xai-oauth.js",
+      "default": "./dist/ports/xai-oauth.js"
     },
     "./store/event-log/sqlite": {
       "types": "./dist/store/event-log/sqlite.d.ts",
@@ -98,6 +122,11 @@
       "types": "./dist/scheduler.d.ts",
       "import": "./dist/scheduler.js",
       "default": "./dist/scheduler.js"
+    },
+    "./exclusive-run-lease": {
+      "types": "./dist/exclusive-run-lease.d.ts",
+      "import": "./dist/exclusive-run-lease.js",
+      "default": "./dist/exclusive-run-lease.js"
     },
     "./tool-audit": {
       "types": "./dist/tool-audit.d.ts",
@@ -156,8 +185,7 @@
   },
   "devDependencies": {
     "smol-toml": "1.9.1",
-    "@vitest/coverage-v8": "^2.1.9",
-    "node-pty": "^1.1.0",
+    "@vitest/coverage-v8": "^3.2.6",
     "@jini-ai/db": "workspace:*",
     "better-sqlite3": "^13.0.0",
     "@types/better-sqlite3": "^7.6.11",
@@ -171,6 +199,7 @@
     "@types/express": "^4.17.21",
     "@jini-ai/agent-runtime": "workspace:^",
     "@jini-ai/core": "workspace:^",
+    "@jini-ai/node-adapters": "workspace:^",
     "@jini-ai/platform": "workspace:^",
     "@jini-ai/protocol": "workspace:^"
   },
@@ -180,21 +209,15 @@
     "smol-toml": "1.9.1",
     "@jini-ai/agent-runtime": "workspace:^",
     "@jini-ai/db": "workspace:^",
-    "@jini-ai/http-kit": "workspace:^",
     "@jini-ai/platform": "workspace:^",
     "kysely": "^0.29.6"
   },
   "peerDependencies": {
-    "node-pty": "^1.1.0",
     "better-sqlite3": "^13.0.0",
     "@electric-sql/pglite": "0.5.8",
-    "pg": "^8.23.0",
-    "express": "^4.21.0 || ^5.0.0"
+    "pg": "^8.23.0"
   },
   "peerDependenciesMeta": {
-    "node-pty": {
-      "optional": true
-    },
     "better-sqlite3": {
       "optional": true
     },

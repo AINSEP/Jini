@@ -7,7 +7,7 @@
  * knows any provider's wire protocol (see `model-proxy.ts`'s module doc).
  */
 import type { ApiError } from '@jini-ai/protocol';
-import { validationError } from '@jini-ai/http-kit';
+import { validationError } from '@jini-ai/core/contracts/server';
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -25,18 +25,18 @@ export const isArray = (value: unknown): boolean => Array.isArray(value);
 export type OptionalFieldCheck = readonly [field: string, isValid: (value: unknown) => boolean, message: string];
 
 /** The first optional field that is present (not `undefined`) but fails its type test, as a 400 error; `undefined` when every present field is well-typed. */
-export function firstOptionalFieldError(record: Record<string, unknown>, checks: readonly OptionalFieldCheck[]): ApiError | undefined {
+export function firstOptionalFieldError({ record, checks }: { record: Record<string, unknown>; checks: readonly OptionalFieldCheck[] }, _optional: Record<string, never> = {}): ApiError | undefined {
   const failed = checks.find(([field, isValid]) => record[field] !== undefined && !isValid(record[field]));
   return failed ? validationError({ message: failed[2] }) : undefined;
 }
 
 /** A 400 for a required field, carrying the single-issue `details` the client can point at. */
-export function requiredFieldError(path: string, message: string, issue: string): ApiError {
+export function requiredFieldError({ path, message, issue }: { path: string; message: string; issue: string }, _optional: Record<string, never> = {}): ApiError {
   return validationError({ message }, { issues: [{ path, message: issue }] });
 }
 
 /** Copies only the listed keys whose value is not `undefined` — the "forward an optional field only when present" rule every parser and turn-runner call shares. */
-export function pickDefined<T extends object, K extends keyof T>(source: T, keys: readonly K[]): Partial<Pick<T, K>> {
+export function pickDefined<T extends object, K extends keyof T>({ source, keys }: { source: T; keys: readonly K[] }, _optional: Record<string, never> = {}): Partial<Pick<T, K>> {
   const picked: Partial<Pick<T, K>> = {};
   for (const key of keys) {
     if (source[key] !== undefined) picked[key] = source[key];

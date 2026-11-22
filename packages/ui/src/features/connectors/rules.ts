@@ -13,18 +13,30 @@ import type {
 } from './types.js';
 import { omitKeys } from '../../utils/omit-keys.js';
 
+/** Removes `key` from `record`, preserving referential identity when the key
+ *  was already absent — the shared shape behind the connector hooks' several
+ *  "clear this connector's flag if it has one" state updates. */
+export function withoutKey<T>(
+  { record, key }: { record: Record<string, T>; key: string },
+  _optional: Record<string, never> = {},
+): Record<string, T> {
+  if (record[key] === undefined) return record;
+  const next = { ...record };
+  delete next[key];
+  return next;
+}
+
 /** Restricts the catalog to a single provider tab's `match` predicate, defaulting to the first tab. */
 export function scopeConnectorsToProvider(
-  connectors: Connector[],
-  providerTabs: readonly ProviderTab[],
-  selectedProviderId: string,
+  { connectors, providerTabs, selectedProviderId }: { connectors: Connector[]; providerTabs: readonly ProviderTab[]; selectedProviderId: string },
+  _optional: Record<string, never> = {},
 ): Connector[] {
   const tab = providerTabs.find((p) => p.id === selectedProviderId) ?? providerTabs[0];
   if (!tab) return connectors;
   return connectors.filter((connector) => tab.match(connector));
 }
 
-export function mergeConnectors(current: Connector[], incoming: Connector[]): Connector[] {
+export function mergeConnectors({ current, incoming }: { current: Connector[]; incoming: Connector[] }, _optional: Record<string, never> = {}): Connector[] {
   if (current.length === 0) return incoming;
   const incomingById = new Map(incoming.map((connector) => [connector.id, connector]));
   const merged = current.map((connector) => {
@@ -50,8 +62,8 @@ export function mergeConnectors(current: Connector[], incoming: Connector[]): Co
 }
 
 export function pruneConnectorAuthorizationPending(
-  pending: ConnectorAuthorizationPendingState,
-  nowMs: number,
+  { pending, nowMs }: { pending: ConnectorAuthorizationPendingState; nowMs: number },
+  _optional: Record<string, never> = {},
 ): ConnectorAuthorizationPendingState {
   const next: ConnectorAuthorizationPendingState = {};
   for (const [connectorId, state] of Object.entries(pending)) {
@@ -82,7 +94,7 @@ function parsePendingEntry(state: unknown): ConnectorAuthorizationPending {
   };
 }
 
-export function parseConnectorAuthorizationPendingState(raw: string): ConnectorAuthorizationPendingState {
+export function parseConnectorAuthorizationPendingState({ raw }: { raw: string }, _optional: Record<string, never> = {}): ConnectorAuthorizationPendingState {
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);
@@ -126,9 +138,8 @@ export function connectorActionFlags({
 }
 
 export function updateConnectorAuthorizationPendingFromConnectResponse(
-  pending: ConnectorAuthorizationPendingState,
-  response: ConnectorActionResult,
-  nowMs: number,
+  { pending, response, nowMs }: { pending: ConnectorAuthorizationPendingState; response: ConnectorActionResult; nowMs: number },
+  _optional: Record<string, never> = {},
 ): ConnectorAuthorizationPendingState {
   if (!response.connector) return pending;
   const connectorId = response.connector.id;
@@ -138,57 +149,58 @@ export function updateConnectorAuthorizationPendingFromConnectResponse(
       ...(response.auth.expiresAt ? { expiresAt: response.auth.expiresAt } : {}),
       ...(response.auth.redirectUrl ? { redirectUrl: response.auth.redirectUrl } : {}),
     };
-    return pruneConnectorAuthorizationPending(next, nowMs);
+    return pruneConnectorAuthorizationPending({ pending: next, nowMs });
   }
   delete next[connectorId];
-  return pruneConnectorAuthorizationPending(next, nowMs);
+  return pruneConnectorAuthorizationPending({ pending: next, nowMs });
 }
 
 export function updateConnectorAuthorizationPendingFromStatuses(
-  pending: ConnectorAuthorizationPendingState,
-  statuses: ConnectorStatusMap,
-  nowMs: number,
+  { pending, statuses, nowMs }: { pending: ConnectorAuthorizationPendingState; statuses: ConnectorStatusMap; nowMs: number },
+  _optional: Record<string, never> = {},
 ): ConnectorAuthorizationPendingState {
   const next = { ...pending };
   for (const [connectorId, status] of Object.entries(statuses)) {
     if (status.status === 'connected') delete next[connectorId];
   }
-  return pruneConnectorAuthorizationPending(next, nowMs);
+  return pruneConnectorAuthorizationPending({ pending: next, nowMs });
+}
+
+/** Drops every entry whose connector is now `connected`. Returns `record` itself when nothing
+ *  changed, so a React state update can bail out. @complexity O(s) in the status map; copying
+ *  the record also takes O(r) in its number of entries. */
+export function withoutConnectedEntries<T>(
+  { record, statuses }: { record: Record<string, T>; statuses: ConnectorStatusMap },
+  _optional: Record<string, never> = {},
+): Record<string, T> {
+  let mutated = false;
+  const next = { ...record };
+  for (const [connectorId, status] of Object.entries(statuses)) {
+    if (status.status === 'connected' && next[connectorId] !== undefined) {
+      delete next[connectorId];
+      mutated = true;
+    }
+  }
+  return mutated ? next : record;
 }
 
 export function clearConnectorAuthorizationErrorsForConnected(
-  errors: Record<string, string>,
-  statuses: ConnectorStatusMap,
+  { errors, statuses }: { errors: Record<string, string>; statuses: ConnectorStatusMap },
+  _optional: Record<string, never> = {},
 ): Record<string, string> {
-  let mutated = false;
-  const next = { ...errors };
-  for (const [connectorId, status] of Object.entries(statuses)) {
-    if (status.status === 'connected' && next[connectorId] !== undefined) {
-      delete next[connectorId];
-      mutated = true;
-    }
-  }
-  return mutated ? next : errors;
+  return withoutConnectedEntries({ record: errors, statuses });
 }
 
 export function clearConnectorAuthorizationCancelFailuresForConnected(
-  failures: Record<string, boolean>,
-  statuses: ConnectorStatusMap,
+  { failures, statuses }: { failures: Record<string, boolean>; statuses: ConnectorStatusMap },
+  _optional: Record<string, never> = {},
 ): Record<string, boolean> {
-  let mutated = false;
-  const next = { ...failures };
-  for (const [connectorId, status] of Object.entries(statuses)) {
-    if (status.status === 'connected' && next[connectorId] !== undefined) {
-      delete next[connectorId];
-      mutated = true;
-    }
-  }
-  return mutated ? next : failures;
+  return withoutConnectedEntries({ record: failures, statuses });
 }
 
 export function clearConnectorAuthorizationPending(
-  pending: ConnectorAuthorizationPendingState,
-  connectorId: string,
+  { pending, connectorId }: { pending: ConnectorAuthorizationPendingState; connectorId: string },
+  _optional: Record<string, never> = {},
 ): ConnectorAuthorizationPendingState {
   if (pending[connectorId] === undefined) return pending;
   const next = { ...pending };
@@ -197,9 +209,8 @@ export function clearConnectorAuthorizationPending(
 }
 
 export function findStaleAuthorizations(
-  pendingBeforeReload: ConnectorAuthorizationPendingState,
-  statuses: ConnectorStatusMap,
-  nowMs: number,
+  { pendingBeforeReload, statuses, nowMs }: { pendingBeforeReload: ConnectorAuthorizationPendingState; statuses: ConnectorStatusMap; nowMs: number },
+  _optional: Record<string, never> = {},
 ): string[] {
   return Object.keys(pendingBeforeReload).filter((connectorId) => {
     if (statuses[connectorId]?.status === 'connected') return false;
@@ -211,8 +222,8 @@ export function findStaleAuthorizations(
 }
 
 export function connectorAuthSnapshotChanged(
-  current: Pick<Connector, 'status' | 'accountLabel' | 'lastError'> | null | undefined,
-  next: { status: string; accountLabel?: string; lastError?: string } | null | undefined,
+  { current, next }: { current: Pick<Connector, 'status' | 'accountLabel' | 'lastError'> | null | undefined; next: { status: string; accountLabel?: string; lastError?: string } | null | undefined },
+  _optional: Record<string, never> = {},
 ): boolean {
   if (current == null && next == null) return false;
   if (current == null || next == null) return true;
@@ -223,11 +234,11 @@ export function connectorAuthSnapshotChanged(
   );
 }
 
-export function hasConnectorStatusChanges(current: Connector[], statuses: ConnectorStatusMap): boolean {
-  return current.some((connector) => connectorAuthSnapshotChanged(connector, statuses[connector.id]));
+export function hasConnectorStatusChanges({ current, statuses }: { current: Connector[]; statuses: ConnectorStatusMap }, _optional: Record<string, never> = {}): boolean {
+  return current.some((connector) => connectorAuthSnapshotChanged({ current: connector, next: statuses[connector.id] }));
 }
 
-export function applyConnectorStatuses(current: Connector[], statuses: ConnectorStatusMap): Connector[] {
+export function applyConnectorStatuses({ current, statuses }: { current: Connector[]; statuses: ConnectorStatusMap }, _optional: Record<string, never> = {}): Connector[] {
   if (Object.keys(statuses).length === 0) return current;
   return current.map((connector) => {
     const next = statuses[connector.id];
@@ -260,7 +271,7 @@ function mergeConnectorTools(
   return merged;
 }
 
-export function mergeConnectorToolPreview(current: Connector, next: Connector, append: boolean): Connector {
+export function mergeConnectorToolPreview({ current, next, append }: { current: Connector; next: Connector; append: boolean }, _optional: Record<string, never> = {}): Connector {
   const toolCount = next.toolCount ?? current.toolCount;
   const featuredToolNames = next.featuredToolNames ?? current.featuredToolNames;
   const merged: Connector = {
@@ -275,7 +286,7 @@ export function mergeConnectorToolPreview(current: Connector, next: Connector, a
   return omitKeys(merged, ['toolsNextCursor']);
 }
 
-export function mergeConnectorActionResult(current: Connector, next: Connector): Connector {
+export function mergeConnectorActionResult({ current, next }: { current: Connector; next: Connector }, _optional: Record<string, never> = {}): Connector {
   const toolCount = next.toolCount ?? current.toolCount;
   const featuredToolNames = next.featuredToolNames ?? current.featuredToolNames;
   return {
@@ -300,7 +311,7 @@ function scoreConnectorText(value: string | undefined, query: string, baseScore:
   return null;
 }
 
-export function getConnectorSearchScore(connector: Connector, query: string): number | null {
+export function getConnectorSearchScore({ connector, query }: { connector: Connector; query: string }, _optional: Record<string, never> = {}): number | null {
   const normalizedQuery = query.trim().toLowerCase();
   if (!normalizedQuery) return 0;
 
@@ -326,7 +337,7 @@ export function getConnectorSearchScore(connector: Connector, query: string): nu
   return scores.length ? Math.min(...scores) : null;
 }
 
-export function sortConnectorsForDisplay(connectors: Connector[]): Connector[] {
+export function sortConnectorsForDisplay({ connectors }: { connectors: Connector[] }, _optional: Record<string, never> = {}): Connector[] {
   return [...connectors].sort((a, b) => {
     const aConnected = a.status === 'connected';
     const bConnected = b.status === 'connected';
@@ -335,12 +346,12 @@ export function sortConnectorsForDisplay(connectors: Connector[]): Connector[] {
   });
 }
 
-export function sortConnectorsForSearch(connectors: Connector[], query: string): Connector[] {
+export function sortConnectorsForSearch({ connectors, query }: { connectors: Connector[]; query: string }, _optional: Record<string, never> = {}): Connector[] {
   const normalizedQuery = query.trim().toLowerCase();
-  if (!normalizedQuery) return sortConnectorsForDisplay(connectors);
+  if (!normalizedQuery) return sortConnectorsForDisplay({ connectors });
 
   return [...connectors]
-    .map((connector) => ({ connector, score: getConnectorSearchScore(connector, normalizedQuery) }))
+    .map((connector) => ({ connector, score: getConnectorSearchScore({ connector, query: normalizedQuery }) }))
     .filter((entry): entry is { connector: Connector; score: number } => entry.score !== null)
     .sort((a, b) => {
       if (a.score !== b.score) return a.score - b.score;
@@ -356,7 +367,7 @@ export function sortConnectorsForSearch(connectors: Connector[], query: string):
 }
 
 /** Trusts same-origin + localhost-loopback so packaged dev URLs (different ports) keep working. */
-export function isTrustedConnectorCallbackOrigin(origin: string, currentOrigin: string): boolean {
+export function isTrustedConnectorCallbackOrigin({ origin, currentOrigin }: { origin: string; currentOrigin: string }, _optional: Record<string, never> = {}): boolean {
   if (origin === currentOrigin) return true;
   try {
     const url = new URL(origin);
@@ -373,11 +384,8 @@ export function isTrustedConnectorCallbackOrigin(origin: string, currentOrigin: 
 }
 
 export function connectorPanelAlerts(
-  connectors: Connector[],
-  detailConnectorId: string | null,
-  authorizationError: Record<string, string>,
-  authorizationCancelFailed: Record<string, boolean>,
-  cancelFailedMessage: string,
+  { connectors, detailConnectorId, authorizationError, authorizationCancelFailed, cancelFailedMessage }: { connectors: Connector[]; detailConnectorId: string | null; authorizationError: Record<string, string>; authorizationCancelFailed: Record<string, boolean>; cancelFailedMessage: string },
+  _optional: Record<string, never> = {},
 ): ConnectorPanelAlert[] {
   const alerts: ConnectorPanelAlert[] = [];
   for (const connector of connectors) {
@@ -405,7 +413,7 @@ export function getDisplayableConnectorAccountLabel(connector: Connector): strin
   return connector.accountLabel;
 }
 
-export function formatToolsBadge(count: number): string {
+export function formatToolsBadge({ count }: { count: number }, _optional: Record<string, never> = {}): string {
   if (count === 0) return 'No tools';
   if (count === 1) return '1 tool';
   return `${count} tools`;
@@ -414,7 +422,7 @@ export function formatToolsBadge(count: number): string {
 /** i18n-friendly variant of {@link formatToolsBadge}: a translation key plus
  *  interpolation vars, so a host dictionary can translate independent of the
  *  specific count rather than needing one entry per possible count value. */
-export function toolsBadgeTranslation(count: number): { key: string; vars?: Record<string, number> } {
+export function toolsBadgeTranslation({ count }: { count: number }, _optional: Record<string, never> = {}): { key: string; vars?: Record<string, number> } {
   if (count === 0) return { key: 'No tools' };
   if (count === 1) return { key: '1 tool' };
   return { key: '{count} tools', vars: { count } };
@@ -427,16 +435,16 @@ const STATUS_LABELS: Record<ConnectorStatus, string> = {
   disabled: 'Disabled',
 };
 
-export function statusLabel(status: ConnectorStatus): string {
+export function statusLabel({ status }: { status: ConnectorStatus }, _optional: Record<string, never> = {}): string {
   return STATUS_LABELS[status];
 }
 
-export function defaultCategoryLabel(category: string): string {
+export function defaultCategoryLabel({ category }: { category: string }, _optional: Record<string, never> = {}): string {
   return category;
 }
 
 /** Stable hash -> palette index, used for the fallback logo tile's hue. */
-export function fallbackLogoPaletteIndex(seed: string, paletteSize: number): number {
+export function fallbackLogoPaletteIndex({ seed, paletteSize }: { seed: string; paletteSize: number }, _optional: Record<string, never> = {}): number {
   let hash = 0;
   for (let i = 0; i < seed.length; i++) {
     hash = (hash * 31 + seed.charCodeAt(i)) | 0;
@@ -444,7 +452,7 @@ export function fallbackLogoPaletteIndex(seed: string, paletteSize: number): num
   return Math.abs(hash) % paletteSize;
 }
 
-export function fallbackLogoInitials(name: string): string {
+export function fallbackLogoInitials({ name }: { name: string }, _optional: Record<string, never> = {}): string {
   const cleaned = name.trim();
   if (!cleaned) return '?';
   const parts = cleaned.split(/\s+/u);

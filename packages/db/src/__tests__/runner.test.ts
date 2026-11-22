@@ -6,9 +6,10 @@ import { sql } from "kysely";
 import { listTables } from "../kernel/index.js";
 import { openPgliteKernel } from "../kernel/pglite/index.js";
 import { openMemorySqliteKernel } from "../kernel/sqlite/index.js";
-import type { StorageKernel } from "../kernel/index.js";
+import type { KyselyKernel } from "../kernel/index.js";
 import { assertValidSteps, hasLedger, runMigrations } from "../migrate/index.js";
-import { MigrationChecksumError, type MigrationStep, UnknownAppliedMigrationError } from "../migrate/index.js";
+import { MigrationChecksumError, UnknownAppliedMigrationError } from "../migrate/index.js";
+import { type MigrationStep } from "@jini-ai/core/contracts/storage";
 import { PGlite } from "@electric-sql/pglite";
 import { openSqlite, LEDGER } from "./helpers.js";
 
@@ -21,7 +22,7 @@ import { openSqlite, LEDGER } from "./helpers.js";
 
 const sum = (char: string) => char.repeat(64);
 
-function tableStep(id: string, table: string, checksum = sum("a")): MigrationStep {
+function tableStep(id: string, table: string, checksum = sum("a")): MigrationStep<KyselyKernel<unknown>> {
   return {
     id,
     checksum,
@@ -31,12 +32,12 @@ function tableStep(id: string, table: string, checksum = sum("a")): MigrationSte
   };
 }
 
-const kernels: Array<StorageKernel<unknown>> = [];
+const kernels: Array<KyselyKernel<unknown>> = [];
 after(async () => {
   for (const kernel of kernels) await kernel.close();
 });
 
-const dialects: Array<{ name: string; open: () => StorageKernel<unknown> }> = [
+const dialects: Array<{ name: string; open: () => KyselyKernel<unknown> }> = [
   { name: "sqlite", open: () => openMemorySqliteKernel<unknown>({ open: openSqlite }) },
   { name: "pglite", open: () => openPgliteKernel<unknown>({ PGlite }) },
 ];
@@ -74,7 +75,7 @@ for (const { name, open } of dialects) {
 
     test("a failing step rolls back its own changes, is not recorded, and stops later steps", async () => {
       const kernel = fresh();
-      const failing: MigrationStep = {
+      const failing: MigrationStep<KyselyKernel<unknown>> = {
         id: "0002_fails",
         checksum: sum("c"),
         up: async (k) => {
@@ -83,7 +84,7 @@ for (const { name, open } of dialects) {
         },
       };
       await assert.rejects(runMigrations(kernel, [tableStep("0001_first", "first_t"), failing, tableStep("0003_third", "third_t")], { ledgerTable: LEDGER }), /boom/);
-      const tables = await listTables(kernel);
+      const tables = await listTables({ kernel });
       assert.ok(tables.includes("first_t"));
       assert.ok(!tables.includes("half_done"), "the failed step's DDL rolled back");
       assert.ok(!tables.includes("third_t"), "later steps were not attempted");
@@ -98,11 +99,11 @@ for (const { name, open } of dialects) {
       const kernel = fresh();
       await kernel.execute(sql`CREATE TABLE prepared_value (value text)`);
       const events: string[] = [];
-      const step: MigrationStep = {
+      const step: MigrationStep<KyselyKernel<unknown>> = {
         id: "0001_prepared",
         checksum: sum("a"),
         prepare: async (k, context) => {
-          assert.equal(await hasLedger(k, LEDGER), false);
+          assert.equal(await hasLedger({ kernel: k, ledgerTable: LEDGER }), false);
           events.push("prepare");
           await k.execute(sql`INSERT INTO prepared_value VALUES ('prepared before up')`);
           context.note("preparation complete");
@@ -129,16 +130,16 @@ for (const { name, open } of dialects) {
       await kernel.execute(sql`CREATE TABLE keep_value (value text)`);
       await kernel.execute(sql`INSERT INTO keep_value VALUES ('original')`);
       const failure = new Error("preparation refused");
-      const step: MigrationStep = {
+      const step: MigrationStep<KyselyKernel<unknown>> = {
         id: "0001_refused", checksum: sum("a"),
         prepare: async () => { throw failure; },
         up: async (k) => { await k.execute(sql`DELETE FROM keep_value`); },
       };
       await assert.rejects(runMigrations(kernel, [step, tableStep("0002_later", "later_t")], { ledgerTable: LEDGER }),
         (error: unknown) => error === failure);
-      assert.deepEqual(await listTables(kernel), ["keep_value"]);
+      assert.deepEqual(await listTables({ kernel }), ["keep_value"]);
       assert.deepEqual(await kernel.query(sql`SELECT value FROM keep_value`), [{ value: "original" }]);
-      assert.equal(await hasLedger(kernel, LEDGER), false);
+      assert.equal(await hasLedger({ kernel, ledgerTable: LEDGER }), false);
     });
 
     test("a recorded step whose checksum changed stops the run before anything is applied", async () => {
@@ -148,7 +149,7 @@ for (const { name, open } of dialects) {
         runMigrations(kernel, [tableStep("0001_first", "first_t", sum("d")), tableStep("0002_second", "second_t")], { ledgerTable: LEDGER }),
         (error: unknown) => error instanceof MigrationChecksumError && error.id === "0001_first"
       );
-      assert.ok(!(await listTables(kernel)).includes("second_t"));
+      assert.ok(!(await listTables({ kernel })).includes("second_t"));
     });
 
     test("a recorded step this runtime does not know stops the run (database from a newer version)", async () => {
@@ -173,8 +174,8 @@ for (const { name, open } of dialects) {
     test("the ledger is the one the consumer names, and is required", async () => {
       const kernel = fresh();
       await runMigrations(kernel, [tableStep("0001_first", "first_t")], { ledgerTable: "other_ledger" });
-      assert.ok(await hasLedger(kernel, "other_ledger"));
-      assert.equal(await hasLedger(kernel, LEDGER), false, "no default ledger name is ever created");
+      assert.ok(await hasLedger({ kernel, ledgerTable: "other_ledger" }));
+      assert.equal(await hasLedger({ kernel, ledgerTable: LEDGER }), false, "no default ledger name is ever created");
       await assert.rejects(
         runMigrations(kernel, [tableStep("0001_first", "first_t")], {} as never),
         /^Error: runMigrations: options.ledgerTable is required$/
@@ -191,7 +192,7 @@ test("P8: step mode rejects a newer ledger committed after the older runner's in
   const newer = tableStep("0003_newer", "newer_t", sum("c"));
   await runMigrations(kernel, [first], { ledgerTable: LEDGER });
 
-  const olderSecond: MigrationStep = {
+  const olderSecond: MigrationStep<KyselyKernel<unknown>> = {
     ...second,
     prepare: async () => {
       // The older invocation has read the ledger but has not acquired its migration lock.
@@ -210,9 +211,9 @@ test("P8: step mode rejects a newer ledger committed after the older runner's in
 
 describe("assertValidSteps", () => {
   test("rejects malformed, unordered or duplicate ids and missing checksums", () => {
-    assert.throws(() => assertValidSteps([tableStep("1_bad", "t")]), /NNNN_snake_name/);
-    assert.throws(() => assertValidSteps([tableStep("0002_b", "t"), tableStep("0001_a", "t")]), /out of order/);
-    assert.throws(() => assertValidSteps([tableStep("0001_a", "t"), tableStep("0001_a", "t")]), /out of order or duplicated/);
-    assert.throws(() => assertValidSteps([tableStep("0001_a", "t", "nope")]), /sha256/);
+    assert.throws(() => assertValidSteps({ steps: [tableStep("1_bad", "t")] }), /NNNN_snake_name/);
+    assert.throws(() => assertValidSteps({ steps: [tableStep("0002_b", "t"), tableStep("0001_a", "t")] }), /out of order/);
+    assert.throws(() => assertValidSteps({ steps: [tableStep("0001_a", "t"), tableStep("0001_a", "t")] }), /out of order or duplicated/);
+    assert.throws(() => assertValidSteps({ steps: [tableStep("0001_a", "t", "nope")] }), /sha256/);
   });
 });

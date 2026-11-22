@@ -1,6 +1,7 @@
 import type { ReactNode, RefObject } from 'react';
 import { isCardActivationKey, resourceCardClassName, ResourceCardMenu, ResourceCardMeta } from './ResourceCardParts.js';
 import type { ResourceBoardItem, ResourceStatusToneMap } from '../../types.js';
+import { useResourceCard } from './ResourceCard.hooks.js';
 
 export interface ResourceCardProps<TBody = unknown> {
   item: ResourceBoardItem<TBody>;
@@ -48,12 +49,9 @@ export function ResourceCard<TBody = unknown>({
   onToggleSelected,
   onToggleMenu,
   onAction,
-}: ResourceCardProps<TBody>) {
-  const handleActivate = () => {
-    if (selectMode) onToggleSelected();
-    else onOpen();
-  };
-  const menuActions = selectMode ? [] : (item.menuActions ?? []);
+  useResourceCardHook = useResourceCard,
+}: ResourceCardProps<TBody> & { useResourceCardHook?: typeof useResourceCard }) {
+  const { handleActivate, menuActions } = useResourceCardHook({ item, selectMode, onOpen, onToggleSelected });
 
   return (
     <div

@@ -1,8 +1,8 @@
 import type { UUID } from "@jini-ai/core/primitives";
-import type { ChangeSetItemRecord } from "./change-set.js";
+import type { ChangeSetItemRecord } from "@jini-ai/core/contracts/events";
 
 /**
- * @file Inverse-applier registry (ADR-018 C-005/C-006).
+ * @file Inverse-applier registry.
  *
  * Purpose:
  * A generic `(entityType, operation)` -> `EntityReverter` registry that `revert.ts`'s
@@ -10,7 +10,7 @@ import type { ChangeSetItemRecord } from "./change-set.js";
  * restore it from a change-set item's inverse payload. Keeps `revert.ts` free of per-entity-type
  * branching — new revertible entity types register an `EntityReverter` here.
  *
- * Core holds only the generic registry, never feature-specific reverters (ADR-018 Enforcement).
+ * Core holds only the generic registry, never feature-specific reverters.
  * Concrete reverters live with their domains; composition roots construct and register them at
  * boot. They close over the root's shared adapters rather than importing feature or DB code here.
  */

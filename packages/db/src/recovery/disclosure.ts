@@ -1,10 +1,10 @@
 /**
- * @file SPEC-019 C-305 / REQ-09-REQ-11 / INV-05 — the discarded-write-window disclosure
- * computation (ADR-045 §2, Step 2 of the restore ceremony).
+ * @file The discarded-write-window disclosure
+ * computation (Step 2 of the restore ceremony).
  *
  * Purpose:
  * Never asserts a numeric count for a category outside the versioned `coveredCategories` constant
- * (INV-05) — a category not yet migrated onto the watermark chokepoint (ADR-041 §5's evolving
+ * — a category not yet migrated onto the watermark chokepoint (the evolving
  * write-path inventory) simply never appears in the output, even if a caller-supplied count source
  * happens to have data for it (AC-17's `entries` case: Collections' write path is not yet
  * watermark-stamped, so it must never be disclosed as covered here regardless of what any count
@@ -12,11 +12,11 @@
  * watermark baseline itself could not be established, whether because `content.db` was entirely
  * unreadable (AC-19/EC-08) or because the specific restore point predates the
  * `watermarkAtCapture` column (EC-02) — a null baseline must never be silently treated as a
- * zero-baseline (matches SPEC-016 EC-06's identical rule).
+ * zero-baseline.
  *
- * `result.partial` is always `true` — this disclosure is never claimed exhaustive (ADR-041 §5's
+ * `result.partial` is always `true` — this disclosure is never claimed exhaustive (the
  * own "no exhaustiveness claim until the automated write-path inventory runs clean" carried
- * verbatim into this domain, ADR-045 §2).
+ * verbatim into this domain).
  *
  * How it relates to the project:
  * `coveredCategories` is the single, auditable edit point ADR-PIPE-019's File Map names this file

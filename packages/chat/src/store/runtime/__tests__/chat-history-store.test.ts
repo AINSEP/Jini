@@ -1,11 +1,15 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { StorageKernel } from '@jini-ai/db/kernel';
+import type { StorageKernel } from '@jini-ai/core/contracts/storage';
 import type { ChatMessage } from '../../../core/index.js';
 import type { ChatDatabase } from '../kernel.js';
 import { createChatHistoryStore } from '../chat-history-store.js';
 import { createSqlChatStore } from '../../sql/store.js';
 import { createRunGuardedChatStore } from '../run-guarded-chat-store.js';
 import { runtimeFixture, type RuntimeFixture } from './runtime-fixture.js';
+import type { Kysely } from 'kysely';
+
+// A package test supplies its own clock port; the system clock lives in the platform package.
+const testClock = { nowMs: () => Date.now() };
 
 const scope = { scopeId: 'ws', ownerKind: 'user', ownerId: 'alice' } as const;
 const isDaemonRunId = ({ runId }: { runId: string }) => runId.startsWith('daemon-');
@@ -69,13 +73,13 @@ describe('createChatHistoryStore construction', () => {
   it.each(['pglite', 'pglite-socket', 'node-postgres'] as const)('routes a postgres %s kernel to its adapter without SQL', (transport) => {
     f = runtimeFixture();
     const run = vi.spyOn(f.kernel, 'run');
-    const kernel: StorageKernel<ChatDatabase> = { ...f.kernel, dialect: 'postgres', transport };
+    const kernel: StorageKernel<Kysely<ChatDatabase>, ChatDatabase> = { ...f.kernel, dialect: 'postgres', transport };
     expect(typeof createChatHistoryStore({ kernel, scope, isDaemonRunId }).messages).toBe('function');
     expect(run).not.toHaveBeenCalled();
   });
   it.each(['pglite', 'pglite-socket', 'node-postgres'] as const)('a sqlite-dialect %s kernel is refused by the selected postgres adapter', (transport) => {
     f = runtimeFixture();
-    const kernel: StorageKernel<ChatDatabase> = { ...f.kernel, transport };
+    const kernel: StorageKernel<Kysely<ChatDatabase>, ChatDatabase> = { ...f.kernel, transport };
     expect(() => createChatHistoryStore({ kernel, scope, isDaemonRunId })).toThrow('Invalid chat store input.');
   });
 });
@@ -143,7 +147,7 @@ describe('history read allocation boundaries', () => {
   it('validates PostgreSQL 14 raw JSON one row at a time and omits malformed events', async () => {
     f = runtimeFixture();
     // The query uses portable SQL here; this exercises the PG14 validation policy without a server.
-    const store = createSqlChatStore({ kernel: { ...f.kernel, dialect: 'postgres' }, scope });
+    const store = createSqlChatStore({ clock: testClock, kernel: { ...f.kernel, dialect: 'postgres' }, scope });
     await store.create({ id: 'c' });
     await store.appendMessage({ conversationId: 'c', message: { ...answer('a', 1), events: [{ kind: 'text', text: 'saved' }] } });
     await store.appendMessage({ conversationId: 'c', message: answer('b', 2) });

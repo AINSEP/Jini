@@ -218,7 +218,7 @@ describe("inbox worker: quarantine", () => {
     expect(after.payment.version).toBe(before.payment.version);
     expect(after.evidence).toEqual(before.evidence);
     expect(after.refunds).toEqual([]);
-    expect(await w.inbox(id)).toMatchObject({ state: "dead", factsJson: JSON.stringify(stolen), lastError: "ledger: unique constraint violated on commerce_refunds" });
+    expect(await w.inbox(id)).toMatchObject({ state: "dead", factsJson: JSON.stringify(stolen), lastError: "Ledger constraint failed (unique)." });
     expect(after.quarantine).toEqual([expect.objectContaining({ reason: "ref-conflict", paymentId: "pay_2", subject: "payment" })]);
     expect(JSON.parse(after.quarantine[0]!.evidenceJson)).toEqual(stolen.evidence);
     expect(w.alerts.raised).toEqual([expect.objectContaining({ kind: "inbox-dead-letter", paymentId: "pay_2" })]);

@@ -2,6 +2,7 @@ import { chmod, mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/pr
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { getSystemErrorMessage } from "node:util";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -26,7 +27,6 @@ vi.mock("node:fs/promises", async (importOriginal) => {
 
 import {
   atomicCopyFile,
-  collectProcessTreePids,
   createCommandInvocation,
   createPackageManagerInvocation,
   createProcessStampArgs,
@@ -47,6 +47,7 @@ import {
   wellKnownUserToolchainBins,
   type ProcessStampContract,
 } from "../index.js";
+import { collectProcessTreePids } from "@jini-ai/core/contracts/runtime";
 
 // root (CAP_DAC_OVERRIDE) always bypasses a directory's own permission bits, so `chmod(dir,
 // 0o000)` cannot actually block root's own read/write/remove access the way a couple of tests
@@ -106,7 +107,7 @@ describe("@jini-ai/platform — command", () => {
   });
 
   it("builds a package-manager invocation from npm_execpath when present", () => {
-    const invocation = createPackageManagerInvocation(["install"], { npm_execpath: "/usr/lib/pnpm/bin/pnpm.cjs" });
+    const invocation = createPackageManagerInvocation({ args: ["install"] }, { env: { npm_execpath: "/usr/lib/pnpm/bin/pnpm.cjs" } });
     expect(invocation.args).toEqual(["/usr/lib/pnpm/bin/pnpm.cjs", "install"]);
     expect(invocation.command).toBe(process.execPath);
   });
@@ -116,25 +117,25 @@ describe("@jini-ai/platform — process stamps", () => {
   const stamp: FakeStamp = { app: "ui", namespace: "alpha" };
 
   it("round-trips a stamp through args, flag reads, and decode", () => {
-    const args = createProcessStampArgs(stamp, fakeStampContract);
+    const args = createProcessStampArgs({ stamp, contract: fakeStampContract });
     expect(args).toEqual(["--fake-app=ui", "--fake-namespace=alpha"]);
 
-    expect(readFlagValue(args, "--fake-app")).toBe("ui");
-    expect(readFlagValue(["--fake-app", "ui"], "--fake-app")).toBe("ui");
-    expect(readFlagValue(args, "--missing")).toBeNull();
+    expect(readFlagValue({ args, flagName: "--fake-app" })).toBe("ui");
+    expect(readFlagValue({ args: ["--fake-app", "ui"], flagName: "--fake-app" })).toBe("ui");
+    expect(readFlagValue({ args, flagName: "--missing" })).toBeNull();
 
-    expect(readProcessStamp(args, fakeStampContract)).toEqual(stamp);
-    expect(readProcessStampFromCommand(`node server.js ${args.join(" ")}`, fakeStampContract)).toEqual(stamp);
+    expect(readProcessStamp({ args, contract: fakeStampContract })).toEqual(stamp);
+    expect(readProcessStampFromCommand({ command: `node server.js ${args.join(" ")}`, contract: fakeStampContract })).toEqual(stamp);
   });
 
   it("matches partial criteria and rejects mismatched criteria", () => {
-    expect(matchesProcessStamp(stamp, { app: "ui" }, fakeStampContract)).toBe(true);
-    expect(matchesProcessStamp(stamp, { app: "api" }, fakeStampContract)).toBe(false);
-    expect(matchesProcessStamp(stamp, undefined, fakeStampContract)).toBe(true);
+    expect(matchesProcessStamp({ stamp, criteria: { app: "ui" }, contract: fakeStampContract })).toBe(true);
+    expect(matchesProcessStamp({ stamp, criteria: { app: "api" }, contract: fakeStampContract })).toBe(false);
+    expect(matchesProcessStamp({ stamp, criteria: undefined, contract: fakeStampContract })).toBe(true);
 
-    const command = `node server.js ${createProcessStampArgs(stamp, fakeStampContract).join(" ")}`;
-    expect(matchesStampedProcess({ command }, { namespace: "alpha" }, fakeStampContract)).toBe(true);
-    expect(matchesStampedProcess({ command: "node unrelated.js" }, { namespace: "alpha" }, fakeStampContract)).toBe(
+    const command = `node server.js ${createProcessStampArgs({ stamp, contract: fakeStampContract }).join(" ")}`;
+    expect(matchesStampedProcess({ processInfo: { command }, criteria: { namespace: "alpha" }, contract: fakeStampContract })).toBe(true);
+    expect(matchesStampedProcess({ processInfo: { command: "node unrelated.js" }, criteria: { namespace: "alpha" }, contract: fakeStampContract })).toBe(
       false,
     );
   });
@@ -147,7 +148,7 @@ describe("@jini-ai/platform — process stamps", () => {
       { command: "grandchild", pid: 4, ppid: 2 },
       { command: "unrelated", pid: 5, ppid: 0 },
     ];
-    const pids = collectProcessTreePids(processes, [1]);
+    const pids = collectProcessTreePids({ processes, rootPids: [1] });
     expect(pids).toEqual([4, 3, 2, 1]);
   });
 
@@ -160,10 +161,10 @@ describe("@jini-ai/platform — process stamps", () => {
 
 describe("@jini-ai/platform — fs", () => {
   it("containment: descendants pass, sibling/parent escapes fail, root itself passes", () => {
-    expect(pathContains("/repo/root", "/repo/root/child")).toBe(true);
-    expect(pathContains("/repo/root", "/repo/root")).toBe(true);
-    expect(pathContains("/repo/root", "/repo/root/../sibling")).toBe(false);
-    expect(pathContains("/repo/root", "/repo/other")).toBe(false);
+    expect(pathContains({ root: "/repo/root", target: "/repo/root/child" })).toBe(true);
+    expect(pathContains({ root: "/repo/root", target: "/repo/root" })).toBe(true);
+    expect(pathContains({ root: "/repo/root", target: "/repo/root/../sibling" })).toBe(false);
+    expect(pathContains({ root: "/repo/root", target: "/repo/other" })).toBe(false);
   });
 
   it("atomically copies a file, refuses to clobber, and allows overwrite", async () => {
@@ -172,14 +173,14 @@ describe("@jini-ai/platform — fs", () => {
     const destination = join(dir, "nested", "destination.txt");
     await writeFile(source, "hello world", "utf8");
 
-    const result = await atomicCopyFile(source, destination);
+    const result = await atomicCopyFile({ sourcePath: source, destinationPath: destination });
     expect(result).toEqual({ bytesCopied: "hello world".length, replaced: false });
     expect(await readFile(destination, "utf8")).toBe("hello world");
 
-    await expect(atomicCopyFile(source, destination)).rejects.toThrow(/destination already exists/);
+    await expect(atomicCopyFile({ sourcePath: source, destinationPath: destination })).rejects.toThrow(/destination already exists/);
 
     await writeFile(source, "updated content", "utf8");
-    const overwritten = await atomicCopyFile(source, destination, { overwrite: true });
+    const overwritten = await atomicCopyFile({ sourcePath: source, destinationPath: destination }, { overwrite: true });
     expect(overwritten.replaced).toBe(true);
     expect(await readFile(destination, "utf8")).toBe("updated content");
   });
@@ -189,9 +190,9 @@ describe("@jini-ai/platform — fs", () => {
     const target = join(dir, "to-remove.txt");
     await writeFile(target, "bye", "utf8");
 
-    const result = await removePathBestEffort(target);
+    const result = await removePathBestEffort({ path: target });
     expect(result).toEqual({ removed: true });
-    await expect(stat(target)).rejects.toThrow();
+    await expect(stat(target)).rejects.toThrow(`ENOENT: no such file or directory, stat '${target}'`);
   });
 
   it("reads the trailing non-empty lines of a log file, and returns empty for a missing file", async () => {
@@ -199,8 +200,8 @@ describe("@jini-ai/platform — fs", () => {
     const logPath = join(dir, "out.log");
     await writeFile(logPath, "line1\nline2\n\nline3\n", "utf8");
 
-    expect(await readLogTail(logPath, 2)).toEqual(["line2", "line3"]);
-    expect(await readLogTail(join(dir, "missing.log"))).toEqual([]);
+    expect(await readLogTail({ filePath: logPath }, { maxLines: 2 })).toEqual(["line2", "line3"]);
+    expect(await readLogTail({ filePath: join(dir, "missing.log") })).toEqual([]);
   });
 
   it("treats a same-path copy of a file as a no-op that reports the existing size", async () => {
@@ -208,7 +209,7 @@ describe("@jini-ai/platform — fs", () => {
     const file = join(dir, "same.txt");
     await writeFile(file, "unchanged", "utf8");
 
-    const result = await atomicCopyFile(file, file);
+    const result = await atomicCopyFile({ sourcePath: file, destinationPath: file });
     expect(result).toEqual({ bytesCopied: "unchanged".length, replaced: true });
     expect(await readFile(file, "utf8")).toBe("unchanged");
   });
@@ -218,7 +219,7 @@ describe("@jini-ai/platform — fs", () => {
     const sameDir = join(dir, "samedir");
     await mkdir(sameDir);
 
-    await expect(atomicCopyFile(sameDir, sameDir)).rejects.toThrow(/destination is not a file/);
+    await expect(atomicCopyFile({ sourcePath: sameDir, destinationPath: sameDir })).rejects.toThrow(/destination is not a file/);
   });
 
   it.skipIf(isRoot)("propagates a non-ENOENT error from the destination existence check (real chmod, non-root)", async () => {
@@ -234,7 +235,7 @@ describe("@jini-ai/platform — fs", () => {
     // expects, so the error must be rethrown rather than treated as "new".
     await chmod(restrictedDir, 0o000);
     try {
-      await expect(atomicCopyFile(source, destination)).rejects.toMatchObject({ code: "EACCES" });
+      await expect(atomicCopyFile({ sourcePath: source, destinationPath: destination })).rejects.toMatchObject({ code: "EACCES" });
     } finally {
       await chmod(restrictedDir, 0o755);
     }
@@ -261,7 +262,7 @@ describe("@jini-ai/platform — fs", () => {
       return stat(p as string);
     });
     try {
-      await expect(atomicCopyFile(source, destination)).rejects.toMatchObject({ code: "EACCES" });
+      await expect(atomicCopyFile({ sourcePath: source, destinationPath: destination })).rejects.toMatchObject({ code: "EACCES" });
     } finally {
       vi.mocked(fsPromises.stat).mockClear();
     }
@@ -275,8 +276,17 @@ describe("@jini-ai/platform — fs", () => {
 
     // A directory source makes the underlying copyFile() call itself fail,
     // exercising the outer try/catch's temp-file cleanup + rethrow.
-    await expect(atomicCopyFile(sourceDir, destination)).rejects.toThrow();
-    await expect(stat(destination)).rejects.toThrow();
+    const error = await atomicCopyFile({ sourcePath: sourceDir, destinationPath: destination }).then(
+      () => { throw new Error('Expected copying a directory to fail'); },
+      (failure: NodeJS.ErrnoException & { dest?: string }) => failure,
+    );
+    expect(error).toBeInstanceOf(Error);
+    expect(error).toMatchObject({ path: sourceDir, syscall: 'copyfile' });
+    expect(['ENOTSUP', 'EISDIR', 'EPERM', 'EACCES']).toContain(error.code);
+    if (typeof error.errno !== 'number') throw new Error('Expected a system error number');
+    const reason = `${error.code}: ${getSystemErrorMessage(error.errno)}`;
+    expect(error.message).toBe(`${reason}, copyfile '${sourceDir}' -> '${error.dest}'`);
+    await expect(stat(destination)).rejects.toThrow(`ENOENT: no such file or directory, stat '${destination}'`);
   });
 
   it.skipIf(isRoot)("reports the failure message when a best-effort removal itself fails (real chmod, non-root)", async () => {
@@ -290,7 +300,7 @@ describe("@jini-ai/platform — fs", () => {
     // only suppresses "already gone", not "can't get in".
     await chmod(blocked, 0o000);
     try {
-      const result = await removePathBestEffort(blocked, { recursive: true });
+      const result = await removePathBestEffort({ path: blocked }, { recursive: true });
       expect(result.removed).toBe(false);
       expect(result.error).toBeTruthy();
     } finally {
@@ -309,7 +319,7 @@ describe("@jini-ai/platform — fs", () => {
       err.code = "EACCES";
       throw err;
     });
-    const result = await removePathBestEffort(blocked, { recursive: true });
+    const result = await removePathBestEffort({ path: blocked }, { recursive: true });
     expect(result.removed).toBe(false);
     expect(result.error).toBeTruthy();
   });
@@ -329,7 +339,7 @@ describe("@jini-ai/platform — fs", () => {
       if (p === destination) throw new Error("a stat failure with no .code at all");
       return stat(p as string);
     });
-    await expect(atomicCopyFile(source, destination)).rejects.toThrow("a stat failure with no .code at all");
+    await expect(atomicCopyFile({ sourcePath: source, destinationPath: destination })).rejects.toThrow("a stat failure with no .code at all");
   });
 
   it("treats a stat rejection with an explicit null .code as not-ENOENT and rethrows it", async () => {
@@ -347,7 +357,7 @@ describe("@jini-ai/platform — fs", () => {
       }
       return stat(p as string);
     });
-    await expect(atomicCopyFile(source, destination)).rejects.toThrow("stat failure with a null code");
+    await expect(atomicCopyFile({ sourcePath: source, destinationPath: destination })).rejects.toThrow("stat failure with a null code");
   });
 
   it("reports a non-Error rejection's stringified value when a best-effort removal fails", async () => {
@@ -361,7 +371,7 @@ describe("@jini-ai/platform — fs", () => {
       // eslint-disable-next-line @typescript-eslint/only-throw-error -- deliberately non-Error
       throw "a plain string rejection reason";
     });
-    const result = await removePathBestEffort(blocked, { recursive: true });
+    const result = await removePathBestEffort({ path: blocked }, { recursive: true });
     expect(result.removed).toBe(false);
     expect(result.error).toBe("a plain string rejection reason");
   });
@@ -383,7 +393,7 @@ describe("@jini-ai/platform — http", () => {
     if (address == null || typeof address === "string") throw new Error("expected a TCP address");
 
     try {
-      await expect(waitForHttpOk(`http://127.0.0.1:${address.port}/`, { timeoutMs: 5000 })).resolves.toBe(true);
+      await expect(waitForHttpOk({ url: `http://127.0.0.1:${address.port}/` }, { timeoutMs: 5000 })).resolves.toBe(true);
       expect(requestCount).toBeGreaterThanOrEqual(3);
     } finally {
       await new Promise<void>((resolveClose) => server.close(() => resolveClose()));
@@ -391,16 +401,16 @@ describe("@jini-ai/platform — http", () => {
   });
 
   it("rejects once the timeout elapses without an OK response", async () => {
-    await expect(waitForHttpOk("http://127.0.0.1:1/", { timeoutMs: 200 })).rejects.toThrow(/timed out waiting for/);
+    await expect(waitForHttpOk({ url: "http://127.0.0.1:1/" }, { timeoutMs: 200 })).rejects.toThrow(/timed out waiting for/);
   });
 });
 
 describe("@jini-ai/platform — proxy-env", () => {
   it("merges layered sources, canonicalizing proxy variable spellings", () => {
     const merged = mergeProxyAwareEnv(
-      "darwin",
+      { platform: "darwin", sources: [
       { HTTP_PROXY: "http://proxy.example:8080", PATH: "/usr/bin" },
-      { https_proxy: "http://proxy.example:8443" },
+      { https_proxy: "http://proxy.example:8443" }] },
     );
     expect(merged.HTTP_PROXY).toBe("http://proxy.example:8080");
     expect(merged.HTTPS_PROXY).toBe("http://proxy.example:8443");
@@ -419,7 +429,7 @@ describe("@jini-ai/platform — proxy-env", () => {
       "  0 : *.internal",
       "}",
     ].join("\n");
-    const env = parseMacosScutilProxyOutput(scutilOutput, "darwin");
+    const env = parseMacosScutilProxyOutput({ stdout: scutilOutput }, { platform: "darwin" });
     expect(env.HTTP_PROXY).toBe("http://proxy.example:8080");
     expect(env.NO_PROXY).toContain(".internal");
     expect(env.NODE_USE_ENV_PROXY).toBe("1");
@@ -432,7 +442,7 @@ describe("@jini-ai/platform — proxy-env", () => {
         proxyOverride: "    ProxyOverride    REG_SZ    *.local;10.0.0.1",
         proxyServer: "    ProxyServer    REG_SZ    proxy.example:8080",
       },
-      "win32",
+      { platform: "win32" },
     );
     expect(env.HTTP_PROXY).toBe("http://proxy.example:8080");
     expect(env.HTTPS_PROXY).toBe("http://proxy.example:8080");

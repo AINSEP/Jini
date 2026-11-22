@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/http-kit",
-  "version": "0.7.2",
+  "version": "0.7.3-next.2",
   "description": "Generic Express transport primitives, request parsing, response serialization, origin guards and route-pack mounting.",
   "license": "Apache-2.0",
   "repository": {
@@ -15,9 +15,11 @@
       ".": "node",
       "./rate-limit": "node",
       "./middleware": "node",
-      "./verified-origin": "universal",
+      "./settings": "node",
       "./observability": "node",
-      "./html-response": "node"
+      "./html-response": "node",
+      "./range": "universal",
+      "./node-bridge": "node"
     },
     "runtime": "node"
   },
@@ -36,15 +38,15 @@
       "import": "./dist/rate-limit.js",
       "default": "./dist/rate-limit.js"
     },
+    "./settings": {
+      "types": "./dist/settings/index.d.ts",
+      "import": "./dist/settings/index.js",
+      "default": "./dist/settings/index.js"
+    },
     "./middleware": {
       "types": "./dist/middleware.d.ts",
       "import": "./dist/middleware.js",
       "default": "./dist/middleware.js"
-    },
-    "./verified-origin": {
-      "types": "./dist/verified-origin.d.ts",
-      "import": "./dist/verified-origin.js",
-      "default": "./dist/verified-origin.js"
     },
     "./observability": {
       "types": "./dist/observability.d.ts",
@@ -55,6 +57,16 @@
       "types": "./dist/html-response.d.ts",
       "import": "./dist/html-response.js",
       "default": "./dist/html-response.js"
+    },
+    "./range": {
+      "types": "./dist/range.d.ts",
+      "import": "./dist/range.js",
+      "default": "./dist/range.js"
+    },
+    "./node-bridge": {
+      "types": "./dist/node-bridge.d.ts",
+      "import": "./dist/node-bridge.js",
+      "default": "./dist/node-bridge.js"
     }
   },
   "files": [
@@ -81,15 +93,13 @@
   },
   "devDependencies": {
     "@types/express": "^4.17.21",
-    "@vitest/coverage-v8": "^2.1.9",
+    "@vitest/coverage-v8": "^3.2.6",
     "@jini-ai/core": "workspace:*",
-    "@jini-ai/platform": "workspace:*",
     "@jini-ai/protocol": "workspace:*",
     "express": "^4.21.0"
   },
   "dependencies": {
     "@jini-ai/protocol": "workspace:^",
-    "@jini-ai/core": "workspace:^",
-    "@jini-ai/platform": "workspace:^"
+    "@jini-ai/core": "workspace:^"
   }
 }

@@ -50,8 +50,8 @@ const UNSAFE_VALUE = /url\(|image\(|image-set\(|[;{}<>\\@]/i;
 
 /** Whether `value` is plain declaration text that cannot fetch anything or end its declaration.
  * @complexity O(n) in the value length. */
-export function isSafeAdminSurfaceThemeValue(value: unknown): value is string {
-  return typeof value === 'string' && value.length > 0 && value.length <= MAX_VALUE_LENGTH && !UNSAFE_VALUE.test(value);
+export function isSafeAdminSurfaceThemeValue(required: { readonly value: unknown }, _optional: Record<string, never> = {}): required is { readonly value: string } {
+  return typeof required.value === 'string' && required.value.length > 0 && required.value.length <= MAX_VALUE_LENGTH && !UNSAFE_VALUE.test(required.value);
 }
 
 /**
@@ -69,7 +69,7 @@ export function readAdminSurfaceTheme(
   const tokens: Partial<Record<AdminSurfaceThemeToken, string>> = {};
   for (const token of ADMIN_SURFACE_THEME_TOKENS) {
     const value = required.style.getPropertyValue(optional.sources?.[token] ?? token).trim();
-    if (isSafeAdminSurfaceThemeValue(value)) tokens[token] = value;
+    if (isSafeAdminSurfaceThemeValue({ value })) tokens[token] = value;
   }
   return { scheme: required.scheme, tokens };
 }

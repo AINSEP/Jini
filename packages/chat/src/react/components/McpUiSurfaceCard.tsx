@@ -64,8 +64,8 @@ import { trimChars } from '@jini-ai/core/primitives';
 import { questionAnswerFromResult, questionAnswerLabel } from '../../core/question-answer.js';
 import { MidRunUserMessage } from './MidRunUserMessage.js';
 import { Fragment, useMemo } from 'react';
+import { McpUiHost } from '../surfaces.js';
 import {
-  McpUiHost,
   parseUIResource,
   readActionPlan,
   readExpiresAt,
@@ -73,7 +73,7 @@ import {
   type McpUiActionPlan,
   type McpUiToolCallHandler,
   type UIResource,
-} from '@jini-ai/ui/mcp-ui';
+} from '@jini-ai/protocol/mcp-ui';
 import { defaultExtEventRendererRegistry, type ExtEventRendererRegistry, type ExtEventCall, type ExtEventRenderProps } from '../ext-event-renderer-registry.js';
 import { useT } from '../hooks/context.js';
 import { useSurfaceExpiry, type SurfaceExpiryClock } from '../hooks/useSurfaceExpiry.js';
@@ -89,7 +89,7 @@ export interface McpUiSurfaceCardProps extends ExtEventRenderProps {
    * Where the sandbox proxy page is served. Required since 2026-08-18, when this card's rendering
    * switched from a hand-rolled `srcdoc` iframe to the real `@mcp-ui/client` `AppRenderer`, which
    * mounts every View through a real, separately-served proxy page rather than inline HTML — see
-   * `@jini-ai/ui/mcp-ui`'s `SANDBOX_PROXY_HTML` (in `sandbox-proxy.js`) for what must be running at
+   * `@jini-ai/ui/mcp-ui`'s `SANDBOX_PROXY_HTML` (in `packages/ui/src/features/mcp-ui/sandbox-proxy.ts`) for what must be running at
    * that URL and why this package cannot supply a default itself.
    */
   sandboxProxyUrl: URL;
@@ -115,7 +115,7 @@ export interface McpUiSurfaceCardProps extends ExtEventRenderProps {
 function latestResourcesByUri(events: readonly unknown[]): readonly UIResource[] {
   const byUri = new Map<string, UIResource>();
   for (const event of events) {
-    const resource = parseUIResource(event);
+    const resource = parseUIResource({ value: event });
     if (resource === undefined) continue;
     byUri.set(resource.resource.uri, resource);
   }
@@ -205,27 +205,29 @@ function surfaceInteraction(
 ) {
   // An answered card has no deadline left: its countdown goes, and the deadline passing while the
   // answer's work still runs must not relabel it "This question expired".
-  const expiresAtMs = resource === undefined || answered === true ? undefined : readExpiresAt(resource);
+  const expiresAtMs = resource === undefined || answered === true ? undefined : readExpiresAt({ resource });
   // Reports the person's delivered answer to the row, which stops the "Waiting for your answer" line.
   const toolCall = onToolCall === undefined || onAnswered === undefined ? onToolCall : reportDeliveredAnswer({ onToolCall, onAnswered, onAnswerText, input: call?.input });
   return { expiresAtMs, toolCall };
 }
 
+/** Hooks McpUiSurfaceCard calls; defaults to the real ones, a test hands in fakes. */
+export const defaultMcpUiSurfaceCardHooks = { useT, useSurfaceRecovery, useSurfaceQuestionCall, useSurfaceExpiry };
+export type McpUiSurfaceCardHooks = typeof defaultMcpUiSurfaceCardHooks;
+
 /** Registered against `ext-event-renderer-registry.ts`'s `'mcp-ui'` name — see module doc. */
-export function McpUiSurfaceCard({ events, sandboxProxyUrl, onToolCall, onOpenLink, maxHeight, call, runStreaming, expiryClock, answered, onAnswered, onAnswerText, answerText, answerRecorded }: McpUiSurfaceCardProps) {
-  const t = useT();
+export function McpUiSurfaceCard({ events, sandboxProxyUrl, onToolCall, onOpenLink, maxHeight, call, runStreaming, expiryClock, answered, onAnswered, onAnswerText, answerText, answerRecorded, hooks = defaultMcpUiSurfaceCardHooks }: McpUiSurfaceCardProps & { hooks?: McpUiSurfaceCardHooks | undefined }) {
+  const t = hooks.useT();
   const originalResources = useMemo(() => latestResourcesByUri(events), [events]);
-  const recovery = useSurfaceRecovery({ resource: originalResources.length === 1 ? originalResources[0] : undefined,
+  const recovery = hooks.useSurfaceRecovery({ resource: originalResources.length === 1 ? originalResources[0] : undefined,
     call, runStreaming, onToolCall });
-  const resources = recovery.restored && recovery.resource ? [recovery.resource] : originalResources;
+  const { resources, currentEvents, currentCall } = recoveredView({ recovery, resources: originalResources, events, call });
   // One card per slot is the registered shape (`mcpUiSurfaceSlotKey`), so `call` belongs to exactly
   // that card. A group holding several URIs has no single call to judge them by, and stays live.
   const single = resources.length === 1 ? resources[0] : undefined;
-  const currentEvents = recovery.restored && recovery.resource ? [recovery.resource] : events;
-  const currentCall = recovery.restored ? undefined : call;
-  const { displayCall, input, standalone } = useSurfaceQuestionCall({ events: currentEvents, call: currentCall });
+  const { displayCall, input, standalone } = hooks.useSurfaceQuestionCall({ events: currentEvents, call: currentCall });
   const { expiresAtMs, toolCall } = surfaceInteraction({ resource: single, answered, onToolCall: recovery.onToolCall, onAnswered, onAnswerText, call: displayCall });
-  const expiry = useSurfaceExpiry(
+  const expiry = hooks.useSurfaceExpiry(
     { expiresAtMs },
     expiryClock === undefined ? {} : { clock: expiryClock },
   );
@@ -234,17 +236,41 @@ export function McpUiSurfaceCard({ events, sandboxProxyUrl, onToolCall, onOpenLi
     : closedSurfaceLabel({ t, call: currentCall, runStreaming: recovery.live || runStreaming,
       documentsForUri: currentEvents.length, expired: expiry?.expired === true });
   // A completed call answered the original document; a replacement outcome or retry owns its view.
-  const answer = (currentEvents.length === 1 ? questionAnswerFromResult({ result: currentCall?.result, input }) : undefined) ?? answerText;
+  const answer = recordedOrTypedAnswer({ events: currentEvents, call: currentCall, input, answerText });
   return <SurfaceCardContent resources={resources} single={single} answerRecorded={answerRecorded}
     answer={answer} closed={closed} call={displayCall} standalone={standalone} t={t} sandboxProxyUrl={sandboxProxyUrl}
     toolCall={toolCall} onOpenLink={onOpenLink} maxHeight={maxHeight} expiry={expiry} />;
+}
+
+/** A completed call's answer, when exactly one document was shown for it; else the answer the host typed. */
+function recordedOrTypedAnswer({ events, call, input, answerText }: {
+  events: readonly unknown[];
+  call: ExtEventCall | undefined;
+  input: ExtEventCall['input'];
+  answerText: string | undefined;
+}, _options = {}): string | undefined {
+  return (events.length === 1 ? questionAnswerFromResult({ result: call?.result, input }) : undefined) ?? answerText;
+}
+
+/** What the card shows after recovery: a restored document replaces the originals and leaves no call to judge it by. */
+function recoveredView({ recovery, resources, events, call }: {
+  recovery: ReturnType<typeof useSurfaceRecovery>;
+  resources: ReturnType<typeof latestResourcesByUri>;
+  events: McpUiSurfaceCardProps['events'];
+  call: McpUiSurfaceCardProps['call'];
+}, _options = {}) {
+  return {
+    resources: recovery.restored && recovery.resource ? [recovery.resource] : resources,
+    currentEvents: recovery.restored && recovery.resource ? [recovery.resource] : events,
+    currentCall: recovery.restored ? undefined : call,
+  };
 }
 
 /** A standalone form's call may lack the question; its current document supplies the title and
  * option labels, so retry answers read as labels rather than raw values from the replaced question.
  * Receipt recovery retains the original document separately in useSurfaceAnswerContexts. */
 function useSurfaceQuestionCall({ events, call }: { events: readonly unknown[]; call: ExtEventCall | undefined }, _options = {}) {
-  const resource = parseUIResource(events.at(-1));
+  const resource = parseUIResource({ value: events.at(-1) });
   const input = useMemo(() => surfaceQuestionInput({ resource, input: call?.input }),
     [resource?.resource.text, resource?.resource._meta, call?.input]);
   const displayCall: ExtEventCall = call === undefined ? { name: '', input } : { ...call, input };
@@ -313,9 +339,9 @@ function SurfaceCardContent({ resources, single, answerRecorded, answer, closed,
   return (
     <div className="mcpui-surface-card">
       {resources.map((resource) => {
-        const preferred = readPreferredFrameSize(resource);
+        const preferred = readPreferredFrameSize({ resource });
         const height = preferred === undefined ? undefined : Number.parseInt(preferred[1], 10);
-        const plan = readActionPlan(resource);
+        const plan = readActionPlan({ resource });
         return (
           <Fragment key={resource.resource.uri}>
             <McpUiHost
@@ -355,7 +381,7 @@ function SurfaceCardContent({ resources, single, answerRecorded, answer, closed,
  * when registering a custom MCP-UI renderer; {@link registerMcpUiSurfaceRenderer} already does.
  */
 export function mcpUiSurfaceSlotKey({ data }: { data: unknown }): string | undefined {
-  return parseUIResource(data)?.resource.uri;
+  return parseUIResource({ value: data })?.resource.uri;
 }
 
 /**

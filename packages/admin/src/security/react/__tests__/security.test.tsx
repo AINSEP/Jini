@@ -1,8 +1,12 @@
 import { Suspense, StrictMode } from 'react';
 import { afterEach, describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent, waitFor, cleanup, act } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, cleanup, act } from '../../../__tests__/fetch-query-support.js';
 import { KitProvider, createKit, type ConfirmViewProps } from '@jini-ai/ui-kit/react';
 import { createAdmin } from '../../../core/module/index.js';
+import { SecurityPage } from '../pages/SecurityPage.js';
+import { AccessTokensTab } from '../tabs/AccessTokensTab.js';
+import { useSecurityPage } from '../hooks/SecurityPage.hooks.js';
+import type { useAccessTokensTab } from '../hooks/AccessTokensTab.hooks.js';
 import { security } from '../index.js';
 import { createMemorySecurityApi, createMemoryRootKey } from '../../adapters/memory.js';
 import type { CredentialProvider, CredentialSummary } from '../../models.js';
@@ -28,4 +32,25 @@ describe('security React slice', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Remove Personal' })); await screen.findByRole('alertdialog'); expect(remove).not.toHaveBeenCalled(); expect(view?.controller.agentMayConfirm).toBe(false); expect(view?.controller.confirm.onPress).toBeTypeOf('function'); act(() => { view?.controller.cancel.onPress?.({}); }); await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull()); expect(remove).not.toHaveBeenCalled();
   });
   it('refuses fresh recovery without a typed confirmation and accepts it after preview', async () => { const { root } = mount(['security.read', 'admin.security.tokens.manage'], { root: true, locked: true }); const fresh = vi.spyOn(root, 'startFresh'); fireEvent.click(await screen.findByRole('tab', { name: 'Root key' })); fireEvent.click(await screen.findByRole('button', { name: 'Start fresh' })); const typed = await screen.findByLabelText('Type START FRESH'); const confirm = await screen.findByRole('button', { name: /^Start fresh —/ }); fireEvent.click(confirm); await waitFor(() => expect(screen.getByText("The action failed. Please try again.")).toBeVisible()); expect(fresh).not.toHaveBeenCalled(); fireEvent.change(typed, { target: { value: 'START FRESH' } }); fireEvent.click(confirm); await waitFor(() => expect(fresh).toHaveBeenCalledWith({ confirm: 'START FRESH' }, { signal: expect.any(AbortSignal) })); expect(await screen.findByText('Done. Re-enter removed credentials.')).toBeVisible(); });
+});
+
+
+it('renders an injected denied security page even with read grants', () => {
+  const feature = security({});
+  const admin = createAdmin({ modules: [feature], ports: { securityApi: createMemorySecurityApi({}) } }, { permissions: ['security.read'] });
+  render(<SecurityPage tabs={feature.react.pages.secrets.tabs} description={admin.describe().pages[0]!}
+    useSecurityPageHook={(props) => ({ ...useSecurityPage(props), denied: true })} />);
+  expect(screen.getByText('Permission denied')).toBeVisible();
+  expect(screen.queryByRole('tab')).toBeNull();
+});
+
+it('renders the injected access-token denial without requiring security ports', () => {
+  const useAccessTokensTabHook: typeof useAccessTokensTab = () => ({
+    denied: true, loading: false, saving: false, rows: [], otherRows: [], providers: [], categories: [],
+    query: '', category: 'all', total: 0, matched: 0, removal: null, draft: null, errors: [], canAddCustom: false,
+    addCustom() {}, onQuery() {}, onCategory() {}, reload() {}, cancelRemove() {}, async confirmRemove() {}, controller: null,
+  });
+  render(<AccessTokensTab params={{}} permissions={['security.read']} useAccessTokensTabHook={useAccessTokensTabHook} />);
+  expect(screen.getByText('Permission denied')).toBeVisible();
+  expect(screen.queryByLabelText('Search tokens')).toBeNull();
 });

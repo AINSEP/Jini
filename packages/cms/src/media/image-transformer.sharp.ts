@@ -1,41 +1,10 @@
-/**
- * @file Real `ImageTransformerPort` / `ImageCodecPort` adapter — calls `sharp` to actually
- * resize/re-encode pixels (renditions are always re-encoded,
- * never passed through unmodified).
- *
- * `sharp` is an OPTIONAL runtime dependency of this package (mirrors
- * `identity/hasher.ts`'s treatment of `argon2`), not a hard one — a host that
- * only wants `InMemoryImageTransformer` (tests, or a build that has no need
- * for real pixel transforms) must not be forced to install a native binary
- * just by importing `./media`. Two consequences follow:
- *
- * 1. `sharp` is loaded via `node:module`'s `createRequire`, not a static
- *    `import`/`require` of the string `"sharp"` — this is what lets the
- *    module resolve and typecheck even in an environment/build where `sharp`
- *    is not installed at all. Nothing in this package's own `tsconfig.json`
- *    needs `sharp`'s types as a result: the narrow `SharpFactory`/
- *    `SharpInstance` shapes below are hand-declared and the loaded value is
- *    cast to them, exactly the same "not statically type-checked against the
- *    real package" contract the original of this adapter always had.
- * 2. The load is deferred to the moment a transform actually needs to run,
- *    not to module-evaluation time. This file is reachable from a host's
- *    request-serving import graph (wired into its route deps for the real
- *    running server), so a top-level import would throw `MODULE_NOT_FOUND`
- *    on every boot, for every request, even ones that never touch a
- *    transform, if `sharp` were ever absent. The lazy load scopes that
- *    failure mode to the one call site that needs it, surfaced as
- *    {@link ImageTransformUnavailableError} — a named, thrown error, not a
- *    silently-passed-through/faked image.
- */
 import { loadOptionalPeer } from '@jini-ai/core/optional-peer';
 import type { ImageCodecPort, ImageCodecLimits, ImageMetadata, ImageEncodeInput, ImageGeometry, EncodedImage, ImageTileInput } from "./image-codec.js";
-import { createRequire } from "node:module";
+import { requireSharp, configureSharpRuntime } from "./adapters/sharp-runtime.js";
 
 import type { ImageTransformerPort, TransformImageInput, TransformImageOutput } from "./image-transformer.js";
 import type { TransformFormat } from "./transform-types.js";
 import { mimeForTransformFormat } from "./transform-types.js";
-
-const require = createRequire(import.meta.url);
 
 /** Thrown by {@link SharpImageTransformer.transform} when the `sharp` package cannot be loaded. */
 export class ImageTransformUnavailableError extends Error {
@@ -55,7 +24,7 @@ export class ImageTransformUnavailableError extends Error {
  * bytes libvips refuses to decode (an intentionally-crafted upload, a partial/interrupted write, a
  * container variant this codec build doesn't support, ...). A caller (a serving route) is expected to
  * catch this specifically and answer a controlled 4xx, never an opaque 500 — same "named, thrown
- * error, never a silently faked/passed-through image" discipline this file's own header already
+ * error, never a silently faked/passed-through image" discipline the native runtime adapter header
  * states for the sibling `ImageTransformUnavailableError` case.
  */
 export class ImageSourceCorruptError extends Error {
@@ -82,19 +51,11 @@ export type SharpFactory = ((input: Buffer, options?: { animated?: boolean }) =>
   concurrency?: (threads: number) => unknown;
 };
 
-// Node shares one native runtime across adapters. Weak keys avoid retaining injected factories.
-const configuredSharpFactories = new WeakSet<SharpFactory>();
-
 /** Options for {@link SharpImageTransformer}; every field defaults at this composition edge. */
 export interface SharpImageTransformerOptional {
   /** Resolves the `sharp` factory. Defaults to {@link requireSharp}; a host may inject its own
    *  instance (or a fake), and a loader that throws is reported as {@link ImageTransformUnavailableError}. */
   loadSharp?: () => SharpFactory;
-}
-
-/** The default loader: a deferred, untyped `require("sharp")` (see file header for why). */
-function requireSharp(): SharpFactory {
-  return require("sharp") as SharpFactory;
 }
 
 /**
@@ -106,7 +67,7 @@ function requireSharp(): SharpFactory {
 const ANIMATION_CAPABLE_FORMATS: ReadonlySet<TransformFormat> = new Set(["webp", "gif"]);
 
 /**
- * Lazily resolves the `sharp` module. See file header for why this is a
+ * Lazily resolves the `sharp` module. See `adapters/sharp-runtime.ts` for why this is a
  * deferred, untyped `require()` (via `createRequire`) rather than a
  * top-level `import`.
  *
@@ -117,13 +78,7 @@ const ANIMATION_CAPABLE_FORMATS: ReadonlySet<TransformFormat> = new Set(["webp",
  */
 function loadSharpFactory(loadSharp: () => SharpFactory): SharpFactory {
   return loadOptionalPeer({ feature: 'Image transformations', dependency: 'sharp', load: () => {
-    const factory = loadSharp();
-    if (!configuredSharpFactories.has(factory)) {
-      factory.cache?.(false);
-      factory.concurrency?.(1);
-      configuredSharpFactories.add(factory);
-    }
-    return factory;
+    return configureSharpRuntime({ loadSharp });
   } }, {
     createError: ({ message, cause }) => new ImageTransformUnavailableError({ message }, { cause }),
   });

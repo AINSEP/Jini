@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { PAGE_CAPABILITIES, findCapability, findCapabilityInputError, type CapabilityDef } from '@jini-ai/agentic';
+import { PAGE_CAPABILITIES } from '@jini-ai/agentic';
+import {
+  findCapability,
+  findCapabilityInputError,
+  type CapabilityDef,
+} from '@jini-ai/core/contracts/capabilities';
 
 import { CHAT_CAPABILITIES } from '../../agentic/chat-capabilities.js';
 

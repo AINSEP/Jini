@@ -77,7 +77,7 @@ for (const failure of [
     assert.deepEqual(report, {
       success: false,
       results: [
-        { id: 'broken', status: 'failed', reason: 'artifact: disk unavailable', exitCode: 17 },
+        { id: 'broken', status: 'failed', reason: 'artifact: Error', exitCode: 17 },
         { id: 'next', status: 'succeeded', exitCode: 17 },
       ],
     });

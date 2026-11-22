@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { probeDroidSdk } from '../model-discovery-sdk.js';
-import type { ModelDiscoveryContext, ModelDiscoveryDeps } from '../model-discovery-types.js';
+import type { ModelDiscoveryContext, ModelDiscoveryDeps } from '@jini-ai/core/contracts/agents';
 
 const context: ModelDiscoveryContext = { executable: '/chosen/cli', cwd: '/project', env: { HOME: '/fake' } };
 describe('official metadata SDK category', () => {
@@ -14,7 +14,7 @@ describe('official metadata SDK category', () => {
       expect(input.terminateProcessTree).toBe(true);
       return { stdout: '{"models":[{"id":"claude-new","name":"Claude New","provider":"anthropic"}]}', stderr: '' };
     } };
-    const result = await probeDroidSdk(context, { process } as ModelDiscoveryDeps, new AbortController().signal);
+    const result = await probeDroidSdk({ context, deps: { process } as ModelDiscoveryDeps, signal: new AbortController().signal });
     expect(result.models).toEqual([{ id: 'claude-new', label: 'Claude New', provider: 'anthropic', identityKind: 'concrete' }]);
   });
   it.each([
@@ -22,11 +22,11 @@ describe('official metadata SDK category', () => {
     ['no models array', '{"models":{}}'],
   ])('refuses Droid SDK output that is %s', async (_label, stdout) => {
     const process: ModelDiscoveryDeps['process'] = { async run() { return { stdout, stderr: '' }; } };
-    await expect(probeDroidSdk(context, { process } as ModelDiscoveryDeps, new AbortController().signal)).rejects.toThrow('malformed-response');
+    await expect(probeDroidSdk({ context, deps: { process } as ModelDiscoveryDeps, signal: new AbortController().signal })).rejects.toThrow('malformed-response');
   });
   it('drops Droid rows without a string id and labels unnamed rows by id', async () => {
     const process: ModelDiscoveryDeps['process'] = { async run() { return { stdout: '{"models":[{"id":7},{"id":"droid-x"}]}', stderr: '' }; } };
-    const result = await probeDroidSdk(context, { process } as ModelDiscoveryDeps, new AbortController().signal);
+    const result = await probeDroidSdk({ context, deps: { process } as ModelDiscoveryDeps, signal: new AbortController().signal });
     expect(result.models).toEqual([{ id: 'droid-x', label: 'droid-x', provider: undefined, identityKind: 'concrete' }]);
   });
 });

@@ -1,3 +1,4 @@
+import { webcrypto } from "node:crypto";
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
 import { submitForm } from '../submit-service.js';
@@ -15,13 +16,13 @@ async function setup(stored = definition) {
   await definitionRepo.create(stored);
   const effects: string[] = [];
   const submissionRepo = new InMemoryFormSubmissionRepo();
-  const deps = { definitionRepo, submissionRepo, clock: { nowMs: () => 0 }, idGen: { newId: () => { effects.push('id'); return String(effects.length); } },
+  const deps = { definitionRepo, submissionRepo, clock: { nowMs: () => 0 }, crypto: webcrypto, idGen: { newId: () => { effects.push('id'); return String(effects.length); } },
     outbox: { enqueue: async () => { effects.push('enqueue'); } }, dispatcher: { dispatch: async () => { effects.push('dispatch'); } },
     logger: { warn: () => {} }, rateLimiter: { check: async () => { effects.push('rate'); return { allowed: true as const }; } } };
   const input = { workspaceId: 'ws', slug: 'contact', sourceIp: '192.0.2.1', body: { email: 'ada@example.com', consent: 'on' } as Record<string, unknown> };
   return { deps, input, effects };
 }
-const hashFor = async (stored = definition) => (await captureSubmissionEvidence({ definition: stored, source: 'native', capturedAt: 'now' })).schemaHash;
+const hashFor = async (stored = definition) => (await captureSubmissionEvidence({ crypto: webcrypto, definition: stored, source: 'native', capturedAt: 'now' })).schemaHash;
 
 test('legacy submissions without a schema hash remain accepted', async () => {
   const { deps, input } = await setup();

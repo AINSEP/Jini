@@ -22,7 +22,7 @@
 import os from 'node:os';
 import path from 'node:path';
 
-const HOME_BARE_TOKENS = new Set(['~', '$HOME', '${HOME}']);
+const HOME_BARE_TOKENS: ReadonlySet<string> = new Set(['~', '$HOME', '${HOME}']);
 const HOME_PREFIX_RE = /^(~|\$\{HOME\}|\$HOME)[/\\](.*)$/;
 
 /**
@@ -32,7 +32,7 @@ const HOME_PREFIX_RE = /^(~|\$\{HOME\}|\$HOME)[/\\](.*)$/;
  * @param raw - The raw, possibly shorthand-prefixed path.
  * @returns The expanded path, or `raw` unchanged if it carried no shorthand.
  */
-export function expandHomePrefix(raw: string): string {
+export function expandHomePrefix({ raw }: { raw: string }, _optional: Record<string, never> = {}): string {
   const home = os.homedir();
   if (HOME_BARE_TOKENS.has(raw)) return home;
   const match = HOME_PREFIX_RE.exec(raw);
@@ -52,7 +52,7 @@ export function expandHomePrefix(raw: string): string {
  * @param projectRoot - The root a relative `raw` is resolved against.
  * @returns An absolute path.
  */
-export function resolveProjectRelativePath(raw: string, projectRoot: string): string {
-  const expanded = expandHomePrefix(raw);
+export function resolveProjectRelativePath({ raw, projectRoot }: { raw: string; projectRoot: string }, _optional: Record<string, never> = {}): string {
+  const expanded = expandHomePrefix({ raw });
   return path.isAbsolute(expanded) ? expanded : path.resolve(projectRoot, expanded);
 }

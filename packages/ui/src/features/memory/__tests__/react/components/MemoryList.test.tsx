@@ -6,7 +6,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createRef, type MutableRefObject } from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import { I18nProvider } from '../../../../i18n/index.js';
+import { I18nProvider, type useT } from '../../../../i18n/index.js';
 import { MemoryList } from '../../../react/components/MemoryList.js';
 import type { MemoryEntrySummary, MemoryExtractionRecord } from '../../../types.js';
 
@@ -49,6 +49,9 @@ function renderList(props: Partial<Parameters<typeof MemoryList>[0]> = {}) {
   );
   return { ...utils, onFilterChange, onClearExtractions, onRefreshExtractions, ...handlers };
 }
+
+/** A translator that is visibly not the key, so the assertion proves the injected hook ran. */
+const useQuotingT: typeof useT = () => (key) => `«${key}»`;
 
 describe('MemoryList', () => {
   it('renders the saved count and the entry card for each filtered entry', () => {
@@ -164,7 +167,7 @@ describe('MemoryList', () => {
 
   it('publishes the toolbar sub-handles under the agentHandle base', () => {
     const { container } = renderList({ agentHandle: 'mem', visibleExtractions: [record()], unifiedMemoryCount: 2 });
-    const handles = [...container.querySelectorAll('.library-toolbar [data-agent-element]')].map((el) => el.getAttribute('data-agent-element'));
+    const handles = [...container.querySelectorAll('.jini-library-toolbar [data-agent-element]')].map((el) => el.getAttribute('data-agent-element'));
     expect(handles).toEqual(['mem-filter-all', 'mem-filter-feedback', 'mem-clear-extractions', 'mem-refresh-extractions']);
   });
 
@@ -188,7 +191,7 @@ describe('MemoryList', () => {
       visibleExtractions: [record()],
       unifiedMemoryCount: 2,
     });
-    const counts = [...container.querySelectorAll('.filter-pill-count')].map((el) => el.textContent);
+    const counts = [...container.querySelectorAll('.jini-filter-pill-count')].map((el) => el.textContent);
     expect(counts).toEqual(['3', '1', '1']);
     expect(container.querySelector('.filter-pill.active')?.textContent).toBe('All3');
   });
@@ -200,10 +203,10 @@ describe('MemoryList', () => {
 
   it('spins the refresh icon only while refreshing', () => {
     const idle = renderList({ visibleExtractions: [record()], unifiedMemoryCount: 2 });
-    expect(idle.container.querySelector('.memory-refresh-extractions .icon-spin')).toBeNull();
+    expect(idle.container.querySelector('.jini-memory-refresh-extractions .icon-spin')).toBeNull();
     idle.unmount();
     const busy = renderList({ visibleExtractions: [record()], unifiedMemoryCount: 2, isRefreshing: true });
-    expect(busy.container.querySelector('.memory-refresh-extractions .icon-spin')).not.toBeNull();
+    expect(busy.container.querySelector('.jini-memory-refresh-extractions .icon-spin')).not.toBeNull();
   });
 
   it('routes an extraction row delete to onDeleteExtraction with its id', async () => {
@@ -217,5 +220,10 @@ describe('MemoryList', () => {
     await userEvent.click(remove as HTMLElement);
     expect(onDeleteExtraction).toHaveBeenCalledWith('r9');
     expect(onDeleteEntry).not.toHaveBeenCalled();
+  });
+
+  it('renders the translator supplied through useTHook', () => {
+    renderList({ useTHook: useQuotingT });
+    expect(screen.getByText('«Saved memory»')).toBeInTheDocument();
   });
 });

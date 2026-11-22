@@ -57,7 +57,7 @@ test("repeated_stream_failures_back_off_and_abort_clears_retry", async () => {
     notices: { toolStepLimit: { kind: "status", label: "Limit" }, interrupted: { kind: "status", label: "Interrupted" },
       neverStarted: { kind: "status", label: "Never started" }, canceledLabel: "Canceled", failedLabel: "Failed", terminalDetail: () => "Ended" },
     handlers: { onEvent: () => {}, onDone: () => {}, onError: () => {} },
-  }, { logger: { info } });
+  }, { report: { info } });
   try {
     streams[0]!.frame("agent", '{"payload":{"type":"text_delta","delta":"saved"}}', "42");
     for (const delay of [1_000, 2_000, 4_000, 8_000, 16_000, 30_000, 30_000]) {
@@ -70,13 +70,13 @@ test("repeated_stream_failures_back_off_and_abort_clears_retry", async () => {
       expect(streams).toHaveLength(count + 1);
       expect(streams.at(-1)!.cursor).toBe("42");
     }
-    expect(JSON.parse(info.mock.calls[0]![0].slice("[durable-subscription] ".length))).toEqual({ runId: "run", reason: "connection-error", cursor: "42", retryDelayMs: 1_000 });
+    expect(info.mock.calls[0]![1].meta).toEqual({ runId: "run", cursor: "42", retryDelayMs: 1_000 });
     // A new cursor proves progress and resets the backoff. An old stream cannot move it.
     streams[0]!.frame("agent", '{"payload":{"type":"text_delta","delta":"stale"}}', "99");
     streams.at(-1)!.frame("agent", '{"payload":{"type":"text_delta","delta":"new"}}', "43");
     streams.at(-1)!.dropped();
     expect(delays.at(-1)).toBe(1_000);
-    expect(JSON.parse(info.mock.calls.at(-1)![0].slice("[durable-subscription] ".length)).cursor).toBe("43");
+    expect(info.mock.calls.at(-1)![1].meta.cursor).toBe("43");
     controller.abort();
     const count = streams.length;
     await vi.advanceTimersByTimeAsync(60_000);
@@ -110,7 +110,7 @@ for (const failure of ["null", "throw"] as const) {
     const stop = followDurableRun({ runId: "run", ports, bindings: new Map(), notices: {
       toolStepLimit: { kind: "status", label: "Limit" }, interrupted: { kind: "status", label: "Interrupted" },
       neverStarted: { kind: "status", label: "Never started" }, canceledLabel: "Canceled", failedLabel: "Failed", terminalDetail: () => "Ended",
-    }, handlers: { onEvent: () => {}, onDone: () => {}, onError: () => {}, onCheckpoint: value => { checkpoints.push(value); } } }, { logger: { info: () => {} } });
+    }, handlers: { onEvent: () => {}, onDone: () => {}, onError: () => {}, onCheckpoint: value => { checkpoints.push(value); } } }, { report: { info: () => {} } });
     const tick = async () => {
       expect(timers.size).toBe(1);
       const [key, timer] = [...timers][0]!;

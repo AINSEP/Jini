@@ -2,7 +2,7 @@
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import { ADAPTER_KIND, type ConsentAdapter } from '../contract.js';
 import { bindBanner, browserPorts, createCookieConsent, type ClientPorts } from '../client/index.js';
-import { activateInert, purge, readCookie, writeCookie } from '../client/dom.js';
+import { activateInert, purgeStorage, readCookie, writeCookie } from '../client/dom.js';
 
 const flush = async () => { for (let i = 0; i < 5; i++) await new Promise(r => setTimeout(r, 0)); };
 /** A cookie jar fake: records every write so Domain/Secure attributes can be asserted. */
@@ -24,21 +24,21 @@ beforeEach(() => {
 
 describe('cookie helpers', () => {
   test('a malformed cookie escape reads as no value', () => {
-    expect(readCookie({ cookie: 'x=%E0%A4%A' } as Document, 'x')).toBeNull();
-    expect(readCookie({ cookie: 'y=1' } as Document, 'x')).toBeNull();
-    expect(readCookie({ cookie: 'prefix_x=wrong; x_extra=wrong; x=a%3Db%20c; y=1' } as Document, 'x')).toBe('a=b c');
-    expect(readCookie({ cookie: 'x=' } as Document, 'x')).toBe('');
+    expect(readCookie({ doc: { cookie: 'x=%E0%A4%A' } as Document, name: 'x' })).toBeNull();
+    expect(readCookie({ doc: { cookie: 'y=1' } as Document, name: 'x' })).toBeNull();
+    expect(readCookie({ doc: { cookie: 'prefix_x=wrong; x_extra=wrong; x=a%3Db%20c; y=1' } as Document, name: 'x' })).toBe('a=b c');
+    expect(readCookie({ doc: { cookie: 'x=' } as Document, name: 'x' })).toBe('');
   });
 
   test('writeCookie adds Secure on https and the configured Domain', () => {
     const { doc, writes } = fakeDoc({ defaultView: { location: { protocol: 'https:' } } });
-    writeCookie(doc, { name: 'c', value: 'a b', maxAgeS: 10.7 }, { domain: 'example.com' });
+    writeCookie({ doc, name: 'c', value: 'a b', maxAgeS: 10.7 }, { domain: 'example.com' });
     expect(writes).toEqual(['c=a%20b; Path=/; Max-Age=10; SameSite=Lax; Secure; Domain=example.com']);
   });
 
   test('purge expires prefixed cookies on the host and every parent domain', () => {
     const { doc, writes } = fakeDoc({ defaultView: { location: { hostname: 'a.shop.example' }, localStorage: {} } });
-    purge(doc, { cookies: ['_v_'] });
+    purgeStorage({ doc, storage: { cookies: ['_v_'] } });
     expect(writes).toEqual([
       '_v_a=; Path=/; Max-Age=0', '_v_a=; Path=/; Max-Age=0; Domain=.a.shop.example', '_v_a=; Path=/; Max-Age=0; Domain=.shop.example',
       '_v_b=; Path=/; Max-Age=0', '_v_b=; Path=/; Max-Age=0; Domain=.a.shop.example', '_v_b=; Path=/; Max-Age=0; Domain=.shop.example',
@@ -47,14 +47,14 @@ describe('cookie helpers', () => {
 
   test('purge without a window expires on the host only and survives missing storage', () => {
     const { doc, writes } = fakeDoc();
-    expect(() => purge(doc, { cookies: ['_v_a'], local: ['x'] })).not.toThrow();
+    expect(() => purgeStorage({ doc, storage: { cookies: ['_v_a'], local: ['x'] } })).not.toThrow();
     expect(writes).toEqual(['_v_a=; Path=/; Max-Age=0']);
-    expect(() => purge(doc)).not.toThrow();
+    expect(() => purgeStorage({ doc })).not.toThrow();
   });
 
   test('purge removes prefixed local-storage keys only', () => {
     localStorage.setItem('vend:1', 'x'); localStorage.setItem('mine', 'y');
-    purge(document, { local: ['vend:'] });
+    purgeStorage({ doc: document, storage: { local: ['vend:'] } });
     expect(Object.keys(localStorage)).toEqual(['mine']);
     localStorage.clear();
   });
@@ -71,7 +71,7 @@ describe('client edges', () => {
     const iframe = document.querySelector('#legacy');
     const ran = new Set<'functional' | 'analytics' | 'marketing'>();
     const input = { allowed: { necessary: true as const, functional: false, analytics: true, marketing: true }, ran };
-    activateInert(document, input);
+    activateInert({ doc: document, ...input });
     const released = document.querySelector('#released');
     expect([...document.body.children].map(node => node.id)).toEqual(['released', 'legacy', 'unlabelled', 'unlabelled-script', 'unknown', 'already-live']);
     expect(iframe?.getAttribute('src')).toBe('/embed');
@@ -81,7 +81,7 @@ describe('client edges', () => {
     expect(document.querySelector('#unknown')?.tagName).toBe('TEMPLATE');
     expect(document.querySelector('#already-live')?.getAttribute('src')).toBe('/existing');
     expect([...ran]).toEqual(['marketing', 'analytics']);
-    activateInert(document, input);
+    activateInert({ doc: document, ...input });
     expect(document.querySelector('#released')).toBe(released);
     expect(document.querySelector('#legacy')).toBe(iframe);
   });
@@ -143,7 +143,7 @@ describe('client edges', () => {
 
   test('browserPorts wires reload and lazy imports to the window', async () => {
     const reload = vi.fn();
-    const p = browserPorts({ document, fetch: vi.fn(), navigator: {}, location: { reload } } as never);
+    const p = browserPorts({ win: { document, fetch: vi.fn(), navigator: {}, location: { reload } } as never });
     p.reload();
     expect(reload).toHaveBeenCalled();
     await expect(p.importModule('/definitely-missing-adapter.mjs')).rejects.toBeDefined();

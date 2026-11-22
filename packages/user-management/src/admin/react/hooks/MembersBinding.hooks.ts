@@ -3,7 +3,7 @@ export { useMembersScope } from './MembersScope.hooks.js';
 export type { MembersScope, MembersPageProps } from './MembersScope.hooks.js';
 import { createElement, lazy } from 'react';
 import type { ReactNode } from 'react';
-import type { AdminInstance } from '@jini-ai/admin/core/module';
+import type { AdminInstance } from '@jini-ai/core/contracts/admin-module';
 import { membersModule } from '../../members.module.js';
 /** Descriptor identity must be the exact enriched object supplied to createAdmin. */
 export function createMembersBinding({ module }: { module: typeof membersModule }, _optional: Record<string, never> = {}) {

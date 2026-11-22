@@ -15,9 +15,8 @@ set of tokens, and fails to typecheck if any pack's declared dependency is left 
 npm install @jini-ai/core
 ```
 
-The root has no runtime dependencies and never loads settings or Express. The
-`@jini-ai/core/settings/express` adapter uses Express types and the host's injected app; it never
-loads the Express runtime, so this package declares no Express peer.
+The root has no runtime dependencies and never loads settings or Express.
+The settings Express adapter lives in `@jini-ai/http-kit/settings`; core declares no Express peer.
 
 ## What you get
 
@@ -100,8 +99,20 @@ Tool handlers receive required execution context first and optional `{ emitSurfa
 
 | subpath | what's behind it |
 |---|---|
+| `./env/describe-env-for-diagnostics` | `describeEnvForDiagnostics({ schema, env })`: pure env-name descriptions with explicit value display, presence-only secrets and unknown names, URL credential stripping and secret-shape redaction. For host-owned diagnostics. |
 | `./fetch` | Framework-neutral query contracts and `FetchQueryCache`; inject transport callbacks, `Clock`, scheduler and connectivity/focus ports. No React, DOM or TanStack dependency. |
-| `./records` | `canonicalJson({ value })`, async WebCrypto `canonicalArgumentDigest({ args }, { crypto? })`, and `CanonicalJsonError`; recursively sorted Unicode code-point keys, strict JSON validation, and lowercase SHA-256 hex. |
+| `./net` | Literal host classification (loopback, blocked and deployed API hosts) and the `FETCH_TIMEOUT_MS` classes. Pure, no Node imports. |
+| `./contracts/capabilities` | Agent capability vocabulary (`CapabilityDef`, input-schema types) and the pure `findCapability`/`findCapabilityInputError`/`availableCapabilities` helpers. |
+| `./contracts/observability` | The vendor-neutral observability vocabulary: `ObservabilityPort`, its request/DB/outbound/agent-run/operation trackers, `ErrorReport`, `TraceIds`, the product-analytics port (`ProductAnalyticsPort` and its event types, `BrowserAnalyticsContribution`) and the frozen disabled port (`createNoopObservabilityPort`, `isNoopObservabilityPort`). Guards, fan-out and vendor adapters live in `@jini-ai/diagnostics` and `@jini-ai/analytics`. |
+| `./contracts/blob` | Backend-agnostic blob storage port and `StorageError`. |
+| `./contracts/admin-module` | `adminPort` token and the admin module contract types (`defineAdminModule`, `AdminModule`, `AdminDescription`, port map types). Admin hosts and plugin authors import it from core; `@jini-ai/admin` consumes it. |
+| `./contracts/runtime` | Fs-lock, atomic-writer, process, command, pty, http and guarded-reader port types plus pure helpers (`planCommandInvocation`, `omitEnvironmentKeys`, `collectProcessTreePids`). Node implementations live in `@jini-ai/platform`. |
+| `./contracts/runtime/testing` | Test-only in-memory fakes of the runtime ports (`fakeFileLock`, `fakeAtomicWriter`, `fakeProcessControl`, `fakeHttpFetch`, `fakeGuardedHttp`): each records the arguments it was given, in order, and does no I/O. For tests of other packages; never import from production code. |
+| `./records` | `canonicalJson({ value })`, async WebCrypto `canonicalArgumentDigest({ args, crypto })`, and `CanonicalJsonError`; recursively sorted Unicode code-point keys, strict JSON validation, and lowercase SHA-256 hex. |
+| `./contracts/storage` | Library-neutral storage kernel (`StorageKernel<Handle, Schema>`, generic over the host's query handle), row/value helpers, SQLite client shapes and the migration-step type. Kernels and drivers live in `@jini-ai/db`; the command/event vocabulary is `./contracts/events`. |
+| `./contracts/agents` | The agent-runtime vocabulary, types only: `RuntimeAgentDef` and its closure, the model catalog and provider-model shapes, native-tool policy and run-plan types, launch results, `PromptAugmenter`, plus the data-only `RuntimeSelectionError`. `@jini-ai/agent-runtime` implements it; `@jini-ai/daemon` consumes it through `AgentRuntimePort`. No Node imports. |
+| `./contracts/ai-trace` | The AI trace vocabulary and its pure helpers: `createAiTraceRecorder` (takes `now`), `normalizeAiUsage`, classification, capture with secret redaction, and the sinks. Used by the daemon, analytics and the provider plugins. No Node imports, no timers. |
+| `./contracts/forms`, `./contracts/charts`, `./contracts/plugin-sdk` | What form-collection, chart and plugin providers implement. Types and pure helpers only. |
 | `.` | The public surface above: tokens, packs, daemon composition, tool registry (descriptors only), principal, redact, auth primitives. |
 | `./composition` | **Not part of the public contract.** Exposes `authorizeToolInvocation` (resolves a registry's tool and runs its authorization gate — a security-sensitive value export, but one that only ever hands back a handler alongside an `'allow'` decision) plus type-only `AnyPack`/`RequiredTokenIds`/`MissingTokenIds` re-derivation helpers. Its sole intended consumers are `@jini-ai/daemon`'s `ToolExecutor` and `@jini-ai/server`'s `createLocalNodeDaemon`. Node's resolver will happily let any consumer import it — the boundary is enforced by `scripts/check-engine-boundaries.ts`, not by the exports map — so external adopters should treat it as off-limits regardless. |
 
@@ -125,16 +136,24 @@ See the archived provenance ledger for per-file provenance and scope decisions. 
 
 ## Additional entry points
 
-The four entries below also have named exports from the package root. Each is universal
+`./contracts/server` also holds the route vocabulary (`Result`, `jsonRoute`, `readJsonBody`, `readQuery`, `createSseStream`, origin checks). `./contracts/server/testing` is an in-memory `Server`; `./contracts/server/conformance` checks any `Server` adapter; `./contracts/server/verified-origin` is the canonical-origin registry.
+
+`./contracts/server` exports `DeclaredPageHosts`, `SecurityHeaderSet`, `CSP_REPORT_ONLY_HEADER`, `isDeclaredOrigin`, `addDeclaredHostsToPolicy`, `withDeclaredHosts`, and `isSameOriginBrowserWrite`: pure report-only CSP declared-host helpers and a host-only browser-write predicate with Fetch Metadata checks.
+
+The entries below also have named exports from the package root. Each is universal
 and has no runtime dependency. Importing the root and a subpath shares the same
 class and factory identities.
 
 | Subpath | API and required ports |
 |---|---|
 | `./gated-mutations` | `plan`, `confirm`, `execute`, `authorizeForHooks`; authorization, clock, ID generation, complete opaque token generation, TTL, token store and mutation hooks. Includes token lifecycle and composite actor-reference helpers. |
+| `./approval-batch-chain` | `createChainedBatchHandler({ prepare, run, targetKey, successor }, { maxItems, targetNoun })`; direct batch whose same-target items apply in order, each pinned to the version the batch's own previous write reported (`run` returns `{ output, committed }`; `successor` is synchronous, no I/O). |
 | `./model-facing-tool-errors` | `forbiddenRule`, `reclassifyToolError`, `withModelFacingErrors`, `withModelFacingRegistrationErrors`, `callerSafeErrorMessage`; callers own ordered error allowlists and fallback wording. |
+| `./tool-call-text` | `unknownToolSentence`, `toolFamilySentence`, `toolCallText`; the one wording of an unknown-tool answer, of a group-of-tools answer, and of how to call a tool (wire name or gateway form), shared by the daemon route and the MCP host. |
+| `./tool-input-repairs` | `clampDeclaredBounds`, `assertRepairKeywords`, `missingArgumentGuidance`; opt-in `clamp: true` on a bounded numeric property (applied by `normalizeToolInput` on every registry path); `obtainFrom: "<tool id>"` on a required property (read by the typed MCP validator and the delegated-tool routes). |
 | `./contribution-registry` | `createContributionRegistry({ keyOf })`; instance-owned replacement by key, with detached array snapshots. |
 | `./naming` | `deriveAvailableName`, `deriveDuplicateName`, `MAX_SUFFIX_ATTEMPTS`; required collision predicate, suffix formatter and exhaustion message policy. |
+| `./agent-handles` | `agentHandle`/`agentHandleProps`/`buildAgentListHandles`, the `data-agent-*` attribute names and handle grammar, `FieldDescriptor`. Pure data, no DOM. |
 
 Contribution registries use `register({ contribution })`, `list({})` and `clear({})`.
 Approval clock/ID ports use the shared zero-argument `Clock.nowMs()` and
@@ -190,11 +209,16 @@ UUIDs and timestamps remain unbranded strings. The HTTP contract includes binary
 bytes, redirect provenance, socket idle budgets and an optional total deadline. Platform
 supplies the guarded HTTP implementation; core defines the port only.
 
-Default adapters are `createSystemClock()`, `createRandomUuidGenerator()` and
-`createConsoleLogger({ prefix })`. Clock/ID getters take no arguments. Time helpers are
+Default adapter is `createConsoleLogger({ prefix })`; `createSystemClock()` and
+`createRandomUuidGenerator()` live in `@jini-ai/platform/system`. Clock/ID getters take no arguments. Time helpers are
 `toIsoDateTime({ epochMs })` and `nowIso({ clock })`. The UUID adapter requires a host
 cryptographic UUID implementation and fails if unavailable. The console adapter routes
 info/warn/error with optional `{ meta, error }` to the same console severity.
+
+`@jini-ai/core/contracts/events` holds the type-only command/event/outbox vocabulary: `DomainEvent`, `EventBusPort`,
+`OutboxPort`, `OutboxRecord`, `TransactionalRepoPort`, the change-set records and `ChangeSetRepoPort`, the command
+envelope types, `AuthorizeFn` and `ExecuteCommandFn`. Hosts supply the implementations; `@jini-ai/cms/core` supplies the
+`executeCommand` gateway.
 
 Agent-tool catalogs import `AgentToolSideEffect`, `AgentToolActorClassRule` and
 `AgentToolDefinition` from the core root. Delete is a separate side-effect classification;
@@ -205,6 +229,8 @@ domains may tighten the shared interface, including making `inputSchema` require
 sequences, masks labeled/opaque credentials and caps the complete output at 500 characters
 by default. Correlation IDs and the delegated-tool route remain visible. This sanitizer
 keeps its existing policy; the telemetry redactor additionally masks PII.
+
+`@jini-ai/core/text` also exports `formatByteSize({ bytes }, { locale?, megabyteLabel? })`: 1024-based, whole B/KB and one decimal from MB up.
 
 `redactSecrets` and `redactSecretsWithCounts` cover the core, CLI and provider rule union.
 Exact secrets are literal strings (including regex metacharacters), applied longest first;
@@ -256,11 +282,13 @@ boot-time definition registration, dictionaries and agent tools. Hosts inject se
 active-principal lookup, authorization, clocks and IDs; no CMS or database adapter is required.
 The keys, scopes, permissions and tool IDs are unchanged by the relocation.
 
-`@jini-ai/core/settings/express` exports `registerSettingsRoutes`, HTTP policy contracts and
+`@jini-ai/core/settings` also exports the neutral route policy contracts and
 `createCmsSettingsService` / `createCmsSettingsChangeFeed` (factory names retained for compatibility).
+`@jini-ai/http-kit/settings` exports `registerSettingsRoutes`, Express contracts and error mapping.
 Hosts provide route paths, readiness, principal resolution, scheduler, service and feed ports.
-Registration returns a disposer that closes active feeds. The universal settings entry never
-loads this adapter; neither entry is re-exported by the kernel root.
+Registration returns a disposer that closes active feeds.
 
-The former `@jini-ai/cms/settings` and `@jini-ai/cms/settings/express` entries re-export these
-owners for one release. New consumers should import the core subpaths directly.
+`@jini-ai/cms/settings` remains a compatibility entry for the neutral core settings owner.
+The former core and CMS `./settings/express` entries have been removed.
+
+`@jini-ai/core/text` also exports `redactOAuthUrls({ text, pattern, replacement })`: replaces every match of a provider-owned pattern and leaves all other bytes intact (a non-global pattern replaces only its first match). The caller owns the pattern and the replacement.

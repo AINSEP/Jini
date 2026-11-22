@@ -16,7 +16,7 @@ function fileDrop(files: File[]): DragEvent<HTMLDivElement> {
 
 describe('useChatPaneFileDrop — a host effect that throws synchronously', () => {
   it('reports the throw instead of letting it escape the drop handler', async () => {
-    const failure = new Error('onFiles threw before returning a promise');
+    const failure = new Error('boom api_key=SECRETSECRETSECRETSECRET');
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
     const onFiles = vi.fn((): void => { throw failure; });
     const { result } = renderHook(() => useChatPaneFileDrop({ enabled: true, onFiles }));
@@ -32,7 +32,8 @@ describe('useChatPaneFileDrop — a host effect that throws synchronously', () =
 
       expect(onFiles).toHaveBeenCalledWith([file]);
       expect(consoleError).toHaveBeenCalledTimes(1);
-      expect(consoleError).toHaveBeenCalledWith('[@jini-ai/chat] useChatPaneFileDrop onFiles host effect failed:', failure.stack);
+      expect(consoleError).toHaveBeenCalledWith('[@jini-ai/chat] useChatPaneFileDrop onFiles host effect failed:', 'Error');
+      for (const leak of ['boom', 'SECRETSECRET', 'useChatPaneFileDrop.cov-j2']) expect(JSON.stringify(consoleError.mock.calls)).not.toContain(leak);
       expect(result.current.dropReadError).toBeNull();
     } finally {
       consoleError.mockRestore();

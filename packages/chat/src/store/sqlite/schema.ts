@@ -9,7 +9,7 @@
 // Separate parent/message tables avoid repeating an owner's credential hash on every message,
 // permit an empty "new conversation", and let a list render without loading transcripts.
 // Retention then removes one parent and cascades its messages rather than duplicating expiry rules.
-import type { SqliteClient } from '@jini-ai/db/sqlite';
+import type { SqliteClient } from '@jini-ai/core/contracts/storage';
 
 /**
  * The canonical chat-history schema.

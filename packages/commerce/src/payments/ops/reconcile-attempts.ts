@@ -16,7 +16,7 @@
  * flight must not be judged from a snapshot taken before it lands.
  */
 import type { IntentStatus } from "../state/status.js";
-import { OPEN_ATTEMPT_OUTCOMES, type AttemptRecord, type PaymentRecord } from "../ledger/rows.js";
+import { OPEN_ATTEMPT_OUTCOMES, type AttemptRecord, type PaymentRecord } from "../ledger/row-records.js";
 import { CAPTURE_VOID_STATUSES } from "./capture-void.js";
 import type { OpsDeps } from "./deps.js";
 import { applySnapshot, leave, retrieveSnapshot, type Verdict } from "./reconcile-snapshot.js";
@@ -66,7 +66,7 @@ export async function reconcileAttempt({ deps, attempt }: { deps: OpsDeps; attem
   const label = `${op} attempt ${attempt.id} of payment ${payment.id} is ${attempt.outcome}`;
   const snapshot = await retrieveSnapshot({ deps, payment });
   if (!snapshot.ok) return leave({ deps, payment, detail: `${label}: ${snapshot.why}` });
-  if (!(await applySnapshot({ deps, payment, ...snapshot }))) return leave({ deps, payment, detail: `${label}: its snapshot was quarantined` });
+  if (!(await applySnapshot({ deps, payment, evidence: snapshot.evidence }, snapshot))) return leave({ deps, payment, detail: `${label}: its snapshot was quarantined` });
   const after = await readPaymentOf({ deps, attempt });
   return close({ deps, attempt, outcome: judge({ op, status: after.intentStatus }) ?? "rejected", status: after.intentStatus });
 }

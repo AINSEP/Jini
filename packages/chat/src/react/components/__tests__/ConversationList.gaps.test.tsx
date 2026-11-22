@@ -49,12 +49,13 @@ describe('ConversationList rows and host effects', () => {
   });
 
   it('reports a host create callback that throws synchronously and still closes the switcher', async () => {
-    const failure = new Error('sync create failure');
+    const failure = new Error('boom api_key=SECRETSECRETSECRETSECRET');
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
     const { user } = setup({ onCreate: () => { throw failure; } });
     await user.click(screen.getByTestId('conversation-trigger'));
     await user.click(screen.getByTestId('conversation-new'));
-    expect(consoleError).toHaveBeenCalledWith('[@jini-ai/chat] ConversationList onCreate host effect failed:', failure.stack);
+    expect(consoleError).toHaveBeenCalledWith('[@jini-ai/chat] ConversationList onCreate host effect failed:', 'Error');
+    for (const leak of ['boom', 'SECRETSECRET', 'ConversationList.gaps.test']) expect(JSON.stringify(consoleError.mock.calls)).not.toContain(leak);
     expect(screen.queryByTestId('conversation-menu')).toBeNull();
   });
 

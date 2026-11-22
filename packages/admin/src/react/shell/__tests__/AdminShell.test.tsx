@@ -1,8 +1,14 @@
-import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { useEffect, useState } from 'react';
+import { act, cleanup, fireEvent, render as renderBare, screen, waitFor, within, type RenderOptions } from '@testing-library/react';
+import { useEffect, useState, type ReactElement, type ReactNode } from 'react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { AdminKitProvider } from '../../kit.js';
+import { fakeAdminKit } from '../../testing-kit.js';
 import { AdminShell } from '../AdminShell.js';
 import type { AdminShellNavigationPort, AdminShellPanel, AdminShellProps, AdminShellRenderArgs, AdminShellSessionPort } from '../types.js';
+
+// The shell reads its theme functions from the host kit, so every render sits under a provider.
+const wrapper = ({ children }: { children: ReactNode }) => <AdminKitProvider kit={fakeAdminKit()}>{children}</AdminKitProvider>;
+const render = (ui: ReactElement, options: Omit<RenderOptions, 'wrapper'> = {}) => renderBare(ui, { wrapper, ...options });
 
 // Generalized App prototype-key, agent-page, rail-storage and session-seam tests.
 const panels: readonly AdminShellPanel[] = [
@@ -60,7 +66,7 @@ it('gates all protected contributions and slots until the session resolves', asy
 
 it('derives nav and route dispatch from the same resolved contributions', async () => {
   const f = fixture('/records/r7?tab=history');
-  render(<AdminShell {...f.props} />);
+  render(<AdminShell {...f.props} slots={{ ...f.props.slots, noAccess: () => <p>No access fixture</p> }} />);
   expect(await screen.findByTestId('record')).toHaveTextContent('detail:r7:history:p1');
   expect(screen.getByRole('link', { name: 'Records' })).toHaveAttribute('href', '/console/records');
   expect(screen.queryByRole('link', { name: 'Private' })).toBeNull();
@@ -69,7 +75,10 @@ it('derives nav and route dispatch from the same resolved contributions', async 
   expect(main).toHaveAttribute('data-agent-page', 'record-detail');
   expect(screen.getByRole('link', { name: 'Records' })).toHaveAttribute('aria-current', 'page');
   act(() => f.go('/private'));
-  expect(await screen.findByRole('heading', { name: 'Overview screen' })).toBeInTheDocument();
+  // Declared change 2 (J1): a denied direct URL keeps its own route and shows the host's `noAccess`
+  // slot instead of silently showing the default panel.
+  expect(await screen.findByText('No access fixture')).toBeInTheDocument();
+  expect(screen.queryByText('Overview screen')).toBeNull();
   expect(screen.queryByText('Private screen')).toBeNull();
   act(() => f.go('/hidden'));
   expect(screen.getByRole('heading', { name: 'Unlisted screen' })).toBeInTheDocument();
@@ -267,4 +276,81 @@ it('renders host overlays with the authenticated slot arguments', async () => {
   const f = fixture();
   render(<AdminShell {...f.props} slots={{ ...f.props.slots, overlays: ({ session }) => <p>Overlay for {session.user.username}</p> }} />);
   expect(await screen.findByText('Overlay for operator')).toBeInTheDocument();
+});
+
+// J1: route recognition is separate from visibility. A denied URL keeps its panel and says so.
+const gated = (id: string, extra: Partial<AdminShellPanel>): AdminShellPanel => ({
+  id, description: `Manage ${id}.`, nav: { label: id }, render: vi.fn(() => <h1>{`${id} screen`}</h1>), ...extra,
+});
+const noAccessSlot = ({ route }: AdminShellRenderArgs) => <p>No access to {route.panelId}</p>;
+
+/** Mount at `path` with a session whose `effectivePermissions` is exactly `permissions`. */
+async function mountGated(args: { readonly path: string; readonly permissions: readonly string[] | undefined; readonly panels: readonly AdminShellPanel[] }) {
+  const f = fixture(args.path);
+  f.props.session.read = vi.fn(async () => ({
+    user: { id: 'u1', username: 'operator' }, ...(args.permissions === undefined ? {} : { effectivePermissions: args.permissions }),
+  }));
+  const dashboard = gated('dashboard', { render: vi.fn(() => <h1>Overview screen</h1>) });
+  const slots = { ...f.props.slots, noAccess: noAccessSlot };
+  render(<AdminShell {...f.props} slots={slots} panels={[dashboard, ...args.panels]} />);
+  await screen.findByRole('main');
+  return { dashboard };
+}
+
+const anyOfPanel = () => gated('people', { anyOfPermissions: ['user.manage', 'member.manage'] });
+const allOfPanel = () => gated('posts', { permissions: ['posts.read'] });
+
+it('T7: a denied any-of URL shows noAccess, never mounts either panel, and has no nav row', async () => {
+  const people = anyOfPanel();
+  const { dashboard } = await mountGated({ path: '/people', permissions: [], panels: [people] });
+  expect(screen.getByText('No access to people')).toBeInTheDocument();
+  expect(people.render).not.toHaveBeenCalled();
+  expect(dashboard.render).not.toHaveBeenCalled();
+  expect(screen.queryByRole('link', { name: 'people' })).toBeNull();
+});
+
+it('T8: unknown permissions (undefined) render the any-of panel', async () => {
+  await mountGated({ path: '/people', permissions: undefined, panels: [anyOfPanel()] });
+  expect(screen.getByRole('heading', { name: 'people screen' })).toBeInTheDocument();
+  expect(screen.queryByText('No access to people')).toBeNull();
+});
+
+it('T11: an all-of panel whose permission is held renders and has its nav row', async () => {
+  await mountGated({ path: '/posts', permissions: ['posts.read'], panels: [allOfPanel()] });
+  expect(screen.getByRole('heading', { name: 'posts screen' })).toBeInTheDocument();
+  expect(screen.getByRole('link', { name: 'posts' })).toHaveAttribute('aria-current', 'page');
+});
+
+it('T12: an all-of panel that is not held shows noAccess, not the default panel', async () => {
+  const posts = allOfPanel();
+  const { dashboard } = await mountGated({ path: '/posts', permissions: [], panels: [posts] });
+  expect(screen.getByText('No access to posts')).toBeInTheDocument();
+  expect(posts.render).not.toHaveBeenCalled();
+  expect(dashboard.render).not.toHaveBeenCalled();
+});
+
+it('T13: unknown permissions (undefined) render the all-of panel and list it in the nav', async () => {
+  await mountGated({ path: '/posts', permissions: undefined, panels: [allOfPanel()] });
+  expect(screen.getByRole('heading', { name: 'posts screen' })).toBeInTheDocument();
+  expect(screen.getByRole('link', { name: 'posts' })).toBeInTheDocument();
+});
+
+it('T14: a denied route keeps the routed panel page id on <main>', async () => {
+  await mountGated({ path: '/people', permissions: [], panels: [anyOfPanel()] });
+  expect(screen.getByRole('main')).toHaveAttribute('data-agent-page', 'people');
+});
+
+it('a denied route with no noAccess slot renders an empty main, not the default panel', async () => {
+  const f = fixture('/private');
+  render(<AdminShell {...f.props} />);
+  const main = await screen.findByRole('main');
+  expect(main).toBeEmptyDOMElement();
+  expect(main).toHaveAttribute('data-agent-page', 'private');
+});
+
+it('a denied default panel shows noAccess at the root', async () => {
+  const f = fixture('/');
+  const slots = { ...f.props.slots, noAccess: noAccessSlot };
+  render(<AdminShell {...f.props} slots={slots} defaultPanelId="private" />);
+  expect(await screen.findByText('No access to private')).toBeInTheDocument();
 });

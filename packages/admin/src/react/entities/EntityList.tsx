@@ -1,35 +1,17 @@
-import { useCallback, useMemo, useState } from 'react';
 import type { AdminEntityRowData } from '../../core/ports/entities.js';
 import { DataTable } from '../components/DataTable.js';
 import { EntityCell } from './EntityCell.js';
 import { RelationTruncationNotice } from './RelationTruncationNotice.js';
 import { entityText, type EntityListProps } from './types.js';
-import { loadRelationIndex, resolveEntityPageSize } from './rules.js';
-import { useEntityRead } from './use-entity-read.js';
+import { useEntityList } from './EntityList.hooks.js';
 
 /** Cursor history records actual returned page lengths; never sort a server-paginated page locally.
  * Host translation, registry and navigation are injected, and this list uses the existing DataTable.
  * Relation choices are bounded to 100, expose truncation and retain raw IDs for unresolved labels.
  */
-export function EntityList(props: EntityListProps) {
+export function EntityList({ useListHook = useEntityList, ...props }: EntityListProps & { readonly useListHook?: typeof useEntityList }) {
   const { entityName, registry, translate, routes } = props;
-  const port = useMemo(() => registry.getEntity({ name: entityName }), [registry, entityName]);
-  const limit = resolveEntityPageSize({ raw: props.limitParam });
-  const token = JSON.stringify([entityName, limit]);
-  const [walk, setWalk] = useState({ token, port, entries: [{ cursor: null as string | null, offset: 0 }] });
-  const walkIsCurrent = walk.token === token && walk.port === port;
-  if (!walkIsCurrent) setWalk({ token, port, entries: [{ cursor: null, offset: 0 }] });
-  const entries = walkIsCurrent ? walk.entries : [{ cursor: null, offset: 0 }];
-  const position = entries[entries.length - 1]!;
-  const load = useCallback(async () => {
-    if (port === null) return null;
-    const [page, relations] = await Promise.all([
-      port.list(position.cursor === null ? { limit } : { limit, cursor: position.cursor }),
-      loadRelationIndex({ descriptor: port.descriptor, registry }),
-    ]);
-    return { page, relations };
-  }, [port, registry, limit, position.cursor]);
-  const result = useEntityRead({ load, scope: port });
+  const { port, entries, position, setWalk, result } = useListHook({ entityName, registry, limitParam: props.limitParam, refreshToken: props.refreshToken, search: props.search });
   if (port === null) return <p role="alert">{translate({ key: 'Unknown entity' })}</p>;
   if (result.error) return <p role="alert">{translate({ key: 'Unable to load rows' })}</p>;
   if (result.loading || !result.data) return <p role="status">{translate({ key: 'Loading' })}</p>;

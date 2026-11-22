@@ -16,7 +16,7 @@ import { randomUUID } from "node:crypto";
 import { link, rename } from "node:fs/promises";
 import { join, resolve } from "node:path";
 
-import { readJsonFile, removeFile, writeJsonFile } from "./json-file.js";
+import { readJsonFile, removeFile, writeJsonFile, type JsonFileWriter } from "./json-file.js";
 
 /** Default file name for a daemon's registry record, resolved relative to its `dataDir`. */
 const DEFAULT_DAEMON_REGISTRY_FILE_NAME = "daemon.json";
@@ -57,8 +57,8 @@ export function resolveDaemonRegistryPath({ dataDir }: { dataDir: string }, { fi
  * at `registryPath`. Safe under concurrent writers — the last writer to complete its rename wins,
  * and every reader only ever observes a fully-written file, never a partial one.
  */
-export async function writeDaemonRegistryRecord({ registryPath, record }: { registryPath: string; record: LocalDaemonRegistryRecord }): Promise<void> {
-  await writeJsonFile({ filePath: registryPath, payload: record });
+export async function writeDaemonRegistryRecord({ registryPath, record, writer }: { registryPath: string; record: LocalDaemonRegistryRecord; writer: JsonFileWriter }, _optional: Record<string, never> = {}): Promise<void> {
+  await writeJsonFile({ filePath: registryPath, payload: record, writer });
 }
 
 /** The two path moves `removeDaemonRegistryRecordIfCurrent` makes; injectable so a race lost to
@@ -132,7 +132,7 @@ export async function removeDaemonRegistryRecordIfCurrent(
  * discovery purposes). `false` for a non-positive/non-integer `pid`, a `pid` that does not exist
  * (`ESRCH`), or any other unexpected failure (treated conservatively as not confirmed alive).
  */
-export function isProcessAlive({ pid }: { pid: number }): boolean {
+export function isProcessAlive({ pid }: { pid: number }, _optional: Record<string, never> = {}): boolean {
   if (!Number.isInteger(pid) || pid <= 0) return false;
   try {
     process.kill(pid, 0);
@@ -164,13 +164,13 @@ function isValidRegistryRecord(value: unknown): value is LocalDaemonRegistryReco
 /**
  * Read a daemon's registry record at `registryPath` and return it only if it is well-formed AND
  * its recorded `pid` is still alive — the combined "read, don't just trust" discovery primitive a
- * CLI-side `resolveDaemonUrl({}, { discover })` probe needs. A stale record from a daemon that crashed
+ * CLI-side `resolveDaemonUrl({ env }, { discover })` probe needs. A stale record from a daemon that crashed
  * (pid no longer alive), a missing file, or a malformed/foreign JSON file all resolve to `null`
  * rather than throwing — discovery failing is an expected, non-exceptional outcome (the caller
  * falls through to its own `defaultUrl`/error, per `resolveDaemonUrl`'s own contract).
  * @returns The live record, or `null` when nothing live was found.
  */
-export async function readLiveDaemonRegistryRecord({ registryPath }: { registryPath: string }): Promise<LocalDaemonRegistryRecord | null> {
+export async function readLiveDaemonRegistryRecord({ registryPath }: { registryPath: string }, _optional: Record<string, never> = {}): Promise<LocalDaemonRegistryRecord | null> {
   const record = await readJsonFile<unknown>({ filePath: registryPath });
   if (!isValidRegistryRecord(record)) return null;
   if (!isProcessAlive({ pid: record.pid })) return null;

@@ -1,6 +1,6 @@
 /** One extraction/install failure reason. A caller (an admin route, a future marketplace installer)
  * branches on `code` rather than parsing `message` — this codebase's own convention
- * (`PluginLoadError.reason` in `plugin-runtime/loader.ts` is the direct precedent). */
+ * (`PluginLoadError.reason` in `packages/plugins/src/host/node/loader.ts` is the direct precedent). */
 export type AgentPluginInstallErrorCode =
   | "PLUGIN_ID_CONFLICT"
   | "ARCHIVE_TOO_LARGE"

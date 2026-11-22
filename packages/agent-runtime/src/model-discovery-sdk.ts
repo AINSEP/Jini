@@ -1,4 +1,8 @@
-import type { ModelDiscoveryContext, ModelDiscoveryDeps, ModelProbeResult } from './model-discovery-types.js';
+import type {
+  ModelDiscoveryContext,
+  ModelDiscoveryDeps,
+  ModelProbeResult,
+} from '@jini-ai/core/contracts/agents';
 import { ModelProbeError, modelIdentityKind } from './model-discovery-shared.js';
 
 /** UNVERIFIED locally. Official Python SDK metadata bridge; no session/inference call.
@@ -12,10 +16,10 @@ async def main():
 asyncio.run(main())
 `;
 
-export async function probeDroidSdk(context: ModelDiscoveryContext, deps: ModelDiscoveryDeps, signal: AbortSignal): Promise<ModelProbeResult> {
+export async function probeDroidSdk({ context, deps, signal }: { context: ModelDiscoveryContext; deps: ModelDiscoveryDeps; signal: AbortSignal }, _optional: Record<string, never> = {}): Promise<ModelProbeResult> {
   const { stdout } = await deps.process.run({ context: { ...context, executable: 'python3' }, args: ['-c', DROID_METADATA_SCRIPT, context.executable], stdin: '', signal, timeoutMs: 15_000, terminateProcessTree: true });
   let data: { models?: { id: string; name?: string; provider?: string }[] };
   try { data = JSON.parse(stdout); } catch { throw new ModelProbeError('malformed-response'); }
   if (!Array.isArray(data.models)) throw new ModelProbeError('malformed-response');
-  return { models: data.models.filter((row) => typeof row.id === 'string').map((row) => ({ id: row.id, label: row.name || row.id, provider: row.provider, identityKind: modelIdentityKind(row.id) })), source: 'rpc', coverage: 'account' };
+  return { models: data.models.filter((row) => typeof row.id === 'string').map((row) => ({ id: row.id, label: row.name || row.id, provider: row.provider, identityKind: modelIdentityKind({ id: row.id }) })), source: 'rpc', coverage: 'account' };
 }

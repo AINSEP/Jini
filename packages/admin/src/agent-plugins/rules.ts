@@ -5,7 +5,7 @@ export const AGENT_PLUGINS_READ = 'admin.plugins.read';
 export const AGENT_PLUGINS_WRITE = 'admin.plugins.enable';
 export const AGENT_PLUGINS_SPEC_URL = 'https://agent-plugins.org/specification';
 // Closed vocabulary: no heuristic can distinguish an acronym from a real word reliably.
-const acronyms = new Set(['ai', 'api', 'cli', 'css', 'html', 'http', 'id', 'io', 'json', 'mcp', 'rss', 'sdk', 'seo', 'sql', 'ui', 'url', 'ux', 'yaml']);
+const acronyms: ReadonlySet<string> = new Set(['ai', 'api', 'cli', 'css', 'html', 'http', 'id', 'io', 'json', 'mcp', 'rss', 'sdk', 'seo', 'sql', 'ui', 'url', 'ux', 'yaml']);
 export function humanizeAgentPluginId({ pluginId }: { pluginId: string }, _optional = {}) {
   return pluginId.split('-').filter(Boolean).map(part => acronyms.has(part.toLowerCase()) ? part.toUpperCase() : part.charAt(0).toUpperCase() + part.slice(1)).join(' ');
 }

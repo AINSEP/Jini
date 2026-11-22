@@ -222,3 +222,14 @@ describe('TabStrip hook override 4-pattern test suite', () => {
     expect(tabB).toHaveAttribute('aria-selected', 'true');
   });
 });
+
+
+it('uses the injected tab handle base while preserving activation', () => {
+  const onActivate = vi.fn();
+  render(<TabStrip tabs={[tab({ id: 'a', content: 'Alpha' })]} activeTabId="a" onActivate={onActivate}
+    onReorder={vi.fn()} useAgentHandleHook={() => 'injected-strip'} />);
+  const item = screen.getByRole('tab', { name: /Alpha/ });
+  expect(item).toHaveAttribute('data-agent-element', 'injected-strip-tab-a');
+  fireEvent.click(item);
+  expect(onActivate).toHaveBeenCalledWith('a');
+});

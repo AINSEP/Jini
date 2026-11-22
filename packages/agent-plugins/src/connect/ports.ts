@@ -21,7 +21,7 @@ export type AgentPluginMcpRecord = ExternalMcpServerRecord;
 export type AgentPluginMcpSave = SaveExternalMcpServerInput;
 /** @agent-note The host's token-hint shape stays opaque here (`unknown`); this package never reads it. */
 export type AgentPluginMcpView = ExternalMcpServerView<unknown>;
-export type AgentPluginMcpRepo = Pick<ExternalMcpServerRepoPort, 'findByServerId' | 'upsert' | 'deleteByServerId' | 'updateAccessIfCurrent'>;
+export type AgentPluginMcpRepo = Pick<ExternalMcpServerRepoPort, 'findByServerId' | 'updateIfVersion' | 'deleteByServerId' | 'updateAccessIfCurrent'>;
 export type AgentPluginMcpAccessSnapshot = ExternalMcpAccessSnapshot;
 /** @agent-note A second host supplies all six projections together with the paired
  * {@link AgentPluginMcpProjectionPorts.classifyError}; preview, provisioning, sign-in revalidation and

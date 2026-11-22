@@ -12,6 +12,9 @@
   "include": [
     "src"
   ],
+  "files": [
+    "src/payments/ledger/migrations/__tests__/migrations.options.typecheck.ts"
+  ],
   "exclude": [
     "src/**/__tests__/**"
   ]

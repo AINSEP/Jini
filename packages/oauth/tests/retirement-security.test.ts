@@ -21,14 +21,14 @@ describe('issuer and endpoint policy retained from retired discovery', () => {
     expect(() => policy.assertMetadata({ issuer, document: metadata })).not.toThrow();
   });
   it.each([
-    { issuer: `${issuer}/` },
-    { issuer: 'https://other.example.com' },
-    { authorization_endpoint: 'https://other.example.com/authorize' },
-    { token_endpoint: 'http://auth.example.com/token' },
-    { registration_endpoint: '/register' },
-    { device_authorization_endpoint: 'https://other.example.com/device' },
-  ])('rejects metadata %j', override => {
-    expect(() => policy.assertMetadata({ issuer, document: { ...metadata, ...override } })).toThrow();
+    [{ issuer: `${issuer}/` }, 'OAuth metadata issuer does not equal the requested issuer'],
+    [{ issuer: 'https://other.example.com' }, 'OAuth metadata issuer does not equal the requested issuer'],
+    [{ authorization_endpoint: 'https://other.example.com/authorize' }, "OAuth metadata authorization_endpoint does not share the issuer's HTTPS origin"],
+    [{ token_endpoint: 'http://auth.example.com/token' }, "OAuth metadata token_endpoint does not share the issuer's HTTPS origin"],
+    [{ registration_endpoint: '/register' }, 'OAuth metadata registration_endpoint is not an absolute HTTPS URL'],
+    [{ device_authorization_endpoint: 'https://other.example.com/device' }, "OAuth metadata device_authorization_endpoint does not share the issuer's HTTPS origin"],
+  ] as const)('rejects metadata %j', (override, message) => {
+    expect(() => policy.assertMetadata({ issuer, document: { ...metadata, ...override } })).toThrow(message);
   });
   it('applies the injected policy during discovery before returning metadata', async () => {
     const fetchFn = vi.fn(async () => Response.json({ ...metadata, issuer: 'https://other.example.com' }));

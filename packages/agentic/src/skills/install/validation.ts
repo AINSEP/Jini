@@ -16,8 +16,8 @@ export interface SkillUploadFile { readonly path: string; readonly contentBase64
 export const MAX_SKILL_BYTES = 8 * 1024 * 1024;
 export const MAX_SKILL_FILES = 256;
 export const MAX_SKILL_FILE_BYTES = 1024 * 1024;
-const TEXT_EXTENSIONS = new Set([".md", ".txt", ".json", ".yaml", ".yml", ".csv", ".svg", ".sh", ".py", ".js", ".ts", ".mjs"]);
-const ASSET_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".webp"]);
+const TEXT_EXTENSIONS: ReadonlySet<string> = new Set([".md", ".txt", ".json", ".yaml", ".yml", ".csv", ".svg", ".sh", ".py", ".js", ".ts", ".mjs"]);
+const ASSET_EXTENSIONS: ReadonlySet<string> = new Set([".png", ".jpg", ".jpeg", ".webp"]);
 const ROOT_FILES: ReadonlySet<string> = new Set(["SKILL.md", "README.md", "LICENSE"]);
 const SKILL_FOLDERS: ReadonlySet<string> = new Set(["references", "scripts", "assets"]);
 const PNG_SIGNATURE = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
@@ -34,7 +34,7 @@ export function decodeSkillBase64({ value }: { value: string }, { maxBytes = MAX
 
 export function validateSkillPath({ filePath }: { filePath: string }, _optional: Record<string, never> = {}): void {
   const badShape = typeof filePath !== "string" || filePath.length === 0 || filePath.length > 240;
-  if (badShape || hasUnsafePathCharacter(filePath) || path.posix.isAbsolute(filePath) || filePath.split("/").some(p => !p || p === "." || p === ".." || p.startsWith("."))) throw new SkillInputError({ message: `Unsafe skill file path: ${filePath}` });
+  if (badShape || hasUnsafePathCharacter({ value: filePath }) || path.posix.isAbsolute(filePath) || filePath.split("/").some(p => !p || p === "." || p === ".." || p.startsWith("."))) throw new SkillInputError({ message: `Unsafe skill file path: ${filePath}` });
 }
 
 /** Strict frontmatter for new installs; the legacy disk loader remains backwards compatible. */

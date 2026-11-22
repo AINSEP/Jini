@@ -1,0 +1,366 @@
+/**
+ * @module mcp-ui-resource
+ *
+ * The `ui://` resource half of MCP-UI: the wire shape a tool result carries so a host knows to
+ * render a View instead of handing text to the model, plus the parser a host uses to recognize one.
+ *
+ * This is the piece `@jini-ai/agentic`'s `mcp-ui-apps.ts` deliberately does not model — that module
+ * owns the JSON-RPC envelope crossing the iframe boundary once a View exists; nothing there says
+ * how a View comes to exist in the first place. That comes from the resource conventions:
+ * `@modelcontextprotocol/ext-apps` fixes `RESOURCE_MIME_TYPE = "text/html;profile=mcp-app"` and
+ * `RESOURCE_URI_META_KEY = "ui/resourceUri"`, and `@mcp-ui/server` declares the
+ * ``ui://${string}`` URI scheme and the wider MIME union reproduced in
+ * {@link UIResourceMimeType}.
+ *
+ * The envelope comes from protocol.ts's re-exports, so this resource layer has no parallel
+ * JSON-RPC or UIActionResult definition. See
+ * `surfaces/bridge.ts` for why the legacy `{type:'tool', payload}` action shape is not emitted.
+ */
+
+/** The `ui://` URI scheme MCP Apps fixes for UI resources. */
+export type UIResourceUri = `ui://${string}`;
+
+/**
+ * MIME types a UI resource may declare.
+ *
+ * This package emits {@link MCP_UI_MIME_TYPE}; the other two are accepted on the parse side because
+ * the published union lists them — `text/html` for pre-standardization mcp-ui hosts and
+ * `text/html+skybridge` for the Apps SDK adapter — and a resource built by some *other* server is
+ * exactly the case {@link parseUIResource} exists for.
+ */
+export type UIResourceMimeType = 'text/html' | 'text/html;profile=mcp-app' | 'text/html+skybridge';
+
+/**
+ * `RESOURCE_MIME_TYPE` from `@modelcontextprotocol/ext-apps` — the standardized MIME type for
+ * sandboxed HTML, chosen over the bare legacy `text/html` because it is the one SEP-1865 fixed and
+ * mcp-ui's own client accepts it either way.
+ */
+export const MCP_UI_MIME_TYPE: UIResourceMimeType = 'text/html;profile=mcp-app';
+
+/** Every MIME type {@link parseUIResource} will accept, widest-first. */
+export const UI_RESOURCE_MIME_TYPES: readonly UIResourceMimeType[] = [
+  'text/html',
+  'text/html;profile=mcp-app',
+  'text/html+skybridge',
+];
+
+/**
+ * `RESOURCE_URI_META_KEY` from `@modelcontextprotocol/ext-apps` — the `_meta` key a tool uses to
+ * point at a *pre-registered* UI template rather than carrying the HTML inline.
+ *
+ * This package builds inline resources (the original mcp-ui shape), so nothing here writes this
+ * key. It is exported so that a consumer adopting the template-registration flow uses the spec's
+ * key rather than inventing one.
+ */
+export const MCP_UI_RESOURCE_URI_META_KEY = 'ui/resourceUri';
+
+/** `UI_METADATA_PREFIX` from `@mcp-ui/server` — the namespace for mcp-ui's resource `_meta` hints. */
+export const MCP_UI_METADATA_PREFIX = 'mcpui.dev/ui-';
+
+/** The `_meta` key a host reads to size the frame instead of guessing. Value is a `[width, height]` CSS-length pair. */
+export const MCP_UI_PREFERRED_FRAME_SIZE_META_KEY = `${MCP_UI_METADATA_PREFIX}preferred-frame-size`;
+
+/**
+ * This package's OWN `_meta` namespace, for hints that are not part of the `@mcp-ui/server` spec.
+ *
+ * Deliberately a different prefix from {@link MCP_UI_METADATA_PREFIX}: that one is `@mcp-ui/server`'s
+ * own namespace, and `preferred-frame-size` is one of *its* conventions. Minting a second key under
+ * it (however similar in shape) would assert a level of standardization this package has no
+ * authority to claim. Everything Jini-specific belongs here instead, where it plainly reads as this
+ * package's own addition.
+ */
+export const JINI_MCP_UI_METADATA_PREFIX = 'x-jini-mcp-ui/';
+
+/**
+ * The `_meta` key a host reads to build a PARENT-DOM echo of a surface's action plan.
+ *
+ * Exists because a generated surface's `{title, actions}` (see `surfaces/confirmation.ts`'s
+ * `ConfirmationSurfaceSpec`) is otherwise flattened into an opaque HTML string before it ever
+ * reaches a host — unlike {@link MCP_UI_PREFERRED_FRAME_SIZE_META_KEY}, nothing carried it
+ * separately. A host cannot make a surface's pending confirmation and its action LABELS
+ * discoverable via `page.find_elements` (which cannot read into the sandboxed, opaque-origin
+ * iframe the real buttons render in — see `MCP_UI_VIEW_SANDBOX`) without either scraping that HTML
+ * or being handed the plan directly. This is the direct channel; see `McpUiSurfaceCard` in
+ * `@jini-ai/chat` for the host-side consumer.
+ */
+export const MCP_UI_ACTION_PLAN_META_KEY = `${JINI_MCP_UI_METADATA_PREFIX}action-plan`;
+
+/**
+ * The `_meta` key a host reads to count down how long a surface can still be answered.
+ *
+ * A held-open question (a confirmation the tool waits on) stops being answerable when the server
+ * gives up waiting, but nothing in the document said when that would be, so a person could read a
+ * card that had already expired. The value is the deadline in epoch milliseconds on the PRODUCER's
+ * clock: a host whose clock runs ahead of the server's closes the card early by that skew, never late.
+ * See `McpUiSurfaceCard` in `@jini-ai/chat` for the host-side consumer.
+ */
+export const MCP_UI_EXPIRES_AT_META_KEY = `${JINI_MCP_UI_METADATA_PREFIX}expires-at`;
+
+/** One action in a surface's plan — the `_meta`-safe subset of `surfaces/document.ts`'s `SurfaceAction` (no `type`: that field only affects in-frame `<form>` submission, which has no parent-DOM equivalent). */
+export interface McpUiActionPlanAction {
+  readonly id: string;
+  readonly label: string;
+  readonly variant?: 'primary' | 'danger' | 'neutral';
+}
+
+/** What {@link MCP_UI_ACTION_PLAN_META_KEY} carries. */
+export interface McpUiActionPlan {
+  readonly title: string;
+  readonly description?: string;
+  readonly actions: readonly McpUiActionPlanAction[];
+}
+
+/** The text-bearing UI resource body (mcp-ui's `HTMLTextContent`). This package never emits the `blob` variant. */
+export interface UIResourceContent {
+  readonly uri: UIResourceUri;
+  readonly mimeType: UIResourceMimeType;
+  readonly text: string;
+  readonly _meta?: Readonly<Record<string, unknown>>;
+}
+
+/**
+ * An MCP `EmbeddedResource` carrying UI — the object a tool result's `content` array holds, and the
+ * object a host hands to its View renderer.
+ */
+export interface UIResource {
+  readonly type: 'resource';
+  readonly resource: UIResourceContent;
+}
+
+/** An MCP text content block — the model-readable half of a tool result. */
+export interface TextContent {
+  readonly type: 'text';
+  readonly text: string;
+}
+
+/**
+ * A tool result carrying both a model-readable text block and a human-facing UI resource.
+ *
+ * The split between the two halves is a security boundary, not formatting. Per MCP Apps' own
+ * security model a host renders the UI resource for the USER and does not feed its HTML to the
+ * model — so a secret embedded in the HTML is a secret the model never sees, while anything in
+ * `text` is something the model reads. `confirmation-store.ts`'s whole reason for existing depends
+ * on exactly that split.
+ */
+export interface UIToolResult {
+  readonly content: readonly [TextContent, UIResource];
+  readonly _meta?: Readonly<Record<string, unknown>>;
+}
+
+/**
+ * Builds a UI resource from self-contained HTML.
+ *
+ * @param spec.uri - The `ui://` identifier for this resource instance. A host may log, cache, or
+ * show it, so it must never carry a secret — key it by entity and version instead.
+ * @param spec.htmlString - Self-contained HTML. It renders in a sandboxed, opaque-origin iframe
+ * with no bundler and no network, so it must inline everything it needs; use `surfaces/` to build
+ * one rather than hand-rolling.
+ * @param spec.preferredFrameSize - `[width, height]` CSS lengths, written to the `_meta` key mcp-ui
+ * hosts read.
+ * @param spec.actionPlan - See {@link McpUiActionPlan}, written to {@link MCP_UI_ACTION_PLAN_META_KEY}.
+ * @param spec.expiresAtMs - When the surface stops being answerable, written to {@link MCP_UI_EXPIRES_AT_META_KEY}.
+ * @param spec.meta - Extra `_meta` entries, merged after `preferredFrameSize`/`actionPlan`/`expiresAtMs`
+ * so a caller can override any of them.
+ * @returns The `EmbeddedResource` to place in a tool result's `content` array.
+ * @complexity O(1).
+ */
+export function createUIResource(spec: {
+  uri: UIResourceUri;
+  htmlString: string;
+  preferredFrameSize?: readonly [string, string];
+  actionPlan?: McpUiActionPlan;
+  expiresAtMs?: number;
+  meta?: Readonly<Record<string, unknown>>;
+}, _optional = {}): UIResource {
+  const meta: Record<string, unknown> = {
+    ...(spec.preferredFrameSize === undefined
+      ? {}
+      : { [MCP_UI_PREFERRED_FRAME_SIZE_META_KEY]: [...spec.preferredFrameSize] }),
+    ...(spec.actionPlan === undefined ? {} : { [MCP_UI_ACTION_PLAN_META_KEY]: spec.actionPlan }),
+    ...(spec.expiresAtMs === undefined ? {} : { [MCP_UI_EXPIRES_AT_META_KEY]: spec.expiresAtMs }),
+    ...spec.meta,
+  };
+  return {
+    type: 'resource',
+    resource: {
+      uri: spec.uri,
+      mimeType: MCP_UI_MIME_TYPE,
+      text: spec.htmlString,
+      ...(Object.keys(meta).length === 0 && spec.meta === undefined ? {} : { _meta: meta }),
+    },
+  };
+}
+
+/**
+ * Assembles the two-part tool result: what the MODEL is told, and what the HUMAN is shown.
+ *
+ * @param spec.modelText - The model-readable block. Must not contain anything the UI resource keeps
+ * from the model (see {@link UIToolResult}).
+ * @param spec.ui - The UI resource, rendered to the human only.
+ * @param spec.meta - Optional result-level `_meta`.
+ * @complexity O(1).
+ */
+export function buildUIToolResult(spec: {
+  modelText: string;
+  ui: UIResource;
+  meta?: Readonly<Record<string, unknown>>;
+}, _optional = {}): UIToolResult {
+  return {
+    content: [{ type: 'text', text: spec.modelText }, spec.ui],
+    ...(spec.meta === undefined ? {} : { _meta: spec.meta }),
+  };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isUIResourceUri(value: unknown): value is UIResourceUri {
+  return typeof value === 'string' && value.startsWith('ui://');
+}
+
+/**
+ * Narrows an arbitrary value to a {@link UIResource}.
+ *
+ * The host side needs this because a tool result reaches it as `unknown` — it arrives over a
+ * transport from a server this package does not control, so "the resource is well-formed" is a
+ * claim to be checked, not assumed. A resource that fails any check is not rendered at all rather
+ * than rendered partially: a frame built from a non-string `text` would be `srcdoc="undefined"`,
+ * which renders as a visible, confusing blank rather than an honest absence.
+ *
+ * @param value - A candidate resource, e.g. one entry of a tool result's `content` array.
+ * @returns The narrowed resource, or `undefined` when the value is not one.
+ * @complexity O(1) — `text` is not scanned, only type-checked.
+ */
+export function parseUIResource({ value }: { value: unknown }, _optional: Record<string, never> = {}): UIResource | undefined {
+  if (!isRecord(value) || value['type'] !== 'resource') return undefined;
+  const resource = value['resource'];
+  if (!isRecord(resource)) return undefined;
+
+  const uri = resource['uri'];
+  if (!isUIResourceUri(uri)) return undefined;
+
+  const mimeType = resource['mimeType'];
+  if (typeof mimeType !== 'string') return undefined;
+  if (!UI_RESOURCE_MIME_TYPES.includes(mimeType as UIResourceMimeType)) return undefined;
+
+  const text = resource['text'];
+  if (typeof text !== 'string') return undefined;
+
+  const meta = resource['_meta'];
+  return {
+    type: 'resource',
+    resource: {
+      uri: uri as UIResourceUri,
+      mimeType: mimeType as UIResourceMimeType,
+      text,
+      ...(isRecord(meta) ? { _meta: meta } : {}),
+    },
+  };
+}
+
+/**
+ * Reads the `[width, height]` frame-size hint a resource's `_meta` may carry.
+ *
+ * @returns The pair, or `undefined` when absent or malformed — a host that gets `undefined` should
+ * size the frame itself rather than trusting a half-present hint.
+ */
+export function readPreferredFrameSize({ resource }: { resource: UIResource }, _optional: Record<string, never> = {}): readonly [string, string] | undefined {
+  const raw = resource.resource._meta?.[MCP_UI_PREFERRED_FRAME_SIZE_META_KEY];
+  if (!Array.isArray(raw) || raw.length !== 2) return undefined;
+  const [width, height] = raw as readonly unknown[];
+  if (typeof width !== 'string' || typeof height !== 'string') return undefined;
+  return [width, height];
+}
+
+type ActionPlanVariant = NonNullable<McpUiActionPlanAction['variant']>;
+
+function isActionPlanVariant(value: string): value is ActionPlanVariant {
+  return value === 'primary' || value === 'danger' || value === 'neutral';
+}
+
+function parseActionPlanAction(value: unknown): McpUiActionPlanAction | undefined {
+  if (!isRecord(value)) return undefined;
+  const id = value['id'];
+  const label = value['label'];
+  if (typeof id !== 'string' || id === '' || typeof label !== 'string') return undefined;
+  const variant = value['variant'];
+  if (variant === undefined) return { id, label };
+  if (typeof variant !== 'string' || !isActionPlanVariant(variant)) return undefined;
+  return { id, label, variant };
+}
+
+function actionPlanMeta(resource: UIResource): unknown {
+  return resource.resource._meta?.[MCP_UI_ACTION_PLAN_META_KEY];
+}
+
+/**
+ * Reads the action-plan hint a resource's `_meta` may carry — see {@link MCP_UI_ACTION_PLAN_META_KEY}.
+ *
+ * Validated the same way {@link readPreferredFrameSize} is: a resource crosses a wire from a server
+ * this package does not control, so every field is checked rather than cast. A single malformed
+ * action invalidates the whole plan (never a partially-rendered mirror silently missing a button) —
+ * an `undefined` here means "the host builds no mirror for this surface", not "build one with what
+ * parsed".
+ *
+ * @returns The plan, or `undefined` when absent or malformed.
+ */
+export function readActionPlan({ resource }: { resource: UIResource }, _optional: Record<string, never> = {}): McpUiActionPlan | undefined {
+  const raw = actionPlanMeta(resource);
+  if (!isRecord(raw)) return undefined;
+  const title = raw['title'];
+  if (typeof title !== 'string') return undefined;
+  const description = raw['description'];
+  if (description !== undefined && typeof description !== 'string') return undefined;
+  const rawActions = raw['actions'];
+  if (!Array.isArray(rawActions)) return undefined;
+  const actions: McpUiActionPlanAction[] = [];
+  for (const rawAction of rawActions) {
+    const action = parseActionPlanAction(rawAction);
+    if (action === undefined) return undefined;
+    actions.push(action);
+  }
+  return { title, ...(description === undefined ? {} : { description }), actions };
+}
+
+/**
+ * Reads the answer deadline a resource's `_meta` may carry — see {@link MCP_UI_EXPIRES_AT_META_KEY}.
+ *
+ * @returns Epoch milliseconds, or `undefined` when absent or not a finite number — a host that gets
+ * `undefined` shows no countdown rather than one built on a malformed value.
+ * @complexity O(1).
+ */
+export function readExpiresAt({ resource }: { resource: UIResource }, _optional: Record<string, never> = {}): number | undefined {
+  const raw = resource.resource._meta?.[MCP_UI_EXPIRES_AT_META_KEY];
+  return typeof raw === 'number' && Number.isFinite(raw) ? raw : undefined;
+}
+
+/** Legacy host action vocabulary retained for consumers that negotiate pre-Apps messages. */
+export type UIActionType = "tool" | "prompt" | "link" | "intent" | "notify";
+
+/**
+ * mcp-ui's `UIActionResult` union — the `postMessage` payload an iframe sends to the host.
+ *
+ * `messageId` is what makes the round trip observable: mcp-ui's client answers a message carrying
+ * one with `ui-message-received` and then `ui-message-response` (same `messageId`). A host's
+ * confirmation dialog sets one so the rendered UI can show "deleted" or an error instead of
+ * silently appearing to do nothing.
+ */
+export type UIActionResult =
+  | { messageId?: string; type: "tool"; payload: { toolName: string; params: Record<string, unknown> } }
+  | { messageId?: string; type: "prompt"; payload: { prompt: string } }
+  | { messageId?: string; type: "link"; payload: { url: string } }
+  | { messageId?: string; type: "intent"; payload: { intent: string; params: Record<string, unknown> } }
+  | { messageId?: string; type: "notify"; payload: { message: string } };
+
+/** A tool call a View asked its host to execute. */
+export interface McpUiToolCall {
+  readonly name: string;
+  readonly arguments: Readonly<Record<string, unknown>>;
+}
+
+/**
+ * Executes a tool a View asked for. A rejection is relayed to the View as a JSON-RPC error and a
+ * resolution is passed through as the `result` UNVALIDATED against any particular shape.
+ */
+export type McpUiToolCallHandler = (call: McpUiToolCall) => Promise<unknown> | unknown;

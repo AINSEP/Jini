@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { AdminApiError } from "../../core/transport/errors.js";
+import { AdminApiError } from '@jini-ai/core/admin-runtime';
 import * as barrel from "../index.js";
 import { createHttpFormsApi, type FormsTransportPort } from "../adapters/http.js";
 import { formView } from "../models.js";
@@ -55,14 +55,15 @@ describe("forms rules through the public barrel", () => {
     // An AdminApiError without a server message falls back to the action's own copy.
     expect(barrel.visibleFormEditorError({ ...base, createError: new AdminApiError({ message: "", status: 500 }), statusError: new Error("ignored") })).toBe("save failed");
     expect(barrel.visibleFormEditorError({ ...base, statusError: new AdminApiError({ message: "", status: 500 }) })).toBe("status update failed");
-    expect(barrel.visibleFormEditorError({ ...base, statusError: new Error("locked") })).toBe("locked");
+    expect(barrel.visibleFormEditorError({ ...base, statusError: new AdminApiError({ message: "locked", status: 500 }) })).toBe("locked");
   });
 
   it("treats a host error carrying a numeric 404 status as already gone, but not a non-numeric one", () => {
     const hostGone = Object.assign(new Error("gone"), { status: 404 });
     expect(barrel.describeTrashError({ error: hostGone, fallback: "trash failed", versionChangedMessage: "changed" })).toEqual({ alreadyGone: true, message: null });
     const textStatus = Object.assign(new Error("server said no"), { status: "404" });
-    expect(barrel.describeTrashError({ error: textStatus, fallback: "trash failed", versionChangedMessage: "changed" })).toEqual({ alreadyGone: false, message: "server said no" });
+    // A non-numeric status is not an AdminApiError, so only the fallback copy is shown.
+    expect(barrel.describeTrashError({ error: textStatus, fallback: "trash failed", versionChangedMessage: "changed" })).toEqual({ alreadyGone: false, message: "trash failed" });
   });
 
   it("cycles the Fields/Submissions tabs with arrows and jumps with Home/End", () => {

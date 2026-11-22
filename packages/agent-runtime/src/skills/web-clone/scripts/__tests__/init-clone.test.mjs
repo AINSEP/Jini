@@ -10,24 +10,24 @@ afterEach(() => {
 
 describe("parseArgs", () => {
   it("takes the first positional as the slug and reads every flag", () => {
-    expect(parseArgs([])).toEqual({ slug: null, url: "", mode: "", level: "", root: ".", inPlace: false });
-    expect(parseArgs(["--url", "https://a.test", "nike", "--mode", "visual", "--level", "L3", "--root", "/w", "--in-place", "-h"])).toEqual({
+    expect(parseArgs({ argv: [] })).toEqual({ slug: null, url: "", mode: "", level: "", root: ".", inPlace: false });
+    expect(parseArgs({ argv: ["--url", "https://a.test", "nike", "--mode", "visual", "--level", "L3", "--root", "/w", "--in-place", "-h"] })).toEqual({
       slug: "nike", url: "https://a.test", mode: "visual", level: "L3", root: "/w", inPlace: true, help: true,
     });
-    expect(parseArgs(["--root"]).root).toBe(".");
-    expect(parseArgs(["--help"]).help).toBe(true);
+    expect(parseArgs({ argv: ["--root"] }).root).toBe(".");
+    expect(parseArgs({ argv: ["--help"] }).help).toBe(true);
   });
 
   it("rejects a second positional argument", () => {
-    expect(() => parseArgs(["a", "b"])).toThrow("Unexpected argument: b");
+    expect(() => parseArgs({ argv: ["a", "b"] })).toThrow("Unexpected argument: b");
   });
 });
 
 describe("cleanSlug", () => {
   it("lowercases, strips the scheme and collapses non-alphanumerics to single dashes", () => {
-    expect(cleanSlug("  https://www.Nike.com/US/  ")).toBe("www-nike-com-us");
-    expect(cleanSlug("--Hello__World--")).toBe("hello-world");
-    expect(cleanSlug("!!!")).toBe("");
+    expect(cleanSlug({ input: "  https://www.Nike.com/US/  " })).toBe("www-nike-com-us");
+    expect(cleanSlug({ input: "--Hello__World--" })).toBe("hello-world");
+    expect(cleanSlug({ input: "!!!" })).toBe("");
   });
 });
 
@@ -91,5 +91,14 @@ describe("main", () => {
     vi.spyOn(console, "log").mockImplementation(() => {});
     expect(main({ argv: ["demo", "--root", dir] })).toBe(0);
     expect(fs.existsSync(path.join(dir, "demo-clone", "NOTES.md"))).toBe(true);
+  });
+
+  it("prints only the class of an unexpected failure, never its text", () => {
+    const dir = makeTempDir("wc1-init-");
+    const { io, out } = makeIo(dir);
+    const failingFs = { ...fs, mkdirSync: () => { throw new Error("boom api_key=SECRETSECRETSECRETSECRET"); } };
+    expect(main({ argv: ["acme", "--root", dir] }, { ...io, fs: failingFs })).toBe(1);
+    expect(out.errors).toEqual(["init-clone failed: Error"]);
+    expect(JSON.stringify(out.errors)).not.toMatch(/boom|SECRETSECRET|init-clone\.test/);
   });
 });

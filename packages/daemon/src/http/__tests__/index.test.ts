@@ -8,13 +8,13 @@ describe('@jini-ai/daemon/http barrel', () => {
     expect(HttpBarrel.runStartRoute.path).toBe('/api/runs');
     expect(HttpBarrel.runStatusRoute.path).toBe('/api/runs/:runId');
     expect(HttpBarrel.runCancelRoute.path).toBe('/api/runs/:runId/cancel');
-    expect(typeof HttpBarrel.registerRunEventStream).toBe('function');
-    expect(typeof HttpBarrel.registerRunRoutes).toBe('function');
+    expect(typeof HttpBarrel.runRoutes).toBe('function');
   });
 
   it('re-exports the attachment upload capability: routes, store, and helpers', () => {
     expect(HttpBarrel.ATTACHMENTS_ROUTE_PATH).toBe('/api/attachments');
-    expect(typeof HttpBarrel.registerAttachmentRoutes).toBe('function');
+    expect(typeof HttpBarrel.attachmentUploadRoutes).toBe('function');
+    expect(typeof HttpBarrel.attachmentCleanupRoutes).toBe('function');
     expect(typeof HttpBarrel.createDiskAttachmentStore).toBe('function');
     expect(typeof HttpBarrel.handleAttachmentUpload).toBe('function');
     expect(typeof HttpBarrel.handleAttachmentCleanup).toBe('function');
@@ -30,12 +30,12 @@ describe('@jini-ai/daemon/http barrel', () => {
   });
 
   it('re-exports the host-tools editors route and registrar', () => {
-    expect(typeof HttpBarrel.registerHostToolsRoutes).toBe('function');
+    expect(typeof HttpBarrel.hostToolsRoutes).toBe('function');
     expect(HttpBarrel.hostEditorsRoute.path).toBe('/api/editors');
   });
 
   it('re-exports the active-context routes and registrar', () => {
-    expect(typeof HttpBarrel.registerActiveContextRoutes).toBe('function');
+    expect(typeof HttpBarrel.activeContextRoutes).toBe('function');
     expect(HttpBarrel.setActiveRoute.path).toBe('/api/active');
     expect(HttpBarrel.getActiveRoute.path).toBe('/api/active');
     expect(HttpBarrel.ACTIVE_CONTEXT_TTL_MS).toBe(5 * 60 * 1000);
@@ -49,7 +49,7 @@ describe('@jini-ai/daemon/http barrel', () => {
 
   it('re-exports the daemon DB-ops routes and tool registrar', () => {
     expect(typeof HttpBarrel.createDaemonDbToolRegistrations).toBe('function');
-    expect(typeof HttpBarrel.registerDaemonDbRoutes).toBe('function');
+    expect(typeof HttpBarrel.daemonDbRoutes).toBe('function');
     expect(HttpBarrel.daemonDbInspectRoute.path).toBe('/api/daemon/db');
     expect(HttpBarrel.daemonDbVerifyRoute.path).toBe('/api/daemon/db/verify');
     expect(HttpBarrel.daemonDbVacuumRoute.path).toBe('/api/daemon/db/vacuum');
@@ -57,10 +57,9 @@ describe('@jini-ai/daemon/http barrel', () => {
   });
 
   it('re-exports the delegated-tools route (the MCP-callback bridge)', () => {
-    expect(typeof HttpBarrel.registerDelegatedToolRoutes).toBe('function');
+    expect(typeof HttpBarrel.delegatedToolRoutes).toBe('function');
     expect(HttpBarrel.delegatedToolExecuteRoute.path).toBe('/api/delegated-tool-calls');
-    expect(typeof HttpBarrel.registerFrontendSessionRoutes).toBe('function');
-    expect(typeof HttpBarrel.handleFrontendSessionStream).toBe('function');
+    expect(typeof HttpBarrel.frontendSessionRoutes).toBe('function');
     expect(typeof HttpBarrel.parseCapabilityQuery).toBe('function');
     expect(HttpBarrel.FRONTEND_SESSION_STREAM_ROUTE_PATH).toBe('/api/frontend-sessions/stream');
     expect(HttpBarrel.frontendSessionResponseRoute.path).toBe('/api/frontend-sessions/:sessionId/responses');

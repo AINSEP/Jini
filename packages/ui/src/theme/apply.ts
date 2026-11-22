@@ -30,7 +30,7 @@ function acquireFont(document: AdminThemeDocument, href: string): () => void {
 function themeValues({ theme }: { readonly theme: AdminTheme }, _options: object = {}): Record<string, string> {
   const values: Record<string, string> = {};
   for (const scheme of ['light', 'dark'] as const) for (const key of adminThemeColorKeys) {
-    values[`--jini-theme-${scheme}-${kebabThemeKey(key)}`] = theme[scheme][key];
+    values[`--jini-theme-${scheme}-${kebabThemeKey({ key })}`] = theme[scheme][key];
   }
   values['--jini-font-body'] = theme.fonts.body;
   values['--jini-font-heading'] = theme.fonts.heading;

@@ -1,31 +1,28 @@
+import { reportRouteInternalError } from '@jini-ai/http-kit';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { isLocalSameOrigin } from '@jini-ai/core';
+import { createRecordingOriginPolicy } from '@jini-ai/core/contracts/server/testing';
 import { createInMemoryEventLog, createRunLifecycle, type UserMessageDelivery } from '../../index.js';
-import { registerRunRoutes, runMessageRoute, type RunHttpDeps } from '../runs.js';
+import { runMessageRoute, runRoutes, type RunHttpDeps } from '../runs.js';
+import { fakeDaemonRouteHost } from './fakes/route-host.js';
+import { jsonRequest, serveRoutes } from './fakes/serve-routes.js';
 
-vi.mock('@jini-ai/core', async (importOriginal) => ({
-  ...await importOriginal<typeof import('@jini-ai/core')>(),
-  isLocalSameOrigin: vi.fn(() => true),
-}));
+const testOriginPolicy = createRecordingOriginPolicy();
 
-const adapter = { allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST', env: {}, resolvedPortRef: { current: 7456 } };
+/** The run routes on an in-memory server, behind the recording origin policy. */
+const serve = (deps: RunHttpDeps) => serveRoutes({ routes: runRoutes({ deps, host: fakeDaemonRouteHost({}, { originPolicy: testOriginPolicy }) }) });
 
 function makeDeps(deliver?: (input: { runId: string; text: string }) => UserMessageDelivery): RunHttpDeps {
-  return { lifecycle: createRunLifecycle({ eventLog: createInMemoryEventLog({}) }), ...(deliver ? { deliverUserMessage: deliver, deliverUserMessageWithAttachments: deliver } : {}) };
-}
-
-function makeJsonRes() {
-  return { status: vi.fn().mockReturnThis(), json: vi.fn().mockReturnThis() };
+  return { reportInternalError: reportRouteInternalError, lifecycle: createRunLifecycle({ eventLog: createInMemoryEventLog({}) }), ...(deliver ? { deliverUserMessage: deliver, deliverUserMessageWithAttachments: deliver } : {}) };
 }
 
 beforeEach(() => {
-  vi.mocked(isLocalSameOrigin).mockReturnValue(true);
+  testOriginPolicy.set({ allow: true });
 });
 
 describe('POST /api/runs/:runId/messages — a message sent while the run is going', () => {
   it('does not send text alone when the host has no explicit attachment delivery', async () => {
     const deliver = vi.fn((): UserMessageDelivery => 'delivered');
-    const deps = { lifecycle: makeDeps().lifecycle, deliverUserMessage: deliver };
+    const deps = { lifecycle: makeDeps().lifecycle, deliverUserMessage: deliver, reportInternalError: reportRouteInternalError };
     const { run } = await deps.lifecycle.start({ contextRef: 'ctx' });
     const result = await runMessageRoute.handle({ input: { runId: run.id, text: 'see screenshot', attachmentIds: ['attachment:1'] }, deps });
     expect(result).toMatchObject({ ok: false, error: { details: { delivery: 'unsupported' } } });
@@ -54,18 +51,11 @@ describe('POST /api/runs/:runId/messages — a message sent while the run is goi
     const deliver = vi.fn((): UserMessageDelivery => 'delivered');
     const deps = makeDeps(deliver);
     const { run } = await deps.lifecycle.start({ contextRef: 'ctx' });
-    const app = { get: vi.fn(), post: vi.fn(), put: vi.fn(), delete: vi.fn(), patch: vi.fn() };
-    registerRunRoutes({ app: app as never, deps, adapter });
-    const handler = app.post.mock.calls.find(([path]) => path === '/api/runs/:runId/messages')![1];
-    const res = makeJsonRes();
-
-    await handler({ body: { text: 'also do the footer' }, query: {}, params: { runId: run.id } }, res);
-
-    const response = res.json.mock.calls[0]![0] as { id: string; delivery: string };
-    expect(response.id).toMatch(/^[a-f0-9-]{36}$/u);
-    expect(deliver).toHaveBeenCalledWith({ runId: run.id, text: 'also do the footer', id: response.id });
-    expect(res.status).toHaveBeenCalledWith(202);
-    expect(res.json).toHaveBeenCalledWith({ delivery: 'delivered', id: response.id });
+    const response = await serve(deps)(jsonRequest({ path: `/api/runs/${run.id}/messages`, method: 'POST' }, { body: { text: 'also do the footer' } }));
+    const body = await response.json() as { id: string; delivery: string };
+    expect(body.id).toMatch(/^[a-f0-9-]{36}$/u);
+    expect(deliver).toHaveBeenCalledWith({ runId: run.id, text: 'also do the footer', id: body.id });
+    expect([response.status, body]).toEqual([202, { delivery: 'delivered', id: body.id }]);
   });
 
   it('answers 409 with the delivery outcome when the run cannot take it, so the client can fall back', async () => {
@@ -99,12 +89,8 @@ describe('POST /api/runs/:runId/messages — a message sent while the run is goi
   });
 
   it('requires same-origin like every other run write', async () => {
-    vi.mocked(isLocalSameOrigin).mockReturnValue(false);
-    const app = { get: vi.fn(), post: vi.fn(), put: vi.fn(), delete: vi.fn(), patch: vi.fn() };
-    registerRunRoutes({ app: app as never, deps: makeDeps(() => 'delivered'), adapter });
-    const handler = app.post.mock.calls.find(([path]) => path === '/api/runs/:runId/messages')![1];
-    const res = makeJsonRes();
-    await handler({ body: { text: 'x' }, query: {}, params: { runId: 'run-1' } }, res);
-    expect(res.status).toHaveBeenCalledWith(403);
+    testOriginPolicy.set({ allow: false });
+    const response = await serve(makeDeps(() => 'delivered'))(jsonRequest({ path: '/api/runs/run-1/messages', method: 'POST' }, { body: { text: 'x' } }));
+    expect(response.status).toBe(403);
   });
 });

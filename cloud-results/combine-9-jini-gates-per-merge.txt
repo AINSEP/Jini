@@ -1,0 +1,203 @@
+### merge 1 release/lockfile-1120: pnpm --no-bail --filter '...[3ad0c5671]' build
+exit=0
+### per-package tsc --noEmit (changed packages vs 3ad0c5671)
+examples/minimal-host no-tsconfig errors=
+examples/neutral-host exit=0 errors=0
+examples/reference-web exit=0 errors=0
+packages/admin exit=0 errors=0
+packages/agent-plugins exit=0 errors=0
+packages/agent-runtime exit=0 errors=0
+packages/agentic exit=0 errors=0
+packages/analytics exit=0 errors=0
+packages/artifacts exit=0 errors=0
+packages/capability-providers exit=0 errors=0
+packages/chat exit=0 errors=0
+packages/cli exit=0 errors=0
+packages/cms exit=0 errors=0
+packages/commerce exit=0 errors=0
+packages/cookie-consent exit=0 errors=0
+packages/core exit=0 errors=0
+packages/daemon exit=0 errors=0
+packages/db exit=0 errors=0
+packages/desktop-host exit=0 errors=0
+packages/devops exit=0 errors=0
+packages/diagnostics exit=0 errors=0
+packages/http-kit exit=0 errors=0
+packages/infra exit=0 errors=0
+packages/integrations exit=0 errors=0
+packages/mcp exit=0 errors=0
+packages/memory exit=0 errors=0
+packages/node-adapters exit=0 errors=0
+packages/oauth exit=0 errors=0
+packages/platform exit=0 errors=0
+packages/plugin-catalog no-tsconfig errors=
+packages/plugins exit=0 errors=0
+packages/protocol exit=0 errors=0
+packages/provider-plugins exit=0 errors=0
+packages/registry exit=0 errors=0
+packages/sandbox exit=0 errors=0
+packages/search exit=0 errors=0
+packages/server exit=0 errors=0
+packages/sidecar exit=0 errors=0
+packages/sqlite exit=0 errors=0
+packages/ui-kit exit=0 errors=0
+packages/ui exit=0 errors=0
+packages/user-management exit=0 errors=0
+packages/vibecoding exit=0 errors=0
+### guard (post-merge, before the why allow-list commit)
+
+> jini@ guard /home/user/Jini
+> node --import tsx ./scripts/guard.ts
+
+injection advisory: 490 test-only cross-package imports in 328 files (not failing)
+[hardwiring] HW1-env-default: 15 total; 0 new
+[hardwiring] HW2-vendor-adapter: 5 total; 0 new
+[hardwiring] HW3-module-state: 34 total; 0 new
+[hardwiring] HW4-injected-fetch: 0 total; 0 new
+[hardwiring] HW5-jini-export: 0 total; 0 new
+[hardwiring] HW6-boot-default: 0 total; 0 new
+[hardwiring] HW7-public-react: 0 total; 0 new
+[hardwiring] HW8-provider-url: 47 total; 0 new
+[hardwiring] HW9-plugin-import: 0 total; 0 new
+[hardwiring] HW9-env-access: 70 total; 0 new
+[hardwiring] HW12-env-import-time: 9 total; 0 new
+[hardwiring] 2 stale debt occurrences; remove them from scripts/env-access-debt.json.
+[guard] R13-model-fallback-freshness claude: MF3 compared 17 live id(s) against 21 fallback entr(ies).
+[guard] R13-model-fallback-freshness codex: MF3 SKIPPED — `codex debug models` unavailable (spawn codex ENOENT). Staleness date still enforced (MF1/MF2).
+[guard] R13-model-fallback-freshness antigravity: MF3 SKIPPED — `agy models` unavailable (spawn agy ENOENT). Staleness date still enforced (MF1/MF2).
+[guard] R13-model-fallback-freshness pi: MF3 SKIPPED — MF3 does not apply to `pi` — only MF1/MF2 (staleness date) apply. Staleness date still enforced (MF1/MF2).
+[guard] R13-model-fallback-freshness aider: MF3 SKIPPED — MF3 does not apply to `aider` — only MF1/MF2 (staleness date) apply. Staleness date still enforced (MF1/MF2).
+[guard] R13-model-fallback-freshness opencode: MF3 SKIPPED — MF3 does not apply to `opencode` — only MF1/MF2 (staleness date) apply. Staleness date still enforced (MF1/MF2).
+[guard] ok — self-test passed (checks proven against known-bad fixtures) and zero violations found in packages/. Vocabulary-firewall and residual-JS-allowlist checks are still TODO.
+exit=0
+### size (post-merge, before the why allow-list commit)
+Worsened from 950: [max-lines] packages/daemon/src/agent-executor/launch.ts:852 <file> (952)
+Worsened from 416: [max-lines-per-function] packages/daemon/src/agent-executor/launch.ts:910 createAgentExecutor (418)
+Size ratchet failed.
+exit=1
+### complexity (post-merge, before the why allow-list commit)
+New violation: [complexity] packages/agent-runtime/src/agent-protocol/acp/session-results.ts:21 handleRpcError (12)
+New violation: [sonarjs/cognitive-complexity] packages/chat/src/core/ag-ui/event-projection.ts:256 drainRunFramesToAgUi (12)
+New violation: [complexity] packages/chat/src/core/ag-ui/event-projection.ts:292 readConfirmationResume (11)
+New violation: [complexity] packages/ui/src/features/panel-kit/ErrorNotice.tsx:22 ErrorNotice (11)
+Complexity ratchet failed.
+exit=1
+### hooks (post-merge, before the why allow-list commit)
+hook-injection: 0 components, 0 direct custom-hook calls
+top hooks: 
+top folders: 
+hook-injection: ok
+exit=0
+### why-base (post-merge, before the why allow-list commit)
+why-comments: 113 files with removed lines checked against 3ad0c5671..HEAD, 28 comment blocks lost (0 allow-listed)
+packages/daemon/src/agent-executor/codex/contracts.ts:39-39  [a70a189c5e13]  explicit host/run policy; environment defaults belong to native composition. native executor composition resolves its env default when ab...
+packages/daemon/src/agent-executor/contracts.ts:564-564  [27ea9f7812a3]  resolves/pins the concrete starting model against the actual launch scope.
+packages/daemon/src/agent-executor/contracts.ts:566-566  [65e5a6addfb5]  @default the real `@jini-ai/agent-runtime` registry lookup
+packages/daemon/src/agent-executor/contracts.ts:568-568  [2dd7291577a2]  @default the real `@jini-ai/agent-runtime` launch resolver
+packages/daemon/src/agent-executor/contracts.ts:570-570  [8afc87cdb168]  @default the real `@jini-ai/agent-runtime` once-per-binary `--help` capability probe
+packages/daemon/src/agent-executor/contracts.ts:572-572  [b3d734dbdf30]  bounded version/enforcement probe; replaceable for offline host tests.
+packages/daemon/src/agent-executor/contracts.ts:574-574  [1c48478853de]  @default the real `@jini-ai/agent-runtime` path-env composer
+packages/daemon/src/agent-executor/contracts.ts:576-576  [2724d8fcc1cb]  @default the real `@jini-ai/platform` cross-platform invocation builder
+packages/daemon/src/agent-executor/contracts.ts:582-582  [f2c6e78fea1f]  @default the real `@jini-ai/agent-runtime` acp session transport
+packages/daemon/src/agent-executor/contracts.ts:590-590  [7c656c2f380b]  @default the real `@jini-ai/agent-runtime` pi-rpc session transport
+packages/daemon/src/agent-executor/contracts.ts:592-599  [21276cf33b96]  stages a `promptviafile` def's (grok-build) composed prompt to a temp file before `buildargs` runs. touches the real filesystem by defaul...
+packages/daemon/src/agent-executor/contracts.ts:601-607  [ca8824ce5c91]  stages a `needsagentlogfile` def's (antigravity) diagnostic-log path before `buildargs` runs. same real-filesystem/injectable-for-tests d...
+packages/daemon/src/agent-executor/contracts.ts:609-609  [407ed01b3396]  @default the real `@jini-ai/platform` process-snapshot enumerator
+packages/daemon/src/agent-executor/contracts.ts:611-611  [e6241ace970d]  @default the real `@jini-ai/platform` descendant-pid collector
+packages/daemon/src/agent-executor/contracts.ts:613-613  [868ad2f832f3]  @default the real `@jini-ai/platform` sigterm→sigkill escalator
+packages/daemon/src/agent-executor/launch.ts:213-213  [0acd0c8e8395]  host-configured resolution names are explicit configuration, never a scan of the env bag.
+packages/daemon/src/agent-executor/launch.ts:248-256  [ff596d0a90c4]  resolves `createagentexecutoroptions`' agent-runtime collaborator seams (registry lookup, launch resolution, acp/pi-rpc session attachmen...
+packages/daemon/src/agent-executor/launch.ts:261-262  [a46a36b052bd]  `createagentexecutor` always resolves both before calling here (host env falls back to the process env, the pi shutdown grace to its env ...
+packages/daemon/src/agent-executor/launch.ts:268-268  [757b830f24a6]  without owned state, only an enabled plugin policy needs binding; otherwise keep the published definition.
+packages/daemon/src/agent-executor/launch.ts:292-292  [6df58ac8f112]  resolves the os-process-facing collaborator seams — see {@link resolveagentruntimedeps}'s doc. pure.
+packages/daemon/src/agent-executor/launch.ts:308-308  [9729313a5842]  resolves the two remaining defaultable options — see {@link resolveagentruntimedeps}'s doc. pure.
+packages/daemon/src/agent-executor/launch.ts:1006-1006  [8c981bdcb5b8]  this native composition boundary resolves ambient defaults once, before allowlisting child env.
+packages/daemon/src/agent-executor/pi/contracts.ts:2-2  [62c89cedaa43]  post-completion pi rpc grace period, resolved once at native composition.
+packages/server/src/__tests__/builtin-features.terminal-lifecycle.test.ts:15-16  [e257af659838]  a recording spy, not a replacement: the preset builds its own service from `options.terminal`, and the test needs that very service to op...
+packages/server/src/__tests__/builtin-features.terminal-service.test.ts:16-16  [5ada293f724d]  a recording spy over the real engine: records the options the preset hands `createterminalservice`, so knob forwarding is asserted, not a...
+packages/server/src/kernel-base.ts:129-129  [fc223057f3e4]  until the executor takes the bound runtime port (r8b), it still receives the two definition policies by value.
+packages/server/src/terminal-service.ts:27-27  [765eb5e0c8ba]  builds the terminal service from the preset's `terminal` options: the host's loader (or the inert one) plus only the tuning that was given.
+packages/sidecar/src/supervision/supervisor-node.ts:49-49  [fed8b7760611]  native effect ports retain their platform abi so tests can supply di fakes.
+why-comments: 28 deleted comment blocks appear nowhere else (owner rule: refactors move "why" comments with the code, never delete them)
+  fix: put the comment back next to the code it explains, or move it with that code.
+  last resort: add { "id": "<id above>", "reason": "<why this comment is truly obsolete>" } to the debt file (`pnpm check:why-comments`).
+exit=1
+### why-default (post-merge, before the why allow-list commit)
+why-comments: 2539 files with removed lines checked against origin/refactor/terra..HEAD, 346 comment blocks lost (314 allow-listed)
+packages/agent-runtime/src/agent-protocol/acp/__tests__/session.test.ts:1754-1756  [4bb23d5ecd7b]  setmodelrequestid starts null, so a json-rpc error with `id: null` matches it; with no model pinned the session "recovers" by prompting e...
+packages/core/src/errors/reporter.ts:113-113  [aebef68baf2a]  the record text travels as the tracker's error, so the tracker never holds the unredacted original.
+packages/core/src/errors/reporter.ts:156-157  [b550e959f815]  `diagnostic` is the operator-only record: message and stack with secrets blanked. `error` is the original, which only a host diagnostics ...
+packages/daemon/src/agent-executor/codex/contracts.ts:39-39  [a70a189c5e13]  explicit host/run policy; environment defaults belong to native composition. native executor composition resolves its env default when ab...
+packages/daemon/src/agent-executor/contracts.ts:563-563  [27ea9f7812a3]  resolves/pins the concrete starting model against the actual launch scope.
+packages/daemon/src/agent-executor/contracts.ts:565-565  [65e5a6addfb5]  @default the real `@jini-ai/agent-runtime` registry lookup
+packages/daemon/src/agent-executor/contracts.ts:567-567  [2dd7291577a2]  @default the real `@jini-ai/agent-runtime` launch resolver
+packages/daemon/src/agent-executor/contracts.ts:569-569  [8afc87cdb168]  @default the real `@jini-ai/agent-runtime` once-per-binary `--help` capability probe
+packages/daemon/src/agent-executor/contracts.ts:571-571  [b3d734dbdf30]  bounded version/enforcement probe; replaceable for offline host tests.
+packages/daemon/src/agent-executor/contracts.ts:573-573  [1c48478853de]  @default the real `@jini-ai/agent-runtime` path-env composer
+packages/daemon/src/agent-executor/contracts.ts:575-575  [2724d8fcc1cb]  @default the real `@jini-ai/platform` cross-platform invocation builder
+packages/daemon/src/agent-executor/contracts.ts:581-581  [f2c6e78fea1f]  @default the real `@jini-ai/agent-runtime` acp session transport
+packages/daemon/src/agent-executor/contracts.ts:589-589  [7c656c2f380b]  @default the real `@jini-ai/agent-runtime` pi-rpc session transport
+packages/daemon/src/agent-executor/contracts.ts:591-598  [21276cf33b96]  stages a `promptviafile` def's (grok-build) composed prompt to a temp file before `buildargs` runs. touches the real filesystem by defaul...
+packages/daemon/src/agent-executor/contracts.ts:600-606  [ca8824ce5c91]  stages a `needsagentlogfile` def's (antigravity) diagnostic-log path before `buildargs` runs. same real-filesystem/injectable-for-tests d...
+packages/daemon/src/agent-executor/contracts.ts:608-608  [407ed01b3396]  @default the real `@jini-ai/platform` process-snapshot enumerator
+packages/daemon/src/agent-executor/contracts.ts:610-610  [e6241ace970d]  @default the real `@jini-ai/platform` descendant-pid collector
+packages/daemon/src/agent-executor/contracts.ts:612-612  [868ad2f832f3]  @default the real `@jini-ai/platform` sigterm→sigkill escalator
+packages/daemon/src/agent-executor/launch.ts:215-215  [0acd0c8e8395]  host-configured resolution names are explicit configuration, never a scan of the env bag.
+packages/daemon/src/agent-executor/launch.ts:250-258  [ff596d0a90c4]  resolves `createagentexecutoroptions`' agent-runtime collaborator seams (registry lookup, launch resolution, acp/pi-rpc session attachmen...
+packages/daemon/src/agent-executor/launch.ts:263-264  [a46a36b052bd]  `createagentexecutor` always resolves both before calling here (host env falls back to the process env, the pi shutdown grace to its env ...
+packages/daemon/src/agent-executor/launch.ts:270-270  [757b830f24a6]  without owned state, only an enabled plugin policy needs binding; otherwise keep the published definition.
+packages/daemon/src/agent-executor/launch.ts:294-294  [6df58ac8f112]  resolves the os-process-facing collaborator seams — see {@link resolveagentruntimedeps}'s doc. pure.
+packages/daemon/src/agent-executor/launch.ts:310-310  [9729313a5842]  resolves the two remaining defaultable options — see {@link resolveagentruntimedeps}'s doc. pure.
+packages/daemon/src/agent-executor/launch.ts:1008-1008  [8c981bdcb5b8]  this native composition boundary resolves ambient defaults once, before allowlisting child env.
+packages/daemon/src/agent-executor/pi/contracts.ts:2-2  [62c89cedaa43]  post-completion pi rpc grace period, resolved once at native composition.
+packages/server/src/__tests__/builtin-features.terminal-lifecycle.test.ts:15-16  [e257af659838]  a recording spy, not a replacement: the preset builds its own service from `options.terminal`, and the test needs that very service to op...
+packages/server/src/__tests__/builtin-features.terminal-service.test.ts:16-16  [5ada293f724d]  a recording spy over the real engine: records the options the preset hands `createterminalservice`, so knob forwarding is asserted, not a...
+packages/server/src/kernel-base.ts:129-129  [fc223057f3e4]  until the executor takes the bound runtime port (r8b), it still receives the two definition policies by value.
+packages/server/src/terminal-service.ts:27-27  [765eb5e0c8ba]  builds the terminal service from the preset's `terminal` options: the host's loader (or the inert one) plus only the tuning that was given.
+packages/sidecar/src/json-ipc.ts:103-113  [fa4f71f9f63b]  shape an unknown error into the `{code?,message}` ipc error payload. exported (previously module-private) for direct unit testing: its on...
+packages/sidecar/src/supervision/supervisor-node.ts:49-49  [fed8b7760611]  native effect ports retain their platform abi so tests can supply di fakes.
+why-comments: 32 deleted comment blocks appear nowhere else (owner rule: refactors move "why" comments with the code, never delete them)
+  fix: put the comment back next to the code it explains, or move it with that code.
+  last resort: add { "id": "<id above>", "reason": "<why this comment is truly obsolete>" } to the debt file (`pnpm check:why-comments`).
+exit=1
+### log-safety (post-merge, before the why allow-list commit)
+New raw log path: [raw-error] packages/chat/src/core/assistant-client/ag-ui-fetch-agent.ts (1)
+New raw log path: [stored-error-text] packages/core/src/approval-batch-chain.ts (2)
+New raw log path: [stored-error-text] packages/daemon/src/agent-executor/codex/home-staging.ts (1)
+New raw log path: [stored-error-text] packages/daemon/src/http/tool-execution-routes.ts (1)
+New raw log path: [stored-error-text] packages/desktop-host/src/app-version/loader.ts (2)
+New raw log path: [error-format] packages/desktop-host/src/app-version/update-check.ts (1)
+New raw log path: [error-text] packages/desktop-host/src/app-version/update-check.ts (1)
+New raw log path: [error-format] packages/http-kit/src/node-bridge.ts (1)
+New raw log path: [error-helper] packages/http-kit/src/node-bridge.ts (1)
+New raw log path: [console] packages/ui/src/features/panel-kit/hooks/use-settings-slice-save.hooks.ts (1)
+Log-safety ratchet failed.
+exit=1
+### error-gate (post-merge, before the why allow-list commit)
+New: [catch-reads-error] packages/admin/src/forms/react/hooks/use-form-editor-parts.hooks.ts (3)
+New: [catch-reads-error] packages/admin/src/media/adapters/http.ts (1)
+New: [catch-reads-error] packages/admin/src/react/entities/FailureNotice.tsx (1)
+New: [no-generic-failure-text] packages/admin/src/react/entities/FailureNotice.tsx (1)
+New: [catch-reads-error] packages/agent-runtime/src/agent-protocol/acp/session-permission.ts (3)
+New: [catch-reads-error] packages/agent-runtime/src/agent-protocol/acp/session-run.ts (3)
+New: [catch-reads-error] packages/agent-runtime/src/claude-stream-handler.ts (1)
+New: [catch-reads-error] packages/agent-runtime/src/json-event-stream-shared.ts (1)
+New: [catch-reads-error] packages/chat/src/embed-widget/browser/agent-inventory.ts (2)
+New: [catch-reads-error] packages/core/src/contracts/ai-trace/capture.ts (1)
+New: [catch-reads-error] packages/core/src/contracts/ai-trace/sinks.ts (1)
+New: [catch-reads-error] packages/daemon/src/agent-executor/mcp-json-file.ts (1)
+New: [failure-text-from-catalog] packages/db/src/sqlite/stopped.ts (1)
+New: [catch-reads-error] packages/desktop-host/src/electron/app-version.ts (1)
+New: [catch-reads-error] packages/devops/src/packaging/electron/tree-fingerprint.ts (1)
+New: [catch-reads-error] packages/diagnostics/src/web-evidence/bounded-body.ts (1)
+New: [catch-reads-error] packages/http-kit/src/node-bridge.ts (6)
+New: [catch-reads-error] packages/mcp/src/federation/hosted/probe.ts (1)
+New: [catch-reads-error] packages/platform/src/mail/email-template-operations.ts (1)
+New: [catch-reads-error] packages/platform/src/secrets/sealer-contract.ts (1)
+New: [catch-reads-error] packages/ui/src/features/memory/react/hooks/useMemoryConnectors.parts.hooks.ts (3)
+New: [failure-text-from-catalog] packages/ui/src/features/memory/react/hooks/useMemoryConnectors.parts.hooks.ts (3)
+New: [catch-reads-error] packages/ui/src/features/version-manager/react/hooks/useVersionManager.state.ts (1)
+New: [catch-reads-error] packages/ui/src/react/hooks/usePersistedDisclosure.ts (2)
+11 entries improved or are gone: run with --update to lower the debt list.
+Error gate (WARN mode): 24 new or worse entries. Not failing the build yet; fix them or use a named idiom.
+exit=0

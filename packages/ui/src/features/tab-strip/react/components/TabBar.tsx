@@ -1,6 +1,6 @@
 import { TabStripFrame } from "./TabStripFrame.js";
 import type { ReactNode } from "react";
-import { agentHandle } from "@jini-ai/agentic";
+import { agentHandle } from "@jini-ai/core/agent-handles";
 import { resolveTabBarTabIndex, tabHandleProps, useActiveTabInView, useTabBarKeyboard } from "./TabBar.hooks.js";
 
 /**
@@ -54,6 +54,8 @@ export interface TabBarProps {
   ariaLabel: string;
   /** Publishes the tablist container itself as agent-addressable. Omit to leave it untagged. */
   containerHandle?: string | undefined;
+  useTabBarKeyboardHook?: typeof useTabBarKeyboard;
+  useActiveTabInViewHook?: typeof useActiveTabInView;
 }
 
 /** The visually-hidden accessible-name SUFFIX {@link TabBarTab.dot} adds — e.g. "GitHub Pages,
@@ -118,9 +120,17 @@ function TabBarButton({
 }
 
 /** Controlled button-based selection strip, including roving focus and optional agent handles. */
-export function TabBar({ tabs, activeId, onChange, ariaLabel, containerHandle }: TabBarProps, _optional: Record<string, never> = {}) {
-  const { onKeyDown } = useTabBarKeyboard({ tabs: tabs, activeId: activeId, onChange: onChange });
-  const stripRef = useActiveTabInView({ activeId: activeId });
+export function TabBar({
+  tabs,
+  activeId,
+  onChange,
+  ariaLabel,
+  containerHandle,
+  useTabBarKeyboardHook = useTabBarKeyboard,
+  useActiveTabInViewHook = useActiveTabInView,
+}: TabBarProps) {
+  const { onKeyDown } = useTabBarKeyboardHook({ tabs: tabs, activeId: activeId, onChange: onChange });
+  const stripRef = useActiveTabInViewHook({ activeId: activeId });
   return (
     <TabStripFrame
       ref={stripRef}

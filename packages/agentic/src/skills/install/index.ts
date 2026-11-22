@@ -6,6 +6,7 @@ export * from "./state.js";
 export * from "./install-service.js";
 export * from "./layout.js";
 export * from "./live-registration.js";
+export * from "./tool-registry-live-registration.js";
 export * from "./fetch-adapter.js";
 export * from "./node-filesystem.js";
 export * from "./yauzl-archive-reader.js";

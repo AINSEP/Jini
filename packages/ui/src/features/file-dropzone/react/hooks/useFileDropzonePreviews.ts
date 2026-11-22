@@ -39,7 +39,7 @@ export function useFileDropzonePreviews(files: readonly File[]): FileDropzonePre
   useEffect(() => {
     const next = new Map<File, string>();
     for (const file of files) {
-      if (!fileDropzoneNeedsObjectUrl(fileDropzoneKind(file))) continue;
+      if (!fileDropzoneNeedsObjectUrl({ kind: fileDropzoneKind(file) })) continue;
       const url = createPreviewUrl(file);
       if (url) next.set(file, url);
     }
@@ -64,7 +64,7 @@ export function useFileDropzonePreviews(files: readonly File[]): FileDropzonePre
       if (fileDropzoneKind(file) !== 'font') return;
       const url = previewUrls.get(file);
       if (!url) return;
-      const family = fileDropzoneFontFamilyName(file, index);
+      const family = fileDropzoneFontFamilyName({ file, index });
       try {
         const face = new FontFace(family, `url(${url})`);
         registered.push(face);

@@ -1,14 +1,15 @@
-import type { Server } from 'node:http';
-import type { AddressInfo } from 'node:net';
-import express from 'express';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { isLocalSameOrigin } from '@jini-ai/core';
+import { reportRouteInternalError } from '@jini-ai/http-kit';
+import { describe, expect, it, vi } from 'vitest';
+import { denyAllOrigins } from '@jini-ai/core/contracts/server/testing';
+import { fakeDaemonRouteHost } from './fakes/route-host.js';
+import { jsonRequest, serveRoutes } from './fakes/serve-routes.js';
+import { describeRoutes } from '../route-table.js';
 import {
   mediaGenerateRoute,
   mediaTaskDeleteRoute,
   mediaTaskGetRoute,
   mediaTaskListRoute,
-  registerMediaRoutes,
+  mediaRoutes,
   type MediaHttpDeps,
 } from '../media.js';
 
@@ -85,37 +86,6 @@ function createInMemoryMediaTaskStore(): MediaTaskStore {
   };
 }
 
-vi.mock('@jini-ai/core', async (importOriginal) => ({
-  ...await importOriginal<typeof import('@jini-ai/core')>(),
-  isLocalSameOrigin: vi.fn(() => true),
-}));
-
-interface MockApp {
-  get: (path: string, handler: any) => void;
-  post: (path: string, handler: any) => void;
-  put: (path: string, handler: any) => void;
-  delete: (path: string, handler: any) => void;
-  patch: (path: string, handler: any) => void;
-  handlers: Record<string, (req: any, res: any) => Promise<void> | void>;
-}
-
-function makeApp(): MockApp {
-  const handlers: MockApp['handlers'] = {};
-  const make = (method: string) => (path: string, handler: any) => {
-    handlers[`${method.toUpperCase()} ${path}`] = handler;
-  };
-  return { get: make('get'), post: make('post'), put: make('put'), delete: make('delete'), patch: make('patch'), handlers };
-}
-
-function makeJsonRes() {
-  return {
-    status: vi.fn().mockReturnThis(),
-    json: vi.fn().mockReturnThis(),
-  };
-}
-
-const adapter = { allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST', env: {}, resolvedPortRef: { current: 7456 } };
-
 function fakeResult(overrides: Partial<MediaGenerationResult> = {}): MediaGenerationResult {
   return {
     bytes: Buffer.from('hello'),
@@ -133,15 +103,12 @@ function makeEngine(generate: MediaDispatchEngine['generate']): MediaDispatchEng
 
 function makeDeps(overrides: Partial<MediaHttpDeps> = {}): MediaHttpDeps {
   return {
+    reportInternalError: reportRouteInternalError,
     engine: makeEngine(async () => fakeResult()),
     taskStore: createInMemoryMediaTaskStore(),
     ...overrides,
   };
 }
-
-beforeEach(() => {
-  vi.mocked(isLocalSameOrigin).mockReturnValue(true);
-});
 
 describe('mediaGenerateRoute.parse', () => {
   it('rejects a non-object body', () => {
@@ -420,7 +387,7 @@ describe('mediaGenerateRoute.handle', () => {
       expect(task?.status).toBe('failed');
     });
     const task = await deps.taskStore.get({ id: taskId });
-    expect(task?.error).toEqual({ message: 'an internal error occurred', code: 'INTERNAL_ERROR' });
+    expect(task?.error).toEqual({ message: 'The media could not be generated. Try again; if it keeps failing, copy the request ID and report this problem.', code: 'INTERNAL_ERROR' });
     expect(onInternalError).toHaveBeenCalledTimes(1);
     const context = onInternalError.mock.calls[0]![0];
     expect(context.source).toBe('media-generate-dispatch');
@@ -444,7 +411,7 @@ describe('mediaGenerateRoute.handle', () => {
     const result = await mediaGenerateRoute.handle({ input: { ownerRef: 'owner-1', request: { surface: 'image', model: 'm' } }, deps });
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      expect(result.error).toEqual({ code: 'INTERNAL_ERROR', message: 'an internal error occurred', requestId: expect.any(String) });
+      expect(result.error).toEqual({ code: 'INTERNAL_ERROR', message: 'The media task could not be read or saved. Reload to check the task; if it keeps failing, copy the request ID and report this problem.', requestId: expect.any(String) });
     }
     const context = onInternalError.mock.calls[0]![0];
     expect(context.source).toBe('media-task-store');
@@ -514,6 +481,9 @@ describe('mediaGenerateRoute.handle', () => {
       expect(task?.status).toBe('failed');
     });
     expect(consoleErrorSpy).toHaveBeenCalledTimes(1);
+    expect(consoleErrorSpy.mock.calls[0]?.[0]).toMatch(/^\[@jini-ai\/http-kit\] internal error \(media-generate-dispatch, correlationId=[0-9a-f-]{36}\)$/);
+    expect(consoleErrorSpy.mock.calls[0]?.[1]).toBe('Error');
+    expect(JSON.stringify(consoleErrorSpy.mock.calls)).not.toContain('boom');
     consoleErrorSpy.mockRestore();
   });
 });
@@ -560,7 +530,7 @@ describe('mediaTaskGetRoute.handle', () => {
     const result = await mediaTaskGetRoute.handle({ input: 't1', deps });
     expect(result).toEqual({
       ok: false,
-      error: { code: 'INTERNAL_ERROR', message: 'an internal error occurred', requestId: expect.any(String) },
+      error: { code: 'INTERNAL_ERROR', message: 'The media task could not be read or saved. Reload to check the task; if it keeps failing, copy the request ID and report this problem.', requestId: expect.any(String) },
     });
     expect(JSON.stringify(result)).not.toContain('/private/jini.sqlite');
     expect(onInternalError).toHaveBeenCalledWith(
@@ -601,7 +571,7 @@ describe('mediaTaskDeleteRoute.handle', () => {
     const result = await mediaTaskDeleteRoute.handle({ input: 't1', deps });
     expect(result).toEqual({
       ok: false,
-      error: { code: 'INTERNAL_ERROR', message: 'an internal error occurred', requestId: expect.any(String) },
+      error: { code: 'INTERNAL_ERROR', message: 'The media task could not be read or saved. Reload to check the task; if it keeps failing, copy the request ID and report this problem.', requestId: expect.any(String) },
     });
     expect(JSON.stringify(result)).not.toContain('/private/tasks.db');
     expect(onInternalError).toHaveBeenCalledWith(
@@ -687,7 +657,7 @@ describe('mediaTaskListRoute.handle', () => {
     const result = await mediaTaskListRoute.handle({ input: { ownerRef: 'owner-1', options: {} }, deps });
     expect(result).toEqual({
       ok: false,
-      error: { code: 'INTERNAL_ERROR', message: 'an internal error occurred', requestId: expect.any(String) },
+      error: { code: 'INTERNAL_ERROR', message: 'The media task could not be read or saved. Reload to check the task; if it keeps failing, copy the request ID and report this problem.', requestId: expect.any(String) },
     });
     expect(JSON.stringify(result)).not.toContain('/private/tasks.db');
     expect(onInternalError).toHaveBeenCalledWith(
@@ -696,150 +666,91 @@ describe('mediaTaskListRoute.handle', () => {
   });
 });
 
-describe('registerMediaRoutes', () => {
-  it('mounts exactly the four media routes', () => {
-    const app = makeApp();
-    registerMediaRoutes({ app: app as any, deps: makeDeps(), adapter });
-    expect(Object.keys(app.handlers).sort()).toEqual(
-      ['POST /api/media/generate', 'GET /api/media/tasks/:id', 'DELETE /api/media/tasks/:id', 'GET /api/media/tasks'].sort(),
-    );
+describe('mediaRoutes', () => {
+  const serve = ({ deps, denyOrigins = false }: { deps: MediaHttpDeps; denyOrigins?: boolean }) =>
+    serveRoutes({ routes: mediaRoutes({ deps, host: fakeDaemonRouteHost({}, denyOrigins ? { originPolicy: denyAllOrigins } : {}) }) });
+  const send = async ({ deps, method, path, body, denyOrigins = false }: { deps: MediaHttpDeps; method: string; path: string; body?: unknown; denyOrigins?: boolean }) => {
+    const response = await serve({ deps, denyOrigins })(jsonRequest({ path, method }, { body }));
+    return { status: response.status, body: await response.json() as unknown };
+  };
+
+  it('lists exactly the four media routes; generate and delete are behind the same-origin gate, get and list are not', () => {
+    expect(describeRoutes({ routes: mediaRoutes({ deps: makeDeps(), host: fakeDaemonRouteHost() }) })).toEqual([
+      { method: 'POST', path: '/api/media/generate', gates: ['same-origin'] },
+      { method: 'GET', path: '/api/media/tasks/:id', gates: [] },
+      { method: 'DELETE', path: '/api/media/tasks/:id', gates: ['same-origin'] },
+      { method: 'GET', path: '/api/media/tasks', gates: [] },
+    ]);
   });
 
-  it('requires same-origin for generate: blocks a cross-origin request with 403', async () => {
-    vi.mocked(isLocalSameOrigin).mockReturnValue(false);
-    const app = makeApp();
-    registerMediaRoutes({ app: app as any, deps: makeDeps(), adapter });
-    const res = makeJsonRes();
-    await app.handlers['POST /api/media/generate']!({ body: { ownerRef: 'r1', surface: 'image', model: 'm' }, query: {}, params: {} }, res);
-    expect(res.status).toHaveBeenCalledWith(403);
+  it('requires same-origin for generate: blocks a cross-origin request with 403 before the task store is ever called', async () => {
+    const taskStore = createInMemoryMediaTaskStore();
+    const createSpy = vi.spyOn(taskStore, 'create');
+    const response = await send({ deps: makeDeps({ taskStore }), method: 'POST', path: '/api/media/generate', body: { ownerRef: 'r1', surface: 'image', model: 'm1' }, denyOrigins: true });
+    expect(response.status).toBe(403);
+    expect(createSpy).not.toHaveBeenCalled();
   });
 
   it('requires same-origin for delete: blocks a cross-origin request with 403', async () => {
-    vi.mocked(isLocalSameOrigin).mockReturnValue(false);
-    const app = makeApp();
-    registerMediaRoutes({ app: app as any, deps: makeDeps(), adapter });
-    const res = makeJsonRes();
-    await app.handlers['DELETE /api/media/tasks/:id']!({ body: undefined, query: {}, params: { id: 't1' } }, res);
-    expect(res.status).toHaveBeenCalledWith(403);
+    expect((await send({ deps: makeDeps(), method: 'DELETE', path: '/api/media/tasks/t1', denyOrigins: true })).status).toBe(403);
   });
 
   it('does not require same-origin for get/list', async () => {
-    vi.mocked(isLocalSameOrigin).mockReturnValue(false);
-    const app = makeApp();
     const deps = makeDeps();
-    registerMediaRoutes({ app: app as any, deps, adapter });
-    const res1 = makeJsonRes();
-    await app.handlers['GET /api/media/tasks/:id']!({ body: undefined, query: {}, params: { id: 'nope' } }, res1);
-    expect(res1.status).toHaveBeenCalledWith(404);
-    const res2 = makeJsonRes();
-    await app.handlers['GET /api/media/tasks']!({ body: undefined, query: { ownerRef: 'r1' }, params: {} }, res2);
-    expect(res2.status).toHaveBeenCalledWith(200);
+    expect((await send({ deps, method: 'GET', path: '/api/media/tasks/nope', denyOrigins: true })).status).toBe(404);
+    expect((await send({ deps, method: 'GET', path: '/api/media/tasks?ownerRef=r1', denyOrigins: true })).status).toBe(200);
   });
 
-  it('mounted POST /api/media/generate returns 202 with the queued task through the real Adapter pipeline', async () => {
-    const app = makeApp();
-    const deps = makeDeps();
-    registerMediaRoutes({ app: app as any, deps, adapter });
-    const res = makeJsonRes();
-    await app.handlers['POST /api/media/generate']!({ body: { ownerRef: 'r1', surface: 'image', model: 'm' }, query: {}, params: {} }, res);
-    expect(res.status).toHaveBeenCalledWith(202);
-    const [body] = res.json.mock.calls[0]!;
-    expect(body.task).toMatchObject({ ownerRef: 'r1', status: 'queued' });
-  });
-});
-
-/**
- * Real Express server on a real socket. Every test above drives a route's `handle`/`parse` directly
- * or a handler-capturing `MockApp` stub — neither actually resolves an Express path, feeds a spec's
- * `parse` a body Express itself parsed from real JSON bytes, or reads a query string the way
- * `req.query` really shapes one (a repeated/boolean-like `includeTerminal=true` string). This block
- * is the only place `registerMediaRoutes` is exercised as a listening server: it proves all four
- * mounted paths route correctly (the three verbs on `/api/media/tasks/:id` plus the sibling
- * `/api/media/tasks` list), that the declared `202`/`200`/`404` status codes reach the wire, and
- * that a real cross-origin `fetch` is rejected before the task store is ever touched.
- */
-describe('registerMediaRoutes — real Express server on a real socket', () => {
-  const servers: Server[] = [];
-  const adapterRef = { allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST', env: {}, resolvedPortRef: { current: 0 } };
-
-  afterEach(() => {
-    for (const server of servers.splice(0)) server.close();
-  });
-
-  async function listen(deps: MediaHttpDeps): Promise<string> {
-    const app = express();
-    app.use(express.json());
-    registerMediaRoutes({ app: app as never, deps, adapter: adapterRef as never });
-    const server = await new Promise<Server>((resolve) => {
-      const s = app.listen(0, '127.0.0.1', () => resolve(s));
-    });
-    servers.push(server);
-    adapterRef.resolvedPortRef.current = (server.address() as AddressInfo).port;
-    return `http://127.0.0.1:${adapterRef.resolvedPortRef.current}`;
-  }
-
-  async function send(base: string, method: string, routePath: string, body?: unknown, origin = base) {
-    const response = await fetch(`${base}${routePath}`, {
-      method,
-      headers: { 'content-type': 'application/json', origin },
-      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-    });
-    return { status: response.status, body: await response.json() };
-  }
-
-  it('serves POST /api/media/generate end to end, returning the freshly-queued task through the real Adapter pipeline', async () => {
-    const base = await listen(makeDeps());
-    const result = await send(base, 'POST', '/api/media/generate', { ownerRef: 'r1', surface: 'image', model: 'm1' });
+  it('serves POST /api/media/generate end to end, returning the freshly-queued task with 202', async () => {
+    const result = await send({ deps: makeDeps(), method: 'POST', path: '/api/media/generate', body: { ownerRef: 'r1', surface: 'image', model: 'm1' } });
     expect(result.status).toBe(202);
-    expect((result.body as { task: Record<string, unknown> }).task).toMatchObject({
-      ownerRef: 'r1',
-      status: 'queued',
-      surface: 'image',
-      model: 'm1',
-    });
+    expect((result.body as { task: Record<string, unknown> }).task).toMatchObject({ ownerRef: 'r1', status: 'queued', surface: 'image', model: 'm1' });
   });
 
-  it('serves GET then DELETE /api/media/tasks/:id end to end against the real task store, then 404s the deleted id', async () => {
+  it('serves GET then DELETE /api/media/tasks/:id against the real task store, then 404s the deleted id', async () => {
     const taskStore = createInMemoryMediaTaskStore();
-    const base = await listen(makeDeps({ taskStore }));
+    const deps = makeDeps({ taskStore });
     const created = await taskStore.create({ input: { id: 't1', ownerRef: 'r1', status: 'done' } });
 
-    expect(await send(base, 'GET', '/api/media/tasks/t1')).toEqual({ status: 200, body: { task: created } });
-    expect(await send(base, 'DELETE', '/api/media/tasks/t1')).toEqual({ status: 200, body: { ok: true } });
-    expect(await send(base, 'GET', '/api/media/tasks/t1')).toEqual({
+    expect(await send({ deps, method: 'GET', path: '/api/media/tasks/t1' })).toEqual({ status: 200, body: { task: created } });
+    expect(await send({ deps, method: 'DELETE', path: '/api/media/tasks/t1' })).toEqual({ status: 200, body: { ok: true } });
+    expect(await send({ deps, method: 'GET', path: '/api/media/tasks/t1' })).toEqual({
       status: 404,
       body: { error: { code: 'NOT_FOUND', message: 'media task not found' } },
     });
   });
 
-  it('serves GET /api/media/tasks end to end, scoped by the real ownerRef query string and excluding terminal tasks unless includeTerminal=true', async () => {
+  it('serves GET /api/media/tasks scoped by the ownerRef query string and excluding terminal tasks unless includeTerminal=true', async () => {
     const taskStore = createInMemoryMediaTaskStore();
-    const base = await listen(makeDeps({ taskStore }));
+    const deps = makeDeps({ taskStore });
     await taskStore.create({ input: { id: 'queued-1', ownerRef: 'r1', status: 'queued' } });
     await taskStore.create({ input: { id: 'done-1', ownerRef: 'r1', status: 'done' } });
     await taskStore.create({ input: { id: 'other-owner', ownerRef: 'r2', status: 'queued' } });
 
-    const active = await send(base, 'GET', '/api/media/tasks?ownerRef=r1');
+    const active = await send({ deps, method: 'GET', path: '/api/media/tasks?ownerRef=r1' });
     expect(active.status).toBe(200);
     expect((active.body as { tasks: { id: string }[] }).tasks.map((task) => task.id)).toEqual(['queued-1']);
 
-    const all = await send(base, 'GET', '/api/media/tasks?ownerRef=r1&includeTerminal=true');
+    const all = await send({ deps, method: 'GET', path: '/api/media/tasks?ownerRef=r1&includeTerminal=true' });
     expect((all.body as { tasks: { id: string }[] }).tasks.map((task) => task.id).sort()).toEqual(['done-1', 'queued-1']);
   });
 
-  it('rejects a cross-origin generate request with 403 before the task store is ever called', async () => {
-    vi.mocked(isLocalSameOrigin).mockReturnValue(false);
+  it("reports a task-store failure through the host's reporter", async () => {
     const taskStore = createInMemoryMediaTaskStore();
-    const createSpy = vi.spyOn(taskStore, 'create');
-    const base = await listen(makeDeps({ taskStore }));
-    const response = await send(
-      base,
-      'POST',
-      '/api/media/generate',
-      { ownerRef: 'r1', surface: 'image', model: 'm1' },
-      'http://evil.example.com',
-    );
-    expect(response.status).toBe(403);
-    expect(createSpy).not.toHaveBeenCalled();
+    vi.spyOn(taskStore, 'get').mockRejectedValueOnce(new Error('disk gone'));
+    const host = fakeDaemonRouteHost();
+    const response = await serveRoutes({ routes: mediaRoutes({ deps: makeDeps({ taskStore }), host }) })(jsonRequest({ path: '/api/media/tasks/t1' }));
+    expect([response.status, host.reports.map((report) => report.logSource)]).toEqual([500, ['media-task-store']]);
   });
+});
+
+it('keeps task and owner context in the injected store-failure reporter', async () => {
+  const host = fakeDaemonRouteHost();
+  const failure = new Error('private media store');
+  const deps = makeDeps({ reportInternalError: host.reportInternalError, taskStore: {
+    ...createInMemoryMediaTaskStore(), create: async () => { throw failure; },
+  } });
+  const result = await mediaGenerateRoute.handle({ input: { ownerRef: 'owner-1', request: { surface: 'image', model: 'm' } }, deps });
+  expect(result).toMatchObject({ ok: false, error: { code: 'INTERNAL_ERROR', requestId: 'req-1' } });
+  expect(host.reports[0]).toMatchObject({ report: { source: 'media-task-store', taskId: null, ownerRef: 'owner-1', error: failure } });
 });

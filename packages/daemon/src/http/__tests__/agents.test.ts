@@ -1,37 +1,15 @@
 import { describe, expect, it, vi } from 'vitest';
-import { isLocalSameOrigin } from '@jini-ai/core';
+import { createInMemoryServer, denyAllOrigins } from '@jini-ai/core/contracts/server/testing';
+import { fakeDaemonRouteHost } from './fakes/route-host.js';
+import { describeRoutes } from '../route-table.js';
 import {
   agentListRoute,
   agentRescanRoute,
-  registerAgentRoutes,
+  agentRoutes,
   type AgentsHttpDeps,
   type AgentSummary,
 } from '../agents.js';
 
-vi.mock('@jini-ai/core', async (importOriginal) => ({
-  ...await importOriginal<typeof import('@jini-ai/core')>(),
-  isLocalSameOrigin: vi.fn(() => true),
-}));
-
-interface MockApp {
-  get: (path: string, handler: any) => void;
-  post: (path: string, handler: any) => void;
-  handlers: Record<string, (req: any, res: any) => Promise<void> | void>;
-}
-
-function makeApp(): MockApp {
-  const handlers: MockApp['handlers'] = {};
-  const make = (method: string) => (path: string, handler: any) => {
-    handlers[`${method.toUpperCase()} ${path}`] = handler;
-  };
-  return { get: make('get'), post: make('post'), handlers };
-}
-
-function makeRes() {
-  return { status: vi.fn().mockReturnThis(), json: vi.fn().mockReturnThis() };
-}
-
-const adapter = { allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST', env: {}, resolvedPortRef: { current: 7456 } };
 const AGENTS: readonly AgentSummary[] = [
   {
     id: 'claude',
@@ -101,58 +79,42 @@ describe('agentRescanRoute', () => {
   });
 });
 
-describe('registerAgentRoutes', () => {
-  it('mounts the agent inventory and rescan routes', () => {
-    const app = makeApp();
-    registerAgentRoutes({ app: app as any, deps: makeDeps(), adapter });
-    expect(Object.keys(app.handlers)).toEqual(['GET /api/agents', 'POST /api/agents/rescan']);
+/** The two routes on an in-memory server (exact matching: the Express spellings are the host bridge's job). */
+function serve(deps: AgentsHttpDeps, { denyOrigins = false }: { denyOrigins?: boolean } = {}) {
+  const host = fakeDaemonRouteHost({}, denyOrigins ? { originPolicy: denyAllOrigins } : {});
+  const { server, fetch } = createInMemoryServer();
+  for (const route of agentRoutes({ deps, host })) server.route(route);
+  return fetch;
+}
+
+describe('agentRoutes', () => {
+  it('lists the inventory and rescan routes in order; only the rescan sits behind the same-origin gate', () => {
+    expect(describeRoutes({ routes: agentRoutes({ deps: makeDeps(), host: fakeDaemonRouteHost() }) })).toEqual([
+      { method: 'GET', path: '/api/agents', gates: [] },
+      { method: 'POST', path: '/api/agents/rescan', gates: ['same-origin'] },
+    ]);
   });
 
-  it('serves the injected agent list end-to-end through the mounted handler', async () => {
-    const app = makeApp();
-    registerAgentRoutes({ app: app as any, deps: makeDeps(), adapter });
-    const res = makeRes();
-    await app.handlers['GET /api/agents']!({ body: {}, query: {}, params: {} }, res);
-    expect(res.status).toHaveBeenCalledWith(200);
-    expect(res.json).toHaveBeenCalledWith({ agents: AGENTS });
+  it('serves the injected agent list end-to-end', async () => {
+    const response = await serve(makeDeps())(new Request('http://local/api/agents'));
+    expect([response.status, await response.json()]).toEqual([200, { agents: AGENTS }]);
   });
 
   it('does not require same-origin: allows a cross-origin read', async () => {
-    vi.mocked(isLocalSameOrigin).mockReturnValue(false);
-    try {
-      const app = makeApp();
-      registerAgentRoutes({ app: app as any, deps: makeDeps(), adapter });
-      const res = makeRes();
-      await app.handlers['GET /api/agents']!({ body: {}, query: {}, params: {} }, res);
-      expect(res.status).toHaveBeenCalledWith(200);
-    } finally {
-      vi.mocked(isLocalSameOrigin).mockReturnValue(true);
-    }
+    const response = await serve(makeDeps(), { denyOrigins: true })(new Request('http://local/api/agents'));
+    expect(response.status).toBe(200);
   });
 
   // The rescan route was previously only ever driven through its 403 path, so its own `parse` (and
   // therefore the mounted happy path a host actually calls) was never executed.
-  it('triggers a real rescan and returns the refreshed inventory through the mounted handler', async () => {
+  it('triggers a real rescan and returns the refreshed inventory', async () => {
     const rescanAgents = vi.fn(async () => AGENTS);
-    const app = makeApp();
-    registerAgentRoutes({ app: app as any, deps: makeDeps({ rescanAgents }), adapter });
-    const res = makeRes();
-    await app.handlers['POST /api/agents/rescan']!({ body: {}, query: {}, params: {} }, res);
-    expect(rescanAgents).toHaveBeenCalledTimes(1);
-    expect(res.status).toHaveBeenCalledWith(200);
-    expect(res.json).toHaveBeenCalledWith({ agents: AGENTS });
+    const response = await serve(makeDeps({ rescanAgents }))(new Request('http://local/api/agents/rescan', { method: 'POST' }));
+    expect([rescanAgents.mock.calls.length, response.status, await response.json()]).toEqual([1, 200, { agents: AGENTS }]);
   });
 
   it('requires same-origin for a rescan', async () => {
-    vi.mocked(isLocalSameOrigin).mockReturnValue(false);
-    try {
-      const app = makeApp();
-      registerAgentRoutes({ app: app as any, deps: makeDeps(), adapter });
-      const res = makeRes();
-      await app.handlers['POST /api/agents/rescan']!({ body: {}, query: {}, params: {} }, res);
-      expect(res.status).toHaveBeenCalledWith(403);
-    } finally {
-      vi.mocked(isLocalSameOrigin).mockReturnValue(true);
-    }
+    const response = await serve(makeDeps(), { denyOrigins: true })(new Request('http://local/api/agents/rescan', { method: 'POST' }));
+    expect(response.status).toBe(403);
   });
 });

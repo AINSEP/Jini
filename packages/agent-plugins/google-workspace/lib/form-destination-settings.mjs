@@ -11,7 +11,7 @@
  */
 import { CONNECTION_ID } from './surface-actions.mjs';
 
-/** This plugin's form-destination adapter id (`tovu-form-destinations.json`). */
+/** This plugin's form-destination adapter id (`jini-form-destinations.json`). */
 export const SHEETS_ADAPTER_ID = 'google-sheets';
 export const MAX_FORM_DESTINATIONS = 50;
 

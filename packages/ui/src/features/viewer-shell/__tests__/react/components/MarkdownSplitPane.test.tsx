@@ -1,8 +1,11 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { I18nProvider } from '../../../../i18n/index.js';
-import { MarkdownSplitPane } from '../../../react/components/MarkdownSplitPane.js';
+import { I18nProvider, type useT } from '../../../../i18n/index.js';
+import { MarkdownSplitPane, defaultMarkdownSplitPaneHooks } from '../../../react/components/MarkdownSplitPane.js';
+
+/** A translator that is visibly not the key, so the assertion proves the injected hook ran. */
+const useQuotingT: typeof useT = () => (key) => `«${key}»`;
 
 describe('MarkdownSplitPane', () => {
   it('shows a loading state while previewHtml is null', () => {
@@ -173,6 +176,13 @@ describe('MarkdownSplitPane', () => {
     const modeGroup = screen.getByLabelText('Mode X');
     expect(modeGroup.textContent).toBe('SrcBothView');
     expect(screen.getByRole('textbox', { name: 'Editor X' })).toBeInTheDocument();
-    expect(screen.getByLabelText('Preview X')).toHaveClass('markdown-preview-pane');
+    expect(screen.getByLabelText('Preview X')).toHaveClass('jini-markdown-preview-pane');
+  });
+
+  it('renders the translator supplied through useTHook', () => {
+    render(
+      <MarkdownSplitPane mode="split" onModeChange={() => {}} sourceText="# Hi" onSourceChange={() => {}} previewHtml={null} hooks={{ ...defaultMarkdownSplitPaneHooks, useT: useQuotingT }} />,
+    );
+    expect(screen.getByText('«Loading…»')).toBeInTheDocument();
   });
 });

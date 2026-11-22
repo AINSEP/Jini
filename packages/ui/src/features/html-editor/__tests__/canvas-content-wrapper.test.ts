@@ -25,20 +25,20 @@ function bodyWith(childrenHtml: string): HTMLBodyElement {
 describe('applyCanvasContentWrapper', () => {
   it('does nothing when no chain is supplied', () => {
     const body = bodyWith('<p>hello</p>');
-    applyCanvasContentWrapper(body, undefined);
+    applyCanvasContentWrapper({ body, chain: undefined });
     expect(body.innerHTML).toBe('<p>hello</p>');
   });
 
   it('does nothing for an empty chain', () => {
     const body = bodyWith('<p>hello</p>');
-    applyCanvasContentWrapper(body, []);
+    applyCanvasContentWrapper({ body, chain: [] });
     expect(body.innerHTML).toBe('<p>hello</p>');
   });
 
   it('wraps existing content in a single-level chain, applying its attributes', () => {
     const body = bodyWith('<p>hello</p>');
     const chain: CanvasContentWrapperNode[] = [{ tagName: 'article', attributes: { class: 'post-detail wrap' } }];
-    applyCanvasContentWrapper(body, chain);
+    applyCanvasContentWrapper({ body, chain });
 
     const article = body.querySelector('article');
     expect(article).not.toBeNull();
@@ -53,7 +53,7 @@ describe('applyCanvasContentWrapper', () => {
       { tagName: 'main' },
       { tagName: 'article', attributes: { class: 'post-detail wrap', 'data-reveal': '' } },
     ];
-    applyCanvasContentWrapper(body, chain);
+    applyCanvasContentWrapper({ body, chain });
 
     expect(body.children).toHaveLength(1);
     const main = body.firstElementChild!;
@@ -71,7 +71,7 @@ describe('applyCanvasContentWrapper', () => {
   it('moves the SAME node objects rather than cloning them, preserving identity', () => {
     const body = bodyWith('<p id="x">hello</p>');
     const originalP = body.querySelector('#x');
-    applyCanvasContentWrapper(body, [{ tagName: 'main' }]);
+    applyCanvasContentWrapper({ body, chain: [{ tagName: 'main' }] });
 
     const movedP = body.querySelector('#x');
     expect(movedP).toBe(originalP);
@@ -79,7 +79,7 @@ describe('applyCanvasContentWrapper', () => {
 
   it('preserves the original order of multiple children inside the innermost wrapper', () => {
     const body = bodyWith('<h1>Title</h1><p>One</p><p>Two</p>');
-    applyCanvasContentWrapper(body, [{ tagName: 'article' }]);
+    applyCanvasContentWrapper({ body, chain: [{ tagName: 'article' }] });
 
     const article = body.querySelector('article')!;
     expect(Array.from(article.children).map((el) => el.tagName)).toEqual(['H1', 'P', 'P']);
@@ -88,7 +88,7 @@ describe('applyCanvasContentWrapper', () => {
 
   it('wraps an empty body into an empty (but present) chain structure', () => {
     const body = bodyWith('');
-    applyCanvasContentWrapper(body, [{ tagName: 'main' }, { tagName: 'article' }]);
+    applyCanvasContentWrapper({ body, chain: [{ tagName: 'main' }, { tagName: 'article' }] });
 
     expect(body.querySelector('main article')).not.toBeNull();
     expect(body.querySelector('article')?.innerHTML).toBe('');
@@ -97,8 +97,8 @@ describe('applyCanvasContentWrapper', () => {
   it('is idempotent: a second call against an already-wrapped body does not nest a second copy', () => {
     const body = bodyWith('<p>hello</p>');
     const chain: CanvasContentWrapperNode[] = [{ tagName: 'main' }, { tagName: 'article' }];
-    applyCanvasContentWrapper(body, chain);
-    applyCanvasContentWrapper(body, chain);
+    applyCanvasContentWrapper({ body, chain });
+    applyCanvasContentWrapper({ body, chain });
 
     expect(body.querySelectorAll('main')).toHaveLength(1);
     expect(body.querySelectorAll('article')).toHaveLength(1);
@@ -107,7 +107,7 @@ describe('applyCanvasContentWrapper', () => {
 
   it('moves non-element nodes (e.g. bare text) too, not just elements', () => {
     const body = bodyWith('<p>one</p>loose text');
-    applyCanvasContentWrapper(body, [{ tagName: 'main' }]);
+    applyCanvasContentWrapper({ body, chain: [{ tagName: 'main' }] });
 
     const main = body.querySelector('main')!;
     expect(main.textContent).toBe('oneloose text');

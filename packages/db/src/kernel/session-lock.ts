@@ -1,24 +1,24 @@
 import { sql, type Kysely } from 'kysely';
-import type { StorageKernel } from './port.js';
+import type { KyselyKernel } from './port.js';
 
 interface SessionDatabase { database: Kysely<unknown>; poolMax?: number }
-const databases = new WeakMap<StorageKernel<unknown>, SessionDatabase>();
+const databases = new WeakMap<KyselyKernel<unknown>, SessionDatabase>();
 
 /** Private driver registration, kept separate from run() so the callback owns no transaction scope. */
 export function registerKernelSessionDatabase({ kernel, database, poolMax }: {
-  kernel: StorageKernel<unknown>; database: Kysely<unknown>; poolMax?: number;
+  kernel: KyselyKernel<unknown>; database: Kysely<unknown>; poolMax?: number;
 }, _optional: Record<string, never> = {}): void { databases.set(kernel, { database, ...(poolMax === undefined ? {} : { poolMax }) }); }
 
 /** A schema wrapper uses the same pool and therefore the same database ownership scope. */
 export function inheritKernelSessionDatabase({ from, to }: {
-  from: StorageKernel<unknown>; to: StorageKernel<unknown>;
+  from: KyselyKernel<unknown>; to: KyselyKernel<unknown>;
 }, _optional: Record<string, never> = {}): void {
   const database = databases.get(from);
   if (database) databases.set(to, database);
 }
 
 /** Read the registered pool capacity without reserving a connection; schema wrappers share it. O(1). */
-export function kernelSessionPoolMax({ kernel }: { kernel: StorageKernel<unknown> }, _optional: Record<string, never> = {}): number | undefined {
+export function kernelSessionPoolMax({ kernel }: { kernel: KyselyKernel<unknown> }, _optional: Record<string, never> = {}): number | undefined {
   return databases.get(kernel)?.poolMax;
 }
 
@@ -33,7 +33,7 @@ export function kernelSessionPoolMax({ kernel }: { kernel: StorageKernel<unknown
  * @complexity Two O(1) lock queries and one reserved pool connection for the callback lifetime.
  */
 export async function withKernelSessionLock<T>({ kernel, key, run }: {
-  kernel: StorageKernel<unknown>; key: string; run: (lease: { assertOwned(): Promise<void> }) => Promise<T>;
+  kernel: KyselyKernel<unknown>; key: string; run: (lease: { assertOwned(): Promise<void> }) => Promise<T>;
 }, _optional: Record<string, never> = {}): Promise<{ acquired: false } | { acquired: true; value: T }> {
   if (kernel.transport !== 'node-postgres') throw new Error('A database session lock requires the pooled PostgreSQL transport.');
   if (kernel.inTransaction()) throw new Error('A database session owner cannot start inside a transaction.');

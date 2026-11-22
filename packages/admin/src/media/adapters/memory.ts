@@ -18,16 +18,11 @@ function base64ByteSize({ dataBase64 }: { dataBase64: string }) {
   const padding = dataBase64.length - trimCharsEnd({ text: dataBase64, chars: '=' }).length;
   return Math.max(0, Math.floor(dataBase64.length * 3 / 4) - padding);
 }
-export function createMemoryMediaApi(
-  { assets = [] }: { assets?: readonly MediaAsset[] },
-  { now = () => new Date().toISOString() }: { now?: () => string } = {},
-): MediaApiPort {
+/** Frozen in-memory asset table plus the sequence-backed id/content helpers the fake API shares. */
+function createMemoryMediaStore({ assets }: { assets: readonly MediaAsset[] }) {
   const items = new Map(assets.map((item) => [item.id, Object.freeze({ ...item })]));
   let sequence = 0;
   const nextSequence = () => { sequence += 1; return sequence; };
-  function check(options: MediaRequestOptions) {
-    options.signal?.throwIfAborted();
-  }
   function get(id: string) {
     const item = items.get(id);
     if (!item) throw new Error(`Media not found: ${id}`);
@@ -44,6 +39,45 @@ export function createMemoryMediaApi(
     // so it echoes what the caller declared. Tests needing disagreement must seed assets directly.
     return { byteSize: base64ByteSize(input), contentType: input.contentType, sha256: `memory-content-${nextSequence()}` };
   }
+  function nextFreeId() {
+    let id: string;
+    do {
+      id = `memory-${nextSequence()}`;
+    } while (items.has(id));
+    return id;
+  }
+  return { items, get, put, content, nextFreeId };
+}
+function buildUploadedAsset(
+  { id, input, options, timestamp }: { id: string; input: UploadInput; options: MediaRequestOptions & MediaMetadataPatch; timestamp: string },
+): Omit<MediaAsset, 'byteSize' | 'contentType' | 'sha256'> {
+  return {
+    id,
+    title: input.filename,
+    alt: '',
+    caption: '',
+    credit: '',
+    slug: id,
+    width: null,
+    height: null,
+    cssClass: null,
+    htmlAttributes: null,
+    ...pickMetadata({ patch: options }),
+    status: 'active',
+    publicUrl: null,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+    version: 1,
+  };
+}
+export function createMemoryMediaApi(
+  { assets = [] }: { assets?: readonly MediaAsset[] },
+  { now = () => new Date().toISOString() }: { now?: () => string } = {},
+): MediaApiPort {
+  const { items, get, put, content, nextFreeId } = createMemoryMediaStore({ assets });
+  const check = (options: MediaRequestOptions) => { options.signal?.throwIfAborted(); };
+  const bump = (previous: MediaAsset, patch: Partial<MediaAsset>) =>
+    put({ ...previous, ...patch, version: previous.version + 1, updatedAt: now() });
   return {
     replaceSupported: true,
     restoreSupported: true,
@@ -53,62 +87,26 @@ export function createMemoryMediaApi(
     },
     async upload(input, options = {}) {
       check(options);
-      let id: string;
-      do {
-        id = `memory-${nextSequence()}`;
-      } while (items.has(id));
-      const timestamp = now();
-      return put({
-        id,
-        title: input.filename,
-        alt: '',
-        caption: '',
-        credit: '',
-        slug: id,
-        width: null,
-        height: null,
-        cssClass: null,
-        htmlAttributes: null,
-        ...pickMetadata({ patch: options }),
-        status: 'active',
-        publicUrl: null,
-        createdAt: timestamp,
-        updatedAt: timestamp,
-        version: 1,
-        ...content(input),
-      });
+      const id = nextFreeId();
+      return put({ ...buildUploadedAsset({ id, input, options, timestamp: now() }), ...content(input) });
     },
     async update({ id, patch }, options = {}) {
       check(options);
-      const previous = get(id);
-      return put({ ...previous, ...pickMetadata({ patch }), version: previous.version + 1, updatedAt: now() });
+      return bump(get(id), pickMetadata({ patch }));
     },
     async replace({ id, upload }, options = {}) {
       check(options);
       const previous = get(id);
       if (previous.status !== 'active') throw new Error(`Cannot replace trashed media: ${id} (restore it first)`);
-      return put({
-        ...previous,
-        ...content(upload),
-        version: previous.version + 1,
-        updatedAt: now(),
-      });
+      return bump(previous, content(upload));
     },
     async trash({ id }, options = {}) {
       check(options);
-      const previous = get(id);
-      return put({
-        ...previous,
-        status: 'trashed',
-        publicUrl: null,
-        version: previous.version + 1,
-        updatedAt: now(),
-      });
+      return bump(get(id), { status: 'trashed', publicUrl: null });
     },
     async restore({ id }, options = {}) {
       check(options);
-      const previous = get(id);
-      return put({ ...previous, status: 'active', version: previous.version + 1, updatedAt: now() });
+      return bump(get(id), { status: 'active' });
     },
     async delete({ id }, options = {}) {
       check(options);

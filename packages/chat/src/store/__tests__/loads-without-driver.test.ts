@@ -38,15 +38,17 @@ beforeAll(()=>{
   const dir=join(root,name);dirs[name]=dir;mkdirSync(dir,{recursive:true});writeFileSync(join(dir,'package.json'),JSON.stringify({type:'module'}));const dest=join(dir,'node_modules/@jini-ai/chat');mkdirSync(dest,{recursive:true});
   execFileSync('tar',['-xzf',join(root,pack),'-C',dest,'--strip-components','1']);
   // Optional peers are installed per entry: store is peer-free, while core and SQL redact via diagnostics.
+  // The neutral store's declarations import core's `list-page` types, so core is installed for every entry.
+  copyPackage('@jini-ai/core',join(packageRoot,'../core'),dir);
   if(name!=='store'){
-   copyPackage('@jini-ai/core',join(packageRoot,'../core'),dir);
    // 24d45ab9 added a declared tokenizer dependency; isolated installs need its runtime closure.
    copyRuntimeTree('@jini-ai/diagnostics',join(packageRoot,'../diagnostics'),dir);
   }
   if(name==='neutral'){
-   // Core's A2UI activity projection owns this peer closure; SQL stores must not need it.
-   copyPackage('@jini-ai/agentic',join(packageRoot,'../agentic'),dir);
-   copyRuntimeTree('zod',join(packageRoot,'../agentic/node_modules/zod'),dir);
+   // Core's A2UI activity projection owns this closure; SQL stores must not need it. Wave B moved
+   // the A2UI surface readers from @jini-ai/agentic/a2ui to @jini-ai/protocol/a2ui (now a required
+   // chat dependency), so core needs protocol and its zod, not agentic.
+   copyRuntimeTree('@jini-ai/protocol',join(packageRoot,'../protocol'),dir);
   }else if(name!=='store'){
    copyPackage('@jini-ai/db',dbRoot,dir);copyPackage('kysely',join(dbRoot,'node_modules/kysely'),dir);
   }
@@ -88,12 +90,12 @@ it('SQLite packed consumer needs only the injected SQLite driver, core, diagnost
  // Copy the installed driver's declared dependency tree, not an older version's dependency list.
  const dir=dirs.sqlite!;const sqliteRoot=realpathSync(join(dbRoot,'node_modules/better-sqlite3'));
  copyRuntimeTree('better-sqlite3',sqliteRoot,dir);
- const result=run(dir,`import Database from 'better-sqlite3';import {sqliteKernel} from '@jini-ai/db/kernel/sqlite';import {ensureChatHistoryTables,createSqliteChatStore} from '@jini-ai/chat/store/sqlite';const db=new Database(':memory:');db.pragma('foreign_keys=ON');ensureChatHistoryTables({db});const s=createSqliteChatStore({kernel:sqliteKernel(db),scope:{scopeId:'s',ownerKind:'user',ownerId:'u'}});await s.create({id:'c'});await s.appendMessage({ conversationId: 'c', message: {id:'m',role:'user',content:'hello'} });console.log(JSON.stringify((await s.pageMessages({conversationId:'c'})).items.map(m=>m.content)));db.close();`);
+ const result=run(dir,`import Database from 'better-sqlite3';import {sqliteKernel} from '@jini-ai/db/kernel/sqlite';import {ensureChatHistoryTables,createSqliteChatStore} from '@jini-ai/chat/store/sqlite';const db=new Database(':memory:');db.pragma('foreign_keys=ON');ensureChatHistoryTables({db});const s=createSqliteChatStore({clock:{nowMs:()=>Date.now()},kernel:sqliteKernel({ source: db }),scope:{scopeId:'s',ownerKind:'user',ownerId:'u'}});await s.create({id:'c'});await s.appendMessage({ conversationId: 'c', message: {id:'m',role:'user',content:'hello'} });console.log(JSON.stringify((await s.pageMessages({conversationId:'c'})).items.map(m=>m.content)));db.close();`);
  expect(result.stderr).toBe('');expect(result.status).toBe(0);expect(JSON.parse(result.stdout)).toEqual(['hello']);
 });
 it('PGlite packed consumer runs without SQLite, pg or React',()=>{
  const dir=dirs.pglite!;copyPackage('@electric-sql/pglite',join(dbRoot,'node_modules/@electric-sql/pglite'),dir);
- const result=run(dir,`import {PGlite} from '@electric-sql/pglite';import {openPgliteKernel} from '@jini-ai/db/kernel/pglite';import {createPgliteChatStore} from '@jini-ai/chat/store/pglite';import {sql} from 'kysely';const k=openPgliteKernel({PGlite});for(const stmt of ${JSON.stringify(readFileSync(join(packageRoot,'src/store/__tests__/pg-schema.sql'),'utf8'))}.split(';').map(s=>s.trim()).filter(Boolean))await k.execute(sql.raw(stmt));const s=createPgliteChatStore({kernel:k,scope:{scopeId:'s',ownerKind:'user',ownerId:'u'}});await s.create({id:'c'});console.log(JSON.stringify((await s.pageConversations({})).items.map(c=>c.id)));await k.close();`);
+ const result=run(dir,`import {PGlite} from '@electric-sql/pglite';import {openPgliteKernel} from '@jini-ai/db/kernel/pglite';import {createPgliteChatStore} from '@jini-ai/chat/store/pglite';import {sql} from 'kysely';const k=openPgliteKernel({PGlite});for(const stmt of ${JSON.stringify(readFileSync(join(packageRoot,'src/store/__tests__/pg-schema.sql'),'utf8'))}.split(';').map(s=>s.trim()).filter(Boolean))await k.execute(sql.raw(stmt));const s=createPgliteChatStore({clock:{nowMs:()=>Date.now()},kernel:k,scope:{scopeId:'s',ownerKind:'user',ownerId:'u'}});await s.create({id:'c'});console.log(JSON.stringify((await s.pageConversations({})).items.map(c=>c.id)));await k.close();`);
  expect(result.stderr).toBe('');expect(result.status).toBe(0);expect(JSON.parse(result.stdout)).toEqual(['c']);
  for(const name of ['better-sqlite3','pg','react'])expect(run(dir,`await import(${JSON.stringify(name)})`).status).not.toBe(0);
 });
@@ -104,7 +106,7 @@ it('unavailable SQL adapters fail clearly while neutral and core remain usable',
 });
 it('Postgres packed consumer constructs with injected pg, without SQLite, PGlite or React',()=>{
  const dir=dirs.postgres!;copyRuntimeTree('pg',join(dbRoot,'node_modules/pg'),dir);
- const result=run(dir,`import pg from 'pg';import {openPostgresKernel} from '@jini-ai/db/kernel/postgres';import {createPostgresChatStore} from '@jini-ai/chat/store/postgres';const k=openPostgresKernel({pg});const s=createPostgresChatStore({kernel:k,scope:{scopeId:'s',ownerKind:'user',ownerId:'u'}});console.log(JSON.stringify([k.transport,typeof s.pageConversations]));await k.close();`);
+ const result=run(dir,`import pg from 'pg';import {openPostgresKernel} from '@jini-ai/db/kernel/postgres';import {createPostgresChatStore} from '@jini-ai/chat/store/postgres';const k=openPostgresKernel({pg});const s=createPostgresChatStore({clock:{nowMs:()=>Date.now()},kernel:k,scope:{scopeId:'s',ownerKind:'user',ownerId:'u'}});console.log(JSON.stringify([k.transport,typeof s.pageConversations]));await k.close();`);
  expect(result.stderr).toBe('');expect(result.status).toBe(0);expect(JSON.parse(result.stdout)).toEqual(['node-postgres','function']);
  for(const name of ['better-sqlite3','@electric-sql/pglite','react'])expect(run(dir,`await import(${JSON.stringify(name)})`).status).not.toBe(0);
 });

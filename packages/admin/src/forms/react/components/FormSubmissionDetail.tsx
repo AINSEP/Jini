@@ -1,5 +1,5 @@
 import { ConfirmDialog } from '../../../react/components/ConfirmDialog/ConfirmDialog.js';
-import { agentHandle } from '@jini-ai/agentic';
+import { agentHandle } from '@jini-ai/core/agent-handles';
 import { useWiredFormSubmissionDetail } from '../hooks/use-form-submission-detail.hooks.js';
 import { useFormSubmissionDate } from '../hooks/use-form-submission-date.hooks.js';
 import { FormSubmissionDate } from "./FormSubmissionDate.js";
@@ -14,6 +14,8 @@ export interface FormSubmissionDetailProps {
   /** Translator closure — see `FormEditor()`'s own `t`. */
   t: (key: string) => string;
   answerColumns?: readonly FormAnswerColumn[];
+  /** Same seam for the date formatter. */
+  useFormSubmissionDateHook?: typeof useFormSubmissionDate;
 }
 
 export function FormSubmissionDetail({
@@ -22,10 +24,11 @@ export function FormSubmissionDetail({
   onBack,
   onDeleted,
   useFormSubmissionDetailHook = useWiredFormSubmissionDetail,
+  useFormSubmissionDateHook = useFormSubmissionDate,
   t,
   answerColumns = [],
 }: FormSubmissionDetailProps, _optional: Record<string, never> = {}) {
-  const formatDate = useFormSubmissionDate({});
+  const formatDate = useFormSubmissionDateHook({});
   const { submission, error, confirmOpen, deleting, requestDelete, cancelDelete, confirmDelete, fileUrl } = useFormSubmissionDetailHook({
     formId,
     submissionId,

@@ -37,7 +37,7 @@ export const noopRuntimeCompatNormalizer: RuntimeCompatNormalizer = ({ body }) =
  * others.
  */
 export function composeRuntimeCompatNormalizers(
-  { normalizers }: { normalizers: readonly RuntimeCompatNormalizer[] },
+  { normalizers }: { normalizers: readonly RuntimeCompatNormalizer[] }, _optional: Record<string, never> = {},
 ): RuntimeCompatNormalizer {
   return ({ name, body }) => normalizers.reduce((current, normalize) => normalize({ name, body: current }), body);
 }

@@ -1,6 +1,7 @@
 /** Fixed-window counting over a host-owned clock and counter store. */
 
 import type { Clock } from '@jini-ai/core/primitives';
+import type { RateLimiter, RateLimitResult } from '@jini-ai/core/contracts/server';
 export type { Clock } from '@jini-ai/core/primitives';
 
 /** Host-selected window and request budget; no product profiles live here. */
@@ -9,10 +10,6 @@ export interface RateLimitProfile {
   readonly max: number;
   readonly burst: number;
 }
-
-export type RateLimitResult =
-  | { allowed: true }
-  | { allowed: false; retryAfterSeconds: number };
 
 export interface CounterWindow {
   readonly windowStartMs: number;
@@ -29,14 +26,6 @@ export interface CounterStore {
   set(required: { key: string; state: CounterWindow }): Promise<void>;
   delete(required: { key: string }): Promise<void>;
   entries(required: Record<string, never>): Promise<Iterable<readonly [string, CounterWindow]>>;
-  size(required: Record<string, never>): Promise<number>;
-}
-
-// Each allowed check consumes its budget immediately; there is no separate commit step.
-// size is an eviction diagnostic, not a capability a request consumer needs.
-export interface RateLimiter {
-  /** Resolves the budget decision; rejects missing, non-string or empty keys with TypeError. */
-  check(required: { key: string }): Promise<RateLimitResult>;
   size(required: Record<string, never>): Promise<number>;
 }
 
@@ -57,6 +46,11 @@ export function createMemoryCounterStore(
     entries: async () => windows.entries(),
     size: async () => windows.size,
   };
+}
+
+/** Whole seconds a rejected caller must wait for its window to end; never less than one. */
+function secondsUntilWindowEnds({ windowStartMs, windowMs, nowMs }: { windowStartMs: number; windowMs: number; nowMs: number }): number {
+  return Math.max(1, Math.ceil((windowStartMs + windowMs - nowMs) / 1000));
 }
 
 // An injected clock makes window boundaries deterministic without real-time sleeps; a fresh
@@ -123,8 +117,7 @@ export function createRateLimiter(
       await store.set({ key, state: { ...existing, count: existing.count + 1 } });
       return { allowed: true };
     }
-    const retryAfterSeconds = Math.max(1, Math.ceil((existing.windowStartMs + windowMs - nowMs) / 1000));
-    return { allowed: false, retryAfterSeconds };
+    return { allowed: false, retryAfterSeconds: secondsUntilWindowEnds({ windowStartMs: existing.windowStartMs, windowMs, nowMs }) };
   }
 
   return {

@@ -33,7 +33,7 @@ function parseOnlyFlag(argv: readonly string[]): string[] | null {
 }
 
 async function main(): Promise<void> {
-  const registry = discoverJiniPackages(repoRoot);
+  const registry = discoverJiniPackages({ workspaceRoot: repoRoot });
 
   const onlyShortNames = parseOnlyFlag(process.argv.slice(2));
   const rootNames = onlyShortNames
@@ -56,7 +56,7 @@ async function main(): Promise<void> {
   mkdirSync(outDir, { recursive: true });
 
   console.log(`Packing ${rootNames.length} root package(s) and their @jini-ai/* closure into ${outDir}...`);
-  const { closure, tarballPathByName } = buildAndPackClosure(repoRoot, rootNames, outDir);
+  const { closure, tarballPathByName } = buildAndPackClosure({ repoRoot, rootNames, destDir: outDir });
 
   console.log(`\nPacked ${closure.length} package(s):\n`);
   const usageLines: string[] = [];

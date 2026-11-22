@@ -1,6 +1,6 @@
 /**
- * Pins the DEFAULT secret-file port of `core/config.ts` and `core/tokens.ts` (Stryker L3,
- * 2026-10-25: `writeSecretText`'s `verifyOwnerOnly: true` / `createParent: true` could be flipped to
+ * Pins the injected atomic secret-file writer of `core/config.ts` and `core/tokens.ts` (Stryker L3,
+ * 2026-10-25: the secret-write policy's `verifyOwnerOnly: true` / `createParent: true` could be flipped to
  * `false`, and tokens.ts's `__proto__` / `constructor` id guard removed, with no test failing).
  * The secure-write primitive itself is covered by secure-write.test.ts; these tests prove the two
  * callers actually ask it for those guarantees.
@@ -9,6 +9,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { readFile } from 'node:fs/promises';
+import { writeFileAtomicAsync } from '@jini-ai/platform/fs';
 
 // Same interception as secure-write.test.ts: report a group-readable mode from the temp file's
 // stat so the owner-only verification has something to refuse.
@@ -37,6 +39,14 @@ vi.mock('node:fs/promises', async (importOriginal) => {
 import { writeMcpConfig } from '../config.js';
 import { readTokensFile, sanitizeTokensFile, setToken } from '../tokens.js';
 
+const files = {
+  readText: ({ filePath }: { filePath: string }) => readFile(filePath, 'utf8'),
+  writer: { writeText: writeFileAtomicAsync },
+};
+
+// A package test supplies its own clock port; the system clock lives in the platform package.
+const testClock = { nowMs: () => Date.now() };
+
 const dirs: string[] = [];
 function nestedMissingDir(): string {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'jini-mcp-secret-'));
@@ -51,31 +61,31 @@ afterEach(() => {
 
 const token = { accessToken: 'tok', tokenType: 'Bearer', savedAt: 1 };
 
-describe.skipIf(process.platform === 'win32')('default secret-file port', () => {
+describe.skipIf(process.platform === 'win32')('injected secret-file writer', () => {
   it('writeMcpConfig creates missing parents and writes the file 0600', async () => {
     const dataDir = nestedMissingDir();
-    await writeMcpConfig({ dataDir, body: { servers: [] } });
+    await writeMcpConfig({ files, dataDir, body: { servers: [] } });
     expect(fs.statSync(path.join(dataDir, 'mcp-config.json')).mode & 0o777).toBe(0o600);
   });
 
   it('setToken creates missing parents and writes the file 0600', async () => {
     const dataDir = nestedMissingDir();
-    await setToken({ dataDir, serverId: 's1', token });
+    await setToken({ files, dataDir, serverId: 's1', token, clock: testClock });
     expect(fs.statSync(path.join(dataDir, 'mcp-tokens.json')).mode & 0o777).toBe(0o600);
-    expect((await readTokensFile({ dataDir })).servers.s1).toMatchObject({ accessToken: 'tok' });
+    expect((await readTokensFile({ files, dataDir, clock: testClock })).servers.s1).toMatchObject({ accessToken: 'tok' });
   });
 
   it('writeMcpConfig fails closed when the written file is not owner-only', async () => {
     const dataDir = nestedMissingDir();
     hoisted.statMode = 'group-readable';
-    await expect(writeMcpConfig({ dataDir, body: { servers: [] } })).rejects.toThrow(/owner-only/);
+    await expect(writeMcpConfig({ files, dataDir, body: { servers: [] } })).rejects.toThrow(/owner-only/);
     expect(fs.existsSync(path.join(dataDir, 'mcp-config.json'))).toBe(false);
   });
 
   it('setToken fails closed when the written file is not owner-only', async () => {
     const dataDir = nestedMissingDir();
     hoisted.statMode = 'group-readable';
-    await expect(setToken({ dataDir, serverId: 's1', token })).rejects.toThrow(/owner-only/);
+    await expect(setToken({ files, dataDir, serverId: 's1', token, clock: testClock })).rejects.toThrow(/owner-only/);
     expect(fs.existsSync(path.join(dataDir, 'mcp-tokens.json'))).toBe(false);
   });
 });
@@ -85,7 +95,7 @@ describe('sanitizeTokensFile prototype-key guard', () => {
   // tokens file arrives; assigning it onto `out` would swap the servers map's prototype.
   it('never lets a "__proto__" or "constructor" server id through', () => {
     const raw = JSON.parse('{"servers":{"__proto__":{"accessToken":"p"},"constructor":{"accessToken":"c"},"ok":{"accessToken":"t"}}}');
-    const out = sanitizeTokensFile({ raw }, { clock: { nowMs: () => 7 } });
+    const out = sanitizeTokensFile({ raw, clock: { nowMs: () => 7 } });
     expect(Object.getPrototypeOf(out.servers)).toBe(Object.prototype);
     expect((out.servers as Record<string, unknown>).accessToken).toBeUndefined();
     expect(Object.keys(out.servers)).toEqual(['ok']);

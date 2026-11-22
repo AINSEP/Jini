@@ -134,24 +134,7 @@ export function registerProtectedElementType(
   options: { onRequestEditHtml?: RequestEditHtml | undefined; editHtmlLabel?: string | undefined; beforeRequestEditHtml?: () => Promise<void>; onSerializationError?: ((error: EditorSourceError) => void) | undefined } = {},
 ): void {
   const command = 'jini:protected-edit-html';
-  const requestEditHtml = options.onRequestEditHtml;
-  if (requestEditHtml) editor.Commands.add(command, {
-    async run() {
-      try {
-        await options.beforeRequestEditHtml?.();
-        const selected = editor.getSelected();
-        const wrapper = editor.getWrapper();
-        if (!selected?.is(PROTECTED_ELEMENT_TYPE) || !wrapper || selected.get('sourceNonvisual')) return;
-        const original = protectedElementHtml({ component: selected }, {});
-        const html = wrapper.getInnerHTML();
-        const start = selectedSourceStart({ wrapper, selected, original, html }, {});
-        const target = selectedSourceTarget({ selected, html, start }, {});
-        await requestEditHtml(target, {});
-      } catch (error) {
-        options.onSerializationError?.(error instanceof EditorSourceError ? error : new EditorSourceError());
-      }
-    },
-  });
+  registerProtectedEditCommand(editor, options, command);
   editor.Components.addType(PROTECTED_ELEMENT_TYPE, {
     isComponent(el) {
       const token = typeof el.getAttribute === 'function' ? el.getAttribute(sourcePlan.markerAttribute)
@@ -197,6 +180,27 @@ export function registerProtectedElementType(
         this.el.setAttribute('contenteditable', 'false');
         if (this.model.get('sourceNonvisual')) this.el.style.setProperty('display', 'none', 'important');
       },
+    },
+  });
+}
+
+function registerProtectedEditCommand(editor: Editor, options: NonNullable<Parameters<typeof registerProtectedElementType>[1]>, command: string): void {
+  const requestEditHtml = options.onRequestEditHtml;
+  if (requestEditHtml) editor.Commands.add(command, {
+    async run() {
+      try {
+        await options.beforeRequestEditHtml?.();
+        const selected = editor.getSelected();
+        const wrapper = editor.getWrapper();
+        if (!selected?.is(PROTECTED_ELEMENT_TYPE) || !wrapper || selected.get('sourceNonvisual')) return;
+        const original = protectedElementHtml({ component: selected }, {});
+        const html = wrapper.getInnerHTML();
+        const start = selectedSourceStart({ wrapper, selected, original, html }, {});
+        const target = selectedSourceTarget({ selected, html, start }, {});
+        await requestEditHtml(target, {});
+      } catch (error) {
+        options.onSerializationError?.(error instanceof EditorSourceError ? error : new EditorSourceError());
+      }
     },
   });
 }

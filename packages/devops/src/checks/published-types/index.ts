@@ -5,6 +5,8 @@ export type { CheckLoggerPort, FilesystemPort, PackageInstallerPort, ProcessRequ
 export interface DependencyManifest {
   dependencies?: Record<string, string>;
   devDependencies?: Record<string, string>;
+  optionalDependencies?: Record<string, string>;
+  peerDependencies?: Record<string, string>;
   overrides?: Record<string, unknown>;
 }
 
@@ -37,11 +39,20 @@ function validateScope(scope: string): void {
   if (!/^@[a-z0-9][a-z0-9._-]*$/.test(scope)) throw new TypeError('scope must be an npm scope such as @example');
 }
 
+/** Pins must name packages inside the checked scope; anything else is a caller error, not a project failure. */
+function validatePins({ pins, scope }: {
+  pins: Readonly<Record<string, string>>;
+  scope: string;
+}): void {
+  const name = new RegExp(`^${escapeRegex(scope)}/[a-z0-9][a-z0-9._-]*$`);
+  for (const pinned of Object.keys(pins)) if (!name.test(pinned)) throw new TypeError(`pin outside scope ${scope}: ${pinned}`);
+}
+
 /** Select registry-resolved dependencies from the required scope; explicit local specs are exempt. */
-export function registryDependencies({ manifest, scope }: { manifest: DependencyManifest; scope: string }): Record<string, string> {
+export function registryDependencies({ manifest, scope }: { manifest: DependencyManifest; scope: string }, _optional: Record<string, never> = {}): Record<string, string> {
   validateScope(scope);
   const dependencies: Record<string, string> = {};
-  for (const [name, spec] of Object.entries({ ...manifest.dependencies, ...manifest.devDependencies })) {
+  for (const [name, spec] of Object.entries({ ...manifest.dependencies, ...manifest.optionalDependencies, ...manifest.peerDependencies, ...manifest.devDependencies })) {
     if (!name.startsWith(`${scope}/`) || /^(file:|workspace:|link:)/.test(spec)) continue;
     if (!new RegExp(`^${escapeRegex(scope)}/[a-z0-9][a-z0-9._-]*$`).test(name)) throw new TypeError(`invalid dependency name: ${name}`);
     dependencies[name] = spec;
@@ -50,7 +61,7 @@ export function registryDependencies({ manifest, scope }: { manifest: Dependency
 }
 
 /** Split compiler output into whole diagnostics; wrapped details stay attached to their first line. */
-export function parseDiagnosticBlocks({ output }: { output: string }): string[] {
+export function parseDiagnosticBlocks({ output }: { output: string }, _optional: Record<string, never> = {}): string[] {
   const blocks: string[] = [];
   let current: string[] = [];
   for (const line of output.replace(/\r\n/g, '\n').split('\n')) {
@@ -123,6 +134,7 @@ function evaluateCompile(project: CompileProject, registry: ProcessResult, basel
   if (project.mode === 'published' || registry.exitCode === null || diagnostics.length === 0) return { ...base, status: 'typecheck-error' };
   // A broken baseline is not valid evidence for suppressing registry failures.
   if (baseline.exitCode === null || (baseline.exitCode !== 0 && baselineDiagnostics.length === 0)) return { ...base, status: 'typecheck-error' };
+  // Only diagnostics absent from the local run count as registry drift. Diagnostics already present locally represent pre-existing project failures.
   const known = new Set(baselineDiagnostics);
   const drift = diagnostics.filter((block) => !known.has(block));
   return { ...base, status: drift.length ? 'drift' : 'pass', diagnostics: drift };
@@ -145,6 +157,7 @@ function assertUnlinkedScope({ source, fs }: { source: string; fs: FilesystemPor
   }
 }
 
+/** Reads the exact installed version of each package from a scratch install, for reporting. */
 function installedVersions({ scratch, deps, fs }: { scratch: string; deps: Record<string, string>; fs: FilesystemPort }): Record<string, string> {
   const versions: Record<string, string> = {};
   for (const name of Object.keys(deps)) {
@@ -154,12 +167,27 @@ function installedVersions({ scratch, deps, fs }: { scratch: string; deps: Recor
   return versions;
 }
 
-async function checkCompile(project: CompileProject, manifest: DependencyManifest, deps: Record<string, string>, scope: string, fs: FilesystemPort, runner: ProcessRunnerPort, installer: PackageInstallerPort): Promise<PublishedTypesResult> {
+/** Pins apply to compile projects only: a links project inspects what the host installed. */
+function projectDependencies({ project, manifest, scope, pins }: { project: PublishedTypesProject; manifest: DependencyManifest; scope: string; pins: Readonly<Record<string, string>> }): Record<string, string> {
+  return { ...registryDependencies({ manifest, scope }), ...(project.mode === 'links' ? {} : pins) };
+}
+
+async function checkCompile({ project, manifest, deps, scope, fs, runner, installer, keepScratch }: {
+  project: CompileProject;
+  manifest: DependencyManifest;
+  deps: Record<string, string>;
+  scope: string;
+  fs: FilesystemPort;
+  runner: ProcessRunnerPort;
+  installer: PackageInstallerPort;
+  keepScratch: boolean;
+}): Promise<PublishedTypesResult> {
   if (Object.keys(deps).length === 0) return emptyResult(project.key, 'skipped', 'no registry-resolved scoped dependencies');
   const failed = await failedPrerequisite({ project, runner });
   if (failed) return emptyResult(project.key, 'prerequisite-error', combined(failed));
   const scratch = fs.createTempDirectory({ parent: project.scratchParent, prefix: 'published-types-' });
   try {
+    // Keep the project's scoped npm overrides so the scratch install resolves the same graph as the project's own install. The scoped `$` references resolve against the dependencies declared in the scratch manifest.
     const overrides = Object.fromEntries(Object.entries(manifest.overrides ?? {}).filter(([name]) => name.startsWith(`${scope}/`)));
     fs.writeText({ path: path.join(scratch, 'package.json'), text: JSON.stringify({ name: 'published-types-scratch', private: true, dependencies: deps, overrides }, null, 2) });
     const installed = await installer.install({ directory: scratch });
@@ -167,7 +195,9 @@ async function checkCompile(project: CompileProject, manifest: DependencyManifes
     const source = path.join(scratch, 'node_modules', scope);
     assertUnlinkedScope({ source, fs });
     const versions = installedVersions({ scratch, deps, fs });
+    // Run the baseline before creating the shadow so ordinary module resolution sees the project's real install. The second compile then measures the registry install against that baseline.
     const baseline = project.mode === 'drift' ? await runner.run(project.compiler) : { exitCode: 0, stdout: '', stderr: '' };
+    // Shadow the whole installed scope so imports of hoisted transitive packages cannot fall through to a linked checkout and produce a mixed registry/local typecheck.
     // Copy the entire installed scope, including hoisted transitive packages.
     const cleanup = createShadow(project, source, scope, fs);
     let registry: ProcessResult;
@@ -175,7 +205,8 @@ async function checkCompile(project: CompileProject, manifest: DependencyManifes
     finally { cleanup(); }
     return evaluateCompile(project, registry, baseline, versions);
   } finally {
-    fs.removeDirectory({ path: scratch });
+    // Clean up the scratch install on success or failure so the check leaves nothing behind, unless the caller explicitly requests it for debugging.
+    if (!keepScratch) fs.removeDirectory({ path: scratch });
   }
 }
 
@@ -185,16 +216,23 @@ async function checkCompile(project: CompileProject, manifest: DependencyManifes
  */
 export async function check({ projects, scope, fs, runner, installer }: {
   projects: readonly PublishedTypesProject[]; scope: string; fs: FilesystemPort; runner: ProcessRunnerPort; installer: PackageInstallerPort;
-}, { logger }: { logger?: CheckLoggerPort } = {}): Promise<PublishedTypesReport> {
+}, { logger, pins = {}, keepScratch = false }: {
+  logger?: CheckLoggerPort;
+  /** Registry specs that add to or replace the manifest's scoped dependencies for compile projects (e.g. to prove the gate fails on a known-bad version). */
+  pins?: Readonly<Record<string, string>>;
+  /** Leave each scratch install on disk for inspection instead of removing it. */
+  keepScratch?: boolean;
+} = {}): Promise<PublishedTypesReport> {
   validateScope(scope);
+  validatePins({ pins, scope });
   if (projects.length === 0) throw new TypeError('at least one project is required');
   const results: PublishedTypesResult[] = [];
   for (const project of projects) {
     let result: PublishedTypesResult;
     try {
       const manifest = JSON.parse(fs.readText({ path: project.manifestPath })) as DependencyManifest;
-      const deps = registryDependencies({ manifest, scope });
-      result = project.mode === 'links' ? checkLinks(project, deps, fs) : await checkCompile(project, manifest, deps, scope, fs, runner, installer);
+      const deps = projectDependencies({ project, manifest, scope, pins });
+      result = project.mode === 'links' ? checkLinks(project, deps, fs) : await checkCompile({ project, manifest, deps, scope, fs, runner, installer, keepScratch });
     } catch (error) {
       result = emptyResult(project.key, 'operation-error', error instanceof Error ? error.message : String(error));
     }
@@ -208,12 +246,14 @@ export interface TypecheckLog extends ProcessResult { projectKey: string }
 export interface TypecheckDiagnosis { ok: boolean; failures: readonly (TypecheckLog & { hits: readonly string[] })[] }
 
 /** Diagnose captured CI results for the supplied scope without reading files or running commands. */
-export function diagnosePublishedTypes({ scope, logs }: { scope: string; logs: readonly TypecheckLog[] }): TypecheckDiagnosis {
+export function diagnosePublishedTypes({ scope, logs }: { scope: string; logs: readonly TypecheckLog[] }, _optional: Record<string, never> = {}): TypecheckDiagnosis {
   validateScope(scope);
   const escapedScope = escapeRegex(scope);
+  // tsc wraps a module specifier in its own single quotes around the source's double quotes ('"@scope/pkg"'), so match one or two quote characters on each side.
   const missingExport = new RegExp(`Module ["']{1,2}${escapedScope}/[^"']+["']{1,2} has no exported member ["']([^"']+)["']`, 'g');
   const missingModule = new RegExp(`Cannot find module ["']{1,2}(${escapedScope}/[^"']+)["']{1,2} or its corresponding type declarations`, 'g');
   const failures = logs.filter((log) => log.exitCode !== 0).map((log) => {
+    // Scan the raw combined stdout and stderr from each failed `tsc` run. Return a description for every signature hit, including duplicates. Work is linear in the captured output.
     const text = combined(log);
     const hits = [
       ...[...text.matchAll(missingExport)].map((match) => `missing export '${match[1]}'`),

@@ -36,7 +36,7 @@ const CRC_TABLE = (() => {
 })();
 
 /** @complexity O(n) in the byte count. */
-export function crc32(bytes: Uint8Array): number {
+export function crc32({ bytes }: { bytes: Uint8Array }, _optional: Record<string, never> = {}): number {
   let c = 0xffffffff;
   for (let i = 0; i < bytes.length; i++) c = CRC_TABLE[(c ^ bytes[i]!) & 0xff]! ^ (c >>> 8);
   return (c ^ 0xffffffff) >>> 0;
@@ -81,7 +81,7 @@ export async function zipFolderFiles(required: { files: readonly File[]; maxByte
     folder ||= entry.folder;
     const data = await readFolderFile({ file });
     const name = encoder.encode(entry.path);
-    const crc = crc32(data);
+    const crc = crc32({ bytes: data });
     // Bit 11: the name is UTF-8, so a reader never decodes it as CP437.
     const flags = name.some((b) => b > 0x7f) ? 0x0800 : 0;
     const local = new Uint8Array(30 + name.length);

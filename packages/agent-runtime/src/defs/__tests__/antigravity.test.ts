@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { ModelDiscoveryDeps } from '../../model-discovery-types.js';
+import type { ModelDiscoveryDeps } from '@jini-ai/core/contracts/agents';
 import { antigravityAgentDef, parseAgyModels, redactAntigravityAuthUrls, sanitizeAntigravityWireLine } from '../antigravity/index.js';
 import { cliOutputDiscoveryDeps, discoveryContext, offlineDiscoveryDeps } from './discovery-fakes.js';
 
@@ -359,7 +359,7 @@ describe('antigravityAgentDef.discoverModels', () => {
   });
 
   it('parses `agy models` output through parseAgyModels', async () => {
-    const catalog = await antigravityAgentDef.discoverModels({ context: discoveryContext }, { deps: cliOutputDiscoveryDeps('Fetching available models...\ngemini-3.1-pro-high\tGemini 3.1 Pro (High)\n') });
+    const catalog = await antigravityAgentDef.discoverModels({ context: discoveryContext }, { deps: cliOutputDiscoveryDeps({ stdout: 'Fetching available models...\ngemini-3.1-pro-high\tGemini 3.1 Pro (High)\n' }) });
     expect(catalog.freshness).toBe('fresh');
     expect(catalog.models.map((model) => model.id)).toEqual(['gemini-3.1-pro-high']);
   });

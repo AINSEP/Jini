@@ -77,7 +77,7 @@ export interface SurfaceExchangeBinding {
 /**
  * One inbound message, or the reason there will not be one.
  *
- * The non-`received` cases are part of the contract rather than error handling (ADR-055 Decision 6):
+ * The non-`received` cases are part of the contract rather than error handling:
  * blocking moves the timeout story, it does not remove it, and a handler must be able to tell the
  * model something true about which happened.
  */
@@ -131,7 +131,7 @@ export type SurfaceExchangeConversation = Omit<SurfaceExchange, 'expiresAtMs'> &
  * (MCP-UI's behavior is unchanged, byte for byte); when omitted, only `principalId` and the
  * exchange's own unguessable `randomUUID()` id gate the delivery. That pair is still sufficient —
  * the id is not enumerable, and `principalId` is a server-verified session identity, never a value
- * the browser chooses (see `run-ownership.ts`) — so relaxing the caller's OBLIGATION does not
+ * the browser chooses (a host's daemon-access check) — so relaxing the caller's OBLIGATION does not
  * relax the exchange's own binding, which `open()` still records honestly as whatever tool actually
  * opened it.
  */

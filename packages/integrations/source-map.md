@@ -7,7 +7,7 @@ request/DELETE preflight, metadata projections, username/file-write helpers and 
 picker. Host vocabulary, policy, rendering and persistence implementations are required ports.
 Production imports use defining relative integrations modules and core only.
 
-Source: AINSEP/Tovu commit `94c9bb85c78cc8bf7858ee40f1ba5b27cc419b46`:
+Source: the original host repository commit `94c9bb85c78cc8bf7858ee40f1ba5b27cc419b46`:
 
 - `apps/website/src/features/custom-credentials/tool-registrations.ts`: 29 named closure declarations,
   including the owner-authorized F1 DELETE caller-safe validation repair.

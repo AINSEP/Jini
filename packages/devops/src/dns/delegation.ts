@@ -41,17 +41,17 @@ function compare(actual: readonly string[], expected: readonly string[]): { miss
  * A transport failure is `unknown`, never `not_delegated`.
  */
 export async function checkDelegation(
-  required: { readonly zone: string; readonly expectedNameservers?: readonly string[] },
-  ports: { readonly resolver: AuthoritativeDnsPort },
+  required: { readonly zone: string; readonly resolver: AuthoritativeDnsPort },
+  optional: { readonly expectedNameservers?: readonly string[] } = {},
 ): Promise<DelegationCheck> {
   const zone = normalizeDnsName({ name: required.zone });
-  const result = await settlePort({ call: () => ports.resolver.queryNs({ zone }) });
+  const result = await settlePort({ call: () => required.resolver.queryNs({ zone }) });
   const empty = { zone, nameservers: [], missing: [], unexpected: [] };
-  if (result.status === 'unknown') return { ...empty, state: 'unknown', reason: `The delegation of ${zone} could not be read: ${result.error.message}` };
-  if (result.status === 'rejected' && result.error.code !== 'not_found') return { ...empty, state: 'unknown', reason: `The delegation of ${zone} could not be read: ${result.error.message}` };
+  if (result.status === 'unknown') return { ...empty, state: 'unknown', reason: `The delegation of ${zone} could not be read: DNS lookup failed.` };
+  if (result.status === 'rejected' && result.error.code !== 'not_found') return { ...empty, state: 'unknown', reason: `The delegation of ${zone} could not be read: DNS lookup failed.` };
   const nameservers = result.status === 'ok' ? [...new Set(result.value.map(name => normalizeDnsName({ name })))].sort() : [];
   if (nameservers.length === 0) return { ...empty, state: 'not_delegated', reason: `${zone} has no NS delegation in its parent zone.` };
-  const expected = (required.expectedNameservers ?? []).map(name => normalizeDnsName({ name }));
+  const expected = (optional.expectedNameservers ?? []).map(name => normalizeDnsName({ name }));
   const { missing, unexpected } = compare(nameservers, expected);
   if (expected.length > 0 && missing.length + unexpected.length > 0) {
     return { zone, nameservers, missing, unexpected, state: 'not_delegated', reason: `${zone} is delegated to ${nameservers.join(', ')}, not to ${expected.join(', ')}; change the nameservers at the registrar.` };

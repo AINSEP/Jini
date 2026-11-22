@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises';
-import type { BrowserAnalyticsContribution } from '@jini-ai/analytics/product';
+import type { BrowserAnalyticsContribution } from '@jini-ai/core/contracts/observability';
 import { forwardCollectorEvent, POSTHOG_BROWSER_VERSION, SDK_FILE, validatePostHogBrowserConfig } from './consent.js';
 import { postHogBrowserAttributes } from './consent-adapter.js';
 
@@ -33,7 +33,12 @@ export function postHogBrowserContribution(required: {
       if (method !== 'POST') return { status: 404, body: '' };
       return forwardCollectorEvent({ host: required.host, path, body, contentType }, { request });
     } },
-    source: `function(options){
+    source: postHogEventSanitizers(config) + postHogPersistenceRetirement() + postHogEventAdmission() + postHogClientStartup() + postHogConsentTransition(),
+  };
+}
+
+function postHogEventSanitizers(config: string): string {
+  return `function(options){
       var config=${config}, current='pending', client=null, loading=null, generation=0;
       function retire(){
         if(!client)return;
@@ -66,7 +71,11 @@ export function postHogBrowserContribution(required: {
           return safe;
         });
       }
-      function clearPersistence(){
+`;
+}
+
+function postHogPersistenceRetirement(): string {
+  return `      function clearPersistence(){
         // posthog-js stores a named persistence as 'ph_'+persistence_name (no suffix); the token
         // form is the SDK default for clients created before the named instance.
         var names=['ph_jini_'+config.surface+'_'+(config.attributes.site_id||'site'),'ph_'+config.apiKey+'_posthog'];
@@ -78,7 +87,11 @@ export function postHogBrowserContribution(required: {
           document.cookie=name+'=; Max-Age=0; Path=/'+(domain?'; Domain='+domain:'');
         });});
       }
-      function fullProperties(event,props,safe){
+`;
+}
+
+function postHogEventAdmission(): string {
+  return `      function fullProperties(event,props,safe){
         ['distinct_id','$device_id','$session_id','$window_id','$is_identified'].forEach(function(name){if(props[name]!==undefined)safe[name]=props[name];});
         safe.$pathname=safePath(location.pathname);safe.$current_url=location.origin+safe.$pathname;
         safe.$host=location.hostname;
@@ -103,7 +116,11 @@ export function postHogBrowserContribution(required: {
         event.properties=safe;
         return event;
       }
-      function start(sdk,mode,version){
+`;
+}
+
+function postHogClientStartup(): string {
+  return `      function start(sdk,mode,version){
         if(version!==generation||mode!==current)return;
         var full=mode==='full';
         var settings={
@@ -132,7 +149,11 @@ export function postHogBrowserContribution(required: {
           disable_session_recording:!config.sessionReplay});
         client=sdk.init(config.apiKey,settings,'jini_browser_'+config.surface+'_'+version);
       }
-      return function(mode){
+`;
+}
+
+function postHogConsentTransition(): string {
+  return `      return function(mode){
         if(mode===current)return;
         current=mode;generation+=1;
         retire();
@@ -143,6 +164,5 @@ export function postHogBrowserContribution(required: {
         if(!loading)loading=(options&&options.loadSdk?options.loadSdk():import(config.sdk)).then(function(module){return module.default;});
         loading.then(function(sdk){start(sdk,mode,version);}).catch(function(){loading=null;});
       };
-    }`,
-  };
+    }`;
 }

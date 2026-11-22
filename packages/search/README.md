@@ -14,7 +14,7 @@ results through the composition tokens.
 |---|---|---|
 | `@jini-ai/search` | universal | The contract (`SearchProvider`, documents, keys, revisions, tombstones), host ports, the `SearchService`/`SearchIndexer` APIs, `createSearchProviderRegistry`, `validateSearchProvider`, and the tokens `SearchProviderRegistryToken`, `SearchServiceToken`, `SearchIndexerToken`, `SearchDocumentSourceToken` (many). |
 | `@jini-ai/search/tools` | universal | Agent tools over a `SearchService`. |
-| `@jini-ai/search/contribution` | node | `defineSearchProviderContribution({ filename })` for plugin-contributed providers, loaded through `@jini-ai/agent-plugins`' executable contribution loader (an optional peer dependency), plus `contributeProviders`. |
+| `@jini-ai/search/contribution` | node | `defineSearchProviderContribution({ filename, define })` for plugin-contributed providers: search owns the manifest parser, the restricted-content refusal and the manifest-id check; the host passes `define` (`spec => defineProviderContribution(spec, recovery)` from `@jini-ai/agent-plugins/lifecycle`), and offers the loaded result to that package's `contributeProviders`. |
 | `@jini-ai/search/testkit` | universal | `runSearchProviderConformance`, the in-memory reference provider, and fakes (`createFakeHttpClient`, `createUnavailableHttpClient`, `createInMemorySearchState`, `createStaticAccessPort`, `createPredicateAccessPort`). Test-only. |
 
 ## Plugin providers

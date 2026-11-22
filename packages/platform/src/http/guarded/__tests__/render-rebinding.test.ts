@@ -1,7 +1,7 @@
 /** Rebinding uses the real platform guard and changing DNS answers, not hostname refusal fakes. */
 import { expect, test } from "vitest";
 import { createHttpClient } from "../client.js";
-import type { EgressPolicy, DnsResolver, PinnedPeer } from "../ports.js";
+import type { EgressPolicy, DnsResolver, PinnedPeer } from "@jini-ai/core/contracts/runtime";
 
 const policy: EgressPolicy = { allowedSchemes: ["http", "https"], denyPrivateAddresses: true, devHostAllowlist: [], maxRedirects: 0, connectTimeoutMs: 1000, maxResponseBytes: 1000, maxDecompressedBytes: 1000 };
 const clock = { nowMs: () => 0, timeoutSignal: ({ timeoutMs }: { timeoutMs: number }) => AbortSignal.timeout(timeoutMs) };

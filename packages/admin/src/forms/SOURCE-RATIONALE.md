@@ -9,7 +9,7 @@ Active comments in the moved implementation describe its current ports and owner
 // The allowlist hint occupied 98px of a 389px dialog; clamp long hints while keeping
 // all explanatory text available to browser find and assistive technology.
 /**
- * @file Form editor screen (SPEC-010 ui.spec.md §2.2-2.5/§3.2-3.5) — the `/admin/forms/:formId` route.
+ * @file Form editor screen — the host-supplied example `/admin/forms/:formId` route.
  * Internally composed of `FormFieldsEditor`, `FormSubmissions`, `FormSubmissionDetail` (single
  * flat file per this admin app's convention — same escape hatch ADR-PIPE-007 pre-approved for
  * `Settings.tsx`). `formId === "new"` renders the create form; the slug field is editable only
@@ -127,7 +127,7 @@ Active comments in the moved implementation describe its current ports and owner
   // (`use-form-submissions.hooks.ts`'s cursor-append), so this O(n) pass tracks real data changes,
   // not incidental re-renders.
 /** Which tab is active, derived from the route by `panels.tsx` (`/forms/:formId` -> `"fields"`,
-   *  `/forms/:formId/submissions` -> `"submissions"`) — ADR-063. Ignored while `isNew`/tabs aren't
+   *  `/forms/:formId/submissions` -> `"submissions"`). Ignored while `isNew`/tabs aren't
    *  shown. */
 /** Dependency injection seam for tests — see `PostsProps.usePostsHook` for the convention. */
 /** The name/slug fields, the field-definition table, and the status-toggle/save action row —
@@ -191,7 +191,7 @@ Active comments in the moved implementation describe its current ports and owner
 
 ```text
 /**
- * @file Forms list screen (SPEC-010 ui.spec.md §2.1/§3.1) — the `/admin/forms` route.
+ * @file Forms list screen — the host-supplied example `/admin/forms` route.
  * Mirrors `Menus.tsx`/`Posts.tsx`'s fetch/loading/error/table convention. Layout now follows the
  * Posts/Media page-primitive pass (`.page`/`.page-header`/`.card`/`.table-scroll`/`.empty-state`,
  * see `styles.css`) instead of the bare `.editor-header` this screen used before — see
@@ -360,7 +360,7 @@ Active comments in the moved implementation describe its current ports and owner
  * see `FormEditor.tsx`'s own header for the full rationale, which stays with the guard in the view
  * since it describes render behaviour, not this hook's state).
  *
- * `tab` (ADR-063, 2026-08-31): no longer local state — it is `props.tab`, derived from the route
+ * `tab` (2026-08-31): no longer local state — it is `props.tab`, derived from the route
  * (`/forms/:formId` vs `/forms/:formId/submissions`) by `panels.tsx`/`FormEditor.tsx`. Switching
  * tabs calls the injected `navigate` (real app router), the same idiom `Deployment.tsx`'s tab strip
  * uses, rather than a local `setTab` — Submissions has its own independent fetch, so a tab switch
@@ -408,7 +408,7 @@ Active comments in the moved implementation describe its current ports and owner
 /** `null` until the initial load settles (or always, for `isNew`) — the caller renders a loading
    *  state or the empty create form accordingly. */
 /** Navigates to this form's Fields or Submissions route — real `navigate()`, not local state
-   *  (ADR-063: Submissions has its own independent fetch, so a tab switch is a genuine route
+   *  (Submissions has its own independent fetch, so a tab switch is a genuine route
    *  change, the same idiom `Deployment.tsx`'s tab strip uses). Pushes a history entry (no
    *  `replace`) so browser back/forward move naturally between the two routes, unlike the
    *  `?tab=` screens' `replace: true` view-filter switches. */
@@ -460,7 +460,7 @@ Active comments in the moved implementation describe its current ports and owner
         // Mirrors `use-collection-entry-editor.hooks.ts`'s `save()`.
       // already surfaced through updateMutation.error/createMutation.error -> error below
       // already surfaced through statusMutation.error -> error below
-  // Navigates to `/forms/:formId` or `/forms/:formId/submissions` (ADR-063) — `panels.tsx`'s
+  // Navigates to `/forms/:formId` or `/forms/:formId/submissions` — `panels.tsx`'s
   // `forms` panel keys `FormEditor` off `ctx.params.formId` on BOTH routes, so this is a route
   // change, not a remount: in-progress Fields edits survive a trip to Submissions and back.
 /**
@@ -931,7 +931,7 @@ Active comments in the moved implementation describe its current ports and owner
 
 ## Part B resumed host rationale (2026-10-08)
 
-The current comments below preserve updated ownership references before their Tovu bodies are removed.
+The current comments below preserve updated ownership references before their original host bodies are removed.
 
 ### apps/admin/src/features/forms/hooks/form-submissions-dependencies.hooks.ts
 
@@ -1055,7 +1055,7 @@ The current comments below preserve updated ownership references before their To
  * see `FormEditor.tsx`'s own header for the full rationale, which stays with the guard in the view
  * since it describes render behaviour, not this hook's state).
  *
- * `tab` (ADR-063, 2026-08-31): no longer local state — it is `props.tab`, derived from the route
+ * `tab` (2026-08-31): no longer local state — it is `props.tab`, derived from the route
  * (`/forms/:formId` vs `/forms/:formId/submissions`) by `panels.tsx`/`FormEditor.tsx`. Switching
  * tabs calls the injected `navigate` (real app router), the same idiom `Deployment.tsx`'s tab strip
  * uses, rather than a local `setTab` — Submissions has its own independent fetch, so a tab switch
@@ -1103,7 +1103,7 @@ The current comments below preserve updated ownership references before their To
 /** `null` until the initial load settles (or always, for `isNew`) — the caller renders a loading
    *  state or the empty create form accordingly. */
 /** Navigates to this form's Fields or Submissions route — real `navigate()`, not local state
-   *  (ADR-063: Submissions has its own independent fetch, so a tab switch is a genuine route
+   *  (Submissions has its own independent fetch, so a tab switch is a genuine route
    *  change, the same idiom `Deployment.tsx`'s tab strip uses). Pushes a history entry (no
    *  `replace`) so browser back/forward move naturally between the two routes, unlike the
    *  `?tab=` screens' `replace: true` view-filter switches. */
@@ -1155,7 +1155,7 @@ The current comments below preserve updated ownership references before their To
         // Mirrors `use-collection-entry-editor.hooks.ts`'s `save()`.
       // already surfaced through updateMutation.error/createMutation.error -> error below
       // already surfaced through statusMutation.error -> error below
-  // Navigates to `/forms/:formId` or `/forms/:formId/submissions` (ADR-063) — `panels.tsx`'s
+  // Navigates to `/forms/:formId` or `/forms/:formId/submissions` — `panels.tsx`'s
   // `forms` panel keys `FormEditor` off `ctx.params.formId` on BOTH routes, so this is a route
   // change, not a remount: in-progress Fields edits survive a trip to Submissions and back.
 /**

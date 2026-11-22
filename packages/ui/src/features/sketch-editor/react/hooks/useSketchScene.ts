@@ -62,14 +62,14 @@ export function useSketchScene({ scene, fileName, onSceneChange, onClear }: UseS
   if (!initialDataEntry || initialDataEntry.key !== editorInstanceKey) {
     initialDataEntry = {
       key: editorInstanceKey,
-      value: buildInitialData(scene, fileName, readDefaultSketchToolColor()),
+      value: buildInitialData({ scene, fileName, defaultStrokeColor: readDefaultSketchToolColor() }),
     };
     initialDataRef.current = initialDataEntry;
   }
 
   const handleChange = useCallback(
     (elements: readonly OrderedExcalidrawElement[], appState: AppState, files: BinaryFiles) => {
-      const contentSignature = sceneContentSignature(elements, asRecord(appState), asRecord(files));
+      const contentSignature = sceneContentSignature({ elements, appState: asRecord(appState), files: asRecord(files) });
       if (skipHydrationChangeRef.current) {
         skipHydrationChangeRef.current = false;
         lastContentSignatureRef.current = contentSignature;
@@ -78,7 +78,7 @@ export function useSketchScene({ scene, fileName, onSceneChange, onClear }: UseS
       if (lastContentSignatureRef.current === contentSignature) return;
       lastContentSignatureRef.current = contentSignature;
 
-      onSceneChangeRef.current(sceneFromExcalidraw(elements, asRecord(appState), asRecord(files)), { markDirty: true });
+      onSceneChangeRef.current(sceneFromExcalidraw({ elements, appState: asRecord(appState), files: asRecord(files) }), { markDirty: true });
     },
     [onSceneChangeRef],
   );
@@ -87,9 +87,9 @@ export function useSketchScene({ scene, fileName, onSceneChange, onClear }: UseS
     const api = apiRef.current;
     if (!api) return sceneRef.current;
     return sceneFromExcalidraw(
-      api.getSceneElementsIncludingDeleted(),
-      asRecord(api.getAppState()),
-      asRecord(api.getFiles()),
+      { elements: api.getSceneElementsIncludingDeleted(),
+      appState: asRecord(api.getAppState()),
+      files: asRecord(api.getFiles()) },
     );
   }, [sceneRef]);
 
@@ -97,7 +97,7 @@ export function useSketchScene({ scene, fileName, onSceneChange, onClear }: UseS
     if (onClearRef.current) {
       onClearRef.current();
     } else {
-      onSceneChangeRef.current(emptySketchScene(fileNameRef.current), { markDirty: true });
+      onSceneChangeRef.current(emptySketchScene({}, { name: fileNameRef.current }), { markDirty: true });
     }
     setResetNonce((value) => value + 1);
   }, [fileNameRef, onClearRef, onSceneChangeRef]);

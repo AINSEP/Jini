@@ -1,0 +1,6 @@
+New violation: [complexity] packages/agent-runtime/src/agent-protocol/acp/session-results.ts:21 handleRpcError (12)
+New violation: [sonarjs/cognitive-complexity] packages/chat/src/core/ag-ui/event-projection.ts:256 drainRunFramesToAgUi (12)
+New violation: [complexity] packages/chat/src/core/ag-ui/event-projection.ts:292 readConfirmationResume (11)
+New violation: [complexity] packages/ui/src/features/panel-kit/ErrorNotice.tsx:22 ErrorNotice (11)
+Complexity ratchet failed.
+exit 1

@@ -10,7 +10,7 @@ it("uses the injected opener read-only, reads full 64-bit cells/bytes/nulls, and
     const bytes = original.serialize();
     const calls: { readonly: true }[] = [];
     let opened: Database.Database | undefined;
-    const source = openSqliteSnapshotSource({ bytes }, { open: (data, options) => { calls.push(options); opened = new Database(data, options); return sqliteSnapshotClient({ db: opened }); } });
+    const source = openSqliteSnapshotSource({ bytes, open: (data, options) => { calls.push(options); opened = new Database(data, options); return sqliteSnapshotClient({ db: opened }); } });
     try {
       expect(calls).toEqual([{ readonly: true }]);
       expect(source.tableNames()).toEqual(["cells"]);
@@ -24,7 +24,7 @@ it("uses the injected opener read-only, reads full 64-bit cells/bytes/nulls, and
 it("normalizes a WAL snapshot on a copied byte buffer without changing the caller's bytes", () => {
   const bytes = Buffer.alloc(32); bytes[18] = 2; bytes[19] = 2;
   let openedBytes: Buffer | undefined;
-  const source = openSqliteSnapshotSource({ bytes }, { open: data => { openedBytes = data; return { prepare: () => { throw new Error("not used"); }, close: () => {} }; } });
+  const source = openSqliteSnapshotSource({ bytes, open: data => { openedBytes = data; return { prepare: () => { throw new Error("not used"); }, close: () => {} }; } });
   try {
     expect(openedBytes).not.toBe(bytes);
     expect([openedBytes![18], openedBytes![19]]).toEqual([1, 1]);

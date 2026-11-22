@@ -33,7 +33,7 @@ function baseParams(overrides: Partial<Parameters<typeof useSketchSaveWorkflow>[
     dirty: false,
     saving: false,
     fileName: 'diagram.excalidraw',
-    currentScene: () => emptySketchScene('diagram.excalidraw'),
+    currentScene: () => emptySketchScene({}, { name: 'diagram.excalidraw' }),
     onSave: vi.fn(async () => true),
     engine: createFakeSketchEditorEngine(),
     t,
@@ -85,7 +85,7 @@ describe('useSketchSaveWorkflow', () => {
 
   it('handleSave calls onSave with the current scene and shows a "Saved" toast', async () => {
     const onSave = vi.fn(async () => true);
-    const scene = emptySketchScene('a');
+    const scene = emptySketchScene({}, { name: 'a' });
     const { result } = renderHook(() => useSketchSaveWorkflow(baseParams({ onSave, currentScene: () => scene })));
     await act(async () => {
       await result.current.handleSave();
@@ -175,8 +175,9 @@ describe('useSketchSaveWorkflow', () => {
         await result.current.handleExportImage();
       });
       expect(result.current.toast).toEqual({ message: 'Could not export image', tone: 'error' });
-      expect(warn).toHaveBeenCalledWith('[SketchEditor] export image failed', expect.stringContaining('[REDACTED:github_token]'));
+      expect(warn).toHaveBeenCalledWith('[SketchEditor] export image failed', 'Error');
       expect(String(warn.mock.calls[0]?.[1])).not.toContain(secret);
+      for (const leak of ['disk read failed', 'ghp_', 'useSketchSaveWorkflow.test']) expect(JSON.stringify(warn.mock.calls)).not.toContain(leak);
       expect(onExportImage).not.toHaveBeenCalled();
       warn.mockRestore();
     } finally {
@@ -226,7 +227,7 @@ describe('useSketchSaveWorkflow', () => {
         await result.current.handleExportImage();
       });
       expect(result.current.toast).toEqual({ message: 'Could not export image', tone: 'error' });
-      expect(warn).toHaveBeenCalledWith('[SketchEditor] export image failed', expect.stringContaining('Error: Could not read exported image'));
+      expect(warn).toHaveBeenCalledWith('[SketchEditor] export image failed', 'Error');
       warn.mockRestore();
     } finally {
       vi.unstubAllGlobals();
@@ -320,7 +321,7 @@ describe('useWiredSketchSaveWorkflow', () => {
           dirty: false,
           saving: false,
           fileName: 'diagram.excalidraw',
-          currentScene: () => emptySketchScene('diagram.excalidraw'),
+          currentScene: () => emptySketchScene({}, { name: 'diagram.excalidraw' }),
           onSave: vi.fn(async () => true),
           onExportImage,
           t,

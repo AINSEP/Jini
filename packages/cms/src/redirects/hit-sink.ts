@@ -1,6 +1,6 @@
 /**
  * @file `RedirectHitSink` implementation + `registerRedirectHitOutboxHandler`
- * (SPEC-009 REQ-21; ADR-PIPE-009 C-009/C-010).
+ *
  *
  * Purpose:
  * Off-hot-path hit aggregation. `phase-handler.ts` enqueues a `redirect.hit`
@@ -10,7 +10,7 @@
  * a redirect (INV-06).
  *
  * Storage note (disclosed simplification, matches existing precedent): this
- * is an in-memory-only sink, the same pattern `analytics/repo.memory.ts`'s
+ * is an in-memory-only sink, the same pattern `packages/analytics/src/repo.memory.ts`'s
  * `LocalBufferSink` already uses in BOTH `server/app.ts` (test/dev) and
  * `server/deps.ts` (the real running server) — no SQLite adapter exists yet
  * for either. The `redirect_hits` table (`db/schema.sqlite.ts`) is reserved
@@ -18,10 +18,10 @@
  * against this in-memory sink.
  *
  * Architectural role:
- * INTERNAL SEAM (not an ADR-006 port, see `ports.ts`'s file header) + a thin
+ * INTERNAL SEAM (not a rule-of-two port, see `ports.ts`'s file header) + a thin
  * composition-root registration function.
  */
-import type { EventBusPort } from "../core/index.js";
+import type { EventBusPort } from "@jini-ai/core/contracts/events";
 
 import type { RedirectHitEventPayload, RedirectHitSink } from "./ports.js";
 import type { RedirectHitStats } from "./types.js";

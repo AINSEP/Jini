@@ -9,7 +9,7 @@ import { describe, expect, it } from 'vitest';
 
 import { buildFormSurface, renderFormDocument } from '../../surfaces/form.js';
 import { renderChoiceGroup } from '../../surfaces/choice-group.js';
-import type { UIResourceUri } from '../../resource.js';
+import type { UIResourceUri } from '@jini-ai/protocol/mcp-ui';
 import { mountSurface } from './mount-surface.js';
 
 const URI = 'ui://test/choices' as UIResourceUri;

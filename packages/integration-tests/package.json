@@ -1,0 +1,20 @@
+{
+  "name": "@jini-ai/integration-tests",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "jini": {
+    "domain": "tooling",
+    "kind": "integration-tests",
+    "runtime": "node"
+  },
+  "scripts": {
+    "test": "vitest run --passWithNoTests",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0",
+    "vitest": "^3.2.6"
+  }
+}

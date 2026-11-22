@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/infra",
-  "version": "0.7.2",
+  "version": "0.7.3-next.2",
   "description": "Deprecated compatibility re-exports of @jini-ai/db/core and @jini-ai/db/sqlite. Import those directly.",
   "deprecated": "Compatibility shim: use @jini-ai/db/core and @jini-ai/db/sqlite directly.",
   "license": "Apache-2.0",
@@ -77,7 +77,7 @@
     "test:coverage": "vitest run --coverage"
   },
   "devDependencies": {
-    "@vitest/coverage-v8": "^2.1.9",
+    "@vitest/coverage-v8": "^3.2.6",
     "@jini-ai/db": "workspace:^",
     "@jini-ai/core": "workspace:*"
   },
@@ -85,7 +85,7 @@
     "@jini-ai/core": "workspace:^"
   },
   "peerDependencies": {
-    "@jini-ai/db": "^0.7.0"
+    "@jini-ai/db": "^0.7.3-next.2"
   },
   "peerDependenciesMeta": {
     "@jini-ai/db": {

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import type { VerifiedOrigin } from "@jini-ai/http-kit/verified-origin";
+import type { VerifiedOrigin } from "@jini-ai/core/contracts/server/verified-origin";
 import { checkRedirectLocation, type RedirectTargetOracle } from "../target-gate.js";
 
 /** A relative Location is checked as an absolute URL on the workspace's verified origin; the

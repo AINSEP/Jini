@@ -15,7 +15,7 @@
  *
  * `ExternalMcpConnectionRevokedError` extends `ToolInputError` rather than being reported through a
  * `ToolPolicy` deny — the same D1 argument `registrations.ts`'s own gate doc and
- * `federated-refusal-diagnosis.ts` both make: every consumer maps a policy `denied` to a fixed
+ * `packages/daemon/src/tool-recovery/federated-refusal.ts` both make: every consumer maps a policy `denied` to a fixed
  * "denied by policy"-shaped string, which sends an operator who DOES have the permission looking in
  * the wrong place. A handler-side `ToolInputError` reaches the model as `errorKind: 'validation'`
  * with this file's own text instead.
@@ -105,7 +105,7 @@ function grantRefusalFor(record: ExternalMcpServerRecord, call: FederatedCallTar
  * @complexity O(1).
  */
 /** @agent-note Pure: the caller passes the row it already read (the store's repository, once per call) and the admitted call identity; no I/O and no state. */
-export function rosterRefusalFor(record: ExternalMcpServerRecord | null, call: FederatedCallTarget): ExternalMcpRevocationReason | null {
+export function rosterRefusalFor({ record, call }: { record: ExternalMcpServerRecord | null; call: FederatedCallTarget }, _optional: Record<string, never> = {}): ExternalMcpRevocationReason | null {
   if (call.origin === undefined || call.origin.kind === "preset") return "unverifiable";
   if (record === null) return "removed";
   if (externalMcpAdmissionRevision(record) !== call.origin.admissionRevision) return "changed";

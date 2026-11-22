@@ -1,14 +1,13 @@
 import type { AdminFormsPort } from "../../../core/ports/forms.js";
 import { submissionView } from "../../models.js";
 import { useFormsPorts } from "./FormsPorts.hooks.js";
-import { useController } from "../../../core/react/use-controller.js";
+import { useFormsController } from "./FormsPorts.hooks.js";
 import { createFormSubmissionsController, initialFormSubmissionsState, type FormSubmissionsState } from "../../controllers/form-submissions.controller.js";
 import { useCallback, useEffect, useRef } from "react";
 import type { AdminFormSubmission } from "../../models.js";
-import { describeApiError as describeCoreApiError } from "../../../core/transport/errors.js";
+import { describeApiError as describeCoreApiError } from '@jini-ai/core/admin-runtime';
 const describeApiError = (e: unknown, fallback: string) => describeCoreApiError({ e, fallback });
-import { useFetchQuery, useInvalidate } from "@jini-ai/ui/fetch-query";
-import { useSettlementGeneration } from "@jini-ai/ui/panel-kit";
+import { useFetchQuery, useInvalidate, useSettlementGeneration } from "../../../react/kit.js";
 import { KEYS } from "../../rules.js";
 
 /**
@@ -23,8 +22,8 @@ import { KEYS } from "../../rules.js";
  * Naming follows `hooks/use-settings-slice.hooks.ts`: `use-<thing>.hooks.ts`. Feature-local because
  * nothing outside `features/forms` needs it.
  *
- * `port` is injected — see `core/ports/forms.ts` (shared with `use-form-submission-
- * detail.hooks.ts`, since both read/write the same submissions list for a form) — rather than
+ * `port` is injected — see `core/ports/forms.ts` (shared with `packages/admin/src/forms/react/hooks/use-form-submission-detail.hooks.ts`,
+ * since both read/write the same submissions list for a form) — rather than
  * importing `lib/api` directly, so a test can describe list outcomes against
  * `the memory adapter` instead of stubbing global `fetch`. `useWiredFormSubmissions`
  * below is the zero-argument pair `FormEditor.tsx` actually mounts.
@@ -78,7 +77,7 @@ export function useFormSubmissions(props: { formId: string; port: AdminFormsPort
     fetch: () => port.listFormSubmissions({ formId: props.formId }, {}).then(page => ({ data: page.items.map(submission => submissionView({ submission })), nextCursor: page.nextCursor })),
   });
 
-  const { controller: stateController, snapshot: stateSnapshot } = useController({ create: () => createFormSubmissionsController({}), dependencies: [] });
+  const { controller: stateController, snapshot: stateSnapshot } = useFormsController({ create: () => createFormSubmissionsController({}), dependencies: [] });
   const state = stateSnapshot ?? initialFormSubmissionsState({});
   const { morePages, moreCursor, moreError, selectedId, loadingMore } = state;
   const setMorePages = (value: FormSubmissionsStateValue<"morePages">) => stateController?.update({ key: "morePages", value });

@@ -1,6 +1,6 @@
 import { nowIso as kernelNowIso } from "@jini-ai/core/primitives";
 import type { Clock, IdGenerator, UUID } from "@jini-ai/core/primitives";
-import type { DomainEvent, OutboxPort } from "../core/ports.js";
+import type { DomainEvent, OutboxPort } from "@jini-ai/core/contracts/events";
 
 /**
  * @file Workspace creation vertical slice (domain logic).
@@ -9,7 +9,7 @@ import type { DomainEvent, OutboxPort } from "../core/ports.js";
  * Encapsulates business rules for creating a workspace. Also owns the shared
  * `WorkspaceRepoPort` contract and record shape for the whole feature slice
  * (`update.ts`/`delete.ts` import from here rather than duplicating
- * the port) — mirrors `identity/types.ts`+`identity/ports.ts` owning the
+ * the port) — mirrors `packages/user-management/src/core/types.ts`+`packages/user-management/src/core/ports.ts` owning the
  * shared shapes their sibling transition files (`grant-service.ts`) import.
  *
  * How it relates to the package:
@@ -28,6 +28,7 @@ export interface WorkspaceRecord {
   name: string;
   slug: string;
   createdAt: string;
+  version: number;
 }
 
 /**
@@ -44,7 +45,7 @@ export interface WorkspaceRepoPort {
   list(): Promise<WorkspaceRecord[]>;
   /** Replaces the full record (id/createdAt immutable by convention — see
    * `update.ts`, which never changes them). */
-  update(record: WorkspaceRecord): Promise<void>;
+  update(record: WorkspaceRecord, optional?: { expectedVersion?: number }): Promise<void>;
   /** Callers (see `delete.ts`) must apply the last-workspace guard
    * themselves — this port method performs the row deletion only, no business rule. */
   delete({ id }: { id: UUID }): Promise<void>;
@@ -159,7 +160,7 @@ export async function createWorkspace(
   const now = kernelNowIso({ clock: deps.clock });
   const id = deps.idGen.newId();
 
-  await deps.repo.insert({ id, name, slug, createdAt: now });
+  await deps.repo.insert({ id, name, slug, createdAt: now, version: 1 });
 
   const event: DomainEvent<{ workspaceId: UUID; slug: string }> = {
     id: deps.idGen.newId(),

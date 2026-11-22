@@ -39,6 +39,6 @@ it.each(["workspaceId", "priceId", "providerId", "providerAccountId", "mode"] as
 });
 it.each([{ providerPriceRef: "" }, { mode: "invalid" }])("propagates schema refusals without changing the saved mapping", async invalid => {
   const repo = await world(); await repo.save(record);
-  await expect(repo.save({ ...record, ...invalid } as CommercePriceProviderRefRecord)).rejects.toThrow();
+  await expect(repo.save({ ...record, ...invalid } as CommercePriceProviderRefRecord)).rejects.toThrow("providerPriceRef" in invalid ? "CHECK constraint failed: length(provider_price_ref) > 0" : "CHECK constraint failed: mode IN ('test','live')");
   expect(await repo.find(record)).toBe("remote-price");
 });

@@ -1,6 +1,8 @@
+import { AdminApiError } from '@jini-ai/core/admin-runtime';
+import { reactModuleUi } from '../../../core/react/module-ui.js';
 import { describe, expect, it, vi, afterEach } from 'vitest';
 import { act, cleanup, fireEvent, render, renderHook, screen, waitFor } from '../../../__tests__/fetch-query-support.js';
-import { AdminConfigError } from '../../../core/module/index.js';
+import { AdminConfigError } from '@jini-ai/core/admin-runtime';
 import { createOverlayController } from '../../../react/overlays.js';
 import { createMemoryMediaApi } from '../../adapters/memory.js';
 import type { MediaAsset } from '../../models.js';
@@ -13,6 +15,8 @@ import { ProvidersTab } from '../tabs/ProvidersTab.js';
 import { MediaPortsContext } from '../hooks/MediaPorts.hooks.js';
 import { useEditMediaPanel } from '../hooks/EditMediaPanel.hooks.js';
 import { useMediaLibraryQuery } from '../hooks/MediaQuery.hooks.js';
+import { realEmbedPolicy } from '../../__tests__/fakes/embed-policy.js';
+import { EmbedPolicyScope } from './embed-policy-scope.js';
 
 afterEach(cleanup);
 const input = { filename: 'photo.png', contentType: 'image/png', dataBase64: 'aGVsbG8=' };
@@ -22,7 +26,7 @@ describe('media picker factory', () => {
     const api = createMemoryMediaApi({});
     const overlays = createOverlayController({});
     const open = vi.spyOn(overlays, 'open');
-    const port = media({ overlays }).factories.mediaPicker({ ports: { mediaApi: api }, permissions: ['media.read'] });
+    const port = media({ ui: reactModuleUi, overlays }).factories.mediaPicker({ ports: { mediaApi: api }, permissions: ['media.read'] });
     return { port, open };
   }
 
@@ -67,7 +71,7 @@ describe('media components', () => {
     await memory.upload(input);
     await memory.upload({ ...input, filename: 'other.png' });
     let fail = true;
-    const list = vi.fn((query: Parameters<MediaApiPort['list']>[0], options?: Parameters<MediaApiPort['list']>[1]) => (fail ? Promise.reject(new Error('Library offline')) : memory.list(query, options)));
+    const list = vi.fn((query: Parameters<MediaApiPort['list']>[0], options?: Parameters<MediaApiPort['list']>[1]) => (fail ? Promise.reject(new AdminApiError({ message: 'Library offline', status: 500 })) : memory.list(query, options)));
     render(<MediaPicker api={{ ...memory, list }} accept={['image/*']} onChoose={vi.fn()} onClose={vi.fn()} />);
     expect(await screen.findByRole('alert')).toHaveTextContent('Library offline');
     fail = false;
@@ -80,7 +84,7 @@ describe('media components', () => {
 
 describe('providers tab rendering', () => {
   it('reports an unreachable service without a provider port', async () => {
-    render(<MediaPortsContext.Provider value={{ mediaApi: {} as MediaApiPort }}><ProvidersTab params={{}} /></MediaPortsContext.Provider>);
+    render(<MediaPortsContext.Provider value={{ embedPolicy: realEmbedPolicy, mediaApi: {} as MediaApiPort }}><ProvidersTab params={{}} /></MediaPortsContext.Provider>);
     expect(await screen.findByText('Could not reach the server. Showing local changes only.')).toHaveAttribute('role', 'alert');
     expect(screen.getByRole('button', { name: 'Save changes' })).toBeDisabled();
   });
@@ -91,7 +95,7 @@ describe('providers tab rendering', () => {
       saveChanges: vi.fn(async () => { throw new Error('denied'); }),
       saveCredential: vi.fn(), removeCredential: vi.fn(),
     } as unknown as MediaProvidersPort;
-    render(<MediaPortsContext.Provider value={{ mediaApi: {} as MediaApiPort, mediaProviders: providers }}><ProvidersTab params={{}} /></MediaPortsContext.Provider>);
+    render(<MediaPortsContext.Provider value={{ embedPolicy: realEmbedPolicy, mediaApi: {} as MediaApiPort, mediaProviders: providers }}><ProvidersTab params={{}} /></MediaPortsContext.Provider>);
     fireEvent.change(await screen.findByLabelText('Provider base URL'), { target: { value: 'https://api.example.com' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
     expect(await screen.findByText('Could not save media providers.')).toHaveAttribute('role', 'alert');
@@ -105,7 +109,7 @@ describe('providers tab rendering', () => {
       list: async () => [{ id: 'pinned', label: 'Pinned', configured: false }, { id: 'other', label: 'Other', configured: false }],
       saveChanges: vi.fn(async () => []), saveCredential: vi.fn(), removeCredential: vi.fn(),
     } as unknown as MediaProvidersPort;
-    const { container } = render(<MediaPortsContext.Provider value={{ mediaApi: {} as MediaApiPort, mediaProviders: providers }}><ProvidersTab params={{}} /></MediaPortsContext.Provider>);
+    const { container } = render(<MediaPortsContext.Provider value={{ embedPolicy: realEmbedPolicy, mediaApi: {} as MediaApiPort, mediaProviders: providers }}><ProvidersTab params={{}} /></MediaPortsContext.Provider>);
     const otherUrl = await screen.findByLabelText('Other base URL');
     expect(container.querySelectorAll('hr.jini-media-provider-divider')).toHaveLength(1);
     fireEvent.change(otherUrl, { target: { value: 'not a url' } });
@@ -148,7 +152,7 @@ describe('media hooks', () => {
     const item: MediaAsset = await api.upload(input);
     const onSaved = vi.fn();
     let firstRender: ReturnType<typeof useEditMediaPanel> | undefined;
-    renderHook(() => { const vm = useEditMediaPanel({ api, item, onSaved, onClose: vi.fn() } as unknown as Parameters<typeof useEditMediaPanel>[0]); firstRender ??= vm; return vm; });
+    renderHook(() => { const vm = useEditMediaPanel({ api, item, onSaved, onClose: vi.fn() } as unknown as Parameters<typeof useEditMediaPanel>[0]); firstRender ??= vm; return vm; }, { wrapper: EmbedPolicyScope });
     let result!: boolean;
     await act(async () => { result = await firstRender!.replace({ input }); });
     expect(result).toBe(false);

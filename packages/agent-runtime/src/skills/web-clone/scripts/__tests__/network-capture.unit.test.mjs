@@ -6,29 +6,29 @@ import { createFakeBrowser, createFakePage, createOutput, fakeResponse, playwrig
 
 describe("argument parsing and pure helpers", () => {
   it("parses flags with defaults and rejects unknown ones", () => {
-    expect(parseArgs(["--url", "https://s.test", "--wait", "0", "--max-bytes"])).toEqual({
+    expect(parseArgs({ argv: ["--url", "https://s.test", "--wait", "0", "--max-bytes"] })).toEqual({
       url: "https://s.test",
       outDir: "RECON/network",
       label: "site",
       waitMs: 0,
       maxBytes: 1000000,
     });
-    expect(parseArgs(["-h", "--out", "o", "--label", "clone"])).toMatchObject({ help: true, outDir: "o", label: "clone" });
-    expect(() => parseArgs(["--nope"])).toThrow("Unexpected argument: --nope");
+    expect(parseArgs({ argv: ["-h", "--out", "o", "--label", "clone"] })).toMatchObject({ help: true, outDir: "o", label: "clone" });
+    expect(() => parseArgs({ argv: ["--nope"] })).toThrow("Unexpected argument: --nope");
   });
 
   it("safeFixtureName derives a sanitized, hashed name with a json/txt extension", () => {
-    expect(safeFixtureName("https://s.test/api/v1/items?x=1", "application/json")).toMatch(/^api-v1-items-[0-9a-f]{10}\.json$/);
-    expect(safeFixtureName("https://s.test/", "text/plain")).toMatch(/^response-[0-9a-f]{10}\.txt$/);
+    expect(safeFixtureName({ url: "https://s.test/api/v1/items?x=1", contentType: "application/json" })).toMatch(/^api-v1-items-[0-9a-f]{10}\.json$/);
+    expect(safeFixtureName({ url: "https://s.test/", contentType: "text/plain" })).toMatch(/^response-[0-9a-f]{10}\.txt$/);
   });
 
   it("shouldSave keeps only xhr/fetch bodies with a textual content type", () => {
-    expect(shouldSave("xhr", "application/json")).toBe(true);
-    expect(shouldSave("fetch", "application/graphql-response+json")).toBe(true);
-    expect(shouldSave("fetch", "text/javascript")).toBe(true);
-    expect(shouldSave("fetch", "image/png")).toBe(false);
-    expect(shouldSave("fetch", undefined)).toBe(false);
-    expect(shouldSave("script", "text/javascript")).toBe(false);
+    expect(shouldSave({ resourceType: "xhr", contentType: "application/json" })).toBe(true);
+    expect(shouldSave({ resourceType: "fetch", contentType: "application/graphql-response+json" })).toBe(true);
+    expect(shouldSave({ resourceType: "fetch", contentType: "text/javascript" })).toBe(true);
+    expect(shouldSave({ resourceType: "fetch", contentType: "image/png" })).toBe(false);
+    expect(shouldSave({ resourceType: "fetch", contentType: undefined })).toBe(false);
+    expect(shouldSave({ resourceType: "script", contentType: "text/javascript" })).toBe(false);
   });
 });
 
@@ -49,7 +49,7 @@ describe("main", () => {
       fakeResponse({ url: "https://s.test/api/items", resourceType: "xhr", headers: { "content-type": "application/json" }, body: '{"a":1}' }),
       fakeResponse({ url: "https://s.test/notes", resourceType: "fetch", headers: { "content-type": "text/plain" }, body: "hi" }),
       fakeResponse({ url: "https://s.test/big", resourceType: "fetch", headers: { "content-type": "application/json" }, body: "x".repeat(50) }),
-      fakeResponse({ url: "https://s.test/gone", resourceType: "xhr", status: 500, headers: { "content-type": "application/json" }, bodyError: new Error("No resource with given identifier") }),
+      fakeResponse({ url: "https://s.test/gone", resourceType: "xhr", status: 500, headers: { "content-type": "application/json" }, bodyError: new Error("No resource with given identifier api_key=SECRETSECRETSECRETSECRET") }),
       fakeResponse({ url: "https://s.test/logo.png", resourceType: "image", headers: { "content-type": "image/png" } }),
       fakeResponse({ url: "https://s.test/raw", resourceType: "fetch" }),
     ];
@@ -85,7 +85,8 @@ describe("main", () => {
     expect(items.fixture).toMatch(/^fixtures\/api-items-[0-9a-f]{10}\.json$/);
     expect(notes.fixture).toMatch(/\.txt$/);
     expect(big).toMatchObject({ fixture: "", error: "body too large: 50" });
-    expect(gone).toMatchObject({ ok: false, fixture: "", error: "No resource with given identifier" });
+    expect(gone).toMatchObject({ ok: false, fixture: "", error: "Error" });
+    expect(fs.readFileSync(manifestFile, "utf8")).not.toMatch(/No resource|SECRETSECRET/);
     expect(logo).toMatchObject({ fixture: "", error: "" });
     expect(raw).toMatchObject({ contentType: "", fixture: "" });
     expect(page.calls).toContainEqual(["waitForLoadState", "networkidle", { timeout: 7 }]);
@@ -126,6 +127,6 @@ describe("main", () => {
 
     const failing = createFakeBrowser(() => createFakePage({ gotoError: new Error("net::ERR_FAILED") }));
     expect(await main({ argv: ["--url", "https://s.test/", "--out", outDir] }, { ...out, ...playwrightPorts(failing) })).toBe(1);
-    expect(out.errors).toEqual(["network-capture failed: net::ERR_FAILED"]);
+    expect(out.errors).toEqual(["network-capture failed: Error"]);
   });
 });

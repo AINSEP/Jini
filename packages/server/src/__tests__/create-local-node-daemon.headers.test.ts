@@ -49,5 +49,9 @@ it('C64: each daemon captures its bind host without mutating the caller environm
 
   expect.soft(env).toEqual(originalEnv);
   expect.soft(first.env).toEqual({ ...originalEnv, JINI_BIND_HOST: '127.0.0.1' });
-  expect.soft(first.adapter.env).toEqual({ ...originalEnv, JINI_BIND_HOST: '127.0.0.1' });
+  // The origin policy the routes use reads that same environment: the caller's allow-list is honoured and the
+  // caller's own bind host is not.
+  const { originPolicy } = first.adapter;
+  expect.soft(originPolicy.isSameOrigin({ req: { headers: { host: 'proxy.internal:1', origin: 'https://trusted.example' } } })).toBe(true);
+  expect.soft(originPolicy.isSameOrigin({ req: { headers: { host: 'caller.example' } } })).toBe(false);
 });

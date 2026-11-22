@@ -148,7 +148,7 @@ function defaultRandomToken(): string {
   const bytes = source.getRandomValues(new Uint8Array(TOKEN_BYTES));
   let binary = '';
   for (const byte of bytes) binary += String.fromCharCode(byte);
-  return trimTrailingChars(btoa(binary).replace(/\+/g, '-').replace(/\//g, '_'), '=');
+  return trimTrailingChars({ value: btoa(binary).replace(/\+/g, '-').replace(/\//g, '_'), chars: '=' });
 }
 
 /**

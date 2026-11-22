@@ -118,12 +118,17 @@ export class CredentialSetVaultRepo<C extends string = string> implements Creden
 type CompatibilityWrite<C extends string> = { record: CredentialSetRecord<C>; expectedRevision: number | null; existing?: VaultPutRecord };
 
 function compatibilityVaultRow<C extends string>({ record, expectedRevision, existing, policy }: CompatibilityWrite<C> & { policy: CredentialSetVaultPolicy }, _options = {}): VaultPutRecord {
-  const kind = existing?.kind === "custom" ? "custom" : "vendor";
+  const kind = compatibilityKind({ existing });
   return { ...credentialSetVaultScope({ ...record, kind, ownerKey: policy.ownerKey }), id: record.id, provider: null, label: record.label,
     sealed: record.sealed, isDefault: existing?.isDefault ?? false, revision: (expectedRevision ?? 0) + 1,
     ...compatibilityTokenHints({ record, ...(existing ? { existing } : {}) }),
     meta: compatibilityVaultMeta({ record, kind, policy, ...(existing ? { existing } : {}) }),
     createdAt: existing?.createdAt ?? record.createdAt, updatedAt: record.updatedAt };
+}
+
+/** An existing custom row stays custom; every other write is a vendor row. */
+function compatibilityKind({ existing }: { existing: VaultPutRecord | undefined }, _options = {}): "vendor" | "custom" {
+  return existing?.kind === "custom" ? "custom" : "vendor";
 }
 
 function compatibilityVaultMeta<C extends string>({ record, existing, kind, policy }: Pick<CompatibilityWrite<C>, "record" | "existing"> & { kind: "vendor" | "custom"; policy: CredentialSetVaultPolicy }, _options = {}) {

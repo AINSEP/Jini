@@ -37,8 +37,7 @@ export interface SrcDocBridge {
  * one broken host-registered bridge can't blank the whole preview.
  */
 export function applySrcDocBridges(
-  doc: string,
-  bridges: readonly SrcDocBridge[],
+  { doc, bridges }: { doc: string; bridges: readonly SrcDocBridge[] },
   ctx: SrcDocBridgeContext = {},
 ): string {
   return bridges.reduce((current, bridge) => {

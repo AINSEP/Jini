@@ -3,6 +3,9 @@
  * chat/core vocabulary. Every export is explicit: adding or renaming a name here is a public API
  * review, so internal module exports cannot silently become public. Do not use export *.
  */
+// The chat-pane feature renders this glyph set; a consumer composing the same surface needs the same icons.
+export { Icon } from './components/Icon.js';
+export type { IconName } from './components/Icon.js';
 export { ChatSettingsDialog } from './components/ChatSettingsDialog.js';
 export { ChatSettingsSegmented } from './components/ChatSettingsSegmented.js';
 export { useChatSettingsDialog } from './components/ChatSettingsDialog.hooks.js';
@@ -362,8 +365,7 @@ export type { JiniChatProviderProps, JiniChatSlots } from './components/JiniChat
  * Lives here rather than in an example because a consumer cannot copy-paste its way to a
  * transport: this is the piece that makes `ChatPaneAgentBridgeAccess` satisfiable at all.
  *
- * `createDomPageDriver`/`currentAgentPage` moved to `@jini-ai/agentic/dom` in the 2026-07-26
- * extraction — re-exported here so existing `@jini-ai/chat-react` importers keep working.
+ * The DOM page driver lives in `@jini-ai/agentic/dom`; hosts bind it through the bridge's `page` port.
  */
 export { createFrontendSessionBridge, createFrontendNavigationGuard } from './agent-bridge/frontend-session-bridge.js';
 export type {
@@ -372,7 +374,6 @@ export type {
   FrontendSessionBridgeArgs,
   FrontendSessionBridgeOptions,
 } from './agent-bridge/frontend-session-bridge.js';
-export { createDomPageDriver, currentAgentPage, type DomPageDriverOptions } from '@jini-ai/agentic/dom';
 
 export { createBrowserComposerHistoryStorage } from './hooks/composer-history-storage.js';
 export type { ComposerHistoryStoragePort } from '../core/composer-history.js';
@@ -403,3 +404,17 @@ export type { FrontendRequestCallerRequired, FrontendRequestInput } from './feat
 
 // Consumers can name the recovery metadata accepted by the shared tool caller.
 export type { SurfaceRecoveryInfo } from '../core/surface-recovery.js';
+
+// Hosts bind the rich-surface implementations (MCP-UI iframe host, interactive registry, WebMCP probe) once, at the React root.
+export { ChatSurfacesProvider, useChatSurfaces, McpUiHost } from './surfaces.js';
+export type {
+  ChatSurfaces,
+  McpUiHostProps,
+  ChatSurfaceComponentEntry,
+  ChatSurfaceRegistry,
+  AgentModelContextToolRegistration,
+  AgentModelContextLike,
+} from './surfaces.js';
+
+// Hosts implement this to let the frontend session bridge forward page-control requests.
+export type { ChatPagePort } from '../core/page-port.js';

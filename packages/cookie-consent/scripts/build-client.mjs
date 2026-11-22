@@ -8,9 +8,10 @@ import { gzipSync } from 'node:zlib';
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 /** Gzip budget (bytes). The design debate's target was ~3 KB; the measured P1 build is ~4.4 KB, so this
- * ceiling only stops further growth. See README "Size". */
+ * ceiling only stops further growth. See README "Size". The client's ceiling rose 64 B when the runtime began
+ * handing every adapter call the storage purge (4585 B -> 4609 B, which had only 23 B of headroom). */
 const BUNDLES = [
-  { entry: 'client.min.ts', out: 'client.min.js', budget: 4608 },
+  { entry: 'client.min.ts', out: 'client.min.js', budget: 4672 },
   { entry: 'extensions.min.ts', out: 'extensions.min.js', budget: 4608 },
 ];
 

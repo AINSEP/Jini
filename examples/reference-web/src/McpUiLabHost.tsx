@@ -9,9 +9,8 @@ import {
   createJsonRpcResult,
   isJsonRpcMessage,
   isJsonRpcRequest,
-  type JsonRpcMessage,
-  type JsonRpcRequest,
-} from '@jini-ai/agentic';
+} from '@jini-ai/protocol/mcp-ui';
+import type { JsonRpcMessage, JsonRpcRequest } from '@jini-ai/protocol/mcp-ui';
 import { createEarlyMessageBuffer, type BufferedWindowMessage } from './mcpui-lab-message-buffer.js';
 import type { McpUiLabViewMode } from './mcpui-lab-view.js';
 
@@ -314,8 +313,8 @@ export interface McpUiLabHostFrameProps {
  * `registerToolRenderer('show_mcpui_widget', ...)` card a live agent run triggers, so both paths
  * exercise the identical Host implementation rather than a chat-only reimplementation.
  */
-export function McpUiLabHostFrame({ mode, sessionKey, title }: McpUiLabHostFrameProps) {
-  const host = useMcpUiLabHost({
+export function McpUiLabHostFrame({ mode, sessionKey, title, useMcpUiLabHostHook = useMcpUiLabHost }: McpUiLabHostFrameProps & { useMcpUiLabHostHook?: typeof useMcpUiLabHost }) {
+  const host = useMcpUiLabHostHook({
     mode,
     sessionKey,
     viewOrigin: MCPUI_LAB_VIEW_ORIGIN,

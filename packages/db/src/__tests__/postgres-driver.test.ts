@@ -8,7 +8,7 @@ import { sql } from "kysely";
 import pg from "pg";
 
 import { PGLITE_SOCKET_FILE } from "../core/index.js";
-import { StorageOpError, StorageOpNotSupportedError, type StorageKernel } from "../kernel/index.js";
+import { StorageOpError, StorageOpNotSupportedError, type KyselyKernel } from "../kernel/index.js";
 import { openPgliteSocketKernel, openPostgresKernel, postgresOps } from "../kernel/postgres/index.js";
 import { type PgliteOwner, startPgliteOwner } from "../pglite/index.js";
 import { LEDGER, OWNER } from "./helpers.js";
@@ -27,7 +27,7 @@ const socketDir = join(scratch, "s");
 const connectionString = `postgresql://postgres@localhost/postgres?host=${encodeURIComponent(socketDir)}`;
 
 let owner: PgliteOwner;
-let kernel: StorageKernel<unknown>;
+let kernel: KyselyKernel<unknown>;
 
 before(async () => {
   owner = await startPgliteOwner({ ...OWNER, dataDir }, { socketDir });
@@ -84,7 +84,7 @@ describe("openPostgresKernel", () => {
 
 describe("postgresOps on a node-postgres kernel", () => {
   test("copyTo is refused with the provider-backup reason", async () => {
-    await assert.rejects(postgresOps(kernel, { ledgerTable: LEDGER }).copyTo(join(scratch, "copy")), (err: unknown) => {
+    await assert.rejects(postgresOps({ kernel, ledgerTable: LEDGER }).copyTo(join(scratch, "copy")), (err: unknown) => {
       assert.ok(err instanceof StorageOpNotSupportedError);
       assert.equal(
         err.message,
@@ -95,22 +95,22 @@ describe("postgresOps on a node-postgres kernel", () => {
   });
 
   test("compactAndVerify vacuums and reads the ledger back; a missing or empty ledger is a StorageOpError", async () => {
-    const missing = await postgresOps(kernel, { ledgerTable: "no_such_ledger" }).compactAndVerify().then(() => null, (err: unknown) => err);
+    const missing = await postgresOps({ kernel, ledgerTable: "no_such_ledger" }).compactAndVerify().then(() => null, (err: unknown) => err);
     assert.ok(missing instanceof StorageOpError);
     assert.match(missing.message, /^the migration ledger no_such_ledger cannot be read back: /);
 
     await kernel.execute(sql`CREATE TABLE ${sql.table(LEDGER)} (id text PRIMARY KEY)`);
     await assert.rejects(
-      postgresOps(kernel, { ledgerTable: LEDGER }).compactAndVerify(),
+      postgresOps({ kernel, ledgerTable: LEDGER }).compactAndVerify(),
       new StorageOpError(`the migration ledger ${LEDGER} is empty after compacting`)
     );
     await kernel.execute(sql`INSERT INTO ${sql.table(LEDGER)} VALUES ('001')`);
-    await postgresOps(kernel, { ledgerTable: LEDGER }).compactAndVerify();
+    await postgresOps({ kernel, ledgerTable: LEDGER }).compactAndVerify();
   });
 
   test("ops refuse to run inside a transaction", async () => {
     await kernel.transaction(async () => {
-      await assert.rejects(postgresOps(kernel, { ledgerTable: LEDGER }).compactAndVerify(), /must be called outside a transaction/);
+      await assert.rejects(postgresOps({ kernel, ledgerTable: LEDGER }).compactAndVerify(), /must be called outside a transaction/);
     });
   });
 });
@@ -128,7 +128,7 @@ test("an idle pool connection the server drops is logged, not fatal, and the nex
     assert.deepEqual(await pooled.query(sql`SELECT 1 AS n`), [{ n: 1 }]);
     await server.close(); // drops the pool's idle connection
     await vi.waitFor(() => {
-      assert.ok(warn.mock.calls.some(([line, detail]) => line === "[postgres] idle pool connection dropped:"
+      assert.ok(warn.mock.calls.some(([line, detail]) => line === "[postgres] Idle pool connection dropped."
         && typeof detail === "string" && detail.trim().length > 0));
     });
     server = await startPgliteOwner({ ...OWNER, dataDir: restartDir }, { socketDir: restartSocketDir });

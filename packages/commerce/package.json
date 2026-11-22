@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/commerce",
-  "version": "0.7.2",
+  "version": "0.7.3-next.2",
   "description": "Opt-in catalog, checkout, payment state machines, provider services and read-only React overview.",
   "license": "Apache-2.0",
   "repository": {
@@ -32,10 +32,7 @@
       ]
     },
     "optionalPeers": {
-      "@jini-ai/db": "opt-in: database-backed adapters; import @jini-ai/commerce/payments/ledger/sql — Database-backed adapters could not load @jini-ai/db. Install @jini-ai/db to enable this feature, or check its installed version and native binaries.",
       "kysely": "opt-in: sql storage adapters; import @jini-ai/commerce/payments/ledger/sql — SQL storage adapters could not load kysely. Install kysely to enable this feature, or check its installed version and native binaries.",
-      "@jini-ai/agentic": "opt-in: agent-aware ui and protocols; import @jini-ai/commerce/react — Agent-aware UI and protocols could not load @jini-ai/agentic. Install @jini-ai/agentic to enable this feature, or check its installed version and native binaries.",
-      "@jini-ai/ui": "opt-in: ui integrations; import @jini-ai/commerce/react — UI integrations could not load @jini-ai/ui. Install @jini-ai/ui to enable this feature, or check its installed version and native binaries.",
       "express": "opt-in: express commerce routes; import @jini-ai/commerce/http — Express commerce routes could not load express. Install express to enable this feature, or check its installed version.",
       "react": "opt-in: react commerce ui; import @jini-ai/commerce/react — React commerce UI could not load react. Install react to enable this feature, or check its installed version."
     }
@@ -111,7 +108,9 @@
     "LICENSE",
     "NOTICE",
     "!dist/**/__tests__/**",
-    "!dist/**/*.map"
+    "!dist/**/*.map",
+    "!dist/**/*.test.js",
+    "!dist/**/*.test.d.ts"
   ],
   "publishConfig": {
     "access": "public",
@@ -128,17 +127,12 @@
     "@jini-ai/core": "workspace:^"
   },
   "peerDependencies": {
-    "@jini-ai/db": "^0.7.0",
     "kysely": "^0.29.6",
     "express": "^4.21.0 || ^5.0.0",
-    "react": "^18.3.0 || ^19.0.0",
-    "@jini-ai/agentic": "^0.7.0",
-    "@jini-ai/ui": "^0.7.0"
+    "react": "^18.3.0 || ^19.0.0"
   },
   "devDependencies": {
     "@jini-ai/db": "workspace:*",
-    "@jini-ai/agentic": "workspace:*",
-    "@jini-ai/ui": "workspace:*",
     "kysely": "^0.29.6",
     "better-sqlite3": "^13.0.0",
     "@types/better-sqlite3": "^7.6.13",
@@ -152,22 +146,13 @@
     "@testing-library/jest-dom": "^6.0.0",
     "jsdom": "^26.0.0",
     "tsx": "^4.20.0",
-    "vitest": "^2.1.9",
+    "vitest": "^3.2.6",
     "@jini-ai/cms": "workspace:*",
     "@jini-ai/core": "workspace:^",
-    "@vitest/coverage-v8": "^2.1.9"
+    "@vitest/coverage-v8": "^3.2.6"
   },
   "peerDependenciesMeta": {
-    "@jini-ai/db": {
-      "optional": true
-    },
     "kysely": {
-      "optional": true
-    },
-    "@jini-ai/agentic": {
-      "optional": true
-    },
-    "@jini-ai/ui": {
       "optional": true
     },
     "express": {

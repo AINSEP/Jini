@@ -12,7 +12,7 @@ import type { EventEnvelope, OutboxPort } from './ports.js';
  * so such a call is a wiring bug. The wrapped outbox is not modified; enqueue preserves envelope
  * identity. Storage, schema and delivery-owner selection remain host responsibilities.
  * @complexity O(1) per call beyond the wrapped enqueue. */
-export function toEnqueueOnlyOutbox<Event extends EventEnvelope>(required: { outbox: OutboxPort<Event> }): OutboxPort<Event> {
+export function toEnqueueOnlyOutbox<Event extends EventEnvelope>(required: { outbox: OutboxPort<Event> }, _optional: Record<string, never> = {}): OutboxPort<Event> {
   return {
     enqueue: args => required.outbox.enqueue(args),
     claimPending: async () => [],

@@ -315,7 +315,7 @@ describe('createDaemonAttachmentUploader', () => {
 
     controller.abort(new Error('composer reset'));
 
-    await expect(pending).rejects.toThrow();
+    await expect(pending).rejects.toThrow('Aborted');
   });
 
   it('does not start any upload when the composer signal is already aborted', async () => {

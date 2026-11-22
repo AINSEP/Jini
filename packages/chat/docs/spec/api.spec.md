@@ -114,13 +114,13 @@ const title = deriveConversationTitle({ prompt: hostUserPrompt });
 ## Owner-scoped stores
 
 ```ts
-createSqliteChatStore(required: { kernel: StorageKernel<DB>; scope: ChatOwnerScope }, optional: { clock?: Clock } = {}): ChatStore;
+createSqliteChatStore(required: { kernel: StorageKernel<DB>; scope: ChatOwnerScope; clock: Clock }, optional: UserTextRedactionOptions = {}): ChatStore;
 createSqliteChatMaintenance(required: { kernel: StorageKernel<DB> }): ChatHistoryMaintenance;
-createPgliteChatStore(required: { kernel: StorageKernel<DB>; scope: ChatOwnerScope }, optional: { clock?: Clock } = {}): ChatStore;
+createPgliteChatStore(required: { kernel: StorageKernel<DB>; scope: ChatOwnerScope; clock: Clock }, optional: UserTextRedactionOptions = {}): ChatStore;
 createPgliteChatMaintenance(required: { kernel: StorageKernel<DB> }): ChatHistoryMaintenance;
-createPostgresChatStore(required: { kernel: StorageKernel<DB>; scope: ChatOwnerScope }, optional: { clock?: Clock } = {}): ChatStore;
+createPostgresChatStore(required: { kernel: StorageKernel<DB>; scope: ChatOwnerScope; clock: Clock }, optional: UserTextRedactionOptions = {}): ChatStore;
 createPostgresChatMaintenance(required: { kernel: StorageKernel<DB> }): ChatHistoryMaintenance;
-createChatHistoryStore({ db, scope }: { db: SqliteConnectionSource; scope: ChatOwnerScope }, optional: { clock?: Clock } = {}): ChatStore; // SQLite compatibility
+createChatHistoryStore({ db, scope, clock }: { db: SqliteConnectionSource; scope: ChatOwnerScope; clock: Clock }, optional: UserTextRedactionOptions = {}): ChatStore; // SQLite compatibility
 createChatHistoryMaintenance({ db }: { db: SqliteConnectionSource }): ChatHistoryMaintenance;
 ensureChatHistoryTables({ db }: { db: Pick<SqliteClient, 'exec'> }): void;
 ```
@@ -144,8 +144,7 @@ ensureChatHistoryTables({ db }: { db: Pick<SqliteClient, 'exec'> }): void;
 ```ts
 import { createSqliteChatStore } from '@jini-ai/chat/store/sqlite';
 const store = createSqliteChatStore(
-  { kernel: hostKernel, scope: { scopeId: 'workspace', ownerKind: 'user', ownerId: 'actor' } },
-  { now: hostClock },
+  { kernel: hostKernel, scope: { scopeId: 'workspace', ownerKind: 'user', ownerId: 'actor' }, clock: hostClock },
 );
 await store.create({ id: hostIds.next() });
 const page = await store.pageConversations({ limit: 20 });
@@ -158,8 +157,8 @@ import type { ChatStore } from '@jini-ai/chat/store';
 import type { ChatSessionMode } from '@jini-ai/chat/store/legacy';
 import { createPgliteChatStore } from '@jini-ai/chat/store/pglite';
 import { createPostgresChatStore } from '@jini-ai/chat/store/postgres';
-const embedded: ChatStore = createPgliteChatStore({kernel: hostPgliteKernel, scope});
-const network: ChatStore = createPostgresChatStore({kernel: hostPostgresKernel, scope});
+const embedded: ChatStore = createPgliteChatStore({kernel: hostPgliteKernel, scope, clock: hostClock});
+const network: ChatStore = createPostgresChatStore({kernel: hostPostgresKernel, scope, clock: hostClock});
 const mode: ChatSessionMode = 'chat';
 ```
 
@@ -222,7 +221,7 @@ React entry points additionally export the props/results/slot types named by the
 | `createMcpUiToolCaller(baseUrl: string, options: CreateMcpUiToolCallerOptions = {})` | `McpUiToolCallHandler`, resolving `unknown` |
 | `createFrontendSessionBridge({ baseUrl, request, openStream }: FrontendSessionBridgeArgs, options: FrontendSessionBridgeOptions = {})` | `FrontendSessionBridge`: bridgeAccess, ready promise of `{sessionId,bindToken}`, bindToken(), close(); subscribe/respondSuccess/respondError belong to bridgeAccess |
 
-`CHAT_PANE_AGENT_TOOLS` is the pane capability manifest. Runtime access supplies listAgents/rescanAgents/daemonOnline; directory access supplies pickWorkingDirectory/recentDirectories/directoryExists and optional normalizeWorkingDirectory. Attachment and MCP UI caller helpers take an explicit native fetch; the frontend bridge takes request/openStream effects. New embed helpers require host fetch/storage/page-action ports. Browser File/DOM availability is host owned. The bridge requires `{ baseUrl, request, openStream }`; its optional second object provides pageDriver/executor-prefix handlers and invocation/error callbacks.
+`CHAT_PANE_AGENT_TOOLS` is the pane capability manifest. Runtime access supplies listAgents/rescanAgents/daemonOnline; directory access supplies pickWorkingDirectory/recentDirectories/directoryExists and optional normalizeWorkingDirectory. Attachment and MCP UI caller helpers take an explicit native fetch; the frontend bridge takes request/openStream effects. New embed helpers require host fetch/storage/page-action ports. Browser File/DOM availability is host owned. The bridge requires `{ baseUrl, request, openStream }`; its optional second object provides a `page` port (`ChatPagePort`; `@jini-ai/agentic/dom` `createDriverPagePort` builds one over a DOM driver)/executor-prefix handlers and invocation/error callbacks.
 
 ```tsx
 import { JiniChatProvider } from '@jini-ai/chat/react';
@@ -252,7 +251,11 @@ subpaths are listed in package exports rather than folded into the root React/co
 
 `./core/run-events` is universal. Exports RunAgentPayload, RunProtocolEventWire, RunNotices, TerminalOutcome, RunFrameOutcome, and object-shaped pure functions `asString({value})`, `parseUsageEvent({payload})`, `translateRunAgentPayload({payload})`, `terminalReasonNotice({reason,notice})`, `readTerminalOutcome({raw})`, `terminalOutcomeNotice({raw,notices})`, `terminalFailureError({raw})`, `readTerminalReason({raw,wrapped})`, `parseFrame({rawFrame})`, `isDaemonRunId({runId,excludedPrefixes})`, `runInterruptedNotice({notice})`, `runContentFromEvents({events})`, `runEventsForSave({events})`, `translateRunFrame({kind,raw,notices})`. Notices/event vocabulary and excluded run prefixes are host inputs. [Source](../../src/core/run-events/entry.ts).
 
-`./core/ag-ui` is universal with official AG-UI types. Exports EventIdGenerator (`next({prefix,ordinal})`), CustomEventNames (usage/status/extensionPrefix), RunAgentWirePayload, AgUiEvent, AgUiTranslationState and `reduceAgentWirePayload({payload})`, `createAgUiTranslationState({ids,customEventNames})`, `translateAgentEventToAgUi({event,state})`, `closeAgUiRun({state})`. Host emits RUN_STARTED/RUN_FINISHED/RUN_ERROR separately. Each run needs a fresh state. [Source](../../src/core/ag-ui/entry.ts).
+`./core/ag-ui` is universal with official AG-UI types. Exports EventIdGenerator (`next({prefix,ordinal})`), CustomEventNames (usage/status/extensionPrefix), AgUiEvent, AgUiTranslationState and `createAgUiTranslationState({ids,customEventNames})`, `translateAgentEventToAgUi({event,state})`, `closeAgUiRun({state})`. Host emits RUN_STARTED/RUN_FINISHED/RUN_ERROR separately. Each run needs a fresh state. Daemon payloads are reduced by `./core/run-events` `translateRunAgentPayload`, the one reducer. [Source](../../src/core/ag-ui/event-projection.ts).
+
+`./core/ag-ui/reduction` is universal and is the reverse direction: AgUiToAgentTranslationState, `createAgUiToAgentTranslationState({customEventNames})`, `translateAgUiEventToAgentEvent({event,state})`. One state per run; it accumulates tool-call arguments. [Source](../../src/core/ag-ui/event-reduction.ts).
+
+`./server/ag-ui/run-input` is universal and pure: `resolveAgUiRunInput({body,maxHistoryMessages,ids})` returns an AgUiRunInput (threadId, runId, requestId, messages, optional agentId / frontendBindToken / frontendTabId, secretRedacted) or `null` when the history does not end in a non-empty user turn; `resolveAgUiMessages({raw,maxHistoryMessages})` drops malformed turns and keeps the trailing ones. The host passes the history bound and an `AgUiRunIdPort` (`newId()`). [Source](../../src/core/ag-ui/run-input.ts).
 
 `./server/run-finalizer`: `createAssistantRunFinalizer({ledger,daemon,clock: Clock,scheduler,runIdClassifier,notices,onError}, {reconnectDelayMs = 2000,maxReconnects = 30,checkpointIntervalMs = 1000} = {})`. Methods are `watch({principalId,conversationId,message}): void`, `idle({}): Promise<void>`, `activeCount({}): number`. Ledger checkpoint(RunProgress)/settle(RunSettlement) must atomically refuse foreign runs/terminal rows; daemon openEvents/runStatus take `{runId,principalId}`; scheduler schedule({task,delayMs})/cancel({handle})/sleep({delayMs}) and classifier isDaemonRunId({runId}) are required. RunRef/RunProgress/RunSettlement and these ports/options/result interfaces are exported. [Source](../../src/server/run-finalizer/entry.ts).
 
@@ -262,7 +265,7 @@ subpaths are listed in package exports rather than folded into the root React/co
 
 `./browser/page-actions`: `isQueuedPageAction({value})`, `isPageActionDirective({value})`, `extractPageActions({events,directiveEventName})`, `splitPageActions({actions})`, `findTargetElement({title,root,selection})` and `createBrowserPageActions(args: BrowserPageActionsArgs)`. Required args are root, selection selectors, allowPath/navigate/reducedMotion/scroll ports, timers, highlightClass/fadeAnimationName and nonnegative finite cleanupFallbackMs. Returned PageActionPort exposes allows({action}), navigate({action}), execute({action}), clearHighlight({}); BrowserPageActionController adds applyHighlight/scrollToElement({element}). ResolvedPageTarget, PageAction/NavigateAction/NonNavigateAction, DirectiveCarryingEvent, SplitPageActions, TargetSelectionPolicy and PageActionTimerPort are exported. [Source](../../src/embed-widget/browser/page-actions.ts).
 
-`./react/embed` exports EmbedChatWidget(EmbedChatWidgetArgs), EmbedChatHeader(EmbedChatHeaderArgs) and `mountEmbedChat({element,widget}): {unmount({}):void}`. Widget args require agent, copy, transport, session, pageActions, directiveEventName, keyboard and scheduleFrame({callback}) returning cancellation. Copy types EmbedChatCopy/EmbedHeaderCopy and EscapeKeyPort are exported; EscapeKeyPort.subscribe({onEscape}) returns unsubscribe. [UI](ui.spec.md).
+`./react/embed` exports EmbedChatWidget(EmbedChatWidgetArgs), EmbedChatHeader(EmbedChatHeaderArgs) and `mountEmbedChat({element,widget,surfaces}): {unmount({}):void}` (surfaces: ChatSurfaces, required). Widget args require agent, copy, transport, session, pageActions, directiveEventName, keyboard and scheduleFrame({callback}) returning cancellation. Copy types EmbedChatCopy/EmbedHeaderCopy and EscapeKeyPort are exported; EscapeKeyPort.subscribe({onEscape}) returns unsubscribe. [UI](ui.spec.md).
 
 ## Supplementary public contracts
 

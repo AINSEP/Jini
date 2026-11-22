@@ -1,13 +1,17 @@
 import type { ReactNode } from "react";
-import { act, renderHook, waitFor } from "@testing-library/react";
+import { AdminApiError } from '@jini-ai/core/admin-runtime';
+import { act, renderHook, waitFor } from "./harness.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { FetchQueryProvider, useInvalidate } from "@jini-ai/ui/fetch-query";
+import { FetchQueryProvider } from "@jini-ai/ui/fetch-query";
+import { useInvalidate } from "@jini-ai/ui/fetch-query";
 
 import type { AdminFormDefinition as CoreForm, AdminFormsPort } from "../../../core/ports/forms.js";
 import { createMemoryFormsApi } from "../../adapters/memory.js";
 import { KEYS } from "../../rules.js";
 import { useFormEditor, useWiredFormEditor } from "../hooks/use-form-editor.hooks.js";
 import { FormsOptionsContext, FormsPortsContext } from "../hooks/FormsPorts.hooks.js";
+import { fakeFormsCatalog } from '../../__tests__/fakes/forms-catalog.js';
+
 
 /**
  * @file `useFormEditor` outcomes not reached by the screen suites: refetch protection, builder
@@ -23,7 +27,7 @@ const stored = (overrides: Partial<CoreForm> = {}): CoreForm => ({ id: "f1", nam
 
 function mount(api: AdminFormsPort, formId = "f1", options: Parameters<typeof useFormEditor>[1] = {}) {
   const navigate = vi.fn();
-  const view = renderHook(() => ({ editor: useFormEditor({ formId, tab: "fields", port: api, navigate, t }, options), invalidate: useInvalidate() }), { wrapper });
+  const view = renderHook(() => ({ editor: useFormEditor({ formId, tab: "fields", port: api, catalog: fakeFormsCatalog(), navigate, t }, options), invalidate: useInvalidate() }), { wrapper });
   return { ...view, navigate };
 }
 afterEach(() => { vi.unstubAllGlobals(); });
@@ -106,7 +110,7 @@ describe("useFormEditor status and embed", () => {
     await waitFor(() => expect(result.current.editor.form?.status).toBe("disabled"));
     await act(async () => { await result.current.editor.handleStatusToggle(); });
     expect(result.current.editor.form?.status).toBe("active");
-    api.updateFormDefinition = async () => { throw new Error("locked"); };
+    api.updateFormDefinition = async () => { throw new AdminApiError({ message: "locked", status: 423 }); };
     await act(async () => { await result.current.editor.handleStatusToggle(); });
     expect(result.current.editor.form?.status).toBe("active");
     expect(result.current.editor.error).toBe("locked");
@@ -144,7 +148,7 @@ describe("useWiredFormEditor", () => {
     const api = createMemoryFormsApi({}, { forms: [stored()] });
     const writeText = vi.fn(async () => {});
     const hostWrapper = ({ children }: { children: ReactNode }) => (
-      <FetchQueryProvider><FormsPortsContext.Provider value={{ formsApi: api, formsTrash: api.trash }}>
+      <FetchQueryProvider><FormsPortsContext.Provider value={{ formsApi: api, formsCatalog: fakeFormsCatalog(), formsTrash: api.trash }}>
         <FormsOptionsContext.Provider value={{ clipboard: { writeText } }}>{children}</FormsOptionsContext.Provider>
       </FormsPortsContext.Provider></FetchQueryProvider>
     );

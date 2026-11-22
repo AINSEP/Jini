@@ -7,27 +7,12 @@ describe('@jini-ai/ui/mcp-ui/surfaces barrel', () => {
   it('exports the same secret-card owner as the dedicated universal entry', () => {
     expect(mcpUi.defineSecretCardTool).toBe(defineSecretCardTool);
   });
-  it('exports the protocol vocabulary re-exported from @jini-ai/agentic, not a second copy of it', () => {
-    expect(mcpUi.MCP_UI_VIEW_METHODS.initialize).toBe('ui/initialize');
-    expect(mcpUi.MCP_UI_VIEW_NOTIFICATIONS.initialized).toBe('ui/notifications/initialized');
-    expect(mcpUi.MCP_UI_HOST_REQUESTS.teardown).toBe('ui/resource-teardown');
-    expect(mcpUi.MCP_UI_HOST_NOTIFICATIONS.toolResult).toBe('ui/notifications/tool-result');
-    expect(mcpUi.JSON_RPC_ERROR_CODES.methodNotFound).toBe(-32601);
-    expect(mcpUi.JINI_PAGE_ACTION_METHOD).toBe('x-jini/page-action');
-    expect(mcpUi.isJsonRpcMessage({ value: { jsonrpc: '2.0', method: 'ping' } })).toBe(true);
-    expect(mcpUi.createJsonRpcRequest({ id: 1, method: 'ping' })).toEqual({ jsonrpc: '2.0', id: 1, method: 'ping' });
-  });
-
   it('states the sandbox rule as a constant, so the reason travels with the value', () => {
     expect(mcpUi.MCP_UI_VIEW_SANDBOX).toBe('allow-scripts');
-    expect(mcpUi.MCP_UI_SANDBOX_NOTE).toContain('allow-same-origin');
     expect(mcpUi.MCP_UI_PROTOCOL_VERSION).toBe('2026-01-26');
   });
 
-  it('exports the resource, escaping, store and buffer halves', () => {
-    expect(mcpUi.createUIResource).toBeTypeOf('function');
-    expect(mcpUi.buildUIToolResult).toBeTypeOf('function');
-    expect(mcpUi.parseUIResource).toBeTypeOf('function');
+  it('exports the escaping, store and buffer halves (resource readers live in @jini-ai/protocol/mcp-ui)', () => {
     expect(mcpUi.escapeHtml).toBeTypeOf('function');
     expect(mcpUi.escapeJsValue).toBeTypeOf('function');
     expect(mcpUi.createConfirmationStore).toBeTypeOf('function');

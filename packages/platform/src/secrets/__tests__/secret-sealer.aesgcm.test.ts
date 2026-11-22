@@ -3,7 +3,7 @@ import { test } from "vitest";
 import { AesGcmSecretSealer } from "../secret-sealer.aesgcm.js";
 import { InMemoryKeyring } from "../keyring.memory.js";
 import { createCipheriv, randomBytes } from "node:crypto";
-import type { KeyringPort, RootKeyHandle } from "../ports.js";
+import type { KeyringPort, RootKeyHandle } from "@jini-ai/core/contracts/vault";
 test("seal then open round-trips the plaintext exactly", async () => {
     const keyring = new InMemoryKeyring({ hkdfSalt: "fixture-salt" });
     const sealer = new AesGcmSecretSealer({ keyring: keyring });
@@ -77,7 +77,7 @@ test("a value sealed with aad A throws when opened with NO aad", async () => {
     const keyring = new InMemoryKeyring({ hkdfSalt: "fixture-salt" });
     const sealer = new AesGcmSecretSealer({ keyring: keyring });
     const sealed = await sealer.seal({ plaintext: "scoped-token", key: await keyring.activeKey({}), aad: "ws-1:github-pages:cred-42" });
-    await assert.rejects(() => sealer.open({ sealed }));
+    await assert.rejects(() => sealer.open({ sealed }), { name: "Error", message: "Unsupported state or unable to authenticate data" });
 });
 test("a value sealed with NO aad throws when opened WITH an aad (asymmetry fails both directions)", async () => {
     const keyring = new InMemoryKeyring({ hkdfSalt: "fixture-salt" });

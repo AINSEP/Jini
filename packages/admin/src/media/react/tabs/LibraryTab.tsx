@@ -1,13 +1,13 @@
-import { Button, Select, TextField } from '@jini-ai/ui-kit/react';
-import type { TabViewProps } from '../../../core/react/bind-react.js';
+import { Button, Select, TextField } from '../../../react/kit.js';
+import type { TabViewProps } from '@jini-ai/core/contracts/admin-module';
 import { useLibraryTab } from '../hooks/LibraryTab.hooks.js';
 import { MediaGrid } from '../components/MediaGrid.js';
 import { UploadButton } from '../components/UploadButton.js';
 import { EditMediaPanel } from '../components/EditMediaPanel.js';
 import { MediaLightbox } from '../components/MediaLightbox.js';
 import { MediaPurgeDialog } from '../components/MediaPurgeDialog.js';
-export function LibraryTab(props: TabViewProps) {
-  const vm = useLibraryTab(props);
+export function LibraryTab({ useLibraryTabHook = useLibraryTab, ...props }: TabViewProps & { useLibraryTabHook?: typeof useLibraryTab }) {
+  const vm = useLibraryTabHook(props);
   return (
     <section className="jini-media-library" data-jini-part="media.library">
       {vm.canUpload && <UploadButton upload={vm.upload} disabled={vm.busy} />}

@@ -15,10 +15,15 @@
  * ids come from the authenticated caller's execution context, never from model input — the store
  * scopes by them (see `AttachmentStore.listPendingForOwner`).
  */
-import express, { type Request, type RequestHandler, type Response } from 'express';
 import { createApiError } from '@jini-ai/protocol';
-import { sendApiError, sendJson } from '@jini-ai/http-kit';
-import { AttachmentRejectedError, type AttachmentStore } from './attachments.js';
+import { jsonResponse, readJsonBody, statusForError } from '@jini-ai/core/contracts/server';
+import { AttachmentRejectedError } from './attachment-types.js';
+import { type AttachmentStore } from './attachment-store-types.js';
+import type { DaemonRouteHost } from './route-host.js';
+import { gated, type DaemonRoute } from './route-table.js';
+
+/** Where an unexpected failure's original error goes (the reporter's own sink argument). */
+type RouteInternalErrorSink = NonNullable<Parameters<DaemonRouteHost['reportInternalError']>[1]>['onInternalError'];
 
 export const ATTACHMENT_LOOKUP_ROUTE_PATH = '/internal/attachment-lookup';
 
@@ -31,9 +36,12 @@ export type AttachmentLookupRequest =
 export type AttachmentLookup = Pick<AttachmentStore, 'resolveForRun' | 'listPendingForOwner'>;
 
 export interface AttachmentLookupRoutesRequired {
-  readonly app: { post(path: string, ...handlers: RequestHandler[]): unknown };
   readonly store: AttachmentLookup;
+  readonly host: DaemonRouteHost;
 }
+
+/** The largest body this route reads (it has always had its own 64 KB limit). */
+const LOOKUP_BODY_MAX_BYTES = 64 * 1024;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -56,29 +64,42 @@ async function runLookup(store: AttachmentLookup, lookup: AttachmentLookupReques
   return store.listPendingForOwner({ ownerId: lookup.ownerId }, lookup.runId === undefined ? {} : { runId: lookup.runId });
 }
 
-function sendLookupFailure(res: Response, error: unknown): void {
+const failure = ({ status, error }: { readonly status: number; readonly error: unknown }): Response => jsonResponse({ status, body: { error } });
+
+function lookupFailure(
+  { error, host }: { readonly error: unknown; readonly host: DaemonRouteHost },
+  { onInternalError, runId }: { readonly onInternalError?: RouteInternalErrorSink | undefined; readonly runId?: string | undefined } = {},
+): Response {
   if (error instanceof AttachmentRejectedError) {
-    sendApiError({ res, status: 400, error: createApiError({ code: 'ATTACHMENT_REJECTED', message: error.message }, { details: { reason: error.reason } }) });
-    return;
+    return failure({ status: 400, error: createApiError({ code: 'ATTACHMENT_REJECTED', message: error.message }, { details: { reason: error.reason } }) });
   }
-  sendApiError({ res, status: 500, error: createApiError({ code: 'INTERNAL_ERROR', message: 'an internal error occurred' }) });
+  const report = { source: 'attachment-lookup', ...(runId === undefined ? {} : { runId }), error };
+  return failure({ status: 500, error: host.reportInternalError({ report, logSource: 'attachment-lookup', message: 'The attachment could not be looked up. Try again; if it keeps failing, copy the request ID and report this problem.' }, { onInternalError }) });
 }
 
 /**
- * Mounts the lookup route. It brings a small JSON parser of its own, which is a no-op when the host
- * already parsed the body upstream.
+ * The lookup route as data. It reads its own JSON body (64 KB at most). `onInternalError` (optional) gets an
+ * unexpected failure's original error, the run ID and the request ID the caller sees; without it the default
+ * line prints the class only. The host's own bearer gate belongs in front of wherever this list is mounted.
  */
-export function registerAttachmentLookupRoutes({ app, store }: AttachmentLookupRoutesRequired, _optional: Record<string, never> = {}): void {
-  app.post(ATTACHMENT_LOOKUP_ROUTE_PATH, express.json({ limit: '64kb' }), async (req: Request, res: Response) => {
-    const lookup = parseLookup(req.body);
-    if (lookup === null) {
-      sendApiError({ res, status: 400, error: createApiError({ code: 'BAD_REQUEST', message: 'body must be { op: "resolveForRun", ref, runId } or { op: "listPendingForOwner", ownerId, runId? }' }) });
-      return;
-    }
-    try {
-      sendJson({ res, status: 200, body: { value: await runLookup(store, lookup) } });
-    } catch (error) {
-      sendLookupFailure(res, error);
-    }
-  });
+export function attachmentLookupRoutes({ store, host }: AttachmentLookupRoutesRequired, { onInternalError }: { readonly onInternalError?: RouteInternalErrorSink | undefined } = {}): DaemonRoute[] {
+  return [gated({
+    route: {
+      method: 'POST', path: ATTACHMENT_LOOKUP_ROUTE_PATH,
+      handler: async ({ request }) => {
+        const body = await readJsonBody({ request }, { maxBytes: LOOKUP_BODY_MAX_BYTES });
+        if (!body.ok) return failure({ status: statusForError({ error: body.error }), error: body.error });
+        const lookup = parseLookup(body.value);
+        if (lookup === null) {
+          return failure({ status: 400, error: createApiError({ code: 'BAD_REQUEST', message: 'body must be { op: "resolveForRun", ref, runId } or { op: "listPendingForOwner", ownerId, runId? }' }) });
+        }
+        try {
+          return jsonResponse({ status: 200, body: { value: await runLookup(store, lookup) } });
+        } catch (error) {
+          return lookupFailure({ error, host }, { onInternalError, runId: lookup.runId });
+        }
+      },
+    },
+    gates: [],
+  })];
 }

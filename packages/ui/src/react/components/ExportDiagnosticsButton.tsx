@@ -105,6 +105,7 @@ export interface ExportDiagnosticsButtonProps {
   labels?: ExportLabels;
   /** Native fetch port used for the browser archive download. */
   fetch?: typeof globalThis.fetch;
+  useExportDiagnosticsHook?: typeof useExportDiagnostics;
 }
 
 export const DEFAULT_EXPORT_LABELS = {
@@ -214,13 +215,13 @@ export function useExportDiagnostics(props: ExportDiagnosticsButtonProps): UseEx
  * (via `exportPath`, a same-origin HTTP endpoint that returns the archive).
  * All logic lives in {@link useExportDiagnostics}; this is a dumb render.
  */
-export function ExportDiagnosticsButton(props: ExportDiagnosticsButtonProps) {
-  const { status, busy, labels: t, runExport } = useExportDiagnostics(props);
+export function ExportDiagnosticsButton({ useExportDiagnosticsHook = useExportDiagnostics, ...props }: ExportDiagnosticsButtonProps) {
+  const { status, busy, labels: t, runExport } = useExportDiagnosticsHook(props);
   return (
-    <div className="diagnostics-export-row">
+    <div className="jini-diagnostics-export-row">
       <button
         type="button"
-        className="ghost diagnostics-export-button"
+        className="ghost jini-diagnostics-export-button"
         onClick={() => void runExport()}
         disabled={busy}
         data-status={status.kind}

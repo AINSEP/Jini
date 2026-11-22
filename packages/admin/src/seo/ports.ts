@@ -1,4 +1,4 @@
-import { adminPort } from '../core/module/token.js';
+import { adminPort } from '@jini-ai/core/contracts/admin-module';
 import type { AdminSeoPort } from '../core/ports/seo.js';
 export type { AdminSeoPort } from '../core/ports/seo.js';
 export const seoApiToken = adminPort<AdminSeoPort, 'admin.seo.api'>({ id: 'admin.seo.api' });

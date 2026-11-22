@@ -53,7 +53,7 @@ function nativeFake() {
 function checkedFixture() {
   const fake = nativeFake();
   const client = createCheckedSqliteClient({ database: fake.database });
-  const kernel = sqliteKernel<unknown>(client);
+  const kernel = sqliteKernel<unknown>({ source: client });
   return { ...fake, client, kernel };
 }
 
@@ -142,14 +142,14 @@ describe("checked SQLite integer boundary", () => {
 
   test("raw clients retain bigint results and original control failures; mixed kernel ownership is refused", async () => {
     const raw = nativeFake();
-    const kernel = sqliteKernel(raw.database);
+    const kernel = sqliteKernel({ source: raw.database });
     assert.deepEqual(await kernel.query(sql`select value`), [{ value: 1n }]);
     assert.deepEqual(raw.exactModes, []);
     raw.state.commit = "before";
     await assert.rejects(kernel.transaction(async () => 1), (error) => error === raw.commitFailure);
     assert.throws(() => createCheckedSqliteClient({ database: raw.database }), /mix raw and checked/);
     const checked = checkedFixture();
-    assert.throws(() => sqliteKernel(checked.database), /mix raw and checked/);
+    assert.throws(() => sqliteKernel({ source: checked.database }), /mix raw and checked/);
   });
 });
 

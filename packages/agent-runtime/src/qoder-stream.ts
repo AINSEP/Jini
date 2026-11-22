@@ -111,7 +111,7 @@ function usageEvent(obj: JsonRecord): QoderEvent {
   };
 }
 
-export function createQoderStreamHandler({ onEvent }: { onEvent: QoderEventSink }) {
+export function createQoderStreamHandler({ onEvent }: { onEvent: QoderEventSink }, _optional: Record<string, never> = {}) {
   const lines = createBoundedLineStream({
     onLine: line => { const trimmed = line.trim(); if (trimmed) handleLine(trimmed); },
     onOverflow: error => onEvent({ type: 'error', message: error.message, raw: '' }),

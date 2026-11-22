@@ -51,7 +51,7 @@
  *   `ParseAgentPluginMcpConfigResult`'s own doc for the fail-open contract this preserves.
  *
  * Architectural role:
- * Pure, no-I/O parsing over an already-`JSON.parse`d value — mirrors `plugin-runtime/manifest.ts`'s
+ * Pure, no-I/O parsing over an already-`JSON.parse`d value — mirrors `packages/plugins/src/host/manifest.ts`'s
  * own "receives a JS value, never a file path or raw bytes" contract. `install.ts` is the only
  * caller that reads the file and hands the parsed value here.
  */
@@ -141,7 +141,7 @@ export type ParseAgentPluginManifestResult =
   | { readonly ok: true; readonly manifest: AgentPluginManifest; readonly warnings: readonly string[] }
   | { readonly ok: false; readonly errors: readonly string[] };
 
-const KNOWN_MANIFEST_KEYS = new Set(["$schema", "name", "version", "description", "author", "license", "keywords", "extensions"]);
+const KNOWN_MANIFEST_KEYS: ReadonlySet<string> = new Set(["$schema", "name", "version", "description", "author", "license", "keywords", "extensions"]);
 
 /**
  * True for a non-null, non-array plain object — the "is this actually a JSON object" gate both
@@ -225,8 +225,8 @@ function collectManifestProblems(
  * Hosts inject identityNamespace; the default is `jini`, with a legacy-key fallback.
  *
  * @throws Nothing — every failure is reported via the returned `errors`, matching this codebase's
- * own convention for expected validation outcomes (`plugin-runtime/manifest.ts`,
- * `plugin-runtime/discovery.ts`).
+ * own convention for expected validation outcomes (`packages/plugins/src/host/manifest.ts`,
+ * `packages/plugins/src/host/node/discovery.ts`).
  * @complexity O(k + n) time and space in the input keys and keyword entries.
  */
 export function parseAgentPluginManifest({ value }: { readonly value: unknown }, optional: { readonly identityNamespace?: string } = {}): ParseAgentPluginManifestResult {
@@ -619,7 +619,7 @@ export function readAgentPluginExtension<T>(required: {
   readonly manifest: Pick<AgentPluginManifest, 'extensions'>;
   readonly namespace: string;
   readonly read: (required: { readonly value: Readonly<Record<string, unknown>> }) => T;
-}): T | undefined {
+}, _optional: Record<string, never> = {}): T | undefined {
   if (!required.namespace.trim()) throw new Error('An extension namespace is required');
   const extensions = required.manifest.extensions;
   if (!extensions || !Object.hasOwn(extensions, required.namespace)) return undefined;

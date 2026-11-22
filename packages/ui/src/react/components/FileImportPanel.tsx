@@ -4,7 +4,7 @@
 // hardcoded its "Import"/"Importing…" button copy directly in JSX (title/
 // body/fileLabel were already caller-supplied props); that copy now goes
 // through `useT()` per this package's i18n policy. See
-// packages/ui/source-map.md.
+// archived UI source map.
 
 import { useT } from '../../features/i18n/index.js';
 
@@ -20,6 +20,7 @@ export interface FileImportPanelProps {
   onChange: (files: File[]) => void;
   onImport: () => void;
   className?: string;
+  useTHook?: typeof useT;
 }
 
 export function FileImportPanel({
@@ -33,8 +34,9 @@ export function FileImportPanel({
   onChange,
   onImport,
   className,
+  useTHook = useT,
 }: FileImportPanelProps) {
-  const t = useT();
+  const t = useTHook();
   const directoryProps = folder
     ? ({ webkitdirectory: '', directory: '' } as Record<string, string>)
     : {};
@@ -44,7 +46,7 @@ export function FileImportPanel({
         <h3>{title}</h3>
         <p>{body}</p>
       </div>
-      <label className="plugins-import-modal__file">
+      <label className="jini-plugins-import-modal__file">
         <input
           type="file"
           data-testid={folder ? 'plugins-folder-input' : 'plugins-zip-input'}
@@ -58,7 +60,7 @@ export function FileImportPanel({
       </label>
       <button
         type="button"
-        className="plugins-view__primary"
+        className="jini-plugins-view__primary"
         onClick={onImport}
         disabled={working || !canSubmit}
       >

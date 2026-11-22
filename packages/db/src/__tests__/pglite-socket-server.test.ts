@@ -26,7 +26,7 @@ let server: PgliteSocketServer | undefined;
 const clients: pg.Client[] = [];
 
 before(async () => {
-  db = await PGlite.create({ startParams: pgliteLowMemoryStartParams(PGlite) });
+  db = await PGlite.create({ startParams: pgliteLowMemoryStartParams({ pglite: PGlite }) });
 });
 
 after(async () => {

@@ -69,12 +69,12 @@ const CHECKS: ReadonlyArray<readonly [(candidate: Candidate) => boolean, string]
  * Why `value` is not a payment provider module, or `undefined` when it is.
  * @complexity O(k) for k credential keys.
  */
-export function paymentProviderModuleProblem(value: unknown, _optional: Record<string, never> = {}): string | undefined {
+export function paymentProviderModuleProblem({ value }: { value: unknown }, _optional: Record<string, never> = {}): string | undefined {
   if (!isRecord(value)) return "its module's default export is not an object";
   return CHECKS.find(([passes]) => !passes(value))?.[1] ?? capabilitiesProblem(value.capabilities as Candidate, value);
 }
 
 /** True when `value` has the runtime shape of a {@link PaymentProvider}. */
-export function isPaymentProviderModule(value: unknown, _optional: Record<string, never> = {}): value is PaymentProvider {
-  return paymentProviderModuleProblem(value) === undefined;
+export function isPaymentProviderModule(required: { value: unknown }, _optional: Record<string, never> = {}): required is { value: PaymentProvider } {
+  return paymentProviderModuleProblem(required) === undefined;
 }

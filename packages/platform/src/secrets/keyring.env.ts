@@ -6,7 +6,7 @@ import { createHash, hkdfSync, randomBytes } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 
-import type { KeyringPort } from "./ports.js";
+import type { KeyringPort } from "@jini-ai/core/contracts/vault";
 
 const DERIVED_SECRET_LENGTH_BYTES = 32;
 const ROOT_KEY_LENGTH_BYTES = 32;

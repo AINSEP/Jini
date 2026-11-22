@@ -2,9 +2,8 @@ import { createAgentModelDiscovery } from '../model-discovery-native.js';
 /** CODEX_SANDBOX_MODE remains an adapter-scoped operator override; plugin policy is supplied
  * explicitly by the host, whose native composition resolves CODEX_DISABLE_PLUGINS. */
 import { DEFAULT_MODEL_OPTION } from './shared.js';
-import type { RuntimeModelOption, RuntimeReasoningOption } from '../types.js';
-import type { RuntimeAgentDef, RuntimeBuildOptions, RuntimeContext } from '../types.js';
-import type { NativeCapabilities } from '../native-tool-policy.js';
+import type { RuntimeModelOption, RuntimeReasoningOption, RuntimeAgentDef, RuntimeBuildOptions, RuntimeContext, NativeCapabilities } from '@jini-ai/core/contracts/agents';
+import type { CodexDefOptions } from './codex/options.js';
 
 /**
  * The `visibility` values that mean "reachable by id, but do not render in a picker".
@@ -269,14 +268,14 @@ function codexSandboxTier(options: RuntimeBuildOptions): CodexSandboxTier {
 }
 
 /** Approval, native-tool lock, per-capability overrides and plugin policy, in that order. */
-function codexPolicyArgs(options: RuntimeBuildOptions): string[] {
+function codexPolicyArgs(options: RuntimeBuildOptions, { codex }: { codex: CodexDefOptions }): string[] {
   const nativeToolsLocked = options.nativeToolAccess === false;
   const native = options.nativeCapabilities;
   return [
     ...(options.cliParity && options.permissionMode === 'bypass' && !nativeToolsLocked ? ['-c', 'approval_policy="never"'] : []),
     ...(nativeToolsLocked ? CODEX_NATIVE_TOOLS_LOCKED_ARGS : []),
     ...CODEX_CAPABILITY_OVERRIDES.flatMap(([key, values]) => (native?.[key] === false ? values.flatMap((value) => ['-c', value]) : [])),
-    ...(options.codexDisablePlugins === true ? ['--disable', 'plugins'] : []),
+    ...(codex.disablePlugins === true ? ['--disable', 'plugins'] : []),
   ];
 }
 
@@ -314,8 +313,43 @@ function nonEmptyStrings(values: readonly string[] | null | undefined): string[]
   return (values || []).filter((value) => typeof value === 'string' && value.length > 0);
 }
 
+type CodexBuildArgs = RuntimeAgentDef['buildArgs'];
+
+/** Codex argv. `codex` is this definition's own host config (see `defs/codex/options.ts`); the neutral
+ * `buildArgs` passes none, and only a binding that owns the host policy supplies it. */
+export function buildCodexArgs(
+  { imagePaths }: Parameters<CodexBuildArgs>[0],
+  { extraAllowedDirs = [], options = {}, runtimeContext = {}, codex = {} }: NonNullable<Parameters<CodexBuildArgs>[1]> & { codex?: CodexDefOptions } = {},
+): string[] {
+  const resumeSessionId = codexResumeSessionId(runtimeContext);
+  const turn = resumeSessionId ? 'resume' : 'create';
+  return [
+    ...CODEX_TURN_COMMAND[turn],
+    ...CODEX_SANDBOX_ARGS[codexSandboxTier(options)][turn],
+    ...codexPolicyArgs(options, { codex }),
+    ...(resumeSessionId ? [] : codexCreateOnlyArgs({ extraAllowedDirs, runtimeContext })),
+    ...codexModelArgs(options),
+    // Own dedicated `-i/--image <FILE>` argv flag — confirmed against a
+    // real installed Codex CLI (0.151.0) on BOTH `codex exec --help` and
+    // `codex exec resume --help`, so unlike `-C`/`--add-dir` above this is
+    // not create-only and needs no `resumeSessionId` guard. Pushed for
+    // every claimed attachment path the caller hands in here, not only
+    // ones actually of kind "image": the caller
+    // (`agent-daemon-server.ts#resolveAttachmentRunFields`, in the consuming product) already
+    // stopped filtering by kind for the same reason `qoderAgentDef`'s
+    // `--attachment` above does not filter either — a same-shaped
+    // repeated-flag mechanism, see `imageDelivery`'s doc below.
+    ...nonEmptyStrings(imagePaths).flatMap((p) => ['-i', p]),
+    // The resume thread id is the positional SESSION_ID argument of
+    // `codex exec resume`; it must come after the flags. The prompt is
+    // delivered via stdin (promptViaStdin), so the thread id is the final
+    // argv entry.
+    ...(resumeSessionId ? [resumeSessionId] : []),
+  ];
+}
+
 export const codexAgentDef = {
-  ...createAgentModelDiscovery('codex', { fallbackModels: (): readonly import('../types.js').RuntimeModelOption[] => codexAgentDef.fallbackModels, args: ['debug', 'models'], parse: parseCodexDebugModels }),
+  ...createAgentModelDiscovery('codex', { fallbackModels: (): readonly import('@jini-ai/core/contracts/agents').RuntimeModelOption[] => codexAgentDef.fallbackModels, args: ['debug', 'models'], parse: parseCodexDebugModels }),
     id: 'codex',
     supportsNativeToolAccess: true,
     name: 'Codex CLI',
@@ -390,33 +424,7 @@ export const codexAgentDef = {
     // `error: unexpected argument '-' found` and the agent exits with
     // code 2 before any prompt is read. The pipe alone is sufficient for
     // stdin delivery.
-    buildArgs: ({ imagePaths }, { extraAllowedDirs = [], options = {}, runtimeContext = {} } = {}) => {
-      const resumeSessionId = codexResumeSessionId(runtimeContext);
-      const turn = resumeSessionId ? 'resume' : 'create';
-      return [
-        ...CODEX_TURN_COMMAND[turn],
-        ...CODEX_SANDBOX_ARGS[codexSandboxTier(options)][turn],
-        ...codexPolicyArgs(options),
-        ...(resumeSessionId ? [] : codexCreateOnlyArgs({ extraAllowedDirs, runtimeContext })),
-        ...codexModelArgs(options),
-        // Own dedicated `-i/--image <FILE>` argv flag — confirmed against a
-        // real installed Codex CLI (0.151.0) on BOTH `codex exec --help` and
-        // `codex exec resume --help`, so unlike `-C`/`--add-dir` above this is
-        // not create-only and needs no `resumeSessionId` guard. Pushed for
-        // every claimed attachment path the caller hands in here, not only
-        // ones actually of kind "image": the caller
-        // (`agent-daemon-server.ts#resolveAttachmentRunFields`, in the consuming product) already
-        // stopped filtering by kind for the same reason `qoderAgentDef`'s
-        // `--attachment` above does not filter either — a same-shaped
-        // repeated-flag mechanism, see `imageDelivery`'s doc below.
-        ...nonEmptyStrings(imagePaths).flatMap((p) => ['-i', p]),
-        // The resume thread id is the positional SESSION_ID argument of
-        // `codex exec resume`; it must come after the flags. The prompt is
-        // delivered via stdin (promptViaStdin), so the thread id is the final
-        // argv entry.
-        ...(resumeSessionId ? [resumeSessionId] : []),
-      ];
-    },
+    buildArgs: (required, optional = {}) => buildCodexArgs(required, optional),
     promptViaStdin: true,
     // Codex's CLI carries its own session across spawns: on a follow-up turn
     // the caller resumes the captured thread id instead of re-sending the

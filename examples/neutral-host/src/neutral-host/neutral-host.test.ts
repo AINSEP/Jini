@@ -14,7 +14,7 @@ import {
   pluginNoteHandler, pluginNoteToolCatalog, pluginNoteRisk, registerInstalledAgentPluginTools, WRITE_PLUGIN_NOTE, type ApplyHostToolApprovalPolicy,
 } from '@jini-ai/agent-plugins/lifecycle/host-tools';
 import { buildDomainRegistrations, indexCatalogById } from '@jini-ai/core';
-import { createRandomUuidGenerator, createSystemClock } from '@jini-ai/core/primitives';
+import { createRandomUuidGenerator, createSystemClock } from '@jini-ai/platform/system';
 import { createTimeoutScheduler } from '@jini-ai/daemon/scheduler';
 import { askOnce, createSurfaceExchangeStore } from '@jini-ai/daemon/surface-exchanges';
 import {
@@ -257,7 +257,9 @@ describe('moved classes in a neutral host', () => {
 
   it('plugin search: finds installed plugins by the host\'s own names', async () => {
     for (const pluginId of ['site-import', 'site-compliance', 'charts-echarts']) await installBundledPlugin({ host, pluginId });
-    for (const registration of buildAgentPluginSearchRegistrations({ workspaceId: host.workspaceId, ports: host.hostTools })) host.dispatcher.register({ registration });
+    const checks: string[] = [];
+    const requirePermission = async ({ permission }: { permission: string }) => { checks.push(permission); };
+    for (const registration of buildAgentPluginSearchRegistrations({ workspaceId: host.workspaceId, ports: host.hostTools, requirePermission })) host.dispatcher.register({ registration });
     const listed = await host.dispatcher.dispatch({ toolId: 'search_agent_plugin_local', input: {} });
     expect(listed.result.status).toBe('completed');
     expect(JSON.stringify(listed.result.output)).toContain('site-compliance');
@@ -265,6 +267,8 @@ describe('moved classes in a neutral host', () => {
     expect((ranked.result.output as { matches: { pluginId: string }[] }).matches.map(match => match.pluginId)).toEqual(['charts-echarts']);
     const refused = await host.dispatcher.dispatch({ toolId: 'search_agent_plugin_local', input: { offset: -1 } });
     expect(refused.result.status).not.toBe('completed');
+    // dg-c J1: each completed search asked the host for the configured `use` permission first.
+    expect(checks).toEqual([host.hostTools.permissions.use, host.hostTools.permissions.use]);
   });
 
   it('plugin memory tools: read and write a plugin\'s own memory', async () => {

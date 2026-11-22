@@ -89,7 +89,7 @@ describe('createHttpSeoApi request mapping', () => {
     let heads = 0;
     const api = createHttpSeoApi({ transport: recordingTransport({}).transport, basePath: '/ws' }, { imageTransport: { head: async () => { heads++; return { status: 200, headers: new Headers() }; } } });
     const abort = new AbortController(); abort.abort();
-    await expect(api.inspectShareImage!({ url: 'https://cdn.test/a.png' }, { signal: abort.signal })).rejects.toThrow();
+    await expect(api.inspectShareImage!({ url: 'https://cdn.test/a.png' }, { signal: abort.signal })).rejects.toThrow(abort.signal.reason.message);
     expect(heads).toBe(0);
   });
 });
@@ -108,7 +108,7 @@ describe('createHttpSeoApi sitemap fetch', () => {
   it('rejects an aborted request before any I/O', async () => {
     const abort = new AbortController(); abort.abort();
     const api = createHttpSeoApi({ transport: recordingTransport({}).transport, basePath: '/ws' }, { sitemapTransport: sitemapReply({ contentType: 'text/xml' }) });
-    await expect(api.fetchSitemapXml({}, { signal: abort.signal })).rejects.toThrow();
+    await expect(api.fetchSitemapXml({}, { signal: abort.signal })).rejects.toThrow(abort.signal.reason.message);
   });
 
   it('never parses an HTML page or a missing content type as a sitemap', async () => {

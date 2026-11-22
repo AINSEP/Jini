@@ -17,7 +17,7 @@ import { useEffect, useRef } from 'react';
 // a direct unit test — driving it through a real `renderHook` mount hits
 // React DOM internals that themselves dereference `window` well before this
 // hook's own effect ever runs, making that branch unreachable via a
-// rendered test (see packages/ui/archived provenance ledger's 2026-07-22 dated entry;
+// rendered test (see archived UI provenance ledger's 2026-07-22 dated entry;
 // same "extract into a directly-testable pure function" precedent as
 // `@jini-ai/mcp`'s `oauth.ts` readCappedText).
 export function resolveGlobalKeydownTarget(

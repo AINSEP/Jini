@@ -3,3 +3,4 @@ export * from "./find-menu.js";
 export * from "./zoom-menu.js";
 export * from "./spellcheck-menu.js";
 export * from "./window-bounds-store.js";
+export * from "./workspace-menu.js";

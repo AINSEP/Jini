@@ -9,7 +9,7 @@
  * themselves are unchanged in kind, only de-branded (see `archived provenance ledger` for the full
  * field-mapping table and provenance).
  *
- * Folded in 2026-07-26 from the standalone `@jini-ai/agui` package (plan §3a) into this `src/gen-ui/`
+ * Folded in 2026-07-26 from the standalone `@jini-ai/agui` package (plan §3a) into this `packages/agentic/src/core/gen-ui/`
  * subdirectory — see `./encoder.ts` for why it is kept apart from the flat `ag-ui.ts`.
  */
 

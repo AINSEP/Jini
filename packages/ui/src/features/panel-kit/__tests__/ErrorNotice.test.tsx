@@ -9,6 +9,29 @@ const failure = {
 };
 
 describe('ErrorNotice', () => {
+  it('shows only the words and error ID in id-only mode', () => {
+    const { container } = render(<ErrorNotice failure={failure} disclosure="id-only" />);
+    expect(screen.getByText(failure.message)).toBeTruthy();
+    expect(screen.getByText(failure.action)).toBeTruthy();
+    expect(screen.getByText(`${failure.errorId} — Report this error ID.`)).toBeTruthy();
+    expect(container.querySelector('details')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Copy details' })).toBeNull();
+    for (const text of [failure.step, failure.cause, failure.appVersion, failure.jiniVersion, failure.time]) {
+      expect(screen.queryByText(text)).toBeNull();
+    }
+  });
+
+  it('shows words without an ID prompt when id-only mode has no error ID', () => {
+    const { errorId, ...withoutId } = failure;
+    const { container } = render(<ErrorNotice failure={withoutId} disclosure="id-only" />);
+    expect(screen.getByText(failure.message)).toBeTruthy();
+    expect(screen.getByText(failure.action)).toBeTruthy();
+    expect(screen.queryByText(/Report this error ID\./)).toBeNull();
+    expect(container.textContent).not.toContain(errorId);
+    expect(container.querySelector('details')).toBeNull();
+    expect(screen.queryByRole('button')).toBeNull();
+  });
+
   it('renders an accessible native disclosure and copies the same selectable details', async () => {
     const writeText = vi.fn(async () => {});
     render(<ErrorNotice failure={failure} clipboard={{ writeText }} />);

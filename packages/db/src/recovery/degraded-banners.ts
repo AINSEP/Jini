@@ -1,6 +1,6 @@
 /**
- * @file SPEC-019 C-308 / behavior.spec.md §1.1 — degraded-state banner precedence resolver
- * (ADR-045 §4).
+ * @file Degraded-state banner precedence resolver (behavior.spec.md).
+ *
  *
  * Purpose:
  * Fixed precedence, highest to lowest: `migration.interrupted` > `PENDING_MIGRATION` >
@@ -10,7 +10,7 @@
  * this function does not own.
  *
  * `PENDING_MIGRATION`'s action always deep-links to the Database Timeline's own migration ceremony, never a
- * Recovery restore-flow action (AC-27/INV-07, ADR-045 §4) — restoring to an older snapshot does
+ * Recovery restore-flow action — restoring to an older snapshot does
  * not resolve schema drift against the current runtime.
  */
 

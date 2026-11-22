@@ -10,25 +10,17 @@ import { createAgentModelDiscovery } from '../model-discovery-native.js';
  * machine that has only that one, detection will list goose as installed and the first run will
  * fail on the unknown `acp` command.
  */
-import { detectAcpModels, DEFAULT_MODEL_OPTION } from './shared.js';
-import type { RuntimeAgentDef } from '../types.js';
+import { acpModelFetcher, DEFAULT_MODEL_OPTION } from './shared.js';
+import type { RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 
 export const gooseAgentDef = {
   // UNVERIFIED live integration locally; source/category and limits are documented in model-discovery-adapters.ts.
-  ...createAgentModelDiscovery('goose', { fallbackModels: (): readonly import('../types.js').RuntimeModelOption[] => gooseAgentDef.fallbackModels }),
+  ...createAgentModelDiscovery('goose', { fallbackModels: (): readonly import('@jini-ai/core/contracts/agents').RuntimeModelOption[] => gooseAgentDef.fallbackModels }),
     id: 'goose',
     name: 'goose',
     bin: 'goose',
     versionArgs: ['--version'],
-    fetchModels: async ({ resolvedBin, env }, { acpModelProbe } = {}) =>
-      (({ bin, args, ...optionalArgs }: Parameters<typeof detectAcpModels>[0] & NonNullable<Parameters<typeof detectAcpModels>[1]>) => detectAcpModels({ bin, args }, optionalArgs))({
-        ...(acpModelProbe ? { probe: acpModelProbe } : {}),
-        bin: resolvedBin,
-        args: ['acp'],
-        env,
-        timeoutMs: 15_000,
-        defaultModelOption: DEFAULT_MODEL_OPTION,
-      }),
+    fetchModels: acpModelFetcher({ args: ['acp'] }),
     fallbackModels: [DEFAULT_MODEL_OPTION],
     buildArgs: () => ['acp'],
     streamFormat: 'acp-json-rpc',

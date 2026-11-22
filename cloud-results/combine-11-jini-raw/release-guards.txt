@@ -1,0 +1,93 @@
+=== pnpm guard:plugins:catalog
+
+> jini@ guard:plugins:catalog /home/user/Jini
+> pnpm --filter @jini-ai/plugin-catalog run generate && pnpm --filter @jini-ai/plugin-catalog run test
+
+
+> @jini-ai/plugin-catalog@0.7.3-next.2 generate /home/user/Jini/packages/plugin-catalog
+> node --import tsx scripts/generate.ts
+
+
+> @jini-ai/plugin-catalog@0.7.3-next.2 test /home/user/Jini/packages/plugin-catalog
+> vitest run
+
+
+ RUN  v3.2.7 /home/user/Jini/packages/plugin-catalog
+
+npm warn Unknown env config "disallow-workspace-cycles". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown env config "prefer-workspace-packages". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown env config "verify-deps-before-run". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown env config "minimum-release-age". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown env config "npm-globalconfig". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown env config "package-extensions". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown env config "link-workspace-packages". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown env config "recursive". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown env config "_jsr-registry". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm notice
+npm notice package: @jini-ai/plugin-catalog@0.7.3-next.2
+npm notice Tarball Contents
+npm notice 11.3kB LICENSE
+npm notice 256B NOTICE
+npm notice 2.6kB README.md
+npm notice 92.6kB catalog.json
+npm notice 905B package.json
+npm notice Tarball Details
+npm notice name: @jini-ai/plugin-catalog
+npm notice version: 0.7.3-next.2
+npm notice filename: jini-ai-plugin-catalog-0.7.3-next.2.tgz
+npm notice package size: 34.4 kB
+npm notice unpacked size: 107.7 kB
+npm notice shasum: f172c7f457913d3c41f0d4d8569be77f4d3c36ec
+npm notice integrity: sha512-p8U2wEaSxkVrC[...]UVYBsalZDo7qw==
+npm notice total files: 5
+npm notice
+ ✓ __tests__/catalog.test.ts (68 tests) 414ms
+   ✓ standalone plugin catalog > packs only metadata and documentation into the actual npm tarball  349ms
+
+ Test Files  1 passed (1)
+      Tests  68 passed (68)
+   Start at  20:08:42
+   Duration  749ms (transform 92ms, setup 0ms, collect 107ms, tests 414ms, environment 0ms, prepare 73ms)
+
+EXIT 0
+=== pnpm guard:plugins
+
+> jini@ guard:plugins /home/user/Jini
+> node --import tsx ./scripts/check-plugin-packages.ts && node --import tsx ./scripts/check-agent-plugin-content.ts
+
+EXIT 0
+=== pnpm guard:plugins:packed
+
+> jini@ guard:plugins:packed /home/user/Jini
+> node --import tsx ./scripts/check-plugin-packages.ts --packed
+
+EXIT 0
+=== pnpm guard
+
+> jini@ guard /home/user/Jini
+> node --import tsx ./scripts/guard.ts
+
+injection advisory: 491 test-only cross-package imports in 328 files (not failing)
+[hardwiring] HW1-env-default: 15 total; 0 new
+[hardwiring] HW2-vendor-adapter: 5 total; 0 new
+[hardwiring] HW3-module-state: 34 total; 0 new
+[hardwiring] HW4-injected-fetch: 0 total; 0 new
+[hardwiring] HW5-jini-export: 0 total; 0 new
+[hardwiring] HW6-boot-default: 0 total; 0 new
+[hardwiring] HW7-public-react: 0 total; 0 new
+[hardwiring] HW8-provider-url: 47 total; 0 new
+[hardwiring] HW9-plugin-import: 0 total; 0 new
+[hardwiring] HW9-env-access: 70 total; 0 new
+[hardwiring] HW12-env-import-time: 9 total; 0 new
+[hardwiring] 2 stale debt occurrences; remove them from scripts/env-access-debt.json.
+[guard] R13-model-fallback-freshness claude: MF3 compared 17 live id(s) against 21 fallback entr(ies).
+[guard] R13-model-fallback-freshness codex: MF3 SKIPPED — `codex debug models` unavailable (spawn codex ENOENT). Staleness date still enforced (MF1/MF2).
+[guard] R13-model-fallback-freshness antigravity: MF3 SKIPPED — `agy models` unavailable (spawn agy ENOENT). Staleness date still enforced (MF1/MF2).
+[guard] R13-model-fallback-freshness pi: MF3 SKIPPED — MF3 does not apply to `pi` — only MF1/MF2 (staleness date) apply. Staleness date still enforced (MF1/MF2).
+[guard] R13-model-fallback-freshness aider: MF3 SKIPPED — MF3 does not apply to `aider` — only MF1/MF2 (staleness date) apply. Staleness date still enforced (MF1/MF2).
+[guard] R13-model-fallback-freshness opencode: MF3 SKIPPED — MF3 does not apply to `opencode` — only MF1/MF2 (staleness date) apply. Staleness date still enforced (MF1/MF2).
+[guard] ok — self-test passed (checks proven against known-bad fixtures) and zero violations found in packages/. Vocabulary-firewall and residual-JS-allowlist checks are still TODO.
+EXIT 0
+=== publish-pending --plan
+      Tests  3 passed (3)
+frozen install 0

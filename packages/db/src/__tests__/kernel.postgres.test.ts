@@ -5,7 +5,7 @@ import { sql } from "kysely";
 import pg from "pg";
 
 import { openPostgresKernel } from "../kernel/postgres/index.js";
-import type { StorageKernel } from "../kernel/port.js";
+import type { KyselyKernel } from "../kernel/port.js";
 import { freshPostgresDatabase } from "../testing/postgres-database.js";
 
 /**
@@ -19,8 +19,8 @@ interface LedgerDb {
   ledger: { id: string; stream: string; seq: number; previous_id: string | null };
 }
 
-let first: StorageKernel<LedgerDb>;
-let second: StorageKernel<LedgerDb>;
+let first: KyselyKernel<LedgerDb>;
+let second: KyselyKernel<LedgerDb>;
 
 before(async () => {
   const url = freshPostgresDatabase("jini_kernel_pg_fixture");
@@ -42,7 +42,7 @@ function gate(): { opened: Promise<void>; open: () => void } {
 
 /** Read the stream's latest row, (optionally pause), append after it — the appendRevision shape. */
 async function append(
-  kernel: StorageKernel<LedgerDb>,
+  kernel: KyselyKernel<LedgerDb>,
   input: { stream: string; id: string; lock: boolean; afterRead?: () => Promise<void> }
 ): Promise<string | null> {
   return kernel.transaction(async () => {

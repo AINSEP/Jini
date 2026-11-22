@@ -1,6 +1,7 @@
 /** `observability-sentry`: setup only registers the factory; the private client is built when a host initializes it. */
-import type { PluginSdk } from '@jini-ai/plugins/host';
+import type { PluginSdk } from '@jini-ai/core/contracts/plugin-sdk';
 import { attributionOf } from '../attribution.js';
+import { readSentryContext } from './configuration.js';
 import { createSentryObservabilityAdapter, type SentryAdapterOptions } from './sentry.js';
 
 /** Optional release input is validated before client construction. O(1), no effects. */
@@ -15,9 +16,10 @@ function releaseInput({ release }: Readonly<Record<string, unknown>>, _options =
  * The rate defaults to 0: errors only.
  *   The host's attribution attributes become tags on every event and transaction; a blank
  *   `environment` defaults to its `deployment.environment`.
- * @param optional `{ exportEnabled?, client?, transport? }`: explicit host export permission (defaults
+ * @param optional `{ context, exportEnabled?, client?, transport? }`: `context` is diagnostics' helpers as the domain's provider
+ *   contract registers them; explicit host export permission (defaults
  *   false), a host-owned client to reuse, or a test transport. Permission never grants consent.
- * @returns `{ port, dispose }`. @throws TypeError on invalid card fields or a malformed attribution.
+ * @returns `{ port, dispose }`. @throws SentryProviderConfigError at initialize when `context` is incomplete; TypeError on invalid card fields or a malformed attribution.
  */
 export function createSentryProvider(required: Readonly<Record<string, unknown>>, optional: Readonly<Record<string, unknown>> = {}) {
   const { dsn, environment = '', tracesSampleRate = 0 } = required;
@@ -27,7 +29,7 @@ export function createSentryProvider(required: Readonly<Record<string, unknown>>
   const tags = attributionOf(required.attribution).attributes;
   const resolvedEnvironment = environment || tags['deployment.environment'];
   const config = { enabled: true as const, dsn: dsn.trim(), tracesSampleRate: sampleRate, tags, ...releaseInput(required), ...(resolvedEnvironment ? { environment: resolvedEnvironment } : {}) };
-  const { port, dispose } = createSentryObservabilityAdapter({ config }, optional as SentryAdapterOptions);
+  const { port, dispose } = createSentryObservabilityAdapter({ config, context: readSentryContext({ context: optional.context }) }, optional as SentryAdapterOptions);
   return { port, dispose: (_required: Record<string, never>, _optional: Record<string, never> = {}) => dispose() };
 }
 

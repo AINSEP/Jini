@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/admin",
-  "version": "0.7.2",
+  "version": "0.7.3-next.2",
   "description": "Composable admin surface for Jini-hosted products: framework-free contracts, panel registry, and route model in `/core`; React shell and panels in `/react`. Import only the layers you need.",
   "license": "Apache-2.0",
   "repository": {
@@ -24,9 +24,9 @@
       "./react/entities": "browser",
       "./browser/shell-navigation": "browser",
       "./core/module": "universal",
-      "./react/bind-react": "browser",
-      "./react/use-controller": "browser",
       "./react/overlays": "browser",
+      "./react/kit": "browser",
+      "./react/testing-kit": "browser",
       "./media": "universal",
       "./media/react": "browser",
       "./media/adapters/http": "universal",
@@ -78,15 +78,15 @@
       "./widgets/react": "browser",
       "./widgets/adapters/http": "universal",
       "./widgets/adapters/memory": "universal",
-      "./widgets/conformance": "universal",
-      "./consent/react": "browser"
+      "./widgets/conformance": "universal"
     },
     "isolation": {
       "shared": [
         "src/react/components/DataTable.tsx",
         "src/react/components/ConfirmDialog",
         "src/react/components/RowMenu",
-        "src/react/types.ts"
+        "src/react/types.ts",
+        "src/react/kit.tsx"
       ],
       "forbidden": {
         "universal": [
@@ -97,12 +97,6 @@
       }
     },
     "optionalPeers": {
-      "@jini-ai/agentic": "opt-in: agent-aware ui and protocols; import @jini-ai/admin/react — Agent-aware UI and protocols could not load @jini-ai/agentic. Install @jini-ai/agentic to enable this feature, or check its installed version and native binaries.",
-      "@jini-ai/ui": "opt-in: ui integrations; import @jini-ai/admin/react — UI integrations could not load @jini-ai/ui. Install @jini-ai/ui to enable this feature, or check its installed version and native binaries.",
-      "@jini-ai/ui-kit": "opt-in: ui kit integrations; import @jini-ai/admin/react — UI kit integrations could not load @jini-ai/ui-kit. Install @jini-ai/ui-kit to enable this feature, or check its installed version and native binaries.",
-      "@jini-ai/agent-plugins": "opt-in: agent plugin integrations — Agent plugin integrations could not load @jini-ai/agent-plugins. Install @jini-ai/agent-plugins to enable this feature, or check its installed version and native binaries.",
-      "@jini-ai/cms": "opt-in: cms integrations; import @jini-ai/admin/media — CMS integrations could not load @jini-ai/cms. Install @jini-ai/cms to enable this feature, or check its installed version and native binaries.",
-      "@jini-ai/core": "opt-in: core module integrations; import @jini-ai/admin/react — Core module integrations could not load @jini-ai/core. Install @jini-ai/core to enable this feature, or check its installed version and native binaries.",
       "react": "opt-in: react admin bindings; import @jini-ai/admin/react — React admin bindings could not load react. Install react to enable this feature, or check its installed version.",
       "react-dom": "opt-in: react admin bindings; import @jini-ai/admin/react — React admin bindings could not load react-dom. Install react-dom to enable this feature, or check its installed version."
     }
@@ -157,20 +151,20 @@
       "import": "./dist/core/module/index.js",
       "default": "./dist/core/module/index.js"
     },
-    "./react/bind-react": {
-      "types": "./dist/react/bind-react.d.ts",
-      "import": "./dist/react/bind-react.js",
-      "default": "./dist/react/bind-react.js"
-    },
-    "./react/use-controller": {
-      "types": "./dist/react/use-controller.d.ts",
-      "import": "./dist/react/use-controller.js",
-      "default": "./dist/react/use-controller.js"
-    },
     "./react/overlays": {
       "types": "./dist/react/overlays.d.ts",
       "import": "./dist/react/overlays.js",
       "default": "./dist/react/overlays.js"
+    },
+    "./react/kit": {
+      "types": "./dist/react/kit.d.ts",
+      "import": "./dist/react/kit.js",
+      "default": "./dist/react/kit.js"
+    },
+    "./react/testing-kit": {
+      "types": "./dist/react/testing-kit.d.ts",
+      "import": "./dist/react/testing-kit.js",
+      "default": "./dist/react/testing-kit.js"
     },
     "./media": {
       "types": "./dist/media/index.d.ts",
@@ -431,11 +425,6 @@
       "types": "./dist/widgets/conformance/widgets-api.conformance.d.ts",
       "import": "./dist/widgets/conformance/widgets-api.conformance.js",
       "default": "./dist/widgets/conformance/widgets-api.conformance.js"
-    },
-    "./consent/react": {
-      "types": "./dist/consent/react/index.d.ts",
-      "import": "./dist/consent/react/index.js",
-      "default": "./dist/consent/react/index.js"
     }
   },
   "files": [
@@ -464,20 +453,15 @@
   "peerDependencies": {
     "react": "^18.3.0 || ^19.0.0",
     "react-dom": "^18.3.0 || ^19.0.0",
-    "@jini-ai/agentic": "^0.7.0",
-    "@jini-ai/ui": "^0.7.0",
-    "@jini-ai/ui-kit": "^0.7.0",
-    "@jini-ai/agent-plugins": "^0.7.0",
-    "@jini-ai/cms": "^0.7.0",
-    "@jini-ai/core": "^0.7.0"
+    "@jini-ai/core": "^0.7.3-next.2"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.3.0",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
-    "@vitest/coverage-v8": "^2.1.9",
-    "jsdom": "^25.0.1",
+    "@vitest/coverage-v8": "^3.2.6",
+    "jsdom": "^26.1.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "@jini-ai/agentic": "workspace:^",
@@ -496,24 +480,6 @@
     }
   },
   "peerDependenciesMeta": {
-    "@jini-ai/agentic": {
-      "optional": true
-    },
-    "@jini-ai/ui": {
-      "optional": true
-    },
-    "@jini-ai/ui-kit": {
-      "optional": true
-    },
-    "@jini-ai/agent-plugins": {
-      "optional": true
-    },
-    "@jini-ai/cms": {
-      "optional": true
-    },
-    "@jini-ai/core": {
-      "optional": true
-    },
     "react": {
       "optional": true
     },

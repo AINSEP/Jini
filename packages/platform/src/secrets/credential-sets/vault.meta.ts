@@ -1,4 +1,13 @@
-import { VAULT_KINDS, VaultError, type VaultJson, type VaultKind, type VaultMeta, type VaultMetaParser, type VaultMetaParsers, type VaultOptions } from "./vault.types.js";
+import {
+  VAULT_KINDS,
+  VaultError,
+  type VaultJson,
+  type VaultKind,
+  type VaultMeta,
+  type VaultMetaParser,
+  type VaultMetaParsers,
+  type VaultOptions,
+} from "@jini-ai/core/contracts/vault";
 import { normalizeCredentialWorksFor } from "./provider-matches.js";
 
 /** Copy eligibility lives with the kind contracts; MCP rows require their server configuration. */

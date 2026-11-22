@@ -1,0 +1,1525 @@
+{
+  "version": 1,
+  "allow": [
+    {
+      "id": "f62abc9055e0",
+      "reason": "R12c: the observability provider contract no longer restates the domain port types (they come from @jini-ai/core/contracts/observability), so 'structural copies of the port types, the provider never imports the domain' is obsolete; the new header says what the file holds now and the drift guard (observability-contract-drift.typecheck.ts) proves the copied helper shapes."
+    },
+    {
+      "id": "15004f5ecbb6",
+      "reason": "Provenance claim is false now: invocation.ts no longer imports createCommandInvocation from @jini-ai/platform; it plans with core's planCommandInvocation. The module header was rewritten to say so."
+    },
+    {
+      "id": "0df8fa4ad951",
+      "reason": "Kept in place (oauth-callback-server.ts, same sentence) with the function renamed handle() -> dispatchCallback() when the handler was split."
+    },
+    {
+      "id": "4affbb6c73ce",
+      "reason": "The re-export it explains no longer exists: agent-runtime types.ts dropped the AgentDiagnostic/AgentFixIntent re-export shell (owner rule: no forwarders) and importers point at @jini-ai/protocol directly."
+    },
+    {
+      "id": "6b97fbcabdcf",
+      "reason": "The excluded file src/providers/types.ts was deleted; its shapes live in @jini-ai/core contracts/agents/model-catalog.ts, which core's coverage config does not exclude. Nothing is carved out any more."
+    },
+    {
+      "id": "f159774f3016",
+      "reason": "False now: the legacy wire reducer is gone (one reducer, translateRunAgentPayload) and tool-result media/isError/outcome now ride on TOOL_CALL_RESULT as extra fields. event-projection.ts carries the current header."
+    },
+    {
+      "id": "deeb820b0e87",
+      "reason": "Its function reduceAgentWirePayload was deleted with the legacy wire reducer (A1 split of ag-ui/entry.ts); the daemon payload reduction is translateRunAgentPayload in run-events."
+    },
+    {
+      "id": "32e31150055f",
+      "reason": "False now: the projection carries isError as an extra field, so it survives the AG-UI round trip. event-reduction.ts has the rewritten comment at the same case."
+    },
+    {
+      "id": "e5c80d9bac89",
+      "reason": "OriginContext no longer holds the resolved port and env; it is only { originPolicy }. The port/env half of the sentence moved to createLocalSameOriginPolicy's doc."
+    },
+    {
+      "id": "d52b8242ee25",
+      "reason": "guardSameOrigin no longer wraps isLocalSameOrigin; it asks the host's injected origin policy. The same sentence is kept in adjusted form in the doc above guardSameOrigin."
+    },
+    {
+      "id": "e125772f1b42",
+      "reason": "Split: the malformed-percent-encoding half is still decodeParam's comment; the empty-segment half moved to matchSegment's own comment, since the empty check moved there."
+    },
+    {
+      "id": "9bb69b503369",
+      "reason": "Daemon test no longer builds the real engine itself; the manager takes a host-built service. The recording spy over createTerminalService now lives in server's builtin-features.terminal-service.test.ts, with its own comment."
+    },
+    {
+      "id": "17de6e09aa2c",
+      "reason": "The one-line pointer to the deleted same-origin-gate fixture, in 20 route tests that no longer spy the guard and inject an origin policy instead."
+    },
+    {
+      "id": "1c2b4ab5fcfd",
+      "reason": "The same-origin gate fixture was deleted. Routes take an injected SameOriginPolicyPort (core/contracts/server/testing: allowAllOrigins, denyAllOrigins, createRecordingOriginPolicy), so no test mocks guardSameOrigin any more."
+    },
+    {
+      "id": "77b987a5e4dc",
+      "reason": "Part of the deleted same-origin-gate fixture (guard is injected as a policy port now, never vi.mock'd)."
+    },
+    {
+      "id": "97991e658665",
+      "reason": "Part of the deleted same-origin-gate fixture (guard is injected as a policy port now, never vi.mock'd)."
+    },
+    {
+      "id": "b7546a9fb0a5",
+      "reason": "Part of the deleted same-origin-gate fixture (guard is injected as a policy port now, never vi.mock'd)."
+    },
+    {
+      "id": "93a457eb2597",
+      "reason": "In packages/daemon/src/http/__tests__/tool-catalog.test.ts, the over-the-wire Express tests were replaced by in-memory server tests. The comment at line 143 explains the status code observed by an HTTP caller and @jini-ai/mcp's describe_tool for an unknown tool id."
+    },
+    {
+      "id": "b27bdde2c6b8",
+      "reason": "registerToolCatalogRoutes(app) was replaced by toolCatalogRoutes(), routes as data. The host mounts them and no pack calls this with an app; the new doc says so."
+    },
+    {
+      "id": "490796c361f1",
+      "reason": "The option it documents (terminalService on CreateTerminalSessionManagerOptions) is gone: the manager is handed a required service and builds none. The new required-arg doc says so."
+    },
+    {
+      "id": "c60be620a8a5",
+      "reason": "The loadSpawnPty option was removed from the session manager; the host passes it where it builds the service, and the module header says so."
+    },
+    {
+      "id": "a87ae8fa0c5d",
+      "reason": "Its text is kept except the sentence about a missing host service/loader making create() reject, which is false now (the manager never builds a service). The 'wrapper setup is O(1)' sentence was adjusted."
+    },
+    {
+      "id": "5f7d56df73ba",
+      "reason": "mintToolErrorId moved to core errors/error-id.ts with a doc that is accurate to the port-based version (randomness injected); the redaction.ts pattern doc names the new owner."
+    },
+    {
+      "id": "55bf2b580d65",
+      "reason": "One-line provenance comment whose source path moved: now '@jini-ai/core src/contracts/ai-trace/__tests__/scenario.ts'."
+    },
+    {
+      "id": "ef454bb06c25",
+      "reason": "Describes the old vi.mock of createTerminalSessionManager. The test now spies createTerminalService, and the new comment above that mock says so."
+    },
+    {
+      "id": "4452cb29ccc9",
+      "reason": "The createFrontendControl re-export from @jini-ai/server was removed (no forwarders); hosts import it from @jini-ai/daemon/http."
+    },
+    {
+      "id": "818263e30d9f",
+      "reason": "Decorative section divider: the cluster became its own factory (createConfigPort), whose name carries the section."
+    },
+    {
+      "id": "8663777d8275",
+      "reason": "Decorative section divider: the cluster became createEntryReaders/createEntryWriters, whose docs carry the section."
+    },
+    {
+      "id": "45db51807f8e",
+      "reason": "Decorative section divider: the cluster became createExtractionsPort, whose name carries the section."
+    },
+    {
+      "id": "ee94f8c26bd1",
+      "reason": "A 'see onToggleEnabled above' pointer. Both toggles now share runOptimisticToggle, which holds the one explanation of why settle invalidates again."
+    },
+    {
+      "id": "65377600f4f5",
+      "reason": "The claim that the version, list and preview state cannot split cleanly is false: the hook was split into useVersionManager.state.ts sub-hooks, and the new doc says so."
+    },
+    {
+      "id": "0b872d31b7e7",
+      "reason": "Moved or reworded, not lost: bigram containment 0.89 of this block's text in packages/daemon/src/http/frontend-sessions.ts (merge-3 classification; the checker counts only verbatim survivors). Was packages/daemon/src/http/__tests__/frontend-sessions.test.ts:416."
+    },
+    {
+      "id": "57670a135133",
+      "reason": "Moved or reworded, not lost: bigram containment 0.83 of this block's text in packages/daemon/src/http/__tests__/route-manifest.test.ts (merge-3 classification; the checker counts only verbatim survivors). Was packages/daemon/src/http/__tests__/route-manifest.test.ts:59."
+    },
+    {
+      "id": "f6a1c0d79c03",
+      "reason": "Moved or reworded, not lost: bigram containment 0.80 of this block's text in packages/daemon/src/http/model-proxy.ts (merge-3 classification; the checker counts only verbatim survivors). Was packages/daemon/src/http/model-proxy.ts:649."
+    },
+    {
+      "id": "c0a02747365d",
+      "reason": "Moved or reworded, not lost: bigram containment 0.80 of this block's text in packages/core/src/contracts/server/sse.ts (merge-3 classification; the checker counts only verbatim survivors). Was packages/http-kit/src/raw-sse.ts:24."
+    },
+    {
+      "id": "16ab2aca6855",
+      "reason": "packages/admin/src/react/shell/types.ts:118-118 (\"the theme hook, defaulted to the real `useadmintheme`. pass a fake in ...\"): Edited in place by the admin-j3 merge (J3): the useThemeHook doc was expanded with the host-painted-theme contract; the original sentence's content is at packages/admin/src/react/shell/types.ts:118-123. Closest surviving wording: packages/admin/src/react/shell/types.ts:118 (containment 0.63)."
+    },
+    {
+      "id": "2d6f2047ff45",
+      "reason": "packages/cms/src/core/tools/host-read-vocabulary.ts:16-16 (\"entities whose read-back the cms tool text points a model at....\"): Code gone: the closed HostReadEntity union in @jini-ai/cms/core was deleted when HostReadVocabulary moved to @jini-ai/core (ea62f20e); HostReadEntity is a plain string there and its doc is at packages/core/src/host-read-vocabulary.ts:16."
+    },
+    {
+      "id": "3586abce38f7",
+      "reason": "packages/cms/src/widgets/ports.ts:106-106 (\"structural reference-index row: the host owns extraction and persisten...\"): Edited in place (30954d12, moves-b1): the one-line doc was expanded with the entry-refs index rationale; same subject at packages/cms/src/widgets/ports.ts:105-111 (EntryRefRow) and :132 (EntryRefsRepoPort)."
+    },
+    {
+      "id": "1c731139120e",
+      "reason": "packages/daemon/src/http/__tests__/characterization/route-table.characterization.test.ts:192-192 (\"message-relay's claim handler takes `next` to hand its errors on; it a...\"): Characterization note about message-relay's Express claim handler taking `next`; that handler was deleted in 64553c8a (the claim route is data), so there is no `next`-taking handler left to classify."
+    },
+    {
+      "id": "f96c25db7f1a",
+      "reason": "packages/daemon/src/http/__tests__/characterization/streams.characterization.test.ts:451-453 (\"recorded as it is: the provider turn turns a failed upstream call into...\"): Recorded the pre-DM-R3-3 behaviour (upstream failure text streamed to the client); 1a685faa (owner decision DM-R3-3) changed it, so the sentence describes behaviour that no longer exists."
+    },
+    {
+      "id": "f7c6a7fc7fa2",
+      "reason": "packages/daemon/src/http/__tests__/connectors.test.ts:605-612 (\"real express app on a real socket, one genuine http round-trip per mou...\"): Reworded in place in 4cf918d0 when its subject moved to the route-data API (register* -> *Routes, Express fakes -> web Request/Response); the same statement is at packages/daemon/src/http/__tests__/connectors.test.ts:559. Closest surviving wording: packages/daemon/src/http/__tests__/connectors.test.ts:559 (containment 0.32)."
+    },
+    {
+      "id": "881b3c551663",
+      "reason": "packages/daemon/src/http/__tests__/daemon-status.test.ts:137-138 (\"redacted, not echoed \u2014 the adapter's catch is a last-resort handler fo...\"): Reworded in place in db7994a1 when its subject moved to the route-data API (register* -> *Routes, Express fakes -> web Request/Response); the same statement is at packages/daemon/src/http/__tests__/daemon-status.test.ts:101. Closest surviving wording: packages/daemon/src/http/__tests__/daemon-status.test.ts:101 (containment 0.64)."
+    },
+    {
+      "id": "f5c21563d5a5",
+      "reason": "packages/daemon/src/http/__tests__/delegated-tools.test.ts:477-478 (\"the client already disconnected \u2014 `mountjsonroute` deliberately withho...\"): Test comment in delegated-tools.test.ts about the deleted Express test harness (fake req/res, MockApp, captured handlers or a real-Express-socket suite) for routes removed in 3800e9b8; the suite was rewritten against the route-data/web-Response API and the harness it explains no longer exists."
+    },
+    {
+      "id": "2f8fb6c5b5b7",
+      "reason": "packages/daemon/src/http/__tests__/delegated-tools.test.ts:482-484 (\"but the cancellation genuinely reached `toolexecutor` through the whol...\"): Reworded in place in 3800e9b8 when its subject moved to the route-data API (register* -> *Routes, Express fakes -> web Request/Response); the same statement is at packages/daemon/src/http/__tests__/delegated-tools.test.ts:418. Closest surviving wording: packages/daemon/src/http/__tests__/delegated-tools.test.ts:418 (containment 0.55)."
+    },
+    {
+      "id": "9174747d48a8",
+      "reason": "packages/daemon/src/http/__tests__/frontend-control.test.ts:278-279 (\"capture the get handler directly, as frontend-sessions.test.ts does: o...\"): Test comment in frontend-control.test.ts about the deleted Express test harness (fake req/res, MockApp, captured handlers or a real-Express-socket suite) for routes removed in 8c00e560; the suite was rewritten against the route-data/web-Response API and the harness it explains no longer exists."
+    },
+    {
+      "id": "ce322c3fd349",
+      "reason": "packages/daemon/src/http/__tests__/frontend-sessions.test.ts:19-19 (\"a request/response pair standing in for express's, which already are n...\"): Test comment in frontend-sessions.test.ts about the deleted Express test harness (fake req/res, MockApp, captured handlers or a real-Express-socket suite) for routes removed in 8c00e560; the suite was rewritten against the route-data/web-Response API and the harness it explains no longer exists."
+    },
+    {
+      "id": "b522ce5f2952",
+      "reason": "packages/daemon/src/http/__tests__/frontend-sessions.test.ts:147-147 (\"sse headers were already committed, so the response ends rather than b...\"): Test comment in frontend-sessions.test.ts about the deleted Express test harness (fake req/res, MockApp, captured handlers or a real-Express-socket suite) for routes removed in 8c00e560; the suite was rewritten against the route-data/web-Response API and the harness it explains no longer exists."
+    },
+    {
+      "id": "82d0438b3846",
+      "reason": "packages/daemon/src/http/__tests__/frontend-sessions.test.ts:156-158 (\"capture the get handler directly: this path is only reachable when wri...\"): Test comment in frontend-sessions.test.ts about the deleted Express test harness (fake req/res, MockApp, captured handlers or a real-Express-socket suite) for routes removed in 8c00e560; the suite was rewritten against the route-data/web-Response API and the harness it explains no longer exists."
+    },
+    {
+      "id": "e6ecd8a10bdc",
+      "reason": "packages/daemon/src/http/__tests__/frontend-sessions.test.ts:243-244 (\"a bracketed query string (`?capability[x]=y`) parses to an object; sil...\"): Test comment in frontend-sessions.test.ts about the deleted Express test harness (fake req/res, MockApp, captured handlers or a real-Express-socket suite) for routes removed in 8c00e560; the suite was rewritten against the route-data/web-Response API and the harness it explains no longer exists."
+    },
+    {
+      "id": "8411dd15d302",
+      "reason": "packages/daemon/src/http/__tests__/frontend-sessions.test.ts:312-312 (\"sse headers are already committed by then, so there is no status-code ...\"): Test comment in frontend-sessions.test.ts about the deleted Express test harness (fake req/res, MockApp, captured handlers or a real-Express-socket suite) for routes removed in 8c00e560; the suite was rewritten against the route-data/web-Response API and the harness it explains no longer exists."
+    },
+    {
+      "id": "8762a2d9693e",
+      "reason": "packages/daemon/src/http/__tests__/media.test.ts:752-761 (\"real express server on a real socket. every test above drives a route'...\"): Test comment in media.test.ts about the deleted Express test harness (fake req/res, MockApp, captured handlers or a real-Express-socket suite) for routes removed in dc6cbfbd; the suite was rewritten against the route-data/web-Response API and the harness it explains no longer exists."
+    },
+    {
+      "id": "9d4c5a4821be",
+      "reason": "packages/daemon/src/http/__tests__/memory.test.ts:354-355 (\"unlike runs.ts (sec-005: generic internal_error + correlation id), mem...\"): memory.test.ts block describing the deleted Express harness or the pre-DM-MEM behaviour (store's raw message passed through); f506b3d3 (DM-MEM) and a908d3a8 replaced both, the real-socket Express suite is gone."
+    },
+    {
+      "id": "d63cd9a31ee7",
+      "reason": "packages/daemon/src/http/__tests__/memory.test.ts:657-668 (\"real express server on a real socket. every test above calls a route's...\"): memory.test.ts block describing the deleted Express harness or the pre-DM-MEM behaviour (store's raw message passed through); f506b3d3 (DM-MEM) and a908d3a8 replaced both, the real-socket Express suite is gone."
+    },
+    {
+      "id": "6477537aded2",
+      "reason": "packages/daemon/src/http/__tests__/message-relay.test.ts:42-43 (\"f1 fix wave (stryker l8 \u00a74 message-relay.ts:23-28,36,42): exact refusa...\"): Header of the Stryker F1 describe block that drove the deleted Express registerMessageRelayRoutes; 64553c8a rewrote the suite against messageRelayRoutes (route data), the F1 refusal cases now sit in that suite."
+    },
+    {
+      "id": "9409fe452056",
+      "reason": "packages/daemon/src/http/__tests__/model-proxy.test.ts:85-85 (\"always injects `injectedfetch`/`injecteddnslookup` as the transport/re...\"): Reworded in place in 7b7d7795 when its subject moved to the route-data API (register* -> *Routes, Express fakes -> web Request/Response); the same statement is at packages/daemon/src/http/__tests__/model-proxy.test.ts:127. Closest surviving wording: packages/daemon/src/http/__tests__/model-proxy.test.ts:127 (containment 0.55)."
+    },
+    {
+      "id": "8d6dc97f8f85",
+      "reason": "packages/daemon/src/http/__tests__/model-proxy.test.ts:256-258 (\"registration order is load-bearing, not incidental: express matches in...\"): Test comment in model-proxy.test.ts about the deleted Express test harness (fake req/res, MockApp, captured handlers or a real-Express-socket suite) for routes removed in 7b7d7795; the suite was rewritten against the route-data/web-Response API and the harness it explains no longer exists."
+    },
+    {
+      "id": "b2e356a5bc0e",
+      "reason": "packages/daemon/src/http/__tests__/model-proxy.test.ts:1544-1545 (\"the route owner contains a throwing host sink: the default line record...\"): Test comment in model-proxy.test.ts about the deleted Express test harness (fake req/res, MockApp, captured handlers or a real-Express-socket suite) for routes removed in 7b7d7795; the suite was rewritten against the route-data/web-Response API and the harness it explains no longer exists."
+    },
+    {
+      "id": "da74771394de",
+      "reason": "packages/daemon/src/http/__tests__/model-proxy.test.ts:1550-1550 (\"the catch-all's own origin check passes; the one inside runproxystream...\"): Test comment in model-proxy.test.ts about the deleted Express test harness (fake req/res, MockApp, captured handlers or a real-Express-socket suite) for routes removed in 7b7d7795; the suite was rewritten against the route-data/web-Response API and the harness it explains no longer exists."
+    },
+    {
+      "id": "264c5ab2a166",
+      "reason": "packages/daemon/src/http/__tests__/model-proxy.test.ts:1553-1553 (\"a rejection would fail the test...\"): Test comment in model-proxy.test.ts about the deleted Express test harness (fake req/res, MockApp, captured handlers or a real-Express-socket suite) for routes removed in 7b7d7795; the suite was rewritten against the route-data/web-Response API and the harness it explains no longer exists. Same text also at packages/daemon/src/http/__tests__/model-proxy.test.ts:1564-1564"
+    },
+    {
+      "id": "d8db914323b1",
+      "reason": "packages/daemon/src/http/__tests__/remote-run-events.test.ts:47-47 (\"runs a mounted route's real middleware chain (registered via `app.use(...\"): Test comment in remote-run-events.test.ts about the deleted Express test harness (fake req/res, MockApp, captured handlers or a real-Express-socket suite) for routes removed in 784d5d0a; the suite was rewritten against the route-data/web-Response API and the harness it explains no longer exists."
+    },
+    {
+      "id": "57c1e536749b",
+      "reason": "packages/daemon/src/http/__tests__/remote-run-events.test.ts:58-58 (\"middleware responded directly (401/503) and never called next()...\"): Test comment in remote-run-events.test.ts about the deleted Express test harness (fake req/res, MockApp, captured handlers or a real-Express-socket suite) for routes removed in 784d5d0a; the suite was rewritten against the route-data/web-Response API and the harness it explains no longer exists."
+    },
+    {
+      "id": "05aca5fe8791",
+      "reason": "packages/daemon/src/http/__tests__/research-handle.test.ts:115-115 (\"a real express app; the spy captures the handler `mountjsonroute` regi...\"): Test comment in research-handle.test.ts about the deleted Express test harness (fake req/res, MockApp, captured handlers or a real-Express-socket suite) for routes removed in c0ecea75; the suite was rewritten against the route-data/web-Response API and the harness it explains no longer exists."
+    },
+    {
+      "id": "648918c4ee84",
+      "reason": "packages/daemon/src/http/__tests__/research.test.ts:37-41 (\"the real `fetch`, captured before any test stubs the global. `research...\"): Test comment in research.test.ts about the deleted Express test harness (fake req/res, MockApp, captured handlers or a real-Express-socket suite) for routes removed in c0ecea75; the suite was rewritten against the route-data/web-Response API and the harness it explains no longer exists."
+    },
+    {
+      "id": "ffcee6683fc4",
+      "reason": "packages/daemon/src/http/__tests__/research.test.ts:445-449 (\"real express app on a real socket. everything above drives the route s...\"): Test comment in research.test.ts about the deleted Express test harness (fake req/res, MockApp, captured handlers or a real-Express-socket suite) for routes removed in c0ecea75; the suite was rewritten against the route-data/web-Response API and the harness it explains no longer exists."
+    },
+    {
+      "id": "316ba2647a90",
+      "reason": "packages/daemon/src/http/__tests__/route-manifest.test.ts:28-28 (\"records `{method, path}` for every string-path registration, like `ins...\"): Helper doc of the deleted Express recordingApp/MOUNT_FAMILY path in route-manifest.test.ts; after daemon-r7 every family returns its list (LISTED_FAMILY), restated at packages/daemon/src/http/__tests__/route-manifest.test.ts:25-38."
+    },
+    {
+      "id": "456f1542f5d0",
+      "reason": "packages/daemon/src/http/__tests__/route-manifest.test.ts:48-48 (\"registrars only need deps at request time, never at mount time \u2014 see `...\"): Reworded in place in aa888488 when its subject moved to the route-data API (register* -> *Routes, Express fakes -> web Request/Response); the same statement is at packages/daemon/src/http/__tests__/route-manifest.test.ts:25. Closest surviving wording: packages/daemon/src/http/__tests__/route-manifest.test.ts:25 (containment 0.45)."
+    },
+    {
+      "id": "fe8433db5bd5",
+      "reason": "packages/daemon/src/http/__tests__/route-manifest.test.ts:51-51 (\"mounts one family exactly as a composition would, and returns what reg...\"): Helper doc of the deleted Express recordingApp/MOUNT_FAMILY path in route-manifest.test.ts; after daemon-r7 every family returns its list (LISTED_FAMILY), restated at packages/daemon/src/http/__tests__/route-manifest.test.ts:25-38."
+    },
+    {
+      "id": "d1ae819a2111",
+      "reason": "packages/daemon/src/http/__tests__/route-manifest.test.ts:64-64 (\"what `family` really registers: its route list, or the routes its regi...\"): Helper doc of the deleted Express recordingApp/MOUNT_FAMILY path in route-manifest.test.ts; after daemon-r7 every family returns its list (LISTED_FAMILY), restated at packages/daemon/src/http/__tests__/route-manifest.test.ts:25-38."
+    },
+    {
+      "id": "a1a074a60ac1",
+      "reason": "packages/daemon/src/http/__tests__/routines.test.ts:813-815 (\"----------------------------------------------------------------------...\"): Reworded in place in 5aad3856 when its subject moved to the route-data API (register* -> *Routes, Express fakes -> web Request/Response); the same statement is at packages/daemon/src/http/__tests__/routines.test.ts:784. Closest surviving wording: packages/daemon/src/http/__tests__/routines.test.ts:784 (containment 0.6)."
+    },
+    {
+      "id": "cf60f322ab6e",
+      "reason": "packages/daemon/src/http/__tests__/routines.test.ts:952-959 (\"real express server on a real socket. every test above calls a route's...\"): Test comment in routines.test.ts about the deleted Express test harness (fake req/res, MockApp, captured handlers or a real-Express-socket suite) for routes removed in 5aad3856; the suite was rewritten against the route-data/web-Response API and the harness it explains no longer exists."
+    },
+    {
+      "id": "7e4afc3a8143",
+      "reason": "packages/daemon/src/http/__tests__/runs.test.ts:41-41 (\"minimal fake of the raw express req/res surface `registerruneventstrea...\"): Test comment in runs.test.ts about the deleted Express test harness (fake req/res, MockApp, captured handlers or a real-Express-socket suite) for routes removed in a9498587; the suite was rewritten against the route-data/web-Response API and the harness it explains no longer exists."
+    },
+    {
+      "id": "1c87a57f890a",
+      "reason": "packages/daemon/src/http/__tests__/runs.test.ts:51-58 (\"`status`/`json` stay mocked (express-shaped) since `registerruneventst...\"): Test comment in runs.test.ts about the deleted Express test harness (fake req/res, MockApp, captured handlers or a real-Express-socket suite) for routes removed in a9498587; the suite was rewritten against the route-data/web-Response API and the harness it explains no longer exists."
+    },
+    {
+      "id": "64f9d97a690f",
+      "reason": "packages/daemon/src/http/__tests__/runs.test.ts:84-84 (\"parses the json body `sendrawapierror` wrote via `res.end(...)` \u2014 the ...\"): Test comment in runs.test.ts about the deleted Express test harness (fake req/res, MockApp, captured handlers or a real-Express-socket suite) for routes removed in a9498587; the suite was rewritten against the route-data/web-Response API and the harness it explains no longer exists."
+    },
+    {
+      "id": "280d77c8b3c8",
+      "reason": "packages/daemon/src/http/__tests__/runs.test.ts:497-500 (\"regression: `channel.abandon()` (not `channel.end()`) must run here \u2014 ...\"): Test comment in runs.test.ts about the deleted Express test harness (fake req/res, MockApp, captured handlers or a real-Express-socket suite) for routes removed in a9498587; the suite was rewritten against the route-data/web-Response API and the harness it explains no longer exists."
+    },
+    {
+      "id": "c13bb564bfd1",
+      "reason": "packages/daemon/src/http/__tests__/runs.test.ts:593-593 (\"the replayed 'start' event was written as a buffered sse frame....\"): Test comment in runs.test.ts about the deleted Express test harness (fake req/res, MockApp, captured handlers or a real-Express-socket suite) for routes removed in a9498587; the suite was rewritten against the route-data/web-Response API and the harness it explains no longer exists."
+    },
+    {
+      "id": "ea8aae2bab4e",
+      "reason": "packages/daemon/src/http/__tests__/runs.test.ts:609-612 (\"'close'/'drain' listeners are registered unconditionally, before the s...\"): Test comment in runs.test.ts about the deleted Express test harness (fake req/res, MockApp, captured handlers or a real-Express-socket suite) for routes removed in a9498587; the suite was rewritten against the route-data/web-Response API and the harness it explains no longer exists."
+    },
+    {
+      "id": "4a47a4b02943",
+      "reason": "packages/daemon/src/http/__tests__/runs.test.ts:669-671 (\"regression: the catch block must abandon (not end) the channel when he...\"): Test comment in runs.test.ts about the deleted Express test harness (fake req/res, MockApp, captured handlers or a real-Express-socket suite) for routes removed in a9498587; the suite was rewritten against the route-data/web-Response API and the harness it explains no longer exists."
+    },
+    {
+      "id": "5b224c6e752f",
+      "reason": "packages/daemon/src/http/__tests__/runs.test.ts:691-692 (\"a `res.write` failure once the stream is already flowing (e.g. a socke...\"): Test comment in runs.test.ts about the deleted Express test harness (fake req/res, MockApp, captured handlers or a real-Express-socket suite) for routes removed in a9498587; the suite was rewritten against the route-data/web-Response API and the harness it explains no longer exists."
+    },
+    {
+      "id": "8b24ef36eff5",
+      "reason": "packages/daemon/src/http/__tests__/runs.test.ts:709-713 (\"distinct from the 'already fully ended' test below: there, `writableen...\"): Test comment in runs.test.ts about the deleted Express test harness (fake req/res, MockApp, captured handlers or a real-Express-socket suite) for routes removed in a9498587; the suite was rewritten against the route-data/web-Response API and the harness it explains no longer exists."
+    },
+    {
+      "id": "ab6296ff1e9f",
+      "reason": "packages/daemon/src/http/__tests__/runs.test.ts:736-737 (\"simulates the client closing the connection during the (real) await on...\"): Test comment in runs.test.ts about the deleted Express test harness (fake req/res, MockApp, captured handlers or a real-Express-socket suite) for routes removed in a9498587; the suite was rewritten against the route-data/web-Response API and the harness it explains no longer exists."
+    },
+    {
+      "id": "d4ed3857af47",
+      "reason": "packages/daemon/src/http/__tests__/runs.test.ts:756-756 (\"some other path already fully ended this response...\"): Test comment in runs.test.ts about the deleted Express test harness (fake req/res, MockApp, captured handlers or a real-Express-socket suite) for routes removed in a9498587; the suite was rewritten against the route-data/web-Response API and the harness it explains no longer exists."
+    },
+    {
+      "id": "0884b37c1cda",
+      "reason": "packages/daemon/src/http/__tests__/runs.test.ts:817-817 (\"simulate node reporting a full socket buffer...\"): Test comment in runs.test.ts about the deleted Express test harness (fake req/res, MockApp, captured handlers or a real-Express-socket suite) for routes removed in a9498587; the suite was rewritten against the route-data/web-Response API and the harness it explains no longer exists."
+    },
+    {
+      "id": "3c02c50e9f63",
+      "reason": "packages/daemon/src/http/__tests__/runs.test.ts:820-820 (\"the second event must be queued, not written, while backpressure is in...\"): Test comment in runs.test.ts about the deleted Express test harness (fake req/res, MockApp, captured handlers or a real-Express-socket suite) for routes removed in a9498587; the suite was rewritten against the route-data/web-Response API and the harness it explains no longer exists."
+    },
+    {
+      "id": "5aa14cc34316",
+      "reason": "packages/daemon/src/http/__tests__/runs.test.ts:836-836 (\"never drains \u2014 a permanently stalled consumer...\"): Test comment in runs.test.ts about the deleted Express test harness (fake req/res, MockApp, captured handlers or a real-Express-socket suite) for routes removed in a9498587; the suite was rewritten against the route-data/web-Response API and the harness it explains no longer exists."
+    },
+    {
+      "id": "d77cc3f42bf0",
+      "reason": "packages/daemon/src/http/__tests__/runs.test.ts:893-893 (\"both events are queued behind the backpressure; neither is written unt...\"): Test comment in runs.test.ts about the deleted Express test harness (fake req/res, MockApp, captured handlers or a real-Express-socket suite) for routes removed in a9498587; the suite was rewritten against the route-data/web-Response API and the harness it explains no longer exists."
+    },
+    {
+      "id": "b85cb529615f",
+      "reason": "packages/daemon/src/http/__tests__/terminals.test.ts:51-51 (\"minimal fake of the raw express req/res surface `registerterminalevent...\"): Test comment in terminals.test.ts about the deleted Express test harness (fake req/res, MockApp, captured handlers or a real-Express-socket suite) for routes removed in 46a8e83c; the suite was rewritten against the route-data/web-Response API and the harness it explains no longer exists."
+    },
+    {
+      "id": "f9e7bc622f5e",
+      "reason": "packages/daemon/src/http/__tests__/tool-execution-rpc.test.ts:1-4 (\"contract tests for the remote tool rpc: `registertoolexecutionroutes` ...\"): Reworded in place in e36a4062 when its subject moved to the route-data API (register* -> *Routes, Express fakes -> web Request/Response); the same statement is at packages/daemon/src/http/__tests__/tool-execution-rpc.test.ts:1. Closest surviving wording: packages/daemon/src/http/__tests__/tool-execution-rpc.test.ts:1 (containment 0.72)."
+    },
+    {
+      "id": "0ec572f584e8",
+      "reason": "packages/daemon/src/http/__tests__/tool-execution-rpc.test.ts:61-64 (\"the route on a router placed before an app-level 128 kb parser, the wa...\"): Reworded in place in e36a4062 when its subject moved to the route-data API (register* -> *Routes, Express fakes -> web Request/Response); the same statement is at packages/daemon/src/http/__tests__/tool-execution-rpc.test.ts:65. Closest surviving wording: packages/daemon/src/http/__tests__/tool-execution-rpc.test.ts:65 (containment 0.39)."
+    },
+    {
+      "id": "d0617753f7f2",
+      "reason": "packages/daemon/src/http/active-context.ts:141-141 (\"mounts both active-context routes on `app`, sharing one in-memory stor...\"): Code gone: the Express mount function this doc described was deleted in c2f08d49 (daemon-r7: routes are returned as data); the replacement list is packages/daemon/src/http/active-context.ts:142 (`activeContextRoutes`), with its own doc."
+    },
+    {
+      "id": "58b15f5f8f99",
+      "reason": "packages/daemon/src/http/agents.ts:92-92 (\"mounts the read and explicit-rescan agent discovery routes....\"): Code gone: the Express mount function this doc described was deleted in aa888488 (daemon-r7: routes are returned as data); the replacement list is packages/daemon/src/http/agents.ts:93 (`agentRoutes`), with its own doc. Closest surviving wording: packages/daemon/src/http/agents.ts:92 (containment 0.67)."
+    },
+    {
+      "id": "0f6db6142185",
+      "reason": "packages/daemon/src/http/attachment-lookup-routes.ts:71-75 (\"mounts the lookup route. it brings a small json parser of its own, whi...\"): Reworded for the route-data version in 44c1479e: the lookup route now reads its own 64 KB body (no Express JSON parser); the doc at packages/daemon/src/http/attachment-lookup-routes.ts:76-83 restates the onInternalError/request-ID contract. Closest surviving wording: packages/daemon/src/http/attachment-lookup-routes.ts:79 (containment 0.5)."
+    },
+    {
+      "id": "f71bbf143562",
+      "reason": "packages/daemon/src/http/attachments.ts:1449-1449 (\"`false` when the same-origin guard rejected the request (and already a...\"): Code gone: passesOriginGuard and the hand-mounted Express registerAttachmentRoutes (with its unhandled-rejection catch) were deleted in cecc5e06; the upload/cleanup routes are data in packages/daemon/src/http/attachment-routes.ts (header comment explains the raw-body read and the 204)."
+    },
+    {
+      "id": "cb5679fd9234",
+      "reason": "packages/daemon/src/http/attachments.ts:1595-1602 (\"mounts `post`/`delete /api/attachments` on `app`. a pack's `http(app, ...\"): Code gone: passesOriginGuard and the hand-mounted Express registerAttachmentRoutes (with its unhandled-rejection catch) were deleted in cecc5e06; the upload/cleanup routes are data in packages/daemon/src/http/attachment-routes.ts (header comment explains the raw-body read and the 204)."
+    },
+    {
+      "id": "d292b33c2025",
+      "reason": "packages/daemon/src/http/attachments.ts:1615-1621 (\"`handleattachmentupload` already catches everything inside its own bod...\"): Code gone: passesOriginGuard and the hand-mounted Express registerAttachmentRoutes (with its unhandled-rejection catch) were deleted in cecc5e06; the upload/cleanup routes are data in packages/daemon/src/http/attachment-routes.ts (header comment explains the raw-body read and the 204)."
+    },
+    {
+      "id": "f5009a021c1d",
+      "reason": "packages/daemon/src/http/component-catalog.ts:87-87 (\"mounts both component-catalog routes on `app`. a pack's `http(app, ser...\"): Code gone: the Express mount function this doc described was deleted in 07c77a67 (daemon-r7: routes are returned as data); the replacement list is packages/daemon/src/http/component-catalog.ts:91 (`componentCatalogRoutes`), with its own doc."
+    },
+    {
+      "id": "2871a258dbd5",
+      "reason": "packages/daemon/src/http/connectors.ts:508-508 (\"mounts every connectors route on `app`. a pack's `http(app, services)`...\"): Code gone: the Express mount function this doc described was deleted in 4cf918d0 (daemon-r7: routes are returned as data); the replacement list is packages/daemon/src/http/connectors.ts:511 (`connectorsRoutes`), with its own doc."
+    },
+    {
+      "id": "e8d8d7ff87a3",
+      "reason": "packages/daemon/src/http/daemon-status.ts:104-104 (\"mounts both daemon-status routes on `app`. a pack's `http(app, service...\"): Code gone: the Express mount function this doc described was deleted in db7994a1 (daemon-r7: routes are returned as data); the replacement list is packages/daemon/src/http/daemon-status.ts:105 (`daemonStatusRoutes`), with its own doc."
+    },
+    {
+      "id": "816213b55d31",
+      "reason": "packages/daemon/src/http/db-ops.ts:291-291 (\"mounts all three db-ops routes on `app`. a pack's `http({ app, service...\"): Code gone: the Express mount function this doc described was deleted in c0cb1ec3 (daemon-r7: routes are returned as data); the replacement list is packages/daemon/src/http/db-ops.ts:294 (`daemonDbRoutes`), with its own doc."
+    },
+    {
+      "id": "80a9797e0e6d",
+      "reason": "packages/daemon/src/http/delegated-tools.ts:429-429 (\"mounts `post /api/delegated-tool-calls` on `app`. a pack's `http(app, ...\"): Code gone: the Express mount function this doc described was deleted in 3800e9b8 (daemon-r7: routes are returned as data); the replacement list is packages/daemon/src/http/delegated-tools.ts:434 (`delegatedToolRoutes`), with its own doc."
+    },
+    {
+      "id": "7dd666437600",
+      "reason": "packages/daemon/src/http/frontend-control.ts:52-62 (\"the context {@link frontendcontrol.httpextension} actually reads \u2014 jus...\"): Code gone: FrontendHttpExtension and FrontendControl.httpExtension (an Express-app mount facade) were deleted in 8c00e560; the control now hands out route lists, documented in packages/daemon/src/http/frontend-control.ts."
+    },
+    {
+      "id": "9f6c325d7f75",
+      "reason": "packages/daemon/src/http/frontend-control.ts:112-116 (\"mounts the frontend-session stream and response routes. pass in `creat...\"): Code gone: FrontendHttpExtension and FrontendControl.httpExtension (an Express-app mount facade) were deleted in 8c00e560; the control now hands out route lists, documented in packages/daemon/src/http/frontend-control.ts."
+    },
+    {
+      "id": "40208f3faa5a",
+      "reason": "packages/daemon/src/http/frontend-request-route.ts:37-43 (\"bind one authenticated request to its originating surface, then use th...\"): Reworded for the route-data version in 949d111f: the doc at packages/daemon/src/http/frontend-request-route.ts:76-87 restates binding to the originating surface; the Express middleware-chain wording no longer applies. Closest surviving wording: packages/daemon/src/http/frontend-request-route.ts:80 (containment 0.73)."
+    },
+    {
+      "id": "bba91e3ecb18",
+      "reason": "packages/daemon/src/http/frontend-sessions.ts:124-124 (\"host-owned sink for failures that must not escape an async express han...\"): Code gone: the Express handler handleFrontendSessionStream, its Express-query parseCapabilityQuery({raw}), onInternalError option, expireScopedSession and registerFrontendSessionRoutes were deleted in 8c00e560 (frontend-session routes are data on a web Response). Capacity-before-stream, origin/owner gate and the URLSearchParams parser are documented for the new code at packages/daemon/src/http/frontend-sessions.ts:143, :231-276, :302-321, :352."
+    },
+    {
+      "id": "7538352808c9",
+      "reason": "packages/daemon/src/http/frontend-sessions.ts:131-136 (\"reads the repeatable `?capability=` query parameter. express gives a s...\"): Code gone: the Express handler handleFrontendSessionStream, its Express-query parseCapabilityQuery({raw}), onInternalError option, expireScopedSession and registerFrontendSessionRoutes were deleted in 8c00e560 (frontend-session routes are data on a web Response). Capacity-before-stream, origin/owner gate and the URLSearchParams parser are documented for the new code at packages/daemon/src/http/frontend-sessions.ts:143, :231-276, :302-321, :352."
+    },
+    {
+      "id": "715be0f675d4",
+      "reason": "packages/daemon/src/http/frontend-sessions.ts:148-153 (\"handles one surface's stream from open to close. invalid capability qu...\"): Code gone: the Express handler handleFrontendSessionStream, its Express-query parseCapabilityQuery({raw}), onInternalError option, expireScopedSession and registerFrontendSessionRoutes were deleted in 8c00e560 (frontend-session routes are data on a web Response). Capacity-before-stream, origin/owner gate and the URLSearchParams parser are documented for the new code at packages/daemon/src/http/frontend-sessions.ts:143, :231-276, :302-321, :352. Closest surviving wording: packages/daemon/src/http/frontend-sessions.ts:255 (containment 0.32)."
+    },
+    {
+      "id": "703f51c4005e",
+      "reason": "packages/daemon/src/http/frontend-sessions.ts:199-199 (\"reserve the registry's capacity before sse commits headers. host keys ...\"): Code gone: the Express handler handleFrontendSessionStream, its Express-query parseCapabilityQuery({raw}), onInternalError option, expireScopedSession and registerFrontendSessionRoutes were deleted in 8c00e560 (frontend-session routes are data on a web Response). Capacity-before-stream, origin/owner gate and the URLSearchParams parser are documented for the new code at packages/daemon/src/http/frontend-sessions.ts:143, :231-276, :302-321, :352. Closest surviving wording: packages/daemon/src/http/frontend-sessions.ts:231 (containment 0.58)."
+    },
+    {
+      "id": "54f152b8edb9",
+      "reason": "packages/daemon/src/http/frontend-sessions.ts:292-292 (\"scoped hosts authenticate origin together with guest/tab ownership in ...\"): Code gone: the Express handler handleFrontendSessionStream, its Express-query parseCapabilityQuery({raw}), onInternalError option, expireScopedSession and registerFrontendSessionRoutes were deleted in 8c00e560 (frontend-session routes are data on a web Response). Capacity-before-stream, origin/owner gate and the URLSearchParams parser are documented for the new code at packages/daemon/src/http/frontend-sessions.ts:143, :231-276, :302-321, :352. Closest surviving wording: packages/daemon/src/http/frontend-sessions.ts:302 (containment 0.5)."
+    },
+    {
+      "id": "f30349b4c686",
+      "reason": "packages/daemon/src/http/frontend-sessions.ts:333-333 (\"expiry tears down addressing and the stream together, including client...\"): Code gone: the Express handler handleFrontendSessionStream, its Express-query parseCapabilityQuery({raw}), onInternalError option, expireScopedSession and registerFrontendSessionRoutes were deleted in 8c00e560 (frontend-session routes are data on a web Response). Capacity-before-stream, origin/owner gate and the URLSearchParams parser are documented for the new code at packages/daemon/src/http/frontend-sessions.ts:143, :231-276, :302-321, :352."
+    },
+    {
+      "id": "c17fd1548b25",
+      "reason": "packages/daemon/src/http/health.ts:123-123 (\"mounts all six health/readiness/version routes on `app`. call this bef...\"): Code gone: the Express mount function this doc described was deleted in 72d85863 (daemon-r7: routes are returned as data); the replacement list is packages/daemon/src/http/health.ts:126 (`healthRoutes`), with its own doc."
+    },
+    {
+      "id": "7a49f4bd42a7",
+      "reason": "packages/daemon/src/http/host-tools.ts:424-424 (\"mounts `get /api/editors` and `post /api/resources/:resourceref/open-i...\"): Code gone: the Express mount function this doc described was deleted in f876267f (daemon-r7: routes are returned as data); the replacement list is packages/daemon/src/http/host-tools.ts:425 (`hostToolsRoutes`), with its own doc."
+    },
+    {
+      "id": "7079eb9da04f",
+      "reason": "packages/daemon/src/http/line-stream.ts:15-15 (\"aborts when the caller goes away (its request is aborted or it stops r...\"): Reworded in place by 4125c092 (the signal is a web Request signal now, not an Express request): packages/daemon/src/http/line-stream.ts:15 says the same thing for the new type. Closest surviving wording: packages/daemon/src/http/line-stream.ts:15 (containment 0.71)."
+    },
+    {
+      "id": "eb1c680e0571",
+      "reason": "packages/daemon/src/http/media.ts:476-476 (\"mounts every media route on `app`. a pack's `http(app, services)` call...\"): Code gone: the Express mount function this doc described was deleted in dc6cbfbd (daemon-r7: routes are returned as data); the replacement list is packages/daemon/src/http/media.ts:479 (`mediaRoutes`), with its own doc."
+    },
+    {
+      "id": "057625b2898e",
+      "reason": "packages/daemon/src/http/memory.ts:171-171 (\"the `bad_request` every mutating route answers when its store call thr...\"): Code gone: storeFailure (BAD_REQUEST carrying the store's own message) was replaced by the DM-MEM fixed sentence + request ID in f506b3d3; see packages/daemon/src/http/memory.ts:183. Closest surviving wording: packages/daemon/src/http/memory.ts:183 (containment 0.5)."
+    },
+    {
+      "id": "75c6fd131658",
+      "reason": "packages/daemon/src/http/memory.ts:579-585 (\"mounts every ported memory route. static sub-resources (`/tree`, `/ind...\"): Code gone: the Express registerMemoryRoutes and its registration-order rule were deleted in a908d3a8; the route table matches a literal segment before `:id`, and memoryRoutes' doc at packages/daemon/src/http/memory.ts:605-610 states that this replaces OD's mount-static-first rule."
+    },
+    {
+      "id": "afb33cef8da5",
+      "reason": "packages/daemon/src/http/message-relay.ts:45-45 (\"mount behind the host's existing daemon gate; allow this post for live...\"): Code gone: the Express registerMessageRelayRoutes was deleted in 64553c8a; the same instruction (mount behind the host's daemon gate, allow this POST for live run credentials) is in messageRelayRoutes' doc at packages/daemon/src/http/message-relay.ts:30. Closest surviving wording: packages/daemon/src/http/message-relay.ts:27 (containment 0.54)."
+    },
+    {
+      "id": "e3cfd415fd89",
+      "reason": "packages/daemon/src/http/model-proxy.ts:367-367 (\"wraps a raw turn-runner event for `sse.ts`'s generic channel: `kind` d...\"): Code gone: runProxyStream's createSseChannel lifecycle, respondInternalError, the Express catch-all and registerModelProxyRoutes were deleted in 7b7d7795 (each route is a Response; the provider is not awaited before the stream is returned). Failure handling of the new code is documented at packages/daemon/src/http/model-proxy.ts:376-470 and the route list at :575/:635. Closest surviving wording: packages/daemon/src/http/model-proxy.ts:376 (containment 0.69)."
+    },
+    {
+      "id": "941e682a4cbc",
+      "reason": "packages/daemon/src/http/model-proxy.ts:372-372 (\"answers a failure that happened before any sse stream existed: a redac...\"): Code gone: runProxyStream's createSseChannel lifecycle, respondInternalError, the Express catch-all and registerModelProxyRoutes were deleted in 7b7d7795 (each route is a Response; the provider is not awaited before the stream is returned). Failure handling of the new code is documented at packages/daemon/src/http/model-proxy.ts:376-470 and the route list at :575/:635."
+    },
+    {
+      "id": "70183caf6022",
+      "reason": "packages/daemon/src/http/model-proxy.ts:391-398 (\"the actual request handler body, shared by every fixed-path route and ...\"): Code gone: runProxyStream's createSseChannel lifecycle, respondInternalError, the Express catch-all and registerModelProxyRoutes were deleted in 7b7d7795 (each route is a Response; the provider is not awaited before the stream is returned). Failure handling of the new code is documented at packages/daemon/src/http/model-proxy.ts:376-470 and the route list at :575/:635."
+    },
+    {
+      "id": "e4b4f358553d",
+      "reason": "packages/daemon/src/http/model-proxy.ts:407-409 (\"both `channel` and `seq` are declared ahead of the try so the catch bl...\"): Code gone: runProxyStream's createSseChannel lifecycle, respondInternalError, the Express catch-all and registerModelProxyRoutes were deleted in 7b7d7795 (each route is a Response; the provider is not awaited before the stream is returned). Failure handling of the new code is documented at packages/daemon/src/http/model-proxy.ts:376-470 and the route list at :575/:635."
+    },
+    {
+      "id": "aca03dab2def",
+      "reason": "packages/daemon/src/http/model-proxy.ts:434-438 (\"no `channel.end()` call here: every reachable exit path inside every t...\"): Code gone: runProxyStream's createSseChannel lifecycle, respondInternalError, the Express catch-all and registerModelProxyRoutes were deleted in 7b7d7795 (each route is a Response; the provider is not awaited before the stream is returned). Failure handling of the new code is documented at packages/daemon/src/http/model-proxy.ts:376-470 and the route list at :575/:635."
+    },
+    {
+      "id": "c7e270fc823c",
+      "reason": "packages/daemon/src/http/model-proxy.ts:440-447 (\"this catch now covers the whole handler, not just `run(...)`: neither ...\"): Code gone: runProxyStream's createSseChannel lifecycle, respondInternalError, the Express catch-all and registerModelProxyRoutes were deleted in 7b7d7795 (each route is a Response; the provider is not awaited before the stream is returned). Failure handling of the new code is documented at packages/daemon/src/http/model-proxy.ts:376-470 and the route list at :575/:635."
+    },
+    {
+      "id": "8010ee928366",
+      "reason": "packages/daemon/src/http/model-proxy.ts:450-452 (\"the sse channel was never opened (the throw happened before it), so no...\"): Code gone: runProxyStream's createSseChannel lifecycle, respondInternalError, the Express catch-all and registerModelProxyRoutes were deleted in 7b7d7795 (each route is a Response; the provider is not awaited before the stream is returned). Failure handling of the new code is documented at packages/daemon/src/http/model-proxy.ts:376-470 and the route list at :575/:635."
+    },
+    {
+      "id": "5cc07de377d6",
+      "reason": "packages/daemon/src/http/model-proxy.ts:456-460 (\"`enqueue` is a documented no-op once the channel is already closed (`s...\"): Code gone: runProxyStream's createSseChannel lifecycle, respondInternalError, the Express catch-all and registerModelProxyRoutes were deleted in 7b7d7795 (each route is a Response; the provider is not awaited before the stream is returned). Failure handling of the new code is documented at packages/daemon/src/http/model-proxy.ts:376-470 and the route list at :575/:635."
+    },
+    {
+      "id": "64b360f87af7",
+      "reason": "packages/daemon/src/http/model-proxy.ts:565-565 (\"fixed-route registration order; load-bearing, since express matches in...\"): Code gone: runProxyStream's createSseChannel lifecycle, respondInternalError, the Express catch-all and registerModelProxyRoutes were deleted in 7b7d7795 (each route is a Response; the provider is not awaited before the stream is returned). Failure handling of the new code is documented at packages/daemon/src/http/model-proxy.ts:376-470 and the route list at :575/:635."
+    },
+    {
+      "id": "394a8dc758fa",
+      "reason": "packages/daemon/src/http/model-proxy.ts:608-619 (\"unlike the five fixed routes, this catch-all's own `guardsameorigin` c...\"): Code gone: runProxyStream's createSseChannel lifecycle, respondInternalError, the Express catch-all and registerModelProxyRoutes were deleted in 7b7d7795 (each route is a Response; the provider is not awaited before the stream is returned). Failure handling of the new code is documented at packages/daemon/src/http/model-proxy.ts:376-470 and the route list at :575/:635."
+    },
+    {
+      "id": "90a0e01e7178",
+      "reason": "packages/daemon/src/http/model-proxy.ts:644-644 (\"mounts `post /api/proxy/{anthropic,openai,azure,google,ollama}/stream`...\"): Code gone: runProxyStream's createSseChannel lifecycle, respondInternalError, the Express catch-all and registerModelProxyRoutes were deleted in 7b7d7795 (each route is a Response; the provider is not awaited before the stream is returned). Failure handling of the new code is documented at packages/daemon/src/http/model-proxy.ts:376-470 and the route list at :575/:635. Closest surviving wording: packages/daemon/src/http/model-proxy.ts:634 (containment 0.71)."
+    },
+    {
+      "id": "0f4b526d0239",
+      "reason": "packages/daemon/src/http/remote-run-events.ts:53-53 (\"defaults to `process.env`. threaded through so tests never have to mut...\"): Code gone: the optional `env` and `timingSafeEqual` deps (defaulting to process.env / node:crypto) were removed in 784d5d0a; the env is a required dep and the compare is the host's (host.timingSafeEqual), documented at packages/daemon/src/http/remote-run-events.ts:76 and the gate at :260-268."
+    },
+    {
+      "id": "05fa6f67d7b6",
+      "reason": "packages/daemon/src/http/remote-run-events.ts:79-79 (\"constant-time byte comparison for the token check. defaults to `node:c...\"): Code gone: the optional `env` and `timingSafeEqual` deps (defaulting to process.env / node:crypto) were removed in 784d5d0a; the env is a required dep and the compare is the host's (host.timingSafeEqual), documented at packages/daemon/src/http/remote-run-events.ts:76 and the gate at :260-268. Same text also at packages/daemon/src/http/tool-execution-routes.ts:63-63"
+    },
+    {
+      "id": "57d0351e5661",
+      "reason": "packages/daemon/src/http/remote-run-events.ts:266-271 (\"mounts both remote-run-event routes on `app`, gated by {@link requirer...\"): Code gone: the optional `env` and `timingSafeEqual` deps (defaulting to process.env / node:crypto) were removed in 784d5d0a; the env is a required dep and the compare is the host's (host.timingSafeEqual), documented at packages/daemon/src/http/remote-run-events.ts:76 and the gate at :260-268. Closest surviving wording: packages/daemon/src/http/remote-run-events.ts:260 (containment 0.7)."
+    },
+    {
+      "id": "09970fb69f2d",
+      "reason": "packages/daemon/src/http/research.ts:297-297 (\"mounts `post /api/research/search` on `app`. a pack's `http(app, servi...\"): Code gone: the Express mount function this doc described was deleted in c0ecea75 (daemon-r7: routes are returned as data); the replacement list is packages/daemon/src/http/research.ts:302 (`researchRoutes`), with its own doc."
+    },
+    {
+      "id": "624e4d644b6b",
+      "reason": "packages/daemon/src/http/routines.ts:400-400 (\"mounts every routine route on `app`. a pack's `http(app, services)` ca...\"): Code gone: the Express mount function this doc described was deleted in 5aad3856 (daemon-r7: routes are returned as data); the replacement list is packages/daemon/src/http/routines.ts:401 (`routineRoutes`), with its own doc."
+    },
+    {
+      "id": "4dd37ae84836",
+      "reason": "packages/daemon/src/http/runs.ts:288-294 (\"the core of `get /api/runs/:runid/events` \u2014 canonical events as sse, w...\"): Code gone: the Express/createSseChannel run event stream (handleRunEventStreamRequest, registerRunEventStream, registerRunRoutes, channel.open/abandon/end) was deleted in a9498587 (daemon-r7: run routes are data, the stream is a committed SSE Response). The why of the new open/commit/unsubscribe/failure order is written at packages/daemon/src/http/runs.ts:285-327."
+    },
+    {
+      "id": "dddfaa76c884",
+      "reason": "packages/daemon/src/http/runs.ts:317-318 (\"runlifecycle validates the run/cursor before replay callbacks. open be...\"): Code gone: the Express/createSseChannel run event stream (handleRunEventStreamRequest, registerRunEventStream, registerRunRoutes, channel.open/abandon/end) was deleted in a9498587 (daemon-r7: run routes are data, the stream is a committed SSE Response). The why of the new open/commit/unsubscribe/failure order is written at packages/daemon/src/http/runs.ts:285-327."
+    },
+    {
+      "id": "5d195feaa4d3",
+      "reason": "packages/daemon/src/http/runs.ts:323-325 (\"nothing was ever subscribed, so `abandon()` has nothing to unsubscribe...\"): Code gone: the Express/createSseChannel run event stream (handleRunEventStreamRequest, registerRunEventStream, registerRunRoutes, channel.open/abandon/end) was deleted in a9498587 (daemon-r7: run routes are data, the stream is a committed SSE Response). The why of the new open/commit/unsubscribe/failure order is written at packages/daemon/src/http/runs.ts:285-327."
+    },
+    {
+      "id": "4d894b5863a7",
+      "reason": "packages/daemon/src/http/runs.ts:331-332 (\"the client already disconnected (or the bounded queue already gave up)...\"): Code gone: the Express/createSseChannel run event stream (handleRunEventStreamRequest, registerRunEventStream, registerRunRoutes, channel.open/abandon/end) was deleted in a9498587 (daemon-r7: run routes are data, the stream is a committed SSE Response). The why of the new open/commit/unsubscribe/failure order is written at packages/daemon/src/http/runs.ts:285-327."
+    },
+    {
+      "id": "ae166f8877e3",
+      "reason": "packages/daemon/src/http/runs.ts:340-343 (\"`channel.open()` never ran (or never got past `flushheaders`) \u2014 abando...\"): Code gone: the Express/createSseChannel run event stream (handleRunEventStreamRequest, registerRunEventStream, registerRunRoutes, channel.open/abandon/end) was deleted in a9498587 (daemon-r7: run routes are data, the stream is a committed SSE Response). The why of the new open/commit/unsubscribe/failure order is written at packages/daemon/src/http/runs.ts:285-327."
+    },
+    {
+      "id": "2903696d87a6",
+      "reason": "packages/daemon/src/http/runs.ts:348-349 (\"headers were already sent (the stream had started, or `open()` partial...\"): Code gone: the Express/createSseChannel run event stream (handleRunEventStreamRequest, registerRunEventStream, registerRunRoutes, channel.open/abandon/end) was deleted in a9498587 (daemon-r7: run routes are data, the stream is a committed SSE Response). The why of the new open/commit/unsubscribe/failure order is written at packages/daemon/src/http/runs.ts:285-327."
+    },
+    {
+      "id": "dc7910051e4e",
+      "reason": "packages/daemon/src/http/runs.ts:361-361 (\"express mounting glue for {@link handleruneventstreamrequest} \u2014 resolv...\"): Code gone: the Express/createSseChannel run event stream (handleRunEventStreamRequest, registerRunEventStream, registerRunRoutes, channel.open/abandon/end) was deleted in a9498587 (daemon-r7: run routes are data, the stream is a committed SSE Response). The why of the new open/commit/unsubscribe/failure order is written at packages/daemon/src/http/runs.ts:285-327."
+    },
+    {
+      "id": "f94ccd1d26a6",
+      "reason": "packages/daemon/src/http/runs.ts:373-373 (\"mounts create/status/cancel/message json endpoints and the sse event s...\"): Code gone: the Express/createSseChannel run event stream (handleRunEventStreamRequest, registerRunEventStream, registerRunRoutes, channel.open/abandon/end) was deleted in a9498587 (daemon-r7: run routes are data, the stream is a committed SSE Response). The why of the new open/commit/unsubscribe/failure order is written at packages/daemon/src/http/runs.ts:285-327. Closest surviving wording: packages/daemon/src/http/runs.ts:351 (containment 0.73)."
+    },
+    {
+      "id": "8a4968538206",
+      "reason": "packages/daemon/src/http/surface-restoration.ts:21-22 (\"the first card frame opens the response. subsequent heartbeats keep no...\"): Code gone: the res.headersSent setInterval heartbeat was replaced in 4125c092 by the line stream's own keepalive; the same why is at packages/daemon/src/http/surface-restoration.ts:9 (KEEPALIVE_MS doc) and :29."
+    },
+    {
+      "id": "d3eff09d57b3",
+      "reason": "packages/daemon/src/http/terminals.ts:229-229 (\"the wire shape `sse.ts`'s generic channel streams for a terminal \u2014 the...\"): Code gone: registerTerminalEventStream, createDeferredEndGate, DeferredEndChannel and registerTerminalRoutes were deleted in 46a8e83c (terminal routes are data; the stream is a Response on core's SSE stream). The attach-may-end-synchronously reasoning is restated for the new code at packages/daemon/src/http/terminals.ts:255-263 and the wire shape at :245. Closest surviving wording: packages/daemon/src/http/terminals.ts:245 (containment 0.68)."
+    },
+    {
+      "id": "f8e9c2efe6af",
+      "reason": "packages/daemon/src/http/terminals.ts:234-234 (\"the one method {@link createdeferredendgate} needs from `sse.ts`'s cha...\"): Code gone: registerTerminalEventStream, createDeferredEndGate, DeferredEndChannel and registerTerminalRoutes were deleted in 46a8e83c (terminal routes are data; the stream is a Response on core's SSE stream). The attach-may-end-synchronously reasoning is restated for the new code at packages/daemon/src/http/terminals.ts:255-263 and the wire shape at :245."
+    },
+    {
+      "id": "274c94b4215f",
+      "reason": "packages/daemon/src/http/terminals.ts:239-265 (\"the `channelopened`/`endrequestedbeforeopen` state machine `registerte...\"): Code gone: registerTerminalEventStream, createDeferredEndGate, DeferredEndChannel and registerTerminalRoutes were deleted in 46a8e83c (terminal routes are data; the stream is a Response on core's SSE stream). The attach-may-end-synchronously reasoning is restated for the new code at packages/daemon/src/http/terminals.ts:255-263 and the wire shape at :245."
+    },
+    {
+      "id": "e428872d2eb4",
+      "reason": "packages/daemon/src/http/terminals.ts:272-273 (\"idempotent-safe even if the queued 'exit' event already auto-closed th...\"): Code gone: registerTerminalEventStream, createDeferredEndGate, DeferredEndChannel and registerTerminalRoutes were deleted in 46a8e83c (terminal routes are data; the stream is a Response on core's SSE stream). The attach-may-end-synchronously reasoning is restated for the new code at packages/daemon/src/http/terminals.ts:255-263 and the wire shape at :245."
+    },
+    {
+      "id": "ab0a48c8e2a1",
+      "reason": "packages/daemon/src/http/terminals.ts:314-319 (\"`deps.manager.attach` can call `sink.end()` synchronously, from inside...\"): Code gone: registerTerminalEventStream, createDeferredEndGate, DeferredEndChannel and registerTerminalRoutes were deleted in 46a8e83c (terminal routes are data; the stream is a Response on core's SSE stream). The attach-may-end-synchronously reasoning is restated for the new code at packages/daemon/src/http/terminals.ts:255-263 and the wire shape at :245."
+    },
+    {
+      "id": "9fa197c24da9",
+      "reason": "packages/daemon/src/http/terminals.ts:351-351 (\"mounts every terminal route (`list`/`create`/`stdin`/`resize`/`kill`/`...\"): Code gone: registerTerminalEventStream, createDeferredEndGate, DeferredEndChannel and registerTerminalRoutes were deleted in 46a8e83c (terminal routes are data; the stream is a Response on core's SSE stream). The attach-may-end-synchronously reasoning is restated for the new code at packages/daemon/src/http/terminals.ts:255-263 and the wire shape at :245."
+    },
+    {
+      "id": "d78f92d870d6",
+      "reason": "packages/daemon/src/http/tool-execution-routes.ts:42-42 (\"anything routes can be mounted on: an express app or a `router`....\"): Code gone: the Express ToolExecutionRouteTarget, the optional env/timingSafeEqual defaults, requireToolExecutionCaller, bodyParserFailure, streamToolExecution (res 'close'/setInterval heartbeat) and the Express mount were deleted in e36a4062 (routes are data; the caller gate is toolExecutionCallerRefusal in tool-execution-caller.ts; NDJSON is line-stream.ts + tool-execution-stream.ts). Current why-text: tool-execution-routes.ts:40-100 and :160-195; the keepalive why was restored next to the line stream that keeps one (frontend-request-route.ts)."
+    },
+    {
+      "id": "8cfd3abee5f9",
+      "reason": "packages/daemon/src/http/tool-execution-routes.ts:61-61 (\"defaults to `process.env`; injectable so tests never mutate the real e...\"): Code gone: the Express ToolExecutionRouteTarget, the optional env/timingSafeEqual defaults, requireToolExecutionCaller, bodyParserFailure, streamToolExecution (res 'close'/setInterval heartbeat) and the Express mount were deleted in e36a4062 (routes are data; the caller gate is toolExecutionCallerRefusal in tool-execution-caller.ts; NDJSON is line-stream.ts + tool-execution-stream.ts). Current why-text: tool-execution-routes.ts:40-100 and :160-195; the keepalive why was restored next to the line stream that keeps one (frontend-request-route.ts)."
+    },
+    {
+      "id": "0829449c0b84",
+      "reason": "packages/daemon/src/http/tool-execution-routes.ts:68-68 (\"host-owned live-run/identity gate, after parsing and before either rou...\"): Code gone: the Express ToolExecutionRouteTarget, the optional env/timingSafeEqual defaults, requireToolExecutionCaller, bodyParserFailure, streamToolExecution (res 'close'/setInterval heartbeat) and the Express mount were deleted in e36a4062 (routes are data; the caller gate is toolExecutionCallerRefusal in tool-execution-caller.ts; NDJSON is line-stream.ts + tool-execution-stream.ts). Current why-text: tool-execution-routes.ts:40-100 and :160-195; the keepalive why was restored next to the line stream that keeps one (frontend-request-route.ts). Closest surviving wording: packages/daemon/src/http/tool-execution-routes.ts:85 (containment 0.63)."
+    },
+    {
+      "id": "211396f1bcbd",
+      "reason": "packages/daemon/src/http/tool-execution-routes.ts:86-86 (\"the token + loopback gate; mounted before any body parser. exported fo...\"): Code gone: the Express ToolExecutionRouteTarget, the optional env/timingSafeEqual defaults, requireToolExecutionCaller, bodyParserFailure, streamToolExecution (res 'close'/setInterval heartbeat) and the Express mount were deleted in e36a4062 (routes are data; the caller gate is toolExecutionCallerRefusal in tool-execution-caller.ts; NDJSON is line-stream.ts + tool-execution-stream.ts). Current why-text: tool-execution-routes.ts:40-100 and :160-195; the keepalive why was restored next to the line stream that keeps one (frontend-request-route.ts)."
+    },
+    {
+      "id": "12ad17ef025e",
+      "reason": "packages/daemon/src/http/tool-execution-routes.ts:139-142 (\"streams one execution as ndjson. headers go out first; surfaces are wr...\"): Code gone: the Express ToolExecutionRouteTarget, the optional env/timingSafeEqual defaults, requireToolExecutionCaller, bodyParserFailure, streamToolExecution (res 'close'/setInterval heartbeat) and the Express mount were deleted in e36a4062 (routes are data; the caller gate is toolExecutionCallerRefusal in tool-execution-caller.ts; NDJSON is line-stream.ts + tool-execution-stream.ts). Current why-text: tool-execution-routes.ts:40-100 and :160-195; the keepalive why was restored next to the line stream that keeps one (frontend-request-route.ts)."
+    },
+    {
+      "id": "55f127068a9d",
+      "reason": "packages/daemon/src/http/tool-execution-routes.ts:198-202 (\"catalog for one principal. written with `res.end` rather than `res.jso...\"): Code gone: the Express ToolExecutionRouteTarget, the optional env/timingSafeEqual defaults, requireToolExecutionCaller, bodyParserFailure, streamToolExecution (res 'close'/setInterval heartbeat) and the Express mount were deleted in e36a4062 (routes are data; the caller gate is toolExecutionCallerRefusal in tool-execution-caller.ts; NDJSON is line-stream.ts + tool-execution-stream.ts). Current why-text: tool-execution-routes.ts:40-100 and :160-195; the keepalive why was restored next to the line stream that keeps one (frontend-request-route.ts). Closest surviving wording: packages/daemon/src/http/tool-execution-routes.ts:161 (containment 0.41)."
+    },
+    {
+      "id": "0459406b0f7c",
+      "reason": "packages/daemon/src/http/tool-execution-routes.ts:227-231 (\"mounts both routes on `app` (an express app or a `router`). mount it b...\"): Code gone: the Express ToolExecutionRouteTarget, the optional env/timingSafeEqual defaults, requireToolExecutionCaller, bodyParserFailure, streamToolExecution (res 'close'/setInterval heartbeat) and the Express mount were deleted in e36a4062 (routes are data; the caller gate is toolExecutionCallerRefusal in tool-execution-caller.ts; NDJSON is line-stream.ts + tool-execution-stream.ts). Current why-text: tool-execution-routes.ts:40-100 and :160-195; the keepalive why was restored next to the line stream that keeps one (frontend-request-route.ts)."
+    },
+    {
+      "id": "c14d9650b790",
+      "reason": "packages/daemon/src/http/xai.ts:793-793 (\"mounts every xai route on `app`. a pack's `http(app, services)` calls ...\"): Code gone: the Express mount function this doc described was deleted in 56f64c61 (daemon-r7: routes are returned as data); the replacement list is packages/daemon/src/http/xai.ts:796 (`xaiRoutes`), with its own doc."
+    },
+    {
+      "id": "0bc5a7c409ca",
+      "reason": "packages/http-kit/src/__tests__/raw-sse.test.ts:17-17 (\"a response whose `write` reports backpressure from the nth call onward...\"): Test comment of raw-sse.test.ts, deleted with its only subject createSseResponse in b6605838 (20 cases of the deleted primitive). Nothing left for it to explain; streamed-answer behaviour is pinned by http-kit's node-bridge tests and core's sse tests."
+    },
+    {
+      "id": "dd7574a6fcaf",
+      "reason": "packages/http-kit/src/__tests__/raw-sse.test.ts:117-117 (\"a completed post body closes its request while the streaming response ...\"): Test comment of raw-sse.test.ts, deleted with its only subject createSseResponse in b6605838 (20 cases of the deleted primitive). Nothing left for it to explain; streamed-answer behaviour is pinned by http-kit's node-bridge tests and core's sse tests."
+    },
+    {
+      "id": "b94db4e1c997",
+      "reason": "packages/http-kit/src/__tests__/raw-sse.test.ts:162-164 (\"----------------------------------------------------------------------...\"): Test comment of raw-sse.test.ts, deleted with its only subject createSseResponse in b6605838 (20 cases of the deleted primitive). Nothing left for it to explain; streamed-answer behaviour is pinned by http-kit's node-bridge tests and core's sse tests."
+    },
+    {
+      "id": "71104d58e668",
+      "reason": "packages/http-kit/src/__tests__/raw-sse.test.ts:166-172 (\"`send` used to ignore `res.write()`'s return value entirely, so a clie...\"): Test comment of raw-sse.test.ts, deleted with its only subject createSseResponse in b6605838 (20 cases of the deleted primitive). Nothing left for it to explain; streamed-answer behaviour is pinned by http-kit's node-bridge tests and core's sse tests."
+    },
+    {
+      "id": "4bf22da9b104",
+      "reason": "packages/http-kit/src/__tests__/raw-sse.test.ts:191-191 (\"the first write is what discovers the stall; nothing after it may reac...\"): Test comment of raw-sse.test.ts, deleted with its only subject createSseResponse in b6605838 (20 cases of the deleted primitive). Nothing left for it to explain; streamed-answer behaviour is pinned by http-kit's node-bridge tests and core's sse tests."
+    },
+    {
+      "id": "eaa541bc2727",
+      "reason": "packages/http-kit/src/__tests__/raw-sse.test.ts:233-233 (\"written, discovers the stall...\"): Test comment of raw-sse.test.ts, deleted with its only subject createSseResponse in b6605838 (20 cases of the deleted primitive). Nothing left for it to explain; streamed-answer behaviour is pinned by http-kit's node-bridge tests and core's sse tests."
+    },
+    {
+      "id": "a90fb3cbeb7e",
+      "reason": "packages/http-kit/src/__tests__/raw-sse.test.ts:238-238 (\"would be queued 4 \u2014 over the cap...\"): Test comment of raw-sse.test.ts, deleted with its only subject createSseResponse in b6605838 (20 cases of the deleted primitive). Nothing left for it to explain; streamed-answer behaviour is pinned by http-kit's node-bridge tests and core's sse tests."
+    },
+    {
+      "id": "b8e014589018",
+      "reason": "packages/http-kit/src/__tests__/raw-sse.test.ts:248-248 (\"50 keepalive ticks against a socket that never drains must not become ...\"): Test comment of raw-sse.test.ts, deleted with its only subject createSseResponse in b6605838 (20 cases of the deleted primitive). Nothing left for it to explain; streamed-answer behaviour is pinned by http-kit's node-bridge tests and core's sse tests."
+    },
+    {
+      "id": "95362a1a9c5b",
+      "reason": "packages/http-kit/src/__tests__/raw-sse.test.ts:255-257 (\"----------------------------------------------------------------------...\"): Test comment of raw-sse.test.ts, deleted with its only subject createSseResponse in b6605838 (20 cases of the deleted primitive). Nothing left for it to explain; streamed-answer behaviour is pinned by http-kit's node-bridge tests and core's sse tests."
+    },
+    {
+      "id": "30f2e576b315",
+      "reason": "packages/http-kit/src/__tests__/raw-sse.test.ts:268-269 (\"hold the connection open, reading nothing in particular, and see wheth...\"): Test comment of raw-sse.test.ts, deleted with its only subject createSseResponse in b6605838 (20 cases of the deleted primitive). Nothing left for it to explain; streamed-answer behaviour is pinned by http-kit's node-bridge tests and core's sse tests."
+    },
+    {
+      "id": "6fa76547c221",
+      "reason": "packages/http-kit/src/__tests__/raw-sse.test.ts:284-288 (\"runs one real sse request against a real `http` server and resolves wh...\"): Test comment of raw-sse.test.ts, deleted with its only subject createSseResponse in b6605838 (20 cases of the deleted primitive). Nothing left for it to explain; streamed-answer behaviour is pinned by http-kit's node-bridge tests and core's sse tests."
+    },
+    {
+      "id": "6fe2951b31cf",
+      "reason": "ui-3 args sweep: escapeJsString's positional string overload was removed (no string caller remains in Jini or Tovu), so the comment justifying that overload describes code that no longer exists."
+    },
+    {
+      "id": "f7a37986a688",
+      "reason": "Moved or reworded, not lost: bigram containment 0.80 of this block's text in packages/daemon/src/http/tool-execution-routes.ts (merge-3 classification; the checker counts only verbatim survivors). Was packages/daemon/src/http/tool-execution-routes.ts:1."
+    },
+    {
+      "id": "4432806e92bc",
+      "reason": "packages/cms/src/widgets/ports.ts:116-116 (\"the one reference-index operation widgets performs; no extractor imple...\"): Edited in place (30954d12, moves-b1): the one-line doc was expanded with the entry-refs index rationale; same subject at packages/cms/src/widgets/ports.ts:105-111 (EntryRefRow) and :132 (EntryRefsRepoPort)."
+    },
+    {
+      "id": "dcb40cab3a99",
+      "reason": "packages/daemon/src/http/__tests__/delegated-tools.test.ts:454-456 (\"disconnect is observed on `res`, not `req` \u2014 see `adapter.ts`'s own co...\"): Test comment in delegated-tools.test.ts about the deleted Express test harness (fake req/res, MockApp, captured handlers or a real-Express-socket suite) for routes removed in 3800e9b8; the suite was rewritten against the route-data/web-Response API and the harness it explains no longer exists."
+    },
+    {
+      "id": "5b06a5efa499",
+      "reason": "packages/daemon/src/http/__tests__/frontend-sessions.test.ts:221-221 (\"a sink that itself throws must not turn a contained failure into an un...\"): Test comment in frontend-sessions.test.ts about the deleted Express test harness (fake req/res, MockApp, captured handlers or a real-Express-socket suite) for routes removed in 8c00e560; the suite was rewritten against the route-data/web-Response API and the harness it explains no longer exists."
+    },
+    {
+      "id": "5ce38c835f90",
+      "reason": "packages/daemon/src/http/__tests__/frontend-sessions.test.ts:327-327 (\"request completion is not a disconnect: the response can still be stre...\"): Test comment in frontend-sessions.test.ts about the deleted Express test harness (fake req/res, MockApp, captured handlers or a real-Express-socket suite) for routes removed in 8c00e560; the suite was rewritten against the route-data/web-Response API and the harness it explains no longer exists."
+    },
+    {
+      "id": "b2f4a8a932bd",
+      "reason": "packages/daemon/src/http/__tests__/model-proxy.test.ts:439-440 (\"without a host sink the default line carries the error class only: the...\"): Test comment in model-proxy.test.ts about the deleted Express test harness (fake req/res, MockApp, captured handlers or a real-Express-socket suite) for routes removed in 7b7d7795; the suite was rewritten against the route-data/web-Response API and the harness it explains no longer exists."
+    },
+    {
+      "id": "cc819d79faad",
+      "reason": "packages/daemon/src/http/__tests__/runs.test.ts:767-774 (\"before the fix: a write failure during the buffered-replay flush ended...\"): Test comment in runs.test.ts about the deleted Express test harness (fake req/res, MockApp, captured handlers or a real-Express-socket suite) for routes removed in a9498587; the suite was rewritten against the route-data/web-Response API and the harness it explains no longer exists."
+    },
+    {
+      "id": "3a2e77f2df6a",
+      "reason": "packages/daemon/src/http/__tests__/runs.test.ts:796-796 (\"the leaked callback would otherwise still be registered and attempt an...\"): Test comment in runs.test.ts about the deleted Express test harness (fake req/res, MockApp, captured handlers or a real-Express-socket suite) for routes removed in a9498587; the suite was rewritten against the route-data/web-Response API and the harness it explains no longer exists."
+    },
+    {
+      "id": "c5494475acec",
+      "reason": "packages/daemon/src/http/__tests__/runs.test.ts:849-856 (\"`cleanup()` unsubscribes from the lifecycle for real, so a *subsequent...\"): Test comment in runs.test.ts about the deleted Express test harness (fake req/res, MockApp, captured handlers or a real-Express-socket suite) for routes removed in a9498587; the suite was rewritten against the route-data/web-Response API and the harness it explains no longer exists."
+    },
+    {
+      "id": "4e75d6b91c76",
+      "reason": "packages/daemon/src/http/__tests__/xai.test.ts:1183-1189 (\"real express app on a real socket, one genuine round-trip per mounted ...\"): Test comment in xai.test.ts about the deleted Express test harness (fake req/res, MockApp, captured handlers or a real-Express-socket suite) for routes removed in 56f64c61; the suite was rewritten against the route-data/web-Response API and the harness it explains no longer exists."
+    },
+    {
+      "id": "3aa650fbea6a",
+      "reason": "packages/daemon/src/http/frontend-sessions.ts:163-164 (\"reserve capacity before committing sse headers, so a full scope gets a...\"): Code gone: the Express handler handleFrontendSessionStream, its Express-query parseCapabilityQuery({raw}), onInternalError option, expireScopedSession and registerFrontendSessionRoutes were deleted in 8c00e560 (frontend-session routes are data on a web Response). Capacity-before-stream, origin/owner gate and the URLSearchParams parser are documented for the new code at packages/daemon/src/http/frontend-sessions.ts:143, :231-276, :302-321, :352."
+    },
+    {
+      "id": "0d9930d3a4e1",
+      "reason": "packages/daemon/src/http/frontend-sessions.ts:280-287 (\"mounts both frontend-session routes on `app`. the stream route bypasse...\"): Code gone: the Express handler handleFrontendSessionStream, its Express-query parseCapabilityQuery({raw}), onInternalError option, expireScopedSession and registerFrontendSessionRoutes were deleted in 8c00e560 (frontend-session routes are data on a web Response). Capacity-before-stream, origin/owner gate and the URLSearchParams parser are documented for the new code at packages/daemon/src/http/frontend-sessions.ts:143, :231-276, :302-321, :352. Closest surviving wording: packages/daemon/src/http/memory.ts:548 (containment 0.33)."
+    },
+    {
+      "id": "f860a25f9205",
+      "reason": "packages/daemon/src/http/frontend-sessions.ts:323-324 (\"a diagnostic sink must never turn a contained failure into an unhandle...\"): Code gone: the Express handler handleFrontendSessionStream, its Express-query parseCapabilityQuery({raw}), onInternalError option, expireScopedSession and registerFrontendSessionRoutes were deleted in 8c00e560 (frontend-session routes are data on a web Response). Capacity-before-stream, origin/owner gate and the URLSearchParams parser are documented for the new code at packages/daemon/src/http/frontend-sessions.ts:143, :231-276, :302-321, :352."
+    },
+    {
+      "id": "9b7575b24464",
+      "reason": "packages/daemon/src/http/model-proxy.ts:636-638 (\"no sse channel can exist yet at this point \u2014 `runproxystream` owns ope...\"): Code gone: runProxyStream's createSseChannel lifecycle, respondInternalError, the Express catch-all and registerModelProxyRoutes were deleted in 7b7d7795 (each route is a Response; the provider is not awaited before the stream is returned). Failure handling of the new code is documented at packages/daemon/src/http/model-proxy.ts:376-470 and the route list at :575/:635."
+    },
+    {
+      "id": "4d5c4718e81d",
+      "reason": "packages/daemon/src/http/runs.ts:302-303 (\"`createssechannel` (`sse.ts`) owns the bounded queue, backpressure, an...\"): Code gone: the Express/createSseChannel run event stream (handleRunEventStreamRequest, registerRunEventStream, registerRunRoutes, channel.open/abandon/end) was deleted in a9498587 (daemon-r7: run routes are data, the stream is a committed SSE Response). The why of the new open/commit/unsubscribe/failure order is written at packages/daemon/src/http/runs.ts:285-327."
+    },
+    {
+      "id": "203e17ec3745",
+      "reason": "packages/daemon/src/http/terminals.ts:286-296 (\"`get /api/terminals/:id/stream` \u2014 sse, with `last-event-id`/`aftercurs...\"): Code gone: registerTerminalEventStream, createDeferredEndGate, DeferredEndChannel and registerTerminalRoutes were deleted in 46a8e83c (terminal routes are data; the stream is a Response on core's SSE stream). The attach-may-end-synchronously reasoning is restated for the new code at packages/daemon/src/http/terminals.ts:255-263 and the wire shape at :245. Closest surviving wording: packages/daemon/src/http/memory.ts:548 (containment 0.31)."
+    },
+    {
+      "id": "46f4dd85bd28",
+      "reason": "packages/daemon/src/http/tool-execution-routes.ts:98-98 (\"maps a body-parser failure (too large, malformed, aborted mid-body) to...\"): Code gone: the Express ToolExecutionRouteTarget, the optional env/timingSafeEqual defaults, requireToolExecutionCaller, bodyParserFailure, streamToolExecution (res 'close'/setInterval heartbeat) and the Express mount were deleted in e36a4062 (routes are data; the caller gate is toolExecutionCallerRefusal in tool-execution-caller.ts; NDJSON is line-stream.ts + tool-execution-stream.ts). Current why-text: tool-execution-routes.ts:40-100 and :160-195; the keepalive why was restored next to the line stream that keeps one (frontend-request-route.ts)."
+    },
+    {
+      "id": "29408e9e438e",
+      "reason": "packages/daemon/src/http/tool-execution-routes.ts:149-150 (\"`res` 'close' (not `req` 'close', which fires as soon as a completed b...\"): Code gone: the Express ToolExecutionRouteTarget, the optional env/timingSafeEqual defaults, requireToolExecutionCaller, bodyParserFailure, streamToolExecution (res 'close'/setInterval heartbeat) and the Express mount were deleted in e36a4062 (routes are data; the caller gate is toolExecutionCallerRefusal in tool-execution-caller.ts; NDJSON is line-stream.ts + tool-execution-stream.ts). Current why-text: tool-execution-routes.ts:40-100 and :160-195; the keepalive why was restored next to the line stream that keeps one (frontend-request-route.ts)."
+    },
+    {
+      "id": "1e3ca52bcefb",
+      "reason": "packages/http-kit/src/__tests__/raw-sse.test.ts:259-264 (\"fake emitters alone cannot establish node's client-disconnect lifecycl...\"): Test comment of raw-sse.test.ts, deleted with its only subject createSseResponse in b6605838 (20 cases of the deleted primitive). Nothing left for it to explain; streamed-answer behaviour is pinned by http-kit's node-bridge tests and core's sse tests."
+    },
+    {
+      "id": "54c612fa96a2",
+      "reason": "packages/http-kit/src/raw-sse.ts:1-8 (\"@module sse a server-sent events primitive typed only against `node:ht...\"): Code gone: http-kit's raw SSE primitive (createSseResponse/SseConnection) was deleted in b6605838 after its last user, the frontend-session stream, moved to core's createSseStream (8c00e560). Backpressure ('drain') and response-'close' handling of a streamed answer are owned by packages/http-kit/src/node-bridge.ts (pipe + out.on('close')), which carries its own comments; the bounded queue is core's createSseStream (packages/core/src/primitives/sse.ts)."
+    },
+    {
+      "id": "168d8ed688d1",
+      "reason": "packages/http-kit/src/raw-sse.ts:11-16 (\"cap on messages buffered for one client while its socket reports backp...\"): Code gone: http-kit's raw SSE primitive (createSseResponse/SseConnection) was deleted in b6605838 after its last user, the frontend-session stream, moved to core's createSseStream (8c00e560). Backpressure ('drain') and response-'close' handling of a streamed answer are owned by packages/http-kit/src/node-bridge.ts (pipe + out.on('close')), which carries its own comments; the bounded queue is core's createSseStream (packages/core/src/primitives/sse.ts)."
+    },
+    {
+      "id": "5aea3d0f7b83",
+      "reason": "packages/http-kit/src/raw-sse.ts:20-20 (\"milliseconds between keepalive ping comment lines, sent to keep an idl...\"): Code gone: http-kit's raw SSE primitive (createSseResponse/SseConnection) was deleted in b6605838 after its last user, the frontend-session stream, moved to core's createSseStream (8c00e560). Backpressure ('drain') and response-'close' handling of a streamed answer are owned by packages/http-kit/src/node-bridge.ts (pipe + out.on('close')), which carries its own comments; the bounded queue is core's createSseStream (packages/core/src/primitives/sse.ts)."
+    },
+    {
+      "id": "2b87f4bb905f",
+      "reason": "packages/http-kit/src/raw-sse.ts:22-22 (\"invoked exactly once, the first time this connection closes for any re...\"): Code gone: http-kit's raw SSE primitive (createSseResponse/SseConnection) was deleted in b6605838 after its last user, the frontend-session stream, moved to core's createSseStream (8c00e560). Backpressure ('drain') and response-'close' handling of a streamed answer are owned by packages/http-kit/src/node-bridge.ts (pipe + out.on('close')), which carries its own comments; the bounded queue is core's createSseStream (packages/core/src/primitives/sse.ts)."
+    },
+    {
+      "id": "5db387690833",
+      "reason": "packages/http-kit/src/raw-sse.ts:29-29 (\"writes one sse `data:` event, json-serializing `data`. a no-op once th...\"): Code gone: http-kit's raw SSE primitive (createSseResponse/SseConnection) was deleted in b6605838 after its last user, the frontend-session stream, moved to core's createSseStream (8c00e560). Backpressure ('drain') and response-'close' handling of a streamed answer are owned by packages/http-kit/src/node-bridge.ts (pipe + out.on('close')), which carries its own comments; the bounded queue is core's createSseStream (packages/core/src/primitives/sse.ts)."
+    },
+    {
+      "id": "8ee053cd49fd",
+      "reason": "packages/http-kit/src/raw-sse.ts:31-31 (\"closes the connection: stops the keepalive interval and ends the respo...\"): Code gone: http-kit's raw SSE primitive (createSseResponse/SseConnection) was deleted in b6605838 after its last user, the frontend-session stream, moved to core's createSseStream (8c00e560). Backpressure ('drain') and response-'close' handling of a streamed answer are owned by packages/http-kit/src/node-bridge.ts (pipe + out.on('close')), which carries its own comments; the bounded queue is core's createSseStream (packages/core/src/primitives/sse.ts)."
+    },
+    {
+      "id": "da2c0da0c50f",
+      "reason": "packages/http-kit/src/raw-sse.ts:33-33 (\"`true` once this connection has closed, whether via an explicit `close...\"): Code gone: http-kit's raw SSE primitive (createSseResponse/SseConnection) was deleted in b6605838 after its last user, the frontend-session stream, moved to core's createSseStream (8c00e560). Backpressure ('drain') and response-'close' handling of a streamed answer are owned by packages/http-kit/src/node-bridge.ts (pipe + out.on('close')), which carries its own comments; the bounded queue is core's createSseStream (packages/core/src/primitives/sse.ts)."
+    },
+    {
+      "id": "c6f124a8ed53",
+      "reason": "packages/http-kit/src/raw-sse.ts:43-52 (\"opens `res` as a server-sent events stream: writes the `text/event-str...\"): Code gone: http-kit's raw SSE primitive (createSseResponse/SseConnection) was deleted in b6605838 after its last user, the frontend-session stream, moved to core's createSseStream (8c00e560). Backpressure ('drain') and response-'close' handling of a streamed answer are owned by packages/http-kit/src/node-bridge.ts (pipe + out.on('close')), which carries its own comments; the bounded queue is core's createSseStream (packages/core/src/primitives/sse.ts)."
+    },
+    {
+      "id": "c64608795a71",
+      "reason": "packages/http-kit/src/raw-sse.ts:57-59 (\"frames held back because the socket reported backpressure, flushed on ...\"): Code gone: http-kit's raw SSE primitive (createSseResponse/SseConnection) was deleted in b6605838 after its last user, the frontend-session stream, moved to core's createSseStream (8c00e560). Backpressure ('drain') and response-'close' handling of a streamed answer are owned by packages/http-kit/src/node-bridge.ts (pipe + out.on('close')), which carries its own comments; the bounded queue is core's createSseStream (packages/core/src/primitives/sse.ts)."
+    },
+    {
+      "id": "7260b5d44553",
+      "reason": "packages/http-kit/src/raw-sse.ts:65-70 (\"writes as much of the queue as the socket will accept. `res.write()` r...\"): Code gone: http-kit's raw SSE primitive (createSseResponse/SseConnection) was deleted in b6605838 after its last user, the frontend-session stream, moved to core's createSseStream (8c00e560). Backpressure ('drain') and response-'close' handling of a streamed answer are owned by packages/http-kit/src/node-bridge.ts (pipe + out.on('close')), which carries its own comments; the bounded queue is core's createSseStream (packages/core/src/primitives/sse.ts)."
+    },
+    {
+      "id": "d044558c73ef",
+      "reason": "packages/http-kit/src/raw-sse.ts:78-83 (\"queues one frame, dropping the connection if the backlog has outgrown ...\"): Code gone: http-kit's raw SSE primitive (createSseResponse/SseConnection) was deleted in b6605838 after its last user, the frontend-session stream, moved to core's createSseStream (8c00e560). Backpressure ('drain') and response-'close' handling of a streamed answer are owned by packages/http-kit/src/node-bridge.ts (pipe + out.on('close')), which carries its own comments; the bounded queue is core's createSseStream (packages/core/src/primitives/sse.ts)."
+    },
+    {
+      "id": "d10bcb00da57",
+      "reason": "packages/http-kit/src/raw-sse.ts:114-116 (\"a request's `'close'` can fire when a post body finishes arriving whil...\"): Code gone: http-kit's raw SSE primitive (createSseResponse/SseConnection) was deleted in b6605838 after its last user, the frontend-session stream, moved to core's createSseStream (8c00e560). Backpressure ('drain') and response-'close' handling of a streamed answer are owned by packages/http-kit/src/node-bridge.ts (pipe + out.on('close')), which carries its own comments; the bounded queue is core's createSseStream (packages/core/src/primitives/sse.ts)."
+    },
+    {
+      "id": "01b9a4edc7fa",
+      "reason": "cookie-consent-cloud: createCookieConsent's @example was rewritten for browserPorts' new one-object args shape (browserPorts({ win: window })); the example is still next to the function, only the call shape changed."
+    },
+    {
+      "id": "22ef730e82fa",
+      "reason": "rf2-a13: useDismissOnOutsideOrEscape's doc comment was reworded in place for the IME-safe Escape it added ('on non-composing Escape'); the rest of the statement is unchanged next to the same function."
+    },
+    {
+      "id": "5dea4970bd57",
+      "reason": "ext-j2 (R7+Z reporters): reportInternalError is now required and the daemon no longer imports @jini-ai/http-kit, so 'a caller that runs handle itself may omit it and gets @jini-ai/http-kit's' is obsolete; the field keeps a shorter doc ('Required for direct handlers; <routes> binds the host's reporter')."
+    },
+    {
+      "id": "acba63514d78",
+      "reason": "ext-j2 (R7+Z reporters): reportInternalError is now required and the daemon no longer imports @jini-ai/http-kit, so 'a caller that runs handle itself may omit it and gets @jini-ai/http-kit's' is obsolete; the field keeps a shorter doc ('Required for direct handlers; <routes> binds the host's reporter')."
+    },
+    {
+      "id": "eaff575759d8",
+      "reason": "ext-j2 (R7+Z reporters): reportInternalError is now required and the daemon no longer imports @jini-ai/http-kit, so 'a caller that runs handle itself may omit it and gets @jini-ai/http-kit's' is obsolete; the field keeps a shorter doc ('Required for direct handlers; <routes> binds the host's reporter')."
+    },
+    {
+      "id": "d4e666cc56e1",
+      "reason": "ext-j2 (R7+Z reporters): reportInternalError is now required and the daemon no longer imports @jini-ai/http-kit, so 'a caller that runs handle itself may omit it and gets @jini-ai/http-kit's' is obsolete; the field keeps a shorter doc ('Required for direct handlers; <routes> binds the host's reporter')."
+    },
+    {
+      "id": "8a6c49e4ef47",
+      "reason": "ext-j2 (R7+Z reporters): reportInternalError is now required and the daemon no longer imports @jini-ai/http-kit, so 'a caller that runs handle itself may omit it and gets @jini-ai/http-kit's' is obsolete; the field keeps a shorter doc ('Required for direct handlers; <routes> binds the host's reporter')."
+    },
+    {
+      "id": "8e6589fe5409",
+      "reason": "ext-j2 (R7+Z reporters): reportInternalError is now required and the daemon no longer imports @jini-ai/http-kit, so 'a caller that runs handle itself may omit it and gets @jini-ai/http-kit's' is obsolete; the field keeps a shorter doc ('Required for direct handlers; <routes> binds the host's reporter')."
+    },
+    {
+      "id": "4e16b559dc71",
+      "reason": "ext-j2 (R7+Z reporters): reportInternalError is now required and the daemon no longer imports @jini-ai/http-kit, so 'a caller that runs handle itself may omit it and gets @jini-ai/http-kit's' is obsolete; the field keeps a shorter doc ('Required for direct handlers; <routes> binds the host's reporter')."
+    },
+    {
+      "id": "54e7e3785bf7",
+      "reason": "ext-j2 (R7+Z reporters): reportInternalError is now required and the daemon no longer imports @jini-ai/http-kit, so 'a caller that runs handle itself may omit it and gets @jini-ai/http-kit's' is obsolete; the field keeps a shorter doc ('Required for direct handlers; <routes> binds the host's reporter')."
+    },
+    {
+      "id": "9b9aea30d589",
+      "reason": "ext-j2 (R7+Z reporters): reportInternalError is now required and the daemon no longer imports @jini-ai/http-kit, so 'a caller that runs handle itself may omit it and gets @jini-ai/http-kit's' is obsolete; the field keeps a shorter doc ('Required for direct handlers; <routes> binds the host's reporter')."
+    },
+    {
+      "id": "7b9236d6e64c",
+      "reason": "ext-j2 (kysely static import): the event-log sqlite kernel imports kysely statically now, so the comment about keeping the factory free of an eager peer import describes code that is gone."
+    },
+    {
+      "id": "09178b346fdc",
+      "reason": "ext-j2 (settings to core/http-kit): the deprecated cms/settings/express compatibility re-export was retired with its file; @jini-ai/core/settings/express is the owner."
+    },
+    {
+      "id": "241a23df7439",
+      "reason": "ext-j2: the exact cms/settings/express R2 exemption this comment explained was removed with the retired entry."
+    },
+    {
+      "id": "2644f4be7ba4",
+      "reason": "ext-j2: the guard self-test fixture now asserts the retired cms/settings/express entry is forbidden; the 'fails if the exemption is removed' regression it described no longer exists."
+    },
+    {
+      "id": "6c71f2721257",
+      "reason": "ext-j2 (settings to core/http-kit): the contract test's express-peer reasoning was rewritten for the moved adapter; the isolation assertion stays."
+    },
+    {
+      "id": "6df6089a6d49",
+      "reason": "ext-j2 (federation reader): the legacy factory/send path this guard test comment named was removed by the federation reader extraction."
+    },
+    {
+      "id": "3f5e69291128",
+      "reason": "ext-j2 (K-05b taxonomy leaves): the taxonomy barrel's @file header was rewritten for the new leaf entries; the barrel and its purpose stay."
+    },
+    {
+      "id": "7ae88e00abf4",
+      "reason": "ext-r11b2 (R11b-2): mcp token/config writers now take a required files port, so 'the default uses the node filesystem' is obsolete; the port's own doc states the boundary."
+    },
+    {
+      "id": "9c8497d3246d",
+      "reason": "ex-log (combine-6): a failed provisioning outcome no longer carries the caught `error`; it goes to the injected `report`, and the answer text names the step and error class (federate-mcp's catch comment says so)."
+    },
+    {
+      "id": "7b86cfde3186",
+      "reason": "ex-log (combine-6): `approvedLoadFailed`'s `detail` is now the error class summary, not the raw message; the doc comment was reworded to say that."
+    },
+    {
+      "id": "08709e73b555",
+      "reason": "ex-log (combine-6): failures no longer carry `error`; provisioning reports caught values itself and the replacement comment states that reasons are safe."
+    },
+    {
+      "id": "d1c43a5c7f16",
+      "reason": "ex-log (combine-6): runIfMain now passes `io` to main; the same doc comment was reworded with the new argument and its failure behaviour."
+    },
+    {
+      "id": "c60f3fe93b3d",
+      "reason": "ex-log (combine-6): recovery decisions go through the injected `report` (safe default logger) instead of `logger.info` on console; the doc comment was reworded to that."
+    },
+    {
+      "id": "4ed36cd3d332",
+      "reason": "xd-admin (combine-6): the consent React panel moved from admin to @jini-ai/cookie-consent/react, which cannot read admin's theme kit; the look section now takes its fallback palette as an explicit prop, so notes about the kit provider and the kit-render test wrapper no longer apply."
+    },
+    {
+      "id": "70f8541bec52",
+      "reason": "xd-admin (combine-6): the consent React panel moved from admin to @jini-ai/cookie-consent/react, which cannot read admin's theme kit; the look section now takes its fallback palette as an explicit prop, so notes about the kit provider and the kit-render test wrapper no longer apply."
+    },
+    {
+      "id": "15438c55d071",
+      "reason": "xd-admin (combine-6): the consent React panel moved from admin to @jini-ai/cookie-consent/react, which cannot read admin's theme kit; the look section now takes its fallback palette as an explicit prop, so notes about the kit provider and the kit-render test wrapper no longer apply."
+    },
+    {
+      "id": "8fab9c710b44",
+      "reason": "xd-admin (combine-6): the consent React panel moved from admin to @jini-ai/cookie-consent/react, which cannot read admin's theme kit; the look section now takes its fallback palette as an explicit prop, so notes about the kit provider and the kit-render test wrapper no longer apply."
+    },
+    {
+      "id": "1a07d732e6b3",
+      "reason": "xd5-render (combine-6): the render extraction moved the page-head contract, form-result transport and media-ref shape check into Jini as their canonical home (cms presentation/page-head, forms, widgets markers); the comments describing them as duplicates of a host file, or as mirroring the host renderer, no longer apply and were rewritten for the new ownership."
+    },
+    {
+      "id": "74fca3b67df0",
+      "reason": "xd5-render (combine-6): the render extraction moved the page-head contract, form-result transport and media-ref shape check into Jini as their canonical home (cms presentation/page-head, forms, widgets markers); the comments describing them as duplicates of a host file, or as mirroring the host renderer, no longer apply and were rewritten for the new ownership."
+    },
+    {
+      "id": "11ab545c00a7",
+      "reason": "xd5-render (combine-6): the render extraction moved the page-head contract, form-result transport and media-ref shape check into Jini as their canonical home (cms presentation/page-head, forms, widgets markers); the comments describing them as duplicates of a host file, or as mirroring the host renderer, no longer apply and were rewritten for the new ownership."
+    },
+    {
+      "id": "cfae2c8bc0be",
+      "reason": "xd5-render (combine-6): the render extraction moved the page-head contract, form-result transport and media-ref shape check into Jini as their canonical home (cms presentation/page-head, forms, widgets markers); the comments describing them as duplicates of a host file, or as mirroring the host renderer, no longer apply and were rewritten for the new ownership."
+    },
+    {
+      "id": "f8f6f80dbe63",
+      "reason": "xd5-render (combine-6): the render extraction moved the page-head contract, form-result transport and media-ref shape check into Jini as their canonical home (cms presentation/page-head, forms, widgets markers); the comments describing them as duplicates of a host file, or as mirroring the host renderer, no longer apply and were rewritten for the new ownership."
+    },
+    {
+      "id": "58f5c04d74f9",
+      "reason": "xd5-render (combine-6): the render extraction moved the page-head contract, form-result transport and media-ref shape check into Jini as their canonical home (cms presentation/page-head, forms, widgets markers); the comments describing them as duplicates of a host file, or as mirroring the host renderer, no longer apply and were rewritten for the new ownership."
+    },
+    {
+      "id": "03bf8f33df32",
+      "reason": "xd5-render (combine-6): the render extraction moved the page-head contract, form-result transport and media-ref shape check into Jini as their canonical home (cms presentation/page-head, forms, widgets markers); the comments describing them as duplicates of a host file, or as mirroring the host renderer, no longer apply and were rewritten for the new ownership."
+    },
+    {
+      "id": "41e62c69b679",
+      "reason": "xd5-render (combine-6): the render extraction moved the page-head contract, form-result transport and media-ref shape check into Jini as their canonical home (cms presentation/page-head, forms, widgets markers); the comments describing them as duplicates of a host file, or as mirroring the host renderer, no longer apply and were rewritten for the new ownership."
+    },
+    {
+      "id": "655a03e95e9e",
+      "reason": "xd5-render (combine-6): the render extraction moved the page-head contract, form-result transport and media-ref shape check into Jini as their canonical home (cms presentation/page-head, forms, widgets markers); the comments describing them as duplicates of a host file, or as mirroring the host renderer, no longer apply and were rewritten for the new ownership."
+    },
+    {
+      "id": "6b0fb2571bda",
+      "reason": "xd5-render (combine-6): the render extraction moved the page-head contract, form-result transport and media-ref shape check into Jini as their canonical home (cms presentation/page-head, forms, widgets markers); the comments describing them as duplicates of a host file, or as mirroring the host renderer, no longer apply and were rewritten for the new ownership."
+    },
+    {
+      "id": "e0bde041038d",
+      "reason": "xd5-render (combine-6): the render extraction moved the page-head contract, form-result transport and media-ref shape check into Jini as their canonical home (cms presentation/page-head, forms, widgets markers); the comments describing them as duplicates of a host file, or as mirroring the host renderer, no longer apply and were rewritten for the new ownership."
+    },
+    {
+      "id": "708256d8a732",
+      "reason": "jb2 (combine-7): code deleted by J-HW1: the shared DOMParser it explained was removed from the Sidebar icon render. Was packages/admin/src/react/components/Sidebar.tsx:194-195."
+    },
+    {
+      "id": "78904e7e3e9c",
+      "reason": "jy-pay (combine-7): prose rewritten by K1/K4-K9 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/agent-plugins/cloudflare/lib/forms.mjs:5-8."
+    },
+    {
+      "id": "a1b445fbde84",
+      "reason": "jy-pay (combine-7): code deleted by D3: the GitHub App deployments adapter and its tests were deleted. Was packages/agent-plugins/github/__tests__/deployments-provider.test.mjs:7-17."
+    },
+    {
+      "id": "446c0ddd11bf",
+      "reason": "jy-pay (combine-7): code deleted by D3: the GitHub App deployments adapter and its tests were deleted. Was packages/agent-plugins/github/__tests__/deployments-provider.test.mjs:48-50."
+    },
+    {
+      "id": "7ce57115faaa",
+      "reason": "jy-pay (combine-7): code deleted by D3: the GitHub App deployments adapter and its tests were deleted. Was packages/agent-plugins/github/__tests__/deployments-provider.test.mjs:58-60."
+    },
+    {
+      "id": "f0c2a9531452",
+      "reason": "jy-pay (combine-7): code deleted by D3: the GitHub App deployments adapter and its tests were deleted. Was packages/agent-plugins/github/__tests__/deployments-provider.test.mjs:170-170."
+    },
+    {
+      "id": "d5bbc93243aa",
+      "reason": "jy-pay (combine-7): code deleted by D3: the GitHub App deployments adapter and its tests were deleted. Was packages/agent-plugins/github/__tests__/deployments-provider.test.mjs:204-208."
+    },
+    {
+      "id": "7b936e78e077",
+      "reason": "jy-pay (combine-7): code deleted by D3: the GitHub App deployments adapter and its tests were deleted. Was packages/agent-plugins/github/__tests__/deployments-provider.test.mjs:213-216."
+    },
+    {
+      "id": "3968171c8eb7",
+      "reason": "jy-pay (combine-7): code deleted by D3: the GitHub App deployments adapter and its tests were deleted. Was packages/agent-plugins/github/__tests__/deployments-provider.test.mjs:229-229."
+    },
+    {
+      "id": "c7a82db88c8e",
+      "reason": "jy-pay (combine-7): code deleted by D3: the GitHub App deployments adapter and its tests were deleted. Was packages/agent-plugins/github/__tests__/deployments-provider.test.mjs:277-278."
+    },
+    {
+      "id": "51d2989c9ad5",
+      "reason": "jy-pay (combine-7): code deleted by D3: the GitHub App deployments adapter and its tests were deleted. Was packages/agent-plugins/github/deployments/github.mjs:3-22."
+    },
+    {
+      "id": "3ec335bc7afa",
+      "reason": "jy-pay (combine-7): code deleted by D3: the GitHub App deployments adapter and its tests were deleted. Was packages/agent-plugins/github/deployments/github.mjs:30-31."
+    },
+    {
+      "id": "5871e7b45ff7",
+      "reason": "jy-pay (combine-7): code deleted by D3: the GitHub App deployments adapter and its tests were deleted. Was packages/agent-plugins/github/deployments/github.mjs:33-34."
+    },
+    {
+      "id": "8835bc133879",
+      "reason": "jy-pay (combine-7): code deleted by D3: the GitHub App deployments adapter and its tests were deleted. Was packages/agent-plugins/github/deployments/github.mjs:50-54."
+    },
+    {
+      "id": "0a94cb9438ff",
+      "reason": "jy-pay (combine-7): code deleted by D3: the GitHub App deployments adapter and its tests were deleted. Was packages/agent-plugins/github/deployments/github.mjs:63-77."
+    },
+    {
+      "id": "5481ca1ab66d",
+      "reason": "jy-pay (combine-7): code deleted by D3: the GitHub App deployments adapter and its tests were deleted. Was packages/agent-plugins/github/deployments/github.mjs:88-93."
+    },
+    {
+      "id": "5a148c9f1baa",
+      "reason": "jy-pay (combine-7): code deleted by D3: the GitHub App deployments adapter and its tests were deleted. Was packages/agent-plugins/github/deployments/github.mjs:111-115."
+    },
+    {
+      "id": "0b167168e219",
+      "reason": "jy-pay (combine-7): code deleted by D3: the GitHub App deployments adapter and its tests were deleted. Was packages/agent-plugins/github/deployments/github.mjs:131-138."
+    },
+    {
+      "id": "f1819f7345f5",
+      "reason": "jy-pay (combine-7): code deleted by D3: the GitHub App deployments adapter and its tests were deleted. Was packages/agent-plugins/github/deployments/github.mjs:181-181."
+    },
+    {
+      "id": "d2136c020e7e",
+      "reason": "jy-pay (combine-7): code deleted by D3: the GitHub App deployments adapter and its tests were deleted. Was packages/agent-plugins/github/deployments/github.mjs:196-201."
+    },
+    {
+      "id": "0354b1dc8684",
+      "reason": "jy-pay (combine-7): code deleted by D3: the GitHub App deployments adapter and its tests were deleted. Was packages/agent-plugins/github/deployments/github.mjs:252-260."
+    },
+    {
+      "id": "ec624ff81a1a",
+      "reason": "jy-pay (combine-7): code deleted by D3: the GitHub App deployments adapter and its tests were deleted. Was packages/agent-plugins/github/deployments/github.mjs:267-269."
+    },
+    {
+      "id": "29b9b9fdd033",
+      "reason": "jy-pay (combine-7): code deleted by D3: the GitHub App deployments adapter and its tests were deleted. Was packages/agent-plugins/github/deployments/github.mjs:289-301."
+    },
+    {
+      "id": "454e35599c73",
+      "reason": "jy-pay (combine-7): code deleted by D3: the GitHub App deployments adapter and its tests were deleted. Was packages/agent-plugins/github/deployments/github.mjs:323-330."
+    },
+    {
+      "id": "db18288abc7a",
+      "reason": "jy-pay (combine-7): code deleted by D3: the GitHub App deployments adapter and its tests were deleted. Was packages/agent-plugins/github/deployments/github.mjs:379-384."
+    },
+    {
+      "id": "d19b707953ef",
+      "reason": "jy-pay (combine-7): code deleted by D3: the GitHub App deployments adapter and its tests were deleted. Was packages/agent-plugins/github/deployments/github.mjs:404-407."
+    },
+    {
+      "id": "5f6e7dfe3fba",
+      "reason": "jy-pay (combine-7): prose rewritten by K1/K4-K9 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/agent-plugins/google-workspace/form-destinations/mapping.mjs:21-22."
+    },
+    {
+      "id": "3650601b7f94",
+      "reason": "jy-pay (combine-7): prose rewritten by K1/K4-K9 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/agent-plugins/google-workspace/lib/picker-flow.mjs:29-29."
+    },
+    {
+      "id": "a10005d2bf1b",
+      "reason": "jy-pay (combine-7): prose rewritten by K1/K4-K9 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/agent-plugins/google-workspace/lib/surface-actions.mjs:17-17."
+    },
+    {
+      "id": "3a43d4b42487",
+      "reason": "jb2 (combine-7): code deleted or replaced by RT-J1/RT-J2: automatic plugin use was reworked (query preflight now delivers the top and required providers); the explained code and wording no longer exist. Was packages/agent-plugins/src/lifecycle/__tests__/unit/automatic-use.unit.test.ts:287-287."
+    },
+    {
+      "id": "c9a39aad2dec",
+      "reason": "jb2 (combine-7): code deleted or replaced by RT-J1/RT-J2: automatic plugin use was reworked (query preflight now delivers the top and required providers); the explained code and wording no longer exist. Was packages/agent-plugins/src/lifecycle/automatic-use.ts:31-35."
+    },
+    {
+      "id": "23f3f6f54b26",
+      "reason": "jb2 (combine-7): code deleted or replaced by RT-J1/RT-J2: automatic plugin use was reworked (query preflight now delivers the top and required providers); the explained code and wording no longer exist. Was packages/agent-plugins/src/lifecycle/automatic-use.ts:244-244."
+    },
+    {
+      "id": "e56d91cf930d",
+      "reason": "jb2 (combine-7): code deleted or replaced by RT-J1/RT-J2: automatic plugin use was reworked (query preflight now delivers the top and required providers); the explained code and wording no longer exist. Was packages/agent-plugins/src/lifecycle/automatic-use.ts:257-257."
+    },
+    {
+      "id": "f0563ea39b5c",
+      "reason": "jy-pay (combine-7): prose rewritten by K1/K4-K9 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/agent-plugins/supabase/__tests__/bundled-package.test.mjs:46-46."
+    },
+    {
+      "id": "e963b0a60326",
+      "reason": "jy-cls (combine-7): prose rewritten by J11 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/analytics/src/forwarding.ts:180-180."
+    },
+    {
+      "id": "42c07ed66bea",
+      "reason": "jy-cls (combine-7): prose rewritten by J11 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/analytics/src/ingest.ts:377-377."
+    },
+    {
+      "id": "caf068055f96",
+      "reason": "jy-cls (combine-7): prose rewritten by J11 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/analytics/src/types.ts:45-45."
+    },
+    {
+      "id": "2bc3616868f5",
+      "reason": "jy-cls (combine-7): prose rewritten by J11 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/analytics/src/types.ts:159-159."
+    },
+    {
+      "id": "a3b16fee943b",
+      "reason": "jy-cls (combine-7): prose rewritten by J11 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/analytics/src/types.ts:206-211."
+    },
+    {
+      "id": "53ee40ca7a68",
+      "reason": "jy-cls (combine-7): prose rewritten by J11 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/analytics/src/types.ts:219-219."
+    },
+    {
+      "id": "c0ec60fdc258",
+      "reason": "jy-cls (combine-7): prose rewritten by J11 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/analytics/src/types.ts:236-236."
+    },
+    {
+      "id": "0622260513fd",
+      "reason": "jy-cls (combine-7): prose rewritten by J11 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/analytics/src/types.ts:291-291."
+    },
+    {
+      "id": "f13c20621aa0",
+      "reason": "jb2 (combine-7): code deleted by RD-J1: the guesser-only redaction path and its tests were removed. Was packages/chat/src/core/__tests__/user-text-redaction.gaps.test.ts:37-38."
+    },
+    {
+      "id": "d4f88ac393f5",
+      "reason": "jb2 (combine-7): code deleted by RD-J1: the guesser-only redaction path and its tests were removed. Was packages/chat/src/core/__tests__/user-text-redaction.gaps.test.ts:40-40."
+    },
+    {
+      "id": "31abd75d1c40",
+      "reason": "jb2 (combine-7): code deleted by RD-J1: the guesser-only redaction path and its tests were removed. Was packages/chat/src/core/__tests__/user-text-redaction.gaps.test.ts:53-53."
+    },
+    {
+      "id": "c0976888df8f",
+      "reason": "jb2 (combine-7): code deleted by RD-J1: the guesser-only redaction path and its tests were removed. Was packages/chat/src/core/__tests__/user-text-redaction.path-boundaries.test.ts:53-53."
+    },
+    {
+      "id": "8dcd522b13a5",
+      "reason": "jb2 (combine-7): code deleted by RD-J1: the guesser-only redaction path and its tests were removed. Was packages/chat/src/core/user-text-redaction.ts:44-46."
+    },
+    {
+      "id": "a6b5e3e4ea92",
+      "reason": "jb2 (combine-7): code deleted by RD-J1: the guesser-only redaction path and its tests were removed. Was packages/chat/src/core/user-text-redaction.ts:55-57."
+    },
+    {
+      "id": "83da5adcd816",
+      "reason": "jb2 (combine-7): code deleted by RD-J1: the guesser-only redaction path and its tests were removed. Was packages/chat/src/core/user-text-redaction.ts:64-64."
+    },
+    {
+      "id": "1064c9c418fa",
+      "reason": "jb2 (combine-7): code deleted by RD-J1: the guesser-only redaction path and its tests were removed. Was packages/chat/src/core/user-text-redaction.ts:73-75."
+    },
+    {
+      "id": "dd15e38c7abb",
+      "reason": "jb2 (combine-7): code deleted by RD-J1: the guesser-only redaction path and its tests were removed. Was packages/chat/src/core/user-text-redaction.ts:88-94."
+    },
+    {
+      "id": "fd942f7facff",
+      "reason": "jb2 (combine-7): code deleted by RD-J1: the guesser-only redaction path and its tests were removed. Was packages/chat/src/core/user-text-redaction.ts:98-98."
+    },
+    {
+      "id": "36ea934204b9",
+      "reason": "jb2 (combine-7): code deleted by RD-J1: the guesser-only redaction path and its tests were removed. Was packages/chat/src/core/user-text-redaction.ts:104-104."
+    },
+    {
+      "id": "780ed03760e9",
+      "reason": "jy-pa (combine-7): prose rewritten by J01 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/cms/src/comments/ports.ts:32-32."
+    },
+    {
+      "id": "ceedd57a8831",
+      "reason": "jy-pa (combine-7): prose rewritten by J01 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/cms/src/comments/ports.ts:43-44."
+    },
+    {
+      "id": "33570d5c2a66",
+      "reason": "jy-pa (combine-7): prose rewritten by J01 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/cms/src/comments/ports.ts:110-113."
+    },
+    {
+      "id": "05ea303edd02",
+      "reason": "jy-pa (combine-7): prose rewritten by J01 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/cms/src/comments/ports.ts:152-156."
+    },
+    {
+      "id": "8a0d62eb90fc",
+      "reason": "jy-pa (combine-7): prose rewritten by J01 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/cms/src/comments/ports.ts:172-176."
+    },
+    {
+      "id": "9f500c63d5f1",
+      "reason": "jy-pa (combine-7): prose rewritten by J01 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/cms/src/comments/types.ts:51-51."
+    },
+    {
+      "id": "70fa00ff378c",
+      "reason": "jy-pa (combine-7): prose rewritten by J01 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/cms/src/comments/types.ts:65-65."
+    },
+    {
+      "id": "68f33d9ee3cc",
+      "reason": "jy-pa (combine-7): prose rewritten by J01 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/cms/src/comments/types.ts:99-99."
+    },
+    {
+      "id": "bddf0e15fd8a",
+      "reason": "jy-pa (combine-7): prose rewritten by J01 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/cms/src/comments/types.ts:109-114."
+    },
+    {
+      "id": "38d1ccbf0292",
+      "reason": "jy-pa (combine-7): prose rewritten by J01 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/cms/src/comments/types.ts:130-130."
+    },
+    {
+      "id": "56d91fedb813",
+      "reason": "jy-pa (combine-7): prose rewritten by J01 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/cms/src/comments/types.ts:145-145."
+    },
+    {
+      "id": "e8197801b78a",
+      "reason": "jy-pa (combine-7): prose rewritten by J03 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/cms/src/redirects/ports.ts:143-145."
+    },
+    {
+      "id": "e6009e11cc8d",
+      "reason": "jy-pa (combine-7): prose rewritten by J03 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/cms/src/redirects/types.ts:1-23."
+    },
+    {
+      "id": "865f33a712b6",
+      "reason": "jy-pa (combine-7): prose rewritten by J03 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/cms/src/redirects/types.ts:68-68."
+    },
+    {
+      "id": "ec3b08f7c4b6",
+      "reason": "jy-pa (combine-7): prose rewritten by J03 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/cms/src/redirects/types.ts:70-70."
+    },
+    {
+      "id": "c3bf680f0c8c",
+      "reason": "jy-pa (combine-7): prose rewritten by J03 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/cms/src/redirects/types.ts:98-98."
+    },
+    {
+      "id": "273b82db3395",
+      "reason": "jy-pa (combine-7): prose rewritten by J03 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/cms/src/redirects/types.ts:100-100."
+    },
+    {
+      "id": "7b32c4fa2469",
+      "reason": "jy-pa (combine-7): prose rewritten by J03 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/cms/src/redirects/types.ts:104-104."
+    },
+    {
+      "id": "eb4f42296066",
+      "reason": "jy-pa (combine-7): prose rewritten by J03 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/cms/src/routing/routing.ts:33-35."
+    },
+    {
+      "id": "9125fd74c922",
+      "reason": "jy-pa (combine-7): prose rewritten by J03 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/cms/src/routing/routing.ts:54-56."
+    },
+    {
+      "id": "137c1079a01a",
+      "reason": "jy-pa (combine-7): prose rewritten by J03 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/cms/src/routing/routing.ts:134-136."
+    },
+    {
+      "id": "6bc4d9331c53",
+      "reason": "jy-pa (combine-7): prose rewritten by J03 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/cms/src/routing/routing.ts:146-151."
+    },
+    {
+      "id": "d8c3ec8b5b70",
+      "reason": "jy-pa (combine-7): prose rewritten by J03 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/cms/src/routing/routing.ts:594-596."
+    },
+    {
+      "id": "d777342227c7",
+      "reason": "jy-pa (combine-7): prose rewritten by J03 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/cms/src/routing/types.ts:25-27."
+    },
+    {
+      "id": "0df79212eea2",
+      "reason": "jy-pa (combine-7): prose rewritten by J03 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/cms/src/routing/types.ts:77-77."
+    },
+    {
+      "id": "331862aace75",
+      "reason": "jy-pa (combine-7): prose rewritten by J03 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/cms/src/routing/types.ts:80-82."
+    },
+    {
+      "id": "4f5692536e96",
+      "reason": "jy-pa (combine-7): prose rewritten by J03 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/cms/src/routing/types.ts:113-115."
+    },
+    {
+      "id": "a00d2d1114a9",
+      "reason": "jy-pa (combine-7): prose rewritten by J03 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/cms/src/routing/types.ts:153-155."
+    },
+    {
+      "id": "d258b3c96a90",
+      "reason": "jy-pa (combine-7): prose rewritten by J04 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/cms/src/seo/media.ts:39-39."
+    },
+    {
+      "id": "105791e39804",
+      "reason": "jy-pads (combine-7): prose rewritten by J05 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/cms/src/widgets/ports.ts:1-23."
+    },
+    {
+      "id": "e43026095e33",
+      "reason": "jy-pads (combine-7): prose rewritten by J05 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/cms/src/widgets/sql/entry-refs-repo.ts:6-6."
+    },
+    {
+      "id": "479f6be0b52f",
+      "reason": "jy-pads (combine-7): prose rewritten by J05 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/cms/src/widgets/types.ts:38-38."
+    },
+    {
+      "id": "a3ec28beb18a",
+      "reason": "jy-pads (combine-7): prose rewritten by J05 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/cms/src/widgets/types.ts:99-101."
+    },
+    {
+      "id": "7138824c176c",
+      "reason": "jy-pads (combine-7): prose rewritten by J05 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/cms/src/widgets/types.ts:247-247."
+    },
+    {
+      "id": "aa5075422ac0",
+      "reason": "jz-jini (combine-7): prose rewritten by J-C1 (host path removed): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/commerce/src/catalog/storefront.ts:55-56."
+    },
+    {
+      "id": "f233eb79452b",
+      "reason": "jy-pb (combine-7): prose rewritten by J12 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/commerce/src/payments/contract/scope.ts:14-14."
+    },
+    {
+      "id": "dd1a259a182b",
+      "reason": "jy-pa (combine-7): prose rewritten by J06 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/db/src/data-modules/data-module.ts:472-472."
+    },
+    {
+      "id": "750d04f9982c",
+      "reason": "jy-pa (combine-7): prose rewritten by J07 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/db/src/recovery/operation-lock.ts:62-62."
+    },
+    {
+      "id": "37670666a75c",
+      "reason": "jy-pa (combine-7): prose rewritten by J07 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/db/src/recovery/recovery-orchestrator.ts:68-75."
+    },
+    {
+      "id": "cfd004f02e35",
+      "reason": "jy-core (combine-7): prose rewritten by K2 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/plugin-catalog/__tests__/catalog.test.ts:37-37."
+    },
+    {
+      "id": "0a85f8f7580e",
+      "reason": "jy-core (combine-7): prose rewritten by K2 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/plugin-catalog/scripts/generate.ts:11-11."
+    },
+    {
+      "id": "b0133d93fd8c",
+      "reason": "jy-core (combine-7): prose rewritten by J08 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/plugins/src/host/activation.ts:35-35."
+    },
+    {
+      "id": "aaf6ce6a20c0",
+      "reason": "jy-core (combine-7): prose rewritten by J08 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/plugins/src/host/browser-providers.ts:1-1."
+    },
+    {
+      "id": "7cb6da84c8df",
+      "reason": "jy-core (combine-7): prose rewritten by J08 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/plugins/src/host/hook-registry.ts:110-111."
+    },
+    {
+      "id": "156052ed5746",
+      "reason": "jy-core (combine-7): prose rewritten by J08 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/plugins/src/host/manifest-types.ts:14-15."
+    },
+    {
+      "id": "54b3a330e505",
+      "reason": "jy-core (combine-7): prose rewritten by J08 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/plugins/src/host/manifest-types.ts:47-47."
+    },
+    {
+      "id": "3bc66856c7a8",
+      "reason": "jy-core (combine-7): prose rewritten by J08 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/plugins/src/host/manifest-types.ts:93-93."
+    },
+    {
+      "id": "5efaa0507f5c",
+      "reason": "jy-core (combine-7): prose rewritten by J08 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/plugins/src/host/manifest.ts:245-245."
+    },
+    {
+      "id": "b7f5831ed650",
+      "reason": "jy-core (combine-7): prose rewritten by J09 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/plugins/src/host/node/loader.ts:223-223."
+    },
+    {
+      "id": "7e87120cce9b",
+      "reason": "jb2 (combine-7): code deleted by J-HW2: the stuck-run watchdog and its tests were deleted. Was packages/ui/src/features/observability/__tests__/stuck-run.test.ts:38-38."
+    },
+    {
+      "id": "80bc19ffed71",
+      "reason": "jb2 (combine-7): code deleted by J-HW2: the stuck-run watchdog and its tests were deleted. Was packages/ui/src/features/observability/__tests__/stuck-run.test.ts:42-42."
+    },
+    {
+      "id": "7589ea02f88a",
+      "reason": "jb2 (combine-7): code deleted by J-HW2: the stuck-run watchdog and its tests were deleted. Was packages/ui/src/features/observability/__tests__/stuck-run.test.ts:83-83."
+    },
+    {
+      "id": "13de23a9c239",
+      "reason": "jb2 (combine-7): code deleted by J-HW2: the stuck-run watchdog and its tests were deleted. Was packages/ui/src/features/observability/stuck-run.ts:1-15."
+    },
+    {
+      "id": "5ebcbd0524ad",
+      "reason": "jb2 (combine-7): code deleted by J-HW2: the stuck-run watchdog and its tests were deleted. Was packages/ui/src/features/observability/stuck-run.ts:18-18."
+    },
+    {
+      "id": "14069bc50ada",
+      "reason": "jb2 (combine-7): code deleted by J-HW2: the stuck-run watchdog and its tests were deleted. Was packages/ui/src/features/observability/stuck-run.ts:34-34."
+    },
+    {
+      "id": "faff33fa35e4",
+      "reason": "jb2 (combine-7): code deleted by J-HW2: the stuck-run watchdog and its tests were deleted. Was packages/ui/src/features/observability/stuck-run.ts:36-36."
+    },
+    {
+      "id": "809fe6e95896",
+      "reason": "jb2 (combine-7): code deleted by J-HW2: the stuck-run watchdog and its tests were deleted. Was packages/ui/src/features/observability/stuck-run.ts:40-45."
+    },
+    {
+      "id": "4b831c51da3e",
+      "reason": "jb2 (combine-7): code deleted by J-HW2: the stuck-run watchdog and its tests were deleted. Was packages/ui/src/features/observability/stuck-run.ts:63-63."
+    },
+    {
+      "id": "ce26bd5958da",
+      "reason": "jb2 (combine-7): code deleted by J-HW2: the stuck-run watchdog and its tests were deleted. Was packages/ui/src/features/observability/stuck-run.ts:72-76."
+    },
+    {
+      "id": "2217485b02ea",
+      "reason": "jb2 (combine-7): code deleted by J-HW2: the stuck-run watchdog and its tests were deleted. Was packages/ui/src/features/observability/stuck-run.ts:104-122."
+    },
+    {
+      "id": "9af768275e93",
+      "reason": "jb2 (combine-7): code deleted by J-HW2: the stuck-run watchdog and its tests were deleted. Was packages/ui/src/features/observability/stuck-run.ts:133-133."
+    },
+    {
+      "id": "48a6fd58bc5a",
+      "reason": "jy-cls (combine-7): prose rewritten by J11 (de-branding): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/ui/src/features/panel-kit/helpers/permissions.ts:1-2."
+    },
+    {
+      "id": "6fa4b5bd2f07",
+      "reason": "jz-jini (combine-7): prose rewritten by H2-A11Y-RESOURCE (keyboard behaviour added; the comment now names it): the comment was reworded in place; the reason it carried is kept in the new text. Was packages/ui/src/features/resource-dashboard/react/components/ResourceCardParts.tsx:15-15."
+    },
+    {
+      "id": "a70a189c5e13",
+      "reason": "combine-9 (coordinator decision from lockfile-1120): code deleted by R8b step 6 (the executor's legacy runtime options, resolvers and their pre-R8b test/kernel notes went with it; R11b-1 step 4 for the sidecar platform-ABI note). Was packages/daemon/src/agent-executor/codex/contracts.ts:39-39."
+    },
+    {
+      "id": "27ea9f7812a3",
+      "reason": "combine-9 (coordinator decision from lockfile-1120): code deleted by R8b step 6 (the executor's legacy runtime options, resolvers and their pre-R8b test/kernel notes went with it; R11b-1 step 4 for the sidecar platform-ABI note). Was packages/daemon/src/agent-executor/contracts.ts:564-564."
+    },
+    {
+      "id": "65e5a6addfb5",
+      "reason": "combine-9 (coordinator decision from lockfile-1120): code deleted by R8b step 6 (the executor's legacy runtime options, resolvers and their pre-R8b test/kernel notes went with it; R11b-1 step 4 for the sidecar platform-ABI note). Was packages/daemon/src/agent-executor/contracts.ts:566-566."
+    },
+    {
+      "id": "2dd7291577a2",
+      "reason": "combine-9 (coordinator decision from lockfile-1120): code deleted by R8b step 6 (the executor's legacy runtime options, resolvers and their pre-R8b test/kernel notes went with it; R11b-1 step 4 for the sidecar platform-ABI note). Was packages/daemon/src/agent-executor/contracts.ts:568-568."
+    },
+    {
+      "id": "8afc87cdb168",
+      "reason": "combine-9 (coordinator decision from lockfile-1120): code deleted by R8b step 6 (the executor's legacy runtime options, resolvers and their pre-R8b test/kernel notes went with it; R11b-1 step 4 for the sidecar platform-ABI note). Was packages/daemon/src/agent-executor/contracts.ts:570-570."
+    },
+    {
+      "id": "b3d734dbdf30",
+      "reason": "combine-9 (coordinator decision from lockfile-1120): code deleted by R8b step 6 (the executor's legacy runtime options, resolvers and their pre-R8b test/kernel notes went with it; R11b-1 step 4 for the sidecar platform-ABI note). Was packages/daemon/src/agent-executor/contracts.ts:572-572."
+    },
+    {
+      "id": "1c48478853de",
+      "reason": "combine-9 (coordinator decision from lockfile-1120): code deleted by R8b step 6 (the executor's legacy runtime options, resolvers and their pre-R8b test/kernel notes went with it; R11b-1 step 4 for the sidecar platform-ABI note). Was packages/daemon/src/agent-executor/contracts.ts:574-574."
+    },
+    {
+      "id": "2724d8fcc1cb",
+      "reason": "combine-9 (coordinator decision from lockfile-1120): code deleted by R8b step 6 (the executor's legacy runtime options, resolvers and their pre-R8b test/kernel notes went with it; R11b-1 step 4 for the sidecar platform-ABI note). Was packages/daemon/src/agent-executor/contracts.ts:576-576."
+    },
+    {
+      "id": "f2c6e78fea1f",
+      "reason": "combine-9 (coordinator decision from lockfile-1120): code deleted by R8b step 6 (the executor's legacy runtime options, resolvers and their pre-R8b test/kernel notes went with it; R11b-1 step 4 for the sidecar platform-ABI note). Was packages/daemon/src/agent-executor/contracts.ts:582-582."
+    },
+    {
+      "id": "7c656c2f380b",
+      "reason": "combine-9 (coordinator decision from lockfile-1120): code deleted by R8b step 6 (the executor's legacy runtime options, resolvers and their pre-R8b test/kernel notes went with it; R11b-1 step 4 for the sidecar platform-ABI note). Was packages/daemon/src/agent-executor/contracts.ts:590-590."
+    },
+    {
+      "id": "21276cf33b96",
+      "reason": "combine-9 (coordinator decision from lockfile-1120): code deleted by R8b step 6 (the executor's legacy runtime options, resolvers and their pre-R8b test/kernel notes went with it; R11b-1 step 4 for the sidecar platform-ABI note). Was packages/daemon/src/agent-executor/contracts.ts:592-599."
+    },
+    {
+      "id": "ca8824ce5c91",
+      "reason": "combine-9 (coordinator decision from lockfile-1120): code deleted by R8b step 6 (the executor's legacy runtime options, resolvers and their pre-R8b test/kernel notes went with it; R11b-1 step 4 for the sidecar platform-ABI note). Was packages/daemon/src/agent-executor/contracts.ts:601-607."
+    },
+    {
+      "id": "407ed01b3396",
+      "reason": "combine-9 (coordinator decision from lockfile-1120): code deleted by R8b step 6 (the executor's legacy runtime options, resolvers and their pre-R8b test/kernel notes went with it; R11b-1 step 4 for the sidecar platform-ABI note). Was packages/daemon/src/agent-executor/contracts.ts:609-609."
+    },
+    {
+      "id": "e6241ace970d",
+      "reason": "combine-9 (coordinator decision from lockfile-1120): code deleted by R8b step 6 (the executor's legacy runtime options, resolvers and their pre-R8b test/kernel notes went with it; R11b-1 step 4 for the sidecar platform-ABI note). Was packages/daemon/src/agent-executor/contracts.ts:611-611."
+    },
+    {
+      "id": "868ad2f832f3",
+      "reason": "combine-9 (coordinator decision from lockfile-1120): code deleted by R8b step 6 (the executor's legacy runtime options, resolvers and their pre-R8b test/kernel notes went with it; R11b-1 step 4 for the sidecar platform-ABI note). Was packages/daemon/src/agent-executor/contracts.ts:613-613."
+    },
+    {
+      "id": "0acd0c8e8395",
+      "reason": "combine-9 (coordinator decision from lockfile-1120): code deleted by R8b step 6 (the executor's legacy runtime options, resolvers and their pre-R8b test/kernel notes went with it; R11b-1 step 4 for the sidecar platform-ABI note). Was packages/daemon/src/agent-executor/launch.ts:213-213."
+    },
+    {
+      "id": "ff596d0a90c4",
+      "reason": "combine-9 (coordinator decision from lockfile-1120): code deleted by R8b step 6 (the executor's legacy runtime options, resolvers and their pre-R8b test/kernel notes went with it; R11b-1 step 4 for the sidecar platform-ABI note). Was packages/daemon/src/agent-executor/launch.ts:248-256."
+    },
+    {
+      "id": "a46a36b052bd",
+      "reason": "combine-9 (coordinator decision from lockfile-1120): code deleted by R8b step 6 (the executor's legacy runtime options, resolvers and their pre-R8b test/kernel notes went with it; R11b-1 step 4 for the sidecar platform-ABI note). Was packages/daemon/src/agent-executor/launch.ts:261-262."
+    },
+    {
+      "id": "757b830f24a6",
+      "reason": "combine-9 (coordinator decision from lockfile-1120): code deleted by R8b step 6 (the executor's legacy runtime options, resolvers and their pre-R8b test/kernel notes went with it; R11b-1 step 4 for the sidecar platform-ABI note). Was packages/daemon/src/agent-executor/launch.ts:268-268."
+    },
+    {
+      "id": "6df58ac8f112",
+      "reason": "combine-9 (coordinator decision from lockfile-1120): code deleted by R8b step 6 (the executor's legacy runtime options, resolvers and their pre-R8b test/kernel notes went with it; R11b-1 step 4 for the sidecar platform-ABI note). Was packages/daemon/src/agent-executor/launch.ts:292-292."
+    },
+    {
+      "id": "9729313a5842",
+      "reason": "combine-9 (coordinator decision from lockfile-1120): code deleted by R8b step 6 (the executor's legacy runtime options, resolvers and their pre-R8b test/kernel notes went with it; R11b-1 step 4 for the sidecar platform-ABI note). Was packages/daemon/src/agent-executor/launch.ts:308-308."
+    },
+    {
+      "id": "8c981bdcb5b8",
+      "reason": "combine-9 (coordinator decision from lockfile-1120): code deleted by R8b step 6 (the executor's legacy runtime options, resolvers and their pre-R8b test/kernel notes went with it; R11b-1 step 4 for the sidecar platform-ABI note). Was packages/daemon/src/agent-executor/launch.ts:1006-1006."
+    },
+    {
+      "id": "62c89cedaa43",
+      "reason": "combine-9 (coordinator decision from lockfile-1120): code deleted by R8b step 6 (the executor's legacy runtime options, resolvers and their pre-R8b test/kernel notes went with it; R11b-1 step 4 for the sidecar platform-ABI note). Was packages/daemon/src/agent-executor/pi/contracts.ts:2-2."
+    },
+    {
+      "id": "e257af659838",
+      "reason": "combine-9 (coordinator decision from lockfile-1120): code deleted by R8b step 6 (the executor's legacy runtime options, resolvers and their pre-R8b test/kernel notes went with it; R11b-1 step 4 for the sidecar platform-ABI note). Was packages/server/src/__tests__/builtin-features.terminal-lifecycle.test.ts:15-16."
+    },
+    {
+      "id": "5ada293f724d",
+      "reason": "combine-9 (coordinator decision from lockfile-1120): code deleted by R8b step 6 (the executor's legacy runtime options, resolvers and their pre-R8b test/kernel notes went with it; R11b-1 step 4 for the sidecar platform-ABI note). Was packages/server/src/__tests__/builtin-features.terminal-service.test.ts:16-16."
+    },
+    {
+      "id": "fc223057f3e4",
+      "reason": "combine-9 (coordinator decision from lockfile-1120): code deleted by R8b step 6 (the executor's legacy runtime options, resolvers and their pre-R8b test/kernel notes went with it; R11b-1 step 4 for the sidecar platform-ABI note). Was packages/server/src/kernel-base.ts:129-129."
+    },
+    {
+      "id": "765eb5e0c8ba",
+      "reason": "combine-9 (coordinator decision from lockfile-1120): code deleted by R8b step 6 (the executor's legacy runtime options, resolvers and their pre-R8b test/kernel notes went with it; R11b-1 step 4 for the sidecar platform-ABI note). Was packages/server/src/terminal-service.ts:27-27."
+    },
+    {
+      "id": "fed8b7760611",
+      "reason": "combine-9 (coordinator decision from lockfile-1120): code deleted by R8b step 6 (the executor's legacy runtime options, resolvers and their pre-R8b test/kernel notes went with it; R11b-1 step 4 for the sidecar platform-ABI note). Was packages/sidecar/src/supervision/supervisor-node.ts:49-49."
+    }
+  ]
+}

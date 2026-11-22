@@ -76,7 +76,7 @@ function harness({ costClass = "cheap", kind = "file-snapshot" }: { costClass?: 
       return source;
     },
     catalog: (_name, source) => ({ tables: source.tableNames().map(name => ({ name, columns: [{ name: "id", sqlType: "text", notNull: true }], primaryKey: ["id"], indexes: [], foreignKeys: [], checks: [] })), leftOut: [] }),
-    partialExclusions: () => [], failureLog: line => { logs.push(line); }, describeError: error => error instanceof Error ? error.message : String(error),
+    partialExclusions: () => [], failureLog: line => { logs.push(line); },
     schemaMismatchGuidance: "rebuild the destination",
     readers: { inputRecord: input => input as Record<string, unknown>, string: (input, key) => String(input[key]) },
   };
@@ -108,9 +108,10 @@ it.each([
 
 it("plan reports a failed capture as DATABASE_SNAPSHOT_FAILED and logs the described error", async () => {
   const h = harness(); h.useDestination();
-  h.ports.dbOps.captureRestorePoint = async () => { throw new Error("disk full"); };
+  h.ports.dbOps.captureRestorePoint = async () => { throw new Error("boom api_key=SECRETSECRETSECRETSECRET"); };
   expect(await h.call("database_transfer_plan")).toEqual({ planned: false, code: "DATABASE_SNAPSHOT_FAILED", message: "the site database could not be snapshotted; nothing was copied" });
-  expect(h.logs).toEqual(["[database-transfer] snapshot failed: disk full"]);
+  expect(h.logs).toEqual(["[database-transfer] snapshot failed: Error"]);
+  expect(h.logs.join("\n")).not.toMatch(/boom|SECRETSECRET/);
   expect(h.calls.some(call => call.startsWith("unlink:"))).toBe(false);
 });
 
@@ -118,7 +119,7 @@ it("plan reports an unreadable snapshot file and still deletes it", async () => 
   const h = harness(); h.useDestination();
   h.files.content = new Error("EACCES");
   expect(await h.call("database_transfer_plan")).toEqual({ planned: false, code: "DATABASE_SNAPSHOT_FAILED", message: "the site database snapshot could not be read; nothing was copied" });
-  expect(h.logs).toEqual(["[database-transfer] snapshot read failed: EACCES"]);
+  expect(h.logs).toEqual(["[database-transfer] snapshot read failed: Error"]);
   expect(h.calls).toContain("unlink:/snapshots/one");
 });
 
@@ -149,7 +150,7 @@ it("plan reports a failed chat capture after the content snapshot", async () => 
   const h = harness(); h.useDestination();
   h.ports.captureChatSnapshot = async () => { throw new Error("chat locked"); };
   expect(await h.call("database_transfer_plan")).toEqual({ planned: false, code: "DATABASE_SNAPSHOT_FAILED", message: "the chat database could not be snapshotted; nothing was copied" });
-  expect(h.logs).toEqual(["[database-transfer] chat snapshot failed: chat locked"]);
+  expect(h.logs).toEqual(["[database-transfer] chat snapshot failed: Error"]);
 });
 
 it("plan turns an incomplete catalog into SCHEMA_MISMATCH and closes both sources", async () => {

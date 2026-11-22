@@ -1,6 +1,6 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import { cleanup, render, renderHook, screen } from '@testing-library/react';
-import { AdminConfigError } from '../../../core/module/index.js';
+import { cleanup, render, renderHook, screen } from '../../../__tests__/fetch-query-support.js';
+import { AdminConfigError } from '@jini-ai/core/admin-runtime';
 import { createMemoryPlaygroundTargets } from '../../adapters/memory.js';
 import { Canvas } from '../components/Canvas.js';
 import { PlaygroundPortsContext, usePlaygroundPorts } from '../hooks/PlaygroundPorts.hooks.js';

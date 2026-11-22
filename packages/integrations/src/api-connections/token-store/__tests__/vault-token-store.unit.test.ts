@@ -3,7 +3,8 @@
  * released by the store that holds it. A switchable vault port wraps the real in-memory vault. */
 import { realVaultConflict } from '../../__tests__/fixtures/real-capabilities.js';
 import { describe, expect, it } from "vitest";
-import { VaultError, type SecretsVaultService } from "@jini-ai/platform/secrets/credential-sets";
+import { type SecretsVaultService } from "@jini-ai/platform/secrets/credential-sets";
+import { VaultError } from "@jini-ai/core/contracts/vault";
 import { OAuthTokenStoreError, type OAuthTokenStoreErrorCode } from "../errors.js";
 import { createVaultOAuthTokenStore, type OAuthTokenVaultPort } from "../vault-token-store.js";
 import { KEY, OWNER, SCOPE, createFixture, seed, tokenSet } from "./fixtures.js";

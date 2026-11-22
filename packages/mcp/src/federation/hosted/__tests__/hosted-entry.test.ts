@@ -26,6 +26,27 @@ function compute(p: typeof entry.hostedMcpProjections): unknown {
 }
 
 describe("@jini-ai/mcp/federation/hosted", () => {
+  test("argv preserves quoted Windows paths and literal interior quotes", () => {
+    expect(entry.parseArgs({ raw: '"C:\\Users\\Jane Smith\\acme.exe" --name="x" plain' }))
+      .toEqual(["C:\\Users\\Jane Smith\\acme.exe", '--name="x"', "plain"]);
+  });
+
+  test("JSON env preserves multiline values and duplicate line assignments use the canonical env error", () => {
+    const ports = { assertFreeField: () => undefined, credential: { limit: 4096, messages: { env: "Acme: bad env." } } } as never;
+    expect(entry.parseEnvBlock({ text: JSON.stringify({ ACME_CERT: "first\nsecond", REGION: "eu-1" }), ports }))
+      .toEqual({ ACME_CERT: "first\nsecond", REGION: "eu-1" });
+    expect(() => entry.parseEnvBlock({ text: "ACME_TOKEN=first\nACME_TOKEN=second", ports })).toThrow(ExternalMcpValidationError);
+    expect(caught(() => entry.parseEnvBlock({ text: "ACME_TOKEN=first\nACME_TOKEN=second", ports })))
+      .toEqual({ name: "ExternalMcpValidationError", message: "environment variable 'ACME_TOKEN' is set more than once", field: "env" });
+  });
+
+  test("the scope cap applies before deduplicating repeated scopes", () => {
+    const raw = Array.from({ length: 65 }, () => "acme.read").join(" ");
+    expect(() => entry.parseOAuthScopes({ raw })).toThrow(ExternalMcpValidationError);
+    expect(caught(() => entry.parseOAuthScopes({ raw })))
+      .toEqual({ name: "ExternalMcpValidationError", message: "at most 64 OAuth scopes are supported", field: "oauth.scopes" });
+  });
+
   test("all six projection outputs and revision bytes equal the pre-move baseline", () => {
     expect(compute(entry.hostedMcpProjections)).toEqual(BASELINE);
   });

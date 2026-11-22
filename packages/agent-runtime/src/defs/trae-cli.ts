@@ -1,24 +1,16 @@
 import { createAgentModelDiscovery } from '../model-discovery-native.js';
-import { detectAcpModels, DEFAULT_MODEL_OPTION } from './shared.js';
-import type { RuntimeAgentDef } from '../types.js';
+import { acpModelFetcher, DEFAULT_MODEL_OPTION } from './shared.js';
+import type { RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 
 export const traeCliAgentDef = {
   // UNVERIFIED live integration locally; source/category and limits are documented in model-discovery-adapters.ts.
-  ...createAgentModelDiscovery('trae-cli', { fallbackModels: (): readonly import('../types.js').RuntimeModelOption[] => traeCliAgentDef.fallbackModels }),
+  ...createAgentModelDiscovery('trae-cli', { fallbackModels: (): readonly import('@jini-ai/core/contracts/agents').RuntimeModelOption[] => traeCliAgentDef.fallbackModels }),
     id: 'trae-cli',
     name: 'Trae CLI',
     bin: 'traecli',
     versionArgs: ['--version'],
     versionProbeTimeoutMs: 10_000,
-    fetchModels: async ({ resolvedBin, env }, { acpModelProbe } = {}) =>
-      (({ bin, args, ...optionalArgs }: Parameters<typeof detectAcpModels>[0] & NonNullable<Parameters<typeof detectAcpModels>[1]>) => detectAcpModels({ bin, args }, optionalArgs))({
-        ...(acpModelProbe ? { probe: acpModelProbe } : {}),
-        bin: resolvedBin,
-        args: ['acp', 'serve'],
-        env,
-        timeoutMs: 15_000,
-        defaultModelOption: DEFAULT_MODEL_OPTION,
-      }),
+    fetchModels: acpModelFetcher({ args: ['acp', 'serve'] }),
     fallbackModels: [DEFAULT_MODEL_OPTION],
     // See `RuntimeBuildOptions.permissionMode`'s doc: bypass is the default (unchanged
     // behavior) unless a caller explicitly opts into a restricted run.

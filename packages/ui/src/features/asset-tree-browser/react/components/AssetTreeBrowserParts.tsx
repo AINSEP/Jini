@@ -38,6 +38,7 @@ export interface AssetTreeBrowserTopbarProps {
   rootLabel?: string | undefined;
   onNavigate: (dir: string) => void;
   toolbarActions?: readonly AssetTreeToolbarAction[] | undefined;
+  useTHook?: typeof useT;
 }
 
 /** Breadcrumbs (root label defaults to `t('Files')`) plus the host toolbar. */
@@ -46,14 +47,15 @@ export function AssetTreeBrowserTopbar({
   rootLabel,
   onNavigate,
   toolbarActions = EMPTY_TOOLBAR_ACTIONS,
+  useTHook = useT,
 }: AssetTreeBrowserTopbarProps) {
-  const t = useT();
+  const t = useTHook();
   return (
-    <div className="asset-tree-topbar">
-      <div className="asset-tree-topbar-left">
+    <div className="jini-asset-tree-topbar">
+      <div className="jini-asset-tree-topbar-left">
         <AssetTreeBreadcrumbs currentDir={currentDir} rootLabel={rootLabel ?? t('Files')} onNavigate={onNavigate} />
       </div>
-      <div className="asset-tree-topbar-right">
+      <div className="jini-asset-tree-topbar-right">
         <AssetTreeToolbar actions={toolbarActions} />
       </div>
     </div>
@@ -76,7 +78,7 @@ export function AssetTreeBrowserBody<TFile extends AssetTreeFileItem>(props: Ass
   const { dragUpload, preview } = controller;
   return (
     <div
-      className="asset-tree-body"
+      className="jini-asset-tree-body"
       data-testid="asset-tree-body"
       onDragEnter={dragUpload.onDragEnter}
       onDragOver={dragUpload.onDragOver}
@@ -150,19 +152,21 @@ function AssetTreeFoldersSection<TFile extends AssetTreeFileItem>({
   dirs,
   currentDir,
   onNavigate,
+  useTHook = useT,
 }: {
   files: TFile[];
   dirs: string[];
   currentDir: string;
   onNavigate: (dir: string) => void;
+  useTHook?: typeof useT;
 }) {
-  const t = useT();
+  const t = useTHook();
   if (dirs.length === 0) return null;
   return (
-    <div className="asset-tree-section">
-      <div className="asset-tree-section-label">
+    <div className="jini-asset-tree-section">
+      <div className="jini-asset-tree-section-label">
         {t('Folders')}
-        <span className="asset-tree-section-count">{dirs.length}</span>
+        <span className="jini-asset-tree-section-count">{dirs.length}</span>
       </div>
       {dirs.map((dirName) => {
         const fullPath = currentDir === '' ? dirName : `${currentDir}/${dirName}`;
@@ -171,7 +175,7 @@ function AssetTreeFoldersSection<TFile extends AssetTreeFileItem>({
             key={fullPath}
             name={dirName}
             path={fullPath}
-            fileCount={countFilesUnderDir(files, fullPath)}
+            fileCount={countFilesUnderDir({ files, dirPath: fullPath })}
             onNavigate={onNavigate}
           />
         );
@@ -185,25 +189,26 @@ function AssetTreeKindSection<TFile extends AssetTreeFileItem>({
   section,
   selectors,
   kindConfig,
+  useTHook = useT,
 }: ControllerProps<TFile> & {
   section: AssetTreeSection<TFile>;
   selectors: AssetTreeSelectors<TFile>;
   kindConfig: AssetTreeKindConfigMap;
-}) {
-  const t = useT();
+} & { useTHook?: typeof useT }) {
+  const t = useTHook();
   const { navigation, preview, selection, rename, rowMenu, openPath } = controller;
-  const config = resolveKindConfig(section.kind, kindConfig);
+  const config = resolveKindConfig({ kind: section.kind, kindConfig });
   return (
-    <div className="asset-tree-section">
-      <div className="asset-tree-section-label">
+    <div className="jini-asset-tree-section">
+      <div className="jini-asset-tree-section-label">
         {t(config.label)}
-        <span className="asset-tree-section-count">{section.files.length}</span>
+        <span className="jini-asset-tree-section-count">{section.files.length}</span>
       </div>
       {section.files.map((f) => (
         <AssetTreeFileRow
           key={f.path}
           path={f.path}
-          displayName={basenameForRename(f.path, navigation.currentDir)}
+          displayName={basenameForRename({ path: f.path, currentDir: navigation.currentDir })}
           active={preview.previewPath === f.path}
           selected={selection.selected.has(f.path)}
           kindLabel={t(config.label)}
@@ -245,9 +250,10 @@ export function AssetTreeBrowserPreview<TFile extends AssetTreeFileItem>({
   getFileUrl,
   renderPreviewThumbnail,
   thumbnailIsInteractive,
-}: AssetTreeBrowserPreviewProps<TFile>) {
-  const t = useT();
-  const previewKindConfig = resolveKindConfig(selectors.getKind(file), kindConfig);
+  useTHook = useT,
+}: AssetTreeBrowserPreviewProps<TFile> & { useTHook?: typeof useT }) {
+  const t = useTHook();
+  const previewKindConfig = resolveKindConfig({ kind: selectors.getKind(file), kindConfig });
   return (
     <FilePreviewPane
       file={file}
@@ -286,11 +292,11 @@ export function AssetTreeBrowserRowMenu<TFile extends AssetTreeFileItem>({
   return (
     <AssetTreeRowMenu
       path={path}
-      displayName={basenameForRename(path, navigation.currentDir)}
+      displayName={basenameForRename({ path, currentDir: navigation.currentDir })}
       top={menuPos.top}
       left={menuPos.left}
       containerRef={rowMenu.containerRef}
-      canCopyLocalPath={!!menuFile && canCopyLocalPath(menuFile, selectors)}
+      canCopyLocalPath={!!menuFile && canCopyLocalPath({ file: menuFile, selectors })}
       copied={copyLocalPath.copiedPath === path}
       download={getFileUrl && menuFile ? { href: getFileUrl(menuFile), onClick: rowMenu.closeMenu } : undefined}
       onOpen={() => {

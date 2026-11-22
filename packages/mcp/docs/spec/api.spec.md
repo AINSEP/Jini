@@ -34,13 +34,13 @@ Source signatures are authoritative for this specification. `required` names an 
 | `buildClaudeMcpJson({servers:McpServerConfig[]}, optional:{tokens?:Record<string,string>} = {})` | `unknown \| null` |
 | `buildAcpMcpServers({servers:McpServerConfig[]})` | `AcpMcpServer[]` |
 | `buildOpenCodeMcpConfigContent({servers:McpServerConfig[]}, optional:OpenCodeConfigBuildOptions = {})` | `string \| null` |
-| `sanitizeTokensFile({raw:unknown}, optional:McpTokenClockOptions = {})` | `McpTokensFile` |
-| `readTokensFile({dataDir:string}, optional:McpTokenStoreOptions = {})` | `Promise<McpTokensFile>` |
-| `getToken({dataDir:string,serverId:string}, optional:McpTokenStoreOptions = {})` | `Promise<StoredMcpToken \| null>` |
-| `setToken({dataDir:string,serverId:string,token:StoredMcpToken}, optional:McpTokenStoreOptions = {})` | `Promise<void>` |
-| `clearToken({dataDir:string,serverId:string}, optional:McpTokenStoreOptions = {})` | `Promise<void>` |
-| `readAllTokens({dataDir:string}, optional:McpTokenStoreOptions = {})` | `Promise<Record<string,StoredMcpToken>>` |
-| `isTokenExpired({token:StoredMcpToken}, optional:{clock?:Clock,now?:number,skew?:number} = {})` | `boolean` |
+| `sanitizeTokensFile({raw:unknown, clock:Clock}, _optional = {})` | `McpTokensFile` |
+| `readTokensFile({dataDir:string,clock:Clock}, optional:McpTokenStoreOptions = {})` | `Promise<McpTokensFile>` |
+| `getToken({dataDir:string,serverId:string,clock:Clock}, optional:McpTokenStoreOptions = {})` | `Promise<StoredMcpToken \| null>` |
+| `setToken({dataDir:string,serverId:string,token:StoredMcpToken,clock:Clock}, optional:McpTokenStoreOptions = {})` | `Promise<void>` |
+| `clearToken({dataDir:string,serverId:string,clock:Clock}, optional:McpTokenStoreOptions = {})` | `Promise<void>` |
+| `readAllTokens({dataDir:string,clock:Clock}, optional:McpTokenStoreOptions = {})` | `Promise<Record<string,StoredMcpToken>>` |
+| `isTokenExpired({token:StoredMcpToken, clock:Clock}, optional:{now?:number,skew?:number} = {})` | `boolean` |
 
 `McpTransport` is stdio/sse/http; `McpAuthMode` is none/oauth. `McpServerConfig` requires id/transport/enabled and permits label/authMode/command/args/env/url/headers. `McpConfig` is `{servers:McpServerConfig[]}`. `AcpMcpServer` is `{type:'stdio',name,command,args,env:{name,value}[]}`.
 
@@ -103,7 +103,7 @@ All named definitions below are McpToolDef objects invoked as `handler({args,ctx
 | `listAgentsTool` / list_agents | No required args; GET /api/agents | Parsed response |
 | `getActiveContextTool` / get_active_context | No required args; GET /api/active | Active response, or `{active:false,hint}`; route 404 becomes explicit unsupported-host error |
 | `searchToolsTool` / search_tools | query, limit? (1–25); GET /api/tools/search | Response hits |
-| `describeToolTool` / describe_tool | id; GET /api/tools/:id | Parsed response |
+| `describeToolTool` / describe_tool | id; GET /api/tools/:id | Parsed response plus `callAs` (`direct` \| `gateway` \| `none`) and `call`: the wire name of a published tool, the gateway call with the registry id, or nothing for a schema-less group. `McpToolContext.publishTool` returns `{ wireName }` or `{ skipped: 'tool-limit' \| 'schema-byte-limit' \| 'not-found' }` |
 | `searchComponentsTool` / search_components | query, limit? (1–25); GET /api/components/search | Response hits |
 | `describeComponentTool` / describe_component | id; GET /api/components/:id | Parsed response |
 

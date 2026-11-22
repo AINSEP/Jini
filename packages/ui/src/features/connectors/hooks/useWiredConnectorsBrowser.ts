@@ -1,3 +1,4 @@
+import type { Logger } from '@jini-ai/core/primitives';
 import { useMemo } from 'react';
 import { createFakeConnectorsDependencies } from '../dependencies.js';
 import type { ConnectorsDependencies } from '../ports.js';
@@ -7,6 +8,7 @@ import { useConnectorAuthorization, type ConnectorAuthorizationController } from
 import { useConnectorDetail, type ConnectorDetailController } from './useConnectorDetail.js';
 
 export interface UseWiredConnectorsBrowserParams {
+  report?: Pick<Logger, 'error'> | undefined;
   /** Host-supplied dependencies. Omit to fall back to the package's in-memory fake. */
   dependencies?: ConnectorsDependencies | undefined;
   unlocked: boolean;
@@ -43,7 +45,7 @@ export interface WiredConnectorsBrowserController {
  */
 export function useWiredConnectorsBrowser(params: UseWiredConnectorsBrowserParams): WiredConnectorsBrowserController {
   const {
-    dependencies,
+    dependencies, report,
     unlocked,
     catalogRefreshKey = 0,
     onConnectorsChanged,
@@ -55,12 +57,17 @@ export function useWiredConnectorsBrowser(params: UseWiredConnectorsBrowserParam
 
   const deps = useMemo(() => dependencies ?? createFakeConnectorsDependencies(), [dependencies]);
 
-  const catalog = useConnectorCatalogHook(deps.data, { unlocked, refreshKey: catalogRefreshKey });
-  const authorization = useConnectorAuthorizationHook(deps.data, deps.authPendingStorage, deps.authBridge, {
-    connectors: catalog.connectors,
-    setConnectors: catalog.setConnectors,
-    ...(onConnectorsChanged ? { onConnectorsChanged } : {}),
-    ...(onConnectorAuthResult ? { onAuthResult: onConnectorAuthResult } : {}),
+  const catalog = useConnectorCatalogHook(deps.data, { unlocked, refreshKey: catalogRefreshKey, report });
+  const authorization = useConnectorAuthorizationHook({
+    port: deps.data,
+    authPendingStorage: deps.authPendingStorage,
+    authBridge: deps.authBridge,
+    params: {
+      connectors: catalog.connectors,
+      setConnectors: catalog.setConnectors,
+      ...(onConnectorsChanged ? { onConnectorsChanged } : {}),
+      ...(onConnectorAuthResult ? { onAuthResult: onConnectorAuthResult } : {}),
+    },
   });
   const toolPreviewRetryToken = `${unlocked ? 'configured' : 'unconfigured'}:${String(catalogRefreshKey)}`;
   const detail = useConnectorDetailHook(deps.data, {

@@ -2,26 +2,28 @@ import type { AdminComment, CommentModerationAction, CommentStatus } from '../..
 import type { CommentsTranslator } from '../../messages.en.js';
 import type { RowActionState } from '../../rules.js';
 import { DataTable } from '../../../react/components/DataTable.js';
-import { RowMenu } from '../../../react/components/RowMenu/RowMenu.js';
 import { ConfirmDialog } from '../../../react/components/ConfirmDialog/ConfirmDialog.js';
-import { agentHandle } from '@jini-ai/agentic';
-import { interpolate } from '@jini-ai/ui/panel-kit';
-import { useWiredCommentQueue } from '../hooks/use-comment-queue.hooks.js';
-import { useQueueSection, useQueueActionsCell, useQueueTable, useQueueToolbar } from '../hooks/QueueSection.hooks.js';
+import { agentHandle } from '@jini-ai/core/agent-handles';
 
+import { useWiredCommentQueue } from '../hooks/use-comment-queue.hooks.js';
+import { useQueueSection, useQueueTable, useQueueToolbar } from '../hooks/QueueSection.hooks.js';
+
+import { interpolate } from '@jini-ai/core/text';
 const STATUS_OPTIONS: readonly CommentStatus[] = ["pending", "approved", "spam", "trash"];
 
 /** The status-filter `<select>` — pure presentation, no state of its own. */
-function QueueToolbar({
+export function QueueToolbar({
   status,
   onStatusChange,
   t,
+  useQueueToolbarHook = useQueueToolbar,
 }: {
   status: CommentStatus;
   onStatusChange: (s: CommentStatus) => void;
   t: CommentsTranslator;
+  useQueueToolbarHook?: typeof useQueueToolbar;
 }) {
-  const { onChange } = useQueueToolbar({ onStatusChange });
+  const { onChange } = useQueueToolbarHook({ onStatusChange });
   return (
     <div className="toolbar">
       <div className="field">
@@ -45,46 +47,10 @@ function QueueToolbar({
   );
 }
 
-/** The moderation-queue table's "More" column — a `RowMenu` built from `commentRowMenuItems`, or
- *  an em dash when the operator's permissions leave no items, plus this row's own error (if the
- *  last action against it failed). Top-level rather than an inline `cell` closure so it has its
- *  own directly-testable scope, per `commentRowMenuItems`'s own risk ranking. */
-export function QueueActionsCell(props: {
-  comment: AdminComment;
-  agentHandleBase: string;
-  permissions: readonly string[];
-  status: CommentStatus;
-  rowState: RowActionState;
-  t: CommentsTranslator;
-  onModerate: (comment: AdminComment, action: CommentModerationAction) => void;
-  onRequestPurge: (comment: AdminComment) => void;
-}) {
-  const { menuItems } = useQueueActionsCell(props);
-  return (
-    <>
-      {menuItems.length > 0 ? (
-        <RowMenu
-          triggerLabel={interpolate({ template: props.t('Actions for the comment by "{author}"'), vars: {
-            author: props.comment.authorName,
-          } })}
-          agentHandle={`${props.agentHandleBase}-menu`}
-          items={menuItems}
-        />
-      ) : (
-        <span className="muted-cell">—</span>
-      )}
-      {props.rowState.error ? (
-        <div className="notice error" role="alert">
-          {props.rowState.error}
-        </div>
-      ) : null}
-    </>
-  );
-}
-
 /** The populated-queue view: the table plus its "Load more" pager. Only rendered once
  *  `QueueItemsView` has already ruled out the loading/empty states. */
-function QueueTable(props: {
+export function QueueTable({ useQueueTableHook = useQueueTable, ...props }: {
+  useQueueTableHook?: typeof useQueueTable;
   items: readonly AdminComment[];
   nextCursor: string | null;
   loadingMore: boolean;
@@ -96,7 +62,7 @@ function QueueTable(props: {
   onModerate: (comment: AdminComment, action: CommentModerationAction) => void;
   onRequestPurge: (comment: AdminComment) => void;
 }) {
-  const { columns } = useQueueTable(props);
+  const { columns } = useQueueTableHook(props);
   return (
     <>
       <DataTable
@@ -190,7 +156,7 @@ export interface QueueSectionProps {
 
 /** Exported (2026-08-14, previously module-private) so `QueueSection.unit.test.tsx` can drive its
  *  own DI seam directly — the same reason `AiAssistant.tsx`'s `AdminExecutionMode` is exported. */
-export function QueueSection(props: QueueSectionProps) {
+export function QueueSection({ useQueueSectionHook = useQueueSection, ...props }: QueueSectionProps & { useQueueSectionHook?: typeof useQueueSection }) {
   const {
     t,
     status,
@@ -207,7 +173,7 @@ export function QueueSection(props: QueueSectionProps) {
     onPurge,
     onCancelPurge,
     purgeBusy,
-  } = useQueueSection(props);
+  } = useQueueSectionHook(props);
 
   if (error && !items) return <div className="notice error">{error}</div>;
 

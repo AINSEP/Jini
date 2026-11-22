@@ -71,12 +71,22 @@ it('a result larger than the cache budget fails explicitly without publishing un
   expect(text(result)).not.toContain('resultId');
 });
 
-it.each([{ offset: -1 }, { offset: 15001 }, { limit: 0 }, { limit: 8001 }])('saved-result reads reject invalid ranges %j', async range => {
+it.each([{ offset: -1 }, { offset: 15001 }])('saved-result reads reject invalid ranges %j', async range => {
   const pages = createToolResultPages({}, { generateId: () => 'saved-a' });
   pages.project({ result: { content: [{ type: 'text', text: 'x'.repeat(15000) }] } });
   const result = await handleToolCall({ name: pages.tool.name, tools: new Map([[pages.tool.name, pages.tool]]),
     ctx: { baseUrl: 'http://unused', fetchImpl: fetch } }, { rawArgs: { resultId: 'saved-a', ...range } });
   expect(result.isError).toBe(true);
+});
+
+it.each([[0, 1], [8001, 8000]])('saved-result read limit %j is repaired to the nearest bound, %j, instead of refused', async (limit, read) => {
+  const pages = createToolResultPages({}, { generateId: () => 'saved-a' });
+  pages.project({ result: { content: [{ type: 'text', text: 'x'.repeat(15000) }] } });
+  const result = await handleToolCall({ name: pages.tool.name, tools: new Map([[pages.tool.name, pages.tool]]),
+    ctx: { baseUrl: 'http://unused', fetchImpl: fetch } }, { rawArgs: { resultId: 'saved-a', limit } });
+  expect(result.isError).toBeUndefined();
+  const body = text(result);
+  expect(JSON.parse(body.slice(0, body.indexOf('\n'))).nextOffset).toBe(read);
 });
 
 it('several medium text blocks are paged before their combined result spills, while protocol metadata stays inline', () => {

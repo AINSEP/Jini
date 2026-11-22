@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '../../../__tests__/ui-kit-render-support.js';
 import { describe, expect, it, vi } from 'vitest';
 import { PillButton } from '../../components/PillButton.js';
 import { PopoverItem } from '../../components/PopoverItem.js';

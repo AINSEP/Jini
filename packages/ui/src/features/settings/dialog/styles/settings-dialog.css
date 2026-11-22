@@ -1808,7 +1808,7 @@ select.jini-input {
   font-size: 13px;
   pointer-events: none;
 }
-.tab-empty {
+.jini-tab-empty {
   padding: 48px 0;
   text-align: center;
   color: var(--jini-text-muted);
@@ -1832,7 +1832,7 @@ select.jini-input {
 .tab-panel-toolbar .toolbar-search.connectors-search input {
   padding-right: 32px;
 }
-.connectors-empty {
+.jini-connectors-empty {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1840,7 +1840,7 @@ select.jini-input {
   padding: 64px 16px;
   text-align: center;
 }
-.connectors-empty-title {
+.jini-connectors-empty-title {
   margin: 0;
   font-size: 14px;
   color: var(--jini-text);
@@ -1848,13 +1848,13 @@ select.jini-input {
   max-width: 480px;
   word-break: break-word;
 }
-.connectors-empty-body {
+.jini-connectors-empty-body {
   margin: 0;
   font-size: 13px;
   color: var(--jini-text-muted);
   max-width: 480px;
 }
-.connectors-empty-action {
+.jini-connectors-empty-action {
   margin-top: 8px;
 }
 .connector-grid {
@@ -1936,7 +1936,7 @@ select.jini-input {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.connector-card-title-dot {
+.jini-connector-card-title-dot {
   flex: 0 0 auto;
   margin-top: -1px;
 }
@@ -1962,7 +1962,7 @@ select.jini-input {
   height: 44px;
   border-radius: var(--jini-radius-lg);
 }
-.connector-logo-img {
+.jini-connector-logo-img {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -1974,12 +1974,12 @@ select.jini-input {
   transition: opacity 160ms ease-out, transform 160ms ease-out;
   z-index: 1;
 }
-.connector-logo.size-lg .connector-logo-img { padding: 6px; }
-.connector-logo.state-loaded .connector-logo-img {
+.connector-logo.size-lg .jini-connector-logo-img { padding: 6px; }
+.connector-logo.state-loaded .jini-connector-logo-img {
   opacity: 1;
   transform: scale(1);
 }
-.connector-logo-fallback {
+.jini-connector-logo-fallback {
   position: absolute;
   inset: 0;
   display: flex;
@@ -1994,11 +1994,11 @@ select.jini-input {
   z-index: 0;
   transition: color 140ms ease-out, background-color 140ms ease-out, opacity 120ms ease-out;
 }
-.connector-logo.size-lg .connector-logo-fallback {
+.connector-logo.size-lg .jini-connector-logo-fallback {
   font-size: 14px;
   letter-spacing: 0.04em;
 }
-.connector-logo.state-pending .connector-logo-fallback {
+.connector-logo.state-pending .jini-connector-logo-fallback {
   background: linear-gradient(
     90deg,
     var(--jini-bg-subtle) 0%,
@@ -2012,43 +2012,43 @@ select.jini-input {
   from { background-position: 100% 0; }
   to { background-position: -100% 0; }
 }
-.connector-logo.state-loaded .connector-logo-fallback {
+.connector-logo.state-loaded .jini-connector-logo-fallback {
   visibility: hidden;
   opacity: 0;
 }
-.connector-logo.state-error .connector-logo-fallback,
-.connector-logo.is-fallback .connector-logo-fallback {
+.connector-logo.state-error .jini-connector-logo-fallback,
+.connector-logo.is-fallback .jini-connector-logo-fallback {
   color: var(--jini-text-muted);
   background: var(--jini-bg-subtle);
   animation: none;
 }
-.connector-logo.state-error[data-palette='0'] .connector-logo-fallback,
-.connector-logo.is-fallback[data-palette='0'] .connector-logo-fallback {
+.connector-logo.state-error[data-palette='0'] .jini-connector-logo-fallback,
+.connector-logo.is-fallback[data-palette='0'] .jini-connector-logo-fallback {
   background: color-mix(in oklab, var(--jini-accent) 6%, var(--jini-bg-subtle));
   color: color-mix(in oklab, var(--jini-accent) 35%, var(--jini-text-muted));
 }
-.connector-logo.state-error[data-palette='1'] .connector-logo-fallback,
-.connector-logo.is-fallback[data-palette='1'] .connector-logo-fallback {
+.connector-logo.state-error[data-palette='1'] .jini-connector-logo-fallback,
+.connector-logo.is-fallback[data-palette='1'] .jini-connector-logo-fallback {
   background: color-mix(in oklab, var(--jini-primary) 7%, var(--jini-bg-subtle));
   color: color-mix(in oklab, var(--jini-primary) 38%, var(--jini-text-muted));
 }
-.connector-logo.state-error[data-palette='2'] .connector-logo-fallback,
-.connector-logo.is-fallback[data-palette='2'] .connector-logo-fallback {
+.connector-logo.state-error[data-palette='2'] .jini-connector-logo-fallback,
+.connector-logo.is-fallback[data-palette='2'] .jini-connector-logo-fallback {
   background: color-mix(in oklab, var(--jini-success) 7%, var(--jini-bg-subtle));
   color: color-mix(in oklab, var(--jini-success) 38%, var(--jini-text-muted));
 }
-.connector-logo.state-error[data-palette='3'] .connector-logo-fallback,
-.connector-logo.is-fallback[data-palette='3'] .connector-logo-fallback {
+.connector-logo.state-error[data-palette='3'] .jini-connector-logo-fallback,
+.connector-logo.is-fallback[data-palette='3'] .jini-connector-logo-fallback {
   background: color-mix(in oklab, var(--jini-warning) 7%, var(--jini-bg-subtle));
   color: color-mix(in oklab, var(--jini-warning) 40%, var(--jini-text-muted));
 }
-.connector-logo.state-error[data-palette='4'] .connector-logo-fallback,
-.connector-logo.is-fallback[data-palette='4'] .connector-logo-fallback {
+.connector-logo.state-error[data-palette='4'] .jini-connector-logo-fallback,
+.connector-logo.is-fallback[data-palette='4'] .jini-connector-logo-fallback {
   background: color-mix(in oklab, var(--jini-danger) 6%, var(--jini-bg-subtle));
   color: color-mix(in oklab, var(--jini-danger) 38%, var(--jini-text-muted));
 }
-.connector-logo.state-error[data-palette='5'] .connector-logo-fallback,
-.connector-logo.is-fallback[data-palette='5'] .connector-logo-fallback {
+.connector-logo.state-error[data-palette='5'] .jini-connector-logo-fallback,
+.connector-logo.is-fallback[data-palette='5'] .jini-connector-logo-fallback {
   background: color-mix(in oklab, var(--jini-muted) 9%, var(--jini-bg-subtle));
   color: color-mix(in oklab, var(--jini-muted) 42%, var(--jini-text-muted));
 }
@@ -2058,8 +2058,8 @@ select.jini-input {
   box-shadow: none;
 }
 @media (prefers-reduced-motion: reduce) {
-  .connector-logo-img { transition: none; transform: none; }
-  .connector-logo.state-pending .connector-logo-fallback {
+  .jini-connector-logo-img { transition: none; transform: none; }
+  .connector-logo.state-pending .jini-connector-logo-fallback {
     animation: none;
     background: var(--jini-bg-subtle);
   }
@@ -2070,8 +2070,8 @@ select.jini-input {
   height: 24px;
   border-radius: var(--jini-radius);
 }
-.connectors-panel-embedded .connector-logo.size-sm .connector-logo-img { padding: 3px; }
-.connectors-panel-embedded .connector-logo.size-sm .connector-logo-fallback { font-size: 10px; }
+.connectors-panel-embedded .connector-logo.size-sm .jini-connector-logo-img { padding: 3px; }
+.connectors-panel-embedded .connector-logo.size-sm .jini-connector-logo-fallback { font-size: 10px; }
 
 .connector-meta {
   display: flex;
@@ -2084,7 +2084,7 @@ select.jini-input {
 }
 .connector-meta-item { white-space: nowrap; }
 .connector-meta-dot { color: var(--jini-text-disabled); }
-.connector-tools-badge {
+.jini-connector-tools-badge {
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -2100,11 +2100,11 @@ select.jini-input {
   transform-origin: left center;
   will-change: transform, opacity;
 }
-.connector-tools-badge svg { opacity: 0.65; }
-.connector-tools-badge.is-ready {
+.jini-connector-tools-badge svg { opacity: 0.65; }
+.jini-connector-tools-badge.is-ready {
   animation: connector-tools-badge-in 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
-.connector-tools-badge.is-ready svg {
+.jini-connector-tools-badge.is-ready svg {
   animation: connector-tools-badge-icon-in 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
   animation-delay: 120ms;
 }
@@ -2131,8 +2131,8 @@ select.jini-input {
   100% { opacity: 0.65; transform: rotate(0) scale(1); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .connector-tools-badge.is-ready { animation: connector-tools-badge-fade 180ms ease-out both; }
-  .connector-tools-badge.is-ready svg { animation: none; }
+  .jini-connector-tools-badge.is-ready { animation: connector-tools-badge-fade 180ms ease-out both; }
+  .jini-connector-tools-badge.is-ready svg { animation: none; }
   @keyframes connector-tools-badge-fade {
     from { opacity: 0; }
     to { opacity: 1; }
@@ -2254,7 +2254,7 @@ select.jini-input {
   line-height: 1.2;
 }
 .connectors-panel button.ghost:hover:not(:disabled) { background: var(--jini-bg-subtle); border-color: var(--jini-border-strong); }
-button.connector-action {
+button.jini-connector-action {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -2265,15 +2265,15 @@ button.connector-action {
   border-radius: var(--jini-radius);
   transition: transform 120ms var(--jini-ease-out), background 140ms var(--jini-ease-out), border-color 140ms var(--jini-ease-out);
 }
-button.connector-action.is-connect { min-width: 92px; }
-button.connector-action.is-disconnect { min-width: 106px; color: var(--jini-text-muted); }
-button.connector-action.is-disconnect:hover:not(:disabled) {
+button.jini-connector-action.is-connect { min-width: 92px; }
+button.jini-connector-action.is-disconnect { min-width: 106px; color: var(--jini-text-muted); }
+button.jini-connector-action.is-disconnect:hover:not(:disabled) {
   color: var(--jini-danger);
   border-color: color-mix(in srgb, var(--jini-danger) 35%, var(--jini-border));
 }
-button.connector-action.is-cancel-authorization { min-width: 74px; color: var(--jini-text-muted); }
-button.connector-action.is-loading { cursor: wait; }
-.connector-authorization-hint {
+button.jini-connector-action.jini-is-cancel-authorization { min-width: 74px; color: var(--jini-text-muted); }
+button.jini-connector-action.is-loading { cursor: wait; }
+.jini-connector-authorization-hint {
   margin: -2px 0 0;
   color: var(--jini-text-muted);
   font-size: 12px;
@@ -2287,9 +2287,9 @@ button.connector-action.is-loading { cursor: wait; }
    renders in the same muted gray as a normal hint; adding the obviously-
    intended color is a one-line, non-leaking safety net rather than
    faithfully reproducing OD's own oversight. */
-.connector-authorization-error { color: var(--jini-danger); }
-.connector-panel-alerts { display: grid; gap: 6px; }
-.connector-panel-alert {
+.jini-connector-authorization-error { color: var(--jini-danger); }
+.jini-connector-panel-alerts { display: grid; gap: 6px; }
+.jini-connector-panel-alert {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
@@ -2303,7 +2303,7 @@ button.connector-action.is-loading { cursor: wait; }
   font-size: 12px;
   line-height: 1.35;
 }
-.connector-panel-alert-copy {
+.jini-connector-panel-alert-copy {
   display: grid;
   grid-template-columns: minmax(0, max-content) minmax(0, 1fr);
   align-items: center;
@@ -2311,7 +2311,7 @@ button.connector-action.is-loading { cursor: wait; }
   min-width: 0;
   margin: 0;
 }
-.connector-panel-alert-copy strong {
+.jini-connector-panel-alert-copy strong {
   min-width: 0;
   max-width: min(160px, 34vw);
   overflow: hidden;
@@ -2320,7 +2320,7 @@ button.connector-action.is-loading { cursor: wait; }
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.connector-panel-alert-copy span {
+.jini-connector-panel-alert-copy span {
   display: -webkit-box;
   max-height: calc(12px * 1.35 * 2);
   min-width: 0;
@@ -2330,7 +2330,7 @@ button.connector-action.is-loading { cursor: wait; }
   -webkit-line-clamp: 2;
   line-clamp: 2;
 }
-.connector-panel-alert-action {
+.jini-connector-panel-alert-action {
   width: 24px;
   height: 24px;
   padding: 0;
@@ -2339,13 +2339,13 @@ button.connector-action.is-loading { cursor: wait; }
   border-color: color-mix(in srgb, var(--jini-danger) 22%, var(--jini-border));
   background: color-mix(in srgb, var(--jini-danger) 7%, transparent);
 }
-.connector-panel-alert-action:hover:not(:disabled) {
+.jini-connector-panel-alert-action:hover:not(:disabled) {
   border-color: color-mix(in srgb, var(--jini-danger) 42%, var(--jini-border));
   background: color-mix(in srgb, var(--jini-danger) 12%, transparent);
 }
 
-.connector-authorization-block { display: grid; gap: 8px; margin-top: 8px; }
-.connector-authorization-link {
+.jini-connector-authorization-block { display: grid; gap: 8px; margin-top: 8px; }
+.jini-connector-authorization-link {
   display: inline-flex;
   align-items: center;
   width: fit-content;
@@ -2362,7 +2362,7 @@ button.connector-action.is-loading { cursor: wait; }
   font-weight: 600;
   text-decoration: none;
 }
-.connector-card > .connector-authorization-link { margin-top: -2px; }
+.connector-card > .jini-connector-authorization-link { margin-top: -2px; }
 
 /* Gate: masks the grid when the Connector Provider API key is missing. */
 .connector-grid-wrap { position: relative; }
@@ -2416,7 +2416,7 @@ button.connector-action.is-loading { cursor: wait; }
   min-width: 180px;
 }
 
-.connectors-provider-tabs {
+.jini-connectors-provider-tabs {
   display: inline-flex;
   align-items: center;
   gap: 2px;
@@ -2428,7 +2428,7 @@ button.connector-action.is-loading { cursor: wait; }
 }
 /* Hide the provider tabs when there is only one option — no choice = no
    need for a tab (matches OD exactly; the host’s single "All" tab hits this). */
-.connectors-provider-tabs:has(> :only-child) { display: none; }
+.jini-connectors-provider-tabs:has(> :only-child) { display: none; }
 .connectors-provider-tab {
   appearance: none;
   border: 0;
@@ -2500,13 +2500,13 @@ button.connector-action.is-loading { cursor: wait; }
   white-space: nowrap;
   line-height: 1.3;
 }
-.connectors-panel-embedded .connector-meta-tools {
+.connectors-panel-embedded .jini-connector-meta-tools {
   display: inline-flex;
   align-items: center;
   min-height: 18px;
   position: relative;
 }
-.connectors-panel-embedded .connector-meta-tools[aria-hidden='true']::after {
+.connectors-panel-embedded .jini-connector-meta-tools[aria-hidden='true']::after {
   content: '';
   display: block;
   width: 32px;
@@ -2515,7 +2515,7 @@ button.connector-action.is-loading { cursor: wait; }
   border-radius: var(--jini-radius-pill);
 }
 .connectors-panel-embedded .connector-meta .connector-meta-dot { display: none; }
-.connectors-panel-embedded .connector-tools-badge {
+.connectors-panel-embedded .jini-connector-tools-badge {
   padding: 1px 6px;
   font-size: 10px;
   border-radius: var(--jini-radius-pill);
@@ -2528,7 +2528,7 @@ button.connector-action.is-loading { cursor: wait; }
   flex: 0 0 auto;
   margin-top: 1px;
 }
-.connectors-panel-embedded button.connector-action.icon-only {
+.connectors-panel-embedded button.jini-connector-action.icon-only {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -2550,60 +2550,60 @@ button.connector-action.is-loading { cursor: wait; }
     box-shadow 160ms var(--jini-ease-out),
     opacity 160ms var(--jini-ease-out);
 }
-.connectors-panel-embedded .connector-card:hover:not(.is-locked) button.connector-action.icon-only:not(:disabled),
-.connectors-panel-embedded .connector-card:focus-visible button.connector-action.icon-only:not(:disabled) {
+.connectors-panel-embedded .connector-card:hover:not(.is-locked) button.jini-connector-action.icon-only:not(:disabled),
+.connectors-panel-embedded .connector-card:focus-visible button.jini-connector-action.icon-only:not(:disabled) {
   color: var(--jini-text);
   background: color-mix(in srgb, var(--jini-text) 9%, transparent);
   border-color: color-mix(in srgb, var(--jini-text) 18%, transparent);
 }
-.connectors-panel-embedded button.connector-action.icon-only:hover:not(:disabled) {
+.connectors-panel-embedded button.jini-connector-action.icon-only:hover:not(:disabled) {
   color: var(--jini-text);
   background: color-mix(in srgb, var(--jini-text) 12%, transparent);
   border-color: color-mix(in srgb, var(--jini-text) 24%, transparent);
 }
-.connectors-panel-embedded button.connector-action.icon-only:active:not(:disabled) { transform: scale(0.92); }
-.connectors-panel-embedded button.connector-action.icon-only:focus-visible {
+.connectors-panel-embedded button.jini-connector-action.icon-only:active:not(:disabled) { transform: scale(0.92); }
+.connectors-panel-embedded button.jini-connector-action.icon-only:focus-visible {
   outline: none;
   border-color: color-mix(in srgb, var(--jini-accent) 70%, transparent);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--jini-accent) 22%, transparent);
 }
-.connectors-panel-embedded button.connector-action.icon-only:disabled { opacity: 0.4; cursor: not-allowed; }
+.connectors-panel-embedded button.jini-connector-action.icon-only:disabled { opacity: 0.4; cursor: not-allowed; }
 @media (prefers-reduced-motion: reduce) {
-  .connectors-panel-embedded button.connector-action.icon-only { transition: background 80ms linear, color 80ms linear; }
-  .connectors-panel-embedded button.connector-action.icon-only:active:not(:disabled) { transform: none; }
+  .connectors-panel-embedded button.jini-connector-action.icon-only { transition: background 80ms linear, color 80ms linear; }
+  .connectors-panel-embedded button.jini-connector-action.icon-only:active:not(:disabled) { transform: none; }
 }
-.connectors-panel-embedded button.connector-action.is-connect {
+.connectors-panel-embedded button.jini-connector-action.is-connect {
   color: color-mix(in srgb, var(--jini-accent) 76%, var(--jini-text-muted));
   background: color-mix(in srgb, var(--jini-accent) 10%, transparent);
   border-color: color-mix(in srgb, var(--jini-accent) 22%, transparent);
 }
-.connectors-panel-embedded .connector-card:hover:not(.is-locked) button.connector-action.is-connect:not(:disabled),
-.connectors-panel-embedded .connector-card:focus-visible button.connector-action.is-connect:not(:disabled) {
+.connectors-panel-embedded .connector-card:hover:not(.is-locked) button.jini-connector-action.is-connect:not(:disabled),
+.connectors-panel-embedded .connector-card:focus-visible button.jini-connector-action.is-connect:not(:disabled) {
   color: var(--jini-accent-hover);
   background: color-mix(in srgb, var(--jini-accent) 16%, transparent);
   border-color: color-mix(in srgb, var(--jini-accent) 38%, transparent);
 }
-.connectors-panel-embedded button.connector-action.is-connect:hover:not(:disabled) {
+.connectors-panel-embedded button.jini-connector-action.is-connect:hover:not(:disabled) {
   color: var(--jini-accent-hover);
   background: color-mix(in srgb, var(--jini-accent) 26%, transparent);
   border-color: color-mix(in srgb, var(--jini-accent) 56%, transparent);
   box-shadow: 0 4px 14px -8px color-mix(in srgb, var(--jini-accent) 60%, transparent);
 }
-.connectors-panel-embedded button.connector-action.is-connect:active:not(:disabled) {
+.connectors-panel-embedded button.jini-connector-action.is-connect:active:not(:disabled) {
   background: color-mix(in srgb, var(--jini-accent) 32%, transparent);
 }
-.connectors-panel-embedded button.connector-action.is-disconnect {
+.connectors-panel-embedded button.jini-connector-action.is-disconnect {
   color: var(--jini-text-muted);
   background: color-mix(in srgb, var(--jini-text) 4%, transparent);
   border-color: color-mix(in srgb, var(--jini-text) 10%, transparent);
 }
-.connectors-panel-embedded .connector-card:hover:not(.is-locked) button.connector-action.is-disconnect:not(:disabled),
-.connectors-panel-embedded .connector-card:focus-visible button.connector-action.is-disconnect:not(:disabled) {
+.connectors-panel-embedded .connector-card:hover:not(.is-locked) button.jini-connector-action.is-disconnect:not(:disabled),
+.connectors-panel-embedded .connector-card:focus-visible button.jini-connector-action.is-disconnect:not(:disabled) {
   color: var(--jini-text);
   background: color-mix(in srgb, var(--jini-text) 9%, transparent);
   border-color: color-mix(in srgb, var(--jini-text) 18%, transparent);
 }
-.connectors-panel-embedded button.connector-action.is-disconnect:hover:not(:disabled) {
+.connectors-panel-embedded button.jini-connector-action.is-disconnect:hover:not(:disabled) {
   color: var(--jini-danger);
   background: color-mix(in srgb, var(--jini-danger) 14%, transparent);
   border-color: color-mix(in srgb, var(--jini-danger) 42%, transparent);
@@ -2625,11 +2625,11 @@ button.connector-action.is-loading { cursor: wait; }
 .connectors-panel-embedded .connector-card .connector-status-pill { font-size: 10px; padding: 1px 6px; }
 
 @media (max-width: 540px) {
-  .connectors-provider-tabs { flex-shrink: 0; }
+  .jini-connectors-provider-tabs { flex-shrink: 0; }
   .connectors-panel-embedded .tab-panel-toolbar .toolbar-search.connectors-search { min-width: 0; }
 }
 
-.connector-gate {
+.jini-connector-gate {
   position: absolute;
   inset: 0;
   z-index: 2;
@@ -2650,7 +2650,7 @@ button.connector-action.is-loading { cursor: wait; }
   from { opacity: 0; transform: translateY(4px); }
   to { opacity: 1; transform: translateY(0); }
 }
-.connector-gate-card {
+.jini-connector-gate-card {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -2664,8 +2664,8 @@ button.connector-action.is-loading { cursor: wait; }
   border-radius: var(--jini-radius);
   box-shadow: var(--jini-shadow-md);
 }
-.connector-gate-card:visited { color: inherit; }
-.connector-gate-icon {
+.jini-connector-gate-card:visited { color: inherit; }
+.jini-connector-gate-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -2676,21 +2676,21 @@ button.connector-action.is-loading { cursor: wait; }
   border: 1px solid var(--jini-border);
   color: var(--jini-text-muted);
 }
-.connector-gate-title {
+.jini-connector-gate-title {
   margin: 2px 0 0;
   font-size: 15px;
   font-weight: 600;
   color: var(--jini-text);
   letter-spacing: 0.01em;
 }
-.connector-gate-body {
+.jini-connector-gate-body {
   margin: 0;
   max-width: 340px;
   color: var(--jini-text-muted);
   font-size: 13px;
   line-height: 1.5;
 }
-.connector-gate-cta {
+.jini-connector-gate-cta {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -2820,7 +2820,7 @@ button.connector-action.is-loading { cursor: wait; }
   flex-direction: column;
   gap: 10px;
 }
-.connector-drawer-section-head {
+.jini-connector-drawer-section-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -2866,13 +2866,13 @@ button.connector-action.is-loading { cursor: wait; }
   letter-spacing: 0;
   text-transform: none;
 }
-.connector-drawer-description {
+.jini-connector-drawer-description {
   margin: 0;
   color: var(--jini-text);
   font-size: 14px;
   line-height: 1.55;
 }
-.connector-drawer-details {
+.jini-connector-drawer-details {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 0;
@@ -2880,30 +2880,30 @@ button.connector-action.is-loading { cursor: wait; }
   padding: 2px 0 0;
   border-top: 1px solid color-mix(in srgb, var(--jini-border) 55%, transparent);
 }
-.connector-drawer-details > div {
+.jini-connector-drawer-details > div {
   display: grid;
   grid-template-columns: minmax(96px, 0.38fr) minmax(0, 1fr);
   align-items: baseline;
   gap: 12px;
   padding: 8px 0;
 }
-.connector-drawer-details > div + div {
+.jini-connector-drawer-details > div + div {
   border-top: 1px solid color-mix(in srgb, var(--jini-border) 42%, transparent);
 }
-.connector-drawer-details dt {
+.jini-connector-drawer-details dt {
   margin: 0;
   color: var(--jini-text-muted);
   font-size: 12.5px;
   font-weight: 500;
 }
-.connector-drawer-details dd {
+.jini-connector-drawer-details dd {
   margin: 0;
   color: var(--jini-text);
   font-size: 13px;
   word-break: break-word;
 }
-.connector-drawer-details-error dd { color: var(--jini-danger); }
-.connector-drawer-empty {
+.jini-connector-drawer-details-error dd { color: var(--jini-danger); }
+.jini-connector-drawer-empty {
   margin: 0;
   padding: 12px 14px;
   border: 1px dashed color-mix(in srgb, var(--jini-border) 78%, transparent);
@@ -2912,7 +2912,7 @@ button.connector-action.is-loading { cursor: wait; }
   font-size: 13px;
   line-height: 1.5;
 }
-.connector-drawer-tools {
+.jini-connector-drawer-tools {
   list-style: none;
   margin: 0;
   padding: 0;
@@ -2920,7 +2920,7 @@ button.connector-action.is-loading { cursor: wait; }
   flex-direction: column;
   gap: 6px;
 }
-.connector-drawer-tool {
+.jini-connector-drawer-tool {
   display: flex;
   flex-direction: column;
   gap: 5px;
@@ -2930,17 +2930,17 @@ button.connector-action.is-loading { cursor: wait; }
   border-radius: var(--jini-radius);
   transition: border-color 140ms var(--jini-ease-out), background 140ms var(--jini-ease-out);
 }
-.connector-drawer-tool:hover {
+.jini-connector-drawer-tool:hover {
   background: var(--jini-bg-panel);
   border-color: color-mix(in srgb, var(--jini-text) 16%, var(--jini-border));
 }
-.connector-drawer-tool-head {
+.jini-connector-drawer-tool-head {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 10px;
 }
-.connector-drawer-tool-title {
+.jini-connector-drawer-tool-title {
   min-width: 0;
   font-size: 12.5px;
   font-weight: 600;
@@ -2976,13 +2976,13 @@ button.connector-action.is-loading { cursor: wait; }
   border-color: color-mix(in srgb, var(--jini-danger) 30%, transparent);
   color: var(--jini-danger);
 }
-.connector-drawer-tool-desc {
+.jini-connector-drawer-tool-desc {
   margin: 0;
   color: var(--jini-text-muted);
   font-size: 12px;
   line-height: 1.42;
 }
-.connector-drawer-tool-name {
+.jini-connector-drawer-tool-name {
   font-family: var(--jini-font-mono);
   font-size: 10.5px;
   color: var(--jini-text-disabled);
@@ -2995,7 +2995,7 @@ button.connector-action.is-loading { cursor: wait; }
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.connector-drawer-load-more {
+.jini-connector-drawer-load-more {
   align-self: flex-start;
   margin-top: 10px;
   display: inline-flex;
@@ -3004,7 +3004,7 @@ button.connector-action.is-loading { cursor: wait; }
   min-height: 34px;
   padding: 7px 14px;
 }
-.connector-drawer-foot {
+.jini-connector-drawer-foot {
   padding: 12px 22px 16px;
   border-top: 1px solid color-mix(in srgb, var(--jini-border) 70%, transparent);
   display: flex;
@@ -3012,7 +3012,7 @@ button.connector-action.is-loading { cursor: wait; }
   gap: 8px;
   background: color-mix(in srgb, var(--jini-bg-subtle) 28%, var(--jini-bg-panel));
 }
-.connector-drawer-foot button.connector-action {
+.jini-connector-drawer-foot button.jini-connector-action {
   padding: 7px 18px;
   font-size: 13px;
 }
@@ -3021,9 +3021,9 @@ button.connector-action.is-loading { cursor: wait; }
   .connector-drawer { width: 100%; max-height: none; height: 100%; border-radius: 0; border-right: 0; border-left: 0; }
   .connector-drawer-head { padding: 16px 16px 14px; }
   .connector-drawer-body { padding: 16px 16px 20px; }
-  .connector-drawer-foot { padding: 12px 16px 16px; }
-  .connector-drawer-section-head { align-items: flex-start; flex-direction: column; gap: 8px; }
-  .connector-drawer-details > div { grid-template-columns: 1fr; gap: 2px; }
+  .jini-connector-drawer-foot { padding: 12px 16px 16px; }
+  .jini-connector-drawer-section-head { align-items: flex-start; flex-direction: column; gap: 8px; }
+  .jini-connector-drawer-details > div { grid-template-columns: 1fr; gap: 2px; }
 }
 
 /* Keep the drawer inside the embedded connectors panel rather than
@@ -3891,7 +3891,7 @@ button.connector-action.is-loading { cursor: wait; }
   color: var(--jini-text-muted);
 }
 
-.memory-management-counts {
+.jini-memory-management-counts {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -3911,7 +3911,7 @@ button.connector-action.is-loading { cursor: wait; }
   white-space: nowrap;
 }
 
-.library-toolbar {
+.jini-library-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -3919,7 +3919,7 @@ button.connector-action.is-loading { cursor: wait; }
   flex-wrap: wrap;
 }
 
-.library-filters {
+.jini-library-filters {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -3950,12 +3950,12 @@ button.connector-action.is-loading { cursor: wait; }
   border-color: var(--jini-border-strong);
 }
 
-.filter-pill-count {
+.jini-filter-pill-count {
   font-size: 11px;
   opacity: 0.85;
 }
 
-.memory-management-actions {
+.jini-memory-management-actions {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -3967,27 +3967,27 @@ button.connector-action.is-loading { cursor: wait; }
   gap: 8px;
 }
 
-.library-empty {
+.jini-library-empty {
   padding: 20px 16px;
   border: 1px solid var(--jini-border);
   border-radius: var(--jini-radius-sm);
   background: var(--jini-bg-subtle);
 }
 
-.library-empty-title {
+.jini-library-empty-title {
   margin: 0 0 4px;
   font-size: 13px;
   font-weight: 600;
   color: var(--jini-text-strong);
 }
 
-.library-empty-hint {
+.jini-library-empty-hint {
   margin: 0;
   font-size: 12px;
   color: var(--jini-text-muted);
 }
 
-.library-empty-hint code {
+.jini-library-empty-hint code {
   padding: 1px 6px;
   font-family: var(--jini-font-mono);
   font-size: 11px;
@@ -3999,7 +3999,7 @@ button.connector-action.is-loading { cursor: wait; }
 
 /* ---- "How it works" card (`MemoryHowPanel` + `MemoryHooksPanel`) ------ */
 
-.memory-how-panel {
+.jini-memory-how-panel {
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -4009,7 +4009,7 @@ button.connector-action.is-loading { cursor: wait; }
   background: var(--jini-bg-panel);
 }
 
-.memory-auto-flow {
+.jini-memory-auto-flow {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -4018,11 +4018,11 @@ button.connector-action.is-loading { cursor: wait; }
   color: var(--jini-text-muted);
 }
 
-.memory-auto-flow strong {
+.jini-memory-auto-flow strong {
   color: var(--jini-text-strong);
 }
 
-.memory-how-copy {
+.jini-memory-how-copy {
   margin: 0;
   font-size: 13px;
   line-height: 1.6;
@@ -4133,14 +4133,14 @@ button.connector-action.is-loading { cursor: wait; }
   margin-top: 14px;
 }
 
-.source-config-list-head h3 {
+.jini-source-config-list-head h3 {
   margin: 0 0 4px;
   font-size: 16px;
   font-weight: 600;
   color: var(--jini-text-strong);
 }
 
-.source-config-list-subtitle {
+.jini-source-config-list-subtitle {
   margin: 0;
   font-size: 12px;
   color: var(--jini-text-muted);
@@ -4206,12 +4206,12 @@ button.connector-action.is-loading { cursor: wait; }
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--jini-accent) 18%, transparent);
 }
 
-.source-config-field-row {
+.jini-source-config-field-row {
   display: flex;
   gap: 6px;
 }
 
-.source-config-field-row input {
+.jini-source-config-field-row input {
   flex: 1 1 auto;
 }
 
@@ -4227,12 +4227,12 @@ button.connector-action.is-loading { cursor: wait; }
   cursor: pointer;
 }
 
-.source-config-field-error {
+.jini-source-config-field-error {
   font-size: 11px;
   color: var(--jini-danger);
 }
 
-.source-config-add-form-error {
+.jini-source-config-add-form-error {
   padding: 10px 12px;
   font-size: 12px;
   color: var(--jini-danger);
@@ -4241,7 +4241,7 @@ button.connector-action.is-loading { cursor: wait; }
   border-radius: var(--jini-radius-sm);
 }
 
-.source-config-add-form-submit {
+.jini-source-config-add-form-submit {
   align-self: flex-start;
   display: inline-flex;
   align-items: center;
@@ -4257,24 +4257,24 @@ button.connector-action.is-loading { cursor: wait; }
   cursor: pointer;
 }
 
-.source-config-add-form-submit:hover:not(:disabled) {
+.jini-source-config-add-form-submit:hover:not(:disabled) {
   background: var(--jini-accent-hover);
   border-color: var(--jini-accent-hover);
 }
 
-.source-config-add-form-submit:disabled {
+.jini-source-config-add-form-submit:disabled {
   opacity: 0.55;
   cursor: not-allowed;
 }
 
-.source-config-add-form-actions {
+.jini-source-config-add-form-actions {
   align-self: flex-start;
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
-.source-config-add-form-cancel {
+.jini-source-config-add-form-cancel {
   padding: 8px 16px;
   font: inherit;
   font-size: 13px;
@@ -4286,36 +4286,36 @@ button.connector-action.is-loading { cursor: wait; }
   cursor: pointer;
 }
 
-.source-config-add-form-cancel:hover:not(:disabled) {
+.jini-source-config-add-form-cancel:hover:not(:disabled) {
   background: var(--jini-bg-subtle);
 }
 
-.source-config-add-form-cancel:disabled {
+.jini-source-config-add-form-cancel:disabled {
   opacity: 0.55;
   cursor: not-allowed;
 }
 
-.source-config-test-control {
+.jini-source-config-test-control {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
 }
 
-.source-config-test-control-status {
+.jini-source-config-test-control-status {
   font-size: 12px;
 }
 
-.source-config-test-status.is-running,
-.source-config-test-status.is-success {
+.jini-source-config-test-status.is-running,
+.jini-source-config-test-status.jini-is-success {
   color: var(--jini-success);
 }
 
-.source-config-test-status.is-error {
+.jini-source-config-test-status.is-error {
   color: var(--jini-danger);
 }
 
-.source-config-test-button {
+.jini-source-config-test-button {
   padding: 6px 12px;
   font: inherit;
   font-size: 12px;
@@ -4326,19 +4326,19 @@ button.connector-action.is-loading { cursor: wait; }
   cursor: pointer;
 }
 
-.source-config-test-button:disabled {
+.jini-source-config-test-button:disabled {
   opacity: 0.55;
   cursor: not-allowed;
 }
 
-.source-config-list-error,
+.jini-source-config-list-error,
 .source-config-list-loading {
   padding: 12px 14px;
   font-size: 12px;
   border-radius: var(--jini-radius-sm);
 }
 
-.source-config-list-error {
+.jini-source-config-list-error {
   color: var(--jini-danger);
   background: color-mix(in srgb, var(--jini-danger) 6%, var(--jini-bg-subtle));
   border: 1px solid color-mix(in srgb, var(--jini-danger) 45%, var(--jini-border));
@@ -4350,7 +4350,7 @@ button.connector-action.is-loading { cursor: wait; }
   border: 1px solid var(--jini-border);
 }
 
-.source-config-list-empty {
+.jini-source-config-list-empty {
   padding: 16px;
   border: 1px dashed var(--jini-border);
   border-radius: var(--jini-radius-sm);
@@ -4382,7 +4382,7 @@ button.connector-action.is-loading { cursor: wait; }
   flex: 0 0 auto;
 }
 
-.source-config-item-card-summary {
+.jini-source-config-item-card-summary {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -4405,7 +4405,7 @@ button.connector-action.is-loading { cursor: wait; }
   white-space: nowrap;
 }
 
-.source-config-item-card-trust-badge {
+.jini-source-config-item-card-trust-badge {
   padding: 2px 8px;
   font-size: 11px;
   font-weight: 600;
@@ -4435,11 +4435,11 @@ button.connector-action.is-loading { cursor: wait; }
   cursor: pointer;
 }
 
-.source-config-item-card-remove {
+.jini-source-config-item-card-remove {
   color: var(--jini-danger);
 }
 
-.source-config-item-card-body {
+.jini-source-config-item-card-body {
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -4447,13 +4447,13 @@ button.connector-action.is-loading { cursor: wait; }
   border-top: 1px solid var(--jini-border);
 }
 
-.source-config-item-card-edit-toggle {
+.jini-source-config-item-card-edit-toggle {
   display: flex;
   gap: 6px;
   padding-top: 10px;
 }
 
-.source-config-item-card-edit-toggle button {
+.jini-source-config-item-card-edit-toggle button {
   padding: 5px 10px;
   font: inherit;
   font-size: 12px;
@@ -4464,13 +4464,13 @@ button.connector-action.is-loading { cursor: wait; }
   cursor: pointer;
 }
 
-.source-config-item-card-edit-fields {
+.jini-source-config-item-card-edit-fields {
   display: flex;
   flex-direction: column;
   gap: 10px;
 }
 
-.source-config-item-card-fields {
+.jini-source-config-item-card-fields {
   display: grid;
   grid-template-columns: max-content 1fr;
   gap: 6px 12px;
@@ -4482,11 +4482,11 @@ button.connector-action.is-loading { cursor: wait; }
    that wrapper disappear from layout so its `dt`/`dd` land directly in the
    parent `<dl>`'s two-column grid instead of each pair collapsing onto one
    grid cell. */
-.source-config-item-card-field {
+.jini-source-config-item-card-field {
   display: contents;
 }
 
-.source-config-item-card-field dt {
+.jini-source-config-item-card-field dt {
   font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
@@ -4494,7 +4494,7 @@ button.connector-action.is-loading { cursor: wait; }
   color: var(--jini-text-muted);
 }
 
-.source-config-item-card-field dd {
+.jini-source-config-item-card-field dd {
   margin: 0;
   font-size: 12px;
   font-family: var(--jini-font-mono);

@@ -6,8 +6,10 @@ import fs from "node:fs";
 import path from "node:path";
 import { flag, parseCliArgs, rejectUnknown, runIfMain, text } from "./lib/script-cli.mjs";
 import { trimDashes } from "./lib/trim-dashes.mjs";
+import { errorClassLabel } from "./lib/diagnostic-labels.mjs";
+import { createCliStreams, CliUsageError } from "./lib/main-guard.mjs";
 
-export function usage(log) {
+export function usage({ log }, _optional = {}) {
   log(`Usage:
   node scripts/init-clone.mjs <slug> [--url <url>] [--mode <mode>] [--level <L1-L6>] [--root <dir>] [--in-place]
 
@@ -26,13 +28,13 @@ With --in-place, creates NOTES.md and RECON/screenshots/ in <root> itself.
 const ARG_SPEC = {
   defaults: { slug: null, url: "", mode: "", level: "", root: ".", inPlace: false },
   flags: {
-    "--help": flag("help"),
-    "-h": flag("help"),
-    "--url": { key: "url", read: text() },
-    "--mode": { key: "mode", read: text() },
-    "--level": { key: "level", read: text() },
-    "--root": { key: "root", read: text(".") },
-    "--in-place": flag("inPlace"),
+    "--help": flag({ key: "help" }),
+    "-h": flag({ key: "help" }),
+    "--url": { key: "url", read: text({}) },
+    "--mode": { key: "mode", read: text({}) },
+    "--level": { key: "level", read: text({}) },
+    "--root": { key: "root", read: text({}, { fallback: "." }) },
+    "--in-place": flag({ key: "inPlace" }),
   },
   onOther: (arg, out) => {
     if (out.slug) rejectUnknown(arg);
@@ -40,19 +42,19 @@ const ARG_SPEC = {
   },
 };
 
-export function parseArgs(argv) {
+export function parseArgs({ argv }, _optional = {}) {
   return parseCliArgs({ argv, ...ARG_SPEC });
 }
 
-export function cleanSlug(input) {
-  return trimDashes(input
+export function cleanSlug({ input }, _optional = {}) {
+  return trimDashes({ text: input
     .trim()
     .toLowerCase()
     .replace(/https?:\/\//g, "")
-    .replace(/[^a-z0-9]+/g, "-"));
+    .replace(/[^a-z0-9]+/g, "-") });
 }
 
-export function notesTemplate({ name, url, mode, level }) {
+export function notesTemplate({ name, url, mode, level }, _optional = {}) {
   return `# ${name} · 克隆笔记
 
 ## 源信息
@@ -115,20 +117,20 @@ python3 -m http.server 8123
 }
 
 function init(argv, io) {
-  const args = parseArgs(argv);
+  const args = parseArgs({ argv });
   if (args.help || !args.slug) {
-    usage(io.log);
+    usage({ log: io.log });
     return args.help ? 0 : 1;
   }
 
-  const slug = cleanSlug(args.slug);
-  if (!slug) throw new Error("Slug is empty after normalization.");
+  const slug = cleanSlug({ input: args.slug });
+  if (!slug) throw new CliUsageError("Slug is empty after normalization.");
   const name = slug.endsWith("-clone") ? slug : `${slug}-clone`;
   const root = path.resolve(io.cwd(), args.root);
   const project = args.inPlace ? root : path.join(root, name);
 
   if (!args.inPlace && io.fs.existsSync(project)) {
-    throw new Error(`Project already exists: ${project}`);
+    throw new CliUsageError(`Project already exists: ${project}`);
   }
 
   io.fs.mkdirSync(path.join(project, "RECON", "screenshots"), { recursive: true });
@@ -138,7 +140,7 @@ function init(argv, io) {
   return 0;
 }
 
-const DEFAULT_DEPS = { fs, log: console.log, error: console.error, cwd: process.cwd };
+const DEFAULT_DEPS = { fs, ...createCliStreams({}), cwd: process.cwd };
 
 /** CLI entry: scaffolds the clone folder; returns 0 ok/help, 1 on usage error or failure. */
 export function main({ argv }, deps = {}) {
@@ -147,9 +149,9 @@ export function main({ argv }, deps = {}) {
   try {
     code = init(argv, io);
   } catch (error) {
-    io.error(`init-clone failed: ${error.message}`);
+    io.error(`init-clone failed: ${error instanceof CliUsageError ? error.message : errorClassLabel({ error })}`);
   }
   return code;
 }
 
-await runIfMain({ moduleUrl: import.meta.url, main });
+await runIfMain({ moduleUrl: import.meta.url, main }, { stdout: process.stdout, stderr: process.stderr });

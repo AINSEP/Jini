@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DetectedAgent } from '@jini-ai/agent-runtime';
 import { definePack } from '@jini-ai/core';
 import { AgentExecutorToken } from '@jini-ai/daemon';
-import type { DaemonStatusResponse, RunStartContext, RunStartHandler } from '@jini-ai/daemon/http';
+import { componentCatalogRoutes, type DaemonStatusResponse, type RunStartContext, type RunStartHandler } from '@jini-ai/daemon/http';
 import { readLiveDaemonRegistryRecord, resolveDaemonRegistryPath } from '@jini-ai/sidecar';
 import * as SidecarModule from '@jini-ai/sidecar';
 import * as SqliteModule from '@jini-ai/daemon/store/event-log/sqlite';
@@ -22,6 +22,7 @@ import {
   type LocalNodeDaemon,
 } from '../create-local-node-daemon.js';
 import * as HostBootstrapModule from '../host-bootstrap.js';
+import { mountRoutes } from '../mount-routes.js';
 
 /**
  * Real-socket integration suite for `createLocalNodeDaemon` — mirrors the established pattern in
@@ -145,53 +146,53 @@ function findExternalIPv4Address(): string | null {
 
 describe('resolveBoundPort', () => {
   it('returns the port from a real AddressInfo-shaped address', () => {
-    expect(resolveBoundPort({ port: 7456 })).toBe(7456);
+    expect(resolveBoundPort({ address: { port: 7456 } })).toBe(7456);
   });
 
   it('returns null for a null address (not yet listening)', () => {
-    expect(resolveBoundPort(null)).toBeNull();
+    expect(resolveBoundPort({ address: null })).toBeNull();
   });
 
   it('returns null for a string address (a Unix domain socket path)', () => {
-    expect(resolveBoundPort('/tmp/some.sock')).toBeNull();
+    expect(resolveBoundPort({ address: '/tmp/some.sock' })).toBeNull();
   });
 
   it('returns null for a non-positive port', () => {
-    expect(resolveBoundPort({ port: 0 })).toBeNull();
+    expect(resolveBoundPort({ address: { port: 0 } })).toBeNull();
   });
 });
 
 describe('resolveReportHost', () => {
   it('substitutes 127.0.0.1 for an all-interfaces IPv4 bind host', () => {
-    expect(resolveReportHost('0.0.0.0')).toBe('127.0.0.1');
+    expect(resolveReportHost({ bindHost: '0.0.0.0' })).toBe('127.0.0.1');
   });
 
   it('substitutes 127.0.0.1 for an all-interfaces IPv6 bind host', () => {
-    expect(resolveReportHost('::')).toBe('127.0.0.1');
+    expect(resolveReportHost({ bindHost: '::' })).toBe('127.0.0.1');
   });
 
   it('echoes back any other IPv4 host unchanged', () => {
-    expect(resolveReportHost('192.168.1.10')).toBe('192.168.1.10');
-    expect(resolveReportHost('127.0.0.1')).toBe('127.0.0.1');
+    expect(resolveReportHost({ bindHost: '192.168.1.10' })).toBe('192.168.1.10');
+    expect(resolveReportHost({ bindHost: '127.0.0.1' })).toBe('127.0.0.1');
   });
 
   it('brackets an IPv6 literal, because an unbracketed one produces a URL that will not parse', () => {
     // `http://::1:5000` is not a URL — `new URL()` throws on it, and so does anything that hands
     // the reported base URL to `fetch`. The authority form needs brackets.
-    expect(resolveReportHost('::1')).toBe('[::1]');
-    expect(resolveReportHost('fd00::1')).toBe('[fd00::1]');
+    expect(resolveReportHost({ bindHost: '::1' })).toBe('[::1]');
+    expect(resolveReportHost({ bindHost: 'fd00::1' })).toBe('[fd00::1]');
   });
 
   it('leaves an already-bracketed IPv6 literal alone rather than double-bracketing it', () => {
-    expect(resolveReportHost('[::1]')).toBe('[::1]');
+    expect(resolveReportHost({ bindHost: '[::1]' })).toBe('[::1]');
   });
 
   it('still maps the all-interfaces IPv6 bind host to IPv4 loopback, unbracketed', () => {
-    expect(resolveReportHost('::')).toBe('127.0.0.1');
+    expect(resolveReportHost({ bindHost: '::' })).toBe('127.0.0.1');
   });
 
   it('leaves a hostname containing no colon alone', () => {
-    expect(resolveReportHost('localhost')).toBe('localhost');
+    expect(resolveReportHost({ bindHost: 'localhost' })).toBe('localhost');
   });
 });
 
@@ -209,7 +210,7 @@ describe('buildDaemonDbOperations', () => {
   it('inspect() reports the real schema/table/row-count inventory', async () => {
     const { db, file } = makeDb();
     try {
-      const operations = buildDaemonDbOperations(db, file);
+      const operations = buildDaemonDbOperations({ db, file });
       const report = await operations.inspect();
       expect(report.kind).toBe('sqlite');
       expect(report.location).toBe(file);
@@ -223,7 +224,7 @@ describe('buildDaemonDbOperations', () => {
   it('verify() reports ok:true against a healthy database', async () => {
     const { db, file } = makeDb();
     try {
-      const operations = buildDaemonDbOperations(db, file);
+      const operations = buildDaemonDbOperations({ db, file });
       const report = await operations.verify({ quick: false });
       expect(report.ok).toBe(true);
       expect(report.issues).toEqual([]);
@@ -235,7 +236,7 @@ describe('buildDaemonDbOperations', () => {
   it('vacuum() really shrinks/rewrites the file and reports real before/after sizes', async () => {
     const { db, file } = makeDb();
     try {
-      const operations = buildDaemonDbOperations(db, file);
+      const operations = buildDaemonDbOperations({ db, file });
       const result = await operations.vacuum();
       expect(result.ok).toBe(true);
       expect(result.beforeBytes).toBeGreaterThan(0);
@@ -510,8 +511,8 @@ describe('createLocalNodeDaemon', () => {
       const { status, json } = await callDelegatedTool(daemon.url, {
         runId, toolUseId: 'use-1', toolId: 'terminal.create', input: { cwd: '/tmp' },
       });
-      expect(status).toBe(400);
-      expect(json).toEqual({ error: { code: 'BAD_REQUEST', message: 'ToolExecutor: unknown tool "terminal.create"' } });
+      expect(status).toBe(404);
+      expect(json).toEqual({ error: { code: 'UNKNOWN_TOOL', message: 'There is no tool named "terminal.create". Find tools with search_tools.' } });
     });
 
     it('and with the default (enabled) composition the very same call reaches the tool and is refused by POLICY, not by absence', async () => {
@@ -755,6 +756,24 @@ describe('createLocalNodeDaemon', () => {
     const res = await fetch(`${daemon.url}/api/extension-probe`);
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ ok: true });
+  });
+
+  it("hands an http extension the daemon's route host, so a route list it mounts answers by the daemon's origin policy", async () => {
+    const dataDir = makeTempDataDir();
+    const catalog = { search: () => [], describe: () => null };
+    const daemon = await createLocalNodeDaemon({ open: openSqlite,
+      dataDir,
+      packs: [makePingPack()],
+      httpExtensions: [
+        (app, { routeHost }) => { mountRoutes({ app, routes: componentCatalogRoutes({ deps: { catalog }, host: routeHost }) }); },
+      ],
+    });
+    daemonsToStop.push(daemon);
+
+    const sameOrigin = await fetch(`${daemon.url}/api/components/search?q=table`, { headers: { origin: daemon.url } });
+    expect([sameOrigin.status, await sameOrigin.json()]).toEqual([200, { hits: [] }]);
+    const foreign = await fetch(`${daemon.url}/api/components/search?q=table`, { headers: { origin: 'http://evil.example.com' } });
+    expect(foreign.status).toBe(403);
   });
 
   it('serves POST /api/proxy/anthropic/stream zero-config (BYOK — no server-side credentials needed to reach the route)', async () => {
@@ -1224,7 +1243,7 @@ describe('createLocalNodeDaemon', () => {
     const daemon = await createLocalNodeDaemon({ open: openSqlite, dataDir, packs: [makePingPack()] });
 
     await daemon.stop();
-    await expect(fetch(`${daemon.url}/api/ping`)).rejects.toThrow();
+    await expect(fetch(`${daemon.url}/api/ping`)).rejects.toThrow('fetch failed');
   });
 
   it('stop() releases the sqlite file handle: reopening the same path afterward does not throw', async () => {
@@ -1233,7 +1252,7 @@ describe('createLocalNodeDaemon', () => {
 
     await daemon.stop();
 
-    const reopened = SqliteModule.openSqliteEventLog({ file: join(dataDir, 'events.db'), open: openSqlite });
+    const reopened = SqliteModule.openSqliteEventLog({ file: join(dataDir, 'events.db'), open: openSqlite, clock: { nowMs: () => Date.now() } });
     await expect(reopened.append({ runId: 'probe', event: 'probe', data: {} })).resolves.toBeDefined();
     await reopened.close({});
   });
@@ -1339,7 +1358,7 @@ describe('createLocalNodeDaemon', () => {
     // preserved here) — poll until the listener has actually closed.
     await vi.waitFor(
       async () => {
-        await expect(fetch(`${daemon.url}/api/ping`)).rejects.toThrow();
+        await expect(fetch(`${daemon.url}/api/ping`)).rejects.toThrow('fetch failed');
       },
       { timeout: 2000 },
     );
@@ -1407,7 +1426,7 @@ describe('createLocalNodeDaemon', () => {
         () => {
           expect(consoleError).toHaveBeenCalledWith(
             expect.stringContaining('shutdown requested through POST /api/daemon/shutdown failed'),
-            expect.stringContaining('Error: onShutdown failed'),
+            'Error',
           );
         },
         { timeout: 2000 },
@@ -1475,7 +1494,7 @@ describe('createLocalNodeDaemon', () => {
     const dataDirB = makeTempDataDir();
     await expect(
       createLocalNodeDaemon({ open: openSqlite, dataDir: dataDirB, packs: [makePingPack()], port: fixedPort }),
-    ).rejects.toThrow();
+    ).rejects.toThrow(`listen EADDRINUSE: address already in use 127.0.0.1:${fixedPort}`);
   });
 
   it('closes the durable EventLog and propagates the error when rehydrate() fails on a corrupt/unreadable durable history', async () => {
@@ -1534,7 +1553,7 @@ describe('createLocalNodeDaemon', () => {
       });
     try {
       const dataDir = makeTempDataDir();
-      await expect(createLocalNodeDaemon({ open: openSqlite, dataDir, packs: [makePingPack()], port: 70_000 })).rejects.toThrow();
+      await expect(createLocalNodeDaemon({ open: openSqlite, dataDir, packs: [makePingPack()], port: 70_000 })).rejects.toThrow("options.port should be >= 0 and < 65536. Received type number (70000).");
 
       const created = spy.mock.results[0]?.value as ReturnType<typeof original>;
       const createdJournal = spy.mock.results[1]?.value as ReturnType<typeof original>;
@@ -1574,7 +1593,7 @@ describe('createLocalNodeDaemon', () => {
       });
     try {
       const dataDir = makeTempDataDir();
-      await expect(createLocalNodeDaemon({ open: openSqlite, dataDir, packs: [makePingPack()] })).rejects.toThrow();
+      await expect(createLocalNodeDaemon({ open: openSqlite, dataDir, packs: [makePingPack()] })).rejects.toThrow("@jini-ai/server: daemon failed to resolve listening port (address=null)");
 
       const created = spy.mock.results[0]?.value as ReturnType<typeof original>;
       const createdJournal = spy.mock.results[1]?.value as ReturnType<typeof original>;
@@ -1603,7 +1622,7 @@ describe('createLocalNodeDaemon', () => {
       const dataDirB = makeTempDataDir();
       await expect(
         createLocalNodeDaemon({ open: openSqlite, dataDir: dataDirB, packs: [makePingPack()], port: fixedPort }),
-      ).rejects.toThrow();
+      ).rejects.toThrow(`listen EADDRINUSE: address already in use 127.0.0.1:${fixedPort}`);
 
       const created = spy.mock.results[0]?.value as ReturnType<typeof original>;
       const createdJournal = spy.mock.results[1]?.value as ReturnType<typeof original>;

@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 
-import { getEffective, registerCoercer } from "../settings.js";
+import { getEffective } from "../settings.js";
 import { InMemorySettingsRepo } from "../repo.memory.js";
 import type { SettingDefinitionRecord, SettingValueRecord } from "../types.js";
+import type { JsonValue } from "../../primitives/index.js";
 
 const NOW = "2026-07-11T00:00:00.000Z";
 
@@ -55,8 +56,8 @@ test("getEffective returns the global value when only a global value exists (AC-
   });
 
   const result = await getEffective(
-    { repo },
-    { namespace: def.namespace, key: def.key, scopeContext: { workspaceId: "ws-1", principalId: "p-1" } }
+    { deps: { repo },
+    namespace: def.namespace, key: def.key, scopeContext: { workspaceId: "ws-1", principalId: "p-1" } }
   );
 
   assert.equal(result?.value, "atlas");
@@ -68,8 +69,8 @@ test("getEffective returns the definition's validated default when no layer has 
   const repo = new InMemorySettingsRepo({ definitions: [def] });
 
   const result = await getEffective(
-    { repo },
-    { namespace: def.namespace, key: def.key, scopeContext: { workspaceId: "ws-1", principalId: "p-1" } }
+    { deps: { repo },
+    namespace: def.namespace, key: def.key, scopeContext: { workspaceId: "ws-1", principalId: "p-1" } }
   );
 
   assert.equal(result?.value, "paper");
@@ -85,8 +86,8 @@ test("getEffective prefers workspace over global, and user over workspace (layer
   });
 
   const workspaceOnly = await getEffective(
-    { repo },
-    { namespace: def.namespace, key: def.key, scopeContext: { workspaceId: "ws-1" } }
+    { deps: { repo },
+    namespace: def.namespace, key: def.key, scopeContext: { workspaceId: "ws-1" } }
   );
   assert.equal(workspaceOnly?.value, "ws-val");
   assert.equal(workspaceOnly?.sourceLayer, "workspace");
@@ -100,8 +101,8 @@ test("getEffective prefers workspace over global, and user over workspace (layer
     ],
   });
   const userResult = await getEffective(
-    { repo: withUserValue },
-    { namespace: def.namespace, key: def.key, scopeContext: { workspaceId: "ws-1", principalId: "p-1" } }
+    { deps: { repo: withUserValue },
+    namespace: def.namespace, key: def.key, scopeContext: { workspaceId: "ws-1", principalId: "p-1" } }
   );
   assert.equal(userResult?.value, "user-val");
   assert.equal(userResult?.sourceLayer, "user");
@@ -118,8 +119,8 @@ test("getEffective treats a cleared row as absent, falling through to the next l
   });
 
   const result = await getEffective(
-    { repo },
-    { namespace: def.namespace, key: def.key, scopeContext: { workspaceId: "ws-1" } }
+    { deps: { repo },
+    namespace: def.namespace, key: def.key, scopeContext: { workspaceId: "ws-1" } }
   );
   assert.equal(result?.value, "global-val");
   assert.equal(result?.sourceLayer, "global");
@@ -141,12 +142,12 @@ test("getEffective resolves a renamed setting transparently by its old key (AC-0
   });
 
   const byOldKey = await getEffective(
-    { repo },
-    { namespace: "core.presentation", key: "oldKey", scopeContext: {} }
+    { deps: { repo },
+    namespace: "core.presentation", key: "oldKey", scopeContext: {} }
   );
   const byNewKey = await getEffective(
-    { repo },
-    { namespace: "core.presentation", key: "newKey", scopeContext: {} }
+    { deps: { repo },
+    namespace: "core.presentation", key: "newKey", scopeContext: {} }
   );
 
   assert.equal(byOldKey?.value, "resolved-val");
@@ -158,21 +159,22 @@ test("getEffective returns null for a tombstoned key (EC-10)", async () => {
   const repo = new InMemorySettingsRepo({ definitions: [def] });
 
   const result = await getEffective(
-    { repo },
-    { namespace: def.namespace, key: def.key, scopeContext: {} }
+    { deps: { repo },
+    namespace: def.namespace, key: def.key, scopeContext: {} }
   );
   assert.equal(result, null);
 });
 
 test("getEffective coerces a value stored under a stale def_version in memory, no write-back (AC-21/EC-08)", async () => {
-  registerCoercer({ tag: "upcase", fn: ({ value }) => (typeof value === "string" ? value.toUpperCase() : value) });
+  const coercers = new Map([["upcase", ({ value }: { value: JsonValue }) => (typeof value === "string" ? value.toUpperCase() : value)]]);
   const def = definition({ version: 2, coercionTag: "upcase" });
   const staleValue = value({ scope: "global", valueJson: "lowercase", defVersion: 1 });
   const repo = new InMemorySettingsRepo({ definitions: [def], globalValues: [staleValue] });
 
   const result = await getEffective(
-    { repo },
-    { namespace: def.namespace, key: def.key, scopeContext: {} }
+    { deps: { repo },
+    namespace: def.namespace, key: def.key, scopeContext: {} },
+    { coercers },
   );
 
   assert.equal(result?.value, "LOWERCASE");

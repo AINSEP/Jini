@@ -66,6 +66,9 @@ export interface AboutTabProps {
    *  optimistic-write/rollback/race-safety behaviour behind it. */
   onSilentUpdatePreferenceChange?: (allow: boolean) => Promise<void>;
   labels?: AboutTabLabels;
+  useTHook?: typeof useT;
+  useUpdateActionRunnerHook?: typeof useUpdateActionRunner;
+  useSilentUpdatesToggleHook?: typeof useSilentUpdatesToggle;
 }
 
 type Translate = ReturnType<typeof useT>;
@@ -273,16 +276,19 @@ export function AboutTab({
   allowSilentUpdates = false,
   onSilentUpdatePreferenceChange,
   labels,
+  useTHook = useT,
+  useUpdateActionRunnerHook = useUpdateActionRunner,
+  useSilentUpdatesToggleHook = useSilentUpdatesToggle,
 }: AboutTabProps) {
-  const t = useT();
-  const { actionBusy, actionFailed, run } = useUpdateActionRunner({ onPerformUpdateAction });
-  const silentUpdates = useSilentUpdatesToggle({ allowSilentUpdates, onSilentUpdatePreferenceChange });
+  const t = useTHook();
+  const { actionBusy, actionFailed, run } = useUpdateActionRunnerHook({ onPerformUpdateAction });
+  const silentUpdates = useSilentUpdatesToggleHook({ allowSilentUpdates, onSilentUpdatePreferenceChange });
 
   const control = useMemo(
-    () => deriveAboutUpdateControl(updaterModel, appVersionInfo),
+    () => deriveAboutUpdateControl({ model: updaterModel, appVersionInfo }),
     [updaterModel, appVersionInfo],
   );
-  const actionDisabled = isAboutUpdateActionDisabled(control, updaterModel, actionBusy);
+  const actionDisabled = isAboutUpdateActionDisabled({ control, model: updaterModel }, { actionBusy });
   const resolvedLabels = resolveLabels({ t }, { labels });
 
   // `handlePrimaryAction` only exists when there is an action to run — it is

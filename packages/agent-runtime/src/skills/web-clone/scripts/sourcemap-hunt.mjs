@@ -3,12 +3,13 @@ import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import { HELP_OPTIONS, parseCliArgs, text } from "./lib/cli-args.mjs";
-import { runCli, runIfMain } from "./lib/main-guard.mjs";
+import { createCliStreams, runCli, runIfMain } from "./lib/main-guard.mjs";
+import { errorClassLabel } from "./lib/diagnostic-labels.mjs";
 
 // fs / fetch / output are ports with real defaults wired here at the CLI edge.
-const DEFAULT_DEPS = { fs, fetch: globalThis.fetch, log: console.log, error: console.error };
+const DEFAULT_DEPS = { fs, fetch: globalThis.fetch, ...createCliStreams({}) };
 
-export function usage(log = console.log) {
+export function usage({}, { log = createCliStreams({}).log } = {}) {
   log(`Usage:
   node scripts/sourcemap-hunt.mjs --recon original-recon.json --out RECON/sourcemaps [--all-external]
 
@@ -20,17 +21,17 @@ const ARG_SPEC = {
   defaults: { recon: "", outDir: "RECON/sourcemaps", allExternal: false },
   options: {
     ...HELP_OPTIONS,
-    "--recon": { key: "recon", parse: text("") },
-    "--out": { key: "outDir", parse: text("RECON/sourcemaps") },
+    "--recon": { key: "recon", parse: text({ fallback: "" }) },
+    "--out": { key: "outDir", parse: text({ fallback: "RECON/sourcemaps" }) },
     "--all-external": { key: "allExternal", flag: true },
   },
 };
 
-export function parseArgs(argv) {
+export function parseArgs({ argv }, _optional = {}) {
   return parseCliArgs({ argv, ...ARG_SPEC });
 }
 
-export function collectScripts(recon) {
+export function collectScripts({ recon }, _optional = {}) {
   const scripts = new Set();
   for (const capture of recon.captures || []) {
     for (const script of capture.signals?.scripts || []) {
@@ -40,20 +41,20 @@ export function collectScripts(recon) {
   return Array.from(scripts);
 }
 
-export function fileNameFor(url, suffix = "") {
+export function fileNameFor({ url }, { suffix = "" } = {}) {
   const parsed = new URL(url);
   const base = path.basename(parsed.pathname).replace(/[^a-z0-9._-]+/gi, "-").slice(0, 90) || "bundle.js";
   const hash = crypto.createHash("sha1").update(url).digest("hex").slice(0, 10);
   return `${base}-${hash}${suffix}`;
 }
 
-export function resolveMapUrl(scriptUrl, mapHint) {
+export function resolveMapUrl({ scriptUrl, mapHint }, _optional = {}) {
   if (!mapHint) return `${scriptUrl}.map`;
   if (mapHint.startsWith("data:")) return "";
   return new URL(mapHint, scriptUrl).toString();
 }
 
-export async function fetchText(fetchImpl, url) {
+export async function fetchText({ fetchImpl, url }, _optional = {}) {
   const response = await fetchImpl(url, {
     headers: {
       "user-agent": "web-clone-skill/1.0 sourcemap-hunt",
@@ -69,12 +70,12 @@ export async function fetchText(fetchImpl, url) {
 async function huntScript(scriptUrl, outDir, deps) {
   const entry = { scriptUrl, status: "unknown", mapUrl: "", mapFile: "", error: "" };
   try {
-    const js = await fetchText(deps.fetch, scriptUrl);
+    const js = await fetchText({ fetchImpl: deps.fetch, url: scriptUrl });
     const hint = js.match(/[#@]\s*sourceMappingURL=([^\s*]+)/)?.[1] || "";
-    entry.mapUrl = resolveMapUrl(scriptUrl, hint);
+    entry.mapUrl = resolveMapUrl({ scriptUrl, mapHint: hint });
     if (entry.mapUrl) {
-      const mapText = await fetchText(deps.fetch, entry.mapUrl);
-      const mapFile = path.join(outDir, fileNameFor(entry.mapUrl, ".map"));
+      const mapText = await fetchText({ fetchImpl: deps.fetch, url: entry.mapUrl });
+      const mapFile = path.join(outDir, fileNameFor({ url: entry.mapUrl }, { suffix: ".map" }));
       deps.fs.writeFileSync(mapFile, mapText);
       entry.mapFile = mapFile;
       entry.status = "ok";
@@ -83,7 +84,7 @@ async function huntScript(scriptUrl, outDir, deps) {
     }
   } catch (error) {
     entry.status = "error";
-    entry.error = error.message;
+    entry.error = errorClassLabel({ error });
   }
   return entry;
 }
@@ -91,7 +92,7 @@ async function huntScript(scriptUrl, outDir, deps) {
 async function hunt(args, deps) {
   const recon = JSON.parse(deps.fs.readFileSync(args.recon, "utf8"));
   const originHost = recon.url ? new URL(recon.url).hostname : "";
-  const scripts = collectScripts(recon).filter((script) => args.allExternal || new URL(script).hostname === originHost);
+  const scripts = collectScripts({ recon }).filter((script) => args.allExternal || new URL(script).hostname === originHost);
   const outDir = path.resolve(args.outDir);
   deps.fs.mkdirSync(outDir, { recursive: true });
 
@@ -121,13 +122,13 @@ async function hunt(args, deps) {
 export async function main({ argv }, deps = {}) {
   const io = { ...DEFAULT_DEPS, ...deps };
   return runCli({ label: "sourcemap-hunt", body: () => {
-    const args = parseArgs(argv);
+    const args = parseArgs({ argv });
     if (args.help || !args.recon) {
-      usage(io.log);
+      usage({}, { log: io.log });
       return args.help ? 0 : 1;
     }
     return hunt(args, io);
   }, report: io.error });
 }
 
-await runIfMain({ moduleUrl: import.meta.url, main });
+await runIfMain({ moduleUrl: import.meta.url, main }, { stdout: process.stdout, stderr: process.stderr });

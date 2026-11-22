@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createFakeMcpIntegrationsPort } from '../../dependencies.js';
 import type { McpIntegrationsPort } from '../../ports.js';
 import type { McpInstallInfo } from '../../types.js';
@@ -16,6 +16,7 @@ export interface McpInstallInfoController {
  * fail when pasted.
  */
 export function useMcpInstallInfo(port: Pick<McpIntegrationsPort, 'fetchInstallInfo'>): McpInstallInfoController {
+  const initialPort = useRef(port);
   const [info, setInfo] = useState<McpInstallInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -23,7 +24,7 @@ export function useMcpInstallInfo(port: Pick<McpIntegrationsPort, 'fetchInstallI
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    port
+    initialPort.current
       .fetchInstallInfo()
       .then((data) => {
         if (cancelled) return;
@@ -42,7 +43,6 @@ export function useMcpInstallInfo(port: Pick<McpIntegrationsPort, 'fetchInstallI
     };
     // `port` is expected to be a stable dependency (host-supplied once);
     // re-running on every render would refetch on every parent re-render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return { info, error, loading };

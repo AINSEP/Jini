@@ -8,7 +8,7 @@ import {
   type ExecutionCredentialView,
 } from '../../../react/hooks/use-execution-credential.hooks.js';
 import type { ByokConfig } from '../../../types.js';
-import type { SettingsSliceRefreshPort } from '../../../../panel-kit/hooks/use-settings-slice.hooks.js';
+import type { SettingsSliceRefreshPort } from '../../../../panel-kit/hooks/settings-slice.helpers.js';
 
 afterEach(cleanup);
 

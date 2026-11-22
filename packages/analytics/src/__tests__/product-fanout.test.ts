@@ -1,5 +1,10 @@
 import { expect, it } from "vitest";
-import { fanOutProductAnalytics, type ProductAiGeneration, type ProductAnalyticsPort, type ProductEvent } from "../product/index.js";
+import { fanOutProductAnalytics } from "../product/index.js";
+import {
+  type ProductAiGeneration,
+  type ProductAnalyticsPort,
+  type ProductEvent,
+} from "@jini-ai/core/contracts/observability";
 
 it("awaits and contains a rejected AI generation while every healthy provider receives metadata", async () => {
   let failures = 0;

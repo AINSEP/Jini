@@ -13,7 +13,7 @@ interface NativeModelContext {
 const adapters = new WeakMap<object, AgentModelContextLike>();
 
 /** Preserve native receiver binding and stable port identity across feature detection. */
-export function adaptNativeModelContext({ value }: { value: unknown }): AgentModelContextLike | undefined {
+export function adaptNativeModelContext({ value }: { value: unknown }, _optional: Record<string, never> = {}): AgentModelContextLike | undefined {
   if (typeof value !== 'object' || value === null || typeof (value as NativeModelContext).registerTool !== 'function') return undefined;
   const existing = adapters.get(value);
   if (existing) return existing;

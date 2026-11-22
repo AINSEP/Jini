@@ -23,6 +23,7 @@ export interface AssetTreeRowMenuProps {
   onRename: () => void;
   onCopyLocalPath: () => void;
   onDelete: () => void;
+  useTHook?: typeof useT;
 }
 
 /**
@@ -46,14 +47,15 @@ export function AssetTreeRowMenu({
   onRename,
   onCopyLocalPath,
   onDelete,
+  useTHook = useT,
 }: AssetTreeRowMenuProps) {
-  const t = useT();
+  const t = useTHook();
 
   return (
     <div
       ref={containerRef}
       data-testid="asset-tree-row-menu-popover"
-      className="asset-tree-row-popover"
+      className="jini-asset-tree-row-popover"
       style={{ top, left }}
       onMouseDown={(event) => event.stopPropagation()}
       onClick={(event) => event.stopPropagation()}

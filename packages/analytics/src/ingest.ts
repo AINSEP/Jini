@@ -1,8 +1,8 @@
 /**
- * @file Ingest-side normalization and handler logic for the host-independent `analytics` library (ADR-035).
+ * @file Ingest-side normalization and handler logic for the host-independent `analytics` library.
  *
  * Purpose:
- * Implements the ingest half of ADR-035's Round-2 fold split: the beacon endpoint's normalization,
+ * Implements the ingest half of the Round-2 fold split: the beacon endpoint's normalization,
  * PII-death-at-the-sink-boundary, and salt custody. Storage/rollup/dashboards/goals/export are a
  * separate, later Tier-3 concern and are explicitly NOT implemented here.
  *
@@ -38,7 +38,7 @@ import type {
 } from "./types.js";
 
 /** Native hash adapter is stateless; all app-specific derivation context remains required. */
-export function createNodeAnalyticsHash(_required: Record<string, never>): AnalyticsHashPort {
+export function createNodeAnalyticsHash(_required: Record<string, never>, _optional: Record<string, never> = {}): AnalyticsHashPort {
   return {
     deriveDailySalt,
     sha256({ parts }) {
@@ -225,7 +225,7 @@ function truncateIp(ip: string): string {
  *
  * `visitorHash = sha256(dailySalt ‖ siteHost ‖ coarseRequestSignal)`, where `coarseRequestSignal`
  * is the bucketed IP prefix plus the coarse browser-family/device-class pair (never the raw
- * IP/UA string) — see ADR-035 §4 / OQ-2.
+ * IP/UA string).
  *
  * @param required.input - `{ ip, userAgent, siteHost }`, consumed transiently only within this call.
  * @param required.dailySalt - The current day's derived salt (never persisted; see `salt.ts`).
@@ -374,7 +374,7 @@ function ipv4ToInt(ip: string): number | null {
   return ((parts[0]! << 24) | (parts[1]! << 16) | (parts[2]! << 8) | parts[3]!) >>> 0;
 }
 
-/** `YYYY-MM-DD` slice of an ISO timestamp — the salt-rotation boundary (ADR-035 §4, 24h). */
+/** `YYYY-MM-DD` slice of an ISO timestamp — the salt-rotation boundary (24h). */
 function toUtcDate(iso: ISODateTime): string {
   return iso.slice(0, 10);
 }
@@ -475,7 +475,7 @@ function buildNormalizedHit(required: {
 
 /**
  * The ingest application service: beacon + transient context → normalized, PII-free hit → sink.
- * Never blocks on aggregation (fire-and-forget, ADR-035 §5) and never throws for expected/policy
+ * Never blocks on aggregation (fire-and-forget) and never throws for expected/policy
  * outcomes — unresolved workspace, a disabled site, DNT/GPC/exclusion, and PII-shaped properties
  * all report as `{ accepted: false, reason }` rather than rejecting the returned promise, since a
  * public unauthenticated beacon endpoint must not turn policy outcomes into 500s. Only a genuinely

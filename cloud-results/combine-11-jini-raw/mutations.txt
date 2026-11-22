@@ -1,0 +1,150 @@
+######## w4 mutation: remove export ./taxonomy/render-entry
+ packages/cms/package.json | 5 -----
+ 1 file changed, 5 deletions(-)
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  src/__tests__/integration-package.contract.test.ts > keeps exports and entry runtime metadata synchronized
+ FAIL  src/__tests__/integration-package.contract.test.ts > exposes the taxonomy, field length and media HTML leaves
+      Tests  2 failed | 3 passed (5)
+######## w4 mutation: remove export ./forms/field-length-caps
+ packages/cms/package.json | 5 -----
+ 1 file changed, 5 deletions(-)
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  src/__tests__/integration-package.contract.test.ts > keeps exports and entry runtime metadata synchronized
+ FAIL  src/__tests__/integration-package.contract.test.ts > exposes the taxonomy, field length and media HTML leaves
+      Tests  2 failed | 3 passed (5)
+######## w4 mutation: remove export ./widgets/html/media-html
+ packages/cms/package.json | 5 -----
+ 1 file changed, 5 deletions(-)
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  src/__tests__/integration-package.contract.test.ts > keeps exports and entry runtime metadata synchronized
+ FAIL  src/__tests__/integration-package.contract.test.ts > exposes the taxonomy, field length and media HTML leaves
+      Tests  2 failed | 3 passed (5)
+######## w5 GATE-ABORT-J: remove confirm check
+-  required.signal?.throwIfAborted();
+      Tests  1 failed | 30 passed (31)
+ FAIL  src/gated-mutations/__tests__/gateway.test.ts > abort during confirm authorization skips token save
+=> RED (killed)
+######## w5 GATE-ABORT-J: move execute check above computePlan
++  required.signal?.throwIfAborted();
+-  required.signal?.throwIfAborted();
+      Tests  1 failed | 30 passed (31)
+ FAIL  src/gated-mutations/__tests__/gateway.test.ts > abort during final plan verification leaves the token minted
+=> RED (killed)
+######## w5 GATE-ABORT-J: signal check between redemption and executeMutation
++  required.signal?.throwIfAborted();
+      Tests  1 failed | 30 passed (31)
+ FAIL  src/gated-mutations/__tests__/gateway.test.ts > abort after redemption still applies the verified plan
+=> RED (killed)
+######## w5 T2-J: remove legacy selection
+-  if (extension === undefined && legacyNamespace !== undefined) return manifest?.extensions?.[legacyNamespace];
+      Tests  1 failed | 45 passed (46)
+ FAIL  src/__tests__/plugin-directory.test.ts > publisher identity and live host discovery (owner 2026-10-09) > reads a legacy identity extension only when explicitly configured
+=> RED (killed)
+######## w5 T2-J: select legacy first
+-  const extension = manifest?.extensions?.[namespace];
+-  if (extension === undefined && legacyNamespace !== undefined) return manifest?.extensions?.[legacyNamespace];
+-  return extension;
++  const legacy = legacyNamespace === undefined ? undefined : manifest?.extensions?.[legacyNamespace];
++  if (legacy !== undefined) return legacy;
++  return manifest?.extensions?.[namespace];
+      Tests  2 failed | 44 passed (46)
+ FAIL  src/__tests__/plugin-directory.test.ts > publisher identity and live host discovery (owner 2026-10-09) > refuses a null current extension even when the legacy extension is valid
+ FAIL  src/__tests__/plugin-directory.test.ts > publisher identity and live host discovery (owner 2026-10-09) > uses the current extension for both identity and capabilities when both exist
+=> RED (killed)
+######## w5 T2-J: nullish coalescing for extension selection
+-  if (extension === undefined && legacyNamespace !== undefined) return manifest?.extensions?.[legacyNamespace];
+-  return extension;
++  return extension ?? (legacyNamespace === undefined ? undefined : manifest?.extensions?.[legacyNamespace]);
+      Tests  1 failed | 45 passed (46)
+ FAIL  src/__tests__/plugin-directory.test.ts > publisher identity and live host discovery (owner 2026-10-09) > refuses a null current extension even when the legacy extension is valid
+=> RED (killed)
+######## proto AG-J1: remove closeAgUiRun emission
+-          writeAllAgUiEvents({ write: ctx.write, events: closeAgUiRun({ state: ctx.state }) });
+      Tests  1 failed | 5 passed (6)
+ FAIL  src/core/ag-ui/__tests__/run-frames.test.ts > only an explicitly marked pending approval projects an interrupt
+=> RED (killed)
+######## proto AG-J1: remove early return
+-          return { status: 'succeeded' };
+      Tests  1 failed | 5 passed (6)
+ FAIL  src/core/ag-ui/__tests__/run-frames.test.ts > only an explicitly marked pending approval projects an interrupt
+=> RED (killed)
+######## proto AG-J2: remove entry.runId !== runId
+-  if (!entry || entry.runId !== runId || entry.begun) return false;
++  if (!entry || entry.begun) return false;
+      Tests  1 failed | 4 passed (5)
+ FAIL  src/__tests__/frontend-session-ag-ui.test.ts > foreign owner, wrong run and wrong invocation cannot consume a delivered call
+=> RED (killed)
+######## proto AG-J2: remove run-binding guard
+-  if (state.runBindings.get(runId) !== session) return false;
+      Tests  1 failed | 4 passed (5)
+ FAIL  src/__tests__/frontend-session-ag-ui.test.ts > foreign owner, wrong run and wrong invocation cannot consume a delivered call
+=> RED (killed)
+######## proto ACP-J1: bypass initialize refusal
+-  if (message) {
++  if (false && message) {
+      Tests  1 failed | 139 passed (140)
+ FAIL  src/agent-protocol/acp/__tests__/session.test.ts > attachAcpSession > closes the ACP child when initialize reports an unsupported version
+=> RED (killed)
+######## proto ACP-J2: bypass probe refusal
+-    if (message) {
++    if (false && message) {
+      Tests  1 failed | 62 passed (63)
+ FAIL  src/agent-protocol/acp/__tests__/models.test.ts > detectAcpModels > negotiates ACP protocol version 2 before model discovery
+=> RED (killed)
+######## gh GH-J1: skip predecessor read (canonical 404 returned)
+-    if (result.kind === "response" && result.response.status === 404 && scope.previousManagedManifestPath) {
++    if (result.kind === "response" && result.response.status === 404 && false) {
+not ok 6 - a missing canonical manifest reads predecessor ownership at the parent commit and publishes canonical ownership
+# pass 8
+# fail 1
+=> RED (killed)
+######## gh GH-J1: successful empty canonical ownership treated as absence
++    if (files && files.length === 0 && scope.previousManagedManifestPath) return fetchManagedManifest(token, owner, repo, branch, { ...scope, manifestPath: scope.previousManagedManifestPath, previousManagedManifestPath: undefined });
+not ok 7 - an existing empty canonical manifest takes precedence over the predecessor
+# pass 8
+# fail 1
+=> RED (killed)
+######## gh GH-J1: fallback broadened from 404 to any unsuccessful response
+-    if (result.kind === "response" && result.response.status === 404 && scope.previousManagedManifestPath) {
++    if (result.kind === "response" && !result.response.ok && scope.previousManagedManifestPath) {
+not ok 8 - a rejected canonical lookup refuses the publish without reading predecessor ownership or writing
+# pass 8
+# fail 1
+=> RED (killed)
+######## w6 J-RATCHET: write before growth refusal
++  writeFileSync(debtPath, `${JSON.stringify(current, null, 2)}\n`);
+      Tests  1 failed | 106 passed (107)
+ FAIL  scripts/__tests__/check-error-gate.test.ts > a full update refuses new and worsened debt without changing ledger bytes
+=> RED (killed)
+######## w6 J-RATCHET: remove scoped refusal
+-  if (scoped) {
+-    console.error('Cannot update the error gate debt list with --files; run a full scan.');
+-    return 1;
+-  }
+      Tests  1 failed | 106 passed (107)
+ FAIL  scripts/__tests__/check-error-gate.test.ts > a scoped update refuses an apparent shrink without changing ledger bytes
+=> RED (killed)
+######## w6 J-RATCHET: reject a legitimate shrink
+-    const { added, worsened } = compareErrorGateDebt({ debt: JSON.parse(readFileSync(debtPath, 'utf8')), current });
+-    if (added.length || worsened.length) {
++    const { added, worsened, improved, stale } = compareErrorGateDebt({ debt: JSON.parse(readFileSync(debtPath, "utf8")), current });
++    if (added.length || worsened.length || improved.length || stale.length) {
+      Tests  1 failed | 106 passed (107)
+ FAIL  scripts/__tests__/check-error-gate.test.ts > a full shrink writes only the surviving debt rows
+=> RED (killed)
+######## w6 J-RATCHET: assume the ledger exists
+-  if (existsSync(debtPath)) {
++  if (true) {
+      Tests  1 failed | 106 passed (107)
+ FAIL  scripts/__tests__/check-error-gate.test.ts > the first full update creates an absent ledger
+=> RED (killed)
+######## jx-ci J4 (local stand-in): remove ./presentation/html export from the installed cms archive
+  return new ERR_PACKAGE_PATH_NOT_EXPORTED(
+Error [ERR_PACKAGE_PATH_NOT_EXPORTED]: Package subpath './presentation/html' is not defined by "exports" in /tmp/claude-0/c11/consumer/node_modules/@jini-ai/cms/package.json imported from /tmp/claude-0/c11/consumer/check.mjs
+######## jx-ci J4 (local stand-in): omit the cms-forms archive
+npm install EXIT 0
+AssertionError [ERR_ASSERTION]: Nested CMS forms must be installed from the candidate
+######## jx-ci J3 (local stand-in): provider-plugins export ./catalog -> missing target, then guard:plugins:packed
+EXIT 1
+P1-plugin-isolation packages/provider-plugins/package.json: @jini-ai/provider-plugins: exported paths missing from tarball: ./catalog-missing.json
+ ELIFECYCLE  Command failed with exit code 1.

@@ -14,7 +14,7 @@ import type { PaymentView, RefundView } from "../contract/payments-port.js";
 import { scopeProblem, type PaymentScope } from "../contract/scope.js";
 import { settleUnknownIntent, settleUnknownRefund, type SettleResult } from "../accounting/apply-evidence.js";
 import type { LedgerTx } from "../ledger/repo.js";
-import type { PaymentRecord, RefundRecord } from "../ledger/rows.js";
+import type { PaymentRecord, RefundRecord } from "../ledger/row-records.js";
 import { checkText, fail, readPayment, type Failure } from "./common.js";
 import type { OpsDeps } from "./deps.js";
 import { paymentView, refundView } from "./view.js";
@@ -80,7 +80,7 @@ async function resolveInTx({ tx, deps, required }: { tx: LedgerTx; deps: OpsDeps
 
 /** Resolve an `unknown` payment intent or refund, audited. Refusals are typed errors. */
 export async function resolveUnknown(
-  { deps, required }: { deps: OpsDeps; required: ResolveUnknownRequired },
+  { deps, ...required }: { deps: OpsDeps } & ResolveUnknownRequired,
   _optional: Record<string, never> = {}
 ): Promise<ResolveUnknownResult> {
   const problem = checkResolve({ required });

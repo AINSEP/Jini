@@ -8,4 +8,4 @@
 export * from './install.js';
 export { CHROME_DEVTOOLS_MCP_PRESET } from './chrome-devtools.js';
 
-export { installOwnedJsonAgent } from './owned-json-install.js';
+export { installOwnedJsonAgent, type OwnedJsonInstallFiles } from './owned-json-install.js';

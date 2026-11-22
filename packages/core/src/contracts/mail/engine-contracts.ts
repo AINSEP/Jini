@@ -3,7 +3,7 @@ import type { MailAdapterCredential } from "./adapter-module.js";
 import type { MailDomainState, MailProviderCapabilities, MailProviderRegistry, MailProviderSetting, MailStatus } from "./provider.js";
 
 // Host-facing engine contracts live in this leaf module: they reference the registry and status
-// projection, and keeping them out of types.ts/ports.ts avoids type-edge cycles with provider.ts.
+// projection, and keeping them out of shared types and ports avoids type-edge cycles with provider.ts.
 
 /** Metadata only: the host reads these facts before decrypting a credential. */
 export interface MailCredentialFact {

@@ -70,19 +70,27 @@ export function createFileInstancePresence({ directory, filesystem, isAlive, wri
       let names: string[];
       try { names = filesystem.readdirSync({ path: directory }).filter(name => /^\d+\.json$/.test(name)); }
       catch { return []; }
-      const live: InstanceRecord[] = [];
-      for (const name of names) {
-        let record: InstanceRecord | null;
-        try { record = parseRecord(filesystem.readFileSync({ path: path.join(directory, name), encoding: 'utf8' })); }
-        catch { continue; }
-        // Leave unreadable/malformed records alone: a sibling may be writing on a filesystem
-        // without atomic rename. Remove confirmed dead PIDs so crashes do not linger.
-        if (record !== null && name === `${record.pid}.json`) {
-          if (isAlive({ pid: record.pid })) live.push(record);
-          else remove({ pid: record.pid });
-        }
-      }
-      return live;
+      return collectLiveRecords(names, { directory, filesystem, isAlive }, remove);
     },
   };
+}
+
+function collectLiveRecords(
+  names: string[],
+  { directory, filesystem, isAlive }: Pick<FileInstancePresenceInput, 'directory' | 'filesystem' | 'isAlive'>,
+  remove: InstancePresencePort['remove'],
+): InstanceRecord[] {
+  const live: InstanceRecord[] = [];
+  for (const name of names) {
+    let record: InstanceRecord | null;
+    try { record = parseRecord(filesystem.readFileSync({ path: path.join(directory, name), encoding: 'utf8' })); }
+    catch { continue; }
+    // Leave unreadable/malformed records alone: a sibling may be writing on a filesystem
+    // without atomic rename. Remove confirmed dead PIDs so crashes do not linger.
+    if (record !== null && name === `${record.pid}.json`) {
+      if (isAlive({ pid: record.pid })) live.push(record);
+      else remove({ pid: record.pid });
+    }
+  }
+  return live;
 }

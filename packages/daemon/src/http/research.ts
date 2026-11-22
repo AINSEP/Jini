@@ -94,13 +94,20 @@
  * token out of any upstream error text before it is even logged, belt-and-braces alongside the
  * generic-message substitution.
  */
-import { inspect } from 'node:util';
 import { redactSecrets } from '@jini-ai/core';
-import { randomUUID } from 'node:crypto';
-import type { Express } from 'express';
 import { createTavilyResearchProvider } from './research-tavily.adapter.js';
 import { createApiError } from '@jini-ai/protocol';
-import { defineJsonRoute, err, mountJsonRoute, ok, validationError, type AdapterContext, type Result, type RouteInputContext } from '@jini-ai/http-kit';
+import type { DaemonRouteHost } from './route-host.js';
+import { gatedJsonRoute, withHostReporter, type DaemonRoute } from './route-table.js';
+import {
+  defineJsonRoute,
+  err,
+  ok,
+  validationError,
+  type ReportRouteInternalError,
+  type Result,
+  type RouteInputContext,
+} from '@jini-ai/core/contracts/server';
 
 /** Matches OD's real `research/index.ts#searchResearch` query cap — see module doc. */
 const MAX_QUERY_LENGTH = 1000;
@@ -148,11 +155,8 @@ export interface ResearchHttpDeps {
   readonly resolveCredentials?: ({ providerId }: { providerId: string }) => Promise<ResearchProviderCredentials>;
   /** Host-owned sink for the real exception behind a generic `INTERNAL_ERROR` response (SEC-005). Defaults to `console.error`. */
   readonly onInternalError?: (context: ResearchInternalErrorContext) => void;
-}
-
-function defaultInternalErrorSink(context: ResearchInternalErrorContext): void {
-  // eslint-disable-next-line no-console
-  console.error(`[@jini-ai/http-kit] internal error (research/search, correlationId=${context.correlationId})`, redactSecrets({ input: inspect(context.error) }, { redactPii: false }));
+  /** Required for direct handlers; {@link researchRoutes} binds the host's reporter. */
+  readonly reportInternalError: ReportRouteInternalError;
 }
 
 /**
@@ -232,10 +236,8 @@ function credentialResolver(provider: ResearchProvider, deps: ResearchHttpDeps):
 }
 
 /** Reports `error` to the host sink under a fresh correlation id and returns the generic SEC-005 public error. */
-function reportInternalError(deps: ResearchHttpDeps, error: unknown): ReturnType<typeof createApiError> {
-  const correlationId = randomUUID();
-  (deps.onInternalError ?? defaultInternalErrorSink)({ correlationId, error });
-  return createApiError({ code: 'INTERNAL_ERROR', message: 'an internal error occurred' }, { requestId: correlationId });
+function reportInternalError({ deps, error }: { readonly deps: ResearchHttpDeps; readonly error: unknown }, _optional: Record<string, never> = {}): ReturnType<typeof createApiError> {
+  return deps.reportInternalError<Omit<ResearchInternalErrorContext, 'correlationId'>>({ report: { error }, logSource: 'research/search', message: 'The web research request could not be completed. Try again; if it keeps failing, copy the request ID and report this problem.' }, { onInternalError: deps.onInternalError });
 }
 
 /** A copy of a provider failure with `apiKey` redacted from its message, name and stack, safe for the error sink. */
@@ -261,7 +263,7 @@ export function createResearchSearchRoute({ provider }: { provider?: ResearchPro
       try {
         credentials = await credentialResolver(selectedProvider, deps)({ providerId: selectedProvider.id });
       } catch (error) {
-        return err({ error: reportInternalError(deps, error) });
+        return err({ error: reportInternalError({ deps, error }) });
       }
 
       const apiKey = credentials.apiKey;
@@ -287,7 +289,7 @@ export function createResearchSearchRoute({ provider }: { provider?: ResearchPro
         return ok({ value: result });
       } catch (error) {
         // A host provider can throw transport text too; keep its configured key out of the sink.
-        return err({ error: reportInternalError(deps, redactProviderError(error, apiKey)) });
+        return err({ error: reportInternalError({ deps, error: redactProviderError(error, apiKey) }) });
       }
     }
   }, { requireSameOrigin: true });
@@ -295,7 +297,8 @@ export function createResearchSearchRoute({ provider }: { provider?: ResearchPro
 
 export const researchSearchRoute = createResearchSearchRoute({});
 
-/** Mounts `POST /api/research/search` on `app`. A pack's `http(app, services)` calls this directly. */
-export function registerResearchRoutes({ app, deps, adapter }: { readonly app: Express; readonly deps: ResearchHttpDeps; readonly adapter: AdapterContext }, _optional: Record<string, never> = {}): void {
-  mountJsonRoute({ app, spec: deps.provider ? createResearchSearchRoute({ provider: deps.provider }) : researchSearchRoute, deps, adapter });
+/** `POST /api/research/search` as data, behind the same-origin gate its spec declares. Internal failures are reported through the host's reporter. */
+export function researchRoutes({ deps, host }: { readonly deps: Omit<ResearchHttpDeps, 'reportInternalError'>; readonly host: DaemonRouteHost }, _optional: Record<string, never> = {}): DaemonRoute[] {
+  const spec = deps.provider ? createResearchSearchRoute({ provider: deps.provider }) : researchSearchRoute;
+  return [gatedJsonRoute({ spec, deps: withHostReporter({ deps, host }), host })];
 }

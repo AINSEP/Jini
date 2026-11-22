@@ -1,6 +1,6 @@
 import type { AdminFormsPort, AdminFormDefinition, AdminFormSubmission } from '../../core/ports/forms.js';
 import type { FormsTrashPort } from '../ports.js';
-import { querySuffix } from '../../core/transport/query-suffix.js';
+import { querySuffix } from '@jini-ai/core/admin-runtime';
 /** The host owns auth, workspace addressing, retries, error decoding and telemetry. */
 export interface FormsTransportPort {
   request<T>(required: { path: string; method: 'GET' | 'POST' | 'PUT' | 'DELETE'; body?: unknown }, optional?: { signal?: AbortSignal }): Promise<T>;
@@ -21,7 +21,7 @@ export function createHttpFormsApi(
       submissionFileUrl: ({ mediaId }: { mediaId: string }, _optional: Record<string, never> = {}) => transport.url({ path: `${mediaBase}/${encodeURIComponent(mediaId)}/original` }),
     }),
     async listFormProviders(_required, _optional = {}) {
-      return (await transport.request<{ data: import('@jini-ai/cms/forms').FormProviderDescription[] }>({ path: `${base}/_providers`, method: 'GET' })).data;
+      return (await transport.request<{ data: import('@jini-ai/core/contracts/forms').FormProviderDescription[] }>({ path: `${base}/_providers`, method: 'GET' })).data;
     },
     async listFormDefinitions(_required, _optional = {}) {
       return (await transport.request<{ data: AdminFormDefinition[] }>({ path: base, method: 'GET' })).data;
@@ -41,7 +41,7 @@ export function createHttpFormsApi(
       if (options.cursor) params.set('cursor', options.cursor);
       if (options.limit) params.set('limit', String(options.limit));
       const qs = params.toString();
-      const response = await transport.request<{ data: AdminFormSubmission[]; nextCursor: string | null }>({ path: `${submissionPath(formId)}${querySuffix(qs)}`, method: 'GET' });
+      const response = await transport.request<{ data: AdminFormSubmission[]; nextCursor: string | null }>({ path: `${submissionPath(formId)}${querySuffix({ query: qs })}`, method: 'GET' });
       return { items: response.data, nextCursor: response.nextCursor };
     },
     async getFormSubmission({ formId, submissionId }, _optional = {}) {

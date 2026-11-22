@@ -3,7 +3,7 @@
  * SDK (`content.read`, `content.extend`, `addFilter`), shared by every place that runs a plugin's
  * `setup()`: the host's in-process enable path and the Tier-2 worker (`../worker/run-call.ts`).
  * One implementation, so a Tier-2 plugin sees exactly the SDK semantics a Tier-3 plugin does
- * (ADR-024 §3: the ABI is the same; only where the code runs differs).
+ * (the ABI is the same; only where the code runs differs).
  *
  * `content.read`/`content.extend` are bound to the filter invocation that is currently running
  * (AsyncLocalStorage), never to load time: a plugin that calls them from `setup()` or from a timer
@@ -15,7 +15,7 @@
  */
 import { AsyncLocalStorage } from "node:async_hooks";
 
-import type { BeforeSaveFilter, ContentEntryDraft } from "../ports.js";
+import type { BeforeSaveFilter, ContentEntryDraft } from "@jini-ai/core/contracts/plugin-sdk";
 import type { CapabilityScopedSdkCoreDeps } from "../capability-sdk.js";
 
 interface InvocationState {

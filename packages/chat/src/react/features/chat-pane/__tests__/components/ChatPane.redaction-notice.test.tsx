@@ -1,4 +1,5 @@
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, screen } from '@testing-library/react';
+import { renderWithChatSurfaces } from '../../../../__tests__/fake-chat-surfaces.js';
 import { expect, it } from 'vitest';
 import { ChatPane } from '../../components/ChatPane.js';
 import { createFakeChatTransport } from '../../../../hooks/testing/fake-transport.js';
@@ -18,14 +19,14 @@ async function sendDraft(text: string): Promise<void> {
 
 it('styles the notice like the pane\'s other status notices', async () => {
   const transport = createFakeChatTransport();
-  render(<ChatPane transport={transport} agents={agents} initialSelection={{ agentId: 'a' }} initialDraft="api_key=x" />);
+  renderWithChatSurfaces(<ChatPane transport={transport} agents={agents} initialSelection={{ agentId: 'a' }} initialDraft="api_key=x" />);
   await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Send' })); });
   expect(noticeEl()?.classList.contains('jini-chat-pane__status')).toBe(true);
 });
 
 it('clears the notice when the next message has no key in it', async () => {
   const transport = createFakeChatTransport();
-  render(<ChatPane transport={transport} agents={agents} initialSelection={{ agentId: 'a' }} initialDraft="api_key=x" />);
+  renderWithChatSurfaces(<ChatPane transport={transport} agents={agents} initialSelection={{ agentId: 'a' }} initialDraft="api_key=x" />);
   await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Send' })); });
   expect(noticeEl()).not.toBeNull();
   await act(async () => transport.finish());
@@ -35,7 +36,7 @@ it('clears the notice when the next message has no key in it', async () => {
 
 it('keeps the notice when the next message also had a key removed', async () => {
   const transport = createFakeChatTransport();
-  render(<ChatPane transport={transport} agents={agents} initialSelection={{ agentId: 'a' }} initialDraft="api_key=x" />);
+  renderWithChatSurfaces(<ChatPane transport={transport} agents={agents} initialSelection={{ agentId: 'a' }} initialDraft="api_key=x" />);
   await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Send' })); });
   await act(async () => transport.finish());
   await sendDraft('password=hunter22');
@@ -44,7 +45,7 @@ it('keeps the notice when the next message also had a key removed', async () => 
 
 it('can be dismissed', async () => {
   const transport = createFakeChatTransport();
-  render(<ChatPane transport={transport} agents={agents} initialSelection={{ agentId: 'a' }} initialDraft="api_key=x" />);
+  renderWithChatSurfaces(<ChatPane transport={transport} agents={agents} initialSelection={{ agentId: 'a' }} initialDraft="api_key=x" />);
   await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Send' })); });
   fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }));
   expect(noticeEl()).toBeNull();

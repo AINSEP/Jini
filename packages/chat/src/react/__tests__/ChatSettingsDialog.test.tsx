@@ -1,10 +1,28 @@
+import path from 'node:path';
+import { readFileSync } from 'node:fs';
 import { act, render, renderHook, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { ChatSettingsDialog } from '../components/ChatSettingsDialog.js';
-import { useChatSettingsDialog } from '../components/ChatSettingsDialog.hooks.js';
+import { useChatSettingsDialog, useChatSettingsView } from '../components/ChatSettingsDialog.hooks.js';
 
 describe('advanced chat settings', () => {
+  it.each([
+    ['.jini-chat-settings-dialog', 'border-radius: var(--jini-chat-radius-lg, 12px);'],
+    ['.jini-chat-settings-dialog .jini-chat-settings-close', 'border-radius: var(--jini-chat-radius, 8px);'],
+    ['.jini-chat-settings-row--master', 'border-radius: var(--jini-chat-radius-lg, 12px) var(--jini-chat-radius-lg, 12px) 0 0;'],
+    ['.jini-chat-settings-capabilities', 'border-radius: 0 0 var(--jini-chat-radius-lg, 12px) var(--jini-chat-radius-lg, 12px);'],
+    ['.jini-chat-settings-dialog > .tab-bar .tab-bar-item', 'font-size: var(--jini-font-size-sm, 0.875rem);'],
+    ['.jini-chat-settings-legend', 'font-size: var(--jini-font-size-sm, 0.875rem);'],
+    ['.jini-chat-settings-segment', 'font-size: var(--jini-font-size-sm, 0.875rem);'],
+    ['.jini-chat-settings-note', 'font-size: var(--jini-font-size-sm, 0.875rem);'],
+    ['.jini-chat-settings-error', 'font-size: var(--jini-font-size-sm, 0.875rem);'],
+  ])('themes %s through shared tokens with standalone defaults', (selector, declaration) => {
+    const css = readFileSync(path.resolve(__dirname, '../styles/chat-settings.css'), 'utf8');
+    const rule = css.split(`${selector} {`)[1]!.split('}')[0];
+    expect(rule).toContain(declaration);
+  });
+
   it('keeps open state in the hook', () => {
     const { result } = renderHook(() => useChatSettingsDialog({}));
     expect(result.current.open).toBe(false);
@@ -105,4 +123,17 @@ describe('advanced chat settings', () => {
     await userEvent.setup().click(screen.getByRole('button', { name: 'Close' }));
     expect(onClose).toHaveBeenCalledOnce();
   });
+});
+
+
+it('renders panel copy from the injected settings view', () => {
+  const useChatSettingsViewHook: typeof useChatSettingsView = (required) => {
+    const vm = useChatSettingsView(required);
+    return { ...vm, t: (key) => `injected:${key}` };
+  };
+  render(<ChatSettingsDialog open onClose={vi.fn()} displaySections={[]}
+    permissions={{ enabled: false, canEdit: true, capabilities: [], onChange: vi.fn() }}
+    useChatSettingsViewHook={useChatSettingsViewHook} />);
+  expect(screen.getByRole('dialog', { name: 'injected:Chat settings' })).toBeInTheDocument();
+  expect(screen.getByRole('tabpanel', { name: 'injected:Display' })).toBeInTheDocument();
 });

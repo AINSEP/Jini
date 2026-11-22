@@ -53,7 +53,7 @@ function withCardApp<Spec extends { readonly app?: SurfaceCardApp }>({ spec, app
  * - `CredentialedRequestValidationError` — a bad `method`/`url`/`headers`/`body` shape, OR a `url`
  *   whose origin is not one of the credential's own saved hosts (`resolveAllowedRequestUrl`'s
  *   allowlist refusal — the "off-allowlist host" case).
- * - `EgressRefusedError` — the shared `HttpClientPort` (ADR-038) refused the target before ever
+ * - `EgressRefusedError` — the shared `HttpClientPort` refused the target before ever
  *   connecting: a non-public resolved address on the first hop or any re-verified redirect hop, a
  *   disallowed scheme, or credentials embedded in the URL.
  *
@@ -601,6 +601,129 @@ async function openCreateCard(required: {
   return card.handler({ surfaceExchanges: surfaces.surfaceExchanges, askThenReport: cards.askThenReport })(ctx, emitSurface ? { emitSurface } : {});
 }
 
+type SaveHandlerContext = {
+  routeDeps: CredentialToolActorDeps; surfaces: CredentialToolSurfaces; host: CustomCredentialToolHost;
+  cards: CustomCredentialSecretCards; operations: CredentialToolOperations; probe: CredentialedRequestPort["probe"];
+};
+
+// An MCP-UI surface for the SECRET itself — see this file's secret-handling header
+// for the full mechanism and why it holds up "a token must never pass through the model's
+// context" rather than merely "an agent must never write one". Shape validation
+// (`rejectUnexpectedSetTokenFields`) and the label->id resolution both run BEFORE any exchange is
+// opened, same ordering `custom_credential_make_request`'s DELETE gate below uses: a malformed or
+// unresolvable call must never raise a dialog for a human to see. WRITE-gated, same permission
+// `custom_credential_set_username`/`custom_credential_make_request` use.
+function rotateCredentialHandler(c: SaveHandlerContext): ToolHandler {
+  const { routeDeps, surfaces, host, cards, operations, probe } = c;
+  return async (ctx, options = {}): Promise<SetTokenResult> => {
+    const input = requireInputRecord({ input: ctx.input });
+    rejectUnexpectedSetTokenFields({ input, messages: operations.messages });
+    const label = requireString({ input, key: "label" });
+    await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }), workspaceId: routeDeps.workspaceId, principalId: ctx.principal.id, permission: host.vocabulary.permissions.write }, { entityType: host.vocabulary.entityType });
+
+    // Non-decrypting label->id resolution — same lookup `custom_credential_set_username` above uses,
+    // and for the identical reason: a bad label should never cost a decrypt. Only `existing.id` is
+    // load-bearing past this point: `saveSetToken` deliberately re-reads the username itself,
+    // fresh, right before writing — see its own header for why trusting THIS snapshot's username
+    // would be wrong once the human's answer can arrive an arbitrarily long time later.
+    const existing = await operations.sets.byLabel({ label });
+    if (!existing) {
+      throw new CustomCredentialNotFoundError(operations.messages.notFoundLabel({ label }));
+    }
+
+    // Fail closed rather than degrade — and, unlike every OTHER gated tool in this codebase, there is
+    // deliberately no fallback second-call shape for this one even in principle: that shape is a
+    // fresh MODEL-ISSUED tool call carrying the human's answer as its own input, which is exactly the
+    // path this tool exists to make impossible for a secret. See this file's header.
+    // A `ToolInputError` with the wording unchanged: a bare `Error` is redacted to a 500 that
+    // no allowlist rule can rescue. No code prefix — the per-tool suites pin this exact string.
+    // The run ended during the pre-dialog reads: the engine opens no dialog for an aborted run.
+    // `askThenReport`, not `askOnce` — the engine waits for save and replaces the same card URI.
+    const locale = await operations.locale.resolve({ principalId: ctx.principal.id });
+    const pluginCard = await operations.pluginCards.find({ workspaceId: routeDeps.workspaceId, saveKind: 'api', target: label });
+    let errorSummary = "";
+    const card = cards.defineSecretCardTool<{ label: string }, CustomCredentialSummary, SetTokenResult>({
+      toolId: operations.ids.save,
+      prepare: async () => ({ label }),
+      form: ({ prep }) => operations.credentialCardForms.applyPlugin({ card: pluginCard, form: withCardApp({ spec: operations.credentialCardForms.rotate(prep), app: host.cardIdentity.appNames.setToken }) }),
+      save: ({ values, signal }) => saveSetToken({ token: values.token as string, signal, routeDeps, operations, probe, existing, pluginCard, principalId: ctx.principal.id }),
+      result: ({ run }) => {
+        // Token hints belong on the human's card, never in the model-facing result or audit output.
+        if (run.status === "saved") return { saved: true };
+        if (run.status === "blank") return { saved: false, reason: "invalid", message: operations.locale.text({ id: "blank", locale }) };
+        if (run.status === "failed") return { saved: false, reason: "error", message: run.safeMessage };
+        return { saved: false, reason: run.status };
+      },
+      outcome: ({ run }) => {
+        if (run.status === "saved") {
+          const hint = operations.locale.hint({ hint: run.saved.tokenHint, locale });
+          return withCardApp({ spec: operations.credentialCardForms.rotateOutcome({ label, state: "success", message: `${hint ? hint + ". " : ""}${operations.locale.text({ id: "saved", locale })}` }), app: host.cardIdentity.appNames.setTokenOutcome });
+        }
+        if (run.status === "blank" || run.status === "failed") return withCardApp({ spec: operations.credentialCardForms.rotateOutcome({ label, state: "failure",
+          message: run.status === "blank" ? operations.locale.text({ id: "blank", locale }) : run.safeMessage }), app: host.cardIdentity.appNames.setTokenOutcome });
+        return undefined;
+      },
+    }, {
+      uriHost: host.cardIdentity.uriNamespace,
+      text: { noEmitter: operations.messages.noRotateChannel },
+      safeError: err => {
+        // Never `err.message`: it can quote the token just submitted. See operations.formErrors.
+        errorSummary = operations.diagnostics.describeError({ error: err });
+        return operations.locale.translate({ message: callerSafeErrorMessage({ err, rules: operations.formErrors, fallback: operations.messages.formSaveFailure }), locale });
+      },
+      logFailure: ({ toolId, exchangeId }) => operations.diagnostics.rotateFailure({ toolId, exchangeId, credentialId: existing.id, errorSummary }),
+    });
+    return card.handler({ surfaceExchanges: surfaces.surfaceExchanges, askThenReport: cards.askThenReport })(ctx, options);
+  };
+}
+
+// Creates a brand-new credential row — see this file's creation-ordering header for the
+// full mechanism and the incident it closes. Unlike every other write handler in this domain, there
+// is no existing row to resolve or fail closed on before opening the form: a CREATE's row does not
+// exist yet, so the only pre-form checks are the permission gate and the `emitSurface` fail-closed
+// guard below. All three prefill fields are optional and non-secret by schema
+// in the host's API creation schema — a call with none of them is a normal, valid call.
+function createCredentialHandler(c: SaveHandlerContext): ToolHandler {
+  const { routeDeps, surfaces, host, cards, operations, probe } = c;
+  return async (ctx, { emitSurface } = {}): Promise<CreateCredentialResult> => {
+    // `requireInputRecord` refuses `undefined` outright, but this tool's schema has no required
+    // field at all (same `required: []` shape `custom_credential_list`'s own `NO_INPUT_SCHEMA`
+    // documents) — a model-issued call with no arguments at all is a normal, valid call here, not a
+    // malformed one, so it is treated the same as an explicit `{}` rather than rejected.
+    const input = ctx.input === undefined ? {} : requireInputRecord({ input: ctx.input });
+    const prefill = readCreateCredentialPrefill({ input, operations });
+    await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }), workspaceId: routeDeps.workspaceId, principalId: ctx.principal.id, permission: host.vocabulary.permissions.write }, { entityType: host.vocabulary.entityType });
+
+    const providers = await operations.publish.loadProviders({});
+    const locale = await operations.locale.resolve({ principalId: ctx.principal.id });
+    return openCreateCard({ ctx, emitSurface, routeDeps, operations, probe, cards, surfaces, locale, initialLabel: prefill.label ?? '', cardIdentity: host.cardIdentity,
+      form: () => withCardApp({ spec: operations.credentialCardForms.create({ prefill, providers }), app: host.cardIdentity.appNames.create }),
+      submissionOf: values => deriveCreateCredentialSubmission({ raw: readRawCreateCredentialFields(values), operations }) });
+  };
+}
+
+// A plugin's own key card (credential_save kind plugin-provider): plugin copy, a masked token
+// and declared public fields, with fixed row metadata resolved on the server. Same
+// permission, save port and outcome as the generic create card. The host supplies these through operations.pluginCards.
+function pluginProviderHandler(c: SaveHandlerContext): ToolHandler {
+  const { routeDeps, surfaces, host, cards, operations, probe } = c;
+  return async (ctx, { emitSurface } = {}): Promise<CreateCredentialResult> => {
+    const input = requireInputRecord({ input: ctx.input });
+    const providerId = requireString({ input, key: "provider" });
+    await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }), workspaceId: routeDeps.workspaceId, principalId: ctx.principal.id, permission: host.vocabulary.permissions.write }, { entityType: host.vocabulary.entityType });
+    const card = (await operations.pluginCards.load({ workspaceId: routeDeps.workspaceId })).find(entry => entry.providerId === providerId);
+    if (!card) throw new ToolInputError({ message: operations.messages.missingPluginCard({ providerId }) });
+    const locale = await operations.locale.resolve({ principalId: ctx.principal.id });
+    return openCreateCard({ ctx, emitSurface, routeDeps, operations, probe, cards, surfaces, locale, initialLabel: card.label, cardIdentity: host.cardIdentity,
+      form: () => operations.credentialCardForms.buildPlugin({ card }),
+      submissionOf: values => {
+        const fields = operations.pluginCards.readValues({ card, values });
+        return { ...deriveCreateCredentialSubmission({ raw: readRawCreateCredentialFields({ ...fields, worksFor: [] }), operations }), pluginCard: card,
+          ...(fields.additionalHosts === undefined ? {} : { additionalHosts: fields.additionalHosts }) };
+      } });
+  };
+}
+
 /**
  * API-key cards with every consumed operation supplied by the composing host.
  *
@@ -609,117 +732,168 @@ async function openCreateCard(required: {
 /** @agent-note create accepts optional label/baseUrl/category/worksFor, rotate requires label and pluginProvider requires provider, while secrets arrive only from human card values. */
 export function createCredentialSaveHandlers({ routeDeps, surfaces, host, ports, cards, operations }: { routeDeps: CredentialToolActorDeps; surfaces: CredentialToolSurfaces; host: CustomCredentialToolHost; ports: Pick<CustomCredentialToolPorts, 'credentialedRequest'>; cards: CustomCredentialSecretCards; operations: CredentialToolOperations }, _optional = {}): { create: ToolHandler; rotate: ToolHandler; pluginProvider: ToolHandler } {
   const probe: CredentialedRequestPort["probe"] = (input) => ports.credentialedRequest.probe(input);
-  const handlers: { create: ToolHandler; rotate: ToolHandler; pluginProvider: ToolHandler } = {
-    // An MCP-UI surface for the SECRET itself — see this file's secret-handling header
-    // for the full mechanism and why it holds up "a token must never pass through the model's
-    // context" rather than merely "an agent must never write one". Shape validation
-    // (`rejectUnexpectedSetTokenFields`) and the label->id resolution both run BEFORE any exchange is
-    // opened, same ordering `custom_credential_make_request`'s DELETE gate below uses: a malformed or
-    // unresolvable call must never raise a dialog for a human to see. WRITE-gated, same permission
-    // `custom_credential_set_username`/`custom_credential_make_request` use.
-    rotate: async (ctx, options = {}): Promise<SetTokenResult> => {
-      const input = requireInputRecord({ input: ctx.input });
-      rejectUnexpectedSetTokenFields({ input, messages: operations.messages });
-      const label = requireString({ input, key: "label" });
-      await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }), workspaceId: routeDeps.workspaceId, principalId: ctx.principal.id, permission: host.vocabulary.permissions.write }, { entityType: host.vocabulary.entityType });
-
-      // Non-decrypting label->id resolution — same lookup `custom_credential_set_username` above uses,
-      // and for the identical reason: a bad label should never cost a decrypt. Only `existing.id` is
-      // load-bearing past this point: `saveSetToken` deliberately re-reads the username itself,
-      // fresh, right before writing — see its own header for why trusting THIS snapshot's username
-      // would be wrong once the human's answer can arrive an arbitrarily long time later.
-      const existing = await operations.sets.byLabel({ label });
-      if (!existing) {
-        throw new CustomCredentialNotFoundError(operations.messages.notFoundLabel({ label }));
-      }
-
-      // Fail closed rather than degrade — and, unlike every OTHER gated tool in this codebase, there is
-      // deliberately no fallback second-call shape for this one even in principle: that shape is a
-      // fresh MODEL-ISSUED tool call carrying the human's answer as its own input, which is exactly the
-      // path this tool exists to make impossible for a secret. See this file's header.
-      // A `ToolInputError` with the wording unchanged: a bare `Error` is redacted to a 500 that
-      // no allowlist rule can rescue. No code prefix — the per-tool suites pin this exact string.
-      // The run ended during the pre-dialog reads: the engine opens no dialog for an aborted run.
-      // `askThenReport`, not `askOnce` — the engine waits for save and replaces the same card URI.
-      const locale = await operations.locale.resolve({ principalId: ctx.principal.id });
-      const pluginCard = await operations.pluginCards.find({ workspaceId: routeDeps.workspaceId, saveKind: 'api', target: label });
-      let errorSummary = "";
-      const card = cards.defineSecretCardTool<{ label: string }, CustomCredentialSummary, SetTokenResult>({
-        toolId: operations.ids.save,
-        prepare: async () => ({ label }),
-        form: ({ prep }) => operations.credentialCardForms.applyPlugin({ card: pluginCard, form: withCardApp({ spec: operations.credentialCardForms.rotate(prep), app: host.cardIdentity.appNames.setToken }) }),
-        save: ({ values, signal }) => saveSetToken({ token: values.token as string, signal, routeDeps, operations, probe, existing, pluginCard, principalId: ctx.principal.id }),
-        result: ({ run }) => {
-          // Token hints belong on the human's card, never in the model-facing result or audit output.
-          if (run.status === "saved") return { saved: true };
-          if (run.status === "blank") return { saved: false, reason: "invalid", message: operations.locale.text({ id: "blank", locale }) };
-          if (run.status === "failed") return { saved: false, reason: "error", message: run.safeMessage };
-          return { saved: false, reason: run.status };
-        },
-        outcome: ({ run }) => {
-          if (run.status === "saved") {
-            const hint = operations.locale.hint({ hint: run.saved.tokenHint, locale });
-            return withCardApp({ spec: operations.credentialCardForms.rotateOutcome({ label, state: "success", message: `${hint ? hint + ". " : ""}${operations.locale.text({ id: "saved", locale })}` }), app: host.cardIdentity.appNames.setTokenOutcome });
-          }
-          if (run.status === "blank" || run.status === "failed") return withCardApp({ spec: operations.credentialCardForms.rotateOutcome({ label, state: "failure",
-            message: run.status === "blank" ? operations.locale.text({ id: "blank", locale }) : run.safeMessage }), app: host.cardIdentity.appNames.setTokenOutcome });
-          return undefined;
-        },
-      }, {
-        uriHost: host.cardIdentity.uriNamespace,
-        text: { noEmitter: operations.messages.noRotateChannel },
-        safeError: err => {
-          // Never `err.message`: it can quote the token just submitted. See operations.formErrors.
-          errorSummary = operations.diagnostics.describeError({ error: err });
-          return operations.locale.translate({ message: callerSafeErrorMessage({ err, rules: operations.formErrors, fallback: operations.messages.formSaveFailure }), locale });
-        },
-        logFailure: ({ toolId, exchangeId }) => operations.diagnostics.rotateFailure({ toolId, exchangeId, credentialId: existing.id, errorSummary }),
-      });
-      return card.handler({ surfaceExchanges: surfaces.surfaceExchanges, askThenReport: cards.askThenReport })(ctx, options);
-    },
-
-    // Creates a brand-new credential row — see this file's creation-ordering header for the
-    // full mechanism and the incident it closes. Unlike every other write handler in this domain, there
-    // is no existing row to resolve or fail closed on before opening the form: a CREATE's row does not
-    // exist yet, so the only pre-form checks are the permission gate and the `emitSurface` fail-closed
-    // guard below. All three prefill fields are optional and non-secret by schema
-    // in the host's API creation schema — a call with none of them is a normal, valid call.
-    create: async (ctx, { emitSurface } = {}): Promise<CreateCredentialResult> => {
-      // `requireInputRecord` refuses `undefined` outright, but this tool's schema has no required
-      // field at all (same `required: []` shape `custom_credential_list`'s own `NO_INPUT_SCHEMA`
-      // documents) — a model-issued call with no arguments at all is a normal, valid call here, not a
-      // malformed one, so it is treated the same as an explicit `{}` rather than rejected.
-      const input = ctx.input === undefined ? {} : requireInputRecord({ input: ctx.input });
-      const prefill = readCreateCredentialPrefill({ input, operations });
-      await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }), workspaceId: routeDeps.workspaceId, principalId: ctx.principal.id, permission: host.vocabulary.permissions.write }, { entityType: host.vocabulary.entityType });
-
-      const providers = await operations.publish.loadProviders({});
-      const locale = await operations.locale.resolve({ principalId: ctx.principal.id });
-      return openCreateCard({ ctx, emitSurface, routeDeps, operations, probe, cards, surfaces, locale, initialLabel: prefill.label ?? '', cardIdentity: host.cardIdentity,
-        form: () => withCardApp({ spec: operations.credentialCardForms.create({ prefill, providers }), app: host.cardIdentity.appNames.create }),
-        submissionOf: values => deriveCreateCredentialSubmission({ raw: readRawCreateCredentialFields(values), operations }) });
-    },
-
-    // A plugin's own key card (credential_save kind plugin-provider): plugin copy, a masked token
-    // and declared public fields, with fixed row metadata resolved on the server. Same
-    // permission, save port and outcome as the generic create card. The host supplies these through operations.pluginCards.
-    pluginProvider: async (ctx, { emitSurface } = {}): Promise<CreateCredentialResult> => {
-      const input = requireInputRecord({ input: ctx.input });
-      const providerId = requireString({ input, key: "provider" });
-      await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }), workspaceId: routeDeps.workspaceId, principalId: ctx.principal.id, permission: host.vocabulary.permissions.write }, { entityType: host.vocabulary.entityType });
-      const card = (await operations.pluginCards.load({ workspaceId: routeDeps.workspaceId })).find(entry => entry.providerId === providerId);
-      if (!card) throw new ToolInputError({ message: operations.messages.missingPluginCard({ providerId }) });
-      const locale = await operations.locale.resolve({ principalId: ctx.principal.id });
-      return openCreateCard({ ctx, emitSurface, routeDeps, operations, probe, cards, surfaces, locale, initialLabel: card.label, cardIdentity: host.cardIdentity,
-        form: () => operations.credentialCardForms.buildPlugin({ card }),
-        submissionOf: values => {
-          const fields = operations.pluginCards.readValues({ card, values });
-          return { ...deriveCreateCredentialSubmission({ raw: readRawCreateCredentialFields({ ...fields, worksFor: [] }), operations }), pluginCard: card,
-            ...(fields.additionalHosts === undefined ? {} : { additionalHosts: fields.additionalHosts }) };
-        } });
-    },
-  };
+  const context: SaveHandlerContext = { routeDeps, surfaces, host, cards, operations, probe };
+  const handlers = { rotate: rotateCredentialHandler(context), create: createCredentialHandler(context), pluginProvider: pluginProviderHandler(context) };
   return withModelFacingErrors({ handlers, rules: operations.modelFacingErrors }) as { create: ToolHandler; rotate: ToolHandler; pluginProvider: ToolHandler };
+}
+
+type CredentialToolArgs = { routeDeps: CredentialToolActorDeps; host: CustomCredentialToolHost; ports: CustomCredentialToolPorts; operations: CredentialToolOperations };
+type ToolHandlerCtx = Parameters<ToolHandler>[0];
+type ToolHandlerOptions = NonNullable<Parameters<ToolHandler>[1]>;
+
+// Non-decrypting read-back through the existing store, scoped by the read permission and
+// empty-input contract. Saved origins and usernames reach the model; token hints remain
+// on human surfaces. One workspace read plus O(n + c) projection for saved rows and active cards.
+async function listCredentials(tc: CredentialToolArgs, ctx: ToolHandlerCtx): Promise<{ credentials: (Omit<CustomCredentialSummary, "tokenHint"> & { pluginId?: string | undefined; usedFor?: readonly string[] })[] }> {
+  const { routeDeps, host, operations } = tc;
+  requireNoInput({ input: ctx.input });
+  await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }), workspaceId: routeDeps.workspaceId, principalId: ctx.principal.id, permission: host.vocabulary.permissions.read }, { entityType: host.vocabulary.entityType });
+  const credentials = await operations.sets.list({});
+  const cards = await operations.pluginCards.load({ workspaceId: routeDeps.workspaceId });
+  const apiCards = new Map(cards.filter(card => card.saveKind === undefined || card.saveKind === 'api').map(card => [card.ownedApiLabel ?? card.label, card]));
+  // Exact owned labels attach display copy only; usedFor never participates in key selection.
+  return { credentials: credentials.map(({ tokenHint: _humanHint, ...credential }) => {
+    const card = apiCards.get(credential.label);
+    return card ? { ...credential, pluginId: card.pluginId, usedFor: card.usedFor ?? [] } : credential;
+  }) };
+}
+
+async function verifyCredential(tc: CredentialToolArgs, ctx: ToolHandlerCtx) {
+  const { routeDeps, host, operations } = tc;
+  const { credentialedRequest } = tc.ports;
+  const input = requireInputRecord({ input: ctx.input });
+  const label = requireString({ input, key: "label" });
+  await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }), workspaceId: routeDeps.workspaceId, principalId: ctx.principal.id, permission: host.vocabulary.permissions.read }, { entityType: host.vocabulary.entityType });
+  return operations.recovery.withSetup({ label, verification: true, invoke: () => credentialedRequest.verify({ workspaceId: routeDeps.workspaceId, label }) }, {});
+}
+
+// The self-healing FIX half of the 401/403 diagnostic `custom_credential_verify`/
+// `custom_credential_make_request` now carry (`../credentialed-request.ts`'s `AuthFailureDiagnostic`)
+// — see this file's username-update header for the full incident and design.
+// Shape/security validation (`rejectUnexpectedSetUsernameFields`, `requireUsernameOrClearSentinel`)
+// runs BEFORE the permission check, same ordering `custom_credential_make_request` below uses — a
+// malformed call is refused on its own terms regardless of who is asking. WRITE-gated (this durably
+// changes a host-side column), and — by the owner's own standing "no confirm ceremonies" instruction
+// — deliberately NOT wrapped in the DELETE-style confirmation dialog: this field is not a secret,
+// and there is structurally no way for this call to carry one.
+async function setCredentialUsername(tc: CredentialToolArgs, ctx: ToolHandlerCtx): Promise<CustomCredentialSummary> {
+  const { routeDeps, host, operations } = tc;
+  const input = requireInputRecord({ input: ctx.input });
+  rejectUnexpectedSetUsernameFields({ input, messages: operations.messages });
+  const label = requireString({ input, key: "label" });
+  const username = requireUsernameOrClearSentinel({ input, messages: operations.messages });
+  await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }), workspaceId: routeDeps.workspaceId, principalId: ctx.principal.id, permission: host.vocabulary.permissions.write }, { entityType: host.vocabulary.entityType });
+
+  // Non-decrypting label->id resolution — same lookup `resolveRequestTarget` above uses for the
+  // identical reason: a bad label should never cost a decrypt, and this update never needs one
+  // either (see `CustomCredentialsToolDeps.siteAssistantSecretKeyring`'s own doc).
+  const existing = await operations.sets.byLabel({ label });
+  if (!existing) {
+    throw new CustomCredentialNotFoundError(operations.messages.notFoundLabel({ label }));
+  }
+
+  ctx.signal.throwIfAborted();
+  return operations.sets.setUsername({ id: existing.id, username });
+}
+
+// GET/POST/PUT/PATCH run immediately (no ceremony — parity with the site). DELETE opens an
+// in-chat confirmation and parks until answered; see this file's own header for the full
+// mechanism and why. All shape/security-boundary validation (`method`/`url`/`headers`/`body`,
+// label existence, host allowlist) happens inside `resolveRequestTarget`/`makeCredentialedRequest`
+// themselves — this handler's only job is deciding WHETHER to gate, never re-validating.
+async function makeCredentialRequest(tc: CredentialToolArgs, ctx: ToolHandlerCtx, { emitSurface }: ToolHandlerOptions = {}): Promise<CredentialedRequestOutcome | CredentialToolSetupFailure> {
+  const { routeDeps, host, operations } = tc;
+  const { credentialedRequest } = tc.ports;
+  ctx = { ...ctx, input: structuredClone(ctx.input), principal: { ...ctx.principal }, run: { ...ctx.run } };
+  const input = requireInputRecord({ input: ctx.input });
+  const label = requireString({ input, key: "label" });
+  const method = requireString({ input, key: "method" });
+  const url = requireString({ input, key: "url" });
+  await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }), workspaceId: routeDeps.workspaceId, principalId: ctx.principal.id, permission: host.vocabulary.permissions.write }, { entityType: host.vocabulary.entityType });
+
+  if (method !== "DELETE") {
+    return operations.recovery.withSetup({ label, url, invoke: () => makeModelFacingCredentialedRequest({ port: credentialedRequest, input: { workspaceId: routeDeps.workspaceId, label, method, url, headers: input.headers, body: input.body }, catalog: host.vocabulary.catalog, toolId: operations.ids.makeRequest }) }, {});
+  }
+
+  // Non-decrypting: a declined/expired/off-allowlist DELETE must never have cost a decrypt.
+  // Classify the original preflight rejection once before map-level message publication.
+  // Preserve the validation class and existing DELETE text; only caller-safe copy may enter it.
+  // Other rejection identities stay unchanged. Schema decoration here would change that text.
+  const target = await operations.recovery.withSetup({ label, url, invoke: async () => {
+    try { return await credentialedRequest.resolveTarget({ workspaceId: routeDeps.workspaceId, label, url }); }
+    catch (error) {
+      const classified = credentialedRequest.classifyError({ error });
+      if (classified.category === "validation") throw new CredentialedRequestValidationError({ message: classified.callerSafeMessage });
+      throw error;
+    }
+  } }, {});
+  if ("credentialSetup" in target) return target;
+
+  // Fail closed rather than degrade — same posture `content_post_delete`'s own handler documents:
+  // an execution context that cannot hold this call open cannot run a gated DELETE at all.
+  if (!emitSurface) {
+    // A `ToolInputError` with the wording unchanged: a bare `Error` is redacted to a 500 that
+    // no allowlist rule can rescue. No code prefix — the per-tool suites pin this exact string.
+    throw new ToolInputError({ message: operations.messages.noDeleteChannel });
+  }
+
+  // A run aborted during reconnaissance must not proceed to the external commit.
+  if (ctx.signal.aborted) return { executed: false, cancelled: false, reason: "abandoned" };
+  return operations.approval.handler({
+    prepare: async () => ({ label: target.label, host: target.url.host, path: `${target.url.pathname}${target.url.search}` }),
+    describe: ({ prepared }) => ({ ask: true, description: operations.approval.describeDelete(prepared) }),
+    askHuman: (required, optional) => operations.approval.askHuman(required, optional),
+    run: async ({ ctx: approvedCtx }) => {
+      await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }), workspaceId: routeDeps.workspaceId, principalId: approvedCtx.principal.id, permission: host.vocabulary.permissions.write }, { entityType: host.vocabulary.entityType });
+      if (approvedCtx.signal.aborted) return { executed: false, cancelled: false, reason: "abandoned" };
+      const frozen = requireInputRecord({ input: approvedCtx.input });
+      return operations.recovery.withSetup({ label, url, invoke: () => makeModelFacingCredentialedRequest({ port: credentialedRequest, input: { workspaceId: routeDeps.workspaceId, label, method: "DELETE", url, headers: frozen.headers, body: frozen.body }, catalog: host.vocabulary.catalog, toolId: operations.ids.makeRequest }) }, {});
+    },
+    notConfirmed: ({ reason }) => reason === "declined" ? { executed: false, cancelled: true } : { executed: false, cancelled: false, reason },
+  })(ctx, { emitSurface }) as Promise<CredentialedRequestOutcome | CredentialToolSetupFailure>;
+}
+
+// See this file's header for file-write validation, provider-plan and freshness boundaries.
+async function writeCredentialFiles(tc: CredentialToolArgs, ctx: ToolHandlerCtx): Promise<WriteFilesResult> {
+  const { routeDeps, host, operations } = tc;
+  const { sourceControlWrite } = tc.ports;
+  const input = requireInputRecord({ input: ctx.input });
+  const label = requireString({ input, key: "label" });
+  const shapeRejection = { toolId: operations.ids.writeFiles, catalog: host.vocabulary.catalog, isShapeRejection: ({ error }: { error: unknown }) => isWriteFilesShapeRejection(error) };
+  const request = await withSchemaOnRejection({ ...shapeRejection, fn: async () =>
+    operations.policy.validateWriteFiles({ branch: input.branch, commitMessage: input.commitMessage, files: input.files })
+  });
+  await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }), workspaceId: routeDeps.workspaceId, principalId: ctx.principal.id, permission: host.vocabulary.permissions.write }, { entityType: host.vocabulary.entityType });
+
+  // The host first, from the credential's plaintext base URL (no decrypt): its owner/repo rules
+  // decide whether this call is well formed at all.
+  const summary = await operations.sets.byLabel({ label });
+  if (!summary) {
+    throw new CustomCredentialNotFoundError(operations.messages.notFoundLabel({ label }));
+  }
+  const built = await sourceControlWrite.build({ workspaceId: routeDeps.workspaceId, baseUrl: summary.baseUrl });
+  if (!built.ok) throw new Error(operations.messages.writeFailure({ message: built.message }));
+  const provider = built.provider;
+  const target = await withSchemaOnRejection({ ...shapeRejection, fn: async () => sourceControlWrite.validateTarget({ provider, target: { owner: input.owner, repo: input.repo } }) });
+  const validated: ValidatedWriteFilesInput = { ...request, ...target };
+
+  // A DECRYPTING resolve: the plan phase's read-only host calls need the token regardless of
+  // whether the human goes on to confirm. The row was just seen above; one deleted in between
+  // is the same not-found refusal.
+  const resolved = await operations.sets.resolve({ label });
+  if (!resolved) {
+    throw new CustomCredentialNotFoundError(operations.messages.notFoundLabel({ label }));
+  }
+
+  const planResult = await sourceControlWrite.planFileWrite({ provider, input: { ...writeTarget(resolved, validated), branch: validated.branch, files: validated.files } });
+  if (!planResult.ok) {
+    operations.diagnostics.writeFailure({ phase: "plan", failure: planResult });
+    throw new Error(operations.messages.writeFailure({ message: planResult.message }));
+  }
+
+  // A run aborted during reconnaissance must not proceed to the external commit.
+  if (ctx.signal.aborted) return { executed: false, cancelled: false, reason: "abandoned" };
+  return performRepositoryFilesWrite({ operations, port: sourceControlWrite, provider, resolved, validated, plan: planResult.plan });
 }
 
 /**
@@ -729,153 +903,13 @@ export function createCredentialSaveHandlers({ routeDeps, surfaces, host, ports,
  */
 /** @agent-note operations.ids must exactly match catalog, metadata and risk names and the host answer routing. */
 export function createCredentialToolRegistrations({ routeDeps, host, ports, operations }: { routeDeps: CredentialToolActorDeps; host: CustomCredentialToolHost; ports: CustomCredentialToolPorts; operations: CredentialToolOperations }, _optional = {}): ToolRegistration[] {
-  const { credentialedRequest, sourceControlWrite } = ports;
+  const tc: CredentialToolArgs = { routeDeps, host, ports, operations };
   const handlers: Record<string, ToolHandler> = {
-    // Non-decrypting read-back through the existing store, scoped by the read permission and
-    // empty-input contract. Saved origins and usernames reach the model; token hints remain
-    // on human surfaces. One workspace read plus O(n + c) projection for saved rows and active cards.
-    [operations.ids.list]: async (ctx): Promise<{ credentials: (Omit<CustomCredentialSummary, "tokenHint"> & { pluginId?: string | undefined; usedFor?: readonly string[] })[] }> => {
-      requireNoInput({ input: ctx.input });
-      await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }), workspaceId: routeDeps.workspaceId, principalId: ctx.principal.id, permission: host.vocabulary.permissions.read }, { entityType: host.vocabulary.entityType });
-      const credentials = await operations.sets.list({});
-      const cards = await operations.pluginCards.load({ workspaceId: routeDeps.workspaceId });
-      const apiCards = new Map(cards.filter(card => card.saveKind === undefined || card.saveKind === 'api').map(card => [card.ownedApiLabel ?? card.label, card]));
-      // Exact owned labels attach display copy only; usedFor never participates in key selection.
-      return { credentials: credentials.map(({ tokenHint: _humanHint, ...credential }) => {
-        const card = apiCards.get(credential.label);
-        return card ? { ...credential, pluginId: card.pluginId, usedFor: card.usedFor ?? [] } : credential;
-      }) };
-    },
-
-    [operations.ids.verify]: async (ctx) => {
-      const input = requireInputRecord({ input: ctx.input });
-      const label = requireString({ input, key: "label" });
-      await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }), workspaceId: routeDeps.workspaceId, principalId: ctx.principal.id, permission: host.vocabulary.permissions.read }, { entityType: host.vocabulary.entityType });
-      return operations.recovery.withSetup({ label, verification: true, invoke: () => credentialedRequest.verify({ workspaceId: routeDeps.workspaceId, label }) }, {});
-    },
-
-    // The self-healing FIX half of the 401/403 diagnostic `custom_credential_verify`/
-    // `custom_credential_make_request` now carry (`../credentialed-request.ts`'s `AuthFailureDiagnostic`)
-    // — see this file's username-update header for the full incident and design.
-    // Shape/security validation (`rejectUnexpectedSetUsernameFields`, `requireUsernameOrClearSentinel`)
-    // runs BEFORE the permission check, same ordering `custom_credential_make_request` below uses — a
-    // malformed call is refused on its own terms regardless of who is asking. WRITE-gated (this durably
-    // changes a host-side column), and — by the owner's own standing "no confirm ceremonies" instruction
-    // — deliberately NOT wrapped in the DELETE-style confirmation dialog: this field is not a secret,
-    // and there is structurally no way for this call to carry one.
-    [operations.ids.setUsername]: async (ctx): Promise<CustomCredentialSummary> => {
-      const input = requireInputRecord({ input: ctx.input });
-      rejectUnexpectedSetUsernameFields({ input, messages: operations.messages });
-      const label = requireString({ input, key: "label" });
-      const username = requireUsernameOrClearSentinel({ input, messages: operations.messages });
-      await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }), workspaceId: routeDeps.workspaceId, principalId: ctx.principal.id, permission: host.vocabulary.permissions.write }, { entityType: host.vocabulary.entityType });
-
-      // Non-decrypting label->id resolution — same lookup `resolveRequestTarget` above uses for the
-      // identical reason: a bad label should never cost a decrypt, and this update never needs one
-      // either (see `CustomCredentialsToolDeps.siteAssistantSecretKeyring`'s own doc).
-      const existing = await operations.sets.byLabel({ label });
-      if (!existing) {
-        throw new CustomCredentialNotFoundError(operations.messages.notFoundLabel({ label }));
-      }
-
-      return operations.sets.setUsername({ id: existing.id, username });
-    },
-
-    // GET/POST/PUT/PATCH run immediately (no ceremony — parity with the site). DELETE opens an
-    // in-chat confirmation and parks until answered; see this file's own header for the full
-    // mechanism and why. All shape/security-boundary validation (`method`/`url`/`headers`/`body`,
-    // label existence, host allowlist) happens inside `resolveRequestTarget`/`makeCredentialedRequest`
-    // themselves — this handler's only job is deciding WHETHER to gate, never re-validating.
-    [operations.ids.makeRequest]: async (ctx, { emitSurface } = {}): Promise<CredentialedRequestOutcome | CredentialToolSetupFailure> => {
-      ctx = { ...ctx, input: structuredClone(ctx.input), principal: { ...ctx.principal }, run: { ...ctx.run } };
-      const input = requireInputRecord({ input: ctx.input });
-      const label = requireString({ input, key: "label" });
-      const method = requireString({ input, key: "method" });
-      const url = requireString({ input, key: "url" });
-      await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }), workspaceId: routeDeps.workspaceId, principalId: ctx.principal.id, permission: host.vocabulary.permissions.write }, { entityType: host.vocabulary.entityType });
-
-      if (method !== "DELETE") {
-        return operations.recovery.withSetup({ label, url, invoke: () => makeModelFacingCredentialedRequest({ port: credentialedRequest, input: { workspaceId: routeDeps.workspaceId, label, method, url, headers: input.headers, body: input.body }, catalog: host.vocabulary.catalog, toolId: operations.ids.makeRequest }) }, {});
-      }
-
-      // Non-decrypting: a declined/expired/off-allowlist DELETE must never have cost a decrypt.
-      // Classify the original preflight rejection once before map-level message publication.
-      // Preserve the validation class and existing DELETE text; only caller-safe copy may enter it.
-      // Other rejection identities stay unchanged. Schema decoration here would change that text.
-      const target = await operations.recovery.withSetup({ label, url, invoke: async () => {
-        try { return await credentialedRequest.resolveTarget({ workspaceId: routeDeps.workspaceId, label, url }); }
-        catch (error) {
-          const classified = credentialedRequest.classifyError({ error });
-          if (classified.category === "validation") throw new CredentialedRequestValidationError({ message: classified.callerSafeMessage });
-          throw error;
-        }
-      } }, {});
-      if ("credentialSetup" in target) return target;
-
-      // Fail closed rather than degrade — same posture `content_post_delete`'s own handler documents:
-      // an execution context that cannot hold this call open cannot run a gated DELETE at all.
-      if (!emitSurface) {
-        // A `ToolInputError` with the wording unchanged: a bare `Error` is redacted to a 500 that
-        // no allowlist rule can rescue. No code prefix — the per-tool suites pin this exact string.
-        throw new ToolInputError({ message: operations.messages.noDeleteChannel });
-      }
-
-      // A run aborted during reconnaissance must not proceed to the external commit.
-      if (ctx.signal.aborted) return { executed: false, cancelled: false, reason: "abandoned" };
-      return operations.approval.handler({
-        prepare: async () => ({ label: target.label, host: target.url.host, path: `${target.url.pathname}${target.url.search}` }),
-        describe: ({ prepared }) => ({ ask: true, description: operations.approval.describeDelete(prepared) }),
-        askHuman: (required, optional) => operations.approval.askHuman(required, optional),
-        run: async ({ ctx: approvedCtx }) => {
-          await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }), workspaceId: routeDeps.workspaceId, principalId: approvedCtx.principal.id, permission: host.vocabulary.permissions.write }, { entityType: host.vocabulary.entityType });
-          if (approvedCtx.signal.aborted) return { executed: false, cancelled: false, reason: "abandoned" };
-          const frozen = requireInputRecord({ input: approvedCtx.input });
-          return operations.recovery.withSetup({ label, url, invoke: () => makeModelFacingCredentialedRequest({ port: credentialedRequest, input: { workspaceId: routeDeps.workspaceId, label, method: "DELETE", url, headers: frozen.headers, body: frozen.body }, catalog: host.vocabulary.catalog, toolId: operations.ids.makeRequest }) }, {});
-        },
-        notConfirmed: ({ reason }) => reason === "declined" ? { executed: false, cancelled: true } : { executed: false, cancelled: false, reason },
-      })(ctx, { emitSurface }) as Promise<CredentialedRequestOutcome | CredentialToolSetupFailure>;
-    },
-
-    // See this file's header for file-write validation, provider-plan and freshness boundaries.
-    [operations.ids.writeFiles]: async (ctx): Promise<WriteFilesResult> => {
-      const input = requireInputRecord({ input: ctx.input });
-      const label = requireString({ input, key: "label" });
-      const shapeRejection = { toolId: operations.ids.writeFiles, catalog: host.vocabulary.catalog, isShapeRejection: ({ error }: { error: unknown }) => isWriteFilesShapeRejection(error) };
-      const request = await withSchemaOnRejection({ ...shapeRejection, fn: async () =>
-        operations.policy.validateWriteFiles({ branch: input.branch, commitMessage: input.commitMessage, files: input.files })
-      });
-      await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }), workspaceId: routeDeps.workspaceId, principalId: ctx.principal.id, permission: host.vocabulary.permissions.write }, { entityType: host.vocabulary.entityType });
-
-      // The host first, from the credential's plaintext base URL (no decrypt): its owner/repo rules
-      // decide whether this call is well formed at all.
-      const summary = await operations.sets.byLabel({ label });
-      if (!summary) {
-        throw new CustomCredentialNotFoundError(operations.messages.notFoundLabel({ label }));
-      }
-      const built = await sourceControlWrite.build({ workspaceId: routeDeps.workspaceId, baseUrl: summary.baseUrl });
-      if (!built.ok) throw new Error(operations.messages.writeFailure({ message: built.message }));
-      const provider = built.provider;
-      const target = await withSchemaOnRejection({ ...shapeRejection, fn: async () => sourceControlWrite.validateTarget({ provider, target: { owner: input.owner, repo: input.repo } }) });
-      const validated: ValidatedWriteFilesInput = { ...request, ...target };
-
-      // A DECRYPTING resolve: the plan phase's read-only host calls need the token regardless of
-      // whether the human goes on to confirm. The row was just seen above; one deleted in between
-      // is the same not-found refusal.
-      const resolved = await operations.sets.resolve({ label });
-      if (!resolved) {
-        throw new CustomCredentialNotFoundError(operations.messages.notFoundLabel({ label }));
-      }
-
-      const planResult = await sourceControlWrite.planFileWrite({ provider, input: { ...writeTarget(resolved, validated), branch: validated.branch, files: validated.files } });
-      if (!planResult.ok) {
-        operations.diagnostics.writeFailure({ phase: "plan", failure: planResult });
-        throw new Error(operations.messages.writeFailure({ message: planResult.message }));
-      }
-
-      // A run aborted during reconnaissance must not proceed to the external commit.
-      if (ctx.signal.aborted) return { executed: false, cancelled: false, reason: "abandoned" };
-      return performRepositoryFilesWrite({ operations, port: sourceControlWrite, provider, resolved, validated, plan: planResult.plan });
-    },
+    [operations.ids.list]: (ctx) => listCredentials(tc, ctx),
+    [operations.ids.verify]: (ctx) => verifyCredential(tc, ctx),
+    [operations.ids.setUsername]: (ctx) => setCredentialUsername(tc, ctx),
+    [operations.ids.makeRequest]: (ctx, options) => makeCredentialRequest(tc, ctx, options),
+    [operations.ids.writeFiles]: (ctx) => writeCredentialFiles(tc, ctx),
   };
 
   return buildDomainRegistrations({ metadata: host.vocabulary.metadata,

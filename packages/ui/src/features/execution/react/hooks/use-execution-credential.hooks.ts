@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { ByokConfig } from "../../types.js";
 import { useSerialWrites } from "../../../panel-kit/hooks/use-serial-writes.hooks.js";
 import { useSettlementGeneration } from "../../../panel-kit/hooks/use-settlement-generation.hooks.js";
-import type { SettingsSliceRefreshPort } from "../../../panel-kit/hooks/use-settings-slice.hooks.js";
+import type { SettingsSliceRefreshPort } from "../../../panel-kit/hooks/settings-slice.helpers.js";
 
 /** The metadata read by this controller. Hosts retain any additional write-only view fields. */
 export interface ExecutionCredentialView { isSet: boolean; masked: string | null; baseUrl: string | null }
@@ -192,14 +192,7 @@ export interface ExecutionCredentialController<TStored extends ExecutionCredenti
   dismissLegacyPrompt: () => void;
 }
 
-/**
- * @complexity Time: O(1) per call — one GET on mount, one PUT per explicit save/migrate. Space:
- * O(1) — no caller-controlled collections.
- */
-export function useExecutionCredential<TStored extends ExecutionCredentialView>(
-  { byok, onByokChange, locale, port, effects }: UseExecutionCredentialInput & { port: ExecutionCredentialPort<TStored>; effects: ExecutionCredentialEffects<TStored> },
-  _options: Record<string, never> = {},
-): ExecutionCredentialController<TStored> {
+function useCredentialState<TStored extends ExecutionCredentialView>({ byok, onByokChange }: UseExecutionCredentialInput) {
   const [stored, setStored] = useState<TStored | null>(null);
   const [saveState, setSaveState] = useState<ExecutionCredentialSaveState>({ status: "idle" });
   const [settingsSaveState, setSettingsSaveState] = useState<ExecutionCredentialSaveState>({ status: "idle" });
@@ -210,8 +203,9 @@ export function useExecutionCredential<TStored extends ExecutionCredentialView>(
   // `byok` its own closure captured at button-press time. Without this, a provider chip click, a
   // model edit, or a newly typed key made while a key save was in flight was reverted to the
   // click-time config the instant the response landed, and the ledger slice then autosaved that
-  // revert (S1). Assigning a ref during render is the same idiom `use-visitor-credential-
-  // form.hooks.ts`'s `apiRef` uses for the identical reason.
+  // revert (S1). Assigning a ref during render is the same idiom
+  // the host app's `src/features/ai-assistant/hooks/use-visitor-credential-form.hooks.ts`'s
+  // `apiRef` uses for the identical reason.
   const inputRef = useRef<UseExecutionCredentialInput>({ byok, onByokChange });
   inputRef.current = { byok, onByokChange };
 
@@ -247,6 +241,11 @@ export function useExecutionCredential<TStored extends ExecutionCredentialView>(
     setStored(view);
   }
 
+  return { stored, setStored, saveState, setSaveState, settingsSaveState, setSettingsSaveState, legacyKey, setLegacyKey, legacyDismissed, setLegacyDismissed, inputRef, writes, storedSettlement, installWrittenView };
+}
+
+function useCredentialRefresh<TStored extends ExecutionCredentialView>(state: ReturnType<typeof useCredentialState<TStored>>, { port, effects }: UseExecutionCredentialInput & { port: ExecutionCredentialPort<TStored>; effects: ExecutionCredentialEffects<TStored> }) {
+  const { stored, setStored, setLegacyKey, storedSettlement } = state;
   // Hydrate the stored view, on mount AND whenever another mount (or `AssistantDock`'s own separate
   // copy) publishes a change to this same server row — see this file's "Cross-mount staleness" doc
   // above. Silent on failure, same posture `use-visitor-credential-form.hooks.ts` takes for its own
@@ -280,8 +279,7 @@ export function useExecutionCredential<TStored extends ExecutionCredentialView>(
     // the same module-level singleton), so adding it changes nothing about when this effect re-runs —
     // it is here only because it is now a function-scoped value ESLint's exhaustive-deps rule can see,
     // where the old `loadAdminExecutionCredential` import was invisible to that rule.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [port, effects]);
+  }, [port, effects, storedSettlement]);
 
   // Offer the migration prompt only once the server's own state is known AND nothing is already
   // stored there — an admin who already has a server-side credential (migrated earlier, or just
@@ -292,6 +290,10 @@ export function useExecutionCredential<TStored extends ExecutionCredentialView>(
     setLegacyKey(stored.isSet ? null : effects.readLegacyCredential({}, {}));
   }, [stored, effects]);
 
+}
+
+function createKeySaver<TStored extends ExecutionCredentialView>(state: ReturnType<typeof useCredentialState<TStored>>, { byok, port, effects }: UseExecutionCredentialInput & { port: ExecutionCredentialPort<TStored>; effects: ExecutionCredentialEffects<TStored> }) {
+  const { setSaveState, writes, installWrittenView, inputRef } = state;
   function saveKey(): Promise<void> {
     const apiKey = byok.apiKey.trim();
     // The BUTTON's rule, applied again here so a blank field cannot reach the server even through a
@@ -330,6 +332,11 @@ export function useExecutionCredential<TStored extends ExecutionCredentialView>(
     } });
   }
 
+  return saveKey;
+}
+
+function createSettingsSaver<TStored extends ExecutionCredentialView>(state: ReturnType<typeof useCredentialState<TStored>>, { byok, port, effects }: UseExecutionCredentialInput & { port: ExecutionCredentialPort<TStored>; effects: ExecutionCredentialEffects<TStored> }) {
+  const { setSettingsSaveState, writes, installWrittenView } = state;
   function saveSettings(): Promise<void> {
     setSettingsSaveState({ status: "saving" });
     return writes.run({ task: async () => {
@@ -357,6 +364,11 @@ export function useExecutionCredential<TStored extends ExecutionCredentialView>(
     } });
   }
 
+  return saveSettings;
+}
+
+function createLegacyMigrator<TStored extends ExecutionCredentialView>(state: ReturnType<typeof useCredentialState<TStored>>, { byok, port, effects }: UseExecutionCredentialInput & { port: ExecutionCredentialPort<TStored>; effects: ExecutionCredentialEffects<TStored> }) {
+  const { legacyKey, setSaveState, writes, installWrittenView, setLegacyKey } = state;
   function migrateLegacyKey(): Promise<void> {
     if (!legacyKey) return Promise.resolve();
     setSaveState({ status: "saving" });
@@ -388,6 +400,24 @@ export function useExecutionCredential<TStored extends ExecutionCredentialView>(
     } });
   }
 
+  return migrateLegacyKey;
+}
+
+/**
+ * @complexity Time: O(1) per call — one GET on mount, one PUT per explicit save/migrate. Space:
+ * O(1) — no caller-controlled collections.
+ */
+export function useExecutionCredential<TStored extends ExecutionCredentialView>(
+  { byok, onByokChange, locale, port, effects }: UseExecutionCredentialInput & { port: ExecutionCredentialPort<TStored>; effects: ExecutionCredentialEffects<TStored> },
+  _options: Record<string, never> = {},
+): ExecutionCredentialController<TStored> {
+  const input = { byok, onByokChange, locale, port, effects };
+  const state = useCredentialState<TStored>(input);
+  const { stored, saveState, settingsSaveState, legacyKey, legacyDismissed, setLegacyDismissed } = state;
+  useCredentialRefresh(state, input);
+  const saveKey = createKeySaver(state, input);
+  const saveSettings = createSettingsSaver(state, input);
+  const migrateLegacyKey = createLegacyMigrator(state, input);
   function dismissLegacyPrompt(): void {
     setLegacyDismissed(true);
   }

@@ -38,7 +38,7 @@ function harness() {
       sources.push(source); return source;
     },
     catalog: (_name, source) => ({ tables: source.tableNames().map(name => ({ name, columns: [{ name: "id", sqlType: "text", notNull: true }], primaryKey: ["id"], indexes: [], foreignKeys: [], checks: [] } satisfies TransferTable)), leftOut: [] }),
-    partialExclusions: () => [], failureLog: () => {}, describeError: error => error instanceof Error ? error.constructor.name : typeof error,
+    partialExclusions: () => [], failureLog: () => {},
     schemaMismatchGuidance: "fixture layout mismatch",
     readers: { inputRecord: input => input as Record<string, unknown>, string: (input, key) => String(input[key]) },
   };

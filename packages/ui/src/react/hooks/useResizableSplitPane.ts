@@ -11,10 +11,12 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type CSSProperties,
   type KeyboardEvent as ReactKeyboardEvent,
+  type MutableRefObject,
   type PointerEvent as ReactPointerEvent,
   type RefObject,
 } from 'react';
@@ -76,8 +78,8 @@ function clampWidthForMax(width: number, min: number, max: number, effectiveMax:
 // === 'undefined'` SSR guards can be exercised for real under a
 // `@vitest-environment node` companion test — this package's default jsdom
 // environment always defines `window`, so that branch is otherwise
-// unreachable. See `useResizableSplitPane.ssr.test.ts`.
-export function readSavedWidth(storageKey: string, defaultWidth: number, min: number, max: number): number {
+// unreachable. See `packages/ui/src/react/hooks/__tests__/useResizableSplitPane.test.tsx`.
+export function readSavedWidth({ storageKey, defaultWidth, min, max }: { storageKey: string; defaultWidth: number; min: number; max: number }, _optional = {}): number {
   if (typeof window === 'undefined') return defaultWidth;
   try {
     const raw = window.localStorage.getItem(storageKey);
@@ -88,7 +90,7 @@ export function readSavedWidth(storageKey: string, defaultWidth: number, min: nu
   }
 }
 
-export function saveWidth(storageKey: string, width: number, min: number, max: number): void {
+export function saveWidth({ storageKey, width, min, max }: { storageKey: string; width: number; min: number; max: number }, _optional = {}): void {
   if (typeof window === 'undefined') return;
   try {
     window.localStorage.setItem(storageKey, String(clampPreferredWidth(width, min, max)));
@@ -108,91 +110,56 @@ function applyContainerWidth(
   container.style.gridTemplateColumns = `${width}px ${handleWidth}px ${secondaryTrack}`;
 }
 
-export function useResizableSplitPane(
-  options: UseResizableSplitPaneOptions = {},
-): ResizableSplitPaneController {
-  const storageKey = options.storageKey ?? DEFAULT_STORAGE_KEY;
-  const defaultWidth = options.defaultWidth ?? 460;
+interface SplitPaneConfig {
+  storageKey: string;
+  defaultWidth: number;
+  minWidth: number;
+  maxWidthOption: number;
+  handleWidth: number;
+  minSecondaryWidth: number;
+  keyboardStep: number;
+  minNormalContainerWidth: number;
+}
+
+function resolveSplitPaneConfig(options: UseResizableSplitPaneOptions): SplitPaneConfig {
   const minWidth = options.minWidth ?? 345;
-  const maxWidthOption = options.maxWidth ?? 720;
   const handleWidth = options.handleWidth ?? 8;
   const minSecondaryWidth = options.minSecondaryWidth ?? 400;
-  const keyboardStep = options.keyboardStep ?? 16;
-  const minNormalContainerWidth = minWidth + handleWidth + minSecondaryWidth;
+  return {
+    storageKey: options.storageKey ?? DEFAULT_STORAGE_KEY,
+    defaultWidth: options.defaultWidth ?? 460,
+    minWidth,
+    maxWidthOption: options.maxWidth ?? 720,
+    handleWidth,
+    minSecondaryWidth,
+    keyboardStep: options.keyboardStep ?? 16,
+    minNormalContainerWidth: minWidth + handleWidth + minSecondaryWidth,
+  };
+}
 
-  const [width, setWidth] = useState(() => readSavedWidth(storageKey, defaultWidth, minWidth, maxWidthOption));
-  const [maxWidth, setMaxWidth] = useState(maxWidthOption);
-  const [secondaryMinWidth, setSecondaryMinWidth] = useState(minSecondaryWidth);
-  const [isResizing, setIsResizing] = useState(false);
+type ApplyWidthOptions = { commitState?: boolean };
 
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const widthRef = useRef(width);
-  const preferredWidthRef = useRef(width);
-  const resizeStartPreferredWidthRef = useRef(width);
-  const maxWidthRef = useRef(maxWidth);
-  const resizeStateRef = useRef<{
-    startClientX: number;
-    startWidth: number;
-    isRtl: boolean;
-    hasMoved: boolean;
-  } | null>(null);
-  const pointerCleanupRef = useRef<(() => void) | null>(null);
-  const pointerFrameRef = useRef<number | null>(null);
-  const pendingPointerClientXRef = useRef<number | null>(null);
+interface ContainerMeasurementDeps {
+  config: SplitPaneConfig;
+  containerRef: RefObject<HTMLDivElement | null>;
+  preferredWidthRef: MutableRefObject<number>;
+  maxWidthRef: MutableRefObject<number>;
+  renderPreferredWidth: (preferredWidth: number, effectiveMax?: number) => number;
+  setSecondaryMinWidth: (width: number) => void;
+  setMaxWidth: (width: number) => void;
+}
 
-  const secondaryTrack = secondaryMinWidth === 0 ? 'minmax(0, 1fr)' : `minmax(${secondaryMinWidth}px, 1fr)`;
-
-  const renderPreferredWidth = useCallback(
-    (preferredWidth: number, effectiveMax = maxWidthRef.current, opts: { commitState?: boolean } = {}): number => {
-      const next = clampWidthForMax(preferredWidth, minWidth, maxWidthOption, effectiveMax);
-      widthRef.current = next;
-      applyContainerWidth(containerRef.current, next, secondaryTrack, handleWidth);
-      if (opts.commitState !== false) setWidth(next);
-      return next;
-    },
-    [minWidth, maxWidthOption, secondaryTrack, handleWidth],
-  );
-
-  const applyWidth = useCallback(
-    (nextWidth: number, opts: { commitState?: boolean } = {}): number => {
-      const nextPreferred = clampPreferredWidth(
-        clampWidthForMax(nextWidth, minWidth, maxWidthOption, maxWidthRef.current),
-        minWidth,
-        maxWidthOption,
-      );
-      preferredWidthRef.current = nextPreferred;
-      return renderPreferredWidth(nextPreferred, maxWidthRef.current, opts);
-    },
-    [renderPreferredWidth, minWidth, maxWidthOption],
-  );
-
-  const finishResize = useCallback(
-    (saveFinalWidth = true) => {
-      pointerCleanupRef.current?.();
-      pointerCleanupRef.current = null;
-      if (pointerFrameRef.current !== null) {
-        cancelAnimationFrame(pointerFrameRef.current);
-        pointerFrameRef.current = null;
-      }
-      pendingPointerClientXRef.current = null;
-      resizeStateRef.current = null;
-      setIsResizing(false);
-      if (saveFinalWidth) {
-        const finalWidth = renderPreferredWidth(preferredWidthRef.current);
-        saveWidth(storageKey, finalWidth, minWidth, maxWidthOption);
-      }
-    },
-    [renderPreferredWidth, storageKey, minWidth, maxWidthOption],
-  );
-
-  useEffect(() => {
-    widthRef.current = width;
-    applyContainerWidth(containerRef.current, width, secondaryTrack, handleWidth);
-  }, [width, secondaryTrack, handleWidth]);
-
-  useEffect(() => {
-    maxWidthRef.current = maxWidth;
-  }, [maxWidth]);
+/** Re-derives the primary pane's max width (and the secondary's min) whenever the container resizes. */
+function useContainerMeasurement({
+  config,
+  containerRef,
+  preferredWidthRef,
+  maxWidthRef,
+  renderPreferredWidth,
+  setSecondaryMinWidth,
+  setMaxWidth,
+}: ContainerMeasurementDeps) {
+  const { maxWidthOption, handleWidth, minSecondaryWidth, minNormalContainerWidth } = config;
 
   useLayoutEffect(() => {
     const container = containerRef.current;
@@ -222,9 +189,225 @@ export function useResizableSplitPane(
 
     window.addEventListener('resize', updateAllowedWidth);
     return () => window.removeEventListener('resize', updateAllowedWidth);
-  }, [renderPreferredWidth, minNormalContainerWidth, minSecondaryWidth, maxWidthOption, handleWidth]);
+  }, [renderPreferredWidth, minNormalContainerWidth, minSecondaryWidth, maxWidthOption, handleWidth, containerRef, preferredWidthRef, maxWidthRef, setSecondaryMinWidth, setMaxWidth]);
+}
+
+/** The committed/preferred width, its container-narrowed max, and the CSS it renders into the container. */
+function useSplitPaneWidth(config: SplitPaneConfig, containerRef: RefObject<HTMLDivElement | null>) {
+  const { storageKey, defaultWidth, minWidth, maxWidthOption, handleWidth, minSecondaryWidth } = config;
+  const [width, setWidth] = useState(() => readSavedWidth({ storageKey, defaultWidth, min: minWidth, max: maxWidthOption }));
+  const [maxWidth, setMaxWidth] = useState(maxWidthOption);
+  const [secondaryMinWidth, setSecondaryMinWidth] = useState(minSecondaryWidth);
+  const widthRef = useRef(width);
+  const preferredWidthRef = useRef(width);
+  const maxWidthRef = useRef(maxWidth);
+
+  const secondaryTrack = secondaryMinWidth === 0 ? 'minmax(0, 1fr)' : `minmax(${secondaryMinWidth}px, 1fr)`;
+
+  const renderPreferredWidth = useCallback(
+    (preferredWidth: number, effectiveMax = maxWidthRef.current, opts: ApplyWidthOptions = {}): number => {
+      const next = clampWidthForMax(preferredWidth, minWidth, maxWidthOption, effectiveMax);
+      widthRef.current = next;
+      applyContainerWidth(containerRef.current, next, secondaryTrack, handleWidth);
+      if (opts.commitState !== false) setWidth(next);
+      return next;
+    },
+    [minWidth, maxWidthOption, secondaryTrack, handleWidth, containerRef],
+  );
+
+  const applyWidth = useCallback(
+    (nextWidth: number, opts: ApplyWidthOptions = {}): number => {
+      const nextPreferred = clampPreferredWidth(
+        clampWidthForMax(nextWidth, minWidth, maxWidthOption, maxWidthRef.current),
+        minWidth,
+        maxWidthOption,
+      );
+      preferredWidthRef.current = nextPreferred;
+      return renderPreferredWidth(nextPreferred, maxWidthRef.current, opts);
+    },
+    [renderPreferredWidth, minWidth, maxWidthOption],
+  );
+
+  useEffect(() => {
+    widthRef.current = width;
+    applyContainerWidth(containerRef.current, width, secondaryTrack, handleWidth);
+  }, [width, secondaryTrack, handleWidth, containerRef]);
+
+  useEffect(() => {
+    maxWidthRef.current = maxWidth;
+  }, [maxWidth]);
+
+  useContainerMeasurement({
+    config, containerRef, preferredWidthRef, maxWidthRef, renderPreferredWidth, setSecondaryMinWidth, setMaxWidth,
+  });
+
+  return {
+    width, maxWidth, secondaryMinWidth, secondaryTrack,
+    widthRef, preferredWidthRef, maxWidthRef, renderPreferredWidth, applyWidth,
+  };
+}
+
+interface DragRefs {
+  widthRef: MutableRefObject<number>;
+  preferredWidthRef: MutableRefObject<number>;
+  resizeStartPreferredWidthRef: MutableRefObject<number>;
+  resizeStateRef: MutableRefObject<{
+    startClientX: number;
+    startWidth: number;
+    isRtl: boolean;
+    hasMoved: boolean;
+  } | null>;
+  pointerCleanupRef: MutableRefObject<(() => void) | null>;
+  pointerFrameRef: MutableRefObject<number | null>;
+  pendingPointerClientXRef: MutableRefObject<number | null>;
+}
+
+function useDragRefs(widthRef: DragRefs['widthRef'], preferredWidthRef: DragRefs['preferredWidthRef']): DragRefs {
+  const resizeStartPreferredWidthRef = useRef(preferredWidthRef.current);
+  const resizeStateRef = useRef<DragRefs['resizeStateRef']['current']>(null);
+  const pointerCleanupRef = useRef<(() => void) | null>(null);
+  const pointerFrameRef = useRef<number | null>(null);
+  const pendingPointerClientXRef = useRef<number | null>(null);
+  return useMemo(
+    () => ({
+      widthRef,
+      preferredWidthRef,
+      resizeStartPreferredWidthRef,
+      resizeStateRef,
+      pointerCleanupRef,
+      pointerFrameRef,
+      pendingPointerClientXRef,
+    }),
+    [widthRef, preferredWidthRef],
+  );
+}
+
+/** Applies the last queued pointer X (RAF-throttled by the caller) to the pane width. */
+function createPendingMoveFlusher({ refs, applyWidth }: {
+  refs: DragRefs;
+  applyWidth: (width: number, opts: ApplyWidthOptions) => number;
+}) {
+  const updateWidthFromClientX = (clientX: number) => {
+    // Non-null assertion, not a guard: finishResize (the only place
+    // resizeStateRef is cleared) always tears down the pointermove
+    // listener that reaches this function in the same synchronous call
+    // that clears the ref, and also cancels any pending RAF before
+    // returning — so no queued pointermove/RAF callback can ever
+    // observe a null state here.
+    const state = refs.resizeStateRef.current!;
+    const delta = clientX - state.startClientX;
+    if (delta === 0 && !state.hasMoved) return;
+    state.hasMoved = true;
+    const rawWidth = state.startWidth + (state.isRtl ? -delta : delta);
+    applyWidth(rawWidth, { commitState: false });
+  };
+
+  return () => {
+    if (refs.pointerFrameRef.current !== null) {
+      cancelAnimationFrame(refs.pointerFrameRef.current);
+      refs.pointerFrameRef.current = null;
+    }
+    const clientX = refs.pendingPointerClientXRef.current;
+    refs.pendingPointerClientXRef.current = null;
+    if (clientX !== null) updateWidthFromClientX(clientX);
+  };
+}
+
+interface PointerDragDeps {
+  event: ReactPointerEvent<HTMLElement>;
+  container: HTMLDivElement;
+  refs: DragRefs;
+  applyWidth: (width: number, opts: ApplyWidthOptions) => number;
+  restoreStartWidth: () => void;
+  finishResize: (saveFinalWidth?: boolean) => void;
+}
+
+/** Starts a window-level pointer drag session (move/up/cancel/blur), recording the start state. */
+function beginPointerDrag({ event, container, refs, applyWidth, restoreStartWidth, finishResize }: PointerDragDeps) {
+  const flushPendingPointerMove = createPendingMoveFlusher({ refs, applyWidth });
+
+  refs.resizeStateRef.current = {
+    startClientX: event.clientX,
+    startWidth: refs.widthRef.current,
+    isRtl: window.getComputedStyle(container).direction === 'rtl',
+    hasMoved: false,
+  };
+
+  const handlePointerMove = (moveEvent: PointerEvent) => {
+    refs.pendingPointerClientXRef.current = moveEvent.clientX;
+    if (refs.pointerFrameRef.current !== null) return;
+    refs.pointerFrameRef.current = requestAnimationFrame(() => {
+      refs.pointerFrameRef.current = null;
+      flushPendingPointerMove();
+    });
+  };
+  const handlePointerEnd = () => {
+    flushPendingPointerMove();
+    finishResize(true);
+  };
+  const handlePointerCancel = () => {
+    flushPendingPointerMove();
+    restoreStartWidth();
+    finishResize(false);
+  };
+  const cleanup = () => {
+    window.removeEventListener('pointermove', handlePointerMove);
+    window.removeEventListener('pointerup', handlePointerEnd);
+    window.removeEventListener('pointercancel', handlePointerCancel);
+    window.removeEventListener('blur', handlePointerCancel);
+  };
+
+  refs.pointerCleanupRef.current = cleanup;
+  window.addEventListener('pointermove', handlePointerMove);
+  window.addEventListener('pointerup', handlePointerEnd);
+  window.addEventListener('pointercancel', handlePointerCancel);
+  window.addEventListener('blur', handlePointerCancel);
+}
+
+/** Detaches the drag listeners and clears all in-flight drag state. */
+function teardownDrag(refs: DragRefs) {
+  refs.pointerCleanupRef.current?.();
+  refs.pointerCleanupRef.current = null;
+  if (refs.pointerFrameRef.current !== null) {
+    cancelAnimationFrame(refs.pointerFrameRef.current);
+    refs.pointerFrameRef.current = null;
+  }
+  refs.pendingPointerClientXRef.current = null;
+  refs.resizeStateRef.current = null;
+}
+
+type SplitPaneWidth = ReturnType<typeof useSplitPaneWidth>;
+
+/** Pointer-drag resizing: the `isResizing` flag, drag session lifecycle, and the handle's pointer/blur handlers. */
+function usePointerResize({ config, containerRef, paneWidth }: {
+  config: SplitPaneConfig;
+  containerRef: RefObject<HTMLDivElement | null>;
+  paneWidth: SplitPaneWidth;
+}) {
+  const { storageKey, minWidth, maxWidthOption } = config;
+  const { widthRef, preferredWidthRef, applyWidth, renderPreferredWidth } = paneWidth;
+  const [isResizing, setIsResizing] = useState(false);
+  const refs = useDragRefs(widthRef, preferredWidthRef);
+  const { resizeStartPreferredWidthRef, pointerCleanupRef } = refs;
+
+  const finishResize = useCallback(
+    (saveFinalWidth = true) => {
+      teardownDrag(refs);
+      setIsResizing(false);
+      if (saveFinalWidth) {
+        const finalWidth = renderPreferredWidth(preferredWidthRef.current);
+        saveWidth({ storageKey, width: finalWidth, min: minWidth, max: maxWidthOption });
+      }
+    },
+    [renderPreferredWidth, storageKey, minWidth, maxWidthOption, refs, preferredWidthRef],
+  );
 
   useEffect(() => () => finishResize(false), [finishResize]);
+
+  const restoreStartWidth = useCallback(() => {
+    preferredWidthRef.current = resizeStartPreferredWidthRef.current;
+    renderPreferredWidth(resizeStartPreferredWidthRef.current);
+  }, [preferredWidthRef, resizeStartPreferredWidthRef, renderPreferredWidth]);
 
   const onHandlePointerDown = useCallback(
     (event: ReactPointerEvent<HTMLElement>) => {
@@ -237,81 +420,31 @@ export function useResizableSplitPane(
       pointerCleanupRef.current?.();
       setIsResizing(true);
       resizeStartPreferredWidthRef.current = preferredWidthRef.current;
-
-      const updateWidthFromClientX = (clientX: number) => {
-        // Non-null assertion, not a guard: finishResize (the only place
-        // resizeStateRef is cleared) always tears down the pointermove
-        // listener that reaches this function in the same synchronous call
-        // that clears the ref, and also cancels any pending RAF before
-        // returning — so no queued pointermove/RAF callback can ever
-        // observe a null state here.
-        const state = resizeStateRef.current!;
-        const delta = clientX - state.startClientX;
-        if (delta === 0 && !state.hasMoved) return;
-        state.hasMoved = true;
-        const rawWidth = state.startWidth + (state.isRtl ? -delta : delta);
-        applyWidth(rawWidth, { commitState: false });
-      };
-
-      const flushPendingPointerMove = () => {
-        if (pointerFrameRef.current !== null) {
-          cancelAnimationFrame(pointerFrameRef.current);
-          pointerFrameRef.current = null;
-        }
-        const clientX = pendingPointerClientXRef.current;
-        pendingPointerClientXRef.current = null;
-        if (clientX !== null) updateWidthFromClientX(clientX);
-      };
-
-      resizeStateRef.current = {
-        startClientX: event.clientX,
-        startWidth: widthRef.current,
-        isRtl: window.getComputedStyle(container).direction === 'rtl',
-        hasMoved: false,
-      };
-
-      const handlePointerMove = (moveEvent: PointerEvent) => {
-        pendingPointerClientXRef.current = moveEvent.clientX;
-        if (pointerFrameRef.current !== null) return;
-        pointerFrameRef.current = requestAnimationFrame(() => {
-          pointerFrameRef.current = null;
-          flushPendingPointerMove();
-        });
-      };
-      const handlePointerEnd = () => {
-        flushPendingPointerMove();
-        finishResize(true);
-      };
-      const handlePointerCancel = () => {
-        flushPendingPointerMove();
-        preferredWidthRef.current = resizeStartPreferredWidthRef.current;
-        renderPreferredWidth(resizeStartPreferredWidthRef.current);
-        finishResize(false);
-      };
-      const cleanup = () => {
-        window.removeEventListener('pointermove', handlePointerMove);
-        window.removeEventListener('pointerup', handlePointerEnd);
-        window.removeEventListener('pointercancel', handlePointerCancel);
-        window.removeEventListener('blur', handlePointerCancel);
-      };
-
-      pointerCleanupRef.current = cleanup;
-      window.addEventListener('pointermove', handlePointerMove);
-      window.addEventListener('pointerup', handlePointerEnd);
-      window.addEventListener('pointercancel', handlePointerCancel);
-      window.addEventListener('blur', handlePointerCancel);
+      beginPointerDrag({ event, container, refs, applyWidth, restoreStartWidth, finishResize });
     },
-    [applyWidth, finishResize, renderPreferredWidth],
+    [applyWidth, finishResize, restoreStartWidth, containerRef, refs, pointerCleanupRef, resizeStartPreferredWidthRef, preferredWidthRef],
   );
 
   const onHandleBlur = useCallback(() => {
     if (!pointerCleanupRef.current) return;
-    preferredWidthRef.current = resizeStartPreferredWidthRef.current;
-    renderPreferredWidth(resizeStartPreferredWidthRef.current);
+    restoreStartWidth();
     finishResize(false);
-  }, [finishResize, renderPreferredWidth]);
+  }, [finishResize, restoreStartWidth, pointerCleanupRef]);
 
-  const onHandleKeyDown = useCallback(
+  return { isResizing, onHandlePointerDown, onHandleBlur };
+}
+
+
+/** ArrowLeft/ArrowRight/Home/End on the handle (RTL-aware), persisting each committed width. */
+function useKeyboardResize({ config, containerRef, paneWidth }: {
+  config: SplitPaneConfig;
+  containerRef: RefObject<HTMLDivElement | null>;
+  paneWidth: SplitPaneWidth;
+}) {
+  const { storageKey, minWidth, maxWidthOption, keyboardStep } = config;
+  const { widthRef, maxWidthRef, applyWidth } = paneWidth;
+
+  return useCallback(
     (event: ReactKeyboardEvent<HTMLElement>) => {
       const container = containerRef.current;
       const isRtl = container ? window.getComputedStyle(container).direction === 'rtl' : false;
@@ -326,10 +459,21 @@ export function useResizableSplitPane(
       if (nextWidth === undefined) return;
       event.preventDefault();
       const next = applyWidth(nextWidth);
-      saveWidth(storageKey, next, minWidth, maxWidthOption);
+      saveWidth({ storageKey, width: next, min: minWidth, max: maxWidthOption });
     },
-    [applyWidth, keyboardStep, minWidth, maxWidthOption, storageKey],
+    [applyWidth, keyboardStep, minWidth, maxWidthOption, storageKey, containerRef, widthRef, maxWidthRef],
   );
+}
+
+export function useResizableSplitPane(
+  options: UseResizableSplitPaneOptions = {},
+): ResizableSplitPaneController {
+  const config = resolveSplitPaneConfig(options);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const paneWidth = useSplitPaneWidth(config, containerRef);
+  const { isResizing, onHandlePointerDown, onHandleBlur } = usePointerResize({ config, containerRef, paneWidth });
+  const onHandleKeyDown = useKeyboardResize({ config, containerRef, paneWidth });
+  const { width, maxWidth, secondaryMinWidth, secondaryTrack } = paneWidth;
 
   return {
     width,
@@ -343,7 +487,7 @@ export function useResizableSplitPane(
     containerStyle: {
       '--resizable-split-pane-primary-width': `${width}px`,
       '--resizable-split-pane-secondary-track': secondaryTrack,
-      gridTemplateColumns: `${width}px ${handleWidth}px ${secondaryTrack}`,
+      gridTemplateColumns: `${width}px ${config.handleWidth}px ${secondaryTrack}`,
     },
   };
 }

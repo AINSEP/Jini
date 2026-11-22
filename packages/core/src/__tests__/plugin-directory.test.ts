@@ -2,6 +2,27 @@ import { describe, expect, it } from 'vitest';
 import { assertPluginIdentityAvailable, createPluginLookupFacade, createPluginLookup, readPluginIdentity, validatePluginIdentity } from '../../plugin-directory.js';
 
 describe('publisher identity and live host discovery (owner 2026-10-09)', () => {
+  it('reads a legacy identity extension only when explicitly configured', () => {
+    const manifest = { name: 'site-rules', extensions: { previous: { id: 'publisher/site-rules', provides: ['content-analysis'] } } };
+    expect(validatePluginIdentity({ manifest, namespace: 'current', legacyNamespace: 'previous' }).errors, 'the configured legacy extension must validate').toEqual([]);
+    expect(readPluginIdentity({ manifest, namespace: 'current', legacyNamespace: 'previous' }), 'the configured legacy extension must supply identity and capabilities').toMatchObject({ id: 'publisher/site-rules', provides: ['content-analysis'] });
+    expect(readPluginIdentity({ manifest, namespace: 'current' }).id, 'an unconfigured legacy extension must keep the existing unknown identity').toBe('unknown/site-rules');
+  });
+
+  it('uses the current extension for both identity and capabilities when both exist', () => {
+    const manifest = { name: 'site-rules', extensions: {
+      current: { id: 'current/site-rules', provides: ['current-analysis'] },
+      previous: { id: 'publisher/site-rules', provides: ['content-analysis'] },
+    } };
+    expect(readPluginIdentity({ manifest, namespace: 'current', legacyNamespace: 'previous' }), 'the current extension must own both identity and capabilities').toMatchObject({ id: 'current/site-rules', provides: ['current-analysis'] });
+  });
+
+  it('refuses a null current extension even when the legacy extension is valid', () => {
+    const manifest = { name: 'site-rules', extensions: { current: null, previous: { id: 'publisher/site-rules', provides: ['content-analysis'] } } };
+    expect(validatePluginIdentity({ manifest, namespace: 'current', legacyNamespace: 'previous' }).errors, 'a null current extension must retain the extension shape error').toEqual(['Plugin identity extension must be an object.']);
+    expect(() => readPluginIdentity({ manifest, namespace: 'current', legacyNamespace: 'previous' }), 'reading must throw the current extension shape error').toThrow(new TypeError('Plugin identity extension must be an object.'));
+  });
+
   it('returns only copied metadata even when an injected source carries host services and paths', async () => {
     const source = { id: 'example/github', version: '1.0.0', enabled: true, family: 'agent-plugin', localId: 'github', keywords: ['repo'], provides: ['source-control'], packageRoot: '/private/package', hostService: () => 'private' };
     const lookup = createPluginLookup({ listPlugins: async () => [source] });

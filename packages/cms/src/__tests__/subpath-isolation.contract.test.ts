@@ -1,6 +1,7 @@
 import { fileURLToPath } from "node:url";
 import { expect, it } from "vitest";
 
+// Vitest 3 fails a synchronous test that overruns its timeout (Vitest 2 could not); this one runs the repo-wide subpath audit (~12.5 s here, under load), as core settings-subpath-isolation does (deps-1121 a1cda3ba).
 it("keeps every CMS subpath isolated at runtime and installation", async () => {
   const repoRoot = fileURLToPath(new URL("../../../../", import.meta.url));
   // Resolve the source guard at runtime so the CMS compiler never includes repository tooling
@@ -12,4 +13,4 @@ it("keeps every CMS subpath isolated at runtime and installation", async () => {
       && ["a", "b", "resolution"].includes(finding.kind),
   );
   expect(violations).toEqual([]);
-});
+}, 60_000);

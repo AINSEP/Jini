@@ -10,15 +10,18 @@ vi.mock('../check-agentic-dom-purity.js', () => ({ checkAgenticDomPurity: () => 
 vi.mock('../check-chatpane-public-surface.js', () => ({ checkChatPanePublicSurface: () => [] }));
 vi.mock('../check-driver-isolation.js', () => ({ checkDriverIsolation: () => [] }));
 vi.mock('../check-hardwiring.js', () => ({ checkHardwiring: () => [] }));
+vi.mock('../check-env-access.js', () => ({ checkEnvAccess: () => [] }));
 vi.mock('../check-engine-boundaries.js', () => ({ checkEngineBoundaries: () => [] }));
 vi.mock('../check-extensionless-imports.js', () => ({ checkExtensionlessImports: () => [] }));
 vi.mock('../check-model-fallback-freshness.js', () => ({ checkModelFallbackFreshness: () => [] }));
 vi.mock('../check-protocol-purity.js', () => ({ checkProtocolPurity: () => [] }));
+vi.mock('../check-runtime-cycles.js', () => ({ checkRuntimeCycles: () => [] }));
 vi.mock('../check-package-layers.js', () => ({ checkPackageLayers: () => [] }));
 vi.mock('../check-plugin-packages.js', () => ({ checkPluginPackages: () => [] }));
 vi.mock('../check-subpath-isolation.js', () => ({ checkSubpathIsolation: () => [] }));
 vi.mock('../lib/source-neutrality.js', () => ({ checkSourceNeutrality: () => [] }));
 vi.mock('../lib/publish-hygiene-self-test.js', () => ({ runPublishHygieneSelfTest: () => [] }));
+vi.mock('../lib/runtime-cycles-self-test.js', () => ({ runRuntimeCycleSelfTest: () => [] }));
 vi.mock('../lib/self-test.js', () => ({ runGuardSelfTest: () => [] }));
 
 afterEach(() => vi.restoreAllMocks());

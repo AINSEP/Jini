@@ -1,10 +1,10 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "./harness.js";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { FetchQueryProvider } from "@jini-ai/ui/fetch-query";
 import type { AdminFormDefinition } from "../../models.js";
 import { FormEditor } from "../pages/FormEditor.js";
-import { createFakeFormsPort, useFormEditor } from "./legacy-ports.js";
+import { FormsCatalogScope } from "./catalog-scope.js"; import { createFakeFormsPort, useFormEditor } from "./legacy-ports.js";
 
 /**
  * @file Chrome check, 2026-10-11: Back from an edited, unsaved form discarded it silently, and the
@@ -18,7 +18,7 @@ const form: AdminFormDefinition = {
   fields: [{ id: "level", label: "Level", type: "range", required: false }],
   notify: { enabled: false, recipients: [] }, createdAt: "2026-10-11", updatedAt: "2026-10-11",
 };
-const wrapper = ({ children }: { children: React.ReactNode }) => <FetchQueryProvider>{children}</FetchQueryProvider>;
+const wrapper = ({ children }: { children: React.ReactNode }) => <FetchQueryProvider><FormsCatalogScope>{children}</FormsCatalogScope></FetchQueryProvider>;
 afterEach(() => vi.unstubAllGlobals());
 
 function renderEditor(formId = "contact") {

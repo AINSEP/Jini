@@ -1,5 +1,5 @@
 /**
- * @file Typed domain errors for `commerce`. Mirrors the `features/forms/errors.ts` /
+ * @file Typed domain errors for `commerce`. Mirrors the `packages/cms/src/forms/errors.ts` /
  * `PostConflictError`-style convention already used throughout this codebase — one class per
  * error this module originates.
  */

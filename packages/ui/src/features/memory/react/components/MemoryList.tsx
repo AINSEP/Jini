@@ -3,7 +3,11 @@
 // visible extraction rows). Rendering only — every list, count, and handler is
 // supplied by a host's entries/extractions hooks.
 import { useMemo, type MutableRefObject } from 'react';
-import { agentHandleProps, agentSubHandle, buildAgentListHandles } from '@jini-ai/agentic';
+import {
+  agentHandleProps,
+  agentSubHandle,
+  buildAgentListHandles,
+} from '@jini-ai/core/agent-handles';
 import { Icon } from '../../../../react/components/Icon.js';
 import { useT } from '../../../i18n/index.js';
 import { TYPES } from '../../constants.js';
@@ -19,10 +23,10 @@ function rowHandles({ agentHandle, action, ids }: { agentHandle: string | undefi
   return agentHandle ? buildAgentListHandles({ prefix: agentSubHandle({ base: agentHandle, action }), ids }) : undefined;
 }
 
-function MemoryListCounts({ savedCount, extractionCount }: { savedCount: number; extractionCount: number }) {
-  const t = useT();
+function MemoryListCounts({ savedCount, extractionCount, useTHook = useT }: { savedCount: number; extractionCount: number; useTHook?: typeof useT; }) {
+  const t = useTHook();
   return (
-    <div className="memory-management-counts">
+    <div className="jini-memory-management-counts">
       <span className="memory-source-badge">{savedCount} {t('saved')}</span>
       {extractionCount > 0 ? (
         <span className="memory-source-badge">
@@ -39,17 +43,19 @@ function MemoryFilterPills({
   filter,
   onFilterChange,
   agentHandle,
+  useTHook = useT,
 }: {
   entries: MemoryEntrySummary[];
   extractionCount: number;
   filter: MemoryFilter;
   onFilterChange: (filter: MemoryFilter) => void;
   agentHandle: string | undefined;
+  useTHook?: typeof useT;
 }) {
-  const t = useT();
-  const typeLabel = useMemo(() => memoryTypeLabels(t), [t]);
+  const t = useTHook();
+  const typeLabel = useMemo(() => memoryTypeLabels({ t }), [t]);
   return (
-    <div className="library-filters">
+    <div className="jini-library-filters">
       <button
         type="button"
         className={`filter-pill${filter === 'all' ? ' active' : ''}`}
@@ -57,7 +63,7 @@ function MemoryFilterPills({
         {...agentHandleProps({}, { base: agentHandle, action: 'filter-all', role: 'button', label: t('All') })}
       >
         {t('All')}
-        <span className="filter-pill-count">{entries.length + extractionCount}</span>
+        <span className="jini-filter-pill-count">{entries.length + extractionCount}</span>
       </button>
       {TYPES.map((type) => {
         const count = entries.filter((e) => e.type === type).length;
@@ -71,7 +77,7 @@ function MemoryFilterPills({
             {...agentHandleProps({}, { base: agentHandle, action: `filter-${type}`, role: 'button', label: typeLabel[type] })}
           >
             {typeLabel[type]}
-            <span className="filter-pill-count">{count}</span>
+            <span className="jini-filter-pill-count">{count}</span>
           </button>
         );
       })}
@@ -84,18 +90,20 @@ function MemoryExtractionActions({
   onRefreshExtractions,
   isRefreshing,
   agentHandle,
+  useTHook = useT,
 }: {
   onClearExtractions: () => void;
   onRefreshExtractions: () => void;
   isRefreshing: boolean;
   agentHandle: string | undefined;
+  useTHook?: typeof useT;
 }) {
-  const t = useT();
+  const t = useTHook();
   return (
     <>
       <button
         type="button"
-        className="ghost memory-clear-extractions"
+        className="ghost jini-memory-clear-extractions"
         onClick={() => onClearExtractions()}
         title={t('Clear extraction history')}
         {...agentHandleProps({}, { base: agentHandle, action: 'clear-extractions', role: 'button', label: t('Clear extraction history') })}
@@ -105,7 +113,7 @@ function MemoryExtractionActions({
       </button>
       <button
         type="button"
-        className="ghost memory-refresh-extractions"
+        className="ghost jini-memory-refresh-extractions"
         onClick={() => onRefreshExtractions()}
         disabled={isRefreshing}
         title={t('Refresh')}
@@ -118,15 +126,15 @@ function MemoryExtractionActions({
   );
 }
 
-function MemoryListEmpty() {
-  const t = useT();
+function MemoryListEmpty({ useTHook = useT }: { useTHook?: typeof useT } = {}) {
+  const t = useTHook();
   return (
     // Empty state: one clear "no rows yet" line and a one-sentence
     // primer that explains the mechanism (talk in chat, fact gets
     // extracted) with a single example.
-    <div className="library-empty">
-      <p className="library-empty-title">{t('No saved memories yet')}</p>
-      <p className="library-empty-hint">
+    <div className="jini-library-empty">
+      <p className="jini-library-empty-title">{t('No saved memories yet')}</p>
+      <p className="jini-library-empty-hint">
         {t('Tell the assistant a fact in chat — e.g.')} <code>{t('I prefer dark mode')}</code>{' '}
         {t('— and it will be saved here automatically.')}
       </p>
@@ -187,6 +195,40 @@ function MemoryListRows({
   );
 }
 
+/** Filter pills plus, while extractions are listed, their clear / refresh actions. */
+function MemoryListToolbar({ entries, extractionCount, filter, onFilterChange, onClearExtractions, onRefreshExtractions, isRefreshing, agentHandle }: {
+  entries: MemoryEntrySummary[];
+  extractionCount: number;
+  filter: 'all' | MemoryType;
+  onFilterChange: (filter: 'all' | MemoryType) => void;
+  onClearExtractions: () => void;
+  onRefreshExtractions: () => void;
+  isRefreshing: boolean;
+  agentHandle: string | undefined;
+}) {
+  return (
+  <div className="jini-library-toolbar jini-is-row">
+    <MemoryFilterPills
+      entries={entries}
+      extractionCount={extractionCount}
+      filter={filter}
+      onFilterChange={onFilterChange}
+      agentHandle={agentHandle}
+    />
+    <div className="jini-memory-management-actions">
+      {extractionCount > 0 ? (
+        <MemoryExtractionActions
+          onClearExtractions={onClearExtractions}
+          onRefreshExtractions={onRefreshExtractions}
+          isRefreshing={isRefreshing}
+          agentHandle={agentHandle}
+        />
+      ) : null}
+    </div>
+  </div>
+  );
+}
+
 export function MemoryList({
   sectionRef,
   entries,
@@ -206,6 +248,7 @@ export function MemoryList({
   onDeleteEntry,
   onDeleteExtraction,
   agentHandle,
+  useTHook = useT,
 }: {
   sectionRef: MutableRefObject<HTMLElement | null>;
   entries: MemoryEntrySummary[];
@@ -226,8 +269,9 @@ export function MemoryList({
   onDeleteExtraction: (id: string) => void;
   /** This section's own agent handle — see `MemorySettingsPanel`'s `agentHandle` doc. */
   agentHandle?: string;
+  useTHook?: typeof useT;
 }) {
-  const t = useT();
+  const t = useTHook();
   return (
     <section ref={sectionRef} className="settings-section settings-section-card memory-records-section">
       <div className="memory-management-panel">
@@ -239,25 +283,16 @@ export function MemoryList({
           <MemoryListCounts savedCount={entries.length} extractionCount={visibleExtractions.length} />
         </div>
 
-        <div className="library-toolbar is-row">
-          <MemoryFilterPills
-            entries={entries}
-            extractionCount={visibleExtractions.length}
-            filter={filter}
-            onFilterChange={onFilterChange}
-            agentHandle={agentHandle}
-          />
-          <div className="memory-management-actions">
-            {visibleExtractions.length > 0 ? (
-              <MemoryExtractionActions
-                onClearExtractions={onClearExtractions}
-                onRefreshExtractions={onRefreshExtractions}
-                isRefreshing={isRefreshing}
-                agentHandle={agentHandle}
-              />
-            ) : null}
-          </div>
-        </div>
+        <MemoryListToolbar
+          entries={entries}
+          extractionCount={visibleExtractions.length}
+          filter={filter}
+          onFilterChange={onFilterChange}
+          onClearExtractions={onClearExtractions}
+          onRefreshExtractions={onRefreshExtractions}
+          isRefreshing={isRefreshing}
+          agentHandle={agentHandle}
+        />
 
         <div className="library-content memory-unified-list">
           {unifiedMemoryCount === 0 ? (

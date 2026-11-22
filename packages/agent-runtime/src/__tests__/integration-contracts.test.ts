@@ -4,8 +4,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   ModelCatalogCache, unionModels, runProviderToolTurn, providerTurnAdapters,
   decodeSseStream, probeAcpModels, detectAcpModels, setAcpModelProbe,
-  type AcpModelProbe, type ProviderTurnAdapters,
+  type ProviderTurnAdapters,
 } from '../index.js';
+import { type AcpModelProbe } from '@jini-ai/core/contracts/agents';
 import { ModelCatalogCache as CatalogSubpath } from '../model-catalog-cache.js';
 import { runProviderToolTurn as TurnSubpath } from '../providers/tool-turn.js';
 import { decodeSseStream as DecoderSubpath } from '../providers/sse-decode.js';
@@ -37,10 +38,10 @@ describe('integrated runtime contracts', () => {
       ? { code: 'QUOTA_EXCEEDED', message: 'quota exceeded', action: 'recharge' as const }
       : null);
     const classifier = { classify };
-    expect(promotedAmrRetryStatusPayload({ status: 'retry', message: 'quota exceeded' }, classifier)).toMatchObject({
+    expect(promotedAmrRetryStatusPayload({ update: { status: 'retry', message: 'quota exceeded' } }, { classifier })).toMatchObject({
       error: { code: 'QUOTA_EXCEEDED', details: { promoted_by: 'agent_runtime_acp_retry_status' } },
     });
-    expect(promotedAmrStderrPayload('opencode_event_stream_failure retry quota exceeded', classifier)).toMatchObject({
+    expect(promotedAmrStderrPayload({ chunk: 'opencode_event_stream_failure retry quota exceeded' }, { classifier })).toMatchObject({
       error: { code: 'QUOTA_EXCEEDED', details: { promoted_by: 'agent_runtime_acp_stderr_retry_status' } },
     });
     expect(classify.mock.calls).toEqual([
@@ -103,6 +104,7 @@ describe('integrated runtime contracts', () => {
       ['providers/tool-turn', 'providers/tool-turn', 'node'],
       ['model-catalog/cache', 'model-catalog-cache', 'universal'],
       ['providers/sse-decode', 'providers/sse-decode', 'universal'],
+      ['native-permissions', 'native-permissions', 'universal'],
     ] satisfies [string, string, string][]) {
       expect(manifest.exports[`./${subpath}`]).toEqual({
         types: `./dist/${module}.d.ts`, import: `./dist/${module}.js`, default: `./dist/${module}.js`,

@@ -17,18 +17,18 @@ describe('viewer-shell barrel (index.ts)', () => {
   });
 
   it('re-exports the pure rule functions', () => {
-    expect(viewerShell.humanFileSize(512)).toBe('512 B');
-    expect(viewerShell.dropEdgeForClientY(10, { top: 0, height: 100 })).toBe('before');
-    expect(viewerShell.reorderCommentIds(['a', 'b'], 'a', 'b', 'after')).toEqual(['b', 'a']);
-    expect(viewerShell.appendSavedCommentOrder([], ['a'], 'b')).toEqual(['a', 'b']);
-    expect(viewerShell.relativeCommentTimeTranslation(0, 1000)).toEqual({ key: 'Just now' });
-    expect(viewerShell.visibleSelectedCommentIds([{ id: 'a' }], new Set(['a']))).toEqual(new Set(['a']));
-    expect(viewerShell.formatJsonTextForDisplay('{"a":1}', true)).toBe('{\n  "a": 1\n}');
-    expect(viewerShell.hasPrecisionSensitiveJsonNumberText('{"a": 42}')).toBe(false);
+    expect(viewerShell.humanFileSize({ bytes: 512 })).toBe('512 B');
+    expect(viewerShell.dropEdgeForClientY({ clientY: 10, targetRect: { top: 0, height: 100 } })).toBe('before');
+    expect(viewerShell.reorderCommentIds({ ids: ['a', 'b'], draggingId: 'a', targetId: 'b', edge: 'after' })).toEqual(['b', 'a']);
+    expect(viewerShell.appendSavedCommentOrder({ currentOrderIds: [], visibleIds: ['a'], savedId: 'b' })).toEqual(['a', 'b']);
+    expect(viewerShell.relativeCommentTimeTranslation({ timestampMs: 0 }, { nowMs: 1000 })).toEqual({ key: 'Just now' });
+    expect(viewerShell.visibleSelectedCommentIds({ comments: [{ id: 'a' }], selectedIds: new Set(['a']) })).toEqual(new Set(['a']));
+    expect(viewerShell.formatJsonTextForDisplay({ text: '{"a":1}', isJsonLike: true })).toBe('{\n  "a": 1\n}');
+    expect(viewerShell.hasPrecisionSensitiveJsonNumberText({ text: '{"a": 42}' })).toBe(false);
     expect(viewerShell.hasUnsafeJsonNumber(42)).toBe(false);
     expect(viewerShell.scrollRange({ scrollHeight: 300, clientHeight: 100 })).toBe(200);
     expect(viewerShell.scrollRatio({ scrollHeight: 300, clientHeight: 100, scrollTop: 100 })).toBe(0.5);
-    expect(viewerShell.scrollTopForRatio({ scrollHeight: 300, clientHeight: 100 }, 0.5)).toBe(100);
+    expect(viewerShell.scrollTopForRatio({ element: { scrollHeight: 300, clientHeight: 100 }, ratio: 0.5 })).toBe(100);
     expect(
       viewerShell.computeSplitPaneScrollTarget({
         sourcePane: 'editor',
@@ -55,6 +55,8 @@ describe('viewer-shell barrel (index.ts)', () => {
     expect(typeof viewerShell.ViewportSwitcher).toBe('function');
     expect(typeof viewerShell.ViewportToggleGroup).toBe('function');
     expect(typeof viewerShell.CodeWithLines).toBe('function');
+    expect(typeof viewerShell.CodeWrapToggle).toBe('function');
+    expect(typeof viewerShell.useCodeWrap).toBe('function');
     expect(typeof viewerShell.JsonPanel).toBe('function');
     expect(typeof viewerShell.ImageViewerBody).toBe('function');
     expect(typeof viewerShell.VideoViewerBody).toBe('function');

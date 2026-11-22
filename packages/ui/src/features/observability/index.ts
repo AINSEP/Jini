@@ -21,11 +21,3 @@ export type { WhiteScreenDetectorOptions } from './white-screen.js';
 
 export { trackIframeLoad } from './iframe.js';
 export type { TrackIframeLoadOptions } from './iframe.js';
-
-export {
-  trackRunStart,
-  trackRunProgress,
-  trackRunTerminal,
-  __resetStuckRunWatchdogForTests,
-} from './stuck-run.js';
-export type { TrackRunStartOptions } from './stuck-run.js';

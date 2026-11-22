@@ -1,4 +1,4 @@
-import type { CapabilityDef } from '@jini-ai/agentic';
+import type { CapabilityDef } from '@jini-ai/core/contracts/capabilities';
 
 /**
  * @module webmcp-lab-capabilities

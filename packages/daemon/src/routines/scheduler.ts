@@ -20,8 +20,7 @@
  * faithful port, not a redesign, per the proposal's own warning against "casually reinventing"
  * the race-safe scheduled-slot claim below.
  */
-import { inspect } from 'node:util';
-import { redactSecrets } from '@jini-ai/core';
+import { describeErrorForLog } from '@jini-ai/core';
 import { randomUUID } from 'node:crypto';
 import { nextRunAtForSchedule } from './schedule.js';
 import type {
@@ -182,7 +181,7 @@ export class RoutineService {
         .catch((error) => {
           console.error(
             `[@jini-ai/daemon] routine ${routine.id} scheduled run failed:`,
-            redactSecrets({ input: inspect(scheduledRunFailureDetail(error)) }, { redactPii: false }),
+            describeErrorForLog({ err: scheduledRunFailureDetail(error) }),
           );
           if (isScheduledRunPersistenceError(error)) {
             this.retryScheduledSlot(routine.id, fireAt);
@@ -294,7 +293,7 @@ export class RoutineService {
     if (discardError != null) {
       console.error(
         `[@jini-ai/daemon] routine ${attempt.routine.id} prepare cleanup failed:`,
-        redactSecrets({ input: inspect(discardError) }, { redactPii: false }),
+        describeErrorForLog({ err: discardError }),
       );
     }
     run.projectId = clearRoutinePlaceholderId(run.projectId);

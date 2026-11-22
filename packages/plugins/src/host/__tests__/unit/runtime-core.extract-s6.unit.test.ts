@@ -18,6 +18,7 @@ import {
 import type { PluginManifest } from '../../manifest.js';
 import type { PluginSourcePolicyPort } from '../../source-policy.js';
 import type { PluginSdkBinding } from '../../ports.js';
+import { withFileLock } from '@jini-ai/platform/fs/file-lock';
 import { InMemoryPluginActivationRepo } from '../../repo.memory.js';
 import { manifestHost, pluginSdkBinding as baseBinding } from '../support/fixture-bindings.js';
 
@@ -36,6 +37,7 @@ const hostBinding: PluginRuntimeHostBinding = {
   verifyDigest: async () => 'sha256-acme',
   createInvocationCoreDeps: ({ pluginId, declaredHooks }) =>
     createPluginInvocationBinding({ pluginId, declaredHooks, beforeSaveHook: HOOK }, {}),
+  fileLock: { withFileLock },
 };
 const text: PluginRuntimeText = {
   scaffoldEntry: '// acme scaffold\nexport default {};\n',
@@ -130,5 +132,19 @@ describe('createPluginRuntimeCore (second host via @jini-ai/plugins/host/node)',
     expect(refused).toBeInstanceOf(PluginUninstallPathError);
     expect((refused as Error).name).toBe('PluginUninstallPathError');
     await runtime.dispose({}, {});
+  });
+
+  it('logs a boot re-attach failure with fixed words and the class only', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    try {
+      const host = secondHost(() => {});
+      const failure = new Error('boom api_key=SECRETSECRETSECRETSECRET');
+      // The host importer factory runs inside the attachment, so its throw reaches the boot re-attach catch.
+      const runtime = createPluginRuntimeCore({ ...host.required, createModuleImporter: (() => { throw failure; }) as never }, {});
+      await runtime.attachEnabledPluginsAtBoot();
+      expect(warn).toHaveBeenCalledWith("[plugin-runtime] boot re-attach failed for 'acme-stamp'", 'Error');
+      expect(JSON.stringify(warn.mock.calls)).not.toMatch(/boom|SECRETSECRET|runtime-core\.extract-s6/);
+      await runtime.dispose({}, {});
+    } finally { warn.mockRestore(); }
   });
 });

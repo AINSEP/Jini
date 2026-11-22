@@ -5,8 +5,8 @@ import { createAgentModelDiscovery } from '../model-discovery-native.js';
  * overlay wording. */
 import os from 'node:os';
 import path from 'node:path';
-import { detectAcpModels, DEFAULT_MODEL_OPTION } from './shared.js';
-import type { RuntimeAgentDef } from '../types.js';
+import { acpModelFetcher, DEFAULT_MODEL_OPTION } from './shared.js';
+import type { RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 
 /** Resolve Reasonix's home directory, respecting REASONIX_HOME if already set. */
 function reasonixHome(): string {
@@ -20,21 +20,13 @@ function reasonixHome(): string {
 
 export const reasonixAgentDef = {
   // UNVERIFIED live integration locally; source/category and limits are documented in model-discovery-adapters.ts.
-  ...createAgentModelDiscovery('reasonix', { fallbackModels: (): readonly import('../types.js').RuntimeModelOption[] => reasonixAgentDef.fallbackModels }),
+  ...createAgentModelDiscovery('reasonix', { fallbackModels: (): readonly import('@jini-ai/core/contracts/agents').RuntimeModelOption[] => reasonixAgentDef.fallbackModels }),
     id: 'reasonix',
     name: 'DeepSeek Reasonix',
     bin: 'reasonix',
     fallbackBins: ['dsnix'],
     versionArgs: ['--version'],
-    fetchModels: async ({ resolvedBin, env }, { acpModelProbe } = {}) =>
-      (({ bin, args, ...optionalArgs }: Parameters<typeof detectAcpModels>[0] & NonNullable<Parameters<typeof detectAcpModels>[1]>) => detectAcpModels({ bin, args }, optionalArgs))({
-        ...(acpModelProbe ? { probe: acpModelProbe } : {}),
-        bin: resolvedBin,
-        args: ['acp'],
-        env,
-        timeoutMs: 15_000,
-        defaultModelOption: DEFAULT_MODEL_OPTION,
-      }),
+    fetchModels: acpModelFetcher({ args: ['acp'] }),
     buildArgs: () => ['acp'],
     streamFormat: 'acp-json-rpc',
     mcpDiscovery: 'mature-acp',

@@ -1,7 +1,7 @@
 {
   "name": "@jini-ai/ui",
-  "version": "0.7.2",
-  "description": "Generic, product-neutral React UI primitives and feature domains. Framework-free types, decision rules, catalogs, and host port contracts live behind ./core (no React, no DOM). The Excalidraw and Lexical editors live behind ./sketch-editor and ./lexical-rich-text-editor; the GrapesJS-backed inline HTML editor lives behind ./html-editor.",
+  "version": "0.7.3-next.2",
+  "description": "Generic, product-neutral React UI primitives and feature domains. Framework-free types, decision rules, catalogs, and host port contracts live behind ./core (no React, no DOM). The Excalidraw editor lives behind ./sketch-editor; the GrapesJS-backed inline HTML editor lives behind ./html-editor.",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
@@ -15,9 +15,9 @@
     "entries": {
       ".": "browser",
       "./core": "universal",
-      "./i18n": "universal",
+      "./browser": "browser",
+      "./visible-interval": "universal",
       "./sketch-editor": "browser",
-      "./lexical-rich-text-editor": "browser",
       "./html-editor": "browser",
       "./mcp-ui": "browser",
       "./mcp-ui/surfaces": "universal",
@@ -46,7 +46,9 @@
       "./charts": "universal",
       "./charts/browser": "browser",
       "./charts/react": "browser",
-      "./mcp-ui/credential-card": "universal"
+      "./mcp-ui/credential-card": "universal",
+      "./react-kit": "browser",
+      "./react/testing": "browser"
     },
     "isolation": {
       "entries": {
@@ -55,20 +57,20 @@
         "./preview-modal-shell": "renderers"
       },
       "shared": [
+        "src/react/kit.tsx",
         "src/features/charts",
         "src/features/interactive-ui/registry.ts",
         "src/features/interactive-ui/table-data.ts",
         "src/theme/default.ts",
         "src/theme/stylesheet.ts",
         "src/theme/validation.ts",
-        "src/theme/types.ts"
+        "src/theme/types.ts",
+        "src/browser"
       ]
     },
     "optionalPeers": {
       "@tanstack/react-query": "opt-in: cached react queries; import @jini-ai/ui/fetch-query/tanstack — Cached React queries could not load @tanstack/react-query. Install @tanstack/react-query to enable this feature, or check its installed version and native binaries.",
       "@excalidraw/excalidraw": "opt-in: sketch editor; import @jini-ai/ui/sketch-editor — Sketch editor could not load @excalidraw/excalidraw. Install @excalidraw/excalidraw to enable this feature, or check its installed version and native binaries.",
-      "@lexical/react": "opt-in: rich text editor react bindings; import @jini-ai/ui/lexical-rich-text-editor — Rich text editor React bindings could not load @lexical/react. Install @lexical/react to enable this feature, or check its installed version and native binaries.",
-      "@lexical/utils": "opt-in: rich text editor utilities; import @jini-ai/ui/lexical-rich-text-editor — Rich text editor utilities could not load @lexical/utils. Install @lexical/utils to enable this feature, or check its installed version and native binaries.",
       "@mcp-ui/client": "opt-in: mcp ui renderer; import @jini-ai/ui/mcp-ui — MCP UI renderer could not load @mcp-ui/client. Install @mcp-ui/client to enable this feature, or check its installed version and native binaries.",
       "@radix-ui/react-checkbox": "opt-in: interactive ui controls; import @jini-ai/ui/interactive-ui — Interactive UI controls could not load @radix-ui/react-checkbox. Install @radix-ui/react-checkbox to enable this feature, or check its installed version and native binaries.",
       "@radix-ui/react-label": "opt-in: interactive ui controls; import @jini-ai/ui/interactive-ui — Interactive UI controls could not load @radix-ui/react-label. Install @radix-ui/react-label to enable this feature, or check its installed version and native binaries.",
@@ -76,7 +78,6 @@
       "@radix-ui/react-select": "opt-in: interactive ui controls; import @jini-ai/ui/interactive-ui — Interactive UI controls could not load @radix-ui/react-select. Install @radix-ui/react-select to enable this feature, or check its installed version and native binaries.",
       "@radix-ui/react-slot": "opt-in: interactive ui controls — Interactive UI controls could not load @radix-ui/react-slot. Install @radix-ui/react-slot to enable this feature, or check its installed version and native binaries.",
       "grapesjs": "opt-in: visual html editor; import @jini-ai/ui/html-editor — Visual HTML editor could not load grapesjs. Install grapesjs to enable this feature, or check its installed version and native binaries.",
-      "lexical": "opt-in: rich text editor; import @jini-ai/ui/lexical-rich-text-editor — Rich text editor could not load lexical. Install lexical to enable this feature, or check its installed version and native binaries.",
       "class-variance-authority": "opt-in: styled interactive ui components; import @jini-ai/ui/interactive-ui — Styled interactive UI components could not load class-variance-authority. Install class-variance-authority to enable this feature, or check its installed version and native binaries.",
       "clsx": "opt-in: styled interactive ui components; import @jini-ai/ui/interactive-ui — Styled interactive UI components could not load clsx. Install clsx to enable this feature, or check its installed version and native binaries.",
       "parse5": "opt-in: html parsing; import @jini-ai/ui/html-editor — HTML parsing could not load parse5. Install parse5 to enable this feature, or check its installed version and native binaries.",
@@ -97,6 +98,11 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
+    "./visible-interval": {
+      "types": "./dist/utils/visible-interval.d.ts",
+      "import": "./dist/utils/visible-interval.js",
+      "default": "./dist/utils/visible-interval.js"
+    },
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
@@ -107,15 +113,15 @@
       "import": "./dist/core.js",
       "default": "./dist/core.js"
     },
+    "./browser": {
+      "types": "./dist/browser/index.d.ts",
+      "import": "./dist/browser/index.js",
+      "default": "./dist/browser/index.js"
+    },
     "./sketch-editor": {
       "types": "./dist/features/sketch-editor/index.d.ts",
       "import": "./dist/features/sketch-editor/index.js",
       "default": "./dist/features/sketch-editor/index.js"
-    },
-    "./lexical-rich-text-editor": {
-      "types": "./dist/features/lexical-rich-text-editor/index.d.ts",
-      "import": "./dist/features/lexical-rich-text-editor/index.js",
-      "default": "./dist/features/lexical-rich-text-editor/index.js"
     },
     "./html-editor": {
       "types": "./dist/features/html-editor/index.d.ts",
@@ -181,11 +187,6 @@
       "import": "./dist/features/admin-widgets/index.js",
       "default": "./dist/features/admin-widgets/index.js"
     },
-    "./i18n": {
-      "types": "./dist/features/i18n/universal.d.ts",
-      "import": "./dist/features/i18n/universal.js",
-      "default": "./dist/features/i18n/universal.js"
-    },
     "./panel-kit": {
       "types": "./dist/features/panel-kit/index.d.ts",
       "import": "./dist/features/panel-kit/index.js",
@@ -238,6 +239,16 @@
       "types": "./dist/features/mcp-ui/credential-card.d.ts",
       "import": "./dist/features/mcp-ui/credential-card.js",
       "default": "./dist/features/mcp-ui/credential-card.js"
+    },
+    "./react-kit": {
+      "types": "./dist/react/kit.d.ts",
+      "import": "./dist/react/kit.js",
+      "default": "./dist/react/kit.js"
+    },
+    "./react/testing": {
+      "types": "./dist/react/testing.d.ts",
+      "import": "./dist/react/testing.js",
+      "default": "./dist/react/testing.js"
     }
   },
   "files": [
@@ -264,12 +275,12 @@
     "test:coverage": "vitest run --coverage"
   },
   "devDependencies": {
-    "@jini-ai/agent-runtime": "workspace:^",
-    "@jini-ai/integrations": "workspace:^",
-    "@tanstack/react-query": "^5.0.0",
     "@excalidraw/excalidraw": "0.18.1",
-    "@lexical/react": "0.36.2",
-    "@lexical/utils": "0.36.2",
+    "@jini-ai/agent-runtime": "workspace:^",
+    "@jini-ai/agentic": "workspace:^",
+    "@jini-ai/core": "workspace:^",
+    "@jini-ai/integrations": "workspace:^",
+    "@jini-ai/ui-kit": "workspace:^",
     "@mcp-ui/client": "7.1.1",
     "@radix-ui/react-checkbox": "^1.3.11",
     "@radix-ui/react-label": "^2.1.15",
@@ -277,43 +288,36 @@
     "@radix-ui/react-select": "^2.3.7",
     "@radix-ui/react-slot": "^1.3.3",
     "@tailwindcss/cli": "^4.1.16",
+    "@tanstack/react-query": "^5.0.0",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.3.0",
     "@testing-library/user-event": "^14.5.0",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
-    "@vitest/coverage-v8": "^2.1.9",
-    "grapesjs": "0.23.4",
-    "jsdom": "^25.0.1",
-    "lexical": "0.36.2",
-    "react": "^19.2.0",
-    "react-dom": "^19.2.0",
-    "tailwindcss": "^4.1.16",
-    "@jini-ai/platform": "workspace:^",
-    "@jini-ai/agentic": "workspace:^",
+    "@vitest/coverage-v8": "^3.2.6",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "grapesjs": "0.23.4",
+    "jsdom": "^26.1.0",
     "micromark": "^4.0.0",
     "micromark-extension-gfm": "^3.0.0",
     "parse5": "^8.0.1",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
     "shiki": "^1.24.4",
     "tailwind-merge": "^2.6.0",
-    "zod": "^3.25.76",
-    "@jini-ai/core": "workspace:^"
+    "tailwindcss": "^4.1.16",
+    "zod": "^4.6.6"
   },
   "dependencies": {
-    "@jini-ai/ui-kit": "workspace:^",
     "@jini-ai/core": "workspace:^",
-    "@jini-ai/agentic": "workspace:^",
-    "@jini-ai/platform": "workspace:^",
+    "@jini-ai/protocol": "workspace:^",
     "micromark": "^4.0.0",
     "micromark-extension-gfm": "^3.0.0"
   },
   "peerDependencies": {
     "@tanstack/react-query": "^5.0.0",
     "@excalidraw/excalidraw": "0.18.1",
-    "@lexical/react": "0.36.2",
-    "@lexical/utils": "0.36.2",
     "@mcp-ui/client": "7.1.1",
     "@radix-ui/react-checkbox": "^1.3.11",
     "@radix-ui/react-label": "^2.1.15",
@@ -321,7 +325,6 @@
     "@radix-ui/react-select": "^2.3.7",
     "@radix-ui/react-slot": "^1.3.3",
     "grapesjs": "0.23.4",
-    "lexical": "0.36.2",
     "react": "^18.3.0 || ^19.0.0",
     "react-dom": "^18.3.0 || ^19.0.0",
     "class-variance-authority": "^0.7.1",
@@ -329,19 +332,13 @@
     "parse5": "^7.3.0 || ^8.0.1",
     "shiki": "^1.24.4",
     "tailwind-merge": "^2.6.0",
-    "zod": "^3.25.76"
+    "zod": "^4.6.6"
   },
   "peerDependenciesMeta": {
     "@tanstack/react-query": {
       "optional": true
     },
     "@excalidraw/excalidraw": {
-      "optional": true
-    },
-    "@lexical/react": {
-      "optional": true
-    },
-    "@lexical/utils": {
       "optional": true
     },
     "@mcp-ui/client": {
@@ -363,9 +360,6 @@
       "optional": true
     },
     "grapesjs": {
-      "optional": true
-    },
-    "lexical": {
       "optional": true
     },
     "class-variance-authority": {

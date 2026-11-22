@@ -11,12 +11,14 @@ import {
   ensureSpawnHelperExecutable,
   resolveShell,
   spawnHelperCandidatePaths,
+} from '../terminal.js';
+import {
   type CreateTerminalServiceOptions,
   type PtyProcess,
   type PtySpawn,
   type TerminalEventData,
   type TerminalSseSink,
-} from '../terminal.js';
+} from '@jini-ai/core/contracts/runtime';
 
 class FakePty implements PtyProcess {
   dataCb: ((chunk: string) => void) | null = null;
@@ -153,7 +155,7 @@ describe('@jini-ai/platform — terminal — ensureSpawnHelperExecutable', () =>
     writeFileSync(nonExec, '', { mode: 0o644 });
     writeFileSync(alreadyExec, '', { mode: 0o755 });
 
-    expect(() => ensureSpawnHelperExecutable([nonExec, alreadyExec, missing])).not.toThrow();
+    expect(() => ensureSpawnHelperExecutable({}, { candidatePaths: [nonExec, alreadyExec, missing] })).not.toThrow();
 
     expect(statSync(nonExec).mode & 0o111).toBeTruthy();
     expect(statSync(alreadyExec).mode & 0o100).toBeTruthy();
@@ -162,23 +164,23 @@ describe('@jini-ai/platform — terminal — ensureSpawnHelperExecutable', () =>
 
 describe('@jini-ai/platform — terminal — resolveShell', () => {
   it('honors an explicit request', () => {
-    expect(resolveShell('  /bin/zsh  ')).toBe('/bin/zsh');
+    expect(resolveShell({}, { requested: '  /bin/zsh  ' })).toBe('/bin/zsh');
   });
 
   it('falls back to SHELL on posix', () => {
-    expect(resolveShell(null, { platform: 'linux', env: { SHELL: '/bin/fish' } })).toBe('/bin/fish');
+    expect(resolveShell({}, { requested: null, platform: 'linux', env: { SHELL: '/bin/fish' } })).toBe('/bin/fish');
   });
 
   it('falls back to /bin/bash on posix with no SHELL', () => {
-    expect(resolveShell(undefined, { platform: 'linux', env: {} })).toBe('/bin/bash');
+    expect(resolveShell({}, { requested: undefined, platform: 'linux', env: {} })).toBe('/bin/bash');
   });
 
   it('falls back to ComSpec on win32', () => {
-    expect(resolveShell(null, { platform: 'win32', env: { ComSpec: 'C:\\cmd.exe' } })).toBe('C:\\cmd.exe');
+    expect(resolveShell({}, { requested: null, platform: 'win32', env: { ComSpec: 'C:\\cmd.exe' } })).toBe('C:\\cmd.exe');
   });
 
   it('falls back to powershell.exe on win32 with no ComSpec', () => {
-    expect(resolveShell(null, { platform: 'win32', env: {} })).toBe('powershell.exe');
+    expect(resolveShell({}, { requested: null, platform: 'win32', env: {} })).toBe('powershell.exe');
   });
 });
 

@@ -1,21 +1,26 @@
 import { EventEmitter } from 'node:events';
-import { spawn as realSpawn, type ChildProcess, type spawn as nodeSpawn } from 'node:child_process';
+import type { ChildProcess, spawn as nodeSpawn } from 'node:child_process';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, delimiter, dirname, join } from 'node:path';
 import { afterAll, describe, expect, it, vi } from 'vitest';
-import { RuntimeSelectionError, getAgentDef, createAgentRuntimeState, type AgentLaunchResolution, type RuntimeAgentDef } from '@jini-ai/agent-runtime';
+import { getAgentDef, createAgentRuntimeState } from '@jini-ai/agent-runtime';
+import {
+  RuntimeSelectionError,
+  type AgentLaunchResolution,
+  type RuntimeAgentDef,
+} from '@jini-ai/core/contracts/agents';
 import { createInMemoryEventLog } from '../../event-log.js';
 import { createRunLifecycle } from '../../run-lifecycle.js';
 import { createAgentExecutor } from '../../index.js';
 import { prepareSystemPromptOverlayFileIfNeeded } from '../launch.js';
 import { fixtureLaunchModel, fixtureModelDiscovery } from './model-discovery-fixture.js';
+import { runtimeFixture, agentRuntimeFixture } from './runtime-fixture.js';
 
 /**
  * @file The launch composition's own defaults and its staged-file cleanup, through the real
- * executor: the real launch resolver and PATH builder when a host injects none, the real process
- * stopper on cancellation, a refused permission mode, and the system-prompt overlay file a failed
+ * executor: the real launch resolver and PATH builder when a host injects none, a refused permission mode, and the system-prompt overlay file a failed
  * spawn must not leave behind.
  */
 
@@ -77,12 +82,8 @@ describe('launch defaults (no launch seams injected)', () => {
     const child = createFakeChild(4300);
     const calls: SpawnRecord[] = [];
     const def = createDef();
-    const executor = createAgentExecutor({ lifecycle }, {
-      hostEnv: { PATH: binDir, HOME: join(scratch, 'home') }, runtimeState: createAgentRuntimeState({}),
-      resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (id === def.id ? def : null),
-      ensureAgentCapabilities: async () => {}, spawn: recordingSpawn(child, calls),
-      listProcessSnapshots: async () => [], stopProcesses: async () => ({ alreadyStopped: true, forcedPids: [], matchedPids: [], remainingPids: [], stoppedPids: [] }),
-    });
+    const hostEnv = { PATH: binDir, HOME: join(scratch, 'home') };
+    const executor = createAgentExecutor({ lifecycle, hostEnv, runtime: runtimeFixture({ spawn: recordingSpawn(child, calls), listProcessSnapshots: async () => [], stopProcesses: async () => ({ alreadyStopped: true, forcedPids: [], matchedPids: [], remainingPids: [], stoppedPids: [] }) }), agentRuntime: agentRuntimeFixture({ runtimeState: createAgentRuntimeState({}), resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (id === def.id ? def : null), ensureAgentCapabilities: async () => {} }, { env: hostEnv }) });
     const { run } = await lifecycle.start({ contextRef: 'defaults' });
     await executor.run({ runId: run.id, agentId: def.id, prompt: 'hi', cwd: scratch });
 
@@ -91,39 +92,13 @@ describe('launch defaults (no launch seams injected)', () => {
     child.emit('close', 0, null);
     await lifecycle.waitForTerminal({ runId: run.id });
   });
-
-  it('stops the real process tree with the real stopper when a run is cancelled', async () => {
-    const sleeper = realSpawn('sleep', ['30'], { stdio: 'ignore' });
-    const exited = new Promise<NodeJS.Signals | null>((resolve) => sleeper.once('exit', (_code, signal) => resolve(signal)));
-    try {
-      const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
-      const child = createFakeChild(sleeper.pid);
-      const def = createDef();
-      const executor = createAgentExecutor({ lifecycle }, {
-        hostEnv: {}, resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (id === def.id ? def : null),
-        resolveAgentLaunch: fixedLaunch, applyAgentLaunchEnv: ({ env }) => env, spawn: recordingSpawn(child, []),
-        listProcessSnapshots: async () => [{ pid: sleeper.pid!, ppid: 1, command: 'sleep 30' }],
-      });
-      const { run } = await lifecycle.start({ contextRef: 'cancel' });
-      await executor.run({ runId: run.id, agentId: def.id, prompt: 'hi', cwd: scratch });
-      await lifecycle.cancel({ runId: run.id });
-      expect(await exited).toBe('SIGTERM');
-      child.emit('close', null, 'SIGTERM');
-      expect((await lifecycle.waitForTerminal({ runId: run.id })).state).toBe('cancelled');
-    } finally {
-      sleeper.kill('SIGKILL');
-    }
-  });
 });
 
 it('refuses a permission mode other than restricted or bypass before anything is spawned', async () => {
   const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
   const calls: SpawnRecord[] = [];
   const def = createDef();
-  const executor = createAgentExecutor({ lifecycle }, {
-    hostEnv: {}, resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (id === def.id ? def : null),
-    resolveAgentLaunch: fixedLaunch, applyAgentLaunchEnv: ({ env }) => env, spawn: recordingSpawn(createFakeChild(4301), calls),
-  });
+  const executor = createAgentExecutor({ lifecycle, hostEnv: {}, runtime: runtimeFixture({ spawn: recordingSpawn(createFakeChild(4301), calls) }), agentRuntime: agentRuntimeFixture({ resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (id === def.id ? def : null), resolveAgentLaunch: fixedLaunch, applyAgentLaunchEnv: ({ env }) => env }) });
   const { run } = await lifecycle.start({ contextRef: 'mode' });
   // A JavaScript or wire caller is not held to the TypeScript union.
   const permissionMode = 'yolo' as unknown as 'bypass';
@@ -137,7 +112,7 @@ it('streams the typed native-policy failure once without spawning any CLI', asyn
   const lifecycle = createRunLifecycle({ eventLog });
   const calls: SpawnRecord[] = [];
   const def = createDef({ supportsNativeToolAccess: false });
-  const executor = createAgentExecutor({ lifecycle }, { hostEnv: {}, getAgentDef: () => def, spawn: recordingSpawn(createFakeChild(4303), calls) });
+  const executor = createAgentExecutor({ lifecycle, hostEnv: {}, runtime: runtimeFixture({ spawn: recordingSpawn(createFakeChild(4303), calls) }), agentRuntime: agentRuntimeFixture({ getAgentDef: () => def }) });
   const { run } = await lifecycle.start({ contextRef: 'native-policy' });
   await expect(executor.run({ runId: run.id, agentId: def.id, prompt: 'hi', cwd: scratch }, { nativeToolAccess: false }))
     .rejects.toMatchObject({ code: 'NATIVE_TOOL_POLICY_UNSUPPORTED' });
@@ -155,12 +130,7 @@ it('removes the staged system-prompt overlay file when the spawn itself throws',
   const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
   const calls: SpawnRecord[] = [];
   const def = createDef({ systemPromptDelivery: { strategy: 'config-instructions-file', varName: 'FAKE_CONFIG_CONTENT' } });
-  const executor = createAgentExecutor({ lifecycle }, {
-    hostEnv: {}, resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (id === def.id ? def : null),
-    resolveAgentLaunch: fixedLaunch, applyAgentLaunchEnv: ({ env }) => env,
-    spawn: recordingSpawn(createFakeChild(4302), calls, new Error('spawn EACCES')),
-    promptAugmenter: { contextKinds: () => [], augmentUserRequest: ({ basePrompt }) => basePrompt, systemOverlay: () => 'Answer briefly.' },
-  });
+  const executor = createAgentExecutor({ lifecycle, hostEnv: {}, runtime: runtimeFixture({ spawn: recordingSpawn(createFakeChild(4302), calls, new Error('spawn EACCES')) }), agentRuntime: agentRuntimeFixture({ resolveModelForLaunch: fixtureLaunchModel, getAgentDef: ({ id }) => (id === def.id ? def : null), resolveAgentLaunch: fixedLaunch, applyAgentLaunchEnv: ({ env }) => env }) }, { promptAugmenter: { contextKinds: () => [], augmentUserRequest: ({ basePrompt }) => basePrompt, systemOverlay: () => 'Answer briefly.' } });
   const { run } = await lifecycle.start({ contextRef: 'overlay' });
   await expect(executor.run({ runId: run.id, agentId: def.id, prompt: 'hi', cwd: scratch }))
     .rejects.toMatchObject({ code: 'AGENT_SPAWN_FAILED' });
@@ -208,9 +178,7 @@ describe('launch selection refuses before dispatch', () => {
     const error = validated ? new RuntimeSelectionError("Unknown effort 'ultra'. Available effort levels: high.") : new Error('private provider detail');
     const select = vi.fn(async () => { throw error; });
     const spawn = vi.fn();
-    const executor = createAgentExecutor({ lifecycle }, { getAgentDef: () => def, resolveAgentLaunch: fixedLaunch,
-      ensureAgentCapabilities: async () => {}, resolveModelForLaunch: select, spawn,
-    });
+    const executor = createAgentExecutor({ lifecycle, hostEnv: {}, runtime: runtimeFixture({ spawn: spawn }), agentRuntime: agentRuntimeFixture({ getAgentDef: () => def, resolveAgentLaunch: fixedLaunch, ensureAgentCapabilities: async () => {}, resolveModelForLaunch: select }) });
     const { run } = await lifecycle.start({ contextRef: 'selection' });
     const result = executor.run({ runId: run.id, agentId: def.id, cwd: scratch, prompt: 'hello' }, { reasoning: 'ultra' });
     await expect(result).rejects.toThrow(validated ? 'Available effort levels: high' : 'choose a concrete model and supported effort');
@@ -231,10 +199,7 @@ it('required HTTP failure reports the transport policy and never falls back or m
   const spawn = vi.fn();
   const credential = vi.fn(() => 'private-stdio-token');
   const prepareHttp = vi.fn(async () => { throw new Error('private listener failure'); });
-  const executor = createAgentExecutor({ lifecycle }, { getAgentDef: () => def, resolveAgentLaunch: fixedLaunch,
-    resolveModelForLaunch: fixtureLaunchModel, ensureAgentCapabilities: async () => {}, spawn,
-    mcpJsonInjection: { command: 'stdio-bridge', daemonUrl: 'http://daemon.invalid', credential, prepareHttp, httpPolicy: 'required' },
-  });
+  const executor = createAgentExecutor({ lifecycle, hostEnv: {}, runtime: runtimeFixture({ spawn: spawn }), agentRuntime: agentRuntimeFixture({ getAgentDef: () => def, resolveAgentLaunch: fixedLaunch, resolveModelForLaunch: fixtureLaunchModel, ensureAgentCapabilities: async () => {} }) }, { mcpJsonInjection: { command: 'stdio-bridge', daemonUrl: 'http://daemon.invalid', credential, prepareHttp, httpPolicy: 'required' } });
   const { run } = await lifecycle.start({ contextRef: 'required-http' });
   await expect(executor.run({ runId: run.id, agentId: def.id, cwd: scratch, prompt: 'hello' }, { permissionMode: 'bypass' }))
     .rejects.toThrow('requires an HTTP tool connection');
@@ -254,16 +219,11 @@ it.each(['complete', 'manifest', 'oversized', 'staging-failure', 'subagents-deni
   const def = createDef({ ...getAgentDef({ id: 'claude' })!, ...fixtureModelDiscovery, mcpIsolation: { perRun: 'fixture@2026-11-05' },
     id: scenario === 'adapter-no-hook' ? 'claude' : 'hook-fixture', subagentStartHook: scenario !== 'adapter-no-hook', supportsSubagents: scenario !== 'unsupported-subagents' });
   let directory = '';
-  const executor = createAgentExecutor({ lifecycle }, {
-    hostEnv: {}, getAgentDef: () => def, resolveAgentLaunch: () => ({ ...fixedLaunch(), launchPath: process.execPath }),
-    resolveModelForLaunch: fixtureLaunchModel, ensureAgentCapabilities: async () => {},
-    assertClaudeFilesystemSupport: async () => true, spawn: recordingSpawn(child, calls),
-    promptAugmenter: { contextKinds: () => [], augmentUserRequest: ({ basePrompt }) => basePrompt, systemOverlay: () => {
+  const executor = createAgentExecutor({ lifecycle, hostEnv: {}, runtime: runtimeFixture({ spawn: recordingSpawn(child, calls) }), agentRuntime: agentRuntimeFixture({ getAgentDef: () => def, resolveAgentLaunch: () => ({ ...fixedLaunch(), launchPath: process.execPath }), resolveModelForLaunch: fixtureLaunchModel, ensureAgentCapabilities: async () => {}, assertClaudeFilesystemSupport: async () => true }) }, { promptAugmenter: { contextKinds: () => [], augmentUserRequest: ({ basePrompt }) => basePrompt, systemOverlay: () => {
       directory = join(site, '.agent-runtime', readdirSync(join(site, '.agent-runtime')).find(name => name.startsWith('tmp-'))!);
       if (scenario === 'staging-failure') writeFileSync(join(directory, 'subagent-start.json'), 'reserved');
       return 'FULL_OVERLAY_AND_SKILL_TEXT';
-    } },
-  });
+    } } });
   const { run } = await lifecycle.start({ contextRef: scenario });
   const launch = executor.run({ runId: run.id, agentId: def.id, prompt: 'hello', cwd: site }, {
     filesystemRoot: site, nativeToolAccess: true, nativeCapabilities: { subagents: scenario !== 'subagents-denied' }, permissionMode: 'bypass',

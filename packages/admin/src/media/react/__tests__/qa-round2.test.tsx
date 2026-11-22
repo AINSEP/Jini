@@ -1,3 +1,4 @@
+import { reactModuleUi } from '../../../core/react/module-ui.js';
 import { Suspense, useState } from 'react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '../../../__tests__/fetch-query-support.js';
@@ -9,6 +10,8 @@ import { media } from '../index.js';
 import { MediaLightbox } from '../components/MediaLightbox.js';
 import { EditMediaPanel } from '../components/EditMediaPanel.js';
 import type { MediaApiPort } from '../../ports.js';
+import { realEmbedPolicy } from '../../__tests__/fakes/embed-policy.js';
+import { EmbedPolicyScope } from './embed-policy-scope.js';
 const input = { filename: 'a.png', contentType: 'image/png', dataBase64: 'aA==' };
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 async function fixture() {
@@ -18,8 +21,8 @@ async function fixture() {
   return { api, a, b };
 }
 function page(api: MediaApiPort) {
-  const feature = media({ overlays: createOverlayController({}) });
-  const admin = createAdmin({ modules: [feature], ports: { mediaApi: api } }, { permissions: ['media.read', 'media.update', 'media.upload', 'media.trash', 'media.restore'] });
+  const feature = media({ ui: reactModuleUi, overlays: createOverlayController({}) });
+  const admin = createAdmin({ modules: [feature], ports: { embedPolicy: realEmbedPolicy, mediaApi: api } }, { permissions: ['media.read', 'media.update', 'media.upload', 'media.trash', 'media.restore'] });
   const { Page, tabs } = feature.react.pages.library;
   render(<feature.react.Provider admin={admin}><Suspense fallback="Loading"><Page tabs={tabs} description={admin.describe().pages[0]!} /></Suspense></feature.react.Provider>);
 }
@@ -38,10 +41,10 @@ it('continues lightbox navigation when a replaced preview loses focus to the doc
 }, 20000);
 it('opens the editor at Title and at the top even after a prior scrolled dialog', async () => {
   const { api, a } = await fixture();
-  const view = render(<EditMediaPanel api={api} item={a} onSaved={vi.fn()} onClose={vi.fn()} />);
+  const view = render(<EditMediaPanel api={api} item={a} onSaved={vi.fn()} onClose={vi.fn()} />, { wrapper: EmbedPolicyScope });
   expect(screen.getByLabelText('Title')).toHaveFocus();
   const dialog = screen.getByRole('dialog'); dialog.scrollTop = 450;
-  view.unmount(); render(<EditMediaPanel api={api} item={a} onSaved={vi.fn()} onClose={vi.fn()} />);
+  view.unmount(); render(<EditMediaPanel api={api} item={a} onSaved={vi.fn()} onClose={vi.fn()} />, { wrapper: EmbedPolicyScope });
   expect(screen.getByLabelText('Title')).toHaveFocus(); expect(screen.getByRole('dialog').scrollTop).toBe(0);
 }, 20000);
 it('keeps the existing grid mounted during uploads and focuses it without scrolling', async () => {

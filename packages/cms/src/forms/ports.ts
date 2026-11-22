@@ -18,9 +18,10 @@ export interface FormDefinitionRepoPort {
    * A trashed row retains its slug so restoring it is lossless, and can therefore still conflict. */
   create(record: FormDefinitionRecord): Promise<void>;
 
-  /** Update only a live row, affecting zero rows if it was trashed meanwhile. Only Trash restore
-   * may revive it. Keep create/update separate so genuine insert uniqueness races remain visible. */
-  update(record: FormDefinitionRecord): Promise<void>;
+  /** Update only a live row. Without a basis, a trashed row remains untouched; with one, a
+   * mismatched or missing row throws RecordVersionConflictError. Only Trash restore may revive it.
+   * Keep create/update separate so genuine insert uniqueness races remain visible. */
+  update(record: FormDefinitionRecord, optional?: { expectedVersion?: number }): Promise<void>;
 
   /** Deliberately trash-blind: both live and trashed rows reserve a slug. Duplication must not
    * propose a trashed slug as available and then collide with the database unique index. */
@@ -46,7 +47,7 @@ export interface FormSubmissionRepoPort {
 export interface RateLimiterPort {
   check(required: { key: string }): { allowed: true } | { allowed: false; retryAfterSeconds: number } | Promise<{ allowed: true } | { allowed: false; retryAfterSeconds: number }>;
 }
-export interface FormOutboxPort { enqueue(event: import("../core/index.js").DomainEvent): Promise<void>; }
+export interface FormOutboxPort { enqueue(event: import("@jini-ai/core/contracts/events").DomainEvent): Promise<void>; }
 /**
  * Runs `work` as one unit of persistence: commit when it resolves, roll back when it throws. A host
  * binds its database transaction here so an accepted submission's row and its outbox event are

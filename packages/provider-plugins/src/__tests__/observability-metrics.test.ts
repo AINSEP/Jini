@@ -6,9 +6,10 @@ import { metrics } from "@opentelemetry/api";
 import { AggregationTemporality, DataPointType, InMemoryMetricExporter, PeriodicExportingMetricReader } from "@opentelemetry/sdk-metrics";
 import { createTracker } from "@jini-ai/diagnostics/observability/node";
 import type { ProviderTelemetryReport } from "@jini-ai/diagnostics/observability";
+import { withHost } from "./observability-host.js";
 import { createOpenTelemetryProvider as openTelemetryProvider } from "../observability-opentelemetry/index.js";
 
-const createOpenTelemetryProvider: typeof openTelemetryProvider = (required, optional = {}) => openTelemetryProvider(required, { exportEnabled: true, ...optional });
+const createOpenTelemetryProvider: typeof openTelemetryProvider = (required, optional = {}) => openTelemetryProvider(required, withHost({ exportEnabled: true, ...optional }));
 const CONFIG = { serviceName: "metric-test", tracerName: "metric-scope", endpoint: "https://collector.test/otlp", auth: "none" };
 
 test('revocation drops queued OTLP traces and metrics; a fresh factory still flushes both', async () => {

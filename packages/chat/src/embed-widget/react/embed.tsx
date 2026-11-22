@@ -1,14 +1,13 @@
-import { useCallback, useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import type { ChatMessage } from '../../core/messages.js';
 import type { ChatTransport } from '../../core/transport.js';
 import { ChatPane } from '../../react/chat-pane.js';
 import type { ChatPaneAgent } from '../../react/chat-pane.js';
+import { ChatSurfacesProvider, type ChatSurfaces } from '../../react/surfaces.js';
 import { ChatFab } from '../../react/components/ChatFab.js';
 import { JiniChatProvider } from '../../react/components/JiniChatProvider.js';
 import type { BrowserSessionStore } from '../browser/session-store.js';
 import { EmbedChatHeader } from './header.js';
-import { useEmbedChatSurface } from './dialog.hooks.js';
+import { useEmbedChatWidget } from './dialog.hooks.js';
 export { useEmbedChatDialog } from './dialog.hooks.js';
 import type { EmbedHeaderCopy, EscapeKeyPort } from './header.js';
 export { EmbedChatHeader } from './header.js';
@@ -41,19 +40,9 @@ const shellStyles = `
  * cannot replay effects. Reset remounts the pane after confirmation.
  * @complexity O(messages + latest reply events) per transcript update; O(message IDs) retained.
  */
-export function EmbedChatWidget(args: EmbedChatWidgetArgs) {
+export function EmbedChatWidget({ useEmbedChatWidgetHook = useEmbedChatWidget, ...args }: EmbedChatWidgetArgs & { useEmbedChatWidgetHook?: typeof useEmbedChatWidget }) {
   const { agent, copy, transport, session, keyboard } = args;
-  const [initial] = useState(() => session.load({}));
-  const [paneKey, setPaneKey] = useState(0);
-  const { open, toggle, panelRef, launcherRef, panelId } = useEmbedChatSurface({ initialOpen: initial.open }, { resetKey: paneKey });
-  const [messages, setMessages] = useState(initial.messages);
-  useEffect(() => { session.save({ state: { open, messages } }); }, [session, open, messages]);
-  const reset = useCallback(() => {
-    session.clear({});
-    setMessages([]);
-    setPaneKey(key => key + 1);
-  }, [session]);
-  const onMessagesChange = useCallback((next: ChatMessage[]) => { setMessages(next); }, []);
+  const { open, toggle, panelRef, launcherRef, panelId, paneKey, messages, reset, onMessagesChange } = useEmbedChatWidgetHook({ session });
   return <div className="jini-chat-embed">
     <style>{shellStyles}</style>
     <div ref={launcherRef} tabIndex={-1}>
@@ -71,8 +60,8 @@ export function EmbedChatWidget(args: EmbedChatWidgetArgs) {
   </div>;
 }
 /** Mounts into a host-provided node and returns lifecycle cleanup. O(1) plus React rendering. */
-export function mountEmbedChat({ element, widget }: { element: Element; widget: EmbedChatWidgetArgs }): { unmount: (args: Record<string, never>) => void } {
+export function mountEmbedChat({ element, widget, surfaces }: { element: Element; widget: EmbedChatWidgetArgs; surfaces: ChatSurfaces }): { unmount: (args: Record<string, never>) => void } {
   const root = createRoot(element);
-  root.render(<EmbedChatWidget {...widget} />);
+  root.render(<ChatSurfacesProvider surfaces={surfaces}><EmbedChatWidget {...widget} /></ChatSurfacesProvider>);
   return { unmount: (_args: Record<string, never>) => root.unmount() };
 }

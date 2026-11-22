@@ -1,6 +1,7 @@
 import { isNonArrayRecord } from './records.js';
 import { ToolInputError, ToolInputNormalizationError } from './tool-input-errors.js';
 import { unwrapToolInputEnvelope } from './tool-input-envelope.js';
+import { clampDeclaredBounds } from './tool-input-repairs.js';
 export { ToolInputNormalizationError } from './tool-input-errors.js';
 
 /** A value-free account of canonicalization; domain hooks use the same contract as the gate. */
@@ -173,6 +174,13 @@ function normalizeEntry(
   if (target !== key) walk.notes.push(`${location}→${target}`);
   const parentPrefix = path ? `${path}.` : '';
   const value = normalizeValue({ value: raw, schema: shape.properties[target], step: { path: `${parentPrefix}${target}`, depth: depth + 1, walk } });
+  return rememberNormalizedEntry({ key, target, value }, sources);
+}
+
+function rememberNormalizedEntry(
+  { key, target, value }: { key: string; target: string; value: unknown },
+  sources: Map<string, { key: string; value: unknown }>,
+): [string, unknown] {
   const previous = sources.get(target);
   if (previous !== undefined && !Object.is(previous.value, value)) throw new ToolInputError({ message: `Conflicting inputs '${previous.key}' and '${key}' both name '${target}'. Send only '${target}'.` });
   sources.set(target, { key, value });
@@ -257,7 +265,10 @@ async function normalizeWithinGate(
     notes.push(...result.notes);
   }
   if (isObjectTool(schema) && !object(normalized)) throw new ToolInputError({ message: `${registration.descriptor.id}: normalization must produce one input object.` });
-  return { input: walkRoot({ input: normalized, schema, notes, validateClosed: true, keysOnly: false }), notes };
+  const final = walkRoot({ input: normalized, schema, notes, validateClosed: true, keysOnly: false });
+  // After number coercion, so a string "8300" gets the coercion note and then the clamp's note.
+  const clamped = clampDeclaredBounds({ input: final, inputSchema: schema });
+  return { input: clamped.input, notes: [...notes, ...clamped.notes] };
 }
 
 /** Keep result shapes intact and make rewrite notes visible in plain and MCP tool results. */

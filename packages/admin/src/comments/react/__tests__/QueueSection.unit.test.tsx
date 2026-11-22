@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, within } from "../../../__tests__/fetch-query-support.js";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -120,4 +120,50 @@ describe("QueueSection — useCommentQueueHook injection", () => {
     expect(screen.queryByRole("button", { name: /Load more|Loading…/ })).not.toBeInTheDocument();
   });
 
+});
+
+/** Pins the actions column ("More") for one fixture row: which menu items it shows, in which order,
+ *  and that each item reaches the controller with this row's comment. The column is built in the
+ *  hooks file and rendered by its own cell component, so this fails if either half is lost in a move. */
+describe("QueueSection — actions column for one row", () => {
+  const ALL = ["comments.read", "comments.moderate", "comments.delete", "comments.delete.force"];
+  const menuLabels = () => screen.getAllByRole("menuitem").map((item) => item.textContent);
+
+  it("shows Approve, Spam, Trash for a pending comment and sends the chosen action with the row's comment", async () => {
+    const user = userEvent.setup();
+    const controller = fakeController();
+    render(<QueueSection permissions={ALL} locale="en" useCommentQueueHook={() => controller} />);
+
+    const row = screen.getByText(COMMENT.bodyText).closest("tr")!;
+    await user.click(within(row).getByRole("button", { name: 'Actions for the comment by "Fake Author"' }));
+    expect(menuLabels()).toEqual(["Approve", "Spam", "Trash"]);
+
+    await user.click(screen.getByRole("menuitem", { name: "Spam" }));
+    expect(controller.onModerate).toHaveBeenCalledTimes(1);
+    expect(controller.onModerate).toHaveBeenCalledWith(COMMENT, "spam");
+    expect(controller.setPendingPurge).not.toHaveBeenCalled();
+  });
+
+  it("shows Approve, Spam, Restore, Purge for a trashed comment in the trash filter and asks to confirm the purge", async () => {
+    const user = userEvent.setup();
+    const trashed: AdminComment = { ...COMMENT, status: "trash" };
+    const controller = fakeController({ status: "trash", items: [trashed] });
+    render(<QueueSection permissions={ALL} locale="en" useCommentQueueHook={() => controller} />);
+
+    await user.click(screen.getByRole("button", { name: 'Actions for the comment by "Fake Author"' }));
+    expect(menuLabels()).toEqual(["Approve", "Spam", "Restore", "Purge"]);
+
+    await user.click(screen.getByRole("menuitem", { name: "Purge" }));
+    expect(controller.setPendingPurge).toHaveBeenCalledTimes(1);
+    expect(controller.setPendingPurge).toHaveBeenCalledWith(trashed);
+    expect(controller.onModerate).not.toHaveBeenCalled();
+  });
+
+  it("shows a dash and no menu button when the operator's permissions leave no action", () => {
+    render(<QueueSection permissions={["comments.read"]} locale="en" useCommentQueueHook={() => fakeController()} />);
+
+    const row = screen.getByText(COMMENT.bodyText).closest("tr")!;
+    expect(within(row).queryByRole("button")).toBeNull();
+    expect(within(row).getByText("—")).toBeInTheDocument();
+  });
 });

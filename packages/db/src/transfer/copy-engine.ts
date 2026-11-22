@@ -149,7 +149,7 @@ async function readMarkers(target: PostgresTargetPort, TRANSFER_MARKER_TABLE: st
   for (const [schema] of listed.value) {
     if (schema === undefined) continue;
     const rows = await target.query(
-      `SELECT site, snapshot_at, (SELECT count(DISTINCT site) FROM ${qualified(schema, TRANSFER_MARKER_TABLE)}) > 1 FROM ${qualified(schema, TRANSFER_MARKER_TABLE)} ORDER BY copied_at DESC LIMIT 1`
+      `SELECT site, snapshot_at, (SELECT count(DISTINCT site) FROM ${qualified({ schema, table: TRANSFER_MARKER_TABLE })}) > 1 FROM ${qualified({ schema, table: TRANSFER_MARKER_TABLE })} ORDER BY copied_at DESC LIMIT 1`
     );
     // A table merely NAMED like the marker (wrong columns) is someone else's; it never claims a site.
     const [site, snapshotAt, mixed] = rows.ok ? (rows.value[0] ?? []) : [];
@@ -195,7 +195,7 @@ function copyField(value: unknown, table: string, column: TransferColumn): strin
 function* copyTableData(source: TransferSource, schema: string, table: TransferTable): Generator<string> {
   const names = table.columns.map((column) => column.name);
   const columns = table.columns;
-  yield `COPY ${qualified(schema, table.name)} (${names.map(quoteIdent).join(", ")}) FROM STDIN;\n`;
+  yield `COPY ${qualified({ schema, table: table.name })} (${names.map(quoteIdent).join(", ")}) FROM STDIN;\n`;
   let batch = "";
   for (const row of source.rows(table.name, names, table.keep)) {
     batch += row.map((value, i) => copyField(value, table.name, columns[i]!)).join("\t") + "\n";
@@ -230,7 +230,7 @@ function guardSql(schema: string, site: string, TRANSFER_MARKER_TABLE: string, s
 
 function countCheckSql(schema: string, counts: readonly TableCount[], sqlTag: string): string {
   const checks = counts.map(
-    ({ table, rows }) => `SELECT count(*) INTO n FROM ${qualified(schema, table.name)}; IF n <> ${rows} THEN RAISE EXCEPTION ${quoteLiteral(COUNT_MISMATCH_SIGNAL + " " + table.name)}; END IF;`
+    ({ table, rows }) => `SELECT count(*) INTO n FROM ${qualified({ schema, table: table.name })}; IF n <> ${rows} THEN RAISE EXCEPTION ${quoteLiteral(COUNT_MISMATCH_SIGNAL + " " + table.name)}; END IF;`
   );
   return `DO $${sqlTag}$ DECLARE n bigint; BEGIN ${checks.join(" ")} END $${sqlTag}$;\n`;
 }
@@ -245,8 +245,8 @@ function markerSql(schema: string, marker: CopyMarker, counts: readonly TableCou
   const UNVALIDATED_TABLE = naming.unvalidatedTable.split(".").map(quoteIdent).join(".");
   const tableCounts = JSON.stringify(Object.fromEntries(counts.map(({ table, rows }) => [table.name, rows])));
   return (
-    `CREATE TABLE ${qualified(schema, TRANSFER_MARKER_TABLE)} (site text NOT NULL, snapshot_at text NOT NULL, copied_at timestamptz NOT NULL DEFAULT now(), table_counts jsonb NOT NULL, unvalidated jsonb NOT NULL);\n` +
-    `INSERT INTO ${qualified(schema, TRANSFER_MARKER_TABLE)} (site, snapshot_at, table_counts, unvalidated) VALUES (${quoteLiteral(marker.site)}, ${quoteLiteral(marker.snapshotAt)}, ${quoteLiteral(tableCounts)}::jsonb, ` +
+    `CREATE TABLE ${qualified({ schema, table: TRANSFER_MARKER_TABLE })} (site text NOT NULL, snapshot_at text NOT NULL, copied_at timestamptz NOT NULL DEFAULT now(), table_counts jsonb NOT NULL, unvalidated jsonb NOT NULL);\n` +
+    `INSERT INTO ${qualified({ schema, table: TRANSFER_MARKER_TABLE })} (site, snapshot_at, table_counts, unvalidated) VALUES (${quoteLiteral(marker.site)}, ${quoteLiteral(marker.snapshotAt)}, ${quoteLiteral(tableCounts)}::jsonb, ` +
     `(SELECT coalesce(jsonb_agg(name ORDER BY name), '[]'::jsonb) FROM ${UNVALIDATED_TABLE}));\n`
   );
 }
@@ -258,14 +258,14 @@ function* copyScript(sources: readonly { source: TransferSource; counts: readonl
   // A first copy must fail if the schema appeared since planning, never delete it.
   if (replaceExisting) yield `DROP SCHEMA IF EXISTS ${quoteIdent(schema)} CASCADE;\n`;
   yield `CREATE SCHEMA ${quoteIdent(schema)};\n`;
-  for (const { table } of counts) yield createTableSql(schema, table);
+  for (const { table } of counts) yield createTableSql({ schema, table });
   for (const { source, counts: sourceCounts } of sources) {
     for (const { table } of sourceCounts) yield* copyTableData(source, schema, table);
   }
   yield countCheckSql(schema, counts, sqlTag);
-  for (const { table } of counts) yield reseedIdentitySql(schema, table, sqlTag);
-  for (const { table } of counts) yield indexSql(schema, table);
-  yield constraintSql(schema, counts.map(({ table }) => table), naming.unvalidatedTable, sqlTag);
+  for (const { table } of counts) yield reseedIdentitySql({ schema, table }, { sqlTag });
+  for (const { table } of counts) yield indexSql({ schema, table });
+  yield constraintSql({ schema, tables: counts.map(({ table }) => table), unvalidatedTable: naming.unvalidatedTable }, { sqlTag });
   yield markerSql(schema, marker, counts, naming);
   yield "COMMIT;\n";
 }
@@ -286,7 +286,7 @@ export type CopyResult =
 async function readUnvalidated({ target, schema, markerTable }: { target: PostgresTargetPort; schema: string; markerTable: string }, _options = {}): Promise<{ unvalidatedConstraints: string[]; warning?: string }> {
   const unreadable = { unvalidatedConstraints: [], warning: "the copy finished, but its list of unchecked constraints could not be read back" };
   try {
-    const read = await target.query(`SELECT unvalidated FROM ${qualified(schema, markerTable)} LIMIT 1`);
+    const read = await target.query(`SELECT unvalidated FROM ${qualified({ schema, table: markerTable })} LIMIT 1`);
     const cell = read.ok ? read.value[0]?.[0] : undefined;
     if (cell === undefined) return unreadable;
     const constraints: unknown = JSON.parse(cell);

@@ -1,9 +1,8 @@
-import { inspect } from 'node:util';
-import { redactSecrets } from '@jini-ai/core';
+import { createConsoleLogger, type Logger } from "@jini-ai/core/primitives";
 import { Kysely, PostgresDialect } from "kysely";
 
 import { PG_PARSERS } from "../../core/index.js";
-import { buildKernel, postgresLockKey, type StorageKernel } from "../index.js";
+import { buildKernel, postgresLockKey, type KyselyKernel } from "../index.js";
 import { type PgModule, pgTypesFor } from "../../core/pg-types.js";
 
 /**
@@ -23,17 +22,18 @@ import { type PgModule, pgTypesFor } from "../../core/pg-types.js";
  */
 export function openPostgresKernel<DB>(
   required: { pg: PgModule; connectionString: string },
-  optional: { max?: number } = {}
-): StorageKernel<DB> {
+  optional: { max?: number; report?: Pick<Logger, "warn"> } = {}
+): KyselyKernel<DB> {
+  const logger = optional.report ?? createConsoleLogger({ prefix: "[postgres]" });
   const pool = new required.pg.Pool({
     connectionString: required.connectionString,
     max: optional.max ?? 10,
-    types: pgTypesFor(required.pg, PG_PARSERS),
+    types: pgTypesFor({ pg: required.pg, parsers: PG_PARSERS }),
   });
   // An idle connection dropped by the server (restart, failover, pg_terminate_backend, a pooler's
   // idle cut) is evicted by the pool and reopened on next use; without a listener it would crash the
   // process.
-  pool.on("error", (err) => console.warn('[postgres] idle pool connection dropped:', redactSecrets({ input: inspect(err) }, { redactPii: false })));
+  pool.on("error", (err) => logger.warn({ message: "Idle pool connection dropped." }, { error: err }));
   // Pool error listeners cover idle clients only. Session-owned workers hold a client for
   // longer, so absorb its error event while the next query rejects and stops that owner.
   const connected = new WeakSet<object>();
@@ -42,12 +42,12 @@ export function openPostgresKernel<DB>(
     const client = await connect();
     if (!connected.has(client)) {
       connected.add(client);
-      client.on?.("error", () => console.warn('[postgres] active pool connection dropped; its operation will stop.'));
+      client.on?.("error", (error) => logger.warn({ message: "Active pool connection dropped; its operation will stop." }, { error }));
     }
     return client;
   };
   const base = new Kysely<DB>({ dialect: new PostgresDialect({ pool }) });
-  return buildKernel<DB>({
+  return buildKernel<DB>({ driver: {
     dialect: "postgres",
     transport: "node-postgres",
     capabilities: { interactiveTransactions: true, atomicBatch: true, transactionalDdl: true, backup: false },
@@ -58,5 +58,5 @@ export function openPostgresKernel<DB>(
     begin: (body) => base.transaction().execute((tx) => body(tx)),
     lockKey: postgresLockKey,
     close: () => base.destroy(),
-  });
+  } });
 }

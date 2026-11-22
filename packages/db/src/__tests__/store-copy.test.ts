@@ -3,7 +3,7 @@ import { PGlite } from "@electric-sql/pglite";
 import { createQueryId, PostgresQueryCompiler, type RawBuilder, sql } from "kysely";
 import { expect, it } from "vitest";
 import { openPgliteKernel } from "../kernel/pglite/index.js";
-import type { StorageKernel } from "../kernel/port.js";
+import type { KyselyKernel } from "../kernel/port.js";
 import { assertLedgersAgree, copyPgStore, nonEmptyTables, StoreCopyError, type StoreCopyScope } from "../kernel/store-copy.js";
 const scope: StoreCopyScope = { schemas: ["catalog", "history"], ledgers: [{ schema: "catalog", name: "applied" }, { schema: "history", name: "applied" }] };
 async function fixtures() {
@@ -48,7 +48,7 @@ it("injected schemas/ledgers select only their tables, preserve ledgers, validat
     expect(await target.query(sql`SELECT id FROM public.outside_scope`)).toEqual([{ id: "leave-me" }]);
     expect(await target.query(sql`SELECT id, checksum FROM history.applied`)).toEqual([{ id: "step", checksum: "same" }]);
     expect(await target.query(sql`INSERT INTO catalog.parent DEFAULT VALUES RETURNING id`)).toEqual([{ id: 8 }]);
-    await expect(target.execute(sql`INSERT INTO history.child VALUES ('orphan', 999)`)).rejects.toThrow();
+    await expect(target.execute(sql`INSERT INTO history.child VALUES ('orphan', 999)`)).rejects.toThrow('insert or update on table "child" violates foreign key constraint "child_parent_id_fkey"');
     expect(await source.query(sql`SELECT id FROM history.child`)).toEqual([{ id: "child" }]);
   } finally { await source.close(); await target.close(); }
 }, 60_000);
@@ -61,7 +61,7 @@ it("host-excluded vault backups alone allow copying, but real target rows still 
     new PostgresQueryCompiler().compileQuery(statement.toOperationNode(), createQueryId()).sql.replace(/\s+/g, " ").trim();
   let realRows = false;
   const writes: string[] = [];
-  const fake: Pick<StorageKernel<unknown>, "query" | "execute" | "transaction"> = {
+  const fake: Pick<KyselyKernel<unknown>, "query" | "execute" | "transaction"> = {
     async query<Row>(statement: RawBuilder<Row>): Promise<Row[]> {
       const text = compile(statement);
       let rows: unknown[];
@@ -90,7 +90,7 @@ it("host-excluded vault backups alone allow copying, but real target rows still 
     },
     async transaction(fn) { return fn(); },
   };
-  const kernel = fake as StorageKernel<unknown>;
+  const kernel = fake as KyselyKernel<unknown>;
   const hostScope: StoreCopyScope = {
     schemas: ["public"], ledgers: [],
     excludeTable: ({ name }, _options = {}) => name.startsWith("_vault_backup_"),

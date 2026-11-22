@@ -10,7 +10,12 @@ import { test } from "vitest";
 
 import { rm } from "node:fs/promises";
 const forceRemove = (target: string) => rm(target, { recursive: true, force: true });
-import { DEFAULT_LOCK_STALE_AFTER_MS, FileLockLostError, FileLockTimeoutError, type FileLockHolder, type FileLockOptions, withFileLock, withFileLockSync, isContendedLockError } from "../file-lock.js";
+import { DEFAULT_LOCK_STALE_AFTER_MS, type FileLockOptions, withFileLock, withFileLockSync, isContendedLockError } from "../file-lock.js";
+import {
+  FileLockLostError,
+  FileLockTimeoutError,
+  type FileLockHolder,
+} from "@jini-ai/core/contracts/runtime";
 
 /**
  * @file U1-U14 — the shared async file lock's own contract, exercised against a REAL filesystem
@@ -181,25 +186,27 @@ test.each(["sync", "async"] as const)("U6: %s times out on an aged live holder a
 });
 
 // PARITY: copied async lifecycle lock contract against the canonical implementation.
-test("U7: a foreign hostname with a dead-liveness override still times out on a fresh lock — the liveness spy is never consulted", async () => {
+test.each(["sync", "async"])("U7: %s times out on fresh and aged fully identified foreign holders without probing local liveness", async adapter => {
   const root = await freshRoot();
   try {
     const lockPath = lockPathIn(root);
-    await plantLock(lockPath, { pid: 4242, hostname: "some-other-host", token: "foreign", acquiredAt: new Date().toISOString() });
-
-    let calls = 0;
-    await assert.rejects(
-      runLocked(lockPath, async () => undefined, {
-        timeoutMs: 250,
+    for (const ageMs of [0, 60_000]) {
+      await plantLock(lockPath, { pid: 4242, hostname: "some-other-host", token: "foreign", acquiredAt: new Date().toISOString() }, ageMs);
+      const before = await readFile(lockPath);
+      let elapsed = 0, calls = 0, ran = 0;
+      const required = { lockPath, run: () => { ran++; } };
+      const options: FileLockOptions & { sleep: () => void } = {
+        timeoutMs: 10, staleMs: DEFAULT_LOCK_STALE_AFTER_MS, pollMs: 1,
+        monotonicMs: () => elapsed, sleep: () => { elapsed++; },
         hostname: () => "this-host",
-        isProcessAlive: () => {
-          calls += 1;
-          return false;
-        },
-      }),
-      FileLockTimeoutError,
-    );
-    assert.equal(calls, 0, "a pid recorded on a different host must never reach our own liveness probe");
+        process: { pid: process.pid, isAlive: () => { calls++; return false; } },
+      };
+      if (adapter === "sync") assert.throws(() => withFileLockSync(required, options), FileLockTimeoutError);
+      else await assert.rejects(withFileLock(required, options), FileLockTimeoutError);
+      assert.deepEqual(await readFile(lockPath), before);
+      assert.equal(calls, 0, "a pid recorded on a different host must never reach our own liveness probe");
+      assert.equal(ran, 0);
+    }
   } finally {
     await forceRemove(root);
   }

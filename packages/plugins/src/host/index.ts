@@ -22,9 +22,8 @@ export * from './capability-tools.js';
 export * from './browser-providers.js';
 export * from './bundled-initialization.js';
 
-export { PLUGIN_PROVIDER_CAPABILITY } from './provider-contributions.js';
-export type { PluginProviderResource, PluginProviderFactory, PluginProviderContribution, PluginProvidersSdk } from './provider-contributions.js';
 export * from './provider-host.js';
+export * from './provider-revision-watch.js';
 export * from './provider-setting-required.js';
 export * from './provider-settings-migrations.js';
 export type { ProviderConfigSource, ProviderKeyUsage, ProviderPluginConfig, ProviderSettingsView, ProviderWriteResult } from './provider-config-source.js';

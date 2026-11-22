@@ -32,7 +32,7 @@ export interface SourceConfigListProps<TSource extends SourceConfigItem> {
  * trust, list, per-item test/refresh/remove" primitive. Consolidates the
  * shape independently found in the origin product's `McpClientSection.tsx`,
  * `byok/*`, `PluginsView.tsx`'s `SourcesPanel`, and `EntryShell.tsx`'s
- * `OnboardingByokSetupPanel` — see `packages/ui/source-map.md` for full
+ * `OnboardingByokSetupPanel` — see `archived UI source map` for full
  * per-source provenance and every dropped behavior.
  *
  * Composes the two feature hooks + the presentational `SourceConfigListView`

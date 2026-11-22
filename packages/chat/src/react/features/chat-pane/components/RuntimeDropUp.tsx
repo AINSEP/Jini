@@ -2,10 +2,13 @@ import type { ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { RemixIcon, infoTipBubbleStyle, useInfoTip, useAgentHandle } from '@jini-ai/ui';
 
-import { agentHandleProps, agentHandleSegment } from '@jini-ai/agentic';
-import { useRuntimeDropUp, type UseRuntimeDropUpResult } from '../hooks/useRuntimeDropUp.hooks.js';
+import { agentHandleProps, agentHandleSegment } from '@jini-ai/core/agent-handles';
+import { createRuntimeDropUpTipHandler, useRuntimeDropUp, type UseRuntimeDropUpResult } from '../hooks/useRuntimeDropUp.hooks.js';
 
 export interface RuntimeDropUpProps {
+  useAgentHandleHook?: typeof useAgentHandle;
+  useRuntimeDropUpHook?: typeof useRuntimeDropUp;
+  useInfoTipHook?: typeof useInfoTip;
   agentHandle?: string | false | undefined;
   /** Names both the trigger (with the current value appended) and the menu. */
   label: string;
@@ -93,6 +96,7 @@ function RuntimeDropUpMenu({ base, dropUp, label, value, options, onSelect, note
  * @complexity Time/space: O(n) in the option count.
  */
 export function RuntimeDropUp({
+  useAgentHandleHook = useAgentHandle, useRuntimeDropUpHook = useRuntimeDropUp, useInfoTipHook = useInfoTip,
   agentHandle,
   label,
   valueLabel,
@@ -104,21 +108,33 @@ export function RuntimeDropUp({
   width,
   className,
 }: RuntimeDropUpProps): ReactNode {
-  const base = useAgentHandle({ agentHandle });
-  const dropUp = useRuntimeDropUp({ width });
-  const { menuId, open, triggerRef, toggleOpen, handleTriggerKeyDown } = dropUp;
+  const base = useAgentHandleHook({ agentHandle });
+  const dropUp = useRuntimeDropUpHook({ width });
+  const { open } = dropUp;
   // The same white bubble as `InfoTip` (its hook places it), rather than the browser's own title
   // tooltip; only when the trigger shows a shortened label, so there is something to reveal.
-  const tip = useInfoTip({}, { placement: 'top' });
+  const tip = useInfoTipHook({}, { placement: 'top' });
   const shortened = triggerLabel !== undefined && triggerLabel !== valueLabel;
   // No tip over the open menu, which already lists the full name.
   const tipVisible = shortened && !open;
-  const showTip = () => {
-    if (tipVisible) tip.show();
-  };
+  const showTip = createRuntimeDropUpTipHandler({ tipVisible, tip });
 
   return (
     <>
+      <RuntimeDropUpTrigger base={base} dropUp={dropUp} tip={tip} shortened={shortened} showTip={showTip}
+        label={label} valueLabel={valueLabel} triggerLabel={triggerLabel} className={className} />
+      {tip.open && tipVisible ? <RuntimeDropUpTipBubble tip={tip} valueLabel={valueLabel} /> : null}
+      <RuntimeDropUpMenu base={base} dropUp={dropUp} label={label} value={value} options={options} onSelect={onSelect} note={note} />
+    </>
+  );
+}
+
+function RuntimeDropUpTrigger({ base, dropUp, tip, shortened, showTip, label, valueLabel, triggerLabel, className }: {
+  base: string | undefined; dropUp: UseRuntimeDropUpResult; tip: RuntimeDropUpTip; shortened: boolean; showTip: () => void;
+  label: string; valueLabel: string; triggerLabel: string | undefined; className: string | undefined;
+}): ReactNode {
+  const { menuId, open, triggerRef, toggleOpen, handleTriggerKeyDown } = dropUp;
+  return (
       <button
         {...agentHandleProps({}, { base, role: 'button', label })}
         ref={triggerRef}
@@ -145,8 +161,5 @@ export function RuntimeDropUp({
         <span ref={tip.iconRef} className="jini-runtime-dropup-trigger__label">{triggerLabel ?? valueLabel}</span>
         <RemixIcon name="arrow-down-s-line" size={15} className="jini-runtime-trigger__chevron" />
       </button>
-      {tip.open && tipVisible ? <RuntimeDropUpTipBubble tip={tip} valueLabel={valueLabel} /> : null}
-      <RuntimeDropUpMenu base={base} dropUp={dropUp} label={label} value={value} options={options} onSelect={onSelect} note={note} />
-    </>
   );
 }

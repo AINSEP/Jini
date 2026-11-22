@@ -7,7 +7,7 @@
  * unconditionally, and why a networked driver implementing the same port would not.
  *
  * The watermark is injected (`readWatermark`) rather than read from a table this package would
- * have to know the name of — see `WatermarkReader` in `db/core/ports.ts`.
+ * have to know the name of — see `WatermarkReader` in `packages/db/src/core/ports.ts`.
  */
 import { randomBytes } from 'node:crypto';
 import fs from 'node:fs/promises';
@@ -16,7 +16,7 @@ import path from 'node:path';
 
 import { restorePointFilename } from '../core/artifact-naming.js';
 import type { DbOpsPort, RestoreCapability, RestorePoint, WatermarkReader } from '../core/ports.js';
-import type { SqliteBackupSource } from './restore-types.js';
+import type { SqliteBackupSource } from '@jini-ai/core/contracts/storage';
 import { assertDatabaseCopySpace } from './backup-policy.js';
 
 /** Sentinel `filePath` for an ephemeral connection with no file behind it. */

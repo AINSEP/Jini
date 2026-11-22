@@ -1,0 +1,25 @@
+
+> jini@ guard /home/user/Jini
+> node --import tsx ./scripts/guard.ts
+
+injection advisory: 465 test-only cross-package imports in 308 files (not failing)
+[hardwiring] HW1-env-default: 15 total; 0 new
+[hardwiring] HW2-vendor-adapter: 5 total; 0 new
+[hardwiring] HW3-module-state: 34 total; 0 new
+[hardwiring] HW4-injected-fetch: 0 total; 0 new
+[hardwiring] HW5-jini-export: 0 total; 0 new
+[hardwiring] HW6-boot-default: 0 total; 0 new
+[hardwiring] HW7-public-react: 0 total; 0 new
+[hardwiring] HW8-provider-url: 47 total; 0 new
+[hardwiring] HW9-plugin-import: 0 total; 0 new
+[hardwiring] HW9-env-access: 73 total; 0 new
+[hardwiring] HW12-env-import-time: 9 total; 0 new
+[hardwiring] 2 stale debt occurrences; remove them from scripts/env-access-debt.json.
+[guard] R13-model-fallback-freshness claude: MF3 compared 17 live id(s) against 21 fallback entr(ies).
+[guard] R13-model-fallback-freshness codex: MF3 SKIPPED — `codex debug models` unavailable (spawn codex ENOENT). Staleness date still enforced (MF1/MF2).
+[guard] R13-model-fallback-freshness antigravity: MF3 SKIPPED — `agy models` unavailable (spawn agy ENOENT). Staleness date still enforced (MF1/MF2).
+[guard] R13-model-fallback-freshness pi: MF3 SKIPPED — MF3 does not apply to `pi` — only MF1/MF2 (staleness date) apply. Staleness date still enforced (MF1/MF2).
+[guard] R13-model-fallback-freshness aider: MF3 SKIPPED — MF3 does not apply to `aider` — only MF1/MF2 (staleness date) apply. Staleness date still enforced (MF1/MF2).
+[guard] R13-model-fallback-freshness opencode: MF3 SKIPPED — MF3 does not apply to `opencode` — only MF1/MF2 (staleness date) apply. Staleness date still enforced (MF1/MF2).
+[guard] ok — self-test passed (checks proven against known-bad fixtures) and zero violations found in packages/. Vocabulary-firewall and residual-JS-allowlist checks are still TODO.
+exit=0

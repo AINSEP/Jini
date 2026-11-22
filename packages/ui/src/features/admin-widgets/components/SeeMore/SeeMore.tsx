@@ -1,5 +1,5 @@
 import { useAgentHandle } from '../../../../react/hooks/useAgentHandle.js';
-import { agentHandle } from "@jini-ai/agentic";
+import { agentHandle } from "@jini-ai/core/agent-handles";
 import { useSeeMoreClamp } from "./SeeMore.hooks.js";
 import { withClassName } from "../../../../utils/class-names.js";
 
@@ -53,15 +53,15 @@ export function resolveSeeMoreView({
 } = {}): SeeMoreView {
   return {
     wrapperClassName: className ? `see-more ${className}` : "see-more",
-    textClassName: withClassName(expanded ? "see-more-text is-expanded" : "see-more-text", textClassName),
+    textClassName: withClassName({ base: expanded ? "see-more-text is-expanded" : "see-more-text", extra: textClassName }),
     toggleClassName: toggleClassName ? `see-more-toggle ${toggleClassName}` : "see-more-toggle",
     toggleLabel: expanded ? lessLabel : moreLabel,
   };
 }
 
 /** Clamps overflowing text and exposes an accessible expand/collapse toggle. Labels are host-owned. */
-export function SeeMore({ useClamp = useSeeMoreClamp, agentHandle: suppliedHandle, ...props }: SeeMoreProps) {
-  const handle = useAgentHandle({ agentHandle: suppliedHandle });
+export function SeeMore({ useClamp = useSeeMoreClamp, agentHandle: suppliedHandle, useAgentHandleHook = useAgentHandle, ...props }: SeeMoreProps & { useAgentHandleHook?: typeof useAgentHandle }) {
+  const handle = useAgentHandleHook({ agentHandle: suppliedHandle });
   const { children, lines = DEFAULT_LINES, moreLabel, lessLabel, className, textClassName, toggleClassName, toggleAriaLabel } = props;
 
   const { expanded, setExpanded, overflows, textRef, regionId, lineCount } = useClamp({ lines, children });

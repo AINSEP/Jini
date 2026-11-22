@@ -1,15 +1,17 @@
+import { reactModuleUi } from '../../../core/react/module-ui.js';
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Suspense } from 'react';
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '../../../__tests__/fetch-query-support.js';
 import { describe, expect, it, vi } from 'vitest';
 import ts from 'typescript';
 import { FetchQueryProvider } from '@jini-ai/ui/fetch-query';
 import { createAdmin } from '../../../core/module/create-admin.js';
-import { AdminApiError } from '../../../core/transport/errors.js';
+import { AdminApiError } from '@jini-ai/core/admin-runtime';
 import { createMemoryFormsApi } from '../../adapters/memory.js';
 import { forms } from '../index.js';
+import { fakeFormsCatalog } from '../../__tests__/fakes/forms-catalog.js';
 
 describe('Forms module list API failure regression', () => {
   it('loads the list eagerly so its API read cannot queue behind a native dynamic import', () => {
@@ -44,10 +46,10 @@ describe('Forms module list API failure regression', () => {
     const memory = createMemoryFormsApi({});
     let rejectRead!: (error: Error) => void;
     const listFormDefinitions = vi.fn(() => new Promise<never>((_resolve, reject) => { rejectRead = reject; }));
-    const module = forms({});
+    const module = forms({ ui: reactModuleUi });
     // The Provider scopes the bound definition by identity, not the factory's React wrapper.
     const admin = createAdmin({ modules: [module.react.module], ports: {
-      formsApi: { ...memory, listFormDefinitions }, formsTrash: memory.trash,
+      formsApi: { ...memory, listFormDefinitions }, formsCatalog: fakeFormsCatalog(), formsTrash: memory.trash,
     } }, { permissions: ['admin.forms.manage'] });
     const { Page, tabs } = module.react.pages.list;
     const description = admin.describe().pages.find(page => page.id === 'forms.list')!;

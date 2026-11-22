@@ -5,7 +5,7 @@ import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { prepareAgentLogFile } from '../log-file.js';
 import { createAgentModelDiscovery } from '../model-discovery-native.js';
-import type { RuntimeAgentDef } from '../types.js';
+import type { RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 
 function defWith(overrides: Partial<RuntimeAgentDef> = {}): RuntimeAgentDef {
   return {

@@ -1,7 +1,13 @@
 import { CallToolRequestSchema, ListToolsRequestSchema, type CallToolResult, type ListToolsResult } from '@modelcontextprotocol/sdk/types.js';
-import type { McpServerLike } from '../tool-server.js';
+import type { McpServerLike } from '../adapters/sdk-server.js';
 
-type Call = (input: { request: { params: { name: string; arguments?: Record<string, unknown> } } }, options?: { extra?: { signal?: AbortSignal } }) => Promise<CallToolResult>;
+/** The parts of the SDK's per-request `extra` a test may hand the call handler. */
+export type CapturedExtra = {
+  signal?: AbortSignal;
+  _meta?: { progressToken?: string | number };
+  sendNotification?: (notification: { method: string; params: Record<string, unknown> }) => Promise<void>;
+};
+type Call = (input: { request: { params: { name: string; arguments?: Record<string, unknown> } } }, options?: { extra?: CapturedExtra }) => Promise<CallToolResult>;
 
 /** Capture SDK boundary handlers only; name resolution, validation and gateways run in production. */
 export function createToolServerCapture(_input = {}, _options = {}) {
@@ -21,6 +27,11 @@ export function createToolServerCapture(_input = {}, _options = {}) {
     call: async (name: string, args: Record<string, unknown> = {}, signal?: AbortSignal) => {
       await ready;
       return call({ request: { params: { name, arguments: args } } }, { extra: { ...(signal ? { signal } : {}) } });
+    },
+    /** Like `call`, with the whole SDK `extra` (progress token, notification sender) under the caller's control. */
+    callWithExtra: async (name: string, args: Record<string, unknown>, extra: CapturedExtra) => {
+      await ready;
+      return call({ request: { params: { name, arguments: args } } }, { extra });
     },
     list: async () => { await ready; return list(); },
   };

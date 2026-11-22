@@ -1,5 +1,7 @@
 import { createRef } from 'react';
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { renderWithChatSurfaces } from '../../../../__tests__/fake-chat-surfaces.js';
+import { hostChatSurfaces } from '../../../../__tests__/host-chat-surfaces.js';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -44,7 +46,7 @@ describe('ChatPane', () => {
       id: 'claude', name: 'Claude Code', available: true, models: catalog.models, modelCatalog: catalog,
       defaultModelResolution: { status: 'unresolved', selectionId: 'opus[1m]', reason: 'No concrete model evidence.' },
     };
-    render(<ChatPane transport={transport} agents={[claude]} selection={{ agentId: 'claude' }}
+    renderWithChatSurfaces(<ChatPane transport={transport} agents={[claude]} selection={{ agentId: 'claude' }}
       runContext={({ selection }) => ({ model: selection.model })} />);
     fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Hello Claude' } });
     expect(screen.getByRole('button', { name: 'Send' })).toBeEnabled();
@@ -56,7 +58,7 @@ describe('ChatPane', () => {
 
   it('keeps the blocker in the Send title, not the footer, when the agent becomes unavailable', () => {
     const transport = createFakeChatTransport();
-    const { rerender } = render(<ChatPane transport={transport} agents={agents} />);
+    const { rerender } = renderWithChatSurfaces(<ChatPane transport={transport} agents={agents} />);
     fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Keep my draft' } });
     rerender(<ChatPane transport={transport} agents={[{ ...agents[0]!, available: false }]} />);
     expect(screen.getByRole('textbox')).toHaveValue('Keep my draft');
@@ -72,7 +74,7 @@ describe('ChatPane', () => {
     const transport = createFakeChatTransport();
     let finish: (value: Array<{ path: string; name: string; kind: 'file' }>) => void = () => {};
     const uploadAttachments = vi.fn(() => new Promise<Array<{ path: string; name: string; kind: 'file' }>>((resolve) => { finish = resolve; }));
-    render(<ChatPane transport={transport} agents={agents} uploadAttachments={uploadAttachments} />);
+    renderWithChatSurfaces(<ChatPane transport={transport} agents={agents} uploadAttachments={uploadAttachments} />);
     fireEvent.change(screen.getByRole('textbox'), { target: { value: 'with a file' } });
     await userEvent.upload(screen.getByLabelText('Attach files', { selector: 'input' }), new File(['x'], 'a.txt', { type: 'text/plain' }));
     const notice = await screen.findByText('Attachment still uploading.');
@@ -88,7 +90,7 @@ describe('ChatPane', () => {
   it('excludes workspace controls on the embed surface while retaining draft and send behavior', async () => {
     const transport = createFakeChatTransport();
     const upload = vi.fn(async () => []);
-    render(<ChatPane variant="embed" transport={transport} agents={agents}
+    renderWithChatSurfaces(<ChatPane variant="embed" transport={transport} agents={agents}
       workingDirectoryControlPlacement="composer" uploadAttachments={upload}
       leadingAccessory={<button>Admin context</button>}
       composerSlots={{ footerLeadingAccessory: <button>Admin tool</button>,
@@ -113,7 +115,7 @@ describe('ChatPane', () => {
   it('owns composer/conversation/send orchestration and forwards selection plus run context', async () => {
     const transport = createFakeChatTransport();
     const activities: ChatPaneActivity[] = [];
-    render(
+    renderWithChatSurfaces(
       <ChatPane
         title="Starter Site"
         transport={transport}
@@ -166,7 +168,7 @@ describe('ChatPane', () => {
     // Wiring only — `useChatPaneComposerPlaceholder.test.tsx` owns the rotation/reduced-motion
     // behavior itself. This just proves `ChatPane` actually threads `placeholders` through.
     const transport = createFakeChatTransport();
-    render(
+    renderWithChatSurfaces(
       <ChatPane
         transport={transport}
         agents={agents}
@@ -181,7 +183,7 @@ describe('ChatPane', () => {
   it('supports controlled selection, static context, cancellation, reset, and host slots', async () => {
     const transport = createFakeChatTransport();
     const onSelectionChange = vi.fn();
-    render(
+    renderWithChatSurfaces(
       <ChatPane
         title="Controlled"
         transport={transport}
@@ -211,7 +213,7 @@ describe('ChatPane', () => {
   it('fails closed with no available agent and surfaces transport errors', async () => {
     const unavailable = [{ id: 'missing', name: 'Missing', available: false }] satisfies ChatPaneAgent[];
     const transport = createFakeChatTransport();
-    const { rerender } = render(
+    const { rerender } = renderWithChatSurfaces(
       <ChatPane
         title="Unavailable"
         transport={transport}
@@ -232,7 +234,7 @@ describe('ChatPane', () => {
 
   it('supports package defaults and host styling/composer extension props', () => {
     const transport = createFakeChatTransport();
-    render(
+    renderWithChatSurfaces(
       <ChatPane
         transport={transport}
         agents={agents}
@@ -259,7 +261,7 @@ describe('ChatPane', () => {
   it('opens every in-pane link in a new tab, including host-rendered card links', () => {
     const open = vi.spyOn(window, 'open').mockReturnValue(null);
     try {
-      render(
+      renderWithChatSurfaces(
         <ChatPane
           transport={createFakeChatTransport()}
           agents={agents}
@@ -281,7 +283,7 @@ describe('ChatPane', () => {
       kind: 'image' as const,
     };
     const uploadAttachments = vi.fn(async () => [uploaded]);
-    render(
+    renderWithChatSurfaces(
       <ChatPane
         transport={transport}
         agents={agents}
@@ -314,7 +316,7 @@ describe('ChatPane', () => {
       name: file.name,
       kind: 'file' as const,
     })));
-    render(
+    renderWithChatSurfaces(
       <ChatPane
         transport={transport}
         agents={agents}
@@ -364,7 +366,7 @@ describe('ChatPane', () => {
       name: file.name,
       kind: 'file' as const,
     })));
-    render(<ChatPane transport={transport} agents={agents} uploadAttachments={uploadAttachments} />);
+    renderWithChatSurfaces(<ChatPane transport={transport} agents={agents} uploadAttachments={uploadAttachments} />);
 
     await userEvent.type(screen.getByPlaceholderText('Send a message…'), 'Run');
     await userEvent.click(screen.getByRole('button', { name: 'Send' }));
@@ -413,7 +415,7 @@ describe('ChatPane', () => {
       recentDirectories: vi.fn(async () => ['/Users/test/previous']),
       directoryExists: vi.fn(async () => true),
     };
-    render(
+    renderWithChatSurfaces(
       <ChatPane
         transport={transport}
         agents={agents}
@@ -438,7 +440,7 @@ describe('ChatPane', () => {
 
   it('renders package-owned attachment and working-directory capability errors', async () => {
     const transport = createFakeChatTransport();
-    render(
+    renderWithChatSurfaces(
       <ChatPane
         transport={transport}
         agents={agents}
@@ -473,7 +475,7 @@ describe('ChatPane', () => {
       resolveExists = resolve;
     });
     const transport = createFakeChatTransport();
-    render(
+    renderWithChatSurfaces(
       <ChatPane
         transport={transport}
         runtimeAccess={{
@@ -517,7 +519,7 @@ describe('ChatPane', () => {
       .mockRejectedValueOnce(new Error('GET /api/agents answered 500'))
       .mockResolvedValue(agents);
     const transport = createFakeChatTransport();
-    render(
+    renderWithChatSurfaces(
       <ChatPane
         transport={transport}
         initialSelection={{ agentId: 'codex' }}
@@ -545,7 +547,7 @@ describe('ChatPane', () => {
       resolveAgents = resolve;
     });
     const transport = createFakeChatTransport();
-    render(
+    renderWithChatSurfaces(
       <ChatPane
         transport={transport}
         runtimeAccess={{
@@ -575,7 +577,7 @@ describe('ChatPane', () => {
       resolveAgents = resolve;
     });
     const transport = createFakeChatTransport();
-    render(
+    renderWithChatSurfaces(
       <ChatPane
         transport={transport}
         initialSelection={{ agentId: 'codex' }}
@@ -598,7 +600,7 @@ describe('ChatPane', () => {
   it('subscribes the daemon-relayed bridge when agentControl is supplied enabled', () => {
     const transport = createFakeChatTransport();
     const subscribe = vi.fn(() => () => {});
-    render(
+    renderWithChatSurfaces(
       <ChatPane
         transport={transport}
         agents={agents}
@@ -630,8 +632,10 @@ describe('ChatPane', () => {
     });
     try {
       const transport = createFakeChatTransport();
-      render(
+      renderWithChatSurfaces(
         <ChatPane transport={transport} agents={agents} agentControl={{ enabled: true, webmcp: true }} />,
+        // WebMCP detection is the host's page port; bind the detector a host binds.
+        { surfaces: hostChatSurfaces() },
       );
       expect(registerTool).toHaveBeenCalled();
     } finally {
@@ -641,7 +645,7 @@ describe('ChatPane', () => {
 
   it('shows a rescan failure as an alert while keeping the last good inventory on screen', async () => {
     const transport = createFakeChatTransport();
-    render(
+    renderWithChatSurfaces(
       <ChatPane
         transport={transport}
         runtimeAccess={{
@@ -664,7 +668,7 @@ describe('ChatPane', () => {
     const rescanAgents = vi.fn(async () => [
       { id: 'claude', name: 'Claude CLI', available: true },
     ]);
-    render(
+    renderWithChatSurfaces(
       <ChatPane
         transport={transport}
         runtimeAccess={{
@@ -687,7 +691,7 @@ describe('ChatPane', () => {
       name: file.name,
       kind: 'file' as const,
     })));
-    render(<ChatPane transport={transport} agents={agents} uploadAttachments={uploadAttachments} />);
+    renderWithChatSurfaces(<ChatPane transport={transport} agents={agents} uploadAttachments={uploadAttachments} />);
 
     const target = screen.getByTestId('chat-pane-file-drop-target');
     const unreadableItem = {
@@ -711,7 +715,7 @@ describe('ChatPane', () => {
   it('lets a host that owns execution-mode switching drive it from the runtime picker', async () => {
     const transport = createFakeChatTransport();
     const onExecutionModeChange = vi.fn();
-    render(
+    renderWithChatSurfaces(
       <ChatPane
         transport={transport}
         agents={agents}
@@ -731,7 +735,7 @@ describe('ChatPane', () => {
     // involved) could never be used on a host with zero agent CLIs on PATH, e.g. a Docker
     // container.
     const transport = createFakeChatTransport();
-    render(
+    renderWithChatSurfaces(
       <ChatPane
         transport={transport}
         agents={[]}
@@ -753,7 +757,7 @@ describe('ChatPane', () => {
 
   it('still fails closed in local-CLI mode with zero agents on PATH — no regression', () => {
     const transport = createFakeChatTransport();
-    render(<ChatPane transport={transport} agents={[]} />);
+    renderWithChatSurfaces(<ChatPane transport={transport} agents={[]} />);
 
     expect(screen.getByText('No usable CLI is selected.')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('Send a message…')).toBeDisabled();
@@ -767,7 +771,7 @@ describe('ChatPane', () => {
     // wired the callback that makes that true.
     const transport = createFakeChatTransport();
     const onExecutionModeChange = vi.fn();
-    render(
+    renderWithChatSurfaces(
       <ChatPane
         transport={transport}
         agents={[]}
@@ -787,7 +791,7 @@ describe('ChatPane', () => {
     // meaningful. The pane must still point at BYOK as prose, never inventing an affordance it
     // cannot actually perform.
     const transport = createFakeChatTransport();
-    render(<ChatPane transport={transport} agents={[]} executionMode="local" apiModeAvailable />);
+    renderWithChatSurfaces(<ChatPane transport={transport} agents={[]} executionMode="local" apiModeAvailable />);
 
     expect(
       screen.getByText('No usable CLI is selected — switch to BYOK to use your own API key.'),
@@ -800,7 +804,7 @@ describe('ChatPane', () => {
     // anywhere). Telling the operator to "try BYOK" would be a lie, so the original message stands
     // alone with no pointer and no button.
     const transport = createFakeChatTransport();
-    render(<ChatPane transport={transport} agents={[]} executionMode="local" apiModeAvailable={false} />);
+    renderWithChatSurfaces(<ChatPane transport={transport} agents={[]} executionMode="local" apiModeAvailable={false} />);
 
     expect(screen.getByText('No usable CLI is selected.')).toBeInTheDocument();
     expect(
@@ -812,7 +816,7 @@ describe('ChatPane', () => {
   describe('composerHandle', () => {
     it('publishes insertText once mounted, appends onto an existing draft, and clears on unmount', () => {
       const composerHandle = createRef<ChatPaneComposerHandle | null>();
-      const { unmount } = render(
+      const { unmount } = renderWithChatSurfaces(
         <ChatPane transport={createFakeChatTransport()} agents={agents} composerHandle={composerHandle} />,
       );
 
@@ -841,7 +845,7 @@ describe('ChatPane', () => {
     it('does nothing when composerHandle is omitted — no crash, no phantom ref writes', () => {
       // The prop is optional; every other test in this file renders ChatPane without it. This test
       // exists only to make that omission an asserted case rather than an accident of coverage.
-      expect(() => render(<ChatPane transport={createFakeChatTransport()} agents={agents} />)).not.toThrow();
+      expect(() => renderWithChatSurfaces(<ChatPane transport={createFakeChatTransport()} agents={agents} />)).not.toThrow();
     });
   });
 
@@ -852,7 +856,7 @@ describe('ChatPane', () => {
   // the whole file green.
   describe('default header and chrome', () => {
     it('renders the eyebrow and puts the supplied title in the heading', () => {
-      render(<ChatPane title="Starter Site" transport={createFakeChatTransport()} agents={agents} />);
+      renderWithChatSurfaces(<ChatPane title="Starter Site" transport={createFakeChatTransport()} agents={agents} />);
 
       expect(screen.getByText('Workspace chat')).toBeInTheDocument();
       const heading = screen.getByRole('heading', { name: 'Starter Site' });
@@ -862,14 +866,14 @@ describe('ChatPane', () => {
     });
 
     it('falls back to "Chat" as the heading when no title is supplied', () => {
-      render(<ChatPane transport={createFakeChatTransport()} agents={agents} />);
+      renderWithChatSurfaces(<ChatPane transport={createFakeChatTransport()} agents={agents} />);
 
       expect(screen.getByRole('heading', { name: 'Chat' })).toBeInTheDocument();
       expect(screen.queryByRole('heading', { name: 'Starter Site' })).not.toBeInTheDocument();
     });
 
     it('replaces the whole default header when a custom one is supplied', () => {
-      render(
+      renderWithChatSurfaces(
         <ChatPane
           title="Ignored"
           transport={createFakeChatTransport()}
@@ -885,7 +889,7 @@ describe('ChatPane', () => {
     });
 
     it('labels the suggestions row and renders one button per suggestion', () => {
-      render(
+      renderWithChatSurfaces(
         <ChatPane
           transport={createFakeChatTransport()}
           agents={agents}
@@ -900,7 +904,7 @@ describe('ChatPane', () => {
     });
 
     it('omits the suggestions row entirely when there are none', () => {
-      render(<ChatPane transport={createFakeChatTransport()} agents={agents} />);
+      renderWithChatSurfaces(<ChatPane transport={createFakeChatTransport()} agents={agents} />);
 
       expect(screen.queryByLabelText('Example prompts')).not.toBeInTheDocument();
     });
@@ -911,7 +915,7 @@ describe('ChatPane', () => {
         recentDirectories: vi.fn(async () => []),
         directoryExists: vi.fn(async () => true),
       };
-      const { rerender } = render(
+      const { rerender } = renderWithChatSurfaces(
         <ChatPane transport={createFakeChatTransport()} agents={agents} workingDirectoryAccess={access} />,
       );
 
@@ -933,7 +937,7 @@ describe('ChatPane', () => {
     });
 
     it('shows the composer\'s folder-icon working-directory trigger, not the native picker, when no access is supplied', () => {
-      render(
+      renderWithChatSurfaces(
         <ChatPane
           transport={createFakeChatTransport()}
           agents={agents}
@@ -949,7 +953,7 @@ describe('ChatPane', () => {
     });
 
     it('changes the working directory through the composer\'s lightweight popover when no native access is supplied', async () => {
-      render(
+      renderWithChatSurfaces(
         <ChatPane
           transport={createFakeChatTransport()}
           agents={agents}
@@ -978,7 +982,7 @@ describe('ChatPane', () => {
         recentDirectories: vi.fn(async () => []),
         directoryExists: vi.fn(async () => true),
       };
-      render(
+      renderWithChatSurfaces(
         <ChatPane
           transport={createFakeChatTransport()}
           agents={agents}
@@ -1001,7 +1005,7 @@ describe('ChatPane', () => {
         recentDirectories: vi.fn(async () => []),
         directoryExists: vi.fn(async () => true),
       };
-      render(
+      renderWithChatSurfaces(
         <ChatPane
           transport={createFakeChatTransport()}
           agents={agents}
@@ -1028,7 +1032,7 @@ describe('ChatPane', () => {
     // absent, regardless of placement. A host with no real filesystem path to offer (e.g. a
     // browser context) needs a way to render nothing rather than a non-functional control.
     it('renders no composer folder-icon trigger when placement="none", even without native access', () => {
-      render(
+      renderWithChatSurfaces(
         <ChatPane
           transport={createFakeChatTransport()}
           agents={agents}
@@ -1047,7 +1051,7 @@ describe('ChatPane', () => {
         recentDirectories: vi.fn(async () => []),
         directoryExists: vi.fn(async () => true),
       };
-      render(
+      renderWithChatSurfaces(
         <ChatPane
           transport={createFakeChatTransport()}
           agents={agents}
@@ -1108,7 +1112,7 @@ describe('ChatPane', () => {
 
   it('explains a failed typed-answer delivery without offering to send it as a new message', async () => {
     const transport = createFakeChatTransport();
-    render(
+    renderWithChatSurfaces(
       <ChatPane
         transport={transport}
         agents={agents}
@@ -1132,7 +1136,7 @@ describe('ChatPane', () => {
   it('automatically sends a stale question answer as a normal message once, without an error notice', async () => {
     const transport = createFakeChatTransport();
     const post = vi.fn(async () => new Response(null, { status: 409 }));
-    render(
+    renderWithChatSurfaces(
       <ChatPane
         transport={transport}
         agents={agents}
@@ -1174,7 +1178,7 @@ it('hides prior automatic plugin usage immediately when the host chooses Off', (
   const initialMessages: ChatMessage[] = [{ id: 'plugin-turn', role: 'assistant', content: '', createdAt: 1,
     events: [{ kind: 'ext', name: 'agent_plugins', data: { conversationId: 'plugins-off-chat', plugins: [{ id: 'fixture', name: 'Fixture plugin' }] } }] }];
   const transport = createFakeChatTransport();
-  const { rerender } = render(<ChatPane transport={transport} agents={agents} conversationId="plugins-off-chat" initialMessages={initialMessages} agentPluginsMode="auto" />);
+  const { rerender } = renderWithChatSurfaces(<ChatPane transport={transport} agents={agents} conversationId="plugins-off-chat" initialMessages={initialMessages} agentPluginsMode="auto" />);
   expect(screen.getByText('Using:')).toBeInTheDocument();
   rerender(<ChatPane transport={transport} agents={agents} conversationId="plugins-off-chat" initialMessages={initialMessages} agentPluginsMode="off" />);
   expect(screen.queryByText('Using:')).not.toBeInTheDocument();
@@ -1190,7 +1194,7 @@ describe('ChatPane accepted input recording', () => {
       const transport = createFakeChatTransport();
       const answer: DeliverTypedAnswer = Object.assign(vi.fn(async () => 'delivered' as const), { toolName: 'assistant_ask_choice' });
       const steer = vi.fn(async () => 'delivered' as const);
-      const view = render(<ChatPane transport={transport} agents={agents} initialDraft="first"
+      const view = renderWithChatSurfaces(<ChatPane transport={transport} agents={agents} initialDraft="first"
         composerHistoryScope={`accepted-${path}`} composerHistoryStorage={storage}
         onMessagesChange={messages => { transcript = messages; }}
         {...(path === 'answer' ? { deliverTypedAnswer: answer } : {})}
@@ -1221,7 +1225,7 @@ describe('ChatPane accepted input recording', () => {
       act(() => transport.finish());
       const reloaded = JSON.parse(JSON.stringify(transcript)) as ChatMessage[];
       view.unmount();
-      const recovered = render(<ChatPane transport={createFakeChatTransport()} agents={agents}
+      const recovered = renderWithChatSurfaces(<ChatPane transport={createFakeChatTransport()} agents={agents}
         composerHistoryScope={`accepted-${path}`} composerHistoryStorage={storage} initialMessages={reloaded} />);
       await waitFor(() => expect(screen.getAllByText('accepted text')).toHaveLength(1));
       fireEvent.keyDown(screen.getByRole('textbox'), { key: 'ArrowUp', selectionStart: 0, selectionEnd: 0 });
@@ -1232,7 +1236,7 @@ describe('ChatPane accepted input recording', () => {
   );
 
   it('reconstructs typed answer bubbles and recall from saved tool results alone', () => {
-    render(<ChatPane transport={createFakeChatTransport()} agents={agents} initialMessages={[{
+    renderWithChatSurfaces(<ChatPane transport={createFakeChatTransport()} agents={agents} initialMessages={[{
       id: 'saved-answer', role: 'assistant', content: '', runStatus: 'succeeded', events: [
         { kind: 'tool_use', id: 'ask-saved', name: 'assistant_ask_choice', input: {} },
         { kind: 'tool_result', toolUseId: 'ask-saved', content: JSON.stringify({ submitted: true, freeText: 'saved answer' }), isError: false },
@@ -1248,7 +1252,7 @@ describe('ChatPane accepted input recording', () => {
     transport.startRun = vi.fn(async () => { throw new Error('409 refused'); });
     let saved: readonly string[] = [];
     const storage = { read: async () => saved, write: async ({ entries }: { entries: readonly string[] }) => { saved = entries; } };
-    render(<ChatPane transport={transport} agents={agents} composerHistoryStorage={storage} initialDraft="keep this draft" />);
+    renderWithChatSurfaces(<ChatPane transport={transport} agents={agents} composerHistoryStorage={storage} initialDraft="keep this draft" />);
     await act(async () => { fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Enter' }); });
     expect(screen.getByRole('textbox')).toHaveValue('keep this draft');
     expect(saved).toEqual([]);
@@ -1262,7 +1266,7 @@ describe('ChatPane accepted input recording', () => {
     transport.startRun = vi.fn()
       .mockRejectedValueOnce(new Error('agent run failed to start (503): The Tovu server is restarting.'))
       .mockImplementation(accept);
-    render(<ChatPane transport={transport} agents={agents} initialDraft="can you read the folder" />);
+    renderWithChatSurfaces(<ChatPane transport={transport} agents={agents} initialDraft="can you read the folder" />);
     await act(async () => { fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Enter' }); });
     const alert = screen.getByRole('alert');
     expect(alert).toHaveTextContent('Not sent: agent run failed to start (503): The Tovu server is restarting.');
@@ -1298,7 +1302,7 @@ describe('ChatPane accepted input recording', () => {
   it('empties the composer on send and says "Sending…" until the run is accepted, then "Thinking…"', async () => {
     const transport = createFakeChatTransport();
     const start = deferStart(transport);
-    render(<ChatPane transport={transport} agents={agents} initialDraft="hello there" />);
+    renderWithChatSurfaces(<ChatPane transport={transport} agents={agents} initialDraft="hello there" />);
     await act(async () => { fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Enter' }); });
     expect(screen.getByRole('textbox')).toHaveValue('');
     expect(screen.getByText('Sending…')).toBeInTheDocument();
@@ -1312,7 +1316,7 @@ describe('ChatPane accepted input recording', () => {
   it('puts a refused send back into the empty composer', async () => {
     const transport = createFakeChatTransport();
     const start = deferStart(transport);
-    render(<ChatPane transport={transport} agents={agents} initialDraft="hello there" />);
+    renderWithChatSurfaces(<ChatPane transport={transport} agents={agents} initialDraft="hello there" />);
     await act(async () => { fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Enter' }); });
     expect(screen.getByRole('textbox')).toHaveValue('');
     await start.refuse(new Error('The Tovu server is restarting.'));
@@ -1323,7 +1327,7 @@ describe('ChatPane accepted input recording', () => {
   it('puts back a send refused before the composer even re-rendered', async () => {
     const transport = createFakeChatTransport();
     transport.startRun = vi.fn(async () => { throw new Error('connect ECONNREFUSED'); });
-    render(<ChatPane transport={transport} agents={agents} initialDraft="hello there" />);
+    renderWithChatSurfaces(<ChatPane transport={transport} agents={agents} initialDraft="hello there" />);
     await act(async () => { fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Enter' }); });
     expect(screen.getByRole('alert')).toHaveTextContent('Not sent: connect ECONNREFUSED');
     expect(screen.getByRole('textbox')).toHaveValue('hello there');
@@ -1336,7 +1340,7 @@ describe('ChatPane accepted input recording', () => {
     const onRejection = (reason: unknown) => { rejections.push(reason); };
     process.on('unhandledRejection', onRejection);
     try {
-      render(<ChatPane transport={transport} agents={agents} initialDraft="hello there" runContext={() => { throw failure; }} />);
+      renderWithChatSurfaces(<ChatPane transport={transport} agents={agents} initialDraft="hello there" runContext={() => { throw failure; }} />);
       await act(async () => { fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Enter' }); });
       await act(async () => { await new Promise(resolve => setTimeout(resolve, 0)); });
       expect(screen.getByRole('textbox')).toHaveValue('hello there');
@@ -1348,7 +1352,7 @@ describe('ChatPane accepted input recording', () => {
   it('never writes a refused send over new typing, and Retry still resends the refused text', async () => {
     const transport = createFakeChatTransport();
     const start = deferStart(transport);
-    render(<ChatPane transport={transport} agents={agents} initialDraft="hello there" />);
+    renderWithChatSurfaces(<ChatPane transport={transport} agents={agents} initialDraft="hello there" />);
     await act(async () => { fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Enter' }); });
     fireEvent.change(screen.getByRole('textbox'), { target: { value: 'next thought' } });
     await start.refuse(new Error('The Tovu server is restarting.'));
@@ -1363,7 +1367,7 @@ describe('ChatPane accepted input recording', () => {
     const transport = createFakeChatTransport();
     const start = deferStart(transport);
     const uploaded = { path: '/tmp/reference.png', name: 'reference.png', kind: 'image' as const };
-    render(<ChatPane transport={transport} agents={agents} uploadAttachments={vi.fn(async () => [uploaded])} attachmentAccept="image/*" />);
+    renderWithChatSurfaces(<ChatPane transport={transport} agents={agents} uploadAttachments={vi.fn(async () => [uploaded])} attachmentAccept="image/*" />);
     await userEvent.upload(screen.getByLabelText('Attach files', { selector: 'input' }), new File(['image bytes'], 'reference.png', { type: 'image/png' }));
     const staged = () => screen.queryByRole('button', { name: 'Remove reference.png' });
     await waitFor(() => expect(staged()).not.toBeNull());
@@ -1383,7 +1387,7 @@ describe('ChatPane accepted input recording', () => {
 
   it('keeps an accepted run that later fails on its own message, not as "Not sent"', async () => {
     const transport = createFakeChatTransport();
-    render(<ChatPane transport={transport} agents={agents} initialDraft="hello" />);
+    renderWithChatSurfaces(<ChatPane transport={transport} agents={agents} initialDraft="hello" />);
     await act(async () => { fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Enter' }); });
     act(() => transport.fail(new Error('runtime failed')));
     expect(document.querySelectorAll('.jini-message-user')).toHaveLength(1);
@@ -1398,7 +1402,7 @@ describe('ChatPane per-message queue', () => {
     const transport = createFakeChatTransport();
     const image = { path: 'attachment:footer', name: 'footer.png', kind: 'image' as const };
     let transcript: ChatMessage[] = [];
-    const view = render(<ChatPane transport={transport} agents={agents} initialDraft="first turn"
+    const view = renderWithChatSurfaces(<ChatPane transport={transport} agents={agents} initialDraft="first turn"
       uploadAttachments={async () => [image]} onMessagesChange={messages => { transcript = messages; }} />);
     await userEvent.click(screen.getByRole('button', { name: 'Send' }));
     await waitFor(() => expect(transport.calls).toHaveLength(1));
@@ -1439,7 +1443,7 @@ describe('ChatPane per-message queue', () => {
     act(() => fixture.transport.finish());
     const persisted = JSON.parse(JSON.stringify(fixture.transcript())) as ChatMessage[];
     fixture.unmount();
-    render(<ChatPane transport={createFakeChatTransport()} agents={agents} initialMessages={persisted} />);
+    renderWithChatSurfaces(<ChatPane transport={createFakeChatTransport()} agents={agents} initialMessages={persisted} />);
     expect(screen.getByText('were you stuck?').closest('[data-message-id]')).toHaveAttribute('data-message-id', first!.getAttribute('data-message-id'));
     expect(screen.getByText('add the footer icons').closest('[data-message-id]')).toHaveAttribute('data-message-id', second!.getAttribute('data-message-id'));
     expect(screen.getByRole('button', { name: 'Open footer.png' })).toBeInTheDocument();

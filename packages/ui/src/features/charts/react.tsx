@@ -2,7 +2,12 @@
 import { useEffect, useRef, type ComponentType, type ReactElement } from 'react';
 import { InteractiveUiRegistry, type InteractiveComponentEntry } from '../interactive-ui/registry.js';
 import type { InteractiveComponentManifest } from '../interactive-ui/types.js';
-import { chartSpecSchema, DEFAULT_CHART_THEME, type ChartSpec, type ChartTheme } from './contract.js';
+import { chartSpecSchema } from './contract.js';
+import {
+  type ChartSpec,
+  type ChartTheme,
+} from '@jini-ai/core/contracts/charts';
+import { DEFAULT_CHART_THEME } from './default-theme.js';
 import { mountChart, type MountedChart, type MountChartOptions } from './browser.js';
 import { CHART_SPEC_COMPONENT_ID, chartCatalogManifests } from './catalog-manifests.js';
 import { chartCapability, type ChartProviderRegistry } from './registry.js';

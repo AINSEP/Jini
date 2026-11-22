@@ -1,8 +1,8 @@
-import { useCallback, type MouseEvent, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { useT } from '../../../i18n/index.js';
 import { useInView } from '../../../../react/hooks/useInView.js';
-import { resolveCheckboxClickAction, resolvePreviewClickAction } from '../../rules.js';
 import type { AssetGridItem } from '../../types.js';
+import { useAssetCard } from './AssetCard.hooks.js';
 
 export interface AssetCardProps<TAsset extends AssetGridItem> {
   asset: TAsset;
@@ -24,6 +24,28 @@ export interface AssetCardProps<TAsset extends AssetGridItem> {
   onDeleteAsset?: ((id: string) => void) | undefined;
   /** Host-owned extra actions row (e.g. an "open origin" link) rendered alongside the generic Remove action. */
   renderCardExtra?: ((asset: TAsset) => ReactNode) | undefined;
+  /** Hooks the card calls; defaults to the real ones, a test hands in fakes. */
+  hooks?: AssetCardHooks | undefined;
+}
+
+export const defaultAssetCardHooks = { useT, useInView, useAssetCard };
+export type AssetCardHooks = typeof defaultAssetCardHooks;
+
+function AssetCardBadges({ sourceLabel, kindLabel }: Pick<AssetCardProps<AssetGridItem>, 'sourceLabel' | 'kindLabel'>) {
+  return (
+    <>
+      {sourceLabel ? (
+        <span className="jini-asset-grid-card-badge" data-badge="source">
+          {sourceLabel}
+        </span>
+      ) : null}
+      {kindLabel ? (
+        <span className="jini-asset-grid-card-badge" data-badge="kind">
+          {kindLabel}
+        </span>
+      ) : null}
+    </>
+  );
 }
 
 function renderCardActions<TAsset extends AssetGridItem>(
@@ -34,10 +56,10 @@ function renderCardActions<TAsset extends AssetGridItem>(
 ) {
   if (!renderCardExtra && !onDeleteAsset) return null;
   return (
-    <div className="asset-grid-card-actions">
+    <div className="jini-asset-grid-card-actions">
       {renderCardExtra ? renderCardExtra(asset) : <span />}
       {onDeleteAsset ? (
-        <button type="button" className="asset-grid-card-delete-btn" onClick={() => onDeleteAsset(asset.id)}>
+        <button type="button" className="jini-asset-grid-card-delete-btn" onClick={() => onDeleteAsset(asset.id)}>
           {t('Remove')}
         </button>
       ) : null}
@@ -60,29 +82,13 @@ export function AssetCard<TAsset extends AssetGridItem>({
   onPreview,
   onDeleteAsset,
   renderCardExtra,
+  hooks = defaultAssetCardHooks,
 }: AssetCardProps<TAsset>) {
-  const t = useT();
-  const { ref, inView } = useInView<HTMLDivElement>({ once: true, rootMargin: '300px' });
+  const t = hooks.useT();
+  const { ref, inView } = hooks.useInView<HTMLDivElement>({ once: true, rootMargin: '300px' });
   const selectionValue = selected ? 'true' : 'false';
 
-  const handlePreviewClick = useCallback(
-    (e: MouseEvent) => {
-      const action = resolvePreviewClickAction(e);
-      if (action === 'toggle') onToggle(asset.id, index);
-      else if (action === 'range') onRange(index);
-      else onPreview(asset.id);
-    },
-    [asset.id, index, onToggle, onRange, onPreview],
-  );
-
-  const handleCheckboxClick = useCallback(
-    (e: MouseEvent) => {
-      e.stopPropagation();
-      if (resolveCheckboxClickAction(e) === 'range') onRange(index);
-      else onToggle(asset.id, index);
-    },
-    [asset.id, index, onToggle, onRange],
-  );
+  const { handlePreviewClick, handleCheckboxClick } = hooks.useAssetCard({ asset, index, onToggle, onRange, onPreview });
 
   return (
     <figure
@@ -123,16 +129,7 @@ export function AssetCard<TAsset extends AssetGridItem>({
             </svg>
           ) : null}
         </button>
-        {sourceLabel ? (
-          <span className="asset-grid-card-badge" data-badge="source">
-            {sourceLabel}
-          </span>
-        ) : null}
-        {kindLabel ? (
-          <span className="asset-grid-card-badge" data-badge="kind">
-            {kindLabel}
-          </span>
-        ) : null}
+        <AssetCardBadges sourceLabel={sourceLabel} kindLabel={kindLabel} />
       </div>
       <figcaption className="asset-grid-card-meta">
         <button type="button" className="asset-grid-card-title" title={title} onClick={() => onPreview(asset.id)}>

@@ -3,21 +3,33 @@
  *
  * Short, read-only metadata probes (model-list / version / help /
  * auth-status) for an agent CLI. Ported from OD's
- * `apps/daemon/src/runtimes/invocation.ts` with one dependency swap:
- * `createCommandInvocation` now comes from `@jini-ai/platform` instead of the
- * OD workspace package it originally shipped from — the two are the same
- * function (platform was already verbatim-lifted into `@jini-ai/platform`,
- * see its `archived provenance ledger`).
+ * `apps/daemon/src/runtimes/invocation.ts`. Command planning is core's pure
+ * `planCommandInvocation`: `@jini-ai/platform`'s `createCommandInvocation`
+ * (the function OD shipped from its workspace package, verbatim-lifted into
+ * platform, see its `archived provenance ledger`) is only that planner plus the
+ * process's own platform and `ComSpec`, so this module passes those two values
+ * explicitly through `ambientCommandShell` instead of importing platform.
  */
 import { execFile } from 'node:child_process';
 import { scheduleProbeProcess } from './probe-scheduler.js';
 import os from 'node:os';
 import { promisify } from 'node:util';
-import { createCommandInvocation } from '@jini-ai/platform/command';
+import { planCommandInvocation, type RuntimePlatform } from '@jini-ai/core/contracts/runtime';
 import type { RuntimeExecOptions } from './types.js';
 
 const execFileP = promisify(execFile);
 type ProbeExecPort = (input: { command: string; args: string[]; options: RuntimeExecOptions & { windowsVerbatimArguments?: boolean | undefined } }, optional: Record<string, never>) => ReturnType<typeof execFileP>;
+
+/** The platform and fallback `ComSpec` a command plan needs; ambient values, injectable so tests never stub globals. */
+export interface AmbientCommandShell { readonly platform: RuntimePlatform; readonly fallbackComSpec: string | undefined }
+
+/**
+ * Read the process's own platform and `ComSpec` (every call, never hoisted). When a host-built `env` carries no
+ * `ComSpec`, Windows falls back to the process's own; dropping this would silently turn the cmd-shim into a bare `cmd.exe`.
+ */
+export function ambientCommandShell(_required: Record<string, never>, { platform = process.platform, ambientEnv = process.env }: { platform?: RuntimePlatform; ambientEnv?: Readonly<Record<string, string | undefined>> } = {}): AmbientCommandShell {
+  return { platform, fallbackComSpec: ambientEnv.ComSpec };
+}
 
 // Agent probes (model-list / version / help / auth-status) are short
 // read-only metadata calls that never need the caller's project files.
@@ -32,19 +44,13 @@ type ProbeExecPort = (input: { command: string; args: string[]; options: Runtime
 // running dev server. A probe writing a stray lockfile under the OS temp
 // dir is harmless. Actual agent runs spawn elsewhere with an explicit
 // project cwd and are unaffected.
-export function execAgentFile({ command, args }: { command: string; args: string[] }, { options = {}, execute = (input) => execFileP(input.command, input.args, input.options) }: { options?: RuntimeExecOptions; execute?: ProbeExecPort } = {}
+export function execAgentFile({ command, args }: { command: string; args: string[] }, { options = {}, execute = (input) => execFileP(input.command, input.args, input.options), commandShell = ambientCommandShell({}) }: { options?: RuntimeExecOptions; execute?: ProbeExecPort; commandShell?: AmbientCommandShell } = {}
 ) {
-  const invocation = createCommandInvocation(
-    options.env
-      ? {
-          command,
-          args,
-          env: options.env,
-        }
-      : {
-          command,
-          args,
-        },
+  const invocation = planCommandInvocation(
+    // The planner reads only `env.ComSpec`; with no env passed the old default (the process env) and the
+    // ambient fallback are the same value, so an empty env here keeps that behaviour without a second env read.
+    { command, platform: commandShell.platform, env: options.env ?? {} },
+    { args, fallbackComSpec: commandShell.fallbackComSpec },
   );
   return scheduleProbeProcess({ work: async () => {
     const pending = execute({ command: invocation.command, args: invocation.args, options: {

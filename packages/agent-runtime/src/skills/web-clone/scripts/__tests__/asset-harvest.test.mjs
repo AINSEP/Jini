@@ -21,7 +21,7 @@ afterEach(() => {
 
 describe("parseArgs", () => {
   it("returns the documented defaults for an empty argv", () => {
-    expect(parseArgs([])).toEqual({
+    expect(parseArgs({ argv: [] })).toEqual({
       url: "",
       recon: "",
       outDir: "assets",
@@ -36,78 +36,78 @@ describe("parseArgs", () => {
   });
 
   it("reads every value flag and switch", () => {
-    const args = parseArgs([
+    const args = parseArgs({ argv: [
       "--url", "https://a.test/", "--recon", "r.json", "--out", "o", "--manifest", "m.json",
       "--types", " image, ,font ", "--max-bytes", "10", "--scroll-step", "50", "--settle", "7",
       "--recon-only", "--all-external", "-h",
-    ]);
+    ] });
     expect(args).toMatchObject({
       url: "https://a.test/", recon: "r.json", outDir: "o", manifest: "m.json", types: ["image", "font"],
       maxBytes: 10, scrollStep: 50, settle: 7, reconOnly: true, allExternal: true, help: true,
     });
-    expect(parseArgs(["--help"]).help).toBe(true);
+    expect(parseArgs({ argv: ["--help"] }).help).toBe(true);
   });
 
   it("falls back per flag when the trailing value is missing", () => {
-    expect(parseArgs(["--max-bytes", "5", "--max-bytes"]).maxBytes).toBe(5);
-    expect(parseArgs(["--out"]).outDir).toBe("assets");
-    expect(parseArgs(["--scroll-step"]).scrollStep).toBe(700);
-    expect(parseArgs(["--settle"]).settle).toBe(2500);
-    expect(parseArgs(["--types"]).types).toEqual([]);
-    expect(parseArgs(["--url"]).url).toBe("");
+    expect(parseArgs({ argv: ["--max-bytes", "5", "--max-bytes"] }).maxBytes).toBe(5);
+    expect(parseArgs({ argv: ["--out"] }).outDir).toBe("assets");
+    expect(parseArgs({ argv: ["--scroll-step"] }).scrollStep).toBe(700);
+    expect(parseArgs({ argv: ["--settle"] }).settle).toBe(2500);
+    expect(parseArgs({ argv: ["--types"] }).types).toEqual([]);
+    expect(parseArgs({ argv: ["--url"] }).url).toBe("");
   });
 
   it("rejects unknown arguments, including Object.prototype names", () => {
-    expect(() => parseArgs(["--nope"])).toThrow("Unexpected argument: --nope");
-    expect(() => parseArgs(["constructor"])).toThrow("Unexpected argument: constructor");
+    expect(() => parseArgs({ argv: ["--nope"] })).toThrow("Unexpected argument: --nope");
+    expect(() => parseArgs({ argv: ["constructor"] })).toThrow("Unexpected argument: constructor");
   });
 });
 
 describe("classify", () => {
   it("prefers font over every other signal", () => {
-    expect(classify("https://x/a", "image", "font/woff2")).toBe("font");
-    expect(classify("https://x/a", "other", "application/font-woff")).toBe("font");
-    expect(classify("https://x/a.woff2?v=1", "other", undefined)).toBe("font");
+    expect(classify({ url: "https://x/a", resourceType: "image", contentType: "font/woff2" })).toBe("font");
+    expect(classify({ url: "https://x/a", resourceType: "other", contentType: "application/font-woff" })).toBe("font");
+    expect(classify({ url: "https://x/a.woff2?v=1", resourceType: "other", contentType: undefined })).toBe("font");
   });
 
   it("detects images by content type, resource type or extension", () => {
-    expect(classify("https://x/a", "other", "IMAGE/PNG")).toBe("image");
-    expect(classify("https://x/a", "image", "")).toBe("image");
-    expect(classify("https://x/a.svg#frag", "other", "")).toBe("image");
+    expect(classify({ url: "https://x/a", resourceType: "other", contentType: "IMAGE/PNG" })).toBe("image");
+    expect(classify({ url: "https://x/a", resourceType: "image", contentType: "" })).toBe("image");
+    expect(classify({ url: "https://x/a.svg#frag", resourceType: "other", contentType: "" })).toBe("image");
   });
 
   it("detects media by video/audio type, resource type or extension", () => {
-    expect(classify("https://x/a", "other", "video/mp4")).toBe("media");
-    expect(classify("https://x/a", "other", "audio/mpeg")).toBe("media");
-    expect(classify("https://x/a", "media", "")).toBe("media");
-    expect(classify("https://x/a.webm", "other", "")).toBe("media");
+    expect(classify({ url: "https://x/a", resourceType: "other", contentType: "video/mp4" })).toBe("media");
+    expect(classify({ url: "https://x/a", resourceType: "other", contentType: "audio/mpeg" })).toBe("media");
+    expect(classify({ url: "https://x/a", resourceType: "media", contentType: "" })).toBe("media");
+    expect(classify({ url: "https://x/a.webm", resourceType: "other", contentType: "" })).toBe("media");
   });
 
   it("detects stylesheets and ignores everything else", () => {
-    expect(classify("https://x/a", "other", "text/css; charset=utf-8")).toBe("stylesheet");
-    expect(classify("https://x/a", "stylesheet", "")).toBe("stylesheet");
-    expect(classify("https://x/app.js", "script", "text/javascript")).toBeNull();
+    expect(classify({ url: "https://x/a", resourceType: "other", contentType: "text/css; charset=utf-8" })).toBe("stylesheet");
+    expect(classify({ url: "https://x/a", resourceType: "stylesheet", contentType: "" })).toBe("stylesheet");
+    expect(classify({ url: "https://x/app.js", resourceType: "script", contentType: "text/javascript" })).toBeNull();
   });
 });
 
 describe("localPathFor", () => {
   it("files each kind under its folder and host with a hashed, sanitized name", () => {
-    const image = localPathFor("image", "https://cdn.ex-ample.com/p/hero shot.PNG?x=1");
+    const image = localPathFor({ kind: "image", url: "https://cdn.ex-ample.com/p/hero shot.PNG?x=1" });
     expect(image).toMatch(/^images\/cdn\.ex-ample\.com\/hero-20shot-[0-9a-f]{10}\.PNG$/);
-    expect(localPathFor("font", "https://f.test/a.woff2")).toMatch(/^fonts\/f\.test\/a-[0-9a-f]{10}\.woff2$/);
-    expect(localPathFor("media", "https://m.test/v.mp4")).toMatch(/^media\/m\.test\//);
-    expect(localPathFor("stylesheet", "https://s.test/c.css")).toMatch(/^css\/s\.test\//);
+    expect(localPathFor({ kind: "font", url: "https://f.test/a.woff2" })).toMatch(/^fonts\/f\.test\/a-[0-9a-f]{10}\.woff2$/);
+    expect(localPathFor({ kind: "media", url: "https://m.test/v.mp4" })).toMatch(/^media\/m\.test\//);
+    expect(localPathFor({ kind: "stylesheet", url: "https://s.test/c.css" })).toMatch(/^css\/s\.test\//);
   });
 
   it("names extensionless and empty paths asset/.bin, and hashes per URL", () => {
-    expect(localPathFor("image", "https://a.test/")).toMatch(/^images\/a\.test\/asset-[0-9a-f]{10}\.bin$/);
-    expect(localPathFor("image", "https://a.test/x?1")).not.toBe(localPathFor("image", "https://a.test/x?2"));
+    expect(localPathFor({ kind: "image", url: "https://a.test/" })).toMatch(/^images\/a\.test\/asset-[0-9a-f]{10}\.bin$/);
+    expect(localPathFor({ kind: "image", url: "https://a.test/x?1" })).not.toBe(localPathFor({ kind: "image", url: "https://a.test/x?2" }));
   });
 });
 
 describe("urlsFromRecon", () => {
   it("collects image src/srcset, @font-face srcs, stylesheets and resource lists as absolute URLs", () => {
-    const urls = urlsFromRecon({
+    const urls = urlsFromRecon({ recon: {
       url: "https://site.test/page/",
       captures: [
         {
@@ -120,7 +120,7 @@ describe("urlsFromRecon", () => {
         },
         {},
       ],
-    });
+    } });
     expect(Object.fromEntries(urls)).toEqual({
       "https://site.test/page/hero.png": "image",
       "https://site.test/page/a.png": "image",
@@ -134,14 +134,14 @@ describe("urlsFromRecon", () => {
   });
 
   it("keeps the first hinted kind, skips non-http and unresolvable refs", () => {
-    const urls = urlsFromRecon({
+    const urls = urlsFromRecon({ recon: {
       captures: [
         { signals: { images: [{ src: "https://x.test/dup" }, { src: "data:image/png;base64,AA" }, { src: "relative-without-base.png" }] } },
         { signals: { resources: { fonts: ["https://x.test/dup"] } } },
       ],
-    });
+    } });
     expect(Object.fromEntries(urls)).toEqual({ "https://x.test/dup": "image" });
-    expect(urlsFromRecon({}).size).toBe(0);
+    expect(urlsFromRecon({ recon: {} }).size).toBe(0);
   });
 });
 
@@ -150,13 +150,13 @@ describe("rewriteFontCss", () => {
 
   it("rewrites url() refs it downloaded to paths relative to fonts/, keeping quotes", () => {
     const css = `src: url("a.woff2") format("woff2"), url( 'https://other.test/b.woff' ), url(a.woff2);`;
-    expect(rewriteFontCss(css, "https://fonts.test/css", map)).toBe(
+    expect(rewriteFontCss({ cssText: css, cssUrl: "https://fonts.test/css", urlToLocal: map })).toBe(
       `src: url("fonts.test/a-1.woff2") format("woff2"), url( 'https://other.test/b.woff' ), url(fonts.test/a-1.woff2);`,
     );
   });
 
   it("leaves refs untouched when they cannot be resolved against the CSS URL", () => {
-    expect(rewriteFontCss("url(a.woff2)", "not a url", map)).toBe("url(a.woff2)");
+    expect(rewriteFontCss({ cssText: "url(a.woff2)", cssUrl: "not a url", urlToLocal: map })).toBe("url(a.woff2)");
   });
 });
 
@@ -169,13 +169,24 @@ describe("downloadAll", () => {
       return { ok: false, status: 503, body: async () => Buffer.alloc(0) };
     };
     const entries = ["https://a.test/boom", "https://a.test/big", "https://a.test/down"].map((url) => ({ url, kind: "image", via: "recon" }));
-    const results = await downloadAll(entries, get, { outDir: dir, maxBytes: 10, referer: "https://a.test/", fs });
-    expect(results.map((r) => [r.status, r.error])).toEqual([
-      ["error", "socket hang up"],
-      ["error", "exceeds --max-bytes (11)"],
-      ["error", "HTTP 503"],
+    const results = await downloadAll({ entries, get, outDir: dir, maxBytes: 10, referer: "https://a.test/", fs });
+    // The script's own refusals keep their words; a transport error is recorded by class only.
+    expect(results.map((r) => [r.id, r.status, r.error])).toEqual([
+      ["asset-1", "error", "Error"],
+      ["asset-2", "error", "exceeds --max-bytes (11)"],
+      ["asset-3", "error", "HTTP 503"],
     ]);
     expect(fs.readdirSync(dir)).toEqual([]);
+  });
+
+  // A transport error can quote the URL it fetched, including a user:password part or a signed query.
+  it("never records a transport error's text, even when it quotes a URL with userinfo or a query secret", async () => {
+    const dir = makeTempDir();
+    const secretUrl = "https://user:SECRETPASS@a.test/f.woff2?sig=SECRETSIG";
+    const get = async (url) => { throw new Error(`request to ${url} failed`); };
+    const results = await downloadAll({ entries: [{ url: secretUrl, kind: "font", via: "recon" }], get, outDir: dir, maxBytes: 10, referer: "https://a.test/", fs });
+    expect(results[0]).toMatchObject({ id: "asset-1", status: "error", error: "Error" });
+    expect(results[0].error).not.toMatch(/SECRET/);
   });
 });
 
@@ -265,7 +276,9 @@ describe("main", () => {
     expect(out.logs[0]).toBe("▸ 候选资产 4 个(图片 2 / 字体 2)，开始下载…");
     expect(out.logs[1]).toBe(`✅ 下载 2 成功 / 2 失败 → ${path.join(dir, "assets")}`);
     expect(out.logs[2]).toBe(`▸ 自托管字体样式: ${path.join("assets", "fonts/fonts.css")} (页面 <link> 引入即可)`);
-    expect(out.logs[3]).toBe("⚠️ 1 个字体下载失败——不许用系统字体糊弄，逐个排查:\n   ECONNRESET https://cdn.test/x.woff2");
+    const failedFont = manifest.assets.find((a) => a.url === "https://cdn.test/x.woff2");
+    expect(failedFont).toMatchObject({ status: "error", error: "Error" });
+    expect(out.logs[3]).toBe(`⚠️ 1 个字体下载失败——不许用系统字体糊弄，逐个排查:\n   Error ${failedFont.id}`);
     expect(out.logs[4]).toBe(path.join(dir, "assets", "asset-manifest.json"));
   });
 
@@ -282,7 +295,7 @@ describe("main", () => {
     };
     fs.writeFileSync(path.join(dir, "recon.json"), JSON.stringify(recon));
     const fetch = fakeFetch({ [unreadable]: { body: "@font-face{font-family:G}" }, [readable]: { body: "@font-face{font-family:T}" } });
-    const goneFile = path.join(dir, "assets", localPathFor("stylesheet", unreadable));
+    const goneFile = path.join(dir, "assets", localPathFor({ kind: "stylesheet", url: unreadable }));
     const files = {
       ...fs,
       readFileSync: (file, ...rest) => {
@@ -326,7 +339,7 @@ describe("main", () => {
     expect(code).toBe(0);
     expect(state.contextOptions).toEqual({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 2 });
     expect(state.gotos).toEqual([{ url: "https://site.test/", options: { waitUntil: "networkidle", timeout: 90000 } }]);
-    expect(out.warns).toEqual(["  goto: Timeout 90000ms exceeded"]);
+    expect(out.warns).toEqual(["  goto: Error"]);
     expect(state.scrolls).toEqual([[0, 0], [0, 700], [0, 1400], [0, 0]]);
     expect(state.waits).toEqual([180, 180, 180, 10, 800]);
     expect(state.pageClosed).toBe(true);
@@ -340,7 +353,7 @@ describe("main", () => {
     expect(fs.readFileSync(path.join(dir, "out", "fonts", "fonts.css"), "utf8")).toBe(
       `/* self-hosted from ${typekit} */\n@font-face{src:url("${font.replace(/^fonts\//, "")}")}\n`,
     );
-    expect(out.logs[0]).toBe("▸ 加载 + 全程滚动捕获资产请求: https://site.test/");
+    expect(out.logs[0]).toBe("▸ 加载 + 全程滚动捕获资产请求: site.test");
   });
 
   it("writes no fonts.css when nothing needs self-hosting and closes the browser on failure", async () => {
@@ -353,10 +366,11 @@ describe("main", () => {
     expect(fs.existsSync(path.join(dir, "assets", "fonts"))).toBe(false);
     expect(out.logs).toHaveLength(4);
 
-    const broken = { ...browser, newContext: async () => { throw new Error("context crashed"); }, close: browser.close };
+    const broken = { ...browser, newContext: async () => { throw new Error("boom api_key=SECRETSECRETSECRETSECRET"); }, close: browser.close };
     state.closed = false;
     expect(await main({ argv: ["--url", "https://site.test/"] }, { ...io, fs, launchBrowser: async () => broken })).toBe(1);
-    expect(out.errors).toEqual(["asset-harvest failed: context crashed"]);
+    expect(out.errors).toEqual(["asset-harvest failed: Error"]);
+    expect(JSON.stringify(out.errors)).not.toMatch(/boom|SECRETSECRET|asset-harvest\.test/);
     expect(state.closed).toBe(true);
   });
 });

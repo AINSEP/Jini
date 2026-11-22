@@ -48,16 +48,16 @@ describe('HeaderActionsMenu helpers', () => {
   });
 
   it('isOutsideHeaderMenu handles a missing container, contained, and outside targets', () => {
-    expect(isOutsideHeaderMenu(null, document.body)).toBe(false);
+    expect(isOutsideHeaderMenu({ container: null, target: document.body })).toBe(false);
     const container = document.createElement('div');
     const inner = document.createElement('span');
     container.appendChild(inner);
     document.body.appendChild(container);
     const outside = document.createElement('button');
     document.body.appendChild(outside);
-    expect(isOutsideHeaderMenu(container, inner)).toBe(false);
-    expect(isOutsideHeaderMenu(container, outside)).toBe(true);
-    expect(isOutsideHeaderMenu(container, null)).toBe(true);
+    expect(isOutsideHeaderMenu({ container, target: inner })).toBe(false);
+    expect(isOutsideHeaderMenu({ container, target: outside })).toBe(true);
+    expect(isOutsideHeaderMenu({ container, target: null })).toBe(true);
     container.remove();
     outside.remove();
   });

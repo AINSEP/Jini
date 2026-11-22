@@ -6,9 +6,11 @@ All current entries are included in the unchanged 0.1.0 package version:
 | Import | Runtime | Contents |
 |---|---|---|
 | `@jini-ai/user-management` | Universal | Records, errors, repository/runtime ports, permission catalog |
+| `@jini-ai/user-management/session-bootstrap` | Universal | Initial identity read with one admitted bootstrap, probe-then-redeem decision, plain-HTTP loopback URL guard |
 | `@jini-ai/user-management/server` | Node | Auth, sessions, grants, administration, hashing, memory repos, seeding, migrations, tool metadata/parser and registration composition |
 | `@jini-ai/user-management/react` | Browser | Login, Users, Members, hooks, browser DTOs and typed host ports |
 | `@jini-ai/user-management/react/testing` | Browser | Generalized fake login/users/roles/members ports |
+| `@jini-ai/user-management/react/kit` | Browser | The UI contract the screens render through: four components and five hooks, provided once by the host via `UserManagementKitProvider` |
 | `@jini-ai/user-management/admin/react` | Browser | Composable roles/policies module and lazy screens using ui-kit |
 
 Every public function/factory takes a required argument object and, where needed,
@@ -23,12 +25,14 @@ Server entry imports never pull in React or a native binding eagerly.
 
 `ensurePrincipal({ principalRepo, externalId, displayName }, { workspaceId, clock })` from the server entry ensures only a credential-free user principal (no roles/policies), using the trimmed external ID as its principal ID; scope defaults to `"local"`, inputs allow 1–255 trimmed characters, and existing rows remain unchanged. It requires the optional atomic `PrincipalRepoPort.insertIfAbsent` capability (otherwise it fails closed); durable adapters must enforce composite-key uniqueness across processes. `InMemoryPrincipalRepo` implements it for tests/dev only.
 
-React consumers install compatible React/React DOM and `@jini-ai/{ui,admin,agentic}`
-peers. These peers are optional for universal/server consumers. Mount Users
-inside `FetchQueryProvider` from `@jini-ai/ui/panel-kit`; the current provider owns
-its cache directly. The roles/policies module uses `@jini-ai/ui-kit` and its React facades;
+React consumers install compatible React/React DOM peers (and `@jini-ai/ui-kit` for the roles/policies
+module). These peers are optional for universal/server consumers. The Users, Members and Login screens
+import no `ui` or `admin` component: they render through `<UserManagementKitProvider kit={...}>`
+(`@jini-ai/user-management/react/kit`: four component slots, five hook slots), which the host mounts once
+at its root with its own implementations (`const kit = {...} satisfies UserManagementKit`). Mount the
+provider inside the host's query provider; the fetch hooks in the kit own the cache. The roles/policies module uses `@jini-ai/ui-kit` and its React facades;
 see [roles administration wiring and cleanup](./src/admin/PORT.md).
-Member timestamps use `formatTimestamp({ iso })` from `@jini-ai/ui/panel-kit`.
+Member timestamps use `formatTimestamp({ iso })` from `@jini-ai/core/text`.
 Supply `port`, `translate` and a session/workspace `queryScope`.
 Login requires `productName`. Members optionally accepts a host-filtered refresh port.
 Screen ports use object IDs and separate optional fields. The fake roles port

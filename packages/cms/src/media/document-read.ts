@@ -186,14 +186,19 @@ async function readDocumentTextPage(required: { cache: DocumentTextCache; deps: 
   signal.throwIfAborted();
   assertPageStart(bytes, offset);
   if (!prepared) retainDocumentText({ cache: required.cache, identity, value: { bytes, metadata } });
-  let end = Math.min(bytes.length, offset + DOCUMENT_TEXT_PAGE_BYTES);
-  while (end < bytes.length && isUtf8Continuation(bytes[end]!)) end--;
+  const end = pageEnd({ bytes, offset });
   const truncated = end < bytes.length;
   return { id: media.id, text: decodeDocumentUtf8({ bytes: bytes.subarray(offset, end) }), offset,
     nextOffset: truncated ? end : null, totalBytes: bytes.length, truncated, untrusted: true,
     ...metadata };
 }
 
+/** One page ends at most DOCUMENT_TEXT_PAGE_BYTES on, backed off so a UTF-8 character is never split. */
+function pageEnd({ bytes, offset }: { bytes: Uint8Array; offset: number }, _optional = {}): number {
+  let end = Math.min(bytes.length, offset + DOCUMENT_TEXT_PAGE_BYTES);
+  while (end < bytes.length && isUtf8Continuation(bytes[end]!)) end--;
+  return end;
+}
 
 /** Source bytes are discarded after binary extraction; only the bounded text is retained. */
 async function prepareDocumentText({ deps, media, extractor, signal }: { deps: DocumentReadDeps; media: MediaRecord; extractor: DocumentTextExtractorPort | undefined; signal: AbortSignal }): Promise<PreparedDocumentText> {

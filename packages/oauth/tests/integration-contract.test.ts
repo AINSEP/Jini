@@ -7,7 +7,6 @@ import * as loopback from '../src/loopback-receiver.js';
 import * as pkce from '../src/pkce.js';
 import * as authorization from '../src/authorization-code.js';
 import * as pending from '../src/pending-authorizations.js';
-import * as redact from '../src/redact.js';
 import { createOAuthDispatcherStub } from './dispatcher-stub.js';
 
 const entries = {
@@ -15,6 +14,7 @@ const entries = {
   './testing': 'testing/index',
   './discovery-policy': 'discovery-policy',
   './dns-pinned-transport': 'dns-pinned-transport',
+  './callback-page': 'callback-page',
 } as const;
 
 describe('merged package entries', () => {
@@ -43,7 +43,6 @@ describe('merged package entries', () => {
     expect(oauth.buildOAuthAuthorizationUrl).toBe(authorization.buildOAuthAuthorizationUrl);
     expect(oauth.exchangeOAuthAuthorizationCode).toBe(authorization.exchangeOAuthAuthorizationCode);
     expect(oauth.createPendingAuthorizationStore).toBe(pending.createPendingAuthorizationStore);
-    expect(oauth.redactOAuthUrls).toBe(redact.redactOAuthUrls);
   });
 });
 

@@ -1,6 +1,7 @@
 import { nowIso as kernelNowIso } from "@jini-ai/core/primitives";
 import type { Clock } from "@jini-ai/core/primitives";
-import { ContentTypeLifecycleError, ContentTypeNotFoundError, ForbiddenError, VersionConflictError } from "./errors.js";
+import { ContentTypeLifecycleError, ContentTypeNotFoundError, VersionConflictError } from "./errors.js";
+import { authorizeContentTypeManage } from "./write-service.js";
 import type { AuthorizeFn, ContentTypeRepoPort, OutboxPort } from "./write-service.js";
 import type { Result } from "@jini-ai/core/primitives";
 import type { ActorPrincipalKind, ContentTypeRecord } from "./types.js";
@@ -39,6 +40,27 @@ export interface LifecycleTransitionInput {
   principalKind?: ActorPrincipalKind;
 }
 
+/** Saves a lifecycle transition and its revision in one transaction. */
+async function persistLifecycleTransition(
+  { deps, input, updated, recordedAt }: { deps: { repo: ContentTypeRepoPort }; input: LifecycleTransitionInput; updated: ContentTypeRecord; recordedAt: string },
+  _optional: Record<string, never> = {},
+): Promise<void> {
+  await deps.repo.transaction({ fn: async () => {
+    await deps.repo.save(updated);
+    await deps.repo.appendRevision({
+      contentTypeKey: input.key,
+      workspaceId: input.workspaceId,
+      op: "field-change",
+      stateJson: updated,
+      actorId: input.actorId,
+      principalKind: input.principalKind ?? null,
+      delegatedByWorkspaceId: null,
+      delegatedById: null,
+      recordedAt,
+    });
+  } });
+}
+
 async function resolveActiveOrDeprecated(
   repo: ContentTypeRepoPort,
   workspaceId: string,
@@ -70,10 +92,8 @@ export async function deprecateContentType(
 ): Promise<Result<{ contentType: ContentTypeRecord }, Error>> {
   const { deps, input } = required;
 
-  const authResult = await deps.authorize({ principalId: input.actorId, permission: "admin.collections.manage", workspaceId: input.workspaceId }, { entityType: "content-type" });
-  if (!authResult.allowed) {
-    return { ok: false, error: new ForbiddenError({ message: `principal '${input.actorId}' cannot deprecate content type '${input.key}' (${authResult.reason})` }) };
-  }
+  const authError = await authorizeContentTypeManage({ deps, input, action: `deprecate content type '${input.key}'` });
+  if (authError) return { ok: false, error: authError };
 
   const resolved = await resolveActiveOrDeprecated(deps.repo, input.workspaceId, input.key);
   if (!resolved.ok) return resolved;
@@ -90,20 +110,7 @@ export async function deprecateContentType(
   const now = kernelNowIso({ clock: deps.clock });
   const updated: ContentTypeRecord = { ...current, status: "deprecated", version: current.version + 1 };
 
-  await deps.repo.transaction({ fn: async () => {
-    await deps.repo.save(updated);
-    await deps.repo.appendRevision({
-      contentTypeKey: input.key,
-      workspaceId: input.workspaceId,
-      op: "field-change",
-      stateJson: updated,
-      actorId: input.actorId,
-      principalKind: input.principalKind ?? null,
-      delegatedByWorkspaceId: null,
-      delegatedById: null,
-      recordedAt: now,
-    });
-  } });
+  await persistLifecycleTransition({ deps, input, updated, recordedAt: now });
 
   await deps.outbox.enqueue({ name: "content_type.deprecated", payload: { workspaceId: input.workspaceId, key: input.key } });
 
@@ -128,10 +135,8 @@ export async function reactivateContentType(
 ): Promise<Result<{ contentType: ContentTypeRecord }, Error>> {
   const { deps, input } = required;
 
-  const authResult = await deps.authorize({ principalId: input.actorId, permission: "admin.collections.manage", workspaceId: input.workspaceId }, { entityType: "content-type" });
-  if (!authResult.allowed) {
-    return { ok: false, error: new ForbiddenError({ message: `principal '${input.actorId}' cannot reactivate content type '${input.key}' (${authResult.reason})` }) };
-  }
+  const authError = await authorizeContentTypeManage({ deps, input, action: `reactivate content type '${input.key}'` });
+  if (authError) return { ok: false, error: authError };
 
   const resolved = await resolveActiveOrDeprecated(deps.repo, input.workspaceId, input.key);
   if (!resolved.ok) return resolved;
@@ -148,20 +153,7 @@ export async function reactivateContentType(
   const now = kernelNowIso({ clock: deps.clock });
   const updated: ContentTypeRecord = { ...current, status: "active", version: current.version + 1 };
 
-  await deps.repo.transaction({ fn: async () => {
-    await deps.repo.save(updated);
-    await deps.repo.appendRevision({
-      contentTypeKey: input.key,
-      workspaceId: input.workspaceId,
-      op: "field-change",
-      stateJson: updated,
-      actorId: input.actorId,
-      principalKind: input.principalKind ?? null,
-      delegatedByWorkspaceId: null,
-      delegatedById: null,
-      recordedAt: now,
-    });
-  } });
+  await persistLifecycleTransition({ deps, input, updated, recordedAt: now });
 
   return { ok: true, value: { contentType: updated } };
 }
@@ -193,10 +185,8 @@ export async function tombstoneContentType(
 ): Promise<Result<{ contentType: ContentTypeRecord }, Error>> {
   const { deps, input } = required;
 
-  const authResult = await deps.authorize({ principalId: input.actorId, permission: "admin.collections.manage", workspaceId: input.workspaceId }, { entityType: "content-type" });
-  if (!authResult.allowed) {
-    return { ok: false, error: new ForbiddenError({ message: `principal '${input.actorId}' cannot tombstone content type '${input.key}' (${authResult.reason})` }) };
-  }
+  const authError = await authorizeContentTypeManage({ deps, input, action: `tombstone content type '${input.key}'` });
+  if (authError) return { ok: false, error: authError };
 
   const resolved = await resolveActiveOrDeprecated(deps.repo, input.workspaceId, input.key);
   if (!resolved.ok) return resolved;
@@ -217,20 +207,7 @@ export async function tombstoneContentType(
   const now = kernelNowIso({ clock: deps.clock });
   const updated: ContentTypeRecord = { ...current, status: "tombstone", tombstonedAt: now, version: current.version + 1 };
 
-  await deps.repo.transaction({ fn: async () => {
-    await deps.repo.save(updated);
-    await deps.repo.appendRevision({
-      contentTypeKey: input.key,
-      workspaceId: input.workspaceId,
-      op: "field-change",
-      stateJson: updated,
-      actorId: input.actorId,
-      principalKind: input.principalKind ?? null,
-      delegatedByWorkspaceId: null,
-      delegatedById: null,
-      recordedAt: now,
-    });
-  } });
+  await persistLifecycleTransition({ deps, input, updated, recordedAt: now });
 
   // AFTER the save commits, never before (wm S5): teardown is not part of the repo transaction, so
   // tearing down first meant a save that threw left a still-'deprecated' type — whose entries stay

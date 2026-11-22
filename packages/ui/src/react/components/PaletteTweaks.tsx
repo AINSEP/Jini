@@ -1,5 +1,5 @@
 // NOTE: verified zero real consumers in the vendored source snapshot before
-// porting (see packages/ui/source-map.md) — shipped anyway since it's small,
+// porting (see archived UI source map) — shipped anyway since it's small,
 // self-contained, and correct.
 //
 // Structure follows the "dumb component + co-located testable hook(s)"
@@ -43,6 +43,8 @@ export interface PaletteTweaksProps {
   onChange: (id: PaletteId | null) => void;
   onPreview: (id: PaletteId | null) => void;
   onClose: () => void;
+  usePaletteDismissHook?: typeof usePaletteDismiss;
+  usePaletteHoverHook?: typeof usePaletteHover;
 }
 
 // --- Pure derivations (module-level, directly unit-testable) --------------
@@ -53,8 +55,8 @@ export interface PaletteTweaksProps {
  * `selected` preview, and hovering a palette previews that palette.
  */
 export function resolvePalettePreview(
-  target: PaletteHoverTarget,
-  selected: PaletteId | null,
+  { target, selected }: { target: PaletteHoverTarget; selected: PaletteId | null },
+  _optional = {},
 ): PaletteId | null {
   if (target === 'original') return null;
   if (target === null) return selected;
@@ -66,8 +68,8 @@ export function resolvePalettePreview(
  * selected palette deselects it (back to `null`), otherwise it selects it.
  */
 export function nextPaletteSelection(
-  selected: PaletteId | null,
-  id: PaletteId,
+  { selected, id }: { selected: PaletteId | null; id: PaletteId },
+  _optional = {},
 ): PaletteId | null {
   return selected === id ? null : id;
 }
@@ -105,7 +107,7 @@ export function usePaletteHover(options: {
   const setHover = useCallback(
     (target: PaletteHoverTarget) => {
       setHovered(target);
-      onPreview(resolvePalettePreview(target, selected));
+      onPreview(resolvePalettePreview({ target, selected }));
     },
     [onPreview, selected],
   );
@@ -160,9 +162,9 @@ export function usePaletteDismiss(options: {
  * {@link usePaletteHover} and {@link usePaletteDismiss}; the row derivations
  * are module-level helpers. This component is a pure render.
  */
-export function PaletteTweaks({ open, selected, onChange, onPreview, onClose }: PaletteTweaksProps) {
-  const rootRef = usePaletteDismiss({ open, onClose });
-  const { hovered, setHover } = usePaletteHover({ open, selected, onPreview });
+export function PaletteTweaks({ open, selected, onChange, onPreview, onClose, usePaletteDismissHook = usePaletteDismiss, usePaletteHoverHook = usePaletteHover }: PaletteTweaksProps) {
+  const rootRef = usePaletteDismissHook({ open, onClose });
+  const { hovered, setHover } = usePaletteHoverHook({ open, selected, onPreview });
 
   if (!open) return null;
   const isOriginal = selected === null;
@@ -204,7 +206,7 @@ export function PaletteTweaks({ open, selected, onChange, onPreview, onClose }: 
               onMouseEnter={() => setHover(p.id)}
               onMouseLeave={() => setHover(null)}
               onClick={() => {
-                onChange(nextPaletteSelection(selected, p.id));
+                onChange(nextPaletteSelection({ selected, id: p.id }));
                 onClose();
               }}
             >

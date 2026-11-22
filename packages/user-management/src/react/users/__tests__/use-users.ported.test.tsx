@@ -2,6 +2,8 @@ import { StrictMode } from "react";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { FetchQueryProvider } from "@jini-ai/ui/panel-kit";
+import { realUmKit } from "../../__tests__/fetch-query-support.js";
+import { UserManagementKitProvider } from "../../kit.js";
 import type { AdminIdentityUser, AdminPolicyPermission } from "../../models.js";
 import { createFakeUsersPort, createFakeRolesPort } from "../../testing.js";
 import { useUsers } from "../hooks/use-users.hooks.js";
@@ -9,7 +11,7 @@ const translate = (key: string) => key;
 const fetchMock = vi.fn(() => { throw new Error("unexpected transport call"); });
 beforeEach(() => { vi.stubGlobal("fetch", fetchMock); });
 afterEach(() => { vi.unstubAllGlobals(); fetchMock.mockClear(); });
-function wrapper({ children }: { children: React.ReactNode }) { return <FetchQueryProvider>{children}</FetchQueryProvider>; }
+function wrapper({ children }: { children: React.ReactNode }) { return <FetchQueryProvider><UserManagementKitProvider kit={realUmKit}>{children}</UserManagementKitProvider></FetchQueryProvider>; }
 const USER_A = {
   principalId: "u1",
   workspaceId: "w1",

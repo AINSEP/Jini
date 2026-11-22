@@ -1,7 +1,7 @@
 # Devops API composition
 
-Every public helper/factory receives one required argument object and, when
-needed, one optional argument object. Port methods use the same convention.
+Plain helper functions receive one required argument object and a second optional
+argument object defaulting to `{}`, including when no settings exist. Port methods retain their declared signatures.
 SDK-facing adapters alone translate to a native library's calling convention.
 All subpaths declare the Node runtime. The root entry is a domain marker.
 
@@ -116,13 +116,15 @@ The deploy core imports neither platform nor undici.
 ```ts
 import { checkDeploymentUrl } from '@jini-ai/devops/deploy';
 import { createNodeReachabilityPorts } from '@jini-ai/devops/deploy/node';
-const ports = createNodeReachabilityPorts({});
+import { assertSafePublicUrl, createValidatingLookup } from '@jini-ai/platform';
+const ports = createNodeReachabilityPorts({ assertSafeUrl: assertSafePublicUrl, createValidatingLookup });
 await checkDeploymentUrl({ url: 'https://example.com', ...ports });
 ```
 
 The Node defaults reject unsafe public URLs and pin validation to the connection
-through platform's validating lookup. `lookupImpl` overrides move from probe
-options to `createNodeReachabilityPorts({}, { lookupImpl?, fetch? })`.
+through platform's validating lookup, which the host passes in (`assertSafeUrl`,
+`createValidatingLookup`); devops no longer imports platform. `lookupImpl` overrides move from probe
+options to `createNodeReachabilityPorts(required, { lookupImpl?, fetch? })`.
 Default dispatchers remain shared; each override binding retains its own lazy
 pool. HTTPS-only probes, manual redirects and existing deadlines are preserved.
 The Node adapter attaches the validating Agent as a native fetch runtime extension,

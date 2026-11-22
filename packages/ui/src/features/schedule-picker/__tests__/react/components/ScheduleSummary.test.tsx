@@ -1,8 +1,11 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { ScheduleSummary } from '../../../react/components/ScheduleSummary.js';
-import { I18nProvider } from '../../../../i18n/index.js';
+import { I18nProvider, type useT } from '../../../../i18n/index.js';
 import type { ScheduleValue } from '../../../types.js';
+
+/** A translator that is visibly not the key, so the assertion proves the injected hook ran. */
+const useQuotingT: typeof useT = () => (key) => `«${key}»`;
 
 describe('ScheduleSummary', () => {
   it('renders an hourly summary', () => {
@@ -44,5 +47,11 @@ describe('ScheduleSummary', () => {
       </I18nProvider>,
     );
     expect(screen.getByText('Toutes les heures')).toBeInTheDocument();
+  });
+
+  it('renders the translator supplied through useTHook', () => {
+    const schedule: ScheduleValue = { kind: 'hourly', minute: 5 };
+    render(<ScheduleSummary schedule={schedule} useTHook={useQuotingT} />);
+    expect(screen.getByText('«Hourly»')).toBeInTheDocument();
   });
 });

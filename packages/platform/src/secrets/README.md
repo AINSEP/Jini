@@ -46,3 +46,12 @@ belong to the host. Hosts with their own ordered source resolver can pass valida
 `FixedSiteKeyKeyring({ hex, hkdfSalt }, { keyId })`. `InMemoryKeyring({ hkdfSalt, keyId })` uses a fresh
 ephemeral key with the same derivation. `formatAad` preserves colon-separated formats without
 escaping: hosts own the identifier constraints of each lineage.
+
+## Legacy owner store
+
+`@jini-ai/platform/secrets/legacy-owner` (Node) decodes the passphrase backup an old owner store wrote
+(`readLegacyOwnerBackup`) and holds the policy that reads its `owner.db` rows: the legacy keyring (env
+`OWNER_STORE_KEY`, salt `jini-owner-store-v1`, key file fallback on, generation off), an `authorize`
+callback that allows only the owner workspace, no principal and a copyable kind, and one decrypt per
+row whose every failure is the fixed `OwnerStoreRecoveryError`. It takes a `VaultRepoPort`; the SQL
+lives in `@jini-ai/db/owner-store`. Nothing here writes, migrates or generates a key.

@@ -3,14 +3,14 @@ import { escapeHtmlAttribute, injectAfterHeadOpen, injectBeforeHeadEnd } from '.
 import type { SandboxedDocumentOptions, SandboxedDocumentResult } from './types.js';
 
 /** Whether `html` already looks like a full document (starts with `<!doctype>` or `<html>`), vs. a bare fragment. */
-export function isFullHtmlDocument(html: string): boolean {
+export function isFullHtmlDocument({ html }: { html: string }, _optional: Record<string, never> = {}): boolean {
   const head = html.trimStart().slice(0, 64).toLowerCase();
   return head.startsWith('<!doctype') || head.startsWith('<html');
 }
 
 /** Wrap a bare HTML fragment in a minimal document shell. Leaves an already-full document untouched. */
-export function wrapFragmentAsDocument(html: string): string {
-  if (isFullHtmlDocument(html)) return html;
+export function wrapFragmentAsDocument({ html }: { html: string }, _optional: Record<string, never> = {}): string {
+  if (isFullHtmlDocument({ html })) return html;
   return `<!doctype html>
 <html>
   <head>
@@ -22,8 +22,8 @@ export function wrapFragmentAsDocument(html: string): string {
 }
 
 /** Inject a `<base href>` tag into the document's `<head>`, synthesizing a `<head>` if none exists. */
-export function injectBaseHref(doc: string, baseHref: string): string {
-  const tag = `<base href="${escapeHtmlAttribute(baseHref)}">`;
+export function injectBaseHref({ doc, baseHref }: { doc: string; baseHref: string }, _optional: Record<string, never> = {}): string {
+  const tag = `<base href="${escapeHtmlAttribute({ value: baseHref })}">`;
   if (/<head[^>]*>/i.test(doc)) return doc.replace(/<head[^>]*>/i, (m) => `${m}${tag}`);
   if (/<html[^>]*>/i.test(doc)) return doc.replace(/<html[^>]*>/i, (m) => `${m}<head>${tag}</head>`);
   return tag + doc;
@@ -61,16 +61,16 @@ export function buildFocusGuardScript(): string {
  * feature.
  */
 export function buildSandboxedDocument(
-  html: string,
+  { html }: { html: string },
   options: SandboxedDocumentOptions = {},
 ): SandboxedDocumentResult {
-  const isFullDocument = isFullHtmlDocument(html);
-  const wrapped = wrapFragmentAsDocument(html);
-  const withBase = options.baseHref ? injectBaseHref(wrapped, options.baseHref) : wrapped;
+  const isFullDocument = isFullHtmlDocument({ html });
+  const wrapped = wrapFragmentAsDocument({ html });
+  const withBase = options.baseHref ? injectBaseHref({ doc: wrapped, baseHref: options.baseHref }) : wrapped;
   const withStorageShim =
-    options.storageShim === false ? withBase : injectAfterHeadOpen(withBase, buildStorageShimScript());
+    options.storageShim === false ? withBase : injectAfterHeadOpen({ doc: withBase, payload: buildStorageShimScript() });
   const withFocusGuard = options.focusGuard
-    ? injectBeforeHeadEnd(withStorageShim, buildFocusGuardScript())
+    ? injectBeforeHeadEnd({ doc: withStorageShim, payload: buildFocusGuardScript() })
     : withStorageShim;
   return { html: withFocusGuard, isFullDocument };
 }

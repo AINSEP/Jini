@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { copyToClipboard } from '../copy-to-clipboard.js';
 
 // This package has no jsdom/happy-dom test environment wired up yet (see
-// packages/ui/archived provenance ledger), so DOM globals are stubbed by hand here with
+// 070311a07^:packages/ui/source-map.md), so DOM globals are stubbed by hand here with
 // the minimum surface `copyToClipboard` actually touches, rather than
 // pulling in a full DOM test environment for one function.
 

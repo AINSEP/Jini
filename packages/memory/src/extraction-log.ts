@@ -67,143 +67,159 @@ function clone(record: ExtractionRecord): ExtractionRecord {
   return JSON.parse(JSON.stringify(record)) as ExtractionRecord;
 }
 
+type ExtractionEvent = ExtractionRecord | { id: string; phase: ExtractionPhase; startedAt: number; finishedAt: number };
+type ExtractionLogOptions = { now?: () => number; ids?: () => string; defer?: (required: { callback: () => void }) => void };
+
+/** The bounded record list, its event emitter and the clock/id sources every operation below shares. */
+interface ExtractionKeeper {
+  readonly events: EventEmitter;
+  readonly records: ExtractionRecord[]; // newest first
+  readonly nowMs: () => number;
+  readonly nextId: () => string;
+  emit(record: ExtractionEvent): void;
+  pushNewest(record: ExtractionRecord): void;
+  findById(id: string): ExtractionRecord | null;
+}
+
+function createExtractionKeeper(optional: ExtractionLogOptions): ExtractionKeeper {
+  const defer = optional.defer ?? (({ callback }: { callback: () => void }) => { setImmediate(callback); });
+  const records: ExtractionRecord[] = [];
+  const events = new EventEmitter();
+  events.setMaxListeners(64);
+  return {
+    events, records, nowMs: optional.now ?? Date.now, nextId: optional.ids ?? randomUUID,
+    emit(record) {
+      // Deferred so a synchronous follow-up update in the same call doesn't
+      // fire two events back-to-back within one tick.
+      defer({ callback: () => {
+        try {
+          events.emit('attempt', { ...record });
+        } catch {
+          // A listener throwing is not this module's problem.
+        }
+      } });
+    },
+    pushNewest(record) {
+      records.unshift(record);
+      if (records.length > MAX_RECORDS) records.length = MAX_RECORDS;
+    },
+    findById: (id) => records.find((r) => r.id === id) ?? null,
+  };
+}
+
+function createExtractionRecorders(keeper: ExtractionKeeper) {
+  const { nowMs, nextId } = keeper;
+  const publish = (record: ExtractionRecord): string => {
+    keeper.pushNewest(record);
+    keeper.emit(record);
+    return record.id;
+  };
+  return {
+    startExtraction(input: { userMessage: string; kind: string }): string {
+      return publish({
+        id: nextId(),
+        kind: input.kind,
+        startedAt: nowMs(),
+        phase: 'running',
+        userMessagePreview: trim(input.userMessage, PREVIEW_CAP),
+      });
+    },
+    recordSkip(input: { userMessage: string; reason: string; kind: string }): string {
+      const now = nowMs();
+      return publish({
+        id: nextId(),
+        kind: input.kind,
+        startedAt: now,
+        finishedAt: now,
+        phase: 'skipped',
+        reason: input.reason,
+        userMessagePreview: trim(input.userMessage, PREVIEW_CAP),
+      });
+    },
+    recordHeuristic(input: { userMessage: string; kind: string; writtenCount: number; writtenIds: string[] }): string {
+      const written = Number.isFinite(input.writtenCount) ? Math.max(0, Math.floor(input.writtenCount)) : 0;
+      const now = nowMs();
+      return publish({
+        id: nextId(),
+        kind: input.kind,
+        startedAt: now,
+        finishedAt: now,
+        phase: written > 0 ? 'success' : 'skipped',
+        userMessagePreview: trim(input.userMessage, PREVIEW_CAP),
+        writtenCount: written,
+        writtenIds: input.writtenIds.slice(0, 12),
+        ...(written === 0 ? { reason: 'no-match' } : {}),
+      });
+    },
+  };
+}
+
+function createExtractionMarkers(keeper: ExtractionKeeper) {
+  const { findById, emit, nowMs } = keeper;
+  return {
+    markProvider({ id, provider }: { id: string; provider: ExtractionProvider }): void {
+      const rec = findById(id);
+      if (!rec) return;
+      rec.provider = { kind: provider.kind, model: provider.model, credentialSource: provider.credentialSource ?? null };
+      emit(rec);
+    },
+    markProposed({ id, proposedCount }: { id: string; proposedCount: number }): void {
+      const rec = findById(id);
+      if (!rec) return;
+      rec.proposedCount = proposedCount;
+      emit(rec);
+    },
+    markSuccess({ id, outcome }: { id: string; outcome: { writtenCount: number; writtenIds: string[] } }): void {
+      const rec = findById(id);
+      if (!rec) return;
+      rec.phase = 'success';
+      rec.writtenCount = outcome.writtenCount;
+      rec.writtenIds = outcome.writtenIds.slice(0, 12);
+      rec.finishedAt = nowMs();
+      emit(rec);
+    },
+    markFailed({ id, error }: { id: string; error: unknown }): void {
+      const rec = findById(id);
+      if (!rec) return;
+      rec.phase = 'failed';
+      const message = error instanceof Error ? error.message : String(error ?? 'unknown error');
+      rec.error = trimError(message);
+      rec.finishedAt = nowMs();
+      emit(rec);
+    },
+  };
+}
+
+function createExtractionQueries({ records, emit, nowMs }: ExtractionKeeper) {
+  return {
+    list(): ExtractionRecord[] {
+      return records.map(clone);
+    },
+    remove({ id }: { id: string }): number {
+      const idx = records.findIndex((r) => r.id === id);
+      if (idx < 0) return 0;
+      const [removed] = records.splice(idx, 1);
+      emit({ ...removed!, phase: 'deleted' }); // The matched index guarantees splice removed a record.
+      return 1;
+    },
+    clear(): number {
+      const removed = records.length;
+      records.length = 0;
+      if (removed > 0) {
+        const now = nowMs();
+        emit({ id: 'all', phase: 'cleared', startedAt: now, finishedAt: now });
+      }
+      return removed;
+    },
+  };
+}
+
 /**
  * Construct a bounded extraction-attempt log with its own event emitter.
  *
  * @returns A fresh, independent `ExtractionLog`.
  */
-export function createExtractionLog(_required: Record<string, never>, optional: { now?: () => number; ids?: () => string; defer?: (required: { callback: () => void }) => void } = {}): ExtractionLog {
-  const nowMs = optional.now ?? Date.now;
-  const nextId = optional.ids ?? randomUUID;
-  const defer = optional.defer ?? (({ callback }: { callback: () => void }) => { setImmediate(callback); });
-  const records: ExtractionRecord[] = []; // newest first
-  const events = new EventEmitter();
-  events.setMaxListeners(64);
-
-  function emit(record: ExtractionRecord | { id: string; phase: ExtractionPhase; startedAt: number; finishedAt: number }): void {
-    // Deferred so a synchronous follow-up update in the same call doesn't
-    // fire two events back-to-back within one tick.
-    defer({ callback: () => {
-      try {
-        events.emit('attempt', { ...record });
-      } catch {
-        // A listener throwing is not this module's problem.
-      }
-    } });
-  }
-
-  function pushNewest(record: ExtractionRecord): void {
-    records.unshift(record);
-    if (records.length > MAX_RECORDS) records.length = MAX_RECORDS;
-  }
-
-  function findById(id: string): ExtractionRecord | null {
-    return records.find((r) => r.id === id) ?? null;
-  }
-
-  function startExtraction(input: { userMessage: string; kind: string }): string {
-    const record: ExtractionRecord = {
-      id: nextId(),
-      kind: input.kind,
-      startedAt: nowMs(),
-      phase: 'running',
-      userMessagePreview: trim(input.userMessage, PREVIEW_CAP),
-    };
-    pushNewest(record);
-    emit(record);
-    return record.id;
-  }
-
-  function recordSkip(input: { userMessage: string; reason: string; kind: string }): string {
-    const now = nowMs();
-    const record: ExtractionRecord = {
-      id: nextId(),
-      kind: input.kind,
-      startedAt: now,
-      finishedAt: now,
-      phase: 'skipped',
-      reason: input.reason,
-      userMessagePreview: trim(input.userMessage, PREVIEW_CAP),
-    };
-    pushNewest(record);
-    emit(record);
-    return record.id;
-  }
-
-  function recordHeuristic(input: { userMessage: string; kind: string; writtenCount: number; writtenIds: string[] }): string {
-    const written = Number.isFinite(input.writtenCount) ? Math.max(0, Math.floor(input.writtenCount)) : 0;
-    const now = nowMs();
-    const record: ExtractionRecord = {
-      id: nextId(),
-      kind: input.kind,
-      startedAt: now,
-      finishedAt: now,
-      phase: written > 0 ? 'success' : 'skipped',
-      userMessagePreview: trim(input.userMessage, PREVIEW_CAP),
-      writtenCount: written,
-      writtenIds: input.writtenIds.slice(0, 12),
-      ...(written === 0 ? { reason: 'no-match' } : {}),
-    };
-    pushNewest(record);
-    emit(record);
-    return record.id;
-  }
-
-  function markProvider({ id, provider }: { id: string; provider: ExtractionProvider }): void {
-    const rec = findById(id);
-    if (!rec) return;
-    rec.provider = { kind: provider.kind, model: provider.model, credentialSource: provider.credentialSource ?? null };
-    emit(rec);
-  }
-
-  function markProposed({ id, proposedCount }: { id: string; proposedCount: number }): void {
-    const rec = findById(id);
-    if (!rec) return;
-    rec.proposedCount = proposedCount;
-    emit(rec);
-  }
-
-  function markSuccess({ id, outcome }: { id: string; outcome: { writtenCount: number; writtenIds: string[] } }): void {
-    const rec = findById(id);
-    if (!rec) return;
-    rec.phase = 'success';
-    rec.writtenCount = outcome.writtenCount;
-    rec.writtenIds = outcome.writtenIds.slice(0, 12);
-    rec.finishedAt = nowMs();
-    emit(rec);
-  }
-
-  function markFailed({ id, error }: { id: string; error: unknown }): void {
-    const rec = findById(id);
-    if (!rec) return;
-    rec.phase = 'failed';
-    const message = error instanceof Error ? error.message : String(error ?? 'unknown error');
-    rec.error = trimError(message);
-    rec.finishedAt = nowMs();
-    emit(rec);
-  }
-
-  function list(): ExtractionRecord[] {
-    return records.map(clone);
-  }
-
-  function remove({ id }: { id: string }): number {
-    const idx = records.findIndex((r) => r.id === id);
-    if (idx < 0) return 0;
-    const [removed] = records.splice(idx, 1);
-    emit({ ...removed!, phase: 'deleted' }); // The matched index guarantees splice removed a record.
-    return 1;
-  }
-
-  function clear(): number {
-    const removed = records.length;
-    records.length = 0;
-    if (removed > 0) {
-      const now = nowMs();
-      emit({ id: 'all', phase: 'cleared', startedAt: now, finishedAt: now });
-    }
-    return removed;
-  }
-
-  return { events, startExtraction, recordSkip, recordHeuristic, markProvider, markProposed, markSuccess, markFailed, list, remove, clear };
+export function createExtractionLog(_required: Record<string, never>, optional: ExtractionLogOptions = {}): ExtractionLog {
+  const keeper = createExtractionKeeper(optional);
+  return { events: keeper.events, ...createExtractionRecorders(keeper), ...createExtractionMarkers(keeper), ...createExtractionQueries(keeper) };
 }

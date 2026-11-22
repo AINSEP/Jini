@@ -194,7 +194,7 @@ async function readFileEntry(
       state.truncated = true;
       return;
     }
-    const bytes = await readAtMost(opened, maxFileBytes + 1);
+    const bytes = await readAtMost({ handle: opened, maxBytes: maxFileBytes + 1 });
     if (bytes.length > maxFileBytes) {
       state.files.push(omittedFile(relativePath, bytes.length, "too-large"));
       return;

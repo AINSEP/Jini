@@ -1,11 +1,12 @@
 import type { ReactNode } from "react";
-import type { RowMenuItem } from "@jini-ai/admin/react";
-import { agentHandle } from "@jini-ai/agentic";
-import type { Translate } from "@jini-ai/ui/panel-kit";
+import type { RowMenuItem } from "../kit.js";
+import { agentHandle } from "@jini-ai/core/agent-handles";
+
 import type { AdminIdentityUser, AdminPolicy, AdminRole } from "../models.js";
 import { formatGrantLabel, userRowMenuItems } from "./rules.js";
-import type { UserRowActionsController } from "./Users.js";
+import type { UserRowActionsController } from "./UsersTable.js";
 
+import { type Translate } from '@jini-ai/core/text';
 /**
  * @file The cells and menu-item wiring of `Users.tsx`'s `UserRow`, split out of it in the
  * complexity-ceiling pass (lot L182a): `UserRow` scored cyclomatic 16 with every cell's own

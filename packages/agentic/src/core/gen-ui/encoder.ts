@@ -10,7 +10,7 @@ import type { Clock } from "@jini-ai/core/primitives";
  * over. See `archived provenance ledger` for the full old→new field-mapping table and the generalization
  * writeup for the six event kinds that had no generic equivalent before this task.
  *
- * Folded in 2026-07-26 from the standalone `@jini-ai/agui` package (plan §3a) into this `src/gen-ui/`
+ * Folded in 2026-07-26 from the standalone `@jini-ai/agui` package (plan §3a) into this `packages/agentic/src/core/gen-ui/`
  * subdirectory — kept out of the flat `ag-ui.ts` namespace because that file is a different
  * projection ({@link CapabilityDef} → an AG-UI *frontend tool*); this one turns a run's event
  * stream into Jini's own gen-ui *wire* events. These are separate protocols; the old package name
@@ -67,40 +67,27 @@ function encodeStage(payload: StagePayload, base: BaseFields): GenUiEvent {
   };
 }
 
-/**
- * Creates a fresh `GenUiEncoder` with its own, empty tool-call correlation map.
- * @complexity `encode` is O(1) per call (one `Map` get/set/delete); memory is O(k) in the number
- * of currently in-flight (not yet resolved) tool calls for the run this instance encodes.
- * @overallScore 100/100
- */
-export function createGenUiEncoder({ clock }: { clock: Clock }, _optional: Record<string, never> = {}): GenUiEncoder {
-  const pendingToolCalls = new Map<string, PendingToolCall>();
+/** Resolves a `tool_result` against (and removes) its correlated `tool_use`. */
+function encodeToolResult(pendingToolCalls: Map<string, PendingToolCall>, payload: Extract<RunAgentPayload, { type: 'tool_result' }>, base: BaseFields): GenUiEvent {
+  const pending = pendingToolCalls.get(payload.toolUseId);
+  pendingToolCalls.delete(payload.toolUseId);
+  return {
+    ...base,
+    kind: 'tool_call',
+    // A tool_result with no matching prior tool_use (never observed, or already resolved/
+    // cleared — e.g. after a run-ending 'end' event, see below) falls back to an 'unknown'
+    // name and null args rather than throwing: the result itself is still real and worth
+    // relaying even when its originating call wasn't captured.
+    toolName: pending?.toolName ?? 'unknown',
+    args: pending?.args ?? null,
+    callId: payload.toolUseId,
+    status: payload.isError ? 'failed' : 'completed',
+    result: payload.content,
+  };
+}
 
-  function baseFields(ctx: GenUiEncodeContext): BaseFields {
-    const ts = ctx.now ? ctx.now({}) : clock.nowMs();
-    return ctx.seq !== undefined ? { runId: ctx.runId, ts, seq: ctx.seq } : { runId: ctx.runId, ts };
-  }
-
-  /** Resolves a `tool_result` against (and removes) its correlated `tool_use`. */
-  function encodeToolResult(payload: Extract<RunAgentPayload, { type: 'tool_result' }>, base: BaseFields): GenUiEvent {
-    const pending = pendingToolCalls.get(payload.toolUseId);
-    pendingToolCalls.delete(payload.toolUseId);
-    return {
-      ...base,
-      kind: 'tool_call',
-      // A tool_result with no matching prior tool_use (never observed, or already resolved/
-      // cleared — e.g. after a run-ending 'end' event, see below) falls back to an 'unknown'
-      // name and null args rather than throwing: the result itself is still real and worth
-      // relaying even when its originating call wasn't captured.
-      toolName: pending?.toolName ?? 'unknown',
-      args: pending?.args ?? null,
-      callId: payload.toolUseId,
-      status: payload.isError ? 'failed' : 'completed',
-      result: payload.content,
-    };
-  }
-
-  function encodeAgentPayload(payload: RunAgentPayload, ctx: GenUiEncodeContext): GenUiEvent | null {
+function createAgentPayloadEncoder(pendingToolCalls: Map<string, PendingToolCall>, baseFields: (ctx: GenUiEncodeContext) => BaseFields) {
+  return function encodeAgentPayload(payload: RunAgentPayload, ctx: GenUiEncodeContext): GenUiEvent | null {
     const base = baseFields(ctx);
     switch (payload.type) {
       case 'text_delta':
@@ -114,7 +101,7 @@ export function createGenUiEncoder({ clock }: { clock: Clock }, _optional: Recor
         return { ...base, kind: 'tool_call', toolName: payload.name, args: payload.input, callId: payload.id, status: 'started' };
 
       case 'tool_result':
-        return encodeToolResult(payload, base);
+        return encodeToolResult(pendingToolCalls, payload, base);
 
       // Generalization (see archived provenance ledger): pipeline_stage_started/completed generalized into a
       // named-stage boundary any multi-step driver can emit, flowing through the same 'agent'
@@ -136,6 +123,23 @@ export function createGenUiEncoder({ clock }: { clock: Clock }, _optional: Recor
         return null;
     }
   }
+}
+
+/**
+ * Creates a fresh `GenUiEncoder` with its own, empty tool-call correlation map.
+ * @complexity `encode` is O(1) per call (one `Map` get/set/delete); memory is O(k) in the number
+ * of currently in-flight (not yet resolved) tool calls for the run this instance encodes.
+ * @overallScore 100/100
+ */
+export function createGenUiEncoder({ clock }: { clock: Clock }, _optional: Record<string, never> = {}): GenUiEncoder {
+  const pendingToolCalls = new Map<string, PendingToolCall>();
+
+  function baseFields(ctx: GenUiEncodeContext): BaseFields {
+    const ts = ctx.now ? ctx.now({}) : clock.nowMs();
+    return ctx.seq !== undefined ? { runId: ctx.runId, ts, seq: ctx.seq } : { runId: ctx.runId, ts };
+  }
+
+  const encodeAgentPayload = createAgentPayloadEncoder(pendingToolCalls, baseFields);
 
   function encode({ event, runId }: { event: RunProtocolEvent; runId: string }, { seq, now }: { seq?: number | undefined; now?: ((required: Record<string, never>) => number) | undefined } = {}): GenUiEvent | null {
     const ctx = { runId, seq, now };

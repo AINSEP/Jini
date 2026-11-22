@@ -98,7 +98,7 @@ const openRouterImageAdapter: VendorAdapter<OpenRouterImageMeta> = {
     const { wireModel, aspectRatio } = request.meta;
     const text = await resp.text();
     if (!resp.ok) {
-      throw new Error(`openrouter image ${resp.status}: ${truncate(text, 240)}`);
+      throw new Error(`openrouter image ${resp.status}: ${truncate({ s: text, n: 240 })}`);
     }
     const imageUrl = extractOpenRouterImageUrl({ text, wireModel });
     const bytes = await decodeOpenRouterImage({ imageUrl, ctx });
@@ -122,16 +122,16 @@ function extractOpenRouterImageUrl({ text, wireModel }: { text: string; wireMode
   try {
     data = JSON.parse(text);
   } catch {
-    throw new Error(`openrouter image non-JSON response: ${truncate(text, 200)}`);
+    throw new Error(`openrouter image non-JSON response: ${truncate({ s: text, n: 200 })}`);
   }
 
   const images = firstChoiceImages({ data });
   if (!Array.isArray(images) || images.length === 0) {
-    throw new Error(`openrouter image response contained no images for model ${wireModel}: ${truncate(text, 200)}`);
+    throw new Error(`openrouter image response contained no images for model ${wireModel}: ${truncate({ s: text, n: 200 })}`);
   }
   const imageUrl = (images[0] as { image_url?: { url?: unknown } } | null)?.image_url?.url;
   if (typeof imageUrl !== 'string' || !imageUrl) {
-    throw new Error(`openrouter image response missing image_url.url: ${truncate(text, 200)}`);
+    throw new Error(`openrouter image response missing image_url.url: ${truncate({ s: text, n: 200 })}`);
   }
   return imageUrl;
 }

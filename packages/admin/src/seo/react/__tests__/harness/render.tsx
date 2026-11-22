@@ -1,14 +1,37 @@
 import { createElement, useEffect, useState } from 'react';
-import type { ReactNode } from 'react';
-import { render as renderOriginal, renderHook as renderHookOriginal, type RenderResult } from '../../../../__tests__/fetch-query-support.js';
-import { Dialog } from '@jini-ai/ui-kit/react';
-import { acceptsMedia } from '../../../../media/rules.js';
-import { SeoPortsContext, SeoOptionsContext } from '../../hooks/SeoPorts.hooks.js';
+import type { ComponentType, ReactNode } from 'react';
+import { render as renderOriginal, renderHook as renderHookOriginal, type RenderOptions } from '@testing-library/react';
+import { FetchQueryProvider, useCachedLoader, useFetchMutation, useFetchQuery, useFetchQueryScope, useInvalidate } from '@jini-ai/ui/fetch-query';
+import { Select } from '@jini-ai/ui/admin-widgets';
+import { UiKitProvider, type UiKit } from '@jini-ai/ui/react-kit';
+import { SecretInput, useOverlayContainer, useSecretReveal } from '@jini-ai/ui-kit/react';
+import { nativeKit } from '@jini-ai/ui-kit/react/native';
+import { AdminKitProvider } from '../../../../react/kit.js';
+import { fakeAdminKit } from '@jini-ai/admin/react/testing-kit';
+import { useController } from '@jini-ai/admin/core/react';
+import type { UseAdminController } from '@jini-ai/core/contracts/admin-module';
+import { SeoPortsContext, SeoOptionsContext, SeoControllerContext } from '../../hooks/SeoPorts.hooks.js';
 import { createMemorySeoApi } from '../../../adapters/memory.js';
 import type { SeoReactOptions, SeoMediaPickerSlotProps } from '../../options.js';
 import type { AdminMedia } from '../../../models.js';
 import { api } from './api.js';
-export * from '../../../../__tests__/fetch-query-support.js';
+export * from '@testing-library/react';
+export const Dialog = nativeKit.Dialog;
+const controllerHook: UseAdminController = useController;
+const uiKit = { components: { SecretInput }, hooks: { useOverlayContainer, useSecretReveal } } satisfies UiKit;
+const seoKit = fakeAdminKit({
+  components: { Dialog, WidgetSelect: Select },
+  query: { useFetchQuery, useFetchMutation, useCachedLoader, useInvalidate, useFetchQueryScope },
+});
+
+function scope(wrapper?: ComponentType<{ children: ReactNode }>) {
+  return function SeoScope({ children }: { children: ReactNode }) {
+    const inner = wrapper ? createElement(wrapper, { children }) : children;
+    return <UiKitProvider kit={uiKit}><AdminKitProvider kit={seoKit}><FetchQueryProvider><SeoControllerContext.Provider value={controllerHook}>{inner}</SeoControllerContext.Provider></FetchQueryProvider></AdminKitProvider></UiKitProvider>;
+  };
+}
+export const renderScoped = ((ui: ReactNode, options?: RenderOptions) => renderOriginal(ui, { ...options, wrapper: scope(options?.wrapper) })) as typeof renderOriginal;
+export const renderHook: typeof renderHookOriginal = (callback, options) => renderHookOriginal(callback, { ...options, wrapper: scope(options?.wrapper) });
 
 /** Host-owned legacy picker fixture. Tests keep driving the source slot's callbacks and DOM;
  * the picker service itself has separate media conformance/render suites. */
@@ -17,7 +40,7 @@ function HostMediaPicker({ onSelect, onCancel, accept }: SeoMediaPickerSlotProps
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
     let alive = true;
-    api.listMedia().then(({ media }) => { if (alive) setItems(media.filter(item => item.status === 'active' && acceptsMedia({ item, accept: accept ?? [] }))); }).catch(error => { if (alive) setError(error instanceof Error ? error.message : 'failed to load media'); });
+    api.listMedia().then(({ media }) => { if (alive) setItems(media.filter(item => item.status === 'active' && (!accept?.length || accept.some(type => type === item.contentType || (type.endsWith('/*') && item.contentType?.startsWith(type.slice(0, -1))))))); }).catch(error => { if (alive) setError(error instanceof Error ? error.message : 'failed to load media'); });
     return () => { alive = false; };
   }, []);
   return <Dialog open title="Choose an image" onClose={onCancel} className="settings-dialog jini-domain-dialog media-picker-dialog">
@@ -33,7 +56,6 @@ const options: SeoReactOptions = { siteUrl: () => '', t: key => key, slots: { Me
 export function Harness({ children }: { children: ReactNode }) {
   return <SeoPortsContext.Provider value={{ seoApi }}><SeoOptionsContext.Provider value={options}>{children}</SeoOptionsContext.Provider></SeoPortsContext.Provider>;
 }
-export function render(ui: Parameters<typeof renderOriginal>[0], options?: Parameters<typeof renderOriginal>[1]): RenderResult {
-  return renderOriginal(createElement(Harness, { children: ui }), options);
+export function render(ui: Parameters<typeof renderOriginal>[0], options?: Parameters<typeof renderOriginal>[1]): ReturnType<typeof renderOriginal> {
+  return renderScoped(createElement(Harness, { children: ui }), options);
 }
-export { renderHookOriginal as renderHook };

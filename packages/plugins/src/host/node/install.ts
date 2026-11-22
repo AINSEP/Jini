@@ -159,8 +159,8 @@ async function snapshot(sourceDir: string, limits: PluginSnapshotLimits = {}): P
 const DECLARATIVE_DATA_FILE = /(?:^|\/)(?:LICENSE|[^/]+\.(?:json|md|txt|png|jpe?g|gif|webp))$/;
 
 /**
- * Tier rules for a sideloaded package. Tier-1 (AW-7, 2026-10-04) is the manifest-only tier ADR-024
- * §1 defines — "zero executable code", so it is safe from any publisher: it may not ship a single
+ * Tier rules for a sideloaded package. Tier-1 (AW-7, 2026-10-04) is the manifest-only tier:
+ * "zero executable code", so it is safe from any publisher: it may not ship a single
  * code file (its declarations — no code surface, parseable `contentTypes` — are already checked by
  * `validateManifest`). Anything else must
  * still be tier-3 with `server/index.mjs`, because a sideloaded manifest cannot grant itself a
@@ -214,7 +214,7 @@ type IdentityScan = Pick<typeof import('node:fs/promises'), 'lstat' | 'readdir' 
 type InstalledIdentity = ReturnType<typeof readPluginIdentity>;
 
 function identityOf(manifest: PluginManifest, deps: PluginInstallDeps, name = manifest.id): InstalledIdentity {
-  return readPluginIdentity({ manifest: manifest as unknown as Readonly<Record<string, unknown>>, name, namespace: deps.identityNamespace });
+  return readPluginIdentity({ manifest: manifest as unknown as Readonly<Record<string, unknown>>, name, namespace: deps.identityNamespace, legacyNamespace: deps.legacyIdentityNamespace });
 }
 
 function assertIdentityFree(candidate: InstalledIdentity & { family: string; localId: string }, installed: Parameters<typeof assertPluginIdentityAvailable>[0]['installed']): void {
@@ -263,7 +263,7 @@ async function readInstalledIdentity(required: { scan: IdentityScan; versionDir:
     const manifestInfo = await scan.lstat(manifestPath);
     if (!manifestInfo.isFile() || manifestInfo.isSymbolicLink()) fail("PLUGIN_PACKAGE_UNSAFE", "Installed plugin manifests must not be links.");
     const installedManifest = JSON.parse(await scan.readFile(manifestPath, "utf8"));
-    return readPluginIdentity({ manifest: installedManifest, name: localId, namespace: deps.identityNamespace });
+    return readPluginIdentity({ manifest: installedManifest, name: localId, namespace: deps.identityNamespace, legacyNamespace: deps.legacyIdentityNamespace });
   } catch (error) {
     if (error instanceof PluginInstallError) throw error;
     // Preserve link refusals while isolating one broken unrelated manifest.

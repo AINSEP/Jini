@@ -1,8 +1,9 @@
-import { useRef, type MouseEvent as ReactMouseEvent, type ReactNode, type RefObject } from 'react';
+import { useRef, type ComponentProps, type MouseEvent as ReactMouseEvent, type ReactNode, type RefObject } from 'react';
 import { useT } from '../../../i18n/index.js';
 import { SegmentedToggle } from './SegmentedToggle.js';
 import { ViewerShell } from './ViewerShell.js';
 import { useMarkdownScrollSync, type UseMarkdownScrollSyncResult } from '../hooks/useMarkdownScrollSync.js';
+import { createMarkdownPreviewActivator } from './MarkdownSplitPane.hooks.js';
 import type { MarkdownSplitPaneMode } from '../../types.js';
 
 export interface MarkdownSplitPaneProps {
@@ -13,7 +14,7 @@ export interface MarkdownSplitPaneProps {
   /** Host-rendered markdown HTML (`renderMarkdownToSafeHtml`-shaped — the
    *  actual renderer, shiki highlighting, and image-src-rewriting are all
    *  genuinely OD/product-specific and were not ported; see
-   *  `packages/ui/source-map.md`). `null` while loading. */
+   *  `070311a07^:packages/ui/source-map.md`). `null` while loading. */
   previewHtml: string | null;
   /** CSS selector for the rendered preview's root element, forwarded to the
    *  scroll-sync measurement (default `.markdown-rendered`). */
@@ -39,6 +40,21 @@ export interface MarkdownSplitPaneProps {
   /** Click handler on the rendered preview `<article>` — a host uses this
    *  to delegate code-block "copy" button clicks, etc. */
   onPreviewClick?: (event: ReactMouseEvent<HTMLElement>) => void;
+  /** Hooks the pane calls; defaults to the real ones, a test hands in fakes. */
+  hooks?: MarkdownSplitPaneHooks | undefined;
+}
+
+export const defaultMarkdownSplitPaneHooks = { useT, useMarkdownScrollSync };
+export type MarkdownSplitPaneHooks = typeof defaultMarkdownSplitPaneHooks;
+
+/** Toolbar's left slot: a host's extra controls followed by the source/split/preview tabs. */
+function MarkdownToolbarLeft({ extra, ...tabsProps }: { extra: ReactNode } & ComponentProps<typeof MarkdownModeTabs>) {
+  return (
+    <>
+      {extra}
+      <MarkdownModeTabs {...tabsProps} />
+    </>
+  );
 }
 
 /**
@@ -50,40 +66,21 @@ export interface MarkdownSplitPaneProps {
  * one-line description, also without the autosave/debounce-write pipeline,
  * image paste/drop upload, and shiki-based code-block syntax highlighting,
  * all of which are genuinely product/daemon-specific (see
- * `packages/ui/source-map.md` for the full disclosure). A host renders its
+ * `archived UI source map` for the full disclosure). A host renders its
  * own markdown-to-HTML pipeline and passes the result as `previewHtml`.
  */
 export function MarkdownSplitPane({
-  mode,
-  onModeChange,
-  sourceText,
-  onSourceChange,
-  previewHtml,
-  previewSelector,
-  loading = false,
-  loadingLabel,
-  sourceLabel,
-  splitLabel,
-  previewLabel,
-  editorAriaLabel,
-  previewAriaLabel,
-  modeAriaLabel,
-  toolbarLeftExtra,
-  toolbarActions,
-  editorTextareaProps,
-  onPreviewClick,
+  mode, onModeChange, sourceText, onSourceChange, previewHtml, previewSelector, loading = false, loadingLabel,
+  sourceLabel, splitLabel, previewLabel, editorAriaLabel, previewAriaLabel, modeAriaLabel,
+  toolbarLeftExtra, toolbarActions, editorTextareaProps, onPreviewClick,
+  hooks = defaultMarkdownSplitPaneHooks,
 }: MarkdownSplitPaneProps) {
-  const t = useT();
+  const t = hooks.useT();
   const editorRef = useRef<HTMLTextAreaElement | null>(null);
   const previewRef = useRef<HTMLElement | null>(null);
 
-  const { handleEditorScroll, handlePreviewScroll, activatePane } = useMarkdownScrollSync({
-    mode,
-    sourceText,
-    editorRef,
-    previewRef,
-    previewSelector,
-    resyncKey: previewHtml,
+  const { handleEditorScroll, handlePreviewScroll, activatePane } = hooks.useMarkdownScrollSync({
+    mode, sourceText, editorRef, previewRef, previewSelector, resyncKey: previewHtml,
   });
 
   const showEditor = mode === 'source' || mode === 'split';
@@ -95,17 +92,10 @@ export function MarkdownSplitPane({
       kindClassName="markdown-split-viewer"
       bodyClassName={`markdown-workbench markdown-workbench-${mode}`}
       toolbarLeft={
-        <>
-          {toolbarLeftExtra}
-          <MarkdownModeTabs
-            mode={mode}
-            onModeChange={onModeChange}
-            sourceLabel={sourceLabel}
-            splitLabel={splitLabel}
-            previewLabel={previewLabel}
-            modeAriaLabel={modeAriaLabel}
-          />
-        </>
+        <MarkdownToolbarLeft
+          extra={toolbarLeftExtra} mode={mode} onModeChange={onModeChange} sourceLabel={sourceLabel} splitLabel={splitLabel}
+          previewLabel={previewLabel} modeAriaLabel={modeAriaLabel}
+        />
       }
       toolbarActions={toolbarActions}
     >
@@ -115,13 +105,8 @@ export function MarkdownSplitPane({
         <>
           {showEditor ? (
             <MarkdownEditorPane
-              editorRef={editorRef}
-              sourceText={sourceText}
-              onSourceChange={onSourceChange}
-              ariaLabel={editorAriaLabel}
-              onScroll={handleEditorScroll}
-              activatePane={activatePane}
-              textareaProps={editorTextareaProps}
+              editorRef={editorRef} sourceText={sourceText} onSourceChange={onSourceChange} ariaLabel={editorAriaLabel}
+              onScroll={handleEditorScroll} activatePane={activatePane} textareaProps={editorTextareaProps}
             />
           ) : null}
           {showPreview ? (
@@ -133,10 +118,7 @@ export function MarkdownSplitPane({
               // here. TypeScript can't follow that indirect invariant
               // through the derived `isLoading` boolean, hence the `!`.
               html={previewHtml!}
-              ariaLabel={previewAriaLabel}
-              onScroll={handlePreviewScroll}
-              activatePane={activatePane}
-              onPreviewClick={onPreviewClick}
+              ariaLabel={previewAriaLabel} onScroll={handlePreviewScroll} activatePane={activatePane} onPreviewClick={onPreviewClick}
             />
           ) : null}
         </>
@@ -155,6 +137,7 @@ function MarkdownModeTabs({
   splitLabel,
   previewLabel,
   modeAriaLabel,
+  useTHook = useT,
 }: {
   mode: MarkdownSplitPaneMode;
   onModeChange: (mode: MarkdownSplitPaneMode) => void;
@@ -162,11 +145,12 @@ function MarkdownModeTabs({
   splitLabel: string | undefined;
   previewLabel: string | undefined;
   modeAriaLabel: string | undefined;
+  useTHook?: typeof useT;
 }) {
-  const t = useT();
+  const t = useTHook();
   return (
     <SegmentedToggle
-      className="markdown-mode-tabs"
+      className="jini-markdown-mode-tabs"
       ariaLabel={modeAriaLabel ?? t('Markdown view mode')}
       value={mode}
       onChange={onModeChange}
@@ -187,6 +171,7 @@ function MarkdownEditorPane({
   onScroll,
   activatePane,
   textareaProps,
+  useTHook = useT,
 }: {
   editorRef: RefObject<HTMLTextAreaElement | null>;
   sourceText: string;
@@ -195,14 +180,15 @@ function MarkdownEditorPane({
   onScroll: PaneScrollHandler;
   activatePane: ActivatePane;
   textareaProps: Record<string, unknown> | undefined;
+  useTHook?: typeof useT;
 }) {
-  const t = useT();
+  const t = useTHook();
   const label = ariaLabel ?? t('Markdown editor');
   return (
-    <section className="markdown-editor-pane" aria-label={label}>
+    <section className="jini-markdown-editor-pane" aria-label={label}>
       <textarea
         ref={editorRef}
-        className="markdown-editor"
+        className="jini-markdown-editor"
         value={sourceText}
         aria-label={label}
         spellCheck
@@ -225,6 +211,7 @@ function MarkdownPreviewPane({
   onScroll,
   activatePane,
   onPreviewClick,
+  useTHook = useT,
 }: {
   previewRef: RefObject<HTMLElement | null>;
   html: string;
@@ -232,14 +219,15 @@ function MarkdownPreviewPane({
   onScroll: PaneScrollHandler;
   activatePane: ActivatePane;
   onPreviewClick: MarkdownSplitPaneProps['onPreviewClick'];
+  useTHook?: typeof useT;
 }) {
-  const t = useT();
-  const activatePreview = () => activatePane('preview');
+  const t = useTHook();
+  const activatePreview = createMarkdownPreviewActivator({ activatePane });
   return (
-    <div className="markdown-preview-pane-wrap">
+    <div className="jini-markdown-preview-pane-wrap">
       <section
         ref={previewRef}
-        className="markdown-preview-pane"
+        className="jini-markdown-preview-pane"
         aria-label={ariaLabel ?? t('Markdown preview')}
         onPointerDown={activatePreview}
         onWheel={activatePreview}

@@ -1,6 +1,6 @@
-import type { Selectable } from "kysely";
+import type { Selectable, Kysely } from "kysely";
 
-import type { StorageKernel } from "@jini-ai/db/kernel";
+import type { StorageKernel } from "@jini-ai/core/contracts/storage";
 import type { WidgetRegionBindingsTable, WidgetsDatabase, WidgetsTables } from "./tables.js";
 import type { UUID } from "@jini-ai/core/primitives";
 import type { WidgetRegionBindingRepoPort } from "../ports.js";
@@ -8,7 +8,7 @@ import type { WidgetRegionBindingRow, WidgetRegionKey } from "../types.js";
 
 /**
  * @file THE durable `WidgetRegionBindingRepoPort`: one Kysely query body for every dialect the
- * storage kernel drives (storage plan §4, ADR-066). ADR-006 rule-of-two "second adapter" half —
+ * storage kernel drives (storage plan). Rule-of-two "second adapter" half —
  * `repo.memory.ts`'s `InMemoryWidgetRegionBindingRepo` is the first; `repo.sqlite.ts` is the thin
  * subclass the composition root builds from the content db handle. `upsert` targets the composite
  * `UNIQUE(workspace_id, region_key)` index (a real strengthening of INV-02 over the in-memory
@@ -38,10 +38,10 @@ function toRow(binding: WidgetRegionBindingRow): WidgetRegionBindingsTable {
 }
 
 export class SqlWidgetRegionBindingRepo implements WidgetRegionBindingRepoPort {
-  protected readonly kernel: StorageKernel<WidgetsDatabase>;
+  protected readonly kernel: StorageKernel<Kysely<WidgetsDatabase>, WidgetsDatabase>;
   protected readonly tables: WidgetsTables;
   constructor(
-    { kernel, tables }: { kernel: StorageKernel<WidgetsDatabase>; tables: WidgetsTables },
+    { kernel, tables }: { kernel: StorageKernel<Kysely<WidgetsDatabase>, WidgetsDatabase>; tables: WidgetsTables },
     _optional: Record<string, never> = {},
   ) { this.kernel = kernel; this.tables = tables; }
 
@@ -111,8 +111,8 @@ export class SqlWidgetRegionBindingRepo implements WidgetRegionBindingRepoPort {
 
 /** Borrow the host kernel through this repository's narrow SQL schema view; no connection work. */
 export function widgetRegionBindingRepoFor<DB>(
-  { kernel, tables }: { kernel: StorageKernel<DB>; tables: WidgetsTables },
+  { kernel, tables }: { kernel: StorageKernel<Kysely<DB>, DB>; tables: WidgetsTables },
   _optional: Record<string, never> = {},
 ): SqlWidgetRegionBindingRepo {
-  return new SqlWidgetRegionBindingRepo({ kernel: kernel as unknown as StorageKernel<WidgetsDatabase>, tables });
+  return new SqlWidgetRegionBindingRepo({ kernel: kernel as unknown as StorageKernel<Kysely<WidgetsDatabase>, WidgetsDatabase>, tables });
 }

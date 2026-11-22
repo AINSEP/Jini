@@ -7,7 +7,7 @@ import { randomUUID } from 'node:crypto';
 import { sql, type KyselyPlugin, type RootOperationNode } from 'kysely';
 import { openPgliteKernel } from '@jini-ai/db/kernel/pglite';
 import { openPostgresKernel, openPgliteSocketKernel } from '@jini-ai/db/kernel/postgres';
-import { scopeToSchema, type StorageKernel } from '@jini-ai/db/kernel';
+import { scopeToSchema, type KyselyKernel } from '@jini-ai/db/kernel';
 import { startPgliteOwner } from '@jini-ai/db/pglite';
 import { createPgliteChatStore, createPgliteChatMaintenance } from '../pglite/index.js';
 import { createPostgresChatStore, createPostgresChatMaintenance } from '../postgres/index.js';
@@ -17,17 +17,17 @@ const {PGlite}=require('@electric-sql/pglite');const pg=require('pg');
 const DDL=readFileSync(new URL('./pg-schema.sql',import.meta.url),'utf8')+HOST_DDL;
 // This fixture DDL has no procedural bodies or quoted semicolons. PGlite's query path
 // prepares one statement; applying statements separately also works with both PG transports.
-async function applyFixtureSchema(kernel:StorageKernel<FixtureDatabase>){
+async function applyFixtureSchema(kernel:KyselyKernel<FixtureDatabase>){
  for(const statement of DDL.split(';').map(text=>text.trim()).filter(Boolean))await kernel.execute(sql.raw(statement));
 }
-function fixture(kernel:StorageKernel<FixtureDatabase>,create:typeof createPgliteChatStore,maintenance:typeof createPgliteChatMaintenance,close:()=>Promise<void>):Fixture{
+function fixture(kernel:KyselyKernel<FixtureDatabase>,create:typeof createPgliteChatStore,maintenance:typeof createPgliteChatMaintenance,close:()=>Promise<void>):Fixture{
  let reads=0,rows=0;const selects=new Set<object>();
  const plugin:KyselyPlugin={
   transformQuery(args){if(args.node.kind==='SelectQueryNode')selects.add(args.queryId);return args.node as RootOperationNode;},
   async transformResult(args){if(selects.delete(args.queryId)){reads++;rows+=args.result.rows.length;}return args.result;},
  };
  const run=kernel.run.bind(kernel);kernel.run=fn=>run(db=>fn(db.withPlugin(plugin)));
- return {kernel,make:(scope,clock)=>create({kernel,scope},{...(clock?{clock}:{})}),maintenance:maintenance({kernel}),
+ return {kernel,make:(scope,clock)=>create({kernel,scope,clock:clock??{nowMs:()=>Date.now()}}),maintenance:maintenance({kernel}),
  messageCount:async()=>Number((await kernel.run(db=>db.selectFrom('ai_chat_messages').select(eb=>eb.fn.countAll().as('n')).executeTakeFirstOrThrow())).n),
  readCount:()=>reads,readRows:()=>rows,resetReadRows:()=>{rows=0;},
  deleteMessage:async id=>{await kernel.run(db=>db.deleteFrom('ai_chat_messages').where('id','=',id).execute());},close};
@@ -49,7 +49,7 @@ async function pgPair(){
  try{
   await a.execute(sql`CREATE SCHEMA ${sql.id(schema)}`);
   await a.transaction(async()=>{await a.execute(sql`SET LOCAL search_path TO ${sql.id(schema)}`);await applyFixtureSchema(a);});
-  const ka=scopeToSchema(a,schema),kb=scopeToSchema(b,schema);
+  const ka=scopeToSchema({ kernel: a, schema }),kb=scopeToSchema({ kernel: b, schema });
   return {a:fixture(ka,createPostgresChatStore,createPostgresChatMaintenance,async()=>{}),b:fixture(kb,createPostgresChatStore,createPostgresChatMaintenance,async()=>{}),
    close:async()=>{try{await a.execute(sql`DROP SCHEMA ${sql.id(schema)} CASCADE`);}finally{await Promise.all([a.close(),b.close()]);}}};
  }catch(error){await Promise.all([a.close(),b.close()]);throw error;}

@@ -4,7 +4,7 @@ import { externalMcpVaultEnvelope, externalMcpVaultRecord, persistExternalMcpVau
 import type { ISODateTime, UUID } from "@jini-ai/core/primitives";
 
 import { externalMcpAccessSnapshot } from "./access.js";
-import type { ExternalMcpAccessUpdate, ExternalMcpServerRecord, ExternalMcpServerRepoPort } from "@jini-ai/core/contracts/hosted-mcp";
+import type { ExternalMcpAccessUpdate, ExternalMcpOAuthRuntimePatch, ExternalMcpReplacedSecrets, ExternalMcpServerKey, ExternalMcpServerRecord, ExternalMcpServerRepoPort } from "@jini-ai/core/contracts/hosted-mcp";
 import type { HostedMcpVaultPorts } from "./store-ports.js";
 
 /**
@@ -84,27 +84,76 @@ export class InMemoryExternalMcpServerRepo implements ExternalMcpServerRepoPort 
   }
 
   async upsert(record: ExternalMcpServerRecord): Promise<void> {
-    await this.write(async () => {
-      const key = keyOf(record.workspaceId, record.serverId);
-      const previous = this.rows.get(key);
-      // Stage a fresh Jini memory repository: failures leave both payloads and the row untouched.
-      // Only this server's two envelopes are copied, so a save is bounded independently of roster size.
-      const repo = await this.stage({ previous });
-      const ids = {
-        "mcp-env": await persistExternalMcpVaultEnvelope({ repo, sealed: record.sealedEnv, identity: record, kind: "mcp-env", vaultErrors: this.ports.vaultErrors }),
-        "mcp-auth": await persistExternalMcpVaultEnvelope({ repo, sealed: record.sealedOAuth, identity: record, kind: "mcp-auth", vaultErrors: this.ports.vaultErrors }),
-      };
-      for (const { kind, vault } of storedEnvelopes({ record: previous, vaultErrors: this.ports.vaultErrors })) {
-        if (vault.id !== ids[kind]) await deleteExternalMcpVaultEnvelope({ repo, workspaceId: record.workspaceId, id: vault.id });
-      }
-      // Publish both together only after all staged writes/deletes have succeeded.
-      const saved = { ...record,
-        sealedEnv: await envelopeAt({ repo, workspaceId: record.workspaceId, id: ids["mcp-env"] }),
-        sealedOAuth: await envelopeAt({ repo, workspaceId: record.workspaceId, id: ids["mcp-auth"] }),
-      };
-      this.vaults.set(key, repo);
-      this.rows.set(key, saved);
+    await this.write(() => this.commit({ record }));
+  }
+
+  /** Creates the row at version 1; `false` and nothing written when the key is taken.
+   * @complexity O(1) row lookup plus the bounded two-envelope commit. */
+  async insert(required: { readonly record: ExternalMcpServerRecord }): Promise<boolean> {
+    return this.write(async () => {
+      const { record } = required;
+      if (this.rows.has(keyOf(record.workspaceId, record.serverId))) return false;
+      await this.commit({ record: { ...record, version: 1 } });
+      return true;
     });
+  }
+
+  /** The edit write: the version AND both credential pointers are compared in the same queued step
+   * that writes, so nothing can land between the compare and the write.
+   * @complexity O(1) row lookup plus the bounded two-envelope commit. */
+  async updateIfVersion(required: { readonly record: ExternalMcpServerRecord; readonly expectedVersion: number; readonly replaces: ExternalMcpReplacedSecrets }): Promise<boolean> {
+    return this.write(async () => {
+      const { record, expectedVersion, replaces } = required;
+      const current = this.rows.get(keyOf(record.workspaceId, record.serverId));
+      if (!current || current.version !== expectedVersion) return false;
+      const sameEnv = this.pointerId({ sealed: replaces.sealedEnv, identity: current, kind: "mcp-env" }) === this.pointerId({ sealed: current.sealedEnv, identity: current, kind: "mcp-env" });
+      const sameAuth = this.pointerId({ sealed: replaces.sealedOAuth, identity: current, kind: "mcp-auth" }) === this.pointerId({ sealed: current.sealedOAuth, identity: current, kind: "mcp-auth" });
+      if (!sameEnv || !sameAuth) return false;
+      await this.commit({ record: { ...record, version: expectedVersion + 1 } });
+      return true;
+    });
+  }
+
+  /** The runtime write: only the sealed-OAuth pointer and its status/expiry/lease columns change,
+   * and only while the stored credential is still the one the caller read. `version` is untouched.
+   * @complexity O(1) row lookup plus the bounded two-envelope commit. */
+  async updateOAuthRuntime(required: { readonly key: ExternalMcpServerKey; readonly expectedSealedOAuth: SealedSecret | null; readonly patch: ExternalMcpOAuthRuntimePatch }): Promise<boolean> {
+    return this.write(async () => {
+      const { key, expectedSealedOAuth, patch } = required;
+      const current = this.rows.get(keyOf(key.workspaceId, key.serverId));
+      if (!current) return false;
+      const expectedId = this.pointerId({ sealed: expectedSealedOAuth, identity: current, kind: "mcp-auth" });
+      if (expectedId !== this.pointerId({ sealed: current.sealedOAuth, identity: current, kind: "mcp-auth" })) return false;
+      await this.commit({ record: { ...current, ...patch } });
+      return true;
+    });
+  }
+
+  private pointerId({ sealed, identity, kind }: { sealed: SealedSecret | null; identity: ExternalMcpServerRecord; kind: EnvelopeKind }): string | null {
+    return sealed ? externalMcpVaultRecord({ sealed, identity, kind, vaultErrors: this.ports.vaultErrors }).id : null;
+  }
+
+  /** Writes `record` and its envelopes as one unit; runs inside the write queue. */
+  private async commit({ record }: { record: ExternalMcpServerRecord }): Promise<void> {
+    const key = keyOf(record.workspaceId, record.serverId);
+    const previous = this.rows.get(key);
+    // Stage a fresh Jini memory repository: failures leave both payloads and the row untouched.
+    // Only this server's two envelopes are copied, so a save is bounded independently of roster size.
+    const repo = await this.stage({ previous });
+    const ids = {
+      "mcp-env": await persistExternalMcpVaultEnvelope({ repo, sealed: record.sealedEnv, identity: record, kind: "mcp-env", vaultErrors: this.ports.vaultErrors }),
+      "mcp-auth": await persistExternalMcpVaultEnvelope({ repo, sealed: record.sealedOAuth, identity: record, kind: "mcp-auth", vaultErrors: this.ports.vaultErrors }),
+    };
+    for (const { kind, vault } of storedEnvelopes({ record: previous, vaultErrors: this.ports.vaultErrors })) {
+      if (vault.id !== ids[kind]) await deleteExternalMcpVaultEnvelope({ repo, workspaceId: record.workspaceId, id: vault.id });
+    }
+    // Publish both together only after all staged writes/deletes have succeeded.
+    const saved = { ...record,
+      sealedEnv: await envelopeAt({ repo, workspaceId: record.workspaceId, id: ids["mcp-env"] }),
+      sealedOAuth: await envelopeAt({ repo, workspaceId: record.workspaceId, id: ids["mcp-auth"] }),
+    };
+    this.vaults.set(key, repo);
+    this.rows.set(key, saved);
   }
 
   /** The existing write queue makes snapshot comparison and access replacement indivisible.
@@ -117,7 +166,7 @@ export class InMemoryExternalMcpServerRepo implements ExternalMcpServerRepoPort 
       const row = this.rows.get(key);
       if (!row || !isDeepStrictEqual(externalMcpAccessSnapshot({ record: row }), input.expected)) return false;
       this.rows.set(key, { ...row, ...input.access, writeGrantsUpdatedByPrincipalId: input.principalId,
-        writeGrantsUpdatedAt: input.nowIso, updatedAt: input.nowIso });
+        writeGrantsUpdatedAt: input.nowIso, updatedAt: input.nowIso, version: row.version + 1 });
       return true;
     });
   }

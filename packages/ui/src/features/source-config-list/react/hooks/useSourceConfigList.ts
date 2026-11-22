@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react';
 import { DRAFT_TEST_SCOPE } from '../../constants.js';
 import type { SourceConfigDependencies, SourceConfigPort } from '../../ports.js';
 import {
@@ -65,24 +65,14 @@ export interface SourceConfigListController<TSource extends SourceConfigItem> {
 
 const LOAD_FAILED_MESSAGE = 'Failed to load sources.';
 
-/**
- * Loads a source list from the injected port and exposes per-item
- * refresh/remove/trust-change/test actions, each tracked independently via
- * `pendingKeys` (see `rules.ts`'s `pendingActionKey`) so one card's in-flight
- * action never disables an unrelated card. `capabilities` is derived from
- * which optional port methods the host actually implements — the React
- * layer never needs a separate set of boolean feature flags to keep in sync
- * with the port.
- */
-export function useSourceConfigList<TSource extends SourceConfigItem>(
-  params: UseSourceConfigListParams<TSource>,
-): SourceConfigListController<TSource> {
-  const { port } = params;
+type SetSources<TSource> = Dispatch<SetStateAction<TSource[]>>;
+type SetPendingKeys = Dispatch<SetStateAction<ReadonlySet<string>>>;
+
+/** Loads the source list from the port; `reload` re-fetches. */
+function useSourceListLoader<TSource extends SourceConfigItem>(port: SourceConfigPort<TSource>) {
   const [sources, setSources] = useState<TSource[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [pendingKeys, setPendingKeys] = useState<ReadonlySet<string>>(new Set());
-  const [testResults, setTestResults] = useState<Record<string, SourceTestResult>>({});
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -99,86 +89,145 @@ export function useSourceConfigList<TSource extends SourceConfigItem>(
 
   useEffect(() => {
     void reload();
-    // `reload` intentionally excluded: it's `port`-derived and re-running it
-    // on every `reload` identity change would just mean "port changed",
-    // which the `[port]` dep below already covers via `reload`'s own
-    // `[port]` dependency.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [port]);
+    // `reload` is port-derived, so its identity changes only when the port changes.
+  }, [reload]);
 
-  const addSourceToList = useCallback((source: TSource) => {
-    setSources((current) => upsertSourceById(current, source));
-  }, []);
+  return { sources, setSources, loading, error, reload };
+}
 
-  const remove = useCallback(
-    async (id: string) => {
-      setPendingKeys((current) => withPendingAction(current, id, 'remove'));
-      try {
-        const ok = await port.removeSource(id);
-        if (ok) setSources((current) => removeSourceById(current, id));
-      } finally {
-        setPendingKeys((current) => withoutPendingAction(current, id, 'remove'));
-      }
-    },
-    [port],
-  );
+/** Marks `key`/`kind` pending for the duration of `task`, even if it throws. */
+async function runPending<T>({ setPendingKeys, key, kind, task }: {
+  setPendingKeys: SetPendingKeys;
+  key: string;
+  kind: SourceActionKind;
+  task: () => Promise<T>;
+}): Promise<T> {
+  setPendingKeys((current) => withPendingAction({ pendingKeys: current, id: key, kind }));
+  try {
+    return await task();
+  } finally {
+    setPendingKeys((current) => withoutPendingAction({ pendingKeys: current, id: key, kind }));
+  }
+}
 
-  const refresh = useCallback(
-    async (id: string) => {
-      if (!port.refreshSource) return;
-      setPendingKeys((current) => withPendingAction(current, id, 'refresh'));
-      try {
-        const refreshed = await port.refreshSource(id);
-        if (refreshed) setSources((current) => updateSourceById(current, id, refreshed));
-      } finally {
-        setPendingKeys((current) => withoutPendingAction(current, id, 'refresh'));
-      }
-    },
-    [port],
-  );
-
-  const setTrust = useCallback(
-    async (id: string, trust: string) => {
-      if (!port.setTrust) return;
-      setPendingKeys((current) => withPendingAction(current, id, 'trust'));
-      try {
-        const updated = await port.setTrust(id, trust);
-        if (updated) setSources((current) => updateSourceById(current, id, updated));
-      } finally {
-        setPendingKeys((current) => withoutPendingAction(current, id, 'trust'));
-      }
-    },
-    [port],
-  );
+/** Source test runs (a saved item, or the add-form's unsaved draft) and their results. */
+function useSourceTester<TSource extends SourceConfigItem>(
+  port: SourceConfigPort<TSource>,
+  setPendingKeys: SetPendingKeys,
+) {
+  const [testResults, setTestResults] = useState<Record<string, SourceTestResult>>({});
 
   const test = useCallback(
     async (id: string | undefined, draft?: SourceFieldValues) => {
       if (!port.testSource) return;
       const key = id ?? DRAFT_TEST_SCOPE;
-      setPendingKeys((current) => withPendingAction(current, key, 'test'));
-      try {
-        const result = await port.testSource(id, draft);
+      await runPending({
+        setPendingKeys,
+        key,
+        kind: 'test',
+        task: async () => {
+        const result = await port.testSource!(id, draft);
         setTestResults((current) => ({ ...current, [key]: result }));
-      } finally {
-        setPendingKeys((current) => withoutPendingAction(current, key, 'test'));
-      }
+      },
+      });
     },
-    [port],
+    [port, setPendingKeys],
+  );
+
+  return { testResults, test };
+}
+
+interface SourceMutationsDeps<TSource extends SourceConfigItem> {
+  port: SourceConfigPort<TSource>;
+  setSources: SetSources<TSource>;
+  setPendingKeys: SetPendingKeys;
+}
+
+/** Per-item remove/refresh/trust/test/update actions, each tracked via `pendingKeys`. */
+function useSourceMutations<TSource extends SourceConfigItem>({
+  port,
+  setSources,
+  setPendingKeys,
+}: SourceMutationsDeps<TSource>) {
+  const { testResults, test } = useSourceTester(port, setPendingKeys);
+
+  const remove = useCallback(
+    async (id: string) => {
+      await runPending({
+        setPendingKeys,
+        key: id,
+        kind: 'remove',
+        task: async () => {
+        const ok = await port.removeSource(id);
+        if (ok) setSources((current) => removeSourceById({ list: current, id }));
+      },
+      });
+    },
+    [port, setSources, setPendingKeys],
+  );
+
+  const patchWith = useCallback(
+    (kind: SourceActionKind, id: string, call: () => Promise<TSource | null | undefined>) =>
+      runPending({
+        setPendingKeys,
+        key: id,
+        kind,
+        task: async () => {
+        const updated = await call();
+        if (updated) setSources((current) => updateSourceById({ list: current, id, patch: updated }));
+      },
+      }),
+    [setSources, setPendingKeys],
+  );
+
+  const refresh = useCallback(
+    async (id: string) => {
+      if (port.refreshSource) await patchWith('refresh', id, () => port.refreshSource!(id));
+    },
+    [port, patchWith],
+  );
+
+  const setTrust = useCallback(
+    async (id: string, trust: string) => {
+      if (port.setTrust) await patchWith('trust', id, () => port.setTrust!(id, trust));
+    },
+    [port, patchWith],
   );
 
   const update = useCallback(
     async (id: string, patch: SourceUpdateInput) => {
-      if (!port.updateSource) return;
-      setPendingKeys((current) => withPendingAction(current, id, 'update'));
-      try {
-        const updated = await port.updateSource(id, patch);
-        if (updated) setSources((current) => updateSourceById(current, id, updated));
-      } finally {
-        setPendingKeys((current) => withoutPendingAction(current, id, 'update'));
-      }
+      if (port.updateSource) await patchWith('update', id, () => port.updateSource!(id, patch));
     },
-    [port],
+    [port, patchWith],
   );
+
+  return { testResults, remove, refresh, setTrust, test, update };
+}
+
+/**
+ * Loads a source list from the injected port and exposes per-item
+ * refresh/remove/trust-change/test actions, each tracked independently via
+ * `pendingKeys` (see `rules.ts`'s `pendingActionKey`) so one card's in-flight
+ * action never disables an unrelated card. `capabilities` is derived from
+ * which optional port methods the host actually implements — the React
+ * layer never needs a separate set of boolean feature flags to keep in sync
+ * with the port.
+ */
+export function useSourceConfigList<TSource extends SourceConfigItem>(
+  params: UseSourceConfigListParams<TSource>,
+): SourceConfigListController<TSource> {
+  const { port } = params;
+  const { sources, setSources, loading, error, reload } = useSourceListLoader(port);
+  const [pendingKeys, setPendingKeys] = useState<ReadonlySet<string>>(new Set());
+  const { testResults, remove, refresh, setTrust, test, update } = useSourceMutations({
+    port,
+    setSources,
+    setPendingKeys,
+  });
+
+  const addSourceToList = useCallback((source: TSource) => {
+    setSources((current) => upsertSourceById({ list: current, next: source }));
+  }, [setSources]);
 
   const capabilities = useMemo<SourceConfigListCapabilities>(
     () => ({
@@ -190,7 +239,7 @@ export function useSourceConfigList<TSource extends SourceConfigItem>(
     [port],
   );
 
-  const isPending = useCallback((id: string, kind: SourceActionKind) => isActionPending(pendingKeys, id, kind), [pendingKeys]);
+  const isPending = useCallback((id: string, kind: SourceActionKind) => isActionPending({ pendingKeys, id, kind }), [pendingKeys]);
 
   return {
     sources,

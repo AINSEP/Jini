@@ -15,6 +15,28 @@ export interface FormDeliveryPlannerDeps {
   nowIso(): string;
 }
 
+/** @param optional.onSourceGone `"retry"` (default) throws so the source outbox job retries; `"empty-plan"` records an
+ *  empty plan instead, for a submission or form that is definitively gone — a throw would fail the whole event and
+ *  re-run its other subscribers on every retry, for nothing. Only a null snapshot is affected: every other failure still throws.
+ *  @param optional.report receives one line (the submission id only; never the form id, answers or workspace). */
+export interface PlanFormDeliveriesOptions {
+  readonly onSourceGone?: "retry" | "empty-plan";
+  readonly report?: (required: { message: string }) => void;
+}
+
+/** Bindings selected the submission but its source is gone: retry (throw) or record the empty plan. @complexity O(1). */
+function sourceGone(
+  required: { workspaceId: string; submissionId: string; formId: string; optional: PlanFormDeliveriesOptions },
+  _optional = {},
+): FormDeliveryPlan {
+  const { workspaceId, submissionId, formId, optional } = required;
+  if (optional.onSourceGone !== "empty-plan") {
+    throw new Error(`Form delivery planning failed: submission ${submissionId} or form ${formId} was not found; the source event will retry.`);
+  }
+  optional.report?.({ message: `submission ${submissionId} or its form no longer exists; recorded an empty delivery plan` });
+  return { workspaceId, submissionId, formId, jobs: [] };
+}
+
 function selects(binding: FormDeliveryBinding, formId: string): boolean {
   return binding.enabled && (binding.formIds === undefined || binding.formIds.includes(formId));
 }
@@ -22,21 +44,21 @@ function selects(binding: FormDeliveryBinding, formId: string): boolean {
 /**
  * Returns the submission's delivery plan, building and storing it on first call only. An empty
  * selection still records a plan, so bindings added later never backfill old submissions.
- * @throws Error when bindings select the submission but its source is gone, so the source outbox
+ * @throws Error when bindings select the submission but its source is gone (unless `optional.onSourceGone` is `"empty-plan"`), so the source outbox
  *   job retries instead of recording a plan that silently delivers nothing.
  * @complexity O(bindings × formIds) to select; one job row per selected binding.
  * @example await planFormDeliveries({ deps, workspaceId, submissionId, formId });
  */
 export function planFormDeliveries(
   required: { deps: FormDeliveryPlannerDeps; workspaceId: string; submissionId: string; formId: string },
-  _optional: Record<string, never> = {},
+  optional: PlanFormDeliveriesOptions = {},
 ): Promise<FormDeliveryPlan> {
   const { deps, workspaceId, submissionId, formId } = required;
   const build = async (): Promise<FormDeliveryPlan> => {
     const selected = (await deps.bindings({ workspaceId })).filter(binding => selects(binding, formId));
     if (selected.length === 0) return { workspaceId, submissionId, formId, jobs: [] };
     const source = await deps.snapshot({ workspaceId, submissionId, formId });
-    if (!source) throw new Error(`Form delivery planning failed: submission ${submissionId} or form ${formId} was not found; the source event will retry.`);
+    if (!source) return sourceGone({ workspaceId, submissionId, formId, optional });
     // Select only form metadata; whole host rows must never widen the persisted payload.
     const form = { slug: source.form.slug, fields: source.form.fields };
     const occurredAt = deps.nowIso();

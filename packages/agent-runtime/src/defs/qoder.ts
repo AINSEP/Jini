@@ -1,7 +1,11 @@
 import { createAgentModelDiscovery } from '../model-discovery-native.js';
 import path from 'node:path';
 import { DEFAULT_MODEL_OPTION } from './shared.js';
-import type { RuntimeAgentDef, RuntimeBuildOptions, RuntimeContext } from '../types.js';
+import type {
+  RuntimeAgentDef,
+  RuntimeBuildOptions,
+  RuntimeContext,
+} from '@jini-ai/core/contracts/agents';
 
 /** Approval, workspace and model argv, in that order. */
 function qoderRunArgs({ options, runtimeContext }: { options: RuntimeBuildOptions; runtimeContext: RuntimeContext }): string[] {
@@ -21,7 +25,7 @@ function absolutePaths(paths: readonly string[] | null | undefined): string[] {
 
 export const qoderAgentDef = {
   // UNVERIFIED live integration locally; source/category and limits are documented in model-discovery-adapters.ts.
-  ...createAgentModelDiscovery('qoder', { fallbackModels: (): readonly import('../types.js').RuntimeModelOption[] => qoderAgentDef.fallbackModels }),
+  ...createAgentModelDiscovery('qoder', { fallbackModels: (): readonly import('@jini-ai/core/contracts/agents').RuntimeModelOption[] => qoderAgentDef.fallbackModels }),
     id: 'qoder',
     name: 'Qoder CLI',
     bin: 'qodercli',

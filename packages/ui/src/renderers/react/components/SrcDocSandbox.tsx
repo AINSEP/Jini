@@ -20,14 +20,14 @@ export interface SrcDocSandboxProps {
   /** Accessible iframe title. Defaults to a translated "Artifact preview". */
   title?: string | undefined;
   className?: string | undefined;
-  /** Messages posted by the sandboxed document to this window (e.g. a bridge reply). Origin is intentionally not checked — see `srcdoc/build.ts`'s selection-bridge security note in `source-map.md`; sandboxing contains the blast radius, not origin checks. */
+  /** Messages posted by the sandboxed document to this window (e.g. a bridge reply). Origin is intentionally not checked — see `srcdoc/build.ts`'s selection-bridge security note in `070311a07^:packages/ui/src/renderers/source-map.md`; sandboxing contains the blast radius, not origin checks. */
   onMessage?: ((data: unknown) => void) | undefined;
 }
 
-export function SrcDocSandbox({ html, options, title, className, onMessage }: SrcDocSandboxProps) {
-  const t = useT();
+export function SrcDocSandbox({ html, options, title, className, onMessage, useTHook = useT }: SrcDocSandboxProps & { useTHook?: typeof useT }) {
+  const t = useTHook();
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  const srcDoc = useMemo(() => buildSrcDoc(html, options), [html, options]);
+  const srcDoc = useMemo(() => buildSrcDoc({ html }, options), [html, options]);
 
   useEffect(() => {
     if (!onMessage) return undefined;

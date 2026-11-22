@@ -1,10 +1,10 @@
 import type { McpBearerTokenSupplier } from "@jini-ai/core/contracts/hosted-mcp";
-import { loadOptionalPeer } from '@jini-ai/core/optional-peer';
+import type { HttpFetchPort } from "@jini-ai/core/contracts/runtime";
 import { redactSecrets } from '@jini-ai/core';
 import { scrubFederatedResponseValue } from "./result-secrets.js";
 import type { FederationMessages } from "./messages.js";
 import { parseSseRecord } from "@jini-ai/core/primitives";
-import type { TextReadOptions } from "@jini-ai/platform/fetch-with-timeout";
+import type { TextReadOptions } from "@jini-ai/core/net";
 import type { McpToolCallRequiredArgs, McpToolCallOptions } from "./ports.js";
 import {
   buildInitializeParams,
@@ -27,7 +27,7 @@ import type { McpHttpExchange, McpHttpLaunchSpec, McpHttpResponse, McpSessionPor
  * `https://mcp.supabase.com/mcp`, anything SaaS — has no such program, and the only way to reach it
  * is an authenticated HTTPS endpoint. `external-mcp-server-federation.md` deferred this transport
  * with a specific, now-expired reason: "OAuth needs an interactive browser consent flow and a token
- * store, neither of which host app has". `src/platform/oauth/` and `assistant/external-mcp-oauth.ts` are both of
+ * store, neither of which host app has". `src/platform/oauth/` and a host module are both of
  * those, so the blocker is gone and, exactly as that doc predicted, this lands as an added adapter
  * rather than a redesign.
  *
@@ -479,20 +479,25 @@ export async function connectMcpHttpSession(deps: Omit<McpHttpSessionDependencie
  * already under test through the exchange seam, and code that only runs when a real network exists
  * is code that only fails in production.
  *
- * `redirect: "error"` is the security-relevant choice, and matches `src/platform/oauth/token-endpoint.ts`:
+ * `redirect: "error"` is the security-relevant choice, and matches `packages/oauth/src/token-endpoint.ts`:
  * these requests carry a bearer token in a header, and a followed cross-origin redirect would
  * re-send that header to whatever host the server nominated. Refusing to follow means a redirect is
  * a visible failure rather than a silent credential disclosure.
  *
- * Byte caps and strict UTF-8 are opt-in and require the optional `@jini-ai/platform` >=0.6.15
- * peer. The default path never loads that peer and retains unlimited `response.text()`.
+ * Byte caps and strict UTF-8 require an injected readResponseText (HttpFetchPort); without one,
+ * construction throws McpProtocolError. The default path keeps unlimited response.text().
  *
  * @complexity O(n) in the response body length.
  */
 export function createFetchMcpHttpExchange(
   { fetch: fetchImpl }: { fetch: typeof fetch },
-  optional: TextReadOptions = {},
+  optional: TextReadOptions & { readResponseText?: HttpFetchPort["readResponseText"] } = {},
 ): McpHttpExchange {
+  const { readResponseText, ...textReadOptions } = optional;
+  const guarded = textReadOptions.maxResponseBytes !== undefined || textReadOptions.strictUtf8 === true;
+  if (guarded && !readResponseText) {
+    throw new McpProtocolError({ message: "mcp-federation: readResponseText is required when maxResponseBytes or strictUtf8 is set" });
+  }
   return {
     async send(request, options = {}) {
       const response = await fetchImpl(request.url, {
@@ -508,9 +513,9 @@ export function createFetchMcpHttpExchange(
         contentType: (response.headers.get("content-type") ?? "").toLowerCase(),
         sessionId: response.headers.get("mcp-session-id") ?? undefined,
         wwwAuthenticate: response.headers.get("www-authenticate") ?? undefined,
-        text: optional.maxResponseBytes === undefined && !optional.strictUtf8
-          ? await response.text()
-          : await (await loadOptionalPeer({ feature: 'Platform-backed adapters', dependency: '@jini-ai/platform', load: () => import("@jini-ai/platform/fetch-with-timeout") })).readFetchResponseText({ response }, optional),
+        text: guarded && readResponseText
+          ? await readResponseText({ response }, textReadOptions)
+          : await response.text(),
       };
     },
   };

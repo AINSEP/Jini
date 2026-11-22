@@ -17,13 +17,16 @@ it('makes every SQL, React and surface-card UI peer optional, with one pinned de
  // The surface-card peers became optional in d5abdfbc; Recharts is now artifact-owned.
  const peers={'better-sqlite3':'^13.0.0','@electric-sql/pglite':'0.5.8',pg:'^8.23.0',react:'^18.3.0 || ^19.0.0','react-dom':'^18.3.0 || ^19.0.0','@ag-ui/core':'0.0.58',
   '@mcp-ui/client':'7.1.1','@radix-ui/react-checkbox':'^1.3.11','@radix-ui/react-label':'^2.1.15','@radix-ui/react-radio-group':'^1.4.7','@radix-ui/react-select':'^2.3.7','@radix-ui/react-slot':'^1.3.3'};
- const jiniPeers={'@jini-ai/agent-runtime':'^0.6.10','@jini-ai/protocol':'^0.6.10','@jini-ai/ui':'^0.6.10'};
+ const jiniPeers={'@jini-ai/agent-runtime':'^0.7.3-next.2','@jini-ai/ui':'^0.7.3-next.2'};
  expect(manifest.peerDependencies).toEqual({...peers,...jiniPeers});
  // SQL stores and surface cards use core's default clock at runtime, so core is required.
- // Default widget/bridge/SQL entries load agentic, db, diagnostics and Kysely, so they became regular
+ // Default widget/bridge/SQL entries load db, diagnostics and Kysely, so they became regular
  // dependencies (deaf9cc, squashed; pinned alike by dbpkg-chat-manifest.test.ts).
- expect(manifest.dependencies).toEqual({'@jini-ai/core':'workspace:^','@jini-ai/agentic':'workspace:^','@jini-ai/db':'workspace:^',
-  '@jini-ai/diagnostics':'workspace:^',kysely:'^0.29.6'});
+ // Wave B made protocol required: core's run-activity reads A2UI surface ids from it (7b601411).
+ expect(manifest.dependencies).toEqual({'@jini-ai/core':'workspace:^','@jini-ai/db':'workspace:^',
+  '@jini-ai/diagnostics':'workspace:^','@jini-ai/protocol':'workspace:^',kysely:'^0.29.6'});
+ // @jini-ai/agentic is imported only by chat tests (G-STALE-DEPS row 14), so it is a devDependency, never a dependency.
+ expect(manifest.devDependencies['@jini-ai/agentic']).toBe('workspace:^');
  for(const name of Object.keys({...peers,...jiniPeers})){
   expect(manifest.peerDependenciesMeta[name]).toEqual({optional:true});
   expect(manifest.dependencies??{}).not.toHaveProperty(name);

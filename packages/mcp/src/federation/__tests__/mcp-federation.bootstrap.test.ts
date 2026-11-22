@@ -194,8 +194,8 @@ test("createDefaultConnect: a stdioLaunchResolver that throws McpLaunchUnavailab
 
   assert.equal(spawnCalls, 0, "the resolver's throw must prevent any spawn from ever happening");
   assert.ok(
-    messages.some((message) => message.startsWith(`warn:mcp-federation: '${UVX_CONFIG.connectionId}' failed, continuing without its tools — McpLaunchUnavailableError: ${UVX_UNAVAILABLE_MESSAGE}`)),
-    `expected logger.warn to receive the resolver's exact message; got ${JSON.stringify(messages)}`,
+    messages.includes(`warn:mcp-federation: '${UVX_CONFIG.connectionId}' failed, continuing without its tools`),
+    `expected logger.warn to receive the fixed-words line; got ${JSON.stringify(messages)}`,
   );
   assert.equal(registry.registered.length, 1, "the other connection must still attach and register its tool");
   assert.deepEqual(result.registeredToolIds, ["mcp__ok-vendor__ping"]);

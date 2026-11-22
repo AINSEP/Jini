@@ -14,7 +14,7 @@ export function getPaymentHandler({ deps }: { deps: ToolsDeps }, _optional: Reco
     if (!scope) return NO_SCOPE;
     await requirePaymentsPermission({ deps, ctx, scope, permission: deps.permissions.read }, { paymentId });
     const payment = await deps.payments.getPayment({ scope, paymentId });
-    return payment ? { ok: true, payment } : paymentNotFound(paymentId);
+    return payment ? { ok: true, payment } : paymentNotFound({ paymentId });
   };
 }
 

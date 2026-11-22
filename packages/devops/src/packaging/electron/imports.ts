@@ -12,7 +12,7 @@ export interface DistImportInput {
   declared: ReadonlySet<string>;
   fs: PackagingFilesystemPort; imports: ImportReaderPort; aliases: ImportAliasPort;
 }
-const builtins = new Set(builtinModules);
+const builtins: ReadonlySet<string> = new Set(builtinModules);
 /** The file a specifier points at (host alias first, then relative/absolute paths), or undefined for a bare package. */
 function localTarget(required: { specifier: string; file: string; distDir: string; aliases: ImportAliasPort }): string | undefined {
   const { specifier, file, distDir, aliases } = required;
@@ -33,7 +33,7 @@ function undeclaredPackage(required: { specifier: string; declared: ReadonlySet<
  *
  * @complexity O(files + imports) reachable from `entry`; each file is read once.
  */
-export function undeclaredDistImports(required: DistImportInput): string[] {
+export function undeclaredDistImports(required: DistImportInput, _optional: Record<string, never> = {}): string[] {
   const { distDir, entry, declared, fs, imports, aliases } = required;
   const queue = [path.resolve(entry)];
   const seen = new Set(queue);
@@ -67,7 +67,7 @@ export function undeclaredDistImports(required: DistImportInput): string[] {
   }
   return problems;
 }
-export function assertDistImportsDeclared(required: DistImportInput): void {
+export function assertDistImportsDeclared(required: DistImportInput, _optional: Record<string, never> = {}): void {
   const problems = undeclaredDistImports(required);
   if (problems.length) throw new Error(`built entry imports ${problems.length} undeclared packages or missing files:\n  ${problems.join('\n  ')}`);
 }

@@ -5,6 +5,7 @@ import { useProvidersTab } from '../hooks/ProvidersTab.hooks.js';
 import { MediaPortsContext } from '../hooks/MediaPorts.hooks.js';
 import type { MediaProvider } from '../../models.js';
 import type { MediaApiPort, MediaProvidersPort } from '../../ports.js';
+import { realEmbedPolicy } from '../../__tests__/fakes/embed-policy.js';
 
 const change = (value: string) => ({ currentTarget: { value } }) as ChangeEvent<HTMLInputElement>;
 function deferred<T>() {
@@ -34,7 +35,7 @@ function service(stored: MediaProvider[]) {
 }
 function mount(mediaProviders?: MediaProvidersPort) {
   const wrapper = ({ children }: { children: ReactNode }) => (
-    <MediaPortsContext.Provider value={{ mediaApi: {} as MediaApiPort, ...(mediaProviders ? { mediaProviders } : {}) }}>{children}</MediaPortsContext.Provider>
+    <MediaPortsContext.Provider value={{ embedPolicy: realEmbedPolicy, mediaApi: {} as MediaApiPort, ...(mediaProviders ? { mediaProviders } : {}) }}>{children}</MediaPortsContext.Provider>
   );
   return renderHook(() => useProvidersTab(), { wrapper });
 }
@@ -116,7 +117,7 @@ describe('media useProvidersTab', () => {
   it('disables Clear on rows already discovered once the provider port goes away', async () => {
     let port: MediaProvidersPort | undefined = service([{ id: 'x', label: 'X', configured: true, apiKeyTail: '1234' }]);
     const wrapper = ({ children }: { children: ReactNode }) => (
-      <MediaPortsContext.Provider value={{ mediaApi: {} as MediaApiPort, ...(port ? { mediaProviders: port } : {}) }}>{children}</MediaPortsContext.Provider>
+      <MediaPortsContext.Provider value={{ embedPolicy: realEmbedPolicy, mediaApi: {} as MediaApiPort, ...(port ? { mediaProviders: port } : {}) }}>{children}</MediaPortsContext.Provider>
     );
     const view = renderHook(() => useProvidersTab(), { wrapper });
     await waitFor(() => expect(view.result.current.rows.map(item => item.id)).toEqual(['x']));

@@ -15,9 +15,11 @@ import { installLegacyRevision } from '../../packages/agent-plugins/src/lifecycl
 
 const workspace = fileURLToPath(new URL('../../', import.meta.url));
 const packageRoot = path.join(workspace, 'packages/agent-plugins');
-/** Pinned payloads for the two long-lived design plugins; every other row is checked against its own source folder. */
+/** Pinned payloads for the long-lived design plugins; every other row is checked against its own source folder. */
 const pinned: Readonly<Record<string, { fileCount: number; skills: string[] }>> = {
-  'ui-ux-design': { fileCount: 54, skills: ['frontend-accessibility', 'gstack-design', 'interface-design', 'shadcn-ui', 'ui-ux-design', 'vercel-web-design-guidelines', 'web-compliance'] },
+  'ui-ux-design': { fileCount: 44, skills: ['frontend-accessibility', 'gstack-design', 'interface-design', 'ui-ux-design', 'vercel-web-design-guidelines', 'web-compliance'] },
+  'shadcn-ui': { fileCount: 15, skills: ['shadcn-ui'] },
+  'kuinetic': { fileCount: 7, skills: ['kuinetic'] },
   'slide-design': { fileCount: 9, skills: ['slide-design'] },
 };
 

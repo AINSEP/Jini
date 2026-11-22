@@ -234,33 +234,208 @@ export function callerSafeErrorMessage(required: { err: unknown; rules: readonly
   }
   return fallback;
 }
-/** A driver/system error code worth logging (`SQLITE_READONLY`, `ECONNREFUSED`, `ERR_INVALID_CHAR`) —
- *  a short constant token, never free text that could carry a value. */
-const LOGGABLE_ERROR_CODE = /^[A-Z][A-Z0-9_]{0,63}$/;
+/** A constant token: the only shape a registered code may have (checked once, at registration). */
+const CONSTANT_TOKEN = /^[A-Z][A-Z0-9_]{0,63}$/;
+/** A class label: an identifier, checked once when a describer is built. */
+const CLASS_LABEL = /^[A-Za-z][A-Za-z0-9_]{0,63}$/;
 
-/** `ClassName` or `ClassName(CODE)` for one thrown value; `typeof` for a non-`Error` throw. */
-function describeOneErrorForLog(value: unknown): string {
-  if (!(value instanceof Error)) return typeof value;
-  const className = value.constructor.name || "Error";
-  const code = (value as { code?: unknown }).code;
-  return typeof code === "string" && LOGGABLE_ERROR_CODE.test(code) ? `${className}(${code})` : className;
+// Codes are approved by listing, never by shape: an uppercase run is not evidence that a value is a
+// code (a token or key can look exactly like one). A package adds its own constants through
+// `createErrorDescriber`, which builds a separate describer and never mutates this built-in list.
+const LOGGABLE_CODES: ReadonlySet<string> = new Set<string>([
+  // Node system errors: every libuv errno name (`util.getSystemErrorMap()`), plus dns's ENOTFOUND.
+  // why: owner ruling 2026-11-15: errno names are fixed vocabulary, not user text. Kept as a list,
+  // not an `E[A-Z0-9_]+` rule, because a thrown value's `code` is caller text and could be a secret.
+  "E2BIG", "EACCES", "EADDRINUSE", "EADDRNOTAVAIL", "EAFNOSUPPORT", "EAGAIN", "EAI_ADDRFAMILY", "EAI_AGAIN",
+  "EAI_BADFLAGS", "EAI_BADHINTS", "EAI_CANCELED", "EAI_FAIL", "EAI_FAMILY", "EAI_MEMORY", "EAI_NODATA",
+  "EAI_NONAME", "EAI_OVERFLOW", "EAI_PROTOCOL", "EAI_SERVICE", "EAI_SOCKTYPE", "EALREADY", "EBADF", "EBUSY",
+  "ECANCELED", "ECHARSET", "ECONNABORTED", "ECONNREFUSED", "ECONNRESET", "EDESTADDRREQ", "EEXIST", "EFAULT",
+  "EFBIG", "EFTYPE", "EHOSTDOWN", "EHOSTUNREACH", "EILSEQ", "EINTR", "EINVAL", "EIO", "EISCONN", "EISDIR",
+  "ELOOP", "EMFILE", "EMLINK", "EMSGSIZE", "ENAMETOOLONG", "ENETDOWN", "ENETUNREACH", "ENFILE", "ENOBUFS",
+  "ENODATA", "ENODEV", "ENOENT", "ENOEXEC", "ENOMEM", "ENONET", "ENOPROTOOPT", "ENOSPC", "ENOSYS",
+  "ENOTCONN", "ENOTDIR", "ENOTEMPTY", "ENOTFOUND", "ENOTSOCK", "ENOTSUP", "ENOTTY", "ENXIO", "EOF",
+  "EOVERFLOW", "EPERM", "EPIPE", "EPROTO", "EPROTONOSUPPORT", "EPROTOTYPE", "ERANGE", "EREMOTEIO", "EROFS",
+  "ESHUTDOWN", "ESOCKTNOSUPPORT", "ESPIPE", "ESRCH", "ETIMEDOUT", "ETXTBSY", "EUNATCH", "EXDEV",
+  // Node and undici (fetch)
+  "ABORT_ERR", "ERR_INVALID_ARG_TYPE", "ERR_INVALID_ARG_VALUE", "ERR_INVALID_CHAR", "ERR_INVALID_URL",
+  "ERR_SOCKET_CLOSED", "ERR_STREAM_PREMATURE_CLOSE", "UND_ERR_ABORTED", "UND_ERR_BODY_TIMEOUT",
+  "UND_ERR_CONNECT_TIMEOUT", "UND_ERR_HEADERS_TIMEOUT", "UND_ERR_SOCKET",
+  // SQLite
+  "SQLITE_BUSY", "SQLITE_CANTOPEN", "SQLITE_CONSTRAINT", "SQLITE_CONSTRAINT_UNIQUE", "SQLITE_CORRUPT",
+  "SQLITE_FULL", "SQLITE_IOERR", "SQLITE_LOCKED", "SQLITE_READONLY",
+]);
+
+/** The built-in approved codes `describeErrorForLog` may print. Never written after load. */
+export const LOGGABLE_ERROR_CODES: ReadonlySet<string> = LOGGABLE_CODES;
+
+type ErrorClass = abstract new (...args: never[]) => Error;
+
+/** Built-in classes, most specific first. The label is a literal, never read from the value: a
+ *  class's or an instance's `name` is caller-controlled text and can carry a credential. */
+const BUILT_IN_ERROR_LABELS: readonly (readonly [ErrorClass, string])[] = [
+  [ToolInputError, "ToolInputError"],
+  [AggregateError, "AggregateError"],
+  [TypeError, "TypeError"],
+  [RangeError, "RangeError"],
+  [SyntaxError, "SyntaxError"],
+  [ReferenceError, "ReferenceError"],
+  [URIError, "URIError"],
+  [EvalError, "EvalError"],
+];
+
+/** `name` values worth naming (DOMException and Node abort/timeout errors). Printed only when the
+ *  value equals one of these fixed strings. */
+const WELL_KNOWN_ERROR_NAMES: ReadonlySet<string> = new Set(["AbortError", "TimeoutError"]);
+
+/** A registered error class and the fixed label it is logged as. */
+type LabelledErrorClass = { readonly error: ErrorClass; readonly label: string };
+
+/** What a describer may print: approved codes and package-supplied classes (checked newest first so a subclass listed after its base wins). */
+interface ErrorVocabulary {
+  readonly codes: ReadonlySet<string>;
+  readonly classes: readonly LabelledErrorClass[];
+}
+
+/** One package's additions to what a describer may print. */
+export interface ErrorDescriberVocabulary {
+  /** Constant codes the package's own errors set (`PLUGIN_ID_CONFLICT`). */
+  readonly codes?: readonly string[];
+  /** The package's own error classes and the fixed label each is logged as. */
+  readonly classes?: readonly LabelledErrorClass[];
+}
+
+/** The describers returned by {@link createErrorDescriber}. */
+export interface ErrorDescriber {
+  describeErrorParts(required: { err: unknown }, _optional?: Record<string, never>): ErrorLogParts;
+  describeErrorForLog(required: { err: unknown }, _optional?: Record<string, never>): string;
+}
+
+const BUILT_IN_VOCABULARY: ErrorVocabulary = { codes: LOGGABLE_CODES, classes: [] };
+
+/** Fixed text logged when an error object cannot even be inspected. */
+const UNDESCRIBABLE_ERROR = "[diagnostic unavailable]";
+/** A field whose getter threw. */
+const UNREADABLE = Symbol("unreadable field");
+
+// A log call sits inside a catch block. If describing the error throws (a throwing getter, a revoked
+// Proxy), the logger replaces the real failure with its own, so every read of the caught value is
+// guarded HERE, once — callers must not wrap this in try/catch. Each field is read at most once, so a
+// getter cannot pass a check with one value and be printed with another.
+/** One field of a caught error, read once; `UNREADABLE` when its getter throws. */
+function readFieldOnce({ value, key }: { readonly value: Error; readonly key: "code" | "name" | "cause" }): unknown {
+  try {
+    return (value as unknown as Record<string, unknown>)[key];
+  } catch {
+    return UNREADABLE;
+  }
+}
+
+/** A fixed label chosen by class checks. Throws only when `instanceof` itself throws. */
+function errorClassLabel({ value, vocabulary }: { readonly value: Error; readonly vocabulary: ErrorVocabulary }): string {
+  for (let index = vocabulary.classes.length - 1; index >= 0; index -= 1) {
+    const entry = vocabulary.classes[index];
+    if (entry !== undefined && value instanceof entry.error) return entry.label;
+  }
+  const builtIn = BUILT_IN_ERROR_LABELS.find(([errorClass]) => value instanceof errorClass);
+  if (builtIn !== undefined) return builtIn[1];
+  const name = readFieldOnce({ value, key: "name" });
+  return typeof name === "string" && WELL_KNOWN_ERROR_NAMES.has(name) ? name : "Error";
+}
+
+/** The fixed class label and approved code of one value, as {@link describeErrorForLog} prints them. */
+export interface ErrorLogParts {
+  /** A fixed class label (`TypeError`, a registered label), `typeof` for a non-`Error`, or `[diagnostic unavailable]`. */
+  readonly label: string;
+  /** An approved code (`ECONNREFUSED`); absent when the value has none. */
+  readonly code?: string;
+}
+
+/** Label and approved code for one thrown value, plus its direct cause when asked for. Never throws. */
+function readErrorParts({ value, vocabulary }: { readonly value: unknown; readonly vocabulary: ErrorVocabulary }, { withCause = false }: { readonly withCause?: boolean } = {}): ErrorLogParts & { readonly cause?: unknown } {
+  try {
+    if (!(value instanceof Error)) return { label: typeof value };
+    const label = errorClassLabel({ value, vocabulary });
+    const code = readFieldOnce({ value, key: "code" });
+    const parts = typeof code === "string" && vocabulary.codes.has(code) ? { label, code } : { label };
+    return withCause ? { ...parts, cause: readFieldOnce({ value, key: "cause" }) } : parts;
+  } catch {
+    return { label: UNDESCRIBABLE_ERROR };
+  }
+}
+
+/** `Label` or `Label(CODE)` for one thrown value, plus its direct cause when asked for. Never throws. */
+function describeValueForLog({ value, vocabulary }: { readonly value: unknown; readonly vocabulary: ErrorVocabulary }, { withCause = false }: { readonly withCause?: boolean } = {}): { readonly text: string; readonly cause?: unknown } {
+  const { label, code, cause } = readErrorParts({ value, vocabulary }, { withCause });
+  const text = code === undefined ? label : `${label}(${code})`;
+  return withCause ? { text, cause } : { text };
 }
 
 /**
- * What a server-side log line may say about an error whose message is NOT known to be safe: its class
- * name, a constant-token `code`, and the same for its direct `cause`. Never the message, which can
- * quote a secret — `JSON.parse` quotes its input, and a sealer is handed plaintext.
+ * The same fixed class label and approved code {@link describeErrorForLog} prints, as fields, without
+ * the cause. For a caller that needs one low-cardinality label (a telemetry `error.type`) rather than a
+ * log line, so it never parses `Label(CODE) cause=…`. Same guarantee: no message, no raw `name`, no
+ * unapproved code.
+ * @param required.err - The caught value.
+ * @returns `{ label }` or `{ label, code }`. Never throws.
+ * @complexity O(registered classes).
+ */
+export function describeErrorParts(required: { err: unknown }, _optional: Record<string, never> = {}): ErrorLogParts {
+  return partsFor({ err: required.err, vocabulary: BUILT_IN_VOCABULARY });
+}
+
+function partsFor({ err, vocabulary }: { readonly err: unknown; readonly vocabulary: ErrorVocabulary }): ErrorLogParts {
+  const { label, code } = readErrorParts({ value: err, vocabulary });
+  return code === undefined ? { label } : { label, code };
+}
+
+/**
+ * What a log line may say about an error whose message is NOT known to be safe: a fixed class label
+ * (built-in classes, core's `ToolInputError`, classes packages registered, or the well-known
+ * `AbortError`/`TimeoutError` names), an approved `code`, and the same for its direct `cause`. Never
+ * the message, the stack, the class's or instance's own `name`, or any other field: they can quote
+ * a secret — `JSON.parse` quotes its input, a sealer is handed plaintext, a class name is just text.
  *
  * Use it wherever the raw message could carry a credential. Where a class's message is designed for
  * logs (`EgressRefusedError.message`), log that instead.
  *
  * @param required.err - The caught value.
- * @returns e.g. `SqliteError(SQLITE_BUSY)`, or `TypeError cause=Error(ECONNREFUSED)`.
- * @complexity O(1).
+ * Never throws: an error that cannot be inspected is described as `[diagnostic unavailable]` (an
+ * unreadable cause as `cause=[diagnostic unavailable]`, an unreadable code is left out), so call it
+ * directly inside a catch block. Full detail belongs to a host sink, which receives the error object.
+ *
+ * @returns e.g. `Error(SQLITE_BUSY)`, or `TypeError cause=Error(ECONNREFUSED)`.
+ * @complexity O(registered classes); reads only the value and its direct cause, each field once.
  */
 export function describeErrorForLog(required: { err: unknown }, _optional: Record<string, never> = {}): string {
-  const { err } = required;
-  const described = describeOneErrorForLog(err);
-  const cause = err instanceof Error ? (err as { cause?: unknown }).cause : undefined;
-  return cause === undefined ? described : `${described} cause=${describeOneErrorForLog(cause)}`;
+  return lineFor({ err: required.err, vocabulary: BUILT_IN_VOCABULARY });
+}
+
+function lineFor({ err, vocabulary }: { readonly err: unknown; readonly vocabulary: ErrorVocabulary }): string {
+  const head = describeValueForLog({ value: err, vocabulary }, { withCause: true });
+  if (head.cause === undefined) return head.text;
+  const cause = head.cause === UNREADABLE ? UNDESCRIBABLE_ERROR : describeValueForLog({ value: head.cause, vocabulary }).text;
+  return `${head.text} cause=${cause}`;
+}
+
+/**
+ * Builds a describer that also names a package's own error classes and constant codes. The built-in
+ * describers are untouched: the returned one reads a new set (built-in codes plus `codes`), so a
+ * code added for one describer is not loggable through another. Nothing a caught value carries can
+ * extend the vocabulary.
+ * @param required.codes Constant tokens (`[A-Z][A-Z0-9_]*`, at most 64 chars).
+ * @param required.classes Error classes with an identifier label.
+ * @returns `{ describeErrorParts, describeErrorForLog }` over the extended vocabulary.
+ * @throws TypeError for a code or label of any other shape (a programming error).
+ * @complexity O(codes + classes) to build; O(classes) per described value.
+ */
+export function createErrorDescriber(required: ErrorDescriberVocabulary, _optional: Record<string, never> = {}): ErrorDescriber {
+  const { codes = [], classes = [] } = required;
+  const badCode = codes.find(code => !CONSTANT_TOKEN.test(code));
+  if (badCode !== undefined) throw new TypeError("createErrorDescriber: a code must be a constant token like PLUGIN_ID_CONFLICT.");
+  if (classes.some(entry => !CLASS_LABEL.test(entry.label))) throw new TypeError("createErrorDescriber: a class label must be an identifier.");
+  const vocabulary: ErrorVocabulary = { codes: new Set([...LOGGABLE_CODES, ...codes]), classes: [...classes] };
+  return {
+    describeErrorParts: (args, _optional = {}) => partsFor({ err: args.err, vocabulary }),
+    describeErrorForLog: (args, _optional = {}) => lineFor({ err: args.err, vocabulary }),
+  };
 }

@@ -2,7 +2,7 @@ import { mkdtemp, mkdir, readFile, readdir, realpath, rm, stat, writeFile } from
 import { join, sep } from 'node:path';
 import { tmpdir } from 'node:os';
 import { describe, expect, it } from 'vitest';
-import { stageAttachmentClaim } from '../attachments.js';
+import { stageAttachmentClaim } from '../attachment-staging.js';
 
 describe('site-contained attachment staging (owner 2026-10-23)', () => {
   it('copies only the claimed canary, preserves store bytes, and removes the staged batch on cleanup', async () => {
@@ -21,7 +21,9 @@ describe('site-contained attachment staging (owner 2026-10-23)', () => {
       expect(await readFile(staged.claim.attachments[0]!.path, 'utf8')).toBe('CLAIMED_CANARY');
       expect(await readFile(source, 'utf8')).toBe('CLAIMED_CANARY');
       await staged.cleanup();
-      await expect(stat(staged.claim.batchDirectory!)).rejects.toThrow();
+      const batchDirectory = staged.claim.batchDirectory;
+      if (batchDirectory === undefined) throw new Error('Expected a staged batch directory');
+      await expect(stat(batchDirectory)).rejects.toThrow(`ENOENT: no such file or directory, stat '${batchDirectory}'`);
     } finally { await rm(base, { recursive: true, force: true }); }
   });
 
@@ -30,10 +32,17 @@ describe('site-contained attachment staging (owner 2026-10-23)', () => {
     try {
       const source = join(base, 'good.txt');
       await writeFile(source, 'CLAIMED_CANARY');
-      await expect(stageAttachmentClaim({ filesystemRoot: base, claim: { attachments: [
+      const missing = join(base, 'missing.txt');
+      const error = await stageAttachmentClaim({ filesystemRoot: base, claim: { attachments: [
         { path: source, name: 'good.txt', kind: 'file' },
-        { path: join(base, 'missing.txt'), name: 'missing.txt', kind: 'file' },
-      ] } }, {})).rejects.toThrow();
+        { path: missing, name: 'missing.txt', kind: 'file' },
+      ] } }, {}).then(
+        () => { throw new Error('Expected attachment staging to fail'); },
+        (failure: NodeJS.ErrnoException & { dest?: string }) => failure,
+      );
+      expect(error).toBeInstanceOf(Error);
+      expect(error).toMatchObject({ code: 'ENOENT', path: missing, syscall: 'copyfile' });
+      expect(error.message).toBe(`ENOENT: no such file or directory, copyfile '${missing}' -> '${error.dest}'`);
       expect(await readdir(base)).toEqual(['good.txt']);
     } finally { await rm(base, { recursive: true, force: true }); }
   });

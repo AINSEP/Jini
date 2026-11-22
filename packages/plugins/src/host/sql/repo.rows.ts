@@ -6,7 +6,7 @@ export interface PluginActivationTable {
   updated_at: string; quarantined_at: string | null; quarantine_reason: string | null;
   quarantine_failure_count: number | null;
 }
-import { toBool } from "@jini-ai/db/kernel";
+import { toBool } from "@jini-ai/core/contracts/storage";
 import type { PluginActivationRecord } from "../activation.js";
 
 /**
@@ -23,7 +23,7 @@ export function toActivationRecord({ row }: { row: PluginActivationRow }, _optio
     pluginId: row.plugin_id,
     workspaceId: row.workspace_id,
     version: row.version,
-    enabled: toBool(row.enabled) === true,
+    enabled: toBool({ value: row.enabled }) === true,
     updatedAt: row.updated_at,
     ...(row.quarantined_at === null ? {} : { quarantinedAt: row.quarantined_at }),
     ...(row.quarantine_reason === null ? {} : { quarantineReason: row.quarantine_reason }),

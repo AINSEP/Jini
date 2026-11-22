@@ -4,7 +4,7 @@
  */
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 
-import type { KeyringPort, RootKeyHandle, SecretSealerPort } from "./ports.js";
+import type { KeyringPort, RootKeyHandle, SecretSealerPort } from "@jini-ai/core/contracts/vault";
 import type { SealedSecret } from "./types.js";
 
 const ALG = "aes-256-gcm";

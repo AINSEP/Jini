@@ -8,12 +8,12 @@ const SKIP: readonly string[] = ['type', 'data-src', 'data-type', 'data-consent-
 const OPENERS = ':not(html)[data-consent-open],a[href="#privacy-choices"]';
 
 /** @complexity O(cookie header). Malformed escapes read as "no value", never throw. */
-export function readCookie(doc: Document, name: string): string | null {
+export function readCookie({ doc, name }: { doc: Document; name: string }, _optional: Record<string, never> = {}): string | null {
   const part = doc.cookie.split(/;\s*/).find(p => p.startsWith(name + '='));
   try { return part ? decodeURIComponent(part.slice(name.length + 1)) : null; } catch { return null; }
 }
 
-export function writeCookie(doc: Document, { name, value, maxAgeS }: { name: string; value: string; maxAgeS: number }, { domain }: { domain?: string | undefined } = {}): void {
+export function writeCookie({ doc, name, value, maxAgeS }: { doc: Document; name: string; value: string; maxAgeS: number }, { domain }: { domain?: string | undefined } = {}): void {
   const secure = doc.defaultView?.location.protocol === 'https:' ? '; Secure' : '';
   doc.cookie = `${name}=${encodeURIComponent(value)}; Path=/; Max-Age=${Math.floor(maxAgeS)}; SameSite=Lax${secure}` + (domain ? '; Domain=' + domain : '');
 }
@@ -26,8 +26,11 @@ function expireEverywhere(doc: Document, name: string): void {
   for (let i = 0; i < parts.length - 1; i++) doc.cookie = `${expired}; Domain=.${parts.slice(i).join('.')}`;
 }
 
-/** Expire prefixed cookies and local-storage keys; storage access can throw in sandboxes. @complexity O(cookies + keys). */
-export function purge(doc: Document, storage?: StoragePrefixes): void {
+/** Expire prefixed cookies and local-storage keys; storage access can throw in sandboxes. Delete only the caller's storage
+ * prefixes; blocked localStorage is tolerated. This is also the `purge` handed to adapters (`PurgeStorage`).
+ * @example purgeStorage({ doc: document, storage: { cookies: ['vendor_'], local: ['vendor_'] } })
+ * @complexity O(cookies + local keys), O(keys) temporary space; no new identity or network. */
+export function purgeStorage({ doc, storage }: { doc: Document; storage?: StoragePrefixes | undefined }, _optional = {}): void {
   if (!storage) return;
   for (const part of doc.cookie.split(/;\s*/)) {
     const name = part.split('=')[0]!;
@@ -43,7 +46,7 @@ export function purge(doc: Document, storage?: StoragePrefixes): void {
 // Follow-up (P4): delete the cms runtime once the consumer inserts this client.
 /** Allowed inert tags become live, in authored order (async=false). Unknown labels stay inert.
  * @complexity O(inert tags). */
-export function activateInert(doc: Document, { allowed, ran }: { allowed: Choices; ran: Set<Optional> }): void {
+export function activateInert({ doc, allowed, ran }: { doc: Document; allowed: Choices; ran: Set<Optional> }, _optional: Record<string, never> = {}): void {
   // One category guard handles legacy tags and CMS templates, including unlabelled resources.
   doc.querySelectorAll<HTMLElement>('script[type="text/plain"],iframe[data-src],template[data-jini-consent-resource]').forEach(node => {
     const content = (node as HTMLTemplateElement).content;
@@ -71,7 +74,7 @@ function liveScript(doc: Document, inert: HTMLScriptElement): HTMLScriptElement 
 }
 
 /** Footer links and the reopen button work for every banner mode, including "My own". */
-export function installOpeners({ api, doc }: { api: JiniConsentApi; doc: Document }): void {
+export function installOpeners({ api, doc }: { api: JiniConsentApi; doc: Document }, _optional: Record<string, never> = {}): void {
   doc.addEventListener('click', event => {
     if (!(event.target as Element).closest?.(OPENERS)) return;
     event.preventDefault();
@@ -98,7 +101,7 @@ function syncInputs(root: HTMLElement, s: ConsentState): void {
 }
 
 /** A durable grant that is still waiting for its receipt keeps the banner open with its alert. */
-export const waiting = (s: ConsentState) => OPTIONAL.some(c => s.choices[c] && !s.allowed[c]);
+export const waiting = ({ state }: { state: ConsentState }, _optional: Record<string, never> = {}) => OPTIONAL.some(c => state.choices[c] && !state.allowed[c]);
 
 /** Wire #jini-consent (renderBanner's markup) to the public API. @complexity O(1) per click. */
 export function bindBanner({ api, doc }: { api: JiniConsentApi; doc: Document }): void {
@@ -107,8 +110,8 @@ export function bindBanner({ api, doc }: { api: JiniConsentApi; doc: Document })
   const alert = root.querySelector<HTMLElement>('[data-consent-error]');
   const show = (open: boolean) => { root.hidden = !open; api.setOpen({ open }); };
   const settle = (s: ConsentState) => {
-    if (alert) alert.hidden = !waiting(s);
-    if (!waiting(s)) show(false);
+    if (alert) alert.hidden = !waiting({ state: s });
+    if (!waiting({ state: s })) show(false);
   };
   root.addEventListener('click', event => {
     const action = (event.target as Element).closest?.<HTMLElement>('[data-consent-action]')?.dataset.consentAction;
@@ -118,7 +121,7 @@ export function bindBanner({ api, doc }: { api: JiniConsentApi; doc: Document })
   });
   root.addEventListener('keydown', event => { if (event.key === 'Escape' && api.get().status === 'set') show(false); });
   doc.addEventListener(OPEN_EVENT, () => { syncInputs(root, api.get()); show(true); root.querySelector('button')?.focus(); });
-  api.subscribe({ listener: s => { syncInputs(root, s); if (alert && !alert.hidden && !waiting(s)) settle(s); } });
+  api.subscribe({ listener: s => { syncInputs(root, s); if (alert && !alert.hidden && !waiting({ state: s })) settle(s); } });
   syncInputs(root, api.get());
   show(api.get().status === 'pending');
 }

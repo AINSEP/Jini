@@ -1,5 +1,5 @@
 /**
- * @file In-memory `CommentRepoPort` adapter (ADR-006 rule-of-two "test/dev" half;
+ * @file In-memory `CommentRepoPort` adapter (rule-of-two "test/dev" half;
  * `repo.sqlite.ts` is the durable half).
  */
 import { decodeKeysetCursor, encodeKeysetCursor } from "../core/keyset-cursor.js";

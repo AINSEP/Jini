@@ -45,10 +45,10 @@ import type { AttachmentPreviewNavigation } from './AttachmentGallery.hooks.js';
 export type AttachmentPreviewStatus = 'image' | 'text' | 'unsupported';
 
 /** Extensions attempted as an `<img>` even when `attachment.kind` says otherwise — see module doc. */
-const IMAGE_PREVIEW_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'avif', 'bmp', 'ico', 'svg']);
+const IMAGE_PREVIEW_EXTENSIONS: ReadonlySet<string> = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'avif', 'bmp', 'ico', 'svg']);
 
 /** Extensions shown in a scrollable monospace pane. Deliberately narrow — see task scope: "txt, md, json, csv, and similar", not every source-code language. */
-const TEXT_PREVIEW_EXTENSIONS = new Set(['txt', 'md', 'markdown', 'json', 'csv', 'tsv', 'log', 'yaml', 'yml', 'xml']);
+const TEXT_PREVIEW_EXTENSIONS: ReadonlySet<string> = new Set(['txt', 'md', 'markdown', 'json', 'csv', 'tsv', 'log', 'yaml', 'yml', 'xml']);
 
 /** Hard cap on rendered text-preview characters, so a large attached log/CSV cannot hang the tab painting one giant `<pre>`. */
 export const MAX_TEXT_PREVIEW_CHARS = 200_000;
@@ -202,7 +202,6 @@ export function useAttachmentPreviewModal(
     const url = URL.createObjectURL(cachedFile);
     setImageUrl(url);
     return () => URL.revokeObjectURL(url);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [attemptImage, cachedFile]);
 
   useEffect(() => {
@@ -229,8 +228,7 @@ export function useAttachmentPreviewModal(
     return () => {
       canceled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [attemptText, cachedFile]);
+  }, [attemptText, cachedFile, readText]);
 
   function handleNativeCancel(event: SyntheticEvent<HTMLDialogElement>): void {
     // Always prevented, same reasoning as `ConfirmDialog.hooks.tsx`: the effect above is the single

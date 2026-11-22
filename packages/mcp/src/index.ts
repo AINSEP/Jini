@@ -13,6 +13,7 @@ export {
   sanitizeMcpConfig,
   readMcpConfig,
   writeMcpConfig,
+  MCP_SECRET_WRITE_OPTIONS,
   isManagedProjectCwd,
   buildClaudeMcpJson,
   buildAcpMcpServers,
@@ -129,11 +130,11 @@ export type {
   JsonInstallPlan,
   ManualInstallPlan,
   InstallPlan,
+  OwnedJsonInstallFiles,
 } from './agent-install/index.js';
 
 // Object-argument contracts and injected ports.
-export type { McpConfigFilesystemPort } from './core/config.js';
-export type { McpTokenClockOptions, McpTokenStoreOptions } from './core/tokens.js';
+export type { McpConfigFilesPort } from './core/config.js';
 export type { BuildMcpInstallPayloadOptions } from './core/install-info.js';
 export type { McpIdleTimerPort } from './client/client.js';
 export type { McpToolServerRequiredArgs } from './server/tool-server.js';

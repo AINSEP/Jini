@@ -1,14 +1,15 @@
 /**
  * @file The enforcing boundary parser for identity agent-tool input — the identity domain's
- * analogue of `features/content-types/field-defs.ts`.
+ * analogue of `packages/cms/src/content-types/field-defs.ts`.
  *
  * Deliberate divergence from content-types, disclosed:
  * content-types hand-authors its published `inputSchema` and hand-authors `field-defs.ts`
  * separately, then pins the two together with a fixture corpus
- * (`agent-tools.schema-agreement.unit.test.ts`) because deriving one from the other would have
+ * (`packages/user-management/src/server/__tests__/agent-tools.schema-agreement.test.ts`) because deriving one from the other would have
  * needed either a JSON Schema library this project does not depend on or a code generator. That
  * reasoning does not carry over here: identity's schemas use a small keyword subset and describe
- * flat objects of strings, so this file INTERPRETS that published schema directly rather than
+ * flat objects of strings (plus integer `expectedVersion` basis fields for the lost-update guard),
+ * so this file INTERPRETS that published schema directly rather than
  * duplicating it. Sharing the artifact prevents metadata drift; the independent agreement tests
  * still verify interpreter semantics, including Unicode length and unsupported schema shapes.
  *
@@ -24,11 +25,14 @@
  */
 
 /** The keywords this interpreter implements. Anything else in a schema is a hard error, never ignored. */
-const OBJECT_KEYWORDS = new Set(["type", "properties", "required", "additionalProperties", "description"]);
-const STRING_KEYWORDS = new Set(["type", "minLength", "description"]);
+const OBJECT_KEYWORDS: ReadonlySet<string> = new Set(["type", "properties", "required", "additionalProperties", "description"]);
+const STRING_KEYWORDS: ReadonlySet<string> = new Set(["type", "minLength", "description"]);
+const INTEGER_KEYWORDS: ReadonlySet<string> = new Set(["type", "minimum", "description"]);
 
+/** Strings stay in `value` (its shape predates integers); integer properties come back in the
+ *  additive `integers` map, so existing readers of `value` keep their `string` typing. */
 export type IdentityToolInputResult =
-  | { ok: true; value: Readonly<Record<string, string>> }
+  | { ok: true; value: Readonly<Record<string, string>>; integers: Readonly<Record<string, number>> }
   | { ok: false; error: Error };
 
 type Schema = Record<string, unknown>;
@@ -61,7 +65,7 @@ function assertSchemaIsInterpretable(schema: Schema): void {
   const properties = Object.hasOwn(schema, "properties") ? schema.properties : {};
   if (!isSchemaObject(properties)) throw new Error("identity agent-tool schema properties must be an object");
   assertRequiredIsDeclared(Object.hasOwn(schema, "required") ? schema.required : [], properties);
-  for (const [key, sub] of Object.entries(properties)) assertStringPropertySchema(key, sub);
+  for (const [key, sub] of Object.entries(properties)) assertPropertySchema(key, sub);
 }
 
 /** `required` must be unique strings, each naming an OWN declared property. */
@@ -78,12 +82,20 @@ function isUniqueStringArray(value: unknown): value is string[] {
   return Array.isArray(value) && value.every(key => typeof key === "string") && new Set(value).size === value.length;
 }
 
-/** A property sub-schema must be a string schema whose optional `minLength` is a nonnegative integer. */
-function assertStringPropertySchema(key: string, sub: unknown): void {
+/** A property sub-schema is a string schema whose optional `minLength` is a nonnegative integer, or
+ *  an integer schema whose optional `minimum` is an integer. */
+function assertPropertySchema(key: string, sub: unknown): void {
   if (!isSchemaObject(sub)) throw new Error(`identity agent-tool schema property '${key}' must be an object`);
+  if (sub.type === "integer") {
+    assertKeywords(sub, INTEGER_KEYWORDS);
+    if (Object.hasOwn(sub, "minimum") && !(typeof sub.minimum === "number" && Number.isInteger(sub.minimum))) {
+      throw new Error(`identity agent-tool schema minimum for '${key}' must be an integer`);
+    }
+    return;
+  }
   assertKeywords(sub, STRING_KEYWORDS);
   if (sub.type !== "string") {
-    throw new Error(`identity agent-tool schema declares non-string property '${key}' — this parser only implements string properties`);
+    throw new Error(`identity agent-tool schema declares property '${key}' of unsupported type '${String(sub.type)}' — this parser implements string and integer properties`);
   }
   if (Object.hasOwn(sub, "minLength") && !isNonNegativeInteger(sub.minLength)) {
     throw new Error(`identity agent-tool schema minLength for '${key}' must be a nonnegative integer`);
@@ -155,7 +167,7 @@ export function parseIdentityToolInput(required: {
     ?? findMissingRequiredKey(input, (schema.required as string[] | undefined) ?? []);
   if (violation !== undefined) return rejected(violation);
 
-  return extractStrings(input, properties);
+  return extractValues(input, properties);
 }
 
 function rejected(message: string): IdentityToolInputResult {
@@ -175,21 +187,42 @@ function findMissingRequiredKey(record: Schema, requiredKeys: readonly string[])
 }
 
 /** Extracts every present declared key, in declaration order, rejecting the first non-conforming value. */
-function extractStrings(record: Schema, properties: Record<string, Schema>): IdentityToolInputResult {
+function extractValues(record: Schema, properties: Record<string, Schema>): IdentityToolInputResult {
   const value: Record<string, string> = {};
+  const integers: Record<string, number> = {};
   for (const [key, sub] of Object.entries(properties)) {
     if (!Object.hasOwn(record, key)) continue;
 
     const candidate = record[key];
-    if (typeof candidate !== "string") return rejected(`'${key}' must be a string, received ${describeType(candidate)}`);
-    if (typeof sub.minLength === "number" && Array.from(candidate).length < sub.minLength) {
-      return rejected(`'${key}' must contain at least ${sub.minLength} Unicode code point(s)`);
+    if (sub.type === "integer") {
+      const integerViolation = findIntegerViolation(key, sub, candidate);
+      if (integerViolation !== undefined) return rejected(integerViolation);
+      Object.defineProperty(integers, key, { value: candidate, enumerable: true, writable: true, configurable: true });
+      continue;
     }
+    const stringViolation = findStringViolation(key, sub, candidate);
+    if (stringViolation !== undefined) return rejected(stringViolation);
     // defineProperty keeps a `__proto__` key as plain own data rather than invoking the setter.
     Object.defineProperty(value, key, { value: candidate, enumerable: true, writable: true, configurable: true });
   }
 
-  return { ok: true, value };
+  return { ok: true, value, integers };
+}
+
+/** Rejection message for a non-integer value or one below `minimum`; undefined when it conforms. */
+function findIntegerViolation(key: string, sub: Schema, candidate: unknown): string | undefined {
+  if (typeof candidate !== "number" || !Number.isSafeInteger(candidate)) return `'${key}' must be an integer, received ${describeType(candidate)}`;
+  if (typeof sub.minimum === "number" && candidate < sub.minimum) return `'${key}' must be at least ${sub.minimum}`;
+  return undefined;
+}
+
+/** Rejection message for a non-string value or one shorter than `minLength`; undefined when it conforms. */
+function findStringViolation(key: string, sub: Schema, candidate: unknown): string | undefined {
+  if (typeof candidate !== "string") return `'${key}' must be a string, received ${describeType(candidate)}`;
+  if (typeof sub.minLength === "number" && Array.from(candidate).length < sub.minLength) {
+    return `'${key}' must contain at least ${sub.minLength} Unicode code point(s)`;
+  }
+  return undefined;
 }
 
 /** Names a value's type for a rejection message WITHOUT echoing the value itself. */

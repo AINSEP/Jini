@@ -9,7 +9,7 @@ import test from 'node:test';
 // with the host (they exercise Tovu's parsers and tool catalog).
 const root = path.resolve(import.meta.dirname, '..');
 // Frozen identifiers: the saved credential label is persisted in operators' vaults (plan §4.3).
-const FROZEN_LABEL = 'Tovu Search — Meilisearch';
+const FROZEN_LABEL = 'Search — Meilisearch';
 
 /** Every file this plugin ships, as forward-slash paths relative to the plugin root. */
 async function shippedFiles() {
@@ -21,7 +21,7 @@ async function shippedFiles() {
 
 test('the payload ships the search provider its contribution file names', async () => {
   const files = await shippedFiles();
-  const contribution = JSON.parse(await readFile(path.join(root, 'tovu-search-providers.json'), 'utf8'));
+  const contribution = JSON.parse(await readFile(path.join(root, 'jini-search-providers.json'), 'utf8'));
   assert.deepEqual(contribution.providers.map(provider => provider.module), ['providers/meilisearch.mjs']);
   assert.ok(files.includes('providers/meilisearch.mjs'));
   assert.ok(files.includes('skills/meilisearch/SKILL.md'));
@@ -40,7 +40,7 @@ test('the credential card keeps its frozen label and the portable skill defers t
 
 test('the shipped text is host-neutral apart from frozen identifiers, and keeps the publisher id', async () => {
   const manifest = JSON.parse(await readFile(path.join(root, 'plugin.json'), 'utf8'));
-  assert.equal(manifest.extensions.jini.id, 'tovu/meilisearch');
+  assert.equal(manifest.extensions.jini.id, 'jini/meilisearch');
   assert.doesNotMatch(manifest.description, /\bTovu\b/);
   for (const file of (await shippedFiles()).filter(name => /\.(md|mjs)$/.test(name))) {
     const text = (await readFile(path.join(root, file), 'utf8')).replaceAll(FROZEN_LABEL, '');

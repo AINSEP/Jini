@@ -1,7 +1,7 @@
 import { StrictMode, type ReactNode } from 'react';
 import { act, render, renderHook, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import { IDLE_RETENTION, type FetchQueryCacheOptions, type QueryCacheSchedulerPort } from '@jini-ai/core/fetch';
+import { IDLE_RETENTION, type FetchQueryCacheRequired, type QueryCacheSchedulerPort } from '@jini-ai/core/fetch';
 import { FetchQueryProvider, useCachedLoader, useFetchQuery } from '../index.js';
 
 /** Records host timers without touching global time; tests explicitly run pending callbacks. */
@@ -20,6 +20,16 @@ function recordingScheduler() {
 }
 
 describe('built-in provider timing ports', () => {
+  it('works with no timing props: the browser clock and scheduler fill in', async () => {
+    function Probe() {
+      const { status } = useFetchQuery({ key: ['no-timing'], fetch: async () => 'ok' });
+      return <p data-testid="status">{status}</p>;
+    }
+    render(<FetchQueryProvider><Probe /></FetchQueryProvider>);
+    await act(async () => { await Promise.resolve(); });
+    expect((await screen.findByTestId('status')).textContent).toBe('success');
+  });
+
   it('shares clock-controlled loader freshness with reactive reads, including exact expiry', async () => {
     let now = 100;
     const clock = { nowMs: () => now };
@@ -118,7 +128,7 @@ describe('built-in provider timing ports', () => {
   it.each(['clock', 'scheduler'] as const)('preserves stable ports and disposes the previous cache when %s changes', async changedPort => {
     const original = recordingScheduler();
     const replacement = recordingScheduler();
-    const ports: Pick<FetchQueryCacheOptions, 'clock' | 'scheduler'> = {
+    const ports: Pick<FetchQueryCacheRequired, 'clock' | 'scheduler'> = {
       clock: { nowMs: () => 100 }, scheduler: original.port,
     };
     const wrapper = ({ children }: { children: ReactNode }) => <FetchQueryProvider {...ports}>{children}</FetchQueryProvider>;

@@ -75,7 +75,7 @@ export interface IdentityToolDeps {
 
 /**
  * Assembles `auth-service.ts`'s `IdentityRepos` bag from {@link IdentityToolDeps}'s flat fields — a
- * local duplicate of `server/routes/admin/users/deps.ts`'s `identityReposFrom` rather than an import
+ * local duplicate of the host app's `src/server/inbound/admin-http/routes/users/deps.ts`'s `identityReposFrom` rather than an import
  * of it, for the same reason `features/settings/tool-registrations.ts`'s header gives for
  * duplicating `toWriteServiceDeps`: importing from the HTTP admin layer would invert this codebase's
  * ports/adapters direction. It is a field mapping, not an authorization decision. Host route bags must bind the same
@@ -114,7 +114,7 @@ function identityServiceDepsFrom(deps: IdentityToolDeps): AuthServiceDeps {
  * calls. See `DerivedRiskByToolId` in the kit for why it is independent of the catalog's own
  * `sideEffects` declaration.
  */
-export const identityDerivedRisk: DerivedRiskByToolId = new Map<string, AgentToolSideEffect>([
+export const identityDerivedRisk: ReadonlyMap<string, AgentToolSideEffect> = new Map<string, AgentToolSideEffect>([
   // -> authorize() + repo reads only; no save on any path.
   ["identity_user_list", "none"],
   ["identity_role_list", "none"],
@@ -153,7 +153,7 @@ export const identityDerivedRisk: DerivedRiskByToolId = new Map<string, AgentToo
 /**
  * Upper bound on the roster `identity_user_list` will fan out over.
  *
- * `routes/admin/users/list.ts` does the same O(n) per-user fan-out uncapped, on the documented
+ * the host app's `src/server/inbound/admin-http/routes/users/list.ts` does the same O(n) per-user fan-out uncapped, on the documented
  * "operator-managed roster, not member/content scale" assumption. That assumption is fine for a
  * human screen and NOT fine here for a different reason than scale: this result is spent as model
  * context, so an unexpectedly large roster would silently consume the run's context window. The
@@ -201,6 +201,9 @@ export interface ValidatedIdentityInput {
   req(field: string): string;
   /** A field the schema leaves optional. `undefined` means the caller omitted it. */
   opt(field: string): string | undefined;
+  /** An integer field (e.g. `expectedVersion`); `undefined` means the caller omitted it. The
+   *  parser already enforced `required`, the integer type and `minimum`. */
+  int(field: string): number | undefined;
 }
 
 /**
@@ -214,7 +217,7 @@ export function identityInput({ toolId, input }: { toolId: string; input: unknow
     const recovery = "Fix the input and retry — this will not resolve on retry without an input change.";
     throw new Error(`${parsed.error.message}. ${recovery} Schema for '${toolId}': ${JSON.stringify(entry.inputSchema)}`);
   }
-  const value = parsed.value;
+  const { value, integers } = parsed;
   return {
     req(field) {
       const found = value[field];
@@ -227,6 +230,9 @@ export function identityInput({ toolId, input }: { toolId: string; input: unknow
     },
     opt(field) {
       return value[field];
+    },
+    int(field) {
+      return integers[field];
     },
   };
 }
@@ -243,7 +249,7 @@ function identityPermissionsFor(toolId: string): string[] {
  * The mutating tools need no equivalent: their domain function opens with this same
  * `assertCallerHasAnyPermission` call itself. Reads have no service-layer function to inherit it
  * from — `identity` exports grant-writing transitions, not read wrappers, which is why
- * `routes/admin/users/list.ts` also gates in the route and then reads the repo ports directly.
+ * the host app's `src/server/inbound/admin-http/routes/users/list.ts` also gates in the route and then reads the repo ports directly.
  * This calls the domain's own exported helper rather than re-deriving an OR gate (and rather than
  * the kit's generic `requireToolPermission`, which cannot express an OR), so the single
  * evaluator is reached by an identical path from both tool kinds.
@@ -340,7 +346,52 @@ export function buildIdentityRegistrations(routeDeps: IdentityToolDeps): ToolReg
   const serviceDeps = () => identityServiceDepsFrom(routeDeps);
 
   const handlers: Record<string, ToolHandler> = {
-    identity_user_list: async (ctx) => {
+    identity_user_list: createIdentityUserListHandler(routeDeps),
+
+    identity_role_list: createIdentityRoleListHandler(routeDeps),
+
+    identity_policy_list: createIdentityPolicyListHandler(routeDeps),
+
+    identity_user_create: createIdentityUserCreateHandler(routeDeps, serviceDeps),
+
+    identity_user_update_email: createIdentityUserUpdateEmailHandler(routeDeps, serviceDeps),
+
+    identity_user_change_username: createIdentityUserChangeUsernameHandler(routeDeps, serviceDeps),
+
+    identity_user_disable: createIdentityUserDisableHandler(routeDeps, serviceDeps),
+
+    identity_user_enable: createIdentityUserEnableHandler(routeDeps, serviceDeps),
+
+    identity_role_create: createIdentityRoleCreateHandler(routeDeps, serviceDeps),
+
+    identity_role_assign: createIdentityRoleAssignHandler(routeDeps, serviceDeps),
+
+    identity_role_rename: createIdentityRoleRenameHandler(routeDeps, serviceDeps),
+
+    identity_role_delete: createIdentityRoleDeleteHandler(routeDeps, serviceDeps),
+
+    identity_policy_create: createIdentityPolicyCreateHandler(routeDeps, serviceDeps),
+
+    identity_policy_update: createIdentityPolicyUpdateHandler(routeDeps, serviceDeps),
+
+    identity_policy_delete: createIdentityPolicyDeleteHandler(routeDeps, serviceDeps),
+
+    identity_policy_attach: createIdentityPolicyAttachHandler(routeDeps, serviceDeps),
+  };
+
+  // No `unwiredToolIds`: identity wires its ENTIRE catalog (which is why its own
+  // `AgentToolDefinition` makes `inputSchema` required rather than optional).
+  return buildDomainRegistrations({
+    domain: "identity",
+    catalogModule: "./index.js",
+    catalog: CATALOG_BY_ID,
+    handlers,
+    derivedRisk: identityDerivedRisk,
+  });
+}
+
+function createIdentityUserListHandler(routeDeps: IdentityToolDeps): ToolHandler {
+  return async (ctx) => {
       identityInput({ toolId: "identity_user_list", input: ctx.input });
       await assertIdentityReadAllowed(routeDeps, "identity_user_list", ctx.principal.id);
 
@@ -362,25 +413,31 @@ export function buildIdentityRegistrations(routeDeps: IdentityToolDeps): ToolReg
       return humans.length > page.length
         ? { users: listed, truncated: true, totalCount: humans.length }
         : { users: listed };
-    },
+    };
+}
 
-    identity_role_list: async (ctx) => {
+function createIdentityRoleListHandler(routeDeps: IdentityToolDeps): ToolHandler {
+  return async (ctx) => {
       identityInput({ toolId: "identity_role_list", input: ctx.input });
       await assertIdentityReadAllowed(routeDeps, "identity_role_list", ctx.principal.id);
 
       const roles = await routeDeps.roleRepo.list({ workspaceId: routeDeps.workspaceId });
       return { roles: roles.map(toIdentityRoleView) };
-    },
+    };
+}
 
-    identity_policy_list: async (ctx) => {
+function createIdentityPolicyListHandler(routeDeps: IdentityToolDeps): ToolHandler {
+  return async (ctx) => {
       identityInput({ toolId: "identity_policy_list", input: ctx.input });
       await assertIdentityReadAllowed(routeDeps, "identity_policy_list", ctx.principal.id);
 
       const policies = await routeDeps.policyRepo.list({ workspaceId: routeDeps.workspaceId });
       return { policies: policies.map(toIdentityPolicyView) };
-    },
+    };
+}
 
-    identity_user_create: async (ctx) => {
+function createIdentityUserCreateHandler(routeDeps: IdentityToolDeps, serviceDeps: () => AuthServiceDeps): ToolHandler {
+  return async (ctx) => {
       const input = identityInput({ toolId: "identity_user_create", input: ctx.input });
       const { principal, user } = await createUser({
         deps: serviceDeps(),
@@ -393,9 +450,11 @@ export function buildIdentityRegistrations(routeDeps: IdentityToolDeps): ToolReg
       }, { email: input.opt("email") });
       // A brand-new principal has no assignments yet, so this is [] by construction, not a read.
       return { user: toIdentityUserView({ principal, user, roleIds: [] }) };
-    },
+    };
+}
 
-    identity_user_update_email: async (ctx) => {
+function createIdentityUserUpdateEmailHandler(routeDeps: IdentityToolDeps, serviceDeps: () => AuthServiceDeps): ToolHandler {
+  return async (ctx) => {
       const input = identityInput({ toolId: "identity_user_update_email", input: ctx.input });
       const { user } = await updateUser({
         deps: serviceDeps(),
@@ -410,9 +469,11 @@ export function buildIdentityRegistrations(routeDeps: IdentityToolDeps): ToolReg
       const principal = await routeDeps.principalRepo.findById({ workspaceId: routeDeps.workspaceId, id: input.req("principalId") });
       if (!principal) throw new Error(`principal '${input.req("principalId")}' was not found`);
       return { user: toIdentityUserView({ principal, user, roleIds: await roleIdsFor(routeDeps, principal.id) }) };
-    },
+    };
+}
 
-    identity_user_change_username: async (ctx) => {
+function createIdentityUserChangeUsernameHandler(routeDeps: IdentityToolDeps, serviceDeps: () => AuthServiceDeps): ToolHandler {
+  return async (ctx) => {
       const input = identityInput({ toolId: "identity_user_change_username", input: ctx.input });
       const principalId = input.req("principalId");
       const { user } = await updateUser({
@@ -423,9 +484,11 @@ export function buildIdentityRegistrations(routeDeps: IdentityToolDeps): ToolReg
       const principal = await routeDeps.principalRepo.findById({ workspaceId: routeDeps.workspaceId, id: principalId });
       if (!principal) throw new Error(`principal '${principalId}' was not found`);
       return { user: toIdentityUserView({ principal, user, roleIds: await roleIdsFor(routeDeps, principalId) }) };
-    },
+    };
+}
 
-    identity_user_disable: async (ctx) => {
+function createIdentityUserDisableHandler(routeDeps: IdentityToolDeps, serviceDeps: () => AuthServiceDeps): ToolHandler {
+  return async (ctx) => {
       const input = identityInput({ toolId: "identity_user_disable", input: ctx.input });
       const { principal } = await disablePrincipal({
         deps: serviceDeps(),
@@ -440,9 +503,11 @@ export function buildIdentityRegistrations(routeDeps: IdentityToolDeps): ToolReg
       });
       const user = await requireUserRecord(routeDeps, principal.id);
       return { user: toIdentityUserView({ principal, user, roleIds: await roleIdsFor(routeDeps, principal.id) }) };
-    },
+    };
+}
 
-    identity_user_enable: async (ctx) => {
+function createIdentityUserEnableHandler(routeDeps: IdentityToolDeps, serviceDeps: () => AuthServiceDeps): ToolHandler {
+  return async (ctx) => {
       const input = identityInput({ toolId: "identity_user_enable", input: ctx.input });
       const { principal } = await enablePrincipal({
         deps: serviceDeps(),
@@ -450,18 +515,22 @@ export function buildIdentityRegistrations(routeDeps: IdentityToolDeps): ToolReg
       });
       const user = await requireUserRecord(routeDeps, principal.id);
       return { user: toIdentityUserView({ principal, user, roleIds: await roleIdsFor(routeDeps, principal.id) }) };
-    },
+    };
+}
 
-    identity_role_create: async (ctx) => {
+function createIdentityRoleCreateHandler(routeDeps: IdentityToolDeps, serviceDeps: () => AuthServiceDeps): ToolHandler {
+  return async (ctx) => {
       const input = identityInput({ toolId: "identity_role_create", input: ctx.input });
       const { role } = await createRole({
         deps: serviceDeps(),
         input: { workspaceId: routeDeps.workspaceId, callerPrincipalId: ctx.principal.id, name: input.req("name") },
       });
       return { role: toIdentityRoleView(role) };
-    },
+    };
+}
 
-    identity_role_assign: async (ctx) => {
+function createIdentityRoleAssignHandler(routeDeps: IdentityToolDeps, serviceDeps: () => AuthServiceDeps): ToolHandler {
+  return async (ctx) => {
       const input = identityInput({ toolId: "identity_role_assign", input: ctx.input });
       const { assignment }: { assignment: PrincipalRoleRecord } = await assignRole({
         deps: serviceDeps(),
@@ -475,18 +544,22 @@ export function buildIdentityRegistrations(routeDeps: IdentityToolDeps): ToolReg
       // The join row's own id is not addressable by any other tool, so it is dropped; what the
       // model needs back is confirmation of WHICH pair is now linked.
       return { assigned: { principalId: assignment.principalId, roleId: assignment.roleId } };
-    },
+    };
+}
 
-    identity_role_rename: async (ctx) => {
+function createIdentityRoleRenameHandler(routeDeps: IdentityToolDeps, serviceDeps: () => AuthServiceDeps): ToolHandler {
+  return async (ctx) => {
       const input = identityInput({ toolId: "identity_role_rename", input: ctx.input });
       const { role } = await updateRole({
         deps: serviceDeps(),
         input: { workspaceId: routeDeps.workspaceId, callerPrincipalId: ctx.principal.id, roleId: input.req("roleId"), name: input.req("name") },
       });
       return { role: toIdentityRoleView(role) };
-    },
+    };
+}
 
-    identity_role_delete: async (ctx) => {
+function createIdentityRoleDeleteHandler(routeDeps: IdentityToolDeps, serviceDeps: () => AuthServiceDeps): ToolHandler {
+  return async (ctx) => {
       const input = identityInput({ toolId: "identity_role_delete", input: ctx.input });
       await deleteRole({
         deps: serviceDeps(),
@@ -495,9 +568,11 @@ export function buildIdentityRegistrations(routeDeps: IdentityToolDeps): ToolReg
       // `deleteRole` resolves void; an empty tool result would read to the model as "nothing
       // happened", so the deleted id is echoed as the acknowledgement.
       return { deleted: { roleId: input.req("roleId") } };
-    },
+    };
+}
 
-    identity_policy_create: async (ctx) => {
+function createIdentityPolicyCreateHandler(routeDeps: IdentityToolDeps, serviceDeps: () => AuthServiceDeps): ToolHandler {
+  return async (ctx) => {
       const input = identityInput({ toolId: "identity_policy_create", input: ctx.input });
       const { policy } = await createPolicy({
         deps: serviceDeps(),
@@ -511,9 +586,11 @@ export function buildIdentityRegistrations(routeDeps: IdentityToolDeps): ToolReg
         },
       }, { description: input.opt("description") });
       return { policy: toIdentityPolicyView(policy) };
-    },
+    };
+}
 
-    identity_policy_update: async (ctx) => {
+function createIdentityPolicyUpdateHandler(routeDeps: IdentityToolDeps, serviceDeps: () => AuthServiceDeps): ToolHandler {
+  return async (ctx) => {
       const input = identityInput({ toolId: "identity_policy_update", input: ctx.input });
       const { policy } = await updatePolicy({
         deps: serviceDeps(),
@@ -526,9 +603,11 @@ export function buildIdentityRegistrations(routeDeps: IdentityToolDeps): ToolReg
         },
       }, { name: input.opt("name"), description: input.opt("description") });
       return { policy: toIdentityPolicyView(policy) };
-    },
+    };
+}
 
-    identity_policy_delete: async (ctx) => {
+function createIdentityPolicyDeleteHandler(routeDeps: IdentityToolDeps, serviceDeps: () => AuthServiceDeps): ToolHandler {
+  return async (ctx) => {
       const input = identityInput({ toolId: "identity_policy_delete", input: ctx.input });
       await deletePolicy({
         deps: serviceDeps(),
@@ -537,9 +616,11 @@ export function buildIdentityRegistrations(routeDeps: IdentityToolDeps): ToolReg
       // `deletePolicy` resolves void; an empty tool result would read to the model as "nothing
       // happened", so the deleted id is echoed as the acknowledgement (mirrors identity_role_delete).
       return { deleted: { policyId: input.req("policyId") } };
-    },
+    };
+}
 
-    identity_policy_attach: async (ctx) => {
+function createIdentityPolicyAttachHandler(routeDeps: IdentityToolDeps, serviceDeps: () => AuthServiceDeps): ToolHandler {
+  return async (ctx) => {
       const input = identityInput({ toolId: "identity_policy_attach", input: ctx.input });
       const { attachment } = await attachPolicy({
         deps: serviceDeps(),
@@ -553,16 +634,5 @@ export function buildIdentityRegistrations(routeDeps: IdentityToolDeps): ToolReg
       // The join row's own id is not addressable by any other tool, so it is dropped; what the
       // model needs back is confirmation of WHICH pair is now linked (mirrors identity_role_assign).
       return { attached: { principalId: attachment.principalId, policyId: attachment.policyId } };
-    },
-  };
-
-  // No `unwiredToolIds`: identity wires its ENTIRE catalog (which is why its own
-  // `AgentToolDefinition` makes `inputSchema` required rather than optional).
-  return buildDomainRegistrations({
-    domain: "identity",
-    catalogModule: "./index.js",
-    catalog: CATALOG_BY_ID,
-    handlers,
-    derivedRisk: identityDerivedRisk,
-  });
+    };
 }

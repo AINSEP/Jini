@@ -1,4 +1,3 @@
-import { inspect } from 'node:util';
 import { redactSecrets } from '@jini-ai/core';
 import { createConsoleLogger, type Logger } from "@jini-ai/core/primitives";
 import type { ToolRegistration, ToolRegistry } from "@jini-ai/core";
@@ -17,11 +16,11 @@ import type { FederatedAdmissionReport } from "./trust.js";
  * `agent-daemon-server.ts` calls, and the only place in this subtree that performs I/O it was not
  * handed.
  *
- * Split out of `agent-daemon-server.ts` for the reason `tool-catalog-query.ts` and `daemon-auth.ts`
+ * Split out of `agent-daemon-server.ts` for the reason `tool-catalog-query.ts` and a host module
  * were: that file is a top-level side-effecting script which opens a real port and a real DB
  * connection on import, so nothing in it can be imported by a test. Everything here can be.
  *
- * FAIL-OPEN, and deliberately the opposite of `daemon-auth.ts`'s fail-closed gate. The two are
+ * FAIL-OPEN, and deliberately the opposite of a host module's fail-closed gate. The two are
  * answering different questions. `requireAgentDaemonToken` guards ACCESS TO host app, where failing
  * open would admit unauthenticated callers, so an unconfigured gate must refuse to serve. This
  * guards an OPTIONAL OUTBOUND CONVENIENCE, where failing closed would mean a third party's server
@@ -123,7 +122,7 @@ export interface AttachFederatedMcpToolsParams {
   connections?: readonly ResolvedFederatedConnection[] | undefined;
   /**
    * Connections from a config source that is not the preset registry — today, the operator-editable
-   * roster in `assistant/external-mcp-store.ts`.
+   * roster in a host module.
    *
    * A second parameter rather than a second preset, because `FederatedMcpPresetResolver` cannot
    * express this source: it is synchronous (a DB read plus an unseal are not) and returns at most
@@ -318,7 +317,7 @@ async function attachOneFederatedConnection(params: {
     }
     return { registeredToolIds, session, report };
   } catch (error) {
-    logger.warn({ message: `mcp-federation: '${connectionId}' failed, continuing without its tools — ${redactSecrets({ input: inspect(error) }, { redactPii: false })}` });
+    logger.warn({ message: `mcp-federation: '${connectionId}' failed, continuing without its tools` }, { error });
     // A session that connected but failed during listing/admission still owns a child process.
     await session?.close({}).catch(() => undefined);
     return { registeredToolIds: [], session: null, report: null, connectFailureReason: redactSecrets({ input: messageOf(error) }, { redactPii: false }) };
@@ -345,7 +344,8 @@ export function resolveFederatedMcpPresets({ env, logger, registry }: { env: Nod
       if (connection) connections.push(connection);
     } catch (error) {
       logger.warn(
-        { message: `mcp-federation: preset '${preset.presetId}' configuration is invalid, continuing without federated tools — ${redactSecrets({ input: inspect(error) }, { redactPii: false })}` },
+        { message: `mcp-federation: preset '${preset.presetId}' configuration is invalid, continuing without federated tools` },
+        { error },
       );
     }
   }

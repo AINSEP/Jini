@@ -1,14 +1,11 @@
-import type {
-   RuntimeAgentDef,
-   RuntimeLockHold,
-} from '@jini-ai/agent-runtime';
+import type { RuntimeAgentDef, RuntimeLockHold } from '@jini-ai/core/contracts/agents';
 
 /**
  * Phase 7: acquires a `runtimeLock` def's process-global mutex before `buildArgs` runs — see
  * `RuntimeLock`'s own doc for the concrete race. A no-op (`undefined`) for the 23 of 24 defs with no
  * `runtimeLock` declared.
  */
-export async function acquireRuntimeLockIfConfigured(def: RuntimeAgentDef, model: string | undefined): Promise<RuntimeLockHold | undefined> {
+export async function acquireRuntimeLockIfConfigured({ def, model }: { def: RuntimeAgentDef; model: string | undefined }, _optional: Record<string, never> = {}): Promise<RuntimeLockHold | undefined> {
   return def.runtimeLock?.acquire({ model });
 }
 

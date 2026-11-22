@@ -4,12 +4,16 @@ import { join, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
 import { installOwnedJsonAgent } from '../owned-json-install.js';
 import { planAgentInstall } from '../install.js';
+import { backupOriginalOnce, withFileLock, writeFileAtomicAsync } from '@jini-ai/platform/fs';
+
+/** The real Node effects (platform is this package's test dependency); hosts pass node-adapters' bindings. */
+const files = { fileLock: { withFileLock }, writer: { writeText: writeFileAtomicAsync, backupOriginalOnce } };
 
 const homes: string[] = [];
 afterEach(async () => { await Promise.all(homes.splice(0).map(home => rm(home, { recursive: true, force: true }))); });
 async function fixture() {
   const home = await mkdtemp(join(tmpdir(), 'mcp-owned-')); homes.push(home);
-  const required = { agentId: 'antigravity', allowed: true, ctx: { home, platform: 'linux' as const, serverName: 'jini' },
+  const required = { agentId: 'antigravity', allowed: true, files, ctx: { home, platform: 'linux' as const, serverName: 'jini' },
     spec: { command: 'node', args: ['/bridge.js'], env: {} } };
   const plan = planAgentInstall({ ...required, slug: 'antigravity' });
   if (plan.kind !== 'json') throw new Error('Expected JSON');

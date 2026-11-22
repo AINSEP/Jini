@@ -1,6 +1,8 @@
 import type { JsonValue, UUID } from "../primitives/index.js";
 import type { SettingOwnerKind, SettingValueSchema } from "./types.js";
-import { renameDefinition, retypeDefinition, deprecateDefinition, tombstoneDefinition } from "./write-service.js";
+import { renameDefinition } from "./write-definition-rename.js";
+import { retypeDefinition } from "./write-definition-retype.js";
+import { deprecateDefinition, tombstoneDefinition } from "./write-definition-status.js";
 import type { SettingsWriteServiceDeps } from "./write-service.js";
 
 /**

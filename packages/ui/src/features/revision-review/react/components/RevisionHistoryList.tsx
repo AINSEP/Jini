@@ -7,8 +7,8 @@ export interface RevisionHistoryListProps<TMeta = unknown> {
 }
 
 /** A status-badged history list of past proposed changes (accepted/rejected/pending), newest entries in whatever order the host passes them. */
-export function RevisionHistoryList<TMeta = unknown>({ revisions }: RevisionHistoryListProps<TMeta>) {
-  const t = useT();
+export function RevisionHistoryList<TMeta = unknown>({ revisions, useTHook = useT }: RevisionHistoryListProps<TMeta> & { useTHook?: typeof useT }) {
+  const t = useTHook();
   return (
     <section className="jini-revision-history-list">
       <h2>{t('Revision history')}</h2>
@@ -16,7 +16,7 @@ export function RevisionHistoryList<TMeta = unknown>({ revisions }: RevisionHist
         <div key={revision.id} className="jini-revision-history-list__row">
           <span className={`jini-revision-history-list__status is-${revision.status}`}>{t(revision.status)}</span>
           <strong>{revision.sectionTitle ?? t('General revision')}</strong>
-          <small>{formatRevisionTimestamp(revision.updatedAt)}</small>
+          <small>{formatRevisionTimestamp({ value: revision.updatedAt })}</small>
         </div>
       ))}
     </section>

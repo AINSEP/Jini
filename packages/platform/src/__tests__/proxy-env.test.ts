@@ -12,12 +12,12 @@ describe('@jini-ai/platform — proxy-env — mergeProxyAwareEnv', () => {
     // Targets `setCanonicalProxyEnvValue`'s NODE_USE_ENV_PROXY branch, which
     // only fires when a *source* already carries that key (as opposed to the
     // auto-added "1" at the end of mergeProxyAwareEnv).
-    const merged = mergeProxyAwareEnv('darwin', { node_use_env_proxy: '0' });
+    const merged = mergeProxyAwareEnv({ platform: 'darwin', sources: [{ node_use_env_proxy: '0' }] });
     expect(merged.NODE_USE_ENV_PROXY).toBe('0');
   });
 
   it('does not overwrite an explicit NODE_USE_ENV_PROXY even when a proxy endpoint is also present', () => {
-    const merged = mergeProxyAwareEnv('darwin', { HTTP_PROXY: 'http://proxy.example:8080', NODE_USE_ENV_PROXY: '0' });
+    const merged = mergeProxyAwareEnv({ platform: 'darwin', sources: [{ HTTP_PROXY: 'http://proxy.example:8080', NODE_USE_ENV_PROXY: '0' }] });
     expect(merged.NODE_USE_ENV_PROXY).toBe('0');
   });
 
@@ -26,13 +26,13 @@ describe('@jini-ai/platform — proxy-env — mergeProxyAwareEnv', () => {
     // re-spelling of the *same* proxy variable must delete both the
     // canonical and lowercase-alias entries the first source left behind
     // before writing its own value (`deleteProxyEnvVariants`'s match branch).
-    const merged = mergeProxyAwareEnv('darwin', { http_proxy: 'http://a' }, { HTTP_PROXY: 'http://b' });
+    const merged = mergeProxyAwareEnv({ platform: 'darwin', sources: [{ http_proxy: 'http://a' }, { HTTP_PROXY: 'http://b' }] });
     expect(merged.HTTP_PROXY).toBe('http://b');
     expect(merged.http_proxy).toBe('http://b');
   });
 
   it('skips a source entry whose value is null/undefined', () => {
-    const merged = mergeProxyAwareEnv('darwin', { FOO: undefined, PATH: '/usr/bin' } as Record<string, string | undefined>);
+    const merged = mergeProxyAwareEnv({ platform: 'darwin', sources: [{ FOO: undefined, PATH: '/usr/bin' } as Record<string, string | undefined>] });
     expect(merged).toEqual({ PATH: '/usr/bin' });
   });
 
@@ -40,17 +40,17 @@ describe('@jini-ai/platform — proxy-env — mergeProxyAwareEnv', () => {
     // Order: non-lowercase → non-lowercase (should overwrite: neither is the
     // preferred lowercase form) → lowercase (should overwrite: lowercase
     // always wins).
-    const merged = mergeProxyAwareEnv('darwin', { Http_Proxy: 'mixed1', HTTP_PROXY: 'upper', http_proxy: 'lower' });
+    const merged = mergeProxyAwareEnv({ platform: 'darwin', sources: [{ Http_Proxy: 'mixed1', HTTP_PROXY: 'upper', http_proxy: 'lower' }] });
     expect(merged.HTTP_PROXY).toBe('lower');
   });
 
   it('keeps an already-lowercase value over a later non-lowercase duplicate in the same source', () => {
-    const merged = mergeProxyAwareEnv('darwin', { HTTP_PROXY: 'later-upper', http_proxy: 'earlier-lower' });
+    const merged = mergeProxyAwareEnv({ platform: 'darwin', sources: [{ HTTP_PROXY: 'later-upper', http_proxy: 'earlier-lower' }] });
     expect(merged.HTTP_PROXY).toBe('earlier-lower');
   });
 
   it('drops a whitespace-only proxy value entirely (addProxyEnvValue no-ops on blank input)', () => {
-    const merged = mergeProxyAwareEnv('darwin', { HTTP_PROXY: '   ' });
+    const merged = mergeProxyAwareEnv({ platform: 'darwin', sources: [{ HTTP_PROXY: '   ' }] });
     expect(merged.HTTP_PROXY).toBeUndefined();
     expect(merged.NODE_USE_ENV_PROXY).toBeUndefined();
   });
@@ -58,7 +58,7 @@ describe('@jini-ai/platform — proxy-env — mergeProxyAwareEnv', () => {
 
 describe('@jini-ai/platform — proxy-env — parseMacosScutilProxyOutput', () => {
   it('returns an empty env when nothing is enabled', () => {
-    const env = parseMacosScutilProxyOutput('HTTPEnable : 0\nHTTPSEnable : 0\nSOCKSEnable : 0\n');
+    const env = parseMacosScutilProxyOutput({ stdout: 'HTTPEnable : 0\nHTTPSEnable : 0\nSOCKSEnable : 0\n' });
     expect(env).toEqual({});
   });
 
@@ -72,7 +72,7 @@ describe('@jini-ai/platform — proxy-env — parseMacosScutilProxyOutput', () =
       'SOCKSProxy : fe80::1',
       'SOCKSPort : 1080',
     ].join('\n');
-    const env = parseMacosScutilProxyOutput(scutilOutput, 'darwin');
+    const env = parseMacosScutilProxyOutput({ stdout: scutilOutput }, { platform: 'darwin' });
     expect(env.HTTP_PROXY).toBeUndefined();
     expect(env.HTTPS_PROXY).toBe('http://proxy.example:8443');
     expect(env.ALL_PROXY).toBe('socks5://[fe80::1]:1080');
@@ -88,7 +88,7 @@ describe('@jini-ai/platform — proxy-env — parseMacosScutilProxyOutput', () =
       '  0 : ::1',
       '}',
     ].join('\n');
-    const env = parseMacosScutilProxyOutput(scutilOutput, 'darwin');
+    const env = parseMacosScutilProxyOutput({ stdout: scutilOutput }, { platform: 'darwin' });
     expect(env.NO_PROXY).toContain('<local>');
     expect(env.NO_PROXY).toContain('[::1]');
   });
@@ -102,17 +102,17 @@ describe('@jini-ai/platform — proxy-env — parseMacosScutilProxyOutput', () =
       '  0 : *',
       '}',
     ].join('\n');
-    const env = parseMacosScutilProxyOutput(scutilOutput, 'darwin');
+    const env = parseMacosScutilProxyOutput({ stdout: scutilOutput }, { platform: 'darwin' });
     expect(env.NO_PROXY).toBe('*');
   });
 
   it('omits HTTP_PROXY gracefully when HTTPEnable is on but HTTPProxy/HTTPPort scalars are missing', () => {
-    const env = parseMacosScutilProxyOutput('HTTPEnable : 1\n');
+    const env = parseMacosScutilProxyOutput({ stdout: 'HTTPEnable : 1\n' });
     expect(env.HTTP_PROXY).toBeUndefined();
   });
 
   it('omits HTTP_PROXY gracefully when the host is present but the port scalar is missing', () => {
-    const env = parseMacosScutilProxyOutput('HTTPEnable : 1\nHTTPProxy : proxy.example\n');
+    const env = parseMacosScutilProxyOutput({ stdout: 'HTTPEnable : 1\nHTTPProxy : proxy.example\n' });
     expect(env.HTTP_PROXY).toBeUndefined();
   });
 
@@ -122,7 +122,7 @@ describe('@jini-ai/platform — proxy-env — parseMacosScutilProxyOutput', () =
     // normalizeHostPortProxyUrl composes "<host>:<port>", and if that
     // *combined* string already looks scheme-qualified (a malformed/unusual
     // scutil output), it must not get a second "http://" prefix applied.
-    const env = parseMacosScutilProxyOutput('HTTPEnable : 1\nHTTPProxy : http\nHTTPPort : //proxy.example:8080\n');
+    const env = parseMacosScutilProxyOutput({ stdout: 'HTTPEnable : 1\nHTTPProxy : http\nHTTPPort : //proxy.example:8080\n' });
     expect(env.HTTP_PROXY).toBe('http://proxy.example:8080');
   });
 });
@@ -238,9 +238,9 @@ describe('@jini-ai/platform — proxy-env — resolveSystemProxyEnv', () => {
 describe('@jini-ai/platform — proxy-env — pinned exact outputs', () => {
   it('merges sources left-to-right, passes non-proxy keys through, and adds lowercase aliases on POSIX', () => {
     const merged = mergeProxyAwareEnv(
-      'linux',
+      { platform: 'linux', sources: [
       { HTTPS_PROXY: 'http://first', PATH: '/bin' },
-      { https_proxy: ' http://second ', no_proxy: 'a.example', PATH: '/usr/bin' },
+      { https_proxy: ' http://second ', no_proxy: 'a.example', PATH: '/usr/bin' }] },
     );
     expect(merged).toEqual({
       HTTPS_PROXY: 'http://second',
@@ -253,17 +253,17 @@ describe('@jini-ai/platform — proxy-env — pinned exact outputs', () => {
   });
 
   it('emits only the uppercase spelling on Windows', () => {
-    const merged = mergeProxyAwareEnv('win32', { all_proxy: 'socks5://s:1' });
+    const merged = mergeProxyAwareEnv({ platform: 'win32', sources: [{ all_proxy: 'socks5://s:1' }] });
     expect(merged).toEqual({ ALL_PROXY: 'socks5://s:1', NODE_USE_ENV_PROXY: '1' });
   });
 
   it('does not add NODE_USE_ENV_PROXY when only NO_PROXY is present', () => {
-    const merged = mergeProxyAwareEnv('linux', { NO_PROXY: 'localhost' });
+    const merged = mergeProxyAwareEnv({ platform: 'linux', sources: [{ NO_PROXY: 'localhost' }] });
     expect(merged).toEqual({ NO_PROXY: 'localhost', no_proxy: 'localhost' });
   });
 
   it('keeps a whitespace-only explicit NODE_USE_ENV_PROXY verbatim', () => {
-    const merged = mergeProxyAwareEnv('linux', { NODE_USE_ENV_PROXY: ' ' });
+    const merged = mergeProxyAwareEnv({ platform: 'linux', sources: [{ NODE_USE_ENV_PROXY: ' ' }] });
     expect(merged).toEqual({ NODE_USE_ENV_PROXY: ' ' });
   });
 
@@ -288,7 +288,7 @@ describe('@jini-ai/platform — proxy-env — pinned exact outputs', () => {
       '  SOCKSProxy : [fe80::1]',
       '}',
     ].join('\r\n');
-    expect(parseMacosScutilProxyOutput(stdout, 'linux')).toEqual({
+    expect(parseMacosScutilProxyOutput({ stdout }, { platform: 'linux' })).toEqual({
       ALL_PROXY: 'socks5://[fe80::1]:1080',
       all_proxy: 'socks5://[fe80::1]:1080',
       HTTP_PROXY: 'http://proxy.example:8080',
@@ -300,12 +300,12 @@ describe('@jini-ai/platform — proxy-env — pinned exact outputs', () => {
   });
 
   it('defaults the macOS parser to darwin (lowercase aliases present)', () => {
-    const env = parseMacosScutilProxyOutput('HTTPEnable : 1\nHTTPProxy : p\nHTTPPort : 1');
+    const env = parseMacosScutilProxyOutput({ stdout: 'HTTPEnable : 1\nHTTPProxy : p\nHTTPPort : 1' });
     expect(env.http_proxy).toBe('http://p:1');
   });
 
   it('drops exceptions when no proxy endpoint is enabled', () => {
-    const env = parseMacosScutilProxyOutput('ExceptionsList : <array> {\n0 : a.example\n}\nExcludeSimpleHostnames : 1');
+    const env = parseMacosScutilProxyOutput({ stdout: 'ExceptionsList : <array> {\n0 : a.example\n}\nExcludeSimpleHostnames : 1' });
     expect(env).toEqual({});
   });
 
@@ -327,7 +327,7 @@ describe('@jini-ai/platform — proxy-env — pinned exact outputs', () => {
   it('adds lowercase aliases for the Windows parser when told the platform is POSIX', () => {
     const env = parseWindowsInternetSettingsProxyOutput(
       { proxyEnable: 'ProxyEnable REG_DWORD 1', proxyServer: 'ProxyServer REG_SZ p:1' },
-      'linux',
+      { platform: 'linux' },
     );
     expect(env).toEqual({
       HTTP_PROXY: 'http://p:1',

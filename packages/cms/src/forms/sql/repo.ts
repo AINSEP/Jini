@@ -1,5 +1,6 @@
 import type { UUID } from "@jini-ai/core/primitives";
-import type { StorageKernel } from "@jini-ai/db/kernel";
+import { assertVersionedWrite } from "@jini-ai/core/optimistic-concurrency";
+import type { StorageKernel } from "@jini-ai/core/contracts/storage";
 import type { FormsTables, FormDefinitionDatabase, FormSubmissionDatabase } from "./tables.js";
 import { FormSlugConflictError } from "../errors.js";
 import type { FormDefinitionRepoPort, FormSubmissionRepoPort } from "../ports.js";
@@ -11,6 +12,7 @@ import {
   updatableDefinitionColumns,
 } from "./repo.rows.js";
 import type { FormDefinitionRecord, FormSubmissionPage, FormSubmissionRecord } from "../types.js";
+import type { Kysely } from "kysely";
 
 /**
  * @file THE forms repositories: one Kysely query body for every database the storage kernel drives
@@ -25,10 +27,10 @@ import type { FormDefinitionRecord, FormSubmissionPage, FormSubmissionRecord } f
  */
 
 export class SqlFormDefinitionRepo implements FormDefinitionRepoPort {
-  protected readonly kernel: StorageKernel<FormDefinitionDatabase>;
+  protected readonly kernel: StorageKernel<Kysely<FormDefinitionDatabase>, FormDefinitionDatabase>;
   protected readonly tables: FormsTables;
   constructor(
-    { kernel, tables }: { kernel: StorageKernel<FormDefinitionDatabase>; tables: FormsTables },
+    { kernel, tables }: { kernel: StorageKernel<Kysely<FormDefinitionDatabase>, FormDefinitionDatabase>; tables: FormsTables },
     _optional: Record<string, never> = {},
   ) { this.kernel = kernel; this.tables = tables; }
 
@@ -103,17 +105,34 @@ export class SqlFormDefinitionRepo implements FormDefinitionRepoPort {
   }
 
   /**
-   * Update-only path for a LIVE row. `version`/`deleted_at` are deliberately excluded from the SET
-   * list (only the Trash's compare-and-set may move `version`), and `deleted_at IS NULL` in the
-   * WHERE means the UPDATE simply matches zero rows if the record has since been trashed — a stale
-   * in-hand copy can never clear a marker it never knew was set.
+   * Update-only path for a LIVE row. Every update stores `record.version` (the service sets it to
+   * the read version + 1), guarded or not, so the stored version always matches what the caller was
+   * told; otherwise a stale editor's basis would survive a basis-less edit and could revert it.
+   * `deleted_at IS NULL` in the WHERE means the UPDATE matches zero rows if the record has since
+   * been trashed — a stale in-hand copy can never clear a marker it never knew was set.
    */
-  async update(record: FormDefinitionRecord): Promise<void> {
+  async update(record: FormDefinitionRecord, optional: { expectedVersion?: number } = {}): Promise<void> {
     const set = updatableDefinitionColumns(toDefinitionRow(record));
+    const { expectedVersion } = optional;
+    if (expectedVersion !== undefined) {
+      // One conditional UPDATE prevents two editors with the same basis from both landing.
+      const result = await this.kernel.run((db) => db.updateTable(this.tables.definitions)
+        .set({ ...set, version: record.version })
+        .where("workspace_id", "=", record.workspaceId)
+        .where("id", "=", record.id)
+        .where("deleted_at", "is", null)
+        .where("version", "=", expectedVersion)
+        .executeTakeFirst());
+      await assertVersionedWrite({
+        changedRows: result.numUpdatedRows, recordKind: "form", recordId: record.id, expectedVersion,
+        readCurrentVersion: async () => (await this.findById({ workspaceId: record.workspaceId, id: record.id }))?.version ?? null,
+      });
+      return;
+    }
     await this.kernel.run((db) =>
       db
         .updateTable(this.tables.definitions)
-        .set(set)
+        .set({ ...set, version: record.version })
         .where("workspace_id", "=", record.workspaceId)
         .where("id", "=", record.id)
         .where("deleted_at", "is", null)
@@ -137,10 +156,10 @@ export class SqlFormDefinitionRepo implements FormDefinitionRepoPort {
 }
 
 export class SqlFormSubmissionRepo implements FormSubmissionRepoPort {
-  protected readonly kernel: StorageKernel<FormSubmissionDatabase>;
+  protected readonly kernel: StorageKernel<Kysely<FormSubmissionDatabase>, FormSubmissionDatabase>;
   protected readonly tables: FormsTables;
   constructor(
-    { kernel, tables }: { kernel: StorageKernel<FormSubmissionDatabase>; tables: FormsTables },
+    { kernel, tables }: { kernel: StorageKernel<Kysely<FormSubmissionDatabase>, FormSubmissionDatabase>; tables: FormsTables },
     _optional: Record<string, never> = {},
   ) { this.kernel = kernel; this.tables = tables; }
 
@@ -220,17 +239,17 @@ export class SqlFormSubmissionRepo implements FormSubmissionRepoPort {
 /** The form-definition repo for the injected kernel and required host table names.
  * @complexity O(1); no connection or schema work. */
 export function formDefinitionRepoFor<DB>(
-  { kernel, tables }: { kernel: StorageKernel<DB>; tables: FormsTables },
+  { kernel, tables }: { kernel: StorageKernel<Kysely<DB>, DB>; tables: FormsTables },
   _optional: Record<string, never> = {},
 ): SqlFormDefinitionRepo {
-  return new SqlFormDefinitionRepo({ kernel: kernel as unknown as StorageKernel<FormDefinitionDatabase>, tables });
+  return new SqlFormDefinitionRepo({ kernel: kernel as unknown as StorageKernel<Kysely<FormDefinitionDatabase>, FormDefinitionDatabase>, tables });
 }
 
 /** The form-submission repo for the injected kernel and required host table names.
  * @complexity O(1); no connection or schema work. */
 export function formSubmissionRepoFor<DB>(
-  { kernel, tables }: { kernel: StorageKernel<DB>; tables: FormsTables },
+  { kernel, tables }: { kernel: StorageKernel<Kysely<DB>, DB>; tables: FormsTables },
   _optional: Record<string, never> = {},
 ): SqlFormSubmissionRepo {
-  return new SqlFormSubmissionRepo({ kernel: kernel as unknown as StorageKernel<FormSubmissionDatabase>, tables });
+  return new SqlFormSubmissionRepo({ kernel: kernel as unknown as StorageKernel<Kysely<FormSubmissionDatabase>, FormSubmissionDatabase>, tables });
 }

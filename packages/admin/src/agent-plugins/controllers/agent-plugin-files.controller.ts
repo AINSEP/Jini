@@ -1,4 +1,4 @@
-import { createControllerStore } from '../../core/module/controller-store.js';
+import { createControllerStore } from '@jini-ai/core/admin-runtime';
 import type { AgentPluginsApiPort } from '../ports.js';
 import type { AgentPluginFiles, AgentPluginFilesState, AgentPluginPackageFile } from '../models.js';
 import { agentPluginFilesSnapshot, selectAgentPluginFile, AGENT_PLUGINS_READ } from '../rules.js';

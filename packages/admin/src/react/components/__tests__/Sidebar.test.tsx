@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { Sidebar, useSidebar } from '../Sidebar.js';
+import { Sidebar, useSidebar, type SidebarContextValue } from '../Sidebar.js';
 import { buildNav } from '../../../core/manifest/rules.js';
 import type { AdminPanel } from '../../../core/manifest/types.js';
 
@@ -369,5 +369,43 @@ describe('Sidebar root', () => {
     expect(nav).toHaveAttribute('id', 'my-nav');
     expect(nav.className).toContain('tight');
     expect(nav.className).toContain('cms-nav');
+  });
+});
+
+
+describe('Sidebar hook overrides', () => {
+  const state: SidebarContextValue = {
+    activeId: 'media', base: '/injected', collapsed: false, open: true,
+    toggleRail: vi.fn(), railTooltipProps: () => ({
+      onMouseEnter: vi.fn(), onMouseLeave: vi.fn(), onFocus: vi.fn(), onBlur: vi.fn(),
+    }),
+  };
+
+  it('uses the root rail override independently of stored state', () => {
+    render(<Sidebar activeId="posts" useSidebarRailHook={() => ({ collapsed: true, toggle: vi.fn() })} />);
+    expect(screen.getByRole('navigation')).toHaveClass('is-rail');
+  });
+
+  it('uses the header override for drawer focus and the toggle override for actions', () => {
+    const toggleRail = vi.fn();
+    render(<Sidebar activeId="posts">
+      <Sidebar.MobileHeader onClose={vi.fn()} useSidebarHook={() => state} />
+      <Sidebar.RailToggle useSidebarHook={() => ({ ...state, collapsed: true, toggleRail })} />
+    </Sidebar>);
+    expect(screen.getByRole('button', { name: 'Close navigation' })).toHaveFocus();
+    fireEvent.click(screen.getByRole('button', { name: 'Expand sidebar' }));
+    expect(toggleRail).toHaveBeenCalledOnce();
+  });
+
+  it('uses injected navigation state and injected sections for visibility', () => {
+    const toggle = vi.fn();
+    render(<Sidebar activeId="posts"><Sidebar.Nav groups={groups} collapsibleGroups={['Content']}
+      useSidebarHook={() => state} useNavSectionsHook={() => ({ isOpen: () => false, toggle })} />
+    </Sidebar>);
+    expect(document.querySelector('#cms-section-content')).toHaveAttribute('hidden');
+    expect(screen.getByRole('link', { name: 'Dashboard' })).toHaveAttribute('href', '/injected/');
+    expect(document.querySelector('a[aria-current="page"]')).toHaveTextContent('Media');
+    fireEvent.click(screen.getByRole('button', { name: 'Content' }));
+    expect(toggle).toHaveBeenCalledWith({ groupLabel: 'Content' });
   });
 });

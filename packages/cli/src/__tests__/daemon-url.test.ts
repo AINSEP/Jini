@@ -2,10 +2,16 @@ import { describe, expect, it, vi } from 'vitest';
 import { daemonUrlPolicyWarning, resolveDaemonUrl, sanitizeDaemonUrlForDisplay } from '../daemon-url.js';
 
 describe('resolveDaemonUrl', () => {
+  it('hands discover the supplied env object by identity', async () => {
+    const env = { PATH: '/isolated/bin' };
+    const discover = vi.fn(async (_required: { env: NodeJS.ProcessEnv }) => 'http://discovered.example');
+    await resolveDaemonUrl({ env }, { discover });
+    expect(discover.mock.calls[0]?.[0].env).toBe(env);
+  });
+
   it('prefers an explicit flag URL over everything else', async () => {
-    const url = await resolveDaemonUrl({}, {
+    const url = await resolveDaemonUrl({ env: { JINI_DAEMON_URL: 'http://env.example' } }, {
       flagUrl: 'http://flag.example',
-      env: { JINI_DAEMON_URL: 'http://env.example' },
       envVarName: 'JINI_DAEMON_URL',
       defaultUrl: 'http://default.example',
     });
@@ -13,25 +19,22 @@ describe('resolveDaemonUrl', () => {
   });
 
   it('treats an empty-string flag URL as unset', async () => {
-    const url = await resolveDaemonUrl({}, {
+    const url = await resolveDaemonUrl({ env: { JINI_DAEMON_URL: 'http://env.example' } }, {
       flagUrl: '',
-      env: { JINI_DAEMON_URL: 'http://env.example' },
       envVarName: 'JINI_DAEMON_URL',
     });
     expect(url).toBe('http://env.example');
   });
 
   it('falls back to the env var when no flag is given', async () => {
-    const url = await resolveDaemonUrl({}, {
-      env: { JINI_DAEMON_URL: 'http://env.example' },
+    const url = await resolveDaemonUrl({ env: { JINI_DAEMON_URL: 'http://env.example' } }, {
       envVarName: 'JINI_DAEMON_URL',
     });
     expect(url).toBe('http://env.example');
   });
 
   it('skips the env step entirely when envVarName is omitted', async () => {
-    const url = await resolveDaemonUrl({}, {
-      env: { JINI_DAEMON_URL: 'http://env.example' },
+    const url = await resolveDaemonUrl({ env: { JINI_DAEMON_URL: 'http://env.example' } }, {
       defaultUrl: 'http://default.example',
     });
     expect(url).toBe('http://default.example');
@@ -39,8 +42,7 @@ describe('resolveDaemonUrl', () => {
 
   it('falls through to discover() when the env var is unset or empty', async () => {
     const discover = vi.fn(async () => 'http://discovered.example');
-    const url = await resolveDaemonUrl({}, {
-      env: { JINI_DAEMON_URL: '' },
+    const url = await resolveDaemonUrl({ env: { JINI_DAEMON_URL: '' } }, {
       envVarName: 'JINI_DAEMON_URL',
       discover,
     });
@@ -50,31 +52,31 @@ describe('resolveDaemonUrl', () => {
 
   it('passes a custom timeoutMs through to discover()', async () => {
     const discover = vi.fn(async () => 'http://discovered.example');
-    await resolveDaemonUrl({}, { discover, timeoutMs: 50 });
-    expect(discover).toHaveBeenCalledWith({ env: process.env }, { timeoutMs: 50 });
+    await resolveDaemonUrl({ env: {} }, { discover, timeoutMs: 50 });
+    expect(discover).toHaveBeenCalledWith({ env: {} }, { timeoutMs: 50 });
   });
 
   it('falls through to defaultUrl when discover() resolves null', async () => {
     const discover = vi.fn(async () => null);
-    const url = await resolveDaemonUrl({}, { discover, defaultUrl: 'http://default.example' });
+    const url = await resolveDaemonUrl({ env: {} }, { discover, defaultUrl: 'http://default.example' });
     expect(url).toBe('http://default.example');
   });
 
   it('falls through to defaultUrl when discover() resolves an empty string', async () => {
     const discover = vi.fn(async () => '');
-    const url = await resolveDaemonUrl({}, { discover, defaultUrl: 'http://default.example' });
+    const url = await resolveDaemonUrl({ env: {} }, { discover, defaultUrl: 'http://default.example' });
     expect(url).toBe('http://default.example');
   });
 
   it('throws when every step is exhausted and no defaultUrl is given', async () => {
-    await expect(resolveDaemonUrl({}, {})).rejects.toThrow('no daemon URL resolved');
+    await expect(resolveDaemonUrl({ env: {} }, {})).rejects.toThrow('no daemon URL resolved');
   });
 
-  it('defaults env to process.env when not injected', async () => {
+  it('accepts an explicitly supplied process.env', async () => {
     const previous = process.env.JINI_TEST_DAEMON_URL;
     process.env.JINI_TEST_DAEMON_URL = 'http://from-process-env.example';
     try {
-      const url = await resolveDaemonUrl({}, { envVarName: 'JINI_TEST_DAEMON_URL' });
+      const url = await resolveDaemonUrl({ env: process.env }, { envVarName: 'JINI_TEST_DAEMON_URL' });
       expect(url).toBe('http://from-process-env.example');
     } finally {
       if (previous === undefined) delete process.env.JINI_TEST_DAEMON_URL;
@@ -84,25 +86,25 @@ describe('resolveDaemonUrl', () => {
 
   it('reports a policy warning via the injected warn sink for a non-loopback, non-HTTPS URL', async () => {
     const warn = vi.fn();
-    await resolveDaemonUrl({}, { flagUrl: 'http://remote.example:4111', warn });
+    await resolveDaemonUrl({ env: {} }, { flagUrl: 'http://remote.example:4111', warn });
     expect(warn).toHaveBeenCalledTimes(1);
     expect(warn.mock.calls[0]![0].message).toContain('remote.example');
   });
 
   it('does not warn for a loopback URL', async () => {
     const warn = vi.fn();
-    await resolveDaemonUrl({}, { flagUrl: 'http://127.0.0.1:4111', warn });
+    await resolveDaemonUrl({ env: {} }, { flagUrl: 'http://127.0.0.1:4111', warn });
     expect(warn).not.toHaveBeenCalled();
   });
 
   it('does not warn for an HTTPS URL', async () => {
     const warn = vi.fn();
-    await resolveDaemonUrl({}, { flagUrl: 'https://remote.example', warn });
+    await resolveDaemonUrl({ env: {} }, { flagUrl: 'https://remote.example', warn });
     expect(warn).not.toHaveBeenCalled();
   });
 
   it('defaults warn to a no-op when not injected', async () => {
-    await expect(resolveDaemonUrl({}, { flagUrl: 'http://remote.example' })).resolves.toBe('http://remote.example');
+    await expect(resolveDaemonUrl({ env: {} }, { flagUrl: 'http://remote.example' })).resolves.toBe('http://remote.example');
   });
 });
 

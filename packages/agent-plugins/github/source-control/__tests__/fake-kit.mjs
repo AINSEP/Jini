@@ -10,11 +10,13 @@ export function res(status, body, headers) {
 /** @param {unknown[]} script @param {{ sleep?: (ms: number) => Promise<void> }} [options] */
 export function scriptedKit(script, options = {}) {
   const requests = [];
+  const sendOptions = [];
   const queue = [...script];
   const kit = {
     httpClient: {
-      async send(request) {
+      async send(request, sendOption) {
         requests.push(request);
+        sendOptions.push(sendOption);
         if (queue.length === 0) return res(599, { message: `unscripted ${request.method} ${request.url}` });
         const next = queue.shift();
         if (next instanceof Error) throw next;
@@ -24,7 +26,7 @@ export function scriptedKit(script, options = {}) {
     describeTransportError: (error) => ({ refusal: error.refusal, logDetail: `detail: ${error.message}` }),
     ...(options.sleep ? { sleep: options.sleep } : {}),
   };
-  return { kit, requests, queue };
+  return { kit, requests, sendOptions, queue };
 }
 
 export const TARGET = { baseUrl: "https://api.github.com/", authorization: "Bearer tok", owner: "acme", repo: "site" };

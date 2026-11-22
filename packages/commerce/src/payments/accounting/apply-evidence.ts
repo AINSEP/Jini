@@ -20,7 +20,7 @@ import type { PaymentsAlertPort } from "../contract/alerts.js";
 import type { DisputeEvidence, PaymentEvidence, RefundEvidence } from "../contract/evidence.js";
 import type { PaymentMode } from "../contract/scope.js";
 import type { LedgerTx } from "../ledger/repo.js";
-import type { EvidenceSource, EvidenceSubject, LedgerOutboxTopic, PaymentRecord, RefundRecord } from "../ledger/rows.js";
+import type { EvidenceSource, EvidenceSubject, LedgerOutboxTopic, PaymentRecord, RefundRecord } from "../ledger/row-records.js";
 import { disputedMinor, refundTotals, refundableMinor } from "../state/status.js";
 import {
   computeTotals, planDisputeEvidence, planIntentEvidence, planRefundEvidence,

@@ -2,15 +2,12 @@ import { describe, expect, it } from 'vitest';
 import {
   filterBoardItemsByQuery,
   groupItemsByStatus,
-  isActionPending,
-  pendingActionKey,
   pruneSelectedIds,
   sortBoardItems,
   statusToneFor,
   toggleSelectedId,
-  withoutPendingAction,
-  withPendingAction,
 } from '../rules.js';
+import { isActionPending, pendingActionKey, withoutPendingAction, withPendingAction } from '../../../utils/pending-actions.js';
 import { UNMATCHED_STATUS_BUCKET } from '../constants.js';
 import type { ResourceBoardItem } from '../types.js';
 
@@ -20,37 +17,37 @@ function makeItem(overrides: Partial<ResourceBoardItem> = {}): ResourceBoardItem
 
 describe('statusToneFor', () => {
   it('resolves a mapped status to its tone', () => {
-    expect(statusToneFor('running', { running: 'active' })).toBe('active');
+    expect(statusToneFor({ status: 'running', toneMap: { running: 'active' } })).toBe('active');
   });
 
   it('defaults to neutral for an unmapped status', () => {
-    expect(statusToneFor('mystery', { running: 'active' })).toBe('neutral');
+    expect(statusToneFor({ status: 'mystery', toneMap: { running: 'active' } })).toBe('neutral');
   });
 
   it('defaults to neutral when no map is supplied at all', () => {
-    expect(statusToneFor('running', undefined)).toBe('neutral');
+    expect(statusToneFor({ status: 'running', toneMap: undefined })).toBe('neutral');
   });
 });
 
 describe('pendingActionKey / isActionPending / withPendingAction / withoutPendingAction', () => {
   it('builds a stable per-(id, kind) key', () => {
-    expect(pendingActionKey('r1', 'run')).toBe('run:r1');
+    expect(pendingActionKey({ id: 'r1', kind: 'run' })).toBe('run:r1');
   });
 
   it('tracks and clears pending state independently per (id, kind)', () => {
     let pending: ReadonlySet<string> = new Set<string>();
-    pending = withPendingAction(pending, 'r1', 'run');
-    expect(isActionPending(pending, 'r1', 'run')).toBe(true);
-    expect(isActionPending(pending, 'r1', 'delete')).toBe(false);
-    expect(isActionPending(pending, 'r2', 'run')).toBe(false);
+    pending = withPendingAction({ pendingKeys: pending, id: 'r1', kind: 'run' });
+    expect(isActionPending({ pendingKeys: pending, id: 'r1', kind: 'run' })).toBe(true);
+    expect(isActionPending({ pendingKeys: pending, id: 'r1', kind: 'delete' })).toBe(false);
+    expect(isActionPending({ pendingKeys: pending, id: 'r2', kind: 'run' })).toBe(false);
 
-    pending = withoutPendingAction(pending, 'r1', 'run');
-    expect(isActionPending(pending, 'r1', 'run')).toBe(false);
+    pending = withoutPendingAction({ pendingKeys: pending, id: 'r1', kind: 'run' });
+    expect(isActionPending({ pendingKeys: pending, id: 'r1', kind: 'run' })).toBe(false);
   });
 
   it('withoutPendingAction returns the same set instance when nothing was pending', () => {
     const pending = new Set<string>();
-    expect(withoutPendingAction(pending, 'r1', 'run')).toBe(pending);
+    expect(withoutPendingAction({ pendingKeys: pending, id: 'r1', kind: 'run' })).toBe(pending);
   });
 });
 
@@ -58,33 +55,33 @@ describe('groupItemsByStatus', () => {
   const order = ['not_started', 'running', 'succeeded'] as const;
 
   it('builds one column per status in order, including empty columns', () => {
-    const columns = groupItemsByStatus([], order);
+    const columns = groupItemsByStatus({ items: [], statusOrder: order });
     expect([...columns.keys()]).toEqual(['not_started', 'running', 'succeeded']);
     expect(columns.get('not_started')).toEqual([]);
   });
 
   it('places each item into its status column', () => {
     const items = [makeItem({ id: 'a', status: 'running' }), makeItem({ id: 'b', status: 'succeeded' }), makeItem({ id: 'c', status: 'running' })];
-    const columns = groupItemsByStatus(items, order);
+    const columns = groupItemsByStatus({ items, statusOrder: order });
     expect(columns.get('running')?.map((i) => i.id)).toEqual(['a', 'c']);
     expect(columns.get('succeeded')?.map((i) => i.id)).toEqual(['b']);
   });
 
   it('applies defaultStatus for items with no status at all', () => {
     const items = [makeItem({ id: 'a' })];
-    const columns = groupItemsByStatus(items, order, { defaultStatus: 'not_started' });
+    const columns = groupItemsByStatus({ items, statusOrder: order }, { defaultStatus: 'not_started' });
     expect(columns.get('not_started')?.map((i) => i.id)).toEqual(['a']);
   });
 
   it('leaves an item with no status and no defaultStatus unmatched', () => {
     const items = [makeItem({ id: 'a' })];
-    const columns = groupItemsByStatus(items, order);
+    const columns = groupItemsByStatus({ items, statusOrder: order });
     expect(columns.get(UNMATCHED_STATUS_BUCKET)?.map((i) => i.id)).toEqual(['a']);
   });
 
   it('normalizes a status before matching (e.g. queued -> running)', () => {
     const items = [makeItem({ id: 'a', status: 'queued' })];
-    const columns = groupItemsByStatus(items, order, {
+    const columns = groupItemsByStatus({ items, statusOrder: order }, {
       normalizeStatus: (status) => (status === 'queued' ? 'running' : status),
     });
     expect(columns.get('running')?.map((i) => i.id)).toEqual(['a']);
@@ -92,20 +89,20 @@ describe('groupItemsByStatus', () => {
 
   it('buckets an unrecognized status into UNMATCHED_STATUS_BUCKET rather than dropping it', () => {
     const items = [makeItem({ id: 'a', status: 'archived' })];
-    const columns = groupItemsByStatus(items, order);
+    const columns = groupItemsByStatus({ items, statusOrder: order });
     expect(columns.has(UNMATCHED_STATUS_BUCKET)).toBe(true);
     expect(columns.get(UNMATCHED_STATUS_BUCKET)?.map((i) => i.id)).toEqual(['a']);
   });
 
   it('omits UNMATCHED_STATUS_BUCKET entirely when every item matched', () => {
     const items = [makeItem({ id: 'a', status: 'running' })];
-    const columns = groupItemsByStatus(items, order);
+    const columns = groupItemsByStatus({ items, statusOrder: order });
     expect(columns.has(UNMATCHED_STATUS_BUCKET)).toBe(false);
   });
 
   it('runs defaultStatus through normalizeStatus too', () => {
     const items = [makeItem({ id: 'a' })];
-    const columns = groupItemsByStatus(items, order, {
+    const columns = groupItemsByStatus({ items, statusOrder: order }, {
       defaultStatus: 'queued',
       normalizeStatus: (status) => (status === 'queued' ? 'running' : status),
     });
@@ -114,7 +111,7 @@ describe('groupItemsByStatus', () => {
 
   it('never calls normalizeStatus for an item with no status and no defaultStatus', () => {
     const seen: string[] = [];
-    groupItemsByStatus([makeItem({ id: 'a' })], order, {
+    groupItemsByStatus({ items: [makeItem({ id: 'a' })], statusOrder: order }, {
       normalizeStatus: (status) => {
         seen.push(status);
         return status;
@@ -125,7 +122,7 @@ describe('groupItemsByStatus', () => {
 
   it('buckets an item whose normalized status is outside statusOrder as unmatched', () => {
     const items = [makeItem({ id: 'a', status: 'running' })];
-    const columns = groupItemsByStatus(items, order, { normalizeStatus: () => 'archived' });
+    const columns = groupItemsByStatus({ items, statusOrder: order }, { normalizeStatus: () => 'archived' });
     expect(columns.get('running')).toEqual([]);
     expect(columns.get(UNMATCHED_STATUS_BUCKET)?.map((i) => i.id)).toEqual(['a']);
   });
@@ -135,24 +132,24 @@ describe('filterBoardItemsByQuery', () => {
   const items = [makeItem({ id: 'a', title: 'Marketing site', subtitle: 'Freeform' }), makeItem({ id: 'b', title: 'Landing page', subtitle: 'Marketing collateral' })];
 
   it('returns every item for an empty/whitespace-only query', () => {
-    expect(filterBoardItemsByQuery(items, '   ')).toHaveLength(2);
+    expect(filterBoardItemsByQuery({ items, query: '   ' })).toHaveLength(2);
   });
 
   it('matches case-insensitively against title', () => {
-    expect(filterBoardItemsByQuery(items, 'landing').map((i) => i.id)).toEqual(['b']);
+    expect(filterBoardItemsByQuery({ items, query: 'landing' }).map((i) => i.id)).toEqual(['b']);
   });
 
   it('matches against subtitle too', () => {
-    expect(filterBoardItemsByQuery(items, 'collateral').map((i) => i.id)).toEqual(['b']);
+    expect(filterBoardItemsByQuery({ items, query: 'collateral' }).map((i) => i.id)).toEqual(['b']);
   });
 
   it('matches an item with no subtitle without throwing', () => {
     const bare = [makeItem({ id: 'c', title: 'Bare item' })];
-    expect(filterBoardItemsByQuery(bare, 'bare').map((i) => i.id)).toEqual(['c']);
+    expect(filterBoardItemsByQuery({ items: bare, query: 'bare' }).map((i) => i.id)).toEqual(['c']);
   });
 
   it('returns no items when nothing matches', () => {
-    expect(filterBoardItemsByQuery(items, 'zzz')).toEqual([]);
+    expect(filterBoardItemsByQuery({ items, query: 'zzz' })).toEqual([]);
   });
 });
 
@@ -164,46 +161,46 @@ describe('sortBoardItems', () => {
   ];
 
   it('returns items unchanged (by reference contents) when no sort option is given', () => {
-    expect(sortBoardItems(items, undefined).map((i) => i.id)).toEqual(['a', 'b', 'c']);
+    expect(sortBoardItems({ items, sortOptionValue: undefined }).map((i) => i.id)).toEqual(['a', 'b', 'c']);
   });
 
   it('sorts descending by the given sort option value', () => {
-    expect(sortBoardItems(items, 'recent').map((i) => i.id)).toEqual(['b', 'c', 'a']);
+    expect(sortBoardItems({ items, sortOptionValue: 'recent' }).map((i) => i.id)).toEqual(['b', 'c', 'a']);
   });
 
   it('is a no-op (preserves original order) for a sort option no item has a value for', () => {
-    expect(sortBoardItems(items, 'unknown-option').map((i) => i.id)).toEqual(['a', 'b', 'c']);
+    expect(sortBoardItems({ items, sortOptionValue: 'unknown-option' }).map((i) => i.id)).toEqual(['a', 'b', 'c']);
   });
 
   it('sorts items with a value before items missing one, preserving original order among ties and among missing values', () => {
     const mixed = [makeItem({ id: 'x' }), makeItem({ id: 'y', sortValues: { recent: 5 } }), makeItem({ id: 'z' })];
-    expect(sortBoardItems(mixed, 'recent').map((i) => i.id)).toEqual(['y', 'x', 'z']);
+    expect(sortBoardItems({ items: mixed, sortOptionValue: 'recent' }).map((i) => i.id)).toEqual(['y', 'x', 'z']);
   });
 
   it('preserves original relative order for exactly equal values', () => {
     const tied = [makeItem({ id: 'x', sortValues: { recent: 5 } }), makeItem({ id: 'y', sortValues: { recent: 5 } })];
-    expect(sortBoardItems(tied, 'recent').map((i) => i.id)).toEqual(['x', 'y']);
+    expect(sortBoardItems({ items: tied, sortOptionValue: 'recent' }).map((i) => i.id)).toEqual(['x', 'y']);
   });
 });
 
 describe('toggleSelectedId', () => {
   it('adds an id not yet selected', () => {
-    expect([...toggleSelectedId(new Set(), 'a')]).toEqual(['a']);
+    expect([...toggleSelectedId({ selected: new Set(), id: 'a' })]).toEqual(['a']);
   });
 
   it('removes an id already selected', () => {
-    expect([...toggleSelectedId(new Set(['a']), 'a')]).toEqual([]);
+    expect([...toggleSelectedId({ selected: new Set(['a']), id: 'a' })]).toEqual([]);
   });
 });
 
 describe('pruneSelectedIds', () => {
   it('returns the same set instance when nothing needed pruning', () => {
     const selected = new Set(['a']);
-    expect(pruneSelectedIds(selected, new Set(['a', 'b']))).toBe(selected);
+    expect(pruneSelectedIds({ selected, validIds: new Set(['a', 'b']) })).toBe(selected);
   });
 
   it('drops ids no longer present in validIds', () => {
-    const pruned = pruneSelectedIds(new Set(['a', 'b']), new Set(['a']));
+    const pruned = pruneSelectedIds({ selected: new Set(['a', 'b']), validIds: new Set(['a']) });
     expect([...pruned]).toEqual(['a']);
   });
 });

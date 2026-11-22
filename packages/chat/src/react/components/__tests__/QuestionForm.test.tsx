@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent } from '../../__tests__/ui-kit-render-support.js';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import type { DirectionCard, FormQuestion, QuestionForm as QuestionFormType } from '../../../core/index.js';
@@ -25,6 +25,31 @@ function inputOfType(container: HTMLElement, type: string): HTMLInputElement {
 }
 
 describe('QuestionForm', () => {
+  it('gives every free-input control the question label as its spoken name', () => {
+    const q = questionForm([
+      { id: 't', label: 'Project name', type: 'text', required: true },
+      { id: 'n', label: 'Team size', type: 'number' },
+      { id: 'a', label: 'Summary', type: 'textarea' },
+      { id: 's', label: 'Region', type: 'select', options: [{ label: 'EU', value: 'eu' }] },
+      { id: 'e', label: 'Contact email', type: 'email' },
+      { id: 'r', label: 'Budget', type: 'range', min: 0, max: 10 },
+      { id: 'w', label: 'Agree', type: 'switch' },
+      { id: 'c', label: 'Accent color', type: 'color' },
+      { id: 'f', label: 'Logo file', type: 'file' },
+    ]);
+    render(<QuestionForm form={q} interactive onSubmit={vi.fn()} />);
+    expect(screen.getByRole('textbox', { name: 'Project name' })).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'Project name' })).toHaveAttribute('aria-required', 'true');
+    expect(screen.getByRole('spinbutton', { name: 'Team size' })).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'Summary' })).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Region' })).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'Contact email' })).toBeInTheDocument();
+    expect(screen.getByRole('slider', { name: 'Budget' })).toBeInTheDocument();
+    expect(screen.getByRole('switch', { name: 'Agree' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Accent color')).toHaveAttribute('type', 'color');
+    expect(screen.getByLabelText('Logo file')).toHaveAttribute('type', 'file');
+  });
+
   it('disables submit until the required question is answered', async () => {
     const onSubmit = vi.fn();
     render(<QuestionForm form={form} interactive onSubmit={onSubmit} />);
@@ -476,19 +501,19 @@ describe('QuestionForm', () => {
         },
       ]);
       const { container } = render(<QuestionForm form={q} interactive onSubmit={vi.fn()} />);
-      const swatches = container.querySelectorAll('.qf-card-swatch');
+      const swatches = container.querySelectorAll('.jini-qf-card-swatch');
       expect(swatches.length).toBe(6);
       expect(screen.getByText('Bold and vivid')).toBeInTheDocument();
-      const refsParagraph = container.querySelector('.qf-card-refs')!;
+      const refsParagraph = container.querySelector('.jini-qf-card-refs')!;
       expect(refsParagraph.textContent).toBe('References: A · B · C · D');
       expect(refsParagraph.textContent).not.toContain('E');
 
       // The "plain" card has no palette/mood/references — those sections must not render for it.
       const cardLabels = container.querySelectorAll('label.qf-card');
       const plainCardLabel = Array.from(cardLabels).find((el) => el.textContent?.includes('Plain'))!;
-      expect(plainCardLabel.querySelector('.qf-card-swatch')).toBeNull();
-      expect(plainCardLabel.querySelector('.qf-card-mood')).toBeNull();
-      expect(plainCardLabel.querySelector('.qf-card-refs')).toBeNull();
+      expect(plainCardLabel.querySelector('.jini-qf-card-swatch')).toBeNull();
+      expect(plainCardLabel.querySelector('.jini-qf-card-mood')).toBeNull();
+      expect(plainCardLabel.querySelector('.jini-qf-card-refs')).toBeNull();
     });
 
     it('is also selectable by matching card.label (legacy stored value), and supports the custom-choice fallback', async () => {

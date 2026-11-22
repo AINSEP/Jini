@@ -1,7 +1,7 @@
 /** Characterizes the retained host policy while public storage arguments become objects. */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import Database from 'better-sqlite3';
-import type { SqliteDb } from '@jini-ai/db/sqlite';
+import type { SqliteDb } from '@jini-ai/core/contracts/storage';
 import type { Server } from 'node:http';
 import { closeHttpServer, installGracefulShutdown, normalizeDaemonBindHost } from '../host-bootstrap.js';
 import { CORE_CAPABILITIES, JINI_PROFILES, isCapabilityId } from '../feature.js';
@@ -16,10 +16,10 @@ afterEach(() => { closeDatabase(); vi.useRealTimers(); });
 
 describe('retained host and capability policy', () => {
   it('stringifies nonstring bind hosts and falls back only for nullish or blank input', () => {
-    expect(normalizeDaemonBindHost(127)).toBe('127');
-    expect(normalizeDaemonBindHost(false)).toBe('false');
-    expect(normalizeDaemonBindHost(null)).toBe('127.0.0.1');
-    expect(normalizeDaemonBindHost('   ')).toBe('127.0.0.1');
+    expect(normalizeDaemonBindHost({ input: 127 })).toBe('127');
+    expect(normalizeDaemonBindHost({ input: false })).toBe('false');
+    expect(normalizeDaemonBindHost({ input: null })).toBe('127.0.0.1');
+    expect(normalizeDaemonBindHost({ input: '   ' })).toBe('127.0.0.1');
   });
 
   it('resolves at the hard deadline even before the close callback, and ignores its late error', async () => {
@@ -84,8 +84,8 @@ describe('retained host and capability policy', () => {
       const lateFailure = new Error(`database close failed ${secret}`);
       rejectStop(lateFailure);
       await vi.advanceTimersByTimeAsync(0);
-      expect(logger.error).toHaveBeenLastCalledWith('[@jini-ai/server] graceful shutdown failed after SIGTERM',
-        expect.stringMatching(/^Error: database close failed \[REDACTED:github_token\]\n/));
+      expect(logger.error).toHaveBeenLastCalledWith('[@jini-ai/server] graceful shutdown failed after SIGTERM', 'Error');
+      expect(JSON.stringify(logger.error.mock.calls)).not.toContain('database close failed');
       expect(logger.error.mock.lastCall?.[1]).not.toContain(secret);
       expect(exit).toHaveBeenCalledTimes(1);
       expect(clearTimeoutPort).not.toHaveBeenCalled();

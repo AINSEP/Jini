@@ -4,9 +4,13 @@ export type ISODateTime = string;
 /** Milliseconds since the Unix epoch. Zero-argument getters need no empty argument object. */
 export interface Clock { nowMs(): number }
 
-/** Default wall clock; inject a Clock to control time in application code. */
-export function createSystemClock(): Clock {
-  return { nowMs: () => Date.now() };
+/** A host clock that reads ISO strings, the shape older host ports expose. */
+export interface IsoClock { nowIso(): string }
+
+/** Adapts an ISO-string clock to {@link Clock}; a `Clock` passes through unchanged.
+ * @complexity O(1); each `nowMs()` parses one ISO string. */
+export function toMsClock({ clock }: { clock: Clock | IsoClock }, _optional: Record<string, never> = {}): Clock {
+  return "nowMs" in clock ? clock : { nowMs: () => Date.parse(clock.nowIso()) };
 }
 
 /** Converts epoch milliseconds using the standard UTC ISO representation. Invalid time throws. */

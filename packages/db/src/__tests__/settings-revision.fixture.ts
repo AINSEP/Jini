@@ -7,7 +7,7 @@ import {
   type SettingValueRecord, type SettingsWriteServiceDeps,
 } from "@jini-ai/core/settings";
 
-import type { StorageKernel } from "../kernel/port.js";
+import type { KyselyKernel } from "../kernel/port.js";
 
 export interface SettingsCasDb {
   cas_values: { id: string; record: string };
@@ -28,9 +28,9 @@ const definition: SettingDefinitionRecord = {
  * settings service against the kernel's actual transaction/lock/rollback behavior on each driver.
  */
 export class SqlSettingsCasFixture extends InMemorySettingsRepo {
-  readonly kernel: StorageKernel<SettingsCasDb>;
+  readonly kernel: KyselyKernel<SettingsCasDb>;
 
-  constructor(required: { kernel: StorageKernel<SettingsCasDb> }, _optional = {}) {
+  constructor(required: { kernel: KyselyKernel<SettingsCasDb> }, _optional = {}) {
     super({ definitions: [definition] });
     this.kernel = required.kernel;
   }
@@ -85,7 +85,7 @@ export class SqlSettingsCasFixture extends InMemorySettingsRepo {
 }
 
 /** Portable probe schema; Postgres sequence gaps after rollback are allowed. */
-export async function prepareSettingsCas(required: { kernel: StorageKernel<SettingsCasDb> }, _optional = {}) {
+export async function prepareSettingsCas(required: { kernel: KyselyKernel<SettingsCasDb> }, _optional = {}) {
   await required.kernel.execute(sql`CREATE TABLE cas_values (id text PRIMARY KEY, record text NOT NULL)`);
   const seq = required.kernel.dialect === "sqlite" ? sql`INTEGER PRIMARY KEY AUTOINCREMENT` : sql`BIGSERIAL PRIMARY KEY`;
   await required.kernel.execute(sql`CREATE TABLE cas_revisions (seq ${seq}, record text NOT NULL)`);

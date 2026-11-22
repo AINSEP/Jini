@@ -1,6 +1,9 @@
 import { EventEmitter } from 'node:events';
 import { describe, expect, it, vi } from 'vitest';
-import { isLocalSameOrigin } from '@jini-ai/core';
+import { denyAllOrigins } from '@jini-ai/core/contracts/server/testing';
+import { fakeDaemonRouteHost } from './fakes/route-host.js';
+import { jsonRequest, serveRoutes } from './fakes/serve-routes.js';
+import { describeRoutes } from '../route-table.js';
 import {
   CATALOGUE,
   applicableForPlatform,
@@ -12,39 +15,13 @@ import {
   pathDirs,
   probeCommandOnPath,
   probeMacBundle,
-  registerHostToolsRoutes,
+  hostToolsRoutes,
   resolveEntry,
   resolveHostToolLaunchPlan,
   type CatalogueEntry,
   type HostToolProbeEnv,
 } from '../host-tools.js';
 import type { WorkspaceRootResolver } from '../workspace-root.js';
-
-vi.mock('@jini-ai/core', async (importOriginal) => ({
-  ...await importOriginal<typeof import('@jini-ai/core')>(),
-  isLocalSameOrigin: vi.fn(() => true),
-}));
-
-interface MockApp {
-  get: (path: string, handler: any) => void;
-  post: (path: string, handler: any) => void;
-  put: (path: string, handler: any) => void;
-  delete: (path: string, handler: any) => void;
-  patch: (path: string, handler: any) => void;
-  handlers: Record<string, (req: any, res: any) => Promise<void> | void>;
-}
-
-function makeApp(): MockApp {
-  const handlers: MockApp['handlers'] = {};
-  const make = (method: string) => (path: string, handler: any) => {
-    handlers[`${method.toUpperCase()} ${path}`] = handler;
-  };
-  return { get: make('get'), post: make('post'), put: make('put'), delete: make('delete'), patch: make('patch'), handlers };
-}
-
-function makeRes() {
-  return { status: vi.fn().mockReturnThis(), json: vi.fn().mockReturnThis() };
-}
 
 /** Narrows a `resolveEntry` result to its `available: true` variant, or fails the test. */
 function expectAvailable<T extends { available: boolean }>(result: T): Extract<T, { available: true }> {
@@ -385,16 +362,14 @@ describe('hostEditorsRoute', () => {
   });
 });
 
-describe('registerHostToolsRoutes', () => {
-  it('mounts exactly GET /api/editors and POST /api/resources/:resourceRef/open-in', async () => {
-    const app = makeApp();
-    registerHostToolsRoutes({ app: app as any, adapter: { allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST', env: {}, resolvedPortRef: { current: 0 } } as any });
-    expect(Object.keys(app.handlers).sort()).toEqual(
-      ['GET /api/editors', 'POST /api/resources/:resourceRef/open-in'].sort(),
-    );
-    const res = makeRes();
-    await app.handlers['GET /api/editors']!({ body: {}, query: {}, params: {} }, res);
-    expect(res.status).toHaveBeenCalledWith(200);
+describe('hostToolsRoutes', () => {
+  it('lists exactly GET /api/editors and POST /api/resources/:resourceRef/open-in; only the open-in route is behind the same-origin gate', async () => {
+    const routes = hostToolsRoutes({ deps: {}, host: fakeDaemonRouteHost() });
+    expect(describeRoutes({ routes })).toEqual([
+      { method: 'GET', path: '/api/editors', gates: [] },
+      { method: 'POST', path: '/api/resources/:resourceRef/open-in', gates: ['same-origin'] },
+    ]);
+    expect((await serveRoutes({ routes })(jsonRequest({ path: '/api/editors' }))).status).toBe(200);
   });
 });
 
@@ -609,36 +584,22 @@ describe('openResourceInEditorRoute.handle', () => {
   });
 });
 
-describe('registerHostToolsRoutes — POST /api/resources/:resourceRef/open-in, mounted end to end', () => {
+describe('hostToolsRoutes — POST /api/resources/:resourceRef/open-in, mounted end to end', () => {
+  const openIn = (deps: Parameters<typeof hostToolsRoutes>[0]['deps'], { denyOrigins = false }: { denyOrigins?: boolean } = {}) =>
+    serveRoutes({ routes: hostToolsRoutes({ deps, host: fakeDaemonRouteHost({}, denyOrigins ? { originPolicy: denyAllOrigins } : {}) }) })(
+      jsonRequest({ path: '/api/resources/proj-1/open-in', method: 'POST' }, { body: { editorId: 'vscode' } }));
+
   it('requires same-origin: blocks a cross-origin request before resolveRoot ever runs', async () => {
-    vi.mocked(isLocalSameOrigin).mockReturnValue(false);
-    const app = makeApp();
     const resolveRoot = vi.fn(() => '/root');
-    registerHostToolsRoutes({ app: app as any, adapter: { allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST', env: {}, resolvedPortRef: { current: 0 } } as any }, { resolveRoot });
-    const res = makeRes();
-    await app.handlers['POST /api/resources/:resourceRef/open-in']!(
-      { body: { editorId: 'vscode' }, query: {}, params: { resourceRef: 'proj-1' } },
-      res,
-    );
-    expect(res.status).toHaveBeenCalledWith(403);
+    expect((await openIn({ resolveRoot }, { denyOrigins: true })).status).toBe(403);
     expect(resolveRoot).not.toHaveBeenCalled();
-    vi.mocked(isLocalSameOrigin).mockReturnValue(true);
   });
 
-  it('allows a same-origin request and threads openInDeps through to the real handler', async () => {
-    const app = makeApp();
+  it('allows a same-origin request and threads the open-in deps through to the real handler', async () => {
     const resolveRoot = vi.fn(() => '/root');
-    registerHostToolsRoutes({ app: app as any, adapter: { allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST', env: {}, resolvedPortRef: { current: 0 } } as any }, {
-      resolveRoot,
-      probeEnv: { access: async () => { throw new Error('ENOENT'); }, env: {}, platform: 'linux' },
-    });
-    const res = makeRes();
-    await app.handlers['POST /api/resources/:resourceRef/open-in']!(
-      { body: { editorId: 'vscode' }, query: {}, params: { resourceRef: 'proj-1' } },
-      res,
-    );
+    const response = await openIn({ resolveRoot, probeEnv: { access: async () => { throw new Error('ENOENT'); }, env: {}, platform: 'linux' } });
     expect(resolveRoot).toHaveBeenCalledWith({ request: { resourceRef: 'proj-1' } });
-    expect(res.status).toHaveBeenCalledWith(409); // installed catalogue entry, not found on this fake machine
+    expect(response.status).toBe(409); // installed catalogue entry, not found on this fake machine
   });
 });
 

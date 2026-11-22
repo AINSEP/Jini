@@ -1,4 +1,4 @@
-import { matchesRecordFields } from "@jini-ai/core/records";
+import { matchesRecordFields, upsertRecord } from "@jini-ai/core/records";
 /**
  * @file In-memory adapters for the `media` library's three record types:
  * the bespoke `MediaRecord` table (see `types.ts` file header
@@ -80,8 +80,9 @@ export class InMemoryAssetBlobRepo implements AssetBlobRepoPort {
     );
   }
 
-  async list(required: { workspaceId: UUID }): Promise<AssetBlobRecord[]> {
-    return this.rows.filter((row) => row.workspaceId === required.workspaceId);
+  async list(required: { workspaceId: UUID }, optional: { sha256s?: readonly string[] } = {}): Promise<AssetBlobRecord[]> {
+    const sha256s = optional.sha256s === undefined ? undefined : new Set(optional.sha256s);
+    return this.rows.filter((row) => row.workspaceId === required.workspaceId && (sha256s === undefined || sha256s.has(row.sha256)));
   }
 
   async save(record: AssetBlobRecord): Promise<void> {
@@ -135,12 +136,7 @@ export class InMemoryAssetRenditionRepo implements AssetRenditionRepoPort {
   }
 
   async save(record: AssetRenditionRecord): Promise<void> {
-    const index = this.rows.findIndex((row) => row.id === record.id);
-    if (index === -1) {
-      this.rows.push(record);
-      return;
-    }
-    this.rows[index] = record;
+    upsertRecord({ records: this.rows, record, identity: { id: record.id } });
   }
 
   async removeByAsset(required: { workspaceId: UUID; assetId: UUID }): Promise<void> {
@@ -167,12 +163,7 @@ export class InMemoryBlobGcJournalRepo implements BlobGcJournalRepoPort {
   }
 
   async save(entry: BlobGcJournalEntry): Promise<void> {
-    const index = this.rows.findIndex((row) => row.id === entry.id);
-    if (index === -1) {
-      this.rows.push(entry);
-      return;
-    }
-    this.rows[index] = entry;
+    upsertRecord({ records: this.rows, record: entry, identity: { id: entry.id } });
   }
 
   async list(required: { workspaceId: UUID }): Promise<BlobGcJournalEntry[]> {

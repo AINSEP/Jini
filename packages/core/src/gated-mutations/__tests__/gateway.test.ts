@@ -62,6 +62,54 @@ function makeDeps(overrides: Partial<Record<string, unknown>> = {}) {
   };
 }
 
+test('abort during confirm authorization skips token save', async () => {
+  const controller = new AbortController();
+  const reason = new Error('confirmation aborted');
+  const deps = makeDeps({ authorize: async () => {
+    controller.abort(reason);
+    return { allowed: true, reason: 'matched' };
+  } });
+  await assert.rejects(
+    confirm({ deps, principalId: 'u-1', principalKind: 'user', hooks: makeHooks(), planId: 'p1', planHash: 'sha256:' + '1'.repeat(64), signal: controller.signal }),
+    error => error === reason,
+    'confirmation must reject with the exact abort reason'
+  );
+  assert.equal(await deps.tokens.count({}), 0, 'aborted confirmation must not save a token');
+});
+
+test('abort during final plan verification leaves the token minted', async () => {
+  const { tokens, record } = await mintValidToken();
+  const controller = new AbortController();
+  const reason = new Error('execution aborted');
+  const hooks = makeHooks({ async computePlan() {
+    controller.abort(reason);
+    return { planHash: record.planHash, details: {} };
+  } });
+  await assert.rejects(
+    execute({ deps: makeDeps({ tokens }), principalId: 'u-1', principalKind: 'user', hooks, confirmationToken: record.confirmationToken, signal: controller.signal }),
+    error => error === reason,
+    'execution must reject with the exact abort reason after plan verification'
+  );
+  assert.equal((await tokens.findByToken({ token: record.confirmationToken }))?.status, 'minted', 'aborted verification must leave the token minted');
+  assert.equal(hooks.mutationRuns, 0, 'aborted verification must not apply the mutation');
+});
+
+test('abort after redemption still applies the verified plan', async () => {
+  const { tokens, record } = await mintValidToken();
+  const controller = new AbortController();
+  const tryRedeem = tokens.tryRedeem.bind(tokens);
+  tokens.tryRedeem = async required => {
+    const result = await tryRedeem(required);
+    controller.abort(new Error('aborted after redemption'));
+    return result;
+  };
+  const hooks = makeHooks();
+  const result = await execute({ deps: makeDeps({ tokens }), principalId: 'u-1', principalKind: 'user', hooks, confirmationToken: record.confirmationToken, signal: controller.signal });
+  assert.equal((await tokens.findByToken({ token: record.confirmationToken }))?.status, 'redeemed', 'successful redemption must consume the token');
+  assert.deepEqual(result, { migrated: true }, 'the verified mutation must complete after redemption');
+  assert.equal(hooks.mutationRuns, 1, 'abort after redemption must still apply the mutation exactly once');
+});
+
 test('expiry after plan derivation wins at atomic redemption and the mutation never runs', async () => {
   let now = NOW;
   const { tokens, record } = await mintValidToken();

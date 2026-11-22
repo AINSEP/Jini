@@ -129,9 +129,9 @@ All database and React peers are optional; Kysely dev tests pin 0.29.6 and PGlit
 
 ```ts
 import { createSqliteChatStore } from '@jini-ai/chat/store/sqlite';
-const store = createSqliteChatStore({ kernel, scope: {
+const store = createSqliteChatStore({ kernel, clock, scope: {
   scopeId: 'workspace', ownerKind: 'user', ownerId: 'account',
-} });
+} }); // `clock` is a core Clock, e.g. createSystemClock() from @jini-ai/platform/system
 const page = await store.pageConversations({}, { limit: 50 });
 const conversation = await store.get({ id: 'conversation' });
 await store.appendMessage({ conversationId: 'conversation', message });
@@ -197,7 +197,7 @@ required argument objects: e.g. `isTerminalRunStatus({ status })`,
 `registerExtEventRenderer({ name, renderer }, { slotKey })`. A slot-key callback receives `{ data }`.
 `interleaveMessageBlocks({ events, content, rows }, { slotOf })` retains its reconstruction checks.
 The isolated `core/run-events`, `core/ag-ui`, `server/run-finalizer`, `react/embed`,
-`transports/fetch-sse`, `browser/session-store` and `browser/frontend-session-bridge` subpaths are published. Page control uses the shared frontend bridge and page executor; the retired directive executor and cross-page action queue have been removed.
+`transports/fetch-sse`, `browser/session-store`, `browser/agent-inventory` (last-known agent list as a fail-soft placeholder) and `browser/frontend-session-bridge` subpaths are published. Page control uses the shared frontend bridge and page executor; the retired directive executor and cross-page action queue have been removed.
 `FrontendSessionBridgeArgs` is exported from `react`; hosts pass baseUrl and openStream, optionally request or native fetch.
 The SSE transport takes an injected decoder; browser hosts must supply a browser-safe module.
 

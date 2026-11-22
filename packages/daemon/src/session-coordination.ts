@@ -1,6 +1,6 @@
 import type { RunProtocolEvent } from '@jini-ai/protocol';
 import type { SchedulerPort } from './scheduler.js';
-import { startupFailureMessage } from '@jini-ai/agent-runtime';
+import type { AgentRuntimePort } from './ports/agent-runtime.js';
 
 export interface ConversationRun { readonly conversationId: string; readonly runId: string }
 /** In-process occupancy only: durable answer ownership belongs to the unfinished message.
@@ -99,15 +99,19 @@ export interface FailingRunLifecycle {
   emit(args: { runId: string; input: { event: 'error'; data: { message: string } } }, optional?: Record<string, never>): Promise<unknown>;
   finish(input: { runId: string; status: 'failed'; code: null; signal: null; resumable: false }, optional?: Record<string, never>): Promise<unknown>;
 }
+/** A refusal with a startup exception carries the host's redacting formatter (`agentRuntime.failures.startupMessage`) with it: the type has no way to pass the raw cause without one. */
+export type FailRunBeforeStartInput = {
+  lifecycle: FailingRunLifecycle; runId: string; message: string;
+} & ({ startup?: undefined } | { startup: { stage: string; error: unknown }; startupMessage: AgentRuntimePort['failures']['startupMessage'] });
+
 /** Emit the refusal reason on the run stream so the chat can show and save it. Event delivery
  * is best-effort; finishing remains mandatory even when the stream cannot accept the event.
  * Startup exceptions carry redacted stage/cause text through that same saved error event.
- * @example failRunBeforeStart({ lifecycle, runId, message: 'Could not start.', startup: { stage: 'session binding', error } }, {});
+ * @example failRunBeforeStart({ lifecycle, runId, message: 'Could not start.', startup: { stage: 'session binding', error }, startupMessage }, {});
  */
-export async function failRunBeforeStart({ lifecycle, runId, message, startup }: {
-  lifecycle: FailingRunLifecycle; runId: string; message: string; startup?: { stage: string; error: unknown };
-}, _optional: Record<string, never> = {}): Promise<void> {
-  const reason = startup ? startupFailureMessage(startup, {}) : message;
+export async function failRunBeforeStart(input: FailRunBeforeStartInput, _optional: Record<string, never> = {}): Promise<void> {
+  const { lifecycle, runId } = input;
+  const reason = input.startup ? input.startupMessage(input.startup, {}) : input.message;
   try { await lifecycle.emit({ runId: runId, input: { event: 'error', data: { message: reason } } }); } catch { /* Finishing remains mandatory. */ }
   await lifecycle.finish({ runId, status: 'failed', code: null, signal: null, resumable: false });
 }

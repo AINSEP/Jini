@@ -1,0 +1,328 @@
+import { describe, expect, it } from 'vitest';
+
+import {
+  JINI_PAGE_ACTION_METHOD,
+  JSON_RPC_ERROR_CODES,
+  MCP_UI_HOST_NOTIFICATIONS,
+  MCP_UI_HOST_REQUESTS,
+  MCP_UI_SANDBOX_NOTE,
+  MCP_UI_VIEW_METHODS,
+  MCP_UI_VIEW_NOTIFICATIONS,
+  createJsonRpcError,
+  createJsonRpcNotification,
+  createJsonRpcRequest,
+  createJsonRpcResult,
+  createPageActionRequest,
+  isJsonRpcMessage,
+  isJsonRpcRequest,
+} from '../mcp-ui.js';
+
+describe('mcp-ui envelope', () => {
+  it('names the spec methods it borrows', () => {
+    expect(MCP_UI_VIEW_METHODS.initialize).toBe('ui/initialize');
+    expect(MCP_UI_VIEW_METHODS.callTool).toBe('tools/call');
+    expect(MCP_UI_VIEW_NOTIFICATIONS.initialized).toBe('ui/notifications/initialized');
+    expect(MCP_UI_HOST_REQUESTS.teardown).toBe('ui/resource-teardown');
+  });
+
+  it('keeps the Jini page-action extension out of the spec namespace', () => {
+    // A compliant host that does not know this method must reject it as unknown, not confuse it
+    // for a spec method.
+    expect(JINI_PAGE_ACTION_METHOD).toBe('x-jini/page-action');
+    expect(JINI_PAGE_ACTION_METHOD.startsWith('ui/')).toBe(false);
+    const specMethods = [
+      ...Object.values(MCP_UI_VIEW_METHODS),
+      ...Object.values(MCP_UI_HOST_NOTIFICATIONS),
+      ...Object.values(MCP_UI_VIEW_NOTIFICATIONS),
+      ...Object.values(MCP_UI_HOST_REQUESTS),
+    ];
+    expect(specMethods).not.toContain(JINI_PAGE_ACTION_METHOD);
+  });
+
+  // Regression coverage for the 2026-07-28 audit against the primary spec source
+  // (github.com/modelcontextprotocol/ext-apps, specification/2026-01-26/apps.mdx [Stable] and
+  // specification/draft/apps.mdx). The bucket these constants lived in had the wrong direction
+  // for two lifecycle messages and mis-typed a third as fire-and-forget. Each assertion below
+  // pins the corrected shape so a future refactor cannot silently reintroduce the same bug.
+  describe('message-direction classification (the bug this file used to have)', () => {
+    it('classifies `initialized` and `size-changed` as View→Host, not Host→View', () => {
+      // The spec's sequence diagram is unambiguous: `UI ->> H: ui/notifications/initialized`.
+      // These do NOT belong in MCP_UI_HOST_NOTIFICATIONS (the Host→View fire-and-forget bucket).
+      expect(MCP_UI_VIEW_NOTIFICATIONS.initialized).toBe('ui/notifications/initialized');
+      expect(MCP_UI_VIEW_NOTIFICATIONS.sizeChanged).toBe('ui/notifications/size-changed');
+      expect(Object.values(MCP_UI_HOST_NOTIFICATIONS)).not.toContain('ui/notifications/initialized');
+      expect(Object.values(MCP_UI_HOST_NOTIFICATIONS)).not.toContain('ui/notifications/size-changed');
+    });
+
+    it('classifies `resource-teardown` as a Host→View REQUEST, not a fire-and-forget notification', () => {
+      // The spec's own wire example gives this message an `id` and a success/error response
+      // shape, and the prose says the Host "SHOULD wait for a response ... to prevent data
+      // loss." A notification bucket has no `id` field and no response contract — building one
+      // with createJsonRpcNotification would silently produce an unanswerable message.
+      expect(MCP_UI_HOST_REQUESTS.teardown).toBe('ui/resource-teardown');
+      expect(Object.values(MCP_UI_HOST_NOTIFICATIONS)).not.toContain('ui/resource-teardown');
+    });
+
+    it('keeps MCP_UI_HOST_NOTIFICATIONS to exactly the Host→View fire-and-forget surface', () => {
+      // Enumerate exhaustively rather than probing individual keys, so an accidental future
+      // addition to this bucket (e.g. re-adding `initialized`) fails a test even if no one
+      // thinks to write a dedicated assertion for it.
+      expect(MCP_UI_HOST_NOTIFICATIONS).toEqual({
+        toolInputPartial: 'ui/notifications/tool-input-partial',
+        toolInput: 'ui/notifications/tool-input',
+        toolResult: 'ui/notifications/tool-result',
+        toolCancelled: 'ui/notifications/tool-cancelled',
+        hostContextChanged: 'ui/notifications/host-context-changed',
+      });
+    });
+
+    it('keeps MCP_UI_VIEW_NOTIFICATIONS to exactly the View→Host fire-and-forget surface', () => {
+      expect(MCP_UI_VIEW_NOTIFICATIONS).toEqual({
+        initialized: 'ui/notifications/initialized',
+        sizeChanged: 'ui/notifications/size-changed',
+        requestTeardown: 'ui/notifications/request-teardown',
+      });
+    });
+
+    it('keeps MCP_UI_HOST_REQUESTS to exactly the Host-initiated request surface', () => {
+      expect(MCP_UI_HOST_REQUESTS).toEqual({
+        teardown: 'ui/resource-teardown',
+        callAppTool: 'tools/call',
+        listAppTools: 'tools/list',
+      });
+    });
+
+    it('adds the draft spec\'s new View→Host requests without disturbing the existing ones', () => {
+      expect(MCP_UI_VIEW_METHODS.downloadFile).toBe('ui/download-file');
+      expect(MCP_UI_VIEW_METHODS.createMessage).toBe('sampling/createMessage');
+      // The pre-existing methods must survive the addition untouched.
+      expect(MCP_UI_VIEW_METHODS.initialize).toBe('ui/initialize');
+      expect(MCP_UI_VIEW_METHODS.readResource).toBe('resources/read');
+      expect(MCP_UI_VIEW_METHODS.log).toBe('notifications/message');
+      expect(MCP_UI_VIEW_METHODS.openLink).toBe('ui/open-link');
+      expect(MCP_UI_VIEW_METHODS.sendMessage).toBe('ui/message');
+      expect(MCP_UI_VIEW_METHODS.requestDisplayMode).toBe('ui/request-display-mode');
+      expect(MCP_UI_VIEW_METHODS.updateModelContext).toBe('ui/update-model-context');
+      expect(MCP_UI_VIEW_METHODS.ping).toBe('ping');
+    });
+
+    it('never lets the same method string mean two different directions inside one bucket pair', () => {
+      // `tools/call` is deliberately bidirectional in the real spec (App→Host to call a server
+      // tool via MCP_UI_VIEW_METHODS.callTool, Host→App to call an app-registered tool via
+      // MCP_UI_HOST_REQUESTS.callAppTool) — that duplication is intentional. `tools/list` is
+      // modeled ONLY in the Host→App direction here (MCP_UI_HOST_REQUESTS.listAppTools); this
+      // module does not add a View→Host "list server tools" method, so it must stay single-owner.
+      // Every method string other than `tools/call` must appear in at most one bucket, so a
+      // future addition cannot silently claim a direction that conflicts with an existing one.
+      const buckets: Record<string, readonly string[]> = {
+        MCP_UI_VIEW_METHODS: Object.values(MCP_UI_VIEW_METHODS),
+        MCP_UI_HOST_NOTIFICATIONS: Object.values(MCP_UI_HOST_NOTIFICATIONS),
+        MCP_UI_VIEW_NOTIFICATIONS: Object.values(MCP_UI_VIEW_NOTIFICATIONS),
+        MCP_UI_HOST_REQUESTS: Object.values(MCP_UI_HOST_REQUESTS),
+      };
+      const seenIn = new Map<string, string[]>();
+      for (const [bucketName, methods] of Object.entries(buckets)) {
+        for (const method of methods) {
+          const owners = seenIn.get(method) ?? [];
+          owners.push(bucketName);
+          seenIn.set(method, owners);
+        }
+      }
+      const deliberatelyBidirectional = new Set(['tools/call']);
+      for (const [method, owners] of seenIn) {
+        if (deliberatelyBidirectional.has(method)) {
+          expect(owners.sort()).toEqual(['MCP_UI_HOST_REQUESTS', 'MCP_UI_VIEW_METHODS']);
+        } else {
+          expect(owners).toHaveLength(1);
+        }
+      }
+    });
+  });
+
+  it('builds requests, notifications, results and errors', () => {
+    expect(createJsonRpcRequest({ id: 1, method: 'ping' })).toEqual({ jsonrpc: '2.0', id: 1, method: 'ping' });
+    expect(createJsonRpcRequest({ id: 1, method: 'ping' }, { params: { a: 1 } }).params).toEqual({ a: 1 });
+    expect(createJsonRpcNotification({ method: 'ui/notifications/initialized' })).toEqual({
+      jsonrpc: '2.0',
+      method: 'ui/notifications/initialized',
+    });
+    expect(createJsonRpcResult({ id: 2, result: { ok: true } })).toEqual({ jsonrpc: '2.0', id: 2, result: { ok: true } });
+    expect(createJsonRpcError({ id: 3, code: JSON_RPC_ERROR_CODES.methodNotFound, message: 'nope' })).toEqual({
+      jsonrpc: '2.0',
+      id: 3,
+      error: { code: -32601, message: 'nope' },
+    });
+  });
+
+  it('omits optional fields rather than sending them undefined', () => {
+    expect(createJsonRpcRequest({ id: 1, method: 'ping' })).not.toHaveProperty('params');
+    expect(createJsonRpcError({ id: 1, code: -1, message: 'x' }).error).not.toHaveProperty('data');
+  });
+
+  it('builds a namespaced page-action request carrying capability and input', () => {
+    expect(createPageActionRequest({ id: 'inv-1', capabilityId: 'page.click', input: { element: 'add-task-button' } })).toEqual({
+      jsonrpc: '2.0',
+      id: 'inv-1',
+      method: JINI_PAGE_ACTION_METHOD,
+      params: { capabilityId: 'page.click', input: { element: 'add-task-button' } },
+    });
+  });
+
+  describe('isJsonRpcMessage', () => {
+    it('accepts requests, notifications and both response shapes', () => {
+      expect(isJsonRpcMessage({ value: { jsonrpc: '2.0', id: 1, method: 'ping' } })).toBe(true);
+      expect(isJsonRpcMessage({ value: { jsonrpc: '2.0', method: 'note' } })).toBe(true);
+      expect(isJsonRpcMessage({ value: { jsonrpc: '2.0', id: 1, result: null } })).toBe(true);
+      expect(isJsonRpcMessage({ value: { jsonrpc: '2.0', id: 'a', error: { code: 1, message: 'x' } } })).toBe(true);
+    });
+
+    it('rejects anything a hostile page could post at the frame', () => {
+      // Any page able to reach the frame can post arbitrary data; shape is never assumable.
+      for (const hostile of [
+        null,
+        undefined,
+        'ping',
+        42,
+        [],
+        {},
+        { jsonrpc: '1.0', id: 1, method: 'ping' },
+        { jsonrpc: '2.0' },
+        { jsonrpc: '2.0', id: 1 },
+        { jsonrpc: '2.0', id: { nested: true }, result: 1 },
+        { method: 'ping', id: 1 },
+      ]) {
+        expect(isJsonRpcMessage({ value: hostile })).toBe(false);
+      }
+    });
+
+    // Found by live adversarial testing (2026-07-28) against a real sandboxed iframe, not by
+    // static review: a REQUEST (has a string `method`) whose `id` is present but malformed used
+    // to pass this check, because the `method`-is-a-string branch returned early without ever
+    // looking at `id`'s type. See the fix's doc comment in mcp-ui-apps.ts for the exact wire
+    // message that exposed it (`{ jsonrpc: '2.0', id: { nested: true }, method: 'tools/call' }`).
+    it('rejects a request whose method is valid but whose id is malformed', () => {
+      expect(isJsonRpcMessage({ value: { jsonrpc: '2.0', id: { nested: true }, method: 'tools/call', params: {} } })).toBe(false);
+      expect(isJsonRpcMessage({ value: { jsonrpc: '2.0', id: [1, 2], method: 'ui/initialize' } })).toBe(false);
+      expect(isJsonRpcMessage({ value: { jsonrpc: '2.0', id: null, method: 'ui/initialize' } })).toBe(false);
+      expect(isJsonRpcMessage({ value: { jsonrpc: '2.0', id: true, method: 'ui/initialize' } })).toBe(false);
+    });
+
+    it('still accepts a notification (a valid method, deliberately no id at all)', () => {
+      // The fix above must not turn "no id" into "invalid id" — a notification never has one.
+      expect(isJsonRpcMessage({ value: { jsonrpc: '2.0', method: 'ui/notifications/initialized' } })).toBe(true);
+      expect(isJsonRpcMessage({ value: { jsonrpc: '2.0', method: 'ui/notifications/size-changed', params: { width: 1, height: 1 } } })).toBe(true);
+    });
+
+    it('still accepts a request whose id is a valid string or number', () => {
+      expect(isJsonRpcMessage({ value: { jsonrpc: '2.0', id: 'view-1', method: 'ui/initialize' } })).toBe(true);
+      expect(isJsonRpcMessage({ value: { jsonrpc: '2.0', id: 42, method: 'tools/call', params: {} } })).toBe(true);
+    });
+
+    it('distinguishes a request from a notification', () => {
+      expect(isJsonRpcRequest({ message: { jsonrpc: '2.0', id: 1, method: 'ping' } })).toBe(true);
+      expect(isJsonRpcRequest({ message: { jsonrpc: '2.0', method: 'ping' } })).toBe(false);
+      expect(isJsonRpcRequest({ message: { jsonrpc: '2.0', id: 1, result: 1 } })).toBe(false);
+    });
+
+    // Regression (2026-07-29 audit). The guard checked `jsonrpc`, then `id`'s type, then
+    // returned true for anything with a string `method` — without looking at `params` at all, and
+    // without ever asking whether the four JSON-RPC 2.0 shapes (request / notification / success
+    // response / error response) had been mixed together. Every case below is a message a hostile
+    // page can post at the frame, and every one of them used to be waved through into dispatch.
+    describe('shapes JSON-RPC 2.0 defines as mutually exclusive', () => {
+      it('rejects a response carrying both result and error', () => {
+        // §5: "Either the result member or error member MUST be included, but both members MUST
+        // NOT be included."
+        expect(isJsonRpcMessage({ value: { jsonrpc: '2.0', id: 1, result: 1, error: { code: -1, message: 'x' } } })).toBe(false);
+      });
+
+      it('rejects a response carrying neither result nor error', () => {
+        expect(isJsonRpcMessage({ value: { jsonrpc: '2.0', id: 1 } })).toBe(false);
+      });
+
+      it('rejects a request that also carries response members', () => {
+        // A message is a request or a response, never both — a dispatcher handed this would
+        // execute the method AND resolve a pending call with the same id.
+        expect(isJsonRpcMessage({ value: { jsonrpc: '2.0', id: 1, method: 'tools/call', result: 5 } })).toBe(false);
+        expect(isJsonRpcMessage({ value: { jsonrpc: '2.0', id: 1, method: 'tools/call', error: { code: -1, message: 'x' } } })).toBe(false);
+        expect(isJsonRpcMessage({ value: { jsonrpc: '2.0', method: 'ui/notifications/initialized', result: 5 } })).toBe(false);
+      });
+
+      it('rejects a message whose method is present but not a string', () => {
+        // Previously these fell through to the response branch and were accepted as responses,
+        // silently reinterpreting a malformed request as something else entirely.
+        expect(isJsonRpcMessage({ value: { jsonrpc: '2.0', id: 1, method: 42, result: 1 } })).toBe(false);
+        expect(isJsonRpcMessage({ value: { jsonrpc: '2.0', id: 1, method: null, result: 1 } })).toBe(false);
+        expect(isJsonRpcMessage({ value: { jsonrpc: '2.0', id: 1, method: { evil: true }, error: { code: -1, message: 'x' } } })).toBe(false);
+      });
+    });
+
+    describe('members whose own type the spec fixes', () => {
+      it('rejects params that is not a structured value', () => {
+        // §4.2: "If present, parameters ... MUST be Array or Object." A handler reaching for
+        // `params.capabilityId` on a string gets `undefined`, not a refusal.
+        for (const params of ['nope', 42, true, null]) {
+          expect(isJsonRpcMessage({ value: { jsonrpc: '2.0', id: 1, method: 'tools/call', params } })).toBe(false);
+        }
+      });
+
+      it('accepts params as either an object or an array, which the spec allows both of', () => {
+        expect(isJsonRpcMessage({ value: { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { a: 1 } } })).toBe(true);
+        expect(isJsonRpcMessage({ value: { jsonrpc: '2.0', id: 1, method: 'tools/call', params: [1, 2] } })).toBe(true);
+      });
+
+      it('rejects an error member that is not a well-formed error object', () => {
+        // §5.1: the error object carries a Number `code` and a String `message`.
+        for (const error of ['boom', 42, null, [], {}, { code: 'not-a-number', message: 'x' }, { code: -1 }, { code: -1, message: 7 }]) {
+          expect(isJsonRpcMessage({ value: { jsonrpc: '2.0', id: 1, error } })).toBe(false);
+        }
+      });
+
+      it('still accepts a well-formed error response, including one carrying data', () => {
+        expect(isJsonRpcMessage({ value: { jsonrpc: '2.0', id: 1, error: { code: -32601, message: 'nope' } } })).toBe(true);
+        expect(isJsonRpcMessage({ value: createJsonRpcError({ id: 1, code: JSON_RPC_ERROR_CODES.invalidParams, message: 'bad' }, { data: { field: 'x' } }) })).toBe(true);
+      });
+
+      it('rejects an array, which is a JSON-RPC batch rather than a message', () => {
+        // `typeof [] === 'object'`, so a bare isRecord check let one through if it carried the
+        // right properties. This transport does not do batches.
+        expect(isJsonRpcMessage({ value: Object.assign([], { jsonrpc: '2.0', method: 'tools/call' }) })).toBe(false);
+      });
+    });
+
+    it('accepts everything this module itself builds', () => {
+      // The guard and the builders have to agree, or the host rejects its own wire format.
+      expect(isJsonRpcMessage({ value: createJsonRpcRequest({ id: 1, method: 'ping' }) })).toBe(true);
+      expect(isJsonRpcMessage({ value: createJsonRpcRequest({ id: 1, method: 'tools/call' }, { params: { name: 'x' } }) })).toBe(true);
+      expect(isJsonRpcMessage({ value: createJsonRpcNotification({ method: 'ui/notifications/initialized' }) })).toBe(true);
+      expect(isJsonRpcMessage({ value: createJsonRpcNotification({ method: 'ui/notifications/size-changed' }, { params: { width: 1 } }) })).toBe(true);
+      expect(isJsonRpcMessage({ value: createJsonRpcResult({ id: 1, result: { ok: true } }) })).toBe(true);
+      expect(isJsonRpcMessage({ value: createJsonRpcError({ id: 1, code: -1, message: 'x' }) })).toBe(true);
+      expect(isJsonRpcMessage({ value: createPageActionRequest({ id: 'inv-1', capabilityId: 'page.click', input: { element: 'a' } }) })).toBe(true);
+    });
+  });
+});
+
+describe('mcp-ui envelope — optional field branches', () => {
+  it('includes params on a notification when supplied', () => {
+    expect(createJsonRpcNotification({ method: 'ui/notifications/size-changed' }, { params: { width: 320, height: 200 } }))
+      .toEqual({
+        jsonrpc: '2.0',
+        method: 'ui/notifications/size-changed',
+        params: { width: 320, height: 200 },
+      });
+  });
+
+  it('includes error data when supplied', () => {
+    expect(createJsonRpcError({ id: 7, code: JSON_RPC_ERROR_CODES.invalidParams, message: 'bad' }, { data: { field: 'element' } }))
+      .toEqual({
+        jsonrpc: '2.0',
+        id: 7,
+        error: { code: -32602, message: 'bad', data: { field: 'element' } },
+      });
+  });
+
+  it('explains why spec Views may carry allow-same-origin', () => {
+    expect(MCP_UI_SANDBOX_NOTE).toContain('allow-same-origin');
+  });
+});

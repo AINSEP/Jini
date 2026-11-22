@@ -17,32 +17,32 @@ function loc(over: Partial<ProjectLocation> & Pick<ProjectLocation, 'id'>): Proj
 
 describe('locationLabel', () => {
   it('takes the last segment of a POSIX path', () => {
-    expect(locationLabel('/Users/me/Projects/site')).toBe('site');
+    expect(locationLabel({ locationPath: '/Users/me/Projects/site' })).toBe('site');
   });
 
   it('takes the last segment of a Windows path', () => {
     // Both separators are handled regardless of host, since a path can be
     // typed on one platform and rendered on another.
-    expect(locationLabel('C:\\Users\\me\\site')).toBe('site');
+    expect(locationLabel({ locationPath: 'C:\\Users\\me\\site' })).toBe('site');
   });
 
   it('ignores a trailing separator', () => {
-    expect(locationLabel('/Users/me/site/')).toBe('site');
-    expect(locationLabel('C:\\Users\\me\\site\\')).toBe('site');
+    expect(locationLabel({ locationPath: '/Users/me/site/' })).toBe('site');
+    expect(locationLabel({ locationPath: 'C:\\Users\\me\\site\\' })).toBe('site');
   });
 
   it('collapses repeated separators', () => {
-    expect(locationLabel('/Users//me///site')).toBe('site');
+    expect(locationLabel({ locationPath: '/Users//me///site' })).toBe('site');
   });
 
   it('falls back to the whole path when there is no segment', () => {
     // A blank label would render an unclickable empty row.
-    expect(locationLabel('/')).toBe('/');
-    expect(locationLabel('')).toBe('');
+    expect(locationLabel({ locationPath: '/' })).toBe('/');
+    expect(locationLabel({ locationPath: '' })).toBe('');
   });
 
   it('returns a bare name unchanged', () => {
-    expect(locationLabel('site')).toBe('site');
+    expect(locationLabel({ locationPath: 'site' })).toBe('site');
   });
 });
 
@@ -109,29 +109,29 @@ describe('resolveDefaultLocationId', () => {
   const locations = [loc({ id: 'a' }), loc({ id: 'b' })];
 
   it('keeps a default that still resolves', () => {
-    expect(resolveDefaultLocationId('a', locations)).toBe('a');
+    expect(resolveDefaultLocationId({ configuredId: 'a', locations })).toBe('a');
   });
 
   it('falls back when the default was removed', () => {
     // A dangling id would point new projects at nothing.
-    expect(resolveDefaultLocationId('gone', locations)).toBe(DEFAULT_LOCATION_ID);
+    expect(resolveDefaultLocationId({ configuredId: 'gone', locations })).toBe(DEFAULT_LOCATION_ID);
   });
 
   it('accepts the built-in default without it being in the list', () => {
-    expect(resolveDefaultLocationId(DEFAULT_LOCATION_ID, [])).toBe(DEFAULT_LOCATION_ID);
+    expect(resolveDefaultLocationId({ configuredId: DEFAULT_LOCATION_ID, locations: [] })).toBe(DEFAULT_LOCATION_ID);
   });
 
   it('treats null and undefined as the built-in default', () => {
-    expect(resolveDefaultLocationId(null, locations)).toBe(DEFAULT_LOCATION_ID);
-    expect(resolveDefaultLocationId(undefined, locations)).toBe(DEFAULT_LOCATION_ID);
+    expect(resolveDefaultLocationId({ configuredId: null, locations })).toBe(DEFAULT_LOCATION_ID);
+    expect(resolveDefaultLocationId({ configuredId: undefined, locations })).toBe(DEFAULT_LOCATION_ID);
   });
 
   it('falls back when the list is empty', () => {
-    expect(resolveDefaultLocationId('a', [])).toBe(DEFAULT_LOCATION_ID);
+    expect(resolveDefaultLocationId({ configuredId: 'a', locations: [] })).toBe(DEFAULT_LOCATION_ID);
   });
 
   it('can resolve to a built-in location by id', () => {
-    expect(resolveDefaultLocationId('sys', [loc({ id: 'sys', builtIn: true })])).toBe('sys');
+    expect(resolveDefaultLocationId({ configuredId: 'sys', locations: [loc({ id: 'sys', builtIn: true })] })).toBe('sys');
   });
 });
 
@@ -139,55 +139,55 @@ describe('isDuplicatePath', () => {
   const locations = [loc({ id: 'a', path: '/Users/me/site' }), loc({ id: 'b', path: '/Users/me/blog' })];
 
   it('detects an exact duplicate', () => {
-    expect(isDuplicatePath('/Users/me/site', locations)).toBe(true);
+    expect(isDuplicatePath({ candidatePath: '/Users/me/site', locations })).toBe(true);
   });
 
   it('detects a duplicate differing only by trailing separator', () => {
     // A folder picker and a typed path routinely disagree on this.
-    expect(isDuplicatePath('/Users/me/site/', locations)).toBe(true);
-    expect(isDuplicatePath('/Users/me/site', [loc({ id: 'a', path: '/Users/me/site/' })])).toBe(true);
+    expect(isDuplicatePath({ candidatePath: '/Users/me/site/', locations })).toBe(true);
+    expect(isDuplicatePath({ candidatePath: '/Users/me/site', locations: [loc({ id: 'a', path: '/Users/me/site/' })] })).toBe(true);
   });
 
   it('detects a duplicate differing only by surrounding whitespace', () => {
-    expect(isDuplicatePath('  /Users/me/site  ', locations)).toBe(true);
+    expect(isDuplicatePath({ candidatePath: '  /Users/me/site  ', locations })).toBe(true);
   });
 
   it('is false for a genuinely new path', () => {
-    expect(isDuplicatePath('/Users/me/other', locations)).toBe(false);
+    expect(isDuplicatePath({ candidatePath: '/Users/me/other', locations })).toBe(false);
   });
 
   it('excludes the row itself, so re-saving is not a self-duplicate', () => {
-    expect(isDuplicatePath('/Users/me/site', locations, 'a')).toBe(false);
+    expect(isDuplicatePath({ candidatePath: '/Users/me/site', locations }, { exceptId: 'a' })).toBe(false);
   });
 
   it('still flags a clash with a DIFFERENT row when excepting one', () => {
-    expect(isDuplicatePath('/Users/me/blog', locations, 'a')).toBe(true);
+    expect(isDuplicatePath({ candidatePath: '/Users/me/blog', locations }, { exceptId: 'a' })).toBe(true);
   });
 
   it('is false for a blank candidate — that is an empty row, not a clash', () => {
-    expect(isDuplicatePath('', locations)).toBe(false);
-    expect(isDuplicatePath('   ', locations)).toBe(false);
+    expect(isDuplicatePath({ candidatePath: '', locations })).toBe(false);
+    expect(isDuplicatePath({ candidatePath: '   ', locations })).toBe(false);
   });
 
   it('does not reduce a root path to empty when comparing', () => {
     // '/' must stay '/' rather than normalising to '' and matching blanks.
-    expect(isDuplicatePath('/', [loc({ id: 'r', path: '/' })])).toBe(true);
-    expect(isDuplicatePath('/', locations)).toBe(false);
+    expect(isDuplicatePath({ candidatePath: '/', locations: [loc({ id: 'r', path: '/' })] })).toBe(true);
+    expect(isDuplicatePath({ candidatePath: '/', locations })).toBe(false);
   });
 
   it('handles Windows separators', () => {
-    expect(isDuplicatePath('C:\\site\\', [loc({ id: 'w', path: 'C:\\site' })])).toBe(true);
+    expect(isDuplicatePath({ candidatePath: 'C:\\site\\', locations: [loc({ id: 'w', path: 'C:\\site' })] })).toBe(true);
   });
 
   it('does not blank an all-separator path when stripping the trailing one', () => {
     // '//' is longer than one char, so it reaches the strip — which would
     // reduce it to '' and make it match every other separator-only path.
     // The fallback keeps it as itself.
-    expect(isDuplicatePath('//', [loc({ id: 'r', path: '//' })])).toBe(true);
-    expect(isDuplicatePath('//', [loc({ id: 'r', path: '\\\\' })])).toBe(false);
+    expect(isDuplicatePath({ candidatePath: '//', locations: [loc({ id: 'r', path: '//' })] })).toBe(true);
+    expect(isDuplicatePath({ candidatePath: '//', locations: [loc({ id: 'r', path: '\\\\' })] })).toBe(false);
   });
 
   it('is false against an empty list', () => {
-    expect(isDuplicatePath('/anything', [])).toBe(false);
+    expect(isDuplicatePath({ candidatePath: '/anything', locations: [] })).toBe(false);
   });
 });

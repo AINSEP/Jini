@@ -15,27 +15,16 @@ import { redactSecrets } from '@jini-ai/core';
  * no OD-branded strings).
  */
 
-import type { DnsLookupFn } from './connection-guard.js';
+import type { ConnectionTestKind, ConnectionTestProtocol, DnsLookupFn, ProviderModelOption, ProviderModelsQuery, ProviderModelsResponse } from '@jini-ai/core/contracts/agents';
 import { defaultDnsLookup, validateBaseUrl, validateBaseUrlResolved } from './connection-guard.js';
 import { aihubmixCatalogUrl, aihubmixHeaders, parseAIHubMixCatalog } from './aihubmix.js';
+import { appendVersionedApiPath } from './provider-url.js';
 import { googleProviderModelsUrl, normalizeGoogleModelId } from './google.js';
-import type {
-  ConnectionTestKind,
-  ConnectionTestProtocol,
-  ProviderModelOption,
-  ProviderModelsRequest,
-  ProviderModelsResponse,
-} from './types.js';
-import { trimCharsEnd } from '@jini-ai/core/text';
 
-export type ProviderModelsInput = ProviderModelsRequest & {
-  signal?: AbortSignal;
+/** The core query plus this runtime's transport-only field (an undici dispatcher), which a universal contract cannot name. */
+export interface ProviderModelsInput extends ProviderModelsQuery {
   requestInit?: Pick<RequestInit, 'dispatcher'>;
-  /** Injectable DNS resolver for the base-URL SSRF guard; defaults to `node:dns`. */
-  dnsLookup?: DnsLookupFn;
-  /** Injectable HTTP transport for adapter conformance; defaults to fetch. */
-  fetchFn?: typeof fetch;
-};
+}
 
 const PROVIDER_MODELS_TIMEOUT_MS = 12_000;
 
@@ -48,7 +37,7 @@ const PROVIDER_MODELS_TIMEOUT_MS = 12_000;
 // here, before any network access, turns that into a clear local message
 // instead — the same class of gap for every one of these protocols (not
 // just Google, where an operator first reported it).
-const PROTOCOLS_REQUIRING_API_KEY = new Set<ConnectionTestProtocol>(['openai', 'senseaudio', 'anthropic', 'google']);
+const PROTOCOLS_REQUIRING_API_KEY: ReadonlySet<ConnectionTestProtocol> = new Set<ConnectionTestProtocol>(['openai', 'senseaudio', 'anthropic', 'google']);
 
 function missingApiKeyResponse(startedAt: number): ProviderModelsResponse {
   return {
@@ -66,15 +55,6 @@ const BEDROCK_MODEL_OPTIONS: ProviderModelOption[] = [
   { id: 'amazon.nova-lite-v1:0', label: 'Amazon Nova Lite' },
   { id: 'amazon.nova-micro-v1:0', label: 'Amazon Nova Micro' },
 ];
-
-function appendVersionedApiPath(baseUrl: string, suffix: string): string {
-  const url = new URL(baseUrl);
-  const pathname = trimCharsEnd({ text: url.pathname, chars: '/' });
-  url.pathname = /\/v\d+(\/|$)/.test(pathname)
-    ? `${pathname}${suffix}`
-    : `${pathname}/v1${suffix}`;
-  return url.toString();
-}
 
 function statusToKind(status: number): ConnectionTestKind {
   if (status === 401) return 'auth_failed';
@@ -221,10 +201,10 @@ function providerModelsUrl(protocol: ConnectionTestProtocol, baseUrl: string, ap
     return aihubmixCatalogUrl({ baseUrl: baseUrl, type: 'llm' });
   }
   if (protocol === 'openai' || protocol === 'senseaudio') {
-    return appendVersionedApiPath(baseUrl, '/models');
+    return appendVersionedApiPath({ baseUrl, suffix: '/models' });
   }
   if (protocol === 'anthropic') {
-    const url = new URL(appendVersionedApiPath(baseUrl, '/models'));
+    const url = new URL(appendVersionedApiPath({ baseUrl, suffix: '/models' }));
     url.searchParams.set('limit', '1000');
     return url.toString();
   }

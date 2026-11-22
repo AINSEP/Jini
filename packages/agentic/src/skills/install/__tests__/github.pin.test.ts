@@ -72,7 +72,10 @@ describe('fetchGitHubSkill URL allow-list', () => {
     const transport = github({ tree: [row('SKILL.md', 'x')] });
     await fetchGitHubSkill({ githubUrl: 'https://github.com/owner/repo/tree/v1.0', fetch: transport.fetch });
     expect(transport.calls[0]!.url).toBe(`${API}/commits/v1.0`);
-    for (const { init } of transport.calls) {
+    expect(transport.calls).toHaveLength(3);
+    for (const { url, init } of transport.calls) {
+      expect(new URL(url).origin).toBe("https://api.github.com");
+      expect(new URL(url).pathname.startsWith("/repos/owner/repo/")).toBe(true);
       expect(init?.redirect).toBe('error');
       expect(init?.headers).toEqual({ Accept: 'application/vnd.github+json' });
       expect(init?.signal).toBe(transport.calls[0]!.init?.signal);

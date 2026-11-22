@@ -16,7 +16,7 @@
 //    available'` for an empty non-searchable field (the origin's fallback
 //    text talked about "text models", which was itself a leftover from the
 //    one call site it happened to serve, not a generic empty state).
-// See packages/ui/source-map.md.
+// See archived UI source map.
 //
 // Shape: this module follows the package's "dumb component + co-located
 // testable hooks" pattern (see `TooltipLayer.tsx`). All state, refs,
@@ -248,37 +248,16 @@ export interface UseOnboardingDropdownResult {
   selectOption: (option: OnboardingDropdownOption, selected: boolean) => void;
 }
 
-/**
- * All of the dropdown's behavior — open/query state, the field ref, the
- * viewport-aware placement, the click-outside/Escape dismissal, the query
- * reset on close, the single-open-at-a-time peer coordination, and the
- * select/toggle logic — with no rendering. Exported (with the pure helpers
- * above) so the logic is testable in isolation; `OnboardingDropdown` is the
- * dumb consumer.
- */
-export function useOnboardingDropdown(props: OnboardingDropdownProps): UseOnboardingDropdownResult {
-  const t = useT();
-  const {
-    placeholder,
-    value,
-    options,
-    placement = 'bottom',
-    multiple = false,
-    searchable = false,
-  } = props;
-
-  const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState('');
-  const rootRef = useRef<HTMLDivElement | null>(null);
-  const dropdownIdRef = useRef(`onboarding-dropdown-${globalThis.crypto.getRandomValues(new Uint32Array(1))[0]!.toString(36)}`);
-
-  const { placement: resolvedPlacement, maxHeight: menuMaxHeight } = useOnboardingDropdownPlacement(
-    rootRef,
-    open,
-    placement,
-    options.length,
-  );
-
+/** Closes the open menu on an outside pointer-down or Escape. */
+function useDropdownDismiss({
+  open,
+  rootRef,
+  setOpen,
+}: {
+  open: boolean;
+  rootRef: RefObject<HTMLDivElement | null>;
+  setOpen: (open: boolean) => void;
+}) {
   useEffect(() => {
     if (!open) return undefined;
 
@@ -300,7 +279,16 @@ export function useOnboardingDropdown(props: OnboardingDropdownProps): UseOnboar
       document.removeEventListener('pointerdown', handlePointerDown);
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [open]);
+  }, [open, rootRef, setOpen]);
+}
+
+/** Open/query state: dismissal (outside click / Escape), query reset on close, and single-open-at-a-time peer coordination. */
+function useDropdownOpenState(rootRef: RefObject<HTMLDivElement | null>) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const dropdownIdRef = useRef(`onboarding-dropdown-${globalThis.crypto.getRandomValues(new Uint32Array(1))[0]!.toString(36)}`);
+
+  useDropdownDismiss({ open, rootRef, setOpen });
 
   useEffect(() => {
     if (!open) {
@@ -334,6 +322,31 @@ export function useOnboardingDropdown(props: OnboardingDropdownProps): UseOnboar
       return nextOpen;
     });
   }, []);
+
+  return { open, setOpen, query, setQuery, toggleOpen };
+}
+
+/**
+ * All of the dropdown's behavior — open/query state, the field ref, the
+ * viewport-aware placement, the click-outside/Escape dismissal, the query
+ * reset on close, the single-open-at-a-time peer coordination, and the
+ * select/toggle logic — with no rendering. Exported (with the pure helpers
+ * above) so the logic is testable in isolation; `OnboardingDropdown` is the
+ * dumb consumer.
+ */
+export function useOnboardingDropdown(props: OnboardingDropdownProps): UseOnboardingDropdownResult {
+  const t = useT();
+  const { placeholder, value, options, placement = 'bottom', multiple = false, searchable = false } = props;
+
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const { open, setOpen, query, setQuery, toggleOpen } = useDropdownOpenState(rootRef);
+
+  const { placement: resolvedPlacement, maxHeight: menuMaxHeight } = useOnboardingDropdownPlacement(
+    rootRef,
+    open,
+    placement,
+    options.length,
+  );
 
   const selectedValues = resolveOnboardingSelectedValues(value);
   const selectedOptions = options.filter((option) => selectedValues.includes(option.value));
@@ -384,7 +397,7 @@ function OnboardingDropdownSearch({ query, setQuery, placeholder, label }: {
 }) {
   return (
     <label
-      className="onboarding-view__select-search"
+      className="jini-onboarding-view__select-search"
       onClick={(event) => event.stopPropagation()}
     >
       <Icon name="search" size={14} />
@@ -430,7 +443,7 @@ function OnboardingDropdownOptions({ label, multiple, visibleOptions, selectedVa
 } & Pick<UseOnboardingDropdownResult, 'visibleOptions' | 'selectedValues' | 'emptyMessage' | 'selectOption'>) {
   return (
     <div
-      className="onboarding-view__select-options"
+      className="jini-onboarding-view__select-options"
       role="listbox"
       aria-label={label}
       aria-multiselectable={multiple || undefined}
@@ -444,7 +457,7 @@ function OnboardingDropdownOptions({ label, multiple, visibleOptions, selectedVa
         />
       ))}
       {visibleOptions.length === 0 ? (
-        <div className="onboarding-view__select-empty">{emptyMessage}</div>
+        <div className="jini-onboarding-view__select-empty">{emptyMessage}</div>
       ) : null}
     </div>
   );
@@ -477,7 +490,7 @@ function OnboardingDropdownMenu({ label, placeholder, multiple, searchable, sear
 } & Pick<UseOnboardingDropdownResult, 'query' | 'setQuery' | 'menuMaxHeight' | 'visibleOptions' | 'selectedValues' | 'emptyMessage' | 'selectOption'>) {
   return (
     <div
-      className="onboarding-view__select-menu"
+      className="jini-onboarding-view__select-menu"
       data-searchable={searchable || undefined}
       style={{ '--onboarding-select-menu-max-height': `${menuMaxHeight}px` } as CSSProperties}
     >
@@ -499,7 +512,7 @@ function OnboardingDropdownMenu({ label, placeholder, multiple, searchable, sear
  * {@link useOnboardingDropdown}; this component only renders the field,
  * trigger, and (when open) the menu.
  */
-export function OnboardingDropdown(props: OnboardingDropdownProps) {
+export function OnboardingDropdown({ useOnboardingDropdown: useOnboardingDropdownHook = useOnboardingDropdown, ...props }: OnboardingDropdownProps) {
   const {
     label,
     placeholder,
@@ -508,7 +521,6 @@ export function OnboardingDropdown(props: OnboardingDropdownProps) {
     searchPlaceholder,
     sourceTone,
     className,
-    useOnboardingDropdown: useOnboardingDropdownHook = useOnboardingDropdown,
   } = props;
 
   const {

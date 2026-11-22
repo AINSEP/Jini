@@ -1,9 +1,17 @@
 /** Test-only bridge preserving the source suites' calls/assertions while exercising Jini owners.
  * Legacy envelopes, mutable fake rows and physical removal are fixture contracts, not public APIs.
  */
-import { createElement } from 'react';
-import type { AdminRedirect, AdminRedirectCreateInput, AdminRedirectHitStats, AdminRedirectImportResult, AdminRedirectsPort } from '../../../core/ports/redirects.js';
-import { AdminApiError } from '../../../core/transport/errors.js';
+import { RedirectsControllerContext } from '../hooks/RedirectsPorts.hooks.js';
+import { useController } from '@jini-ai/admin/core/react';
+import type { UseAdminController } from '@jini-ai/core/contracts/admin-module';
+import { createElement, type ComponentType, type ReactNode } from 'react';
+import { render as renderOriginal, renderHook as renderHookOriginal, type RenderOptions } from '@testing-library/react';
+import { FetchQueryProvider, useCachedLoader, useFetchMutation, useFetchQuery, useFetchQueryScope, useInvalidate } from '@jini-ai/ui/fetch-query';
+import { AdminKitProvider } from '../../../react/kit.js';
+import { fakeAdminKit } from '@jini-ai/admin/react/testing-kit';
+import type { AdminRedirect, AdminRedirectCreateInput, AdminRedirectHitStats, AdminRedirectImportResult } from '@jini-ai/admin/core';
+import type { AdminRedirectsPort } from '../../ports.js';
+import { AdminApiError } from '@jini-ai/core/admin-runtime';
 import { createHttpRedirectsApi } from '../../adapters/http.js';
 import { createMemoryRedirectsApi } from '../../adapters/memory.js';
 import { useRedirects as useCoreRedirects } from '../hooks/use-redirects.hooks.js';
@@ -14,6 +22,21 @@ import { RedirectsPortsContext } from '../hooks/RedirectsPorts.hooks.js';
 import { RedirectsOptionsContext } from '../hooks/RedirectsOptions.hooks.js';
 import type { RedirectsTranslate } from '../../models.js';
 import * as rules from '../../rules.js';
+export * from '@testing-library/react';
+const controllerHook: UseAdminController = useController;
+const redirectsKit = fakeAdminKit({
+  query: { useFetchQuery, useFetchMutation, useCachedLoader, useInvalidate, useFetchQueryScope },
+});
+function scope(wrapper?: ComponentType<{ children: ReactNode }>) {
+  return function RedirectsScope({ children }: { children: ReactNode }) {
+    const inner = wrapper ? createElement(wrapper, { children }) : children;
+    return createElement(AdminKitProvider, { kit: redirectsKit, children: createElement(FetchQueryProvider, {
+      children: createElement(RedirectsControllerContext.Provider, { value: controllerHook }, inner),
+    }) });
+  };
+}
+export const render = ((ui: ReactNode, options?: RenderOptions) => renderOriginal(ui, { ...options, wrapper: scope(options?.wrapper) })) as typeof renderOriginal;
+export const renderHook: typeof renderHookOriginal = (callback, options) => renderHookOriginal(callback, { ...options, wrapper: scope(options?.wrapper) });
 export type LegacyRedirect = Omit<AdminRedirect, 'statusCode'> & { workspaceId?: string; statusCode: number };
 export type RedirectImportRule = Omit<AdminRedirectCreateInput, 'statusCode'> & { statusCode: number };
 interface LegacyApi {

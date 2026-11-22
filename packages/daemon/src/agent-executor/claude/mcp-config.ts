@@ -2,7 +2,7 @@ import { promises as fs } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { McpHttpEndpoint, McpJsonInjectionOptions } from '../contracts.js';
-import { defaultReadMcpJsonFile, mergeMcpJsonContent } from '../mcp-bridge.js';
+import { defaultReadMcpJsonFile, mergeMcpJsonContent } from '../mcp-json-file.js';
 
 /** Stage Claude's HTTP capability outside the project; only this private path enters argv.
  * @returns A private config path and removal of only its owned directory.

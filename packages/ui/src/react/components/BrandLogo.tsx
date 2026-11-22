@@ -22,6 +22,7 @@ export interface BrandLogoProps {
   resolveBrandLogoUrl?: (brandId: string) => string;
   /** Builds a favicon URL for `host`. Defaults to Google's public favicon service. */
   resolveFaviconUrl?: (host: string, size: number) => string;
+  useBrandLogoHook?: typeof useBrandLogo;
 }
 
 // ---------------------------------------------------------------------------
@@ -63,8 +64,8 @@ export function advanceLogoStage(
   return 'letter';
 }
 
-/** The image `src` for the current stage, or `null` when the letter fallback applies. */
-export function resolveLogoSrc(opts: {
+/** Sources and resolvers used to resolve an image for the current logo stage. */
+export interface ResolveLogoSrcOptions {
   stage: LogoStage;
   brandId?: string | undefined;
   resolveBrandLogoUrl?: ((brandId: string) => string) | undefined;
@@ -72,7 +73,10 @@ export function resolveLogoSrc(opts: {
   host?: string | undefined;
   faviconSize: number;
   resolveFaviconUrl: (host: string, size: number) => string;
-}): string | null {
+}
+
+/** The image `src` for the current stage, or `null` when the letter fallback applies. */
+export function resolveLogoSrc(opts: ResolveLogoSrcOptions): string | null {
   const { stage, brandId, resolveBrandLogoUrl, logoSrc, host, faviconSize, resolveFaviconUrl } = opts;
   if (stage === 'brand' && brandId && resolveBrandLogoUrl) return resolveBrandLogoUrl(brandId);
   if (stage === 'custom' && logoSrc) return logoSrc;
@@ -112,15 +116,7 @@ export function useLogoStage(params: {
 }
 
 /** Memoized image `src` for a stage; recomputes only when its inputs change. */
-export function useResolvedLogoSrc(opts: {
-  stage: LogoStage;
-  brandId?: string | undefined;
-  resolveBrandLogoUrl?: ((brandId: string) => string) | undefined;
-  logoSrc?: string | null | undefined;
-  host?: string | undefined;
-  faviconSize: number;
-  resolveFaviconUrl: (host: string, size: number) => string;
-}): string | null {
+export function useResolvedLogoSrc(opts: ResolveLogoSrcOptions): string | null {
   const { stage, brandId, resolveBrandLogoUrl, logoSrc, host, faviconSize, resolveFaviconUrl } = opts;
   return useMemo(
     () =>
@@ -168,9 +164,9 @@ export function useBrandLogo(props: BrandLogoProps): UseBrandLogoResult {
 // Component — dumb render, all logic delegated above.
 // ---------------------------------------------------------------------------
 
-export function BrandLogo(props: BrandLogoProps) {
+export function BrandLogo({ useBrandLogoHook = useBrandLogo, ...props }: BrandLogoProps) {
   const { name, className, fallbackClassName } = props;
-  const { src, fallback } = useBrandLogo(props);
+  const { src, fallback } = useBrandLogoHook(props);
 
   if (!src) {
     return (

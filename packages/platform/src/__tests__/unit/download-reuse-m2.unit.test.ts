@@ -3,7 +3,9 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, test, vi } from 'vitest';
-import { downloadCopyAndClear, inspectManagedDownload, MANAGED_DOWNLOAD_ERROR_CODES } from '../../download.js';
+import { downloadCopyAndClear } from '../../download.js';
+import { inspectManagedDownload } from '../../download-maintenance.js';
+import { MANAGED_DOWNLOAD_ERROR_CODES } from '../../download-types.js';
 
 test.each([
   { existing: 'abc', conflict: false }, { existing: 'different', conflict: true },

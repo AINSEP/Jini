@@ -153,6 +153,20 @@ describe("a workspace without a user config policy", () => {
 });
 
 describe("canonicalNodeDirectory", () => {
+  it("opts into all-error ancestor resolution and stops at the first failing root", () => {
+    const probes: string[] = [];
+    const realpath = (candidate: string) => {
+      probes.push(candidate);
+      if (probes.filter((probe) => probe === path.parse(candidate).root).length > 1) return "/unexpected-retry";
+      throw errno("EACCES");
+    };
+    expect(canonicalNodeDirectory({ path: "/volume/projects/site" }, { realpath, fallbackOnAnyError: true })).toBe("/volume/projects/site");
+    expect(probes).toEqual(["/volume/projects/site", "/volume/projects", "/volume", "/"]);
+  });
+  it("carries the all-error option to the nearest resolvable ancestor", () => {
+    const realpath = (dir: string) => { if (dir === "/alias") return "/real"; throw errno("EACCES"); };
+    expect(canonicalNodeDirectory({ path: "/alias/new/site" }, { realpath, fallbackOnAnyError: true })).toBe("/real/new/site");
+  });
   const missing = () => { throw errno("ENOENT"); };
   it("keeps the absolute form when even the filesystem root is unavailable (an unmounted volume)", () => {
     expect(canonicalNodeDirectory({ path: "/volume/projects/site" }, { realpath: missing })).toBe("/volume/projects/site");

@@ -131,7 +131,7 @@ describe('the SQL event append on PostgreSQL (PGlite)', () => {
       for (const table of ['ai_chats', 'ai_chat_messages', 'assistant_agent_sessions', 'assistant_run_attempts']) {
         await kernel.execute(sql`ALTER TABLE ${sql.table(table)} SET SCHEMA owned_chat`);
       }
-      const scoped = scopeToSchema(kernel, 'owned_chat');
+      const scoped = scopeToSchema({ kernel, schema: 'owned_chat' });
       const scopedHistory = createChatHistoryStore({ kernel: scoped, scope, isDaemonRunId });
       const version = await scopedHistory.messagesVersion!({ conversationId: 'c' }, {});
       expect(version).toBeTruthy();

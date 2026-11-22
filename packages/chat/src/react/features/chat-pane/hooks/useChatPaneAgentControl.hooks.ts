@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
-import { getAgentModelContext } from '@jini-ai/agentic/dom';
 
+import { useChatSurfaces } from '../../../surfaces.js';
 import { CHAT_PANE_AGENT_TOOLS } from '../agent-tools.js';
 import type { ChatPaneAgentBridgeAccess, ChatPaneAgentToolAction } from '../types.js';
 import { definedProps } from '../../../util/defined-props.js';
@@ -241,6 +241,7 @@ async function deliverBridgeAction(
  */
 export function useChatPaneAgentControl({ pane }: { pane: UseChatPaneResult }, options: UseChatPaneAgentControlOptions = {}
 ): void {
+  const surfaces = useChatSurfaces();
   const enabled = options.enabled ?? false;
   const paneRef = useRef(pane);
   paneRef.current = pane;
@@ -259,7 +260,7 @@ export function useChatPaneAgentControl({ pane }: { pane: UseChatPaneResult }, o
     // Not registered unless the host opted in: see `webmcp`'s own doc for why this path cannot be
     // gated and therefore must not be on by default.
     // Feature-detect the draft surface through its shared owner; no `@mcp-b/*` dependency.
-    const modelContext = options.webmcp === true ? getAgentModelContext({
+    const modelContext = options.webmcp === true ? surfaces.page.getModelContext({
       host: { candidates: () => [
         (globalThis as { document?: { modelContext?: unknown } }).document?.modelContext,
         (globalThis as { navigator?: { modelContext?: unknown } }).navigator?.modelContext,
@@ -302,12 +303,11 @@ export function useChatPaneAgentControl({ pane }: { pane: UseChatPaneResult }, o
     return () => {
       for (const cleanup of cleanups) cleanup();
     };
-    // Deps are enablement + bridge PRESENCE, never the bridge object: hosts pass `agentControl`
+    // Deps are enablement, WebMCP opt-in, and bridge PRESENCE, never the bridge object: hosts pass `agentControl`
     // inline, so an identity dep would re-register every tool on every render (see
     // `hasBridgeAccess`). Pane, run context, and bridge are all read through refs at call time.
     // Tradeoff: swapping to a genuinely different bridge instance while enabled does not
-    // re-subscribe — responses still route to the current bridge via the ref, but the old
+    // re-subscribe — responses still route to the bridge that delivered each action, and the old
     // subscription stays live. A host needing a true swap should toggle `enabled` or remount.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled, hasBridgeAccess]);
+  }, [enabled, hasBridgeAccess, options.webmcp, surfaces]);
 }

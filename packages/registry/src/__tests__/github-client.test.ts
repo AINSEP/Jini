@@ -1,18 +1,18 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { fetchWithTimeout } from '@jini-ai/platform';
-import { FETCH_TIMEOUT_MS } from '@jini-ai/platform/fetch-with-timeout';
+import { FETCH_TIMEOUT_MS } from '@jini-ai/core/net';
 import type { HttpClientPort, HttpRequest, HttpResponse } from '@jini-ai/core/primitives';
 import { GithubApiRegistryClient } from '../github-client.js';
 
 // Bind the existing platform timeout behavior to the transport port; global fetch is stubbed below.
 const http: HttpClientPort = {
   async send({ request }, optional = {}) {
-    const response = await fetchWithTimeout(request.url, {
+    const response = await fetchWithTimeout({ url: request.url, timeoutMs: request.totalDeadlineMs ?? request.idleTimeoutMs ?? request.timeoutMs ?? 15_000 }, { init: {
       method: request.method, headers: request.headers,
       ...(request.body === undefined ? {} : { body: request.body }),
       ...(request.signal === undefined ? {} : { signal: request.signal }),
       ...(optional.redirect === undefined ? {} : { redirect: optional.redirect }),
-    }, { timeoutMs: request.totalDeadlineMs ?? request.idleTimeoutMs ?? request.timeoutMs ?? 15_000 });
+    } });
     return { status: response.status, headers: Object.fromEntries(response.headers.entries()), bodyText: await response.text() };
   },
 };
@@ -858,4 +858,20 @@ describe('GithubApiRegistryClient.createPublishPullRequest (pinned request/respo
       expect(error.message).not.toContain(secretToken);
     }
   });
+});
+
+
+it('uses the enterprise REST base and pinned API version with request budgets intact', async () => {
+  const requests: HttpRequest[] = [];
+  const transport: HttpClientPort = { send: async ({ request }) => {
+    requests.push(request);
+    return { status: 200, headers: {}, bodyText: JSON.stringify({ type: 'file', encoding: 'base64', content: base64('{"entries":[]}') }) };
+  } };
+  const client = new GithubApiRegistryClient({ http: transport }, { apiUrl: 'https://github.enterprise.test/api/v3', token: 'enterprise' });
+  expect(await client.readManifest({ owner: 'acme', repo: 'registry', ref: 'main', path: 'index.json' })).toEqual({ entries: [] });
+  expect(requests).toEqual([{
+    url: 'https://github.enterprise.test/api/v3/repos/acme/registry/contents/index.json?ref=main', method: 'GET',
+    headers: { Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2026-03-10', Authorization: 'Bearer enterprise' },
+    idleTimeoutMs: FETCH_TIMEOUT_MS.QUICK, totalDeadlineMs: FETCH_TIMEOUT_MS.QUICK,
+  }]);
 });

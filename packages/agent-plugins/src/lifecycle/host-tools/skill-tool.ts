@@ -1,4 +1,5 @@
 import { buildDomainRegistrations, indexCatalogById, optionalString, requireInputRecord, type AgentToolSideEffect, type DerivedRiskByToolId, type ToolHandler, type ToolRegistration, type AgentToolDefinition } from "@jini-ai/core";
+import { createConsoleLogger } from "@jini-ai/core/primitives";
 import { readInstalledAgentPluginIdentity, UNTESTED_PLUGIN_GUIDANCE, type PluginMaturity } from "./identity.js";
 import { buildPluginMemoryRegistrations } from "./memory-tools.js";
 import type { AgentPluginHostToolPorts, ApplyHostToolApprovalPolicy, HostGuidancePort, PluginToolGuidance } from "./ports.js";
@@ -68,7 +69,7 @@ function extractFallbackSummary(markdown: string): string | undefined {
 /** One skill's summary, for folding into its plugin's combined description — reuses the same
  *  frontmatter/fallback parsing the prior per-skill pilot used, just no longer wrapped into a
  *  standalone tool description of its own. */
-export function summarizeSkillMarkdown(skillName: string, markdown: string, ports: Pick<AgentPluginHostToolPorts, "readFrontmatterField">): string {
+export function summarizeSkillMarkdown({ skillName, markdown, ports }: { skillName: string; markdown: string; ports: Pick<AgentPluginHostToolPorts, "readFrontmatterField"> }, _optional: Record<string, never> = {}): string {
   return (
     ports.readFrontmatterField({ markdown, key: "description" }) ?? extractFallbackSummary(markdown) ?? `${humanize(skillName)} guidance and reference material.`
   ).replace(/\s+/g, " ").trim();
@@ -175,6 +176,18 @@ function assertSingleDigestPerPlugin(digestByPluginId: Map<string, string>, plug
   digestByPluginId.set(plugin.pluginId, plugin.archiveDigest);
 }
 
+/** Reads one installed skill's markdown and builds its detail. A read failure propagates: each
+ *  caller applies its own policy (the tool loader refuses the plugin, search skips the skill). */
+export async function readInstalledSkillDetail(
+  { plugin, skill, ports }: { plugin: { readonly packageRoot: string }; skill: { readonly name: string; readonly skillPath: string }; ports: AgentPluginHostToolPorts },
+  _optional: Record<string, never> = {},
+): Promise<AgentPluginSkillDetail> {
+  const markdown = await ports.lifecycle.readInstalledSkillMarkdown({ packageRoot: plugin.packageRoot, skillPath: skill.skillPath });
+  return { name: skill.name, summary: summarizeSkillMarkdown({ skillName: skill.name, markdown, ports }), markdown,
+    readFile: (_input, options = {}) => ports.lifecycle.readInstalledSkillFile({ packageRoot: plugin.packageRoot, skillPath: skill.skillPath }, options),
+  };
+}
+
 /** Reads and summarizes every one of one installed plugin's skills — the only `await`-per-item
  *  work in the whole load, isolated so the caller's loop has no nested `for` of its own. */
 async function resolveSkillsForPlugin(plugin: {
@@ -183,10 +196,7 @@ async function resolveSkillsForPlugin(plugin: {
 }, ports: AgentPluginHostToolPorts): Promise<AgentPluginSkillDetail[]> {
   const skills: AgentPluginSkillDetail[] = [];
   for (const skill of plugin.skills) {
-    const markdown = await ports.lifecycle.readInstalledSkillMarkdown({ packageRoot: plugin.packageRoot, skillPath: skill.skillPath });
-    skills.push({ name: skill.name, summary: summarizeSkillMarkdown(skill.name, markdown, ports), markdown,
-      readFile: (_input, options = {}) => ports.lifecycle.readInstalledSkillFile({ packageRoot: plugin.packageRoot, skillPath: skill.skillPath }, options),
-    });
+    skills.push(await readInstalledSkillDetail({ plugin, skill, ports }));
   }
   return skills;
 }
@@ -240,7 +250,7 @@ function buildToolSource(plugin: AgentPluginToolIdentity, skills: readonly Agent
  * plugin. Per-plugin failures are isolated: a pluginId installed under more than one digest (a
  * genuine, actionable ambiguity — see this file's header for why the digest itself is not folded
  * into the id) — or any other per-plugin resolution failure, e.g. an unreadable SKILL.md — is
- * logged via `console.warn` and excluded from the returned array, but never aborts the whole load.
+ * logged through the host reporter and excluded from the returned array, but never aborts the whole load.
  * One bad plugin install must not take every other installed plugin's tool down with it.
  *
  * @complexity O(d * s) in installed-digest count times average skills-per-digest, dominated by
@@ -294,7 +304,8 @@ export async function loadInstalledAgentPluginToolSources(ctx: {
       // itself is still a genuine, actionable refusal, just scoped to this one plugin now.
       sourceByPluginId.delete(plugin.pluginId);
       poisonedPluginIds.add(plugin.pluginId);
-      console.warn(`[agent-plugins] '${plugin.pluginId}': ${error instanceof Error ? error.message : String(error)} — skipped`);
+      const logger = ctx.ports.report ?? createConsoleLogger({ prefix: '[agent-plugins]' });
+      logger.warn({ message: 'Plugin tool source skipped.' }, { error });
     }
   }
   return [...sourceByPluginId.values()];
@@ -504,9 +515,8 @@ export function createAgentPluginToolGate(ctx: { readonly workspaceId: string; r
       if (activation.verdict === "undetermined") {
         // The error surface fail-CLOSED is supposed to lack: an operator whose activations file is
         // damaged gets a denial they can see the cause of, next to the daemon's own `denied` record.
-        console.warn(
-          `[agent-plugins] '${plugin.pluginId}': tool call denied — activation could not be established (${activation.reason})`,
-        );
+        const logger = ctx.ports.report ?? createConsoleLogger({ prefix: '[agent-plugins]' });
+        logger.warn({ message: 'Tool call denied: activation could not be established.' });
         return false;
       }
       if (activation.verdict !== "active") return false;

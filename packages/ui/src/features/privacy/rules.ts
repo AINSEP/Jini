@@ -30,10 +30,8 @@ function shouldHaveInstallationId(telemetry: TelemetryPreferences): boolean {
  * reused) once every category is off again.
  */
 export function nextStateForTelemetryPatch(
-  state: PrivacyConsentState,
-  patch: Partial<TelemetryPreferences>,
-  now: number,
-  newInstallationId: () => string = generateInstallationId,
+  { state, patch, now }: { state: PrivacyConsentState; patch: Partial<TelemetryPreferences>; now: number },
+  { newInstallationId = generateInstallationId }: { newInstallationId?: (() => string) | undefined } = {},
 ): PrivacyConsentState {
   const nextTelemetry = { ...state.telemetry, ...patch };
   const wantsId = shouldHaveInstallationId(nextTelemetry);
@@ -48,9 +46,8 @@ export function nextStateForTelemetryPatch(
 /** Pure transition for the consent card's "Share usage" action — opts into
  *  both categories at once. */
 export function nextStateForShareAll(
-  state: PrivacyConsentState,
-  now: number,
-  newInstallationId: () => string = generateInstallationId,
+  { state, now }: { state: PrivacyConsentState; now: number },
+  { newInstallationId = generateInstallationId }: { newInstallationId?: (() => string) | undefined } = {},
 ): PrivacyConsentState {
   return {
     ...state,
@@ -62,7 +59,7 @@ export function nextStateForShareAll(
 
 /** Pure transition for the consent card's "Don't share" action — declines
  *  both categories at once. */
-export function nextStateForDeclineAll(state: PrivacyConsentState, now: number): PrivacyConsentState {
+export function nextStateForDeclineAll({ state, now }: { state: PrivacyConsentState; now: number }, _optional: Record<string, never> = {}): PrivacyConsentState {
   return {
     ...state,
     installationId: null,
@@ -78,9 +75,8 @@ export function nextStateForDeclineAll(state: PrivacyConsentState, now: number):
  * at all (an already-decided user stays decided).
  */
 export function nextStateForDeleteMyData(
-  state: PrivacyConsentState,
-  now: number,
-  newInstallationId: () => string = generateInstallationId,
+  { state, now }: { state: PrivacyConsentState; now: number },
+  { newInstallationId = generateInstallationId }: { newInstallationId?: (() => string) | undefined } = {},
 ): PrivacyConsentState {
   return {
     ...state,

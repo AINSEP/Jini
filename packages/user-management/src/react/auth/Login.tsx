@@ -1,5 +1,5 @@
 import { useId } from "react";
-import { SecretInput } from "@jini-ai/ui";
+import { SecretInput } from "../kit.js";
 import type { AdminUser } from "../models.js";
 import { useLogin, type LoginHookProps, type LoginOptions } from "./hooks/use-login.hooks.js";
 

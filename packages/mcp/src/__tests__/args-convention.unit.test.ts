@@ -4,39 +4,42 @@ import { getToken, setToken, clearToken, sanitizeTokensFile, isTokenExpired } fr
 import { createMcpIdleExitController } from '../client/client.js';
 import { isAgentSlug, planAgentInstall, applyJsonInstall, removeJsonInstall } from '../agent-install/install.js';
 import { requireString, buildToolIndex, handleToolCall } from '../server/tool-protocol.js';
-import type { McpConfigFilesystemPort } from '../core/config.js';
+import type { McpConfigFilesPort } from '../core/config.js';
 
-function memoryFilesystem() {
+// A package test supplies its own clock port; the system clock lives in the platform package.
+const testClock = { nowMs: () => Date.now() };
+
+function memoryFiles() {
   const texts = new Map<string, string>();
-  const filesystem: McpConfigFilesystemPort = {
+  const files: McpConfigFilesPort = {
     readText: async ({ filePath }) => {
       const value = texts.get(filePath);
       if (value === undefined) throw Object.assign(new Error('missing'), { code: 'ENOENT' });
       return value;
     },
-    writeSecretText: async ({ filePath, contents }) => { texts.set(filePath, contents); },
+    writer: { writeText: async ({ filePath, content }) => { texts.set(filePath, typeof content === 'string' ? content : new TextDecoder().decode(content)); } },
   };
-  return { filesystem, texts };
+  return { files, texts };
 }
 
 describe('object arguments and injected ports', () => {
-  it('uses a host filesystem for config and token round trips without disk I/O', async () => {
-    const { filesystem, texts } = memoryFilesystem();
+  it('uses host file ports for config and token round trips without disk I/O', async () => {
+    const { files, texts } = memoryFiles();
     const server = { id: 'remote', transport: 'http' as const, enabled: true, url: 'https://example.test/mcp' };
-    const config = await writeMcpConfig({ dataDir: '/virtual', body: { servers: [server] } }, { filesystem });
-    expect(await readMcpConfig({ dataDir: '/virtual' }, { filesystem })).toEqual(config);
+    const config = await writeMcpConfig({ files, dataDir: '/virtual', body: { servers: [server] } });
+    expect(await readMcpConfig({ files, dataDir: '/virtual' })).toEqual(config);
     const token = { accessToken: 'access', tokenType: 'Bearer', savedAt: 123 };
-    await setToken({ dataDir: '/virtual', serverId: 'remote', token }, { filesystem });
-    expect(await getToken({ dataDir: '/virtual', serverId: 'remote' }, { filesystem })).toEqual(token);
-    await clearToken({ dataDir: '/virtual', serverId: 'remote' }, { filesystem });
-    expect(await getToken({ dataDir: '/virtual', serverId: 'remote' }, { filesystem })).toBeNull();
+    await setToken({ files, dataDir: '/virtual', serverId: 'remote', token, clock: testClock });
+    expect(await getToken({ files, dataDir: '/virtual', serverId: 'remote', clock: testClock })).toEqual(token);
+    await clearToken({ files, dataDir: '/virtual', serverId: 'remote', clock: testClock });
+    expect(await getToken({ files, dataDir: '/virtual', serverId: 'remote', clock: testClock })).toBeNull();
     expect([...texts.keys()].sort()).toEqual(['/virtual/mcp-config.json', '/virtual/mcp-tokens.json']);
   });
 
   it('uses the supplied clock when imported tokens omit their saved time', () => {
-    const file = sanitizeTokensFile({ raw: { servers: { a: { accessToken: 'a' } } } }, { clock: { nowMs: () => 123 } });
+    const file = sanitizeTokensFile({ raw: { servers: { a: { accessToken: 'a' } } }, clock: { nowMs: () => 123 } });
     expect(file.servers.a?.savedAt).toBe(123);
-    expect(isTokenExpired({ token: { accessToken: 'a', tokenType: 'Bearer', savedAt: 0, expiresAt: 500 } }, { now: 499, skew: 0 })).toBe(false);
+    expect(isTokenExpired({ token: { accessToken: 'a', tokenType: 'Bearer', savedAt: 0, expiresAt: 500 }, clock: testClock }, { now: 499, skew: 0 })).toBe(false);
   });
 
   it('keeps authentication bytes unchanged when optional tokens are supplied separately', () => {
@@ -80,7 +83,7 @@ describe('object arguments and injected ports', () => {
   });
 
   it('uses a supplied clock for expiration and environment for Windows install paths', () => {
-    expect(isTokenExpired({ token: { accessToken: 'a', tokenType: 'Bearer', savedAt: 0, expiresAt: 500 } }, { clock: { nowMs: () => 500 }, skew: 0 })).toBe(true);
+    expect(isTokenExpired({ token: { accessToken: 'a', tokenType: 'Bearer', savedAt: 0, expiresAt: 500 }, clock: { nowMs: () => 500 } }, { skew: 0 })).toBe(true);
     const plan = planAgentInstall({ slug: 'cline', spec: { command: 'node', args: [], env: {} }, ctx: { home: '/home', platform: 'win32', serverName: 'example' } }, { env: { APPDATA: '/host/appdata' } });
     if (plan.kind !== 'json') throw new Error('cline must use JSON');
     expect(plan.configPath).toBe('/host/appdata/Code/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json');

@@ -37,7 +37,7 @@ have no executable or product-policy defaults. The import port matches Phase 13'
 The application owns contained executable import and fresh snapshot selection, including Tier-2
 worker execution. Tier-1 never imports code, Tier-2 requires `tierPolicy.execution: 'worker'`, and
 Tier-3 requires `tierPolicy.allowLoad` to allow it. Archive readers own ZIP parsing, zip-slip checks,
-entry limits and bounded decompression; `readSitePluginArchive` remains the Tovu adapter.
+entry limits and bounded decompression; `readSitePluginArchive` remains the host adapter.
 The content-type grammar and create/write implementation remain host ports.
 
 ```ts

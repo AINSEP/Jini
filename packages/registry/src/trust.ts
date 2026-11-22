@@ -211,7 +211,7 @@ function verifyGithubOidcSignature(
   if ('reason' in fields) return fields;
   const leaf = checkCertificate(fields.certificate, root, fields.signedAt);
   if ('reason' in leaf) return leaf;
-  const identities = parseSanUris(leaf.subjectAltName);
+  const identities = parseSanUris({ subjectAltName: leaf.subjectAltName });
   if (!identityAllowed(identities, root.allowedIdentities)) {
     return fail('signer identity is not in the configured allowlist');
   }
@@ -241,7 +241,7 @@ function checkSignatureFields(
 function checkCertificate(pem: string, root: GithubOidcTrustRoot, signedAt: Date): VerificationFailure | X509Certificate {
   let chain: X509Certificate[];
   try {
-    chain = parseCertificateBundle(pem);
+    chain = parseCertificateBundle({ pem });
   } catch (cause) {
     return fail(`could not parse certificate: ${(cause as Error).message}`);
   }
@@ -254,7 +254,7 @@ function checkCertificate(pem: string, root: GithubOidcTrustRoot, signedAt: Date
   } catch (cause) {
     return fail(`configured trust root certificate is invalid: ${(cause as Error).message}`);
   }
-  if (!chainToTrustedRoot(chain, trustedCas)) return fail('certificate does not chain to a configured trust root');
+  if (!chainToTrustedRoot({ chain, trustedCas })) return fail('certificate does not chain to a configured trust root');
 
   if (signedAt < leaf.validFromDate || signedAt > leaf.validToDate) {
     return fail('signedAt falls outside the certificate validity window');

@@ -10,31 +10,31 @@ import {
 
 describe('modelIdentityKind', () => {
   it.each(['default', 'AUTO', 'provider/smart', 'grok-build'])('classifies routing token %s as routing-mode', (id) => {
-    expect(modelIdentityKind(id)).toBe('routing-mode');
+    expect(modelIdentityKind({ id })).toBe('routing-mode');
   });
 
   it('classifies a *-gateway id as routing-mode', () => {
-    expect(modelIdentityKind('acme-gateway')).toBe('routing-mode');
+    expect(modelIdentityKind({ id: 'acme-gateway' })).toBe('routing-mode');
   });
 
   it.each(['opus', 'provider/gpt', 'sonnet[1m]', 'model-latest'])('classifies alias %s as alias', (id) => {
-    expect(modelIdentityKind(id)).toBe('alias');
+    expect(modelIdentityKind({ id })).toBe('alias');
   });
 
   it('classifies anything else as concrete', () => {
-    expect(modelIdentityKind('provider/model-1.2')).toBe('concrete');
+    expect(modelIdentityKind({ id: 'provider/model-1.2' })).toBe('concrete');
   });
 });
 
 describe('normalizeDiscoveredModels', () => {
   it('drops empty, "default" and duplicate ids, keeping first occurrence order', () => {
-    const rows = normalizeDiscoveredModels([
+    const rows = normalizeDiscoveredModels({ models: [
       { id: '', label: 'empty' },
       { id: 'default', label: 'Default' },
       { id: 'm-1', label: 'first' },
       { id: 'm-1', label: 'second' },
       { id: 'auto', label: 'Auto' },
-    ]);
+    ] });
     expect(rows).toEqual([
       { id: 'm-1', label: 'first', identityKind: 'concrete' },
       { id: 'auto', label: 'Auto', identityKind: 'routing-mode' },
@@ -42,13 +42,13 @@ describe('normalizeDiscoveredModels', () => {
   });
 
   it('keeps a provided identityKind and a truthy resolvedId', () => {
-    expect(normalizeDiscoveredModels([{ id: 'opus', label: 'Opus', identityKind: 'concrete', resolvedId: 'claude-x' }])).toEqual([
+    expect(normalizeDiscoveredModels({ models: [{ id: 'opus', label: 'Opus', identityKind: 'concrete', resolvedId: 'claude-x' }] })).toEqual([
       { id: 'opus', label: 'Opus', identityKind: 'concrete', resolvedId: 'claude-x' },
     ]);
   });
 
   it('passes an empty resolvedId through from the row unchanged', () => {
-    expect(normalizeDiscoveredModels([{ id: 'opus', label: 'Opus', resolvedId: '' }])).toEqual([
+    expect(normalizeDiscoveredModels({ models: [{ id: 'opus', label: 'Opus', resolvedId: '' }] })).toEqual([
       { id: 'opus', label: 'Opus', identityKind: 'alias', resolvedId: '' },
     ]);
   });
@@ -123,19 +123,19 @@ describe('withModelProbeTimeout', () => {
 
   it('resolves with the work result and leaves no timer behind', async () => {
     vi.useFakeTimers();
-    await expect(withModelProbeTimeout(async () => 'value', 1000)).resolves.toBe('value');
+    await expect(withModelProbeTimeout({ work: async () => 'value', timeoutMs: 1000 })).resolves.toBe('value');
     expect(vi.getTimerCount()).toBe(0);
   });
 
   it('propagates the work rejection unchanged', async () => {
     const failure = new Error('work failed');
-    await expect(withModelProbeTimeout(async () => { throw failure; }, 1000)).rejects.toBe(failure);
+    await expect(withModelProbeTimeout({ work: async () => { throw failure; }, timeoutMs: 1000 })).rejects.toBe(failure);
   });
 
   it('cancels with ProbeTimeout("Probe cancelled") and aborts the work signal when the parent aborts mid-flight', async () => {
     const parent = new AbortController();
     let workSignal: AbortSignal | undefined;
-    const pending = withModelProbeTimeout((signal) => { workSignal = signal; return new Promise<never>(() => {}); }, 60_000, parent.signal);
+    const pending = withModelProbeTimeout({ work: (signal) => { workSignal = signal; return new Promise<never>(() => {}); }, timeoutMs: 60_000 }, { parent: parent.signal });
     parent.abort();
     await expect(pending).rejects.toThrow(new ProbeTimeout('Probe cancelled'));
     expect(workSignal?.aborted).toBe(true);
@@ -145,19 +145,19 @@ describe('withModelProbeTimeout', () => {
     const parent = new AbortController();
     parent.abort();
     const work = vi.fn(async () => 1);
-    await expect(withModelProbeTimeout(work, 1000, parent.signal)).rejects.toThrow(new ProbeTimeout('Probe cancelled'));
+    await expect(withModelProbeTimeout({ work, timeoutMs: 1000 }, { parent: parent.signal })).rejects.toThrow(new ProbeTimeout('Probe cancelled'));
     expect(work).not.toHaveBeenCalled();
   });
 
   it('rejects with a ProbeTimeout instance on timeout', async () => {
-    await expect(withModelProbeTimeout(() => new Promise<never>(() => {}), 1)).rejects.toBeInstanceOf(ProbeTimeout);
+    await expect(withModelProbeTimeout({ work: () => new Promise<never>(() => {}), timeoutMs: 1 })).rejects.toBeInstanceOf(ProbeTimeout);
   });
 
   it('detaches its parent abort listener once the work settles', async () => {
     const parent = new AbortController();
     const remove = vi.spyOn(parent.signal, 'removeEventListener');
     const add = vi.spyOn(parent.signal, 'addEventListener');
-    await withModelProbeTimeout(async () => 1, 1000, parent.signal);
+    await withModelProbeTimeout({ work: async () => 1, timeoutMs: 1000 }, { parent: parent.signal });
     expect(add).toHaveBeenCalledTimes(1);
     expect(remove).toHaveBeenCalledWith('abort', add.mock.calls[0]![1]);
   });

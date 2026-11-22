@@ -1,7 +1,9 @@
+import { reactModuleUi } from '../../../core/react/module-ui.js';
 import { StrictMode, Suspense } from 'react';
 import { afterEach, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, renderHook, screen } from '@testing-library/react';
-import { AdminConfigError, createAdmin } from '../../../core/module/index.js';
+import { cleanup, fireEvent, render, renderHook, screen } from '../../../__tests__/fetch-query-support.js';
+import { AdminConfigError } from '@jini-ai/core/admin-runtime';
+import { createAdmin } from '../../../core/module/index.js';
 import { agentPlugins } from '../index.js';
 import { createMemoryAgentPluginsApi } from '../../adapters/memory.js';
 import { AgentPluginListPanel } from '../components/AgentPluginListPanel.js';
@@ -18,7 +20,7 @@ const READ = 'admin.plugins.read', WRITE = 'admin.plugins.enable';
 const alpha: AgentPluginSummary = { pluginId: 'ui-ux-design', version: null, description: 'Design interfaces', keywords: [], enabled: false, skills: [], mcpServerIds: [] };
 
 function mountPage(api: AgentPluginsApiPort, permissions: readonly string[] = [READ, WRITE]) {
-  const feature = agentPlugins({});
+  const feature = agentPlugins({ ui: reactModuleUi });
   const admin = createAdmin({ modules: [feature], ports: { agentPluginsApi: api } }, { permissions });
   const { Page, tabs } = feature.react.pages.agentPlugins;
   render(<StrictMode><feature.react.Provider admin={admin}><Suspense fallback="Loading"><Page tabs={tabs} description={admin.describe().pages[0]!} /></Suspense></feature.react.Provider></StrictMode>);

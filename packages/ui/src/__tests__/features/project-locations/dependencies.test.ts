@@ -109,3 +109,23 @@ describe('createFakeProjectLocationsPort', () => {
     });
   });
 });
+
+
+it('allocates independently across location factories', async () => {
+  const a = createFakeProjectLocationsPort();
+  const b = createFakeProjectLocationsPort();
+  const drafts = [{ path: '/new' }];
+  expect((await a.saveLocations(drafts))[1]!.id).toBe('fake-location-1');
+  expect((await b.saveLocations(drafts))[1]!.id).toBe('fake-location-1');
+});
+
+it('skips seeded, retained built-in and later explicit location IDs', async () => {
+  const builtIn = { id: 'fake-location-1', name: 'Root', path: '/root', builtIn: true };
+  const retained = { id: 'fake-location-2', name: 'Kept', path: '/kept' };
+  const port = createFakeProjectLocationsPort({ locations: [builtIn, retained] });
+  const result = await port.saveLocations([{ path: '/new' }, { id: retained.id, path: retained.path }, { id: 'fake-location-3', path: '/explicit' }]);
+  expect(result.map(location => location.id)).toEqual(['fake-location-1', 'fake-location-4', 'fake-location-2', 'fake-location-3']);
+  expect(result[0]).toEqual(builtIn);
+  expect(result[2]).toEqual({ ...retained, name: 'kept' }); // the fake names every saved draft from its path
+  expect(await port.fetchLocations()).toEqual(result);
+});

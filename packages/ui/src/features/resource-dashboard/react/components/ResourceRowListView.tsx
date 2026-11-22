@@ -46,7 +46,7 @@ export interface ResourceRowListViewProps {
  * "your automations" row-list section — loading, a clickable empty state
  * (TasksView's own empty state is itself the create button), or the rows.
  * The template-gallery and proposals-review sections are deliberately NOT
- * part of this primitive — see `packages/ui/source-map.md`'s "Dropped"
+ * part of this primitive — see `archived UI source map`'s "Dropped"
  * list (create-flow and automation-evolution-specific concerns, no
  * DesignsTab analog at all).
  */
@@ -55,15 +55,15 @@ export function ResourceRowListView(props: ResourceRowListViewProps) {
   const isEmpty = !loading && rows.length === 0;
 
   return (
-    <section className="resource-row-list">
+    <section className="jini-resource-row-list">
       <ResourceRowListHero {...props} />
 
       <ResourceRowListAlerts {...props} />
 
-      <section className="resource-row-list-saved" aria-label={sectionLabel}>
-        <div className="resource-row-list-section-head">
+      <section className="jini-resource-row-list-saved" aria-label={sectionLabel}>
+        <div className="jini-resource-row-list-section-head">
           <h2>{sectionLabel}</h2>
-          {loading ? <span className="resource-row-list-section-meta">{loadingLabel}</span> : null}
+          {loading ? <span className="jini-resource-row-list-section-meta">{loadingLabel}</span> : null}
         </div>
 
         {isEmpty ? <ResourceRowListEmpty {...props} /> : null}

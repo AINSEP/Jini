@@ -38,9 +38,12 @@ import {
 // net.ts is an internal module shared by port.ts/json-ipc.ts, not re-exported from the barrel
 // (see index.ts's own module doc) — imported directly here, matching the rest of this file's
 // convention of importing everything else through the barrel.
-import { jsonIpcError, prepareIpcPath } from "../json-ipc.js";
+import { prepareIpcPath } from "../json-ipc.js";
 import { closeServer, listenOnPort } from "../net.js";
 import { allocateDynamicPort } from "../port.js";
+import { writeJsonFileAtomicAsync } from '@jini-ai/platform/fs';
+/** The real atomic writer (platform is a test dependency); hosts pass node-adapters' `nodeAtomicWriter`. */
+const testWriter = { writeJson: writeJsonFileAtomicAsync };
 
 // root (CAP_DAC_OVERRIDE) always bypasses a directory/file's own permission bits, so `chmod(path,
 // 0o000)` cannot actually block root's own access the way a couple of tests below rely on — a
@@ -169,33 +172,33 @@ describe("@jini-ai/sidecar — ipc-path", () => {
 describe("@jini-ai/sidecar — net", () => {
   it("closeServer is a no-op on a server that was never listening", async () => {
     const server = createNetServer();
-    await expect(closeServer(server)).resolves.toBeUndefined();
+    await expect(closeServer({ server })).resolves.toBeUndefined();
   });
 
   it("closeServer closes a listening server", async () => {
-    const server = await listenOnPort(0, "127.0.0.1");
+    const server = await listenOnPort({ port: 0, host: "127.0.0.1" });
     expect(server.listening).toBe(true);
-    await closeServer(server);
+    await closeServer({ server });
     expect(server.listening).toBe(false);
   });
 
   it("listenOnPort rejects when the port is already bound by another server", async () => {
-    const first = await listenOnPort(0, "127.0.0.1");
+    const first = await listenOnPort({ port: 0, host: "127.0.0.1" });
     const address = first.address();
     if (address == null || typeof address === "string") throw new Error("expected a TCP address");
-    await expect(listenOnPort(address.port, "127.0.0.1")).rejects.toThrow();
-    await closeServer(first);
+    await expect(listenOnPort({ port: address.port, host: "127.0.0.1" })).rejects.toThrow(`listen EADDRINUSE: address already in use 127.0.0.1:${address.port}`);
+    await closeServer({ server: first });
   });
 
   it("closeServer rejects when the underlying server.close() callback itself reports an error", async () => {
-    const server = await listenOnPort(0, "127.0.0.1");
+    const server = await listenOnPort({ port: 0, host: "127.0.0.1" });
     try {
       const boom = new Error("close failed");
       vi.spyOn(server, "close").mockImplementation(((cb?: (err?: Error) => void) => {
         cb?.(boom);
         return server;
       }) as typeof server.close);
-      await expect(closeServer(server)).rejects.toBe(boom);
+      await expect(closeServer({ server })).rejects.toBe(boom);
     } finally {
       vi.restoreAllMocks();
       await new Promise<void>((resolve) => server.close(() => resolve()));
@@ -437,13 +440,13 @@ describe("@jini-ai/sidecar — port allocation", () => {
   });
 
   it("rejects a forced port that is genuinely unavailable at the OS level (not just reserved)", async () => {
-    const occupied = await listenOnPort(0, "127.0.0.1");
+    const occupied = await listenOnPort({ port: 0, host: "127.0.0.1" });
     const address = occupied.address();
     if (address == null || typeof address === "string") throw new Error("expected a TCP address");
     try {
       await expect(allocatePort({}, { port: address.port })).rejects.toThrow(/is not available/);
     } finally {
-      await closeServer(occupied);
+      await closeServer({ server: occupied });
     }
   });
 
@@ -562,7 +565,7 @@ describe("@jini-ai/sidecar — json-file", () => {
     const dir = await mkdtemp(join(tmpdir(), "jini-sidecar-jsonfile-"));
     try {
       const filePath = join(dir, "nested", "state.json");
-      await writeJsonFile({ filePath, payload: { runId: "run_1" } });
+      await writeJsonFile({ writer: testWriter, filePath, payload: { runId: "run_1" } });
       expect(await readJsonFile<{ runId: string }>({ filePath })).toEqual({ runId: "run_1" });
 
       await removePointerIfCurrent({ pointerPath: filePath, runId: "run_2" });
@@ -583,22 +586,6 @@ describe("@jini-ai/sidecar — json-file", () => {
     } finally {
       await rm(dir, { force: true, recursive: true });
     }
-  });
-});
-
-describe("@jini-ai/sidecar — jsonIpcError (direct — its only in-tree caller always passes a codeless SyntaxError)", () => {
-  it("omits the code field for a codeless error (its real, in-tree call path)", () => {
-    expect(jsonIpcError({ error: new SyntaxError("Unexpected token") })).toEqual({ message: "Unexpected token" });
-  });
-
-  it("includes the code field for a Node-style errno error (generic, currently caller-less behavior)", () => {
-    const err = new Error("not found") as NodeJS.ErrnoException;
-    err.code = "ENOENT";
-    expect(jsonIpcError({ error: err })).toEqual({ code: "ENOENT", message: "not found" });
-  });
-
-  it("stringifies a non-Error rejection value (errorMessage's non-Error branch)", () => {
-    expect(jsonIpcError({ error: "a plain string failure" })).toEqual({ message: "a plain string failure" });
   });
 });
 
@@ -689,7 +676,8 @@ describe("@jini-ai/sidecar — JSON IPC", () => {
       await rm(root, { force: true, recursive: true });
     }
     expect(consoleErrorSpy).toHaveBeenCalledTimes(1);
-    expect(String(consoleErrorSpy.mock.calls[0]![1])).toContain("/secret/internal/path");
+    expect(consoleErrorSpy.mock.calls[0]?.[1]).toBe("Error");
+    expect(JSON.stringify(consoleErrorSpy.mock.calls)).not.toContain("/secret/internal/path");
     consoleErrorSpy.mockRestore();
   });
 
@@ -708,7 +696,7 @@ describe("@jini-ai/sidecar — JSON IPC", () => {
       await rm(root, { force: true, recursive: true });
     }
     expect(consoleErrorSpy).toHaveBeenCalledTimes(1);
-    expect(String(consoleErrorSpy.mock.calls[0]![1])).toContain("raw string failure");
+    expect(consoleErrorSpy.mock.calls[0]?.[1]).toBe("string");
     consoleErrorSpy.mockRestore();
   });
 
@@ -773,7 +761,7 @@ describe("@jini-ai/sidecar — JSON IPC", () => {
       await server.close();
       await rm(root, { force: true, recursive: true });
     }
-    expect(String(consoleErrorSpy.mock.calls[0]![1])).toContain("not found: /etc/shadow");
+    expect(consoleErrorSpy.mock.calls[0]?.[1]).toBe("Error(ENOENT)");
     consoleErrorSpy.mockRestore();
   });
 
@@ -781,7 +769,7 @@ describe("@jini-ai/sidecar — JSON IPC", () => {
     const root = await mkdtemp(join(tmpdir(), "jini-sidecar-ipc-noserver-"));
     try {
       const missingSocketPath = join(root, "nobody-listening.sock");
-      await expect(requestJsonIpc({ socketPath: missingSocketPath, payload: { type: "X" } }, { timeoutMs: 2000 })).rejects.toThrow();
+      await expect(requestJsonIpc({ socketPath: missingSocketPath, payload: { type: "X" } }, { timeoutMs: 2000 })).rejects.toThrow(`connect ENOENT ${missingSocketPath}`);
     } finally {
       await rm(root, { force: true, recursive: true });
     }
@@ -946,7 +934,7 @@ describe("@jini-ai/sidecar — JSON IPC", () => {
       writeFileSync(socketPath, "not a socket, just a file");
       await expect(
         createJsonIpcServer({ handler: async () => "ok", socketPath }),
-      ).rejects.toThrow();
+      ).rejects.toThrow(`listen EADDRINUSE: address already in use ${socketPath}`);
       // The unrelated file was left untouched — only a *stale socket* gets unlinked.
       expect(existsSync(socketPath)).toBe(true);
     } finally {

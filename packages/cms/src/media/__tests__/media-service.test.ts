@@ -985,18 +985,15 @@ test("trashMedia throws MediaNotFoundError for a missing id", async () => {
   });
 });
 
-test("rollbackUploadedMedia without an injected clock still tombstones the blob, stamped from the system clock", async () => {
+test("rollbackUploadedMedia tombstones the blob stamped from the injected clock", async () => {
   const { deps } = makeDeps();
   const { media } = await uploadWithTitle(deps, "rolled-back.png");
-  const { clock: _clock, ...withoutClock } = deps;
-  const before = Date.now();
-  await rollbackUploadedMedia({ deps: withoutClock, input: { workspaceId: WORKSPACE_ID, media } }, {});
-  const after = Date.now();
+  const before = deps.clock.nowMs();
+  await rollbackUploadedMedia({ deps, input: { workspaceId: WORKSPACE_ID, media } }, {});
   assert.equal(await deps.mediaRepo.findById({ workspaceId: WORKSPACE_ID, id: media.id }), null);
   const blob = await deps.blobRepo.findByHash({ workspaceId: WORKSPACE_ID, sha256: media.source.sha256 });
   assert.equal(blob?.status, "tombstoned");
-  const stamped = Date.parse(blob!.tombstonedAt!);
-  assert.ok(stamped >= before && stamped <= after, `tombstonedAt ${blob!.tombstonedAt} within the call`);
+  assert.equal(Date.parse(blob!.tombstonedAt!), before);
 });
 
 test('private uploads preserve privacy on their asset and retained blob through dedup and purge', async () => {

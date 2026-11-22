@@ -55,6 +55,9 @@ export function useMessageListAutoScroll(
   // Starts true: a freshly mounted pane opens on the latest turn, same as scrollIntent's own default.
   const stickToBottomRef = useRef(true);
   const previousMessagesRef = useRef<readonly ChatMessage[]>(messages);
+  // Read the latest callback without making callback identity trigger an extra scroll.
+  const onScrolledRef = useRef(onScrolled);
+  onScrolledRef.current = onScrolled;
   // `scrollTop` at the previous `scroll` event — `nextStickToBottom` needs the direction of travel.
   // Only scroll events write it (a browser fires one for programmatic scrolls too). Starts at
   // Infinity, "no position seen yet", so a first event away from the bottom unsticks as it always did.
@@ -91,8 +94,7 @@ export function useMessageListAutoScroll(
     if (el && stickToBottomRef.current) {
       el.scrollTop = el.scrollHeight;
     }
-    onScrolled?.();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    onScrolledRef.current?.();
   }, [scrollIntent, messages]);
 
   // Re-sticks to the bottom when a message ROW grows after mount with no accompanying `messages`

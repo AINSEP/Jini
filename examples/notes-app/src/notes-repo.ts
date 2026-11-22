@@ -1,3 +1,4 @@
+// GAP: G2 SQL entry repo written in the app; lane S2 ships cms/entries/sql (sheet G2)
 /**
  * @file GAP: a SQL `EntryRepoPort` + `EntryListPort` written in the app.
  *

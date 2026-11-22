@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type RefObject } from 'react';
 import { useFocusTrap } from '@jini-ai/ui/panel-kit';
+import type { ChatMessage } from '../../core/messages.js';
+import type { BrowserSessionStore } from '../browser/session-store.js';
 
 /**
  * Shares the panel-kit trap across embeds. Escape respects a child popup's preventDefault;
@@ -53,4 +55,20 @@ export function useEmbedChatSurface({ initialOpen }: { initialOpen: boolean }, {
   const toggle = useCallback(() => setOpen(current => !current), []);
   useEmbedChatDialog({ open, onClose: close, panelRef, launcherRef }, { resetKey });
   return { open, toggle, panelRef, launcherRef, panelId };
+}
+
+/** Persist the embed transcript and remount its pane when the host confirms a reset. */
+export function useEmbedChatWidget({ session }: { session: BrowserSessionStore }, _options = {}) {
+  const [initial] = useState(() => session.load({}));
+  const [paneKey, setPaneKey] = useState(0);
+  const surface = useEmbedChatSurface({ initialOpen: initial.open }, { resetKey: paneKey });
+  const [messages, setMessages] = useState(initial.messages);
+  useEffect(() => { session.save({ state: { open: surface.open, messages } }); }, [session, surface.open, messages]);
+  const reset = useCallback(() => {
+    session.clear({});
+    setMessages([]);
+    setPaneKey(key => key + 1);
+  }, [session]);
+  const onMessagesChange = useCallback((next: ChatMessage[]) => { setMessages(next); }, []);
+  return { ...surface, paneKey, messages, reset, onMessagesChange };
 }

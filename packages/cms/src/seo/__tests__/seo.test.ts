@@ -5,9 +5,13 @@ import { test, vi, afterEach } from "vitest";
 import { InMemoryPostRepo, type PostRecord } from "./support/post.fixture.js";
 import { InMemorySettingsRepo } from "./support/legacy-api.fixture.js";
 import { InMemoryAssetRenditionRepo, InMemoryMediaRepo, InMemoryTransformDefinitionRepo } from "../../media/index.js";
-import { OriginNotVerifiedError, type OriginRegistryPort, type VerifiedOrigin } from "@jini-ai/http-kit/verified-origin";
+import {
+  OriginNotVerifiedError,
+  type OriginRegistryPort,
+  type VerifiedOrigin,
+} from "@jini-ai/core/contracts/server/verified-origin";
 import { SeoEntryNotFoundError } from "../errors.js";
-import type { DomainEvent, OutboxPort } from "../../core/index.js";
+import type { DomainEvent, OutboxPort } from "@jini-ai/core/contracts/events";
 import type { SitemapInvalidationDeps } from "../sitemap.js";
 import { ensureSeoSettingDefinitions, setSeoSettings } from "./support/legacy-api.fixture.js";
 import { analyzeEntry, getEntryMeta } from "./support/legacy-api.fixture.js";

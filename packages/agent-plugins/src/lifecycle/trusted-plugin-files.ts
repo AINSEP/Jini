@@ -11,7 +11,7 @@ import type { AgentPluginLifecyclePorts } from "./ports.js";
 /**
  * @file The shared trust gate for plugin-contributed files that core reads or runs: deploy targets
  * (`features/deployments/deploy-targets/registry.ts`), deploy-config generators, credential
- * scheme rules, mail adapters (`./mail-adapter-registry.ts`) and git-host providers
+ * scheme rules, mail adapters (`packages/agent-plugins/src/lifecycle/mail/contribution.ts`) and git-host providers
  * (`features/source-control/provider-registry.ts`). One place decides which installed Agent Plugin packages core may take a contribution
  * from, so every seam applies the same rules.
  *
@@ -152,7 +152,7 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
 
 const instances = new WeakMap<AgentPluginLifecyclePorts, ReturnType<typeof buildModule>>();
 /** Internal composition; one state/queue instance per injected host context. */
-export function createTrustedPluginFilesModule(ports: AgentPluginLifecyclePorts) {
+export function createTrustedPluginFilesModule(ports: AgentPluginLifecyclePorts, _optional: Record<string, never> = {}) {
   let instance = instances.get(ports);
   if (!instance) { instance = buildModule(ports); instances.set(ports, instance); }
   return instance;

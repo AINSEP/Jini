@@ -20,13 +20,13 @@ it('rethrows a nameless object rejection unchanged', async () => {
   expect(await failureOf(rejecting(cause))).toBe(cause);
 });
 
-it('reports a timeout Error with its message as the cause and the full guidance', async () => {
+it('reports a timeout Error with its safe class as the cause and the full guidance', async () => {
   const cause = Object.assign(new Error('deadline'), { name: 'TimeoutError' });
   const error = await failureOf(rejecting(cause));
   expect(error).toMatchObject({
     status: 0,
     code: 'REQUEST_TIMEOUT',
-    body: { cause: 'deadline' },
+    body: { cause: 'TimeoutError' },
     message:
       'the API did not respond within 60s — the browser may be out of free connections for this origin (try closing other admin tabs) or the server is unresponsive',
   });

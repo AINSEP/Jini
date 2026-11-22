@@ -4,7 +4,8 @@ import { defaultRuntimeState, type AgentRuntimeState } from './runtime-state.js'
  * @module models
  * Model-option defaults, a per-agent last-surfaced live-model cache and model-id sanitization.
  */
-import type { DetectedAgent, RuntimeAgentDef, RuntimeModelOption } from './types.js';
+import type { DetectedAgent } from './types.js';
+import type { RuntimeAgentDef, RuntimeModelOption } from '@jini-ai/core/contracts/agents';
 
 type SelectableAgent = Pick<DetectedAgent, 'id' | 'available' | 'models' | 'modelsSource' | 'reasoningOptions' | 'reasoningInModelId' | 'authStatus' | 'supportsConcreteModelSelection' | 'defaultModelResolution'>;
 type SelectionRequest = { agent: SelectableAgent; agentId: string; modelId?: string | undefined; effort?: string | undefined };
@@ -68,7 +69,7 @@ export function getRememberedLiveModels({ agentId }: { agentId: string }, { scop
   return ids.map((id) => ({ id, label: id }));
 }
 
-export function preferFreshLiveModels({ freshModels, rememberedModels }: { freshModels: RuntimeModelOption[]; rememberedModels: RuntimeModelOption[] }
+export function preferFreshLiveModels({ freshModels, rememberedModels }: { freshModels: RuntimeModelOption[]; rememberedModels: RuntimeModelOption[] }, _optional: Record<string, never> = {}
 ): RuntimeModelOption[] {
   return freshModels.length > 0 ? freshModels : rememberedModels;
 }
@@ -128,7 +129,7 @@ export function resolveModelForAgent({ def, resolved }: { def: RuntimeAgentDef; 
 // as a child-process arg — not a shell string — so injection isn't a
 // concern, but we still reject anything that could be misread as a flag
 // by a downstream CLI or that contains whitespace / control chars.
-export function sanitizeCustomModel({ id }: { id: string | null | undefined }) {
+export function sanitizeCustomModel({ id }: { id: string | null | undefined }, _optional: Record<string, never> = {}) {
   if (typeof id !== 'string') return null;
   const trimmed = id.trim();
   if (trimmed.length === 0 || trimmed.length > 200) return null;

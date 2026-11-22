@@ -2,7 +2,7 @@ import type { PluginActivationRecord, PluginActivationRepoPort } from "./activat
 
 /**
  * @file In-memory `PluginActivationRepoPort` adapter — mirrors
- * `src/features/presentation/repo.memory.ts`'s shape exactly (rule-of-two, day one).
+ * `packages/cms/src/presentation/repo.memory.ts`'s shape exactly (rule-of-two, day one).
  *
  * Architectural role:
  * TDD-certified adapter (implementation outline C-013). Implements get/upsert/delete/list over an

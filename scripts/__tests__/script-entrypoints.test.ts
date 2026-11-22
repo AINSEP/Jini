@@ -33,12 +33,13 @@ function guardFixture(root: string): string {
   if (existsSync(helper)) copyFileSync(helper, path.join(scripts, 'lib/is-main-module.ts'));
   const checks = {
     'check-agentic-dom-purity': 'checkAgenticDomPurity', 'check-chatpane-public-surface': 'checkChatPanePublicSurface',
-    'check-driver-isolation': 'checkDriverIsolation', 'check-hardwiring': 'checkHardwiring',
+    'check-driver-isolation': 'checkDriverIsolation', 'check-hardwiring': 'checkHardwiring', 'check-env-access': 'checkEnvAccess',
     'check-engine-boundaries': 'checkEngineBoundaries', 'check-extensionless-imports': 'checkExtensionlessImports',
     'check-model-fallback-freshness': 'checkModelFallbackFreshness', 'check-protocol-purity': 'checkProtocolPurity',
     'check-package-layers': 'checkPackageLayers', 'check-plugin-packages': 'checkPluginPackages',
     'check-subpath-isolation': 'checkSubpathIsolation', 'lib/source-neutrality': 'checkSourceNeutrality',
     'lib/publish-hygiene-self-test': 'runPublishHygieneSelfTest', 'lib/self-test': 'runGuardSelfTest',
+    'check-runtime-cycles': 'checkRuntimeCycles', 'lib/runtime-cycles-self-test': 'runRuntimeCycleSelfTest',
   };
   for (const [module, name] of Object.entries(checks)) writeFileSync(path.join(scripts, module + '.ts'), `export const ${name} = () => [];`);
   writeFileSync(path.join(scripts, 'lib/walk-imports.ts'), `export const REPO_ROOT = ${JSON.stringify(root)};`);

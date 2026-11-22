@@ -1,0 +1,16 @@
+=== guard-plugins
+> jini@ guard:plugins /home/user/Jini
+> node --import tsx ./scripts/check-plugin-packages.ts && node --import tsx ./scripts/check-agent-plugin-content.ts
+EXIT 0
+=== guard-plugins-packed
+> jini@ guard:plugins:packed /home/user/Jini
+> node --import tsx ./scripts/check-plugin-packages.ts --packed
+EXIT 0
+=== catalog
+   ✓ standalone plugin catalog > packs only metadata and documentation into the actual npm tarball 452ms
+ Test Files  1 passed (1)
+      Tests  68 passed (68)
+   Start at  05:24:00
+   Duration  972ms (transform 113ms, setup 0ms, collect 135ms, tests 546ms, environment 0ms, prepare 71ms)
+EXIT 0
+=== catalog drift: generate rewrote 2 integrity rows (observability-opentelemetry, observability-sentry server/index.mjs); identical file from the fresh worktree prepack; committed in ab0cb0cb9

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { AdminApiError } from '../../core/transport/errors.js';
+import { AdminApiError } from '@jini-ai/core/admin-runtime';
 import type { AdminRedirect, AdminRedirectCreateInput } from '../../core/ports/redirects.js';
 import * as redirects from '../index.js';
 import { createHttpRedirectsApi, type RedirectsTransportPort } from '../adapters/http.js';

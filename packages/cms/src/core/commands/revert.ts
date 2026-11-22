@@ -1,9 +1,15 @@
 import { nowIso as readNowIso, type Clock as ClockPort, type IdGenerator as IdGeneratorPort, type UUID } from "@jini-ai/core/primitives";
-import type { DomainEvent, OutboxPort, ChangeSetRecord, ChangeSetRepoPort, ChangeSetItemRecord } from "../index.js";
+import type {
+  DomainEvent,
+  OutboxPort,
+  ChangeSetRecord,
+  ChangeSetRepoPort,
+  ChangeSetItemRecord,
+} from "@jini-ai/core/contracts/events";
 import type { RevertRegistry, EntityReverter } from "./appliers.js";
 
 /**
- * @file Revert executor (ADR-018 C-004).
+ * @file Revert executor.
  *
  * Undoes an applied change set by walking its items in descending `position`
  * and applying each inverse through the inverse-applier registry, under a strict
@@ -102,6 +108,19 @@ export interface RevertChangeSetRequired {
 
 export interface RevertChangeSetOptional {}
 
+function revertedChangeSetEvent(deps: RevertChangeSetDeps, reverted: ChangeSetRecord): DomainEvent<{ changeSetId: UUID }> {
+  return {
+    id: deps.idGen.newId(),
+    name: "change-set.reverted",
+    occurredAt: reverted.revertedAt!,
+    aggregateId: reverted.id,
+    workspaceId: reverted.workspaceId,
+    actorId: reverted.actorId,
+    changeSetId: reverted.id,
+    payload: { changeSetId: reverted.id },
+  } as DomainEvent<{ changeSetId: UUID }>;
+}
+
 export async function revertChangeSet(
   required: RevertChangeSetRequired,
   _optional: RevertChangeSetOptional = {}
@@ -109,23 +128,7 @@ export async function revertChangeSet(
   const { deps, input } = required;
   const { changeSets, registry } = deps;
 
-  // Agent-cannot-force — fires FIRST, unconditionally, before any repo read, mirroring
-  // `gated-mutations/gateway.ts`'s `confirm()` `principalKind === "agent"` check firing regardless
-  // of what the plan actually contains. There is nothing to "escalate" here: an agent that never
-  // sets `force` is unaffected by this check and reverts exactly as before.
-  if (input.force && input.principalKind === "agent") {
-    throw new RevertForbiddenError(
-      `agent principals may not force a revert past a version conflict`,
-      "AGENT_CANNOT_FORCE"
-    );
-  }
-  // Fail closed: a force that does not say who asked cannot be checked against the rule above.
-  if (input.force && input.principalKind === undefined) {
-    throw new RevertForbiddenError(
-      `a forced revert must say who is asking; retry without force or sign in again`,
-      "FORCE_NEEDS_PRINCIPAL_KIND"
-    );
-  }
+  requireForceAllowed({ input });
 
   // (1) exists in workspace
   const found = await changeSets.findById({
@@ -178,20 +181,35 @@ export async function revertChangeSet(
   await changeSets.save(reverted);
 
   if (deps.outbox) {
-    const event = {
-      id: deps.idGen.newId(),
-      name: "change-set.reverted",
-      occurredAt: reverted.revertedAt!,
-      aggregateId: reverted.id,
-      workspaceId: reverted.workspaceId,
-      actorId: reverted.actorId,
-      changeSetId: reverted.id,
-      payload: { changeSetId: reverted.id },
-    } as DomainEvent<{ changeSetId: UUID }>;
+    const event = revertedChangeSetEvent(deps, reverted);
     await deps.outbox.enqueue(event);
   }
 
   return reverted;
+}
+
+/** Only a named, non-agent principal may force a revert past a version conflict. */
+function requireForceAllowed(
+  { input }: { input: RevertChangeSetRequired["input"] },
+  _optional: RevertChangeSetOptional = {},
+): void {
+  // Agent-cannot-force — fires FIRST, unconditionally, before any repo read, mirroring
+  // `gated-mutations/gateway.ts`'s `confirm()` `principalKind === "agent"` check firing regardless
+  // of what the plan actually contains. There is nothing to "escalate" here: an agent that never
+  // sets `force` is unaffected by this check and reverts exactly as before.
+  if (input.force && input.principalKind === "agent") {
+    throw new RevertForbiddenError(
+      `agent principals may not force a revert past a version conflict`,
+      "AGENT_CANNOT_FORCE"
+    );
+  }
+  // Fail closed: a force that does not say who asked cannot be checked against the rule above.
+  if (input.force && input.principalKind === undefined) {
+    throw new RevertForbiddenError(
+      `a forced revert must say who is asking; retry without force or sign in again`,
+      "FORCE_NEEDS_PRINCIPAL_KIND"
+    );
+  }
 }
 
 async function requireRevertibleItems(

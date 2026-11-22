@@ -69,7 +69,7 @@ function sitePage({ failOn = "", nullResponseOn = "" } = {}) {
 
 describe("argument parsing and URL helpers", () => {
   it("parses flags and defaults, rejecting unknown ones", () => {
-    expect(parseArgs(["--url", "https://s.test", "--max-pages", "3", "--allow-subdomains", "--wait"])).toEqual({
+    expect(parseArgs({ argv: ["--url", "https://s.test", "--max-pages", "3", "--allow-subdomains", "--wait"] })).toEqual({
       url: "https://s.test",
       outDir: "RECON/routes",
       label: "site",
@@ -79,33 +79,33 @@ describe("argument parsing and URL helpers", () => {
       waitMs: 800,
       allowSubdomains: true,
     });
-    expect(parseArgs(["-h", "--out", "o", "--label", "c", "--max-depth", "0", "--width", "390"])).toMatchObject({ help: true, outDir: "o", label: "c", maxDepth: 0, width: 390 });
-    expect(() => parseArgs(["--deep"])).toThrow("Unexpected argument: --deep");
+    expect(parseArgs({ argv: ["-h", "--out", "o", "--label", "c", "--max-depth", "0", "--width", "390"] })).toMatchObject({ help: true, outDir: "o", label: "c", maxDepth: 0, width: 390 });
+    expect(() => parseArgs({ argv: ["--deep"] })).toThrow("Unexpected argument: --deep");
   });
 
   it("normalizeUrl strips hash and trailing slash, sorts the query, and rejects non-http or unparsable input", () => {
-    expect(normalizeUrl("/a/?z=1&a=2#h", "https://s.test/x")).toBe("https://s.test/a/?a=2&z=1");
-    expect(normalizeUrl("https://s.test/", "https://s.test/")).toBe("https://s.test");
-    expect(normalizeUrl("mailto:a@b.c", "https://s.test/")).toBe("");
-    expect(normalizeUrl("http://[bad", "https://s.test/")).toBe("");
+    expect(normalizeUrl({ rawUrl: "/a/?z=1&a=2#h", baseUrl: "https://s.test/x" })).toBe("https://s.test/a/?a=2&z=1");
+    expect(normalizeUrl({ rawUrl: "https://s.test/", baseUrl: "https://s.test/" })).toBe("https://s.test");
+    expect(normalizeUrl({ rawUrl: "mailto:a@b.c", baseUrl: "https://s.test/" })).toBe("");
+    expect(normalizeUrl({ rawUrl: "http://[bad", baseUrl: "https://s.test/" })).toBe("");
   });
 
   it("sameSite allows the origin, and subdomains only when asked", () => {
-    expect(sameSite("https://s.test/a", "https://s.test", false)).toBe(true);
-    expect(sameSite("https://sub.s.test/a", "https://s.test", false)).toBe(false);
-    expect(sameSite("https://sub.s.test/a", "https://s.test", true)).toBe(true);
-    expect(sameSite("https://evil-s.test/a", "https://s.test", true)).toBe(false);
+    expect(sameSite({ candidate: "https://s.test/a", origin: "https://s.test", allowSubdomains: false })).toBe(true);
+    expect(sameSite({ candidate: "https://sub.s.test/a", origin: "https://s.test", allowSubdomains: false })).toBe(false);
+    expect(sameSite({ candidate: "https://sub.s.test/a", origin: "https://s.test", allowSubdomains: true })).toBe(true);
+    expect(sameSite({ candidate: "https://evil-s.test/a", origin: "https://s.test", allowSubdomains: true })).toBe(false);
   });
 
   it("routeFileName is a sanitized host+path with a short hash", () => {
-    expect(routeFileName("https://s.test/a/b?x=1")).toMatch(/^s.test-a-b-[0-9a-f]{8}\.png$/);
-    expect(routeFileName("http://[::1]:8080/")).toMatch(/^1-[0-9a-f]{8}\.png$/);
+    expect(routeFileName({ url: "https://s.test/a/b?x=1" })).toMatch(/^s.test-a-b-[0-9a-f]{8}\.png$/);
+    expect(routeFileName({ url: "http://[::1]:8080/" })).toMatch(/^1-[0-9a-f]{8}\.png$/);
   });
 });
 
 describe("collectPage", () => {
   it("reads title, language, description, headings, counts, and links", async () => {
-    const data = await collectPage(createFakePage({ env: browserEnv({ document: documentFor("https://s.test/about"), href: "https://s.test/about" }) }));
+    const data = await collectPage({ page: createFakePage({ env: browserEnv({ document: documentFor("https://s.test/about"), href: "https://s.test/about" }) }) });
     expect(data).toEqual({
       href: "https://s.test/about",
       title: "About",
@@ -128,7 +128,7 @@ describe("collectPage", () => {
 
   it("falls back to empty strings for an untitled page", async () => {
     const document = fakeDocument();
-    const data = await collectPage(createFakePage({ env: browserEnv({ document }) }));
+    const data = await collectPage({ page: createFakePage({ env: browserEnv({ document }) }) });
     expect(data).toMatchObject({ title: "", lang: "", metaDescription: "", h1: [], links: [] });
   });
 });
@@ -146,11 +146,11 @@ describe("summarizeMarkdown", () => {
       ],
       skipped: [{ url: "https://s.test/x", reason: "depth>2" }],
     };
-    const md = summarizeMarkdown(result);
+    const md = summarizeMarkdown({ result });
     expect(md).toContain("| 0 | 200 | / | A \\| B | x\\|y / z | 3 | s/a.png |");
     expect(md).toContain("| 1 |  | /q?a=1 |  |  | 0 | s/b.png |");
     expect(md).toContain("## Skipped / Failed\n- https://s.test/x · depth>2");
-    expect(summarizeMarkdown({ ...result, skipped: [] })).not.toContain("Skipped");
+    expect(summarizeMarkdown({ result: { ...result, skipped: [] } })).not.toContain("Skipped");
   });
 });
 
@@ -167,7 +167,7 @@ describe("main", () => {
   it("rejects a non-http start URL", async () => {
     const out = createOutput();
     expect(await main({ argv: ["--url", "ftp://s.test/"] }, out)).toBe(1);
-    expect(out.errors).toEqual(["route-crawl failed: Invalid URL: ftp://s.test/"]);
+    expect(out.errors).toEqual(["route-crawl failed: Invalid --url: pass an absolute http(s) URL."]);
   });
 
   it("crawls same-site routes breadth-first within depth, recording failures and skips", async () => {
@@ -193,7 +193,7 @@ describe("main", () => {
     expect(result.routes[0].screenshot).toMatch(/^screenshots\/s.test-[0-9a-f]{8}\.png$/);
     expect(fs.existsSync(path.join(outDir, result.routes[0].screenshot))).toBe(true);
     expect(result.skipped).toEqual([
-      { url: "https://s.test/blog?a=1&b=2", reason: "net::ERR_FAILED at https://s.test/blog?a=1&b=2" },
+      { url: "https://s.test/blog?a=1&b=2", reason: "Error" },
       { url: "https://s.test/about/team", reason: "depth>1" },
     ]);
     // The console listener is detached after every route.

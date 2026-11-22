@@ -67,6 +67,16 @@ describe('first-call tool argument recovery for every MCP CLI', () => {
     expect(h.calls[0]?.input).toEqual({});
   });
 
+  it('a typed registry tool whose limit opts in to clamp runs with the bound and says so once', async () => {
+    const h = harness({ id: 'example_pages', readOnly: true, inputSchema: { type: 'object', additionalProperties: false,
+      properties: { limit: { type: 'integer', minimum: 1, maximum: 8000, clamp: true } } } });
+    const result = await h.call('example_pages', { limit: 8300 });
+    expect(result.isError).not.toBe(true);
+    expect(h.calls[0]?.input).toEqual({ limit: 8000 });
+    expect(JSON.stringify(result)).toContain('normalized: limit was lowered to its maximum, 8000');
+    expect(JSON.stringify(result)).not.toContain('8300');
+  });
+
   it('turning on a plugin accepts an agreeing extra id before strict MCP validation', async () => {
     const h = harness({ id: 'plugins_set_enabled', inputSchema: pluginSchema });
     const input = { family: 'agent-plugin', pluginId: 'charts', id: 'charts', enabled: true };

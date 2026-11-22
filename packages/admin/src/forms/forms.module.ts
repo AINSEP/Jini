@@ -1,9 +1,9 @@
-import { defineAdminModule } from '../core/module/define-admin-module.js';
-import { formsApiToken, formsTrashToken, formsEventsToken, formsNavigationToken } from './ports.js';
+import { defineAdminModule } from '@jini-ai/core/contracts/admin-module';
+import { formsApiToken, formsCatalogToken, formsTrashToken, formsEventsToken, formsNavigationToken } from './ports.js';
 import { formsMessagesEn } from './messages.en.js';
 export const formsModule = defineAdminModule({
   id: 'forms',
-  requires: { formsApi: formsApiToken, formsTrash: formsTrashToken },
+  requires: { formsApi: formsApiToken, formsCatalog: formsCatalogToken, formsTrash: formsTrashToken },
   optional: { formsEvents: formsEventsToken, formsNavigation: formsNavigationToken },
   messages: formsMessagesEn,
   pages: {

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { BlobFileMeta, BlobStorage } from '@jini-ai/platform';
-import { StorageError } from '@jini-ai/platform';
+import type { BlobFileMeta, BlobStorage } from '@jini-ai/core/contracts/blob';
+import { StorageError } from '@jini-ai/core/contracts/blob';
 import { BlobStorageProvider } from '../index.js';
 
 /**
@@ -10,7 +10,7 @@ import { BlobStorageProvider } from '../index.js';
  * (namespace scoping, NOT_FOUND → null, idempotent delete, path/mtimeMs → key/updatedAt).
  */
 function createFakeBlobStorage(): BlobStorage & { calls: Array<{ method: string; args: unknown[] }> } {
-  const files = new Map<string, { data: Buffer; meta: BlobFileMeta }>();
+  const files = new Map<string, { data: Uint8Array; meta: BlobFileMeta }>();
   const calls: Array<{ method: string; args: unknown[] }> = [];
   const keyOf = (namespace: string, relpath: string) => `${namespace}::${relpath}`;
 

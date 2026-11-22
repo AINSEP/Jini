@@ -1,3 +1,4 @@
+import { agentRuntimeFixture } from './runtime-fixture.js';
 import { EventEmitter } from 'node:events';
 import type { ChildProcess } from 'node:child_process';
 import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -7,13 +8,13 @@ import { afterAll, describe, expect, it, vi } from 'vitest';
 import { getAgentDef, type attachAcpSession } from '@jini-ai/agent-runtime';
 import { createInMemoryEventLog } from '../../event-log.js';
 import { createRunLifecycle } from '../../run-lifecycle.js';
-import { runAcpDispatch } from '../events.js';
+import { runAcpDispatch } from '../acp-events.js';
 import {
-  defaultRemoveMcpJsonFile,
-  prepareClaudeConfigDirIfNeeded,
   unavailableJiniBridgeStatus,
   writeMcpJsonIfNeeded,
 } from '../mcp-bridge.js';
+import { prepareClaudeConfigDirIfNeeded } from '../claude/config-dir.js';
+import { defaultRemoveMcpJsonFile } from '../mcp-json-file.js';
 import { prepareCodexHomeIfNeeded } from '../codex/home-staging.js';
 
 /**
@@ -143,12 +144,12 @@ it('runAcpDispatch omits permissionMode from the ACP attach when its caller supp
   await runAcpDispatch({
     input: { runId: run.id, agentId: 'acp-agent', child: child as unknown as ChildProcess, prompt: 'go', cwd: '/work',
       permissionMode: undefined, model: undefined, imagePaths: [], envFormat: undefined, mcpBridge: null },
-    deps: { lifecycle, attachAcpSession: attach, onPermissionRequest: undefined, onCleanupFailure: () => {},
+    deps: { lifecycle, attachAcpSession: attach, identityKind: agentRuntimeFixture().models.identityKind, onPermissionRequest: undefined, onCleanupFailure: () => {},
       cleanupStagedFiles: async () => {}, journal: undefined, classifyFailure: undefined, releaseStagedResources: async () => {},
       failBeforeSpawn: refuse, listProcessSnapshots: async () => [], collectProcessTreePids: () => [],
       stopProcesses: async () => ({ alreadyStopped: true, forcedPids: [], matchedPids: [], remainingPids: [], stoppedPids: [] }) },
   });
-  expect(Object.keys(attached[0]!).sort()).toEqual(['child', 'cwd', 'prompt', 'send']);
+  expect(Object.keys(attached[0]!).sort()).toEqual(['beforeRelease', 'child', 'cwd', 'prompt', 'send']);
   // A run succeeds only once it has produced output.
   (attached[0]!.send as (args: { event: string; payload: unknown }) => void)({ event: 'agent', payload: { type: 'text_delta', delta: 'done' } });
   child.emit('close', 0, null);

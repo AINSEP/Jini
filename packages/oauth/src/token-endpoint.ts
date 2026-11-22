@@ -51,9 +51,9 @@ export function createOAuthClientConfiguration({ client, endpoint, endpointName 
 export async function requestOAuthToken(requiredArgs: OAuthRequiredArgs<TokenRequestDeps & TokenRequestInput>,
     optionalArgs: OAuthOptionalArgs<TokenRequestDeps & TokenRequestInput> = {}): Promise<OAuthTokenSet> {
     const { tokenEndpoint, client, clock } = requiredArgs;
-    const endpoint = assertSafeProviderEndpoint(tokenEndpoint, 'token endpoint', requiredArgs.guard);
+    const endpoint = assertSafeProviderEndpoint({ raw: tokenEndpoint, label: 'token endpoint', guard: requiredArgs.guard });
     const params = new URLSearchParams(requiredArgs.params);
-    applyResourceIndicators(params, optionalArgs.resource);
+    applyResourceIndicators({ params, resource: optionalArgs.resource });
     const guardedFetch = createOAuthCustomFetch({
         ...requiredArgs, timeoutMs: optionalArgs.timeoutMs ?? DEFAULT_TOKEN_REQUEST_TIMEOUT_MS,
         endpointLabel: 'token endpoint', responseMessages: {

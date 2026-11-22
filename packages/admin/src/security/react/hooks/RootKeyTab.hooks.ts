@@ -1,4 +1,4 @@
-import type { TabViewProps } from '../../../core/react/bind-react.js';
+import type { TabViewProps } from '@jini-ai/core/contracts/admin-module';
 import { useController } from '../../../core/react/use-controller.js';
 import { createRootKeyController } from '../../controllers/root-key.controller.js';
 import { ROOT_KEY_PERMISSION, START_FRESH_CONFIRMATION, isRootKeyLocked } from '../../rules.js';

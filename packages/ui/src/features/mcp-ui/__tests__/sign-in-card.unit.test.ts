@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { SurfaceEmission, SurfaceExchange, SurfaceMessage, ToolExecutionContext } from '@jini-ai/core';
 import { buildSignInCard, waitAtSignInCard, type SignInCardSpec, type SignInCardState } from '../sign-in-card.js';
-import { parseUIResource } from '../resource.js';
+import { parseUIResource } from '@jini-ai/protocol/mcp-ui';
 
 const spec: SignInCardSpec = {
   uri: 'ui://neutral/account', toolId: 'neutral_connect', app: { appName: 'neutral-app', appVersion: '2' },
@@ -25,7 +25,7 @@ function fixture() {
   return { controller, ctx, exchange, emissions, open, answer: (a: SurfaceMessage) => receive(a),
     required: { surfaceExchanges: { open }, ctx, toolId: spec.toolId, card, missingEmitterMessage: 'Atlas needs an interactive channel', skippedResult: () => ({ status: 'skipped' }) } };
 }
-function html(emission: SurfaceEmission) { return parseUIResource(emission.payload.resource)!.resource.text; }
+function html(emission: SurfaceEmission) { return parseUIResource({ value: emission.payload.resource })!.resource.text; }
 
 describe('neutral sign-in card', () => {
   it('keeps URI and host copy while waiting uses openLink and an exchange-bound Skip', () => {
@@ -75,14 +75,16 @@ describe('neutral sign-in card', () => {
   });
   it('closes immediately on parent abort and cleans up a failed connection', async () => {
     const f = fixture();
-    await expect(waitAtSignInCard({ ...f.required, connect: async ({ signal, showSignIn }) => {
+    // The abort reason only exists once `connect` has aborted, so read it after the rejection settles.
+    const rejection = await waitAtSignInCard({ ...f.required, connect: async ({ signal, showSignIn }) => {
       await showSignIn({ signInUrl: 'https://atlas.test/login' }); f.controller.abort();
       expect(f.exchange.close).toHaveBeenCalled(); signal.throwIfAborted(); return { status: 'connected' };
-    } }, { emitSurface: async () => {} })).rejects.toThrow();
+    } }, { emitSurface: async () => {} }).catch((error: unknown) => error);
+    expect(rejection).toBe(f.controller.signal.reason);
     expect(f.ctx.signal.aborted).toBe(true);
   });
   it('never starts authorization on a pre-aborted run', async () => {
     const f = fixture(); f.controller.abort(); const connect = vi.fn();
-    await expect(waitAtSignInCard({ ...f.required, connect })).rejects.toThrow(); expect(connect).not.toHaveBeenCalled();
+    await expect(waitAtSignInCard({ ...f.required, connect })).rejects.toThrow(f.controller.signal.reason.message); expect(connect).not.toHaveBeenCalled();
   });
 });

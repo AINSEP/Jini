@@ -1,6 +1,5 @@
 import { expect, it } from 'vitest';
-import { mergeOpenCodeHttpMcpConfig } from '../mcp-config.js';
-import { mergeEnvContentInstructions } from '../../mcp-bridge.js';
+import { mergeEnvContentInstructions, mergeOpenCodeHttpMcpConfig } from '../mcp-config.js';
 
 it('inline HTTP delivery preserves settings permissions and instructions', () => {
   const existingRaw = JSON.stringify({ theme: 'dark', permission: { bash: 'deny' }, instructions: ['user.md'], mcp: { personal: { type: 'local', command: ['personal'] }, jini: { type: 'local', command: ['serve.js'], environment: { JINI_DAEMON_TOKEN: 'callback' } } } });

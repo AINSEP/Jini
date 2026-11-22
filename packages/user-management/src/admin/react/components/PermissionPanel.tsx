@@ -1,9 +1,10 @@
 import { Button, TextField, Spinner } from '@jini-ai/ui-kit/react';
 import type { PolicyRecord } from '../../models.js';
-import { usePermissionPanel } from '../hooks/PermissionPanel.hooks.js';
-export function PermissionPanel(props: {
+import { usePermissionPanel as usePermissionPanel_ } from '../hooks/PermissionPanel.hooks.js';
+export function PermissionPanel({ usePermissionPanel = usePermissionPanel_, ...props }: {
     policy: PolicyRecord;
-}, _optional: Record<string, never> = {}) {
+    usePermissionPanel?: typeof usePermissionPanel_;
+}) {
     const v = usePermissionPanel(props);
     const permissions = v.empty ? <p>No permissions yet.</p> :
         <ul>{v.rows.map(row => <li key={row.id}><code>{row.permission}</code>{row.resourceType ? <span> ({row.resourceType})</span> : null}

@@ -1,16 +1,16 @@
 import { createPortal } from 'react-dom';
-import { useCallback, useEffect, useRef } from 'react';
 import { useI18n } from '../../../i18n/index.js';
 import { useCopyToClipboard, ViewportToggleGroup, type ViewportPreset } from '../../../viewer-shell/index.js';
 import { defaultVersionManagerDependencies } from '../../dependencies.js';
 import { formatVersionDateTime, restoredFromVersion, versionSourceClassName, versionSourceLabel } from '../../rules.js';
 import type { VersionManagerDependencies } from '../../ports.js';
 import type { VersionManagerFileRef, VersionRecord } from '../../types.js';
-import { useVersionManager } from '../hooks/useVersionManager.js';
+import { useVersionManager, type VersionManagerController } from '../hooks/useVersionManager.js';
 import { VersionSidebar } from './VersionSidebar.js';
 import { VersionPromptPopover } from './VersionPromptPopover.js';
 import { VersionRestoreControl } from './VersionRestoreControl.js';
 import { VersionPreviewFrame } from './VersionPreviewFrame.js';
+import { useVersionManagerEscape } from './VersionManagerModal.hooks.js';
 
 export interface VersionManagerModalProps<TVersion extends VersionRecord> {
   fileRef: VersionManagerFileRef;
@@ -27,10 +27,145 @@ export interface VersionManagerModalProps<TVersion extends VersionRecord> {
   useVersionManager?: typeof useVersionManager;
 }
 
+function VersionManagerSidebar<TVersion extends VersionRecord>({
+  controller,
+  useI18nHook = useI18n,
+}: {
+  controller: VersionManagerController<TVersion>;
+  useI18nHook?: typeof useI18n;
+}) {
+  const { t, locale } = useI18nHook();
+  const { versions, visibleVersions, versionById, selectedVersion, search, setSearch, showSearch, loading } = controller;
+  const countLabel = versions.length === 1 ? t('1 version') : t('{count} versions', { count: versions.length });
+  return (
+    <VersionSidebar
+      countLabel={countLabel}
+      search={search}
+      onSearchChange={setSearch}
+      showSearch={showSearch}
+      loading={loading}
+      versions={versions}
+      visibleVersions={visibleVersions}
+      selectedVersionId={selectedVersion ? selectedVersion.id : null}
+      onSelect={controller.selectVersion}
+      onPrefetch={controller.prefetchVersion}
+      formatDate={(version) => formatVersionDateTime({ value: version.createdAt, locale })}
+      sourceLabel={(version) => t(versionSourceLabel({ source: version.source }))}
+      sourceClassName={(version) => versionSourceClassName({ source: version.source })}
+      restoredFrom={(version) => restoredFromVersion({ version, versionById })}
+    />
+  );
+}
+
+function VersionHeaderActions<TVersion extends VersionRecord>({
+  controller,
+  onClose,
+  useI18nHook = useI18n,
+}: {
+  controller: VersionManagerController<TVersion>;
+  onClose: () => void;
+  useI18nHook?: typeof useI18n;
+}) {
+  const { t } = useI18nHook();
+  const { selectedVersion, restoreDisabled, restoring, restore, openInNewTab, loadingContent } = controller;
+  return (
+    <div className="jini-version-actions">
+      {selectedVersion && !selectedVersion.current ? (
+        <VersionRestoreControl disabled={restoreDisabled} restoring={restoring} onRestore={() => void restore()} />
+      ) : null}
+      <ViewportToggleGroup
+        presets={controller.viewportPresets}
+        viewport={controller.viewport}
+        onViewport={controller.setViewport}
+        ariaLabel={t('Preview viewport')}
+      />
+      {openInNewTab ? (
+        <button
+          type="button"
+          className="jini-viewer-action jini-viewer-action-icon"
+          aria-label={t('Open in new tab')}
+          title={t('Open in new tab')}
+          disabled={loadingContent}
+          onClick={openInNewTab}
+        >
+          {t('Open')}
+        </button>
+      ) : null}
+      <button
+        type="button"
+        className="jini-viewer-action jini-viewer-action-icon"
+        aria-label={t('Close')}
+        title={t('Close')}
+        onClick={onClose}
+      >
+        {t('Close')}
+      </button>
+    </div>
+  );
+}
+
+function VersionManagerPreview<TVersion extends VersionRecord>({
+  controller,
+  fileName,
+}: {
+  controller: VersionManagerController<TVersion>;
+  fileName: string;
+}) {
+  const { selectedVersion, previewDocument } = controller;
+  return (
+    <VersionPreviewFrame
+      previewDocument={previewDocument}
+      frameReady={controller.frameReady}
+      onFrameLoad={() => controller.markFrameLoaded(previewDocument)}
+      viewport={controller.viewport}
+      viewportPresets={controller.viewportPresets}
+      title={selectedVersion ? `${fileName} · v${selectedVersion.version}` : fileName}
+      error={controller.error}
+      loading={controller.loading}
+      loadingContent={controller.loadingContent}
+    />
+  );
+}
+
+interface VersionManagerHeaderProps<TVersion extends VersionRecord> {
+  controller: VersionManagerController<TVersion>;
+  fileName: string;
+  copied: boolean;
+  onCopy: (text: string) => void;
+  onClose: () => void;
+  promptOpenRef: { current: boolean };
+}
+
+function VersionManagerHeader<TVersion extends VersionRecord>({
+  controller,
+  fileName,
+  copied,
+  onCopy,
+  onClose,
+  promptOpenRef,
+}: VersionManagerHeaderProps<TVersion>) {
+  const { selectedVersion, versionById } = controller;
+  return (
+    <header className="jini-version-head">
+      <VersionMetadata
+        selectedVersion={selectedVersion}
+        versionById={versionById}
+        fileName={fileName}
+        copied={copied}
+        onCopy={onCopy}
+        onOpenChange={(open) => {
+          promptOpenRef.current = open;
+        }}
+      />
+      <VersionHeaderActions controller={controller} onClose={onClose} />
+    </header>
+  );
+}
+
 /**
  * The generic slice of the source's `FileVersionManagerModal`: a list +
  * cached-preview + restore + search modal shell. See
- * `packages/ui/source-map.md`'s `html-viewer` classification section for
+ * `archived UI source map`'s `html-viewer` classification section for
  * what was dropped (deploy/analytics calls — there were none; the actual
  * fetch/restore/preview-resolution calls became the injected
  * `VersionManagerPort`).
@@ -43,8 +178,11 @@ export function VersionManagerModal<TVersion extends VersionRecord>({
   dependencies = defaultVersionManagerDependencies as unknown as VersionManagerDependencies<TVersion>,
   viewportPresets,
   useVersionManager: useVersionManagerHook = useVersionManager,
-}: VersionManagerModalProps<TVersion>) {
-  const { t, locale } = useI18n();
+  useI18nHook = useI18n,
+  useCopyToClipboardHook = useCopyToClipboard,
+  useVersionManagerEscapeHook = useVersionManagerEscape,
+}: VersionManagerModalProps<TVersion> & { useI18nHook?: typeof useI18n; useCopyToClipboardHook?: typeof useCopyToClipboard; useVersionManagerEscapeHook?: typeof useVersionManagerEscape }) {
+  const { t } = useI18nHook();
   const controller = useVersionManagerHook(dependencies, {
     fileRef,
     currentContent,
@@ -52,64 +190,9 @@ export function VersionManagerModal<TVersion extends VersionRecord>({
     onRestoredCleanly: onClose,
     ...(viewportPresets ? { viewportPresets } : {}),
   });
-  const { copied, copy } = useCopyToClipboard(dependencies.clipboard);
+  const { copied, copy } = useCopyToClipboardHook(dependencies.clipboard);
 
-  const {
-    versions,
-    visibleVersions,
-    versionById,
-    selectedVersion,
-    search,
-    setSearch,
-    showSearch,
-    loading,
-    loadingContent,
-    error,
-    previewDocument,
-    frameReady,
-    markFrameLoaded,
-    restoring,
-    restoreDisabled,
-    restore,
-    openInNewTab,
-    viewportPresets: presets,
-    viewport,
-    setViewport,
-    selectVersion,
-    prefetchVersion,
-  } = controller;
-
-  const versionCountLabel =
-    versions.length === 1 ? t('1 version') : t('{count} versions', { count: versions.length });
-
-  // Layered Escape handling: close the modal only when neither popover is
-  // consuming the keystroke — each popover owns its own Escape dismissal
-  // via `useDismissOnOutsideOrEscape`, so this only needs to know whether
-  // to let Escape reach the modal itself. Simplified from the source's
-  // single-listener if/else priority chain to two independently-scoped
-  // listeners plus this modal-level one; see source-map.md for why this is
-  // a disclosed, behavior-preserving-in-practice simplification.
-  //
-  // `promptOpenRef` is how the modal knows "to let Escape reach the modal
-  // itself": `VersionPromptPopover` is mounted once (unconditionally) and
-  // registers its own document `keydown` listener only while it holds
-  // itself open, so this modal-level listener — added once at mount,
-  // always earlier in the document's listener order than any popover
-  // listener it later attaches on open — reads the ref synchronously
-  // before the popover's own handler has run and closes itself. A plain
-  // `event.stopPropagation()` in the popover wouldn't help here since its
-  // listener always fires *after* this one for that reason.
-  const promptOpenRef = useRef(false);
-  const handleEscape = useCallback(
-    (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !promptOpenRef.current) onClose();
-    },
-    [onClose],
-  );
-  useEffect(() => {
-    document.addEventListener('keydown', handleEscape);
-    return () => document.removeEventListener('keydown', handleEscape);
-  }, [handleEscape]);
+  const promptOpenRef = useVersionManagerEscapeHook({ onClose });
 
   return createPortal(
     <div
@@ -120,73 +203,17 @@ export function VersionManagerModal<TVersion extends VersionRecord>({
       }}
     >
       <div className="jini-version-modal" role="dialog" aria-modal="true" aria-label={t('Version history')}>
-        <VersionSidebar
-          countLabel={versionCountLabel}
-          search={search}
-          onSearchChange={setSearch}
-          showSearch={showSearch}
-          loading={loading}
-          versions={versions}
-          visibleVersions={visibleVersions}
-          selectedVersionId={selectedVersion ? selectedVersion.id : null}
-          onSelect={selectVersion}
-          onPrefetch={prefetchVersion}
-          formatDate={(version) => formatVersionDateTime(version.createdAt, locale)}
-          sourceLabel={(version) => t(versionSourceLabel(version.source))}
-          sourceClassName={(version) => versionSourceClassName(version.source)}
-          restoredFrom={(version) => restoredFromVersion(version, versionById)}
-        />
+        <VersionManagerSidebar controller={controller} />
         <div className="jini-version-main">
-          <header className="jini-version-head">
-            <VersionMetadata
-              selectedVersion={selectedVersion}
-              versionById={versionById}
-              fileName={fileRef.name}
-              copied={copied}
-              onCopy={(text) => void copy(text)}
-              onOpenChange={(open) => {
-                promptOpenRef.current = open;
-              }}
-            />
-            <div className="jini-version-actions">
-              {selectedVersion && !selectedVersion.current ? (
-                <VersionRestoreControl disabled={restoreDisabled} restoring={restoring} onRestore={() => void restore()} />
-              ) : null}
-              <ViewportToggleGroup presets={presets} viewport={viewport} onViewport={setViewport} ariaLabel={t('Preview viewport')} />
-              {openInNewTab ? (
-                <button
-                  type="button"
-                  className="jini-viewer-action jini-viewer-action-icon"
-                  aria-label={t('Open in new tab')}
-                  title={t('Open in new tab')}
-                  disabled={loadingContent}
-                  onClick={openInNewTab}
-                >
-                  {t('Open')}
-                </button>
-              ) : null}
-              <button
-                type="button"
-                className="jini-viewer-action jini-viewer-action-icon"
-                aria-label={t('Close')}
-                title={t('Close')}
-                onClick={onClose}
-              >
-                {t('Close')}
-              </button>
-            </div>
-          </header>
-          <VersionPreviewFrame
-            previewDocument={previewDocument}
-            frameReady={frameReady}
-            onFrameLoad={() => markFrameLoaded(previewDocument)}
-            viewport={viewport}
-            viewportPresets={presets}
-            title={selectedVersion ? `${fileRef.name} · v${selectedVersion.version}` : fileRef.name}
-            error={error}
-            loading={loading}
-            loadingContent={loadingContent}
+          <VersionManagerHeader
+            controller={controller}
+            fileName={fileRef.name}
+            copied={copied}
+            onCopy={(text) => void copy(text)}
+            onClose={onClose}
+            promptOpenRef={promptOpenRef}
           />
+          <VersionManagerPreview controller={controller} fileName={fileRef.name} />
         </div>
       </div>
     </div>,
@@ -203,6 +230,18 @@ interface VersionMetadataProps<TVersion extends VersionRecord> {
   onOpenChange: (open: boolean) => void;
 }
 
+/** What the metadata row shows about the selected version, or about the file when none is selected. */
+function selectedVersionFields<TVersion extends VersionRecord>(
+  { selectedVersion, versionById, fileName, locale }: Pick<VersionMetadataProps<TVersion>, 'selectedVersion' | 'versionById' | 'fileName'> & { locale: string },
+  _options: Record<string, never> = {},
+) {
+  return {
+    selectedPrompt: selectedVersion?.prompt?.trim() ?? '',
+    selectedDate: selectedVersion ? formatVersionDateTime({ value: selectedVersion.createdAt, locale }) : fileName,
+    selectedRestoredFrom: selectedVersion ? restoredFromVersion({ version: selectedVersion, versionById }) : null,
+  };
+}
+
 function VersionMetadata<TVersion extends VersionRecord>({
   selectedVersion,
   versionById,
@@ -210,11 +249,10 @@ function VersionMetadata<TVersion extends VersionRecord>({
   copied,
   onCopy,
   onOpenChange,
-}: VersionMetadataProps<TVersion>) {
-  const { t, locale } = useI18n();
-  const selectedPrompt = selectedVersion?.prompt?.trim() ?? '';
-  const selectedDate = selectedVersion ? formatVersionDateTime(selectedVersion.createdAt, locale) : fileName;
-  const selectedRestoredFrom = selectedVersion ? restoredFromVersion(selectedVersion, versionById) : null;
+  useI18nHook = useI18n,
+}: VersionMetadataProps<TVersion> & { useI18nHook?: typeof useI18n }) {
+  const { t, locale } = useI18nHook();
+  const { selectedPrompt, selectedDate, selectedRestoredFrom } = selectedVersionFields({ selectedVersion, versionById, fileName, locale });
 
   return (
     <div className="jini-version-meta">
@@ -223,8 +261,8 @@ function VersionMetadata<TVersion extends VersionRecord>({
           <span className="jini-version-current-badge">{t('Current')}</span>
         ) : null}
         {selectedVersion ? (
-          <span className={`jini-version-source-badge ${versionSourceClassName(selectedVersion.source)}`}>
-            {t(versionSourceLabel(selectedVersion.source))}
+          <span className={`jini-version-source-badge ${versionSourceClassName({ source: selectedVersion.source })}`}>
+            {t(versionSourceLabel({ source: selectedVersion.source }))}
           </span>
         ) : null}
         <span className="jini-version-selected-date">{selectedDate}</span>

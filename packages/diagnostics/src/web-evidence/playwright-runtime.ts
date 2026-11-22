@@ -43,6 +43,7 @@
  * - **Values are never read.** Cookie values, request bodies, and form-field values are not
  *   extracted anywhere below, because `browser-port.ts`'s shapes have nowhere to put them.
  */
+import { describeErrorForLog } from "@jini-ai/core";
 import type { RenderBrowser } from "./render-page.js";
 import type { RequestRouter } from "./request-guard.js";
 
@@ -92,7 +93,7 @@ export async function openPlaywrightRenderBrowser(
       available: false,
       reason:
         "the 'playwright' package is not installed in this deployment, so rendered-page behaviour " +
-        `cannot be observed here (${error instanceof Error ? error.message : String(error)})`,
+        `cannot be observed here (${describeErrorForLog({ err: error })}). Install it with 'npm install -D playwright' and then run 'npx playwright install --with-deps chromium'.`,
     };
   }
 
@@ -109,7 +110,7 @@ export async function openPlaywrightRenderBrowser(
       available: false,
       reason:
         "Neither bundled Chromium nor system Chrome could be launched in this deployment — the 'playwright' package is present but the " +
-        `browser binaries may be missing or the host may not support the configured sandbox (install Chrome or run 'npx playwright install --with-deps chromium'). Underlying error: ${error instanceof Error ? error.message : String(error)}`,
+        `browser binaries may be missing or the host may not support the configured sandbox (install Chrome or run 'npx playwright install --with-deps chromium'; launch failed with ${describeErrorForLog({ err: error })}).`,
     };
   }
 

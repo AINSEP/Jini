@@ -29,19 +29,19 @@ function suggestion(id: string, over: Partial<MemorySuggestion> = {}): MemorySug
 // refactor that changes the body fails here rather than silently at runtime.
 describe('memory config rules', () => {
   it('enabledPatch sends only the master switch', () => {
-    expect(enabledPatch(true)).toEqual({ enabled: true });
-    expect(enabledPatch(false)).toEqual({ enabled: false });
+    expect(enabledPatch({ enabled: true })).toEqual({ enabled: true });
+    expect(enabledPatch({ enabled: false })).toEqual({ enabled: false });
   });
 
   it('singleFlagPatch sends only the one toggled flag', () => {
-    expect(singleFlagPatch('profileEnabled', false)).toEqual({ profileEnabled: false });
-    expect(singleFlagPatch('verifyEnabled', true)).toEqual({ verifyEnabled: true });
+    expect(singleFlagPatch({ flag: 'profileEnabled', value: false })).toEqual({ profileEnabled: false });
+    expect(singleFlagPatch({ flag: 'verifyEnabled', value: true })).toEqual({ verifyEnabled: true });
   });
 
   it('covers every per-hook flag key', () => {
     const keys: MemoryConfigFlagKey[] = ['chatExtractionEnabled', 'profileEnabled', 'rewriteEnabled', 'verifyEnabled'];
     for (const key of keys) {
-      expect(singleFlagPatch(key, true)).toEqual({ [key]: true });
+      expect(singleFlagPatch({ flag: key, value: true })).toEqual({ [key]: true });
     }
   });
 });
@@ -50,16 +50,16 @@ describe('visibleExtractionsFor', () => {
   const rows = [record('llm-a', { kind: 'llm' }), record('conn-b', { kind: 'connector' }), record('plain-c')];
 
   it("drops connector-kind records under the 'all' filter", () => {
-    expect(visibleExtractionsFor(rows, 'all').map((r) => r.id)).toEqual(['llm-a', 'plain-c']);
+    expect(visibleExtractionsFor({ extractions: rows, filter: 'all' }).map((r) => r.id)).toEqual(['llm-a', 'plain-c']);
   });
 
   it('shows nothing under any per-type filter (extractions are all-only)', () => {
-    expect(visibleExtractionsFor(rows, 'project')).toEqual([]);
-    expect(visibleExtractionsFor(rows, 'user')).toEqual([]);
+    expect(visibleExtractionsFor({ extractions: rows, filter: 'project' })).toEqual([]);
+    expect(visibleExtractionsFor({ extractions: rows, filter: 'user' })).toEqual([]);
   });
 
   it('is empty when there are no extractions', () => {
-    expect(visibleExtractionsFor([], 'all')).toEqual([]);
+    expect(visibleExtractionsFor({ extractions: [], filter: 'all' })).toEqual([]);
   });
 });
 
@@ -74,10 +74,10 @@ describe('connector rules', () => {
       connector('a', { tools: [{ name: 'x', safety: { sideEffect: 'read' } }], toolCount: 3, toolsNextCursor: 'c', toolsHasMore: true }),
       connector('b'),
     ];
-    expect(upsertMemoryConnector(list, null)).toBe(list);
-    expect(upsertMemoryConnector(list, connector('c')).map((c) => c.id)).toEqual(['a', 'b', 'c']);
+    expect(upsertMemoryConnector({ current: list, next: null })).toBe(list);
+    expect(upsertMemoryConnector({ current: list, next: connector('c') }).map((c) => c.id)).toEqual(['a', 'b', 'c']);
 
-    const merged = upsertMemoryConnector(list, connector('a', { name: 'A', tools: [] }));
+    const merged = upsertMemoryConnector({ current: list, next: connector('a', { name: 'A', tools: [] }) });
     const mergedA = merged.find((c) => c.id === 'a')!;
     expect(mergedA.name).toBe('A');
     // Tool metadata is kept when the update's own tools array is empty.
@@ -87,14 +87,14 @@ describe('connector rules', () => {
     expect(mergedA.toolsHasMore).toBe(true);
 
     // When the update carries its own tools, they win.
-    const replaced = upsertMemoryConnector(list, connector('a', { tools: [{ name: 'y', safety: { sideEffect: 'read' } }] }));
+    const replaced = upsertMemoryConnector({ current: list, next: connector('a', { tools: [{ name: 'y', safety: { sideEffect: 'read' } }] }) });
     expect(replaced.find((c) => c.id === 'a')?.tools).toHaveLength(1);
     expect(replaced.find((c) => c.id === 'a')?.tools[0]?.name).toBe('y');
   });
 
   it('applyMemoryConnectorStatus drops stale account/error fields before applying', () => {
     const stale = connector('a', { accountLabel: 'old', lastError: 'boom', status: 'error' });
-    const applied = applyMemoryConnectorStatus(stale, { status: 'connected' });
+    const applied = applyMemoryConnectorStatus({ connector: stale, status: { status: 'connected' } });
     expect(applied.status).toBe('connected');
     expect(applied.accountLabel).toBeUndefined();
     expect(applied.lastError).toBeUndefined();
@@ -104,7 +104,7 @@ describe('connector rules', () => {
     const a = connector('a', { status: 'available' });
     // The 1-item array form of applyConnectorStatuses this delegates to
     // no-ops per-row when the status map doesn't mention that row's id.
-    const applied = applyMemoryConnectorStatus(a, undefined as never);
+    const applied = applyMemoryConnectorStatus({ connector: a, status: undefined as never });
     expect(applied).toBe(a);
   });
 

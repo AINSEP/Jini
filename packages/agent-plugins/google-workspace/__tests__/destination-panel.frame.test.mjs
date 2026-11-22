@@ -221,7 +221,7 @@ test("the host's schema refusal (JSON paths) shows as plain words, not developer
 });
 
 test('guarantee: the declared save-destination input refuses an empty spreadsheet id, so a successful save always had a chosen spreadsheet', () => {
-  const surfaces = JSON.parse(readFileSync(new URL('../tovu-admin-surfaces.json', import.meta.url), 'utf8')).surfaces;
+  const surfaces = JSON.parse(readFileSync(new URL('../jini-admin-surfaces.json', import.meta.url), 'utf8')).surfaces;
   const save = surfaces.find((surface) => surface.id === 'form-destinations').actions.find((action) => action.name === 'save-destination');
   assert.deepEqual({ required: save.input.required.includes('spreadsheetId'), minLength: save.input.properties.spreadsheetId.minLength }, { required: true, minLength: 1 });
 });

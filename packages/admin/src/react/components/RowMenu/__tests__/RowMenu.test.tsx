@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { useRef } from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import { AGENT_ELEMENT_ATTRIBUTE } from '@jini-ai/agentic';
+import { AGENT_ELEMENT_ATTRIBUTE } from '@jini-ai/core/agent-handles';
 import { RowMenu, type RowMenuItem } from '../RowMenu.js';
 
 function items(overrides: Partial<RowMenuItem>[] = []): RowMenuItem[] {

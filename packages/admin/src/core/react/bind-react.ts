@@ -1,21 +1,13 @@
 import { createContext, createElement, lazy, useContext } from 'react';
 import type { ComponentType, ReactNode, LazyExoticComponent, Context as ReactContext } from 'react';
-import type { AdminInstance, AdminModule, ScopedPorts } from '../module/types.js';
-import { AdminConfigError } from '../module/create-admin.js';
-export interface TabViewProps {
-  readonly params: Readonly<Record<string, unknown>>;
-  readonly permissions?: readonly string[];
-}
-export interface ModulePageProps {
-  readonly tabs: Readonly<Record<string, LazyExoticComponent<ComponentType<TabViewProps>>>>;
-  readonly description: ReturnType<AdminInstance['describe']>['pages'][number];
-  readonly requestedTab?: string;
-  readonly onTabChange?: (required: { tab: string }, optional?: Record<string, never>) => void;
-}
+import type { AdminInstance, AdminModule, ModulePageProps, ScopedPorts, TabViewProps } from '@jini-ai/core/contracts/admin-module';
+import { AdminConfigError } from '@jini-ai/core/admin-runtime';
+/** The shell renders every module tab as a lazy component. */
+export type LazyTabView = LazyExoticComponent<ComponentType<TabViewProps>>;
 type Loader<P> = () => Promise<{ default: ComponentType<P> }>;
 export type ReactViews<M extends AdminModule> = {
   readonly [P in keyof M['pages']]: {
-    readonly page: Loader<ModulePageProps>;
+    readonly page: Loader<ModulePageProps<LazyTabView>>;
     readonly tabs: { readonly [T in keyof M['pages'][P]['tabs']]: Loader<TabViewProps> };
   };
 };
@@ -29,7 +21,7 @@ export function bindReact<const M extends AdminModule>(
   const pages = Object.fromEntries(
     Object.entries(views).map(([id, raw]) => {
       const view = raw as {
-        page: Loader<ModulePageProps>;
+        page: Loader<ModulePageProps<LazyTabView>>;
         tabs: Record<string, Loader<TabViewProps>>;
       };
       return [
@@ -44,9 +36,9 @@ export function bindReact<const M extends AdminModule>(
     }),
   ) as {
     [P in keyof M['pages']]: {
-      Page: LazyExoticComponent<ComponentType<ModulePageProps>>;
+      Page: LazyExoticComponent<ComponentType<ModulePageProps<LazyTabView>>>;
       tabs: {
-        [T in keyof M['pages'][P]['tabs']]: LazyExoticComponent<ComponentType<TabViewProps>>;
+        [T in keyof M['pages'][P]['tabs']]: LazyTabView;
       };
     };
   };

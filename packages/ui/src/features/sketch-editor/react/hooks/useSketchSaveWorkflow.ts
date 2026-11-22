@@ -1,4 +1,4 @@
-import { formatErrorForLog } from '@jini-ai/core';
+import { createConsoleLogger, type Logger } from '@jini-ai/core/primitives';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { MutableRefObject } from 'react';
 import { EXPORTED_IMAGE_MIME_TYPE, SAVED_VISIBLE_MS } from '../../constants.js';
@@ -14,6 +14,7 @@ function useLatestRef<T>(value: T): MutableRefObject<T> {
 }
 
 export interface UseSketchSaveWorkflowParams {
+  report?: Pick<Logger, 'warn'> | undefined;
   dirty: boolean;
   saving: boolean;
   savedAt?: number | undefined;
@@ -44,6 +45,73 @@ export interface SketchSaveWorkflowController {
   handleToastAction: () => void;
 }
 
+/** Debounced "Saved" indicator: hides while dirty, shows briefly once a save lands. */
+function useSavedIndicator({ dirty, saving, savedAt }: { dirty: boolean; saving: boolean; savedAt: number | null | undefined }, _options = {}) {
+  const [showSaved, setShowSaved] = useState(false);
+  const savedTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const hideSaved = useCallback(() => {
+    clearTimeout(savedTimerRef.current);
+    setShowSaved(false);
+  }, []);
+  const flashSaved = useCallback(() => {
+    setShowSaved(true);
+    clearTimeout(savedTimerRef.current);
+    savedTimerRef.current = setTimeout(() => setShowSaved(false), SAVED_VISIBLE_MS);
+  }, []);
+
+  useEffect(() => () => clearTimeout(savedTimerRef.current), []);
+
+  useEffect(() => {
+    if (dirty) hideSaved();
+  }, [dirty, hideSaved]);
+
+  useEffect(() => {
+    if (!savedAt || dirty || saving) return;
+    flashSaved();
+  }, [dirty, savedAt, saving, flashSaved]);
+  return { showSaved, hideSaved, flashSaved };
+}
+
+/** The elements and app state handed to the image exporter: live elements, opaque background. */
+function exportSceneInput({ scene }: { scene: ReturnType<UseSketchSaveWorkflowParams['currentScene']> }, _options = {}) {
+  const exportedElements = scene.elements.filter(isNonDeletedExcalidrawElement) as OrderedExcalidrawElement[];
+  const exportedAppState = {
+    ...sanitizeExcalidrawAppState({ value: scene.appState }),
+    exportBackground: true,
+    viewBackgroundColor: typeof scene.appState?.viewBackgroundColor === 'string' ? scene.appState.viewBackgroundColor : '#ffffff',
+  } as Partial<AppState>;
+  return { exportedElements, exportedAppState };
+}
+
+/** Renders, encodes and hands off the image; resolves with the toast to show (null when the host declined). Never rejects. */
+async function performSketchExport({ scene, engine, exportHandler, fileNameRef, tRef, sourceFileExtension, report }: {
+  scene: ReturnType<UseSketchSaveWorkflowParams['currentScene']>; engine: UseSketchSaveWorkflowParams['engine'];
+  exportHandler: NonNullable<UseSketchSaveWorkflowParams['onExportImage']>;
+  fileNameRef: { current: string }; tRef: { current: UseSketchSaveWorkflowParams['t'] };
+  sourceFileExtension: UseSketchSaveWorkflowParams['sourceFileExtension']; report: UseSketchSaveWorkflowParams['report'];
+}, _options = {}): Promise<SketchToastState | null> {
+  const { exportedElements, exportedAppState } = exportSceneInput({ scene });
+  try {
+    const blob = await engine.exportToBlob({
+      elements: exportedElements,
+      appState: exportedAppState,
+      files: scene.files as unknown as BinaryFiles,
+      mimeType: EXPORTED_IMAGE_MIME_TYPE,
+      exportPadding: 16,
+    });
+    const base64 = await blobToBase64(blob);
+    const requestedFileName = exportedImageFileName({ fileName: fileNameRef.current }, { sourceExtension: sourceFileExtension });
+    const result = await exportHandler(base64, requestedFileName, scene);
+    if (result === false) return null;
+    const savedFileName = exportedImageResultFileName({ result, fallback: requestedFileName });
+    return { message: tRef.current('Image exported'), details: savedFileName, tone: 'success', actionFileName: savedFileName };
+  } catch (err) {
+    const logger = report ?? createConsoleLogger({ prefix: '[SketchEditor]' });
+    logger.warn({ message: 'export image failed' }, { error: err });
+    return { message: tRef.current('Could not export image'), tone: 'error' };
+  }
+}
+
 /**
  * Owns save/export orchestration and the transient "Saved" state: the
  * dirty/saving/savedAt props drive a debounced "Saved" indicator, and
@@ -51,12 +119,11 @@ export interface SketchSaveWorkflowController {
  * single toast slot.
  */
 export function useSketchSaveWorkflow(params: UseSketchSaveWorkflowParams): SketchSaveWorkflowController {
-  const { dirty, saving, savedAt, fileName, currentScene, onSave, onExportImage, onOpenExportedImage, engine, t, sourceFileExtension } =
+  const { dirty, saving, savedAt, fileName, currentScene, onSave, onExportImage, onOpenExportedImage, engine, t, sourceFileExtension, report } =
     params;
-  const [showSaved, setShowSaved] = useState(false);
+  const { showSaved, hideSaved, flashSaved } = useSavedIndicator({ dirty, saving, savedAt });
   const [exporting, setExporting] = useState(false);
   const [toast, setToast] = useState<SketchToastState | null>(null);
-  const savedTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const onSaveRef = useLatestRef(onSave);
   const onExportImageRef = useLatestRef(onExportImage);
   const onOpenExportedImageRef = useLatestRef(onOpenExportedImage);
@@ -64,73 +131,25 @@ export function useSketchSaveWorkflow(params: UseSketchSaveWorkflowParams): Sket
   const tRef = useLatestRef(t);
   const toastRef = useLatestRef(toast);
 
-  useEffect(() => () => clearTimeout(savedTimerRef.current), []);
-
-  useEffect(() => {
-    if (dirty) {
-      clearTimeout(savedTimerRef.current);
-      setShowSaved(false);
-    }
-  }, [dirty]);
-
-  useEffect(() => {
-    if (!savedAt || dirty || saving) return;
-    setShowSaved(true);
-    clearTimeout(savedTimerRef.current);
-    savedTimerRef.current = setTimeout(() => setShowSaved(false), SAVED_VISIBLE_MS);
-  }, [dirty, savedAt, saving]);
-
   const handleSave = useCallback(async () => {
     const ok = await onSaveRef.current(currentScene());
     if (ok === false) {
-      clearTimeout(savedTimerRef.current);
-      setShowSaved(false);
+      hideSaved();
       return;
     }
-    setShowSaved(true);
+    flashSaved();
     setToast({ message: tRef.current('Saved'), tone: 'success' });
-    clearTimeout(savedTimerRef.current);
-    savedTimerRef.current = setTimeout(() => setShowSaved(false), SAVED_VISIBLE_MS);
-  }, [currentScene, onSaveRef, tRef]);
+  }, [currentScene, onSaveRef, tRef, hideSaved, flashSaved]);
 
   const handleExportImage = useCallback(async () => {
     const exportHandler = onExportImageRef.current;
     if (!exportHandler || exporting) return;
     const exportedScene = currentScene();
-    const exportedElements = exportedScene.elements.filter(isNonDeletedExcalidrawElement) as OrderedExcalidrawElement[];
-    const exportedAppState = {
-      ...sanitizeExcalidrawAppState(exportedScene.appState),
-      exportBackground: true,
-      viewBackgroundColor:
-        typeof exportedScene.appState?.viewBackgroundColor === 'string' ? exportedScene.appState.viewBackgroundColor : '#ffffff',
-    } as Partial<AppState>;
     setExporting(true);
-    try {
-      const blob = await engine.exportToBlob({
-        elements: exportedElements,
-        appState: exportedAppState,
-        files: exportedScene.files as unknown as BinaryFiles,
-        mimeType: EXPORTED_IMAGE_MIME_TYPE,
-        exportPadding: 16,
-      });
-      const base64 = await blobToBase64(blob);
-      const requestedFileName = exportedImageFileName(fileNameRef.current, sourceFileExtension);
-      const result = await exportHandler(base64, requestedFileName, exportedScene);
-      if (result === false) return;
-      const savedFileName = exportedImageResultFileName(result, requestedFileName);
-      setToast({
-        message: tRef.current('Image exported'),
-        details: savedFileName,
-        tone: 'success',
-        actionFileName: savedFileName,
-      });
-    } catch (err) {
-      console.warn('[SketchEditor] export image failed', formatErrorForLog({ error: err }));
-      setToast({ message: tRef.current('Could not export image'), tone: 'error' });
-    } finally {
-      setExporting(false);
-    }
-  }, [currentScene, engine, exporting, fileNameRef, onExportImageRef, sourceFileExtension, tRef]);
+    const nextToast = await performSketchExport({ scene: exportedScene, engine, exportHandler, fileNameRef, tRef, sourceFileExtension, report });
+    if (nextToast) setToast(nextToast);
+    setExporting(false);
+  }, [currentScene, engine, exporting, fileNameRef, onExportImageRef, sourceFileExtension, tRef, report]);
 
   const dismissToast = useCallback(() => setToast(null), []);
 

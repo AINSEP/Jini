@@ -22,3 +22,6 @@ export {
   type AgentModelContextRegisterToolOptions,
   type AgentModelContextToolRegistration,
 } from './model-context.js';
+
+/** Page-control port over a driver; hosts hand it to chat's frontend session bridge (`page`). */
+export { createDriverPagePort, type DriverPagePort } from './page-port.js';

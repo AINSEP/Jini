@@ -4,7 +4,7 @@ import { describeEachDialect } from "./support/dialect-matrix.fixture.js";
 import { createSubmissionIpRetentionRepo } from "./support/repo-ports.fixture.js";
 import type { ContentKernel } from "./support/dialect-matrix.fixture.js";
 import { sql } from "kysely";
-import type { StorageDialect } from "@jini-ai/db/kernel";
+import type { StorageDialect } from "@jini-ai/core/contracts/storage";
 import { eachDialect } from "../../core/__tests__/support/dialect-matrix.js";
 import { createTables } from "./support/forms-tables.fixture.js";
 

@@ -1,7 +1,7 @@
-import { useRef, type KeyboardEvent, type MouseEvent } from 'react';
 import { useT } from '../../../i18n/index.js';
-import { humanBytes, isDoubleActivation, relativeTimeResult, type MenuAnchorRect } from '../../rules.js';
+import { humanBytes, relativeTimeResult, type MenuAnchorRect } from '../../rules.js';
 import type { AssetTreeRenameState } from '../../types.js';
+import { useAssetTreeFileRow } from './AssetTreeFileRow.hooks.js';
 
 export interface AssetTreeFileRowProps {
   path: string;
@@ -22,6 +22,131 @@ export interface AssetTreeFileRowProps {
   onRenameDraftChange: (draft: string) => void;
   onCommitRename: () => void;
   onCancelRename: () => void;
+  useTHook?: typeof useT;
+  useAssetTreeFileRowHook?: typeof useAssetTreeFileRow;
+}
+
+/** Selection checkbox cell; Enter/Space toggle like a native checkbox. */
+function RowCheck({ path, displayName, selected, onToggleSelect, useTHook = useT }: {
+  path: string; displayName: string; selected: boolean; onToggleSelect: (path: string) => void;
+  useTHook?: typeof useT;
+}) {
+  const t = useTHook();
+  return (
+    <span
+      className="jini-asset-tree-row-check"
+      role="checkbox"
+      aria-checked={selected}
+      aria-label={selected ? t('Deselect {name}', { name: displayName }) : t('Select {name}', { name: displayName })}
+      tabIndex={0}
+      onClick={(event) => {
+        event.stopPropagation();
+        onToggleSelect(path);
+      }}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          event.stopPropagation();
+          onToggleSelect(path);
+        }
+      }}
+    >
+      {selected ? (
+        <span className="jini-asset-tree-row-check-mark" aria-hidden>
+          ✓
+        </span>
+      ) : null}
+    </span>
+  );
+}
+
+/** Inline rename input; commits on Enter/blur, cancels on Escape (once — see `skipRenameCommit`). */
+function RenameInput({ displayName, renaming, onRenameDraftChange, onCommitRename, onCancelRename, useTHook = useT }: {
+  displayName: string; renaming: NonNullable<AssetTreeFileRowProps['renaming']>;
+  onRenameDraftChange: (draft: string) => void; onCommitRename: () => void; onCancelRename: () => void;
+  useTHook?: typeof useT;
+}) {
+  const t = useTHook();
+  return (
+  <input
+    autoFocus
+    className="jini-asset-tree-rename-input"
+    aria-label={t('Rename {name}', { name: displayName })}
+    value={renaming.draft}
+    disabled={renaming.saving}
+    onChange={(event) => onRenameDraftChange(event.target.value)}
+    onClick={(event) => event.stopPropagation()}
+    onDoubleClick={(event) => event.stopPropagation()}
+    onBlur={(event) => {
+      if (event.currentTarget.dataset.skipRenameCommit === '1') return;
+      onCommitRename();
+    }}
+    onKeyDown={(event) => {
+      if (event.key !== 'Enter' && event.key !== 'Escape') return;
+      event.preventDefault();
+      event.currentTarget.dataset.skipRenameCommit = '1';
+      if (event.key === 'Enter') onCommitRename();
+      else onCancelRename();
+    }}
+  />
+  );
+}
+
+/** Name cell: the inline rename input while renaming, otherwise the preview/open name button. */
+function RowNameCell({ path, displayName, kindLabel, renaming, nameKeyDown, onSelectPreview, onOpen, onRenameDraftChange, onCommitRename, onCancelRename }: {
+  path: string; displayName: string; kindLabel: string; renaming: AssetTreeFileRowProps['renaming'];
+  nameKeyDown: React.KeyboardEventHandler<HTMLButtonElement>;
+  onSelectPreview: (path: string) => void; onOpen: (path: string) => void;
+  onRenameDraftChange: (draft: string) => void; onCommitRename: () => void; onCancelRename: () => void;
+}) {
+  return (
+      <div className="jini-asset-tree-row-name-wrap">
+        {renaming ? (
+          <RenameInput displayName={displayName} renaming={renaming} onRenameDraftChange={onRenameDraftChange} onCommitRename={onCommitRename} onCancelRename={onCancelRename} />
+        ) : (
+          <button
+            type="button"
+            className="jini-asset-tree-row-name-btn"
+            onClick={() => onSelectPreview(path)}
+            onDoubleClick={() => onOpen(path)}
+            onKeyDown={nameKeyDown}
+          >
+            <span className="jini-asset-tree-row-name-wrap">
+              <span className="jini-asset-tree-row-name" title={displayName}>
+                {displayName}
+              </span>
+              <span className="jini-asset-tree-row-sub">{kindLabel}</span>
+            </span>
+          </button>
+        )}
+      </div>
+  );
+}
+
+/** Row-actions trigger; Enter/Space open the menu like a button. */
+function RowMenuTrigger({ path, displayName, handleMenuTrigger, useTHook = useT }: {
+  path: string; displayName: string; handleMenuTrigger: (event: React.MouseEvent<HTMLElement> | React.KeyboardEvent<HTMLElement>) => void;
+  useTHook?: typeof useT;
+}) {
+  const t = useTHook();
+  return (
+    <span
+      data-testid={`asset-tree-file-menu-${path}`}
+      className="jini-asset-tree-row-menu"
+      role="button"
+      tabIndex={0}
+      aria-label={t('Row actions for {name}', { name: displayName })}
+      onClick={handleMenuTrigger}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          handleMenuTrigger(event);
+        }
+      }}
+    >
+      ⋯
+    </span>
+  );
 }
 
 /**
@@ -34,145 +159,42 @@ export interface AssetTreeFileRowProps {
  * navigation — ported from the origin `DesignFilesPanel`'s row name button).
  */
 export function AssetTreeFileRow({
-  path,
-  displayName,
-  active,
-  selected,
-  kindLabel,
-  kindGlyph,
-  size,
-  modifiedAt,
-  renaming,
-  onSelectPreview,
-  onOpen,
-  onToggleSelect,
-  onOpenMenu,
-  onRenameDraftChange,
-  onCommitRename,
-  onCancelRename,
+  path, displayName, active, selected, kindLabel, kindGlyph, size, modifiedAt, renaming,
+  onSelectPreview, onOpen, onToggleSelect, onOpenMenu, onRenameDraftChange, onCommitRename, onCancelRename,
+  useTHook = useT,
+  useAssetTreeFileRowHook = useAssetTreeFileRow,
 }: AssetTreeFileRowProps) {
-  const t = useT();
-  const lastActivationRef = useRef<number | undefined>(undefined);
-  const relativeTime = relativeTimeResult(modifiedAt);
+  const t = useTHook();
+  const { handleNameKeyDown, handleMenuTrigger } = useAssetTreeFileRowHook({ path, onOpen, onSelectPreview, onOpenMenu });
+  const relativeTime = relativeTimeResult({ ts: modifiedAt });
   const timeLabel = relativeTime.translatable ? t(relativeTime.label, relativeTime.params) : relativeTime.label;
-
-  function handleNameKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
-    if (event.key !== 'Enter' && event.key !== ' ') return;
-    event.preventDefault();
-    const now = Date.now();
-    if (isDoubleActivation(lastActivationRef.current, now)) {
-      lastActivationRef.current = undefined;
-      onOpen(path);
-    } else {
-      lastActivationRef.current = now;
-      onSelectPreview(path);
-    }
-  }
-
-  function handleMenuTrigger(event: MouseEvent<HTMLSpanElement> | KeyboardEvent<HTMLSpanElement>) {
-    event.stopPropagation();
-    onOpenMenu(path, event.currentTarget.getBoundingClientRect());
-  }
 
   return (
     <div
       data-testid={`asset-tree-file-row-${path}`}
-      className={`asset-tree-row asset-tree-file-row${active ? ' active' : ''}${selected ? ' selected' : ''}`}
+      className={`jini-asset-tree-row asset-tree-file-row${active ? ' active' : ''}${selected ? ' selected' : ''}`}
     >
+      <RowCheck path={path} displayName={displayName} selected={selected} onToggleSelect={onToggleSelect} />
       <span
-        className="asset-tree-row-check"
-        role="checkbox"
-        aria-checked={selected}
-        aria-label={selected ? t('Deselect {name}', { name: displayName }) : t('Select {name}', { name: displayName })}
-        tabIndex={0}
-        onClick={(event) => {
-          event.stopPropagation();
-          onToggleSelect(path);
-        }}
-        onKeyDown={(event) => {
-          if (event.key === 'Enter' || event.key === ' ') {
-            event.preventDefault();
-            event.stopPropagation();
-            onToggleSelect(path);
-          }
-        }}
-      >
-        {selected ? (
-          <span className="asset-tree-row-check-mark" aria-hidden>
-            ✓
-          </span>
-        ) : null}
-      </span>
-      <span
-        className="asset-tree-row-icon"
+        className="jini-asset-tree-row-icon"
         aria-hidden
         onClick={() => onSelectPreview(path)}
         onDoubleClick={() => onOpen(path)}
       >
         {kindGlyph}
       </span>
-      <div className="asset-tree-row-name-wrap">
-        {renaming ? (
-          <input
-            autoFocus
-            className="asset-tree-rename-input"
-            aria-label={t('Rename {name}', { name: displayName })}
-            value={renaming.draft}
-            disabled={renaming.saving}
-            onChange={(event) => onRenameDraftChange(event.target.value)}
-            onClick={(event) => event.stopPropagation()}
-            onDoubleClick={(event) => event.stopPropagation()}
-            onBlur={(event) => {
-              if (event.currentTarget.dataset.skipRenameCommit === '1') return;
-              onCommitRename();
-            }}
-            onKeyDown={(event) => {
-              if (event.key !== 'Enter' && event.key !== 'Escape') return;
-              event.preventDefault();
-              event.currentTarget.dataset.skipRenameCommit = '1';
-              if (event.key === 'Enter') onCommitRename();
-              else onCancelRename();
-            }}
-          />
-        ) : (
-          <button
-            type="button"
-            className="asset-tree-row-name-btn"
-            onClick={() => onSelectPreview(path)}
-            onDoubleClick={() => onOpen(path)}
-            onKeyDown={handleNameKeyDown}
-          >
-            <span className="asset-tree-row-name-wrap">
-              <span className="asset-tree-row-name" title={displayName}>
-                {displayName}
-              </span>
-              <span className="asset-tree-row-sub">{kindLabel}</span>
-            </span>
-          </button>
-        )}
-      </div>
-      <span className="asset-tree-row-size" onClick={() => onSelectPreview(path)} onDoubleClick={() => onOpen(path)}>
-        {humanBytes(size)}
+      <RowNameCell
+        path={path} displayName={displayName} kindLabel={kindLabel} renaming={renaming} nameKeyDown={handleNameKeyDown}
+        onSelectPreview={onSelectPreview} onOpen={onOpen}
+        onRenameDraftChange={onRenameDraftChange} onCommitRename={onCommitRename} onCancelRename={onCancelRename}
+      />
+      <span className="jini-asset-tree-row-size" onClick={() => onSelectPreview(path)} onDoubleClick={() => onOpen(path)}>
+        {humanBytes({ n: size })}
       </span>
-      <span className="asset-tree-row-time" onClick={() => onSelectPreview(path)} onDoubleClick={() => onOpen(path)}>
+      <span className="jini-asset-tree-row-time" onClick={() => onSelectPreview(path)} onDoubleClick={() => onOpen(path)}>
         {timeLabel}
       </span>
-      <span
-        data-testid={`asset-tree-file-menu-${path}`}
-        className="asset-tree-row-menu"
-        role="button"
-        tabIndex={0}
-        aria-label={t('Row actions for {name}', { name: displayName })}
-        onClick={handleMenuTrigger}
-        onKeyDown={(event) => {
-          if (event.key === 'Enter' || event.key === ' ') {
-            event.preventDefault();
-            handleMenuTrigger(event);
-          }
-        }}
-      >
-        ⋯
-      </span>
+      <RowMenuTrigger path={path} displayName={displayName} handleMenuTrigger={handleMenuTrigger} />
     </div>
   );
 }

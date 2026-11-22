@@ -1,6 +1,5 @@
 /**
- * @file `CORE_RESOLVERS` — the closed, core-owned resolver dispatch map (SPEC-043 REQ-08/09/10/23;
- * ADR-047 Debate Fold-In Amendment 2/3).
+ * @file `CORE_RESOLVERS` — the closed, core-owned resolver dispatch map.
  *
  * Purpose:
  * The ONE place a registry's `resolverId` string resolves against real, executable code. A
@@ -13,7 +12,7 @@
  *
  * Architectural role:
  * TDD-certified implementation (implementation outline C-003). The dispatcher's failure-isolation
- * contract is design-frozen from SPEC-043; `resolveWidgetType()` dispatches to the closed
+ * contract is design-frozen; `resolveWidgetType()` dispatches to the closed
  * `CORE_RESOLVERS` map (or the static path for a resolver-less type), wrapping every call in the
  * shared try/catch + timeout boundary so a resolver failure never propagates past REQ-27/INV-05.
  * Verified against `__tests__/integration/resolver-service.integration.test.ts`.

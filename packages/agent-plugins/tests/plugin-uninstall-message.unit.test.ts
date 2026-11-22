@@ -2,7 +2,7 @@ import { mkdtemp, mkdir, readFile, readdir, realpath, rm, stat, writeFile } from
 import os from 'node:os';
 import path from 'node:path';
 import { expect, it, vi } from 'vitest';
-import { createNodeAgentPluginEffects } from '@jini-ai/agent-plugins/lifecycle/node';
+import { nativeEffectsFixture } from '../src/lifecycle/__tests__/fixtures/native-effects.js';
 import { createAgentPluginLayout, createAgentPluginLifecycle, AgentPluginNotUninstallableError, type AgentPluginLifecyclePorts } from '@jini-ai/agent-plugins/lifecycle';
 
 // Originally placed in integrations because the fix's edit scope permitted only uninstall.ts
@@ -23,7 +23,7 @@ it.each(['"bundled"', '{"enabled":"yes","origin":"operator-installed"}'])('names
     const activationBytes = `{"schemaVersion":1,"plugins":{"test-plugin":${entry}}}`;
     await writeFile(activationsPath, activationBytes);
 
-    const effects = createNodeAgentPluginEffects({});
+    const effects = nativeEffectsFixture();
     const remove = vi.fn(effects.filesystem.rm.bind(effects.filesystem));
     const rename = vi.fn(effects.filesystem.rename.bind(effects.filesystem));
     const ports: AgentPluginLifecyclePorts = {

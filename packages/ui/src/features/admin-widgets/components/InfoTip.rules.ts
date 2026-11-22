@@ -2,14 +2,14 @@ import type { CSSProperties } from "react";
 
 /** Above is a preference: require this much headroom before allowing an above-opening bubble
  * whose height is not measured yet. */
-export const ABOVE_HEADROOM_PX = 176;
+const ABOVE_HEADROOM_PX = 176;
 
 /** The bubble's 18rem CSS max-width at a 16px root font. Before the portal renders there is no
  * real width to measure, so the first estimate assumes the worst case. */
-export const MAX_BUBBLE_WIDTH_PX = 288;
+const MAX_BUBBLE_WIDTH_PX = 288;
 
 /** Keep breathing room between the bubble and either edge of its bounds. */
-export const EDGE_MARGIN_PX = 8;
+const EDGE_MARGIN_PX = 8;
 
 /** The CSS gap between icon and bubble (`translate(…, 8px)`), plus the arrow. */
 const GAP_PX = 16;
@@ -119,7 +119,7 @@ export function infoTipBubbleStyle(coords: { top: number; left: number; arrowLef
 }
 
 /** One line of a bubble that holds a bulleted list. */
-export interface InfoTipLine { text: string; bullet: boolean }
+interface InfoTipLine { text: string; bullet: boolean }
 
 /**
  * Splits a label into lines when any line is a "• " bullet (e.g. a settings group's one tip, a line

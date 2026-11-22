@@ -4,7 +4,7 @@
 
 Revision 3 of [PLAN-phase1.md](PLAN-phase1.md) is implemented in source through P36. This is
 not a release/validation claim: tests, builds, typechecks and coverage were not run in this
-dispatch, and the host catalog migration is a prerequisite before activation. Tovu keeps
+dispatch, and the host catalog migration is a prerequisite before activation. The first host keeps
 commerce off.
 
 | Gap | Current Phase 1 source status |

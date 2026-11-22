@@ -4,7 +4,11 @@ import { test, vi, afterEach } from "vitest";
 import { InMemoryPostRepo, type PostRecord } from "./support/post.fixture.js";
 import { InMemorySettingsRepo } from "./support/legacy-api.fixture.js";
 import { InMemoryAssetRenditionRepo, InMemoryMediaRepo, InMemoryTransformDefinitionRepo } from "../../media/index.js";
-import { OriginNotVerifiedError, OriginRegistry, type OriginRegistryPort } from "@jini-ai/http-kit/verified-origin";
+import {
+  OriginNotVerifiedError,
+  OriginRegistry,
+  type OriginRegistryPort,
+} from "@jini-ai/core/contracts/server/verified-origin";
 import { ensureSeoSettingDefinitions } from "./support/legacy-api.fixture.js";
 import { buildSitemap, invalidateSitemapCache, registerSitemapCollectHook, resetSitemapCollectHooksForTests } from "./support/legacy-api.fixture.js";
 import { buildPostRecord } from "./support/post.fixture.js";
@@ -41,7 +45,7 @@ function post(overrides: Partial<PostRecord>): PostRecord {
 /** Mirrors `seo.test.ts`'s own copy of this fake — `origin` undefined (the default, and every
  *  pre-existing test's implicit behavior) means no verified origin registered, which keeps every
  *  `loc` assertion below unchanged (still relative). */
-function fakeOriginRegistry(origin?: import("@jini-ai/http-kit/verified-origin").VerifiedOrigin): OriginRegistryPort {
+function fakeOriginRegistry(origin?: import("@jini-ai/core/contracts/server/verified-origin").VerifiedOrigin): OriginRegistryPort {
   return {
     async canonicalOrigin() {
       if (!origin) throw new OriginNotVerifiedError({ message: "no verified origin registered for this workspace" });
@@ -56,7 +60,7 @@ function fakeOriginRegistry(origin?: import("@jini-ai/http-kit/verified-origin")
   };
 }
 
-async function makeDeps(posts: PostRecord[], origin?: import("@jini-ai/http-kit/verified-origin").VerifiedOrigin) {
+async function makeDeps(posts: PostRecord[], origin?: import("@jini-ai/core/contracts/server/verified-origin").VerifiedOrigin) {
   invalidateSitemapCache({ workspaceId: WORKSPACE });
   const postRepo = new InMemoryPostRepo(posts);
   const settingsRepo = new InMemorySettingsRepo();

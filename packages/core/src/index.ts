@@ -10,6 +10,9 @@ export { createDaemon } from './daemon.js';
 export type { PackDisposalFailure } from './pack-lifecycle.js';
 export { disposePacks, registerPackTools } from './pack-lifecycle.js';
 export * from './redact.js';
+export { type SecretShapePattern, PEM_PATTERN_NAME, SECRET_SHAPE_PATTERNS, createPrivateKeyLineRedactor, AGENT_FAILURE_SECRET_SHAPE_RE, CREDENTIAL_FILE_DENY_SEGMENTS, LOCAL_OWNER_PROXY_MARKER_PREFIXES, LOCAL_OWNER_PROXY_MARKER_HEADERS } from './secret-shapes.js';
+export { type SecretRedactionPattern, GENERATED_MARKER_RE, type SecretRedactionOptions, LABELED_SECRET_RE, OPAQUE_TOKEN_RE, NON_SECRET_TOKEN_RE } from './redaction-patterns.js';
+export { formatErrorForLog } from './format-error-for-log.js';
 export * from './user-facing-error.js';
 export { onTeardown, runTeardownSteps, type TeardownHost, type TeardownStep } from './teardown.js';
 export * from './api-token-auth.js';
@@ -38,6 +41,7 @@ export * from './tool-exposure.js';
 
 export * from './gated-mutations.js';
 export * from './model-facing-tool-errors.js';
+export * from './host-read-vocabulary.js';
 export { createContributionRegistry } from './contribution-registry.js';
 export type { ContributionRegistry, ToolContributor, DerivedToolContributor, ToolContributions } from './contribution-registry.js';
 export * from './provider-registry.js';
@@ -58,6 +62,8 @@ export {
   adaptLegacyAuthorize,
   type LegacyToolAuthorizeFn,
   type AuthorizationPort as ToolPermissionAuthorizationPort,
+  type AuthorizationRequired as ToolPermissionAuthorizationRequired,
+  type AuthorizationOptional as ToolPermissionAuthorizationOptional,
   type RequireToolPermissionRequired,
   type RequireToolPermissionOptional,
 } from "./tool-permissions.js";

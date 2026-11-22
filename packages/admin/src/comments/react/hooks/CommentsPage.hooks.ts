@@ -1,4 +1,4 @@
-import { hasPermission } from '../../../core/permissions/rules.js';
+import { hasPermission } from '@jini-ai/core/admin-runtime';
 import type { CommentsProps } from '../pages/CommentsPage.js';
 import { useWiredComments } from './use-comments.hooks.js';
 

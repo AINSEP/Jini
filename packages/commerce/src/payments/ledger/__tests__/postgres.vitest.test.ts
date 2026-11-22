@@ -4,12 +4,13 @@ import path from "node:path";
 import { sql } from "kysely";
 import { describe, test } from "vitest";
 
-import type { StorageKernel } from "@jini-ai/db/kernel";
+import type { KyselyKernel } from "@jini-ai/db/kernel";
 import { openPostgresKernel } from "@jini-ai/db/kernel/postgres";
 import { COMMERCE_PAYMENTS_LEDGER_TABLE, migrateCommercePayments } from "../migrations/index.js";
 import { sqlPaymentsLedger } from "../repo.sql.js";
 import { LEDGER_TABLES } from "../rows.js";
 import { ledgerContract } from "./ledger-contract.js";
+import { runMigrations } from "@jini-ai/db/migrate";
 
 /**
  * @file The SQL adapter on a REAL Postgres — the dialect where BIGINT reads back as a string,
@@ -30,14 +31,14 @@ if (url === undefined || url === "") {
   });
 } else {
   const pg = createRequire(path.resolve(import.meta.dirname, "../../../../node_modules/@jini-ai/db/package.json"))("pg");
-  const reset = async (kernel: StorageKernel<unknown>) => {
+  const reset = async (kernel: KyselyKernel<unknown>) => {
     const tables = [...Object.values(LEDGER_TABLES), COMMERCE_PAYMENTS_LEDGER_TABLE].join(", ");
     await kernel.execute(sql.raw(`DROP TABLE IF EXISTS ${tables} CASCADE`));
   };
   ledgerContract("sql/postgres", async () => {
     const kernel = openPostgresKernel<unknown>({ pg, connectionString: url }, { max: 4 });
     await reset(kernel);
-    await migrateCommercePayments({ kernel });
+    await migrateCommercePayments({ kernel, runMigrations });
     return { ledger: sqlPaymentsLedger({ kernel }), close: () => kernel.close() };
   });
 }

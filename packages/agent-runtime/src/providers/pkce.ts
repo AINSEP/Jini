@@ -67,7 +67,7 @@ export interface PendingAuthState {
 const entropy = ({ byteLength }: { byteLength: number }) => randomBytes(byteLength);
 /** RFC 7636 §4.1 permits 43–128 verifier characters; 64 random bytes encode to 86. */
 export function generateCodeVerifier(): string { return createPkcePair({ randomBytesFn: entropy }, { verifierBytes: 64 }).codeVerifier; }
-export function deriveCodeChallenge({ verifier }: { verifier: string }): string { return deriveOAuthCodeChallenge({ codeVerifier: verifier }); }
+export function deriveCodeChallenge({ verifier }: { verifier: string }, _optional: Record<string, never> = {}): string { return deriveOAuthCodeChallenge({ codeVerifier: verifier }); }
 export function generateState(): string { return generateOAuthState({ randomBytesFn: entropy }); }
 
 export interface AuthorizeUrlInput {

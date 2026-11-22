@@ -50,7 +50,7 @@ import { revocationReasonForToolRefusal } from "./approvals/revocation-reason.js
  * see cannot be called. Convergence there is mechanical, and everything that makes the tiers
  * distinct — namespacing, the operator allowlist, the one-way hint rule, the untrusted-data
  * envelope, the coarse `admin.integrations.manage` gate — is applied on this side of it, before
- * anything is handed over. The audit trail stays separable for free: `tool-executor-audit.ts` wraps
+ * anything is handed over. The audit trail stays separable for free: `packages/daemon/src/core/tool-audit.ts` wraps
  * the executor, so federated attempts are recorded like any other, distinguishable by their
  * `mcp__` id prefix.
  *
@@ -107,9 +107,9 @@ export interface FederationDeps {
    * disabled, narrowed (allowlist or write list), or otherwise changed since admission has no way to
    * be un-registered (see this doc's own paragraph above), so every one of those must be caught here
    * instead, on every call, by re-reading the connection's current row.
-   * `assistant/external-mcp-oauth.ts`'s `createExternalMcpConnectionGate` is the composition root
+   * a host module's `createExternalMcpConnectionGate` is the composition root
    * that does both jobs — the original liveness check plus this revocation re-check
-   * (`assistant/external-mcp-revocation.ts`'s `rosterRefusalFor`) — and it is NOT a `ToolPolicy` deny:
+   * (a host module's `rosterRefusalFor`) — and it is NOT a `ToolPolicy` deny:
    * see that gate's own doc for why a handler-side refusal, not a policy one, is what lets the model
    * see WHY rather than a fixed "denied by policy" string.
    *
@@ -119,9 +119,9 @@ export interface FederationDeps {
    * @returns `"current-grants-checked"` only when it checked this call against the roster row's current
    *   allowlist and write list; anything else keeps the admitted-grants check ({@link FederatedGateVerdict}).
    * @throws Whatever the composition root's terminal error is — for OAuth connections,
-   * `assistant/external-mcp-oauth.ts`'s `ExternalMcpReauthRequiredError`, whose message tells the
+   * a host module's `ExternalMcpReauthRequiredError`, whose message tells the
    * model in words not to retry. For a revoked roster connection,
-   * `assistant/external-mcp-revocation.ts`'s `ExternalMcpConnectionRevokedError`.
+   * a host module's `ExternalMcpConnectionRevokedError`.
    */
   readonly assertConnectionUsable?: ((required: { connectionId: string; call: FederatedCallTarget }) => void | FederatedGateVerdict | Promise<void | FederatedGateVerdict>) | undefined;
   /**
@@ -133,7 +133,7 @@ export interface FederationDeps {
    * shape invites a retry loop).
    *
    * A composition root that KNOWS what "authorization" means for this connection (an OAuth-backed
-   * row, today — `assistant/external-mcp-oauth.ts`) wires this to record the durable state — so
+   * row, today — a host module) wires this to record the durable state — so
    * `assertConnectionUsable`'s cheap row read catches the NEXT call instead of this module reaching
    * the network again — and to throw the same terminal, non-retryable error that path already uses.
    * Always throws; this module does not decide what replaces the original error.
@@ -338,7 +338,7 @@ function gateCheckedCurrentGrants({ verdict, config }: { verdict: void | Federat
  */
 function assertAdmittedGrants({ deps, config, call }: { deps: FederationDeps; config: FederatedMcpConnectionConfig; call: FederatedCallTarget }): void {
   const refusal = refusalForAdmittedToolUnderCurrentGrants({ tool: call, grants: config });
-  const reason = revocationReasonForToolRefusal(refusal);
+  const reason = revocationReasonForToolRefusal({ refusal });
   if (refusal === null || reason === null) return;
   throw new ToolInputError({ message: `${deps.errorCode}_${reason.toUpperCase().replace(/-/g, "_")}: ` +
     `${federatedToolId({ connectionId: config.connectionId, remoteName: call.remoteName })}: ` +

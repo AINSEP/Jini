@@ -1,7 +1,7 @@
 import { nowIso as clockNowIso } from "@jini-ai/core/primitives";
 /**
- * @file THE `redirects` write chokepoint (SPEC-009 REQ-01/04/05/06/07/08/13/
- * 14/22/26; ADR-PIPE-009 C-001..C-004).
+ * @file THE `redirects` write chokepoint.
+ *
  *
  * Purpose:
  * `createRedirect`/`updateRedirect`/`tombstoneRedirect`/`importRedirects` —
@@ -21,18 +21,22 @@ import { nowIso as clockNowIso } from "@jini-ai/core/primitives";
  * errors.spec.md.
  */
 import { type Clock as ClockPort, type IdGenerator as IdGeneratorPort } from "@jini-ai/core/primitives";
-import { assertEntityLive, type DomainEvent, type OutboxPort } from "../core/index.js";
+import { assertEntityLive } from "../core/index.js";
+import { type DomainEvent, type OutboxPort } from "@jini-ai/core/contracts/events";
 import { callerSafeErrorMessage, type CallerSafeErrorRule } from "@jini-ai/core/model-facing-tool-errors";
-import { hasForbiddenRawUrlCharacter } from "@jini-ai/http-kit/verified-origin";
-import type { OriginRegistryPort, RedirectTargetContext } from "@jini-ai/http-kit/verified-origin";
+import { hasForbiddenRawUrlCharacter, checkSiteRelativeTarget } from "@jini-ai/core/contracts/server/verified-origin";
+import type {
+  OriginRegistryPort,
+  RedirectTargetContext,
+  SiteRelativeTargetCheck,
+} from "@jini-ai/core/contracts/server/verified-origin";
 
-import { checkSiteRelativeTarget } from "@jini-ai/http-kit/verified-origin";
-import type { SiteRelativeTargetCheck } from "@jini-ai/http-kit/verified-origin";
 
 import { insertRedirectAndRevision, type RedirectDbHandle } from "./ports.internal.js";
 import type { RedirectMatcher, RedirectMutatedEvent, RedirectRepoPort } from "./ports.js";
 import { isReferrerAliasLocation } from "./referrer-alias.js";
 import { checkSameOriginDestination } from "./reserved-destination.js";
+import { DYNAMIC_SET_LIMIT } from "./resolver.js";
 import {
   RedirectConflictError,
   RedirectLoopError,
@@ -474,6 +478,24 @@ async function enqueueMutatedEvent(
   await deps.outbox.enqueue(event as unknown as DomainEvent);
 }
 
+/** Builds the audit revision associated with a redirect record. */
+function redirectRevision(
+  { record, input, tombstoned }: { record: RedirectRecord; input: { actorId: string; pluginId?: string | undefined }; tombstoned: boolean },
+  _optional: Record<string, never> = {},
+): RedirectRevision {
+  return { redirectId: record.id, workspaceId: record.workspaceId, seq: record.version, state: record, tombstoned, actorId: input.actorId, pluginId: input.pluginId, recordedAt: record.updatedAt };
+}
+
+/** Persists a redirect with its revision before enqueueing its mutation event. */
+async function persistRedirectWrite(
+  { deps, record, revision, change }: { deps: RedirectsWriteDeps; record: RedirectRecord; revision: RedirectRevision; change: "created" | "updated" },
+  _optional: Record<string, never> = {},
+): Promise<{ record: RedirectRecord }> {
+  await deps.transaction(async () => { await insertRedirectAndRevision({ db: deps.db, record, revision }); });
+  await enqueueMutatedEvent(deps, record, change);
+  return { record };
+}
+
 export interface CreateRedirectRequired {
   deps: RedirectsWriteDeps;
   input: CreateRedirectInput;
@@ -484,6 +506,19 @@ export interface CreateRedirectRequired {
    * (an API caller never chooses their own provenance).
    */
   source?: "manual" | "import";
+}
+
+async function requireWildcardCapacity(
+  { deps, record, existingId }: { deps: RedirectsWriteDeps; record: RedirectRecord; existingId: string | undefined },
+): Promise<void> {
+  if (record.status !== "active" || record.matchType !== "wildcard") return;
+  const dynamic = await deps.repo.listDynamic({
+    workspaceId: record.workspaceId, includeOverrideOnly: false, limit: DYNAMIC_SET_LIMIT + 1,
+  });
+  if (dynamic.some((rule) => rule.id === existingId)) return;
+  if (dynamic.length >= DYNAMIC_SET_LIMIT) {
+    throw new RedirectValidationError("This site already has 500 active wildcard redirects, the most it can use. Turn off or merge some before adding another.");
+  }
 }
 
 /** C-001: manual-create entry point (REQ-01). */
@@ -512,23 +547,8 @@ export async function createRedirect(required: CreateRedirectRequired, _optional
     updatedAt: now,
     version: 1,
   };
-  const revision: RedirectRevision = {
-    redirectId: id,
-    workspaceId: input.workspaceId,
-    seq: 1,
-    state: record,
-    tombstoned: false,
-    actorId: input.actorId,
-    pluginId: input.pluginId,
-    recordedAt: now,
-  };
-
-  await deps.transaction(async () => {
-    await insertRedirectAndRevision({ db: deps.db, record, revision });
-  });
-  await enqueueMutatedEvent(deps, record, "created");
-
-  return { record };
+  await requireWildcardCapacity({ deps, record, existingId: undefined });
+  return persistRedirectWrite({ deps, record, revision: redirectRevision({ record, input, tombstoned: false }), change: "created" });
 }
 
 export interface UpdateRedirectRequired {
@@ -680,23 +700,8 @@ export async function updateRedirect(required: UpdateRedirectRequired, _optional
   const now = clockNowIso({ clock: deps.clock });
   const version = existing.version + 1;
   const record: RedirectRecord = { ...existing, ...fields, toTarget: finalTarget, updatedAt: now, version };
-  const revision: RedirectRevision = {
-    redirectId: existing.id,
-    workspaceId: input.workspaceId,
-    seq: version,
-    state: record,
-    tombstoned: false,
-    actorId: input.actorId,
-    pluginId: input.pluginId,
-    recordedAt: now,
-  };
-
-  await deps.transaction(async () => {
-    await insertRedirectAndRevision({ db: deps.db, record, revision });
-  });
-  await enqueueMutatedEvent(deps, record, "updated");
-
-  return { record };
+  await requireWildcardCapacity({ deps, record, existingId: existing.id });
+  return persistRedirectWrite({ deps, record, revision: redirectRevision({ record, input, tombstoned: false }), change: "updated" });
 }
 
 export interface TombstoneRedirectRequired {
@@ -724,16 +729,7 @@ export async function tombstoneRedirect(
   const now = clockNowIso({ clock: deps.clock });
   const version = existing.version + 1;
   const record: RedirectRecord = { ...existing, status: "disabled", updatedAt: now, version };
-  const revision: RedirectRevision = {
-    redirectId: existing.id,
-    workspaceId: input.workspaceId,
-    seq: version,
-    state: record,
-    tombstoned: true,
-    actorId: input.actorId,
-    pluginId: input.pluginId,
-    recordedAt: now,
-  };
+  const revision = redirectRevision({ record, input, tombstoned: true });
 
   // The marker flip, the Trash index row and the revision append are one unit. `deps.remove` joins
   // this transaction rather than opening its own, so a tombstone can never land without its Trash

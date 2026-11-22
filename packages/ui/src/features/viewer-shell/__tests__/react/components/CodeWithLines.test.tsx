@@ -21,4 +21,12 @@ describe('CodeWithLines', () => {
     const { container } = render(<CodeWithLines text="only line" />);
     expect(container.querySelector('.gutter')?.textContent).toBe('1');
   });
+
+  it('wraps as one grid row per line, numbering each line once', () => {
+    const { container } = render(<CodeWithLines text={'a\nb\nc'} wrap />);
+    expect(container.querySelector('.jini-code-viewer--wrap')).not.toBeNull();
+    const numbers = container.querySelectorAll('.jini-code-viewer__line-number');
+    expect(Array.from(numbers).map((el) => el.textContent)).toEqual(['1', '2', '3']);
+    expect(container.querySelector('.gutter')).toBeNull();
+  });
 });

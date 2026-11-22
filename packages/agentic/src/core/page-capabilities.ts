@@ -10,7 +10,7 @@
  * what to tag. Nothing here scans a whole document: a host names the container to search.
  */
 import { defaultAgenticMessages } from './messages.js';
-import type { CapabilityDef } from './capability.js';
+import type { CapabilityDef } from '@jini-ai/core/contracts/capabilities';
 
 /** Handle argument shared by every element-addressed verb. */
 const HANDLE_PROPERTY = {

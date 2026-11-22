@@ -1,13 +1,14 @@
+import { collectManifestKeyErrors } from "../core/manifest-keys.js";
 /**
  * @file `PluginManifest` type + `validateManifest()` — static, collect-all manifest validation
- * (SPEC-005 REQ-01, BR-02/BR-03; ADR-024 `tier`, 1.1.1 fix).
+ * (including the required trust tier).
  *
  * Purpose:
  * Pure, no-I/O validation of an already-parsed `jini.plugin.json` object against the v1 required-
  * field set, id/folder match, capability vocabulary, hook vocabulary, and field-declaration rules.
  * Consumed by both `discovery.ts` (list-time, every discovery pass) and `loader.ts` (enable-time
- * re-validation, BR-05) — one validator, two call sites, never diverging (mirrors SPEC-004's theme
- * validator shape, per feature.spec.md's own Article IV note).
+ * re-validation) — one validator, two call sites, never diverging (mirrors the theme
+ * validator shape, per the feature specification's own Article IV note).
  *
  * Division of labor (a TDD design decision, not itself a spec requirement): BR-02 step (1),
  * "package-level (size, disallowed files, server/index.mjs presence)", requires a directory
@@ -26,7 +27,7 @@
  */
 
 import type { PluginTier, PluginManifest, PluginValidationError } from './manifest-types.js';
-export type { PluginTier, PluginCapability, PluginManifestFieldDecl, PluginManifest, PluginContributions, PluginProviderDeclaration, PluginProviderSettingsMigration, PluginProviderSettingField, PluginProviderSettingOption, PluginValidationError } from './manifest-types.js';
+export type { PluginTier, PluginCapability, PluginManifestFieldDecl, PluginManifest, PluginContributions, PluginValidationError } from './manifest-types.js';
 import * as semver from "semver";
 import { CORE_OWNER_ID, PLUGIN_MANIFEST_FILENAME } from "./plugin-format.js";
 export { CORE_OWNER_ID } from "./plugin-format.js";
@@ -35,7 +36,8 @@ import { validateBrowserProviders } from "./browser-providers.js";
 
 import { readPluginIdentity, validatePluginIdentity } from "@jini-ai/core/plugin-directory";
 import { isNonArrayRecord } from "@jini-ai/core/records";
-import type { HookPoints, ManifestHostPorts } from "./ports.js";
+import type { ManifestHostPorts } from "./ports.js";
+import type { HookPoints } from "@jini-ai/core/contracts/plugin-sdk";
 
 export interface ValidateManifestRequired<H extends HookPoints = HookPoints> extends ManifestHostPorts<H> {
   /** An already-parsed `jini.plugin.json` value (unparseable JSON is `discovery.ts`'s concern —
@@ -85,9 +87,9 @@ const REQUIRED_KEYS = [
 /** REQ-01's "parsed-and-stored but unused in v1" forward-compat keys — allowed, never validated. */
 const OPTIONAL_KEYS = ["adminSurfaces", "contentTypes", "provenance", "dependencies", "contributes", "keywords", "extensions", "browserProviders"] as const;
 
-const ALLOWED_KEYS = new Set<string>([...REQUIRED_KEYS, ...OPTIONAL_KEYS]);
-const VALID_TIERS = new Set<PluginTier>(["tier-1", "tier-2", "tier-3"]);
-const VALID_FIELD_TYPES = new Set(["string", "integer", "number", "boolean"]);
+const ALLOWED_KEYS: ReadonlySet<string> = new Set<string>([...REQUIRED_KEYS, ...OPTIONAL_KEYS]);
+const VALID_TIERS: ReadonlySet<PluginTier> = new Set<PluginTier>(["tier-1", "tier-2", "tier-3"]);
+const VALID_FIELD_TYPES: ReadonlySet<string> = new Set(["string", "integer", "number", "boolean"]);
 /** The one plugin-contract version this runtime understands in v1 (REQ-01). A manifest declaring
  * any other value is `ENGINE_UNSUPPORTED` — there is no older version to be backward-compatible
  * with yet, so "not exactly 1" and "newer than supported" coincide in practice. */
@@ -109,18 +111,7 @@ interface IdValidationResult {
 
 /** Unknown-key and missing-required-key checks (BR-02 step 1's manifest-shape half). */
 function validateKeys(raw: Readonly<Record<string, unknown>>): PluginValidationError[] {
-  const errors: PluginValidationError[] = [];
-  for (const key of Object.keys(raw)) {
-    if (!ALLOWED_KEYS.has(key)) {
-      errors.push(malformed(`unknown manifest key '${key}'`));
-    }
-  }
-  for (const key of REQUIRED_KEYS) {
-    if (raw[key] === undefined) {
-      errors.push(malformed(`missing required manifest field '${key}'`));
-    }
-  }
-  return errors;
+  return collectManifestKeyErrors({ raw, allowedKeys: ALLOWED_KEYS, requiredKeys: REQUIRED_KEYS, malformed });
 }
 
 /** id shape only: pattern + length (BR-02 step 2 half of id validation). */
@@ -251,7 +242,7 @@ function validateEngine(raw: Readonly<Record<string, unknown>>): PluginValidatio
   return [];
 }
 
-/** tier (BR-02 step 2, ADR-024 §1 / 1.1.1 fix). */
+/** Trust-tier validation (step 2). */
 function validateTier(raw: Readonly<Record<string, unknown>>): PluginValidationError[] {
   if (raw.tier === undefined) {
     return [];
@@ -391,7 +382,7 @@ function validateFields(raw: Readonly<Record<string, unknown>>, id: string | und
 
 /** The `contributes` lists `validateContributes` accepts, including structured providers. */
 export const CONTRIBUTION_KEYS = ["routes", "tools", "tables", "settings", "widgets", "permissions", "providers"] as const;
-const CONTRIBUTION_KEY_SET = new Set<string>(CONTRIBUTION_KEYS);
+const CONTRIBUTION_KEY_SET: ReadonlySet<string> = new Set<string>(CONTRIBUTION_KEYS);
 /** Tool-id prefixes the runtime generates itself (`capability-tool-registrations.ts`,
  *  `agent-plugins/tool-registrations.ts`) — a plugin declaring one could impersonate another
  *  plugin's generated tool, so they are refused here, before conflict detection ever runs. */
@@ -486,7 +477,7 @@ export function validateManifest<H extends HookPoints>(
 
   const errors: PluginValidationError[] = [
     ...validateKeys(raw),
-    ...validatePluginIdentity({ manifest: raw, namespace: required.identityNamespace }).errors.map(message => ({ code: "PLUGIN_IDENTITY_INVALID", file: null, message })),
+    ...validatePluginIdentity({ manifest: raw, namespace: required.identityNamespace, legacyNamespace: required.legacyIdentityNamespace }).errors.map(message => ({ code: "PLUGIN_IDENTITY_INVALID", file: null, message })),
     ...idErrors,
     ...validateIdentityFields(raw),
     ...validateEngine(raw),
@@ -501,7 +492,7 @@ export function validateManifest<H extends HookPoints>(
   ];
 
   const warnings = errors.length === 0
-    ? readPluginIdentity({ manifest: raw, name: id!, namespace: required.identityNamespace }).warnings
+    ? readPluginIdentity({ manifest: raw, name: id!, namespace: required.identityNamespace, legacyNamespace: required.legacyIdentityNamespace }).warnings
     : [];
   return { errors, warnings };
 }

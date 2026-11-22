@@ -57,6 +57,135 @@ export interface UseMentionAutocompleteResult<T extends MentionItem> {
   closeMention: () => void;
 }
 
+/** Re-focus the textarea and place the cursor after a pick (the picker never takes focus). */
+function restoreTextareaCursor({ textarea, cursor }: {
+  textarea: HTMLTextAreaElement | null;
+  cursor: number;
+}) {
+  requestAnimationFrame(() => {
+    if (!textarea) return;
+    textarea.focus();
+    textarea.setSelectionRange(cursor, cursor);
+  });
+}
+
+type MentionSetter = (next: MentionTriggerMatch | null) => void;
+
+interface TextareaHandlersParams {
+  textareaRef: RefObject<HTMLTextAreaElement | null>;
+  mention: MentionTriggerMatch | null;
+  setMention: MentionSetter;
+  triggerChar: string;
+  onValueChange: (next: string) => void;
+}
+
+/** Trigger-detection handlers for the mention-enabled textarea. */
+function useMentionTextareaHandlers({
+  textareaRef,
+  mention,
+  setMention,
+  triggerChar,
+  onValueChange,
+}: TextareaHandlersParams) {
+  const refreshFromTextarea = () => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    setMention(readMentionTrigger({ value: textarea.value, cursor: textarea.selectionStart ?? textarea.value.length }, { triggerChar }));
+  };
+
+  const onTextareaChange = (event: ChangeEvent<HTMLTextAreaElement>) => {
+    const nextValue = event.target.value;
+    onValueChange(nextValue);
+    setMention(readMentionTrigger({ value: nextValue, cursor: event.target.selectionStart ?? nextValue.length }, { triggerChar }));
+  };
+
+  const onTextareaKeyDown = (event: ReactKeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key === 'Escape' && mention) {
+      event.preventDefault();
+      setMention(null);
+    }
+  };
+
+  // The textarea content/cursor are unchanged by an Escape press, so a
+  // same-key `keyup`-driven re-read of the trigger (see `onTextareaKeyUp`
+  // below) would otherwise immediately re-detect the still-live `@token`
+  // and reopen the mention that `onTextareaKeyDown` just closed. Skip the
+  // refresh specifically for the key that just closed it.
+  const onTextareaKeyUp = (event: ReactKeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key === 'Escape') return;
+    refreshFromTextarea();
+  };
+
+  return { refreshFromTextarea, onTextareaChange, onTextareaKeyDown, onTextareaKeyUp };
+}
+
+/** The multi-select "context chips" set: add on pick, remove on chip click. */
+function useMentionSelection<T extends MentionItem>(
+  onSelectionChange: ((selected: T[]) => void) | undefined,
+) {
+  const [selectedItems, setSelectedItems] = useState<T[]>([]);
+
+  const addItem = (item: T) => {
+    setSelectedItems((current) => {
+      if (current.some((existing) => mentionSelectionKey({ categoryId: existing.category, itemId: existing.id }) === mentionSelectionKey({ categoryId: item.category, itemId: item.id }))) {
+        return current;
+      }
+      const next = [...current, item];
+      onSelectionChange?.(next);
+      return next;
+    });
+  };
+
+  const removeItem = (item: T) => {
+    setSelectedItems((current) => {
+      const key = mentionSelectionKey({ categoryId: item.category, itemId: item.id });
+      const next = current.filter((existing) => mentionSelectionKey({ categoryId: existing.category, itemId: existing.id }) !== key);
+      onSelectionChange?.(next);
+      return next;
+    });
+  };
+
+  const selectedKeys = useMemo(
+    () => new Set(selectedItems.map((item) => mentionSelectionKey({ categoryId: item.category, itemId: item.id }))),
+    [selectedItems],
+  );
+
+  return { selectedItems, selectedKeys, addItem, removeItem };
+}
+
+interface MentionResultsParams<T extends MentionItem> {
+  items: T[];
+  categories: MentionCategory[];
+  activeCategory: MentionCategoryFilter;
+  query: string;
+  getSearchText: ((item: T) => string) | undefined;
+  maxResultsPerCategory: number;
+}
+
+/** Filtered + per-category-grouped results for the active query. */
+function useMentionResults<T extends MentionItem>({
+  items,
+  categories,
+  activeCategory,
+  query,
+  getSearchText,
+  maxResultsPerCategory,
+}: MentionResultsParams<T>) {
+  // Filter the full candidate set first (uncapped — `items.length` as the
+  // cap is a no-op ceiling), then let `groupItemsByCategory` apply the
+  // per-category cap independently, matching the vendored picker's
+  // per-kind `.slice(0, 10)` rather than one shared cap across every
+  // category combined.
+  const filteredItems = useMemo(
+    () => filterMentionItems({ items, query }, { getSearchText, maxResults: items.length }),
+    [items, query, getSearchText],
+  );
+  return useMemo(
+    () => groupItemsByCategory({ items: filteredItems, categories }, { activeFilter: activeCategory, maxItemsPerCategory: maxResultsPerCategory }),
+    [filteredItems, categories, activeCategory, maxResultsPerCategory],
+  );
+}
+
 /**
  * Owns a mention-enabled textarea's trigger-detection state (which `@token`
  * is currently in progress), the active category tab, the filtered/grouped
@@ -86,89 +215,23 @@ export function useMentionAutocomplete<T extends MentionItem>({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [mention, setMention] = useState<MentionTriggerMatch | null>(null);
   const [activeCategory, setActiveCategory] = useState<MentionCategoryFilter>('all');
-  const [selectedItems, setSelectedItems] = useState<T[]>([]);
-
-  const refreshFromTextarea = () => {
-    const textarea = textareaRef.current;
-    if (!textarea) return;
-    setMention(readMentionTrigger(textarea.value, textarea.selectionStart ?? textarea.value.length, triggerChar));
-  };
-
-  const onTextareaChange = (event: ChangeEvent<HTMLTextAreaElement>) => {
-    const nextValue = event.target.value;
-    onValueChange(nextValue);
-    setMention(readMentionTrigger(nextValue, event.target.selectionStart ?? nextValue.length, triggerChar));
-  };
-
-  const onTextareaKeyDown = (event: ReactKeyboardEvent<HTMLTextAreaElement>) => {
-    if (event.key === 'Escape' && mention) {
-      event.preventDefault();
-      setMention(null);
-    }
-  };
-
-  // The textarea content/cursor are unchanged by an Escape press, so a
-  // same-key `keyup`-driven re-read of the trigger (see `onTextareaKeyUp`
-  // below) would otherwise immediately re-detect the still-live `@token`
-  // and reopen the mention that `onTextareaKeyDown` just closed. Skip the
-  // refresh specifically for the key that just closed it.
-  const onTextareaKeyUp = (event: ReactKeyboardEvent<HTMLTextAreaElement>) => {
-    if (event.key === 'Escape') return;
-    refreshFromTextarea();
-  };
+  const { selectedItems, selectedKeys, addItem, removeItem } = useMentionSelection(onSelectionChange);
+  const handlers = useMentionTextareaHandlers({ textareaRef, mention, setMention, triggerChar, onValueChange });
 
   const closeMention = () => setMention(null);
 
   useDismissOnOutsideOrEscape({ onDismiss: closeMention }, { enabled: mention !== null, containerRef });
 
   const pickItem = (item: T) => {
-    const token = buildMentionToken(item.label, triggerChar);
-    const textarea = textareaRef.current;
-    const { nextValue, cursor } = insertMentionToken(value, mention, token);
+    const { nextValue, cursor } = insertMentionToken({ value, match: mention, token: buildMentionToken({ label: item.label }, { triggerChar }) });
     onValueChange(nextValue);
     setMention(null);
-    setSelectedItems((current) => {
-      if (current.some((existing) => mentionSelectionKey(existing.category, existing.id) === mentionSelectionKey(item.category, item.id))) {
-        return current;
-      }
-      const next = [...current, item];
-      onSelectionChange?.(next);
-      return next;
-    });
-    requestAnimationFrame(() => {
-      if (!textarea) return;
-      textarea.focus();
-      textarea.setSelectionRange(cursor, cursor);
-    });
-  };
-
-  const removeItem = (item: T) => {
-    setSelectedItems((current) => {
-      const key = mentionSelectionKey(item.category, item.id);
-      const next = current.filter((existing) => mentionSelectionKey(existing.category, existing.id) !== key);
-      onSelectionChange?.(next);
-      return next;
-    });
+    addItem(item);
+    restoreTextareaCursor({ textarea: textareaRef.current, cursor });
   };
 
   const query = (mention?.query ?? '').trim();
-  // Filter the full candidate set first (uncapped — `items.length` as the
-  // cap is a no-op ceiling), then let `groupItemsByCategory` apply the
-  // per-category cap independently, matching the vendored picker's
-  // per-kind `.slice(0, 10)` rather than one shared cap across every
-  // category combined.
-  const filteredItems = useMemo(
-    () => filterMentionItems(items, query, getSearchText, items.length),
-    [items, query, getSearchText],
-  );
-  const groups = useMemo(
-    () => groupItemsByCategory(filteredItems, categories, activeCategory, maxResultsPerCategory),
-    [filteredItems, categories, activeCategory, maxResultsPerCategory],
-  );
-  const selectedKeys = useMemo(
-    () => new Set(selectedItems.map((item) => mentionSelectionKey(item.category, item.id))),
-    [selectedItems],
-  );
+  const groups = useMentionResults({ items, categories, activeCategory, query, getSearchText, maxResultsPerCategory });
 
   return {
     textareaRef,
@@ -179,14 +242,14 @@ export function useMentionAutocomplete<T extends MentionItem>({
     activeCategory,
     setActiveCategory,
     groups,
-    hasResults: hasAnyResults(groups),
+    hasResults: hasAnyResults({ groups }),
     selectedItems,
     selectedKeys,
-    onTextareaChange,
-    onTextareaClick: refreshFromTextarea,
-    onTextareaKeyUp,
+    onTextareaChange: handlers.onTextareaChange,
+    onTextareaClick: handlers.refreshFromTextarea,
+    onTextareaKeyUp: handlers.onTextareaKeyUp,
     onTextareaFocus: closeMention,
-    onTextareaKeyDown,
+    onTextareaKeyDown: handlers.onTextareaKeyDown,
     pickItem,
     removeItem,
     closeMention,

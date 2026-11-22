@@ -78,7 +78,7 @@ async function readOrderPayment({ deps, order }: { deps: CommerceOrderReadDeps; 
  * This boundary never activates commerce, creates provider contexts, dispatches or settles money.
  * @complexity O(1): one owned order read, one association read and at most one ledger payment read.
  */
-export async function readOwnedCommerceOrder({ deps, input }: { deps: CommerceOrderReadDeps; input: OwnedOrderInput }, _optional: Record<string, never> = {}): Promise<CommerceOrderView> {
+export async function readOwnedCommerceOrder({ deps, ...input }: { deps: CommerceOrderReadDeps } & OwnedOrderInput, _optional: Record<string, never> = {}): Promise<CommerceOrderView> {
   const order = await findOwnedOrder({ ...deps, input });
   return readOrderPayment({ deps, order });
 }
@@ -156,7 +156,7 @@ export function createCommerceServer(required: CommerceServerRequired, _optional
       if (!input.memberId) throw new CommerceCheckoutValidationError({ message: "Sign in before creating an order." });
       const price = await required.checkoutDeps.prices.findById({ workspaceId: scope.workspaceId, id: input.priceId });
       if (price?.billingInterval !== undefined) throw new CommerceCheckoutValidationError({ message: "Checkout supports one-time prices only." });
-      return checkout({ deps: required.checkoutDeps, input: { ...input, workspaceId: scope.workspaceId, provider: scope.providerId } });
+      return checkout({ ...input, deps: required.checkoutDeps, workspaceId: scope.workspaceId, provider: scope.providerId });
     },
     pay: async input => {
       await requireReady();
@@ -164,7 +164,7 @@ export function createCommerceServer(required: CommerceServerRequired, _optional
       if (order.status === "paid") return readOrder(input);
       // Recheck activation after ownership I/O and immediately before any money operation.
       if (!await required.isActive()) throw new CommerceUnavailableError("Commerce is disabled. This order has not been charged.");
-      const intent = await payOrder({ deps: await depsForOrder(order.id), input: { workspaceId: scope.workspaceId, orderId: order.id, scope } });
+      const intent = await payOrder({ deps: await depsForOrder(order.id), workspaceId: scope.workspaceId, orderId: order.id, scope });
       return { ...await readOrder(input), intent };
     },
   };

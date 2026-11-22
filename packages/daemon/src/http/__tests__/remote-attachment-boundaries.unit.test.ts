@@ -2,7 +2,7 @@ import { EventEmitter } from 'node:events';
 import type { request as httpRequest, RequestOptions } from 'node:http';
 import { describe, expect, it } from 'vitest';
 import { createRemoteAttachmentLookup } from '../../remote-attachment-lookup.js';
-import { AttachmentRejectedError } from '../attachments.js';
+import { AttachmentRejectedError } from '../attachment-types.js';
 
 function transport({ status = 200, chunks = [], failure, pathPrefix }: {
   status?: number | null; chunks?: string[]; failure?: 'request' | 'response'; pathPrefix?: string;

@@ -1,10 +1,8 @@
-import { useRef, useState } from 'react';
-import { agentHandleProps } from '@jini-ai/agentic';
+import { agentHandleProps } from '@jini-ai/core/agent-handles';
 import { useAgentHandle, type AgentControlProps } from '../../../../react/hooks/useAgentHandle.js';
-import { filterAgentModelOptions } from '../../rules.js';
 import type { AgentModelOption } from '../../types.js';
 import { CustomSelect } from '../../../../react/components/CustomSelect.js';
-import type { CustomSelectOption } from '../../../../react/components/CustomSelect.js';
+import { useSearchableModelSelect } from './SearchableModelSelect.hooks.js';
 
 export interface SearchableModelSelectAdditionalOption {
   value: string;
@@ -34,6 +32,8 @@ export interface SearchableModelSelectProps extends AgentControlProps {
   searchInputTestId?: string | undefined;
   /** Addresses the actual trigger, options and search field; false excludes every control. */
   agentHandle?: string | false | undefined;
+  useAgentHandleHook?: typeof useAgentHandle;
+  useSearchableModelSelectHook?: typeof useSearchableModelSelect;
 }
 
 /**
@@ -65,36 +65,12 @@ export function SearchableModelSelect({
   testId,
   searchInputTestId,
   agentHandle,
+  useAgentHandleHook = useAgentHandle,
+  useSearchableModelSelectHook = useSearchableModelSelect,
   ...agentProps
 }: SearchableModelSelectProps) {
-  const base = useAgentHandle({ ...agentProps, agentHandle });
-  const [query, setQuery] = useState('');
-  const searchRef = useRef<HTMLInputElement | null>(null);
-
-  const allOptions: CustomSelectOption[] = [
-    ...models.map((model) => ({ value: model.id, label: model.label })),
-    ...(additionalOptions ?? []),
-  ];
-  const shouldShowSearch = allOptions.length >= minSearchableOptions;
-  const filteredModels = filterAgentModelOptions(models, query, value);
-  const filteredIds = new Set(filteredModels.map((model) => model.id));
-  // `additionalOptions` (the "Custom" sentinel, chiefly) are never
-  // search-filtered out — they are not a model to search FOR, they are the
-  // escape hatch that must stay reachable regardless of query.
-  const visibleOptions: CustomSelectOption[] = shouldShowSearch
-    ? allOptions.filter((option) => filteredIds.has(option.value) || (additionalOptions ?? []).some((extra) => extra.value === option.value))
-    : allOptions;
-
-  const handleOpenChange = (open: boolean) => {
-    if (open) {
-      // Deferred a tick: the search input is not yet in the DOM (the portal
-      // menu mounts as part of this same open transition) when `open` first
-      // flips true.
-      requestAnimationFrame(() => searchRef.current?.focus());
-    } else {
-      setQuery('');
-    }
-  };
+  const base = useAgentHandleHook({ ...agentProps, agentHandle });
+  const { query, setQuery, searchRef, shouldShowSearch, visibleOptions, handleOpenChange } = useSearchableModelSelectHook({ models, value, additionalOptions, minSearchableOptions });
 
   return (
     <div className="jini-searchable-select" data-testid={testId} data-agent-private={agentProps['data-agent-private']} data-agent-page={agentProps['data-agent-page']}>

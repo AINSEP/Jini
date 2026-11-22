@@ -61,3 +61,23 @@ describe('schemeEntryUrl', () => {
     expect(schemeEntryUrl({ scheme: 'jini' })).toBe('jini://app/');
   });
 });
+
+
+it('adapts the rewritten Request to an injected native fetch when fetchImpl is absent', async () => {
+  const received: Request[] = [];
+  const nativeFetch: typeof globalThis.fetch = async input => {
+    expect(input).toBeInstanceOf(Request);
+    received.push(input as Request);
+    return new Response('native');
+  };
+  const response = await handleProtocolProxyRequest({
+    request: new Request('jini://app/path?x=1', { method: 'POST', headers: { 'x-host': 'test' }, body: 'payload' }),
+    targetBaseUrl: 'http://127.0.0.1:4000/',
+  }, { nativeFetch });
+  expect(received).toHaveLength(1);
+  expect(received[0]!.url).toBe('http://127.0.0.1:4000/path?x=1');
+  expect(received[0]!.method).toBe('POST');
+  expect(received[0]!.headers.get('x-host')).toBe('test');
+  expect(await received[0]!.text()).toBe('payload');
+  expect(await response.text()).toBe('native');
+});

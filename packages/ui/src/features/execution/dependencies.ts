@@ -1,3 +1,4 @@
+import { fakeLatencyDelay } from '../../utils/fake-latency.js';
 import type { ExecutionPort } from './ports.js';
 import type { AgentExecutableSource, ByokConfig, DetectedAgent } from './types.js';
 
@@ -58,8 +59,7 @@ const DEFAULT_FAKE_AGENTS: readonly DetectedAgent[] = [
 export function createFakeExecutionPort(options: FakeExecutionPortOptions = {}): ExecutionPort {
   const agents = options.agents ?? DEFAULT_FAKE_AGENTS;
   const latencyMs = options.latencyMs ?? 0;
-  const delay = <T>(value: T): Promise<T> =>
-    latencyMs > 0 ? new Promise((resolve) => setTimeout(() => resolve(value), latencyMs)) : Promise.resolve(value);
+  const delay = fakeLatencyDelay({}, { latencyMs });
   const delayedRejection = (message: string): Promise<never> =>
     latencyMs > 0
       ? new Promise((_resolve, reject) => setTimeout(() => reject(new Error(message)), latencyMs))
@@ -68,32 +68,32 @@ export function createFakeExecutionPort(options: FakeExecutionPortOptions = {}):
   return {
     detectLocalAgents() {
       if (options.agentsError) return delayedRejection(options.agentsError);
-      return delay(agents.map((agent) => ({ ...agent })));
+      return delay({ value: agents.map((agent) => ({ ...agent })) });
     },
     rescanLocalAgents() {
       if (options.agentsError) return delayedRejection(options.agentsError);
-      return delay(agents.map((agent) => ({ ...agent })));
+      return delay({ value: agents.map((agent) => ({ ...agent })) });
     },
     testConnection(config: ByokConfig) {
-      if (options.testResult) return delay({ ...options.testResult });
+      if (options.testResult) return delay({ value: { ...options.testResult } });
       const ok = Boolean(config.apiKey.trim() && config.baseUrl.trim() && config.model.trim());
-      return delay(
-        ok ? { ok: true, message: 'Connection succeeded' } : { ok: false, message: 'Missing credentials' },
-      );
+      return delay({
+        value: ok ? { ok: true, message: 'Connection succeeded' } : { ok: false, message: 'Missing credentials' },
+      });
     },
     testAgent(agentId: string) {
       if (options.agentTestError) return delayedRejection(options.agentTestError);
-      if (options.agentTestResult) return delay({ ...options.agentTestResult });
+      if (options.agentTestResult) return delay({ value: { ...options.agentTestResult } });
       const agent = agents.find((candidate) => candidate.id === agentId);
-      return delay(
-        agent?.installed
+      return delay({
+        value: agent?.installed
           ? { ok: true, message: `${agent.label} is ready` }
           : { ok: false, message: `${agentId} is not installed` },
-      );
+      });
     },
     listModels() {
       if (options.modelsError) return delayedRejection(options.modelsError);
-      return delay([...(options.models ?? ['example-model-large', 'example-model-small'])]);
+      return delay({ value: [...(options.models ?? ['example-model-large', 'example-model-small'])] });
     },
   };
 }

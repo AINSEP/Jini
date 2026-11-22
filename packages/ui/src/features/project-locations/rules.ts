@@ -19,7 +19,7 @@ export const DEFAULT_LOCATION_ID = 'default';
  * no segment to take — a bare `/` has no basename, and showing an empty
  * label would render an unclickable blank row.
  */
-export function locationLabel(locationPath: string): string {
+export function locationLabel({ locationPath }: { locationPath: string }, _optional: Record<string, never> = {}): string {
   return locationPath.split(/[\\/]/).filter(Boolean).pop() || locationPath;
 }
 
@@ -59,8 +59,8 @@ export function saveableDrafts(drafts: readonly ProjectLocationDraft[]): Project
  * names the host's built-in root rather than a row.
  */
 export function resolveDefaultLocationId(
-  configuredId: string | null | undefined,
-  locations: readonly ProjectLocation[],
+  { configuredId, locations }: { configuredId: string | null | undefined; locations: readonly ProjectLocation[] },
+  _optional: Record<string, never> = {},
 ): string {
   const configured = configuredId ?? DEFAULT_LOCATION_ID;
   if (configured === DEFAULT_LOCATION_ID) return DEFAULT_LOCATION_ID;
@@ -77,9 +77,8 @@ export function resolveDefaultLocationId(
  * itself.
  */
 export function isDuplicatePath(
-  candidatePath: string,
-  locations: readonly ProjectLocation[],
-  exceptId?: string,
+  { candidatePath, locations }: { candidatePath: string; locations: readonly ProjectLocation[] },
+  { exceptId }: { exceptId?: string | undefined } = {},
 ): boolean {
   const needle = normalizePathForCompare(candidatePath);
   if (!needle) return false;
@@ -93,5 +92,5 @@ export function isDuplicatePath(
 function normalizePathForCompare(value: string): string {
   const trimmed = value.trim();
   if (trimmed.length <= 1) return trimmed;
-  return trimTrailingChars(trimmed, '\\/') || trimmed;
+  return trimTrailingChars({ value: trimmed, chars: '\\/' }) || trimmed;
 }

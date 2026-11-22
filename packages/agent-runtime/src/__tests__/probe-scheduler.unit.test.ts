@@ -29,7 +29,7 @@ it('a failed process releases the slot and an aborted queued probe never spawns'
   const queued = schedule({ work: async () => { calls++; } }, { signal: controller.signal });
   controller.abort(); finish();
   await first;
-  await expect(queued).rejects.toThrow();
+  await expect(queued).rejects.toThrow('Probe cancelled');
   expect(calls).toBe(0);
   await expect(schedule({ work: async () => { throw new Error('failure'); } })).rejects.toThrow('failure');
   expect(await schedule({ work: async () => 'recovered' })).toBe('recovered');

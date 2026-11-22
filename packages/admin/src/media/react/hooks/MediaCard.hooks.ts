@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import type { MediaAsset } from '../../models.js';
 import type { MediaApiPort } from '../../ports.js';
-import { safeMediaUrl, formatByteSize, formatUploadDate, mediaRowHandles } from '../../rules.js';
+import { formatByteSize } from '@jini-ai/core/text';
+import { safeMediaUrl, formatUploadDate, mediaRowHandles } from '../../rules.js';
 export interface MediaCardProps {
   readonly item: MediaAsset;
   readonly handleBase?: string;

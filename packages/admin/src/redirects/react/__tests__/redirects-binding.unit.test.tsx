@@ -1,10 +1,10 @@
+import { reactModuleUi } from '../../../core/react/module-ui.js';
 import { Suspense, type ReactNode } from 'react';
-import { act, cleanup, fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, renderHook, screen, waitFor } from '../../../__tests__/fetch-query-support.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { FetchQueryProvider } from '@jini-ai/ui/fetch-query';
 import { createAdmin } from '../../../core/module/index.js';
-import { AdminConfigError } from '../../../core/module/index.js';
-import { AdminApiError } from '../../../core/transport/errors.js';
+import { AdminConfigError, AdminApiError } from '@jini-ai/core/admin-runtime';
 import type { AdminRedirectCreateInput, AdminRedirectsPort } from '../../../core/ports/redirects.js';
 import { createMemoryRedirectsApi } from '../../adapters/memory.js';
 import type { RedirectsEventsPort } from '../../ports.js';
@@ -32,7 +32,7 @@ async function seededApi(): Promise<AdminRedirectsPort> {
 }
 
 function mountListPage(api: AdminRedirectsPort, options?: Parameters<typeof redirectsFeature>[1], live?: Parameters<typeof redirectsFeature>[1]) {
-  const feature = redirectsFeature({}, options);
+  const feature = redirectsFeature({ ui: reactModuleUi }, options);
   // The React binding scopes ports by the shared `redirectsModule` identity (the factory returns a
   // copy), so that singleton is what the host registers.
   const admin = createAdmin({ modules: [redirectsModule], ports: { redirectsApi: api } }, { permissions: ['admin.redirects.manage'] });

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import * as secrets from "../index.js";
-import type { SiteKeyHandle, SiteKeyStatus, SiteKeyEnvironmentPort } from "../index.js";
+import type { SiteKeyStatus, SiteKeyEnvironmentPort } from "../index.js";
+import type { RootKeyHandle } from "@jini-ai/core/contracts/vault";
 
 describe("canonical site key exports", () => {
   it("exports each canonical value as the same implementation as its deprecated alias", () => {
@@ -17,7 +18,7 @@ describe("canonical site key exports", () => {
   });
 
   it("exposes canonical port and status types through the public entry", () => {
-    const handle: SiteKeyHandle = { keyId: "v1" };
+    const handle: RootKeyHandle = { keyId: "v1" };
     const env: SiteKeyEnvironmentPort = { read: () => "aa".repeat(32) };
     const status: SiteKeyStatus = secrets.inspectSiteKeyMaterial({ env, envVarName: "KEY", keyFilePath: "/unused" });
     expect(handle.keyId).toBe("v1");

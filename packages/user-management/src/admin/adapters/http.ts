@@ -1,4 +1,22 @@
 import type { RolesApiPort, RolesHttpTransport, RolesCallOptions } from '../ports.js';
+import { PeopleApiError } from '../ports.js';
+
+type RolesHttpMethod = 'GET' | 'POST' | 'PATCH' | 'DELETE';
+
+/** One call through the host transport: refuses an aborted signal first and forwards the signal
+ *  only when given. Async on purpose, so an aborted signal rejects the promise instead of throwing. */
+async function sendRolesRequest<T>(
+  { transport, path, method, options }: { transport: RolesHttpTransport; path: string; method: RolesHttpMethod; options: RolesCallOptions },
+  { body }: { body?: Record<string, unknown> | undefined } = {},
+): Promise<T> {
+  options.signal?.throwIfAborted();
+  return transport.request<T>({ path, method, ...(body ? { body } : {}) }, options.signal ? { signal: options.signal } : {});
+}
+
+/** `<basePath>/<workspaceId>`, with one trailing slash trimmed from basePath. */
+function workspaceRoot({ basePath, workspaceId }: { basePath: string; workspaceId: string }, _optional: Record<string, never> = {}): string {
+  return `${basePath.replace(/\/$/, '')}/${encodeURIComponent(workspaceId)}`;
+}
 /** Host transport owns cookies/authentication, API prefix, typed errors and server authorization.
  * These resource routes intentionally retain their response envelopes and workspace scope. */
 export function createHttpRolesApi({ transport, workspaceId }: {
@@ -7,13 +25,10 @@ export function createHttpRolesApi({ transport, workspaceId }: {
 }, { basePath = '/workspaces' }: {
     basePath?: string;
 } = {}): RolesApiPort {
-    const root = `${basePath.replace(/\/$/, '')}/${encodeURIComponent(workspaceId)}`;
+    const root = workspaceRoot({ basePath, workspaceId });
     const role = (id: string) => `${root}/roles/${encodeURIComponent(id)}`;
     const policy = (id: string) => `${root}/policies/${encodeURIComponent(id)}`;
-    const request = async <T>(path: string, method: 'GET' | 'POST' | 'PATCH' | 'DELETE', o: RolesCallOptions, body?: Record<string, unknown>) => {
-        o.signal?.throwIfAborted();
-        return transport.request<T>({ path, method, ...(body ? { body } : {}) }, o.signal ? { signal: o.signal } : {});
-    };
+    const request = <T>(path: string, method: RolesHttpMethod, o: RolesCallOptions, body?: Record<string, unknown>) => sendRolesRequest<T>({ transport, path, method, options: o }, { body });
     return {
         listRoles: (_r, o = {}) => request(`${root}/roles`, 'GET', o),
         listPolicies: (_r, o = {}) => request(`${root}/policies`, 'GET', o),
@@ -31,12 +46,9 @@ export function createHttpRolesApi({ transport, workspaceId }: {
 
 /** All HTTP adapters use the same public host transport. No fetch global or auth policy leaks in. */
 export function createHttpUsersApi({ transport, workspaceId }: { transport: RolesHttpTransport; workspaceId: string }, { basePath = '/workspaces', authPath = '/auth' }: { basePath?: string; authPath?: string } = {}): import('../ports.js').UsersApiPort {
-    const root = `${basePath.replace(/\/$/, '')}/${encodeURIComponent(workspaceId)}`;
+    const root = workspaceRoot({ basePath, workspaceId });
     const user = (id: string) => `${root}/users/${encodeURIComponent(id)}`;
-    const request = async <T>(path: string, method: 'GET' | 'POST' | 'PATCH' | 'DELETE', o: RolesCallOptions, body?: Record<string, unknown>) => {
-        o.signal?.throwIfAborted();
-        return transport.request<T>({ path, method, ...(body ? { body } : {}) }, o.signal ? { signal: o.signal } : {});
-    };
+    const request = <T>(path: string, method: RolesHttpMethod, o: RolesCallOptions, body?: Record<string, unknown>) => sendRolesRequest<T>({ transport, path, method, options: o }, { body });
     return {
         listUsers: (_r, o = {}) => request(`${root}/users`, 'GET', o),
         listRoles: (_r, o = {}) => request(`${root}/roles`, 'GET', o),
@@ -53,15 +65,17 @@ export function createHttpUsersApi({ transport, workspaceId }: { transport: Role
     };
 }
 export function createHttpMembersApi({ transport, workspaceId }: { transport: RolesHttpTransport; workspaceId: string }, { basePath = '/workspaces' }: { basePath?: string } = {}): import('../ports.js').MembersApiPort {
-    const root = `${basePath.replace(/\/$/, '')}/${encodeURIComponent(workspaceId)}/members`;
-    const request = async <T>(path: string, method: 'GET' | 'POST', o: RolesCallOptions, body?: Record<string, unknown>) => {
-        o.signal?.throwIfAborted();
-        return transport.request<T>({ path, method, ...(body ? { body } : {}) }, o.signal ? { signal: o.signal } : {});
-    };
+    const root = `${workspaceRoot({ basePath, workspaceId })}/members`;
+    const request = <T>(path: string, method: 'GET' | 'POST', o: RolesCallOptions, body?: Record<string, unknown>) => sendRolesRequest<T>({ transport, path, method, options: o }, { body });
     return {
-        listMembers: (_r, o = {}) => {
+        listMembers: async (_r, o = {}) => {
+            o.signal?.throwIfAborted();
+            if (o.afterId !== undefined && o.cursor != null) throw new PeopleApiError({ code: 'VALIDATION_ERROR', message: 'Pass cursor or afterId, not both.' });
             const query = new URLSearchParams(); if (o.afterId !== undefined) {
                 query.set('afterId', o.afterId);
+            }
+            if (o.cursor != null) {
+                query.set('cursor', o.cursor);
             }
             if (o.limit !== undefined) {
                 query.set('limit', String(o.limit));
@@ -76,9 +90,6 @@ export function createHttpMembersApi({ transport, workspaceId }: { transport: Ro
 }
 export function createHttpAuthApi({ transport }: { transport: RolesHttpTransport }, { authPath = '/auth' }: { authPath?: string } = {}): import('../ports.js').AuthApiPort {
     return {
-        login: async (r, o = {}) => {
-            o.signal?.throwIfAborted();
-            return transport.request({ path: `${authPath.replace(/\/$/, '')}/login`, method: 'POST', body: { username: r.username, password: r.password } }, o.signal ? { signal: o.signal } : {});
-        }
+        login: (r, o = {}) => sendRolesRequest({ transport, path: `${authPath.replace(/\/$/, '')}/login`, method: 'POST', options: o }, { body: { username: r.username, password: r.password } })
     };
 }

@@ -1,3 +1,4 @@
+import { webcrypto } from "node:crypto";
 /** Boundary behaviour of `submitForm` pinned around its persistence, upload-compensation and attempt paths. */
 import assert from "node:assert/strict";
 import { test } from "vitest";
@@ -6,7 +7,8 @@ import { FormDefinitionNotFoundError, FormRateLimitExceededError, FormSubmission
 import { InMemoryFormDefinitionRepo, InMemoryFormSubmissionRepo } from "../repo.memory.js";
 import { createSubmissionAttempts } from "../submission-attempts.js";
 import { submitForm, type SubmitFormDeps, type SubmitFormInput } from "../submit-service.js";
-import { FORM_SUBMISSION_RECEIVED_EVENT, type FieldDescriptor, type FormDefinitionRecord, type FormFileInput, type FormFileReference, type FormFileStoragePort } from "../types.js";
+import { FORM_SUBMISSION_RECEIVED_EVENT, type FieldDescriptor, type FormDefinitionRecord, type FormFileInput, type FormFileStoragePort } from "../types.js";
+import { type FormFileReference } from "@jini-ai/core/contracts/forms";
 
 const png = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10, 1]);
 const photo: FormFileInput = { filename: "photo.png", contentType: "image/png", bytes: png };
@@ -35,7 +37,7 @@ function fixture(fields: FieldDescriptor[], status: FormDefinitionRecord["status
     definitionRepo,
     submissionRepo,
     clock: { nowMs: () => 0 },
-    idGen: { newId: () => `id-${++id}` },
+    crypto: webcrypto, idGen: { newId: () => `id-${++id}` },
     rateLimiter: { check: async () => ({ allowed: true }) },
     outbox: { enqueue: async () => { events += 1; } },
     dispatcher: { dispatch: async () => { dispatches += 1; } },
@@ -198,7 +200,7 @@ test("submitForm: a failed upload cleanup is logged and the original submission 
   const discard: FormFileStoragePort["discard"] = async () => { throw cleanupError; };
   const outbox: SubmitFormDeps["outbox"] = { enqueue: async () => { throw new Error("outbox failed"); } };
   await assert.rejects(submitForm({ deps: { ...f.deps, outbox, files: { ...f.files, discard } }, input: f.input({ front: photo }) }), { message: "outbox failed" });
-  assert.deepEqual(f.warnings, [{ message: "form upload cleanup failed", error: cleanupError.stack }]);
+  assert.deepEqual(f.warnings, [{ message: "form upload cleanup failed", error: cleanupError }]);
 });
 
 test("submitForm: a throwing logger during upload cleanup cannot replace the original submission error", async () => {
@@ -326,7 +328,7 @@ test("submitForm: a failing dispatch is logged and never rejects the accepted su
   const dispatchError = new Error("smtp down");
   assert.deepEqual(await submitForm({ deps: f.deps, input: f.input({ name: "Ada" }) }, { dispatch: async () => { throw dispatchError; } }), { status: "accepted" });
   await settle();
-  assert.deepEqual(f.warnings, [{ message: "form outbox dispatch failed", error: dispatchError.stack }]);
+  assert.deepEqual(f.warnings, [{ message: "form outbox dispatch failed", error: dispatchError }]);
 });
 
 test("submitForm: a throwing logger on dispatch failure is swallowed", async () => {

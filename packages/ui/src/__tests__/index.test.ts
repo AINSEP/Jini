@@ -24,7 +24,6 @@ import * as memory from '../features/memory/index.js';
 import * as resourceDashboard from '../features/resource-dashboard/index.js';
 import * as folderPathDrop from '../features/folder-path-drop/index.js';
 import * as sketchEditor from '../features/sketch-editor/index.js';
-import * as lexicalRichTextEditor from '../features/lexical-rich-text-editor/index.js';
 
 // Guards against the exact bug found while merging browser-chrome and
 // viewer-shell: both features were fully built, individually tested, and
@@ -76,18 +75,16 @@ describe('package barrel (src/index.ts)', () => {
     expect(missing, 'exports present in a feature module but missing from the package barrel').toEqual([]);
   });
 
-  it('does NOT re-export sketch-editor or lexical-rich-text-editor — those carry a heavy npm dependency (@excalidraw/excalidraw, lexical) and live at their own subpaths', () => {
-    // Inverse of the guard above: these two feature modules are deliberately EXCLUDED from the
-    // barrel (2026-07-29) so importing anything else from `@jini-ai/ui` never drags in Excalidraw
-    // or Lexical. Checks every export from each module by REFERENCE, not just name presence —
-    // `buildMentionToken` is a coincidental same-name-different-function collision between
-    // `mention-autocomplete` (legitimately on the barrel) and `lexical-rich-text-editor` (not); a
-    // name-only check would wrongly flag that as a leak instead of catching only a real one (the
-    // literal `lexical-rich-text-editor` value becoming reachable through the root barrel).
+  it('does NOT re-export sketch-editor — it carries a heavy npm dependency (@excalidraw/excalidraw) and lives at its own subpath', () => {
+    // Inverse of the guard above: this feature module is deliberately EXCLUDED from the
+    // barrel (2026-07-29) so importing anything else from `@jini-ai/ui` never drags in Excalidraw.
+    // Checks every export by REFERENCE, not just name presence, so a coincidental
+    // same-name-different-function export elsewhere on the barrel is not flagged as a leak
+    // (the deleted Lexical editor's `buildMentionToken` once collided with
+    // `mention-autocomplete`'s exactly that way; see git history).
     const leaked: string[] = [];
     for (const [path, mod] of Object.entries({
       'features/sketch-editor': sketchEditor,
-      'features/lexical-rich-text-editor': lexicalRichTextEditor,
     })) {
       for (const [exportName, value] of Object.entries(mod)) {
         if ((barrel as Record<string, unknown>)[exportName] === value) leaked.push(`${exportName} (from ${path})`);

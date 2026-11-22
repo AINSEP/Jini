@@ -1,10 +1,14 @@
 import { createElement } from "react";
 import type { FormEvent } from "react";
-import { act, fireEvent, render, renderHook, screen } from "@testing-library/react";
+import { act, fireEvent, render, renderHook, screen } from "./harness.js";
 import { describe, expect, it, vi } from "vitest";
 
+import { createFieldAttributesDialogController } from "../../controllers/field-attributes-dialog.controller.js";
+import { addAttrRow } from "../../rules.js";
 import type { AdminFormField } from "../../models.js";
 import { FieldAttributesDialog } from "../components/FieldAttributesDialog.js";
+import { FormsCatalogScope, fakeFormsPorts } from "./catalog-scope.js";
+import { fakeFormsCatalog } from "../../__tests__/fakes/forms-catalog.js";
 import { useFieldAttributesDialog } from "../hooks/use-field-attributes-dialog.hooks.js";
 
 const field: AdminFormField = {
@@ -22,7 +26,7 @@ const blankEmailSettings = {
 
 function setup(input: AdminFormField = field) {
   const onSave = vi.fn();
-  const hook = renderHook(() => useFieldAttributesDialog({ field: input, onSave, onCancel: vi.fn() }));
+  const hook = renderHook(() => useFieldAttributesDialog({ field: input, onSave, onCancel: vi.fn() }), { wrapper: FormsCatalogScope });
   function submit() {
     const event = new Event("submit", { cancelable: true });
     act(() => hook.result.current.submit(event as unknown as FormEvent));
@@ -37,7 +41,7 @@ describe("field-attributes draft and submit contract", () => {
   it("delivers native cancel to the current callback without submitting the draft", () => {
     const first = vi.fn(), second = vi.fn(), onSave = vi.fn();
     const props = { field, fieldIndex: 0, onSave, t: (key: string) => key };
-    const { rerender, unmount } = render(createElement(FieldAttributesDialog, { ...props, onCancel: first }));
+    const { rerender, unmount } = render(createElement(FieldAttributesDialog, { ...props, onCancel: first }), { wrapper: FormsCatalogScope });
     const dialog = screen.getByRole("dialog");
     fireEvent.keyDown(dialog, { key: "Enter" });
     expect(first.mock.calls).toEqual([]);
@@ -135,4 +139,39 @@ describe("field-attributes draft and submit contract", () => {
     submit();
     expect(onSave.mock.calls).toEqual([[{ ...blankEmailSettings, className: undefined, attributes: undefined }]]);
   });
+});
+
+describe("useFieldAttributesDialog catalog", () => {
+  const choice: AdminFormField = { id: "pick", label: "Pick", type: "select", required: false, options: [{ value: "a", label: "A" }], default: "a" };
+
+  it("seeds its settings draft from the ports it is handed, not the module scope", () => {
+    const known = renderHook(() => useFieldAttributesDialog({ field: choice, onSave: vi.fn(), onCancel: vi.fn() }, { usePorts: () => fakeFormsPorts() }));
+    expect(known.result.current.settings.defaultChoices).toEqual(["a"]);
+    // A catalog that does not list `select`: its stored default is no choice list's business.
+    const narrow = fakeFormsCatalog({ fieldKinds: { text: fakeFormsCatalog().fieldKinds["text"]! } });
+    const unknown = renderHook(() => useFieldAttributesDialog({ field: choice, onSave: vi.fn(), onCancel: vi.fn() }, { usePorts: () => fakeFormsPorts({ catalog: narrow }) }));
+    expect(unknown.result.current.settings.defaultChoices).toEqual([]);
+  });
+});
+
+
+it("allocates attribute row IDs independently and never reuses a deleted controller row", () => {
+  const a = createFieldAttributesDialogController({ field, catalog: fakeFormsCatalog() });
+  const b = createFieldAttributesDialogController({ field, catalog: fakeFormsCatalog() });
+  expect(a.getSnapshot().rows.map(row => row._rowId)).toEqual([0, 1]);
+  expect(b.getSnapshot().rows.map(row => row._rowId)).toEqual([0, 1]);
+  a.addRow({});
+  a.removeRow({ rowId: 2 });
+  a.addRow({});
+  b.addRow({});
+  expect(a.getSnapshot().rows.map(row => row._rowId)).toEqual([0, 1, 3]);
+  expect(b.getSnapshot().rows.map(row => row._rowId)).toEqual([0, 1, 2]);
+});
+
+
+it("defaults new attribute IDs above live rows and accepts the controller allocation", () => {
+  const rows = [{ _rowId: 9, name: "title", value: "existing" }];
+  expect(addAttrRow({ rows }).at(-1)).toEqual({ _rowId: 10, name: "", value: "" });
+  expect(addAttrRow({ rows, rowId: 20 }).at(-1)).toEqual({ _rowId: 20, name: "", value: "" });
+  expect(addAttrRow({ rows: [] }).at(-1)).toEqual({ _rowId: 0, name: "", value: "" });
 });

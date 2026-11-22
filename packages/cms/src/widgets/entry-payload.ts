@@ -2,7 +2,7 @@ import { isNonArrayRecord } from "@jini-ai/core";
 import type { ContentTypeRepoPort } from "../content-types/index.js";
 import type { WidgetHostPorts } from "./host-ports.js";
 import type { Clock as ClockPort, JsonObject } from "@jini-ai/core/primitives";
-import type { OutboxPort } from "../core/index.js";
+import type { OutboxPort } from "@jini-ai/core/contracts/events";
 import type { EntryRecord } from "../entries/index.js";
 import { PRE_AUTHORIZED, WIDGETS_SYSTEM_ACTOR_ID } from "./authorize-helper.js";
 import {
@@ -27,14 +27,14 @@ import type {
  *
  * Purpose (a real, disclosed deviation from the spec's literal storage-path wording — see the
  * implementation report):
- * `features/entries/write-service.ts`'s `updateEntry` can only change `title`/`fieldsJson` — it has
+ * `packages/cms/src/entries/write-service.ts`'s `updateEntry` can only change `title`/`fieldsJson` — it has
  * no parameter to change `bodyJson` at all once an entry is created (confirmed by reading its
  * `UpdateEntryRequired.input` shape and body). Widget config MUST be updatable (REQ-05/AC-04), so
  * it cannot live in `bodyJson`.
  *
- * Owner namespace (2026-07-21, fixed): `features/entries/field-validation.ts`'s
+ * Owner namespace (2026-07-21, fixed): `packages/cms/src/entries/field-validation.ts`'s
  * `validateFieldsAgainstSchema` now accepts an `owner` parameter instead of hardcoding `site`
- * (a real, confirmed gap against ADR-022 §2 — see that file's header and the implementation
+ * (a real, confirmed gap — see that file's header and the implementation
  * report). Widget instances write under `fields.ext.widget.*` (`WIDGET_FIELD_NAMESPACE`) and
  * `widget_area` entries under `fields.ext.widgets.*` (`WIDGET_AREA_FIELD_NAMESPACE`), matching
  * REQ-01/REQ-11's literal namespacing — not a shared `site` bag.
@@ -148,7 +148,7 @@ export function areaDocWithPlacements(required: {
 }
 
 /**
- * Registers the `widget`/`widget_area` seeded content types (ADR-047 §1, REQ-11) in `workspaceId`
+ * Registers the `widget`/`widget_area` seeded content types in `workspaceId`
  * if not already present — idempotent, safe to call before every write. Delegates to
  * `features/content-types/write-service.ts`'s real `registerContentType` chokepoint (the same
  * mechanism any Collections content type is registered through) rather than hand-constructing a

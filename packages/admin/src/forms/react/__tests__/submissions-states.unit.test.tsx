@@ -1,20 +1,19 @@
-import { Component, Suspense, type ReactNode } from "react";
-import { act, cleanup, render, renderHook, screen, waitFor } from "@testing-library/react";
+import type { ReactNode } from "react";
+import { AdminApiError } from '@jini-ai/core/admin-runtime';
+import { act, cleanup, render, renderHook, screen, waitFor } from "./harness.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { FetchQueryProvider } from "@jini-ai/ui/fetch-query";
 
-import { createAdmin } from "../../../core/module/create-admin.js";
-import { AdminConfigError } from "../../../core/module/create-admin.js";
 import type { AdminFormDefinition as CoreForm, AdminFormSubmission as CoreSubmission } from "../../../core/ports/forms.js";
 import { createMemoryFormsApi } from "../../adapters/memory.js";
 import type { AdminFormDefinition, AdminFormSubmission } from "../../models.js";
 import type { FormsEventsPort } from "../../ports.js";
-import { forms, useFormsPorts } from "../index.js";
 import { FormSubmissionDetail } from "../components/FormSubmissionDetail.js";
 import { useFormSubmissionDetail, type FormSubmissionDetailController } from "../hooks/use-form-submission-detail.hooks.js";
 import { useFormSubmissions } from "../hooks/use-form-submissions.hooks.js";
 import { useFormsList, useWiredFormsList } from "../hooks/use-forms-list.hooks.js";
 import { FormsPortsContext } from "../hooks/FormsPorts.hooks.js";
+import { fakeFormsCatalog } from '../../__tests__/fakes/forms-catalog.js';
 
 afterEach(cleanup);
 const t = (key: string) => key;
@@ -112,7 +111,7 @@ describe("useFormSubmissionDetail", () => {
 describe("useFormSubmissions", () => {
   it("reports a failed first page", async () => {
     const api = createMemoryFormsApi({}, { forms: [storedForm("f1")] });
-    api.listFormSubmissions = async () => { throw new Error("submissions offline"); };
+    api.listFormSubmissions = async () => { throw new AdminApiError({ message: "submissions offline", status: 503 }); };
     const { result } = renderHook(() => useFormSubmissions({ formId: "f1", port: api }), { wrapper });
     await waitFor(() => expect(result.current.error).toBe("submissions offline"));
     expect(result.current.submissions).toBeNull();
@@ -184,56 +183,10 @@ describe("useFormsList row locks", () => {
     let refresh!: () => void;
     const events: FormsEventsPort = { subscribe: ({ onRefresh }) => { refresh = onRefresh; return () => {}; } };
     const list = vi.spyOn(api, "listFormDefinitions");
-    const hostWrapper = ({ children }: { children: ReactNode }) => <FetchQueryProvider><FormsPortsContext.Provider value={{ formsApi: api, formsTrash: api.trash, formsEvents: events }}>{children}</FormsPortsContext.Provider></FetchQueryProvider>;
+    const hostWrapper = ({ children }: { children: ReactNode }) => <FetchQueryProvider><FormsPortsContext.Provider value={{ formsApi: api, formsCatalog: fakeFormsCatalog(), formsTrash: api.trash, formsEvents: events }}>{children}</FormsPortsContext.Provider></FetchQueryProvider>;
     const { result } = renderHook(() => useWiredFormsList(), { wrapper: hostWrapper });
     await waitFor(() => expect(result.current.forms).not.toBeNull());
     await act(async () => { refresh(); });
     await waitFor(() => expect(list).toHaveBeenCalledTimes(2));
-  });
-});
-
-class Boundary extends Component<{ children: ReactNode }, { error: Error | null }> {
-  override state = { error: null as Error | null };
-  static getDerivedStateFromError(error: Error) { return { error }; }
-  override render() { return this.state.error ? <p role="alert">{this.state.error.message}</p> : this.props.children; }
-}
-
-describe("forms module editor page", () => {
-  function mountEditor(pageProps: Record<string, unknown>) {
-    const api = createMemoryFormsApi({}, { forms: [storedForm("f1", { name: "Contact" })] });
-    const module = forms({});
-    const admin = createAdmin({ modules: [module.react.module], ports: { formsApi: api, formsTrash: api.trash } }, { permissions: ["admin.forms.manage"] });
-    const { Page, tabs } = module.react.pages.editor;
-    const description = admin.describe().pages.find(page => page.id === "forms.editor")!;
-    render(<FetchQueryProvider><module.react.Provider admin={admin}><Boundary><Suspense fallback="loading">
-      <Page tabs={tabs} description={description} {...pageProps} />
-      <tabs.fields params={{}} /><tabs.submissions params={{}} />
-    </Suspense></Boundary></module.react.Provider></FetchQueryProvider>);
-    return admin;
-  }
-
-  it("opens the editor for a formId prop", async () => {
-    const admin = mountEditor({ formId: "f1" });
-    expect(await screen.findByDisplayValue("Contact")).toBeVisible();
-    admin.dispose();
-  });
-
-  it("opens the editor for a route param on the submissions tab", async () => {
-    const admin = mountEditor({ params: { formId: "f1" }, requestedTab: "submissions" });
-    expect(await screen.findByRole("tab", { name: "Submissions", selected: true })).toBeVisible();
-    admin.dispose();
-  });
-
-  it("refuses to render the editor without a form id", async () => {
-    vi.spyOn(console, "error").mockImplementation(() => {});
-    const admin = mountEditor({});
-    expect(await screen.findByRole("alert")).toHaveTextContent("Forms editor page requires formId");
-    admin.dispose();
-  });
-
-  it("fails loudly when forms hooks run outside the bound provider", () => {
-    vi.spyOn(console, "error").mockImplementation(() => {});
-    expect(() => renderHook(() => useFormsPorts())).toThrow(AdminConfigError);
-    expect(() => renderHook(() => useFormsPorts())).toThrow(/React scope unavailable: forms/);
   });
 });

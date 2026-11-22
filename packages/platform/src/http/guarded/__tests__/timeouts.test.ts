@@ -2,7 +2,7 @@ import { createServer, type Server } from "node:http";
 import { afterEach, expect, test } from "vitest";
 import { createHttpClient } from "../client.js";
 import { createNodeGuardedHttpPorts } from "../node-ports.js";
-import type { EgressPolicy } from "../ports.js";
+import type { EgressPolicy } from "@jini-ai/core/contracts/runtime";
 
 // Exercise actual Node socket inactivity, including response-body reads, rather than
 // a transport double that merely echoes timeout options. These tests bind loopback ports.

@@ -3,12 +3,12 @@ import fs from "node:fs";
 import path from "node:path";
 import { loadPlaywright, launchChromium } from "./lib/playwright-loader.mjs";
 import { HELP_OPTIONS, num, parseCliArgs, text } from "./lib/cli-args.mjs";
-import { runCli, runIfMain } from "./lib/main-guard.mjs";
+import { createCliStreams, runCli, runIfMain } from "./lib/main-guard.mjs";
 
 // fs / Playwright / output are ports with real defaults wired here at the CLI edge.
-const DEFAULT_DEPS = { fs, loadPlaywright, launchChromium, log: console.log, error: console.error };
+const DEFAULT_DEPS = { fs, loadPlaywright, launchChromium, ...createCliStreams({}) };
 
-export function usage(log = console.log) {
+export function usage({}, { log = createCliStreams({}).log } = {}) {
   log(`Usage:
   node scripts/visual-diff.mjs --original <png> --clone <png> --out visual-diff.json [--diff visual-diff.png] [--threshold 0.08]
 
@@ -20,19 +20,19 @@ const ARG_SPEC = {
   defaults: { original: "", clone: "", out: "visual-diff.json", diff: "", threshold: 0.08 },
   options: {
     ...HELP_OPTIONS,
-    "--original": { key: "original", parse: text("") },
-    "--clone": { key: "clone", parse: text("") },
-    "--out": { key: "out", parse: text("visual-diff.json") },
-    "--diff": { key: "diff", parse: text("") },
-    "--threshold": { key: "threshold", parse: num("0.08") },
+    "--original": { key: "original", parse: text({ fallback: "" }) },
+    "--clone": { key: "clone", parse: text({ fallback: "" }) },
+    "--out": { key: "out", parse: text({ fallback: "visual-diff.json" }) },
+    "--diff": { key: "diff", parse: text({ fallback: "" }) },
+    "--threshold": { key: "threshold", parse: num({ fallback: "0.08" }) },
   },
 };
 
-export function parseArgs(argv) {
+export function parseArgs({ argv }, _optional = {}) {
   return parseCliArgs({ argv, ...ARG_SPEC });
 }
 
-export function imageDataUrl(file, fsPort = fs) {
+export function imageDataUrl({ file }, { fsPort = fs } = {}) {
   const ext = path.extname(file).slice(1).toLowerCase() || "png";
   const mime = ext === "jpg" || ext === "jpeg" ? "image/jpeg" : "image/png";
   return `data:${mime};base64,${fsPort.readFileSync(file).toString("base64")}`;
@@ -48,12 +48,12 @@ const SCORE_BANDS = [
   [0.3, 0.14, 2],
 ];
 
-export function scoreFromDiff(diffRatio, meanAbsDiff) {
+export function scoreFromDiff({ diffRatio, meanAbsDiff }, _optional = {}) {
   const band = SCORE_BANDS.find(([maxRatio, maxMean]) => diffRatio <= maxRatio && meanAbsDiff <= maxMean);
   return band ? band[2] : 1;
 }
 
-export async function compareInBrowser(page, original, clone, threshold) {
+export async function compareInBrowser({ page, original, clone, threshold }, _optional = {}) {
   return page.evaluate(async ({ original, clone, threshold }) => {
     const loadImage = (src) => {
       const image = new Image();
@@ -151,12 +151,12 @@ async function visualDiff(args, deps) {
   const { chromium } = deps.loadPlaywright();
   const browser = await deps.launchChromium(chromium);
   const page = await browser.newPage();
-  const result = await compareInBrowser(page, imageDataUrl(args.original, deps.fs), imageDataUrl(args.clone, deps.fs), args.threshold);
+  const result = await compareInBrowser({ page, original: imageDataUrl({ file: args.original }, { fsPort: deps.fs }), clone: imageDataUrl({ file: args.clone }, { fsPort: deps.fs }), threshold: args.threshold });
   await browser.close();
 
   const diffDataUrl = result.diffPngDataUrl;
   delete result.diffPngDataUrl;
-  result.visualScore = scoreFromDiff(result.diffPixelRatio, result.meanAbsDiff);
+  result.visualScore = scoreFromDiff({ diffRatio: result.diffPixelRatio, meanAbsDiff: result.meanAbsDiff });
   result.files = {
     original: path.resolve(args.original),
     clone: path.resolve(args.clone),
@@ -178,13 +178,13 @@ async function visualDiff(args, deps) {
 export async function main({ argv }, deps = {}) {
   const io = { ...DEFAULT_DEPS, ...deps };
   return runCli({ label: "visual-diff", body: () => {
-    const args = parseArgs(argv);
+    const args = parseArgs({ argv });
     if (args.help || !args.original || !args.clone) {
-      usage(io.log);
+      usage({}, { log: io.log });
       return args.help ? 0 : 1;
     }
     return visualDiff(args, io);
   }, report: io.error });
 }
 
-await runIfMain({ moduleUrl: import.meta.url, main });
+await runIfMain({ moduleUrl: import.meta.url, main }, { stdout: process.stdout, stderr: process.stderr });

@@ -23,6 +23,7 @@ export const GENERIC_ERROR_CODES = [
   'TOOL_ENDPOINT_DENIED',
   'TOOL_OPERATION_DENIED',
   'TOOL_NOT_AVAILABLE',
+  'UNKNOWN_TOOL',
   'INTERNAL_ERROR',
 ] as const;
 
@@ -73,7 +74,7 @@ export function createApiError(
   return { code, message, ...optionalArgs };
 }
 
-export function createApiErrorResponse({ error }: { error: ApiError }): ApiErrorResponse {
+export function createApiErrorResponse({ error }: { error: ApiError }, _optional: Record<string, never> = {}): ApiErrorResponse {
   return { error };
 }
 

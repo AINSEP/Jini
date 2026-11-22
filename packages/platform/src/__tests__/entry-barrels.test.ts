@@ -8,28 +8,31 @@ import * as localHttpRequest from '../net/local-http-request.js';
 import * as web from '../web/index.js';
 import * as webPage from '../web/web-page.js';
 import * as htmlDocument from '../web/html-document.js';
+import * as webAgentTools from '../web/agent-tools.js';
 import { htmlToMarkdown } from '../web/html-to-markdown.js';
 import { stripHtmlPresentation } from '../web/strip-html-presentation.js';
 import * as secretsTesting from '../secrets/testing.js';
 import { InMemoryKeyring } from '../secrets/keyring.memory.js';
+import { secretSealerContractViolations } from '../secrets/sealer-contract.js';
 import { FixedRootKeyKeyring } from '../secrets/keyring.env.js';
 
-test('./net publishes the address classifiers and the loopback probe by identity', () => {
+test('./net publishes the private-address check and the loopback probe by identity (the pure classifiers moved to core/net)', () => {
   const expected = { ...address, ...localHttpProbe, ...localHttpRequest };
-  expect(Object.keys(net).sort()).toEqual(['expandIpv6', 'isBlockedExternalApiHostname', 'isLoopbackApiHost', 'isLoopbackHostname', 'isPrivateAddress', 'probeLoopbackHttp', 'requestLoopbackHttp']);
+  expect(Object.keys(net).sort()).toEqual(['isPrivateAddress', 'probeLoopbackHttp', 'requestLoopbackHttp']);
   for (const name of Object.keys(net) as (keyof typeof net)[]) expect(net[name]).toBe(expected[name]);
   expect(net.isPrivateAddress({ address: '10.0.0.1' })).toBe(true);
   expect(net.isPrivateAddress({ address: '203.0.113.1' })).toBe(false);
 });
 
-test('./web publishes the page reader, document projections, markdown converter and presentation stripper', () => {
-  const expected = { ...webPage, ...htmlDocument, htmlToMarkdown, stripHtmlPresentation };
+test('./web publishes the page reader, document projections, markdown converter, presentation stripper and web_fetch_page tool definition', () => {
+  const expected = { ...webPage, ...htmlDocument, ...webAgentTools, htmlToMarkdown, stripHtmlPresentation };
   expect(Object.keys(web).sort()).toEqual(Object.keys(expected).sort());
   for (const [name, binding] of Object.entries(expected)) expect(web[name as keyof typeof web]).toBe(binding);
 });
 
-test('./secrets/testing publishes the two test keyrings by identity', () => {
-  expect(Object.keys(secretsTesting).sort()).toEqual(['FixedRootKeyKeyring', 'InMemoryKeyring']);
+test('./secrets/testing publishes the two test keyrings and the sealer contract by identity', () => {
+  expect(Object.keys(secretsTesting).sort()).toEqual(['FixedRootKeyKeyring', 'InMemoryKeyring', 'secretSealerContractViolations']);
+  expect(secretsTesting.secretSealerContractViolations).toBe(secretSealerContractViolations);
   expect(secretsTesting.InMemoryKeyring).toBe(InMemoryKeyring);
   expect(secretsTesting.FixedRootKeyKeyring).toBe(FixedRootKeyKeyring);
 });

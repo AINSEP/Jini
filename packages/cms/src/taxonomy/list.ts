@@ -1,8 +1,8 @@
-import type { Taxonomy, Term } from "./write-service.js";
+import type { Taxonomy, Term } from "./write-contracts.js";
 
 /**
  * @file Admin-UI backend-gap closure (design-spec.md §2.8) — the taxonomy/term registry's missing
- * read side. Mirrors `features/content-types/list.ts`'s shape: a thin pass-through over injected
+ * read side. Mirrors `packages/cms/src/content-types/list.ts`'s shape: a thin pass-through over injected
  * read ports, no authorization of its own.
  *
  * Architectural role:

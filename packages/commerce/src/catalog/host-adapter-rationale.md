@@ -72,7 +72,7 @@ Historical raw-body registration order (same why retained in the moved HTTP hand
 Historical status registration:
 
 ```ts
-  // ADR-001 bounded operational read: provider discovery reflects only the optional composed
+  // Bounded operational read: provider discovery reflects only the optional composed
   // payment runtime; configuration and downstream Commerce capabilities remain explicitly absent.
   mountRoutes(app, createCommerceModule(routeDeps));
 ```

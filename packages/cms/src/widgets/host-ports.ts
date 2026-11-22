@@ -1,8 +1,9 @@
 import type { Clock, JsonObject } from "@jini-ai/core/primitives";
-import type { OutboxPort } from "../core/ports.js";
+import type { OutboxPort } from "@jini-ai/core/contracts/events";
 import type { createEntry, updateEntry, importEntry, toEntryOutbox } from "../entries/index.js";
 import type { registerContentType, toContentTypeOutbox, IndexProvisionerPort } from "../content-types/index.js";
 import type { findMediaByIdOrSlug, getLatestTransformDefinition } from "../media/index.js";
+import type { PostStatus, PublicPostKind } from "../core/post-vocabulary.js";
 import type { EntryRefRow } from "./ports.js";
 
 /** Host-owned post snapshot: only the fields the widgets services read or forward. */
@@ -12,8 +13,8 @@ export interface PostRecord {
   title: string;
   slug: string;
   bodyJson: JsonObject;
-  status: "draft" | "published";
-  kind: "post" | "page";
+  status: PostStatus;
+  kind: PublicPostKind;
   bodyFormat: "doc" | "html";
   updatedAt: string;
   version: number;

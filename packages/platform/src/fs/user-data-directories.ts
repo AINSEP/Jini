@@ -49,7 +49,7 @@ function windowsDirectories({ homeDir, appName, env, appDataDir, paths }: Direct
 }
 function xdgDirectories({ homeDir, appName, env, appDataDir, paths }: DirectoryContext, { readText }: { readText: (file: string) => string | undefined }): { appData: string; documents: string } {
   const userDirs = readText(paths.join(env.XDG_CONFIG_HOME ?? paths.join(homeDir, ".config"), "user-dirs.dirs"));
-  const configured = /^XDG_DOCUMENTS_DIR="([^"\n]*)"/m.exec(userDirs ?? "")?.[1]?.replace(/\$HOME/g, homeDir);
+  const configured = /^XDG_DOCUMENTS_DIR="([^"\n]*)"/m.exec(userDirs ?? "")?.[1]?.replace(/\$HOME/g, () => homeDir);
   return { appData: appDataDir ?? paths.join(env.XDG_DATA_HOME ?? paths.join(homeDir, ".local", "share"), appName),
     documents: configured && paths.isAbsolute(configured) ? configured : paths.join(homeDir, "Documents") };
 }
@@ -57,7 +57,7 @@ function xdgDirectories({ homeDir, appName, env, appDataDir, paths }: DirectoryC
 /** Native reads are isolated so cross-platform fixtures never execute registry commands. */
 export function readOptionalText({ file }: { file: string }, _options = {}): string | undefined {
   try { return fs.readFileSync(file, "utf8"); }
-  catch (error) { return fallbackIfMissing(error, undefined); }
+  catch (error) { return fallbackIfMissing({ error, fallback: undefined }); }
 }
 function readWindowsDocuments(): string | undefined {
   const output = execFileSync(windowsSystemTool({ relativePath: ["reg.exe"] }), ["query", "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\User Shell Folders", "/v", "Personal"], { encoding: "utf8", timeout: 3000, windowsHide: true });

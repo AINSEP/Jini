@@ -10,10 +10,12 @@
  * before this task) — this module does **not** reimplement that. It adds
  * exactly the three things that engine deliberately left to a caller:
  *
- * 1. **A host-injected `PtySpawn` or `TerminalService`.** The native adapter
- *    lives exclusively at `@jini-ai/daemon/terminal`; this default-entry
- *    session manager never imports it. The host opts in by supplying
- *    `loadSpawnPty: () => loadRealSpawnPty({})` from that subpath.
+ * 1. **A host-built `TerminalService`.** The manager is handed its service and
+ *    builds none: the service, its PTY loader and its tuning options (buffer
+ *    sizes, flush timing, TTL, shutdown grace) are the host's, so this package
+ *    imports no platform implementation and no PTY library. The native adapter
+ *    lives at `@jini-ai/server/adapters/node-pty`; the host opts in by passing
+ *    `loadSpawnPty: () => loadRealSpawnPty({})` where it builds the service.
  *
  * 2. **Session-token gating.** The proposal's blocker was that a
  *    *session-scoped* dangerous capability (once a shell is spawned, every
@@ -47,14 +49,11 @@
  */
 import type { Principal, ToolPolicy, ToolRegistration } from '@jini-ai/core';
 import {
-  createTerminalService,
-  type PtySpawn,
   type TerminalService,
   type TerminalSession as PlatformTerminalSession,
   type TerminalSseSink,
-} from '@jini-ai/platform';
+} from '@jini-ai/core/contracts/runtime';
 
-export type { TerminalSseSink } from '@jini-ai/platform';
 
 /** The `ToolRegistry` id `terminal.create` executes through — see module doc §2. */
 export const TERMINAL_CREATE_TOOL_ID = 'terminal.create';
@@ -151,18 +150,9 @@ export interface TerminalSessionManager {
   shutdownActive(options?: { graceMs?: number }): Promise<void>;
 }
 
-export interface CreateTerminalSessionManagerOptions {
-  /** Host-owned session service. Otherwise a fresh platform service uses the injected `loadSpawnPty`. */
-  readonly terminalService?: TerminalService;
-  /** Host-owned PTY loader, e.g. `() => loadRealSpawnPty({})` from `@jini-ai/daemon/terminal`. Required for creation unless `terminalService` is supplied. */
-  readonly loadSpawnPty?: () => Promise<PtySpawn>;
-  readonly maxEvents?: number;
-  readonly maxBufferBytes?: number;
-  readonly exitTailBytes?: number;
-  readonly flushIntervalMs?: number;
-  readonly flushThresholdBytes?: number;
-  readonly ttlMs?: number;
-  readonly shutdownGraceMs?: number;
+export interface CreateTerminalSessionManagerRequired {
+  /** The host's session service; the manager wraps it with ownership checks and the kill/write/resize lock and never builds one. */
+  readonly terminalService: TerminalService;
 }
 
 interface SessionMetadata {
@@ -197,36 +187,14 @@ async function runExclusive<T>(locks: Map<string, Promise<unknown>>, id: string,
   }
 }
 
-/**
- * Builds the reference `TerminalSessionManager`: an in-process wrapper
- * around a `@jini-ai/platform` `TerminalService` adding session ownership,
- * the kill/write/resize lock, and (via {@link createTerminalToolRegistrations})
- * `ToolExecutor` gating for creation. See module doc for the full design.
- * Without a host-owned service or loader, boot is inert and `create()` rejects
- * with injection guidance. Wrapper setup is O(1); session work stays in the platform service.
- */
-export function createTerminalSessionManager(_requiredArgs: Record<string, never>, options: Pick<CreateTerminalSessionManagerOptions, "terminalService" | "loadSpawnPty" | "maxEvents" | "maxBufferBytes" | "exitTailBytes" | "flushIntervalMs" | "flushThresholdBytes" | "ttlMs" | "shutdownGraceMs"> = {}
-): TerminalSessionManager {
-  const terminalService =
-    options.terminalService ??
-    createTerminalService({
-      loadSpawnPty: options.loadSpawnPty ?? (() => {
-        throw new Error('Interactive terminals require a host-supplied terminalService or loadSpawnPty. Import loadRealSpawnPty from @jini-ai/daemon/terminal to enable node-pty.');
-      }),
-      ...definedOnly({
-        maxEvents: options.maxEvents,
-        maxBufferBytes: options.maxBufferBytes,
-        exitTailBytes: options.exitTailBytes,
-        flushIntervalMs: options.flushIntervalMs,
-        flushThresholdBytes: options.flushThresholdBytes,
-        ttlMs: options.ttlMs,
-        shutdownGraceMs: options.shutdownGraceMs,
-      }),
-    });
-
+function createTerminalSessionData(terminalService: TerminalService) {
   const metadata = new Map<string, SessionMetadata>();
   const locks = new Map<string, Promise<unknown>>();
+  return { terminalService, metadata, locks };
+}
 
+function createTerminalSessionReader(state: ReturnType<typeof createTerminalSessionData>) {
+  const { terminalService, metadata } = state;
   /**
    * Looks up `id`, pruning this module's own metadata if the underlying
    * `@jini-ai/platform` service has already reaped it (past its TTL) — bounds
@@ -252,16 +220,6 @@ export function createTerminalSessionManager(_requiredArgs: Record<string, never
     return { session, meta };
   }
 
-  async function create({ principal, options: createOptions }: { readonly principal: Principal; readonly options: CreateTerminalSessionOptions }): Promise<TerminalSessionInfo> {
-    const session = await terminalService.create({
-      cwd: createOptions.cwd,
-      ...definedOnly({ cols: createOptions.cols, rows: createOptions.rows, shell: createOptions.shell }),
-    });
-    const resourceRef = createOptions.resourceRef ?? null;
-    metadata.set(session.id, { principalId: principal.id, resourceRef, killed: false });
-    return toSessionInfo(session, resourceRef);
-  }
-
   function get({ principal, id }: { readonly principal: Principal; readonly id: string }): TerminalSessionAccessResult {
     const found = checkOwnership(principal, id);
     return found ? { status: 'ok', session: toSessionInfo(found.session, found.meta.resourceRef) } : { status: 'not-found' };
@@ -283,7 +241,12 @@ export function createTerminalSessionManager(_requiredArgs: Record<string, never
     const session = terminalService.get(id);
     return session ? toSessionInfo(session, resourceRef) : null;
   }
+  return { checkOwnership, get, list, currentSnapshot };
+}
 
+function createTerminalSessionActions(state: ReturnType<typeof createTerminalSessionData>, reader: ReturnType<typeof createTerminalSessionReader>) {
+  const { terminalService, metadata, locks } = state;
+  const { checkOwnership, currentSnapshot } = reader;
   /** Shared write/resize path: ownership check, then the per-session lock, then the killed flag. */
   async function unlessKilled(principal: Principal, id: string, act: () => boolean): Promise<TerminalSessionActionResult> {
     const found = checkOwnership(principal, id);
@@ -321,7 +284,10 @@ export function createTerminalSessionManager(_requiredArgs: Record<string, never
       return { status: 'ok' as const, ok, session: currentSnapshot(id, meta?.resourceRef ?? null) };
     });
   }
+  return { write, resize, kill };
+}
 
+function createTerminalSessionTransport(terminalService: TerminalService, checkOwnership: ReturnType<typeof createTerminalSessionReader>["checkOwnership"]) {
   function attach({ principal, id, lastEventId, sink }: { readonly principal: Principal; readonly id: string; readonly lastEventId: number; readonly sink: TerminalSseSink }): TerminalSessionAttachResult {
     const found = checkOwnership(principal, id);
     if (!found) return 'not-found';
@@ -334,6 +300,34 @@ export function createTerminalSessionManager(_requiredArgs: Record<string, never
 
   async function shutdownActive(shutdownOptions?: { graceMs?: number }): Promise<void> {
     await terminalService.shutdownActive(shutdownOptions);
+  }
+  return { attach, detach, shutdownActive };
+}
+
+/**
+ * Builds the reference `TerminalSessionManager`: an in-process wrapper
+ * around a `@jini-ai/platform` `TerminalService` adding session ownership,
+ * the kill/write/resize lock, and (via {@link createTerminalToolRegistrations})
+ * `ToolExecutor` gating for creation. See module doc for the full design.
+ * Wrapper setup is O(1); session work stays in the host's service.
+ */
+export function createTerminalSessionManager({ terminalService }: CreateTerminalSessionManagerRequired, _optional: Record<string, never> = {}
+): TerminalSessionManager {
+  const state = createTerminalSessionData(terminalService);
+  const { metadata } = state;
+  const reader = createTerminalSessionReader(state);
+  const { get, list, checkOwnership } = reader;
+  const { write, resize, kill } = createTerminalSessionActions(state, reader);
+  const { attach, detach, shutdownActive } = createTerminalSessionTransport(terminalService, checkOwnership);
+
+  async function create({ principal, options: createOptions }: { readonly principal: Principal; readonly options: CreateTerminalSessionOptions }): Promise<TerminalSessionInfo> {
+    const session = await terminalService.create({
+      cwd: createOptions.cwd,
+      ...definedOnly({ cols: createOptions.cols, rows: createOptions.rows, shell: createOptions.shell }),
+    });
+    const resourceRef = createOptions.resourceRef ?? null;
+    metadata.set(session.id, { principalId: principal.id, resourceRef, killed: false });
+    return toSessionInfo(session, resourceRef);
   }
 
   return { create, get, list, write, resize, kill, attach, detach, shutdownActive };

@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react';
-import { useController } from '../../../core/react/use-controller.js';
+import { useAgentPluginsController } from './AgentPluginsPorts.hooks.js';
 import { createAgentPluginFilesController } from '../../controllers/agent-plugin-files.controller.js';
 import { useAgentPluginsPorts } from './AgentPluginsPorts.hooks.js';
 import type { AgentPluginFilesState, AgentPluginPackageFile } from '../../models.js';
@@ -9,7 +9,7 @@ import { agentPluginsMessagesEn as m } from '../../messages.en.js';
 export interface AgentPluginInspectorProps { readonly pluginId: string; readonly name: string; readonly permissions: readonly string[]; readonly onClose: (required: Record<string, never>, optional?: Record<string, never>) => void }
 export function useAgentPluginInspector({ pluginId, permissions, name }: AgentPluginInspectorProps, _optional = {}) {
   const { agentPluginsApi } = useAgentPluginsPorts({}), key = permissions.join('\0');
-  const { controller, snapshot } = useController({ create: () => createAgentPluginFilesController({ api: agentPluginsApi, permissions }), dependencies: [agentPluginsApi, key, pluginId] }, { start: ({ controller }) => { void controller.open({ pluginId }); } });
+  const { controller, snapshot } = useAgentPluginsController({ create: () => createAgentPluginFilesController({ api: agentPluginsApi, permissions }), dependencies: [agentPluginsApi, key, pluginId] }, { start: ({ controller }) => { void controller.open({ pluginId }); } });
   // Do not show any stored read tagged with another id, even before the new effect commits.
   const state = snapshot?.pluginId === pluginId ? snapshot : null;
   return { title: `${name} — Package files`, denied: !permissions.includes(AGENT_PLUGINS_READ), ...inspectorFilesView({ state }),

@@ -16,13 +16,13 @@ Run only on an explicitly requested local/staging session with disposable synthe
 A pass requires all 50 keys in each of three runs to have complete input-to-paint evidence ≤50 ms. A measured key above budget fails; report the offending run/key and trace evidence.
 Report **inconclusive** when inputs are missing/untrusted/coalesced, timing or next-paint evidence is unavailable, trace samples are dropped, setup differs, or a run is interrupted. Missing insight sets also limit attribution; do not invent an insight ID or equate no insight with a pass. Rounded timings that straddle 50 ms require raw trace resolution.
 
-This recipe adds no automatic capture, scheduler or CI timing gate. Tovu launch integration remains pending an existing launch hook.
+This recipe adds no automatic capture, scheduler or CI timing gate. Host launch integration remains pending an existing launch hook.
 
 Sources: [pinned launch/privacy reference](https://github.com/ChromeDevTools/chrome-devtools-mcp/blob/chrome-devtools-mcp-v1.10.1/README.md), [pinned tool schemas](https://github.com/ChromeDevTools/chrome-devtools-mcp/blob/chrome-devtools-mcp-v1.10.1/docs/tool-reference.md).
 
 ## Native page evidence sample
 
-The web-evidence port also accepts the explicit `collectPerformance: true` option. Tovu exposes it
+The web-evidence port also accepts the explicit `collectPerformance: true` option. The first host exposes it
 on `site_collect_page_evidence({ paths: ["/"], collectPerformance: true })`. Ordinary evidence calls
 do not evaluate the performance script. It uses the existing origin/egress checks, browser factory,
 15-second page budget and 60-second whole-call budget, and closes the same ephemeral contexts.

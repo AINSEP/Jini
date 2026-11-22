@@ -6,29 +6,26 @@
  * - `ftypBoxEnd`'s short-body guard, which no `hasAvifSignature` call can reach (its `ftyp` tag
  *   check already requires 8 bytes) and so is exercised by a direct call — a bounds guard is kept,
  *   never deleted as "unreachable".
- * - `registerAttachmentRoutes`'s `catch` around the origin guard, for both `POST` and `DELETE`,
+ * - `attachmentUploadRoutes`/`attachmentCleanupRoutes`'s `catch` around the origin guard, for both `POST` and `DELETE`,
  *   driven by a host-injected `adapter.env` whose read throws (the environment `guardSameOrigin`
  *   actually reads). A malformed allowed-origins entry no longer throws — `configuredAllowedOrigins`
  *   drops and logs it — so a throwing env read is the remaining way to make the guard throw.
  * - Rejection of same-inode, same-size content swaps after registration.
  */
+import { mountAttachmentRoutes, mountRoutes, testRouteHost } from './fakes/mount-attachments.js';
 import type { Server } from 'node:http';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { mkdtemp, readFile, rm, stat, utimes, writeFile } from 'node:fs/promises';
 import express from 'express';
-import type { AdapterContext } from '@jini-ai/http-kit';
+import type { RouteHostContext } from '@jini-ai/core/contracts/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import {
-  ATTACHMENTS_ROUTE_PATH,
-  createDiskAttachmentStore,
-  ftypBoxEnd,
-  hasAvifSignature,
-  registerAttachmentRoutes,
-  type AttachmentStore,
-  type AttachmentsHttpDeps,
-  type AttachmentsInternalErrorContext,
-} from '../attachments.js';
+import { createLocalSameOriginPolicy } from '@jini-ai/core/contracts/server';
+import { testOriginConfig } from './fixtures/local-origin.js';
+import { ATTACHMENTS_ROUTE_PATH, type AttachmentsHttpDeps, type AttachmentsInternalErrorContext } from '../attachments.js';
+import { createDiskAttachmentStore } from '../disk-attachment-store.js';
+import { ftypBoxEnd, hasAvifSignature } from '../attachment-signatures.js';
+import { type AttachmentStore } from '../attachment-store-types.js';
 
 const cleanups: Array<() => Promise<void>> = [];
 
@@ -116,20 +113,15 @@ async function throwingGuardHarness(): Promise<{ url: string; sink: ReturnType<t
   const store = await diskStore();
   const sink = vi.fn<(context: AttachmentsInternalErrorContext) => void>();
   const deps: AttachmentsHttpDeps = { store, onInternalError: sink };
-  const adapter: AdapterContext = {
-    allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS',
-    webPortEnvVar: 'JINI_WEB_PORT',
-    bindHostEnvVar: 'JINI_BIND_HOST',
-    env: throwingEnv(),
-    resolvedPortRef: { current: 0 },
-  };
+  const portRef = { current: 0 };
+  const adapter: RouteHostContext = { originPolicy: createLocalSameOriginPolicy({ port: () => portRef.current, env: throwingEnv(), config: testOriginConfig }) };
   const app = express();
   app.use(express.json());
-  registerAttachmentRoutes({ app, deps, adapter });
+  mountAttachmentRoutes({ app, deps, adapter });
   const server: Server = app.listen(0);
   await new Promise((ready) => server.once('listening', ready));
   const { port } = server.address() as { port: number };
-  adapter.resolvedPortRef.current = port;
+  portRef.current = port;
   cleanups.push(
     () => new Promise<void>((closed) => {
       server.close(() => closed());
@@ -151,13 +143,14 @@ describe('registerAttachmentRoutes — origin guard throwing', () => {
 
     expect(response.status).toBe(500);
     const payload = (await response.json()) as { error: { code: string; message: string; requestId: string } };
-    expect(payload.error).toMatchObject({ code: 'INTERNAL_ERROR', message: 'an internal error occurred' });
+    expect(payload.error).toMatchObject({ code: 'INTERNAL_ERROR', message: 'The file could not be attached. Try again; if it keeps failing, copy the request ID and report this problem.' });
     expect(sink).toHaveBeenCalledTimes(1);
     expect(sink).toHaveBeenCalledWith({
       source: 'attachment-upload',
       // The guard throws before a batch is read off the request, so the report carries none.
       batchId: null,
       correlationId: payload.error.requestId,
+      logSource: 'attachment-upload',
       error: expect.objectContaining({ message: 'origin policy unavailable' }),
     });
   });
@@ -174,11 +167,12 @@ describe('registerAttachmentRoutes — origin guard throwing', () => {
 
     expect(response.status).toBe(500);
     const payload = (await response.json()) as { error: { code: string; message: string; requestId: string } };
-    expect(payload.error).toMatchObject({ code: 'INTERNAL_ERROR', message: 'an internal error occurred' });
+    expect(payload.error).toMatchObject({ code: 'INTERNAL_ERROR', message: 'The attachment could not be removed. Try again; if it keeps failing, copy the request ID and report this problem.' });
     expect(sink).toHaveBeenCalledWith({
       source: 'attachment-cleanup',
       batchId: null,
       correlationId: payload.error.requestId,
+      logSource: 'attachment-cleanup',
       error: expect.objectContaining({ message: 'origin policy unavailable' }),
     });
   });

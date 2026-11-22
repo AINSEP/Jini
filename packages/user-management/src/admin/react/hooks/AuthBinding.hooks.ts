@@ -3,7 +3,7 @@ export { useAuthScope } from './AuthScope.hooks.js';
 export type { AuthScope, AuthPageProps } from './AuthScope.hooks.js';
 import { createElement, lazy } from 'react';
 import type { ReactNode } from 'react';
-import type { AdminInstance } from '@jini-ai/admin/core/module';
+import type { AdminInstance } from '@jini-ai/core/contracts/admin-module';
 import { authModule } from '../../auth.module.js';
 /** Descriptor identity must be the exact enriched object supplied to createAdmin. */
 export function createAuthBinding({ module }: { module: typeof authModule }, _optional: Record<string, never> = {}) {

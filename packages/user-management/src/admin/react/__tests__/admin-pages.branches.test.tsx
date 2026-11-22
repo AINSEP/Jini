@@ -4,7 +4,7 @@ import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEventFactory from '@testing-library/user-event';
 import { describe, it, expect, vi } from 'vitest';
 import { createAdmin } from '@jini-ai/admin/core/module';
-import type { AdminInstance } from '@jini-ai/admin/core/module';
+import type { AdminInstance } from '@jini-ai/core/contracts/admin-module';
 import { KitProvider } from '@jini-ai/ui-kit/react';
 import { users, members, auth, roles } from '../index.js';
 import { useAuthScope } from '../hooks/AuthBinding.hooks.js';

@@ -1,417 +1,416 @@
-import { EventEmitter } from 'node:events';
-import type { AddressInfo } from 'node:net';
-import type { Server } from 'node:http';
-import express from 'express';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import { createInMemoryServer, createRecordingOriginPolicy } from '@jini-ai/core/contracts/server/testing';
+import { fakeDaemonRouteHost, type FakeDaemonRouteHost } from './fakes/route-host.js';
+import { readFrames } from './fakes/sse-reader.js';
 import { createFrontendSessionRegistry, type FrontendSessionRegistry } from '../../index.js';
-import type { Request, Response } from 'express';
+import { describeRoutes } from '../route-table.js';
+import type { FrontendHookInput } from '../frontend-hook-input.js';
 
 import {
   FRONTEND_SESSION_STREAM_ROUTE_PATH,
-  handleFrontendSessionStream,
-  parseCapabilityQuery,
   frontendSessionResponseRoute,
-  registerFrontendSessionRoutes,
+  frontendSessionRoutes,
+  parseCapabilityQuery,
   type FrontendSessionsHttpDeps,
 } from '../frontend-sessions.js';
 
-/** A request/response pair standing in for Express's, which already ARE Node's raw pair. */
-function makeReqRes(query: Record<string, unknown> = {}) {
-  const req = Object.assign(new EventEmitter(), { query }) as unknown as Request;
-  const res = Object.assign(new EventEmitter(), { writeHead: vi.fn(), write: vi.fn().mockReturnValue(true), end: vi.fn() });
-  return { req, res: res as unknown as Response, raw: res };
+const STREAM = `http://local${FRONTEND_SESSION_STREAM_ROUTE_PATH}`;
+const OWNER = { workspaceId: 'w1', principalId: 'p1', tabId: 't1' } as const;
+
+/** A timer the test fires by hand, recording what it was asked for. */
+function manualTimers() {
+  const pending: { callback: () => void; delayMs: number; cancelled: boolean }[] = [];
+  return {
+    pending,
+    setTimer: ({ callback, delayMs }: { callback: () => void; delayMs: number }) => {
+      const entry = { callback, delayMs, cancelled: false };
+      pending.push(entry);
+      return { cancel: () => { entry.cancelled = true; } };
+    },
+  };
 }
 
-function sentEvents(raw: { write: ReturnType<typeof vi.fn> }): any[] {
-  return raw.write.mock.calls
-    .map((call: unknown[]) => call[0] as string)
-    .filter((chunk: string) => chunk.startsWith('data: '))
-    .map((chunk: string) => JSON.parse(chunk.slice('data: '.length, chunk.length - 2)));
+interface Setup { readonly deps: FrontendSessionsHttpDeps; readonly host: FakeDaemonRouteHost; readonly timers: ReturnType<typeof manualTimers>; readonly fetch: (request: Request, extra?: { locals?: Record<string, unknown>; client?: { address: string } }) => Promise<Response>; readonly routes: ReturnType<typeof frontendSessionRoutes> }
+
+function setup({ registry, randomIds = false, ...overrides }: { registry: FrontendSessionRegistry; randomIds?: boolean } & Partial<FrontendSessionsHttpDeps>, { originPolicy }: { originPolicy?: ReturnType<typeof createRecordingOriginPolicy> } = {}): Setup {
+  const timers = manualTimers();
+  const deps: FrontendSessionsHttpDeps = { registry, ...(randomIds ? {} : { newSessionId: () => 'session-1' }), setTimer: timers.setTimer, ...overrides };
+  const host = fakeDaemonRouteHost({}, originPolicy ? { originPolicy } : {});
+  const routes = frontendSessionRoutes({ deps, host });
+  const { server, fetch } = createInMemoryServer();
+  for (const route of routes) server.route(route);
+  return { deps, host, timers, fetch, routes };
 }
 
-function makeDeps(
-  registry: FrontendSessionRegistry,
-  overrides: Partial<FrontendSessionsHttpDeps> = {},
-): FrontendSessionsHttpDeps {
-  return { registry, newSessionId: () => 'session-1', ...overrides };
-}
+const frameData = (frame: string | undefined): unknown => JSON.parse(String(frame).slice('data: '.length));
 
-describe('registerFrontendSessionRoutes', () => {
-  const servers: Server[] = [];
-  const adapter = { allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST', env: {}, resolvedPortRef: { current: 0 } };
-
-  afterEach(() => {
-    for (const server of servers.splice(0)) server.close();
+describe('frontendSessionRoutes', () => {
+  it('lists the stream and the responses route, each with the gate it sits behind', () => {
+    const registry = createFrontendSessionRegistry({});
+    expect(describeRoutes({ routes: setup({ registry }).routes })).toEqual([
+      { method: 'GET', path: '/api/frontend-sessions/stream', gates: ['same-origin'] },
+      { method: 'POST', path: '/api/frontend-sessions/:sessionId/responses', gates: ['same-origin'] },
+    ]);
+    expect(describeRoutes({ routes: setup({ registry, routePrefix: '/api/scoped', resolveOwner: async () => OWNER }).routes })).toEqual([
+      { method: 'GET', path: '/api/scoped/stream', gates: ['frontend-session-owner'] },
+      { method: 'POST', path: '/api/scoped/:sessionId/responses', gates: ['frontend-session-owner'] },
+    ]);
   });
 
-  async function listen(deps: FrontendSessionsHttpDeps): Promise<string> {
-    const app = express();
-    app.use(express.json());
-    registerFrontendSessionRoutes({ app: app as never, deps, adapter: adapter as never });
-    const server = await new Promise<Server>((resolve, reject) => {
-      const s = app.listen(0, '127.0.0.1', () => resolve(s));
-      s.once('error', reject);
-    });
-    servers.push(server);
-    adapter.resolvedPortRef.current = (server.address() as AddressInfo).port;
-    return `http://127.0.0.1:${adapter.resolvedPortRef.current}`;
-  }
-
-  it('refuses full capacity with a quiet HTTP 429 before opening SSE', async () => {
+  it('refuses full capacity with a quiet 429 before any stream exists', async () => {
     const registry = createFrontendSessionRegistry({}, { maxSessions: 0 });
-    const onInternalError = vi.fn();
-    const base = await listen(makeDeps(registry, { onInternalError }));
-    const response = await fetch(`${base}${FRONTEND_SESSION_STREAM_ROUTE_PATH}`);
+    const { fetch, host } = setup({ registry });
+    const response = await fetch(new Request(`${STREAM}?capability=page.click`));
     expect(response.status).toBe(429);
-    expect(response.headers.get('content-type')).not.toContain('text/event-stream');
-    expect(onInternalError).not.toHaveBeenCalled();
+    expect(await response.text()).toBe('Too Many Requests');
+    expect(response.headers.get('content-type')).toBe('text/plain; charset=utf-8');
+    expect(host.reports).toEqual([]);
   });
 
-  it('serves a real SSE stream and routes a capability call through it end to end', async () => {
+  it('serves a real stream and routes a capability call through it end to end', async () => {
     const registry = createFrontendSessionRegistry({}, { newInvocationId: () => 'inv-1', newBindToken: () => 'bind-1' });
-    const base = await listen(makeDeps(registry));
-
+    const { fetch } = setup({ registry });
     const controller = new AbortController();
-    const response = await fetch(
-      `${base}${FRONTEND_SESSION_STREAM_ROUTE_PATH}?capability=page.click`,
-      { signal: controller.signal },
-    );
+    const response = await fetch(new Request(`${STREAM}?capability=page.click`, { signal: controller.signal }));
     expect(response.status).toBe(200);
     expect(response.headers.get('content-type')).toBe('text/event-stream');
-
-    const reader = response.body!.getReader();
-    const decoder = new TextDecoder();
-    const readEvent = async (): Promise<Record<string, unknown>> => {
-      for (; ;) {
-        const { value, done } = await reader.read();
-        // EOF must fail the assertion, not spin microtasks forever and starve the test timeout.
-        if (done) throw new Error('frontend session stream ended before the next event');
-        const text = decoder.decode(value);
-        const line = text.split('\n').find((l) => l.startsWith('data: '));
-        if (line) return JSON.parse(line.slice('data: '.length));
-      }
-    };
-
-    expect(await readEvent()).toEqual({ type: 'attached', sessionId: 'session-1', bindToken: 'bind-1' });
+    const frames = readFrames({ response });
+    expect(await frames.next()).toEqual(['data: {"type":"attached","sessionId":"session-1","bindToken":"bind-1"}']);
 
     registry.bindRun({ runId: 'run-1', sessionId: 'session-1' });
     const pending = registry.invoke({ runId: 'run-1', capabilityId: 'page.click', input: { element: 'save-button' } });
-    expect(await readEvent()).toEqual({
-      type: 'invocation',
-      invocationId: 'inv-1',
-      capabilityId: 'page.click',
-      input: { element: 'save-button' },
-    });
+    expect(frameData((await frames.next())[0])).toEqual({ type: 'invocation', invocationId: 'inv-1', capabilityId: 'page.click', input: { element: 'save-button' } });
 
     // Answer over the real POST route, closing the loop the browser half will close.
-    const answer = await fetch(`${base}/api/frontend-sessions/session-1/responses`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', origin: base },
-      body: JSON.stringify({ invocationId: 'inv-1', ok: true, output: { clicked: 'save-button' } }),
-    });
+    const answer = await fetch(new Request('http://local/api/frontend-sessions/session-1/responses', {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ invocationId: 'inv-1', ok: true, output: { clicked: 'save-button' } }),
+    }));
     expect(answer.status).toBe(200);
     expect(await answer.json()).toEqual({ settled: true });
     await expect(pending).resolves.toEqual({ clicked: 'save-button' });
-
     controller.abort();
   });
 
-  it('rejects a cross-origin stream request before opening the SSE connection', async () => {
+  it('refuses a cross-origin stream request before attaching anything', async () => {
     const registry = createFrontendSessionRegistry({});
     const attachSpy = vi.spyOn(registry, 'attach');
-    const base = await listen(makeDeps(registry));
-
-    const response = await fetch(
-      `${base}${FRONTEND_SESSION_STREAM_ROUTE_PATH}?capability=page.click`,
-      { headers: { origin: 'http://evil.example' } },
-    );
-
+    const originPolicy = createRecordingOriginPolicy();
+    originPolicy.set({ allow: false });
+    const { fetch } = setup({ registry }, { originPolicy });
+    const response = await fetch(new Request(`${STREAM}?capability=page.click`, { headers: { origin: 'http://evil.example' } }));
     expect(response.status).toBe(403);
     expect(response.headers.get('content-type')).not.toBe('text/event-stream');
-    expect(await response.json()).toEqual({
-      error: expect.objectContaining({ code: 'FORBIDDEN' }),
-    });
+    expect(await response.json()).toEqual({ error: expect.objectContaining({ code: 'FORBIDDEN' }) });
     expect(attachSpy).not.toHaveBeenCalled();
   });
 
-  it('reports a stream failure through the host sink without leaking it out of the handler', async () => {
+  it('answers 500 with the request ID when attaching fails, and gives the real error to the host sink only', async () => {
     const registry = createFrontendSessionRegistry({});
-    vi.spyOn(registry, 'attach').mockImplementation(() => {
-      throw new Error('registry exploded');
-    });
-    const onInternalError = vi.fn();
-    const base = await listen(makeDeps(registry, { onInternalError }));
-
-    const response = await fetch(`${base}${FRONTEND_SESSION_STREAM_ROUTE_PATH}?capability=page.click`);
-    // SSE headers were already committed, so the response ends rather than becoming a 500.
-    await response.text();
-
-    expect(onInternalError).toHaveBeenCalledWith({ source: 'stream', error: expect.any(Error) });
+    const failure = new Error('registry exploded');
+    vi.spyOn(registry, 'attach').mockImplementation(() => { throw failure; });
+    const { fetch, host } = setup({ registry });
+    const response = await fetch(new Request(`${STREAM}?capability=page.click`));
+    expect(response.status).toBe(500);
+    expect(host.reports).toHaveLength(1);
+    expect(host.reports[0]).toMatchObject({ logSource: 'frontend-sessions:stream', report: { source: 'stream', error: failure } });
+    expect(await response.json()).toEqual({ error: { code: 'INTERNAL_ERROR', message: 'The page connection could not be opened. Reload the page; if it keeps failing, copy the request ID and report this problem.', requestId: host.reports[0]?.requestId } });
   });
 
-  it('answers 500 when the stream fails before SSE headers were committed', () => {
-    const registry = createFrontendSessionRegistry({});
-    const onInternalError = vi.fn();
-    // Capture the GET handler directly: this path is only reachable when writing the SSE headers
-    // is itself what fails (a client that vanished mid-handshake), which a live server cannot be
-    // made to produce reliably.
-    let getHandler: ((req: Request, res: Response) => void) | undefined;
-    const fakeApp = {
-      get: (_path: string, handler: (req: Request, res: Response) => void) => { getHandler = handler; },
-      post: () => undefined,
-    };
-    const fixedPortAdapter = { allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST', env: {}, resolvedPortRef: { current: 4310 } };
-    registerFrontendSessionRoutes({ app: fakeApp as never, deps: makeDeps(registry, { onInternalError }), adapter: fixedPortAdapter as never });
-
-    const status = vi.fn().mockReturnThis();
-    const json = vi.fn();
-    const res = {
-      headersSent: false,
-      writableEnded: false,
-      writeHead: vi.fn(() => { throw new Error('client vanished mid-handshake'); }),
-      write: vi.fn(),
-      end: vi.fn(),
-      status,
-      json,
-    };
-    getHandler!(Object.assign(new EventEmitter(), { query: {}, headers: { host: '127.0.0.1:4310' } }) as never, res as never);
-
-    expect(onInternalError).toHaveBeenCalledWith({ source: 'stream', error: expect.any(Error) });
-    expect(status).toHaveBeenCalledWith(500);
-    expect(json).toHaveBeenCalledWith({
-      error: expect.objectContaining({ code: 'INTERNAL_ERROR' }),
-    });
-  });
-
-  it('ends the response without a status when the failure came after headers but before close', () => {
-    const registry = createFrontendSessionRegistry({});
-    vi.spyOn(registry, 'attach').mockImplementation(() => { throw new Error('registry exploded'); });
-    let getHandler: ((req: Request, res: Response) => void) | undefined;
-    const fakeApp = {
-      get: (_path: string, handler: (req: Request, res: Response) => void) => { getHandler = handler; },
-      post: () => undefined,
-    };
-    const fixedPortAdapter = { allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST', env: {}, resolvedPortRef: { current: 4310 } };
-    registerFrontendSessionRoutes({ app: fakeApp as never, deps: makeDeps(registry, { onInternalError: vi.fn() }), adapter: fixedPortAdapter as never });
-
-    const end = vi.fn();
-    const res = Object.assign(new EventEmitter(), { headersSent: true, writableEnded: false, writeHead: vi.fn(), write: vi.fn().mockReturnValue(true), end, status: vi.fn(), json: vi.fn() });
-    getHandler!(Object.assign(new EventEmitter(), { query: { capability: 'page.click' }, headers: { host: '127.0.0.1:4310' } }) as never, res as never);
-
-    expect(end).toHaveBeenCalled();
-  });
-
-  it('falls back to console.error when no sink is supplied, and survives a throwing sink', async () => {
-    const registry = createFrontendSessionRegistry({});
-    vi.spyOn(registry, 'attach').mockImplementation(() => {
-      throw new Error('registry exploded');
-    });
-    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
-
-    const base = await listen({ registry, newSessionId: () => 'session-1' });
-    await (await fetch(`${base}${FRONTEND_SESSION_STREAM_ROUTE_PATH}?capability=page.click`)).text();
-    expect(consoleError).toHaveBeenCalledWith(
-      expect.stringContaining('frontend-sessions:stream'),
-      expect.stringContaining('Error: registry exploded'),
-    );
-
-    // A sink that itself throws must not turn a contained failure into an unhandled rejection.
-    consoleError.mockClear();
-    const throwingSink = vi.fn(() => { throw new Error('sink exploded'); });
-    const base2 = await listen(makeDeps(registry, { onInternalError: throwingSink }));
-    await (await fetch(`${base2}${FRONTEND_SESSION_STREAM_ROUTE_PATH}?capability=page.click`)).text();
-    expect(throwingSink).toHaveBeenCalled();
-    expect(consoleError).toHaveBeenCalledWith(
-      expect.stringContaining('internal error sink failed'),
-      expect.stringContaining('Error: sink exploded'),
-    );
-    consoleError.mockRestore();
-  });
-});
-
-describe('parseCapabilityQuery', () => {
-  it('accepts a single value, repeated values, and none at all', () => {
-    expect(parseCapabilityQuery({ raw: 'page.click' })).toEqual(['page.click']);
-    expect(parseCapabilityQuery({ raw: ['page.click', 'page.fill'] })).toEqual(['page.click', 'page.fill']);
-    expect(parseCapabilityQuery({ raw: undefined })).toEqual([]);
-  });
-
-  it('rejects rather than coerces anything that is not a non-empty string', () => {
-    // A bracketed query string (`?capability[x]=y`) parses to an object; silently coercing it
-    // would attach a surface claiming a capability nobody asked for.
-    expect(parseCapabilityQuery({ raw: { nested: 'value' } })).toBeNull();
-    expect(parseCapabilityQuery({ raw: ['page.click', ''] })).toBeNull();
-    expect(parseCapabilityQuery({ raw: ['page.click', '   '] })).toBeNull();
-    expect(parseCapabilityQuery({ raw: [42] })).toBeNull();
-  });
-});
-
-describe('handleFrontendSessionStream', () => {
-  it('attaches the surface and reports the minted session id as the first event', () => {
-    const registry = createFrontendSessionRegistry({}, { newBindToken: () => 'bind-1' });
-    const { req, res, raw } = makeReqRes({ capability: ['page.click', 'page.fill'] });
-
-    handleFrontendSessionStream({ req, res, deps: makeDeps(registry) });
-
-    expect(sentEvents(raw)).toEqual([{ type: 'attached', sessionId: 'session-1', bindToken: 'bind-1' }]);
-    registry.bindRun({ runId: 'run-1', sessionId: 'session-1' });
-    expect(registry.capabilitiesFor({ runId: 'run-1' })).toEqual(['page.click', 'page.fill']);
-  });
-
-  it('pushes each capability call to the surface as an invocation event', async () => {
+  it('detaches the surface when the client leaves, failing anything still awaiting it', async () => {
     const registry = createFrontendSessionRegistry({}, { newInvocationId: () => 'inv-1' });
-    const { req, res, raw } = makeReqRes({ capability: 'page.click' });
-    handleFrontendSessionStream({ req, res, deps: makeDeps(registry) });
+    const { fetch } = setup({ registry });
+    const response = await fetch(new Request(`${STREAM}?capability=page.click`));
+    const frames = readFrames({ response });
+    await frames.next();
     registry.bindRun({ runId: 'run-1', sessionId: 'session-1' });
-
-    const pending = registry.invoke({ runId: 'run-1', capabilityId: 'page.click', input: { element: 'save-button' } });
-
-    expect(sentEvents(raw)[1]).toEqual({
-      type: 'invocation',
-      invocationId: 'inv-1',
-      capabilityId: 'page.click',
-      input: { element: 'save-button' },
-    });
-
-    registry.settle({ sessionId: 'session-1', invocationId: 'inv-1', outcome: { ok: true, output: { clicked: 'save-button' } } });
-    await expect(pending).resolves.toEqual({ clicked: 'save-button' });
-  });
-
-  it('mints a random session id when the host supplies no generator', () => {
-    const registry = createFrontendSessionRegistry({});
-    const { req, res, raw } = makeReqRes({ capability: 'page.click' });
-
-    handleFrontendSessionStream({ req, res, deps: { registry } });
-
-    const attached = sentEvents(raw)[0] as { type: string; sessionId: string };
-    expect(attached.type).toBe('attached');
-    // A real UUID, not an empty or predictable placeholder.
-    expect(attached.sessionId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
-  });
-
-  it('never mints a session id the caller supplied', () => {
-    const registry = createFrontendSessionRegistry({}, { newBindToken: () => 'bind-1' });
-    // An id chosen by the caller could collide with, or impersonate, an attached session.
-    const { req, res, raw } = makeReqRes({ capability: 'page.click', sessionId: 'attacker-chosen' });
-
-    handleFrontendSessionStream({ req, res, deps: makeDeps(registry) });
-
-    expect(sentEvents(raw)[0]).toEqual({ type: 'attached', sessionId: 'session-1', bindToken: 'bind-1' });
-  });
-
-  it('reports a bad capability query as an SSE error event and closes, attaching nothing', () => {
-    const registry = createFrontendSessionRegistry({});
-    const attachSpy = vi.spyOn(registry, 'attach');
-    const { req, res, raw } = makeReqRes({ capability: { nested: 'value' } });
-
-    handleFrontendSessionStream({ req, res, deps: makeDeps(registry) });
-
-    // SSE headers are already committed by then, so there is no status-code channel left.
-    expect(sentEvents(raw)).toEqual([
-      { type: 'error', message: 'each "capability" query parameter must be a non-empty string' },
-    ]);
-    expect(raw.end).toHaveBeenCalled();
-    expect(attachSpy).not.toHaveBeenCalled();
-  });
-
-  it('detaches the surface when the connection closes, failing anything still awaiting it', async () => {
-    const registry = createFrontendSessionRegistry({}, { newInvocationId: () => 'inv-1' });
-    const { req, res } = makeReqRes({ capability: 'page.click' });
-    handleFrontendSessionStream({ req, res, deps: makeDeps(registry) });
-    registry.bindRun({ runId: 'run-1', sessionId: 'session-1' });
-
     const pending = registry.invoke({ runId: 'run-1', capabilityId: 'page.click', input: {} });
-    // Request completion is not a disconnect: the response can still be streaming.
-    req.emit('close');
     expect(registry.sessionFor({ runId: 'run-1' })).toEqual({ sessionId: 'session-1', capabilities: ['page.click'] });
-    res.emit('close');
-
+    await frames.cancel();
     await expect(pending).rejects.toThrow('detached before answering');
     // The binding goes with it, so a later call fails closed instead of hanging.
     expect(registry.sessionFor({ runId: 'run-1' })).toBeUndefined();
   });
 
+  it('streams a cancellation to its tab', async () => {
+    const registry = createFrontendSessionRegistry({}, { newInvocationId: () => 'waiting' });
+    const { fetch } = setup({ registry });
+    const frames = readFrames({ response: await fetch(new Request(`${STREAM}?capability=page.click`)) });
+    await frames.next();
+    registry.bindRun({ runId: 'run-1', sessionId: 'session-1' });
+    const controller = new AbortController();
+    const pending = registry.invoke({ runId: 'run-1', capabilityId: 'page.click', input: {} }, { signal: controller.signal });
+    await frames.next();
+    controller.abort();
+    await expect(pending).rejects.toThrow('cancelled');
+    expect(frameData((await frames.next())[0])).toEqual({ type: 'cancelled', invocationId: 'waiting' });
+    await frames.cancel();
+  });
+
+  it('mints a random session id when the host supplies no generator, and never one the caller chose', async () => {
+    const registry = createFrontendSessionRegistry({});
+    const { fetch } = setup({ registry, randomIds: true });
+    // An id chosen by the caller could collide with, or impersonate, an attached session.
+    const frames = readFrames({ response: await fetch(new Request(`${STREAM}?capability=page.click&sessionId=attacker-chosen`)) });
+    const attached = frameData((await frames.next())[0]) as { type: string; sessionId: string };
+    expect(attached.type).toBe('attached');
+    // A real UUID, not an empty or predictable placeholder.
+    expect(attached.sessionId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
+    await frames.cancel();
+  });
+
   it('attaches with no capabilities when none are requested, so nothing can be served', async () => {
     const registry = createFrontendSessionRegistry({});
-    const { req, res } = makeReqRes({});
-
-    handleFrontendSessionStream({ req, res, deps: makeDeps(registry) });
+    const { fetch } = setup({ registry });
+    const frames = readFrames({ response: await fetch(new Request(STREAM)) });
+    await frames.next();
     registry.bindRun({ runId: 'run-1', sessionId: 'session-1' });
-
     expect(registry.capabilitiesFor({ runId: 'run-1' })).toEqual([]);
     await expect(registry.invoke({ runId: 'run-1', capabilityId: 'page.click', input: {} })).rejects.toThrow(/does not offer "page\.click"/);
+    await frames.cancel();
+  });
+
+  it('keeps only the capabilities the host allows', async () => {
+    const registry = createFrontendSessionRegistry({});
+    const { fetch } = setup({ registry, allowedCapabilities: ['page.click'] });
+    const frames = readFrames({ response: await fetch(new Request(`${STREAM}?capability=page.click&capability=page.fill`)) });
+    await frames.next();
+    registry.bindRun({ runId: 'run-1', sessionId: 'session-1' });
+    expect(registry.capabilitiesFor({ runId: 'run-1' })).toEqual(['page.click']);
+    await frames.cancel();
+  });
+
+  it('reports a bad capability query as one error event and closes, attaching nothing', async () => {
+    const registry = createFrontendSessionRegistry({});
+    const attachSpy = vi.spyOn(registry, 'attach');
+    const { fetch } = setup({ registry });
+    const response = await fetch(new Request(`${STREAM}?capability=%20`));
+    expect(response.status).toBe(200);
+    expect(await readFrames({ response }).rest()).toEqual(['data: {"type":"error","message":"each \\"capability\\" query parameter must be a non-empty string"}']);
+    expect(attachSpy).not.toHaveBeenCalled();
+  });
+
+  describe('the host hooks (A10)', () => {
+    it('hand the hooks the request headers and the host locals, never the socket peer, and take the capacity keys from the hook', async () => {
+      const registry = createFrontendSessionRegistry({});
+      const attachSpy = vi.spyOn(registry, 'attach');
+      const seen: FrontendHookInput[] = [];
+      const { fetch } = setup({
+        registry,
+        resolveOwner: async (input) => { seen.push(input); return OWNER; },
+        resolveCapacityKeys: (input) => { seen.push(input); return ['ip:203.0.113.9']; },
+      });
+      const response = await fetch(new Request(`${STREAM}?capability=page.click`, { headers: { 'x-frontend-tab': 'tab-7' } }), { locals: { k: 1 }, client: { address: '203.0.113.7' } });
+      const frames = readFrames({ response });
+      await frames.next();
+      expect(seen).toHaveLength(2);
+      for (const input of seen) {
+        expect(Object.keys(input).filter(key => key !== 'owner').sort()).toEqual(['locals', 'request']);
+        expect(input.locals).toEqual({ k: 1 });
+        expect(input.request.headers.get('x-frontend-tab')).toBe('tab-7');
+      }
+      expect(JSON.stringify(seen)).not.toContain('203.0.113.7');
+      expect((seen[1] as { owner?: unknown }).owner).toEqual(OWNER);
+      expect(attachSpy.mock.calls[0]?.[0].descriptor).toEqual({ sessionId: 'session-1', capabilities: ['page.click'], owner: OWNER, capacityKeys: ['ip:203.0.113.9'] });
+      await frames.cancel();
+    });
+  });
+
+  describe('with an owner hook', () => {
+    it('refuses a request with no owner using the plain 403 words, and attaches nothing', async () => {
+      const registry = createFrontendSessionRegistry({});
+      const attachSpy = vi.spyOn(registry, 'attach');
+      const { fetch, host } = setup({ registry, resolveOwner: async () => null });
+      const response = await fetch(new Request(`${STREAM}?capability=page.click`));
+      expect(response.status).toBe(403);
+      expect(await response.text()).toBe('Forbidden');
+      expect(attachSpy).not.toHaveBeenCalled();
+      expect(host.reports).toEqual([]);
+    });
+
+    it('does not ask the daemon\'s own origin policy: the hook authenticates origin with the owner', async () => {
+      const registry = createFrontendSessionRegistry({});
+      const originPolicy = createRecordingOriginPolicy();
+      originPolicy.set({ allow: false });
+      const { fetch } = setup({ registry, resolveOwner: async () => OWNER }, { originPolicy });
+      const response = await fetch(new Request(`${STREAM}?capability=page.click`, { headers: { origin: 'http://evil.example' } }));
+      expect(response.status).toBe(200);
+      await response.body?.cancel();
+    });
+
+    it('answers 500 with a request ID, one report and no session when the owner hook throws (A11)', async () => {
+      const registry = createFrontendSessionRegistry({});
+      const attachSpy = vi.spyOn(registry, 'attach');
+      const failure = new Error('facts are missing');
+      const { fetch, host } = setup({ registry, resolveOwner: async () => { throw failure; } });
+      const response = await fetch(new Request(`${STREAM}?capability=page.click`));
+      expect(response.status).toBe(500);
+      expect(host.reports).toHaveLength(1);
+      expect(host.reports[0]).toMatchObject({ report: { source: 'stream', error: failure } });
+      expect(attachSpy).not.toHaveBeenCalled();
+    });
+
+    it('ends an owned session at its TTL, releasing the quota, and cancels the timer when the client leaves first', async () => {
+      const registry = createFrontendSessionRegistry({}, { newInvocationId: () => 'inv-1' });
+      const { fetch, timers } = setup({ registry, resolveOwner: async () => OWNER, sessionTtlMs: 4_000 });
+      const frames = readFrames({ response: await fetch(new Request(`${STREAM}?capability=page.click`)) });
+      await frames.next();
+      expect(timers.pending.map(entry => entry.delayMs)).toEqual([4_000]);
+      registry.bindRun({ runId: 'run-1', sessionId: 'session-1', owner: OWNER } as never);
+      const pending = registry.invoke({ runId: 'run-1', capabilityId: 'page.click', input: {} });
+      timers.pending[0]?.callback();
+      await expect(pending).rejects.toThrow('detached before answering');
+      // The call already pushed to the tab stays in the stream; then the stream ends.
+      expect(await frames.rest()).toEqual(['data: {"type":"invocation","invocationId":"inv-1","capabilityId":"page.click","input":{}}']);
+
+      const second = readFrames({ response: await fetch(new Request(`${STREAM}?capability=page.click`)) });
+      await second.next();
+      await second.cancel();
+      await vi.waitFor(() => { expect(timers.pending[1]?.cancelled).toBe(true); });
+    });
+
+    it('sets no timer for a session without an owner, and defaults an owned one to thirty minutes', async () => {
+      const registry = createFrontendSessionRegistry({});
+      const plain = setup({ registry });
+      await (await plain.fetch(new Request(`${STREAM}?capability=page.click`))).body?.cancel();
+      expect(plain.timers.pending).toEqual([]);
+      const owned = setup({ registry: createFrontendSessionRegistry({}), resolveOwner: async () => OWNER });
+      await (await owned.fetch(new Request(`${STREAM}?capability=page.click`))).body?.cancel();
+      expect(owned.timers.pending.map(entry => entry.delayMs)).toEqual([1_800_000]);
+    });
+
+    describe('the responses gate', () => {
+      async function openOwned({ owner = OWNER as typeof OWNER | null }: { owner?: typeof OWNER | null } = {}) {
+        const registry = createFrontendSessionRegistry({}, { newInvocationId: () => 'inv-1', newBindToken: () => 'bind-1' });
+        const ctx = setup({ registry, resolveOwner: async () => owner });
+        const frames = readFrames({ response: await ctx.fetch(new Request(`${STREAM}?capability=page.click`)) });
+        await frames.next();
+        return { ...ctx, registry, frames };
+      }
+      const answer = ({ fetch, token }: { fetch: Setup['fetch']; token?: string }) => fetch(new Request('http://local/api/frontend-sessions/session-1/responses', {
+        method: 'POST', headers: { 'content-type': 'application/json', ...(token ? { 'x-frontend-bind-token': token } : {}) }, body: JSON.stringify({ invocationId: 'nope', ok: true }),
+      }));
+
+      it('lets the session\'s owner through with the right bind token only', async () => {
+        const ctx = await openOwned();
+        expect((await answer({ fetch: ctx.fetch })).status).toBe(403);
+        expect((await answer({ fetch: ctx.fetch, token: 'wrong' })).status).toBe(403);
+        const ok = await answer({ fetch: ctx.fetch, token: 'bind-1' });
+        expect(ok.status).toBe(200);
+        expect(await ok.json()).toEqual({ settled: false });
+        await ctx.frames.cancel();
+      });
+
+      it('refuses a caller whose owner hook says nobody, with the plain 403 words', async () => {
+        const registry = createFrontendSessionRegistry({}, { newBindToken: () => 'bind-1' });
+        const { fetch } = setup({ registry, resolveOwner: async () => null });
+        const response = await answer({ fetch, token: 'bind-1' });
+        expect(response.status).toBe(403);
+        expect(await response.text()).toBe('Forbidden');
+      });
+
+      it('answers the same 403 when the owner hook throws, and hands the error to the host sink (A11)', async () => {
+        const registry = createFrontendSessionRegistry({});
+        const failure = new Error('facts are missing');
+        const { fetch, host } = setup({ registry, resolveOwner: async () => { throw failure; } });
+        const response = await answer({ fetch, token: 'bind-1' });
+        expect(response.status).toBe(403);
+        expect(await response.text()).toBe('Forbidden');
+        expect(host.reports).toHaveLength(1);
+        expect(host.reports[0]).toMatchObject({ logSource: 'frontend-sessions:owner', message: 'Forbidden', report: { source: 'frontend-session-owner', error: failure } });
+      });
+    });
+  });
+
+  it('asks the daemon\'s same-origin policy for the responses route when there is no owner hook', async () => {
+    const originPolicy = createRecordingOriginPolicy();
+    originPolicy.set({ allow: false });
+    const { fetch } = setup({ registry: createFrontendSessionRegistry({}) }, { originPolicy });
+    const response = await fetch(new Request('http://local/api/frontend-sessions/session-1/responses', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ invocationId: 'i', ok: true }) }));
+    expect(response.status).toBe(403);
+    expect(await response.json()).toEqual({ error: expect.objectContaining({ code: 'FORBIDDEN' }) });
+  });
+});
+
+describe('parseCapabilityQuery', () => {
+  const read = (query: string) => parseCapabilityQuery({ searchParams: new URLSearchParams(query) });
+
+  it('accepts a single value, repeated values, and none at all', () => {
+    expect(read('capability=page.click')).toEqual(['page.click']);
+    expect(read('capability=page.click&capability=page.fill')).toEqual(['page.click', 'page.fill']);
+    expect(read('')).toEqual([]);
+  });
+
+  it('rejects rather than coerces anything that is not a non-empty string', () => {
+    expect(read('capability=page.click&capability=')).toBeNull();
+    expect(read('capability=page.click&capability=%20%20')).toBeNull();
+    expect(read('capability=')).toBeNull();
+  });
+
+  // D-FS1: the host's old parser read the first three as a list of one (and refused an object); every bracketed spelling is refused now.
+  it.each(['capability[]=a', 'capability[0]=a', 'capability[25]=a', 'capability[k]=a', 'capability=a&capability[k]=b', 'capability%5B%5D=a'])('refuses the bracketed spelling %s', (query) => {
+    expect(read(query)).toBeNull();
+  });
+
+  it('counts a capability after a thousand other parameters (the old parser dropped it)', () => {
+    const filler = Array.from({ length: 1000 }, (_unused, index) => `f${index}=1`).join('&');
+    expect(read(`${filler}&capability=page.read`)).toEqual(['page.read']);
   });
 });
 
 describe('frontendSessionResponseRoute', () => {
   const parse = frontendSessionResponseRoute.parse;
+  const input = (body: unknown, sessionId = 'session-1') => ({ body, query: {}, params: { sessionId } });
+  const makeDeps = (registry: FrontendSessionRegistry): FrontendSessionsHttpDeps => ({ registry, newSessionId: () => 'session-1', setTimer: () => ({ cancel: () => undefined }) });
+  const handle = async ({ registry, body }: { registry: FrontendSessionRegistry; body: unknown }) => {
+    const parsed = parse(input(body));
+    expect(parsed.ok).toBe(true);
+    return frontendSessionResponseRoute.handle({ input: (parsed as { ok: true; value: never }).value, deps: makeDeps(registry) });
+  };
 
-  function input(body: unknown, sessionId = 'session-1') {
-    return { body, query: {}, params: { sessionId } };
+  async function attached({ registry, capability }: { registry: FrontendSessionRegistry; capability: string }) {
+    const { fetch } = setup({ registry });
+    const frames = readFrames({ response: await fetch(new Request(`${STREAM}?capability=${capability}`)) });
+    await frames.next();
+    registry.bindRun({ runId: 'run-1', sessionId: 'session-1' });
+    return frames;
   }
 
-  it('relays human-wait progress without settling the call and streams cancellation to its tab', async () => {
+  it('relays human-wait progress without settling the call', async () => {
     const registry = createFrontendSessionRegistry({}, { newInvocationId: () => 'waiting' });
-    const { req, res, raw } = makeReqRes({ capability: 'page.click' });
+    const frames = await attached({ registry, capability: 'page.click' });
     const progress = vi.fn();
-    handleFrontendSessionStream({ req, res, deps: makeDeps(registry) });
-    registry.bindRun({ runId: 'run-1', sessionId: 'session-1' });
     const controller = new AbortController();
     const pending = registry.invoke({ runId: 'run-1', capabilityId: 'page.click', input: { handle: 'save' } }, { signal: controller.signal, onApprovalStateChange: progress });
     for (const phase of ['approval-pending', 'execution-started']) {
-      const parsed = parse(input({ invocationId: 'waiting', phase }));
-      expect(parsed.ok).toBe(true);
-      expect(await frontendSessionResponseRoute.handle({ input: (parsed as { ok: true; value: never }).value, deps: makeDeps(registry) }))
-        .toEqual({ ok: true, value: { settled: true } });
+      expect(await handle({ registry, body: { invocationId: 'waiting', phase } })).toEqual({ ok: true, value: { settled: true } });
     }
     expect(progress.mock.calls).toEqual([[{ pending: true }], [{ pending: false }]]);
     controller.abort();
     await expect(pending).rejects.toThrow('cancelled');
-    expect(sentEvents(raw)).toContainEqual({ type: 'cancelled', invocationId: 'waiting' });
-    const late = parse(input({ invocationId: 'waiting', phase: 'execution-started' }));
-    expect(await frontendSessionResponseRoute.handle({ input: (late as { ok: true; value: never }).value, deps: makeDeps(registry) }))
-      .toEqual({ ok: true, value: { settled: false } });
-    req.emit('close');
+    expect(await handle({ registry, body: { invocationId: 'waiting', phase: 'execution-started' } })).toEqual({ ok: true, value: { settled: false } });
+    await frames.cancel();
   });
 
   it('settles a pending invocation with the surface\'s output', async () => {
     const registry = createFrontendSessionRegistry({}, { newInvocationId: () => 'inv-1' });
-    const { req, res } = makeReqRes({ capability: 'page.click' });
-    handleFrontendSessionStream({ req, res, deps: makeDeps(registry) });
-    registry.bindRun({ runId: 'run-1', sessionId: 'session-1' });
+    const frames = await attached({ registry, capability: 'page.click' });
     const pending = registry.invoke({ runId: 'run-1', capabilityId: 'page.click', input: {} });
-
-    const parsed = parse(input({ invocationId: 'inv-1', ok: true, output: { clicked: 'x' } }));
-    expect(parsed.ok).toBe(true);
-    const result = await frontendSessionResponseRoute.handle({ input: (parsed as { ok: true; value: never }).value, deps: makeDeps(registry) }
-    );
-
-    expect(result).toEqual({ ok: true, value: { settled: true } });
+    expect(await handle({ registry, body: { invocationId: 'inv-1', ok: true, output: { clicked: 'x' } } })).toEqual({ ok: true, value: { settled: true } });
     await expect(pending).resolves.toEqual({ clicked: 'x' });
+    await frames.cancel();
   });
 
   it('turns a reported failure into a rejection carrying the surface\'s message', async () => {
     const registry = createFrontendSessionRegistry({}, { newInvocationId: () => 'inv-1' });
-    const { req, res } = makeReqRes({ capability: 'page.fill' });
-    handleFrontendSessionStream({ req, res, deps: makeDeps(registry) });
-    registry.bindRun({ runId: 'run-1', sessionId: 'session-1' });
+    const frames = await attached({ registry, capability: 'page.fill' });
     const pending = registry.invoke({ runId: 'run-1', capabilityId: 'page.fill', input: {} });
-
-    const parsed = parse(input({ invocationId: 'inv-1', ok: false, message: 'refusing to fill "password"' }));
-    await frontendSessionResponseRoute.handle({ input: (parsed as { ok: true; value: never }).value, deps: makeDeps(registry) });
-
+    await handle({ registry, body: { invocationId: 'inv-1', ok: false, message: 'refusing to fill "password"' } });
     await expect(pending).rejects.toThrow('refusing to fill "password"');
+    await frames.cancel();
   });
 
   it('reports settled:false for a duplicate or unknown answer instead of erroring', async () => {
-    const registry = createFrontendSessionRegistry({});
-    const parsed = parse(input({ invocationId: 'never-issued', ok: true, output: 1 }));
-
-    const result = await frontendSessionResponseRoute.handle({ input: (parsed as { ok: true; value: never }).value, deps: makeDeps(registry) }
-    );
-
-    // A stream reconnect or retried POST is expected, not exceptional.
-    expect(result).toEqual({ ok: true, value: { settled: false } });
+    expect(await handle({ registry: createFrontendSessionRegistry({}), body: { invocationId: 'never-issued', ok: true, output: 1 } })).toEqual({ ok: true, value: { settled: false } });
   });
 
   it('requires a same-origin request', () => {
@@ -444,12 +443,10 @@ describe('frontendSessionResponseRoute', () => {
     });
 
     it('accepts an absent output as a legitimate success value', () => {
-      const parsed = parse(input({ invocationId: 'inv-1', ok: true }));
-      expect(parsed.ok).toBe(true);
+      expect(parse(input({ invocationId: 'inv-1', ok: true })).ok).toBe(true);
     });
   });
 });
-
 
 it('validates the fixed modal decision vocabulary on progress frames', () => {
   const parse = frontendSessionResponseRoute.parse;

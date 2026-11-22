@@ -31,16 +31,16 @@ export function createBrowserAssetTreeClipboardPort(): AssetTreeClipboardPort {
 export function createBrowserAssetTreeDomBridgePort(): AssetTreeDomBridgePort {
   return {
     subscribeOutsideDismiss(container, onDismiss) {
-      return subscribeOutsideClickOrEscape(container, onDismiss);
+      return subscribeOutsideClickOrEscape({ container, onClose: onDismiss });
     },
     subscribeGlobalPaste(onFiles) {
-      return subscribeWindowEvent('paste', (event) => {
+      return subscribeWindowEvent({ eventName: 'paste', onEvent: (event) => {
         const clipboardEvent = event as ClipboardEvent;
-        if (shouldIgnoreClipboardFilePaste(clipboardEvent.target)) return;
-        const files = filesFromClipboardData(clipboardEvent.clipboardData);
+        if (shouldIgnoreClipboardFilePaste({ target: clipboardEvent.target })) return;
+        const files = filesFromClipboardData({ clipboardData: clipboardEvent.clipboardData });
         if (files.length === 0) return;
         onFiles(files);
-      });
+      } });
     },
     getViewportHeight() {
       return getViewportSize().height;

@@ -64,8 +64,9 @@ const NO_INPUT_SCHEMA = {
 const UPDATE_WORKSPACE_SCHEMA = {
   type: "object",
   additionalProperties: false,
-  required: [],
+  required: ["expectedVersion"],
   properties: {
+    expectedVersion: { type: "integer", minimum: 0, description: "The record's version from workspace_get. Required." },
     name: { type: "string", description: "New workspace name. Omit to leave unchanged. At least one of name/slug is required." },
     slug: {
       type: "string",
@@ -92,7 +93,7 @@ export function getWorkspaceAgentToolCatalog(): AgentToolDefinition[] {
     {
       name: "workspace_update",
       description:
-        "Renames the caller's own workspace: updates name and/or slug. At least one field is required. Does not change the workspace's id or creation time, and has no cascading effects on other domains.",
+        "Renames the caller's own workspace: updates name and/or slug. At least one field is required. Does not change the workspace's id or creation time, and has no cascading effects on other domains. Pass expectedVersion from workspace_get; if someone changed it since, nothing is saved and you must re-read.",
       sideEffects: "mutates-durable-state",
       authorization: { permission: "workspace.manage" },
       inputSchema: UPDATE_WORKSPACE_SCHEMA,

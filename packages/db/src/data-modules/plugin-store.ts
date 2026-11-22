@@ -1,10 +1,10 @@
 import type { Generated } from "kysely";
 
-import type { StorageKernel } from "../kernel/index.js";
+import type { KyselyKernel } from "../kernel/index.js";
 
 /**
  * @file The database a plugin data module works on: the storage kernel, whichever driver is
- * underneath (ADR-066). The core's own `_plugin_*` bookkeeping tables are typed here; the plugins'
+ * underneath. The core's own `_plugin_*` bookkeeping tables are typed here; the plugins'
  * own `p_{pluginId}__*` tables are declared at runtime and reached through raw kernel statements.
  */
 
@@ -12,7 +12,7 @@ import type { StorageKernel } from "../kernel/index.js";
  * A composed kernel over ANY table typing (a `ContentKernel`, a `PluginKernel`…). `any`: a `Kysely<DB>` is invariant in
  * `DB`, so no narrower type admits every kernel; the engine only reads its own tables through it.
  */
-export type PluginStore = StorageKernel<any>;
+export type PluginStore = KyselyKernel<any>;
 
 export interface PluginCoreTables {
   _plugin_migration_journal: {
@@ -40,7 +40,7 @@ export interface PluginCoreTables {
   };
 }
 
-export type PluginKernel = StorageKernel<PluginCoreTables>;
+export type PluginKernel = KyselyKernel<PluginCoreTables>;
 
 /** The composed kernel behind `store`, viewed through the plugin table contract. */
 export function pluginKernel(

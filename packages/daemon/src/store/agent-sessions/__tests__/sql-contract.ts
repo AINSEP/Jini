@@ -1,13 +1,13 @@
 /** C2 borrowed-kernel SQL effects: rollback, FK cascade, deterministic clock and no construction I/O. */
 import { expect, it, vi } from 'vitest';
 import { sql } from 'kysely';
-import type { StorageKernel } from '@jini-ai/db/kernel';
+import type { KyselyKernel } from '@jini-ai/db/kernel';
 import type { AgentSessionDatabase } from '../sql.js';
 import type { Clock } from '@jini-ai/core/primitives';
 import type { AgentSessionStore } from '../ports.js';
 import { sessionContract } from './contract.js';
-export interface SqlSessionFixture { kernel: StorageKernel<AgentSessionDatabase>; store:AgentSessionStore; close():Promise<void>; }
-export function sqlSessionContract(make:()=>Promise<SqlSessionFixture>,create:(input:{kernel:StorageKernel<AgentSessionDatabase>},options?:{clock?:Clock})=>AgentSessionStore):void {
+export interface SqlSessionFixture { kernel: KyselyKernel<AgentSessionDatabase>; store:AgentSessionStore; close():Promise<void>; }
+export function sqlSessionContract(make:()=>Promise<SqlSessionFixture>,create:(input:{kernel:KyselyKernel<AgentSessionDatabase>;clock:Clock})=>AgentSessionStore):void {
  sessionContract(make);
  it('shares the injected transaction for insert, overwrite and clear rollback',async()=>{
   const f=await make();try{
@@ -23,7 +23,10 @@ export function sqlSessionContract(make:()=>Promise<SqlSessionFixture>,create:(i
  });
  it('uses assistant_agent_sessions FK and cascades exactly the deleted conversation',async()=>{
   const f=await make();try{
-   await expect(f.store.setSessionId({ conversationId: 'unknown', agentId: 'c', sessionId: 'foreign' })).rejects.toThrow();
+   // The store wraps driver failures as a stable `unavailable` boundary error and keeps the driver error as `cause`.
+   const failure = await f.store.setSessionId({ conversationId: 'unknown', agentId: 'c', sessionId: 'foreign' }).catch((error: unknown) => error);
+   expect(failure).toMatchObject({ name: 'AgentSessionStoreError', code: 'unavailable' });
+   expect(String((failure as Error).cause)).toContain(f.kernel.transport === 'better-sqlite3' ? 'FOREIGN KEY constraint failed' : 'violates foreign key constraint "assistant_agent_sessions_conversation_id_fkey"');
    await f.store.setSessionId({ conversationId: 'a:b', agentId: 'c', sessionId: 'first' });await f.store.setSessionId({ conversationId: 'a', agentId: 'b:c', sessionId: 'second' });
    expect(await f.store.getSessionId({ conversationId: 'a:b', agentId: 'c' })).toBe('first');
    await f.kernel.execute(sql`DELETE FROM ai_chats WHERE id = ${'a:b'}`);
@@ -35,7 +38,7 @@ export function sqlSessionContract(make:()=>Promise<SqlSessionFixture>,create:(i
   const f=await make();try{
    const run=vi.spyOn(f.kernel,'run'),execute=vi.spyOn(f.kernel,'execute'),close=vi.spyOn(f.kernel,'close');
    const clock: Clock & { time: number } = { time: 4_102_444_800_123, nowMs() { return this.time; } };
-   const store=create({kernel:f.kernel},{clock});
+   const store=create({kernel:f.kernel,clock});
    expect(run).not.toHaveBeenCalled();expect(execute).not.toHaveBeenCalled();expect(close).not.toHaveBeenCalled();
    await store.setSessionId({ conversationId: 'a:b', agentId: 'c', sessionId: 'clock' });
    const rows=await f.kernel.query<{updated_at:string|number}>(sql`SELECT updated_at FROM assistant_agent_sessions WHERE conversation_id=${'a:b'} AND agent_id=${'c'}`);

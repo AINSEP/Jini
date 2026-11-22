@@ -39,7 +39,7 @@ export const AIHUBMIX_DEFAULT_BASE_URL = 'https://aihubmix.com/v1';
  * fixed `APP-Code` attribution header. Callers spread the result into their
  * `fetch` headers and may add `content-type` etc. on top.
  */
-export function aihubmixHeaders({ apiKey }: { apiKey: string }): Record<string, string> {
+export function aihubmixHeaders({ apiKey }: { apiKey: string }, _optional: Record<string, never> = {}): Record<string, string> {
   return {
     authorization: `Bearer ${apiKey}`,
     ...aihubmixAppCodeHeader(),
@@ -68,7 +68,7 @@ export function aihubmixAppCodeHeader(): Record<string, string> {
 // proxy + media renderer.
 export type AIHubMixProtocol = 'openai' | 'anthropic' | 'gemini';
 
-export function classifyAIHubMixModel({ model }: { model: string }): AIHubMixProtocol {
+export function classifyAIHubMixModel({ model }: { model: string }, _optional: Record<string, never> = {}): AIHubMixProtocol {
   const m = (model || '').trim().toLowerCase();
   // Gemini: gemini*/imagen*, excluding the `-nothink`/`-search` suffixes and
   // any embedding model (those stay on the OpenAI-compatible path per §4.1).
@@ -90,7 +90,7 @@ export function classifyAIHubMixModel({ model }: { model: string }): AIHubMixPro
  *   anthropic -> `${origin}` (+ /v1/messages)
  *   gemini    -> `${origin}/gemini` (+ /v1beta/models/{model}:...)
  */
-export function aihubmixOriginFromBase({ baseUrl }: { baseUrl: string }): string {
+export function aihubmixOriginFromBase({ baseUrl }: { baseUrl: string }, _optional: Record<string, never> = {}): string {
   try {
     return new URL(baseUrl || AIHUBMIX_DEFAULT_BASE_URL).origin;
   } catch {
@@ -99,7 +99,7 @@ export function aihubmixOriginFromBase({ baseUrl }: { baseUrl: string }): string
 }
 
 /** Gemini-native generateContent endpoint for an AIHubMix image model. */
-export function aihubmixGeminiImageUrl({ baseUrl, wireModel }: { baseUrl: string; wireModel: string }): string {
+export function aihubmixGeminiImageUrl({ baseUrl, wireModel }: { baseUrl: string; wireModel: string }, _optional: Record<string, never> = {}): string {
   return (
     `${aihubmixOriginFromBase({ baseUrl: baseUrl })}/gemini/v1beta/models/`
     + `${encodeURIComponent(wireModel)}:generateContent`
@@ -127,7 +127,7 @@ export interface AIHubMixGeminiImageRequest {
  * dispatcher, abort signal, redirect policy). Throws on a non-OK status or a
  * response without inline image data.
  */
-export async function aihubmixGeminiImageBytes({ req, doFetch }: { req: AIHubMixGeminiImageRequest; doFetch: (requiredArgs: { url: string; init: RequestInit }) => Promise<Response> }
+export async function aihubmixGeminiImageBytes({ req, doFetch }: { req: AIHubMixGeminiImageRequest; doFetch: (requiredArgs: { url: string; init: RequestInit }) => Promise<Response> }, _optional: Record<string, never> = {}
 ): Promise<Buffer> {
   const url = aihubmixGeminiImageUrl({ baseUrl: req.baseUrl, wireModel: req.wireModel });
   const resp = await doFetch({ url: url, init: {
@@ -177,7 +177,7 @@ const AIHUBMIX_WIRE_MODELS: Record<string, string> = {
   'aihubmix-tts-1': 'tts-1',
 };
 
-export function aihubmixWireModel({ catalogId }: { catalogId: string }): string {
+export function aihubmixWireModel({ catalogId }: { catalogId: string }, _optional: Record<string, never> = {}): string {
   return AIHUBMIX_WIRE_MODELS[catalogId] ?? catalogId.replace(/^aihubmix-/, '');
 }
 
@@ -196,7 +196,7 @@ const AIHUBMIX_VIDEO_SECONDS: readonly (readonly [prefix: string, seconds: reado
   ['sora', [4, 8, 12]],
   ['wan', [5, 10]],
 ];
-export function aihubmixVideoSeconds({ wireModel, requested }: { wireModel: string; requested: number }): string {
+export function aihubmixVideoSeconds({ wireModel, requested }: { wireModel: string; requested: number }, _optional: Record<string, never> = {}): string {
   const m = (wireModel || '').toLowerCase();
   const req = Number.isFinite(requested) ? requested : 5;
   const allowed = AIHUBMIX_VIDEO_SECONDS.find(([prefix]) => m.startsWith(prefix))?.[1] ?? null;
@@ -222,7 +222,7 @@ export function aihubmixVideoSeconds({ wireModel, requested }: { wireModel: stri
 // appended.
 export type AIHubMixCatalogType = 'llm' | 'image_generation' | 'tts' | 'video';
 
-export function aihubmixCatalogUrl({ baseUrl, type }: { baseUrl: string; type: AIHubMixCatalogType }): string {
+export function aihubmixCatalogUrl({ baseUrl, type }: { baseUrl: string; type: AIHubMixCatalogType }, _optional: Record<string, never> = {}): string {
   const origin = aihubmixOriginFromBase({ baseUrl });
   return `${origin}/api/v1/models?type=${type}`;
 }
@@ -236,7 +236,7 @@ export interface AIHubMixCatalogModel {
 // (e.g. "llm", "llm,search", "image_generation,llm"). These are the
 // media-generation capabilities that belong to dedicated image/video/audio
 // pickers — NOT the chat model picker.
-const AIHUBMIX_MEDIA_GENERATION_TYPES = new Set(['image_generation', 'video', 'tts']);
+const AIHUBMIX_MEDIA_GENERATION_TYPES: ReadonlySet<string> = new Set(['image_generation', 'video', 'tts']);
 
 function aihubmixRowTypes(row: unknown): string[] {
   const raw = (row as { types?: unknown })?.types;

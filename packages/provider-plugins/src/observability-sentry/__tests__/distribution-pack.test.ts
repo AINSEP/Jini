@@ -11,6 +11,7 @@ import { computePluginIntegrity } from '@jini-ai/plugins/host/node';
 import type { PluginManifest } from '@jini-ai/plugins/host';
 import { buildProviderPlugin } from '../../../../../scripts/testing/provider-plugin.js';
 import { assertPluginPackageIsolation } from '../../../../../scripts/check-plugin-isolation.js';
+import { withHost } from "../../__tests__/observability-host.js";
 
 const exec = promisify(execFile);
 const packageRoot = fileURLToPath(new URL('../../../', import.meta.url));
@@ -85,10 +86,10 @@ it('resolves the package manifest and artifact export outside the workspace with
 it.each([undefined, false, true])('the installed sealed artifact enforces exportEnabled=%s for errors, spans and native uploads', async exportEnabled => {
   const { createSentryProvider } = await import(pathToFileURL(path.join(artifact, 'server/index.mjs')).href);
   const envelopes: unknown[] = [];
-  const resource = createSentryProvider({ dsn: 'https://public@sentry.invalid/1', tracesSampleRate: 1, environment: 'production' }, {
+  const resource = createSentryProvider({ dsn: 'https://public@sentry.invalid/1', tracesSampleRate: 1, environment: 'production' }, withHost({
     exportEnabled,
     transport: () => ({ send: async (envelope: unknown) => { envelopes.push(envelope); return { statusCode: 200 }; }, flush: async () => true }),
-  });
+  }));
   try {
     expect(resource.port.reportError({ error: Object.assign(new Error('browser failure'), { name: 'AdminBrowserError' }),
       context: { operation: 'admin.browser.error' } })).toBeUndefined();

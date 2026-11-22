@@ -1,3 +1,4 @@
+import { webcrypto } from "node:crypto";
 import assert from "node:assert/strict";
 import { test, type NodeTestContext } from "./support/node-test.fixture.js";
 
@@ -8,7 +9,7 @@ import { FORMS_SUBMIT_PROFILE } from "./support/switch-bindings.fixture.js";
 import { InMemoryFormDefinitionRepo, InMemoryFormSubmissionRepo } from "../repo.memory.js";
 import { submitForm } from "./support/switch-bindings.fixture.js";
 import { createSubmissionAttempts, DUPLICATE_ATTEMPT, DUPLICATE_SUBMISSION_WINDOW_MS, FORM_ATTEMPT_FIELD, submissionAttemptKey } from "./support/switch-bindings.fixture.js";
-import type { DomainEvent } from "../../core/index.js";
+import type { DomainEvent } from "@jini-ai/core/contracts/events";
 import type { FormDefinitionRecord } from "../index.js";
 
 /**
@@ -49,7 +50,7 @@ function makeDeps() {
   let counter = 0;
   const idGen = { newId: () => `id-${++counter}` };
   const rateLimiter = createRateLimiter({ profile: FORMS_SUBMIT_PROFILE, clock });
-  return { definitionRepo, submissionRepo, outbox, bus, clock, idGen, rateLimiter };
+  return { definitionRepo, submissionRepo, outbox, bus, clock, idGen, crypto: webcrypto, rateLimiter };
 }
 
 test("submitForm: AC-07/REQ-05 — accepts a valid submission to an active form", async () => {
@@ -423,10 +424,12 @@ test("submitForm: a copy waiting on a first copy that fails is stored itself, no
     await enqueue(event);
   });
 
-  const [first, second] = await Promise.allSettled([submitForm({ deps, input: attempt("tok-1") }), submitForm({ deps, input: attempt("tok-1") })]);
+  const outcomes = await Promise.allSettled([submitForm({ deps, input: attempt("tok-1") }), submitForm({ deps, input: attempt("tok-1") })]);
 
-  assert.equal(first.status, "rejected");
-  assert.deepEqual(second, { status: "fulfilled", value: { status: "accepted" } });
+  // Either copy may reach the claim first under load, so match outcomes, not array positions.
+  assert.deepEqual(outcomes.map((o) => o.status).sort(), ["fulfilled", "rejected"]);
+  assert.ok(outcomes.some((o) => o.status === "rejected" && o.reason instanceof Error && o.reason.message === "outbox unavailable"), "the copy that hit the outbox fault fails with it");
+  assert.ok(outcomes.some((o) => o.status === "fulfilled" && o.value.status === "accepted"), "the other copy is accepted");
   assert.equal((await storedSubmissions(deps)).length, 1);
 });
 

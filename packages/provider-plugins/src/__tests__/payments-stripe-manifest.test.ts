@@ -3,14 +3,17 @@ import { expect, it, vi } from 'vitest';
 import { paymentsProviderContract } from '@jini-ai/commerce/payments/kernel';
 import plugin, { createStripeProvider } from '../payments-stripe/index.js';
 
+// The host's `initialize` call puts the domain contract's helpers here (plugins/src/host/provider-host.ts).
+const { context } = paymentsProviderContract;
+
 it('registers one stateless commerce factory without collecting credentials at initialization', () => {
   const register = vi.fn();
   plugin.definition.setup({ providers: { register } } as never);
   expect(register).toHaveBeenCalledTimes(1);
   expect(register).toHaveBeenCalledWith({ contract: 'payments', id: 'stripe', contractVersion: 1, factory: createStripeProvider });
-  const resource = createStripeProvider({});
+  const resource = createStripeProvider({}, { context });
   expect(paymentsProviderContract.validate({ provider: resource.port })).toBeUndefined();
-  expect(createStripeProvider({}, {}).port).not.toBe(resource.port);
+  expect(createStripeProvider({}, { context }).port).not.toBe(resource.port);
   expect(resource.dispose({})).toBeUndefined();
   expect(resource.dispose({}, {})).toBeUndefined();
 });
@@ -24,7 +27,7 @@ it('keeps the artifact identity and declares public account and mode-scoped secr
   const fields = declaration.settings.map(({ name, secret = false, required = false }: { name: string; secret?: boolean; required?: boolean }) => ({ name, secret, required }));
   expect(fields).toEqual([
     { name: 'accountId', secret: false, required: true },
-    ...['test', 'live'].flatMap(mode => createStripeProvider({}).port.credentialKeys.map(key => ({ name: `${mode}_${key}`, secret: true, required: false }))),
+    ...['test', 'live'].flatMap(mode => createStripeProvider({}, { context }).port.credentialKeys.map(key => ({ name: `${mode}_${key}`, secret: true, required: false }))),
   ]);
   await expect(readFile(new URL('../payments-stripe/stripe.ts', import.meta.url))).rejects.toMatchObject({ code: 'ENOENT' });
 });

@@ -154,11 +154,11 @@ export function useSkillsTab({ port, locale = 'en' }: UseSkillsTabOptions): UseS
     };
   }, [refresh]);
 
-  const filteredSkills = useMemo(() => filterSkills(skills, filters, locale), [skills, filters, locale]);
-  const sourceOptions = useMemo(() => skillFilterOptions(skills, filters, locale, 'source'), [skills, filters, locale]);
-  const modeOptions = useMemo(() => skillFilterOptions(skills, filters, locale, 'mode'), [skills, filters, locale]);
+  const filteredSkills = useMemo(() => filterSkills({ skills, filters, locale }), [skills, filters, locale]);
+  const sourceOptions = useMemo(() => skillFilterOptions({ skills, filters, locale, dimension: 'source' }), [skills, filters, locale]);
+  const modeOptions = useMemo(() => skillFilterOptions({ skills, filters, locale, dimension: 'mode' }), [skills, filters, locale]);
   const categoryOptions = useMemo(
-    () => (hasAnyCategory(skills) ? skillFilterOptions(skills, filters, locale, 'category') : null),
+    () => (hasAnyCategory({ skills }) ? skillFilterOptions({ skills, filters, locale, dimension: 'category' }) : null),
     [skills, filters, locale],
   );
 
@@ -219,7 +219,7 @@ export function useSkillsTab({ port, locale = 'en' }: UseSkillsTabOptions): UseS
     async (skill: SkillSummary) => {
       const body = await ensureBody(skill.id);
       if (!alive.current) return;
-      setDraftState(summaryToDraft(skill, body));
+      setDraftState(summaryToDraft({ skill, body }));
       setDraftError(null);
       setEditingId(skill.id);
       setExpandedId(skill.id);
@@ -274,7 +274,7 @@ export function useSkillsTab({ port, locale = 'en' }: UseSkillsTabOptions): UseS
       name: draft.name.trim(),
       description: draft.description.trim() || undefined,
       body: draft.body.trim(),
-      triggers: parseTriggers(draft.triggers),
+      triggers: parseTriggers({ raw: draft.triggers }),
     };
     setDraftSaving(true);
     setDraftError(null);

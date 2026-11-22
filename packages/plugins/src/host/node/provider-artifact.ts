@@ -1,8 +1,7 @@
 /** Provider artifacts outside a site reuse the ordered loader and the provider resource host. */
 import { createPluginContributionRegistry } from '../contributions.js';
 import { createPluginProviderHost, type PluginProviderContract } from '../provider-host.js';
-import type { PluginProviderResource } from '../provider-contributions.js';
-import type { HookPoints } from '../ports.js';
+import type { PluginProviderResource, HookPoints } from '@jini-ai/core/contracts/plugin-sdk';
 import { loadPlugin, type LoadPluginRequired } from './loader.js';
 
 /**

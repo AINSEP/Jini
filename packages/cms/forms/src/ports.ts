@@ -1,5 +1,6 @@
 /** Forms persistence and outbound effect contracts. Concrete repositories, HTTP routing, tool wiring and transport implementations belong to consumers. */
 import type { UUID } from "@jini-ai/core/primitives";
+import type { ExecuteCommandFn } from "@jini-ai/core/contracts/events";
 import type { FormDefinitionRecord, FormSubmissionPage, FormSubmissionRecord } from "./types.js";
 
 /** Definitions and submissions have distinct lifecycles and therefore separate ports.
@@ -44,7 +45,7 @@ export interface FormSubmissionRepoPort {
 export interface RateLimiterPort {
   check(required: { key: string }): { allowed: true } | { allowed: false; retryAfterSeconds: number } | Promise<{ allowed: true } | { allowed: false; retryAfterSeconds: number }>;
 }
-export interface FormOutboxPort { enqueue(event: import("@jini-ai/cms/core").DomainEvent): Promise<void>; }
+export interface FormOutboxPort { enqueue(event: import("@jini-ai/core/contracts/events").DomainEvent): Promise<void>; }
 /**
  * Runs `work` as one unit of persistence: commit when it resolves, roll back when it throws. A host
  * binds its database transaction here so an accepted submission's row and its outbox event are
@@ -66,4 +67,4 @@ export type MailerSendResult = { ok: true; providerMessageId: string; acceptedAt
 export interface MailerPort { send(required: { message: OutboundEmail; options: MailerSendOptions }): Promise<MailerSendResult>; }
 
 /** Generic audited mutation contract supplied by the host composition root. */
-export type FormCommandExecutorPort = typeof import("@jini-ai/cms/core").executeCommand;
+export type FormCommandExecutorPort = ExecuteCommandFn;

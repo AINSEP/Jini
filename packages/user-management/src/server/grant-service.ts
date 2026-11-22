@@ -129,6 +129,17 @@ export async function assertCallerHasAnyPermission(required: {
   throw new IdentityForbiddenError({ message: `principal '${callerPrincipalId}' is not authorized for any of [${permissions.join(", ")}]`, permission: permissions.join("|"), reason: lastReason });
 }
 
+/** Runs `execute` in one identity transaction after the caller passes `assertCallerHasAnyPermission`, so the check and the write see the same snapshot. */
+export function inAuthorizedIdentityTransaction<T>(
+  { deps, workspaceId, callerPrincipalId, permissions, execute }: { deps: AuthServiceDeps; workspaceId: UUID; callerPrincipalId: UUID; permissions: readonly string[]; execute: () => Promise<T> },
+  _optional: Record<string, never> = {},
+): Promise<T> {
+  return inIdentityTransaction({ transactions: deps.repos.transactions, workspaceId, execute: async () => {
+    await assertCallerHasAnyPermission({ deps, workspaceId, callerPrincipalId, permissions });
+    return execute();
+  } });
+}
+
 /** True iff `effectiveRows` contains an unconstrained hold of `permission` — an exact match with
  * `resourceType`/`constraintJson` both null, or the owner wildcard `*` (which counts as an
  * unconstrained hold of every permission).
@@ -390,17 +401,12 @@ export async function assignRole(required: {
 }): Promise<{ assignment: PrincipalRoleRecord }> {
   const { deps, input } = required;
 
-  return inIdentityTransaction({
-    transactions: deps.repos.transactions,
+  return inAuthorizedIdentityTransaction({
+    deps,
     workspaceId: input.workspaceId,
+    callerPrincipalId: input.callerPrincipalId,
+    permissions: ["role.manage"],
     execute: async () => {
-      await assertCallerHasAnyPermission({
-        deps,
-        workspaceId: input.workspaceId,
-        callerPrincipalId: input.callerPrincipalId,
-        permissions: ["role.manage"],
-      });
-
       await findAssignableTargetOrThrow({
         deps,
         workspaceId: input.workspaceId,
@@ -420,16 +426,7 @@ export async function assignRole(required: {
         throw new IdentityNotFoundError({ message: `role '${input.roleId}' was not found` });
       }
 
-      const rolePolicyLinks = await deps.repos.rolePolicies.listByRoleId({
-        workspaceId: input.workspaceId,
-        roleId: input.roleId,
-      });
-      const policyPermissionGroups = await Promise.all(
-        rolePolicyLinks.map((link) =>
-          deps.repos.policyPermissions.listByPolicyId({ workspaceId: input.workspaceId, policyId: link.policyId })
-        )
-      );
-      const conferredPermissions = policyPermissionGroups.flat().map((row) => row.permission);
+      const conferredPermissions = await rolePermissionsForAssignment({ deps, input });
 
       await assertGrantClamp({
         deps,
@@ -450,6 +447,19 @@ export async function assignRole(required: {
   });
 }
 
+async function rolePermissionsForAssignment({ deps, input }: Parameters<typeof assignRole>[0]): Promise<string[]> {
+  const rolePolicyLinks = await deps.repos.rolePolicies.listByRoleId({
+    workspaceId: input.workspaceId,
+    roleId: input.roleId,
+  });
+  const policyPermissionGroups = await Promise.all(
+    rolePolicyLinks.map((link) =>
+      deps.repos.policyPermissions.listByPolicyId({ workspaceId: input.workspaceId, policyId: link.policyId })
+    )
+  );
+  return policyPermissionGroups.flat().map((row) => row.permission);
+}
+
 /**
  * `ATTACH_POLICY` (state.spec §3). Gated by
  * `role.manage`; target must be a `kind='user'` principal; the
@@ -468,17 +478,12 @@ export async function attachPolicy(required: {
 }): Promise<{ attachment: PrincipalPolicyRecord }> {
   const { deps, input } = required;
 
-  return inIdentityTransaction({
-    transactions: deps.repos.transactions,
+  return inAuthorizedIdentityTransaction({
+    deps,
     workspaceId: input.workspaceId,
+    callerPrincipalId: input.callerPrincipalId,
+    permissions: ["role.manage"],
     execute: async () => {
-      await assertCallerHasAnyPermission({
-        deps,
-        workspaceId: input.workspaceId,
-        callerPrincipalId: input.callerPrincipalId,
-        permissions: ["role.manage"],
-      });
-
       await findAssignableTargetOrThrow({
         deps,
         workspaceId: input.workspaceId,

@@ -1,3 +1,4 @@
+import { createApiError } from '@jini-ai/protocol';
 import { splitServerFixture } from '../../__tests__/args-fixtures.js';
 /**
  * @module @jini/mcp/server/__tests__/tool-server.wire
@@ -32,7 +33,7 @@ import { splitServerFixture } from '../../__tests__/args-fixtures.js';
  * a real stdio transport. Covering that needs a genuinely serializing
  * transport, not this pair.
  */
-import { adaptSdkTransport } from '../sdk-transport.js';
+import { adaptSdkTransport } from '../adapters/sdk-transport.js';
 import { EventEmitter } from 'node:events';
 import type { Readable } from 'node:stream';
 import { beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
@@ -219,7 +220,7 @@ describe('createMcpToolServer — wire-level (real SDK Client + Server + InMemor
   it('returns an {isError:true} CallToolResult (not a JSON-RPC error) for an unknown tool name, over the real wire', async () => {
     const { client, runPromise } = await bootWireServer({ tools: [echoTool()] });
     const result = await client.callTool({ name: 'does-not-exist', arguments: {} });
-    expect(result).toEqual({ isError: true, content: [{ type: 'text', text: 'unknown tool: does-not-exist' }] });
+    expect(result).toEqual({ isError: true, content: [{ type: 'text', text: 'There is no tool named "does-not-exist". Closest names: echo. Find tools with search_tools.' }] });
     await closeDown(runPromise);
   });
 
@@ -291,7 +292,7 @@ describe('createMcpToolServer — wire-level (real SDK Client + Server + InMemor
     await closeDown(runPromise);
     // The transport pair is genuinely torn down end-to-end (not just a `closeCalls` counter
     // incremented on a fake): a further request over the same client can no longer be sent at all.
-    await expect(client.ping()).rejects.toThrow();
+    await expect(client.ping()).rejects.toThrow('Not connected');
   });
 });
 
@@ -333,6 +334,7 @@ async function daemonFixture(registrations: readonly ToolRegistration[], delegat
     const result = await delegatedToolExecuteRoute.handle({ input: parsed.value, deps: {
       lifecycle, toolExecutor, toolRegistry: registry, resolvePrincipal: () => ({ id: 'host-principal' }),
       onInternalError: () => {},
+      reportInternalError: ({ message }) => createApiError({ code: 'INTERNAL_ERROR', message }),
     } }, init.signal ? { signal: init.signal } : {});
     if (result.ok) return Response.json(result.value);
     const status = result.error.code === 'TOOL_OPERATION_DENIED' ? 403 : 400;
@@ -573,7 +575,7 @@ describe('typed delegated publication — real MCP wire and existing daemon owne
     await aborted.promise;
     // The actual executor records cancellation, and its pending confirmation cannot execute later.
     await vi.waitFor(() => expect(fixture.toolExecutor.getAuditRecord({ executionId })?.events.at(-1)?.phase).toBe('cancelled'));
-    expect(() => fixture.toolExecutor.resumeConfirmation({ executionId, decision: 'confirm' })).toThrow();
+    expect(() => fixture.toolExecutor.resumeConfirmation({ executionId, decision: 'confirm' })).toThrow(`ToolExecutor: no pending confirmation for execution "${executionId}"`);
     expect(handler).not.toHaveBeenCalled();
   });
 
@@ -622,4 +624,17 @@ describe('typed delegated publication — real MCP wire and existing daemon owne
     expect(session.calls.map(call => call.name)).toEqual(['inspect']);
     expect((await client.listTools()).tools).toHaveLength(fixture.tools.length + 1);
   });
+});
+
+
+it('binds all four tool/resource verbs and propagates adapted closure', async () => {
+  const { client, runPromise, serverTransport } = await bootWireServer({ resources: [helloResource()] });
+  expect((await client.listTools()).tools.map(tool => tool.name)).toEqual(['echo']);
+  expect((await client.callTool({ name: 'echo', arguments: { value: 'bound' } })).content).toEqual([{ type: 'text', text: '{"value":"bound"}' }]);
+  expect((await client.listResources()).resources.map(resource => resource.uri)).toEqual(['jini://hello']);
+  expect((await client.readResource({ uri: 'jini://hello' })).contents).toEqual([{ uri: 'jini://hello', text: 'hello world' }]);
+  const close = vi.spyOn(serverTransport, 'close');
+  await closeDown(runPromise);
+  // The SDK's linked InMemoryTransport pair closes its peer, which closes this side back once more.
+  expect(close).toHaveBeenCalled();
 });

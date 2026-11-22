@@ -12,7 +12,7 @@ import { createServer as createNetServer, type Server } from "node:net";
  * @internal Close a listening server, resolving once closed (no-op if not
  * listening).
  */
-export async function closeServer(server: Server): Promise<void> {
+export async function closeServer({ server }: { server: Server }, _optional: Record<string, never> = {}): Promise<void> {
   if (!server.listening) return;
   await new Promise<void>((resolveClose, rejectClose) => {
     server.close((error) => (error == null ? resolveClose() : rejectClose(error)));
@@ -23,7 +23,7 @@ export async function closeServer(server: Server): Promise<void> {
  * @internal Start an exclusive TCP server on the given port/host, resolving with
  * the listening server.
  */
-export async function listenOnPort(port: number, host: string): Promise<Server> {
+export async function listenOnPort({ port, host }: { port: number; host: string }, _optional: Record<string, never> = {}): Promise<Server> {
   const server = createNetServer();
   await new Promise<void>((resolveListen, rejectListen) => {
     server.once("error", rejectListen);

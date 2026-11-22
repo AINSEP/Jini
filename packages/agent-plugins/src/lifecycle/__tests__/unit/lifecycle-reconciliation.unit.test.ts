@@ -111,7 +111,7 @@ test('host migration failure refuses seeding before package or activation public
     }));
     const treatment = createAgentPluginLifecycle({ ...ports, layout }, { migrateBeforeSeed: async () => ({ complete: false }) });
     const refused = await treatment.seedBundledAgentPlugins({ layout, workspaceId, sourceRoot });
-    assert.deepEqual(refused.outcomes, [{ pluginId, status: 'failed', reason: 'Legacy plugin layout migration has unfinished filesystem moves; see boot log' }]);
+    assert.deepEqual(refused.outcomes, [{ pluginId, status: 'failed', reason: 'Error' }]);
     const workspaceRoot = layout.forWorkspace({ workspaceId }).root;
     assert.deepEqual(await treatment.listInstalledPlugins({ workspaceRoot }), []);
     await assert.rejects(filesystem.stat(path.join(workspaceRoot, 'activations.json')), { code: 'ENOENT' });

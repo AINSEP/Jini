@@ -13,10 +13,17 @@
  * equivalent behavior (maxHeight clamping a real onSizeChanged report) is covered directly, by
  * invoking the real callback function, in `@jini-ai/ui`'s `useMcpUiHost.test.tsx`.
  */
-import { render, waitFor } from '@testing-library/react';
+import { waitFor } from '@testing-library/react';
+import { renderWithChatSurfaces } from '../../__tests__/fake-chat-surfaces.js';
+import { hostChatSurfaces } from '../../__tests__/host-chat-surfaces.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MCP_UI_EXT_EVENT_NAME, McpUiSurfaceCard, mcpUiSurfaceSlotKey, registerMcpUiSurfaceRenderer } from '../McpUiSurfaceCard.js';
-import { MCP_UI_ACTION_PLAN_META_KEY, MCP_UI_EXPIRES_AT_META_KEY, MCP_UI_MIME_TYPE, MCP_UI_PREFERRED_FRAME_SIZE_META_KEY } from '@jini-ai/ui/mcp-ui';
+import {
+  MCP_UI_ACTION_PLAN_META_KEY,
+  MCP_UI_EXPIRES_AT_META_KEY,
+  MCP_UI_MIME_TYPE,
+  MCP_UI_PREFERRED_FRAME_SIZE_META_KEY,
+} from '@jini-ai/protocol/mcp-ui';
 import { fakeClock } from '../../hooks/__tests__/fake-surface-expiry-clock.js';
 import { clearExtEventRenderers, extEventSlot, getExtEventRenderer } from '../../ext-event-renderer-registry.js';
 import type { ChatMessage } from '../../../core/index.js';
@@ -54,12 +61,12 @@ describe('McpUiSurfaceCard', () => {
       { kind: 'ext', name: MCP_UI_EXT_EVENT_NAME, data: resourceEvent('ui://question/privacy', '<h1>Replace or update the privacy policy?</h1>') },
       { kind: 'ext', name: 'user_message', data: { id: 'picked', toolUseId: 'choice', text: 'Update', optimistic: true } },
     ] };
-    const live = render(<MessageRow message={message} runStreaming />);
+    const live = renderWithChatSurfaces(<MessageRow message={message} runStreaming />);
     expect(live.container.querySelector('.mcpui-surface-card-closed')?.textContent).toBe('Replace or update the privacy policy?: Update');
     expect(live.container.querySelectorAll('.jini-message-user')).toHaveLength(1);
     expect(live.container.querySelector('iframe')).toBeNull();
     live.unmount();
-    const { container } = render(<MessageRow message={{ ...message, runStatus: 'succeeded', events: [
+    const { container } = renderWithChatSurfaces(<MessageRow message={{ ...message, runStatus: 'succeeded', events: [
       ...message.events!.slice(0, 2),
       { kind: 'tool_result', toolUseId: 'choice', content: '{"submitted":true,"choice":"update"}', isError: false },
     ] }} />);
@@ -73,7 +80,7 @@ describe('McpUiSurfaceCard', () => {
     const call = { id: 'question', name: 'assistant_ask_choice', input: {
       title: 'Next step', singleSelect: { options: [{ value: 'preview', label: 'Preview the changes' }] },
     } };
-    const { container, getByRole, rerender } = render(<McpUiSurfaceCard {...BASE_PROPS} runStreaming
+    const { container, getByRole, rerender } = renderWithChatSurfaces(<McpUiSurfaceCard {...BASE_PROPS} runStreaming
       events={events} call={call} answered answerText="Preview the changes" />);
     expect(getByRole('status')).toHaveTextContent('Next step: Preview the changes');
     expect(container.querySelector('.jini-message-user')).toHaveTextContent('Preview the changes');
@@ -86,7 +93,7 @@ describe('McpUiSurfaceCard', () => {
   });
 
   it.each(['question', 'prompt'])('keeps the closed %s with selected labels after its answer receipt renders', field => {
-    const { container, getByRole } = render(<McpUiSurfaceCard {...BASE_PROPS}
+    const { container, getByRole } = renderWithChatSurfaces(<McpUiSurfaceCard {...BASE_PROPS}
       events={[resourceEvent('ui://question/answered', '<form>Pick</form>')]} answerRecorded
       answerText="embed, api" call={{ name: 'assistant_ask_choice', input: {
         title: '', [field]: 'How should we publish?', options: [
@@ -103,7 +110,7 @@ describe('McpUiSurfaceCard', () => {
     const askCall = { name: 'assistant_ask_choice', input: { title: 'Pick a plan' } };
 
     it('shows the selected answer as a user bubble, with no live frame', () => {
-      const { container } = render(
+      const { container } = renderWithChatSurfaces(
         <McpUiSurfaceCard {...BASE_PROPS} runStreaming events={card} call={{ ...askCall, result: { content: '{"submitted":true,"choice":"Alpha"}', isError: false } }} />,
       );
       expect(container.querySelector('.jini-message-user .jini-message-content')?.textContent).toBe('Alpha');
@@ -112,7 +119,7 @@ describe('McpUiSurfaceCard', () => {
     });
 
     it('shows "This question expired" when the call ended without an answer', () => {
-      const { container, getByRole } = render(
+      const { container, getByRole } = renderWithChatSurfaces(
         <McpUiSurfaceCard
           {...BASE_PROPS}
           runStreaming
@@ -125,18 +132,18 @@ describe('McpUiSurfaceCard', () => {
     });
 
     it('shows "This question expired" when the run ended while the question was still open', () => {
-      const { container, getByRole } = render(<McpUiSurfaceCard {...BASE_PROPS} runStreaming={false} events={card} call={askCall} />);
+      const { container, getByRole } = renderWithChatSurfaces(<McpUiSurfaceCard {...BASE_PROPS} runStreaming={false} events={card} call={askCall} />);
       expect(getByRole('status').textContent).toBe('Pick a plan: This question expired');
       expect(container.querySelector('iframe')).toBeNull();
     });
 
     it('stays live while the run is streaming and the call is waiting', async () => {
-      const { container } = render(<McpUiSurfaceCard {...BASE_PROPS} runStreaming events={card} call={askCall} />);
+      const { container } = renderWithChatSurfaces(<McpUiSurfaceCard {...BASE_PROPS} runStreaming events={card} call={askCall} />);
       await waitFor(() => expect(container.querySelectorAll('iframe')).toHaveLength(1));
     });
 
     it('keeps showing an outcome the tool sent back for the same card after the answer', async () => {
-      const { container } = render(
+      const { container } = renderWithChatSurfaces(
         <McpUiSurfaceCard
           {...BASE_PROPS}
           events={[...card, resourceEvent('ui://consumer/ask-choice/x/1', '<p>Saved.</p>')]}
@@ -154,7 +161,7 @@ describe('McpUiSurfaceCard', () => {
 
     it('shows the time left under the live card and ticks it down', async () => {
       const fake = fakeClock(DEADLINE - 3_000);
-      const { container, getByRole } = render(
+      const { container, getByRole } = renderWithChatSurfaces(
         <McpUiSurfaceCard {...BASE_PROPS} runStreaming events={approval} call={approveCall} expiryClock={fake.clock} />,
       );
       await waitFor(() => expect(container.querySelectorAll('iframe')).toHaveLength(1));
@@ -165,7 +172,7 @@ describe('McpUiSurfaceCard', () => {
 
     it('closes as "This question expired", with no live frame or buttons, once the deadline passes', () => {
       const fake = fakeClock(DEADLINE - 1_000);
-      const { container, getByRole, queryByRole } = render(
+      const { container, getByRole, queryByRole } = renderWithChatSurfaces(
         <McpUiSurfaceCard {...BASE_PROPS} runStreaming events={approval} call={approveCall} expiryClock={fake.clock} />,
       );
       expect(queryByRole('timer')).not.toBeNull();
@@ -179,7 +186,7 @@ describe('McpUiSurfaceCard', () => {
     // under it — the confirmed work held the call open. An answered card has no deadline left.
     it('drops the countdown, and never closes as expired, once the card is answered', async () => {
       const fake = fakeClock(DEADLINE - 3_000);
-      const { container, queryByRole } = render(
+      const { container, queryByRole } = renderWithChatSurfaces(
         <McpUiSurfaceCard {...BASE_PROPS} runStreaming events={approval} call={approveCall} expiryClock={fake.clock} answered />,
       );
       await waitFor(() => expect(container.querySelectorAll('iframe')).toHaveLength(1));
@@ -191,7 +198,7 @@ describe('McpUiSurfaceCard', () => {
 
     it('opens already closed when the deadline passed before it rendered', () => {
       const fake = fakeClock(DEADLINE + 5_000);
-      const { container, getByRole } = render(
+      const { container, getByRole } = renderWithChatSurfaces(
         <McpUiSurfaceCard {...BASE_PROPS} runStreaming events={approval} call={approveCall} expiryClock={fake.clock} />,
       );
       expect(getByRole('status').textContent).toBe('This question expired');
@@ -200,7 +207,7 @@ describe('McpUiSurfaceCard', () => {
 
     it('still says "Answered" for a card answered before its deadline passed', () => {
       const fake = fakeClock(DEADLINE + 5_000);
-      const { getByRole } = render(
+      const { getByRole } = renderWithChatSurfaces(
         <McpUiSurfaceCard
           {...BASE_PROPS}
           events={approval}
@@ -213,7 +220,7 @@ describe('McpUiSurfaceCard', () => {
 
     it('says "Cancelled" for a card the person cancelled, never "Answered"', () => {
       const fake = fakeClock(DEADLINE + 5_000);
-      const { getByRole } = render(
+      const { getByRole } = renderWithChatSurfaces(
         <McpUiSurfaceCard
           {...BASE_PROPS}
           events={approval}
@@ -226,7 +233,7 @@ describe('McpUiSurfaceCard', () => {
 
     it('shows no countdown for a card without a deadline', async () => {
       const fake = fakeClock(DEADLINE);
-      const { container, queryByRole } = render(
+      const { container, queryByRole } = renderWithChatSurfaces(
         <McpUiSurfaceCard {...BASE_PROPS} runStreaming events={[resourceEvent('ui://a/1', '<p>a</p>')]} expiryClock={fake.clock} />,
       );
       await waitFor(() => expect(container.querySelectorAll('iframe')).toHaveLength(1));
@@ -236,7 +243,7 @@ describe('McpUiSurfaceCard', () => {
 
     it('counts nothing down for a group of several cards, which has no single deadline', async () => {
       const fake = fakeClock(DEADLINE - 3_000);
-      const { container, queryByRole } = render(
+      const { container, queryByRole } = renderWithChatSurfaces(
         <McpUiSurfaceCard
           {...BASE_PROPS}
           runStreaming
@@ -250,18 +257,18 @@ describe('McpUiSurfaceCard', () => {
   });
 
   it('renders one real sandboxed iframe per resource, pointed at the given sandbox proxy URL', async () => {
-    const { container } = render(<McpUiSurfaceCard {...BASE_PROPS} events={[resourceEvent('ui://a/1', '<p>one</p>')]} />);
+    const { container } = renderWithChatSurfaces(<McpUiSurfaceCard {...BASE_PROPS} events={[resourceEvent('ui://a/1', '<p>one</p>')]} />, { surfaces: hostChatSurfaces() });
     await waitFor(() => expect(container.querySelectorAll('iframe')).toHaveLength(1));
     const frame = container.querySelector('iframe')!;
     expect(frame.src).toBe(SANDBOX_URL.href);
   });
 
   it('collapses repeated events for one URI to the latest document, not two dialogs', async () => {
-    const { container } = render(
+    const { container } = renderWithChatSurfaces(
       <McpUiSurfaceCard
         {...BASE_PROPS}
         events={[resourceEvent('ui://a/1', '<p>first</p>'), resourceEvent('ui://a/1', '<p>second</p>')]}
-      />,
+      />, { surfaces: hostChatSurfaces() }
     );
     await waitFor(() => expect(container.querySelectorAll('iframe')).toHaveLength(1));
     // One resource, one card wrapper — the "second" event replaced "first" rather than stacking.
@@ -269,11 +276,11 @@ describe('McpUiSurfaceCard', () => {
   });
 
   it('renders distinct URIs as separate views, in first-appearance order', async () => {
-    const { container } = render(
+    const { container } = renderWithChatSurfaces(
       <McpUiSurfaceCard
         {...BASE_PROPS}
         events={[resourceEvent('ui://a/1', '<p>a</p>'), resourceEvent('ui://b/2', '<p>b</p>'), resourceEvent('ui://a/1', '<p>a2</p>')]}
-      />,
+      />, { surfaces: hostChatSurfaces() }
     );
     await waitFor(() => expect(container.querySelectorAll('[data-mcpui-host]')).toHaveLength(2));
     const wrappers = [...container.querySelectorAll('[data-mcpui-host]')];
@@ -281,7 +288,7 @@ describe('McpUiSurfaceCard', () => {
   });
 
   it('honors a preferred frame height as the initial (pre-handshake) height, and ignores a non-pixel one', () => {
-    const { container } = render(
+    const { container } = renderWithChatSurfaces(
       <McpUiSurfaceCard
         {...BASE_PROPS}
         events={[
@@ -289,7 +296,7 @@ describe('McpUiSurfaceCard', () => {
           resourceEvent('ui://b/2', '<p>b</p>', { [MCP_UI_PREFERRED_FRAME_SIZE_META_KEY]: ['auto', 'auto'] }),
           resourceEvent('ui://c/3', '<p>c</p>'),
         ]}
-      />,
+      />, { surfaces: hostChatSurfaces() }
     );
     const wrapperFor = (uri: string) =>
       [...container.querySelectorAll('[data-mcpui-host]')].find((el) => el.getAttribute('aria-label') === uri) as HTMLElement;
@@ -300,7 +307,7 @@ describe('McpUiSurfaceCard', () => {
   });
 
   it('says so visibly when an mcp-ui event carried nothing renderable', () => {
-    const { container, getByRole, queryByLabelText } = render(
+    const { container, getByRole, queryByLabelText } = renderWithChatSurfaces(
       <McpUiSurfaceCard {...BASE_PROPS} events={[{ type: 'text', text: 'not a resource' }, null]} />,
     );
     expect(getByRole('status').textContent).toBe('This MCP-UI event carried no renderable resource.');
@@ -315,7 +322,7 @@ describe('McpUiSurfaceCard', () => {
     };
 
     it('publishes a status-role, agent-discoverable region when the resource carries an action plan', () => {
-      const { container } = render(
+      const { container } = renderWithChatSurfaces(
         <McpUiSurfaceCard
           {...BASE_PROPS}
           events={[resourceEvent('ui://consumer/deployment-execute-static-publish/abc123', '<p>a</p>', { [MCP_UI_ACTION_PLAN_META_KEY]: PLAN })]}
@@ -331,7 +338,7 @@ describe('McpUiSurfaceCard', () => {
     });
 
     it('keeps the scheme as the handle for a bare ui:// URI, and says "none" for a plan without buttons', () => {
-      const { container } = render(
+      const { container } = renderWithChatSurfaces(
         <McpUiSurfaceCard {...BASE_PROPS} events={[resourceEvent('ui://', '<p>a</p>', { [MCP_UI_ACTION_PLAN_META_KEY]: { title: 'Acknowledge?', actions: [] } })]} />,
       );
       const mirror = container.querySelector('[data-agent-role="status"]');
@@ -340,7 +347,7 @@ describe('McpUiSurfaceCard', () => {
     });
 
     it('hides the mirror from sighted users too, not just screen readers — the real dialog is already visible in the frame', () => {
-      const { container } = render(
+      const { container } = renderWithChatSurfaces(
         <McpUiSurfaceCard
           {...BASE_PROPS}
           events={[resourceEvent('ui://a/1', '<p>a</p>', { [MCP_UI_ACTION_PLAN_META_KEY]: PLAN })]}
@@ -351,12 +358,12 @@ describe('McpUiSurfaceCard', () => {
     });
 
     it('renders no mirror at all for a surface with no action plan (e.g. a non-confirmation view)', () => {
-      const { container } = render(<McpUiSurfaceCard {...BASE_PROPS} events={[resourceEvent('ui://a/1', '<p>a</p>')]} />);
+      const { container } = renderWithChatSurfaces(<McpUiSurfaceCard {...BASE_PROPS} events={[resourceEvent('ui://a/1', '<p>a</p>')]} />);
       expect(container.querySelector('[data-agent-role="status"]')).toBeNull();
     });
 
     it('never gives an individual action its own data-agent-element handle -- page.click does not consult data-agent-role, so publishing one would let the same live agent answer its own confirmation', () => {
-      const { container } = render(
+      const { container } = renderWithChatSurfaces(
         <McpUiSurfaceCard
           {...BASE_PROPS}
           events={[resourceEvent('ui://a/1', '<p>a</p>', { [MCP_UI_ACTION_PLAN_META_KEY]: PLAN })]}
@@ -376,7 +383,7 @@ describe('McpUiSurfaceCard', () => {
     // Rendering without throwing is what this proves at this layer: `useMcpUiHost` reads them from
     // its options, and the protocol paths that actually CALL them are covered directly (invoking the
     // real onCallTool/onOpenLink functions) in `@jini-ai/ui`'s `useMcpUiHost.test.tsx`.
-    const { container } = render(
+    const { container } = renderWithChatSurfaces(
       <McpUiSurfaceCard {...BASE_PROPS} events={[resourceEvent('ui://a/1', '<p>a</p>')]} onToolCall={onToolCall} onOpenLink={onOpenLink} />,
     );
     await waitFor(() => expect(container.querySelector('iframe')).not.toBeNull());
@@ -391,7 +398,7 @@ describe('registerMcpUiSurfaceRenderer', () => {
 
     const renderer = getExtEventRenderer({ name: MCP_UI_EXT_EVENT_NAME });
     expect(renderer).toBeTypeOf('function');
-    const { container } = render(<>{renderer!({ ...BASE_PROPS, events: [resourceEvent('ui://a/1', '<p>a</p>')] })}</>);
+    const { container } = renderWithChatSurfaces(<>{renderer!({ ...BASE_PROPS, events: [resourceEvent('ui://a/1', '<p>a</p>')] })}</>);
     await waitFor(() => expect(container.querySelector('iframe')).not.toBeNull());
 
     unregister();
@@ -401,7 +408,7 @@ describe('registerMcpUiSurfaceRenderer', () => {
   it('registers with only the required sandboxProxyUrl', async () => {
     registerMcpUiSurfaceRenderer({ sandboxProxyUrl: SANDBOX_URL });
     const renderer = getExtEventRenderer({ name: MCP_UI_EXT_EVENT_NAME })!;
-    const { container } = render(<>{renderer({ ...BASE_PROPS, events: [resourceEvent('ui://a/1', '<p>a</p>')] })}</>);
+    const { container } = renderWithChatSurfaces(<>{renderer({ ...BASE_PROPS, events: [resourceEvent('ui://a/1', '<p>a</p>')] })}</>);
     await waitFor(() => expect(container.querySelector('iframe')).not.toBeNull());
   });
 

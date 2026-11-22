@@ -95,9 +95,9 @@ fetcher and provenance check. Normalized `url` input requires a provider and nev
 | `.` | Capability vocabulary, `PAGE_CAPABILITIES`, `data-agent-*` markup helpers, WebMCP/AG-UI projections, GenUI protocol, MCP-UI wire helpers. Zero DOM, zero transport. | none beyond `@jini-ai/protocol`, `zod` |
 | `./core` | The same framework-free agent-control surface as the root. | none |
 | `./dom` | `createDomPageDriver`/`currentAgentPage` — the one `PageDriver` that reads and writes a real DOM subtree, compiled under its own DOM-lib `tsconfig`. Also WebMCP feature detection (`getAgentModelContext`). `@jini-ai/chat-react` is its one in-repo consumer. | a real DOM (browser or jsdom) |
-| `./a2ui` | The real A2UI v1.0 wire types and a minimal client-side interpreter (`common-types`, `agent-to-renderer`, `renderer-to-agent`, `catalog`, `json-pointer`, `resolve`, `tree`, `interpreter`) — zero DOM dependency. | none |
 | `./skills/install` | Bounded bundle validation, source/archive import, installation/state, explicit layout and live-registration factories. | Node runtime; injected filesystem, YAML, archive, source, IDs and tool-source ports |
 | `./skills/install/node` | `createNodeSkillFilesystem({})`, a bounded no-follow filesystem adapter. | Node runtime |
+| `./skills/tools` | `loadInstalledSkillToolSources`, `buildSkillToolRegistrations`, `skillToolDerivedRisk`: installed skills as one tool each, with host-injected frontmatter reader, file reader, enable check and report. | Node runtime; requires `@jini-ai/core` |
 
 ## What's swappable
 
@@ -110,7 +110,7 @@ attribute names, and the wire shapes of both the GenUI and A2UI protocols.
 
 ## Runtime
 
-`jini.runtime: "universal"` for `.` and `./a2ui`; `./dom` is `"browser"` (needs a real or jsdom
+`jini.runtime: "universal"` for `.`; `./dom` is `"browser"` (needs a real or jsdom
 DOM at runtime — see Entry points above).
 ESM only — ships `"type": "module"` with no CommonJS `require` build.
 

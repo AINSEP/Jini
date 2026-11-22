@@ -15,7 +15,7 @@ import {
   type ClaudeCodeModelIo,
 } from '../claude-code-models.js';
 import { createAgentRuntimeState } from '../runtime-state.js';
-import type { RuntimeModelOption } from '../types.js';
+import type { RuntimeModelOption } from '@jini-ai/core/contracts/agents';
 
 const FALLBACK: RuntimeModelOption[] = [
   { id: 'default', label: 'Default (CLI config)' },
@@ -56,7 +56,7 @@ function fakeIo(overrides: Partial<ClaudeCodeModelIo> = {}): ClaudeCodeModelIo &
 }
 
 afterEach(() => {
-  setClaudeCodeModelIoForTesting(null);
+  setClaudeCodeModelIoForTesting({ io: null });
 });
 
 describe('parseClaudeCodePickerCache', () => {
@@ -64,15 +64,15 @@ describe('parseClaudeCodePickerCache', () => {
     const raw = JSON.stringify({
       additionalModelOptionsCache: [{ value: 'claude-fable-5-1[1m]', label: 'Fable' }, { value: 'claude-x-9' }, { value: 3 }, null],
     });
-    expect(parseClaudeCodePickerCache(raw)).toEqual({ ok: true, ids: ['claude-fable-5-1', 'claude-x-9'] });
+    expect(parseClaudeCodePickerCache({ raw })).toEqual({ ok: true, ids: ['claude-fable-5-1', 'claude-x-9'] });
   });
 
   it('reports malformed JSON, a missing/empty cache, and valueless entries as distinct reasons', () => {
-    expect(parseClaudeCodePickerCache('{not json')).toEqual({ ok: false, reason: 'invalid-json' });
-    expect(parseClaudeCodePickerCache('null')).toEqual({ ok: false, reason: 'no-cache' });
-    expect(parseClaudeCodePickerCache('{}')).toEqual({ ok: false, reason: 'no-cache' });
-    expect(parseClaudeCodePickerCache('{"additionalModelOptionsCache":[]}')).toEqual({ ok: false, reason: 'no-cache' });
-    expect(parseClaudeCodePickerCache('{"additionalModelOptionsCache":[{"value":null}]}')).toEqual({
+    expect(parseClaudeCodePickerCache({ raw: '{not json' })).toEqual({ ok: false, reason: 'invalid-json' });
+    expect(parseClaudeCodePickerCache({ raw: 'null' })).toEqual({ ok: false, reason: 'no-cache' });
+    expect(parseClaudeCodePickerCache({ raw: '{}' })).toEqual({ ok: false, reason: 'no-cache' });
+    expect(parseClaudeCodePickerCache({ raw: '{"additionalModelOptionsCache":[]}' })).toEqual({ ok: false, reason: 'no-cache' });
+    expect(parseClaudeCodePickerCache({ raw: '{"additionalModelOptionsCache":[{"value":null}]}' })).toEqual({
       ok: false,
       reason: 'no-usable-values',
     });
@@ -81,7 +81,7 @@ describe('parseClaudeCodePickerCache', () => {
 
 describe('parseClaudeInitializeModels', () => {
   it('yields aliases and concrete ids, strips [1m], drops the default sentinel, dedupes', () => {
-    const rows = parseClaudeInitializeModels(initializeStdout(REAL_MODELS));
+    const rows = parseClaudeInitializeModels({ stdout: initializeStdout(REAL_MODELS) });
     expect(rows?.map((r) => r.id)).toEqual([
       'claude-opus-5-5',
       'opus',
@@ -96,24 +96,24 @@ describe('parseClaudeInitializeModels', () => {
   });
 
   it('returns null for no response, an error response, garbage, or an empty models list', () => {
-    expect(parseClaudeInitializeModels('')).toBeNull();
-    expect(parseClaudeInitializeModels('Error: unknown option\n')).toBeNull();
-    expect(parseClaudeInitializeModels('{"type":"control_response","response":{"subtype":"error","error":"x"}}')).toBeNull();
-    expect(parseClaudeInitializeModels('{"type":"control_response", truncated')).toBeNull();
-    expect(parseClaudeInitializeModels(initializeStdout([]))).toBeNull();
-    expect(parseClaudeInitializeModels(initializeStdout([{ value: 'default' }]))).toBeNull();
+    expect(parseClaudeInitializeModels({ stdout: '' })).toBeNull();
+    expect(parseClaudeInitializeModels({ stdout: 'Error: unknown option\n' })).toBeNull();
+    expect(parseClaudeInitializeModels({ stdout: '{"type":"control_response","response":{"subtype":"error","error":"x"}}' })).toBeNull();
+    expect(parseClaudeInitializeModels({ stdout: '{"type":"control_response", truncated' })).toBeNull();
+    expect(parseClaudeInitializeModels({ stdout: initializeStdout([]) })).toBeNull();
+    expect(parseClaudeInitializeModels({ stdout: initializeStdout([{ value: 'default' }]) })).toBeNull();
   });
 
   it('drops ids the chat path would refuse', () => {
-    const rows = parseClaudeInitializeModels(initializeStdout([{ value: 'bad id with spaces' }, { value: 'claude-ok-1' }]));
+    const rows = parseClaudeInitializeModels({ stdout: initializeStdout([{ value: 'bad id with spaces' }, { value: 'claude-ok-1' }]) });
     expect(rows?.map((r) => r.id)).toEqual(['claude-ok-1']);
   });
 });
 
 describe('resolveClaudeConfigPath', () => {
   it('prefers CLAUDE_CONFIG_DIR, then HOME', () => {
-    expect(resolveClaudeConfigPath({ CLAUDE_CONFIG_DIR: '/cfg', HOME: '/home/u' })).toBe('/cfg/.claude.json');
-    expect(resolveClaudeConfigPath({ HOME: '/home/u' })).toBe('/home/u/.claude.json');
+    expect(resolveClaudeConfigPath({ env: { CLAUDE_CONFIG_DIR: '/cfg', HOME: '/home/u' } })).toBe('/cfg/.claude.json');
+    expect(resolveClaudeConfigPath({ env: { HOME: '/home/u' } })).toBe('/home/u/.claude.json');
   });
 });
 
@@ -131,11 +131,11 @@ describe('the probe request', () => {
 describe('loadClaudeCodeModels', () => {
   it('returns only the CLI picker catalog without a credential', async () => {
     const io = fakeIo({ runInitialize: async () => initializeStdout(REAL_MODELS) });
-    setClaudeCodeModelIoForTesting(io);
+    setClaudeCodeModelIoForTesting({ io });
     const result = await loadClaudeCodeModels('claude', { HOME: '/home/u' }, FALLBACK);
     const ids = result!.map((m) => m.id);
     // Offline hints must never reintroduce a model removed from the live catalog.
-    expect(ids).toEqual(parseClaudeInitializeModels(initializeStdout(REAL_MODELS))!.map((row) => row.id));
+    expect(ids).toEqual(parseClaudeInitializeModels({ stdout: initializeStdout(REAL_MODELS) })!.map((row) => row.id));
     expect(ids).toContain('claude-opus-5-5');
     expect(ids).toContain('claude-fable-5-1');
     expect(new Set(ids).size).toBe(ids.length);
@@ -150,7 +150,7 @@ describe('loadClaudeCodeModels', () => {
       runInitialize: async () => 'error: unknown option --strict-mcp-config\n',
       readConfigFile: async () => JSON.stringify({ additionalModelOptionsCache: [{ value: 'claude-fable-6[1m]' }] }),
     });
-    setClaudeCodeModelIoForTesting(io);
+    setClaudeCodeModelIoForTesting({ io });
     const result = await loadClaudeCodeModels('openclaude', { CLAUDE_CONFIG_DIR: '/cfg' }, FALLBACK);
     expect(io.readConfigFile).toHaveBeenCalledWith('/cfg/.claude.json');
     // Only the discovered cache row: packaged fallback is never unioned into a discovered list.
@@ -163,18 +163,18 @@ describe('loadClaudeCodeModels', () => {
     ['cache-less', async () => '{"numStartups":3}'],
     ['throwing', async () => { throw new Error('EACCES'); }],
   ])('degrades to null (never throws, never empties) for a %s ~/.claude.json', async (_label, readConfigFile) => {
-    setClaudeCodeModelIoForTesting(fakeIo({ readConfigFile }));
+    setClaudeCodeModelIoForTesting({ io: fakeIo({ readConfigFile }) });
     await expect(loadClaudeCodeModels('claude', { HOME: '/h' }, FALLBACK)).resolves.toBeNull();
   });
 
   it('degrades to null when the CLI probe itself rejects', async () => {
-    setClaudeCodeModelIoForTesting(fakeIo({ runInitialize: async () => { throw new Error('ENOENT'); } }));
+    setClaudeCodeModelIoForTesting({ io: fakeIo({ runInitialize: async () => { throw new Error('ENOENT'); } }) });
     await expect(loadClaudeCodeModels('claude', { HOME: '/h' }, FALLBACK)).resolves.toBeNull();
   });
 
   it('spawns once per TTL window per key, and again after it expires', async () => {
     const io = fakeIo({ runInitialize: async () => initializeStdout(REAL_MODELS) });
-    setClaudeCodeModelIoForTesting(io);
+    setClaudeCodeModelIoForTesting({ io });
     let t = 1_000;
     const now = () => t;
     await Promise.all([
@@ -196,15 +196,15 @@ describe('loadClaudeCodeModels', () => {
 // Characterization pins (L174), green on the pre-refactor code.
 describe('claude-code-models characterization', () => {
   it('parseClaudeInitializeModels skips null and primitive model entries', () => {
-    expect(parseClaudeInitializeModels(initializeStdout([null, 'sonnet', 7, { value: 'opus', displayName: 'Opus' }]))).toEqual([
+    expect(parseClaudeInitializeModels({ stdout: initializeStdout([null, 'sonnet', 7, { value: 'opus', displayName: 'Opus' }]) })).toEqual([
       { id: 'opus', label: 'Opus (alias)' },
     ]);
   });
 
   it('resolveClaudeConfigPath falls back to os.homedir() when HOME is blank', async () => {
     const os = await import('node:os');
-    expect(resolveClaudeConfigPath({ HOME: '   ' })).toBe(join(os.homedir(), '.claude.json'));
-    expect(resolveClaudeConfigPath({})).toBe(join(os.homedir(), '.claude.json'));
+    expect(resolveClaudeConfigPath({ env: { HOME: '   ' } })).toBe(join(os.homedir(), '.claude.json'));
+    expect(resolveClaudeConfigPath({ env: {} })).toBe(join(os.homedir(), '.claude.json'));
   });
 
   it('gives each auth credential its own cache slot, and shares a slot for identical auth', async () => {
@@ -244,16 +244,16 @@ describe('claude-code-models characterization', () => {
 
   it('object form with the default state uses the I/O installed by setClaudeCodeModelIoForTesting', async () => {
     const io = fakeIo({ runInitialize: async () => initializeStdout(REAL_MODELS) });
-    setClaudeCodeModelIoForTesting(io);
+    setClaudeCodeModelIoForTesting({ io });
     await loadClaudeCodeModels({ bin: 'claude', env: { HOME: '/h' } });
     expect(io.runInitialize).toHaveBeenCalledWith('claude', { HOME: '/h' });
   });
 
   it('setClaudeCodeModelIoForTesting clears the default-state cache', async () => {
     const io = fakeIo({ runInitialize: async () => initializeStdout(REAL_MODELS) });
-    setClaudeCodeModelIoForTesting(io);
+    setClaudeCodeModelIoForTesting({ io });
     await loadClaudeCodeModels('claude', { HOME: '/h' }, FALLBACK);
-    setClaudeCodeModelIoForTesting(io);
+    setClaudeCodeModelIoForTesting({ io });
     await loadClaudeCodeModels('claude', { HOME: '/h' }, FALLBACK);
     expect(io.runInitialize).toHaveBeenCalledTimes(2);
   });

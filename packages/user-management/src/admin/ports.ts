@@ -101,7 +101,8 @@ export interface UsersSafetyPort {
     readonly seededOwnerPrincipalId: string | null;
 }
 export interface MembersApiPort {
-    listMembers(required: Record<string, never>, optional?: RolesCallOptions & { afterId?: string; limit?: number }): Promise<{ members: AdminMember[] }>;
+    /** Lists members in ID order. Pass nextCursor to continue, or afterId for the legacy form. */
+    listMembers(required: Record<string, never>, optional?: RolesCallOptions & { afterId?: string; limit?: number; cursor?: string | null }): Promise<{ members: AdminMember[]; nextCursor: string | null }>;
     getMember(required: { id: string }, optional?: RolesCallOptions): Promise<{ member: AdminMember }>;
     disableMember(required: { id: string }, optional?: RolesCallOptions): Promise<{ member: AdminMember }>;
     requestMemberMagicLink(required: { email: string }, optional?: RolesCallOptions & { redirectPath?: string }): Promise<{ delivered: true }>;

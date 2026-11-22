@@ -1,8 +1,7 @@
-/** Framework-neutral chart data and vanilla provider ABI. Providers declare their own kinds. */
-import { z } from 'zod';
+/** Chart spec validation. The provider ABI lives in `@jini-ai/core/contracts/charts`. */
+import { z } from 'zod/v3';
+import type { ChartSpec, ChartValue } from '@jini-ai/core/contracts/charts';
 
-export type ChartKind = 'bar' | 'line' | 'pie' | (string & {});
-export type ChartValue = string | number | boolean | null | ChartValue[] | { [key: string]: ChartValue };
 const chartValueSchema: z.ZodType<ChartValue> = z.lazy(() => z.union([
   z.string(), z.number().finite(), z.boolean(), z.null(), z.array(chartValueSchema), z.record(chartValueSchema),
 ]));
@@ -21,33 +20,3 @@ export const chartSpecSchema = z.object({
   format: formatSchema.optional(),
   provider: z.string().min(1).optional(),
 }).strict();
-export type ChartSpec = Omit<z.infer<typeof chartSpecSchema>, 'kind'> & { readonly kind: ChartKind };
-
-/** CSS token names are common across providers; no library props cross this boundary. */
-export interface ChartTheme {
-  readonly mode: 'light' | 'dark' | 'auto';
-  readonly tokens?: Readonly<Record<string, string>>;
-}
-export const DEFAULT_CHART_THEME: ChartTheme = { mode: 'auto' };
-export interface ChartRenderInput { readonly spec: ChartSpec; readonly theme: ChartTheme }
-export interface ChartMountOptions {
-  /** Reports errors occurring after mount returns (for example a React commit failure). */
-  readonly onError?: (error: unknown) => void;
-}
-export interface ChartInstance {
-  /** Hosts retain the fallback until an asynchronous first render completes. */
-  readonly ready?: Promise<void>;
-  update(input: ChartRenderInput, options?: Record<string, never>): void | Promise<void>;
-  destroy(input: Record<string, never>, options?: Record<string, never>): void;
-}
-export interface ChartProvider {
-  mount(input: ChartRenderInput & { readonly element: HTMLElement }, options?: ChartMountOptions): ChartInstance;
-}
-export interface ChartProviderEntry {
-  readonly id: string;
-  readonly kinds: readonly ChartKind[];
-  readonly enabled: boolean;
-  /** Optional stricter admission, e.g. rejecting multi-series specs until implemented. */
-  readonly supports?: (input: { readonly spec: ChartSpec }, options?: Record<string, never>) => boolean;
-  load(input: Record<string, never>, options?: Record<string, never>): Promise<ChartProvider>;
-}

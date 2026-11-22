@@ -1,8 +1,9 @@
 import type { AdminMember } from "../models.js";
-import type { Translate } from "@jini-ai/ui/panel-kit";
-import { describeIdentityError } from "../errors.js";
-import type { RowMenuItem } from "@jini-ai/admin/react";
 
+import { describeIdentityError } from "../errors.js";
+import type { RowMenuItem } from "../kit.js";
+
+import { type Translate } from '@jini-ai/core/text';
 /**
  * @file Pure logic for the `members` feature — everything that computes a value rather than
  * rendering one. Follows the `posts/rules.ts` convention: no React import, no hooks, directly

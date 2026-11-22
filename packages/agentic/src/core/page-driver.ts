@@ -17,9 +17,13 @@
  * Drivers are trusted to be mechanical. They must NOT re-implement policy — every refusal in
  * `page-executor.ts` runs before the driver is called.
  */
-import type { AgentElementDescriptor, AgentElementRawState, AgentElementRole } from './element-handles.js';
+import type {
+  AgentElementDescriptor,
+  AgentElementRawState,
+  AgentElementRole,
+  FieldDescriptor,
+} from '@jini-ai/core/agent-handles';
 import type { AgentNavigationScreen, PageNavigationInput, PageNavigationResult } from './page-navigation.js';
-import type { FieldDescriptor } from './guards.js';
 
 /** Filter for {@link PageDriver.findElements}. Both fields are optional; absent means "no filter". */
 export interface FindElementsFilter {

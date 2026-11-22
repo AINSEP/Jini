@@ -1,6 +1,6 @@
 import type { FormAnswerColumn } from '../../html-rules.js';
 import { DataTable } from '../../../react/components/DataTable.js';
-import { agentHandle } from '@jini-ai/agentic';
+import { agentHandle } from '@jini-ai/core/agent-handles';
 import type { useSubmissionsView } from "../hooks/forms-view.hooks.js";
 import type { useFormSubmissionDate } from '../hooks/use-form-submission-date.hooks.js';
 import { FormSubmissionDate } from "./FormSubmissionDate.js";

@@ -1,109 +1,34 @@
+import { reportRouteInternalError } from '@jini-ai/http-kit';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { createRecordingOriginPolicy } from '@jini-ai/core/contracts/server/testing';
 import { createInMemoryEventLog, createRunLifecycle, type RunLifecycle } from '../../index.js';
 import { RUN_PROTOCOL_VERSION } from '@jini-ai/protocol';
-import { isLocalSameOrigin } from '@jini-ai/core';
 import {
-  handleRunEventStreamRequest,
-  registerRunEventStream,
-  registerRunRoutes,
   runCancelRoute,
   runListRoute,
+  runRoutes,
   runStartRoute,
   runStatusRoute,
   type RunHttpDeps,
   type RunStartContext,
 } from '../runs.js';
+import { describeRoutes } from '../route-table.js';
+import { fakeDaemonRouteHost } from './fakes/route-host.js';
+import { jsonRequest, serveRoutes } from './fakes/serve-routes.js';
+import { readFrames } from './fakes/sse-reader.js';
 
-vi.mock('@jini-ai/core', async (importOriginal) => ({
-  ...await importOriginal<typeof import('@jini-ai/core')>(),
-  isLocalSameOrigin: vi.fn(() => true),
-}));
-
-interface MockApp {
-  get: (path: string, handler: any) => void;
-  post: (path: string, handler: any) => void;
-  put: (path: string, handler: any) => void;
-  delete: (path: string, handler: any) => void;
-  patch: (path: string, handler: any) => void;
-  handlers: Record<string, (req: any, res: any) => Promise<void> | void>;
-}
-
-function makeApp(): MockApp {
-  const handlers: MockApp['handlers'] = {};
-  const make = (method: string) => (path: string, handler: any) => {
-    handlers[`${method.toUpperCase()} ${path}`] = handler;
-  };
-  return { get: make('get'), post: make('post'), put: make('put'), delete: make('delete'), patch: make('patch'), handlers };
-}
-
-function makeJsonRes() {
-  return {
-    status: vi.fn().mockReturnThis(),
-    json: vi.fn().mockReturnThis(),
-  };
-}
-
-/** Minimal fake of the raw Express req/res surface `registerRunEventStream` uses directly (no Adapter in between). */
-function makeSseReq(overrides: { runId?: string; headers?: Record<string, string>; query?: Record<string, unknown> } = {}) {
-  const headers = overrides.headers ?? {};
-  return {
-    params: { runId: overrides.runId ?? 'run-1' },
-    query: overrides.query ?? {},
-    get: (name: string) => headers[name.toLowerCase()],
-  };
-}
-
-/**
- * `status`/`json` stay mocked (Express-shaped) since `registerRunEventStream`'s own Express
- * wrapper still calls the real Express `sendApiError` for its own pre-`handleRunEventStreamRequest`
- * empty-runId check — but `statusCode` is a real, plain, settable property, since the core (a raw
- * `ServerResponse`-typed function, shared with the eventual Fastify mounting) sets
- * `res.statusCode = N` directly and writes JSON error bodies via `res.end(...)`, never through
- * `res.status()`/`res.json()`.
- */
-function makeSseRes() {
-  const closeListeners: Array<() => void> = [];
-  const drainListeners: Array<() => void> = [];
-  const res = {
-    write: vi.fn((_chunk: string) => true),
-    status: vi.fn().mockReturnThis(),
-    statusCode: 0,
-    setHeader: vi.fn(),
-    flushHeaders: vi.fn(),
-    end: vi.fn((_body?: string) => {
-      res.writableEnded = true;
-    }),
-    json: vi.fn().mockReturnThis(),
-    headersSent: false,
-    writableEnded: false,
-    on: vi.fn((event: string, listener: () => void) => {
-      if (event === 'close') closeListeners.push(listener);
-      if (event === 'drain') drainListeners.push(listener);
-    }),
-    emitClose: () => closeListeners.forEach((listener) => listener()),
-    emitDrain: () => drainListeners.forEach((listener) => listener()),
-  };
-  return res;
-}
-
-/** Parses the JSON body `sendRawApiError` wrote via `res.end(...)` — the raw-`ServerResponse` equivalent of reading a mocked `res.json`'s call args. */
-function jsonEndBody(res: ReturnType<typeof makeSseRes>): unknown {
-  const [raw] = res.end.mock.calls[0]!;
-  return JSON.parse(raw as string);
-}
-
-const adapter = { allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST', env: {}, resolvedPortRef: { current: 7456 } };
+const testOriginPolicy = createRecordingOriginPolicy();
 
 function makeLifecycle(): RunLifecycle {
   return createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
 }
 
 function makeDeps(overrides: Partial<RunHttpDeps> = {}): RunHttpDeps {
-  return { lifecycle: makeLifecycle(), ...overrides };
+  return { reportInternalError: reportRouteInternalError, lifecycle: makeLifecycle(), ...overrides };
 }
 
 beforeEach(() => {
-  vi.mocked(isLocalSameOrigin).mockReturnValue(true);
+  testOriginPolicy.set({ allow: true });
 });
 
 describe('runStartRoute.parse (parseRunCreate)', () => {
@@ -476,539 +401,370 @@ describe('runCancelRoute.handle', () => {
   });
 });
 
-describe('registerRunEventStream', () => {
-  function mount(deps: RunHttpDeps) {
-    const app = makeApp();
-    registerRunEventStream({ app: app as any, deps });
-    return app.handlers['GET /api/runs/:runId/events']!;
-  }
 
-  it('responds 400 without touching the lifecycle when runId is missing', async () => {
-    const deps = makeDeps();
-    const streamSpy = vi.spyOn(deps.lifecycle, 'stream');
-    const handler = mount(deps);
-    const res = makeSseRes();
-    await handler(makeSseReq({ runId: '' }), res);
-    expect(res.status).toHaveBeenCalledWith(400);
-    expect(res.json).toHaveBeenCalledWith({
-      error: { code: 'BAD_REQUEST', message: 'runId must be a non-empty path parameter' },
-    });
-    expect(streamSpy).not.toHaveBeenCalled();
-  });
+/** The run routes on an in-memory server, behind the recording origin policy. */
+function serve(deps: RunHttpDeps) {
+  const host = fakeDaemonRouteHost({}, { originPolicy: testOriginPolicy });
+  return { host, fetch: serveRoutes({ routes: runRoutes({ deps, host }) }) };
+}
 
-  it('sends 404 NOT_FOUND when the lifecycle reports unknown-run, with a single clean write (no double-end/write-after-end)', async () => {
-    // Regression: `channel.abandon()` (not `channel.end()`) must run here — calling `end()`
-    // would end the response before `sendRawApiError`'s own `res.end(...)` writes this JSON
-    // body, turning it into a write-after-end failure. `res.end` being called exactly once
-    // (by `sendRawApiError` itself) is what proves that didn't happen.
-    const deps = makeDeps();
-    const handler = mount(deps);
-    const res = makeSseRes();
-    await handler(makeSseReq({ runId: 'never-started' }), res);
-    expect(res.statusCode).toBe(404);
-    expect(jsonEndBody(res)).toEqual({ error: { code: 'NOT_FOUND', message: 'run was not found' } });
-    expect(res.end).toHaveBeenCalledTimes(1);
+/** Opens the event stream of `runId`; `signal` is the client's way of leaving. */
+function openEvents(
+  { fetch, runId }: { readonly fetch: (request: Request) => Promise<Response>; readonly runId: string },
+  { headers = {}, query = '', signal }: { readonly headers?: Record<string, string>; readonly query?: string; readonly signal?: AbortSignal } = {},
+): Promise<Response> {
+  return fetch(new Request(`http://local/api/runs/${runId}/events${query}`, { headers, ...(signal ? { signal } : {}) }));
+}
+
+const statusEvent = (deps: RunHttpDeps, runId: string, label: string) =>
+  deps.lifecycle.emit({ runId, input: { event: 'agent', data: { type: 'status', label } } });
+const finishRun = (deps: RunHttpDeps, runId: string) =>
+  deps.lifecycle.finish({ runId, status: 'succeeded', code: 0, signal: null, resumable: false });
+
+const STREAM_FAILURE_SENTENCE = 'The connection to run updates could not be opened. Check the run status before starting another task. Copy the request ID and report this problem.';
+
+describe('GET /api/runs/:runId/events — answers before the stream opens', () => {
+  it('sends 404 NOT_FOUND as one JSON answer when the lifecycle reports unknown-run', async () => {
+    const { fetch } = serve(makeDeps());
+    const response = await openEvents({ fetch, runId: 'never-started' });
+    expect([response.status, response.headers.get('content-type'), await response.json()]).toEqual([404, 'application/json; charset=utf-8', { error: { code: 'NOT_FOUND', message: 'run was not found' } }]);
   });
 
   it('sends 400 BAD_REQUEST when the lifecycle reports invalid-cursor', async () => {
     const deps = makeDeps();
     const { run } = await deps.lifecycle.start({ contextRef: 'ctx-1' });
-    const handler = mount(deps);
-    const res = makeSseRes();
-    await handler(makeSseReq({ runId: run.id, headers: { 'last-event-id': 'not-a-number' } }), res);
-    expect(res.statusCode).toBe(400);
-    expect(jsonEndBody(res)).toEqual({
-      error: { code: 'BAD_REQUEST', message: 'invalid replay cursor "not-a-number"' },
-    });
+    const response = await openEvents({ fetch: serve(deps).fetch, runId: run.id }, { headers: { 'last-event-id': 'not-a-number' } });
+    expect([response.status, await response.json()]).toEqual([400, { error: { code: 'BAD_REQUEST', message: 'invalid replay cursor "not-a-number"' } }]);
   });
 
   it('sends 409 CONFLICT with the oldest-available cursor when the lifecycle reports replay-gap', async () => {
-    const eventLog = createInMemoryEventLog({}, { maxEntriesPerRun: 2 });
-    const deps = makeDeps({ lifecycle: createRunLifecycle({ eventLog }) });
+    const deps = makeDeps({ lifecycle: createRunLifecycle({ eventLog: createInMemoryEventLog({}, { maxEntriesPerRun: 2 }) }) });
     const { run } = await deps.lifecycle.start({ contextRef: 'ctx-1' });
-    for (let i = 0; i < 5; i += 1) {
-      await deps.lifecycle.emit({ runId: run.id, input: { event: 'agent', data: { type: 'status', label: String(i) } } });
-    }
-    const handler = mount(deps);
-    const res = makeSseRes();
-    await handler(makeSseReq({ runId: run.id, headers: { 'last-event-id': '1' } }), res);
-    expect(res.statusCode).toBe(409);
-    const body = jsonEndBody(res) as { error: { code: string; details: unknown } };
-    expect(body.error.code).toBe('CONFLICT');
+    for (let i = 0; i < 5; i += 1) await statusEvent(deps, run.id, String(i));
+    const response = await openEvents({ fetch: serve(deps).fetch, runId: run.id }, { headers: { 'last-event-id': '1' } });
+    const body = await response.json() as { error: { code: string; details: unknown } };
+    expect([response.status, body.error.code]).toEqual([409, 'CONFLICT']);
     expect(body.error.details).toMatchObject({ oldestAvailableCursor: expect.any(String) });
   });
 
-  it('prefers the Last-Event-ID header over the afterCursor query parameter', async () => {
+  it.each([
+    ['prefers the Last-Event-ID header over the afterCursor query parameter', { 'last-event-id': 'header-cursor' }, '?afterCursor=query-cursor', 'header-cursor'],
+    ['falls back to the afterCursor query parameter when there is no Last-Event-ID header', {}, '?afterCursor=query-cursor', 'query-cursor'],
+    ['uses null when neither header nor query parameter is present', {}, '', null],
+    ['reads no cursor from a repeated afterCursor (Express gave an array, which was ignored)', {}, '?afterCursor=a&afterCursor=b', null],
+    ['reads no cursor from an empty afterCursor', {}, '?afterCursor=', null],
+  ])('%s', async (_label, headers, query, expected) => {
     const deps = makeDeps();
     const { run } = await deps.lifecycle.start({ contextRef: 'ctx-1' });
     const streamSpy = vi.spyOn(deps.lifecycle, 'stream');
-    const handler = mount(deps);
-    const res = makeSseRes();
-    await handler(
-      makeSseReq({ runId: run.id, headers: { 'last-event-id': 'header-cursor' }, query: { afterCursor: 'query-cursor' } }),
-      res,
-    );
-    expect(streamSpy).toHaveBeenCalledWith({ runId: run.id, onEvent: expect.any(Function) }, { afterCursor: 'header-cursor' });
+    const response = await openEvents({ fetch: serve(deps).fetch, runId: run.id }, { headers, query });
+    await readFrames({ response }).cancel();
+    expect(streamSpy).toHaveBeenCalledWith({ runId: run.id, onEvent: expect.any(Function) }, { afterCursor: expected });
   });
 
-  it('falls back to the afterCursor query parameter when there is no Last-Event-ID header', async () => {
-    const deps = makeDeps();
-    const { run } = await deps.lifecycle.start({ contextRef: 'ctx-1' });
-    const streamSpy = vi.spyOn(deps.lifecycle, 'stream');
-    const handler = mount(deps);
-    const res = makeSseRes();
-    await handler(makeSseReq({ runId: run.id, query: { afterCursor: 'query-cursor' } }), res);
-    expect(streamSpy).toHaveBeenCalledWith({ runId: run.id, onEvent: expect.any(Function) }, { afterCursor: 'query-cursor' });
+  it('SEC-005: sends a generic 500 INTERNAL_ERROR (never the raw message) when subscribing rejects before anything is committed, and gives the host the real error', async () => {
+    const onInternalError = vi.fn();
+    const deps = makeDeps({ onInternalError });
+    deps.lifecycle.stream = vi.fn(async () => { throw new Error('subscribe blew up at /internal/secret/path'); });
+    const { fetch, host } = serve(deps);
+    const response = await openEvents({ fetch, runId: 'run-1' });
+    const text = await response.text();
+    expect(response.status).toBe(500);
+    expect(JSON.parse(text).error).toEqual({ code: 'INTERNAL_ERROR', message: STREAM_FAILURE_SENTENCE, requestId: 'req-1' });
+    expect(text).not.toContain('/internal/secret/path');
+    expect(host.reports).toHaveLength(1);
+    expect(onInternalError).toHaveBeenCalledTimes(1);
+    const [context] = onInternalError.mock.calls[0]!;
+    expect([context.source, context.runId, (context.error as Error).message, context.correlationId]).toEqual(['run-stream', 'run-1', 'subscribe blew up at /internal/secret/path', 'req-1']);
   });
 
-  it('uses null afterCursor when neither header nor query parameter is present', async () => {
+  it('answers the same generic 500 when the source throws before it returns anything, and when it throws a non-Error', async () => {
+    for (const failure of [() => { throw new Error('thrown at once'); }, () => { throw 'raw stream failure'; }]) {
+      const onInternalError = vi.fn();
+      const deps = makeDeps({ onInternalError });
+      deps.lifecycle.stream = vi.fn(failure) as never;
+      const response = await openEvents({ fetch: serve(deps).fetch, runId: 'run-1' });
+      expect([response.status, (await response.json() as { error: { message: string } }).error.message]).toEqual([500, STREAM_FAILURE_SENTENCE]);
+      expect(onInternalError).toHaveBeenCalledOnce();
+    }
+  });
+});
+
+describe('GET /api/runs/:runId/events — the stream', () => {
+  it('opens with the event-stream headers and sends the replayed start event as a frame, then stays open', async () => {
     const deps = makeDeps();
     const { run } = await deps.lifecycle.start({ contextRef: 'ctx-1' });
-    const streamSpy = vi.spyOn(deps.lifecycle, 'stream');
-    const handler = mount(deps);
-    const res = makeSseRes();
-    await handler(makeSseReq({ runId: run.id }), res);
-    expect(streamSpy).toHaveBeenCalledWith({ runId: run.id, onEvent: expect.any(Function) }, { afterCursor: null });
+    const response = await openEvents({ fetch: serve(deps).fetch, runId: run.id });
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-type')).toBe('text/event-stream; charset=utf-8');
+    expect(response.headers.get('cache-control')).toBe('no-cache, no-transform');
+    expect(response.headers.get('connection')).toBe('keep-alive');
+    const frames = readFrames({ response });
+    expect((await frames.next())[0]).toContain('event: start');
+    expect(await frames.stillSilent()).toBe(true);
+    await frames.cancel();
   });
 
-  it('ignores a non-string afterCursor query parameter (e.g. a repeated query key parsed as an array)', async () => {
+  it('has no heartbeat: no timer is scheduled and nothing is sent while the run is idle', async () => {
     const deps = makeDeps();
     const { run } = await deps.lifecycle.start({ contextRef: 'ctx-1' });
-    const streamSpy = vi.spyOn(deps.lifecycle, 'stream');
-    const handler = mount(deps);
-    const res = makeSseRes();
-    await handler(makeSseReq({ runId: run.id, query: { afterCursor: ['a', 'b'] } }), res);
-    expect(streamSpy).toHaveBeenCalledWith({ runId: run.id, onEvent: expect.any(Function) }, { afterCursor: null });
+    const { fetch, host } = serve(deps);
+    const response = await openEvents({ fetch, runId: run.id });
+    const frames = readFrames({ response });
+    await frames.next();
+    expect(host.scheduler.pending).toBe(0);
+    host.scheduler.advance(60_000);
+    expect(await frames.stillSilent()).toBe(true);
+    await frames.cancel();
   });
 
-  it('writes SSE headers, flushes buffered replay history, and keeps the connection open on a fresh (non-terminal) run', async () => {
+  it('ends the stream once the buffered replay contains the terminal end event', async () => {
     const deps = makeDeps();
     const { run } = await deps.lifecycle.start({ contextRef: 'ctx-1' });
-    const handler = mount(deps);
-    const res = makeSseRes();
-    await handler(makeSseReq({ runId: run.id }), res);
-
-    expect(res.statusCode).toBe(200);
-    expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'text/event-stream; charset=utf-8');
-    expect(res.setHeader).toHaveBeenCalledWith('Cache-Control', 'no-cache, no-transform');
-    expect(res.setHeader).toHaveBeenCalledWith('Connection', 'keep-alive');
-    expect(res.flushHeaders).toHaveBeenCalledTimes(1);
-    // The replayed 'start' event was written as a buffered SSE frame.
-    expect(res.write).toHaveBeenCalledWith(expect.stringContaining('event: start'));
-    expect(res.end).not.toHaveBeenCalled();
-    expect(res.on).toHaveBeenCalledWith('close', expect.any(Function));
-  });
-
-  it('ends the response immediately once the buffered replay contains the terminal end event', async () => {
-    const deps = makeDeps();
-    const { run } = await deps.lifecycle.start({ contextRef: 'ctx-1' });
-    await deps.lifecycle.finish({ runId: run.id, status: 'succeeded', code: 0, signal: null, resumable: false });
-    const handler = mount(deps);
-    const res = makeSseRes();
-    await handler(makeSseReq({ runId: run.id }), res);
-
-    expect(res.write).toHaveBeenCalledWith(expect.stringContaining('event: end'));
-    expect(res.end).toHaveBeenCalledTimes(1);
-    // 'close'/'drain' listeners are registered unconditionally, before the subscribe/replay
-    // await, so a client disconnect racing that window is still observed (CR-R1) — but since
-    // the subscription is already a no-op for a terminal run, firing 'close' now must not
-    // attempt a second res.end() or throw.
-    expect(res.on).toHaveBeenCalledWith('close', expect.any(Function));
-    expect(() => res.emitClose()).not.toThrow();
-    expect(res.end).toHaveBeenCalledTimes(1);
+    await finishRun(deps, run.id);
+    const frames = await readFrames({ response: await openEvents({ fetch: serve(deps).fetch, runId: run.id }) }).rest();
+    expect(frames.at(-1)).toContain('event: end');
   });
 
   it('delivers a live event as it is emitted and closes the stream on a live end event', async () => {
     const deps = makeDeps();
     const { run } = await deps.lifecycle.start({ contextRef: 'ctx-1' });
-    const handler = mount(deps);
-    const res = makeSseRes();
-    await handler(makeSseReq({ runId: run.id }), res);
-    res.write.mockClear();
-
-    await deps.lifecycle.emit({ runId: run.id, input: { event: 'agent', data: { type: 'status', label: 'working' } } });
-    expect(res.write).toHaveBeenCalledWith(expect.stringContaining('event: agent'));
-    expect(res.end).not.toHaveBeenCalled();
-
-    await deps.lifecycle.finish({ runId: run.id, status: 'succeeded', code: 0, signal: null, resumable: false });
-    expect(res.write).toHaveBeenCalledWith(expect.stringContaining('event: end'));
-    expect(res.end).toHaveBeenCalledTimes(1);
+    const frames = readFrames({ response: await openEvents({ fetch: serve(deps).fetch, runId: run.id }) });
+    await frames.next();
+    await statusEvent(deps, run.id, 'working');
+    expect((await frames.next())[0]).toContain('event: agent');
+    await finishRun(deps, run.id);
+    expect((await frames.rest()).map((frame) => frame.split('\n')[1])).toEqual(['event: end']);
   });
 
-  it('unsubscribes from the lifecycle when the client closes the connection', async () => {
+  it('a terminal end event queued behind unread frames is still delivered last, and ends the stream', async () => {
     const deps = makeDeps();
     const { run } = await deps.lifecycle.start({ contextRef: 'ctx-1' });
-    const handler = mount(deps);
-    const res = makeSseRes();
-    await handler(makeSseReq({ runId: run.id }), res);
-
-    res.emitClose();
-    res.write.mockClear();
-    await deps.lifecycle.emit({ runId: run.id, input: { event: 'agent', data: { type: 'status', label: 'after close' } } });
-    expect(res.write).not.toHaveBeenCalled();
+    const response = await openEvents({ fetch: serve(deps).fetch, runId: run.id });
+    await statusEvent(deps, run.id, 'working');
+    await finishRun(deps, run.id);
+    const kinds = (await readFrames({ response }).rest()).map((frame) => frame.split('\n')[1]);
+    expect(kinds).toEqual(['event: start', 'event: agent', 'event: end']);
   });
 
-  it('SEC-005: sends a generic 500 INTERNAL_ERROR (never the raw message) when subscribing throws before headers are sent, and logs the real error', async () => {
-    const onInternalError = vi.fn();
-    const deps = makeDeps({ onInternalError });
-    deps.lifecycle.stream = vi.fn(async () => {
-      throw new Error('subscribe blew up at /internal/secret/path');
-    });
-    const handler = mount(deps);
-    const res = makeSseRes();
-    await handler(makeSseReq({ runId: 'run-1' }), res);
-    expect(res.statusCode).toBe(500);
-    const body = jsonEndBody(res) as { error: { code: string; message: string; requestId: string } };
-    expect(body.error.code).toBe('INTERNAL_ERROR');
-    expect(body.error.message).toBe('The connection to run updates could not be opened. Check the run status before starting another task. Copy the request ID and report this problem.');
-    expect(JSON.stringify(body)).not.toContain('/internal/secret/path');
-    expect(body.error.requestId).toEqual(expect.any(String));
-
-    expect(onInternalError).toHaveBeenCalledTimes(1);
-    const [context] = onInternalError.mock.calls[0]!;
-    expect(context.source).toBe('run-stream');
-    expect(context.runId).toBe('run-1');
-    expect((context.error as Error).message).toContain('/internal/secret/path');
-    // Regression: the catch block must abandon (not end) the channel when headers were never
-    // sent, so `sendRawApiError`'s own single `res.end(...)` write is the only thing that
-    // touches `res` (not a double-write via `channel.end()` first).
-    expect(res.end).toHaveBeenCalledTimes(1);
-  });
-
-  it('stringifies a non-Error throw from stream() when headers are not yet sent (still redacted per SEC-005)', async () => {
-    const onInternalError = vi.fn();
-    const deps = makeDeps({ onInternalError });
-    deps.lifecycle.stream = vi.fn(async () => {
-      // eslint-disable-next-line @typescript-eslint/no-throw-literal
-      throw 'raw stream failure';
-    });
-    const handler = mount(deps);
-    const res = makeSseRes();
-    await handler(makeSseReq({ runId: 'run-1' }), res);
-    const body = jsonEndBody(res) as { error: unknown };
-    expect(body.error).toEqual({ code: 'INTERNAL_ERROR', message: 'The connection to run updates could not be opened. Check the run status before starting another task. Copy the request ID and report this problem.', requestId: expect.any(String) });
-    expect(onInternalError.mock.calls[0]![0].error).toBe('raw stream failure');
-  });
-
-  it('ends the response instead of sending a JSON error when a post-subscribe failure occurs after headers were already sent', async () => {
-    // A `res.write` failure once the stream is already flowing (e.g. a socket error) must be
-    // isolated inside the writer, not surfaced as a JSON error response.
+  it('answers a cross-origin caller too: this stream has never had a same-origin gate', async () => {
+    testOriginPolicy.set({ allow: false });
     const deps = makeDeps();
     const { run } = await deps.lifecycle.start({ contextRef: 'ctx-1' });
-    const handler = mount(deps);
-    const res = makeSseRes();
-    res.flushHeaders = vi.fn(() => {
-      res.headersSent = true;
-    });
-    res.write = vi.fn(() => {
-      throw new Error('socket write failed');
-    });
-    await handler(makeSseReq({ runId: run.id }), res);
-    expect(res.json).not.toHaveBeenCalled();
-    expect(res.end).toHaveBeenCalledTimes(1);
+    const response = await openEvents({ fetch: serve(deps).fetch, runId: run.id });
+    expect(response.status).toBe(200);
+    await readFrames({ response }).cancel();
+  });
+});
+
+describe('GET /api/runs/:runId/events — replay and the frame cap (SEC-006)', () => {
+  it('replay_over_1000_events_delivers_sse_and_advancing_cursors', async () => {
+    const deps = makeDeps();
+    const { run } = await deps.lifecycle.start({ contextRef: 'ctx' });
+    for (let index = 0; index < 1166; index++) {
+      await deps.lifecycle.emit({ runId: run.id, input: { event: 'agent', data: { type: 'text_delta', delta: String(index) } } });
+    }
+    const frames = readFrames({ response: await openEvents({ fetch: serve(deps).fetch, runId: run.id }) });
+    const received = await frames.next(1167);
+    const cursors = received.map((frame) => /^id: (.+)/m.exec(frame)![1]);
+    expect(new Set(cursors).size).toBe(1167);
+    expect(cursors.at(-1)).not.toBe(cursors[0]);
+    expect(await frames.stillSilent()).toBe(true);
+    await frames.cancel();
   });
 
-  it('ends the response when a post-subscribe failure occurs after headers were sent but before the response was already ending', async () => {
-    // Distinct from the "already fully ended" test below: there, `writableEnded` was
-    // already true so `res.end()` must NOT be called a second time. Here headers were
-    // sent but the response was never ended, so the `else if (!res.writableEnded)`
-    // branch must actually run `res.end()` — e.g. a malformed event whose JSON.stringify
-    // throws inside `pump()`, escaping the outer try after `flushHeaders()` already ran.
+  it('disconnects a client that stopped reading once 1000 live frames are queued, and unsubscribes', async () => {
     const deps = makeDeps();
     const { run } = await deps.lifecycle.start({ contextRef: 'ctx-1' });
-    const handler = mount(deps);
-    const res = makeSseRes();
-    res.flushHeaders = vi.fn(() => {
-      res.headersSent = true;
-      throw new Error('boom after headers sent, before the response ended');
-    });
-
-    await handler(makeSseReq({ runId: run.id }), res);
-
-    expect(res.json).not.toHaveBeenCalled();
-    expect(res.end).toHaveBeenCalledTimes(1);
-  });
-
-  it('CR-R1: unsubscribes immediately, without ever setting SSE headers, when the client disconnects while stream() is still resolving', async () => {
-    const deps = makeDeps();
-    const { run } = await deps.lifecycle.start({ contextRef: 'ctx-1' });
-    const handler = mount(deps);
-    const res = makeSseRes();
     const unsubscribe = vi.fn();
-    deps.lifecycle.stream = vi.fn(async () => {
-      // Simulates the client closing the connection during the (real) await on stream()'s
-      // durable replay — 'close' fires and sets `closed = true` before this resolves.
-      res.emitClose();
-      return { kind: 'ok' as const, unsubscribe };
-    });
-
-    await handler(makeSseReq({ runId: run.id }), res);
-
+    const realStream = deps.lifecycle.stream.bind(deps.lifecycle);
+    deps.lifecycle.stream = (async (...args: Parameters<typeof realStream>) => {
+      const subscribed = await realStream(...args);
+      return subscribed.kind === 'ok' ? { ...subscribed, unsubscribe: () => { unsubscribe(); subscribed.unsubscribe(); } } : subscribed;
+    }) as never;
+    const response = await openEvents({ fetch: serve(deps).fetch, runId: run.id });
+    for (let i = 0; i < 1003; i += 1) await statusEvent(deps, run.id, String(i));
     expect(unsubscribe).toHaveBeenCalledTimes(1);
-    expect(res.statusCode).toBe(0);
-    expect(res.flushHeaders).not.toHaveBeenCalled();
+    await readFrames({ response }).rest();
+  });
+});
+
+describe('GET /api/runs/:runId/events — the client leaves, the source fails', () => {
+  /** A lifecycle whose `stream` hands out an unsubscribe the test can see. */
+  function watchedDeps(overrides: Partial<RunHttpDeps> = {}) {
+    const deps = makeDeps(overrides);
+    const unsubscribe = vi.fn();
+    const realStream = deps.lifecycle.stream.bind(deps.lifecycle);
+    deps.lifecycle.stream = (async (...args: Parameters<typeof realStream>) => {
+      const subscribed = await realStream(...args);
+      return subscribed.kind === 'ok' ? { ...subscribed, unsubscribe: () => { unsubscribe(); subscribed.unsubscribe(); } } : subscribed;
+    }) as never;
+    return { deps, unsubscribe };
+  }
+
+  it('unsubscribes from the lifecycle, once, when the client aborts', async () => {
+    const { deps, unsubscribe } = watchedDeps();
+    const { run } = await deps.lifecycle.start({ contextRef: 'ctx-1' });
+    const controller = new AbortController();
+    const frames = readFrames({ response: await openEvents({ fetch: serve(deps).fetch, runId: run.id }, { signal: controller.signal }) });
+    await frames.next();
+    controller.abort();
+    await vi.waitFor(() => expect(unsubscribe).toHaveBeenCalledTimes(1));
+    await statusEvent(deps, run.id, 'after leave');
+    expect(unsubscribe).toHaveBeenCalledTimes(1);
   });
 
-  it('does not call res.end() a second time from the catch block when the response was already fully ended', async () => {
-    const deps = makeDeps();
+  it('unsubscribes when the client cancels the body, and a later emit and finish still resolve cleanly (CR-R1)', async () => {
+    const { deps, unsubscribe } = watchedDeps();
     const { run } = await deps.lifecycle.start({ contextRef: 'ctx-1' });
-    const handler = mount(deps);
-    const res = makeSseRes();
-    res.flushHeaders = vi.fn(() => {
-      res.headersSent = true;
-      res.writableEnded = true; // some other path already fully ended this response
-      throw new Error('boom after the response was already ended');
-    });
-
-    await handler(makeSseReq({ runId: run.id }), res);
-
-    expect(res.json).not.toHaveBeenCalled();
-    expect(res.end).not.toHaveBeenCalled();
-  });
-
-  it('CR-R1: unsubscribes on a replay-write failure instead of leaking the subscription, and does not corrupt later emit()/finish() for that run', async () => {
-    // Before the fix: a write failure during the buffered-replay flush ended the response but
-    // never called `unsubscribe`. The dead subscriber callback stayed registered on the run, so
-    // a later `emit()`/`finish()` call invoked it again, its `res.write` threw a second time, and
-    // that exception propagated synchronously out through `RunLifecycle`'s subscriber fan-out —
-    // out of `emit()`/`finish()` themselves, and (for `finish()`) before `resolveTerminalWaiters`
-    // ran, stranding any `waitForTerminal()` caller. This test fails a replay write, then drives
-    // a live emit and a finish through the SAME run and asserts both still resolve cleanly, the
-    // terminal waiter unblocks, and the dead connection never receives another write attempt.
-    const deps = makeDeps();
-    const { run } = await deps.lifecycle.start({ contextRef: 'ctx-1' });
-    const handler = mount(deps);
-    const res = makeSseRes();
-    res.flushHeaders = vi.fn(() => {
-      res.headersSent = true;
-    });
-    res.write = vi.fn(() => {
-      throw new Error('socket write failed');
-    });
-
     const waitForTerminal = deps.lifecycle.waitForTerminal({ runId: run.id });
-
-    await expect(handler(makeSseReq({ runId: run.id }), res)).resolves.toBeUndefined();
-    expect(res.end).toHaveBeenCalledTimes(1);
-    const writeCallsAfterStreamSetup = res.write.mock.calls.length;
-    expect(writeCallsAfterStreamSetup).toBeGreaterThan(0);
-
-    await expect(
-      deps.lifecycle.emit({ runId: run.id, input: { event: 'agent', data: { type: 'status', label: 'after leak-fix' } } }),
-    ).resolves.toBeDefined();
-    // The leaked callback would otherwise still be registered and attempt another write.
-    expect(res.write.mock.calls.length).toBe(writeCallsAfterStreamSetup);
-
-    await expect(
-      deps.lifecycle.finish({ runId: run.id, status: 'succeeded', code: 0, signal: null, resumable: false }),
-    ).resolves.toMatchObject({ state: 'succeeded' });
-    expect(res.write.mock.calls.length).toBe(writeCallsAfterStreamSetup);
-    expect(res.end).toHaveBeenCalledTimes(1);
-
+    const frames = readFrames({ response: await openEvents({ fetch: serve(deps).fetch, runId: run.id }) });
+    await frames.next();
+    await frames.cancel();
+    expect(unsubscribe).toHaveBeenCalledTimes(1);
+    // A leaked subscriber would still be called on later emits. A callback failure during finish could strand the terminal waiter.
+    await expect(statusEvent(deps, run.id, 'after cancel')).resolves.toBeDefined();
+    await expect(finishRun(deps, run.id)).resolves.toMatchObject({ state: 'succeeded' });
     await expect(waitForTerminal).resolves.toMatchObject({ state: 'succeeded' });
   });
 
-  it('SEC-006: queues events while res.write reports backpressure and resumes writing on drain, preserving order', async () => {
+  it('CR-R1: unsubscribes immediately when the client left while stream() was still resolving', async () => {
     const deps = makeDeps();
     const { run } = await deps.lifecycle.start({ contextRef: 'ctx-1' });
-    const handler = mount(deps);
-    const res = makeSseRes();
-    const handlerPromise = handler(makeSseReq({ runId: run.id }), res);
-    await handlerPromise;
-    res.write.mockClear();
-
-    res.write.mockReturnValueOnce(false); // simulate Node reporting a full socket buffer
-    await deps.lifecycle.emit({ runId: run.id, input: { event: 'agent', data: { type: 'status', label: 'first' } } });
-    await deps.lifecycle.emit({ runId: run.id, input: { event: 'agent', data: { type: 'status', label: 'second' } } });
-    // The second event must be queued, not written, while backpressure is in effect.
-    expect(res.write).toHaveBeenCalledTimes(1);
-
-    res.emitDrain();
-    expect(res.write).toHaveBeenCalledTimes(2);
-    expect(res.write.mock.calls[0]![0]).toContain('"label":"first"');
-    expect(res.write.mock.calls[1]![0]).toContain('"label":"second"');
+    const controller = new AbortController();
+    const unsubscribe = vi.fn();
+    deps.lifecycle.stream = vi.fn(async () => {
+      controller.abort();
+      return { kind: 'ok' as const, unsubscribe };
+    });
+    const response = await openEvents({ fetch: serve(deps).fetch, runId: run.id }, { signal: controller.signal });
+    expect(unsubscribe).toHaveBeenCalledTimes(1);
+    expect(await readFrames({ response }).rest()).toEqual([]);
   });
 
-  it('SEC-006: disconnects a slow consumer once the bounded queue is exceeded instead of buffering without bound', async () => {
-    const deps = makeDeps();
-    const { run } = await deps.lifecycle.start({ contextRef: 'ctx-1' });
-    const handler = mount(deps);
-    const res = makeSseRes();
-    await handler(makeSseReq({ runId: run.id }), res);
-    res.write.mockClear();
-    res.write.mockReturnValue(false); // never drains — a permanently stalled consumer
-
-    for (let i = 0; i < 1002; i += 1) {
-      await deps.lifecycle.emit({ runId: run.id, input: { event: 'agent', data: { type: 'status', label: String(i) } } });
-    }
-
-    expect(res.end).toHaveBeenCalledTimes(1);
-    const writeCallsAtDisconnect = res.write.mock.calls.length;
-    await deps.lifecycle.emit({ runId: run.id, input: { event: 'agent', data: { type: 'status', label: 'after disconnect' } } });
-    expect(res.write.mock.calls.length).toBe(writeCallsAtDisconnect);
-  });
-
-  it('ignores an event delivered through a still-live enqueue callback after the connection already closed', async () => {
-    // `cleanup()` unsubscribes from the lifecycle for real, so a *subsequent*
-    // `lifecycle.emit()` never reaches `enqueue` again — the existing
-    // "disconnects a slow consumer" test above only proves that path. This
-    // proves the callback's own `if (closed) return;` guard: capture the raw
-    // `enqueue` closure `registerRunEventStream` handed to `stream()` and
-    // invoke it directly after close, simulating an event that was already
-    // in flight through the subscriber fan-out when the client disconnected
-    // (the exact race the doc comment above `closed` calls out).
+  it('ignores an event delivered through a still-live onEvent callback after the connection closed', async () => {
     const deps = makeDeps();
     const { run } = await deps.lifecycle.start({ contextRef: 'ctx-1' });
     const streamSpy = vi.spyOn(deps.lifecycle, 'stream');
-    const handler = mount(deps);
-    const res = makeSseRes();
-    await handler(makeSseReq({ runId: run.id }), res);
-    const enqueue = streamSpy.mock.calls[0]![0].onEvent;
-
-    res.emitClose();
-    res.write.mockClear();
-
-    enqueue({
-      runId: run.id,
-      eventId: `${run.id}:late`,
-      opaqueCursor: 'late',
-      protocolVersion: RUN_PROTOCOL_VERSION,
-      ts: Date.now(),
-      kind: 'agent',
-      payload: { type: 'status', label: 'late' },
-      durability: 'durable',
-    });
-
-    expect(res.write).not.toHaveBeenCalled();
+    const controller = new AbortController();
+    const frames = readFrames({ response: await openEvents({ fetch: serve(deps).fetch, runId: run.id }, { signal: controller.signal }) });
+    await frames.next();
+    // Unsubscribe keeps a later lifecycle.emit() from reaching this callback. Calling it directly models an event already in flight when the client disconnected.
+    const onEvent = streamSpy.mock.calls[0]![0].onEvent;
+    controller.abort();
+    expect(() => onEvent({
+      runId: run.id, eventId: `${run.id}:late`, opaqueCursor: 'late', protocolVersion: RUN_PROTOCOL_VERSION, ts: Date.now(),
+      kind: 'agent', payload: { type: 'status', label: 'late' }, durability: 'durable',
+    })).not.toThrow();
+    expect(await frames.rest()).toEqual([]);
   });
 
-  it('SEC-006: a terminal end event queued under backpressure is still written last and still ends the response', async () => {
-    const deps = makeDeps();
+  it('a failure after the stream was committed ends the stream (no second answer) and still reaches the host', async () => {
+    const onInternalError = vi.fn();
+    const deps = makeDeps({ onInternalError });
     const { run } = await deps.lifecycle.start({ contextRef: 'ctx-1' });
-    const handler = mount(deps);
-    const res = makeSseRes();
-    await handler(makeSseReq({ runId: run.id }), res);
-    res.write.mockClear();
-
-    res.write.mockReturnValueOnce(false);
-    await deps.lifecycle.emit({ runId: run.id, input: { event: 'agent', data: { type: 'status', label: 'working' } } });
-    await deps.lifecycle.finish({ runId: run.id, status: 'succeeded', code: 0, signal: null, resumable: false });
-    // Both events are queued behind the backpressure; neither is written until 'drain'.
-    expect(res.write).toHaveBeenCalledTimes(1);
-    expect(res.end).not.toHaveBeenCalled();
-
-    res.emitDrain();
-    expect(res.write).toHaveBeenCalledTimes(2);
-    expect(res.write.mock.calls[1]![0]).toContain('event: end');
-    expect(res.end).toHaveBeenCalledTimes(1);
+    const realStream = deps.lifecycle.stream.bind(deps.lifecycle);
+    deps.lifecycle.stream = (async (...args: Parameters<typeof realStream>) => {
+      await realStream(...args);
+      throw new Error('boom after the first frame');
+    }) as never;
+    const { fetch, host } = serve(deps);
+    const response = await openEvents({ fetch, runId: run.id });
+    expect(response.status).toBe(200);
+    expect((await readFrames({ response }).rest())[0]).toContain('event: start');
+    expect(host.reports).toHaveLength(1);
+    expect((onInternalError.mock.calls[0]![0].error as Error).message).toBe('boom after the first frame');
   });
 });
 
-describe('handleRunEventStreamRequest — transport-independent core, called directly', () => {
-  it('rejects an empty runId with a raw 400 before touching the lifecycle, independent of either transport wrapper', async () => {
-    const deps = makeDeps();
-    const streamSpy = vi.spyOn(deps.lifecycle, 'stream');
-    const res = makeSseRes();
-    await handleRunEventStreamRequest({ res: res as any, runId: '', afterCursor: null, deps });
-    expect(res.statusCode).toBe(400);
-    expect(jsonEndBody(res)).toEqual({
-      error: { code: 'BAD_REQUEST', message: 'runId must be a non-empty path parameter' },
-    });
-    expect(streamSpy).not.toHaveBeenCalled();
-  });
-});
-
-describe('registerRunRoutes', () => {
-  it('mounts exactly the create/list/status/cancel/message JSON routes plus the SSE stream, nothing else', () => {
-    const app = makeApp();
-    registerRunRoutes({ app: app as any, deps: makeDeps(), adapter });
-    expect(Object.keys(app.handlers).sort()).toEqual(
-      [
-        'POST /api/runs',
-        'GET /api/runs',
-        'GET /api/runs/:runId',
-        'POST /api/runs/:runId/cancel',
-        'POST /api/runs/:runId/messages',
-        'GET /api/runs/:runId/events',
-      ].sort(),
-    );
+describe('runRoutes', () => {
+  it('lists exactly the create/list/status/cancel/message JSON routes plus the SSE stream, nothing else, with the same-origin gate named where the spec asks for it', () => {
+    expect(describeRoutes({ routes: runRoutes({ deps: makeDeps(), host: fakeDaemonRouteHost() }) })).toEqual([
+      { method: 'POST', path: '/api/runs', gates: ['same-origin'] },
+      { method: 'GET', path: '/api/runs', gates: [] },
+      { method: 'GET', path: '/api/runs/:runId', gates: [] },
+      { method: 'POST', path: '/api/runs/:runId/cancel', gates: ['same-origin'] },
+      { method: 'POST', path: '/api/runs/:runId/messages', gates: ['same-origin'] },
+      { method: 'GET', path: '/api/runs/:runId/events', gates: [] },
+    ]);
   });
 
   it('does not require same-origin for GET /api/runs: allows a cross-origin list read', async () => {
-    vi.mocked(isLocalSameOrigin).mockReturnValue(false);
-    const app = makeApp();
+    testOriginPolicy.set({ allow: false });
     const deps = makeDeps();
     await deps.lifecycle.start({ contextRef: 'ctx-1' });
-    registerRunRoutes({ app: app as any, deps, adapter });
-    const res = makeJsonRes();
-    await app.handlers['GET /api/runs']!({ body: {}, query: {}, params: {} }, res);
-    expect(res.status).toHaveBeenCalledWith(200);
-    const [body] = res.json.mock.calls[0]!;
-    expect(body.runs).toHaveLength(1);
+    const response = await serve(deps).fetch(jsonRequest({ path: '/api/runs' }));
+    expect([response.status, ((await response.json()) as { runs: unknown[] }).runs]).toEqual([200, [expect.anything()]]);
   });
 
-  it('requires same-origin for POST /api/runs: blocks a cross-origin request with 403', async () => {
-    vi.mocked(isLocalSameOrigin).mockReturnValue(false);
-    const app = makeApp();
-    registerRunRoutes({ app: app as any, deps: makeDeps(), adapter });
-    const res = makeJsonRes();
-    await app.handlers['POST /api/runs']!({ body: { contextRef: 'ctx-1' }, query: {}, params: {} }, res);
-    expect(res.status).toHaveBeenCalledWith(403);
-  });
-
-  it('requires same-origin for POST /api/runs/:runId/cancel: blocks a cross-origin request with 403', async () => {
-    vi.mocked(isLocalSameOrigin).mockReturnValue(false);
-    const app = makeApp();
-    registerRunRoutes({ app: app as any, deps: makeDeps(), adapter });
-    const res = makeJsonRes();
-    await app.handlers['POST /api/runs/:runId/cancel']!({ body: {}, query: {}, params: { runId: 'run-1' } }, res);
-    expect(res.status).toHaveBeenCalledWith(403);
+  it.each([
+    ['POST /api/runs', 'POST', '/api/runs', { contextRef: 'ctx-1' }],
+    ['POST /api/runs/:runId/cancel', 'POST', '/api/runs/run-1/cancel', {}],
+    ['POST /api/runs/:runId/messages', 'POST', '/api/runs/run-1/messages', { text: 'x' }],
+  ])('requires same-origin for %s: blocks a cross-origin request with 403', async (_label, method, path, body) => {
+    testOriginPolicy.set({ allow: false });
+    const response = await serve(makeDeps()).fetch(jsonRequest({ path, method }, { body }));
+    expect([response.status, ((await response.json()) as { error: { code: string } }).error.code]).toEqual([403, 'FORBIDDEN']);
   });
 
   it('does not require same-origin for GET /api/runs/:runId: allows a cross-origin status read', async () => {
-    vi.mocked(isLocalSameOrigin).mockReturnValue(false);
-    const app = makeApp();
+    testOriginPolicy.set({ allow: false });
     const deps = makeDeps();
     const { run } = await deps.lifecycle.start({ contextRef: 'ctx-1' });
-    registerRunRoutes({ app: app as any, deps, adapter });
-    const res = makeJsonRes();
-    await app.handlers['GET /api/runs/:runId']!({ body: {}, query: {}, params: { runId: run.id } }, res);
-    expect(res.status).toHaveBeenCalledWith(200);
+    expect((await serve(deps).fetch(jsonRequest({ path: `/api/runs/${run.id}` }))).status).toBe(200);
   });
 
-  it('mounted POST /api/runs creates a run end to end through the real Adapter pipeline', async () => {
-    const app = makeApp();
-    const deps = makeDeps();
-    registerRunRoutes({ app: app as any, deps, adapter });
-    const res = makeJsonRes();
-    await app.handlers['POST /api/runs']!({ body: { contextRef: 'ctx-1' }, query: {}, params: {} }, res);
-    expect(res.status).toHaveBeenCalledWith(201);
-    const [body] = res.json.mock.calls[0]!;
-    expect(body.run.state).toBe('running');
-    expect(body.started).toBe(true);
+  it('POST /api/runs creates a run end to end through the real route pipeline', async () => {
+    const response = await serve(makeDeps()).fetch(jsonRequest({ path: '/api/runs', method: 'POST' }, { body: { contextRef: 'ctx-1' } }));
+    const body = await response.json() as { run: { state: string }; started: boolean };
+    expect([response.status, body.run.state, body.started]).toEqual([201, 'running', true]);
+  });
+
+  it('an internal failure in the start hook goes through the host reporter, with the fixed sentence and the request ID', async () => {
+    const deps = makeDeps({ onStarted: () => { throw new Error('boom api_key=SECRETSECRETSECRETSECRET'); } });
+    const { fetch, host } = serve(deps);
+    const response = await fetch(jsonRequest({ path: '/api/runs', method: 'POST' }, { body: { contextRef: 'ctx-1' } }));
+    const text = await response.text();
+    expect(response.status).toBe(500);
+    expect(JSON.parse(text).error).toMatchObject({ code: 'INTERNAL_ERROR', requestId: 'req-1' });
+    expect(text).not.toContain('SECRETSECRET');
+    expect(host.reports).toHaveLength(1);
   });
 });
 
-
-it('replay_over_1000_events_delivers_sse_and_advancing_cursors', async () => {
-  const deps = makeDeps();
-  const { run } = await deps.lifecycle.start({ contextRef: 'ctx' });
-  for (let index = 0; index < 1166; index++) {
-    await deps.lifecycle.emit({ runId: run.id, input: { event: 'agent', data: { type: 'text_delta', delta: String(index) } } });
-  }
-  const res = makeSseRes();
-  res.flushHeaders = vi.fn(() => { res.headersSent = true; });
-  res.write = vi.fn((_chunk: string) => {
-    expect(res.headersSent).toBe(true);
-    expect(res.writableEnded).toBe(false);
-    return true;
+describe('run routes: one incident owner (log safety)', () => {
+  it('the host sink gets the original error, the run ID and the request ID the caller sees', async () => {
+    const failure = new Error('boom api_key=SECRETSECRETSECRETSECRET');
+    const onInternalError = vi.fn();
+    const deps = makeDeps({ onStarted: () => { throw failure; }, onInternalError });
+    const result = await runStartRoute.handle({ input: { contextRef: 'ctx-1' }, deps });
+    if (result.ok) throw new Error('expected failure');
+    const context = onInternalError.mock.calls[0]?.[0];
+    expect(context).toEqual({ source: 'run-start', runId: expect.any(String), error: failure, correlationId: result.error.requestId, logSource: 'run-start' });
+    expect(context.error).toBe(failure);
+    expect(JSON.stringify(result.error)).not.toContain('SECRETSECRET');
   });
-  await handleRunEventStreamRequest({ res: res as any, runId: run.id, afterCursor: null, deps });
-  expect(res.flushHeaders).toHaveBeenCalledTimes(1);
-  expect(res.write).toHaveBeenCalledTimes(1167);
-  const cursors = res.write.mock.calls.map(([chunk]) => chunk.match(/^id: (.+)/m)![1]);
-  expect(new Set(cursors).size).toBe(1167);
-  expect(cursors.at(-1)).not.toBe(cursors[0]);
-  expect(res.end).not.toHaveBeenCalled();
-  res.emitClose();
+
+  it('without a host sink the default line carries the class only', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => { });
+    try {
+      const deps = makeDeps({ onStarted: () => { throw new Error('boom api_key=SECRETSECRETSECRETSECRET'); } });
+      const result = await runStartRoute.handle({ input: { contextRef: 'ctx-1' }, deps });
+      if (result.ok) throw new Error('expected failure');
+      expect(consoleError.mock.calls).toEqual([[`[@jini-ai/http-kit] internal error (run-start, correlationId=${result.error.requestId})`, 'Error']]);
+      const printed = JSON.stringify(consoleError.mock.calls);
+      for (const leaked of ['boom', 'SECRETSECRET', 'runs.test']) expect(printed).not.toContain(leaked);
+    } finally { consoleError.mockRestore(); }
+  });
+});
+
+it('retains the injected reporter and envelope when run startup fails', async () => {
+  const host = fakeDaemonRouteHost();
+  const failure = new Error('private startup');
+  const deps = makeDeps({ reportInternalError: host.reportInternalError, onStarted: () => { throw failure; } });
+  const result = await runStartRoute.handle({ input: { contextRef: 'ctx-reporter' }, deps });
+  expect(result).toMatchObject({ ok: false, error: { code: 'INTERNAL_ERROR', requestId: 'req-1' } });
+  const runs = await deps.lifecycle.list({}, { contextRef: 'ctx-reporter' });
+  expect(host.reports[0]).toMatchObject({ report: { source: 'run-start', runId: runs[0]?.id, error: failure } });
+  expect(JSON.stringify(result)).not.toContain(failure.message);
 });

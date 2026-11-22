@@ -1,4 +1,4 @@
-import type { z } from 'zod';
+import type { z } from 'zod/v3';
 
 /**
  * The Node/MCP-safe half of an interactive-ui provider: enough to search and describe a

@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { render, waitFor } from '@testing-library/react';
 import { createChartInteractiveRegistry } from '../react.js';
-import { createChartProviderRegistry, type ChartSpec } from '../index.js';
+import { createChartProviderRegistry } from '../index.js';
+import { type ChartSpec } from '@jini-ai/core/contracts/charts';
 import { InteractiveUiRegistry } from '../../interactive-ui/registry.js';
 
 /**

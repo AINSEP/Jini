@@ -1,0 +1,50 @@
+OK   @jini-ai/cms/presentation/html 4 exports (tarball)
+OK   @jini-ai/cms/presentation/page-head 2 exports (tarball)
+OK   @jini-ai/cms/forms/result-query 3 exports (tarball)
+OK   @jini-ai/cms/forms/result-flash 3 exports (tarball)
+OK   @jini-ai/cms/themes/preview/refresh 4 exports (tarball)
+OK   @jini-ai/cms/media/cover-image 3 exports (tarball)
+OK   @jini-ai/cms/themes/token-aliases 1 exports (tarball)
+FAIL @jini-ai/cms/seo/cover-image ERR_PACKAGE_PATH_NOT_EXPORTED Package subpath './seo/cover-image' is not defined by "exports" in /tmp/claude-0/pack/consumer/node_modules/@jini-ai/cms/package.json imported from /tmp/claude-0/pack/consumer/probe.mjs
+OK   @jini-ai/http-kit/range 1 exports (tarball)
+OK   @jini-ai/devops/backup/plan-store 4 exports (tarball)
+OK   @jini-ai/devops/backup/push-jobs 2 exports (tarball)
+OK   @jini-ai/core/errors/idioms 6 exports (tarball)
+OK   @jini-ai/core/errors/sentences 4 exports (tarball)
+OK   @jini-ai/core/errors/bindings 1 exports (tarball)
+OK   @jini-ai/core/errors/catalog 1 exports (tarball)
+OK   @jini-ai/core/errors/reporter 2 exports (tarball)
+OK   @jini-ai/core/errors/approved-cause 2 exports (tarball)
+OK   @jini-ai/core/errors/disclosure 2 exports (tarball)
+OK   @jini-ai/core/errors/error-id 1 exports (tarball)
+OK   @jini-ai/core/errors/testing 5 exports (tarball)
+OK   @jini-ai/core/model-facing-tool-errors 9 exports (tarball)
+FAIL @jini-ai/admin/themes/default/admin.css ERR_UNKNOWN_FILE_EXTENSION Unknown file extension ".css" for /tmp/claude-0/pack/consumer/node_modules/@jini-ai/admin/src/themes/default/admin.css
+FAIL @jini-ai/admin/themes/default/chat.css ERR_UNKNOWN_FILE_EXTENSION Unknown file extension ".css" for /tmp/claude-0/pack/consumer/node_modules/@jini-ai/admin/src/themes/default/chat.css
+FAIL @jini-ai/admin/themes/default/manifest.json ERR_IMPORT_ATTRIBUTE_MISSING Module "file:///tmp/claude-0/pack/consumer/node_modules/@jini-ai/admin/src/themes/default/manifest.json" needs an import attribute of "type: json"
+SKIP(peer) @jini-ai/admin/react Cannot find package 'react' imported from /tmp/claude-0/pack/consumer/node_modules/@jini-a
+SKIP(peer) @jini-ai/admin/react/shell Cannot find package 'react' imported from /tmp/claude-0/pack/consumer/node_modules/@jini-a
+SKIP(peer) @jini-ai/admin/react/entities Cannot find package 'react' imported from /tmp/claude-0/pack/consumer/node_modules/@jini-a
+SKIP(peer) @jini-ai/admin/react/overlays Cannot find package 'react' imported from /tmp/claude-0/pack/consumer/node_modules/@jini-a
+SKIP(peer) @jini-ai/admin/react/kit Cannot find package 'react' imported from /tmp/claude-0/pack/consumer/node_modules/@jini-a
+SKIP(peer) @jini-ai/admin/react/testing-kit Cannot find package 'react' imported from /tmp/claude-0/pack/consumer/node_modules/@jini-a
+SKIP(peer) @jini-ai/admin/media/react Cannot find package 'react' imported from /tmp/claude-0/pack/consumer/node_modules/@jini-a
+FAIL @jini-ai/admin/contracts/* ERR_MODULE_NOT_FOUND Cannot find module '/tmp/claude-0/pack/consumer/node_modules/@jini-ai/admin/dist/contracts/*.js' imported from /tmp/claude-0/pack/consumer/probe.mjs
+SKIP(peer) @jini-ai/admin/security/react Cannot find package 'react' imported from /tmp/claude-0/pack/consumer/node_modules/@jini-a
+SKIP(peer) @jini-ai/admin/playground/react Cannot find package 'react' imported from /tmp/claude-0/pack/consumer/node_modules/@jini-a
+SKIP(peer) @jini-ai/admin/source-control/react Cannot find package 'react' imported from /tmp/claude-0/pack/consumer/node_modules/@jini-a
+SKIP(peer) @jini-ai/admin/agent-plugins/react Cannot find package 'react' imported from /tmp/claude-0/pack/consumer/node_modules/@jini-a
+SKIP(peer) @jini-ai/admin/core/react Cannot find package 'react' imported from /tmp/claude-0/pack/consumer/node_modules/@jini-a
+SKIP(peer) @jini-ai/admin/forms/react Cannot find package 'react' imported from /tmp/claude-0/pack/consumer/node_modules/@jini-a
+SKIP(peer) @jini-ai/admin/comments/react Cannot find package 'react' imported from /tmp/claude-0/pack/consumer/node_modules/@jini-a
+SKIP(peer) @jini-ai/admin/redirects/react Cannot find package 'react' imported from /tmp/claude-0/pack/consumer/node_modules/@jini-a
+SKIP(peer) @jini-ai/admin/seo/react Cannot find package 'react' imported from /tmp/claude-0/pack/consumer/node_modules/@jini-a
+SKIP(peer) @jini-ai/admin/widgets/react Cannot find package 'react' imported from /tmp/claude-0/pack/consumer/node_modules/@jini-a
+file:///tmp/claude-0/pack/consumer/probe.mjs:12
+console.log('admin deps core range:', admin.dependencies['@jini-ai/core']);
+                                                        ^
+
+TypeError: Cannot read properties of undefined (reading '@jini-ai/core')
+    at file:///tmp/claude-0/pack/consumer/probe.mjs:12:57
+
+Node.js v24.22.3

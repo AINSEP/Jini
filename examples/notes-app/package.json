@@ -7,6 +7,7 @@
   "scripts": {
     "start": "node src/main.ts",
     "smoke": "node scripts/smoke.ts",
+    "gaps": "node scripts/check-gaps.ts",
     "test": "node --test 'src/**/*.test.ts'",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
@@ -15,6 +16,7 @@
     "@jini-ai/core": "workspace:*",
     "@jini-ai/db": "workspace:*",
     "@jini-ai/http-kit": "workspace:*",
+    "@jini-ai/platform": "workspace:*",
     "better-sqlite3": "^13.0.0"
   },
   "devDependencies": {

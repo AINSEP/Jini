@@ -1,4 +1,4 @@
-/** Copied from @jini-ai/agent-runtime src/ai-trace/__tests__/scenario.ts for the Langfuse plugin mapping test. */
+/** Copied from @jini-ai/core src/contracts/ai-trace/__tests__/scenario.ts for the Langfuse plugin mapping test. */
 /**
  * Shared swap-proof scenario: one run, two tool calls, the first rejected exactly like the real
  * `content_post_create` "Unknown input 'body'" failure, the retry succeeding. Expressed in the

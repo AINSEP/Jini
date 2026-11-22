@@ -37,13 +37,13 @@ function asset(id: string, kind = 'image', capturedAt = 0): TestAsset {
 
 describe('localDayKey / dayKeyFromTimestamp', () => {
   it('formats a local YYYY-MM-DD', () => {
-    expect(localDayKey(new Date(2026, 0, 5))).toBe('2026-01-05');
-    expect(localDayKey(new Date(2026, 10, 21))).toBe('2026-11-21');
+    expect(localDayKey({ date: new Date(2026, 0, 5) })).toBe('2026-01-05');
+    expect(localDayKey({ date: new Date(2026, 10, 21) })).toBe('2026-11-21');
   });
 
   it('derives the same key from an epoch timestamp', () => {
     const d = new Date(2026, 6, 4, 12, 30);
-    expect(dayKeyFromTimestamp(d.getTime())).toBe(localDayKey(d));
+    expect(dayKeyFromTimestamp({ timestampMs: d.getTime() })).toBe(localDayKey({ date: d }));
   });
 });
 
@@ -51,18 +51,18 @@ describe('dayHeading', () => {
   const reference = new Date(2026, 6, 17); // 2026-07-17
 
   it('labels today and yesterday', () => {
-    expect(dayHeading('2026-07-17', reference)).toBe('Today');
-    expect(dayHeading('2026-07-16', reference)).toBe('Yesterday');
+    expect(dayHeading({ key: '2026-07-17' }, { referenceDate: reference })).toBe('Today');
+    expect(dayHeading({ key: '2026-07-16' }, { referenceDate: reference })).toBe('Yesterday');
   });
 
   it('formats an older date', () => {
-    expect(dayHeading('2026-07-01', reference)).toBe(
+    expect(dayHeading({ key: '2026-07-01' }, { referenceDate: reference })).toBe(
       new Date(2026, 6, 1).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }),
     );
   });
 
   it('falls back to the raw key for a malformed bucket', () => {
-    expect(dayHeading('not-a-date', reference)).toBe('not-a-date');
+    expect(dayHeading({ key: 'not-a-date' }, { referenceDate: reference })).toBe('not-a-date');
   });
 });
 
@@ -70,16 +70,16 @@ describe('dayHeadingResult', () => {
   const reference = new Date(2026, 6, 17);
 
   it('marks Today/Yesterday as translatable', () => {
-    expect(dayHeadingResult('2026-07-17', reference)).toEqual({ label: 'Today', translatable: true });
-    expect(dayHeadingResult('2026-07-16', reference)).toEqual({ label: 'Yesterday', translatable: true });
+    expect(dayHeadingResult({ key: '2026-07-17' }, { referenceDate: reference })).toEqual({ label: 'Today', translatable: true });
+    expect(dayHeadingResult({ key: '2026-07-16' }, { referenceDate: reference })).toEqual({ label: 'Yesterday', translatable: true });
   });
 
   it('marks a formatted date as not translatable', () => {
-    expect(dayHeadingResult('2026-07-01', reference).translatable).toBe(false);
+    expect(dayHeadingResult({ key: '2026-07-01' }, { referenceDate: reference }).translatable).toBe(false);
   });
 
   it('marks a malformed key as not translatable', () => {
-    expect(dayHeadingResult('nope', reference)).toEqual({ label: 'nope', translatable: false });
+    expect(dayHeadingResult({ key: 'nope' }, { referenceDate: reference })).toEqual({ label: 'nope', translatable: false });
   });
 });
 
@@ -87,7 +87,7 @@ describe('groupByDay', () => {
   it('buckets by day, newest day first, preserving flat index', () => {
     const items = [asset('a', 'image', 3), asset('b', 'image', 1), asset('c', 'image', 2)];
     const getDayKey = (a: TestAsset) => String(a.capturedAt);
-    const groups = groupByDay(items, getDayKey);
+    const groups = groupByDay({ items, getDayKey });
     expect(groups.map((g) => g.key)).toEqual(['3', '2', '1']);
     expect(groups[0]!.items).toEqual([{ asset: items[0], index: 0 }]);
     expect(groups[2]!.items).toEqual([{ asset: items[1], index: 1 }]);
@@ -95,14 +95,14 @@ describe('groupByDay', () => {
 
   it('collapses non-contiguous same-day items into one bucket', () => {
     const items = [asset('a', 'image', 1), asset('b', 'image', 2), asset('c', 'image', 1)];
-    const groups = groupByDay(items, (a) => String(a.capturedAt));
+    const groups = groupByDay({ items, getDayKey: (a) => String(a.capturedAt) });
     expect(groups.find((g) => g.key === '1')?.items.map((i) => i.asset.id)).toEqual(['a', 'c']);
   });
 });
 
 describe('snapshotCardRects', () => {
   it('returns an empty array for a null container', () => {
-    expect(snapshotCardRects(null)).toEqual([]);
+    expect(snapshotCardRects({ container: null })).toEqual([]);
   });
 
   it('reads id + bounds off every tagged descendant', () => {
@@ -114,7 +114,7 @@ describe('snapshotCardRects', () => {
     const untagged = document.createElement('div');
     container.appendChild(untagged);
 
-    expect(snapshotCardRects(container)).toEqual([{ id: 'card-1', left: 10, top: 20, right: 110, bottom: 120 }]);
+    expect(snapshotCardRects({ container })).toEqual([{ id: 'card-1', left: 10, top: 20, right: 110, bottom: 120 }]);
   });
 
   it('skips a tagged element whose id attribute is present but empty', () => {
@@ -126,7 +126,7 @@ describe('snapshotCardRects', () => {
     blank.getBoundingClientRect = () => ({ left: 0, top: 0, right: 5, bottom: 5 }) as DOMRect;
     container.appendChild(blank);
 
-    expect(snapshotCardRects(container)).toEqual([]);
+    expect(snapshotCardRects({ container })).toEqual([]);
   });
 });
 
@@ -138,53 +138,53 @@ describe('cardIdsInBand', () => {
   ];
 
   it('returns ids whose rect intersects the band', () => {
-    expect(cardIdsInBand(rects, { x: 0, y: 0, w: 25, h: 25 }).sort()).toEqual(['a', 'b']);
+    expect(cardIdsInBand({ rects, band: { x: 0, y: 0, w: 25, h: 25 } }).sort()).toEqual(['a', 'b']);
   });
 
   it('excludes ids outside the band', () => {
-    expect(cardIdsInBand(rects, { x: 0, y: 0, w: 5, h: 5 })).toEqual(['a']);
+    expect(cardIdsInBand({ rects, band: { x: 0, y: 0, w: 5, h: 5 } })).toEqual(['a']);
   });
 
   it('returns nothing for an empty band far from every rect', () => {
-    expect(cardIdsInBand(rects, { x: 500, y: 500, w: 10, h: 10 })).toEqual([]);
+    expect(cardIdsInBand({ rects, band: { x: 500, y: 500, w: 10, h: 10 } })).toEqual([]);
   });
 });
 
 describe('selection helpers', () => {
   it('toggleSelection adds and removes', () => {
-    let s = toggleSelection(new Set(), 'a');
+    let s = toggleSelection({ prev: new Set(), id: 'a' });
     expect([...s]).toEqual(['a']);
-    s = toggleSelection(s, 'a');
+    s = toggleSelection({ prev: s, id: 'a' });
     expect([...s]).toEqual([]);
   });
 
   it('rangeSelection selects an inclusive range regardless of direction', () => {
     const items = [asset('a'), asset('b'), asset('c'), asset('d')];
-    expect([...rangeSelection(new Set(), items, 1, 3)].sort()).toEqual(['b', 'c', 'd']);
-    expect([...rangeSelection(new Set(), items, 3, 1)].sort()).toEqual(['b', 'c', 'd']);
+    expect([...rangeSelection({ prev: new Set(), items, anchorIndex: 1, targetIndex: 3 })].sort()).toEqual(['b', 'c', 'd']);
+    expect([...rangeSelection({ prev: new Set(), items, anchorIndex: 3, targetIndex: 1 })].sort()).toEqual(['b', 'c', 'd']);
   });
 
   it('rangeSelection preserves prior selections outside the range', () => {
     const items = [asset('a'), asset('b'), asset('c')];
     const prev = new Set(['a']);
-    expect([...rangeSelection(prev, items, 1, 2)].sort()).toEqual(['a', 'b', 'c']);
+    expect([...rangeSelection({ prev, items, anchorIndex: 1, targetIndex: 2 })].sort()).toEqual(['a', 'b', 'c']);
   });
 
   it('selectAllIds selects every item', () => {
     const items = [asset('a'), asset('b')];
-    expect([...selectAllIds(items)].sort()).toEqual(['a', 'b']);
+    expect([...selectAllIds({ items })].sort()).toEqual(['a', 'b']);
   });
 
   it('pruneMissingSelection drops ids no longer present', () => {
     const items = [asset('a'), asset('c')];
-    const next = pruneMissingSelection(new Set(['a', 'b', 'c']), items);
+    const next = pruneMissingSelection({ prev: new Set(['a', 'b', 'c']), items });
     expect([...next].sort()).toEqual(['a', 'c']);
   });
 
   it('pruneMissingSelection returns the exact same Set reference when nothing changes (setState bail-out)', () => {
     const items = [asset('a')];
     const prev = new Set(['a']);
-    const next = pruneMissingSelection(prev, items);
+    const next = pruneMissingSelection({ prev, items });
     expect(next).toBe(prev);
     expect([...next]).toEqual(['a']);
   });
@@ -192,7 +192,7 @@ describe('selection helpers', () => {
   it('pruneMissingSelection returns the exact same Set reference when prev is already empty', () => {
     const items = [asset('a')];
     const prev = new Set<string>();
-    const next = pruneMissingSelection(prev, items);
+    const next = pruneMissingSelection({ prev, items });
     expect(next).toBe(prev);
   });
 });
@@ -200,20 +200,20 @@ describe('selection helpers', () => {
 describe('mergeIngestedAssets', () => {
   it('returns the previous list unchanged (same array reference) when nothing was fetched', () => {
     const prev = [asset('a')];
-    const merged = mergeIngestedAssets(prev, []);
+    const merged = mergeIngestedAssets({ prev, fetched: [] });
     expect(merged).toBe(prev);
   });
 
   it('prepends new assets latest-first without reordering existing ones', () => {
     const prev = [asset('a'), asset('b')];
     const fetched = [asset('c'), asset('d')];
-    expect(mergeIngestedAssets(prev, fetched).map((a) => a.id)).toEqual(['d', 'c', 'a', 'b']);
+    expect(mergeIngestedAssets({ prev, fetched }).map((a) => a.id)).toEqual(['d', 'c', 'a', 'b']);
   });
 
   it('refreshes an already-present asset in place without reordering', () => {
     const prev = [asset('a', 'image'), asset('b', 'image')];
     const fetched = [asset('a', 'video')];
-    const merged = mergeIngestedAssets(prev, fetched);
+    const merged = mergeIngestedAssets({ prev, fetched });
     expect(merged.map((a) => a.id)).toEqual(['a', 'b']);
     expect(merged[0]!.kind).toBe('video');
   });
@@ -221,21 +221,21 @@ describe('mergeIngestedAssets', () => {
 
 describe('parseLiveUpdateAssetId', () => {
   it('parses the configured id field', () => {
-    expect(parseLiveUpdateAssetId('{"id":"x1"}')).toBe('x1');
-    expect(parseLiveUpdateAssetId('{"assetId":"x2"}', 'assetId')).toBe('x2');
+    expect(parseLiveUpdateAssetId({ data: '{"id":"x1"}' })).toBe('x1');
+    expect(parseLiveUpdateAssetId({ data: '{"assetId":"x2"}' }, { idField: 'assetId' })).toBe('x2');
   });
 
   it('returns null for non-string data, malformed JSON, or a missing field', () => {
-    expect(parseLiveUpdateAssetId(42)).toBeNull();
-    expect(parseLiveUpdateAssetId('not json')).toBeNull();
-    expect(parseLiveUpdateAssetId('{}')).toBeNull();
+    expect(parseLiveUpdateAssetId({ data: 42 })).toBeNull();
+    expect(parseLiveUpdateAssetId({ data: 'not json' })).toBeNull();
+    expect(parseLiveUpdateAssetId({ data: '{}' })).toBeNull();
   });
 });
 
 describe('buildAssetGridQuery', () => {
   it('omits empty facets and trims search', () => {
-    expect(buildAssetGridQuery('', '', '  ')).toEqual({});
-    expect(buildAssetGridQuery('image', 'clipper', '  cat  ')).toEqual({
+    expect(buildAssetGridQuery({ kind: '', source: '', search: '  ' })).toEqual({});
+    expect(buildAssetGridQuery({ kind: 'image', source: 'clipper', search: '  cat  ' })).toEqual({
       kind: 'image',
       source: 'clipper',
       search: 'cat',
@@ -244,11 +244,11 @@ describe('buildAssetGridQuery', () => {
 
   it('applies a kind-to-query mapping when supplied', () => {
     const mapKindToQuery = (kind: string) => (kind === 'element' ? 'image' : kind);
-    expect(buildAssetGridQuery('element', '', '', mapKindToQuery)).toEqual({ kind: 'image' });
+    expect(buildAssetGridQuery({ kind: 'element', source: '', search: '' }, { mapKindToQuery })).toEqual({ kind: 'image' });
   });
 
   it('omits kind entirely when the mapping returns nothing', () => {
-    expect(buildAssetGridQuery('element', '', '', () => undefined)).toEqual({});
+    expect(buildAssetGridQuery({ kind: 'element', source: '', search: '' }, { mapKindToQuery: () => undefined })).toEqual({});
   });
 });
 
@@ -256,18 +256,18 @@ describe('defaultMatchesKindFilter / filterByKind', () => {
   const getKind = (a: TestAsset) => a.kind;
 
   it('matches every asset for an empty filter', () => {
-    expect(defaultMatchesKindFilter(asset('a', 'video'), '', getKind)).toBe(true);
+    expect(defaultMatchesKindFilter({ asset: asset('a', 'video'), filterValue: '', getKind })).toBe(true);
   });
 
   it('matches by exact kind equality', () => {
-    expect(defaultMatchesKindFilter(asset('a', 'video'), 'video', getKind)).toBe(true);
-    expect(defaultMatchesKindFilter(asset('a', 'video'), 'image', getKind)).toBe(false);
+    expect(defaultMatchesKindFilter({ asset: asset('a', 'video'), filterValue: 'video', getKind })).toBe(true);
+    expect(defaultMatchesKindFilter({ asset: asset('a', 'video'), filterValue: 'image', getKind })).toBe(false);
   });
 
   it('filterByKind narrows using the supplied matcher', () => {
     const items = [asset('a', 'image'), asset('b', 'video')];
-    expect(filterByKind(items, 'video', (a, v) => a.kind === v).map((a) => a.id)).toEqual(['b']);
-    expect(filterByKind(items, '', (a, v) => a.kind === v)).toEqual(items);
+    expect(filterByKind({ items, filterValue: 'video', matches: (a, v) => a.kind === v }).map((a) => a.id)).toEqual(['b']);
+    expect(filterByKind({ items, filterValue: '', matches: (a, v) => a.kind === v })).toEqual(items);
   });
 });
 
@@ -299,33 +299,33 @@ describe('resolveCheckboxClickAction', () => {
 
 describe('buildFacetLabelMap / resolveFacetLabel', () => {
   it('builds a value -> label map from facet options', () => {
-    const map = buildFacetLabelMap([
+    const map = buildFacetLabelMap({ facets: [
       { value: 'image', label: 'Images' },
       { value: 'video', label: 'Video' },
-    ]);
+    ] });
     expect(map.get('image')).toBe('Images');
     expect(map.get('video')).toBe('Video');
   });
 
   it('resolveFacetLabel falls back to the raw value when no facet matches', () => {
-    const map = buildFacetLabelMap([{ value: 'image', label: 'Images' }]);
-    expect(resolveFacetLabel('image', map)).toBe('Images');
-    expect(resolveFacetLabel('unknown-kind', map)).toBe('unknown-kind');
+    const map = buildFacetLabelMap({ facets: [{ value: 'image', label: 'Images' }] });
+    expect(resolveFacetLabel({ value: 'image', labelsByValue: map })).toBe('Images');
+    expect(resolveFacetLabel({ value: 'unknown-kind', labelsByValue: map })).toBe('unknown-kind');
   });
 });
 
 describe('isTypingTarget', () => {
   it('flags input/textarea/select and contenteditable elements', () => {
-    expect(isTypingTarget(document.createElement('input'))).toBe(true);
-    expect(isTypingTarget(document.createElement('textarea'))).toBe(true);
-    expect(isTypingTarget(document.createElement('select'))).toBe(true);
+    expect(isTypingTarget({ el: document.createElement('input') })).toBe(true);
+    expect(isTypingTarget({ el: document.createElement('textarea') })).toBe(true);
+    expect(isTypingTarget({ el: document.createElement('select') })).toBe(true);
     const editable = document.createElement('div');
     editable.setAttribute('contenteditable', 'true');
-    expect(isTypingTarget(editable)).toBe(true);
+    expect(isTypingTarget({ el: editable })).toBe(true);
   });
 
   it('does not flag a plain element or null', () => {
-    expect(isTypingTarget(document.createElement('button'))).toBe(false);
-    expect(isTypingTarget(null)).toBe(false);
+    expect(isTypingTarget({ el: document.createElement('button') })).toBe(false);
+    expect(isTypingTarget({ el: null })).toBe(false);
   });
 });

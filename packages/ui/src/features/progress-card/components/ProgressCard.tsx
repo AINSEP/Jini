@@ -24,12 +24,12 @@ export interface ProgressCardProps {
  * Generic "run/job in progress" card — a status icon + headline, a progress
  * bar (determinate or indeterminate), a primary step list, and an optional
  * secondary item list. Unifies the source `WorkspaceActivityCard` and
- * `GenerationStatusCard` occurrences; see `packages/ui/source-map.md` for
+ * `GenerationStatusCard` occurrences; see `archived UI source map` for
  * provenance and what was dropped.
  */
-export function ProgressCard({ data, maxSteps = 6, maxSecondaryItems = 5 }: ProgressCardProps) {
-  const t = useT();
-  const title = data.title ?? t(defaultProgressCardTitle(data.status));
+export function ProgressCard({ data, maxSteps = 6, maxSecondaryItems = 5, useTHook = useT }: ProgressCardProps & { useTHook?: typeof useT }) {
+  const t = useTHook();
+  const title = data.title ?? t(defaultProgressCardTitle({ status: data.status }));
   const detail = data.detail ?? t(defaultProgressCardDetail(data.status));
   const secondaryHeading = t(data.secondaryItemsLabel ?? 'Files touched');
   const visibleSteps = data.steps.slice(0, maxSteps);
@@ -37,19 +37,19 @@ export function ProgressCard({ data, maxSteps = 6, maxSecondaryItems = 5 }: Prog
 
   return (
     <section className={`progress-card is-${data.status}`} data-progress-card-id={data.id}>
-      <div className="progress-card-head">
-        <Icon name={progressCardStatusIcon(data.status)} />
+      <div className="jini-progress-card-head">
+        <Icon name={progressCardStatusIcon({ status: data.status })} />
         <span>
           <strong>{title}</strong>
           <small>{detail}</small>
         </span>
       </div>
       <ProgressCardBar progress={data.progress} label={t('{title} progress', { title })} />
-      {visibleSteps.length > 0 ? <ProgressCardItemList items={visibleSteps} className="progress-card-steps" /> : null}
+      {visibleSteps.length > 0 ? <ProgressCardItemList items={visibleSteps} className="jini-progress-card-steps" /> : null}
       {visibleSecondaryItems.length > 0 ? (
-        <div className="progress-card-secondary-items">
+        <div className="jini-progress-card-secondary-items">
           <span>{secondaryHeading}</span>
-          <ProgressCardItemList items={visibleSecondaryItems} className="progress-card-secondary-item-list" asCode />
+          <ProgressCardItemList items={visibleSecondaryItems} className="jini-progress-card-secondary-item-list" asCode />
         </div>
       ) : null}
     </section>
@@ -58,8 +58,8 @@ export function ProgressCard({ data, maxSteps = 6, maxSecondaryItems = 5 }: Prog
 
 /** Presents the existing progress rules as a determinate or indeterminate accessible bar. */
 function ProgressCardBar({ progress, label }: { progress: ProgressCardData['progress']; label: string }) {
-  const widthPercent = progressBarWidthPercent(progress);
-  const ariaValueNow = progressBarAriaValueNow(progress);
+  const widthPercent = progressBarWidthPercent({ progress });
+  const ariaValueNow = progressBarAriaValueNow({ progress });
   return (
     <div
       className={`progress-card-bar${widthPercent === null ? ' is-indeterminate' : ''}`}
@@ -87,7 +87,7 @@ function ProgressCardItemList({
   return (
     <div className={className}>
       {items.map((item) => {
-        const icon = progressCardItemIcon(item.status);
+        const icon = progressCardItemIcon({ status: item.status });
         return (
           <Tag key={item.id} className={`is-${item.status}`}>
             {icon ? <Icon name={icon} /> : null}

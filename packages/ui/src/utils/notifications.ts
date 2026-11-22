@@ -3,7 +3,7 @@
  * "long-running task finished" style completion signals.
  *
  * Origin: `utils/notifications.ts`. Genericized in two places (see
- * `packages/ui/archived provenance ledger`):
+ * `archived UI provenance ledger`):
  *   - `labelKey: keyof Dict` (OD's fixed translation dictionary type)
  *     widened to a plain `string` — this package's i18n feature has no
  *     fixed `Dict` shape for a sound catalog to key into.
@@ -65,7 +65,7 @@ interface ToneSpec {
   // Every real SOUND_PLAYERS entry (this type's only caller) always
   // supplies an explicit gain, so this is required rather than optional
   // with a fallback — an unreachable-by-any-real-caller default is dead
-  // code, not real API surface (see packages/ui/archived provenance ledger).
+  // code, not real API surface (see archived UI provenance ledger).
   gain: number;
   /** Optional lowpass cutoff applied via a BiquadFilter for plucky textures. */
   lowpass?: number;
@@ -140,7 +140,7 @@ const SOUND_PLAYERS: Record<SoundId, (c: AudioContext) => void> = {
 };
 
 /** Plays a registered sound id. No-ops silently on any failure (never throws into UI code). */
-export function playSound(id: SoundId): void {
+export function playSound({ id }: { id: SoundId }, _optional: Record<string, never> = {}): void {
   const c = getCtx();
   if (!c) return;
   const player = SOUND_PLAYERS[id];
@@ -152,12 +152,12 @@ export function playSound(id: SoundId): void {
   }
 }
 
-export function previewSuccess(id: SoundId): void {
-  playSound(id);
+export function previewSuccess({ id }: { id: SoundId }, _optional: Record<string, never> = {}): void {
+  playSound({ id });
 }
 
-export function previewFailure(id: SoundId): void {
-  playSound(id);
+export function previewFailure({ id }: { id: SoundId }, _optional: Record<string, never> = {}): void {
+  playSound({ id });
 }
 
 export function notificationPermission(): NotificationPermission | 'unsupported' {

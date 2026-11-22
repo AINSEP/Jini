@@ -1,10 +1,9 @@
 import { forwardRef } from 'react';
-import { SecretInput as KitSecretInput } from '@jini-ai/ui-kit/react';
-import { secretControlAttrs } from '@jini-ai/ui-kit';
+import { SecretInput as KitSecretInput, useSecretReveal } from '../kit.js';
+import { secretControlAttrs } from '@jini-ai/core/agent-handles';
 import type { CSSProperties, InputHTMLAttributes, TextareaHTMLAttributes } from 'react';
 import { useT } from '../../features/i18n/index.js';
 import { Icon } from './Icon.js';
-import { useSecretReveal } from './SecretInput.hooks.js';
 
 /**
  * @file The shared masked input: a password/token/key `<input>` with an eye toggle inside its right
@@ -75,16 +74,16 @@ function useSecretToggle(
   return { reveal, button } as const;
 }
 
-export const SecretInput = forwardRef<HTMLInputElement, SecretInputProps>(function SecretInput(props, ref) {
-  const t = useT();
+export const SecretInput = forwardRef<HTMLInputElement, SecretInputProps & { useTHook?: typeof useT }>(function SecretInput({ useTHook = useT, ...props }, ref) {
+  const t = useTHook();
   return <KitSecretInput {...props} ref={ref} toggleLabels={props.toggleLabels ?? {
     show: `${t('Show')} ${props.label}`, hide: `${t('Hide')} ${props.label}`,
   }} />;
 });
 
-export const SecretTextarea = forwardRef<HTMLTextAreaElement, SecretTextareaProps>(function SecretTextarea(props, ref) {
+export const SecretTextarea = forwardRef<HTMLTextAreaElement, SecretTextareaProps & { useSecretToggleHook?: typeof useSecretToggle }>(function SecretTextarea({ useSecretToggleHook = useSecretToggle, ...props }, ref) {
   const { label, toggleLabels, toggleAttrs, revealed, onRevealedChange, style, maskedValue, ...textareaProps } = props;
-  const { reveal, button } = useSecretToggle(props, { value: textareaProps.value, disabled: textareaProps.disabled });
+  const { reveal, button } = useSecretToggleHook(props, { value: textareaProps.value, disabled: textareaProps.disabled });
   const replacementShown = !reveal.revealed && maskedValue !== undefined;
   /* Not a standard CSS property, so it is set here rather than left to a host stylesheet: a host
      that forgot it would show the secret in clear text. pre-wrap keeps line breaks while masked. */

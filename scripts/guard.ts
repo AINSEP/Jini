@@ -47,6 +47,13 @@
  * deliberately does NOT flag (import-shaped text inside a string literal; a package's own
  * tsconfig-excluded, separately-built vendored subtree) and why both are correct to exclude.
  *
+ * `checkRuntimeCycles` (R14, added 2026-11-16) fails on a runtime module cycle in any package's
+ * `src`: modules that load each other in the emitted JavaScript. It runs dependency-cruiser with
+ * `scripts/runtime-cycles.depcruise.mjs`, which reads imports after compilation with the base
+ * tsconfig, because under `verbatimModuleSyntax` an inline `import { type X }` still loads the
+ * module. One known cycle is recorded in `scripts/runtime-cycle-debt.json` (shrink-only). Its
+ * fixtures live in `scripts/lib/runtime-cycles-self-test.ts` and run with the other self-tests.
+ *
  * Fail-closed guarantee: before trusting any check against the real repo, `runGuardSelfTest`
  * runs all five against known-bad fixtures and refuses to report "ok" on the real repo unless the
  * checks demonstrably still catch what they're supposed to. This is what makes "silently
@@ -56,21 +63,26 @@ import { checkAgenticDomPurity } from './check-agentic-dom-purity.js';
 import { checkChatPanePublicSurface } from './check-chatpane-public-surface.js';
 import { checkDriverIsolation } from './check-driver-isolation.js';
 import { checkHardwiring } from './check-hardwiring.js';
+import { checkEnvAccess } from './check-env-access.js';
 import { checkEngineBoundaries } from './check-engine-boundaries.js';
+import { checkErrorDisclosureCallers } from './check-error-disclosure-callers.js';
 import { checkExtensionlessImports } from './check-extensionless-imports.js';
 import { checkModelFallbackFreshness } from './check-model-fallback-freshness.js';
 import { checkProtocolPurity } from './check-protocol-purity.js';
+import { checkRuntimeCycles } from './check-runtime-cycles.js';
 import { checkSourceNeutrality } from './lib/source-neutrality.js';
 import { checkPackageLayers } from './check-package-layers.js';
 import { checkPluginPackages } from './check-plugin-packages.js';
 import { REPO_ROOT } from './lib/walk-imports.js';
 import { checkSubpathIsolation } from './check-subpath-isolation.js';
 import { runPublishHygieneSelfTest } from './lib/publish-hygiene-self-test.js';
+import { runRuntimeCycleSelfTest } from './lib/runtime-cycles-self-test.js';
 import { runGuardSelfTest } from './lib/self-test.js';
 
 async function main() {
   const selfTestFailures = await runGuardSelfTest();
   for (const expectation of runPublishHygieneSelfTest()) selfTestFailures.push({ expectation, detail: 'publish hygiene fixture' });
+  for (const expectation of runRuntimeCycleSelfTest()) selfTestFailures.push({ expectation, detail: 'runtime cycle fixture' });
   if (selfTestFailures.length) {
     console.error('[guard] SELF-TEST FAILED — refusing to trust the checks against the real repo.');
     for (const f of selfTestFailures) {
@@ -93,7 +105,7 @@ async function main() {
     checkSubpathIsolation(),
     await checkProtocolPurity(),
     // domSubdir override: the DOM-bearing tree moved from src/dom to src/core/dom (see
-    // packages/agentic/source-map.md's "The DOM split") when the ./core export subpath was added;
+    // 070311a07^:packages/agentic/source-map.md's "The DOM split") when the ./core export subpath was added;
     // the check's own default stays src/dom for scripts/lib/self-test.ts's fixtures — see
     // CheckAgenticDomPurityOptions.domSubdir's doc in check-agentic-dom-purity.ts.
     await checkAgenticDomPurity({ domSubdir: 'src/core/dom' }),
@@ -101,7 +113,12 @@ async function main() {
     await checkExtensionlessImports(),
     await checkDriverIsolation(),
     checkHardwiring(),
+    checkEnvAccess(),
     await checkModelFallbackFreshness(),
+    checkRuntimeCycles({ repoRoot: REPO_ROOT }),
+    // R14: reviewed caller lists for `approveCause` and `tracker: 'skip'` (see the check's module doc).
+    // Proven on known-bad files in scripts/__tests__/check-error-disclosure-callers.test.ts, not in runGuardSelfTest.
+    checkErrorDisclosureCallers(),
     // TODO: vocabulary-firewall check (foundry/automation/** must not import engine domain types) —
     // genuinely unimplemented, not covered by either check above (both are scoped to packages/).
     // TODO: residual-JS allowlist — genuinely unimplemented; scope not yet specified precisely

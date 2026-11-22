@@ -84,7 +84,7 @@ const HOST_THEME_STYLE_ATTRIBUTE = 'data-jini-host-theme';
  * @param tokens - From {@link readHostSurfaceTokens}.
  * @returns The document with the host rule inserted, or `html` itself when there is nothing to do.
  */
-export function applyHostSurfaceTokens(html: string, tokens: HostSurfaceTokens): string {
+export function applyHostSurfaceTokens({ html, tokens }: { html: string; tokens: HostSurfaceTokens }, _optional: Record<string, never> = {}): string {
   const entries = Object.entries(tokens);
   if (entries.length === 0 || !html.includes('--jini-mcpui-')) return html;
   const close = html.indexOf('</style>');

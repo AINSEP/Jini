@@ -1,9 +1,9 @@
-import { agentHandleProps } from '@jini-ai/agentic';
+import { agentHandleProps } from '@jini-ai/core/agent-handles';
 import { useAgentHandle, type AgentControlProps } from '../../../../react/hooks/useAgentHandle.js';
-import type { KeyboardEvent, MouseEvent, ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { useT } from '../../../i18n/index.js';
 import { TAB_STRIP_ITEM_ID_ATTRIBUTE } from '../../constants.js';
-import { isTabClosable } from '../../rules.js';
+import { useTabStripItem } from './TabStripItem.hooks.js';
 import type { TabStripDropEdge, TabStripTab } from '../../types.js';
 import type { TabStripItemDragProps } from '../hooks/useTabStripDragReorder.js';
 
@@ -19,6 +19,9 @@ export interface TabStripItemProps extends AgentControlProps {
   closeLabel?: string | undefined;
   /** Overrides the default `×` close-button glyph. */
   closeIcon?: ReactNode | undefined;
+  useAgentHandleHook?: typeof useAgentHandle;
+  useTHook?: typeof useT;
+  useTabStripItemHook?: typeof useTabStripItem;
 }
 
 /**
@@ -43,40 +46,15 @@ export function TabStripItem({
   onClose,
   closeLabel,
   closeIcon,
+  useAgentHandleHook = useAgentHandle,
+  useTHook = useT,
+  useTabStripItemHook = useTabStripItem,
   ...agentProps
 }: TabStripItemProps) {
-  const base = useAgentHandle(agentProps);
-  const t = useT();
+  const base = useAgentHandleHook(agentProps);
+  const t = useTHook();
   const resolvedCloseLabel = closeLabel ?? t('Close tab');
-  const showClose = isTabClosable(tab, Boolean(onClose));
-
-  const handleClick = (event: MouseEvent<HTMLDivElement>) => {
-    dragProps.onClickCapture(event);
-    if (event.defaultPrevented) return;
-    onActivate(tab.id);
-  };
-
-  const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault();
-      onActivate(tab.id);
-    }
-  };
-
-  const handleClose = (event: MouseEvent<HTMLButtonElement>) => {
-    event.stopPropagation();
-    onClose?.(tab.id);
-  };
-
-  const className = [
-    'jini-tab-strip-item',
-    active ? 'is-active' : '',
-    tab.pinned ? 'is-pinned' : '',
-    dragging ? 'is-dragging' : '',
-    dragOverEdge ? `is-drag-over-${dragOverEdge}` : '',
-  ]
-    .filter(Boolean)
-    .join(' ');
+  const { showClose, handleClick, handleKeyDown, handleClose, className } = useTabStripItemHook({ tab, active, dragging, dragOverEdge, dragProps, onActivate, onClose });
 
   return (
     <div

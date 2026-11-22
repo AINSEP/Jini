@@ -1,0 +1,1472 @@
+
+> jini@ quality:knip /home/user/Jini
+> knip --config knip.json --no-exit-code
+
+Unused files (60)
+examples/cookie-consent-standalone/fake-vendor.js                                                                    
+examples/neutral-host/src/neutral-host/support/self-check.ts                                                         
+examples/reference-web/src/verify-mcpui-swap.tsx                                                                     
+examples/reference-web/vite.mcpui-view.config.ts                                                                     
+packages/admin/src/agent-plugins/__tests__/installed-plugin-fit.typecheck.ts                                         
+packages/admin/src/core/module/__tests__/composition.typecheck.ts                                                    
+packages/agent-plugins/src/lifecycle/__tests__/fixtures/activation-writer-child.ts                                   
+packages/agent-runtime/src/defs/__tests__/claude-filesystem.live.canary.ts                                           
+packages/agent-runtime/src/skills/chat-motion-overlay/assets/remotion-template/remotion.config.ts                    
+packages/agent-runtime/src/skills/chat-motion-overlay/assets/remotion-template/src/chatSpec.ts                       
+packages/agent-runtime/src/skills/chat-motion-overlay/assets/remotion-template/src/components/ChatMotionOverlay.tsx  
+packages/agent-runtime/src/skills/chat-motion-overlay/assets/remotion-template/src/components/DeviceFrame.tsx        
+packages/agent-runtime/src/skills/chat-motion-overlay/assets/remotion-template/src/index.ts                          
+packages/agent-runtime/src/skills/chat-motion-overlay/assets/remotion-template/src/Root.tsx                          
+packages/chat/src/core/__tests__/agents-port.typecheck.ts                                                            
+packages/chat/src/store/__tests__/types.fixture.ts                                                                   
+packages/cms/src/content-types/__tests__/contracts.typecheck.ts                                                      
+packages/cms/src/core/__tests__/execute-command-fn.typecheck.ts                                                      
+packages/commerce/src/payments/ledger/migrations/__tests__/migrations.options.typecheck.ts                           
+packages/cookie-consent/src/client/entry.ts                                                                          
+packages/core/src/__tests__/admin-module-contract.typecheck.ts                                                       
+packages/core/src/args-convention.typecheck.ts                                                                       
+packages/core/src/compose.typecheck.ts                                                                               
+packages/core/src/contracts/agents/__tests__/agents-contract.typecheck.ts                                            
+packages/core/src/settings/__tests__/principal-lookup.typecheck.ts                                                   
+packages/db/src/__tests__/fixtures/owner-lock-race-child.ts                                                          
+packages/db/src/__tests__/fixtures/pglite-owner-child.ts                                                             
+packages/diagnostics/src/web-evidence/__tests__/web-evidence-playwright.port-check.ts                                
+packages/diagnostics/vitest.port.config.ts                                                                           
+packages/http-kit/src/__tests__/core-server-contract.typecheck.ts                                                    
+packages/node-adapters/src/__tests__/runtime-ports.typecheck.ts                                                      
+packages/platform/src/__tests__/core-contracts.typecheck.ts                                                          
+packages/platform/src/secrets/__tests__/vault-contracts.typecheck.ts                                                 
+packages/platform/src/secrets/credential-sets/types.ts                                                               
+packages/platform/src/secrets/ports.ts                                                                               
+packages/provider-plugins/src/__tests__/consent-contract-drift.typecheck.ts                                          
+packages/provider-plugins/src/__tests__/observability-contract-drift.typecheck.ts                                    
+packages/provider-plugins/src/charts-echarts/index.ts                                                                
+packages/provider-plugins/src/charts-recharts/index.ts                                                               
+packages/provider-plugins/src/formspree/index.ts                                                                     
+packages/provider-plugins/src/google-forms/index.ts                                                                  
+packages/provider-plugins/src/payments-stripe/__tests__/contract-drift.typecheck.ts                                  
+packages/sandbox/src/__tests__/fixtures/exit-worker.cjs                                                              
+packages/sandbox/src/__tests__/fixtures/register-worker.cjs                                                          
+packages/sandbox/src/__tests__/fixtures/reply-worker.cjs                                                             
+packages/server/src/__tests__/fixtures/graceful-shutdown-child.ts                                                    
+packages/server/src/__tests__/runtime-port-bindings.typecheck.ts                                                     
+packages/server/src/create-local-node-daemon.typecheck.ts                                                            
+packages/sqlite/src/__tests__/packed-fixture.d.ts                                                                    
+packages/sqlite/src/__tests__/packed-fixture.ts                                                                      
+packages/ui-kit/src/react/__tests__/binding.typecheck.ts                                                             
+packages/ui/src/features/mcp-ui/__tests__/cards-contracts.typecheck.ts                                               
+packages/ui/src/features/mcp-ui/__tests__/pinned-cards.typecheck.ts                                                  
+packages/ui/src/features/panel-kit/hooks/__tests__/focus-trap.test-helpers.ts                                        
+packages/ui/src/react/components/CustomSelectMarkup.tsx                                                              
+packages/user-management/src/admin/__tests__/composition.typecheck.ts                                                
+packages/user-management/src/react/users/UsersDialogs.tsx                                                            
+scripts/lib/npm-pack-json.d.ts                                                                                       
+scripts/testing/packed-fixture.d.ts                                                                                  
+scripts/testing/packed-fixture.ts                                                                                    
+Unused dependencies (10)
+@jini-ai/db        examples/minimal-host/package.json:13:6 
+@jini-ai/http-kit  examples/minimal-host/package.json:14:6 
+@jini-ai/oauth     examples/minimal-host/package.json:15:6 
+@jini-ai/registry  examples/minimal-host/package.json:17:6 
+@jini-ai/sidecar   examples/minimal-host/package.json:19:6 
+@jini-ai/http-kit  examples/reference-web/package.json:20:6
+@jini-ai/mcp       examples/reference-web/package.json:21:6
+zod                packages/agentic/package.json:108:6     
+unpdf              packages/cms/package.json:726:6         
+mammoth            packages/cms/package.json:727:6         
+Unused devDependencies (24)
+@modelcontextprotocol/ext-apps  examples/reference-web/package.json:34:6          
+@modelcontextprotocol/sdk       examples/reference-web/package.json:35:6          
+vite-plugin-singlefile          examples/reference-web/package.json:42:6          
+@jini-ai/provider-plugins       package.json:47:6                                 
+dependency-cruiser              package.json:60:6                                 
+@jini-ai/agent-plugins          packages/admin/package.json:470:6                 
+@jini-ai/cms                    packages/agent-plugins/package.json:376:6         
+jsdom                           packages/agentic/package.json:93:6                
+zod                             packages/agentic/package.json:95:6                
+@vitest/coverage-v8             packages/artifacts/package.json:59:6              
+mammoth                         packages/cms/package.json:717:6                   
+unpdf                           packages/cms/package.json:721:6                   
+express                         packages/core/package.json:468:6                  
+@types/express                  packages/core/package.json:469:6                  
+@jini-ai/cookie-consent         packages/plugin-fixture-provider/package.json:33:6
+@jini-ai/agent-runtime          packages/provider-plugins/package.json:96:6       
+@jini-ai/capability-providers   packages/provider-plugins/package.json:98:6       
+@jini-ai/cms                    packages/provider-plugins/package.json:99:6       
+posthog-js                      packages/provider-plugins/package.json:125:6      
+@jini-ai/db                     packages/registry/package.json:94:6               
+vue                             packages/ui-kit/package.json:87:6                 
+@radix-ui/react-slot            packages/ui/package.json:289:6                    
+tailwindcss                     packages/ui/package.json:309:6                    
+argon2                          packages/user-management/package.json:136:6       
+Referenced optional peerDependencies (74)
+react                        packages/admin/package.json               
+react-dom                    packages/admin/package.json               
+yauzl                        packages/agent-plugins/package.json       
+@jini-ai/platform            packages/agent-plugins/package.json       
+@cfworker/json-schema        packages/agent-plugins/package.json       
+semver                       packages/agent-plugins/package.json       
+@jini-ai/commerce            packages/agent-plugins/package.json       
+@jini-ai/protocol            packages/agentic/package.json             
+better-sqlite3               packages/capability-providers/package.json
+ws                           packages/capability-providers/package.json
+react                        packages/chat/package.json                
+react-dom                    packages/chat/package.json                
+better-sqlite3               packages/chat/package.json                
+@electric-sql/pglite         packages/chat/package.json                
+pg                           packages/chat/package.json                
+@ag-ui/core                  packages/chat/package.json                
+@jini-ai/agent-runtime       packages/chat/package.json                
+@jini-ai/ui                  packages/chat/package.json                
+dompurify                    packages/cms/package.json                 
+express                      packages/cms/package.json                 
+jsdom                        packages/cms/package.json                 
+kysely                       packages/cms/package.json                 
+sharp                        packages/cms/package.json                 
+kysely                       packages/commerce/package.json            
+express                      packages/commerce/package.json            
+react                        packages/commerce/package.json            
+react                        packages/cookie-consent/package.json      
+better-sqlite3               packages/daemon/package.json              
+@electric-sql/pglite         packages/daemon/package.json              
+pg                           packages/daemon/package.json              
+better-sqlite3               packages/db/package.json                  
+@electric-sql/pglite         packages/db/package.json                  
+pg                           packages/db/package.json                  
+undici                       packages/devops/package.json              
+parse5                       packages/devops/package.json              
+electron                     packages/devops/package.json              
+react                        packages/devops/package.json              
+parse5                       packages/diagnostics/package.json         
+@jini-ai/db                  packages/infra/package.json               
+better-sqlite3               packages/integrations/package.json        
+@jini-ai/platform            packages/integrations/package.json        
+@cfworker/json-schema        packages/integrations/package.json        
+hast-util-from-parse5        packages/platform/package.json            
+hast-util-to-mdast           packages/platform/package.json            
+mdast-util-to-markdown       packages/platform/package.json            
+mdast-util-gfm-table         packages/platform/package.json            
+parse5                       packages/platform/package.json            
+@jini-ai/platform            packages/plugins/package.json             
+semver                       packages/plugins/package.json             
+kysely                       packages/plugins/package.json             
+better-sqlite3               packages/registry/package.json            
+@e2b/code-interpreter        packages/sandbox/package.json             
+node-pty                     packages/server/package.json              
+better-sqlite3               packages/server/package.json              
+@jini-ai/chat                packages/server/package.json              
+@tanstack/react-query        packages/ui/package.json                  
+@excalidraw/excalidraw       packages/ui/package.json                  
+@mcp-ui/client               packages/ui/package.json                  
+@radix-ui/react-checkbox     packages/ui/package.json                  
+@radix-ui/react-label        packages/ui/package.json                  
+@radix-ui/react-radio-group  packages/ui/package.json                  
+@radix-ui/react-select       packages/ui/package.json                  
+grapesjs                     packages/ui/package.json                  
+class-variance-authority     packages/ui/package.json                  
+clsx                         packages/ui/package.json                  
+parse5                       packages/ui/package.json                  
+shiki                        packages/ui/package.json                  
+tailwind-merge               packages/ui/package.json                  
+zod                          packages/ui/package.json                  
+@jini-ai/ui-kit              packages/user-management/package.json     
+react                        packages/user-management/package.json     
+react-dom                    packages/user-management/package.json     
+react                        packages/vibecoding/package.json          
+parse5                       packages/vibecoding/package.json          
+Unlisted dependencies (23)
+@testing-library…  …-evals/benchmark-suite/tdd-eval-2-outcome-matrix/seed-state/tests/components/RiskHoldBanner.test.tsx
+@jini-ai/admin     examples/notes-app/src/gaps/entity-routes.test.ts                                                    
+@jini-ai/admin     examples/notes-app/src/gaps/entity-routes.ts                                                         
+@jini-ai/admin     examples/notes-app/src/note-descriptor.ts                                                            
+@jini-ai/admin     examples/notes-app/src/notes-entity.test.ts                                                          
+@jini-ai/admin     examples/notes-app/src/notes-entity.ts                                                               
+react              packages/agent-plugins/shadcn-ui/skills/shadcn-ui/examples/auth-layout.tsx                           
+react              packages/agent-plugins/shadcn-ui/skills/shadcn-ui/examples/data-table.tsx                            
+@tanstack/react-…  packages/agent-plugins/shadcn-ui/skills/shadcn-ui/examples/data-table.tsx                            
+lucide-react       packages/agent-plugins/shadcn-ui/skills/shadcn-ui/examples/data-table.tsx                            
+zod                packages/agent-plugins/shadcn-ui/skills/shadcn-ui/examples/form-pattern.tsx                          
+@hookform/resolv…  packages/agent-plugins/shadcn-ui/skills/shadcn-ui/examples/form-pattern.tsx                          
+react-hook-form    packages/agent-plugins/shadcn-ui/skills/shadcn-ui/examples/form-pattern.tsx                          
+react              …/skills/chat-motion-overlay/assets/remotion-template/src/components/__tests__/avatarLibrary.test.tsx
+react              …rc/skills/chat-motion-overlay/assets/remotion-template/src/components/__tests__/BubbleScene.test.tsx
+react-dom/server   …rc/skills/chat-motion-overlay/assets/remotion-template/src/components/__tests__/BubbleScene.test.tsx
+remotion           …rc/skills/chat-motion-overlay/assets/remotion-template/src/components/__tests__/BubbleScene.test.tsx
+react              …ent-runtime/src/skills/chat-motion-overlay/assets/remotion-template/src/components/avatarLibrary.tsx
+remotion           …ent-runtime/src/skills/chat-motion-overlay/assets/remotion-template/src/components/avatarLibrary.tsx
+react              …agent-runtime/src/skills/chat-motion-overlay/assets/remotion-template/src/components/BubbleScene.tsx
+remotion           …agent-runtime/src/skills/chat-motion-overlay/assets/remotion-template/src/components/BubbleScene.tsx
+jini-test-absent…  packages/core/src/__tests__/optional-peer.test.ts                                                    
+express/package.…  scripts/__tests__/connection-card.packed.test.ts                                                     
+Unlisted binaries (1)
+python3  package.json
+Unresolved imports (15)
+@/components/ui/button         packages/agent-plugins/shadcn-ui/skills/shadcn-ui/examples/auth-layout.tsx:6:9  
+@/components/ui/card           packages/agent-plugins/shadcn-ui/skills/shadcn-ui/examples/auth-layout.tsx:7:9  
+@/components/ui/input          packages/agent-plugins/shadcn-ui/skills/shadcn-ui/examples/auth-layout.tsx:15:9 
+@/components/ui/label          packages/agent-plugins/shadcn-ui/skills/shadcn-ui/examples/auth-layout.tsx:16:9 
+@/components/ui/tabs           packages/agent-plugins/shadcn-ui/skills/shadcn-ui/examples/auth-layout.tsx:17:9 
+@/components/ui/button         packages/agent-plugins/shadcn-ui/skills/shadcn-ui/examples/data-table.tsx:20:9  
+@/components/ui/dropdown-menu  packages/agent-plugins/shadcn-ui/skills/shadcn-ui/examples/data-table.tsx:21:9  
+@/components/ui/input          packages/agent-plugins/shadcn-ui/skills/shadcn-ui/examples/data-table.tsx:30:9  
+@/components/ui/table          packages/agent-plugins/shadcn-ui/skills/shadcn-ui/examples/data-table.tsx:31:9  
+@/components/ui/button         packages/agent-plugins/shadcn-ui/skills/shadcn-ui/examples/form-pattern.tsx:6:9 
+@/components/ui/form           packages/agent-plugins/shadcn-ui/skills/shadcn-ui/examples/form-pattern.tsx:7:9 
+@/components/ui/input          packages/agent-plugins/shadcn-ui/skills/shadcn-ui/examples/form-pattern.tsx:16:9
+@/components/ui/select         packages/agent-plugins/shadcn-ui/skills/shadcn-ui/examples/form-pattern.tsx:17:9
+@/components/ui/textarea       packages/agent-plugins/shadcn-ui/skills/shadcn-ui/examples/form-pattern.tsx:24:9
+@/components/ui/use-toast      packages/agent-plugins/shadcn-ui/skills/shadcn-ui/examples/form-pattern.tsx:25:9
+Unused exports (221)
+NEUTRAL_EXTENSION_NAMESPACE                           examples/neutral-host/src/neutral-host/support/host.ts:16:14      
+NEUTRAL_WORKSPACE_ID                                  examples/neutral-host/src/neutral-host/support/host.ts:17:14      
+assertObject                                function  examples/notes-app/src/note-input.ts:31:17                        
+discardOutbox                                         examples/notes-app/src/ports.ts:24:14                             
+noopDispatcher                                        examples/notes-app/src/ports.ts:27:14                             
+NOTE_ENTITY_PATH                                      examples/notes-app/src/routes/entities.ts:9:14                    
+isMcpUiLabViewMode                          function  examples/reference-web/src/mcpui-lab-view.ts:31:17                
+MCPUI_LAB_VIEW_ORIGIN                                 examples/reference-web/src/McpUiLabHost.tsx:301:14                
+MCPUI_LAB_VIEW_PATH                                   examples/reference-web/src/McpUiLabHost.tsx:302:14                
+DownloadedTab                               function  packages/admin/src/agent-plugins/react/tabs/DownloadedTab.tsx:3:17
+InstalledTab                                function  packages/admin/src/agent-plugins/react/tabs/InstalledTab.tsx:3:17 
+fakeCommentRepo                                       packages/admin/src/comments/__tests__/fakes/comment-repo.ts:28:14 
+fakeCommentRepoFactory                                packages/admin/src/comments/__tests__/fakes/comment-repo.ts:55:14 
+fixtureTranslator                           function  packages/admin/src/comments/react/__tests__/support.ts:36:17      
+queueColumns                                function  …ckages/admin/src/comments/react/hooks/QueueSection.hooks.ts:31:17
+default                                               packages/admin/src/comments/react/pages/CommentsPage.tsx:42:8     
+t                                                     packages/admin/src/forms/react/__tests__/harness.tsx:98:14        
+FieldAttributeRow                           function  …admin/src/forms/react/components/FieldAttributesStyling.tsx:21:17
+default                                               packages/admin/src/forms/react/pages/FormEditor.tsx:67:8          
+default                                               packages/admin/src/forms/react/pages/FormsList.tsx:81:8           
+default                                               packages/admin/src/media/react/pages/MediaPage.tsx:49:8           
+CanvasTab                                   function  packages/admin/src/playground/react/tabs/CanvasTab.tsx:3:17       
+labels                                                packages/admin/src/react/shell/__tests__/shell-fixture.tsx:13:14  
+REDIRECTS_RESOURCE                                    packages/admin/src/redirects/__tests__/rules-harness.ts:7:14      
+SeoEntryXFields                             function  packages/admin/src/seo/react/components/SeoEntryFields.tsx:129:17 
+SeoDefaultsModuleTab                        function  packages/admin/src/seo/react/hooks/SeoModuleTabs.ts:18:17         
+SeoSitemapModuleTab                         function  packages/admin/src/seo/react/hooks/SeoModuleTabs.ts:19:17         
+SeoEntriesModuleTab                         function  packages/admin/src/seo/react/hooks/SeoModuleTabs.ts:20:17         
+buildSeoSettingsPatch                                 packages/admin/src/seo/react/hooks/SeoPage.hooks.ts:8:9           
+resolveSeoTabId                                       packages/admin/src/seo/react/hooks/SeoPage.hooks.ts:8:32          
+default                                               packages/admin/src/seo/react/pages/SeoPage.tsx:239:8              
+transport                                             packages/admin/src/widgets/react/__tests__/fixtures/api.ts:9:14   
+WIDGETS_DICT                                          …dmin/src/widgets/react/__tests__/fixtures/widgets-i18n.ts:1398:14
+widgetInstanceGuard                  edit…            …kages/admin/src/widgets/react/pages/WidgetInstanceEditor.tsx:19:9
+DELIVERY_BINDING_WITHHELD_MESSAGE                     …kages/agent-plugins/src/admin-surfaces/delivery-bindings.ts:51:14
+ADMIN_SURFACE_CSP_DIRECTIVES                          packages/agent-plugins/src/admin-surfaces/descriptor.ts:19:14     
+isAllowedAdminSurfaceCspSource              function  packages/agent-plugins/src/admin-surfaces/descriptor.ts:83:17     
+isAgentPluginRecordedAsBundled                        …ages/agent-plugins/src/lifecycle/__tests__/test-support.ts:54:129
+enableBundledAgentPluginUnlessOper…                   …ages/agent-plugins/src/lifecycle/__tests__/test-support.ts:54:273
+indexInstalledRoot                                    …kages/agent-plugins/src/lifecycle/__tests__/test-support.ts:58:71
+setAgentPluginEnabled                                 …kages/agent-plugins/src/lifecycle/__tests__/test-support.ts:62:16
+summarizeSkillMarkdown                      function  …ckages/agent-plugins/src/lifecycle/host-tools/skill-tool.ts:72:17
+failWithPayload                             function  …ckages/agent-runtime/src/agent-protocol/acp/session-run.ts:190:17
+writeRpc                                    function  …ckages/agent-runtime/src/agent-protocol/acp/session-run.ts:236:17
+ALLOWED_IMAGE_EXTENSIONS                              packages/agent-runtime/src/agent-protocol/pi-rpc/session.ts:49:14 
+FIRE_AND_FORGET_METHODS                               packages/agent-runtime/src/agent-protocol/pi-rpc/session.ts:51:14 
+SCENARIO_EVENTS                                       packages/agent-runtime/src/ai-trace/__tests__/scenario.ts:6:14    
+normalizeClaudePickerModelId                function  packages/agent-runtime/src/claude-code-models.ts:81:17            
+initMcpServers                              function  packages/agent-runtime/src/claude-stream-frames.ts:326:17         
+MAX_STREAM_LINE_CHARS                                 packages/agent-runtime/src/core/bounded-line-stream.ts:2:14       
+STREAM_LINE_LIMIT_MESSAGE                             packages/agent-runtime/src/core/bounded-line-stream.ts:3:14       
+claudeAuthApiKeyEnv                                   packages/agent-runtime/src/defs/claude/auth.ts:43:14              
+optionalString                              function  packages/agent-runtime/src/json-event-stream-shared.ts:55:17      
+probeAcpMetadata                            function  packages/agent-runtime/src/model-discovery-adapters.ts:50:23      
+computedStyle                               function  …untime/src/skills/web-clone/scripts/__tests__/fakes-wc2.mjs:92:17
+withGlobals                                 function  …ntime/src/skills/web-clone/scripts/__tests__/fakes-wc2.mjs:129:17
+usage                                       function  …gent-runtime/src/skills/web-clone/scripts/asset-harvest.mjs:40:17
+writeFontsCss                               function  …ent-runtime/src/skills/web-clone/scripts/asset-harvest.mjs:283:17
+usage                                       function  …/agent-runtime/src/skills/web-clone/scripts/audit-clone.mjs:11:17
+usage                                       function  …gent-runtime/src/skills/web-clone/scripts/compare-recon.mjs:11:17
+usage                                       function  …agent-runtime/src/skills/web-clone/scripts/dna-scaffold.mjs:36:17
+usage                                       function  …s/agent-runtime/src/skills/web-clone/scripts/init-clone.mjs:12:17
+usage                                       function  …-runtime/src/skills/web-clone/scripts/interaction-probe.mjs:15:17
+usage                                       function  …/agent-runtime/src/skills/web-clone/scripts/mirror-site.mjs:43:17
+usage                                       function  …nt-runtime/src/skills/web-clone/scripts/network-capture.mjs:14:17
+usage                                       function  …runtime/src/skills/web-clone/scripts/od-preview-rewrite.mjs:13:17
+relativeRef                                 function  …untime/src/skills/web-clone/scripts/od-preview-rewrite.mjs:135:17
+rewriteRootRef                              function  …untime/src/skills/web-clone/scripts/od-preview-rewrite.mjs:143:17
+rewriteCssUrls                              function  …untime/src/skills/web-clone/scripts/od-preview-rewrite.mjs:169:17
+rewriteHtmlAttrs                            function  …untime/src/skills/web-clone/scripts/od-preview-rewrite.mjs:182:17
+rewriteFile                                 function  …untime/src/skills/web-clone/scripts/od-preview-rewrite.mjs:202:17
+usage                                       function  …s/agent-runtime/src/skills/web-clone/scripts/recon-site.mjs:13:17
+usage                                       function  …/agent-runtime/src/skills/web-clone/scripts/route-crawl.mjs:15:17
+usage                                       function  …ent-runtime/src/skills/web-clone/scripts/sourcemap-hunt.mjs:12:17
+usage                                       function  …/agent-runtime/src/skills/web-clone/scripts/visual-diff.mjs:11:17
+FENCE_CLOSE_RE                                        packages/chat/src/core/util/markdown-context.ts:23:14             
+INLINE_CODE_RE                                        packages/chat/src/core/util/markdown-context.ts:26:14             
+useEmbedChatSurface                         function  packages/chat/src/embed-widget/react/dialog.hooks.ts:49:17        
+testUiKit                                             packages/chat/src/react/__tests__/ui-kit-render-support.tsx:10:14 
+defaultA2uiSurfaceCardHooks                           packages/chat/src/react/components/A2uiSurfaceCard.tsx:177:14     
+MAX_TEXT_PREVIEW_CHARS                                …s/chat/src/react/components/AttachmentPreviewModal.hooks.ts:54:14
+defaultAttachmentTrayHooks                            packages/chat/src/react/components/AttachmentTray.tsx:37:14       
+defaultFolderChipsHooks                               packages/chat/src/react/components/FolderChips.tsx:31:14          
+defaultMcpUiSurfaceCardHooks                          packages/chat/src/react/components/McpUiSurfaceCard.tsx:215:14    
+AT_BOTTOM_THRESHOLD_PX                                packages/chat/src/react/components/MessageList.rules.ts:9:14      
+isScrolledToBottom                          function  packages/chat/src/react/components/MessageList.rules.ts:11:17     
+defaultMessageListHooks                               packages/chat/src/react/components/MessageList.tsx:82:14          
+defaultUsageSummaryHooks                              packages/chat/src/react/components/MessageRow.tsx:153:14          
+platformObjectUrls                          function  packages/chat/src/react/components/SentAttachment.hooks.ts:23:17  
+defaultSentAttachmentButtonHooks                      packages/chat/src/react/components/SentAttachment.tsx:17:14       
+resolveTabWrapIndex                         function  …ct/features/chat-pane/hooks/useAgentRuntimePicker.hooks.ts:111:17
+runtimeSummaryText                          function  …ct/features/chat-pane/hooks/useAgentRuntimePicker.hooks.ts:143:17
+byokSummaryText                             function  …ct/features/chat-pane/hooks/useAgentRuntimePicker.hooks.ts:161:17
+syntheticId                                 function  packages/cms/src/content-types/sql/repo.rows.ts:57:17             
+heldUntil                                   function  packages/cms/src/core/__tests__/support/dialect-matrix.ts:83:17   
+carryForwardEntryHints                      function  packages/cms/src/navigation/menu-service.ts:466:17                
+mediaPort                                   function  packages/cms/src/seo/__tests__/support/legacy-api.fixture.ts:70:17
+parseWidgetInstancePayload                  function  …es/cms/src/widgets/__tests__/support/compat/entry-payload.ts:5:17
+toWidgetAreaEntry                           function  …es/cms/src/widgets/__tests__/support/compat/entry-payload.ts:9:17
+widgetAreaSlug                              function  …s/cms/src/widgets/__tests__/support/compat/entry-payload.ts:10:17
+emptyWidgetAreaDoc                          function  …s/cms/src/widgets/__tests__/support/compat/entry-payload.ts:11:17
+maskNonRenderableRegions                    function  …s/cms/src/widgets/__tests__/support/compat/markers-marker.ts:4:17
+markersOfType                               function  …s/cms/src/widgets/__tests__/support/compat/markers-marker.ts:8:17
+withInnerContentAndAttributes               function  …/cms/src/widgets/__tests__/support/compat/markers-marker.ts:18:17
+describeRejection                           function  …/cms/src/widgets/__tests__/support/compat/markers-marker.ts:20:17
+validatePlacementWidgetsExist               function  …/src/widgets/__tests__/support/compat/region-area-service.ts:4:17
+isPageEmbedType                                       packages/cms/src/widgets/resolver-service.ts:117:9                
+openLedger                                  function  packages/commerce/src/payments/ingest/__tests__/harness.ts:25:23  
+newPayment                                  function  packages/commerce/src/payments/ingest/__tests__/harness.ts:36:17  
+recordingAlerts                             function  packages/commerce/src/payments/ingest/__tests__/harness.ts:46:17  
+scriptedProvider                            function  packages/commerce/src/payments/ops/__tests__/harness.ts:32:17     
+MAX_ID_LENGTH                                         packages/commerce/src/payments/tools/catalog.ts:41:9              
+BRIDGE_SLOT                                           packages/cookie-consent/src/client/bridges.ts:3:14                
+PEM_PATTERN_NAME                                      packages/core/src/__tests__/fixtures/legacy-secret-shapes.ts:10:14
+MAX_RAW_INCIDENT_TEXT                                 packages/core/src/errors/incident-text.ts:16:14                   
+launchAt                                              packages/daemon/src/agent-executor/__tests__/r8a-rig.ts:45:14     
+tomlKey                                     function  packages/daemon/src/agent-executor/codex/home-config.ts:35:17     
+codexInheritance                            function  packages/daemon/src/agent-executor/codex/home-staging.ts:205:17   
+throwingDeps                                function  …kages/daemon/src/http/__tests__/characterization/harness.ts:89:17
+wireError                                   function  packages/daemon/src/http/tool-execution-stream.ts:12:17           
+freshPostgresContentDatabase                          packages/db/src/testing/postgres-database.ts:58:39                
+permissions                                           packages/http-kit/src/settings/__tests__/settings-fixture.ts:7:14 
+scheduler                                             packages/infra/src/events/outbox/__tests__/fixtures.ts:6:14       
+memoryVault                                 function  …grations/src/api-connections/__tests__/fixtures/harness.ts:118:17
+NOW                                                   …rations/src/api-connections/__tests__/fixtures/unit-deps.ts:17:14
+AZURE_DEFAULT_API_VERSION                             …grations/src/media-providers/dispatch/openai-compatible.ts:102:14
+ANTIGRAVITY_MCP_CONFIG_SEGMENTS                       packages/mcp/src/agent-install/antigravity/install.ts:16:14       
+ANTIGRAVITY_MCP_CONFIG_SEGMENTS                       packages/mcp/src/agent-install/install.ts:50:9                    
+DEFAULT_CALL_PROGRESS_INTERVAL_MS                     packages/mcp/src/server/call-progress.ts:22:14                    
+digest                                      function  packages/platform/src/download-target.ts:8:17                     
+memorySetting                               function  packages/platform/src/mail/__tests__/resolver-fixtures.ts:29:17   
+CONTENT_READ                                          packages/plugins/src/host/__tests__/support/fixture-sdk.ts:37:14  
+CONTENT_EXTEND                                        packages/plugins/src/host/__tests__/support/fixture-sdk.ts:38:14  
+HOOKS_ATTACH                                          packages/plugins/src/host/__tests__/support/fixture-sdk.ts:39:14  
+HOOK_POINTS                                           packages/plugins/src/host/__tests__/support/fixture-sdk.ts:66:9   
+ComponentsListSchema                                  packages/protocol/src/a2ui/agent-to-renderer.ts:46:14             
+CreateSurfaceMessageSchema                            packages/protocol/src/a2ui/agent-to-renderer.ts:49:14             
+UpdateComponentsMessageSchema                         packages/protocol/src/a2ui/agent-to-renderer.ts:66:14             
+UpdateDataModelMessageSchema                          packages/protocol/src/a2ui/agent-to-renderer.ts:97:14             
+DeleteSurfaceMessageSchema                            packages/protocol/src/a2ui/agent-to-renderer.ts:115:14            
+CallFunctionMessageSchema                             packages/protocol/src/a2ui/agent-to-renderer.ts:123:14            
+ActionResponseMessageSchema                           packages/protocol/src/a2ui/agent-to-renderer.ts:133:14            
+DynamicValueSchema                                    packages/protocol/src/a2ui/common-types.ts:69:14                  
+IndexSystemFunctionSchema                             packages/protocol/src/a2ui/common-types.ts:109:14                 
+ComponentCommonSchema                                 packages/protocol/src/a2ui/common-types.ts:127:14                 
+CheckableSchema                                       packages/protocol/src/a2ui/common-types.ts:158:14                 
+AgentActionEventSchema                                packages/protocol/src/a2ui/common-types.ts:166:14                 
+WireComponentSchema                                   packages/protocol/src/a2ui/interpreter.ts:463:9                   
+ActionMessagePayloadSchema                            packages/protocol/src/a2ui/renderer-to-agent.ts:16:14             
+FunctionResponsePayloadSchema                         packages/protocol/src/a2ui/renderer-to-agent.ts:37:14             
+ValidationFailedErrorSchema                           packages/protocol/src/a2ui/renderer-to-agent.ts:54:14             
+GenericErrorSchema                                    packages/protocol/src/a2ui/renderer-to-agent.ts:64:14             
+ErrorPayloadSchema                                    packages/protocol/src/a2ui/renderer-to-agent.ts:75:14             
+ActionMessageSchema                                   packages/protocol/src/a2ui/renderer-to-agent.ts:78:14             
+FunctionResponseMessageSchema                         packages/protocol/src/a2ui/renderer-to-agent.ts:83:14             
+ErrorMessageSchema                                    packages/protocol/src/a2ui/renderer-to-agent.ts:88:14             
+validatePostHogBrowserConfig                          packages/provider-plugins/src/analytics-posthog/browser.ts:8:34   
+isEChartsKind                               function  packages/provider-plugins/src/charts-echarts/descriptor.ts:9:17   
+UnsupportedChartSpecError                             …ages/provider-plugins/src/charts-recharts/client/provider.ts:2:16
+UnsupportedChartSpecError                   class     packages/provider-plugins/src/charts-recharts/mount.tsx:15:14     
+createInjectedOtlpTraceExporter             function  …er-plugins/src/observability-opentelemetry/opentelemetry.ts:91:17
+redactRequestTarget                         function  …ovider-plugins/src/observability-opentelemetry/otel-port.ts:40:17
+outboundTargetAttributes                    function  …ovider-plugins/src/observability-opentelemetry/otel-port.ts:46:17
+STRIPE_CAPABILITIES                                   packages/provider-plugins/src/payments-stripe/provider.ts:9:14    
+doc                                         function  packages/search/src/__tests__/fakes/index.ts:15:17                
+httpClient                                            packages/search/src/__tests__/fakes/index.ts:199:14               
+isExecutableDetectedAgent                   function  packages/server/src/builtin-features.ts:184:17                    
+copyPackage                                           packages/server/tests/fixtures/packed-fixture.ts:2:34             
+testUiKit                                             packages/ui/src/__tests__/ui-kit-render-support.tsx:10:14         
+SCROLL_JUMP_MIN_VIEWPORTS                             …ures/admin-widgets/components/ScrollJump/ScrollJump.rules.ts:2:14
+SCROLL_JUMP_EDGE_SLACK_PX                             …ures/admin-widgets/components/ScrollJump/ScrollJump.rules.ts:5:14
+protectedElementHtml                        function  packages/ui/src/features/html-editor/protected-elements.ts:17:17  
+detectInitialLocale                                   packages/ui/src/features/i18n/context.tsx:29:9                    
+resolveSystemLocale                                   packages/ui/src/features/i18n/context.tsx:29:30                   
+SETTINGS_DIALOG_ID                                    packages/ui/src/features/i18n/dictionaries/index.ts:62:9          
+SETTINGS_DIALOG_DE                                    packages/ui/src/features/i18n/dictionaries/index.ts:63:9          
+SETTINGS_DIALOG_ZH_CN                                 packages/ui/src/features/i18n/dictionaries/index.ts:64:9          
+SETTINGS_DIALOG_ZH_TW                                 packages/ui/src/features/i18n/dictionaries/index.ts:65:9          
+SETTINGS_DIALOG_PT_BR                                 packages/ui/src/features/i18n/dictionaries/index.ts:66:9          
+SETTINGS_DIALOG_RU                                    packages/ui/src/features/i18n/dictionaries/index.ts:67:9          
+SETTINGS_DIALOG_FA                                    packages/ui/src/features/i18n/dictionaries/index.ts:68:9          
+SETTINGS_DIALOG_AR                                    packages/ui/src/features/i18n/dictionaries/index.ts:69:9          
+SETTINGS_DIALOG_JA                                    packages/ui/src/features/i18n/dictionaries/index.ts:70:9          
+SETTINGS_DIALOG_KO                                    packages/ui/src/features/i18n/dictionaries/index.ts:71:9          
+SETTINGS_DIALOG_PL                                    packages/ui/src/features/i18n/dictionaries/index.ts:72:9          
+SETTINGS_DIALOG_HU                                    packages/ui/src/features/i18n/dictionaries/index.ts:73:9          
+SETTINGS_DIALOG_FR                                    packages/ui/src/features/i18n/dictionaries/index.ts:74:9          
+SETTINGS_DIALOG_UK                                    packages/ui/src/features/i18n/dictionaries/index.ts:75:9          
+SETTINGS_DIALOG_TR                                    packages/ui/src/features/i18n/dictionaries/index.ts:76:9          
+SETTINGS_DIALOG_TH                                    packages/ui/src/features/i18n/dictionaries/index.ts:77:9          
+SETTINGS_DIALOG_IT                                    packages/ui/src/features/i18n/dictionaries/index.ts:78:9          
+SETTINGS_DIALOG_HI                                    packages/ui/src/features/i18n/dictionaries/index.ts:79:9          
+SETTINGS_DIALOG_UR                                    packages/ui/src/features/i18n/dictionaries/index.ts:80:9          
+SETTINGS_DIALOG_BN                                    packages/ui/src/features/i18n/dictionaries/index.ts:81:9          
+buttonVariants                                        …/ui/src/features/interactive-ui/providers/shadcn/button.tsx:46:17
+SelectScrollUpButton                                  …ui/src/features/interactive-ui/providers/shadcn/select.tsx:127:14
+SelectScrollDownButton                                …ui/src/features/interactive-ui/providers/shadcn/select.tsx:128:24
+useFetchMutation                            function  …ges/ui/src/features/panel-kit/fetch-query/adapter.react.tsx:91:17
+useCachedLoader                             function  …es/ui/src/features/panel-kit/fetch-query/adapter.react.tsx:127:17
+useInvalidate                               function  …es/ui/src/features/panel-kit/fetch-query/adapter.react.tsx:142:17
+ResourceBoardGrid                           function  …ource-dashboard/react/components/ResourceBoardViewParts.tsx:30:17
+ResourceCardMenuItems                       function  …s/resource-dashboard/react/components/ResourceCardParts.tsx:17:17
+useSourceConfigList                                   …es/source-config-list/react/components/SourceConfigList.tsx:106:9
+useSourceConfigAddForm                                …s/source-config-list/react/components/SourceConfigList.tsx:106:30
+TabbedDialogNavItem                         function  …ures/tabbed-dialog/react/components/TabbedDialogSidebar.tsx:17:17
+useVersionContentCache                      function  …ures/version-manager/react/hooks/useVersionManager.state.ts:41:17
+useVersionList                              function  …ures/version-manager/react/hooks/useVersionManager.state.ts:83:17
+useSelectedContent                          function  …res/version-manager/react/hooks/useVersionManager.state.ts:138:17
+useVersionSearch                            function  …res/version-manager/react/hooks/useVersionManager.state.ts:203:17
+usePreviewFrame                             function  …res/version-manager/react/hooks/useVersionManager.state.ts:239:17
+useOpenInNewTab                             function  …res/version-manager/react/hooks/useVersionManager.state.ts:416:17
+trimLeadingChars                            function  packages/ui/src/utils/trim-chars.ts:13:17                         
+UserManagePanel                             function  packages/user-management/src/react/users/Users.tsx:280:17         
+UsersTable                                  function  packages/user-management/src/react/users/UsersTable.tsx:242:17    
+DEFAULT_PROJECT_LIMITS                                packages/vibecoding/src/node/paths.ts:8:14                        
+digest                                      function  packages/vibecoding/src/node/store.ts:43:17                       
+resolveTypesFile                            function  scripts/lib/api-surface.ts:51:17                                  
+extractSymbols                              function  scripts/lib/api-surface.ts:77:17                                  
+tarballFileName                             function  scripts/lib/pack-jini-packages.ts:58:17                           
+workspacePackageGlobs                       function  scripts/lib/pack-jini-packages.ts:67:17                           
+copyPackage                                 function  scripts/testing/packed-fixture.js:23:17                           
+Unused exported types (459)
+CostCounterName                              type       examples/neutral-host/src/neutral-host/support/counters.ts:28:13
+CostCounts                                   type       examples/neutral-host/src/neutral-host/support/counters.ts:29:13
+DispatchRecord                               interface  …mples/neutral-host/src/neutral-host/support/dispatcher.ts:14:18
+DispatchOptional                             interface  …mples/neutral-host/src/neutral-host/support/dispatcher.ts:22:18
+MemoryVaultRow                               interface  …ples/neutral-host/src/neutral-host/support/memory-ports.ts:8:18
+Summarizer                                   type       examples/nlweb-demo/src/ask.ts:22:13                            
+AskResultItem                                interface  examples/nlweb-demo/src/ask.ts:25:18                            
+AskResponse                                  interface  examples/nlweb-demo/src/ask.ts:35:18                            
+AskOptions                                   interface  examples/nlweb-demo/src/ask.ts:62:18                            
+GapProblem                                   interface  examples/notes-app/scripts/gap-problems.ts:6:18                 
+NotesTables                                  interface  examples/notes-app/src/db.ts:26:18                              
+UnmatchedHook                                type       examples/notes-app/src/node-server.ts:118:13                    
+NodeServerOptions                            interface  examples/notes-app/src/node-server.ts:120:18                    
+NoteCreateInput                              interface  examples/notes-app/src/note-input.ts:7:18                       
+NoteEntityDeps                               interface  examples/notes-app/src/notes-entity.ts:18:18                    
+RendererFrameIdentity                        interface  examples/reference-desktop/src/security.ts:3:18                 
+JiniPlaygroundDesktopBri…                    interface  examples/reference-web/src/desktop-bridge.ts:1:18               
+ExpenseClaim                                 interface  examples/reference-web/src/LabExpense.tsx:24:18                 
+LabExpenseQueueProps                         interface  examples/reference-web/src/LabExpense.tsx:85:18                 
+LabExpenseFormProps                          interface  examples/reference-web/src/LabExpense.tsx:139:18                
+LabExpenseReceiptProps                       interface  examples/reference-web/src/LabExpense.tsx:325:18                
+LabNavItem                                   interface  examples/reference-web/src/LabNav.tsx:12:18                     
+LabNavProps                                  interface  examples/reference-web/src/LabNav.tsx:27:18                     
+LabSignupFormProps                           interface  examples/reference-web/src/LabPages.tsx:32:18                   
+LabSummaryProps                              interface  examples/reference-web/src/LabPages.tsx:203:18                  
+JiniMcpBridgeResolution                      type       examples/reference-web/src/mcp-bridge.ts:31:13                  
+ResolveJiniMcpBridgeOpti…                    interface  examples/reference-web/src/mcp-bridge.ts:35:18                  
+EarlyMessageBuffer                           interface  examples/reference-web/src/mcpui-lab-message-buffer.ts:28:18    
+McpUiLabSessionState                         type       examples/reference-web/src/McpUiLabHost.tsx:42:13               
+McpUiLabLogEntry                             interface  examples/reference-web/src/McpUiLabHost.tsx:50:18               
+UseMcpUiLabHostOptions                       interface  examples/reference-web/src/McpUiLabHost.tsx:56:18               
+UseMcpUiLabHostResult                        interface  examples/reference-web/src/McpUiLabHost.tsx:64:18               
+McpUiLabHostFrameProps                       interface  examples/reference-web/src/McpUiLabHost.tsx:304:18              
+PlaygroundAttachment                         interface  examples/reference-web/src/playground-request.ts:7:18           
+PlaygroundRunRequest                         interface  examples/reference-web/src/playground-request.ts:14:18          
+PlaygroundWorkingDirecto…                    interface  examples/reference-web/src/working-directory-authority.ts:5:18  
+AgentPluginsPorts                            interface  …n/src/agent-plugins/react/hooks/AgentPluginsPorts.hooks.ts:5:18
+CommentsPorts                                interface  …ages/admin/src/comments/react/hooks/CommentsPorts.hooks.ts:8:18
+CommentsController                           interface  …ages/admin/src/comments/react/hooks/use-comments.hooks.ts:10:18
+GatedConfirmResult                           type       packages/admin/src/core/ports/database.ts:109:14                
+GatedOperation                               type       packages/admin/src/core/ports/database.ts:109:34                
+GatedPlanResult                              type       packages/admin/src/core/ports/database.ts:109:50                
+AdminFormMode                                type       packages/admin/src/core/ports/forms.ts:72:13                    
+FormFieldKindInfo                            type       packages/admin/src/core/ports/index.ts:129:14                   
+FormsCatalogPort                             type       packages/admin/src/core/ports/index.ts:129:33                   
+EmbedPolicyPort                              type       packages/admin/src/core/ports/index.ts:130:14                   
+AdminCommentRepo                             type       packages/admin/src/core/ports/index.ts:131:14                   
+AdminCommentRepoFactory                      type       packages/admin/src/core/ports/index.ts:131:32                   
+AdminShellContext                            type       packages/admin/src/core/ports/index.ts:150:14                   
+AdminShellNavigationPort                     type       packages/admin/src/core/ports/index.ts:150:33                   
+AdminShellSession                            type       packages/admin/src/core/ports/index.ts:150:59                   
+AdminShellSessionPort                        type       packages/admin/src/core/ports/index.ts:150:78                   
+FormEditorDraft                              interface  packages/admin/src/forms/form-editor-dirty.ts:14:18             
+FormsPort                                    interface  packages/admin/src/forms/react/__tests__/legacy-ports.ts:11:18  
+FieldSettingsRowsProps                       interface  …es/admin/src/forms/react/components/FieldSettingsRows.tsx:11:18
+FieldSettingsSectionProps                    interface  …/admin/src/forms/react/components/FieldSettingsSection.tsx:7:18
+FormFieldsEditorProps                        interface  …ages/admin/src/forms/react/components/FormFieldsEditor.tsx:8:18
+FormsListRow                                 type       …ckages/admin/src/forms/react/components/FormsListParts.tsx:8:13
+FormSubmissionDetailProps                    interface  …/admin/src/forms/react/components/FormSubmissionDetail.tsx:7:18
+FormSubmissionsProps                         interface  …kages/admin/src/forms/react/components/FormSubmissions.tsx:7:18
+FormSubmissionsTableProps                    interface  …admin/src/forms/react/components/FormSubmissionsTable.tsx:13:18
+FormEditorStateValue                         type       …dmin/src/forms/react/hooks/use-form-editor-parts.hooks.ts:17:13
+EditorStateController                        type       …dmin/src/forms/react/hooks/use-form-editor-parts.hooks.ts:18:13
+FormEditorController                         interface  …ages/admin/src/forms/react/hooks/use-form-editor.hooks.ts:72:18
+FormsListController                          interface  …kages/admin/src/forms/react/hooks/use-forms-list.hooks.ts:52:18
+MediaGridProps                               type       packages/admin/src/media/react/components/MediaGrid.tsx:4:14    
+ConfirmDialogHooks                           type       …min/src/react/components/ConfirmDialog/ConfirmDialog.tsx:100:13
+RowMenuState                                 interface  …ages/admin/src/react/components/RowMenu/RowMenu.hooks.tsx:22:18
+EntityEditHooks                              interface  packages/admin/src/react/entities/EntityEdit.tsx:13:18          
+EntityMutationFailure                        interface  packages/admin/src/react/entities/use-entity-edit.ts:15:18      
+MediaProvidersPort                           interface  packages/admin/src/react/kit-media-providers.ts:71:18           
+MediaProviderEditPatch                       type       packages/admin/src/react/kit-media-providers.ts:118:13          
+MediaProviderCatalogPoli…                    type       packages/admin/src/react/kit-media-providers.ts:168:14          
+MediaProviderOption                          type       packages/admin/src/react/kit-media-providers.ts:168:42          
+AppliedTheme                                 interface  packages/admin/src/react/shell/__tests__/theme-kit-fake.ts:5:18 
+ShellHooks                                   interface  packages/admin/src/react/shell/shell-hooks.ts:7:18              
+LegacyRedirect                               type       …ges/admin/src/redirects/react/__tests__/legacy-harness.ts:40:13
+HitCountCellProps                            interface  …ages/admin/src/redirects/react/components/HitCountCell.tsx:5:18
+ImportRedirectsFormProps                     interface  …min/src/redirects/react/components/ImportRedirectsForm.tsx:4:18
+RedirectsPorts                               interface  …es/admin/src/redirects/react/hooks/RedirectsPorts.hooks.ts:6:18
+HitCountCellController                       type       …min/src/redirects/react/hooks/use-hit-count-cell.hooks.ts:20:13
+RedirectsController                          type       …es/admin/src/redirects/react/hooks/use-redirects.hooks.ts:68:13
+RedirectsProps                               interface  packages/admin/src/redirects/react/pages/RedirectsPage.tsx:13:18
+SeoEntryOverridesPatch                       type       packages/admin/src/seo/react/__tests__/harness/api.ts:5:77      
+EntryPickerProps                             interface  packages/admin/src/seo/react/components/EntryPicker.tsx:6:18    
+MediaRefFieldProps                           interface  packages/admin/src/seo/react/components/MediaRefField.tsx:31:18 
+SeoEntryFieldsProps                          type       packages/admin/src/seo/react/components/SeoEntryFields.tsx:12:13
+SeoEntryPanelProps                           interface  packages/admin/src/seo/react/components/SeoEntryPanel.tsx:13:18 
+SeoEntrySectionProps                         interface  packages/admin/src/seo/react/components/SeoEntryPanel.tsx:109:18
+SeoSectionProps                              interface  packages/admin/src/seo/react/components/SeoSection.tsx:4:18     
+SitemapModalProps                            interface  packages/admin/src/seo/react/components/SitemapModal.tsx:33:18  
+SeoPorts                   copyHooks         interface  packages/admin/src/seo/react/hooks/SeoPorts.hooks.ts:7:18       
+Deferred                                     interface  …admin/src/widgets/__tests__/fixtures/controller-harness.ts:2:18
+WidgetInstanceEditorState                    interface  …dmin/src/widgets/controllers/instance-editor.controller.ts:6:18
+WidgetRegionEditorState                      interface  …/admin/src/widgets/controllers/region-editor.controller.ts:7:18
+WidgetsLibraryController                     type       …rc/widgets/react/__tests__/fixtures/use-widgets-library.ts:6:14
+WidgetInstanceEditorHook…                    type       …c/widgets/react/hooks/use-widget-instance-editor.hooks.ts:45:13
+FakeSurfaceHostLog                           interface  …t-plugins/src/admin-surfaces/__tests__/surface-support.ts:18:18
+AgentPluginProjectionReg…                    type       packages/agent-plugins/src/connect/executable/ports.ts:50:13    
+InstalledPackageRoot                         interface  …es/agent-plugins/src/lifecycle/installed-package-roots.ts:10:18
+PluginIdentityExtension                      type       packages/agent-plugins/src/manifest.ts:29:14                    
+AcpModelConfigOption                         interface  packages/agent-runtime/src/agent-protocol/acp/models.ts:23:18   
+DetectAcpModelsOptions                       interface  packages/agent-runtime/src/agent-protocol/acp/models.ts:29:18   
+FormattedUsage                               interface  packages/agent-runtime/src/agent-protocol/acp/rpc.ts:128:18     
+AcpSessionOptions                            interface  …es/agent-runtime/src/agent-protocol/acp/session-params.ts:25:18
+ArtifactTextSuppressorSt…                    interface  …/agent-runtime/src/agent-protocol/acp/text-suppression.ts:62:18
+JsonScanFrame                                type       …gent-runtime/src/agent-protocol/core/json-line-stream.ts:154:13
+JsonScanStepResult                           type       …gent-runtime/src/agent-protocol/core/json-line-stream.ts:170:13
+PiModelOption                                type       packages/agent-runtime/src/agent-protocol/pi-rpc/models.ts:9:13 
+PiImagePayload                               type       …ckages/agent-runtime/src/agent-protocol/pi-rpc/session.ts:17:13
+PiRpcParams                                  type       …ckages/agent-runtime/src/agent-protocol/pi-rpc/session.ts:23:13
+PiSessionFileSnapshot                        type       …ckages/agent-runtime/src/agent-protocol/pi-rpc/session.ts:94:13
+AnthropicCredential                          type       packages/agent-runtime/src/anthropic-live-models.ts:59:13       
+ClaudeCodePickerCachePar…                    type       packages/agent-runtime/src/claude-code-models.ts:96:13          
+ClaudeCodeModelsOptions                      interface  packages/agent-runtime/src/claude-code-models.ts:274:18         
+ArtifactEchoContext                          interface  packages/agent-runtime/src/claude-stream-frames.ts:49:18        
+StreamEvent                                  type       packages/agent-runtime/src/json-event-stream-shared.ts:17:13    
+ProviderCatalogImport                        type       packages/agent-runtime/src/model-discovery-adapters.ts:320:13   
+ToolLoopVerdict                              interface  packages/agent-runtime/src/providers/tool-loop-verdict.ts:8:18  
+TurnEndGuard                                 interface  packages/agent-runtime/src/providers/turn-end-guard.ts:31:18    
+FixturePayload                               interface  packages/chat/src/core/ag-ui/__tests__/wire-fixture.ts:3:18     
+FencedCodeRange                              interface  packages/chat/src/core/util/markdown-context.ts:154:18          
+A2uiSurfaceCardHooks                         type       packages/chat/src/react/components/A2uiSurfaceCard.tsx:178:13   
+AttachmentGalleryControl…                    interface  …ages/chat/src/react/components/AttachmentGallery.hooks.ts:18:18
+AttachmentPreviewStatus                      type       …chat/src/react/components/AttachmentPreviewModal.hooks.ts:45:13
+AttachmentTextPreview                        interface  …hat/src/react/components/AttachmentPreviewModal.hooks.ts:143:18
+AttachmentPreviewModalPr…                    interface  …ages/chat/src/react/components/AttachmentPreviewModal.tsx:17:18
+AttachmentPreviewModalHo…                    type       …ages/chat/src/react/components/AttachmentPreviewModal.tsx:26:13
+AttachmentTrayHooks                          type       packages/chat/src/react/components/AttachmentTray.tsx:38:13     
+ChatSettingsTab                              type       …ges/chat/src/react/components/ChatSettingsDialog.hooks.ts:21:13
+ComposerSlashQuery                           interface  packages/chat/src/react/components/composer-discovery.ts:17:18  
+ComposerSlashResolution                      type       packages/chat/src/react/components/composer-discovery.ts:92:13  
+ComposerSlashKeyAction                       type       packages/chat/src/react/components/composer-discovery.ts:154:13 
+ComposerMenuAnchorRect                       interface  packages/chat/src/react/components/composer-discovery.ts:171:18 
+ComposerSlashMenuProps                       interface  packages/chat/src/react/components/ComposerDiscovery.tsx:133:18 
+ConversationTriggerAttri…                    interface  …ckages/chat/src/react/components/ConversationList.rules.ts:2:18
+ConversationListHooks                        type       packages/chat/src/react/components/ConversationList.tsx:118:13  
+ConversationTitleEditorH…                    type       …ges/chat/src/react/components/ConversationTitleEditor.tsx:18:13
+FolderChipsHooks                             type       packages/chat/src/react/components/FolderChips.tsx:32:13        
+McpUiSurfaceCardHooks                        type       packages/chat/src/react/components/McpUiSurfaceCard.tsx:216:13  
+MessageListAutoScroll                        interface  packages/chat/src/react/components/MessageList.hooks.ts:13:18   
+MessageListHooks                             type       packages/chat/src/react/components/MessageList.tsx:83:13        
+UsageSummaryHooks                            type       packages/chat/src/react/components/MessageRow.tsx:154:13        
+SentAttachmentThumbnail                      interface  packages/chat/src/react/components/SentAttachment.hooks.ts:41:18
+SentAttachmentButtonProps                    interface  packages/chat/src/react/components/SentAttachment.tsx:6:18      
+SentAttachmentButtonHooks                    type       packages/chat/src/react/components/SentAttachment.tsx:18:13     
+ToolCallGroupState                           interface  packages/chat/src/react/components/ToolCallGroup.hooks.ts:5:18  
+ToolCallGroupHooks                           type       packages/chat/src/react/components/ToolCallGroup.tsx:9:13       
+SurfaceRecoveryCallbacks                     interface  …src/react/features/chat-pane/create-mcp-ui-tool-caller.ts:42:18
+UseAgentRuntimePickerOpt…                    interface  …/features/chat-pane/hooks/useAgentRuntimePicker.hooks.ts:169:18
+UseChatPaneControlsHeigh…                    interface  …atures/chat-pane/hooks/useChatPaneControlsHeight.hooks.ts:33:18
+UseChatPaneFileDropOptio…                    interface  …eact/features/chat-pane/hooks/useChatPaneFileDrop.hooks.ts:9:18
+FakePort                                     type       …hat/src/react/hooks/__tests__/assistant-chats.fixtures.ts:64:13
+AttemptResult                                type       packages/chat/src/react/hooks/assistant-chats-contracts.ts:94:13
+SaveFailureInput                             interface  packages/chat/src/react/hooks/assistant-chats-contracts.ts:95:18
+FakeTransportCall                            interface  packages/chat/src/react/hooks/testing/fake-transport.ts:11:18   
+FakeChatTransport                            interface  packages/chat/src/react/hooks/testing/fake-transport.ts:16:18   
+UseCopyToClipboardResult                     interface  packages/chat/src/react/hooks/useCopyToClipboard.ts:63:18       
+NowFn                                        type       packages/chat/src/react/hooks/useRunActivity.ts:14:13           
+FeedbackChange                               type       packages/chat/src/react/slots.ts:25:14                          
+OnFeedback                                   type       packages/chat/src/react/slots.ts:25:30                          
+Anchor                                       type       packages/chat/src/store/sql/cursor.ts:7:13                      
+StoredFormSubmission                         interface  packages/cms/forms/src/__tests__/repo.fixture.ts:102:18         
+CommentTrashDoubles                          interface  …kages/cms/src/comments/__tests__/comment-trash-doubles.ts:14:18
+SqliteContentKernel                          type       packages/cms/src/core/__tests__/support/dialect-matrix.ts:41:13 
+PgContentKernel                              type       packages/cms/src/core/__tests__/support/dialect-matrix.ts:42:13 
+DialectOptions                               interface  packages/cms/src/core/__tests__/support/dialect-matrix.ts:44:18 
+DialectCase                                  interface  packages/cms/src/core/__tests__/support/dialect-matrix.ts:53:18 
+StoredFormSubmission                         interface  packages/cms/src/forms/__tests__/repo.fixture.ts:102:18         
+FormsDatabase                                type       …/cms/src/forms/__tests__/support/dialect-matrix.fixture.ts:7:13
+AgentToolSideEffect                          type       packages/cms/src/forms/agent-tools.ts:57:13                     
+AgentToolActorClassRule                      type       packages/cms/src/forms/agent-tools.ts:59:13                     
+FormRetryAnswer                              type       packages/cms/src/forms/stale-form.ts:7:13                       
+FormRetryDraft                               interface  packages/cms/src/forms/stale-form.ts:8:18                       
+TombstoneBlobDeps                            interface  packages/cms/src/media/blob-gc.ts:176:18                        
+RunBlobGcDeletePassDeps                      interface  packages/cms/src/media/blob-gc.ts:225:18                        
+RunBlobGcUnlinkPassDeps                      interface  packages/cms/src/media/blob-gc.ts:297:18                        
+RunBlobGcCycleDeps                           interface  packages/cms/src/media/blob-gc.ts:362:18                        
+UpdateMediaMetadataDeps                      interface  packages/cms/src/media/media-service.ts:598:18                  
+TrashMediaDeps                               interface  packages/cms/src/media/media-service.ts:750:18                  
+PurgeMediaDeps                               interface  packages/cms/src/media/media-service.ts:786:18                  
+ResolveMenuDocRequired                       interface  packages/cms/src/navigation/resolver.ts:152:18                  
+RemoveWithoutBlockerResu…                    type       …kages/cms/src/redirects/__tests__/support/trash.fixture.ts:6:13
+FixturePost                                  interface  packages/cms/src/routing/__tests__/support.fixture.ts:3:18      
+MergeHooks                                   type       packages/cms/src/taxonomy/tool-handlers.types.ts:35:13          
+PurgeInput                                   interface  packages/cms/src/trash/sql/table-adapter.purge.ts:14:18         
+TransitionInput                              interface  packages/cms/src/trash/sql/table-adapter.transitions.ts:12:18   
+TestContext                                  interface  packages/cms/src/widgets/__tests__/support/test-runner.ts:4:18  
+GalleryIssueReporter                         type       packages/cms/src/widgets/gallery-resolver.ts:8:13               
+ContactFormResolverDeps                      interface  packages/cms/src/widgets/resolvers/contact-form.ts:28:18        
+MenuResolverDeps                             interface  packages/cms/src/widgets/resolvers/menu.ts:35:18                
+RecentEntriesResolverDeps                    interface  packages/cms/src/widgets/resolvers/recent-entries.ts:68:18      
+LedgerHarness                                interface  …commerce/src/payments/ledger/__tests__/ledger-contract.ts:14:18
+PaymentsMigrationKernel                      type       packages/commerce/src/payments/ledger/migrations/index.ts:35:13 
+CaptureRequired                              interface  packages/commerce/src/payments/ops/capture-void.ts:33:18        
+VoidRequired                                 type       packages/commerce/src/payments/ops/capture-void.ts:41:13        
+IntentDispatchSnapshot                       interface  packages/commerce/src/payments/ops/intent-recovery.ts:9:18      
+IntentRequired                               interface  packages/commerce/src/payments/ops/intent.ts:29:18              
+IntentOptional                               interface  packages/commerce/src/payments/ops/intent.ts:36:18              
+ReconcileCursor                              interface  packages/commerce/src/payments/ops/reconciler.ts:50:18          
+RefundRequired                               interface  packages/commerce/src/payments/ops/refund.ts:29:18              
+MintRecord                                   interface  packages/commerce/src/payments/tools/__tests__/harness.ts:16:18 
+ToolWorldOptions                             interface  packages/commerce/src/payments/tools/__tests__/harness.ts:22:18 
+FakeApprovalScheduler                        interface  packages/core/src/__tests__/approval-fakes.ts:6:18              
+SecretPattern                                interface  …ckages/core/src/__tests__/fixtures/legacy-secret-shapes.ts:3:18
+Coerced                                      type       packages/core/src/env/coercers.ts:6:13                          
+DescribeThrownValueOptio…                    interface  packages/core/src/errors/incident-text.ts:21:18                 
+Rig                                          interface  packages/daemon/src/agent-executor/__tests__/r8a-rig.ts:56:18   
+DescribedRoute                               interface  …ges/daemon/src/http/__tests__/characterization/harness.ts:59:18
+FamilyDeps                                   type       …ges/daemon/src/http/__tests__/characterization/harness.ts:81:13
+OpenedStream                                 interface  …emon/src/http/__tests__/characterization/stream-reader.ts:13:18
+ManualScheduler                              interface  packages/daemon/src/http/__tests__/fakes/route-host.ts:11:18    
+FrameReader                                  interface  packages/daemon/src/http/__tests__/fakes/sse-reader.ts:12:18    
+PersistedAttachmentRecord                    interface  packages/daemon/src/http/attachment-persistence.ts:43:18        
+OpenResourceInEditorRequ…                    interface  packages/daemon/src/http/host-tools.ts:328:18                   
+OpenResourceInEditorResp…                    interface  packages/daemon/src/http/host-tools.ts:334:18                   
+HostToolsOpenInDeps                          interface  packages/daemon/src/http/host-tools.ts:341:18                   
+RemoteRunEventInternalEr…                    interface  packages/daemon/src/http/remote-run-events.ts:38:18             
+DefinedFields                                type       packages/daemon/src/http/resource-request.ts:20:13              
+DaemonGateName                               type       packages/daemon/src/http/route-table.ts:11:13                   
+DaemonGate                                   interface  packages/daemon/src/http/route-table.ts:22:18                   
+CommitLatch                                  interface  packages/daemon/src/http/sse-commit.ts:10:18                    
+FakeAgentRuntimeCall                         interface  …ages/daemon/src/ports/__tests__/agent-runtime-port.fake.ts:7:18
+FakeAgentRuntimePort                         interface  …ages/daemon/src/ports/__tests__/agent-runtime-port.fake.ts:8:18
+FakeChild                                    interface  packages/daemon/src/ports/__tests__/fakes/process.ts:7:18       
+SpawnCall                                    interface  packages/daemon/src/ports/__tests__/fakes/process.ts:27:18      
+ProcessControlCalls                          interface  packages/daemon/src/ports/__tests__/fakes/process.ts:50:18      
+FakeProviderCall                             interface  …ges/daemon/src/ports/__tests__/provider-http-ports.fake.ts:9:18
+FakeProviderToolTurnPort                     interface  …es/daemon/src/ports/__tests__/provider-http-ports.fake.ts:10:18
+FakeProviderToolTurnScri…                    interface  …es/daemon/src/ports/__tests__/provider-http-ports.fake.ts:12:18
+FakeBaseUrlGuard                             interface  …es/daemon/src/ports/__tests__/provider-http-ports.fake.ts:38:18
+FakeXaiOAuthPort                             interface  …es/daemon/src/ports/__tests__/provider-http-ports.fake.ts:49:18
+JsonRpcId                                    type       packages/daemon/src/ports/agent-runtime-sessions.ts:6:13        
+UnknownRecord                                type       packages/daemon/src/ports/agent-runtime-sessions.ts:10:13       
+AcpChildProcess                              type       packages/daemon/src/ports/agent-runtime-sessions.ts:13:13       
+ExecutionProfile                             type       packages/daemon/src/ports/agent-runtime-sessions.ts:23:13       
+AccountFailure                               interface  packages/daemon/src/ports/agent-runtime-sessions.ts:30:18       
+AccountFailureClassifier                     interface  packages/daemon/src/ports/agent-runtime-sessions.ts:46:18       
+AcpMcpServerInput                            interface  packages/daemon/src/ports/agent-runtime-sessions.ts:55:18       
+AcpPermissionOption                          interface  packages/daemon/src/ports/agent-runtime-sessions.ts:64:18       
+AcpPermissionRequest                         interface  packages/daemon/src/ports/agent-runtime-sessions.ts:77:18       
+AcpPermissionDecision                        type       packages/daemon/src/ports/agent-runtime-sessions.ts:87:13       
+AcpPermissionHandler                         type       packages/daemon/src/ports/agent-runtime-sessions.ts:95:13       
+AttachAcpSessionOptions                      interface  packages/daemon/src/ports/agent-runtime-sessions.ts:111:18      
+JsonRecord                                   type       packages/daemon/src/ports/agent-runtime-sessions.ts:162:13      
+SendAgentEvent                               type       packages/daemon/src/ports/agent-runtime-sessions.ts:164:13      
+PiRpcSessionOptions                          type       packages/daemon/src/ports/agent-runtime-sessions.ts:167:13      
+SessionFixture                               interface  …ages/daemon/src/store/agent-sessions/__tests__/contract.ts:4:18
+SqlSessionFixture                            interface  …/daemon/src/store/agent-sessions/__tests__/sql-contract.ts:9:18
+ToolResultTextBlock                          interface  packages/daemon/src/tool-result-media.ts:35:18                  
+ToolResultImageBlock                         interface  packages/daemon/src/tool-result-media.ts:43:18                  
+ExtractResultMedia                           interface  packages/daemon/src/tool-result-media.ts:59:18                  
+ToolResultBlock                              type       packages/daemon/src/tool-result-surfaces.ts:65:13               
+SplitToolResultSurfaces                      interface  packages/daemon/src/tool-result-surfaces.ts:67:18               
+SettingsCasPair                              interface  packages/db/src/__tests__/settings-revision.fixture.ts:104:18   
+OwnedTransactionControl                      interface  packages/db/src/kernel/owned-transaction.ts:4:18                
+Ledger                                       type       packages/db/src/migrate/runner.ts:11:14                         
+LedgerRow                                    type       packages/db/src/migrate/runner.ts:11:22                         
+OwnerPorts                                   interface  packages/db/src/pglite/owner.ts:127:18                          
+ValueRow                                     type       packages/db/src/settings/repo.rows.ts:90:13                     
+PsqlResult                                   type       packages/db/src/testing/pg-fixture.ts:3:14                      
+PostgresDatabaseHelpers                      interface  packages/db/src/testing/postgres-database.ts:13:18              
+TransferPgTestDb                             interface  packages/db/src/testing/transfer-pg-test-db.ts:11:18            
+Store                                        interface  packages/desktop-host/src/app-version/store.ts:7:18             
+RuntimeImport                                interface  packages/devops/src/checks/hardwiring.ts:12:18                  
+FakeAnswer                                   type       packages/devops/src/dns/__tests__/fakes.ts:6:13                 
+MemoryCall                                   type       …kages/devops/src/packaging/electron/__tests__/memory-fs.ts:5:13
+MemoryFs                                     interface  …ages/devops/src/packaging/electron/__tests__/memory-fs.ts:10:18
+CssUrlToken                                  interface  packages/devops/src/static-export/css-urls.ts:2:18              
+HtmlUrlLocation                              interface  packages/devops/src/static-export/html-url-locations.ts:6:18    
+TelemetryTestProbe                           interface  packages/diagnostics/src/observability/telemetry-test.ts:9:18   
+UnmatchedJsonResponse                        interface  packages/diagnostics/src/web-evidence/public-page.ts:10:18      
+RecordPatch                                  type       packages/integrations/src/api-connections/records.ts:14:13      
+CheckedCallback                              interface  …ckages/integrations/src/api-connections/request-checks.ts:60:18
+MediaTaskStorePinsArgs                       interface  …grations/src/media-providers/__tests__/task-store-pins.ts:11:18
+AIHubMixProtocol                             type       …src/media-providers/dispatch/providers/aihubmix-shared.ts:53:13
+AIHubMixGeminiImageReque…                    interface  …src/media-providers/dispatch/providers/aihubmix-shared.ts:86:18
+ReconcileAction                              type       …kages/integrations/src/media-providers/task-lifecycle.ts:137:13
+DeliveryEnvelopeStore                        interface  …s/integrations/src/webhooks/__tests__/memory-fixtures.ts:191:18
+RecordedHttpCall                             interface  …s/integrations/src/webhooks/__tests__/memory-fixtures.ts:211:18
+ScriptedHttpResponse                         type       …s/integrations/src/webhooks/__tests__/memory-fixtures.ts:215:13
+RecordingHttpClientOptio…                    interface  …s/integrations/src/webhooks/__tests__/memory-fixtures.ts:217:18
+ApprovalContext                              interface  …kages/mcp/src/federation/approvals/remembered-approval.ts:12:18
+Warning                                      type       packages/mcp/src/server/__tests__/call-progress.fixture.ts:5:13 
+SdkRequestSchemas                            type       packages/mcp/src/server/adapters/sdk-server.ts:11:13            
+ToolPublicationSkipReason                    type       packages/mcp/src/server/tool-protocol.ts:58:13                  
+ToolResultPages                              interface  packages/mcp/src/server/tool-result-pages.ts:10:18              
+McpDelegatedToolsOptions                     interface  packages/mcp/src/server/tool-server.ts:81:18                    
+LoopbackRoute                                type       packages/oauth/src/loopback-callback.ts:26:13                   
+TokenRefreshPort                             type       packages/oauth/src/refresh.ts:13:14                             
+RecordedRequest                              interface  packages/oauth/tests/helpers.ts:14:18                           
+ScriptedResponse                             interface  packages/oauth/tests/helpers.ts:21:18                           
+FetchDouble                                  interface  packages/oauth/tests/helpers.ts:29:18                           
+RecordedServerRequest                        interface  packages/oauth/tests/helpers.ts:128:18                          
+LoopbackServer                               interface  packages/oauth/tests/helpers.ts:135:18                          
+DiscoveryFixture                             interface  packages/oauth/tests/helpers.ts:204:18                          
+NativeHttpTransportOptio…                    interface  packages/platform/src/http/guarded/transport.fetch.ts:19:18     
+CapabilityToken                              type       packages/plugins/src/host/__tests__/support/fixture-sdk.ts:44:13
+HookKind                                     type       packages/plugins/src/host/__tests__/support/fixture-sdk.ts:68:7 
+HookPointDescriptor                          type       packages/plugins/src/host/__tests__/support/fixture-sdk.ts:69:7 
+HookPointName                                type       packages/plugins/src/host/__tests__/support/fixture-sdk.ts:70:7 
+HookSignatures                               type       packages/plugins/src/host/__tests__/support/fixture-sdk.ts:71:7 
+FilterHookName                               type       packages/plugins/src/host/__tests__/support/fixture-sdk.ts:72:7 
+ActionHookName                               type       packages/plugins/src/host/__tests__/support/fixture-sdk.ts:73:7 
+ContributionHookName                         type       packages/plugins/src/host/__tests__/support/fixture-sdk.ts:74:7 
+HookContext                                  interface  …ckages/plugins/src/host/__tests__/support/fixture-sdk.ts:102:18
+FilterFn                                     type       …ckages/plugins/src/host/__tests__/support/fixture-sdk.ts:121:13
+ActionFn                                     type       …ckages/plugins/src/host/__tests__/support/fixture-sdk.ts:125:13
+ContributionFn                               type       …ckages/plugins/src/host/__tests__/support/fixture-sdk.ts:129:13
+HookAttachOptions                            interface  …ckages/plugins/src/host/__tests__/support/fixture-sdk.ts:136:18
+PluginDefinition                             interface  …ckages/plugins/src/host/__tests__/support/fixture-sdk.ts:177:18
+Plugin                                       interface  …ckages/plugins/src/host/__tests__/support/fixture-sdk.ts:184:18
+OpenFlagConstants                            interface  packages/plugins/src/host/node/open-flags.ts:9:18               
+A2uiPropsValidator                           interface  packages/protocol/src/a2ui/catalog.ts:76:18                     
+BuiltChartDom                                interface  …es/provider-plugins/src/__tests__/browser-provider-dom.ts:12:18
+FinishedSpan                                 type       packages/provider-plugins/src/__tests__/otel-fakes.ts:9:13      
+LangfuseSinkConfig                           interface  …kages/provider-plugins/src/ai-trace-langfuse/langfuse.ts:107:18
+PostHogConsentPorts                          interface  …provider-plugins/src/analytics-posthog/consent-adapter.ts:39:18
+GrantInput                                   interface  …ckages/provider-plugins/src/analytics-posthog/contract.ts:33:18
+PostHogConfigEnabled                         interface  packages/provider-plugins/src/analytics-posthog/posthog.ts:29:18
+ProviderAttribution                          interface  packages/provider-plugins/src/attribution.ts:8:18               
+EChartsKind                                  type       packages/provider-plugins/src/charts-echarts/descriptor.ts:6:13 
+BarChartProps                                interface  packages/provider-plugins/src/charts-recharts/bar-chart.tsx:6:18
+ChartSeries                                  interface  …kages/provider-plugins/src/charts-recharts/chart-config.ts:3:18
+LineChartProps                               interface  …ckages/provider-plugins/src/charts-recharts/line-chart.tsx:7:18
+PieDatum                                     interface  packages/provider-plugins/src/charts-recharts/pie-chart.tsx:5:18
+PieChartProps                                interface  …ckages/provider-plugins/src/charts-recharts/pie-chart.tsx:10:18
+TracerProviderPort                           interface  …vider-plugins/src/observability-opentelemetry/contract.ts:27:18
+ErrorDescriberSlice                          interface  …vider-plugins/src/observability-opentelemetry/contract.ts:32:18
+ReportedErrorDescription                     interface  …vider-plugins/src/observability-opentelemetry/contract.ts:42:18
+ObservabilityConfig                          type       …vider-plugins/src/observability-opentelemetry/contract.ts:43:13
+OtelAdapterDependencies                      interface  …ider-plugins/src/observability-opentelemetry/otel-port.ts:12:18
+OtelAdapterOptions                           interface  …ider-plugins/src/observability-opentelemetry/otel-port.ts:15:18
+ReportedErrorDescription                     interface  …ages/provider-plugins/src/observability-sentry/contract.ts:6:18
+SentryClient                                 type       …kages/provider-plugins/src/observability-sentry/sentry.ts:53:13
+ProviderAccountScope                         type       packages/provider-plugins/src/payments-stripe/contract.ts:17:13 
+ProviderRefundStatus                         type       packages/provider-plugins/src/payments-stripe/contract.ts:21:13 
+ProviderDisputeStatus                        type       packages/provider-plugins/src/payments-stripe/contract.ts:23:13 
+NextActionKind                               type       packages/provider-plugins/src/payments-stripe/contract.ts:24:13 
+RefundEvidence                               interface  packages/provider-plugins/src/payments-stripe/contract.ts:33:18 
+DisputeEvidence                              interface  packages/provider-plugins/src/payments-stripe/contract.ts:40:18 
+SettlementEvidence                           interface  packages/provider-plugins/src/payments-stripe/contract.ts:48:18 
+IntentLine                                   interface  packages/provider-plugins/src/payments-stripe/contract.ts:130:18
+RefundRequest                                interface  packages/provider-plugins/src/payments-stripe/contract.ts:149:18
+SessionReading                               type       …es/provider-plugins/src/payments-stripe/session-reading.ts:4:13
+Translation                                  type       packages/provider-plugins/src/payments-stripe/webhook.ts:4:13   
+ProviderTelemetryReporter                    interface  packages/provider-plugins/src/telemetry-reporter.ts:19:18       
+FakeState                                    interface  packages/search/src/__tests__/fakes/index.ts:91:18              
+FakeTargets                                  interface  packages/search/src/__tests__/fakes/index.ts:141:18             
+FakeSource                                   interface  packages/search/src/__tests__/fakes/index.ts:169:18             
+Pack                       KernelCompositi…  type       packages/server/src/compose-jini-kernel.ts:452:14               
+ClosableEventLog                             type       packages/server/src/kernel-base.ts:63:13                        
+RemoveDaemonRegistryReco…                    interface  packages/sidecar/src/daemon-registry.ts:72:18                   
+KitComponentSpec                             interface  packages/ui-kit/src/kit-contract.ts:3:18                        
+NativeDialogHooks                            type       packages/ui-kit/src/react/native/Dialog.tsx:8:13                
+NativeConfirmDialogHooks                     type       packages/ui-kit/src/react/native/Dialog.tsx:17:13               
+SelectHooks                                  type       …/src/features/admin-widgets/components/Select/Select.tsx:204:13
+SuggestInputHooks                            type       …es/admin-widgets/components/SuggestInput/SuggestInput.tsx:41:13
+AssetCardHooks                               type       …ui/src/features/asset-grid/react/components/AssetCard.tsx:32:13
+AssetGridHooks                               type       …ui/src/features/asset-grid/react/components/AssetGrid.tsx:55:13
+AssetTreeBrowserTopbarPr…                    interface  …t-tree-browser/react/components/AssetTreeBrowserParts.tsx:36:18
+AssetTreeBrowserBodyProps                    interface  …t-tree-browser/react/components/AssetTreeBrowserParts.tsx:65:18
+AssetTreeBrowserPreviewP…                    interface  …-tree-browser/react/components/AssetTreeBrowserParts.tsx:232:18
+AssetTreeBrowserRowMenuP…                    interface  …-tree-browser/react/components/AssetTreeBrowserParts.tsx:274:18
+AssetTreeBrowserControll…                    interface  …browser/react/components/useAssetTreeBrowserController.ts:17:18
+AssetTreeBrowserControll…                    interface  …browser/react/components/useAssetTreeBrowserController.ts:27:18
+FileWithRelativePath                         type       packages/ui/src/features/asset-tree-browser/rules.ts:18:14      
+ConnectorDetailDrawerHoo…                    type       …/features/connectors/components/ConnectorDetailDrawer.tsx:43:13
+ConnectorActionSetters                       interface  …rc/features/connectors/hooks/useConnectorAuthorization.ts:51:18
+ByokProviderFormHooks                        type       …features/execution/react/components/ByokProviderForm.tsx:134:13
+LocalCliAgentCardHooks                       type       …features/execution/react/components/LocalCliAgentCard.tsx:45:13
+UseReasoningControlOptio…                    interface  …src/features/execution/react/hooks/useReasoningControl.ts:20:18
+ExternalMcpTabHooks                          type       …features/external-mcp/react/components/ExternalMcpTab.tsx:51:13
+FileDropzoneHooks                            type       …/features/file-dropzone/react/components/FileDropzone.tsx:70:13
+FileDropzoneZoneProps                        interface  …atures/file-dropzone/react/components/FileDropzoneZone.tsx:6:18
+CanvasStyleConfig                            interface  packages/ui/src/features/html-editor/canvas-style.ts:116:18     
+EditorBlockReason                            type       packages/ui/src/features/html-editor/editor-blocks.ts:5:13      
+EditorBlock                                  interface  packages/ui/src/features/html-editor/editor-blocks.ts:6:18      
+EditorBlockOptions                           interface  packages/ui/src/features/html-editor/editor-blocks.ts:13:18     
+RawSourceInstance                            interface  packages/ui/src/features/html-editor/editor-blocks.ts:181:18    
+ElementSourceRange                           interface  packages/ui/src/features/html-editor/source-splice.ts:44:18     
+LocalePersistencePort                        type       packages/ui/src/features/i18n/context.tsx:30:14                 
+SystemLocaleDetector                         type       packages/ui/src/features/i18n/context.tsx:30:37                 
+ClientPickerHooks                            type       …c/features/integrations/react/components/ClientPicker.tsx:39:13
+IntegrationsTabHooks                         type       …eatures/integrations/react/components/IntegrationsTab.tsx:41:13
+DataTableColumn                              interface  …rc/features/interactive-ui/providers/native/data-table.tsx:4:18
+DataTableProps                               interface  …rc/features/interactive-ui/providers/native/data-table.tsx:9:18
+DataTableColumn                              type       …s/ui/src/features/interactive-ui/providers/native/index.ts:2:25
+DataTableProps                               type       …s/ui/src/features/interactive-ui/providers/native/index.ts:2:47
+ActionButtonProps                            interface  …features/interactive-ui/providers/shadcn/action-button.tsx:8:18
+ButtonProps                                  type       …i/src/features/interactive-ui/providers/shadcn/button.tsx:39:13
+CheckboxFieldProps                           interface  …eatures/interactive-ui/providers/shadcn/checkbox-field.tsx:8:18
+ContentCardProps                             interface  …/features/interactive-ui/providers/shadcn/content-card.tsx:3:18
+DataTableColumn                              interface  …rc/features/interactive-ui/providers/shadcn/data-table.tsx:9:18
+DataTableColumn                              type       …s/ui/src/features/interactive-ui/providers/shadcn/index.ts:2:25
+DataTableProps                               type       …s/ui/src/features/interactive-ui/providers/shadcn/index.ts:2:47
+ActionButtonProps                            type       …s/ui/src/features/interactive-ui/providers/shadcn/index.ts:5:28
+CheckboxFieldProps                           type       …s/ui/src/features/interactive-ui/providers/shadcn/index.ts:7:29
+RadioGroupFieldProps                         type       …s/ui/src/features/interactive-ui/providers/shadcn/index.ts:9:31
+RadioOption                                  type       …s/ui/src/features/interactive-ui/providers/shadcn/index.ts:9:58
+TextInputFieldProps                          type       …/ui/src/features/interactive-ui/providers/shadcn/index.ts:11:30
+SelectFieldProps                             type       …/ui/src/features/interactive-ui/providers/shadcn/index.ts:13:27
+SelectOption                                 type       …/ui/src/features/interactive-ui/providers/shadcn/index.ts:13:50
+ContentCardProps                             type       …/ui/src/features/interactive-ui/providers/shadcn/index.ts:15:27
+RadioOption                                  interface  …ures/interactive-ui/providers/shadcn/radio-group-field.tsx:5:18
+RadioGroupFieldProps                         interface  …res/interactive-ui/providers/shadcn/radio-group-field.tsx:11:18
+SelectOption                                 interface  …/features/interactive-ui/providers/shadcn/select-field.tsx:7:18
+SelectFieldProps                             interface  …features/interactive-ui/providers/shadcn/select-field.tsx:13:18
+TextInputFieldProps                          interface  …ures/interactive-ui/providers/shadcn/text-input-field.tsx:10:18
+PendingSurfaceCall                           interface  …i/src/features/mcp-ui/__tests__/surfaces/mount-surface.ts:11:18
+MediaProviderCardProps                       interface  …es/media-providers/react/components/MediaProviderCard.tsx:27:18
+MemoryAdvancedModalProps                     interface  …features/memory/react/components/MemoryAdvancedModal.tsx:180:18
+MemoryConnectedPanelProps                    interface  …eatures/memory/react/components/MemoryConnectedPanel.tsx:316:18
+MemoryManualEditorProps                      interface  …/features/memory/react/components/MemoryManualEditor.tsx:231:18
+ConnectorSuggestionOutco…                    interface  …/features/memory/react/hooks/useMemoryConnectors.rules.ts:26:18
+ConnectorSuggestionsSave…                    interface  …/features/memory/react/hooks/useMemoryConnectors.rules.ts:91:18
+DeleteOpToken                                interface  …eatures/memory/react/hooks/useMemoryExtractions.store.ts:116:18
+ClearOpToken                                 interface  …eatures/memory/react/hooks/useMemoryExtractions.store.ts:127:18
+NotificationsTabHooks                        type       …tures/notifications/react/components/NotificationsTab.tsx:49:13
+FakeExcalidrawInitialData                    interface  …ui/src/features/sketch-editor/react/dependencies-fake.tsx:20:18
+SkillRowOwnLabelKey                          type       …ui/src/features/skills/react/components/SkillRow.labels.ts:4:13
+SkillsTabHooks                               type       …ges/ui/src/features/skills/react/components/SkillsTab.tsx:49:13
+TabbedDialogChromeProps                      interface  …ures/tabbed-dialog/react/components/TabbedDialogChrome.tsx:5:18
+TabbedDialogHeaderProps                      interface  …ures/tabbed-dialog/react/components/TabbedDialogHeader.tsx:4:18
+TabbedDialogNavTab                           type       …res/tabbed-dialog/react/components/TabbedDialogSidebar.tsx:7:13
+TabbedDialogNavItemProps                     interface  …res/tabbed-dialog/react/components/TabbedDialogSidebar.tsx:9:18
+TabbedDialogSidebarProps                     interface  …es/tabbed-dialog/react/components/TabbedDialogSidebar.tsx:69:18
+VersionPreviewFrameHooks                     type       …/version-manager/react/components/VersionPreviewFrame.tsx:27:13
+MarkdownSplitPaneHooks                       type       …tures/viewer-shell/react/components/MarkdownSplitPane.tsx:48:13
+ThemedViewSession                            interface  packages/ui/src/react/mcp-ui/mcp-ui-host-frame.ts:14:18         
+SendGateInput                                interface  …tion-canvas/react/hooks/useAnnotationCanvas.controller.ts:48:18
+SendGate                                     interface  …tion-canvas/react/hooks/useAnnotationCanvas.controller.ts:58:18
+CaptureAttemptOutcome                        type       …tion-canvas/react/hooks/useAnnotationCanvas.controller.ts:94:13
+FileWithRelativePath                         interface  packages/ui/src/utils/file-transfer.ts:38:18                    
+AuthScope                                    type       …user-management/src/admin/react/hooks/AuthBinding.hooks.ts:3:14
+AuthView                                     interface  …s/user-management/src/admin/react/hooks/LoginPage.hooks.ts:9:18
+MembersScope                                 type       …r-management/src/admin/react/hooks/MembersBinding.hooks.ts:3:14
+RolesScope                                   type       …ser-management/src/admin/react/hooks/RolesBinding.hooks.ts:3:14
+UsersScope                                   type       …ser-management/src/admin/react/hooks/UsersBinding.hooks.ts:3:14
+UserNameCellProps                            interface  packages/user-management/src/react/users/UserRowParts.tsx:20:18 
+UserStatusCellProps                          interface  packages/user-management/src/react/users/UserRowParts.tsx:59:18 
+UserGrantCellsProps                          interface  packages/user-management/src/react/users/UserRowParts.tsx:74:18 
+GrantOption                                  interface  packages/user-management/src/react/users/Users.tsx:176:18       
+GrantSelectController                        interface  packages/user-management/src/react/users/Users.tsx:185:18       
+UserManageController                         interface  packages/user-management/src/react/users/Users.tsx:202:18       
+UserManagePanelProps                         interface  packages/user-management/src/react/users/Users.tsx:268:18       
+UserRowActionsController                     interface  packages/user-management/src/react/users/Users.tsx:338:18       
+UserRowProps                                 interface  packages/user-management/src/react/users/Users.tsx:354:18       
+UsersTableProps                              interface  packages/user-management/src/react/users/Users.tsx:404:18       
+ValidatedIdentityInput                       interface  …s/user-management/src/server/agent-tool-registrations.ts:199:18
+ManifestFile                                 interface  packages/vibecoding/src/node/store.ts:8:18                      
+Manifest                                     interface  packages/vibecoding/src/node/store.ts:9:18                      
+EntrySurface                                 interface  scripts/lib/api-surface.ts:17:18                                
+SurfaceDiff                                  interface  scripts/lib/api-surface.ts:25:18                                
+SiteKind                                     type       scripts/lib/import-sites.ts:13:13                               
+ImportSite                                   interface  scripts/lib/import-sites.ts:14:18                               
+PeerPackageJson                              interface  scripts/lib/peer-range-compatibility.ts:10:18                   
+NeutralityViolation                          interface  scripts/lib/source-neutrality.ts:19:18                          
+NeutralityException                          interface  scripts/lib/source-neutrality.ts:20:18                          
+Duplicate exports (26)
+sonarjsConfig|default                                   development/quality/sonarjs.config.mjs                          
+AgentPluginsPage|default                                …ckages/admin/src/agent-plugins/react/pages/AgentPluginsPage.tsx
+DownloadedTab|default                                   packages/admin/src/agent-plugins/react/tabs/DownloadedTab.tsx   
+InstalledTab|default                                    packages/admin/src/agent-plugins/react/tabs/InstalledTab.tsx    
+MarketplaceTab|default                                  packages/admin/src/agent-plugins/react/tabs/MarketplaceTab.tsx  
+CommentsPage|default                                    packages/admin/src/comments/react/pages/CommentsPage.tsx        
+FormEditor|default                                      packages/admin/src/forms/react/pages/FormEditor.tsx             
+FormsList|default                                       packages/admin/src/forms/react/pages/FormsList.tsx              
+MediaPage|default                                       packages/admin/src/media/react/pages/MediaPage.tsx              
+LibraryTab|default                                      packages/admin/src/media/react/tabs/LibraryTab.tsx              
+ProvidersTab|default                                    packages/admin/src/media/react/tabs/ProvidersTab.tsx            
+PlaygroundPage|default                                  packages/admin/src/playground/react/pages/PlaygroundPage.tsx    
+CanvasTab|default                                       packages/admin/src/playground/react/tabs/CanvasTab.tsx          
+SecurityPage|default                                    packages/admin/src/security/react/pages/SecurityPage.tsx        
+AccessTokensTab|default                                 packages/admin/src/security/react/tabs/AccessTokensTab.tsx      
+RootKeyTab|default                                      packages/admin/src/security/react/tabs/RootKeyTab.tsx           
+Seo|default                                             packages/admin/src/seo/react/pages/SeoPage.tsx                  
+SourceControlPage|default                               …ages/admin/src/source-control/react/pages/SourceControlPage.tsx
+ProvidersTab|default                                    packages/admin/src/source-control/react/tabs/ProvidersTab.tsx   
+WidgetInstanceEditor|default                            packages/admin/src/widgets/react/pages/WidgetInstanceEditor.tsx 
+WidgetRegionEditor|default                              packages/admin/src/widgets/react/pages/WidgetRegionEditor.tsx   
+WidgetRegions|default                                   packages/admin/src/widgets/react/pages/WidgetRegions.tsx        
+WidgetsLibrary|default                                  packages/admin/src/widgets/react/pages/WidgetsLibrary.tsx       
+latestTodoWriteInputFromMessages|latestTodoWriteInput   packages/chat/src/core/todos.ts                                 
+ComponentIdSchema|ChildSchema                           packages/protocol/src/a2ui/common-types.ts                      
+rechartsBarChartPropsSchema|rechartsLineChartPropsSch…  packages/ui/src/features/charts/wire.ts                         
+Configuration hints (543)
+Remove entry in root "." workspace: .dependency-cruiser.mjs
+Refine entry in root "." workspace: scripts/tests/**/*.types.ts (no files found)
+Refine project in root "." workspace: *.mjs (no files found)
+Refine entry in examples/reference-web: tests/**/*.types.ts (no files found)
+Refine project in examples/reference-web: tests/**/*.{ts,tsx,mts,cts,js,jsx} (no files found)
+Refine project in examples/reference-web: scripts/**/*.{ts,js,mjs,cjs} (no files found)
+Remove entry in examples/minimal-host: src/index.ts
+Refine entry in examples/minimal-host: tests/**/*.types.ts (no files found)
+Refine project in examples/minimal-host: tests/**/*.{ts,tsx,mts,cts,js,jsx} (no files found)
+Refine project in examples/minimal-host: scripts/**/*.{ts,js,mjs,cjs} (no files found)
+Refine project in examples/minimal-host: *.{config,setup}.{ts,js,mjs,cjs} (no files found)
+Remove entry in packages/devops: src/source-control/entry.ts
+Remove entry in packages/devops: src/static-export/entry.ts
+Remove entry in packages/devops: src/static-export/node-adapters.ts
+Remove entry in packages/devops: src/packaging/electron/entry.ts
+Remove entry in packages/devops: src/packaging/electron/typescript.ts
+Remove entry in packages/devops: src/agent-jobs/entry.ts
+Remove entry in packages/devops: src/index.ts
+Remove entry in packages/devops: src/deploy/index.ts
+Remove entry in packages/devops: src/checks/published-types/index.ts
+Remove entry in packages/devops: src/checks/node.ts
+Remove entry in packages/devops: src/local-dev/index.ts
+Remove entry in packages/devops: src/deploy/node.ts
+Remove entry in packages/devops: src/core/export-failure-summary.ts
+Refine entry in packages/devops: tests/**/*.types.ts (no files found)
+Refine project in packages/devops: tests/**/*.{ts,tsx,mts,cts,js,jsx} (no files found)
+Refine project in packages/devops: scripts/**/*.{ts,js,mjs,cjs} (no files found)
+Refine project in packages/devops: *.{config,setup}.{ts,js,mjs,cjs} (no files found)
+Remove entry in packages/server: src/index.ts
+Remove entry in packages/server: src/storage/index.ts
+Remove entry in packages/server: src/storage/legacy/sqlite.ts
+Remove entry in packages/server: src/store/projects/sqlite.ts
+Refine entry in packages/server: tests/**/*.types.ts (no files found)
+Refine project in packages/server: scripts/**/*.{ts,js,mjs,cjs} (no files found)
+Refine project in packages/server: *.{config,setup}.{ts,js,mjs,cjs} (no files found)
+Remove entry in packages/sqlite: src/index.ts
+Refine entry in packages/sqlite: tests/**/*.types.ts (no files found)
+Refine project in packages/sqlite: tests/**/*.{ts,tsx,mts,cts,js,jsx} (no files found)
+Refine project in packages/sqlite: scripts/**/*.{ts,js,mjs,cjs} (no files found)
+Refine project in packages/sqlite: *.{config,setup}.{ts,js,mjs,cjs} (no files found)
+Remove entry in packages/mcp: src/index.ts
+Remove entry in packages/mcp: src/tools/ask-choice/index.ts
+Remove entry in packages/mcp: src/federation/index.ts
+Remove entry in packages/mcp: src/federation/approvals/index.ts
+Remove entry in packages/mcp: src/federation/stdio/index.ts
+Remove entry in packages/mcp: src/federation/testing/index.ts
+Remove entry in packages/mcp: src/bin/serve.ts
+Refine entry in packages/mcp: tests/**/*.types.ts (no files found)
+Refine project in packages/mcp: tests/**/*.{ts,tsx,mts,cts,js,jsx} (no files found)
+Refine project in packages/mcp: scripts/**/*.{ts,js,mjs,cjs} (no files found)
+Refine project in packages/mcp: *.{config,setup}.{ts,js,mjs,cjs} (no files found)
+Remove entry in packages/user-management: src/core/index.ts
+Remove entry in packages/user-management: src/server/index.ts
+Remove entry in packages/user-management: src/react/index.ts
+Remove entry in packages/user-management: src/react/testing.ts
+Remove entry in packages/user-management: src/admin/index.ts
+Remove entry in packages/user-management: src/admin/react/index.ts
+Remove entry in packages/user-management: src/admin/adapters/http.ts
+Remove entry in packages/user-management: src/admin/adapters/memory.ts
+Remove entry in packages/user-management: src/admin/conformance/index.ts
+Refine entry in packages/user-management: tests/**/*.types.ts (no files found)
+Refine project in packages/user-management: tests/**/*.{ts,tsx,mts,cts,js,jsx} (no files found)
+Refine project in packages/user-management: scripts/**/*.{ts,js,mjs,cjs} (no files found)
+Refine project in packages/user-management: *.{config,setup}.{ts,js,mjs,cjs} (no files found)
+Remove entry in packages/daemon: src/index.ts
+Remove entry in packages/daemon: src/store/event-log/sqlite.ts
+Remove entry in packages/daemon: src/store/agent-sessions/index.ts
+Remove entry in packages/daemon: src/store/agent-sessions/sqlite.ts
+Remove entry in packages/daemon: src/store/agent-sessions/pglite.ts
+Remove entry in packages/daemon: src/store/agent-sessions/postgres.ts
+Remove entry in packages/daemon: src/http/index.ts
+Remove entry in packages/daemon: src/read-only-tools.ts
+Remove entry in packages/daemon: src/scheduler.ts
+Remove entry in packages/daemon: src/tool-audit.ts
+Remove entry in packages/daemon: src/surface-exchanges.ts
+Remove entry in packages/daemon: src/session-coordination.ts
+Remove entry in packages/daemon: src/run-credentials.ts
+Remove entry in packages/daemon: src/tool-recovery/index.ts
+Refine entry in packages/daemon: tests/**/*.types.ts (no files found)
+Refine project in packages/daemon: tests/**/*.{ts,tsx,mts,cts,js,jsx} (no files found)
+Refine project in packages/daemon: scripts/**/*.{ts,js,mjs,cjs} (no files found)
+Remove entry in packages/admin: src/core/index.ts
+Remove entry in packages/admin: src/browser/index.ts
+Remove entry in packages/admin: src/react/index.ts
+Remove entry in packages/admin: src/react/shell/index.ts
+Remove entry in packages/admin: src/react/entities/index.ts
+Remove entry in packages/admin: src/browser/shell-navigation.ts
+Remove entry in packages/admin: src/core/module/index.ts
+Refine entry in packages/admin: src/react/bind-react.ts (no files found)
+Refine entry in packages/admin: src/react/use-controller.ts (no files found)
+Remove entry in packages/admin: src/react/overlays.ts
+Remove entry in packages/admin: src/media/index.ts
+Remove entry in packages/admin: src/media/react/index.ts
+Remove entry in packages/admin: src/media/adapters/http.ts
+Remove entry in packages/admin: src/media/adapters/memory.ts
+Remove entry in packages/admin: src/media/conformance/media-api.conformance.ts
+Remove entry in packages/admin: src/contracts/credential-management.ts
+Remove entry in packages/admin: src/contracts/media-picker.ts
+Remove entry in packages/admin: src/contracts/playground-render-target.ts
+Remove entry in packages/admin: src/security/index.ts
+Remove entry in packages/admin: src/security/react/index.ts
+Remove entry in packages/admin: src/security/adapters/http.ts
+Remove entry in packages/admin: src/security/adapters/memory.ts
+Remove entry in packages/admin: src/security/conformance/security-api.conformance.ts
+Remove entry in packages/admin: src/playground/index.ts
+Remove entry in packages/admin: src/playground/react/index.ts
+Remove entry in packages/admin: src/playground/adapters/http.ts
+Remove entry in packages/admin: src/playground/adapters/memory.ts
+Remove entry in packages/admin: src/playground/conformance/playground-api.conformance.ts
+Remove entry in packages/admin: src/source-control/index.ts
+Remove entry in packages/admin: src/source-control/react/index.ts
+Remove entry in packages/admin: src/source-control/adapters/http.ts
+Remove entry in packages/admin: src/source-control/adapters/memory.ts
+Remove entry in packages/admin: src/source-control/conformance/source-control-api.conformance.ts
+Remove entry in packages/admin: src/agent-plugins/index.ts
+Remove entry in packages/admin: src/agent-plugins/react/index.ts
+Remove entry in packages/admin: src/agent-plugins/adapters/http.ts
+Remove entry in packages/admin: src/agent-plugins/adapters/memory.ts
+Remove entry in packages/admin: src/agent-plugins/conformance/agent-plugins-api.conformance.ts
+Remove entry in packages/admin: src/core/react/index.ts
+Remove entry in packages/admin: src/forms/index.ts
+Remove entry in packages/admin: src/forms/react/index.ts
+Remove entry in packages/admin: src/forms/adapters/http.ts
+Remove entry in packages/admin: src/forms/adapters/memory.ts
+Remove entry in packages/admin: src/forms/conformance/forms-api.conformance.ts
+Remove entry in packages/admin: src/comments/index.ts
+Remove entry in packages/admin: src/comments/react/index.ts
+Remove entry in packages/admin: src/comments/adapters/http.ts
+Remove entry in packages/admin: src/comments/adapters/memory.ts
+Remove entry in packages/admin: src/comments/conformance/comments-api.conformance.ts
+Remove entry in packages/admin: src/redirects/index.ts
+Remove entry in packages/admin: src/redirects/react/index.ts
+Remove entry in packages/admin: src/redirects/adapters/http.ts
+Remove entry in packages/admin: src/redirects/adapters/memory.ts
+Remove entry in packages/admin: src/redirects/conformance/redirects-api.conformance.ts
+Remove entry in packages/admin: src/seo/index.ts
+Remove entry in packages/admin: src/seo/react/index.ts
+Remove entry in packages/admin: src/seo/adapters/http.ts
+Remove entry in packages/admin: src/seo/adapters/memory.ts
+Remove entry in packages/admin: src/seo/conformance/seo-api.conformance.ts
+Remove entry in packages/admin: src/widgets/index.ts
+Remove entry in packages/admin: src/widgets/react/index.ts
+Remove entry in packages/admin: src/widgets/adapters/http.ts
+Remove entry in packages/admin: src/widgets/adapters/memory.ts
+Remove entry in packages/admin: src/widgets/conformance/widgets-api.conformance.ts
+Refine entry in packages/admin: src/consent/react/index.ts (no files found)
+Refine entry in packages/admin: tests/**/*.types.ts (no files found)
+Refine project in packages/admin: tests/**/*.{ts,tsx,mts,cts,js,jsx} (no files found)
+Refine project in packages/admin: scripts/**/*.{ts,js,mjs,cjs} (no files found)
+Remove entry in packages/chat: src/testing/index.ts
+Remove entry in packages/chat: src/core/index.ts
+Remove entry in packages/chat: src/react/index.ts
+Remove entry in packages/chat: src/react/chat-pane.ts
+Remove entry in packages/chat: src/store/index.ts
+Remove entry in packages/chat: src/store/sqlite/index.ts
+Remove entry in packages/chat: src/store/pglite/index.ts
+Remove entry in packages/chat: src/store/postgres/index.ts
+Remove entry in packages/chat: src/store/legacy/index.ts
+Remove entry in packages/chat: src/store/legacy/sqlite/index.ts
+Remove entry in packages/chat: src/core/run-events/entry.ts
+Remove entry in packages/chat: src/core/ag-ui/event-projection.ts
+Remove entry in packages/chat: src/core/ag-ui/event-reduction.ts
+Remove entry in packages/chat: src/core/ag-ui/run-input.ts
+Remove entry in packages/chat: src/server/run-finalizer/entry.ts
+Remove entry in packages/chat: src/embed-widget/react/embed.tsx
+Remove entry in packages/chat: src/core/assistant-client/ag-ui-transport.ts
+Remove entry in packages/chat: src/core/assistant-client/entry.ts
+Remove entry in packages/chat: src/embed-widget/transports/fetch-sse.ts
+Remove entry in packages/chat: src/embed-widget/browser/session-store.ts
+Refine entry in packages/chat: src/embed-widget/browser/page-actions.ts (no files found)
+Remove entry in packages/chat: src/server/durable-runs/entry.ts
+Remove entry in packages/chat: src/store/runtime/entry.ts
+Remove entry in packages/chat: src/embed-widget/vanilla/index.ts
+Remove entry in packages/chat: src/embed-widget/browser/lazy-loader.ts
+Refine entry in packages/chat: tests/**/*.types.ts (no files found)
+Refine project in packages/chat: scripts/**/*.{ts,js,mjs,cjs} (no files found)
+Remove entry in packages/agent-plugins: src/index.ts
+Remove entry in packages/agent-plugins: src/lifecycle/index.ts
+Remove entry in packages/agent-plugins: src/lifecycle/node.ts
+Remove entry in packages/agent-plugins: src/lifecycle/yauzl-archive-reader.ts
+Remove entry in packages/agent-plugins: src/lifecycle/tools/index.ts
+Remove entry in packages/agent-plugins: src/lifecycle/manifest.ts
+Remove entry in packages/agent-plugins: persistent-state.js
+Remove entry in packages/agent-plugins: src/folder-zip.ts
+Remove entry in packages/agent-plugins: src/folder-zip-node.ts
+Remove entry in packages/agent-plugins: src/admin-surfaces/index.ts
+Remove entry in packages/agent-plugins: src/admin-surfaces/surface-client.ts
+Refine entry in packages/agent-plugins: tests/**/*.types.ts (no files found)
+Refine project in packages/agent-plugins: *.{config,setup}.{ts,js,mjs,cjs} (no files found)
+Remove entry in packages/ui: src/index.ts
+Remove entry in packages/ui: src/core.ts
+Remove entry in packages/ui: src/features/sketch-editor/index.ts
+Remove entry in packages/ui: src/features/html-editor/index.ts
+Remove entry in packages/ui: src/react/mcp-ui/index.ts
+Remove entry in packages/ui: src/features/mcp-ui/index.ts
+Remove entry in packages/ui: src/features/mcp-ui/secret-card.ts
+Remove entry in packages/ui: src/features/interactive-ui/index.ts
+Remove entry in packages/ui: src/features/interactive-ui/manifests.ts
+Remove entry in packages/ui: src/features/a2ui/index.ts
+Remove entry in packages/ui: src/renderers/index.ts
+Remove entry in packages/ui: src/renderers/preview-modal-shell/index.ts
+Remove entry in packages/ui: src/features/admin-widgets/index.ts
+Remove entry in packages/ui: src/features/panel-kit/index.ts
+Remove entry in packages/ui: src/features/panel-kit/fetch-query/index.ts
+Remove entry in packages/ui: src/features/panel-kit/fetch-query/tanstack.ts
+Remove entry in packages/ui: src/features/tab-strip/index.ts
+Remove entry in packages/ui: src/theme/index.ts
+Remove entry in packages/ui: src/features/charts/index.ts
+Remove entry in packages/ui: src/features/charts/browser.ts
+Remove entry in packages/ui: src/features/charts/react.tsx
+Refine entry in packages/ui: tests/**/*.types.ts (no files found)
+Refine project in packages/ui: tests/**/*.{ts,tsx,mts,cts,js,jsx} (no files found)
+Remove entry in packages/cms/forms: src/index.ts
+Refine entry in packages/cms/forms: tests/**/*.types.ts (no files found)
+Refine project in packages/cms/forms: tests/**/*.{ts,tsx,mts,cts,js,jsx} (no files found)
+Refine project in packages/cms/forms: scripts/**/*.{ts,js,mjs,cjs} (no files found)
+Refine project in packages/cms/forms: *.{config,setup}.{ts,js,mjs,cjs} (no files found)
+Remove entry in packages/agent-runtime: src/index.ts
+Remove entry in packages/agent-runtime: src/providers/tool-turn.ts
+Remove entry in packages/agent-runtime: src/model-catalog-cache.ts
+Remove entry in packages/agent-runtime: src/providers/sse-decode.ts
+Remove entry in packages/agent-runtime: src/model-discovery-shared.ts
+Remove entry in packages/agent-runtime: src/model-discovery.ts
+Refine entry in packages/agent-runtime: tests/**/*.types.ts (no files found)
+Refine project in packages/agent-runtime: scripts/**/*.{ts,js,mjs,cjs} (no files found)
+Refine project in packages/agent-runtime: *.{config,setup}.{ts,js,mjs,cjs} (no files found)
+Remove entry in packages/commerce: src/index.ts
+Remove entry in packages/commerce: src/catalog/repo.ts
+Refine entry in packages/commerce: src/payments/index.ts (no files found)
+Refine entry in packages/commerce: src/store/index.ts (no files found)
+Remove entry in packages/commerce: src/http/index.ts
+Remove entry in packages/commerce: src/react/index.ts
+Remove entry in packages/commerce: src/tools.ts
+Refine entry in packages/commerce: tests/**/*.types.ts (no files found)
+Refine project in packages/commerce: tests/**/*.{ts,tsx,mts,cts,js,jsx} (no files found)
+Refine project in packages/commerce: scripts/**/*.{ts,js,mjs,cjs} (no files found)
+Remove entry in packages/integrations: src/media-providers/index.ts
+Remove entry in packages/integrations: src/media-providers/catalog.ts
+Remove entry in packages/integrations: src/credentialed-http/index.ts
+Remove entry in packages/integrations: src/webhooks/index.ts
+Remove entry in packages/integrations: src/api-connections/index.ts
+Refine entry in packages/integrations: tests/**/*.types.ts (no files found)
+Refine project in packages/integrations: tests/**/*.{ts,tsx,mts,cts,js,jsx} (no files found)
+Refine project in packages/integrations: scripts/**/*.{ts,js,mjs,cjs} (no files found)
+Refine project in packages/integrations: *.{config,setup}.{ts,js,mjs,cjs} (no files found)
+Remove entry in packages/registry: src/index.ts
+Remove entry in packages/registry: src/tool-catalog/index.ts
+Remove entry in packages/registry: src/tool-catalog/sqlite.ts
+Remove entry in packages/registry: src/tool-catalog-builder/index.ts
+Remove entry in packages/registry: src/tool-catalog-builder/sqlite.ts
+Refine entry in packages/registry: tests/**/*.types.ts (no files found)
+Refine project in packages/registry: tests/**/*.{ts,tsx,mts,cts,js,jsx} (no files found)
+Refine project in packages/registry: scripts/**/*.{ts,js,mjs,cjs} (no files found)
+Refine project in packages/registry: *.{config,setup}.{ts,js,mjs,cjs} (no files found)
+Remove entry in packages/plugins: src/glue/index.ts
+Remove entry in packages/plugins: src/host/index.ts
+Remove entry in packages/plugins: src/host/node/index.ts
+Remove entry in packages/plugins: src/host/worker/index.ts
+Remove entry in packages/plugins: src/host/sql/index.ts
+Refine entry in packages/plugins: tests/**/*.types.ts (no files found)
+Refine project in packages/plugins: tests/**/*.{ts,tsx,mts,cts,js,jsx} (no files found)
+Refine project in packages/plugins: scripts/**/*.{ts,js,mjs,cjs} (no files found)
+Refine project in packages/plugins: *.{config,setup}.{ts,js,mjs,cjs} (no files found)
+Remove entry in packages/infra: src/events/outbox/index.ts
+Remove entry in packages/infra: src/db/driver/index.ts
+Remove entry in packages/infra: src/db/sqlite/index.ts
+Refine entry in packages/infra: tests/**/*.types.ts (no files found)
+Refine project in packages/infra: tests/**/*.{ts,tsx,mts,cts,js,jsx} (no files found)
+Refine project in packages/infra: scripts/**/*.{ts,js,mjs,cjs} (no files found)
+Refine project in packages/infra: *.{config,setup}.{ts,js,mjs,cjs} (no files found)
+Remove entry in packages/cli: src/index.ts
+Remove entry in packages/cli: src/introspection.ts
+Remove entry in packages/cli: src/main.ts
+Refine entry in packages/cli: tests/**/*.types.ts (no files found)
+Refine project in packages/cli: tests/**/*.{ts,tsx,mts,cts,js,jsx} (no files found)
+Refine project in packages/cli: scripts/**/*.{ts,js,mjs,cjs} (no files found)
+Refine project in packages/cli: *.{config,setup}.{ts,js,mjs,cjs} (no files found)
+Remove entry in packages/cms: src/core/index.ts
+Remove entry in packages/cms: src/navigation/index.ts
+Remove entry in packages/cms: src/routing/index.ts
+Remove entry in packages/cms: src/media/index.ts
+Remove entry in packages/cms: src/settings/index.ts
+Remove entry in packages/cms: src/workspace/index.ts
+Remove entry in packages/cms: src/entries/index.ts
+Remove entry in packages/cms: src/content-types/index.ts
+Remove entry in packages/cms: src/taxonomy/index.ts
+Remove entry in packages/cms: src/presentation/index.ts
+Remove entry in packages/cms: src/core/tools/index.ts
+Remove entry in packages/cms: src/media/import/index.ts
+Remove entry in packages/cms: src/trash/index.ts
+Refine entry in packages/cms: src/settings/express/index.ts (no files found)
+Remove entry in packages/cms: src/media/node.ts
+Remove entry in packages/cms: src/forms/html-render.ts
+Remove entry in packages/cms: src/forms/submission-attempts.ts
+Remove entry in packages/cms: src/widgets/page-embed-types.ts
+Remove entry in packages/cms: src/widgets/html/html-embeds.ts
+Remove entry in packages/cms: src/widgets/html/gallery-render.ts
+Remove entry in packages/cms: src/navigation/types.ts
+Remove entry in packages/cms: src/navigation/dropdown.ts
+Remove entry in packages/cms: src/navigation/href.ts
+Remove entry in packages/cms: src/navigation/node/index.ts
+Remove entry in packages/cms: src/media/slug.ts
+Remove entry in packages/cms: src/forms/index.ts
+Remove entry in packages/cms: src/forms/html/index.ts
+Remove entry in packages/cms: src/forms/sql/index.ts
+Remove entry in packages/cms: src/forms/express/index.ts
+Remove entry in packages/cms: src/comments/index.ts
+Remove entry in packages/cms: src/comments/sql/index.ts
+Remove entry in packages/cms: src/comments/express/index.ts
+Remove entry in packages/cms: src/redirects/index.ts
+Remove entry in packages/cms: src/redirects/sql/index.ts
+Remove entry in packages/cms: src/redirects/express/index.ts
+Remove entry in packages/cms: src/redirects/spa/index.ts
+Remove entry in packages/cms: src/redirects/host-config/index.ts
+Remove entry in packages/cms: src/seo/index.ts
+Remove entry in packages/cms: src/seo/dom/index.ts
+Remove entry in packages/cms: src/widgets/index.ts
+Remove entry in packages/cms: src/widgets/markers/index.ts
+Remove entry in packages/cms: src/widgets/html/index.ts
+Remove entry in packages/cms: src/widgets/resolvers/index.ts
+Remove entry in packages/cms: src/widgets/sql/index.ts
+Remove entry in packages/cms: src/listing/index.ts
+Refine entry in packages/cms: tests/**/*.types.ts (no files found)
+Refine project in packages/cms: *.{config,setup}.{ts,js,mjs,cjs} (no files found)
+Remove entry in examples/reference-desktop: src/main.ts
+Refine entry in examples/reference-desktop: tests/**/*.types.ts (no files found)
+Refine project in examples/reference-desktop: tests/**/*.{ts,tsx,mts,cts,js,jsx} (no files found)
+Refine project in examples/reference-desktop: scripts/**/*.{ts,js,mjs,cjs} (no files found)
+Refine project in examples/reference-desktop: *.{config,setup}.{ts,js,mjs,cjs} (no files found)
+Remove entry in packages/diagnostics: src/index.ts
+Remove entry in packages/diagnostics: src/redaction/secrets-only.ts
+Remove entry in packages/diagnostics: src/observability/index.ts
+Remove entry in packages/diagnostics: src/observability/node.ts
+Remove entry in packages/diagnostics: src/web-evidence/index.ts
+Remove entry in packages/diagnostics: src/web-evidence/playwright-browser.ts
+Remove entry in packages/diagnostics: src/domain-dns/index.ts
+Refine entry in packages/diagnostics: tests/**/*.types.ts (no files found)
+Refine project in packages/diagnostics: tests/**/*.{ts,tsx,mts,cts,js,jsx} (no files found)
+Refine project in packages/diagnostics: scripts/**/*.{ts,js,mjs,cjs} (no files found)
+Remove entry in packages/vibecoding: src/index.ts
+Remove entry in packages/vibecoding: src/core/index.ts
+Remove entry in packages/vibecoding: src/html/index.ts
+Remove entry in packages/vibecoding: src/html/node/index.ts
+Remove entry in packages/vibecoding: src/react/index.ts
+Refine entry in packages/vibecoding: tests/**/*.types.ts (no files found)
+Refine project in packages/vibecoding: tests/**/*.{ts,tsx,mts,cts,js,jsx} (no files found)
+Refine project in packages/vibecoding: scripts/**/*.{ts,js,mjs,cjs} (no files found)
+Remove entry in packages/sidecar: src/index.ts
+Remove entry in packages/sidecar: src/supervision/respawn-policy.ts
+Remove entry in packages/sidecar: src/supervision/supervisor.ts
+Remove entry in packages/sidecar: src/supervision/supervisor-node.ts
+Refine entry in packages/sidecar: tests/**/*.types.ts (no files found)
+Refine project in packages/sidecar: tests/**/*.{ts,tsx,mts,cts,js,jsx} (no files found)
+Refine project in packages/sidecar: scripts/**/*.{ts,js,mjs,cjs} (no files found)
+Refine project in packages/sidecar: *.{config,setup}.{ts,js,mjs,cjs} (no files found)
+Remove entry in packages/oauth: src/index.ts
+Remove entry in packages/oauth: src/testing/index.ts
+Remove entry in packages/oauth: src/discovery-policy.ts
+Remove entry in packages/oauth: src/dns-pinned-transport.ts
+Refine project in packages/oauth: scripts/**/*.{ts,js,mjs,cjs} (no files found)
+Refine project in packages/oauth: *.{config,setup}.{ts,js,mjs,cjs} (no files found)
+Remove entry in packages/db: src/core/index.ts
+Remove entry in packages/db: src/sqlite/index.ts
+Remove entry in packages/db: src/pglite/index.ts
+Remove entry in packages/db: src/postgres/index.ts
+Remove entry in packages/db: src/kernel/index.ts
+Remove entry in packages/db: src/kernel/sqlite/index.ts
+Remove entry in packages/db: src/kernel/pglite/index.ts
+Remove entry in packages/db: src/kernel/postgres/index.ts
+Remove entry in packages/db: src/migrate/index.ts
+Remove entry in packages/db: src/pg-fixture.ts
+Remove entry in packages/db: src/transfer/index.ts
+Remove entry in packages/db: src/tools/index.ts
+Remove entry in packages/db: src/kernel/store-copy.ts
+Remove entry in packages/db: src/recovery/deep-link.ts
+Remove entry in packages/db: src/recovery/degraded-banners.ts
+Remove entry in packages/db: src/recovery/disclosure.ts
+Remove entry in packages/db: src/recovery/evaluate-boot-migration-policy.ts
+Remove entry in packages/db: src/recovery/hook-policy.ts
+Remove entry in packages/db: src/recovery/index.ts
+Remove entry in packages/db: src/recovery/lookup-adapters.ts
+Remove entry in packages/db: src/recovery/migrate-forward-execute.ts
+Remove entry in packages/db: src/recovery/migrate-forward-hooks.ts
+Remove entry in packages/db: src/recovery/operation-lock.ts
+Remove entry in packages/db: src/recovery/reconcile-interrupted-migration.ts
+Remove entry in packages/db: src/recovery/recovery-orchestrator.ts
+Remove entry in packages/db: src/recovery/restore-hooks.ts
+Remove entry in packages/db: src/recovery/restore-point-create.ts
+Remove entry in packages/db: src/secrets-vault/index.ts
+Refine entry in packages/db: tests/**/*.types.ts (no files found)
+Refine project in packages/db: tests/**/*.{ts,tsx,mts,cts,js,jsx} (no files found)
+Refine project in packages/db: scripts/**/*.{ts,js,mjs,cjs} (no files found)
+Remove entry in packages/capability-providers: src/index.ts
+Remove entry in packages/capability-providers: src/visitor-auth/index.ts
+Remove entry in packages/capability-providers: src/unsafe-reference/index.ts
+Remove entry in packages/capability-providers: src/adapters/ws/index.ts
+Remove entry in packages/capability-providers: src/adapters/sqlite/index.ts
+Remove entry in packages/capability-providers: src/adapters/blob-storage/index.ts
+Remove entry in packages/capability-providers: src/adapters/jwt-auth/index.ts
+Refine entry in packages/capability-providers: src/adapters/stripe/index.ts (no files found)
+Refine entry in packages/capability-providers: tests/**/*.types.ts (no files found)
+Refine project in packages/capability-providers: tests/**/*.{ts,tsx,mts,cts,js,jsx} (no files found)
+Refine project in packages/capability-providers: scripts/**/*.{ts,js,mjs,cjs} (no files found)
+Refine project in packages/capability-providers: *.{config,setup}.{ts,js,mjs,cjs} (no files found)
+Remove entry in packages/desktop-host: src/render-bridge.ts
+Remove entry in packages/desktop-host: src/index.ts
+Remove entry in packages/desktop-host: src/bridge-testing.ts
+Remove entry in packages/desktop-host: src/electron/index.ts
+Remove entry in packages/desktop-host: src/tauri/index.ts
+Remove entry in packages/desktop-host: src/shutdown/index.ts
+Remove entry in packages/desktop-host: src/electron/navigation-policy/index.ts
+Remove entry in packages/desktop-host: src/electron/updates/index.ts
+Remove entry in packages/desktop-host: src/node-toolchain/index.ts
+Remove entry in packages/desktop-host: src/electron/usability/index.ts
+Remove entry in packages/desktop-host: src/speech/index.ts
+Remove entry in packages/desktop-host: src/speech/macos/index.ts
+Refine entry in packages/desktop-host: tests/**/*.types.ts (no files found)
+Refine project in packages/desktop-host: tests/**/*.{ts,tsx,mts,cts,js,jsx} (no files found)
+Refine project in packages/desktop-host: scripts/**/*.{ts,js,mjs,cjs} (no files found)
+Refine project in packages/desktop-host: *.{config,setup}.{ts,js,mjs,cjs} (no files found)
+Remove entry in packages/analytics: src/index.ts
+Refine entry in packages/analytics: tests/**/*.types.ts (no files found)
+Refine project in packages/analytics: tests/**/*.{ts,tsx,mts,cts,js,jsx} (no files found)
+Refine project in packages/analytics: scripts/**/*.{ts,js,mjs,cjs} (no files found)
+Refine project in packages/analytics: *.{config,setup}.{ts,js,mjs,cjs} (no files found)
+Remove entry in packages/artifacts: src/index.ts
+Remove entry in packages/artifacts: src/node/index.ts
+Refine entry in packages/artifacts: tests/**/*.types.ts (no files found)
+Refine project in packages/artifacts: tests/**/*.{ts,tsx,mts,cts,js,jsx} (no files found)
+Refine project in packages/artifacts: scripts/**/*.{ts,js,mjs,cjs} (no files found)
+Refine project in packages/artifacts: *.{config,setup}.{ts,js,mjs,cjs} (no files found)
+Remove entry in packages/http-kit: src/index.ts
+Remove entry in packages/http-kit: src/rate-limit.ts
+Remove entry in packages/http-kit: src/middleware.ts
+Refine entry in packages/http-kit: src/verified-origin.ts (no files found)
+Remove entry in packages/http-kit: src/observability.ts
+Remove entry in packages/http-kit: src/html-response.ts
+Refine entry in packages/http-kit: tests/**/*.types.ts (no files found)
+Refine project in packages/http-kit: tests/**/*.{ts,tsx,mts,cts,js,jsx} (no files found)
+Refine project in packages/http-kit: scripts/**/*.{ts,js,mjs,cjs} (no files found)
+Refine project in packages/http-kit: *.{config,setup}.{ts,js,mjs,cjs} (no files found)
+Remove entry in packages/platform: src/index.ts
+Remove entry in packages/platform: src/fetch-with-timeout.ts
+Remove entry in packages/platform: src/asset-cache.ts
+Remove entry in packages/platform: src/secrets/index.ts
+Remove entry in packages/platform: src/secrets/credential-sets/index.ts
+Remove entry in packages/platform: src/secrets/credential-sets/contracts.ts
+Remove entry in packages/platform: src/secrets/testing.ts
+Remove entry in packages/platform: src/http/guarded/index.ts
+Remove entry in packages/platform: src/mail/index.ts
+Remove entry in packages/platform: src/mail/smtp.ts
+Remove entry in packages/platform: src/fs/guarded-reader.ts
+Remove entry in packages/platform: src/fs/durable-json.ts
+Remove entry in packages/platform: src/fs/index.ts
+Remove entry in packages/platform: src/net/index.ts
+Refine entry in packages/platform: src/net/endpoint-policy.ts (no files found)
+Remove entry in packages/platform: src/fs/file-lock.ts
+Remove entry in packages/platform: src/secrets/credential-token.ts
+Remove entry in packages/platform: src/secrets/legacy-owner.ts
+Remove entry in packages/platform: src/web/index.ts
+Remove entry in packages/platform: src/command.ts
+Remove entry in packages/platform: src/process.ts
+Remove entry in packages/platform: src/toolchain.ts
+Remove entry in packages/platform: src/proxy-env.ts
+Remove entry in packages/platform: src/shell.ts
+Remove entry in packages/platform: src/child-environment.ts
+Refine entry in packages/platform: tests/**/*.types.ts (no files found)
+Refine project in packages/platform: tests/**/*.{ts,tsx,mts,cts,js,jsx} (no files found)
+Refine project in packages/platform: scripts/**/*.{ts,js,mjs,cjs} (no files found)
+Refine project in packages/platform: *.{config,setup}.{ts,js,mjs,cjs} (no files found)
+Remove entry in packages/agentic: src/index.ts
+Remove entry in packages/agentic: src/core/index.ts
+Remove entry in packages/agentic: src/core/dom/index.ts
+Refine entry in packages/agentic: src/core/a2ui/index.ts (no files found)
+Remove entry in packages/agentic: src/skills/install/index.ts
+Remove entry in packages/agentic: src/skills/install/node-filesystem.ts
+Refine entry in packages/agentic: tests/**/*.types.ts (no files found)
+Refine project in packages/agentic: tests/**/*.{ts,tsx,mts,cts,js,jsx} (no files found)
+Refine project in packages/agentic: scripts/**/*.{ts,js,mjs,cjs} (no files found)
+Refine project in packages/agentic: *.{config,setup}.{ts,js,mjs,cjs} (no files found)
+Remove entry in packages/ui-kit: src/index.ts
+Remove entry in packages/ui-kit: src/react/index.ts
+Remove entry in packages/ui-kit: src/react/native/index.ts
+Remove entry in packages/ui-kit: src/react/testing/index.ts
+Refine entry in packages/ui-kit: tests/**/*.types.ts (no files found)
+Refine project in packages/ui-kit: tests/**/*.{ts,tsx,mts,cts,js,jsx} (no files found)
+Refine project in packages/ui-kit: *.{config,setup}.{ts,js,mjs,cjs} (no files found)
+Remove entry in examples/nlweb-demo: src/server.ts
+Refine entry in examples/nlweb-demo: tests/**/*.types.ts (no files found)
+Refine project in examples/nlweb-demo: tests/**/*.{ts,tsx,mts,cts,js,jsx} (no files found)
+Refine project in examples/nlweb-demo: scripts/**/*.{ts,js,mjs,cjs} (no files found)
+Refine project in examples/nlweb-demo: *.{config,setup}.{ts,js,mjs,cjs} (no files found)
+Remove entry in packages/protocol: src/index.ts
+Refine entry in packages/protocol: tests/**/*.types.ts (no files found)
+Refine project in packages/protocol: tests/**/*.{ts,tsx,mts,cts,js,jsx} (no files found)
+Refine project in packages/protocol: scripts/**/*.{ts,js,mjs,cjs} (no files found)
+Refine project in packages/protocol: *.{config,setup}.{ts,js,mjs,cjs} (no files found)
+Remove entry in packages/sandbox: src/core/index.ts
+Remove entry in packages/sandbox: src/e2b/index.ts
+Remove entry in packages/sandbox: src/node-worker.ts
+Refine entry in packages/sandbox: tests/**/*.types.ts (no files found)
+Refine project in packages/sandbox: tests/**/*.{ts,tsx,mts,cts,js,jsx} (no files found)
+Refine project in packages/sandbox: scripts/**/*.{ts,js,mjs,cjs} (no files found)
+Refine project in packages/sandbox: *.{config,setup}.{ts,js,mjs,cjs} (no files found)
+Remove entry in packages/memory: src/index.ts
+Refine entry in packages/memory: tests/**/*.types.ts (no files found)
+Refine project in packages/memory: tests/**/*.{ts,tsx,mts,cts,js,jsx} (no files found)
+Refine project in packages/memory: scripts/**/*.{ts,js,mjs,cjs} (no files found)
+Refine project in packages/memory: *.{config,setup}.{ts,js,mjs,cjs} (no files found)
+Remove entry in packages/core: src/index.ts
+Remove entry in packages/core: src/composition.ts
+Remove entry in packages/core: src/gated-mutations.ts
+Remove entry in packages/core: src/approval-batch-chain.ts
+Remove entry in packages/core: src/model-facing-tool-errors.ts
+Remove entry in packages/core: src/contribution-registry.ts
+Remove entry in packages/core: src/naming.ts
+Remove entry in packages/core: src/records.ts
+Remove entry in packages/core: src/primitives/index.ts
+Remove entry in packages/core: src/fetch/index.ts
+Remove entry in packages/core: src/text/index.ts
+Remove entry in packages/core: src/settings/index.ts
+Refine entry in packages/core: src/settings/express/index.ts (no files found)
+Remove entry in packages/core: plugin-directory.js
+Refine entry in packages/core: tests/**/*.types.ts (no files found)
+Refine project in packages/core: tests/**/*.{ts,tsx,mts,cts,js,jsx} (no files found)
+Refine project in packages/core: scripts/**/*.{ts,js,mjs,cjs} (no files found)
+Refine project in packages/core: *.{config,setup}.{ts,js,mjs,cjs} (no files found)
+Add to or refine in workspaces: packages/provider-plugins (7 unused files)
+Add to or refine in workspaces: packages/agent-runtime (7 unused files)
+Add to or refine in workspaces: packages/core (5 unused files)
+Add to or refine in workspaces: packages/platform (4 unused files)
+Add to or refine in workspaces: packages/ui (4 unused files)
+Add to or refine in workspaces: packages/sandbox (3 unused files)
+Add to or refine in workspaces: packages/server (3 unused files)
+Add to or refine in workspaces: . (root) (3 unused files)
+Add to or refine in workspaces: packages/user-management (2 unused files)
+Add to or refine in workspaces: examples/reference-web (2 unused files)
+Add to or refine in workspaces: packages/diagnostics (2 unused files)
+Add to or refine in workspaces: packages/sqlite (2 unused files)
+Add to or refine in workspaces: packages/admin (2 unused files)
+Add to or refine in workspaces: packages/chat (2 unused files)
+Add to or refine in workspaces: packages/cms (2 unused files)
+Add to or refine in workspaces: packages/db (2 unused files)
+exit=0

@@ -24,7 +24,7 @@ describe('fetch-query optional adapter isolation', () => {
     expect(entry('./fetch-query')!.files).toContain('packages/core/src/fetch/cache.ts');
     expect(entry('./fetch-query/tanstack')!.files).toContain('packages/core/src/fetch/cache.ts');
     expect(audit.findings.filter(finding => finding.package === '@jini-ai/core' && finding.subpath === './fetch')).toEqual([]);
-    expect(checkPackageLayers({ repoRoot }).filter(finding =>
+    expect(checkPackageLayers({ repoRoot }, { injection: false }).filter(finding =>
       finding.file.startsWith('packages/core/src/fetch/') || finding.file.startsWith('packages/ui/src/features/panel-kit/fetch-query/'))).toEqual([]);
   });
 

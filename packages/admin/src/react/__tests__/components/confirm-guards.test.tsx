@@ -1,6 +1,6 @@
-import { fireEvent, render, renderHook, screen, act } from '@testing-library/react';
+import { fireEvent, render, renderHook, screen, act } from '../../../__tests__/fetch-query-support.js';
 import { describe, expect, it, vi } from 'vitest';
-import { AGENT_ELEMENT_ATTRIBUTE } from '@jini-ai/agentic';
+import { AGENT_ELEMENT_ATTRIBUTE } from '@jini-ai/core/agent-handles';
 import { useConfirmButton } from '../../components/ConfirmButton/ConfirmButton.hooks.js';
 import { ConfirmDialog } from '../../components/ConfirmDialog/ConfirmDialog.js';
 import { useConfirmDialog, type UseConfirmDialog } from '../../components/ConfirmDialog/ConfirmDialog.hooks.js';

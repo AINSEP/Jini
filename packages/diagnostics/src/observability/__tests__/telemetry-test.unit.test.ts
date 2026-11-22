@@ -1,9 +1,9 @@
 import { expect, it } from "vitest";
 import { createTelemetryTestProbe } from "../telemetry-test.js";
 import { createTracker } from "../tracker.js";
-import { createNoopObservabilityPort } from "../noop.js";
+import { createNoopObservabilityPort } from "@jini-ai/core/contracts/observability";
 import { fanOutProductAnalytics, withProductAnalyticsGuards } from "@jini-ai/analytics/product";
-import type { ErrorReport } from "../ports.js";
+import type { ErrorReport } from "@jini-ai/core/contracts/observability";
 
 it("waits for delayed consent admission before returning analytics receipts", async () => {
   const probe = createTelemetryTestProbe({});

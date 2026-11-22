@@ -44,15 +44,15 @@ const SUBPATHS: Record<string, { dirs: string[]; probe: string; kernel?: boolean
   },
   pglite: {
     dirs: ["pglite", "core"],
-    probe: `m.pgliteLowMemoryStartParams({ defaultStartParams: ["-x"] }).join(" ") === ["-x", ...m.PGLITE_LOW_MEMORY_SETTINGS].join(" ") && typeof m.startPgliteOwner === "function"`,
+    probe: `m.pgliteLowMemoryStartParams({ pglite: { defaultStartParams: ["-x"] } }).join(" ") === ["-x", ...m.PGLITE_LOW_MEMORY_SETTINGS].join(" ") && typeof m.startPgliteOwner === "function"`,
   },
   postgres: {
     dirs: ["postgres", "core"],
-    probe: `m.pgTypesFor({ types: { getTypeParser: () => x => x } }, { 20: x => Number(x) }).getTypeParser(20)("42") === 42`,
+    probe: `m.pgTypesFor({ pg: { types: { getTypeParser: () => x => x } }, parsers: { 20: x => Number(x) } }).getTypeParser(20)("42") === 42`,
   },
   kernel: {
     dirs: ["kernel", "core"], kernel: true,
-    probe: `m.toBool(1) === true && typeof m.buildKernel === "function"`,
+    probe: `typeof m.buildKernel === "function"`,
   },
   "kernel/sqlite": {
     dirs: ["kernel", "kernel/sqlite", "core", "sqlite"], kernel: true,
@@ -80,7 +80,7 @@ const SUBPATHS: Record<string, { dirs: string[]; probe: string; kernel?: boolean
   },
   migrate: {
     dirs: ["migrate", "kernel", "core"], kernel: true,
-    probe: `m.sourceChecksum("") === "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" && typeof m.runMigrations === "function"`,
+    probe: `m.sourceChecksum({ text: "" }) === "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" && typeof m.runMigrations === "function"`,
   },
   "secrets-vault": {
     dirs: ["secrets-vault", "kernel"], kernel: true,
@@ -95,6 +95,69 @@ const SUBPATHS: Record<string, { dirs: string[]; probe: string; kernel?: boolean
       const repo = new m.SqlSecretsVaultRepo({ kernel });
       return await repo.find({ workspaceId: "workspace", id: "missing" }) === null
         && JSON.stringify(calls) === '[["selectFrom","secrets_vault"],["selectAll"],["where","workspace_id","=","workspace"],["where","id","=","missing"]]';
+    })()`,
+  },
+  settings: {
+    dirs: ["settings"],
+    probe: `await (async () => {
+      const calls = [];
+      const query = {
+        selectAll() { calls.push(["selectAll"]); return this; },
+        where(...args) { calls.push(["where", ...args]); return this; },
+        limit(n) { calls.push(["limit", n]); return this; },
+        async executeTakeFirst() { return undefined; },
+      };
+      const db = { withTables() { return db; }, selectFrom: table => { calls.push(["selectFrom", table]); return query; } };
+      const kernel = { run: fn => fn(db) };
+      const repo = new m.SqlSettingsRepo({ kernel, tables: { definitions: "d", valuesGlobal: "g", valuesWorkspace: "w", valuesUser: "u", revisions: "r" } });
+      return await repo.getGlobalValue("missing") === null
+        && JSON.stringify(calls) === '[["selectFrom","g"],["selectAll"],["where","setting_id","=","missing"],["limit",1]]';
+    })()`,
+  },
+  events: {
+    dirs: ["events"],
+    probe: `await (async () => {
+      const events = [];
+      const kernel = {
+        transaction: async fn => { events.push("begin"); return fn(); },
+        lockKey: async key => { events.push("lock:" + key); },
+        run: async () => { events.push("read"); return []; },
+      };
+      const repo = new m.SqlOutboxAdapter({ kernel, tables: { outboxEvents: "o" }, claimLeaseMs: 1000 });
+      const claimed = await repo.claimPending({ batchSize: 1, nowIso: "2026-11-18T00:00:00.000Z" });
+      return claimed.length === 0 && typeof m.SqlChangeSetRepo === "function" && m.outboxEventValues({ id: "e", name: "n", occurredAt: "t", workspaceId: "w", payload: {} }).status === "pending"
+        && JSON.stringify(events) === '["begin","lock:outbox_events:claim","read"]';
+    })()`,
+  },
+  "gated-mutations": {
+    dirs: ["gated-mutations"],
+    probe: `await (async () => {
+      const events = [];
+      const kernel = {
+        transaction: async fn => { events.push("begin"); return fn(); },
+        lockKey: async key => { events.push("lock:" + key); },
+        run: async () => { events.push("read"); return undefined; },
+      };
+      const repo = new m.SqlTokenStore({ kernel, tables: { tokens: "t" } });
+      const result = await repo.tryRedeem({ token: "tok", now: "2026-11-18T00:00:00.000Z" });
+      return result.redeemed === false && result.record === null
+        && JSON.stringify(events) === '["begin","lock:gated_mutation_tokens:tok","read"]';
+    })()`,
+  },
+  "verified-origin": {
+    dirs: ["verified-origin"],
+    probe: `await (async () => {
+      const calls = [];
+      const query = {
+        selectAll() { calls.push(["selectAll"]); return this; },
+        where(...args) { calls.push(["where", ...args]); return this; },
+        async executeTakeFirst() { return undefined; },
+      };
+      const db = { withTables() { return db; }, selectFrom: table => { calls.push(["selectFrom", table]); return query; } };
+      const repo = new m.SqlOriginSettingRepo({ kernel: { run: fn => fn(db) }, tables: { origins: "o" } });
+      return await repo.findByWorkspaceId({ workspaceId: "ws" }) === null
+        && typeof m.registerConfiguredOrigin === "function"
+        && JSON.stringify(calls) === '[["selectFrom","o"],["selectAll"],["where","workspace_id","=","ws"]]';
     })()`,
   },
   "owner-store": {
@@ -234,17 +297,14 @@ describe("@jini-ai/db in an install with no database driver present", () => {
     });
   }
 
-  it("documents the vault's optional platform peer and refuses a vault import without it", () => {
+  it("the vault needs no platform peer: it imports without @jini-ai/platform installed", () => {
     const manifest = JSON.parse(readFileSync(join(packageRoot, "package.json"), "utf8"));
     expect(manifest.dependencies["@jini-ai/platform"]).toBeUndefined();
-    // The vault SQL repo imports the credential-sets/contracts leaf first published in platform 0.5.6.
-    expect(manifest.peerDependencies["@jini-ai/platform"]).toBe("^0.6.10");
-    expect(manifest.peerDependenciesMeta["@jini-ai/platform"]).toEqual({ optional: true });
-    expect(manifest.devDependencies["@jini-ai/platform"]).toBe("workspace:*");
+    // The credential contracts moved to core, so platform is no longer a (peer) requirement of the vault.
+    expect(manifest.peerDependencies["@jini-ai/platform"]).toBeUndefined();
+    expect(manifest.peerDependenciesMeta["@jini-ai/platform"]).toBeUndefined();
     const result = runInFixture('await import("@jini-ai/db/secrets-vault");', noPlatformFixtureDir);
-    expect(result.status).not.toBe(0);
-    expect(result.stderr).toContain("ERR_MODULE_NOT_FOUND");
-    expect(result.stderr).toContain("Cannot find package '@jini-ai/platform'");
+    expect(result.status, result.stderr).toBe(0);
     const unaffected = runInFixture('const m = await import("@jini-ai/db/core"); process.stdout.write(m.sanitizeForFilename({ value: "a/b" }));', noPlatformFixtureDir);
     expect(unaffected.status, unaffected.stderr).toBe(0);
     expect(unaffected.stdout).toBe("a_b");
@@ -274,14 +334,17 @@ describe("@jini-ai/db in an install with no database driver present", () => {
       if (subpath === "tools" || subpath.startsWith("recovery")) {
         expect(packages.length).toBeGreaterThan(0);
         for (const url of packages) expect(url, `tools loaded an optional peer other than core`).toMatch(/\/node_modules\/@jini-ai\/core\//);
-      } else if (!SUBPATHS[subpath]!.kernel) expect(packages).toEqual([]);
+      } else if (!SUBPATHS[subpath]!.kernel) {
+        // `core` is a hard dependency: a driver-free subpath may load it (error describing), nothing else.
+        for (const url of packages) expect(url, `${subpath} loaded a package other than core`).toMatch(/\/node_modules\/@jini-ai\/core\//);
+      }
       // Migration checks and PostgreSQL error redaction use the required, driver-free core package.
       else if (subpath === "migrate" || subpath === "kernel/postgres") {
         for (const url of packages) expect(url, `${subpath} loaded a package other than kysely/core`).toMatch(/\/node_modules\/(?:kysely|@jini-ai\/core)\//);
       }
       else if (subpath === "secrets-vault") {
-        for (const url of packages) expect(url, `${subpath} loaded a package other than kysely/platform`).toMatch(/\/node_modules\/(?:kysely|@jini-ai\/platform)\//);
-      } else for (const url of packages) expect(url, `${subpath} loaded a package other than kysely`).toMatch(/\/node_modules\/kysely\//);
+        for (const url of packages) expect(url, `${subpath} loaded a package other than kysely/platform/core`).toMatch(/\/node_modules\/(?:kysely|@jini-ai\/(?:platform|core))\//);
+      } else for (const url of packages) expect(url, `${subpath} loaded a package other than kysely/core`).toMatch(/\/node_modules\/(?:kysely|@jini-ai\/core)\//);
     });
   }
 });

@@ -1,5 +1,4 @@
-import { useState } from 'react';
-import { agentHandleProps, buildAgentListHandles } from '@jini-ai/agentic';
+import { agentHandleProps, buildAgentListHandles } from '@jini-ai/core/agent-handles';
 import { useT } from '../../../i18n/index.js';
 import { Icon } from '../../../../react/components/Icon.js';
 import type { MediaProviderCatalogPolicy, MediaProvidersPort } from '../../ports.js';
@@ -7,6 +6,7 @@ import { invalidBaseUrlProviderIds, sortProvidersByConfigured } from '../../rule
 import type { MediaProviderMap, MediaProviderOption, MediaProvidersSaveState } from '../../types.js';
 import { useMediaProvidersTab } from '../hooks/useMediaProvidersTab.js';
 import { MediaProviderCard } from './MediaProviderCard.js';
+import { useMediaProviderKeyVisibility } from './MediaProvidersTab.hooks.js';
 import { resolveMediaProvidersTabLabels, type ResolvedMediaProvidersTabLabels } from './media-providers-tab-labels.js';
 
 export interface MediaProvidersTabLabels {
@@ -57,6 +57,9 @@ export interface MediaProvidersTabProps {
   /** This tab's own agent handle. One distinct sub-handle per provider card, derived from the
    *  provider's own catalog id via `buildAgentListHandles`. */
   agentHandle?: string;
+  useTHook?: typeof useT;
+  useMediaProvidersTabHook?: typeof useMediaProvidersTab;
+  useMediaProviderKeyVisibilityHook?: typeof useMediaProviderKeyVisibility;
 }
 
 /**
@@ -76,20 +79,19 @@ export function MediaProvidersTab({
   pinnedProviderIds,
   labels,
   agentHandle,
+  useTHook = useT,
+  useMediaProvidersTabHook = useMediaProvidersTab,
+  useMediaProviderKeyVisibilityHook = useMediaProviderKeyVisibility,
 }: MediaProvidersTabProps) {
-  const t = useT();
+  const t = useTHook();
   const { providers, load, save, hasAnyConfigured, pendingProviderIds, updateProvider, clearProvider, saveChanges, reload } =
-    useMediaProvidersTab({ port, catalogPolicy, initialProviders });
+    useMediaProvidersTabHook({ port, catalogPolicy, initialProviders });
   const { canonicalMediaProviderId } = catalogPolicy;
-  const [visibleApiKeys, setVisibleApiKeys] = useState<ReadonlySet<string>>(() => new Set());
+  const { visibleApiKeys, toggleKeyVisible } = useMediaProviderKeyVisibilityHook({});
   const resolved = resolveMediaProvidersTabLabels({ t }, { labels });
 
-  const toggleKeyVisible = (providerId: string) => {
-    setVisibleApiKeys((current) => toggledMember({ set: current, member: providerId }));
-  };
-
   const canonicalPinnedIds = pinnedProviderIds?.map((id) => canonicalMediaProviderId({ id }));
-  const orderedCatalog = sortProvidersByConfigured(catalog.map((entry) => ({ ...entry, id: canonicalMediaProviderId({ id: entry.id }) })), providers, canonicalPinnedIds);
+  const orderedCatalog = sortProvidersByConfigured({ catalog: catalog.map((entry) => ({ ...entry, id: canonicalMediaProviderId({ id: entry.id }) })), providers }, { pinnedIds: canonicalPinnedIds });
   const providerHandles = agentHandle
     ? buildAgentListHandles({ prefix: agentHandle, ids: orderedCatalog.map((option) => option.id) })
     : undefined;
@@ -101,7 +103,7 @@ export function MediaProvidersTab({
   const hasPendingChanges = pendingProviderIds.size > 0;
   // Save writes every provider at once, so ONE unacceptable endpoint blocks the
   // whole button rather than being silently persisted alongside the good ones.
-  const blockedByInvalidBaseUrl = invalidBaseUrlProviderIds(providers).length > 0;
+  const blockedByInvalidBaseUrl = invalidBaseUrlProviderIds({ providers }).length > 0;
 
   return (
     <section className="jini-settings-section jini-settings-media-providers">
@@ -143,17 +145,6 @@ export function MediaProvidersTab({
       />
     </section>
   );
-}
-
-/** A copy of `set` with `member` added if absent, removed if present. */
-function toggledMember({ set, member }: { set: ReadonlySet<string>; member: string }): ReadonlySet<string> {
-  const next = new Set(set);
-  if (next.has(member)) {
-    next.delete(member);
-  } else {
-    next.add(member);
-  }
-  return next;
 }
 
 /**

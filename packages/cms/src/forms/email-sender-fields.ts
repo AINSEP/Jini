@@ -1,6 +1,6 @@
 import { submissionEvidenceDefinition } from "./submission-evidence.js";
 import { redactSecrets } from "@jini-ai/core";
-import type { EmailSourceField } from "@jini-ai/platform/mail/senders";
+import type { EmailSourceField } from "@jini-ai/core/contracts/mail";
 import { resolveFormField } from "./field-registry.js";
 import { FIELD_ID_PATTERN } from "./forms.js";
 import type { FieldDescriptor, FormDefinitionRecord, FormSubmissionRecord } from "./types.js";

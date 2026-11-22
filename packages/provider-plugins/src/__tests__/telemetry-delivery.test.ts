@@ -1,8 +1,11 @@
 import { expect, it } from "vitest";
 import { createTransport } from "@sentry/node";
 import { createTracker } from "@jini-ai/diagnostics/observability/node";
-import type { ProviderTelemetryReport } from "@jini-ai/diagnostics/observability";
-import { createProviderTelemetryReporter } from "../telemetry-reporter.js";
+import type { ProviderTelemetryReport } from "../telemetry-reporter.js";
+import { createProviderTelemetryReporter as rawReporter } from "../telemetry-reporter.js";
+import { OBSERVABILITY_CONTEXT, describeTelemetryFailure, hostScope, withHost } from "./observability-host.js";
+/** The host binds diagnostics' failure classifier; these tests bind the real one the same way. */
+const createProviderTelemetryReporter = (required: { endpoint: string }, options?: Parameters<typeof rawReporter>[1]) => rawReporter({ ...required, describeTelemetryFailure }, options);
 import { createReportingExporter, createOtelObservabilityAdapter } from "../observability-opentelemetry/opentelemetry.js";
 import { createOpenTelemetryProvider } from "../observability-opentelemetry/index.js";
 import { createSentryProvider } from "../observability-sentry/index.js";
@@ -53,7 +56,7 @@ it("reports synchronous export and shutdown failures without throwing from adapt
     export() { throw new TypeError("private transport detail"); }, forceFlush: async () => {}, shutdown: async () => {},
   } });
   exporter.export([], () => {});
-  const adapter = createOtelObservabilityAdapter({ config: { enabled: true, serviceName: "test", tracerName: "test", endpoint: "https://collector.test/private/path" } }, {
+  const adapter = createOtelObservabilityAdapter({ context: OBSERVABILITY_CONTEXT, scope: hostScope(), config: { enabled: true, serviceName: "test", tracerName: "test", endpoint: "https://collector.test/private/path" } }, {
     exportEnabled: true, reportTelemetry: report => { reports.push(report); },
     spanProcessors: [{ onStart() {}, onEnd() {}, forceFlush: async () => {}, shutdown: async () => { throw new RangeError("private shutdown detail"); } }],
   });
@@ -68,9 +71,9 @@ it("provider factory options reach both sanitized initialization logs exactly on
   const logs: string[] = [];
   const info = (message: string) => { logs.push(message); };
   const secret = ["private", "diagnostic", "token"].join("-");
-  const otel = createOpenTelemetryProvider({ serviceName: "test", endpoint: `https://collector.test/${secret}?token=${secret}` }, { exportEnabled: true, info, spanProcessors: [] });
-  const sentry = createSentryProvider({ dsn: `https://${["public", "test"].join("")}@sentry.test/123` }, { exportEnabled: true, info,
-    client: { close: async () => true, getOptions: () => ({}) } });
+  const otel = createOpenTelemetryProvider({ serviceName: "test", endpoint: `https://collector.test/${secret}?token=${secret}` }, withHost({ exportEnabled: true, info, spanProcessors: [] }));
+  const sentry = createSentryProvider({ dsn: `https://${["public", "test"].join("")}@sentry.test/123` }, withHost({ exportEnabled: true, info,
+    client: { close: async () => true, getOptions: () => ({}) } }));
   expect(logs).toEqual(["observability: OpenTelemetry exporting to collector.test", "observability: Sentry reporting to sentry.test"]);
   await otel.dispose({}); await sentry.dispose({});
   const broken = createProviderTelemetryReporter({ endpoint: "https://collector.test/private" }, { reportTelemetry() { throw new Error("sink failed"); }, info() { throw new Error("sink failed"); } });
@@ -85,7 +88,7 @@ it("the default Sentry provider sends the actual fixed diagnostic exception with
     for (let i = 1; i + 1 < lines.length; i += 2) items.push({ type: JSON.parse(lines[i]!).type, payload: JSON.parse(lines[i + 1]!) });
     return { statusCode: 200 };
   });
-  const resource = createSentryProvider({ dsn: `https://${["public", "test"].join("")}@sentry.test/123` }, { exportEnabled: true, transport });
+  const resource = createSentryProvider({ dsn: `https://${["public", "test"].join("")}@sentry.test/123` }, withHost({ exportEnabled: true, transport }));
   const tracker = createTracker({ observability: resource.port });
   await tracker.trace({ name: "telemetry.test", run: async () => tracker.error({ error: new Error("Tovu test error — safe to ignore") }, { context: { operation: "telemetry.test" } }) });
   await resource.dispose({});
@@ -95,10 +98,10 @@ it("the default Sentry provider sends the actual fixed diagnostic exception with
 
 it.each([200, 401, 429])("Sentry export reports the actual HTTP %i without endpoint credentials", async statusCode => {
   const reports: ProviderTelemetryReport[] = [];
-  const resource = createSentryProvider({ dsn: `https://${['public', 'fixture'].join('')}@sentry.test/123` }, { exportEnabled: true,
+  const resource = createSentryProvider({ dsn: `https://${['public', 'fixture'].join('')}@sentry.test/123` }, withHost({ exportEnabled: true,
     reportTelemetry: (report: ProviderTelemetryReport) => { reports.push(report); },
     transport: (options: Parameters<typeof createTransport>[0]) => createTransport(options, async () => ({ statusCode })),
-  });
+  }));
   resource.port.reportError({ error: new Error("fixed diagnostic"), context: { operation: "telemetry.test" } });
   await resource.dispose({});
   expect(reports).toEqual([{ phase: 'export', outcome: statusCode === 200 ? 'ok' : 'failed', host: 'sentry.test',
@@ -107,10 +110,10 @@ it.each([200, 401, 429])("Sentry export reports the actual HTTP %i without endpo
 
 it("Sentry reports a rejected transport using safe error labels only", async () => {
   const reports: ProviderTelemetryReport[] = [];
-  const resource = createSentryProvider({ dsn: `https://${['public', 'fixture'].join('')}@sentry.test/123` }, { exportEnabled: true,
+  const resource = createSentryProvider({ dsn: `https://${['public', 'fixture'].join('')}@sentry.test/123` }, withHost({ exportEnabled: true,
     reportTelemetry: (report: ProviderTelemetryReport) => { reports.push(report); },
     transport: () => ({ send: async () => { throw new TypeError('private endpoint detail'); }, flush: async () => true }),
-  });
+  }));
   resource.port.reportError({ error: new Error("fixed diagnostic"), context: { operation: "telemetry.test" } });
   await resource.dispose({});
   expect(reports).toEqual([{ phase: 'export', outcome: 'failed', host: 'sentry.test', errorClass: 'TypeError' }]);

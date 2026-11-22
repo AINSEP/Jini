@@ -1,0 +1,233 @@
+[
+  {
+    "file": "packages/admin/src/seo/react/hooks/use-seo.hooks.ts",
+    "rule": "stored-error-text",
+    "value": 1,
+    "reason": "STOP: SeoQuery.hooks.ts erases typed API identity before this overlay; preserving typed public copy requires an unlisted prerequisite change."
+  },
+  {
+    "file": "packages/agent-plugins/src/lifecycle/credential-card-metadata.ts",
+    "rule": "stored-error-text",
+    "value": 1,
+    "reason": "KEEP: existing declaration-validation refusals and compatibility-warning callback rejection copy are preserved; malformed JSON is handled separately with fixed copy and a safe warning sink."
+  },
+  {
+    "file": "packages/agent-runtime/src/agent-protocol/pi-rpc/session.ts",
+    "rule": "console",
+    "value": 1
+  },
+  {
+    "file": "packages/agent-runtime/src/anthropic-live-models.ts",
+    "rule": "console",
+    "value": 1
+  },
+  {
+    "file": "packages/agent-runtime/src/providers/oauth-callback-server.ts",
+    "rule": "console",
+    "value": 1
+  },
+  {
+    "file": "packages/agent-runtime/src/providers/oauth-tokens.ts",
+    "rule": "console",
+    "value": 2
+  },
+  {
+    "file": "packages/agent-runtime/src/skills/web-clone/scripts/asset-harvest.mjs",
+    "rule": "error-text",
+    "value": 1,
+    "reason": "KEEP: closed authored CliUsageError usage class (LOG-2)."
+  },
+  {
+    "file": "packages/agent-runtime/src/skills/web-clone/scripts/audit-clone.mjs",
+    "rule": "error-text",
+    "value": 1,
+    "reason": "KEEP: closed authored CliUsageError usage class (LOG-2)."
+  },
+  {
+    "file": "packages/agent-runtime/src/skills/web-clone/scripts/compare-recon.mjs",
+    "rule": "error-text",
+    "value": 1,
+    "reason": "KEEP: closed authored CliUsageError usage class (LOG-2)."
+  },
+  {
+    "file": "packages/agent-runtime/src/skills/web-clone/scripts/init-clone.mjs",
+    "rule": "error-text",
+    "value": 1,
+    "reason": "KEEP: closed authored CliUsageError usage class (LOG-2)."
+  },
+  {
+    "file": "packages/agent-runtime/src/skills/web-clone/scripts/lib/main-guard.mjs",
+    "rule": "error-text",
+    "value": 1,
+    "reason": "KEEP: closed authored CliUsageError usage class (LOG-2)."
+  },
+  {
+    "file": "packages/agent-runtime/src/terminal-launch.ts",
+    "rule": "stored-error-text",
+    "value": 4
+  },
+  {
+    "file": "packages/cms/src/forms/notify-subscriber.ts",
+    "rule": "error-text",
+    "value": 1,
+    "reason": "KEEP: provider refusal text enters only the error bag through the existing guarded typed Logger helper."
+  },
+  {
+    "file": "packages/cms/src/forms/notify-subscriber.ts",
+    "rule": "raw-error",
+    "value": 2,
+    "reason": "KEEP: existing guarded typed Logger helper forwards original caught values in the Logger error bag."
+  },
+  {
+    "file": "packages/core/src/optimistic-concurrency.ts",
+    "rule": "stored-error-text",
+    "value": 1
+  },
+  {
+    "file": "packages/daemon/src/agent-executor/event-io.ts",
+    "rule": "console",
+    "value": 1
+  },
+  {
+    "file": "packages/daemon/src/agent-executor/event-translation.ts",
+    "rule": "stored-error-text",
+    "value": 1
+  },
+  {
+    "file": "packages/daemon/src/agent-executor/http-mcp.ts",
+    "rule": "console",
+    "value": 3
+  },
+  {
+    "file": "packages/daemon/src/agent-executor/launch.ts",
+    "rule": "console",
+    "value": 3
+  },
+  {
+    "file": "packages/daemon/src/http/attachment-lookup-routes.ts",
+    "rule": "stored-error-text",
+    "value": 1
+  },
+  {
+    "file": "packages/daemon/src/http/delegated-tools.ts",
+    "rule": "stored-error-text",
+    "value": 1
+  },
+  {
+    "file": "packages/daemon/src/http/host-tools.ts",
+    "rule": "stored-error-text",
+    "value": 2
+  },
+  {
+    "file": "packages/daemon/src/http/media.ts",
+    "rule": "stored-error-text",
+    "value": 1
+  },
+  {
+    "file": "packages/daemon/src/legacy-data-migration.ts",
+    "rule": "console",
+    "value": 1
+  },
+  {
+    "file": "packages/daemon/src/routines/scheduler.ts",
+    "rule": "console",
+    "value": 2
+  },
+  {
+    "file": "packages/daemon/src/routines/scheduler.ts",
+    "rule": "error-helper",
+    "value": 1
+  },
+  {
+    "file": "packages/diagnostics/src/observability/telemetry-test.ts",
+    "rule": "raw-error",
+    "value": 1
+  },
+  {
+    "file": "packages/infra/src/events/outbox/worker.ts",
+    "rule": "error-text",
+    "value": 1
+  },
+  {
+    "file": "packages/mcp/src/federation/bootstrap.ts",
+    "rule": "raw-error",
+    "value": 1
+  },
+  {
+    "file": "packages/plugins/src/host/capability-tools.ts",
+    "rule": "console",
+    "value": 1
+  },
+  {
+    "file": "packages/plugins/src/host/contributions.ts",
+    "rule": "console",
+    "value": 1
+  },
+  {
+    "file": "packages/plugins/src/host/node/install.ts",
+    "rule": "console",
+    "value": 2
+  },
+  {
+    "file": "packages/plugins/src/host/node/runtime-core.ts",
+    "rule": "console",
+    "value": 4
+  },
+  {
+    "file": "packages/plugins/src/host/node/runtime-core.ts",
+    "rule": "raw-error",
+    "value": 1
+  },
+  {
+    "file": "packages/plugins/src/host/tools/management.ts",
+    "rule": "console",
+    "value": 2
+  },
+  {
+    "file": "packages/plugins/src/host/tools/management.ts",
+    "rule": "error-text",
+    "value": 2
+  },
+  {
+    "file": "packages/plugins/src/host/worker/run-call.ts",
+    "rule": "stored-error-text",
+    "value": 2
+  },
+  {
+    "file": "packages/provider-plugins/src/ai-trace-langfuse/langfuse.ts",
+    "rule": "stored-error-text",
+    "value": 1
+  },
+  {
+    "file": "packages/server/src/host-bootstrap.ts",
+    "rule": "console-logger",
+    "value": 1
+  },
+  {
+    "file": "packages/sidecar/src/json-ipc.ts",
+    "rule": "console",
+    "value": 1
+  },
+  {
+    "file": "packages/sidecar/src/json-ipc.ts",
+    "rule": "stored-error-text",
+    "value": 1
+  },
+  {
+    "file": "packages/user-management/src/admin/controllers/auth.controller.ts",
+    "rule": "stored-error-text",
+    "value": 1,
+    "reason": "KEEP: guarded PeopleApiError copy is the typed login API contract; unknown failures use login failed."
+  },
+  {
+    "file": "packages/diagnostics/src/web-evidence/collect-page-evidence.ts",
+    "rule": "error-helper",
+    "value": 1,
+    "reason": "KEEP: the flagged identifier is the policy-redacted browser-unavailable reason passed to skip() inside report(), not a caught value."
+  },
+  {
+    "file": "packages/integrations/src/webhooks/worker.ts",
+    "rule": "raw-error",
+    "value": 1
+  }
+]

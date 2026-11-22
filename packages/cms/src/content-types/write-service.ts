@@ -42,7 +42,7 @@ import { type ActorIdentityInput, type ActorPrincipalKind, type ContentTypeField
  * How it relates to the project:
  * `deps.watermark` and the actor-identity delegation fields
  * (`delegatedByWorkspaceId`/`delegatedById`) are both optional/additive — every
- * pre-existing call site that omits them is unaffected; `watermark-stamping.integration.test.ts`
+ * pre-existing call site that omits them is unaffected; `packages/cms/src/content-types/__tests__/watermark-stamping.test.ts`
  * exercises both.
  *
  * Architectural role:
@@ -123,6 +123,15 @@ export interface ContentTypeWriteServiceDeps {
   reservedKeys?: ReadonlySet<string>;
 }
 
+/** Authorizes content-type management and preserves the caller-specific denial message. */
+export async function authorizeContentTypeManage(
+  { deps, input, action }: { deps: { authorize: AuthorizeFn }; input: { actorId: string; workspaceId: string }; action: string },
+  _optional: Record<string, never> = {},
+): Promise<ForbiddenError | null> {
+  const result = await deps.authorize({ principalId: input.actorId, permission: "admin.collections.manage", workspaceId: input.workspaceId }, { entityType: "content-type" });
+  return result.allowed ? null : new ForbiddenError({ message: `principal '${input.actorId}' cannot ${action} (${result.reason})` });
+}
+
 /**
  * Field-name guards shared by register and update, in order: every name passes the identifier
  * grammar (`InvalidFieldNameGrammarError`), THEN no name appears twice
@@ -149,7 +158,7 @@ function fieldNameError(fields: ReadonlyArray<{ name: string }>): Error | null {
 }
 
 /** Reserved forever for the legacy `posts` table — an operator Collection can never take these keys. */
-const RESERVED_CONTENT_TYPE_KEYS = new Set(["post", "page"]);
+const RESERVED_CONTENT_TYPE_KEYS: ReadonlySet<string> = new Set(["post", "page"]);
 
 /** Per-type cap on `queryable` fields (queryable-index sprawl mitigation). */
 const QUERYABLE_FIELD_CAP = 20;
@@ -278,14 +287,8 @@ export async function registerContentType(
 ): Promise<Result<{ contentType: ContentTypeRecord }, Error>> {
   const { deps, input } = required;
 
-  const authResult = await deps.authorize({
-    principalId: input.actorId,
-    permission: "admin.collections.manage",
-    workspaceId: input.workspaceId
-  }, { entityType: "content-type" });
-  if (!authResult.allowed) {
-    return { ok: false, error: new ForbiddenError({ message: `principal '${input.actorId}' cannot register a content type (${authResult.reason})` }) };
-  }
+  const authError = await authorizeContentTypeManage({ deps, input, action: "register a content type" });
+  if (authError) return { ok: false, error: authError };
 
   const keyError = registerKeyError({ key: input.key, owner: input.owner }, { reservedKeys: deps.reservedKeys });
   if (keyError) return { ok: false, error: keyError };
@@ -368,19 +371,11 @@ export interface UpdateContentTypeFieldsRequired {
  * @overallScore 100
  * See docs/decisions/DR-001-safe-schema-and-index-transitions.md.
  */
-export async function updateContentTypeFields(
-  required: UpdateContentTypeFieldsRequired
-): Promise<Result<{ contentType: ContentTypeRecord }, Error>> {
+export async function updateContentTypeFields(required: UpdateContentTypeFieldsRequired, optional: { signal?: AbortSignal | undefined } = {}): Promise<Result<{ contentType: ContentTypeRecord }, Error>> {
   const { deps, input } = required;
 
-  const authResult = await deps.authorize({
-    principalId: input.actorId,
-    permission: "admin.collections.manage",
-    workspaceId: input.workspaceId
-  }, { entityType: "content-type" });
-  if (!authResult.allowed) {
-    return { ok: false, error: new ForbiddenError({ message: `principal '${input.actorId}' cannot update content type '${input.key}' (${authResult.reason})` }) };
-  }
+  const authError = await authorizeContentTypeManage({ deps, input, action: `update content type '${input.key}'` });
+  if (authError) return { ok: false, error: authError };
 
   const current = await deps.repo.findByKey({ workspaceId: input.workspaceId, key: input.key });
   if (!current) {
@@ -412,6 +407,7 @@ export async function updateContentTypeFields(
 
   await deps.repo.transaction({
     fn: async () => {
+      optional.signal?.throwIfAborted();
       await persistWithRevision({ deps, input, op: "field-change", row: updated, recordedAt: now });
     }
   });

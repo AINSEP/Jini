@@ -2,7 +2,7 @@
 // heavier sibling of `CompactToggle` for standalone toggles that deserve
 // more visual weight. Origin: `ToggleRow` in `NewProjectPanel.tsx` (Open
 // Design), verbatim structural port — the component carried no
-// product-specific typing or copy. See packages/ui/source-map.md.
+// product-specific typing or copy. See archived UI source map.
 
 export interface ToggleRowProps {
   label: string;
@@ -36,11 +36,11 @@ export function ToggleRow({
       aria-pressed={checked}
       disabled={disabled}
     >
-      <div className="toggle-row-text">
-        <span className="toggle-row-label">{label}</span>
-        {hint ? <span className="toggle-row-hint">{hint}</span> : null}
+      <div className="jini-toggle-row-text">
+        <span className="jini-toggle-row-label">{label}</span>
+        {hint ? <span className="jini-toggle-row-hint">{hint}</span> : null}
       </div>
-      <span className="toggle-row-switch" aria-hidden />
+      <span className="jini-toggle-row-switch" aria-hidden />
     </button>
   );
 }

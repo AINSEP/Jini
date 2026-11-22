@@ -5,6 +5,7 @@ import { RemixIcon } from '../../../../react/components/RemixIcon.js';
 import { useCommentReorder, type UseCommentReorderResult } from '../hooks/useCommentReorder.js';
 import { relativeCommentTimeTranslation, visibleSelectedCommentIds } from '../../rules.js';
 import type { CommentSideDragState, ViewerCommentAttachment, ViewerCommentBase } from '../../types.js';
+import { CommentSideAttachments, CommentSideCreateForm, CommentSideSelectBar } from './CommentSideParts.js';
 
 export interface CommentSidePanelProps<TComment extends ViewerCommentBase> {
   comments: TComment[];
@@ -31,7 +32,7 @@ export interface CommentSidePanelProps<TComment extends ViewerCommentBase> {
    * `elementId`/`label`/`htmlHint` conventions (regex-matching HTML tag
    * names embedded in a board-annotation payload) — that heuristic is not
    * generic, so it's a required host-supplied function here rather than
-   * baked in. See `packages/ui/source-map.md` for the full discrepancy
+   * baked in. See `archived UI source map` for the full discrepancy
    * writeup.
    */
   getCommentLabel: (comment: TComment, index: number) => string;
@@ -51,6 +52,9 @@ export interface CommentSidePanelProps<TComment extends ViewerCommentBase> {
   formatTimestamp?: (timestampMs: number) => string;
   /** Custom hook override for dependency injection / testing. */
   useCommentReorder?: typeof useCommentReorder;
+  useTHook?: typeof useT;
+  useCommentTimestampFormatterHook?: typeof useCommentTimestampFormatter;
+  useCollapseToggleFocusHook?: typeof useCollapseToggleFocus;
 }
 
 /**
@@ -61,44 +65,24 @@ export interface CommentSidePanelProps<TComment extends ViewerCommentBase> {
  * this extraction) is that the comment-label and timestamp derivation are
  * OD-specific logic, not just an OD-specific *type* — see
  * `getCommentLabel`/`getCommentTimestamp` above and
- * `packages/ui/source-map.md`.
+ * `archived UI source map`.
  */
 export function CommentSidePanel<TComment extends ViewerCommentBase>({
-  comments,
-  selectedIds,
-  activeCommentId,
-  collapsed,
-  onCollapsedChange,
-  onToggleSelect,
-  onSelectAll,
-  onClearSelection,
-  onReorder,
-  onReply,
-  onSendSelected,
-  onCreateComment,
-  sending,
-  queueOnSend = false,
-  sendDisabled = false,
-  renderCreateForm = true,
-  composer,
-  getCommentLabel,
-  getCommentTimestamp,
-  getCommentBody,
-  getCommentAttachments,
-  resolveAttachmentUrl,
-  formatTimestamp,
   useCommentReorder: useCommentReorderHook = useCommentReorder,
+  useTHook = useT,
+  useCommentTimestampFormatterHook = useCommentTimestampFormatter,
+  useCollapseToggleFocusHook = useCollapseToggleFocus,
+  ...props
 }: CommentSidePanelProps<TComment>) {
-  const t = useT();
+  const { comments, selectedIds, collapsed, onCollapsedChange, onReorder } = props;
+  const t = useTHook();
   const [newCommentDraft, setNewCommentDraft] = useState('');
-  const orderedIds = comments.map((comment) => comment.id);
-  const reorder = useCommentReorderHook(orderedIds, onReorder);
-  const visibleSelectedIds = visibleSelectedCommentIds(comments, selectedIds);
-  const selectedCount = visibleSelectedIds.size;
+  const reorder = useCommentReorderHook(comments.map((comment) => comment.id), onReorder);
+  const visibleSelectedIds = visibleSelectedCommentIds({ comments, selectedIds });
   const commentsLabel = t('Comments');
   const panelId = useId();
-  const formatTs = useCommentTimestampFormatter(formatTimestamp);
-  const { collapsedRailRef, expandedToggleRef, handleCollapsedChange } = useCollapseToggleFocus({
+  const formatTs = useCommentTimestampFormatterHook(props.formatTimestamp);
+  const { collapsedRailRef, expandedToggleRef, handleCollapsedChange } = useCollapseToggleFocusHook({
     collapsed,
     onCollapsedChange,
   });
@@ -115,58 +99,100 @@ export function CommentSidePanel<TComment extends ViewerCommentBase>({
   }
 
   return (
-    <aside id={panelId} className="comment-side-panel" data-testid="comment-side-panel" aria-label={commentsLabel}>
+    <CommentSideExpanded
+      {...props}
+      panelId={panelId}
+      toggleRef={expandedToggleRef}
+      commentsLabel={commentsLabel}
+      reorder={reorder}
+      visibleSelectedIds={visibleSelectedIds}
+      formatTs={formatTs}
+      newCommentDraft={newCommentDraft}
+      onNewCommentDraftChange={setNewCommentDraft}
+      onCollapse={() => handleCollapsedChange(true, 'collapsed')}
+    />
+  );
+}
+
+type CommentSideExpandedProps<TComment extends ViewerCommentBase> = CommentSideListProps<TComment> & {
+  panelId: string;
+  toggleRef: RefObject<HTMLButtonElement | null>;
+  commentsLabel: string;
+  newCommentDraft: string;
+  onNewCommentDraftChange: (draft: string) => void;
+  onCollapse: () => void;
+};
+
+function CommentSideExpanded<TComment extends ViewerCommentBase>(props: CommentSideExpandedProps<TComment>) {
+  const { comments, sending, queueOnSend = false, sendDisabled = false, renderCreateForm = true } = props;
+  const selectedCount = props.visibleSelectedIds.size;
+  return (
+    <aside id={props.panelId} className="jini-comment-side-panel" data-testid="comment-side-panel" aria-label={props.commentsLabel}>
       <CommentSideHeader
-        toggleRef={expandedToggleRef}
-        panelId={panelId}
-        commentsLabel={commentsLabel}
+        toggleRef={props.toggleRef}
+        panelId={props.panelId}
+        commentsLabel={props.commentsLabel}
         commentCount={comments.length}
         selectedCount={selectedCount}
-        onSelectAll={onSelectAll}
-        onCollapse={() => handleCollapsedChange(true, 'collapsed')}
+        onSelectAll={props.onSelectAll}
+        onCollapse={props.onCollapse}
       />
-      <div className="comment-side-list" onDragLeave={reorder.onDragLeaveContainer}>
-        {comments.length === 0 ? (
-          <div className="comment-side-empty">{t('No comments yet')}</div>
-        ) : (
-          comments.map((comment, index) => (
-            <CommentSideItem
-              key={comment.id}
-              comment={comment}
-              index={index}
-              selected={visibleSelectedIds.has(comment.id)}
-              active={comment.id === activeCommentId}
-              reorder={reorder}
-              onReply={onReply}
-              onToggleSelect={onToggleSelect}
-              getCommentLabel={getCommentLabel}
-              getCommentTimestamp={getCommentTimestamp}
-              getCommentBody={getCommentBody}
-              getCommentAttachments={getCommentAttachments}
-              resolveAttachmentUrl={resolveAttachmentUrl}
-              formatTs={formatTs}
-            />
-          ))
-        )}
-      </div>
+      <CommentSideList {...props} />
       <CommentSideSelectBar
         selectedCount={selectedCount}
         sending={sending}
         sendDisabled={sendDisabled}
         queueOnSend={queueOnSend}
-        onClearSelection={onClearSelection}
-        onSendSelected={onSendSelected}
+        onClearSelection={props.onClearSelection}
+        onSendSelected={props.onSendSelected}
       />
-      {composer ? <div className="comment-side-composer">{composer}</div> : null}
+      {props.composer ? <div className="jini-comment-side-composer">{props.composer}</div> : null}
       <CommentSideCreateForm
         renderCreateForm={renderCreateForm}
-        draft={newCommentDraft}
-        onDraftChange={setNewCommentDraft}
-        onCreateComment={onCreateComment}
+        draft={props.newCommentDraft}
+        onDraftChange={props.onNewCommentDraftChange}
+        onCreateComment={props.onCreateComment}
         sending={sending}
         sendDisabled={sendDisabled}
       />
     </aside>
+  );
+}
+
+type CommentSideListProps<TComment extends ViewerCommentBase> = CommentSidePanelProps<TComment> & {
+  reorder: UseCommentReorderResult;
+  visibleSelectedIds: ReadonlySet<string>;
+  formatTs: (timestampMs: number) => string;
+};
+
+function CommentSideList<TComment extends ViewerCommentBase>({ useTHook = useT, ...props }: CommentSideListProps<TComment> & { useTHook?: typeof useT }) {
+  const t = useTHook();
+  const { comments, reorder, visibleSelectedIds, activeCommentId, formatTs } = props;
+  return (
+    <div className="jini-comment-side-list" onDragLeave={reorder.onDragLeaveContainer}>
+      {comments.length === 0 ? (
+        <div className="jini-comment-side-empty">{t('No comments yet')}</div>
+      ) : (
+        comments.map((comment, index) => (
+          <CommentSideItem
+            key={comment.id}
+            comment={comment}
+            index={index}
+            selected={visibleSelectedIds.has(comment.id)}
+            active={comment.id === activeCommentId}
+            reorder={reorder}
+            onReply={props.onReply}
+            onToggleSelect={props.onToggleSelect}
+            getCommentLabel={props.getCommentLabel}
+            getCommentTimestamp={props.getCommentTimestamp}
+            getCommentBody={props.getCommentBody}
+            getCommentAttachments={props.getCommentAttachments}
+            resolveAttachmentUrl={props.resolveAttachmentUrl}
+            formatTs={formatTs}
+          />
+        ))
+      )}
+    </div>
   );
 }
 
@@ -207,7 +233,7 @@ function useCommentTimestampFormatter(formatTimestamp: ((timestampMs: number) =>
   return (
     formatTimestamp ??
     ((ts: number) => {
-      const translation = relativeCommentTimeTranslation(ts);
+      const translation = relativeCommentTimeTranslation({ timestampMs: ts });
       return t(translation.key, translation.vars);
     })
   );
@@ -218,19 +244,21 @@ function CommentSideRail({
   commentsLabel,
   commentCount,
   onExpand,
+  useTHook = useT,
 }: {
   railRef: RefObject<HTMLButtonElement | null>;
   commentsLabel: string;
   commentCount: number;
   onExpand: () => void;
+  useTHook?: typeof useT;
 }) {
-  const t = useT();
+  const t = useTHook();
   const showLabel = t('Show {label}', { label: commentsLabel });
   return (
     <button
       ref={railRef}
       type="button"
-      className="comment-side-rail"
+      className="jini-comment-side-rail"
       data-testid="comment-side-collapsed-rail"
       aria-label={showLabel}
       aria-expanded={false}
@@ -252,6 +280,7 @@ function CommentSideHeader({
   selectedCount,
   onSelectAll,
   onCollapse,
+  useTHook = useT,
 }: {
   toggleRef: RefObject<HTMLButtonElement | null>;
   panelId: string;
@@ -260,26 +289,27 @@ function CommentSideHeader({
   selectedCount: number;
   onSelectAll: () => void;
   onCollapse: () => void;
+  useTHook?: typeof useT;
 }) {
-  const t = useT();
+  const t = useTHook();
   const hideLabel = t('Hide {label}', { label: commentsLabel });
   const allSelected = commentCount > 0 && selectedCount === commentCount;
   return (
-    <div className="comment-side-header">
-      <div className="comment-side-title">
+    <div className="jini-comment-side-header">
+      <div className="jini-comment-side-title">
         <RemixIcon name="message-3-line" size={15} />
         <span>{commentsLabel}</span>
       </div>
-      <div className="comment-side-header-actions">
+      <div className="jini-comment-side-header-actions">
         {commentCount > 0 ? (
-          <button type="button" className="comment-side-select-all" disabled={allSelected} onClick={onSelectAll}>
+          <button type="button" className="jini-comment-side-select-all" disabled={allSelected} onClick={onSelectAll}>
             {t('Select all')}
           </button>
         ) : null}
         <button
           ref={toggleRef}
           type="button"
-          className="comment-side-collapse"
+          className="jini-comment-side-collapse"
           aria-label={hideLabel}
           aria-controls={panelId}
           aria-expanded={true}
@@ -314,21 +344,69 @@ function commentItemClassName({
   return `comment-side-item${selected ? ' selected' : ''}${active ? ' active' : ''}${isDragging ? ' dragging' : ''}${dropClass}`;
 }
 
-function CommentSideItem<TComment extends ViewerCommentBase>({
+function CommentSideCheck({ selected, onToggle, useTHook = useT }: { selected: boolean; onToggle: () => void; useTHook?: typeof useT; }) {
+  const t = useTHook();
+  return (
+    <button
+      type="button"
+      className={`comment-side-check${selected ? ' checked' : ''}`}
+      aria-label={selected ? t('Deselect') : t('Select')}
+      aria-pressed={selected}
+      onClick={(event) => {
+        event.stopPropagation();
+        onToggle();
+      }}
+    >
+      {selected ? <Icon name="check" size={11} /> : null}
+    </button>
+  );
+}
+
+function CommentSideItemHead<TComment extends ViewerCommentBase>({
   comment,
   index,
   selected,
-  active,
   reorder,
-  onReply,
+  label,
+  timeLabel,
   onToggleSelect,
-  getCommentLabel,
-  getCommentTimestamp,
-  getCommentBody,
-  getCommentAttachments,
-  resolveAttachmentUrl,
-  formatTs,
+  useTHook = useT,
 }: {
+  comment: TComment;
+  index: number;
+  selected: boolean;
+  reorder: UseCommentReorderResult;
+  label: string;
+  timeLabel: string;
+  onToggleSelect: (commentId: string) => void;
+  useTHook?: typeof useT;
+}) {
+  const dragLabel = useTHook()('Drag to reorder');
+  return (
+    <div className="jini-comment-side-item-head">
+      <button
+        type="button"
+        className="jini-comment-side-drag-handle"
+        title={dragLabel}
+        aria-label={dragLabel}
+        draggable={reorder.canReorder}
+        disabled={!reorder.canReorder}
+        onClick={(event) => event.stopPropagation()}
+        onDragStart={(event) => reorder.onDragStart(event, comment.id)}
+        onDragEnd={reorder.clear}
+      >
+        <Icon name="grip-vertical" size={13} />
+      </button>
+      <span className="jini-comment-side-author">
+        <strong>{`${index + 1}. ${label}`}</strong>
+      </span>
+      <span className="jini-comment-side-time">{timeLabel}</span>
+      <CommentSideCheck selected={selected} onToggle={() => onToggleSelect(comment.id)} />
+    </div>
+  );
+}
+
+type CommentSideItemProps<TComment extends ViewerCommentBase> = {
   comment: TComment;
   index: number;
   selected: boolean;
@@ -342,16 +420,17 @@ function CommentSideItem<TComment extends ViewerCommentBase>({
   getCommentAttachments: ((comment: TComment) => ViewerCommentAttachment[]) | undefined;
   resolveAttachmentUrl: ((attachment: ViewerCommentAttachment) => string) | undefined;
   formatTs: (timestampMs: number) => string;
-}) {
-  const t = useT();
+};
+
+function CommentSideItem<TComment extends ViewerCommentBase>(props: CommentSideItemProps<TComment>) {
+  const { comment, index, selected, active, reorder, onReply, resolveAttachmentUrl } = props;
   const className = commentItemClassName({
     selected,
     active,
     isDragging: reorder.dragState?.draggingId === comment.id,
     dropClass: dropEdgeClassName(reorder.dragState, comment.id),
   });
-  const attachments = getCommentAttachments?.(comment) ?? [];
-  const dragLabel = t('Drag to reorder');
+  const attachments = props.getCommentAttachments?.(comment) ?? [];
   return (
     <div
       className={className}
@@ -369,178 +448,19 @@ function CommentSideItem<TComment extends ViewerCommentBase>({
         onReply(comment);
       }}
     >
-      <div className="comment-side-item-head">
-        <button
-          type="button"
-          className="comment-side-drag-handle"
-          title={dragLabel}
-          aria-label={dragLabel}
-          draggable={reorder.canReorder}
-          disabled={!reorder.canReorder}
-          onClick={(event) => event.stopPropagation()}
-          onDragStart={(event) => reorder.onDragStart(event, comment.id)}
-          onDragEnd={reorder.clear}
-        >
-          <Icon name="grip-vertical" size={13} />
-        </button>
-        <span className="comment-side-author">
-          <strong>{`${index + 1}. ${getCommentLabel(comment, index)}`}</strong>
-        </span>
-        <span className="comment-side-time">{formatTs(getCommentTimestamp(comment))}</span>
-        <button
-          type="button"
-          className={`comment-side-check${selected ? ' checked' : ''}`}
-          aria-label={selected ? t('Deselect') : t('Select')}
-          aria-pressed={selected}
-          onClick={(event) => {
-            event.stopPropagation();
-            onToggleSelect(comment.id);
-          }}
-        >
-          {selected ? <Icon name="check" size={11} /> : null}
-        </button>
-      </div>
-      <div className="comment-side-body">{getCommentBody(comment)}</div>
+      <CommentSideItemHead
+        comment={comment}
+        index={index}
+        selected={selected}
+        reorder={reorder}
+        label={props.getCommentLabel(comment, index)}
+        timeLabel={props.formatTs(props.getCommentTimestamp(comment))}
+        onToggleSelect={props.onToggleSelect}
+      />
+      <div className="jini-comment-side-body">{props.getCommentBody(comment)}</div>
       {resolveAttachmentUrl && attachments.length > 0 ? (
         <CommentSideAttachments attachments={attachments} resolveAttachmentUrl={resolveAttachmentUrl} />
       ) : null}
     </div>
-  );
-}
-
-function CommentSideAttachments({
-  attachments,
-  resolveAttachmentUrl,
-}: {
-  attachments: ViewerCommentAttachment[];
-  resolveAttachmentUrl: (attachment: ViewerCommentAttachment) => string;
-}) {
-  return (
-    <div className="comment-side-attachments">
-      {attachments.map((attachment) => {
-        const url = resolveAttachmentUrl(attachment);
-        return (
-          <a
-            key={attachment.path}
-            className="comment-side-attachment"
-            data-testid="comment-side-attachment"
-            href={url}
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label={attachment.name}
-            title={attachment.name}
-            onClick={(event) => event.stopPropagation()}
-          >
-            <img src={url} alt={attachment.name} />
-          </a>
-        );
-      })}
-    </div>
-  );
-}
-
-function CommentSideSelectBar({
-  selectedCount,
-  sending,
-  sendDisabled,
-  queueOnSend,
-  onClearSelection,
-  onSendSelected,
-}: {
-  selectedCount: number;
-  sending: boolean;
-  sendDisabled: boolean;
-  queueOnSend: boolean;
-  onClearSelection: () => void;
-  onSendSelected: () => void | Promise<void>;
-}) {
-  const t = useT();
-  if (selectedCount === 0) return null;
-  const idleSendLabel = queueOnSend ? t('Queue') : t('Send to chat');
-  return (
-    <div className="comment-side-selectbar" data-testid="comment-side-selectbar">
-      <span className="comment-side-selectcount">{t('{n} selected', { n: selectedCount })}</span>
-      <button type="button" className="comment-side-clear" onClick={onClearSelection}>
-        {t('Clear')}
-      </button>
-      <button
-        type="button"
-        className="comment-side-send"
-        data-testid="comment-side-send-claude"
-        disabled={sending || sendDisabled}
-        onClick={() => void onSendSelected()}
-      >
-        {sending ? t('Sending…') : idleSendLabel}
-      </button>
-    </div>
-  );
-}
-
-function CommentSideCreateForm({
-  renderCreateForm,
-  draft,
-  onDraftChange,
-  onCreateComment,
-  sending,
-  sendDisabled,
-}: {
-  renderCreateForm: boolean;
-  draft: string;
-  onDraftChange: (draft: string) => void;
-  onCreateComment: ((note: string) => boolean | Promise<boolean>) | undefined;
-  sending: boolean;
-  sendDisabled: boolean;
-}) {
-  const t = useT();
-  if (!renderCreateForm || !onCreateComment) return null;
-  // Bind the narrowed callback: TypeScript drops the narrowing inside the
-  // nested async `submitNewComment` closure below.
-  const createComment = onCreateComment;
-  const canCreateComment = draft.trim().length > 0 && !sending && !sendDisabled;
-  const addLabel = t('Add a comment…');
-
-  async function submitNewComment() {
-    if (!draft.trim()) return;
-    const saved = await createComment(draft.trim());
-    if (saved) onDraftChange('');
-  }
-
-  return (
-    <form
-      className="comment-side-new-comment composer"
-      onSubmit={(event) => {
-        event.preventDefault();
-        void submitNewComment();
-      }}
-    >
-      <div className="composer-shell comment-side-new-comment-shell">
-        <div className="composer-input-wrap">
-          <div className="composer-textarea-layer">
-            <textarea
-              value={draft}
-              placeholder={addLabel}
-              aria-label={addLabel}
-              onChange={(event) => onDraftChange(event.target.value)}
-              onKeyDown={(event) => {
-                if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
-                  event.preventDefault();
-                  void submitNewComment();
-                }
-              }}
-            />
-          </div>
-        </div>
-        <div className="composer-row comment-side-new-comment-actions">
-          <button type="button" className="icon-btn" title={t('Attach')} aria-label={t('Attach')} disabled>
-            <Icon name="attach" size={15} />
-          </button>
-          <span className="composer-spacer" />
-          <button type="submit" className={`composer-send${sending ? ' is-sending' : ''}`} disabled={!canCreateComment}>
-            <Icon name="send" size={13} />
-            <span>{sending ? t('Sending…') : t('Send')}</span>
-          </button>
-        </div>
-      </div>
-    </form>
   );
 }

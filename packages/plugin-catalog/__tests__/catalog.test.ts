@@ -34,15 +34,15 @@ describe('standalone plugin catalog', () => {
     expect(entry).toEqual({ ...catalogEntry({ id: entry.id, packageManifest, pluginManifest }, { kind: entry.kind, packageName: packageManifest.name }),
       expectedDigests: entry.expectedDigests });
     if (row) expect(`${entry.packageName}/${entry.path}`).toBe(`${AGENT_PLUGINS_PACKAGE}/${entry.id}`);
-    // Jini's own plugins say jini/<id> (a chart face jini/<id>-agent); plugins moved from Tovu keep tovu/<id>.
-    expect(entry.publisherIdentity).toMatch(new RegExp(`^(?:jini/${entry.id}(?:-agent)?|tovu/${entry.id})$`));
+    // Plugins say jini/<id> (a chart face jini/<id>-agent).
+    expect(entry.publisherIdentity).toMatch(new RegExp(`^jini/${entry.id}(?:-agent)?$`));
     expect(entry.path.startsWith('/')).toBe(false);
     expect(entry.path.split('/')).not.toContain('..');
   });
 
   it('preserves each agent manifest version independently of the npm release', () => {
     expect(entries.find(entry => entry.id === 'ui-ux-design')).toMatchObject({
-      kind: 'agent', packageName: AGENT_PLUGINS_PACKAGE, version: agentPluginsPackage.version, pluginVersion: '0.6.3', path: 'ui-ux-design',
+      kind: 'agent', packageName: AGENT_PLUGINS_PACKAGE, version: agentPluginsPackage.version, pluginVersion: '0.7.0', path: 'ui-ux-design',
       contract: { id: 'agent-plugins', version: '1.0.0' },
     });
     expect(entries.find(entry => entry.id === 'slide-design')).toMatchObject({
@@ -86,7 +86,7 @@ describe('standalone plugin catalog', () => {
 /** A completed provider payload fixture; all effects are ports, with no vendor code imported. */
 function fixture() {
   const pluginManifest = { id: 'fixture-provider', name: 'Fixture', version: '0.6.12',
-    extensions: { tovu: { id: 'jini/fixture-provider' } },
+    extensions: { jini: { id: 'jini/fixture-provider' } },
     contributes: { providers: [{ contract: 'fixture', contractVersion: 1 }] }, integrity: {} };
   const packageManifest = { name: '@jini-ai/provider-plugins', version: '0.6.17', description: 'Fixture' };
   const artifact = { ...pluginManifest, version: '0.6.17', integrity: { 'server/index.mjs': digest } };
@@ -108,7 +108,7 @@ function combinedFixture() {
   const providerPackage = { name: '@jini-ai/provider-plugins', version: '0.6.19', description: 'Provider plugins' };
   const agentPackage = { name: '@jini-ai/agent-plugins', version: '0.6.19', description: 'Agent plugins' };
   const provider = { id: 'charts-fixture', name: 'Fixture charts', version: '0.6.12',
-    extensions: { tovu: { id: 'jini/charts-fixture' } },
+    extensions: { jini: { id: 'jini/charts-fixture' } },
     browserProviders: [{ id: 'plugin.charts-fixture', kind: 'chart', contractVersion: 1, kinds: ['bar'], javascript: 'client/provider.js' }] };
   const integrity: Record<string, string> = { 'client/provider.js': digest };
   const providerArtifact = { ...provider, version: '0.6.19', integrity };
@@ -182,10 +182,10 @@ describe('agent subpaths, provider-plugins providers and browser-only providers'
 
   it('an agent entry names the agent-plugins package and its subpath, never a per-plugin package', () => {
     const { face } = combinedFixture();
-    const pluginManifest = { ...face, name: 'posthog', extensions: { tovu: { id: 'tovu/posthog' } } };
+    const pluginManifest = { ...face, name: 'posthog', extensions: { jini: { id: 'jini/posthog' } } };
     const packageManifest = { name: AGENT_PLUGINS_PACKAGE, version: '0.6.19', description: '' };
     expect(catalogEntry({ id: 'posthog', packageManifest, pluginManifest }, { kind: 'agent', packageName: AGENT_PLUGINS_PACKAGE }))
-      .toMatchObject({ kind: 'agent', path: 'posthog', packageName: AGENT_PLUGINS_PACKAGE, publisherIdentity: 'tovu/posthog' });
+      .toMatchObject({ kind: 'agent', path: 'posthog', packageName: AGENT_PLUGINS_PACKAGE, publisherIdentity: 'jini/posthog' });
     expect(catalogEntry({ id: 'posthog', packageManifest, pluginManifest }, { kind: 'agent' }).packageName).toBe(AGENT_PLUGINS_PACKAGE);
   });
 

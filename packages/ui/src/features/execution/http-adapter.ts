@@ -57,7 +57,7 @@ export interface CreateExecutionPortOptions {
    * oversight: that screen probes the ADMIN's own credential (server-side since 2026-08-05, but
    * still a DIFFERENT stored row from the site's), a different purpose from this flag entirely. If
    * it opted in, an empty field there would silently probe — and report results for — the visitor
-   * key, crossing the boundary ADR-058 §5 makes structural. (The admin's OWN stored fallback for a
+   * key, crossing the structural credential boundary. (The admin's OWN stored fallback for a
    * BYOK *turn* is unconditional and happens entirely server-side in `assistant-byok.ts` — this
    * flag only ever concerns the SITE credential these `test-connection`/`list-models` probes can
    * optionally fall back to.)
@@ -94,8 +94,8 @@ export function createExecutionHttpAdapter(
   _options: Record<string, never> = {},
 ) {
   /**
-   * host's real `ExecutionPort` — wired to `src/server/modules/assistant-
-   * execution.ts`'s 3 routes (`@jini-ai/agent-runtime` underneath). Follows
+   * host's real `ExecutionPort` — wired to the 3 routes in
+   * the host app's `src/server/inbound/admin-http/routes/assistant/` (`@jini-ai/agent-runtime` underneath). Follows
    * `@jini-ai/ui`'s `ports.ts` contract (error-reporting contract §3.1):
    *
    * - `detectLocalAgents`/`rescanLocalAgents`/`listModels` REJECT on any
@@ -169,7 +169,7 @@ export function createExecutionHttpAdapter(
   }
 
   function createExecutionPort(_required: Record<string, never> = {}, options: CreateExecutionPortOptions = {}): ExecutionPort {
-    const { useStoredCredential = false, useAdminStoredCredential = false } = options;
+
     return {
       async detectLocalAgents() {
         return cachedDetection ?? cacheDetection(requestAgentDetection());
@@ -179,7 +179,17 @@ export function createExecutionHttpAdapter(
         // the new baseline for subsequent mounts.
         return cacheDetection(requestAgentDetection({ force: true }));
       },
-      async testConnection(config: ByokConfig) {
+      ...createExecutionProbes(transport, options),
+    };
+  }
+
+  return { createPort: createExecutionPort, resetDetectionCache: resetLocalAgentDetectionCache };
+}
+
+function createExecutionProbes(transport: ExecutionProbeTransport, options: CreateExecutionPortOptions): Pick<ExecutionPort, 'testConnection' | 'testAgent' | 'listModels'> {
+  const { useStoredCredential = false, useAdminStoredCredential = false } = options;
+  return {
+    async testConnection(config: ByokConfig) {
         return transport.testExecutionConnection({
           protocol: config.protocol,
           baseUrl: config.baseUrl,
@@ -213,9 +223,6 @@ export function createExecutionHttpAdapter(
           throw new Error(result.message?.trim() ? result.message : "Model discovery failed");
         }
         return result.models;
-      },
-    };
-  }
-
-  return { createPort: createExecutionPort, resetDetectionCache: resetLocalAgentDetectionCache };
+      }
+  };
 }

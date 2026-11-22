@@ -2,7 +2,8 @@ export { widgetsModule, widgetsAgentPageIds, widgetsEditorPaths } from './widget
 export { widgetsApiToken, widgetsEventsToken, widgetsNavigationToken } from './ports.js';
 export type { AdminWidgetsPort, WidgetsEventsPort, WidgetsNavigationPort } from './ports.js';
 export type * from './models.js';
-export * from './rules.js';
+export { WIDGETS_LIBRARY_RESOURCE, WIDGETS_REGIONS_RESOURCE, buildDraftPlacement, isKnownWidgetType, movePlacement, resolveEditorWidgetType, resolveWidgetRegionSaveError, resolveWidgetSaveError, widgetApiError, widgetConfigFieldErrors, widgetEditorGate, widgetEntityKey, widgetInstanceGuard, widgetSlugRedirectPath, widgetTypeLabel } from './rules.js';
+export type { WidgetEditorGate, WidgetInstanceGuard, WidgetInstanceGuardInput, WidgetSaveErrorOutcome } from './rules.js';
 export { widgetsMessagesEn, widgetsEnglish } from './messages.en.js';
 export { createWidgetsLibraryController } from './controllers/library.controller.js';
 export { createWidgetInstanceEditorController } from './controllers/instance-editor.controller.js';

@@ -24,10 +24,10 @@ function world() {
   const payments = { getPayment: vi.fn(async () => state.payment), createIntent: unused, refund: unused, capture: unused, void: unused, listProviders: () => [] };
   const alerts = { raise: vi.fn<SettleOrderPaymentDeps["alerts"]["raise"]>(async () => {}) };
   const deps: SettleOrderPaymentDeps = { orders, orderPayments, payments, alerts, clock: { nowMs: () => Date.parse(at) } };
-  return { state, orders, orderPayments, payments, alerts, deps, run: () => settleOrderPayment({ deps, input }) };
+  return { state, orders, orderPayments, payments, alerts, deps, run: () => settleOrderPayment({ deps, ...input }) };
 }
 it("settles a reserved but unbound order using only its stored scope", async () => {
-  const w = world(); expect(await settleOrderPayment({ deps: w.deps, input }, {})).toBe("paid");
+  const w = world(); expect(await settleOrderPayment({ deps: w.deps, ...input }, {})).toBe("paid");
   expect(w.orderPayments.findByOrder).toHaveBeenCalledWith({ workspaceId: "ws", orderId: "order" });
   expect(w.orders.findById).toHaveBeenCalledWith({ workspaceId: "ws", id: "order" });
   expect(w.payments.getPayment).toHaveBeenCalledWith({ scope, paymentId: "payment" });

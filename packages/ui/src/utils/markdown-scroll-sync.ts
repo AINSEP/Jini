@@ -10,8 +10,8 @@ import { gfm } from 'micromark-extension-gfm';
 // linearly interpolate scroll position between those anchor pairs so
 // matching blocks line up at the top edge of both panes.
 
-const CONTAINER_TOKENS = new Set(['blockQuote', 'listOrdered', 'listUnordered']);
-const FLOW_BLOCK_TOKENS = new Set([
+const CONTAINER_TOKENS: ReadonlySet<string> = new Set(['blockQuote', 'listOrdered', 'listUnordered']);
+const FLOW_BLOCK_TOKENS: ReadonlySet<string> = new Set([
   'atxHeading',
   'setextHeading',
   'paragraph',
@@ -97,7 +97,7 @@ function collectTopLevelBlockLines({ events }: { events: MarkdownEvents }): numb
  * top-level container so the result lines up 1:1 with the preview article's
  * direct element children.
  */
-export function extractMarkdownBlockLines(markdown: string): number[] {
+export function extractMarkdownBlockLines({ markdown }: { markdown: string }, _optional: Record<string, never> = {}): number[] {
   if (!markdown) return [];
   const events = parseMarkdownEvents({ markdown });
   return events ? collectTopLevelBlockLines({ events }) : [];
@@ -185,9 +185,8 @@ function readMarkerOffsets({ mirror, blockCount }: { mirror: HTMLDivElement; blo
  * lines wrap. Returns `null` when measurement is not possible.
  */
 export function measureEditorBlockOffsets(
-  textarea: HTMLTextAreaElement,
-  blockLines: number[],
-  text: string,
+  { textarea, blockLines, text }: { textarea: HTMLTextAreaElement; blockLines: number[]; text: string },
+  _optional: Record<string, never> = {},
 ): number[] | null {
   // The `typeof document === 'undefined'` half of this guard is real,
   // intentional SSR-safety API contract (documented in this function's own
@@ -198,10 +197,10 @@ export function measureEditorBlockOffsets(
   // would require either reintroducing this package's own documented
   // `@vitest/coverage-v8` jsdom/node branch-merge bug (see
   // `features/html-viewer/dependencies`'s precedent in
-  // packages/ui/archived provenance ledger) or hand-faking this function's full
+  // archived UI provenance ledger) or hand-faking this function's full
   // `innerHTML`/`querySelectorAll`/`getComputedStyle` surface under plain
   // Node — disproportionate to a defensive guard with no reachable path.
-  // See packages/ui/archived provenance ledger's 2026-07-22 dated entry.
+  // See archived UI provenance ledger's 2026-07-22 dated entry.
   if (blockLines.length === 0 || typeof document === 'undefined') return null;
   const mirror = createMirror({ textarea });
   mirror.innerHTML = buildMirrorMarkup({ blockLines, text });
@@ -220,9 +219,8 @@ export function measureEditorBlockOffsets(
  * conventional root class).
  */
 export function measurePreviewBlockOffsets(
-  pane: HTMLElement,
-  blockCount: number,
-  previewSelector = '.markdown-rendered',
+  { pane, blockCount }: { pane: HTMLElement; blockCount: number },
+  { previewSelector = '.markdown-rendered' }: { previewSelector?: string | undefined } = {},
 ): number[] | null {
   if (blockCount === 0) return null;
   const article = pane.querySelector<HTMLElement>(previewSelector);
@@ -243,7 +241,7 @@ export function measurePreviewBlockOffsets(
  * anchor at the top, the per-block offsets, and the total `scrollHeight` at the
  * bottom, clamped non-decreasing so interpolation stays stable.
  */
-export function buildScrollAnchors(blockOffsets: number[], scrollHeight: number): number[] {
+export function buildScrollAnchors({ blockOffsets, scrollHeight }: { blockOffsets: number[]; scrollHeight: number }, _optional: Record<string, never> = {}): number[] {
   const anchors = [0, ...blockOffsets, Math.max(0, scrollHeight)];
   let previous = 0;
   for (let i = 0; i < anchors.length; i += 1) {
@@ -280,7 +278,7 @@ function findBracketLow({ value, source, count }: { value: number; source: numbe
  * anchor arrays (same length, both monotonic). Linear interpolation within the
  * bracketing segment.
  */
-export function mapScrollPosition(value: number, source: number[], target: number[]): number {
+export function mapScrollPosition({ value, source, target }: { value: number; source: number[]; target: number[] }, _optional: Record<string, never> = {}): number {
   const count = Math.min(source.length, target.length);
   if (count === 0) return value;
   const last = count - 1;
@@ -301,7 +299,7 @@ export function mapScrollPosition(value: number, source: number[], target: numbe
   // sourceLow` always, and a `span > 0 ? ... : 0` guard against
   // division-by-zero was dead code for every possible call, not a real
   // defensive branch — removed rather than tested around (see
-  // packages/ui/archived provenance ledger's 2026-07-22 dated entry for the full proof).
+  // archived UI provenance ledger's 2026-07-22 dated entry for the full proof).
   const span = sourceHigh - sourceLow;
   const fraction = (value - sourceLow) / span;
   return targetLow + fraction * (targetHigh - targetLow);

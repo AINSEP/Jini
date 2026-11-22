@@ -1,14 +1,13 @@
 /**
  * @file `createHookRegistry()` / `runBeforeSave()` — composes enabled plugins' `content.entry.
- * beforeSave` filters, merges `ext`, fail-closed (SPEC-005 REQ-05/REQ-06; BR-04/BR-06/BR-07;
- * CIC U-004, no escalation marker).
+ * beforeSave` filters, merges `ext`, fail-closed (no escalation marker).
  *
  * Purpose:
  * The concrete adapter for `BeforeSaveHookPort` (`src/features/post/post.ts`'s contract). Keeping
  * this composition logic here — not in `post.ts` — is what keeps `post.ts` plugin-ignorant
  * (Module Map). `activation.ts` calls `.detach()` on disable.
  *
- * **Corrected 2026-08-04 (ADR-057 Decision 2.1):** this comment previously claimed `loader.ts`
+ * **Corrected 2026-08-04:** this comment previously claimed `loader.ts`
  * calls `.attach()` on this registry as each plugin's `setup()` runs. That was false — `loadPlugin()`
  * (`loader.ts`) has never called `.attach()`; steps 4-5 of BR-01 were left unwired, documented but
  * dead, and no other production code called it either (verified: `grep -rn "hookRegistry\.attach"
@@ -16,10 +15,10 @@
  * `loader.ts` exports `attachLoadedPlugin()`, the real (not stub) extraction of that dead logic's
  * attach half, widened to accept a `"glue"` source. Site Glue's content-lifecycle attachment point
  * is `attachLoadedPlugin`'s first production caller; `loadPlugin()` itself still does not call it —
- * a future SPEC-005 fix for its own activation path is expected to call the same function, per
- * ADR-057 Decision 2.1, rather than re-inventing this wiring a second time.
+ * a future fix for its own activation path is expected to call the same function,
+ * rather than re-inventing this wiring a second time.
  *
- * **CIC U-004 (Binding, no escalation marker — bounded blast radius via SPEC-001's revert):**
+ * **Binding, no escalation marker — bounded blast radius via revert:**
  * `runBeforeSave()` must fully resolve (returning the merged patch) or throw before its caller
  * (`post.ts`) constructs the final `PostRecord` passed to `deps.repo.save()`. There is exactly one
  * `repo.save()` call per `createPost`/`updatePost` invocation, and it must never be reached if
@@ -34,15 +33,21 @@
  * earlier filters' already-merged `ext` values on the entry snapshot they receive.
  *
  * Architectural role:
- * TDD-certified implementation (implementation outline C-010, CIC U-004). Signature and JSDoc are
+ * TDD-certified implementation. Signature and JSDoc are
  * design-frozen; `runBeforeSave()` orders attached filters, gives each an isolated entry snapshot,
  * validates each declared-field patch, and returns the merged per-plugin `ext` object fail-closed.
  */
 import type { JsonObject } from "@jini-ai/core/primitives";
-import type { BeforeSaveFilter, ContentEntryDraft, HookContext, HookPoints, PluginSdkBinding } from "./ports.js";
+import type { PluginSdkBinding } from "./ports.js";
+import type {
+  BeforeSaveFilter,
+  ContentEntryDraft,
+  HookContext,
+  HookPoints,
+} from "@jini-ai/core/contracts/plugin-sdk";
 import { PluginHookFailedError } from "./errors.js";
 
-/** Who attached a given filter — extended by ADR-057 Decision 3 with `"glue"`, ranked after
+/** Who attached a given filter — extended with `"glue"`, ranked after
  * `"site"` in {@link compareTb01}. Exported so `loader.ts`'s `attachLoadedPlugin()` and any other
  * caller share this one source of truth for the vocabulary rather than re-declaring the union. */
 export type AttachmentSource = "built-in" | "site" | "glue";
@@ -101,7 +106,7 @@ interface Attachment {
   readonly declaredFields: readonly HookRegistryFieldDecl[];
 }
 
-/** TB-01's rank per source, ADR-057 Decision 3's additive third stage: built-ins (0), then site
+/** Source rank with an additive third stage: built-ins (0), then site
  * plugins (1), then glue modules (2) — id-ascending within each rank (`compareTb01` below). */
 const SOURCE_RANK: Readonly<Record<AttachmentSource, number>> = { "built-in": 0, site: 1, glue: 2 };
 
@@ -109,7 +114,7 @@ const SOURCE_RANK: Readonly<Record<AttachmentSource, number>> = { "built-in": 0,
  * TB-01 comparator: built-ins before site plugins before glue modules, id-ascending within each
  * group. Shared with `discovery.ts`'s own ordering rule for the `built-in`/`site` ranks (PLUGINS_LIST
  * uses the same order) so those two never diverge; the `glue` rank has no discovery-time analogue
- * since glue modules are never listed by `discovery.ts` (ADR-057 Decision 6 — a separate tier).
+ * since glue modules are never listed by `discovery.ts` (a separate tier).
  */
 function compareTb01(a: readonly [string, Attachment], b: readonly [string, Attachment]): number {
   const rankDiff = SOURCE_RANK[a[1].source] - SOURCE_RANK[b[1].source];
@@ -219,6 +224,109 @@ async function applyPluginFilter(
   return buildDeclaredPatch(pluginId, patch, attachment.declaredFields);
 }
 
+type HookFailureContext = {
+  consecutiveFailures: Map<string, Map<string, number>>;
+  failureThreshold: number;
+  options: CreateHookRegistryOptions;
+};
+
+type HookExecutionContext = {
+  attachments: Map<string, Attachment>;
+  beforeSaveHook: string;
+  isQuarantined: (input: { pluginId: string; workspaceId: string }) => boolean;
+  clearFailures: (pluginId: string, workspaceId?: string) => void;
+  recordFailure: (input: { pluginId: string; workspaceId: string; failure: PluginHookFailedError }) => Promise<void>;
+};
+
+function clearHookFailures(consecutiveFailures: Map<string, Map<string, number>>, pluginId: string, workspaceId?: string): void {
+    if (workspaceId !== undefined) {
+      const workspaceFailures = consecutiveFailures.get(workspaceId);
+      workspaceFailures?.delete(pluginId);
+      if (workspaceFailures?.size === 0) consecutiveFailures.delete(workspaceId);
+      return;
+    }
+    for (const [workspace, workspaceFailures] of consecutiveFailures) {
+      workspaceFailures.delete(pluginId);
+      if (workspaceFailures.size === 0) consecutiveFailures.delete(workspace);
+    }
+}
+
+  /** Counts failures for one workspace and quarantines it before awaiting persistence.
+   * Persistence failure throws a hook error; the workspace remains quarantined.
+   * @complexity O(1) bookkeeping plus one host persistence callback at the threshold.
+   */
+async function recordHookFailure(
+    { consecutiveFailures, failureThreshold, options }: HookFailureContext,
+    { pluginId, workspaceId, failure }: { pluginId: string; workspaceId: string; failure: PluginHookFailedError },
+    _optional: Record<string, never> = {},
+  ): Promise<void> {
+    if (!options.onQuarantine) return;
+
+    const workspaceFailures = consecutiveFailures.get(workspaceId) ?? new Map<string, number>();
+    const next = (workspaceFailures.get(pluginId) ?? 0) + 1;
+    workspaceFailures.set(pluginId, next);
+    consecutiveFailures.set(workspaceId, workspaceFailures);
+    if (next < failureThreshold) return;
+
+    // Recover the affected workspace first: the triggering save remains fail-closed, but the
+    // threshold count skips later saves/previews while durable activation state is recorded.
+    // Other workspaces retain the attachment and their own failure counts.
+    try {
+      await options.onQuarantine({
+        pluginId,
+        workspaceId,
+        consecutiveFailures: next,
+        reason: failure.message,
+      });
+    } catch (error) {
+      throw new PluginHookFailedError(
+        pluginId,
+        `${failure.message}; automatic quarantine persistence failed: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+        { cause: error }
+      );
+    }
+}
+
+function createBeforeSaveRunner({ attachments, beforeSaveHook, isQuarantined, clearFailures, recordFailure }: HookExecutionContext): HookRegistry['runBeforeSave'] {
+  return async function runBeforeSave({ entry }: { entry: Readonly<ContentEntryDraft> }, _optional: Record<string, never> = {}): Promise<JsonObject> {
+    const ordered = [...attachments.entries()].sort(compareTb01);
+    const merged: Record<string, JsonObject> = {};
+
+    for (const [pluginId, attachment] of ordered) {
+      if (isQuarantined({ pluginId, workspaceId: entry.workspaceId })) continue;
+      try {
+        merged[pluginId] = await applyPluginFilter(pluginId, attachment, entry, merged, beforeSaveHook);
+        clearFailures(pluginId, entry.workspaceId);
+      } catch (error) {
+        const failure =
+          error instanceof PluginHookFailedError
+            ? error
+            : new PluginHookFailedError(pluginId, `plugin '${pluginId}' beforeSave hook failed`, { cause: error });
+        await recordFailure({ pluginId, workspaceId: entry.workspaceId, failure });
+        throw failure;
+      }
+    }
+
+    return merged;
+  };
+}
+
+function createBeforeSavePreview({ attachments, beforeSaveHook, isQuarantined }: HookExecutionContext): HookRegistry['previewBeforeSave'] {
+  return async function previewBeforeSave({ pluginId, entry }: { pluginId: string; entry: Readonly<ContentEntryDraft> }, _optional: Record<string, never> = {}): Promise<JsonObject | null> {
+    const attachment = attachments.get(pluginId);
+    if (!attachment || isQuarantined({ pluginId, workspaceId: entry.workspaceId })) return null;
+    try {
+      return await applyPluginFilter(pluginId, attachment, entry, {}, beforeSaveHook);
+    } catch (error) {
+      throw error instanceof PluginHookFailedError
+        ? error
+        : new PluginHookFailedError(pluginId, `plugin '${pluginId}' beforeSave hook failed`, { cause: error });
+    }
+  };
+}
+
 /**
  * Creates a fresh, empty hook registry (no plugins attached). Each process has exactly one
  * long-lived instance, constructed once at composition-root time and shared between `loader.ts`
@@ -253,55 +361,9 @@ export function createHookRegistry<H extends HookPoints>(
     return (consecutiveFailures.get(workspaceId)?.get(pluginId) ?? 0) >= failureThreshold;
   }
 
-  function clearFailures(pluginId: string, workspaceId?: string): void {
-    if (workspaceId !== undefined) {
-      const workspaceFailures = consecutiveFailures.get(workspaceId);
-      workspaceFailures?.delete(pluginId);
-      if (workspaceFailures?.size === 0) consecutiveFailures.delete(workspaceId);
-      return;
-    }
-    for (const [workspace, workspaceFailures] of consecutiveFailures) {
-      workspaceFailures.delete(pluginId);
-      if (workspaceFailures.size === 0) consecutiveFailures.delete(workspace);
-    }
-  }
-
-  /** Counts failures for one workspace and quarantines it before awaiting persistence.
-   * Persistence failure throws a hook error; the workspace remains quarantined.
-   * @complexity O(1) bookkeeping plus one host persistence callback at the threshold.
-   */
-  async function recordFailure(
-    { pluginId, workspaceId, failure }: { pluginId: string; workspaceId: string; failure: PluginHookFailedError },
-    _optional: Record<string, never> = {},
-  ): Promise<void> {
-    if (!options.onQuarantine) return;
-
-    const workspaceFailures = consecutiveFailures.get(workspaceId) ?? new Map<string, number>();
-    const next = (workspaceFailures.get(pluginId) ?? 0) + 1;
-    workspaceFailures.set(pluginId, next);
-    consecutiveFailures.set(workspaceId, workspaceFailures);
-    if (next < failureThreshold) return;
-
-    // Recover the affected workspace first: the triggering save remains fail-closed, but the
-    // threshold count skips later saves/previews while durable activation state is recorded.
-    // Other workspaces retain the attachment and their own failure counts.
-    try {
-      await options.onQuarantine({
-        pluginId,
-        workspaceId,
-        consecutiveFailures: next,
-        reason: failure.message,
-      });
-    } catch (error) {
-      throw new PluginHookFailedError(
-        pluginId,
-        `${failure.message}; automatic quarantine persistence failed: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
-        { cause: error }
-      );
-    }
-  }
+  const failureContext = { consecutiveFailures, failureThreshold, options };
+  const clearFailures = (pluginId: string, workspaceId?: string) => clearHookFailures(consecutiveFailures, pluginId, workspaceId);
+  const recordFailure = (input: Parameters<typeof recordHookFailure>[1]) => recordHookFailure(failureContext, input);
 
   function attach(
     { pluginId, source, filter, declaredFields }: { pluginId: string; source: AttachmentSource; filter: BeforeSaveFilter; declaredFields: readonly HookRegistryFieldDecl[] },
@@ -316,39 +378,9 @@ export function createHookRegistry<H extends HookPoints>(
     clearFailures(pluginId);
   }
 
-  async function runBeforeSave({ entry }: { entry: Readonly<ContentEntryDraft> }, _optional: Record<string, never> = {}): Promise<JsonObject> {
-    const ordered = [...attachments.entries()].sort(compareTb01);
-    const merged: Record<string, JsonObject> = {};
-
-    for (const [pluginId, attachment] of ordered) {
-      if (isQuarantined({ pluginId, workspaceId: entry.workspaceId })) continue;
-      try {
-        merged[pluginId] = await applyPluginFilter(pluginId, attachment, entry, merged, beforeSaveHook);
-        clearFailures(pluginId, entry.workspaceId);
-      } catch (error) {
-        const failure =
-          error instanceof PluginHookFailedError
-            ? error
-            : new PluginHookFailedError(pluginId, `plugin '${pluginId}' beforeSave hook failed`, { cause: error });
-        await recordFailure({ pluginId, workspaceId: entry.workspaceId, failure });
-        throw failure;
-      }
-    }
-
-    return merged;
-  }
-
-  async function previewBeforeSave({ pluginId, entry }: { pluginId: string; entry: Readonly<ContentEntryDraft> }, _optional: Record<string, never> = {}): Promise<JsonObject | null> {
-    const attachment = attachments.get(pluginId);
-    if (!attachment || isQuarantined({ pluginId, workspaceId: entry.workspaceId })) return null;
-    try {
-      return await applyPluginFilter(pluginId, attachment, entry, {}, beforeSaveHook);
-    } catch (error) {
-      throw error instanceof PluginHookFailedError
-        ? error
-        : new PluginHookFailedError(pluginId, `plugin '${pluginId}' beforeSave hook failed`, { cause: error });
-    }
-  }
+  const executionContext = { attachments, beforeSaveHook, isQuarantined, clearFailures, recordFailure };
+  const runBeforeSave = createBeforeSaveRunner(executionContext);
+  const previewBeforeSave = createBeforeSavePreview(executionContext);
 
   return { attach, detach, runBeforeSave, previewBeforeSave };
 }

@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { isLoopbackHostname } from '@jini-ai/platform/net';
+import { isLoopbackHostname } from '@jini-ai/core/net';
 import {
-  isLoopbackPeerAddress,
   localOriginFromHeader,
   normalizeLocalAuthority,
   requireLocalDaemonRequest,
@@ -84,38 +83,6 @@ describe('isLoopbackHostname', () => {
   it('rejects a falsy/empty hostname', () => {
     expect(isLoopbackHostname({ hostname: undefined })).toBe(false);
     expect(isLoopbackHostname({ hostname: '' })).toBe(false);
-  });
-});
-
-describe('isLoopbackPeerAddress', () => {
-  it('accepts a bare IPv4 loopback address', () => {
-    expect(isLoopbackPeerAddress({ address: '127.0.0.1' })).toBe(true);
-  });
-
-  it('accepts an IPv4-mapped IPv6 loopback address', () => {
-    expect(isLoopbackPeerAddress({ address: '::ffff:127.0.0.1' })).toBe(true);
-  });
-
-  it('accepts IPv6 loopback in bracketed and unbracketed forms', () => {
-    expect(isLoopbackPeerAddress({ address: '::1' })).toBe(true);
-    expect(isLoopbackPeerAddress({ address: '[::1]' })).toBe(true);
-  });
-
-  it('rejects a non-loopback IPv4 address', () => {
-    expect(isLoopbackPeerAddress({ address: '10.0.0.5' })).toBe(false);
-  });
-
-  it('rejects a non-loopback IPv6 address', () => {
-    expect(isLoopbackPeerAddress({ address: 'fe80::1' })).toBe(false);
-  });
-
-  it('rejects a value that is not an IP address at all', () => {
-    expect(isLoopbackPeerAddress({ address: 'not-an-ip' })).toBe(false);
-  });
-
-  it('rejects a non-string / empty value', () => {
-    expect(isLoopbackPeerAddress({ address: undefined })).toBe(false);
-    expect(isLoopbackPeerAddress({ address: '' })).toBe(false);
   });
 });
 

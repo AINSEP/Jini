@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { decodeApiError } from '../errors.js';
+import { decodeApiError, GENERIC_ERROR_CODES } from '../errors.js';
 
 describe('compatible API error decoding', () => {
   it('preserves a canonical message, code and metadata over conflicting legacy fields', () => {
@@ -19,5 +19,12 @@ describe('compatible API error decoding', () => {
   });
   it.each([null, [], 42, 'bad', {}, { error: {} }, { error: ['bad'] }, { error: { message: 42 } }])('uses caller fallback for malformed messages: %j', body => {
     expect(decodeApiError({ body }, { fallbackMessage: 'request failed (500)' }).message).toBe('request failed (500)');
+  });
+});
+
+describe('generic error codes', () => {
+  it('names a tool that does not exist apart from a run that does not exist', () => {
+    expect(GENERIC_ERROR_CODES).toContain('UNKNOWN_TOOL');
+    expect(GENERIC_ERROR_CODES).toContain('NOT_FOUND');
   });
 });

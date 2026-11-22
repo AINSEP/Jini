@@ -2,13 +2,13 @@ import { PGlite } from "@electric-sql/pglite";
 import { sql } from "kysely";
 import { afterEach, expect, test } from "vitest";
 import { openPgliteKernel } from "../pglite/index.js";
-import type { StorageKernel } from "../port.js";
+import type { KyselyKernel } from "../port.js";
 import { copyPgStore, type StoreCopyScope } from "../store-copy.js";
 
 const scope: StoreCopyScope = { schemas: ["public"], ledgers: [] };
-const opened: StorageKernel<unknown>[] = [];
+const opened: KyselyKernel<unknown>[] = [];
 afterEach(async () => { for (const kernel of opened.splice(0)) await kernel.close(); });
-function open(_required: {}, _optional = {}): StorageKernel<unknown> {
+function open(_required: {}, _optional = {}): KyselyKernel<unknown> {
   const kernel = openPgliteKernel({ PGlite });
   opened.push(kernel);
   return kernel;
@@ -47,10 +47,10 @@ test("created tables retain non-FK constraints, indexes and generated columns; e
   expect(await target.query(sql`SELECT indexname FROM pg_indexes WHERE tablename = 'extra' ORDER BY indexname`)).toEqual([
     { indexname: "extra_parent" }, { indexname: "extra_pkey" }, { indexname: "extra_value_key" },
   ]);
-  await expect(target.execute(sql`INSERT INTO existing_child VALUES (2, 999)`)).rejects.toThrow();
-  await expect(target.execute(sql`INSERT INTO extra (parent_id, value) VALUES (999, 9)`)).rejects.toThrow();
-  await expect(target.execute(sql`INSERT INTO extra (value) VALUES (0)`)).rejects.toThrow();
-  await expect(target.execute(sql`INSERT INTO extra (value) VALUES (3)`)).rejects.toThrow();
+  await expect(target.execute(sql`INSERT INTO existing_child VALUES (2, 999)`)).rejects.toThrow('insert or update on table "existing_child" violates foreign key constraint "existing_child_parent_id_fkey"');
+  await expect(target.execute(sql`INSERT INTO extra (parent_id, value) VALUES (999, 9)`)).rejects.toThrow('insert or update on table "extra" violates foreign key constraint "extra_parent_id_fkey"');
+  await expect(target.execute(sql`INSERT INTO extra (value) VALUES (0)`)).rejects.toThrow('new row for relation "extra" violates check constraint "extra_value_check"');
+  await expect(target.execute(sql`INSERT INTO extra (value) VALUES (3)`)).rejects.toThrow('duplicate key value violates unique constraint "extra_value_key"');
 });
 
 test("an empty source and target return an empty report without a hook", async () => {
@@ -66,7 +66,7 @@ test("an occupied target refuses under the transaction and rolls back the droppe
   }
   await target.execute(sql`INSERT INTO parent VALUES (1)`);
   await expect(copyPgStore({ source, target, scope })).rejects.toThrow("the target database already holds data (public.parent); nothing was copied");
-  await expect(target.execute(sql`INSERT INTO child VALUES (999)`)).rejects.toThrow();
+  await expect(target.execute(sql`INSERT INTO child VALUES (999)`)).rejects.toThrow('insert or update on table "child" violates foreign key constraint "child_id_fkey"');
   expect(await target.query(sql`SELECT id FROM parent`)).toEqual([{ id: 1 }]);
 });
 

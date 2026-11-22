@@ -1,6 +1,7 @@
 import { access } from 'node:fs/promises';
 import { afterEach, expect, it, vi } from 'vitest';
-import { getAgentDef, type RuntimeAgentDef } from '@jini-ai/agent-runtime';
+import { getAgentDef } from '@jini-ai/agent-runtime';
+import { type RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 import { buildMcpBridgeDelivery } from '../mcp-bridge.js';
 import { prepareHttpMcpForRun } from '../http-mcp.js';
 import { createRunLifecycle } from '../../run-lifecycle.js';

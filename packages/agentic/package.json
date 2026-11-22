@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/agentic",
-  "version": "0.7.2",
+  "version": "0.7.3-next.2",
   "description": "Framework-free agent-control layer: page-capability vocabulary and manifests, the data-agent-* markup convention, AG-UI projection, generative-UI streams, and A2UI.",
   "license": "Apache-2.0",
   "repository": {
@@ -15,15 +15,14 @@
     "entries": {
       ".": "universal",
       "./core": "universal",
-      "./core/handle": "universal",
+      "./render-surface": "universal",
       "./dom": "browser",
-      "./a2ui": "universal",
       "./skills/install": "node",
-      "./skills/install/node": "node"
+      "./skills/install/node": "node",
+      "./skills/tools": "node"
     },
     "optionalPeers": {
-      "@jini-ai/protocol": "opt-in: agent protocol adapters — Agent protocol adapters could not load @jini-ai/protocol. Install @jini-ai/protocol to enable this feature, or check its installed version and native binaries.",
-      "@jini-ai/core": "opt-in: core module integrations — Core module integrations could not load @jini-ai/core. Install @jini-ai/core to enable this feature, or check its installed version and native binaries."
+      "@jini-ai/protocol": "opt-in: agent protocol adapters — Agent protocol adapters could not load @jini-ai/protocol. Install @jini-ai/protocol to enable this feature, or check its installed version and native binaries."
     }
   },
   "type": "module",
@@ -41,20 +40,15 @@
       "import": "./dist/core/index.js",
       "default": "./dist/core/index.js"
     },
-    "./core/handle": {
-      "types": "./dist/core/handle.d.ts",
-      "import": "./dist/core/handle.js",
-      "default": "./dist/core/handle.js"
+    "./render-surface": {
+      "types": "./dist/core/render-surface.d.ts",
+      "import": "./dist/core/render-surface.js",
+      "default": "./dist/core/render-surface.js"
     },
     "./dom": {
       "types": "./dist/core/dom/index.d.ts",
       "import": "./dist/core/dom/index.js",
       "default": "./dist/core/dom/index.js"
-    },
-    "./a2ui": {
-      "types": "./dist/core/a2ui/index.d.ts",
-      "import": "./dist/core/a2ui/index.js",
-      "default": "./dist/core/a2ui/index.js"
     },
     "./skills/install": {
       "types": "./dist/skills/install/index.d.ts",
@@ -65,6 +59,11 @@
       "types": "./dist/skills/install/node-filesystem.d.ts",
       "import": "./dist/skills/install/node-filesystem.js",
       "default": "./dist/skills/install/node-filesystem.js"
+    },
+    "./skills/tools": {
+      "types": "./dist/skills/tools/index.d.ts",
+      "import": "./dist/skills/tools/index.js",
+      "default": "./dist/skills/tools/index.js"
     }
   },
   "files": [
@@ -90,25 +89,22 @@
     "test:coverage": "vitest run --coverage"
   },
   "devDependencies": {
-    "@vitest/coverage-v8": "^2.1.9",
-    "jsdom": "^25.0.1",
+    "@vitest/coverage-v8": "^3.2.6",
+    "jsdom": "^26.1.0",
     "@jini-ai/protocol": "workspace:^",
-    "zod": "^3.25.76",
-    "@jini-ai/core": "^0.7.2"
+    "zod": "^4.6.6",
+    "@jini-ai/core": "workspace:^"
   },
   "peerDependencies": {
-    "@jini-ai/protocol": "^0.7.0",
-    "@jini-ai/core": "^0.7.0"
+    "@jini-ai/protocol": "^0.7.3-next.2",
+    "@jini-ai/core": "^0.7.3-next.2"
   },
   "peerDependenciesMeta": {
     "@jini-ai/protocol": {
       "optional": true
-    },
-    "@jini-ai/core": {
-      "optional": true
     }
   },
   "dependencies": {
-    "zod": "^3.25.76"
+    "zod": "^4.6.6"
   }
 }

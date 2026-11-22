@@ -180,8 +180,8 @@ const FIELD_MISMATCH_BY_KIND: Readonly<Record<AdminEntityField['kind'], (value: 
  * @overallScore 100
  */
 export function describeAdminEntityFieldMismatch(
-  field: AdminEntityField,
-  value: unknown,
+  { field, value }: { field: AdminEntityField; value: unknown },
+  _optional: Record<string, never> = {},
 ): string | null {
   return FIELD_MISMATCH_BY_KIND[field.kind](value);
 }
@@ -248,7 +248,7 @@ function describeFieldProblem(
       ? { problem: 'missing-required', detail: 'declared `required: true` but absent from the row' }
       : null;
   }
-  const mismatch = describeAdminEntityFieldMismatch(field, value);
+  const mismatch = describeAdminEntityFieldMismatch({ field, value });
   return mismatch === null
     ? null
     : { problem: 'wrong-type', detail: `declared \`${field.kind}\`; ${mismatch}` };
@@ -504,8 +504,7 @@ export function listErasedEntityPorts(
  * @overallScore 100
  */
 export function getErasedEntityPort(
-  registry: Readonly<Record<string, AdminEntityPort<AdminEntityDescriptor>>>,
-  name: string,
+  { registry, name }: { registry: Readonly<Record<string, AdminEntityPort<AdminEntityDescriptor>>>; name: string },
   options: AdminEntityErasureOptions = {},
 ): AdminErasedEntityPort | null {
   if (!Object.hasOwn(registry, name)) return null;

@@ -16,7 +16,7 @@ function row(serverId: string): ExternalMcpServerRecord {
     enabled: true, command: null, url: 'https://tools.acme.example/mcp', args: null, allowedToolNames: '["acme_lookup"]', writeAllowedToolNames: '[]',
     writeGrantsUpdatedByPrincipalId: null, writeGrantsUpdatedAt: null, envNames: null, sealedEnv: null, oauthProviderId: 'acme-idp', oauthGrant: 'device_code',
     oauthClientId: 'acme-client', oauthEndpointsJson: null, oauthScopesJson: '["tools.read"]', oauthStatus: 'connected', oauthExpiresAt: null, oauthTokenEnvName: null,
-    oauthRefreshLeaseUntil: null, sealedOAuth: null, aadVersion: 1, oauthAadVersion: 1, createdAt: '2026-05-01T00:00:00.000Z', updatedAt: '2026-05-01T00:00:00.000Z' };
+    oauthRefreshLeaseUntil: null, sealedOAuth: null, aadVersion: 1, oauthAadVersion: 1, createdAt: '2026-05-01T00:00:00.000Z', updatedAt: '2026-05-01T00:00:00.000Z', version: 1 };
 }
 
 /** A whole-row memory repository: the same instance would be handed to store and sign-in. */
@@ -27,6 +27,9 @@ function memoryRepo(): ExternalMcpServerRepoPort & { readonly rows: Map<string, 
     listByWorkspaceId: async workspaceId => [...rows.values()].filter(r => r.workspaceId === workspaceId),
     findByServerId: async input => rows.get(key(input)) ?? null,
     upsert: async record => { rows.set(key(record), record); },
+    insert: async ({ record }) => (rows.has(key(record)) ? false : (rows.set(key(record), { ...record, version: 1 }), true)),
+    updateIfVersion: async ({ record, expectedVersion }) => (rows.get(key(record))?.version === expectedVersion ? (rows.set(key(record), { ...record, version: expectedVersion + 1 }), true) : false),
+    updateOAuthRuntime: async ({ key: target, patch }) => { const current = rows.get(key(target)); return current ? (rows.set(key(target), { ...current, ...patch }), true) : false; },
     updateAccessIfCurrent: async ({ workspaceId, serverId, expected, access, principalId, nowIso }) => {
       const current = rows.get(key({ workspaceId, serverId }));
       if (!current || current.enabled !== expected.enabled || current.allowedToolNames !== expected.allowedToolNames) return false;

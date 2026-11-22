@@ -91,7 +91,7 @@ interface OpenAITarget {
 function resolveOpenAITarget({ credentials }: { credentials: ProviderCredentials }): OpenAITarget {
   const apiKey = credentials.apiKey!; // requireCredential already validated this.
   const rawBase = credentials.baseUrl || OPENAI_DEFAULT_BASE_URL;
-  const azure = detectAzureEndpoint(rawBase);
+  const azure = detectAzureEndpoint({ baseUrl: rawBase });
   const headers: Record<string, string> = {
     authorization: `Bearer ${apiKey}`,
     'content-type': 'application/json',
@@ -130,12 +130,12 @@ const openAIImageAdapter: VendorAdapter<OpenAIImageMeta> = {
 
   buildRequest({ ctx, credentials }: { ctx: RenderContext; credentials: ProviderCredentials }): VendorRequest<OpenAIImageMeta> {
     const { rawBase, azure, tag, headers } = resolveOpenAITarget({ credentials });
-    const url = buildOpenAIImageUrl(rawBase, azure);
+    const url = buildOpenAIImageUrl({ baseUrl: rawBase, isAzure: azure });
 
     const body: Record<string, unknown> = {
       prompt: ctx.prompt || 'A high-quality reference image.',
       n: 1,
-      size: openaiSizeFor(ctx.model, ctx.aspect),
+      size: openaiSizeFor({ model: ctx.model }, { aspect: ctx.aspect }),
     };
     // For non-Azure calls, include `model` in the body. Azure infers it from
     // the deployment in the path so omitting it keeps payloads compatible
@@ -170,7 +170,7 @@ const openAIImageAdapter: VendorAdapter<OpenAIImageMeta> = {
   async parseResponse({ resp, ctx, request }: { resp: Response; ctx: RenderContext; request: VendorRequest<OpenAIImageMeta> }): Promise<RenderResult> {
     const text = await resp.text();
     if (!resp.ok) {
-      throw new Error(`${request.meta.tag} ${resp.status}: ${truncate(text, 240)}`);
+      throw new Error(`${request.meta.tag} ${resp.status}: ${truncate({ s: text, n: 240 })}`);
     }
     let data: { data?: Array<{ b64_json?: string; url?: string }> };
     try {
@@ -178,7 +178,7 @@ const openAIImageAdapter: VendorAdapter<OpenAIImageMeta> = {
     } catch {
       // Deliberately not azure-tag-aware — matches the origin exactly, see
       // this module's doc comment for why.
-      throw new Error(`openai non-JSON response: ${truncate(text, 200)}`);
+      throw new Error(`openai non-JSON response: ${truncate({ s: text, n: 200 })}`);
     }
     const entry = Array.isArray(data.data) ? data.data[0] : null;
     if (!entry) throw new Error('openai response had no data[0]');
@@ -221,7 +221,7 @@ const openAISpeechAdapter: VendorAdapter<OpenAISpeechMeta> = {
 
   buildRequest({ ctx, credentials }: { ctx: RenderContext; credentials: ProviderCredentials }): VendorRequest<OpenAISpeechMeta> {
     const { rawBase, azure, tag, headers } = resolveOpenAITarget({ credentials });
-    const url = buildOpenAISpeechUrl(rawBase, azure);
+    const url = buildOpenAISpeechUrl({ baseUrl: rawBase, isAzure: azure });
     const format = ctx.speechFormat;
     const text = ctx.prompt?.trim() || 'This is a test.';
     const { voiceId, instructions } = resolveSpeechVoice({ voice: ctx.voice });

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type RefObject } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type RefObject } from 'react';
 
 /**
  * @file `RowMenu`'s open/close state, viewport-aware positioning, and keyboard/focus behavior,
@@ -106,6 +106,76 @@ function trackOpenMenu(
   };
 }
 
+/** Index updater for the arrow/Home/End keys, or null for any other key. */
+function navigationUpdater({ key, itemCount }: { key: string; itemCount: number }): ((index: number) => number) | null {
+  switch (key) {
+    case 'ArrowDown': return (i) => (i + 1) % itemCount;
+    case 'ArrowUp': return (i) => (i - 1 + itemCount) % itemCount;
+    case 'Home': return () => 0;
+    case 'End': return () => itemCount - 1;
+    default: return null;
+  }
+}
+
+function handleMenuKey(
+  { e, itemCount, setActiveIndex, close }: {
+    e: KeyboardEvent<HTMLDivElement>; itemCount: number;
+    setActiveIndex: (update: (index: number) => number) => void; close: (returnFocus: boolean) => void;
+  },
+) {
+  const next = navigationUpdater({ key: e.key, itemCount });
+  if (next) {
+    e.preventDefault();
+    setActiveIndex(next);
+  } else if (e.key === 'Escape') {
+    e.preventDefault();
+    e.stopPropagation();
+    close(true);
+  } else if (e.key === 'Tab') {
+    // Leaving via Tab closes the menu but does not steal focus back to the trigger — the
+    // browser's own tab order continues from wherever it lands, matching native menu behavior
+    // (and unlike Escape, which is an explicit "back out" gesture).
+    close(false);
+  } else {
+    // Any other key is left to the browser.
+  }
+}
+
+function useMenuRef(
+  { anchor, window, document, setPosition, close }: {
+    anchor: HTMLButtonElement | null; window: RowMenuWindow; document: RowMenuDocument;
+    setPosition: (position: Position | null) => void; close: (returnFocus: boolean) => void;
+  },
+) {
+  // Only the open menu renders this ref, so it only exists once there is an anchor. React calls it
+  // with the menu element on attach and `null` on detach (React 18 and 19 alike; attach always comes
+  // first, so `stop` is set by then). A new anchor or new `window`/`document` ports make a new ref,
+  // which React detaches and re-attaches — the same re-subscribe an effect's deps would give.
+  return useMemo(() => {
+    if (!anchor) return null;
+    let stop: () => void;
+    return (menu: HTMLDivElement | null) => {
+      if (menu) stop = trackOpenMenu({ trigger: anchor, menu }, { window, document, onPosition: setPosition, onDismiss: () => close(false), onEscape: () => close(true) });
+      else stop();
+    };
+    // `close` only touches state setters and `triggerRef`, all stable across renders.
+  }, [anchor, window, document, close]);
+
+}
+
+function useFocusActiveItem(
+  { visible, activeIndex, itemRefs }: { visible: boolean; activeIndex: number; itemRefs: RefObject<Array<HTMLButtonElement | null>> },
+) {
+  // Keeps real DOM focus on the active item (roving focus via `tabIndex={-1}` on every item except
+  // the active one) rather than only tracking `activeIndex` in state — arrow-key navigation needs
+  // to move the browser's actual focus for a screen reader to announce it. Waits for the first
+  // position: until then the menu is `visibility: hidden`, and a browser ignores focus on that.
+  useEffect(() => {
+    if (!visible) return;
+    itemRefs.current[activeIndex]?.focus();
+  }, [visible, activeIndex]);
+}
+
 /**
  * Owns `RowMenu`'s open/close state, positioning, and keyboard/focus behavior.
  *
@@ -127,41 +197,20 @@ export function useRowMenu(
   const itemRefs = useRef<Array<HTMLButtonElement | null>>([]);
   itemRefs.current = itemRefs.current.slice(0, itemCount);
 
-  function close(returnFocus: boolean) {
+  const close = useCallback((returnFocus: boolean) => {
     setAnchor(null);
     setPosition(null);
     if (returnFocus) triggerRef.current?.focus();
-  }
+  }, []);
 
   function openAt(index: number) {
     setActiveIndex(index);
     setAnchor(triggerRef.current);
   }
 
-  // Only the open menu renders this ref, so it only exists once there is an anchor. React calls it
-  // with the menu element on attach and `null` on detach (React 18 and 19 alike; attach always comes
-  // first, so `stop` is set by then). A new anchor or new `window`/`document` ports make a new ref,
-  // which React detaches and re-attaches — the same re-subscribe an effect's deps would give.
-  const menuRef = useMemo(() => {
-    if (!anchor) return null;
-    let stop: () => void;
-    return (menu: HTMLDivElement | null) => {
-      if (menu) stop = trackOpenMenu({ trigger: anchor, menu }, { window, document, onPosition: setPosition, onDismiss: () => close(false), onEscape: () => close(true) });
-      else stop();
-    };
-    // `close` only touches state setters and `triggerRef`, all stable across renders.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [anchor, window, document]);
+  const menuRef = useMenuRef({ anchor, window, document, setPosition, close });
 
-  // Keeps real DOM focus on the active item (roving focus via `tabIndex={-1}` on every item except
-  // the active one) rather than only tracking `activeIndex` in state — arrow-key navigation needs
-  // to move the browser's actual focus for a screen reader to announce it. Waits for the first
-  // position: until then the menu is `visibility: hidden`, and a browser ignores focus on that.
-  const visible = open && position !== null;
-  useEffect(() => {
-    if (!visible) return;
-    itemRefs.current[activeIndex]?.focus();
-  }, [visible, activeIndex]);
+  useFocusActiveItem({ visible: open && position !== null, activeIndex, itemRefs });
 
   function onTriggerClick() {
     if (open) close(false);
@@ -174,39 +223,7 @@ export function useRowMenu(
     openAt(e.key === 'ArrowDown' ? 0 : itemCount - 1);
   }
 
-  function onMenuKeyDown(e: KeyboardEvent<HTMLDivElement>) {
-    switch (e.key) {
-      case 'ArrowDown':
-        e.preventDefault();
-        setActiveIndex((i) => (i + 1) % itemCount);
-        break;
-      case 'ArrowUp':
-        e.preventDefault();
-        setActiveIndex((i) => (i - 1 + itemCount) % itemCount);
-        break;
-      case 'Home':
-        e.preventDefault();
-        setActiveIndex(0);
-        break;
-      case 'End':
-        e.preventDefault();
-        setActiveIndex(itemCount - 1);
-        break;
-      case 'Escape':
-        e.preventDefault();
-        e.stopPropagation();
-        close(true);
-        break;
-      case 'Tab':
-        // Leaving via Tab closes the menu but does not steal focus back to the trigger — the
-        // browser's own tab order continues from wherever it lands, matching native menu behavior
-        // (and unlike Escape, which is an explicit "back out" gesture).
-        close(false);
-        break;
-      default:
-        break;
-    }
-  }
+  const onMenuKeyDown = (e: KeyboardEvent<HTMLDivElement>) => handleMenuKey({ e, itemCount, setActiveIndex, close });
 
   /** Closes (returning focus to the trigger, same as Escape) and then fires the selected item's own
    *  callback — takes the callback directly rather than a whole `RowMenuItem` so this hook stays

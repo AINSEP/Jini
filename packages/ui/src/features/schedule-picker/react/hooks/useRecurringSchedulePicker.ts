@@ -55,7 +55,7 @@ export function useRecurringSchedulePicker({
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   const [state, setState] = useState<ScheduleEditorState>(() =>
-    scheduleEditorStateFromValue(value, defaultScheduleEditorState(detectLocalTimezone())),
+    scheduleEditorStateFromValue({ value, base: defaultScheduleEditorState({ timezone: detectLocalTimezone() }) }),
   );
 
   const resolvedTimezones = useMemo(() => {
@@ -73,7 +73,7 @@ export function useRecurringSchedulePicker({
         // Re-sync the editor state from the latest committed value each time
         // the popover opens, so an external change to `value` (e.g. a reset)
         // is reflected instead of showing stale in-progress edits.
-        setState((current2) => scheduleEditorStateFromValue(value, current2));
+        setState((current2) => scheduleEditorStateFromValue({ value, base: current2 }));
       }
       return next;
     });
@@ -94,7 +94,7 @@ export function useRecurringSchedulePicker({
     state,
     timezones: resolvedTimezones,
     setKind: (kind) => setState((current) => ({ ...current, kind })),
-    setMinute: (minute) => setState((current) => ({ ...current, minute: clampMinute(minute) })),
+    setMinute: (minute) => setState((current) => ({ ...current, minute: clampMinute({ value: minute }) })),
     setTime: (time) => setState((current) => ({ ...current, time })),
     setWeekday: (weekday) => setState((current) => ({ ...current, weekday })),
     setTimezone: (timezone) => setState((current) => ({ ...current, timezone })),

@@ -1,4 +1,5 @@
-import { useController } from "../../../core/react/use-controller.js";
+import { useFormsPorts } from "./FormsPorts.hooks.js";
+import { useFormsController } from "./FormsPorts.hooks.js";
 import { createFieldAttributesDialogController, type FieldAttributesDialogState } from "../../controllers/field-attributes-dialog.controller.js";
 import type { AdminFormField } from "../../models.js";
 import { type AttrRow } from "../../rules.js";
@@ -42,9 +43,10 @@ export function useFieldAttributesDialog(props: {
   field: AdminFormField;
   onSave: (patch: Partial<AdminFormField>) => void;
   onCancel: () => void;
-}, _optional: Record<string, never> = {}): FieldAttributesDialogController {
-  const { controller: stateController, snapshot: stateSnapshot } = useController({ create: () => createFieldAttributesDialogController({ field: props.field }), dependencies: [] });
-  const state = stateSnapshot ?? { className: props.field.className ?? "", rows: [], settings: settingsFormFromField({ field: props.field }), error: null };
+}, { usePorts = useFormsPorts }: { usePorts?: typeof useFormsPorts } = {}): FieldAttributesDialogController {
+  const { formsCatalog: catalog } = usePorts();
+  const { controller: stateController, snapshot: stateSnapshot } = useFormsController({ create: () => createFieldAttributesDialogController({ field: props.field, catalog }), dependencies: [] });
+  const state = stateSnapshot ?? { className: props.field.className ?? "", rows: [], settings: settingsFormFromField({ field: props.field, catalog }), error: null };
   const { className, rows, error } = state;
   const setClassName = (value: FieldAttributesDialogStateValue<"className">) => stateController?.update({ key: "className", value });
 

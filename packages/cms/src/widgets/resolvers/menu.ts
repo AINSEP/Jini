@@ -4,7 +4,7 @@ import type { MenusPort } from "./ports.js";
 import type { WidgetResolveResult, WidgetResolver } from "../types.js";
 
 /**
- * @file `menu` (menu-as-widget) resolver (SPEC-043 REQ-09, ADR-047 §1/§9 — "the primary menu as a
+ * @file `menu` (menu-as-widget) resolver ("the primary menu as a
  * widget in the footer region costs nothing new").
  *
  * Purpose:
@@ -17,7 +17,7 @@ import type { WidgetResolveResult, WidgetResolver } from "../types.js";
  * need either an export-widening of those internals or a location-shaped call it doesn't have.
  *
  * Historical limitation (retained to explain the fallback): real href resolution for non-`url` targets (`entryRef`/`termRef`/
- * `route`) needs `src/platform/routing` (ADR-039), which is being built in parallel and is not running code
+ * `route`) needs `src/platform/routing`, which is being built in parallel and is not running code
  * yet anywhere in this codebase — not even `navigation`'s own production callers have a real
  * `ResolveTargetHrefFn` today (`resolveForLocation` takes it as an injected dependency precisely so
  * a fake can stand in until routing lands, per `navigation/resolver.ts`'s own header). This resolver
@@ -54,6 +54,10 @@ function toMenuItemProps(items: readonly ResolvedNavItem[], publicOnly: boolean)
   return visible as unknown as JsonObject;
 }
 
+function menuWidgetResult(menu: NonNullable<Awaited<ReturnType<NavMenuReadModel["getMenu"]>>>, props: JsonObject): WidgetResolveResult {
+  return { ok: true, ir: { componentId: "menu", props }, dependencyKeys: [menu.id] };
+}
+
 /**
  * Resolve menu widgets through navigation's read model: stored HTML or resolved items by doc mode.
  * HTML is trusted and balanced by navigation's save path (`mergeMenuHtml`), like static menus;
@@ -78,25 +82,21 @@ export function createMenuResolver(deps: MenuResolverDeps, _optional: Record<str
         const menu = await deps.navMenuReadModel.getMenu({ workspaceId: context.workspaceId, menuId: menuRef });
         if (!menu) {
           results.set(instance.id, { ok: false, reason: "target-disabled" });
-        } else {
-          let props: JsonObject;
-          if (menu.doc.mode === "html") {
-            props = { title: menu.title, mode: "html", html: menu.doc.html ?? "" };
-          } else {
-            const items = await deps.menus.resolveMenuDoc({
-              doc: menu.doc,
-              context: { workspaceId: context.workspaceId },
-              resolveTargetHref,
-            });
-            props = { title: menu.title, items: toMenuItemProps(items, deps.publicOnly === true) };
-          }
-
-          results.set(instance.id, {
-            ok: true,
-            ir: { componentId: "menu", props },
-            dependencyKeys: [menu.id],
-          });
+          continue;
         }
+        let props: JsonObject;
+        if (menu.doc.mode === "html") {
+          props = { title: menu.title, mode: "html", html: menu.doc.html ?? "" };
+        } else {
+          const items = await deps.menus.resolveMenuDoc({
+            doc: menu.doc,
+            context: { workspaceId: context.workspaceId },
+            resolveTargetHref,
+          });
+          props = { title: menu.title, items: toMenuItemProps(items, deps.publicOnly === true) };
+        }
+
+        results.set(instance.id, menuWidgetResult(menu, props));
       }
       return results;
     },

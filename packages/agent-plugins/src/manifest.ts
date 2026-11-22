@@ -45,9 +45,9 @@ export interface PluginManifest {
   readonly [key: string]: unknown;
 }
 
-export function isPluginManifest(value: unknown): value is PluginManifest {
-  if (typeof value !== 'object' || value === null) return false;
-  const name = (value as Record<string, unknown>).name;
+export function isPluginManifest(required: { readonly value: unknown }, _optional: Record<string, never> = {}): required is { readonly value: PluginManifest } {
+  if (typeof required.value !== 'object' || required.value === null) return false;
+  const name = (required.value as Record<string, unknown>).name;
   return typeof name === 'string' && name.trim().length > 0;
 }
 
@@ -75,19 +75,19 @@ export interface McpManifest {
   readonly mcpServers: Readonly<Record<string, McpServerEntry>>;
 }
 
-export function isMcpManifest(value: unknown): value is McpManifest {
-  if (typeof value !== 'object' || value === null) return false;
-  const servers = (value as Record<string, unknown>).mcpServers;
+export function isMcpManifest(required: { readonly value: unknown }, _optional: Record<string, never> = {}): required is { readonly value: McpManifest } {
+  if (typeof required.value !== 'object' || required.value === null) return false;
+  const servers = (required.value as Record<string, unknown>).mcpServers;
   return typeof servers === 'object' && servers !== null && !Array.isArray(servers);
 }
 
 /** Object-argument facade for the legacy structural validator.
  * Hosts inject identityNamespace; the default is `jini`, with a legacy-key fallback. */
 export function validatePluginManifest(required: { readonly value: unknown }, optional: { readonly identityNamespace?: string } = {}): boolean {
-  return isPluginManifest(required.value) && validatePluginIdentity({ manifest: required.value, namespace: resolveAgentPluginIdentityNamespace(required, optional) }).errors.length === 0;
+  return isPluginManifest(required) && validatePluginIdentity({ manifest: required.value, namespace: resolveAgentPluginIdentityNamespace(required, optional) }).errors.length === 0;
 }
 
 /** Object-argument facade for the legacy structural validator. */
-export function validateMcpManifest(required: { readonly value: unknown }): boolean {
-  return isMcpManifest(required.value);
+export function validateMcpManifest(required: { readonly value: unknown }, _optional: Record<string, never> = {}): boolean {
+  return isMcpManifest(required);
 }

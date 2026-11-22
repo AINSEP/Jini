@@ -44,14 +44,10 @@
  *   to the provider.
  * - `RealtimeProvider.subscribe` has no route here — see the realtime section below for why.
  */
-import { inspect } from 'node:util';
-import { redactSecrets } from '@jini-ai/core';
-import { randomUUID } from 'node:crypto';
-import type { Express } from 'express';
 import { createApiError } from '@jini-ai/protocol';
-import { ClientFacingError, defineJsonRoute, mountJsonRoute, type AdapterContext } from '@jini-ai/http-kit';
-import { validationError } from '@jini-ai/http-kit';
-import { err, ok, type Result, type RouteInputContext } from '@jini-ai/http-kit';
+import { ClientFacingError, defineJsonRoute, validationError, err, ok, type JsonRouteSpec, type ReportRouteInternalError, type Result, type RouteInputContext } from '@jini-ai/core/contracts/server';
+import type { DaemonRouteHost } from './route-host.js';
+import { gatedJsonRoute, withHostReporter, type DaemonRoute } from './route-table.js';
 
 /** Validation message for a request body that is not a JSON object. */
 const BODY_NOT_OBJECT_MESSAGE = 'body must be a JSON object';
@@ -134,12 +130,17 @@ export interface ConnectorsHttpDeps {
   readonly realtime?: RealtimeProvider;
   /** Host-owned sink for the real exception behind a generic `INTERNAL_ERROR` response (SEC-005). Defaults to `console.error`. */
   readonly onInternalError?: (context: ConnectorsInternalErrorContext) => void;
+  /** Required for direct handlers; {@link connectorsRoutes} binds the host's reporter. */
+  readonly reportInternalError: ReportRouteInternalError;
 }
 
-function defaultInternalErrorSink(context: ConnectorsInternalErrorContext): void {
-  // eslint-disable-next-line no-console
-  console.error(`[@jini-ai/http-kit] internal error (connectors/${context.source}.${context.operation}, correlationId=${context.correlationId})`, redactSecrets({ input: inspect(context.error) }, { redactPii: false }));
-}
+/** Plain words per provider; the caller also gets the request ID. */
+const CONNECTOR_FAILURE_MESSAGES: Readonly<Record<ConnectorsInternalErrorContext['source'], string>> = {
+  auth: 'The sign-in provider could not finish this request. Try again; if it keeps failing, copy the request ID and report this problem.',
+  storage: 'The file storage provider could not finish this request. Try again; if it keeps failing, copy the request ID and report this problem.',
+  db: 'The database provider could not finish this request. Try again; if it keeps failing, copy the request ID and report this problem.',
+  realtime: 'The realtime provider could not finish this request. Try again; if it keeps failing, copy the request ID and report this problem.',
+};
 
 function notConfiguredError(capability: string): ReturnType<typeof createApiError> {
   return createApiError({ code: 'NOT_CONFIGURED', message: `${capability} provider not configured` });
@@ -160,10 +161,7 @@ async function guardedCall<T>(
     return ok({ value: await fn() });
   } catch (error) {
     if (error instanceof ClientFacingError) return err({ error: error.apiError });
-    const correlationId = randomUUID();
-    const sink = deps.onInternalError ?? defaultInternalErrorSink;
-    sink({ source, operation, correlationId, error });
-    return err({ error: createApiError({ code: 'INTERNAL_ERROR', message: 'an internal error occurred' }, { requestId: correlationId }) });
+    return err({ error: deps.reportInternalError<Omit<ConnectorsInternalErrorContext, 'correlationId'>>({ report: { source, operation, error }, logSource: `connectors/${source}.${operation}`, message: CONNECTOR_FAILURE_MESSAGES[source] }, { onInternalError: deps.onInternalError }) });
   }
 }
 
@@ -479,7 +477,7 @@ export const connectorsDbQueryRoute = defineJsonRoute<DbQueryRequest, Connectors
 //
 // `RealtimeProvider.subscribe` deliberately has no route here: a request/response JSON route has
 // no way to keep a subscription alive to push future events back to the caller — that's inherently
-// a streaming/websocket concern (matching this package's own `sse.ts`/`raw-sse.ts` machinery for
+// a streaming/websocket concern (matching this package's own `sse.ts` machinery for
 // *other* long-lived channels), out of scope for this route pack. `publish` is the one
 // realtime operation that fits the request/response shape every other route in this file already
 // uses.
@@ -508,23 +506,14 @@ export const connectorsRealtimePublishRoute = defineJsonRoute<RealtimePublishReq
   }
 }, { requireSameOrigin: true });
 
-/** Mounts every connectors route on `app`. A pack's `http(app, services)` calls this directly. */
-export function registerConnectorsRoutes({ app, deps, adapter }: { readonly app: Express; readonly deps: ConnectorsHttpDeps; readonly adapter: AdapterContext }, _optional: Record<string, never> = {}): void {
-  mountJsonRoute({ app, spec: connectorsAuthSignUpRoute, deps, adapter });
-  mountJsonRoute({ app, spec: connectorsAuthSignInRoute, deps, adapter });
-  mountJsonRoute({ app, spec: connectorsAuthSignOutRoute, deps, adapter });
-  mountJsonRoute({ app, spec: connectorsAuthSessionRoute, deps, adapter });
-
-  mountJsonRoute({ app, spec: connectorsStoragePutRoute, deps, adapter });
-  mountJsonRoute({ app, spec: connectorsStorageGetRoute, deps, adapter });
-  mountJsonRoute({ app, spec: connectorsStorageDeleteRoute, deps, adapter });
-  mountJsonRoute({ app, spec: connectorsStorageListRoute, deps, adapter });
-
-  mountJsonRoute({ app, spec: connectorsDbInsertRoute, deps, adapter });
-  mountJsonRoute({ app, spec: connectorsDbGetRoute, deps, adapter });
-  mountJsonRoute({ app, spec: connectorsDbUpdateRoute, deps, adapter });
-  mountJsonRoute({ app, spec: connectorsDbDeleteRoute, deps, adapter });
-  mountJsonRoute({ app, spec: connectorsDbQueryRoute, deps, adapter });
-
-  mountJsonRoute({ app, spec: connectorsRealtimePublishRoute, deps, adapter });
+/** Every connectors route as data (auth x4, storage x4, db x5, realtime x1), each behind the same-origin gate its spec declares. Internal failures are reported through the host's reporter. */
+export function connectorsRoutes({ deps, host }: { readonly deps: Omit<ConnectorsHttpDeps, 'reportInternalError'>; readonly host: DaemonRouteHost }, _optional: Record<string, never> = {}): DaemonRoute[] {
+  const routeDeps = withHostReporter({ deps, host });
+  const json = <I, O>(spec: JsonRouteSpec<I, O, ConnectorsHttpDeps>): DaemonRoute => gatedJsonRoute({ spec, deps: routeDeps, host });
+  return [
+    json(connectorsAuthSignUpRoute), json(connectorsAuthSignInRoute), json(connectorsAuthSignOutRoute), json(connectorsAuthSessionRoute),
+    json(connectorsStoragePutRoute), json(connectorsStorageGetRoute), json(connectorsStorageDeleteRoute), json(connectorsStorageListRoute),
+    json(connectorsDbInsertRoute), json(connectorsDbGetRoute), json(connectorsDbUpdateRoute), json(connectorsDbDeleteRoute), json(connectorsDbQueryRoute),
+    json(connectorsRealtimePublishRoute),
+  ];
 }

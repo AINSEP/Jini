@@ -6,7 +6,7 @@
  *
  * Origin: `apps/web/src/components/PreviewModal.tsx`'s inline derivations
  * (the `initial` viewId ternary, `activeView`/`scale`/`scalerStyle` memos).
- * See `../archived provenance ledger`.
+ * See `070311a07^:packages/ui/src/renderers/source-map.md`.
  */
 import type { PreviewModalContentStatus, PreviewModalScalerStyle, PreviewModalUnavailable } from './types.js';
 
@@ -23,8 +23,8 @@ export interface PreviewModalContentViewLike {
 
 /** Mirrors the origin's `initial` ternary: prefer `initialViewId` when it names a real view, else fall back to the first view, else `''` (no views at all). */
 export function resolveInitialViewId<V extends PreviewModalViewLike>(
-  views: readonly V[],
-  initialViewId: string | undefined,
+  { views, initialViewId }: { views: readonly V[]; initialViewId: string | undefined },
+  _optional: Record<string, never> = {},
 ): string {
   if (initialViewId && views.some((v) => v.id === initialViewId)) return initialViewId;
   return views[0]?.id ?? '';
@@ -32,14 +32,14 @@ export function resolveInitialViewId<V extends PreviewModalViewLike>(
 
 /** Look up the active view by id, falling back to the first view (mirrors the origin's `views.find(...) ?? views[0]`). */
 export function findActiveView<V extends PreviewModalViewLike>(
-  views: readonly V[],
-  activeId: string,
+  { views, activeId }: { views: readonly V[]; activeId: string },
+  _optional: Record<string, never> = {},
 ): V | undefined {
   return views.find((v) => v.id === activeId) ?? views[0];
 }
 
 /** Fit-to-width scale: 1 until the stage has been measured at least once (avoids a flash of an unscaled/oversized iframe on first paint). */
-export function computeStageScale(stageWidth: number, designWidth: number): number {
+export function computeStageScale({ stageWidth, designWidth }: { stageWidth: number; designWidth: number }, _optional: Record<string, never> = {}): number {
   return stageWidth > 0 ? stageWidth / designWidth : 1;
 }
 
@@ -50,9 +50,8 @@ export function computeStageScale(stageWidth: number, designWidth: number): numb
  * with no transform so nothing flashes at the wrong size.
  */
 export function computeScalerStyle(
-  stageSize: { w: number; h: number },
-  designWidth: number,
-  scale: number,
+  { stageSize, designWidth, scale }: { stageSize: { w: number; h: number }; designWidth: number; scale: number },
+  _optional: Record<string, never> = {},
 ): PreviewModalScalerStyle {
   if (stageSize.w === 0) {
     return { width: '100%', height: '100%', transform: 'none' };
@@ -70,7 +69,7 @@ export function computeScalerStyle(
  * (the caller opted out of the built-in states entirely), then unavailable,
  * then error, then loading (html not yet fetched), then ready.
  */
-export function deriveContentStatus(view: PreviewModalContentViewLike | undefined): PreviewModalContentStatus {
+export function deriveContentStatus({ view }: { view: PreviewModalContentViewLike | undefined }, _optional: Record<string, never> = {}): PreviewModalContentStatus {
   if (!view) return 'loading';
   if (view.custom !== null && view.custom !== undefined) return 'custom';
   if (view.unavailable != null) return 'unavailable';

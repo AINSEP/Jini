@@ -2,7 +2,11 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 import { nodeTestContext } from "./support/node-test-context.fixture.js";
 
-import { createVerifiedOrigin, InMemoryOriginSettingRepo, OriginRegistry } from "@jini-ai/http-kit/verified-origin";
+import {
+  createVerifiedOrigin,
+  InMemoryOriginSettingRepo,
+  OriginRegistry,
+} from "@jini-ai/core/contracts/server/verified-origin";
 import { redirectMatcher } from "../matcher.js";
 import { RedirectPhaseHandlerResolver } from "../resolver.js";
 import { InMemoryRedirectRepo } from "../repo.memory.js";

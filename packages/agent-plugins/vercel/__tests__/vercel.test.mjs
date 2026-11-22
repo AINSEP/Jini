@@ -5,8 +5,6 @@ import path from "node:path";
 import { describe, it, afterEach } from "node:test";
 import { pathToFileURL } from "node:url";
 
-import { DeployError } from "@jini-ai/devops/deploy";
-
 import { createFakeDeployHostKit } from "../../__tests__/fake-deploy-host-kit.mjs";
 
 import { expect, installNetworkGuard, vi } from "../../__tests__/vitest-compat.mjs";
@@ -32,7 +30,11 @@ const MODULE_PATH = path.resolve(import.meta.dirname, "../targets/vercel.mjs");
 
 
 const loaded = (await import(pathToFileURL(MODULE_PATH).href));
-const { VercelDeployTarget, isVercelProtectedResponse } = loaded.bindVercel({ ...createFakeDeployHostKit(), sleep: async () => undefined });
+const hostKit = { ...createFakeDeployHostKit(), sleep: async () => undefined };
+// The error class the plugin throws is the host kit's own (the plugin ABI), so a refusal is asserted
+// against the class the host injected, not against an import of the package that defines the host.
+const { DeployError } = hostKit;
+const { VercelDeployTarget, isVercelProtectedResponse } = loaded.bindVercel(hostKit);
 
 /** A Vercel API double that stores `/v2/files` uploads by digest, requests missing hashes before
  *  accepting a deployment and reporting it READY; returns deployed files resolved by `sha`. */

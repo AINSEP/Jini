@@ -11,6 +11,11 @@ Replacement is an optional identity-preserving capability: missing method or exp
 it and the controller fails closed. Never simulate replacement through upload/trash. Memory and
 configured HTTP implement it; conformance runs with and without it.
 
+The HTML-attribute hint on the edit panel is validated against a required `embedPolicy` port
+(`embedPolicyToken`, `EmbedPolicyPort`): the host binds the content domain's own allow-list and parser,
+and admin keeps no allow-list of its own. The client rule must keep mirroring the server parser;
+the server still validates every write and render independently.
+
 Provider configuration is an optional settings write, separate from credentials so blank keys
 cannot accidentally clear secrets. Hosts must return baseUrl/model and implement saveSettings to
 enable persistence. UI edits survive unreachable reads; full-map serialization is host-owned.
@@ -101,10 +106,10 @@ that attributes were unwired or only one locale existed were not copied as curre
 Working directory: engine repository root. Exit codes read directly from completed commands.
 
 - `pnpm --filter @jini-ai/admin exec tsc --noEmit` — exit 0.
-- `env -u TOVU_ADMIN_PASSWORD pnpm --filter @jini-ai/admin exec vitest run src/media` — exit 0;
+- With the host admin-password override cleared, `pnpm --filter @jini-ai/admin exec vitest run src/media` — exit 0;
   8 files / 178 tests. Baseline: 4 files / 19 tests, both commands exit 0.
-- `env -u TOVU_ADMIN_PASSWORD DEBUG_PRINT_LIMIT=1000 pnpm --filter @jini-ai/admin exec vitest run src/media --maxWorkers=1 --minWorkers=1`
-  — exit 0; same 8 files / 178 tests.
+- With the host admin-password override cleared, `DEBUG_PRINT_LIMIT=1000 pnpm --filter @jini-ai/admin exec vitest run src/media --maxWorkers=1 --minWorkers=1`
+ — exit 0; same 8 files / 178 tests.
 
 An intermediate parallel run timed out the existing lazy-tab test at 5 seconds. The lazy test now
 allows 15 seconds for module loading; assertions remain unchanged. New library tests use the same

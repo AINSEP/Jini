@@ -1,19 +1,17 @@
-import express from 'express';
+import { reportRouteInternalError } from '@jini-ai/http-kit';
 import { describe, expect, it, vi } from 'vitest';
+import { fakeDaemonRouteHost } from './fakes/route-host.js';
+import { jsonRequest, serveRoutes } from './fakes/serve-routes.js';
+import { describeRoutes } from '../route-table.js';
 import {
   createResearchSearchRoute,
-  registerResearchRoutes,
+  researchRoutes,
   researchSearchRoute,
   type ResearchHttpDeps,
   type ResearchInternalErrorContext,
   type ResearchProvider,
   type ResearchSource,
 } from '../research.js';
-
-vi.mock('@jini-ai/core', async (importOriginal) => ({
-  ...await importOriginal<typeof import('@jini-ai/core')>(),
-  isLocalSameOrigin: vi.fn(() => true),
-}));
 
 /**
  * Pins `createResearchSearchRoute`'s `handle` — provider precedence, default credential resolution,
@@ -29,7 +27,7 @@ function provider(id: string, search: ResearchProvider['search'] = async () => (
 
 function sinkDeps(overrides: Partial<ResearchHttpDeps> = {}) {
   const errors: ResearchInternalErrorContext[] = [];
-  const deps: ResearchHttpDeps = { resolveCredentials: async () => ({ apiKey: KEY }), onInternalError: (context) => { errors.push(context); }, ...overrides };
+  const deps: ResearchHttpDeps = { reportInternalError: reportRouteInternalError, resolveCredentials: async () => ({ apiKey: KEY }), onInternalError: (context) => { errors.push(context); }, ...overrides };
   return { deps, errors };
 }
 
@@ -47,20 +45,20 @@ describe('research handle: provider selection', () => {
 
   it('a non-tavily provider without resolveCredentials gets no credentials even when TAVILY_API_KEY is set', async () => {
     const search = vi.fn<ResearchProvider['search']>();
-    const result = await researchSearchRoute.handle({ input: { query: 'q' }, deps: { provider: provider('other', search), env: { TAVILY_API_KEY: KEY } } });
+    const result = await researchSearchRoute.handle({ input: { query: 'q' }, deps: { reportInternalError: reportRouteInternalError, provider: provider('other', search), env: { TAVILY_API_KEY: KEY } } });
     expect(result).toEqual({ ok: false, error: { code: 'NOT_CONFIGURED', message: 'other provider not configured' } });
     expect(search).not.toHaveBeenCalled();
   });
 
   it('a deps.provider whose id is "tavily" reads TAVILY_API_KEY from deps.env by default', async () => {
     const search = vi.fn<ResearchProvider['search']>(async () => ({ answer: 'a', sources: [SOURCE] }));
-    await researchSearchRoute.handle({ input: { query: 'q' }, deps: { provider: provider('tavily', search), env: { TAVILY_API_KEY: ` ${KEY} ` } } });
+    await researchSearchRoute.handle({ input: { query: 'q' }, deps: { reportInternalError: reportRouteInternalError, provider: provider('tavily', search), env: { TAVILY_API_KEY: ` ${KEY} ` } } });
     expect(search).toHaveBeenCalledWith({ apiKey: KEY, credentials: { apiKey: KEY }, request: { query: 'q' } }, {});
   });
 
   it('passes the selected provider id to resolveCredentials', async () => {
     const resolveCredentials = vi.fn(async () => ({ apiKey: KEY }));
-    await createResearchSearchRoute({ provider: provider('bound') }).handle({ input: { query: 'q' }, deps: { resolveCredentials } });
+    await createResearchSearchRoute({ provider: provider('bound') }).handle({ input: { query: 'q' }, deps: { reportInternalError: reportRouteInternalError, resolveCredentials } });
     expect(resolveCredentials).toHaveBeenCalledWith({ providerId: 'bound' });
   });
 });
@@ -76,15 +74,15 @@ describe('research handle: outcomes', () => {
     const failure = new Error('vault down');
     const { deps, errors } = sinkDeps({ resolveCredentials: async () => { throw failure; } });
     const result = await researchSearchRoute.handle({ input: { query: 'q' }, deps });
-    expect(result).toMatchObject({ ok: false, error: { code: 'INTERNAL_ERROR', message: 'an internal error occurred' } });
-    expect(errors).toEqual([{ correlationId: result.ok ? '' : result.error.requestId, error: failure }]);
+    expect(result).toMatchObject({ ok: false, error: { code: 'INTERNAL_ERROR', message: 'The web research request could not be completed. Try again; if it keeps failing, copy the request ID and report this problem.' } });
+    expect(errors).toEqual([{ correlationId: result.ok ? '' : result.error.requestId, error: failure, logSource: 'research/search' }]);
   });
 
   it('a non-Error thrown by the provider is reported as a plain Error carrying the redacted text', async () => {
     const route = createResearchSearchRoute({ provider: provider('p', async () => { throw `upstream said ${KEY}`; }) });
     const { deps, errors } = sinkDeps();
     const result = await route.handle({ input: { query: 'q' }, deps });
-    expect(result).toMatchObject({ ok: false, error: { code: 'INTERNAL_ERROR', message: 'an internal error occurred' } });
+    expect(result).toMatchObject({ ok: false, error: { code: 'INTERNAL_ERROR', message: 'The web research request could not be completed. Try again; if it keeps failing, copy the request ID and report this problem.' } });
     expect(errors).toHaveLength(1);
     const reported = errors[0]!.error as Error;
     expect(reported).toBeInstanceOf(Error);
@@ -114,17 +112,11 @@ describe('research handle: outcomes', () => {
   });
 });
 
-describe('registerResearchRoutes with deps.provider', () => {
-  it("mounts a route whose parse accepts the provider's own id", async () => {
-    // A real Express app; the spy captures the handler `mountJsonRoute` registers so it can be driven directly.
-    const app = express();
-    const post = vi.spyOn(app, 'post');
-    registerResearchRoutes({ app, deps: { provider: provider('host'), resolveCredentials: async () => ({ apiKey: KEY }) }, adapter: { allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST', env: {}, resolvedPortRef: { current: 7456 } } });
-    const res = { status: vi.fn().mockReturnThis(), json: vi.fn().mockReturnThis() };
-    expect(post.mock.calls.map((call) => call[0])).toEqual(['/api/research/search']);
-    const handler = post.mock.calls[0]!.at(-1) as (req: unknown, res: unknown) => Promise<void>;
-    await handler({ body: { query: 'q', providers: ['host'] }, query: {}, params: {} }, res);
-    expect(res.status).toHaveBeenCalledWith(200);
-    expect(res.json.mock.calls[0]![0]).toMatchObject({ provider: 'host', summary: 'host answer' });
+describe('researchRoutes with deps.provider', () => {
+  it("lists a route whose parse accepts the provider's own id", async () => {
+    const routes = researchRoutes({ deps: { provider: provider('host'), resolveCredentials: async () => ({ apiKey: KEY }) }, host: fakeDaemonRouteHost() });
+    expect(describeRoutes({ routes }).map((route) => `${route.method} ${route.path}`)).toEqual(['POST /api/research/search']);
+    const response = await serveRoutes({ routes })(jsonRequest({ path: '/api/research/search', method: 'POST' }, { body: { query: 'q', providers: ['host'] } }));
+    expect([response.status, await response.json()]).toEqual([200, expect.objectContaining({ provider: 'host', summary: 'host answer' })]);
   });
 });

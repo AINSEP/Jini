@@ -18,7 +18,6 @@
  * module's own header and `archived provenance ledger`'s dated sections for the full
  * rationale.
  */
-export * from './types.js';
 export * from './token-params.js';
 export * from './google.js';
 export * from './aihubmix.js';
@@ -27,7 +26,11 @@ export * from './model-catalog.js';
 export * from './connection-test.js';
 export * from './sse-decode.js';
 export * from './anthropic-messages.js';
-export * from './openai-chat.js';
+export { type OpenAiFunctionToolDef, type OpenAiToolCallParam, type OpenAiTextPart, type OpenAiImageUrlPart, type OpenAiContentPart, type OpenAiMessageParam, type OpenAiToolCall, type OpenAiToolResult, type OpenAiToolExecutor, type OpenAiTurnEndReason, type OpenAiTurnEvent, type OpenAiTurnOptions, type OpenAiTurnResult, type PendingToolCall, type OpenAiCompatibleRequestOutcome, type OpenAiCompatibleRequestInit, type OpenAiStreamState, type StrictToolRetryState } from './openai-chat-types.js';
+export { DEFAULT_OPENAI_MAX_TOKENS, openAiRequestUrl, openAiHeaders, openAiRequestBody, createStrictToolRetry, refreshOpenAiTools, openAiLoopExitReason, runOpenAiToolTurn } from './openai-chat.js';
+export { extractOpenAiErrorDetail, type OpenAiFrameResult, processOpenAiStreamFrame, runOpenAiCompatibleRequest } from './openai-chat-request.js';
+export { parseOpenAiSseData, applyOpenAiStreamUsage, firstOpenAiChoice, handleOpenAiTextContentDelta, newPendingOpenAiToolCall, accumulateOpenAiToolCallDelta, handleOpenAiChoiceDelta, resolveOpenAiToolCalls } from './openai-chat-stream.js';
+export { invalidOpenAiContentPartReason, type SanitizedOpenAiToolResult, sanitizeOpenAiToolResult, type SplitOpenAiToolResultContent, splitOpenAiToolResultContent, type OpenAiToolExecutionOutcome, executeOpenAiToolCalls, buildOpenAiAssistantToolCallMessage, buildOpenAiToolExchangeMessages } from './openai-chat-tool-results.js';
 export * from './google-messages.js';
 export * from './azure-chat.js';
 export * from './ollama-chat.js';

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createRecordingAiTraceSink, createJsonEventStreamHandler, createClaudeStreamHandler, type AiTraceSink } from '@jini-ai/agent-runtime';
+import { createJsonEventStreamHandler, createClaudeStreamHandler } from '@jini-ai/agent-runtime';
+import { createRecordingAiTraceSink, type AiTraceSink } from '@jini-ai/core/contracts/ai-trace';
 import type { RunProtocolEvent } from '@jini-ai/protocol';
 import { createInMemoryEventLog } from '../event-log.js';
 import { createRunLifecycle, type RunLifecycle } from '../run-lifecycle.js';
@@ -231,8 +232,8 @@ describe('AI trace lifecycle failure containment and terminal observation', () =
   it('propagates underlying lifecycle failures without treating them as telemetry failures', async () => {
     const onSinkError = vi.fn();
     const { traced } = fixture({ onSinkError });
-    await expect(traced.emit({ runId: 'missing', input: { event: 'agent', data: { type: 'text_delta', delta: 'answer' } } })).rejects.toThrow();
-    await expect(traced.finish({ runId: 'missing', ...success })).rejects.toThrow();
+    await expect(traced.emit({ runId: 'missing', input: { event: 'agent', data: { type: 'text_delta', delta: 'answer' } } })).rejects.toThrow('RunLifecycle: unknown run "missing"');
+    await expect(traced.finish({ runId: 'missing', ...success })).rejects.toThrow('RunLifecycle: unknown run "missing"');
     expect(onSinkError).not.toHaveBeenCalled();
   });
 });

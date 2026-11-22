@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ChangeEvent, type DragEvent, type RefObject } from 'react';
+import { useCallback, useEffect, useRef, type ChangeEvent, type DragEvent, type RefObject } from 'react';
 import { useFileDropTarget } from '../../../../browser/useFileDropTarget.js';
 import { filesFromClipboardData, shouldIgnoreClipboardFilePaste } from '../../../../utils/file-transfer.js';
 import { FILE_DROPZONE_PROCESSING_BYTES_THRESHOLD, FILE_DROPZONE_PROCESSING_FILE_COUNT_THRESHOLD, FILE_DROPZONE_PROCESSING_MIN_VISIBLE_MS } from '../../constants.js';
@@ -46,44 +46,70 @@ function runAfterNextPaint(callback: () => void): void {
   window.setTimeout(callback, 0);
 }
 
-/**
- * Consolidates the two independent OD file-staging zones'
- * behavior into one hook: native drag/drop (directory-aware, via
- * `browser/useFileDropTarget`), click-to-browse (with the file-dialog
- * cancel-vs-still-loading detection heuristic, via `useFileDialogTracking`),
- * an optional page-wide clipboard-paste listener, and the shared
- * large-selection loading-affordance heuristic that gates all of the above
- * except paste. See `packages/ui/archived provenance ledger` for the full consolidation
- * writeup and which origin file contributed which piece.
- */
-export function useFileDropzone({
-  onFiles,
-  onZoneClick,
-  onError,
-  onProcessingStart,
-  enablePaste = false,
-}: UseFileDropzoneParams): UseFileDropzoneResult {
-  const inputRef = useRef<HTMLInputElement | null>(null);
+/** Wires the native `cancel` event of the file input while a processing affordance is configured. */
+function useDialogCancelListener({ inputRef, dialogTrackingRef, enabled }: {
+  inputRef: RefObject<HTMLInputElement | null>; dialogTrackingRef: { current: { handleDialogCancelled: () => void } }; enabled: boolean;
+}, _options = {}) {
+  // The native `cancel` event on `<input type=file>` has no React synthetic
+  // equivalent, so it's wired imperatively — mirroring the origin, which
+  // only attaches this (and the window `focus` listener now owned by
+  // `useFileDialogTracking`) while a processing affordance is configured.
+  useEffect(() => {
+    if (!enabled) return undefined;
+    // Non-null: this effect runs post-mount, and the consumer always
+    // renders the ref'd `<input>` unconditionally (see `FileDropzone.tsx`),
+    // so `inputRef.current` is never null once an effect body executes.
+    const input = inputRef.current!;
+    function handleCancel() {
+      dialogTrackingRef.current.handleDialogCancelled();
+    }
+    input.addEventListener('cancel', handleCancel);
+    return () => input.removeEventListener('cancel', handleCancel);
+  }, [enabled]);
+}
+
+/** Stages files pasted from the clipboard anywhere outside an editable target. */
+function useClipboardFilePaste({ enablePaste, stageFiles }: { enablePaste: boolean; stageFiles: (files: File[]) => void }, _options = {}) {
+  useEffect(() => {
+    if (!enablePaste) return undefined;
+    function onPaste(event: ClipboardEvent) {
+      if (shouldIgnoreClipboardFilePaste({ target: event.target }) || shouldIgnoreClipboardFilePaste({ target: document.activeElement })) {
+        return;
+      }
+      const pasted = filesFromClipboardData({ clipboardData: event.clipboardData });
+      if (pasted.length === 0) return;
+      event.preventDefault();
+      stageFiles(pasted);
+    }
+    window.addEventListener('paste', onPaste);
+    return () => window.removeEventListener('paste', onPaste);
+  }, [enablePaste, stageFiles]);
+}
+
+/** Latest-callback refs plus the stable `stageFiles` that clears the error and hands files to the host. */
+function useFileStaging({ onFiles, onError }: Pick<UseFileDropzoneParams, 'onFiles' | 'onError'>, _options = {}) {
   const onFilesRef = useRef(onFiles);
   onFilesRef.current = onFiles;
   const onErrorRef = useRef(onError);
   onErrorRef.current = onError;
 
-  const dialogTracking = useFileDialogTracking(onProcessingStart);
-  const dialogTrackingRef = useRef(dialogTracking);
-  dialogTrackingRef.current = dialogTracking;
-
-  function finishProcessingLater(finish: (() => void) | undefined) {
-    if (!finish) return;
-    window.setTimeout(finish, FILE_DROPZONE_PROCESSING_MIN_VISIBLE_MS);
-  }
-
   // Every caller (processSelectedFiles' two staging branches, and the paste
   // listener) already guards a non-empty selection before reaching here, so
   // this has no empty-array case to handle.
-  function stageFiles(nextFiles: File[]) {
+  const stageFiles = useCallback((nextFiles: File[]) => {
     onErrorRef.current?.(null);
     onFilesRef.current(nextFiles);
+  }, []);
+  return { stageFiles, onErrorRef };
+}
+
+/** Builds the handler that stages a picked/dropped selection, showing a processing affordance for large ones. */
+function createSelectedFilesProcessor({ stageFiles, onProcessingStart }: {
+  stageFiles: (files: File[]) => void; onProcessingStart: (() => (() => void)) | undefined;
+}, _options = {}) {
+  function finishProcessingLater(finish: (() => void) | undefined) {
+    if (!finish) return;
+    window.setTimeout(finish, FILE_DROPZONE_PROCESSING_MIN_VISIBLE_MS);
   }
 
   function processSelectedFiles(nextFiles: File[], activeFinish?: () => void) {
@@ -91,7 +117,7 @@ export function useFileDropzone({
       finishProcessingLater(activeFinish);
       return;
     }
-    if (!fileDropzoneShouldShowProcessing(nextFiles, FILE_DROPZONE_PROCESSING_FILE_COUNT_THRESHOLD, FILE_DROPZONE_PROCESSING_BYTES_THRESHOLD) || !onProcessingStart) {
+    if (!fileDropzoneShouldShowProcessing({ files: nextFiles, fileCountThreshold: FILE_DROPZONE_PROCESSING_FILE_COUNT_THRESHOLD, totalBytesThreshold: FILE_DROPZONE_PROCESSING_BYTES_THRESHOLD }) || !onProcessingStart) {
       stageFiles(nextFiles);
       finishProcessingLater(activeFinish);
       return;
@@ -105,6 +131,30 @@ export function useFileDropzone({
       }
     });
   }
+  return processSelectedFiles;
+}
+
+/**
+ * Consolidates the two independent OD file-staging zones'
+ * behavior into one hook: native drag/drop (directory-aware, via
+ * `browser/useFileDropTarget`), click-to-browse (with the file-dialog
+ * cancel-vs-still-loading detection heuristic, via `useFileDialogTracking`),
+ * an optional page-wide clipboard-paste listener, and the shared
+ * large-selection loading-affordance heuristic that gates all of the above
+ * except paste. See `archived UI provenance ledger` for the full consolidation
+ * writeup and which origin file contributed which piece.
+ */
+export function useFileDropzone({
+  onFiles, onZoneClick, onError, onProcessingStart, enablePaste = false,
+}: UseFileDropzoneParams): UseFileDropzoneResult {
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const { stageFiles, onErrorRef } = useFileStaging({ onFiles, onError });
+
+  const dialogTracking = useFileDialogTracking(onProcessingStart);
+  const dialogTrackingRef = useRef(dialogTracking);
+  dialogTrackingRef.current = dialogTracking;
+
+  const processSelectedFiles = createSelectedFilesProcessor({ stageFiles, onProcessingStart });
 
   const dragTarget = useFileDropTarget((droppedFiles) => processSelectedFiles(droppedFiles));
 
@@ -133,38 +183,8 @@ export function useFileDropzone({
     processSelectedFiles(picked, finish);
   }
 
-  // The native `cancel` event on `<input type=file>` has no React synthetic
-  // equivalent, so it's wired imperatively — mirroring the origin, which
-  // only attaches this (and the window `focus` listener now owned by
-  // `useFileDialogTracking`) while a processing affordance is configured.
-  useEffect(() => {
-    if (!onProcessingStart) return undefined;
-    // Non-null: this effect runs post-mount, and the consumer always
-    // renders the ref'd `<input>` unconditionally (see `FileDropzone.tsx`),
-    // so `inputRef.current` is never null once an effect body executes.
-    const input = inputRef.current!;
-    function handleCancel() {
-      dialogTrackingRef.current.handleDialogCancelled();
-    }
-    input.addEventListener('cancel', handleCancel);
-    return () => input.removeEventListener('cancel', handleCancel);
-  }, [onProcessingStart]);
-
-  useEffect(() => {
-    if (!enablePaste) return undefined;
-    function onPaste(event: ClipboardEvent) {
-      if (shouldIgnoreClipboardFilePaste(event.target) || shouldIgnoreClipboardFilePaste(document.activeElement)) {
-        return;
-      }
-      const pasted = filesFromClipboardData(event.clipboardData);
-      if (pasted.length === 0) return;
-      event.preventDefault();
-      stageFiles(pasted);
-    }
-    window.addEventListener('paste', onPaste);
-    return () => window.removeEventListener('paste', onPaste);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enablePaste]);
+  useDialogCancelListener({ inputRef, dialogTrackingRef, enabled: Boolean(onProcessingStart) });
+  useClipboardFilePaste({ enablePaste, stageFiles });
 
   return {
     inputRef,

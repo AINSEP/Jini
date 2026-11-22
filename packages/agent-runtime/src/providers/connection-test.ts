@@ -19,11 +19,11 @@ import { redactSecrets } from '@jini-ai/core';
  * directory.
  */
 
-import type { DnsLookupFn } from './connection-guard.js';
+import type { DnsLookupFn, ConnectionTestKind, ConnectionTestProtocol } from '@jini-ai/core/contracts/agents';
 import { defaultDnsLookup, validateBaseUrlResolved } from './connection-guard.js';
+import { appendVersionedApiPath } from './provider-url.js';
 import { googleGenerateContentUrl } from './google.js';
 import { buildOpenAIChatTokenParam, buildLegacyMaxTokensParam } from './token-params.js';
-import type { ConnectionTestKind, ConnectionTestProtocol } from './types.js';
 import { trimCharsEnd } from '@jini-ai/core/text';
 
 /** The four wire protocols this smoke test knows how to speak. A narrower
@@ -83,13 +83,6 @@ const SAMPLE_MAX_CHARS = 120;
 
 function isSupportedProtocol(protocol: ConnectionTestProtocol): protocol is SupportedConnectionTestProtocol {
   return protocol === 'anthropic' || protocol === 'openai' || protocol === 'azure' || protocol === 'google';
-}
-
-function appendVersionedApiPath(baseUrl: string, suffix: string): string {
-  const url = new URL(baseUrl);
-  const pathname = trimCharsEnd({ text: url.pathname, chars: '/' });
-  url.pathname = /\/v\d+(\/|$)/.test(pathname) ? `${pathname}${suffix}` : `${pathname}/v1${suffix}`;
-  return url.toString();
 }
 
 /** Only ever called with the redacted string `extractText` produced, so no non-string guard is needed. */
@@ -243,42 +236,63 @@ function emptyReplyDetail(finishReason: string | null | undefined): string {
     : 'Provider returned a 2xx response without assistant text';
 }
 
+function extractAnthropicMessageText(data: unknown): string {
+  const blocks = (data as { content?: unknown }).content;
+  if (!Array.isArray(blocks)) return '';
+  for (const block of blocks) {
+    if (
+      block &&
+      typeof block === 'object' &&
+      (block as { type?: string }).type === 'text' &&
+      typeof (block as { text?: unknown }).text === 'string'
+    ) {
+      return (block as { text: string }).text;
+    }
+  }
+  return '';
+}
+
+function extractGoogleMessageText(data: unknown): string {
+  const candidates = (data as { candidates?: unknown }).candidates;
+  if (!Array.isArray(candidates) || candidates.length === 0) return '';
+  const parts = (candidates[0] as { content?: { parts?: unknown } }).content?.parts;
+  if (!Array.isArray(parts)) return '';
+  return parts
+    // Gemini 2.5 returns its hidden reasoning as ordinary parts flagged `thought: true`,
+    // interleaved with the real answer. Joining them all turns a correct "ok" into
+    // "<paragraph of reasoning>ok", which `isSmokeOkReply`'s exact match then rejects — a
+    // model that answered correctly reported as a failed connection. Only the answer counts.
+    .filter((p: { thought?: unknown }) => p?.thought !== true)
+    .map((p: { text?: unknown }) => (typeof p?.text === 'string' ? p.text : ''))
+    .join('');
+}
+
+function buildAnthropicProviderCall({ baseUrl, apiKey, model }: Pick<ProviderConnectionTestRequest, 'baseUrl' | 'apiKey' | 'model'>): ProviderCallShape {
+  return {
+    url: appendVersionedApiPath({ baseUrl, suffix: '/messages' }),
+    headers: {
+      'content-type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+    },
+    body: {
+      model,
+      max_tokens: CONNECTION_TEST_MAX_TOKENS,
+      messages: [{ role: 'user', content: SMOKE_PROMPT }],
+      stream: false,
+    },
+    extractText: extractAnthropicMessageText,
+  };
+}
+
 function buildProviderCall(input: ProviderConnectionTestRequest & { protocol: SupportedConnectionTestProtocol }): ProviderCallShape {
   const { baseUrl, apiKey, model } = input;
   switch (input.protocol) {
     case 'anthropic':
-      return {
-        url: appendVersionedApiPath(baseUrl, '/messages'),
-        headers: {
-          'content-type': 'application/json',
-          'x-api-key': apiKey,
-          'anthropic-version': '2023-06-01',
-        },
-        body: {
-          model,
-          max_tokens: CONNECTION_TEST_MAX_TOKENS,
-          messages: [{ role: 'user', content: SMOKE_PROMPT }],
-          stream: false,
-        },
-        extractText: (data) => {
-          const blocks = (data as { content?: unknown }).content;
-          if (!Array.isArray(blocks)) return '';
-          for (const block of blocks) {
-            if (
-              block &&
-              typeof block === 'object' &&
-              (block as { type?: string }).type === 'text' &&
-              typeof (block as { text?: unknown }).text === 'string'
-            ) {
-              return (block as { text: string }).text;
-            }
-          }
-          return '';
-        },
-      };
+      return buildAnthropicProviderCall({ baseUrl, apiKey, model });
     case 'openai':
       return {
-        url: appendVersionedApiPath(baseUrl, '/chat/completions'),
+        url: appendVersionedApiPath({ baseUrl, suffix: '/chat/completions' }),
         headers: {
           'content-type': 'application/json',
           authorization: `Bearer ${apiKey}`,
@@ -304,20 +318,7 @@ function buildProviderCall(input: ProviderConnectionTestRequest & { protocol: Su
           contents: [{ role: 'user', parts: [{ text: SMOKE_PROMPT }] }],
           generationConfig: { maxOutputTokens: CONNECTION_TEST_MAX_TOKENS },
         },
-        extractText: (data) => {
-          const candidates = (data as { candidates?: unknown }).candidates;
-          if (!Array.isArray(candidates) || candidates.length === 0) return '';
-          const parts = (candidates[0] as { content?: { parts?: unknown } }).content?.parts;
-          if (!Array.isArray(parts)) return '';
-          return parts
-            // Gemini 2.5 returns its hidden reasoning as ordinary parts flagged `thought: true`,
-            // interleaved with the real answer. Joining them all turns a correct "ok" into
-            // "<paragraph of reasoning>ok", which `isSmokeOkReply`'s exact match then rejects — a
-            // model that answered correctly reported as a failed connection. Only the answer counts.
-            .filter((p: { thought?: unknown }) => p?.thought !== true)
-            .map((p: { text?: unknown }) => (typeof p?.text === 'string' ? p.text : ''))
-            .join('');
-        },
+        extractText: extractGoogleMessageText,
       };
     }
     default: {

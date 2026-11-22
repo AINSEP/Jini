@@ -1,7 +1,8 @@
 /** Price mappings borrow the host schema and use its five-part primary key for atomic upserts. */
-import type { StorageKernel } from "@jini-ai/db/kernel";
+import type { StorageKernel } from "@jini-ai/core/contracts/storage";
 import type { CommerceKernel } from "./database.js";
 import type { CommercePriceProviderRefRepoPort } from "./ports.js";
+import type { Kysely } from "kysely";
 
 /**
  * @param required.kernel - Host storage kernel; no schema preparation or connection is owned here.
@@ -9,7 +10,7 @@ import type { CommercePriceProviderRefRepoPort } from "./ports.js";
  * @complexity One indexed lookup/upsert per call, O(log n) database work and O(1) application space.
  * @example const priceRefs = commercePriceProviderRefRepoFor({ kernel });
  */
-export function commercePriceProviderRefRepoFor<DB>({ kernel }: { kernel: StorageKernel<DB> }, _optional: Record<string, never> = {}): CommercePriceProviderRefRepoPort {
+export function commercePriceProviderRefRepoFor<DB>({ kernel }: { kernel: StorageKernel<Kysely<DB>, DB> }, _optional: Record<string, never> = {}): CommercePriceProviderRefRepoPort {
   const storage = kernel as unknown as CommerceKernel;
   return {
     find: async (required, _optional = {}) => {

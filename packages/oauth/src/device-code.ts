@@ -27,11 +27,11 @@ export async function beginDeviceAuthorization(requiredArgs: OAuthRequiredArgs<D
         throw new OAuthError({ code: 'OAUTH_UNSUPPORTED_GRANT',
             message: `provider '${provider.providerId}' does not support the device grant`,
             operatorAction: 'Connect this provider from Settings using the browser redirect flow instead.' });
-    const endpoint = assertSafeProviderEndpoint(provider.deviceAuthorizationEndpoint, 'device authorization endpoint', guard);
+    const endpoint = assertSafeProviderEndpoint({ raw: provider.deviceAuthorizationEndpoint, label: 'device authorization endpoint', guard });
     const params = new URLSearchParams();
     const scopes = optionalArgs.scopes ?? provider.defaultScopes;
     if (scopes.length > 0) params.set('scope', scopes.join(' '));
-    applyResourceIndicators(params, optionalArgs.resource);
+    applyResourceIndicators({ params, resource: optionalArgs.resource });
     const guardedFetch = createOAuthCustomFetch({
         ...requiredArgs, timeoutMs: optionalArgs.timeoutMs ?? DEFAULT_TOKEN_REQUEST_TIMEOUT_MS,
         endpointLabel: 'device authorization endpoint', responseMessages: DEVICE_RESPONSE_MESSAGES,

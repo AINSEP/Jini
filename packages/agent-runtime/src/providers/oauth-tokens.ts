@@ -1,5 +1,4 @@
-import { inspect } from 'node:util';
-import { redactSecrets } from '@jini-ai/core';
+import { describeErrorForLog } from '@jini-ai/core';
 /**
  * @module providers/oauth-tokens
  *
@@ -47,7 +46,7 @@ function isPlainObject(v: unknown): v is Record<string, unknown> {
 }
 
 /** Coerces a freeform JSON blob into the typed shape, dropping anything that doesn't deserialize cleanly. Used both at read time and as a defensive pass when third-party tooling has hand-edited the file. */
-export function sanitizeOAuthTokenFile({ raw }: { raw: unknown }): OAuthTokenFile {
+export function sanitizeOAuthTokenFile({ raw }: { raw: unknown }, _optional: Record<string, never> = {}): OAuthTokenFile {
   if (!isPlainObject(raw)) return {};
   const tok = sanitizeToken(raw.token);
   return tok ? { token: tok } : {};
@@ -77,7 +76,7 @@ function sanitizeToken(raw: unknown): StoredOAuthToken | null {
   return out;
 }
 
-export async function readOAuthTokenFile({ dataDir, fileName }: { dataDir: string; fileName: string }): Promise<OAuthTokenFile> {
+export async function readOAuthTokenFile({ dataDir, fileName }: { dataDir: string; fileName: string }, _optional: Record<string, never> = {}): Promise<OAuthTokenFile> {
   try {
     const raw = await readFile(path.join(dataDir, fileName), 'utf8');
     return sanitizeOAuthTokenFile({ raw: JSON.parse(raw) });
@@ -85,7 +84,7 @@ export async function readOAuthTokenFile({ dataDir, fileName }: { dataDir: strin
     const e = err as { code?: string; name?: string; message?: string };
     if (e.code === 'ENOENT') return {};
     if (e.name === 'SyntaxError') {
-      console.error('[oauth-tokens] Corrupted JSON, returning empty:', redactSecrets({ input: inspect(e) }, { redactPii: false }));
+      console.error('[oauth-tokens] Corrupted JSON, returning empty:', describeErrorForLog({ err }));
       return {};
     }
     throw err;
@@ -126,7 +125,7 @@ async function writeTokenFile(
       console.warn(
         '[oauth-tokens] could not chmod 0600',
         file,
-        redactSecrets({ input: inspect(err) }, { redactPii: false }),
+        describeErrorForLog({ err }),
       );
     }
   }
@@ -134,14 +133,14 @@ async function writeTokenFile(
 }
 
 /** Gets the current stored OAuth token for `fileName`, or null when none is stored (or the persisted entry is malformed). */
-export async function getStoredOAuthToken({ dataDir, fileName }: { dataDir: string; fileName: string }
+export async function getStoredOAuthToken({ dataDir, fileName }: { dataDir: string; fileName: string }, _optional: Record<string, never> = {}
 ): Promise<StoredOAuthToken | null> {
   const file = await readOAuthTokenFile({ dataDir: dataDir, fileName: fileName });
   return file.token ?? null;
 }
 
 /** Atomically replaces the stored OAuth token for `fileName`. */
-export async function setStoredOAuthToken({ dataDir, fileName, token }: { dataDir: string; fileName: string; token: StoredOAuthToken }
+export async function setStoredOAuthToken({ dataDir, fileName, token }: { dataDir: string; fileName: string; token: StoredOAuthToken }, _optional: Record<string, never> = {}
 ): Promise<void> {
   await withLock(`${dataDir}\0${fileName}`, async () => {
     await writeTokenFile(dataDir, fileName, { token });
@@ -149,7 +148,7 @@ export async function setStoredOAuthToken({ dataDir, fileName, token }: { dataDi
 }
 
 /** Atomically deletes the stored OAuth token for `fileName`. No-op when absent. */
-export async function clearStoredOAuthToken({ dataDir, fileName }: { dataDir: string; fileName: string }): Promise<void> {
+export async function clearStoredOAuthToken({ dataDir, fileName }: { dataDir: string; fileName: string }, _optional: Record<string, never> = {}): Promise<void> {
   await withLock(`${dataDir}\0${fileName}`, async () => {
     const file = await readOAuthTokenFile({ dataDir: dataDir, fileName: fileName });
     if (!file.token) return;

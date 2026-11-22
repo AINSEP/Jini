@@ -1,7 +1,9 @@
-import { adminPort } from '../core/module/token.js';
+import { adminPort } from '@jini-ai/core/contracts/admin-module';
 import type { AdminFormsPort } from '../core/ports/forms.js';
+import type { FormsCatalogPort } from '../core/ports/forms-catalog.js';
 import type { AdminShellNavigationPort } from '../core/ports/shell.js';
 export type { AdminFormsPort } from '../core/ports/forms.js';
+export type { FormsCatalogPort, FormFieldKindInfo } from '../core/ports/forms-catalog.js';
 /** Reversible removal delegates to the host's existing generic Trash service.
  * This projection preserves the screens' generic POST for definitions and submissions; the
  * core API also exposes the form-scoped submission DELETE route with the same Trash semantics. */
@@ -13,6 +15,8 @@ export interface FormsEventsPort {
 }
 export type FormsNavigationPort = Pick<AdminShellNavigationPort, 'navigate'>;
 export const formsApiToken = adminPort<AdminFormsPort, 'admin.forms.api'>({ id: 'admin.forms.api' });
+/** The forms domain's field vocabulary and safety rules; the host binds its own tables to this shape. */
+export const formsCatalogToken = adminPort<FormsCatalogPort, 'admin.forms.catalog'>({ id: 'admin.forms.catalog' });
 export const formsTrashToken = adminPort<FormsTrashPort, 'admin.forms.trash'>({ id: 'admin.forms.trash' });
 export const formsEventsToken = adminPort<FormsEventsPort, 'admin.forms.events'>({ id: 'admin.forms.events' });
 export const formsNavigationToken = adminPort<FormsNavigationPort, 'admin.forms.navigation'>({ id: 'admin.forms.navigation' });

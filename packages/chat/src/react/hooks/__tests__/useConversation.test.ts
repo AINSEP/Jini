@@ -143,7 +143,7 @@ describe('useConversation', () => {
     expect(result.current.messages.map((m) => m.content)).toEqual(['direct set', 'via updater']);
   });
 
-  it('falls back to a counter-based id when crypto.randomUUID is unavailable', async () => {
+  it('falls back to a decimal id when crypto.randomUUID is unavailable', async () => {
     vi.stubGlobal('crypto', undefined);
     try {
       const transport = createFakeChatTransport();
@@ -457,4 +457,21 @@ it('clears pending input when an accepted checkpoint arrives before the start pr
   }));
   expect(result.current.messages[0]!.inputPending).toBe(false);
   await act(async () => { release(); await sending; });
+});
+
+
+it('uses distinct supplied entropy for pending user and assistant fallback IDs', async () => {
+  const clock = vi.spyOn(Date, 'now').mockReturnValue(123);
+  vi.stubGlobal('crypto', {});
+  const random = vi.fn().mockReturnValueOnce(0.25).mockReturnValueOnce(0.75);
+  const transport = createFakeChatTransport();
+  const { result, unmount } = renderHook(() => useConversation({ transport, random }));
+  try {
+    await act(async () => { await result.current.sendMessage('hi'); });
+    expect(result.current.messages.map(message => message.id)).toEqual([
+      `msg-123-${Math.floor(0.25 * Number.MAX_SAFE_INTEGER)}`,
+      `msg-123-${Math.floor(0.75 * Number.MAX_SAFE_INTEGER)}`,
+    ]);
+    expect(transport.calls[0]?.input.assistantMessageId).toBe(result.current.messages[1]!.id);
+  } finally { unmount(); clock.mockRestore(); vi.unstubAllGlobals(); }
 });

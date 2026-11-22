@@ -38,10 +38,6 @@ export default defineConfig({
         // (same reasoning as packages/ui/vitest.config.ts's settings-dialog
         // types.ts excludes).
         'src/types.ts',
-        // Same carve-out as `src/types.ts` above: pure `export type`/
-        // `export interface` file, zero runtime declarations (verified via
-        // the same grep). Vendored provider-connectivity shapes only.
-        'src/providers/types.ts',
         'src/agent-protocol/acp/types.ts',
       ],
       // 2026-07-22 audit-fix pass: pushed the package to genuine
@@ -50,7 +46,7 @@ export default defineConfig({
       // remain uncovered on purpose, both re-derived (not merely trusted
       // from a prior comment) and documented inline + in archived provenance ledger's
       // 2026-07-22 entry:
-      //   - json-event-stream.ts's `stringifyContent` catch: every real
+      //   - json-event-stream-shared.ts's `stringifyContent` catch: every real
       //     call site's value traces back to `JSON.parse` output, which can
       //     never produce a value `JSON.stringify` throws on.
       //   - defs/amr.ts's `fetchVelaRemoteModelsWithRetry`: an unconditional

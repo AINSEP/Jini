@@ -1,0 +1,52 @@
+# per-package file differences, release tip b73045ba8 vs merge-10 (extracted tarballs; package.json key-order-only differences are listed separately)
+@jini-ai/admin [6]: dist/redirects/messages.en.d.ts dist/redirects/messages.en.js dist/redirects/react/index.d.ts dist/redirects/react/pages/RedirectsPage.js dist/redirects/redirects.module.d.ts package.json
+@jini-ai/agent-plugins [4]: dist/lifecycle/automatic-use.js dist/lifecycle/host-tools/search-tool.d.ts dist/lifecycle/host-tools/search-tool.js package.json
+@jini-ai/agent-runtime [8]: dist/agent-protocol/acp/models.d.ts dist/agent-protocol/acp/models.js dist/agent-protocol/acp/session-results.d.ts dist/agent-protocol/acp/session-results.js dist/agent-protocol/acp/session-run.js dist/agent-protocol/acp/session-state.js dist/agent-protocol/acp/session-types.d.ts package.json
+@jini-ai/chat [9]: dist/core/ag-ui/event-projection.d.ts dist/core/ag-ui/event-projection.js only:dist/core/assistant-client:ag-ui-fetch-agent.d.ts only:dist/core/assistant-client:ag-ui-fetch-agent.js dist/core/assistant-client/ag-ui-transport.d.ts dist/core/assistant-client/ag-ui-transport.js dist/embed-widget/react/
+@jini-ai/cli [9]: README.md dist/daemon-url.d.ts dist/daemon-url.js dist/local-daemon-discovery.d.ts dist/local-daemon-discovery.js dist/main.js dist/prompt.d.ts dist/prompt.js package.json
+@jini-ai/cms [18]: dist/content-types/tool-registrations.js dist/content-types/write-service.d.ts dist/content-types/write-service.js dist/entries/tool-registrations.js dist/entries/write-service.d.ts dist/entries/write-service.js dist/media/chat-preview.js dist/media/cover-image.d.ts dist/media/ports.d.ts dist/media/
+@jini-ai/commerce [1]: package.json
+@jini-ai/core [4]: dist/contracts/observability.d.ts dist/contracts/observability.js dist/errors/reporter.d.ts dist/errors/reporter.js
+@jini-ai/daemon [10]: dist/agent-executor/acp-events.d.ts dist/agent-executor/acp-events.js dist/agent-executor/contracts.d.ts dist/agent-executor/launch.js dist/frontend-session-registry.d.ts dist/frontend-session-registry.js dist/http/frontend-control.d.ts dist/http/frontend-control.js dist/ports/agent-runtime-sessions
+@jini-ai/devops [3]: dist/local-dev/node-runtime.d.ts dist/local-dev/node-runtime.js package.json
+@jini-ai/diagnostics [3]: dist/observability/fanout.js dist/observability/hooks.js dist/web-evidence/page-work-budget.js
+@jini-ai/infra [2]: dist/events/outbox/worker.js package.json
+@jini-ai/integrations [2]: dist/api-connections/hosted-mcp/sign-in-configuration.js dist/webhooks/tools/tool-handlers.js
+@jini-ai/mcp [2]: dist/core/config.js dist/core/opencode/config.js
+@jini-ai/node-adapters [1]: package.json
+@jini-ai/oauth [1]: package.json
+@jini-ai/platform [1]: dist/fs/file-lock.js
+@jini-ai/plugin-catalog [1]: catalog.json
+@jini-ai/plugins [2]: dist/host/node/runtime-core.js package.json
+@jini-ai/provider-plugins [7]: dist/observability-opentelemetry/contract.d.ts dist/observability-opentelemetry/otel-port.js package.json plugins/observability-opentelemetry/0.7.3-next.1/jini.plugin.json plugins/observability-opentelemetry/0.7.3-next.1/server/index.mjs plugins/observability-sentry/0.7.3-next.1/jini.plugin.json plu
+@jini-ai/registry [1]: package.json
+@jini-ai/server [1]: package.json
+@jini-ai/sidecar [5]: dist/daemon-registry.d.ts dist/daemon-registry.js dist/json-ipc.d.ts dist/json-ipc.js package.json
+@jini-ai/sqlite [1]: package.json
+@jini-ai/ui [3]: dist/features/panel-kit/ErrorNotice.d.ts dist/features/panel-kit/ErrorNotice.js package.json
+
+@jini-ai/admin pkgjson-semantically-equal other-files-differing=5
+@jini-ai/agent-plugins pkgjson-semantically-equal other-files-differing=3
+@jini-ai/agent-runtime pkgjson-semantically-equal other-files-differing=7
+@jini-ai/chat pkgjson-semantically-equal other-files-differing=8
+@jini-ai/cli pkgjson-semantically-equal other-files-differing=8
+@jini-ai/cms PKGJSON-DIFFERS other-files-differing=17
+@jini-ai/commerce pkgjson-semantically-equal other-files-differing=0
+@jini-ai/core pkgjson-semantically-equal other-files-differing=4
+@jini-ai/daemon pkgjson-semantically-equal other-files-differing=9
+@jini-ai/devops pkgjson-semantically-equal other-files-differing=2
+@jini-ai/diagnostics pkgjson-semantically-equal other-files-differing=3
+@jini-ai/infra pkgjson-semantically-equal other-files-differing=1
+@jini-ai/integrations pkgjson-semantically-equal other-files-differing=2
+@jini-ai/mcp pkgjson-semantically-equal other-files-differing=2
+@jini-ai/node-adapters pkgjson-semantically-equal other-files-differing=0
+@jini-ai/oauth pkgjson-semantically-equal other-files-differing=0
+@jini-ai/platform pkgjson-semantically-equal other-files-differing=1
+@jini-ai/plugin-catalog pkgjson-semantically-equal other-files-differing=1
+@jini-ai/plugins pkgjson-semantically-equal other-files-differing=1
+@jini-ai/provider-plugins pkgjson-semantically-equal other-files-differing=6
+@jini-ai/registry pkgjson-semantically-equal other-files-differing=0
+@jini-ai/server pkgjson-semantically-equal other-files-differing=0
+@jini-ai/sidecar pkgjson-semantically-equal other-files-differing=4
+@jini-ai/sqlite pkgjson-semantically-equal other-files-differing=0
+@jini-ai/ui pkgjson-semantically-equal other-files-differing=2

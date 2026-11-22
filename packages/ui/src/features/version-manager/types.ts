@@ -3,7 +3,7 @@
  * modal shell.
  *
  * Source: a vendored OD file-viewer god-component's version-history modal
- * (`FileVersionManagerModal`). See `packages/ui/archived provenance ledger`'s
+ * (`FileVersionManagerModal`). See `archived UI provenance ledger`'s
  * `html-viewer` classification section for full provenance, the prior
  * (incorrect) "OD-specific, saturated with analytics/deploy" filing this
  * corrects, and what was deliberately left as a host-injected port.

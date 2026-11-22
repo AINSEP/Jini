@@ -1,4 +1,5 @@
 import { getNumericColumnKeys } from '../../table-data.js';
+import { clickableRowProps, type DataTableRowClick } from '../../table-row-activation.js';
 
 export interface DataTableColumn {
   readonly key: string;
@@ -9,7 +10,7 @@ export interface DataTableProps {
   readonly columns: readonly DataTableColumn[];
   readonly rows: readonly Record<string, unknown>[];
   /** Host-wired, not part of the agent-facing wire schema — see data-table.manifest.ts. */
-  readonly onRowClick?: (row: Record<string, unknown>, index: number) => void;
+  readonly onRowClick?: DataTableRowClick;
 }
 
 export function DataTable({ columns, rows, onRowClick }: DataTableProps) {
@@ -30,15 +31,7 @@ export function DataTable({ columns, rows, onRowClick }: DataTableProps) {
             {rows.map((row, index) => (
               <tr
                 key={index}
-                onClick={onRowClick ? () => onRowClick(row, index) : undefined}
-                role={onRowClick ? 'button' : undefined}
-                tabIndex={onRowClick ? 0 : undefined}
-                onKeyDown={onRowClick ? (event) => {
-                  if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) {
-                    event.preventDefault();
-                    onRowClick(row, index);
-                  }
-                } : undefined}
+                {...clickableRowProps({ row, index }, { onRowClick })}
               >
                 {columns.map((column) => (
                   <td key={column.key} data-numeric={numericKeys.has(column.key)}>{String(row[column.key] ?? '')}</td>

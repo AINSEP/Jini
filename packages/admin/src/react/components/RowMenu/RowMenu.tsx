@@ -1,6 +1,7 @@
 import type { CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
-import { agentHandle, buildAgentListHandles, type AgentElementRole } from '@jini-ai/agentic';
+import { agentHandle, buildAgentListHandles } from '@jini-ai/core/agent-handles';
+import type { AgentElementRole } from '@jini-ai/core/agent-handles';
 import { resolveTone, toneClassName, type ConfirmTone } from '../../types.js';
 import { useRowMenu } from './RowMenu.hooks.js';
 

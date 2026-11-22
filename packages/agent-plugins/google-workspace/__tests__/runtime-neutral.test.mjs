@@ -44,6 +44,6 @@ test('safe errors speak as "this site", never as a named host', () => {
 });
 
 test('identifiers already stored in spreadsheets and site config keep their spelling', () => {
-  assert.deepEqual([SUBMISSION_ID_HEADER, SUBMITTED_AT_HEADER, FIELD_MARKER_KEY], ['_tovu_submission_id', '_tovu_submitted_at', 'tovu_form_field']);
-  assert.deepEqual({ ...PICKER_CONFIG_NAMES }, { developerKey: 'TOVU_GOOGLE_PICKER_BROWSER_KEY', appId: 'TOVU_GOOGLE_PICKER_APP_ID' });
+  assert.deepEqual([SUBMISSION_ID_HEADER, SUBMITTED_AT_HEADER, FIELD_MARKER_KEY], ['_jini_submission_id', '_jini_submitted_at', 'jini_form_field']);
+  assert.deepEqual({ ...PICKER_CONFIG_NAMES }, { developerKey: 'JINI_GOOGLE_PICKER_BROWSER_KEY', appId: 'JINI_GOOGLE_PICKER_APP_ID' });
 });
