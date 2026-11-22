@@ -1,3 +1,4 @@
+import { afterSettled } from '@jini-ai/core/errors/idioms';
 import { createConsoleLogger } from '@jini-ai/core/primitives';
 import { redactSecrets } from '@jini-ai/core';
 import type { RunProtocolEvent } from '@jini-ai/protocol';
@@ -85,7 +86,7 @@ export function observeRunOutput(
       if (keepsOutcome(status, seen)) return status;
       const message = redactSecrets({ input: failureReason(agentName, seen).slice(0, 1200) });
       // A watchdog can already have settled the run; its terminal state must still win.
-      await lifecycle.emit({ runId, input: { event: 'error', data: { message } } }).catch(() => {});
+      await afterSettled({ promise: lifecycle.emit({ runId, input: { event: 'error', data: { message } } }) });
       return 'failed';
     },
   };

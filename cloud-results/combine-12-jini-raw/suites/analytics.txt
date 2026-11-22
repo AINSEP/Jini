@@ -1,0 +1,33 @@
+
+> @jini-ai/analytics@0.7.3-next.2 test
+> vitest run --maxWorkers=2 --minWorkers=1
+
+
+ RUN  v3.2.7 /home/user/jt12/packages/analytics
+
+ ✓ src/__tests__/ingest.test.ts (70 tests) 22ms
+ ✓ src/__tests__/forwarding.test.ts (20 tests) 25ms
+ ✓ src/__tests__/ingest-characterization.test.ts (35 tests) 17ms
+ ✓ src/__tests__/browser-contribution.test.ts (16 tests) 20ms
+stderr | src/__tests__/product-consent.test.ts > recheck #1: async consent without a revision fails closed; sync consent and async with a revision deliver
+[analytics/product] async consent without consentRevision: every promised approval is dropped (fail closed). Pass { consentRevision } to withProductAnalyticsGuards.
+
+ ✓ src/__tests__/product-consent.test.ts (12 tests) 34ms
+ ✓ src/__tests__/ai-generations.test.ts (5 tests) 37ms
+ ✓ src/__tests__/repo.memory.test.ts (9 tests) 5ms
+ ✓ src/__tests__/product-analytics.test.ts (6 tests) 14ms
+ ✓ src/__tests__/salt.test.ts (9 tests) 4ms
+ ✓ src/__tests__/product-boundaries.unit.test.ts (4 tests) 26ms
+ ✓ src/__tests__/product-fanout.test.ts (4 tests) 6ms
+ ✓ src/__tests__/policy-ports.test.ts (4 tests) 7ms
+ ✓ src/__tests__/ingest.ip-buckets.test.ts (26 tests) 7ms
+ ✓ src/__tests__/log-safety-f.test.ts (2 tests) 20ms
+ ✓ src/__tests__/product-browser.test.ts (2 tests) 168ms
+ ✓ src/__tests__/exports.test.ts (2 tests) 2ms
+
+ Test Files  16 passed (16)
+      Tests  226 passed (226)
+   Start at  02:27:18
+   Duration  3.27s (transform 840ms, setup 0ms, collect 2.12s, tests 413ms, environment 3ms, prepare 1.18s)
+
+EXIT 0

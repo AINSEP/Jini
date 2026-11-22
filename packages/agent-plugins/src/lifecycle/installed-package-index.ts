@@ -8,10 +8,10 @@ import type { InstalledAgentPlugin, InstalledAgentPluginSkill } from "./types.js
 
 /** Keep undeclared metadata absent, including for older packages. No extra manifest read. */
 function indexedMetadata({ manifest }: { readonly manifest: InstalledAgentPluginMetadata }, _optional = {}) {
-  const { requires, hostRange, exports, renamedFrom } = manifest;
-  return Object.fromEntries(Object.entries({ requires, hostRange, exports, renamedFrom }).filter(([, value]) => value !== undefined));
+  const { requires, companions, hostRange, exports, renamedFrom } = manifest;
+  return Object.fromEntries(Object.entries({ requires, companions, hostRange, exports, renamedFrom }).filter(([, value]) => value !== undefined));
 }
-type InstalledAgentPluginMetadata = Pick<InstalledAgentPlugin, 'requires' | 'hostRange' | 'exports' | 'renamedFrom'>;
+type InstalledAgentPluginMetadata = Pick<InstalledAgentPlugin, 'requires' | 'companions' | 'hostRange' | 'exports' | 'renamedFrom'>;
 
 /** Cosmetic fields are trimmed and capped rather than invalidating the package. The cap stops
  * a hostile package flooding an admin row. Malformed values fall back because these fields are

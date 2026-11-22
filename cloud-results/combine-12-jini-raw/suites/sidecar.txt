@@ -1,0 +1,46 @@
+
+> @jini-ai/sidecar@0.7.3-next.2 test
+> vitest run --maxWorkers=2 --minWorkers=1
+
+
+ RUN  v3.2.7 /home/user/jt12/packages/sidecar
+
+ ✓ src/supervision/__tests__/supervisor.test.ts (38 tests) 18ms
+ ✓ src/__tests__/json-ipc.contract.test.ts (30 tests) 470ms
+ ✓ src/__tests__/index.test.ts (64 tests | 2 skipped) 375ms
+ ✓ src/__tests__/daemon-registry.test.ts (22 tests) 180ms
+ ✓ src/supervision/__tests__/supervisor-node.test.ts (9 tests) 14ms
+ ✓ src/__tests__/supervisor.conditions.test.ts (17 tests) 20ms
+ ✓ src/supervision/__tests__/supervisor-node.windows.test.ts (12 tests) 51ms
+ ✓ src/supervision/__tests__/child-registry.test.ts (10 tests) 38ms
+ ✓ src/supervision/__tests__/supervisor-node.l178.test.ts (14 tests) 21ms
+ ✓ src/supervision/__tests__/child-entries.test.ts (10 tests) 6ms
+ ✓ src/supervision/__tests__/startup-secrets.test.ts (8 tests) 148ms
+ ✓ src/supervision/__tests__/child-stop.test.ts (11 tests) 22ms
+ ✓ src/supervision/__tests__/child-readiness.test.ts (12 tests) 33ms
+ ✓ src/supervision/__tests__/native-ipc.test.ts (8 tests) 18ms
+ ✓ src/supervision/__tests__/child-transitions.test.ts (10 tests) 4ms
+ ✓ src/supervision/__tests__/respawn-policy.test.ts (9 tests) 4ms
+ ✓ src/supervision/__tests__/child-orphans.test.ts (11 tests) 1170ms
+   ✓ a native child ignoring TERM is forced and actually reaped  440ms
+   ✓ native identity changes during TERM grace prevent force  472ms
+ ✓ src/__tests__/atomic-json-kernel.test.ts (5 tests) 45ms
+ ✓ src/__tests__/file-race-regressions.test.ts (4 tests) 73ms
+ ✓ src/supervision/__tests__/child-process-inspection.test.ts (6 tests | 1 skipped) 79ms
+ ✓ src/__tests__/daemon-registry.validation.test.ts (18 tests) 72ms
+ ✓ src/__tests__/port.errors.test.ts (18 tests) 15ms
+ ✓ src/supervision/__tests__/keyed-serializer.test.ts (5 tests) 5ms
+ ✓ src/supervision/__tests__/respawn-policy.l178.test.ts (24 tests) 11ms
+ ✓ src/__tests__/audit-regressions.test.ts (2 tests) 31ms
+ ✓ src/__tests__/daemon-registry.l178.test.ts (27 tests) 90ms
+ ✓ src/supervision/__tests__/child-exit-signal.test.ts (3 tests) 5ms
+ ✓ src/__tests__/integration-surface.test.ts (2 tests) 4ms
+ ✓ src/__tests__/supervisor-isolation.test.ts (1 test) 3ms
+ ✓ src/__tests__/args-convention.test.ts (1 test) 18ms
+
+ Test Files  30 passed (30)
+      Tests  408 passed | 3 skipped (411)
+   Start at  02:38:50
+   Duration  6.47s (transform 1.37s, setup 0ms, collect 3.99s, tests 3.04s, environment 5ms, prepare 1.91s)
+
+EXIT 0

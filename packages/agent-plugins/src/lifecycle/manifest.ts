@@ -133,6 +133,7 @@ export interface AgentPluginManifest extends AgentPluginExportMetadata, AgentPlu
   readonly provides?: readonly string[] | undefined;
   /** `extensions.<ns>.requires`: advisory capability ids other active plugins should provide. */
   readonly requires?: readonly string[] | undefined;
+  readonly companions?: readonly string[] | undefined;
   /** `extensions.<ns>.hostRange`: semver range over AGENT_PLUGIN_CONTRACT_VERSION; a malformed value is stored as `<invalid>`. */
   readonly hostRange?: string | undefined;
 }

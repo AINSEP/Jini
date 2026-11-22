@@ -13,7 +13,7 @@
 
 import { createConsoleLogger } from '@jini-ai/core/primitives';
 import { lstat, mkdir, rm } from "node:fs/promises";
-import { createConnection } from "node:net";
+import { createConnection, type Socket } from "node:net";
 import { createServer as createNetServer } from "node:net";
 import { dirname } from "node:path";
 import { StringDecoder } from "node:string_decoder";
@@ -174,177 +174,7 @@ export async function createJsonIpcServer({
 } = {}): Promise<JsonIpcServerHandle> {
   await prepareIpcPath({ socketPath });
   const server = createNetServer((socket) => {
-    let buffer = "";
-    let receivedBytes = 0;
-    // One-request-per-connection guard (SEC-004): the `data` listener is `async`, so its
-    // synchronous prefix (up to the first `await`) always finishes — and can set this flag —
-    // before Node dispatches the next queued `data` event on this same socket. Once a frame has
-    // been claimed, any further bytes on this connection (a second frame arriving while the
-    // handler is still awaiting, or trailing garbage after the first frame) are ignored rather
-    // than starting a second concurrent handler call / response race.
-    let handled = false;
-    // Decode UTF-8 across chunk boundaries: a multibyte character (e.g. CJK,
-    // 3 bytes) can be split across two `data` events. `chunk.toString()` per
-    // chunk would turn each half into U+FFFD, corrupting the payload (observed
-    // as `???`/`◆?◆?◆?` in exported CJK artifacts). StringDecoder holds an
-    // incomplete trailing sequence until the next chunk completes it.
-    const decoder = new StringDecoder("utf8");
-    const traceId = nextJsonIpcTraceId();
-    const startedAt = process.hrtime.bigint();
-    traceJsonIpc("server.connection", { socketPath, traceId });
-
-    // Idle deadline (SEC-004): a peer that opens a connection and never completes a
-    // newline-terminated frame (or dribbles bytes indefinitely) would otherwise hold the
-    // connection — and this closure's buffer — open forever.
-    const idleTimer = setTimeout(() => {
-      // No `handled` re-check is needed here: the only way to set `handled` from a `data`
-      // event is `claimFrame()` below, which clears this timer in the same synchronous step —
-      // and Node/V8's single-threaded execution model means no other callback (including this
-      // one) can run in between that assignment and the `clearTimeout` call. The fail-safe the
-      // archived provenance ledger's 2026-07-22 entry kept against a future edit reordering that
-      // sequence is now structural: the two steps live in one function and cannot be split.
-      handled = true;
-      traceJsonIpc("server.idle_timeout", {
-        durationMs: jsonIpcTraceDurationMs(startedAt),
-        idleTimeoutMs,
-        socketPath,
-        traceId,
-      });
-      socket.destroy();
-    }, idleTimeoutMs);
-    idleTimer.unref();
-    /** Claim this connection's one frame: stop accepting data and cancel the idle deadline together. */
-    const claimFrame = (): void => {
-      handled = true;
-      clearTimeout(idleTimer);
-    };
-
-    socket.on("error", (error) => {
-      // `error instanceof Error` here is defense-in-depth, not reachable
-      // through real socket usage: @types/node itself types a `Socket`'s
-      // `'error'` listener parameter as `Error` (not `unknown`), matching
-      // Node's own real implementation, which only ever emits genuine
-      // `Error`/`SystemError` instances for this event — verified against
-      // the installed `@types/node`'s `net.d.ts` this session; not asserted
-      // away since a test would have to manually `.emit()` a fabricated
-      // non-Error value to reach the other side, which isn't real socket
-      // behavior (see archived provenance ledger's 2026-07-22 entry).
-      traceJsonIpc("server.socket_error", {
-        durationMs: jsonIpcTraceDurationMs(startedAt),
-        error: describeErrorForLog({ err: error }),
-        socketPath,
-        traceId,
-      });
-    });
-    socket.on("close", () => {
-      clearTimeout(idleTimer);
-      traceJsonIpc("server.socket_close", {
-        durationMs: jsonIpcTraceDurationMs(startedAt),
-        socketPath,
-        traceId,
-      });
-    });
-    socket.on("data", async (chunk) => {
-      if (handled) return;
-      traceJsonIpc("server.data", {
-        bytes: chunk.byteLength,
-        durationMs: jsonIpcTraceDurationMs(startedAt),
-        socketPath,
-        traceId,
-      });
-      receivedBytes += chunk.byteLength;
-      if (receivedBytes > maxFrameBytes) {
-        claimFrame();
-        traceJsonIpc("server.frame_too_large", {
-          durationMs: jsonIpcTraceDurationMs(startedAt),
-          maxFrameBytes,
-          receivedBytes,
-          socketPath,
-          traceId,
-        });
-        socket.end(
-          `${JSON.stringify({
-            ok: false,
-            error: { code: "FRAME_TOO_LARGE", message: "request frame exceeds the maximum size" },
-          })}\n`,
-        );
-        return;
-      }
-      buffer += decoder.write(chunk);
-      const newlineIndex = buffer.indexOf("\n");
-      if (newlineIndex < 0) return;
-      claimFrame(); // Claim the connection before awaiting the handler — see the flag's own doc above.
-      const frame = buffer.slice(0, newlineIndex);
-      buffer = buffer.slice(newlineIndex + 1);
-      let message: unknown;
-      try {
-        message = JSON.parse(frame);
-      } catch (error) {
-        // `error instanceof Error` here is defense-in-depth, not reachable
-        // through a real `JSON.parse` failure: it only ever throws a
-        // genuine `SyntaxError` (an `Error` instance) for any string input
-        // — never a non-Error value — matching the same reasoning as the
-        // socket-error `instanceof Error` checks above (see
-        // archived provenance ledger's 2026-07-22 entry).
-        traceJsonIpc("server.frame_parse_failed", {
-          durationMs: jsonIpcTraceDurationMs(startedAt),
-          error: describeErrorForLog({ err: error }),
-          frameBytes: Buffer.byteLength(frame),
-          socketPath,
-          traceId,
-        });
-        socket.end(
-          `${JSON.stringify({
-            ok: false,
-            error: { code: "BAD_FRAME", message: "The sidecar could not read the request frame. Send one line of valid JSON." },
-          })}\n`,
-        );
-        return;
-      }
-      const messageSummary = summarizeJsonIpcMessage(message);
-      traceJsonIpc("server.frame_parsed", {
-        durationMs: jsonIpcTraceDurationMs(startedAt),
-        frameBytes: Buffer.byteLength(frame),
-        message: messageSummary,
-        socketPath,
-        traceId,
-      });
-      try {
-        traceJsonIpc("server.handler_start", {
-          durationMs: jsonIpcTraceDurationMs(startedAt),
-          message: messageSummary,
-          socketPath,
-          traceId,
-        });
-        const result = await handler({ message });
-        traceJsonIpc("server.handler_success", {
-          durationMs: jsonIpcTraceDurationMs(startedAt),
-          message: messageSummary,
-          socketPath,
-          traceId,
-        });
-        socket.end(`${JSON.stringify({ ok: true, result })}\n`);
-      } catch (error) {
-        // SEC-004: a handler failure can embed paths, credentials, or other host detail (the
-        // same trust-boundary concern as SEC-005's HTTP fix). The peer gets a stable code plus
-        // the traceId as a correlation handle; the error's class and code are logged
-        // server-side only, unconditionally (not gated behind JINI_JSON_IPC_TRACE).
-        createConsoleLogger({ prefix: '' }).error({ message: `[@jini-ai/sidecar] json-ipc handler failed (traceId=${traceId})` }, { error });
-        traceJsonIpc("server.handler_failed", {
-          durationMs: jsonIpcTraceDurationMs(startedAt),
-          error: describeErrorForLog({ err: error }),
-          message: messageSummary,
-          socketPath,
-          traceId,
-        });
-        socket.end(
-          `${JSON.stringify({
-            ok: false,
-            error: { code: "HANDLER_ERROR", message: "internal error", requestId: traceId },
-          })}\n`,
-        );
-      }
-    });
+    bindJsonIpcSocket({ socket, socketPath, handler, maxFrameBytes, idleTimeoutMs });
   });
 
   await new Promise<void>((resolveListen, rejectListen) => {
@@ -361,6 +191,206 @@ export async function createJsonIpcServer({
       if (!isWindowsNamedPipePath({ value: socketPath })) await rm(socketPath, { force: true });
     },
   };
+}
+
+function bindJsonIpcSocket({ socket, socketPath, handler, maxFrameBytes, idleTimeoutMs }: {
+  socket: Socket; socketPath: string; handler: JsonIpcHandler; maxFrameBytes: number; idleTimeoutMs: number;
+}, _optional: Record<string, never> = {}): void {
+  // One-request-per-connection guard (SEC-004): the `data` listener is `async`, so its
+  // synchronous prefix (up to the first `await`) always finishes — and can set this flag —
+  // before Node dispatches the next queued `data` event on this same socket. Once a frame has
+  // been claimed, any further bytes on this connection (a second frame arriving while the
+  // handler is still awaiting, or trailing garbage after the first frame) are ignored rather
+  // than starting a second concurrent handler call / response race.
+  let handled = false;
+  // Decode UTF-8 across chunk boundaries: a multibyte character (e.g. CJK,
+  // 3 bytes) can be split across two `data` events. `chunk.toString()` per
+  // chunk would turn each half into U+FFFD, corrupting the payload (observed
+  // as `???`/`◆?◆?◆?` in exported CJK artifacts). StringDecoder holds an
+  // incomplete trailing sequence until the next chunk completes it.
+  const decoder = new StringDecoder("utf8");
+  const traceId = nextJsonIpcTraceId();
+  const startedAt = process.hrtime.bigint();
+  traceJsonIpc("server.connection", { socketPath, traceId });
+
+  // Idle deadline (SEC-004): a peer that opens a connection and never completes a
+  // newline-terminated frame (or dribbles bytes indefinitely) would otherwise hold the
+  // connection — and this closure's buffer — open forever.
+  const idleTimer = setTimeout(() => {
+    // No `handled` re-check is needed here: the only way to set `handled` from a `data`
+    // event is `claimFrame()` below, which clears this timer in the same synchronous step —
+    // and Node/V8's single-threaded execution model means no other callback (including this
+    // one) can run in between that assignment and the `clearTimeout` call. The fail-safe the
+    // archived provenance ledger's 2026-07-22 entry kept against a future edit reordering that
+    // sequence is now structural: the two steps live in one function and cannot be split.
+    handled = true;
+    traceJsonIpc("server.idle_timeout", {
+      durationMs: jsonIpcTraceDurationMs(startedAt),
+      idleTimeoutMs,
+      socketPath,
+      traceId,
+    });
+    socket.destroy();
+  }, idleTimeoutMs);
+  idleTimer.unref();
+  /** Claim this connection's one frame: stop accepting data and cancel the idle deadline together. */
+  const claimFrame = (): void => {
+    handled = true;
+    clearTimeout(idleTimer);
+  };
+
+  bindJsonIpcSocketTraces({ socket, socketPath, traceId, startedAt, idleTimer });
+  bindJsonIpcData({ socket, socketPath, handler, maxFrameBytes, traceId, startedAt, decoder, isHandled: () => handled, claimFrame });
+}
+
+function bindJsonIpcSocketTraces({ socket, socketPath, traceId, startedAt, idleTimer }: {
+  socket: Socket; socketPath: string; traceId: string; startedAt: bigint; idleTimer: ReturnType<typeof setTimeout>;
+}, _optional: Record<string, never> = {}): void {
+  socket.on("error", (error) => {
+    // `error instanceof Error` here is defense-in-depth, not reachable
+    // through real socket usage: @types/node itself types a `Socket`'s
+    // `'error'` listener parameter as `Error` (not `unknown`), matching
+    // Node's own real implementation, which only ever emits genuine
+    // `Error`/`SystemError` instances for this event — verified against
+    // the installed `@types/node`'s `net.d.ts` this session; not asserted
+    // away since a test would have to manually `.emit()` a fabricated
+    // non-Error value to reach the other side, which isn't real socket
+    // behavior (see archived provenance ledger's 2026-07-22 entry).
+    traceJsonIpc("server.socket_error", {
+      durationMs: jsonIpcTraceDurationMs(startedAt),
+      error: describeErrorForLog({ err: error }),
+      socketPath,
+      traceId,
+    });
+  });
+  socket.on("close", () => {
+    clearTimeout(idleTimer);
+    traceJsonIpc("server.socket_close", {
+      durationMs: jsonIpcTraceDurationMs(startedAt),
+      socketPath,
+      traceId,
+    });
+  });
+}
+
+function bindJsonIpcData({ socket, socketPath, handler, maxFrameBytes, traceId, startedAt, decoder, isHandled, claimFrame }: {
+  socket: Socket; socketPath: string; handler: JsonIpcHandler; maxFrameBytes: number; traceId: string; startedAt: bigint; decoder: StringDecoder; isHandled: () => boolean; claimFrame: () => void;
+}, _optional: Record<string, never> = {}): void {
+  let buffer = "";
+  let receivedBytes = 0;
+  socket.on("data", async (chunk) => {
+    if (isHandled()) return;
+    traceJsonIpc("server.data", {
+      bytes: chunk.byteLength,
+      durationMs: jsonIpcTraceDurationMs(startedAt),
+      socketPath,
+      traceId,
+    });
+    receivedBytes += chunk.byteLength;
+    if (receivedBytes > maxFrameBytes) {
+      claimFrame();
+      traceJsonIpc("server.frame_too_large", {
+        durationMs: jsonIpcTraceDurationMs(startedAt),
+        maxFrameBytes,
+        receivedBytes,
+        socketPath,
+        traceId,
+      });
+      socket.end(
+        `${JSON.stringify({
+          ok: false,
+          error: { code: "FRAME_TOO_LARGE", message: "request frame exceeds the maximum size" },
+        })}\n`,
+      );
+      return;
+    }
+    buffer += decoder.write(chunk);
+    const newlineIndex = buffer.indexOf("\n");
+    if (newlineIndex < 0) return;
+    claimFrame(); // Claim the connection before awaiting the handler — see the flag's own doc above.
+    const frame = buffer.slice(0, newlineIndex);
+    buffer = buffer.slice(newlineIndex + 1);
+    await parseAndDispatchJsonIpcFrame({ socket, socketPath, handler, traceId, startedAt, frame });
+  });
+}
+
+async function parseAndDispatchJsonIpcFrame({ socket, socketPath, handler, traceId, startedAt, frame }: {
+  socket: Socket; socketPath: string; handler: JsonIpcHandler; traceId: string; startedAt: bigint; frame: string;
+}, _optional: Record<string, never> = {}): Promise<void> {
+  let message: unknown;
+  try {
+    message = JSON.parse(frame);
+  } catch (error) {
+    // `error instanceof Error` here is defense-in-depth, not reachable
+    // through a real `JSON.parse` failure: it only ever throws a
+    // genuine `SyntaxError` (an `Error` instance) for any string input
+    // — never a non-Error value — matching the same reasoning as the
+    // socket-error `instanceof Error` checks above (see
+    // archived provenance ledger's 2026-07-22 entry).
+    traceJsonIpc("server.frame_parse_failed", {
+      durationMs: jsonIpcTraceDurationMs(startedAt),
+      error: describeErrorForLog({ err: error }),
+      frameBytes: Buffer.byteLength(frame),
+      socketPath,
+      traceId,
+    });
+    socket.end(
+      `${JSON.stringify({
+        ok: false,
+        error: { code: "BAD_FRAME", message: "The sidecar could not read the request frame. Send one line of valid JSON." },
+      })}\n`,
+    );
+    return;
+  }
+  const messageSummary = summarizeJsonIpcMessage(message);
+  traceJsonIpc("server.frame_parsed", {
+    durationMs: jsonIpcTraceDurationMs(startedAt),
+    frameBytes: Buffer.byteLength(frame),
+    message: messageSummary,
+    socketPath,
+    traceId,
+  });
+  await dispatchJsonIpcHandler({ socket, socketPath, handler, traceId, startedAt, message, messageSummary });
+}
+
+async function dispatchJsonIpcHandler({ socket, socketPath, handler, traceId, startedAt, message, messageSummary }: {
+  socket: Socket; socketPath: string; handler: JsonIpcHandler; traceId: string; startedAt: bigint; message: unknown; messageSummary: ReturnType<typeof summarizeJsonIpcMessage>;
+}, _optional: Record<string, never> = {}): Promise<void> {
+  try {
+    traceJsonIpc("server.handler_start", {
+      durationMs: jsonIpcTraceDurationMs(startedAt),
+      message: messageSummary,
+      socketPath,
+      traceId,
+    });
+    const result = await handler({ message });
+    traceJsonIpc("server.handler_success", {
+      durationMs: jsonIpcTraceDurationMs(startedAt),
+      message: messageSummary,
+      socketPath,
+      traceId,
+    });
+    socket.end(`${JSON.stringify({ ok: true, result })}\n`);
+  } catch (error) {
+    // SEC-004: a handler failure can embed paths, credentials, or other host detail (the
+    // same trust-boundary concern as SEC-005's HTTP fix). The peer gets a stable code plus
+    // the traceId as a correlation handle; the error's class and code are logged
+    // server-side only, unconditionally (not gated behind JINI_JSON_IPC_TRACE).
+    createConsoleLogger({ prefix: '' }).error({ message: `[@jini-ai/sidecar] json-ipc handler failed (traceId=${traceId})` }, { error });
+    traceJsonIpc("server.handler_failed", {
+      durationMs: jsonIpcTraceDurationMs(startedAt),
+      error: describeErrorForLog({ err: error }),
+      message: messageSummary,
+      socketPath,
+      traceId,
+    });
+    socket.end(
+      `${JSON.stringify({
+        ok: false,
+        error: { code: "HANDLER_ERROR", message: "The sidecar could not finish this request. Try again, and report the request ID if it keeps failing.", requestId: traceId },
+      })}\n`,
+    );
+  }
 }
 
 /**

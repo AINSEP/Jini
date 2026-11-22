@@ -874,13 +874,13 @@
    "DbQueryTracker": "interface:b98c2b41b6",
    "DbQueryTrackingInput": "interface:b4a3892b07",
    "DbQueryTrackingOutcome": "interface:6b07c3659d",
-   "ErrorReport": "interface:45e80d00ad",
+   "ErrorReport": "interface:e4222061c5",
    "MetricInput": "interface:752a847e41",
    "MetricOptions": "interface:520fca4487",
    "ObservabilityAdapter": "interface:1491e9a1a8",
    "ObservabilityPort": "interface:31cd0e8417",
    "OperationAttributes": "type:5f21641fd2",
-   "OperationTracker": "interface:b54c24a11f",
+   "OperationTracker": "interface:e2fc167fd8",
    "OperationTrackingInput": "interface:444ac8d49e",
    "OperationTrackingOutcome": "interface:7c125d443d",
    "OutboundCallTracker": "interface:93dd9f6da0",
@@ -1301,13 +1301,13 @@
   "symbols": {
    "DescribeFailureOptions": "interface:ef4c9db83f",
    "DescribedFailure": "interface:7aedc11e91",
-   "ErrorReporter": "interface:619fcf6ade",
+   "ErrorReporter": "interface:7c0c9ecea4",
    "ErrorReporterOptions": "interface:ac22a19a67",
-   "ErrorReporterPorts": "interface:bf5bbcad58",
-   "IncidentTrackerReport": "interface:9b6221d1ce",
+   "ErrorReporterPorts": "interface:868a3a6148",
    "RecordFailureOptions": "interface:a5fcc0a160",
    "UNAVAILABLE_ERROR_ID": "variable:e377da43a0",
-   "createErrorReporter": "function:62aa2f03cb"
+   "createErrorReporter": "function:62aa2f03cb",
+   "runOperation": "function:98c41a1385"
   }
  },
  "./errors/sentences": {
@@ -1330,8 +1330,8 @@
    "RecordingReporterOptions": "interface:92af02eb35",
    "createFixedClock": "function:de8ac795fe",
    "createRecordingLogger": "function:963a3a7046",
-   "createRecordingReporter": "function:2bb26a5e30",
-   "createRecordingTracker": "function:fedae55ab5",
+   "createRecordingObservability": "function:ae0d55e8f1",
+   "createRecordingReporter": "function:af37d0cb14",
    "createSequenceIds": "function:73f349d19e"
   }
  },

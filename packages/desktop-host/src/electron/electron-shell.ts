@@ -1,3 +1,4 @@
+import { orFallback } from '@jini-ai/core/errors/idioms';
 import { stat } from 'node:fs/promises';
 import { ShellError, type OpenFolderDialogOptions, type ShellPort } from '../shell.js';
 import type { ElectronAppLike, ElectronDialogLike, ElectronShellLike } from './electron-surfaces.js';
@@ -21,12 +22,10 @@ export function createElectronShellPort(surfaces: ElectronShellSurfaces): ShellP
     // calling `node:fs/promises` directly rather than adding a new structural Electron surface
     // for a capability Electron's own main process didn't need mediating in the first place.
     async dirExists({ path }: { path: string }): Promise<boolean> {
-      try {
+      return orFallback({ work: async () => {
         const info = await stat(path);
         return info.isDirectory();
-      } catch {
-        return false;
-      }
+      }, fallback: false, step: 'Check Electron directory' });
     },
     async recentDirs(): Promise<string[]> {
       return surfaces.app.getRecentDocuments();

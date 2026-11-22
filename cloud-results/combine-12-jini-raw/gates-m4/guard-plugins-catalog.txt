@@ -1,0 +1,155 @@
+
+> jini@ guard:plugins:catalog /home/user/Jini
+> pnpm --filter @jini-ai/plugin-catalog run generate && pnpm --filter @jini-ai/plugin-catalog run test
+
+
+> @jini-ai/plugin-catalog@0.7.3-next.2 generate /home/user/Jini/packages/plugin-catalog
+> node --import tsx scripts/generate.ts
+
+
+> @jini-ai/plugin-catalog@0.7.3-next.2 test /home/user/Jini/packages/plugin-catalog
+> vitest run
+
+
+ RUN  v3.2.7 /home/user/Jini/packages/plugin-catalog
+
+npm warn Unknown env config "disallow-workspace-cycles". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown env config "prefer-workspace-packages". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown env config "verify-deps-before-run". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown env config "minimum-release-age". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown env config "npm-globalconfig". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown env config "package-extensions". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown env config "link-workspace-packages". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown env config "recursive". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown env config "_jsr-registry". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm notice
+npm notice package: @jini-ai/plugin-catalog@0.7.3-next.2
+npm notice Tarball Contents
+npm notice 11.3kB LICENSE
+npm notice 256B NOTICE
+npm notice 2.6kB README.md
+npm notice 92.6kB catalog.json
+npm notice 905B package.json
+npm notice Tarball Details
+npm notice name: @jini-ai/plugin-catalog
+npm notice version: 0.7.3-next.2
+npm notice filename: jini-ai-plugin-catalog-0.7.3-next.2.tgz
+npm notice package size: 34.4 kB
+npm notice unpacked size: 107.7 kB
+npm notice shasum: eefa1719ba4e958251ca9d0a01557ef447bb19b6
+npm notice integrity: sha512-x2j1bcI5JUcUm[...]QRAs2ftpEVa4g==
+npm notice total files: 5
+npm notice
+ ❯ __tests__/catalog.test.ts (68 tests | 1 failed) 473ms
+   ✓ standalone plugin catalog > lists every provider source exactly once and each agent plugin package 4ms
+   ✓ standalone plugin catalog > 'provider' 'ai-trace-langfuse' matches its real package, publisher, path and contract 4ms
+   ✓ standalone plugin catalog > 'provider' 'analytics-posthog' matches its real package, publisher, path and contract 2ms
+   ✓ standalone plugin catalog > 'agent' 'calendly' matches its real package, publisher, path and contract 2ms
+   ✓ standalone plugin catalog > 'agent' 'charts-echarts' matches its real package, publisher, path and contract 2ms
+   ✓ standalone plugin catalog > 'provider' 'charts-echarts' matches its real package, publisher, path and contract 1ms
+   ✓ standalone plugin catalog > 'agent' 'charts-recharts' matches its real package, publisher, path and contract 2ms
+   ✓ standalone plugin catalog > 'provider' 'charts-recharts' matches its real package, publisher, path and contract 1ms
+   ✓ standalone plugin catalog > 'agent' 'cloudflare' matches its real package, publisher, path and contract 2ms
+   ✓ standalone plugin catalog > 'agent' 'commerce' matches its real package, publisher, path and contract 1ms
+   ✓ standalone plugin catalog > 'agent' 'composio' matches its real package, publisher, path and contract 1ms
+   ✓ standalone plugin catalog > 'provider' 'fixture-provider' matches its real package, publisher, path and contract 2ms
+   ✓ standalone plugin catalog > 'agent' 'fly' matches its real package, publisher, path and contract 1ms
+   ✓ standalone plugin catalog > 'agent' 'formspree' matches its real package, publisher, path and contract 2ms
+   ✓ standalone plugin catalog > 'provider' 'formspree' matches its real package, publisher, path and contract 1ms
+   ✓ standalone plugin catalog > 'agent' 'github' matches its real package, publisher, path and contract 1ms
+   ✓ standalone plugin catalog > 'agent' 'github-pages' matches its real package, publisher, path and contract 1ms
+   ✓ standalone plugin catalog > 'agent' 'google-forms' matches its real package, publisher, path and contract 2ms
+   ✓ standalone plugin catalog > 'provider' 'google-forms' matches its real package, publisher, path and contract 1ms
+   ✓ standalone plugin catalog > 'agent' 'google-login' matches its real package, publisher, path and contract 2ms
+   ✓ standalone plugin catalog > 'agent' 'google-workspace' matches its real package, publisher, path and contract 2ms
+   ✓ standalone plugin catalog > 'agent' 'higgsfield-media' matches its real package, publisher, path and contract 2ms
+   ✓ standalone plugin catalog > 'agent' 'jev' matches its real package, publisher, path and contract 1ms
+   ✓ standalone plugin catalog > 'agent' 'kuinetic' matches its real package, publisher, path and contract 1ms
+   ✓ standalone plugin catalog > 'agent' 'langfuse' matches its real package, publisher, path and contract 2ms
+   ✓ standalone plugin catalog > 'agent' 'meilisearch' matches its real package, publisher, path and contract 1ms
+   ✓ standalone plugin catalog > 'agent' 'netlify' matches its real package, publisher, path and contract 1ms
+   ✓ standalone plugin catalog > 'provider' 'observability-opentelemetry' matches its real package, publisher, path and contract 1ms
+   ✓ standalone plugin catalog > 'provider' 'observability-sentry' matches its real package, publisher, path and contract 1ms
+   ✓ standalone plugin catalog > 'agent' 'opentelemetry' matches its real package, publisher, path and contract 1ms
+   ✓ standalone plugin catalog > 'provider' 'payments-stripe' matches its real package, publisher, path and contract 1ms
+   ✓ standalone plugin catalog > 'agent' 'posthog' matches its real package, publisher, path and contract 1ms
+   ✓ standalone plugin catalog > 'agent' 'railway' matches its real package, publisher, path and contract 1ms
+   ✓ standalone plugin catalog > 'agent' 'render' matches its real package, publisher, path and contract 1ms
+   ✓ standalone plugin catalog > 'agent' 'resend' matches its real package, publisher, path and contract 2ms
+   ✓ standalone plugin catalog > 'agent' 's3-compatible' matches its real package, publisher, path and contract 1ms
+   ✓ standalone plugin catalog > 'agent' 'sentry' matches its real package, publisher, path and contract 2ms
+   ✓ standalone plugin catalog > 'agent' 'shadcn-ui' matches its real package, publisher, path and contract 3ms
+   ✓ standalone plugin catalog > 'agent' 'shopify' matches its real package, publisher, path and contract 1ms
+   ✓ standalone plugin catalog > 'agent' 'site-compliance' matches its real package, publisher, path and contract 1ms
+   ✓ standalone plugin catalog > 'agent' 'site-import' matches its real package, publisher, path and contract 1ms
+   ✓ standalone plugin catalog > 'agent' 'slide-design' matches its real package, publisher, path and contract 1ms
+   ✓ standalone plugin catalog > 'agent' 'software-engineering' matches its real package, publisher, path and contract 1ms
+   ✓ standalone plugin catalog > 'agent' 'stripe' matches its real package, publisher, path and contract 1ms
+   ✓ standalone plugin catalog > 'agent' 'supabase' matches its real package, publisher, path and contract 1ms
+   ✓ standalone plugin catalog > 'agent' 'ui-ux-design' matches its real package, publisher, path and contract 1ms
+   ✓ standalone plugin catalog > 'agent' 'vercel' matches its real package, publisher, path and contract 1ms
+   ✓ standalone plugin catalog > 'agent' 'wordpress' matches its real package, publisher, path and contract 1ms
+   × standalone plugin catalog > preserves each agent manifest version independently of the npm release 13ms
+     → expected { kind: 'agent', …(9) } to match object { kind: 'agent', …(5) }
+(48 matching properties omitted from actual)
+   ✓ standalone plugin catalog > ships both hosted form faces through independent shared-package subpaths with real integrity 0ms
+   ✓ standalone plugin catalog > has no dependencies, executable exports or install hooks 1ms
+   ✓ standalone plugin catalog > packs only metadata and documentation into the actual npm tarball  371ms
+   ✓ agent subpaths, provider-plugins providers and browser-only providers > lists a provider and its face that share a local id as two entries keyed by kind 2ms
+   ✓ agent subpaths, provider-plugins providers and browser-only providers > refuses a face and a provider that claim the same publisher identity instead of merging them 1ms
+   ✓ agent subpaths, provider-plugins providers and browser-only providers > refuses the same plugin listed twice in one kind 1ms
+   ✓ agent subpaths, provider-plugins providers and browser-only providers > requires the declared browser bundle digest of a browser-only provider 0ms
+   ✓ agent subpaths, provider-plugins providers and browser-only providers > does not invent a contract for a provider with neither server nor browser contributions 0ms
+   ✓ agent subpaths, provider-plugins providers and browser-only providers > an agent entry names the agent-plugins package and its subpath, never a per-plugin package 0ms
+   ✓ agent subpaths, provider-plugins providers and browser-only providers > always catalogues providers from their shared owner even if a retired wrapper exists 0ms
+   ✓ release catalog generation > records the integrity owner output and keeps the source unchanged 0ms
+   ✓ release catalog generation > rejects a package claiming another plugin id 0ms
+   ✓ release catalog generation > rejects an absent provider contract 0ms
+   ✓ release catalog generation > rejects missing completed payloads instead of publishing placeholders 0ms
+   ✓ release catalog generation > rejects stale artifact versions 0ms
+   ✓ release catalog generation > rejects modified payloads even with otherwise matching metadata 0ms
+   ✓ release catalog generation > rejects a provider payload with no entry digest 0ms
+   ✓ release catalog generation > records agent file digests without changing its manifest or schema version 1ms
+   ✓ release catalog generation > rejects an empty agent payload digest map 1ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  __tests__/catalog.test.ts > standalone plugin catalog > preserves each agent manifest version independently of the npm release
+AssertionError: expected { kind: 'agent', …(9) } to match object { kind: 'agent', …(5) }
+(48 matching properties omitted from actual)
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[33m@@ -4,8 +4,8 @@[39m
+[2m      "version": "1.0.0",[22m
+[2m    },[22m
+[2m    "kind": "agent",[22m
+[2m    "packageName": "@jini-ai/agent-plugins",[22m
+[2m    "path": "ui-ux-design",[22m
+[32m-   "pluginVersion": "0.7.0",[39m
+[31m+   "pluginVersion": "0.7.1",[39m
+[2m    "version": "0.7.3-next.2",[22m
+[2m  }[22m
+
+ ❯ __tests__/catalog.test.ts:44:64
+     42| 
+     43|   it('preserves each agent manifest version independently of the npm r…
+     44|     expect(entries.find(entry => entry.id === 'ui-ux-design')).toMatch…
+       |                                                                ^
+     45|       kind: 'agent', packageName: AGENT_PLUGINS_PACKAGE, version: agen…
+     46|       contract: { id: 'agent-plugins', version: '1.0.0' },
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 67 passed (68)
+   Start at  02:14:42
+   Duration  800ms (transform 96ms, setup 0ms, collect 132ms, tests 473ms, environment 0ms, prepare 64ms)
+
+/home/user/Jini/packages/plugin-catalog:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @jini-ai/plugin-catalog@0.7.3-next.2 test: `vitest run`
+Exit status 1
+ ELIFECYCLE  Command failed with exit code 1.
+EXIT 1

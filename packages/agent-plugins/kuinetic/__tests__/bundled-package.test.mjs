@@ -37,20 +37,21 @@ test('the delivered SKILL.md and its file inventory stay under the 8 KiB automat
   assert.ok(bytes + 512 < 8 * 1024, `${bytes} bytes`);
 });
 
-// "Redesign this site, use kuinetic" ranks kuinetic first and delivers only it on turn 1, so its
-// core names the exact call that loads the ui-ux-design core before any design work.
-test('the core names the ui-ux-design load call near the top', async () => {
+// "Redesign this site, use kuinetic" previously ranked kuinetic first and delivered only it on turn 1,
+// so its core named the exact call that loaded the ui-ux-design core before any design work.
+test('the core keeps the conditional ui-ux-design fallback near the top', async () => {
   const skill = await read('skills/kuinetic/SKILL.md');
-  const call = '`load_agent_plugin({ "pluginId": "ui-ux-design", "skill": "ui-ux-design" })`';
-  assert.ok(skill.includes(call));
-  assert.ok(skill.indexOf(call) < skill.indexOf('\n## '), 'before the first section');
-  assert.match(skill, /before designing or redesigning a theme or page, load the ui-ux-design core/);
+  const fallback = "If the ui-ux-design plugin is available, load its ui-ux-design skill first using this host's plugin guidance reader; otherwise follow the basic design rules below.";
+  assert.ok(skill.includes(fallback), 'the exact portable conditional fallback is present');
+  assert.ok(skill.indexOf(fallback) < skill.indexOf('\n## '), 'before the first section');
+  assert.doesNotMatch(skill, /load_agent_plugin/, 'the fallback uses the current host guidance reader');
+  assert.deepEqual(JSON.parse(await read('plugin.json')).extensions.jini.companions, ['ui-ux-design'], 'the router receives the named design companion');
 });
 
 test('the manifest and its own changelog version the plugin independently of ui-ux-design', async () => {
   const manifest = JSON.parse(await read('plugin.json'));
   assert.equal(manifest.name, 'kuinetic');
-  assert.equal(manifest.version, '0.1.0');
+  assert.equal(manifest.version, '0.1.1', 'the companion guidance advances the inner version');
   assert.equal(manifest.extensions.jini.id, 'jini/kuinetic');
   assert.ok(manifest.keywords.includes('kuinetic'));
   assert.match(await read('CHANGELOG.md'), new RegExp(`\n## ${manifest.version.replaceAll('.', '\\.')}\n`));

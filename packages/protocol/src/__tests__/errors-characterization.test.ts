@@ -5,7 +5,7 @@ describe('API error decoding characterization', () => {
   it.each([undefined, null, [], 'failure', 0, false, Symbol('failure'), () => 'failure'])(
     'rejects non-record bodies without reading envelope fields: %s',
     body => {
-      expect(decodeApiError({ body })).toStrictEqual({ message: 'request failed' });
+      expect(decodeApiError({ body }), 'Non-record responses use the safe default words').toStrictEqual({ message: 'The server did not give a reason for this response. Check whether the change was saved before trying again.' });
       expect(decodeApiError({ body }, { fallbackMessage: 'custom fallback' }))
         .toStrictEqual({ message: 'custom fallback' });
     },
@@ -69,9 +69,9 @@ describe('API error decoding characterization', () => {
 
   it.each([{}, { error: {} }, { message: false }, { message: ['failure'] }])(
     'uses defaults or an explicitly empty fallback for missing string messages: %j', body => {
-      expect(decodeApiError({ body }, {})).toStrictEqual({ message: 'request failed' });
-      expect(decodeApiError({ body }))
-        .toStrictEqual({ message: 'request failed' });
+      expect(decodeApiError({ body }, {}), 'Empty options preserve the safe default words').toStrictEqual({ message: 'The server did not give a reason for this response. Check whether the change was saved before trying again.' });
+      expect(decodeApiError({ body }), 'Missing messages use the safe default words')
+        .toStrictEqual({ message: 'The server did not give a reason for this response. Check whether the change was saved before trying again.' });
       expect(decodeApiError({ body }, { fallbackMessage: '' })).toStrictEqual({ message: '' });
     },
   );

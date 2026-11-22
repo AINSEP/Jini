@@ -1,0 +1,55 @@
+diff --git a/api-baseline/jini-ai__agent-plugins.json b/api-baseline/jini-ai__agent-plugins.json
+index 4f585f09..7b0cf454 100644
+--- a/api-baseline/jini-ai__agent-plugins.json
++++ b/api-baseline/jini-ai__agent-plugins.json
+@@ -527 +527 @@
+-   "AgentPluginManifest": "interface:9bdfdd5a99",
++   "AgentPluginManifest": "interface:0243f71b24",
+@@ -537 +537 @@
+-   "AgentPluginSearchCandidate": "interface:529879efd1",
++   "AgentPluginSearchCandidate": "interface:b5d4b2ae1c",
+@@ -552 +552 @@
+-   "AutomaticAgentPluginPorts": "interface:3b1cf825df",
++   "AutomaticAgentPluginPorts": "interface:e7277e9ab9",
+@@ -570 +570 @@
+-   "InstalledAgentPlugin": "interface:82c59e0791",
++   "InstalledAgentPlugin": "interface:5bc71adf58",
+@@ -657 +657 @@
+-   "readAgentPluginCompatibilityMetadata": "function:7a4b567d22",
++   "readAgentPluginCompatibilityMetadata": "function:4cd642871c",
+@@ -793 +793 @@
+-   "AgentPluginManifest": "interface:9bdfdd5a99",
++   "AgentPluginManifest": "interface:0243f71b24",
+diff --git a/api-baseline/jini-ai__chat.json b/api-baseline/jini-ai__chat.json
+index b88a6173..febf6f03 100644
+--- a/api-baseline/jini-ai__chat.json
++++ b/api-baseline/jini-ai__chat.json
+@@ -435 +435 @@
+-   "drainRunFramesToAgUi": "function:44ffd0d379",
++   "drainRunFramesToAgUi": "function:108fbba46e",
+diff --git a/api-baseline/jini-ai__core.json b/api-baseline/jini-ai__core.json
+index baffb8e2..fb9ea7c6 100644
+--- a/api-baseline/jini-ai__core.json
++++ b/api-baseline/jini-ai__core.json
+@@ -877 +877 @@
+-   "ErrorReport": "interface:45e80d00ad",
++   "ErrorReport": "interface:e4222061c5",
+@@ -883 +883 @@
+-   "OperationTracker": "interface:b54c24a11f",
++   "OperationTracker": "interface:e2fc167fd8",
+@@ -1304 +1304 @@
+-   "ErrorReporter": "interface:619fcf6ade",
++   "ErrorReporter": "interface:7c0c9ecea4",
+@@ -1306,2 +1306 @@
+-   "ErrorReporterPorts": "interface:bf5bbcad58",
+-   "IncidentTrackerReport": "interface:9b6221d1ce",
++   "ErrorReporterPorts": "interface:868a3a6148",
+@@ -1310 +1309,2 @@
+-   "createErrorReporter": "function:62aa2f03cb"
++   "createErrorReporter": "function:62aa2f03cb",
++   "runOperation": "function:98c41a1385"
+@@ -1333,2 +1333,2 @@
+-   "createRecordingReporter": "function:2bb26a5e30",
+-   "createRecordingTracker": "function:fedae55ab5",
++   "createRecordingObservability": "function:ae0d55e8f1",
++   "createRecordingReporter": "function:af37d0cb14",

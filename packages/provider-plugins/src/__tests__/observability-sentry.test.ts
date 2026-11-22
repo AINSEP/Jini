@@ -182,6 +182,52 @@ test("review #6: dispose releases the SDK's beforeExit listeners (repeated open/
   assert.equal(process.listenerCount("beforeExit"), baseline);
 });
 
+test('a tagged incident exports its label, ID and frames without its message', async () => {
+  const { items, transport } = recordingTransport();
+  const { port, dispose } = createSentryObservabilityAdapter({ config: CONFIG }, { transport });
+  port.reportError({ error: new Error('secret canary-XYZ'), context: {
+    operation: 'site.export', incidentId: 'ERR-1111-2222-3333-4444', label: 'TypeError',
+  } });
+  await dispose();
+  const events = items.filter(item => item.type === 'event');
+  assert.equal(events.length, 1, 'one incident produces one event');
+  const exception = events[0]!.payload.exception.values[0];
+  assert.equal(exception.type, 'TypeError', 'the supplied label is the exception type');
+  assert.equal(exception.value, 'ERR-1111-2222-3333-4444', 'the incident ID replaces the message');
+  assert.ok(exception.stacktrace.frames.length > 0, 'original stack frames remain available');
+  assert.ok(!JSON.stringify(events[0]).includes('canary-XYZ'), 'the message never enters the event');
+});
+
+test('Sentry operation traceIds belong to that tracker outside its active scope', async () => {
+  const { items, transport } = recordingTransport();
+  const { port, dispose } = createSentryObservabilityAdapter({ config: CONFIG }, { transport });
+  const operation = port.trackOperation({ name: 'site.export' });
+  const other = port.trackOperation({ name: 'other' });
+  const ids = other.run(() => operation.traceIds?.());
+  operation.end({ outcome: 'completed', failed: false });
+  other.end({ outcome: 'completed', failed: false });
+  await dispose();
+  const span = items.find(item => item.type === 'transaction' && item.payload.transaction === 'site.export')!.payload.contexts.trace;
+  assert.deepEqual(ids, { traceId: span.trace_id, spanId: span.span_id }, 'the tracker returns its own span IDs');
+});
+
+test('OTel operation traceIds belong to that tracker outside its active scope', async () => {
+  const exporter = new InMemorySpanExporter();
+  const resource = createOtelObservabilityAdapter({ config: {
+    enabled: true, serviceName: 'fixture', tracerName: 'fixture', endpoint: 'https://collector.invalid/v1/traces',
+  } }, { exportEnabled: true, spanProcessors: [new SimpleSpanProcessor(exporter)] });
+  try {
+    const operation = resource.port.trackOperation({ name: 'site.export' });
+    const other = resource.port.trackOperation({ name: 'other' });
+    const ids = other.run(() => operation.traceIds?.());
+    operation.end({ outcome: 'completed', failed: false });
+    other.end({ outcome: 'completed', failed: false });
+    const span = exporter.getFinishedSpans().find(span => span.name === 'site.export')!.spanContext();
+    assert.deepEqual(ids, { traceId: span.traceId, spanId: span.spanId }, 'the tracker returns its own span IDs');
+  } finally { await resource.dispose(); }
+  // dispose() flushes the OTLP exporter towards collector.invalid; where name lookup hangs (sandboxed CI) that waits out the exporter timeout, as the composed-tracker case above does.
+}, 60_000);
+
 test("operation end: settled attributes and failure status reach the transaction; a second end is ignored", async () => {
   const { items, transport } = recordingTransport();
   const { port, dispose } = createSentryObservabilityAdapter({ config: CONFIG }, { transport });

@@ -108,7 +108,7 @@ describe('the three relationships', () => {
 
 describe('order and trust', () => {
   test('a subclass listed first wins, with its guidance; its superclass still matches its own code', () => {
-    expect(catalog.match({ error: new PostVersionConflictError('stale'), scope: 'content-post' })).toMatchObject({ code: 'VERSION_CONFLICT', guidance: 'Call get_post again.', message: 'stale' });
+    expect(catalog.match({ error: new PostVersionConflictError('stale'), scope: 'content-post' }), 'subclass matching keeps the selected code and guidance').toMatchObject({ code: 'VERSION_CONFLICT', guidance: 'Call get_post again.' });
     expect(codeOf(new PostConflictError('slug taken'), 'content-post')).toBe('CONTENT_POST_CONFLICT');
   });
 
@@ -127,8 +127,8 @@ describe('order and trust', () => {
 });
 
 describe('words', () => {
-  test('own-message publishes the error message, fixed publishes the binding text, sentence carries the sentence and its values', () => {
-    expect(catalog.match({ error: new ForbiddenError('principal p-1 lacks posts:write'), scope: 'content-post' })).toEqual({ scope: 'content-post', code: 'CONTENT_POST_FORBIDDEN', mode: 'own-message', message: 'principal p-1 lacks posts:write' });
+  test('own-message keeps its mode, fixed publishes binding text, sentence carries its values', () => {
+    expect(catalog.match({ error: new ForbiddenError('principal p-1 lacks posts:write'), scope: 'content-post' }), 'own-message matches carry no error message for callers').toEqual({ scope: 'content-post', code: 'CONTENT_POST_FORBIDDEN', mode: 'own-message' });
     expect(catalog.match({ error: new SealerError('plaintext: hunter2'), scope: 'content-post' })).toEqual({ scope: 'content-post', code: 'CONTENT_POST_SEAL_FAILED', mode: 'fixed', message: 'The post could not be sealed.' });
     expect(catalog.match({ error: new QuotaError('over'), scope: 'content-post' })).toEqual({
       scope: 'content-post', code: 'CONTENT_POST_QUOTA', mode: 'sentence', params: { used: 12, limit: 10 }, sentence: words('You have {used} of {limit} posts.', 429) });
@@ -188,10 +188,12 @@ describe('the existing consumers keep their exact strings', () => {
     expect(reclassifyToolError({ err: quota, rules })).toBe(quota);
   });
 
-  test('caller-safe rules publish the own message or the fixed text, and the fallback for the rest', () => {
+  test('caller-safe rules exclude own-message while model rules keep it', () => {
     const safe = catalog.callerSafeRules({ scope: 'content-post' });
     expect(callerSafeErrorMessage({ err: new SealerError('plaintext: hunter2'), rules: safe, fallback: 'fallback' })).toBe('The post could not be sealed.');
-    expect(callerSafeErrorMessage({ err: new ForbiddenError('no access'), rules: safe, fallback: 'fallback' })).toBe('no access');
+    expect(safe.map(rule => rule.error), 'own-message bindings are absent from caller-safe rules').not.toContain(ForbiddenError);
+    expect(callerSafeErrorMessage({ err: new ForbiddenError('no access'), rules: safe, fallback: 'fallback' }), 'caller-safe rules fall back for own-message errors').toBe('fallback');
+    expect(rules.map(rule => rule.error), 'model rules retain own-message bindings').toContain(ForbiddenError);
     expect(callerSafeErrorMessage({ err: new QuotaError('over'), rules: safe, fallback: 'fallback' })).toBe('fallback');
   });
 

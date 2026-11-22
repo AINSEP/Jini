@@ -57,7 +57,13 @@ This skill covers the thinking and the design. It renders nothing itself.
 
 ## Output
 
-Default: an outline and slide specs in chat, one block per slide:
+Design-only requests may return in chat: an outline and slide specs, one block per slide.
+Save requested page or deck work with the current host's tools.
+“Make an HTML deck” means produce an HTML artifact, one HTML document with one section per slide
+(`references/html-deck.md`). If no save tool is available, return the complete HTML artifact in chat and explain the limitation.
+Publish only when requested.
+
+Slide spec format:
 
 ```
 ### 4. Churn fell by a third after the onboarding rollout
@@ -79,7 +85,7 @@ Other outputs:
 ## Host tool use
 
 - Find the host's tools first (tool search or tool list). Use what fits:
-  - page or HTML tools to publish the deck;
+  - page or HTML tools to save the deck; publish only when requested;
   - theme tools to read colour and font tokens;
   - media tools to find or upload images;
   - screenshot tools to check each slide;

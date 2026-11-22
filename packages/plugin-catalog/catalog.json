@@ -650,7 +650,7 @@
   {
     "kind": "agent",
     "path": "kuinetic",
-    "pluginVersion": "0.1.0",
+    "pluginVersion": "0.1.1",
     "contract": {
       "id": "agent-plugins",
       "version": "1.0.0"
@@ -661,10 +661,10 @@
     "version": "0.7.3-next.2",
     "description": "kUInetic, the declarative data-kui animation library: detection, setup, attribute grammar, effect names, reduced motion and opt-in tiers, as one portable Agent Plugin.",
     "expectedDigests": {
-      "CHANGELOG.md": "sha256-e9144e7846ce916fea3c7be92c13e46a44b19d927888d7796fec0cbc59faf134",
+      "CHANGELOG.md": "sha256-1c4c7db1d2b612f0319412712144bfe5c9cd431964b7f97bb0ec4285322be69e",
       "mcp.json": "sha256-1788697eb2d3aa1caa8da59a62331a92529e24885f0e7151418f915000fbf7fd",
-      "plugin.json": "sha256-835ab415ac3852df5b32a3e58e84e493911d7f957ee8184b313b55a34dffa488",
-      "skills/kuinetic/SKILL.md": "sha256-230e1a33d3bec8fb562a3e0e03c23e6bcc9d4ac151784905804058896108ba03",
+      "plugin.json": "sha256-4fa946ed04421a939b21aaae86ebaf656d41c4a8104e042f04a2926b87ee21d8",
+      "skills/kuinetic/SKILL.md": "sha256-5edc0b809e172ce846d34a220c7457b8ff9520ca055bd05b60a39eb090189887",
       "skills/kuinetic/references/effects-by-family.md": "sha256-a8d698b15245aea258f4abc7e36ef5e25cd4ac7da5cab67eff097c091db629c5",
       "skills/kuinetic/references/opt-in-tiers.md": "sha256-eb9a229828c77b1e3f92f5e17aee31e99a20914b5893c2cdf6351bcc6bf4881f",
       "skills/kuinetic/references/reserved-keys.md": "sha256-eb76b75a0d0f2edb8e99b572934872d48ee182bb262da2ae5954dbd588202a07"
@@ -778,7 +778,7 @@
       "licenses/_opentelemetry_sdk-trace-node/package-license.json": "sha256-a9e210dd7a5ae500f89190574449fcfc99d2f9ad8a44bf83e4e81a889841af78",
       "licenses/_opentelemetry_semantic-conventions/LICENSE": "sha256-c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
       "licenses/_opentelemetry_semantic-conventions/package-license.json": "sha256-0ec80485a2d86ac074d8840badc0243f5c4481e542dfb9c3aa5d9dcbed96c386",
-      "server/index.mjs": "sha256-f0b14905a38abff3d0053bae4463c3e3bd586c4f21f7de2927d65b552c625a89"
+      "server/index.mjs": "sha256-be30814f73ccdbea48b4d53fc79fc47cfbc741fdbb6b8ecd4cbb8b67dfdc9ec4"
     }
   },
   {
@@ -820,7 +820,7 @@
       "licenses/_sentry_server-utils/LICENSE": "sha256-f3df0b92efcd9d8cc0de5a36c151569a12a647d65b851abbb696ef7b13dee10b",
       "licenses/_sentry_server-utils/LICENSE-SOURCE": "sha256-dabf27713f74b53ed1b4f6412fa417dfa1b757da97f94ea243bbdb05503c168d",
       "licenses/_sentry_server-utils/package-license.json": "sha256-fc86dcf64159ae72833f6c8655f0841c714aed8b67a241e76ca00a2bfb0bd9b7",
-      "server/index.mjs": "sha256-036e7cbad481a3e42da7315d8dce89d4a3c88c9a01af93d4b2c19a8e16673051"
+      "server/index.mjs": "sha256-2ebb1cef579077c5c04abd5fb4c41ad2a16176a9c5e8f27b86ec084a240b752a"
     }
   },
   {
@@ -1078,7 +1078,7 @@
   {
     "kind": "agent",
     "path": "site-import",
-    "pluginVersion": "1.0.2",
+    "pluginVersion": "1.0.3",
     "contract": {
       "id": "agent-plugins",
       "version": "1.0.0"
@@ -1087,12 +1087,12 @@
     "publisherIdentity": "jini/site-import",
     "packageName": "@jini-ai/agent-plugins",
     "version": "0.7.3-next.2",
-    "description": "Imports an existing public website into this site: discovers URLs from robots.txt and sitemap.xml (or a capped same-host crawl), classifies pages and posts, then creates drafts, taxonomy, media, menus, redirects and SEO, and builds a matching inactive theme. Uses the owner's request as authorization; waits for plan review only when requested. Fetched pages are untrusted data. Re-running updates what an earlier run created instead of duplicating it. Uses the host's existing content, media, web and theme tools; reads its references through its own plugin tool.",
+    "description": "Uses a page or section reference at the requested scope, preserving shared site chrome and supplied assets. For a whole-site migration, stages drafts, taxonomy, media, menus, redirects and an inactive matching theme alongside current content, then requests one approval for the exact cutover, including address moves, replacements, placements, theme switch and publication. Previews the draft homepage by entry ID. Fetched pages are untrusted data. Reruns update verified source URL to entry ID and kind mappings. Uses the host's existing tools and its own plugin reader.",
     "expectedDigests": {
       "mcp.json": "sha256-1788697eb2d3aa1caa8da59a62331a92529e24885f0e7151418f915000fbf7fd",
-      "plugin.json": "sha256-d632c5859b921fe7dde967c794560ac2e7fc2e8e4702e6e2781a4f3053ea8c48",
-      "skills/site-import/SKILL.md": "sha256-3244dd0dbc8a50304be2ec4ac1358cb7d2108232e84881fbe3acaa97c13b075a",
-      "skills/site-import/references/content-mapping.md": "sha256-77d0ddbc67fd79144926f38e2556ae06111afba689c1061efc9fb1fe44ea8a08",
+      "plugin.json": "sha256-508252f74ddcbe4897d60b9cd6f0ab3eca5531b86198f7fad3f03fa3d9ed3dca",
+      "skills/site-import/SKILL.md": "sha256-31b45a6c0a9d5a84e7a6a5e7f253f8c54639a6f7172ca79f3ed3f6f2ee8316ca",
+      "skills/site-import/references/content-mapping.md": "sha256-2cc4b99d5b779238843cddb70f5301fee00e5eb90b809b127bac4f040764fcfe",
       "skills/site-import/references/discovery-and-classification.md": "sha256-9a1bb7180195935432fe230f39f6e437232fbb8d85a1058a98066aadfdd8973e",
       "skills/site-import/references/theme-extraction.md": "sha256-cdc3fa0998a15a472dd868351e2e4412aa3da643309d6b15fc5f208c4c54d49d"
     }
@@ -1100,7 +1100,7 @@
   {
     "kind": "agent",
     "path": "slide-design",
-    "pluginVersion": "0.1.1",
+    "pluginVersion": "0.1.2",
     "contract": {
       "id": "agent-plugins",
       "version": "1.0.0"
@@ -1113,8 +1113,8 @@
     "expectedDigests": {
       "com.anthropic.claude-code/hooks/hooks.json": "sha256-370d1cfc65d33ac55e9cf35ac945d3d6127dbfe0ef827e010d0ff6ead62184f8",
       "mcp.json": "sha256-1788697eb2d3aa1caa8da59a62331a92529e24885f0e7151418f915000fbf7fd",
-      "plugin.json": "sha256-4bc76fcdbfcb462f6ec096d74f49b3e3d84ad6ac830e4f54fe8ff7d122dad630",
-      "skills/slide-design/SKILL.md": "sha256-0e994c5d6ca436d9acf4ad14e846bd54ccc1f084c40e3e88eed55aac82fac779",
+      "plugin.json": "sha256-45bcce61b923f92098c074915971739e8f42e3fb097b48fa0a23169f3efbc280",
+      "skills/slide-design/SKILL.md": "sha256-926bedf7fb49a81527a599b7ac2c39ad85779d2b06a584d2bb063aab571e33e5",
       "skills/slide-design/references/charts-and-exhibits.md": "sha256-f2408a7e59d6ea75941e09458e7374be9d3720e34b2e31977546581b5797ff15",
       "skills/slide-design/references/html-deck.md": "sha256-cc57671bdb94b6e7286eb6c35839b98ed79c256bc8233c705bc4429b767a1e37",
       "skills/slide-design/references/layout-and-style.md": "sha256-a3061cde434f95956d0d883a7dd32918afa0df450a2cfa3bbef51f2154edd145",
@@ -1189,7 +1189,7 @@
   {
     "kind": "agent",
     "path": "ui-ux-design",
-    "pluginVersion": "0.7.0",
+    "pluginVersion": "0.7.1",
     "contract": {
       "id": "agent-plugins",
       "version": "1.0.0"
@@ -1200,15 +1200,15 @@
     "version": "0.7.3-next.2",
     "description": "UI/UX design, interface-design-system, accessibility and web-compliance skills bundled as one portable Agent Plugin.",
     "expectedDigests": {
-      "CHANGELOG.md": "sha256-c729a20fcd283a7cb051c676b613c6aa488c0e265bf420de004abcf0b03fea39",
+      "CHANGELOG.md": "sha256-80adab2ba342f7f9cfcfc2b7ed2ce8ab3c0432930c4e6ae48ea6534cec18b1e7",
       "LICENSE": "sha256-9d95806a26532623360eb84bb17d298f394b55ef73fb4c0796d99b4319b2b0da",
       "NOTICE": "sha256-9ef30e7730297fd0160811b005ce46da6fea46478de59abe739575d8004d14fc",
       "README.md": "sha256-b69c8ea01362caeea75a9afadeed7f1b09ac30fa8702da46629edb2b920d11bc",
       "com.anthropic.claude-code/hooks/hooks.json": "sha256-370d1cfc65d33ac55e9cf35ac945d3d6127dbfe0ef827e010d0ff6ead62184f8",
       "mcp.json": "sha256-1788697eb2d3aa1caa8da59a62331a92529e24885f0e7151418f915000fbf7fd",
-      "plugin.json": "sha256-2b0891a17218d39badd8b885dd006b28bcacb92382abcb27cdf71cd1d60661dc",
+      "plugin.json": "sha256-11225a820baa78878fdeb06011e0549f09b2ff8415b3f1150507cac6d15c904a",
       "skills/frontend-accessibility/SKILL.md": "sha256-be7aeb4fbe026808d79af95c38b73ef42d8ceac055bf0f2124c1af485ffcedd5",
-      "skills/gstack-design/SKILL.md": "sha256-68e8223d3b4860e570574b5562d4d84ede1570837cc7aba07e2687d3a1256aa1",
+      "skills/gstack-design/SKILL.md": "sha256-6bc1db76796eaa0041fa3537db937c4e771e92122f2bd67228f101e61d1512fa",
       "skills/gstack-design/references/consultation.md": "sha256-64448181afd6bdf3ed463097bf2ca787d249630004ce77c60a17ab98fee39421",
       "skills/gstack-design/references/html.md": "sha256-b348d29b08f43e300413665670d4302395699e281f847368eb2a1f3ba0abb67b",
       "skills/gstack-design/references/review.md": "sha256-d25a21137a5d112dc7c3df611f1de42c1a10f1ef7e9c5043399956fc704d3c75",
@@ -1224,9 +1224,9 @@
       "skills/interface-design/references/examples/system-precision.md": "sha256-23400c66847997c0c250c3dc814eca8173221cfe9c638973dabb6807dcc5a2e1",
       "skills/interface-design/references/examples/system-warmth.md": "sha256-9b3b192a77a49bdd07af7380039f0ac1220ca1a33ea0e948ac93b3945f1d5bf2",
       "skills/interface-design/references/system-template.md": "sha256-cfac7d15afee4ebe00b7b5cd8892a59964874c730774a475e6f0ae52c2d21067",
-      "skills/ui-ux-design/SKILL.md": "sha256-ea219e52a965290dcea30b4e73eac0f7ee34e5bfaca025748686dd8745423f3c",
+      "skills/ui-ux-design/SKILL.md": "sha256-b41e8cb2f161ae328ce4b27d34236f1ec41e9000622e77e9b26487c56db1d841",
       "skills/ui-ux-design/references/brand-and-voice.md": "sha256-1219c6e379190daf18752f97a876e1b4651c96c3e40f3543038f0c9866044ffc",
-      "skills/ui-ux-design/references/chrome-mobile-test-matrix.md": "sha256-70029c86479ff8c6309a3653fbeabc2967086a9dc3e13790a88c8b5bea2cefae",
+      "skills/ui-ux-design/references/chrome-mobile-test-matrix.md": "sha256-3ccfb53903d6cf2a4b7db385cdcfcfad598493b62199e282d4449b704996976e",
       "skills/ui-ux-design/references/components-and-states.md": "sha256-f42e3ce748a8b451bfde8c319e35b6db10bad92b34f110c0ec66c5d7cb71a704",
       "skills/ui-ux-design/references/delight-and-motion.md": "sha256-2850cc26360fd9f6d60fb25be68009cd95d1bc697f8714ed26c23d716ed9eec6",
       "skills/ui-ux-design/references/foundations.md": "sha256-8b9a8a8ee46a51189f0f9458408a621a06acf4991b6fc590f823d0a6b857bd1b",
@@ -1239,7 +1239,7 @@
       "skills/ui-ux-design/references/sam-crawford-premium-websites.md": "sha256-4a002d558241b0b81cfa9db5eaf8dce249dcd839eef5c3c8fd648168faa6afef",
       "skills/ui-ux-design/references/self-made-web-designer-core-skills.md": "sha256-2e1c1eed23ee7028b41e81409ca7c23ca8ac6fa00610f83acf876cf2dec7d0c0",
       "skills/ui-ux-design/references/ui-animation.md": "sha256-54b22de0715a23afb6f698d0d1da7c06c1e27b040adec21f1cfad614ff3e9b45",
-      "skills/ui-ux-design/references/ui-loop.md": "sha256-3ce1f19ed3f3cb5f2bbce526af5b56b3766bc5aeaa99ebce7d377fb33c3441d4",
+      "skills/ui-ux-design/references/ui-loop.md": "sha256-49c80ec2d6e41abc8bc9e0e11e7149ff7731ea6c6c246190cd97efefd132799b",
       "skills/ui-ux-design/references/visual-storytelling.md": "sha256-aa3c3ae9d7937d588a69e7464abcfb8f4e317bc94bb58d52ca7e4c06624d87c5",
       "skills/vercel-web-design-guidelines/SKILL.md": "sha256-8dafb22326c1058720e47c712401d1e2709c523600a72c127f731a18e715c975",
       "skills/web-compliance/SKILL.md": "sha256-4aedb4d12b013083e818d5fc430423cc51f9b51e936247de9b4020f82964e540",

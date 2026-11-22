@@ -2,8 +2,10 @@
 
 Version: 2.0.0 (2026-11-02)
 
-For public-URL imports, every write below happens after the read-only Steps 1-3; there is no approval wait unless the
-owner asked to review a plan. Text is copied from the source word for word. This file names the
+For public-URL imports, staging writes happen after read-only Steps 1-3; wait for plan review
+only if requested. Keep supplied assets, identify missing assets and use source materials the owner can reuse.
+Cutover requires one approval card for the exact proposed cutover: address moves, replacements,
+menu placements, theme switch and publication. Apply only approved actions and recheck current versions before writing. This file names the
 job and the fields each write needs; the host's guidance for this plugin names its exact tools and
 input shapes, and the host's tool schemas are the final word on field names.
 
@@ -19,30 +21,30 @@ host guidance names them; `admin` and `api` are reserved almost everywhere).
 - Reserved word → add `-page`.
 - Two planned URLs that would get the same slug: keep the first; give the others their parent
   segment as a prefix (`/services/support` and `/shop/support` → `support`, `shop-support`).
-- The source homepage → slug `/` (a page only): the imported homepage always goes at `/`.
-  If a live page the import did not create holds `/`, first move it with the content update tool to
-  `previous-home` (or the nearest free slug, `previous-home-2`), then write the homepage at `/`.
-  Don't ask; name the move in the report.
-- A slug already taken by a live entry the import did not create → give the imported entry the
-  nearest free slug (`about-us`, `<slug>-2`), noted in the report.
+- Stage the imported homepage at a free address while the current homepage keeps serving.
+  Preview the draft homepage by entry ID with the host's draft tool before cutover approval.
+  After the approved switch, check `/` for the imported home; a public screenshot only proves
+  what that route serves, not the staged draft. Without draft preview or cutover approval, leave it staged.
+- Same-kind and cross-kind collisions with unrelated live entries use a free address
+  (`about-us`, `<slug>-2`), noted in the report. Do not move an incumbent automatically.
 - A slug only a trashed entry holds is free: write it as planned and the server moves the trashed
   entry to `<slug>-trashed` (still restorable).
   Never restore or empty the Trash.
 
 ## 2. Idempotency: update, don't duplicate
 
-For public-URL imports, the target slug is the identity of an imported entry.
+Use a verified source URL → entry ID and kind mapping for imported entries. A matching name, slug or version is insufficient evidence of provenance.
 
 1. Before planning, list the existing posts and pages once per kind (id, kind, slug, title,
-   version, author, byline visibility) and index them by slug.
-2. A planned slug that exists with the same kind → plan **update**, passing the entry's current
-   version as the concurrency guard. A version conflict means a person edited it since: keep their
-   edit, skip that entry, and list it in the report.
-3. A planned slug that exists with the other kind → plan a new slug with `-imported` added and
-   say why.
+   version, author, byline visibility) and compare them with the verified mapping.
+2. For a verified mapped entry, read the current version before updating and pass it as the
+   concurrency guard. A version conflict means a person edited it since: keep their edit, skip
+   that entry, and list it in the report. Stage any proposed replacement of live content for approval.
+3. Without a verified mapping, both same-kind and cross-kind collisions get a free address;
+   do not infer identity from a slug. Record newly created source URL → entry ID and kind mappings.
 4. Terms: reuse a term whose name matches case-insensitively in the same taxonomy.
-5. Menu: reuse the menu whose slug the plan names (replace its tree, passing its version) instead
-   of creating a second one.
+5. Menu: update only a verified prior import menu identity, reading its current version before
+   replacing the tree. A matching menu name or slug does not establish identity; otherwise build alongside it.
 6. Media and redirects de-duplicate on the server side (identical bytes; identical rules come
    back as failed duplicates). Report those as "already present", not as failures.
 
@@ -131,8 +133,9 @@ internal links), create a menu titled "Main menu" (slug `main-menu`). Each item 
 its label, and a target: a reference to an imported entry (by entry id and kind) or a plain URL
 for anything else.
 
-Hand the menu's id to the theme step (theme-extraction.md), which places it in the header with
-the header call-to-action. Assigning a menu location alone may not place it; the host guidance
+Hand the staged menu's id and proposed placement to the theme step (theme-extraction.md),
+which builds it into the inactive theme with the header call-to-action. Apply menu placements
+only when included in the approved cutover. Assigning a menu location alone may not place it; the host guidance
 says how its themes show a menu.
 
 The footer's link lists are menus too: one per footer column (and one for the legal links),
@@ -142,7 +145,8 @@ owner can edit them with the host's menu editor. Never hard-code them into the t
 A navigation link to a page the plan skips (a post listing, a shop) is left out of the menu
 and listed in the report. Nested dropdowns become children (at most 5 levels). Item ids are
 short, unique, stable strings: re-running the import replaces the tree using the same ids. An
-existing menu already at that location is left in place and only unassigned if the plan said so.
+existing menu already at that location is left in place and only unassigned if that exact change
+is approved on the cutover card. Reuse only a verified prior import menu identity, never its name or slug alone.
 
 ## 10. Redirects
 
@@ -153,6 +157,8 @@ address, status 301. For example `/journal/2025/03/hand-thrown-mugs/` → `/hand
   none when the paths are equal ignoring a trailing slash (`/about/` → `/about` would be a
   loop and is refused).
 - The old path is exactly as the source served it (keep its trailing slash).
+- A redirect that would capture an occupied address stays staged; include the exact change on
+  the cutover approval card before applying it. Keep the current route serving until approval.
 - Skipped archive pages with an obvious new home (a category archive → the blog listing) may
   get a rule too; list them in the plan.
 - Read the failed rules in the result: a duplicate means it already exists; anything else is

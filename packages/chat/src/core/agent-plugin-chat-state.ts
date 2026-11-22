@@ -1,3 +1,4 @@
+import { orFallbackSync } from '@jini-ai/core/errors/idioms';
 /** Browser-local per-chat decisions; the person's mode remains in the host's settings ledger. */
 export interface AgentPluginChatState { decision: { selected: readonly string[]; asked?: boolean } | null; excluded: readonly string[] }
 export interface AgentPluginUsage { conversationId: string; state: AgentPluginChatState; plugins: readonly { id: string; name: string }[] }
@@ -19,11 +20,12 @@ function usableChatState({ value }: { value: AgentPluginChatState | null }): Age
 export function readAgentPluginChatState(
   { conversationId }: { conversationId: string }, { storage = browserStorage() }: { storage?: ChatPluginStorage | undefined } = {},
 ): AgentPluginChatState {
-  try {
-    const state = usableChatState({ value: JSON.parse(storage?.getItem(key(conversationId)) ?? 'null') as AgentPluginChatState | null });
-    if (state) return state;
-  } catch { /* Private browsing/corrupt rows behave as a new chat decision. */ }
-  return { decision: null, excluded: [] };
+  /* Private browsing/corrupt rows behave as a new chat decision. */
+  return orFallbackSync({
+    work: () => usableChatState({ value: JSON.parse(storage?.getItem(key(conversationId)) ?? 'null') as AgentPluginChatState | null }),
+    fallback: null,
+    step: 'Read stored chat plugin state',
+  }) ?? { decision: null, excluded: [] };
 }
 /** Persist only decision/exclusions. Existing exclusions win over an in-flight server response. */
 export function writeAgentPluginChatState(
@@ -31,7 +33,12 @@ export function writeAgentPluginChatState(
 ): void {
   const current = readAgentPluginChatState({ conversationId }, { storage });
   const next = { decision: state.decision, excluded: [...new Set([...current.excluded, ...state.excluded])] };
-  try { storage?.setItem(key(conversationId), JSON.stringify(next)); } catch { /* Session can continue without persistence. */ }
+  /* Session can continue without persistence. */
+  orFallbackSync({
+    work: () => storage?.setItem(key(conversationId), JSON.stringify(next)),
+    fallback: undefined,
+    step: 'Save chat plugin state',
+  });
   if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent(AGENT_PLUGIN_STATE_CHANGED, { detail: { conversationId, state: next } }));
 }
 /** Called only for the protocol's structured plugin event, before delivering it to the transcript. */

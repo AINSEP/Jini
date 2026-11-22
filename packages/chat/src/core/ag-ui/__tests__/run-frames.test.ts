@@ -66,15 +66,43 @@ test('a stream closing without a terminal frame closes messages and finishes wit
   ]);
 });
 
-test('a reader rejection writes RUN_ERROR and returns the same error', async () => {
-  const error = new Error('read failed');
+test.each([new Error('private transport canary'), 'private transport canary'])('a reader rejection writes RUN_ERROR and returns the same error (%#)', async (error) => {
   const reader = new ReadableStream<Uint8Array>({ pull(c) { c.error(error); } }).getReader();
   const events: AgUiEvent[] = [];
   const outcome = await drainRunFramesToAgUi({ reader, threadId: 't', runId: 'r',
     state: createAgUiTranslationState(translation), notices, write: event => { events.push(event); } });
-  expect(outcome).toEqual({ status: 'failed', error });
-  expect(outcome.error).toBe(error);
-  expect(events).toEqual([{ type: 'RUN_ERROR', message: 'read failed' }]);
+  expect(outcome, 'A reader rejection fails the run with the original rejection').toEqual({ status: 'failed', error });
+  expect(outcome.error, 'The returned rejection is unchanged').toBe(error);
+  expect(events, 'The wire uses the public interruption sentence without exposing the rejection').toEqual([
+    { type: 'RUN_ERROR', message: 'The response was interrupted. Try again.' },
+  ]);
+});
+
+test('a host can supply the interruption message without exposing the rejection', async () => {
+  const error = new Error('private transport canary');
+  const interruptionMessage = 'The host response was interrupted. Please retry.';
+  const bytes = new TextEncoder().encode(`event: agent\ndata: ${JSON.stringify({ payload: { type: 'text_delta', delta: 'hello' } })}\n\n`);
+  let delivered = false;
+  const reader = new ReadableStream<Uint8Array>({
+    pull(c) {
+      if (delivered) c.error(error);
+      else {
+        delivered = true;
+        c.enqueue(bytes);
+      }
+    },
+  }).getReader();
+  const events: AgUiEvent[] = [];
+  const outcome = await drainRunFramesToAgUi({ reader, threadId: 't', runId: 'r',
+    state: createAgUiTranslationState(translation), notices, write: event => { events.push(event); } }, { interruptionMessage });
+  expect(outcome, 'The interrupted run returns the original failure').toEqual({ status: 'failed', error });
+  expect(outcome.error, 'The returned error retains its identity').toBe(error);
+  expect(events, 'Partial text closes before the single terminal error with the host sentence').toEqual([
+    { type: 'TEXT_MESSAGE_START', messageId: 'msg_1', role: 'assistant' },
+    { type: 'TEXT_MESSAGE_CONTENT', messageId: 'msg_1', delta: 'hello' },
+    { type: 'TEXT_MESSAGE_END', messageId: 'msg_1' },
+    { type: 'RUN_ERROR', message: interruptionMessage },
+  ]);
 });
 
 test('only an explicitly marked pending approval projects an interrupt', async () => {

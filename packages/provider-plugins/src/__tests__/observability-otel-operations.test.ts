@@ -23,6 +23,7 @@ test("noop: trackOperation returns one shared frozen tracker and reportError doe
   const first = port.trackOperation({ name: "tool.call", attributes: { "tool.id": "a" } });
   const second = port.trackOperation({ name: "tool.call" });
   assert.equal(first, second);
+  assert.equal(first.traceIds?.(), undefined, 'the noop tracker has no trace IDs');
   assert.ok(Object.isFrozen(first));
   assert.equal(first.run(() => 7), 7);
   assert.doesNotThrow(() => port.reportError({ error: new Error("x"), context: { operation: "tool.call" } }));
@@ -77,6 +78,21 @@ test("otel: reportError inside run() adds a type-only exception event to that op
   assert.ok(!JSON.stringify(spans).includes(SECRET));
 });
 
+test('otel: a tagged incident inside an operation exports its label and ID without a message', () => {
+  const exporter = new InMemorySpanExporter();
+  const port = createPort(CONFIG, exporter, { scope: createAsyncScope() });
+  const tracker = port.trackOperation({ name: 'site.export' });
+  tracker.run(() => port.reportError({ error: new Error('secret canary-XYZ'), context: {
+    operation: 'site.export', incidentId: 'ERR-1111-2222-3333-4444', label: 'TypeError',
+  } }));
+  tracker.end({ outcome: 'failed', failed: true });
+  const [span] = exporter.getFinishedSpans();
+  assert.deepEqual(span?.events, [{ name: 'exception', attributes: {
+    'exception.type': 'TypeError', 'operation.name': 'site.export', 'incident.id': 'ERR-1111-2222-3333-4444',
+  } }], 'one tagged exception carries the label and incident ID');
+  assert.ok(!JSON.stringify(span).includes('canary-XYZ'), 'exception message text never enters the span');
+});
+
 test("otel: reportError outside any tracker is its own ended root span", () => {
   const exporter = new InMemorySpanExporter();
   createPort(CONFIG, exporter, { scope: createAsyncScope() }).reportError({ error: Object.assign(new Error("x"), { code: "ECONNRESET" }), context: { operation: "backup.run", attributes: { "backup.kind": "full" } } });
@@ -126,6 +142,19 @@ test("C61: redact multiline secrets before applying the stack line limit", () =>
   assert.equal(described.stack!.includes(secretPrefix), false);
   assert.match(described.stack!, /\[REDACTED:labeled_secret\]/);
   assert.ok(described.stack!.split("\n").length <= 30);
+});
+
+test('fan-out traceIds returns the first defined tracker IDs', async () => {
+  const { combineObservabilityPorts } = await import('@jini-ai/diagnostics/observability');
+  const noop = createNoopObservabilityPort({});
+  const ids = { traceId: 'a'.repeat(32), spanId: 'b'.repeat(16) };
+  const later = { traceId: 'c'.repeat(32), spanId: 'd'.repeat(16) };
+  const port = combineObservabilityPorts({ ports: [
+    { ...noop, trackOperation: () => ({ run: fn => fn(), end() {} }) },
+    { ...noop, activeTraceIds: () => later, trackOperation: () => ({ run: fn => fn(), end() {}, traceIds: () => ids }) },
+    { ...noop, trackOperation: () => ({ run: fn => fn(), end() {}, traceIds: () => later }) },
+  ] });
+  assert.deepEqual(port.trackOperation({ name: 'site.export' }).traceIds?.(), ids, 'tracker IDs take precedence in live-adapter order');
 });
 
 test("combineObservabilityPorts: noop-only is the noop; one live port still delivers its signals", async () => {

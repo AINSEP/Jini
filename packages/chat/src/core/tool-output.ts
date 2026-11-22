@@ -1,3 +1,4 @@
+import { orFallbackSync } from '@jini-ai/core/errors/idioms';
 /**
  * Formats a tool result's text for a person to read. Tool results travel to the model as compact
  * JSON (`@jini-ai/mcp`'s `okResult` — indentation made nested results ~2.5× larger), so a view that
@@ -13,9 +14,5 @@ export function formatToolOutputForDisplay({ text }: { text: string }): string {
   const trimmed = text.trim();
   const first = trimmed[0];
   if (first !== '{' && first !== '[') return text;
-  try {
-    return JSON.stringify(JSON.parse(trimmed), null, 2);
-  } catch {
-    return text;
-  }
+  return orFallbackSync({ work: () => JSON.stringify(JSON.parse(trimmed), null, 2), fallback: text, step: 'Format tool output for display' });
 }

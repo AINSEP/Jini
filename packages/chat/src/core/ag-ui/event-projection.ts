@@ -253,7 +253,11 @@ function writeFrameOutcome(
  *  @returns How the run ended, for its agent-run span: a terminal frame's own status (an `end` the
  *  daemon classified as failed or canceled is that, not `succeeded`); a natural close counts as
  *  `succeeded`, like the `RUN_FINISHED` it writes; a read error is `failed` with that error. */
-export async function drainRunFramesToAgUi(ctx: AgUiFrameContext): Promise<{ status: "succeeded" | "failed" | "canceled"; error?: unknown }> {
+export async function drainRunFramesToAgUi(
+  ctx: AgUiFrameContext,
+  { interruptionMessage = "The response was interrupted. Try again." }:
+    { interruptionMessage?: string } = {},
+): Promise<{ status: "succeeded" | "failed" | "canceled"; error?: unknown }> {
   // One carry per daemon connection, so the later chunks of a split echo line are dropped too.
   const carry: RunFrameCarry = {};
   try {
@@ -277,7 +281,7 @@ export async function drainRunFramesToAgUi(ctx: AgUiFrameContext): Promise<{ sta
     return { status: "succeeded" };
   } catch (error) {
     writeAllAgUiEvents({ write: ctx.write, events: closeAgUiRun({ state: ctx.state }) });
-    ctx.write({ type: EventType.RUN_ERROR, message: error instanceof Error ? error.message : String(error) });
+    ctx.write({ type: EventType.RUN_ERROR, message: interruptionMessage });
     return { status: "failed", error };
   }
 }

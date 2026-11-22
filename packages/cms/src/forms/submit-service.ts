@@ -1,3 +1,4 @@
+import { orFallback } from "@jini-ai/core/errors/idioms";
 import type { DigestCryptoPort } from "@jini-ai/core/records";
 import { assertCurrentFormSchema } from "./stale-form.js";
 import { FORM_SCHEMA_HASH_FIELD } from "./portable-validation.js";
@@ -278,11 +279,15 @@ async function discardUploads(
   _optional: Record<string, never> = {},
 ): Promise<void> {
   for (const reference of uploaded) {
-    try { await deps.files!.discard({ workspaceId: input.workspaceId, reference }); }
-    catch (cleanupError) {
-      // Retain the original submission failure; a failed cleanup is visible to operators.
-      try { deps.logger.warn({ message: "form upload cleanup failed" }, { error: cleanupError }); } catch { /* Logging cannot replace the original error. */ }
-    }
+    // Retain the original submission failure; a failed cleanup is visible to operators.
+    /* Logging cannot replace the original error. */
+    await orFallback({
+      work: () => deps.files!.discard({ workspaceId: input.workspaceId, reference }),
+      fallback: undefined,
+      step: "Discard failed form upload",
+    }, {
+      observe: ({ error: cleanupError }) => deps.logger.warn({ message: "form upload cleanup failed" }, { error: cleanupError }),
+    });
   }
 }
 

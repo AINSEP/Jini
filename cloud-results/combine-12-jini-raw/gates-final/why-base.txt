@@ -1,0 +1,8 @@
+why-comments: 48 files with removed lines checked against 1ac1cbbd1..HEAD, 3 comment blocks lost (0 allow-listed)
+packages/agent-plugins/kuinetic/__tests__/bundled-package.test.mjs:40-41  [f96a225503a3]  "redesign this site, use kuinetic" ranks kuinetic first and delivers only it on turn 1, so its core names the exact call that loads the u...
+packages/agent-plugins/src/lifecycle/__tests__/unit/load-supporting-files.unit.test.ts:49-49  [03c2746c1aa4]  explicit reads now reach the host; this fixture's strict run-pin resolver still requires activation.
+packages/core/src/errors/reporter.ts:26-26  [5f57b7820e73]  one report to the host's tracker. structurally what `observabilityport.reporterror` takes; core does not import diagnostics.
+why-comments: 3 deleted comment blocks appear nowhere else (owner rule: refactors move "why" comments with the code, never delete them)
+  fix: put the comment back next to the code it explains, or move it with that code.
+  last resort: add { "id": "<id above>", "reason": "<why this comment is truly obsolete>" } to the debt file (`pnpm check:why-comments`).
+EXIT 1

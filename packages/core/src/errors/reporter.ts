@@ -9,6 +9,7 @@
  * tracker port must not replace the failure being reported; its adapter blanks secrets before anything leaves the process.
  */
 import { ClientFacingError } from '../contracts/server/json-route.js';
+import type { ObservabilityPort, OperationAttributes, OperationTracker } from '../contracts/observability.js';
 import { statusForError, type ServerApiError } from '../contracts/server/api-error.js';
 import { createErrorDescriber, describeErrorForLog, describeErrorParts, type ErrorDescriber } from '../model-facing-tool-errors.js';
 import type { IdGenerator } from '../primitives/ids.js';
@@ -23,18 +24,13 @@ import { discloseIncident, type ErrorAudience } from './disclosure.js';
 import { describeThrownValue } from './incident-text.js';
 import { interpolateSentence } from './sentences.js';
 
-/** One report to the host's tracker. Structurally what `ObservabilityPort.reportError` takes; core does not import diagnostics. */
-export interface IncidentTrackerReport {
-  readonly error: unknown;
-  readonly context: { readonly operation: string; readonly level?: 'warning' | 'error'; readonly exactSecrets?: readonly string[]; readonly attributes?: Readonly<Record<string, string | number>> };
-}
 export interface ErrorReporterPorts {
   /** Returns a finished error ID. Hosts mint `ERR-XXXX-XXXX-XXXX-XXXX`, the one shape a reader can recover from plain text. */
   readonly ids: IdGenerator;
   readonly clock: Clock;
   /** Receives the operator-only incident record. */
   readonly logger: Pick<Logger, 'warn' | 'error'>;
-  readonly tracker: { reportError(report: IncidentTrackerReport): unknown };
+  readonly observability: Pick<ObservabilityPort, 'reportError'>;
   readonly catalog: ErrorCatalog;
   readonly versions: { readonly app: string; readonly jini: string };
 }
@@ -71,9 +67,9 @@ export interface DescribedFailure {
 }
 export interface ErrorReporter {
   /** Refusal → its code and words. Anything else → an incident: one ID, one host record, one tracker report. Never throws. */
-  describe(required: { error: unknown; step: string; scope: string; fallback: { readonly message: string; readonly action: string } }, optional?: DescribeFailureOptions): DescribedFailure;
+  describe(required: { error: unknown; step: string; scope: string; fallback: { readonly message: string; readonly action: string }; operation: string; tracker: OperationTracker }, optional?: DescribeFailureOptions): DescribedFailure;
   /** A failure nobody is shown (job, cleanup, IPC handler): host record and tracker only. Never throws. */
-  record(required: { error: unknown; step: string }, optional?: RecordFailureOptions): { errorId: string };
+  record(required: { error: unknown; step: string; operation: string; tracker?: OperationTracker }, optional?: RecordFailureOptions): { errorId: string };
 }
 
 /** Stands in when the host's ID port itself fails, so the record and the caller still agree on one value. */
@@ -111,8 +107,8 @@ function headLabel({ error, describer }: { error: unknown; describer: ErrorDescr
   return parts.code === undefined ? parts.label : `${parts.label}(${parts.code})`;
 }
 
-function reportToTracker(required: { context: ReporterContext; incident: Incident; step: string; error: unknown; exactSecrets?: readonly string[] | undefined; level: 'warning' | 'error' }): void {
-  const { context, incident, step, error, exactSecrets, level } = required;
+function reportToTracker(required: { context: ReporterContext; incident: Incident; operation: string; tracker?: OperationTracker | undefined; error: unknown; level: 'warning' | 'error' }): void {
+  const { context, incident, operation, tracker, error, level } = required;
   const failed = (trackerError: unknown): void => {
     // The host record above already holds the incident; say that the tracker copy is missing.
     attempt({ fallback: undefined, read: () => context.ports.logger.warn(
@@ -120,9 +116,10 @@ function reportToTracker(required: { context: ReporterContext; incident: Inciden
       { meta: { errorId: incident.errorId, tracker: describeErrorForLog({ err: trackerError }) } }) });
   };
   try {
-    const sent = context.ports.tracker.reportError({
+    const trace = tracker?.traceIds?.();
+    const sent = context.ports.observability.reportError({
       error,
-      context: { operation: step, level, ...(exactSecrets === undefined ? {} : { exactSecrets }), attributes: { errorId: incident.errorId, label: incident.label } },
+      context: { operation, level, incidentId: incident.errorId, label: incident.label, ...(trace === undefined ? {} : { trace }) },
     });
     if (sent instanceof Promise) sent.then(undefined, failed);
   } catch (trackerError) {
@@ -131,7 +128,7 @@ function reportToTracker(required: { context: ReporterContext; incident: Inciden
 }
 
 /** Mints the ID, writes the one host record and (unless skipped) the one tracker report. */
-function recordIncident(required: { context: ReporterContext; error: unknown; step: string }, optional: RecordFailureOptions = {}): Incident {
+function recordIncident(required: { context: ReporterContext; error: unknown; step: string; operation: string; tracker?: OperationTracker | undefined }, optional: RecordFailureOptions = {}): Incident {
   const { context, error } = required;
   const { ports, describer } = context;
   const redaction = redactionFor({ context, exactSecrets: optional.exactSecrets });
@@ -147,8 +144,8 @@ function recordIncident(required: { context: ReporterContext; error: unknown; st
     appVersion: ports.versions.app, jiniVersion: ports.versions.jini, ...(time === undefined ? {} : { time }), diagnostic,
   };
   // `diagnostic` is the operator-only record. The tracker gets the original `error` and the call's `exactSecrets`; the tracker adapter blanks secrets before anything leaves the process.
-  attempt({ fallback: undefined, read: () => ports.logger[level === 'warning' ? 'warn' : 'error']({ message: `[incident] ${step} failed (error ${errorId})` }, { meta, error }) });
-  if (optional.tracker !== 'skip') reportToTracker({ context, incident, step, error, exactSecrets: optional.exactSecrets, level });
+  attempt({ fallback: undefined, read: () => ports.logger[level === 'warning' ? 'warn' : 'error']({ message: `[incident] ${step} failed (error ${errorId})` }, { meta }) });
+  if (optional.tracker !== 'skip') reportToTracker({ context, incident, operation: required.operation, tracker: required.tracker, error, level });
   return incident;
 }
 
@@ -163,6 +160,7 @@ function refusalError(required: { match: ErrorMatch; fallback: { readonly messag
   const { sentence } = match;
   const base = { code: match.code, ...(sentence === undefined ? {} : { retryable: sentence.retryable }) };
   if (sentence?.audience === 'authorized' && audience !== 'authorized') return { ...base, message: fallback.message };
+  if (match.mode === 'own-message') return { ...base, message: fallback.message };
   if (match.mode !== 'sentence') return { ...base, message: match.message ?? fallback.message };
   if (sentence === undefined) return { ...base, message: fallback.message };
   const params = redactedParams({ params: match.params ?? {}, redaction });
@@ -170,7 +168,7 @@ function refusalError(required: { match: ErrorMatch; fallback: { readonly messag
   return Object.keys(params).length === 0 ? { ...base, message } : { ...base, message, details: { params } };
 }
 
-function refusal(required: { context: ReporterContext; error: unknown; scope: string; fallback: { readonly message: string }; audience: ErrorAudience }): DescribedFailure | undefined {
+function refusal(required: { context: ReporterContext; error: unknown; scope: string; fallback: { readonly message: string }; audience: ErrorAudience; exactSecrets?: readonly string[] | undefined }): DescribedFailure | undefined {
   const { context, error } = required;
   const { catalog } = context.ports;
   // An already-classified carrier: our own code built it, naming the exact error it chose to disclose.
@@ -180,25 +178,27 @@ function refusal(required: { context: ReporterContext; error: unknown; scope: st
   }
   const match = attempt<ErrorMatch | undefined>({ read: () => catalog.match({ error, scope: required.scope }), fallback: undefined });
   if (match === undefined) return undefined;
-  const wire = refusalError({ match, fallback: required.fallback, audience: required.audience, redaction: redactionFor({ context }) });
+  const wire = refusalError({ match, fallback: required.fallback, audience: required.audience, redaction: redactionFor({ context, exactSecrets: required.exactSecrets }) });
   return { kind: 'refusal', status: match.sentence?.status ?? statusForError({ error: wire }), error: wire };
 }
 
 function describeFailure(
-  required: { context: ReporterContext; error: unknown; step: string; scope: string; fallback: { readonly message: string; readonly action: string } },
+  required: { context: ReporterContext; error: unknown; step: string; scope: string; fallback: { readonly message: string; readonly action: string }; operation: string; tracker: OperationTracker },
   optional: DescribeFailureOptions = {},
 ): DescribedFailure {
   const { context } = required;
   const audience = optional.audience ?? 'anonymous';
-  const refused = attempt({ read: () => refusal({ context, error: required.error, scope: required.scope, fallback: required.fallback, audience }), fallback: undefined });
+  const refused = attempt({ read: () => refusal({ context, error: required.error, scope: required.scope, fallback: required.fallback, audience, exactSecrets: optional.exactSecrets }), fallback: undefined });
   if (refused !== undefined) return refused;
-  const incident = recordIncident({ context, error: required.error, step: required.step },
-    { ...(optional.errorId === undefined ? {} : { errorId: optional.errorId }), ...(optional.exactSecrets === undefined ? {} : { exactSecrets: optional.exactSecrets }) });
+  const incident: Incident = optional.errorId === undefined
+    ? recordIncident({ context, error: required.error, step: required.step, operation: required.operation, tracker: required.tracker },
+      { ...(optional.exactSecrets === undefined ? {} : { exactSecrets: optional.exactSecrets }) })
+    : { errorId: optional.errorId, label: attempt({ read: () => headLabel({ error: required.error, describer: context.describer }), fallback: 'Error' }) };
   const failure = attempt({ fallback: undefined, read: () => discloseIncident(
     { audience, step: required.step, label: incident.label, errorId: incident.errorId, fallback: required.fallback, versions: context.ports.versions },
     { redaction: redactionFor({ context, exactSecrets: optional.exactSecrets }), ...(optional.approvedCause === undefined ? {} : { approvedCause: optional.approvedCause }), ...(incident.time === undefined ? {} : { time: incident.time }) }) });
   // The ID is part of the words, so it survives a consumer that keeps only a message string.
-  const error: ServerApiError = { code: 'INTERNAL_ERROR', message: `${required.fallback.message} (error ${incident.errorId})`, requestId: incident.errorId };
+  const error: ServerApiError = { code: 'INTERNAL_ERROR', message: `${required.fallback.message} ${required.fallback.action} (error ${incident.errorId})`, requestId: incident.errorId };
   return { kind: 'incident', status: 500, error, ...(failure === undefined ? {} : { failure }) };
 }
 
@@ -215,6 +215,25 @@ export function createErrorReporter(required: ErrorReporterPorts, optional: Erro
   const context: ReporterContext = { ports: required, redaction: optional.redaction ?? {}, describer };
   return {
     describe: (args, options = {}) => describeFailure({ context, ...args }, options),
-    record: (args, options = {}) => ({ errorId: recordIncident({ context, error: args.error, step: args.step }, options).errorId }),
+    record: (args, options = {}) => ({ errorId: recordIncident({ context, ...args }, options).errorId }),
   };
+}
+
+export async function runOperation<T>(required: {
+  deps: { observability: Pick<ObservabilityPort, 'trackOperation'>; reporter: ErrorReporter };
+  operation: string; scope: string; step: string; fallback: { readonly message: string; readonly action: string };
+  work: () => Promise<T>; attributes?: OperationAttributes;
+}, optional: DescribeFailureOptions = {}): Promise<{ ok: true; value: T } | { ok: false; failure: DescribedFailure }> {
+  const { deps, operation, scope, step, fallback, work, attributes } = required;
+  const tracker = deps.observability.trackOperation({ name: operation, ...(attributes === undefined ? {} : { attributes }) });
+  try {
+    const value = await tracker.run(work);
+    tracker.end({ outcome: 'completed', failed: false });
+    return { ok: true, value };
+  } catch (error) {
+    const failure = deps.reporter.describe({ error, operation, scope, step, fallback, tracker }, optional);
+    const failed = failure.kind === 'incident';
+    tracker.end({ outcome: failed ? 'failed' : 'refused', failed });
+    return { ok: false, failure };
+  }
 }

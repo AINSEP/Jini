@@ -1,4 +1,5 @@
 /** Internal JSON reader. Limits bytes mid-stream and cancels abandoned bodies, avoiding unbounded response buffering. */
+import { afterSettled } from '@jini-ai/core/errors/idioms';
 import { OAuthError } from "./errors.js";
 export const MAX_OAUTH_RESPONSE_BYTES = 64 * 1024;
 export interface BoundedJsonMessages {
@@ -30,7 +31,7 @@ export async function readBoundedOAuthText({ response, messages }: { response: R
     finally {
         // Cancel a still-open body after overflow so no further chunks are pulled. A cleanup
         // rejection must not mask the byte-cap or read failure that caused us to abandon it.
-        await reader.cancel().catch(() => undefined);
+        await afterSettled({ promise: reader.cancel() });
     }
     return Buffer.concat(chunks).toString("utf8");
 }

@@ -4,6 +4,7 @@
  * decisions stay in the pure policy so backoff rules need neither real timers nor children.
  * Construction is safe to import in tests because it does not invoke the host bootstrap.
  */
+import { observed } from '@jini-ai/core/errors/idioms';
 import type { RespawnDecision, RespawnPolicy } from "./respawn-policy.js";
 
 export type DaemonProcessSubscription =
@@ -150,7 +151,8 @@ function discoverReadiness(context: SupervisorContext): Promise<void> {
   if (!context.discoveryWork) {
     const discovery = waitForReady(context).finally(() => { if (context.discoveryWork === discovery) context.discoveryWork = undefined; });
     context.discoveryWork = discovery;
-    void discovery.catch(() => { /* Parking or shutdown also ends caller-free discovery. */ });
+    /* Parking or shutdown also ends caller-free discovery. */
+    observed({ promise: discovery });
   }
   return context.discoveryWork;
 }

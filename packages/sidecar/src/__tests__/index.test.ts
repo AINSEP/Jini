@@ -667,7 +667,7 @@ describe("@jini-ai/sidecar — JSON IPC", () => {
       await requestJsonIpc({ socketPath, payload: { type: "X" } });
       expect.unreachable("expected requestJsonIpc to reject");
     } catch (err) {
-      expect((err as Error).message).toBe("internal error");
+      expect((err as Error).message, "Handler failures explain the retry and request ID").toBe("The sidecar could not finish this request. Try again, and report the request ID if it keeps failing.");
       expect((err as Error).message).not.toContain("/secret/internal/path");
       expect((err as Error & { code?: string }).code).toBe("HANDLER_ERROR");
       expect((err as Error & { requestId?: string }).requestId).toEqual(expect.any(String));
@@ -690,7 +690,7 @@ describe("@jini-ai/sidecar — JSON IPC", () => {
         throw "raw string failure";
       }, socketPath });
     try {
-      await expect(requestJsonIpc({ socketPath, payload: { type: "X" } })).rejects.toThrow("internal error");
+      await expect(requestJsonIpc({ socketPath, payload: { type: "X" } }), "Thrown values use the same safe handler words").rejects.toThrow("The sidecar could not finish this request. Try again, and report the request ID if it keeps failing.");
     } finally {
       await server.close();
       await rm(root, { force: true, recursive: true });
@@ -755,7 +755,7 @@ describe("@jini-ai/sidecar — JSON IPC", () => {
       await requestJsonIpc({ socketPath, payload: { type: "X" } });
       expect.unreachable("expected requestJsonIpc to reject");
     } catch (err) {
-      expect((err as Error).message).toBe("internal error");
+      expect((err as Error).message, "Handler failures explain the retry and request ID").toBe("The sidecar could not finish this request. Try again, and report the request ID if it keeps failing.");
       expect((err as Error & { code?: string }).code).toBe("HANDLER_ERROR");
     } finally {
       await server.close();
@@ -1142,7 +1142,7 @@ describe("@jini-ai/sidecar — JSON IPC", () => {
         // the first) reliably arrives while this handler call is still pending.
         await new Promise((resolveDelay) => setTimeout(resolveDelay, 20));
         return { seq: message.seq };
-      }, socketPath });
+      }, socketPath }, { idleTimeoutMs: 10 });
     try {
       const socket = createConnection(socketPath);
       const responseChunks: string[] = [];

@@ -221,13 +221,13 @@ describe("trace vocabulary and details", () => {
     } finally {
       await server.close();
     }
-    expect(rejection?.message).toBe("internal error");
+    expect(rejection?.message, "Handler failures explain the retry and request ID").toBe("The sidecar could not finish this request. Try again, and report the request ID if it keeps failing.");
     expect(rejection?.code).toBe("HANDLER_ERROR");
     const failed = traces.find((trace) => trace.event === "server.handler_failed");
     expect(failed).toEqual({ event: "server.handler_failed", ...base(socketPath), message: { type: "X" }, error: "Error" });
     expect(rejection?.requestId).toBe(failed?.traceId);
     for (const text of ["/secret/path", "json-ipc.contract.test"]) expect(JSON.stringify(vi.mocked(console.error).mock.calls)).not.toContain(text);
-    expect(traces.find((trace) => trace.event === "client.response_error")).toEqual({ event: "client.response_error", ...base(socketPath), message: { type: "X" }, error: "internal error" });
+    expect(traces.find((trace) => trace.event === "client.response_error"), "The client trace preserves the safe handler words").toEqual({ event: "client.response_error", ...base(socketPath), message: { type: "X" }, error: "The sidecar could not finish this request. Try again, and report the request ID if it keeps failing." });
   });
 
   it("unparseable frame: fixed BAD_FRAME refusal; parse-failed trace", async () => {

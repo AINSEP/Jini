@@ -11,11 +11,14 @@ import { createErrorCatalog } from '../catalog.js';
 import { INCIDENT_CAUSE_SENTENCE, type ErrorAudience } from '../disclosure.js';
 import { createErrorReporter, UNAVAILABLE_ERROR_ID, type ErrorReporterPorts } from '../reporter.js';
 import { defineErrorSentences } from '../sentences.js';
-import { createFixedClock, createRecordingLogger, createRecordingReporter, createRecordingTracker, createSequenceIds } from '../testing.js';
+import { createFixedClock, createRecordingLogger, createRecordingReporter, createRecordingObservability, createSequenceIds } from '../testing.js';
 
 const ID = 'ERR-0123-4567-89AB-CDEF';
 const NOW = '2026-02-21T12:00:00.000Z';
 const STEP = 'Export site';
+const OPERATION = 'site.export';
+const trace = { traceId: 'test-trace', spanId: 'test-span' };
+const tracker = createRecordingObservability().observability.trackOperation({ name: OPERATION });
 const fallback = { message: 'The site export could not be completed.', action: 'Try the export again.' };
 const CANARIES = [
   'Private draft body: Acme merger closes Friday',
@@ -43,28 +46,30 @@ const catalog = createErrorCatalog({
 const build = (optional: Parameters<typeof createRecordingReporter>[1] = {}) => createRecordingReporter({ ids: [ID, 'ERR-0000-0000-0000-0002'], iso: NOW }, { catalog, versions: { app: '4.2.0', jini: '0.7.2' }, ...optional });
 const describeIncident = (error: unknown, optional: { audience?: ErrorAudience; approvedCause?: ApprovedCause } = {}) => {
   const built = build();
-  return { ...built, described: built.reporter.describe({ error, step: STEP, scope: 'members', fallback }, optional) };
+  return { ...built, described: built.reporter.describe({ error, step: STEP, operation: OPERATION, tracker, scope: 'members', fallback }, optional) };
 };
 
 describe('incident', () => {
   test('an unknown error gets one ID from the ID port, the time from the clock, one host record and one tracker report', () => {
     const original = Object.assign(new Error('disk is full', { cause: Object.assign(new Error('write failed'), { code: 'ENOSPC' }) }), { code: 'SQLITE_FULL' });
     const { described, entries, reports } = describeIncident(original);
-    expect(described).toEqual({ kind: 'incident', status: 500, error: { code: 'INTERNAL_ERROR', message: `${fallback.message} (error ${ID})`, requestId: ID } });
+    expect(described, 'incident words include the fallback message, action and ID').toEqual({ kind: 'incident', status: 500, error: { code: 'INTERNAL_ERROR', message: `${fallback.message} ${fallback.action} (error ${ID})`, requestId: ID } });
     expect(entries).toHaveLength(1);
-    expect(entries[0]).toMatchObject({ level: 'error', message: `[incident] ${STEP} failed (error ${ID})`, error: original,
+    expect(entries[0], 'the host record keeps incident metadata').toMatchObject({ level: 'error', message: `[incident] ${STEP} failed (error ${ID})`,
       meta: { errorId: ID, step: STEP, label: 'Error(SQLITE_FULL)', causes: ['Error(ENOSPC)'], appVersion: '4.2.0', jiniVersion: '0.7.2', time: NOW } });
     expect(String(entries[0]!.meta!.diagnostic)).toContain('Error: disk is full');
     expect(reports).toHaveLength(1);
-    expect(reports[0]!.context).toEqual({ operation: STEP, level: 'error', attributes: { errorId: ID, label: 'Error(SQLITE_FULL)' } });
+    expect(reports[0]!.context, 'the report carries operation, incident label and explicit trace').toEqual({ operation: OPERATION, level: 'error', incidentId: ID, label: 'Error(SQLITE_FULL)', trace });
     expect(reports[0]!.error).toBe(original);
   });
 
   test('the boundary may pass an ID it already minted; the ID port is then not asked', () => {
     const built = build();
-    const described = built.reporter.describe({ error: new Error('x'), step: STEP, scope: 'members', fallback }, { errorId: 'ERR-AAAA-BBBB-CCCC-DDDD' });
-    expect(described.error.requestId).toBe('ERR-AAAA-BBBB-CCCC-DDDD');
-    expect(built.reporter.record({ error: new Error('y'), step: STEP })).toEqual({ errorId: ID });
+    const described = built.reporter.describe({ error: new Error('x'), step: STEP, operation: OPERATION, tracker, scope: 'members', fallback }, { errorId: 'ERR-AAAA-BBBB-CCCC-DDDD' });
+    expect(described.error.requestId, 'the supplied ID is reused').toBe('ERR-AAAA-BBBB-CCCC-DDDD');
+    expect(built.entries, 'an existing ID does not write another host record').toHaveLength(0);
+    expect(built.reports, 'an existing ID does not send another report').toHaveLength(0);
+    expect(built.reporter.record({ error: new Error('y'), step: STEP, operation: OPERATION }), 'describing an existing ID or refusal does not consume a new ID').toEqual({ errorId: ID });
   });
 
   test('the record keeps at most 30 stack lines and names at most three causes, nearest first', () => {
@@ -75,14 +80,17 @@ describe('incident', () => {
     expect(entries[0]!.meta!.causes).toEqual(['TypeError', 'RangeError', 'SyntaxError']);
   });
 
-  test('the host diagnostic blanks secrets and the tracker receives the original error and call secrets', () => {
+  test('the logger gets only a redacted diagnostic and the report gets the original error and tracker IDs', () => {
     const built = build({ redaction: { exactSecrets: ['host-standing-secret'] } });
     const error = new Error('upstream said host-standing-secret and call-scoped-secret with Authorization: Bearer abcdefghijklmnopqrstuvwxyz012345');
     const exactSecrets = ['call-scoped-secret'];
-    built.reporter.describe({ error, step: STEP, scope: 'members', fallback }, { audience: 'authorized', exactSecrets });
+    built.reporter.describe({ error, step: STEP, operation: OPERATION, tracker, scope: 'members', fallback }, { audience: 'authorized', exactSecrets });
     const operatorText = String(built.entries[0]!.meta!.diagnostic);
     expect(built.reports[0]!.error).toBe(error);
-    expect(built.reports[0]!.context.exactSecrets).toEqual(exactSecrets);
+    expect(built.entries[0], 'the logger must never receive the original error').not.toHaveProperty('error');
+    expect(built.reports[0]!.context, 'the report uses fixed operation and explicit tracker IDs').toEqual({
+      operation: OPERATION, level: 'error', incidentId: ID, label: 'Error', trace,
+    });
     for (const secret of ['host-standing-secret', 'call-scoped-secret', 'abcdefghijklmnopqrstuvwxyz012345']) expect(operatorText).not.toContain(secret);
     expect(operatorText).toContain('upstream said');
   });
@@ -129,40 +137,40 @@ describe('incident', () => {
 });
 
 describe('never throws', () => {
-  const ports = (): ErrorReporterPorts & { entries: ReturnType<typeof createRecordingLogger>['entries']; reports: ReturnType<typeof createRecordingTracker>['reports'] } => {
+  const ports = (): ErrorReporterPorts & { entries: ReturnType<typeof createRecordingLogger>['entries']; reports: ReturnType<typeof createRecordingObservability>['reports'] } => {
     const { logger, entries } = createRecordingLogger();
-    const { tracker, reports } = createRecordingTracker();
-    return { ids: createSequenceIds({ ids: [ID] }), clock: createFixedClock({ iso: NOW }), logger, tracker, catalog, versions: { app: '4.2.0', jini: '0.7.2' }, entries, reports };
+    const { observability, reports } = createRecordingObservability();
+    return { ids: createSequenceIds({ ids: [ID] }), clock: createFixedClock({ iso: NOW }), logger, observability, catalog, versions: { app: '4.2.0', jini: '0.7.2' }, entries, reports };
   };
   const boom = (): never => { throw new Error('port down'); };
   const run = (overrides: Partial<ErrorReporterPorts>) => {
     const base = ports();
-    const described = createErrorReporter({ ...base, ...overrides }).describe({ error: new Error('x'), step: STEP, scope: 'members', fallback }, { audience: 'signed-in' });
+    const described = createErrorReporter({ ...base, ...overrides }).describe({ error: new Error('x'), step: STEP, operation: OPERATION, tracker, scope: 'members', fallback }, { audience: 'signed-in' });
     return { described, entries: base.entries, reports: base.reports };
   };
 
   test('a throwing logger still answers and still reports to the tracker', () => {
     const { described, reports } = run({ logger: { warn: boom, error: boom } });
-    expect(described.error).toEqual({ code: 'INTERNAL_ERROR', message: `${fallback.message} (error ${ID})`, requestId: ID });
+    expect(described.error, 'logger failure preserves fallback words and next action').toEqual({ code: 'INTERNAL_ERROR', message: `${fallback.message} ${fallback.action} (error ${ID})`, requestId: ID });
     expect(reports).toHaveLength(1);
   });
 
   test('a throwing tracker still answers, keeps the host record, and says the tracker copy is missing', () => {
-    const { described, entries } = run({ tracker: { reportError: boom } });
+    const { described, entries } = run({ observability: { reportError: boom } });
     expect(described.error.requestId).toBe(ID);
     expect(entries.map(entry => [entry.level, entry.message])).toEqual([
       ['error', `[incident] ${STEP} failed (error ${ID})`], ['warn', `[incident] the tracker did not accept the report for error ${ID}`]]);
   });
 
   test('a tracker whose promise rejects is observed, not left unhandled', async () => {
-    const { entries } = run({ tracker: { reportError: () => Promise.reject(new Error('tracker offline')) } });
+    const { entries } = run({ observability: { reportError: () => Promise.reject(new Error('tracker offline')) } });
     await Promise.resolve(); await Promise.resolve();
     expect(entries.map(entry => entry.message)).toContain(`[incident] the tracker did not accept the report for error ${ID}`);
   });
 
   test('a failing ID port answers with the stand-in ID in the words, the wire field and the record', () => {
     const { described, entries } = run({ ids: { newId: boom } });
-    expect(described.error).toMatchObject({ message: `${fallback.message} (error ${UNAVAILABLE_ERROR_ID})`, requestId: UNAVAILABLE_ERROR_ID });
+    expect(described.error, 'ID-port failure preserves fallback words and next action').toMatchObject({ message: `${fallback.message} ${fallback.action} (error ${UNAVAILABLE_ERROR_ID})`, requestId: UNAVAILABLE_ERROR_ID });
     expect(entries[0]!.meta!.errorId).toBe(UNAVAILABLE_ERROR_ID);
   });
 
@@ -202,7 +210,7 @@ describe('disclosure: redaction is not permission', () => {
 
   test('anonymous: words and the ID only, no details block', () => {
     const { described } = describeIncident(failing(CANARIES[0]!));
-    expect(described).toEqual({ kind: 'incident', status: 500, error: { code: 'INTERNAL_ERROR', message: `${fallback.message} (error ${ID})`, requestId: ID } });
+    expect(described, 'incident words include the fallback message, action and ID').toEqual({ kind: 'incident', status: 500, error: { code: 'INTERNAL_ERROR', message: `${fallback.message} ${fallback.action} (error ${ID})`, requestId: ID } });
     expect(JSON.stringify(described)).not.toMatch(/4\.2\.0|0\.7\.2|Export site|SQLITE_BUSY/);
   });
 
@@ -214,11 +222,13 @@ describe('disclosure: redaction is not permission', () => {
       copyText: [`Message: ${fallback.message}`, `Next action: ${fallback.action}`, `Error ID: ${ID}`, `Step: ${STEP}`, `Cause: ${INCIDENT_CAUSE_SENTENCE}`,
         'App version: 4.2.0', 'Jini version: 0.7.2', `Time: ${NOW}`].join('\n'),
     });
+    expect(described.error.message, 'signed-in incident words include the next action').toBe(`${fallback.message} ${fallback.action} (error ${ID})`);
     expect(JSON.stringify(described)).not.toContain('SQLITE_BUSY');
   });
 
   test('authorised for the operation: the cause also carries the listed class and code label, nothing else', () => {
     const { described } = describeIncident(failing(CANARIES[0]!), { audience: 'authorized' });
+    expect(described.error.message, 'authorized incident words include the next action').toBe(`${fallback.message} ${fallback.action} (error ${ID})`);
     expect(described.failure?.cause).toBe(`${INCIDENT_CAUSE_SENTENCE} Failure class: Error(SQLITE_BUSY).`);
   });
 
@@ -233,40 +243,49 @@ describe('disclosure: redaction is not permission', () => {
 describe('refusal', () => {
   test('a bound error answers its code and words, with no host record, no tracker report and no ID', () => {
     const built = build();
-    const described = built.reporter.describe({ error: new MemberNotFoundError("member 'm-9' was not found"), step: STEP, scope: 'members', fallback });
-    expect(described).toEqual({ kind: 'refusal', status: 404, error: { code: 'MEMBERS_NOT_FOUND', retryable: false, message: "member 'm-9' was not found" } });
+    const described = built.reporter.describe({ error: new MemberNotFoundError("member 'm-9' was not found"), step: STEP, operation: OPERATION, tracker, scope: 'members', fallback });
+    expect(described, 'own-message refusals publish fallback words').toEqual({ kind: 'refusal', status: 404, error: { code: 'MEMBERS_NOT_FOUND', retryable: false, message: fallback.message } });
     expect(built.entries).toEqual([]);
     expect(built.reports).toEqual([]);
-    expect(built.reporter.record({ error: new Error('next'), step: STEP })).toEqual({ errorId: ID });
+    expect(built.reporter.record({ error: new Error('next'), step: STEP, operation: OPERATION }), 'describing an existing ID or refusal does not consume a new ID').toEqual({ errorId: ID });
   });
 
   test('the same error in a scope that does not bind it is an incident', () => {
-    expect(build().reporter.describe({ error: new MemberNotFoundError('x'), step: STEP, scope: 'pages', fallback }).kind).toBe('incident');
+    expect(build().reporter.describe({ error: new MemberNotFoundError('x'), step: STEP, operation: OPERATION, tracker, scope: 'pages', fallback }).kind, 'unbound errors remain incidents').toBe('incident');
   });
 
   test('a fixed text replaces the message; a code with no sentence takes its status from the generic table', () => {
-    const described = build().reporter.describe({ error: new SealerError('plaintext: hunter2'), step: STEP, scope: 'members', fallback });
+    const described = build().reporter.describe({ error: new SealerError('plaintext: hunter2'), step: STEP, operation: OPERATION, tracker, scope: 'members', fallback });
     expect(described).toEqual({ kind: 'refusal', status: 500, error: { code: 'MEMBERS_SEAL_FAILED', message: 'The member record could not be sealed.' } });
   });
 
   test('a sentence is rendered in English and its values travel in details.params, each capped at 128 characters', () => {
-    const described = build().reporter.describe({ error: new QuotaError('over'), step: STEP, scope: 'members', fallback });
+    const described = build().reporter.describe({ error: new QuotaError('over'), step: STEP, operation: OPERATION, tracker, scope: 'members', fallback });
     const plan = `team ${'x'.repeat(200)}`.slice(0, 128);
     expect(described).toEqual({ kind: 'refusal', status: 429, error: { code: 'MEMBERS_QUOTA', retryable: true,
       message: `You have used 12 of 10 seats for ${plan}.`, details: { params: { used: 12, limit: 10, plan } } } });
   });
 
+  test('a call-scoped exact secret in a sentence parameter is blanked', () => {
+    const described = build().reporter.describe({ error: new QuotaError('over'), step: STEP,
+      operation: OPERATION, tracker, scope: 'members', fallback }, { exactSecrets: ['team'] });
+    expect(described.error.message, 'per-call secrets are redacted from rendered sentences').not.toContain('team');
+    expect(described.error.details, 'per-call secrets are redacted from sentence parameters').toEqual({ params: {
+      used: 12, limit: 10, plan: `[REDACTED:exact_secret] ${'x'.repeat(200)}`.slice(0, 128),
+    } });
+  });
+
   test("words a sentence reserves for authorised callers are replaced by the boundary's fallback words for everyone else", () => {
     const error = new StaffOnlyError('workspace billing-emea is restricted to staff');
-    const wire = (audience: ErrorAudience) => build().reporter.describe({ error, step: STEP, scope: 'members', fallback }, { audience });
+    const wire = (audience: ErrorAudience) => build().reporter.describe({ error, step: STEP, operation: OPERATION, tracker, scope: 'members', fallback }, { audience });
     expect(wire('anonymous')).toEqual({ kind: 'refusal', status: 403, error: { code: 'MEMBERS_STAFF_ONLY', retryable: false, message: fallback.message } });
     expect(wire('signed-in').error.message).toBe(fallback.message);
-    expect(wire('authorized').error.message).toBe('workspace billing-emea is restricted to staff');
+    expect(wire('authorized').error.message, 'own-message text is not published to authorized callers').toBe(fallback.message);
   });
 
   test('an already-classified carrier is answered as built, with the catalog status when the code has a sentence', () => {
     const built = build();
-    const carried = (code: string) => built.reporter.describe({ error: new ClientFacingError({ apiError: { code, message: 'chosen words' } }), step: STEP, scope: 'pages', fallback });
+    const carried = (code: string) => built.reporter.describe({ error: new ClientFacingError({ apiError: { code, message: 'chosen words' } }), step: STEP, operation: OPERATION, tracker, scope: 'pages', fallback });
     expect(carried('MEMBERS_NOT_FOUND')).toEqual({ kind: 'refusal', status: 404, error: { code: 'MEMBERS_NOT_FOUND', message: 'chosen words' } });
     expect(carried('RATE_LIMITED').status).toBe(429);
     expect(built.entries).toEqual([]);
@@ -276,14 +295,14 @@ describe('refusal', () => {
 describe('record', () => {
   test('a failure nobody is shown gets a host record and a tracker report under one ID', () => {
     const built = build();
-    expect(built.reporter.record({ error: new TypeError('cleanup failed'), step: 'Close export stream' })).toEqual({ errorId: ID });
+    expect(built.reporter.record({ error: new TypeError('cleanup failed'), step: 'Close export stream', operation: 'export.close' }), 'recording returns the one incident ID').toEqual({ errorId: ID });
     expect(built.entries.map(entry => [entry.level, entry.message])).toEqual([['error', `[incident] Close export stream failed (error ${ID})`]]);
-    expect(built.reports.map(report => report.context)).toEqual([{ operation: 'Close export stream', level: 'error', attributes: { errorId: ID, label: 'TypeError' } }]);
+    expect(built.reports.map(report => report.context), 'recording reports the fixed operation and incident tag').toEqual([{ operation: 'export.close', level: 'error', incidentId: ID, label: 'TypeError' }]);
   });
 
   test("tracker: 'skip' still writes the host record, at the asked level, and sends nothing to the tracker", () => {
     const built = build();
-    const recorded = built.reporter.record({ error: new Error('rate limit reached'), step: 'Site assistant reply' }, { level: 'warning', tracker: 'skip', exactSecrets: ['visitor-token-123'] });
+    const recorded = built.reporter.record({ error: new Error('rate limit reached'), step: 'Site assistant reply', operation: 'assistant.reply' }, { level: 'warning', tracker: 'skip', exactSecrets: ['visitor-token-123'] });
     expect(recorded).toEqual({ errorId: ID });
     expect(built.entries.map(entry => entry.level)).toEqual(['warn']);
     expect(built.reports).toEqual([]);
@@ -291,7 +310,7 @@ describe('record', () => {
 
   test('a warning that is reported reaches the tracker as a warning', () => {
     const built = build();
-    built.reporter.record({ error: new Error('slow'), step: 'Probe' }, { level: 'warning' });
+    built.reporter.record({ error: new Error('slow'), step: 'Probe', operation: 'probe.run' }, { level: 'warning' });
     expect(built.reports[0]!.context.level).toBe('warning');
   });
 });
