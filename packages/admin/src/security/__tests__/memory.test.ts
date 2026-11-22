@@ -100,6 +100,12 @@ describe('memory other credentials', () => {
 describe('memory root key', () => {
   const status = (over: Partial<RootKeyStatus>): RootKeyStatus => ({ active: false, source: 'none', state: 'missing', keyFilePath: '/k', runtimeMode: 'production', ...over });
   it('keeps envVarName and reason on a supplied status (P10)', async () => { const s = status({ source: 'env', state: 'invalid', invalid: true, envVarName: 'SITE_KEY_VAR', reason: 'too-short' }); expect(await createMemoryRootKey({ status: s }).status({})).toEqual(s); });
+  it('drops envVarName, invalid and reason once a successful import activates a file-backed key', async () => {
+    // Reject: spread the prior env-sourced status, carrying its refusal metadata into the active one.
+    const api = createMemoryRootKey({ status: status({ source: 'env', state: 'mismatch', invalid: true, envVarName: 'SITE_KEY_VAR', reason: 'odd-length' }) });
+    expect((await api.importToken({ token: 'ab'.repeat(32) })).outcome).toBe('unlocked');
+    expect(await api.status({})).toEqual({ active: true, source: 'file', state: 'active', keyFilePath: '/k', runtimeMode: 'production', fingerprint: 'memory-fingerprint' });
+  });
   it('starts missing by default', async () => { expect(await createMemoryRootKey({}).status({})).toEqual({ active: false, source: 'none', state: 'missing', keyFilePath: '/memory/key', runtimeMode: 'local' }); });
   it('creates a key when missing and becomes active', async () => {
     const api = createMemoryRootKey({ status: status({}) });

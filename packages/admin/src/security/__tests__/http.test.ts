@@ -1,5 +1,7 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { createHttpSecurityApi, createHttpOtherCredentials, createHttpRootKey } from '../adapters/http.js';
+import { createRootKeyController } from '../controllers/root-key.controller.js';
+import { ROOT_KEY_PERMISSION } from '../rules.js';
 import type { SecurityTransportPort } from '../ports.js';
 function transport(replies: unknown[]) {
   const calls: { path: string; method: string; body?: unknown }[] = []; const signals: (AbortSignal | undefined)[] = [];
@@ -146,10 +148,14 @@ describe('SEC-4 root-key wire parity with Tovu site-key', () => {
     const invalid = { active: false, source: 'env', state: 'invalid', keyFilePath: '/key', runtimeMode: 'production', invalid: true, envVarName: 'SITE_KEY_VAR', reason: 'odd-length' };
     const t = transport([invalid]); expect(await createHttpRootKey({ transport: t.port, workspacePath: TOVU_WS }, TOVU_KEY).status({})).toEqual(invalid);
   });
-  it('projects status explicitly: injected hex/token extras and blank optional fields never escape', async () => {
+  it('projects status explicitly: injected hex/token extras never escape, and a present envVarName is kept even when empty', async () => {
+    // Tovu's client preserves a supplied empty string, so presence (not truthiness) decides whether the field is kept.
     const leaky = { ...status, envVarName: '', hex: 'SECRET'.repeat(4), token: 'SECRET', siteKey: 'SECRET', extra: 'SECRET' };
     const t = transport([leaky]); const read = await createHttpRootKey({ transport: t.port, workspacePath: TOVU_WS }, TOVU_KEY).status({});
-    expect(read).toEqual(status); expect(JSON.stringify(read)).not.toContain('SECRET');
+    expect(read).toEqual({ ...status, envVarName: '' }); expect(JSON.stringify(read)).not.toContain('SECRET');
+  });
+  it('omits envVarName from status when the server does not send it', async () => {
+    const t = transport([status]); expect(Object.keys(await createHttpRootKey({ transport: t.port, workspacePath: TOVU_WS }, TOVU_KEY).status({}))).not.toContain('envVarName');
   });
   it('propagates an import refusal unchanged, then permits a retry', async () => {
     // Reject: catch the importToken refusal and return a success-shaped result.
@@ -160,5 +166,27 @@ describe('SEC-4 root-key wire parity with Tovu site-key', () => {
     await expect(api.importToken({ token: 'old-token-42' })).rejects.toBe(refusal);
     await expect(api.importToken({ token: 'old-token-42' })).resolves.toEqual(imported);
     expect(calls).toEqual([0, 1].map(() => ['POST', `${TOVU_WS}/system/site-key/import`, '{"siteKey":"old-token-42"}']));
+  });
+  it('never surfaces a fixture key echoed in a transport refusal: not in the displayed error, state, result or console (P9-SEC §1b)', async () => {
+    // Reject: render or log the refusal's message/body; a server that echoes the pasted key must not leak it.
+    const FIXTURE_KEY = '0123456789abcdef'.repeat(4);
+    const echo = Object.assign(new Error(`SITE_KEY_DOES_NOT_OPEN: ${FIXTURE_KEY}`), { status: 409, body: { error: 'SITE_KEY_DOES_NOT_OPEN', siteKey: FIXTURE_KEY } });
+    const locked = { active: false, state: 'mismatch', source: 'file', keyFilePath: '/key', runtimeMode: 'local', siteKey: FIXTURE_KEY };
+    const active = { active: true, state: 'active', source: 'file', fingerprint: 'fp-42', keyFilePath: '/key', runtimeMode: 'local', hex: FIXTURE_KEY };
+    const replies: (() => unknown)[] = [() => locked, () => { throw echo; }, () => ({ ...imported, siteKey: FIXTURE_KEY }), () => active];
+    const calls: string[] = []; const port: SecurityTransportPort = { async request<T>(req: Parameters<SecurityTransportPort['request']>[0]): Promise<T> { calls.push(`${req.method} ${req.path}`); return replies.shift()!() as T; } };
+    const spies = (['log', 'info', 'warn', 'error', 'debug'] as const).map(m => vi.spyOn(console, m).mockImplementation(() => {}));
+    try {
+      const c = createRootKeyController({ api: createHttpRootKey({ transport: port, workspacePath: TOVU_WS }, TOVU_KEY), permissions: [ROOT_KEY_PERMISSION] });
+      await c.load({}); c.setToken({ value: FIXTURE_KEY });
+      expect(await c.importToken({})).toBe(false);
+      const { token, ...refused } = c.getSnapshot(); expect(token).toBe(FIXTURE_KEY); // the operator's own field keeps their input for the retry
+      expect(refused.error).toBe('Recovery refused. Check the host key configuration.'); expect(JSON.stringify(refused)).not.toContain(FIXTURE_KEY);
+      expect(await c.importToken({})).toBe(true);
+      expect(c.getSnapshot()).toMatchObject({ token: '', error: null, result: 'Unlocked. Saved credentials work again.', status: { active: true, fingerprint: 'fp-42' } });
+      expect(JSON.stringify(c.getSnapshot())).not.toContain(FIXTURE_KEY);
+      expect(calls).toEqual([`GET ${TOVU_WS}/system/site-key`, `POST ${TOVU_WS}/system/site-key/import`, `POST ${TOVU_WS}/system/site-key/import`, `GET ${TOVU_WS}/system/site-key`]);
+      for (const spy of spies) expect(JSON.stringify(spy.mock.calls.map(args => args.map(String)))).not.toContain(FIXTURE_KEY);
+    } finally { for (const spy of spies) spy.mockRestore(); }
   });
 });
