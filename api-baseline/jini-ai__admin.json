@@ -520,6 +520,12 @@
    "stripTrailingSlash": "function:21e8a87467"
   }
  },
+ "./core/i18n-common": {
+  "types": "./dist/core/i18n-common.d.ts",
+  "symbols": {
+   "ADMIN_COMMON_I18N": "variable:ce86ecd827"
+  }
+ },
  "./core/module": {
   "types": "./dist/core/module/index.d.ts",
   "symbols": {
