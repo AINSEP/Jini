@@ -25,8 +25,8 @@ export interface SecurityOptions {
 function rootKeyParams({ rootKeyScopeNotice, rootKeyTab }: { rootKeyScopeNotice?: string | undefined; rootKeyTab?: SecurityRootKeyTabOptions | undefined }, _optional = {}) {
   return { ...(rootKeyScopeNotice ? { scopeNotice: rootKeyScopeNotice } : {}), ...rootKeyTab };
 }
-/** One security module per admin scope. The host's translator, tab glyphs ride a
- * context on the Provider, so swapping the locale re-renders without rebuilding the tab controllers.
+/** One security module per admin scope. The host's translator, tab glyphs and owner controls (the
+ * host's TOTP, passkey and recovery cards, which this package does not own) ride a context on the Provider, so swapping the locale re-renders without rebuilding the tab controllers.
  * @example createElement(feature.react.Provider, { admin, t: hostTranslator, children })
  */
 export function security<Page, Tab>({ ui }: { ui: ModuleUi<Page, Tab> }, { t = englishSecurity, rootKeyScopeNotice, rootKeyTab, tabIcons = {} }: SecurityOptions = {}) {
@@ -34,8 +34,8 @@ export function security<Page, Tab>({ ui }: { ui: ModuleUi<Page, Tab> }, { t = e
   const module = { ...securityModule, pages: { secrets: { ...secrets, tabs: { ...secrets.tabs, 'root-key': { ...secrets.tabs['root-key'], params: rootKeyParams({ rootKeyScopeNotice, rootKeyTab }) } } } } };
   const react = ui.bindReact({ module, views: { secrets: { page: () => import('./pages/SecurityPage.js'), tabs: { 'access-tokens': () => import('./tabs/AccessTokensTab.js'), 'root-key': () => import('./tabs/RootKeyTab.js') } } } }, { context: SecurityPortsContext });
   const ScopeProvider = react.Provider;
-  function Provider({ admin, children, t: currentTranslation = t }: { admin: AdminInstance; children: ReactNode; t?: SecurityTranslator }) {
-    const chrome: SecurityChrome = { t: currentTranslation, tabIcons };
+  function Provider({ admin, children, t: currentTranslation = t, ownerControls }: { admin: AdminInstance; children: ReactNode; t?: SecurityTranslator; ownerControls?: ReactNode }) {
+    const chrome: SecurityChrome = { t: currentTranslation, tabIcons, ...(ownerControls === undefined ? {} : { ownerControls }) };
     return createElement(SecurityChromeContext.Provider, { value: chrome }, createElement(ScopeProvider, { admin, children }));
   }
   return Object.assign(module, { react: { ...react, Provider } });

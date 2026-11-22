@@ -17,6 +17,8 @@ export function useSecurityPorts(_required: Record<string, never> = {}, _optiona
 export interface SecurityChrome {
   readonly t: SecurityTranslator;
   readonly tabIcons: Partial<Record<'access-tokens' | 'root-key', ReactNode>>;
+  /** Rendered once above the tabs, only when the page itself is visible. */
+  readonly ownerControls?: ReactNode;
 }
 export const SecurityChromeContext = createContext<SecurityChrome>({ t: englishSecurity, tabIcons: {} });
 export function useSecurityChrome(_required: Record<string, never> = {}, _optional: Record<string, never> = {}): SecurityChrome {

@@ -11,13 +11,13 @@ const TAB_HANDLES: Readonly<Record<string, { handle: string; handleLabel: string
 };
 export function useSecurityPage(props: TabbedPageProps, { useSecurityChromeHook = useSecurityChrome }: { useSecurityChromeHook?: typeof useSecurityChrome } = {}) {
   const [local, setLocal] = useState('access-tokens');
-  const { t, tabIcons } = useSecurityChromeHook();
+  const { t, tabIcons, ownerControls } = useSecurityChromeHook();
   const visible = props.description.visible ? props.description.tabs.filter(t => t.visible) : [];
   const active = visible.find(t => t.id.endsWith(`.${props.requestedTab ?? local}`)) ?? visible[0];
   const id = active?.id.split('.').at(-1);
   const tabs = visible.map(tab => { const tabId = tab.id.split('.').at(-1)!; const handles = TAB_HANDLES[tabId];
     return { id: tabId, label: t(tab.label), icon: tabIcons[tabId as keyof typeof tabIcons], handle: handles?.handle, handleLabel: handles ? t(handles.handleLabel) : undefined }; });
-  return { denied: !props.description.visible, active: id ?? '', ActiveTab: id ? props.tabs[id] : undefined, params: active?.params ?? {}, permissions: props.description.grants, t, tabs,
+  return { denied: !props.description.visible, active: id ?? '', ActiveTab: id ? props.tabs[id] : undefined, params: active?.params ?? {}, permissions: props.description.grants, t, tabs, ownerControls,
     onValueChange({ value }: { value: string }) { setLocal(value); props.onTabChange?.({ tab: value }); },
   };
 }

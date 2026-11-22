@@ -10,7 +10,7 @@ export function SecurityPage({ useSecurityPageHook = useSecurityPage, ...props }
   const vm = useSecurityPageHook(props); const { t } = vm;
   return <section data-jini-part="security.page">
     <header className="jini-page-header"><p className="jini-page-kicker">{t('Operations')}</p><h1>{t(props.description.label)}</h1><p className="jini-page-description">{t(DESCRIPTION)}</p></header>
-    {vm.denied ? <Notice tone="danger">{t('Permission denied')}</Notice> : <><TabBar ariaLabel={t(props.description.label)} tabs={vm.tabs} activeId={vm.active} onChange={id => vm.onValueChange({ value: id })} containerHandle="security-tab-bar" /><Suspense fallback={<Spinner label={t('Loading credentials…')} />}>{vm.ActiveTab && <vm.ActiveTab key={vm.active} params={vm.params} permissions={vm.permissions} />}</Suspense></>}
+    {vm.denied ? <Notice tone="danger">{t('Permission denied')}</Notice> : <>{vm.ownerControls}<TabBar ariaLabel={t(props.description.label)} tabs={vm.tabs} activeId={vm.active} onChange={id => vm.onValueChange({ value: id })} containerHandle="security-tab-bar" /><Suspense fallback={<Spinner label={t('Loading credentials…')} />}>{vm.ActiveTab && <vm.ActiveTab key={vm.active} params={vm.params} permissions={vm.permissions} />}</Suspense></>}
   </section>;
 }
 export default SecurityPage;
