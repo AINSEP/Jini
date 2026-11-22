@@ -9,3 +9,7 @@ export { bootSessionRoute } from './boot-session.js';
 export type { BootSessionInput } from './boot-session.js';
 export { localBootSessionRoute } from './local-boot-session.js';
 export { OwnerAuthFailure } from './auth-request.js';
+export { currentUserRoute } from './current-user.js';
+export type { CurrentUserRouteDeps } from './current-user.js';
+export { createPasswordStatusRoute } from './password-status.js';
+export type { PasswordStatusRouteDeps } from './password-status.js';
