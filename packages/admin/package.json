@@ -46,6 +46,7 @@
       "./playground/conformance": "universal",
       "./source-control": "universal",
       "./source-control/react": "browser",
+      "./publish-content/screen/hooks/publish-availability.store": "browser",
       "./source-control/adapters/http": "universal",
       "./source-control/adapters/memory": "universal",
       "./source-control/conformance": "universal",
@@ -261,6 +262,11 @@
       "types": "./dist/source-control/react/index.d.ts",
       "import": "./dist/source-control/react/index.js",
       "default": "./dist/source-control/react/index.js"
+    },
+    "./publish-content/screen/hooks/publish-availability.store": {
+      "types": "./dist/publish-content/screen/hooks/publish-availability.store.d.ts",
+      "import": "./dist/publish-content/screen/hooks/publish-availability.store.js",
+      "default": "./dist/publish-content/screen/hooks/publish-availability.store.js"
     },
     "./source-control/adapters/http": {
       "types": "./dist/source-control/adapters/http.d.ts",
