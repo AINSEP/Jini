@@ -335,3 +335,97 @@
 -> RED |       Tests  1 failed | 7 passed (8)
  src/core/ag-ui/__tests__/run-frames.test.ts > a reader rejection writes RUN_ERROR and returns the same error (1)
 
+### merge 4 jx-route2 (r62t-route J1-J3; no sheet in git, branch tests are the spec)
+== route: companion not filtered by enabled (disabled companion delivered)
+@@ -75 +75 @@ function withRequiredProviders({ ranked, candidates }: {
+-  const companions = (top.companions ?? []).flatMap(id => candidates.filter(plugin => plugin.enabled && plugin.pluginId === id).map(plugin => ranked.find(match => match.pluginId === id) ?? { ...plugin, score: 4 }));
++  const companions = (top.companions ?? []).flatMap(id => candidates.filter(plugin => plugin.pluginId === id).map(plugin => ranked.find(match => match.pluginId === id) ?? { ...plugin, score: 4 }));
+-> GREEN (exit 0) | 106 passed — EQUIVALENT: prepare() already filters candidates to enabled at automatic-use.ts:231 (same as the existing required filter at :76)
+
+
+== route: companions dropped from ordered list
+@@ -79 +79 @@ function withRequiredProviders({ ranked, candidates }: {
+-  const ordered = [top, ...companions, ...required, ...ranked];
++  const ordered = [top, ...required, ...ranked];
+-> RED (exit 1) |       Tests  3 failed | 103 passed (106)
+ src/lifecycle/__tests__/unit/automatic-use.unit.test.ts > delivers an unranked companion before three additional matches
+ src/lifecycle/__tests__/unit/automatic-use.unit.test.ts > keeps an over-budget section whole and available on demand
+ src/lifecycle/__tests__/unit/automatic-use.unit.test.ts > skips an off or missing companion and respects Ask consent
+
+== route: companion delivered although top refused under Ask consent
+@@ -265 +265 @@ async function consentedMatches({ ctx, candidates, input }: {
+-  return consented.filter(plugin => topAccepted || !ranked[0]?.companions?.includes(plugin.pluginId) || ranked.some(match => match.pluginId === plugin.pluginId));
++  return consented.filter(plugin => true || !ranked[0]?.companions?.includes(plugin.pluginId) || ranked.some(match => match.pluginId === plugin.pluginId));
+-> RED (exit 1) |       Tests  1 failed | 105 passed (106)
+ src/lifecycle/__tests__/unit/automatic-use.unit.test.ts > skips an off or missing companion and respects Ask consent
+
+== route: additional capped at 3 including companions (old cap)
+@@ -288 +288 @@ function primaryMatch({ ctx, matches, input }: {
+-  return [top, ...companions, ...additional.slice(0, 3)];
++  return [top, ...companions, ...additional].slice(0, 3);
+-> RED (exit 1) |       Tests  4 failed | 102 passed (106)
+ src/lifecycle/__tests__/unit/automatic-use.unit.test.ts > 5 genuinely relevant plugins all load: no per-chat plugin count
+ src/lifecycle/__tests__/unit/automatic-use.unit.test.ts > delivers an unranked companion before three additional matches
+ src/lifecycle/__tests__/unit/automatic-use.unit.test.ts > keeps an over-budget section whole and available on demand
+ src/lifecycle/__tests__/unit/automatic-use.unit.test.ts > three required providers deliver after the top
+
+== route: malformed companions accepted
+@@ -49 +49 @@ export function readAgentPluginCompatibilityMetadata(
+-  const companions = Array.isArray(extension.companions) && extension.companions.every((value): value is string => typeof value === 'string' && isAgentPluginName({ value }))
++  const companions = Array.isArray(extension.companions)
+-> RED (exit 1) |       Tests  2 failed | 104 passed (106)
+ src/lifecycle/__tests__/unit/installed-package-index.unit.test.ts > ignores a malformed companion list without rejecting the plugin
+ src/lifecycle/__tests__/unit/manifest-extensions.unit.test.ts > ignores a malformed companion list without rejecting the plugin
+
+== kuinetic: restore hard load_agent_plugin call
+@@ -15 +15,2 @@ exists. Not a tutorial.
+-If the ui-ux-design plugin is available, load its ui-ux-design skill first using this host's plugin guidance reader; otherwise follow the basic design rules below.
++**Design first:** before designing or redesigning a theme or page, load the ui-ux-design core:
++`load_agent_plugin({ "pluginId": "ui-ux-design", "skill": "ui-ux-design" })`.
+-> RED (exit 1) | ℹ fail 1
+✖ the core keeps the conditional ui-ux-design fallback near the top (2.897335ms)
+
+== kuinetic: companions removed from plugin.json
+@@ -12,3 +12 @@
+-      "companions": [
+-        "ui-ux-design"
+-      ],
++      
+-> RED (exit 1) | ℹ fail 1
+✖ the core keeps the conditional ui-ux-design fallback near the top (4.659347ms)
+
+== route: installed index drops companions
+@@ -12 +12 @@ function indexedMetadata({ manifest }: { readonly manifest: InstalledAgentPlugin
+-  return Object.fromEntries(Object.entries({ requires, companions, hostRange, exports, renamedFrom }).filter(([, value]) => value !== undefined));
++  return Object.fromEntries(Object.entries({ requires, hostRange, exports, renamedFrom }).filter(([, value]) => value !== undefined));
+-> RED (exit 1) |       Tests  1 failed | 105 passed (106)
+ src/lifecycle/__tests__/unit/installed-package-index.unit.test.ts > projects declared companion names from the selected namespace
+
+== site-import: SKILL moves the current homepage automatically
+@@ -79 +79 @@ anything behind a login. Say so in the plan when the source has any of them.
+-   current ones; the active theme and menu placements keep serving. Stage the imported homepage at a free address while the current homepage keeps serving.
++   current ones; the active theme and menu placements keep serving. Move the current homepage to previous-home and put the imported homepage at /.
+-> RED (exit 1) | ℹ fail 1
+✖ stages the imported homepage and previews its draft by ID before approved cutover (2.23853ms)
+
+== site-import: content-mapping moves the current homepage automatically
+@@ -24 +24 @@ host guidance names them; `admin` and `api` are reserved almost everywhere).
+-- Stage the imported homepage at a free address while the current homepage keeps serving.
++- The imported homepage always goes at / and the current one moves aside.
+-> RED (exit 1) | ℹ fail 1
+✖ stages the imported homepage and previews its draft by ID before approved cutover (1.8457ms)
+
+== slide-design: publish on creation
+@@ -64 +64 @@ Save requested page or deck work with the current host's tools.
+-Publish only when requested.
++Use the page or HTML tools to publish the deck.
+-> RED (exit 1) | ℹ fail 1
+✖ saves requested work and publishes only on request (6.08382ms)
+
+== ui-ux-design: publish without request
+@@ -18 +18 @@ require a particular repository or framework. Design-only requests may return in
+-Save requested page or deck work with the current host's tools. Publish only when requested.
++Save requested page or deck work with the current host's tools. Publish when done.
+-> RED (exit 1) | ℹ fail 1
+✖ saves requested work and publishes only on request (1.621678ms)
+
