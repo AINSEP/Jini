@@ -1,7 +1,7 @@
 import { render, renderHook, screen } from '@testing-library/react';
 import { createRef, type ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import { AdminKitProvider, Button, Icon, useAdminKitValues, useAdminThemeKit, useDirtyGuard, useFetchQuery, useMediaProviderRules, useT } from '../kit.js';
+import { AdminKitProvider, Button, Icon, type KitIconName, useAdminKitValues, useAdminThemeKit, useDirtyGuard, useFetchQuery, useMediaProviderRules, useT } from '../kit.js';
 import { fakeAdminKit, fixtureQuery } from '../testing-kit.js';
 import { renderWithAdminKit } from './render-with-admin-kit.js';
 
@@ -76,6 +76,28 @@ describe('admin kit: UI icon, UI translator and injected values (A-K2-0a)', () =
     const t = renderHook(() => useT(), { wrapper }).result.current;
     expect(t).toBe(uiTranslator);
     expect(t('Save')).toBe('ui-sentinel:Save');
+  });
+
+  it('routes the glyphs the migrating admin screens render through the injected Icon', () => {
+    // Database, import-export, library, media and skills screens render these once they import the kit Icon.
+    const names = [
+      'timeline', 'migrate-forward', 'tray-export', 'tray-import', 'more-horizontal-outline', 'tray-upload', 'document-lines',
+      'tiles-four', 'picture-frame', 'video-frame', 'cloud-outline', 'bin-lidded', 'document-marked',
+    ] as const satisfies readonly KitIconName[];
+    const kit = fakeAdminKit({ components: { Icon: (props) => <svg role="img" aria-label={props.name} data-icon={props.name} /> } });
+    renderWithAdminKit(<>{names.map((name) => <Icon key={name} name={name} />)}</>, { kit });
+    expect(screen.getAllByRole('img').map((el) => el.getAttribute('data-icon'))).toEqual([...names]);
+  });
+
+  it('the useT and values facades take empty required/optional objects and still return the injected objects', () => {
+    const uiTranslator = (key: string, vars?: Readonly<Record<string, string | number>>) => `${key}:${vars?.n ?? ''}`;
+    const kit = fakeAdminKit({ hooks: { useT: () => uiTranslator } });
+    const wrapper = ({ children }: { children: ReactNode }) => <AdminKitProvider kit={kit}>{children}</AdminKitProvider>;
+    const read = renderHook(() => ({ t: useT({}, {}), values: useAdminKitValues({}, {}), bare: useAdminKitValues() }), { wrapper }).result.current;
+    expect(read.t).toBe(uiTranslator);
+    expect(read.t('Count', { n: 2 })).toBe('Count:2');
+    expect(read.values).toBe(kit.values);
+    expect(read.bare).toBe(kit.values);
   });
 
   it('hands screens the exact injected values, not copies', () => {
