@@ -117,7 +117,7 @@
       "./themes/files/reviewed-write": "node",
       "./themes/files/atomic-write": "node",
       "./admin-http/limits": "universal",
-      "./media/site-transform/image-ops": "universal",
+      "./media/site-transform/image-ops": "node",
       "./media/site/bootstrap": "node",
       "./media/site/chat-preview": "node",
       "./media/site/content-type-resolution": "node",

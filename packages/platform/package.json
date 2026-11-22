@@ -44,7 +44,7 @@
       "./proxy-env": "node",
       "./shell": "node",
       "./child-environment": "node",
-      "./object-store/site/setting": "universal"
+      "./object-store/site/setting": "node"
     },
     "isolation": {
       "entries": {
