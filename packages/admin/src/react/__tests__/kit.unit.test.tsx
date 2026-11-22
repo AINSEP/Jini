@@ -65,7 +65,8 @@ describe('admin kit: UI icon, UI translator and injected values (A-K2-0a)', () =
     } } });
     renderWithAdminKit(<Icon name="play" size={18} aria-label="Video file" />, { kit });
     expect(screen.getByRole('img', { name: 'Video file' }).getAttribute('data-icon')).toBe('play');
-    expect(received).toHaveBeenCalledWith({ name: 'play', size: 18, 'aria-label': 'Video file' });
+    // The slot always hands the implementation a `ref` (null here); every screen prop arrives unchanged.
+    expect(received).toHaveBeenCalledWith({ name: 'play', size: 18, 'aria-label': 'Video file', ref: null });
   });
 
   it('the useT facade returns the UI translator the host injected', () => {

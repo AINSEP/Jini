@@ -1,6 +1,6 @@
 import { forwardRef, useEffect, useMemo, useRef, type RefObject } from 'react';
 import type { FetchQueryAdapter, QueryResult } from '@jini-ai/core/fetch';
-import { type AdminKit, type DialogProps, type NativeDialogView, type SettlementGeneration, type ButtonProps, type IconButtonProps, type AdminKitComponents, type AdminKitHooks, type AdminThemeKit } from './kit.js';
+import { type AdminKit, type DialogProps, type NativeDialogView, type SettlementGeneration, type ButtonProps, type IconButtonProps, type AdminKitComponents, type AdminKitHooks, type AdminKitValues, type AdminThemeKit, type KitTranslator } from './kit.js';
 import { fakeMediaProviders } from './testing-kit-media-providers.js';
 
 const fakeComponents: AdminKitComponents = {
@@ -43,6 +43,7 @@ const fakeComponents: AdminKitComponents = {
   TabBar: (p) => <div role="tablist" aria-label={p.ariaLabel}>{p.tabs.map((t) => <button key={t.id} type="button" role="tab" aria-selected={t.id === p.activeId} onClick={() => p.onChange(t.id)}>{t.label}</button>)}</div>,
   HtmlEditor: (p) => <textarea value={p.html} className={p.className} onChange={(e) => p.onChange(e.target.value)} />,
   ErrorNotice: (p) => <p role={p.role ?? 'alert'}>{p.failure.message}</p>,
+  Icon: (p) => <svg data-icon={p.name} width={p.size} height={p.size} className={p.className} aria-hidden={p['aria-hidden']} aria-label={p['aria-label']} />,
 };
 
 fakeComponents.Button.displayName = 'FakeButton';
@@ -79,6 +80,9 @@ function useFakeFocusTrap({ containerRef }: { containerRef: RefObject<HTMLElemen
   }, [containerRef, active]);
 }
 
+// One module-level function: a host's translator keeps its identity across renders, and callers list it in deps.
+const passthroughTranslator: KitTranslator = (key, vars = {}) => key.replace(/\{(\w+)\}/g, (whole, name: string) => (name in vars ? String(vars[name]) : whole));
+
 const fakeHooks: AdminKitHooks = {
   useAgentHandle: (r) => (r.agentHandle === false ? undefined : r.agentHandle ?? 'fake-handle'),
   useFocusTrap: useFakeFocusTrap,
@@ -99,6 +103,7 @@ const fakeHooks: AdminKitHooks = {
     requestDismiss: () => { r.onCancel({}); return true; },
   }),
   useNativeDialog: useFakeNativeDialog,
+  useT: () => passthroughTranslator,
 };
 
 /** Query hooks that answer immediately with `data`; mutations resolve at once. */
@@ -124,6 +129,14 @@ const fakeTheme: AdminThemeKit = {
   defaultAdminTheme: Object.freeze({ name: 'fake', fonts: Object.freeze({ body: 'sans-serif', heading: 'sans-serif' }), light: neutralColors, dark: neutralColors }),
 };
 
+// Neutral stand-ins with the hosts' runtime shapes; a test that cares about a value injects its own.
+const fakeValues: AdminKitValues = Object.freeze({
+  SETTINGS_DIALOG_DICTIONARIES: Object.freeze({}),
+  DEFAULT_NOTIFICATIONS_PREFERENCES: Object.freeze({ soundEnabled: false, successSoundId: 'fake-success', failureSoundId: 'fake-failure', desktopEnabled: false }),
+  UNREACHABLE_RETRY_DELAYS_MS: Object.freeze([1, 2]),
+  LOCAL_BACKUP_PRINCIPAL_ID: 'fake-local-backup',
+});
+
 /** Test-only kit for admin AND for consumer packages whose screens render under it (`@jini-ai/admin/react/testing-kit`).
  *  Plain elements, no UI library: package tests check admin's behaviour, not a kit's markup. */
 export function fakeAdminKit(overrides: Partial<{ [G in keyof AdminKit]: Partial<AdminKit[G]> }> = {}): AdminKit {
@@ -133,5 +146,6 @@ export function fakeAdminKit(overrides: Partial<{ [G in keyof AdminKit]: Partial
     query: { ...fixtureQuery(), ...overrides.query },
     mediaProviders: { ...fakeMediaProviders, ...overrides.mediaProviders },
     theme: { ...fakeTheme, ...overrides.theme },
+    values: { ...fakeValues, ...overrides.values },
   } satisfies AdminKit;
 }
