@@ -1,6 +1,6 @@
-__STATUS__
+READY 190860f22
 
-**`integ/merge-14-2026-11-22`**. The last content commit is `190860f22`, the merge 4 commit. Every commit after it only adds gate output and this report, and `api:update` changed nothing. All 4 branches merged with **no conflicts**. Every gate is **identical to base**: build, typecheck, guard, `api:check`, the three plugin guards, size, complexity, hooks, why-comments (both bases), log-safety, the error gate and XP. **5 named mutations were run (6 plants) and all went RED.** No fix commits were needed.
+**`integ/merge-14-2026-11-22`**. The last content commit is `190860f22`, the merge 4 commit. Every commit after it only adds gate output and this report, and `api:update` changed nothing. All 4 branches merged with **no conflicts**. Every gate is **identical to base**: build, typecheck, guard, `api:check`, the three plugin guards, size, complexity, hooks, why-comments (both bases), log-safety, the error gate and XP. **All 4 branches' named mutations were run (5 plants) and all 5 went RED.** No fix commits were needed.
 
 # combine-14 JINI (2026-11-22): `integ/merge-14-2026-11-22`
 
@@ -24,7 +24,7 @@ Setup followed combine-13's `cloud-results/combine-13-jini.md` Method.
   - guard: HW3 34, HW9 env 70, advisory 492
   - `api:check`: 690 entries, 17229 symbols
   - plugin guards: 0 / 0 / 0
-- **Base for the XP gate:** `pnpm check:cross-package` (`--base 35c4961af`) gives EXIT 1, 2894 lines (XP1 39, XP2 33, XP3 2050, XP4 760, XP5 6). XP3 here is mostly `absolute JINI_DECLARATION_BASELINE_DIR required`, because this cloud clone has no declaration snapshot. __XP3NOTE__
+- **Base for the XP gate:** `pnpm check:cross-package` (`--base 35c4961af`) gives EXIT 1, 2894 lines (XP1 39, XP2 33, XP3 2050, XP4 760, XP5 6). XP3 here is mostly `absolute JINI_DECLARATION_BASELINE_DIR required`, because this cloud clone has no declaration snapshot. So I also built that snapshot: a worktree at `35c4961af`, then frozen install, core build, recursive build, and this branch's script with `--write-baseline` (3308 source mappings). I ran the gate with `JINI_DECLARATION_BASELINE_DIR` against a built base worktree (`7c4ee7881`) and against final. The results are in `xp-snapshot-{base,final}.txt`.
 - **Merges:** `git merge --no-ff`, in the given order, in the main tree. After each merge (in `gates-m<N>/`):
   - frozen install
   - `pnpm --no-bail --filter "...[<pre-merge>]" build`
@@ -74,12 +74,26 @@ Other shared files: none. Each branch adds its own changeset:
 | why-comments default (terra) | 1, 10 not allow-listed (352 lost / 342 allow-listed) | **1, identical** (BASE-RED; combine-13 decision-2 rows) |
 | log-safety | 1 (same rows as combine-13) | **1, identical** (BASE-RED) |
 | error gate | 0 WARN, 24 New + 1 Worse, 28 improved | **identical** (BASE-RED); `--update` not run |
-| `check:cross-package` (XP1–XP5, `--base 35c4961af`) | 1: XP1 39 / XP2 33 / XP3 2050 / XP4 760 / XP5 6 | **1, identical** (BASE-RED). No finding names a file these merges add. __XP3FINAL__ |
+| `check:cross-package` (XP1–XP5, `--base 35c4961af`) | 1: XP1 39 / XP2 33 / XP3 2050 / XP4 760 / XP5 6 | **1, identical** (BASE-RED). No finding names a file these merges add. **With the declaration snapshot:** base and final are **byte-identical** (path-normalized): XP1 39 / XP2 33 / XP3 112 / XP4 760 / XP5 6, all BASE-RED. |
 | `pnpm api:check` | 0 (690 entries, 17229 symbols) | **0** (695 entries, 17245 symbols: +5 entries, +16 symbols) |
 | `guard:plugins` / `:packed` / `:catalog` | 0 / 0 / 0 (68/68) | **0 / 0 / 0 (68/68)**; catalog generate leaves no diff |
 
 ## Tests
-__SUITES__
+Full suites of every touched package, plus the dependents whose code paths the merges can reach, run in the main tree at `190860f22` content (`npm run test -- --maxWorkers=3`, in `suites/`).
+- **Scope reasoning:**
+  - core and cms changes are **additive new subpath modules only** (new files plus new `exports`). No existing symbol changed, so their 40-odd transitive dependents cannot observe a difference. Their own suites ran in full.
+  - The daemon change to `tool-recovery/recovery.ts` is **comment-only** (+1 new test).
+  - admin changed `AdminKit`'s required shape. Its dependents are user-management and examples/neutral-host, and both ran.
+
+| suite | combine-14 | combine-13 / branch report | Δ |
+|---|---|---|---|
+| admin | 3087/3087 (252 files) | 3077 at base (a-k2-0a report) | +10: i18n-common 8, kit 2 |
+| user-management (admin dependent) | 1353/1353 (116 files) | 1353 (a-k2-0a) | = |
+| examples/neutral-host (admin dependent) | **1 failed** / 38 passed + 13 todo (52) | not run in combine-13 | BASE-RED, see below |
+| core | 2978/2978 (219 files) | 2971 | +7: seam-1 3, route-refusal 4 |
+| daemon | 4855 + 1 skipped (4856) | — | includes seam-1's `surface-deps-core-contract` 1 |
+| cms | **1 failed** / 5020 (5021) | 2 failed / 5019 (5021) | = total. The only red is BASE-RED `package-boundary`. The combine-13 pglite load flake passed this run |
+| cms/forms | **1 failed** / 156 (157) | same | = (BASE-RED) |
 
 ## Exported-API delta the Tovu halves must consume
 These come from `api-baseline-diff-vs-base.txt`. Package versions are unchanged, and nothing was bumped or published. Link Tovu against a Jini build of this branch, and rebuild core, cms and admin so the new `dist/` subpaths resolve.
@@ -105,11 +119,18 @@ These come from `api-baseline-diff-vs-base.txt`. Package versions are unchanged,
   - Kit `useT` is the **UI** translator. Chat's (`useChatT`) stays distinct. `KitIconName` is a closed subset.
 
 ## Every red line
-__REDS__
+- **cms + cms/forms (BASE-RED, same as combine-13):** `forms/src/__tests__/package-boundary.test.ts > forms keeps its own published root entry and CMS exposes no forms alias`. It expects version `0.7.3-next.2` and gets `0.7.2`.
+- **examples/neutral-host (BASE-RED by construction, new to these reports because combine-13 did not run it):** `src/contribution-contracts.test.ts > contribution contracts > walks every contribution file, and each kind is in the contract table`, `expected 0 to be greater than or equal to 27`.
+  - Cause: the test walks `packages/agent-plugins/*/tovu-*.json` (`PREFIX = 'tovu-'`, line 33). Base commit `d9c625e6d` (2026-11-20, "remove Tovu names") renamed those files to `jini-*.json`, so it finds 0.
+  - `git diff 7c4ee7881 190860f22 -- examples packages/agent-plugins` is empty, so none of the four merges is involved.
+  - Not fixed. The likely one-line fix is `PREFIX = 'jini-'`. With it, the 13 `todo`/per-file cases would start running for real, so the owner should check them when it lands.
+- **Ratchets:** size, complexity, log-safety, why-comments default, the error gate (WARN) and XP are all BASE-RED and **identical** to base after every merge and at final (see the gates table). There are no new rows.
+- **Mutations (intended reds):** M1 3 failed; M2a core tsc TS2322; M2b core tsc TS2561/TS2551 + daemon tsc TS2741 ×2; M3 1 failed; M4 2 failed. All were restored, and the suites were green afterwards.
+- **Not run** (no merged branch touches them): untouched packages' suites, the dependents of core/cms beyond the above (the change is additive), scripts vitest / `test:scripts:node`, agent-plugins node:test, e2e/playwright, knip/sonar/depcruise and Actions.
 
 ## Minor findings (listed, not fixed)
 From this run:
-1. `check:cross-package` cannot evaluate XP3 in a cloud clone unless `JINI_DECLARATION_BASELINE_DIR` is set; without it, 2050 XP3 rows are the "required" error. __XP3MINOR__ XP4 still flags every `__tests__` file under `core/src/contracts/**`. This includes merge-13's `strict-base64.unit.test.ts`, but none of this run's files: seam-1's tests live in `core/src/__tests__`, and rt-k1-0 moved its runtime to `core/src/errors`.
+1. `check:cross-package` cannot evaluate XP3 in a cloud clone unless `JINI_DECLARATION_BASELINE_DIR` is set; without it, 2050 XP3 rows are the "required" error. This run built the snapshot (see Method), and with it XP is unchanged by all four merges. XP4 still flags every `__tests__` file under `core/src/contracts/**`. This includes merge-13's `strict-base64.unit.test.ts`, but none of this run's files: seam-1's tests live in `core/src/__tests__`, and rt-k1-0 moved its runtime to `core/src/errors`.
 2. `p9-k4-seam-1.md` and `p9k-rt-k1-0.md` both bump `@jini-ai/core` patch, and `p9-k4-i18n-common.md` (patch) plus `admin-kit-icon-ui-t-values.md` (**minor**) both bump `@jini-ai/admin`. Changesets collapses each pair. The admin minor is the breaking `AdminKit` requirement, so it may deserve a louder note in the release.
 
 Carried from the branch reports, not re-decided here:
@@ -132,9 +153,22 @@ Carried from the branch reports, not re-decided here:
 
 ## Raw outputs (`cloud-results/combine-14-jini-raw/`)
 - `gates-{base,m1..m4,final}/`: install, build, tsc, guard, size, complexity, hooks, why-base, why-default, log-safety, error-gate, cross-package. Base and final also have typecheck, tsc-scripts, api-check and the three plugin guards.
-- `mutations.txt`: 6 plants (5 named mutations), each with its diff and result.
+- `mutations.txt`: 5 plants (the 4 branches' named mutations; K4-seam-1 has two), each with its diff and result.
 - `api-check-premerge-update.txt`, `api-update.txt` (no-op), `api-baseline-diff-vs-base.txt`.
-- `suites/`: one file per package, and `_summary.txt`.__XP3RAW__
+- `suites/`: one file per package, and `_summary.txt`.
+- `xp-snapshot-base.txt`, `xp-snapshot-final.txt`: XP1–XP5 against the `35c4961af` declaration snapshot.
 
 ## Pushed SHAs (`integ/merge-14-2026-11-22`, first-parent order)
-__SHAS__
+- `3471656f3` wip(cloud): combine-14 base gates at 7c4ee7881
+- `f9131817e` Merge codex/ex2-k4-i18n-common-jini (8d17019b5): ADMIN_COMMON_I18N in @jini-ai/admin into integ/merge-14
+- `b9238ece5` wip(cloud): combine-14 gates + mutation after merge 1 (k4-i18n-common)
+- `d1179bea3` Merge codex/ex2-k4-seam-1-jini (4504b8950): approval + daemon-surface contract types in core into integ/merge-14
+- `3f02105d7` wip(cloud): combine-14 gates + mutations after merge 2 (k4-seam-1)
+- `f97777b50` Merge codex/ex2-rt-k1-0-jini (66310ee7d): RouteRefusalError/rejectRoute in core errors/route-refusal, cms admin-http/limits into integ/merge-14
+- `4f1883079` wip(cloud): combine-14 gates + mutation after merge 3 (rt-k1-0)
+- `190860f22` Merge codex/ex2-a-k2-0a-jini (44ee815ef): admin kit Icon/useT/injected values into integ/merge-14
+- `df8b367ba` wip(cloud): combine-14 gates + mutation after merge 4 (a-k2-0a)
+- `69e23644e` wip(cloud): combine-14 final gates (build, typecheck, ratchets, api:check, plugin guards); api:update no-op
+- `405fdd70f` wip(cloud): combine-14 suites (admin, user-management, neutral-host, core) + report draft
+- `30b925e4b` wip(cloud): combine-14 daemon suite output
+- (this commit) docs(cloud): combine-14 Jini report, XP snapshot runs and final suites
