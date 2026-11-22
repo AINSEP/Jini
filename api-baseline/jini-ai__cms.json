@@ -2310,6 +2310,57 @@
    "unhideIfRemoveThrows": "function:b5d32cc299"
   }
  },
+ "./trash/site/adapters/plugin": {
+  "types": "./dist/trash/site/adapters/plugin.d.ts",
+  "symbols": {
+   "PLUGIN_ENTITY_TYPE": "variable:e54ef0b8a3"
+  }
+ },
+ "./trash/site/adapters/theme": {
+  "types": "./dist/trash/site/adapters/theme.d.ts",
+  "symbols": {
+   "THEME_ENTITY_TYPE": "variable:c58d0a071a"
+  }
+ },
+ "./trash/site/directory-rollback-log": {
+  "types": "./dist/trash/site/directory-rollback-log.d.ts",
+  "symbols": {
+   "reportDirectoryRollbackFailure": "function:f39d67d094"
+  }
+ },
+ "./trash/site/ports": {
+  "types": "./dist/trash/site/ports.d.ts",
+  "symbols": {
+   "RemoveEntity": "type:108b78480b",
+   "TRASH_RETENTION_DAYS": "variable:784141ba32",
+   "TransactionRunner": "type:78fd7b4865"
+  }
+ },
+ "./trash/site/registry": {
+  "types": "./dist/trash/site/registry.d.ts",
+  "symbols": {
+   "buildTrashRegistry": "function:89f9270b79"
+  }
+ },
+ "./trash/site/remove-without-blocker": {
+  "types": "./dist/trash/site/remove-without-blocker.d.ts",
+  "symbols": {
+   "RemoveWithoutBlockerResult": "type:7570461ca7",
+   "removeEntityWithoutBlocker": "function:dbe007671d"
+  }
+ },
+ "./trash/site/scheduler.node": {
+  "types": "./dist/trash/site/scheduler.node.d.ts",
+  "symbols": {
+   "createTrashScheduler": "function:9b2f61e409"
+  }
+ },
+ "./trash/site/widget-removal": {
+  "types": "./dist/trash/site/widget-removal.d.ts",
+  "symbols": {
+   "bindWidgetRemoval": "function:aa8ae2964f"
+  }
+ },
  "./trash/sql": {
   "types": "./dist/trash/sql/index.d.ts",
   "symbols": {

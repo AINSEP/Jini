@@ -9,5 +9,6 @@ import type { RemoveEntity } from "./ports.js";
  */
 export function bindWidgetRemoval(required: { trash: TrashPort }, _optional: Record<string, never> = {}): RemoveEntity {
   const remove = bindRemoveEntity({ trash: required.trash, entityType: "widget" });
-  return ({ priorMarker, ...record }) => remove(record, { priorMarker });
+  // exactOptionalPropertyTypes: an absent marker is passed as no option, never as `undefined`.
+  return ({ priorMarker, ...record }) => remove(record, priorMarker === undefined ? {} : { priorMarker });
 }
