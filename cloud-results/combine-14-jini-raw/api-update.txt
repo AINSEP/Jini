@@ -1,0 +1,6 @@
+
+> jini@ api:update /home/user/Jini
+> node --import tsx ./scripts/check-api-surface.ts --update
+
+[api] wrote 40 packages, 695 entries, 17245 symbols
+EXIT 0

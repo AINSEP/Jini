@@ -1,0 +1,14 @@
+Scope: all 51 workspace projects
+Lockfile is up to date, resolution step is skipped
+Already up to date
+
+╭ Warning ─────────────────────────────────────────────────────────────────────╮
+│                                                                              │
+│   Ignored build scripts: @parcel/watcher@2.5.1, argon2@0.44.0,               │
+│   core-js@3.51.0, esbuild@0.25.12, esbuild@0.28.1.                           │
+│   Run "pnpm approve-builds" to pick which dependencies should be allowed     │
+│   to run scripts.                                                            │
+│                                                                              │
+╰──────────────────────────────────────────────────────────────────────────────╯
+Done in 1.3s using pnpm v10.33.2
+EXIT 0
