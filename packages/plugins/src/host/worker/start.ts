@@ -7,6 +7,7 @@
  * The call logic is `run-call.ts`'s pure `runTier2Call()`; this file only wires the worker's own
  * message port and import mechanism to it. Importing this module starts nothing.
  */
+import { registerTier2ImportPolicy, type Tier2ImportPolicy } from "./import-policy.js";
 import type { Tier2Request } from "./protocol.js";
 import { runTier2Call, type RunTier2CallRequired } from "./run-call.js";
 
@@ -32,13 +33,18 @@ export interface StartTier2WorkerRequired {
   /** @agent-note The host's real `import()` of a plugin entry, defined in the host's own worker
    * entry module so the host's loader (for example a dev transpiler's CJS interop) applies to it. */
   readonly realImport: (entryPath: string) => Promise<unknown>;
+  /** @agent-note The host's SDK specifiers and trust decisions. Registered for THIS worker's entry
+   * on the real-import path, before the SDK resolver; SDK-only unless the host trusts the entry. */
+  readonly importPolicy: Tier2ImportPolicy;
 }
 
 /** Optional inputs of {@link startTier2Worker}. */
 export interface StartTier2WorkerOptional {
   /** Test seam. Omitted ⇒ register the SDK resolver in this worker, then `realImport`.
-   * @agent-note When supplied, `registerSdkResolver` and `realImport` are never called. */
+   * @agent-note When supplied, `registerSdkResolver`, the import policy and `realImport` are never called. */
   readonly importModule?: (entryPath: string) => Promise<unknown>;
+  /** Test seam over {@link registerTier2ImportPolicy}. */
+  readonly registerImportPolicy?: typeof registerTier2ImportPolicy;
 }
 
 /**
@@ -55,16 +61,18 @@ export async function startTier2Worker(required: StartTier2WorkerRequired, optio
   const port = required.parentPort;
   if (!port) throw new Error("the tier-2 plugin worker must run inside a worker_threads Worker");
 
-  let importModule = optional.importModule;
-  if (!importModule) {
+  const registerImportPolicy = optional.registerImportPolicy ?? registerTier2ImportPolicy;
+  const importEntry = optional.importModule ?? (async (entryPath: string): Promise<unknown> => {
+    // On the import path, so `runTier2Call`'s import-stage handling turns a malformed or unreadable
+    // entry into a structured reply. The policy is computed before anything is registered.
+    registerImportPolicy({ entryPath, policy: required.importPolicy });
     // Per worker: main-thread `module.register()` hooks do not reach a worker spawned
     // with `execArgv: []` (measured, Node v24.2.0), so without this a site plugin's
     // SDK imports (including the legacy alias) fail, or resolve to a copy planted next to the plugin. Registered
     // before the plugin's first import.
     required.registerSdkResolver();
-    importModule = required.realImport;
-  }
-  const importEntry = importModule;
+    return required.realImport(entryPath);
+  });
   port.postMessage(await runTier2Call({ ...required.binding, request: required.workerData as Tier2Request, importModule: async ({ modulePath }) => {
     const imported = await importEntry(modulePath);
     return { exported: typeof imported === "object" && imported !== null ? (imported as { default?: unknown }).default : undefined };
