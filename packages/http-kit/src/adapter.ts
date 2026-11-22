@@ -4,7 +4,7 @@
  * file in the module that knows about Express `req`/`res` on the mounting side.
  */
 import type { Express, Request, Response } from 'express';
-import { ClientFacingError, statusForError, type JsonRouteAuthorize, type Result, type RouteHostInternalErrorContext, type RouteHostContext } from '@jini-ai/core/contracts/server';
+import { ClientFacingError, payloadTooLargeError, statusForError, type JsonRouteAuthorize, type ServerApiError, type Result, type RouteHostInternalErrorContext, type RouteHostContext } from '@jini-ai/core/contracts/server';
 import { reportRouteInternalError } from './internal-error.js';
 import { rawInput } from './request.js';
 import { sendApiError, sendJson } from './response.js';
@@ -16,11 +16,11 @@ import type { JsonRouteSpec } from './types.js';
  * parameters at the definition site so callers do not have to repeat them. Optional settings take
  * precedence. The returned spec is consumed by `mountJsonRoute` (live)
  * and by tests (direct invocation of `route.parse` / `route.handle`).
- * @param optionalArgs - Origin/success policy and optional injected host ports.
+ * @param optionalArgs - Origin/success/body-size policy and optional injected host ports.
  * @returns A fresh route spec; never mutates either argument.
  * @complexity O(1) time/space for the fixed spec fields.
  */
-export function defineJsonRoute<Input, Output, Deps, Context = undefined>(requiredArgs: Omit<JsonRouteSpec<Input, Output, Deps, Context>, 'requireSameOrigin' | 'successStatus' | 'ports'>, optionalArgs: Pick<JsonRouteSpec<Input, Output, Deps, Context>, 'requireSameOrigin' | 'successStatus' | 'ports'> = {}
+export function defineJsonRoute<Input, Output, Deps, Context = undefined>(requiredArgs: Omit<JsonRouteSpec<Input, Output, Deps, Context>, 'requireSameOrigin' | 'successStatus' | 'ports' | 'maxBodyBytes'>, optionalArgs: Pick<JsonRouteSpec<Input, Output, Deps, Context>, 'requireSameOrigin' | 'successStatus' | 'ports' | 'maxBodyBytes'> = {}
 ): JsonRouteSpec<Input, Output, Deps, Context> {
   return { ...requiredArgs, ...optionalArgs };
 }
@@ -56,15 +56,13 @@ export function mountJsonRoute<Input, Output, Deps, Context = undefined>({ app, 
     res.on?.('close', onResponseClose);
     try {
       const raw = rawInput({ req });
+      refuseOversizedBody({ spec, body: raw.body });
       if (spec.ports?.workspace) await spec.ports.workspace({ raw, deps });
       if (!allowRouteOrigin({ req, res, spec, adapter })) return;
       let context: Context | undefined;
       if (spec.ports?.authenticate) context = await spec.ports.authenticate({ raw, res, deps });
       const parsed = spec.parse(raw);
-      if (!parsed.ok) {
-        sendApiError({ res, status: statusForError({ error: parsed.error }), error: parsed.error });
-        return;
-      }
+      if (!parsed.ok) refuseReturned({ error: parsed.error });
       // The route chooses where authorization occurs: reads may authorize before validation,
       // while writes must reject an inconsistent tenant target before asking for a permission.
       const authorize: JsonRouteAuthorize = async ({ permission, entityType }) => {
@@ -79,6 +77,29 @@ export function mountJsonRoute<Input, Output, Deps, Context = undefined>({ app, 
       res.off?.('close', onResponseClose);
     }
   });
+}
+
+/**
+ * A returned failure (parse or handle) takes the same path as a thrown `ClientFacingError`, so a host
+ * error port sees every caller-visible failure in one shape and writes it with one envelope. Without
+ * an error port the answer is unchanged: the `ClientFacingError` branch sends the same status and body.
+ * @returns Never; the route's catch answers it.
+ * @complexity O(1) time/space.
+ */
+function refuseReturned({ error }: { readonly error: ServerApiError }, _optional: Record<string, never> = {}): never {
+  throw new ClientFacingError({ apiError: error });
+}
+
+/**
+ * Enforces the route's `maxBodyBytes`. Express has already parsed the body under the app's own (looser)
+ * parser limit, and a second `express.json({ limit })` would skip an already-parsed body, so the cap
+ * re-measures the parsed value — as `rejectOversizedJsonBody` does — and refuses with core's 413 error.
+ * @returns Void; throws the refusal through the same path as a returned failure.
+ * @complexity O(body size) to serialize and measure the parsed body.
+ */
+function refuseOversizedBody({ spec, body }: { readonly spec: Pick<JsonRouteSpec<unknown, unknown, unknown>, 'method' | 'maxBodyBytes'>; readonly body: unknown }, _optional: Record<string, never> = {}): void {
+  if (spec.maxBodyBytes === undefined || spec.method === 'get') return;
+  if (Buffer.byteLength(JSON.stringify(body ?? {}), 'utf8') > spec.maxBodyBytes) refuseReturned({ error: payloadTooLargeError({ maxBytes: spec.maxBodyBytes }) });
 }
 
 function allowRouteOrigin({ req, res, spec, adapter }: {
@@ -104,10 +125,7 @@ function sendRouteResult<Output>({ res, result, spec, signal }: {
   // sent. Writing one now would be wasted work at best and, worse, would route a benign
   // disconnect into the SEC-005 catch as a false internal error if the socket rejects the write.
   if (signal.aborted) return;
-  if (!result.ok) {
-    sendApiError({ res, status: statusForError({ error: result.error }), error: result.error });
-    return;
-  }
+  if (!result.ok) refuseReturned({ error: result.error });
   sendJson({ res, status: spec.successStatus ?? 200, body: result.value });
 }
 
