@@ -55,3 +55,13 @@ note: M2a/M2b restore verified afterwards with git diff of the two files vs the 
       Tests  1 failed | 3 passed (4)
 restored clean
       Tests  4 passed (4)
+### M4 A-K2-0a (named): useT facade returns (key) => key instead of the host translator in packages/admin/src/react/kit.tsx
+      Tests  10 passed (10)
+-  return useAdminKit().hooks.useT();
++  useAdminKit().hooks.useT(); return (key) => key;
+   × admin kit: UI icon, UI translator and injected values (A-K2-0a) > the useT facade returns the UI translator the host injected 7ms
+   × admin kit: UI icon, UI translator and injected values (A-K2-0a) > the useT and values facades take empty required/optional objects and still return the injected objects 2ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+      Tests  2 failed | 8 passed (10)
+restored clean
+      Tests  10 passed (10)
