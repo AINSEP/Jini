@@ -117,10 +117,10 @@
       "./themes/files/reviewed-write": "node",
       "./themes/files/atomic-write": "node",
       "./admin-http/limits": "universal",
-      "./content-types/site/system-content-types": "universal",
-      "./content-types/site/declared-content-type-owners": "universal",
+      "./entries/site/system-content-types": "universal",
+      "./widgets/site/declared-content-type-owners": "universal",
       "./content-types/site/tool-metadata": "universal",
-      "./entries/site/entry-refs-extractor": "universal",
+      "./widgets/site/entry-refs-extractor": "universal",
       "./entries/site/tool-metadata": "universal",
       "./entries/site/tool-registrations": "universal",
       "./entries/site/public-list": "universal",
@@ -128,7 +128,6 @@
       "./entries/site/render-entry": "universal",
       "./entries/site/contracts": "universal",
       "./taxonomy/site/tool-metadata": "universal",
-      "./taxonomy/site/agent-tools": "universal",
       "./taxonomy/site/content-targets": "universal"
     },
     "isolation": {
@@ -211,7 +210,8 @@
         "src/widgets/markers/marker.ts",
         "src/navigation/href.ts",
         "src/media/cover-image.ts",
-        "src/html/site/slug.ts"
+        "src/html/site/slug.ts",
+        "src/navigation/types.ts"
       ]
     },
     "optionalPeers": {
@@ -747,25 +747,25 @@
       "import": "./dist/admin-http/limits.js",
       "default": "./dist/admin-http/limits.js"
     },
-    "./content-types/site/system-content-types": {
-      "types": "./dist/content-types/site/system-content-types.d.ts",
-      "import": "./dist/content-types/site/system-content-types.js",
-      "default": "./dist/content-types/site/system-content-types.js"
+    "./entries/site/system-content-types": {
+      "types": "./dist/entries/site/system-content-types.d.ts",
+      "import": "./dist/entries/site/system-content-types.js",
+      "default": "./dist/entries/site/system-content-types.js"
     },
-    "./content-types/site/declared-content-type-owners": {
-      "types": "./dist/content-types/site/declared-content-type-owners.d.ts",
-      "import": "./dist/content-types/site/declared-content-type-owners.js",
-      "default": "./dist/content-types/site/declared-content-type-owners.js"
+    "./widgets/site/declared-content-type-owners": {
+      "types": "./dist/widgets/site/declared-content-type-owners.d.ts",
+      "import": "./dist/widgets/site/declared-content-type-owners.js",
+      "default": "./dist/widgets/site/declared-content-type-owners.js"
     },
     "./content-types/site/tool-metadata": {
       "types": "./dist/content-types/site/tool-metadata.d.ts",
       "import": "./dist/content-types/site/tool-metadata.js",
       "default": "./dist/content-types/site/tool-metadata.js"
     },
-    "./entries/site/entry-refs-extractor": {
-      "types": "./dist/entries/site/entry-refs-extractor.d.ts",
-      "import": "./dist/entries/site/entry-refs-extractor.js",
-      "default": "./dist/entries/site/entry-refs-extractor.js"
+    "./widgets/site/entry-refs-extractor": {
+      "types": "./dist/widgets/site/entry-refs-extractor.d.ts",
+      "import": "./dist/widgets/site/entry-refs-extractor.js",
+      "default": "./dist/widgets/site/entry-refs-extractor.js"
     },
     "./entries/site/tool-metadata": {
       "types": "./dist/entries/site/tool-metadata.d.ts",
@@ -801,11 +801,6 @@
       "types": "./dist/taxonomy/site/tool-metadata.d.ts",
       "import": "./dist/taxonomy/site/tool-metadata.js",
       "default": "./dist/taxonomy/site/tool-metadata.js"
-    },
-    "./taxonomy/site/agent-tools": {
-      "types": "./dist/taxonomy/site/agent-tools.d.ts",
-      "import": "./dist/taxonomy/site/agent-tools.js",
-      "default": "./dist/taxonomy/site/agent-tools.js"
     },
     "./taxonomy/site/content-targets": {
       "types": "./dist/taxonomy/site/content-targets.d.ts",

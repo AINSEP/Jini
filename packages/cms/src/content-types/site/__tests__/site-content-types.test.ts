@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 
-import { SYSTEM_CONTENT_TYPES } from "../system-content-types.js";
-import { DECLARED_CONTENT_TYPE_OWNERS, declaredOwnerFor } from "../declared-content-type-owners.js";
+import { SYSTEM_CONTENT_TYPES } from "../../../entries/site/system-content-types.js";
+import { DECLARED_CONTENT_TYPE_OWNERS, declaredOwnerFor } from "../../../widgets/site/declared-content-type-owners.js";
 import { toolMetadata } from "../tool-metadata.js";
 
 /** @file Characterizes the site content-type vocabulary: system types, declared owners, tool metadata. */

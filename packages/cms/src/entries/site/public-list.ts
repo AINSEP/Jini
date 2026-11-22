@@ -1,7 +1,7 @@
 import type { ContentTypeFieldDef, ContentTypeFieldKind, ContentTypeRecord } from "../../content-types/types.js";
 import type { EntryRecord } from "../types.js";
 import type { CollectionListPort } from "../../widgets/resolvers/index.js";
-import { SYSTEM_CONTENT_TYPES } from "../../content-types/site/system-content-types.js";
+import { SYSTEM_CONTENT_TYPES } from "./system-content-types.js";
 import { COLLECTION_LIST_FAQ_PAGE, isCollectionListLayout } from "./contracts.js";
 import type { CollectionListLayout, CollectionListStructuredData } from "./contracts.js";
 export { COLLECTION_LIST_LAYOUTS, COLLECTION_LIST_FAQ_PAGE, isCollectionListLayout } from "./contracts.js";

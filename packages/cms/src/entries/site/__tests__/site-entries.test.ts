@@ -6,7 +6,7 @@ import { entryPublicHref, humanizeFieldName, DEFAULT_COLLECTION_LIST_LIMIT, MAX_
 import { parseCollectionListConfig } from "../public-read.js";
 import { toolMetadata } from "../tool-metadata.js";
 import { contributeEntriesTools } from "../tool-registrations.js";
-import { extractHtmlEntryRefs } from "../entry-refs-extractor.js";
+import { extractHtmlEntryRefs } from "../../../widgets/site/entry-refs-extractor.js";
 import type { UUID } from "@jini-ai/core/primitives";
 
 /** @file Characterizes the site entries surface: layout vocabulary, public-list helpers, tool seam. */

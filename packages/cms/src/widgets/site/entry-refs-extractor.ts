@@ -6,7 +6,7 @@
  * the host's embed-type inventory architecture doc. `extractEntryRefs` is imported from Jini directly.
  */
 import type { UUID } from "@jini-ai/core/primitives";
-import { extractHtmlEntryRefs as extractJiniHtmlEntryRefs, type EntryRefRow } from "../../widgets/index.js";
+import { extractHtmlEntryRefs as extractJiniHtmlEntryRefs, type EntryRefRow } from "../index.js";
 
 /** Same input and rows as Jini's; a rejected marker is warned on the console with its source entry id. */
 export function extractHtmlEntryRefs(input: {

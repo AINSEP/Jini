@@ -206,19 +206,6 @@
    "validateIdentifierGrammar": "function:5f7043e924"
   }
  },
- "./content-types/site/declared-content-type-owners": {
-  "types": "./dist/content-types/site/declared-content-type-owners.d.ts",
-  "symbols": {
-   "DECLARED_CONTENT_TYPE_OWNERS": "variable:413e924240",
-   "declaredOwnerFor": "function:2cce297a7a"
-  }
- },
- "./content-types/site/system-content-types": {
-  "types": "./dist/content-types/site/system-content-types.d.ts",
-  "symbols": {
-   "SYSTEM_CONTENT_TYPES": "variable:6573af8416"
-  }
- },
  "./content-types/site/tool-metadata": {
   "types": "./dist/content-types/site/tool-metadata.d.ts",
   "symbols": {
@@ -381,12 +368,6 @@
    "isCollectionListLayout": "function:bb942cfb86"
   }
  },
- "./entries/site/entry-refs-extractor": {
-  "types": "./dist/entries/site/entry-refs-extractor.d.ts",
-  "symbols": {
-   "extractHtmlEntryRefs": "function:d2091cdde2"
-  }
- },
  "./entries/site/public-list": {
   "types": "./dist/entries/site/public-list.d.ts",
   "symbols": {
@@ -431,6 +412,12 @@
   "symbols": {
    "COLLECTION_LIST_FAQ_PAGE": "variable:b4b7d9d5a0",
    "isCollectionListLayout": "function:bb942cfb86"
+  }
+ },
+ "./entries/site/system-content-types": {
+  "types": "./dist/entries/site/system-content-types.d.ts",
+  "symbols": {
+   "SYSTEM_CONTENT_TYPES": "variable:6573af8416"
   }
  },
  "./entries/site/tool-metadata": {
@@ -2185,15 +2172,6 @@
    "renderHtmlTaxonomy": "function:b4aa995c66"
   }
  },
- "./taxonomy/site/agent-tools": {
-  "types": "./dist/taxonomy/site/agent-tools.d.ts",
-  "symbols": {
-   "AgentToolActorClassRule": "type:ef6ae62ddc",
-   "AgentToolDefinition": "interface:5c31a38424",
-   "AgentToolSideEffect": "type:1baebbfbe6",
-   "taxonomyAgentToolCatalog": "variable:8bed4d0845"
-  }
- },
  "./taxonomy/site/content-targets": {
   "types": "./dist/taxonomy/site/content-targets.d.ts",
   "symbols": {
@@ -2798,6 +2776,19 @@
    "resolveTaxonomyEmbeds": "function:e9595f1af5",
    "resolveWidgetType": "function:4ec48da996",
    "wireCoreResolvers": "function:9a0231a4c7"
+  }
+ },
+ "./widgets/site/declared-content-type-owners": {
+  "types": "./dist/widgets/site/declared-content-type-owners.d.ts",
+  "symbols": {
+   "DECLARED_CONTENT_TYPE_OWNERS": "variable:413e924240",
+   "declaredOwnerFor": "function:2cce297a7a"
+  }
+ },
+ "./widgets/site/entry-refs-extractor": {
+  "types": "./dist/widgets/site/entry-refs-extractor.d.ts",
+  "symbols": {
+   "extractHtmlEntryRefs": "function:d2091cdde2"
   }
  },
  "./widgets/sql": {
