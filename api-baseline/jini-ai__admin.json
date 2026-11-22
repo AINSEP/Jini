@@ -1139,6 +1139,116 @@
    "useRedirectsPorts": "function:7814d9eb73"
   }
  },
+ "./screens/collections/api/collections-api.types": {
+  "types": "./dist/screens/collections/api/collections-api.types.d.ts",
+  "symbols": {
+   "AdminContentType": "interface:4ad3c802ed",
+   "AdminEntry": "interface:8c28abaa13",
+   "CONTENT_TYPE_FIELD_KINDS": "variable:07d6fa83f2",
+   "ContentTypeFieldDef": "interface:076dcc82a6",
+   "ContentTypeFieldKind": "type:d420882493",
+   "ContentTypeLifecycleOp": "type:eee66f5eaa",
+   "ContentTypeStatus": "type:1c59857e8b",
+   "EntryStatus": "type:f517b21192"
+  }
+ },
+ "./screens/collections/hooks/collection-entries-port.hooks": {
+  "types": "./dist/screens/collections/hooks/collection-entries-port.hooks.d.ts",
+  "symbols": {
+   "CollectionEntriesPort": "interface:5297e96040"
+  }
+ },
+ "./screens/collections/hooks/collection-entry-editor-port.hooks": {
+  "types": "./dist/screens/collections/hooks/collection-entry-editor-port.hooks.d.ts",
+  "symbols": {
+   "CollectionEntryEditorPort": "interface:dd65920435"
+  }
+ },
+ "./screens/collections/hooks/collections-port.hooks": {
+  "types": "./dist/screens/collections/hooks/collections-port.hooks.d.ts",
+  "symbols": {
+   "CollectionsPort": "interface:1186accdc2"
+  }
+ },
+ "./screens/collections/hooks/edit-fields-dialog-port.hooks": {
+  "types": "./dist/screens/collections/hooks/edit-fields-dialog-port.hooks.d.ts",
+  "symbols": {
+   "EditFieldsDialogPort": "interface:6fd4870c64"
+  }
+ },
+ "./screens/collections/hooks/new-content-type-dialog-port.hooks": {
+  "types": "./dist/screens/collections/hooks/new-content-type-dialog-port.hooks.d.ts",
+  "symbols": {
+   "NewContentTypeDialogPort": "interface:efd1af227d"
+  }
+ },
+ "./screens/collections/hooks/use-json-field-control.hooks": {
+  "types": "./dist/screens/collections/hooks/use-json-field-control.hooks.d.ts",
+  "symbols": {
+   "JsonFieldControlState": "interface:db96cd06f0",
+   "useJsonFieldControl": "function:4ee78c579b"
+  }
+ },
+ "./screens/taxonomy/api/taxonomy-api.types": {
+  "types": "./dist/screens/taxonomy/api/taxonomy-api.types.d.ts",
+  "symbols": {
+   "AdminTaxonomy": "interface:5a0d170ed2",
+   "AdminTaxonomyWithTerms": "interface:8c758e6bf5",
+   "AdminTerm": "interface:47515e70ff",
+   "GatedConfirmResult": "interface:8d209a8af6",
+   "GatedPlanResult": "interface:d1492119c5",
+   "MergeTermPlanDetails": "interface:50d7e125b4"
+  }
+ },
+ "./screens/taxonomy/hooks/merge-term-section-port.hooks": {
+  "types": "./dist/screens/taxonomy/hooks/merge-term-section-port.hooks.d.ts",
+  "symbols": {
+   "MergeTermSectionPort": "interface:e2b4803452"
+  }
+ },
+ "./screens/taxonomy/hooks/new-taxonomy-form-port.hooks": {
+  "types": "./dist/screens/taxonomy/hooks/new-taxonomy-form-port.hooks.d.ts",
+  "symbols": {
+   "NewTaxonomyFormPort": "interface:1a7544953d"
+  }
+ },
+ "./screens/taxonomy/hooks/new-term-form-port.hooks": {
+  "types": "./dist/screens/taxonomy/hooks/new-term-form-port.hooks.d.ts",
+  "symbols": {
+   "NewTermFormPort": "interface:9357d79f94"
+  }
+ },
+ "./screens/taxonomy/hooks/taxonomy-port.hooks": {
+  "types": "./dist/screens/taxonomy/hooks/taxonomy-port.hooks.d.ts",
+  "symbols": {
+   "TaxonomyPort": "interface:9e5afc9e57"
+  }
+ },
+ "./screens/taxonomy/hooks/term-picker-port.hooks": {
+  "types": "./dist/screens/taxonomy/hooks/term-picker-port.hooks.d.ts",
+  "symbols": {
+   "TermPickerPort": "interface:10ffa999f8"
+  }
+ },
+ "./screens/taxonomy/html-rules": {
+  "types": "./dist/screens/taxonomy/html-rules.d.ts",
+  "symbols": {
+   "taxonomyHtmlEmbed": "function:03e5b8704b"
+  }
+ },
+ "./screens/taxonomy/TaxonomyRowMenu": {
+  "types": "./dist/screens/taxonomy/TaxonomyRowMenu.d.ts",
+  "symbols": {
+   "TaxonomyRowMenu": "function:30785b7b3b",
+   "TaxonomyRowMenuProps": "type:c208993241"
+  }
+ },
+ "./screens/taxonomy/TaxonomyRowMenu.hooks": {
+  "types": "./dist/screens/taxonomy/TaxonomyRowMenu.hooks.d.ts",
+  "symbols": {
+   "useTaxonomyRowMenu": "function:3cbdb35cfb"
+  }
+ },
  "./security": {
   "types": "./dist/security/index.d.ts",
   "symbols": {

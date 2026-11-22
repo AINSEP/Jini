@@ -206,6 +206,25 @@
    "validateIdentifierGrammar": "function:5f7043e924"
   }
  },
+ "./content-types/site/declared-content-type-owners": {
+  "types": "./dist/content-types/site/declared-content-type-owners.d.ts",
+  "symbols": {
+   "DECLARED_CONTENT_TYPE_OWNERS": "variable:413e924240",
+   "declaredOwnerFor": "function:2cce297a7a"
+  }
+ },
+ "./content-types/site/system-content-types": {
+  "types": "./dist/content-types/site/system-content-types.d.ts",
+  "symbols": {
+   "SYSTEM_CONTENT_TYPES": "variable:6573af8416"
+  }
+ },
+ "./content-types/site/tool-metadata": {
+  "types": "./dist/content-types/site/tool-metadata.d.ts",
+  "symbols": {
+   "toolMetadata": "variable:74576ceb2a"
+  }
+ },
  "./content-types/sql": {
   "types": "./dist/content-types/sql/index.d.ts",
   "symbols": {
@@ -349,6 +368,84 @@
    "updateEntry": "function:b181b80aa9",
    "validateFieldsAgainstSchema": "function:3a0788f658",
    "wentLiveSinceSave": "function:fae0ffe273"
+  }
+ },
+ "./entries/site/contracts": {
+  "types": "./dist/entries/site/contracts.d.ts",
+  "symbols": {
+   "COLLECTION_LIST_FAQ_PAGE": "variable:b4b7d9d5a0",
+   "COLLECTION_LIST_LAYOUTS": "variable:a11a6de711",
+   "CollectionListLayout": "type:bd6a8f2ea2",
+   "CollectionListStructuredData": "type:7c79757ef2",
+   "EntryListExcludingTypesPort": "interface:78d3595d1b",
+   "isCollectionListLayout": "function:bb942cfb86"
+  }
+ },
+ "./entries/site/entry-refs-extractor": {
+  "types": "./dist/entries/site/entry-refs-extractor.d.ts",
+  "symbols": {
+   "extractHtmlEntryRefs": "function:d2091cdde2"
+  }
+ },
+ "./entries/site/public-list": {
+  "types": "./dist/entries/site/public-list.d.ts",
+  "symbols": {
+   "COLLECTION_LIST_FAQ_PAGE": "variable:b4b7d9d5a0",
+   "COLLECTION_LIST_LAYOUTS": "variable:a11a6de711",
+   "CollectionListDisplay": "interface:ce7aaaf22a",
+   "CollectionListLayout": "type:bd6a8f2ea2",
+   "CollectionListQuery": "interface:21352e3d14",
+   "CollectionListStructuredData": "type:7c79757ef2",
+   "CollectionSortBy": "type:4a1590af82",
+   "CollectionWhereClause": "interface:1ec6793c7b",
+   "DEFAULT_COLLECTION_LIST_COLUMNS": "variable:133a26e7d4",
+   "DEFAULT_COLLECTION_LIST_LAYOUT": "variable:c223d2cd9f",
+   "DEFAULT_COLLECTION_LIST_LIMIT": "variable:4393cdb0ab",
+   "DEFAULT_COLLECTION_LIST_SORT": "variable:53bf8095c9",
+   "EntryDisplayListPort": "interface:bef95f9004",
+   "EntryListExcludingTypesPort": "interface:78d3595d1b",
+   "MAX_COLLECTION_LIST_COLUMNS": "variable:cbf341e854",
+   "MAX_COLLECTION_LIST_LIMIT": "variable:af57200381",
+   "MIN_COLLECTION_LIST_COLUMNS": "variable:a2197da138",
+   "MIN_COLLECTION_LIST_LIMIT": "variable:ab34812cee",
+   "ParseCollectionListConfigOptions": "interface:e4cdc7ac66",
+   "ParseCollectionListConfigResult": "type:8866546d83",
+   "entryPublicHref": "function:40a50314b8",
+   "humanizeFieldName": "function:2f921dfc74",
+   "isCollectionListLayout": "function:bb942cfb86",
+   "parseCollectionListConfig": "function:f125cbac6e",
+   "widgetCollectionListPort": "variable:6f30b839f8"
+  }
+ },
+ "./entries/site/public-read": {
+  "types": "./dist/entries/site/public-read.d.ts",
+  "symbols": {
+   "ParseCollectionListConfigResult": "type:8866546d83",
+   "entryPublicHref": "function:40a50314b8",
+   "humanizeFieldName": "function:2f921dfc74",
+   "parseCollectionListConfig": "function:f125cbac6e"
+  }
+ },
+ "./entries/site/render-entry": {
+  "types": "./dist/entries/site/render-entry.d.ts",
+  "symbols": {
+   "COLLECTION_LIST_FAQ_PAGE": "variable:b4b7d9d5a0",
+   "isCollectionListLayout": "function:bb942cfb86"
+  }
+ },
+ "./entries/site/tool-metadata": {
+  "types": "./dist/entries/site/tool-metadata.d.ts",
+  "symbols": {
+   "toolMetadata": "variable:34105611e6"
+  }
+ },
+ "./entries/site/tool-registrations": {
+  "types": "./dist/entries/site/tool-registrations.d.ts",
+  "symbols": {
+   "EntriesToolDeps": "interface:936b284027",
+   "buildEntriesRegistrations": "function:34691b3cba",
+   "contributeEntriesTools": "function:08c8e70e77",
+   "entriesDerivedRisk": "variable:2e4bbde8c0"
   }
  },
  "./entries/sql": {
@@ -2086,6 +2183,30 @@
   "symbols": {
    "HtmlTaxonomyTerm": "interface:c951a653f7",
    "renderHtmlTaxonomy": "function:b4aa995c66"
+  }
+ },
+ "./taxonomy/site/agent-tools": {
+  "types": "./dist/taxonomy/site/agent-tools.d.ts",
+  "symbols": {
+   "AgentToolActorClassRule": "type:ef6ae62ddc",
+   "AgentToolDefinition": "interface:5c31a38424",
+   "AgentToolSideEffect": "type:1baebbfbe6",
+   "taxonomyAgentToolCatalog": "variable:8bed4d0845"
+  }
+ },
+ "./taxonomy/site/content-targets": {
+  "types": "./dist/taxonomy/site/content-targets.d.ts",
+  "symbols": {
+   "authorizeContentEdit": "function:54b467c186",
+   "contentEditPermission": "function:bd1635d6f4",
+   "createContentTargetPorts": "function:cf1e6354b9",
+   "createLiveCollectionTermPolicy": "function:7d32d4a354"
+  }
+ },
+ "./taxonomy/site/tool-metadata": {
+  "types": "./dist/taxonomy/site/tool-metadata.d.ts",
+  "symbols": {
+   "toolMetadata": "variable:d43e21e12b"
   }
  },
  "./taxonomy/sql": {
