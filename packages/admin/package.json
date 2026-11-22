@@ -79,7 +79,12 @@
       "./widgets/react": "browser",
       "./widgets/adapters/http": "universal",
       "./widgets/adapters/memory": "universal",
-      "./widgets/conformance": "universal"
+      "./widgets/conformance": "universal",
+      "./screens/comments/api/comments-api.types": "universal",
+      "./screens/forms/api/forms-api.types": "universal",
+      "./screens/forms/index-aligned-translations": "universal",
+      "./screens/forms/forms-field-settings-i18n": "universal",
+      "./screens/forms/forms-leave-guard-i18n": "universal"
     },
     "isolation": {
       "shared": [
@@ -431,6 +436,31 @@
       "types": "./dist/widgets/conformance/widgets-api.conformance.d.ts",
       "import": "./dist/widgets/conformance/widgets-api.conformance.js",
       "default": "./dist/widgets/conformance/widgets-api.conformance.js"
+    },
+    "./screens/comments/api/comments-api.types": {
+      "types": "./dist/screens/comments/api/comments-api.types.d.ts",
+      "import": "./dist/screens/comments/api/comments-api.types.js",
+      "default": "./dist/screens/comments/api/comments-api.types.js"
+    },
+    "./screens/forms/api/forms-api.types": {
+      "types": "./dist/screens/forms/api/forms-api.types.d.ts",
+      "import": "./dist/screens/forms/api/forms-api.types.js",
+      "default": "./dist/screens/forms/api/forms-api.types.js"
+    },
+    "./screens/forms/index-aligned-translations": {
+      "types": "./dist/screens/forms/index-aligned-translations.d.ts",
+      "import": "./dist/screens/forms/index-aligned-translations.js",
+      "default": "./dist/screens/forms/index-aligned-translations.js"
+    },
+    "./screens/forms/forms-field-settings-i18n": {
+      "types": "./dist/screens/forms/forms-field-settings-i18n.d.ts",
+      "import": "./dist/screens/forms/forms-field-settings-i18n.js",
+      "default": "./dist/screens/forms/forms-field-settings-i18n.js"
+    },
+    "./screens/forms/forms-leave-guard-i18n": {
+      "types": "./dist/screens/forms/forms-leave-guard-i18n.d.ts",
+      "import": "./dist/screens/forms/forms-leave-guard-i18n.js",
+      "default": "./dist/screens/forms/forms-leave-guard-i18n.js"
     }
   },
   "files": [
