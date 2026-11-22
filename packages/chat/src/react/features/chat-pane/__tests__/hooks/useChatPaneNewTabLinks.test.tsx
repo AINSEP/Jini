@@ -25,11 +25,31 @@ function renderPane(children: React.ReactNode) {
 }
 
 describe('useChatPaneNewTabLinks', () => {
-  it('opens a same-origin link in a new tab instead of navigating the admin tab', () => {
+  // Owner 2026-11-21 (reverses 2026-10-08): the owner's own site/admin navigates this tab from the
+  // link text (the admin's own link handler keeps the SPA and the chat dock in place), so the guard
+  // must not pull it into a new tab. The markdown renderer draws a separate icon for a new tab.
+  it('leaves a same-origin link to the browser so the admin navigates in place', () => {
     const open = renderPane(<a href="/admin/pages/x">edit</a>);
-    const notCancelled = fireEvent.click(screen.getByText('edit'));
-    expect(open).toHaveBeenCalledWith(`${window.location.origin}/admin/pages/x`);
-    expect(notCancelled).toBe(false);
+    fireEvent.click(screen.getByText('edit'));
+    expect(open).not.toHaveBeenCalled();
+  });
+
+  it('leaves an absolute same-origin link to the browser too', () => {
+    const open = renderPane(<a href={`${window.location.origin}/blog/hello`}>post</a>);
+    fireEvent.click(screen.getByText('post'));
+    expect(open).not.toHaveBeenCalled();
+  });
+
+  it('still opens another website in a new tab', () => {
+    const open = renderPane(<a href="https://example.com/page">other</a>);
+    fireEvent.click(screen.getByText('other'));
+    expect(open).toHaveBeenCalledWith('https://example.com/page');
+  });
+
+  it('treats another port on this host as another website', () => {
+    const open = renderPane(<a href="http://localhost:9/x">port</a>);
+    fireEvent.click(screen.getByText('port'));
+    expect(open).toHaveBeenCalledWith('http://localhost:9/x');
   });
 
   it('opens a link nested inside a card (click on a child of the anchor) in a new tab', () => {
@@ -46,7 +66,7 @@ describe('useChatPaneNewTabLinks', () => {
     const routerNavigate = vi.fn();
     const open = renderPane(
       <a
-        href="/admin/posts"
+        href="https://example.com/posts"
         onClick={(event) => {
           if (!event.defaultPrevented) routerNavigate();
         }}
@@ -77,7 +97,7 @@ describe('useChatPaneNewTabLinks', () => {
   });
 
   it('leaves modified and non-primary clicks to the browser', () => {
-    const open = renderPane(<a href="/admin/x">link</a>);
+    const open = renderPane(<a href="https://example.com/x">link</a>);
     fireEvent.click(screen.getByText('link'), { metaKey: true });
     fireEvent.click(screen.getByText('link'), { ctrlKey: true });
     fireEvent.click(screen.getByText('link'), { shiftKey: true });
@@ -86,7 +106,7 @@ describe('useChatPaneNewTabLinks', () => {
   });
 
   it('leaves an alt-click to the browser', () => {
-    const open = renderPane(<a href="/admin/x">alt link</a>);
+    const open = renderPane(<a href="https://example.com/x">alt link</a>);
     fireEvent.click(screen.getByText('alt link'), { altKey: true });
     expect(open).not.toHaveBeenCalled();
   });
@@ -117,7 +137,7 @@ describe('useChatPaneNewTabLinks', () => {
 describe('newTabLinkHref', () => {
   it('ignores an anchor that wraps the pane rather than sitting inside it', () => {
     const outer = document.createElement('a');
-    outer.href = '/outside';
+    outer.href = 'https://example.com/outside';
     const root = document.createElement('section');
     const inner = document.createElement('span');
     root.appendChild(inner);
@@ -136,7 +156,7 @@ describe('newTabLinkHref', () => {
     expect(newTabLinkHref({ event: textEvent, root })).toBeNull();
 
     const link = document.createElement('a');
-    link.href = '/admin/x';
+    link.href = 'https://example.com/x';
     root.appendChild(link);
     const cancelled = new MouseEvent('click', { button: 0, cancelable: true });
     cancelled.preventDefault();

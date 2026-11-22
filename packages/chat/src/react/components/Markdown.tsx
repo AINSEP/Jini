@@ -41,6 +41,7 @@ import { Fragment, useEffect, useRef, useState, type ReactNode, type RefObject }
 import { useCopyToClipboard } from '../hooks/useCopyToClipboard.js';
 import { useT } from '../hooks/context.js';
 import { Icon } from './Icon.js';
+import { MarkdownLink } from './MarkdownLink.js';
 
 export interface MarkdownProps {
   children: string;
@@ -563,20 +564,15 @@ const INLINE_RE = new RegExp(String.raw`(\x60[^\x60]+\x60)|(${MD_LINK})|(\*\*[^*
 // Only these targets become anchors; anything else (`javascript:`, `data:`, protocol-relative
 // `//host`) stays literal text, since the text is untrusted model output.
 export const SAFE_LINK_HREF = /^(?:https?:\/\/|mailto:|\/(?!\/)|#)/iu;
-// Every link opens in a new tab — an in-app path too, so following one never navigates the tab the
-// chat lives in (owner 2026-10-08). Only a `#` same-document anchor stays in place. ChatPane's
-// click guard (`useChatPaneNewTabLinks`) covers links this renderer does not draw.
-const NEW_TAB = { target: '_blank', rel: 'noopener noreferrer' } as const;
+// Own-or-other link handling (and the new-tab icon after an own link) lives in `MarkdownLink`: owner
+// decision 2026-11-21, reversing 2026-10-08's "every link opens a new tab". ChatPane's click guard
+// (`useChatPaneNewTabLinks`) applies the same split to links this renderer does not draw.
 
 function renderMarkdownLink(source: string, key: number): ReactNode {
   // `MD_LINK` already matched `source`, so these two groups always capture.
   const [, label, href] = MD_LINK_PARTS.exec(source)!;
   if (!SAFE_LINK_HREF.test(href!)) return source;
-  return (
-    <a key={key} href={href} {...(href!.startsWith('#') ? {} : NEW_TAB)}>
-      {renderInline(label!)}
-    </a>
-  );
+  return <MarkdownLink key={key} href={href!}>{renderInline(label!)}</MarkdownLink>;
 }
 
 function renderInline(text: string): ReactNode {
@@ -608,6 +604,6 @@ function renderInlineToken({ match, key }: { match: RegExpExecArray; key: number
   if (mdLink) return renderMarkdownLink(mdLink, key);
   if (bold) return <strong key={key}>{renderInline(bold.slice(2, -2))}</strong>;
   if (italic) return <em key={key}>{renderInline(italic.slice(1, -1))}</em>;
-  if (link) return <a key={key} href={link} {...NEW_TAB}>{link}</a>;
+  if (link) return <MarkdownLink key={key} href={link}>{link}</MarkdownLink>;
   return null;
 }
