@@ -1,0 +1,10 @@
+
+> jini@ api:check /home/user/Jini
+> node --import tsx ./scripts/check-api-surface.ts
+
+[api] @jini-ai/chat
+  changed export  ./react#IconName
+  added export    ./react#currentOrigin
+  added export    ./react#isOwnLinkHref
+[api] checked 40 packages, 690 entries, 17229 symbols
+EXIT 0

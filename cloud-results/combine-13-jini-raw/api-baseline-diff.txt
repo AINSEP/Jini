@@ -1,0 +1,29 @@
+diff --git a/api-baseline/jini-ai__chat.json b/api-baseline/jini-ai__chat.json
+index febf6f033..8e67f3e5d 100644
+--- a/api-baseline/jini-ai__chat.json
++++ b/api-baseline/jini-ai__chat.json
+@@ -583,7 +583,7 @@
+    "FrontendSessionBridgeOptions": "interface:24faa9b742",
+    "I18nAdapter": "interface:6cf1b517a0",
+    "Icon": "function:04990c1535",
+-   "IconName": "type:866ffffe14",
++   "IconName": "type:e83c5dff41",
+    "JiniChatProvider": "function:8a0f1497e4",
+    "JiniChatProviderProps": "interface:db844e82b9",
+    "JiniChatSlots": "interface:86f4a03ae0",
+@@ -693,6 +693,7 @@
+    "createMidRunMessagePoster": "function:38e83f227a",
+    "createToolRendererRegistry": "function:fc308363d2",
+    "createTypedAnswerPoster": "function:6ca8e65f6d",
++   "currentOrigin": "function:b8eb7c9bde",
+    "defaultChatPaneSelection": "function:8f551e3a87",
+    "definedProps": "function:cbeb5e3cdb",
+    "extEventSlot": "function:4569745a1f",
+@@ -701,6 +702,7 @@
+    "interleaveMessageBlocks": "function:ef57323804",
+    "isAwaitingAnswer": "function:cc1eb47ebf",
+    "isFailedToolRow": "function:6fd17e205e",
++   "isOwnLinkHref": "function:70b21de0be",
+    "isTerminalRunStatus": "function:2955ba46cc",
+    "mcpUiSurfaceSlotKey": "function:cd3fdd4d71",
+    "midRunUserMessageSlotKey": "function:4a61daf07b",

@@ -145,3 +145,107 @@ file: packages/cms/package.json
       Tests  1 failed | 5 passed (6)
 result: RED (exit 1), restore clean
 
+=== chatlinks: protocol-relative //host counts as own
+file: packages/chat/src/react/components/own-link.ts
+@@ -24,7 +24,6 @@ export function currentOrigin(_required: Record<string, never> = {}, _options =
+  * @complexity O(n) in the href length (one URL parse); no I/O.
+  */
+ export function isOwnLinkHref({ href, origin }: { href: string; origin: string }, _options = {}): boolean {
+-  if (href.startsWith('//')) return false;
+   if (href.startsWith('/')) return true;
+   try {
+     return origin !== '' && new URL(href).origin === origin;
+ ✓ src/react/features/chat-pane/__tests__/styles-tool-row-chevron.test.ts (3 tests) 4ms
+ ✓ src/react/features/chat-pane/__tests__/hooks/useAgentRuntimePicker.cov-j2.test.ts (3 tests) 4ms
+ ✓ src/react/features/chat-pane/__tests__/styles-row-containment.test.ts (1 test) 3ms
+ ✓ src/react/features/chat-pane/__tests__/styles-md-link-newtab.test.ts (2 tests) 4ms
+ ✓ src/react/features/chat-pane/__tests__/index.test.ts (1 test) 5ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  src/react/components/__tests__/own-link.test.ts > isOwnLinkHref > treats mailto, a protocol-relative URL and an unparseable value as not own
+      Tests  1 failed | 606 passed | 1 skipped (608)
+result: RED (exit 1), restore clean
+
+=== chatlinks: any absolute URL counts as own (origin compare dropped)
+file: packages/chat/src/react/components/own-link.ts
+@@ -27,7 +27,7 @@ export function isOwnLinkHref({ href, origin }: { href: string; origin: string }
+   if (href.startsWith('//')) return false;
+   if (href.startsWith('/')) return true;
+   try {
+-    return origin !== '' && new URL(href).origin === origin;
++    return origin !== '' && Boolean(new URL(href).origin);
+   } catch {
+     return false;
+   }
+ FAIL  src/react/features/chat-pane/__tests__/components/ChatPane.test.tsx > ChatPane > opens a host-rendered card link to another website in a new tab and leaves an own link alone
+ FAIL  src/react/features/chat-pane/__tests__/hooks/useChatPaneNewTabLinks.test.tsx > useChatPaneNewTabLinks > still opens another website in a new tab
+ FAIL  src/react/features/chat-pane/__tests__/hooks/useChatPaneNewTabLinks.test.tsx > useChatPaneNewTabLinks > treats another port on this host as another website
+ FAIL  src/react/features/chat-pane/__tests__/hooks/useChatPaneNewTabLinks.test.tsx > useChatPaneNewTabLinks > opens a link nested inside a card (click on a child of the anchor) in a new tab
+ FAIL  src/react/features/chat-pane/__tests__/hooks/useChatPaneNewTabLinks.test.tsx > useChatPaneNewTabLinks > cancels the click so a router link handler (which honors defaultPrevented) does not also navigate
+ FAIL  src/react/features/chat-pane/__tests__/hooks/useChatPaneNewTabLinks.test.tsx > useChatPaneNewTabLinks > opens an http: link in a new tab, not only https:
+ FAIL  src/react/features/chat-pane/__tests__/hooks/useChatPaneNewTabLinks.test.tsx > useChatPaneNewTabLinks > defaults the opener to window.open with a new tab and no opener or referrer
+      Tests  14 failed | 593 passed | 1 skipped (608)
+result: RED (exit 1), restore clean
+
+=== chatlinks: MarkdownLink own link opens new tab (old rule)
+file: packages/chat/src/react/components/MarkdownLink.tsx
+@@ -33,7 +33,7 @@ export interface MarkdownLinkProps {
+ export function MarkdownLink({ href, children, origin = currentOrigin(), useTHook = useT }: MarkdownLinkProps) {
+   const t = useTHook();
+   if (href.startsWith('#')) return <a href={href}>{children}</a>;
+-  if (!isOwnLinkHref({ href, origin })) return <a href={href} {...NEW_TAB}>{children}</a>;
++  if (true) return <a href={href} {...NEW_TAB}>{children}</a>;
+   const label = t(OPEN_IN_NEW_TAB);
+   return (
+     <>
+ ✓ src/react/features/chat-pane/__tests__/index.test.ts (1 test) 3ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 5 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  src/react/components/__tests__/Markdown.test.tsx > Markdown > renders a relative markdown link wrapped in parentheses as an in-place anchor with a new-tab icon
+ FAIL  src/react/components/__tests__/Markdown.test.tsx > Markdown > treats an absolute link to this same origin as the owner’s own and adds the icon
+ FAIL  src/react/components/__tests__/MarkdownLink.test.tsx > MarkdownLink > names the icon through the injected translator, not a fixed English string
+ FAIL  src/react/components/__tests__/MarkdownLink.test.tsx > MarkdownLink > gives the icon the same title so a mouse user sees what it does
+ FAIL  src/react/components/__tests__/MarkdownLink.test.tsx > MarkdownLink > decides ownership against the injected origin
+      Tests  5 failed | 602 passed | 1 skipped (608)
+result: RED (exit 1), restore clean
+
+=== chatlinks: pane guard opens own links in a new tab (old rule)
+file: packages/chat/src/react/features/chat-pane/hooks/useChatPaneNewTabLinks.hooks.ts
+@@ -59,7 +59,7 @@ function isInTabOtherWebsiteLink({ link, origin }: { link: HTMLAnchorElement; or
+   if (link.target === '_blank' || link.hasAttribute('download') || link.getAttribute('role') === 'button') return false;
+   if (link.getAttribute('href')!.startsWith('#')) return false;
+   if (!NEW_TAB_PROTOCOLS.has(link.protocol)) return false;
+-  return !isOwnLinkHref({ href: link.href, origin });
++  return true;
+ }
+ 
+ /**
+ ✓ src/react/features/chat-pane/__tests__/hooks/useAgentRuntimePicker.cov-j2.test.ts (3 tests) 3ms
+ ✓ src/react/features/chat-pane/__tests__/styles-md-link-newtab.test.ts (2 tests) 3ms
+ ✓ src/react/features/chat-pane/__tests__/index.test.ts (1 test) 3ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  src/react/features/chat-pane/__tests__/components/ChatPane.test.tsx > ChatPane > opens a host-rendered card link to another website in a new tab and leaves an own link alone
+ FAIL  src/react/features/chat-pane/__tests__/hooks/useChatPaneNewTabLinks.test.tsx > useChatPaneNewTabLinks > leaves a same-origin link to the browser so the admin navigates in place
+ FAIL  src/react/features/chat-pane/__tests__/hooks/useChatPaneNewTabLinks.test.tsx > useChatPaneNewTabLinks > leaves an absolute same-origin link to the browser too
+      Tests  3 failed | 604 passed | 1 skipped (608)
+result: RED (exit 1), restore clean
+
+=== chatlinks: own-link icon not labelled
+file: packages/chat/src/react/components/MarkdownLink.tsx
+@@ -38,7 +38,7 @@ export function MarkdownLink({ href, children, origin = currentOrigin(), useTHoo
+   return (
+     <>
+       <a href={href}>{children}</a>
+-      <a className="jini-md-link-newtab" href={href} {...NEW_TAB} aria-label={label} title={label}>
++      <a className="jini-md-link-newtab" href={href} {...NEW_TAB} >
+         <Icon name="external-link" size={11} />
+       </a>
+     </>
+ ✓ src/react/features/chat-pane/__tests__/index.test.ts (1 test) 4ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 5 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  src/react/components/__tests__/Markdown.test.tsx > Markdown > renders a relative markdown link wrapped in parentheses as an in-place anchor with a new-tab icon
+ FAIL  src/react/components/__tests__/Markdown.test.tsx > Markdown > treats an absolute link to this same origin as the owner’s own and adds the icon
+ FAIL  src/react/components/__tests__/MarkdownLink.test.tsx > MarkdownLink > names the icon through the injected translator, not a fixed English string
+ FAIL  src/react/components/__tests__/MarkdownLink.test.tsx > MarkdownLink > gives the icon the same title so a mouse user sees what it does
+ FAIL  src/react/components/__tests__/MarkdownLink.test.tsx > MarkdownLink > decides ownership against the injected origin
+      Tests  5 failed | 602 passed | 1 skipped (608)
+result: RED (exit 1), restore clean
+
