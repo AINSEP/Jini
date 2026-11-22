@@ -114,6 +114,29 @@ export interface HtmlEditorProps {
   translate?: Translate | undefined;
   ref?: Ref<InteractiveHtmlEditorHandle>;
 }
+/**
+ * The icon names admin screens render. A closed subset of the host icon set's names, never a
+ * general string: the host's Icon accepts only its own names, so `satisfies AdminKit` fails the
+ * moment a screen asks for a glyph the host cannot draw. A moved screen that needs another glyph
+ * adds its name here.
+ */
+export type KitIconName =
+  | 'alert-triangle' | 'arrow-left' | 'arrow-up' | 'check-long' | 'chevron-down' | 'chevron-right'
+  | 'chevron-right-wide' | 'close' | 'folder' | 'image' | 'package-check' | 'package-outline' | 'play'
+  | 'plus' | 'puzzle' | 'refresh' | 'settings' | 'storefront' | 'trash-compact' | 'volume'
+  // Database, import-export, library, media and skills screens, when they switch to the kit Icon.
+  | 'timeline' | 'migrate-forward' | 'tray-export' | 'tray-import' | 'more-horizontal-outline' | 'tray-upload'
+  | 'document-lines' | 'tiles-four' | 'picture-frame' | 'video-frame' | 'cloud-outline' | 'bin-lidded' | 'document-marked';
+type SvgLineCap = 'butt' | 'round' | 'square' | 'inherit';
+type SvgLineJoin = 'miter' | 'round' | 'bevel' | 'inherit';
+type Booleanish = boolean | 'true' | 'false';
+/** The SVG attributes admin's icon call sites pass, line-icon styling included. */
+export interface IconProps {
+  readonly name: KitIconName; readonly size?: number | string; readonly className?: string | undefined;
+  readonly strokeWidth?: number | string | undefined; readonly stroke?: string | undefined; readonly fill?: string | undefined;
+  readonly viewBox?: string | undefined; readonly strokeLinecap?: SvgLineCap | undefined; readonly strokeLinejoin?: SvgLineJoin | undefined;
+  readonly focusable?: Booleanish | 'auto' | undefined; readonly 'aria-hidden'?: Booleanish | undefined; readonly 'aria-label'?: string | undefined;
+}
 export interface ErrorNoticeProps { readonly failure: UserFacingError; readonly t?: Translate; readonly className?: string; readonly role?: 'alert' | 'status' }
 
 export interface AdminKitComponents {
@@ -123,7 +146,7 @@ export interface AdminKitComponents {
   Menu: ComponentType<MenuProps>; Notice: ComponentType<NoticeProps>; Spinner: ComponentType<SpinnerProps>;
   Badge: ComponentType<BadgeProps>; InfoTip: ComponentType<InfoTipProps>; Lightbox: ComponentType<LightboxProps>;
   WidgetSelect: ComponentType<WidgetSelectProps>; TabBar: ComponentType<TabBarProps>; HtmlEditor: ComponentType<HtmlEditorProps>;
-  ErrorNotice: ComponentType<ErrorNoticeProps>;
+  ErrorNotice: ComponentType<ErrorNoticeProps>; Icon: ComponentType<IconProps>;
 }
 
 /* ---------- hooks ---------- */
@@ -159,7 +182,11 @@ export interface AdminKitHooks {
   useSettlementGeneration(): SettlementGeneration;
   useConfirmController(required: KitConfirmDialogProps, optional?: { agent?: AgentAttrsPort }): ConfirmControllerView;
   useNativeDialog(required: DialogProps, optional?: { initialFocus?: () => void; document?: Pick<Document, 'activeElement'> }): NativeDialogView;
+  /** The UI library's translator (its locale context), distinct from any chat translator the host has. */
+  useT(): KitTranslator;
 }
+/** A translator with optional interpolation variables, as the UI library's `useT` returns. */
+export type KitTranslator = (key: string, vars?: Readonly<Record<string, string | number>>) => string;
 
 /* ---------- fetch-query (core's adapter + the scope hook) ---------- */
 export interface AdminQueryKit extends FetchQueryAdapter {
@@ -191,12 +218,28 @@ export interface AdminThemeKit {
   readonly defaultAdminTheme: AdminTheme;
 }
 
+/* ---------- plain values (data the UI library owns; injected so admin imports no UI package) ---------- */
+/** Locale code -> settings-dialog dictionary (key -> translated string). */
+export type KitDictionaries = Readonly<Partial<Record<string, Readonly<Record<string, string>>>>>;
+export interface KitNotificationsPreferences {
+  readonly soundEnabled: boolean; readonly successSoundId: string; readonly failureSoundId: string; readonly desktopEnabled: boolean;
+}
+export interface AdminKitValues {
+  readonly SETTINGS_DIALOG_DICTIONARIES: KitDictionaries;
+  readonly DEFAULT_NOTIFICATIONS_PREFERENCES: KitNotificationsPreferences;
+  /** The waits between retries while the host is unreachable. */
+  readonly UNREACHABLE_RETRY_DELAYS_MS: readonly number[];
+  /** The principal id a local-tab draft backup is saved under. */
+  readonly LOCAL_BACKUP_PRINCIPAL_ID: string;
+}
+
 export interface AdminKit {
   readonly components: AdminKitComponents;
   readonly hooks: AdminKitHooks;
   readonly query: AdminQueryKit;
   readonly mediaProviders: AdminMediaProvidersKit;
   readonly theme: AdminThemeKit;
+  readonly values: AdminKitValues;
 }
 
 /* ---------- provider ---------- */
@@ -243,6 +286,7 @@ export const WidgetSelect = slot('WidgetSelect');
 export const TabBar = slot('TabBar');
 export const HtmlEditor = slot('HtmlEditor');
 export const ErrorNotice = slot('ErrorNotice');
+export const Icon = slot('Icon');
 
 export const useAgentHandle: AdminKitHooks['useAgentHandle'] = (r, o) => useAdminKit().hooks.useAgentHandle(r, o);
 export const useFocusTrap: AdminKitHooks['useFocusTrap'] = (r, o) => useAdminKit().hooks.useFocusTrap(r, o);
@@ -252,6 +296,10 @@ export function useDirtyGuard<T>(required: { current: T; original: T | null }, o
 export const useSettlementGeneration: AdminKitHooks['useSettlementGeneration'] = () => useAdminKit().hooks.useSettlementGeneration();
 export const useConfirmController: AdminKitHooks['useConfirmController'] = (r, o) => useAdminKit().hooks.useConfirmController(r, o);
 export const useNativeDialog: AdminKitHooks['useNativeDialog'] = (r, o) => useAdminKit().hooks.useNativeDialog(r, o);
+/** The host's UI translator, returned as is. The empty objects keep the screen-facing required/optional shape. */
+export function useT(_required: Record<string, never> = {}, _optional: Record<string, never> = {}): KitTranslator {
+  return useAdminKit().hooks.useT();
+}
 
 export const useFetchQuery: FetchQueryAdapter['useFetchQuery'] = (r, o) => useAdminKit().query.useFetchQuery(r, o);
 export const useFetchMutation: FetchQueryAdapter['useFetchMutation'] = (r, o) => useAdminKit().query.useFetchMutation(r, o);
@@ -264,5 +312,7 @@ export const useMediaProvidersTab: AdminMediaProvidersKit['useMediaProvidersTab'
 export function useMediaProviderRules(): AdminMediaProvidersKit['rules'] { return useAdminKit().mediaProviders.rules; }
 /** applyAdminTheme / resolveColorScheme / defaultAdminTheme, read once per render. */
 export function useAdminThemeKit(): AdminThemeKit { return useAdminKit().theme; }
+/** The injected plain values, read once per render. The same objects the host passed: never copied. */
+export function useAdminKitValues(_required: Record<string, never> = {}, _optional: Record<string, never> = {}): AdminKitValues { return useAdminKit().values; }
 
 export type { MediaProviderCatalogPolicy, MediaProviderOption };

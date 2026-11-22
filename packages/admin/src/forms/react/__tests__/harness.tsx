@@ -24,6 +24,7 @@ const formsKit: AdminKit = {
     TabBar: () => { throw new Error('Forms tests do not supply TabBar'); },
     HtmlEditor: () => { throw new Error('Forms tests do not supply HtmlEditor'); },
     ErrorNotice: () => { throw new Error('Forms tests do not supply ErrorNotice'); },
+    Icon: () => { throw new Error('Forms tests do not supply Icon'); },
   },
   hooks: {
     useAgentHandle: ({ agentHandle }) => agentHandle === false ? undefined : agentHandle ?? 'fake-handle',
@@ -53,10 +54,12 @@ const formsKit: AdminKit = {
       }, [containerRef, active]);
     },
     useConfirmController, useNativeDialog,
+    useT: () => { throw new Error('Forms tests do not supply useT'); },
   },
   query: { useFetchQuery, useFetchMutation, useCachedLoader, useInvalidate, useFetchQueryScope },
   get mediaProviders(): never { throw new Error('Forms tests do not supply mediaProviders'); },
   get theme(): never { throw new Error('Forms tests do not supply theme'); },
+  get values(): never { throw new Error('Forms tests do not supply values'); },
 };
 
 function scope(wrapper?: ComponentType<{ children: ReactNode }>) {
