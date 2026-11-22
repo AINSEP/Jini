@@ -79,6 +79,7 @@ export interface AgentPluginSearchCandidate {
   readonly id?: string | undefined;
   readonly provides?: readonly string[] | undefined;
   readonly requires?: readonly string[] | undefined;
+  readonly companions?: readonly string[] | undefined;
 
   /** Whether this workspace currently has the plugin enabled — reflects `activation.ts`'s
    *  absent-means-active default, same as everywhere else this codebase reads activation state. */

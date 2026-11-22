@@ -8,24 +8,24 @@ copying its questions or maintaining separate design checklists.
 
 | Mode | Use it when | Evidence boundary |
 |---|---|---|
-| **Design Intent** | Creating a new surface, writing a design spec, or working without verified browser automation | Answer the eight Core questions from the brief, product constraints, and available artifacts. State assumptions; do not claim rendered verification. |
-| **Rendered Iteration** | An existing or implemented surface can be opened with verified `browser_automation` | Answer every Core question and rendered check from browser evidence at the relevant viewports and states. |
+| **Design Intent** | Creating a new surface, writing a design spec, or working without available browser capabilities | Answer the eight Core questions from the brief, product constraints, and available artifacts. State assumptions; do not claim rendered verification. |
+| **Rendered Iteration** | An existing or implemented surface can be opened with the current host’s available browser capabilities | Answer every Core question and rendered check from browser evidence at the relevant viewports and states. |
 
 For every page or screen creation, redesign, audit, or visual-polish task, run
 Design Intent mode before finalizing the direction. Add Rendered Iteration mode
-when the browser capability is verified. If an existing surface cannot be rendered,
+when the host can render and inspect the target. If an existing surface cannot be rendered,
 finish the Design Intent pass and provide specific manual checks for the unresolved
 rendered items.
 
 This is an internal design gate, not a questionnaire to push onto the user. Ask the
-user only for missing product or brand information that would materially change the
-direction. A weak or uncertain answer means revise, state an assumption, or record a
-tradeoff; do not silently count it as a pass.
+user only for a material design decision the current project leaves unresolved. A weak or
+uncertain answer means revise, state an assumption, or record a tradeoff; do not silently count it as a pass.
 
-When Programmer runs Rendered Iteration, treat Premium quality and trust plus
+When implementing an approved design in Rendered Iteration, treat Premium quality and trust plus
 Restraint and motion as conformance checks against the approved design/spec, not as
 permission to invent new visual direction. If an honest answer requires a taste
-decision Programmer does not own, stop and request Web Design routing.
+decision outside the approved design, follow the current project’s existing design authority;
+ask the user only for a material design decision it leaves unresolved.
 
 ## Canonical Review Checklist
 
@@ -138,9 +138,9 @@ implementation or browser session exists:
   evidence, controls, or recovery paths?
 
 For an implemented website or web app, load `chrome-mobile-test-matrix.md` after
-browser preflight verifies `browser_automation = enabled` when the task can affect
+the current host can render and inspect the target when the task can affect
 responsive behavior. Its named viewports and interaction paths are the required
-operational mobile pass; otherwise record `CHROME_NOT_VERIFIED` and manual checks.
+operational mobile target where supported; otherwise report unverified checks and manual follow-up.
 The general checks below do not replace the matrix when it can run.
 
 Rendered checks:
@@ -177,10 +177,10 @@ Rendered checks:
 
 ## Rendered Change → Observe Loop
 
-Use this only after `browser-live-analysis` verifies `browser_automation = enabled`.
+Use this only when the current host can render and inspect the target.
 
-1. Start the target app and identify the visual target from the spec, reference, or
-   user description.
+1. Use the already-running target if supplied. Start a local target only when needed in a
+   permitted checkout. Identify the visual target from the approved spec, reference, or user description.
 2. For a broad redesign, capture a baseline against the Canonical Review Checklist.
    For a narrow fix, identify the categories the change can affect.
 3. Make one focused presentation-layer change.
@@ -197,8 +197,7 @@ Use this only after `browser-live-analysis` verifies `browser_automation = enabl
 Do not run the complete checklist after every small edit. Use the current failed
 item as the hot-loop target, then run the full pass at convergence.
 
-If Programmer's ambient fast-feedback watcher
-(`harness-engineering/quality/programmer-fast-feedback.md`) is running, do not let its
+If the current project’s existing fast-feedback checks are running, do not let their
 output interrupt the hot Change → Observe loop. Consume its stable-failure signal
 during Reconciliation And Handoff.
 
@@ -210,8 +209,8 @@ during Reconciliation And Handoff.
   or critique round.
 - Do not run more than two complete review passes without explicit user approval.
   Focused Change → Observe corrections inside a pass do not count as additional
-  complete passes. Track this separately from the Web Design persona's optional
-  concept-critique pass budget.
+  complete passes. Track this separately from any concept-critique pass budget
+  in the current project’s design workflow.
 - Classify unresolved items as a blocker (clarity, usability, accessibility, or
   behavior), a quality issue, or optional polish. After two passes, stop cosmetic
   cycling: diagnose the underlying constraint and ask for direction when a blocker

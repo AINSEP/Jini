@@ -1,5 +1,11 @@
 # @jini-ai/agent-plugins/ui-ux-design
 
+## 0.7.1 (inner plugin version)
+
+- Follow the current project’s design authority and available browser capabilities, reuse a
+  supplied running target, and report only the viewports and interactions actually observed.
+- Save requested page or deck work through host tools and publish only when requested.
+
 ## 0.7.0 (inner plugin version)
 
 - The always-delivered `skills/ui-ux-design/SKILL.md` is now a short core (under 4 KiB) so it fits

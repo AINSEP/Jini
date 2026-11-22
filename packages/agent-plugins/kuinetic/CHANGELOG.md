@@ -1,5 +1,9 @@
 # @jini-ai/agent-plugins/kuinetic
 
+## 0.1.1
+
+- Declare ui-ux-design as a routing companion and retain a conditional portable guidance-reader fallback.
+
 ## 0.1.0
 
 - First release as its own plugin, so kUInetic guidance can be updated without touching

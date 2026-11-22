@@ -6,6 +6,7 @@
  * import graph acyclic (`__tests__/type-cycles.test.ts`).
  */
 import * as semver from 'semver';
+import { isAgentPluginName } from '../core/plugin-name.js';
 
 /** Stored in place of a present-but-unusable range so the plugin stays listable but never enables. */
 export const INVALID_AGENT_PLUGIN_HOST_RANGE = '<invalid>';
@@ -41,9 +42,12 @@ function readHostRange({ value, warnings }: { readonly value: unknown; readonly 
 export function readAgentPluginCompatibilityMetadata(
   { extension }: { readonly extension: Readonly<Record<string, unknown>> },
   _optional: Record<string, never> = {},
-): { requires?: readonly string[]; hostRange?: string; warnings: string[] } {
+): { requires?: readonly string[]; readonly companions?: readonly string[] | undefined; hostRange?: string; warnings: string[] } {
   const warnings: string[] = [];
   const requires = readRequires({ value: extension.requires, warnings });
   const hostRange = readHostRange({ value: extension.hostRange, warnings });
-  return { ...(requires === undefined ? {} : { requires }), ...(hostRange === undefined ? {} : { hostRange }), warnings };
+  const companions = Array.isArray(extension.companions) && extension.companions.every((value): value is string => typeof value === 'string' && isAgentPluginName({ value }))
+    ? [...new Set(extension.companions)] : undefined;
+  if (extension.companions !== undefined && companions === undefined) warnings.push('companions must be an array of valid plugin names');
+  return { ...(companions === undefined ? {} : { companions }), ...(requires === undefined ? {} : { requires }), ...(hostRange === undefined ? {} : { hostRange }), warnings };
 }

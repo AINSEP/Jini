@@ -37,8 +37,9 @@ function enabledPluginCatalog({ ctx, candidates }: {
 }
 function catalogRow({ ctx, plugin }: { ctx: UseContext; plugin: AgentPluginSearchCandidate }, _options = {}): string {
   const { id, name, why } = describeMatch({ plugin });
-  const pointer = ctx.ports.formatPluginToolPointer?.({ pluginId: id, file: 'SKILL.md' }) ?? `search_agent_plugin_local({ query: "${id}" })`;
-  return `- ${name} (${id}): ${why}` + (plugin.keywords.length ? `\n  Use for: ${plugin.keywords.slice(0, 8).join(', ')}` : '') + `\n  Load: ${pointer}`;
+  const pointer = ctx.ports.formatPluginToolPointer?.({ pluginId: id, file: 'SKILL.md' }) ?? "use the current host's plugin guidance reader";
+  const cue = (plugin.keywords.length ? plugin.keywords : plugin.skills.length ? plugin.skills.map(skill => skill.summary || skill.name) : plugin.provides ?? []).slice(0, 8).join(', ').replace(/\s+/g, ' ').slice(0, 180);
+  return `- ${name} (${id}): ${why}` + (cue ? `\n  Use for: ${cue}` : '') + `\n  Load: ${pointer}`;
 }
 export interface AutomaticAgentPluginPorts {
   /** Optional so hosts wired before this port keep working; without it, notes omit the load pointer. */
@@ -46,7 +47,7 @@ export interface AutomaticAgentPluginPorts {
   list(input: Record<string, never>, options?: Record<string, never>): Promise<readonly AgentPluginSearchCandidate[]>;
   rank(input: { query: string; candidates: readonly AgentPluginSearchCandidate[]; limit: number }, options?: Record<string, never>): readonly AgentPluginSearchMatch[];
   /** Must recheck activation/trust and return real guidance, never a pointer to unopened guidance. */
-  resolve(input: { pluginId: string } & AgentPluginSkillRequest, options?: Record<string, never>): Promise<ResolveAgentPluginRefsResult>;
+  resolve(input: { pluginId: string } & AgentPluginSkillRequest, options?: { allowInactiveGuidance?: boolean }): Promise<ResolveAgentPluginRefsResult>;
   /** Only a principal-bound human exchange may return action=auto. */
   ask(input: { matches: readonly AutomaticAgentPluginMatch[]; signal?: AbortSignal }, options?: Record<string, never>): Promise<{ action: 'use' | 'skip' | 'auto'; selected: readonly string[] }>;
   saveAuto(input: Record<string, never>, options?: Record<string, never>): Promise<void>;
@@ -63,7 +64,7 @@ function rankCandidates(
   const { capabilities } = input;
   const admit = (plugins: readonly AgentPluginSearchCandidate[]) => plugins.map(plugin => ({ ...plugin, score: 4 }));
   if (capabilities) return admit(candidates.filter(plugin => plugin.provides?.some(capability => capabilities.includes(capability))));
-  return withRequiredProviders({ ranked: ports.rank({ query: input.query ?? '', candidates, limit: candidates.length }, {}), candidates });
+  return ports.rank({ query: input.query ?? '', candidates, limit: candidates.length }, {});
 }
 
 function withRequiredProviders({ ranked, candidates }: {
@@ -71,9 +72,11 @@ function withRequiredProviders({ ranked, candidates }: {
 }, _options = {}): readonly AgentPluginSearchMatch[] {
   const top = ranked[0];
   if (!top) return ranked;
+  const companions = (top.companions ?? []).flatMap(id => candidates.filter(plugin => plugin.enabled && plugin.pluginId === id).map(plugin => ranked.find(match => match.pluginId === id) ?? { ...plugin, score: 4 }));
   const required = candidates.filter(plugin => plugin.enabled && plugin.provides?.some(capability => top.requires?.includes(capability)))
+    .sort((a, b) => a.pluginId.localeCompare(b.pluginId))
     .map(plugin => ranked.find(match => match.pluginId === plugin.pluginId) ?? { ...plugin, score: 4 });
-  const ordered = [top, ...required, ...ranked];
+  const ordered = [top, ...companions, ...required, ...ranked];
   return ordered.filter((plugin, index) => ordered.findIndex(match => match.pluginId === plugin.pluginId) === index);
 }
 
@@ -146,10 +149,10 @@ async function askConsent({ ctx, matches }: {
  * Explicit content requests retain safe resolver refusals so the model can correct its request;
  * thrown host diagnostics remain private. Failures stay retryable. O(1) bookkeeping.
  */
-async function resolveOneGuidance(ctx: UseContext, { plugin, ...request }: { plugin: AgentPluginSearchCandidate } & AgentPluginSkillRequest, { signal }: { signal?: AbortSignal | undefined } = {}): Promise<AutomaticAgentPluginLoadResult> {
+async function resolveOneGuidance(ctx: UseContext, { plugin, ...request }: { plugin: AgentPluginSearchCandidate } & AgentPluginSkillRequest, { signal, ...options }: { signal?: AbortSignal | undefined; allowInactiveGuidance?: boolean } = {}): Promise<AutomaticAgentPluginLoadResult> {
   if (signal?.aborted) return { status: 'cancelled', guidance: '' };
   try {
-    const result = await ctx.ports.resolve({ pluginId: plugin.pluginId, ...request }, {});
+    const result = await ctx.ports.resolve({ pluginId: plugin.pluginId, ...request }, options);
     if (!result.ok) return { status: result.code ?? 'unavailable', guidance: request.skill !== undefined || request.file !== undefined ? result.reason : '' };
     if (!result.promptPrefix.trim()) return { status: 'unavailable', guidance: '' };
     return { status: 'loaded', guidance: result.promptPrefix };
@@ -181,13 +184,15 @@ async function resolveGuidance({ ctx, matches }: {
   const guidanceFor = async (match: AgentPluginSearchMatch): Promise<string | undefined> => {
     const result = await resolveOneGuidance(ctx, { plugin: match }, { signal });
     if (result.status !== 'loaded') return undefined;
-    if (new TextEncoder().encode(result.guidance).length > (budget ?? MAX_AUTOMATIC_GUIDANCE_BYTES)) {
+    const bytes = new TextEncoder().encode(result.guidance).length + (budget !== undefined && guidance.length ? 2 : 0);
+    if (bytes > (budget ?? MAX_AUTOMATIC_GUIDANCE_BYTES)) {
+      if (budget !== undefined) return undefined;
       const pointer = ctx.ports.formatPluginToolPointer?.({ pluginId: match.pluginId, skill: match.pluginId, file: 'SKILL.md' });
       const howToLoad = pointer === undefined ? '' : ` Load the full instructions with ${pointer}; use the same call with file '<relative path>' for supporting references.`;
       return `Agent Plugin '${match.pluginId}' guidance is deferred because it exceeds the automatic byte limit.${howToLoad}`;
     }
     recordDelivery({ ctx, plugin: match, result });
-    if (budget !== undefined) budget -= new TextEncoder().encode(result.guidance).length;
+    if (budget !== undefined) budget -= bytes;
     return result.guidance;
   };
   for (const match of matches) {
@@ -242,7 +247,7 @@ function withPluginNotes({ ctx, input, installed, candidates, result }: {
   // Preflight never resolves off packages implicitly. A catalog line offers an explicit read;
   // its setup guidance may explain whether enabling or credentials are needed.
   const off = offPluginNote(ctx, { catalog: installed, input });
-  const catalog = input.query !== undefined && !input.capabilities?.length ? enabledPluginCatalog({ ctx, candidates }) : '';
+  const catalog = input.query !== undefined && !input.capabilities?.length ? enabledPluginCatalog({ ctx, candidates: candidates.filter(plugin => !input.loaded?.includes(plugin.pluginId)) }) : '';
   return [result, catalog, off].filter(Boolean).join('\n\n');
 }
 /** Rank enabled candidates, drop plugins this run already has, then apply the person's consent. */
@@ -253,8 +258,11 @@ async function consentedMatches({ ctx, candidates, input }: {
 }): Promise<AgentPluginSearchMatch[]> {
   const ranked = rankCandidates({ candidates, input, ports: ctx.ports });
   // Owner decision 2026-10-18: no per-chat plugin count; the relevance threshold and vendor gate decide.
-  const relevant = ranked.filter(plugin => !ctx.delivered.has(plugin.pluginId) && !input.loaded?.includes(plugin.pluginId) && (!ctx.alreadyLoaded.has(plugin.pluginId) || !!input.query));
-  return applyConsent({ ctx, matches: relevant }, { signal: input.signal });
+  const planned = input.capabilities ? ranked : withRequiredProviders({ ranked, candidates });
+  const relevant = planned.filter(plugin => !ctx.delivered.has(plugin.pluginId) && !input.loaded?.includes(plugin.pluginId) && (!ctx.alreadyLoaded.has(plugin.pluginId) || !!input.query));
+  const consented = await applyConsent({ ctx, matches: relevant }, { signal: input.signal });
+  const topAccepted = consented.some(plugin => plugin.pluginId === ranked[0]?.pluginId);
+  return consented.filter(plugin => topAccepted || !ranked[0]?.companions?.includes(plugin.pluginId) || ranked.some(match => match.pluginId === plugin.pluginId));
 }
 /** Capability calls resolve every match; a query resolves the top and required providers. */
 async function preparedGuidance({ ctx, matches, input }: {
@@ -275,8 +283,9 @@ function primaryMatch({ ctx, matches, input }: {
   if (!(input.maxPromptArgBytes === undefined && input.query && !input.loaded?.length && !ctx.alreadyLoaded.has(matches[0]?.pluginId ?? ''))) return [];
   const [top, ...rest] = matches;
   if (!top) return [];
-  const required = rest.filter(plugin => !ctx.alreadyLoaded.has(plugin.pluginId) && plugin.provides?.some(capability => top.requires?.includes(capability)));
-  return [top, ...required].slice(0, 3);
+  const companions = rest.filter(plugin => top.companions?.includes(plugin.pluginId) && !ctx.alreadyLoaded.has(plugin.pluginId));
+  const additional = rest.filter(plugin => !top.companions?.includes(plugin.pluginId) && !ctx.alreadyLoaded.has(plugin.pluginId));
+  return [top, ...companions, ...additional.slice(0, 3)];
 }
 /** Rank readable metadata for off plugins; never load their tools or guidance implicitly. O(p*t). */
 function offPluginNote(ctx: UseContext, { catalog, input }: { catalog: readonly AgentPluginSearchCandidate[]; input: PrepareInput }): string {
@@ -309,7 +318,7 @@ async function loadPermitted(ctx: UseContext, { plugin, ...request }: { plugin: 
     await publishUsage(ctx);
     return { status: 'excluded', guidance: '' };
   }
-  let result = await resolveOneGuidance(ctx, { plugin, ...request }, { signal });
+  let result = await resolveOneGuidance(ctx, { plugin, ...request }, { signal, ...(!plugin.enabled ? { allowInactiveGuidance: true } : {}) });
   if (!plugin.enabled && result.status === 'loaded') {
     result = { status: 'installed-but-inactive', guidance: `Plugin '${plugin.pluginId}' is off; its tools are unavailable.\n\n${result.guidance}` };
   }
