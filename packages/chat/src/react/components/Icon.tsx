@@ -25,6 +25,7 @@ export type IconName =
   | 'plus'
   | 'pencil'
   | 'copy'
+  | 'external-link'
   | 'retry';
 
 interface IconProps extends Omit<SVGProps<SVGSVGElement>, 'name'> {
@@ -57,6 +58,8 @@ const ICON_GLYPHS: Record<IconName, ReactNode> = {
   pencil: <><path d="m16 3 5 5L8 21H3v-5L16 3Z" /><path d="m14 5 5 5" /></>,
   /** Per-message copy affordance (MessageRow.tsx). Two overlapping squares -- the conventional copy glyph. */
   copy: <><rect width="14" height="14" x="8" y="8" rx="2" ry="2" /><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" /></>,
+  /** The small "open in new tab" arrow after a link to the owner's own site or admin (MarkdownLink.tsx). */
+  'external-link': <><path d="M7 17 17 7" /><path d="M8 7h9v9" /></>,
 };
 
 export function Icon({ name, size = 14, strokeWidth = 1.6, ...rest }: IconProps) {

@@ -86,17 +86,36 @@ describe('Markdown', () => {
     expect(link).toHaveAttribute('rel', 'noopener noreferrer');
   });
 
+  it('gives another website no new-tab icon: the link itself already opens a new tab', () => {
+    render(<Markdown>{'see [docs](https://example.com/docs) and https://example.com/more'}</Markdown>);
+    expect(screen.queryByRole('link', { name: 'Open in new tab' })).toBeNull();
+    expect(screen.getAllByRole('link')).toHaveLength(2);
+  });
+
   // Regression (demo dry-run 2026-10-05): the renderer had no `[label](url)` rule at all, so an
   // assistant reply ending "([edit](/admin/pages/get-in-touch-test))" showed the raw markdown.
-  // Owner 2026-10-08: every chat link opens a new tab — an in-app link too, so the chat (and the
-  // page under it) is never navigated away from.
-  it('renders a relative markdown link wrapped in parentheses as a new-tab anchor', () => {
+  // Owner 2026-11-21 (reverses 2026-10-08): a link to the owner's own site or admin navigates this
+  // tab when its text is clicked, and a small icon right after it opens a new tab. Other websites
+  // keep opening a new tab.
+  it('renders a relative markdown link wrapped in parentheses as an in-place anchor with a new-tab icon', () => {
     const { container } = render(<Markdown>{'Page created ([edit](/admin/pages/get-in-touch-test)).'}</Markdown>);
     const link = screen.getByRole('link', { name: 'edit' });
     expect(link).toHaveAttribute('href', '/admin/pages/get-in-touch-test');
-    expect(link).toHaveAttribute('target', '_blank');
-    expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+    expect(link).not.toHaveAttribute('target');
+    const icon = screen.getByRole('link', { name: 'Open in new tab' });
+    expect(icon).toHaveAttribute('href', '/admin/pages/get-in-touch-test');
+    expect(icon).toHaveAttribute('target', '_blank');
+    expect(icon).toHaveAttribute('rel', 'noopener noreferrer');
+    expect(link.nextElementSibling).toBe(icon);
     expect(container.querySelector('p')).toHaveTextContent('Page created (edit).');
+  });
+
+  it('treats an absolute link to this same origin as the owner’s own and adds the icon', () => {
+    const own = `${window.location.origin}/admin/posts`;
+    render(<Markdown>{`See [posts](${own}) and ${own}/x`}</Markdown>);
+    expect(screen.getByRole('link', { name: 'posts' })).not.toHaveAttribute('target');
+    expect(screen.getByRole('link', { name: `${own}/x` })).not.toHaveAttribute('target');
+    expect(screen.getAllByRole('link', { name: 'Open in new tab' })).toHaveLength(2);
   });
 
   it('opens an absolute markdown link in a new tab and keeps balanced parentheses in its URL', () => {
@@ -112,6 +131,7 @@ describe('Markdown', () => {
     const link = screen.getByRole('link', { name: 'details' });
     expect(link).toHaveAttribute('href', '#details');
     expect(link).not.toHaveAttribute('target');
+    expect(screen.queryByRole('link', { name: 'Open in new tab' })).toBeNull();
   });
 
   it('renders inline markup inside a markdown link label', () => {
