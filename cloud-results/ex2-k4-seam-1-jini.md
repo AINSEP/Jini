@@ -1,4 +1,4 @@
-DONE b629192df
+DONE 7d4661cd3
 
 # K4-seam-1.J (Jini half) — additive approval + daemon-surface contracts
 
@@ -91,3 +91,52 @@ No new red on any comparable gate. Function size and complexity are trivial: the
 - Tovu's owner-policy docblock (from `contracts/core/tool-metadata/approval-policy.ts`) was **not** moved into Jini. It stays with Tovu's rule union and evaluator, so do not delete it in T.
 - `ToolApprovalClass` is identical to Tovu's eight-member union, because it derives from core `ToolApprovalMetadata["class"]`.
 - Link against a Jini build at `b629192df` or later. Core must be rebuilt for the new `dist/contracts/site/*` entries to resolve.
+
+## Review fixes
+
+Applied the Codex 6.2 review FIX list (coordinator: apply FIX 1 and 2 as written). Fix commit: `7d4661cd3` on `codex/ex2-k4-seam-1-jini`, rebased on top of `be4d246af`. No other scope.
+
+**FIX 1: XP4 on contract fixtures.** Moved with `git mv`, so history is kept:
+- `packages/core/src/contracts/site/__tests__/daemon-surface-exchanges.unit.test.ts` → `packages/core/src/__tests__/daemon-surface-exchanges.unit.test.ts`. Imports at `:4–5` now point to `../surface-exchanges.js` and `../contracts/site/daemon-surface-exchanges.js`.
+- `packages/core/src/contracts/site/__tests__/tool-metadata-approval-policy.unit.test.ts` → `packages/core/src/__tests__/tool-metadata-approval-policy.unit.test.ts`. Imports at `:4–5` now point to `../tool-metadata-types.js` and `../contracts/site/tool-metadata-approval-policy.js`.
+- Test bodies are unchanged.
+- Result: `check-no-cross-package.ts --base 7c4ee7881` now reports **0** XP lines for either fixture. It reported the XP4 runtime-statement failures before.
+- Compared against a merge-13 base worktree, file by file, every file the checker flags at HEAD is also flagged at base, except one: `XP3 packages/daemon/src/tool-recovery/recovery.ts: absolute JINI_DECLARATION_BASELINE_DIR required`. That is the known cloud limit from minor finding 1, on a comment-only edit, and this fix did not add it. The checker still exits 1 because of XP4 on contract files that already existed.
+
+**FIX 2: changeset.** `.changeset/p9-k4-seam-1.md:1–6`:
+- The `"@jini-ai/daemon": patch` bump is removed. Only `"@jini-ai/core": patch` remains.
+- The text no longer says the contracts come from the host. It now says that `AssistantSurfaceDeps` is an *additive copy of the declaration in `@jini-ai/daemon/surface-exchanges`*, and that daemon keeps its identical declaration and its exports until the paired cutover.
+- The approval contract is described as specializing core's `ToolApprovalMetadata` with an optional, host-owned rule name.
+- The daemon's exports and API baseline are unchanged.
+
+**Gates (after the fixes):**
+
+| gate | result |
+|---|---|
+| `pnpm install --frozen-lockfile` | 0 |
+| `pnpm -r build` | 0 |
+| `pnpm typecheck` | 0 |
+| `pnpm guard` | ok |
+| `pnpm api:check` | 0: 40 packages, 692 entries, 17232 symbols. No `api:update` needed: the fixes touch no exports. |
+| `check:size` | 1. Output is identical to a merge-13 base worktree run, so these are pre-existing. |
+| `check:complexity` | 1. Output is identical to base, so these are pre-existing. |
+| `check:errors` (WARN) | 0. Output is identical to base. |
+| `check:hooks` | ok |
+| `check:why-comments --base 7c4ee7881` | ok, 0 blocks lost |
+| `check:cross-package --base 7c4ee7881` | No new red from these fixes. See FIX 1. |
+
+**Test suites:**
+- core vitest: 218 files / **2974 passed**. This matches the run before the fix, so no tests were lost. Both moved fixtures run from `src/__tests__/` (2 tests + 1 test).
+- daemon vitest: 252 passed + 1 skipped files / **4855 passed + 1 skipped** tests. This also matches the run before the fix.
+
+**Named mutations** (each was red, then restored; `git status` was clean afterwards):
+1. `rule?: Rule` → `rule?: never`: core `tsc` exits 2 with `src/__tests__/tool-metadata-approval-policy.unit.test.ts(16,86): error TS2322`.
+2. `surfaceExchanges` → `surfaceExchangeStore` in the core contract:
+   - core `tsc` exits 2 with TS2561 and TS2551 in `src/__tests__/daemon-surface-exchanges.unit.test.ts`.
+   - With core rebuilt, daemon `tsc` exits 2 with TS2741 ×2 in `surface-deps-core-contract.test.ts`.
+3. Restored: core rebuilt. Core and daemon `tsc` both exit 0.
+
+**Review notes, recorded and deliberately not acted on:**
+- The daemon keeps its `AssistantSurfaceDeps` export until B6.
+- For the Tovu half (B3), catalog entries keep `as const satisfies`.
+- Also for B3, `HostToolApprovalPolicy` is specialized at the catalog projection boundary and at the evaluator boundary.
