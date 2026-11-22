@@ -1,0 +1,41 @@
+=== core-1.J stampWatermark tx guard negated
+file: packages/core/src/contracts/site/gated-mutations/watermark.ts
+@@ -43,7 +43,7 @@ export function stampWatermark(
+   _optional: Record<string, never> = {}
+ ): { newValue: number } {
+   const { tx } = required;
+-  if (!tx || !tx.isOpen) {
++  if (!(!tx || !tx.isOpen)) {
+     throw new WatermarkTransactionRequiredError(
+       "stampWatermark must be called with an open transaction handle"
+     );
+   × AC-02 / U-002-B1: stampWatermark rejects when called outside an open transaction 14ms
+   × behavior.spec.md §4: watermark per-transaction increment limit is exactly 1 per stampWatermark call 1ms
+   × stampWatermark rejects a closed non-null transaction before incrementing 1ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  src/contracts/site/gated-mutations/__tests__/watermark.unit.test.ts > AC-02 / U-002-B1: stampWatermark rejects when called outside an open transaction
+ FAIL  src/contracts/site/gated-mutations/__tests__/watermark.unit.test.ts > behavior.spec.md §4: watermark per-transaction increment limit is exactly 1 per stampWatermark call
+ FAIL  src/contracts/site/gated-mutations/__tests__/watermark.unit.test.ts > stampWatermark rejects a closed non-null transaction before incrementing
+      Tests  3 failed (3)
+result: RED (exit 1), restore clean
+
+=== core-2.J decodeStrictBase64 guard negated
+file: packages/core/src/contracts/site/strict-base64.ts
+@@ -28,6 +28,6 @@ const STRICT_BASE64_PATTERN = /^[A-Za-z0-9+/]+={0,2}$/;
+  * @complexity O(n) in `value`'s length — one regex pass plus one `Buffer.from` decode.
+  */
+ export function decodeStrictBase64({ value }: { value: string }, _optional = {}): Uint8Array | null {
+-  if (!value || value.length % 4 !== 0 || !STRICT_BASE64_PATTERN.test(value)) return null;
++  if (!(!value || value.length % 4 !== 0 || !STRICT_BASE64_PATTERN.test(value))) return null;
+   return new Uint8Array(Buffer.from(value, "base64"));
+ }
+ FAIL  src/contracts/site/__tests__/strict-base64.unit.test.ts > decodeStrictBase64: rejects characters outside the base64 alphabet
+ FAIL  src/contracts/site/__tests__/strict-base64.unit.test.ts > decodeStrictBase64: rejects a non-alphabet character embedded mid-string
+ FAIL  src/contracts/site/__tests__/strict-base64.unit.test.ts > decodeStrictBase64: rejects a truncated (non-multiple-of-4) length
+ FAIL  src/contracts/site/__tests__/strict-base64.unit.test.ts > decodeStrictBase64: rejects embedded newlines even when the surrounding text is valid base64
+ FAIL  src/contracts/site/__tests__/strict-base64.unit.test.ts > decodeStrictBase64: rejects trailing whitespace
+ FAIL  src/contracts/site/__tests__/strict-base64.unit.test.ts > decodeStrictBase64: rejects padding that appears before the final characters
+ FAIL  src/contracts/site/__tests__/strict-base64.unit.test.ts > decodeStrictBase64: rejects base64url characters ('-', '_')
+      Tests  11 failed (11)
+result: RED (exit 1), restore clean
+
