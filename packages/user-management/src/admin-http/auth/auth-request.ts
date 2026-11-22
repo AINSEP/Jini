@@ -55,3 +55,14 @@ export function refuse({ status, body }: { status: number; body: Readonly<Record
 export function bodyRecord({ body }: { body: unknown }, _optional: Record<string, never> = {}): Readonly<Record<string, unknown>> {
   return typeof body === 'object' && body !== null ? body as Record<string, unknown> : {};
 }
+
+/** A deliberate sign-in failure the host answers with its redacted auth-failure envelope for
+ * `operation`. Anything else a route throws (a repository fault, say) takes the host's ordinary
+ * error path instead, so the two are told apart by type, never by message. */
+export class OwnerAuthFailure extends Error {
+  readonly operation: string;
+  constructor({ error, operation }: { error: unknown; operation: string }, _optional: Record<string, never> = {}) {
+    super('owner sign-in could not finish', { cause: error });
+    this.operation = operation;
+  }
+}

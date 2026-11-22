@@ -5,3 +5,7 @@ export type { MfaLoginRouteDeps, MfaLoginInput } from './mfa-login.js';
 export { logoutRoute } from './logout.js';
 export type { LogoutRouteDeps } from './logout.js';
 export type { AuthRequest, AuthSessionOptions, AuthSessionIssue, AuthPrincipal, BootRedemption } from './auth-request.js';
+export { bootSessionRoute } from './boot-session.js';
+export type { BootSessionInput } from './boot-session.js';
+export { localBootSessionRoute } from './local-boot-session.js';
+export { OwnerAuthFailure } from './auth-request.js';
