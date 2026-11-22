@@ -45,6 +45,14 @@
       "./media/import": "universal",
       "./core/tools": "universal",
       "./trash": "universal",
+      "./trash/site/adapters/plugin": "universal",
+      "./trash/site/adapters/theme": "universal",
+      "./trash/site/directory-rollback-log": "universal",
+      "./trash/site/ports": "universal",
+      "./trash/site/registry": "universal",
+      "./trash/site/remove-without-blocker": "universal",
+      "./trash/site/scheduler.node": "node",
+      "./trash/site/widget-removal": "universal",
       "./media/node": "node",
       "./forms/html-render": "universal",
       "./forms/validation-messages": "universal",
@@ -393,6 +401,46 @@
       "types": "./dist/trash/index.d.ts",
       "import": "./dist/trash/index.js",
       "default": "./dist/trash/index.js"
+    },
+    "./trash/site/adapters/plugin": {
+      "types": "./dist/trash/site/adapters/plugin.d.ts",
+      "import": "./dist/trash/site/adapters/plugin.js",
+      "default": "./dist/trash/site/adapters/plugin.js"
+    },
+    "./trash/site/adapters/theme": {
+      "types": "./dist/trash/site/adapters/theme.d.ts",
+      "import": "./dist/trash/site/adapters/theme.js",
+      "default": "./dist/trash/site/adapters/theme.js"
+    },
+    "./trash/site/directory-rollback-log": {
+      "types": "./dist/trash/site/directory-rollback-log.d.ts",
+      "import": "./dist/trash/site/directory-rollback-log.js",
+      "default": "./dist/trash/site/directory-rollback-log.js"
+    },
+    "./trash/site/ports": {
+      "types": "./dist/trash/site/ports.d.ts",
+      "import": "./dist/trash/site/ports.js",
+      "default": "./dist/trash/site/ports.js"
+    },
+    "./trash/site/registry": {
+      "types": "./dist/trash/site/registry.d.ts",
+      "import": "./dist/trash/site/registry.js",
+      "default": "./dist/trash/site/registry.js"
+    },
+    "./trash/site/remove-without-blocker": {
+      "types": "./dist/trash/site/remove-without-blocker.d.ts",
+      "import": "./dist/trash/site/remove-without-blocker.js",
+      "default": "./dist/trash/site/remove-without-blocker.js"
+    },
+    "./trash/site/scheduler.node": {
+      "types": "./dist/trash/site/scheduler.node.d.ts",
+      "import": "./dist/trash/site/scheduler.node.js",
+      "default": "./dist/trash/site/scheduler.node.js"
+    },
+    "./trash/site/widget-removal": {
+      "types": "./dist/trash/site/widget-removal.d.ts",
+      "import": "./dist/trash/site/widget-removal.js",
+      "default": "./dist/trash/site/widget-removal.js"
     },
     "./media/node": {
       "types": "./dist/media/node.d.ts",
