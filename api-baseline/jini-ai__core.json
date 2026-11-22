@@ -1143,6 +1143,26 @@
    "postAuthorForDisplay": "function:a5941b766e"
   }
  },
+ "./contracts/site/request-facts": {
+  "types": "./dist/contracts/site/request-facts.d.ts",
+  "symbols": {
+   "JINI_REQUEST_FACTS": "variable:8cc10a8d5d",
+   "RequestFacts": "interface:cd0e7ac26c",
+   "readRequestFacts": "function:44761104bf"
+  }
+ },
+ "./contracts/site/soft-delete": {
+  "types": "./dist/contracts/site/soft-delete.d.ts",
+  "symbols": {
+   "isTrashed": "function:69ac508777"
+  }
+ },
+ "./contracts/site/strict-base64": {
+  "types": "./dist/contracts/site/strict-base64.d.ts",
+  "symbols": {
+   "decodeStrictBase64": "function:003d1a8bf3"
+  }
+ },
  "./contracts/storage": {
   "types": "./dist/contracts/storage.d.ts",
   "symbols": {
