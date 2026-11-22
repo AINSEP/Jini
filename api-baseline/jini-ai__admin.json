@@ -956,7 +956,7 @@
    "KitConfirmDialogProps": "interface:32bb6aacd9",
    "KitConfirmTone": "type:46d3dcb01f",
    "KitDictionaries": "type:5ddbfccdb6",
-   "KitIconName": "type:2fceb65b22",
+   "KitIconName": "type:ae5259c67f",
    "KitNotificationsPreferences": "interface:112d04da99",
    "KitTranslator": "type:88a68e0e0d",
    "Lightbox": "variable:e74bff5539",
@@ -992,7 +992,7 @@
    "WidgetSelectOption": "interface:f8d19f3d08",
    "WidgetSelectProps": "interface:f6c68a7a8c",
    "useAdminKit": "function:756220d37f",
-   "useAdminKitValues": "function:612f979146",
+   "useAdminKitValues": "function:4d322c851a",
    "useAdminThemeKit": "function:6f1e3f60fa",
    "useAgentHandle": "variable:43858f4002",
    "useCachedLoader": "variable:3ec3d85be4",
@@ -1007,7 +1007,7 @@
    "useMediaProvidersTab": "variable:ea89d93a84",
    "useNativeDialog": "variable:02b76d66fe",
    "useSettlementGeneration": "variable:0f33290eb3",
-   "useT": "variable:cb9f21467a"
+   "useT": "function:f1bed169bd"
   }
  },
  "./react/overlays": {
