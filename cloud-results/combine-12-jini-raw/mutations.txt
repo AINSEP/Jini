@@ -149,3 +149,165 @@
  src/errors/__tests__/boundary.test.ts > a refusal sends no report and ends refused without marking a failure
  src/errors/__tests__/boundary.test.ts > an incident is reported once, ends failed and returns safe words with the action and ID
 
+### merge 2 jx-err2 (J4-J7)
+== J4 sidecar: restore 'internal error'
+@@ -390 +390 @@ async function dispatchJsonIpcHandler({ socket, socketPath, handler, traceId, st
+-        error: { code: "HANDLER_ERROR", message: "The sidecar could not finish this request. Try again, and report the request ID if it keeps failing.", requestId: traceId },
++        error: { code: "HANDLER_ERROR", message: "internal error", requestId: traceId },
+-> RED |       Tests  4 failed | 88 passed | 2 skipped (94)
+ src/__tests__/index.test.ts > @jini-ai/sidecar — JSON IPC > SEC-004: a Node-style error code from the handler is redacted the same as any other detail (only the stable HANDLER_ERROR code reaches the client)
+ src/__tests__/index.test.ts > @jini-ai/sidecar — JSON IPC > SEC-004: redacts a handler's thrown Error to a generic message on the wire, logging the real detail server-side only
+ src/__tests__/index.test.ts > @jini-ai/sidecar — JSON IPC > SEC-004: redacts a non-Error thrown value from the handler the same way
+ src/__tests__/json-ipc.contract.test.ts > trace vocabulary and details > handler failure: peer gets HANDLER_ERROR + requestId; trace and log carry only redacted detail
+
+== J4 protocol: restore 'request failed' (first default)
+@@ -92 +92 @@ function decodeApiErrorRecord(
+-  { fallbackMessage = 'The server did not give a reason for this response. Check whether the change was saved before trying again.' }: { fallbackMessage?: string } = {},
++  { fallbackMessage = 'request failed' }: { fallbackMessage?: string } = {},
+-> GREEN |       Tests  320 passed (320)
+
+
+== J4 protocol: restore 'request failed' (both defaults)
+@@ -92 +92 @@ function decodeApiErrorRecord(
+-  { fallbackMessage = 'The server did not give a reason for this response. Check whether the change was saved before trying again.' }: { fallbackMessage?: string } = {},
++  { fallbackMessage = 'request failed' }: { fallbackMessage?: string } = {},
+@@ -114 +114 @@ export function decodeApiError(
+-  { fallbackMessage = 'The server did not give a reason for this response. Check whether the change was saved before trying again.' }: { fallbackMessage?: string } = {},
++  { fallbackMessage = 'request failed' }: { fallbackMessage?: string } = {},
+-> RED |       Tests  13 failed | 307 passed (320)
+ src/__tests__/errors-characterization.test.ts > API error decoding characterization > rejects non-record bodies without reading envelope fields: %s
+ src/__tests__/errors-characterization.test.ts > API error decoding characterization > rejects non-record bodies without reading envelope fields: () => "failure"
+ src/__tests__/errors-characterization.test.ts > API error decoding characterization > rejects non-record bodies without reading envelope fields: 0
+ src/__tests__/errors-characterization.test.ts > API error decoding characterization > rejects non-record bodies without reading envelope fields: Symbol(failure)
+ src/__tests__/errors-characterization.test.ts > API error decoding characterization > rejects non-record bodies without reading envelope fields: failure
+ src/__tests__/errors-characterization.test.ts > API error decoding characterization > rejects non-record bodies without reading envelope fields: false
+
+== O93 anthropic-live-models: work directly
+-> RED |       Tests  1 failed | 18 passed (19)
+ src/__tests__/anthropic-live-models.test.ts > loadAnthropicLiveModels through an injected catalog port > a port that throws is contained and keeps the static list
+
+== O121 analytics fanout: remove observe
+@@ -1 +1 @@
+-import { orFallback } from "@jini-ai/core/errors/idioms";
++import { orFallback as realOrFallback } from "@jini-ai/core/errors/idioms"; const orFallback = (r: any, _o?: any) => realOrFallback(r);
+-> RED |       Tests  2 failed | 2 passed (4)
+ src/__tests__/product-fanout.test.ts > awaits and contains a rejected AI generation while every healthy provider receives metadata
+ src/__tests__/product-fanout.test.ts > fans out events and identities, contains a broken provider, and reports fixed diagnostics through the hook
+
+== O121 analytics fanout: work directly
+@@ -1 +1 @@
+-import { orFallback } from "@jini-ai/core/errors/idioms";
++const orFallback = async ({ work }: any, _o?: any) => work();
+-> RED |       Tests  2 failed | 2 passed (4)
+ src/__tests__/product-fanout.test.ts > awaits and contains a rejected AI generation while every healthy provider receives metadata
+ src/__tests__/product-fanout.test.ts > fans out events and identities, contains a broken provider, and reports fixed diagnostics through the hook
+
+== O126 chat-state: both calls work directly
+@@ -1 +1 @@
+-import { orFallbackSync } from '@jini-ai/core/errors/idioms';
++const orFallbackSync = ({ work }: any, _o?: any) => work();
+-> RED |       Tests  3 failed | 20 passed (23)
+ src/core/__tests__/agent-plugin-chat-state.test.ts > readAgentPluginChatState > treats a corrupt JSON row as a fresh chat
+ src/core/__tests__/agent-plugin-chat-state.test.ts > readAgentPluginChatState > treats storage that throws on read as a fresh chat
+ src/core/__tests__/agent-plugin-chat-state.test.ts > writeAgentPluginChatState > continues the session when storage throws on write
+
+== O133 tool-call-detail: JSON.stringify directly
+@@ -7 +7 @@
+-import { orFallbackSync } from '@jini-ai/core/errors/idioms';
++const orFallbackSync = ({ work }: any, _o?: any) => work();
+-> RED |       Tests  1 failed | 17 passed (18)
+ src/core/__tests__/tool-call-detail.test.ts > describeToolCallDetail > shows no input for a missing or unserializable one
+
+== O134 tool-output: parse/stringify unwrapped
+@@ -1 +1 @@
+-import { orFallbackSync } from '@jini-ai/core/errors/idioms';
++const orFallbackSync = ({ work }: any, _o?: any) => work();
+-> RED |       Tests  1 failed | 1 passed (2)
+ src/core/__tests__/tool-output.test.ts > formatToolOutputForDisplay > returns anything that is not a JSON object or array unchanged
+
+== O178 cms discardUploads: remove observer
+@@ -1 +1 @@
+-import { orFallback } from "@jini-ai/core/errors/idioms";
++import { orFallback as realOrFallback } from "@jini-ai/core/errors/idioms"; const orFallback = (r: any, _o?: any) => realOrFallback(r);
+-> RED |       Tests  1 failed | 11 passed (12)
+ src/forms/__tests__/file-fields.test.ts > file: a failed media cleanup is logged and the original submission failure still propagates
+
+== O178 cms discardUploads: await failing discard directly
+@@ -1 +1 @@
+-import { orFallback } from "@jini-ai/core/errors/idioms";
++const orFallback = async ({ work }: any, _o?: any) => work();
+-> RED |       Tests  2 failed | 10 passed (12)
+ src/forms/__tests__/file-fields.test.ts > file: a failed media cleanup is logged and the original submission failure still propagates
+ src/forms/__tests__/file-fields.test.ts > file: a throwing logger during cleanup cannot replace the original submission failure
+
+== O245 run-output: await lifecycle.emit directly
+@@ -1 +1 @@
+-import { afterSettled } from '@jini-ai/core/errors/idioms';
++const afterSettled = ({ promise }: any) => promise;
+-> RED |       Tests  1 failed | 16 passed (17)
+ src/agent-executor/__tests__/run-output.test.ts > observeRunOutput settle > still returns failed when the run was already settled and the error cannot be recorded
+
+== O248 delegated digest: expression directly
+@@ -1 +1 @@
+-import { orFallbackSync } from '@jini-ai/core/errors/idioms';
++const orFallbackSync = ({ work }: any, _o?: any) => work();
+-> RED |       Tests  2 failed | 30 passed (32)
+ src/__tests__/delegated-result-correlation.test.ts > delegated result correlation > falls back when an in-process result cannot be fingerprinted
+ src/__tests__/delegated-result-correlation.test.ts > delegated result correlation — F1 malformed image sources > a digest failure (cyclic content) silently records nothing and never matches
+
+== O302 electron dirExists: stat outside idiom
+@@ -1 +1 @@
+-import { orFallback } from '@jini-ai/core/errors/idioms';
++const orFallback = async ({ work }: any, _o?: any) => work();
+-> RED |       Tests  1 failed | 10 passed (11)
+ src/electron/__tests__/electron-shell.test.ts > createElectronShellPort > dirExists > resolves false for a path that does not exist
+
+== O308 window-bounds read escapes
+@@ -1 +1 @@
+-import { orFallbackSync } from '@jini-ai/core/errors/idioms';
++const orFallbackSync = ({ work }: any, _o?: any) => work();
+-> RED |       Tests  3 failed | 15 passed (18)
+ src/electron/usability/__tests__/host-ports.test.ts > broken persistence falls back to centered geometry
+ src/electron/usability/__tests__/window-bounds-store.test.ts > readWindowBounds: null for malformed JSON, a non-object, or a missing/non-finite field
+ src/electron/usability/__tests__/window-bounds-store.test.ts > readWindowBounds: null when the file does not exist yet
+
+== O314 tauri dirExists: body outside idiom
+@@ -1 +1 @@
+-import { orFallback } from '@jini-ai/core/errors/idioms';
++const orFallback = async ({ work }: any, _o?: any) => work();
+-> RED |       Tests  1 failed | 11 passed (12)
+ src/tauri/__tests__/shell-and-window-fakes.test.ts > dirExists resolves false when the fs plugin itself rejects (permission error)
+
+== O397 oauth bounded-json: await reader.cancel() directly
+@@ -2 +2 @@
+-import { afterSettled } from '@jini-ai/core/errors/idioms';
++const afterSettled = ({ promise }: any) => promise;
+-> RED |       Tests  1 failed | 6 passed (7)
+ tests/bounded-json-cleanup.test.ts > overflow preserves its OAuth diagnosis when stream cancellation rejects
+
+== O423 platform cancelResponseReader: reader.cancel(reason) directly
+@@ -54 +54 @@
+-import { orFallback } from "@jini-ai/core/errors/idioms";
++const orFallback = async ({ work }: any, _o?: any) => work();
+-> RED |       Tests  2 failed | 38 passed (40)
+ src/__tests__/response-cleanup-w2g.unit.test.ts > reader cancellation may reject without replacing a source failure
+ src/__tests__/response-cleanup-w2g.unit.test.ts > reader cancellation may throw without replacing a source failure
+
+== U550 members onDisable: await rejecting listLoader.load() directly
+@@ -1 +1 @@
+-import { afterSettled } from '@jini-ai/core/errors/idioms';
++const afterSettled = ({ promise }: any) => promise;
+-> RED |       Tests  1 failed | 2 passed (3)
+ src/react/members/__tests__/fqfix-disable.unit.test.ts > preserves an accepted disable and its detail while the roster and detail refreshes fail
+
+== O485 supervisor discoverReadiness: remove observation
+@@ -7 +7 @@
+-import { observed } from '@jini-ai/core/errors/idioms';
++const observed = (_r: any) => undefined;
+-> ⎯⎯⎯⎯⎯⎯ Unhandled Errors ⎯⎯⎯⎯⎯⎯
+-> ⎯⎯⎯⎯ Unhandled Rejection ⎯⎯⎯⎯⎯
+->       Tests  38 passed (38)
+->      Errors  1 error
+-> VEXIT 1
+-> RED (vitest exit 1: 1 Unhandled Rejection; unmutated exit 0)
+
