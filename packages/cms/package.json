@@ -65,6 +65,8 @@
       "./html/document-marks": "universal",
       "./html/site/slug": "universal",
       "./html/site/source-edits": "node",
+      "./posts/post-before-save": "universal",
+      "./posts/slug": "universal",
       "./navigation/types": "universal",
       "./navigation/dropdown": "universal",
       "./navigation/href": "universal",
@@ -193,7 +195,8 @@
       "shared": [
         "src/widgets/markers/marker.ts",
         "src/navigation/href.ts",
-        "src/media/cover-image.ts"
+        "src/media/cover-image.ts",
+        "src/html/site/slug.ts"
       ]
     },
     "optionalPeers": {
@@ -478,6 +481,16 @@
       "types": "./dist/html/site/source-edits.d.ts",
       "import": "./dist/html/site/source-edits.js",
       "default": "./dist/html/site/source-edits.js"
+    },
+    "./posts/post-before-save": {
+      "types": "./dist/posts/post-before-save.d.ts",
+      "import": "./dist/posts/post-before-save.js",
+      "default": "./dist/posts/post-before-save.js"
+    },
+    "./posts/slug": {
+      "types": "./dist/posts/slug.d.ts",
+      "import": "./dist/posts/slug.js",
+      "default": "./dist/posts/slug.js"
     },
     "./html/text-layout": {
       "types": "./dist/html/text-layout.d.ts",

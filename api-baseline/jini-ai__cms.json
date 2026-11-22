@@ -1376,6 +1376,26 @@
    "ResolvedNavItem": "interface:111ab85e38"
   }
  },
+ "./posts/post-before-save": {
+  "types": "./dist/posts/post-before-save.d.ts",
+  "symbols": {
+   "BeforeSaveEntryDraft": "interface:960bd23ece",
+   "BeforeSaveHookPort": "type:aac36d5f5e",
+   "mergeExt": "function:884c1021eb",
+   "runBeforeSaveHook": "function:2635360985",
+   "withCoverPresentation": "function:1ef6c0360c"
+  }
+ },
+ "./posts/slug": {
+  "types": "./dist/posts/slug.d.ts",
+  "symbols": {
+   "DERIVED_SLUG_SUFFIX_ROOM": "variable:35f851a12b",
+   "MAX_SLUG_LENGTH": "variable:69b9226eb5",
+   "SLUG_FORMAT_PATTERN": "variable:e746a3940e",
+   "derivePostSlugBase": "function:e83a424102",
+   "isAutomaticPostSlug": "function:eb1fc25126"
+  }
+ },
  "./presentation": {
   "types": "./dist/presentation/index.d.ts",
   "symbols": {
