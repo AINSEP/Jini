@@ -737,6 +737,22 @@
    "renderMarks": "function:ce87aa27d6"
   }
  },
+ "./html/site/slug": {
+  "types": "./dist/html/site/slug.d.ts",
+  "symbols": {
+   "toSlug": "function:dbefad5879"
+  }
+ },
+ "./html/site/source-edits": {
+  "types": "./dist/html/site/source-edits.d.ts",
+  "symbols": {
+   "Edit": "type:c020bb9e69",
+   "Element": "type:fb77b18513",
+   "attribute": "function:fce2945912",
+   "editedHtml": "function:f6dc452a37",
+   "elements": "function:df234aaa49"
+  }
+ },
  "./html/style-values": {
   "types": "./dist/html/style-values.d.ts",
   "symbols": {
