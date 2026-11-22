@@ -117,7 +117,7 @@
       "./themes/files/reviewed-write": "node",
       "./themes/files/atomic-write": "node",
       "./admin-http/limits": "universal",
-      "./public-http/http/site/form-label-inspection": "universal",
+      "./public-http/http/site/form-label-inspection": "node",
       "./public-http/http/site/form-validation-i18n": "universal",
       "./public-http/http/site/render/widgets/placeholder": "universal",
       "./widgets/site/media-html-log": "universal",
@@ -193,6 +193,9 @@
         "themes": [
           "src/themes"
         ]
+      },
+      "entries": {
+        "./admin-http/http/forms": "forms"
       },
       "forbidden": {
         "universal": [
