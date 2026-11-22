@@ -1,0 +1,33 @@
+
+> @jini-ai/daemon@0.7.3-next.2 test
+> vitest run --maxWorkers=3 --minWorkers=1
+
+
+ RUN  v3.2.7 /home/user/Jini/packages/daemon
+
+ ✓ src/http/__tests__/attachments.test.ts (154 tests) 1073ms
+ ✓ src/__tests__/run-lifecycle.test.ts (67 tests) 65ms
+ ✓ src/http/__tests__/model-proxy.test.ts (322 tests) 810ms
+stderr | src/agent-executor/__tests__/agent-executor.test.ts > AgentExecutor — a single failed queued emit does not block the run from reaching a terminal state > swallows an emit() race against an already-terminal run instead of leaving an unhandled rejection
+[daemon] Queued lifecycle event could not be delivered.
+
+stderr | src/agent-executor/__tests__/agent-executor.test.ts > AgentExecutor — a single failed queued emit does not block the run from reaching a terminal state > swallows an emit() race against an already-terminal run instead of leaving an unhandled rejection
+[daemon] Queued lifecycle event could not be delivered.
+
+stderr | src/agent-executor/__tests__/agent-executor.test.ts > AgentExecutor — ACP dispatch (fake attachAcpSession) > swallows an emit() race against an already-terminal run on the ACP path without an unhandled rejection
+[daemon] Queued lifecycle event could not be delivered.
+
+stderr | src/agent-executor/__tests__/agent-executor.test.ts > AgentExecutor — pi-rpc dispatch (fake attachPiRpcSession) > swallows an emit() race against an already-terminal run on the pi-rpc path without an unhandled rejection
+[daemon] Queued lifecycle event could not be delivered.
+
+ ✓ src/__tests__/tool-executor.test.ts (46 tests) 104ms
+stderr | src/http/__tests__/xai.test.ts > xaiOauthCompleteRoute — non-Error failures and token defaults > rejects a token response with no token_type without persisting it
+[@jini-ai/http-kit] internal error (xai/oauth-complete, correlationId=140e0e88-6cdf-4144-aa7b-989e9b027444) Error
+
+ ✓ src/http/__tests__/xai.test.ts (79 tests) 299ms
+ ✓ src/agent-executor/__tests__/agent-executor.test.ts (395 tests) 777ms
+stderr | src/http/__tests__/delegated-tools.test.ts > delegatedToolExecuteRoute.handle > propagates a caller-supplied abort signal through the bridge into ToolExecutor, cancelling a pending confirmation
+[@jini-ai/http-kit] internal error (delegated-tool-execute, correlationId=93c55279-28e1-4b6c-b47c-a7d5399ee5d8) string
+
+ ✓ src/http/__tests__/delegated-tools.test.ts (43 tests) 98ms
+ ✓ src/http/__tests__/connectors.test.ts (99 tests) 51ms

@@ -1,0 +1,879 @@
+
+> @jini-ai/admin@0.7.3-next.2 test
+> vitest run --maxWorkers=3 --minWorkers=1
+
+ DEPRECATED  "environmentMatchGlobs" is deprecated. Use `test.projects` to define different configurations instead.
+
+ RUN  v3.2.7 /home/user/Jini/packages/admin
+
+stderr | src/widgets/react/__tests__/use-widget-instance-editor.hooks.unit.test.ts > initial load — existing widget (widgetId set) > falls back to 'failed to load widget' when the rejection is not an Error/ApiError
+[admin] failed to load widget Cause: string
+
+stderr | src/widgets/react/__tests__/use-widget-instance-editor.hooks.unit.test.ts > save — update (existing widget) > shows the 'save failed' fallback for a plain Error with an empty message
+[admin] save failed Cause: Error
+
+stderr | src/widgets/react/__tests__/use-widget-instance-editor.hooks.unit.test.ts > save — update (existing widget) > never shows a plain Error's own message (it may quote private values); shows the fallback
+[admin] save failed Cause: Error
+
+stderr | src/seo/react/__tests__/Seo.unit.test.tsx > SeoEntryPanel > the checkbox reflects fieldValue() falling back to false when neither touched nor resolved sets it
+Received `false` for a non-boolean attribute `placeholder`.
+
+If you want to write it to the DOM, pass a string instead: placeholder="false" or placeholder={value.toString()}.
+
+If you used to conditionally omit it with placeholder={condition && value}, pass placeholder={condition ? value : undefined} instead.
+
+ ✓ src/seo/react/__tests__/Seo.unit.test.tsx (72 tests) 1264ms
+ ✓ src/widgets/react/__tests__/use-widget-instance-editor.hooks.unit.test.ts (36 tests) 1438ms
+ ✓ src/react/__tests__/components/ConfirmDialog.test.tsx (43 tests) 333ms
+ ✓ src/comments/react/__tests__/use-comment-queue.unit.test.tsx (26 tests) 2582ms
+ ✓ src/forms/react/__tests__/FormsList.unit.test.tsx (16 tests) 835ms
+ ✓ src/forms/react/__tests__/FormEditor.unit.test.tsx (14 tests) 1116ms
+   ✓ field attributes modal > opens from the row's kebab trigger, and round-trips a CSS class + an allowlisted attribute into the save payload  329ms
+ ✓ src/seo/react/__tests__/share-image-warning.unit.test.tsx (37 tests) 832ms
+ ✓ src/redirects/react/__tests__/use-redirects.hooks.unit.test.tsx (20 tests) 1341ms
+ ✓ src/react/shell/__tests__/AdminShell.test.tsx (30 tests) 484ms
+ ✓ src/react/components/RowMenu/__tests__/RowMenu.test.tsx (35 tests) 404ms
+ ✓ src/media/react/__tests__/edit-parity.test.tsx (24 tests) 1212ms
+ ✓ src/react/components/__tests__/Sidebar.test.tsx (29 tests) 426ms
+stderr | src/media/react/__tests__/library-tab-hooks.test.tsx > useLibraryTab > stays quiet when a trash or restore is refused
+[admin] Media write failed Cause: Error
+
+stderr | src/media/react/__tests__/library-tab-hooks.test.tsx > useLibraryTab > stays quiet when a trash or restore is refused
+[admin] Media write failed Cause: Error
+
+stderr | src/media/react/__tests__/library-tab-hooks.test.tsx > useLibraryTab > uploads with and without alt text and focuses the grid only after a success
+[admin] Media write failed Cause: Error
+
+ ✓ src/security/react/__tests__/security-hooks.test.tsx (29 tests) 1379ms
+stderr | src/media/react/__tests__/library-tab-hooks.test.tsx > useLibraryTab > focuses the grid after purging the last card, and stays quiet when the purge fails
+[admin] Media write failed Cause: Error
+
+ ✓ src/media/react/__tests__/library-tab-hooks.test.tsx (23 tests) 501ms
+ ✓ src/agent-plugins/react/__tests__/agent-plugins-hooks.test.tsx (23 tests) 416ms
+ ✓ src/media/react/__tests__/providers-tab-hooks.test.tsx (16 tests) 1589ms
+ ✓ src/react/__tests__/components/DataTable.test.tsx (32 tests) 250ms
+ ✓ src/media/react/__tests__/media.test.tsx (11 tests) 1982ms
+   ✓ media React slice > lazily switches library presets and hides the optional Providers tab  1097ms
+   ✓ renders the optional credential tab without exposing saved secrets  359ms
+   ✓ renders a read-only media page when write grants are absent  330ms
+ ✓ src/media/react/__tests__/library-parity.test.tsx (15 tests) 4422ms
+   ✓ legacy library presentation guards > keeps full counts across search/type tabs, preserves sorting, and avoids filter rereads  878ms
+   ✓ legacy library presentation guards > distinguishes initial unknown counts from authoritative zero and gives type-specific empty copy  637ms
+   ✓ legacy library presentation guards > honors the all deep link and defaults invalid links to All  343ms
+   ✓ legacy library presentation guards > honors the images deep link and defaults invalid links to All  332ms
+   ✓ legacy library presentation guards > honors the videos deep link and defaults invalid links to All  335ms
+   ✓ legacy library presentation guards > falls back to the first visible tab when the deep-linked tab is hidden by permissions  342ms
+   ✓ legacy library presentation guards > rejects an invalid tab and publishes unchanged literal tab handles through a host callback  348ms
+   ✓ legacy library presentation guards > rereads injected refresh events and releases the subscription on unmount  369ms
+   ✓ legacy library presentation guards > publishes distinct original row handles and opens one form from eye and menu actions  428ms
+   ✓ legacy library presentation guards > does not read protected media when the page grant is absent  305ms
+ ✓ src/seo/react/__tests__/use-seo-entry-panel.unit.test.ts (15 tests) 903ms
+stderr | src/widgets/react/__tests__/use-widgets-library.hooks.unit.test.tsx > useWidgetsLibrary — trash error mapping > any other error falls back to the generic 'delete failed' message
+[admin] delete failed Cause: Error
+
+ ✓ src/widgets/react/__tests__/use-widgets-library.hooks.unit.test.tsx (13 tests) 1108ms
+stderr | src/seo/react/__tests__/SitemapModal.unit.test.tsx > SitemapModal — disabled and error states > a fetch failure shows the error, not a blank modal
+[admin] failed to load the sitemap Cause: Error
+
+stderr | src/seo/react/__tests__/SitemapModal.unit.test.tsx > SitemapModal — disabled and error states > a fetch failure shows the error, not a blank modal
+[admin] failed to load the sitemap Cause: Error
+
+stderr | src/seo/react/__tests__/SitemapModal.unit.test.tsx > SitemapModal — disabled and error states > a fetch failure shows the error, not a blank modal
+[admin] failed to load the sitemap Cause: Error
+
+ ✓ src/seo/react/__tests__/SitemapModal.unit.test.tsx (17 tests) 513ms
+ ✓ src/media/react/__tests__/upload-button-hooks.test.tsx (23 tests) 69ms
+ ✓ src/forms/react/__tests__/use-forms-list.unit.test.tsx (14 tests) 1112ms
+stderr | src/forms/react/__tests__/submissions-states.unit.test.tsx > useFormSubmissionDetail > keeps the submission when Trash rejects with a non-Error value
+[admin] delete failed Cause: Error
+
+ ✓ src/redirects/react/__tests__/use-import-redirects-form.hooks.unit.test.tsx (15 tests) 60ms
+stderr | src/forms/react/__tests__/submissions-states.unit.test.tsx > useFormsList row locks > closes the delete dialog and reports the fallback when Trash rejects with a non-Error value
+[admin] failed to delete form Cause: Error
+
+ ✓ src/forms/react/__tests__/submissions-states.unit.test.tsx (15 tests) 585ms
+ ✓ src/seo/react/__tests__/seo-leftover-fake-hooks.unit.test.tsx (8 tests) 153ms
+stderr | src/comments/__tests__/rules.unit.test.ts > describeModerationError > any other status falls through to the shared default
+[admin] Failed to update comment. Cause: Error
+[admin] Failed to update comment. Cause: string
+
+ ✓ src/comments/__tests__/rules.unit.test.ts (31 tests) 13ms
+ ✓ src/forms/react/__tests__/FormEditorFieldsBody.unit.test.tsx (19 tests) 328ms
+ ✓ src/widgets/react/__tests__/WidgetsLibrary.unit.test.tsx (13 tests) 408ms
+ ✓ src/widgets/react/__tests__/use-widget-region-editor.hooks.unit.test.tsx (8 tests) 524ms
+ ✓ src/redirects/react/__tests__/redirects-binding.unit.test.tsx (14 tests) 1255ms
+   ✓ redirects React binding > mounts the lazy list page and cancelling a delete keeps the rule  448ms
+   ✓ redirects React binding > prefers live host options over the factory defaults  333ms
+   ✓ redirects React binding > blocks the screen with the load error when the first list read fails  309ms
+ ✓ src/media/react/__tests__/media-fake-hooks.unit.test.tsx (12 tests) 183ms
+ ✓ src/react/entities/__tests__/draft-rules.test.ts (26 tests) 9ms
+ ✓ src/widgets/react/__tests__/WidgetRegionEditor.unit.test.tsx (19 tests) 368ms
+ ✓ src/forms/react/__tests__/forms-fake-hooks.unit.test.tsx (8 tests) 152ms
+stderr | src/media/react/__tests__/qa-fixes.test.tsx > shows only an error after failure and recovers through Retry
+[admin] Failed to load media Cause: Error
+
+stderr | src/media/react/__tests__/qa-fixes.test.tsx > shows only an error after failure and recovers through Retry
+[admin] Failed to load media Cause: Error
+
+ ✓ src/comments/react/__tests__/Comments.unit.test.tsx (4 tests) 436ms
+ ✓ src/media/react/__tests__/qa-fixes.test.tsx (8 tests) 1494ms
+   ✓ shows only an error after failure and recovers through Retry  410ms
+   ✓ places host actions in the header, marks selected sort, and filters Trash with optional Restore pills  427ms
+   ✓ names the permanent deletion and focuses the next card, then the empty grid  482ms
+ ✓ src/forms/react/__tests__/use-form-submissions.unit.test.tsx (7 tests) 473ms
+ ✓ src/widgets/react/__tests__/WidgetInstanceEditor.unit.test.tsx (15 tests) 264ms
+ ✓ src/react/entities/__tests__/screens.test.tsx (14 tests) 367ms
+stderr | src/forms/react/__tests__/use-form-editor.unit.test.tsx > useFormEditor — injected port + navigate + t > loads an existing form from the fake port's seed, with no fetch involved
+[admin] [The settings service did not respond. Try opening this editor again.] Cause: Error
+
+stderr | src/forms/react/__tests__/use-form-editor.unit.test.tsx > useFormEditor — injected port + navigate + t > loads an existing form from the fake port's seed, with no fetch involved
+[admin] [The settings service did not respond. Try opening this editor again.] Cause: Error
+[admin] [The settings service did not respond. Try opening this editor again.] Cause: Error
+
+stderr | src/forms/react/__tests__/use-form-editor.unit.test.tsx > useFormEditor — injected port + navigate + t > does not load for a new form (isNew), and creating one calls the injected navigate
+[admin] The settings service did not respond. Try opening this editor again. Cause: Error
+
+stderr | src/forms/react/__tests__/use-form-editor.unit.test.tsx > useFormEditor — injected port + navigate + t > saving an existing form targets the loaded record's real id, even when the route param is a slug
+[admin] The settings service did not respond. Try opening this editor again. Cause: Error
+
+stderr | src/forms/react/__tests__/use-form-editor.unit.test.tsx > useFormEditor — injected port + navigate + t > saving an existing form targets the loaded record's real id, even when the route param is a slug
+[admin] The settings service did not respond. Try opening this editor again. Cause: Error
+[admin] The settings service did not respond. Try opening this editor again. Cause: Error
+
+stderr | src/forms/react/__tests__/use-form-editor.unit.test.tsx > useFormEditor — injected port + navigate + t > saving an existing form targets the loaded record's real id, even when the route param is a slug
+[admin] The settings service did not respond. Try opening this editor again. Cause: Error
+
+stderr | src/forms/react/__tests__/use-form-editor.unit.test.tsx > useFormEditor — injected port + navigate + t > saving an existing form targets the loaded record's real id, even when the route param is a slug
+[admin] The settings service did not respond. Try opening this editor again. Cause: Error
+
+stderr | src/forms/react/__tests__/use-form-editor.unit.test.tsx > useFormEditor — injected port + navigate + t > preserves an existing form's notify setting on save, even though the Fields tab no longer has any UI to edit it (owner ask 2026-09-22)
+[admin] The settings service did not respond. Try opening this editor again. Cause: Error
+
+stderr | src/forms/react/__tests__/use-form-editor.unit.test.tsx > useFormEditor — injected port + navigate + t > preserves an existing form's notify setting on save, even though the Fields tab no longer has any UI to edit it (owner ask 2026-09-22)
+[admin] The settings service did not respond. Try opening this editor again. Cause: Error
+[admin] The settings service did not respond. Try opening this editor again. Cause: Error
+
+ ✓ src/forms/react/__tests__/use-field-attributes-dialog.hooks.unit.test.ts (9 tests) 110ms
+stderr | src/forms/react/__tests__/use-form-editor.unit.test.tsx > useFormEditor — injected port + navigate + t > preserves an existing form's notify setting on save, even though the Fields tab no longer has any UI to edit it (owner ask 2026-09-22)
+[admin] The settings service did not respond. Try opening this editor again. Cause: Error
+
+stderr | src/forms/react/__tests__/use-form-editor.unit.test.tsx > useFormEditor — injected port + navigate + t > preserves an existing form's notify setting on save, even though the Fields tab no longer has any UI to edit it (owner ask 2026-09-22)
+[admin] The settings service did not respond. Try opening this editor again. Cause: Error
+
+stderr | src/forms/react/__tests__/use-form-editor.unit.test.tsx > useFormEditor — injected port + navigate + t > handleStatusToggle flips status through the port for an existing form
+[admin] The settings service did not respond. Try opening this editor again. Cause: Error
+
+stderr | src/forms/react/__tests__/use-form-editor.unit.test.tsx > useFormEditor — injected port + navigate + t > handleStatusToggle flips status through the port for an existing form
+[admin] The settings service did not respond. Try opening this editor again. Cause: Error
+[admin] The settings service did not respond. Try opening this editor again. Cause: Error
+
+stderr | src/forms/react/__tests__/use-form-editor.unit.test.tsx > useFormEditor — injected port + navigate + t > handleStatusToggle flips status through the port for an existing form
+[admin] The settings service did not respond. Try opening this editor again. Cause: Error
+
+stderr | src/forms/react/__tests__/use-form-editor.unit.test.tsx > saves collection choice and switches back without changing the builder form body
+[admin] The settings service did not respond. Try opening this editor again. Cause: Error
+
+stderr | src/forms/react/__tests__/use-form-editor.unit.test.tsx > saves collection choice and switches back without changing the builder form body
+[admin] The settings service did not respond. Try opening this editor again. Cause: Error
+[admin] The settings service did not respond. Try opening this editor again. Cause: Error
+
+stderr | src/forms/react/__tests__/use-form-editor.unit.test.tsx > saves collection choice and switches back without changing the builder form body
+[admin] The settings service did not respond. Try opening this editor again. Cause: Error
+
+stderr | src/forms/react/__tests__/use-form-editor.unit.test.tsx > saves collection choice and switches back without changing the builder form body
+[admin] The settings service did not respond. Try opening this editor again. Cause: Error
+
+stderr | src/forms/react/__tests__/use-form-editor.unit.test.tsx > saves collection choice and switches back without changing the builder form body
+[admin] The settings service did not respond. Try opening this editor again. Cause: Error
+
+stderr | src/forms/react/__tests__/use-form-editor.unit.test.tsx > saves collection choice and switches back without changing the builder form body
+[admin] The settings service did not respond. Try opening this editor again. Cause: Error
+
+stderr | src/forms/react/__tests__/use-form-editor.unit.test.tsx > saves collection choice and switches back without changing the html form body
+[admin] The settings service did not respond. Try opening this editor again. Cause: Error
+
+stderr | src/forms/react/__tests__/use-form-editor.unit.test.tsx > saves collection choice and switches back without changing the html form body
+[admin] The settings service did not respond. Try opening this editor again. Cause: Error
+[admin] The settings service did not respond. Try opening this editor again. Cause: Error
+
+stderr | src/forms/react/__tests__/use-form-editor.unit.test.tsx > saves collection choice and switches back without changing the html form body
+[admin] The settings service did not respond. Try opening this editor again. Cause: Error
+
+stderr | src/forms/react/__tests__/use-form-editor.unit.test.tsx > saves collection choice and switches back without changing the html form body
+[admin] The settings service did not respond. Try opening this editor again. Cause: Error
+
+stderr | src/forms/react/__tests__/use-form-editor.unit.test.tsx > saves collection choice and switches back without changing the html form body
+[admin] The settings service did not respond. Try opening this editor again. Cause: Error
+
+stderr | src/forms/react/__tests__/use-form-editor.unit.test.tsx > saves collection choice and switches back without changing the html form body
+[admin] The settings service did not respond. Try opening this editor again. Cause: Error
+
+ ✓ src/forms/react/__tests__/use-form-editor.unit.test.tsx (9 tests) 481ms
+ ✓ src/react/__tests__/hooks/use-process-restart.test.tsx (14 tests) 41ms
+ ✓ src/agent-plugins/react/__tests__/agent-plugins.test.tsx (7 tests) 3538ms
+   ✓ denies default mounts without reading the backend  344ms
+   ✓ renders both enabled and disabled rows read-only with details and inspection  394ms
+   ✓ preserves all rows across lazy list tabs and shows an honest marketplace  986ms
+   ✓ uses direct enable, guarded disable and cancel-first focus without optimistic activation  416ms
+   ✓ Downloaded Turn off confirms a disable without deleting or hiding the package  673ms
+   ✓ inspects disabled packages with file omissions, caps, keyboard navigation and per-file wrap reset  391ms
+   ✓ honors host Button overrides for page and confirmation actions  334ms
+ ✓ src/media/react/__tests__/media-component-states.test.tsx (12 tests) 303ms
+ ✓ src/forms/react/__tests__/use-form-editor.branches.unit.test.tsx (10 tests) 319ms
+ ✓ src/forms/react/__tests__/forms-agent-drive.unit.test.tsx (4 tests) 1631ms
+   ✓ driving a new form's field editor through page.* verbs > page.fill on the name and slug fields reaches React state  837ms
+   ✓ driving a new form's field editor through page.* verbs > a second find_elements after page.click("form-fields-add") discovers the new row's handles  462ms
+ ✓ src/seo/react/__tests__/MediaRefField.unit.test.tsx (25 tests) 287ms
+ ✓ src/seo/react/__tests__/use-seo.unit.test.ts (13 tests) 678ms
+ ✓ src/security/react/__tests__/security-editor.test.tsx (7 tests) 2497ms
+   ✓ security credential editor > collects the custom-provider fields and saves them under the chosen category  518ms
+   ✓ security credential editor > titles an existing credential as an edit and cancelling discards the draft  349ms
+   ✓ security provider-described fields > labels the token with the provider field and edits its extra fields  359ms
+   ✓ security page binding > reports tab changes to the host and shows the host-supplied root-key scope notice  617ms
+   ✓ access tokens tab > links to the provider token page and promotes a saved token to default  336ms
+   ✓ access tokens tab > denies the tab itself to a viewer without the read grant  305ms
+ ✓ src/forms/react/__tests__/FieldSettingsSection.unit.test.tsx (16 tests) 194ms
+ ✓ src/react/shell/__tests__/session.test.tsx (13 tests) 510ms
+ ✓ src/seo/react/__tests__/seo-binding.unit.test.tsx (12 tests) 2020ms
+   ✓ seo module binding > reports tab switches to the host  395ms
+   ✓ seo module binding > mounts the standalone defaults tab once settings load  316ms
+   ✓ seo module binding > shows the standalone tab load error when settings cannot be read  305ms
+   ✓ seo module binding > opens the shell sitemap modal from the sitemap tab and closes it on dismiss  339ms
+   ✓ seo module binding > mounts the standalone entries tab  310ms
+stderr | src/comments/react/__tests__/use-comment-settings.unit.test.tsx > useCommentSettings > sets the fallback error when the injected port's load rejects
+[admin] failed to load Comments settings Cause: Error
+
+ ✓ src/react/entities/__tests__/entity-field.test.tsx (23 tests) 282ms
+stderr | src/comments/react/__tests__/use-comment-settings.unit.test.tsx > useCommentSettings > sets the fallback error when the injected port's save rejects
+[admin] failed to save Comments settings Cause: Error
+
+stderr | src/redirects/react/__tests__/use-hit-count-cell.hooks.unit.test.tsx > useHitCountCell > fetches once request() is called, and resolves with the hit stats
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+ ✓ src/comments/react/__tests__/use-comment-settings.unit.test.tsx (7 tests) 417ms
+stderr | src/redirects/react/__tests__/use-hit-count-cell.hooks.unit.test.tsx > useHitCountCell > keeps two redirect requests and cached results separate under one provider
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+stderr | src/redirects/react/__tests__/use-hit-count-cell.hooks.unit.test.tsx > useHitCountCell > keeps two redirect requests and cached results separate under one provider
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+stderr | src/redirects/react/__tests__/use-hit-count-cell.hooks.unit.test.tsx > useHitCountCell > resolves data even for a rule with zero recorded hits — the caller must branch on data being present, not on hitCount's truthiness
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+stderr | src/redirects/react/__tests__/use-hit-count-cell.hooks.unit.test.tsx > useHitCountCell > is fetching while the request is in flight, and settles once it resolves
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+stderr | src/redirects/react/__tests__/use-hit-count-cell.hooks.unit.test.tsx > useHitCountCell > is fetching while the request is in flight, and settles once it resolves
+The current testing environment is not configured to support act(...)
+
+stderr | src/redirects/react/__tests__/use-hit-count-cell.hooks.unit.test.tsx > useHitCountCell > surfaces a request failure as an error
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+stderr | src/redirects/react/__tests__/use-hit-count-cell.hooks.unit.test.tsx > useHitCountCell — injected port (no fetch stub) > stays lazy against the injected port too — request() is what triggers the read
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+stderr | src/redirects/react/__tests__/use-hit-count-cell.hooks.unit.test.tsx > useHitCountCell — injected port (no fetch stub) > resolves whatever hitCount the injected port was seeded with
+The current testing environment is not configured to support act(...)
+The current testing environment is not configured to support act(...)
+
+ ✓ src/redirects/react/__tests__/use-hit-count-cell.hooks.unit.test.tsx (9 tests) 423ms
+ ✓ src/react/components/InteractiveHtmlEditor/__tests__/InteractiveHtmlEditor.test.tsx (22 tests) 8ms
+ ✓ src/__tests__/fqfix-loading.unit.test.tsx (9 tests) 642ms
+ ✓ src/redirects/react/__tests__/Redirects.unit.test.tsx (6 tests) 1731ms
+   ✓ shows the wildcard limit notice above 500 active rules and hides it at 500  1057ms
+ ✓ src/security/react/__tests__/security.test.tsx (8 tests) 2779ms
+   ✓ security React slice > renders denied without grants and never loads credentials  355ms
+   ✓ security React slice > renders saved rows read-only without write grants, and omits optional root-key tab  380ms
+   ✓ security React slice > lazily switches root-key tab with grants and never offers reveal  671ms
+   ✓ security React slice > clears newly saved secret drafts and supports multiple named tokens  388ms
+   ✓ security React slice > allows host confirmation overrides and executes only through the safety controller  323ms
+   ✓ security React slice > refuses fresh recovery without a typed confirmation and accepts it after preview  657ms
+ ✓ src/react/entities/__tests__/entity-routes-and-states.test.tsx (13 tests) 173ms
+ ✓ src/react/entities/__tests__/use-entity-edit.test.tsx (10 tests) 661ms
+ ✓ src/seo/react/__tests__/copy-polish.unit.test.tsx (5 tests) 575ms
+ ✓ src/widgets/react/__tests__/use-widget-regions.hooks.unit.test.tsx (7 tests) 603ms
+ ✓ src/comments/react/__tests__/QueueSection.unit.test.tsx (8 tests) 257ms
+ ✓ src/source-control/react/__tests__/source-control-surface.unit.test.tsx (11 tests) 1658ms
+   ✓ source-control React > shows token guidance and links to the provider token page  362ms
+   ✓ source-control React > surfaces a failed token save  357ms
+   ✓ source-control React > flags a saved token whose provider is no longer listed  308ms
+   ✓ source-control React > opens the host credential manager when navigation is supplied  312ms
+   ✓ source-control React > denies the providers tab to a viewer without the read grant  306ms
+ ✓ src/widgets/react/__tests__/widgets-binding.unit.test.tsx (12 tests) 3827ms
+   ✓ widgets module pages > opens the editor from route params and lists every place the widget is used  368ms
+   ✓ widgets module pages > shows no usage banner for a widget used nowhere  315ms
+   ✓ widgets module pages > lists bound regions on the regions page  315ms
+   ✓ widgets module pages > opens the editor from a direct widget id and words a single use in the singular  312ms
+   ✓ widgets module pages > starts a new widget from a type param and shows the pending save  360ms
+   ✓ widgets module pages > starts a new widget from a direct type prop  307ms
+   ✓ widgets module pages > asks for a widget type when neither an id nor a type is supplied  304ms
+   ✓ widgets module pages > shows the load error, after a loading notice, when the widget cannot be read  307ms
+   ✓ widgets module pages > blocks the library with the first-load error  305ms
+   ✓ widgets module pages > loads the region named by route params, a direct prop, or none  918ms
+ ✓ src/react/shell/__tests__/admin-theme.test.tsx (4 tests) 168ms
+ ✓ src/react/shell/__tests__/AdminShell.hook-props.test.tsx (11 tests) 140ms
+ ✓ src/__tests__/log-safety-b.test.tsx (7 tests) 151ms
+ ✓ src/react/__tests__/kit.unit.test.tsx (10 tests) 97ms
+ ✓ src/seo/react/__tests__/seo-hooks-fallbacks.unit.test.tsx (12 tests) 479ms
+ ✓ src/comments/react/__tests__/use-comment-queue.boundary.unit.test.tsx (10 tests) 424ms
+ ✓ src/react/entities/__tests__/failure-seam.test.tsx (6 tests) 263ms
+ ✓ src/media/react/__tests__/qa-round2.test.tsx (6 tests) 1590ms
+   ✓ keeps the existing grid mounted during uploads and focuses it without scrolling  486ms
+   ✓ restores focus and announces Trash and Restore after their refreshes  444ms
+   ✓ announces Replace and returns focus without removing the grid  497ms
+ ✓ src/browser/__tests__/navigation-interceptor.test.ts (25 tests) 38ms
+ ✓ src/source-control/react/__tests__/providers-tab-hooks.test.tsx (7 tests) 405ms
+ ✓ src/agent-plugins/react/__tests__/agent-plugins-fake-hooks.unit.test.tsx (7 tests) 71ms
+ ✓ src/forms/react/__tests__/use-form-submission-detail.unit.test.tsx (6 tests) 359ms
+ ✓ src/react/shell/__tests__/AdminShell.slots.test.tsx (9 tests) 175ms
+ ✓ src/react/entities/__tests__/screen-states.test.tsx (10 tests) 260ms
+ ✓ src/react/__tests__/hooks/use-nav-sections.test.tsx (12 tests) 31ms
+ ✓ src/comments/react/__tests__/comments-fake-hooks.unit.test.tsx (6 tests) 75ms
+ ✓ src/comments/react/__tests__/comments-states.unit.test.tsx (6 tests) 463ms
+   ✓ comments module page > lazily loads the queue page through the bound module and renders it with the host translator  402ms
+ ✓ src/react/shell/__tests__/use-admin-theme.unit.test.tsx (9 tests) 38ms
+ ✓ src/react/__tests__/components/converted-callers.test.tsx (6 tests) 170ms
+ ✓ src/seo/react/__tests__/MediaRefField.hooks.unit.test.ts (11 tests) 111ms
+ ✓ src/react/entities/__tests__/refresh-token.test.tsx (6 tests) 437ms
+ ✓ src/widgets/react/__tests__/widgets-fake-hooks.unit.test.tsx (4 tests) 91ms
+ ✓ src/seo/react/__tests__/seo-fake-hooks.unit.test.tsx (5 tests) 123ms
+ ✓ src/core/react/__tests__/module-ui-injection.unit.test.tsx (24 tests) 50ms
+ ✓ src/react/entities/__tests__/hook-injection.test.tsx (4 tests) 103ms
+ ✓ src/react/__tests__/components/ConfirmButton.test.tsx (14 tests) 169ms
+ ✓ src/react/__tests__/hooks/use-sidebar-rail-controlled.test.tsx (5 tests) 38ms
+ ✓ src/forms/react/__tests__/field-row-editing.unit.test.tsx (5 tests) 315ms
+ ✓ src/media/react/__tests__/providers-tab-rules.test.tsx (3 tests) 184ms
+ ✓ src/react/components/__tests__/Sidebar.accordion.test.tsx (7 tests) 164ms
+ ✓ src/agent-plugins/react/__tests__/agent-plugins-states.test.tsx (7 tests) 1078ms
+   ✓ shows the load failure as a danger notice when the backend list fails  367ms
+   ✓ announces an empty workspace once the list has loaded with no packages  320ms
+   ✓ raises an alert when an enable is refused and keeps the row off  350ms
+stderr | src/forms/react/__tests__/html-mode.unit.test.tsx > HTML form authoring — owner acceptance 2026-10-04 > toggle seeds current fields, preserves draft across toggles, and copies the real saved slug
+[admin] The settings service did not respond. Try opening this editor again. Cause: Error
+
+stderr | src/forms/react/__tests__/html-mode.unit.test.tsx > HTML form authoring — owner acceptance 2026-10-04 > toggle seeds current fields, preserves draft across toggles, and copies the real saved slug
+[admin] The settings service did not respond. Try opening this editor again. Cause: Error
+[admin] The settings service did not respond. Try opening this editor again. Cause: Error
+
+stderr | src/forms/react/__tests__/html-mode.unit.test.tsx > HTML form authoring — owner acceptance 2026-10-04 > toggle seeds current fields, preserves draft across toggles, and copies the real saved slug
+[admin] The settings service did not respond. Try opening this editor again. Cause: Error
+
+stderr | src/forms/react/__tests__/html-mode.unit.test.tsx > HTML form authoring — owner acceptance 2026-10-04 > toggle seeds current fields, preserves draft across toggles, and copies the real saved slug
+[admin] The settings service did not respond. Try opening this editor again. Cause: Error
+
+stderr | src/forms/react/__tests__/html-mode.unit.test.tsx > HTML form authoring — owner acceptance 2026-10-04 > toggle seeds current fields, preserves draft across toggles, and copies the real saved slug
+[admin] The settings service did not respond. Try opening this editor again. Cause: Error
+
+stderr | src/forms/react/__tests__/html-mode.unit.test.tsx > HTML form authoring — owner acceptance 2026-10-04 > toggle seeds current fields, preserves draft across toggles, and copies the real saved slug
+[admin] The settings service did not respond. Try opening this editor again. Cause: Error
+
+stderr | src/forms/react/__tests__/html-mode.unit.test.tsx > HTML form authoring — owner acceptance 2026-10-04 > toggle seeds current fields, preserves draft across toggles, and copies the real saved slug
+[admin] The settings service did not respond. Try opening this editor again. Cause: Error
+
+stderr | src/forms/react/__tests__/html-mode.unit.test.tsx > HTML form authoring — owner acceptance 2026-10-04 > toggle seeds current fields, preserves draft across toggles, and copies the real saved slug
+[admin] The settings service did not respond. Try opening this editor again. Cause: Error
+
+stderr | src/forms/react/__tests__/html-mode.unit.test.tsx > HTML form authoring — owner acceptance 2026-10-04 > toggle seeds current fields, preserves draft across toggles, and copies the real saved slug
+[admin] The settings service did not respond. Try opening this editor again. Cause: Error
+
+stderr | src/forms/react/__tests__/html-mode.unit.test.tsx > HTML form authoring — owner acceptance 2026-10-04 > toggle seeds current fields, preserves draft across toggles, and copies the real saved slug
+[admin] The settings service did not respond. Try opening this editor again. Cause: Error
+
+stderr | src/forms/react/__tests__/html-mode.unit.test.tsx > HTML form authoring — owner acceptance 2026-10-04 > toggle seeds current fields, preserves draft across toggles, and copies the real saved slug
+[admin] The settings service did not respond. Try opening this editor again. Cause: Error
+
+stderr | src/forms/react/__tests__/html-mode.unit.test.tsx > HTML form authoring — owner acceptance 2026-10-04 > toggle seeds current fields, preserves draft across toggles, and copies the real saved slug
+[admin] The settings service did not respond. Try opening this editor again. Cause: Error
+
+stderr | src/forms/react/__tests__/html-mode.unit.test.tsx > HTML form authoring — owner acceptance 2026-10-04 > toggle seeds current fields, preserves draft across toggles, and copies the real saved slug
+[admin] The settings service did not respond. Try opening this editor again. Cause: Error
+
+stderr | src/forms/react/__tests__/html-mode.unit.test.tsx > HTML form authoring — owner acceptance 2026-10-04 > toggle seeds current fields, preserves draft across toggles, and copies the real saved slug
+[admin] The settings service did not respond. Try opening this editor again. Cause: Error
+
+stderr | src/forms/react/__tests__/html-mode.unit.test.tsx > HTML form authoring — owner acceptance 2026-10-04 > toggle seeds current fields, preserves draft across toggles, and copies the real saved slug
+[admin] The settings service did not respond. Try opening this editor again. Cause: Error
+
+stderr | src/forms/react/__tests__/html-mode.unit.test.tsx > HTML form authoring — owner acceptance 2026-10-04 > toggle seeds current fields, preserves draft across toggles, and copies the real saved slug
+[admin] The settings service did not respond. Try opening this editor again. Cause: Error
+
+stderr | src/forms/react/__tests__/html-mode.unit.test.tsx > HTML form authoring — owner acceptance 2026-10-04 > toggle seeds current fields, preserves draft across toggles, and copies the real saved slug
+[admin] The settings service did not respond. Try opening this editor again. Cause: Error
+
+stderr | src/forms/react/__tests__/html-mode.unit.test.tsx > HTML form authoring — owner acceptance 2026-10-04 > toggle seeds current fields, preserves draft across toggles, and copies the real saved slug
+[admin] The settings service did not respond. Try opening this editor again. Cause: Error
+
+stderr | src/forms/react/__tests__/html-mode.unit.test.tsx > HTML form authoring — owner acceptance 2026-10-04 > toggle seeds current fields, preserves draft across toggles, and copies the real saved slug
+[admin] The settings service did not respond. Try opening this editor again. Cause: Error
+
+stderr | src/forms/react/__tests__/html-mode.unit.test.tsx > HTML form authoring — owner acceptance 2026-10-04 > toggle seeds current fields, preserves draft across toggles, and copies the real saved slug
+[admin] The settings service did not respond. Try opening this editor again. Cause: Error
+
+stderr | src/forms/react/__tests__/html-mode.unit.test.tsx > HTML form authoring — owner acceptance 2026-10-04 > toggle seeds current fields, preserves draft across toggles, and copies the real saved slug
+[admin] The settings service did not respond. Try opening this editor again. Cause: Error
+
+stderr | src/forms/react/__tests__/html-mode.unit.test.tsx > HTML form authoring — owner acceptance 2026-10-04 > toggle seeds current fields, preserves draft across toggles, and copies the real saved slug
+[admin] The settings service did not respond. Try opening this editor again. Cause: Error
+
+stderr | src/forms/react/__tests__/html-mode.unit.test.tsx > HTML form authoring — owner acceptance 2026-10-04 > toggle seeds current fields, preserves draft across toggles, and copies the real saved slug
+[admin] The settings service did not respond. Try opening this editor again. Cause: Error
+
+stderr | src/forms/react/__tests__/html-mode.unit.test.tsx > HTML form authoring — owner acceptance 2026-10-04 > toggle seeds current fields, preserves draft across toggles, and copies the real saved slug
+[admin] The settings service did not respond. Try opening this editor again. Cause: Error
+
+ ✓ src/forms/react/__tests__/FormEditor.field-settings.unit.test.tsx (3 tests) 564ms
+   ✓ field settings in the form editor > adds an option, makes it the default, and saves both in the PUT body  356ms
+stderr | src/forms/react/__tests__/html-mode.unit.test.tsx > HTML form authoring — owner acceptance 2026-10-04 > toggle seeds current fields, preserves draft across toggles, and copies the real saved slug
+[admin] The settings service did not respond. Try opening this editor again. Cause: Error
+
+stderr | src/forms/react/__tests__/html-mode.unit.test.tsx > HTML form authoring — owner acceptance 2026-10-04 > toggle seeds current fields, preserves draft across toggles, and copies the real saved slug
+[admin] The settings service did not respond. Try opening this editor again. Cause: Error
+
+stderr | src/forms/react/__tests__/html-mode.unit.test.tsx > HTML form authoring — owner acceptance 2026-10-04 > toggle seeds current fields, preserves draft across toggles, and copies the real saved slug
+[admin] The settings service did not respond. Try opening this editor again. Cause: Error
+
+stderr | src/forms/react/__tests__/html-mode.unit.test.tsx > HTML form authoring — owner acceptance 2026-10-04 > toggle seeds current fields, preserves draft across toggles, and copies the real saved slug
+[admin] The settings service did not respond. Try opening this editor again. Cause: Error
+
+stderr | src/forms/react/__tests__/html-mode.unit.test.tsx > HTML form authoring — owner acceptance 2026-10-04 > toggle seeds current fields, preserves draft across toggles, and copies the real saved slug
+[admin] The settings service did not respond. Try opening this editor again. Cause: Error
+
+stderr | src/forms/react/__tests__/html-mode.unit.test.tsx > HTML form authoring — owner acceptance 2026-10-04 > HTML save carries mode/body through the port
+[admin] The settings service did not respond. Try opening this editor again. Cause: Error
+
+stderr | src/forms/react/__tests__/html-mode.unit.test.tsx > HTML form authoring — owner acceptance 2026-10-04 > HTML save carries mode/body through the port
+[admin] The settings service did not respond. Try opening this editor again. Cause: Error
+[admin] The settings service did not respond. Try opening this editor again. Cause: Error
+
+ ✓ src/media/react/__tests__/media-card-hooks.test.tsx (7 tests) 44ms
+stderr | src/forms/react/__tests__/html-mode.unit.test.tsx > HTML form authoring — owner acceptance 2026-10-04 > HTML save carries mode/body through the port
+[admin] The settings service did not respond. Try opening this editor again. Cause: Error
+
+stderr | src/forms/react/__tests__/html-mode.unit.test.tsx > HTML form authoring — owner acceptance 2026-10-04 > ordinary Builder save keeps its original payload and clipboard failure remains visible
+[admin] The settings service did not respond. Try opening this editor again. Cause: Error
+
+stderr | src/forms/react/__tests__/html-mode.unit.test.tsx > HTML form authoring — owner acceptance 2026-10-04 > ordinary Builder save keeps its original payload and clipboard failure remains visible
+[admin] The settings service did not respond. Try opening this editor again. Cause: Error
+[admin] The settings service did not respond. Try opening this editor again. Cause: Error
+
+stderr | src/forms/react/__tests__/html-mode.unit.test.tsx > HTML form authoring — owner acceptance 2026-10-04 > ordinary Builder save keeps its original payload and clipboard failure remains visible
+[admin] The settings service did not respond. Try opening this editor again. Cause: Error
+
+stderr | src/forms/react/__tests__/html-mode.unit.test.tsx > HTML form authoring — owner acceptance 2026-10-04 > ordinary Builder save keeps its original payload and clipboard failure remains visible
+[admin] The settings service did not respond. Try opening this editor again. Cause: Error
+
+ ✓ src/forms/react/__tests__/html-mode.unit.test.tsx (4 tests) 458ms
+   ✓ HTML form authoring — owner acceptance 2026-10-04 > toggle seeds current fields, preserves draft across toggles, and copies the real saved slug  334ms
+ ✓ src/agent-plugins/react/__tests__/AgentPluginRow.test.tsx (10 tests) 171ms
+ ✓ src/widgets/react/__tests__/WidgetRegions.unit.test.tsx (9 tests) 207ms
+ ✓ src/widgets/react/__tests__/use-widgets-library.wiring.unit.test.tsx (6 tests) 396ms
+ ✓ src/react/shell/__tests__/AdminShell.sidebar-slot.test.tsx (4 tests) 104ms
+ ✓ src/forms/react/__tests__/copy-polish.unit.test.tsx (6 tests) 210ms
+ ✓ src/forms/react/__tests__/FormSubmissions.unit.test.tsx (10 tests) 171ms
+ ✓ src/react/entities/__tests__/seams-characterization.test.tsx (4 tests) 169ms
+stderr | src/forms/react/__tests__/FormEditor.leave-and-focus.unit.test.tsx > FormEditor Back with unsaved edits > leaves at once through the navigation port when nothing changed
+[admin] The settings service did not respond. Try opening this editor again. Cause: Error
+
+stderr | src/forms/react/__tests__/FormEditor.leave-and-focus.unit.test.tsx > FormEditor Back with unsaved edits > leaves at once through the navigation port when nothing changed
+[admin] The settings service did not respond. Try opening this editor again. Cause: Error
+[admin] The settings service did not respond. Try opening this editor again. Cause: Error
+
+stderr | src/forms/react/__tests__/FormEditor.leave-and-focus.unit.test.tsx > FormEditor Back with unsaved edits > asks first after an edit; Keep editing stays, Discard changes leaves
+[admin] The settings service did not respond. Try opening this editor again. Cause: Error
+
+stderr | src/forms/react/__tests__/FormEditor.leave-and-focus.unit.test.tsx > FormEditor Back with unsaved edits > asks first after an edit; Keep editing stays, Discard changes leaves
+[admin] The settings service did not respond. Try opening this editor again. Cause: Error
+[admin] The settings service did not respond. Try opening this editor again. Cause: Error
+
+ ✓ src/comments/react/__tests__/SettingsSection.unit.test.tsx (4 tests) 310ms
+stderr | src/forms/react/__tests__/FormEditor.leave-and-focus.unit.test.tsx > FormEditor Back with unsaved edits > asks first after an edit; Keep editing stays, Discard changes leaves
+[admin] The settings service did not respond. Try opening this editor again. Cause: Error
+
+stderr | src/forms/react/__tests__/FormEditor.leave-and-focus.unit.test.tsx > FormEditor Back with unsaved edits > asks first after an edit; Keep editing stays, Discard changes leaves
+[admin] The settings service did not respond. Try opening this editor again. Cause: Error
+
+stderr | src/forms/react/__tests__/FormEditor.leave-and-focus.unit.test.tsx > FormEditor Back with unsaved edits > asks first after an edit; Keep editing stays, Discard changes leaves
+[admin] The settings service did not respond. Try opening this editor again. Cause: Error
+
+stderr | src/forms/react/__tests__/FormEditor.leave-and-focus.unit.test.tsx > FormEditor Back with unsaved edits > asks first after an edit; Keep editing stays, Discard changes leaves
+[admin] The settings service did not respond. Try opening this editor again. Cause: Error
+
+stderr | src/forms/react/__tests__/FormEditor.leave-and-focus.unit.test.tsx > FormEditor Back with unsaved edits > asks first after an edit; Keep editing stays, Discard changes leaves
+A component suspended inside an `act` scope, but the `act` call was not awaited. When testing React components that depend on asynchronous data, you must await the result:
+
+await act(() => ...)
+
+stderr | src/forms/react/__tests__/FormEditor.leave-and-focus.unit.test.tsx > FormEditor Back with unsaved edits > asks first after an edit; Keep editing stays, Discard changes leaves
+[admin] The settings service did not respond. Try opening this editor again. Cause: Error
+
+stderr | src/forms/react/__tests__/FormEditor.leave-and-focus.unit.test.tsx > FormEditor Back with unsaved edits > asks first after an edit; Keep editing stays, Discard changes leaves
+[admin] The settings service did not respond. Try opening this editor again. Cause: Error
+
+stderr | src/forms/react/__tests__/FormEditor.leave-and-focus.unit.test.tsx > FormEditor Back with unsaved edits > asks first after an edit; Keep editing stays, Discard changes leaves
+[admin] The settings service did not respond. Try opening this editor again. Cause: Error
+
+stderr | src/forms/react/__tests__/FormEditor.leave-and-focus.unit.test.tsx > FormEditor Back with unsaved edits > guards a new form once anything is typed
+[admin] The settings service did not respond. Try opening this editor again. Cause: Error
+
+stderr | src/forms/react/__tests__/FormEditor.leave-and-focus.unit.test.tsx > FormEditor Back with unsaved edits > guards a new form once anything is typed
+[admin] The settings service did not respond. Try opening this editor again. Cause: Error
+
+stderr | src/forms/react/__tests__/FormEditor.leave-and-focus.unit.test.tsx > FormEditor Back with unsaved edits > guards a new form once anything is typed
+[admin] The settings service did not respond. Try opening this editor again. Cause: Error
+
+stderr | src/forms/react/__tests__/FormEditor.leave-and-focus.unit.test.tsx > FormEditor Back with unsaved edits > guards a new form once anything is typed
+[admin] The settings service did not respond. Try opening this editor again. Cause: Error
+
+stderr | src/forms/react/__tests__/FormEditor.leave-and-focus.unit.test.tsx > FormEditor Back with unsaved edits > guards a new form once anything is typed
+[admin] The settings service did not respond. Try opening this editor again. Cause: Error
+
+stderr | src/forms/react/__tests__/FormEditor.leave-and-focus.unit.test.tsx > FormEditor Back with unsaved edits > guards a new form once anything is typed
+[admin] The settings service did not respond. Try opening this editor again. Cause: Error
+
+stderr | src/forms/react/__tests__/FormEditor.leave-and-focus.unit.test.tsx > FormEditor Back with unsaved edits > guards a new form once anything is typed
+[admin] The settings service did not respond. Try opening this editor again. Cause: Error
+
+stderr | src/forms/react/__tests__/FormEditor.leave-and-focus.unit.test.tsx > FormEditor Back with unsaved edits > guards a new form once anything is typed
+[admin] The settings service did not respond. Try opening this editor again. Cause: Error
+
+stderr | src/forms/react/__tests__/FormEditor.leave-and-focus.unit.test.tsx > field settings dialog initial focus > focuses the first input, never the Help text ⓘ, for a slider field
+[admin] The settings service did not respond. Try opening this editor again. Cause: Error
+
+stderr | src/forms/react/__tests__/FormEditor.leave-and-focus.unit.test.tsx > field settings dialog initial focus > focuses the first input, never the Help text ⓘ, for a slider field
+[admin] The settings service did not respond. Try opening this editor again. Cause: Error
+[admin] The settings service did not respond. Try opening this editor again. Cause: Error
+
+ ✓ src/security/react/__tests__/RootKeyTab.test.tsx (10 tests) 169ms
+ ✓ src/forms/react/__tests__/FormEditor.leave-and-focus.unit.test.tsx (4 tests) 466ms
+ ✓ src/comments/react/__tests__/use-comment-settings.boundary.unit.test.tsx (5 tests) 194ms
+ ✓ src/widgets/react/__tests__/use-widget-regions.wiring.unit.test.tsx (4 tests) 244ms
+ ✓ src/react/shell/__tests__/model.test.ts (5 tests) 6ms
+ ✓ src/react/__tests__/hooks/use-sidebar-rail.test.tsx (8 tests) 26ms
+ ✓ src/forms/react/__tests__/use-form-fields-editor.hooks.unit.test.tsx (2 tests) 21ms
+ ✓ src/forms/react/__tests__/FormsModule.unit.test.tsx (3 tests) 696ms
+   ✓ Forms module list API failure regression > renders the visible error when the API read rejects: 'Forms API unavailable'  368ms
+   ✓ Forms module list API failure regression > renders the visible error when the API read rejects: 'Forms API request timed out'  313ms
+ ✓ src/forms/react/__tests__/forms-view.hooks.unit.test.tsx (5 tests) 28ms
+ ✓ src/redirects/react/__tests__/copy-polish.unit.test.tsx (2 tests) 260ms
+ ✓ src/playground/react/__tests__/playground.test.tsx (4 tests) 734ms
+   ✓ denies canvas publication without grants  347ms
+   ✓ read-only canvas survives rerenders and clears on unmount under StrictMode  377ms
+ ✓ src/react/entities/__tests__/persisted-only.test.tsx (3 tests) 105ms
+ ✓ src/forms/react/__tests__/submissions-states.integration.test.tsx (4 tests) 1054ms
+   ✓ forms module editor page > opens the editor for a formId prop  394ms
+   ✓ forms module editor page > opens the editor for a route param on the submissions tab  346ms
+   ✓ forms module editor page > refuses to render the editor without a form id  305ms
+ ✓ src/react/__tests__/overlays.test.tsx (6 tests) 68ms
+stderr | src/comments/react/__tests__/use-comments.unit.test.tsx > useComments > sets the fallback error when the injected port rejects
+[admin] failed to load permissions Cause: Error
+
+ ✓ src/comments/react/__tests__/use-comments.unit.test.tsx (3 tests) 187ms
+ ✓ src/core/react/__tests__/module-factories.characterization.unit.test.tsx (8 tests) 5ms
+ ✓ src/react/entities/__tests__/list-search.test.tsx (3 tests) 113ms
+ ✓ src/react/shell/__tests__/AdminShell.markup.test.tsx (6 tests) 133ms
+ ✓ src/source-control/react/__tests__/source-control-fake-hooks.unit.test.tsx (3 tests) 50ms
+ ✓ src/react/__tests__/hooks/use-rail-label-titles.test.tsx (3 tests) 42ms
+ ✓ src/browser/__tests__/navigation-args.test.ts (7 tests) 15ms
+ ✓ src/react/__tests__/components/confirm-guards.test.tsx (5 tests) 82ms
+ ✓ src/react/__tests__/components/use-confirm-request.test.tsx (4 tests) 23ms
+stderr | src/widgets/react/__tests__/fetch-query-migration.test.ts > widgets shared query ownership > a rejected trash retains the cached roster in both consumers
+[admin] delete failed Cause: Error
+
+ ✓ src/widgets/react/__tests__/fetch-query-migration.test.ts (3 tests) 189ms
+ ✓ src/react/__tests__/hooks/preference-ports.test.tsx (3 tests) 18ms
+ ✓ src/source-control/react/__tests__/source-control.test.tsx (3 tests) 1029ms
+   ✓ does not fetch or show credentials without page grants  351ms
+   ✓ renders a read-only provider row without write grants or optional navigation  336ms
+   ✓ accepts a ui-kit token save and never displays saved secret drafts  341ms
+ ✓ src/react/__tests__/hooks/use-overflow-title.test.tsx (2 tests) 19ms
+stderr | src/browser/__tests__/shell-navigation.test.ts
+Error: Not implemented: navigation (except hash changes)
+    at module.exports (/home/user/Jini/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at navigateFetch (/home/user/Jini/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/living/window/navigation.js:77:3)
+    at exports.navigate (/home/user/Jini/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/living/window/navigation.js:55:3)
+    at Timeout._onTimeout (/home/user/Jini/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/living/nodes/HTMLHyperlinkElementUtils-impl.js:80:7)
+    at listOnTimeout (node:internal/timers:685:17)
+    at processTimers (node:internal/timers:618:7) [90mundefined[39m
+
+stderr | src/browser/__tests__/shell-navigation.test.ts
+Error: Not implemented: navigation (except hash changes)
+    at module.exports (/home/user/Jini/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at navigateFetch (/home/user/Jini/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/living/window/navigation.js:77:3)
+    at exports.navigate (/home/user/Jini/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/living/window/navigation.js:55:3)
+    at Timeout._onTimeout (/home/user/Jini/node_modules/.pnpm/jsdom@26.1.0/node_modules/jsdom/lib/jsdom/living/nodes/HTMLHyperlinkElementUtils-impl.js:80:7)
+    at listOnTimeout (node:internal/timers:685:17)
+    at processTimers (node:internal/timers:618:7) [90mundefined[39m
+
+ ✓ src/browser/__tests__/shell-navigation.test.ts (3 tests) 19ms
+ ✓ src/core/react/__tests__/bind-react.test.tsx (2 tests) 372ms
+   ✓ binds lazy pages and tabs to a private per-binding port context when the host passes none  365ms
+ ✓ src/seo/react/__tests__/use-entry-picker.unit.test.ts (2 tests) 130ms
+ ✓ src/react/entities/__tests__/relation-rules.test.ts (3 tests) 7ms
+ ✓ src/react/__tests__/hooks/use-browser-telemetry-feed.test.tsx (2 tests) 22ms
+ ✓ src/react/shell/__tests__/AdminShell.nav-memo.test.tsx (3 tests) 123ms
+ ✓ src/react/__tests__/components/dialog-args.test.tsx (2 tests) 28ms
+ ✓ src/redirects/react/__tests__/redirects-fake-hooks.unit.test.tsx (1 test) 47ms
+ ✓ src/media/react/__tests__/edit-media-embed-policy.hooks.test.tsx (3 tests) 32ms
+ ✓ src/media/react/__tests__/media-picker-overlay.test.tsx (1 test) 155ms
+ ✓ src/react/components/__tests__/Sidebar.controlled.test.tsx (1 test) 80ms
+ ✓ src/react/shell/__tests__/theme-boundaries.test.ts (1 test) 18ms
+ ✓ src/forms/react/__tests__/native-dialog-dismissal.unit.test.ts (1 test) 72ms
+ ✓ src/media/react/__tests__/gallery-selection.test.tsx (1 test) 22ms
+ ✓ src/react/__tests__/integration-barrels.test.tsx (3 tests) 4ms
+ ✓ src/react/components/InteractiveHtmlEditor/__tests__/InteractiveHtmlEditor.wiring.test.tsx (1 test) 20ms
+ ✓ src/playground/react/__tests__/playground-scope.test.tsx (2 tests) 65ms
+ ✓ src/media/react/__tests__/card-metadata.test.tsx (2 tests) 89ms
+ ✓ src/forms/react/__tests__/use-form-submission-date.hooks.unit.test.tsx (1 test) 36ms
+ ✓ src/media/react/__tests__/media-lightbox-hooks.test.tsx (3 tests) 4ms
+ ✓ src/react/__tests__/components/ThemePreviewReloadControl.test.tsx (2 tests) 71ms
+ ✓ src/react/__tests__/testing-kit-media-rules.unit.test.ts (1 test) 2ms
+ ✓ src/react/entities/__tests__/entity-text.test.ts (2 tests) 2ms
+ ✓ src/seo/__tests__/rules.unit.test.ts (78 tests) 14ms
+ ✓ src/forms/__tests__/field-settings.unit.test.ts (79 tests) 27ms
+ ✓ src/core/__tests__/entities.test.ts (63 tests) 16ms
+stderr | src/comments/__tests__/comment-queue.controller.unit.test.ts > createCommentQueueController.loadMore > falls back to the translated message when a failure is not an Error
+[admin] es:failed to load the moderation queue Cause: string
+
+stderr | src/comments/__tests__/comment-queue.controller.unit.test.ts > createCommentQueueController.loadMore > clears a prior failure as soon as a retry starts
+[admin] failed to load the moderation queue Cause: Error
+
+stderr | src/comments/__tests__/comment-queue.controller.unit.test.ts > createCommentQueueController purge > keeps a failed purge error on the row with the translated fallback and closes the confirmation
+[admin] es:Failed to purge comment. Cause: string
+
+ ✓ src/comments/__tests__/comment-queue.controller.unit.test.ts (38 tests) 23ms
+ ✓ src/agent-plugins/__tests__/controllers.test.ts (36 tests) 23ms
+ ✓ src/security/__tests__/http.test.ts (26 tests) 11ms
+ ✓ src/redirects/__tests__/redirects-api.conformance.unit.test.ts (36 tests) 22ms
+stderr | src/media/__tests__/library-controller.test.ts > library controller load > reports the fallback message when a read rejects with a non-Error value
+[admin] Failed to load media Cause: string
+
+stderr | src/media/__tests__/library-controller.test.ts > library controller load > backs off retries exponentially and caps the delay at 30 seconds
+[admin] Failed to load media Cause: Error
+
+stderr | src/media/__tests__/library-controller.test.ts > library controller load > backs off retries exponentially and caps the delay at 30 seconds
+[admin] Failed to load media Cause: Error
+
+stderr | src/media/__tests__/library-controller.test.ts > library controller load > backs off retries exponentially and caps the delay at 30 seconds
+[admin] Failed to load media Cause: Error
+
+stderr | src/media/__tests__/library-controller.test.ts > library controller load > backs off retries exponentially and caps the delay at 30 seconds
+[admin] Failed to load media Cause: Error
+
+stderr | src/media/__tests__/library-controller.test.ts > library controller load > backs off retries exponentially and caps the delay at 30 seconds
+[admin] Failed to load media Cause: Error
+
+stderr | src/media/__tests__/library-controller.test.ts > library controller load > backs off retries exponentially and caps the delay at 30 seconds
+[admin] Failed to load media Cause: Error
+
+stderr | src/media/__tests__/library-controller.test.ts > library controller load > backs off retries exponentially and caps the delay at 30 seconds
+[admin] Failed to load media Cause: Error
+
+stderr | src/media/__tests__/library-controller.test.ts > library controller load > backs off retries exponentially and caps the delay at 30 seconds
+[admin] Failed to load media Cause: Error
+
+stderr | src/media/__tests__/library-controller.test.ts > library controller load > restarts the backoff at 1 second after a successful read
+[admin] Failed to load media Cause: Error
+
+stderr | src/media/__tests__/library-controller.test.ts > library controller load > restarts the backoff at 1 second after a successful read
+[admin] Failed to load media Cause: Error
+
+stderr | src/media/__tests__/library-controller.test.ts > library controller load > restarts the backoff at 1 second after a successful read
+[admin] Failed to load media Cause: Error
+
+stderr | src/media/__tests__/library-controller.test.ts > library controller load > restarts the backoff at 1 second after a successful read
+[admin] Failed to load media Cause: Error
+
+stderr | src/media/__tests__/library-controller.test.ts > library controller settleLibrary > accepts cache data without a read and clears the error
+[admin] Failed to load media Cause: Error
+
+stderr | src/media/__tests__/library-controller.test.ts > library controller settleLibrary > reports the error after accepting data when both arrive together
+[admin] Failed to load media Cause: Error
+
+stderr | src/media/__tests__/library-controller.test.ts > library controller writes > reports the fallback message when a write rejects with a non-Error value
+[admin] Media write failed Cause: string
+
+stderr | src/media/__tests__/library-controller.test.ts > library controller writes > fails a purge the port did not perform and keeps the pending purge
+[admin] Media write failed Cause: Error
+
+stderr | src/media/__tests__/library-controller.test.ts > library controller writes > removes a purged card even when the follow-up read fails
+[admin] Failed to load media Cause: Error
+
+stderr | src/media/__tests__/library-controller.test.ts > library controller writes > publishes no error for a write that fails after dispose
+[admin] Media write failed Cause: Error
+
+ ✓ src/media/__tests__/library-controller.test.ts (26 tests) 182ms
+ ✓ src/security/__tests__/memory.test.ts (41 tests) 29ms
+ ✓ src/security/__tests__/access-tokens.controller.test.ts (34 tests) 16ms
+ ✓ src/media/__tests__/legacy-rules.test.ts (96 tests) 19ms
+ ✓ src/security/__tests__/root-key.controller.test.ts (35 tests) 16ms
+ ✓ src/core/module/__tests__/create-admin.boundary.test.ts (41 tests) 14ms
+ ✓ src/security/__tests__/rules.test.ts (34 tests) 7ms
+ ✓ src/forms/__tests__/answer-format.unit.test.ts (27 tests) 19ms
+stderr | src/seo/__tests__/seo-surface.unit.test.ts > seo headless controllers > describes a non-Error sitemap failure with the generic message
+[admin] failed to load the sitemap Cause: string
+
+ ✓ src/seo/__tests__/seo-surface.unit.test.ts (20 tests) 17ms
+ ✓ src/forms/__tests__/memory-adapter.unit.test.ts (30 tests) 19ms
+ ✓ src/source-control/__tests__/controllers.test.ts (14 tests) 13ms
+ ✓ src/core/__tests__/manifest.test.ts (35 tests) 9ms
+stderr | src/media/__tests__/parity-controllers.test.ts > legacy media controller guards > sends invalid attribute drafts to the independent server validator and exposes safe failure copy
+[admin] Failed to save media metadata Cause: Error
+
+stderr | src/media/__tests__/parity-controllers.test.ts > legacy media controller guards > preserves provider rows on rejected and null reads, while empty lists are authoritative
+[admin] Provider service unavailable Cause: Error
+
+ ✓ src/media/__tests__/parity-controllers.test.ts (12 tests) 26ms
+ ✓ src/media/__tests__/memory.test.ts (28 tests) 13ms
+stderr | src/forms/__tests__/rules.unit.test.ts > describeTrashError > falls through to the fallback for a non-ApiError failure (e.g. a network error)
+[admin] failed to delete form Cause: Error
+
+ ✓ src/forms/__tests__/rules.unit.test.ts (21 tests) 26ms
+stderr | src/comments/__tests__/comments-surface.unit.test.ts > comments controllers edge outcomes > shows the translated save fallback when the backend rejects with a non-Error value
+[admin] x:failed to save Comments settings Cause: Error
+
+stderr | src/widgets/__tests__/instance-editor.controller.unit.test.ts > createWidgetInstanceEditorController load > shows the translated fallback when the read fails with a non-error value
+[admin] T:failed to load widget Cause: string
+
+ ✓ src/comments/__tests__/comments-surface.unit.test.ts (13 tests) 12ms
+ ✓ src/widgets/__tests__/instance-editor.controller.unit.test.ts (19 tests) 12ms
+ ✓ src/comments/__tests__/memory.unit.test.ts (26 tests) 9ms
+ ✓ src/redirects/__tests__/rules.unit.test.ts (24 tests) 9ms
+ ✓ src/core/__tests__/entities-rules.boundary.test.ts (27 tests) 11ms
+stderr | src/media/__tests__/controllers.test.ts > memory API and controllers > keeps loaded items when a background refresh fails and clears a prior write error
+[admin] Failed to load media Cause: Error
+
+stderr | src/media/__tests__/controllers.test.ts > memory API and controllers > keeps loaded items when a background refresh fails and clears a prior write error
+[admin] Media write failed Cause: Error
+
+stderr | src/media/__tests__/controllers.test.ts > memory API and controllers > shows the server's own words for a failed provider read or save, and the specific fallback otherwise
+[admin] Provider service unavailable Cause: string
+
+stderr | src/media/__tests__/controllers.test.ts > memory API and controllers > shows the server's own words for a failed provider read or save, and the specific fallback otherwise
+[admin] Failed to save provider credentials Cause: string
+
+ ✓ src/media/__tests__/controllers.test.ts (7 tests) 17ms
+ ✓ src/security/__tests__/controllers.test.ts (10 tests) 13ms
+ ✓ src/forms/__tests__/forms-api.conformance.test.ts (17 tests) 13ms
+stderr | src/widgets/__tests__/region-editor.controller.unit.test.ts > createWidgetRegionEditorController load > shows the translated fallback when the read fails with a non-error value
+[admin] T:failed to load region Cause: string
+
+ ✓ src/widgets/__tests__/region-editor.controller.unit.test.ts (14 tests) 13ms
+stderr | src/widgets/__tests__/library.controller.unit.test.ts > createWidgetsLibraryController load > shows the translated fallback when the list fails with a non-error value
+[admin] T:failed to load widgets Cause: string
+
+stderr | src/widgets/__tests__/library.controller.unit.test.ts > createWidgetsLibraryController trash flow > shows the translated fallback when trash fails with a non-error value
+[admin] T:delete failed Cause: string
+
+ ✓ src/widgets/__tests__/library.controller.unit.test.ts (17 tests) 12ms
+ ✓ src/widgets/__tests__/rules.unit.test.ts (26 tests) 8ms
+stderr | src/widgets/__tests__/widgets-surface.unit.test.ts > widgets rules and messages > explains a region version conflict, and falls back for an opaque failure
+[admin] fr:save failed Cause: string
+
+ ✓ src/widgets/__tests__/widgets-surface.unit.test.ts (12 tests) 10ms
+stderr | src/media/__tests__/media-surface.test.ts > edit media controller guards > refuses to save after dispose and reports non-Error failures with fallback copy
+[admin] Failed to save media metadata Cause: string
+
+stderr | src/media/__tests__/media-surface.test.ts > providers controller > reports a failed credential write and refuses settings the host cannot store
+[admin] Failed to save provider credentials Cause: Error
+
+ ✓ src/media/__tests__/media-surface.test.ts (11 tests) 14ms
+ ✓ src/agent-plugins/__tests__/package-file-tree.test.ts (32 tests) 9ms
+ ✓ src/core/__tests__/transport-regressions.test.ts (17 tests) 18ms
+ ✓ src/comments/__tests__/comments-api.conformance.test.ts (12 tests) 20ms
+ ✓ src/forms/__tests__/html-starter.unit.test.ts (12 tests) 22ms
+ ✓ src/core/__tests__/transport.test.ts (14 tests) 10ms
+ ✓ src/media/__tests__/rules.test.ts (51 tests) 10ms
+ ✓ src/redirects/__tests__/redirects-surface.unit.test.ts (10 tests) 10ms
+ ✓ src/core/__tests__/routing.test.ts (24 tests) 6ms
+stderr | src/forms/__tests__/forms-surface.unit.test.ts > forms rules through the public barrel > treats a host error carrying a numeric 404 status as already gone, but not a non-numeric one
+[admin] trash failed Cause: Error
+
+ ✓ src/forms/__tests__/forms-surface.unit.test.ts (9 tests) 7ms
+stderr | src/media/__tests__/qa-recovery.test.ts > QA API recovery > never publishes error and loading together, even while retrying a failed read
+[admin] Failed to load media Cause: Error
+
+stderr | src/media/__tests__/qa-recovery.test.ts > QA API recovery > recovers on a tab change after background failure without discarding known rows
+[admin] Failed to load media Cause: Error
+
+stderr | src/media/__tests__/qa-recovery.test.ts > QA API recovery > automatically retries retryable failures at 1s, 2s, then recovers and clears the timer
+[admin] Failed to load media Cause: Error
+
+stderr | src/media/__tests__/qa-recovery.test.ts > QA API recovery > automatically retries retryable failures at 1s, 2s, then recovers and clears the timer
+[admin] Failed to load media Cause: Error
+
+stderr | src/media/__tests__/qa-recovery.test.ts > QA API recovery > cancels retries on dispose and respects an explicit non-retryable transport error
+[admin] Failed to load media Cause: Error
+
+stderr | src/media/__tests__/qa-recovery.test.ts > QA API recovery > cancels retries on dispose and respects an explicit non-retryable transport error
+[admin] Failed to load media Cause: Error
+
+ ✓ src/media/__tests__/qa-recovery.test.ts (7 tests) 16ms
+ ✓ src/security/__tests__/security-guards.unit.test.ts (7 tests) 14ms
+ ✓ src/forms/__tests__/field-settings-catalog.unit.test.ts (9 tests) 6ms
+ ✓ src/core/module/__tests__/composition.test.ts (5 tests) 11ms
+ ✓ src/browser/__tests__/telemetry-boundaries.unit.test.ts (5 tests) 9ms
+ ✓ src/source-control/__tests__/conformance.test.ts (9 tests) 9ms
+ ✓ src/agent-plugins/__tests__/rules.test.ts (5 tests) 9ms
+ ✓ src/browser/__tests__/telemetry.unit.test.ts (6 tests) 12ms
+ ✓ src/agent-plugins/__tests__/adapter-contracts.test.ts (5 tests) 10ms
+ ✓ src/media/__tests__/html-attributes.test.ts (9 tests) 6ms
+ ✓ src/core/__tests__/args-convention.contract.test.ts (5 tests) 9ms
+ ✓ src/core/__tests__/ledger-slice.test.ts (4 tests) 4ms
+ ✓ src/core/__tests__/menu-target-narrowing.test.ts (3 tests) 3ms
+ ✓ src/core/__tests__/i18n-common.test.ts (8 tests) 13ms
+stderr | src/forms/__tests__/catalog-characterization.unit.test.ts > records the starter HTML for every field kind, an unknown kind and escaped text
+Promise returned by `expect(actual).toMatchFileSnapshot(expected)` was not awaited. Vitest currently auto-awaits hanging assertions at the end of the test, but this will cause the test to fail in Vitest 3. Please remember to await the assertion.
+    at /home/user/Jini/packages/admin/src/forms/__tests__/catalog-characterization.unit.test.ts:23:97
+
+stderr | src/forms/__tests__/catalog-characterization.unit.test.ts > records the settings, groups, retype results, drafts and upload limits
+Promise returned by `expect(actual).toMatchFileSnapshot(expected)` was not awaited. Vitest currently auto-awaits hanging assertions at the end of the test, but this will cause the test to fail in Vitest 3. Please remember to await the assertion.
+    at /home/user/Jini/packages/admin/src/forms/__tests__/catalog-characterization.unit.test.ts:41:45
+
+ ✓ src/forms/__tests__/catalog-characterization.unit.test.ts (2 tests) 13ms
+ ✓ src/agent-plugins/__tests__/http.test.ts (2 tests) 4ms
+ ✓ src/forms/__tests__/html-starter-catalog.unit.test.ts (21 tests) 11ms
+ ✓ src/source-control/__tests__/http.test.ts (2 tests) 7ms
+ ✓ src/forms/__tests__/form-editor-dirty.unit.test.ts (4 tests) 3ms
+ ✓ src/core/__tests__/transport-http.boundary.test.ts (7 tests) 9ms
+ ✓ src/media/__tests__/embed-policy-port.test.ts (8 tests) 4ms
+ ✓ src/source-control/__tests__/rules.test.ts (3 tests) 3ms
+ ✓ src/media/adapters/__tests__/http-providers.test.ts (3 tests) 4ms
+ ✓ src/playground/__tests__/controllers.test.ts (4 tests) 4ms
+ ✓ src/widgets/__tests__/widgets-api-conformance.unit.test.ts (3 tests) 5ms
+ ✓ src/core/__tests__/transport-headers.test.ts (4 tests) 11ms
+ ✓ src/redirects/__tests__/memory.conformance.test.ts (2 tests) 4ms
+ ✓ src/playground/__tests__/targets-contract.test.ts (4 tests) 5ms
+ ✓ src/core/__tests__/recovery-gated.test.ts (3 tests) 2ms
+ ✓ src/media/__tests__/http.test.ts (1 test) 7ms
+ ✓ src/core/__tests__/default-panel-navigation.test.ts (2 tests) 3ms
+ ✓ src/browser/__tests__/react-root-errors.test.ts (4 tests) 4ms
+ ✓ src/core/__tests__/resolve-panels-all-of.test.ts (3 tests) 3ms
+ ✓ src/core/__tests__/integration-entries.test.ts (4 tests) 6ms
+ ✓ src/forms/__tests__/forms-public-surface.unit.test.ts (1 test) 2ms
+ ✓ src/seo/__tests__/conformance.test.ts (1 test) 3ms
+ ✓ src/core/routing/__tests__/route-template.test.ts (3 tests) 2ms
+ ✓ src/core/__tests__/default-theme-css.unit.test.ts (1 test) 9ms
+ ✓ src/core/__tests__/database-gated.test.ts (1 test) 2ms
+ ✓ src/seo/__tests__/seo-public-surface.unit.test.ts (1 test) 2ms
+ ✓ src/widgets/__tests__/widgets-public-surface.unit.test.ts (1 test) 3ms
+ ✓ src/media/__tests__/media-file-name.test.ts (3 tests) 3ms
+ ✓ src/agent-plugins/__tests__/agent-plugins-public-surface.unit.test.ts (1 test) 2ms
+ ✓ src/agent-plugins/__tests__/package-file-tree.hwa.test.ts (1 test) 3ms
+ ✓ src/redirects/__tests__/redirects-public-surface.unit.test.ts (1 test) 2ms
+ ✓ src/widgets/__tests__/memory-conformance.test.ts (1 test) 4ms
+ ✓ src/playground/__tests__/http.test.ts (1 test) 2ms
+ ✓ src/media/__tests__/metadata-exports.test.ts (1 test) 12ms
+
+ Test Files  252 passed (252)
+      Tests  3087 passed (3087)
+   Start at  20:50:48
+   Duration  69.61s (transform 5.88s, setup 20.76s, collect 26.96s, tests 79.82s, environment 41.11s, prepare 12.45s)
+
+EXIT 0
