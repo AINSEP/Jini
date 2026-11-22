@@ -81,7 +81,16 @@
       "./contracts/env": "universal",
       "./env/parse-env": "universal",
       "./env/format-env-issue": "universal",
-      "./env/describe-env-for-diagnostics": "universal"
+      "./env/describe-env-for-diagnostics": "universal",
+      "./tool-metadata/site/files-copy": "universal",
+      "./tool-metadata/site/forms": "universal",
+      "./tool-metadata/site/identity": "universal",
+      "./tool-metadata/site/mail-status": "universal",
+      "./tool-metadata/site/media": "universal",
+      "./tool-metadata/site/media-import": "universal",
+      "./tool-metadata/site/navigation": "universal",
+      "./tool-metadata/site/observability": "universal",
+      "./tool-metadata/site/pages": "universal"
     },
     "isolation": {
       "entries": {
@@ -478,6 +487,51 @@
       "types": "./dist/errors/route-refusal.d.ts",
       "import": "./dist/errors/route-refusal.js",
       "default": "./dist/errors/route-refusal.js"
+    },
+    "./tool-metadata/site/files-copy": {
+      "types": "./dist/tool-metadata/site/files-copy.d.ts",
+      "import": "./dist/tool-metadata/site/files-copy.js",
+      "default": "./dist/tool-metadata/site/files-copy.js"
+    },
+    "./tool-metadata/site/forms": {
+      "types": "./dist/tool-metadata/site/forms.d.ts",
+      "import": "./dist/tool-metadata/site/forms.js",
+      "default": "./dist/tool-metadata/site/forms.js"
+    },
+    "./tool-metadata/site/identity": {
+      "types": "./dist/tool-metadata/site/identity.d.ts",
+      "import": "./dist/tool-metadata/site/identity.js",
+      "default": "./dist/tool-metadata/site/identity.js"
+    },
+    "./tool-metadata/site/mail-status": {
+      "types": "./dist/tool-metadata/site/mail-status.d.ts",
+      "import": "./dist/tool-metadata/site/mail-status.js",
+      "default": "./dist/tool-metadata/site/mail-status.js"
+    },
+    "./tool-metadata/site/media": {
+      "types": "./dist/tool-metadata/site/media.d.ts",
+      "import": "./dist/tool-metadata/site/media.js",
+      "default": "./dist/tool-metadata/site/media.js"
+    },
+    "./tool-metadata/site/media-import": {
+      "types": "./dist/tool-metadata/site/media-import.d.ts",
+      "import": "./dist/tool-metadata/site/media-import.js",
+      "default": "./dist/tool-metadata/site/media-import.js"
+    },
+    "./tool-metadata/site/navigation": {
+      "types": "./dist/tool-metadata/site/navigation.d.ts",
+      "import": "./dist/tool-metadata/site/navigation.js",
+      "default": "./dist/tool-metadata/site/navigation.js"
+    },
+    "./tool-metadata/site/observability": {
+      "types": "./dist/tool-metadata/site/observability.d.ts",
+      "import": "./dist/tool-metadata/site/observability.js",
+      "default": "./dist/tool-metadata/site/observability.js"
+    },
+    "./tool-metadata/site/pages": {
+      "types": "./dist/tool-metadata/site/pages.d.ts",
+      "import": "./dist/tool-metadata/site/pages.js",
+      "default": "./dist/tool-metadata/site/pages.js"
     }
   },
   "files": [
