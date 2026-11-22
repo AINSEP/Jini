@@ -23,7 +23,10 @@
       "./media-providers/node": "node",
       "./saved-requests": "node",
       "./credentialed-http/tools": "node",
-      "./webhooks/tools": "node"
+      "./webhooks/tools": "node",
+      "./webhooks/site/signing": "node",
+      "./webhooks/site/signing.keyring": "node",
+      "./webhooks/site/subscriptions": "node"
     },
     "optionalPeers": {
       "better-sqlite3": "opt-in: sqlite storage; import @jini-ai/integrations/media-providers — SQLite storage could not load better-sqlite3. Install better-sqlite3 to enable this feature, or check its installed version and native binaries.",
@@ -88,6 +91,21 @@
       "types": "./dist/webhooks/tools/index.d.ts",
       "import": "./dist/webhooks/tools/index.js",
       "default": "./dist/webhooks/tools/index.js"
+    },
+    "./webhooks/site/signing": {
+      "types": "./dist/webhooks/site/signing.d.ts",
+      "import": "./dist/webhooks/site/signing.js",
+      "default": "./dist/webhooks/site/signing.js"
+    },
+    "./webhooks/site/signing.keyring": {
+      "types": "./dist/webhooks/site/signing.keyring.d.ts",
+      "import": "./dist/webhooks/site/signing.keyring.js",
+      "default": "./dist/webhooks/site/signing.keyring.js"
+    },
+    "./webhooks/site/subscriptions": {
+      "types": "./dist/webhooks/site/subscriptions.d.ts",
+      "import": "./dist/webhooks/site/subscriptions.js",
+      "default": "./dist/webhooks/site/subscriptions.js"
     }
   },
   "typesVersions": {
@@ -121,6 +139,15 @@
       ],
       "webhooks/tools": [
         "./dist/webhooks/tools/index.d.ts"
+      ],
+      "webhooks/site/signing": [
+        "./dist/webhooks/site/signing.d.ts"
+      ],
+      "webhooks/site/signing.keyring": [
+        "./dist/webhooks/site/signing.keyring.d.ts"
+      ],
+      "webhooks/site/subscriptions": [
+        "./dist/webhooks/site/subscriptions.d.ts"
       ]
     }
   },
