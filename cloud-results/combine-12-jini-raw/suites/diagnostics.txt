@@ -1,0 +1,82 @@
+
+> @jini-ai/diagnostics@0.7.3-next.2 test
+> vitest run --maxWorkers=2 --minWorkers=1
+
+
+ RUN  v3.2.7 /home/user/jt12/packages/diagnostics
+
+ ✓ src/web-evidence/__tests__/web-evidence-structure.test.ts (66 tests) 28ms
+ ✓ src/__tests__/secrets-only.test.ts (67 tests) 47ms
+ ✓ src/web-evidence/__tests__/render-page.test.ts (41 tests) 129ms
+ ✓ src/web-evidence/__tests__/request-guard.test.ts (37 tests) 35ms
+ ✓ src/observability/__tests__/tracker.unit.test.ts (27 tests) 71ms
+ ✓ src/web-evidence/__tests__/web-evidence.test.ts (17 tests) 15ms
+ ✓ src/web-evidence/__tests__/path-guard.test.ts (28 tests) 11ms
+ ✓ src/observability/__tests__/unit/provider-boundaries.unit.test.ts (30 tests) 46ms
+ ✓ src/__tests__/domain-dns.test.ts (40 tests) 26ms
+ ✓ src/__tests__/console-tee.test.ts (20 tests) 20ms
+ ✓ src/web-evidence/__tests__/playwright-browser.observe.test.ts (15 tests) 490ms
+ ✓ src/web-evidence/__tests__/render-page-navigation.test.ts (15 tests) 52ms
+ ✓ src/__tests__/agent-logs.l170.characterization.test.ts (18 tests) 26ms
+ ✓ src/core/__tests__/secrets-only.characterization.test.ts (91 tests) 32ms
+ ✓ src/web-evidence/__tests__/render-page-deadlines.test.ts (18 tests) 139ms
+ ✓ src/__tests__/agent-logs.test.ts (10 tests) 73ms
+ ✓ src/__tests__/sources.test.ts (12 tests) 43ms
+ ✓ src/web-evidence/__tests__/web-evidence-deadlines.test.ts (10 tests) 26ms
+ ✓ src/observability/__tests__/report-error.unit.test.ts (9 tests) 24ms
+ ✓ src/web-evidence/__tests__/page-body.test.ts (17 tests) 443ms
+ ✓ src/web-evidence/__tests__/web-evidence-origin.test.ts (16 tests) 6ms
+ ✓ src/web-evidence/__tests__/public-page.test.ts (9 tests) 28ms
+ ✓ src/observability/__tests__/instrumentation.unit.test.ts (45 tests) 9ms
+ ✓ src/web-evidence/__tests__/lazy-browser.test.ts (8 tests) 102ms
+ ✓ src/__tests__/sources.l170.characterization.test.ts (13 tests) 24ms
+ ✓ src/__tests__/memory-growth.test.ts (7 tests) 22ms
+ ✓ src/web-evidence/__tests__/web-evidence-playwright.test.ts (3 tests) 13ms
+ ✓ src/web-evidence/__tests__/page-performance.test.ts (9 tests) 227ms
+ ✓ src/web-evidence/__tests__/render-page-structure.test.ts (8 tests) 16ms
+ ✓ src/observability/__tests__/telemetry-test.unit.test.ts (4 tests) 24ms
+ ✓ src/web-evidence/__tests__/bounded-body.test.ts (9 tests) 11ms
+ ✓ src/web-evidence/__tests__/page-work-budget.test.ts (10 tests) 14ms
+ ✓ src/__tests__/redaction.test.ts (11 tests) 8ms
+ ✓ src/web-evidence/__tests__/render-page-filter.test.ts (18 tests) 21ms
+ ✓ src/observability/__tests__/delivery.unit.test.ts (4 tests) 13ms
+ ✓ src/core/__tests__/secrets-only.export-prose.test.ts (37 tests) 208ms
+ ✓ src/__tests__/secret-patterns.test.ts (12 tests) 3ms
+ ✓ src/__tests__/mask-local-paths.test.ts (27 tests) 58ms
+ ✓ src/observability/__tests__/integration/optional-analytics.integration.test.ts (4 tests) 108ms
+ ✓ src/domain-dns/__tests__/public-name.l260.characterization.test.ts (53 tests) 23ms
+ ✓ src/web-evidence/__tests__/playwright-runtime.test.ts (7 tests) 16ms
+ ✓ src/core/__tests__/secrets-only.shapes.test.ts (9 tests) 10ms
+ ✓ src/__tests__/api-convention.test.ts (5 tests) 6ms
+ ✓ src/__tests__/manifest.test.ts (7 tests) 5ms
+ ✓ src/__tests__/redaction.grammar.test.ts (51 tests) 7ms
+ ✓ src/__tests__/package-surface.integration.test.ts (12 tests) 6ms
+ ✓ src/web-evidence/__tests__/lazy-browser-owner.test.ts (4 tests) 3ms
+ ✓ src/__tests__/zip.test.ts (3 tests) 85ms
+ ✓ src/__tests__/kernel-redaction.test.ts (10 tests) 8ms
+ ✓ src/web-evidence/__tests__/collect-page-evidence.test.ts (5 tests) 6ms
+ ✓ src/web-evidence/__tests__/capture-budget.test.ts (15 tests) 8ms
+ ✓ src/web-evidence/__tests__/cookie-shapes.test.ts (5 tests) 5ms
+ ✓ src/__tests__/observability-contract.test.ts (3 tests) 3ms
+ ✓ src/observability/__tests__/log-safety-k.test.ts (4 tests) 15ms
+ ✓ src/web-evidence/__tests__/fake-capture-clock.test.ts (5 tests) 38ms
+ ✓ src/__tests__/index.test.ts (7 tests) 7ms
+ ✓ src/__tests__/redaction.l170.characterization.test.ts (9 tests) 6ms
+ ✓ src/__tests__/local-text.test.ts (8 tests) 9ms
+ ✓ src/__tests__/unit/discovery-memory.unit.test.ts (2 tests) 4ms
+ ✓ src/observability/__tests__/trace-correlation.unit.test.ts (2 tests) 14ms
+ ✓ src/__tests__/observability-config.test.ts (5 tests) 3ms
+ ✓ src/__tests__/node-ports.test.ts (2 tests) 12ms
+ ✓ src/__tests__/observability-hooks.test.ts (1 test) 3ms
+ ✓ src/web-evidence/__tests__/capture-clock.test.ts (2 tests) 12ms
+ ✓ src/observability/__tests__/unit/provider-contract.unit.test.ts (2 tests) 2ms
+ ✓ src/__tests__/sources-error-shape.test.ts (1 test) 2ms
+ ✓ src/observability/__tests__/tracker-metric-rejection.unit.test.ts (1 test) 25ms
+ ✓ src/__tests__/observability-export-policy.test.ts (8 tests) 3ms
+
+ Test Files  68 passed (68)
+      Tests  1090 passed (1090)
+   Start at  02:23:46
+   Duration  13.51s (transform 2.06s, setup 0ms, collect 8.09s, tests 3.03s, environment 11ms, prepare 4.84s)
+
+EXIT 0

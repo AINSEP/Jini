@@ -1,0 +1,364 @@
+
+> @jini-ai/daemon@0.7.3-next.2 test
+> vitest run --maxWorkers=2 --minWorkers=1
+
+
+ RUN  v3.2.7 /home/user/jt12/packages/daemon
+
+ ✓ src/http/__tests__/attachments.test.ts (154 tests) 1251ms
+stderr | src/agent-executor/__tests__/agent-executor.test.ts > AgentExecutor — a single failed queued emit does not block the run from reaching a terminal state > swallows an emit() race against an already-terminal run instead of leaving an unhandled rejection
+[daemon] Queued lifecycle event could not be delivered.
+
+stderr | src/agent-executor/__tests__/agent-executor.test.ts > AgentExecutor — a single failed queued emit does not block the run from reaching a terminal state > swallows an emit() race against an already-terminal run instead of leaving an unhandled rejection
+[daemon] Queued lifecycle event could not be delivered.
+
+stderr | src/agent-executor/__tests__/agent-executor.test.ts > AgentExecutor — ACP dispatch (fake attachAcpSession) > swallows an emit() race against an already-terminal run on the ACP path without an unhandled rejection
+[daemon] Queued lifecycle event could not be delivered.
+
+stderr | src/agent-executor/__tests__/agent-executor.test.ts > AgentExecutor — pi-rpc dispatch (fake attachPiRpcSession) > swallows an emit() race against an already-terminal run on the pi-rpc path without an unhandled rejection
+[daemon] Queued lifecycle event could not be delivered.
+
+ ✓ src/http/__tests__/model-proxy.test.ts (322 tests) 928ms
+ ✓ src/agent-executor/__tests__/agent-executor.test.ts (395 tests) 908ms
+ ✓ src/__tests__/run-lifecycle.test.ts (67 tests) 80ms
+ ✓ src/__tests__/tool-executor.test.ts (46 tests) 107ms
+stderr | src/http/__tests__/xai.test.ts > xaiOauthCompleteRoute — non-Error failures and token defaults > rejects a token response with no token_type without persisting it
+[@jini-ai/http-kit] internal error (xai/oauth-complete, correlationId=a1c47b12-45d5-4d79-b1ed-910678ef5782) Error
+
+ ✓ src/http/__tests__/xai.test.ts (79 tests) 340ms
+stderr | src/http/__tests__/delegated-tools.test.ts > delegatedToolExecuteRoute.handle > propagates a caller-supplied abort signal through the bridge into ToolExecutor, cancelling a pending confirmation
+[@jini-ai/http-kit] internal error (delegated-tool-execute, correlationId=ed126abe-f3a3-4d36-8583-0265c0061bc3) string
+
+ ✓ src/http/__tests__/delegated-tools.test.ts (43 tests) 110ms
+ ✓ src/http/__tests__/connectors.test.ts (99 tests) 63ms
+ ✓ src/routines/__tests__/scheduler.test.ts (34 tests) 35ms
+stderr | src/http/__tests__/terminals.test.ts > terminalCreateRoute.handle > reports a timeout as a redacted INTERNAL_ERROR
+[@jini-ai/http-kit] internal error (terminal-create, correlationId=86a702a3-950f-4e5c-83e2-fcedff1cb5b6) string
+
+stderr | src/http/__tests__/terminals.test.ts > terminalCreateRoute.handle > reports a cancellation as a redacted INTERNAL_ERROR
+[@jini-ai/http-kit] internal error (terminal-create, correlationId=9c0d445d-bd0c-4008-8f83-a99ea1afd9af) string
+
+ ✓ src/http/__tests__/runs.test.ts (72 tests) 167ms
+ ✓ src/http/__tests__/terminals.test.ts (98 tests) 155ms
+ ✓ src/http/__tests__/routines.test.ts (86 tests) 85ms
+ ✓ src/http/__tests__/remote-run-events.test.ts (100 tests) 72ms
+ ✓ src/http/__tests__/host-tools.test.ts (80 tests) 85ms
+ ✓ src/http/__tests__/memory.test.ts (78 tests) 183ms
+ ✓ src/__tests__/frontend-session-registry.test.ts (47 tests) 25ms
+ ✓ src/http/__tests__/media.test.ts (63 tests) 660ms
+ ✓ src/agent-executor/__tests__/mid-run-user-message.test.ts (26 tests) 110ms
+ ✓ src/__tests__/delegated-tool-bridge.test.ts (23 tests) 46ms
+stderr | src/http/__tests__/tool-execution-rpc.test.ts > remote tool catalog > redacts a listToolsFor failure to a generic 500
+[@jini-ai/http-kit] internal error (tool-catalog, correlationId=fee16526-7b45-40d8-a54a-cde0d5a3ff0e) Error
+
+ ✓ src/http/__tests__/tool-execution-rpc.test.ts (40 tests) 715ms
+ ✓ src/http/__tests__/frontend-sessions.test.ts (41 tests) 55ms
+ ✓ src/__tests__/surface-exchanges.test.ts (48 tests) 23ms
+ ✓ src/__tests__/terminal-session.test.ts (41 tests) 125ms
+ ✓ src/http/__tests__/characterization/streams.characterization.test.ts (51 tests) 1474ms
+ ✓ src/tool-recovery/__tests__/recovery-branches.test.ts (66 tests) 38ms
+ ✓ src/__tests__/read-only-tools.test.ts (24 tests) 18ms
+ ✓ src/__tests__/legacy-data-migration.test.ts (41 tests) 201ms
+ ✓ src/__tests__/tool-executor.dispatch.test.ts (36 tests) 174ms
+stderr | src/http/__tests__/db-ops.test.ts > daemonDbInspectRoute > reports a timeout as a redacted INTERNAL_ERROR
+[@jini-ai/http-kit] internal error (db-inspect, correlationId=f2587d0f-3620-4461-8e92-5b0a7dcf7157) string
+
+stderr | src/http/__tests__/db-ops.test.ts > daemonDbInspectRoute > reports a cancellation as a redacted INTERNAL_ERROR
+[@jini-ai/http-kit] internal error (db-inspect, correlationId=0ea10b31-4997-4030-a676-ad3287e158be) string
+
+ ✓ src/http/__tests__/db-ops.test.ts (37 tests) 37ms
+ ✓ src/agent-executor/__tests__/agent-executor-helpers.test.ts (53 tests) 20ms
+ ✓ src/run/core/__tests__/retry.test.ts (66 tests) 11ms
+ ✓ src/http/__tests__/research.test.ts (35 tests) 40ms
+ ✓ src/core/__tests__/tool-gaps.test.ts (53 tests) 13ms
+ ✓ src/__tests__/tool-input-normalization.test.ts (17 tests) 56ms
+ ✓ src/agent-executor/__tests__/launch-defaults-and-staging.test.ts (17 tests) 107ms
+ ✓ src/agent-executor/__tests__/agent-executor-filesystem-policy.test.ts (14 tests) 153ms
+ ✓ src/routines/__tests__/schedule.test.ts (35 tests) 47ms
+ ✓ src/__tests__/run-lifecycle-slow-run-watchdog.test.ts (12 tests) 38ms
+ ✓ src/__tests__/tool-executor-audit.test.ts (18 tests) 13ms
+ ✓ src/__tests__/ai-trace-lifecycle-regressions.test.ts (24 tests) 514ms
+ ✓ src/__tests__/bound-confirmations.test.ts (20 tests) 25ms
+ ✓ src/http/__tests__/frontend-control.test.ts (14 tests) 112ms
+ ✓ src/agent-executor/__tests__/runtime-policy.test.ts (25 tests) 133ms
+ ✓ src/routines/__tests__/routine-store.test.ts (26 tests) 20ms
+ ✓ src/agent-executor/__tests__/starting-model.test.ts (16 tests) 61ms
+ ✓ src/__tests__/run-credentials.f1-guards.test.ts (38 tests) 18ms
+ ✓ src/store/event-log/__tests__/sqlite.test.ts (27 tests) 495ms
+ ✓ src/__tests__/delegated-tool-bridge.mcp-ui.test.ts (12 tests) 31ms
+stderr | src/http/__tests__/characterization/line-streams.characterization.test.ts > page request (POST /api/frontend-requests) > a request whose owner cannot be resolved is refused with a plain-string 403, byte for byte, and nothing runs
+[@jini-ai/http-kit] internal error (frontend-request:owner, correlationId=3648e2b7-d85f-4ed3-b7b5-6efe568d4dc4) Error
+
+ ✓ src/http/__tests__/characterization/line-streams.characterization.test.ts (21 tests) 246ms
+stderr | src/http/__tests__/characterization/response-matrix.characterization.test.ts > JSON response matrix > POST /api/scoped-frontend-sessions/:sessionId/responses
+[@jini-ai/http-kit] internal error (frontend-sessions:owner, correlationId=099c0d77-f619-4735-a7aa-5f962487789b) Error
+
+stderr | src/http/__tests__/characterization/response-matrix.characterization.test.ts > JSON response matrix > POST /api/scoped-frontend-sessions/:sessionId/responses
+[@jini-ai/http-kit] internal error (frontend-sessions:owner, correlationId=d71c5f67-2aa0-48b4-956d-df467c2915a9) Error
+
+ ✓ src/agent-executor/__tests__/agent-executor-acp.integration.test.ts (4 tests) 249ms
+ ✓ src/http/__tests__/characterization/response-matrix.characterization.test.ts (103 tests) 737ms
+ ✓ src/agent-executor/__tests__/mcp-bridge-probe.unit.test.ts (21 tests) 38ms
+ ✓ src/__tests__/frontend-capability-tools.test.ts (23 tests) 19ms
+ ✓ src/__tests__/run-credentials.pins.test.ts (49 tests) 14ms
+ ✓ src/http/__tests__/characterization/tool-catalog.characterization.test.ts (28 tests) 180ms
+ ✓ src/tool-recovery/__tests__/observability.test.ts (14 tests) 25ms
+ ✓ src/http/__tests__/active-context.test.ts (27 tests) 29ms
+ ✓ src/store/event-log/__tests__/sqlite-kernel.test.ts (8 tests) 80ms
+ ✓ src/__tests__/delegated-result-correlation.test.ts (32 tests) 31ms
+ ✓ src/http/__tests__/message-relay.test.ts (26 tests) 51ms
+ ✓ src/agent-executor/__tests__/access-approval-transport.test.ts (65 tests) 125ms
+ ✓ src/agent-executor/codex/__tests__/mcp-sources-isolation.test.ts (17 tests) 17ms
+ ✓ src/__tests__/run-lifecycle-helpers.test.ts (26 tests) 24ms
+ ✓ src/http/__tests__/characterization/uploads.characterization.test.ts (17 tests) 397ms
+ ✓ src/agent-executor/__tests__/run-output.test.ts (17 tests) 43ms
+ ✓ src/agent-executor/__tests__/mcp-bridge-staging.test.ts (8 tests) 29ms
+ ✓ src/__tests__/run-lifecycle-split.test.ts (8 tests) 17ms
+stderr | src/agent-executor/__tests__/http-mcp-launch.integration.test.ts > host approval survives restricted Codex launch: {"stdio":true,"resume":false}
+[agent-executor] MCP HTTP listener unavailable; using stdio
+
+stderr | src/agent-executor/__tests__/http-mcp-launch.integration.test.ts > host approval survives restricted Codex launch: {"stdio":true,"resume":true}
+[agent-executor] MCP HTTP listener unavailable; using stdio
+
+stderr | src/agent-executor/__tests__/http-mcp-launch.integration.test.ts > prelaunch HTTP failure selects stdio once through the real executor
+[agent-executor] MCP HTTP listener unavailable; using stdio
+
+ ✓ src/agent-executor/__tests__/http-mcp-launch.integration.test.ts (13 tests) 70ms
+ ✓ src/__tests__/injected-ports.test.ts (11 tests) 18ms
+stderr | src/http/__tests__/delegated-tools-host-described-internal-error.test.ts > delegated tool route: describeInternalError (host-supplied model-safe text for the 500) > falls back to the generic message when the host describer throws
+[@jini-ai/http-kit] describeInternalError threw (correlationId=ad284bb4-d4d6-4329-b2e7-6eff44eab46e) Error
+
+ ✓ src/http/__tests__/delegated-tools-host-described-internal-error.test.ts (13 tests) 20ms
+ ✓ src/http/__tests__/attachments-coverage.test.ts (9 tests) 104ms
+stdout | src/__tests__/integration/claude-bash-sandbox.live.test.ts
+[claude-bash-live] SKIPPED: set JINI_LIVE_CLI_TESTS=1 (spends model tokens)
+
+ ↓ src/__tests__/integration/claude-bash-sandbox.live.test.ts (1 test | 1 skipped)
+ ✓ src/core/__tests__/tool-audit.test.ts (23 tests) 11ms
+ ✓ src/run/diagnostics/__tests__/diagnostics.test.ts (17 tests) 16ms
+ ✓ src/__tests__/event-log.test.ts (15 tests) 14ms
+ ✓ src/http/__tests__/delegated-tools.unknown-tool.integration.test.ts (18 tests) 22ms
+ ✓ src/agent-executor/__tests__/r8a-characterization.test.ts (10 tests) 60ms
+ ✓ src/http/__tests__/route-shared.test.ts (14 tests) 26ms
+stderr | src/http/__tests__/characterization/paths-queries-state.characterization.test.ts > query shapes, per route that reads a query value > /internal/tool-catalog reads principalId
+[@jini-ai/http-kit] internal error (tool-catalog, correlationId=d2929f50-ebf6-49ed-a31c-92b0808a1c0e) Error
+
+ ✓ src/http/__tests__/characterization/paths-queries-state.characterization.test.ts (24 tests) 291ms
+ ✓ src/agent-executor/__tests__/child-events-characterization.test.ts (4 tests) 35ms
+ ✓ src/agent-executor/codex/__tests__/home-cleanup.test.ts (5 tests) 41ms
+ ✓ src/agent-executor/__tests__/native-events-characterization.test.ts (8 tests) 27ms
+ ✓ src/agent-executor/codex/__tests__/home-config.test.ts (20 tests) 9ms
+ ✓ src/store/event-log/__tests__/sqlite-receipts.test.ts (11 tests) 81ms
+ ✓ src/routines/__tests__/scheduler.f1.test.ts (14 tests) 20ms
+ ✓ src/__tests__/run-lifecycle.rehydrate.f1.test.ts (16 tests) 18ms
+ ✓ src/tool-recovery/__tests__/redaction.test.ts (8 tests) 11ms
+ ✓ src/tool-recovery/__tests__/stack.test.ts (5 tests) 27ms
+ ✓ src/http/__tests__/auth-gates.characterization.test.ts (13 tests) 23ms
+stderr | src/http/__tests__/daemon-status.test.ts > daemonStatusRoute > surfaces an unexpected error through the mounted route as a 500 INTERNAL_ERROR (malformed-response category)
+[@jini-ai/http-kit] internal error (GET /api/daemon/status, correlationId=a233c514-79ea-4734-b6b2-185cc6dbdf71) Error
+
+ ✓ src/http/__tests__/daemon-status.test.ts (15 tests) 19ms
+ ✓ src/core/__tests__/tool-target.test.ts (16 tests) 8ms
+stderr | src/http/__tests__/characterization/gates-and-limits.characterization.test.ts > same-origin gate on hand-mounted routes > GET /api/scoped-frontend-sessions/stream has no same-origin gate: a foreign origin gets 500 INTERNAL_ERROR, the same as a local caller
+[@jini-ai/http-kit] internal error (frontend-sessions:stream, correlationId=87132871-0e20-41d3-b612-20b336fa0c3c) Error
+
+stderr | src/http/__tests__/characterization/gates-and-limits.characterization.test.ts > same-origin gate on hand-mounted routes > GET /api/scoped-frontend-sessions/stream has no same-origin gate: a foreign origin gets 500 INTERNAL_ERROR, the same as a local caller
+[@jini-ai/http-kit] internal error (frontend-sessions:stream, correlationId=bebea04c-b962-44a6-b5d2-20aef60e1182) Error
+
+stderr | src/http/__tests__/characterization/gates-and-limits.characterization.test.ts > bearer gates > the scoped frontend-session response route is refused with a plain 403 when its owner cannot be resolved
+[@jini-ai/http-kit] internal error (frontend-sessions:owner, correlationId=cbc0cdc8-d6a2-4bce-b32a-2ef0c9957c2a) Error
+
+ ✓ src/agent-executor/__tests__/antigravity-permissions.unit.test.ts (34 tests) 179ms
+ ✓ src/http/__tests__/characterization/gates-and-limits.characterization.test.ts (32 tests) 248ms
+ ✓ src/__tests__/integration/delegated-approval-writes.integration.test.ts (6 tests) 16ms
+ ✓ src/http/__tests__/delegated-tools-status-mapping.test.ts (14 tests) 30ms
+ ✓ src/http/__tests__/frontend-request-route.test.ts (14 tests) 93ms
+ ✓ src/__tests__/delegated-tool-bridge.media.test.ts (8 tests) 25ms
+ ✓ src/http/__tests__/characterization/route-table.characterization.test.ts (3 tests) 29ms
+ ✓ src/__tests__/surface-exchanges.run-lifetime.test.ts (7 tests) 69ms
+ ✓ src/__tests__/characterization.test.ts (1 test) 8ms
+ ✓ src/__tests__/tool-executor.approval-window.characterization.test.ts (7 tests) 17ms
+ ✓ src/http/__tests__/tool-catalog.test.ts (18 tests) 15ms
+ ✓ src/__tests__/agent-run-concurrency.test.ts (13 tests) 26ms
+ ✓ src/http/__tests__/research-handle.test.ts (11 tests) 34ms
+ ✓ src/__tests__/event-log-retention.test.ts (11 tests) 10ms
+ ✓ src/agent-executor/__tests__/r8a-pins.test.ts (4 tests) 43ms
+ ✓ src/agent-executor/codex/__tests__/staging-policy.test.ts (14 tests) 13ms
+ ✓ src/__tests__/run-credentials.test.ts (6 tests) 12ms
+ ✓ src/agent-executor/__tests__/split-parity.test.ts (8 tests) 12ms
+ ✓ src/continuation/__tests__/run-start-handler.test.ts (8 tests) 11ms
+ ✓ src/agent-executor/__tests__/antigravity-permissions.test.ts (10 tests) 95ms
+ ✓ src/http/__tests__/component-catalog.test.ts (18 tests) 18ms
+ ✓ src/tool-recovery/__tests__/stack-observability.test.ts (4 tests) 26ms
+ ✓ src/agent-executor/__tests__/host-env-ports.test.ts (7 tests) 13ms
+ ✓ src/__tests__/tool-catalog-audit.test.ts (7 tests) 5ms
+ ✓ src/__tests__/attachment-content.test.ts (11 tests) 7ms
+ ✓ src/agent-executor/__tests__/full-cli-mcp-policy.test.ts (8 tests) 10ms
+ ✓ src/tool-recovery/__tests__/federated-refusal.test.ts (7 tests) 5ms
+ ✓ src/http/__tests__/attachment-lookup.test.ts (4 tests) 102ms
+ ✓ src/http/__tests__/delegated-tools-host-safe-failure.test.ts (7 tests) 26ms
+ ✓ src/agent-executor/__tests__/http-mcp.test.ts (12 tests) 77ms
+ ✓ src/http/__tests__/execution-events-m1.unit.test.ts (7 tests) 24ms
+ ✓ src/__tests__/tool-result-media.test.ts (17 tests) 8ms
+ ✓ src/store/event-log/__tests__/sqlite-schema-failures.test.ts (11 tests) 46ms
+ ✓ src/__tests__/run-tool-consent.unit.test.ts (11 tests) 4ms
+ ✓ src/store/agent-sessions/__tests__/legacy-sqlite.test.ts (7 tests) 17ms
+ ✓ src/__tests__/agent-session-resume.test.ts (19 tests) 6ms
+ ✓ src/__tests__/image-prompt-delivery.test.ts (13 tests) 14ms
+ ✓ src/http/__tests__/run-messages.test.ts (9 tests) 26ms
+ ✓ src/__tests__/frontend-session-ag-ui.test.ts (5 tests) 16ms
+ ✓ src/http/__tests__/surface-callback.test.ts (8 tests) 16ms
+ ✓ src/tool-recovery/__tests__/recovery.test.ts (4 tests) 7ms
+ ✓ src/__tests__/unit/chat-settings.unit.test.ts (7 tests) 16ms
+ ✓ src/continuation/__tests__/run-scoped-context-store.test.ts (8 tests) 14ms
+ ✓ src/agent-executor/__tests__/live-session-state.test.ts (11 tests) 10ms
+ ✓ src/__tests__/tool-result-diagnostics.f1.test.ts (23 tests) 10ms
+ ✓ src/__tests__/idle-monitor.test.ts (11 tests) 13ms
+ ✓ src/agent-executor/__tests__/antigravity-permissions.ports.test.ts (8 tests) 28ms
+ ✓ src/agent-executor/codex/__tests__/toml-dedupe.test.ts (7 tests) 7ms
+ ✓ src/__tests__/args-convention.regression.test.ts (7 tests) 30ms
+ ✓ src/__tests__/delegated-tool-bridge.slow-run-surface.test.ts (4 tests) 18ms
+ ✓ src/http/__tests__/health.test.ts (13 tests) 18ms
+ ✓ src/__tests__/conversation-start-lock.test.ts (8 tests) 95ms
+ ✓ src/http/__tests__/route-manifest.test.ts (14 tests) 10ms
+ ✓ src/__tests__/tool-result-surfaces.test.ts (15 tests) 8ms
+ ✓ src/agent-executor/claude/__tests__/subagent-start.test.ts (6 tests) 48ms
+ ✓ src/http/__tests__/remote-attachment-boundaries.unit.test.ts (16 tests) 8ms
+ ✓ src/__tests__/close-status.test.ts (13 tests) 12ms
+ ✓ src/__tests__/frontend-visitor-scope.test.ts (5 tests) 6ms
+ ✓ src/http/__tests__/agents.test.ts (12 tests) 16ms
+ ✓ src/http/__tests__/run-message-parse.test.ts (23 tests) 11ms
+ ✓ src/ports/__tests__/runtime-fakes.test.ts (7 tests) 7ms
+ ✓ src/routines/__tests__/schedule.f1-dst.test.ts (26 tests) 38ms
+ ✓ src/__tests__/unit/tool-access-lowering.unit.test.ts (7 tests) 8ms
+ ✓ src/http/__tests__/characterization/guest-cookie.characterization.test.ts (5 tests) 60ms
+ ✓ src/agent-executor/__tests__/launch-characterization.test.ts (18 tests) 14ms
+ ✓ src/http/__tests__/surface-restoration.test.ts (7 tests) 18ms
+ ✓ src/http/__tests__/delegated-tools.obtain-from.integration.test.ts (10 tests) 22ms
+ ✓ src/http/__tests__/research-ports.test.ts (3 tests) 28ms
+ ✓ src/http/__tests__/frontend-guest-scope.test.ts (3 tests) 9ms
+ ✓ src/store/event-log/__tests__/sqlite.f1.test.ts (11 tests) 77ms
+ ✓ src/store/event-log/__tests__/sqlite-open-ownership.test.ts (7 tests) 19ms
+ ✓ src/agent-executor/__tests__/agent-executor-read-only-dirs.test.ts (3 tests) 32ms
+ ✓ src/store/event-log/__tests__/sqlite.tool-result-media.test.ts (3 tests) 36ms
+ ✓ src/__tests__/remote-transport-m1.unit.test.ts (6 tests) 10ms
+ ✓ src/agent-executor/__tests__/launch-relay-m1.unit.test.ts (5 tests) 31ms
+ ✓ src/__tests__/session-coordination.f1.test.ts (7 tests) 10ms
+ ✓ src/http/__tests__/memory-entry-parse.test.ts (19 tests) 6ms
+ ✓ src/http/__tests__/workspace-root.test.ts (11 tests) 9ms
+ ✓ src/http/__tests__/args-convention.test.ts (4 tests) 12ms
+ ✓ src/__tests__/agent-session-binding.test.ts (13 tests) 5ms
+ ✓ src/http/__tests__/integration-contracts.test.ts (5 tests) 11ms
+ ✓ src/ports/__tests__/provider-http-ports.fake.test.ts (7 tests) 8ms
+ ✓ src/agent-executor/__tests__/tool-row-folding.test.ts (4 tests) 25ms
+ ✓ src/__tests__/routing-tool-executor.test.ts (4 tests) 22ms
+ ✓ src/__tests__/remote-tool-bridge.test.ts (6 tests) 19ms
+ ✓ src/agent-executor/codex/__tests__/home-http-staging.test.ts (3 tests) 28ms
+ ✓ src/__tests__/run-lifecycle-event-drop.test.ts (4 tests) 24ms
+ ✓ src/__tests__/event-log.f1.test.ts (9 tests) 6ms
+ ✓ src/agent-executor/__tests__/antigravity-permissions.order.test.ts (3 tests) 37ms
+ ✓ src/tool-recovery/__tests__/analytics-boundaries.unit.test.ts (7 tests) 25ms
+ ✓ src/__tests__/result-boundaries.unit.test.ts (25 tests) 11ms
+ ✓ src/store/event-log/__tests__/ownership.test.ts (7 tests) 19ms
+ ✓ src/tool-recovery/__tests__/redaction.f1.test.ts (21 tests) 7ms
+ ✓ src/http/__tests__/resource-request.test.ts (20 tests) 10ms
+ ✓ src/http/__tests__/index.test.ts (8 tests) 5ms
+ ✓ src/__tests__/fixture-contracts-m1.unit.test.ts (3 tests) 15ms
+ ✓ src/http/__tests__/route-table.test.ts (6 tests) 16ms
+ ✓ src/http/__tests__/model-proxy-fields.test.ts (11 tests) 5ms
+ ✓ src/agent-executor/__tests__/claude-background-ceiling.test.ts (6 tests) 33ms
+ ✓ src/__tests__/ai-trace-lifecycle.test.ts (3 tests) 18ms
+ ✓ src/agent-executor/__tests__/agent-executor-capability-probe.test.ts (1 test) 15ms
+npm notice
+npm notice New major version of npm available! 11.19.1 -> 12.2.3
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.3
+npm notice To update run: npm install -g npm@12.2.3
+npm notice
+ ✓ src/__tests__/tool-candidates.test.ts (7 tests) 5ms
+ ✓ src/__tests__/tool-executor-audit-bound.test.ts (4 tests) 33ms
+ ✓ src/__tests__/run-credentials.characterization.test.ts (6 tests) 4ms
+ ✓ src/agent-executor/__tests__/usage-cost-basis.test.ts (6 tests) 30ms
+ ✓ src/agent-executor/__tests__/message-relay.test.ts (3 tests) 8ms
+ ✓ src/__tests__/surface-exchanges.deadlines.test.ts (4 tests) 8ms
+ ✓ src/tool-recovery/__tests__/forced-confirmation-forwarding.test.ts (4 tests) 12ms
+ ✓ src/agent-executor/__tests__/model-receipts.test.ts (3 tests) 6ms
+npm notice
+npm notice New major version of npm available! 11.19.1 -> 12.2.3
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.3
+npm notice To update run: npm install -g npm@12.2.3
+npm notice
+ ✓ src/continuation/__tests__/continuation-transport.test.ts (6 tests) 5ms
+ ✓ src/http/__tests__/attachment-site-staging.test.ts (2 tests) 19ms
+ ✓ src/agent-executor/__tests__/full-cli-bash-launch-env.test.ts (1 test) 16ms
+ ✓ src/__tests__/tokens-and-scheduler.f1.test.ts (6 tests) 12ms
+ ✓ src/agent-executor/claude/__tests__/mcp-config.test.ts (3 tests) 17ms
+ ✓ src/__tests__/identifier-lint.test.ts (1 test) 5ms
+ ✓ src/store/event-log/__tests__/protocol-args.regression.test.ts (3 tests) 16ms
+ ✓ src/__tests__/tool-result-diagnostics.test.ts (4 tests) 3ms
+ ✓ src/run/core/__tests__/result.test.ts (7 tests) 3ms
+ ✓ src/store/agent-sessions/__tests__/construction.test.ts (8 tests) 10ms
+ ✓ src/http/__tests__/cancel-owned-runs.test.ts (4 tests) 10ms
+ ✓ src/tool-recovery/__tests__/diagnostics.test.ts (3 tests) 4ms
+ ✓ src/http/__tests__/attachment-route-m1.unit.test.ts (2 tests) 14ms
+ ✓ src/continuation/__tests__/journal.test.ts (4 tests) 6ms
+ ✓ src/__tests__/index.test.ts (1 test) 4ms
+ ✓ src/store/event-log/__tests__/clock.test.ts (2 tests) 19ms
+ ✓ src/store/agent-sessions/__tests__/two-connections.test.ts (1 test) 30ms
+ ✓ src/ports/__tests__/agent-runtime-port.fake.test.ts (4 tests) 6ms
+ ✓ src/agent-executor/__tests__/session-exit-w2g.unit.test.ts (2 tests) 4ms
+ ✓ src/__tests__/startup-failure.test.ts (3 tests) 8ms
+ ✓ src/tool-recovery/__tests__/observability-w2g.unit.test.ts (5 tests) 11ms
+ ✓ src/__tests__/surface-exchange-approval-marker.test.ts (1 test) 4ms
+ ✓ src/__tests__/slow-watchdog-resume.regression.test.ts (1 test) 22ms
+ ✓ src/http/__tests__/attachments-idle-activity.test.ts (2 tests) 11ms
+ ✓ src/__tests__/exclusive-run-lease.unit.test.ts (4 tests) 4ms
+ ✓ src/store/agent-sessions/__tests__/loads-without-driver.test.ts (2 tests) 16678ms
+   ✓ neutral packed port works with no db/Kysely/drivers/React and keeps declaration imports usable  5452ms
+   ✓ SQL factory declarations accept the host numeric timestamp and extra tables without a cast  11223ms
+ ✓ src/__tests__/close-status.f1.test.ts (13 tests) 4ms
+ ✓ src/agent-executor/__tests__/values.test.ts (4 tests) 4ms
+ ✓ src/agent-executor/__tests__/live-state-m1.unit.test.ts (1 test) 4ms
+ ✓ src/__tests__/ag-ui-interrupt-exchange-expiry.test.ts (1 test) 4ms
+ ✓ src/core/__tests__/tool-family.test.ts (12 tests) 5ms
+ ✓ src/agent-executor/__tests__/model-fixture-m1.unit.test.ts (2 tests) 11ms
+ ✓ src/agent-executor/__tests__/sanitized-line-stream.test.ts (2 tests) 4ms
+ ✓ src/http/__tests__/agents-model-catalog.test.ts (1 test) 5ms
+ ✓ src/agent-executor/opencode/__tests__/mcp-config.test.ts (1 test) 3ms
+ ✓ src/agent-executor/__tests__/attachment-stdin.test.ts (1 test) 4ms
+ ✓ src/run/__tests__/index.test.ts (1 test) 2ms
+ ✓ src/store/agent-sessions/__tests__/pack-refusal-m1.unit.test.ts (1 test) 13ms
+ ✓ src/__tests__/legacy-filesystem-port.regression.test.ts (1 test) 6ms
+ ✓ src/__tests__/credential-crypto-parity.test.ts (8 tests) 5ms
+ ✓ src/continuation/__tests__/journal-failure.regression.test.ts (1 test) 5ms
+ ✓ src/__tests__/forced-confirmation.test.ts (1 test) 6ms
+ ✓ src/http/__tests__/delegated-tools-registry-contract.test.ts (1 test) 3ms
+ ✓ src/store/agent-sessions/__tests__/fixture-failure-m1.unit.test.ts (1 test) 4ms
+ ✓ src/agent-executor/__tests__/cost-metadata.test.ts (2 tests) 3ms
+ ✓ src/__tests__/memory-recovery.db-contract.test.ts (1 test) 3ms
+ ✓ src/agent-executor/codex/__tests__/isolation-m1.unit.test.ts (4 tests) 4ms
+ ✓ src/agent-executor/__tests__/durable-session-status.test.ts (2 tests) 3ms
+ ✓ src/store/agent-sessions/__tests__/pglite.test.ts (7 tests) 11898ms
+   ✓ opaque pair encodings are independent, including ambiguous delimiter pairs  2387ms
+   ✓ overwrite and idempotent clear affect only the selected pair  1827ms
+   ✓ concurrent sets leave one complete successor  1517ms
+   ✓ shares the injected transaction for insert, overwrite and clear rollback  1492ms
+   ✓ uses assistant_agent_sessions FK and cascades exactly the deleted conversation  1527ms
+   ✓ construction performs no I/O or ownership changes; writes use the injected clock  1413ms
+   ✓ concurrent upserts preserve one primary-key row  1730ms
+ ✓ src/store/agent-sessions/__tests__/sqlite.test.ts (7 tests) 35ms
+ ✓ src/store/agent-sessions/__tests__/pglite.socket.test.ts (7 tests) 17289ms
+   ✓ opaque pair encodings are independent, including ambiguous delimiter pairs  3002ms
+   ✓ overwrite and idempotent clear affect only the selected pair  2422ms
+   ✓ concurrent sets leave one complete successor  2784ms
+   ✓ shares the injected transaction for insert, overwrite and clear rollback  2175ms
+   ✓ uses assistant_agent_sessions FK and cascades exactly the deleted conversation  2138ms
+   ✓ construction performs no I/O or ownership changes; writes use the injected clock  2405ms
+   ✓ concurrent upserts preserve one primary-key row  2359ms
+ ✓ src/store/agent-sessions/__tests__/memory.test.ts (3 tests) 4ms
+
+ Test Files  251 passed | 1 skipped (252)
+      Tests  4854 passed | 1 skipped (4855)
+   Start at  02:36:04
+   Duration  91.34s (transform 8.63s, setup 0ms, collect 66.05s, tests 62.52s, environment 46ms, prepare 17.16s)
+
+EXIT 0

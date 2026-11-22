@@ -24,7 +24,7 @@
 @@ -141 +141 @@ export function createSentryObservabilityAdapter({ config, context: helpers }: {
 -            ? captureEvent({ ...details, exception: { values: [{ ...(context.label === undefined ? {} : { type: context.label }), value: context.incidentId, ...(error instanceof Error && error.stack ? { stacktrace: { frames: defaultStackParser(error.stack, 1) } } : {}) }] } })
 +            ? captureEvent({ ...details, exception: { values: [{ ...(context.label === undefined ? {} : { type: context.label }), value: context.incidentId, ...(error instanceof Error && error.stack ? { stacktrace: { frames: defaultStackParser(error.stack, 0) } } : {}) }] } })
--> GREEN |       Tests  53 passed (53)
+-> GREEN | 53 passed — EQUIVALENT: Sentry's node stack parser never turns the "Error: <message>" head line into a frame, so skip 0 vs 1 yields the same frames; the message is kept out by `value: incidentId`, which the RED "keep the message line" plant above covers
 
 
 == J1 otel: omit the ID
@@ -164,7 +164,7 @@
 @@ -92 +92 @@ function decodeApiErrorRecord(
 -  { fallbackMessage = 'The server did not give a reason for this response. Check whether the change was saved before trying again.' }: { fallbackMessage?: string } = {},
 +  { fallbackMessage = 'request failed' }: { fallbackMessage?: string } = {},
--> GREEN |       Tests  320 passed (320)
+-> GREEN | 320 passed — EQUIVALENT: decodeApiErrorRecord's default is unreachable; its only caller (decodeApiError) always passes fallbackMessage. The "both defaults" plant below is RED
 
 
 == J4 protocol: restore 'request failed' (both defaults)
@@ -428,4 +428,20 @@
 +Save requested page or deck work with the current host's tools. Publish when done.
 -> RED (exit 1) | ℹ fail 1
 ✖ saves requested work and publishes only on request (1.621678ms)
+
+== route: explicit off-plugin load no longer opts into inactive guidance
+@@ -321 +321 @@ async function loadPermitted(ctx: UseContext, { plugin, ...request }: { plugin:
+-  let result = await resolveOneGuidance(ctx, { plugin, ...request }, { signal, ...(!plugin.enabled ? { allowInactiveGuidance: true } : {}) });
++  let result = await resolveOneGuidance(ctx, { plugin, ...request }, { signal,  });
+-> RED (exit 1) |       Tests  2 failed | 74 passed (76)
+ src/lifecycle/__tests__/unit/automatic-use.unit.test.ts > automatic installed plugin use > explicitly reads off plugin guidance without activating or publishing it as in use
+ src/lifecycle/__tests__/unit/load-supporting-files.unit.test.ts > enable, load and supporting reads share admission after loading, including revocation and refused files
+
+== route: automatic reads also opt into inactive guidance
+@@ -155 +155 @@ async function resolveOneGuidance(ctx: UseContext, { plugin, ...request }: { plu
+-    const result = await ctx.ports.resolve({ pluginId: plugin.pluginId, ...request }, options);
++    const result = await ctx.ports.resolve({ pluginId: plugin.pluginId, ...request }, { ...options, allowInactiveGuidance: true });
+-> RED (exit 1) |       Tests  2 failed | 74 passed (76)
+ src/lifecycle/__tests__/unit/automatic-use.unit.test.ts > skips an off or missing companion and respects Ask consent
+ src/lifecycle/__tests__/unit/load-supporting-files.unit.test.ts > enable, load and supporting reads share admission after loading, including revocation and refused files
 

@@ -1,0 +1,157 @@
+
+> @jini-ai/user-management@0.7.3-next.2 test
+> vitest run --maxWorkers=2 --minWorkers=1
+
+ DEPRECATED  "environmentMatchGlobs" is deprecated. Use `test.projects` to define different configurations instead.
+
+ RUN  v3.2.7 /home/user/jt12/packages/user-management
+
+ ✓ src/server/__tests__/admin-crud-service.test.ts (51 tests) 149ms
+ ✓ src/admin/__tests__/roles.controller.pins.test.ts (52 tests) 34ms
+ ✓ src/server/__tests__/agent-tool-registrations.contracts.test.ts (50 tests) 173ms
+ ✓ src/admin/__tests__/users.controller.pins.test.ts (45 tests) 39ms
+ ✓ src/admin/__tests__/memory.pins.test.ts (41 tests) 44ms
+ ✓ src/server/__tests__/seed.resume.test.ts (8 tests) 48ms
+ ✓ src/server/__tests__/grant-service.test.ts (16 tests) 72ms
+ ✓ src/server/__tests__/authorization-regressions.test.ts (21 tests) 33ms
+ ✓ src/server/__tests__/owner-passkeys.test.ts (12 tests) 97ms
+ ✓ src/server/__tests__/agent-tools.schema-agreement.test.ts (29 tests) 11ms
+ ✓ src/server/__tests__/authorize.test.ts (18 tests) 6ms
+ ✓ src/server/__tests__/seed.pins.test.ts (13 tests) 26ms
+ ✓ src/server/__tests__/seed.test.ts (7 tests) 30ms
+ ✓ src/server/__tests__/agent-tool-input.pins.test.ts (53 tests) 19ms
+ ✓ src/admin/__tests__/people.controllers.test.ts (13 tests) 28ms
+ ✓ src/server/__tests__/owner-mfa.test.ts (9 tests) 57ms
+ ✓ src/server/__tests__/admin-crud-service.pins.test.ts (17 tests) 66ms
+ ✓ src/server/__tests__/auth-service.test.ts (9 tests) 25ms
+ ✓ src/server/__tests__/auth-service.pins.test.ts (27 tests) 23ms
+ ✓ src/server/__tests__/cms-entries-authorization.integration.test.ts (4 tests) 5ms
+ ✓ src/server/__tests__/permission-migrations.pins.test.ts (15 tests) 11ms
+ ✓ src/server/__tests__/auth-challenge.test.ts (53 tests) 19ms
+ ✓ src/admin/__tests__/people.rules.test.ts (19 tests) 8ms
+ ✓ src/server/__tests__/cms-content-types-authorization.integration.test.ts (4 tests) 6ms
+ ✓ src/server/__tests__/change-username.test.ts (8 tests) 34ms
+ ✓ src/server/__tests__/recovery-codes.test.ts (7 tests) 34ms
+ ✓ src/admin/__tests__/controllers.test.ts (6 tests) 12ms
+ ✓ src/admin/__tests__/people.adapters.test.ts (5 tests) 13ms
+ ✓ src/server/__tests__/unit/ensure-principal.unit.test.ts (12 tests) 16ms
+ ✓ src/admin/__tests__/conformance.failures.test.ts (7 tests) 18ms
+ ✓ src/server/__tests__/grant-service.f1-wildcard.test.ts (18 tests) 13ms
+ ✓ src/admin/__tests__/people.rules.pins.test.ts (6 tests) 1221ms
+   ✓ userActionAllowed truth table (pin) > consults ownership exactly once when a caller exists and never without one  368ms
+   ✓ userActionAllowed truth table (pin) > returns a real boolean for every combination  353ms
+ ✓ src/session-bootstrap/__tests__/read-initial.test.ts (10 tests) 20ms
+ ✓ src/admin/__tests__/rules.pins.test.ts (9 tests) 7ms
+ ✓ src/server/__tests__/repo.memory.f1-isolation.test.ts (9 tests) 10ms
+ ✓ src/server/__tests__/args-convention.test.ts (4 tests) 11ms
+ ✓ src/server/__tests__/grant-service.validation.test.ts (4 tests) 32ms
+ ✓ src/admin/__tests__/memory.test.ts (4 tests) 15ms
+stderr | src/admin/__tests__/members.controller.branches.test.ts > auth controller > falls back to a generic message when the port rejects with a non-Error value
+[admin] login failed Cause: string
+
+ ✓ src/admin/__tests__/members.controller.branches.test.ts (8 tests) 10ms
+ ✓ src/server/__tests__/agent-tool-registrations.consistency.test.ts (4 tests) 21ms
+ ✓ src/server/__tests__/session-policy.test.ts (8 tests) 11ms
+ ✓ src/admin/__tests__/http.options.test.ts (5 tests) 10ms
+ ✓ src/server/__tests__/agent-tool-input.integer.test.ts (13 tests) 5ms
+ ✓ src/core/__tests__/runtime-boundary.test.ts (4 tests) 193ms
+ ✓ src/admin/__tests__/boundaries.test.ts (3 tests) 303ms
+ ✓ src/admin/__tests__/controller-store.test.ts (5 tests) 7ms
+ ✓ src/admin/__tests__/http.test.ts (2 tests) 6ms
+ ✓ src/core/__tests__/permissions.test.ts (6 tests) 4ms
+ ✓ src/admin/__tests__/members.list-cursor.test.ts (3 tests) 11ms
+ ✓ src/server/__tests__/agent-tools.f1-contract.test.ts (2 tests) 5ms
+ ✓ src/server/__tests__/repo.memory-transactions.contract.test.ts (5 tests) 6ms
+ ✓ src/session-bootstrap/__tests__/loopback.test.ts (26 tests) 12ms
+ ✓ src/__tests__/user-management-rename.contract.test.ts (2 tests) 9ms
+ ✓ src/__tests__/package-entries.test.ts (2 tests) 8ms
+ ✓ src/core/__tests__/builtin-permissions.invariants.test.ts (6 tests) 12ms
+ ✓ src/server/__tests__/link-policy.test.ts (8 tests) 4ms
+ ✓ src/server/__tests__/login-providers.test.ts (10 tests) 6ms
+ ✓ src/__tests__/public-args.test.ts (1 test) 340ms
+   ✓ public functions, constructors and adapter methods accept named argument objects  339ms
+ ✓ src/server/__tests__/hasher.f1-defaults.test.ts (5 tests) 8ms
+ ✓ src/server/__tests__/change-username-tool.test.ts (1 test) 17ms
+ ✓ src/server/__tests__/agent-tools.honesty.test.ts (5 tests) 5ms
+ ✓ src/server/__tests__/runtime.test.ts (4 tests) 4ms
+ ✓ src/server/__tests__/owner-reset-input.test.ts (4 tests) 12ms
+ ✓ src/admin/__tests__/log-safety-b.test.ts (4 tests) 8ms
+ ✓ src/server/__tests__/agent-tool-registrations.guards.test.ts (2 tests) 4ms
+ ✓ src/server/__tests__/repo.memory.session-revocation.test.ts (2 tests) 4ms
+ ✓ src/session-bootstrap/__tests__/ensure.test.ts (4 tests) 9ms
+ ✓ src/server/__tests__/password-policy.test.ts (4 tests) 3ms
+ ✓ src/__tests__/react-import-boundaries.test.ts (2 tests) 8ms
+ ✓ src/admin/__tests__/public-barrel.test.ts (1 test) 3ms
+ ✓ src/core/__tests__/principal-kind-policy.test.ts (2 tests) 11ms
+ ✓ src/server/__tests__/totp-adapter.test.ts (1 test) 10ms
+ ✓ src/admin/__tests__/conformance.test.ts (1 test) 6ms
+ ✓ src/react/users/__tests__/Users.coverage.test.tsx (37 tests) 1020ms
+ ✓ src/react/users/__tests__/use-users.hooks.pins.test.tsx (45 tests) 2419ms
+ ✓ src/admin/react/__tests__/people-hooks.test.tsx (15 tests) 322ms
+ ✓ src/react/users/__tests__/use-users.ported.test.tsx (19 tests) 1519ms
+ ✓ src/react/users/__tests__/Users.complexity-pins.test.tsx (36 tests) 1171ms
+ ✓ src/admin/react/__tests__/people.test.tsx (12 tests) 2974ms
+   ✓ composable users screen > renders read-only with no grants, and hides all writes for unresolved owner classifications  482ms
+   ✓ composable users screen > creates an operator with new-password autocomplete and manages email and grants  564ms
+   ✓ composable users screen > reset guards mismatch, preserves failures and reveals independently with autocomplete intact  419ms
+   ✓ composable members and login > members render read-only without grants and details remain readable  365ms
+   ✓ composable members and login > login works before any grants, reports failure and invokes the host on successful credentials  381ms
+ ✓ src/react/auth/__tests__/OwnerRecovery.hooks.unit.test.ts (17 tests) 66ms
+ ✓ src/admin/react/__tests__/admin-pages.branches.test.tsx (17 tests) 2421ms
+   ✓ members page > shows a load failure with a retry that recovers the roster  337ms
+   ✓ roles and policies tabs > keeps the role form with the server error when creating a role fails  393ms
+   ✓ roles and policies tabs > renames a policy and its description inline, and cancel discards a second edit  523ms
+   ✓ roles and policies tabs > lists an unscoped permission without a resource type and offers no removal to read-only viewers  347ms
+ ✓ src/react/members/__tests__/use-members.hooks.pins.test.ts (24 tests) 1370ms
+ ✓ src/react/users/__tests__/account-protections.ported.test.tsx (19 tests) 902ms
+ ✓ src/react/members/__tests__/use-members.ported.test.ts (10 tests) 1052ms
+ ✓ src/admin/react/__tests__/roles.test.tsx (7 tests) 2169ms
+   ✓ composable roles React screen > loads a read-only screen without grants and exposes readable permissions without any write controls  524ms
+   ✓ composable roles React screen > creates roles and policies, renames inline, and hides builtin/frozen mutation controls  717ms
+   ✓ composable roles React screen > requires confirmation for revocation and policy deletion  616ms
+ ✓ src/admin/react/__tests__/UsersTab.hooks.pins.test.tsx (19 tests) 209ms
+ ✓ src/react/__tests__/testing.fakes.test.ts (11 tests) 9ms
+ ✓ src/react/__tests__/kit.unit.test.tsx (13 tests) 244ms
+ ✓ src/react/users/__tests__/change-username.hooks.test.tsx (7 tests) 740ms
+   ✓ marks the own row inline without a username role badge and keeps renames in the row menu  317ms
+ ✓ src/react/users/__tests__/Users.kit.unit.test.tsx (10 tests) 246ms
+ ✓ src/react/auth/__tests__/passkeys.unit.test.tsx (7 tests) 475ms
+ ✓ src/react/users/__tests__/UserRowParts.unit.test.tsx (16 tests) 140ms
+ ✓ src/admin/react/__tests__/RolesPage.hooks.pins.test.tsx (9 tests) 160ms
+ ✓ src/react/members/__tests__/Members.ported.test.tsx (5 tests) 507ms
+ ✓ src/react/__tests__/screens.test.tsx (5 tests) 617ms
+ ✓ src/admin/react/__tests__/RolesPage.pins.test.tsx (12 tests) 217ms
+ ✓ src/react/members/__tests__/Members.kit.unit.test.tsx (7 tests) 218ms
+ ✓ src/admin/react/__tests__/UsersPage.pins.test.tsx (13 tests) 212ms
+ ✓ src/react/auth/__tests__/use-login.hooks.unit.test.ts (8 tests) 39ms
+ ✓ src/react/members/__tests__/Members.detail.test.tsx (7 tests) 434ms
+ ✓ src/react/auth/__tests__/Login.unit.test.tsx (9 tests) 265ms
+ ✓ src/react/auth/__tests__/mfa.unit.test.tsx (5 tests) 565ms
+ ✓ src/admin/react/__tests__/MemberRow.pins.test.tsx (11 tests) 198ms
+stderr | src/react/auth/__tests__/TotpSettings.kit.unit.test.tsx > TotpSettings through the user-management kit > throws the typed missing-provider error when no kit is mounted
+An error occurred in the <ForwardRef(UserManagementSecretInput)> component.
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://react.dev/link/error-boundaries to learn more about error boundaries.
+
+
+ ✓ src/react/auth/__tests__/TotpSettings.kit.unit.test.tsx (7 tests) 205ms
+ ✓ src/react/__tests__/errors.pins.test.ts (18 tests) 6ms
+ ✓ src/admin/react/__tests__/admin-rows.branches.test.tsx (3 tests) 189ms
+ ✓ src/react/auth/__tests__/Login.kit.unit.test.tsx (6 tests) 131ms
+ ✓ src/react/__tests__/integration-reconcile.test.tsx (3 tests) 150ms
+ ✓ src/react/users/__tests__/use-reset-password-fields.unit.test.tsx (5 tests) 44ms
+ ✓ src/react/members/__tests__/fqfix-disable.unit.test.ts (3 tests) 196ms
+ ✓ src/react/users/__tests__/ChangeUsernameDialog.kit.unit.test.tsx (4 tests) 153ms
+ ✓ src/react/auth/__tests__/passkey-browser.unit.test.ts (3 tests) 6ms
+ ✓ src/react/members/__tests__/Members.host-ports.test.tsx (2 tests) 152ms
+ ✓ src/react/users/__tests__/rules.labels.unit.test.ts (3 tests) 5ms
+ ✓ src/react/users/__tests__/ChangeUsernameDialog.unit.test.tsx (2 tests) 142ms
+ ✓ src/react/members/__tests__/rules.busy.unit.test.ts (2 tests) 3ms
+
+ Test Files  116 passed (116)
+      Tests  1353 passed (1353)
+   Start at  02:38:58
+   Duration  56.96s (transform 5.26s, setup 12.90s, collect 31.77s, tests 27.86s, environment 16.03s, prepare 7.91s)
+
+EXIT 0

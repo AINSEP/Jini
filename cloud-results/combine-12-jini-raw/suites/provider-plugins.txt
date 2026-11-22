@@ -1,0 +1,556 @@
+
+> @jini-ai/provider-plugins@0.7.3-next.2 test
+> vitest run --maxWorkers=2 --minWorkers=1
+
+ DEPRECATED  "environmentMatchGlobs" is deprecated. Use `test.projects` to define different configurations instead.
+
+ RUN  v3.2.7 /home/user/jt12/packages/provider-plugins
+
+stderr | src/__tests__/artifact.integration.test.ts > charts-echarts: the built client bundle mounts and draws a stacked bar chart as SVG
+Error: Not implemented: HTMLCanvasElement.prototype.getContext (without installing the canvas npm package)
+    at module.exports (/home/user/jt12/node_modules/.pnpm/jsdom@25.0.1/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at HTMLCanvasElementImpl.getContext (/home/user/jt12/node_modules/.pnpm/jsdom@25.0.1/node_modules/jsdom/lib/jsdom/living/nodes/HTMLCanvasElement-impl.js:42:5)
+    at HTMLCanvasElement.getContext (/home/user/jt12/node_modules/.pnpm/jsdom@25.0.1/node_modules/jsdom/lib/jsdom/living/generated/HTMLCanvasElement.js:131:58)
+    at Object.mt.measureText (file:///tmp/provider-artifact-xrVi9q/charts-echarts/host/node_modules/@jini-ai/provider-plugins/plugins/charts-echarts/0.7.3-next.2/client/provider.js:14:2645)
+    at yr (file:///tmp/provider-artifact-xrVi9q/charts-echarts/host/node_modules/@jini-ai/provider-plugins/plugins/charts-echarts/0.7.3-next.2/client/provider.js:14:71449)
+    at x_ (file:///tmp/provider-artifact-xrVi9q/charts-echarts/host/node_modules/@jini-ai/provider-plugins/plugins/charts-echarts/0.7.3-next.2/client/provider.js:14:72069)
+    at Au (file:///tmp/provider-artifact-xrVi9q/charts-echarts/host/node_modules/@jini-ai/provider-plugins/plugins/charts-echarts/0.7.3-next.2/client/provider.js:15:31)
+    at v1 (file:///tmp/provider-artifact-xrVi9q/charts-echarts/host/node_modules/@jini-ai/provider-plugins/plugins/charts-echarts/0.7.3-next.2/client/provider.js:35:120125)
+    at e.t.calculateCategoryInterval (file:///tmp/provider-artifact-xrVi9q/charts-echarts/host/node_modules/@jini-ai/provider-plugins/plugins/charts-echarts/0.7.3-next.2/client/provider.js:35:123441)
+    at gR (file:///tmp/provider-artifact-xrVi9q/charts-echarts/host/node_modules/@jini-ai/provider-plugins/plugins/charts-echarts/0.7.3-next.2/client/provider.js:35:119580) [90mundefined[39m
+Error: Not implemented: HTMLCanvasElement.prototype.getContext (without installing the canvas npm package)
+    at module.exports (/home/user/jt12/node_modules/.pnpm/jsdom@25.0.1/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at HTMLCanvasElementImpl.getContext (/home/user/jt12/node_modules/.pnpm/jsdom@25.0.1/node_modules/jsdom/lib/jsdom/living/nodes/HTMLCanvasElement-impl.js:42:5)
+    at HTMLCanvasElement.getContext (/home/user/jt12/node_modules/.pnpm/jsdom@25.0.1/node_modules/jsdom/lib/jsdom/living/generated/HTMLCanvasElement.js:131:58)
+    at Object.mt.measureText (file:///tmp/provider-artifact-xrVi9q/charts-echarts/host/node_modules/@jini-ai/provider-plugins/plugins/charts-echarts/0.7.3-next.2/client/provider.js:14:2645)
+    at yr (file:///tmp/provider-artifact-xrVi9q/charts-echarts/host/node_modules/@jini-ai/provider-plugins/plugins/charts-echarts/0.7.3-next.2/client/provider.js:14:71497)
+    at x_ (file:///tmp/provider-artifact-xrVi9q/charts-echarts/host/node_modules/@jini-ai/provider-plugins/plugins/charts-echarts/0.7.3-next.2/client/provider.js:14:72069)
+    at Au (file:///tmp/provider-artifact-xrVi9q/charts-echarts/host/node_modules/@jini-ai/provider-plugins/plugins/charts-echarts/0.7.3-next.2/client/provider.js:15:31)
+    at v1 (file:///tmp/provider-artifact-xrVi9q/charts-echarts/host/node_modules/@jini-ai/provider-plugins/plugins/charts-echarts/0.7.3-next.2/client/provider.js:35:120125)
+    at e.t.calculateCategoryInterval (file:///tmp/provider-artifact-xrVi9q/charts-echarts/host/node_modules/@jini-ai/provider-plugins/plugins/charts-echarts/0.7.3-next.2/client/provider.js:35:123441)
+    at gR (file:///tmp/provider-artifact-xrVi9q/charts-echarts/host/node_modules/@jini-ai/provider-plugins/plugins/charts-echarts/0.7.3-next.2/client/provider.js:35:119580) [90mundefined[39m
+Error: Not implemented: HTMLCanvasElement.prototype.getContext (without installing the canvas npm package)
+    at module.exports (/home/user/jt12/node_modules/.pnpm/jsdom@25.0.1/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at HTMLCanvasElementImpl.getContext (/home/user/jt12/node_modules/.pnpm/jsdom@25.0.1/node_modules/jsdom/lib/jsdom/living/nodes/HTMLCanvasElement-impl.js:42:5)
+    at HTMLCanvasElement.getContext (/home/user/jt12/node_modules/.pnpm/jsdom@25.0.1/node_modules/jsdom/lib/jsdom/living/generated/HTMLCanvasElement.js:131:58)
+    at Object.mt.measureText (file:///tmp/provider-artifact-xrVi9q/charts-echarts/host/node_modules/@jini-ai/provider-plugins/plugins/charts-echarts/0.7.3-next.2/client/provider.js:14:2645)
+    at _r (file:///tmp/provider-artifact-xrVi9q/charts-echarts/host/node_modules/@jini-ai/provider-plugins/plugins/charts-echarts/0.7.3-next.2/client/provider.js:14:71997)
+    at x_ (file:///tmp/provider-artifact-xrVi9q/charts-echarts/host/node_modules/@jini-ai/provider-plugins/plugins/charts-echarts/0.7.3-next.2/client/provider.js:14:72066)
+    at Au (file:///tmp/provider-artifact-xrVi9q/charts-echarts/host/node_modules/@jini-ai/provider-plugins/plugins/charts-echarts/0.7.3-next.2/client/provider.js:15:31)
+    at v1 (file:///tmp/provider-artifact-xrVi9q/charts-echarts/host/node_modules/@jini-ai/provider-plugins/plugins/charts-echarts/0.7.3-next.2/client/provider.js:35:120125)
+    at e.t.calculateCategoryInterval (file:///tmp/provider-artifact-xrVi9q/charts-echarts/host/node_modules/@jini-ai/provider-plugins/plugins/charts-echarts/0.7.3-next.2/client/provider.js:35:123441)
+    at gR (file:///tmp/provider-artifact-xrVi9q/charts-echarts/host/node_modules/@jini-ai/provider-plugins/plugins/charts-echarts/0.7.3-next.2/client/provider.js:35:119580) [90mundefined[39m
+Error: Not implemented: HTMLCanvasElement.prototype.getContext (without installing the canvas npm package)
+    at module.exports (/home/user/jt12/node_modules/.pnpm/jsdom@25.0.1/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at HTMLCanvasElementImpl.getContext (/home/user/jt12/node_modules/.pnpm/jsdom@25.0.1/node_modules/jsdom/lib/jsdom/living/nodes/HTMLCanvasElement-impl.js:42:5)
+    at HTMLCanvasElement.getContext (/home/user/jt12/node_modules/.pnpm/jsdom@25.0.1/node_modules/jsdom/lib/jsdom/living/generated/HTMLCanvasElement.js:131:58)
+    at Object.mt.measureText (file:///tmp/provider-artifact-xrVi9q/charts-echarts/host/node_modules/@jini-ai/provider-plugins/plugins/charts-echarts/0.7.3-next.2/client/provider.js:14:2645)
+    at _r (file:///tmp/provider-artifact-xrVi9q/charts-echarts/host/node_modules/@jini-ai/provider-plugins/plugins/charts-echarts/0.7.3-next.2/client/provider.js:14:71997)
+    at x_ (file:///tmp/provider-artifact-xrVi9q/charts-echarts/host/node_modules/@jini-ai/provider-plugins/plugins/charts-echarts/0.7.3-next.2/client/provider.js:14:72066)
+    at Au (file:///tmp/provider-artifact-xrVi9q/charts-echarts/host/node_modules/@jini-ai/provider-plugins/plugins/charts-echarts/0.7.3-next.2/client/provider.js:15:31)
+    at v1 (file:///tmp/provider-artifact-xrVi9q/charts-echarts/host/node_modules/@jini-ai/provider-plugins/plugins/charts-echarts/0.7.3-next.2/client/provider.js:35:120125)
+    at e.t.calculateCategoryInterval (file:///tmp/provider-artifact-xrVi9q/charts-echarts/host/node_modules/@jini-ai/provider-plugins/plugins/charts-echarts/0.7.3-next.2/client/provider.js:35:123441)
+    at gR (file:///tmp/provider-artifact-xrVi9q/charts-echarts/host/node_modules/@jini-ai/provider-plugins/plugins/charts-echarts/0.7.3-next.2/client/provider.js:35:119580) [90mundefined[39m
+Error: Not implemented: HTMLCanvasElement.prototype.getContext (without installing the canvas npm package)
+    at module.exports (/home/user/jt12/node_modules/.pnpm/jsdom@25.0.1/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at HTMLCanvasElementImpl.getContext (/home/user/jt12/node_modules/.pnpm/jsdom@25.0.1/node_modules/jsdom/lib/jsdom/living/nodes/HTMLCanvasElement-impl.js:42:5)
+    at HTMLCanvasElement.getContext (/home/user/jt12/node_modules/.pnpm/jsdom@25.0.1/node_modules/jsdom/lib/jsdom/living/generated/HTMLCanvasElement.js:131:58)
+    at Object.mt.measureText (file:///tmp/provider-artifact-xrVi9q/charts-echarts/host/node_modules/@jini-ai/provider-plugins/plugins/charts-echarts/0.7.3-next.2/client/provider.js:14:2645)
+    at _r (file:///tmp/provider-artifact-xrVi9q/charts-echarts/host/node_modules/@jini-ai/provider-plugins/plugins/charts-echarts/0.7.3-next.2/client/provider.js:14:71997)
+    at c0 (file:///tmp/provider-artifact-xrVi9q/charts-echarts/host/node_modules/@jini-ai/provider-plugins/plugins/charts-echarts/0.7.3-next.2/client/provider.js:26:342)
+    at e._updatePlainTexts (file:///tmp/provider-artifact-xrVi9q/charts-echarts/host/node_modules/@jini-ai/provider-plugins/plugins/charts-echarts/0.7.3-next.2/client/provider.js:29:31155)
+    at e._updateSubTexts (file:///tmp/provider-artifact-xrVi9q/charts-echarts/host/node_modules/@jini-ai/provider-plugins/plugins/charts-echarts/0.7.3-next.2/client/provider.js:29:29545)
+    at e.getBoundingRect (file:///tmp/provider-artifact-xrVi9q/charts-echarts/host/node_modules/@jini-ai/provider-plugins/plugins/charts-echarts/0.7.3-next.2/client/provider.js:29:29985)
+    at Tm (file:///tmp/provider-artifact-xrVi9q/charts-echarts/host/node_modules/@jini-ai/provider-plugins/plugins/charts-echarts/0.7.3-next.2/client/provider.js:35:127104) [90mundefined[39m
+Error: Not implemented: HTMLCanvasElement.prototype.getContext (without installing the canvas npm package)
+    at module.exports (/home/user/jt12/node_modules/.pnpm/jsdom@25.0.1/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at HTMLCanvasElementImpl.getContext (/home/user/jt12/node_modules/.pnpm/jsdom@25.0.1/node_modules/jsdom/lib/jsdom/living/nodes/HTMLCanvasElement-impl.js:42:5)
+    at HTMLCanvasElement.getContext (/home/user/jt12/node_modules/.pnpm/jsdom@25.0.1/node_modules/jsdom/lib/jsdom/living/generated/HTMLCanvasElement.js:131:58)
+    at Object.mt.measureText (file:///tmp/provider-artifact-xrVi9q/charts-echarts/host/node_modules/@jini-ai/provider-plugins/plugins/charts-echarts/0.7.3-next.2/client/provider.js:14:2645)
+    at _r (file:///tmp/provider-artifact-xrVi9q/charts-echarts/host/node_modules/@jini-ai/provider-plugins/plugins/charts-echarts/0.7.3-next.2/client/provider.js:14:71997)
+    at c0 (file:///tmp/provider-artifact-xrVi9q/charts-echarts/host/node_modules/@jini-ai/provider-plugins/plugins/charts-echarts/0.7.3-next.2/client/provider.js:26:342)
+    at e._updatePlainTexts (file:///tmp/provider-artifact-xrVi9q/charts-echarts/host/node_modules/@jini-ai/provider-plugins/plugins/charts-echarts/0.7.3-next.2/client/provider.js:29:31155)
+    at e._updateSubTexts (file:///tmp/provider-artifact-xrVi9q/charts-echarts/host/node_modules/@jini-ai/provider-plugins/plugins/charts-echarts/0.7.3-next.2/client/provider.js:29:29545)
+    at e.getBoundingRect (file:///tmp/provider-artifact-xrVi9q/charts-echarts/host/node_modules/@jini-ai/provider-plugins/plugins/charts-echarts/0.7.3-next.2/client/provider.js:29:29985)
+    at Tm (file:///tmp/provider-artifact-xrVi9q/charts-echarts/host/node_modules/@jini-ai/provider-plugins/plugins/charts-echarts/0.7.3-next.2/client/provider.js:35:127104) [90mundefined[39m
+Error: Not implemented: HTMLCanvasElement.prototype.getContext (without installing the canvas npm package)
+    at module.exports (/home/user/jt12/node_modules/.pnpm/jsdom@25.0.1/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at HTMLCanvasElementImpl.getContext (/home/user/jt12/node_modules/.pnpm/jsdom@25.0.1/node_modules/jsdom/lib/jsdom/living/nodes/HTMLCanvasElement-impl.js:42:5)
+    at HTMLCanvasElement.getContext (/home/user/jt12/node_modules/.pnpm/jsdom@25.0.1/node_modules/jsdom/lib/jsdom/living/generated/HTMLCanvasElement.js:131:58)
+    at Object.mt.measureText (file:///tmp/provider-artifact-xrVi9q/charts-echarts/host/node_modules/@jini-ai/provider-plugins/plugins/charts-echarts/0.7.3-next.2/client/provider.js:14:2645)
+    at _r (file:///tmp/provider-artifact-xrVi9q/charts-echarts/host/node_modules/@jini-ai/provider-plugins/plugins/charts-echarts/0.7.3-next.2/client/provider.js:14:71997)
+    at c0 (file:///tmp/provider-artifact-xrVi9q/charts-echarts/host/node_modules/@jini-ai/provider-plugins/plugins/charts-echarts/0.7.3-next.2/client/provider.js:26:342)
+    at e._updatePlainTexts (file:///tmp/provider-artifact-xrVi9q/charts-echarts/host/node_modules/@jini-ai/provider-plugins/plugins/charts-echarts/0.7.3-next.2/client/provider.js:29:31155)
+    at e._updateSubTexts (file:///tmp/provider-artifact-xrVi9q/charts-echarts/host/node_modules/@jini-ai/provider-plugins/plugins/charts-echarts/0.7.3-next.2/client/provider.js:29:29545)
+    at e.getBoundingRect (file:///tmp/provider-artifact-xrVi9q/charts-echarts/host/node_modules/@jini-ai/provider-plugins/plugins/charts-echarts/0.7.3-next.2/client/provider.js:29:29985)
+    at Tm (file:///tmp/provider-artifact-xrVi9q/charts-echarts/host/node_modules/@jini-ai/provider-plugins/plugins/charts-echarts/0.7.3-next.2/client/provider.js:35:127104) [90mundefined[39m
+Error: Not implemented: HTMLCanvasElement.prototype.getContext (without installing the canvas npm package)
+    at module.exports (/home/user/jt12/node_modules/.pnpm/jsdom@25.0.1/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at HTMLCanvasElementImpl.getContext (/home/user/jt12/node_modules/.pnpm/jsdom@25.0.1/node_modules/jsdom/lib/jsdom/living/nodes/HTMLCanvasElement-impl.js:42:5)
+    at HTMLCanvasElement.getContext (/home/user/jt12/node_modules/.pnpm/jsdom@25.0.1/node_modules/jsdom/lib/jsdom/living/generated/HTMLCanvasElement.js:131:58)
+    at Object.mt.measureText (file:///tmp/provider-artifact-xrVi9q/charts-echarts/host/node_modules/@jini-ai/provider-plugins/plugins/charts-echarts/0.7.3-next.2/client/provider.js:14:2645)
+    at _r (file:///tmp/provider-artifact-xrVi9q/charts-echarts/host/node_modules/@jini-ai/provider-plugins/plugins/charts-echarts/0.7.3-next.2/client/provider.js:14:71997)
+    at c0 (file:///tmp/provider-artifact-xrVi9q/charts-echarts/host/node_modules/@jini-ai/provider-plugins/plugins/charts-echarts/0.7.3-next.2/client/provider.js:26:342)
+    at e._updatePlainTexts (file:///tmp/provider-artifact-xrVi9q/charts-echarts/host/node_modules/@jini-ai/provider-plugins/plugins/charts-echarts/0.7.3-next.2/client/provider.js:29:31155)
+    at e._updateSubTexts (file:///tmp/provider-artifact-xrVi9q/charts-echarts/host/node_modules/@jini-ai/provider-plugins/plugins/charts-echarts/0.7.3-next.2/client/provider.js:29:29545)
+    at e.getBoundingRect (file:///tmp/provider-artifact-xrVi9q/charts-echarts/host/node_modules/@jini-ai/provider-plugins/plugins/charts-echarts/0.7.3-next.2/client/provider.js:29:29985)
+    at Tm (file:///tmp/provider-artifact-xrVi9q/charts-echarts/host/node_modules/@jini-ai/provider-plugins/plugins/charts-echarts/0.7.3-next.2/client/provider.js:35:127104) [90mundefined[39m
+Error: Not implemented: HTMLCanvasElement.prototype.getContext (without installing the canvas npm package)
+    at module.exports (/home/user/jt12/node_modules/.pnpm/jsdom@25.0.1/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at HTMLCanvasElementImpl.getContext (/home/user/jt12/node_modules/.pnpm/jsdom@25.0.1/node_modules/jsdom/lib/jsdom/living/nodes/HTMLCanvasElement-impl.js:42:5)
+    at HTMLCanvasElement.getContext (/home/user/jt12/node_modules/.pnpm/jsdom@25.0.1/node_modules/jsdom/lib/jsdom/living/generated/HTMLCanvasElement.js:131:58)
+    at Object.mt.measureText (file:///tmp/provider-artifact-xrVi9q/charts-echarts/host/node_modules/@jini-ai/provider-plugins/plugins/charts-echarts/0.7.3-next.2/client/provider.js:14:2645)
+    at _r (file:///tmp/provider-artifact-xrVi9q/charts-echarts/host/node_modules/@jini-ai/provider-plugins/plugins/charts-echarts/0.7.3-next.2/client/provider.js:14:71997)
+    at c0 (file:///tmp/provider-artifact-xrVi9q/charts-echarts/host/node_modules/@jini-ai/provider-plugins/plugins/charts-echarts/0.7.3-next.2/client/provider.js:26:342)
+    at e._updatePlainTexts (file:///tmp/provider-artifact-xrVi9q/charts-echarts/host/node_modules/@jini-ai/provider-plugins/plugins/charts-echarts/0.7.3-next.2/client/provider.js:29:31155)
+    at e._updateSubTexts (file:///tmp/provider-artifact-xrVi9q/charts-echarts/host/node_modules/@jini-ai/provider-plugins/plugins/charts-echarts/0.7.3-next.2/client/provider.js:29:29545)
+    at e.getBoundingRect (file:///tmp/provider-artifact-xrVi9q/charts-echarts/host/node_modules/@jini-ai/provider-plugins/plugins/charts-echarts/0.7.3-next.2/client/provider.js:29:29985)
+    at Tm (file:///tmp/provider-artifact-xrVi9q/charts-echarts/host/node_modules/@jini-ai/provider-plugins/plugins/charts-echarts/0.7.3-next.2/client/provider.js:35:127104) [90mundefined[39m
+Error: Not implemented: HTMLCanvasElement.prototype.getContext (without installing the canvas npm package)
+    at module.exports (/home/user/jt12/node_modules/.pnpm/jsdom@25.0.1/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at HTMLCanvasElementImpl.getContext (/home/user/jt12/node_modules/.pnpm/jsdom@25.0.1/node_modules/jsdom/lib/jsdom/living/nodes/HTMLCanvasElement-impl.js:42:5)
+    at HTMLCanvasElement.getContext (/home/user/jt12/node_modules/.pnpm/jsdom@25.0.1/node_modules/jsdom/lib/jsdom/living/generated/HTMLCanvasElement.js:131:58)
+    at Object.mt.measureText (file:///tmp/provider-artifact-xrVi9q/charts-echarts/host/node_modules/@jini-ai/provider-plugins/plugins/charts-echarts/0.7.3-next.2/client/provider.js:14:2645)
+    at _r (file:///tmp/provider-artifact-xrVi9q/charts-echarts/host/node_modules/@jini-ai/provider-plugins/plugins/charts-echarts/0.7.3-next.2/client/provider.js:14:71997)
+    at c0 (file:///tmp/provider-artifact-xrVi9q/charts-echarts/host/node_modules/@jini-ai/provider-plugins/plugins/charts-echarts/0.7.3-next.2/client/provider.js:26:342)
+    at e._updatePlainTexts (file:///tmp/provider-artifact-xrVi9q/charts-echarts/host/node_modules/@jini-ai/provider-plugins/plugins/charts-echarts/0.7.3-next.2/client/provider.js:29:31155)
+    at e._updateSubTexts (file:///tmp/provider-artifact-xrVi9q/charts-echarts/host/node_modules/@jini-ai/provider-plugins/plugins/charts-echarts/0.7.3-next.2/client/provider.js:29:29545)
+    at e.getBoundingRect (file:///tmp/provider-artifact-xrVi9q/charts-echarts/host/node_modules/@jini-ai/provider-plugins/plugins/charts-echarts/0.7.3-next.2/client/provider.js:29:29985)
+    at e.getBoundingRect (file:///tmp/provider-artifact-xrVi9q/charts-echarts/host/node_modules/@jini-ai/provider-plugins/plugins/charts-echarts/0.7.3-next.2/client/provider.js:15:17448) [90mundefined[39m
+Error: Not implemented: HTMLCanvasElement.prototype.getContext (without installing the canvas npm package)
+    at module.exports (/home/user/jt12/node_modules/.pnpm/jsdom@25.0.1/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at HTMLCanvasElementImpl.getContext (/home/user/jt12/node_modules/.pnpm/jsdom@25.0.1/node_modules/jsdom/lib/jsdom/living/nodes/HTMLCanvasElement-impl.js:42:5)
+    at HTMLCanvasElement.getContext (/home/user/jt12/node_modules/.pnpm/jsdom@25.0.1/node_modules/jsdom/lib/jsdom/living/generated/HTMLCanvasElement.js:131:58)
+    at Object.mt.measureText (file:///tmp/provider-artifact-xrVi9q/charts-echarts/host/node_modules/@jini-ai/provider-plugins/plugins/charts-echarts/0.7.3-next.2/client/provider.js:14:2645)
+    at _r (file:///tmp/provider-artifact-xrVi9q/charts-echarts/host/node_modules/@jini-ai/provider-plugins/plugins/charts-echarts/0.7.3-next.2/client/provider.js:14:71997)
+    at c0 (file:///tmp/provider-artifact-xrVi9q/charts-echarts/host/node_modules/@jini-ai/provider-plugins/plugins/charts-echarts/0.7.3-next.2/client/provider.js:26:342)
+    at e._updatePlainTexts (file:///tmp/provider-artifact-xrVi9q/charts-echarts/host/node_modules/@jini-ai/provider-plugins/plugins/charts-echarts/0.7.3-next.2/client/provider.js:29:31155)
+    at e._updateSubTexts (file:///tmp/provider-artifact-xrVi9q/charts-echarts/host/node_modules/@jini-ai/provider-plugins/plugins/charts-echarts/0.7.3-next.2/client/provider.js:29:29545)
+    at e.getBoundingRect (file:///tmp/provider-artifact-xrVi9q/charts-echarts/host/node_modules/@jini-ai/provider-plugins/plugins/charts-echarts/0.7.3-next.2/client/provider.js:29:29985)
+    at e.getBoundingRect (file:///tmp/provider-artifact-xrVi9q/charts-echarts/host/node_modules/@jini-ai/provider-plugins/plugins/charts-echarts/0.7.3-next.2/client/provider.js:15:17448) [90mundefined[39m
+Error: Not implemented: HTMLCanvasElement.prototype.getContext (without installing the canvas npm package)
+    at module.exports (/home/user/jt12/node_modules/.pnpm/jsdom@25.0.1/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at HTMLCanvasElementImpl.getContext (/home/user/jt12/node_modules/.pnpm/jsdom@25.0.1/node_modules/jsdom/lib/jsdom/living/nodes/HTMLCanvasElement-impl.js:42:5)
+    at HTMLCanvasElement.getContext (/home/user/jt12/node_modules/.pnpm/jsdom@25.0.1/node_modules/jsdom/lib/jsdom/living/generated/HTMLCanvasElement.js:131:58)
+    at Object.mt.measureText (file:///tmp/provider-artifact-xrVi9q/charts-echarts/host/node_modules/@jini-ai/provider-plugins/plugins/charts-echarts/0.7.3-next.2/client/provider.js:14:2645)
+    at _r (file:///tmp/provider-artifact-xrVi9q/charts-echarts/host/node_modules/@jini-ai/provider-plugins/plugins/charts-echarts/0.7.3-next.2/client/provider.js:14:71997)
+    at c0 (file:///tmp/provider-artifact-xrVi9q/charts-echarts/host/node_modules/@jini-ai/provider-plugins/plugins/charts-echarts/0.7.3-next.2/client/provider.js:26:342)
+    at e._updatePlainTexts (file:///tmp/provider-artifact-xrVi9q/charts-echarts/host/node_modules/@jini-ai/provider-plugins/plugins/charts-echarts/0.7.3-next.2/client/provider.js:29:31155)
+    at e._updateSubTexts (file:///tmp/provider-artifact-xrVi9q/charts-echarts/host/node_modules/@jini-ai/provider-plugins/plugins/charts-echarts/0.7.3-next.2/client/provider.js:29:29545)
+    at e.getBoundingRect (file:///tmp/provider-artifact-xrVi9q/charts-echarts/host/node_modules/@jini-ai/provider-plugins/plugins/charts-echarts/0.7.3-next.2/client/provider.js:29:29985)
+    at file:///tmp/provider-artifact-xrVi9q/charts-echarts/host/node_modules/@jini-ai/provider-plugins/plugins/charts-echarts/0.7.3-next.2/client/provider.js:29:93467 [90mundefined[39m
+Error: Not implemented: HTMLCanvasElement.prototype.getContext (without installing the canvas npm package)
+    at module.exports (/home/user/jt12/node_modules/.pnpm/jsdom@25.0.1/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at HTMLCanvasElementImpl.getContext (/home/user/jt12/node_modules/.pnpm/jsdom@25.0.1/node_modules/jsdom/lib/jsdom/living/nodes/HTMLCanvasElement-impl.js:42:5)
+    at HTMLCanvasElement.getContext (/home/user/jt12/node_modules/.pnpm/jsdom@25.0.1/node_modules/jsdom/lib/jsdom/living/generated/HTMLCanvasElement.js:131:58)
+    at Object.mt.measureText (file:///tmp/provider-artifact-xrVi9q/charts-echarts/host/node_modules/@jini-ai/provider-plugins/plugins/charts-echarts/0.7.3-next.2/client/provider.js:14:2645)
+    at _r (file:///tmp/provider-artifact-xrVi9q/charts-echarts/host/node_modules/@jini-ai/provider-plugins/plugins/charts-echarts/0.7.3-next.2/client/provider.js:14:71997)
+    at c0 (file:///tmp/provider-artifact-xrVi9q/charts-echarts/host/node_modules/@jini-ai/provider-plugins/plugins/charts-echarts/0.7.3-next.2/client/provider.js:26:342)
+    at e._updatePlainTexts (file:///tmp/provider-artifact-xrVi9q/charts-echarts/host/node_modules/@jini-ai/provider-plugins/plugins/charts-echarts/0.7.3-next.2/client/provider.js:29:31155)
+    at e._updateSubTexts (file:///tmp/provider-artifact-xrVi9q/charts-echarts/host/node_modules/@jini-ai/provider-plugins/plugins/charts-echarts/0.7.3-next.2/client/provider.js:29:29545)
+    at e.update (file:///tmp/provider-artifact-xrVi9q/charts-echarts/host/node_modules/@jini-ai/provider-plugins/plugins/charts-echarts/0.7.3-next.2/client/provider.js:29:28706)
+    at t._updateAndAddDisplayable (file:///tmp/provider-artifact-xrVi9q/charts-echarts/host/node_modules/@jini-ai/provider-plugins/plugins/charts-echarts/0.7.3-next.2/client/provider.js:14:34036) [90mundefined[39m
+
+ ✓ src/__tests__/artifact.integration.test.ts (19 tests) 12587ms
+   ✓ ai-trace-langfuse: packs, installs and loads identical standalone bytes with both host SDK ABIs outside the workspace  330ms
+   ✓ analytics-posthog: packs, installs and loads identical standalone bytes with both host SDK ABIs outside the workspace  517ms
+   ✓ observability-opentelemetry: packs, installs and loads identical standalone bytes with both host SDK ABIs outside the workspace  959ms
+   ✓ observability-sentry: packs, installs and loads identical standalone bytes with both host SDK ABIs outside the workspace  614ms
+   ✓ observability-opentelemetry: initialize fails with the typed configuration error when the host binds no helpers  366ms
+   ✓ charts-recharts: packs, installs, loads and admits identical browser-only bytes with both host SDK ABIs outside the workspace  615ms
+   ✓ charts-echarts: packs, installs, loads and admits identical browser-only bytes with both host SDK ABIs outside the workspace  373ms
+   ✓ charts-recharts: the built client bundle mounts and draws a bar chart with whole-number ticks  335ms
+ ✓ src/payments-stripe/__tests__/payments-stripe-kernel.test.ts (17 tests) 107ms
+stderr | src/__tests__/observability-sentry.test.ts > crashUpload derives only publishable upload configuration from https://public:fixture-secret@sentry.invalid/prefix/123
+Invalid Sentry Dsn: https://public:fixture-secret@sentry.invalid/prefix/123
+
+ ❯ src/__tests__/observability-sentry.test.ts (25 tests | 1 failed) 13373ms
+   ✓ a borrowed client advertises no crash upload for an unusable DSN ftp://public@sentry.invalid/123 2ms
+   ✓ a borrowed client advertises no crash upload for an unusable DSN https://%ZZ@sentry.invalid/123 0ms
+   ✓ revoked Sentry pending spans and queued errors are dropped while a fresh client still sends 22ms
+   × a composed tracker correlates Sentry errors to the actual active OTel span only 5003ms
+     → Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+   ✓ an OTel correlation context is explicit and independent of the Sentry trace 6ms
+   ✓ memory diagnostic severity is a warning in the destination envelope 3ms
+   ✓ obs2 #1: a credential-shaped error code never reaches Sentry; the type reads as the class 53ms
+   ✓ review #4: independent operations start distinct traces; a nested one shares its parent's 55ms
+   ✓ review #5: the adapter neither sets the process async-context strategy nor turns on channel injection, yet still delivers 53ms
+   ✓ review #5: a host-owned client is reused and left open by dispose 0ms
+   ✓ review #6: dispose releases the SDK's beforeExit listeners (repeated open/close does not leak) 8ms
+   ✓ a tagged incident exports its label, ID and frames without its message 3ms
+   ✓ Sentry operation traceIds belong to that tracker outside its active scope 4ms
+   ✓ OTel operation traceIds belong to that tracker outside its active scope  7801ms
+   ✓ operation end: settled attributes and failure status reach the transaction; a second end is ignored 53ms
+   ✓ an error reported inside an operation's run() is attached to it; a non-Error value is reported by type with no stack 53ms
+   ✓ a broken SDK call inside reportError never throws, and a failing close is swallowed 1ms
+   ✓ plugin factory: validates its card input, defaults to errors only, and reuses a host-owned client 79ms
+   ✓ without a test transport the private client uses the SDK's own transport (nothing sent when idle) 2ms
+   ✓ site attribution: every exception and transaction carries the host's attributes as tags; a blank environment defaults to deployment.environment 108ms
+   ✓ release reaches the private client and delivered event without global initialization or default integrations 55ms
+   ✓ crashUpload derives only publishable upload configuration from https://public@sentry.invalid/123 2ms
+   ✓ crashUpload derives only publishable upload configuration from https://public:fixture-secret@sentry.invalid/prefix/123 1ms
+   ✓ crashUpload derives only publishable upload configuration from http://public@localhost:9000/123 2ms
+   ✓ crashUpload is absent on noop and when a borrowed client has no usable configured DSN 0ms
+ ✓ src/__tests__/observability-otel-operations.test.ts (28 tests) 38ms
+stderr | src/__tests__/analytics-posthog.test.ts > dispose never throws when the SDK shutdown fails
+[PostHog] Timeout while shutting down PostHog. Some events may not have been sent. { shutdownTimeoutMs: [33m2000[39m }
+
+stderr | src/__tests__/analytics-posthog.test.ts > PostHog factory reports real HTTP 401 with no private response text
+Error while flushing PostHog: message=HTTP error while fetching PostHog: status=401, reqByteLength=253, response body=private provider response PostHogFetchHttpError: HTTP error while fetching PostHog: status=401, reqByteLength=253
+    at retriable (file:///home/user/jt12/node_modules/[4m.pnpm[24m/@posthog+core@1.60.1/node_modules/[4m@posthog/core[24m/dist/posthog-core-stateless.mjs:986:94)
+[90m    at processTicksAndRejections (node:internal/process/task_queues:104:5)[39m
+    at retriable (file:///home/user/jt12/node_modules/[4m.pnpm[24m/@posthog+core@1.60.1/node_modules/[4m@posthog/core[24m/dist/utils/index.mjs:54:25)
+    at PostHog.fetchWithRetry (file:///home/user/jt12/node_modules/[4m.pnpm[24m/@posthog+core@1.60.1/node_modules/[4m@posthog/core[24m/dist/posthog-core-stateless.mjs:941:16)
+    at PostHog.sendBatch (file:///home/user/jt12/node_modules/[4m.pnpm[24m/@posthog+core@1.60.1/node_modules/[4m@posthog/core[24m/dist/posthog-core-stateless.mjs:771:9)
+    at PostHog._flushRoute (file:///home/user/jt12/node_modules/[4m.pnpm[24m/@posthog+core@1.60.1/node_modules/[4m@posthog/core[24m/dist/posthog-core-stateless.mjs:823:17)
+    at PostHog._flush (file:///home/user/jt12/node_modules/[4m.pnpm[24m/@posthog+core@1.60.1/node_modules/[4m@posthog/core[24m/dist/posthog-core-stateless.mjs:783:13) {
+  response: {
+    status: [33m401[39m,
+    text: [36m[AsyncFunction: text][39m,
+    json: [36m[AsyncFunction: json][39m
+  },
+  reqByteLength: [33m253[39m,
+  responseBodyDeadline: [33m1795314283537[39m,
+  abortController: AbortController { signal: AbortSignal { aborted: [33mfalse[39m } },
+  _bodyReadTimedOut: [33mfalse[39m,
+  responseBodyTimer: Timeout {
+    _idleTimeout: [33m-1[39m,
+    _idlePrev: [1mnull[22m,
+    _idleNext: [1mnull[22m,
+    _idleStart: [33m2456[39m,
+    _onTimeout: [90mundefined[39m,
+    _timerArgs: [90mundefined[39m,
+    _repeat: [1mnull[22m,
+    _destroyed: [33mtrue[39m,
+    [32mSymbol(refed)[39m: [33mfalse[39m,
+    [32mSymbol(kHasPrimitive)[39m: [33mfalse[39m,
+    [32mSymbol(asyncId)[39m: [33m514[39m,
+    [32mSymbol(triggerId)[39m: [33m0[39m,
+    [32mSymbol(kAsyncContextFrame)[39m: [90mundefined[39m
+  },
+  responseBodyTextPromise: Promise { [32m'private provider response'[39m }
+}
+Error while flushing PostHog: message=HTTP error while fetching PostHog: status=401, reqByteLength=253, response body=private provider response PostHogFetchHttpError: HTTP error while fetching PostHog: status=401, reqByteLength=253
+    at retriable (file:///home/user/jt12/node_modules/[4m.pnpm[24m/@posthog+core@1.60.1/node_modules/[4m@posthog/core[24m/dist/posthog-core-stateless.mjs:986:94)
+[90m    at processTicksAndRejections (node:internal/process/task_queues:104:5)[39m
+    at retriable (file:///home/user/jt12/node_modules/[4m.pnpm[24m/@posthog+core@1.60.1/node_modules/[4m@posthog/core[24m/dist/utils/index.mjs:54:25)
+    at PostHog.fetchWithRetry (file:///home/user/jt12/node_modules/[4m.pnpm[24m/@posthog+core@1.60.1/node_modules/[4m@posthog/core[24m/dist/posthog-core-stateless.mjs:941:16)
+    at PostHog.sendBatch (file:///home/user/jt12/node_modules/[4m.pnpm[24m/@posthog+core@1.60.1/node_modules/[4m@posthog/core[24m/dist/posthog-core-stateless.mjs:771:9)
+    at PostHog._flushRoute (file:///home/user/jt12/node_modules/[4m.pnpm[24m/@posthog+core@1.60.1/node_modules/[4m@posthog/core[24m/dist/posthog-core-stateless.mjs:823:17)
+    at PostHog._flush (file:///home/user/jt12/node_modules/[4m.pnpm[24m/@posthog+core@1.60.1/node_modules/[4m@posthog/core[24m/dist/posthog-core-stateless.mjs:783:13) {
+  response: {
+    status: [33m401[39m,
+    text: [36m[AsyncFunction: text][39m,
+    json: [36m[AsyncFunction: json][39m
+  },
+  reqByteLength: [33m253[39m,
+  responseBodyDeadline: [33m1795314283537[39m,
+  abortController: AbortController { signal: AbortSignal { aborted: [33mfalse[39m } },
+  _bodyReadTimedOut: [33mfalse[39m,
+  responseBodyTimer: Timeout {
+    _idleTimeout: [33m-1[39m,
+    _idlePrev: [1mnull[22m,
+    _idleNext: [1mnull[22m,
+    _idleStart: [33m2456[39m,
+    _onTimeout: [90mundefined[39m,
+    _timerArgs: [90mundefined[39m,
+    _repeat: [1mnull[22m,
+    _destroyed: [33mtrue[39m,
+    [32mSymbol(refed)[39m: [33mfalse[39m,
+    [32mSymbol(kHasPrimitive)[39m: [33mfalse[39m,
+    [32mSymbol(asyncId)[39m: [33m514[39m,
+    [32mSymbol(triggerId)[39m: [33m0[39m,
+    [32mSymbol(kAsyncContextFrame)[39m: [90mundefined[39m
+  },
+  responseBodyTextPromise: Promise { [32m'private provider response'[39m }
+}
+
+stderr | src/__tests__/analytics-posthog.test.ts > PostHog factory reports real HTTP 429 with no private response text
+[PostHog] Timeout while shutting down PostHog. Some events may not have been sent. { shutdownTimeoutMs: [33m2000[39m }
+
+ ✓ src/__tests__/analytics-posthog.test.ts (28 tests) 4064ms
+   ✓ dispose never throws when the SDK shutdown fails  2003ms
+   ✓ PostHog factory reports real HTTP 429 with no private response text  2001ms
+ ✓ src/__tests__/analytics-posthog-consent.test.ts (19 tests) 25ms
+✘ [ERROR] Expected ";" but found "valid"
+
+    src/alpha/index.ts:1:4:
+      1 │ not valid TypeScript
+        │     ~~~~~
+        ╵     ;
+
+ ✓ src/__tests__/build-script.test.ts (19 tests) 384ms
+ ✓ src/__tests__/observability-otel-instrumentation.test.ts (16 tests) 15ms
+ ✓ src/__tests__/core-boundary.test.ts (33 tests) 20302ms
+   ✓ no core package imports or declares a vendor SDK  14754ms
+   ✓ production sources keep Stripe endpoints in its plugin and never import sibling plugins  5509ms
+ ✓ src/__tests__/observability-otel-surfaces.test.ts (20 tests) 17ms
+ ✓ src/__tests__/analytics-posthog-browser.test.ts (14 tests) 24ms
+ ✓ src/__tests__/ai-trace-langfuse.test.ts (19 tests) 21ms
+ ✓ src/__tests__/observability-metrics.test.ts (6 tests) 52ms
+ ✓ src/__tests__/telemetry-delivery.test.ts (9 tests) 68ms
+✘ [ERROR] Could not resolve "node:fs"
+
+    src/charts-fixture/client/provider.ts:1:29:
+      1 │ import { readFileSync } from 'node:fs';
+        ╵                              ~~~~~~~~~
+
+  The package "node:fs" wasn't found on the file system but is built into node. Are you trying to bundle for node? You can use "platform: 'node'" to do that, which will remove this error.
+
+ ✓ src/__tests__/build-script-browser.test.ts (9 tests) 229ms
+ ✓ src/__tests__/analytics-posthog-consent-artifact.test.ts (6 tests) 344ms
+ ✓ src/__tests__/observability-export-gate.test.ts (12 tests) 193ms
+ ✓ src/__tests__/analytics-posthog-attribution.test.ts (9 tests) 20ms
+ ✓ src/observability-sentry/__tests__/distribution-pack.test.ts (6 tests) 1023ms
+ ✓ src/observability-opentelemetry/__tests__/distribution-pack.test.ts (6 tests) 995ms
+ ✓ src/payments-stripe/__tests__/provider.test.ts (25 tests) 17ms
+ ✓ src/payments-stripe/__tests__/http.test.ts (33 tests) 20ms
+ ✓ src/analytics-posthog/__tests__/distribution-pack.test.ts (4 tests) 647ms
+ ✓ src/payments-stripe/__tests__/checkout-session.test.ts (18 tests) 12ms
+ ✓ src/__tests__/observability-otel-tracing.test.ts (7 tests) 4ms
+ ✓ src/__tests__/provider-context.test.ts (4 tests) 10ms
+ ✓ src/ai-trace-langfuse/__tests__/distribution-package.test.ts (2 tests) 578ms
+   ✓ packs exactly the selected versioned payload with verified integrity and retained attribution  572ms
+ ✓ src/payments-stripe/__tests__/distribution-package.test.ts (2 tests) 622ms
+   ✓ packs exactly the selected versioned payload with verified integrity and retained attribution  614ms
+ ✓ src/payments-stripe/__tests__/webhook.test.ts (41 tests) 9ms
+ ✓ src/payments-stripe/__tests__/provider-context.test.ts (8 tests) 7ms
+ ✓ src/payments-stripe/__tests__/session-reading.test.ts (47 tests) 13ms
+ ✓ src/payments-stripe/__tests__/webhook-signature.test.ts (39 tests) 8ms
+ ✓ src/google-forms/__tests__/provider.test.ts (33 tests) 16ms
+ ✓ src/__tests__/observability-otel-contract.test.ts (4 tests) 6ms
+ ✓ src/__tests__/observability-otel-tracker.test.ts (2 tests) 16ms
+ ✓ src/charts-recharts/__tests__/chart-default-palette-css.test.ts (4 tests) 4ms
+ ✓ src/payments-stripe/__tests__/amount.test.ts (43 tests) 7ms
+ ✓ src/__tests__/payments-stripe-manifest.test.ts (2 tests) 9ms
+ ✓ src/charts-recharts/__tests__/chart-styles.test.ts (3 tests) 3ms
+ ✓ src/__tests__/unit/exporter-completion-m2.unit.test.ts (2 tests) 6ms
+ ✓ src/__tests__/telemetry-reporter.test.ts (2 tests) 3ms
+ ✓ src/__tests__/unit/posthog-sparse-m2.unit.test.ts (1 test) 5ms
+ ✓ src/__tests__/distribution-manifest.test.ts (2 tests) 8ms
+ ✓ src/__tests__/attribution.test.ts (9 tests) 4ms
+ ✓ src/formspree/__tests__/provider.test.ts (10 tests) 8ms
+ ✓ src/__tests__/fixture-provider.test.ts (1 test) 5ms
+ ✓ src/charts-recharts/__tests__/bar-chart.test.tsx (18 tests) 898ms
+stderr | src/charts-echarts/__tests__/mount.test.ts > ECharts vanilla lifecycle > draws bar as SVG (never canvas) inside a labelled figure
+[ECharts] Can't get DOM width or height. Please check dom.clientWidth and dom.clientHeight. They should not be 0.For example, you may need to call this in the callback of window.onload.
+
+stderr | src/charts-echarts/__tests__/mount.test.ts > ECharts vanilla lifecycle > draws stacked-bar as SVG (never canvas) inside a labelled figure
+[ECharts] Can't get DOM width or height. Please check dom.clientWidth and dom.clientHeight. They should not be 0.For example, you may need to call this in the callback of window.onload.
+
+stderr | src/charts-echarts/__tests__/mount.test.ts > ECharts vanilla lifecycle > draws line as SVG (never canvas) inside a labelled figure
+[ECharts] Can't get DOM width or height. Please check dom.clientWidth and dom.clientHeight. They should not be 0.For example, you may need to call this in the callback of window.onload.
+
+stderr | src/charts-echarts/__tests__/mount.test.ts > ECharts vanilla lifecycle > draws area as SVG (never canvas) inside a labelled figure
+[ECharts] Can't get DOM width or height. Please check dom.clientWidth and dom.clientHeight. They should not be 0.For example, you may need to call this in the callback of window.onload.
+
+stderr | src/charts-echarts/__tests__/mount.test.ts > ECharts vanilla lifecycle > draws pie as SVG (never canvas) inside a labelled figure
+[ECharts] Can't get DOM width or height. Please check dom.clientWidth and dom.clientHeight. They should not be 0.For example, you may need to call this in the callback of window.onload.
+
+stderr | src/charts-echarts/__tests__/mount.test.ts > ECharts vanilla lifecycle > draws donut as SVG (never canvas) inside a labelled figure
+[ECharts] Can't get DOM width or height. Please check dom.clientWidth and dom.clientHeight. They should not be 0.For example, you may need to call this in the callback of window.onload.
+
+stderr | src/charts-echarts/__tests__/mount.test.ts > ECharts vanilla lifecycle > draws scatter as SVG (never canvas) inside a labelled figure
+[ECharts] Can't get DOM width or height. Please check dom.clientWidth and dom.clientHeight. They should not be 0.For example, you may need to call this in the callback of window.onload.
+
+stderr | src/charts-echarts/__tests__/mount.test.ts > ECharts vanilla lifecycle > gives two charts on one page distinct description ids
+[ECharts] Can't get DOM width or height. Please check dom.clientWidth and dom.clientHeight. They should not be 0.For example, you may need to call this in the callback of window.onload.
+[ECharts] Can't get DOM width or height. Please check dom.clientWidth and dom.clientHeight. They should not be 0.For example, you may need to call this in the callback of window.onload.
+
+stderr | src/charts-echarts/__tests__/mount.test.ts > ECharts vanilla lifecycle > puts the title and description in the hidden caption as text, never as markup
+[ECharts] Can't get DOM width or height. Please check dom.clientWidth and dom.clientHeight. They should not be 0.For example, you may need to call this in the callback of window.onload.
+
+stderr | src/charts-echarts/__tests__/mount.test.ts > ECharts vanilla lifecycle > replaces series on update, so dropped series and a former kind's axes are gone
+[ECharts] Can't get DOM width or height. Please check dom.clientWidth and dom.clientHeight. They should not be 0.For example, you may need to call this in the callback of window.onload.
+
+stderr | src/charts-echarts/__tests__/mount.test.ts > ECharts vanilla lifecycle > applies the theme through the applier the host passed in the mount input, on mount and update
+[ECharts] Can't get DOM width or height. Please check dom.clientWidth and dom.clientHeight. They should not be 0.For example, you may need to call this in the callback of window.onload.
+
+stderr | src/charts-echarts/__tests__/mount.test.ts > ECharts vanilla lifecycle > applies the ChartTheme mode and chart tokens to its element on mount and update
+[ECharts] Can't get DOM width or height. Please check dom.clientWidth and dom.clientHeight. They should not be 0.For example, you may need to call this in the callback of window.onload.
+
+stderr | src/charts-echarts/__tests__/mount.test.ts > ECharts vanilla lifecycle > shares category colors and one legend across rings, and identifies the hovered ring, category and formatted value
+[ECharts] Can't get DOM width or height. Please check dom.clientWidth and dom.clientHeight. They should not be 0.For example, you may need to call this in the callback of window.onload.
+
+stderr | src/charts-echarts/__tests__/mount.test.ts > ECharts vanilla lifecycle > refuses an unsupported spec at mount (leaving nothing behind) and at update (keeping the chart)
+[ECharts] Can't get DOM width or height. Please check dom.clientWidth and dom.clientHeight. They should not be 0.For example, you may need to call this in the callback of window.onload.
+
+stderr | src/charts-echarts/__tests__/mount.test.ts > ECharts vanilla lifecycle > disposes ECharts on destroy, empties its element, is idempotent and ignores later updates
+[ECharts] Can't get DOM width or height. Please check dom.clientWidth and dom.clientHeight. They should not be 0.For example, you may need to call this in the callback of window.onload.
+
+stderr | src/charts-echarts/__tests__/mount.test.ts > ECharts vanilla lifecycle > resizes with its frame and stops observing once destroyed
+[ECharts] Can't get DOM width or height. Please check dom.clientWidth and dom.clientHeight. They should not be 0.For example, you may need to call this in the callback of window.onload.
+
+stderr | src/charts-echarts/__tests__/mount.test.ts > updates a formatted bar to plain line and pie without retaining tooltip formatting or its shadow cursor
+[ECharts] Can't get DOM width or height. Please check dom.clientWidth and dom.clientHeight. They should not be 0.For example, you may need to call this in the callback of window.onload.
+
+ ✓ src/charts-echarts/__tests__/mount.test.ts (17 tests) 579ms
+ ✓ src/charts-recharts/__tests__/mount.test.tsx (13 tests) 515ms
+ ✓ src/charts-echarts/__tests__/option.test.ts (14 tests) 26ms
+ ✓ src/charts-recharts/__tests__/chart.test.tsx (23 tests) 331ms
+ ✓ src/__tests__/analytics-posthog-anonymous.test.ts (9 tests) 93ms
+ ✓ src/charts-recharts/__tests__/line-chart.test.tsx (9 tests) 666ms
+stderr | src/charts-recharts/__tests__/provider.test.tsx > Recharts artifact through the neutral UI host and A2UI catalog > preserves the bar-chart wire alias while drawing real SVG
+Attempted to synchronously unmount a root while React was already rendering. React cannot finish unmounting the root until the current render has completed, which may lead to a race condition.
+
+stderr | src/charts-recharts/__tests__/provider.test.tsx > Recharts artifact through the neutral UI host and A2UI catalog > preserves the line-chart wire alias while drawing real SVG
+Attempted to synchronously unmount a root while React was already rendering. React cannot finish unmounting the root until the current render has completed, which may lead to a race condition.
+
+stderr | src/charts-recharts/__tests__/provider.test.tsx > Recharts artifact through the neutral UI host and A2UI catalog > preserves the pie-chart wire alias while drawing real SVG
+Attempted to synchronously unmount a root while React was already rendering. React cannot finish unmounting the root until the current render has completed, which may lead to a race condition.
+
+ ✓ src/charts-recharts/__tests__/provider.test.tsx (6 tests) 441ms
+ ✓ src/charts-recharts/__tests__/pie-chart.test.tsx (8 tests) 364ms
+ ✓ src/charts-recharts/__tests__/chart-config.test.ts (24 tests) 23ms
+ ✓ src/charts-echarts/__tests__/descriptor.test.ts (30 tests) 23ms
+stderr | src/charts-echarts/__tests__/provider.test.ts > ECharts artifact through the neutral UI chart host > draws a multi-series spec pinned to plugin.echarts and hides the data table once drawn
+[ECharts] Can't get DOM width or height. Please check dom.clientWidth and dom.clientHeight. They should not be 0.For example, you may need to call this in the callback of window.onload.
+
+stderr | src/charts-echarts/__tests__/provider.test.ts > ECharts artifact through the neutral UI chart host > renders multi-series pie and falls back to all table cells when category coverage no longer matches
+[ECharts] Can't get DOM width or height. Please check dom.clientWidth and dom.clientHeight. They should not be 0.For example, you may need to call this in the callback of window.onload.
+
+stderr | src/charts-echarts/__tests__/provider.test.ts > ECharts artifact through the neutral UI chart host > renders multi-series donut and falls back to all table cells when category coverage no longer matches
+[ECharts] Can't get DOM width or height. Please check dom.clientWidth and dom.clientHeight. They should not be 0.For example, you may need to call this in the callback of window.onload.
+
+ ✓ src/charts-echarts/__tests__/provider.test.ts (5 tests) 230ms
+ ❯ src/__tests__/observability-opentelemetry.test.ts (69 tests | 3 failed) 144518ms
+   ✓ OTLP header parsing treats blank settings as absent and refuses mixed value types 5ms
+   ✓ provider configuration rejects a non-string optional field before starting exporters 2ms
+   ✓ active IDs follow nested async spans, concurrent work and scope exit  8224ms
+   ✓ end() exports exactly one span per trackRequest() call 1ms
+   ✓ the exported span's name combines the method and the FINAL route pattern from end(), not the raw path known at trackRequest() time 2ms
+   ✓ attributes carry method, target, matched route, and status code; kind is SERVER 1ms
+   ✓ a 5xx outcome sets the span status to ERROR 1ms
+   ✓ a 2xx/4xx outcome leaves the span status UNSET — errors are reserved for 5xx, matching the port's contract (client errors are not server failures) 0ms
+   ✓ multiple concurrent trackRequest() calls produce independently-attributed spans — one call's outcome never leaks into another's 1ms
+   ✓ SDK factories reject an exporter of the wrong kind before starting a provider 0ms
+   ✓ without test processors the SDK factories build a real OTLP exporter and accept it into the batch pipeline 2ms
+   ✓ explicit test processors suppress the network exporter entirely 0ms
+   ✓ structural span methods preserve names, attributes, events and both error description shapes 1ms
+   ✓ an unrecognized structural parent starts an SDK root span 0ms
+   ✓ async scope releases the active span after rejected work 0ms
+   ✓ a DB span started inside a request's run() is that request span's child in the SDK, with kind CLIENT 3ms
+   ✓ an outbound failure exports ERROR status, error.type and an exception event, without the URL path or query 1ms
+   ✓ an agent run is an INTERNAL root span even when started inside a request  8408ms
+   ✓ the plugin factory exports through the default OTLP batch pipeline with its configured service identity and generic OTLP headers  5019ms
+   ✓ obs #1: a credential-shaped error.code never reaches an exported OTel span  7998ms
+   ✓ constructing and disposing the adapter never takes over the process-wide tracer provider 1ms
+   ✓ dispose shuts the provider down: later spans are not exported, and a second dispose resolves 1ms
+   ✓ dispose never throws when the SDK shutdown fails 0ms
+   ✓ plugin setup only registers the observability factory; it constructs nothing 0ms
+   × the factory resolves a general endpoint to /v1/traces and serves the port until disposed 5009ms
+     → Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+   ✓ the factory refuses malformed input {"serviceName":"s","tracerName":"t"} 0ms
+   ✓ the factory refuses malformed input {"serviceName":"s","tracerName":"t","endpoint":"  "} 0ms
+   ✓ the factory refuses malformed input {"serviceName":1,"tracerName":"t","endpoint":"http://c"} 0ms
+   ✓ the factory refuses malformed input {"serviceName":"s","tracerName":null,"endpoint":"http://c"} 0ms
+   ✓ the factory refuses malformed input {"serviceName":"s","tracerName":"t","endpoint":5} 0ms
+   ✓ the factory refuses malformed input {"serviceName":"s","tracerName":"t","tracesEndpoint":[]} 0ms
+   ✓ the factory refuses malformed input {"serviceName":"","tracerName":"t","endpoint":"http://c"} 0ms
+   ✓ the factory refuses malformed input {"tracerName":"t","endpoint":"http://c"} 0ms
+   ✓ the factory refuses malformed input {"endpoint":"http://c"} 0ms
+   ✓ the factory refuses malformed input {"serviceName":"s","tracerName":"","endpoint":"http://c"} 0ms
+   ✓ the factory refuses malformed input {"serviceName":"s","tracerName":"t","endpoint":"http://c","headers":"x"} 0ms
+   ✓ the factory refuses malformed input {"serviceName":"s","tracerName":"t","endpoint":"http://c","token":1} 0ms
+   ✓ the factory refuses malformed input {"serviceName":"s","tracerName":"t","endpoint":"http://c","username":1} 0ms
+   ✓ the factory refuses malformed input {"serviceName":"s","tracerName":"t","endpoint":"http://c","headers":null} 0ms
+   ✓ the factory refuses malformed input {"serviceName":"s","tracerName":"t","endpoint":"http://c","headers":["a"]} 0ms
+   ✓ the factory refuses malformed input {"serviceName":"s","tracerName":"t","endpoint":"http://c","headers":{"a":"ok","b":1}} 0ms
+   ✓ the factory builds a real OTLP exporter with headers when no test processors are given 1ms
+   ✓ the factory without headers or test processors builds a plain OTLP exporter 0ms
+   ✓ settings-card headers: the OTLP `Name=Value,Name=Value` text form becomes the same generic headers object 0ms
+   ✓ card auth: username + token → Basic, token alone → Bearer, replacing any Authorization in the extra headers 0ms
+   ✓ card auth: no token keeps a card saved before these fields (raw headers) unchanged 0ms
+   ✓ explicit no authentication ignores a saved token and removes Authorization regardless of casing 0ms
+   ✓ the factory sends the Basic header it built from the card's username + token 6ms
+   × a settings card supplies no tracer name: the service name is the tracer name 5001ms
+     → Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+   × site attribution: every exported span's resource carries the host's attributes; service.name stays the host's service 5002ms
+     → Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+   ✓ explicit OTLP authentication modes enforce Grafana credentials and token-only ignores a username 1ms
+   ✓ legacy token auth retains its inferred scheme until the saved settings are migrated 1ms
+   ✓ the manifest defaults to Grafana Cloud and declares both conditional requirements and all auth choices 0ms
+   ✓ normalized legacy modes preserve a raw Authorization header, while explicit tokens and none remain authoritative 0ms
+   ✓ the plugin owns legacy read migrations and only declared auth headers satisfy the manifest and factory 65ms
+   ✓ active traceparent contains the SDK span context only while the span is live and scoped  8888ms
+   ✓ explicit remote traceparent wins over local parentage with flags 00  9122ms
+   ✓ explicit remote traceparent wins over local parentage with flags 01  8241ms
+   ✓ invalid or omitted traceparent preserves operation parentage and agent roots: undefined  8480ms
+   ✓ invalid or omitted traceparent preserves operation parentage and agent roots: 00-00000000000000000000000000000000-bbbbbbbbbbbbbbbb-01  8320ms
+   ✓ invalid or omitted traceparent preserves operation parentage and agent roots: 00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-0000000000000000-01  7461ms
+   ✓ invalid or omitted traceparent preserves operation parentage and agent roots: malformed  8244ms
+   ✓ invalid or omitted traceparent preserves operation parentage and agent roots: 01-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01  8444ms
+   ✓ invalid or omitted traceparent preserves operation parentage and agent roots: 00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01  8251ms
+   ✓ invalid or omitted traceparent preserves operation parentage and agent roots: 00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-gg  8733ms
+   ✓ invalid or omitted traceparent preserves operation parentage and agent roots: 00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01-extra  7782ms
+   ✓ invalid or omitted traceparent preserves operation parentage and agent roots: 00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01
+  7785ms
+   ✓ structural roots explicitly pass ROOT_CONTEXT and explicit parents stay linked 2ms
+   ✓ span admission caps attribute count and value length, including late attributes and events 3ms
+ ✓ src/charts-recharts/__tests__/y-axis-ticks.test.tsx (10 tests) 617ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/__tests__/observability-opentelemetry.test.ts > the factory resolves a general endpoint to /v1/traces and serves the port until disposed
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ src/__tests__/observability-opentelemetry.test.ts:411:1
+    409| });
+    410| 
+    411| test("the factory resolves a general endpoint to /v1/traces and serves…
+       | ^
+    412|   const exporter = new InMemorySpanExporter();
+    413|   const resource = createOpenTelemetryProvider({ serviceName: " svc ",…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/4]⎯
+
+ FAIL  src/__tests__/observability-opentelemetry.test.ts > a settings card supplies no tracer name: the service name is the tracer name
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ src/__tests__/observability-opentelemetry.test.ts:500:1
+    498| });
+    499| 
+    500| test("a settings card supplies no tracer name: the service name is the…
+       | ^
+    501|   const exporter = new InMemorySpanExporter();
+    502|   const resource = createOpenTelemetryProvider({ serviceName: "svc", e…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/4]⎯
+
+ FAIL  src/__tests__/observability-opentelemetry.test.ts > site attribution: every exported span's resource carries the host's attributes; service.name stays the host's service
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ src/__tests__/observability-opentelemetry.test.ts:508:1
+    506| });
+    507| 
+    508| test("site attribution: every exported span's resource carries the hos…
+       | ^
+    509|   const exporter = new InMemorySpanExporter();
+    510|   const resource = createOpenTelemetryProvider({ serviceName: "tovu", …
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/4]⎯
+
+ FAIL  src/__tests__/observability-sentry.test.ts > a composed tracker correlates Sentry errors to the actual active OTel span only
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ src/__tests__/observability-sentry.test.ts:68:1
+     66| });
+     67| 
+     68| test('a composed tracker correlates Sentry errors to the actual active…
+       | ^
+     69|   const { items, transport } = recordingTransport();
+     70|   const sentry = createSentryObservabilityAdapter({ config: CONFIG }, …
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/4]⎯
+
+
+ Test Files  2 failed | 58 passed (60)
+      Tests  4 failed | 919 passed (923)
+   Start at  02:24:00
+   Duration  147.58s (transform 4.40s, setup 0ms, collect 15.95s, tests 205.25s, environment 4.55s, prepare 3.74s)
+
+EXIT 1

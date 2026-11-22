@@ -1,0 +1,64 @@
+
+> @jini-ai/oauth@0.7.3-next.2 test
+> vitest run --maxWorkers=2 --minWorkers=1
+
+
+ RUN  v3.2.7 /home/user/jt12/packages/oauth
+
+ ✓ tests/token-refresh.test.ts (31 tests) 33ms
+ ✓ tests/authorization-code.test.ts (36 tests) 63ms
+ ✓ tests/token-endpoint.test.ts (49 tests) 61ms
+ ✓ tests/discovery.port.test.ts (22 tests) 188ms
+ ✓ tests/device-code.test.ts (40 tests) 71ms
+ ✓ tests/loopback-receiver.security.test.ts (45 tests) 210ms
+ ✓ tests/discovery.test.ts (20 tests) 32ms
+ ✓ tests/ports-and-options.test.ts (16 tests) 48ms
+ ✓ tests/guarded-transport.contract.test.ts (28 tests) 38ms
+ ✓ tests/oidc-and-revocation.test.ts (34 tests) 1046ms
+ ✓ tests/pkce-and-state.test.ts (25 tests) 34ms
+ ✓ tests/dynamic-registration.port.test.ts (11 tests) 99ms
+ ✓ tests/dynamic-registration.test.ts (18 tests) 29ms
+ ✓ tests/__tests__/registration.l145b.characterization.test.ts (33 tests) 26ms
+ ✓ tests/retirement-security.test.ts (30 tests) 47ms
+ ✓ tests/__tests__/authorization-code.l145a.characterization.test.ts (23 tests) 24ms
+ ✓ tests/__tests__/helpers.l194.characterization.test.ts (15 tests) 100ms
+ ✓ tests/__tests__/sealed-state.l145b.characterization.test.ts (41 tests) 6ms
+ ✓ tests/authorization-code.f1-guards.test.ts (23 tests) 26ms
+ ✓ tests/sealed-state.test.ts (7 tests) 32ms
+ ✓ tests/loopback-callback.unit.test.ts (33 tests) 14ms
+ ✓ tests/args-convention.test.ts (7 tests) 21ms
+ ✓ tests/providers.test.ts (16 tests) 6ms
+ ✓ tests/__tests__/pending-authorizations.l145a.characterization.test.ts (17 tests) 42ms
+ ✓ tests/endpoint-safety.test.ts (12 tests) 6ms
+ ✓ tests/integration-contract.test.ts (6 tests) 31ms
+ ✓ tests/protected-resource.test.ts (11 tests) 27ms
+ ✓ tests/__tests__/file-registration-cache.l145a.characterization.test.ts (27 tests) 16ms
+ ✓ tests/file-cache.test.ts (4 tests) 35ms
+ ✓ tests/__tests__/endpoint-safety.l145a.characterization.test.ts (16 tests) 13ms
+ ✓ tests/loopback-receiver.slice.test.ts (1 test) 66ms
+stdout | tests/__tests__/unit/endpoint-safety.property.unit.test.ts
+[fast-check oauth/endpoint-safety] seed=20261020, numRuns=150
+
+ ✓ tests/__tests__/callback-page.test.ts (11 tests) 29ms
+ ✓ tests/__tests__/unit/endpoint-safety.property.unit.test.ts (5 tests) 178ms
+ ✓ tests/registration-error-redaction.test.ts (25 tests) 37ms
+ ✓ tests/oidc.f1-config.test.ts (16 tests) 11ms
+ ✓ tests/bounded-json.test.ts (5 tests) 10ms
+ ✓ tests/sealed-state-codec.test.ts (5 tests) 8ms
+ ✓ tests/api.test.ts (5 tests) 5ms
+ ✓ tests/loopback-receiver.bounds.test.ts (2 tests) 21ms
+ ✓ tests/__tests__/discovery-policy.l145a.characterization.test.ts (14 tests) 9ms
+ ✓ tests/options.test.ts (5 tests) 5ms
+ ✓ tests/token-endpoint.f1.test.ts (5 tests) 15ms
+ ✓ tests/token-error-redaction.test.ts (16 tests) 29ms
+ ✓ tests/__tests__/unit/discovery-candidates-m2.unit.test.ts (2 tests) 15ms
+ ✓ tests/errors.characterization.test.ts (2 tests) 4ms
+ ✓ tests/bounded-json-cleanup.test.ts (2 tests) 6ms
+ ✓ tests/refresh.f1.test.ts (7 tests) 3ms
+
+ Test Files  47 passed (47)
+      Tests  824 passed (824)
+   Start at  02:37:50
+   Duration  9.21s (transform 1.28s, setup 0ms, collect 5.66s, tests 2.87s, environment 8ms, prepare 3.30s)
+
+EXIT 0
