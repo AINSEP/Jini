@@ -1,0 +1,16 @@
+ST-5 named mutation: drop the verified-copy requirement (no null guard, no anchor==newest check, anchor falls back to copies[0])
+planted in packages/db/src/sqlite/backup-policy.ts, ran copy-selection.test.ts:
+   ✓ default keeps 5 2ms
+   ✓ a caller-supplied keep widens or narrows the newest window 0ms
+   ✓ protected paths are kept beyond the cap 0ms
+   × nothing is selected without a verified newest copy 13ms
+   × a verified copy that is not the newest local copy selects nothing 2ms
+   ✓ copies from another directory are ignored 1ms
+   ✓ equal timestamps fall back to the same name order the live pruner uses 9ms
+   ✓ selection is pure: the input list is not reordered or changed 0ms
+   ✓ keep below 1 or not a whole number is refused in plain words 1ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  src/__tests__/sqlite/copy-selection.test.ts > nothing is selected without a verified newest copy
+ FAIL  src/__tests__/sqlite/copy-selection.test.ts > a verified copy that is not the newest local copy selects nothing
+      Tests  2 failed | 7 passed (9)
+restored by byte copy; rerun: 9/9 pass
