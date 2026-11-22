@@ -185,6 +185,16 @@
    "resolveDevAppVersion": "function:4bfd554fab"
   }
  },
+ "./electron/handoff": {
+  "types": "./dist/electron/handoff/index.d.ts",
+  "symbols": {
+   "HandoffChannels": "interface:f09937540a",
+   "HandoffIpcMain": "interface:050e52c6f9",
+   "HandoffResult": "interface:e64afc59d1",
+   "HandoffWindow": "interface:77ab1a94a1",
+   "registerHandoffForwarding": "function:6ec4136dc0"
+  }
+ },
  "./electron/navigation-policy": {
   "types": "./dist/electron/navigation-policy/index.d.ts",
   "symbols": {

@@ -39,7 +39,8 @@
       "./shell/webview-guest-policy": "desktop",
       "./shell/window-navigation-policy": "desktop",
       "./shell/guest-navigation": "desktop",
-      "./shell/site-presence": "universal"
+      "./shell/site-presence": "universal",
+      "./electron/handoff": "desktop"
     },
     "isolation": {
       "entries": {
@@ -189,6 +190,11 @@
       "types": "./dist/shell/site-presence.d.ts",
       "import": "./dist/shell/site-presence.js",
       "default": "./dist/shell/site-presence.js"
+    },
+    "./electron/handoff": {
+      "types": "./dist/electron/handoff/index.d.ts",
+      "import": "./dist/electron/handoff/index.js",
+      "default": "./dist/electron/handoff/index.js"
     }
   },
   "files": [
