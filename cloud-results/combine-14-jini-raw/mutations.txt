@@ -46,3 +46,12 @@ core rebuilt EXIT 0
 daemon tsc after restore EXIT 0
       Tests  3 passed (3)
       Tests  1 passed (1)
+note: M2a/M2b restore verified afterwards with git diff of the two files vs the k4-seam-1 tip: identical; the 'restored clean' check printed nothing only because mutations.txt itself is tracked
+### M3 RT-K1-0 (named): rejectRoute drops code from the body in packages/core/src/errors/route-refusal.ts
+      Tests  4 passed (4)
+-  if (required.code !== undefined) body.code = required.code;
+   × rejectRoute > carries the exact response for a 403 with code and permission details 7ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+      Tests  1 failed | 3 passed (4)
+restored clean
+      Tests  4 passed (4)
