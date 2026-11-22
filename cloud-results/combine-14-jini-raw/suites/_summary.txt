@@ -2,3 +2,5 @@ admin:       Tests  3087 passed (3087) EXIT 0
 user-management:       Tests  1353 passed (1353) EXIT 0
 ex-neutral-host:       Tests  1 failed | 38 passed | 13 todo (52) EXIT 1
 core:       Tests  2978 passed (2978) EXIT 0
+daemon:       Tests  4855 passed | 1 skipped (4856) EXIT 0
+cms-forms:       Tests  1 failed | 156 passed (157) EXIT 1

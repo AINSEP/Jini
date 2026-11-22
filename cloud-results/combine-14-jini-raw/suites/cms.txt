@@ -1,0 +1,11 @@
+
+> @jini-ai/cms@0.7.3-next.2 test
+> vitest run --maxWorkers=3 --minWorkers=1
+
+
+ RUN  v3.2.7 /home/user/Jini/packages/cms
+
+ ✓ src/taxonomy/__tests__/write-service.test.ts (37 tests) 43ms
+ ✓ src/redirects/__tests__/redirects.test.ts (52 tests) 42ms
+ ✓ src/media/__tests__/media-service.test.ts (62 tests) 329ms
+   ✓ SVG upload stores sanitized bytes under their own hash, deduplicates, and refuses SVG fonts  301ms

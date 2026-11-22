@@ -1,0 +1,52 @@
+
+> @jini-ai/cms-forms@0.7.3-next.2 test
+> vitest run --maxWorkers=3 --minWorkers=1
+
+
+ RUN  v3.2.7 /home/user/Jini/packages/cms/forms
+
+ ✓ src/__tests__/notify-subscriber.test.ts (11 tests) 5ms
+ ✓ src/__tests__/forms.field-validation.characterization.test.ts (14 tests) 4ms
+ ✓ src/__tests__/submit-service.test.ts (12 tests) 47ms
+ ✓ src/__tests__/write-service.test.ts (21 tests) 11ms
+ ✓ src/__tests__/forms.submission-validation.characterization.test.ts (15 tests) 4ms
+ ✓ src/__tests__/forms.field-validation.test.ts (40 tests) 5ms
+ ✓ src/__tests__/forms.submission-validation.test.ts (11 tests) 4ms
+ ✓ src/__tests__/forms-misc.cov-j2.test.ts (3 tests) 14ms
+ ✓ src/__tests__/injected-ports.test.ts (7 tests) 114ms
+ ✓ src/__tests__/submission-ip-retention.test.ts (4 tests) 4ms
+ ❯ src/__tests__/package-boundary.test.ts (2 tests | 1 failed) 9ms
+   × forms keeps its own published root entry and CMS exposes no forms alias 6ms
+     → expected '0.7.2' to be '0.7.3-next.2' // Object.is equality
+   ✓ the root entry exposes validators, services and the rate-limit key 1ms
+ ✓ src/__tests__/checkbox-authored-value.test.ts (4 tests) 4ms
+ ✓ src/__tests__/eventing.fixture.test.ts (2 tests) 3ms
+ ✓ src/__tests__/errors-defaults.test.ts (4 tests) 3ms
+ ✓ src/__tests__/reserved-slug-update.test.ts (1 test) 4ms
+ ✓ src/__tests__/forms.honeypot.test.ts (6 tests) 2ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/__tests__/package-boundary.test.ts > forms keeps its own published root entry and CMS exposes no forms alias
+AssertionError: expected '0.7.2' to be '0.7.3-next.2' // Object.is equality
+
+Expected: [32m"0.7.[7m3-next.[27m2"[39m
+Received: [31m"0.7.2"[39m
+
+ ❯ src/__tests__/package-boundary.test.ts:23:58
+     21|   // The version is read, not pinned: every release bump must ship wit…
+     22|   // so the newest released heading is the version the package claims.
+     23|   expect(changelog.match(/^## (\d+\.\d+\.\d+)\b/m)?.[1]).toBe(own.vers…
+       |                                                          ^
+     24|   // Publishable since 809ed6d1; publish-pending/publish-all skip priv…
+     25|   expect(own).not.toHaveProperty("private");
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 15 passed (16)
+      Tests  1 failed | 156 passed (157)
+   Start at  20:53:44
+   Duration  1.51s (transform 598ms, setup 0ms, collect 1.39s, tests 236ms, environment 2ms, prepare 849ms)
+
+EXIT 1
