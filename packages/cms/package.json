@@ -54,7 +54,6 @@
       "./trash": "universal",
       "./trash/site/adapters/plugin": "universal",
       "./trash/site/adapters/theme": "universal",
-      "./trash/site/directory-rollback-log": "universal",
       "./trash/site/ports": "universal",
       "./trash/site/registry": "universal",
       "./trash/site/remove-without-blocker": "universal",
@@ -453,11 +452,6 @@
       "types": "./dist/trash/site/adapters/theme.d.ts",
       "import": "./dist/trash/site/adapters/theme.js",
       "default": "./dist/trash/site/adapters/theme.js"
-    },
-    "./trash/site/directory-rollback-log": {
-      "types": "./dist/trash/site/directory-rollback-log.d.ts",
-      "import": "./dist/trash/site/directory-rollback-log.js",
-      "default": "./dist/trash/site/directory-rollback-log.js"
     },
     "./trash/site/ports": {
       "types": "./dist/trash/site/ports.d.ts",

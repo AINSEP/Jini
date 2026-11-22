@@ -2388,12 +2388,6 @@
    "THEME_ENTITY_TYPE": "variable:c58d0a071a"
   }
  },
- "./trash/site/directory-rollback-log": {
-  "types": "./dist/trash/site/directory-rollback-log.d.ts",
-  "symbols": {
-   "reportDirectoryRollbackFailure": "function:f39d67d094"
-  }
- },
  "./trash/site/ports": {
   "types": "./dist/trash/site/ports.d.ts",
   "symbols": {
