@@ -1,0 +1,50 @@
+
+> jini@ guard:plugins:catalog /home/user/Jini
+> pnpm --filter @jini-ai/plugin-catalog run generate && pnpm --filter @jini-ai/plugin-catalog run test
+
+
+> @jini-ai/plugin-catalog@0.7.3-next.2 generate /home/user/Jini/packages/plugin-catalog
+> node --import tsx scripts/generate.ts
+
+
+> @jini-ai/plugin-catalog@0.7.3-next.2 test /home/user/Jini/packages/plugin-catalog
+> vitest run
+
+
+ RUN  v3.2.7 /home/user/Jini/packages/plugin-catalog
+
+npm warn Unknown env config "disallow-workspace-cycles". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown env config "prefer-workspace-packages". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown env config "verify-deps-before-run". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown env config "minimum-release-age". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown env config "npm-globalconfig". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown env config "package-extensions". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown env config "link-workspace-packages". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown env config "recursive". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown env config "_jsr-registry". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm notice
+npm notice package: @jini-ai/plugin-catalog@0.7.3-next.2
+npm notice Tarball Contents
+npm notice 11.3kB LICENSE
+npm notice 256B NOTICE
+npm notice 2.6kB README.md
+npm notice 92.6kB catalog.json
+npm notice 905B package.json
+npm notice Tarball Details
+npm notice name: @jini-ai/plugin-catalog
+npm notice version: 0.7.3-next.2
+npm notice filename: jini-ai-plugin-catalog-0.7.3-next.2.tgz
+npm notice package size: 34.4 kB
+npm notice unpacked size: 107.7 kB
+npm notice shasum: eefa1719ba4e958251ca9d0a01557ef447bb19b6
+npm notice integrity: sha512-x2j1bcI5JUcUm[...]QRAs2ftpEVa4g==
+npm notice total files: 5
+npm notice
+ ✓ __tests__/catalog.test.ts (68 tests) 361ms
+
+ Test Files  1 passed (1)
+      Tests  68 passed (68)
+   Start at  20:29:37
+   Duration  687ms (transform 85ms, setup 0ms, collect 104ms, tests 361ms, environment 0ms, prepare 67ms)
+
+EXIT 0
