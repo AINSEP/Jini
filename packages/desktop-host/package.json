@@ -33,7 +33,8 @@
       "./shell/pty-helpers": "node",
       "./shell/instance-presence": "node",
       "./shell/auto-update-controller": "node",
-      "./shell/spellcheck-menu": "desktop"
+      "./shell/spellcheck-menu": "desktop",
+      "./electron/selftest": "desktop"
     },
     "isolation": {
       "entries": {
@@ -149,6 +150,11 @@
       "types": "./dist/shell/spellcheck-menu.d.ts",
       "import": "./dist/shell/spellcheck-menu.js",
       "default": "./dist/shell/spellcheck-menu.js"
+    },
+    "./electron/selftest": {
+      "types": "./dist/electron/selftest/index.d.ts",
+      "import": "./dist/electron/selftest/index.js",
+      "default": "./dist/electron/selftest/index.js"
     }
   },
   "files": [

@@ -208,6 +208,16 @@
    "isShellPageUrl": "function:f14179b5e1"
   }
  },
+ "./electron/selftest": {
+  "types": "./dist/electron/selftest/index.d.ts",
+  "symbols": {
+   "SelftestCallbacks": "interface:7f5059ed0c",
+   "SelftestTracker": "interface:c110ed30c6",
+   "SelftestWebContents": "interface:b4e3b2c66e",
+   "SelftestWindow": "interface:fe28fc87a1",
+   "createSelftestTracker": "function:46d7de4d69"
+  }
+ },
  "./electron/updates": {
   "types": "./dist/electron/updates/index.d.ts",
   "symbols": {
