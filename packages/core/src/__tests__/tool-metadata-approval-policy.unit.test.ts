@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 
-import type { ToolMetadata } from "../../../tool-metadata-types.js";
-import type { ToolApprovalClass, ToolApprovalPolicy } from "../tool-metadata-approval-policy.js";
+import type { ToolMetadata } from "../tool-metadata-types.js";
+import type { ToolApprovalClass, ToolApprovalPolicy } from "../contracts/site/tool-metadata-approval-policy.js";
 
 /**
  * @file Type fixture for the host-specialized approval policy. The guarantees here are compile-time:

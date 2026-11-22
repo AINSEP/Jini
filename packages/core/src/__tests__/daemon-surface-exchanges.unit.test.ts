@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 
-import type { SurfaceExchangeStore } from "../../../surface-exchanges.js";
-import type { AssistantSurfaceDeps } from "../daemon-surface-exchanges.js";
+import type { SurfaceExchangeStore } from "../surface-exchanges.js";
+import type { AssistantSurfaceDeps } from "../contracts/site/daemon-surface-exchanges.js";
 
 /**
  * @file Type fixture for the surface-raising tool dependency bag. `pnpm typecheck` compiles this file,
