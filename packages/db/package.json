@@ -103,11 +103,6 @@
       "import": "./dist/transfer/index.js",
       "default": "./dist/transfer/index.js"
     },
-    "./transfer/plan-store": {
-      "types": "./dist/transfer/plan-store.d.ts",
-      "import": "./dist/transfer/plan-store.js",
-      "default": "./dist/transfer/plan-store.js"
-    },
     "./tools": {
       "types": "./dist/tools/index.d.ts",
       "import": "./dist/tools/index.js",
