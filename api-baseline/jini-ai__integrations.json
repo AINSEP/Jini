@@ -627,6 +627,17 @@
    "updateSubscription": "function:cfe6310042"
   }
  },
+ "./webhooks/sql": {
+  "types": "./dist/webhooks/sql/index.d.ts",
+  "symbols": {
+   "SqlWebhookDeliveryRepo": "class:d69f918e27",
+   "SqlWebhookSubscriptionRepo": "class:23e17b056e",
+   "WebhookDeliveriesTable": "interface:056ae2671e",
+   "WebhookSqlRequired": "interface:663384b3cb",
+   "WebhookSubscriptionsTable": "interface:d64aafc4e6",
+   "WebhookTables": "interface:71173da156"
+  }
+ },
  "./webhooks/tools": {
   "types": "./dist/webhooks/tools/index.d.ts",
   "symbols": {

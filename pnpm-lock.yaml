@@ -1028,6 +1028,12 @@ importers:
       '@cfworker/json-schema':
         specifier: ^4.1.1
         version: 4.1.1
+      '@electric-sql/pglite':
+        specifier: 0.5.8
+        version: 0.5.8
+      '@jini-ai/db':
+        specifier: workspace:*
+        version: link:../db
       '@jini-ai/oauth':
         specifier: workspace:*
         version: link:../oauth
@@ -1043,6 +1049,9 @@ importers:
       better-sqlite3:
         specifier: ^13.0.0
         version: 13.0.3
+      kysely:
+        specifier: ^0.29.6
+        version: 0.29.6
 
   packages/mcp:
     dependencies:
