@@ -1,0 +1,6 @@
+why-comments: 4 files with removed lines checked against 6b8e0d48a..HEAD, 1 comment blocks lost (0 allow-listed)
+packages/agent-plugins/core/commerce-server.mjs:1-1  [f98bce5800b5]  the host supplies services and activation; installing the payload starts no runtime.
+why-comments: 1 deleted comment blocks appear nowhere else (owner rule: refactors move "why" comments with the code, never delete them)
+  fix: put the comment back next to the code it explains, or move it with that code.
+  last resort: add { "id": "<id above>", "reason": "<why this comment is truly obsolete>" } to the debt file (`pnpm check:why-comments`).
+EXIT 1

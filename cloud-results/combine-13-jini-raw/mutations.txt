@@ -39,3 +39,51 @@ file: packages/core/src/contracts/site/strict-base64.ts
       Tests  11 failed (11)
 result: RED (exit 1), restore clean
 
+=== D-site-export-1.J exportPublicOrigin source check negated
+file: packages/devops/src/static-export/site/public-origin-policy.ts
+@@ -18,7 +18,7 @@ function isRenderHost({ hostname }: { hostname: string }, _options = {}): boolea
+ export async function exportPublicOrigin({ registry, workspaceId }: { registry: OriginRegistryPort; workspaceId: string }, _options = {}): Promise<string | undefined> {
+   const evidence = await orFallback({ work: () => registry.canonicalOrigin({ workspaceId }), fallback: undefined, step: "Read configured export origin" });
+   if (evidence === undefined) return undefined;
+-  if (evidence.source !== "workspace-setting") return undefined;
++  if (!(evidence.source !== "workspace-setting")) return undefined;
+   const raw = `${evidence.scheme}://${evidence.host}${evidence.port === undefined ? "" : `:${evidence.port}`}`;
+   const accepted = resolveConfiguredOrigin({ env: { origin: raw }, envVarName: "origin", clock: { nowIso: () => evidence.verifiedAt }, warn: () => {} });
+   if (!accepted) return undefined;
+   × configured public evidence becomes the export origin, development evidence for the same host does not 5ms
+   ✓ registry absence and configured loopback hosts never provide export identity 0ms
+   ✓ render origins are replaced by the public origin while external URLs keep their bytes 1ms
+   ✓ text responses are rewritten and drop stale length headers; robots sitemaps go without a public origin 4ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  src/static-export/site/__tests__/public-origin-policy.test.ts > configured public evidence becomes the export origin, development evidence for the same host does not
+      Tests  1 failed | 3 passed (4)
+result: RED (exit 1), restore clean
+
+=== C-presentation-1.J NotFound instanceof negated
+file: packages/cms/src/presentation/site/active-theme-id.ts
+@@ -52,7 +52,7 @@ export async function resolveActiveThemeId(deps: ActiveThemeIdResolutionDeps): P
+     });
+     return settings.activeThemeId;
+   } catch (err) {
+-    if (err instanceof PresentationSettingsNotFoundError) return "";
++    if (!(err instanceof PresentationSettingsNotFoundError)) return "";
+     throw err;
+   }
+ }
+   × resolveActiveThemeId: degrades to '' when the workspace has no presentation-settings row yet 5ms
+   × resolveActiveThemeId: any OTHER repo error propagates uncaught, not silently degraded to '' 2ms
+   × resolveActiveThemeId: sanity — PresentationSettingsNotFoundError is exactly the error class this function narrows 1ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  src/presentation/site/__tests__/active-theme-id.unit.test.ts > resolveActiveThemeId: degrades to '' when the workspace has no presentation-settings row yet
+ FAIL  src/presentation/site/__tests__/active-theme-id.unit.test.ts > resolveActiveThemeId: any OTHER repo error propagates uncaught, not silently degraded to ''
+ FAIL  src/presentation/site/__tests__/active-theme-id.unit.test.ts > resolveActiveThemeId: sanity — PresentationSettingsNotFoundError is exactly the error class this function narrows
+      Tests  3 failed | 1 passed (4)
+result: RED (exit 1), restore clean
+
+=== RT-3 retired entry restored (pre-merge agent-plugins/package.json: ./commerce/server export, jini.entries row, @jini-ai/commerce peer)
+ packages/agent-plugins/package.json | 15 +++++++++++++--
+ 1 file changed, 13 insertions(+), 2 deletions(-)
+ℹ pass 0
+ℹ fail 1
+result: RED (exit 1), restore clean
+
