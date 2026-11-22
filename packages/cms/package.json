@@ -123,7 +123,7 @@
       "./settings/site/form-destination": "universal",
       "./settings/site/mail-sender": "universal",
       "./settings/site/site-timezone": "universal",
-      "./seo/site/page-head-contributor": "universal"
+      "./seo/site/page-head-contributor": "node"
     },
     "isolation": {
       "domains": {
@@ -205,7 +205,8 @@
         "src/widgets/markers/marker.ts",
         "src/navigation/href.ts",
         "src/media/cover-image.ts",
-        "src/html/site/slug.ts"
+        "src/html/site/slug.ts",
+        "src/widgets/date-label.ts"
       ]
     },
     "optionalPeers": {
