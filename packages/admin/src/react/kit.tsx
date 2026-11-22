@@ -123,7 +123,10 @@ export interface HtmlEditorProps {
 export type KitIconName =
   | 'alert-triangle' | 'arrow-left' | 'arrow-up' | 'check-long' | 'chevron-down' | 'chevron-right'
   | 'chevron-right-wide' | 'close' | 'folder' | 'image' | 'package-check' | 'package-outline' | 'play'
-  | 'plus' | 'puzzle' | 'refresh' | 'settings' | 'storefront' | 'trash-compact' | 'volume';
+  | 'plus' | 'puzzle' | 'refresh' | 'settings' | 'storefront' | 'trash-compact' | 'volume'
+  // Database, import-export, library, media and skills screens, when they switch to the kit Icon.
+  | 'timeline' | 'migrate-forward' | 'tray-export' | 'tray-import' | 'more-horizontal-outline' | 'tray-upload'
+  | 'document-lines' | 'tiles-four' | 'picture-frame' | 'video-frame' | 'cloud-outline' | 'bin-lidded' | 'document-marked';
 type SvgLineCap = 'butt' | 'round' | 'square' | 'inherit';
 type SvgLineJoin = 'miter' | 'round' | 'bevel' | 'inherit';
 type Booleanish = boolean | 'true' | 'false';
@@ -293,7 +296,10 @@ export function useDirtyGuard<T>(required: { current: T; original: T | null }, o
 export const useSettlementGeneration: AdminKitHooks['useSettlementGeneration'] = () => useAdminKit().hooks.useSettlementGeneration();
 export const useConfirmController: AdminKitHooks['useConfirmController'] = (r, o) => useAdminKit().hooks.useConfirmController(r, o);
 export const useNativeDialog: AdminKitHooks['useNativeDialog'] = (r, o) => useAdminKit().hooks.useNativeDialog(r, o);
-export const useT: AdminKitHooks['useT'] = () => useAdminKit().hooks.useT();
+/** The host's UI translator, returned as is. The empty objects keep the screen-facing required/optional shape. */
+export function useT(_required: Record<string, never> = {}, _optional: Record<string, never> = {}): KitTranslator {
+  return useAdminKit().hooks.useT();
+}
 
 export const useFetchQuery: FetchQueryAdapter['useFetchQuery'] = (r, o) => useAdminKit().query.useFetchQuery(r, o);
 export const useFetchMutation: FetchQueryAdapter['useFetchMutation'] = (r, o) => useAdminKit().query.useFetchMutation(r, o);
@@ -307,6 +313,6 @@ export function useMediaProviderRules(): AdminMediaProvidersKit['rules'] { retur
 /** applyAdminTheme / resolveColorScheme / defaultAdminTheme, read once per render. */
 export function useAdminThemeKit(): AdminThemeKit { return useAdminKit().theme; }
 /** The injected plain values, read once per render. The same objects the host passed: never copied. */
-export function useAdminKitValues(): AdminKitValues { return useAdminKit().values; }
+export function useAdminKitValues(_required: Record<string, never> = {}, _optional: Record<string, never> = {}): AdminKitValues { return useAdminKit().values; }
 
 export type { MediaProviderCatalogPolicy, MediaProviderOption };
