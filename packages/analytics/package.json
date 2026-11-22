@@ -14,7 +14,9 @@
     "runtime": "node",
     "entries": {
       ".": "node",
-      "./product": "universal"
+      "./product": "universal",
+      "./site/agent-tools": "universal",
+      "./site/ports": "universal"
     }
   },
   "type": "module",
@@ -31,6 +33,16 @@
       "types": "./dist/product/index.d.ts",
       "import": "./dist/product/index.js",
       "default": "./dist/product/index.js"
+    },
+    "./site/agent-tools": {
+      "types": "./dist/site/agent-tools.d.ts",
+      "import": "./dist/site/agent-tools.js",
+      "default": "./dist/site/agent-tools.js"
+    },
+    "./site/ports": {
+      "types": "./dist/site/ports.d.ts",
+      "import": "./dist/site/ports.js",
+      "default": "./dist/site/ports.js"
     }
   },
   "files": [
