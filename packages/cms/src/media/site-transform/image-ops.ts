@@ -19,7 +19,7 @@ const FORMATS = { png: ["png"], jpeg: ["jpg", "jpeg"], webp: ["webp"], avif: ["a
 export type ImageFormat = keyof typeof FORMATS;
 export const IMAGE_FORMATS = Object.keys(FORMATS) as ImageFormat[];
 export const IMAGE_CONTENT_TYPES: Record<ImageFormat, string> = { png: "image/png", jpeg: "image/jpeg", webp: "image/webp", avif: "image/avif", ico: "image/x-icon" };
-const SOURCE_FORMATS = new Set(["png", "jpeg", "webp", "gif", "heif", "avif", "tiff", "svg"]);
+const SOURCE_FORMATS: ReadonlySet<string> = new Set(["png", "jpeg", "webp", "gif", "heif", "avif", "tiff", "svg"]);
 const DEFAULT_ICO_SIZES = [16, 32, 48];
 
 export interface ImageOutput {
