@@ -1137,6 +1137,12 @@
    "resolveConfiguredOrigin": "function:15a98e5b94"
   }
  },
+ "./contracts/site/daemon-surface-exchanges": {
+  "types": "./dist/contracts/site/daemon-surface-exchanges.d.ts",
+  "symbols": {
+   "AssistantSurfaceDeps": "interface:7b0241e5a6"
+  }
+ },
  "./contracts/site/post-author": {
   "types": "./dist/contracts/site/post-author.d.ts",
   "symbols": {
@@ -1161,6 +1167,13 @@
   "types": "./dist/contracts/site/strict-base64.d.ts",
   "symbols": {
    "decodeStrictBase64": "function:003d1a8bf3"
+  }
+ },
+ "./contracts/site/tool-metadata-approval-policy": {
+  "types": "./dist/contracts/site/tool-metadata-approval-policy.d.ts",
+  "symbols": {
+   "ToolApprovalClass": "type:04963137d2",
+   "ToolApprovalPolicy": "interface:ac6a5711ce"
   }
  },
  "./contracts/storage": {

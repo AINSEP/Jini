@@ -62,10 +62,12 @@
       "./contracts/forms": "universal",
       "./contracts/charts": "universal",
       "./contracts/plugin-sdk": "universal",
+      "./contracts/site/daemon-surface-exchanges": "universal",
       "./contracts/site/post-author": "universal",
       "./contracts/site/request-facts": "universal",
       "./contracts/site/soft-delete": "universal",
       "./contracts/site/strict-base64": "node",
+      "./contracts/site/tool-metadata-approval-policy": "universal",
       "./errors/sentences": "universal",
       "./errors/bindings": "universal",
       "./errors/catalog": "universal",
@@ -396,6 +398,11 @@
       "import": "./dist/contracts/plugin-sdk.js",
       "default": "./dist/contracts/plugin-sdk.js"
     },
+    "./contracts/site/daemon-surface-exchanges": {
+      "types": "./dist/contracts/site/daemon-surface-exchanges.d.ts",
+      "import": "./dist/contracts/site/daemon-surface-exchanges.js",
+      "default": "./dist/contracts/site/daemon-surface-exchanges.js"
+    },
     "./contracts/site/post-author": {
       "types": "./dist/contracts/site/post-author.d.ts",
       "import": "./dist/contracts/site/post-author.js",
@@ -415,6 +422,11 @@
       "types": "./dist/contracts/site/strict-base64.d.ts",
       "import": "./dist/contracts/site/strict-base64.js",
       "default": "./dist/contracts/site/strict-base64.js"
+    },
+    "./contracts/site/tool-metadata-approval-policy": {
+      "types": "./dist/contracts/site/tool-metadata-approval-policy.d.ts",
+      "import": "./dist/contracts/site/tool-metadata-approval-policy.js",
+      "default": "./dist/contracts/site/tool-metadata-approval-policy.js"
     },
     "./errors/sentences": {
       "types": "./dist/errors/sentences.d.ts",
