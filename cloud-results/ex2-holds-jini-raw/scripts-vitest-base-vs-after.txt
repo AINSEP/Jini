@@ -1,0 +1,29 @@
+## base (merge-13, clean worktree)
+   × keeps ui → lexical an explicitly classified opt-in peer 12ms
+   × all real default entries keep runtime libraries required and classify opt-in subpaths 10542ms
+   × keeps default-entry host framework daemon → express required 3ms
+   × env-access host scan (where it looks and which files are process entries) > returns only occurrences that are not in the debt file, and says when debt is stale 18ms
+   × env-access debt file of this repository > is current: no occurrence is missing from it and none in it is stale 7457ms
+   × universal translation owner and SEO entries > keeps SEO and its HTTP adapter free of React and preserves the existing interpolation owner 12001ms
+   × F3 A2 changeset records both public minor releases and compatible parser injection 5ms
+   × F5 UI optional-peer strings preserve the original em-dash formatting exactly 25ms
+   × packed connection-card consumer > renders different host copy and delivers a real exchange through published entries 19766ms
+   × fetch-query optional adapter isolation > keeps TanStack out of the default runtime closure while the optional entry reaches it 16410ms
+⎯⎯⎯⎯⎯⎯ Failed Tests 10 ⎯⎯⎯⎯⎯⎯⎯
+ Test Files  8 failed | 56 passed (64)
+      Tests  10 failed | 987 passed | 54 skipped (1051)
+
+## after
+   × keeps ui → lexical an explicitly classified opt-in peer 10ms
+   × all real default entries keep runtime libraries required and classify opt-in subpaths 11450ms
+   × keeps default-entry host framework daemon → express required 3ms
+   × env-access host scan (where it looks and which files are process entries) > returns only occurrences that are not in the debt file, and says when debt is stale 18ms
+   × env-access debt file of this repository > is current: no occurrence is missing from it and none in it is stale 7531ms
+   × universal translation owner and SEO entries > keeps SEO and its HTTP adapter free of React and preserves the existing interpolation owner 11601ms
+   × F3 A2 changeset records both public minor releases and compatible parser injection 5ms
+   × F5 UI optional-peer strings preserve the original em-dash formatting exactly 20ms
+   × packed connection-card consumer > renders different host copy and delivers a real exchange through published entries 22059ms
+   × fetch-query optional adapter isolation > keeps TanStack out of the default runtime closure while the optional entry reaches it 15583ms
+⎯⎯⎯⎯⎯⎯ Failed Tests 10 ⎯⎯⎯⎯⎯⎯⎯
+ Test Files  8 failed | 56 passed (64)
+      Tests  10 failed | 982 passed | 54 skipped (1046)
