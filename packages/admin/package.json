@@ -24,6 +24,7 @@
       "./react/entities": "browser",
       "./browser/shell-navigation": "browser",
       "./core/module": "universal",
+      "./core/i18n-common": "universal",
       "./react/overlays": "browser",
       "./react/kit": "browser",
       "./react/testing-kit": "browser",
@@ -150,6 +151,11 @@
       "types": "./dist/core/module/index.d.ts",
       "import": "./dist/core/module/index.js",
       "default": "./dist/core/module/index.js"
+    },
+    "./core/i18n-common": {
+      "types": "./dist/core/i18n-common.d.ts",
+      "import": "./dist/core/i18n-common.js",
+      "default": "./dist/core/i18n-common.js"
     },
     "./react/overlays": {
       "types": "./dist/react/overlays.d.ts",
@@ -476,6 +482,9 @@
     "*": {
       "core/react": [
         "./dist/core/react/index.d.ts"
+      ],
+      "core/i18n-common": [
+        "./dist/core/i18n-common.d.ts"
       ]
     }
   },
