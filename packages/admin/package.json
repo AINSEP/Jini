@@ -79,7 +79,10 @@
       "./widgets/react": "browser",
       "./widgets/adapters/http": "universal",
       "./widgets/adapters/memory": "universal",
-      "./widgets/conformance": "universal"
+      "./widgets/conformance": "universal",
+      "./posts/PostAuthorFields": "browser",
+      "./posts/PostPublishingFields": "browser",
+      "./posts/post-editor-route-key": "universal"
     },
     "isolation": {
       "shared": [
@@ -431,6 +434,21 @@
       "types": "./dist/widgets/conformance/widgets-api.conformance.d.ts",
       "import": "./dist/widgets/conformance/widgets-api.conformance.js",
       "default": "./dist/widgets/conformance/widgets-api.conformance.js"
+    },
+    "./posts/PostAuthorFields": {
+      "types": "./dist/posts/PostAuthorFields.d.ts",
+      "import": "./dist/posts/PostAuthorFields.js",
+      "default": "./dist/posts/PostAuthorFields.js"
+    },
+    "./posts/PostPublishingFields": {
+      "types": "./dist/posts/PostPublishingFields.d.ts",
+      "import": "./dist/posts/PostPublishingFields.js",
+      "default": "./dist/posts/PostPublishingFields.js"
+    },
+    "./posts/post-editor-route-key": {
+      "types": "./dist/posts/post-editor-route-key.d.ts",
+      "import": "./dist/posts/post-editor-route-key.js",
+      "default": "./dist/posts/post-editor-route-key.js"
     }
   },
   "files": [

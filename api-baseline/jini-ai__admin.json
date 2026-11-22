@@ -773,6 +773,26 @@
    "usePlaygroundPorts": "function:e0df555889"
   }
  },
+ "./posts/post-editor-route-key": {
+  "types": "./dist/posts/post-editor-route-key.d.ts",
+  "symbols": {
+   "postEditorRouteKey": "function:91517ad684",
+   "rememberPostEditorRouteRename": "function:c15138eef7"
+  }
+ },
+ "./posts/PostAuthorFields": {
+  "types": "./dist/posts/PostAuthorFields.d.ts",
+  "symbols": {
+   "PostAuthorFields": "function:9fcd27fccd"
+  }
+ },
+ "./posts/PostPublishingFields": {
+  "types": "./dist/posts/PostPublishingFields.d.ts",
+  "symbols": {
+   "PostPublishAtField": "function:c9b56bb1e7",
+   "PostPublishAtFieldProps": "interface:12db94c5ed"
+  }
+ },
  "./react": {
   "types": "./dist/react/index.d.ts",
   "symbols": {
