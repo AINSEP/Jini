@@ -31,7 +31,7 @@ export async function exportPublicOrigin({ registry, workspaceId }: { registry: 
  * its encoding. The ephemeral crawl origin and persisted dev origins need the same treatment.
  * @complexity O(body bytes), no requests or path/layout changes.
  */
-export function rewriteRenderOrigins({ body, renderOrigin, publicOrigin, sourceOrigin }: { body: string; renderOrigin: string; publicOrigin?: string; sourceOrigin?: string }, _options = {}): string {
+export function rewriteRenderOrigins({ body, renderOrigin, publicOrigin, sourceOrigin }: { body: string; renderOrigin: string; publicOrigin?: string | undefined; sourceOrigin?: string | undefined }, _options = {}): string {
   return body.replace(/(?:\bhttps?:|(?<![:\w]))(?:\/\/|\\\/\\\/)(?:[^\s/"'<>\\()?#@]+@)?(?:\[[\da-f:.]+\]|[\w.-]+)(?::\d+)?/gi, (raw, offset: number) => {
     let parsed: URL;
     try { parsed = new URL(raw.replaceAll("\\/", "/"), renderOrigin); } catch { return raw; }
@@ -46,7 +46,7 @@ export function rewriteRenderOrigins({ body, renderOrigin, publicOrigin, sourceO
  * The copied response has no stale length/encoding headers after decoding and editing its body.
  * @complexity O(response text bytes), one buffered response and no additional fetch.
  */
-export async function rewriteExportOriginResponse({ response, url, publicOrigin, sourceOrigin }: { response: Response; url: string; publicOrigin?: string; sourceOrigin?: string }, _options = {}): Promise<Response> {
+export async function rewriteExportOriginResponse({ response, url, publicOrigin, sourceOrigin }: { response: Response; url: string; publicOrigin?: string | undefined; sourceOrigin?: string | undefined }, _options = {}): Promise<Response> {
   const headers = new Headers(response.headers);
   const location = headers.get("location");
   const renderOrigin = new URL(url).origin;
