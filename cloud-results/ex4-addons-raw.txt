@@ -1,0 +1,256 @@
+# ex4-addons raw outputs (2026-11-22)
+
+## Tovu node/admin tests — X-plugin-runtime-1.T (65 files, each alone, 15-min watchdog, 3 parallel)
+apps_website_src_assistant___tests___mcp-ui-allowlist-completeness.test.ts | pass 9 fail 1
+apps_website_src_assistant___tests___mcp-ui-tool-calls-route.agent-plugins-uninstall.integration.test.ts | pass 2 fail 0
+apps_website_src_assistant___tests___tool-dispatch_forms.dispatch.test.ts | pass 13 fail 0
+apps_website_src_assistant___tests___tool-guidance.live.test.ts | pass 0 fail 0
+apps_website_src_assistant___tests___tool-registrations.contracts.test.ts | pass 39 fail 0
+apps_website_src_assistant___tests___tool-registrations.plugins-set-enabled-busy.test.ts | pass 4 fail 0
+apps_website_src_assistant___tests___tool-registrations.plugins-set-enabled-families.test.ts | pass 28 fail 0
+apps_website_src_assistant___tests___tool-registrations.plugins-uninstall.test.ts | pass 17 fail 0
+apps_website_src_assistant___tests___tool-registrations.plugins.test.ts | pass 18 fail 0
+apps_website_src_cli___tests___unit_plugin-command.unit.test.ts | pass 17 fail 0
+apps_website_src_cli___tests___unit_plugin-install-real-site.unit.test.ts | pass 3 fail 0
+apps_website_src_contracts_headless___tests___plugin-export-boundaries.test.ts | pass 1 fail 0
+apps_website_src_features_agent-plugins___tests___integration_agent-plugin-search-tool.integration.test.ts | pass 19 fail 0
+apps_website_src_features_agent-plugins___tests___integration_agent-plugin-tool-revocation.integration.test.ts | pass 6 fail 0
+apps_website_src_features_agent-plugins___tests___integration_agent-plugin-uninstall-tool-busy.integration.test.ts | pass 6 fail 0
+apps_website_src_features_agent-plugins___tests___integration_agent-plugin-uninstall-tool.integration.test.ts | pass 17 fail 0
+apps_website_src_features_agent-plugins___tests___integration_bundled-customization.integration.test.ts | pass 1 fail 0
+apps_website_src_features_agent-plugins___tests___integration_bundled-upgrade-digest-supersession.integration.test.ts | pass 7 fail 0
+apps_website_src_features_agent-plugins___tests___unit_access-token-tool.unit.test.ts | pass 31 fail 0
+apps_website_src_features_agent-plugins___tests___unit_bundled-digests.unit.test.ts | pass 10 fail 0
+apps_website_src_features_agent-plugins___tests___unit_bundled-kuinetic-package.unit.test.ts | pass 2 fail 0
+apps_website_src_features_agent-plugins___tests___unit_bundled-software-engineering-package.unit.test.ts | pass 2 fail 0
+apps_website_src_features_agent-plugins___tests___unit_bundled-ui-ux-design-package.unit.test.ts | pass 3 fail 4
+apps_website_src_features_agent-plugins___tests___unit_install-tool-sources.unit.test.ts | pass 14 fail 0
+apps_website_src_features_agent-plugins___tests___unit_install-tool-update.unit.test.ts | pass 10 fail 0
+apps_website_src_features_agent-plugins___tests___unit_install-tool.unit.test.ts | pass 6 fail 0
+apps_website_src_features_agent-plugins___tests___unit_portable-host-guidance.unit.test.ts | pass 1 fail 0
+apps_website_src_features_agent-plugins___tests___unit_soon-lock.unit.test.ts | pass 8 fail 0
+apps_website_src_features_agent-plugins___tests___unit_tool-registrations.unit.test.ts | pass 26 fail 0
+apps_website_src_features_database___tests___unit_tool-registrations.input-validation-status.unit.test.ts | pass 3 fail 0
+apps_website_src_features_deployments___tests___integration_tool-registrations.integration.test.ts | pass 10 fail 0
+apps_website_src_features_external-mcp___tests___unit_operations-tools.unit.test.ts | pass 19 fail 0
+apps_website_src_features_external-mcp___tests___unit_static-token-setup.unit.test.ts | pass 36 fail 0
+apps_website_src_features_external-mcp___tests___unit_tool-registrations.oauth-origin.unit.test.ts | pass 7 fail 0
+apps_website_src_features_plugin-runtime___tests___integration_install-declarative.integration.test.ts | pass 13 fail 0
+apps_website_src_features_plugin-runtime___tests___integration_source-runtime.integration.test.ts | pass 13 fail 0
+apps_website_src_features_plugin-runtime___tests___unit_agent-plugin-approval-version.unit.test.ts | pass 1 fail 0
+apps_website_src_features_plugin-runtime___tests___unit_agent-plugin-enable-guidance.test.ts | pass 4 fail 0
+apps_website_src_features_plugin-runtime___tests___unit_extract-s7-host-tools.unit.test.ts | pass 9 fail 0
+apps_website_src_features_plugin-runtime___tests___unit_extract-s7-published-tools.unit.test.ts | pass 3 fail 0
+apps_website_src_features_plugin-runtime___tests___unit_install-tool.unit.test.ts | pass 28 fail 0
+apps_website_src_features_plugin-runtime___tests___unit_off-plugin-summary.unit.test.ts | pass 1 fail 0
+apps_website_src_features_plugin-runtime___tests___unit_plugins-set-enabled-consent.unit.test.ts | pass 31 fail 0
+apps_website_src_features_plugin-runtime___tests___unit_plugins-tool-registrations.unit.test.ts | pass 25 fail 0
+apps_website_src_features_plugin-runtime___tests___unit_set-enabled-confirmation-ui.unit.test.ts | pass 5 fail 0
+apps_website_src_features_plugin-runtime___tests___unit_source-tools.unit.test.ts | pass 17 fail 0
+apps_website_src_features_post___tests___integration_content-tools-default-kind.integration.test.ts | pass 7 fail 0
+apps_website_src_features_recovery___tests___unit_permissions.unit.test.ts | pass 4 fail 0
+apps_website_src_features_recovery___tests___unit_tool-registrations.deep-link-validation-status.unit.test.ts | pass 9 fail 0
+apps_website_src_features_server-logs___tests___unit_server-logs-tool.unit.test.ts | pass 7 fail 0
+apps_website_src_features_site-evidence___tests___unit_tool-registrations.unit.test.ts | pass 16 fail 0
+apps_website_src_features_skills___tests___integration_skill-tool-search-ranking.integration.test.ts | pass 2 fail 0
+apps_website_src_features_skills___tests___unit_hot-paths.unit.test.ts | pass 2 fail 0
+apps_website_src_features_skills___tests___unit_install-service.unit.test.ts | pass 16 fail 0
+apps_website_src_features_skills___tests___unit_install-tool.unit.test.ts | pass 10 fail 0
+apps_website_src_features_skills___tests___unit_tool-handler-characterization.unit.test.ts | pass 22 fail 0
+apps_website_src_features_skills___tests___unit_tool-registrations.unit.test.ts | pass 22 fail 0
+apps_website_src_features_webhooks___tests___seal-aad-invariant.test.ts | pass 20 fail 0
+apps_website_src_features_widgets___tests___integration_tool-registrations.delegated-error-status.test.ts | pass 11 fail 0
+apps_website_src_features_widgets___tests___integration_tool-registrations.handler-gaps.test.ts | pass 7 fail 0
+apps_website_src_features_widgets___tests___integration_tool-registrations.input-validation-status.test.ts | pass 3 fail 0
+apps_website_src_features_widgets___tests___integration_tool-registrations.plugin-hook-failed.test.ts | pass 4 fail 0
+apps_website_src_features_widgets___tests___integration_tool-registrations.region-gaps.test.ts | pass 16 fail 0
+apps_website_src_features_widgets___tests___integration_tool-registrations.shape-rejection.test.ts | pass 3 fail 0
+apps_website_src_server_runtime_composition___tests___plugin-host.integration.test.ts | pass 22 fail 3
+
+### red files re-run at base 0d7f78fa4 (clean worktree, shared node_modules)
+apps_website_src_assistant___tests___mcp-ui-allowlist-completeness.test.ts | pass 9 fail 1
+apps_website_src_features_agent-plugins___tests___unit_bundled-ui-ux-design-package.unit.test.ts | pass 3 fail 4
+apps_website_src_server_runtime_composition___tests___plugin-host.integration.test.ts | pass 22 fail 3
+
+## Tovu node tests — X-agent-plugins-1.T (52 files)
+apps_website_src_assistant___tests___automatic-agent-plugins.integration.test.ts | pass 41 fail 2
+apps_website_src_assistant___tests___mcp-ui-tool-calls-route.agent-plugins-uninstall.integration.test.ts | pass 2 fail 0
+apps_website_src_assistant___tests___tool-registrations.contracts.test.ts | pass 39 fail 0
+apps_website_src_assistant___tests___tool-registrations.plugins-uninstall.test.ts | pass 17 fail 0
+apps_website_src_assistant___tests___tool-registrations.plugins.test.ts | pass 18 fail 0
+apps_website_src_features_agent-plugins___tests___integration_agent-plugin-uninstall-tool.integration.test.ts | pass 17 fail 0
+apps_website_src_features_agent-plugins___tests___unit_bundled-github-activation.unit.test.ts | pass 3 fail 0
+apps_website_src_features_agent-plugins___tests___unit_bundled-github-backup-push.unit.test.ts | pass 23 fail 0
+apps_website_src_features_agent-plugins___tests___unit_bundled-github-commit-site.unit.test.ts | pass 59 fail 0
+apps_website_src_features_agent-plugins___tests___unit_bundled-github-write-files.unit.test.ts | pass 18 fail 0
+apps_website_src_features_agent-plugins___tests___unit_descriptor-i18n.unit.test.ts | pass 14 fail 0
+apps_website_src_features_agent-plugins___tests___unit_mcp-projection-seam.distinct-ports.unit.test.ts | pass 4 fail 0
+apps_website_src_features_agent-plugins___tests___unit_memory-i18n.unit.test.ts | pass 3 fail 0
+apps_website_src_features_agent-plugins___tests___unit_oauth-sign-in-refusal.unit.test.ts | pass 4 fail 0
+apps_website_src_features_agent-plugins___tests___unit_sign-in-refusal.safe-text.unit.test.ts | pass 4 fail 0
+apps_website_src_features_agent-plugins___tests___unit_uninstall-confirmation-ui.unit.test.ts | pass 3 fail 0
+apps_website_src_features_agent-plugins___tests___unit_uninstall-dwell.unit.test.ts | pass 2 fail 0
+apps_website_src_features_agent-plugins_executable-tools___tests___capability-lifetime.security.test.ts | pass 2 fail 0
+apps_website_src_features_api-connections___tests___surface-adapters.security.test.ts | pass 20 fail 0
+apps_website_src_features_api-connections___tests___vendor-neutrality.test.ts | pass 1 fail 1
+apps_website_src_features_deployments_deploy-ops___tests___installed-deploy-verb.test.ts | pass 4 fail 0
+apps_website_src_features_plugin-runtime___tests___unit_uninstall-confirmation-ui.unit.test.ts | pass 1 fail 0
+apps_website_src_features_site-backup___tests___push-cancellation.unit.test.ts | pass 7 fail 0
+apps_website_src_features_site-backup___tests___tool-registrations.unit.test.ts | pass 84 fail 0
+apps_website_src_features_sites___tests___site-admin.unit.test.ts | pass 30 fail 0
+apps_website_src_features_source-control___tests___account-probe.guarded.unit.test.ts | pass 1 fail 0
+apps_website_src_features_source-control___tests___commit-site-export-resolution.unit.test.ts | pass 3 fail 0
+apps_website_src_features_source-control___tests___commit-site.characterization.unit.test.ts | pass 13 fail 0
+apps_website_src_features_source-control___tests___commit-site.packager-port.unit.test.ts | pass 3 fail 0
+apps_website_src_features_source-control___tests___commit-site.preview-parity.unit.test.ts | pass 1 fail 0
+apps_website_src_features_source-control___tests___commit-site.unit.test.ts | pass 43 fail 0
+apps_website_src_features_source-control___tests___credential-form.unit.test.ts | pass 8 fail 0
+apps_website_src_features_source-control___tests___credential-setup-projections.unit.test.ts | pass 4 fail 0
+apps_website_src_features_source-control___tests___gates.characterization.unit.test.ts | pass 16 fail 0
+apps_website_src_features_source-control___tests___github-backup-restore-accounts.integration.test.ts | pass 1 fail 0
+apps_website_src_features_source-control___tests___github-backup-secrets.integration.test.ts | pass 1 fail 0
+apps_website_src_features_source-control___tests___github-code-boundary.unit.test.ts | pass 3 fail 0
+apps_website_src_features_source-control___tests___project-scope.unit.test.ts | pass 11 fail 0
+apps_website_src_features_source-control___tests___propose-credential-tool.test.ts | pass 23 fail 0
+apps_website_src_features_source-control___tests___provider-kit.observability.unit.test.ts | pass 9 fail 0
+apps_website_src_features_source-control___tests___provider-registry.unit.test.ts | pass 16 fail 0
+apps_website_src_features_source-control___tests___repository-target.unit.test.ts | pass 4 fail 0
+apps_website_src_features_source-control___tests___shared-key-reader.unit.test.ts | pass 1 fail 0
+apps_website_src_features_source-control___tests___store.resolve.unit.test.ts | pass 6 fail 0
+apps_website_src_features_source-control___tests___store.unit.test.ts | pass 66 fail 0
+apps_website_src_features_source-control___tests___tool-registrations.dry-run.test.ts | pass 8 fail 0
+apps_website_src_features_source-control___tests___tool-registrations.unit.test.ts | pass 33 fail 0
+apps_website_src_features_source-control___tests___write-port.unit.test.ts | pass 3 fail 0
+apps_website_src_server_runtime_boot___tests___agent-plugin-token-boot-order.unit.test.ts | pass 4 fail 0
+apps_website_src_server_runtime_composition___tests___agent-plugin-connections.unit.test.ts | pass 4 fail 0
+apps_website_src_server_runtime_composition___tests___external-mcp-oauth-loopback-wiring.unit.test.ts | pass 1 fail 0
+apps_website_src_server_runtime_composition___tests___wiring-identity.test.ts | pass 5 fail 1
+
+### red files re-run at base
+apps_website_src_assistant___tests___automatic-agent-plugins.integration.test.ts | pass 41 fail 2
+apps_website_src_features_api-connections___tests___vendor-neutrality.test.ts | pass 1 fail 1
+apps_website_src_server_runtime_composition___tests___wiring-identity.test.ts | pass 5 fail 1
+(vendor-neutrality and wiring-identity assertion diffs byte-identical to base)
+
+## Admin vitest — 64 files (plugins/skills features + every admin test importing @jini-ai/plugins or @jini-ai/agent-plugins)
+0 | apps/admin/src/components/AssistantDock/__tests__/chat-package-kind.unit.test.ts |       Tests  34 passed (34)
+0 | apps/admin/src/components/AssistantDock/__tests__/skill-composer-routing.unit.test.tsx |       Tests  17 passed (17)
+0 | apps/admin/src/components/InstallTabCard/__tests__/use-folder-upload.hooks.unit.test.ts |       Tests  8 passed (8)
+0 | apps/admin/src/components/__tests__/AssistantDock.unit.test.tsx |       Tests  46 passed (46)
+0 | apps/admin/src/components/__tests__/folder-zip.unit.test.ts |       Tests  4 passed (4)
+0 | apps/admin/src/features/plugins/__tests__/AgentPluginDetailsModal.unit.test.tsx |       Tests  9 passed (9)
+0 | apps/admin/src/features/plugins/__tests__/AgentPluginRow.unit.test.tsx |       Tests  19 passed (19)
+0 | apps/admin/src/features/plugins/__tests__/AgentPlugins.unit.test.tsx |       Tests  38 passed (38)
+0 | apps/admin/src/features/plugins/__tests__/AgentPluginsAddTab.unit.test.tsx |       Tests  15 passed (15)
+0 | apps/admin/src/features/plugins/__tests__/PackageFilesModal.unit.test.tsx |       Tests  9 passed (9)
+0 | apps/admin/src/features/plugins/__tests__/Plugins.unit.test.tsx |       Tests  42 passed (42)
+0 | apps/admin/src/features/plugins/__tests__/PluginsAddTab.unit.test.tsx |       Tests  11 passed (11)
+0 | apps/admin/src/features/plugins/__tests__/add-plugin-tab-soon.unit.test.ts |       Tests  4 passed (4)
+0 | apps/admin/src/features/plugins/__tests__/admin-surface-theme.unit.test.ts |       Tests  5 passed (5)
+0 | apps/admin/src/features/plugins/__tests__/agent-plugin-manage-surfaces.unit.test.tsx |       Tests  3 passed (3)
+0 | apps/admin/src/features/plugins/__tests__/agent-plugin-memory-panel.unit.test.tsx |       Tests  4 passed (4)
+0 | apps/admin/src/features/plugins/__tests__/agent-plugin-memory.hooks.unit.test.ts |       Tests  12 passed (12)
+0 | apps/admin/src/features/plugins/__tests__/agent-plugin-replace.unit.test.ts |       Tests  1 passed (1)
+0 | apps/admin/src/features/plugins/__tests__/agent-plugin-rules.unit.test.ts |       Tests  15 passed (15)
+0 | apps/admin/src/features/plugins/__tests__/agent-plugin-sign-in-refresh.hooks.unit.test.ts |       Tests  1 passed (1)
+0 | apps/admin/src/features/plugins/__tests__/agent-plugin-sign-in-status.unit.test.tsx |       Tests  6 passed (6)
+0 | apps/admin/src/features/plugins/__tests__/agent-plugin-surface-frame.unit.test.tsx |       Tests  23 passed (23)
+0 | apps/admin/src/features/plugins/__tests__/agent-plugin-surfaces-dependencies.hooks.unit.test.ts |       Tests  4 passed (4)
+0 | apps/admin/src/features/plugins/__tests__/agent-plugin-update.unit.test.tsx |       Tests  45 passed (45)
+0 | apps/admin/src/features/plugins/__tests__/b15-row-panel-ownership.unit.test.tsx |       Tests  2 passed (2)
+0 | apps/admin/src/features/plugins/__tests__/composer-capabilities.unit.test.ts |       Tests  13 passed (13)
+0 | apps/admin/src/features/plugins/__tests__/composer-skill-ranking.unit.test.ts |       Tests  7 passed (7)
+0 | apps/admin/src/features/plugins/__tests__/confirm-dialogs-focus-trap.unit.test.tsx |       Tests  7 passed (7)
+0 | apps/admin/src/features/plugins/__tests__/confirm-dialogs-lifecycle.unit.test.tsx |       Tests  3 passed (3)
+0 | apps/admin/src/features/plugins/__tests__/installed-skills-composer-source.unit.test.ts |       Tests  11 passed (11)
+0 | apps/admin/src/features/plugins/__tests__/package-file-tree.unit.test.ts |       Tests  31 passed (31)
+0 | apps/admin/src/features/plugins/__tests__/package-files-interactions.unit.test.tsx |       Tests  3 passed (3)
+0 | apps/admin/src/features/plugins/__tests__/plugin-conflicts-rules.unit.test.ts |       Tests  34 passed (34)
+0 | apps/admin/src/features/plugins/__tests__/plugin-install-preview-rules.unit.test.ts |       Tests  25 passed (25)
+0 | apps/admin/src/features/plugins/__tests__/plugin-install-size.unit.test.ts |       Tests  5 passed (5)
+0 | apps/admin/src/features/plugins/__tests__/plugin-list-refresh.unit.test.ts |       Tests  3 passed (3)
+0 | apps/admin/src/features/plugins/__tests__/plugin-ports.unit.test.ts |       Tests  10 passed (10)
+0 | apps/admin/src/features/plugins/__tests__/plugin-provider-settings.unit.test.tsx |       Tests  22 passed (22)
+0 | apps/admin/src/features/plugins/__tests__/plugin-visuals.unit.test.tsx |       Tests  18 passed (18)
+0 | apps/admin/src/features/plugins/__tests__/plugin-zip-install.unit.test.tsx |       Tests  7 passed (7)
+0 | apps/admin/src/features/plugins/__tests__/plugins-i18n.unit.test.ts |       Tests  2 passed (2)
+0 | apps/admin/src/features/plugins/__tests__/plugins-rules.unit.test.ts |       Tests  20 passed (20)
+0 | apps/admin/src/features/plugins/__tests__/selected-skills.unit.test.ts |       Tests  8 passed (8)
+0 | apps/admin/src/features/plugins/__tests__/surface-copy.contract.test.ts |       Tests  2 passed (2)
+0 | apps/admin/src/features/plugins/__tests__/use-admin-surface-frame.hooks.unit.test.ts |       Tests  8 passed (8)
+0 | apps/admin/src/features/plugins/__tests__/use-agent-plugin-details-modal.hooks.unit.test.ts |       Tests  2 passed (2)
+0 | apps/admin/src/features/plugins/__tests__/use-agent-plugin-install.hooks.unit.test.ts |       Tests  9 passed (9)
+0 | apps/admin/src/features/plugins/__tests__/use-agent-plugin-surfaces.hooks.unit.test.ts |       Tests  5 passed (5)
+0 | apps/admin/src/features/plugins/__tests__/use-agent-plugins.hooks.unit.test.ts |       Tests  16 passed (16)
+0 | apps/admin/src/features/plugins/__tests__/use-package-file-tree.hooks.unit.test.ts |       Tests  8 passed (8)
+0 | apps/admin/src/features/plugins/__tests__/use-plugin-install.hooks.unit.test.ts |       Tests  14 passed (14)
+0 | apps/admin/src/features/plugins/__tests__/use-plugin-package-files.hooks.unit.test.ts |       Tests  9 passed (9)
+0 | apps/admin/src/features/plugins/__tests__/use-plugins.hooks.unit.test.ts |       Tests  21 passed (21)
+0 | apps/admin/src/features/skills/__tests__/Skills.unit.test.tsx |       Tests  18 passed (18)
+0 | apps/admin/src/features/skills/__tests__/chat-drop.unit.test.tsx |       Tests  23 passed (23)
+0 | apps/admin/src/features/skills/__tests__/skill-dialogs-and-row.unit.test.tsx |       Tests  12 passed (12)
+0 | apps/admin/src/features/skills/__tests__/skill-failure.unit.test.ts |       Tests  2 passed (2)
+0 | apps/admin/src/features/skills/__tests__/skill-install-i18n.unit.test.tsx |       Tests  45 passed (45)
+0 | apps/admin/src/features/skills/__tests__/skill-upload.unit.test.ts |       Tests  7 passed (7)
+0 | apps/admin/src/features/skills/__tests__/skills-page-i18n.unit.test.tsx |       Tests  42 passed (42)
+0 | apps/admin/src/features/skills/__tests__/use-skill-confirmation.unit.test.ts |       Tests  2 passed (2)
+0 | apps/admin/src/features/skills/__tests__/use-skill-files.hooks.unit.test.ts |       Tests  7 passed (7)
+0 | apps/admin/src/features/skills/__tests__/use-skill-install.hooks.unit.test.ts |       Tests  13 passed (13)
+0 | apps/admin/src/features/skills/__tests__/use-skills.unit.test.ts |       Tests  18 passed (18)
+
+## Mutations
+### M1 X-plugin-runtime-1 — negate 'if (p.hasCode)' in Jini packages/plugins/src/runtime/install-consent.ts
+   × a package that ships code is disclosed as running with full access 8ms
+   × a code-free package says so, and names the content types it adds when there are any 1ms
+   × the full consent lists every disclosure line in order, ending with stays-off and a blank line 4ms
+   × empty capabilities and hooks render as a dash; no warnings or upgrade adds no lines 1ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+      Tests  4 failed (4)
+restored:
+      Tests  4 passed (4)
+### M2 X-agent-plugins-1 — invert workspace guard in Jini packages/agent-plugins/src/site/admin-surfaces/forms.ts
+   × lists only slug/title after the forms permission check, scoped to this workspace 17ms
+   × missing principal and another workspace are refused before authorization or repository access 4ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+      Tests  2 failed | 10 passed (12)
+restored:
+      Tests  12 passed (12)
+
+## Jini gates base (4902a6a1a) -> final
+- guard 0 -> 0; api:check 0 -> 0 (after api:update); typecheck 0 -> 0; check:hooks 0 -> 0; check:errors 0 -> 0
+- check:size 1 -> 1, check:complexity 1 -> 1, check:why-comments 1 (10 blocks) -> 1 (10 blocks), check:cross-package 1 (XP5 rows) -> 1: outputs identical to base apart from the ELIFECYCLE line
+- pnpm -r build 0 (0 error TS); vitest plugins 76 files/1017 -> 77/1021 pass; agent-plugins 150/2195 (+2 skipped) -> 152/2207 (+2 skipped)
+## Tovu gate status base
+admin-tsc 2
+typecheck 0
+typecheck-tests 0
+desktop-tsc-live-verify 0
+desktop-tsc-preload 0
+desktop-tsc-renderer 0
+desktop-tsc-main 0
+typecheck-scripts 2
+boundaries 0
+size 1
+complexity 0
+hooks 0
+why-comments 1
+errors 0
+architecture 1
+worker-import-graph 0
+## Tovu gate status final (before the why-comments debt rows)
+admin-tsc 2
+typecheck 0
+typecheck-tests 0
+desktop-tsc-preload 0
+desktop-tsc-live-verify 0
+desktop-tsc-renderer 0
+desktop-tsc-main 0
+typecheck-scripts 2
+boundaries 0
+size 1
+complexity 0
+hooks 0
+why-comments 1
+errors 0
+architecture 1
+worker-import-graph 0
