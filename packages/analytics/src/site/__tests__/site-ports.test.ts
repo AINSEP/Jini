@@ -18,6 +18,7 @@ import { AnalyticsPiiRejectedError as PackageAnalyticsPiiRejectedError } from ".
 test("the recent-hits catalog entry is read-only, gated on analytics.read and bounds its window", () => {
   expect(analyticsAgentToolCatalog).toHaveLength(1);
   const [tool] = analyticsAgentToolCatalog;
+  if (tool === undefined) throw new Error("catalog is empty");
   expect(tool.name).toBe("analytics_list_recent_hits");
   expect(tool.sideEffects).toBe("none");
   expect(tool.authorization).toEqual({ permission: "analytics.read" });
