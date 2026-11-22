@@ -90,7 +90,12 @@ export interface WidgetSelectProps {
   placeholder?: string | undefined; id?: string | undefined; 'aria-label'?: string | undefined;
   disabled?: boolean | undefined; agentHandle?: string | false | undefined; translate?: Translate | undefined;
 }
-export interface TabBarTab { readonly id: string; readonly label: string; readonly icon?: ReactNode | undefined; readonly count?: number | undefined; readonly tag?: string | undefined; readonly handle?: string | undefined; readonly handleLabel?: string | undefined }
+/** `disabled` greys the tab out of the tab order; `dot` marks it (e.g. unsaved or failing), with `dotLabel` as the dot's accessible name. */
+export interface TabBarTab {
+  readonly id: string; readonly label: string; readonly icon?: ReactNode | undefined; readonly count?: number | undefined; readonly tag?: string | undefined;
+  readonly disabled?: boolean | undefined; readonly handle?: string | undefined; readonly handleLabel?: string | undefined;
+  readonly dot?: boolean | undefined; readonly dotLabel?: string | undefined;
+}
 export interface TabBarProps { tabs: readonly TabBarTab[]; activeId: string; onChange: (id: string) => void; ariaLabel: string; containerHandle?: string | undefined }
 export interface CanvasEmbedPlaceholderDescriptor { kindLabel: string; identityLabel: string }
 export interface CanvasContentWrapperNode { tagName: string; attributes?: Readonly<Record<string, string>> }
@@ -233,6 +238,40 @@ export interface AdminKitValues {
   readonly LOCAL_BACKUP_PRINCIPAL_ID: string;
 }
 
+/* ---------- chat (the host's chat library: its translator and the run posters; shapes restated) ---------- */
+/** The chat library's translator (its own locale context). Never the UI translator in `hooks.useT`. */
+export type KitChatTranslator = (key: string, vars?: Record<string, string | number>) => string;
+export interface KitSecretRedactionSignal { readonly secretRedacted: true; readonly count: number }
+export type KitRedactUserText = (required: { readonly text: string }, optional?: { readonly secretField?: boolean })
+  => { readonly text: string; readonly secretRedacted: boolean; readonly count: number };
+/** Redaction of typed user text before it is posted. Default on in the chat library. */
+export interface KitUserTextRedactionOptions {
+  readonly redactUserText?: KitRedactUserText; readonly onSecretRedacted?: (signal: KitSecretRedactionSignal) => void;
+}
+export interface KitPosterRequestOptions { readonly timeoutMs?: number; readonly headers?: Readonly<Record<string, string>> }
+export type KitTypedAnswerDelivery = 'delivered' | 'not-pending' | 'failed';
+/** Delivers composer text to the question tool the agent waits on; `toolName` is that tool's id. */
+export type KitDeliverTypedAnswer = ((input: { text: string }) => Promise<KitTypedAnswerDelivery>) & { readonly toolName: string };
+export interface KitChatAttachment { path: string; name: string; kind: 'image' | 'file'; size?: number; order?: number }
+export type KitMidRunMessageDelivery = 'delivered' | 'unsupported' | 'not-running' | 'failed' | { readonly delivery: 'delivered'; readonly id: string };
+export type KitDeliverMidRunMessage = (input: { runId: string; text: string; attachments?: readonly KitChatAttachment[] }) => Promise<KitMidRunMessageDelivery>;
+export type KitA2uiActionDeliveryOutcome = { readonly ok: true } | { readonly ok: false; readonly reason: string };
+/** `path`, `fetch` and `reportFailure` stay required: the host supplies its route, cookie fetch and failure log. */
+export interface KitA2uiActionPosterInput {
+  readonly baseUrl: string; readonly path: string; readonly fetch: typeof fetch;
+  readonly reportFailure: (required: { args: readonly unknown[] }, optional: Record<string, never>) => void;
+}
+export interface AdminKitChat {
+  /** The chat translator hook. Screens receive it as an injected hook prop (`useChatT`), never a direct import. */
+  useT(): KitChatTranslator;
+  createMidRunMessagePoster(required: { baseUrl: string; fetch: typeof globalThis.fetch },
+    optional?: KitUserTextRedactionOptions & KitPosterRequestOptions): KitDeliverMidRunMessage;
+  createTypedAnswerPoster(required: { baseUrl: string; fetch: typeof globalThis.fetch; toolName: string },
+    optional?: KitUserTextRedactionOptions & KitPosterRequestOptions & { readonly path?: string }): KitDeliverTypedAnswer;
+  createA2uiActionPoster(required: KitA2uiActionPosterInput, optional?: KitPosterRequestOptions)
+    : (runId: string | undefined, message: unknown) => Promise<KitA2uiActionDeliveryOutcome>;
+}
+
 export interface AdminKit {
   readonly components: AdminKitComponents;
   readonly hooks: AdminKitHooks;
@@ -240,6 +279,7 @@ export interface AdminKit {
   readonly mediaProviders: AdminMediaProvidersKit;
   readonly theme: AdminThemeKit;
   readonly values: AdminKitValues;
+  readonly chat: AdminKitChat;
 }
 
 /* ---------- provider ---------- */
@@ -299,6 +339,16 @@ export const useNativeDialog: AdminKitHooks['useNativeDialog'] = (r, o) => useAd
 /** The host's UI translator, returned as is. The empty objects keep the screen-facing required/optional shape. */
 export function useT(_required: Record<string, never> = {}, _optional: Record<string, never> = {}): KitTranslator {
   return useAdminKit().hooks.useT();
+}
+
+/** The host's CHAT translator (the chat library's locale context), distinct from the UI `useT` above. */
+export function useChatT(_required: Record<string, never> = {}, _optional: Record<string, never> = {}): KitChatTranslator {
+  return useAdminKit().chat.useT();
+}
+/** The chat poster factories, read once per render; the caller passes both argument objects through untouched. */
+export function useAdminKitChatPosters(_required: Record<string, never> = {}, _optional: Record<string, never> = {})
+  : Pick<AdminKitChat, 'createMidRunMessagePoster' | 'createTypedAnswerPoster' | 'createA2uiActionPoster'> {
+  return useAdminKit().chat;
 }
 
 export const useFetchQuery: FetchQueryAdapter['useFetchQuery'] = (r, o) => useAdminKit().query.useFetchQuery(r, o);

@@ -79,7 +79,40 @@
       "./widgets/react": "browser",
       "./widgets/adapters/http": "universal",
       "./widgets/adapters/memory": "universal",
-      "./widgets/conformance": "universal"
+      "./widgets/conformance": "universal",
+      "./shell/components/AssistantDock/agent-failure-scanners": "browser",
+      "./shell/components/AssistantDock/hooks/use-composer-send-stop-guard.hooks": "browser",
+      "./shell/components/AssistantDock/hooks/useOverflowDetection.hooks": "browser",
+      "./shell/components/DevicePreview/DevicePreview.hooks": "browser",
+      "./shell/components/InstallTabCard/use-zip-drop.hooks": "browser",
+      "./shell/components/TemplateSource/template-source-port.hooks": "browser",
+      "./shell/components/line-icon": "browser",
+      "./shell/lib/acceptance-cancellation": "browser",
+      "./shell/lib/addons-routes": "browser",
+      "./shell/lib/admin-boot-scope": "browser",
+      "./shell/lib/admin-draft-identity": "browser",
+      "./shell/lib/admin-http/config": "browser",
+      "./shell/lib/agent-screenshot-bus": "browser",
+      "./shell/lib/ascii-slug": "browser",
+      "./shell/lib/assistant-dock-bus": "browser",
+      "./shell/lib/content-refresh-bus": "browser",
+      "./shell/lib/editor-failure-i18n": "browser",
+      "./shell/lib/editor-template-options.rules": "browser",
+      "./shell/lib/escape-owned-by-inner-layer": "browser",
+      "./shell/lib/external-entry-refresh": "browser",
+      "./shell/lib/fetch-query/adapter-context": "browser",
+      "./shell/lib/merge-locale-overlays": "browser",
+      "./shell/lib/page-lifecycle": "browser",
+      "./shell/lib/plain-text-blocks": "browser",
+      "./shell/lib/playground-render-target-bus": "browser",
+      "./shell/lib/queued-daemon-start": "browser",
+      "./shell/lib/router": "browser",
+      "./shell/lib/server-failure": "browser",
+      "./shell/lib/settings-effective-reads": "browser",
+      "./shell/lib/slug-redirect-path": "browser",
+      "./shell/lib/translation-entry": "browser",
+      "./shell/lib/unchanged-save-warning": "browser",
+      "./shell/lib/unique-id": "browser"
     },
     "isolation": {
       "shared": [
@@ -431,6 +464,171 @@
       "types": "./dist/widgets/conformance/widgets-api.conformance.d.ts",
       "import": "./dist/widgets/conformance/widgets-api.conformance.js",
       "default": "./dist/widgets/conformance/widgets-api.conformance.js"
+    },
+    "./shell/components/AssistantDock/agent-failure-scanners": {
+      "types": "./dist/shell/components/AssistantDock/agent-failure-scanners.d.ts",
+      "import": "./dist/shell/components/AssistantDock/agent-failure-scanners.js",
+      "default": "./dist/shell/components/AssistantDock/agent-failure-scanners.js"
+    },
+    "./shell/components/AssistantDock/hooks/use-composer-send-stop-guard.hooks": {
+      "types": "./dist/shell/components/AssistantDock/hooks/use-composer-send-stop-guard.hooks.d.ts",
+      "import": "./dist/shell/components/AssistantDock/hooks/use-composer-send-stop-guard.hooks.js",
+      "default": "./dist/shell/components/AssistantDock/hooks/use-composer-send-stop-guard.hooks.js"
+    },
+    "./shell/components/AssistantDock/hooks/useOverflowDetection.hooks": {
+      "types": "./dist/shell/components/AssistantDock/hooks/useOverflowDetection.hooks.d.ts",
+      "import": "./dist/shell/components/AssistantDock/hooks/useOverflowDetection.hooks.js",
+      "default": "./dist/shell/components/AssistantDock/hooks/useOverflowDetection.hooks.js"
+    },
+    "./shell/components/DevicePreview/DevicePreview.hooks": {
+      "types": "./dist/shell/components/DevicePreview/DevicePreview.hooks.d.ts",
+      "import": "./dist/shell/components/DevicePreview/DevicePreview.hooks.js",
+      "default": "./dist/shell/components/DevicePreview/DevicePreview.hooks.js"
+    },
+    "./shell/components/InstallTabCard/use-zip-drop.hooks": {
+      "types": "./dist/shell/components/InstallTabCard/use-zip-drop.hooks.d.ts",
+      "import": "./dist/shell/components/InstallTabCard/use-zip-drop.hooks.js",
+      "default": "./dist/shell/components/InstallTabCard/use-zip-drop.hooks.js"
+    },
+    "./shell/components/TemplateSource/template-source-port.hooks": {
+      "types": "./dist/shell/components/TemplateSource/template-source-port.hooks.d.ts",
+      "import": "./dist/shell/components/TemplateSource/template-source-port.hooks.js",
+      "default": "./dist/shell/components/TemplateSource/template-source-port.hooks.js"
+    },
+    "./shell/components/line-icon": {
+      "types": "./dist/shell/components/line-icon.d.ts",
+      "import": "./dist/shell/components/line-icon.js",
+      "default": "./dist/shell/components/line-icon.js"
+    },
+    "./shell/lib/acceptance-cancellation": {
+      "types": "./dist/shell/lib/acceptance-cancellation.d.ts",
+      "import": "./dist/shell/lib/acceptance-cancellation.js",
+      "default": "./dist/shell/lib/acceptance-cancellation.js"
+    },
+    "./shell/lib/addons-routes": {
+      "types": "./dist/shell/lib/addons-routes.d.ts",
+      "import": "./dist/shell/lib/addons-routes.js",
+      "default": "./dist/shell/lib/addons-routes.js"
+    },
+    "./shell/lib/admin-boot-scope": {
+      "types": "./dist/shell/lib/admin-boot-scope.d.ts",
+      "import": "./dist/shell/lib/admin-boot-scope.js",
+      "default": "./dist/shell/lib/admin-boot-scope.js"
+    },
+    "./shell/lib/admin-draft-identity": {
+      "types": "./dist/shell/lib/admin-draft-identity.d.ts",
+      "import": "./dist/shell/lib/admin-draft-identity.js",
+      "default": "./dist/shell/lib/admin-draft-identity.js"
+    },
+    "./shell/lib/admin-http/config": {
+      "types": "./dist/shell/lib/admin-http/config.d.ts",
+      "import": "./dist/shell/lib/admin-http/config.js",
+      "default": "./dist/shell/lib/admin-http/config.js"
+    },
+    "./shell/lib/agent-screenshot-bus": {
+      "types": "./dist/shell/lib/agent-screenshot-bus.d.ts",
+      "import": "./dist/shell/lib/agent-screenshot-bus.js",
+      "default": "./dist/shell/lib/agent-screenshot-bus.js"
+    },
+    "./shell/lib/ascii-slug": {
+      "types": "./dist/shell/lib/ascii-slug.d.ts",
+      "import": "./dist/shell/lib/ascii-slug.js",
+      "default": "./dist/shell/lib/ascii-slug.js"
+    },
+    "./shell/lib/assistant-dock-bus": {
+      "types": "./dist/shell/lib/assistant-dock-bus.d.ts",
+      "import": "./dist/shell/lib/assistant-dock-bus.js",
+      "default": "./dist/shell/lib/assistant-dock-bus.js"
+    },
+    "./shell/lib/content-refresh-bus": {
+      "types": "./dist/shell/lib/content-refresh-bus.d.ts",
+      "import": "./dist/shell/lib/content-refresh-bus.js",
+      "default": "./dist/shell/lib/content-refresh-bus.js"
+    },
+    "./shell/lib/editor-failure-i18n": {
+      "types": "./dist/shell/lib/editor-failure-i18n.d.ts",
+      "import": "./dist/shell/lib/editor-failure-i18n.js",
+      "default": "./dist/shell/lib/editor-failure-i18n.js"
+    },
+    "./shell/lib/editor-template-options.rules": {
+      "types": "./dist/shell/lib/editor-template-options.rules.d.ts",
+      "import": "./dist/shell/lib/editor-template-options.rules.js",
+      "default": "./dist/shell/lib/editor-template-options.rules.js"
+    },
+    "./shell/lib/escape-owned-by-inner-layer": {
+      "types": "./dist/shell/lib/escape-owned-by-inner-layer.d.ts",
+      "import": "./dist/shell/lib/escape-owned-by-inner-layer.js",
+      "default": "./dist/shell/lib/escape-owned-by-inner-layer.js"
+    },
+    "./shell/lib/external-entry-refresh": {
+      "types": "./dist/shell/lib/external-entry-refresh.d.ts",
+      "import": "./dist/shell/lib/external-entry-refresh.js",
+      "default": "./dist/shell/lib/external-entry-refresh.js"
+    },
+    "./shell/lib/fetch-query/adapter-context": {
+      "types": "./dist/shell/lib/fetch-query/adapter-context.d.ts",
+      "import": "./dist/shell/lib/fetch-query/adapter-context.js",
+      "default": "./dist/shell/lib/fetch-query/adapter-context.js"
+    },
+    "./shell/lib/merge-locale-overlays": {
+      "types": "./dist/shell/lib/merge-locale-overlays.d.ts",
+      "import": "./dist/shell/lib/merge-locale-overlays.js",
+      "default": "./dist/shell/lib/merge-locale-overlays.js"
+    },
+    "./shell/lib/page-lifecycle": {
+      "types": "./dist/shell/lib/page-lifecycle.d.ts",
+      "import": "./dist/shell/lib/page-lifecycle.js",
+      "default": "./dist/shell/lib/page-lifecycle.js"
+    },
+    "./shell/lib/plain-text-blocks": {
+      "types": "./dist/shell/lib/plain-text-blocks.d.ts",
+      "import": "./dist/shell/lib/plain-text-blocks.js",
+      "default": "./dist/shell/lib/plain-text-blocks.js"
+    },
+    "./shell/lib/playground-render-target-bus": {
+      "types": "./dist/shell/lib/playground-render-target-bus.d.ts",
+      "import": "./dist/shell/lib/playground-render-target-bus.js",
+      "default": "./dist/shell/lib/playground-render-target-bus.js"
+    },
+    "./shell/lib/queued-daemon-start": {
+      "types": "./dist/shell/lib/queued-daemon-start.d.ts",
+      "import": "./dist/shell/lib/queued-daemon-start.js",
+      "default": "./dist/shell/lib/queued-daemon-start.js"
+    },
+    "./shell/lib/router": {
+      "types": "./dist/shell/lib/router.d.ts",
+      "import": "./dist/shell/lib/router.js",
+      "default": "./dist/shell/lib/router.js"
+    },
+    "./shell/lib/server-failure": {
+      "types": "./dist/shell/lib/server-failure.d.ts",
+      "import": "./dist/shell/lib/server-failure.js",
+      "default": "./dist/shell/lib/server-failure.js"
+    },
+    "./shell/lib/settings-effective-reads": {
+      "types": "./dist/shell/lib/settings-effective-reads.d.ts",
+      "import": "./dist/shell/lib/settings-effective-reads.js",
+      "default": "./dist/shell/lib/settings-effective-reads.js"
+    },
+    "./shell/lib/slug-redirect-path": {
+      "types": "./dist/shell/lib/slug-redirect-path.d.ts",
+      "import": "./dist/shell/lib/slug-redirect-path.js",
+      "default": "./dist/shell/lib/slug-redirect-path.js"
+    },
+    "./shell/lib/translation-entry": {
+      "types": "./dist/shell/lib/translation-entry.d.ts",
+      "import": "./dist/shell/lib/translation-entry.js",
+      "default": "./dist/shell/lib/translation-entry.js"
+    },
+    "./shell/lib/unchanged-save-warning": {
+      "types": "./dist/shell/lib/unchanged-save-warning.d.ts",
+      "import": "./dist/shell/lib/unchanged-save-warning.js",
+      "default": "./dist/shell/lib/unchanged-save-warning.js"
+    },
+    "./shell/lib/unique-id": {
+      "types": "./dist/shell/lib/unique-id.d.ts",
+      "import": "./dist/shell/lib/unique-id.js",
+      "default": "./dist/shell/lib/unique-id.js"
     }
   },
   "files": [

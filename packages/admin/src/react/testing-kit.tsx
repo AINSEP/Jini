@@ -1,6 +1,6 @@
 import { forwardRef, useEffect, useMemo, useRef, type RefObject } from 'react';
 import type { FetchQueryAdapter, QueryResult } from '@jini-ai/core/fetch';
-import { type AdminKit, type DialogProps, type NativeDialogView, type SettlementGeneration, type ButtonProps, type IconButtonProps, type AdminKitComponents, type AdminKitHooks, type AdminKitValues, type AdminThemeKit, type KitTranslator } from './kit.js';
+import { type AdminKit, type DialogProps, type NativeDialogView, type SettlementGeneration, type ButtonProps, type IconButtonProps, type AdminKitComponents, type AdminKitHooks, type AdminKitValues, type AdminThemeKit, type KitTranslator, type AdminKitChat, type KitDeliverTypedAnswer } from './kit.js';
 import { fakeMediaProviders } from './testing-kit-media-providers.js';
 
 const fakeComponents: AdminKitComponents = {
@@ -137,6 +137,16 @@ const fakeValues: AdminKitValues = Object.freeze({
   LOCAL_BACKUP_PRINCIPAL_ID: 'fake-local-backup',
 });
 
+// Posters that never reach a server: a typed answer finds no pending question, a mid-run message finds no
+// running agent, an A2UI action fails with a reason. A test that checks delivery injects its own factory.
+const chatPassthroughTranslator = (key: string): string => key;
+const fakeChat: AdminKitChat = {
+  useT: () => chatPassthroughTranslator,
+  createMidRunMessagePoster: () => async () => 'not-running',
+  createTypedAnswerPoster: (required) => Object.assign(async () => 'not-pending' as const, { toolName: required.toolName }) satisfies KitDeliverTypedAnswer,
+  createA2uiActionPoster: () => async () => ({ ok: false, reason: 'fake-kit' }),
+};
+
 /** Test-only kit for admin AND for consumer packages whose screens render under it (`@jini-ai/admin/react/testing-kit`).
  *  Plain elements, no UI library: package tests check admin's behaviour, not a kit's markup. */
 export function fakeAdminKit(overrides: Partial<{ [G in keyof AdminKit]: Partial<AdminKit[G]> }> = {}): AdminKit {
@@ -147,5 +157,6 @@ export function fakeAdminKit(overrides: Partial<{ [G in keyof AdminKit]: Partial
     mediaProviders: { ...fakeMediaProviders, ...overrides.mediaProviders },
     theme: { ...fakeTheme, ...overrides.theme },
     values: { ...fakeValues, ...overrides.values },
+    chat: { ...fakeChat, ...overrides.chat },
   } satisfies AdminKit;
 }

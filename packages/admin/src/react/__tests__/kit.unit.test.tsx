@@ -1,7 +1,7 @@
 import { render, renderHook, screen } from '@testing-library/react';
 import { createRef, type ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import { AdminKitProvider, Button, Icon, type KitIconName, useAdminKitValues, useAdminThemeKit, useDirtyGuard, useFetchQuery, useMediaProviderRules, useT } from '../kit.js';
+import { AdminKitProvider, Button, Icon, TabBar, type AdminKitChat, type KitIconName, useAdminKitChatPosters, useAdminKitValues, useAdminThemeKit, useChatT, useDirtyGuard, useFetchQuery, useMediaProviderRules, useT } from '../kit.js';
 import { fakeAdminKit, fixtureQuery } from '../testing-kit.js';
 import { renderWithAdminKit } from './render-with-admin-kit.js';
 
@@ -113,5 +113,52 @@ describe('admin kit: UI icon, UI translator and injected values (A-K2-0a)', () =
     expect(read.DEFAULT_NOTIFICATIONS_PREFERENCES).toBe(values.DEFAULT_NOTIFICATIONS_PREFERENCES);
     expect(read.UNREACHABLE_RETRY_DELAYS_MS).toBe(values.UNREACHABLE_RETRY_DELAYS_MS);
     expect(read.LOCAL_BACKUP_PRINCIPAL_ID).toBe('local-tab-backup');
+  });
+});
+
+describe('admin kit: chat translator and run posters (A-K2-0b)', () => {
+  it('keeps the UI and chat translators distinct: each facade returns its own injected sentinel', () => {
+    const kit = fakeAdminKit({ hooks: { useT: () => (key: string) => `ui-sentinel:${key}` }, chat: { useT: () => (key: string) => `chat-sentinel:${key}` } });
+    const wrapper = ({ children }: { children: ReactNode }) => <AdminKitProvider kit={kit}>{children}</AdminKitProvider>;
+    expect(renderHook(() => useChatT(), { wrapper }).result.current('Stop')).toBe('chat-sentinel:Stop');
+    expect(renderHook(() => useT(), { wrapper }).result.current('Stop')).toBe('ui-sentinel:Stop');
+    expect(renderHook(() => useChatT({}, {}), { wrapper }).result.current('Send')).toBe('chat-sentinel:Send');
+  });
+
+  it('hands each poster factory both argument objects intact, and returns its poster unchanged', () => {
+    const typed = Object.assign(async () => 'delivered' as const, { toolName: 'ask-choice' });
+    const midRun = async () => 'delivered' as const;
+    const a2ui = async () => ({ ok: true }) as const;
+    const chat: Partial<AdminKitChat> = {
+      createTypedAnswerPoster: vi.fn(() => typed),
+      createMidRunMessagePoster: vi.fn(() => midRun),
+      createA2uiActionPoster: vi.fn(() => a2ui),
+    };
+    const wrapper = ({ children }: { children: ReactNode }) => <AdminKitProvider kit={fakeAdminKit({ chat })}>{children}</AdminKitProvider>;
+    const posters = renderHook(() => useAdminKitChatPosters(), { wrapper }).result.current;
+    const onSecretRedacted = () => {};
+    const reportFailure = () => {};
+    const typedRequired = { baseUrl: '', fetch: globalThis.fetch, toolName: 'ask-choice' };
+    const typedOptional = { path: '/host/tool-calls', onSecretRedacted };
+    expect(posters.createTypedAnswerPoster(typedRequired, typedOptional)).toBe(typed);
+    expect(chat.createTypedAnswerPoster).toHaveBeenCalledWith(typedRequired, typedOptional);
+    const midRequired = { baseUrl: '', fetch: globalThis.fetch };
+    const midOptional = { onSecretRedacted };
+    expect(posters.createMidRunMessagePoster(midRequired, midOptional)).toBe(midRun);
+    expect(chat.createMidRunMessagePoster).toHaveBeenCalledWith(midRequired, midOptional);
+    const a2uiRequired = { baseUrl: '', path: '/host/a2ui', fetch: globalThis.fetch, reportFailure };
+    const a2uiOptional = { timeoutMs: 5 };
+    expect(posters.createA2uiActionPoster(a2uiRequired, a2uiOptional)).toBe(a2ui);
+    expect(chat.createA2uiActionPoster).toHaveBeenCalledWith(a2uiRequired, a2uiOptional);
+    expect(vi.mocked(chat.createA2uiActionPoster!).mock.calls[0]![0]).toBe(a2uiRequired);
+  });
+
+  it('passes the TabBar tab disabled/dot/dotLabel fields through to the injected TabBar', () => {
+    const seen: unknown[] = [];
+    const kit = fakeAdminKit({ components: { TabBar: (props) => { seen.push(...props.tabs); return <div role="tablist" aria-label={props.ariaLabel} />; } } });
+    const tabs = [{ id: 'a', label: 'A', dot: true, dotLabel: 'Unsaved changes' }, { id: 'b', label: 'B', disabled: true }];
+    renderWithAdminKit(<TabBar tabs={tabs} activeId="a" onChange={() => {}} ariaLabel="Sections" />, { kit });
+    expect(screen.getByRole('tablist', { name: 'Sections' })).toBeTruthy();
+    expect(seen).toEqual(tabs);
   });
 });

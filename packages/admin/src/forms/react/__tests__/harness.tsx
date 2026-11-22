@@ -60,6 +60,7 @@ const formsKit: AdminKit = {
   get mediaProviders(): never { throw new Error('Forms tests do not supply mediaProviders'); },
   get theme(): never { throw new Error('Forms tests do not supply theme'); },
   get values(): never { throw new Error('Forms tests do not supply values'); },
+  get chat(): never { throw new Error('Forms tests do not supply chat'); },
 };
 
 function scope(wrapper?: ComponentType<{ children: ReactNode }>) {
