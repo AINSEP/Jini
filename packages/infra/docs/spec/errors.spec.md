@@ -6,6 +6,8 @@ spec_mode: reverse_spec
 
 # Error Contract: @jini-ai/infra
 
+> **RT-2 (2026-11-22):** the `./db/core` and `./db/sqlite` shims this spec describes were removed; their owner is `@jini-ai/db` (`./core`, `./sqlite`). The package now exports only `./events/outbox` — see `README.md`. Text below about the shims is historical.
+
 ## Error ownership
 
 The shim defines no error class, code registry, envelope, or HTTP mapping. It propagates failures from `@jini-ai/db`, consumer callbacks, and Node filesystem operations. No failure is retried automatically.

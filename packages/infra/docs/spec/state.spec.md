@@ -6,6 +6,8 @@ spec_mode: reverse_spec
 
 # State Contract: @jini-ai/infra
 
+> **RT-2 (2026-11-22):** the `./db/core` and `./db/sqlite` shims this spec describes were removed; their owner is `@jini-ai/db` (`./core`, `./sqlite`). The package now exports only `./events/outbox` — see `README.md`. Text below about the shims is historical.
+
 ## Ownership
 
 The compatibility layer itself has no state. The consumer owns the opened SQLite connection, lifecycle, path, recovery policy, transaction coordination, watermark, and snapshot retention. `SqliteDbOpsAdapter` retains those dependencies plus an optional clock callback; it supplies no shutdown method.

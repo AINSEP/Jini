@@ -26,7 +26,7 @@ const layers: Readonly<Record<string, number>> = {
   // types, so they sit above every domain they bind; only a host or host preset imports them.
   'node-adapters': 5,
   // Commerce composes CMS authorization and UI through opt-in entries; SI keeps its root isolated.
-  server: 6, sqlite: 6, infra: 6, commerce: 6,
+  server: 6, infra: 6, commerce: 6,
   // Provider plugin sources adapt lower-layer domain ports (diagnostics, analytics, agent-runtime,
   // capability-providers) and register through plugins; no core package may depend on them.
   'provider-plugins': 7,

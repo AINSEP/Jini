@@ -6,7 +6,7 @@ Checked 2026-10-07 against the working tree. Find the owning entry point here, t
 
 **Used by:** direct static/dynamic imports and re-exports found with `rg` in other Jini packages and `Tovu/apps`, including type-only contract users. Tests, fixtures, generated output, examples, scripts and same-package imports are excluded. `none yet` describes that entry point in this scope; its implementation may still be used internally or through a broader barrel. Commerce imports include retained, currently unmounted host adapters.
 
-**Runtime:** per-entry `jini.entries` first, otherwise package metadata; driver-free `db/core` and its `infra/db/core` shim are universal by source. `node (desktop)` maps the declared desktop runtime to its native host requirements. CSS/static assets use their declared runtime. `AVAILABLE, unused: keep (owner 10-07)` records the owner’s retention decision, not a deletion candidate.
+**Runtime:** per-entry `jini.entries` first, otherwise package metadata; driver-free `db/core` is universal by source. `node (desktop)` maps the declared desktop runtime to its native host requirements. CSS/static assets use their declared runtime. `AVAILABLE, unused: keep (owner 10-07)` records the owner’s retention decision, not a deletion candidate.
 
 ## Looking for X?
 
@@ -145,8 +145,8 @@ persistence-adapter · [README](packages/db/README.md)
 
 | Entry point | What it does | Key exports / assets | Runtime | Used by |
 |---|---|---|---|---|
-| `@jini-ai/db/core` | Driver-free DB operations, restore-point contracts, row parsing and SQL constants. | `DbOpsPort`, `restorePointFilename`, `parseInt8`, `row` | universal | Tovu: website; Jini: chat, daemon, infra, server, sqlite |
-| `@jini-ai/db/sqlite` | Inject/open SQLite handles; inspection, integrity and restore operations. | `openSqliteConnection`, `SqliteDbOpsAdapter`, `inspectSqliteDatabase` | node | Tovu: website; Jini: chat, daemon, infra, registry, server, sqlite |
+| `@jini-ai/db/core` | Driver-free DB operations, restore-point contracts, row parsing and SQL constants. | `DbOpsPort`, `restorePointFilename`, `parseInt8`, `row` | universal | Tovu: website; Jini: chat, daemon, server |
+| `@jini-ai/db/sqlite` | Inject/open SQLite handles; inspection, integrity and restore operations. | `openSqliteConnection`, `SqliteDbOpsAdapter`, `inspectSqliteDatabase` | node | Tovu: website; Jini: chat, daemon, registry, server |
 | `@jini-ai/db/pglite` | Manage an embedded Postgres owner, private socket and owner lock. | `startPgliteOwner`, `runningPgliteOwner`, `acquireOwnerLock` | node | Tovu: website |
 | `@jini-ai/db/postgres` | Structural Postgres driver ports and timestamp/integer parser setup. | `pgTypesFor` | node | none yet |
 | `@jini-ai/db/kernel` | Kysely storage kernel, transactions, turn locks, introspection and storage operations. | `StorageKernel`, `buildKernel`, `TurnLock` | node | Tovu: website; Jini: chat, commerce, daemon |
@@ -177,8 +177,7 @@ persistence-adapter · [README](packages/infra/README.md)
 
 | Entry point | What it does | Key exports / assets | Runtime | Used by |
 |---|---|---|---|---|
-| `@jini-ai/infra/db/core` | Deprecated DB-contract shim; new code uses @jini-ai/db/core. | `DbOpsPort`, `restorePointFilename` | universal | none yet |
-| `@jini-ai/infra/db/sqlite` | Deprecated SQLite shim; new code uses @jini-ai/db/sqlite. | `openSqliteConnection`, `SqliteDbOpsAdapter` | node | none yet |
+| `@jini-ai/infra/events/outbox` | Host-composed event outbox: enqueue, fenced drain, retry policy and serial pump. | `processOutbox`, `processFencedOutbox`, `createSerialPump`, `InMemoryFencedOutbox` | node | Tovu: website |
 
 ## server · `@jini-ai/server`
 

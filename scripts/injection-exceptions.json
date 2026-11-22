@@ -1,6 +1,4 @@
 {
-  "_comment": "Owner-approved L5 exceptions. Entries come only from owner answers (ownerQuestion + approved date); never add one to silence the gate. specGlob without * also covers subpaths. The entry below is the Q2 answer of 2026-11-15 for the infra compatibility forwarder; the sqlite forwarder it also covered was deleted on the owner's retire order of 2026-11-22 (RT-1), so its four edges are gone with it.",
-  "exceptions": [
-    {"owner": "infra", "target": "db", "specGlob": "@jini-ai/db", "ownerQuestion": "Q2", "approved": "2026-11-15", "note": "Frozen compatibility forwarder (Q2): the edge stays until the next major, then the package is deleted."}
-  ]
+  "_comment": "Owner-approved L5 exceptions. Entries come only from owner answers (ownerQuestion + approved date); never add one to silence the gate. specGlob without * also covers subpaths. The list is empty: the Q2 answer of 2026-11-15 froze the sqlite and infra compatibility forwarders, and the owner's retire order of 2026-11-22 deleted both (RT-1, RT-2), so their five edges are gone with them.",
+  "exceptions": []
 }
