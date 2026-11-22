@@ -79,7 +79,9 @@
       "./widgets/react": "browser",
       "./widgets/adapters/http": "universal",
       "./widgets/adapters/memory": "universal",
-      "./widgets/conformance": "universal"
+      "./widgets/conformance": "universal",
+      "./screens/seo": "browser",
+      "./screens/seo/seo-i18n": "universal"
     },
     "isolation": {
       "shared": [
@@ -431,6 +433,16 @@
       "types": "./dist/widgets/conformance/widgets-api.conformance.d.ts",
       "import": "./dist/widgets/conformance/widgets-api.conformance.js",
       "default": "./dist/widgets/conformance/widgets-api.conformance.js"
+    },
+    "./screens/seo": {
+      "types": "./dist/screens/seo/index.d.ts",
+      "import": "./dist/screens/seo/index.js",
+      "default": "./dist/screens/seo/index.js"
+    },
+    "./screens/seo/seo-i18n": {
+      "types": "./dist/screens/seo/seo-i18n.d.ts",
+      "import": "./dist/screens/seo/seo-i18n.js",
+      "default": "./dist/screens/seo/seo-i18n.js"
     }
   },
   "files": [
@@ -485,6 +497,12 @@
       ],
       "core/i18n-common": [
         "./dist/core/i18n-common.d.ts"
+      ],
+      "screens/seo": [
+        "./dist/screens/seo/index.d.ts"
+      ],
+      "screens/seo/seo-i18n": [
+        "./dist/screens/seo/seo-i18n.d.ts"
       ]
     }
   },
