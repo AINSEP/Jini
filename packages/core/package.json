@@ -64,6 +64,7 @@
       "./contracts/plugin-sdk": "universal",
       "./contracts/site/post-author": "universal",
       "./contracts/site/request-facts": "universal",
+      "./contracts/site/site-key": "universal",
       "./contracts/site/soft-delete": "universal",
       "./contracts/site/strict-base64": "node",
       "./errors/sentences": "universal",
@@ -405,6 +406,11 @@
       "types": "./dist/contracts/site/request-facts.d.ts",
       "import": "./dist/contracts/site/request-facts.js",
       "default": "./dist/contracts/site/request-facts.js"
+    },
+    "./contracts/site/site-key": {
+      "types": "./dist/contracts/site/site-key.d.ts",
+      "import": "./dist/contracts/site/site-key.js",
+      "default": "./dist/contracts/site/site-key.js"
     },
     "./contracts/site/soft-delete": {
       "types": "./dist/contracts/site/soft-delete.d.ts",
