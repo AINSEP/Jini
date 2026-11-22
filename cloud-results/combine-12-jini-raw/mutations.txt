@@ -1,0 +1,151 @@
+### merge 1 jx-err1 (J1-J3)
+== J1 sentry: sanitizedError for tagged reports
+@@ -140 +140 @@ export function createSentryObservabilityAdapter({ config, context: helpers }: {
+-          return context.incidentId
++          return false
+-> RED |       Tests  1 failed | 52 passed (53)
+ src/__tests__/observability-sentry.test.ts > a tagged incident exports its label, ID and frames without its message
+
+== J1 sentry: drop frames
+@@ -141 +141 @@ export function createSentryObservabilityAdapter({ config, context: helpers }: {
+-            ? captureEvent({ ...details, exception: { values: [{ ...(context.label === undefined ? {} : { type: context.label }), value: context.incidentId, ...(error instanceof Error && error.stack ? { stacktrace: { frames: defaultStackParser(error.stack, 1) } } : {}) }] } })
++            ? captureEvent({ ...details, exception: { values: [{ ...(context.label === undefined ? {} : { type: context.label }), value: context.incidentId, ...(false ? { stacktrace: { frames: defaultStackParser(error.stack, 1) } } : {}) }] } })
+-> RED |       Tests  1 failed | 52 passed (53)
+ src/__tests__/observability-sentry.test.ts > a tagged incident exports its label, ID and frames without its message
+
+== J1 sentry: keep the message line (value = message+ID)
+@@ -141 +141 @@ export function createSentryObservabilityAdapter({ config, context: helpers }: {
+-            ? captureEvent({ ...details, exception: { values: [{ ...(context.label === undefined ? {} : { type: context.label }), value: context.incidentId, ...(error instanceof Error && error.stack ? { stacktrace: { frames: defaultStackParser(error.stack, 1) } } : {}) }] } })
++            ? captureEvent({ ...details, exception: { values: [{ ...(context.label === undefined ? {} : { type: context.label }), value: `${error instanceof Error ? error.message : ""} ${context.incidentId}`, ...(error instanceof Error && error.stack ? { stacktrace: { frames: defaultStackParser(error.stack, 1) } } : {}) }] } })
+-> RED |       Tests  1 failed | 52 passed (53)
+ src/__tests__/observability-sentry.test.ts > a tagged incident exports its label, ID and frames without its message
+
+== J1 sentry: keep the message line (parser skip 0)
+@@ -141 +141 @@ export function createSentryObservabilityAdapter({ config, context: helpers }: {
+-            ? captureEvent({ ...details, exception: { values: [{ ...(context.label === undefined ? {} : { type: context.label }), value: context.incidentId, ...(error instanceof Error && error.stack ? { stacktrace: { frames: defaultStackParser(error.stack, 1) } } : {}) }] } })
++            ? captureEvent({ ...details, exception: { values: [{ ...(context.label === undefined ? {} : { type: context.label }), value: context.incidentId, ...(error instanceof Error && error.stack ? { stacktrace: { frames: defaultStackParser(error.stack, 0) } } : {}) }] } })
+-> GREEN |       Tests  53 passed (53)
+
+
+== J1 otel: omit the ID
+@@ -161 +161 @@ function reportError({ ctx, error, context }: { ctx: OtelCtx; error: unknown; co
+-  span.addEvent({ name: 'exception', attributes: { 'exception.type': type, 'operation.name': context.operation, ...(context.incidentId ? { 'incident.id': context.incidentId } : {}) } });
++  span.addEvent({ name: 'exception', attributes: { 'exception.type': type, 'operation.name': context.operation,  } });
+-> RED |       Tests  1 failed | 52 passed (53)
+ src/__tests__/observability-otel-operations.test.ts > otel: a tagged incident inside an operation exports its label and ID without a message
+
+== J1 otel traceIds: active scope instead of tracker's own
+@@ -146 +146 @@ function trackOperation({ ctx, name, attributes = {}, traceparent }: { ctx: Otel
+- return { run: runIn({ ctx, span }), traceIds: () => span.ids?.(), end: once(({ outcome, failed, attributes: settled = {} }) => {
++ return { run: runIn({ ctx, span }), traceIds: () => ctx.scope?.active()?.ids?.(), end: once(({ outcome, failed, attributes: settled = {} }) => {
+-> RED |       Tests  1 failed | 52 passed (53)
+ src/__tests__/observability-sentry.test.ts > OTel operation traceIds belong to that tracker outside its active scope
+
+== J1 sentry traceIds: active scope instead of tracker's own
+@@ -175 +175 @@ function createSentryOperationTracker({ exportEnabled, active, helpers }: { expo
+-        traceIds: () => { const { traceId, spanId } = span.spanContext(); return { traceId, spanId }; },
++        traceIds: () => { const { traceId, spanId } = (active.getStore() ?? span).spanContext(); return { traceId, spanId }; },
+-> RED |       Tests  1 failed | 52 passed (53)
+ src/__tests__/observability-sentry.test.ts > Sentry operation traceIds belong to that tracker outside its active scope
+
+== J2 omit fallback.action
+@@ -201 +201 @@ function describeFailure(
+-  const error: ServerApiError = { code: 'INTERNAL_ERROR', message: `${required.fallback.message} ${required.fallback.action} (error ${incident.errorId})`, requestId: incident.errorId };
++  const error: ServerApiError = { code: 'INTERNAL_ERROR', message: `${required.fallback.message} (error ${incident.errorId})`, requestId: incident.errorId };
+-> RED |       Tests  7 failed | 68 passed (75)
+ src/errors/__tests__/boundary.test.ts > an incident is reported once, ends failed and returns safe words with the action and ID
+ src/errors/__tests__/reporter.test.ts > disclosure: redaction is not permission > anonymous: words and the ID only, no details block
+ src/errors/__tests__/reporter.test.ts > disclosure: redaction is not permission > authorised for the operation: the cause also carries the listed class and code label, nothing else
+ src/errors/__tests__/reporter.test.ts > disclosure: redaction is not permission > signed in: Copy details with the ID, step, versions, time and the fixed cause sentence; no class or code label
+ src/errors/__tests__/reporter.test.ts > incident > an unknown error gets one ID from the ID port, the time from the clock, one host record and one tracker report
+ src/errors/__tests__/reporter.test.ts > never throws > a failing ID port answers with the stand-in ID in the words, the wire field and the record
+
+== J2 describe with errorId calls recordIncident again
+@@ -193 +193 @@ function describeFailure(
+-  const incident: Incident = optional.errorId === undefined
++  const incident: Incident = true
+-> RED |       Tests  1 failed | 74 passed (75)
+ src/errors/__tests__/reporter.test.ts > incident > the boundary may pass an ID it already minted; the ID port is then not asked
+
+== J2 pass error to logger
+@@ -147 +147 @@ function recordIncident(required: { context: ReporterContext; error: unknown; st
+-  attempt({ fallback: undefined, read: () => ports.logger[level === 'warning' ? 'warn' : 'error']({ message: `[incident] ${step} failed (error ${errorId})` }, { meta }) });
++  attempt({ fallback: undefined, read: () => ports.logger[level === 'warning' ? 'warn' : 'error']({ message: `[incident] ${step} failed (error ${errorId})` }, { meta, error }) });
+-> RED |       Tests  1 failed | 74 passed (75)
+ src/errors/__tests__/reporter.test.ts > incident > the logger gets only a redacted diagnostic and the report gets the original error and tracker IDs
+
+
+== J2 send step as operation
+@@ -148 +148 @@ function recordIncident(required: { context: ReporterContext; error: unknown; st
+-  if (optional.tracker !== 'skip') reportToTracker({ context, incident, operation: required.operation, tracker: required.tracker, error, level });
++  if (optional.tracker !== 'skip') reportToTracker({ context, incident, operation: required.step, tracker: required.tracker, error, level });
+-> RED |       Tests  3 failed | 72 passed (75)
+ src/errors/__tests__/reporter.test.ts > incident > an unknown error gets one ID from the ID port, the time from the clock, one host record and one tracker report
+ src/errors/__tests__/reporter.test.ts > incident > the logger gets only a redacted diagnostic and the report gets the original error and tracker IDs
+ src/errors/__tests__/reporter.test.ts > record > a failure nobody is shown gets a host record and a tracker report under one ID
+
+== J2 read active trace instead of the tracker (trace dropped)
+@@ -119 +119 @@ function reportToTracker(required: { context: ReporterContext; incident: Inciden
+-    const trace = tracker?.traceIds?.();
++    const trace = undefined as ReturnType<NonNullable<OperationTracker["traceIds"]>>;
+-> RED |       Tests  2 failed | 73 passed (75)
+ src/errors/__tests__/reporter.test.ts > incident > an unknown error gets one ID from the ID port, the time from the clock, one host record and one tracker report
+ src/errors/__tests__/reporter.test.ts > incident > the logger gets only a redacted diagnostic and the report gets the original error and tracker IDs
+
+== J2 own-message: String(error.message) in catalog
+@@ -114 +114 @@ function resolveText({ text, error }: { text: ErrorText; error: Error }): Pick<E
+-    if (text.mode === 'own-message') return { mode: text.mode };
++    if (text.mode === 'own-message') return { mode: text.mode, message: String(error.message) };
+-> RED |       Tests  1 failed | 74 passed (75)
+ src/errors/__tests__/catalog.test.ts > words > own-message keeps its mode, fixed publishes binding text, sentence carries its values
+
+== J2 own-message: String(error.message) in reporter refusalError
+@@ -163 +163 @@ function refusalError(required: { match: ErrorMatch; fallback: { readonly messag
+-  if (match.mode === 'own-message') return { ...base, message: fallback.message };
++  if (match.mode === 'own-message') return { ...base, message: String((required as { error?: Error }).error?.message ?? match.message) };
+-> RED |       Tests  2 failed | 73 passed (75)
+ src/errors/__tests__/reporter.test.ts > refusal > a bound error answers its code and words, with no host record, no tracker report and no ID
+ src/errors/__tests__/reporter.test.ts > refusal > words a sentence reserves for authorised callers are replaced by the boundary's fallback words for everyone else
+
+== J2 per-call exact secret: host-only redaction in refusal
+@@ -181 +181 @@ function refusal(required: { context: ReporterContext; error: unknown; scope: st
+-  const wire = refusalError({ match, fallback: required.fallback, audience: required.audience, redaction: redactionFor({ context, exactSecrets: required.exactSecrets }) });
++  const wire = refusalError({ match, fallback: required.fallback, audience: required.audience, redaction: redactionFor({ context }) });
+-> RED |       Tests  1 failed | 74 passed (75)
+ src/errors/__tests__/reporter.test.ts > refusal > a call-scoped exact secret in a sentence parameter is blanked
+
+== J2 callerSafeRules keeps own-message
+@@ -191 +191 @@ export function createErrorCatalog(
+-    callerSafeRules: ({ scope }) => ruleBindings({ bindings: scopes.get(scope) ?? [] }).filter(binding => binding.text.mode !== 'own-message').map(binding => ({
++    callerSafeRules: ({ scope }) => ruleBindings({ bindings: scopes.get(scope) ?? [] }).map(binding => ({
+-> RED |       Tests  1 failed | 74 passed (75)
+ src/errors/__tests__/catalog.test.ts > the existing consumers keep their exact strings > caller-safe rules exclude own-message while model rules keep it
+
+== J3 describe twice
+@@ -233,0 +234 @@ export async function runOperation<T>(required: {
++    deps.reporter.describe({ error, operation, scope, step, fallback, tracker }, optional);
+-> RED |       Tests  1 failed | 74 passed (75)
+ src/errors/__tests__/boundary.test.ts > an incident is reported once, ends failed and returns safe words with the action and ID
+
+== J3 end failed:false on incident
+@@ -236 +236 @@ export async function runOperation<T>(required: {
+-    tracker.end({ outcome: failed ? 'failed' : 'refused', failed });
++    tracker.end({ outcome: failed ? 'failed' : 'refused', failed: false });
+-> RED |       Tests  1 failed | 74 passed (75)
+ src/errors/__tests__/boundary.test.ts > an incident is reported once, ends failed and returns safe words with the action and ID
+
+== J3 error.message in the words
+@@ -237 +237 @@ export async function runOperation<T>(required: {
+-    return { ok: false, failure };
++    return { ok: false, failure: { ...failure, error: { ...failure.error, message: `${failure.error.message} ${error instanceof Error ? error.message : ""}` } } };
+-> RED |       Tests  2 failed | 73 passed (75)
+ src/errors/__tests__/boundary.test.ts > a refusal sends no report and ends refused without marking a failure
+ src/errors/__tests__/boundary.test.ts > an incident is reported once, ends failed and returns safe words with the action and ID
+
+== J3 skip end on failure
+@@ -236 +235,0 @@ export async function runOperation<T>(required: {
+-    tracker.end({ outcome: failed ? 'failed' : 'refused', failed });
+-> RED |       Tests  2 failed | 73 passed (75)
+ src/errors/__tests__/boundary.test.ts > a refusal sends no report and ends refused without marking a failure
+ src/errors/__tests__/boundary.test.ts > an incident is reported once, ends failed and returns safe words with the action and ID
+
