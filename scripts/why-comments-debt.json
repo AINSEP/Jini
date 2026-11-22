@@ -1520,6 +1520,98 @@
     {
       "id": "fed8b7760611",
       "reason": "combine-9 (coordinator decision from lockfile-1120): code deleted by R8b step 6 (the executor's legacy runtime options, resolvers and their pre-R8b test/kernel notes went with it; R11b-1 step 4 for the sidecar platform-ABI note). Was packages/sidecar/src/supervision/supervisor-node.ts:49-49."
+    },
+    {
+      "id": "6b44bdced894",
+      "reason": "RT-1: the comment named the long-gone @jini-ai/sqlite-chat package; it is reworded in place to name the real owner subpath (core contracts/storage SqliteDb, db/sqlite DbIntegrityReport) with the same reason."
+    },
+    {
+      "id": "b9aaa040f5e3",
+      "reason": "RT-1: the comment named the long-gone @jini-ai/sqlite-chat package; it is reworded in place to name the real owner subpath (core contracts/storage SqliteDb, db/sqlite DbIntegrityReport) with the same reason."
+    },
+    {
+      "id": "09e2e6428cc4",
+      "reason": "RT-2 (owner retire order 2026-11-22): the @jini-ai/infra db/core and db/sqlite shims were deleted with this file; the comment explained the removed shim or its shim-only tests, which @jini-ai/db's own tests cover."
+    },
+    {
+      "id": "acbac1edaca3",
+      "reason": "RT-2: the comment described the database shim entries that were removed; it is reworded in place to the outbox-only package (same file), keeping the reason (event-only consumers never load a SQL adapter / physical installs without workspace resolution)."
+    },
+    {
+      "id": "cf303d35859b",
+      "reason": "RT-2: the comment described the database shim entries that were removed; it is reworded in place to the outbox-only package (same file), keeping the reason (event-only consumers never load a SQL adapter / physical installs without workspace resolution)."
+    },
+    {
+      "id": "e18b003c7a2e",
+      "reason": "RT-2 (owner retire order 2026-11-22): the @jini-ai/infra db/core and db/sqlite shims were deleted with this file; the comment explained the removed shim or its shim-only tests, which @jini-ai/db's own tests cover."
+    },
+    {
+      "id": "c4d888c27259",
+      "reason": "RT-2 (owner retire order 2026-11-22): the @jini-ai/infra db/core and db/sqlite shims were deleted with this file; the comment explained the removed shim or its shim-only tests, which @jini-ai/db's own tests cover."
+    },
+    {
+      "id": "2050da2cca3d",
+      "reason": "RT-2 (owner retire order 2026-11-22): the @jini-ai/infra db/core and db/sqlite shims were deleted with this file; the comment explained the removed shim or its shim-only tests, which @jini-ai/db's own tests cover."
+    },
+    {
+      "id": "e61083c01140",
+      "reason": "RT-2 (owner retire order 2026-11-22): the @jini-ai/infra db/core and db/sqlite shims were deleted with this file; the comment explained the removed shim or its shim-only tests, which @jini-ai/db's own tests cover."
+    },
+    {
+      "id": "8f660808efc1",
+      "reason": "RT-2 (owner retire order 2026-11-22): the @jini-ai/infra db/core and db/sqlite shims were deleted with this file; the comment explained the removed shim or its shim-only tests, which @jini-ai/db's own tests cover."
+    },
+    {
+      "id": "24e66bbf45e3",
+      "reason": "RT-2 (owner retire order 2026-11-22): the @jini-ai/infra db/core and db/sqlite shims were deleted with this file; the comment explained the removed shim or its shim-only tests, which @jini-ai/db's own tests cover."
+    },
+    {
+      "id": "dee4cc799449",
+      "reason": "RT-2 (owner retire order 2026-11-22): the @jini-ai/infra db/core and db/sqlite shims were deleted with this file; the comment explained the removed shim or its shim-only tests, which @jini-ai/db's own tests cover."
+    },
+    {
+      "id": "6abc5245fa14",
+      "reason": "RT-2: the comment described the database shim entries that were removed; it is reworded in place to the outbox-only package (same file), keeping the reason (event-only consumers never load a SQL adapter / physical installs without workspace resolution)."
+    },
+    {
+      "id": "d7ecf09c6ebe",
+      "reason": "RT-1 (owner retire order 2026-11-22): @jini-ai/sqlite was deleted with this file; the comment explained the removed compatibility facade or its tests and has no code left to sit beside."
+    },
+    {
+      "id": "318e8d2ca047",
+      "reason": "RT-1 (owner retire order 2026-11-22): @jini-ai/sqlite was deleted with this file; the comment explained the removed compatibility facade or its tests and has no code left to sit beside."
+    },
+    {
+      "id": "a55cf088a812",
+      "reason": "RT-1 (owner retire order 2026-11-22): @jini-ai/sqlite was deleted with this file; the comment explained the removed compatibility facade or its tests and has no code left to sit beside."
+    },
+    {
+      "id": "cb33e628986a",
+      "reason": "RT-1 (owner retire order 2026-11-22): @jini-ai/sqlite was deleted with this file; the comment explained the removed compatibility facade or its tests and has no code left to sit beside."
+    },
+    {
+      "id": "da1617c6004b",
+      "reason": "RT-1 (owner retire order 2026-11-22): @jini-ai/sqlite was deleted with this file; the comment explained the removed compatibility facade or its tests and has no code left to sit beside."
+    },
+    {
+      "id": "ce46869382e8",
+      "reason": "RT-1 (owner retire order 2026-11-22): @jini-ai/sqlite was deleted with this file; the comment explained the removed compatibility facade or its tests and has no code left to sit beside."
+    },
+    {
+      "id": "5a0c47d25386",
+      "reason": "RT-1 (owner retire order 2026-11-22): @jini-ai/sqlite was deleted with this file; the comment explained the removed compatibility facade or its tests and has no code left to sit beside."
+    },
+    {
+      "id": "5bba1e48a2cc",
+      "reason": "RT-1 (owner retire order 2026-11-22): @jini-ai/sqlite was deleted with this file; the comment explained the removed compatibility facade or its tests and has no code left to sit beside."
+    },
+    {
+      "id": "d9843f3195d8",
+      "reason": "RT-1 (owner retire order 2026-11-22): @jini-ai/sqlite was deleted with this file; the comment explained the removed compatibility facade or its tests and has no code left to sit beside."
+    },
+    {
+      "id": "b53db620a866",
+      "reason": "RT-1/RT-2: the Q2 forwarders it described were deleted; the header is rewritten in place to say why the exceptions list is now empty and what the test still guards."
     }
   ]
 }

@@ -29,6 +29,7 @@
       "./contracts/server/testing": "universal",
       "./contracts/server/conformance": "universal",
       "./naming": "universal",
+      "./extension-capability-vocabulary": "universal",
       "./records": "universal",
       "./optimistic-concurrency": "universal",
       "./list-page": "universal",
