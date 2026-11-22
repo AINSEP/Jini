@@ -1,3 +1,4 @@
+import { afterSettled } from '@jini-ai/core/errors/idioms';
 import type { IdentityRefreshPort } from "../../ports.js";
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
 
@@ -161,7 +162,7 @@ function createMemberRowHandlers(ctx: MemberHandlersContext) {
     patchRowState(member.id, { disabling: true, error: null, notice: null });
     try {
       const result = await disable.mutate({ input: member.id });
-      await listLoader.load().catch(() => {}); // Await roster settlement; list.error owns a failed read, not the accepted disable.
+      await afterSettled({ promise: listLoader.load() }); // Await roster settlement; list.error owns a failed read, not the accepted disable.
       setDetailById(current => current[member.id] ? { ...current, [member.id]: result.member } : current);
       patchRowState(member.id, { disabling: false, notice: translate("Member disabled.") });
     } catch (e) {

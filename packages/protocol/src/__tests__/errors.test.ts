@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { decodeApiError, GENERIC_ERROR_CODES } from '../errors.js';
 
 describe('compatible API error decoding', () => {
+  it('explains how to check an unexplained server response before retrying', () => {
+    expect(decodeApiError({ body: {} }).message, 'Missing server words use the check-before-retry fallback').toBe('The server did not give a reason for this response. Check whether the change was saved before trying again.');
+  });
   it('preserves a canonical message, code and metadata over conflicting legacy fields', () => {
     expect(decodeApiError({ body: { code: 'OLD', error: { code: 'FORBIDDEN', message: 'permission required', details: { permission: 'read' }, retryable: false, requestId: 'req-1' } } })).toEqual({
       code: 'FORBIDDEN', message: 'permission required', details: { permission: 'read' }, retryable: false, requestId: 'req-1',

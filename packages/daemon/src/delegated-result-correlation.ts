@@ -1,3 +1,4 @@
+import { orFallbackSync } from '@jini-ai/core/errors/idioms';
 import type { CredentialCryptoPort } from './run-credentials.js';
 import { omitKeys } from './core/omit-keys.js';
 
@@ -48,8 +49,11 @@ export function createDelegatedResultCorrelation({ crypto }: { crypto: Pick<Cred
   // Optional correlation must not turn an otherwise serializable legacy fallback into a failure
   // (for example, a cyclic in-process tool result handled by serializeDelegatedToolOutput).
   const digest = (input: ResultIdentity): string | undefined => {
-    try { return crypto.digest({ token: JSON.stringify({ isError: input.isError, content: input.content }, normalizedJson) }); }
-    catch { return undefined; }
+    return orFallbackSync({
+      work: () => crypto.digest({ token: JSON.stringify({ isError: input.isError, content: input.content }, normalizedJson) }),
+      fallback: undefined,
+      step: 'Fingerprint delegated tool result',
+    });
   };
   return {
     record(input) {

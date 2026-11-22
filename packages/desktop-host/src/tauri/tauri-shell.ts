@@ -1,3 +1,4 @@
+import { orFallback } from '@jini-ai/core/errors/idioms';
 import type { OpenFolderDialogOptions, ShellPort } from '../shell.js';
 import { NotImplementedError } from './not-implemented.js';
 import type { TauriDialogApi, TauriFsApi, TauriShellApi } from './tauri-surfaces.js';
@@ -19,14 +20,12 @@ export function createTauriShellPort(surfaces: TauriShellSurfaces): ShellPort {
     async dirExists({ path }: { path: string }): Promise<boolean> {
       // ShellPort.dirExists documents "never throws" — a permission error, or the path vanishing
       // between exists() and stat(), must resolve false, matching the Electron adapter.
-      try {
+      return orFallback({ work: async () => {
         const exists = await surfaces.fs.exists({ path });
         if (!exists) return false;
         const info = await surfaces.fs.stat({ path });
         return info.isDirectory;
-      } catch {
-        return false;
-      }
+      }, fallback: false, step: 'Check Tauri directory' });
     },
     // Tauri's single-instance-style "there is no JS-callable equivalent" pattern already
     // documented in `tauri-surfaces.ts` applies here too, for a different reason: the
