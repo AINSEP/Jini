@@ -7,8 +7,8 @@
  * module contributes zero bytes and zero `require()` calls to a consumer's runtime graph.
  *
  * How it relates to the package:
- * `db/core` is the half of `@jini-ai/infra` that must stay installable with no native module
- * present — a host running Supabase/Postgres pulls `@jini-ai/infra/db/core` and never compiles
+ * `db/core` is the half of `@jini-ai/db` that must stay installable with no native module
+ * present — a host running Supabase/Postgres imports `@jini-ai/db/core` and never compiles
  * `better-sqlite3`. That property is not a convention here, it is enforced: `pnpm guard`'s
  * R12 check walks this directory's transitive import closure and fails if it reaches a driver
  * folder or a driver package. See `scripts/check-driver-isolation.ts`.

@@ -8,6 +8,8 @@ import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { checkPackageLayers } from '../check-package-layers.js';
 import { loadDebt, loadExceptions } from '../lib/injection-debt.js';
+import { collectInjectionFindings } from '../lib/injection-gate.js';
+import { sourcePackages } from '../lib/package-sources.js';
 import { REPO_ROOT } from '../lib/walk-imports.js';
 
 const COPIED = ['core', 'protocol', 'db', 'infra'];
@@ -43,7 +45,8 @@ describe('Q2 forwarders retired from scripts/injection-exceptions.json', () => {
   });
 
   it('surfaces a re-added infra db shim as an L5 edge now that no exception excuses it', () => {
-    const shim = join(root, 'packages', 'infra', 'src', 'db', 'sqlite', 'index.ts');
+    const shimFile = 'packages/infra/src/db/sqlite/index.ts';
+    const shim = join(root, ...shimFile.split('/'));
     mkdirSync(dirname(shim), { recursive: true });
     writeFileSync(shim, "export { openSqliteConnection } from '@jini-ai/db/sqlite';\n");
     const manifest = JSON.parse(readFileSync(join(root, 'packages', 'infra', 'package.json'), 'utf8'));
@@ -51,6 +54,10 @@ describe('Q2 forwarders retired from scripts/injection-exceptions.json', () => {
     writeFileSync(join(root, 'packages', 'infra', 'package.json'), JSON.stringify(manifest));
     const found = checkPackageLayers({ repoRoot: root }, { warn: () => undefined, debtBase: () => null })
       .filter(violation => violation.rule === L5 && violation.file.startsWith('packages/infra/'));
-    expect(found.length).toBeGreaterThan(0);
+    // The manifest peer is forbidden on its own, so a bare count would stay green if the scanner
+    // missed the shim's re-export. Pin the source edge itself: its file, its specifier, its kind.
+    expect(found).toContainEqual(expect.objectContaining({ rule: L5, file: shimFile, reason: expect.stringContaining('→ @jini-ai/db/sqlite') }));
+    const findings = collectInjectionFindings({ root, packages: sourcePackages({ packagesDir: join(root, 'packages') }) });
+    expect(findings).toContainEqual(expect.objectContaining({ rule: L5, file: shimFile, spec: '@jini-ai/db/sqlite', kind: 'export-from' }));
   });
 });
