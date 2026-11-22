@@ -773,13 +773,6 @@
    "usePlaygroundPorts": "function:e0df555889"
   }
  },
- "./posts/post-editor-route-key": {
-  "types": "./dist/posts/post-editor-route-key.d.ts",
-  "symbols": {
-   "postEditorRouteKey": "function:91517ad684",
-   "rememberPostEditorRouteRename": "function:c15138eef7"
-  }
- },
  "./posts/PostAuthorFields": {
   "types": "./dist/posts/PostAuthorFields.d.ts",
   "symbols": {

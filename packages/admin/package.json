@@ -81,8 +81,7 @@
       "./widgets/adapters/memory": "universal",
       "./widgets/conformance": "universal",
       "./posts/PostAuthorFields": "browser",
-      "./posts/PostPublishingFields": "browser",
-      "./posts/post-editor-route-key": "universal"
+      "./posts/PostPublishingFields": "browser"
     },
     "isolation": {
       "shared": [
@@ -444,11 +443,6 @@
       "types": "./dist/posts/PostPublishingFields.d.ts",
       "import": "./dist/posts/PostPublishingFields.js",
       "default": "./dist/posts/PostPublishingFields.js"
-    },
-    "./posts/post-editor-route-key": {
-      "types": "./dist/posts/post-editor-route-key.d.ts",
-      "import": "./dist/posts/post-editor-route-key.js",
-      "default": "./dist/posts/post-editor-route-key.js"
     }
   },
   "files": [
