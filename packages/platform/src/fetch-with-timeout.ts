@@ -51,6 +51,7 @@
  * serving `index.js`: throws at import time) — see the 2026-08-17 Jini hardening report. Browser
  * call sites should import from this subpath, never the root barrel.
  */
+import { orFallback } from "@jini-ai/core/errors/idioms";
 import type { TextReadOptions } from "@jini-ai/core/net";
 
 
@@ -233,8 +234,8 @@ async function consumeResponseText(
 function cancelResponseReader(
   { reader, reason }: { reader: ReadableStreamDefaultReader<Uint8Array>; reason?: unknown },
 ): Promise<void> {
-  try { return reader.cancel(reason).catch(() => { /* Preserve the consumption error. */ }); }
-  catch { return Promise.resolve(); }
+  /* Preserve the consumption error. */
+  return orFallback({ work: () => reader.cancel(reason), fallback: undefined, step: "Cancel response reader" });
 }
 
 /** Reject invalid caps before consumption, including for empty responses. */

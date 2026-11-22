@@ -4,6 +4,7 @@
  * built-in like WebFetch, an unknown MCP tool, a card tool such as `assistant_ask_choice` still
  * waiting on the person's answer) is left without a readable call.
  */
+import { orFallbackSync } from '@jini-ai/core/errors/idioms';
 import { formatToolOutputForDisplay } from './tool-output.js';
 import { redactUserText, type RedactUserText } from './user-text-redaction.js';
 
@@ -87,11 +88,7 @@ function missingResultNote({ runStreaming, runSucceeded }: { runStreaming: boole
 function serializeInput(input: unknown): string | null {
   if (input === null || input === undefined) return null;
   if (typeof input === 'string') return formatToolOutputForDisplay({ text: input });
-  try {
-    return JSON.stringify(input, null, 2) ?? null;
-  } catch {
-    return null;
-  }
+  return orFallbackSync({ work: () => JSON.stringify(input, null, 2) ?? null, fallback: null, step: 'Format tool input for display' });
 }
 
 function truncate(text: string, max: number): string {

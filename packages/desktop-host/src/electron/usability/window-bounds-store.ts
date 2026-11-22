@@ -1,3 +1,4 @@
+import { orFallbackSync } from '@jini-ai/core/errors/idioms';
 /** Electron does not persist or clamp window geometry itself. A remembered position can point
  * into empty space after undocking or unplugging a display, leaving the window unreachable.
  * Validate meaningful overlap against the current display list on every launch, not the saved one. */
@@ -16,13 +17,17 @@ export function windowBoundsFilePath({ userDataDir, fileName, joinPath }: {
 export function readWindowBounds({ store, key }: { store: BoundsStorePort; key: string }): WindowBounds | null {
   // Geometry is a cache: a corrupt or unreadable entry must degrade to the safe centered default,
   // not prevent application startup.
-  try {
-    const parsed = store.read({ key });
-    if (parsed === null || typeof parsed !== "object") return null;
-    const { x, y, width, height } = parsed as Partial<WindowBounds>;
-    if (![x, y, width, height].every((n) => typeof n === "number" && Number.isFinite(n))) return null;
-    return { x: x as number, y: y as number, width: width as number, height: height as number };
-  } catch { return null; }
+  return orFallbackSync({
+    work: () => {
+      const parsed = store.read({ key });
+      if (parsed === null || typeof parsed !== "object") return null;
+      const { x, y, width, height } = parsed as Partial<WindowBounds>;
+      if (![x, y, width, height].every((n) => typeof n === "number" && Number.isFinite(n))) return null;
+      return { x: x as number, y: y as number, width: width as number, height: height as number };
+    },
+    fallback: null,
+    step: 'Read saved window bounds',
+  });
 }
 /** Store geometry using the host's persistence adapter. Write failures propagate. */
 export function writeWindowBounds({ store, key, bounds }: { store: BoundsStorePort; key: string; bounds: WindowBounds }): void {

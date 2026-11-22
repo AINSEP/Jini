@@ -1,3 +1,4 @@
+import { orFallback } from "@jini-ai/core/errors/idioms";
 import type { ProductAnalyticsPort } from "@jini-ai/core/contracts/observability";
 
 /** Fans product events out to every configured analytics port (normally one), isolating failures
@@ -6,12 +7,12 @@ import type { ProductAnalyticsPort } from "@jini-ai/core/contracts/observability
  * @complexity O(p) at construction and per event for p configured providers. */
 export function fanOutProductAnalytics({ ports }: { ports: readonly ProductAnalyticsPort[] }, { onFailure }: { onFailure?: () => void } = {}): ProductAnalyticsPort {
   const browserPort = ports.find((port) => port.browserAnalytics);
-  const failed = () => { try { onFailure?.(); } catch { /* Diagnostics never fail product work. */ } };
   const each = (send: (port: ProductAnalyticsPort) => void | Promise<void>): Promise<void> => {
-    const admissions = ports.map(port => {
-      try { return Promise.resolve(send(port)).catch(failed); }
-      catch { failed(); /* one vendor never blocks another */ return Promise.resolve(); }
-    });
+    /* Diagnostics never fail product work. */
+    /* one vendor never blocks another */
+    const admissions = ports.map(port => orFallback({
+      work: () => send(port), fallback: undefined, step: "Deliver product analytics",
+    }, { observe: () => onFailure?.() }));
     return Promise.all(admissions).then(() => {});
   };
   return {
