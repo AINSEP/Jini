@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { test } from "vitest";
+import { test } from "../../../__tests__/support/node-test.fixture.js";
 
 import { COMMENTS_IP_SALT_PURPOSE, DEV_COMMENTS_IP_SALT, resolveCommentsIpHashSalt, type CommentsIpSaltKeyring } from "../ip-hash-salt.js";
 

@@ -1,7 +1,7 @@
 /** Pins every diagnostic media-html emits (text, arguments, order), so the move to a package that
  * has no console of its own can prove each line still reaches the host's log. */
 import assert from 'node:assert/strict';
-import { test } from './support/node-test.fixture.js';
+import { test } from '../../../__tests__/support/node-test.fixture.js';
 import { renderMediaRawHtml, sanitizePageHtml } from '../../html/index.js';
 import { logMediaHtmlEvent } from '../media-html-log.js';
 

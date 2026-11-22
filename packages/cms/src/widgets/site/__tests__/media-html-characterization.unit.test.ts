@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { test } from './support/node-test.fixture.js';
+import { test } from '../../../__tests__/support/node-test.fixture.js';
 import type { JsonObject } from '@jini-ai/core/primitives';
 import { renderMediaRawHtml, sanitizePageHtml } from '../../html/index.js';
 import { logMediaHtmlEvent } from '../media-html-log.js';

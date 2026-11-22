@@ -1,4 +1,4 @@
-/** @file Runner adapter for the moved node:test media-html suites: they spy on `console.warn` through
+/** @file Runner adapter for moved node:test suites that spy on `console.warn` (media-html, comments salt) through
  *  node:test's `t.mock.method(target, key, implementation)` and read `mock.callCount()` /
  *  `mock.calls[i].arguments`, which vitest's own test context does not offer. Translating only that
  *  surface here keeps their test bodies and assertions byte-identical to the host originals. */

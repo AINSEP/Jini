@@ -1,7 +1,7 @@
 /** sanitizePageHtml never drops silently (owner, 2026-10-12): 5f237c87a stripped the host's own site's carousel
  * scripts with no trace. Each call that removed anything reports ONCE, naming what and how many. */
 import assert from 'node:assert/strict';
-import { test } from './support/node-test.fixture.js';
+import { test } from '../../../__tests__/support/node-test.fixture.js';
 import { renderMediaRawHtml, sanitizePageHtml } from '../../html/index.js';
 import { logMediaHtmlEvent } from '../media-html-log.js';
 
