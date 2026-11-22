@@ -131,7 +131,8 @@
       "./forms/destinations/pull": "universal",
       "./forms/destinations/select": "universal",
       "./comments/site/comment-targets": "universal",
-      "./admin-http/http/forms": "node"
+      "./admin-http/http/forms": "node",
+      "./comments/site/ip-hash-salt": "node"
     },
     "isolation": {
       "domains": {
@@ -823,6 +824,11 @@
       "types": "./dist/admin-http/http/forms.d.ts",
       "import": "./dist/admin-http/http/forms.js",
       "default": "./dist/admin-http/http/forms.js"
+    },
+    "./comments/site/ip-hash-salt": {
+      "types": "./dist/comments/site/ip-hash-salt.d.ts",
+      "import": "./dist/comments/site/ip-hash-salt.js",
+      "default": "./dist/comments/site/ip-hash-salt.js"
     }
   },
   "files": [
