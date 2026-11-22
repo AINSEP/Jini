@@ -1,4 +1,4 @@
-DONE <sha>
+DONE e398f2ffa
 
 # RT-K1-0.J (Jini half) — route refusal, body cap, returned-vs-thrown error parity
 
@@ -49,7 +49,7 @@ Changed (pinned the superseded behaviour the dispatch asked to change — assert
 
 Full suites (final tree):
 - core: 217 files, **2983 passed** / 0 failed
-- http-kit: 39 files, **763 passed** / 0 failed (was 759+2 failing pins before the pin update; net +12 tests vs base 751)
+- http-kit: 39 files, **763 passed** / 0 failed (base 750: +10 parity tests, +1 ports split, +2 pins split; before the two pin updates the suite was 759 passed / 2 failed — exactly the superseded pins)
 - cms: 431 files, 5012 passed / **9 failed — pre-existing**: the same 4 files (forms `package-boundary`, `create-tables.reference` [pglite, load-dependent], `result-html` ×6, widgets `expand-partials` ×1) fail identically with `packages/cms` reset to base (8 failed / 10 passed run in isolation both ways). Unrelated to `admin-http/limits`.
 
 ## Mutation
