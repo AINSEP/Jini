@@ -4,12 +4,12 @@
  * file in the module that knows about Express `req`/`res` on the mounting side.
  */
 import type { Express, Request, Response } from 'express';
-import { ClientFacingError, statusForError, type JsonRouteAuthorize, type Result, type RouteHostInternalErrorContext, type RouteHostContext } from '@jini-ai/core/contracts/server';
+import { ClientFacingError, statusForError, type JsonRouteAuthorize, type Result, type RouteHostInternalErrorContext, type RouteHostContext, type ServerApiError } from '@jini-ai/core/contracts/server';
 import { reportRouteInternalError } from './internal-error.js';
 import { rawInput } from './request.js';
 import { sendApiError, sendJson } from './response.js';
 import { passesSameOriginGuard } from './origin.js';
-import type { JsonRouteSpec } from './types.js';
+import type { JsonRoutePorts, JsonRouteSpec } from './types.js';
 
 /**
  * Combines required route fields and optional settings into a fresh spec while pinning its generic
@@ -62,7 +62,7 @@ export function mountJsonRoute<Input, Output, Deps, Context = undefined>({ app, 
       if (spec.ports?.authenticate) context = await spec.ports.authenticate({ raw, res, deps });
       const parsed = spec.parse(raw);
       if (!parsed.ok) {
-        sendApiError({ res, status: statusForError({ error: parsed.error }), error: parsed.error });
+        sendReturnedFailure({ res, onReturnedError: spec.ports?.onReturnedError, error: parsed.error, phase: 'parse' });
         return;
       }
       // The route chooses where authorization occurs: reads may authorize before validation,
@@ -72,7 +72,7 @@ export function mountJsonRoute<Input, Output, Deps, Context = undefined>({ app, 
         await spec.ports.authorize({ context, deps, permission, entityType });
       };
       const result = await spec.handle({ input: parsed.value, deps, context, authorize }, { signal: abortController.signal });
-      sendRouteResult({ res, result, spec, signal: abortController.signal });
+      sendRouteResult({ res, result, spec: { successStatus: spec.successStatus, onReturnedError: spec.ports?.onReturnedError }, signal: abortController.signal });
     } catch (e) {
       sendRouteException({ res, spec, adapter, error: e });
     } finally {
@@ -95,7 +95,7 @@ function allowRouteOrigin({ req, res, spec, adapter }: {
 function sendRouteResult<Output>({ res, result, spec, signal }: {
   readonly res: Response;
   readonly result: Result<Output>;
-  readonly spec: Pick<JsonRouteSpec<unknown, Output, unknown>, 'successStatus'>;
+  readonly spec: { readonly successStatus: number | undefined; readonly onReturnedError: JsonRoutePorts<unknown>['onReturnedError'] };
   readonly signal: AbortSignal;
 }, _optional: Record<string, never> = {}): void {
   // `signal` can only have been aborted by `onResponseClose` firing while the
@@ -105,10 +105,26 @@ function sendRouteResult<Output>({ res, result, spec, signal }: {
   // disconnect into the SEC-005 catch as a false internal error if the socket rejects the write.
   if (signal.aborted) return;
   if (!result.ok) {
-    sendApiError({ res, status: statusForError({ error: result.error }), error: result.error });
+    sendReturnedFailure({ res, onReturnedError: spec.onReturnedError, error: result.error, phase: 'handle' });
     return;
   }
   sendJson({ res, status: spec.successStatus ?? 200, body: result.value });
+}
+
+function sendReturnedFailure({ res, onReturnedError, error, phase }: {
+  readonly res: Response;
+  readonly onReturnedError: JsonRoutePorts<unknown>['onReturnedError'];
+  readonly error: ServerApiError;
+  readonly phase: 'parse' | 'handle';
+}, _optional: Record<string, never> = {}): void {
+  const status = statusForError({ error });
+  // Returned and thrown failures share one wire shape only when the host asks for it; the core
+  // envelope stays the default so hosts that never opted in keep their pinned bodies.
+  if (onReturnedError) {
+    onReturnedError({ res, error, status, phase });
+    return;
+  }
+  sendApiError({ res, status, error });
 }
 
 function sendRouteException<Deps, Context>({ res, spec, adapter, error: e }: {
