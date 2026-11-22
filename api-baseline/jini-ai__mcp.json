@@ -122,6 +122,23 @@
    "serve": "function:2fc519efdc"
   }
  },
+ "./external/agent-tools": {
+  "types": "./dist/external/agent-tools.d.ts",
+  "symbols": {
+   "AgentToolDefinition": "type:b4d7d744be",
+   "AgentToolSideEffect": "type:1f07f9c0c0",
+   "EXTERNAL_MCP_MANAGE_PERMISSION": "variable:19d40a9bf8",
+   "externalMcpAgentToolCatalog": "variable:e59b0d2208"
+  }
+ },
+ "./external/built-in-connections": {
+  "types": "./dist/external/built-in-connections.d.ts",
+  "symbols": {
+   "describeExternalMcpOwnership": "function:5674cf9751",
+   "isBuiltInExternalMcpServer": "function:d19a355312",
+   "readBuiltInExternalMcpServerIds": "function:a09648e6db"
+  }
+ },
  "./federation": {
   "types": "./dist/federation/index.d.ts",
   "symbols": {
