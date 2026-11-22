@@ -432,7 +432,7 @@
    "confirmationInterrupt": "function:887eb685e8",
    "createAgUiPauseStore": "function:906166a389",
    "createAgUiTranslationState": "function:9f3f65fe3c",
-   "drainRunFramesToAgUi": "function:44ffd0d379",
+   "drainRunFramesToAgUi": "function:108fbba46e",
    "readConfirmationResume": "function:1ee8952982",
    "translateAgentEventToAgUi": "function:f5da5df6c5"
   }

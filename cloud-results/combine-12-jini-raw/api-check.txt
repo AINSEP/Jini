@@ -1,0 +1,25 @@
+
+> jini@ api:check /home/user/Jini
+> node --import tsx ./scripts/check-api-surface.ts
+
+[api] @jini-ai/agent-plugins
+  changed export  ./lifecycle#AgentPluginManifest
+  changed export  ./lifecycle#AgentPluginSearchCandidate
+  changed export  ./lifecycle#AutomaticAgentPluginPorts
+  changed export  ./lifecycle#InstalledAgentPlugin
+  changed export  ./lifecycle#readAgentPluginCompatibilityMetadata
+  changed export  ./manifest#AgentPluginManifest
+[api] @jini-ai/chat
+  changed export  ./core/ag-ui#drainRunFramesToAgUi
+[api] @jini-ai/core (breaking, covered by changeset)
+  REMOVED export  ./errors/reporter#IncidentTrackerReport
+  REMOVED export  ./errors/testing#createRecordingTracker
+  changed export  ./contracts/observability#ErrorReport
+  changed export  ./contracts/observability#OperationTracker
+  changed export  ./errors/reporter#ErrorReporter
+  changed export  ./errors/reporter#ErrorReporterPorts
+  changed export  ./errors/testing#createRecordingReporter
+  added export    ./errors/reporter#runOperation
+  added export    ./errors/testing#createRecordingObservability
+[api] checked 40 packages, 680 entries, 17204 symbols
+EXIT 0
