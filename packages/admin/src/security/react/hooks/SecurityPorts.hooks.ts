@@ -2,6 +2,7 @@ import { createContext, useContext } from 'react';
 import type { ReactNode } from 'react';
 import type { SecurityApiPort, OtherCredentialsPort, RootKeyPort } from '../../ports.js';
 import { englishSecurity, type SecurityTranslator } from '../../messages.en.js';
+import type { DescribeRootKeyError } from '../../controllers/root-key.controller.js';
 import { AdminConfigError } from '@jini-ai/core/admin-runtime';
 export interface SecurityPorts { readonly securityApi: SecurityApiPort; readonly otherCredentials?: OtherCredentialsPort; readonly rootKey?: RootKeyPort }
 const refuse = async (): Promise<never> => { throw new Error('Unavailable'); };
@@ -19,6 +20,8 @@ export interface SecurityChrome {
   readonly tabIcons: Partial<Record<'access-tokens' | 'root-key', ReactNode>>;
   /** Rendered once above the tabs, only when the page itself is visible. */
   readonly ownerControls?: ReactNode;
+  /** Reads a root-key refusal's public code and detail from the host's error type. */
+  readonly describeRootKeyError?: DescribeRootKeyError;
 }
 export const SecurityChromeContext = createContext<SecurityChrome>({ t: englishSecurity, tabIcons: {} });
 export function useSecurityChrome(_required: Record<string, never> = {}, _optional: Record<string, never> = {}): SecurityChrome {

@@ -1,16 +1,19 @@
 import { createControllerStore } from '@jini-ai/core/admin-runtime';
 import type { RootKeyPort } from '../ports.js';
 import type { RootKeyStatus, RootKeyPreview, RootKeyResult } from '../models.js';
-import { ROOT_KEY_PERMISSION, START_FRESH_CONFIRMATION, isRootKeyLocked } from '../rules.js';
+import { ROOT_KEY_PERMISSION, START_FRESH_CONFIRMATION, isRootKeyLocked, classifyRootKeyRefusal, type RootKeyRefusal } from '../rules.js';
+/** Reads a refusal's public fields. The host knows its error type; the controller never reads `message`. */
+export type DescribeRootKeyError = (required: { error: unknown }, optional?: Record<string, never>) => { code?: string; detail?: string };
+const describeNothing: DescribeRootKeyError = () => ({});
 const receiverLabel = (w: NonNullable<RootKeyResult['affectedWebhooks']>[number]) => `${w.label} (${w.targetUrl})`;
 /** Receivers named in a result need their new signing secret; the message tells the operator which ones. */
 function resultMessage({ result, response }: { result: string; response: RootKeyResult }, _optional = {}) {
   const hooks = response.affectedWebhooks;
   return hooks?.length ? `${result} Update receivers: ${hooks.map(receiverLabel).join(', ')}` : result;
 }
-export function createRootKeyController({ api, permissions = [] }: { api: RootKeyPort; permissions?: readonly string[] }, _optional = {}) {
+export function createRootKeyController({ api, permissions = [] }: { api: RootKeyPort; permissions?: readonly string[] }, { describeError = describeNothing }: { describeError?: DescribeRootKeyError } = {}) {
   const granted = permissions.includes(ROOT_KEY_PERMISSION);
-  const store = createControllerStore({ initial: { status: null as RootKeyStatus | null, preview: null as RootKeyPreview | null, token: '', confirm: '', loading: false, saving: false, error: null as string | null, result: null as string | null, confirming: false } }); let generation = 0;
+  const store = createControllerStore({ initial: { status: null as RootKeyStatus | null, preview: null as RootKeyPreview | null, token: '', confirm: '', loading: false, saving: false, error: null as string | null, result: null as string | null, confirming: false, generateError: null as RootKeyRefusal | null } }); let generation = 0;
   const allowed = () => granted && !store.signal.aborted;
   const canPreview = () => { const state = store.getSnapshot(); return allowed() && isRootKeyLocked({ status: state.status }) && !state.saving && !state.loading; };
   async function load(_required: Record<string, never>, _optional = {}) {
@@ -21,11 +24,12 @@ export function createRootKeyController({ api, permissions = [] }: { api: RootKe
     catch { if (ticket === generation) store.set({ patch: { error: 'Root key status unavailable' } }); }
     finally { if (ticket === generation) store.set({ patch: { loading: false } }); }
   }
-  async function execute(run: () => Promise<RootKeyResult>, result: string) {
+  const refused = () => { store.set({ patch: { error: 'Recovery refused. Check the host key configuration.' } }); };
+  async function execute(run: () => Promise<RootKeyResult>, result: string, { onError = refused }: { onError?: (required: { error: unknown }) => void } = {}) {
     if (!allowed() || store.getSnapshot().saving) return false;
-    store.set({ patch: { saving: true, error: null } }); let ok = false;
+    store.set({ patch: { saving: true, error: null, generateError: null } }); let ok = false;
     try { const response = await run(); store.set({ patch: { token: '', confirm: '', preview: null, confirming: false, result: resultMessage({ result, response }) } }); await load({}); ok = !store.signal.aborted; }
-    catch { store.set({ patch: { error: 'Recovery refused. Check the host key configuration.' } }); }
+    catch (error) { onError({ error }); }
     finally { store.set({ patch: { saving: false } }); }
     return ok;
   }
@@ -36,8 +40,9 @@ export function createRootKeyController({ api, permissions = [] }: { api: RootKe
     generate(_required: Record<string, never>, _optional = {}) {
       const status = store.getSnapshot().status;
       // No rotate/replace: replacing an active key would orphan every secret sealed under it.
-      if (!status || status.active || status.state !== 'missing') return Promise.resolve(false);
-      return execute(() => api.generate({}, { signal: store.signal }), 'Root key ready');
+      // Create-only: an env or file source already names a key, valid or not, so a create would refuse.
+      if (!status || status.active || status.state !== 'missing' || status.source !== 'none') return Promise.resolve(false);
+      return execute(() => api.generate({}, { signal: store.signal }), 'Root key ready', { onError: ({ error }) => { store.set({ patch: { generateError: classifyRootKeyRefusal(describeError({ error })) } }); } });
     },
     importToken(_required: Record<string, never>, _optional = {}) { const token = store.getSnapshot().token.trim(); return token && isRootKeyLocked({ status: store.getSnapshot().status }) ? execute(() => api.importToken({ token }, { signal: store.signal }), 'Unlocked. Saved credentials work again.') : Promise.resolve(false); },
     async preview(_required: Record<string, never>, _optional = {}) {

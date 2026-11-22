@@ -90,3 +90,28 @@ describe('security() module shape (SEC-1)', () => {
     expect(onTabChange).toHaveBeenCalledTimes(1); expect(onTabChange).toHaveBeenCalledWith({ tab: 'root-key' });
   });
 });
+
+describe('root-key tab presentation through the module (SEC-5)', () => {
+  it('offers Create when generate is shown and there is no key', async () => {
+    mount({ permissions: ['security.read', ROOT], requestedTab: 'root-key' });
+    expect(await screen.findByRole('button', { name: 'Create root key' })).toBeTruthy();
+    expect(screen.getByText('None')).toBeTruthy();
+    expect(screen.getByText('No key yet. Create one to protect saved credentials.')).toBeTruthy();
+  });
+  it('hides Create when the host hides generate', async () => {
+    mount({ permissions: ['security.read', ROOT], requestedTab: 'root-key', feature: makeFeature({ rootKeyTab: { generate: 'hidden' } }) });
+    expect(await screen.findByText('A key is created automatically when this site starts.')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Create root key' })).toBeNull();
+  });
+  it('translates the badge and shows a refusal detail from the host reader', async () => {
+    const feature = makeFeature({ describeRootKeyError: () => ({ code: 'KEY_INVALID', detail: 'The stamp is unreadable.' }) });
+    const root = createMemoryRootKey({}); root.generate = () => Promise.reject(new Error('raw'));
+    const admin = createAdmin({ modules: [feature], ports: { securityApi: createMemorySecurityApi({}), rootKey: root } }, { permissions: ['security.read', ROOT] });
+    const { Page, tabs } = feature.react.pages.secrets;
+    render(<AdminKitProvider kit={testAdminKit}><feature.react.Provider admin={admin} t={key => key === 'None' ? 'Ninguna' : key}><Suspense fallback="Loading"><Page tabs={tabs} description={admin.describe().pages[0]!} requestedTab="root-key" /></Suspense></feature.react.Provider></AdminKitProvider>);
+    expect(await screen.findByText('Ninguna')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Create root key' }));
+    expect(await screen.findByText('The stamp is unreadable.')).toBeTruthy();
+    expect(document.body.textContent).not.toContain('raw');
+  });
+});
