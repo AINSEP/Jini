@@ -1,4 +1,4 @@
-DONE 24e1f7b9a
+DONE 554b7fde
 
 # ex2-holds-jini (2026-11-22): RT-1, RT-2, C-contracts-core-1 held file, C026
 
@@ -24,7 +24,15 @@ Tovu was read only. Nothing was pushed to it.
 - **Tovu `origin/integ/merge-12-2026-11-22`:** `git grep '@jini-ai/sqlite'` and `git grep '@jini-ai/infra/db'` outside `ADS-memory/` and `cloud-results/` find **no import**. The only hits are:
   - comments naming the old `@jini-ai/sqlite-chat` package: `apps/desktop/src/contracts/workspace-conversations.ts:5`, `apps/desktop/src/site-dir-store.ts:16`, `apps/desktop/src/tracked-sites.ts:4`, `apps/website/src/assistant/__tests__/tool-catalog-query.test.ts:10-11`, `apps/website/src/features/post/{search-index.memory.ts:17, search-index.sqlite.ts:9, search.ts:24}`;
   - `apps/website/src/assistant/persistence/__tests__/release-manifests.test.ts:17-18`, which asserts that `@jini-ai/sqlite` and `@jini-ai/sqlite-chat` are **absent** from a manifest. It stays true.
-- Tovu `package.json:153` depends on `@jini-ai/infra` and imports only `./events/outbox`, which is unchanged.
+- **Tovu consumer inventory (complete, review RT-2 FIX 3; Tovu `41e948ee4a`):** there are **zero** consumers of the removed DB shims (`@jini-ai/infra/db/*`). Tovu's root `package.json:153` declares `@jini-ai/infra` (`^0.7.3-next.2`) for the retained `./events/outbox` export, which is unchanged. That export is used by exactly these six files under `apps/website/src/`:
+  - `contracts/core/events/enqueue-only-outbox.ts:2`
+  - `contracts/core/events/jini-outbox-adapter.ts:3`
+  - `contracts/core/events/outbox-drainer.ts:3`, `:32`, `:34`
+  - `contracts/core/events/outbox-retry-policies.ts:2`
+  - `contracts/core/events/outbox-worker.ts:3`, `:33`, `:44`, `:56`
+  - `server/runtime/composition/__tests__/form-delivery-vertical-slice.integration.test.ts:9`
+
+  (Re-checked with `git grep '@jini-ai/infra' 41e948ee4a -- apps/website/src package.json`: the only other hits, `outbox-worker.ts:30` and `:59`, are doc comments.)
 - **Tovu follow-up (optional, comments only):** reword those comment lines to name the real owner, as Jini now does: `@jini-ai/chat/store/sqlite` for chat history, `@jini-ai/registry/tool-catalog/sqlite` for the tool catalog, `@jini-ai/db/sqlite` for inspect/integrity, `@jini-ai/daemon/store/event-log/sqlite` for the event log. No Tovu import changes.
 
 ## Item 1 — RT-1: retire `@jini-ai/sqlite` (`89f0c9ecf`)
@@ -197,3 +205,46 @@ Notes on the gates:
 1. **RT-1 changeset:** the major is recorded on `@jini-ai/db`, because the removed package cannot carry one. Change the target if another owner should carry it.
 2. **Item 3 destination:** it lives at `@jini-ai/core/extension-capability-vocabulary`, not `contracts/site/…` as the sheet said (XP4). Update the C-contracts-core-1 sheet and `stays-in-tovu`/scanner inputs so FILES-LEFT drops by one when Tovu applies the follow-up.
 3. **Infra spec files:** they got an RT-2 notice, not a rewrite. They were already stale on base: they say the outbox has no export.
+
+## Review fixes
+
+Review: Tovu `origin/plan/whats-left-1122:reviews/ex3-review-c0b-holds-jini.md` (Codex 6.2). Code fixes are in `554b7fde`; RT-2 FIX 3 and this section are in the report commit on top of it. C026 was APPROVED for Jini, so nothing changed for it here.
+
+### RT-1 · Retire `@jini-ai/sqlite`
+
+- **FIX 1** `.changeset/rt1-retire-sqlite.md:13`: the migration note now names the deleted barrel's type owners: `ChatSessionMode` from `@jini-ai/chat/store/legacy`, and `ToolCatalogEntry` and `ToolCatalogSearchHit` from `@jini-ai/registry/tool-catalog`. These were checked against the deleted `packages/sqlite/src/index.ts` at base, plus `chat/src/store/legacy/index.ts:2` and `registry/src/tool-catalog/index.ts:2,11`. The SQLite subpaths stay listed for their runtime exports, and `@jini-ai/registry/tool-catalog/sqlite` is now labelled "(tool-catalog runtime)". `npx changeset status`: rc 0.
+- **FIX 2** `packages/capability-providers/src/unsafe-reference/db.ts:9`: the real-adapter example is now `SqliteDbProvider` from `@jini-ai/capability-providers/adapters/sqlite`, the sibling that `implements DbProvider` (`adapters/sqlite/index.ts:54`). It replaces the chat store. Comment only.
+
+### RT-2 · Retire `@jini-ai/infra/db` shims
+
+- **FIX 1** `scripts/__tests__/injection-exceptions.q2.test.ts:47-62`: the re-added-shim case now pins the source edge itself. The gate output must contain `{ rule: 'L5-injected-edge', file: 'packages/infra/src/db/sqlite/index.ts', reason: …'→ @jini-ai/db/sqlite' }`. Because `LayerViolation` carries no kind, `collectInjectionFindings` must also contain `{ rule: 'L5-injected-edge', file: 'packages/infra/src/db/sqlite/index.ts', spec: '@jini-ai/db/sqlite', kind: 'export-from' }`. The `found.length` count is gone, since the forbidden manifest peer alone satisfied it. Test count is unchanged: 4 cases, assertions strengthened inside the existing one.
+  - Mutation: the scanner drops re-exports (`scripts/lib/import-sites.ts`, `runtimeImportReferences(…).filter(ref => ref.syntax !== 'export')`).
+    - New test: **1 failed | 3 passed** (`AssertionError: expected [ { rule: 'L5-injected-edge', …(2) } ] to deep equally contain ObjectContaining{…}`).
+    - Old test under the same mutation: **4 passed**. This is the gap the review named.
+    - Restored with `git checkout --`: 4/4, tree clean.
+- **FIX 2** `packages/db/src/core/ports.ts:10-12`: the driver-neutrality comment now points to `@jini-ai/db` / `@jini-ai/db/core`. The obsolete `@jini-ai/infra/db/core` recommendation is gone. The R12 explanation (`pnpm guard` walks the closure, fails on a driver folder or package, `scripts/check-driver-isolation.ts`) is kept word for word. Comment only.
+- **FIX 3** `cloud-results/ex2-holds-jini.md:27-35`: the complete Tovu consumer inventory is recorded. There are zero consumers of the removed DB shims. `package.json:153` declares Infra for the retained outbox, used by the six `apps/website/src/` files at the lines the review lists. Re-verified with `git grep` at Tovu `41e948ee4a`; it matches exactly, and the only extra hits are 2 doc comments.
+
+### C-contracts-core-1
+
+- **FIX 1** `.changeset/core-extension-capability-vocabulary.md:2`: `"@jini-ai/core": minor` → `patch` (P9 §1 extraction rule). `npx changeset status` rc 0.
+
+### Gates after the fixes
+
+Setup was a fresh install on this branch (`pnpm install --frozen-lockfile` ok; the lockfile was not touched by the fixes) and `pnpm -r build` rc 0. Then `pnpm --filter '...@jini-ai/db' --filter '...@jini-ai/capability-providers' -r build` (changed packages + dependents, 20 packages) rc 0.
+
+| gate | head | base `origin/integ/merge-13-2026-11-22` | delta |
+|---|---|---|---|
+| `pnpm typecheck` | rc 0 | — | — |
+| `pnpm guard` | ok, 0 violations, self-test passed | — | — |
+| `pnpm api:check` | rc 0 (39 packages, 688 entries, 17169 symbols) | — | — |
+| `pnpm check:hooks` | rc 0 | — | — |
+| `check:size` / `check:complexity` / `check:why-comments` | rc 1 | rc 1 | identical output |
+| `check:cross-package` | rc 1 | rc 1 | identical except the logged `pid` |
+| `npm --prefix packages/db run test` | 114 files, 950 passed | — | — |
+| `npm --prefix packages/capability-providers run test` | 18 files, 198 passed | — | — |
+| `npx vitest run scripts/__tests__` | 8 failed / 978 passed / 54 skipped (1040) | — | — |
+
+**Pre-existing script failures.** The 8 failures are in 8 files: `check-env-access`, `check-why-comments.test.mjs`, `connection-card.packed`, `coupling-isolation`, `extract-s3-source-contracts`, `fetch-query-isolation`, `leaf-import-closures` and `optional-peer-contract`. None of these files was touched. They are not caused by the fixes: running the same files with the fix files reset to the pre-fix tip `e2f61dd0` gives the identical **8 failed | 67 passed | 21 skipped**. `injection-exceptions.q2.test.ts` passes.
+
+No new red.
