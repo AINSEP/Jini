@@ -491,6 +491,12 @@
    "topologicalTableCopyOrder": "function:2c3b2df947"
   }
  },
+ "./transfer/plan-store": {
+  "types": "./dist/transfer/plan-store.d.ts",
+  "symbols": {
+   "databaseTransferPlanStore": "variable:53314d5199"
+  }
+ },
  "./verified-origin": {
   "types": "./dist/verified-origin/index.d.ts",
   "symbols": {
