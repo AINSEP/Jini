@@ -7,16 +7,16 @@ description: Use when a user manually invokes gstack-inspired design workflows f
 
 # Skill: gstack Design
 
-Manual/slash-invoked domain skill adapted from gstack design workflows. This skill is not wired into the default pipeline.
+Manual/slash-invoked domain skill adapted from gstack design workflows. Follow the current project’s existing design authority and workflow.
 
 ## Execution
 
 - Determine the user's requested design mode from the prompt or slash command arguments.
 - Select exactly one mode per invocation: `consultation`, `shotgun`, `html`, or `review`.
 - Read exactly one matching reference file from `references/` before taking action.
-- Do not load all references, chain modes, or silently expand into pipeline agent dispatch.
-- Preserve existing AI Dev Shop design rules, accessibility expectations, and project constraints.
-- If the user request spans multiple modes, ask which mode to run first.
+- Do not load all references, chain modes, or silently expand the requested scope.
+- Preserve the current project’s design rules, accessibility expectations, and constraints.
+- If the user request spans multiple modes, use the mode matching the requested outcome; ask only for a material design decision the current project leaves unresolved.
 
 ## Guardrails
 
@@ -48,6 +48,6 @@ Read exactly one reference based on intent:
 
 ## Failure Path
 
-- If no mode is clear, ask for one choice.
+- If no mode is clear, infer it from the requested outcome; ask only if a material design decision remains unresolved.
 - If required product context is missing, produce a bounded assumption list rather than inventing facts.
-- If a requested action conflicts with AI Dev Shop frontend/design guardrails, state the conflict and ask for approval before proceeding.
+- If a requested action conflicts with the current project’s frontend/design rules, follow its existing design authority; ask the user only for a material design decision it leaves unresolved.

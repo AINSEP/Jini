@@ -14,8 +14,9 @@ guidance reader. Discover available editing, media and screenshot tools before u
 them. Follow the host's tool permissions. CLI examples apply only to an authorized
 coding checkout. If a capability is missing, explain the limitation instead of
 inventing a tool. Use supplied specs and design notes as context; this skill does not
-require a particular repository or framework. Return the design in the conversation
-unless the user requests a saved artifact through an available tool.
+require a particular repository or framework. Design-only requests may return in chat.
+Save requested page or deck work with the current host's tools. Publish only when requested.
+If no save tool is available, return the artifact in chat and explain the limitation.
 
 ## Core rules
 

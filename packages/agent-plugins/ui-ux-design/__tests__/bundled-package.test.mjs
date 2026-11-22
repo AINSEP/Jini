@@ -84,12 +84,12 @@ test('the manifest keeps the card summary and the search keywords of both former
   assert.deepEqual(manifest.keywords, ['design', 'ui', 'ux', 'ui-design', 'theme', 'page', 'website', 'layout',
     'redesign', 'restyle', 'look and feel']);
   // Hosts seeded Tovu's 0.6.0; an equal or lower version over different bytes is refused or flagged.
-  assert.equal(manifest.version, '0.7.0');
+  assert.equal(manifest.version, '0.7.1', 'versions the portable browser and saving guidance');
 });
 
 test('the design skill carries the shared tool-use wording, not one host\'s chat rules', async () => {
   const skill = flat(await read('skills/ui-ux-design/SKILL.md'));
-  assert.ok(skill.includes('## Tool use and context Load this skill and the references needed for the task through the current host\'s guidance reader. Discover available editing, media and screenshot tools before using them. Follow the host\'s tool permissions. CLI examples apply only to an authorized coding checkout. If a capability is missing, explain the limitation instead of inventing a tool. Use supplied specs and design notes as context; this skill does not require a particular repository or framework. Return the design in the conversation unless the user requests a saved artifact through an available tool.'));
+  assert.ok(skill.includes('## Tool use and context Load this skill and the references needed for the task through the current host\'s guidance reader. Discover available editing, media and screenshot tools before using them. Follow the host\'s tool permissions. CLI examples apply only to an authorized coding checkout. If a capability is missing, explain the limitation instead of inventing a tool. Use supplied specs and design notes as context; this skill does not require a particular repository or framework.'), 'retains host permissions and capability limits');
   assert.ok(skill.includes('- Read any supplied feature spec, current product UI constraints and architecture decisions before making visual decisions; state assumptions where context is missing.'));
   assert.doesNotMatch(skill, /Read the active spec|## Tovu tool use/);
 });
@@ -102,4 +102,34 @@ test('no shipped text names one host or its tools', async () => {
   for (const file of (await shippedFiles()).filter(name => name.endsWith('.md'))) {
     assert.doesNotMatch(await read(file), /\bTovu\b|agent_plugin_ui_ux_design|search_tools|describe_tool/, file);
   }
+});
+
+test('uses the running target and reports actual viewport coverage', async () => {
+  const matrix = flat(await read('skills/ui-ux-design/references/chrome-mobile-test-matrix.md'));
+  const loop = flat(await read('skills/ui-ux-design/references/ui-loop.md'));
+  const gstack = flat(await read('skills/gstack-design/SKILL.md'));
+  assert.match(matrix, /Use the already-running target if supplied/, 'reuses the supplied target');
+  assert.match(matrix, /Start a local target only when needed in a permitted checkout/, 'startup requires a permitted checkout');
+  assert.match(matrix, /actual draft or public target/, 'verifies the intended target');
+  assert.match(matrix, /project matrix where supported/, 'respects the project viewport contract');
+  for (const width of ['320 × 568', '360 × 800', '390 × 844', '430 × 932']) {
+    assert.ok(matrix.includes(width), `retains the default ${width} target`);
+  }
+  assert.match(matrix, /engine, widths and interactions actually observed/, 'reports actual browser coverage');
+  assert.match(matrix, /omitted checks as unverified/, 'does not claim omitted checks passed');
+  assert.match(matrix, /A screenshot of a public route establishes what that route serves; it does not verify a staged draft/, 'public screenshots do not certify drafts');
+  for (const [name, text] of [['ui-loop', loop], ['gstack', gstack]]) {
+    assert.doesNotMatch(text, /AI Dev Shop|Web Design routing|Programmer|browser_automation/, `${name} uses host capabilities and design authority`);
+    assert.match(text, /current project/, `${name} follows project rules`);
+    assert.match(text, /material design decision[^]*unresolved/, `${name} limits questions to unresolved design decisions`);
+  }
+  assert.match(loop, /conformance checks against the approved design\/spec/, 'approved design remains the conformance target');
+});
+
+test('saves requested work and publishes only on request', async () => {
+  const core = flat(await read('skills/ui-ux-design/SKILL.md'));
+  assert.match(core, /Design-only requests may return in chat/, 'design consultation can stay in chat');
+  assert.match(core, /Save requested page or deck work with the current host's tools/, 'requested work becomes a saved artifact');
+  assert.match(core, /Publish only when requested/, 'saving does not authorize publication');
+  assert.match(core, /If no save tool is available, return the artifact in chat and explain the limitation/, 'missing tools have a concrete artifact fallback');
 });

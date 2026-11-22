@@ -12,10 +12,11 @@ overlays, and sticky/fixed sections when those patterns exist.
 
 ## Preconditions And Browser Identity
 
-1. Run the `browser-live-analysis` preflight and continue only when
-   `browser_automation = enabled`.
-2. Start the project with its normal local command and open the target route through
-   the configured browser provider.
+1. Discover the current host’s available browser capabilities and continue with rendered
+   checks only when they can open and inspect the target.
+2. Use the already-running target if supplied. Start a local target only when needed in a permitted checkout,
+   using its normal local command. Open the actual draft or public target through the available browser.
+   A screenshot of a public route establishes what that route serves; it does not verify a staged draft.
 3. Select Chrome or Chromium when the provider exposes a browser-engine choice.
    Record the engine actually used. If Chrome/Chromium cannot be selected, run the
    available browser pass when useful but label the result `CHROME_NOT_VERIFIED`.
@@ -27,8 +28,8 @@ performance characteristics. Call out any of those that still require a device p
 
 ## Required Viewport Matrix
 
-Use project-defined supported devices when they exist. Otherwise test this default
-portrait matrix:
+Use the project matrix where supported. Otherwise use this default portrait matrix as the
+target. Run supported checks and report omitted checks as unverified:
 
 | Profile | Viewport | Purpose |
 |---|---:|---|
@@ -45,9 +46,9 @@ Also test:
   by the task
 - one normal desktop viewport after the mobile fixes as a regression control
 
-For each applicable route and viewport, hard-reload, wait for the stable rendered
+For each supported route and viewport, hard-reload, wait for the stable rendered
 state, capture the first viewport and full-page state when useful, then interact with
-the controls rather than judging from a screenshot alone.
+the controls rather than judging from a screenshot alone. Report the engine, widths and interactions actually observed.
 
 ## Checklist
 
@@ -66,8 +67,8 @@ and intended correction.
       stack, scroll, crop, or alternate mobile treatment.
 - [ ] Images remain sharp, correctly cropped, and proportionate; no important subject
       or product detail disappears at the mobile crop.
-- [ ] Section spacing and content density remain coherent at all four widths rather
-      than merely fitting inside them.
+- [ ] Section spacing and content density remain coherent at the widths actually observed
+      rather than merely fitting inside them; omitted widths remain unverified.
 
 ### Navigation
 
@@ -131,7 +132,8 @@ Before claiming mobile verification:
 
 1. Re-run every viewport and state affected by a fix.
 2. Re-run the desktop control viewport.
-3. Record the routes, viewport profiles, browser engine, interactive paths, defects
-   fixed, remaining `N/A` or device-only items, and representative screenshots.
+3. Record the actual draft or public target, routes, engine, widths and interactions actually observed,
+   defects fixed, remaining `N/A` or device-only items, and representative screenshots.
+   Report omitted checks as unverified, including unsupported widths and interactions.
 4. Treat any unresolved issue that blocks navigation, reading, form completion, or a
    primary action as a failed mobile pass rather than a cosmetic advisory.
