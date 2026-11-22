@@ -37,7 +37,9 @@
       "./electron/selftest": "desktop",
       "./shell/window-bounds-store": "desktop",
       "./shell/webview-guest-policy": "desktop",
-      "./shell/window-navigation-policy": "desktop"
+      "./shell/window-navigation-policy": "desktop",
+      "./shell/guest-navigation": "desktop",
+      "./shell/site-presence": "universal"
     },
     "isolation": {
       "entries": {
@@ -47,7 +49,8 @@
         "./shell/spellcheck-menu": "electron",
         "./shell/window-bounds-store": "electron",
         "./shell/webview-guest-policy": "electron",
-        "./shell/window-navigation-policy": "electron"
+        "./shell/window-navigation-policy": "electron",
+        "./shell/guest-navigation": "electron"
       }
     }
   },
@@ -176,6 +179,16 @@
       "types": "./dist/shell/window-navigation-policy.d.ts",
       "import": "./dist/shell/window-navigation-policy.js",
       "default": "./dist/shell/window-navigation-policy.js"
+    },
+    "./shell/guest-navigation": {
+      "types": "./dist/shell/guest-navigation.d.ts",
+      "import": "./dist/shell/guest-navigation.js",
+      "default": "./dist/shell/guest-navigation.js"
+    },
+    "./shell/site-presence": {
+      "types": "./dist/shell/site-presence.d.ts",
+      "import": "./dist/shell/site-presence.js",
+      "default": "./dist/shell/site-presence.js"
     }
   },
   "files": [

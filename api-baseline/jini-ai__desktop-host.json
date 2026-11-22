@@ -357,6 +357,13 @@
    "previousOrdinal": "function:c9618d2559"
   }
  },
+ "./shell/guest-navigation": {
+  "types": "./dist/shell/guest-navigation.d.ts",
+  "symbols": {
+   "GuestContents": "type:e8c9399a4f",
+   "installWebviewGuestPolicy": "function:dd3f283809"
+  }
+ },
  "./shell/instance-presence": {
   "types": "./dist/shell/instance-presence.d.ts",
   "symbols": {
@@ -377,6 +384,14 @@
    "lacksExecuteBits": "function:7ad6ef897f",
    "packagedPtyHelperFailures": "function:76205c8db2",
    "ptyHelperPaths": "function:a2450b5277"
+  }
+ },
+ "./shell/site-presence": {
+  "types": "./dist/shell/site-presence.d.ts",
+  "symbols": {
+   "PresenceSender": "interface:1ac85e080c",
+   "SitePresence": "interface:173360a700",
+   "createSitePresence": "function:29fbbce6f0"
   }
  },
  "./shell/spellcheck-menu": {
