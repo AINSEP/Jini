@@ -1,0 +1,28 @@
+### M1 K4-i18n-common (named): delete Spanish Save in packages/admin/src/core/i18n-common-base.ts
+-- unmutated:
+ ✓ src/core/__tests__/i18n-common.test.ts (8 tests) 11ms
+      Tests  8 passed (8)
+diff --git a/packages/admin/src/core/i18n-common-base.ts b/packages/admin/src/core/i18n-common-base.ts
+index a599ca1f4..ad961f59d 100644
+--- a/packages/admin/src/core/i18n-common-base.ts
++++ b/packages/admin/src/core/i18n-common-base.ts
+@@ -6,7 +6,6 @@
+  */
+ export const BASE_COMMON_I18N: Record<string, Record<string, string>> = {
+   es: {
+-    Save: "Guardar",
+     "Saving…": "Guardando…",
+     "Saved.": "Guardado.",
+     Cancel: "Cancelar",
+-- mutated:
+   ✓ ADMIN_COMMON_I18N > ships exactly the original 21 locales 2ms
+   × ADMIN_COMMON_I18N > gives every locale the same generic key set 9ms
+   × ADMIN_COMMON_I18N > pins three generic keys per locale to non-empty translations 2ms
+   × ADMIN_COMMON_I18N > keeps the Spanish Save translation verbatim 1ms
+   ✓ ADMIN_COMMON_I18N > keeps "Built-in" and "Wrap: on" through assembly 1ms
+   ✓ ADMIN_COMMON_I18N > keeps the version-conflict entry after the branded extra is split out 1ms
+   ✓ ADMIN_COMMON_I18N > keeps the positional extras aligned around the removed branded entry 0ms
+   ✓ ADMIN_COMMON_I18N > leaves the product-branded older-version entry with the host 1ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+      Tests  3 failed | 5 passed (8)
+restored clean

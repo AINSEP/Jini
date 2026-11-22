@@ -1,0 +1,6 @@
+Scope: 4 of 51 workspace projects
+packages/admin build$ tsc -p tsconfig.json
+packages/admin build: Done
+packages/user-management build$ tsc -p tsconfig.json
+packages/user-management build: Done
+EXIT 0
