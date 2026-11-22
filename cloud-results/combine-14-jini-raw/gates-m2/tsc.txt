@@ -1,0 +1,4 @@
+== core
+EXIT 0
+== daemon
+EXIT 0

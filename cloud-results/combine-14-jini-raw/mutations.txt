@@ -26,3 +26,23 @@ index a599ca1f4..ad961f59d 100644
 ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
       Tests  3 failed | 5 passed (8)
 restored clean
+### M2a K4-seam-1 (named): rule?: Rule -> rule?: never in packages/core/src/contracts/site/tool-metadata-approval-policy.ts
+-  readonly rule?: Rule;
++  readonly rule?: never;
+src/__tests__/tool-metadata-approval-policy.unit.test.ts(16,86): error TS2322: Type 'string' is not assignable to type 'never'.
+core tsc EXIT 2
+      Tests  2 passed (2)
+### M2b K4-seam-1 (named): surfaceExchanges -> surfaceExchangeStore in packages/core/src/contracts/site/daemon-surface-exchanges.ts
+-  readonly surfaceExchanges: SurfaceExchangeStore;
++  readonly surfaceExchangeStore: SurfaceExchangeStore;
+src/__tests__/daemon-surface-exchanges.unit.test.ts(14,38): error TS2561: Object literal may only specify known properties, but 'surfaceExchanges' does not exist in type 'AssistantSurfaceDeps'. Did you mean to write 'surfaceExchangeStore'?
+src/__tests__/daemon-surface-exchanges.unit.test.ts(17,21): error TS2551: Property 'surfaceExchanges' does not exist on type 'AssistantSurfaceDeps'. Did you mean 'surfaceExchangeStore'?
+core tsc EXIT 2
+core rebuilt (emit) for daemon check
+src/__tests__/surface-deps-core-contract.test.ts(16,7): error TS2741: Property 'surfaceExchangeStore' is missing in type 'import("/home/user/Jini/packages/daemon/src/surface-exchanges").AssistantSurfaceDeps' but required in type 'import("/home/user/Jini/packages/core/dist/contracts/site/daemon-surface-exchanges").AssistantSurfaceDeps'.
+src/__tests__/surface-deps-core-contract.test.ts(17,7): error TS2741: Property 'surfaceExchanges' is missing in type 'import("/home/user/Jini/packages/core/dist/contracts/site/daemon-surface-exchanges").AssistantSurfaceDeps' but required in type 'import("/home/user/Jini/packages/daemon/src/surface-exchanges").AssistantSurfaceDeps'.
+daemon tsc EXIT 2
+core rebuilt EXIT 0
+daemon tsc after restore EXIT 0
+      Tests  3 passed (3)
+      Tests  1 passed (1)

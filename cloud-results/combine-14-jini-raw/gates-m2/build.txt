@@ -1,0 +1,120 @@
+Scope: 43 of 51 workspace projects
+packages/core build$ tsc -p tsconfig.json
+packages/core build: Done
+packages/agentic build$ tsc -p tsconfig.json && tsc -p tsconfig.dom.json
+packages/analytics build$ tsc -p tsconfig.json
+packages/artifacts build$ tsc -p tsconfig.json
+packages/capability-providers build$ tsc -p tsconfig.json
+packages/artifacts build: Done
+packages/desktop-host build$ tsc -p tsconfig.json && cp src/speech/macos/speech-helper.swift dist/speech/macos/speech-helper.swift
+packages/analytics build: Done
+packages/http-kit build$ tsc -p tsconfig.json
+packages/capability-providers build: Done
+packages/platform build$ tsc -p tsconfig.json
+packages/desktop-host build: Done
+packages/ui-kit build$ tsc -p tsconfig.build.json
+packages/http-kit build: Done
+packages/agentic build: Done
+packages/ui-kit build: Done
+packages/platform build: Done
+packages/diagnostics build$ tsc -p tsconfig.json
+examples/reference-desktop build$ tsc -p tsconfig.json
+packages/oauth build$ tsc -p tsconfig.json
+packages/db build$ tsc -p tsconfig.build.json
+examples/reference-desktop build: Done
+packages/sidecar build$ tsc -p tsconfig.json
+packages/oauth build: Done
+packages/vibecoding build$ tsc -p tsconfig.json
+packages/db build: Done
+packages/diagnostics build: Done
+packages/sidecar build: Done
+packages/vibecoding build: Done
+packages/cli build$ tsc -p tsconfig.json && chmod +x dist/main.js
+packages/cms build$ tsc -p tsconfig.json
+packages/infra build$ tsc -p tsconfig.json
+packages/plugins build$ tsc -p tsconfig.json
+packages/infra build: Done
+packages/registry build$ tsc -p tsconfig.json
+packages/cli build: Done
+packages/integrations build$ tsc -p tsconfig.json
+packages/registry build: Done
+packages/plugins build: Done
+packages/integrations build: Done
+packages/cms build: Done
+packages/agent-plugins build$ tsc -p tsconfig.json && node scripts/build-cloudflare.mjs
+packages/agent-runtime build$ tsc -p tsconfig.json
+packages/cms/forms build$ tsc -p tsconfig.json
+packages/commerce build$ tsc -p tsconfig.json
+packages/cms/forms build: Done
+packages/plugin-fixture-provider build$ node --import tsx ../provider-plugins/scripts/build.ts fixture-provider .
+packages/plugin-fixture-provider build: Done
+packages/commerce build: Done
+packages/agent-plugins build: Done
+packages/agent-runtime build: Done
+packages/node-adapters build$ tsc -p tsconfig.json
+packages/search build$ tsc -p tsconfig.json
+packages/ui build$ node scripts/generate-agent-icon-data-uris.mjs && tsc -p tsconfig.json && mkdir -p dist/react/components/remixicon-font dist/features/settings/dialog/styles dist/features/tabbed-dialog/styles && cp src/react/components/remixicon-font/remixicon.css src/react/components/remixicon-font/remixicon.woff2 dist/react/components/remixicon-font/ && cp src/features/settings/dialog/styles/settings-dialog.css dist/features/settings/dialog/styles/ && cp src/features/tabbed-dialog/styles/tabbed-dialog.css dist/features/tabbed-dialog/styles/ && npx @tailwindcss/cli -i src/features/interactive-ui/styles.css -o dist/features/interactive-ui/interactive-ui.css --minify && mkdir -p dist/features/admin-widgets/styles && cp src/features/admin-widgets/styles/admin-widgets.css dist/features/admin-widgets/styles/ && mkdir -p dist/styles && cp src/styles/*.css dist/styles/ && mkdir -p dist/features/site-card && cp src/features/site-card/site-card.css dist/features/site-card/
+packages/ui build: Generated 19 agent icon data URIs -> /home/user/Jini/packages/ui/src/react/components/agent-icon-data-uris.generated.ts
+packages/node-adapters build: Done
+packages/search build: Done
+packages/ui build: npm warn Unknown env config "disallow-workspace-cycles". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+packages/ui build: npm warn Unknown env config "prefer-workspace-packages". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+packages/ui build: npm warn Unknown env config "verify-deps-before-run". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+packages/ui build: npm warn Unknown env config "minimum-release-age". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+packages/ui build: npm warn Unknown env config "npm-globalconfig". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+packages/ui build: npm warn Unknown env config "package-extensions". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+packages/ui build: npm warn Unknown env config "link-workspace-packages". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+packages/ui build: npm warn Unknown env config "recursive". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+packages/ui build: npm warn Unknown env config "_jsr-registry". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+packages/ui build: ≈ tailwindcss v4.3.3
+packages/ui build: Done in 48ms
+packages/ui build: Done
+packages/admin build$ tsc -p tsconfig.json
+packages/provider-plugins build$ pnpm run typecheck && tsc -p tsconfig.lib.json && node --import tsx scripts/build.ts charts-recharts . && node --import tsx scripts/build.ts charts-echarts . && node --import tsx scripts/build.ts ai-trace-langfuse . && node --import tsx scripts/build.ts analytics-posthog . && node --import tsx scripts/build.ts observability-opentelemetry . && node --import tsx scripts/build.ts observability-sentry . && node --import tsx scripts/build.ts payments-stripe . && node --import tsx scripts/build.ts fixture-provider . && node --import tsx scripts/build.ts formspree . && node --import tsx scripts/build.ts google-forms .
+packages/chat build$ tsc -p tsconfig.json && mkdir -p dist/react/styles && cp src/react/styles/*.css dist/react/styles/ && mkdir -p dist/embed-widget/vanilla && node --input-type=module -e "import {writeFileSync,readFileSync} from 'node:fs'; import {CHAT_BUBBLE_STYLE} from './dist/embed-widget/browser/lazy-loader.js'; writeFileSync('dist/embed-widget/vanilla/style.css',CHAT_BUBBLE_STYLE+'\n'+readFileSync('src/embed-widget/vanilla/style.css','utf8'));"
+packages/provider-plugins build: > @jini-ai/provider-plugins@0.7.3-next.2 typecheck /home/user/Jini/packages/provider-plugins
+packages/provider-plugins build: > tsc -p tsconfig.json --noEmit && tsc -p tsconfig.charts.json --noEmit
+packages/provider-plugins build: Done
+packages/chat build: Done
+packages/admin build: Done
+packages/user-management build$ tsc -p tsconfig.json
+packages/daemon build$ tsc -p tsconfig.json
+packages/user-management build: Done
+packages/daemon build: Done
+packages/devops build$ tsc -p tsconfig.json
+packages/mcp build$ tsc -p tsconfig.json && chmod +x dist/bin/serve.js
+packages/server build$ tsc -p tsconfig.tests.json && tsc -p tsconfig.json
+packages/sqlite build$ tsc -p tsconfig.json
+packages/sqlite build: Done
+packages/server build: Done
+packages/devops build: Done
+packages/mcp build: Done
+examples/reference-web build$ vite build && vite build --config vite.mcpui-view.config.ts
+examples/reference-web build: vite v8.1.6 building client environment for production...
+examples/reference-web build: [2K
+examples/reference-web build: transforming...✓ 1159 modules transformed.
+examples/reference-web build: rendering chunks...
+examples/reference-web build: computing gzip size...
+examples/reference-web build: dist/index.html                                  1.06 kB │ gzip:   0.60 kB
+examples/reference-web build: dist/sample-preview/starter-site/notes.html      8.03 kB │ gzip:   3.18 kB
+examples/reference-web build: dist/sample-preview/starter-site/index.html      8.67 kB │ gzip:   3.36 kB
+examples/reference-web build: dist/assets/index-tiIM3XZq.css                 149.81 kB │ gzip:  25.11 kB
+examples/reference-web build: dist/assets/remixicon-D9cWxkfR.css             157.14 kB │ gzip:  21.41 kB
+examples/reference-web build: dist/assets/index-D1O7llIN.js                1,331.31 kB │ gzip: 384.01 kB
+examples/reference-web build: ✓ built in 448ms
+examples/reference-web build: [plugin builtin:vite-reporter] 
+examples/reference-web build: (!) Some chunks are larger than 500 kB after minification. Consider:
+examples/reference-web build: - Using dynamic import() to code-split the application
+examples/reference-web build: - Use build.rolldownOptions.output.codeSplitting to improve chunking: https://rolldown.rs/reference/OutputOptions.codeSplitting
+examples/reference-web build: - Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+examples/reference-web build: vite v8.1.6 building client environment for production...
+examples/reference-web build: [2K
+examples/reference-web build: transforming...✓ 167 modules transformed.
+examples/reference-web build: rendering chunks...
+examples/reference-web build: [plugin vite:singlefile] 
+examples/reference-web build: [plugin vite:singlefile] Inlining: mcp-app-CtILIpHY.js
+examples/reference-web build: computing gzip size...
+examples/reference-web build: dist-mcpui-view/mcpui-view-src/mcp-app.html  455.82 kB │ gzip: 111.36 kB
+examples/reference-web build: ✓ built in 129ms
+examples/reference-web build: Done
+EXIT 0

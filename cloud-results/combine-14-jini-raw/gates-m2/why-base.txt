@@ -1,0 +1,3 @@
+why-comments: 1 files with removed lines checked against 7c4ee7881..HEAD, 0 comment blocks lost (0 allow-listed)
+why-comments: ok
+EXIT 0
