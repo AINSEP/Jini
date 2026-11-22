@@ -33,3 +33,7 @@ export type { PasskeySignInPort, PasskeySettingsPort } from './auth/Passkeys.js'
 export { runPasskeyCeremony } from './auth/passkey-browser.js';
 export { useRecoveryCodeSignIn, useRecoveryKit, createRecoveryKitDownload, useOwnerPasswordReset } from './auth/OwnerRecovery.hooks.js';
 export type { OwnerRecoveryPorts, OwnerRecoveryCopy, DescribeRecoveryFailure, RecoveryCodeSignInController, RecoveryKitController, OwnerPasswordResetController } from './auth/OwnerRecovery.hooks.js';
+export { RecoveryCodesCard } from './auth/RecoveryCodesCard.js';
+export type { RecoveryCodesCardProps, RecoveryFailureNotice } from './auth/RecoveryCodesCard.js';
+export { useOwnerRecoveryKit, createOwnerRecoveryKitDownload, useDesktopOwnerReset, saveTextFileViaDom } from './auth/RecoveryCodesCard.hooks.js';
+export type { OwnerRecoveryStatus, OwnerRecoveryPort, OwnerRecoveryFailureFormatter } from './auth/RecoveryCodesCard.hooks.js';
