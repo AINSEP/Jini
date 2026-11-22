@@ -683,5 +683,23 @@
    "createNodeArtifactWriter": "function:195878936a",
    "createNodeAssetSource": "function:cf1ae459d4"
   }
+ },
+ "./static-export/site/ports": {
+  "types": "./dist/static-export/site/ports.d.ts",
+  "symbols": {
+   "ManifestActiveTheme": "interface:98267e09aa",
+   "ManifestRoute": "interface:6aa35e53e8",
+   "ManifestRouteKind": "type:aa63d029bb",
+   "ManifestSkip": "interface:993737f9d4",
+   "RouteManifest": "interface:3cc4cc07b1"
+  }
+ },
+ "./static-export/site/public-origin-policy": {
+  "types": "./dist/static-export/site/public-origin-policy.d.ts",
+  "symbols": {
+   "exportPublicOrigin": "function:4d2b0322be",
+   "rewriteExportOriginResponse": "function:1608c8b961",
+   "rewriteRenderOrigins": "function:5beb95d093"
+  }
  }
 }
