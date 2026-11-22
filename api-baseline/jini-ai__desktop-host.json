@@ -329,6 +329,57 @@
    "startRenderBridge": "function:8c51e18a04"
   }
  },
+ "./shell/auto-update-controller": {
+  "types": "./dist/shell/auto-update-controller.d.ts",
+  "symbols": {
+   "AutoUpdateController": "interface:0b5fb6bd97",
+   "AutoUpdateControllerDeps": "interface:ece0beef05",
+   "createAutoUpdateController": "function:59042fc22a"
+  }
+ },
+ "./shell/find-in-page-verify": {
+  "types": "./dist/shell/find-in-page-verify.d.ts",
+  "symbols": {
+   "Count": "interface:9dac60ccbd",
+   "advancesEveryStep": "function:9fe3a41598",
+   "nextOrdinal": "function:ff101fe112",
+   "parseCount": "function:4b2ef6ee6d",
+   "previousOrdinal": "function:c9618d2559"
+  }
+ },
+ "./shell/instance-presence": {
+  "types": "./dist/shell/instance-presence.d.ts",
+  "symbols": {
+   "createInstancePresence": "function:dacc300196",
+   "isPidAlive": "function:b90df52a70",
+   "presenceDirPath": "function:5d41fb4653"
+  }
+ },
+ "./shell/js-backslide-guard": {
+  "types": "./dist/shell/js-backslide-guard.d.ts",
+  "symbols": {
+   "jsBackslideOffenders": "function:4951f7ae97"
+  }
+ },
+ "./shell/pty-helpers": {
+  "types": "./dist/shell/pty-helpers.d.ts",
+  "symbols": {
+   "lacksExecuteBits": "function:7ad6ef897f",
+   "packagedPtyHelperFailures": "function:76205c8db2",
+   "ptyHelperPaths": "function:a2450b5277"
+  }
+ },
+ "./shell/spellcheck-menu": {
+  "types": "./dist/shell/spellcheck-menu.d.ts",
+  "symbols": {
+   "MenuBuilder": "interface:928bf71190",
+   "SpellCheckContextMenuParams": "interface:fe93d23249",
+   "SpellCheckMenuHandlers": "interface:fd56e3f1c0",
+   "SpellCheckWebContents": "interface:c5d9263f44",
+   "buildSpellCheckMenuTemplate": "function:ae2731555a",
+   "registerSpellCheckContextMenu": "function:b6d76ed43f"
+  }
+ },
  "./shutdown": {
   "types": "./dist/shutdown/index.d.ts",
   "symbols": {

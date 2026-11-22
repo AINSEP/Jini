@@ -27,11 +27,20 @@
       "./speech": "desktop",
       "./speech/macos": "node",
       "./speech/macos/speech-helper.swift": "node",
-      "./bridge": "universal"
+      "./bridge": "universal",
+      "./shell/find-in-page-verify": "universal",
+      "./shell/js-backslide-guard": "universal",
+      "./shell/pty-helpers": "node",
+      "./shell/instance-presence": "node",
+      "./shell/auto-update-controller": "node",
+      "./shell/spellcheck-menu": "desktop"
     },
     "isolation": {
       "entries": {
-        "./bridge-testing": "bridge"
+        "./bridge-testing": "bridge",
+        "./shell/instance-presence": "electron",
+        "./shell/auto-update-controller": "electron",
+        "./shell/spellcheck-menu": "electron"
       }
     }
   },
@@ -110,7 +119,37 @@
       "import": "./dist/speech/macos/index.js",
       "default": "./dist/speech/macos/index.js"
     },
-    "./speech/macos/speech-helper.swift": "./dist/speech/macos/speech-helper.swift"
+    "./speech/macos/speech-helper.swift": "./dist/speech/macos/speech-helper.swift",
+    "./shell/find-in-page-verify": {
+      "types": "./dist/shell/find-in-page-verify.d.ts",
+      "import": "./dist/shell/find-in-page-verify.js",
+      "default": "./dist/shell/find-in-page-verify.js"
+    },
+    "./shell/js-backslide-guard": {
+      "types": "./dist/shell/js-backslide-guard.d.ts",
+      "import": "./dist/shell/js-backslide-guard.js",
+      "default": "./dist/shell/js-backslide-guard.js"
+    },
+    "./shell/pty-helpers": {
+      "types": "./dist/shell/pty-helpers.d.ts",
+      "import": "./dist/shell/pty-helpers.js",
+      "default": "./dist/shell/pty-helpers.js"
+    },
+    "./shell/instance-presence": {
+      "types": "./dist/shell/instance-presence.d.ts",
+      "import": "./dist/shell/instance-presence.js",
+      "default": "./dist/shell/instance-presence.js"
+    },
+    "./shell/auto-update-controller": {
+      "types": "./dist/shell/auto-update-controller.d.ts",
+      "import": "./dist/shell/auto-update-controller.js",
+      "default": "./dist/shell/auto-update-controller.js"
+    },
+    "./shell/spellcheck-menu": {
+      "types": "./dist/shell/spellcheck-menu.d.ts",
+      "import": "./dist/shell/spellcheck-menu.js",
+      "default": "./dist/shell/spellcheck-menu.js"
+    }
   },
   "files": [
     "dist",
