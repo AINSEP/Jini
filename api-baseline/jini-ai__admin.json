@@ -773,15 +773,6 @@
    "usePlaygroundPorts": "function:e0df555889"
   }
  },
- "./publish-content/screen/hooks/publish-availability.store": {
-  "types": "./dist/publish-content/screen/hooks/publish-availability.store.d.ts",
-  "symbols": {
-   "isPublishToLiveAvailable": "function:a942ac5041",
-   "readPublishToLiveAvailability": "function:7bffe3f096",
-   "setPublishToLiveAvailable": "function:c6bfba6365",
-   "usePublishToLiveAvailable": "function:b6800935fa"
-  }
- },
  "./react": {
   "types": "./dist/react/index.d.ts",
   "symbols": {

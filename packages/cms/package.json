@@ -17,9 +17,8 @@
       "./publish/transfer": "universal",
       "./publish/transfer/blob-staging": "node",
       "./publish/content/baseline-repo": "universal",
-      "./publish/content/content-hash": "universal",
+      "./publish/content/content-hash": "node",
       "./publish/content/execute-import": "universal",
-      "./publish/content/media-references": "universal",
       "./publish/content/precheck-reasons": "universal",
       "./publish/content/publish-readiness": "universal",
       "./publish/content/report-contract": "universal",
@@ -259,11 +258,6 @@
       "types": "./dist/publish/content/execute-import.d.ts",
       "import": "./dist/publish/content/execute-import.js",
       "default": "./dist/publish/content/execute-import.js"
-    },
-    "./publish/content/media-references": {
-      "types": "./dist/publish/content/media-references.d.ts",
-      "import": "./dist/publish/content/media-references.js",
-      "default": "./dist/publish/content/media-references.js"
     },
     "./publish/content/precheck-reasons": {
       "types": "./dist/publish/content/precheck-reasons.d.ts",

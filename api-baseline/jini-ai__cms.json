@@ -1483,15 +1483,6 @@
    "executePublishContentImport": "function:a58877de3f"
   }
  },
- "./publish/content/media-references": {
-  "types": "./dist/publish/content/media-references.d.ts",
-  "symbols": {
-   "collectMediaConfigKeys": "function:c42bf01cf8",
-   "collectMediaUrlKeys": "function:9fe2ca9574",
-   "collectPlacedWidgetMediaKeys": "function:a14ded0319",
-   "collectReferencedMediaKeys": "function:4c57c9a693"
-  }
- },
  "./publish/content/peer-url": {
   "types": "./dist/publish/content/peer-url.d.ts",
   "symbols": {
