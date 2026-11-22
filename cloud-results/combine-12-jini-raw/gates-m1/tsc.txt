@@ -1,0 +1,3 @@
+packages/core EXIT 0
+packages/diagnostics EXIT 0
+packages/provider-plugins EXIT 0

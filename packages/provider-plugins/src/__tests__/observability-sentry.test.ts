@@ -225,7 +225,8 @@ test('OTel operation traceIds belong to that tracker outside its active scope', 
     const span = exporter.getFinishedSpans().find(span => span.name === 'site.export')!.spanContext();
     assert.deepEqual(ids, { traceId: span.traceId, spanId: span.spanId }, 'the tracker returns its own span IDs');
   } finally { await resource.dispose(); }
-});
+  // dispose() flushes the OTLP exporter towards collector.invalid; where name lookup hangs (sandboxed CI) that waits out the exporter timeout, as the composed-tracker case above does.
+}, 60_000);
 
 test("operation end: settled attributes and failure status reach the transaction; a second end is ignored", async () => {
   const { items, transport } = recordingTransport();
