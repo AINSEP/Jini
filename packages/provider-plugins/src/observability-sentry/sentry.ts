@@ -33,7 +33,7 @@
  */
 import { AsyncLocalStorage } from "node:async_hooks";
 
-import { NodeClient, captureException, defaultStackParser, makeNodeTransport, startInactiveSpan, startNewTrace, withActiveSpan, withScope, type NodeOptions, type Span } from "@sentry/node";
+import { NodeClient, captureEvent, captureException, defaultStackParser, makeNodeTransport, startInactiveSpan, startNewTrace, withActiveSpan, withScope, type NodeOptions, type Span } from "@sentry/node";
 import type { SentryProviderContext } from "./contract.js";
 import {
   createNoopObservabilityPort,
@@ -132,10 +132,15 @@ export function createSentryObservabilityAdapter({ config, context: helpers }: {
       if (!exportEnabled && !owned) return undefined;
       try {
         const span = active.getStore();
-        const capture = () => captureException(sanitizedError({ error, describeReportedError: helpers.describeReportedError }), { ...(context.level ? { level: context.level } : {}), tags: { operation: context.operation }, contexts: {
-          operation: helpers.redactOperationAttributes({ attributes: context.attributes ?? {} }),
-          ...(context.trace ? { otel: { trace_id: context.trace.traceId, span_id: context.trace.spanId } } : {}),
-        } });
+        const capture = () => {
+          const details = { ...(context.level ? { level: context.level } : {}), tags: { operation: context.operation }, contexts: {
+            operation: helpers.redactOperationAttributes({ attributes: context.attributes ?? {} }),
+            ...(context.trace ? { otel: { trace_id: context.trace.traceId, span_id: context.trace.spanId } } : {}),
+          } };
+          return context.incidentId
+            ? captureEvent({ ...details, exception: { values: [{ ...(context.label === undefined ? {} : { type: context.label }), value: context.incidentId, ...(error instanceof Error && error.stack ? { stacktrace: { frames: defaultStackParser(error.stack, 1) } } : {}) }] } })
+            : captureException(sanitizedError({ error, describeReportedError: helpers.describeReportedError }), details);
+        };
         inClient(() => (span ? withActiveSpan(span, capture) : capture()));
         return undefined;
       } catch {
@@ -167,6 +172,7 @@ function createSentryOperationTracker({ exportEnabled, active, helpers }: { expo
       let ended = false;
       return {
         run: (fn) => active.run(span, fn),
+        traceIds: () => { const { traceId, spanId } = span.spanContext(); return { traceId, spanId }; },
         end({ outcome, failed, attributes: settled = {} }) {
           if (ended) return;
           ended = true;

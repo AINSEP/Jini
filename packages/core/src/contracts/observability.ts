@@ -49,7 +49,7 @@ export interface OperationTrackingInput { name: string; attributes?: OperationAt
 /** `outcome` is the feature's own fixed label (`completed`, `denied`, `timed-out`); `failed` says
  * whether that outcome is a failure, which only the feature can judge (a denial is not one). */
 export interface OperationTrackingOutcome { outcome: string; failed: boolean; attributes?: OperationAttributes; }
-export interface OperationTracker extends TrackerScope { end(outcome: OperationTrackingOutcome): void; }
+export interface OperationTracker extends TrackerScope { end(outcome: OperationTrackingOutcome): void; traceIds?(): TraceIds | undefined; }
 /** Correlation assigned by an active tracing implementation; readers never generate IDs. */
 export interface TraceIds { readonly traceId: string; readonly spanId: string; }
 /**
@@ -57,7 +57,7 @@ export interface TraceIds { readonly traceId: string; readonly spanId: string; }
  * opposed to an expected failure a tracker's outcome already records. `error` is handed over raw:
  * adapters own redaction (see `describeReportedError`), exactly as they do for request targets.
  */
-export interface ErrorReport { error: unknown; context: { operation: string; attributes?: OperationAttributes; level?: 'warning' | 'error'; trace?: TraceIds }; }
+export interface ErrorReport { error: unknown; context: { operation: string; attributes?: OperationAttributes; level?: 'warning' | 'error'; trace?: TraceIds; incidentId?: string; label?: string }; }
 /** Native crash upload configuration. Provider-specific field names stay opaque to hosts. */
 export interface CrashUpload { submitURL: string; globalExtra: Readonly<Record<string, string>>; }
 /** Vendor-neutral numeric measurement; names and units are fixed labels, never user text. */

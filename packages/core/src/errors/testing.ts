@@ -3,10 +3,11 @@
  * never a mock of another package's internals.
  */
 import type { IdGenerator } from '../primitives/ids.js';
+import type { ErrorReport, ObservabilityPort } from '../contracts/observability.js';
 import type { LogDiagnosticRecord, Logger } from '../primitives/logger.js';
 import type { Clock } from '../primitives/time.js';
 import { createErrorCatalog, type ErrorCatalog } from './catalog.js';
-import { createErrorReporter, type ErrorReporter, type ErrorReporterOptions, type IncidentTrackerReport } from './reporter.js';
+import { createErrorReporter, type ErrorReporter, type ErrorReporterOptions } from './reporter.js';
 
 /** A logger that keeps every call exactly as made, original error objects included. */
 export function createRecordingLogger(): { readonly logger: Logger; readonly entries: LogDiagnosticRecord[] } {
@@ -18,9 +19,12 @@ export function createRecordingLogger(): { readonly logger: Logger; readonly ent
 }
 
 /** A tracker that keeps every report. */
-export function createRecordingTracker(): { readonly tracker: { reportError(report: IncidentTrackerReport): void }; readonly reports: IncidentTrackerReport[] } {
-  const reports: IncidentTrackerReport[] = [];
-  return { tracker: { reportError: report => { reports.push(report); } }, reports };
+export function createRecordingObservability(): { readonly observability: Pick<ObservabilityPort, 'reportError' | 'trackOperation'>; readonly reports: ErrorReport[] } {
+  const reports: ErrorReport[] = [];
+  return { observability: {
+    reportError: report => { reports.push(report); },
+    trackOperation: () => ({ run: fn => fn(), end() {}, traceIds: () => ({ traceId: 'test-trace', spanId: 'test-span' }) }),
+  }, reports };
 }
 
 /** Hands out the given IDs in order; throws when a test asks for more than it listed. */
@@ -52,11 +56,11 @@ export interface RecordingReporterOptions extends ErrorReporterOptions {
  * @example const { reporter, entries, reports } = createRecordingReporter({ ids: ['ERR-0000-0000-0000-0001'], iso: '2026-01-01T00:00:00.000Z' });
  */
 export function createRecordingReporter(required: { ids: readonly string[]; iso: string }, optional: RecordingReporterOptions = {}): {
-  readonly reporter: ErrorReporter; readonly entries: LogDiagnosticRecord[]; readonly reports: IncidentTrackerReport[];
+  readonly reporter: ErrorReporter; readonly entries: LogDiagnosticRecord[]; readonly reports: ErrorReport[];
 } {
   const { logger, entries } = createRecordingLogger();
-  const { tracker, reports } = createRecordingTracker();
+  const { observability, reports } = createRecordingObservability();
   const { catalog = createErrorCatalog({ sentences: [], scopes: [] }), versions = { app: '0.0.0-test', jini: '0.0.0-test' }, ...reporterOptions } = optional;
-  const reporter = createErrorReporter({ ids: createSequenceIds({ ids: required.ids }), clock: createFixedClock({ iso: required.iso }), logger, tracker, catalog, versions }, reporterOptions);
+  const reporter = createErrorReporter({ ids: createSequenceIds({ ids: required.ids }), clock: createFixedClock({ iso: required.iso }), logger, observability, catalog, versions }, reporterOptions);
   return { reporter, entries, reports };
 }

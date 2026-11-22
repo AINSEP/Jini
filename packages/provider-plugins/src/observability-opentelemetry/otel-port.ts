@@ -143,7 +143,7 @@ function trackOutboundCall({ ctx, method, url }: { ctx: OtelCtx; method: string;
 function trackOperation({ ctx, name, attributes = {}, traceparent }: { ctx: OtelCtx; name: string; attributes?: Attributes; traceparent?: string }): ReturnType<ObservabilityPort['trackOperation']> {
  const { redactOperationAttributes, redactLabel } = ctx.helpers;
  const span = start({ ctx, name, kind: 'internal', attributes: redactOperationAttributes({ attributes }) }, traceparent ? { traceparent } : {});
- return { run: runIn({ ctx, span }), end: once(({ outcome, failed, attributes: settled = {} }) => {
+ return { run: runIn({ ctx, span }), traceIds: () => span.ids?.(), end: once(({ outcome, failed, attributes: settled = {} }) => {
   // The feature decides what counts as failure; its outcome label doubles as the error type.
   finish({ ctx, span, attributes: redactOperationAttributes({ attributes: { ...settled, 'operation.outcome': outcome } }) }, failed ? { failure: redactLabel({ text: outcome }) } : {});
   ctx.metric?.({ name: 'operation.completed', value: 1 }, { kind: 'counter', attributes: { 'operation.name': name, 'operation.failed': failed ? 1 : 0 } });
@@ -157,8 +157,8 @@ function reportError({ ctx, error, context }: { ctx: OtelCtx; error: unknown; co
   // short root span. Type only, never the message: the same export rule errorType documents.
   const active = ctx.scope?.active();
   const span = active ?? start({ ctx, name: `error ${context.operation}`, kind: 'internal', attributes: redactOperationAttributes({ attributes: context.attributes ?? {} }) }, { root: true });
-  const type = errorType({ error });
-  span.addEvent({ name: 'exception', attributes: { 'exception.type': type, 'operation.name': context.operation } });
+  const type = context.incidentId && context.label ? context.label : errorType({ error });
+  span.addEvent({ name: 'exception', attributes: { 'exception.type': type, 'operation.name': context.operation, ...(context.incidentId ? { 'incident.id': context.incidentId } : {}) } });
   span.setAttribute({ name: 'error.type', value: type });
   span.setStatus({ code: 'error', description: type });
   ctx.reportedSpans.add(span);

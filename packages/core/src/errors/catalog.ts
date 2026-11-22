@@ -111,7 +111,7 @@ function safeParams({ values }: { values: unknown }): Readonly<Record<string, st
 function resolveText({ text, error }: { text: ErrorText; error: Error }): Pick<ErrorMatch, 'mode' | 'message' | 'params'> | undefined {
   try {
     if (text.mode === 'fixed') return { mode: text.mode, message: text.text };
-    if (text.mode === 'own-message') return { mode: text.mode, message: String(error.message) };
+    if (text.mode === 'own-message') return { mode: text.mode };
     return text.params === undefined ? { mode: text.mode } : { mode: text.mode, params: safeParams({ values: text.params({ error }) }) };
   } catch {
     return undefined;
@@ -188,7 +188,7 @@ export function createErrorCatalog(
       ...(binding.text.mode === 'fixed' ? { message: binding.text.text } : {}),
       ...(binding.guidance === undefined ? {} : { guidance: binding.guidance }),
     })),
-    callerSafeRules: ({ scope }) => ruleBindings({ bindings: scopes.get(scope) ?? [] }).map(binding => ({
+    callerSafeRules: ({ scope }) => ruleBindings({ bindings: scopes.get(scope) ?? [] }).filter(binding => binding.text.mode !== 'own-message').map(binding => ({
       error: binding.error, ...(binding.text.mode === 'fixed' ? { message: binding.text.text } : {}),
     })),
     describerVocabulary: () => describer,

@@ -1,6 +1,7 @@
 import type {
   ErrorReport,
   ObservabilityPort,
+  OperationTracker,
   TrackerScope,
 } from '@jini-ai/core/contracts/observability';
 import {
@@ -8,7 +9,7 @@ import {
   isNoopObservabilityPort,
 } from '@jini-ai/core/contracts/observability';
 
-type Tracker<O> = Partial<TrackerScope> & { end(outcome: O): void };
+type Tracker<O> = Partial<TrackerScope> & Pick<OperationTracker, 'traceIds'> & { end(outcome: O): void };
 type Signal = 'trackRequest' | 'trackDbQuery' | 'trackOutboundCall' | 'trackAgentRun' | 'trackOperation';
 
 const NOOP = createNoopObservabilityPort({});
@@ -67,7 +68,11 @@ function containedScope<R>(run: <V>(fn: () => V) => V, inner: () => R, failed: (
 function combine<O, T extends Tracker<O>>(trackers: readonly T[], failed: () => void): T {
  const run = <R>(fn: () => R): R => trackers.reduceRight<() => R>((inner, t) => (t.run ? containedScope(t.run.bind(t), inner, failed) : inner), fn)();
  const end = (outcome: O) => { for (const t of trackers) { try { void Promise.resolve(t.end(outcome)).catch(failed); } catch { failed(); /* settle the rest */ } } };
- return { ...trackers[0]!, run, end };
+ const traceIds = () => {
+  for (const tracker of trackers) { const ids = tracker.traceIds?.(); if (ids !== undefined) return ids; }
+  return undefined;
+ };
+ return { ...trackers[0]!, run, end, traceIds };
 }
 
 /** Starts the same signal on every live adapter, each isolated, and combines the trackers. */
