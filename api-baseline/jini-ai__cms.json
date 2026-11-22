@@ -22,6 +22,22 @@
    "requireToolPermission": "function:4a1a650143"
   }
  },
+ "./admin-http/http/forms": {
+  "types": "./dist/admin-http/http/forms.d.ts",
+  "symbols": {
+   "AdminFormDefinitionDto": "interface:1ae85bb127",
+   "AdminFormFieldDto": "type:80f7dea110",
+   "AdminFormNotifyDto": "interface:312790332e",
+   "AdminFormSubmissionDto": "interface:4ddcb29523",
+   "mapFormsWriteError": "function:f40c48295f",
+   "toAdminFormDefinitionDto": "function:a5be3c1785",
+   "toAdminFormDefinitionListResponse": "function:6407d025c3",
+   "toAdminFormDefinitionResponse": "function:7166048d2c",
+   "toAdminFormSubmissionDto": "function:4048361cb5",
+   "toAdminFormSubmissionListResponse": "function:59a8a8b5db",
+   "toAdminFormSubmissionResponse": "function:aeb218b76a"
+  }
+ },
  "./admin-http/limits": {
   "types": "./dist/admin-http/limits.d.ts",
   "symbols": {
@@ -102,6 +118,12 @@
    "CommentSubmitRequired": "interface:50f0fb4e0b",
    "CommentSubmitResult": "type:32d7a2e542",
    "createCommentSubmitHandler": "function:a0deae4248"
+  }
+ },
+ "./comments/site/comment-targets": {
+  "types": "./dist/comments/site/comment-targets.d.ts",
+  "symbols": {
+   "createCommentTargetLookup": "function:c6d98f79a8"
   }
  },
  "./comments/sql": {
@@ -580,6 +602,26 @@
    "withFormPullLease": "function:9341f1a90b"
   }
  },
+ "./forms/destinations/pull": {
+  "types": "./dist/forms/destinations/pull.d.ts",
+  "symbols": {
+   "FORM_PULL_BUDGET_MS": "variable:e6f267f0ce",
+   "FORM_PULL_LEASE_MS": "variable:f1d7232011",
+   "FORM_PULL_REQUEST_TIMEOUT_MS": "variable:ebf4507519",
+   "FormDestinationImportPort": "type:8017bc5b0f",
+   "formDestinationKey": "function:682cc62f48",
+   "pullFromFormDestination": "function:99ad4a87c5"
+  }
+ },
+ "./forms/destinations/select": {
+  "types": "./dist/forms/destinations/select.d.ts",
+  "symbols": {
+   "FORM_RECEIVER_AUTO": "variable:853e43f43e",
+   "FORM_RECEIVER_NONE": "variable:7005a3ccf8",
+   "FormReceiverSelection": "type:a86ceef5dd",
+   "selectFormReceiver": "function:ef557e74da"
+  }
+ },
  "./forms/email-sender": {
   "types": "./dist/forms/email-sender.d.ts",
   "symbols": {
@@ -684,6 +726,30 @@
    "clearFormSubmissionResultQueryParams": "function:9a1b9850ed",
    "decodeFormSubmissionResultFromQuery": "function:95a0d2cc5e",
    "encodeFormSubmissionResultQuery": "function:04d25e7b21"
+  }
+ },
+ "./forms/site/form-destination-manifest": {
+  "types": "./dist/forms/site/form-destination-manifest.d.ts",
+  "symbols": {
+   "FormDestinationManifestForm": "interface:5eab29010d",
+   "buildFormDeliveryForm": "function:5019d09b8a",
+   "buildFormDestinationManifest": "function:dc7a23518c"
+  }
+ },
+ "./forms/site/import-remote-submissions": {
+  "types": "./dist/forms/site/import-remote-submissions.d.ts",
+  "symbols": {
+   "FormDestinationPullReport": "interface:b586cbb780",
+   "FormPullCounts": "interface:699434299b",
+   "FormSubmissionsPullPort": "interface:c135fdd5bf",
+   "FormSubmissionsPullResult": "type:2f6600132a",
+   "FormsAutoPullPort": "interface:afd995c758"
+  }
+ },
+ "./forms/site/mail-outbox-readiness": {
+  "types": "./dist/forms/site/mail-outbox-readiness.d.ts",
+  "symbols": {
+   "formsMailOutboxReady": "variable:214eb2d5e4"
   }
  },
  "./forms/sql": {
@@ -1345,6 +1411,37 @@
    "validateAndCloneTree": "function:ef6a58ffa5"
   }
  },
+ "./navigation/site/menu-html-permission": {
+  "types": "./dist/navigation/site/menu-html-permission.d.ts",
+  "symbols": {
+   "MENU_RAW_HTML_PERMISSION": "variable:a83900c483"
+  }
+ },
+ "./navigation/site/menu-trash-follow-ups": {
+  "types": "./dist/navigation/site/menu-trash-follow-ups.d.ts",
+  "symbols": {
+   "MenuTrashFollowUpDeps": "interface:b0884ad6de",
+   "MenuTrashFollowUpHooks": "interface:a9bd9bce0b",
+   "MenuTrashLookup": "interface:1416508999",
+   "buildMenuTrashFollowUpHooks": "function:4c8128254a"
+  }
+ },
+ "./navigation/site/trash-aware-memory-menu-repo": {
+  "types": "./dist/navigation/site/trash-aware-memory-menu-repo.d.ts",
+  "symbols": {
+   "TrashAwareInMemoryMenuRepo": "class:9c9ddb1f9d",
+   "TrashableMenuRecord": "type:c6077b7ab9"
+  }
+ },
+ "./navigation/site/trash-menu": {
+  "types": "./dist/navigation/site/trash-menu.d.ts",
+  "symbols": {
+   "RemoveMenuFn": "type:dfb5c435da",
+   "TrashMenuDeps": "interface:3188bfa434",
+   "TrashMenuInput": "interface:c8ed6294a0",
+   "trashMenu": "function:7b31861311"
+  }
+ },
  "./navigation/sql": {
   "types": "./dist/navigation/sql/index.d.ts",
   "symbols": {
@@ -1458,6 +1555,26 @@
    "PresentationSqlRequired": "interface:3abee4ec37",
    "PresentationTables": "interface:5bfb457f2f",
    "SqlPresentationSettingsRepo": "class:566b906dff"
+  }
+ },
+ "./public-http/http/site/form-label-inspection": {
+  "types": "./dist/public-http/http/site/form-label-inspection.d.ts",
+  "symbols": {
+   "inspectFormLabels": "function:dd85abd7bb"
+  }
+ },
+ "./public-http/http/site/form-validation-i18n": {
+  "types": "./dist/public-http/http/site/form-validation-i18n.d.ts",
+  "symbols": {
+   "FORM_VALIDATION_COPY": "variable:f4f93a2571",
+   "formValidationCopy": "function:b377a5c52e"
+  }
+ },
+ "./public-http/http/site/render/widgets/placeholder": {
+  "types": "./dist/public-http/http/site/render/widgets/placeholder.d.ts",
+  "symbols": {
+   "WIDGET_PLACEHOLDER_IR": "variable:1c470b1586",
+   "renderWidgetPlaceholder": "function:427d5df34b"
   }
  },
  "./publish/transfer": {
@@ -2677,6 +2794,12 @@
    "resolveTaxonomyEmbeds": "function:e9595f1af5",
    "resolveWidgetType": "function:4ec48da996",
    "wireCoreResolvers": "function:9a0231a4c7"
+  }
+ },
+ "./widgets/site/media-html-log": {
+  "types": "./dist/widgets/site/media-html-log.d.ts",
+  "symbols": {
+   "logMediaHtmlEvent": "function:d0f53e7e6b"
   }
  },
  "./widgets/sql": {

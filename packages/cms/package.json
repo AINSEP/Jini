@@ -116,7 +116,22 @@
       "./themes/manifest-v2": "universal",
       "./themes/files/reviewed-write": "node",
       "./themes/files/atomic-write": "node",
-      "./admin-http/limits": "universal"
+      "./admin-http/limits": "universal",
+      "./public-http/http/site/form-label-inspection": "universal",
+      "./public-http/http/site/form-validation-i18n": "universal",
+      "./public-http/http/site/render/widgets/placeholder": "universal",
+      "./widgets/site/media-html-log": "universal",
+      "./navigation/site/menu-html-permission": "universal",
+      "./navigation/site/menu-trash-follow-ups": "universal",
+      "./navigation/site/trash-menu": "universal",
+      "./navigation/site/trash-aware-memory-menu-repo": "universal",
+      "./forms/site/form-destination-manifest": "node",
+      "./forms/site/import-remote-submissions": "universal",
+      "./forms/site/mail-outbox-readiness": "universal",
+      "./forms/destinations/pull": "universal",
+      "./forms/destinations/select": "universal",
+      "./comments/site/comment-targets": "universal",
+      "./admin-http/http/forms": "node"
     },
     "isolation": {
       "domains": {
@@ -733,6 +748,81 @@
       "types": "./dist/admin-http/limits.d.ts",
       "import": "./dist/admin-http/limits.js",
       "default": "./dist/admin-http/limits.js"
+    },
+    "./public-http/http/site/form-label-inspection": {
+      "types": "./dist/public-http/http/site/form-label-inspection.d.ts",
+      "import": "./dist/public-http/http/site/form-label-inspection.js",
+      "default": "./dist/public-http/http/site/form-label-inspection.js"
+    },
+    "./public-http/http/site/form-validation-i18n": {
+      "types": "./dist/public-http/http/site/form-validation-i18n.d.ts",
+      "import": "./dist/public-http/http/site/form-validation-i18n.js",
+      "default": "./dist/public-http/http/site/form-validation-i18n.js"
+    },
+    "./public-http/http/site/render/widgets/placeholder": {
+      "types": "./dist/public-http/http/site/render/widgets/placeholder.d.ts",
+      "import": "./dist/public-http/http/site/render/widgets/placeholder.js",
+      "default": "./dist/public-http/http/site/render/widgets/placeholder.js"
+    },
+    "./widgets/site/media-html-log": {
+      "types": "./dist/widgets/site/media-html-log.d.ts",
+      "import": "./dist/widgets/site/media-html-log.js",
+      "default": "./dist/widgets/site/media-html-log.js"
+    },
+    "./navigation/site/menu-html-permission": {
+      "types": "./dist/navigation/site/menu-html-permission.d.ts",
+      "import": "./dist/navigation/site/menu-html-permission.js",
+      "default": "./dist/navigation/site/menu-html-permission.js"
+    },
+    "./navigation/site/menu-trash-follow-ups": {
+      "types": "./dist/navigation/site/menu-trash-follow-ups.d.ts",
+      "import": "./dist/navigation/site/menu-trash-follow-ups.js",
+      "default": "./dist/navigation/site/menu-trash-follow-ups.js"
+    },
+    "./navigation/site/trash-menu": {
+      "types": "./dist/navigation/site/trash-menu.d.ts",
+      "import": "./dist/navigation/site/trash-menu.js",
+      "default": "./dist/navigation/site/trash-menu.js"
+    },
+    "./navigation/site/trash-aware-memory-menu-repo": {
+      "types": "./dist/navigation/site/trash-aware-memory-menu-repo.d.ts",
+      "import": "./dist/navigation/site/trash-aware-memory-menu-repo.js",
+      "default": "./dist/navigation/site/trash-aware-memory-menu-repo.js"
+    },
+    "./forms/site/form-destination-manifest": {
+      "types": "./dist/forms/site/form-destination-manifest.d.ts",
+      "import": "./dist/forms/site/form-destination-manifest.js",
+      "default": "./dist/forms/site/form-destination-manifest.js"
+    },
+    "./forms/site/import-remote-submissions": {
+      "types": "./dist/forms/site/import-remote-submissions.d.ts",
+      "import": "./dist/forms/site/import-remote-submissions.js",
+      "default": "./dist/forms/site/import-remote-submissions.js"
+    },
+    "./forms/site/mail-outbox-readiness": {
+      "types": "./dist/forms/site/mail-outbox-readiness.d.ts",
+      "import": "./dist/forms/site/mail-outbox-readiness.js",
+      "default": "./dist/forms/site/mail-outbox-readiness.js"
+    },
+    "./forms/destinations/pull": {
+      "types": "./dist/forms/destinations/pull.d.ts",
+      "import": "./dist/forms/destinations/pull.js",
+      "default": "./dist/forms/destinations/pull.js"
+    },
+    "./forms/destinations/select": {
+      "types": "./dist/forms/destinations/select.d.ts",
+      "import": "./dist/forms/destinations/select.js",
+      "default": "./dist/forms/destinations/select.js"
+    },
+    "./comments/site/comment-targets": {
+      "types": "./dist/comments/site/comment-targets.d.ts",
+      "import": "./dist/comments/site/comment-targets.js",
+      "default": "./dist/comments/site/comment-targets.js"
+    },
+    "./admin-http/http/forms": {
+      "types": "./dist/admin-http/http/forms.d.ts",
+      "import": "./dist/admin-http/http/forms.js",
+      "default": "./dist/admin-http/http/forms.js"
     }
   },
   "files": [
