@@ -62,6 +62,7 @@
       "./contracts/forms": "universal",
       "./contracts/charts": "universal",
       "./contracts/plugin-sdk": "universal",
+      "./contracts/site/post-author": "universal",
       "./errors/sentences": "universal",
       "./errors/bindings": "universal",
       "./errors/catalog": "universal",
@@ -391,6 +392,11 @@
       "types": "./dist/contracts/plugin-sdk.d.ts",
       "import": "./dist/contracts/plugin-sdk.js",
       "default": "./dist/contracts/plugin-sdk.js"
+    },
+    "./contracts/site/post-author": {
+      "types": "./dist/contracts/site/post-author.d.ts",
+      "import": "./dist/contracts/site/post-author.js",
+      "default": "./dist/contracts/site/post-author.js"
     },
     "./errors/sentences": {
       "types": "./dist/errors/sentences.d.ts",
