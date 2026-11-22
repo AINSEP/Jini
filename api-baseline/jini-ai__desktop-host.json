@@ -390,6 +390,45 @@
    "registerSpellCheckContextMenu": "function:b6d76ed43f"
   }
  },
+ "./shell/webview-guest-policy": {
+  "types": "./dist/shell/webview-guest-policy.d.ts",
+  "symbols": {
+   "GuestPolicyOptions": "interface:2149a9137d",
+   "GuestSourceOptions": "interface:49a36c75ac",
+   "GuestWebPreferences": "interface:4bc241441e",
+   "admitGuestSource": "function:d4a32b68ce",
+   "applyGuestWebPreferences": "function:586e00156f"
+  }
+ },
+ "./shell/window-bounds-store": {
+  "types": "./dist/shell/window-bounds-store.d.ts",
+  "symbols": {
+   "DisplayLike": "interface:c3c66e63c3",
+   "ResolveWindowBoundsInput": "interface:f1f1f296d7",
+   "WindowBounds": "interface:c34cf526c0",
+   "boundsOnScreen": "function:6dd0835bce",
+   "readWindowBounds": "function:564489068e",
+   "resolveWindowBounds": "function:e18568d395",
+   "windowBoundsFilePath": "function:214e589fd1",
+   "writeWindowBounds": "function:1e71e71c7e"
+  }
+ },
+ "./shell/window-navigation-policy": {
+  "types": "./dist/shell/window-navigation-policy.d.ts",
+  "symbols": {
+   "AppWindowPolicyOptions": "interface:a402385413",
+   "GuestWindowOpenOptions": "interface:2429b55953",
+   "NavigableContents": "interface:b8687c0bcf",
+   "ShellPages": "interface:68f01261f7",
+   "WindowOpenResponse": "type:85aac64bc6",
+   "installAppWindowNavigationPolicy": "function:0b0cfac08d",
+   "installGuestWindowOpenPolicy": "function:9fb50e1647",
+   "installSitesHomeNavigationPolicy": "function:55d31a7899",
+   "isExternalBrowserUrl": "function:3899142368",
+   "isSameOrigin": "function:ec8470a25d",
+   "isShellPageUrl": "function:e63097f4b1"
+  }
+ },
  "./shutdown": {
   "types": "./dist/shutdown/index.d.ts",
   "symbols": {
