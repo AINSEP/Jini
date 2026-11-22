@@ -71,6 +71,22 @@ const startedFresh: AdminStartedFreshSiteKey = {
 const revealedActive: AdminRevealedSiteKey = { ...statusByState.active, hex: 'ab'.repeat(32) };
 const revealedInactive: AdminRevealedSiteKey = statusByState.missing;
 
+/** `true` only when `'hex'` is not a key of `T`; `keyof` includes optional keys, so a
+ *  `hex?: string` added to any non-reveal response turns its slot below into `false` and fails
+ *  `tsc`. The runtime `'hex' in …` checks cannot see an optional field the fixture never sets. */
+type LacksHex<T> = 'hex' extends keyof T ? false : true;
+
+const nonRevealResponsesLackHex: [
+  status: LacksHex<AdminSiteKeyStatus>,
+  generated: LacksHex<AdminGeneratedSiteKey>,
+  imported: LacksHex<AdminImportedSiteKey>,
+  startFreshPreview: LacksHex<AdminSiteKeyStartFreshPreview>,
+  startedFresh: LacksHex<AdminStartedFreshSiteKey>,
+] = [true, true, true, true, true];
+
+/** Control for `LacksHex`: the reveal shape does carry `hex`, so the helper is not vacuous. */
+const revealCarriesHex: LacksHex<AdminRevealedSiteKey> = false;
+
 describe('site-key contract fixture', () => {
   it('covers every AdminSiteKeyState with a status carrying that state', () => {
     expect(Object.keys(statusByState)).toEqual(['active', 'missing', 'missing-with-data', 'mismatch', 'invalid']);
@@ -93,6 +109,8 @@ describe('site-key contract fixture', () => {
   it('keeps the raw key only on the reveal shape', () => {
     expect('hex' in generatedByOutcome.created).toBe(false);
     expect('hex' in startedFresh).toBe(false);
+    expect(nonRevealResponsesLackHex).toEqual([true, true, true, true, true]);
+    expect(revealCarriesHex).toBe(false);
     expect(revealedActive.hex).toHaveLength(64);
     expect(revealedInactive.hex).toBeUndefined();
     expect(imported.outcome).toBe('unlocked');
