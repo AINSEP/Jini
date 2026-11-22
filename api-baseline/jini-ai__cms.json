@@ -1492,6 +1492,16 @@
    "collectReferencedMediaKeys": "function:4c57c9a693"
   }
  },
+ "./publish/content/peer-url": {
+  "types": "./dist/publish/content/peer-url.d.ts",
+  "symbols": {
+   "PeerBaseUrlAccepted": "interface:bdf32e1f7b",
+   "PeerBaseUrlRefusal": "interface:56dd5b2e9e",
+   "normalizePeerBaseUrl": "function:219355e74d",
+   "peerHostname": "function:fe80f539a9",
+   "peerUrl": "function:d63b2c6554"
+  }
+ },
  "./publish/content/precheck-reasons": {
   "types": "./dist/publish/content/precheck-reasons.d.ts",
   "symbols": {
