@@ -1,0 +1,126 @@
+
+> @jini-ai/devops@0.7.3-next.2 test
+> vitest run --maxWorkers=2 --minWorkers=1
+
+
+ RUN  v3.2.7 /home/user/jt13/packages/devops
+
+ ✓ src/packaging/electron/__tests__/staging.test.ts (88 tests) 28ms
+ ✓ src/checks/coverage/__tests__/integrity.test.ts (54 tests) 32ms
+ ✓ src/static-export/__tests__/runner.test.ts (25 tests) 264ms
+ ✓ src/source-control/__tests__/registry.test.ts (54 tests) 20ms
+ ✓ src/static-export/__tests__/runner.pins.test.ts (43 tests) 64ms
+ ✓ src/deploy/__tests__/reachability-pins.test.ts (44 tests) 49ms
+ ✓ src/source-control/__tests__/commit.test.ts (32 tests) 22ms
+ ✓ src/checks/coverage/__tests__/coverage.test.ts (54 tests) 26ms
+ ✓ src/dns/__tests__/plan.test.ts (26 tests) 47ms
+ ✓ src/checks/__tests__/hardwiring.pins.test.ts (40 tests) 93ms
+ ✓ src/deploy/__tests__/reachability.test.ts (29 tests) 113ms
+ ✓ src/checks/coverage/__tests__/disk.test.ts (31 tests) 8ms
+ ✓ src/packaging/electron/__tests__/packaging.test.ts (17 tests) 245ms
+ ✓ src/checks/published-types/__tests__/published-types.pins.test.ts (23 tests) 184ms
+ ✓ src/dns/node/__tests__/resolver.test.ts (17 tests) 24ms
+ ✓ src/dns/__tests__/manual-registry.test.ts (25 tests) 26ms
+ ✓ src/checks/__tests__/hardwiring.test.ts (18 tests) 88ms
+ ✓ src/agent-jobs/__tests__/runner.test.ts (20 tests) 9ms
+ ✓ src/checks/published-types/__tests__/published-types.test.ts (19 tests) 219ms
+ ✓ src/backup/__tests__/upload.test.ts (13 tests) 163ms
+ ✓ src/static-export/__tests__/transforms.test.ts (31 tests) 58ms
+ ✓ src/packaging/electron/__tests__/archive.test.ts (48 tests) 16ms
+ ✓ src/deploy/__tests__/tool.test.ts (17 tests) 11ms
+ ✓ src/dns/__tests__/delegation-verify.test.ts (21 tests) 13ms
+ ✓ src/packaging/electron/__tests__/gate-stability-isolation.test.ts (11 tests) 41ms
+ ✓ src/checks/__tests__/env-access.test.ts (15 tests) 48ms
+ ✓ src/checks/__tests__/hardwiring-node.pins.test.ts (24 tests) 10762ms
+   ✓ installedPublicFunctions export targets > arrays use the first non-null entry; all-null arrays and non-target values add nothing  1688ms
+   ✓ installedPublicFunctions export targets > conditions follow types > import > default > node > browser > require  1022ms
+   ✓ installedPublicFunctions export targets > nested conditions inside an entry are selected recursively  728ms
+   ✓ installedPublicFunctions export targets > wildcards require both prefix and suffix to match  773ms
+   ✓ installedPublicFunctions export targets > a wildcard with no suffix matches by prefix  948ms
+   ✓ installedPublicFunctions export targets > a wildcard directly under dist/ finds nothing, because the inventory scan skips dist (reported, not fixed)  780ms
+   ✓ installedPublicFunctions export targets > legacy types/main fields, with or without a ./ prefix, stand in for exports  2812ms
+   ✓ installedPublicFunctions export targets > skips directories without a manifest, foreign names and packages with no entry fields  734ms
+   ✓ installedPublicFunctions export targets > script (non-module) entries and value exports without call signatures contribute nothing  609ms
+   ✓ installedPublicFunctions export targets > a syntax error in a transitively loaded declaration fails closed at its line  625ms
+ ✓ src/checks/coverage/__tests__/floors-lcov.boundaries.test.ts (46 tests) 12ms
+ ✓ src/dns/__tests__/records.test.ts (32 tests) 11ms
+ ✓ src/static-export/__tests__/node-adapters.faults.test.ts (11 tests) 122ms
+ ✓ src/checks/__tests__/hardwiring-node.test.ts (6 tests) 3324ms
+   ✓ review lg: shared Node adapters > HW5 sees installed public declarations, aliases, barrels and wildcard entries, never private or checkout exports  1425ms
+   ✓ review lg: shared Node adapters > HW5 fails closed on missing inventory, empty public exports and malformed declarations  1817ms
+ ✓ src/backup/__tests__/plan-store.test.ts (9 tests) 6ms
+ ✓ src/local-dev/__tests__/listen-server.test.ts (17 tests) 20ms
+ ✓ src/static-export/__tests__/node-adapters.pins.test.ts (16 tests) 94ms
+ ✓ src/packaging/electron/__tests__/imports.test.ts (13 tests) 6ms
+ ✓ src/packaging/electron/__tests__/staged-closure.test.ts (8 tests) 11996ms
+   ✓ staged closure rejects missing smol-toml even when an ancestor has it  1100ms
+   ✓ staged closure passes when smol-toml is actually present  960ms
+   ✓ only an owning Jini optional peer classification exempts a miss  2108ms
+   ✓ uses import and require export conditions and detects missing relative targets  2564ms
+   ✓ scans unreferenced Jini dist modules but does not audit third-party optional implementations  2423ms
+   ✓ the asar resource layout checks Jini inside app and resolves sibling website files  931ms
+   ✓ a third-party package nested under Jini retains third-party ownership  787ms
+   ✓ a nameless dist/cjs type marker does not hide the owning optional-peer opt-in  1115ms
+ ✓ src/packaging/electron/__tests__/native-prefix-regressions.test.ts (5 tests) 38ms
+ ✓ src/packaging/electron/__tests__/policies.test.ts (7 tests) 5ms
+ ✓ src/source-control/__tests__/host-contract.hwa.test.ts (6 tests) 8ms
+ ✓ src/dns/__tests__/approval.test.ts (12 tests) 8ms
+ ✓ src/dns/node/__tests__/wire.hardening.test.ts (10 tests) 14ms
+ ✓ src/agent-jobs/__tests__/node-adapters.test.ts (6 tests) 104ms
+ ✓ src/packaging/electron/__tests__/update-manifest-merge.test.ts (7 tests) 4ms
+ ✓ src/static-export/__tests__/node-adapters.test.ts (5 tests) 80ms
+ ✓ src/deploy/__tests__/reachability-deadlines.test.ts (6 tests) 28ms
+ ✓ src/backup/__tests__/push-jobs.test.ts (5 tests) 12ms
+ ✓ src/agent-jobs/__tests__/parity-regressions.test.ts (5 tests) 24ms
+ ✓ src/source-control/__tests__/kit.test.ts (5 tests) 9ms
+ ✓ src/packaging/electron/__tests__/node-adapters.test.ts (7 tests) 34ms
+ ✓ src/deploy/__tests__/args-convention.test.ts (4 tests) 41ms
+ ✓ src/deploy/__tests__/host-kit.test.ts (4 tests) 5ms
+ ✓ src/local-dev/__tests__/node-runtime.test.ts (6 tests) 25ms
+ ✓ src/checks/__tests__/log-safety-k.test.ts (4 tests) 10ms
+ ✓ src/static-export/site/__tests__/public-origin-policy.test.ts (4 tests) 9ms
+ ✓ src/deploy/__tests__/publish-jobs.test.ts (4 tests) 7ms
+ ✓ src/local-dev/__tests__/local-dev.test.ts (8 tests) 18ms
+ ✓ src/checks/__tests__/node-adapters.test.ts (6 tests) 212ms
+ ✓ src/deploy/__tests__/reachability-ports.test.ts (6 tests) 12ms
+ ✓ src/dns/node/__tests__/udp.test.ts (4 tests) 13ms
+ ✓ src/deploy/__tests__/target-descriptors.test.ts (3 tests) 5ms
+ ✓ src/deploy/__tests__/node-injected-ports.test.ts (4 tests) 7ms
+ ✓ src/deploy/__tests__/reachability-lookup.mixed.test.ts (32 tests) 19ms
+ ✓ src/checks/__tests__/memory-soak.test.ts (21 tests) 7ms
+ ✓ src/__tests__/fetch-ports.contract.test.ts (3 tests) 8ms
+ ✓ src/deploy/__tests__/ops-descriptors.test.ts (4 tests) 7ms
+ ✓ src/deploy/__tests__/reachability-lookup.test.ts (6 tests) 25ms
+ ✓ src/dns/node/__tests__/wire.test.ts (11 tests) 12ms
+ ✓ src/packaging/electron/__tests__/typescript.test.ts (4 tests) 31ms
+ ✓ src/checks/coverage/__tests__/integrity.grammar.test.ts (17 tests) 7ms
+ ✓ src/deploy/__tests__/no-hosting-vendor.test.ts (4 tests) 29ms
+ ✓ src/deploy/__tests__/tokens.test.ts (4 tests) 6ms
+ ✓ src/deploy/__tests__/dispatcher-ports.test.ts (3 tests) 8ms
+ ✓ src/__tests__/integration.contract.test.ts (2 tests) 5ms
+ ✓ src/deploy/react/__tests__/PublishRunResult.test.tsx (8 tests) 16ms
+ ✓ src/deploy/__tests__/config-injection.test.ts (18 tests) 13ms
+ ✓ src/deploy/__tests__/config-descriptors.test.ts (4 tests) 6ms
+ ✓ src/deploy/__tests__/redirect-guard.test.ts (5 tests) 8ms
+ ✓ src/source-control/__tests__/target.test.ts (3 tests) 4ms
+ ✓ src/local-dev/__tests__/free-port.test.ts (4 tests) 24ms
+ ✓ src/deploy/__tests__/node-ports.test.ts (2 tests) 12ms
+ ✓ src/deploy/__tests__/index.test.ts (3 tests) 5ms
+ ✓ src/agent-jobs/__tests__/node.test.ts (2 tests) 57ms
+ ✓ src/deploy/__tests__/naming.test.ts (6 tests) 4ms
+ ✓ src/source-control/__tests__/repository-path.test.ts (2 tests) 7ms
+ ✓ src/static-export/__tests__/html-url-locations.test.ts (3 tests) 11ms
+ ✓ src/deploy/__tests__/node-lookup.test.ts (1 test) 5ms
+ ✓ src/local-dev/__tests__/server-retirement.test.ts (3 tests) 5ms
+ ✓ src/static-export/__tests__/css-urls.test.ts (12 tests) 13ms
+ ✓ src/local-dev/__tests__/source-tree-stamp.test.ts (1 test) 12ms
+ ✓ src/deploy/__tests__/extract-s9-ops-vocabulary.test.ts (1 test) 165ms
+ ✓ src/dns/__tests__/index.test.ts (1 test) 4ms
+ ✓ src/dns/node/__tests__/index.test.ts (1 test) 5ms
+
+ Test Files  92 passed (92)
+      Tests  1331 passed (1331)
+   Start at  07:49:39
+   Duration  33.61s (transform 4.44s, setup 0ms, collect 14.42s, tests 29.54s, environment 14ms, prepare 6.75s)
+
+EXIT 0

@@ -1,0 +1,11 @@
+
+ RUN  v3.2.7 /home/user/jt13
+
+ ✓ scripts/__tests__/check-package-layers.test.ts (59 tests) 176ms
+
+ Test Files  1 passed (1)
+      Tests  59 passed (59)
+   Start at  08:01:57
+   Duration  1.28s (transform 201ms, setup 0ms, collect 634ms, tests 176ms, environment 0ms, prepare 87ms)
+
+EXIT 0

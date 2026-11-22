@@ -1,0 +1,493 @@
+
+> @jini-ai/chat@0.7.3-next.2 test
+> vitest run --maxWorkers=2 --minWorkers=1
+
+ DEPRECATED  "environmentMatchGlobs" is deprecated. Use `test.projects` to define different configurations instead.
+
+ RUN  v3.2.7 /home/user/jt13/packages/chat
+
+ ✓ src/react/components/__tests__/ToolCard.test.tsx (142 tests) 1520ms
+ ✓ src/react/features/chat-pane/__tests__/hooks/useChatPane.test.tsx (54 tests) 740ms
+ ✓ src/react/components/__tests__/MessageRow.test.tsx (69 tests) 1029ms
+ ✓ src/react/components/__tests__/Composer.test.tsx (54 tests) 2990ms
+ ✓ src/react/features/chat-pane/__tests__/components/ChatPane.test.tsx (70 tests) 6066ms
+   ✓ ChatPane > enables Send with an off-list Claude default and sends the concrete picker model  396ms
+   ✓ ChatPane > stages attach-button, dropped and pasted files while a run streams and sends them with the next message  383ms
+ ✓ src/react/features/chat-pane/__tests__/components/AgentRuntimePicker.test.tsx (33 tests) 1656ms
+ ✓ src/react/components/__tests__/QuestionForm.test.tsx (60 tests) 1610ms
+ ✓ src/react/agent-bridge/__tests__/frontend-session-bridge.test.ts (55 tests) 178ms
+ ✓ src/react/features/chat-pane/__tests__/hooks/useChatPane.mid-run.test.tsx (35 tests) 646ms
+ ✓ src/react/components/__tests__/A2uiSurfaceCard.test.tsx (34 tests) 606ms
+ ✓ src/react/features/chat-pane/__tests__/rules.test.ts (59 tests) 27ms
+ ✓ src/react/hooks/__tests__/useComposer.test.ts (36 tests) 273ms
+ ✓ src/react/features/chat-pane/__tests__/hooks/useChatPaneAgentControl.test.tsx (32 tests) 251ms
+ ✓ src/embed-widget/vanilla/__tests__/widget.test.ts (20 tests) 289ms
+ ✓ src/react/components/__tests__/Markdown.test.tsx (53 tests) 477ms
+ ✓ src/react/features/chat-pane/__tests__/createDaemonAttachmentUploader.test.ts (28 tests) 184ms
+ ✓ src/react/hooks/__tests__/useConversation.test.ts (27 tests) 104ms
+ ✓ src/react/features/chat-pane/__tests__/hooks/useChatPaneRuntimeInventory.test.tsx (25 tests) 540ms
+ ✓ src/react/components/__tests__/McpUiSurfaceCard.test.tsx (32 tests) 548ms
+ ✓ src/react/hooks/__tests__/useRunStream.test.ts (21 tests) 64ms
+ ✓ src/react/components/__tests__/MessageList.test.tsx (25 tests) 563ms
+ ✓ src/react/features/chat-pane/__tests__/hooks/useChatPaneWorkingDirectory.test.tsx (18 tests) 125ms
+ ✓ src/react/hooks/__tests__/assistant-chats.writes.cov-j2.test.ts (28 tests) 137ms
+ ✓ src/react/components/__tests__/MessageRow.display.test.tsx (31 tests) 685ms
+ ✓ src/react/hooks/__tests__/composer-draft-cache.storage-edges.test.ts (38 tests) 14ms
+ ✓ src/react/components/__tests__/ConversationList.test.tsx (37 tests) 5502ms
+   ✓ the four actions > selects a conversation and closes  548ms
+   ✓ the four actions > does not select when a double-click opens the rename editor  396ms
+   ✓ host-supported conversation actions > offers only the provided callbacks: {"rename":false,"remove":false}  582ms
+   ✓ host-supported conversation actions > offers only the provided callbacks: {"rename":true,"remove":false}  672ms
+   ✓ host-supported conversation actions > offers only the provided callbacks: {"rename":false,"remove":true}  595ms
+   ✓ host-supported conversation actions > offers only the provided callbacks: {"rename":true,"remove":true}  631ms
+ ✓ src/react/hooks/__tests__/assistant-chats.navigation.cov-j2.test.ts (22 tests) 100ms
+ ✓ src/react/__tests__/message-blocks.test.ts (24 tests) 14ms
+ ✓ src/react/components/__tests__/surface-question-replay.test.tsx (16 tests) 708ms
+ ✓ src/react/hooks/__tests__/secret-redaction.test.tsx (16 tests) 1046ms
+   ✓ pane notice uses the host translator and exposes only safe metadata to open a card  300ms
+ ✓ src/react/components/__tests__/composer-discovery.test.ts (28 tests) 16ms
+ ✓ src/react/hooks/__tests__/fab-position.cov-j2.test.ts (24 tests) 97ms
+ ✓ src/react/features/chat-pane/__tests__/model-options.test.ts (24 tests) 31ms
+ ✓ src/react/hooks/__tests__/useChatFabDrag.test.tsx (13 tests) 66ms
+ ✓ src/react/hooks/__tests__/composer-draft-cache.test.ts (25 tests) 67ms
+ ✓ src/react/features/chat-pane/__tests__/createMcpUiToolCaller.test.ts (18 tests) 48ms
+ ✓ src/react/components/__tests__/hook-injection.sweep2.test.tsx (16 tests) 278ms
+ ✓ src/react/components/__tests__/answered-question.test.tsx (14 tests) 622ms
+ ✓ src/embed-widget/react/__tests__/header.test.ts (11 tests) 289ms
+ ✓ src/react/hooks/__tests__/useComposerHistoryKeys.hooks.test.tsx (23 tests) 216ms
+ ✓ src/react/features/chat-pane/__tests__/hooks/useChatPane.cov-j2.test.tsx (7 tests) 137ms
+ ✓ src/react/__tests__/ChatSettingsDialog.test.tsx (17 tests) 525ms
+ ✓ src/react/features/chat-pane/__tests__/hooks/useChatPane.refresh.test.tsx (8 tests) 114ms
+ ✓ src/react/__tests__/folder-chips.test.tsx (7 tests) 1320ms
+   ✓ keeps folders separate from text through draft reload, acceptance, storage and replay  400ms
+   ✓ expands all folder names, copies exact paths, collapses and removes only the selected folder  415ms
+ ✓ src/react/components/__tests__/MidRunUserMessage.test.tsx (9 tests) 397ms
+ ✓ src/react/__tests__/ChatSettingsDialog.lifecycle.test.tsx (11 tests) 370ms
+ ✓ src/react/__tests__/log-safety-g.test.tsx (13 tests) 354ms
+ ✓ src/react/__tests__/tool-call-display.test.ts (20 tests) 10ms
+ ✓ src/react/hooks/__tests__/useComposerHistory.test.ts (8 tests) 389ms
+ ✓ src/react/components/__tests__/owned-renderer-registries.test.tsx (5 tests) 166ms
+ ✓ src/react/hooks/__tests__/useQuestionForms.test.ts (17 tests) 57ms
+ ✓ src/react/hooks/__tests__/assistant-chats.pure.cov-j2.test.ts (19 tests) 20ms
+ ✓ src/react/hooks/__tests__/useToolTimeline.test.ts (10 tests) 64ms
+ ✓ src/embed-widget/vanilla/__tests__/lazy-loader.test.ts (15 tests) 77ms
+ ✓ src/react/components/__tests__/AttachmentPreviewModal.test.tsx (11 tests) 247ms
+ ✓ src/react/components/__tests__/AttachmentPreviewModal.hooks.test.tsx (11 tests) 87ms
+ ✓ src/react/components/__tests__/mid-run-transcript.test.tsx (9 tests) 821ms
+   ✓ one button send is one bubble during a capable run and after reload, without a stop or fallback run  459ms
+ ✓ src/react/components/__tests__/AttachmentGallery.test.tsx (12 tests) 488ms
+ ✓ src/react/components/__tests__/SentAttachment.test.tsx (10 tests) 171ms
+ ✓ src/react/components/__tests__/Composer.history.test.tsx (15 tests) 697ms
+ ✓ src/react/components/__tests__/Composer.guards.test.tsx (13 tests) 465ms
+ ✓ src/react/features/chat-pane/__tests__/styles-attachment-tray-rows.test.tsx (8 tests) 354ms
+ ✓ src/react/components/__tests__/ToolCard.long-chat-memory.test.tsx (4 tests) 1957ms
+   ✓ tool-card memory in a restored chat > bounds a 713-card transcript and unmounts expanded detail again on close  1874ms
+ ✓ src/react/features/chat-pane/__tests__/hooks/useChatPaneNewTabLinks.test.tsx (13 tests) 106ms
+ ✓ src/react/hooks/__tests__/useComposer.lifecycle.cov-j2.test.tsx (7 tests) 51ms
+ ✓ src/react/components/__tests__/MessageRow.usage.test.ts (19 tests) 48ms
+ ✓ src/react/components/__tests__/conversation-cost.test.tsx (5 tests) 140ms
+ ✓ src/react/hooks/__tests__/useComposer.release-check.test.tsx (8 tests) 198ms
+ ✓ src/react/hooks/__tests__/useArtifactStream.test.ts (11 tests) 63ms
+ ✓ src/react/features/chat-pane/__tests__/components/AgentRuntimePicker.agent-handles.test.tsx (5 tests) 382ms
+ ✓ src/react/features/chat-pane/__tests__/hooks/useChatPaneFileDrop.test.tsx (7 tests) 41ms
+ ✓ src/embed-widget/react/__tests__/embed.test.tsx (4 tests) 210ms
+ ✓ src/react/features/chat-pane/__tests__/hooks/useChatPaneComposerPlaceholder.test.tsx (7 tests) 44ms
+ ✓ src/react/components/__tests__/MessageList.jump-to-latest.test.tsx (7 tests) 192ms
+ ✓ src/react/components/__tests__/AttachmentTray.test.tsx (8 tests) 165ms
+ ✓ src/react/hooks/__tests__/useExtEventGroups.test.ts (9 tests) 43ms
+ ✓ src/embed-widget/vanilla/__tests__/state.test.ts (5 tests) 10ms
+ ✓ src/react/components/__tests__/standalone-approval.test.tsx (4 tests) 321ms
+ ✓ src/react/__tests__/index.test.ts (9 tests) 9ms
+ ✓ src/react/components/__tests__/ChatFab.test.tsx (6 tests) 167ms
+ ✓ src/react/features/chat-pane/__tests__/createMidRunMessagePoster.test.ts (8 tests) 34ms
+ ✓ src/react/features/chat-pane/__tests__/components/ChatPane.injection.test.tsx (1 test) 307ms
+   ✓ calls every injected hook and preserves suggestions, measurement targets and handle cleanup  305ms
+ ✓ src/react/features/chat-pane/__tests__/styles-user-bubbles.test.tsx (5 tests) 298ms
+ ✓ src/react/hooks/__tests__/useComposer.draft-debounce.test.tsx (8 tests) 84ms
+ ✓ src/react/components/__tests__/sending-label.unit.test.tsx (8 tests) 388ms
+ ✓ src/react/features/chat-pane/__tests__/components/AgentRuntimePicker.native-policy.unit.test.tsx (7 tests) 461ms
+ ✓ src/react/components/__tests__/list-gallery.hooks.test.tsx (7 tests) 37ms
+ ✓ src/react/hooks/__tests__/useCopyToClipboard.cov-j2.test.ts (6 tests) 56ms
+ ✓ src/react/features/chat-pane/__tests__/components/RuntimeDropUp.test.tsx (5 tests) 211ms
+ ✓ src/react/components/__tests__/ExtEventErrorBoundary.test.tsx (6 tests) 98ms
+ ✓ src/react/components/__tests__/Composer.agent-handles.test.tsx (4 tests) 306ms
+ ✓ src/react/hooks/__tests__/last-conversation-store.test.ts (9 tests) 6ms
+ ✓ src/react/components/__tests__/ConversationList.gaps.test.tsx (6 tests) 428ms
+ ✓ src/react/components/__tests__/Icon.test.tsx (22 tests) 69ms
+ ✓ src/react/hooks/__tests__/useRunStream.checkpoint.cov-j2.test.ts (8 tests) 65ms
+ ✓ src/react/components/__tests__/FolderChips.agent-handles.test.tsx (4 tests) 249ms
+ ✓ src/react/components/__tests__/McpUiSurfaceCard.j5-03.characterization.test.tsx (9 tests) 122ms
+ ✓ src/react/features/chat-pane/__tests__/createTypedAnswerPoster.test.ts (6 tests) 17ms
+ ✓ src/react/components/__tests__/TodoCard.test.tsx (7 tests) 204ms
+ ✓ src/react/features/chat-pane/__tests__/components/ChatPane.typing-render.test.tsx (2 tests) 765ms
+   ✓ ChatPane typing > re-renders zero rows of a few-hundred-tool-row transcript while typing or on a host re-render  574ms
+ ✓ src/react/features/chat-pane/__tests__/styles-composer-footer-wrap.test.tsx (5 tests) 307ms
+ ✓ src/react/components/__tests__/NextStepActions.test.tsx (6 tests) 132ms
+ ✓ src/react/features/chat-pane/__tests__/frontend-request-caller.test.ts (6 tests) 77ms
+ ✓ src/react/components/__tests__/TodoCard.l199.characterization.test.tsx (8 tests) 192ms
+ ✓ src/react/components/__tests__/ToolCard.batch-target.test.tsx (19 tests) 337ms
+ ✓ src/react/components/__tests__/A2uiSurfaceCard.delivery.test.tsx (3 tests) 163ms
+ ✓ src/react/__tests__/message-blocks.thinking.test.ts (6 tests) 5ms
+ ✓ src/react/hooks/__tests__/usePinnedTodos.test.ts (5 tests) 41ms
+ ✓ src/react/features/chat-pane/__tests__/components/AgentRuntimePicker.access-note-icon.unit.test.tsx (4 tests) 319ms
+ ↓ src/react/features/chat-pane/__tests__/components/ChatPane.long-transcript.bench.test.tsx (1 test | 1 skipped)
+ ✓ src/react/components/__tests__/ComposerDiscovery.test.tsx (6 tests) 156ms
+ ✓ src/react/__tests__/artifact-types.test.ts (7 tests) 6ms
+ ✓ src/react/components/__tests__/ConversationTitleEditor.test.tsx (4 tests) 306ms
+ ✓ src/react/features/chat-pane/__tests__/styles-lone-send-button.test.tsx (3 tests) 221ms
+ ✓ src/embed-widget/vanilla/__tests__/state.edges.test.ts (5 tests) 10ms
+ ✓ src/embed-widget/react/__tests__/dialog.test.tsx (2 tests) 197ms
+ ✓ src/react/components/__tests__/JiniChatProvider.test.tsx (3 tests) 36ms
+ ✓ src/react/components/__tests__/ToolCard.cli-events.test.tsx (11 tests) 235ms
+ ✓ src/react/components/__tests__/hook-injection.test.tsx (6 tests) 137ms
+ ✓ src/react/features/chat-pane/__tests__/hooks/useChatPane.release-check.test.tsx (3 tests) 52ms
+ ✓ src/react/components/__tests__/QuestionForm.injection.test.tsx (2 tests) 132ms
+ ✓ src/embed-widget/vanilla/__tests__/lazy-loader.retry.test.ts (4 tests) 135ms
+ ✓ src/react/hooks/__tests__/composer-history-storage.test.ts (4 tests) 11ms
+ ✓ src/react/features/chat-pane/__tests__/components/ChatPane.redaction-notice.test.tsx (4 tests) 842ms
+   ✓ styles the notice like the pane's other status notices  330ms
+ ✓ src/react/features/chat-pane/__tests__/components/AgentRuntimePicker.injection.test.tsx (2 tests) 136ms
+ ✓ src/react/components/__tests__/McpUiSurfaceCard.l199.characterization.test.tsx (3 tests) 202ms
+ ✓ src/react/hooks/__tests__/useSurfaceExpiry.test.ts (6 tests) 32ms
+ ✓ src/react/components/__tests__/MessageList.l199.characterization.test.tsx (5 tests) 210ms
+ ✓ src/react/components/__tests__/QuestionsPanel.j5-03.characterization.test.tsx (6 tests) 277ms
+ ✓ src/react/features/chat-pane/__tests__/hooks/useChatPaneControlsHeight.test.tsx (2 tests) 31ms
+ ✓ src/react/components/__tests__/QuestionsPanel.test.tsx (5 tests) 299ms
+ ✓ src/react/components/__tests__/A2uiSurfaceCard.registry.test.tsx (1 test) 93ms
+ ✓ src/react/features/chat-pane/__tests__/composer-action-hit-targets.test.tsx (2 tests) 381ms
+ ✓ src/react/components/__tests__/QuestionsPanel.l199.characterization.test.tsx (5 tests) 288ms
+ ✓ src/react/hooks/__tests__/durable-run-hooks.test.ts (3 tests) 26ms
+ ✓ src/react/__tests__/ext-event-renderer-registry.test.ts (6 tests) 4ms
+ ✓ src/react/components/__tests__/mcp-ui-surface-state.test.ts (4 tests) 8ms
+ ✓ src/react/components/__tests__/MidRunUserMessage.cov-j2.test.tsx (4 tests) 210ms
+ ✓ src/react/hooks/__tests__/context.test.ts (7 tests) 45ms
+ ✓ src/react/__tests__/tool-renderer-registry.test.ts (6 tests) 3ms
+ ✓ src/react/components/__tests__/ConversationList.trigger.test.tsx (5 tests) 145ms
+ ✓ src/react/features/chat-pane/__tests__/surface-recovery.test.ts (2 tests) 71ms
+ ✓ src/react/hooks/__tests__/useSurfaceRecovery.test.ts (2 tests) 31ms
+ ✓ src/react/__tests__/package-content.test.ts (6 tests) 6ms
+ ✓ src/react/features/chat-pane/__tests__/components/AgentPluginUsage.test.tsx (3 tests) 109ms
+ ✓ src/embed-widget/react/__tests__/embed-surfaces.test.tsx (2 tests) 208ms
+ ✓ src/react/hooks/__tests__/attachment-preview-cache.test.ts (4 tests) 5ms
+ ✓ src/react/components/__tests__/MessageRow.terminal-extension.test.tsx (3 tests) 133ms
+ ✓ src/react/features/chat-pane/__tests__/styles-tool-row-chevron.test.ts (3 tests) 4ms
+ ✓ src/react/hooks/__tests__/last-conversation-store.cov-j2.test.ts (3 tests) 6ms
+ ✓ src/react/components/__tests__/MarkdownLink.test.tsx (3 tests) 140ms
+ ✓ src/react/components/__tests__/MessageRow.usage.l199.characterization.test.ts (10 tests) 50ms
+ ✓ src/react/features/chat-pane/__tests__/components/ChatPane.cov-j2.test.tsx (1 test) 412ms
+   ✓ ChatPane secret redaction notice > sends only the redacted text and tells the person a key was removed  411ms
+ ✓ src/react/features/chat-pane/__tests__/components/RuntimeDropUp.cov-j2.test.tsx (2 tests) 116ms
+ ✓ src/react/features/chat-pane/__tests__/hooks/useChatPaneFileDrop.cov-j2.test.tsx (1 test) 24ms
+ ✓ src/embed-widget/react/__tests__/header.hook.test.tsx (2 tests) 116ms
+ ✓ src/react/components/__tests__/MessageList.streaming-renders.test.tsx (1 test) 61ms
+ ✓ src/react/components/__tests__/own-link.test.ts (6 tests) 5ms
+ ✓ src/react/__tests__/surfaces.unit.test.tsx (3 tests) 57ms
+ ✓ src/react/features/chat-pane/__tests__/components/ChatPane.agent-handles.test.tsx (2 tests) 356ms
+ ✓ src/react/components/__tests__/Composer.mid-run.test.tsx (2 tests) 157ms
+ ✓ src/react/features/chat-pane/__tests__/hooks/useChatPaneSurface.cov-j2.test.tsx (3 tests) 29ms
+ ✓ src/react/__tests__/ext-event-renderer-registry.cov-j2.test.ts (3 tests) 3ms
+ ✓ src/react/features/chat-pane/__tests__/styles-row-containment.test.ts (1 test) 2ms
+ ✓ src/react/hooks/__tests__/useConversation.retry-race.cov-j2.test.ts (1 test) 26ms
+ ✓ src/react/hooks/testing/__tests__/fake-transport.test.ts (3 tests) 4ms
+ ✓ src/react/components/__tests__/MessageList.queued-attachments.cov-j2.test.tsx (2 tests) 184ms
+ ✓ src/embed-widget/vanilla/__tests__/log-safety-g.test.ts (2 tests) 5ms
+ ✓ src/react/components/__tests__/composer-discovery.cov-j2.test.ts (9 tests) 4ms
+ ✓ src/react/features/chat-pane/__tests__/model-options.cov-j2.test.ts (2 tests) 4ms
+ ✓ src/react/features/chat-pane/__tests__/hooks/useAgentRuntimePicker.cov-j2.test.ts (3 tests) 7ms
+ ✓ src/react/components/__tests__/Composer.slash-guard.test.tsx (1 test) 96ms
+ ✓ src/react/features/chat-pane/__tests__/index.test.ts (1 test) 3ms
+ ✓ src/embed-widget/react/__tests__/dialog.focus-edges.test.tsx (2 tests) 27ms
+ ✓ src/react/features/chat-pane/__tests__/styles-spinner.test.ts (2 tests) 20ms
+ ✓ src/react/components/__tests__/Composer.injection.test.tsx (1 test) 126ms
+ ✓ src/react/features/chat-pane/__tests__/hooks/useChatPane.surfaces.test.tsx (1 test) 26ms
+ ✓ src/react/components/__tests__/MessageList.rules.test.ts (4 tests) 3ms
+ ✓ src/react/features/chat-pane/__tests__/styles-md-link-newtab.test.ts (2 tests) 4ms
+ ✓ src/react/hooks/__tests__/surface-recovery-decision.test.ts (1 test) 3ms
+ ✓ src/react/components/__tests__/ToolCard.rules.test.ts (1 test) 3ms
+ ✓ src/react/components/__tests__/durable-run-notice.test.tsx (1 test) 40ms
+ ✓ src/embed-widget/transports/__tests__/fetch-sse.test.ts (50 tests) 55ms
+ ✓ src/core/assistant-client/__tests__/transport.test.ts (88 tests) 80ms
+ ✓ src/store/runtime/__tests__/durable-run-store.test.ts (67 tests) 378ms
+ ✓ src/core/question-form/__tests__/question-form.test.ts (63 tests) 35ms
+ ✓ src/server/durable-runs/__tests__/recover-boundaries.test.ts (76 tests) 113ms
+ ✓ src/server/durable-runs/__tests__/recover.test.ts (41 tests) 49ms
+ ✓ src/store/runtime/__tests__/history-tools.test.ts (31 tests) 73ms
+ ✓ src/core/util/__tests__/strip.test.ts (44 tests) 56ms
+ ✓ src/store/legacy/sqlite/__tests__/messages.test.ts (29 tests) 93ms
+ ✓ src/store/runtime/__tests__/run-ledger.test.ts (35 tests) 3558ms
+   ✓ checkpoint deltas on PostgreSQL (PGlite) > uses SQL character lengths for text replacement, appends, and concurrent-barrier fallback  3290ms
+ ✓ src/core/__tests__/run-activity.test.ts (37 tests) 13ms
+ ✓ src/core/__tests__/tool-events.fold-delegated.test.ts (36 tests) 17ms
+ ✓ src/core/run-events/__tests__/frames.test.ts (57 tests) 48ms
+ ✓ src/core/assistant-client/__tests__/ag-ui-transport.test.ts (19 tests) 28ms
+ ✓ src/store/runtime/__tests__/run-ledger.cov-j2.test.ts (25 tests) 179ms
+ ✓ src/core/__tests__/composer-history.test.ts (29 tests) 30ms
+ ✓ src/core/__tests__/durable-projection.test.ts (37 tests) 15ms
+ ✓ src/embed-widget/browser/__tests__/frontend-session-bridge.test.ts (15 tests) 332ms
+ ✓ src/embed-widget/browser/__tests__/session-store.test.ts (25 tests) 20ms
+ ✓ src/core/ag-ui/__tests__/translation.test.ts (19 tests) 7ms
+ ✓ src/store/__tests__/original-isolation.test.ts (19 tests) 117ms
+ ✓ src/store/runtime/__tests__/durable-run-store.reads.test.ts (13 tests) 3694ms
+   ✓ guard reads are bounded by the run, not the conversation > parses the same number of JSON values per call for 10 and 200 prior turns  432ms
+   ✓ the SQL event append on PostgreSQL (PGlite) > appends byte-for-byte and starts a new array over an empty one  3170ms
+ ✓ src/server/run-finalizer/__tests__/finalizer.test.ts (14 tests) 65ms
+ ✓ src/core/util/__tests__/manifest.test.ts (30 tests) 20ms
+npm notice
+npm notice New major version of npm available! 11.19.1 -> 12.2.3
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.3
+npm notice To update run: npm install -g npm@12.2.3
+npm notice
+ ✓ src/store/runtime/__tests__/chat-history-store.test.ts (23 tests) 140ms
+ ✓ src/core/__tests__/todos.test.ts (28 tests) 13ms
+ ✓ src/core/__tests__/transcript.test.ts (25 tests) 23ms
+ ✓ src/core/util/__tests__/parser.test.ts (27 tests) 17ms
+ ✓ src/core/run-events/__tests__/payload.test.ts (27 tests) 51ms
+ ✓ src/core/util/__tests__/pointer.test.ts (45 tests) 14ms
+ ✓ src/core/durable-runs/__tests__/continuation.test.ts (29 tests) 9ms
+ ✓ src/core/util/__tests__/validate.test.ts (45 tests) 15ms
+ ✓ src/core/__tests__/turn-usage.test.ts (24 tests) 9ms
+ ✓ src/core/__tests__/util/recover.test.ts (26 tests) 9ms
+ ✓ src/core/__tests__/persistence/title.test.ts (40 tests) 13ms
+ ✓ src/store/legacy/sqlite/__tests__/conversations.test.ts (23 tests) 62ms
+ ✓ src/core/assistant-client/__tests__/delivery-and-liveness.test.ts (18 tests) 40ms
+ ✓ src/core/__tests__/tool-events.antigravity.test.ts (20 tests) 16ms
+ ✓ src/server/run-finalizer/__tests__/finalizer-boundaries.test.ts (12 tests) 40ms
+ ✓ src/core/__tests__/agent-plugin-chat-state.test.ts (23 tests) 11ms
+ ✓ src/core/__tests__/durable-run-subscription.paths.unit.test.ts (8 tests) 33ms
+ ✓ src/core/run-events/__tests__/activity.test.ts (10 tests) 7ms
+ ✓ src/core/ag-ui/__tests__/run-frames.test.ts (8 tests) 24ms
+ ✓ src/store/__tests__/sql-cursor.test.ts (15 tests) 12ms
+ ✓ src/core/__tests__/user-text-redaction.test.ts (81 tests) 22ms
+ ✓ src/core/question-form/__tests__/scan.test.ts (34 tests) 13ms
+stdout | src/core/__tests__/durable-run-subscription.unit.test.ts > running polls recover once, then read checkpoints; pending faults latch one recovery
+[durable-subscription] Stream disconnected; retrying. { runId: [32m'run'[39m, cursor: [32m''[39m, retryDelayMs: [33m1000[39m }
+
+ ✓ src/core/__tests__/durable-run-subscription.unit.test.ts (4 tests) 28ms
+ ✓ src/server/durable-runs/__tests__/accept.cov-j2.test.ts (10 tests) 116ms
+ ✓ src/core/__tests__/question-answer.test.ts (23 tests) 309ms
+ ✓ src/core/question-form/__tests__/normalize.test.ts (33 tests) 11ms
+ ✓ src/store/runtime/__tests__/chat-expiry-sweep.cov-j2.test.ts (10 tests) 287ms
+ ✓ src/core/run-events/__tests__/boundary.test.ts (16 tests) 66ms
+ ✓ src/core/ag-ui/__tests__/ag-ui-round-trip.golden.test.ts (6 tests) 15ms
+ ✓ src/core/__tests__/accepted-input.projection.test.ts (16 tests) 11ms
+ ✓ src/store/__tests__/loads-without-driver.test.ts (12 tests) 18628ms
+   ✓ neutral store loads without any optional peer installed  670ms
+   ✓ neutral store and core work with no database, SQL or React packages installed  457ms
+   ✓ neutral declarations typecheck without installing any optional peer  1415ms
+   ✓ sqlite entry loads with core, diagnostics, db and Kysely, validates invocation, and leaves neutral store usable  420ms
+   ✓ pglite entry loads with core, diagnostics, db and Kysely, validates invocation, and leaves neutral store usable  489ms
+   ✓ postgres entry loads with core, diagnostics, db and Kysely, validates invocation, and leaves neutral store usable  421ms
+   ✓ PGlite packed consumer runs without SQLite, pg or React  2726ms
+   ✓ Postgres packed consumer constructs with injected pg, without SQLite, PGlite or React  328ms
+ ✓ src/core/__tests__/partial-json.test.ts (25 tests) 39ms
+ ✓ src/core/__tests__/react-free.test.ts (2 tests) 19ms
+ ✓ src/core/__tests__/tool-call-detail.test.ts (18 tests) 12ms
+ ✓ src/core/__tests__/conversation-cost.test.ts (15 tests) 8ms
+ ✓ src/core/ag-ui/__tests__/interrupts.test.ts (7 tests) 12ms
+ ✓ src/core/assistant-client/__tests__/ag-ui-fetch-agent.test.ts (5 tests) 378ms
+ ✓ src/core/__tests__/assistant-content.test.ts (16 tests) 9ms
+ ✓ src/core/ag-ui/__tests__/reducer-drift.unit.test.ts (14 tests) 7ms
+ ✓ src/core/ag-ui/__tests__/field-fidelity.test.ts (7 tests) 12ms
+ ✓ src/core/__tests__/agentic/chat-capabilities.test.ts (5 tests) 5ms
+ ✓ src/core/assistant-client/__tests__/messages.test.ts (10 tests) 9ms
+ ✓ src/core/ag-ui/__tests__/reverse-translation.test.ts (6 tests) 7ms
+ ✓ src/core/assistant-client/__tests__/agent-switch-continuity.test.ts (4 tests) 17ms
+ ✓ src/store/runtime/__tests__/run-guarded-chat-store.cov-j2.test.ts (5 tests) 45ms
+ ✓ src/core/__tests__/tools.test.ts (12 tests) 8ms
+ ✓ src/store/__tests__/sql-store.test.ts (4 tests) 36ms
+ ✓ src/core/util/__tests__/markdown-context.test.ts (14 tests) 11ms
+ ✓ src/core/__tests__/index.test.ts (10 tests) 13ms
+ ✓ src/core/assistant-client/__tests__/credential-notice-current-turn.unit.test.ts (13 tests) 20ms
+ ✓ src/store/__tests__/history-reader.test.ts (6 tests) 8671ms
+   ✓ PGlite bounded history reader > searches owned titles and content literally, newest first, without other owners/sites/guests  3166ms
+   ✓ PGlite bounded history reader > reads a tail or forward positions in order, bounded, and never projects attachments  2094ms
+   ✓ PGlite bounded history reader > rejects invalid resource bounds rather than reading an unbounded transcript  3346ms
+ ✓ src/core/__tests__/user-text-redaction.path-boundaries.test.ts (78 tests) 28ms
+ ✓ src/core/ag-ui/__tests__/run-input.test.ts (7 tests) 7ms
+ ✓ src/store/__tests__/history-list-cursor.test.ts (4 tests) 6314ms
+   ✓ PGlite chat history cursor > returns the remaining chats once and binds cursors to the owner  4124ms
+   ✓ PGlite chat history cursor > continues after the last returned chat when escaped text fills the output cap  2088ms
+stdout | src/core/__tests__/unit/partial-json.property.unit.test.ts
+[fast-check chat/partial-json] seed=20261020, numRuns=150
+
+ ✓ src/core/__tests__/unit/partial-json.property.unit.test.ts (4 tests) 239ms
+ ✓ src/embed-widget/browser/__tests__/frontend-session-bridge.replay-cancel.test.ts (2 tests) 166ms
+ ✓ src/core/__tests__/persistence/title.edges.test.ts (32 tests) 9ms
+ ✓ src/store/__tests__/construction.test.ts (4 tests) 28ms
+ ✓ src/core/assistant-client/__tests__/transport-redaction-signal.test.ts (1 test) 24ms
+ ✓ src/core/__tests__/compact-events.test.ts (4 tests) 6ms
+ ✓ src/store/__tests__/cost-reopen.test.ts (1 test) 76ms
+ ✓ src/store/__tests__/manifest.test.ts (2 tests) 7ms
+ ✓ src/core/__tests__/durable-run-w2g.unit.test.ts (1 test) 14ms
+stdout | src/server/durable-runs/__tests__/missing-resume.test.ts > reconstructs a missing Codex rollout once with prior turns and no visible failure/recovery note
+[durable-recovery] Recovery decision. {
+  runId: [32m'old'[39m,
+  trigger: [32m'attempt-failed'[39m,
+  probe: [32m'dead'[39m,
+  decision: [32m'continued'[39m,
+  failureClass: [32m'retryable'[39m
+}
+
+ ✓ src/server/durable-runs/__tests__/missing-resume.test.ts (1 test) 13ms
+ ✓ src/embed-widget/browser/__tests__/frontend-navigation-guard.test.ts (13 tests) 10ms
+ ✓ src/embed-widget/__tests__/boundaries.test.ts (9 tests) 10ms
+ ✓ src/__tests__/dbpkg-chat-core-contracts.test.ts (4 tests) 14ms
+ ✓ src/embed-widget/browser/__tests__/agent-inventory.test.ts (11 tests) 10ms
+ ✓ src/store/__tests__/reopen.test.ts (1 test) 46ms
+ ✓ src/store/runtime/__tests__/durable-run-store.accepted-request.test.ts (2 tests) 41ms
+ ✓ src/store/__tests__/import-isolation.test.ts (7 tests) 80ms
+ ✓ src/__tests__/dbpkg-chat-manifest.test.ts (1 test) 7ms
+ ✓ src/core/__tests__/tool-events.cli-receipts.test.ts (3 tests) 10ms
+ ✓ src/store/runtime/__tests__/entry.cov-j2.test.ts (2 tests) 37ms
+ ✓ src/contracts/__tests__/chat-bubble-style.test.ts (6 tests) 59ms
+ ✓ src/store/legacy/sqlite/__tests__/sqlite.test.ts (2 tests) 21ms
+ ✓ src/core/question-form/__tests__/format.test.ts (6 tests) 11ms
+ ✓ src/core/__tests__/user-text-redaction.gaps.test.ts (4 tests) 8ms
+ ✓ src/__tests__/dbpkg-chat-request-ports.test.ts (2 tests) 9ms
+ ✓ src/__tests__/dbpkg-chat-store-run-events.test.ts (1 test) 26ms
+ ✓ src/core/__tests__/tool-presentation.test.ts (17 tests) 10ms
+ ✓ src/core/__tests__/log-safety-g.test.ts (2 tests) 13ms
+ ✓ src/store/runtime/__tests__/durable-run-store.race.test.ts (1 test) 25ms
+ ✓ src/core/__tests__/turn-usage-w2g.unit.test.ts (2 tests) 4ms
+ ✓ src/core/ag-ui/__tests__/ports.test.ts (2 tests) 4ms
+ ✓ src/core/__tests__/accepted-input.jw6.characterization.test.ts (2 tests) 5ms
+ ✓ src/core/question-form/__tests__/question-form.color-guard.test.ts (4 tests) 6ms
+ ✓ src/core/__tests__/surface-expiry.test.ts (16 tests) 9ms
+ ✓ src/core/__tests__/guard-user-text.test.ts (3 tests) 8ms
+ ✓ src/__tests__/dbpkg-chat-contradictions.test.ts (2 tests) 11ms
+ ✓ src/store/__tests__/secret-redaction.test.ts (1 test) 47ms
+ ✓ src/core/__tests__/surface-recovery.test.ts (2 tests) 4ms
+ ✓ src/core/__tests__/secret-question-answers.test.ts (2 tests) 8ms
+ ✓ src/store/__tests__/folders.test.ts (1 test) 29ms
+ ✓ src/store/__tests__/entries.cov-j2.test.ts (4 tests) 6ms
+ ✓ src/__tests__/dbpkg-chat-errors.test.ts (5 tests) 6ms
+ ✓ src/testing/__tests__/long-transcript.test.ts (1 test) 9ms
+ ✓ src/store/legacy/sqlite/__tests__/secret-redaction.test.ts (1 test) 20ms
+ ✓ src/store/__tests__/types.test.ts (1 test) 3010ms
+   ✓ old eight-method fakes compile and every factory accepts host extra tables but refuses missing tables  3009ms
+ ✓ tests/folder-drop-redaction.integration.test.ts (4 tests) 9ms
+ ✓ src/__tests__/dbpkg-chat-neutrality.test.ts (1 test) 32ms
+ ✓ src/core/__tests__/accepted-replay-m1.unit.test.ts (2 tests) 3ms
+ ✓ src/core/__tests__/checkpoint-interval.test.ts (9 tests) 4ms
+ ✓ src/core/__tests__/tool-output.test.ts (2 tests) 4ms
+ ✓ src/core/__tests__/persistence/title-boundaries.unit.test.ts (2 tests) 7ms
+ ✓ src/core/__tests__/fresh-run-continuation.test.ts (2 tests) 3ms
+ ✓ src/core/durable-runs/__tests__/policies.test.ts (1 test) 3ms
+ ✓ src/core/__tests__/transcript.unterminated.test.ts (2 tests) 5ms
+ ✓ src/store/__tests__/transactions.test.ts (4 tests) 133ms
+ ✓ src/store/__tests__/clock-methods.test.ts (3 tests) 52ms
+ ✓ src/store/__tests__/additional.test.ts (5 tests) 57ms
+ ✓ src/store/__tests__/sqlite.test.ts (19 tests) 137ms
+ ✓ src/store/__tests__/paging.test.ts (8 tests) 230ms
+ ✓ src/store/__tests__/parity.test.ts (14 tests) 148ms
+ ✓ src/store/__tests__/pglite.socket.test.ts (51 tests) 110588ms
+   ✓ PGlite socket clock and object methods > persists a shared core clock and preserves its receiver across create, append, rename and touch  3367ms
+   ✓ PGlite socket clock and object methods > applies the second paging bag and binds continuation to the owner  2194ms
+   ✓ PGlite socket clock and object methods > uses system wall time when no clock is supplied  1809ms
+   ✓ PGlite socket > cross-owner reads > returns null when another user fetches a chat by id  1709ms
+   ✓ PGlite socket > cross-owner reads > returns null across workspaces even for the same owner id  1885ms
+   ✓ PGlite socket > cross-owner reads > returns null across owner kinds even for the same owner id  2116ms
+   ✓ PGlite socket > cross-owner reads > omits other owners chats from list  1962ms
+   ✓ PGlite socket > cross-owner reads > returns no messages when another user asks for them  2231ms
+   ✓ PGlite socket > cross-owner writes are no-ops, not errors > does not delete another owners chat  2233ms
+   ✓ PGlite socket > cross-owner writes are no-ops, not errors > does not rename another owners chat  2273ms
+   ✓ PGlite socket > cross-owner writes are no-ops, not errors > refuses to append a message into another owners chat  2325ms
+   ✓ PGlite socket > cross-owner writes are no-ops, not errors > does not overwrite another owners message when appending a colliding id to its OWN chat  2059ms
+   ✓ PGlite socket > cross-owner writes are no-ops, not errors > does not touch another owners chat  2720ms
+   ✓ PGlite socket > append semantics > updates a message in place when the same id is appended again to the same chat  2183ms
+   ✓ PGlite socket > append semantics > keeps position stable across an in-place update  2430ms
+   ✓ PGlite socket > deletion > cascades to the conversation messages  2154ms
+   ✓ PGlite socket > title source > lets a generated title replace a fallback one  2324ms
+   ✓ PGlite socket > title source > never lets a generated title clobber a manual rename  2495ms
+   ✓ PGlite socket > retention sweep > deletes only expired rows and never touches never-expiring history  2168ms
+   ✓ PGlite socket > retention sweep > honours its chunk limit so one call cannot hold a long write lock  2143ms
+   ✓ PGlite socket > message ordering > assigns sequential positions and returns messages in that order  1851ms
+   ✓ PGlite socket > message ordering > updates a message in place without allocating a new position  2348ms
+   ✓ PGlite socket parity > conversation summaries include mid-run user messages and tolerate damaged event JSON  2118ms
+   ✓ PGlite socket parity > create then get and list round-trip every conversation field  2383ms
+   ✓ PGlite socket parity > list is most-recently-updated first and counts messages  2415ms
+   ✓ PGlite socket parity > messages round-trip every stored field, in position order  2404ms
+   ✓ PGlite socket parity > a malformed events column reads as no events, not an error  2146ms
+   ✓ PGlite socket parity > appending an existing id updates it in place at the same position  2123ms
+   ✓ PGlite socket parity > appending bumps the conversation's updatedAt  2088ms
+   ✓ PGlite socket parity > rename: a generated title replaces a fallback one but never a manual one  2177ms
+   ✓ PGlite socket parity > touch bumps updatedAt and, when asked, the expiry  1892ms
+   ✓ PGlite socket parity > delete cascades to messages, agent sessions and tool approvals  2243ms
+   ✓ PGlite socket parity > another owner, workspace or owner kind sees nothing and changes nothing  2049ms
+   ✓ PGlite socket parity > appending an id that lives in another owner's chat never overwrites that row  2089ms
+   ✓ PGlite socket parity > an append inside a rolled-back transaction leaves nothing  2060ms
+   ✓ PGlite socket parity > concurrent appends to one chat get distinct, gap-free positions  2137ms
+   ✓ PGlite socket paging > provides bounded conversation and message reads on the owner-scoped store  1603ms
+   ✓ PGlite socket paging > pages tied timestamps with UTF-8 ordinal opaque ids, without skips or duplicates  2084ms
+   ✓ PGlite socket paging > orders different recencies descending and retains deleted anchor continuations  1741ms
+   ✓ PGlite socket paging > accepts limits 1 and 200, defaults to 50, and refuses invalid bounds  2161ms
+   ✓ PGlite socket paging > rejects owner, workspace, kind, read-kind and conversation cursor reuse before a data read  2091ms
+   ✓ PGlite socket paging > keeps message positions on updates and discovers append after a deleted anchor  2024ms
+   ✓ PGlite socket paging > unknown and other-owned message pages have exactly the same empty output  2055ms
+   ✓ PGlite socket paging > a page selects only limit plus one rows instead of loading the compatibility transcript  2123ms
+   ✓ PGlite socket additional invariants > copies the owner tuple so mutation cannot rebind a store  2157ms
+   ✓ PGlite socket additional invariants > duplicate creates hide the existing owner and preserve their causes  2187ms
+   ✓ PGlite socket additional invariants > upserts change only the ai_* mutable fields and re-read exactly one projected row  2161ms
+   ✓ PGlite socket additional invariants > malformed optional JSON leaves readable text and no damaged optional values  2297ms
+   ✓ PGlite socket additional invariants > retention includes equality, cascades, bounds 1..500 and preserves missing expiry  2046ms
+   ✓ PGlite socket transactions > joins the exact kernel transaction so a throwing write rolls back ledger and transcript  2302ms
+   ✓ PGlite socket transactions > controlled terminal settlement prevents a queued late browser save from replacing final text  2237ms
+ ✓ src/store/__tests__/pglite.test.ts (51 tests) 85596ms
+   ✓ PGlite clock and object methods > persists a shared core clock and preserves its receiver across create, append, rename and touch  2384ms
+   ✓ PGlite clock and object methods > applies the second paging bag and binds continuation to the owner  1521ms
+   ✓ PGlite clock and object methods > uses system wall time when no clock is supplied  1699ms
+   ✓ PGlite > cross-owner reads > returns null when another user fetches a chat by id  1724ms
+   ✓ PGlite > cross-owner reads > returns null across workspaces even for the same owner id  1629ms
+   ✓ PGlite > cross-owner reads > returns null across owner kinds even for the same owner id  1742ms
+   ✓ PGlite > cross-owner reads > omits other owners chats from list  1808ms
+   ✓ PGlite > cross-owner reads > returns no messages when another user asks for them  1596ms
+   ✓ PGlite > cross-owner writes are no-ops, not errors > does not delete another owners chat  1631ms
+   ✓ PGlite > cross-owner writes are no-ops, not errors > does not rename another owners chat  1535ms
+   ✓ PGlite > cross-owner writes are no-ops, not errors > refuses to append a message into another owners chat  1637ms
+   ✓ PGlite > cross-owner writes are no-ops, not errors > does not overwrite another owners message when appending a colliding id to its OWN chat  1710ms
+   ✓ PGlite > cross-owner writes are no-ops, not errors > does not touch another owners chat  1588ms
+   ✓ PGlite > append semantics > updates a message in place when the same id is appended again to the same chat  1558ms
+   ✓ PGlite > append semantics > keeps position stable across an in-place update  1841ms
+   ✓ PGlite > deletion > cascades to the conversation messages  1701ms
+   ✓ PGlite > title source > lets a generated title replace a fallback one  1619ms
+   ✓ PGlite > title source > never lets a generated title clobber a manual rename  1799ms
+   ✓ PGlite > retention sweep > deletes only expired rows and never touches never-expiring history  1636ms
+   ✓ PGlite > retention sweep > honours its chunk limit so one call cannot hold a long write lock  1528ms
+   ✓ PGlite > message ordering > assigns sequential positions and returns messages in that order  1667ms
+   ✓ PGlite > message ordering > updates a message in place without allocating a new position  1579ms
+   ✓ PGlite parity > conversation summaries include mid-run user messages and tolerate damaged event JSON  1714ms
+   ✓ PGlite parity > create then get and list round-trip every conversation field  1690ms
+   ✓ PGlite parity > list is most-recently-updated first and counts messages  1957ms
+   ✓ PGlite parity > messages round-trip every stored field, in position order  1590ms
+   ✓ PGlite parity > a malformed events column reads as no events, not an error  1645ms
+   ✓ PGlite parity > appending an existing id updates it in place at the same position  1924ms
+   ✓ PGlite parity > appending bumps the conversation's updatedAt  1569ms
+   ✓ PGlite parity > rename: a generated title replaces a fallback one but never a manual one  1624ms
+   ✓ PGlite parity > touch bumps updatedAt and, when asked, the expiry  1626ms
+   ✓ PGlite parity > delete cascades to messages, agent sessions and tool approvals  1610ms
+   ✓ PGlite parity > another owner, workspace or owner kind sees nothing and changes nothing  1618ms
+   ✓ PGlite parity > appending an id that lives in another owner's chat never overwrites that row  1629ms
+   ✓ PGlite parity > an append inside a rolled-back transaction leaves nothing  1616ms
+   ✓ PGlite parity > concurrent appends to one chat get distinct, gap-free positions  1719ms
+   ✓ PGlite paging > provides bounded conversation and message reads on the owner-scoped store  1656ms
+   ✓ PGlite paging > pages tied timestamps with UTF-8 ordinal opaque ids, without skips or duplicates  1575ms
+   ✓ PGlite paging > orders different recencies descending and retains deleted anchor continuations  1560ms
+   ✓ PGlite paging > accepts limits 1 and 200, defaults to 50, and refuses invalid bounds  2336ms
+   ✓ PGlite paging > rejects owner, workspace, kind, read-kind and conversation cursor reuse before a data read  1673ms
+   ✓ PGlite paging > keeps message positions on updates and discovers append after a deleted anchor  1539ms
+   ✓ PGlite paging > unknown and other-owned message pages have exactly the same empty output  1602ms
+   ✓ PGlite paging > a page selects only limit plus one rows instead of loading the compatibility transcript  1645ms
+   ✓ PGlite additional invariants > copies the owner tuple so mutation cannot rebind a store  1486ms
+   ✓ PGlite additional invariants > duplicate creates hide the existing owner and preserve their causes  1648ms
+   ✓ PGlite additional invariants > upserts change only the ai_* mutable fields and re-read exactly one projected row  1616ms
+   ✓ PGlite additional invariants > malformed optional JSON leaves readable text and no damaged optional values  1565ms
+   ✓ PGlite additional invariants > retention includes equality, cascades, bounds 1..500 and preserves missing expiry  1678ms
+   ✓ PGlite transactions > joins the exact kernel transaction so a throwing write rolls back ledger and transcript  1695ms
+   ✓ PGlite transactions > controlled terminal settlement prevents a queued late browser save from replacing final text  1650ms
+
+ Test Files  321 passed | 1 skipped (322)
+      Tests  4508 passed | 1 skipped (4509)
+   Start at  07:53:43
+   Duration  401.26s (transform 13.21s, setup 40.10s, collect 118.16s, tests 301.28s, environment 72.16s, prepare 23.94s)
+
+EXIT 0
