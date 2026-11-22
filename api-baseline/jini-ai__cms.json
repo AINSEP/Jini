@@ -1392,6 +1392,17 @@
    "withCoverPresentation": "function:1ef6c0360c"
   }
  },
+ "./posts/post-tool-schemas": {
+  "types": "./dist/posts/post-tool-schemas.d.ts",
+  "symbols": {
+   "FEATURED_IMAGE_SCHEMA": "variable:c0c001b84d",
+   "POST_ID_SCHEMA": "variable:7cc11e5283",
+   "POST_KIND_SCHEMA": "variable:0d004c0283",
+   "POST_LIST_FIELDS": "variable:475390ba68",
+   "PUBLISH_AT_SCHEMA": "variable:22b33692db",
+   "TIPTAP_TEXT_BODY_EXAMPLE": "variable:a3b1b484f9"
+  }
+ },
  "./posts/slug": {
   "types": "./dist/posts/slug.d.ts",
   "symbols": {
@@ -1400,6 +1411,12 @@
    "SLUG_FORMAT_PATTERN": "variable:e746a3940e",
    "derivePostSlugBase": "function:e83a424102",
    "isAutomaticPostSlug": "function:eb1fc25126"
+  }
+ },
+ "./posts/tiptap-doc-schema": {
+  "types": "./dist/posts/tiptap-doc-schema.d.ts",
+  "symbols": {
+   "TIPTAP_DOC_SCHEMA": "variable:d9dff209c7"
   }
  },
  "./presentation": {
