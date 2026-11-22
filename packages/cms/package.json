@@ -116,7 +116,8 @@
       "./themes/manifest-v2": "universal",
       "./themes/files/reviewed-write": "node",
       "./themes/files/atomic-write": "node",
-      "./admin-http/limits": "universal"
+      "./admin-http/limits": "universal",
+      "./media/site-transform/image-ops": "universal"
     },
     "isolation": {
       "domains": {
@@ -206,7 +207,8 @@
       "kysely": "opt-in: sql storage adapters; import @jini-ai/cms/forms/sql — SQL storage adapters could not load kysely. Install kysely to enable this feature, or check its installed version and native binaries.",
       "dompurify": "opt-in: svg sanitization; import @jini-ai/cms/media — SVG sanitization could not load dompurify. Install dompurify to enable this feature, or check its installed version and native binaries.",
       "jsdom": "opt-in: server-side html and svg processing; import @jini-ai/cms/media — Server-side HTML and SVG processing could not load jsdom. Install jsdom to enable this feature, or check its installed version and native binaries.",
-      "express": "opt-in: express route adapters; import @jini-ai/cms/forms/express — Express route adapters could not load express. Install express to enable this feature, or check its installed version."
+      "express": "opt-in: express route adapters; import @jini-ai/cms/forms/express — Express route adapters could not load express. Install express to enable this feature, or check its installed version.",
+      "@cfworker/json-schema": "opt-in: json schema validation; import @jini-ai/cms/media/site-transform/image-ops — JSON Schema validation could not load @cfworker/json-schema. Install @cfworker/json-schema to enable this feature, or check its installed version and native binaries."
     }
   },
   "type": "module",
@@ -733,6 +735,11 @@
       "types": "./dist/admin-http/limits.d.ts",
       "import": "./dist/admin-http/limits.js",
       "default": "./dist/admin-http/limits.js"
+    },
+    "./media/site-transform/image-ops": {
+      "types": "./dist/media/site-transform/image-ops.d.ts",
+      "import": "./dist/media/site-transform/image-ops.js",
+      "default": "./dist/media/site-transform/image-ops.js"
     }
   },
   "files": [
@@ -761,6 +768,7 @@
     "test:properties": "vitest run src/forms/__tests__/unit/submission.property.unit.test.ts"
   },
   "devDependencies": {
+    "@cfworker/json-schema": "^4.1.1",
     "@electric-sql/pglite": "0.5.8",
     "@jini-ai/core": "workspace:*",
     "@jini-ai/db": "workspace:*",
@@ -790,6 +798,7 @@
     "mammoth": "^1.12.3"
   },
   "peerDependencies": {
+    "@cfworker/json-schema": "^4.1.1",
     "dompurify": "^3.4.12",
     "express": "^4.21.0 || ^5.0.0",
     "jsdom": "^25.0.1 || ^26.0.0 || ^27.0.0",
@@ -810,6 +819,9 @@
       "optional": true
     },
     "express": {
+      "optional": true
+    },
+    "@cfworker/json-schema": {
       "optional": true
     }
   }

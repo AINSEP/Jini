@@ -1089,6 +1089,24 @@
    "createUnpdfDocumentTextExtractor": "function:44ff8840d5"
   }
  },
+ "./media/site-transform/image-ops": {
+  "types": "./dist/media/site-transform/image-ops.d.ts",
+  "symbols": {
+   "IMAGE_CONTENT_TYPES": "variable:b1ef349782",
+   "IMAGE_FORMATS": "variable:825f8a53e3",
+   "IMAGE_LIMITS": "variable:5b0d2b461b",
+   "ImageFormat": "type:8eeadf83e8",
+   "ImageLimits": "type:af7ba0ee96",
+   "ImageOutput": "interface:d163f463dd",
+   "ImageTransformError": "class:d020f25c32",
+   "OUTPUT_SCHEMA": "variable:5bd8b8647e",
+   "RenderedImage": "interface:8f3705e88c",
+   "encodeIco": "function:aa666558ae",
+   "inspectImage": "function:626a544315",
+   "normalizeOutputs": "function:8b9c28aae0",
+   "renderOutputs": "function:8ac8f72d40"
+  }
+ },
  "./media/slug": {
   "types": "./dist/media/slug.d.ts",
   "symbols": {
