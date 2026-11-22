@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { RouteRefusalError, rejectRoute } from '../../server.js';
+import { RouteRefusalError, rejectRoute } from '../route-refusal.js';
 
 /** Runs `rejectRoute` and hands back what it threw, failing if it returned. */
 function refusalOf(required: Parameters<typeof rejectRoute>[0]): unknown {

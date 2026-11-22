@@ -152,17 +152,6 @@ export function jsonResponse({ status, body }: { readonly status: number; readon
 const errorAnswer = ({ error }: { readonly error: ServerApiError }): Response =>
   jsonResponse({ status: statusForError({ error }), body: { error } });
 
-/**
- * A returned failure (body read, parse or handle) takes the same path as a thrown `ClientFacingError`,
- * so a host error port sees every caller-visible failure in one shape and answers it with one envelope.
- * Without an error port the answer is unchanged: the `ClientFacingError` branch sends the same status and body.
- * @returns Never; the route's catch answers it.
- * @complexity O(1) time/space.
- */
-function refuseReturned({ error }: { readonly error: ServerApiError }, _optional: Record<string, never> = {}): never {
-  throw new ClientFacingError({ apiError: error });
-}
-
 interface RouteCall<I, O, D, C> {
   readonly spec: JsonRouteSpec<I, O, D, C>;
   readonly deps: D;
@@ -246,13 +235,13 @@ function authenticate<I, O, D, C>({ call, raw }: { readonly call: RouteCall<I, O
 async function routeAnswer<I, O, D, C>(call: RouteCall<I, O, D, C>, { host }: { readonly host: RouteHostContext | undefined }): Promise<Response> {
   const { spec, deps, request } = call;
   const raw = await readRawInput(call);
-  if (!raw.ok) refuseReturned({ error: raw.error });
+  if (!raw.ok) return errorAnswer({ error: raw.error });
   if (spec.ports?.workspace) await spec.ports.workspace({ raw: raw.value, deps });
   const refused = originRefusal(call, { host });
   if (refused) return refused;
   const context = await authenticate({ call, raw: raw.value });
   const parsed = spec.parse(raw.value);
-  if (!parsed.ok) refuseReturned({ error: parsed.error });
+  if (!parsed.ok) return errorAnswer({ error: parsed.error });
   const authorize = makeAuthorize({ spec, deps, context });
   const result = await spec.handle({ input: parsed.value, deps, context, authorize }, { signal: request.signal });
   return finalAnswer({ spec, result, request });
@@ -265,8 +254,7 @@ function finalAnswer<I, O, D, C>({ spec, result, request }: { readonly spec: Jso
   // answer: serializing one now is wasted work and would turn a benign disconnect into a false
   // internal error if the socket rejects the write.
   if (request.signal.aborted) return new Response(null, { status: 499 });
-  if (!result.ok) refuseReturned({ error: result.error });
-  return jsonResponse({ status: spec.successStatus ?? 200, body: result.value });
+  return result.ok ? jsonResponse({ status: spec.successStatus ?? 200, body: result.value }) : errorAnswer({ error: result.error });
 }
 
 async function exceptionAnswer<I, O, D, C>({ call, error }: { readonly call: RouteCall<I, O, D, C>; readonly error: unknown }, { host }: { readonly host: RouteHostContext | undefined }): Promise<Response> {

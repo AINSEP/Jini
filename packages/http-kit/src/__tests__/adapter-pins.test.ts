@@ -159,35 +159,18 @@ describe('adapter characterization before complexity refactor', () => {
     expect(f.events.listenerCount('close')).toBe(0);
   });
 
-  // A returned failure takes the thrown ClientFacingError path: the host error port, when present,
-  // owns its envelope exactly as it owns a thrown refusal's; without one the standard envelope stays.
-  it.each(['parse', 'handle'] as const)('hands a %s Result failure to the host exception port as a ClientFacingError', async (phase) => {
+  it.each(['parse', 'handle'] as const)('serializes a %s Result failure without invoking the host exception port', async (phase) => {
     const apiError = createApiError({ code: 'NOT_FOUND', message: 'missing' });
-    const onError = vi.fn<NonNullable<NonNullable<Spec['ports']>['onError']>>(({ res }) => { res.status(404).json('host handled'); });
+    const onError = vi.fn();
     const handle = vi.fn(() => phase === 'handle' ? err({ error: apiError }) : ok({ value: 'response' }));
     const f = fixture({ spec: route({ handle }, {
       parse: () => phase === 'parse' ? err({ error: apiError }) : ok({ value: 'parsed' }), ports: { onError },
     }) });
     await f.run();
     expect(handle).toHaveBeenCalledTimes(phase === 'parse' ? 0 : 1);
-    expect(onError).toHaveBeenCalledOnce();
-    expect(onError.mock.calls[0]![0].error).toEqual(new ClientFacingError({ apiError }));
-    expect((onError.mock.calls[0]![0].error as ClientFacingError).apiError).toBe(apiError);
-    expect(f.status.mock.calls).toEqual([[404]]);
-    expect(f.json.mock.calls).toEqual([['host handled']]);
-    expect(f.events.listenerCount('close')).toBe(0);
-  });
-
-  it.each(['parse', 'handle'] as const)('serializes a %s Result failure on the standard envelope without a host exception port', async (phase) => {
-    const apiError = createApiError({ code: 'NOT_FOUND', message: 'missing' });
-    const handle = vi.fn(() => phase === 'handle' ? err({ error: apiError }) : ok({ value: 'response' }));
-    const f = fixture({ spec: route({ handle }, {
-      parse: () => phase === 'parse' ? err({ error: apiError }) : ok({ value: 'parsed' }),
-    }) });
-    await f.run();
-    expect(handle).toHaveBeenCalledTimes(phase === 'parse' ? 0 : 1);
     expect(f.status.mock.calls).toEqual([[404]]);
     expect(f.json.mock.calls).toEqual([[{ error: apiError }]]);
+    expect(onError).not.toHaveBeenCalled();
     expect(f.events.listenerCount('close')).toBe(0);
   });
 

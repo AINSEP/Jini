@@ -75,6 +75,7 @@
       "./errors/idioms": "universal",
       "./errors/error-id": "universal",
       "./errors/testing": "universal",
+      "./errors/route-refusal": "universal",
       "./contracts/env": "universal",
       "./env/parse-env": "universal",
       "./env/format-env-issue": "universal",
@@ -460,6 +461,11 @@
       "types": "./dist/errors/testing.d.ts",
       "import": "./dist/errors/testing.js",
       "default": "./dist/errors/testing.js"
+    },
+    "./errors/route-refusal": {
+      "types": "./dist/errors/route-refusal.d.ts",
+      "import": "./dist/errors/route-refusal.js",
+      "default": "./dist/errors/route-refusal.js"
     }
   },
   "files": [

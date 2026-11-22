@@ -26,8 +26,6 @@ export interface JsonRouteSpec<Input, Output, Deps, Context = undefined> {
   method: HttpMethod;
   path: string;
   requireSameOrigin?: boolean;
-  /** Body ceiling for every method but GET, measured on the already-parsed body; over it is a 413. */
-  maxBodyBytes?: number;
   parse: InputParser<Input>;
   handle: Handler<Input, Output, Deps, Context>;
   successStatus?: number;

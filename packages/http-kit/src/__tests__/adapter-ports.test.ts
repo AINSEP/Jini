@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { Express, Request, Response } from 'express';
 import { createApiError } from '@jini-ai/protocol';
 import { defineJsonRoute, mountJsonRoute } from '../adapter.js';
-import { ClientFacingError, err, ok } from '@jini-ai/core/contracts/server';
+import { err, ok } from '@jini-ai/core/contracts/server';
 
 /** A host-owned rejection is deliberately translated only by the injected error port. */
 class HostRejection extends Error {
@@ -64,35 +64,19 @@ describe('JSON route host ports', () => {
     });
   }
 
-  // A returned parser error reaches the host error port as a ClientFacingError, exactly as a thrown
-  // refusal does, so a host that writes a flat envelope keeps it for validation failures too.
-  it('hands parser Result errors to the host error port as a ClientFacingError, without handling', async () => {
+  it('keeps parser Result errors on the standard API envelope', async () => {
     const handle = vi.fn(() => ok({ value: {} }));
-    const apiError = createApiError({ code: 'BAD_REQUEST', message: 'invalid input' });
-    const onError = vi.fn(({ res, error }: { res: Response; error: unknown }) => { res.status(400).json({ error: (error as ClientFacingError).apiError.message }); });
+    const onError = vi.fn();
     const route = defineJsonRoute<void, object, object>({ method: 'post', path: '/invalid',
-      parse: () => err({ error: apiError }), handle,
+      parse: () => err({ error: createApiError({ code: 'BAD_REQUEST', message: 'invalid input' }) }), handle,
     }, { ports: { onError } });
     const f = fixture();
     mountJsonRoute({ app: f.app, spec: route, deps: {} });
     await f.run();
     expect(f.res.status).toHaveBeenCalledWith(400);
-    expect(f.res.json).toHaveBeenCalledWith({ error: 'invalid input' });
-    expect(handle).not.toHaveBeenCalled();
-    expect(onError).toHaveBeenCalledOnce();
-    expect(onError.mock.calls[0]![0].error).toBeInstanceOf(ClientFacingError);
-    expect((onError.mock.calls[0]![0].error as ClientFacingError).apiError).toEqual({ code: 'BAD_REQUEST', message: 'invalid input' });
-  });
-
-  it('keeps parser Result errors on the standard API envelope when the host has no error port', async () => {
-    const route = defineJsonRoute<void, object, object>({ method: 'post', path: '/invalid',
-      parse: () => err({ error: createApiError({ code: 'BAD_REQUEST', message: 'invalid input' }) }), handle: () => ok({ value: {} }),
-    });
-    const f = fixture();
-    mountJsonRoute({ app: f.app, spec: route, deps: {} });
-    await f.run();
-    expect(f.res.status).toHaveBeenCalledWith(400);
     expect(f.res.json).toHaveBeenCalledWith({ error: { code: 'BAD_REQUEST', message: 'invalid input' } });
+    expect(handle).not.toHaveBeenCalled();
+    expect(onError).not.toHaveBeenCalled();
   });
 
   it('fails closed if a handler requests authorization without an injected authorizer', async () => {

@@ -1,6 +1,7 @@
 /**
- * @file Body-size limits for the content-entry admin routes. The host's route specs set
- * `maxBodyBytes` from these; the adapter they mount on owns the 413 enforcement.
+ * @file Body-size limits for the content-entry admin routes. This file only declares the cap:
+ * Express-mounted routes still enforce it through the host's body-size middleware (which
+ * re-measures the parsed body and answers the 413), not through the route adapter.
  *
  * SPEC-002 api.spec.md §4 / behavior.spec.md §4 document: "Request body size ≤ 1 MiB (route
  * layer; exceeding ⇒ 413, EC-05)"; errors.spec.md registers `PAYLOAD_TOO_LARGE` (413) for it.

@@ -128,6 +128,5 @@ export * from './server/middleware.js';
 export * from './server/query.js';
 export * from './server/request-body.js';
 export * from './server/json-route.js';
-export { RouteRefusalError, rejectRoute } from './server/route-refusal.js';
 export * from './server/sse.js';
 export * from './server/rate-limit.js';
