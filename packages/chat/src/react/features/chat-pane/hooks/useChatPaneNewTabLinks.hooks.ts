@@ -1,26 +1,31 @@
 /**
  * @module useChatPaneNewTabLinks
  *
- * Every link inside the chat pane opens in a new tab, so following one never navigates the tab the
- * conversation lives in (owner 2026-10-08: "every link"). One capture-phase click guard on the
- * pane's root absorbs every link source at once — markdown in messages, tool cards, host-registered
- * ext-event cards, A2UI surfaces, the header slot — instead of each renderer setting `target` on its
- * own anchors and the next new card forgetting to.
+ * A link inside the chat pane to ANOTHER website opens in a new tab, so following it never navigates
+ * the tab the conversation lives in. A link to the owner's own site or admin is left alone (owner
+ * decision 2026-11-21, reversing 2026-10-08's "every link"): its text navigates the current tab — the
+ * admin's own link handler turns an admin path into an in-app navigation, so the chat dock stays —
+ * and the small icon `MarkdownLink` draws after it opens the new tab instead. One capture-phase click
+ * guard on the pane's root covers every link source at once — markdown in messages, tool cards,
+ * host-registered ext-event cards, A2UI surfaces, the header slot — instead of each renderer setting
+ * `target` on its own anchors and the next new card forgetting to.
  *
  * Capture phase, then `preventDefault()`: the guard runs before any anchor's own `onClick`, so a
  * router `<Link>` (React Router, TanStack Router — both skip their in-app navigation once
  * `defaultPrevented` is set) does not ALSO navigate the chat's tab after the new tab opens.
  *
- * Left to the browser: modified or non-primary clicks (the browser already opens those however the
- * user asked), anchors that already say `target="_blank"`, `#` same-document anchors, `download`
- * links, `role="button"` anchors (an action, not a link), and any scheme other than http(s) —
- * `mailto:`/`tel:` hand off to another app without navigating the tab anyway.
+ * Left to the browser: the owner's own links (see `isOwnLinkHref`), modified or non-primary clicks
+ * (the browser already opens those however the user asked), anchors that already say
+ * `target="_blank"`, `#` same-document anchors, `download` links, `role="button"` anchors (an action,
+ * not a link), and any scheme other than http(s) — `mailto:`/`tel:` hand off to another app without
+ * navigating the tab anyway.
  *
  * MCP-UI Views render inside a sandboxed iframe, out of this guard's reach; their proxy page
  * forwards link clicks as `ui/open-link` (`@jini-ai/ui/mcp-ui`'s sandbox proxy) instead.
  */
 import { useCallback } from 'react';
 import type { MouseEvent as ReactMouseEvent } from 'react';
+import { currentOrigin, isOwnLinkHref } from '../../../components/own-link.js';
 
 const NEW_TAB_PROTOCOLS: ReadonlySet<string> = new Set(['http:', 'https:']);
 
@@ -42,16 +47,19 @@ function isPlainPrimaryClick({ event }: { event: MouseEvent }): boolean {
 }
 
 /**
- * Whether an anchor is an ordinary in-tab web link the guard should redirect to a new tab — not
- * one already opening elsewhere, a download, an action styled as a link, or a `#` same-document jump.
+ * Whether an anchor is an ordinary in-tab link to ANOTHER website that the guard should redirect to
+ * a new tab — not the owner's own site or admin, one already opening elsewhere, a download, an
+ * action styled as a link, or a `#` same-document jump.
  *
  * @param input.link - An anchor matched by `a[href]`, so its `href` attribute is present.
- * @returns `true` when following the link would navigate the chat's own tab to an http(s) page.
+ * @param input.origin - The origin that counts as the owner's own.
+ * @returns `true` when following the link would navigate the chat's own tab away to another website.
  */
-function isInTabWebLink({ link }: { link: HTMLAnchorElement }): boolean {
+function isInTabOtherWebsiteLink({ link, origin }: { link: HTMLAnchorElement; origin: string }): boolean {
   if (link.target === '_blank' || link.hasAttribute('download') || link.getAttribute('role') === 'button') return false;
   if (link.getAttribute('href')!.startsWith('#')) return false;
-  return NEW_TAB_PROTOCOLS.has(link.protocol);
+  if (!NEW_TAB_PROTOCOLS.has(link.protocol)) return false;
+  return !isOwnLinkHref({ href: link.href, origin });
 }
 
 /**
@@ -59,15 +67,19 @@ function isInTabWebLink({ link }: { link: HTMLAnchorElement }): boolean {
  *
  * @param input.event - The click, native (React's `nativeEvent` or a DOM listener's own).
  * @param input.root - The pane root; an anchor outside it (one wrapping the whole pane) is ignored.
+ * @param options.origin - The origin that counts as the owner's own; defaults to the page's own.
  * @returns The anchor's resolved absolute URL to open, or `null` to leave the click to the browser.
  * @complexity O(d) for `closest` over the target's ancestor depth d.
  */
-export function newTabLinkHref({ event, root }: { event: MouseEvent; root: Element }): string | null {
+export function newTabLinkHref(
+  { event, root }: { event: MouseEvent; root: Element },
+  { origin = currentOrigin() }: { origin?: string } = {},
+): string | null {
   const target = event.target;
   if (!isPlainPrimaryClick({ event }) || !(target instanceof Element)) return null;
   const link = target.closest('a[href]');
   if (!(link instanceof HTMLAnchorElement) || !root.contains(link)) return null;
-  return isInTabWebLink({ link }) ? link.href : null;
+  return isInTabOtherWebsiteLink({ link, origin }) ? link.href : null;
 }
 
 /**

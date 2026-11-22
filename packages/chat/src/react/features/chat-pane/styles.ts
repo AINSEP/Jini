@@ -1734,6 +1734,22 @@ export const CHAT_PANE_STYLES = `
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
 }
+/* The small arrow after a link to the owner's own site/admin ('MarkdownLink.tsx'): the link text
+   navigates this tab, the arrow opens a new one. Kept faint so it reads as an aside to the link, not
+   a second link; 'currentColor' on the glyph follows it. */
+.jini-chat-pane .jini-md-link-newtab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 2px;
+  padding: 1px;
+  color: var(--jini-chat-faint);
+  text-decoration: none;
+  border-radius: 4px;
+  vertical-align: baseline;
+}
+.jini-chat-pane .jini-md-link-newtab:hover { color: var(--jini-chat-muted); background: var(--jini-chat-border); }
+.jini-chat-pane .jini-md-link-newtab:focus-visible { outline: 2px solid var(--jini-chat-accent); outline-offset: 1px; }
 /*
  * GFM pipe tables ('Markdown.tsx''s 'TableBlock') — same reasoning as the code-block rules directly
  * above for living in the package's own default theme rather than a host stylesheet. '.jini-md-

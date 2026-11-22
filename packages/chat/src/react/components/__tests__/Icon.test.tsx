@@ -39,6 +39,7 @@ describe('Icon', () => {
     ['plus', '<path d="M12 5v14"></path><path d="M5 12h14"></path>'],
     ['pencil', '<path d="m16 3 5 5L8 21H3v-5L16 3Z"></path><path d="m14 5 5 5"></path>'],
     ['copy', '<rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path>'],
+    ['external-link', '<path d="M7 17 17 7"></path><path d="M8 7h9v9"></path>'],
   ] satisfies [IconName, string][])('draws the %s glyph', (name, glyph) => {
     const { container } = render(<Icon name={name} />);
     expect(container.querySelector('svg')?.innerHTML).toBe(glyph);

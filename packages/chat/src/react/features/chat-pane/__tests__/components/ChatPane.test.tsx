@@ -258,18 +258,24 @@ describe('ChatPane', () => {
       .toHaveStyle({ minHeight: '400px' });
   });
 
-  it('opens every in-pane link in a new tab, including host-rendered card links', () => {
+  // Owner decision 2026-11-21 (reverses 2026-10-08): another website's link opens in a new tab,
+  // wherever in the pane it sits, but the owner's own site/admin link is left to navigate in place.
+  it('opens a host-rendered card link to another website in a new tab and leaves an own link alone', () => {
     const open = vi.spyOn(window, 'open').mockReturnValue(null);
     try {
       renderWithChatSurfaces(
-        <ChatPane
-          transport={createFakeChatTransport()}
-          agents={agents}
-          header={<a href="/admin/pages/x">card link</a>}
-        />,
+        <div onClick={(event) => event.preventDefault()}>
+          <ChatPane
+            transport={createFakeChatTransport()}
+            agents={agents}
+            header={<><a href="https://example.com/docs">other card link</a><a href="/admin/pages/x">own card link</a></>}
+          />
+        </div>,
       );
-      fireEvent.click(screen.getByText('card link'));
-      expect(open).toHaveBeenCalledWith(`${window.location.origin}/admin/pages/x`, '_blank', 'noopener,noreferrer');
+      fireEvent.click(screen.getByText('own card link'));
+      expect(open).not.toHaveBeenCalled();
+      fireEvent.click(screen.getByText('other card link'));
+      expect(open).toHaveBeenCalledWith('https://example.com/docs', '_blank', 'noopener,noreferrer');
     } finally {
       open.mockRestore();
     }
