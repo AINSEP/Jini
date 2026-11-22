@@ -372,8 +372,8 @@ async function resolveRecoveryDecision(exchange: SurfaceExchange, ui: unknown, a
 export interface ToolFailureRecoveryDeps {
   /** The SAME instance `agent-daemon-server.ts` mounts `registerMcpUiToolCallsRoute` with — a
    *  different one would leave this loop's own recovery surface unreachable, exactly the failure mode
-   *  `@jini-ai/daemon/surface-exchanges`'s own `AssistantSurfaceDeps` doc warns about for every other
-   *  consumer of this store. */
+   *  `@jini-ai/core/contracts/site/daemon-surface-exchanges`'s own `AssistantSurfaceDeps` doc warns
+   *  about for every other consumer of this store. */
   readonly surfaceExchanges: SurfaceExchangeStore;
   /** Read-only: this loop only ever calls {@link ToolRegistry.list} to look up a remedy tool's own
    *  published `inputSchema` — never a handler, and never anything requiring authorization to read. */
