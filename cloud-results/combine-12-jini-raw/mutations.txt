@@ -311,3 +311,27 @@
 -> VEXIT 1
 -> RED (vitest exit 1: 1 Unhandled Rejection; unmutated exit 0)
 
+### merge 3 jx-b5 (B5-J1/J2)
+== B5-J1 restore raw transport message in RUN_ERROR
+@@ -284 +284 @@ export async function drainRunFramesToAgUi(
+-    ctx.write({ type: EventType.RUN_ERROR, message: interruptionMessage });
++    ctx.write({ type: EventType.RUN_ERROR, message: error instanceof Error ? error.message : String(error) });
+-> RED |       Tests  3 failed | 5 passed (8)
+ src/core/ag-ui/__tests__/run-frames.test.ts > a host can supply the interruption message without exposing the rejection
+ src/core/ag-ui/__tests__/run-frames.test.ts > a reader rejection writes RUN_ERROR and returns the same error (0)
+ src/core/ag-ui/__tests__/run-frames.test.ts > a reader rejection writes RUN_ERROR and returns the same error (1)
+
+== B5-J2 ignore host-supplied copy (always default)
+@@ -284 +284 @@ export async function drainRunFramesToAgUi(
+-    ctx.write({ type: EventType.RUN_ERROR, message: interruptionMessage });
++    ctx.write({ type: EventType.RUN_ERROR, message: "The response was interrupted. Try again." });
+-> RED |       Tests  1 failed | 7 passed (8)
+ src/core/ag-ui/__tests__/run-frames.test.ts > a host can supply the interruption message without exposing the rejection
+
+== B5-J1 Error only redacted; non-Error String(error) leaks
+@@ -284 +284 @@ export async function drainRunFramesToAgUi(
+-    ctx.write({ type: EventType.RUN_ERROR, message: interruptionMessage });
++    ctx.write({ type: EventType.RUN_ERROR, message: error instanceof Error ? interruptionMessage : String(error) });
+-> RED |       Tests  1 failed | 7 passed (8)
+ src/core/ag-ui/__tests__/run-frames.test.ts > a reader rejection writes RUN_ERROR and returns the same error (1)
+
