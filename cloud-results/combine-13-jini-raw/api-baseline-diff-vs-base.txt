@@ -1,0 +1,110 @@
++++ b/api-baseline/jini-ai__agent-plugins.json
+- "./commerce/server": {
+-  "types": "./core/commerce-server.d.ts",
+-  "symbols": {
+-   "CommerceOrderReadDeps": "interface:c1e307d63f",
+-   "CommerceOrderView": "interface:59f36ada97",
+-   "CommerceServer": "interface:e9477dca12",
+-   "CommerceServerRequired": "interface:d840957f17",
+-   "CommerceServerStatus": "interface:99d288e4b7",
+-   "CommerceUnavailableError": "class:fc2eee270a",
+-   "createCommerceServer": "function:c1b97b9b36",
+-   "normalizedCommerceOrigin": "function:b3c4534096",
+-   "readOwnedCommerceOrder": "function:8faeb37094"
+-  }
+- },
++++ b/api-baseline/jini-ai__chat.json
+-   "IconName": "type:866ffffe14",
++   "IconName": "type:e83c5dff41",
++   "currentOrigin": "function:b8eb7c9bde",
++   "isOwnLinkHref": "function:70b21de0be",
++++ b/api-baseline/jini-ai__cms.json
++ "./html/site/slug": {
++  "types": "./dist/html/site/slug.d.ts",
++  "symbols": {
++   "toSlug": "function:dbefad5879"
++  }
++ },
++ "./html/site/source-edits": {
++  "types": "./dist/html/site/source-edits.d.ts",
++  "symbols": {
++   "Edit": "type:c020bb9e69",
++   "Element": "type:fb77b18513",
++   "attribute": "function:fce2945912",
++   "editedHtml": "function:f6dc452a37",
++   "elements": "function:df234aaa49"
++  }
++ },
++ "./posts/post-before-save": {
++  "types": "./dist/posts/post-before-save.d.ts",
++  "symbols": {
++   "BeforeSaveEntryDraft": "interface:960bd23ece",
++   "BeforeSaveHookPort": "type:aac36d5f5e",
++   "mergeExt": "function:884c1021eb",
++   "runBeforeSaveHook": "function:2635360985",
++   "withCoverPresentation": "function:1ef6c0360c"
++  }
++ },
++ "./posts/slug": {
++  "types": "./dist/posts/slug.d.ts",
++  "symbols": {
++   "DERIVED_SLUG_SUFFIX_ROOM": "variable:35f851a12b",
++   "MAX_SLUG_LENGTH": "variable:69b9226eb5",
++   "SLUG_FORMAT_PATTERN": "variable:e746a3940e",
++   "derivePostSlugBase": "function:e83a424102",
++   "isAutomaticPostSlug": "function:eb1fc25126"
++  }
++ },
++ "./presentation/site/active-theme-id": {
++  "types": "./dist/presentation/site/active-theme-id.d.ts",
++  "symbols": {
++   "ActiveThemeIdResolutionDeps": "interface:3cdb518470",
++   "resolveActiveThemeId": "function:22ffdfcb52"
++  }
++ },
++++ b/api-baseline/jini-ai__core.json
++ "./contracts/site/post-author": {
++  "types": "./dist/contracts/site/post-author.d.ts",
++  "symbols": {
++   "postAuthorForDisplay": "function:a5941b766e"
++  }
++ },
++ "./contracts/site/request-facts": {
++  "types": "./dist/contracts/site/request-facts.d.ts",
++  "symbols": {
++   "JINI_REQUEST_FACTS": "variable:8cc10a8d5d",
++   "RequestFacts": "interface:cd0e7ac26c",
++   "readRequestFacts": "function:44761104bf"
++  }
++ },
++ "./contracts/site/soft-delete": {
++  "types": "./dist/contracts/site/soft-delete.d.ts",
++  "symbols": {
++   "isTrashed": "function:69ac508777"
++  }
++ },
++ "./contracts/site/strict-base64": {
++  "types": "./dist/contracts/site/strict-base64.d.ts",
++  "symbols": {
++   "decodeStrictBase64": "function:003d1a8bf3"
++  }
++ },
++++ b/api-baseline/jini-ai__devops.json
++ },
++ "./static-export/site/ports": {
++  "types": "./dist/static-export/site/ports.d.ts",
++  "symbols": {
++   "ManifestActiveTheme": "interface:98267e09aa",
++   "ManifestRoute": "interface:6aa35e53e8",
++   "ManifestRouteKind": "type:aa63d029bb",
++   "ManifestSkip": "interface:993737f9d4",
++   "RouteManifest": "interface:3cc4cc07b1"
++  }
++ },
++ "./static-export/site/public-origin-policy": {
++  "types": "./dist/static-export/site/public-origin-policy.d.ts",
++  "symbols": {
++   "exportPublicOrigin": "function:4d2b0322be",
++   "rewriteExportOriginResponse": "function:1608c8b961",
++   "rewriteRenderOrigins": "function:5beb95d093"
++  }
