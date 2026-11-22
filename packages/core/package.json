@@ -62,6 +62,10 @@
       "./contracts/forms": "universal",
       "./contracts/charts": "universal",
       "./contracts/plugin-sdk": "universal",
+      "./contracts/site/post-author": "universal",
+      "./contracts/site/request-facts": "universal",
+      "./contracts/site/soft-delete": "universal",
+      "./contracts/site/strict-base64": "node",
       "./errors/sentences": "universal",
       "./errors/bindings": "universal",
       "./errors/catalog": "universal",
@@ -391,6 +395,26 @@
       "types": "./dist/contracts/plugin-sdk.d.ts",
       "import": "./dist/contracts/plugin-sdk.js",
       "default": "./dist/contracts/plugin-sdk.js"
+    },
+    "./contracts/site/post-author": {
+      "types": "./dist/contracts/site/post-author.d.ts",
+      "import": "./dist/contracts/site/post-author.js",
+      "default": "./dist/contracts/site/post-author.js"
+    },
+    "./contracts/site/request-facts": {
+      "types": "./dist/contracts/site/request-facts.d.ts",
+      "import": "./dist/contracts/site/request-facts.js",
+      "default": "./dist/contracts/site/request-facts.js"
+    },
+    "./contracts/site/soft-delete": {
+      "types": "./dist/contracts/site/soft-delete.d.ts",
+      "import": "./dist/contracts/site/soft-delete.js",
+      "default": "./dist/contracts/site/soft-delete.js"
+    },
+    "./contracts/site/strict-base64": {
+      "types": "./dist/contracts/site/strict-base64.d.ts",
+      "import": "./dist/contracts/site/strict-base64.js",
+      "default": "./dist/contracts/site/strict-base64.js"
     },
     "./errors/sentences": {
       "types": "./dist/errors/sentences.d.ts",
