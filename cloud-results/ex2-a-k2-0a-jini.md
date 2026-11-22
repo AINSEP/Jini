@@ -1,4 +1,4 @@
-DONE 8887e336e
+DONE fbaf69379
 
 # A-K2-0a.J (Jini half): admin kit Icon, UI `useT`, injected values
 
@@ -139,3 +139,92 @@ import { UNREACHABLE_RETRY_DELAYS_MS, LOCAL_BACKUP_PRINCIPAL_ID } from "@jini-ai
 - The spec sheet named in the dispatch (`plans/P9-steps/A-K2-0a.md`) does not exist. The 0a row is in `plans/P9-steps/A-K2-0.md`.
 - The `slot()` facade always passes `ref` (`null` when none is given) to the implementation. That is harmless for function components under React 19. A strict host component that rejects unknown props would see it.
 - The default bases of `check:why-comments` (`origin/refactor/terra`) and `check:cross-package` (`35c4961af`) are not reachable in a fresh shallow clone. Unattended runs need a deepen or an explicit `--base`.
+
+## Review fixes
+
+Review (Codex 6.2), FIX 1 and FIX 2 applied as written. Commits on `codex/ex2-a-k2-0a-jini`, all pushed with plain `git push`:
+
+- `9cba99392`: tests, type-red first
+- `a89ec52a8`: kit.tsx fix
+- `fbaf69379`: API baseline and changeset
+- a report commit follows `fbaf69379`
+
+### FIX 1: the 13 migration icon names
+
+- `packages/admin/src/react/kit.tsx:127-130`: `KitIconName` gains `timeline`, `migrate-forward`, `tray-export`, `tray-import`, `more-horizontal-outline`, `tray-upload`, `document-lines`, `tiles-four`, `picture-frame`, `video-frame`, `cloud-outline`, `bin-lidded` and `document-marked`. A one-line comment names the screens they serve. All 13 are members of UI `IconName` (`packages/ui/src/icon-name.ts`).
+- **New test** at `packages/admin/src/react/__tests__/kit.unit.test.tsx:81`. It has `const names = [...] as const satisfies readonly KitIconName[]`, renders `<Icon name={name} />` for each name through `fakeAdminKit`'s injected Icon, and asserts the provider received every name in order. The existing Icon provider-routing test (`:60`) is unchanged.
+- **Red first.** At `9cba99392`, admin `tsc --noEmit` failed with 13 × TS2322 (`"timeline"` and the others are not assignable to `KitIconName`) plus TS2769 on the JSX. At runtime the case passed, as expected: the fix is type-only.
+
+### FIX 2: `useT` and `useAdminKitValues` facade parameters
+
+- `packages/admin/src/react/kit.tsx:300`: `export function useT(_required: Record<string, never> = {}, _optional: Record<string, never> = {}): KitTranslator`. It still returns `useAdminKit().hooks.useT()` by identity.
+- `packages/admin/src/react/kit.tsx:316`: `useAdminKitValues` has the same two defaulted parameters and still returns `useAdminKit().values` by identity.
+- The host-side `AdminKitHooks.useT(): KitTranslator` and `KitTranslator`'s `(key, vars?)` contract are unchanged.
+- **New test** at `kit.unit.test.tsx:92`. It calls `useT({}, {})`, `useAdminKitValues({}, {})` and the zero-argument `useAdminKitValues()`, then asserts:
+  - the translator is the injected one by identity, and `t('Count', { n: 2 })` interpolates through the host's `vars`
+  - both values reads return `kit.values` by identity
+
+  The existing zero-argument `useT` and values identity tests (`:72`, `:113`) are unchanged.
+- **Red first.** At `9cba99392`, tsc gave 2 × TS2554 (`Expected 0 arguments, but got 2`).
+
+### Host-assignment proof
+
+I compiled a throwaway fixture in `packages/admin/src` and then deleted it. It was not committed:
+
+```ts
+{ Icon } satisfies Pick<AdminKitComponents, 'Icon'>
+{ useT } satisfies Pick<AdminKitHooks, 'useT'>
+```
+
+Both values come from `@jini-ai/ui`. The fixture compiled with no errors against the built UI dist, so the widened union still accepts the real host Icon.
+
+### API baseline
+
+`pnpm api:check` before the update reported exactly 3 `@jini-ai/admin` deltas: `./react/kit#KitIconName`, `#useAdminKitValues` and `#useT`. `useT` changed from `variable` to `function`.
+
+`pnpm api:update` changed only `api-baseline/jini-ai__admin.json`, 3 lines. `api:check` then exited 0.
+
+The changeset `.changeset/admin-kit-icon-ui-t-values.md` gains one sentence describing both fixes. The bump stays minor.
+
+### Tests and mutation
+
+| suite | files | tests |
+|---|---|---|
+| `@jini-ai/admin` | 251 passed | 3079 passed (was 3077: +2 new, 0 removed or changed) |
+| `@jini-ai/user-management` (built dependent) | 116 passed | 1353 passed |
+| `kit.unit.test.tsx` | 1 | 10 passed |
+
+**Named mutation:** `useT` returns `(key) => key` instead of the host translator.
+
+- With the mutation: `Tests 2 failed | 8 passed (10)`. Both identity cases failed, the original `:72` and the new `:92`, each with `expected [Function] to be [Function uiTranslator]`.
+- Restored with `git checkout`. The tree was clean afterwards, and the file was back to `10 passed`.
+
+### Gates (final tree)
+
+| gate | result |
+|---|---|
+| `pnpm install --frozen-lockfile` | 0 |
+| `pnpm -r build` (all packages, final source) | 0 |
+| `pnpm typecheck` | 0 |
+| `pnpm guard` | 0 |
+| `pnpm api:check` | 0, after the update above |
+| `check:size` | 1, output **identical** to `origin/integ/merge-13-2026-11-22` (pre-existing) |
+| `check:complexity` | 1, output **identical** to merge-13 (pre-existing) |
+| `check:hooks` | 0, identical to merge-13 |
+| `check:errors` | 0, identical to merge-13 |
+| `check:why-comments --base origin/integ/merge-13-2026-11-22` | ok: 4 files checked, 0 comment blocks lost |
+| `check:cross-package` (XP*) | 1, pre-existing. **0 findings on any file this branch changes vs merge-13, and 0 in `packages/admin`.** |
+
+**How the XP check was run.** The current script needs `JINI_DECLARATION_BASELINE_DIR`. I built a declaration snapshot at the pinned `35c4961af` with a separate worktree, install and `pnpm -r build`, then ran the current tree's script with `--write-baseline`. The script does not exist at that commit.
+
+All the findings are in packages this branch does not touch (agent-runtime, server, ui and others): XP1 39, XP2 33, XP3 112, XP4 760, XP5 6. Those packages are identical to merge-13, so the fixes add no new red.
+
+I did not run a separately built merge-13 XP pass. The merge-13→HEAD diff is limited to the 7 files listed by `git diff --name-only`, and none of them has a finding.
+
+### Notes
+
+- **Scope.** No scope beyond FIX 1 and FIX 2:
+  - `TabBarTab` is untouched; repoints that use `disabled`, `dot` or `dotLabel` stay deferred.
+  - The UI and chat translators stay distinct.
+  - The Tovu `apps/admin/src/integrations/jini-kits.ts` cutover remains the paired Tovu half.
+- **Shallow-clone workarounds**, the same as the original run: `check:why-comments` needed an explicit `--base`, and XP needed a declaration snapshot built at its pinned base.
