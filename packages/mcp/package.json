@@ -21,7 +21,6 @@
       "./federation/stdio": "node",
       "./federation/testing": "universal",
       "./federation/hosted": "node",
-      "./external/agent-tools": "universal",
       "./external/built-in-connections": "universal"
     }
   },
@@ -69,11 +68,6 @@
       "types": "./dist/bin/serve.d.ts",
       "import": "./dist/bin/serve.js",
       "default": "./dist/bin/serve.js"
-    },
-    "./external/agent-tools": {
-      "types": "./dist/external/agent-tools.d.ts",
-      "import": "./dist/external/agent-tools.js",
-      "default": "./dist/external/agent-tools.js"
     },
     "./external/built-in-connections": {
       "types": "./dist/external/built-in-connections.d.ts",
