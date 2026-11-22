@@ -72,6 +72,9 @@
       "./contracts/site/plugins-host": "universal",
       "./contracts/site/db-data-modules": "universal",
       "./contracts/site/assistant-tool-contributions": "universal",
+      "./contracts/site/secrets-credential-token": "universal",
+      "./contracts/site/user-management": "universal",
+      "./contracts/site/agentic-core": "universal",
       "./errors/sentences": "universal",
       "./errors/bindings": "universal",
       "./errors/catalog": "universal",
@@ -461,6 +464,21 @@
       "types": "./dist/contracts/site/assistant-tool-contributions.d.ts",
       "import": "./dist/contracts/site/assistant-tool-contributions.js",
       "default": "./dist/contracts/site/assistant-tool-contributions.js"
+    },
+    "./contracts/site/secrets-credential-token": {
+      "types": "./dist/contracts/site/secrets-credential-token.d.ts",
+      "import": "./dist/contracts/site/secrets-credential-token.js",
+      "default": "./dist/contracts/site/secrets-credential-token.js"
+    },
+    "./contracts/site/user-management": {
+      "types": "./dist/contracts/site/user-management.d.ts",
+      "import": "./dist/contracts/site/user-management.js",
+      "default": "./dist/contracts/site/user-management.js"
+    },
+    "./contracts/site/agentic-core": {
+      "types": "./dist/contracts/site/agentic-core.d.ts",
+      "import": "./dist/contracts/site/agentic-core.js",
+      "default": "./dist/contracts/site/agentic-core.js"
     },
     "./errors/sentences": {
       "types": "./dist/errors/sentences.d.ts",
