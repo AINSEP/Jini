@@ -38,9 +38,13 @@ import {
 } from '@jini-ai/daemon';
 import { openSqliteEventLog } from '@jini-ai/daemon/store/event-log/sqlite';
 import { createSystemClock } from '@jini-ai/platform/system';
+import { listProcessSnapshots, stopProcesses, waitForProcessExit } from '@jini-ai/platform/process';
 import { nodeAtomicWriter, nodeFileLock } from '@jini-ai/node-adapters/fs';
-import { nodeCommandShell, nodeProcessControl, nodeSpawnPort } from '@jini-ai/node-adapters/process';
+import { createProcessControlPort, nodeCommandShell, nodeSpawnPort } from '@jini-ai/node-adapters/process';
 import type { AgentExecutorRuntimePorts } from '@jini-ai/daemon/ports/runtime';
+
+/** Platform's process functions behind core's port; node-adapters takes them injected (it imports no other package's implementation). */
+const nodeProcessControl = createProcessControlPort({ functions: { listProcessSnapshots, stopProcesses, waitForProcessExit } });
 
 /** Where a composition's durable state lives. */
 export type JiniKernelStorage =

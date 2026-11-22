@@ -16,9 +16,6 @@
       "./fs": "node",
       "./process": "node",
       "./agent-plugins": "node"
-    },
-    "optionalPeers": {
-      "@jini-ai/agent-plugins": "opt-in: agent plugin lifecycle effects; import @jini-ai/node-adapters/agent-plugins — Agent plugin lifecycle effects name the port types of @jini-ai/agent-plugins. Install @jini-ai/agent-plugins to enable this feature, or check its installed version."
     }
   },
   "type": "module",
@@ -55,14 +52,6 @@
   "dependencies": {
     "@jini-ai/core": "workspace:^",
     "@jini-ai/platform": "workspace:^"
-  },
-  "peerDependencies": {
-    "@jini-ai/agent-plugins": "^0.7.3-next.2"
-  },
-  "peerDependenciesMeta": {
-    "@jini-ai/agent-plugins": {
-      "optional": true
-    }
   },
   "publishConfig": {
     "access": "public",

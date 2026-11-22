@@ -3,7 +3,7 @@ import { listProcessSnapshots, stopProcesses, waitForProcessExit } from "@jini-a
 
 /**
  * Test-only: the real process functions behind the object-shaped port (platform is a test dependency of
- * sidecar). Hosts pass `nodeProcessControl` from `@jini-ai/node-adapters/process`, which maps the same way;
+ * sidecar). Hosts pass `createProcessControlPort` from `@jini-ai/node-adapters/process`, which maps the same way;
  * sidecar cannot import it (a domain package never imports a runtime adapter).
  */
 export const platformProcessPort: ProcessControlPort = {

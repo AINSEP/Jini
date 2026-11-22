@@ -10,7 +10,8 @@ import { createAgentRuntimeBindings, createNativeAgentRuntime } from '@jini-ai/a
 import type { AgentRuntimePort } from '@jini-ai/daemon/ports/agent-runtime';
 import { createLocalNodeDaemon } from '../create-local-node-daemon.js';
 import { nodeAtomicWriter, nodeFileLock } from '@jini-ai/node-adapters/fs';
-import { createSpawnPort, nodeCommandShell, nodeProcessControl, type SpawnFunction } from '@jini-ai/node-adapters/process';
+import { createProcessControlPort, createSpawnPort, nodeCommandShell, type SpawnFunction } from '@jini-ai/node-adapters/process';
+import { listProcessSnapshots, stopProcesses, waitForProcessExit } from '@jini-ai/platform/process';
 
 it('gives each kernel a separate state, shares it with its executor, and clears it on close', async () => {
   const def = getAgentDef({ id: 'codex' })!;
@@ -33,7 +34,7 @@ it('gives each kernel a separate state, shares it with its executor, and clears 
       },
       runtime: {
         spawn: createSpawnPort({ spawn: ((_command: string, argv: readonly string[]) => { captured.push([...argv]); throw new Error('fixture spawn stop'); }) as SpawnFunction }),
-        processes: nodeProcessControl, fileLock: nodeFileLock, writer: nodeAtomicWriter, commandShell: nodeCommandShell({ env: {} }),
+        processes: createProcessControlPort({ functions: { listProcessSnapshots, stopProcesses, waitForProcessExit } }), fileLock: nodeFileLock, writer: nodeAtomicWriter, commandShell: nodeCommandShell({ env: {} }),
       },
     } }) };
   };
