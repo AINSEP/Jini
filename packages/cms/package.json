@@ -116,7 +116,18 @@
       "./themes/manifest-v2": "universal",
       "./themes/files/reviewed-write": "node",
       "./themes/files/atomic-write": "node",
-      "./admin-http/limits": "universal"
+      "./admin-http/limits": "universal",
+      "./publish/content/agent-tools": "universal",
+      "./publish/content/baseline-repo": "universal",
+      "./publish/content/execute-import": "universal",
+      "./publish/content/live-site-policy": "universal",
+      "./publish/content/media-references": "universal",
+      "./publish/content/peer-url": "universal",
+      "./publish/content/precheck-reasons": "universal",
+      "./publish/content/publish-readiness": "universal",
+      "./publish/content/report-contract": "universal",
+      "./publish/content/tool-metadata": "universal",
+      "./publish/content/content-hash": "node"
     },
     "isolation": {
       "domains": {
@@ -733,6 +744,61 @@
       "types": "./dist/admin-http/limits.d.ts",
       "import": "./dist/admin-http/limits.js",
       "default": "./dist/admin-http/limits.js"
+    },
+    "./publish/content/agent-tools": {
+      "types": "./dist/publish/content/agent-tools.d.ts",
+      "import": "./dist/publish/content/agent-tools.js",
+      "default": "./dist/publish/content/agent-tools.js"
+    },
+    "./publish/content/baseline-repo": {
+      "types": "./dist/publish/content/baseline-repo.d.ts",
+      "import": "./dist/publish/content/baseline-repo.js",
+      "default": "./dist/publish/content/baseline-repo.js"
+    },
+    "./publish/content/execute-import": {
+      "types": "./dist/publish/content/execute-import.d.ts",
+      "import": "./dist/publish/content/execute-import.js",
+      "default": "./dist/publish/content/execute-import.js"
+    },
+    "./publish/content/live-site-policy": {
+      "types": "./dist/publish/content/live-site-policy.d.ts",
+      "import": "./dist/publish/content/live-site-policy.js",
+      "default": "./dist/publish/content/live-site-policy.js"
+    },
+    "./publish/content/media-references": {
+      "types": "./dist/publish/content/media-references.d.ts",
+      "import": "./dist/publish/content/media-references.js",
+      "default": "./dist/publish/content/media-references.js"
+    },
+    "./publish/content/peer-url": {
+      "types": "./dist/publish/content/peer-url.d.ts",
+      "import": "./dist/publish/content/peer-url.js",
+      "default": "./dist/publish/content/peer-url.js"
+    },
+    "./publish/content/precheck-reasons": {
+      "types": "./dist/publish/content/precheck-reasons.d.ts",
+      "import": "./dist/publish/content/precheck-reasons.js",
+      "default": "./dist/publish/content/precheck-reasons.js"
+    },
+    "./publish/content/publish-readiness": {
+      "types": "./dist/publish/content/publish-readiness.d.ts",
+      "import": "./dist/publish/content/publish-readiness.js",
+      "default": "./dist/publish/content/publish-readiness.js"
+    },
+    "./publish/content/report-contract": {
+      "types": "./dist/publish/content/report-contract.d.ts",
+      "import": "./dist/publish/content/report-contract.js",
+      "default": "./dist/publish/content/report-contract.js"
+    },
+    "./publish/content/tool-metadata": {
+      "types": "./dist/publish/content/tool-metadata.d.ts",
+      "import": "./dist/publish/content/tool-metadata.js",
+      "default": "./dist/publish/content/tool-metadata.js"
+    },
+    "./publish/content/content-hash": {
+      "types": "./dist/publish/content/content-hash.d.ts",
+      "import": "./dist/publish/content/content-hash.js",
+      "default": "./dist/publish/content/content-hash.js"
     }
   },
   "files": [
