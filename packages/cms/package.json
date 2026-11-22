@@ -116,7 +116,20 @@
       "./themes/manifest-v2": "universal",
       "./themes/files/reviewed-write": "node",
       "./themes/files/atomic-write": "node",
-      "./admin-http/limits": "universal"
+      "./admin-http/limits": "universal",
+      "./content-types/site/system-content-types": "universal",
+      "./content-types/site/declared-content-type-owners": "universal",
+      "./content-types/site/tool-metadata": "universal",
+      "./entries/site/entry-refs-extractor": "universal",
+      "./entries/site/tool-metadata": "universal",
+      "./entries/site/tool-registrations": "universal",
+      "./entries/site/public-list": "universal",
+      "./entries/site/public-read": "universal",
+      "./entries/site/render-entry": "universal",
+      "./entries/site/contracts": "universal",
+      "./taxonomy/site/tool-metadata": "universal",
+      "./taxonomy/site/agent-tools": "universal",
+      "./taxonomy/site/content-targets": "universal"
     },
     "isolation": {
       "domains": {
@@ -733,6 +746,71 @@
       "types": "./dist/admin-http/limits.d.ts",
       "import": "./dist/admin-http/limits.js",
       "default": "./dist/admin-http/limits.js"
+    },
+    "./content-types/site/system-content-types": {
+      "types": "./dist/content-types/site/system-content-types.d.ts",
+      "import": "./dist/content-types/site/system-content-types.js",
+      "default": "./dist/content-types/site/system-content-types.js"
+    },
+    "./content-types/site/declared-content-type-owners": {
+      "types": "./dist/content-types/site/declared-content-type-owners.d.ts",
+      "import": "./dist/content-types/site/declared-content-type-owners.js",
+      "default": "./dist/content-types/site/declared-content-type-owners.js"
+    },
+    "./content-types/site/tool-metadata": {
+      "types": "./dist/content-types/site/tool-metadata.d.ts",
+      "import": "./dist/content-types/site/tool-metadata.js",
+      "default": "./dist/content-types/site/tool-metadata.js"
+    },
+    "./entries/site/entry-refs-extractor": {
+      "types": "./dist/entries/site/entry-refs-extractor.d.ts",
+      "import": "./dist/entries/site/entry-refs-extractor.js",
+      "default": "./dist/entries/site/entry-refs-extractor.js"
+    },
+    "./entries/site/tool-metadata": {
+      "types": "./dist/entries/site/tool-metadata.d.ts",
+      "import": "./dist/entries/site/tool-metadata.js",
+      "default": "./dist/entries/site/tool-metadata.js"
+    },
+    "./entries/site/tool-registrations": {
+      "types": "./dist/entries/site/tool-registrations.d.ts",
+      "import": "./dist/entries/site/tool-registrations.js",
+      "default": "./dist/entries/site/tool-registrations.js"
+    },
+    "./entries/site/public-list": {
+      "types": "./dist/entries/site/public-list.d.ts",
+      "import": "./dist/entries/site/public-list.js",
+      "default": "./dist/entries/site/public-list.js"
+    },
+    "./entries/site/public-read": {
+      "types": "./dist/entries/site/public-read.d.ts",
+      "import": "./dist/entries/site/public-read.js",
+      "default": "./dist/entries/site/public-read.js"
+    },
+    "./entries/site/render-entry": {
+      "types": "./dist/entries/site/render-entry.d.ts",
+      "import": "./dist/entries/site/render-entry.js",
+      "default": "./dist/entries/site/render-entry.js"
+    },
+    "./entries/site/contracts": {
+      "types": "./dist/entries/site/contracts.d.ts",
+      "import": "./dist/entries/site/contracts.js",
+      "default": "./dist/entries/site/contracts.js"
+    },
+    "./taxonomy/site/tool-metadata": {
+      "types": "./dist/taxonomy/site/tool-metadata.d.ts",
+      "import": "./dist/taxonomy/site/tool-metadata.js",
+      "default": "./dist/taxonomy/site/tool-metadata.js"
+    },
+    "./taxonomy/site/agent-tools": {
+      "types": "./dist/taxonomy/site/agent-tools.d.ts",
+      "import": "./dist/taxonomy/site/agent-tools.js",
+      "default": "./dist/taxonomy/site/agent-tools.js"
+    },
+    "./taxonomy/site/content-targets": {
+      "types": "./dist/taxonomy/site/content-targets.d.ts",
+      "import": "./dist/taxonomy/site/content-targets.js",
+      "default": "./dist/taxonomy/site/content-targets.js"
     }
   },
   "files": [
