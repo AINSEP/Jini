@@ -4,7 +4,7 @@ export interface MenuPageChoice { id: string; title: string; status: "draft" | "
 export type PageMenuTarget = AdminMenuTarget & { entryType?: string; lastKnownHref?: string };
 export type MenuTargetEditorKind = AdminMenuTarget["kind"] | "page";
 
-export function menuTargetEditorKind({ target, pages }: { target: PageMenuTarget; pages?: readonly MenuPageChoice[] }, _optional = {}): MenuTargetEditorKind {
+export function menuTargetEditorKind({ target, pages }: { target: PageMenuTarget; pages?: readonly MenuPageChoice[] | undefined }, _optional = {}): MenuTargetEditorKind {
   if (target.kind !== "entryRef") return target.kind;
   const untypedPage = target.entryType === undefined && pages?.some((page) => page.id === target.entryId);
   return target.entryType === "page" || untypedPage ? "page" : target.kind;
@@ -21,7 +21,7 @@ export function hasPageLinks({ items }: { items: readonly AdminMenuItem[] }, _op
 }
 
 export function pageTargetForChoice(
-  { entryId, pages, previous }: { entryId: string; pages?: readonly MenuPageChoice[]; previous?: PageMenuTarget },
+  { entryId, pages, previous }: { entryId: string; pages?: readonly MenuPageChoice[] | undefined; previous?: PageMenuTarget | undefined },
   _optional = {},
 ): PageMenuTarget {
   const lastKnownHref = pages?.find((page) => page.id === entryId)?.publicPath ??
@@ -32,7 +32,7 @@ export function pageTargetForChoice(
 /** Refresh the URL snapshot on every save, including unchanged/nested legacy page refs.
  * A failed catalogue read retains existing metadata; it never guesses a path from a label/id. */
 export function pageItemsForSave(
-  { items, pages }: { items: readonly AdminMenuItem[]; pages?: readonly MenuPageChoice[] },
+  { items, pages }: { items: readonly AdminMenuItem[]; pages?: readonly MenuPageChoice[] | undefined },
   _optional = {},
 ): AdminMenuItem[] {
   return items.map((item) => ({ ...item,
@@ -66,14 +66,14 @@ export function targetForKind(
 }
 
 function isUnavailablePageSelection(
-  { entryId, pages, selected }: { entryId?: string; pages?: readonly MenuPageChoice[]; selected?: MenuPageChoice },
+  { entryId, pages, selected }: { entryId?: string | undefined; pages?: readonly MenuPageChoice[] | undefined; selected?: MenuPageChoice | undefined },
   _optional = {},
 ): boolean {
   return Boolean(entryId && pages && (!selected || selected.status !== "published"));
 }
 
 export function pageLinkState(
-  { entryId, label, pages, t }: { entryId?: string; label?: string; pages?: readonly MenuPageChoice[]; t: (key: string) => string },
+  { entryId, label, pages, t }: { entryId?: string | undefined; label?: string | undefined; pages?: readonly MenuPageChoice[] | undefined; t: (key: string) => string },
   _optional = {},
 ) {
   const selected = pages?.find((page) => page.id === entryId);

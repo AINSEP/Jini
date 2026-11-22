@@ -4,7 +4,7 @@ import { useMenuPageLinkFields } from "./MenuPageLinkFields.hooks.js";
 
 /** Existing entryRef transport stores the stable page id; the public resolver owns its URL. */
 export function MenuPageLinkFields({ item, path, pages, onChange, t, useMenuPageLinkFields: useMenuPageLinkFieldsHook = useMenuPageLinkFields }: {
-  item: AdminMenuItem; path: number[]; pages?: readonly MenuPageChoice[]; t: (key: string) => string;
+  item: AdminMenuItem; path: number[]; pages?: readonly MenuPageChoice[] | undefined; t: (key: string) => string;
   onChange: (path: number[], update: (item: AdminMenuItem) => AdminMenuItem) => void;
   useMenuPageLinkFields?: typeof useMenuPageLinkFields;
 }) {

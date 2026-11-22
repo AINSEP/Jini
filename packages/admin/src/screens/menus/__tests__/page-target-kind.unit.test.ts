@@ -19,7 +19,7 @@ it("recognizes an unhinted page id from the catalogue while keeping generic entr
 
 it("retains the last-known path during a catalogue failure and drops it when a different page is selected", () => {
   const target = { kind: "entryRef" as const, entryId: "page-1", entryType: "page", lastKnownHref: "/about" };
-  expect(pageItemsForSave({ items: [{ id: "about", target }] })[0].target).toEqual(target);
+  expect(pageItemsForSave({ items: [{ id: "about", target }] })[0]!.target).toEqual(target);
   expect(pageTargetForChoice({ entryId: "page-2", previous: target })).toEqual({ kind: "entryRef", entryId: "page-2", entryType: "page" });
   expect(targetForKind({ kind: "page", prev: { kind: "url", href: "/about" } })).toEqual({
     kind: "entryRef", entryId: "", entryType: "page", lastKnownHref: "/about",

@@ -3,7 +3,7 @@ import type { AdminMenuItem } from "./api/menus-api.types.js";
 import { pageLinkState, pageTargetForChoice, menuTargetEditorKind, targetForKind, type MenuPageChoice, type MenuTargetEditorKind } from "./page-link-rules.js";
 
 export function useMenuTargetEditor(
-  { item, path, onChange, pages }: { item: AdminMenuItem; path: number[]; pages?: readonly MenuPageChoice[]; onChange: (path: number[], update: (item: AdminMenuItem) => AdminMenuItem) => void },
+  { item, path, onChange, pages }: { item: AdminMenuItem; path: number[]; pages?: readonly MenuPageChoice[] | undefined; onChange: (path: number[], update: (item: AdminMenuItem) => AdminMenuItem) => void },
   _optional = {},
 ) {
   const kind = menuTargetEditorKind({ target: item.target, pages });
@@ -16,7 +16,7 @@ export function useMenuTargetEditor(
 /** Keeps target reshaping outside the page selector's markup. */
 export function useMenuPageLinkFields(
   { item, path, pages, onChange, t }: {
-    item: AdminMenuItem; path: number[]; pages?: readonly MenuPageChoice[]; t: (key: string) => string;
+    item: AdminMenuItem; path: number[]; pages?: readonly MenuPageChoice[] | undefined; t: (key: string) => string;
     onChange: (path: number[], update: (item: AdminMenuItem) => AdminMenuItem) => void;
   },
   _optional = {},
