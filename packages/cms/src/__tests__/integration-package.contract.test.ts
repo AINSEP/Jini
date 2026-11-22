@@ -34,7 +34,8 @@ it('keeps exports and entry runtime metadata synchronized', () => {
   // deaf9cc: the document-text extractors' libraries are required, never optional peers (packages/README.md;
   // scripts/__tests__/optional-peer-contract.test.ts pins cms → mammoth/unpdf as production deps).
   // f7ab5e9e: parse5 is required too — forms/sql, forms/html and forms/express load it at import.
-  expect(manifest.dependencies).toEqual({ "@jini-ai/core": "workspace:^", parse5: "^7.3.0", unpdf: "^1.8.1", mammoth: "^1.12.3" });
+  // P9 C-platform-html-1: @sindresorhus/slugify is required — ./html/site/slug transliterates with it at import.
+  expect(manifest.dependencies).toEqual({ "@jini-ai/core": "workspace:^", "@sindresorhus/slugify": "^3.0.1", parse5: "^7.3.0", unpdf: "^1.8.1", mammoth: "^1.12.3" });
   expect(Object.hasOwn(manifest.peerDependencies, "@jini-ai/core")).toBe(false);
   expect(Object.hasOwn(manifest.peerDependenciesMeta, "@jini-ai/core")).toBe(false);
 });

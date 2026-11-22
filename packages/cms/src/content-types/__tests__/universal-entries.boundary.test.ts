@@ -1,5 +1,5 @@
 import { existsSync, readFileSync } from "node:fs";
-import { builtinModules } from "node:module";
+import { builtinModules, createRequire } from "node:module";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
@@ -84,12 +84,24 @@ function exportedSource(root: string, subpath: string): string {
   return sourcePath(resolve(root, target.replace(/^\.\/dist\//, "./src/")));
 }
 
+function packageNameOf(specifier: string): string {
+  const [scope, name] = specifier.split("/");
+  return specifier.startsWith("@") ? `${scope}/${name}` : scope!;
+}
+
 function resolveRuntimeImport(from: string, specifier: string): string {
   if (specifier.startsWith(".")) return sourcePath(resolve(dirname(from), specifier));
   if (specifier.startsWith("@jini-ai/")) {
     const [packageName, ...segments] = specifier.slice("@jini-ai/".length).split("/");
     if (!packageName) throw new Error(`Invalid workspace import: ${specifier}`);
     return exportedSource(resolve(packagesRoot, packageName), segments.length ? `./${segments.join("/")}` : ".");
+  }
+  // A declared production dependency (e.g. @sindresorhus/slugify behind ./html/site/slug) is
+  // followed into its installed files, so its own transitive imports are checked for builtins too;
+  // an undeclared bare import from CMS source still fails.
+  const fromDependency = from.includes("/node_modules/");
+  if (fromDependency || Object.hasOwn(manifest.dependencies ?? {}, packageNameOf(specifier))) {
+    return createRequire(from).resolve(specifier);
   }
   throw new Error(`Unresolved universal-entry dependency: ${from} -> ${specifier}`);
 }

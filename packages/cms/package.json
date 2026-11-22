@@ -64,6 +64,10 @@
       "./html/style-values": "universal",
       "./html/text-layout": "universal",
       "./html/document-marks": "universal",
+      "./html/site/slug": "universal",
+      "./html/site/source-edits": "node",
+      "./posts/post-before-save": "universal",
+      "./posts/slug": "universal",
       "./navigation/types": "universal",
       "./navigation/dropdown": "universal",
       "./navigation/href": "universal",
@@ -192,7 +196,8 @@
       "shared": [
         "src/widgets/markers/marker.ts",
         "src/navigation/href.ts",
-        "src/media/cover-image.ts"
+        "src/media/cover-image.ts",
+        "src/html/site/slug.ts"
       ]
     },
     "optionalPeers": {
@@ -472,6 +477,26 @@
       "types": "./dist/html/document-marks.d.ts",
       "import": "./dist/html/document-marks.js",
       "default": "./dist/html/document-marks.js"
+    },
+    "./html/site/slug": {
+      "types": "./dist/html/site/slug.d.ts",
+      "import": "./dist/html/site/slug.js",
+      "default": "./dist/html/site/slug.js"
+    },
+    "./html/site/source-edits": {
+      "types": "./dist/html/site/source-edits.d.ts",
+      "import": "./dist/html/site/source-edits.js",
+      "default": "./dist/html/site/source-edits.js"
+    },
+    "./posts/post-before-save": {
+      "types": "./dist/posts/post-before-save.d.ts",
+      "import": "./dist/posts/post-before-save.js",
+      "default": "./dist/posts/post-before-save.js"
+    },
+    "./posts/slug": {
+      "types": "./dist/posts/slug.d.ts",
+      "import": "./dist/posts/slug.js",
+      "default": "./dist/posts/slug.js"
     },
     "./html/text-layout": {
       "types": "./dist/html/text-layout.d.ts",
@@ -753,6 +778,7 @@
   },
   "dependencies": {
     "@jini-ai/core": "workspace:^",
+    "@sindresorhus/slugify": "^3.0.1",
     "parse5": "^7.3.0",
     "unpdf": "^1.8.1",
     "mammoth": "^1.12.3"
