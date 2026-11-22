@@ -30,7 +30,7 @@ test('enable, load and supporting reads share admission after loading, including
   const candidate = (): AgentPluginSearchCandidate => ({ pluginId, enabled, keywords: [], skills: [], mcpServerIds: [] });
   const publish = vi.fn();
   const ask = vi.fn(async () => ({ action: 'use' as const, selected: [pluginId] }));
-  const resolve = vi.fn(({ pluginId: id, ...request }: Parameters<AutomaticAgentPluginPorts['resolve']>[0]) => api.resolveAgentPluginRefs({ pluginRefIds: [id], workspaceLayout: workspace }, { deliveryMode: 'inject', ...request }));
+  const resolve = vi.fn<AutomaticAgentPluginPorts['resolve']>(({ pluginId: id, ...request }, options) => api.resolveAgentPluginRefs({ pluginRefIds: [id], workspaceLayout: workspace }, { deliveryMode: 'inject', ...request, ...options }));
   const makeController = (excluded: string[] = []) => createAutomaticAgentPluginUse({ mode: 'ask', state: { decision: null, excluded }, ports: {
     list: async () => [candidate()], rank: () => [], resolve, ask, publish, saveAuto: async () => {}, formatPluginToolPointer: ports.formatPluginToolPointer,
   } });
@@ -46,8 +46,9 @@ test('enable, load and supporting reads share admission after loading, including
     await filesystem.symlink(path.join(root, 'outside.md'), path.join(skillRoot, 'escape.md'));
     const controller = makeController();
     const request = { pluginId, skill: pluginId, file: 'references/permissions.md' };
-    // Explicit reads now reach the host; this fixture's strict run-pin resolver still requires activation.
-    expect(await controller.load(request)).toEqual({ status: 'unavailable', guidance: "Agent Plugin 'synthetic' is installed in this workspace but is not enabled — it ships with the host and stays inactive until an operator turns it on. Enable it before pinning it to a run." });
+    const off = await controller.load(request);
+    expect(off.status, 'an explicit read of a listed off plugin opts into read-only guidance').toBe('installed-but-inactive');
+    expect(off.guidance, 'the explicit off read returns the complete supporting file').toContain('Exact permissions reference.');
     expect(resolve).toHaveBeenCalledTimes(1);
     // Models the existing approved-enable owner changing activation; loading never writes activation.
     enabled = true; active = true;

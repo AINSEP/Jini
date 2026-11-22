@@ -650,7 +650,7 @@
   {
     "kind": "agent",
     "path": "kuinetic",
-    "pluginVersion": "0.1.0",
+    "pluginVersion": "0.1.1",
     "contract": {
       "id": "agent-plugins",
       "version": "1.0.0"
@@ -661,10 +661,10 @@
     "version": "0.7.3-next.2",
     "description": "kUInetic, the declarative data-kui animation library: detection, setup, attribute grammar, effect names, reduced motion and opt-in tiers, as one portable Agent Plugin.",
     "expectedDigests": {
-      "CHANGELOG.md": "sha256-e9144e7846ce916fea3c7be92c13e46a44b19d927888d7796fec0cbc59faf134",
+      "CHANGELOG.md": "sha256-1c4c7db1d2b612f0319412712144bfe5c9cd431964b7f97bb0ec4285322be69e",
       "mcp.json": "sha256-1788697eb2d3aa1caa8da59a62331a92529e24885f0e7151418f915000fbf7fd",
-      "plugin.json": "sha256-835ab415ac3852df5b32a3e58e84e493911d7f957ee8184b313b55a34dffa488",
-      "skills/kuinetic/SKILL.md": "sha256-230e1a33d3bec8fb562a3e0e03c23e6bcc9d4ac151784905804058896108ba03",
+      "plugin.json": "sha256-4fa946ed04421a939b21aaae86ebaf656d41c4a8104e042f04a2926b87ee21d8",
+      "skills/kuinetic/SKILL.md": "sha256-5edc0b809e172ce846d34a220c7457b8ff9520ca055bd05b60a39eb090189887",
       "skills/kuinetic/references/effects-by-family.md": "sha256-a8d698b15245aea258f4abc7e36ef5e25cd4ac7da5cab67eff097c091db629c5",
       "skills/kuinetic/references/opt-in-tiers.md": "sha256-eb9a229828c77b1e3f92f5e17aee31e99a20914b5893c2cdf6351bcc6bf4881f",
       "skills/kuinetic/references/reserved-keys.md": "sha256-eb76b75a0d0f2edb8e99b572934872d48ee182bb262da2ae5954dbd588202a07"

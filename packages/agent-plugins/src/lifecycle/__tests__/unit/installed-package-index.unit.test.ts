@@ -123,3 +123,22 @@ describe('indexInstalledRoot results', () => {
     expect(events).toEqual(["Plugin 'my-plugin' has no publisher-qualified id; using 'unknown/my-plugin'."]);
   });
 });
+
+
+it('projects declared companion names from the selected namespace', async () => {
+  const host = { ...ports, extensionNamespace: 'another-studio' };
+  const extensions = { jini: { companions: ['ui-ux-design', 'slide-design', 'ui-ux-design'] }, tovu: { companions: ['legacy'] }, unrelated: { companions: 1 } };
+  const canonical = await index(await packageRoot({ 'plugin.json': manifest({ extensions }) }), host);
+  const legacy = await index(await packageRoot({ 'plugin.json': manifest({ extensions: { tovu: extensions.tovu, unrelated: extensions.unrelated } }) }), host);
+  expect(canonical.companions, 'installed canonical companions retain declaration order').toEqual(['ui-ux-design', 'slide-design']);
+  expect(legacy.companions, 'installed legacy companions follow namespace fallback').toEqual(['legacy']);
+  expect(Object.hasOwn(await index(await packageRoot({ 'plugin.json': manifest() })), 'companions'), 'absent companions do not add a key').toBe(false);
+});
+
+it('ignores a malformed companion list without rejecting the plugin', async () => {
+  const events: string[] = [];
+  const indexed = await index(await packageRoot({ 'plugin.json': manifest({ extensions: { jini: { companions: ['valid', 'Bad'] } } }) }), { ...ports, onEvent: ({ message }) => events.push(message) });
+  expect(indexed.pluginId, 'advisory metadata does not prevent installation').toBe('my-plugin');
+  expect(Object.hasOwn(indexed, 'companions'), 'malformed companions are omitted from the index').toBe(false);
+  expect(events, 'the index publishes the advisory warning').toContain('companions must be an array of valid plugin names');
+});

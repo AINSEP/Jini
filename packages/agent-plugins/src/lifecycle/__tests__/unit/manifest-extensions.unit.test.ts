@@ -102,3 +102,28 @@ test('an unrelated malformed identity extension cannot suppress the supplied nam
   if (!parsed.ok) throw new Error(parsed.errors.join('; '));
   expect((parsed.config.servers.remote as RemoteMcpServerConfig).defaultTools).toEqual({ write: [], read: ['inspect'] });
 });
+
+
+test('projects declared companion names from the selected namespace', () => {
+  const base = { $schema: 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json', name: 'fixture' };
+  const extensions = { jini: { companions: ['ui-ux-design', 'slide-design', 'ui-ux-design'] }, tovu: { companions: ['legacy'] }, other: { companions: 7 } };
+  const canonical = parseAgentPluginManifest({ value: { ...base, extensions } });
+  const legacy = parseAgentPluginManifest({ value: { ...base, extensions: { tovu: extensions.tovu, other: extensions.other } } });
+  const custom = parseAgentPluginManifest({ value: { ...base, extensions } }, { identityNamespace: 'other' });
+  const absent = parseAgentPluginManifest({ value: base });
+  expect(canonical.ok && canonical.manifest.companions, 'canonical names retain declaration order and remove duplicates').toEqual(['ui-ux-design', 'slide-design']);
+  expect(legacy.ok && legacy.manifest.companions, 'legacy metadata remains the default when canonical metadata is absent').toEqual(['legacy']);
+  expect(canonical.ok && canonical.manifest.extensions, 'unrelated extensions stay opaque').toEqual(extensions);
+  expect(custom.ok && custom.warnings, 'an explicit namespace reads its own advisory metadata').toContain('companions must be an array of valid plugin names');
+  expect(absent.ok && Object.hasOwn(absent.manifest, 'companions'), 'undeclared companions keep the old shape').toBe(false);
+});
+
+test('ignores a malformed companion list without rejecting the plugin', () => {
+  for (const companions of ['ui-ux-design', ['valid', 'Bad'], ['a--b'], [''], [1], ['x'.repeat(65)]]) {
+    const parsed = parseAgentPluginManifest({ value: { $schema: 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json', name: 'fixture', extensions: { jini: { companions } } } });
+    expect(parsed.ok, 'malformed advisory companions do not reject the manifest').toBe(true);
+    if (!parsed.ok) throw new Error('valid manifest expected');
+    expect(Object.hasOwn(parsed.manifest, 'companions'), 'a malformed list is omitted as a whole').toBe(false);
+    expect(parsed.warnings, 'the omitted companion list has an advisory warning').toContain('companions must be an array of valid plugin names');
+  }
+});
