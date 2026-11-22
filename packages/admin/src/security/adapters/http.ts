@@ -80,9 +80,9 @@ export function createHttpOtherCredentials({ transport, workspacePath }: { trans
 }
 /** Explicit projection: receivers carry signing secrets the UI must never hold. */
 function webhookTargets({ webhooks }: { webhooks: RootKeyPreview['affectedWebhooks'] }, _optional = {}) { return webhooks.map(w => ({ label: w.label, targetUrl: w.targetUrl })); }
-/** Explicit projection: a status read never carries key material (`hex`, `token`, a pasted value), even if a server adds it. */
+/** Explicit projection: a status read never carries key material (`hex`, `token`, a pasted value), even if a server adds it. `envVarName` is kept whenever present, even empty, as the host's client preserves it. */
 function rootKeyStatus({ status: r }: { status: RootKeyStatus }, _optional = {}): RootKeyStatus {
-  return { active: r.active, source: r.source, state: r.state, keyFilePath: r.keyFilePath, runtimeMode: r.runtimeMode, ...(r.fingerprint ? { fingerprint: r.fingerprint } : {}), ...(r.invalid !== undefined ? { invalid: r.invalid } : {}), ...(r.envVarName ? { envVarName: r.envVarName } : {}), ...(r.reason ? { reason: r.reason } : {}) };
+  return { active: r.active, source: r.source, state: r.state, keyFilePath: r.keyFilePath, runtimeMode: r.runtimeMode, ...(r.fingerprint ? { fingerprint: r.fingerprint } : {}), ...(r.invalid !== undefined ? { invalid: r.invalid } : {}), ...(r.envVarName !== undefined ? { envVarName: r.envVarName } : {}), ...(r.reason ? { reason: r.reason } : {}) };
 }
 /** `path` and `importField` let a host keep an existing server wire (e.g. `/system/site-key` with `{ siteKey }`) byte for byte; the defaults are the stock Jini wire. */
 export function createHttpRootKey({ transport, workspacePath }: { transport: SecurityTransportPort; workspacePath: string }, { path: routePath = '/system/site-token', importField = 'token' }: { path?: string; importField?: string } = {}): RootKeyPort {
