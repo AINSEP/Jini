@@ -1402,6 +1402,13 @@
    "serializeHeadElements": "function:5e7d2498e1"
   }
  },
+ "./presentation/site/active-theme-id": {
+  "types": "./dist/presentation/site/active-theme-id.d.ts",
+  "symbols": {
+   "ActiveThemeIdResolutionDeps": "interface:3cdb518470",
+   "resolveActiveThemeId": "function:22ffdfcb52"
+  }
+ },
  "./presentation/sql": {
   "types": "./dist/presentation/sql/index.d.ts",
   "symbols": {

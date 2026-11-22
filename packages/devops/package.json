@@ -34,7 +34,9 @@
       "./dns/node": "node",
       "./backup/upload": "node",
       "./backup/plan-store": "node",
-      "./backup/push-jobs": "universal"
+      "./backup/push-jobs": "universal",
+      "./static-export/site/ports": "universal",
+      "./static-export/site/public-origin-policy": "universal"
     },
     "isolation": {
       "shared": [
@@ -163,6 +165,16 @@
       "types": "./dist/backup/push-jobs.d.ts",
       "import": "./dist/backup/push-jobs.js",
       "default": "./dist/backup/push-jobs.js"
+    },
+    "./static-export/site/ports": {
+      "types": "./dist/static-export/site/ports.d.ts",
+      "import": "./dist/static-export/site/ports.js",
+      "default": "./dist/static-export/site/ports.js"
+    },
+    "./static-export/site/public-origin-policy": {
+      "types": "./dist/static-export/site/public-origin-policy.d.ts",
+      "import": "./dist/static-export/site/public-origin-policy.js",
+      "default": "./dist/static-export/site/public-origin-policy.js"
     }
   },
   "files": [

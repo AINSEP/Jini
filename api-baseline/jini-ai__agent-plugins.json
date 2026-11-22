@@ -190,20 +190,6 @@
   "types": null,
   "symbols": {}
  },
- "./commerce/server": {
-  "types": "./core/commerce-server.d.ts",
-  "symbols": {
-   "CommerceOrderReadDeps": "interface:c1e307d63f",
-   "CommerceOrderView": "interface:59f36ada97",
-   "CommerceServer": "interface:e9477dca12",
-   "CommerceServerRequired": "interface:d840957f17",
-   "CommerceServerStatus": "interface:99d288e4b7",
-   "CommerceUnavailableError": "class:fc2eee270a",
-   "createCommerceServer": "function:c1b97b9b36",
-   "normalizedCommerceOrigin": "function:b3c4534096",
-   "readOwnedCommerceOrder": "function:8faeb37094"
-  }
- },
  "./composio": {
   "types": null,
   "symbols": {}

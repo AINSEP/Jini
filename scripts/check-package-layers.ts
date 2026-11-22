@@ -128,7 +128,8 @@ function optionalPeer(pkg: SourcePackage, name: string): boolean {
 }
 
 /** These peer declarations serve packaged .mjs leaves, never the L4 TypeScript runtime:
- * Cloudflare forms reads CMS evidence; core/commerce-server re-exports its opt-in host owner.
+ * Cloudflare forms reads CMS evidence; a commerce payload leaf may re-export its opt-in host owner
+ * (no package ships one today: the agent-plugins ./commerce/server re-export was retired).
  * Keep direct dependencies and all upward src imports subject to the normal layer rule. */
 function isPayloadPeerDeclaration({ pkg, owner, target, sourcePath, declaredPeer }: LayerEdge): boolean {
   if (sourcePath !== undefined || !declaredPeer || owner !== 'agent-plugins') return false;
