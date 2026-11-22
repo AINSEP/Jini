@@ -116,7 +116,13 @@
       "./themes/manifest-v2": "universal",
       "./themes/files/reviewed-write": "node",
       "./themes/files/atomic-write": "node",
-      "./admin-http/limits": "universal"
+      "./admin-http/limits": "universal",
+      "./settings/site/admin-interface": "universal",
+      "./settings/site/chart-provider": "universal",
+      "./settings/site/form-delivery": "universal",
+      "./settings/site/form-destination": "universal",
+      "./settings/site/mail-sender": "universal",
+      "./settings/site/site-timezone": "universal"
     },
     "isolation": {
       "domains": {
@@ -733,6 +739,36 @@
       "types": "./dist/admin-http/limits.d.ts",
       "import": "./dist/admin-http/limits.js",
       "default": "./dist/admin-http/limits.js"
+    },
+    "./settings/site/admin-interface": {
+      "types": "./dist/settings/site/admin-interface.d.ts",
+      "import": "./dist/settings/site/admin-interface.js",
+      "default": "./dist/settings/site/admin-interface.js"
+    },
+    "./settings/site/chart-provider": {
+      "types": "./dist/settings/site/chart-provider.d.ts",
+      "import": "./dist/settings/site/chart-provider.js",
+      "default": "./dist/settings/site/chart-provider.js"
+    },
+    "./settings/site/form-delivery": {
+      "types": "./dist/settings/site/form-delivery.d.ts",
+      "import": "./dist/settings/site/form-delivery.js",
+      "default": "./dist/settings/site/form-delivery.js"
+    },
+    "./settings/site/form-destination": {
+      "types": "./dist/settings/site/form-destination.d.ts",
+      "import": "./dist/settings/site/form-destination.js",
+      "default": "./dist/settings/site/form-destination.js"
+    },
+    "./settings/site/mail-sender": {
+      "types": "./dist/settings/site/mail-sender.d.ts",
+      "import": "./dist/settings/site/mail-sender.js",
+      "default": "./dist/settings/site/mail-sender.js"
+    },
+    "./settings/site/site-timezone": {
+      "types": "./dist/settings/site/site-timezone.d.ts",
+      "import": "./dist/settings/site/site-timezone.js",
+      "default": "./dist/settings/site/site-timezone.js"
     }
   },
   "files": [
