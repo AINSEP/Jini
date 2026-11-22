@@ -1361,6 +1361,13 @@
    "createSequenceIds": "function:73f349d19e"
   }
  },
+ "./extension-capability-vocabulary": {
+  "types": "./dist/extension-capability-vocabulary.d.ts",
+  "symbols": {
+   "SHARED_EXTENSION_CAPABILITIES": "variable:c76c424fe5",
+   "SharedExtensionCapability": "type:e50ac5a9f9"
+  }
+ },
  "./fetch": {
   "types": "./dist/fetch/index.d.ts",
   "symbols": {
