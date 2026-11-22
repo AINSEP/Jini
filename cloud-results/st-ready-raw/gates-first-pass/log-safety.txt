@@ -1,0 +1,13 @@
+New raw log path: [raw-error] packages/chat/src/core/assistant-client/ag-ui-fetch-agent.ts (1)
+New raw log path: [stored-error-text] packages/core/src/approval-batch-chain.ts (2)
+New raw log path: [stored-error-text] packages/daemon/src/agent-executor/codex/home-staging.ts (1)
+New raw log path: [stored-error-text] packages/daemon/src/http/tool-execution-routes.ts (1)
+New raw log path: [stored-error-text] packages/desktop-host/src/app-version/loader.ts (2)
+New raw log path: [error-format] packages/desktop-host/src/app-version/update-check.ts (1)
+New raw log path: [error-text] packages/desktop-host/src/app-version/update-check.ts (1)
+New raw log path: [error-format] packages/http-kit/src/node-bridge.ts (1)
+New raw log path: [error-helper] packages/http-kit/src/node-bridge.ts (1)
+New raw log path: [error-helper] packages/platform/src/retention/runner.ts (1)
+New raw log path: [console] packages/ui/src/features/panel-kit/hooks/use-settings-slice-save.hooks.ts (1)
+Log-safety ratchet failed.
+EXIT 1

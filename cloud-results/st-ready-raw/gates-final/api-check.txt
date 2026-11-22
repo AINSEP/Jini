@@ -1,0 +1,2 @@
+[api] checked 40 packages, 696 entries, 17264 symbols
+EXIT 0

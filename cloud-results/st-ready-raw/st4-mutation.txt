@@ -19,3 +19,9 @@ plant (packages/platform/src/retention/runner.ts request()): 'if (!running) retu
 ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
       Tests  2 failed | 14 passed (16)
 restored by byte copy (cmp identical); rerun src/retention: 27/27 pass
+Rerun at final tip 908ff341b:
+   × boot, timer and manual passes share one in-flight pass 8ms
+   × a confirmed cleanup that arrives during a dry run gets an actual sweep 3ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+      Tests  2 failed | 14 passed (16)
+restored (cmp identical)
