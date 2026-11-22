@@ -16,6 +16,13 @@
       "./themes/token-aliases": "universal",
       "./publish/transfer": "universal",
       "./publish/transfer/blob-staging": "node",
+      "./publish/content/baseline-repo": "universal",
+      "./publish/content/content-hash": "universal",
+      "./publish/content/execute-import": "universal",
+      "./publish/content/media-references": "universal",
+      "./publish/content/precheck-reasons": "universal",
+      "./publish/content/publish-readiness": "universal",
+      "./publish/content/report-contract": "universal",
       "./themes/template-applicability": "universal",
       "./themes/preview/roster": "node",
       "./themes/preview/refresh": "node",
@@ -236,6 +243,41 @@
       "types": "./dist/publish/transfer/blob-staging.d.ts",
       "import": "./dist/publish/transfer/blob-staging.js",
       "default": "./dist/publish/transfer/blob-staging.js"
+    },
+    "./publish/content/baseline-repo": {
+      "types": "./dist/publish/content/baseline-repo.d.ts",
+      "import": "./dist/publish/content/baseline-repo.js",
+      "default": "./dist/publish/content/baseline-repo.js"
+    },
+    "./publish/content/content-hash": {
+      "types": "./dist/publish/content/content-hash.d.ts",
+      "import": "./dist/publish/content/content-hash.js",
+      "default": "./dist/publish/content/content-hash.js"
+    },
+    "./publish/content/execute-import": {
+      "types": "./dist/publish/content/execute-import.d.ts",
+      "import": "./dist/publish/content/execute-import.js",
+      "default": "./dist/publish/content/execute-import.js"
+    },
+    "./publish/content/media-references": {
+      "types": "./dist/publish/content/media-references.d.ts",
+      "import": "./dist/publish/content/media-references.js",
+      "default": "./dist/publish/content/media-references.js"
+    },
+    "./publish/content/precheck-reasons": {
+      "types": "./dist/publish/content/precheck-reasons.d.ts",
+      "import": "./dist/publish/content/precheck-reasons.js",
+      "default": "./dist/publish/content/precheck-reasons.js"
+    },
+    "./publish/content/publish-readiness": {
+      "types": "./dist/publish/content/publish-readiness.d.ts",
+      "import": "./dist/publish/content/publish-readiness.js",
+      "default": "./dist/publish/content/publish-readiness.js"
+    },
+    "./publish/content/report-contract": {
+      "types": "./dist/publish/content/report-contract.d.ts",
+      "import": "./dist/publish/content/report-contract.js",
+      "default": "./dist/publish/content/report-contract.js"
     },
     "./themes/template-applicability": {
       "types": "./dist/themes/template-applicability.d.ts",

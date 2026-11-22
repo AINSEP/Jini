@@ -1460,6 +1460,71 @@
    "SqlPresentationSettingsRepo": "class:566b906dff"
   }
  },
+ "./publish/content/baseline-repo": {
+  "types": "./dist/publish/content/baseline-repo.d.ts",
+  "symbols": {
+   "InMemoryPublishContentBaselineRepo": "class:6bf255744a",
+   "PublishContentBaselineRecord": "interface:94f0982f20",
+   "PublishContentBaselineRepoPort": "interface:713be7dea1"
+  }
+ },
+ "./publish/content/content-hash": {
+  "types": "./dist/publish/content/content-hash.d.ts",
+  "symbols": {
+   "CONTENT_HASH_VERSION": "variable:f5f26052c4",
+   "canonicalize": "function:95fa59d041",
+   "contentHash": "function:95236fcf18"
+  }
+ },
+ "./publish/content/execute-import": {
+  "types": "./dist/publish/content/execute-import.d.ts",
+  "symbols": {
+   "RestorePointUnavailableError": "class:5cb98f6ead",
+   "executePublishContentImport": "function:a58877de3f"
+  }
+ },
+ "./publish/content/media-references": {
+  "types": "./dist/publish/content/media-references.d.ts",
+  "symbols": {
+   "collectMediaConfigKeys": "function:c42bf01cf8",
+   "collectMediaUrlKeys": "function:9fe2ca9574",
+   "collectPlacedWidgetMediaKeys": "function:a14ded0319",
+   "collectReferencedMediaKeys": "function:4c57c9a693"
+  }
+ },
+ "./publish/content/precheck-reasons": {
+  "types": "./dist/publish/content/precheck-reasons.d.ts",
+  "symbols": {
+   "addressHeldByOther": "function:ee1b6b2f4b",
+   "addressHeldInTrash": "function:4f48df44c5",
+   "changedSincePlan": "function:f4ea74b1e8",
+   "malformedKey": "function:d7fdbfcb27",
+   "missingDependency": "function:e8ac350a8c",
+   "notWired": "function:07df0df0ef",
+   "tombstonedAtDestination": "function:d82eafd6d8",
+   "trashedAtDestination": "function:f41067234c"
+  }
+ },
+ "./publish/content/publish-readiness": {
+  "types": "./dist/publish/content/publish-readiness.d.ts",
+  "symbols": {
+   "PublishReadiness": "interface:3ace66c900",
+   "PublishReadinessInput": "interface:fd5e5faab8",
+   "PublishReadinessVerdict": "type:a00971cf4c",
+   "describePublishReadiness": "function:2bdc9e420d",
+   "siteLabelFor": "function:cfa3bbe22e"
+  }
+ },
+ "./publish/content/report-contract": {
+  "types": "./dist/publish/content/report-contract.d.ts",
+  "symbols": {
+   "PublishContentOutcomeKindDto": "type:df597e89f9",
+   "PublishContentOutcomeRowDto": "interface:37e38c8737",
+   "PublishContentReferenceHolderDto": "interface:04ba48ff3e",
+   "PublishContentReportDto": "interface:d0622a2aa7",
+   "PublishContentRetireTargetDto": "interface:985b69c222"
+  }
+ },
  "./publish/transfer": {
   "types": "./dist/publish/transfer/index.d.ts",
   "symbols": {
