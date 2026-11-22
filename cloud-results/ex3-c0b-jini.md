@@ -1,4 +1,4 @@
-DONE fd73c289b
+DONE 56c604159
 
 # ex3 — C0b.J (Jini): pure core site-key DTOs
 
@@ -92,3 +92,36 @@ src/__tests__/site-key.unit.test.ts(28,3): error TS2353: Object literal may only
 Restored: rc 0.
 
 The mutation is caught by `tsc`, which is the core `typecheck` script and the package build. Vitest does not type-check, so the vitest run alone stays green under a type-only mutation. That is expected for a compile fixture.
+
+## Review fixes
+
+Review: Tovu `origin/plan/whats-left-1122:reviews/ex3-review-c0b-holds-jini.md` (Codex 6.2). Fix commit `56c604159`; this section is committed on top of it.
+
+### FIX 1 — compile-time `hex` absence on every non-reveal response DTO
+
+- `packages/core/src/__tests__/site-key.unit.test.ts:74-88`: new `type LacksHex<T> = 'hex' extends keyof T ? false : true` and a labelled tuple `nonRevealResponsesLackHex` typed `[LacksHex<AdminSiteKeyStatus>, LacksHex<AdminGeneratedSiteKey>, LacksHex<AdminImportedSiteKey>, LacksHex<AdminSiteKeyStartFreshPreview>, LacksHex<AdminStartedFreshSiteKey>]` assigned `[true, true, true, true, true]`. `keyof` includes optional keys, so an added `hex?: string` flips that slot to `false`. A control `revealCarriesHex: LacksHex<AdminRevealedSiteKey> = false` (line 88) proves the helper is not vacuous.
+- `:112-113`: the existing "keeps the raw key only on the reveal shape" case also asserts both values at runtime, so neither is an unused local.
+- Mutation (the review's): add `hex?: string` to `AdminGeneratedSiteKey`. `npx tsc -p packages/core/tsconfig.json --noEmit`:
+  ```
+  src/__tests__/site-key.unit.test.ts(85,12): error TS2322: Type 'true' is not assignable to type 'false'.
+  tsc rc=2
+  ```
+  Vitest stays 4/4 under the mutation (it does not type-check), which is the gap the review named; `tsc` (core `typecheck` and build) is the catching gate. Restored with `git checkout --`: `tsc` rc 0, tree clean.
+
+### FIX 2 — cutover handoff requires type equality
+
+- `cloud-results/ex3-c0b-jini.md:34`: the C5.T/R6.T note now requires two-way type equality between `AdminSiteKeyState` and `(typeof ADMIN_SITE_KEY_STATES)[number]` (an `Equal<A, B>` compile assertion), alongside the existing runtime parity test against the server union. It says why a one-way `satisfies readonly AdminSiteKeyState[]` misses a new core state the tuple omits. Docs only; no gate applies.
+
+### Gates after the fixes (fresh clone: `pnpm install --frozen-lockfile` ok, `pnpm -r build` rc 0)
+
+| gate | head | base `origin/integ/merge-13-2026-11-22` | delta |
+|---|---|---|---|
+| `pnpm typecheck` | rc 0 | — | — |
+| `pnpm guard` | ok, 0 violations | — | — |
+| `pnpm api:check` | rc 0 (40 packages, 691 entries, 17239 symbols) | — | — |
+| `pnpm check:hooks` | rc 0 | — | — |
+| `check:size` / `check:complexity` / `check:why-comments` | rc 1 | rc 1 | identical output |
+| `check:cross-package` | rc 1 | rc 1 | identical except the logged `pid` |
+| `npm --prefix packages/core run test` | 217 files, 2975 tests passed | — | test count unchanged (assertions added inside an existing case) |
+
+No new red. No package source changed, so no rebuild was needed beyond the baseline build.
