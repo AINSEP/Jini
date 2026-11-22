@@ -346,6 +346,7 @@ export { NextStepActions } from './components/NextStepActions.js';
 export type { NextStepAction, NextStepActionsProps } from './components/NextStepActions.js';
 export { Markdown } from './components/Markdown.js';
 export type { MarkdownProps } from './components/Markdown.js';
+export { currentOrigin, isOwnLinkHref } from './components/own-link.js';
 export { MessageRow } from './components/MessageRow.js';
 export type { MessageRowProps } from './components/MessageRow.js';
 export { MessageList } from './components/MessageList.js';

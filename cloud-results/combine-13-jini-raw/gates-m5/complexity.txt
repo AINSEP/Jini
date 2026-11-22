@@ -1,0 +1,6 @@
+New violation: [complexity] packages/agent-runtime/src/agent-protocol/acp/session-results.ts:21 handleRpcError (12)
+New violation: [complexity] packages/chat/src/core/ag-ui/event-projection.ts:296 readConfirmationResume (11)
+New violation: [complexity] packages/core/src/errors/reporter.ts:158 refusalError (11)
+New violation: [complexity] packages/ui/src/features/panel-kit/ErrorNotice.tsx:22 ErrorNotice (11)
+Complexity ratchet failed.
+EXIT 1
