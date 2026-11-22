@@ -4,7 +4,7 @@
  * comment is the explicit template named by the porting proposal,
  * `ADS-memory/reports/proposals/PROP-http-route-packs-automation-routines-2026-07-21.md`): a
  * storage-agnostic interface plus an in-memory reference implementation, async-only from day one
- * (extraction-plan §2.6) so a durable `@jini-ai/sqlite-chat` adapter is a drop-in swap later without an
+ * (extraction-plan §2.6) so a durable SQLite adapter is a drop-in swap later without an
  * API break.
  *
  * No such port existed anywhere in this repo before this file — OD's own `routine.ts` route file
@@ -21,7 +21,7 @@
  * mirrors that same split: `RoutineStore` owns Routine CRUD and *read-only* run history
  * (`listRuns`/`getLatestRun`); it does not write run records — that stays the scheduler's job via
  * its own separately-injected `RoutinePersistence`. A host wiring both together against one real
- * durable table (a future `@jini-ai/sqlite-chat` adapter) is host-level integration wiring, the same way
+ * durable table (a future SQLite adapter) is host-level integration wiring, the same way
  * `runs.ts`'s `onStarted` driver is host-supplied rather than built into `RunLifecycle` itself —
  * not attempted here, out of this port's scope.
  */
@@ -55,7 +55,7 @@ export interface RoutineUpdateInput {
 /**
  * Storage-agnostic CRUD + read-only run-history port for routines. `@jini-ai/daemon` ships
  * {@link createInMemoryRoutineStore} as the reference implementation; a durable adapter
- * (`@jini-ai/sqlite-chat`, future work) implements the same interface.
+ * (a SQLite store, future work) implements the same interface.
  */
 export interface RoutineStore {
   list(): Promise<readonly Routine[]>;
@@ -135,7 +135,7 @@ function cloneRoutine(routine: Routine): Routine {
 /**
  * Reference `RoutineStore` implementation: an in-process `Map` of routines plus a flat array of
  * runs, no durable copy — matching `createInMemoryEventLog`'s own scope (a real persistent
- * adapter is `@jini-ai/sqlite-chat`'s job).
+ * adapter is the storage owner's job).
  *
  * @complexity `get`/`create`/`update`/`delete` are O(1). `list` is O(n log n) (stable id-sort for
  * deterministic ordering). `listRuns`/`getLatestRun` are O(m log m) in the number of runs

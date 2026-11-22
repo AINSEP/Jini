@@ -191,14 +191,6 @@ host · [README](packages/server/README.md)
 | `@jini-ai/server/storage/legacy/sqlite` | Explicit legacy app.sqlite acquisition and unchanged concern schema bootstrap. | `migrate`, `openDatabase`, `closeDatabase` | node | none yet |
 | `@jini-ai/server/store/projects/sqlite` | Legacy project CRUD and run/awaiting-input projections on a borrowed handle. | `listProjects`, `listLatestProjectRunStatuses`, `listLatestConversationRunStatuses` | node | none yet |
 
-## server · `@jini-ai/sqlite`
-
-persistence-adapter · [README](packages/sqlite/README.md)
-
-| Entry point | What it does | Key exports / assets | Runtime | Used by |
-|---|---|---|---|---|
-| `@jini-ai/sqlite` | Deprecated concern re-exports; use chat/daemon/registry/db owner subpaths in new code. | `createSqliteEventLog`, `createChatHistoryStore`, `searchToolCatalog` | node | none yet |
-
 ## platform · `@jini-ai/desktop-host`
 
 host · [README](packages/desktop-host/README.md)

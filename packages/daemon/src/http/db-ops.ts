@@ -8,11 +8,11 @@
  * `POST /api/daemon/db/verify`, `POST /api/daemon/db/vacuum` (see
  * `archived provenance ledger`'s routes-classification table, row `#12 daemon.ts`: "generic
  * in shape but depend on a separate `storage/db-inspect.ts` port not built
- * this round" — that port now exists as `@jini-ai/sqlite-chat`'s `packages/db/src/sqlite/inspect.ts`).
+ * this round" — that port now exists as `@jini-ai/db/sqlite` (`packages/db/src/sqlite/inspect.ts`)).
  *
- * This module does **not** depend on `@jini-ai/sqlite-chat` or `better-sqlite3` at
+ * This module does **not** depend on `@jini-ai/db/sqlite` or `better-sqlite3` at
  * all: `DaemonDbOperations` is a plain injected interface (structurally
- * compatible with `@jini-ai/sqlite-chat`'s `inspectSqliteDatabase`/
+ * compatible with `@jini-ai/db/sqlite`'s `inspectSqliteDatabase`/
  * `verifySqliteIntegrity` return shapes, so a caller can wire those in with
  * zero adapter code) — the same "caller supplies the real collaborator"
  * convention `daemon-status.ts`/`host-tools.ts` already established in this
@@ -56,7 +56,7 @@ export interface DaemonDbTableInfo {
   readonly rowCount: number;
 }
 
-/** Structurally identical to `@jini-ai/sqlite-chat`'s `DaemonDbStatusReport` — defined locally so this package incurs no `better-sqlite3` dependency. */
+/** Structurally identical to `@jini-ai/db/sqlite`'s `DaemonDbStatusReport` — defined locally so this package incurs no `better-sqlite3` dependency. */
 export interface DaemonDbStatusReport {
   readonly kind: 'sqlite' | 'postgres';
   readonly location: string;
@@ -73,7 +73,7 @@ export interface DbIntegrityIssue {
   readonly message: string;
 }
 
-/** Structurally identical to `@jini-ai/sqlite-chat`'s `DbIntegrityReport`. */
+/** Structurally identical to `@jini-ai/db/sqlite`'s `DbIntegrityReport`. */
 export interface DbIntegrityReport {
   readonly ok: boolean;
   readonly mode: 'integrity_check' | 'quick_check';
@@ -90,7 +90,7 @@ export interface DaemonDbVacuumResult {
   readonly elapsedMs: number;
 }
 
-/** The real collaborator a host injects — typically backed by `@jini-ai/sqlite-chat`'s `inspectSqliteDatabase`/`verifySqliteIntegrity` plus a small `vacuum` wrapper around `db.exec('VACUUM')`. */
+/** The real collaborator a host injects — typically backed by `@jini-ai/db/sqlite`'s `inspectSqliteDatabase`/`verifySqliteIntegrity` plus a small `vacuum` wrapper around `db.exec('VACUUM')`. */
 export interface DaemonDbOperations {
   inspect(): Promise<DaemonDbStatusReport> | DaemonDbStatusReport;
   verify({ quick }: { readonly quick: boolean }, _optional?: Record<string, never>): Promise<DbIntegrityReport> | DbIntegrityReport;

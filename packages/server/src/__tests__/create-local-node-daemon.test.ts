@@ -28,7 +28,7 @@ import { mountRoutes } from '../mount-routes.js';
  * Real-socket integration suite for `createLocalNodeDaemon` — mirrors the established pattern in
  * `packages/platform/src/__tests__/index.test.ts` (`createServer(...).listen(0)` + `fetch()`, no
  * `supertest`). Every test here boots an actual daemon on an OS-assigned ephemeral port against a
- * real (tmp-dir) sqlite file; nothing about `@jini-ai/core`/`@jini-ai/daemon`/`@jini-ai/sqlite`/`@jini-ai/http-kit`
+ * real (tmp-dir) sqlite file; nothing about `@jini-ai/core`/`@jini-ai/daemon`/`@jini-ai/db`/`@jini-ai/http-kit`
  * is mocked. `createSqliteEventLog` is the one exception — spied on (not replaced) in a handful of
  * tests specifically to observe that `stop()` really calls the returned `EventLog`'s `close()`,
  * since reopening the same sqlite file afterward succeeds regardless of whether the original

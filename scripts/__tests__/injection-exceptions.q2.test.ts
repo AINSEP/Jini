@@ -1,6 +1,7 @@
-/** Q2 (owner answer 2026-11-15): `sqlite` and `infra` are frozen compatibility forwarders until the next major.
- * The gate excuses exactly their five package edges; each exception must be load-bearing and nothing else may be excused. */
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+/** Q2 (owner answer 2026-11-15) froze the `sqlite` and `infra` compatibility forwarders; the owner's retire
+ * order (2026-11-22, RT-1) deleted `sqlite`, so the gate now excuses only infra's one edge. Each remaining exception
+ * must be load-bearing, and an exception for a deleted forwarder must not come back to excuse a re-added one. */
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -10,12 +11,8 @@ import { REPO_ROOT } from '../lib/walk-imports.js';
 
 const Q2_EDGES = [
   { owner: 'infra', target: 'db', specGlob: '@jini-ai/db' },
-  { owner: 'sqlite', target: 'chat', specGlob: '@jini-ai/chat' },
-  { owner: 'sqlite', target: 'daemon', specGlob: '@jini-ai/daemon' },
-  { owner: 'sqlite', target: 'db', specGlob: '@jini-ai/db' },
-  { owner: 'sqlite', target: 'registry', specGlob: '@jini-ai/registry' },
 ];
-const COPIED = ['core', 'protocol', 'chat', 'daemon', 'db', 'registry', 'sqlite', 'infra'];
+const COPIED = ['core', 'protocol', 'chat', 'daemon', 'db', 'registry', 'infra'];
 const L5 = 'L5-injected-edge';
 let root: string;
 
@@ -32,7 +29,7 @@ beforeEach(() => {
     mkdirSync(join(root, 'packages', name), { recursive: true });
     cpSync(join(REPO_ROOT, 'packages', name, 'package.json'), join(root, 'packages', name, 'package.json'));
   }
-  for (const file of ['packages/sqlite/src/index.ts', 'packages/infra/src/db/driver/index.ts', 'packages/infra/src/db/sqlite/index.ts']) {
+  for (const file of ['packages/infra/src/db/driver/index.ts', 'packages/infra/src/db/sqlite/index.ts']) {
     mkdirSync(dirname(join(root, file)), { recursive: true });
     cpSync(join(REPO_ROOT, file), join(root, file));
   }
@@ -42,7 +39,7 @@ afterEach(() => rmSync(root, { recursive: true, force: true }));
 describe('Q2 frozen forwarders in scripts/injection-exceptions.json', () => {
   const real = loadExceptions({ root: REPO_ROOT });
 
-  it('lists exactly the five sqlite/infra package edges, each with the owner question, approval date and removal note', () => {
+  it('lists exactly the infra package edge, each with the owner question, approval date and removal note', () => {
     expect(real.map(edgeKey).sort()).toEqual(Q2_EDGES.map(edgeKey).sort());
     for (const item of real) {
       expect(item.ownerQuestion).toBe('Q2');
@@ -56,7 +53,13 @@ describe('Q2 frozen forwarders in scripts/injection-exceptions.json', () => {
     expect(leftover).toEqual([]);
   });
 
-  it('excuses every sqlite and infra edge of the real manifests and sources when all five exceptions are present', () => {
+  it('keeps no exception, workspace or surface baseline for the deleted sqlite forwarder', () => {
+    expect(real.filter(item => item.owner === 'sqlite')).toEqual([]);
+    expect(existsSync(join(REPO_ROOT, 'packages', 'sqlite'))).toBe(false);
+    expect(existsSync(join(REPO_ROOT, 'api-baseline', 'jini-ai__sqlite.json'))).toBe(false);
+  });
+
+  it('excuses every infra edge of the real manifests and sources when its exception is present', () => {
     writeExceptions(real);
     expect(l5Files()).toEqual([]);
   });

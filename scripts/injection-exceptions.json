@@ -1,10 +1,6 @@
 {
-  "_comment": "Owner-approved L5 exceptions. Entries come only from owner answers (ownerQuestion + approved date); never add one to silence the gate. specGlob without * also covers subpaths. The five entries below are the Q2 answer of 2026-11-15: the sqlite and infra compatibility forwarders are frozen (surface pinned by their surface tests) and are removed at the next major, not before.",
+  "_comment": "Owner-approved L5 exceptions. Entries come only from owner answers (ownerQuestion + approved date); never add one to silence the gate. specGlob without * also covers subpaths. The entry below is the Q2 answer of 2026-11-15 for the infra compatibility forwarder; the sqlite forwarder it also covered was deleted on the owner's retire order of 2026-11-22 (RT-1), so its four edges are gone with it.",
   "exceptions": [
-    {"owner": "infra", "target": "db", "specGlob": "@jini-ai/db", "ownerQuestion": "Q2", "approved": "2026-11-15", "note": "Frozen compatibility forwarder (Q2): the edge stays until the next major, then the package is deleted."},
-    {"owner": "sqlite", "target": "chat", "specGlob": "@jini-ai/chat", "ownerQuestion": "Q2", "approved": "2026-11-15", "note": "Frozen compatibility forwarder (Q2): the edge stays until the next major, then the package is deleted."},
-    {"owner": "sqlite", "target": "daemon", "specGlob": "@jini-ai/daemon", "ownerQuestion": "Q2", "approved": "2026-11-15", "note": "Frozen compatibility forwarder (Q2): the edge stays until the next major, then the package is deleted."},
-    {"owner": "sqlite", "target": "db", "specGlob": "@jini-ai/db", "ownerQuestion": "Q2", "approved": "2026-11-15", "note": "Frozen compatibility forwarder (Q2): the edge stays until the next major, then the package is deleted."},
-    {"owner": "sqlite", "target": "registry", "specGlob": "@jini-ai/registry", "ownerQuestion": "Q2", "approved": "2026-11-15", "note": "Frozen compatibility forwarder (Q2): the edge stays until the next major, then the package is deleted."}
+    {"owner": "infra", "target": "db", "specGlob": "@jini-ai/db", "ownerQuestion": "Q2", "approved": "2026-11-15", "note": "Frozen compatibility forwarder (Q2): the edge stays until the next major, then the package is deleted."}
   ]
 }

@@ -9,7 +9,6 @@
 "@jini-ai/registry": patch
 "@jini-ai/integrations": patch
 "@jini-ai/server": patch
-"@jini-ai/sqlite": patch
 "@jini-ai/infra": patch
 ---
 
