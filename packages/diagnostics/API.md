@@ -94,8 +94,9 @@ Off-origin redirect messages identify "the inspected origin"; the origin boundar
 ## Tracker facade
 
 `createTracker` from `@jini-ai/diagnostics/observability/node` composes optional existing
-`ProductAnalyticsPort` and `ObservabilityPort` providers. `Tracker` and `createNoopTracker`
-are available from the universal `observability` entry. Supply analytics after the existing
+`ProductAnalyticsPort` and `ObservabilityPort` providers. `createNoopTracker` is available from
+the universal `observability` entry; the `Tracker` contract types live in
+`@jini-ai/core/contracts/site/diagnostics-observability`. Supply analytics after the existing
 consent guard and site attribution have been applied; the facade does not apply them twice.
 
 ```ts
