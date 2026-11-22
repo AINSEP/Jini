@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { readBodyBytes, readJsonBody } from '../request-body.js';
+import { payloadTooLargeError, readBodyBytes, readJsonBody } from '../request-body.js';
 
 
 function jsonRequest(body: string, headers: Record<string, string> = {}): Request {
@@ -62,5 +62,14 @@ describe('content-encoding and exact limits', () => {
     expect(at.ok).toBe(true);
     const over = await readBodyBytes({ request: jsonRequest('{"a":12}') }, { maxBytes: 7 });
     expect(over.ok ? undefined : over.error.code).toBe('PAYLOAD_TOO_LARGE');
+  });
+});
+
+describe('payloadTooLargeError', () => {
+  it('is exactly the error readJsonBody refuses an oversized body with', async () => {
+    const request = new Request('http://local/r', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ pad: 'x'.repeat(64) }) });
+    const read = await readJsonBody({ request }, { maxBytes: 16 });
+    expect(read).toEqual({ ok: false, error: payloadTooLargeError({ maxBytes: 16 }) });
+    expect(payloadTooLargeError({ maxBytes: 16 }).code).toBe('PAYLOAD_TOO_LARGE');
   });
 });

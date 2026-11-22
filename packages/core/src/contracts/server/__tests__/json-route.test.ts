@@ -4,6 +4,8 @@ import { ClientFacingError, jsonResponse, jsonRoute, sameOriginRefusal, type Jso
 import { createInMemoryServer } from '../testing.js';
 import { createLocalSameOriginPolicy } from '../origin.js';
 import { createRecordingOriginPolicy } from '../testing.js';
+import { statusForError } from '../api-error.js';
+import { RouteRefusalError, rejectRoute } from '../route-refusal.js';
 
 describe('jsonResponse', () => {
   it('uses Express res.json content type and extra headers', async () => {
@@ -143,5 +145,44 @@ describe('sameOriginRefusal', () => {
     const viaRoute = await mount({ requireSameOrigin: true }).fetch(request.clone());
     const direct = sameOriginRefusal({ request, origin: host });
     expect([viaRoute.status, await viaRoute.text()]).toEqual([direct?.status, await direct?.text()]);
+  });
+});
+
+describe('jsonRoute: returned failures and thrown refusals reach the host error port identically', () => {
+  // A host with an error port owns the wire envelope for every caller-visible failure, so a returned
+  // `err`, the body-reading refusals and a thrown refusal must all arrive there in one shape.
+  const flatOnError = (seen: unknown[]) => ({ error }: { readonly error: unknown }): Response => {
+    seen.push(error);
+    if (error instanceof ClientFacingError) return jsonResponse({ status: statusForError({ error: error.apiError }), body: { error: error.apiError.message, code: error.apiError.code } });
+    if (error instanceof RouteRefusalError) return jsonResponse(error.response);
+    return jsonResponse({ status: 500, body: { error: 'internal' } });
+  };
+  const cases: Array<{ readonly name: string; readonly spec: Partial<JsonRouteSpec<{ n: number }, { n: number }, null>>; readonly request: () => Request; readonly status: number; readonly code: string }> = [
+    { name: 'a body over maxBodyBytes (413)', spec: { maxBodyBytes: 16 }, request: () => post({ pad: 'x'.repeat(64) }), status: 413, code: 'PAYLOAD_TOO_LARGE' },
+    { name: 'a malformed JSON body', spec: {}, request: () => new Request('http://local/r', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{nope' }), status: 400, code: 'BAD_REQUEST' },
+    { name: 'a returned parse error', spec: { parse: () => err({ error: { code: 'BAD_REQUEST', message: 'no' } }) }, request: () => post({}), status: 400, code: 'BAD_REQUEST' },
+    { name: 'a returned handler error', spec: { handle: () => err({ error: { code: 'NOT_FOUND', message: 'gone' } }) }, request: () => post({}), status: 404, code: 'NOT_FOUND' },
+    { name: 'a thrown ClientFacingError', spec: { handle: () => { throw new ClientFacingError({ apiError: { code: 'CONFLICT', message: 'taken' } }); } }, request: () => post({}), status: 409, code: 'CONFLICT' },
+  ];
+  for (const { name, spec, request, status, code } of cases) {
+    it(`hands ${name} to ports.onError as a ClientFacingError and answers with the port's envelope`, async () => {
+      const seen: unknown[] = [];
+      const response = await mount({ ...spec, ports: { onError: flatOnError(seen) } }).fetch(request());
+      expect(seen).toHaveLength(1);
+      expect(seen[0]).toBeInstanceOf(ClientFacingError);
+      expect((seen[0] as ClientFacingError).apiError.code).toBe(code);
+      expect([response.status, (await response.json() as { code: string }).code]).toEqual([status, code]);
+    });
+  }
+  it('answers a thrown RouteRefusalError with exactly the body the port writes for it', async () => {
+    const seen: unknown[] = [];
+    const response = await mount({ handle: () => rejectRoute({ status: 403, error: 'denied', code: 'FORBIDDEN' }), ports: { onError: flatOnError(seen) } }).fetch(post({}));
+    expect([response.status, await response.json(), seen[0]]).toEqual([403, { error: 'denied', code: 'FORBIDDEN' }, expect.any(RouteRefusalError)]);
+  });
+  it('without an error port, answers a returned err exactly as the same thrown ClientFacingError', async () => {
+    const apiError = { code: 'NOT_FOUND', message: 'gone' };
+    const returned = await mount({ handle: () => err({ error: apiError }) }).fetch(post({}));
+    const thrown = await mount({ handle: () => { throw new ClientFacingError({ apiError }); } }).fetch(post({}));
+    expect([returned.status, await returned.json()]).toEqual([thrown.status, await thrown.json()]);
   });
 });

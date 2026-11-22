@@ -13,6 +13,15 @@ function tooLarge(maxBytes: number): ServerApiError {
 }
 
 /**
+ * The 413 `PAYLOAD_TOO_LARGE` error for a body over a route's `maxBodyBytes`. Exported so an adapter that
+ * receives an already-parsed body (and so measures it itself) refuses with the same code and message.
+ * @complexity O(1) time/space.
+ */
+export function payloadTooLargeError({ maxBytes }: { readonly maxBytes: number }, _optional: Record<string, never> = {}): ServerApiError {
+  return tooLarge(maxBytes);
+}
+
+/**
  * Reads the whole body as bytes, refusing (413, `PAYLOAD_TOO_LARGE`) as soon as it passes
  * `maxBytes` — a declared `content-length` above the limit is refused before reading anything.
  * A request with no body gives zero bytes.
