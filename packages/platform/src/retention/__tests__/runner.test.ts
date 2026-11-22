@@ -90,7 +90,7 @@ test('one failing policy does not stop the next', async () => {
   const result = await runner.runOnce({ dryRun: false });
   assert.deepEqual(statuses(result), ['broken:failed', 'next:swept']);
   assert.deepEqual(recorder.events, ['next:sweep']);
-  assert.deepEqual(errors, [{ message: 'Storage cleanup "broken" failed while cleaning up: disk said no', policyId: 'broken' }]);
+  assert.deepEqual(errors, [{ message: 'Storage cleanup "broken" failed while cleaning up (Error).', policyId: 'broken' }]);
   assert.ok(result.status === 'completed' && result.policies[0]!.status === 'failed'
     && result.policies[0]!.message === errors[0]!.message);
 });
@@ -103,7 +103,7 @@ test('a failing measurement is reported in plain words and the pass still comple
   ]);
   const result = await runner.runOnce({ dryRun: true });
   assert.deepEqual(statuses(result), ['m:failed', 'n:measured']);
-  assert.equal(errors[0]!.message, 'Storage cleanup "m" failed while measuring: not an Error');
+  assert.equal(errors[0]!.message, 'Storage cleanup "m" failed while measuring (string).');
 });
 
 test('a throwing reportError cannot break the pass', async () => {
@@ -255,7 +255,7 @@ test('onReport receives every finished pass and its own failure is reported, not
   });
   const result = await runner.runOnce({ dryRun: true });
   assert.deepEqual(reports, [result]);
-  assert.deepEqual(errors, [{ message: 'Storage cleanup report could not be delivered: report sink full', policyId: undefined }]);
+  assert.deepEqual(errors, [{ message: 'Storage cleanup report could not be delivered (Error).', policyId: undefined }]);
 });
 
 test('kinds outside cache, derived and old-copy are refused at creation', () => {

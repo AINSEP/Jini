@@ -375,6 +375,7 @@
    "inspectStoppedSqlite": "function:4bf4efadff",
    "openSqliteConnection": "function:b1fd8e4121",
    "pruneDatabaseCopies": "function:44a70b9818",
+   "selectDatabaseCopiesToPrune": "function:cfcf12aa2e",
    "verifySqliteIntegrity": "function:c1788fe0f8",
    "withSqliteTransaction": "function:6029cb090c"
   }

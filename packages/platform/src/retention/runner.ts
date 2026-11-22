@@ -14,6 +14,8 @@
  * - `stop()` clears the timer, cancels a waiting pass and resolves once the running pass has finished,
  *   so the host can close storage right after it.
  */
+import { describeErrorForLog } from '@jini-ai/core/model-facing-tool-errors';
+import { createConsoleLogger } from '@jini-ai/core/primitives';
 
 /** Daily, matching the plan's default pass cadence; hosts can pass their own `intervalMs`. */
 export const RETENTION_DEFAULT_INTERVAL_MS = 24 * 60 * 60 * 1000;
@@ -184,7 +186,7 @@ async function executePass(
   try {
     onReport?.(result);
   } catch (error) {
-    report({ reportError, error: new Error(`Storage cleanup report could not be delivered: ${errorText(error)}`, { cause: error }) });
+    report({ reportError, error: new Error(`Storage cleanup report could not be delivered (${describeErrorForLog({ err: error })}).`, { cause: error }) });
   }
   return result;
 }
@@ -198,7 +200,9 @@ async function runPolicy(
     if (dryRun) return { id, kind, status: 'measured', measurement: await policy.measure() };
     return { id, kind, status: 'swept', result: await policy.sweep({ now }) };
   } catch (error) {
-    const message = `Storage cleanup "${id}" failed while ${dryRun ? 'measuring' : 'cleaning up'}: ${errorText(error)}`;
+    // The outcome text names only the error's class and code (a raw message can quote a path or a
+    // secret); the host's error sink still receives the full error as `cause`.
+    const message = `Storage cleanup "${id}" failed while ${dryRun ? 'measuring' : 'cleaning up'} (${describeErrorForLog({ err: error })}).`;
     report({ reportError, error: new Error(message, { cause: error }), policyId: id });
     return { id, kind, status: 'failed', message };
   }
@@ -210,12 +214,9 @@ function report(
 ): void {
   try {
     reportError(error, policyId === undefined ? {} : { policyId });
-  } catch {
-    // The error sink is the runner's only outlet; if it throws there is nowhere left to report to,
-    // and a broken sink must not turn into a failed pass or an unhandled rejection on a timer.
+  } catch (sinkError) {
+    // A broken error sink must not turn into a failed pass or an unhandled rejection on a timer, so
+    // its own failure goes to the console logger, the last outlet left.
+    createConsoleLogger({ prefix: '' }).warn({ message: '[retention] the error reporter failed; the pass continues:' }, { error: sinkError });
   }
-}
-
-function errorText(error: unknown, _optional: Record<string, never> = {}): string {
-  return error instanceof Error ? error.message : String(error);
 }
