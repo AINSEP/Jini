@@ -1228,6 +1228,56 @@
    "useRedirectsPorts": "function:7814d9eb73"
   }
  },
+ "./roles/i18n/roles-sentence-parts": {
+  "types": "./dist/roles/i18n/roles-sentence-parts.d.ts",
+  "symbols": {
+   "permissionRemoveBodyParts": "function:cbfe1f933a",
+   "policyDeleteBodyParts": "function:7d0b5d8f0c",
+   "roleDeleteBodyParts": "function:df80c8327f",
+   "rolesDescriptionParts": "function:7abf00f969"
+  }
+ },
+ "./roles/roles-i18n": {
+  "types": "./dist/roles/roles-i18n.d.ts",
+  "symbols": {
+   "t": "variable:44d298bf90"
+  }
+ },
+ "./roles/Roles.hooks": {
+  "types": "./dist/roles/Roles.hooks.d.ts",
+  "symbols": {
+   "PoliciesIcon": "function:00a3f6a015",
+   "ROLES_TAB_IDS": "variable:4872049fb2",
+   "RolesIcon": "function:c19b04dced",
+   "RolesTabId": "type:bc088675e4",
+   "resolveRolesTabId": "function:3302037b14",
+   "resolveRolesTabs": "function:41c2a92f00"
+  }
+ },
+ "./roles/rules": {
+  "types": "./dist/roles/rules.d.ts",
+  "symbols": {
+   "KEYS": "variable:0283f03c32",
+   "PolicyRowMenuHandlers": "interface:f4af1decb0",
+   "RoleRowMenuHandlers": "interface:587589b71b",
+   "RolesApiErrorPort": "interface:f478de0a40",
+   "describeApiError": "function:b11a043323",
+   "policyMenuItems": "function:9fda96cce8",
+   "roleMenuItems": "function:2cad84a082"
+  }
+ },
+ "./screens/auth/hooks/login-port.hooks": {
+  "types": "./dist/screens/auth/hooks/login-port.hooks.d.ts",
+  "symbols": {
+   "LoginPort": "interface:f84dfe5bdc"
+  }
+ },
+ "./screens/auth/Login.hooks": {
+  "types": "./dist/screens/auth/Login.hooks.d.ts",
+  "symbols": {
+   "createLoginTranslator": "function:79398d647d"
+  }
+ },
  "./screens/collections/api/collections-api.types": {
   "types": "./dist/screens/collections/api/collections-api.types.d.ts",
   "symbols": {
@@ -1454,17 +1504,21 @@
    "CredentialCategory": "type:e24d8f4285",
    "CredentialDraft": "interface:591cf8db01",
    "CredentialField": "interface:eb259e31c1",
+   "CredentialGroupSortInput": "interface:624f6bdcf9",
    "CredentialInput": "interface:c496dcafc6",
    "CredentialKind": "type:acc5944f27",
    "CredentialPatch": "interface:54994b98c0",
-   "CredentialProvider": "interface:295d4f05ff",
-   "CredentialStorePort": "interface:98dedb161c",
-   "CredentialSummary": "interface:08b89fd526",
+   "CredentialProvider": "interface:9cb4c6f5d8",
+   "CredentialStorePort": "interface:facf104c1b",
+   "CredentialStoreSnapshot": "interface:a90703458c",
+   "CredentialSummary": "interface:ce400afb28",
    "DescribeRootKeyError": "type:0ce4948eeb",
+   "DescribeRootKeyRefusal": "type:c0ebaf76b3",
    "OTHER_STORES": "variable:25480210ca",
    "OtherCredentialSummary": "interface:45063c91c3",
    "OtherCredentialsPort": "interface:13a5b5dc27",
    "OtherStoreId": "type:00236e4221",
+   "PublishCredentialsPort": "interface:4a508cb861",
    "ROOT_KEY_ALREADY_EXISTS": "variable:072ccc89e5",
    "ROOT_KEY_GENERATE_FAILED": "variable:91db89b498",
    "ROOT_KEY_PERMISSION": "variable:858dda90ab",
@@ -1472,38 +1526,46 @@
    "RootKeyBadgeTone": "type:ba3b3b83f6",
    "RootKeyCopy": "interface:eb1e80a55a",
    "RootKeyErrorDescription": "interface:31887debd9",
-   "RootKeyGenerateFailure": "type:d64edd2513",
-   "RootKeyPort": "interface:1e327b53c1",
+   "RootKeyGenerateFailure": "type:8d077d7685",
+   "RootKeyPort": "interface:70754dec88",
    "RootKeyPreview": "interface:e158d49a2d",
    "RootKeyResult": "interface:6db62e7f4e",
+   "RootKeyReveal": "interface:7f2e2cc477",
    "RootKeyState": "type:75840949ee",
    "RootKeyStatus": "interface:89585e8ffc",
    "START_FRESH_CONFIRMATION": "variable:bd12c30403",
-   "SecurityApiPort": "interface:e7ae4d0227",
+   "SecurityApiPort": "interface:d12d574d8e",
    "SecurityTranslator": "type:36a7df8662",
    "SecurityTransportPort": "interface:03f6485de8",
    "blankCredentialDraft": "function:9c6aae1e9b",
    "buildCredentialPatch": "function:d7156dee21",
    "classifyRootKeyGenerateFailure": "function:6ce104e5a4",
-   "createAccessTokensController": "function:22b052dc57",
+   "createAccessTokensController": "function:f0d903a9ed",
    "createOtherCredentialsController": "function:f9699a0d31",
-   "createRootKeyController": "function:7624fda85f",
+   "createRootKeyController": "function:19b0ea8132",
    "credentialCategory": "function:17bc412cf1",
-   "credentialLabel": "function:43bfe06e11",
+   "credentialCountText": "function:3165a6e95e",
+   "credentialLabel": "function:269b46af2c",
    "credentialStore": "function:f1f16c983f",
    "englishSecurity": "variable:b3ca7c0f96",
    "filterCredentials": "function:18bad887d8",
    "filterOtherCredentials": "function:b696bcfd60",
-   "isRootKeyLocked": "function:9d60a59798",
+   "isRootKeyLocked": "function:41ed883fb0",
+   "legacyCredentialLabel": "function:30e69caaf4",
    "otherCredentialsToken": "variable:893fd6fbf8",
    "otherWritePermission": "function:8fc6cb50f7",
+   "providerMatchesQuery": "function:baed275bc8",
+   "providersWithSavedRows": "function:d9b05f44d6",
    "rootKeyBadge": "function:707c3fa186",
-   "rootKeyGenerateFailureText": "function:cbdd7d1399",
+   "rootKeyGenerateFailureText": "function:b077a56758",
+   "rootKeyRefusalText": "function:7f1e4aa67d",
    "rootKeySourceNote": "function:b12c10cef0",
    "rootKeyToken": "variable:086162378c",
+   "rowMatchesQuery": "function:ded02b5090",
    "securityApiToken": "variable:457a36222b",
-   "securityMessagesEn": "variable:0a9d7c9141",
-   "securityModule": "variable:9039b54fbf",
+   "securityMessagesEn": "variable:544d49b72e",
+   "securityModule": "variable:70b8fc3c11",
+   "sortCredentialGroups": "function:bb66b09ade",
    "validateCredentialDraft": "function:2c42416b1f",
    "writePermission": "function:eed8d35ca5"
   }
@@ -1512,7 +1574,8 @@
   "types": "./dist/security/adapters/http.d.ts",
   "symbols": {
    "createHttpOtherCredentials": "function:bcd1087600",
-   "createHttpRootKey": "function:e54763a775",
+   "createHttpPublishCredentials": "function:987d8793c4",
+   "createHttpRootKey": "function:1668f6beaf",
    "createHttpSecurityApi": "function:f0a0806fbc"
   }
  },
@@ -1520,24 +1583,26 @@
   "types": "./dist/security/adapters/memory.d.ts",
   "symbols": {
    "createMemoryOtherCredentials": "function:2c1dd14ed5",
-   "createMemoryRootKey": "function:01208091cf",
-   "createMemorySecurityApi": "function:92b19a80c9"
+   "createMemoryPublishCredentials": "function:6e60355fdf",
+   "createMemoryRootKey": "function:60732124b9",
+   "createMemorySecurityApi": "function:2b43bb149a"
   }
  },
  "./security/conformance": {
   "types": "./dist/security/conformance/security-api.conformance.d.ts",
   "symbols": {
+   "runPublishCredentialsConformance": "function:4286ca4c98",
    "runSecurityApiConformance": "function:61c7428162"
   }
  },
  "./security/react": {
   "types": "./dist/security/react/index.d.ts",
   "symbols": {
-   "SecurityModuleOptions": "interface:4236c3423e",
+   "SecurityModuleOptions": "interface:0969e9a6a2",
    "SecurityRootKeyTabOptions": "interface:20f25ecf87",
    "SecurityTabIcons": "type:76808971db",
    "SecurityTranslator": "type:36a7df8662",
-   "security": "function:0c8db02934",
+   "security": "function:f2c348779f",
    "useSecurityOwnerControls": "function:ac3d8453f3",
    "useSecurityPorts": "function:a0ed09c781",
    "useSecurityTranslation": "function:7d8accfc14"
@@ -1932,6 +1997,12 @@
    "useAssistantPromptRequests": "function:036fa8e213"
   }
  },
+ "./shell/lib/boot-token-fragment": {
+  "types": "./dist/shell/lib/boot-token-fragment.d.ts",
+  "symbols": {
+   "takeBootToken": "function:c84d4a9a18"
+  }
+ },
  "./shell/lib/browser-stream": {
   "types": "./dist/shell/lib/browser-stream.d.ts",
   "symbols": {
@@ -2288,50 +2359,6 @@
    "useWidgetsOptions": "function:c4075eb9d5",
    "useWidgetsPorts": "function:262f4fd604",
    "widgets": "function:2f5403fc99"
-  }
- },
- "./roles/api/roles-api.types": {
-  "types": "./dist/roles/api/roles-api.types.d.ts",
-  "symbols": {
-   "AdminPolicy": "interface:c55623308e",
-   "AdminPolicyPermission": "interface:b6c565baf1",
-   "AdminRole": "interface:082b214d1e"
-  }
- },
- "./roles/Roles.hooks": {
-  "types": "./dist/roles/Roles.hooks.d.ts",
-  "symbols": {
-   "PoliciesIcon": "function:00a3f6a015",
-   "ROLES_TAB_IDS": "variable:4872049fb2",
-   "RolesIcon": "function:c19b04dced",
-   "RolesTabId": "type:bc088675e4",
-   "goToRolesTab": "function:3ac767b04d",
-   "resolveRolesTabId": "function:3302037b14",
-   "resolveRolesTabs": "function:d27e71826f"
-  }
- },
- "./screens/auth/api/auth-api.types": {
-  "types": "./dist/screens/auth/api/auth-api.types.d.ts",
-  "symbols": {
-   "AdminUser": "interface:0be19e739a"
-  }
- },
- "./screens/auth/hooks/login-port.hooks": {
-  "types": "./dist/screens/auth/hooks/login-port.hooks.d.ts",
-  "symbols": {
-   "LoginPort": "interface:f84dfe5bdc"
-  }
- },
- "./screens/auth/Login.hooks": {
-  "types": "./dist/screens/auth/Login.hooks.d.ts",
-  "symbols": {
-   "createLoginTranslator": "function:79398d647d"
-  }
- },
- "./shell/lib/boot-token-fragment": {
-  "types": "./dist/shell/lib/boot-token-fragment.d.ts",
-  "symbols": {
-   "takeBootToken": "function:c84d4a9a18"
   }
  }
 }

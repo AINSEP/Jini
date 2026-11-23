@@ -1294,6 +1294,23 @@
    "SiteAssistantCredentialPatch": "interface:33ba95fcc3"
   }
  },
+ "./contracts/site/api-security-api-types": {
+  "types": "./dist/contracts/site/api-security-api-types.d.ts",
+  "symbols": {
+   "AdminCredentialCopyResult": "interface:25d2a825be",
+   "AdminCredentialCopySource": "interface:7effc58602",
+   "AdminCustomConnectionInput": "interface:560478c5f1",
+   "AdminCustomCredentialCategoryId": "type:1ef026606c",
+   "AdminCustomCredentialSummary": "interface:9c232a01b2",
+   "AdminCustomCredentialsSnapshot": "interface:48960061dc",
+   "AdminPublishConnectionInput": "type:92c115f674",
+   "AdminPublishCredentialProviderId": "type:985ea71a52",
+   "AdminPublishCredentialSummary": "interface:a2054c3635",
+   "AdminPublishCredentialVerification": "interface:38bf7d5da3",
+   "AdminPublishCredentialsSnapshot": "interface:9c68f5ec3d",
+   "AdminPublishExecutionMode": "type:d11839e0e7"
+  }
+ },
  "./contracts/site/assistant-host-ports": {
   "types": "./dist/contracts/site/assistant-host-ports.d.ts",
   "symbols": {
