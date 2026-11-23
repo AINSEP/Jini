@@ -209,7 +209,9 @@
         "src/widgets/markers/marker.ts",
         "src/navigation/href.ts",
         "src/media/cover-image.ts",
-        "src/html/site/slug.ts"
+        "src/html/site/slug.ts",
+        "src/widgets/markers/gallery.ts",
+        "src/widgets/markers/media-reference.ts"
       ]
     },
     "optionalPeers": {

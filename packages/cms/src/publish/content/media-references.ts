@@ -1,4 +1,5 @@
-import { embedMarkerTarget, galleryMediaReferences, scanEmbedMarkers } from "../../widgets/markers/index.js";
+import { embedMarkerTarget, scanEmbedMarkers } from "../../widgets/markers/marker.js";
+import { galleryMediaReferences } from "../../widgets/markers/gallery.js";
 
 /**
  * @file Which media a packed post/page state points at — owner decision 2026-09-25, "images go along

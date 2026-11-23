@@ -16,8 +16,7 @@
 import { spawn, type ChildProcess, type SpawnOptions } from "node:child_process";
 import type { ProcessControlPort, ProcessSnapshot, RuntimePlatform, StopProcessesResult } from "@jini-ai/core/contracts/runtime";
 
-/** The three positional process functions the process-control port wraps (a Node host passes
- * `@jini-ai/platform/process`'s; the result types are core's, so either side changing fails here). */
+/** The three platform process functions the process-control port wraps. */
 export interface ProcessFunctions {
   readonly listProcessSnapshots: (required: Record<string, never>, optional: { timeoutMs?: number; commandLines?: boolean }) => Promise<ProcessSnapshot[]>;
   readonly stopProcesses: (pids: Array<number | null | undefined>) => Promise<StopProcessesResult>;
@@ -26,6 +25,8 @@ export interface ProcessFunctions {
 
 /**
  * Adapts the injected positional process functions to {@link ProcessControlPort}.
+ * A Node host passes `@jini-ai/platform/process`'s functions; their result types are core's, so a
+ * drift on either side fails the typecheck here.
  * `stopProcesses` receives a new mutable copy of the port's readonly array; an absent
  * `timeoutMs` reaches `waitForProcessExit` as `undefined` so its own default applies.
  * @complexity O(1) construction; each member costs what the wrapped function costs.

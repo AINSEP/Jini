@@ -1520,6 +1520,14 @@
     {
       "id": "fed8b7760611",
       "reason": "combine-9 (coordinator decision from lockfile-1120): code deleted by R8b step 6 (the executor's legacy runtime options, resolvers and their pre-R8b test/kernel notes went with it; R11b-1 step 4 for the sidecar platform-ABI note). Was packages/sidecar/src/supervision/supervisor-node.ts:49-49."
+    },
+    {
+      "id": "038b97d439de",
+      "reason": "ex5-fnd-inject K4-seam-1 B6: the additive window this @file described is closed (daemon's duplicate AssistantSurfaceDeps is removed); the rewritten test's header says what it guards now (the live daemon store satisfies core's contract). Was packages/daemon/src/__tests__/surface-deps-core-contract.test.ts:8-12."
+    },
+    {
+      "id": "e0c5d06471c8",
+      "reason": "ex5-fnd-inject XC-6a: the code it described (the pre-bound nodeProcessControl constant) is deleted; hosts now build the port with createProcessControlPort and their own platform functions. Was packages/node-adapters/src/process.ts:41-41."
     }
   ]
 }

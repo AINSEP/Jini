@@ -86,7 +86,6 @@
       "./tool-metadata/change-sets": "universal",
       "./tool-metadata/consent": "universal",
       "./tool-metadata/content-duplication": "universal",
-      "./tool-metadata/content-read": "universal",
       "./tool-metadata/content-types": "universal",
       "./tool-metadata/custom-credentials": "universal",
       "./tool-metadata/database-transfer": "universal",
@@ -107,7 +106,21 @@
       "./contracts/site/daemon": "universal",
       "./contracts/site/plugins-host": "universal",
       "./contracts/site/db-data-modules": "universal",
-      "./contracts/site/assistant-tool-contributions": "universal"
+      "./contracts/site/assistant-tool-contributions": "universal",
+      "./contracts/site/user-management-react": "universal",
+      "./contracts/site/cookie-consent": "universal",
+      "./contracts/site/cms-forms": "universal",
+      "./contracts/site/core-run-events": "universal",
+      "./contracts/site/core-commands": "universal",
+      "./contracts/site/assistant-mcp-services": "universal",
+      "./contracts/site/recovery-operation-lock": "universal",
+      "./contracts/site/http-kit-rate-limit": "universal",
+      "./contracts/site/daemon-tool-recovery": "universal",
+      "./contracts/site/headless-assistant-permanent-deletes-policy": "universal",
+      "./contracts/site/integrations-credentialed-http": "universal",
+      "./contracts/site/widgets-html": "universal",
+      "./contracts/site/integrations-api-connections": "universal",
+      "./contracts/site/chat-core": "universal"
     },
     "isolation": {
       "entries": {
@@ -525,11 +538,6 @@
       "import": "./dist/tool-metadata/content-duplication.js",
       "default": "./dist/tool-metadata/content-duplication.js"
     },
-    "./tool-metadata/content-read": {
-      "types": "./dist/tool-metadata/content-read.d.ts",
-      "import": "./dist/tool-metadata/content-read.js",
-      "default": "./dist/tool-metadata/content-read.js"
-    },
     "./tool-metadata/content-types": {
       "types": "./dist/tool-metadata/content-types.d.ts",
       "import": "./dist/tool-metadata/content-types.js",
@@ -634,6 +642,76 @@
       "types": "./dist/contracts/site/assistant-tool-contributions.d.ts",
       "import": "./dist/contracts/site/assistant-tool-contributions.js",
       "default": "./dist/contracts/site/assistant-tool-contributions.js"
+    },
+    "./contracts/site/user-management-react": {
+      "types": "./dist/contracts/site/user-management-react.d.ts",
+      "import": "./dist/contracts/site/user-management-react.js",
+      "default": "./dist/contracts/site/user-management-react.js"
+    },
+    "./contracts/site/cookie-consent": {
+      "types": "./dist/contracts/site/cookie-consent.d.ts",
+      "import": "./dist/contracts/site/cookie-consent.js",
+      "default": "./dist/contracts/site/cookie-consent.js"
+    },
+    "./contracts/site/cms-forms": {
+      "types": "./dist/contracts/site/cms-forms.d.ts",
+      "import": "./dist/contracts/site/cms-forms.js",
+      "default": "./dist/contracts/site/cms-forms.js"
+    },
+    "./contracts/site/core-run-events": {
+      "types": "./dist/contracts/site/core-run-events.d.ts",
+      "import": "./dist/contracts/site/core-run-events.js",
+      "default": "./dist/contracts/site/core-run-events.js"
+    },
+    "./contracts/site/core-commands": {
+      "types": "./dist/contracts/site/core-commands.d.ts",
+      "import": "./dist/contracts/site/core-commands.js",
+      "default": "./dist/contracts/site/core-commands.js"
+    },
+    "./contracts/site/assistant-mcp-services": {
+      "types": "./dist/contracts/site/assistant-mcp-services.d.ts",
+      "import": "./dist/contracts/site/assistant-mcp-services.js",
+      "default": "./dist/contracts/site/assistant-mcp-services.js"
+    },
+    "./contracts/site/recovery-operation-lock": {
+      "types": "./dist/contracts/site/recovery-operation-lock.d.ts",
+      "import": "./dist/contracts/site/recovery-operation-lock.js",
+      "default": "./dist/contracts/site/recovery-operation-lock.js"
+    },
+    "./contracts/site/http-kit-rate-limit": {
+      "types": "./dist/contracts/site/http-kit-rate-limit.d.ts",
+      "import": "./dist/contracts/site/http-kit-rate-limit.js",
+      "default": "./dist/contracts/site/http-kit-rate-limit.js"
+    },
+    "./contracts/site/daemon-tool-recovery": {
+      "types": "./dist/contracts/site/daemon-tool-recovery.d.ts",
+      "import": "./dist/contracts/site/daemon-tool-recovery.js",
+      "default": "./dist/contracts/site/daemon-tool-recovery.js"
+    },
+    "./contracts/site/headless-assistant-permanent-deletes-policy": {
+      "types": "./dist/contracts/site/headless-assistant-permanent-deletes-policy.d.ts",
+      "import": "./dist/contracts/site/headless-assistant-permanent-deletes-policy.js",
+      "default": "./dist/contracts/site/headless-assistant-permanent-deletes-policy.js"
+    },
+    "./contracts/site/integrations-credentialed-http": {
+      "types": "./dist/contracts/site/integrations-credentialed-http.d.ts",
+      "import": "./dist/contracts/site/integrations-credentialed-http.js",
+      "default": "./dist/contracts/site/integrations-credentialed-http.js"
+    },
+    "./contracts/site/widgets-html": {
+      "types": "./dist/contracts/site/widgets-html.d.ts",
+      "import": "./dist/contracts/site/widgets-html.js",
+      "default": "./dist/contracts/site/widgets-html.js"
+    },
+    "./contracts/site/integrations-api-connections": {
+      "types": "./dist/contracts/site/integrations-api-connections.d.ts",
+      "import": "./dist/contracts/site/integrations-api-connections.js",
+      "default": "./dist/contracts/site/integrations-api-connections.js"
+    },
+    "./contracts/site/chat-core": {
+      "types": "./dist/contracts/site/chat-core.d.ts",
+      "import": "./dist/contracts/site/chat-core.js",
+      "default": "./dist/contracts/site/chat-core.js"
     }
   },
   "files": [
