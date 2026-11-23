@@ -224,7 +224,28 @@ describe("createAdminHttp — legacy request shapes", () => {
   });
 
   it("buildFetchInit merges headers onto the JSON default and lets a caller's own type win", () => {
-    expect(buildFetchInit({ headers: { "If-Match": "x" } })).toEqual({ credentials: "same-origin", headers: { "Content-Type": "application/json", "If-Match": "x" } });
-    expect(buildFetchInit({ headers: { "content-type": "text/plain" } }).headers).toEqual({ "content-type": "text/plain" });
+    expect(buildFetchInit({ init: { headers: { "If-Match": "x" } } })).toEqual({ credentials: "same-origin", headers: { "Content-Type": "application/json", "If-Match": "x" } });
+    expect(buildFetchInit({ init: { headers: { "content-type": "text/plain" } } }).headers).toEqual({ "content-type": "text/plain" });
+    expect(buildFetchInit({ init: { headers: { "CONTENT-TYPE": "text/plain" } } }).headers).toEqual({ "CONTENT-TYPE": "text/plain" });
+    expect(buildFetchInit({}).headers).toEqual({ "Content-Type": "application/json" });
+  });
+
+  // One merge stage with the route-group transport: every HeadersInit form keeps its headers.
+  it.each<[string, () => HeadersInit, Record<string, string>]>([
+    ["Headers", () => new Headers({ "If-Match": "x" }), { "Content-Type": "application/json", "if-match": "x" }],
+    ["tuples", () => [["If-Match", "x"]], { "Content-Type": "application/json", "If-Match": "x" }],
+    ["Headers with a type", () => new Headers({ "Content-Type": "text/plain", "If-Match": "x" }), { "content-type": "text/plain", "if-match": "x" }],
+    ["tuples with a type", () => [["content-type", "text/plain"]], { "content-type": "text/plain" }],
+  ])("buildFetchInit merges a %s init onto the default without dropping it", (_name, headers, expected) => {
+    const source = headers();
+    const before = Array.from(new Headers(source).entries());
+    expect(buildFetchInit({ init: { headers: source } }).headers).toEqual(expected);
+    expect(Array.from(new Headers(source).entries())).toEqual(before);
+  });
+
+  it("request sends a Headers-instance init through the same merge", async () => {
+    const r = recorder([jsonResponse({ ok: true })]);
+    await createAdminHttp({ ports: r.ports, timeoutMs: 5 }).request({ path: "/h" }, { init: { headers: new Headers({ "If-Match": "v2" }) } });
+    expect(r.fetch.mock.calls[0]![0].init.headers).toEqual({ "Content-Type": "application/json", "if-match": "v2" });
   });
 });
