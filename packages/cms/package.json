@@ -215,7 +215,36 @@
       "./admin-http/routes/newsletter/create-subscription": "universal",
       "./admin-http/routes/newsletter/import-subscriptions": "universal",
       "./admin-http/routes/newsletter/remove-subscription": "universal",
-      "./admin-http/routes/newsletter/resend-confirmation": "universal"
+      "./admin-http/routes/newsletter/resend-confirmation": "universal",
+      "./admin-http/routes/integrations/create": "universal",
+      "./admin-http/routes/integrations/delete": "universal",
+      "./admin-http/routes/integrations/deliveries": "universal",
+      "./admin-http/routes/integrations/list": "universal",
+      "./admin-http/routes/integrations/pause": "universal",
+      "./admin-http/routes/integrations/shared": "universal",
+      "./admin-http/http/integrations": "universal",
+      "./admin-http/routes/members/shared": "universal",
+      "./admin-http/routes/members/list": "universal",
+      "./admin-http/routes/members/get-by-id": "universal",
+      "./admin-http/routes/members/delete": "universal",
+      "./admin-http/routes/members/disable": "universal",
+      "./admin-http/http/members": "universal",
+      "./admin-http/routes/trash/list": "universal",
+      "./admin-http/routes/trash/items": "universal",
+      "./admin-http/routes/trash/purge": "universal",
+      "./admin-http/routes/trash/restore": "universal",
+      "./admin-http/routes/trash/shared": "universal",
+      "./admin-http/http/trash": "universal",
+      "./admin-http/routes/skills/files": "universal",
+      "./admin-http/routes/skills/install": "universal",
+      "./admin-http/routes/skills/set-enabled": "universal",
+      "./admin-http/routes/skills/uninstall": "universal",
+      "./admin-http/routes/skills/guidance": "universal",
+      "./admin-http/routes/fs-files/custom-root": "universal",
+      "./public-http/routes/ops/health": "universal",
+      "./admin-http/routes/commerce/status": "universal",
+      "./admin-http/routes/site/profile": "universal",
+      "./admin-http/routes/redirects/create": "universal"
     },
     "isolation": {
       "domains": {
@@ -339,7 +368,14 @@
         "./admin-http/routes/newsletter/create-subscription": "newsletter",
         "./admin-http/routes/newsletter/import-subscriptions": "newsletter",
         "./admin-http/routes/newsletter/remove-subscription": "newsletter",
-        "./admin-http/routes/newsletter/resend-confirmation": "newsletter"
+        "./admin-http/routes/newsletter/resend-confirmation": "newsletter",
+        "./admin-http/routes/trash/list": "trash",
+        "./admin-http/routes/trash/items": "trash",
+        "./admin-http/routes/trash/purge": "trash",
+        "./admin-http/routes/trash/restore": "trash",
+        "./admin-http/routes/trash/shared": "trash",
+        "./admin-http/http/trash": "trash",
+        "./admin-http/routes/redirects/create": "redirects"
       }
     },
     "optionalPeers": {
@@ -1370,6 +1406,151 @@
       "types": "./dist/admin-http/routes/newsletter/resend-confirmation.d.ts",
       "import": "./dist/admin-http/routes/newsletter/resend-confirmation.js",
       "default": "./dist/admin-http/routes/newsletter/resend-confirmation.js"
+    },
+    "./admin-http/routes/integrations/create": {
+      "types": "./dist/admin-http/routes/integrations/create.d.ts",
+      "import": "./dist/admin-http/routes/integrations/create.js",
+      "default": "./dist/admin-http/routes/integrations/create.js"
+    },
+    "./admin-http/routes/integrations/delete": {
+      "types": "./dist/admin-http/routes/integrations/delete.d.ts",
+      "import": "./dist/admin-http/routes/integrations/delete.js",
+      "default": "./dist/admin-http/routes/integrations/delete.js"
+    },
+    "./admin-http/routes/integrations/deliveries": {
+      "types": "./dist/admin-http/routes/integrations/deliveries.d.ts",
+      "import": "./dist/admin-http/routes/integrations/deliveries.js",
+      "default": "./dist/admin-http/routes/integrations/deliveries.js"
+    },
+    "./admin-http/routes/integrations/list": {
+      "types": "./dist/admin-http/routes/integrations/list.d.ts",
+      "import": "./dist/admin-http/routes/integrations/list.js",
+      "default": "./dist/admin-http/routes/integrations/list.js"
+    },
+    "./admin-http/routes/integrations/pause": {
+      "types": "./dist/admin-http/routes/integrations/pause.d.ts",
+      "import": "./dist/admin-http/routes/integrations/pause.js",
+      "default": "./dist/admin-http/routes/integrations/pause.js"
+    },
+    "./admin-http/routes/integrations/shared": {
+      "types": "./dist/admin-http/routes/integrations/shared.d.ts",
+      "import": "./dist/admin-http/routes/integrations/shared.js",
+      "default": "./dist/admin-http/routes/integrations/shared.js"
+    },
+    "./admin-http/http/integrations": {
+      "types": "./dist/admin-http/http/integrations.d.ts",
+      "import": "./dist/admin-http/http/integrations.js",
+      "default": "./dist/admin-http/http/integrations.js"
+    },
+    "./admin-http/routes/members/shared": {
+      "types": "./dist/admin-http/routes/members/shared.d.ts",
+      "import": "./dist/admin-http/routes/members/shared.js",
+      "default": "./dist/admin-http/routes/members/shared.js"
+    },
+    "./admin-http/routes/members/list": {
+      "types": "./dist/admin-http/routes/members/list.d.ts",
+      "import": "./dist/admin-http/routes/members/list.js",
+      "default": "./dist/admin-http/routes/members/list.js"
+    },
+    "./admin-http/routes/members/get-by-id": {
+      "types": "./dist/admin-http/routes/members/get-by-id.d.ts",
+      "import": "./dist/admin-http/routes/members/get-by-id.js",
+      "default": "./dist/admin-http/routes/members/get-by-id.js"
+    },
+    "./admin-http/routes/members/delete": {
+      "types": "./dist/admin-http/routes/members/delete.d.ts",
+      "import": "./dist/admin-http/routes/members/delete.js",
+      "default": "./dist/admin-http/routes/members/delete.js"
+    },
+    "./admin-http/routes/members/disable": {
+      "types": "./dist/admin-http/routes/members/disable.d.ts",
+      "import": "./dist/admin-http/routes/members/disable.js",
+      "default": "./dist/admin-http/routes/members/disable.js"
+    },
+    "./admin-http/http/members": {
+      "types": "./dist/admin-http/http/members.d.ts",
+      "import": "./dist/admin-http/http/members.js",
+      "default": "./dist/admin-http/http/members.js"
+    },
+    "./admin-http/routes/trash/list": {
+      "types": "./dist/admin-http/routes/trash/list.d.ts",
+      "import": "./dist/admin-http/routes/trash/list.js",
+      "default": "./dist/admin-http/routes/trash/list.js"
+    },
+    "./admin-http/routes/trash/items": {
+      "types": "./dist/admin-http/routes/trash/items.d.ts",
+      "import": "./dist/admin-http/routes/trash/items.js",
+      "default": "./dist/admin-http/routes/trash/items.js"
+    },
+    "./admin-http/routes/trash/purge": {
+      "types": "./dist/admin-http/routes/trash/purge.d.ts",
+      "import": "./dist/admin-http/routes/trash/purge.js",
+      "default": "./dist/admin-http/routes/trash/purge.js"
+    },
+    "./admin-http/routes/trash/restore": {
+      "types": "./dist/admin-http/routes/trash/restore.d.ts",
+      "import": "./dist/admin-http/routes/trash/restore.js",
+      "default": "./dist/admin-http/routes/trash/restore.js"
+    },
+    "./admin-http/routes/trash/shared": {
+      "types": "./dist/admin-http/routes/trash/shared.d.ts",
+      "import": "./dist/admin-http/routes/trash/shared.js",
+      "default": "./dist/admin-http/routes/trash/shared.js"
+    },
+    "./admin-http/http/trash": {
+      "types": "./dist/admin-http/http/trash.d.ts",
+      "import": "./dist/admin-http/http/trash.js",
+      "default": "./dist/admin-http/http/trash.js"
+    },
+    "./admin-http/routes/skills/files": {
+      "types": "./dist/admin-http/routes/skills/files.d.ts",
+      "import": "./dist/admin-http/routes/skills/files.js",
+      "default": "./dist/admin-http/routes/skills/files.js"
+    },
+    "./admin-http/routes/skills/install": {
+      "types": "./dist/admin-http/routes/skills/install.d.ts",
+      "import": "./dist/admin-http/routes/skills/install.js",
+      "default": "./dist/admin-http/routes/skills/install.js"
+    },
+    "./admin-http/routes/skills/set-enabled": {
+      "types": "./dist/admin-http/routes/skills/set-enabled.d.ts",
+      "import": "./dist/admin-http/routes/skills/set-enabled.js",
+      "default": "./dist/admin-http/routes/skills/set-enabled.js"
+    },
+    "./admin-http/routes/skills/uninstall": {
+      "types": "./dist/admin-http/routes/skills/uninstall.d.ts",
+      "import": "./dist/admin-http/routes/skills/uninstall.js",
+      "default": "./dist/admin-http/routes/skills/uninstall.js"
+    },
+    "./admin-http/routes/skills/guidance": {
+      "types": "./dist/admin-http/routes/skills/guidance.d.ts",
+      "import": "./dist/admin-http/routes/skills/guidance.js",
+      "default": "./dist/admin-http/routes/skills/guidance.js"
+    },
+    "./admin-http/routes/fs-files/custom-root": {
+      "types": "./dist/admin-http/routes/fs-files/custom-root.d.ts",
+      "import": "./dist/admin-http/routes/fs-files/custom-root.js",
+      "default": "./dist/admin-http/routes/fs-files/custom-root.js"
+    },
+    "./public-http/routes/ops/health": {
+      "types": "./dist/public-http/routes/ops/health.d.ts",
+      "import": "./dist/public-http/routes/ops/health.js",
+      "default": "./dist/public-http/routes/ops/health.js"
+    },
+    "./admin-http/routes/commerce/status": {
+      "types": "./dist/admin-http/routes/commerce/status.d.ts",
+      "import": "./dist/admin-http/routes/commerce/status.js",
+      "default": "./dist/admin-http/routes/commerce/status.js"
+    },
+    "./admin-http/routes/site/profile": {
+      "types": "./dist/admin-http/routes/site/profile.d.ts",
+      "import": "./dist/admin-http/routes/site/profile.js",
+      "default": "./dist/admin-http/routes/site/profile.js"
+    },
+    "./admin-http/routes/redirects/create": {
+      "types": "./dist/admin-http/routes/redirects/create.d.ts",
+      "import": "./dist/admin-http/routes/redirects/create.js",
+      "default": "./dist/admin-http/routes/redirects/create.js"
     }
   },
   "files": [

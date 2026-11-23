@@ -228,3 +228,58 @@ domains remain `adapter-unavailable` after authorization even when their entity 
 character check from the host (Tovu passes `@jini-ai/core/contracts/server/verified-origin`'s), and
 `canPublishToLive({ resolveRuntimeMode, env? })` takes the host's runtime-mode resolver. Neither
 module imports another package's runtime implementation.
+
+`./admin-http/routes/members/{list,get-by-id,disable,delete}`: server-neutral `defineJsonRoute` specs for the admin members
+routes, with the DTO helper at `./admin-http/http/members` and the shared guards at `./admin-http/routes/members/shared`.
+The members library is not in this package, so the host injects its collaborators: `disableMember` (disable), `trashMember`
+(delete) and `classifyMemberError`, a `(err) => "not-found" | "validation" | "conflict" | undefined` classifier for the
+library's error classes. Each route owns its status table over those kinds (delete 404/409/400, disable 404/400, get-by-id
+404; list maps `ToolInputError` to 400 `VALIDATION_ERROR`); an unclassified error is rethrown for the host's 500.
+`memberRepo` is Pick'd to `list`/`findById` and read structurally (`AdminMemberSource`). Authorization is `member.manage`
+on the `member` entity (by-id routes pass `{ entityId }`).
+
+`./admin-http/routes/trash/{list,restore,purge,items}`: server-neutral specs for the admin Trash routes, with shared limits
+and guards in `./admin-http/routes/trash/shared` and the screen row DTO in `./admin-http/http/trash`. The host binds the
+product policy as required deps: `authorizeEntry` (the Trash entry gate, answering `{ permission, allowed, reason }`),
+`mayActOn`/`filterVisible` (per-kind permission and visibility), `moveToTrash` (the generic single-item move, answering
+`TrashMoveOutcome`), `userRepo.list` (the "Deleted by" usernames) and `loadPostDisplayKinds` (post/page subtype by id). The
+specs own the HTTP contract: query clamping, selection validation after the entry gate, 403/404/409 bodies, per-item outcomes.
+
+`./admin-http/routes/skills/{files,install,set-enabled,uninstall,guidance}`: server-neutral specs gated by
+`admin.assistant.use` on the `skill` entity type (no entity id). The host binds everything that touches its disk or product:
+`loadSkillSources`, `readSkillFiles` (the Node package reader, which enforces containment) with `fileLimits`,
+`installRecordFileName` (hidden from the files listing), `installSkill`/`setSkillEnabled`/`uninstallSkill`,
+`skillRegistrations.build` (whose read-only handler answers the guidance preview) and `isSkillInputError` (mapped to the flat
+`{ error, code: "VALIDATION_ERROR" }` 400). Bodies are validated after authorization, as before. The skills list (ETag/304)
+stays host-side.
+
+`./admin-http/routes/integrations/{list,create,pause,delete,deliveries}`: server-neutral specs with the DTO helper at
+`./admin-http/http/integrations`, gated by `admin.integrations.manage` on `webhook_subscription` (`entityId` on delete,
+pause and deliveries). `@jini-ai/cms` does not depend on `@jini-ai/integrations`, so the webhook feature is injected:
+create/pause/delete take a lifecycle function plus `isValidationError`/`isNotFoundError` matchers for the feature's error
+classes; list and deliveries take the subscription and delivery repos as narrow read views. The host owns actor
+attribution, the egress policy and the version-conflict throw (answered as the shared 409 body).
+
+`./public-http/routes/ops/health`: `healthRoute` (`GET /health`) and `healthzRoute` (`GET /healthz`), public liveness probes
+that take no deps, never authorize and always answer 200 `{ ok: true }`. A host mounts them with its public JSON ports ahead
+of any body parser or session middleware, so they answer while the rest of the app is still booting. Readiness (`/readyz`)
+stays host-owned.
+
+`./admin-http/routes/fs-files/custom-root`: `fsCustomRootGetRoute`/`PutRoute`/`DeleteRoute` for the admin filesystem custom
+root. The host injects `readCustomRoot`, `writeCustomRoot` (a path, or `null` to clear), `isInvalidRootError` (mapped to 400
+`INVALID_PATH`) and the `readPermission`/`managePermission` names; `PUT` authorizes before validating its body. Not yet
+mounted by Tovu (the mount waits on a route-table pin decision); the folder-picker routes stay host-side.
+
+`./admin-http/routes/commerce/status`: the admin Commerce operational-status route as a server-neutral spec. It reads the
+served workspace and one injected status read (`readCommerceStatus`); the host binds that read to whichever payment runtime it
+composed (or none), so cms does not depend on the Commerce package. Authorizes `admin.integrations.manage` on `integration`;
+a reader failure is not caught and reaches the host's redacted error port.
+
+`./admin-http/routes/site/profile`: the admin site-profile route with its `parseSections`/`parsePageLimit` query parsers. The
+host injects the profile builder plus the builder's own section vocabulary and page cap. The route authorizes nothing itself
+(every section is authorized inside the builder as the authenticated principal); a malformed query is a flat 400
+`VALIDATION_ERROR`, checked after the principal as before; a builder failure reaches the host's redacted error port.
+
+`./admin-http/routes/redirects/create` completes the redirects family as specs: POST `/redirects`, 201, body refusals flat
+400 `VALIDATION_ERROR` before authorization, write-chokepoint errors via the shared `REDIRECT_WRITE_ERROR_MAPPINGS`; it reads
+`workspaceId` and `redirectsWriteDeps` only.
