@@ -21,6 +21,7 @@
       "./web-evidence/page-body": "node",
       "./web-evidence/site-path-policy": "universal",
       "./web-evidence/published-page": "node",
+      "./web-evidence/live-url": "node",
       "./web-evidence/testing": "universal",
       "./web-evidence/capture-budget": "universal",
       "./web-evidence/capture-clock": "universal",
@@ -82,6 +83,11 @@
       "types": "./dist/web-evidence/published-page.d.ts",
       "import": "./dist/web-evidence/published-page.js",
       "default": "./dist/web-evidence/published-page.js"
+    },
+    "./web-evidence/live-url": {
+      "types": "./dist/web-evidence/live-url.d.ts",
+      "import": "./dist/web-evidence/live-url.js",
+      "default": "./dist/web-evidence/live-url.js"
     },
     "./web-evidence/testing": {
       "types": "./dist/web-evidence/testing/fake-clock.d.ts",
