@@ -14,7 +14,7 @@ There is no root entry. Import the binding family you need:
 | Entry | Exports | Binds |
 | --- | --- | --- |
 | `@jini-ai/node-adapters/fs` | `nodeFileLock`, `nodeAtomicWriter` | core's `FileLockPort` and `AtomicFileWriterPort` |
-| `@jini-ai/node-adapters/process` | `createProcessControlPort` (and the `ProcessFunctions` type), `createSpawnPort`, `nodeSpawnPort`, `nodeCommandShell` | core's `ProcessControlPort`, the spawn port, the command planner's inputs |
+| `@jini-ai/node-adapters/process` | `nodeProcessControl`, `createProcessControlPort` (and the `ProcessFunctions` type), `createSpawnPort`, `nodeSpawnPort`, `nodeCommandShell` | core's `ProcessControlPort`, the spawn port, the command planner's inputs |
 | `@jini-ai/node-adapters/agent-plugins` | `createNodeAgentPluginEffects` (and the `AgentPluginPlatformFunctions` type) | the agent-plugin lifecycle's native effects |
 
 `createProcessControlPort({ functions })` takes the three platform process functions injected (the host

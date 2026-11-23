@@ -2,4 +2,4 @@
 "@jini-ai/node-adapters": major
 ---
 
-The process and agent-plugin bindings take the platform functions they wrap from the host. `nodeProcessControl` is removed: call `createProcessControlPort({ functions: { listProcessSnapshots, stopProcesses, waitForProcessExit } })`. `createNodeAgentPluginEffects` now requires `{ withFileLock, writeJsonFileAtomicAsync, readBootIdentity }`. `@jini-ai/agent-plugins` is no longer a peer dependency.
+The agent-plugin bindings take the platform functions they wrap from the host. (`nodeProcessControl` stays until the server preset's process cutover lands with XC-6c/d; hosts that build their own runtime can already call `createProcessControlPort({ functions })`.) `createNodeAgentPluginEffects` now requires `{ withFileLock, writeJsonFileAtomicAsync, readBootIdentity }`. `@jini-ai/agent-plugins` is no longer a peer dependency.
