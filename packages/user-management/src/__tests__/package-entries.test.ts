@@ -4,8 +4,8 @@ import { expect, test } from 'vitest';
 const manifest = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8'));
 // Member and newsletter entries that reach node:crypto or the Argon2/session-token server barrel.
 const nodeEntries = new Set(['./server', './member-login/oidc-login', './members/access-resolver', './members/member-challenge',
-  './members/member-credentials', './members/member-sign-in', './members/password-auth', './newsletter/unsubscribe',
-  './newsletter/send-pipeline']);
+  './members/member-challenge-request', './members/member-credentials', './members/member-sign-in', './members/password-auth', './newsletter/unsubscribe',
+  './newsletter/send-pipeline', './members/write-service']);
 
 test('every published entry has matching runtime metadata and a source module', () => {
   expect(Object.keys(manifest.exports).sort()).toEqual(Object.keys(manifest.jini.entries).sort());

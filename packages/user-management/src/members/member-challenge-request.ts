@@ -68,13 +68,13 @@ function requireMailTransport(required: { deps: MembersWriteServiceDeps }, _opti
  * Only local absolute paths survive; controls/backslashes can change browser URL parsing, and an
  * encoded slash/backslash becomes `//host` if any later hop decodes the path before redirecting.
  */
-function safeRedirectPath(_required = {}, { path }: { path?: string } = {}): string | undefined {
+function safeRedirectPath(_required = {}, { path }: { path?: string | undefined } = {}): string | undefined {
   return path && /^\/(?!\/)/.test(path) && !/[\\\x00-\x1f\x7f]|%(2f|5c)/i.test(path) ? path : undefined;
 }
 
 /** Fragment-only secrets prevent accidental consumption and disclosure through GET request logs. */
 function challengeLinkPath(required: {
-  purpose: "signin" | "password_reset"; token: string; redirectPath?: string;
+  purpose: "signin" | "password_reset"; token: string; redirectPath?: string | undefined;
 }, _options = {}): string {
   const { purpose, token, redirectPath } = required;
   if (purpose === "password_reset") return `/reset-password#token=${token}`;
@@ -82,6 +82,13 @@ function challengeLinkPath(required: {
   const redirectSuffix = redirect ? `&redirect=${encodeURIComponent(redirect)}` : "";
   return `/signin#magic=${token}${redirectSuffix}`;
 }
+
+/** One challenge request: the composed deps, the visitor's input and which challenge to issue. */
+export type MemberChallengeRequest = {
+  deps: MembersWriteServiceDeps;
+  input: { workspaceId: string; email: string; redirectPath?: string };
+  purpose: "signin" | "password_reset";
+};
 
 /**
  * Issue sign-in or link-only reset through the same mail/readiness and challenge lifecycle.
@@ -91,11 +98,7 @@ function challengeLinkPath(required: {
  * @throws MemberSignInUnavailableError for site-wide setup; validation/adapter errors propagate.
  * @complexity O(1) reads/writes and one bounded password hash for sign-in codes.
  */
-export async function prepareMemberChallenge(required: {
-  deps: MembersWriteServiceDeps;
-  input: { workspaceId: string; email: string; redirectPath?: string };
-  purpose: "signin" | "password_reset";
-}, _options = {}): Promise<{ challengeId: string; deliver: () => Promise<{ delivered: boolean; challengeId: string }> }> {
+export async function prepareMemberChallenge(required: MemberChallengeRequest, _options: Record<string, never> = {}): Promise<{ challengeId: string; deliver: () => Promise<{ delivered: boolean; challengeId: string }> }> {
   const { deps, input, purpose } = required;
   const email = assertValidEmail({ email: input.email });
   const nowIso = clockNowIso({ clock: deps.clock });
@@ -103,7 +106,7 @@ export async function prepareMemberChallenge(required: {
   // Resolved before the member lookup: a missing sender must fail the same way for every address,
   // so the error itself never tells a caller which emails are registered, and no token is minted
   // for a link that could not be sent.
-  const from = await transport.senderIdentityFor({ mailer: deps.mailer }, { senderIdentity: deps.senderIdentity })
+  const from = await transport.senderIdentityFor({ mailer: deps.mailer }, deps.senderIdentity ? { senderIdentity: deps.senderIdentity } : {})
     .resolve({ workspaceId: input.workspaceId, fallback: MEMBERS_FALLBACK_SENDER });
   await requireSignInMail({ deps, transport });
   const secrets = newChallengeSecrets({ tokens: memberSessionTokens, randomInt: ({ min, max }) => randomInt(min, max) });
@@ -137,7 +140,7 @@ export async function prepareMemberChallenge(required: {
 }
 
 /** Existing callers retain the awaited delivery contract; public HTTP uses the same prepared owner. */
-export async function requestMemberChallenge(required: Parameters<typeof prepareMemberChallenge>[0], _options = {}): Promise<{ delivered: boolean; challengeId: string }> {
+export async function requestMemberChallenge(required: MemberChallengeRequest, _options: Record<string, never> = {}): Promise<{ delivered: boolean; challengeId: string }> {
   const prepared = await prepareMemberChallenge(required);
   return prepared.deliver();
 }
@@ -146,7 +149,7 @@ export async function requestMemberChallenge(required: Parameters<typeof prepare
 export async function requestSignInLink(required: {
   deps: MembersWriteServiceDeps;
   input: { workspaceId: string; email: string; redirectPath?: string };
-}, _options = {}): Promise<{ delivered: boolean; challengeId: string }> {
+}, _options: Record<string, never> = {}): Promise<{ delivered: boolean; challengeId: string }> {
   return requestMemberChallenge({ ...required, purpose: "signin" });
 }
 
@@ -158,7 +161,7 @@ export async function requestSignInLink(required: {
  */
 export async function requestPasswordReset(required: {
   deps: MembersWriteServiceDeps; input: { workspaceId: string; email: string };
-}, _options = {}): Promise<{ accepted: true }> {
+}, _options: Record<string, never> = {}): Promise<{ accepted: true }> {
   await requestMemberChallenge({ ...required, purpose: "password_reset" });
   return { accepted: true };
 }

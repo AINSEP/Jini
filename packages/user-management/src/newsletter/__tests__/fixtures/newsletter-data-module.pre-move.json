@@ -1,0 +1,288 @@
+{
+  "pluginId": "newsletter",
+  "pluginTier": "tier-2",
+  "provenance": {
+    "sourceUrl": "builtin://newsletter",
+    "publisher": "tovu-core"
+  },
+  "tables": [
+    {
+      "name": "lists",
+      "portability": {
+        "kind": "portable",
+        "columns": [
+          "id",
+          "workspace_id",
+          "name",
+          "slug",
+          "is_default",
+          "status",
+          "created_at",
+          "updated_at"
+        ]
+      },
+      "columns": [
+        {
+          "name": "id",
+          "type": "TEXT",
+          "primaryKey": true
+        },
+        {
+          "name": "workspace_id",
+          "type": "TEXT",
+          "notNull": true
+        },
+        {
+          "name": "name",
+          "type": "TEXT",
+          "notNull": true
+        },
+        {
+          "name": "slug",
+          "type": "TEXT",
+          "notNull": true
+        },
+        {
+          "name": "is_default",
+          "type": "INTEGER",
+          "notNull": true
+        },
+        {
+          "name": "status",
+          "type": "TEXT",
+          "notNull": true
+        },
+        {
+          "name": "created_at",
+          "type": "TEXT",
+          "notNull": true
+        },
+        {
+          "name": "updated_at",
+          "type": "TEXT",
+          "notNull": true
+        }
+      ]
+    },
+    {
+      "name": "subscriptions",
+      "portability": {
+        "kind": "private"
+      },
+      "columns": [
+        {
+          "name": "id",
+          "type": "TEXT",
+          "primaryKey": true
+        },
+        {
+          "name": "workspace_id",
+          "type": "TEXT",
+          "notNull": true
+        },
+        {
+          "name": "list_id",
+          "type": "TEXT",
+          "notNull": true
+        },
+        {
+          "name": "subscriber_id",
+          "type": "TEXT",
+          "notNull": true
+        },
+        {
+          "name": "status",
+          "type": "TEXT",
+          "notNull": true
+        },
+        {
+          "name": "source",
+          "type": "TEXT",
+          "notNull": true
+        },
+        {
+          "name": "consent_revision_id_at_subscribe",
+          "type": "TEXT"
+        },
+        {
+          "name": "subscribed_at",
+          "type": "TEXT"
+        },
+        {
+          "name": "unsubscribed_at",
+          "type": "TEXT"
+        },
+        {
+          "name": "created_at",
+          "type": "TEXT",
+          "notNull": true
+        },
+        {
+          "name": "updated_at",
+          "type": "TEXT",
+          "notNull": true
+        }
+      ]
+    },
+    {
+      "name": "audience_snapshots",
+      "portability": {
+        "kind": "private"
+      },
+      "columns": [
+        {
+          "name": "id",
+          "type": "TEXT",
+          "primaryKey": true
+        },
+        {
+          "name": "workspace_id",
+          "type": "TEXT",
+          "notNull": true
+        },
+        {
+          "name": "campaign_id",
+          "type": "TEXT",
+          "notNull": true
+        },
+        {
+          "name": "list_id",
+          "type": "TEXT",
+          "notNull": true
+        },
+        {
+          "name": "recipient_count",
+          "type": "INTEGER",
+          "notNull": true
+        },
+        {
+          "name": "created_at",
+          "type": "TEXT",
+          "notNull": true
+        }
+      ]
+    },
+    {
+      "name": "sends",
+      "portability": {
+        "kind": "private"
+      },
+      "columns": [
+        {
+          "name": "id",
+          "type": "TEXT",
+          "primaryKey": true
+        },
+        {
+          "name": "workspace_id",
+          "type": "TEXT",
+          "notNull": true
+        },
+        {
+          "name": "campaign_id",
+          "type": "TEXT",
+          "notNull": true
+        },
+        {
+          "name": "audience_snapshot_id",
+          "type": "TEXT",
+          "notNull": true
+        },
+        {
+          "name": "subscriber_id",
+          "type": "TEXT",
+          "notNull": true
+        },
+        {
+          "name": "recipient_email",
+          "type": "TEXT",
+          "notNull": true
+        },
+        {
+          "name": "status",
+          "type": "TEXT",
+          "notNull": true
+        },
+        {
+          "name": "attempts",
+          "type": "INTEGER",
+          "notNull": true
+        },
+        {
+          "name": "idempotency_key",
+          "type": "TEXT",
+          "notNull": true
+        },
+        {
+          "name": "provider_message_id",
+          "type": "TEXT"
+        },
+        {
+          "name": "last_error",
+          "type": "TEXT"
+        },
+        {
+          "name": "next_attempt_at",
+          "type": "TEXT"
+        },
+        {
+          "name": "created_at",
+          "type": "TEXT",
+          "notNull": true
+        },
+        {
+          "name": "updated_at",
+          "type": "TEXT",
+          "notNull": true
+        }
+      ]
+    },
+    {
+      "name": "confirmation_tokens",
+      "portability": {
+        "kind": "private"
+      },
+      "columns": [
+        {
+          "name": "id",
+          "type": "TEXT",
+          "primaryKey": true
+        },
+        {
+          "name": "workspace_id",
+          "type": "TEXT",
+          "notNull": true
+        },
+        {
+          "name": "subscription_id",
+          "type": "TEXT",
+          "notNull": true
+        },
+        {
+          "name": "token_hash",
+          "type": "TEXT",
+          "notNull": true
+        },
+        {
+          "name": "purpose",
+          "type": "TEXT",
+          "notNull": true
+        },
+        {
+          "name": "created_at",
+          "type": "TEXT",
+          "notNull": true
+        },
+        {
+          "name": "expires_at",
+          "type": "TEXT",
+          "notNull": true
+        },
+        {
+          "name": "consumed_at",
+          "type": "TEXT"
+        }
+      ]
+    }
+  ]
+}

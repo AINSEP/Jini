@@ -38,6 +38,7 @@
       "./newsletter/repo.memory": "universal",
       "./newsletter/unsubscribe": "node",
       "./newsletter/send-pipeline": "node",
+      "./newsletter/data-module-manifest": "universal",
       "./members/access-resolver": "node",
       "./members/agent-tools": "universal",
       "./members/capability-card": "universal",
@@ -202,6 +203,11 @@
       "import": "./dist/newsletter/send-pipeline.js",
       "default": "./dist/newsletter/send-pipeline.js"
     },
+    "./newsletter/data-module-manifest": {
+      "types": "./dist/newsletter/data-module-manifest.d.ts",
+      "import": "./dist/newsletter/data-module-manifest.js",
+      "default": "./dist/newsletter/data-module-manifest.js"
+    },
     "./members/access-resolver": {
       "types": "./dist/members/access-resolver.d.ts",
       "import": "./dist/members/access-resolver.js",
@@ -281,6 +287,11 @@
       "types": "./dist/members/types.d.ts",
       "import": "./dist/members/types.js",
       "default": "./dist/members/types.js"
+    },
+    "./members/write-service": {
+      "types": "./dist/members/write-service.d.ts",
+      "import": "./dist/members/write-service.js",
+      "default": "./dist/members/write-service.js"
     }
   },
   "files": [

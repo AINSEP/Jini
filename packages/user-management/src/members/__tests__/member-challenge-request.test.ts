@@ -74,9 +74,10 @@ describe("member challenge request over the injected mail transport", () => {
     const result = await requestSignInLink({ deps: h.deps, input: { workspaceId: "ws", email: "a@b.example", redirectPath: "/members" } });
     expect(result.delivered).toBe(true);
     expect(h.senderCalls).toEqual([{ required: { mailer: h.mailer }, optional: { senderIdentity: h.deps.senderIdentity } }]);
+    expect(h.senderCalls).toHaveLength(1);
     expect(h.renderCalls).toHaveLength(1);
     expect(h.sent).toHaveLength(1);
-    const [{ message, options }] = h.sent;
+    const { message, options } = h.sent[0]!;
     expect(message.from).toEqual({ email: "hello@site.example", name: "Site" });
     expect(message.to).toEqual({ email: "a@b.example" });
     expect(message.subject).toBe("Your sign-in link");
