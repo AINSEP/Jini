@@ -7,32 +7,34 @@ import { applyDockIcon } from "../index.js";
 
 describe("applyDockIcon", () => {
   it("sets nothing and reports nothing without a dock (Windows, Linux)", () => {
-    const reasons: string[] = [];
-    applyDockIcon({ dock: undefined, iconPath: "/icon.png", reportFailure: ({ reason }) => reasons.push(reason) });
-    expect(reasons).toEqual([]);
+    const errors: unknown[] = [];
+    applyDockIcon({ dock: undefined, iconPath: "/icon.png", reportFailure: ({ error }) => errors.push(error) });
+    expect(errors).toEqual([]);
   });
 
   it("puts the injected icon on a dock", () => {
     const set: string[] = [];
-    const reasons: string[] = [];
-    applyDockIcon({ dock: { setIcon: (p) => { set.push(p); } }, iconPath: "/brand/app-icon.png", reportFailure: ({ reason }) => reasons.push(reason) });
+    const errors: unknown[] = [];
+    applyDockIcon({ dock: { setIcon: (p) => { set.push(p); } }, iconPath: "/brand/app-icon.png", reportFailure: ({ error }) => errors.push(error) });
     expect(set).toEqual(["/brand/app-icon.png"]);
-    expect(reasons).toEqual([]);
+    expect(errors).toEqual([]);
   });
 
-  it("reports an unreadable icon's reason and lets the boot carry on", () => {
-    const reasons: string[] = [];
+  it("hands an unreadable icon's raw error to the host and lets the boot carry on", () => {
+    const thrown = new Error("Failed to load image");
+    const errors: unknown[] = [];
     expect(() => applyDockIcon({
-      dock: { setIcon: () => { throw new Error("Failed to load image"); } },
+      dock: { setIcon: () => { throw thrown; } },
       iconPath: "/missing.png",
-      reportFailure: ({ reason }) => reasons.push(reason),
+      reportFailure: ({ error }) => errors.push(error),
     })).not.toThrow();
-    expect(reasons).toEqual(["Failed to load image"]);
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toBe(thrown);
   });
 
-  it("stringifies a non-Error throw rather than losing it", () => {
-    const reasons: string[] = [];
-    applyDockIcon({ dock: { setIcon: () => { throw "bad image"; } }, iconPath: "/x.png", reportFailure: ({ reason }) => reasons.push(reason) });
-    expect(reasons).toEqual(["bad image"]);
+  it("hands a non-Error throw to the host as-is rather than losing it", () => {
+    const errors: unknown[] = [];
+    applyDockIcon({ dock: { setIcon: () => { throw "bad image"; } }, iconPath: "/x.png", reportFailure: ({ error }) => errors.push(error) });
+    expect(errors).toEqual(["bad image"]);
   });
 });

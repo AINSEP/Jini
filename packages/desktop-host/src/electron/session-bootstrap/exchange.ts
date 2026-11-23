@@ -11,15 +11,20 @@
  *
  * Never rejects for an auth or transport outcome: a non-`200` and a transport error both resolve
  * `{ok: false}`, so the host falls through to its ordinary login screen. The host owns the URL (and
- * must guard it, e.g. loopback-only, BEFORE calling), the body, and the outcome label.
+ * must guard it, e.g. loopback-only, BEFORE calling), the body, the outcome label, and the text a
+ * transport error becomes (`describeError`): the caught error goes to the host raw.
  */
 import type { SessionBodyRequest, SessionNet, SessionOutcome, SessionRequest, SessionResponse } from './types.js';
 
+/** The host's text for a transport error, stored as the outcome's `reason`. */
+type DescribeTransportError = (args: { error: Error }) => string;
+
 /** Attach the outcome listeners. Resolves only on `end`: headers and a partial body are not a
  *  completed exchange. */
-function settle({ request, label, resolve }: {
+function settle({ request, label, describeError, resolve }: {
   request: SessionRequest;
   label: string;
+  describeError: DescribeTransportError;
   resolve: (outcome: SessionOutcome) => void;
 }, _optional: Record<string, never> = {}): void {
   request.on('response', (response: SessionResponse) => {
@@ -34,12 +39,13 @@ function settle({ request, label, resolve }: {
       ),
     );
   });
-  request.on('error', (error: Error) => resolve({ ok: false, reason: error.message }));
+  request.on('error', (error: Error) => resolve({ ok: false, reason: describeError({ error }) }));
 }
 
 /**
  * Send a body-less request through `required.session`'s cookie jar and report its outcome.
  * @param required.label names the exchange in a non-`200` reason (`"<label> responded <status>"`).
+ * @param required.describeError the host's `reason` text for a transport error.
  * @complexity O(1) — one request.
  */
 export function exchangeSessionRequest<TSession>(required: {
@@ -48,10 +54,11 @@ export function exchangeSessionRequest<TSession>(required: {
   method: 'GET' | 'POST';
   url: string;
   label: string;
+  describeError: DescribeTransportError;
 }, _optional: Record<string, never> = {}): Promise<SessionOutcome> {
   return new Promise((resolve) => {
     const request = required.net.request({ method: required.method, url: required.url, session: required.session, useSessionCookies: true });
-    settle({ request, label: required.label, resolve });
+    settle({ request, label: required.label, describeError: required.describeError, resolve });
     request.end();
   });
 }
@@ -67,11 +74,12 @@ export function exchangeSessionJson<TSession>(required: {
   url: string;
   body: string;
   label: string;
+  describeError: DescribeTransportError;
 }, _optional: Record<string, never> = {}): Promise<SessionOutcome> {
   return new Promise((resolve) => {
     const request = required.net.request({ method: 'POST', url: required.url, session: required.session, useSessionCookies: true });
     request.setHeader('Content-Type', 'application/json');
-    settle({ request, label: required.label, resolve });
+    settle({ request, label: required.label, describeError: required.describeError, resolve });
     request.write(required.body);
     request.end();
   });

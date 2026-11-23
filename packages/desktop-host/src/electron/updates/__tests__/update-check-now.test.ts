@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { createUpdateCheckNow, isNetworkUpdateError, registerUpdateCheckIpc, updateErrorMessage } from '../update-check-now.js';
+import { createUpdateCheckNow, isNetworkUpdateError, registerUpdateCheckIpc } from '../update-check-now.js';
 import type { CheckableUpdater, UpdateCheckCopy, UpdateCheckNowDeps, UpdateNotice } from '../update-check-now.js';
 
 type CheckResult = Awaited<ReturnType<CheckableUpdater['checkForUpdates']>>;
+
+/** The test host's error text: Jini hands caught values to the host, which owns this formatting. */
+const updateErrorMessage = ({ error }: { error: unknown }): string => error instanceof Error ? error.message : String(error);
 
 /** Neutral copy that echoes its inputs, so assertions see exactly what the host formatter received. */
 const copy: UpdateCheckCopy = {
@@ -34,6 +37,7 @@ function harness({ result = Promise.resolve<CheckResult>(null), ...overrides }: 
     log: ({ message }) => { logs.push(message); },
     copy,
     describeErrorForLog: ({ error }) => `logged(${updateErrorMessage({ error })})`,
+    describeErrorMessage: updateErrorMessage,
     ...overrides,
   };
   return { check: createUpdateCheckNow(deps), updater, notices, logs, prompts, loads: () => loads, checks: () => checks };
@@ -104,6 +108,16 @@ describe('createUpdateCheckNow', () => {
     const thrown = harness({ loadUpdater: async () => { throw 'offline'; } });
     await thrown.check.checkNow();
     expect(thrown.notices[0]!.detail).toContain('msg=offline details=[details:offline]');
+  });
+
+  it('a failed check hands the raw caught value to the host describer and shows its text as the message', async () => {
+    const thrown = new Error('HttpError: 500');
+    const seen: unknown[] = [];
+    const h = harness({ result: Promise.reject(thrown), describeErrorMessage: ({ error }) => { seen.push(error); return 'host text'; } });
+    await h.check.checkNow();
+    expect(seen).toHaveLength(1);
+    expect(seen[0]).toBe(thrown);
+    expect(h.notices[0]!.detail).toContain('msg=host text details=[details:HttpError: 500]');
   });
 
   it('clicks while a check runs join it: one check, one notice; a later click checks again', async () => {

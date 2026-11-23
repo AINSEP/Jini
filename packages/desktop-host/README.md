@@ -219,7 +219,8 @@ const bounds = resolveWindowBounds({ stored: readWindowBounds({ store: jsonStore
 - **Needs injected:** for `createUpdateCheckNow` (`./electron/updates`), the host's eligibility
   (`isPackaged`, `skipReason`), the automatic-updates read, the controller's `readyVersion` and
   `showReadyPrompt`, a lazy `loadUpdater`, `notify`/`log`, an `UpdateCheckCopy` (every notice's
-  words) and a redacting `describeErrorForLog`; `registerUpdateCheckIpc` takes the host's channel.
+  words), a redacting `describeErrorForLog` and a `describeErrorMessage` (the failed check's text for
+  `copy.notice`; caught errors reach both raw); `registerUpdateCheckIpc` takes the host's channel.
   For `./electron/preferences`, a `PreferenceFilePort` (`read`/`withLock`/`writeAtomic`), the file
   path, keys, bounds, choices, channels, error codes, menu labels and an `onProblem` warning hook.
 - **Provides:** one in-flight manual check (repeat clicks join it; look-only when automatic updates
@@ -237,7 +238,7 @@ const file = { read: readJsonFile, withLock: withFileLock, writeAtomic: writeJso
 const auto = () => readPreferenceValue({ file, filePath, key: 'automaticUpdates', parse: ({ value }) => value !== false, fallback: true });
 const item = persistedCheckbox({ label: copy.automaticUpdates, checked: auto(), onError,
   save: ({ checked }) => writePreferenceValue({ file, filePath, key: 'automaticUpdates', value: checked }) });
-const check = createUpdateCheckNow({ ...eligibility, automaticUpdates: auto, copy: hostUpdateCopy, describeErrorForLog, notify, log });
+const check = createUpdateCheckNow({ ...eligibility, automaticUpdates: auto, copy: hostUpdateCopy, describeErrorForLog, describeErrorMessage, notify, log });
 registerUpdateCheckIpc({ ipcMain, channel: HOST_CHECK_FOR_UPDATES_CHANNEL, checkNow: check.checkNow });
 ```
 
@@ -323,7 +324,8 @@ Architecture: [extraction-plan.md](../../ADS-memory/reports/jini-port/extraction
 - **Needs injected:** a `SessionNet` (Electron `net`), the partition's `Session` (`CookieJarSession` for
   the cookie lookup, `HeaderArmingSession` for header arming), and every host value: URLs (already
   guarded, e.g. loopback-only, before the call), the session cookie name, the partition prefix and
-  key, the header name/value, and the outcome `label`.
+  key, the header name/value, the outcome `label`, and a `describeError({ error })` that turns a raw
+  transport error into the outcome's `reason` text.
 - **Provides:** `exchangeSessionJson` / `exchangeSessionRequest` (a request bound to the session's own
   cookie jar via `useSessionCookies`, drained, resolving `SessionOutcome` only on `end` and never
   rejecting for an HTTP or transport failure), `probeSession` (cookie-by-name cheap negative, then the
@@ -339,7 +341,7 @@ const partition = persistentPartitionName({ prefix: 'site-', key: path.resolve(s
 const jar = session.fromPartition(partition);
 const origin = assertLoopback({ url: adminUrl });
 const valid = await probeSession({ net, session: jar, url: new URL(ME_PATH, origin).href, cookieName: SESSION_COOKIE });
-if (!valid) await exchangeSessionJson({ net, session: jar, url: new URL(REDEEM_PATH, origin).href, body: JSON.stringify({ token }), label: 'redeem' });
+if (!valid) await exchangeSessionJson({ net, session: jar, url: new URL(REDEEM_PATH, origin).href, body: JSON.stringify({ token }), label: 'redeem', describeError: ({ error }) => error.message });
 ```
 
 Architecture: [extraction-plan.md](../../ADS-memory/reports/jini-port/extraction-plan.md).
@@ -351,7 +353,7 @@ File logging uses core `Logger`; `error` in the optional bag is normalized into 
 - **Needs injected:** for `createAppWindow` — the `url`, window `title`, `preloadPath` and an optional
   `partition`, plus `AppWindowPorts` (`createBrowserWindow`, `installNavigationPolicy`) and an optional
   self-test `trackWindow`; for `applyDockIcon` — `app.dock` (`DockIconPort`, `undefined` off macOS),
-  the icon path and a `reportFailure({ reason })` reporter.
+  the icon path and a `reportFailure({ error })` reporter that receives the raw caught value.
 - **Provides:** `appWindowOptions` (sandboxed, isolated, preload-bearing options; per-site partition
   only when given) and `createAppWindow` (create, track, pin the title, install the boundary on the
   URL's parsed origin, then load — that order is tested), and best-effort `applyDockIcon`.
@@ -368,7 +370,7 @@ const win = createAppWindow({ url, title: siteName ?? APP_TITLE, preloadPath: PR
   installNavigationPolicy: ({ contents, appOrigin }) =>
     installAppWindowNavigationPolicy({ contents, appOrigin, openExternal: ({ url }) => void shell.openExternal(url) }),
 } }, { partition, selftest, trackWindow: tracker?.add });
-applyDockIcon({ dock: app.dock, iconPath: ICON, reportFailure: ({ reason }) => log.warn(`dock icon: ${reason}`) });
+applyDockIcon({ dock: app.dock, iconPath: ICON, reportFailure: ({ error }) => log.warn({ message: 'dock icon not set' }, { error }) });
 ```
 
 Architecture: [extraction-plan.md](../../ADS-memory/reports/jini-port/extraction-plan.md).

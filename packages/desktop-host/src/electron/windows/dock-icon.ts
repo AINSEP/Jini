@@ -1,6 +1,7 @@
 /**
  * @file The macOS dock tile's icon: skip where there is no dock, never fail the boot over an icon.
- * The host injects `app.dock`, the icon path and a failure reporter (which owns any log copy).
+ * The host injects `app.dock`, the icon path and a failure reporter, which receives the raw caught
+ * value and owns its formatting and any log copy.
  */
 
 /** The slice of `app.dock` {@link applyDockIcon} touches. */
@@ -20,18 +21,18 @@ interface DockIconPort {
  *
  * @param required.dock `app.dock`; `undefined` off macOS.
  * @param required.iconPath the icon PNG.
- * @param required.reportFailure receives the failure's reason when the icon could not be set.
+ * @param required.reportFailure receives the raw caught value when the icon could not be set.
  * @complexity O(1).
  */
 function applyDockIcon(
-  { dock, iconPath, reportFailure }: { dock: DockIconPort | undefined; iconPath: string; reportFailure: (required: { reason: string }) => void },
+  { dock, iconPath, reportFailure }: { dock: DockIconPort | undefined; iconPath: string; reportFailure: (required: { error: unknown }) => void },
   _optional = {},
 ): void {
   if (!dock) return;
   try {
     dock.setIcon(iconPath);
   } catch (error) {
-    reportFailure({ reason: error instanceof Error ? error.message : String(error) });
+    reportFailure({ error });
   }
 }
 

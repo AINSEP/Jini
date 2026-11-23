@@ -5,7 +5,8 @@
  * controller already listens to: a download it starts ends in the controller's own "Update ready"
  * prompt, and electron-updater reuses a download another copy already cached, so nothing downloads
  * twice. The host supplies eligibility, the preference read, every word of copy and the error
- * formatters; see the electron/updates README section for wiring.
+ * formatters (a caught updater error is handed to them raw, never turned into text here); see the
+ * electron/updates README section for wiring.
  */
 
 /** The slice of electron-updater's `autoUpdater` a manual check needs. */
@@ -70,6 +71,8 @@ export interface UpdateCheckNowDeps {
   copy: UpdateCheckCopy;
   /** The host's redacting log formatter for an updater error. */
   describeErrorForLog: (args: { error: unknown }) => string;
+  /** The host's plain message for a failed check's error, handed to `copy.notice` as `errorMessage`. */
+  describeErrorMessage: (args: { error: unknown }) => string;
 }
 
 const NETWORK_ERROR = /ERR_INTERNET_DISCONNECTED|ERR_NAME_NOT_RESOLVED|ERR_NETWORK|ERR_CONNECTION|ERR_TIMED_OUT|ENOTFOUND|ENETUNREACH|ECONNREFUSED|ECONNRESET|ETIMEDOUT|EAI_AGAIN/;
@@ -77,11 +80,6 @@ const NETWORK_ERROR = /ERR_INTERNET_DISCONNECTED|ERR_NAME_NOT_RESOLVED|ERR_NETWO
 /** True when an electron-updater error message means the update server was unreachable. O(message). */
 export function isNetworkUpdateError({ message }: { message: string }, _optional = {}): boolean {
   return NETWORK_ERROR.test(message);
-}
-
-/** An error's message, or its string form. */
-export function updateErrorMessage({ error }: { error: unknown }, _optional = {}): string {
-  return error instanceof Error ? error.message : String(error);
 }
 
 type CheckResult = Awaited<ReturnType<CheckableUpdater['checkForUpdates']>>;
@@ -94,6 +92,9 @@ type CheckResult = Awaited<ReturnType<CheckableUpdater['checkForUpdates']>>;
 export function createUpdateCheckNow(deps: UpdateCheckNowDeps, _optional = {}): { checkNow: () => Promise<UpdateCheckOutcome> } {
   let inFlight: Promise<UpdateCheckOutcome> | null = null;
   const report = createUpdateOutcomeReporter(deps);
+  // Called by its own name: the host's redacting describer is the one thing a caught error reaches
+  // before a log line, and the log-safety gate recognises that describer by name.
+  const { describeErrorForLog } = deps;
 
   function reportCheckResult({ result, automatic }: { result: CheckResult; automatic: boolean }): UpdateCheckOutcome {
     const version = result?.updateInfo?.version;
@@ -101,7 +102,7 @@ export function createUpdateCheckNow(deps: UpdateCheckNowDeps, _optional = {}): 
     if (!automatic) return report({ outcome: { kind: 'available', version } });
     // The controller's own listener prompts when this finishes; only a failure needs saying here.
     result.downloadPromise?.catch((error: unknown) => {
-      deps.log({ message: `update download failed: ${deps.describeErrorForLog({ error })}` });
+      deps.log({ message: `update download failed: ${describeErrorForLog({ error })}` });
       deps.notify(deps.copy.downloadFailed({ version, error }));
     });
     return report({ outcome: { kind: 'downloading', version } });
@@ -125,9 +126,9 @@ export function createUpdateCheckNow(deps: UpdateCheckNowDeps, _optional = {}): 
       }
       return reportCheckResult({ result: await updater.checkForUpdates(), automatic });
     } catch (error) {
-      deps.log({ message: `update check failed: ${deps.describeErrorForLog({ error })}` });
+      deps.log({ message: `update check failed: ${describeErrorForLog({ error })}` });
       return report({ outcome: { kind: 'error' } }, {
-        errorMessage: updateErrorMessage({ error }), errorDetails: deps.copy.checkFailedDetails({ error }),
+        errorMessage: deps.describeErrorMessage({ error }), errorDetails: deps.copy.checkFailedDetails({ error }),
       });
     }
   }

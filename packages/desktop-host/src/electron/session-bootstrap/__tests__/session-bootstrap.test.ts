@@ -85,8 +85,11 @@ const ONE_COOKIE = [{ name: 'host_session', value: 'opaque' }];
 const streams: PassThrough[] = [];
 afterEach(() => { for (const stream of streams.splice(0)) stream.destroy(); });
 
+/** The test host's transport-error text: Jini hands the caught error to the host, which formats it. */
+const describeError = ({ error }: { error: Error }): string => error.message;
+
 describe('exchangeSessionJson', () => {
-  const input = { session: SESSION, url: URL_REDEEM, body: '{"token":"tok-abc"}', label: 'redeem' };
+  const input = { session: SESSION, url: URL_REDEEM, body: '{"token":"tok-abc"}', label: 'redeem', describeError };
 
   it('a 200 reports success', async () => {
     expect(await exchangeSessionJson({ ...input, net: fakeNet(200) })).toEqual({ ok: true, status: 200 });
@@ -136,7 +139,7 @@ describe('exchangeSessionJson', () => {
 });
 
 describe('exchangeSessionRequest', () => {
-  const input = { session: SESSION, url: 'http://127.0.0.1:3001/logout', method: 'POST' as const, label: 'logout' };
+  const input = { session: SESSION, url: 'http://127.0.0.1:3001/logout', method: 'POST' as const, label: 'logout', describeError };
 
   it('a 200 reports success, through the session cookie jar, with no header or body', async () => {
     const net = fakeNet(200);
@@ -160,6 +163,18 @@ describe('exchangeSessionRequest', () => {
 
   it('a transport error resolves with its cause instead of blocking the caller', async () => {
     expect(await exchangeSessionRequest({ ...input, net: failingNet('ECONNREFUSED during logout') })).toEqual({ ok: false, reason: 'ECONNREFUSED during logout' });
+  });
+
+  it('hands the raw transport error to the host describer and stores its text as the reason', async () => {
+    const seen: Error[] = [];
+    const outcome = await exchangeSessionRequest({
+      ...input, net: failingNet('ECONNREFUSED during logout'),
+      describeError: ({ error }) => { seen.push(error); return 'host text'; },
+    });
+    expect(seen).toHaveLength(1);
+    expect(seen[0]).toBeInstanceOf(Error);
+    expect(seen[0]!.message).toBe('ECONNREFUSED during logout');
+    expect(outcome).toEqual({ ok: false, reason: 'host text' });
   });
 });
 
