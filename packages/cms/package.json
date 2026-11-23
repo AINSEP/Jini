@@ -170,7 +170,12 @@
       "./admin-http/routes/trash/purge": "universal",
       "./admin-http/routes/trash/restore": "universal",
       "./admin-http/routes/trash/shared": "universal",
-      "./admin-http/http/trash": "universal"
+      "./admin-http/http/trash": "universal",
+      "./admin-http/routes/skills/files": "universal",
+      "./admin-http/routes/skills/install": "universal",
+      "./admin-http/routes/skills/set-enabled": "universal",
+      "./admin-http/routes/skills/uninstall": "universal",
+      "./admin-http/routes/skills/guidance": "universal"
     },
     "isolation": {
       "domains": {
@@ -1083,6 +1088,31 @@
       "types": "./dist/admin-http/http/trash.d.ts",
       "import": "./dist/admin-http/http/trash.js",
       "default": "./dist/admin-http/http/trash.js"
+    },
+    "./admin-http/routes/skills/files": {
+      "types": "./dist/admin-http/routes/skills/files.d.ts",
+      "import": "./dist/admin-http/routes/skills/files.js",
+      "default": "./dist/admin-http/routes/skills/files.js"
+    },
+    "./admin-http/routes/skills/install": {
+      "types": "./dist/admin-http/routes/skills/install.d.ts",
+      "import": "./dist/admin-http/routes/skills/install.js",
+      "default": "./dist/admin-http/routes/skills/install.js"
+    },
+    "./admin-http/routes/skills/set-enabled": {
+      "types": "./dist/admin-http/routes/skills/set-enabled.d.ts",
+      "import": "./dist/admin-http/routes/skills/set-enabled.js",
+      "default": "./dist/admin-http/routes/skills/set-enabled.js"
+    },
+    "./admin-http/routes/skills/uninstall": {
+      "types": "./dist/admin-http/routes/skills/uninstall.d.ts",
+      "import": "./dist/admin-http/routes/skills/uninstall.js",
+      "default": "./dist/admin-http/routes/skills/uninstall.js"
+    },
+    "./admin-http/routes/skills/guidance": {
+      "types": "./dist/admin-http/routes/skills/guidance.d.ts",
+      "import": "./dist/admin-http/routes/skills/guidance.js",
+      "default": "./dist/admin-http/routes/skills/guidance.js"
     }
   },
   "files": [

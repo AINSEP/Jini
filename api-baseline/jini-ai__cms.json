@@ -327,6 +327,53 @@
    "localSiteTrashRoute": "variable:ae17dc8946"
   }
  },
+ "./admin-http/routes/skills/files": {
+  "types": "./dist/admin-http/routes/skills/files.d.ts",
+  "symbols": {
+   "SkillFilesEnvelope": "interface:0d857b5524",
+   "SkillFilesReadFn": "type:106d3afc1d",
+   "SkillFilesRouteDeps": "interface:c77ec871ca",
+   "SkillPackageFile": "interface:39bf42c881",
+   "SkillPackageFileLimits": "interface:29ad559cd1",
+   "skillFilesRoute": "variable:c4badfeee0"
+  }
+ },
+ "./admin-http/routes/skills/guidance": {
+  "types": "./dist/admin-http/routes/skills/guidance.d.ts",
+  "symbols": {
+   "SkillGuidanceRouteDeps": "interface:e301dc4ff9",
+   "SkillPreviewRegistration": "interface:ed52022b9f",
+   "SkillPreviewRegistrations": "interface:776ce8a81b",
+   "skillGuidanceRoute": "variable:6fc3d0b483"
+  }
+ },
+ "./admin-http/routes/skills/install": {
+  "types": "./dist/admin-http/routes/skills/install.d.ts",
+  "symbols": {
+   "InstalledSkill": "interface:01b5c24bdb",
+   "SkillInstallFn": "type:5257260795",
+   "SkillInstallRequest": "type:1c92331f46",
+   "SkillInstallRouteDeps": "interface:d29b1f7c2a",
+   "SkillUploadFile": "interface:3aa104fc59",
+   "skillInstallRoute": "variable:0123bef4e6"
+  }
+ },
+ "./admin-http/routes/skills/set-enabled": {
+  "types": "./dist/admin-http/routes/skills/set-enabled.d.ts",
+  "symbols": {
+   "SkillSetEnabledFn": "type:03ab24a3c9",
+   "SkillSetEnabledRouteDeps": "interface:51a5f0059f",
+   "skillSetEnabledRoute": "variable:53cec28073"
+  }
+ },
+ "./admin-http/routes/skills/uninstall": {
+  "types": "./dist/admin-http/routes/skills/uninstall.d.ts",
+  "symbols": {
+   "SkillUninstallFn": "type:f7c7ac736b",
+   "SkillUninstallRouteDeps": "interface:28d22f5a2d",
+   "skillUninstallRoute": "variable:aa5386622b"
+  }
+ },
  "./admin-http/routes/system/assistant-daemon": {
   "types": "./dist/admin-http/routes/system/assistant-daemon.d.ts",
   "symbols": {
