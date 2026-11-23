@@ -140,7 +140,8 @@
       "./shell/components/CodeView/preview-modal-icons": "browser",
       "./shell/components/InstallTabCard/use-folder-upload.hooks": "browser",
       "./shell/components/Select/Select.hooks": "browser",
-      "./shell/lib/tab-event-source": "browser"
+      "./shell/lib/tab-event-source": "browser",
+      "./shell/hooks/use-external-entry-refresh.hooks": "browser"
     },
     "isolation": {
       "shared": [
@@ -218,7 +219,8 @@
         "./shell/components/CodeView/preview-modal-icons": "browser",
         "./shell/components/InstallTabCard/use-folder-upload.hooks": "browser",
         "./shell/components/Select/Select.hooks": "browser",
-        "./shell/lib/tab-event-source": "browser"
+        "./shell/lib/tab-event-source": "browser",
+        "./shell/hooks/use-external-entry-refresh.hooks": "browser"
       }
     },
     "optionalPeers": {
@@ -860,6 +862,11 @@
       "types": "./dist/shell/lib/tab-event-source.d.ts",
       "import": "./dist/shell/lib/tab-event-source.js",
       "default": "./dist/shell/lib/tab-event-source.js"
+    },
+    "./shell/hooks/use-external-entry-refresh.hooks": {
+      "types": "./dist/shell/hooks/use-external-entry-refresh.hooks.d.ts",
+      "import": "./dist/shell/hooks/use-external-entry-refresh.hooks.js",
+      "default": "./dist/shell/hooks/use-external-entry-refresh.hooks.js"
     }
   },
   "files": [
