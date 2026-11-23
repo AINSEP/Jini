@@ -25,7 +25,7 @@ function parseCreateEntryBody({ rawBody }: { rawBody: unknown }, _optional = {})
 }
 
 /**
- * design-spec.md §1.5/§1.9 — `POST /api/admin/v1/entries` (creates a Collection entry,
+ * @file design-spec.md §1.5/§1.9 — `POST /api/admin/v1/entries` (creates a Collection entry,
  * REQ-13/14/19). Gated by `admin.collections.manage`.
  */
 export const entryCreateRoute = defineJsonRoute<CollectionsRouteBody, EntryCreateOutput, EntryCreateRouteDeps, CollectionsRoutePrincipal>({

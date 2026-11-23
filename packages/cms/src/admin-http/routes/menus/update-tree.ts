@@ -24,7 +24,7 @@ import {
 const MENU_UPDATE_TREE_ERROR_MAPPINGS: readonly MenuErrorMapping[] = [
   MENU_NOT_LIVE_MAPPING,
   mapMenuError({ errorClass: MenuValidationError, status: 400 }),
-  // Before the `MenuConflictError` entry it extends: a lost compare-and-set carries the same
+  // Before the `MenuConflictError` branch it extends: a lost compare-and-set carries the same
   // `VERSION_CONFLICT` code posts and entries send, which is how the admin tells it from a slug 409.
   mapMenuError({ errorClass: MenuVersionConflictError, status: 409, code: "VERSION_CONFLICT" }),
   mapMenuError({ errorClass: MenuConflictError, status: 409 }),

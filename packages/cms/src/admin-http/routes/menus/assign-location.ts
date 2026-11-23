@@ -7,7 +7,7 @@ import {
   authorizeMenus, mapMenuError, MENU_NOT_LIVE_MAPPING, menuIdParam, rejectMenuError, type MenuErrorMapping, type MenuRoutePrincipal,
 } from "./shared.js";
 
-/** Maps assignment failures to the existing admin response envelope. */
+/** Maps assignment failures to the existing admin response envelope. @complexity O(1). */
 const MENU_ASSIGN_ERROR_MAPPINGS: readonly MenuErrorMapping[] = [
   MENU_NOT_LIVE_MAPPING,
   mapMenuError({ errorClass: MenuNotFoundError, status: 404 }),

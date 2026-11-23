@@ -34,7 +34,7 @@ const CREATE_TERM_REFUSALS: readonly TaxonomyErrorRefusal[] = [
 ];
 
 /**
- * design-spec.md §2.3/§2.8 — `POST /api/admin/v1/taxonomy/:taxonomyId/terms` (creates a
+ * @file design-spec.md §2.3/§2.8 — `POST /api/admin/v1/taxonomy/:taxonomyId/terms` (creates a
  * term, AC-03/AC-13/EC-04). Gated by `admin.taxonomy.manage`.
  */
 export const taxonomyCreateTermRoute = defineJsonRoute<TaxonomyCreateTermInput, { term: Term }, TaxonomyCreateTermRouteDeps, TaxonomyRoutePrincipal>({

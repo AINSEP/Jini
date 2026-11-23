@@ -10,7 +10,7 @@ export interface TaxonomyListRouteDeps {
 }
 
 /**
- * design-spec.md §2.2/§2.8 — `GET /api/admin/v1/taxonomy` (Categories & Tags' two-pane
+ * @file design-spec.md §2.2/§2.8 — `GET /api/admin/v1/taxonomy` (Categories & Tags' two-pane
  * source, ADR-044). Gated by `admin.taxonomy.manage` — ADR-044 registers exactly one permission
  * for this whole domain (no `.read`/`.write` split), so this list route reuses it rather than
  * inventing an unratified `admin.taxonomy.read` string.

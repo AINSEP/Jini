@@ -13,7 +13,7 @@ export interface EntryUpdateInput extends CollectionsRouteBody { id: string }
 export type EntryUpdateOutput = OkValue<Awaited<ReturnType<typeof updateEntry>>>;
 
 /**
- * design-spec.md §1.5/§1.9 — `PUT /api/admin/v1/entries/:id` (updates an entry's
+ * @file design-spec.md §1.5/§1.9 — `PUT /api/admin/v1/entries/:id` (updates an entry's
  * title/fieldsJson, REQ-28). Gated by `admin.collections.manage`.
  */
 export const entryUpdateRoute = defineJsonRoute<EntryUpdateInput, EntryUpdateOutput, EntryUpdateRouteDeps, CollectionsRoutePrincipal>({

@@ -13,7 +13,7 @@ export interface EntryListRouteDeps {
 export interface EntryListQuery { type: string | undefined }
 
 /**
- * design-spec.md §1.4/§1.9 — `GET /api/admin/v1/entries?type=` (a Collection's entry list,
+ * @file design-spec.md §1.4/§1.9 — `GET /api/admin/v1/entries?type=` (a Collection's entry list,
  * ADR-022/ADR-043). Gated by `admin.collections.read`.
  */
 export const entryListRoute = defineJsonRoute<EntryListQuery, Awaited<ReturnType<typeof listEntries>>, EntryListRouteDeps, CollectionsRoutePrincipal>({

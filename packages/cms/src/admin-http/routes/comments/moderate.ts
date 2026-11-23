@@ -9,8 +9,8 @@ import { authorizeComments, commentsActorId, type CommentsRoutePrincipal } from 
  * @file ADR-031 §6/§9 (SPEC-033) — the 5 moderation action routes (approve/spam/trash/restore/
  * purge). One file, not five — the 5 actions are near-identical (permission check → parse
  * expectedVersion → call the write-service → map the result to a status code), so a single
- * parameterized spec factory per action is a reasonable simplification over 5 near-duplicate files
- * (Article III). Each still declares its OWN route/permission pairing explicitly, not a generic
+ * parameterized registrar per action is a reasonable simplification over 5 near-duplicate files
+ * (Article III). Each still registers its OWN route/permission pairing explicitly, not a generic
  * `/action/:verb` dispatcher — route paths and permission strings stay grep-able and explicit.
  */
 
@@ -27,7 +27,7 @@ interface ActionSpec {
   path: string;
   permission: string;
   action: ModerationAction;
-  toStatus: CommentStatus; // purge is declared separately and has no toStatus
+  toStatus: CommentStatus; // purge is registered separately and has no toStatus
 }
 
 /**

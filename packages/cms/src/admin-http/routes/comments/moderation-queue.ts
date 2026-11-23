@@ -8,7 +8,7 @@ import { authorizeComments, type CommentsRoutePrincipal } from "./shared.js";
 
 /**
  * @file ADR-031 §6 (SPEC-033) — `GET /api/admin/v1/workspaces/:workspaceId/comments/queue`, the
- * moderation queue read. `comments.read`-gated. Mirrors the established admin-route
+ * moderation queue read. `comments.read`-gated. Mirrors this session's established admin-route
  * shape (workspace-id 404 check → authorize() → 403-on-denial → proceed).
  */
 

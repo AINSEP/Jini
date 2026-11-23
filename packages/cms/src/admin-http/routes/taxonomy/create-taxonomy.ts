@@ -19,7 +19,7 @@ export type TaxonomyCreateRouteDeps = TaxonomyWriteRouteDeps;
 export interface TaxonomyCreateInput { name: string; hierarchical: boolean }
 
 /**
- * design-spec.md §2.3/§2.8 — `POST /api/admin/v1/taxonomy` (creates a taxonomy, AC-01/
+ * @file design-spec.md §2.3/§2.8 — `POST /api/admin/v1/taxonomy` (creates a taxonomy, AC-01/
  * AC-26). Gated by `admin.taxonomy.manage`.
  */
 export const taxonomyCreateRoute = defineJsonRoute<TaxonomyCreateInput, { taxonomy: Taxonomy }, TaxonomyCreateRouteDeps, TaxonomyRoutePrincipal>({

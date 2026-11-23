@@ -20,7 +20,7 @@ export interface ContentTypeUpdateFieldsInput extends CollectionsRouteBody { key
 export type ContentTypeUpdateFieldsOutput = OkValue<Awaited<ReturnType<typeof updateContentTypeFields>>>;
 
 /**
- * design-spec.md §1.9 — `PUT /api/admin/v1/content-types/:key/fields` (full-replace of a
+ * @file design-spec.md §1.9 — `PUT /api/admin/v1/content-types/:key/fields` (full-replace of a
  * content type's field schema, REQ-26/ADR-043 §4). Gated by `admin.collections.manage`.
  */
 export const contentTypeUpdateFieldsRoute = defineJsonRoute<ContentTypeUpdateFieldsInput, ContentTypeUpdateFieldsOutput, ContentTypeUpdateFieldsRouteDeps, CollectionsRoutePrincipal>({

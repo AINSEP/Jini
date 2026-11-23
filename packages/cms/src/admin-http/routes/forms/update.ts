@@ -81,7 +81,7 @@ async function resolveFormUpdateResult({ deps, target, body }: { deps: FormsUpda
 /**
  * PUT (partial) update a form definition, including the `status` toggle (`FORMS_UPDATE_DEFINITION`,
  * REQ-04). `slug` is deliberately ignored if present in the body (behavior.spec.md §1.1 — handled
- * inside the write service's `updateFormDefinition`, which never reads `patch.slug`).
+ * inside `write-service.ts`'s `updateFormDefinition`, which never reads `patch.slug`).
  */
 export const formsUpdateRoute = defineJsonRoute<FormsUpdateInput, { data: AdminFormDefinitionDto }, FormsUpdateRouteDeps, FormsRoutePrincipal>({
   method: "put",

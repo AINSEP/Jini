@@ -23,7 +23,7 @@ export interface TaxonomyRenameTermRouteDeps extends TaxonomyWriteRouteDeps {
 export interface TaxonomyRenameTermInput { termId: string; newName: string }
 
 /**
- * design-spec.md §2.3/§2.8 — `PUT /api/admin/v1/taxonomy/terms/:id` (renames a term,
+ * @file design-spec.md §2.3/§2.8 — `PUT /api/admin/v1/taxonomy/terms/:id` (renames a term,
  * AC-15/AC-19/AC-25). Gated by `admin.taxonomy.manage`.
  */
 export const taxonomyRenameTermRoute = defineJsonRoute<TaxonomyRenameTermInput, { term: Term }, TaxonomyRenameTermRouteDeps, TaxonomyRoutePrincipal>({
