@@ -21,7 +21,11 @@
       "./federation/stdio": "node",
       "./federation/testing": "universal",
       "./federation/hosted": "node",
-      "./external/built-in-connections": "universal"
+      "./external/built-in-connections": "universal",
+      "./external/agent-tools": "universal",
+      "./external/operations-tools": "universal",
+      "./federation/external-mcp-admissions": "universal",
+      "./external/external-mcp-host-copy": "universal"
     }
   },
   "type": "module",
@@ -73,6 +77,26 @@
       "types": "./dist/external/built-in-connections.d.ts",
       "import": "./dist/external/built-in-connections.js",
       "default": "./dist/external/built-in-connections.js"
+    },
+    "./external/agent-tools": {
+      "types": "./dist/external/agent-tools.d.ts",
+      "import": "./dist/external/agent-tools.js",
+      "default": "./dist/external/agent-tools.js"
+    },
+    "./external/operations-tools": {
+      "types": "./dist/external/operations-tools.d.ts",
+      "import": "./dist/external/operations-tools.js",
+      "default": "./dist/external/operations-tools.js"
+    },
+    "./federation/external-mcp-admissions": {
+      "types": "./dist/federation/external-mcp-admissions.d.ts",
+      "import": "./dist/federation/external-mcp-admissions.js",
+      "default": "./dist/federation/external-mcp-admissions.js"
+    },
+    "./external/external-mcp-host-copy": {
+      "types": "./dist/external/external-mcp-host-copy.d.ts",
+      "import": "./dist/external/external-mcp-host-copy.js",
+      "default": "./dist/external/external-mcp-host-copy.js"
     }
   },
   "bin": {
