@@ -7,7 +7,7 @@
 .jini-admin-failure-notice > .notice p { margin: 0 0 0.4rem; }
 .jini-admin-failure-notice__dismiss {
   position: absolute; top: 0.4rem; right: 0.4rem; width: 2rem; height: 2rem; line-height: 1;
-  border: 0; border-radius: var(--r-md); background: transparent; color: inherit; font-size: 1.25rem; cursor: pointer;
+  border: 0; border-radius: var(--jini-admin-r-md); background: transparent; color: inherit; font-size: 1.25rem; cursor: pointer;
 }
 .jini-admin-failure-notice__dismiss:hover { background: rgb(0 0 0 / 0.08); }
 .jini-admin-failure-notice__dismiss:focus-visible { outline: 2px solid currentColor; outline-offset: 1px; }

@@ -8,8 +8,8 @@
   padding: 6px 14px;
   border-radius: 999px;
   font-size: 13px;
-  background: var(--warning-bg);
-  color: var(--warning);
+  background: var(--jini-admin-warning-bg);
+  color: var(--jini-admin-warning);
   box-shadow: var(--jini-panel-shadow-banner);
   max-width: calc(100vw - 32px);
 }

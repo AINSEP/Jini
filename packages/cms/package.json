@@ -141,7 +141,7 @@
       "./public-http/http/site/render/media-playback-copy": "universal",
       "./public-http/http/site/render/value-readers": "universal",
       "./public-http/routes/site/pages/listing/listing-state": "universal",
-      "./pages/authoring-html": "universal",
+      "./pages/authoring-html": "node",
       "./pages/hidden-until-script": "universal",
       "./admin-http/routes/system/observability-status": "universal",
       "./admin-http/routes/system/tool-gaps": "universal",

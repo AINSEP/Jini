@@ -40,8 +40,10 @@ export type RecentServerErrorsHook = () => RecentServerErrorsController;
  * repeated) that opens to the full message with shortened paths; Copy puts a paste-ready block on
  * the clipboard.
  */
-export function RecentErrorsPanel({ useRecentServerErrorsHook, useRecentErrorItemHook }: { useRecentServerErrorsHook: RecentServerErrorsHook; useRecentErrorItemHook: RecentErrorItemHook }) {
-  const controller = useRecentServerErrorsHook();
+export function RecentErrorsPanel(props: { useRecentServerErrorsHook: RecentServerErrorsHook; useRecentErrorItemHook: RecentErrorItemHook }) {
+  // Host hooks are required props, called through `props` (never imported or defaulted).
+  const { useRecentErrorItemHook } = props;
+  const controller = props.useRecentServerErrorsHook();
   const { rows, logs, loading, error, refresh, clipboard, t } = controller;
 
   return (
@@ -92,8 +94,9 @@ function RecentErrorsCaptureStatus({ logs, empty, t }: { logs: RecentServerError
  * One distinct error: a toggle button (the whole summary line) that opens the full message, and a
  * Copy button beside it — siblings, never nested, so each stays its own tab stop.
  */
-function RecentErrorItem({ row, clipboard, t, useRecentErrorItemHook }: { row: RecentServerErrorRow; clipboard: RecentServerErrorsController["clipboard"]; t: Translate; useRecentErrorItemHook: RecentErrorItemHook; }) {
-  const { expanded, toggle, detailId, copied, copy } = useRecentErrorItemHook({ copyText: row.copyText, clipboard });
+function RecentErrorItem(props: { row: RecentServerErrorRow; clipboard: RecentServerErrorsController["clipboard"]; t: Translate; useRecentErrorItemHook: RecentErrorItemHook; }) {
+  const { row, clipboard, t } = props;
+  const { expanded, toggle, detailId, copied, copy } = props.useRecentErrorItemHook({ copyText: row.copyText, clipboard });
 
   return (
     <li className="jini-observability-error" data-expanded={expanded}>

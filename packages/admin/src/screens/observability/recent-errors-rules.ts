@@ -116,7 +116,7 @@ function truncate({ text }: { text: string }, _optional = {}): string {
  * Shortens an absolute path for display: from the last `node_modules/`, else from the first
  * `apps/` or `packages/` folder (the repo root is not known to the browser), else `~/` for a
  * home directory. Anything else is returned unchanged. A `:line:col` suffix is kept.
- * @example shortenSourcePath({ path: "/Users/me/my-site/apps/website/src/a.ts:2:4" }) // "apps/website/src/a.ts:2:4"
+ * @example shortenSourcePath({ path: "/Users/me/my-site/apps/server/src/a.ts:2:4" }) // "apps/server/src/a.ts:2:4"
  */
 export function shortenSourcePath({ path }: { path: string }): string {
   const bare = path.startsWith("file://") ? path.slice("file://".length) : path;

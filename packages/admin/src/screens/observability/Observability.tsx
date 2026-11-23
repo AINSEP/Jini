@@ -247,11 +247,13 @@ function queriesTabs({ queriesTab, t, QueryCachePanel, QueriesPanelComponent }: 
  * The page header reuses the active tab's translated subtitle. Its hook adapts Jini's tab state
  * to `?tab=` navigation; the controlled shell renders only that tab's panel.
  */
-export function Observability({ tabId, productName, useObservabilityStatusHook, useRecentServerErrorsHook, useRecentErrorItemHook, useQueriesTabHook, QueryCachePanel, QueriesPanelComponent, readToolGaps, useAdminThemeBoundaryHook, useObservabilityTabHook }: ObservabilityProps) {
-  const themeBoundary = useAdminThemeBoundaryHook({}, {});
-  const { SETTINGS_DIALOG_DICTIONARIES } = useAdminKitValues();
-  const controller = useObservabilityStatusHook();
-  const queriesTab = useQueriesTabHook();
+export function Observability({ useAdminKitValuesHook = useAdminKitValues, ...props }: ObservabilityProps & { useAdminKitValuesHook?: typeof useAdminKitValues }) {
+  // Host hooks are required props, called through `props` (never imported or defaulted).
+  const { tabId, productName, useRecentServerErrorsHook, useRecentErrorItemHook, QueryCachePanel, QueriesPanelComponent, readToolGaps } = props;
+  const themeBoundary = props.useAdminThemeBoundaryHook({}, {});
+  const { SETTINGS_DIALOG_DICTIONARIES } = useAdminKitValuesHook();
+  const controller = props.useObservabilityStatusHook();
+  const queriesTab = props.useQueriesTabHook();
   const { t, locale } = controller;
 
   const tabs: SettingsDialogTab[] = [
@@ -287,7 +289,7 @@ export function Observability({ tabId, productName, useObservabilityStatusHook, 
     ...queriesTabs({ queriesTab, t, QueryCachePanel, QueriesPanelComponent }),
   ];
 
-  const { activeTabId, onTabChange, subtitle } = useObservabilityTabHook({ tabs, tabId });
+  const { activeTabId, onTabChange, subtitle } = props.useObservabilityTabHook({ tabs, tabId });
   return (
     <div className="page jini-observability-page">
       <div

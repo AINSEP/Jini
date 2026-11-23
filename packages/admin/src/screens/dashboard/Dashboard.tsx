@@ -130,7 +130,7 @@ function RecentActivityBody(props: {
  *  down when open. Open state and its localStorage persistence live in
  *  the host's `useRecentActivityDisclosureHook`. The body stays mounted and is only `hidden`, so the
  *  button's `aria-controls` always names an element that exists. */
-function RecentActivityPanel({ useRecentActivityDisclosureHook, ...props }: {
+function RecentActivityPanel(props: {
   recent: DashboardActivityRow[] | null;
   postsError: string | null;
   pagesError: string | null;
@@ -139,7 +139,8 @@ function RecentActivityPanel({ useRecentActivityDisclosureHook, ...props }: {
   useRecentActivityDisclosureHook: DashboardProps["useRecentActivityDisclosureHook"];
 }) {
   const { t } = props;
-  const { open, toggle, panelId } = useRecentActivityDisclosureHook();
+  // The host's disclosure hook is a required prop, called through `props` (never imported or defaulted).
+  const { open, toggle, panelId } = props.useRecentActivityDisclosureHook();
   return (
     <div className={`jini-dash-panel${open ? "" : " is-collapsed"}`}>
       <div className="jini-dash-panel-head">
@@ -244,7 +245,9 @@ function SiteKeyWarningBanner({ message }: { message: string }) {
   );
 }
 
-export function Dashboard({ useDashboardHook, usePublishToLiveAvailableHook, useRecentActivityDisclosureHook, onPublishAll, links }: DashboardProps) {
+export function Dashboard(props: DashboardProps) {
+  // Host hooks are required props, called through `props` (never imported or defaulted).
+  const { useRecentActivityDisclosureHook, onPublishAll, links } = props;
   const {
     posts,
     published,
@@ -260,9 +263,9 @@ export function Dashboard({ useDashboardHook, usePublishToLiveAvailableHook, use
     dismissDefaultPasswordBanner,
     showSiteKeyBanner,
     siteKeyBannerMessage,
-  } = useDashboardHook();
+  } = props.useDashboardHook();
   // `false` on the live site, which has nowhere to publish to.
-  const canPublish = usePublishToLiveAvailableHook();
+  const canPublish = props.usePublishToLiveAvailableHook();
 
   return (
     <div className="page jini-dashboard-page">

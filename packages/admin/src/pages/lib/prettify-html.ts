@@ -50,11 +50,11 @@
  *  these could change literal, meaningful whitespace (`<pre>`/`<textarea>`) or corrupt embedded
  *  code (`<script>`/`<style>`) that happens to contain characters this tokenizer would otherwise
  *  read as markup. Content between an opening and closing tag of these names is copied verbatim. */
-const RAW_TEXT_ELEMENTS = new Set(["script", "style", "pre", "textarea"]);
+const RAW_TEXT_ELEMENTS: ReadonlySet<string> = new Set(["script", "style", "pre", "textarea"]);
 
 /** Void elements never have a closing tag or children — excluded from the open/close depth stack
  *  below (there is nothing to later pop). */
-const VOID_ELEMENTS = new Set([
+const VOID_ELEMENTS: ReadonlySet<string> = new Set([
   "area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr",
 ]);
 
@@ -66,7 +66,7 @@ const VOID_ELEMENTS = new Set([
  * `img`, `br`, `label`, `button`, …) — inserting whitespace next to one of those CAN become a
  * visible space once rendered, so this formatter never reformats around them at all.
  */
-const BLOCK_ELEMENTS = new Set([
+const BLOCK_ELEMENTS: ReadonlySet<string> = new Set([
   "html", "head", "body", "header", "footer", "nav", "main", "section", "article", "aside",
   "div", "p", "h1", "h2", "h3", "h4", "h5", "h6",
   "ul", "ol", "li", "dl", "dt", "dd",

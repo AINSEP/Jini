@@ -1,27 +1,28 @@
 /*
  * Dashboard layout, stat cards, banners and activity panel, moved with the screen from the host admin
  * stylesheet (classes renamed `dash-*` / `dashboard-page` -> `jini-dash-*` / `jini-dashboard-page`).
- * Colours, spacing and the `--dash-stats-max` sizing variable are host theme tokens. The host imports
- * this file once where it mounts the screen.
+ * Spacing reads the shared `--jini-space-*` tokens; colours, radii, type sizes and shadows read the admin's
+ * own `--jini-admin-*` namespace, which the host theme binds (README `## Wiring`). The host imports this
+ * file once where it mounts the screen.
  */
 
 .jini-dashboard-page {
   container-type: inline-size;
-  --dash-stats-max: 40rem;
+  --jini-admin-dash-stats-max: 40rem;
 }
 
 .jini-dash-top {
   display: grid;
-  grid-template-columns: minmax(0, var(--dash-stats-max));
+  grid-template-columns: minmax(0, var(--jini-admin-dash-stats-max));
   justify-content: start;
-  gap: var(--space-4);
+  gap: var(--jini-space-4);
   align-items: stretch;
   width: 100%;
 }
 
 @container (min-width: 1040px) {
   .jini-dash-top {
-    grid-template-columns: minmax(0, var(--dash-stats-max)) minmax(0, 24rem);
+    grid-template-columns: minmax(0, var(--jini-admin-dash-stats-max)) minmax(0, 24rem);
   }
 }
 
@@ -35,10 +36,10 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 1px;
   overflow: hidden;
-  background: var(--border);
-  border: 1px solid var(--border);
-  border-radius: var(--r-lg);
-  box-shadow: var(--shadow-sm);
+  background: var(--jini-admin-border);
+  border: 1px solid var(--jini-admin-border);
+  border-radius: var(--jini-admin-r-lg);
+  box-shadow: var(--jini-admin-shadow-sm);
 }
 
 @container (min-width: 600px) {
@@ -51,36 +52,36 @@
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: var(--space-2) var(--space-3);
+  gap: var(--jini-space-2) var(--jini-space-3);
   max-width: 680px;
   min-height: 44px;
   box-sizing: border-box;
   margin: 0;
   padding: 0.45rem 0.5rem 0.45rem 0.85rem;
-  border-color: var(--border);
+  border-color: var(--jini-admin-border);
   box-shadow: var(--jini-panel-shadow-flat);
-  font-size: var(--text-sm);
+  font-size: var(--jini-admin-text-sm);
 }
 
 .jini-dash-password-banner p {
   flex: 1 1 16rem;
   margin: 0;
-  color: var(--fg-2);
+  color: var(--jini-admin-fg-2);
 }
 
 .jini-dash-password-banner-icon {
   display: inline-flex;
-  color: var(--warning);
+  color: var(--jini-admin-warning);
 }
 
 .jini-dash-password-banner-action {
   font-weight: 600;
-  color: var(--fg);
+  color: var(--jini-admin-fg);
   white-space: nowrap;
 }
 
 .jini-dash-password-banner-action:hover {
-  color: var(--link);
+  color: var(--jini-admin-link);
   text-decoration: underline;
 }
 
@@ -92,19 +93,19 @@
   height: 28px;
   padding: 0;
   border: 0;
-  border-radius: var(--r-sm);
+  border-radius: var(--jini-admin-r-sm);
   background: transparent;
-  color: var(--muted);
+  color: var(--jini-admin-muted);
   cursor: pointer;
 }
 
 .jini-dash-password-banner-dismiss:hover {
-  background: var(--surface-2);
-  color: var(--fg);
+  background: var(--jini-admin-surface-2);
+  color: var(--jini-admin-fg);
 }
 
 .jini-dash-password-banner-dismiss:focus-visible, .jini-dash-password-banner-action:focus-visible {
-  outline: 2px solid var(--link);
+  outline: 2px solid var(--jini-admin-link);
   outline-offset: 2px;
 }
 
@@ -115,16 +116,16 @@
 .jini-dash-stat {
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
-  background: var(--surface);
-  padding: var(--space-4) var(--space-5);
+  gap: var(--jini-space-1);
+  background: var(--jini-admin-surface);
+  padding: var(--jini-space-4) var(--jini-space-5);
   transition: background 0.14s;
   color: inherit;
   text-decoration: none;
 }
 
 .jini-dash-stat:hover {
-  background: var(--surface-2);
+  background: var(--jini-admin-surface-2);
   text-decoration: none;
 }
 
@@ -136,59 +137,59 @@
 
 @container admin-content (max-width: 456px) {
   .jini-dash-stat {
-    padding: var(--space-3) var(--space-4);
+    padding: var(--jini-space-3) var(--jini-space-4);
   }
 }
 
 .jini-dash-stat-label {
-  font-size: var(--text-2xs);
+  font-size: var(--jini-admin-text-2xs);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: var(--muted);
+  color: var(--jini-admin-muted);
 }
 
 .jini-dash-stat-value {
-  font-family: var(--font-display);
+  font-family: var(--jini-admin-font-display);
   font-size: 2rem;
   font-weight: 700;
   line-height: 1.1;
   letter-spacing: -0.01em;
-  color: var(--fg);
+  color: var(--jini-admin-fg);
   font-variant-numeric: tabular-nums;
 }
 
 .jini-dash-stat-meta {
-  font-size: var(--text-xs);
-  color: var(--muted);
+  font-size: var(--jini-admin-text-xs);
+  color: var(--jini-admin-muted);
 }
 
 .jini-dash-stat-value.is-error {
-  color: var(--faint);
+  color: var(--jini-admin-faint);
 }
 
 .jini-dash-stat-meta.is-error {
-  color: var(--danger);
+  color: var(--jini-admin-danger);
 }
 
 .jini-dash-panels {
   display: grid;
-  grid-template-columns: minmax(0, var(--dash-stats-max));
+  grid-template-columns: minmax(0, var(--jini-admin-dash-stats-max));
   justify-content: start;
-  gap: var(--space-4);
+  gap: var(--jini-space-4);
   align-items: start;
 }
 
 @container admin-content (max-width: 800px) {
   .jini-dash-panels {
-    grid-template-columns: minmax(0, var(--dash-stats-max));
+    grid-template-columns: minmax(0, var(--jini-admin-dash-stats-max));
   }
 }
 
 .jini-dash-panel {
   background: var(--jini-panel-bg);
   border: var(--jini-border-width, 1px) solid var(--jini-panel-border);
-  border-radius: var(--r-lg);
+  border-radius: var(--jini-admin-r-lg);
   box-shadow: var(--jini-panel-shadow);
   overflow: hidden;
   background-image: var(--jini-panel-texture, none);
@@ -199,35 +200,35 @@
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  gap: var(--space-3);
-  padding: var(--space-4) var(--space-5);
-  border-bottom: 1px solid var(--border);
+  gap: var(--jini-space-3);
+  padding: var(--jini-space-4) var(--jini-space-5);
+  border-bottom: 1px solid var(--jini-admin-border);
 }
 
 .jini-dash-panel-title {
-  font-size: var(--text-base);
+  font-size: var(--jini-admin-text-base);
   font-weight: 600;
-  color: var(--fg);
+  color: var(--jini-admin-fg);
   margin: 0;
 }
 
 .jini-dash-panel-body {
-  padding: var(--space-4) var(--space-5);
+  padding: var(--jini-space-4) var(--jini-space-5);
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: var(--jini-space-3);
 }
 
 .jini-dash-panel-body p {
   margin: 0;
-  font-size: var(--text-sm);
-  color: var(--muted);
+  font-size: var(--jini-admin-text-sm);
+  color: var(--jini-admin-muted);
 }
 
 .jini-dash-panel-toggle {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--jini-space-2);
   background: none;
   border: 0;
   padding: 0;
@@ -238,12 +239,12 @@
 
 .jini-dash-panel-toggle:hover {
   opacity: 1;
-  color: var(--primary);
+  color: var(--jini-admin-primary);
 }
 
 .jini-dash-panel-caret {
   display: inline-flex;
-  color: var(--muted);
+  color: var(--jini-admin-muted);
   transition: transform 0.15s ease;
 }
 
@@ -270,9 +271,9 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center;
-  gap: var(--space-3);
-  padding: var(--space-3) var(--space-5);
-  border-bottom: 1px solid var(--border);
+  gap: var(--jini-space-3);
+  padding: var(--jini-space-3) var(--jini-space-5);
+  border-bottom: 1px solid var(--jini-admin-border);
 }
 
 .jini-dash-activity-row:last-child {
@@ -280,7 +281,7 @@
 }
 
 .jini-dash-activity-row:hover {
-  background: var(--surface-2);
+  background: var(--jini-admin-surface-2);
 }
 
 .jini-dash-activity-title {
@@ -288,23 +289,23 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: var(--text-sm);
+  font-size: var(--jini-admin-text-sm);
 }
 
 .jini-dash-activity-time {
-  font-size: var(--text-xs);
-  color: var(--faint);
+  font-size: var(--jini-admin-text-xs);
+  color: var(--jini-admin-faint);
   font-variant-numeric: tabular-nums;
 }
 
 .jini-dash-kind {
-  font-size: var(--text-2xs);
+  font-size: var(--jini-admin-text-2xs);
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: var(--muted);
-  background: var(--surface-3);
+  color: var(--jini-admin-muted);
+  background: var(--jini-admin-surface-3);
   padding: 0.1rem 0.4rem;
-  border-radius: var(--r-sm);
+  border-radius: var(--jini-admin-r-sm);
 }
 
 @media (max-width: 640px) {
@@ -318,7 +319,7 @@
 @container admin-content (max-width: 620px) {
   .jini-dash-activity-row {
     grid-template-columns: auto minmax(0, 1fr);
-    gap: 4px var(--space-2);
+    gap: 4px var(--jini-space-2);
     position: relative;
   }
   .jini-dash-activity-title {

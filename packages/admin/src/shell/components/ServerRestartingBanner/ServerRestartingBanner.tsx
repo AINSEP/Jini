@@ -14,8 +14,9 @@ export interface ServerRestartingBannerProps {
 
 /** A thin top banner while the API is restarting (2026-10-05, S3). Logic: `useServerConnectionBanner`.
  *  Styles: `server-restarting-banner.css` beside this file, imported by the host. */
-export function ServerRestartingBanner({ reconnect, text: copy, useServerConnectionBannerHook }: ServerRestartingBannerProps) {
-  const { status, text } = useServerConnectionBannerHook({ reconnect, text: copy });
+export function ServerRestartingBanner(props: ServerRestartingBannerProps) {
+  // The status hook is a required prop, called through `props` (never imported or defaulted).
+  const { status, text } = props.useServerConnectionBannerHook({ reconnect: props.reconnect, text: props.text });
   if (!text) return null;
   return (
     <div className={`jini-server-restarting-banner jini-server-restarting-banner--${status}`} role="status" aria-live="polite">
