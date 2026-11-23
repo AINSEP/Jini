@@ -17,6 +17,9 @@
  * away rather than either of those. See archived provenance ledger.
  */
 
+// B256: shared with `@jini-ai/artifacts`' tool-call suppressor so the two never disagree on what opens a tool call.
+import { TOOL_CALL_CLOSE_RE, TOOL_CALL_OPEN_RE } from '@jini-ai/core/text';
+
 /** A single streamed text delta event, as consumed by `emitWithTextSuppressor`. */
 type EventSink = (event: { type: 'text_delta'; delta: string }) => void;
 
@@ -31,9 +34,6 @@ const DSML_ARTIFACT_CLOSE_RE = new RegExp([
 const DSML_OPEN_CANONICAL = 'dsmlartifact';
 const ARTIFACT_OPEN_CANONICAL = 'artifact';
 const ARTIFACT_CLOSE_CANONICALS = ['artifact', 'dsml'];
-// Require tag syntax so comparison prose such as `x < tool_call.count && y > 0` stays visible.
-const TOOL_CALL_OPEN_RE = /(?:<tool_call(?=[\s/>])[^>&\r\n]*>|<edit[ \t]*>)/i;
-const TOOL_CALL_CLOSE_RE = /(?:<\/\s*tool_call\s*>|<\/\s*edit\s*>)/i;
 const TOOL_CALL_OPEN_CANONICALS = ['toolcall', 'edit'];
 const TOOL_CALL_CLOSE_CANONICALS = ['toolcall', 'edit'];
 const MAX_CANDIDATE_LENGTH = 512;

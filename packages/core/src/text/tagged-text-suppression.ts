@@ -40,6 +40,16 @@ export interface ArtifactTextSuppressorStats {
 /** The largest suffix searched for a possible tag start. */
 export const MAX_CANDIDATE_LENGTH = 512;
 
+/**
+ * What opens a streamed `<tool_call ...>` or `<edit>` block. The one definition both tool-call suppressors read
+ * (`@jini-ai/agent-runtime`'s ACP one and `@jini-ai/artifacts`'), so they never disagree on what gets hidden.
+ * Tag syntax is required — `<` directly followed by the name, then whitespace, `/` or `>` — so comparison prose such
+ * as `x < tool_call.count && y > 0` stays visible; `&` and line breaks cannot appear inside the open tag for the same reason.
+ */
+export const TOOL_CALL_OPEN_RE = /(?:<tool_call(?=[\s/>])[^>&\r\n]*>|<edit[ \t]*>)/i;
+/** What closes a block opened by {@link TOOL_CALL_OPEN_RE}; whitespace is tolerated inside a close tag. */
+export const TOOL_CALL_CLOSE_RE = /(?:<\/\s*tool_call\s*>|<\/\s*edit\s*>)/i;
+
 /** The open/close patterns a suppressor matches; see {@link createTaggedTextSuppressor}. */
 export interface TaggedTextMatchers {
   openRe: RegExp;

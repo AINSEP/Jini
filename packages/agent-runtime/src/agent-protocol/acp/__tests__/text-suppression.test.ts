@@ -201,3 +201,20 @@ describe('emitWithTextSuppressor', () => {
     expect(onEvent).not.toHaveBeenCalled();
   });
 });
+
+// B256: this suppressor and `@jini-ai/artifacts`' `createToolCallTextSuppressor` must agree on what opens a tool call.
+// Both read `TOOL_CALL_OPEN_RE` from `@jini-ai/core/text`; the twin of this table lives in
+// `packages/artifacts/src/__tests__/text-suppression.test.ts`.
+describe('createToolCallTextSuppressor shared open-tag cases (B256)', () => {
+  const cases: ReadonlyArray<readonly [input: string, visible: string]> = [
+    ['x < tool_call.count && y > 0', 'x < tool_call.count && y > 0'],
+    ['a <tool_call>hidden</tool_call> b', 'a  b'],
+    ['a <tool_call name="t">hidden</tool_call> b', 'a  b'],
+    ['a <edit>hidden</edit> b', 'a  b'],
+    ['a <tool_calls>kept</tool_calls> b', 'a <tool_calls>kept</tool_calls> b'],
+  ];
+  it.each(cases)('%j stays visible as %j', (input, visible) => {
+    const s = createToolCallTextSuppressor();
+    expect(s.strip(input) + s.flush()).toBe(visible);
+  });
+});

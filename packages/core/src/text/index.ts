@@ -5,7 +5,7 @@ export { trimChars, trimCharsEnd, trimCharsStart } from "../primitives/trim-char
 export { captureLineTail } from "./line-tail.js";
 export { parseDescriptorI18n } from "./descriptor-i18n.js";
 export type { DescriptorI18n } from "./descriptor-i18n.js";
-export { createTaggedTextSuppressor, emitWithTextSuppressor, possibleTagStart, MAX_CANDIDATE_LENGTH } from './tagged-text-suppression.js';
+export { createTaggedTextSuppressor, emitWithTextSuppressor, possibleTagStart, MAX_CANDIDATE_LENGTH, TOOL_CALL_OPEN_RE, TOOL_CALL_CLOSE_RE } from './tagged-text-suppression.js';
 export type { TaggedTextMatchers, TaggedTextSuppressor, ArtifactTextSuppressor, ArtifactTextSuppressorStats, StreamTextEvent, StreamEventSink } from './tagged-text-suppression.js';
 export { createDictionaryTranslator } from './dictionary-translator.js';
 export type { Translate, DictionaryTranslator, LocaleDictionary } from './dictionary-translator.js';

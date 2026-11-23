@@ -3,6 +3,8 @@ import {
   createTaggedTextSuppressor,
   emitWithTextSuppressor,
   possibleTagStart,
+  TOOL_CALL_CLOSE_RE,
+  TOOL_CALL_OPEN_RE,
   type ArtifactTextSuppressor,
 } from '../tagged-text-suppression.js';
 
@@ -215,5 +217,18 @@ describe('createTaggedTextSuppressor (raw factory)', () => {
       isPossibleClose: ({ text: t }) => '[/hide]'.startsWith(t) || t.startsWith('[/hide]'),
     });
     expect(s.strip({ text: 'a [hide]b[/hide] c' })).toBe('a  c');
+  });
+});
+
+// B256: the one open/close definition both tool-call suppressors (agent-runtime ACP, artifacts) read.
+describe('TOOL_CALL_OPEN_RE / TOOL_CALL_CLOSE_RE', () => {
+  it.each(['<tool_call>', '<tool_call name="t">', '<TOOL_CALL/>', '<edit>', '<edit \t>'])('opens on %j', (tag) => {
+    expect(TOOL_CALL_OPEN_RE.test(tag)).toBe(true);
+  });
+  it.each(['x < tool_call.count && y > 0', '< tool_call>', '<tool_calls>', '<tool_call a="1&2">', '<tool_call\n>'])('does not open on %j', (text) => {
+    expect(TOOL_CALL_OPEN_RE.test(text)).toBe(false);
+  });
+  it.each(['</tool_call>', '</ tool_call >', '</edit>'])('closes on %j', (tag) => {
+    expect(TOOL_CALL_CLOSE_RE.test(tag)).toBe(true);
   });
 });

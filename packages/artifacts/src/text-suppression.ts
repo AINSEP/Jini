@@ -20,6 +20,10 @@
  * convention, not OD-branded, and is kept as a named default instance.
  */
 
+// B256: shared with `@jini-ai/agent-runtime`'s ACP tool-call suppressor so the two never disagree on what opens a
+// tool call (this copy used to also match `x < tool_call.count && y > 0` prose and hide it).
+import { TOOL_CALL_CLOSE_RE, TOOL_CALL_OPEN_RE } from '@jini-ai/core/text';
+
 export type StreamTextEvent = { readonly type: 'text_delta'; readonly delta: string };
 export type StreamEventSink = (event: StreamTextEvent) => void;
 
@@ -194,8 +198,6 @@ export function createXmlTagTextSuppressor({ tagNames }: { tagNames: readonly st
   return createTaggedTextSuppressor({ openRe, closeRe, isPossibleOpen: ({ text }) => isPossibleOpen(text), isPossibleClose: ({ text }) => isPossibleClose(text) });
 }
 
-const TOOL_CALL_OPEN_RE = /(?:<\s*tool_call\b[^>]*>|<\s*edit\s*>)/i;
-const TOOL_CALL_CLOSE_RE = /(?:<\/\s*tool_call\s*>|<\/\s*edit\s*>)/i;
 const TOOL_CALL_CANONICALS = ['toolcall', 'edit'];
 
 // Same reasoning as compactTagCandidate above: `text` always starts with
