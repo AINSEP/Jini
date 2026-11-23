@@ -218,6 +218,43 @@
    "isShellPageUrl": "function:f14179b5e1"
   }
  },
+ "./electron/preferences": {
+  "types": "./dist/electron/preferences/index.d.ts",
+  "symbols": {
+   "ApplicationMenuPort": "interface:8954966766",
+   "CheckableMenu": "interface:bc3d6676de",
+   "PREFERENCES_UNREADABLE": "variable:c040a1deb6",
+   "PersistedCheckboxItem": "interface:d9a3619c89",
+   "PersistedRadioItem": "interface:1a0c2ff24d",
+   "PreferenceFilePort": "interface:2e1056a20f",
+   "PreferenceFileRead": "type:e613a39c48",
+   "PreferenceIpcMain": "interface:72cfd045df",
+   "PreferenceProblem": "type:9b9c6bd26a",
+   "RadioMenuPort": "interface:4648d8d96e",
+   "WholeNumberBounds": "interface:a2eedcb431",
+   "choiceOf": "function:8b7543f3a1",
+   "clampWholeNumber": "function:f8efcc6d43",
+   "persistedCheckbox": "function:6f6eb50203",
+   "persistedRadioGroup": "function:f537523c2f",
+   "positiveWholeNumber": "function:5f22239949",
+   "readPreferenceSettings": "function:45eb6b66aa",
+   "readPreferenceValue": "function:7f569aed60",
+   "refreshCheckboxesByLabel": "function:4d655231b7",
+   "refreshRadioGroup": "function:46455bce23",
+   "registerPreferenceIpc": "function:8ab2833dd8",
+   "wholeNumberSteps": "function:6583ef32e5",
+   "writePreferenceValue": "function:597aca1281"
+  }
+ },
+ "./electron/preload": {
+  "types": "./dist/electron/preload/index.d.ts",
+  "symbols": {
+   "PreloadIpcHandler": "type:61fdee4484",
+   "PreloadIpcListenerPort": "interface:c93ed9fa9a",
+   "PreloadSubscribe": "type:e142f432c7",
+   "createPreloadSubscriber": "function:a6f73da9b3"
+  }
+ },
  "./electron/selftest": {
   "types": "./dist/electron/selftest/index.d.ts",
   "symbols": {
@@ -236,6 +273,7 @@
    "AutoUpdateControllerEffects": "interface:0d8ca5e23c",
    "AutoUpdateControllerOptions": "interface:580db7d4b7",
    "CheckInput": "interface:62c5f8bc57",
+   "CheckableUpdater": "interface:4b392be330",
    "ElectronUpdater": "interface:310509434c",
    "FIRST_CHECK_DELAY_MS": "variable:03c045950b",
    "FileInstancePresenceInput": "interface:ae95d140d4",
@@ -249,7 +287,12 @@
    "RestartClickAction": "type:443a384087",
    "UPDATER_TICK_MS": "variable:304fdc1d8c",
    "UPDATE_CHECK_INTERVAL_MS": "variable:0de973e781",
+   "UpdateCheckCopy": "interface:85b38b4635",
+   "UpdateCheckNowDeps": "interface:d5729ead11",
+   "UpdateCheckOutcome": "type:133045d456",
    "UpdateMessages": "interface:e65806e149",
+   "UpdateNotice": "interface:2d733ba312",
+   "UpdateNoticeArgs": "interface:2c106e8b7b",
    "UpdateTimer": "interface:8028c07f95",
    "UpdateTimersPort": "interface:dfdebcf021",
    "UpdateTiming": "interface:0df629465a",
@@ -259,14 +302,18 @@
    "createElectronUpdaterAdapter": "function:335bdbfc57",
    "createFileInstancePresence": "function:f8c9f0f5d5",
    "createNodeUpdateTimers": "function:06c0e27b9f",
+   "createUpdateCheckNow": "function:8ab74264d9",
    "decideFinalQuit": "function:7cf43044bf",
    "decideRestartClick": "function:f6f3f12b93",
    "defaultUpdateMessages": "variable:921a739e34",
    "defaultUpdateTiming": "variable:24c604214f",
    "electUpdaterOwner": "function:f2de1f791e",
+   "isNetworkUpdateError": "function:656356a75d",
    "isPidAlive": "function:fa64356ae2",
    "presenceDirPath": "function:e3689312b6",
+   "registerUpdateCheckIpc": "function:83ff137409",
    "shouldCheckNow": "function:dc55b7edc3",
+   "updateErrorMessage": "function:38519cb5e2",
    "updaterSkipReason": "function:a5042fa008"
   }
  },
@@ -320,6 +367,17 @@
    "workspaceMenuTemplate": "function:e081c5c6c3",
    "writeWindowBounds": "function:581ec52c26",
    "zoomMenuItems": "function:5730865423"
+  }
+ },
+ "./electron/webview": {
+  "types": "./dist/electron/webview/index.d.ts",
+  "symbols": {
+   "WebviewDidFailLoadDetail": "interface:05500cd1c6",
+   "WebviewDidNavigateDetail": "interface:58564d64d3",
+   "WebviewDidNavigateInPageDetail": "interface:cd2c796da6",
+   "WebviewFoundInPageDetail": "interface:636b43fafe",
+   "WebviewFoundInPageResult": "interface:69749c53ed",
+   "WebviewTagMethods": "interface:ec094d298f"
   }
  },
  "./node-toolchain": {
