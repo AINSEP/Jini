@@ -11,6 +11,7 @@ import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:pat
 import ts from 'typescript';
 import { packageSourceFiles, parseSource, sourcePackages, type SourcePackage } from './lib/package-sources.js';
 import { isMainModule } from './lib/is-main-module.js';
+import { validContractStatement } from './lib/contract-runtime.js';
 
 interface Finding { rule: string; file: string; specifier: string }
 interface Change { status: string; file: string }
@@ -196,12 +197,6 @@ function insideCore(required: { file: string; specifier: string; core: string })
   return required.specifier.startsWith('.') && resolve(dirname(required.file), required.specifier).startsWith(resolve(required.core, 'src') + '/');
 }
 
-function validContractStatement(node: ts.Statement): boolean {
-  if (ts.canHaveModifiers(node) && ts.getModifiers(node)?.some(modifier => modifier.kind === ts.SyntaxKind.DefaultKeyword)) return false;
-  if (ts.isInterfaceDeclaration(node) || ts.isTypeAliasDeclaration(node)) return true;
-  if (ts.isImportDeclaration(node)) return node.importClause?.isTypeOnly === true;
-  return ts.isExportDeclaration(node) && node.isTypeOnly;
-}
 
 function checkContract(required: { root: string; file: string; core: string }): Finding[] {
   const ast = parseSource({ file: required.file, source: readFileSync(required.file, 'utf8') });

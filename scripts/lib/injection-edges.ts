@@ -29,7 +29,7 @@ export function runtimeAdapters(required: { packages: readonly SourcePackage[] }
 const SCOPE = '@jini-ai/';
 
 /** `spec` is what the import resolves to; `written` is the alias it was written as, when different. */
-export interface Edge { owner: string; target: string; spec: string; kind: string; file: string; written?: string }
+export interface Edge { owner: string; target: string; spec: string; kind: string; file: string; written?: string; rule?: string }
 /** Edges of one package; `resolve` applies that package's aliases (see spec-aliases.ts). */
 export interface EdgeScope { root: string; pkg: SourcePackage; resolve: SpecResolver }
 
@@ -74,8 +74,12 @@ export function manifestEdges(required: EdgeScope, _optional: Record<string, nev
   const file = posix(relative(required.root, join(required.pkg.directory, 'package.json')));
   const owner = ownerOf(required.pkg);
   const sections = [['manifest-dependencies', required.pkg.manifest.dependencies], ['manifest-peer', required.pkg.manifest.peerDependencies]] as const;
-  return sections.flatMap(([kind, deps]) => Object.keys(deps ?? {})
+  const legacy = sections.flatMap(([kind, deps]) => Object.keys(deps ?? {})
     .flatMap(spec => edgesOf({ owner, spec, kind, file, resolve: required.resolve })));
+  // Gate C1: optionalDependencies is new coverage, so it reports under L5-resolved and leaves old keys stable.
+  const optional = Object.keys(required.pkg.manifest.optionalDependencies ?? {})
+    .flatMap(spec => edgesOf({ owner, spec, kind: 'manifest-optional', file, resolve: required.resolve })).map(edge => ({ ...edge, rule: 'L5-resolved' }));
+  return [...legacy, ...optional];
 }
 
 /** A type-only site, or a manifest peer: neither runs the target's code. */
@@ -103,7 +107,7 @@ function l5Reason(required: { edge: Edge; exceptions: readonly InjectionExceptio
 export function injectedEdgeFindings(required: { edges: readonly Edge[]; exceptions: readonly InjectionException[]; presets: ReadonlySet<string>; adapters: ReadonlySet<string> }, _optional: Record<string, never> = {}): Finding[] {
   return required.edges.flatMap(edge => {
     const why = l5Reason({ edge, exceptions: required.exceptions, presets: required.presets, adapters: required.adapters });
-    return why ? [{ rule: 'L5-injected-edge', file: edge.file, spec: edge.spec, kind: edge.kind, reason: `${edge.owner} → ${edge.spec}${edge.written ? ` (written as ${edge.written})` : ''}: ${why}` }] : [];
+    return why ? [{ rule: edge.rule ?? 'L5-injected-edge', file: edge.file, spec: edge.spec, kind: edge.kind, reason: `${edge.owner} → ${edge.spec}${edge.written ? ` (written as ${edge.written})` : ''}: ${why}` }] : [];
   });
 }
 

@@ -14,6 +14,12 @@ export interface Finding { rule: string; file: string; spec: string; kind: strin
 export interface DebtEntry { rule: string; file: string; spec: string; kind: string; count: number; lane: string }
 export interface InjectionException { owner: string; target: string; specGlob: string; ownerQuestion: string; approved: string; note: string }
 export interface DebtViolation { rule: string; file: string; reason: string }
+/** GC.1/GC.2: the approved Core/Protocol runtime pairs (`<exports key as a spec>#<export>`), the rules whose
+ * one-time seed has happened (the marker outlives the last entry), and the SHA the seed was captured at. */
+export interface DebtMetadata { approvedRuntime: string[]; initialized: string[]; seedSha: string }
+export interface DebtFile { _comment?: string; metadata?: DebtMetadata; entries: DebtEntry[] }
+/** Rules a first capture may seed (Gate C1, C3). Every other rule's keys only shrink. */
+export const BOOTSTRAP_RULES: readonly string[] = ['L5-resolved', 'XP4-runtime'];
 
 export const keyOf = (item: { rule: string; file: string; spec: string; kind: string }, _optional: Record<string, never> = {}): string =>
   [item.rule, item.file, item.spec, item.kind].join('\u0000');
@@ -26,6 +32,45 @@ function readList<T>(required: { path: string; field: string }, _optional: Recor
 
 export function loadDebt(required: { root: string }, _optional: Record<string, never> = {}): DebtEntry[] {
   return readList<DebtEntry>({ path: join(required.root, DEBT_FILE), field: 'entries' });
+}
+
+/** The whole debt file, metadata included; an absent file is an empty ledger. */
+export function loadDebtFile(required: { root: string }, _optional: Record<string, never> = {}): DebtFile {
+  const path = join(required.root, DEBT_FILE);
+  if (!existsSync(path)) return { entries: [] };
+  const parsed = JSON.parse(readFileSync(path, 'utf8')) as DebtFile;
+  return { ...parsed, entries: Array.isArray(parsed.entries) ? parsed.entries : [] };
+}
+
+/** A base read from git or a test double: an entries array (pre-metadata form), a whole file, or null. */
+export function asDebtFile(base: readonly DebtEntry[] | DebtFile | null, _optional: Record<string, never> = {}): DebtFile | null {
+  if (base === null) return null;
+  return Array.isArray(base) ? { entries: [...base] } : base as DebtFile;
+}
+
+const FILE_KEYS = new Set(['_comment', 'metadata', 'entries']);
+const METADATA_KEYS = new Set(['approvedRuntime', 'initialized', 'seedSha']);
+const isSortedUnique = (list: readonly string[]): boolean => list.every((item, index) => index === 0 || list[index - 1]! < item);
+
+function metadataProblems(metadata: DebtMetadata): string[] {
+  const problems = Object.keys(metadata).filter(key => !METADATA_KEYS.has(key)).map(key => `unknown metadata key ${key}`);
+  if (!Array.isArray(metadata.approvedRuntime) || !isSortedUnique(metadata.approvedRuntime)) problems.push('metadata.approvedRuntime must be a sorted, unique list');
+  if (!Array.isArray(metadata.initialized) || metadata.initialized.some(rule => !BOOTSTRAP_RULES.includes(rule))) problems.push('metadata.initialized holds only bootstrap rule ids');
+  if (typeof metadata.seedSha !== 'string' || !metadata.seedSha) problems.push('metadata.seedSha is required');
+  return problems;
+}
+
+/** Schema problems in the head debt file, plus initialized markers the base had and the head dropped. */
+export function debtFileViolations(required: { file: DebtFile; base: DebtFile | null }, _optional: Record<string, never> = {}): DebtViolation[] {
+  const { file, base } = required;
+  const problems = Object.keys(file).filter(key => !FILE_KEYS.has(key)).map(key => `unknown top-level key ${key}`);
+  if (file.metadata) problems.push(...metadataProblems(file.metadata));
+  const keys = file.entries.map(entry => keyOf(entry));
+  if (new Set(keys).size !== keys.length) problems.push('duplicate entry keys');
+  if (file.entries.some(entry => !Number.isInteger(entry.count) || entry.count < 1)) problems.push('every count is a positive integer');
+  const dropped = (base?.metadata?.initialized ?? []).filter(rule => !(file.metadata?.initialized ?? []).includes(rule));
+  if (dropped.length > 0) problems.push(`initialized markers persist after the last entry: restore ${dropped.join(', ')}`);
+  return problems.length === 0 ? [] : [{ rule: 'injection-debt-invalid', file: DEBT_FILE, reason: problems.join('; ') }];
 }
 
 export function loadExceptions(required: { root: string }, _optional: Record<string, never> = {}): InjectionException[] {
@@ -56,22 +101,35 @@ const listed = (entries: readonly DebtEntry[]): string =>
 function staleViolations(required: { debt: readonly DebtEntry[]; found: ReturnType<typeof countByKey> }): DebtViolation[] {
   const stale = required.debt.filter(entry => (required.found.get(keyOf(entry))?.count ?? 0) < entry.count);
   if (stale.length === 0) return [];
-  return [{ rule: 'injection-debt-stale', file: DEBT_FILE, reason: `lower or remove ${stale.length} allowances above what is found: ${listed(stale)}` }];
+  return [{ rule: 'injection-debt-stale', file: DEBT_FILE, reason: `update baseline: lower or remove ${stale.length} allowances above what is found: ${listed(stale)}` }];
 }
 
 /** The trusted base's debt entries; null when the base has no debt file yet. Fails closed when git cannot read the base. */
-export function gitDebtBase(required: { root: string }, _optional: Record<string, never> = {}): DebtEntry[] | null {
-  const base = debtAtBase({ root: required.root, file: DEBT_FILE }, {
-    baseRef: process.env.INJECTION_BASE_REF || 'HEAD', firstCommit: process.env.INJECTION_FIRST_PUSH_COMMIT || '',
-  }) as { entries?: DebtEntry[] } | null;
-  return base ? base.entries ?? [] : null;
+export function gitDebtBase(required: { root: string }, _optional: Record<string, never> = {}): DebtFile | null {
+  const base = debtAtBase({ root: required.root, file: DEBT_FILE }, baseRefOptions()) as DebtFile | null;
+  return base ? { ...base, entries: base.entries ?? [] } : null;
+}
+
+/** INJECTION_BASE_REF / INJECTION_FIRST_PUSH_COMMIT, the trusted base CI passes in. */
+export const baseRefOptions = (_optional: Record<string, never> = {}): { baseRef: string; firstCommit: string } =>
+  ({ baseRef: process.env.INJECTION_BASE_REF || 'HEAD', firstCommit: process.env.INJECTION_FIRST_PUSH_COMMIT || '' });
+
+/** C3: a bootstrap rule may seed new keys once — when the base has no entry and no initialized marker for it
+ * and the head marks it initialized. Exactness comes from `applyDebt` (no missing key) plus the stale check
+ * (no slack), so a seed can only equal the live findings. */
+function seeding(required: { base: DebtFile; head: DebtMetadata | undefined }): Set<string> {
+  const initializedAtBase = new Set(required.base.metadata?.initialized ?? []);
+  return new Set(BOOTSTRAP_RULES.filter(rule => (required.head?.initialized ?? []).includes(rule) && !initializedAtBase.has(rule)
+    && !required.base.entries.some(entry => entry.rule === rule)));
 }
 
 /** A key the base did not allow, or a count above the base's, is growth: the debt file only shrinks. */
-export function debtGrowth(required: { base: readonly DebtEntry[] | null; debt: readonly DebtEntry[] }, _optional: Record<string, never> = {}): DebtViolation[] {
-  if (!required.base) return [];
-  const allowed = new Map(required.base.map(entry => [keyOf(entry), entry.count]));
-  const grown = required.debt.filter(entry => entry.count > (allowed.get(keyOf(entry)) ?? 0));
+export function debtGrowth(required: { base: readonly DebtEntry[] | DebtFile | null; debt: readonly DebtEntry[] }, optional: { metadata?: DebtMetadata } = {}): DebtViolation[] {
+  const base = asDebtFile(required.base);
+  if (!base) return [];
+  const allowed = new Map(base.entries.map(entry => [keyOf(entry), entry.count]));
+  const seeds = seeding({ base, head: optional.metadata });
+  const grown = required.debt.filter(entry => !seeds.has(entry.rule) && entry.count > (allowed.get(keyOf(entry)) ?? 0));
   if (grown.length === 0) return [];
   return [{ rule: 'injection-debt-growth', file: DEBT_FILE, reason: `${grown.length} allowances are new or higher than at the base commit: ${listed(grown)}` }];
 }

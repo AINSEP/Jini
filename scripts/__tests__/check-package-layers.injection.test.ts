@@ -18,15 +18,18 @@ const put = (file: string, content: string | object): void => {
   writeFileSync(path, typeof content === 'string' ? content : JSON.stringify(content));
 };
 const manifest = (name: string, extra: object = {}): void => put(`packages/${name}/package.json`, { name: `@jini-ai/${name}`, ...extra });
-let baseEntries: object[] | null = null;
+let baseEntries: object[] | object | null = null;
+/** Files of the trusted base tree, for the approved-runtime check (path -> source). */
+let baseFiles: Record<string, string> = {};
 const gate = (warnings: string[] = []): string[] => checkPackageLayers({ repoRoot: root }, {
-  warn: message => warnings.push(message), debtBase: () => baseEntries as never,
+  warn: message => warnings.push(message), debtBase: () => baseEntries as never, baseRead: path => baseFiles[path],
 }).map(violation => `${violation.rule} ${violation.file}`).sort();
 const debt = (...entries: object[]): void => put('scripts/injection-debt.json', { entries: entries.map(entry => ({ lane: 'T', count: 1, ...entry })) });
 const L5 = 'L5-injected-edge';
 
 beforeEach(() => {
   baseEntries = null;
+  baseFiles = {};
   root = mkdtempSync(join(tmpdir(), 'jini-injection-test-'));
   manifest('core');
   manifest('protocol');
@@ -47,6 +50,9 @@ describe('L5-injected-edge', () => {
   beforeEach(() => manifest('daemon', { dependencies: { '@jini-ai/core': '*', '@jini-ai/protocol': '*' } }));
 
   it('passes imports of core and protocol, value and type alike', () => {
+    manifest('core', { exports: { './records': { types: './dist/records.d.ts', import: './dist/records.js' } } });
+    put('packages/core/src/records.ts', 'export const x = 1;\nexport interface Records { id: string }\n');
+    put('scripts/injection-debt.json', { _comment: 't', metadata: { approvedRuntime: ['@jini-ai/core/records#x'], initialized: [], seedSha: 'seed' }, entries: [] });
     put('packages/daemon/src/a.ts', "import { x } from '@jini-ai/core/records'; import type { Y } from '@jini-ai/protocol'; export { x };");
     expect(gate()).toEqual([]);
   });
@@ -322,6 +328,138 @@ describe('L7-css-tokens', () => {
     put('packages/ui/src/b.css', '.b { color: var(--text-sm); }');
     put('packages/ui/src/c.css', '@import "@jini-ai/admin/themes/default.css";');
     expect(gate()).toEqual(['L7-css-tokens packages/ui/src/b.css', 'L7-css-tokens packages/ui/src/c.css']);
+  });
+});
+
+describe('L5-resolved: Core and Protocol public entries, approved runtime, new coverage (Gate C1)', () => {
+  const LR = 'L5-resolved';
+  const meta = (approvedRuntime: string[], extra: object = {}): object => ({ approvedRuntime, initialized: ['L5-resolved', 'XP4-runtime'], seedSha: 'seed', ...extra });
+  const debtFile = (metadata: object, entries: object[] = []): void => put('scripts/injection-debt.json', { _comment: 't', metadata, entries: entries.map(entry => ({ lane: 'T', count: 1, ...entry })) });
+  const RECORDS = "export const x = 1;\nexport function y(): number { return 2; }\nexport interface Records { id: string }\nexport type Alias = string;\n";
+  beforeEach(() => {
+    manifest('core', { exports: { '.': { import: './dist/index.js' }, './records': { types: './dist/records.d.ts', import: './dist/records.js' } } });
+    put('packages/core/src/index.ts', "export { x } from './records.js';\n");
+    put('packages/core/src/records.ts', RECORDS);
+    manifest('daemon', { dependencies: { '@jini-ai/core': '*' } });
+    debtFile(meta(['@jini-ai/core#x', '@jini-ai/core/records#x', '@jini-ai/core/records#y']));
+  });
+
+  it('passes public type-only imports and approved named values, renamed locally or not', () => {
+    put('packages/daemon/src/a.ts', "import type { Records } from '@jini-ai/core/records';\nimport { x as renamed, y } from '@jini-ai/core/records';\nimport { x } from '@jini-ai/core';\nexport const z: Records | number = renamed + y() + x;\n");
+    expect(gate()).toEqual([]);
+  });
+
+  it('C-same-specifier-value: a Core type import passes; the same specifier used as a value is a finding', () => {
+    put('packages/daemon/src/a.ts', "import type { Alias } from '@jini-ai/core/records';\nexport const v: Alias = 'a';\n");
+    expect(gate()).toEqual([]);
+  });
+
+  it('fails an unapproved value in a mixed import, a namespace load and a bare side-effect load', () => {
+    put('packages/daemon/src/a.ts', "import { type Records, Alias } from '@jini-ai/core/records';\nexport type R = Records;\nexport { Alias };\n");
+    put('packages/daemon/src/b.ts', "import * as core from '@jini-ai/core/records';\nexport const n = core.x;\n");
+    put('packages/daemon/src/c.ts', "import '@jini-ai/core/records';\n");
+    expect(gate()).toEqual([`${LR} packages/daemon/src/a.ts`, `${LR} packages/daemon/src/b.ts`, `${LR} packages/daemon/src/c.ts`]);
+  });
+
+  it('fails an inline type list that still emits a module load under verbatimModuleSyntax', () => {
+    put('packages/daemon/src/a.ts', "import { type Records } from '@jini-ai/core/records';\nexport type R = Records;\n");
+    expect(gate()).toEqual([`${LR} packages/daemon/src/a.ts`]);
+  });
+
+  it('fails a private Core entry even for a type import, and an opaque dynamic load', () => {
+    put('packages/daemon/src/a.ts', "import type { Records } from '@jini-ai/core/src/records';\nexport type R = Records;\n");
+    put('packages/daemon/src/b.ts', "export const load = () => import('@jini-ai/core/records');\n");
+    expect(gate()).toEqual([`${LR} packages/daemon/src/a.ts`, `${LR} packages/daemon/src/b.ts`]);
+  });
+
+  it('resolves a sibling-relative .js import back to its owning package and reports it once', () => {
+    put('packages/platform/src/fs.ts', 'export const run = 1;\n');
+    put('packages/daemon/src/a.ts', "import { run } from '../../platform/src/fs.js';\nexport { run };\n");
+    expect(gate()).toEqual([`${LR} packages/daemon/src/a.ts`]);
+  });
+
+  it('fails an aliased optionalDependencies entry as its own manifest kind', () => {
+    manifest('daemon', { dependencies: { '@jini-ai/core': '*' }, optionalDependencies: { plat: 'npm:@jini-ai/platform@1' } });
+    expect(gate()).toEqual([`${LR} packages/daemon/package.json`]);
+  });
+
+  it('runtime approval: an approval-only addition fails against the trusted base', () => {
+    baseEntries = { _comment: 't', metadata: meta(['@jini-ai/core#x', '@jini-ai/core/records#x']), entries: [] };
+    baseFiles = { 'packages/core/package.json': JSON.stringify({ name: '@jini-ai/core', exports: { '.': { import: './dist/index.js' }, './records': { import: './dist/records.js' } } }), 'packages/core/src/index.ts': "export { x } from './records.js';\n", 'packages/core/src/records.ts': RECORDS };
+    expect(gate()).toEqual(['injection-approval-growth scripts/injection-debt.json']);
+  });
+
+  it('runtime approval: a new public runtime export added with its approval passes', () => {
+    baseEntries = { _comment: 't', metadata: meta(['@jini-ai/core#x', '@jini-ai/core/records#x']), entries: [] };
+    baseFiles = { 'packages/core/package.json': JSON.stringify({ name: '@jini-ai/core', exports: { '.': { import: './dist/index.js' }, './records': { import: './dist/records.js' } } }), 'packages/core/src/index.ts': "export { x } from './records.js';\n", 'packages/core/src/records.ts': 'export const x = 1;\n' };
+    expect(gate()).toEqual([]);
+  });
+
+  it('runtime approval: a type-only export cannot authorize a value', () => {
+    debtFile(meta(['@jini-ai/core#x', '@jini-ai/core/records#Records', '@jini-ai/core/records#x', '@jini-ai/core/records#y']));
+    expect(gate()).toEqual(['injection-debt-invalid scripts/injection-debt.json']);
+  });
+
+  it('runtime approval: dropping an approval whose export is still public is a narrowing failure', () => {
+    baseEntries = { _comment: 't', metadata: meta(['@jini-ai/core#x', '@jini-ai/core/records#x', '@jini-ai/core/records#y']), entries: [] };
+    baseFiles = { 'packages/core/package.json': JSON.stringify({ name: '@jini-ai/core', exports: { '.': { import: './dist/index.js' }, './records': { import: './dist/records.js' } } }), 'packages/core/src/index.ts': "export { x } from './records.js';\n", 'packages/core/src/records.ts': RECORDS };
+    debtFile(meta(['@jini-ai/core#x', '@jini-ai/core/records#x']));
+    expect(gate()).toEqual(['injection-approval-narrowed scripts/injection-debt.json']);
+  });
+
+  it('trusted debt: rejects unknown keys, unsorted approvals, duplicate keys and non-positive counts', () => {
+    put('scripts/injection-debt.json', { _comment: 't', extra: 1, metadata: { ...meta(['@jini-ai/core/records#y', '@jini-ai/core/records#x']), more: 1 }, entries: [{ rule: L5, file: 'f', spec: 's', kind: 'import', count: 0, lane: 'T' }, { rule: L5, file: 'f', spec: 's', kind: 'import', count: 1, lane: 'T' }] });
+    const found = gate();
+    expect(found.filter(line => line.startsWith('injection-debt-invalid'))).toEqual(['injection-debt-invalid scripts/injection-debt.json']);
+  });
+
+  it('trusted debt: first capture of a designated new rule passes with an exact seed', () => {
+    baseEntries = { _comment: 't', metadata: { ...meta(['@jini-ai/core#x', '@jini-ai/core/records#x', '@jini-ai/core/records#y']), initialized: [] }, entries: [] };
+    baseFiles = { 'packages/core/package.json': JSON.stringify({ name: '@jini-ai/core', exports: { '.': { import: './dist/index.js' }, './records': { import: './dist/records.js' } } }), 'packages/core/src/index.ts': "export { x } from './records.js';\n", 'packages/core/src/records.ts': RECORDS };
+    put('packages/daemon/src/c.ts', "import '@jini-ai/core/records';\n");
+    debtFile(meta(['@jini-ai/core#x', '@jini-ai/core/records#x', '@jini-ai/core/records#y']), [{ rule: LR, file: 'packages/daemon/src/c.ts', spec: '@jini-ai/core/records', kind: 'opaque-side-effect' }]);
+    expect(gate()).toEqual([]);
+  });
+
+  it('trusted debt: seeding a rule again after its debt reached zero fails (the marker persists)', () => {
+    baseEntries = { _comment: 't', metadata: meta(['@jini-ai/core#x', '@jini-ai/core/records#x', '@jini-ai/core/records#y']), entries: [] };
+    baseFiles = { 'packages/core/package.json': JSON.stringify({ name: '@jini-ai/core', exports: { '.': { import: './dist/index.js' }, './records': { import: './dist/records.js' } } }), 'packages/core/src/index.ts': "export { x } from './records.js';\n", 'packages/core/src/records.ts': RECORDS };
+    put('packages/daemon/src/c.ts', "import '@jini-ai/core/records';\n");
+    debtFile(meta(['@jini-ai/core#x', '@jini-ai/core/records#x', '@jini-ai/core/records#y']), [{ rule: LR, file: 'packages/daemon/src/c.ts', spec: '@jini-ai/core/records', kind: 'opaque-side-effect' }]);
+    expect(gate()).toEqual(['injection-debt-growth scripts/injection-debt.json']);
+  });
+
+  it('trusted debt: dropping an initialized marker fails', () => {
+    baseEntries = { _comment: 't', metadata: meta(['@jini-ai/core#x', '@jini-ai/core/records#x', '@jini-ai/core/records#y']), entries: [] };
+    baseFiles = { 'packages/core/package.json': JSON.stringify({ name: '@jini-ai/core', exports: { '.': { import: './dist/index.js' }, './records': { import: './dist/records.js' } } }), 'packages/core/src/index.ts': "export { x } from './records.js';\n", 'packages/core/src/records.ts': RECORDS };
+    debtFile({ ...meta(['@jini-ai/core#x', '@jini-ai/core/records#x', '@jini-ai/core/records#y']), initialized: ['XP4-runtime'] });
+    expect(gate()).toEqual(['injection-debt-invalid scripts/injection-debt.json']);
+  });
+
+  it('trusted debt: a cut prints update baseline; the exact shrink passes', () => {
+    debtFile(meta(['@jini-ai/core#x', '@jini-ai/core/records#x', '@jini-ai/core/records#y']), [{ rule: LR, file: 'packages/daemon/src/c.ts', spec: '@jini-ai/core/records', kind: 'opaque-side-effect' }]);
+    const violations = checkPackageLayers({ repoRoot: root }, { warn: () => undefined, debtBase: () => null, baseRead: () => undefined });
+    expect(violations.map(violation => violation.reason).join('\n')).toContain('update baseline');
+    debtFile(meta(['@jini-ai/core#x', '@jini-ai/core/records#x', '@jini-ai/core/records#y']));
+    expect(gate()).toEqual([]);
+  });
+
+  describe('XP4-runtime: Core src/contracts holds types only', () => {
+    const XP = 'XP4-runtime';
+    it('freezes existing runtime syntax at its recorded count and passes a new types-only module', () => {
+      put('packages/core/src/contracts/server.ts', 'export interface Route { path: string }\nexport function define(): number { return 1; }\n');
+      put('packages/core/src/contracts/types-only.ts', "import type { Route } from './server.js';\nexport type Routes = Route[];\n");
+      debtFile(meta(['@jini-ai/core#x', '@jini-ai/core/records#x', '@jini-ai/core/records#y']), [{ rule: XP, file: 'packages/core/src/contracts/server.ts', spec: 'FunctionDeclaration:define', kind: 'FunctionDeclaration' }]);
+      expect(gate()).toEqual([]);
+    });
+
+    it('fails runtime syntax added to an existing contract file and a new runtime contract file', () => {
+      put('packages/core/src/contracts/server.ts', 'export interface Route { path: string }\nexport function define(): number { return 1; }\nexport const extra = 2;\n');
+      put('packages/core/src/contracts/fresh.ts', 'export class Fresh {}\n');
+      put('packages/core/src/contracts/__tests__/fixture.ts', 'export const ignored = 1;\n');
+      debtFile(meta(['@jini-ai/core#x', '@jini-ai/core/records#x', '@jini-ai/core/records#y']), [{ rule: XP, file: 'packages/core/src/contracts/server.ts', spec: 'FunctionDeclaration:define', kind: 'FunctionDeclaration' }]);
+      expect(gate()).toEqual([`${XP} packages/core/src/contracts/fresh.ts`, `${XP} packages/core/src/contracts/server.ts`]);
+    });
   });
 });
 
