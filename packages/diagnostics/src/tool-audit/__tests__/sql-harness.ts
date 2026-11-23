@@ -1,4 +1,4 @@
-import { DummyDriver, Kysely, SqliteAdapter, SqliteIntrospector, SqliteQueryCompiler, type KyselyPlugin } from "kysely";
+import { DummyDriver, Kysely, SqliteDialect, type Driver, type KyselyPlugin } from "kysely";
 import type { StorageKernel } from "@jini-ai/core/contracts/storage";
 
 /**
@@ -6,6 +6,13 @@ import type { StorageKernel } from "@jini-ai/core/contracts/storage";
  * parameters are recorded, and each `execute` answers with the next queued row set (default: no
  * rows). Lets the SQL adapters be pinned without a database driver in this package.
  */
+/** SQLite compilation over the no-op driver; the dialect's database is never opened. */
+class CompileOnlySqliteDialect extends SqliteDialect {
+  override createDriver(): Driver {
+    return new DummyDriver();
+  }
+}
+
 export interface SqlHarness {
   kernel: StorageKernel<Kysely<unknown>, unknown>;
   statements: Array<{ sql: string; parameters: readonly unknown[] }>;
@@ -21,12 +28,7 @@ export function createSqlHarness(_required = {}, _optional = {}): SqlHarness {
     transformResult: async () => ({ rows: queue.shift() ?? [] }),
   };
   const db = new Kysely<unknown>({
-    dialect: {
-      createAdapter: () => new SqliteAdapter(),
-      createDriver: () => new DummyDriver(),
-      createIntrospector: (handle) => new SqliteIntrospector(handle),
-      createQueryCompiler: () => new SqliteQueryCompiler(),
-    },
+    dialect: new CompileOnlySqliteDialect({ database: {} as never }),
     plugins: [answer],
     log: (event) => { statements.push({ sql: event.query.sql, parameters: event.query.parameters }); },
   });

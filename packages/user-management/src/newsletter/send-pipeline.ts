@@ -232,6 +232,31 @@ export function claimBatch(
   return deps.processOutbox({ outbox: deps.outbox, bus: deps.bus, clock: { nowMs: () => Date.parse(deps.clock.nowIso()) } }, { batchSize });
 }
 
+/** The `runHookChain` input for one row: both hook contexts plus the base message (REQ-17). @complexity O(1). */
+function hookChainInput(required: Parameters<typeof dispatchRow>[0]): Parameters<SendPipelineDeps["hooks"]["runHookChain"]>[0] {
+  const { row } = required;
+  return {
+    recipientFilterContext: {
+      workspaceId: row.workspaceId,
+      campaignId: required.campaignId,
+      listId: required.listId,
+      subscriberId: row.subscriberId,
+      recipientEmail: row.recipientEmail,
+      status: required.status,
+    },
+    beforeSendContext: { workspaceId: row.workspaceId, campaignId: required.campaignId, sendId: row.id, subscriberId: row.subscriberId },
+    message: {
+      workspaceId: row.workspaceId,
+      to: { email: row.recipientEmail },
+      from: { email: required.message.fromEmail, name: required.message.fromName },
+      replyTo: { email: required.message.replyTo },
+      subject: required.message.subject,
+      ...(required.message.text === undefined ? {} : { text: required.message.text }),
+      ...(required.message.html === undefined ? {} : { html: required.message.html }),
+    },
+  };
+}
+
 /**
  * REQ-17/22/23 — recipient.filter -> beforeSend -> `MailerPort.send()`, in that fixed order
  * (`hooks.ts`'s `runHookChain`). Never constructs/imports a concrete `MailerPort` (INV-08) — always
@@ -257,26 +282,7 @@ export async function dispatchRow(required: {
     return { outcome: row.status === "delivered" || row.status === "sent" ? "sent" : "failed", providerMessageId: row.providerMessageId, error: row.lastError };
   }
 
-  const hookResult = await deps.hooks.runHookChain({
-    recipientFilterContext: {
-      workspaceId: row.workspaceId,
-      campaignId: required.campaignId,
-      listId: required.listId,
-      subscriberId: row.subscriberId,
-      recipientEmail: row.recipientEmail,
-      status: required.status,
-    },
-    beforeSendContext: { workspaceId: row.workspaceId, campaignId: required.campaignId, sendId: row.id, subscriberId: row.subscriberId },
-    message: {
-      workspaceId: row.workspaceId,
-      to: { email: row.recipientEmail },
-      from: { email: required.message.fromEmail, name: required.message.fromName },
-      replyTo: { email: required.message.replyTo },
-      subject: required.message.subject,
-      ...(required.message.text === undefined ? {} : { text: required.message.text }),
-      ...(required.message.html === undefined ? {} : { html: required.message.html }),
-    },
-  });
+  const hookResult = await deps.hooks.runHookChain(hookChainInput(required));
 
   if (!hookResult.keep) {
     return { outcome: "suppressed", providerMessageId: null, error: hookResult.reason };

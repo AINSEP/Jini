@@ -22,6 +22,7 @@
  * unmet ones are collected — this never short-circuits/returns on the first failure found.
  */
 import type { UUID } from "@jini-ai/core/primitives";
+import { orFallback } from "@jini-ai/core/errors/idioms";
 import type { PositionalMailer as MailerPort } from "@jini-ai/core/contracts/mail";
 import type { MembersConsentCapability } from "./ports.js";
 import type { OriginRegistryPort } from "@jini-ai/core/contracts/server/verified-origin";
@@ -71,11 +72,8 @@ export async function evaluateLaunchGate(required: {
   if (!isTestSend && deps.consentCapability == null) unmet.push("consent_capability_unbound");
 
   // (c) origin verified — NEVER skipped, even for test sends (EC-10: precondition (c) never waived).
-  try {
-    await deps.originRegistry.canonicalOrigin({ workspaceId });
-  } catch {
-    unmet.push("origin_not_verified");
-  }
+  const originVerified = await orFallback({ work: async () => { await deps.originRegistry.canonicalOrigin({ workspaceId }); return true; }, fallback: false, step: "newsletter.launch-gate.origin-verified" });
+  if (!originVerified) unmet.push("origin_not_verified");
 
   // (d) mailer adapter is production-capable — NEVER skipped.
   const caps = deps.mailer.capabilities();
