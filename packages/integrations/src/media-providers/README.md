@@ -161,6 +161,38 @@ See [API.md](https://github.com/AINSEP/Jini/blob/main/packages/integrations/src/
 `resolveProviderCredentialsFromEnv` yourself if you want that. Fixed: each vendor's actual HTTP
 contract, the SSRF blocklist rules, and the snapping logic.
 
+## Wiring
+
+Why the engine takes its transport as ports: [extraction plan](../../../../ADS-memory/reports/jini-port/extraction-plan.md).
+
+**Ports the host injects** (all carried by `MediaDispatchEngineRequired`, `RenderContext`,
+`OperationRuntimeDeps` and the `assertAndFetchExternalAsset` options):
+
+- `httpClient: HttpClientPort` (`@jini-ai/core/primitives`), a policy-enforcing guarded client.
+- `guardedFetch: MediaGuardedFetch`, which projects that client's bounded response into a fetch
+  `Response` for vendor adapters. `fetchMediaOutbound` requires it; render contexts and
+  operation-runtime deps refuse network I/O without it.
+
+**Provides:** `createMediaDispatchEngine`, the vendor adapter registry, the polling operation
+runtime and the SSRF-guarded asset download helper.
+
+```ts
+import { createBuiltinVendorAdapterRegistry, createMediaDispatchEngine } from '@jini-ai/integrations/media-providers';
+import { createNodeMediaHttpClient, nodeMediaGuardedFetch } from '@jini-ai/integrations/media-providers/node';
+
+const engine = createMediaDispatchEngine(
+  { registry: createBuiltinVendorAdapterRegistry(), httpClient: createNodeMediaHttpClient({}), guardedFetch: nodeMediaGuardedFetch },
+  { credentials },
+);
+```
+
+`dispatch/node.ts` is the composer: it is the only non-test file here that imports
+`@jini-ai/platform`, and it binds the platform's guarded fetch as `nodeMediaGuardedFetch`. Until every
+host passes `guardedFetch`, the engine binds that same adapter itself when only `httpClient` is given.
+
+**Must never import:** `@jini-ai/platform` (or any other package's implementation) outside
+`dispatch/node.ts`, a raw `fetch`, or host code.
+
 ## Runtime
 
 `jini.runtime: "node"` — `Buffer`, `undici`, `node:dns` for the SSRF guard, `node:fs` for attachment

@@ -9,16 +9,20 @@ supply a guarded client rather than a raw transport disguised as this port.
 
 ```ts
 import { createBuiltinVendorAdapterRegistry, createMediaDispatchEngine } from '@jini-ai/integrations/media-providers';
-import { createNodeMediaHttpClient } from '@jini-ai/integrations/media-providers/node';
+import { createNodeMediaHttpClient, nodeMediaGuardedFetch } from '@jini-ai/integrations/media-providers/node';
 
 const registry = createBuiltinVendorAdapterRegistry();
 const httpClient = createNodeMediaHttpClient({});
-const engine = createMediaDispatchEngine({ registry, httpClient }, { credentials });
+const engine = createMediaDispatchEngine({ registry, httpClient, guardedFetch: nodeMediaGuardedFetch }, { credentials });
 const result = await engine.generate({ surface: 'image', model: 'dall-e-3' }, { prompt });
 ```
 
 No media path constructs a client implicitly: missing clients fail before network I/O.
-`fetchMediaOutbound({ url, timeoutMs, httpClient }, { init? })` requires the injected port.
+`fetchMediaOutbound({ url, timeoutMs, httpClient, guardedFetch }, { init? })` requires both injected ports.
+`guardedFetch` (`MediaGuardedFetch`) projects the client's bounded response into a fetch `Response`;
+`RenderContext`, `OperationRuntimeDeps` and `assertAndFetchExternalAsset` carry it beside `httpClient`
+and refuse I/O without it. The engine still accepts `{ registry, httpClient }` alone and then binds
+`nodeMediaGuardedFetch` itself; that fallback exists only for hosts that predate the port.
 The explicit Node adapter selects native DNS/clock/pinned-transport ports. Its policy permits HTTP(S),
 denies private, loopback, link-local and reserved peers, rejects URL credentials, and caps decoded
 bytes at 96 MiB. Every DNS answer must be allowed, and the transport dials the checked IP while

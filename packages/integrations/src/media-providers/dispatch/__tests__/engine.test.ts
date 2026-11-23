@@ -505,3 +505,32 @@ describe('host-owned media registries', () => {
     expect(b.get({ providerId: 'host-only', routeKey: 'image' })).toBeUndefined();
   });
 });
+
+describe('createMediaDispatchEngine — injected guarded fetch', () => {
+  const adapter: VendorAdapter = {
+    buildRequest: () => ({ url: 'https://vendor.example/generate', init: { method: 'POST' }, meta: undefined }),
+    parseResponse: async ({ resp }) => ({ bytes: Buffer.from(await resp.text()), providerNote: 'injected' }),
+  };
+  const clientFixture = (): HttpClientPort => ({ send: vi.fn(async () => ({ status: 200, headers: {}, bodyText: 'from client' })) });
+
+  // REGRESSION: fails if the engine ignores the host's guardedFetch and binds its own adapter.
+  it('routes vendor calls through the guarded fetch the host injected', async () => {
+    const registry = createVendorAdapterRegistry();
+    registry.register({ providerId: 'openai', routeKey: 'image', adapter });
+    const httpClient = clientFixture();
+    const guardedFetch = vi.fn(async () => new Response('from injected port'));
+    const engine = createMediaDispatchEngine({ registry, httpClient, guardedFetch });
+    expect((await engine.generate({ surface: 'image', model: 'dall-e-3' })).bytes.toString()).toBe('from injected port');
+    expect(guardedFetch).toHaveBeenCalledWith(expect.objectContaining({ client: httpClient, url: 'https://vendor.example/generate' }), expect.anything());
+    expect(httpClient.send).not.toHaveBeenCalled();
+  });
+
+  it('keeps hosts that pass only httpClient working through the node composer binding', async () => {
+    const registry = createVendorAdapterRegistry();
+    registry.register({ providerId: 'openai', routeKey: 'image', adapter });
+    const httpClient = clientFixture();
+    const engine = createMediaDispatchEngine({ registry, httpClient });
+    expect((await engine.generate({ surface: 'image', model: 'dall-e-3' })).bytes.toString()).toBe('from client');
+    expect(httpClient.send).toHaveBeenCalledTimes(1);
+  });
+});
