@@ -96,7 +96,7 @@ export const formsUpdateRoute = defineJsonRoute<FormsUpdateInput, { data: AdminF
     try {
       const target = { workspaceId: deps.workspaceId, actor: { id: actorId, kind: "user" as const }, formId };
       const definition = await resolveFormUpdateResult({ deps, target, body });
-      return ok({ value: toAdminFormDefinitionResponse(definition) });
+      return ok({ value: toAdminFormDefinitionResponse({ definition }) });
     } catch (err) {
       return rejectFormsWriteError({ err });
     }

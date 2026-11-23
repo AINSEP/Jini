@@ -64,6 +64,6 @@ export const formsGetSubmissionRoute = defineJsonRoute<FormsSubmissionInput, Sub
 
     const submission = await findSubmissionScopedToDefinition({ deps, definitionId: definition.id, submissionId });
     if (!submission) rejectFormSubmissionNotFound({ submissionId });
-    return ok({ value: await withNotificationDelivery({ deps, response: toAdminFormSubmissionResponse(submission), submissionId }) });
+    return ok({ value: await withNotificationDelivery({ deps, response: toAdminFormSubmissionResponse({ submission }), submissionId }) });
   },
 });

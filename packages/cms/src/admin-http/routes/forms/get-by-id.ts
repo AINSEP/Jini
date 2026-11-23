@@ -29,6 +29,6 @@ export const formsGetRoute = defineJsonRoute<FormsGetInput, { data: AdminFormDef
     // own comment on its update mutation).
     const definition = await resolveFormDefinitionByIdOrSlug({ deps, formId });
     if (!definition) rejectFormDefinitionNotFound({ formId });
-    return ok({ value: toAdminFormDefinitionResponse(definition) });
+    return ok({ value: toAdminFormDefinitionResponse({ definition }) });
   },
 });
