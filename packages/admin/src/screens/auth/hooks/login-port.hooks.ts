@@ -1,4 +1,4 @@
-import type { AdminUser } from "../api/auth-api.types.js";
+import type { AdminUser } from "@jini-ai/core/contracts/site/user-management-react";
 
 /**
  * @file What `use-login.hooks.ts` needs from the outside world, as an interface rather than a

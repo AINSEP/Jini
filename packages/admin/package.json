@@ -173,9 +173,10 @@
       "./screens/menus/MenuEditor.hooks": "browser",
       "./screens/menus/MenuPageLinkFields.hooks": "browser",
       "./screens/menus/MenuPageLinkFields": "browser",
-      "./roles/api/roles-api.types": "browser",
       "./roles/Roles.hooks": "browser",
-      "./screens/auth/api/auth-api.types": "browser",
+      "./roles/rules": "universal",
+      "./roles/roles-i18n": "universal",
+      "./roles/i18n/roles-sentence-parts": "universal",
       "./screens/auth/hooks/login-port.hooks": "browser",
       "./screens/auth/Login.hooks": "browser",
       "./shell/lib/boot-token-fragment": "browser"
@@ -258,9 +259,7 @@
         "./shell/components/Select/Select.hooks": "browser",
         "./shell/lib/tab-event-source": "browser",
         "./shell/hooks/use-external-entry-refresh.hooks": "browser",
-        "./roles/api/roles-api.types": "browser",
         "./roles/Roles.hooks": "browser",
-        "./screens/auth/api/auth-api.types": "browser",
         "./screens/auth/hooks/login-port.hooks": "browser",
         "./screens/auth/Login.hooks": "browser",
         "./shell/lib/boot-token-fragment": "browser"
@@ -1066,20 +1065,25 @@
       "import": "./dist/screens/menus/MenuPageLinkFields.js",
       "default": "./dist/screens/menus/MenuPageLinkFields.js"
     },
-    "./roles/api/roles-api.types": {
-      "types": "./dist/roles/api/roles-api.types.d.ts",
-      "import": "./dist/roles/api/roles-api.types.js",
-      "default": "./dist/roles/api/roles-api.types.js"
-    },
     "./roles/Roles.hooks": {
       "types": "./dist/roles/Roles.hooks.d.ts",
       "import": "./dist/roles/Roles.hooks.js",
       "default": "./dist/roles/Roles.hooks.js"
     },
-    "./screens/auth/api/auth-api.types": {
-      "types": "./dist/screens/auth/api/auth-api.types.d.ts",
-      "import": "./dist/screens/auth/api/auth-api.types.js",
-      "default": "./dist/screens/auth/api/auth-api.types.js"
+    "./roles/rules": {
+      "types": "./dist/roles/rules.d.ts",
+      "import": "./dist/roles/rules.js",
+      "default": "./dist/roles/rules.js"
+    },
+    "./roles/roles-i18n": {
+      "types": "./dist/roles/roles-i18n.d.ts",
+      "import": "./dist/roles/roles-i18n.js",
+      "default": "./dist/roles/roles-i18n.js"
+    },
+    "./roles/i18n/roles-sentence-parts": {
+      "types": "./dist/roles/i18n/roles-sentence-parts.d.ts",
+      "import": "./dist/roles/i18n/roles-sentence-parts.js",
+      "default": "./dist/roles/i18n/roles-sentence-parts.js"
     },
     "./screens/auth/hooks/login-port.hooks": {
       "types": "./dist/screens/auth/hooks/login-port.hooks.d.ts",

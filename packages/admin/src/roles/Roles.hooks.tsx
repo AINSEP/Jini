@@ -1,14 +1,12 @@
 import { LINE_ICON } from "../shell/components/line-icon.js";
 import type { TabBarTab } from "../react/kit.js";
 
-import { navigate } from "../shell/lib/router.js";
-
 import { type Translate, resolveActiveTabId } from '@jini-ai/core/text';
 /**
  * @file The `/admin/roles` tab system's non-JSX logic, plus the two tab glyphs.
  *
  * Everything derived lives here rather than in `Roles.tsx`: the tab-id list, its `?tab=` guard, the
- * tab descriptors, and the navigation callback (standing rule — a component's derived logic belongs
+ * tab descriptors (standing rule — a component's derived logic belongs
  * in a sibling `*.hooks.ts(x)`, not in the `.tsx`). `.tsx` rather than `.ts` because
  * {@link resolveRolesTabs} returns `TabBarTab[]` whose `icon` is a `ReactNode`, the same reason
  * `Sites.hooks.tsx` carries the `x`.
@@ -87,7 +85,7 @@ export function resolveRolesTabId({ tabId }: { tabId: string | null | undefined 
  *
  * @complexity O(1) — a fixed two-element array.
  */
-export function resolveRolesTabs(t: Translate): TabBarTab[] {
+export function resolveRolesTabs({ t }: { t: Translate }, _optional: Record<string, never> = {}): TabBarTab[] {
   return [
     {
       id: "roles",
@@ -104,11 +102,4 @@ export function resolveRolesTabs(t: Translate): TabBarTab[] {
       handleLabel: "Switch to the Policies tab — list and create policies, and add or remove the individual permissions on each one",
     },
   ];
-}
-
-/** `replace: true` so moving between the two tabs does not grow the back stack one entry per click
- *  — the same call `Deployment.tsx`/`Sites.tsx`/`Themes.tsx` make for their own `?tab=`. A
- *  module-level function, not an inline arrow, so `TabBar`'s `onChange` takes it directly. */
-export function goToRolesTab({ tabId }: { tabId: string }, _options: Record<string, never> = {}) {
-  navigate({ routePath: `/roles?tab=${tabId}` }, { replace: true });
 }

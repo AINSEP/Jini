@@ -31,7 +31,7 @@ test('publishes user management from its canonical folder and preserves runtime 
     './admin/adapters/http': 'universal',
     './admin/adapters/memory': 'universal',
     './admin/conformance': 'universal',
-    './identity/boot-session-token': 'universal',
+    './identity/boot-session-token': 'node',
     './identity/builtin-role-grants': 'universal',
     './identity/permission-grants': 'universal',
     './identity/role-manage-permission': 'universal',

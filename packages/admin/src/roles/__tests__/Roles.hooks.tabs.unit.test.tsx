@@ -18,7 +18,7 @@ describe("roles tab descriptors", () => {
   });
 
   it("labels each tab through the bound translator and carries its agent handle", () => {
-    const tabs = resolveRolesTabs((key) => `[${key}]`);
+    const tabs = resolveRolesTabs({ t: (key) => `[${key}]` });
     expect(tabs.map(({ id, label, handle }) => ({ id, label, handle }))).toEqual([
       { id: "roles", label: "[Roles]", handle: "roles-tab-roles" },
       { id: "policies", label: "[Policies]", handle: "roles-tab-policies" },
