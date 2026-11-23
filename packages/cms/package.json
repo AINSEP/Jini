@@ -153,7 +153,8 @@
       "./admin-http/routes/seo/post-sitemap-regenerate": "universal",
       "./admin-http/routes/seo/get-entry": "node",
       "./admin-http/routes/seo/get-entry-analyze": "node",
-      "./admin-http/routes/seo/put-entry": "node"
+      "./admin-http/routes/seo/put-entry": "node",
+      "./seo/site/capability-card": "universal"
     },
     "isolation": {
       "domains": {
@@ -967,6 +968,11 @@
       "types": "./dist/admin-http/routes/seo/put-entry.d.ts",
       "import": "./dist/admin-http/routes/seo/put-entry.js",
       "default": "./dist/admin-http/routes/seo/put-entry.js"
+    },
+    "./seo/site/capability-card": {
+      "types": "./dist/seo/site/capability-card.d.ts",
+      "import": "./dist/seo/site/capability-card.js",
+      "default": "./dist/seo/site/capability-card.js"
     }
   },
   "files": [

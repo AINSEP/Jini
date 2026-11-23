@@ -16,7 +16,8 @@
       ".": "node",
       "./product": "universal",
       "./site/agent-tools": "universal",
-      "./site/ports": "universal"
+      "./site/ports": "universal",
+      "./site/contracts": "universal"
     }
   },
   "type": "module",
@@ -43,6 +44,11 @@
       "types": "./dist/site/ports.d.ts",
       "import": "./dist/site/ports.js",
       "default": "./dist/site/ports.js"
+    },
+    "./site/contracts": {
+      "types": "./dist/site/contracts.d.ts",
+      "import": "./dist/site/contracts.js",
+      "default": "./dist/site/contracts.js"
     }
   },
   "files": [
