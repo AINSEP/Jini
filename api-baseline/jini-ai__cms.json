@@ -3029,5 +3029,16 @@
    "WorkspacesTable": "interface:7ee61024eb",
    "workspaceRepoFor": "function:601af3e42b"
   }
+ },
+ "./media/site/import-media-entity": {
+  "types": "./dist/media/site/import-media-entity.d.ts",
+  "symbols": {
+   "ImportMediaEntityBlockedCode": "type:168c1e4fed",
+   "ImportMediaEntityDeps": "interface:cec6378ba1",
+   "ImportMediaEntityInput": "interface:b9f3da48c8",
+   "ImportMediaEntityResult": "type:25d384a11d",
+   "importMediaEntity": "function:c10428777c",
+   "restoreImportedMedia": "function:4efa406c53"
+  }
  }
 }
