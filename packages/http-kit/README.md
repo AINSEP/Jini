@@ -80,7 +80,27 @@ requests; route labels are read at response completion.
 calls `authorize({ permission, entityType }, { entityId })` at its chosen point; a by-id route
 passes `entityId` and the port receives it as its second argument, while an id-free call reaches
 the port with the required arguments alone. Example: the CMS redirects specs, mounted by a host
-whose `authorize` port hands `entityId` to its RBAC check.
+whose `authorize` port hands `entityId` to its RBAC check. `entityType` is optional; when the
+handler omits it the port's arguments carry no `entityType` key.
+
+Request context and replies (opt-in per spec; a spec that declares none behaves exactly as before):
+
+- `readHeaders: ['Idempotency-Key']` hands `raw.headers` (lower-cased keys, absent headers left out).
+- `requestFacts: true` hands `raw.facts`, resolved per request by the host's injected
+  `ports.requestFacts({ req, deps })` (its proxy-trust answer). Mounting such a spec without that
+  port throws at mount time.
+- `responseHeaders: { 'cache-control': 'no-store' }` is set on every answer of the route, before
+  the body cap and workspace gates, so refusals carry it too.
+- A handler returns core's `routeReply({ status, body?, headers? })` for 429 + `Retry-After`,
+  304 + `ETag`, or a bare 204: headers are set, and with no `body` the answer is `res.status(s).send()`.
+
+Raw routes: `mountRawRoute({ app, spec, deps, adapter })` with a `defineRawRoute` spec serves HTML,
+streams, uploads, downloads and redirects that set cookies. It takes the same `ports` and opt-ins
+and runs the same gates in the same order as `mountJsonRoute`; `handle({ raw, deps, context,
+authorize }, { signal })` returns a web `Response`, written back with every header (each
+`Set-Cookie` separately) and its body (streamed, and cancelled when the client leaves). `raw.body`
+is whatever the host's per-route parser left (`express.raw` gives a `Buffer`). It mounts with
+`app[method](path)`, never `app.use`, so route-table inventories see one route per spec.
 
 See [API.md](https://github.com/AINSEP/Jini/blob/main/packages/http-kit/API.md) for required/optional object contracts. Node runtime, ESM only.
 Apache-2.0; see the repository NOTICE.
