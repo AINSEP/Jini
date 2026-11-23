@@ -20,3 +20,10 @@ The host injects, and binds once in its own external MCP host-copy module:
 
 The deps the operations handlers read are structural (`ExternalMcpOperationsDeps`: workspace id,
 authorize, clock); the host's full tool deps bag satisfies them.
+
+### Save form (`save-form.ts`)
+
+`buildExternalMcpSaveForm({ save, isUpdate, appName })` — the host injects `appName`, its MCP-UI app
+identity for the `external_mcp_save` card (the host binds it at its `external_mcp_save` secret-card
+registration). The secret marker is read from `@jini-ai/core/tool-metadata/external-mcp`, the same
+metadata the host's secret-form gate projects its protected ids from, so nothing else is injected.

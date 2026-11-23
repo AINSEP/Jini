@@ -25,7 +25,8 @@
       "./external/agent-tools": "universal",
       "./external/operations-tools": "universal",
       "./federation/external-mcp-admissions": "universal",
-      "./external/external-mcp-host-copy": "universal"
+      "./external/external-mcp-host-copy": "universal",
+      "./external/save-form": "universal"
     }
   },
   "type": "module",
@@ -97,6 +98,11 @@
       "types": "./dist/external/external-mcp-host-copy.d.ts",
       "import": "./dist/external/external-mcp-host-copy.js",
       "default": "./dist/external/external-mcp-host-copy.js"
+    },
+    "./external/save-form": {
+      "types": "./dist/external/save-form.d.ts",
+      "import": "./dist/external/save-form.js",
+      "default": "./dist/external/save-form.js"
     }
   },
   "bin": {

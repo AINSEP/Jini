@@ -78,3 +78,11 @@ const envelopeStore = new InMemoryDeliveryEnvelopeStore();
 
 Nothing under `site/` imports a host module or an optimistic-concurrency implementation; port types
 come from `../ports.ts`/`../types.ts` and `AssertVersionedWritePort` from `../sql`.
+
+### Site delivery binding (`site/delivery.ts`)
+
+`processDueDeliveries({ deps })` from `@jini-ai/integrations/webhooks/site/delivery` takes the host's
+wire header names as `deps.headers` (`WebhookHeaderVocabulary` — wire values, passed through
+byte-identical), its ISO clock as `deps.clock`, and its positional outbound HTTP client as
+`deps.httpClient` (structural `send(request)`; redirect policy fixed by host composition). The host
+binds all three in its delivery-worker composition.
