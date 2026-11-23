@@ -57,7 +57,7 @@ import { usageEndLabel, usageLayout, useMessageUsage, useUsageSummary } from './
  * chunk stopped arriving.
  */
 import React, { memo, useMemo, type ReactNode } from 'react';
-import type { AgentEvent, ChatAttachment, ChatMessage, ChatRunStatus, IsAnsweredCard } from '../../core/index.js';
+import type { ChatAttachment, ChatMessage, ChatRunStatus, IsAnsweredCard } from '../../core/index.js';
 import { assistantContentFromEvents, isAwaitingAnswer, isTerminalRunStatus, stripArtifact } from '../../core/index.js';
 import { useToolTimeline, type ToolTimelineRow } from '../hooks/useToolTimeline.js';
 import { useExtEventGroups, type ExtEventGroup } from '../hooks/useExtEventGroups.js';
@@ -72,6 +72,7 @@ import { useAttachmentGallery } from './AttachmentGallery.hooks.js';
 import { CopyMessageButton } from './CopyMessageButton.js';
 import { applyToolCallDisplay, toolRowsForDisplay, type ToolCallDisplay } from '../tool-call-display.js';
 import { useAssistantMessageRenderers } from './MessageRow.hooks.js';
+import type { AgentEvent } from "@jini-ai/core/contracts/site/chat-core";
 
 export interface MessageRowProps {
   report?: Pick<Logger, 'error'> | undefined;

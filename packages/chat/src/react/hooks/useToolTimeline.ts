@@ -10,8 +10,9 @@
  * `ADS-memory/reports/jini-port/recon/r4b-webui-design.md` §4.
  */
 import { useCallback, useMemo, useState } from 'react';
-import type { AgentEvent, ToolRenderProps, ToolStatus } from '../../core/index.js';
+import type { ToolRenderProps, ToolStatus } from '../../core/index.js';
 import { dedupeToolUsesById, deriveToolStatus, foldDelegatedWrapperCalls } from '../../core/index.js';
+import type { AgentEvent } from "@jini-ai/core/contracts/site/chat-core";
 
 type ToolUseEvent = Extract<AgentEvent, { kind: 'tool_use' }>;
 type ToolResultEvent = Extract<AgentEvent, { kind: 'tool_result' }>;

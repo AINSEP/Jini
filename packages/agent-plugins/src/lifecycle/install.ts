@@ -69,40 +69,14 @@ import { createAgentPluginUpdateStore, settleAgentPluginUpdateJournal } from "./
 import { createHash, randomUUID } from "node:crypto";
 import { constants } from "node:fs";
 import path from "node:path";
-import type { AgentPluginLayout } from "./layout.js";
 import { PackagePathViolation } from "./package-paths.js";
 import { createPackagePathsModule } from "./package-paths.js";
 import type { AgentPluginLifecyclePorts } from "./ports.js";
-import type { InstalledAgentPlugin } from "./types.js";
-export type { InstalledAgentPlugin, InstalledAgentPluginSkill } from "./types.js";
+import type { AgentPluginLayout, InstalledAgentPlugin } from "@jini-ai/core/contracts/site/agent-plugins-lifecycle";
+import type { AgentPluginArchiveEntry, AgentPluginArchiveReaderPort } from "@jini-ai/core/contracts/site/agent-plugins-lifecycle";
 
 export { AgentPluginInstallError } from "./install-errors.js";
 export type { AgentPluginInstallErrorCode } from "./install-errors.js";
-/** One archive entry. A symlink is modeled as its OWN kind rather than folded into "file" — the
- * zip-slip research this module's header cites is explicit that the symlink-entry vector is
- * distinct from the lexical-traversal one, and the two need independent tests and independent
- * handling (see the "symlink entries are rejected outright" rule below). */
-export type AgentPluginArchiveEntry =
-  | {
-      readonly kind: "file";
-      readonly entryPath: string;
-
-      /** The archive format's own claimed size. Never trusted alone — see `DECOMPRESSION_BOMB`. */
-  readonly declaredSize?: (number) | undefined;
-      readonly executable?: (boolean) | undefined;
-      readonly openReadStream: (required: Record<string, never>) => AsyncIterable<Uint8Array>;
-    }
-  | { readonly kind: "directory"; readonly entryPath: string }
-  | { readonly kind: "symlink" | "hardlink" | "device" | "fifo"; readonly entryPath: string; readonly linkTarget?: string | undefined };
-
-/**
- * `entries` must be a pure function of the archive bytes: an install iterates it twice, once to
- * check entry-count limits from metadata alone and once to extract.
- */
-/** `entries` is a pure function of archive bytes: metadata preflight and extraction iterate it twice. */
-export interface AgentPluginArchiveReaderPort {
-  entries(required: { readonly archive: Uint8Array }): AsyncIterable<AgentPluginArchiveEntry>;
-}
 
 export interface InstallAgentPluginRequired {
   readonly archive: Uint8Array;

@@ -1,54 +1,8 @@
-/**
- * @module message-blocks
- *
- * Restores the original event-stream ordering of an assistant message: text and tool cards
- * interleaved where they actually happened, instead of all the text followed by all the tools.
- *
- * ## Why this needs computing at all
- *
- * A rendered assistant message draws from three different shapes of the same turn.
- * `ChatMessage.content` is a single string — `useConversation.ts` builds it by concatenating every
- * `kind: 'text'` event (`out += ev.text`) — tool cards come from `ChatMessage.events`'s `tool_use`
- * entries, and interactive surfaces (MCP-UI, A2UI) come from that same array's `kind: 'ext'`
- * entries. Rendering `content`, then the tool timeline, then every `ext` group is the
- * straightforward composition, and it is what `MessageRow.tsx` shipped in v1 (its own header
- * records this as a known deferral pending the `AssistantMessage.tsx` extraction).
- *
- * The cost is not merely cosmetic ordering. Because the text runs on either side of a tool call (or
- * an interactive surface) get concatenated with nothing between them, a message reads as
- * `"I'll look for a tool that changes the site language.Done — the language is now English."` —
- * two separate thoughts, from before and after the tool ran, fused mid-sentence. Worse for an `ext`
- * surface specifically: a reply narrating what the human just submitted through an MCP-UI form (a
- * `text` event that only exists BECAUSE the form's `ext` event was answered) renders ABOVE that
- * form instead of below it — the answer appears to precede the question. The reader cannot tell
- * which claims preceded the evidence and which followed it.
- *
- * Since `content` is exactly the concatenation of the text events, the split points are recoverable:
- * walk the events in order, and every tool call or ext surface marks a boundary in that
- * concatenation.
- *
- * ## Refuses rather than guesses
- *
- * {@link interleaveMessageBlocks} returns `null` whenever it cannot prove the reconstruction is
- * lossless, and the caller falls back to the old flat layout. Losing the ordering is a presentation
- * regression; dropping or duplicating a chunk of the assistant's actual words is a correctness one,
- * so every check below prefers the former.
- *
- * It refuses when:
- * - there are no events, or no tool rows AND no ext events (AND no thinking, when the caller asked
- *   for it) to interleave (nothing to do — the flat path is identical);
- * - the concatenated text events do not reproduce `content` byte for byte. This is the load-bearing
- *   check. A message persisted before the events schema settled, one rebuilt by a host that
- *   assembles `content` some other way, or any future divergence between the two, all land here;
- * - the walk does not emit exactly the rows it was given (a `tool_use` with no matching row, or a
- *   row never reached), which would mean silently dropping a tool card.
- *
- * Artifacts are handled by the caller, not here — see `MessageRow.tsx`.
- */
-import type { AgentEvent } from '../core/index.js';
+
 import { assistantContentFromEvents, isReplyBoundary, legacyAssistantContentFromEvents } from '../core/index.js';
 import { isAssistantStepBoundary } from '../core/assistant-content.js';
 import { MID_RUN_USER_MESSAGE_EVENT_NAME } from '../core/turn-usage.js';
+import type { AgentEvent } from "@jini-ai/core/contracts/site/chat-core";
 
 /**
  * One rendered block. Consecutive tool cards are coalesced into a single `tools` block so they keep

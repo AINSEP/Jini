@@ -1,10 +1,9 @@
 /**
  * @file A plugin's declarative public-page export, as a host reads it from a parsed manifest.
  *
- * Additive verbatim copy of `AgentPluginExport` and its vocabulary from
- * `@jini-ai/agent-plugins/manifest` (`lifecycle/exports.ts`), plus its structural closure
- * `AdminSurfaceActionSchema` (declared once in `./agent-plugins-admin-surfaces.ts`); agent-plugins keeps its
- * identical declarations, the parsers and its exports until the paired cutover.
+ * This module owns `AgentPluginExport` and its vocabulary (moved from `@jini-ai/agent-plugins/manifest`,
+ * `lifecycle/exports.ts`), plus its structural closure `AdminSurfaceActionSchema` (declared once in
+ * `./agent-plugins-admin-surfaces.ts`); agent-plugins imports them from here and keeps the parsers.
  *
  * Declarative public-page exports. Parsing grants no trust and never reads plugin files.
  */

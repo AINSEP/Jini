@@ -1,8 +1,8 @@
 /**
- * @file Agent Plugin lifecycle value contracts. Additive copy of the type declarations in
+ * @file Agent Plugin lifecycle value contracts. Types only; this module owns the declarations that
  * `@jini-ai/agent-plugins/lifecycle` (`types.ts`, `set-enabled.ts`, `uninstall.ts`, `install.ts`,
- * `layout.ts`, `exports.ts`, `../manifest.ts`); that package keeps its identical declarations, its
- * runtime values and its exports until the paired cutover.
+ * `layout.ts`, `exports.ts`, `../manifest.ts`) used to declare. That package imports them from here
+ * and keeps its runtime values.
  */
 import type { AgentPluginExport } from "./agent-plugins-manifest.js";
 

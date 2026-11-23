@@ -113,11 +113,11 @@ import type { Dirent } from "node:fs";
 import path from "node:path";
 import { createPackagePathsModule } from "./package-paths.js";
 import { createActivationModule } from "./activation.js";
-import type { InstalledAgentPlugin } from "./types.js";
-import type { AgentPluginLayout } from "./layout.js";
 import { createResolveAgentPluginRefsModule } from "./resolve-agent-plugin-refs.js";
 import { createAgentPluginUpdateStore, settleAgentPluginUpdateJournal } from "./update-store.js";
 import type { AgentPluginLifecyclePorts } from "./ports.js";
+import type { InstalledAgentPlugin, AgentPluginLayout } from "@jini-ai/core/contracts/site/agent-plugins-lifecycle";
+import type { UninstallAgentPluginRequired, UninstallAgentPluginOptional, UninstallAgentPluginResult, AgentPluginUninstallPreview } from "@jini-ai/core/contracts/site/agent-plugins-lifecycle";
 
 /** The plugin id has no installed package on disk for this workspace. */
 export class AgentPluginNotFoundError extends Error {
@@ -134,46 +134,6 @@ export class AgentPluginNotUninstallableError extends Error {
  *  see `UninstallAgentPluginOptional.confirmedPreview`. Nothing was removed. */
 export class AgentPluginChangedSincePreviewError extends Error {
   constructor({ message }: { readonly message: string }, optional: ErrorOptions = {}) { super(message, optional); }
-}
-
-export interface UninstallAgentPluginRequired {
-  readonly layout: AgentPluginLayout;
-  readonly workspaceId: string;
-  readonly pluginId: string;
-}
-
-export interface UninstallAgentPluginOptional {
-
-  /** The preview a human confirmed. When given, the uninstall refuses, removing nothing, unless the digests it
-   *  resolves now are exactly this preview's `archiveDigests`: a confirmation is consent to remove what was
-   *  resolved for the dialog, not whatever the id names by the time the answer arrives (t91 F2.2). */
-  readonly confirmedPreview?: (AgentPluginUninstallPreview) | undefined;
-  /** Only the browser-confirmed choice may delete persistent state. Off by default. */
-  readonly deleteMemory?: boolean | undefined;
-
-  /** INTERNAL — `retire-bundled.ts` only, never an agent tool or HTTP route. Skips the bundled refusal
-   *  (this file's header, item 2) and nothing else: that refusal exists because a bundled plugin is
-   *  re-seeded on every boot, which stops being true once the host no longer ships its source
-   *  (`RETIRED_BUNDLED_AGENT_PLUGINS`). The malformed-entry refusal still applies. */
-  readonly retiredBundled?: (boolean) | undefined;
-}
-
-export interface UninstallAgentPluginResult {
-  readonly pluginId: string;
-
-  /** Every installed archive digest removed for this plugin id — normally exactly one. All matching
-   *  digests are removed: uninstall's job is to make the plugin genuinely gone, so unlike the tool
-   *  loader, which must pick ONE to serve, there is no "which one" question here. */
-  readonly removedDigests: readonly string[];
-}
-
-/** What an uninstall of one plugin would remove, in a form safe to show a human: no host path. */
-export interface AgentPluginUninstallPreview {
-  readonly pluginId: string;
-
-  /** Distinct manifest versions across the matching digests; empty when none declares one. */
-  readonly versions: readonly string[];
-  readonly archiveDigests: readonly string[];
 }
 
 /** A reversible staged package and its original permissions; shared by uninstall and replacement. */
@@ -194,8 +154,6 @@ interface UninstallTargets {
   readonly packagesDir: string;
   readonly matches: readonly InstalledAgentPlugin[];
 }
-
-
 
 const STAGED_DIRNAME_PREFIX = ".uninstalling-";
 

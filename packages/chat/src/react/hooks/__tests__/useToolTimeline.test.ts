@@ -1,9 +1,9 @@
 import { act, renderHook } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import type { AgentEvent } from '../../../core/index.js';
 import { useToolTimeline } from '../useToolTimeline.js';
 import { DIRECT_MCP_EVENTS } from '../../../core/__tests__/fixtures/direct-mcp-events.js';
 import { ANTIGRAVITY_BUFFERED_EVENTS } from '../../../core/__tests__/fixtures/antigravity-buffered-events.js';
+import type { AgentEvent } from "@jini-ai/core/contracts/site/chat-core";
 
 const events: AgentEvent[] = [
   { kind: 'text', text: 'starting' },

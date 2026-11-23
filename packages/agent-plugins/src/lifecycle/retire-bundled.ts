@@ -53,10 +53,10 @@ import { describeErrorForLog } from "@jini-ai/core";
 import type {  BundledAgentPluginEnableOutcome } from "./activation.js";
 import { createActivationModule } from "./activation.js";
 import { createBundledDigestsModule } from "./bundled-digests.js";
-import type { AgentPluginLayout } from "./layout.js";
 import { createResolveAgentPluginRefsModule } from "./resolve-agent-plugin-refs.js";
 import { createUninstallModule } from "./uninstall.js";
 import type { AgentPluginLifecyclePorts } from "./ports.js";
+import type { AgentPluginLayout } from "@jini-ai/core/contracts/site/agent-plugins-lifecycle";
 
 /** What happened to the successor. `not-needed`: the retired plugin was off, so the successor was
  *  left as it was. The other three are {@link BundledAgentPluginEnableOutcome}. */

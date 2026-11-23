@@ -7,19 +7,18 @@ import { hostname, tmpdir } from "node:os";
 import path from "node:path";
 import { vi, afterEach } from "vitest";
 import { test } from "../legacy-test.js";
+import type { AgentPluginArchiveEntry, AgentPluginArchiveReaderPort } from "@jini-ai/core/contracts/site/agent-plugins-lifecycle";
 afterEach(() => vi.restoreAllMocks());
 
 import { forceRemove } from "../fixtures/force-remove.js";
 import { AgentPluginActivationsUnreadableError } from "../../activation.js";
 import { installAgentPlugin } from "../test-support.js";
-import { type AgentPluginArchiveEntry, type AgentPluginArchiveReaderPort } from "../../install.js";
 import { resolveAgentPluginLayout } from "../test-support.js";
 
 import { listInstalledPlugins } from "../test-support.js";
 
 import { seedBundledAgentPlugins } from "../test-support.js";
 import { previewAgentPluginUninstall, uninstallAgentPlugin } from "../test-support.js";
-
 
 /**
  * @file t91 F1.1 — the committed form of the security re-check's

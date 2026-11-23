@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 import { conversationUsage, replySegments, turnUsage } from '../turn-usage.js';
-import type { AgentEvent } from '../events.js';
+import type { AgentEvent } from "@jini-ai/core/contracts/site/chat-core";
 
 test('legacy boundary data without an id splits every reply, while a repeated receipt id splits once', () => {
   const text: AgentEvent = { kind: 'text', text: 'reply' };

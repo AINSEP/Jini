@@ -1,4 +1,4 @@
-import type { AgentEvent } from './events.js';
+import type { AgentEvent } from "@jini-ai/core/contracts/site/chat-core";
 
 /** Who authored a `ChatMessage`. */
 export type ChatRole = 'user' | 'assistant';
