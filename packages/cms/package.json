@@ -249,6 +249,12 @@
       "./admin-http/routes/redirects/create": "universal",
       "./admin-http/http/plugin-hook-error": "universal",
       "./admin-http/routes/posts/autosave": "universal",
+      "./admin-http/routes/posts/create": "universal",
+      "./admin-http/routes/posts/update": "universal",
+      "./admin-http/routes/posts/delete": "universal",
+      "./admin-http/routes/pages/create": "universal",
+      "./admin-http/routes/pages/update": "universal",
+      "./admin-http/routes/pages/delete": "universal",
       "./admin-http/routes/pages/list": "universal",
       "./admin-http/routes/pages/get-by-id": "universal",
       "./admin-http/routes/change-sets/get": "universal",
@@ -502,6 +508,12 @@
         "./admin-http/routes/change-sets/get": "core",
         "./admin-http/routes/change-sets/list": "core",
         "./admin-http/routes/change-sets/revert": "core",
+        "./admin-http/routes/posts/create": "core",
+        "./admin-http/routes/posts/update": "core",
+        "./admin-http/routes/posts/delete": "core",
+        "./admin-http/routes/pages/create": "core",
+        "./admin-http/routes/pages/update": "core",
+        "./admin-http/routes/pages/delete": "core",
         "./admin-http/routes/presentation/get": "presentation",
         "./admin-http/routes/themes/list": "presentation",
         "./admin-http/routes/pages/get-by-id": "widgets",
@@ -1735,6 +1747,36 @@
       "types": "./dist/admin-http/http/plugin-hook-error.d.ts",
       "import": "./dist/admin-http/http/plugin-hook-error.js",
       "default": "./dist/admin-http/http/plugin-hook-error.js"
+    },
+    "./admin-http/routes/posts/create": {
+      "types": "./dist/admin-http/routes/posts/create.d.ts",
+      "import": "./dist/admin-http/routes/posts/create.js",
+      "default": "./dist/admin-http/routes/posts/create.js"
+    },
+    "./admin-http/routes/posts/update": {
+      "types": "./dist/admin-http/routes/posts/update.d.ts",
+      "import": "./dist/admin-http/routes/posts/update.js",
+      "default": "./dist/admin-http/routes/posts/update.js"
+    },
+    "./admin-http/routes/posts/delete": {
+      "types": "./dist/admin-http/routes/posts/delete.d.ts",
+      "import": "./dist/admin-http/routes/posts/delete.js",
+      "default": "./dist/admin-http/routes/posts/delete.js"
+    },
+    "./admin-http/routes/pages/create": {
+      "types": "./dist/admin-http/routes/pages/create.d.ts",
+      "import": "./dist/admin-http/routes/pages/create.js",
+      "default": "./dist/admin-http/routes/pages/create.js"
+    },
+    "./admin-http/routes/pages/update": {
+      "types": "./dist/admin-http/routes/pages/update.d.ts",
+      "import": "./dist/admin-http/routes/pages/update.js",
+      "default": "./dist/admin-http/routes/pages/update.js"
+    },
+    "./admin-http/routes/pages/delete": {
+      "types": "./dist/admin-http/routes/pages/delete.d.ts",
+      "import": "./dist/admin-http/routes/pages/delete.js",
+      "default": "./dist/admin-http/routes/pages/delete.js"
     },
     "./admin-http/routes/posts/autosave": {
       "types": "./dist/admin-http/routes/posts/autosave.d.ts",
