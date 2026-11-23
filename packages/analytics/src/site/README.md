@@ -24,6 +24,10 @@ buffer stay in the package root (`../ingest.ts`, `../salt.ts`).
   a hash input, so the host defines it byte-identically and this package never does) and
   `reportForwardFailure` (`AnalyticsForwardReport`, receives `{ forwarderId, outcome, message }`;
   the host owns the console line). `./site/salt`'s `deriveDailySalt` takes the same `saltContext`.
+- **Tools and settings (`./site/tool-registrations`, `./site/config.settings`):** nothing beyond
+  their args. `AnalyticsToolDeps` is `{ authorize, workspaceId, analyticsSink }`; the settings
+  registrar and `createSettingsAnalyticsConfig` take the `@jini-ai/core/settings` ports
+  (`EnsureSettingDefinitionsDeps`, `SettingsRepoPort`).
 - **Provides:** `./site/contracts` (types), `./site/ports`, `./site/agent-tools`, `./site/forwarding`,
   `./site/jini-adapters` (`createAnalyticsIngestBinding`, `createLocalAnalyticsSink`,
   `analyticsPrivacyPolicy`, `AnalyticsIngestRouteDeps`), `./site/salt` (`deriveDailySalt`).

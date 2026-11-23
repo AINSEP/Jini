@@ -16,8 +16,8 @@ export interface SiteConsentStore {
   /** Public readers fetch only the publication; drafts stay in the authoring path. */
   readPublished(required: Record<string, never>, optional?: Record<string, never>): Promise<SiteConsentRevision | null>;
   read(required: Record<string, never>, optional?: Record<string, never>): Promise<SiteConsentState>;
-  saveDraft(required: { revision: SiteConsentRevision; expectedDraftId: string | null; signal?: AbortSignal }, optional?: Record<string, never>): Promise<void>;
-  publish(required: { draftId: string; expectedPublishedId: string | null; signal?: AbortSignal }, optional?: Record<string, never>): Promise<void>;
+  saveDraft(required: { revision: SiteConsentRevision; expectedDraftId: string | null; signal?: AbortSignal | undefined }, optional?: Record<string, never>): Promise<void>;
+  publish(required: { draftId: string; expectedPublishedId: string | null; signal?: AbortSignal | undefined }, optional?: Record<string, never>): Promise<void>;
 }
 /** A stale editor or confirmation card cannot overwrite a newer policy. */
 export class SiteConsentConflict extends Error {

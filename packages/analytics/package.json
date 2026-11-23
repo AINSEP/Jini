@@ -20,7 +20,9 @@
       "./site/contracts": "universal",
       "./site/forwarding": "universal",
       "./site/jini-adapters": "universal",
-      "./site/salt": "node"
+      "./site/salt": "node",
+      "./site/tool-registrations": "universal",
+      "./site/config.settings": "universal"
     }
   },
   "type": "module",
@@ -67,6 +69,16 @@
       "types": "./dist/site/salt.d.ts",
       "import": "./dist/site/salt.js",
       "default": "./dist/site/salt.js"
+    },
+    "./site/tool-registrations": {
+      "types": "./dist/site/tool-registrations.d.ts",
+      "import": "./dist/site/tool-registrations.js",
+      "default": "./dist/site/tool-registrations.js"
+    },
+    "./site/config.settings": {
+      "types": "./dist/site/config.settings.d.ts",
+      "import": "./dist/site/config.settings.js",
+      "default": "./dist/site/config.settings.js"
     }
   },
   "files": [

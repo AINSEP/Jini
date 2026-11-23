@@ -16,6 +16,16 @@ binding plus boot readiness (`settings`), and admin declaration diagnostics over
   `SettingsRepoPort`). `createSiteConsentReadiness`'s optional repair is a `SiteConsentPrivacyRepair`:
   passing `ensurePrivacyDefaults` makes `reportPrivacyDefaultsFailure({ error })` REQUIRED — the
   host logs (and redacts) the failure; this package never writes to a console.
+- **Service, tools, plugins and bootstrap need injected (all REQUIRED):**
+  `./site/service`'s `ConsentServicePorts` takes `consentPagePath` (the host's local page path
+  boundary), `deploymentRefusal` (the host's refusal envelope, typed `ConsentDeploymentRefusal`) and
+  `reportConsentFailure({ message, error })`. `./site/tool-registrations`' `contributeConsentTools({ host })`
+  takes a `ConsentToolHost`: `approvalToolHandler` (the host's held-confirmation lifecycle), plus the
+  host's closed request contract `readConsentRequest` / `consentRevisionToken`. `./site/region-plugins`
+  takes the host's `loadContributions` (`LoadConsentContributions`) and, for readers and bridges,
+  `reportFailure({ message, error })`. `./site/ensure-privacy-defaults` takes `createPost({ input })`
+  bound to the host's post owners. Every reporter receives a plain message with no prefix; the host
+  owns the console line, its prefix and redaction.
 - **Provides:** `SITE_CONSENT_*` constants and `SiteConsentSettings`, `withSiteConsentDefaultCss`,
   `siteConsentLinkProblem`, `toSiteCookieConsent`/`renderSiteConsentPreview`/`siteBannerMode`,
   `parseConsentConfig`/`consentConfigProblems` (problems typed by
@@ -46,5 +56,8 @@ const ready = createSiteConsentReadiness({ ...settingsDeps, after: bootSettingsR
   reportPrivacyDefaultsFailure: ({ error }) => hostLog.error(`[consent] privacy defaults failed: ${redact(error)}`),
 });
 ```
+
+Host-owned and not moved: the Kysely revision-store adapter and the request contract (they stay
+with the host's SQL kernel and HTTP path policy).
 
 Boundary rationale: `docs/decisions/DR-005-portable-package-boundaries.md`.

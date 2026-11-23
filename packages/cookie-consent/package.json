@@ -17,10 +17,18 @@
         "./client.min.js": "client",
         "./extensions.min.js": "client",
         "./site/cookie-consent": "render",
-        "./site/validation": "render"
+        "./site/validation": "render",
+      "./site/service": "render",
+      "./site/tool-registrations": "render"
       },
       "shared": [
-        "src/site/config.ts"
+        "src/site/config.ts",
+        "src/site/validation.ts",
+        "src/site/cookie-consent.ts",
+        "src/render/css.ts",
+        "src/server/region.ts",
+        "src/site/revisions.ts",
+        "src/site/readiness.ts"
       ]
     },
     "entries": {
@@ -41,7 +49,11 @@
       "./site/revisions": "universal",
       "./site/privacy-page-template": "universal",
       "./site/settings": "universal",
-      "./site/readiness": "node"
+      "./site/readiness": "node",
+      "./site/service": "node",
+      "./site/region-plugins": "universal",
+      "./site/ensure-privacy-defaults": "universal",
+      "./site/tool-registrations": "node"
     },
     "optionalPeers": {
       "react": "opt-in: react consent settings; import @jini-ai/cookie-consent/react — React consent settings could not load react. Install react to enable this feature, or check its installed version."
@@ -132,6 +144,26 @@
       "types": "./dist/site/readiness.d.ts",
       "import": "./dist/site/readiness.js",
       "default": "./dist/site/readiness.js"
+    },
+    "./site/service": {
+      "types": "./dist/site/service.d.ts",
+      "import": "./dist/site/service.js",
+      "default": "./dist/site/service.js"
+    },
+    "./site/region-plugins": {
+      "types": "./dist/site/region-plugins.d.ts",
+      "import": "./dist/site/region-plugins.js",
+      "default": "./dist/site/region-plugins.js"
+    },
+    "./site/ensure-privacy-defaults": {
+      "types": "./dist/site/ensure-privacy-defaults.d.ts",
+      "import": "./dist/site/ensure-privacy-defaults.js",
+      "default": "./dist/site/ensure-privacy-defaults.js"
+    },
+    "./site/tool-registrations": {
+      "types": "./dist/site/tool-registrations.d.ts",
+      "import": "./dist/site/tool-registrations.js",
+      "default": "./dist/site/tool-registrations.js"
     }
   },
   "files": [
