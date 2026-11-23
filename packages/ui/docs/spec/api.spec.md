@@ -146,7 +146,8 @@ useAsyncAction(): AsyncActionState
 // result: { saving, error: string|null, setError, run({action, describeError}): Promise<void> }
 useSerialWrites(): SerialWrites // run<T>({task: () => Promise<T>}, {key?: string}?): Promise<T>
 useSettlementGeneration(): SettlementGeneration // next(): number; isCurrent({generation}): boolean
-formatTimestamp({ iso }: { iso: string }): string
+// formatTimestamp is not a ui export: it lives in @jini-ai/core/text as
+// formatTimestamp({ iso }: { iso: string }, { viewerTimeZone }: { viewerTimeZone?: string } = {}): string
 formatRelativeMinutesAgo({ iso, nowMs }: { iso: string; nowMs: number }, { translate = (key) => key }: { translate?: ((key: string) => string) | undefined } = {}): string
 resolveActiveTabId<T extends string>({ tabId, validIds, defaultId }: { tabId: string | null | undefined; validIds: readonly T[]; defaultId: T }): T
 hasPermission({ permissions, permission }: { permissions: readonly string[]; permission: string }): boolean
