@@ -17,8 +17,7 @@
       "./tools": "universal",
       "./http-query": "universal",
       "./testkit": "universal",
-      "./contribution": "node",
-      "./site/settings": "universal"
+      "./contribution": "node"
     }
   },
   "type": "module",
@@ -48,11 +47,6 @@
       "types": "./dist/testkit/index.d.ts",
       "import": "./dist/testkit/index.js",
       "default": "./dist/testkit/index.js"
-    },
-    "./site/settings": {
-      "types": "./dist/site/settings.d.ts",
-      "import": "./dist/site/settings.js",
-      "default": "./dist/site/settings.js"
     }
   },
   "files": [
