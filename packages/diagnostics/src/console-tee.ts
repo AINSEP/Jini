@@ -29,18 +29,50 @@ export type CaptureFailureReporter = (failure: CaptureFailure) => void;
 const ignoreFailure: CaptureFailureReporter = () => undefined;
 
 /**
+ * A host-owned record of one child's latest redacted output. Every sink of that child (stdout and stderr)
+ * shares the same record, so the tail keeps their real interleaving for a boot-failure message.
+ */
+export interface RetainedOutputTail {
+  outputTail: string;
+}
+
+export interface RedactedOutputSinkOptional {
+  /** Longest input line kept for redaction; longer lines are dropped whole. */
+  readonly maxLineLength?: number;
+  /** Longest rendered line, in characters, before the newline. */
+  readonly maxLength?: number;
+  readonly onFailure?: CaptureFailureReporter;
+  /** Receives each emitted (already redacted and bounded) line before the parent sink does. */
+  readonly retain?: RetainedOutputTail;
+  /** Characters of tail kept after a trim; defaults to 16 KiB. */
+  readonly tailKeepChars?: number;
+}
+
+const DEFAULT_TAIL_KEEP_CHARS = 16_384;
+
+function retainTail(
+  { retain, line }: { retain: RetainedOutputTail; line: string },
+  { tailKeepChars = DEFAULT_TAIL_KEEP_CHARS }: { tailKeepChars?: number } = {},
+): void {
+  retain.outputTail += line;
+  // Amortize tail copies across small log lines: trim only once the tail doubles, then keep the latest window.
+  if (retain.outputTail.length > 2 * tailKeepChars) retain.outputTail = retain.outputTail.slice(-tailKeepChars);
+}
+
+/**
  * Frames child output before invoking the caller's existing redactor, including an unterminated
  * final line. Never closes the parent sink. Oversized lines are discarded whole so cutting a
  * credential before redaction cannot expose a fragment. Redactor failures emit fixed copy.
  * @param required Parent sink and redaction policy; no process globals are read.
- * @param optional Input-line and rendered-line limits, in characters; `onFailure` hears each redactor failure.
+ * @param optional Input-line and rendered-line limits, in characters; `onFailure` hears each redactor failure;
+ *   `retain` receives every emitted line (shared by all of one child's sinks), trimmed per `tailKeepChars`.
  * @returns A writable for one child stream; ending it, or its source unpiping at EOF, flushes the last line.
  * @complexity O(n) time for n input characters; O(maxLineLength) retained space.
  * @example child.stderr.pipe(createRedactedOutputSink({ sink: process.stderr, redact }));
  */
 export function createRedactedOutputSink(
   { sink, redact }: { sink: Pick<Writable, "write">; redact: (required: { text: string }) => string },
-  { maxLineLength = 65_536, maxLength = 2_000, onFailure = ignoreFailure }: { maxLineLength?: number; maxLength?: number; onFailure?: CaptureFailureReporter } = {},
+  { maxLineLength = 65_536, maxLength = 2_000, onFailure = ignoreFailure, retain, tailKeepChars }: RedactedOutputSinkOptional = {},
 ): Writable {
   const decoder = new StringDecoder("utf8");
   let pending = "";
@@ -49,7 +81,11 @@ export function createRedactedOutputSink(
     let safe = "[output redaction failed]";
     try { safe = oversized ? "[oversized output line omitted]" : redact({ text: pending }); }
     catch (error) { onFailure({ stage: "redact", error }); } // Raw child bytes must never be the fallback.
-    if (safe) sink.write(`${safe.slice(0, maxLength)}\n`);
+    if (safe) {
+      const line = `${safe.slice(0, maxLength)}\n`;
+      if (retain) retainTail({ retain, line }, { tailKeepChars });
+      sink.write(line);
+    }
     pending = "";
     oversized = false;
   };
