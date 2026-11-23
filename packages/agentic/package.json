@@ -22,7 +22,7 @@
       "./skills/tools": "node"
     },
     "optionalPeers": {
-      "@jini-ai/protocol": "opt-in: agent protocol adapters — Agent protocol adapters could not load @jini-ai/protocol. Install @jini-ai/protocol to enable this feature, or check its installed version and native binaries."
+      "@jini-ai/protocol": "opt-in: agent protocol adapters; import @jini-ai/agentic/render-surface — Agent protocol adapters could not load @jini-ai/protocol. Install @jini-ai/protocol to enable this feature, or check its installed version and native binaries."
     }
   },
   "type": "module",

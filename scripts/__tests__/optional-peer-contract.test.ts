@@ -15,6 +15,13 @@ function fixture(extra = {}) {
   write('packages/sample/src/index.ts', 'export const boot = true;');
   write('packages/sample/src/feature.ts', "export const enable = () => import('driver');");
 }
+/** Package subpaths a classification names before its ` — ` message separator. Manifests list every
+ * opt-in subpath that reaches a shared peer (`import A, B or C —`, platform's parse5 names three), so
+ * matching is by exact name; a single `import X —` substring check accepted only the last listed one. */
+function namedImports(classification: string): string[] {
+  const feature = classification.split(/ [—–] /)[0] ?? '';
+  return [...feature.matchAll(/(?<=import |, | or )@[\w-]+\/[\w./-]+/g)].map(match => match[0]);
+}
 beforeEach(() => { root = mkdtempSync(join(tmpdir(), 'optional-peers-')); fixture(); });
 afterEach(() => rmSync(root, { recursive: true, force: true }));
 it('rejects an unclassified optional peer', () => {
@@ -76,7 +83,8 @@ it.each([
   ['db', 'better-sqlite3'], ['db', 'pg'], ['db', '@electric-sql/pglite'], ['server', 'node-pty'],
   ['capability-providers', 'ws'], ['user-management', 'argon2'], ['cms', 'sharp'],
   ['cms', 'jsdom'], ['ui', '@excalidraw/excalidraw'], ['ui', 'grapesjs'],
-  ['ui', 'lexical'], ['ui', 'shiki'], ['sandbox', '@e2b/code-interpreter'],
+  // ui → lexical left with the lexical-rich-text-editor subpath (0bf610e7); ui declares no lexical at all now.
+  ['ui', 'shiki'], ['sandbox', '@e2b/code-interpreter'],
   // Host frameworks used only by opt-in subpaths or types must not be auto-installed by npm/pnpm.
   ['cms', 'express'], ['commerce', 'express'], ['commerce', 'react'],
   ['admin', 'react'], ['chat', 'react'], ['user-management', 'react'], ['vibecoding', 'react'],
@@ -169,7 +177,7 @@ it('all real default entries keep runtime libraries required and classify opt-in
     return Object.keys(classifications).flatMap(peer => {
       const subpaths = audit.closures.filter(closure => closure.package === pkg.manifest.name
         && closure.subpath !== '.' && closure.dependencies.includes(peer)).map(closure => pkg.manifest.name + closure.subpath.slice(1));
-      if (!subpaths.length || subpaths.some(subpath => classifications[peer]!.includes(`import ${subpath} —`))) return [];
+      if (!subpaths.length || subpaths.some(subpath => namedImports(classifications[peer]!).includes(subpath))) return [];
       return [{ package: pkg.manifest.name, peer, subpaths }];
     });
   });
@@ -190,8 +198,8 @@ it('cms forms entries reach only required libraries or optional peers that name 
   expect(unnamed).toEqual([]);
 }, 120000);
 
-// Cross-package defaults count too: UI loads UI kit's React bindings; server loads daemon HTTP.
-it.each([['ui', 'react'], ['ui', 'react-dom'], ['daemon', 'express'], ['server', 'express'],
+// Cross-package defaults count too: UI loads UI kit's React bindings; server opens the HTTP listener.
+it.each([['ui', 'react'], ['ui', 'react-dom'], ['server', 'express'],
   ['ui-kit', 'react'], ['ui-kit', 'react-dom']])
 ('keeps default-entry host framework %s → %s required', async (directory, dependency) => {
   const { readFileSync } = await import('node:fs');
@@ -202,7 +210,8 @@ it.each([['ui', 'react'], ['ui', 'react-dom'], ['daemon', 'express'], ['server',
   expect(manifest.dependencies?.[dependency]).toBeUndefined();
 });
 
-it.each([['core', 'express'], ['http-kit', 'express'], ['ui-kit', 'vue'], ['vibecoding', 'react-dom']])
+// daemon → express was dropped in 72e2c856: only daemon's tests import express (a devDependency).
+it.each([['core', 'express'], ['http-kit', 'express'], ['daemon', 'express'], ['ui-kit', 'vue'], ['vibecoding', 'react-dom']])
 ('removes %s → %s when no runtime entry loads it', async (directory, dependency) => {
   const { readFileSync } = await import('node:fs');
   const manifest = JSON.parse(readFileSync(new URL(`../../packages/${directory}/package.json`, import.meta.url), 'utf8'));
