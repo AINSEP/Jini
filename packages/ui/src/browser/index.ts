@@ -9,3 +9,4 @@ export * from './useDismissOnOutsideOrEscape.js';
 export * from './useGlobalKeydown.js';
 export * from './useFileDropTarget.js';
 export { menuFocusIndex, useMenuKeyboard, type DocumentFocus } from './useMenuKeyboard.js';
+export { settingsControlHandlers, useDismissibleDropdown, type DismissibleDropdown, type SettingsControlHandlers } from './useDismissibleDropdown.js';
