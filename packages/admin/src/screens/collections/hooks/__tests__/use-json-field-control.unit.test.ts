@@ -80,3 +80,13 @@ it("propagates a field callback rejection without marking valid JSON invalid", (
   expect(setFieldValidity).toHaveBeenLastCalledWith("meta", true);
   expect(setFieldValidity).not.toHaveBeenCalledWith("meta", false);
 });
+
+describe("useJsonFieldControl — initial buffer", () => {
+  it("shows a field with nothing stored yet as null, and a stored value pretty-printed", () => {
+    // Named mutation rejected: stringifying `undefined` directly leaves the textarea's buffer undefined.
+    const empty = renderHook(() => useJsonFieldControl({ value: undefined, onChange: vi.fn(), fieldName: "meta", setFieldValidity: vi.fn() }));
+    expect(empty.result.current.text).toBe("null");
+    const stored = renderHook(() => useJsonFieldControl({ value: { price: 2 }, onChange: vi.fn(), fieldName: "meta", setFieldValidity: vi.fn() }));
+    expect(stored.result.current.text).toBe('{\n  "price": 2\n}');
+  });
+});
