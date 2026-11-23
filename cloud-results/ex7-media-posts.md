@@ -1,4 +1,4 @@
-PARTIAL d7659907dd 106dcdeec: every remaining Library/Media/Posts step is blocked on the foundation seams/inject Tovu halves (not mergeable here), in-flight branches' files, or owner holds (tiptap, R5 `content_read`, HW3 route-key, K4i COMMON_I18N, put-providers copy) — see "Steps skipped"
+PARTIAL ef286c0770 106dcdeec: every remaining Library/Media/Posts step is blocked on the foundation seams/inject Tovu halves (not mergeable here), in-flight branches' files, or owner holds (tiptap, R5 `content_read`, HW3 route-key, K4i COMMON_I18N, put-providers copy) — see "Steps skipped"
 
 # ex7 — Library, Media + Posts (continuation, 2026-11-23)
 
@@ -35,6 +35,7 @@ This was an unattended cloud run (Opus coordinator, 9 subagent batches). It cont
   - `6f2cfd66f4` W2b
   - `f7925ac09d` fix: sha256 binding
   - `d7659907dd` fix: `jini-*` class CSS twins and snapshots
+  - `ef286c0770` fix: `.btn-secondary` stays a standalone global rule. The external-MCP picker CSS test looks it up; this run's admin full suite caught it.
   - This report and `cloud-results/ex7-media-posts-raw/` are committed on top of these.
 
 ## Provisional foundation (merged before branching)
@@ -171,13 +172,27 @@ This was an unattended cloud run (Opus coordinator, 9 subagent batches). It cont
   - Not fixed, because fixing would change wire bodies. No debt row was added (rule 5). **Reviewer: decide between the debt row and a behaviour change.**
 - **vitest:** see "Suites" below.
 
-**Suites:** SUITES_PLACEHOLDER
+**Suites:**
+- **Jini admin full:** 298 files, **3,517 / 0**.
+- **Jini cms full:** 465 files, 5,190 pass / 3 fail. All 3 are not attributable to this run:
+  - `forms/package-boundary`: BASE-RED, the known changelog check.
+  - `universal-entries.boundary` and `forms/create-tables.reference` (pglite): "timed out in 5000ms" while 2 suites ran in parallel. Base timed out identically under the same load (5.7 s versus tip 5.8 s).
+  - Re-run alone on a quiet machine, both pass at tip and at base: universal 3.9 s versus 3.6 s at base. The 7 new universal route entries add about 0.3 s to that walker, which is still under its 5 s limit.
+- **Tovu admin full** (after `ef286c0770`): 871 files, 14,549 pass / 8 fail before the fix. The fix took `external-mcp-tool-picker-css` from red to 13/13, so 4 red files remain. All are BASE-RED, with the same 7 failing tests at base:
+  - `JiniMediaPicker.hooks`
+  - `admin-literal-copy` (collections placeholders)
+  - `credential-input-autocomplete`
+  - `panel-access` (database and redirects evidence)
+- **All 20 Tovu style test files:** 361/361.
+- **Tovu node tests** (every changed test plus the stay-green/importer files of each batch, each file alone with `--experimental-test-module-mocks`):
+  - 19 media route files, 10 posts route files and `mediawidget-where-used`: all green (`tovu-route-tests.txt`).
+  - 3 import-media-entity files and 4 media publish-content files: all green (counts in the batch table).
 
 ## FILES-LEFT (`plans/P9-data/tools/{scan,plan}.mjs` from `origin/plan/whats-left-1122`, clean worktrees; `files-left.txt`)
 | tree | FILES-LEFT | excl. theme areas (111) | lane scanner areas (adm-posts / media / post / other media*) |
 |---|---|---|---|
 | provisional base `9a0d7d4c4` | 2,385 | 2,274 | 57 / 24 / 48 / 16 (total 145) |
-| tip `d7659907dd` | **2,370** | **2,259** | 53 / 23 / 48 / 16 (total 140) |
+| tip `ef286c0770` | **2,370** | **2,259** | 53 / 23 / 48 / 16 (total 140) |
 
 - **Scope of the −15:** these 15 files are this run's moves. Two kinds are not counted by the scanner's lane areas:
   - Admin media/library hooks: they are in `adm-other`.
