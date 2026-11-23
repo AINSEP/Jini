@@ -170,6 +170,11 @@
       "./screens/taxonomy/hooks/taxonomy-port.hooks": "universal",
       "./screens/taxonomy/hooks/term-picker-port.hooks": "universal",
       "./screens/comments/api/comments-api.types": "universal",
+      "./screens/email/email-i18n": "universal",
+      "./screens/email/api/mail-status-api.types": "universal",
+      "./screens/email/Email.hooks": "universal",
+      "./screens/email/EmailTemplateEditor.hooks": "universal",
+      "./screens/email/hooks/email-load.hooks": "browser",
       "./screens/forms/api/forms-api.types": "universal",
       "./screens/forms/index-aligned-translations": "universal",
       "./screens/forms/forms-field-settings-i18n": "universal",
@@ -1047,6 +1052,31 @@
       "types": "./dist/screens/comments/api/comments-api.types.d.ts",
       "import": "./dist/screens/comments/api/comments-api.types.js",
       "default": "./dist/screens/comments/api/comments-api.types.js"
+    },
+    "./screens/email/email-i18n": {
+      "types": "./dist/screens/email/email-i18n.d.ts",
+      "import": "./dist/screens/email/email-i18n.js",
+      "default": "./dist/screens/email/email-i18n.js"
+    },
+    "./screens/email/api/mail-status-api.types": {
+      "types": "./dist/screens/email/api/mail-status-api.types.d.ts",
+      "import": "./dist/screens/email/api/mail-status-api.types.js",
+      "default": "./dist/screens/email/api/mail-status-api.types.js"
+    },
+    "./screens/email/Email.hooks": {
+      "types": "./dist/screens/email/Email.hooks.d.ts",
+      "import": "./dist/screens/email/Email.hooks.js",
+      "default": "./dist/screens/email/Email.hooks.js"
+    },
+    "./screens/email/EmailTemplateEditor.hooks": {
+      "types": "./dist/screens/email/EmailTemplateEditor.hooks.d.ts",
+      "import": "./dist/screens/email/EmailTemplateEditor.hooks.js",
+      "default": "./dist/screens/email/EmailTemplateEditor.hooks.js"
+    },
+    "./screens/email/hooks/email-load.hooks": {
+      "types": "./dist/screens/email/hooks/email-load.hooks.d.ts",
+      "import": "./dist/screens/email/hooks/email-load.hooks.js",
+      "default": "./dist/screens/email/hooks/email-load.hooks.js"
     },
     "./screens/forms/api/forms-api.types": {
       "types": "./dist/screens/forms/api/forms-api.types.d.ts",
