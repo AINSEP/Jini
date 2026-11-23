@@ -1,7 +1,8 @@
 /**
- * @file Admin wire shapes for the two stored assistant provider credentials: the site's (answers
- * anonymous visitors) and one admin's own (powers that admin's execution BYOK). Both views are
- * write-only by design; the host's credential stores produce them and its admin client reads them.
+ * @file Admin wire shapes for the AI Assistant settings screen: the two stored assistant provider
+ * credentials — the site's (answers anonymous visitors) and one admin's own (powers that admin's
+ * execution BYOK), both write-only by design — plus the detected-agent list, the public assistant
+ * switch and the visitor-tools view. The host's stores produce them and its admin client reads them.
  */
 import type { CredentialTokenHint } from "./secrets-credential-token.js";
 
@@ -67,4 +68,80 @@ export interface AdminExecutionCredentialPatch {
   baseUrl?: string;
   model?: string;
   maxTokens?: number;
+}
+
+/** Mirrors `@jini-ai/ui`'s `ExecutionTab` `DetectedAgent` shape — see the host's detect-agents
+ *  admin route and its `toExecutionTabAgent` projection.
+ *
+ *  Each model's `reasoning` mirrors `@jini-ai/agent-runtime`'s `RuntimeModelOption.reasoning`
+ *  (`packages/agent-runtime/src/types.ts` in Jini) — a model's OWN effort levels, narrowed to
+ *  `{id,label}` the same way every other field on this interface narrows its Jini counterpart.
+ *  `undefined` means the runtime doesn't report per-model levels for this agent (Codex today);
+ *  it is never defaulted to `[]`, which would misreport "unknown" as "this model supports zero" —
+ *  see `toExecutionTabAgent`'s `projectModelReasoning` for the same rule on the wire side. No
+ *  `@jini-ai/ui` picker reads this yet; it exists so a future one can narrow the "Reasoning effort"
+ *  control to the SELECTED model instead of `reasoningOptions`' agent-wide union. */
+export interface AdminExecutionDetectedAgent {
+  discoveryPending?: boolean;
+  id: string;
+  label: string;
+  installed: boolean;
+  version?: string;
+  path?: string;
+  models?: Array<{ id: string; label: string; reasoning?: Array<{ id: string; label: string }> }>;
+  modelsSource?: "live" | "fallback";
+  authStatus?: "ok" | "missing" | "unknown";
+  authMessage?: string;
+}
+
+/**
+ * Mirrors the host's public assistant settings module's `PublicAssistantSettings`.
+ *
+ * `publicEnabled: false` is a hard off — the public page ships no assistant bundle and exposes no
+ * assistant endpoint. It is NOT a client-side visibility flag, and nothing in this admin app should
+ * ever treat it as one; see that module's header for the contract in full.
+ */
+export interface PublicAssistantSettings {
+  publicEnabled: boolean;
+  /** Optional while older servers and cached responses still carry only the switch. */
+  widget?: "react" | "vanilla";
+}
+
+/** Mirrors the host's visitor-tools management contract `VisitorToolsView`.
+ * The admin page and the assistant chat's `visitor_tools_list` read the same service, so this shape
+ * is the server's, field for field. `policyState: "invalid"` means the saved policy is unreadable and
+ * every tool is effectively Off until the site-wide Off repair succeeds. */
+export type VisitorToolMode = "auto" | "ask" | "off";
+export interface VisitorToolLimits { perIpPerHour: number; perSitePerDay: number }
+export interface VisitorToolView {
+  id: string;
+  source: "builtin" | "plugin" | "created" | "unavailable";
+  sourceRevision: string;
+  title: string;
+  description: string;
+  displayTitle?: string;
+  displayDescription?: string;
+  effect: "read" | "write";
+  availability: { available: boolean; reason?: string };
+  publication?: { endpoint: string; credentialId: string; returnedFields: string[] };
+  mode: VisitorToolMode;
+  limits: VisitorToolLimits;
+}
+export interface VisitorToolsView {
+  revisionSeq: number;
+  policyState?: "invalid";
+  defaults: VisitorToolLimits;
+  callsPerTurn: number;
+  tools: VisitorToolView[];
+}
+/** `toolId: "site"` patches every available tool at once (the invalid-policy repair uses it). */
+export interface VisitorToolConfigureInput {
+  toolId: string;
+  expectedRevisionSeq: number;
+  mode?: VisitorToolMode;
+  limits?: Partial<VisitorToolLimits>;
+}
+export interface VisitorToolsPort {
+  list(required: Record<string, never>, optional?: Record<string, never>): Promise<VisitorToolsView>;
+  configure(required: VisitorToolConfigureInput, optional?: Record<string, never>): Promise<VisitorToolsView>;
 }
