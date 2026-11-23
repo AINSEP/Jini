@@ -24,7 +24,16 @@
       "./admin/adapters/http": "universal",
       "./admin/adapters/memory": "universal",
       "./admin/conformance": "universal",
-      "./admin-http/http/users": "universal"
+      "./admin-http/http/users": "universal",
+      "./admin-http/owner/mfa-deps": "universal",
+      "./admin-http/routes/users/create-role": "universal",
+      "./admin-http/routes/users/update-role": "universal",
+      "./admin-http/routes/users/delete-role": "universal",
+      "./admin-http/routes/users/create-policy": "universal",
+      "./admin-http/routes/users/update-policy": "universal",
+      "./admin-http/routes/users/delete-policy": "universal",
+      "./admin-http/routes/users/write-policy-permission": "universal",
+      "./admin-http/routes/users/remove-policy-permission": "universal"
     },
     "optionalPeers": {
       "argon2": "opt-in: argon2 password hashing; import @jini-ai/user-management/server — Argon2 password hashing could not load argon2. Install argon2 to enable this feature, or check its installed version and native binaries.",
@@ -95,6 +104,51 @@
       "types": "./dist/admin-http/http/users.d.ts",
       "import": "./dist/admin-http/http/users.js",
       "default": "./dist/admin-http/http/users.js"
+    },
+    "./admin-http/owner/mfa-deps": {
+      "types": "./dist/admin-http/owner/mfa-deps.d.ts",
+      "import": "./dist/admin-http/owner/mfa-deps.js",
+      "default": "./dist/admin-http/owner/mfa-deps.js"
+    },
+    "./admin-http/routes/users/create-role": {
+      "types": "./dist/admin-http/routes/users/create-role.d.ts",
+      "import": "./dist/admin-http/routes/users/create-role.js",
+      "default": "./dist/admin-http/routes/users/create-role.js"
+    },
+    "./admin-http/routes/users/update-role": {
+      "types": "./dist/admin-http/routes/users/update-role.d.ts",
+      "import": "./dist/admin-http/routes/users/update-role.js",
+      "default": "./dist/admin-http/routes/users/update-role.js"
+    },
+    "./admin-http/routes/users/delete-role": {
+      "types": "./dist/admin-http/routes/users/delete-role.d.ts",
+      "import": "./dist/admin-http/routes/users/delete-role.js",
+      "default": "./dist/admin-http/routes/users/delete-role.js"
+    },
+    "./admin-http/routes/users/create-policy": {
+      "types": "./dist/admin-http/routes/users/create-policy.d.ts",
+      "import": "./dist/admin-http/routes/users/create-policy.js",
+      "default": "./dist/admin-http/routes/users/create-policy.js"
+    },
+    "./admin-http/routes/users/update-policy": {
+      "types": "./dist/admin-http/routes/users/update-policy.d.ts",
+      "import": "./dist/admin-http/routes/users/update-policy.js",
+      "default": "./dist/admin-http/routes/users/update-policy.js"
+    },
+    "./admin-http/routes/users/delete-policy": {
+      "types": "./dist/admin-http/routes/users/delete-policy.d.ts",
+      "import": "./dist/admin-http/routes/users/delete-policy.js",
+      "default": "./dist/admin-http/routes/users/delete-policy.js"
+    },
+    "./admin-http/routes/users/write-policy-permission": {
+      "types": "./dist/admin-http/routes/users/write-policy-permission.d.ts",
+      "import": "./dist/admin-http/routes/users/write-policy-permission.js",
+      "default": "./dist/admin-http/routes/users/write-policy-permission.js"
+    },
+    "./admin-http/routes/users/remove-policy-permission": {
+      "types": "./dist/admin-http/routes/users/remove-policy-permission.d.ts",
+      "import": "./dist/admin-http/routes/users/remove-policy-permission.js",
+      "default": "./dist/admin-http/routes/users/remove-policy-permission.js"
     }
   },
   "files": [
