@@ -26,8 +26,9 @@ export interface NewTermFormProps {
   useNewTermFormHook: TaxonomyScreenHooks["useNewTermFormHook"];
 }
 
-function NewTermForm({ taxonomy, onCreated, agentBase: base, t, useNewTermFormHook }: NewTermFormProps): JSX.Element {
-  const form = useNewTermFormHook({ taxonomy, onCreated });
+function NewTermForm(props: NewTermFormProps): JSX.Element {
+  const { taxonomy, onCreated, agentBase: base, t } = props;
+  const form = props.useNewTermFormHook({ taxonomy, onCreated });
 
   // Collapsed resting state — see this hook's own comment for why every group's form now starts
   // closed instead of permanently open. `.btn-ghost` (not `.btn-secondary`): this trigger sits

@@ -1,6 +1,5 @@
 import { agentHandle, buildAgentListHandles } from "@jini-ai/core/agent-handles";
-import { SuggestInput } from "@jini-ai/ui/admin-widgets";
-import { useId, type JSX } from "react";
+import { useId, type ComponentType, type JSX, type KeyboardEvent } from "react";
 import type { AdminTaxonomyWithTerms } from "./api/taxonomy-api.types.js";
 import type { TermPickerController, TermPickerTarget } from "./hooks/use-term-picker.hooks.js";
 import type { useTermListReveal } from "./hooks/use-term-list-reveal.hooks.js";
@@ -13,7 +12,21 @@ function termCreationDisabled({ loading, picker, id }: { loading: boolean; picke
 /** The term picker's state hook: the host binds `useTermPicker` to its live port, locale and kit. */
 export type UseTermPickerHook = (target: TermPickerTarget) => TermPickerController;
 
-/** Props of {@link TermPicker}: the content it tags plus the two injected view hooks. */
+/** The props the picker hands the host's suggestion input (its own list, not a native `<datalist>`). */
+export interface TermPickerSuggestInputProps {
+  value: string;
+  onValueChange: (value: string) => void;
+  suggestions: readonly string[];
+  onPick: (value: string) => void;
+  onKeyDown: (event: KeyboardEvent<HTMLInputElement>) => void;
+  placeholder: string;
+  "aria-label": string;
+  disabled: boolean;
+  agentHandle: string;
+  agentLabel: string;
+}
+
+/** Props of {@link TermPicker}: the content it tags, the two injected view hooks and the suggestion input. */
 export interface TermPickerProps {
   /** `post`, `page`, or a collection's content-type key. */
   contentType: string;
@@ -22,6 +35,8 @@ export interface TermPickerProps {
   useTermPickerHook: UseTermPickerHook;
   /** One row's fold/search state — the host passes `useTermListReveal` (or a test double). */
   useTermListRevealHook: typeof useTermListReveal;
+  /** The host's free-text input with its own suggestion list (e.g. its admin widgets' `SuggestInput`). */
+  SuggestInput: ComponentType<TermPickerSuggestInputProps>;
 }
 
 /** One taxonomy row's agent handles. */
@@ -59,8 +74,9 @@ type TermRows = AdminTaxonomyWithTerms["terms"];
  * classes; the host styles them.
  * @example <TermPicker contentType="post" contentId={id} useTermPickerHook={useWiredTermPicker} useTermListRevealHook={useTermListReveal} />
  */
-export function TermPicker({ contentType, contentId, useTermPickerHook, useTermListRevealHook }: TermPickerProps): JSX.Element | null {
-  const picker = useTermPickerHook({ contentType, contentId });
+export function TermPicker(props: TermPickerProps): JSX.Element | null {
+  const { contentType, contentId, useTermListRevealHook, SuggestInput } = props;
+  const picker = props.useTermPickerHook({ contentType, contentId });
   const { taxonomies, hidden, loading, t } = picker;
 
   if (hidden) return null;
@@ -86,6 +102,7 @@ export function TermPicker({ contentType, contentId, useTermPickerHook, useTermL
             picker={picker}
             handles={handles}
             useTermListRevealHook={useTermListRevealHook}
+            SuggestInput={SuggestInput}
           />
         ))}
       </div>
@@ -159,13 +176,14 @@ interface TermPickerRowProps {
 }
 
 /** One taxonomy row: its legend, its checklist, its add controls and its create error. */
-function TermPickerGroup({ taxonomy, terms, groupIndex, picker, handles, useTermListRevealHook }: {
+function TermPickerGroup({ taxonomy, terms, groupIndex, picker, handles, useTermListRevealHook, SuggestInput }: {
   taxonomy: TaxonomyRow;
   terms: TermRows;
   groupIndex: number;
   picker: TermPickerController;
   handles: TermPickerHandles;
   useTermListRevealHook: typeof useTermListReveal;
+  SuggestInput: ComponentType<TermPickerSuggestInputProps>;
 }): JSX.Element {
   const id = taxonomy.id;
   const showInput = picker.showAddInput(id);
@@ -186,7 +204,7 @@ function TermPickerGroup({ taxonomy, terms, groupIndex, picker, handles, useTerm
           />
         ) : null}
         {picker.showAddTrigger(id) ? <TermPickerAddTrigger taxonomy={taxonomy} picker={picker} handles={rowHandles} /> : null}
-        {showInput ? <TermPickerAddInput taxonomy={taxonomy} picker={picker} handles={rowHandles} /> : null}
+        {showInput ? <TermPickerAddInput taxonomy={taxonomy} picker={picker} handles={rowHandles} SuggestInput={SuggestInput} /> : null}
         {createError ? (
           <span className="save-error" role="alert">
             {createError}
@@ -215,7 +233,9 @@ function TermPickerAddTrigger({ taxonomy, picker, handles }: TermPickerRowProps)
 }
 
 /** A row's typed-name box and its "Add term" button. */
-function TermPickerAddInput({ taxonomy, picker, handles }: TermPickerRowProps): JSX.Element {
+function TermPickerAddInput({ taxonomy, picker, handles, SuggestInput }: TermPickerRowProps & {
+  SuggestInput: ComponentType<TermPickerSuggestInputProps>;
+}): JSX.Element {
   const id = taxonomy.id;
   const { loading, subject, t } = picker;
   return (
@@ -287,7 +307,7 @@ function TermPickerActions({ picker }: { picker: TermPickerController }): JSX.El
  * up to 100 and "Show less" folds them back; past 100 a search box finds any term (owner,
  * 2026-10-22: "looking at all this up front is a lot"). What shows is `rules.ts`'s `termListView`.
  */
-function TermChecklist({ useTermListRevealHook, ...props }: {
+function TermChecklist(props: {
   taxonomy: TaxonomyRow;
   terms: TermRows;
   picker: TermPickerController;
@@ -296,7 +316,7 @@ function TermChecklist({ useTermListRevealHook, ...props }: {
 }): JSX.Element {
   const { taxonomy, terms, picker, handles } = props;
   const { selected, toggle, loading, subject, t } = picker;
-  const reveal = useTermListRevealHook({ terms, selected, loading });
+  const reveal = props.useTermListRevealHook({ terms, selected, loading });
   const listId = useId();
   return (
     <>

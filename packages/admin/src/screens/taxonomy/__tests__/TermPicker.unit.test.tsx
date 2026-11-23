@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { TermPicker } from "../TermPicker.js";
+import { TermPicker, type TermPickerSuggestInputProps } from "../TermPicker.js";
 import { useTermListReveal, type TermListReveal } from "../hooks/use-term-list-reveal.hooks.js";
 import type { TermPickerController } from "../hooks/use-term-picker.hooks.js";
 import type { AdminTaxonomyWithTerms } from "../api/taxonomy-api.types.js";
@@ -33,9 +33,14 @@ function controller(overrides: Partial<TermPickerController> = {}): TermPickerCo
   };
 }
 
+/** A plain input standing in for the host's suggestion widget — the picker only wires its props. */
+function FakeSuggestInput(props: TermPickerSuggestInputProps) {
+  return <input aria-label={props["aria-label"]} value={props.value} disabled={props.disabled} onChange={(e) => props.onValueChange(e.target.value)} />;
+}
+
 function renderPicker(ctrl: TermPickerController, useReveal: typeof useTermListReveal = useTermListReveal) {
   const useHook = vi.fn(() => ctrl);
-  const view = render(<TermPicker contentType="post" contentId="p1" useTermPickerHook={useHook} useTermListRevealHook={useReveal} />);
+  const view = render(<TermPicker contentType="post" contentId="p1" useTermPickerHook={useHook} useTermListRevealHook={useReveal} SuggestInput={FakeSuggestInput} />);
   return { ...view, useHook };
 }
 

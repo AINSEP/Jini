@@ -133,9 +133,10 @@ function MergeConfirmedStep({ busy, doExecute, t }: MergeConfirmedStepProps): JS
   );
 }
 
-function MergeTermSection({ taxonomy, term, onMerged, t, useMergeTermSectionHook }: MergeTermSectionProps): JSX.Element | null {
+function MergeTermSection(props: MergeTermSectionProps): JSX.Element | null {
+  const { taxonomy, term, onMerged, t } = props;
   const otherTerms = otherMergeTargets({ taxonomy, excludeTermId: term.id });
-  const { intoTermId, setIntoTermId, step, busy, error, plan, confirmationToken, startPlan, doConfirm, doExecute } = useMergeTermSectionHook({
+  const { intoTermId, setIntoTermId, step, busy, error, plan, confirmationToken, startPlan, doConfirm, doExecute } = props.useMergeTermSectionHook({
     term,
     onMerged,
   });

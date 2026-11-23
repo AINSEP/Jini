@@ -89,8 +89,9 @@ export interface NewTaxonomyFormProps {
 
 /** New-taxonomy form (REQ-02) — name + hierarchical toggle, calling `api.createTaxonomy`. Mirrors
  * `NewTermForm`'s local-state/submit/error shape. */
-function NewTaxonomyForm({ onCreated, t, useNewTaxonomyFormHook }: NewTaxonomyFormProps): JSX.Element {
-  const { name, setName, hierarchical, setHierarchical, error, saving, submit } = useNewTaxonomyFormHook({ onCreated });
+function NewTaxonomyForm(props: NewTaxonomyFormProps): JSX.Element {
+  const { onCreated, t } = props;
+  const { name, setName, hierarchical, setHierarchical, error, saving, submit } = props.useNewTaxonomyFormHook({ onCreated });
 
   return (
     <form className="notice jini-taxonomy-new-term-form" onSubmit={submit}>
@@ -279,11 +280,12 @@ function TaxonomyNotices({ copyFeedback, error, empty, t }: TaxonomyNoticesProps
  * locale and kit, and passes its status label and publish button.
  * @example <Taxonomy useTaxonomyHook={useWiredTaxonomy} useNewTermFormHook={useWiredNewTermForm} … StatusLabel={ServerLabel} publishButton={<PublishButton />} />
  */
-export function Taxonomy({ useTaxonomyHook, publishButton, ...parts }: TaxonomyProps): JSX.Element {
+export function Taxonomy(props: TaxonomyProps): JSX.Element {
+  const { publishButton, ...parts } = props;
   // Place popups outside the row scroller but inside the bridge's page scope.
   // A callback ref supplies the mounted container before any menu can open.
   const [menuPortalContainer, setMenuPortalContainer] = useState<HTMLDivElement | null>(null);
-  const controller = useTaxonomyHook();
+  const controller = props.useTaxonomyHook();
   const { copyFeedback, taxonomies, error, selectedTermId, setSelectedTermId, selected, load, formOpen, setFormOpen, t } = controller;
   const deleteState = {
     copyHtmlEmbed: controller.copyHtmlEmbed,
