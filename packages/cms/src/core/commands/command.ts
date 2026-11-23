@@ -207,6 +207,8 @@ function appliedChangeSetEvent(
     aggregateId: changeSetId,
     workspaceId: command.workspaceId,
     actorId: command.actor.id,
+    // Agent-vs-human provenance on every mutation event, so an audit can tell them apart.
+    actorKind: command.actor.kind,
     changeSetId,
     payload: {
       changeSetId,
@@ -250,6 +252,7 @@ function buildAppliedChangeSet<TResult>(
       id: changeSetId,
       workspaceId: command.workspaceId,
       actorId: command.actor.id,
+      actorKind: command.actor.kind,
       status: "applied",
       summary: command.summary,
       idempotencyKey: command.idempotencyKey,
