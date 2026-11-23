@@ -238,14 +238,14 @@
   "symbols": {
    "CLEAR_ERROR_MAPPINGS": "variable:d8c97adb98",
    "SettingsClearRouteDeps": "interface:31f1c51946",
-   "settingsClearRoute": "variable:21ef1d0cf5"
+   "settingsClearRoute": "variable:04db67883f"
   }
  },
  "./admin-http/routes/settings/get-effective": {
   "types": "./dist/admin-http/routes/settings/get-effective.d.ts",
   "symbols": {
    "SettingsGetEffectiveRouteDeps": "interface:49c018d190",
-   "settingsGetEffectiveRoute": "variable:e7e46bd0bf"
+   "settingsGetEffectiveRoute": "variable:e37df8ca63"
   }
  },
  "./admin-http/routes/settings/get-raw": {
@@ -260,7 +260,7 @@
   "symbols": {
    "SettingsDefinitionSummary": "type:17d9e9d4c6",
    "SettingsListDefinitionsRouteDeps": "interface:4b07fbbd49",
-   "settingsListDefinitionsRoute": "variable:077edcbe88"
+   "settingsListDefinitionsRoute": "variable:65100b03b0"
   }
  },
  "./admin-http/routes/settings/preview-feed-access": {
@@ -280,7 +280,7 @@
   "symbols": {
    "REGISTER_DEFINITIONS_ERROR_MAPPINGS": "variable:c76cf0bb16",
    "SettingsRegisterDefinitionsRouteDeps": "interface:93ccc5ec80",
-   "settingsRegisterDefinitionsRoute": "variable:c02cba42fb"
+   "settingsRegisterDefinitionsRoute": "variable:cb0d9a81f5"
   }
  },
  "./admin-http/routes/settings/reset": {
@@ -288,7 +288,7 @@
   "symbols": {
    "RESET_ERROR_MAPPINGS": "variable:0a443eabc4",
    "SettingsResetRouteDeps": "interface:501594bb22",
-   "settingsResetRoute": "variable:899c652427"
+   "settingsResetRoute": "variable:1f4c5c0a68"
   }
  },
  "./admin-http/routes/settings/set": {
@@ -296,7 +296,7 @@
   "symbols": {
    "SET_ERROR_MAPPINGS": "variable:393f9b5619",
    "SettingsSetRouteDeps": "interface:32848dcc0f",
-   "settingsSetRoute": "variable:ac7218f5bf"
+   "settingsSetRoute": "variable:dcf1911b6a"
   }
  },
  "./admin-http/routes/settings/shared": {
@@ -345,7 +345,7 @@
    "SitesSettingsPrincipal": "interface:ff718934a7",
    "parseSitesSettingsDirectory": "function:b236869161",
    "sitesConfigReadRoute": "variable:ec34edc737",
-   "sitesHomeSetRoute": "variable:83b00915c0",
+   "sitesHomeSetRoute": "variable:e4dac58d6a",
    "validateSitesSettingsDirectories": "function:06a1fdbc11"
   }
  },
@@ -411,10 +411,8 @@
  "./admin-http/routes/system/deployment-overview": {
   "types": "./dist/admin-http/routes/system/deployment-overview.d.ts",
   "symbols": {
-   "DeploymentEnvVarStatus": "interface:34c5536892",
    "DeploymentOverviewPrincipal": "interface:09262e89a6",
    "DeploymentOverviewRouteDeps": "interface:6ba8c4481b",
-   "DeploymentOverviewSnapshot": "interface:38b2ac4e8a",
    "DeploymentOverviewSnapshotFn": "type:665cc3a4f6",
    "DeploymentOwnerLookupFn": "type:f6595aa29d",
    "deploymentOverviewRoute": "variable:43c2bdb68b"
@@ -437,7 +435,7 @@
   "types": "./dist/admin-http/routes/system/mail-activity.d.ts",
   "symbols": {
    "MailActivityFailure": "type:2711f2525c",
-   "MailActivityFailureDeps": "interface:5dabfe607b",
+   "MailActivityFailureDeps": "interface:b9848a468d",
    "MailActivityGetRouteDeps": "interface:7b9dc1b06c",
    "MailActivityListRouteDeps": "interface:2a7fc98b7d",
    "MailFeedbackRouteDeps": "interface:1407fe39de",
@@ -470,34 +468,30 @@
    "MailProviderActivateRouteDeps": "interface:a95ef64ebb",
    "MailProviderCredentialPlanRouteDeps": "interface:2b91438969",
    "MailProviderFailure": "type:c2c213fb97",
-   "MailProviderFailureDeps": "interface:5e67e56a8c",
+   "MailProviderFailureDeps": "interface:6c71c1abca",
    "MailProviderOperationCode": "type:6ff9643a82",
    "MailProviderStoreErrorCode": "type:3758ba22ef",
    "MailProvidersListRouteDeps": "interface:421666839b",
    "mailProviderActivateRoute": "variable:51861c1edd",
    "mailProviderCredentialPlanRoute": "variable:f411171cc1",
-   "mailProviderRefusal": "function:087fc029a4",
+   "mailProviderRefusal": "function:f8dd448355",
    "mailProvidersListRoute": "variable:c84dc169cc"
   }
  },
  "./admin-http/routes/system/mail-status": {
   "types": "./dist/admin-http/routes/system/mail-status.d.ts",
   "symbols": {
-   "MailStatusBlock": "type:a949824404",
-   "MailStatusEnvelope": "type:7a5977f2bc",
-   "MailStatusFn": "type:9aff3045b5",
+   "MailStatusFn": "type:9ad41a6774",
    "MailStatusRouteDeps": "interface:0d5fef4497",
-   "mailStatusRoute": "variable:20822f7263"
+   "mailStatusRoute": "variable:86da55d561"
   }
  },
  "./admin-http/routes/system/mail-test-send": {
   "types": "./dist/admin-http/routes/system/mail-test-send.d.ts",
   "symbols": {
-   "MailTestSendEnvelope": "interface:61a984b2d8",
    "MailTestSendInput": "interface:9dd51a2a66",
-   "MailTestSendOutcome": "interface:c2817f7f15",
-   "MailTestSendRouteDeps": "interface:b02b008b09",
-   "mailTestSendRoute": "variable:1dca20a7c0"
+   "MailTestSendRouteDeps": "interface:e4ce432946",
+   "mailTestSendRoute": "variable:d47728acc8"
   }
  },
  "./admin-http/routes/system/module-status": {
@@ -542,9 +536,9 @@
    "PublishCredentialVerification": "type:a7714c8721",
    "PublishCredentialView": "interface:69e55f34a0",
    "VerifyPublishCredential": "type:075e274a1b",
-   "authorizePublishCredentials": "variable:16bd3de487",
+   "authorizePublishCredentials": "variable:8dd7e36cf9",
    "parsePublishCredential": "variable:b61dbf26bd",
-   "publishCredentialRows": "variable:8573801393",
+   "publishCredentialRows": "variable:6c6eae2434",
    "verifyIfConnectionChanged": "function:c645c76fb3"
   }
  },
@@ -597,11 +591,11 @@
    "SiteCreateInput": "interface:73b34e24c7",
    "SiteCreateRouteDeps": "interface:2a4a38c91d",
    "SiteSwitchBase": "type:ced45e4260",
-   "SiteTokenSignInPluginsRouteDeps": "interface:ea3eedb0fd",
+   "SiteTokenSignInPluginsRouteDeps": "interface:dc102df0e0",
    "SitesAdminPrincipal": "interface:a0aa7c2bfe",
    "siteActivateRoute": "variable:a7dd57672f",
-   "siteCreateRoute": "variable:367e0d81d7",
-   "siteTokenSignInPluginsRoute": "variable:f2e8ab21d3"
+   "siteCreateRoute": "variable:84d1882ea9",
+   "siteTokenSignInPluginsRoute": "variable:ed0b3f3678"
   }
  },
  "./admin-http/routes/system/source-control-credentials": {
