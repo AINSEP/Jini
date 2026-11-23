@@ -213,7 +213,11 @@
       "./admin-http/routes/taxonomy/create-taxonomy": "universal",
       "./admin-http/routes/taxonomy/create-term": "universal",
       "./admin-http/routes/taxonomy/delete-term": "universal",
-      "./admin-http/routes/taxonomy/rename-term": "universal"
+      "./admin-http/routes/taxonomy/rename-term": "universal",
+      "./admin-http/routes/widgets/agent-tools-place": "universal",
+      "./admin-http/routes/widgets/agent-tools-create": "universal",
+      "./admin-http/routes/widgets/agent-tools-remove": "universal",
+      "./admin-http/routes/widgets/agent-tools-diagnose": "universal"
     },
     "isolation": {
       "domains": {
@@ -334,7 +338,11 @@
         "./admin-http/routes/taxonomy/create-taxonomy": "taxonomy",
         "./admin-http/routes/taxonomy/create-term": "taxonomy",
         "./admin-http/routes/taxonomy/delete-term": "taxonomy",
-        "./admin-http/routes/taxonomy/rename-term": "taxonomy"
+        "./admin-http/routes/taxonomy/rename-term": "taxonomy",
+        "./admin-http/routes/widgets/agent-tools-place": "widgets",
+        "./admin-http/routes/widgets/agent-tools-create": "widgets",
+        "./admin-http/routes/widgets/agent-tools-remove": "widgets",
+        "./admin-http/routes/widgets/agent-tools-diagnose": "widgets"
       },
       "forbidden": {
         "universal": [
@@ -1377,6 +1385,26 @@
       "types": "./dist/admin-http/routes/taxonomy/rename-term.d.ts",
       "import": "./dist/admin-http/routes/taxonomy/rename-term.js",
       "default": "./dist/admin-http/routes/taxonomy/rename-term.js"
+    },
+    "./admin-http/routes/widgets/agent-tools-place": {
+      "types": "./dist/admin-http/routes/widgets/agent-tools-place.d.ts",
+      "import": "./dist/admin-http/routes/widgets/agent-tools-place.js",
+      "default": "./dist/admin-http/routes/widgets/agent-tools-place.js"
+    },
+    "./admin-http/routes/widgets/agent-tools-create": {
+      "types": "./dist/admin-http/routes/widgets/agent-tools-create.d.ts",
+      "import": "./dist/admin-http/routes/widgets/agent-tools-create.js",
+      "default": "./dist/admin-http/routes/widgets/agent-tools-create.js"
+    },
+    "./admin-http/routes/widgets/agent-tools-remove": {
+      "types": "./dist/admin-http/routes/widgets/agent-tools-remove.d.ts",
+      "import": "./dist/admin-http/routes/widgets/agent-tools-remove.js",
+      "default": "./dist/admin-http/routes/widgets/agent-tools-remove.js"
+    },
+    "./admin-http/routes/widgets/agent-tools-diagnose": {
+      "types": "./dist/admin-http/routes/widgets/agent-tools-diagnose.d.ts",
+      "import": "./dist/admin-http/routes/widgets/agent-tools-diagnose.js",
+      "default": "./dist/admin-http/routes/widgets/agent-tools-diagnose.js"
     }
   },
   "files": [
