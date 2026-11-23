@@ -79,7 +79,9 @@
       "./widgets/react": "browser",
       "./widgets/adapters/http": "universal",
       "./widgets/adapters/memory": "universal",
-      "./widgets/conformance": "universal"
+      "./widgets/conformance": "universal",
+      "./posts/PostAuthorFields": "browser",
+      "./posts/PostPublishingFields": "browser"
     },
     "isolation": {
       "shared": [
@@ -431,6 +433,16 @@
       "types": "./dist/widgets/conformance/widgets-api.conformance.d.ts",
       "import": "./dist/widgets/conformance/widgets-api.conformance.js",
       "default": "./dist/widgets/conformance/widgets-api.conformance.js"
+    },
+    "./posts/PostAuthorFields": {
+      "types": "./dist/posts/PostAuthorFields.d.ts",
+      "import": "./dist/posts/PostAuthorFields.js",
+      "default": "./dist/posts/PostAuthorFields.js"
+    },
+    "./posts/PostPublishingFields": {
+      "types": "./dist/posts/PostPublishingFields.d.ts",
+      "import": "./dist/posts/PostPublishingFields.js",
+      "default": "./dist/posts/PostPublishingFields.js"
     }
   },
   "files": [
