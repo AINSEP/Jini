@@ -120,12 +120,9 @@
       "./entries/site/system-content-types": "universal",
       "./widgets/site/declared-content-type-owners": "universal",
       "./content-types/site/tool-metadata": "universal",
-      "./widgets/site/entry-refs-extractor": "universal",
       "./entries/site/tool-metadata": "universal",
       "./entries/site/tool-registrations": "universal",
       "./entries/site/public-list": "universal",
-      "./entries/site/public-read": "universal",
-      "./entries/site/render-entry": "universal",
       "./entries/site/contracts": "universal",
       "./taxonomy/site/tool-metadata": "universal",
       "./taxonomy/site/content-targets": "universal"
@@ -762,11 +759,6 @@
       "import": "./dist/content-types/site/tool-metadata.js",
       "default": "./dist/content-types/site/tool-metadata.js"
     },
-    "./widgets/site/entry-refs-extractor": {
-      "types": "./dist/widgets/site/entry-refs-extractor.d.ts",
-      "import": "./dist/widgets/site/entry-refs-extractor.js",
-      "default": "./dist/widgets/site/entry-refs-extractor.js"
-    },
     "./entries/site/tool-metadata": {
       "types": "./dist/entries/site/tool-metadata.d.ts",
       "import": "./dist/entries/site/tool-metadata.js",
@@ -781,16 +773,6 @@
       "types": "./dist/entries/site/public-list.d.ts",
       "import": "./dist/entries/site/public-list.js",
       "default": "./dist/entries/site/public-list.js"
-    },
-    "./entries/site/public-read": {
-      "types": "./dist/entries/site/public-read.d.ts",
-      "import": "./dist/entries/site/public-read.js",
-      "default": "./dist/entries/site/public-read.js"
-    },
-    "./entries/site/render-entry": {
-      "types": "./dist/entries/site/render-entry.d.ts",
-      "import": "./dist/entries/site/render-entry.js",
-      "default": "./dist/entries/site/render-entry.js"
     },
     "./entries/site/contracts": {
       "types": "./dist/entries/site/contracts.d.ts",

@@ -1,12 +1,10 @@
 import { describe, it, expect } from "vitest";
 
-import { COLLECTION_LIST_FAQ_PAGE, isCollectionListLayout } from "../render-entry.js";
-import { COLLECTION_LIST_LAYOUTS } from "../contracts.js";
-import { entryPublicHref, humanizeFieldName, DEFAULT_COLLECTION_LIST_LIMIT, MAX_COLLECTION_LIST_LIMIT } from "../public-list.js";
-import { parseCollectionListConfig } from "../public-read.js";
+import { COLLECTION_LIST_FAQ_PAGE, COLLECTION_LIST_LAYOUTS, isCollectionListLayout } from "../contracts.js";
+import { entryPublicHref, humanizeFieldName, parseCollectionListConfig, DEFAULT_COLLECTION_LIST_LIMIT, MAX_COLLECTION_LIST_LIMIT } from "../public-list.js";
 import { toolMetadata } from "../tool-metadata.js";
 import { contributeEntriesTools } from "../tool-registrations.js";
-import { extractHtmlEntryRefs } from "../../../widgets/site/entry-refs-extractor.js";
+import { extractHtmlEntryRefs } from "../../../widgets/entry-refs-extractor.js";
 import type { UUID } from "@jini-ai/core/primitives";
 
 /** @file Characterizes the site entries surface: layout vocabulary, public-list helpers, tool seam. */
@@ -50,5 +48,19 @@ describe("site entries surface", () => {
   it("finds no entry refs in html without embed markers", () => {
     const id = "00000000-0000-4000-8000-000000000001" as UUID;
     expect(extractHtmlEntryRefs({ workspaceId: id, sourceEntryId: id, html: "<p>plain</p>" })).toEqual([]);
+  });
+
+  it("reports a rejected marker through the injected report port with its source entry id", () => {
+    const id = "00000000-0000-4000-8000-000000000001" as UUID;
+    const reports: { message: string; sourceEntryId: UUID }[] = [];
+    const rows = extractHtmlEntryRefs(
+      { workspaceId: id, sourceEntryId: id, html: `<div data-embed-config='{"type":"widget","id":}'></div>` },
+      { report: (r) => reports.push(r) },
+    );
+    expect(rows).toEqual([]);
+    expect(reports).toHaveLength(1);
+    expect(reports[0]?.sourceEntryId).toBe(id);
+    expect(reports[0]?.message).toMatch(/UNINDEXED/);
+    expect(reports[0]?.message).toMatch(/safe-delete/i);
   });
 });
