@@ -30,7 +30,7 @@ import {
   type ResolveRunInput,
   type TerminalSessionManager,
 } from '@jini-ai/daemon';
-import { buildTerminalService, type TerminalFeatureOptions } from './terminal-service.js'; import { mountRoutes } from './mount-routes.js';
+import { buildTerminalService, type TerminalFeatureOptions } from './terminal-service.js'; import { mountRoutes } from './mount-routes.js'; import { baseUrlGuard, hostToolCommandInvocation, providerToolTurns } from './runtime-port-bindings.js';
 import {
   ensureToolCatalogTables,
   getToolCatalogEntry,
@@ -349,7 +349,7 @@ export function createBuiltInFeatures(options: BuiltInFeatureOptions = {}): read
         services: () => ({ context }),
       }, {
         http: ({ app, services }) => {
-          mountRoutes({ app, routes: hostToolsRoutes({ deps: {
+          mountRoutes({ app, routes: hostToolsRoutes({ deps: { commandInvocation: hostToolCommandInvocation,
             resolveRoot: options.hostTools?.resolveWorkspaceRoot ?? denyAllWorkspaceRoots,
           }, host: services.context.routeHost }) });
         },
@@ -366,7 +366,7 @@ export function createBuiltInFeatures(options: BuiltInFeatureOptions = {}): read
         deps: [],
         services: () => ({ context }),
       }, {
-        http: ({ app, services }) => mountRoutes({ app, routes: modelProxyRoutes({ deps: {}, host: services.context.routeHost }) }),
+        http: ({ app, services }) => mountRoutes({ app, routes: modelProxyRoutes({ deps: { toolTurns: providerToolTurns }, host: services.context.routeHost }) }),
       }),
     }),
   });
@@ -529,7 +529,7 @@ export function createBuiltInFeatures(options: BuiltInFeatureOptions = {}): read
         deps: [],
         services: () => ({ context }),
       }, {
-        http: ({ app, services }) => mountRoutes({ app, routes: researchRoutes({ deps: {}, host: services.context.routeHost }) }),
+        http: ({ app, services }) => mountRoutes({ app, routes: researchRoutes({ deps: { baseUrlGuard }, host: services.context.routeHost }) }),
       }),
     }),
   });

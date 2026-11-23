@@ -3,11 +3,11 @@ import { existsSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { copyRuntimeTree, fixture, pack, packages, run } from '../../../scripts/testing/packed-fixture.js';
-import { defaultModelDiscoveryDeps } from '../src/model-discovery-adapters.js';
+import { createEnvCredentialPort } from '../src/model-discovery-adapters.js';
 
 const RUNTIME = '@jini-ai/agent-runtime';
 const CATALOG = '@jini-ai/integrations/media-providers/catalog';
-const LOAD_ERROR = 'Could not load @jini-ai/integrations/media-providers/catalog. Install the optional peer @jini-ai/integrations or inject ModelDiscoveryDeps.credential to discover models with default provider URLs.';
+const LOAD_ERROR = 'Could not load the provider catalog. Pass AgentRuntimeHostPorts.providerCatalog to createNativeAgentRuntime or inject ModelDiscoveryDeps.credential to discover models with default provider URLs.';
 let dir: string;
 
 beforeAll(() => {
@@ -93,7 +93,7 @@ describe('@jini-ai/agent-runtime without its optional integrations peer', () => 
     { model: 'google/gemini-test', env: { GEMINI_API_KEY: 'test-key' } },
     { model: 'openrouter/test', env: { OPENROUTER_API_KEY: 'test-key' } },
     { model: 'openai/gpt-test', env: { OPENAI_API_KEY: 'test-key' } },
-  ])('reports the missing peer only when a default URL is needed ($model)', ({ model, env }) => {
+  ])('reports the missing catalog loader only when a default URL is needed ($model)', ({ model, env }) => {
     const result = run(dir, `
       const { defaultModelDiscoveryDeps: deps } = await import(${JSON.stringify(RUNTIME)});
       try {
@@ -104,12 +104,12 @@ describe('@jini-ai/agent-runtime without its optional integrations peer', () => 
         });
         process.stdout.write('unexpected success');
       } catch (error) {
-        process.stdout.write(JSON.stringify([error.message, error.cause.code]));
+        process.stdout.write(JSON.stringify([error.message, error.cause.message]));
       }
     `);
     expect(result.stderr).toBe('');
     expect(result.status).toBe(0);
-    expect(JSON.parse(result.stdout)).toEqual([LOAD_ERROR, 'ERR_MODULE_NOT_FOUND']);
+    expect(JSON.parse(result.stdout)).toEqual([LOAD_ERROR, 'No provider catalog loader was injected.']);
   });
 });
 
@@ -119,8 +119,10 @@ it.each([
   { agentId: 'aider', model: 'google/gemini-test', env: { GEMINI_API_KEY: 'test-key' }, protocol: 'google', baseUrl: 'https://generativelanguage.googleapis.com' },
   { agentId: 'aider', model: 'openrouter/test', env: { OPENROUTER_API_KEY: 'test-key' }, protocol: 'openai', baseUrl: 'https://openrouter.ai/api/v1' },
   { agentId: 'aider', model: 'openai/gpt-test', env: { OPENAI_API_KEY: 'test-key' }, protocol: 'openai', baseUrl: 'https://api.openai.com/v1' },
-])('keeps the catalog-owned defaults when integrations is installed ($agentId / $model)', async ({ agentId, model, env, protocol, baseUrl }) => {
-  const connection = await defaultModelDiscoveryDeps.credential.connection({
+])('keeps the catalog-owned defaults when the host injects the integrations catalog ($agentId / $model)', async ({ agentId, model, env, protocol, baseUrl }) => {
+  // This test plays the composing host: it alone names the catalog owner and hands its lazy loader in.
+  const credential = createEnvCredentialPort({}, { importCatalog: () => import(CATALOG) });
+  const connection = await credential.connection({
     agentId,
     context: { executable: '/fake/cli', cwd: '/workspace', env, model },
     signal: new AbortController().signal,

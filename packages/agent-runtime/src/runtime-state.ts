@@ -1,6 +1,7 @@
 /** Mutable runtime data belongs to one host. Compatibility functions use defaultRuntimeState. */
 import type { AcpModelProbe, RuntimeAgentDef, RuntimeCapabilityMap, RuntimeModelOption, ModelCacheEntry, ModelDiscoveryDeps } from '@jini-ai/core/contracts/agents';
 import type { DetectedAgent } from './types.js';
+import type { AgentRuntimeHostPorts } from './host-ports.js';
 
 export interface AgentRuntimeState {
   /** One in-flight or settled detection per launch scope; catalog expiry refreshes only models. */
@@ -14,6 +15,8 @@ export interface AgentRuntimeState {
   /** Host-owned transport. Absent only for legacy definitions using the compatibility wrapper. */
   acpModelProbe?: AcpModelProbe;
   discoveryDeps?: ModelDiscoveryDeps;
+  /** Host-injected collaborators (toolchain dirs, proxy env, provider catalog), bound by `createNativeAgentRuntime`. */
+  hostPorts?: AgentRuntimeHostPorts;
   readonly modelCatalog: Map<string, ModelCacheEntry>;
   readonly executable: {
     /** Env var names consulted by detection-home/resource-root resolution. Overridable via `configureExecutableResolutionEnv`. */

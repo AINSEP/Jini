@@ -5,6 +5,10 @@ import { fakeDaemonRouteHost } from './fakes/route-host.js';
 import { jsonRequest, serveRoutes } from './fakes/serve-routes.js';
 import { describeRoutes } from '../route-table.js';
 import { researchRoutes, researchSearchRoute, type ResearchHttpDeps } from '../research.js';
+import { validateBaseUrl } from '@jini-ai/agent-runtime';
+
+/** The real base-URL guard, bound the way the host binds it (tests assert the SSRF refusals it carries). */
+const baseUrlGuard = { validate: (required: { baseUrl: string }) => validateBaseUrl(required) };
 
 function okFetchResponse(body: unknown) {
   return { ok: true, status: 200, json: async () => body, text: async () => JSON.stringify(body) };
@@ -12,7 +16,7 @@ function okFetchResponse(body: unknown) {
 
 function makeDeps(overrides: Partial<ResearchHttpDeps> = {}): ResearchHttpDeps {
   return {
-    reportInternalError: reportRouteInternalError,
+    reportInternalError: reportRouteInternalError, baseUrlGuard,
     resolveCredentials: async () => ({ apiKey: 'tvly-test-key' }),
     ...overrides,
   };
@@ -217,7 +221,7 @@ describe('researchSearchRoute.handle', () => {
           okFetchResponse({ answer: 'ok', results: [{ title: 'T', url: 'https://example.com/x', content: 'c' }] }),
         );
         vi.stubGlobal('fetch', fetchMock);
-        const result = await researchSearchRoute.handle({ input: { query: 'q' }, deps: { reportInternalError: reportRouteInternalError } });
+        const result = await researchSearchRoute.handle({ input: { query: 'q' }, deps: { reportInternalError: reportRouteInternalError, baseUrlGuard } });
         expect(result.ok).toBe(true);
         // Whitespace is trimmed off the env value before it becomes a Bearer credential.
         const [, init] = fetchMock.mock.calls[0]!;
@@ -229,7 +233,7 @@ describe('researchSearchRoute.handle', () => {
       await withEnv(undefined, async () => {
         const fetchMock = vi.fn();
         vi.stubGlobal('fetch', fetchMock);
-        const result = await researchSearchRoute.handle({ input: { query: 'q' }, deps: { reportInternalError: reportRouteInternalError } });
+        const result = await researchSearchRoute.handle({ input: { query: 'q' }, deps: { reportInternalError: reportRouteInternalError, baseUrlGuard } });
         expect(result).toEqual({ ok: false, error: { code: 'NOT_CONFIGURED', message: 'tavily provider not configured' } });
         expect(fetchMock).not.toHaveBeenCalled();
       });
@@ -239,7 +243,7 @@ describe('researchSearchRoute.handle', () => {
       await withEnv('   ', async () => {
         const fetchMock = vi.fn();
         vi.stubGlobal('fetch', fetchMock);
-        const result = await researchSearchRoute.handle({ input: { query: 'q' }, deps: { reportInternalError: reportRouteInternalError } });
+        const result = await researchSearchRoute.handle({ input: { query: 'q' }, deps: { reportInternalError: reportRouteInternalError, baseUrlGuard } });
         expect(result).toMatchObject({ ok: false, error: { code: 'NOT_CONFIGURED' } });
         expect(fetchMock).not.toHaveBeenCalled();
       });
@@ -248,7 +252,7 @@ describe('researchSearchRoute.handle', () => {
     it('falls back to console.error when no onInternalError sink is supplied', async () => {
       const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
       vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('ECONNRESET')));
-      const result = await researchSearchRoute.handle({ input: { query: 'q' }, deps: { reportInternalError: reportRouteInternalError, resolveCredentials: async () => ({ apiKey: 'k' }) } });
+      const result = await researchSearchRoute.handle({ input: { query: 'q' }, deps: { reportInternalError: reportRouteInternalError, baseUrlGuard, resolveCredentials: async () => ({ apiKey: 'k' }) } });
       expect(result).toMatchObject({ ok: false, error: { code: 'INTERNAL_ERROR' } });
       expect(consoleErrorSpy).toHaveBeenCalledTimes(1);
       expect(consoleErrorSpy.mock.calls[0]![0]).toContain('internal error (research/search, correlationId=');
@@ -401,7 +405,7 @@ describe('researchRoutes', () => {
   });
 
   it('answers 503 when no provider credential is configured', async () => {
-    expect(await search({ deps: { reportInternalError: reportRouteInternalError, resolveCredentials: async () => ({}) }, body: { query: 'q' } })).toEqual({
+    expect(await search({ deps: { reportInternalError: reportRouteInternalError, baseUrlGuard, resolveCredentials: async () => ({}) }, body: { query: 'q' } })).toEqual({
       status: 503,
       body: { error: { code: 'NOT_CONFIGURED', message: 'tavily provider not configured' } },
     });

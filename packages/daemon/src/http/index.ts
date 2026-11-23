@@ -22,6 +22,7 @@ export type {
   HostToolLaunchPlan,
   HostToolProbeEnv,
   LaunchHostToolResult,
+  HostToolCommandInvocation,
   Platform,
   RealPlatform,
 } from './host-tools.js';
@@ -246,7 +247,7 @@ export {
   terminalRoutes,
   terminalStdinRoute,
 } from './terminals.js';
-export type { ModelProxyHttpDeps, ModelProxyInternalErrorContext } from './model-proxy.js';
+export type { ModelProxyHttpDeps, ModelProxyInternalErrorContext, ProxyToolExecutor } from './model-proxy.js';
 export { modelProxyRoutes } from './model-proxy.js';
 export type { HealthHttpDeps, HealthReadinessResult, LivenessResponse, ReadinessResponse, VersionResponse } from './health.js';
 export {

@@ -22,6 +22,10 @@ import {
   type HostToolProbeEnv,
 } from '../host-tools.js';
 import type { WorkspaceRootResolver } from '../workspace-root.js';
+import { createCommandInvocation } from '@jini-ai/platform/command';
+
+/** The real shell-free spawn planner, bound the way the host binds it. */
+const commandInvocation = createCommandInvocation;
 
 /** Narrows a `resolveEntry` result to its `available: true` variant, or fails the test. */
 function expectAvailable<T extends { available: boolean }>(result: T): Extract<T, { available: true }> {
@@ -296,14 +300,14 @@ describe('launchHostTool', () => {
 
   it('resolves ok:true once the OS confirms the process actually started', async () => {
     const spawnImpl = fakeSpawn('spawn');
-    const result = await launchHostTool({ command: '/bin/echo', args: ['hi'] }, { spawnImpl: spawnImpl as any });
+    const result = await launchHostTool({ command: '/bin/echo', args: ['hi'], commandInvocation }, { spawnImpl: spawnImpl as any });
     expect(result).toEqual({ ok: true });
     expect(spawnImpl).toHaveBeenCalledTimes(1);
   });
 
   it('resolves ok:false with the error message when the OS refuses the launch', async () => {
     const spawnImpl = fakeSpawn('error', 'EACCES');
-    const result = await launchHostTool({ command: '/bin/nope', args: [] }, { spawnImpl: spawnImpl as any });
+    const result = await launchHostTool({ command: '/bin/nope', args: [], commandInvocation }, { spawnImpl: spawnImpl as any });
     expect(result).toEqual({ ok: false, error: 'EACCES' });
   });
 
@@ -317,7 +321,7 @@ describe('launchHostTool', () => {
       });
       return child;
     });
-    const result = await launchHostTool({ command: '/bin/echo', args: [] }, { spawnImpl: spawnImpl as any });
+    const result = await launchHostTool({ command: '/bin/echo', args: [], commandInvocation }, { spawnImpl: spawnImpl as any });
     expect(result).toEqual({ ok: true });
   });
 
@@ -331,7 +335,7 @@ describe('launchHostTool', () => {
       });
       return child;
     });
-    const result = await launchHostTool({ command: '/bin/echo', args: [] }, { spawnImpl: spawnImpl as any });
+    const result = await launchHostTool({ command: '/bin/echo', args: [], commandInvocation }, { spawnImpl: spawnImpl as any });
     expect(result).toEqual({ ok: false, error: 'refused' });
   });
 
@@ -342,7 +346,7 @@ describe('launchHostTool', () => {
       queueMicrotask(() => child.emit('error', 'plain string failure'));
       return child;
     });
-    const result = await launchHostTool({ command: '/bin/echo', args: [] }, { spawnImpl: spawnImpl as any });
+    const result = await launchHostTool({ command: '/bin/echo', args: [], commandInvocation }, { spawnImpl: spawnImpl as any });
     expect(result).toEqual({ ok: false, error: 'plain string failure' });
   });
 });
@@ -364,7 +368,7 @@ describe('hostEditorsRoute', () => {
 
 describe('hostToolsRoutes', () => {
   it('lists exactly GET /api/editors and POST /api/resources/:resourceRef/open-in; only the open-in route is behind the same-origin gate', async () => {
-    const routes = hostToolsRoutes({ deps: {}, host: fakeDaemonRouteHost() });
+    const routes = hostToolsRoutes({ deps: { commandInvocation }, host: fakeDaemonRouteHost() });
     expect(describeRoutes({ routes })).toEqual([
       { method: 'GET', path: '/api/editors', gates: [] },
       { method: 'POST', path: '/api/resources/:resourceRef/open-in', gates: ['same-origin'] },
@@ -451,7 +455,7 @@ describe('openResourceInEditorRoute.handle', () => {
   it('success: resolves the workspace root, launches the editor, and reports the resolved path', async () => {
     const resolveRoot: WorkspaceRootResolver = vi.fn(() => '/home/user/projects/proj-1');
     const spawnImpl = spawnSuccess();
-    const result = await openResourceInEditorRoute.handle({ input: { resourceRef: 'proj-1', editorId: 'vscode' }, deps: { resolveRoot, probeEnv: availableProbeEnv, spawnImpl } }
+    const result = await openResourceInEditorRoute.handle({ input: { resourceRef: 'proj-1', editorId: 'vscode' }, deps: { commandInvocation, resolveRoot, probeEnv: availableProbeEnv, spawnImpl } }
     );
     expect(result).toEqual({
       ok: true,
@@ -462,13 +466,13 @@ describe('openResourceInEditorRoute.handle', () => {
 
   it('passes an optional detail field through to the resolver', async () => {
     const resolveRoot: WorkspaceRootResolver = vi.fn(() => '/root');
-    await openResourceInEditorRoute.handle({ input: { resourceRef: 'proj-1', editorId: 'vscode', detail: 'src/index.ts' }, deps: { resolveRoot, probeEnv: availableProbeEnv, spawnImpl: spawnSuccess() } }
+    await openResourceInEditorRoute.handle({ input: { resourceRef: 'proj-1', editorId: 'vscode', detail: 'src/index.ts' }, deps: { commandInvocation, resolveRoot, probeEnv: availableProbeEnv, spawnImpl: spawnSuccess() } }
     );
     expect(resolveRoot).toHaveBeenCalledWith({ request: { resourceRef: 'proj-1', detail: 'src/index.ts' } });
   });
 
   it('malformed/unknown editor: rejects an editorId not in the catalogue', async () => {
-    const result = await openResourceInEditorRoute.handle({ input: { resourceRef: 'proj-1', editorId: 'not-a-real-editor' }, deps: { resolveRoot: () => '/root' } }
+    const result = await openResourceInEditorRoute.handle({ input: { resourceRef: 'proj-1', editorId: 'not-a-real-editor' }, deps: { commandInvocation, resolveRoot: () => '/root' } }
     );
     expect(result).toEqual({
       ok: false,
@@ -477,7 +481,7 @@ describe('openResourceInEditorRoute.handle', () => {
   });
 
   it('rejects an editor not applicable for the current platform', async () => {
-    const result = await openResourceInEditorRoute.handle({ input: { resourceRef: 'proj-1', editorId: 'explorer' }, deps: { resolveRoot: () => '/root', probeEnv: { access: async () => { }, env: {}, platform: 'linux' } } }
+    const result = await openResourceInEditorRoute.handle({ input: { resourceRef: 'proj-1', editorId: 'explorer' }, deps: { commandInvocation, resolveRoot: () => '/root', probeEnv: { access: async () => { }, env: {}, platform: 'linux' } } }
     );
     expect(result).toEqual({
       ok: false,
@@ -489,7 +493,7 @@ describe('openResourceInEditorRoute.handle', () => {
     // Proves the "conservative default that denies rather than guessing" contract: a host that
     // never wires `resolveRoot` gets a 404 on every call, not a guessed path.
     const spawnImpl = vi.fn();
-    const result = await openResourceInEditorRoute.handle({ input: { resourceRef: 'proj-1', editorId: 'vscode' }, deps: { probeEnv: availableProbeEnv, spawnImpl } }
+    const result = await openResourceInEditorRoute.handle({ input: { resourceRef: 'proj-1', editorId: 'vscode' }, deps: { commandInvocation, probeEnv: availableProbeEnv, spawnImpl } }
     );
     expect(result).toEqual({
       ok: false,
@@ -500,7 +504,7 @@ describe('openResourceInEditorRoute.handle', () => {
 
   it('an explicit resolver that denies a specific resource also reports NOT_FOUND', async () => {
     const resolveRoot: WorkspaceRootResolver = () => null;
-    const result = await openResourceInEditorRoute.handle({ input: { resourceRef: 'unknown-resource', editorId: 'vscode' }, deps: { resolveRoot, probeEnv: availableProbeEnv } }
+    const result = await openResourceInEditorRoute.handle({ input: { resourceRef: 'unknown-resource', editorId: 'vscode' }, deps: { commandInvocation, resolveRoot, probeEnv: availableProbeEnv } }
     );
     expect(result).toEqual({
       ok: false,
@@ -513,7 +517,7 @@ describe('openResourceInEditorRoute.handle', () => {
       throw new Error('lookup backend unavailable');
     };
     await expect(
-      openResourceInEditorRoute.handle({ input: { resourceRef: 'proj-1', editorId: 'vscode' }, deps: { resolveRoot } }),
+      openResourceInEditorRoute.handle({ input: { resourceRef: 'proj-1', editorId: 'vscode' }, deps: { commandInvocation, resolveRoot } }),
     ).rejects.toThrow('lookup backend unavailable');
   });
 
@@ -525,7 +529,7 @@ describe('openResourceInEditorRoute.handle', () => {
       env: {},
       platform: 'linux',
     };
-    const result = await openResourceInEditorRoute.handle({ input: { resourceRef: 'proj-1', editorId: 'vscode' }, deps: { resolveRoot: () => '/root', probeEnv: notInstalledProbeEnv } }
+    const result = await openResourceInEditorRoute.handle({ input: { resourceRef: 'proj-1', editorId: 'vscode' }, deps: { commandInvocation, resolveRoot: () => '/root', probeEnv: notInstalledProbeEnv } }
     );
     expect(result).toEqual({ ok: false, error: { code: 'CONFLICT', message: 'VS Code is not installed' } });
   });
@@ -537,7 +541,7 @@ describe('openResourceInEditorRoute.handle', () => {
       queueMicrotask(() => child.emit('error', new Error('EACCES: permission denied')));
       return child;
     });
-    const result = await openResourceInEditorRoute.handle({ input: { resourceRef: 'proj-1', editorId: 'vscode' }, deps: { resolveRoot: () => '/root', probeEnv: availableProbeEnv, spawnImpl: spawnImpl as any } }
+    const result = await openResourceInEditorRoute.handle({ input: { resourceRef: 'proj-1', editorId: 'vscode' }, deps: { commandInvocation, resolveRoot: () => '/root', probeEnv: availableProbeEnv, spawnImpl: spawnImpl as any } }
     );
     expect(result).toEqual({
       ok: false,
@@ -549,7 +553,7 @@ describe('openResourceInEditorRoute.handle', () => {
     // Only asserts this doesn't throw synchronously constructing its plan — the real launch
     // outcome depends on the actual host machine, which is why every other test above injects
     // both. WorkspaceRootDeniedError still fires first since no resolveRoot is supplied.
-    const result = await openResourceInEditorRoute.handle({ input: { resourceRef: 'proj-1', editorId: 'vscode' }, deps: {} }
+    const result = await openResourceInEditorRoute.handle({ input: { resourceRef: 'proj-1', editorId: 'vscode' }, deps: { commandInvocation } }
     );
     expect(result).toEqual({
       ok: false,
@@ -573,7 +577,7 @@ describe('openResourceInEditorRoute.handle', () => {
       env: { PATH: bogusDir },
       platform: 'linux',
     };
-    const result = await openResourceInEditorRoute.handle({ input: { resourceRef: 'proj-1', editorId: 'zed' }, deps: { resolveRoot: () => '/root', probeEnv } } // spawnImpl intentionally omitted
+    const result = await openResourceInEditorRoute.handle({ input: { resourceRef: 'proj-1', editorId: 'zed' }, deps: { commandInvocation, resolveRoot: () => '/root', probeEnv } } // spawnImpl intentionally omitted
     );
     expect(result.ok).toBe(false);
     if (!result.ok) {
@@ -585,8 +589,8 @@ describe('openResourceInEditorRoute.handle', () => {
 });
 
 describe('hostToolsRoutes — POST /api/resources/:resourceRef/open-in, mounted end to end', () => {
-  const openIn = (deps: Parameters<typeof hostToolsRoutes>[0]['deps'], { denyOrigins = false }: { denyOrigins?: boolean } = {}) =>
-    serveRoutes({ routes: hostToolsRoutes({ deps, host: fakeDaemonRouteHost({}, denyOrigins ? { originPolicy: denyAllOrigins } : {}) }) })(
+  const openIn = (deps: Omit<Parameters<typeof hostToolsRoutes>[0]['deps'], 'commandInvocation'>, { denyOrigins = false }: { denyOrigins?: boolean } = {}) =>
+    serveRoutes({ routes: hostToolsRoutes({ deps: { commandInvocation, ...deps }, host: fakeDaemonRouteHost({}, denyOrigins ? { originPolicy: denyAllOrigins } : {}) }) })(
       jsonRequest({ path: '/api/resources/proj-1/open-in', method: 'POST' }, { body: { editorId: 'vscode' } }));
 
   it('requires same-origin: blocks a cross-origin request before resolveRoot ever runs', async () => {
@@ -650,30 +654,30 @@ describe('resolveEntry / openResourceInEditorRoute.handle — characterization',
 
   it('checks the editor id before the platform, and both before the resolver runs', async () => {
     const resolveRoot = vi.fn<WorkspaceRootResolver>(() => '/root');
-    const unknown = await openResourceInEditorRoute.handle({ input: { resourceRef: 'r', editorId: 'nope' }, deps: { resolveRoot, probeEnv: probeEnv({ platform: 'unknown' }) } });
+    const unknown = await openResourceInEditorRoute.handle({ input: { resourceRef: 'r', editorId: 'nope' }, deps: { commandInvocation, resolveRoot, probeEnv: probeEnv({ platform: 'unknown' }) } });
     expect(unknown).toEqual({ ok: false, error: { code: 'BAD_REQUEST', message: 'unknown editor: nope' } });
-    const wrongPlatform = await openResourceInEditorRoute.handle({ input: { resourceRef: 'r', editorId: 'finder' }, deps: { resolveRoot, probeEnv: probeEnv({ platform: 'unknown' }) } });
+    const wrongPlatform = await openResourceInEditorRoute.handle({ input: { resourceRef: 'r', editorId: 'finder' }, deps: { commandInvocation, resolveRoot, probeEnv: probeEnv({ platform: 'unknown' }) } });
     expect(wrongPlatform).toEqual({ ok: false, error: { code: 'BAD_REQUEST', message: 'Finder is not available on unknown' } });
     expect(resolveRoot).not.toHaveBeenCalled();
   });
 
   it('passes no detail key to the resolver when detail is absent', async () => {
     const resolveRoot = vi.fn<WorkspaceRootResolver>(() => '/root');
-    await openResourceInEditorRoute.handle({ input: { resourceRef: 'r', editorId: 'vscode' }, deps: { resolveRoot, probeEnv: probeEnv({ env: { PATH: '/p' }, exists: ['/p/code'] }), spawnImpl: recordingSpawn().spawnImpl } });
+    await openResourceInEditorRoute.handle({ input: { resourceRef: 'r', editorId: 'vscode' }, deps: { commandInvocation, resolveRoot, probeEnv: probeEnv({ env: { PATH: '/p' }, exists: ['/p/code'] }), spawnImpl: recordingSpawn().spawnImpl } });
     expect(Object.keys(resolveRoot.mock.calls[0]![0].request)).toEqual(['resourceRef']);
   });
 
   it('never probes the filesystem or spawns when the resolver denies', async () => {
     const access = vi.fn(async () => {});
     const { spawnImpl, calls } = recordingSpawn();
-    await openResourceInEditorRoute.handle({ input: { resourceRef: 'r', editorId: 'vscode' }, deps: { resolveRoot: () => undefined, probeEnv: probeEnv({ access }), spawnImpl } });
+    await openResourceInEditorRoute.handle({ input: { resourceRef: 'r', editorId: 'vscode' }, deps: { commandInvocation, resolveRoot: () => undefined, probeEnv: probeEnv({ access }), spawnImpl } });
     expect(access).not.toHaveBeenCalled();
     expect(calls).toEqual([]);
   });
 
   it('spawns the resolved CLI shim detached with the resolved directory as its only argument', async () => {
     const { spawnImpl, calls } = recordingSpawn();
-    const result = await openResourceInEditorRoute.handle({ input: { resourceRef: 'r', editorId: 'vscode' }, deps: { resolveRoot: () => '/work dir', probeEnv: probeEnv({ env: { PATH: '/p' }, exists: ['/p/code'] }), spawnImpl } });
+    const result = await openResourceInEditorRoute.handle({ input: { resourceRef: 'r', editorId: 'vscode' }, deps: { commandInvocation, resolveRoot: () => '/work dir', probeEnv: probeEnv({ env: { PATH: '/p' }, exists: ['/p/code'] }), spawnImpl } });
     expect(result).toEqual({ ok: true, value: { ok: true, editorId: 'vscode', path: '/work dir' } });
     expect(calls).toHaveLength(1);
     expect(calls[0]!.command).toBe('/p/code');
@@ -684,19 +688,38 @@ describe('resolveEntry / openResourceInEditorRoute.handle — characterization',
   it('launches a darwin bundle-only tool via `open -a <bundle> <dir>`', async () => {
     const { spawnImpl, calls } = recordingSpawn();
     const env = probeEnv({ platform: 'darwin', exists: ['/System/Applications/Utilities/Terminal.app', '/usr/bin/open'] });
-    const result = await openResourceInEditorRoute.handle({ input: { resourceRef: 'r', editorId: 'terminal' }, deps: { resolveRoot: () => '/w', probeEnv: env, spawnImpl } });
+    const result = await openResourceInEditorRoute.handle({ input: { resourceRef: 'r', editorId: 'terminal' }, deps: { commandInvocation, resolveRoot: () => '/w', probeEnv: env, spawnImpl } });
     expect(result).toEqual({ ok: true, value: { ok: true, editorId: 'terminal', path: '/w' } });
     expect(calls.map(({ command, args }) => ({ command, args }))).toEqual([{ command: '/usr/bin/open', args: ['-a', 'Terminal', '/w'] }]);
   });
 
   it('passes an option-shaped resolver directory straight through as editor argv (reported, not fixed: no absolute-path or leading-dash check on the resolved root)', async () => {
     const { spawnImpl, calls } = recordingSpawn();
-    await openResourceInEditorRoute.handle({ input: { resourceRef: 'r', editorId: 'vscode' }, deps: { resolveRoot: () => '--install-extension=evil', probeEnv: probeEnv({ env: { PATH: '/p' }, exists: ['/p/code'] }), spawnImpl } });
+    await openResourceInEditorRoute.handle({ input: { resourceRef: 'r', editorId: 'vscode' }, deps: { commandInvocation, resolveRoot: () => '--install-extension=evil', probeEnv: probeEnv({ env: { PATH: '/p' }, exists: ['/p/code'] }), spawnImpl } });
     expect(calls[0]!.args).toEqual(['--install-extension=evil']);
   });
 
   it('searches relative $PATH entries such as "." (reported, not fixed: a cwd-relative shim can shadow the real editor)', async () => {
     const env = probeEnv({ env: { PATH: '.:/usr/bin' }, exists: ['./code', '/usr/bin/code'] });
     expect(await probeCommandOnPath({ command: 'code', probeEnv: env })).toBe('./code');
+  });
+});
+
+// XC-4: the spawn is planned by the host-bound invocation port, never a package-imported planner.
+describe('launchHostTool — injected command invocation', () => {
+  it('spawns exactly what the injected planner returns, verbatim flag included', async () => {
+    const planned: unknown[] = [];
+    const spawned: unknown[] = [];
+    const planner = (request: { command: string; args?: string[] }) => { planned.push(request); return { command: 'planned-shell', args: ['/c', 'planned'], windowsVerbatimArguments: true }; };
+    const spawnImpl = ((command: string, args: string[], options: { windowsVerbatimArguments?: boolean }) => {
+      spawned.push({ command, args, verbatim: options.windowsVerbatimArguments });
+      const child = new EventEmitter() as EventEmitter & { unref(): void };
+      child.unref = () => {};
+      queueMicrotask(() => child.emit('spawn'));
+      return child;
+    }) as any;
+    expect(await launchHostTool({ command: '/bin/tool.cmd', args: ['dir'], commandInvocation: planner }, { spawnImpl })).toEqual({ ok: true });
+    expect(planned).toEqual([{ command: '/bin/tool.cmd', args: ['dir'] }]);
+    expect(spawned).toEqual([{ command: 'planned-shell', args: ['/c', 'planned'], verbatim: true }]);
   });
 });

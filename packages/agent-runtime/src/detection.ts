@@ -33,6 +33,7 @@ import { installMetaForAgent } from './metadata.js';
 import { AGENT_DEFS } from './registry.js';
 import { applyAgentLaunchEnv, resolveAgentLaunch } from './launch.js';
 import { spawnEnvForAgent } from './env.js';
+import { passthroughProxyEnv } from './host-ports.js';
 import { probeAgentAuthStatus, type AgentAuthProbeResult } from './auth.js';
 import { noopAmrProfileResolver, type AmrProfileResolver } from './amr-profile-resolver.js';
 import { buildAuthDiagnostic, buildExecutableDiagnostic, buildNotInvocableDiagnostic, type NotInvocableCause } from './diagnostics.js';
@@ -244,7 +245,7 @@ function derivedReasoningOverride(
 function probeEnvForLaunch(
   { def, configuredEnv, launch, state, env }: { def: RuntimeAgentDef; configuredEnv: Record<string, string>; launch: ReturnType<typeof resolveAgentLaunch>; state: AgentRuntimeState; env: NodeJS.ProcessEnv },
 ): NodeJS.ProcessEnv {
-  return applyAgentLaunchEnv({ env: spawnEnvForAgent({ agentId: def.id, baseEnv: { ...env, ...(def.env || {}) } }, { configuredEnv: configuredEnv, hooks: {} }), launch: launch }, { appendPathDirs: userToolchainBinDirs({}, { state, env }) }
+  return applyAgentLaunchEnv({ env: spawnEnvForAgent({ agentId: def.id, baseEnv: { ...env, ...(def.env || {}) }, proxyEnv: state.hostPorts?.proxyEnv ?? passthroughProxyEnv }, { configuredEnv: configuredEnv, hooks: {} }), launch: launch }, { appendPathDirs: userToolchainBinDirs({}, { state, env }) }
   );
 }
 

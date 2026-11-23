@@ -7,6 +7,7 @@ export type {
   ChatPaneAgentControlOptions,
   ChatPaneAgentOption,
   ChatPaneAgentSelection,
+  ChatPaneNativeToolPolicy,
   ChatPaneAgentToolAction,
   ChatPaneAttachmentUploadOptions,
   ChatPaneComposerHandle,

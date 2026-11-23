@@ -15,6 +15,7 @@ import {
 } from '../executables.js';
 import type { RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 import { createAgentRuntimeState, type AgentRuntimeState } from '../runtime-state.js';
+import { passthroughProxyEnv } from '../host-ports.js';
 
 function makeDef(overrides: Partial<RuntimeAgentDef> = {}): RuntimeAgentDef {
   return {
@@ -48,6 +49,8 @@ beforeEach(() => {
   // Reset the injectable env-var-name overrides between tests via owned
   // state: configureExecutableResolutionEnv() mutates that state's names.
   state = createAgentRuntimeState({});
+  // The host-injected toolchain lookup, reduced to the one user-level dir these fixtures use.
+  state.hostPorts = { toolchainBins: ({ home }) => [path.join(home, '.local', 'bin')], proxyEnv: passthroughProxyEnv };
 });
 
 afterEach(() => {

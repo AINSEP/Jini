@@ -81,7 +81,14 @@ import { registerDaemonCommands } from './daemon-command.js';
 import { defaultWrite, defaultWriteErr } from './daemon-call-deps.js';
 import { resolveDaemonUrl, type ResolveDaemonUrlOptions } from './daemon-url.js';
 import { exitWithStructuredError } from './errors.js';
-import { createLocalDaemonDiscovery } from './local-daemon-discovery.js';
+import { createLocalDaemonDiscovery, type DaemonRegistryReaderPort } from './local-daemon-discovery.js';
+import { readLiveDaemonRegistryRecord, resolveDaemonRegistryPath } from '@jini-ai/sidecar';
+
+/** The bin entry binds the sidecar's on-disk registry reader into discovery (the discovery module never imports it). */
+const DAEMON_REGISTRY: DaemonRegistryReaderPort = {
+  resolvePath: (required) => resolveDaemonRegistryPath(required),
+  readLiveRecord: (required) => readLiveDaemonRegistryRecord(required),
+};
 import { registerRunCommands } from './run-command.js';
 import { renderUsage } from './usage.js';
 import { registerVersionCommand } from './version-command.js';
@@ -176,8 +183,8 @@ function matchGlobalFlag(token: string): { key: GlobalFlagName; inlineValue: str
 function buildResolveBaseUrl(globals: PartitionedArgv['globals'], env: NodeJS.ProcessEnv, warn: (requiredArgs: { message: string }) => void): () => Promise<string> {
   const { 'daemon-url': daemonUrl, 'data-dir': dataDir, 'registry-path': registryPath } = globals;
   let discover: ResolveDaemonUrlOptions['discover'];
-  if (registryPath !== undefined) discover = createLocalDaemonDiscovery({ registryPath });
-  else if (dataDir !== undefined) discover = createLocalDaemonDiscovery({ dataDir });
+  if (registryPath !== undefined) discover = createLocalDaemonDiscovery({ registryPath, registry: DAEMON_REGISTRY });
+  else if (dataDir !== undefined) discover = createLocalDaemonDiscovery({ dataDir, registry: DAEMON_REGISTRY });
   else discover = undefined;
   return () =>
     resolveDaemonUrl({ env }, {

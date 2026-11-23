@@ -9,9 +9,10 @@ import { defaultRuntimeState, type AgentRuntimeState } from './runtime-state.js'
  * Ported from OD's `apps/daemon/src/runtimes/executables.ts` with two
  * changes:
  *
- * 1. `wellKnownUserToolchainBins` now comes from `@jini-ai/platform` instead of
- *    the OD workspace package it originally shipped from (same function,
- *    already verbatim-lifted — see `@jini-ai/platform`'s own `archived provenance ledger`).
+ * 1. The user-toolchain bin lookup is the host-injected `ToolchainBinsPort`
+ *    (`state.hostPorts.toolchainBins`) instead of an import from the OD
+ *    workspace package it originally shipped from. A state without host ports
+ *    searches PATH only.
  * 2. De-branded: the origin's product-prefixed agent-home / resource-root
  *    env var names and its sandbox-runtime-config integration (an
  *    OD-daemon-level subsystem out of this package's charter) are replaced
@@ -24,7 +25,6 @@ import { accessSync, constants, statSync } from 'node:fs';
 import { delimiter } from 'node:path';
 import path from 'node:path';
 import { homedir } from 'node:os';
-import { wellKnownUserToolchainBins } from '@jini-ai/platform/toolchain';
 import { expandHomePath } from './paths.js';
 import type { RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 import type { ExecutableResolutionHelpers, ResolvedExecutableOptions } from './executable-helpers.js';
@@ -156,7 +156,9 @@ function userToolchainDirs(options: ResolvedOptions): string[] {
   // npm_config_prefix exported can't leak the real machine's <prefix>/bin
   // into a sandboxed detection run. Without this, tests that build a tmp
   // home would be machine-environment-dependent.
-  cache.toolchainDirs = wellKnownUserToolchainBins({
+  const toolchainBins = options.state.hostPorts?.toolchainBins;
+  if (!toolchainBins) return (cache.toolchainDirs = []);
+  cache.toolchainDirs = toolchainBins({
     home,
     includeSystemBins: process.platform !== 'win32' && !hasOverride,
     env: hasOverride ? {} : env,

@@ -16,7 +16,9 @@
 import { openSqliteConnection } from '@jini-ai/db/sqlite';
 import { type SqliteDb, type SqliteSyncOpener } from '@jini-ai/core/contracts/storage';
 import { join } from 'node:path';
-import { createAgentRuntimeBindings, createNativeAgentRuntime, type AgentRuntimeState, type NativeAgentRuntime } from '@jini-ai/agent-runtime';
+import { createAgentRuntimeBindings, createNativeAgentRuntime, type AgentRuntimeHostPorts, type AgentRuntimeState, type NativeAgentRuntime, type ProviderCatalogImport } from '@jini-ai/agent-runtime';
+import { wellKnownUserToolchainBins } from '@jini-ai/platform/toolchain';
+import { mergeProxyAwareEnv, resolveSystemProxyEnv } from '@jini-ai/platform/proxy-env';
 import type { AgentRuntimePort } from '@jini-ai/daemon/ports/agent-runtime';
 import { type AiTraceSink } from '@jini-ai/core/contracts/ai-trace';
 
@@ -87,6 +89,9 @@ export interface KernelAgentRuntimeOptions {
   readonly runtimeState?: AgentRuntimeState;
   readonly codexDisablePlugins?: boolean;
   readonly piGracefulShutdownMs?: number;
+  /** Lazy media-provider catalog loader for default model-discovery base URLs. The preset does not
+   * depend on the catalog owner, so a host that wants those defaults hands its loader in. */
+  readonly providerCatalog?: ProviderCatalogImport;
   /** Binds the preset's native runtime to the executor's port; default `createAgentRuntimeBindings`. A host decorating the port (or a test scripting one member) wraps the default binding it is handed. */
   readonly bindAgentRuntime?: (required: { runtime: NativeAgentRuntime }) => AgentRuntimePort;
 }
@@ -133,7 +138,11 @@ function createKernelAgentRuntime(
   { options }: { options: CreateJiniKernelBaseOptions },
   _optional: Record<string, never> = {},
 ): NativeAgentRuntime {
-  return createNativeAgentRuntime({ env: options.agentExecutor?.hostEnv ?? process.env }, {
+  const providerCatalog = options.agentExecutor?.providerCatalog;
+  // The preset is the composer: it binds platform's toolchain and proxy helpers as the runtime's host ports.
+  const hostPorts: AgentRuntimeHostPorts = { toolchainBins: wellKnownUserToolchainBins,
+    proxyEnv: { resolveSystemProxyEnv, mergeProxyAwareEnv }, ...(providerCatalog ? { providerCatalog } : {}) };
+  return createNativeAgentRuntime({ env: options.agentExecutor?.hostEnv ?? process.env }, { hostPorts,
     ...(options.agentExecutor?.runtimeState ? { state: options.agentExecutor.runtimeState } : {}),
     ...(options.agentExecutor?.codexDisablePlugins !== undefined ? { codex: { disablePlugins: options.agentExecutor.codexDisablePlugins } } : {}),
     ...(options.agentExecutor?.piGracefulShutdownMs !== undefined ? { pi: { gracefulShutdownMs: options.agentExecutor.piGracefulShutdownMs } } : {}),
@@ -230,7 +239,7 @@ export async function createJiniKernelBase(options: CreateJiniKernelBaseOptions)
 
   const agentRuntime = createKernelAgentRuntime({ options });
   // The preset is a Node host: it binds the Node implementations unless the caller supplies its own.
-  const { runtime = nodeAgentExecutorRuntime({ hostEnv: agentRuntime.hostEnv }), runtimeState: _state, codexDisablePlugins: _codex, piGracefulShutdownMs: _pi, bindAgentRuntime = bindNativeAgentRuntime, ...executorOptions } = options.agentExecutor ?? {};
+  const { runtime = nodeAgentExecutorRuntime({ hostEnv: agentRuntime.hostEnv }), runtimeState: _state, codexDisablePlugins: _codex, piGracefulShutdownMs: _pi, providerCatalog: _catalog, bindAgentRuntime = bindNativeAgentRuntime, ...executorOptions } = options.agentExecutor ?? {};
   const agentExecutor = createAgentExecutor({ lifecycle, runtime, hostEnv: agentRuntime.hostEnv, agentRuntime: bindAgentRuntime({ runtime: agentRuntime }) }, {
     ...executorOptions,
     journal,

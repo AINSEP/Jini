@@ -19,7 +19,7 @@
  */
 import { spawn as nodeSpawn } from 'node:child_process';
 import { access as fsAccess, constants as fsConstants } from 'node:fs/promises';
-import { createCommandInvocation } from '@jini-ai/platform/command';
+import type { CommandInvocation, CommandInvocationRequest } from '@jini-ai/core/contracts/runtime';
 import { createApiError } from '@jini-ai/protocol';
 import { defineJsonRoute, validationError, err, ok, type Result, type RouteInputContext } from '@jini-ai/core/contracts/server';
 import type { DaemonRouteHost } from './route-host.js';
@@ -247,6 +247,9 @@ export async function resolveHostToolLaunchPlan({ editorId, workingDir }: { read
   };
 }
 
+/** Plans the shell-free spawn of a resolved host tool (`.cmd`/`.bat` via `cmd.exe` with verbatim args, everything else direct). The host binds it; daemon never imports a platform implementation. */
+export type HostToolCommandInvocation = (request: CommandInvocationRequest) => CommandInvocation;
+
 export type LaunchHostToolResult = { readonly ok: true } | { readonly ok: false; readonly error: string };
 
 /**
@@ -259,15 +262,15 @@ export type LaunchHostToolResult = { readonly ok: true } | { readonly ok: false;
  * Deliberately never passes `shell: true`: on Windows that would route the launch through
  * `cmd.exe`, which shell-interprets args — and one of them is a caller-supplied directory path,
  * so a path containing `&`/`|`/`^`/`>` etc. would inject commands. `command` is already resolved
- * to an absolute path (including `.exe`/`.cmd`), so it's routed through `createCommandInvocation`
- * (`@jini-ai/platform`), which runs a `.cmd`/`.bat` via `cmd.exe` with
+ * to an absolute path (including `.exe`/`.cmd`), so it's routed through the host-bound
+ * {@link HostToolCommandInvocation} (the host binds `@jini-ai/platform`'s `createCommandInvocation`), which runs a `.cmd`/`.bat` via `cmd.exe` with
  * `CommandLineToArgvW`-safe verbatim args and everything else directly — no shell, no
  * metacharacter interpretation.
  */
-export function launchHostTool({ command, args }: { readonly command: string; readonly args: string[] }, { spawnImpl = nodeSpawn }: { readonly spawnImpl?: typeof nodeSpawn | undefined } = {}
+export function launchHostTool({ command, args, commandInvocation }: { readonly command: string; readonly args: string[]; readonly commandInvocation: HostToolCommandInvocation }, { spawnImpl = nodeSpawn }: { readonly spawnImpl?: typeof nodeSpawn | undefined } = {}
 ): Promise<LaunchHostToolResult> {
   return new Promise((resolve) => {
-    const invocation = createCommandInvocation({ command, args });
+    const invocation = commandInvocation({ command, args });
     const child = spawnImpl(invocation.command, invocation.args, {
       detached: true,
       stdio: 'ignore',
@@ -343,6 +346,8 @@ export interface HostToolsOpenInDeps {
   readonly resolveRoot?: WorkspaceRootResolver;
   readonly probeEnv?: HostToolProbeEnv;
   readonly spawnImpl?: typeof nodeSpawn;
+  /** Required: the host-bound shell-free spawn planner (see {@link launchHostTool}). */
+  readonly commandInvocation: HostToolCommandInvocation;
 }
 
 function parseOpenResourceInEditor(input: RouteInputContext): Result<OpenResourceInEditorRequest> {
@@ -372,12 +377,12 @@ function selectEditor({ editorId, platform }: { readonly editorId: string; reado
 
 /** Probes `entry` and launches it at `workingDir`: `CONFLICT` when it is not installed, `INTERNAL_ERROR` (with the OS's own reason) when the launch is refused. */
 async function launchEditorAt(
-  { entry, workingDir }: { readonly entry: CatalogueEntry; readonly workingDir: string },
+  { entry, workingDir, commandInvocation }: { readonly entry: CatalogueEntry; readonly workingDir: string; readonly commandInvocation: HostToolCommandInvocation },
   { probeEnv, spawnImpl }: { readonly probeEnv: HostToolProbeEnv; readonly spawnImpl: typeof nodeSpawn },
 ): Promise<Result<OpenResourceInEditorResponse>> {
   const probe = await resolveEntry({ entry }, { probeEnv });
   if (!probe.available) return err({ error: createApiError({ code: 'CONFLICT', message: `${entry.label} is not installed` }) });
-  const launch = await launchHostTool({ command: probe.launch.command, args: probe.launch.argsForDir({ workingDir }) }, { spawnImpl });
+  const launch = await launchHostTool({ command: probe.launch.command, args: probe.launch.argsForDir({ workingDir }), commandInvocation }, { spawnImpl });
   if (!launch.ok) {
     return err({ error: createApiError({ code: 'INTERNAL_ERROR', message: `failed to launch ${entry.label}: ${launch.error}` }) });
   }
@@ -417,7 +422,7 @@ export const openResourceInEditorRoute = defineJsonRoute<
     if (!editor.ok) return editor;
     const root = await resolveResourceRoot({ resourceRef: input.resourceRef, detail: input.detail }, { resolver: deps.resolveRoot ?? denyAllWorkspaceRoots });
     if (!root.ok) return root;
-    return launchEditorAt({ entry: editor.value, workingDir: root.value }, { probeEnv, spawnImpl: deps.spawnImpl ?? nodeSpawn });
+    return launchEditorAt({ entry: editor.value, workingDir: root.value, commandInvocation: deps.commandInvocation }, { probeEnv, spawnImpl: deps.spawnImpl ?? nodeSpawn });
   }
 }, { requireSameOrigin: true });
 

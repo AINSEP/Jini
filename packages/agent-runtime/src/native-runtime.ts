@@ -10,6 +10,7 @@ import { bindRuntimeAgentDef } from './runtime-def-binding.js';
 import { codexDefOptionsFromEnv, type CodexDefOptions } from './defs/codex/options.js';
 import { piDefOptionsFromEnv, type PiDefOptions } from './defs/pi/options.js';
 import type { RuntimeEnv } from '@jini-ai/core/contracts/agents';
+import type { AgentRuntimeHostPorts } from './host-ports.js';
 
 export interface NativeAgentRuntime {
   readonly state: AgentRuntimeState;
@@ -28,18 +29,22 @@ export interface NativeAgentRuntime {
 
 /** Bind existing runtime owners to a host; copies env without performing I/O.
  * @param required - The host's selected environment, used instead of ambient process configuration.
- * @param optional - An existing state, ACP transport, or explicit policies overriding env defaults.
+ * @param optional - An existing state, ACP transport, host ports, or explicit policies overriding env defaults.
+ * `hostPorts` carries the host's toolchain, proxy-env and provider-catalog collaborators; composers
+ * always pass it. It stays optional only for hosts not yet wired, which then search PATH only,
+ * skip proxy normalization and have no default provider base URLs.
  * @returns Bound runtime operations and an idempotent cache disposer. Stop runs before disposing.
  * Discovery after disposal rejects with `InvalidStateError`; native probe failures retain their existing outcomes.
- * @example const runtime = createNativeAgentRuntime({ env: process.env });
+ * @example const runtime = createNativeAgentRuntime({ env: process.env }, { hostPorts });
  */
 export function createNativeAgentRuntime(
   { env }: { env: RuntimeEnv },
   { state = createAgentRuntimeState({}), acpModelProbe = state.acpModelProbe ?? nativeAcpModelProbe,
-    codex = codexDefOptionsFromEnv({ env }), pi = piDefOptionsFromEnv({ env }),
-  }: { state?: AgentRuntimeState; acpModelProbe?: AcpModelProbe; codex?: CodexDefOptions; pi?: PiDefOptions } = {},
+    codex = codexDefOptionsFromEnv({ env }), pi = piDefOptionsFromEnv({ env }), hostPorts,
+  }: { state?: AgentRuntimeState; acpModelProbe?: AcpModelProbe; codex?: CodexDefOptions; pi?: PiDefOptions; hostPorts?: AgentRuntimeHostPorts } = {},
 ): NativeAgentRuntime {
   const hostEnv = { ...env };
+  if (hostPorts) state.hostPorts = hostPorts;
   if (state.discoveryDeps && state.acpModelProbe !== acpModelProbe) {
     state.discoveryDeps = { ...state.discoveryDeps, acp: createAcpDiscoveryAdapter({ probe: acpModelProbe }) };
   }

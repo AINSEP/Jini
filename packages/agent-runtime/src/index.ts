@@ -116,3 +116,5 @@ export { getRuntimeModelDiscoveryDeps, defaultModelDiscoveryDeps, parseClaudeIni
 export * from './runtime-state.js';
 
 export * from './native-runtime.js';
+export type { AgentRuntimeHostPorts, ToolchainBinsPort, ProxyEnvPort, ProxyEnvSource, ProviderBaseUrlCatalog, ProviderCatalogImport, ProviderCatalogVendor } from './host-ports.js';
+export { passthroughProxyEnv } from './host-ports.js';

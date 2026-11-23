@@ -30,17 +30,24 @@ export function createSqliteChatMaintenance<DB extends ChatDatabase>(required: {
   return createSqlChatMaintenance(required);
 }
 
-import { sqliteKernel, type SqliteConnectionSource } from '@jini-ai/db/kernel/sqlite';
+/** Opens (or joins) the kernel for one raw SQLite handle. The host binds `sqliteKernel` from
+ * `@jini-ai/db/kernel/sqlite`; chat states the shape and never picks the driver package itself. */
+export type OpenSqliteChatKernel<Source> = (required: { source: Source }) => StorageKernel<Kysely<ChatDatabase>, ChatDatabase>;
 export { CHAT_HISTORY_DDL, ensureChatHistoryTables } from './schema.js';
 
 /** Compatibility wrapper over db's memoized kernel; joins the exact raw-handle kernel context.
- * @example createChatHistoryStore({ db, scope, clock: { nowMs: () => 42 } })
+ * @example createChatHistoryStore({ db, sqliteKernel, scope, clock: { nowMs: () => 42 } })
  */
-export function createChatHistoryStore({ db, scope, clock }: { db: SqliteConnectionSource; scope: ChatOwnerScope; clock: Clock }, optional: UserTextRedactionOptions = {}): ChatStore {
-  return createSqliteChatStore({ kernel: sqliteKernel<ChatDatabase>({ source: db }), scope, clock }, optional);
+export function createChatHistoryStore<Source>(
+  { db, sqliteKernel, scope, clock }: { db: Source; sqliteKernel: OpenSqliteChatKernel<Source>; scope: ChatOwnerScope; clock: Clock },
+  optional: UserTextRedactionOptions = {},
+): ChatStore {
+  return createSqliteChatStore({ kernel: sqliteKernel({ source: db }), scope, clock }, optional);
 }
 
 /** Compatibility retention wrapper; the caller still owns the handle and its configuration. */
-export function createChatHistoryMaintenance({ db }: { db: SqliteConnectionSource }): ChatHistoryMaintenance {
-  return createSqliteChatMaintenance({ kernel: sqliteKernel<ChatDatabase>({ source: db }) });
+export function createChatHistoryMaintenance<Source>(
+  { db, sqliteKernel }: { db: Source; sqliteKernel: OpenSqliteChatKernel<Source> },
+): ChatHistoryMaintenance {
+  return createSqliteChatMaintenance({ kernel: sqliteKernel({ source: db }) });
 }

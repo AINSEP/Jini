@@ -2,13 +2,11 @@ import { useId, type ReactNode } from 'react';
 import { AgentIcon, RemixIcon, SearchableModelSelect } from '@jini-ai/ui';
 import { agentHandleProps, agentHandleSegment } from '@jini-ai/core/agent-handles';
 import { InfoTip } from '@jini-ai/ui/admin-widgets';
-import { assessNativeToolPolicy } from '@jini-ai/agent-runtime/native-tool-policy';
-import { modelReasoningOptions } from '@jini-ai/agent-runtime/model-selection';
 import { friendlyModelLabel, pickerModelValue, pickerCatalogNote, pickerModelOptions, shortModelLabel } from '../model-options.js';
 import { definedProps } from '../../../util/defined-props.js';
 import { RuntimeDropUp } from './RuntimeDropUp.js';
-import { defaultChatPaneSelection, resolveChatPaneSelection } from '../rules.js';
-import type { ChatPaneAgent, ChatPaneAgentSelection, ByokRuntimeSummary } from '../types.js';
+import { chatPaneReasoningOptions, defaultChatPaneSelection, resolveChatPaneSelection } from '../rules.js';
+import type { ChatPaneAgent, ChatPaneAgentSelection, ByokRuntimeSummary, ChatPaneNativeToolPolicy } from '../types.js';
 
 export function runtimeAgentStatus({ agent }: { agent: ChatPaneAgent }): string {
   if (agent.available === false) return agent.diagnostic ?? 'Not found on PATH';
@@ -37,13 +35,13 @@ function FullAccessNoteTip({ note, descriptionId, t }: {
   );
 }
 
-/** Selection preflight uses the launch assessor; it never substitutes for enforcement. */
+/** Selection preflight uses the launch assessor the host injected with the limits; it never substitutes for enforcement. */
 export function NativeToolPolicyWarning({ agent, policy, isApi, t }: {
   t: (key: string) => string;
-  agent: ChatPaneAgent | undefined; policy: import('@jini-ai/core/contracts/agents').NativeToolPolicyInput | undefined; isApi: boolean;
+  agent: ChatPaneAgent | undefined; policy: ChatPaneNativeToolPolicy | undefined; isApi: boolean;
 }): ReactNode {
   if (!agent || isApi) return null;
-  const warning = policy ? assessNativeToolPolicy({ def: agent, policy }) : null;
+  const warning = policy ? policy.assess({ def: agent, policy: policy.limits }) : null;
   return <>
     {agent.fullCliAccessNote ? <FullAccessNoteTip note={agent.fullCliAccessNote} t={t} /> : null}
     {warning ? <InfoTip label={t(warning)} triggerLabel={t('Agent permissions required')}
@@ -222,7 +220,7 @@ export function RuntimeBarMenus({ base, selectedAgent, value, onChange, modelLab
   // Raw catalog ids (an offline fallback list's rows) read as friendly names in the bar and its list.
   const models = pickerModelOptions(selectedAgent).map((row) => ({ ...row, label: friendlyModelLabel({ label: row.label }) }));
   const selectedModelId = pickerModelValue(selectedAgent, value.model);
-  const efforts = modelReasoningOptions({ agent: selectedAgent, model: models.find(option => option.id === selectedModelId) });
+  const efforts = chatPaneReasoningOptions({ agent: selectedAgent, model: selectedModelId });
   const modelName = friendlyModelLabel({ label: modelLabel });
   return (
     <>

@@ -54,6 +54,38 @@ callback handling and persistence. None of these entries selects a site layout.
 OAuth is a regular runtime dependency because the root statically imports its
 redaction and PKCE helpers; consumers receive it automatically on installation.
 
+## Wiring
+
+Why the runtime takes these collaborators instead of importing them:
+[`ADS-memory/reports/jini-port/extraction-plan.md`](../../ADS-memory/reports/jini-port/extraction-plan.md)
+(cross-package step XC-3).
+
+- **Ports it needs injected** (`AgentRuntimeHostPorts`, `src/host-ports.ts`):
+  `ToolchainBinsPort` (user-level bin dirs searched beyond PATH), `ProxyEnvPort`
+  (system proxy lookup and proxy-consistent env merge) and, optionally,
+  `ProviderCatalogImport` (lazy loader of `{ VENDOR_API_BASE_URLS }` for default
+  model-discovery base URLs).
+- **Provides**: `createNativeAgentRuntime` binds them onto its `AgentRuntimeState`;
+  executable search, probe/spawn env composition and the env credential port read them there.
+  A state without ports searches PATH only, merges env without proxy normalization and
+  refuses default provider URLs with an actionable error.
+
+```ts
+import { createNativeAgentRuntime } from '@jini-ai/agent-runtime';
+import { wellKnownUserToolchainBins } from '@jini-ai/platform/toolchain';
+import { mergeProxyAwareEnv, resolveSystemProxyEnv } from '@jini-ai/platform/proxy-env';
+
+const runtime = createNativeAgentRuntime({ env: process.env }, { hostPorts: {
+  toolchainBins: wellKnownUserToolchainBins,
+  proxyEnv: { resolveSystemProxyEnv, mergeProxyAwareEnv },
+  providerCatalog: () => import('@jini-ai/integrations/media-providers/catalog'),
+} });
+```
+
+- **Must never import**: `@jini-ai/platform/toolchain`, `@jini-ai/platform/proxy-env` or
+  `@jini-ai/integrations` (statically or dynamically). The host or the `@jini-ai/server`
+  preset composes them.
+
 ## Design decisions
 
 - [Provider adapters preserve native continuation and tool events](docs/decisions/DR-001-provider-native-tool-lifecycle.md).

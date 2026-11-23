@@ -1,4 +1,3 @@
-import { createHttpClient } from "@jini-ai/platform/http/guarded";
 import type { HttpClientPort, HttpRequest, HttpResponse } from "@jini-ai/core/primitives";
 import { CredentialedRequestValidationError } from "../contracts/credentialed-request-errors.js";
 import type { ResolvedCredential } from "../credentialed-http/ports.js";
@@ -78,8 +77,8 @@ async function resolveCredential({ deps, workspaceId, definition }: { deps: Save
 
 function boundedHttpClient({ deps, signal, onResponse }: { deps: SavedRequestDeps; signal: AbortSignal | undefined; onResponse: () => void }, _options: Record<string, never> = {}): HttpClientPort {
   // Equivalent to SINGLE_HOP_HTTPS_EGRESS_POLICY: the product policy stays in host composition.
-  // Construct the existing guard here so redirects/dev overrides cannot silently widen this grant.
-  const client = createHttpClient({ dns: deps.dns, transport: deps.transport, clock: deps.clock, userAgent: deps.userAgent, policy: {
+  // Construct the host-bound guard here so redirects/dev overrides cannot silently widen this grant.
+  const client = deps.createHttpClient({ dns: deps.dns, transport: deps.transport, clock: deps.clock, userAgent: deps.userAgent, policy: {
     allowedSchemes: ["https"], denyPrivateAddresses: true, devHostAllowlist: [], maxRedirects: 0,
     connectTimeoutMs: 10_000, maxResponseBytes: 65_536, maxDecompressedBytes: 65_536,
   } });

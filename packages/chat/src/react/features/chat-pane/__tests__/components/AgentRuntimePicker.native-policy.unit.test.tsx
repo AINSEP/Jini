@@ -6,6 +6,7 @@ import { AgentRuntimePicker } from '../../components/AgentRuntimePicker.js';
 import { ChatPane } from '../../components/ChatPane.js';
 import { createFakeChatTransport } from '../../../../hooks/testing/fake-transport.js';
 import { I18nContext } from '../../../../hooks/context.js';
+import { assessNativeToolPolicy } from '@jini-ai/agent-runtime/native-tool-policy';
 
 const note = 'Gemini (Antigravity) always runs with full access to this computer, like running it in your own terminal. Pick Claude or Codex if you want the tool limits.';
 const agents = [
@@ -15,8 +16,10 @@ const agents = [
   { id: 'codex', name: 'Codex', available: true, supportsNativeToolAccess: true },
   { id: 'other', name: 'Another CLI', available: true },
 ];
-const policy = { nativeToolAccess: false, cliParity: false,
+const limits = { nativeToolAccess: false, cliParity: false,
   permissionMode: 'restricted' as const, nativeCapabilities: { shell: false, userMcp: false } };
+// The host binds its runtime's assessor with the limits; this suite binds the real one.
+const policy = { limits, assess: assessNativeToolPolicy };
 
 it('shows the plain note through ChatPane without owner eligibility before any send', () => {
   const transport = createFakeChatTransport();
@@ -75,4 +78,18 @@ it('discloses unsupported adapter limits through an accessible tip without a too
   act(() => icon.blur());
   act(() => icon.focus());
   expect(icon).toHaveAttribute('aria-expanded', 'true');
+});
+
+it('reads the limits only through the assessor the host injected with them', () => {
+  const assess = vi.fn(({ def }: { def: { name: string } }) => `host rule refuses ${def.name}`);
+  renderWithChatSurfaces(<AgentRuntimePicker agents={agents} value={{ agentId: 'other' }} onChange={vi.fn()}
+    nativeToolPolicy={{ limits, assess }} />);
+  expect(assess).toHaveBeenCalledWith({ def: expect.objectContaining({ id: 'other', name: 'Another CLI' }), policy: limits });
+  expect(screen.getByRole('button', { name: 'Agent permissions required' })).toHaveAccessibleDescription('host rule refuses Another CLI');
+});
+
+it('shows no permissions tip when the injected assessor allows the run', () => {
+  renderWithChatSurfaces(<AgentRuntimePicker agents={agents} value={{ agentId: 'other' }} onChange={vi.fn()}
+    nativeToolPolicy={{ limits, assess: () => null }} />);
+  expect(screen.queryByRole('button', { name: 'Agent permissions required' })).not.toBeInTheDocument();
 });
