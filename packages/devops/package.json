@@ -41,7 +41,10 @@
       "./backup/plan-store": "node",
       "./backup/push-jobs": "universal",
       "./static-export/site/ports": "universal",
-      "./static-export/site/public-origin-policy": "universal"
+      "./static-export/site/public-origin-policy": "universal",
+      "./checks/quality-gates": "universal",
+      "./checks/complexity-debt": "universal",
+      "./checks/live-verify-checks": "universal"
     },
     "isolation": {
       "shared": [
@@ -205,6 +208,21 @@
       "types": "./dist/static-export/site/public-origin-policy.d.ts",
       "import": "./dist/static-export/site/public-origin-policy.js",
       "default": "./dist/static-export/site/public-origin-policy.js"
+    },
+    "./checks/quality-gates": {
+      "types": "./dist/checks/quality-gates.d.ts",
+      "import": "./dist/checks/quality-gates.js",
+      "default": "./dist/checks/quality-gates.js"
+    },
+    "./checks/complexity-debt": {
+      "types": "./dist/checks/complexity-debt.d.ts",
+      "import": "./dist/checks/complexity-debt.js",
+      "default": "./dist/checks/complexity-debt.js"
+    },
+    "./checks/live-verify-checks": {
+      "types": "./dist/checks/live-verify-checks.d.ts",
+      "import": "./dist/checks/live-verify-checks.js",
+      "default": "./dist/checks/live-verify-checks.js"
     }
   },
   "files": [

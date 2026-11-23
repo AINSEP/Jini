@@ -185,6 +185,16 @@
    "resolveDevAppVersion": "function:4bfd554fab"
   }
  },
+ "./electron/handoff": {
+  "types": "./dist/electron/handoff/index.d.ts",
+  "symbols": {
+   "HandoffChannels": "interface:f09937540a",
+   "HandoffIpcMain": "interface:050e52c6f9",
+   "HandoffResult": "interface:e64afc59d1",
+   "HandoffWindow": "interface:77ab1a94a1",
+   "registerHandoffForwarding": "function:6ec4136dc0"
+  }
+ },
  "./electron/navigation-policy": {
   "types": "./dist/electron/navigation-policy/index.d.ts",
   "symbols": {
@@ -206,6 +216,16 @@
    "isExternalBrowserUrl": "function:452a3b010f",
    "isSameOrigin": "function:54f9cb7ba0",
    "isShellPageUrl": "function:f14179b5e1"
+  }
+ },
+ "./electron/selftest": {
+  "types": "./dist/electron/selftest/index.d.ts",
+  "symbols": {
+   "SelftestCallbacks": "interface:7f5059ed0c",
+   "SelftestTracker": "interface:c110ed30c6",
+   "SelftestWebContents": "interface:b4e3b2c66e",
+   "SelftestWindow": "interface:fe28fc87a1",
+   "createSelftestTracker": "function:46d7de4d69"
   }
  },
  "./electron/updates": {
@@ -327,6 +347,111 @@
    "RenderBridgeTimers": "interface:e259c26d0c",
    "renderBridgeFromEnv": "function:32f583eff2",
    "startRenderBridge": "function:8c51e18a04"
+  }
+ },
+ "./shell/auto-update-controller": {
+  "types": "./dist/shell/auto-update-controller.d.ts",
+  "symbols": {
+   "AutoUpdateController": "interface:0b5fb6bd97",
+   "AutoUpdateControllerDeps": "interface:ece0beef05",
+   "createAutoUpdateController": "function:59042fc22a"
+  }
+ },
+ "./shell/find-in-page-verify": {
+  "types": "./dist/shell/find-in-page-verify.d.ts",
+  "symbols": {
+   "Count": "interface:9dac60ccbd",
+   "advancesEveryStep": "function:9fe3a41598",
+   "nextOrdinal": "function:ff101fe112",
+   "parseCount": "function:4b2ef6ee6d",
+   "previousOrdinal": "function:c9618d2559"
+  }
+ },
+ "./shell/guest-navigation": {
+  "types": "./dist/shell/guest-navigation.d.ts",
+  "symbols": {
+   "GuestContents": "type:e8c9399a4f",
+   "installWebviewGuestPolicy": "function:dd3f283809"
+  }
+ },
+ "./shell/instance-presence": {
+  "types": "./dist/shell/instance-presence.d.ts",
+  "symbols": {
+   "createInstancePresence": "function:dacc300196",
+   "isPidAlive": "function:b90df52a70",
+   "presenceDirPath": "function:5d41fb4653"
+  }
+ },
+ "./shell/js-backslide-guard": {
+  "types": "./dist/shell/js-backslide-guard.d.ts",
+  "symbols": {
+   "jsBackslideOffenders": "function:4951f7ae97"
+  }
+ },
+ "./shell/pty-helpers": {
+  "types": "./dist/shell/pty-helpers.d.ts",
+  "symbols": {
+   "lacksExecuteBits": "function:7ad6ef897f",
+   "packagedPtyHelperFailures": "function:76205c8db2",
+   "ptyHelperPaths": "function:a2450b5277"
+  }
+ },
+ "./shell/site-presence": {
+  "types": "./dist/shell/site-presence.d.ts",
+  "symbols": {
+   "PresenceSender": "interface:1ac85e080c",
+   "SitePresence": "interface:173360a700",
+   "createSitePresence": "function:29fbbce6f0"
+  }
+ },
+ "./shell/spellcheck-menu": {
+  "types": "./dist/shell/spellcheck-menu.d.ts",
+  "symbols": {
+   "MenuBuilder": "interface:928bf71190",
+   "SpellCheckContextMenuParams": "interface:fe93d23249",
+   "SpellCheckMenuHandlers": "interface:fd56e3f1c0",
+   "SpellCheckWebContents": "interface:c5d9263f44",
+   "buildSpellCheckMenuTemplate": "function:5da4981b91",
+   "registerSpellCheckContextMenu": "function:a4aa6b4bfd"
+  }
+ },
+ "./shell/webview-guest-policy": {
+  "types": "./dist/shell/webview-guest-policy.d.ts",
+  "symbols": {
+   "GuestPolicyOptions": "interface:2149a9137d",
+   "GuestSourceOptions": "interface:49a36c75ac",
+   "GuestWebPreferences": "interface:4bc241441e",
+   "admitGuestSource": "function:d4a32b68ce",
+   "applyGuestWebPreferences": "function:586e00156f"
+  }
+ },
+ "./shell/window-bounds-store": {
+  "types": "./dist/shell/window-bounds-store.d.ts",
+  "symbols": {
+   "DisplayLike": "interface:c3c66e63c3",
+   "ResolveWindowBoundsInput": "interface:f1f1f296d7",
+   "WindowBounds": "interface:c34cf526c0",
+   "boundsOnScreen": "function:6dd0835bce",
+   "readWindowBounds": "function:564489068e",
+   "resolveWindowBounds": "function:e18568d395",
+   "windowBoundsFilePath": "function:214e589fd1",
+   "writeWindowBounds": "function:1e71e71c7e"
+  }
+ },
+ "./shell/window-navigation-policy": {
+  "types": "./dist/shell/window-navigation-policy.d.ts",
+  "symbols": {
+   "AppWindowPolicyOptions": "interface:a402385413",
+   "GuestWindowOpenOptions": "interface:2429b55953",
+   "NavigableContents": "interface:b8687c0bcf",
+   "ShellPages": "interface:68f01261f7",
+   "WindowOpenResponse": "type:85aac64bc6",
+   "installAppWindowNavigationPolicy": "function:0b0cfac08d",
+   "installGuestWindowOpenPolicy": "function:9fb50e1647",
+   "installSitesHomeNavigationPolicy": "function:55d31a7899",
+   "isExternalBrowserUrl": "function:3899142368",
+   "isSameOrigin": "function:ec8470a25d",
+   "isShellPageUrl": "function:e63097f4b1"
   }
  },
  "./shutdown": {
