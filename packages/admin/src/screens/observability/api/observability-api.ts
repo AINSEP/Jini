@@ -1,6 +1,7 @@
 import { querySuffix } from "@jini-ai/core/admin-runtime";
 import type { ToolGapEntry } from "@jini-ai/core/contracts/site/daemon-tool-audit";
-import type { AdminObservabilityStatus, AdminServerLogs, AdminServerLogsQuery, AdminTelemetryTestResult } from "./observability-api.types.js";
+import type { ServerLogFilters, ServerLogsResult } from "@jini-ai/core/contracts/site/platform-server-logs";
+import type { AdminObservabilityStatus, AdminTelemetryTestResult } from "./observability-api.types.js";
 
 /**
  * The host's authenticated admin request (its session, CSRF and error mapping). This client never
@@ -29,10 +30,10 @@ export function createObservabilityApi({ request, workspaceId }: ObservabilityAp
     getToolGaps: () => request<{ entries: ToolGapEntry[] }>({ path: `/workspaces/${workspaceId}/system/tool-gaps` }),
     /** Recent captured server log lines (the host's `system/server-logs` route, `system.read`-gated) — the
      *  Observability "Recent errors" tab. */
-    getServerLogs: (query: AdminServerLogsQuery = {}) => {
+    getServerLogs: (query: ServerLogFilters = {}) => {
       const params = new URLSearchParams(Object.entries(query).filter(([, value]) => value !== undefined).map(([key, value]) => [key, String(value)]));
       const qs = params.toString();
-      return request<AdminServerLogs>({ path: `/workspaces/${workspaceId}/system/server-logs${querySuffix({ query: qs })}` });
+      return request<ServerLogsResult>({ path: `/workspaces/${workspaceId}/system/server-logs${querySuffix({ query: qs })}` });
     },
   };
 }

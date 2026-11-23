@@ -22,32 +22,3 @@ export interface AdminTelemetryDeliveryStatus {
 export interface AdminTelemetryTestResult {
   providers: { providerId: string; signals: ("error" | "span" | "analytics" | "metric")[] }[];
 }
-
-/** One captured server log line — mirrors `ServerLogEntry` in `@jini-ai/core/contracts/site/platform-server-logs`
- *  (used by the host's server-log buffer). `message` is already secret-redacted. */
-export interface AdminServerLogEntry {
-  seq: number;
-  at: string;
-  level: "debug" | "info" | "warn" | "error";
-  source: "server" | "daemon";
-  message: string;
-}
-
-/** `GET /system/server-logs` — mirrors `ServerLogsResult` in
- *  the host's server-log reader. `capturing: false` means nothing is
- *  recording lines, so an empty list is not proof of no errors. */
-export interface AdminServerLogs {
-  entries: AdminServerLogEntry[];
-  matched: number;
-  buffered: number;
-  truncated: boolean;
-  capturing: boolean;
-}
-
-/** Filters for {@link AdminServerLogs}; the same ones the `system_read_server_logs` chat tool takes. */
-export interface AdminServerLogsQuery {
-  level?: AdminServerLogEntry["level"];
-  sinceIso?: string;
-  contains?: string;
-  limit?: number;
-}

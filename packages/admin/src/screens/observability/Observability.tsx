@@ -1,6 +1,6 @@
 import type { ComponentType } from "react";
 import { agentHandle } from "@jini-ai/core/agent-handles";
-import { I18nProvider, SettingsDialogShell, useAdminKitValues, type SettingsDialogTab } from "../../react/kit.js";
+import { I18nProvider, SettingsDialogShell, type AdminKitValues, type SettingsDialogTab } from "../../react/kit.js";
 
 import { AlertIcon, GaugeIcon, PulseIcon, QueriesIcon } from "./observability-visuals.js";
 import type { ObservabilityStatusController } from "./hooks/use-observability-status.hooks.js";
@@ -181,6 +181,27 @@ export type ObservabilityTabHook = (required: { tabs: readonly SettingsDialogTab
   onTabChange: (required: { nextTabId: string }) => void;
 };
 
+/** The host's admin-kit values read; this screen needs only the settings-dialog dictionaries. */
+export type ObservabilityKitValuesHook = (required?: Record<string, never>, optional?: Record<string, never>) => Pick<AdminKitValues, "SETTINGS_DIALOG_DICTIONARIES">;
+
+/**
+ * The host's page-layout classes, bound by the host so its own page chrome (header spacing, the
+ * shell's page-flow modifier) applies. This screen's markup carries only `jini-*` classes itself.
+ */
+export interface ObservabilityLayoutClassNames {
+  /** The page wrapper. */
+  page: string;
+  /** The page header block above the shell. */
+  header: string;
+  /** The header's text column. */
+  headerText: string;
+  kicker: string;
+  title: string;
+  description: string;
+  /** The wrapper around the inline settings shell. */
+  section: string;
+}
+
 export interface ObservabilityProps {
   tabId?: string | null | undefined;
   /** The product name the `{product}` placeholders in this screen's copy resolve to. */
@@ -201,6 +222,10 @@ export interface ObservabilityProps {
   readToolGaps: ToolGapsRead;
   useAdminThemeBoundaryHook: ObservabilityThemeBoundaryHook;
   useObservabilityTabHook: ObservabilityTabHook;
+  /** The host's admin-kit values read (its `useAdminKitValues`). */
+  useAdminKitValuesHook: ObservabilityKitValuesHook;
+  /** The host's page-layout classes; see {@link ObservabilityLayoutClassNames}. */
+  layoutClassNames: ObservabilityLayoutClassNames;
 }
 
 /** The owner-only Queries tab, present only when the host's visibility hook allows it. */
@@ -243,15 +268,16 @@ function queriesTabs({ queriesTab, t, QueryCachePanel, QueriesPanelComponent }: 
  * inside the card's own rounded top-left corner, clipped against the curve, rather than flush
  * against the page the way Secrets' borderless header is. `AiAssistant.tsx` proves the combination
  * in production already — this is a second consumer of an existing pattern, not a new one.
+ * Those page/header/section classes are the host's: it binds them through `layoutClassNames`.
  *
  * The page header reuses the active tab's translated subtitle. Its hook adapts Jini's tab state
  * to `?tab=` navigation; the controlled shell renders only that tab's panel.
  */
-export function Observability({ useAdminKitValuesHook = useAdminKitValues, ...props }: ObservabilityProps & { useAdminKitValuesHook?: typeof useAdminKitValues }) {
+export function Observability(props: ObservabilityProps) {
   // Host hooks are required props, called through `props` (never imported or defaulted).
   const { tabId, productName, useRecentServerErrorsHook, useRecentErrorItemHook, QueryCachePanel, QueriesPanelComponent, readToolGaps } = props;
   const themeBoundary = props.useAdminThemeBoundaryHook({}, {});
-  const { SETTINGS_DIALOG_DICTIONARIES } = useAdminKitValuesHook();
+  const { SETTINGS_DIALOG_DICTIONARIES } = props.useAdminKitValuesHook({}, {});
   const controller = props.useObservabilityStatusHook();
   const queriesTab = props.useQueriesTabHook();
   const { t, locale } = controller;
@@ -290,26 +316,27 @@ export function Observability({ useAdminKitValuesHook = useAdminKitValues, ...pr
   ];
 
   const { activeTabId, onTabChange, subtitle } = props.useObservabilityTabHook({ tabs, tabId });
+  const layout = props.layoutClassNames;
   return (
-    <div className="page jini-observability-page">
+    <div className={`${layout.page} jini-observability-page`}>
       <div
-        className="page-header"
+        className={layout.header}
         {...agentHandle({ handle: "observability-header" }, {
           role: "region",
           label: "Observability panel header — what OpenTelemetry is, and whether it's on right now",
         })}
       >
-        <div className="page-header-text">
-          <p className="page-kicker">{t("Operations")}</p>
-          <h1 className="page-title jini-observability-page-title"><PulseIcon size={24} />{t("Observability")}</h1>
-          <p className="page-description">
+        <div className={layout.headerText}>
+          <p className={layout.kicker}>{t("Operations")}</p>
+          <h1 className={`${layout.title} jini-observability-page-title`}><PulseIcon size={24} />{t("Observability")}</h1>
+          <p className={layout.description}>
             {subtitle}
           </p>
         </div>
       </div>
       <I18nProvider initialLocale={locale} dictionaries={SETTINGS_DIALOG_DICTIONARIES} fallbackLocale="en" syncDocumentAttributes={false}>
         {/* Classic keeps its unverified-dark light pin; Glass follows the document scheme. */}
-        <div className="settings-ui-section settings-ui-section--page-flow jini-observability-section" {...themeBoundary}>
+        <div className={`${layout.section} jini-observability-section`} {...themeBoundary}>
           <SettingsDialogShell
             tabs={tabs}
             {...(activeTabId === undefined ? {} : { activeTabId })}

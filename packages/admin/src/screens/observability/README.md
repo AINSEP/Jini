@@ -22,6 +22,11 @@ through the kit (`I18nProvider`, `SettingsDialogShell`, `useFetchQuery`, `SETTIN
 - `QueryCachePanel` — the vendor cache panel the Queries tab embeds (lazy).
 - `readToolGaps` (`ToolGapsRead`) — the host-bound `api.getToolGaps`.
 - `useAdminThemeBoundaryHook`, `useObservabilityTabHook` — the host's theme boundary and tab/URL adapter.
+- `useAdminKitValuesHook` — the host's `useAdminKitValues` (the screen reads `SETTINGS_DIALOG_DICTIONARIES`).
+- `layoutClassNames` (`ObservabilityLayoutClassNames`: `page`, `header`, `headerText`, `kicker`, `title`,
+  `description`, `section`) — the host's page-layout classes; the screen's own markup uses only `jini-*`.
+- Server-log wire shapes are `ServerLogFilters` / `ServerLogsResult` / `ServerLogEntry` from
+  `@jini-ai/core/contracts/site/platform-server-logs` (shared with the reader and the admin route).
 - `api` = `createObservabilityApi({ request, workspaceId })`: `request` is the host's authenticated
   admin request (`ObservabilityAdminRequest`).
 - CSS: the host imports `recent-errors.css` (and its settings-dialog stylesheet) once.
@@ -39,7 +44,8 @@ function useStatus() {
 <Observability tabId={tabId} productName="My Site" useObservabilityStatusHook={useStatus}
   useRecentServerErrorsHook={useErrors} useRecentErrorItemHook={useRow} useQueriesTabHook={useQueries}
   QueryCachePanel={LazyDevtools} readToolGaps={() => api.getToolGaps()}
-  useAdminThemeBoundaryHook={useThemeBoundary} useObservabilityTabHook={useTabUrl} />
+  useAdminThemeBoundaryHook={useThemeBoundary} useObservabilityTabHook={useTabUrl}
+  useAdminKitValuesHook={useAdminKitValues} layoutClassNames={LAYOUT_CLASSES} />
 ```
 
 **Never imports:** host paths, the host's HTTP client, a UI library package directly (only the

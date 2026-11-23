@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { AdminServerLogEntry } from "../api/observability-api.types.js";
+import type { ServerLogEntry } from "@jini-ai/core/contracts/site/platform-server-logs";
 import {
   type RecentErrorGroup,
   SUMMARY_MAX_LENGTH,
@@ -51,7 +51,7 @@ function groupAt(groups: readonly RecentErrorGroup[], index: number): RecentErro
   return group;
 }
 
-function entry(seq: number, message: string, overrides: Partial<AdminServerLogEntry> = {}): AdminServerLogEntry {
+function entry(seq: number, message: string, overrides: Partial<ServerLogEntry> = {}): ServerLogEntry {
   return { seq, at: `2026-10-08T17:0${seq}:00.000Z`, level: "error", source: "server", message, ...overrides };
 }
 

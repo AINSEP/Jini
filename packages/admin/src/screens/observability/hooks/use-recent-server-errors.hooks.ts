@@ -2,7 +2,7 @@ import { useCallback as useQueryFetchCallback } from "react";
 import { useMemo } from "react";
 import { useFetchQuery } from "../../../react/kit.js";
 
-import type { AdminServerLogEntry, AdminServerLogs } from "../api/observability-api.types.js";
+import type { ServerLogEntry, ServerLogsResult } from "@jini-ai/core/contracts/site/platform-server-logs";
 import { t as translateObservability } from "../observability-i18n.js";
 import {
   formatErrorCopyText,
@@ -45,7 +45,7 @@ export interface RecentServerErrorRow {
   firstWhen: string | null;
   /** ISO time of the oldest occurrence, for the First seen `<time dateTime>`; `null` with `firstWhen`. */
   firstAt: string | null;
-  source: AdminServerLogEntry["source"];
+  source: ServerLogEntry["source"];
   /** The message's leading `[tag]`, e.g. `assistant`, or `null`. */
   scope: string | null;
   /** One line, for the collapsed row. */
@@ -63,7 +63,7 @@ export interface RecentServerErrorsController {
   /** Newest first, ready to render. Empty until the first load settles. */
   rows: RecentServerErrorRow[];
   /** `null` until the first load settles. */
-  logs: AdminServerLogs | null;
+  logs: ServerLogsResult | null;
   loading: boolean;
   error: string | null;
   refresh: () => void;
@@ -97,7 +97,7 @@ function formatWhen({ at, locale }: { at: string; locale: string }, _optional = 
 
 /** Newest first, repeats of the same error grouped. Memoized by the caller: segmenting 50 stack traces
  *  on every render would redo the same regex work for nothing. */
-function toRows({ entries, locale }: { entries: AdminServerLogEntry[]; locale: string }, _optional = {}): RecentServerErrorRow[] {
+function toRows({ entries, locale }: { entries: readonly ServerLogEntry[]; locale: string }, _optional = {}): RecentServerErrorRow[] {
   return groupErrorEntries({ entries }).map((group) => toRow({ group: group, locale: locale }));
 }
 

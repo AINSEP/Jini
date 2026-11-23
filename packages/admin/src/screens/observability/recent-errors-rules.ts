@@ -1,4 +1,4 @@
-import type { AdminServerLogEntry } from "./api/observability-api.types.js";
+import type { ServerLogEntry } from "@jini-ai/core/contracts/site/platform-server-logs";
 
 /**
  * @file Pure shaping for the Recent errors tab: one-line summaries, grouping of repeated errors,
@@ -193,8 +193,8 @@ export function normalizeErrorMessage({ message }: { message: string }): string 
 export interface RecentErrorGroup {
   /** Stable across reloads: the same error keeps the same key, so an open row stays open. */
   key: string;
-  latest: AdminServerLogEntry;
-  earliest: AdminServerLogEntry;
+  latest: ServerLogEntry;
+  earliest: ServerLogEntry;
   count: number;
 }
 
@@ -207,7 +207,7 @@ export interface RecentErrorGroup {
  * @param required `entries` oldest first, as the server returns them.
  * @complexity O(n) time and space.
  */
-export function groupErrorEntries({ entries }: { entries: readonly AdminServerLogEntry[] }): RecentErrorGroup[] {
+export function groupErrorEntries({ entries }: { entries: readonly ServerLogEntry[] }): RecentErrorGroup[] {
   const groups = new Map<string, RecentErrorGroup>();
   for (const entry of [...entries].reverse()) {
     const key = `${entry.source}\u0000${normalizeErrorMessage({ message: entry.message })}`;

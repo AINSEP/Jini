@@ -1,13 +1,19 @@
 import { describe, expect, it } from 'vitest';
 import { RouteRefusalError } from '@jini-ai/core/errors/route-refusal';
+import type { ServerLogFilters, ServerLogsResult } from '@jini-ai/core/contracts/site/platform-server-logs';
 import { serverLogsRoute, type AdminServerLogsRouteDeps } from '../server-logs.js';
 
 class FilterError extends Error {}
 
+const LOGS: ServerLogsResult = { entries: [], matched: 0, buffered: 0, truncated: false, capturing: true };
+/** Every filter set the fake reader was handed, in call order. */
+let reads: ServerLogFilters[] = [];
+
 function deps(overrides: Partial<AdminServerLogsRouteDeps> = {}): AdminServerLogsRouteDeps {
+  reads = [];
   return {
-    parseServerLogFilters: ({ raw }) => raw,
-    readServerLogs: (filters) => ({ entries: [], filters }),
+    parseServerLogFilters: ({ raw }) => raw as ServerLogFilters,
+    readServerLogs: (filters) => { reads.push(filters); return LOGS; },
     isServerLogFilterError: (error): error is Error => error instanceof FilterError,
     ...overrides,
   };
@@ -40,7 +46,8 @@ describe('serverLogsRoute', () => {
 
   it('authorizes system.read, then reads with the parsed filters', async () => {
     const { asked, result } = call(deps(), { level: 'warn' });
-    expect(await result).toEqual({ ok: true, value: { entries: [], filters: { level: 'warn' } } });
+    expect(await result).toEqual({ ok: true, value: LOGS });
+    expect(reads).toEqual([{ level: 'warn' }]);
     expect(asked).toEqual([{ permission: 'system.read', entityType: 'server-logs' }]);
   });
 

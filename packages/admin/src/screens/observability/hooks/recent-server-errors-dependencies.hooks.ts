@@ -1,4 +1,4 @@
-import type { AdminServerLogs } from "../api/observability-api.types.js";
+import type { ServerLogsResult } from "@jini-ai/core/contracts/site/platform-server-logs";
 import type { ObservabilityApi } from "../api/observability-api.js";
 import type { RecentServerErrorsPort } from "./recent-server-errors-port.hooks.js";
 
@@ -19,7 +19,7 @@ export function createRecentServerErrorsPort(
 }
 
 export interface FakeRecentServerErrorsPortOptions {
-  logs?: AdminServerLogs;
+  logs?: ServerLogsResult;
   failWith?: unknown;
   /** What `copyText` resolves; defaults to `true`. */
   copyResult?: boolean;

@@ -1,4 +1,4 @@
-import type { ServerLogEntry, ServerLogLevel } from "@jini-ai/core/contracts/site/platform-server-logs";
+import type { ServerLogEntry, ServerLogFilters, ServerLogLevel, ServerLogsResult } from "@jini-ai/core/contracts/site/platform-server-logs";
 
 /**
  * @file `readServerLogs` — the ONE read behind both a host's admin server-logs route
@@ -18,24 +18,6 @@ const SEVERITY: Record<ServerLogLevel, number> = { debug: 0, info: 1, warn: 2, e
 export interface ServerLogSourcePort {
   /** `capturing` is false when nothing records lines, so an empty result is not "no errors". */
   read(): { entries: readonly ServerLogEntry[]; capturing: boolean };
-}
-
-export interface ServerLogFilters {
-  /** Minimum severity: "warn" returns warn and error. */
-  readonly level?: ServerLogLevel | undefined;
-  readonly sinceIso?: string | undefined;
-  /** Case-insensitive substring of the message. */
-  readonly contains?: string | undefined;
-  readonly limit?: number | undefined;
-}
-
-export interface ServerLogsResult {
-  /** Oldest first; the newest `limit` matching lines. */
-  readonly entries: readonly ServerLogEntry[];
-  readonly matched: number;
-  readonly buffered: number;
-  readonly truncated: boolean;
-  readonly capturing: boolean;
 }
 
 /** A filter value the caller sent that cannot be used. The message names the field. */

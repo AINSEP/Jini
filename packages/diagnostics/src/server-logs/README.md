@@ -8,7 +8,9 @@ then `readServerLogs`, so a filter means the same thing in the UI and in chat.
 
 - **Needs injected:** a `ServerLogSourcePort` (`read(): { entries, capturing }`) — wherever the
   host keeps its captured lines (an in-memory ring buffer, a rotating log file). Entry shapes are
-  `ServerLogEntry` / `ServerLogLevel` from `@jini-ai/core/contracts/site/platform-server-logs`;
+  `ServerLogEntry` / `ServerLogLevel` from `@jini-ai/core/contracts/site/platform-server-logs`,
+  which also owns the read's `ServerLogFilters` and `ServerLogsResult` (shared with the admin
+  route and the admin client);
   lines are already redacted when the host captures them.
 - **Provides:** `parseServerLogFilters` (accepts tool JSON or HTTP query strings; throws
   `ServerLogFilterError` naming the field), `readServerLogs` (newest matching lines, oldest first,
