@@ -5,21 +5,12 @@ import userEvent from "@testing-library/user-event";
 import { closeLightboxDialog, openLightboxDialog } from "@jini-ai/ui/admin-widgets";
 import { describe, expect, it, vi } from "vitest";
 
-import { AdminKitProvider } from "../../../../react/kit.js";
-import { fakeAdminKit } from "../../../../react/testing-kit.js";
 import { useEditMediaModal } from "../use-edit-media-modal.hooks.js";
 
-/** Renders under the fake admin kit, with the real UI-library dialog helpers these assertions are about swapped in. */
-const wrapperKit = fakeAdminKit({ values: { openLightboxDialog, closeLightboxDialog } });
-function wrapper({ children }: { children: ReactNode }) {
-  return <AdminKitProvider kit={wrapperKit}>{children}</AdminKitProvider>;
-}
-function render(ui: ReactNode) {
-  return renderBare(ui, { wrapper });
-}
-function renderHook<Result, Props>(callback: (props: Props) => Result, options: { initialProps?: Props } = {}) {
-  return renderBareHook(callback, { ...options, wrapper });
-}
+/** The real UI-library dialog helpers these assertions are about, passed explicitly the way a host binds them from its kit. */
+const helpers = { openLightboxDialog, closeLightboxDialog };
+const render = (ui: ReactNode) => renderBare(ui);
+const renderHook = renderBareHook;
 
 type DialogMode = "native-methods" | "fallback";
 
@@ -28,7 +19,7 @@ function Harness({ open, mode, onClose, alreadyOpen = false, onNativeOpen, onNat
   onNativeOpen?: (dialog: HTMLDialogElement) => void;
   onNativeClose?: (dialog: HTMLDialogElement) => void;
 }) {
-  const controller = useEditMediaModal(open, onClose);
+  const controller = useEditMediaModal({ open, onClose, ...helpers });
   return <dialog aria-label="Edit media" ref={(dialog) => {
     controller.dialogRef.current = dialog;
     if (!dialog) return;
@@ -121,24 +112,24 @@ it("does not call showModal on a native dialog that is already open", () => {
 });
 
 it("permits a render without an attached dialog ref", () => {
-  const { result, rerender } = renderHook(({ open }) => useEditMediaModal(open, vi.fn()), { initialProps: { open: true } });
+  const { result, rerender } = renderHook(({ open }) => useEditMediaModal({ open, onClose: vi.fn(), ...helpers }), { initialProps: { open: true } });
   expect(result.current.dialogRef.current).toBeNull();
   rerender({ open: false });
   expect(result.current.dialogRef.current).toBeNull();
 });
 
-it("opens and closes through the host kit's injected dialog helpers", () => {
-  // The lifecycle reaches the dialog only through `AdminKitValues`; a direct UI-library import would bypass these spies.
+it("opens and closes through the dialog helpers passed in its args", () => {
+  // The lifecycle reaches the dialog only through the injected helpers; a direct UI-library import
+  // or a kit lookup would bypass these spies.
   const open = vi.fn();
   const close = vi.fn();
-  const kit = fakeAdminKit({ values: { openLightboxDialog: open, closeLightboxDialog: close } });
   function Probe({ isOpen }: { isOpen: boolean }) {
-    const controller = useEditMediaModal(isOpen, vi.fn());
+    const controller = useEditMediaModal({ open: isOpen, onClose: vi.fn(), openLightboxDialog: open, closeLightboxDialog: close });
     return <dialog aria-label="Edit media" ref={controller.dialogRef} />;
   }
-  const { rerender } = renderBare(<AdminKitProvider kit={kit}><Probe isOpen /></AdminKitProvider>);
+  const { rerender } = renderBare(<Probe isOpen />);
   const dialog = document.querySelector("dialog[aria-label=\"Edit media\"]");
   expect(open.mock.calls).toEqual([[dialog]]);
-  rerender(<AdminKitProvider kit={kit}><Probe isOpen={false} /></AdminKitProvider>);
+  rerender(<Probe isOpen={false} />);
   expect(close.mock.calls).toEqual([[dialog]]);
 });

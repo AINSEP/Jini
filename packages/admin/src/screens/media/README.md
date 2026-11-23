@@ -7,12 +7,13 @@ composes. Why the move happens piecewise: `ADS-memory/reports/jini-port/extracti
 
 ## Wiring
 
-**Needs injected:** the host's `AdminKit` (via `<AdminKitProvider>`), specifically
-`AdminKitValues.openLightboxDialog` / `closeLightboxDialog` for the edit dialog's native
-`<dialog>` lifecycle.
+**Needs injected:** `openLightboxDialog` / `closeLightboxDialog` for the edit dialog's native
+`<dialog>` lifecycle, passed as required args to `useEditMediaModal`. The host binds them at its
+call site from its `AdminKitValues` (e.g. `useAdminKitValues()` under its `<AdminKitProvider>`);
+the hook itself never reads the kit.
 
 **Provides:**
-- `hooks/use-edit-media-modal.hooks` — `useEditMediaModal(open, onClose)` returning
+- `hooks/use-edit-media-modal.hooks` — `useEditMediaModal({ open, onClose, openLightboxDialog, closeLightboxDialog }, _optional = {})` returning
   `EditMediaModalController` (`dialogRef`, `handleNativeCancel`, `handleBackdropClick`).
 - `hooks/use-media-card-metadata.hooks` — `useMediaCardMetadata({ item }, { locale?, formatters? })`
   returning the card's size/upload-date line. `item` is the structural slice
@@ -35,14 +36,15 @@ const { isPhone, openDetails } = useMediaCardDetails({ onToggleEdit: (item: Host
 ```
 
 ```tsx
-import { AdminKitProvider } from "@jini-ai/admin/react/kit";
+import { useAdminKitValues } from "@jini-ai/admin/react/kit";
 import { useEditMediaModal } from "@jini-ai/admin/screens/media/hooks/use-edit-media-modal.hooks";
 
-// once, at the host root: the kit's `values` carry openLightboxDialog / closeLightboxDialog
-<AdminKitProvider kit={adminKit}>{app}</AdminKitProvider>
-
 function EditMediaModal({ item, onCancel }) {
-  const { dialogRef, handleNativeCancel, handleBackdropClick } = useEditMediaModal(item !== null, onCancel);
+  // The host binds the dialog helpers from its own kit and passes them in.
+  const { openLightboxDialog, closeLightboxDialog } = useAdminKitValues();
+  const { dialogRef, handleNativeCancel, handleBackdropClick } = useEditMediaModal({
+    open: item !== null, onClose: onCancel, openLightboxDialog, closeLightboxDialog,
+  });
   return <dialog ref={dialogRef} onCancel={handleNativeCancel} onClick={handleBackdropClick}>…</dialog>;
 }
 ```

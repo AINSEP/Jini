@@ -63,9 +63,12 @@ import { PostPublishAtField } from "@jini-ai/admin/posts/PostPublishingFields";
   `jini-field-label` and `jini-post-publishing__scheduled-badge`. No stylesheet in this package ships
   them, so the host styles all four.
 - The banners render `jini-post-notice` with `jini-post-notice--warning` / `--error` and
-  `jini-post-notice__btn` buttons; the overflow toggle renders `jini-post-toolbar__btn`. The host
-  styles these classes (it extends its own notice/secondary-button/toolbar-button rules to them).
-- The host's toolbar-fit hook queries `.tb-more`, so that class must not be renamed here.
+  `jini-post-notice__btn` buttons; the overflow toggle renders `jini-post-toolbar__btn` and
+  `jini-post-toolbar__more`. The host styles these classes (it extends its own
+  notice/secondary-button/toolbar-button rules to them; its phone-width rules show/order the toggle
+  through `jini-post-toolbar__more`).
+- The overflow toggle carries `data-toolbar-more`: the host's toolbar-fit hook queries that
+  attribute (never a class) to measure the phone row, so styling and measurement cannot drift.
 
 **Must never import.**
 - A UI package

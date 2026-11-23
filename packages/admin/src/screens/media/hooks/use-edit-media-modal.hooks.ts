@@ -1,4 +1,3 @@
-import { useAdminKitValues } from "../../../react/kit.js";
 import { useEffect, useRef, type MouseEvent, type SyntheticEvent } from "react";
 
 /**
@@ -11,8 +10,9 @@ import { useEffect, useRef, type MouseEvent, type SyntheticEvent } from "react";
  * on unsaved changes before backdrop-dismiss) should never silently change an unrelated table's
  * modal, and vice versa.
  *
- * The dialog helpers come from the host's `AdminKitValues` (`openLightboxDialog`/`closeLightboxDialog`),
- * the same kit seam `MessageOverflowModal.hooks.tsx` reads.
+ * The dialog helpers (`openLightboxDialog`/`closeLightboxDialog`) are required args: the host binds
+ * them at its call site from its `AdminKitValues`, the same kit seam `MessageOverflowModal.hooks.tsx`
+ * reads — this hook never reaches into the kit itself.
  *
  * Only one instance is ever mounted — the host `Media.tsx`'s `MediaLibraryPanel` renders exactly one
  * `<EditMediaModal>`, toggling only its `item` prop as the selection changes (`editingId`/
@@ -22,6 +22,24 @@ import { useEffect, useRef, type MouseEvent, type SyntheticEvent } from "react";
  * remounts it and reseeds its draft — this hook has no opinion on that; it only opens and closes
  * the `<dialog>` box around whatever is currently keyed inside it.
  */
+/** Native `<dialog>` open/close helpers the host binds from its kit (`AdminKitValues`). */
+export type EditMediaDialogHelper = (dialog: HTMLDialogElement) => void;
+
+/** Required args of {@link useEditMediaModal}. */
+export interface EditMediaModalArgs {
+  /** Whether the dialog should be showing (`editingItem !== null` at the call site). */
+  open: boolean;
+  /** Called on any dismiss path (Cancel, Save, backdrop click, Escape). */
+  onClose: () => void;
+  /** Presents the dialog modally (the host kit's `openLightboxDialog`). */
+  openLightboxDialog: EditMediaDialogHelper;
+  /** Closes the dialog (the host kit's `closeLightboxDialog`). */
+  closeLightboxDialog: EditMediaDialogHelper;
+}
+
+/** Reserved optional args of {@link useEditMediaModal}; none yet. */
+export type EditMediaModalOptional = Record<string, never>;
+
 export interface EditMediaModalController {
   dialogRef: React.RefObject<HTMLDialogElement | null>;
   /** Fires on the dialog's native `cancel` event (Escape). Prevented and routed through `onClose`
@@ -38,17 +56,21 @@ export interface EditMediaModalController {
  * (Escape, backdrop click) — Save/Cancel stay plain `onClick` handlers inside `EditMediaPanel`
  * itself, since they need no dialog-level state.
  *
- * @param open - Whether the dialog should be showing (`editingItem !== null` at the call site).
- * @param onClose - Called on any dismiss path (Cancel, Save, backdrop click, Escape) — the caller
+ * @param args - `open`: whether the dialog should be showing (`editingItem !== null` at the call
+ *   site). `onClose`: called on any dismiss path (Cancel, Save, backdrop click, Escape) — the caller
  *   clears `editingId` the same way it already did for the old inline panel's `onCancel`.
+ *   `openLightboxDialog`/`closeLightboxDialog`: the host kit's dialog helpers.
+ * @param _optional - Reserved for future optional args.
  * @returns `dialogRef` to attach to the `<dialog>` element, plus its `cancel`/backdrop-click
  *   handlers.
  * @complexity Time/space: O(1) per open/close transition — one `showModal`/`close` call, no other
  *   state.
  */
-export function useEditMediaModal(open: boolean, onClose: () => void): EditMediaModalController {
+export function useEditMediaModal(
+  { open, onClose, openLightboxDialog, closeLightboxDialog }: EditMediaModalArgs,
+  _optional: EditMediaModalOptional = {},
+): EditMediaModalController {
   const dialogRef = useRef<HTMLDialogElement>(null);
-  const { openLightboxDialog, closeLightboxDialog } = useAdminKitValues();
 
   useEffect(() => {
     const dialog = dialogRef.current;

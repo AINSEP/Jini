@@ -11,8 +11,10 @@ describe('ToolbarOverflowMenu', () => {
     const { rerender } = render(<ToolbarOverflowMenu overflow={{ open: false, toggle }} t={t} />);
     const button = screen.getByRole('button', { name: '~More formatting' });
     expect(button.getAttribute('aria-expanded')).toBe('false');
-    // `tb-more` is the host's measurement hook (it queries `.tb-more` to fit the phone row).
-    expect(button.classList.contains('tb-more')).toBe(true);
+    // `data-toolbar-more` is the host's measurement hook (it queries it to fit the phone row);
+    // the class is the style hook. No legacy host class is emitted.
+    expect(button.hasAttribute('data-toolbar-more')).toBe(true);
+    expect(button.className).toBe('jini-post-toolbar__btn jini-post-toolbar__more');
     fireEvent.click(button);
     expect(toggle).toHaveBeenCalledTimes(1);
     rerender(<ToolbarOverflowMenu overflow={{ open: true, toggle }} t={t} />);
