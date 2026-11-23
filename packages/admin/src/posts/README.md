@@ -33,6 +33,18 @@ host's rich-text editor stay in the host for now. See
   its `data-toolbar-more` attribute, so it must be paired with `ToolbarOverflowMenu`.
 - `PostsListPort` (`hooks/posts-list-port.hooks`) is the interface the host's list hook is given;
   the host binds its request client into it.
+- `PostEditorTemplatePicker` takes a required `ViewTemplateButton` component
+  (`PostEditorViewTemplateButtonProps`: `disabled`, `onClick`, `t`, `agentHandleId`); the host binds
+  the button it shares with its page editor. It emits `.jini-editor-template-picker`.
+- `PostUrlDialog` takes `dialog: PostUrlDialogView` (the host's rich-text URL-dialog controller, read
+  structurally) and `t`. The host loads its domain-dialog stylesheet and
+  `@jini-ai/admin/posts/post-url-dialog.css` (the `.jini-post-url-dialog` width) where it renders it.
+- `PostSettingsDialog` takes a required `hooks.useTabBarKeyboard` (the host binds the one from
+  `@jini-ai/ui/tab-strip`), the `usePostSettingsDialog` controller, the byline/publish-time fields and
+  `t`. It emits `.jini-post-settings-dialog`, `.jini-post-settings-tabs` and `.jini-post-settings-panel`
+  (plus the host's shared `settings-dialog`/`segmented`/`widget-picker-footer` chrome classes).
+- `ToolbarCharacterCount` takes `state: { characterCount }` and `t`; it emits
+  `.jini-post-toolbar__count`.
 
 **What it provides.**
 - `PostAuthorFields` at `@jini-ai/admin/posts/PostAuthorFields`
@@ -45,6 +57,11 @@ host's rich-text editor stay in the host for now. See
   (the subpath keeps its old file name; there is no `PostPublishingFields` symbol)
 - `PostAutosaveRecoveryBanner`, `PostAutosaveStaleBanner` and `PostVersionConflictBanner`
 - `ToolbarOverflowMenu`
+- `PostEditorTemplatePicker` at `@jini-ai/admin/posts/editor/template/PostEditorTemplatePicker`
+- `PostUrlDialog`, `PostUrlDialogView` at `@jini-ai/admin/posts/PostUrlDialog`, and its stylesheet at
+  `@jini-ai/admin/posts/post-url-dialog.css`
+- `PostSettingsDialog`, `PostSettingsDialogProps` at `@jini-ai/admin/posts/PostSettingsDialog`
+- `ToolbarCharacterCount` at `@jini-ai/admin/posts/editor/toolbar/ToolbarCharacterCount`
 
 **Host wiring example.**
 

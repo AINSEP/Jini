@@ -13,6 +13,11 @@
     "kind": "state",
     "runtime": "universal",
     "entries": {
+      "./screens/library/hooks/use-library.hooks": "browser",
+      "./screens/library/Library.hooks": "browser",
+      "./screens/library/rules": "universal",
+      "./screens/library/hooks/library-port.hooks": "universal",
+      "./screens/media/hooks/media-port.hooks": "universal",
       "./themes/default/admin.css": "browser",
       "./themes/default/chat.css": "browser",
       "./themes/default/manifest.json": "universal",
@@ -170,6 +175,15 @@
       "./screens/taxonomy/hooks/new-taxonomy-form-dependencies.hooks": "universal",
       "./screens/taxonomy/hooks/new-term-form-dependencies.hooks": "universal",
       "./screens/taxonomy/hooks/term-picker-dependencies.hooks": "universal",
+      "./screens/taxonomy/rules": "universal",
+      "./screens/taxonomy/taxonomy-host-kit": "universal",
+      "./screens/taxonomy/hooks/taxonomy-dependencies.hooks": "universal",
+      "./screens/taxonomy/hooks/use-term-list-reveal.hooks": "browser",
+      "./screens/taxonomy/hooks/use-taxonomy-html-embed.hooks": "browser",
+      "./screens/taxonomy/hooks/use-new-taxonomy-form.hooks": "browser",
+      "./screens/taxonomy/hooks/use-new-term-form.hooks": "browser",
+      "./screens/taxonomy/hooks/use-term-detail-panel.hooks": "browser",
+      "./screens/taxonomy/hooks/use-merge-term-section.hooks": "browser",
       "./screens/comments/api/comments-api.types": "universal",
       "./screens/forms/api/forms-api.types": "universal",
       "./screens/forms/index-aligned-translations": "universal",
@@ -189,6 +203,11 @@
       "./posts/editor/notices/PostAutosaveStaleBanner": "browser",
       "./posts/editor/notices/PostVersionConflictBanner": "browser",
       "./posts/editor/toolbar/ToolbarOverflowMenu": "browser",
+      "./posts/editor/template/PostEditorTemplatePicker": "browser",
+      "./posts/PostUrlDialog": "browser",
+      "./posts/PostSettingsDialog": "browser",
+      "./posts/editor/toolbar/ToolbarCharacterCount": "browser",
+      "./posts/post-url-dialog.css": "browser",
       "./screens/media/hooks/use-media-card-metadata.hooks": "browser",
       "./screens/media/hooks/use-media-card-details.hooks": "browser"
     },
@@ -280,11 +299,37 @@
   },
   "type": "module",
   "sideEffects": [
-    "./src/themes/**/*.css"
+    "./src/themes/**/*.css",
+    "./src/posts/*.css"
   ],
   "main": "./dist/core/index.js",
   "types": "./dist/core/index.d.ts",
   "exports": {
+    "./screens/library/hooks/use-library.hooks": {
+      "types": "./dist/screens/library/hooks/use-library.hooks.d.ts",
+      "import": "./dist/screens/library/hooks/use-library.hooks.js",
+      "default": "./dist/screens/library/hooks/use-library.hooks.js"
+    },
+    "./screens/library/Library.hooks": {
+      "types": "./dist/screens/library/Library.hooks.d.ts",
+      "import": "./dist/screens/library/Library.hooks.js",
+      "default": "./dist/screens/library/Library.hooks.js"
+    },
+    "./screens/library/rules": {
+      "types": "./dist/screens/library/rules.d.ts",
+      "import": "./dist/screens/library/rules.js",
+      "default": "./dist/screens/library/rules.js"
+    },
+    "./screens/library/hooks/library-port.hooks": {
+      "types": "./dist/screens/library/hooks/library-port.hooks.d.ts",
+      "import": "./dist/screens/library/hooks/library-port.hooks.js",
+      "default": "./dist/screens/library/hooks/library-port.hooks.js"
+    },
+    "./screens/media/hooks/media-port.hooks": {
+      "types": "./dist/screens/media/hooks/media-port.hooks.d.ts",
+      "import": "./dist/screens/media/hooks/media-port.hooks.js",
+      "default": "./dist/screens/media/hooks/media-port.hooks.js"
+    },
     "./themes/default/admin.css": "./src/themes/default/admin.css",
     "./themes/default/chat.css": "./src/themes/default/chat.css",
     "./themes/default/manifest.json": "./src/themes/default/manifest.json",
@@ -1058,6 +1103,51 @@
       "import": "./dist/screens/taxonomy/hooks/term-picker-dependencies.hooks.js",
       "default": "./dist/screens/taxonomy/hooks/term-picker-dependencies.hooks.js"
     },
+    "./screens/taxonomy/rules": {
+      "types": "./dist/screens/taxonomy/rules.d.ts",
+      "import": "./dist/screens/taxonomy/rules.js",
+      "default": "./dist/screens/taxonomy/rules.js"
+    },
+    "./screens/taxonomy/taxonomy-host-kit": {
+      "types": "./dist/screens/taxonomy/taxonomy-host-kit.d.ts",
+      "import": "./dist/screens/taxonomy/taxonomy-host-kit.js",
+      "default": "./dist/screens/taxonomy/taxonomy-host-kit.js"
+    },
+    "./screens/taxonomy/hooks/taxonomy-dependencies.hooks": {
+      "types": "./dist/screens/taxonomy/hooks/taxonomy-dependencies.hooks.d.ts",
+      "import": "./dist/screens/taxonomy/hooks/taxonomy-dependencies.hooks.js",
+      "default": "./dist/screens/taxonomy/hooks/taxonomy-dependencies.hooks.js"
+    },
+    "./screens/taxonomy/hooks/use-term-list-reveal.hooks": {
+      "types": "./dist/screens/taxonomy/hooks/use-term-list-reveal.hooks.d.ts",
+      "import": "./dist/screens/taxonomy/hooks/use-term-list-reveal.hooks.js",
+      "default": "./dist/screens/taxonomy/hooks/use-term-list-reveal.hooks.js"
+    },
+    "./screens/taxonomy/hooks/use-taxonomy-html-embed.hooks": {
+      "types": "./dist/screens/taxonomy/hooks/use-taxonomy-html-embed.hooks.d.ts",
+      "import": "./dist/screens/taxonomy/hooks/use-taxonomy-html-embed.hooks.js",
+      "default": "./dist/screens/taxonomy/hooks/use-taxonomy-html-embed.hooks.js"
+    },
+    "./screens/taxonomy/hooks/use-new-taxonomy-form.hooks": {
+      "types": "./dist/screens/taxonomy/hooks/use-new-taxonomy-form.hooks.d.ts",
+      "import": "./dist/screens/taxonomy/hooks/use-new-taxonomy-form.hooks.js",
+      "default": "./dist/screens/taxonomy/hooks/use-new-taxonomy-form.hooks.js"
+    },
+    "./screens/taxonomy/hooks/use-new-term-form.hooks": {
+      "types": "./dist/screens/taxonomy/hooks/use-new-term-form.hooks.d.ts",
+      "import": "./dist/screens/taxonomy/hooks/use-new-term-form.hooks.js",
+      "default": "./dist/screens/taxonomy/hooks/use-new-term-form.hooks.js"
+    },
+    "./screens/taxonomy/hooks/use-term-detail-panel.hooks": {
+      "types": "./dist/screens/taxonomy/hooks/use-term-detail-panel.hooks.d.ts",
+      "import": "./dist/screens/taxonomy/hooks/use-term-detail-panel.hooks.js",
+      "default": "./dist/screens/taxonomy/hooks/use-term-detail-panel.hooks.js"
+    },
+    "./screens/taxonomy/hooks/use-merge-term-section.hooks": {
+      "types": "./dist/screens/taxonomy/hooks/use-merge-term-section.hooks.d.ts",
+      "import": "./dist/screens/taxonomy/hooks/use-merge-term-section.hooks.js",
+      "default": "./dist/screens/taxonomy/hooks/use-merge-term-section.hooks.js"
+    },
     "./screens/comments/api/comments-api.types": {
       "types": "./dist/screens/comments/api/comments-api.types.d.ts",
       "import": "./dist/screens/comments/api/comments-api.types.js",
@@ -1153,6 +1243,27 @@
       "import": "./dist/posts/editor/toolbar/ToolbarOverflowMenu.js",
       "default": "./dist/posts/editor/toolbar/ToolbarOverflowMenu.js"
     },
+    "./posts/editor/template/PostEditorTemplatePicker": {
+      "types": "./dist/posts/editor/template/PostEditorTemplatePicker.d.ts",
+      "import": "./dist/posts/editor/template/PostEditorTemplatePicker.js",
+      "default": "./dist/posts/editor/template/PostEditorTemplatePicker.js"
+    },
+    "./posts/PostUrlDialog": {
+      "types": "./dist/posts/PostUrlDialog.d.ts",
+      "import": "./dist/posts/PostUrlDialog.js",
+      "default": "./dist/posts/PostUrlDialog.js"
+    },
+    "./posts/PostSettingsDialog": {
+      "types": "./dist/posts/PostSettingsDialog.d.ts",
+      "import": "./dist/posts/PostSettingsDialog.js",
+      "default": "./dist/posts/PostSettingsDialog.js"
+    },
+    "./posts/editor/toolbar/ToolbarCharacterCount": {
+      "types": "./dist/posts/editor/toolbar/ToolbarCharacterCount.d.ts",
+      "import": "./dist/posts/editor/toolbar/ToolbarCharacterCount.js",
+      "default": "./dist/posts/editor/toolbar/ToolbarCharacterCount.js"
+    },
+    "./posts/post-url-dialog.css": "./src/posts/post-url-dialog.css",
     "./screens/media/hooks/use-media-card-metadata.hooks": {
       "types": "./dist/screens/media/hooks/use-media-card-metadata.hooks.d.ts",
       "import": "./dist/screens/media/hooks/use-media-card-metadata.hooks.js",
@@ -1166,6 +1277,7 @@
   },
   "files": [
     "src/themes",
+    "src/posts/*.css",
     "dist",
     "README.md",
     "CHANGELOG.md",
@@ -1211,6 +1323,48 @@
   },
   "typesVersions": {
     "*": {
+      "screens/library/hooks/use-library.hooks": [
+        "./dist/screens/library/hooks/use-library.hooks.d.ts"
+      ],
+      "screens/library/Library.hooks": [
+        "./dist/screens/library/Library.hooks.d.ts"
+      ],
+      "screens/taxonomy/rules": [
+        "./dist/screens/taxonomy/rules.d.ts"
+      ],
+      "screens/taxonomy/taxonomy-host-kit": [
+        "./dist/screens/taxonomy/taxonomy-host-kit.d.ts"
+      ],
+      "screens/taxonomy/hooks/taxonomy-dependencies.hooks": [
+        "./dist/screens/taxonomy/hooks/taxonomy-dependencies.hooks.d.ts"
+      ],
+      "screens/taxonomy/hooks/use-term-list-reveal.hooks": [
+        "./dist/screens/taxonomy/hooks/use-term-list-reveal.hooks.d.ts"
+      ],
+      "screens/taxonomy/hooks/use-taxonomy-html-embed.hooks": [
+        "./dist/screens/taxonomy/hooks/use-taxonomy-html-embed.hooks.d.ts"
+      ],
+      "screens/taxonomy/hooks/use-new-taxonomy-form.hooks": [
+        "./dist/screens/taxonomy/hooks/use-new-taxonomy-form.hooks.d.ts"
+      ],
+      "screens/taxonomy/hooks/use-new-term-form.hooks": [
+        "./dist/screens/taxonomy/hooks/use-new-term-form.hooks.d.ts"
+      ],
+      "screens/taxonomy/hooks/use-term-detail-panel.hooks": [
+        "./dist/screens/taxonomy/hooks/use-term-detail-panel.hooks.d.ts"
+      ],
+      "screens/taxonomy/hooks/use-merge-term-section.hooks": [
+        "./dist/screens/taxonomy/hooks/use-merge-term-section.hooks.d.ts"
+      ],
+      "screens/library/rules": [
+        "./dist/screens/library/rules.d.ts"
+      ],
+      "screens/library/hooks/library-port.hooks": [
+        "./dist/screens/library/hooks/library-port.hooks.d.ts"
+      ],
+      "screens/media/hooks/media-port.hooks": [
+        "./dist/screens/media/hooks/media-port.hooks.d.ts"
+      ],
       "core/react": [
         "./dist/core/react/index.d.ts"
       ],
@@ -1246,6 +1400,18 @@
       ],
       "posts/editor/toolbar/ToolbarOverflowMenu": [
         "./dist/posts/editor/toolbar/ToolbarOverflowMenu.d.ts"
+      ],
+      "posts/editor/template/PostEditorTemplatePicker": [
+        "./dist/posts/editor/template/PostEditorTemplatePicker.d.ts"
+      ],
+      "posts/PostUrlDialog": [
+        "./dist/posts/PostUrlDialog.d.ts"
+      ],
+      "posts/PostSettingsDialog": [
+        "./dist/posts/PostSettingsDialog.d.ts"
+      ],
+      "posts/editor/toolbar/ToolbarCharacterCount": [
+        "./dist/posts/editor/toolbar/ToolbarCharacterCount.d.ts"
       ],
       "screens/media/hooks/use-media-card-metadata.hooks": [
         "./dist/screens/media/hooks/use-media-card-metadata.hooks.d.ts"
