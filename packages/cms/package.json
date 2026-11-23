@@ -166,7 +166,6 @@
       "./admin-http/routes/change-sets/get": "universal",
       "./admin-http/routes/change-sets/list": "universal",
       "./admin-http/routes/change-sets/revert": "universal",
-      "./admin-http/routes/change-sets/shared": "universal",
       "./admin-http/routes/presentation/get": "universal",
       "./admin-http/routes/themes/list": "universal",
       "./admin-http/routes/presentation/rescan-themes": "universal",
@@ -177,7 +176,14 @@
       "./admin-http/routes/email-templates/get": "universal",
       "./admin-http/routes/email-templates/edit-html": "universal",
       "./admin-http/routes/email-templates/rename": "universal",
-      "./admin-http/routes/email-templates/render": "universal"
+      "./admin-http/routes/email-templates/render": "universal",
+      "./admin-http/routes/themes/explore-shared": "universal",
+      "./admin-http/routes/themes/explore-page-publish": "universal",
+      "./admin-http/routes/themes/explore-save-original": "universal",
+      "./admin-http/routes/themes/explore-file-delete": "universal",
+      "./admin-http/routes/themes/explore-file-get": "universal",
+      "./admin-http/routes/themes/explore-detail": "universal",
+      "./admin-http/routes/themes/explore-file-put": "universal"
     },
     "isolation": {
       "domains": {
@@ -283,7 +289,6 @@
         "./admin-http/routes/change-sets/get": "core",
         "./admin-http/routes/change-sets/list": "core",
         "./admin-http/routes/change-sets/revert": "core",
-        "./admin-http/routes/change-sets/shared": "core",
         "./admin-http/routes/presentation/get": "presentation",
         "./admin-http/routes/themes/list": "presentation",
         "./admin-http/routes/pages/get-by-id": "widgets"
@@ -1067,11 +1072,6 @@
       "import": "./dist/admin-http/routes/change-sets/revert.js",
       "default": "./dist/admin-http/routes/change-sets/revert.js"
     },
-    "./admin-http/routes/change-sets/shared": {
-      "types": "./dist/admin-http/routes/change-sets/shared.d.ts",
-      "import": "./dist/admin-http/routes/change-sets/shared.js",
-      "default": "./dist/admin-http/routes/change-sets/shared.js"
-    },
     "./admin-http/routes/presentation/get": {
       "types": "./dist/admin-http/routes/presentation/get.d.ts",
       "import": "./dist/admin-http/routes/presentation/get.js",
@@ -1126,6 +1126,41 @@
       "types": "./dist/admin-http/routes/email-templates/render.d.ts",
       "import": "./dist/admin-http/routes/email-templates/render.js",
       "default": "./dist/admin-http/routes/email-templates/render.js"
+    },
+    "./admin-http/routes/themes/explore-shared": {
+      "types": "./dist/admin-http/routes/themes/explore-shared.d.ts",
+      "import": "./dist/admin-http/routes/themes/explore-shared.js",
+      "default": "./dist/admin-http/routes/themes/explore-shared.js"
+    },
+    "./admin-http/routes/themes/explore-page-publish": {
+      "types": "./dist/admin-http/routes/themes/explore-page-publish.d.ts",
+      "import": "./dist/admin-http/routes/themes/explore-page-publish.js",
+      "default": "./dist/admin-http/routes/themes/explore-page-publish.js"
+    },
+    "./admin-http/routes/themes/explore-save-original": {
+      "types": "./dist/admin-http/routes/themes/explore-save-original.d.ts",
+      "import": "./dist/admin-http/routes/themes/explore-save-original.js",
+      "default": "./dist/admin-http/routes/themes/explore-save-original.js"
+    },
+    "./admin-http/routes/themes/explore-file-delete": {
+      "types": "./dist/admin-http/routes/themes/explore-file-delete.d.ts",
+      "import": "./dist/admin-http/routes/themes/explore-file-delete.js",
+      "default": "./dist/admin-http/routes/themes/explore-file-delete.js"
+    },
+    "./admin-http/routes/themes/explore-file-get": {
+      "types": "./dist/admin-http/routes/themes/explore-file-get.d.ts",
+      "import": "./dist/admin-http/routes/themes/explore-file-get.js",
+      "default": "./dist/admin-http/routes/themes/explore-file-get.js"
+    },
+    "./admin-http/routes/themes/explore-detail": {
+      "types": "./dist/admin-http/routes/themes/explore-detail.d.ts",
+      "import": "./dist/admin-http/routes/themes/explore-detail.js",
+      "default": "./dist/admin-http/routes/themes/explore-detail.js"
+    },
+    "./admin-http/routes/themes/explore-file-put": {
+      "types": "./dist/admin-http/routes/themes/explore-file-put.d.ts",
+      "import": "./dist/admin-http/routes/themes/explore-file-put.js",
+      "default": "./dist/admin-http/routes/themes/explore-file-put.js"
     }
   },
   "files": [
