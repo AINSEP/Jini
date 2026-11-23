@@ -19,6 +19,10 @@ export interface Tier2PluginRef {
   /** Absolute file path or `file:` URL of the code the worker imports (a site plugin's integrity-
    * checked module snapshot, a built-in's own file). */
   readonly entryPath: string;
+  /** Canonical package root from the host's registration, mapped onto the worker entry (a site
+   * snapshot's root, or a built-in's declared sourceDir). Required for the worker to apply an import
+   * policy; without it a policy-carrying worker refuses the import. Absent from older hosts. */
+  readonly packageRoot?: string;
   readonly capabilities: readonly PluginCapability[];
   readonly hooks: readonly string[];
 }
