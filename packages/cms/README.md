@@ -192,6 +192,15 @@ single-asset DTO lookups (recorded content type, public URL, byte size), its tra
 credential store with its save-error table (`saveErrorMappings`). Delete's 409 carries the
 `referencing` list. `update` imports the node-only media service, so its entry is `node`.
 
+Assistant (`src/admin-http/routes/assistant/*`): settings, visitor tools and the site/execution
+credentials share `shared.ts`; the execution probes (detect-agents, list-models, test-agent,
+test-connection) share `execution-shared.ts`. The host injects its permission name
+(`managePermission`/`manageAssistantPermission`), the settings ledger, the sealed credential stores,
+the visitor-tools service, each route's ordered error table (`errorMappings`, host classes and copy)
+and every probe that touches the agent runtime, a subprocess or the network (`detectAgents`,
+`testAgent`, `listModels`, `testConnection`, `resolveProbeCredential`). Body checks run in `handle`
+after authorization, keeping the routes' 403-before-400 order. No spec echoes a credential.
+
 ## Scripts
 
 ```bash

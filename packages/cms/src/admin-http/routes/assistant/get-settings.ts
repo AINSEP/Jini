@@ -39,6 +39,6 @@ export const assistantGetSettingsRoute = defineJsonRoute<Record<string, never>, 
     await deps.assistantSettingsReady;
     await authorizeAssistant({ authorize, permission: deps.managePermission });
     const settings = await deps.readAssistantSettings({ workspaceId: deps.workspaceId });
-    return ok({ value: { data: settings, adminAssistantEnabled: true } });
+    return ok({ value: { data: settings, adminAssistantEnabled: deps.adminAssistantEnabled } });
   },
 });

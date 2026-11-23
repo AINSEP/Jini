@@ -44,7 +44,8 @@ describe("assistantGetSettingsRoute", () => {
     await Promise.resolve();
     expect(calls).toEqual([]);
     open();
-    await pending;
+    // The default fixture's flag is `false`: the answer carries the injected value, not a constant.
+    expect(await pending).toEqual({ ok: true, value: { data: SETTINGS, adminAssistantEnabled: false } });
     expect(calls).toHaveLength(1);
   });
 
