@@ -1627,6 +1627,16 @@
    "subscribeToAdminPageSurfaces": "function:8c184f518a"
   }
  },
+ "./shell/lib/admin-http/request": {
+  "types": "./dist/shell/lib/admin-http/request.d.ts",
+  "symbols": {
+   "AdminHttp": "interface:60416f5d4c",
+   "CreateAdminHttpArgs": "interface:e5ca6abe99",
+   "CreateAdminHttpPorts": "interface:ce2bc1a308",
+   "buildFetchInit": "function:50e6cf5246",
+   "createAdminHttp": "function:3feca4d9a2"
+  }
+ },
  "./shell/lib/admin-nav-i18n": {
   "types": "./dist/shell/lib/admin-nav-i18n.d.ts",
   "symbols": {

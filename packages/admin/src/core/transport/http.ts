@@ -87,22 +87,65 @@ function requestTimeoutError(
   const message = `the API did not respond within ${timeoutMs / 1000}s — the browser may be out of free connections for this origin (try closing other admin tabs) or the server is unresponsive`;
   return new AdminApiError({ message, status: 0 }, {
     // Reached only for a cause named TimeoutError (any realm), so the name is the whole label.
-    code: 'REQUEST_TIMEOUT', body: { cause: 'TimeoutError' },
+    code: REQUEST_TIMEOUT_CODE, body: { cause: 'TimeoutError' },
   });
 }
 
-function throwTranslatedFetchFailure(
-  { cause, timeoutMs }: { readonly cause: unknown; readonly timeoutMs: number },
+/**
+ * Classifies a `fetch` rejection and throws the matching error. Shared by `createHttpTransport`
+ * and `createAdminHttp` (`shell/lib/admin-http/request.ts`); each supplies its own error values, the
+ * classification rules live only here. Always throws.
+ */
+export function throwTranslatedFetchFailure(
+  { cause, timeoutError, unreachableError }: {
+    readonly cause: unknown;
+    readonly timeoutError: (required: { readonly cause: unknown }, optional?: Record<string, never>) => Error;
+    readonly unreachableError: (required: { readonly cause: TypeError }, optional?: Record<string, never>) => Error;
+  },
   { isPageUnloading }: Pick<HttpTransportOptions, 'isPageUnloading'> = {},
 ): never {
   const name = errorName(cause);
   if (name === 'AbortError') throw cause;
-  if (name === 'TimeoutError') throw requestTimeoutError({ timeoutMs });
+  if (name === 'TimeoutError') throw timeoutError({ cause });
   // Only fetch's TypeError proves a network failure. Adapter bugs retain their original type.
   if (!(cause instanceof TypeError)) throw cause;
+  // A navigation cancels in-flight fetches with this same TypeError after `pagehide`: cancellation, not downtime.
   if (isPageUnloading?.()) throw new DOMException('request cancelled: the page is unloading', 'AbortError');
-  throw new AdminApiError({ message: unreachableApiMessage(), status: 0 }, {
-    code: 'API_UNREACHABLE', body: { cause: describeErrorForLog({ err: cause }) },
+  throw unreachableError({ cause });
+}
+
+/** Valid JSON proves the application answered; only an unparseable 5xx lacks the app's envelope. */
+export function lacksAppEnvelope(
+  { status, wasUnparseable }: { readonly status: number; readonly wasUnparseable: boolean },
+  _optional: Record<string, never> = {},
+): boolean {
+  return wasUnparseable && status >= 500;
+}
+
+/**
+ * Parses a response body as JSON. An unparseable body becomes `{}` with `wasUnparseable` set, so it
+ * stays distinct from a valid JSON `null` or `{}`; `requireJson` rethrows the parse error instead.
+ */
+export async function parseJsonBody(
+  { response }: { readonly response: Response },
+  { requireJson = false }: { readonly requireJson?: boolean | undefined } = {},
+): Promise<{ body: Record<string, unknown>; wasUnparseable: boolean }> {
+  const parsed: unknown = await response.json().catch((error: unknown) => {
+    if (requireJson) throw error;
+    return UNPARSEABLE_BODY;
+  });
+  const wasUnparseable = parsed === UNPARSEABLE_BODY;
+  return { body: (wasUnparseable ? {} : parsed) as Record<string, unknown>, wasUnparseable };
+}
+
+/** Client-synthesized codes: no server sent them. `createAdminHttp` synthesizes the same two. */
+export const API_UNREACHABLE_CODE = 'API_UNREACHABLE';
+export const REQUEST_TIMEOUT_CODE = 'REQUEST_TIMEOUT';
+
+/** The transport's own unreachable error: neutral copy, the cause kept for logs. */
+function unreachableTransportError({ cause }: { readonly cause: TypeError }, _optional: Record<string, never> = {}): AdminApiError {
+  return new AdminApiError({ message: unreachableApiMessage(), status: 0 }, {
+    code: API_UNREACHABLE_CODE, body: { cause: describeErrorForLog({ err: cause }) },
   });
 }
 
@@ -122,14 +165,13 @@ function responseError(
   { res, body, wasUnparseable }: { readonly res: Response; readonly body: Record<string, unknown>; readonly wasUnparseable: boolean },
   _optional: Record<string, never> = {},
 ): AdminApiError {
-  // Valid JSON proves the application answered. Only unparseable 5xx responses indicate
-  // an unreachable upstream or a server crash outside the application's JSON envelope.
-  const noAppEnvelope = wasUnparseable && res.status >= 500;
+  // Only an unparseable 5xx indicates an unreachable upstream or a crash outside the JSON envelope.
+  const noAppEnvelope = lacksAppEnvelope({ status: res.status, wasUnparseable });
   const fallback = noAppEnvelope ? unreachableApiMessage({ status: res.status }) : `request failed (${res.status})`;
   const serverCode = typeof body?.code === 'string' ? body.code : undefined;
   return new AdminApiError(
     { message: String(body?.error ?? fallback), status: res.status },
-    { code: noAppEnvelope ? 'API_UNREACHABLE' : serverCode, body },
+    { code: noAppEnvelope ? API_UNREACHABLE_CODE : serverCode, body },
   );
 }
 
@@ -157,13 +199,15 @@ export function createHttpTransport(
         // own. The reference implementation's original spread `...init` last, which meant a call passing `headers` lost
         // the `Content-Type` default rather than merging with it.
         headers: mergeHeaders([baseHeaders, init.headers]),
-      }).catch((cause: unknown) => throwTranslatedFetchFailure({ cause, timeoutMs }, unloading));
+      }).catch((cause: unknown) => throwTranslatedFetchFailure({
+        cause,
+        timeoutError: () => requestTimeoutError({ timeoutMs }),
+        unreachableError: unreachableTransportError,
+      }, unloading));
 
       // A 204 or an empty body is not a JSON parse failure worth surfacing — it is a successful
       // mutation with nothing to return. Same `.catch(() => ({}))` as the original.
-      const parsed = await res.json().catch(() => UNPARSEABLE_BODY);
-      const wasUnparseable = parsed === UNPARSEABLE_BODY;
-      const body = (wasUnparseable ? {} : parsed) as Record<string, unknown>;
+      const { body, wasUnparseable } = await parseJsonBody({ response: res });
 
       if (!res.ok) throw responseError({ res, body, wasUnparseable });
       onOk?.({ response: res });

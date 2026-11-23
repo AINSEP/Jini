@@ -102,6 +102,7 @@
       "./shell/lib/fetch-query/adapter-context": "browser",
       "./shell/lib/merge-locale-overlays": "browser",
       "./shell/lib/page-lifecycle": "browser",
+      "./shell/lib/admin-http/request": "browser",
       "./shell/lib/plain-text-blocks": "browser",
       "./shell/lib/playground-render-target-bus": "browser",
       "./shell/lib/queued-daemon-start": "browser",
@@ -667,6 +668,11 @@
       "types": "./dist/shell/lib/page-lifecycle.d.ts",
       "import": "./dist/shell/lib/page-lifecycle.js",
       "default": "./dist/shell/lib/page-lifecycle.js"
+    },
+    "./shell/lib/admin-http/request": {
+      "types": "./dist/shell/lib/admin-http/request.d.ts",
+      "import": "./dist/shell/lib/admin-http/request.js",
+      "default": "./dist/shell/lib/admin-http/request.js"
     },
     "./shell/lib/plain-text-blocks": {
       "types": "./dist/shell/lib/plain-text-blocks.d.ts",

@@ -337,6 +337,9 @@
   "symbols": {
    "AdminApiError": "class:a7ab399c2c",
    "AdminConfigError": "class:937619e96c",
+   "AdminHttpError": "interface:397bbc90fc",
+   "AdminHttpOptions": "interface:88a0a6b2b7",
+   "AdminHttpReconnect": "interface:419eba81c6",
    "AdminNavGroupShape": "interface:724192fad7",
    "AdminPanelAccessDeclaration": "interface:0d2e1c4fb5",
    "AdminPanelAccessEntry": "type:985f8dc57e",
