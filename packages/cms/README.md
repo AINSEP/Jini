@@ -195,7 +195,8 @@ Saved credentials (`src/admin-http/routes/system/{source-control-credentials,cus
 store as functions and its error classes as `storeErrors`; the spec owns the status/code ladder
 (`ToolInputError` → 409 `KEY_IN_USE` first, unmapped rethrown for the host 500). It also injects the
 project-key attach, `prepareInvalidation`, the after-save probe, the account-label heal trigger and, for
-custom keys, `credentialKindOf(principal)`, `ownerPrincipalId()` and the Shared Keys copy.
+custom keys, `credentialKindOf(principal)`, `ownerPrincipalId()` and the Shared Keys copy. The publish list
+and custom list/update specs are tested but not yet mounted by Tovu (see its INFO.md).
 
 Settings (`src/admin-http/routes/settings/{get-raw,get-effective,list-definitions,set,clear,reset,register-definitions}.ts`,
 `shared.ts`, `protected-namespaces.ts`): each body runs through `runSettingsRoute` in the order readiness
