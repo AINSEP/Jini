@@ -11,7 +11,7 @@ class OperationError extends Error { constructor(readonly code: string, message:
 class StoreError extends Error { constructor(readonly code: string) { super(`secret-${code}`); } }
 
 /** The host classifier these fakes stand in for: its own error classes, as the spec's failures. */
-function classify(error: unknown): MailProviderFailure | undefined {
+function classify({ error }: { error: unknown }): MailProviderFailure | undefined {
   if (error instanceof OperationError) return { kind: "operation", code: error.code as never, message: error.message };
   if (error instanceof StoreError) return { kind: "store", code: error.code as never };
   return undefined;
@@ -99,9 +99,9 @@ describe("mail-provider route specs", () => {
   });
 
   it("maps a failure to the same answer for the host's hand-written credential save", () => {
-    expect(mailProviderRefusal({ kind: "operation", code: "MAIL_PROVIDER_INPUT", message: "token must be a string." }))
+    expect(mailProviderRefusal({ failure: { kind: "operation", code: "MAIL_PROVIDER_INPUT", message: "token must be a string." } }))
       .toEqual({ status: 400, body: { error: "token must be a string.", code: "MAIL_PROVIDER_INPUT" } });
-    expect(mailProviderRefusal({ kind: "store", code: "DUPLICATE_LABEL" })).toEqual({ status: 409, body: { error: "DUPLICATE_LABEL", code: "DUPLICATE_LABEL" } });
+    expect(mailProviderRefusal({ failure: { kind: "store", code: "DUPLICATE_LABEL" } })).toEqual({ status: 409, body: { error: "DUPLICATE_LABEL", code: "DUPLICATE_LABEL" } });
   });
 
   it("fails closed without an authorizer or an authenticated principal", async () => {

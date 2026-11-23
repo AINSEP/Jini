@@ -1,4 +1,5 @@
 import { defineJsonRoute, ok, type JsonRouteAuthorize } from "@jini-ai/core/contracts/server";
+import type { AdminMailProviderRefusalDto } from "@jini-ai/core/contracts/site/cms-mail";
 import { rejectRoute } from "@jini-ai/core/errors/route-refusal";
 
 import { authorizeMail, mailActorId, type MailRoutePrincipal } from "./mail-shared.js";
@@ -42,7 +43,7 @@ const STORE_STATUS: Readonly<Record<MailProviderStoreErrorCode, number>> = {
 };
 
 /** The status and flat body a recognised failure answers; a store refusal never echoes the error's text. @complexity O(1). */
-export function mailProviderRefusal(failure: MailProviderFailure, _optional: Record<string, never> = {}): { status: number; body: { error: string; code: string } } {
+export function mailProviderRefusal({ failure }: { failure: MailProviderFailure }, _optional: Record<string, never> = {}): { status: number; body: AdminMailProviderRefusalDto } {
   if (failure.kind === "operation") return { status: OPERATION_STATUS[failure.code], body: { error: failure.message, code: failure.code } };
   return { status: STORE_STATUS[failure.code], body: { error: failure.code, code: failure.code } };
 }
@@ -51,7 +52,7 @@ export function mailProviderRefusal(failure: MailProviderFailure, _optional: Rec
 export interface MailProviderFailureDeps {
   workspaceId: string;
   /** Maps a thrown host error to its failure; `undefined` leaves it an unexpected failure (the host's redacted 500). */
-  classifyMailProviderError: (error: unknown) => MailProviderFailure | undefined;
+  classifyMailProviderError: (required: { error: unknown }) => MailProviderFailure | undefined;
 }
 
 /** `GET …/mail-providers`: the host's configuration DTO, answered unchanged. */
@@ -80,15 +81,15 @@ async function answer<T>(
   try {
     return ok({ value: await run() });
   } catch (error) {
-    const failure = deps.classifyMailProviderError(error);
+    const failure = deps.classifyMailProviderError({ error });
     if (!failure) throw error;
-    const { status, body } = mailProviderRefusal(failure);
+    const { status, body } = mailProviderRefusal({ failure });
     return rejectRoute({ status, ...body });
   }
 }
 
 /** The provider id as the hand-written route read it: `String(...)`, with no fallback. @complexity O(1). */
-const providerIdParam = (params: Record<string, unknown>) => ({ providerId: String(params.providerId) });
+const providerIdParam = ({ params }: { params: Record<string, unknown> }, _optional: Record<string, never> = {}) => ({ providerId: String(params.providerId) });
 
 export const mailProvidersListRoute = defineJsonRoute<Record<string, never>, object, MailProvidersListRouteDeps, MailRoutePrincipal>({
   method: "get",
@@ -100,7 +101,7 @@ export const mailProvidersListRoute = defineJsonRoute<Record<string, never>, obj
 export const mailProviderCredentialPlanRoute = defineJsonRoute<{ providerId: string }, object, MailProviderCredentialPlanRouteDeps, MailRoutePrincipal>({
   method: "get",
   path: `${BASE_PATH}/:providerId/credential`,
-  parse: (raw) => ok({ value: providerIdParam(raw.params) }),
+  parse: (raw) => ok({ value: providerIdParam({ params: raw.params }) }),
   handle: ({ input, deps, authorize }) => answer({ authorize, permission: "custom-credentials.write", deps,
     run: () => deps.planMailProviderCredential({ providerId: input.providerId }) }),
 });
@@ -108,7 +109,7 @@ export const mailProviderCredentialPlanRoute = defineJsonRoute<{ providerId: str
 export const mailProviderActivateRoute = defineJsonRoute<{ providerId: string }, object, MailProviderActivateRouteDeps, MailRoutePrincipal>({
   method: "post",
   path: `${BASE_PATH}/:providerId/activate`,
-  parse: (raw) => ok({ value: providerIdParam(raw.params) }),
+  parse: (raw) => ok({ value: providerIdParam({ params: raw.params }) }),
   handle: ({ input, deps, authorize, context }) => answer({ authorize, permission: "settings.workspace.write", deps,
     run: () => deps.activateMailProvider({ providerId: input.providerId, principalId: mailActorId({ context }) }) }),
 });

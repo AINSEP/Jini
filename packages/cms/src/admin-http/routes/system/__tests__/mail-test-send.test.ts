@@ -1,10 +1,11 @@
 import { ToolInputError } from "@jini-ai/core";
 import { RouteRefusalError } from "@jini-ai/core/errors/route-refusal";
 import { describe, expect, it } from "vitest";
-import { mailTestSendRoute, type MailTestSendOutcome, type MailTestSendRouteDeps } from "../mail-test-send.js";
+import type { AdminMailTestSendOutcomeDto } from "@jini-ai/core/contracts/site/cms-mail";
+import { mailTestSendRoute, type MailTestSendRouteDeps } from "../mail-test-send.js";
 import { PRINCIPAL, raw, recordingAuthorize, refusalOf, signal } from "./mail-test-helpers.js";
 
-const ACCEPTED: MailTestSendOutcome = { outcome: "accepted" };
+const ACCEPTED: AdminMailTestSendOutcomeDto = { outcome: "accepted" };
 const BODY_ERROR = "the request body must be a JSON object. Nothing was sent.";
 
 type Sent = { principalId: string; to?: string; ref: string };
@@ -53,7 +54,7 @@ describe("mailTestSendRoute", () => {
   });
 
   it("answers sent:true for accepted and redirected, sent:false for the rest, always 200", async () => {
-    const answer = async (outcome: MailTestSendOutcome) => (await call(makeDeps({ sendTestMail: async () => outcome }))) as { ok: true; value: { sent: boolean; result: unknown } };
+    const answer = async (outcome: AdminMailTestSendOutcomeDto) => (await call(makeDeps({ sendTestMail: async () => outcome }))) as { ok: true; value: { sent: boolean; result: unknown } };
     expect((await answer({ outcome: "accepted" })).value).toEqual({ sent: true, result: { outcome: "accepted" } });
     expect((await answer({ outcome: "redirected" })).value.sent).toBe(true);
     expect((await answer({ outcome: "captured" })).value.sent).toBe(false);

@@ -1,5 +1,6 @@
 import { ToolInputError } from "@jini-ai/core";
 import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
+import type { AdminMailSuppressionRemovalPreviewDto } from "@jini-ai/core/contracts/site/cms-mail";
 import { rejectRoute } from "@jini-ai/core/errors/route-refusal";
 
 import { mailActorId, type MailRoutePrincipal } from "./mail-shared.js";
@@ -34,7 +35,7 @@ export type MailActivityFailure = { kind: "forbidden"; permission: string } | { 
 /** The one classifier every route here needs: the host's own error classes are not the engine's to know. */
 export interface MailActivityFailureDeps {
   /** Maps a thrown host error to its answer; `undefined` leaves it an unexpected failure (the host's redacted 500). */
-  classifyMailActivityError: (error: unknown) => MailActivityFailure | undefined;
+  classifyMailActivityError: (required: { error: unknown }) => MailActivityFailure | undefined;
 }
 
 /** The Email page's status permission check, shared by the two routes that gate on it directly. */
@@ -90,7 +91,7 @@ async function withActivityFailures<T>(
     return await run();
   } catch (error) {
     if (error instanceof ToolInputError) rejectRoute({ status: 400, error: error.message, code: "INVALID_INPUT" });
-    const failure = classify(error);
+    const failure = classify({ error });
     if (failure?.kind === "forbidden") rejectForbidden({ permission: failure.permission, reason: "no_grant" });
     if (failure?.kind === "unavailable") rejectRoute({ status: 503, error: failure.message, code: "MAIL_ACTIVITY_UNAVAILABLE" });
     throw error;
@@ -160,7 +161,10 @@ export const mailSuppressionRemoveRoute = defineJsonRoute<{ body: Record<string,
   parse: (raw) => ok({ value: { body: bodyRecord({ body: raw.body }) } }),
   handle: ({ input, deps, context }) => withActivityFailures({ classify: deps.classifyMailActivityError, run: async () => {
     const { plan, revision, remove } = await deps.planSuppressionRemoval({ principalId: mailActorId({ context }), input: input.body });
-    if (input.body.confirmed !== true) return ok({ value: { removed: false, confirmationRequired: true, plan } });
+    if (input.body.confirmed !== true) {
+      const preview: AdminMailSuppressionRemovalPreviewDto = { removed: false, confirmationRequired: true, plan };
+      return ok({ value: preview });
+    }
     if (input.body.revision !== revision) throw new ToolInputError({ message: "Suppression changed or no reviewed revision was supplied. Review and confirm the current suppression." });
     return ok({ value: await remove() });
   } }),

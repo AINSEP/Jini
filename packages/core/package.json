@@ -120,7 +120,11 @@
       "./contracts/site/widgets-html": "universal",
       "./contracts/site/cms-menus": "universal",
       "./contracts/site/integrations-api-connections": "universal",
-      "./contracts/site/chat-core": "universal"
+      "./contracts/site/chat-core": "universal",
+      "./contracts/site/cms-mail": "universal",
+      "./contracts/site/cms-system-deploy": "universal",
+      "./contracts/site/cms-settings": "universal",
+      "./contracts/site/cms-sites": "universal"
     },
     "isolation": {
       "entries": {
@@ -712,6 +716,26 @@
       "types": "./dist/contracts/site/chat-core.d.ts",
       "import": "./dist/contracts/site/chat-core.js",
       "default": "./dist/contracts/site/chat-core.js"
+    },
+    "./contracts/site/cms-mail": {
+      "types": "./dist/contracts/site/cms-mail.d.ts",
+      "import": "./dist/contracts/site/cms-mail.js",
+      "default": "./dist/contracts/site/cms-mail.js"
+    },
+    "./contracts/site/cms-system-deploy": {
+      "types": "./dist/contracts/site/cms-system-deploy.d.ts",
+      "import": "./dist/contracts/site/cms-system-deploy.js",
+      "default": "./dist/contracts/site/cms-system-deploy.js"
+    },
+    "./contracts/site/cms-settings": {
+      "types": "./dist/contracts/site/cms-settings.d.ts",
+      "import": "./dist/contracts/site/cms-settings.js",
+      "default": "./dist/contracts/site/cms-settings.js"
+    },
+    "./contracts/site/cms-sites": {
+      "types": "./dist/contracts/site/cms-sites.d.ts",
+      "import": "./dist/contracts/site/cms-sites.js",
+      "default": "./dist/contracts/site/cms-sites.js"
     }
   },
   "files": [

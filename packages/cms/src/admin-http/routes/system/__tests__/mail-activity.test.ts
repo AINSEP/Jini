@@ -135,7 +135,7 @@ describe("mail activity route specs", () => {
     ])("answers the host's %s classification", async (_kind, failure, expected) => {
       const fault = new Error("domain fault");
       const boom = async () => { throw fault; };
-      const deps = makeDeps({ classifyMailActivityError: (error) => (error === fault ? failure : undefined), readMailUseReadiness: boom, listMailActivity: boom, getMailActivity: boom, listMailSuppressions: boom, planSuppressionRemoval: boom, readMailFeedbackSetup: boom });
+      const deps = makeDeps({ classifyMailActivityError: ({ error }) => (error === fault ? failure : undefined), readMailUseReadiness: boom, listMailActivity: boom, getMailActivity: boom, listMailSuppressions: boom, planSuppressionRemoval: boom, readMailFeedbackSetup: boom });
       expect(await refusalOf(() => run(entry, deps))).toEqual(expected);
     });
 

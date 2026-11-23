@@ -1,5 +1,6 @@
 import { ToolInputError } from "@jini-ai/core";
 import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
+import type { AdminMailTestSendDto, AdminMailTestSendOutcomeDto } from "@jini-ai/core/contracts/site/cms-mail";
 import { RouteRefusalError, rejectRoute } from "@jini-ai/core/errors/route-refusal";
 
 import { authorizeMail, mailActorId, type MailRoutePrincipal } from "./mail-shared.js";
@@ -18,9 +19,6 @@ import { authorizeMail, mailActorId, type MailRoutePrincipal } from "./mail-shar
  * 429 for the local duplicate/rate guard, 400 for bad input, 403 without `admin.forms.manage`.
  */
 
-/** What the route reads of a send's truthful outcome; the whole object is answered unchanged. */
-export interface MailTestSendOutcome { outcome: string; errorCode?: string }
-
 /** The deps this route reads. The host owns recipient rules, the limiter and the delivery policy. */
 export interface MailTestSendRouteDeps {
   /** Validates a chosen recipient: `undefined` when none was chosen, the address when valid, a `ToolInputError` when not. */
@@ -28,14 +26,11 @@ export interface MailTestSendRouteDeps {
   /** A fresh idempotency key for a click that sent none. */
   newRequestId: () => string;
   /** Plans, then runs one test send for the principal; `ref` is the ledger's idempotency reference. */
-  sendTestMail: (required: { principalId: string; to?: string; ref: string }) => Promise<MailTestSendOutcome>;
+  sendTestMail: (required: { principalId: string; to?: string; ref: string }) => Promise<AdminMailTestSendOutcomeDto>;
 }
 
 /** The raw body fields, validated later because the recipient rules are injected. */
 export interface MailTestSendInput { to: unknown; requestId: unknown }
-
-/** The 200/429 body: whether the message left, and the send's own outcome. */
-export interface MailTestSendEnvelope { sent: boolean; result: MailTestSendOutcome }
 
 const REQUEST_ID = /^[A-Za-z0-9_-]{8,64}$/;
 /** The mailer's local duplicate/rate guards: nothing was attempted, so the client may retry later (429). */
@@ -67,11 +62,13 @@ async function refuseBadInput<T>({ run }: { run: () => Promise<T> }, _optional: 
 
 /**
  * POST one test email, gated by `admin.forms.manage`. The body is checked before authorizing, as a
- * malformed request is a 400 for everyone. The spec has one success status, so the local
+ * malformed request is a 400 for everyone, even without a session (the host defers its
+ * missing-principal refusal to `authorize` on this mount). So `authorize` runs before the send, the
+ * route's only side effect: a refused or unauthenticated click sends nothing. The spec has one success status, so the local
  * duplicate/rate refusal leaves as a 429 refusal carrying the same `{ sent, result }` body.
  * @complexity One authorization and one injected send.
  */
-export const mailTestSendRoute = defineJsonRoute<MailTestSendInput, MailTestSendEnvelope, MailTestSendRouteDeps, MailRoutePrincipal>({
+export const mailTestSendRoute = defineJsonRoute<MailTestSendInput, AdminMailTestSendDto, MailTestSendRouteDeps, MailRoutePrincipal>({
   method: "post",
   path: "/api/admin/v1/workspaces/:workspaceId/system/mail-test-send",
   parse: (raw) => {
@@ -86,7 +83,7 @@ export const mailTestSendRoute = defineJsonRoute<MailTestSendInput, MailTestSend
       const principalId = mailActorId({ context });
       return deps.sendTestMail({ principalId, ...(to === undefined ? {} : { to }), ref: `admin:${principalId}:${requestId}` });
     } });
-    const body = { sent: result.outcome === "accepted" || result.outcome === "redirected", result };
+    const body: AdminMailTestSendDto = { sent: result.outcome === "accepted" || result.outcome === "redirected", result };
     const refusedLocally = result.outcome === "failed" && result.errorCode !== undefined && LOCAL_REFUSALS.has(result.errorCode);
     if (refusedLocally) throw new RouteRefusalError({ status: 429, body });
     return ok({ value: body });

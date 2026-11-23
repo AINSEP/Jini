@@ -1,4 +1,5 @@
 import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
+import type { AdminMailStatusBlockDto, AdminMailStatusDto } from "@jini-ai/core/contracts/site/cms-mail";
 
 import { authorizeMail, type MailRoutePrincipal } from "./mail-shared.js";
 
@@ -18,11 +19,8 @@ import { authorizeMail, type MailRoutePrincipal } from "./mail-shared.js";
  * `?refresh=1` rebuilds it. Provider actions live beside this route in `./mail-providers.ts`.
  */
 
-/** The provider-aware status block the host builds; spread into the body unchanged. */
-export type MailStatusBlock = Record<string, unknown>;
-
 /** The host's cached status source; `refresh` rebuilds it instead of reusing the cache. */
-export type MailStatusFn = (optional: { refresh: boolean }) => Promise<MailStatusBlock>;
+export type MailStatusFn = (optional: { refresh: boolean }) => Promise<AdminMailStatusBlockDto>;
 
 /** The deps this route reads. */
 export interface MailStatusRouteDeps {
@@ -37,14 +35,11 @@ export interface MailStatusRouteDeps {
   mailStatus: MailStatusFn;
 }
 
-/** The body: `mailDeliveryAvailable` plus whatever the host's status block carries. */
-export type MailStatusEnvelope = { mailDeliveryAvailable: boolean } & MailStatusBlock;
-
 /**
  * GET the mail delivery status, gated by `admin.forms.manage` (the form editor is the consumer).
  * @complexity O(1) plus the injected status source.
  */
-export const mailStatusRoute = defineJsonRoute<{ refresh: boolean }, MailStatusEnvelope, MailStatusRouteDeps, MailRoutePrincipal>({
+export const mailStatusRoute = defineJsonRoute<{ refresh: boolean }, AdminMailStatusDto, MailStatusRouteDeps, MailRoutePrincipal>({
   method: "get",
   path: "/api/admin/v1/workspaces/:workspaceId/system/mail-status",
   // `?refresh=1` rebuilds the briefly cached status (provider checks) instead of reusing it.
