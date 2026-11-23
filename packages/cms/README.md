@@ -183,6 +183,9 @@ System mail (`src/admin-http/routes/system/mail-{status,dns,test-send,activity}.
 mailer predicate and cached status, the DNS operations, the recipient rules and plan-then-run send,
 the platform activity/suppression operations with a `classifyMailActivityError` mapper — plus the
 permission names. The test send's local duplicate/rate guard answers 429 with the same `{ sent, result }` body.
+Mail providers (`src/admin-http/routes/system/mail-providers.ts`: list, credential plan, activate) map the host's
+classified failures through `mailProviderRefusal`, which the host's hand-written credential save shares, so both
+answer from one status table.
 
 Sites (`src/admin-http/routes/sites/sites-home.ts`: `sitesConfigReadRoute`, `sitesHomeSetRoute` and the
 folder rules; `src/admin-http/routes/system/sites.ts`: `siteTokenSignInPluginsRoute`, `siteCreateRoute`,
