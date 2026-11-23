@@ -76,6 +76,27 @@ const pluginSdkBinding: PluginSdkBinding = {
 `./runtime/*` must never import a host SDK package, node built-ins, or another `@jini-ai/*`
 implementation; types come from `@jini-ai/core` contracts. Boundaries: [DR-005](../../docs/decisions/DR-005-portable-package-boundaries.md).
 
+Model-facing plugin text takes the host's product copy (`PluginHostCopy` from
+`./runtime/plugin-host-copy`: `productName`, `sitePluginFormat`, `localInstallEnv`,
+`pluginListToolName` — the host's plugin list tool). The host binds
+it once, in its own composition module, and passes the results to its tool bindings:
+
+- `./runtime/agent-tools` — `createPluginAgentToolCatalog({ copy })` (plus `PluginFamily`,
+  `PLUGINS_SET_ENABLED_TOOL_ID`, `AgentToolDefinition`).
+- `./runtime/source-tool-catalog` — `createPluginSourceAgentToolCatalog({ copy })`.
+- `./runtime/install-tool-catalog` — `createInstallToolCatalog({ copy, installSourceSchema })`; the
+  host also injects its install-source JSON Schema. `PLUGINS_INSTALL_TOOL_ID` is a plain constant.
+- `./runtime/plugin-tool-messages` — `createPluginToolMessages({ copy })` /
+  `createPluginInstallMessages({ copy })` return the `messages` objects the `./host/tools`
+  registrations take, with the same call shapes as before.
+- `./runtime/capability-card` — `createCapabilityCard({ pluginsAdminHref, pluginListToolName })`; the host says where its
+  Plugins admin screen lives and which tool lists plugins.
+
+`./site/lipay/manifest` and `./site/store/manifest` are the bundled first-party data-module
+declarations (`LIPAY_MANIFEST`, `STORE_MANIFEST`). Nothing is injected; the host lists them in its
+first-party data-module set. Their provenance publisher is `"jini-core"` — persisted in
+`_plugin_identity`, so changing it is a migration (see CHANGELOG).
+
 ## Design decisions
 
 - [Attachment vocabulary and failure containment are separate decisions](docs/decisions/DR-001-category-specific-glue-containment.md).

@@ -21,7 +21,15 @@
       "./host/tools": "node",
       "./runtime/install-consent": "universal",
       "./runtime/plugin-tool-ids": "universal",
-      "./runtime/plugin-export": "universal"
+      "./runtime/plugin-export": "universal",
+      "./runtime/agent-tools": "universal",
+      "./runtime/plugin-tool-messages": "universal",
+      "./runtime/source-tool-catalog": "universal",
+      "./runtime/install-tool-catalog": "universal",
+      "./runtime/capability-card": "universal",
+      "./runtime/plugin-host-copy": "universal",
+      "./site/lipay/manifest": "universal",
+      "./site/store/manifest": "universal"
     },
     "isolation": {
       "forbidden": {
@@ -82,6 +90,46 @@
       "types": "./dist/runtime/plugin-export.d.ts",
       "import": "./dist/runtime/plugin-export.js",
       "default": "./dist/runtime/plugin-export.js"
+    },
+    "./runtime/agent-tools": {
+      "types": "./dist/runtime/agent-tools.d.ts",
+      "import": "./dist/runtime/agent-tools.js",
+      "default": "./dist/runtime/agent-tools.js"
+    },
+    "./runtime/plugin-tool-messages": {
+      "types": "./dist/runtime/plugin-tool-messages.d.ts",
+      "import": "./dist/runtime/plugin-tool-messages.js",
+      "default": "./dist/runtime/plugin-tool-messages.js"
+    },
+    "./runtime/source-tool-catalog": {
+      "types": "./dist/runtime/source-tool-catalog.d.ts",
+      "import": "./dist/runtime/source-tool-catalog.js",
+      "default": "./dist/runtime/source-tool-catalog.js"
+    },
+    "./runtime/install-tool-catalog": {
+      "types": "./dist/runtime/install-tool-catalog.d.ts",
+      "import": "./dist/runtime/install-tool-catalog.js",
+      "default": "./dist/runtime/install-tool-catalog.js"
+    },
+    "./runtime/capability-card": {
+      "types": "./dist/runtime/capability-card.d.ts",
+      "import": "./dist/runtime/capability-card.js",
+      "default": "./dist/runtime/capability-card.js"
+    },
+    "./runtime/plugin-host-copy": {
+      "types": "./dist/runtime/plugin-host-copy.d.ts",
+      "import": "./dist/runtime/plugin-host-copy.js",
+      "default": "./dist/runtime/plugin-host-copy.js"
+    },
+    "./site/lipay/manifest": {
+      "types": "./dist/site/lipay/manifest.d.ts",
+      "import": "./dist/site/lipay/manifest.js",
+      "default": "./dist/site/lipay/manifest.js"
+    },
+    "./site/store/manifest": {
+      "types": "./dist/site/store/manifest.d.ts",
+      "import": "./dist/site/store/manifest.js",
+      "default": "./dist/site/store/manifest.js"
     }
   },
   "files": [
