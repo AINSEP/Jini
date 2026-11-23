@@ -1,0 +1,4 @@
+ FAIL  forms/src/__tests__/package-boundary.test.ts > forms keeps its own published root entry and CMS exposes no forms alias
+ FAIL  src/forms/__tests__/create-tables.reference.test.ts > pglite: createFormsTables matches the reference DDL's catalog
+ Test Files  2 failed | 19 passed (21)
+      Tests  2 failed | 314 passed (316)

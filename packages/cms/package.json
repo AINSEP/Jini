@@ -16,6 +16,13 @@
       "./themes/token-aliases": "universal",
       "./publish/transfer": "universal",
       "./publish/transfer/blob-staging": "node",
+      "./publish/content/baseline-repo": "universal",
+      "./publish/content/content-hash": "node",
+      "./publish/content/execute-import": "universal",
+      "./publish/content/precheck-reasons": "universal",
+      "./publish/content/publish-readiness": "universal",
+      "./publish/content/report-contract": "universal",
+      "./publish/content/peer-url": "universal",
       "./themes/template-applicability": "universal",
       "./themes/preview/roster": "node",
       "./themes/preview/refresh": "node",
@@ -45,6 +52,12 @@
       "./media/import": "universal",
       "./core/tools": "universal",
       "./trash": "universal",
+      "./trash/site/adapters/plugin": "universal",
+      "./trash/site/adapters/theme": "universal",
+      "./trash/site/ports": "universal",
+      "./trash/site/remove-without-blocker": "universal",
+      "./trash/site/scheduler.node": "node",
+      "./trash/site/widget-removal": "universal",
       "./media/node": "node",
       "./forms/html-render": "universal",
       "./forms/validation-messages": "universal",
@@ -303,6 +316,41 @@
       "import": "./dist/publish/transfer/blob-staging.js",
       "default": "./dist/publish/transfer/blob-staging.js"
     },
+    "./publish/content/baseline-repo": {
+      "types": "./dist/publish/content/baseline-repo.d.ts",
+      "import": "./dist/publish/content/baseline-repo.js",
+      "default": "./dist/publish/content/baseline-repo.js"
+    },
+    "./publish/content/content-hash": {
+      "types": "./dist/publish/content/content-hash.d.ts",
+      "import": "./dist/publish/content/content-hash.js",
+      "default": "./dist/publish/content/content-hash.js"
+    },
+    "./publish/content/execute-import": {
+      "types": "./dist/publish/content/execute-import.d.ts",
+      "import": "./dist/publish/content/execute-import.js",
+      "default": "./dist/publish/content/execute-import.js"
+    },
+    "./publish/content/precheck-reasons": {
+      "types": "./dist/publish/content/precheck-reasons.d.ts",
+      "import": "./dist/publish/content/precheck-reasons.js",
+      "default": "./dist/publish/content/precheck-reasons.js"
+    },
+    "./publish/content/publish-readiness": {
+      "types": "./dist/publish/content/publish-readiness.d.ts",
+      "import": "./dist/publish/content/publish-readiness.js",
+      "default": "./dist/publish/content/publish-readiness.js"
+    },
+    "./publish/content/report-contract": {
+      "types": "./dist/publish/content/report-contract.d.ts",
+      "import": "./dist/publish/content/report-contract.js",
+      "default": "./dist/publish/content/report-contract.js"
+    },
+    "./publish/content/peer-url": {
+      "types": "./dist/publish/content/peer-url.d.ts",
+      "import": "./dist/publish/content/peer-url.js",
+      "default": "./dist/publish/content/peer-url.js"
+    },
     "./themes/template-applicability": {
       "types": "./dist/themes/template-applicability.d.ts",
       "import": "./dist/themes/template-applicability.js",
@@ -467,6 +515,36 @@
       "types": "./dist/trash/index.d.ts",
       "import": "./dist/trash/index.js",
       "default": "./dist/trash/index.js"
+    },
+    "./trash/site/adapters/plugin": {
+      "types": "./dist/trash/site/adapters/plugin.d.ts",
+      "import": "./dist/trash/site/adapters/plugin.js",
+      "default": "./dist/trash/site/adapters/plugin.js"
+    },
+    "./trash/site/adapters/theme": {
+      "types": "./dist/trash/site/adapters/theme.d.ts",
+      "import": "./dist/trash/site/adapters/theme.js",
+      "default": "./dist/trash/site/adapters/theme.js"
+    },
+    "./trash/site/ports": {
+      "types": "./dist/trash/site/ports.d.ts",
+      "import": "./dist/trash/site/ports.js",
+      "default": "./dist/trash/site/ports.js"
+    },
+    "./trash/site/remove-without-blocker": {
+      "types": "./dist/trash/site/remove-without-blocker.d.ts",
+      "import": "./dist/trash/site/remove-without-blocker.js",
+      "default": "./dist/trash/site/remove-without-blocker.js"
+    },
+    "./trash/site/scheduler.node": {
+      "types": "./dist/trash/site/scheduler.node.d.ts",
+      "import": "./dist/trash/site/scheduler.node.js",
+      "default": "./dist/trash/site/scheduler.node.js"
+    },
+    "./trash/site/widget-removal": {
+      "types": "./dist/trash/site/widget-removal.d.ts",
+      "import": "./dist/trash/site/widget-removal.js",
+      "default": "./dist/trash/site/widget-removal.js"
     },
     "./media/node": {
       "types": "./dist/media/node.d.ts",

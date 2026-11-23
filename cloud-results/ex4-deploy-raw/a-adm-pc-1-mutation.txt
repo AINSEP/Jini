@@ -1,0 +1,9 @@
+33c33
+<   if (next === available) return;
+---
+>   if (!(next === available)) return;
+   ✓ publish-to-live availability store > reads an absent canPublishToLive (an older server) as available 2ms
+   × publish-to-live availability store > defaults to available and follows set calls 7ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+      Tests  1 failed | 1 passed (2)
+      Tests  2 passed (2)

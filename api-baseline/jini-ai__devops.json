@@ -45,6 +45,13 @@
    "SiteBackupPushProgress": "interface:17e5c15a76"
   }
  },
+ "./backup/site/share-export-failure": {
+  "types": "./dist/backup/site/share-export-failure.d.ts",
+  "symbols": {
+   "SiteShareExportFailure": "class:481430087c",
+   "SiteShareExportStep": "type:ee08280859"
+  }
+ },
  "./backup/upload": {
   "types": "./dist/backup/upload.node.d.ts",
   "symbols": {
@@ -339,6 +346,16 @@
    "PublishRunResultProps": "interface:fa67bd1211"
   }
  },
+ "./deploy/site/types": {
+  "types": "./dist/deploy/site/types.d.ts",
+  "symbols": {
+   "DeploymentProviderId": "type:2c008c35a0",
+   "DeploymentRunStatus": "type:15a11c0906",
+   "DeploymentTargetRecord": "interface:aaac23171f",
+   "ReleaseRecord": "interface:f8f379c1ba",
+   "ReleaseSource": "type:ab41093661"
+  }
+ },
  "./dns": {
   "types": "./dist/dns/index.d.ts",
   "symbols": {
@@ -439,6 +456,16 @@
    "createUdpDnsExchange": "function:899baf324b",
    "decodeNsReply": "function:abb782b0c8",
    "encodeNsQuery": "function:b2759e5242"
+  }
+ },
+ "./dns/site/mail-requirements": {
+  "types": "./dist/dns/site/mail-requirements.d.ts",
+  "symbols": {
+   "DMARC_HINT_PROVIDER_ID": "variable:18f1043b34",
+   "DMARC_HINT_VALUE": "variable:4656c48471",
+   "DnsRequirementInclude": "type:b43b8de708",
+   "MailRequirementsPort": "type:695b9b461f",
+   "withMailRequirements": "function:d1b7e19d64"
   }
  },
  "./local-dev": {
@@ -626,6 +653,20 @@
    "sourceControlProviderModuleError": "function:3981d9cf76",
    "toCommitFile": "function:645edd8120",
    "validateCommitTarget": "function:21ef3e2965"
+  }
+ },
+ "./source-control/site/commit-schema": {
+  "types": "./dist/source-control/site/commit-schema.d.ts",
+  "symbols": {
+   "executeCommitSchema": "variable:796197dff5"
+  }
+ },
+ "./source-control/site/credential-form": {
+  "types": "./dist/source-control/site/credential-form.d.ts",
+  "symbols": {
+   "SourceControlCredentialField": "interface:21ffdd7a68",
+   "SourceControlCredentialForm": "interface:7884791326",
+   "parseSourceControlCredentialForm": "function:ca5756ecb3"
   }
  },
  "./static-export": {

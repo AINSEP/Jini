@@ -173,7 +173,7 @@ export interface TrashPort {
     at: string;
     expectedVersion: number | null;
 
-  }, optional?: { priorMarker?: string | null; }): Promise<TrashMarkerResult>;
+  }, optional?: { priorMarker?: string | null | undefined; }): Promise<TrashMarkerResult>;
 
   restore(required: {
     workspaceId: string;
@@ -213,7 +213,7 @@ export type RemoveEntity = (required: {
   expectedVersion: number | null;
   actor: TrashActor;
 
-}, optional?: { priorMarker?: string | null; }) => Promise<TrashMarkerResult>;
+}, optional?: { priorMarker?: string | null | undefined; }) => Promise<TrashMarkerResult>;
 
 /**
  * The function a domain's delete path receives to DROP an index row.

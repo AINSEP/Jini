@@ -8,7 +8,8 @@
  * `publish_content_status` tool, and the Publish dialog's own empty state.
  * Every input below is a fact one repo read or one table read already produces, so keeping the
  * decision pure means the wording is directly assertable — including the property that matters most
- * here, which is that no string it can produce teaches a concept.
+ * here, which is that no string it can produce teaches a concept. The sentences are the host's
+ * (see Wiring); the vocabulary rule below binds the copy the host supplies.
  *
  * ## The vocabulary rule, stated as a rule
  *
@@ -16,13 +17,19 @@
  * an installation id, a generation, a peer, or a bundle. Not because those are secret — most are in
  * committed config — but because naming them is the vocabulary lesson the whole zero-setup design
  * exists to avoid (`features/publish-trust/connect.ts`'s header; the owner rejected the key ceremony
- * five times). The host's `publish-agent-tools` test asserts it over every reachable sentence rather
+ * five times). The host's publish agent-tools test asserts it over every reachable sentence rather
  * than trusting review, mirroring `publish-trust/__tests__/provisioning.test.ts`'s identical guard.
  *
  * ## "Never connected" is an empty state, not a fault
  *
  * A fresh install that has never been deployed has nowhere to publish to. That is the ordinary first
  * run. It gets a plain sentence and a next step, never an error and never a code.
+ *
+ * ## Wiring
+ *
+ * The host supplies every sentence on `PublishReadinessInput.copy` (`PublishReadinessCopy`): its
+ * one-click publishing vocabulary and onboarding instructions are product copy. This module owns
+ * only the decision — check order, verdict and `ready` flag — and the host label for an address.
  */
 
 /**
@@ -50,6 +57,25 @@ export interface PublishReadinessInput {
   /** How many kinds of thing on this site are registered as publishable. Zero means a connection
    *  would be able to publish nothing at all, which is worth saying before it is made. */
   readonly publishableTypeCount: number;
+  /** The host's sentences for each verdict. This module decides; it authors no wording. */
+  readonly copy: PublishReadinessCopy;
+}
+
+/** Three sentences for a verdict that is not ready. */
+export interface PublishReadinessSentences {
+  readonly summary: string;
+  readonly missing: string;
+  readonly nextStep: string;
+}
+
+/** Host-owned wording for every verdict (feature-owned port; the host supplies product vocabulary). */
+export interface PublishReadinessCopy {
+  readonly nothingPublishable: PublishReadinessSentences;
+  /** The ready summary for the connected site, or for every hand-configured site in order. */
+  readonly publishesTo: (input: { siteLabels: readonly string[] }) => string;
+  /** The not-connected sentences, given the candidate's host label. */
+  readonly notConnected: (input: { siteLabel: string }) => PublishReadinessSentences;
+  readonly noLiveSite: PublishReadinessSentences;
 }
 
 /** The answer, as strings to show and one flag to branch on. */
@@ -81,15 +107,8 @@ export function siteLabelFor({ baseUrl }: { baseUrl: string }, _optional = {}): 
   }
 }
 
-/** Joins site names the way a sentence does — "a", "a and b", "a, b and c".
- *  @complexity O(n) in the list length. */
-function nameList(labels: readonly string[]): string {
-  if (labels.length === 1) return labels[0] as string;
-  return `${labels.slice(0, -1).join(", ")} and ${labels[labels.length - 1] as string}`;
-}
-
 /**
- * Decides whether this computer can publish, and says so in plain language.
+ * Decides whether this computer can publish. Every sentence comes from the host's `copy`.
  *
  * Check order is load-bearing and not alphabetical: "nothing here is publishable" is checked FIRST
  * because it blocks both connecting and publishing, so reporting "ready" on an install whose
@@ -103,53 +122,13 @@ function nameList(labels: readonly string[]): string {
  * @complexity O(n) in `otherSiteLabels`.
  */
 export function describePublishReadiness(input: PublishReadinessInput, _optional = {}): PublishReadiness {
-  if (input.publishableTypeCount === 0) {
-    return {
-      ready: false,
-      verdict: "nothing-publishable",
-      summary: "There is nothing on this site that can be copied to a live site yet.",
-      missing: "This site has no pages, posts or other content set up to be published.",
-      nextStep: "Add something to this site first, then come back.",
-    };
-  }
-
-  if (input.connectedSiteLabel !== null) {
-    return {
-      ready: true,
-      verdict: "ready",
-      summary: `This computer publishes to ${input.connectedSiteLabel}.`,
-      missing: null,
-      nextStep: null,
-    };
-  }
-
-  if (input.otherSiteLabels.length > 0) {
-    return {
-      ready: true,
-      verdict: "ready",
-      summary: `This computer publishes to ${nameList(input.otherSiteLabels)}.`,
-      missing: null,
-      nextStep: null,
-    };
-  }
-
+  const { copy } = input;
+  if (input.publishableTypeCount === 0) return { ready: false, verdict: "nothing-publishable", ...copy.nothingPublishable };
+  const siteLabels = input.connectedSiteLabel !== null ? [input.connectedSiteLabel] : input.otherSiteLabels;
+  if (siteLabels.length > 0) return { ready: true, verdict: "ready", summary: copy.publishesTo({ siteLabels }), missing: null, nextStep: null };
   if (input.candidateUrl !== null) {
-    const label = siteLabelFor({ baseUrl: input.candidateUrl });
-    return {
-      ready: false,
-      verdict: "not-connected",
-      summary: `This computer is not set up to publish to ${label} yet.`,
-      missing: `This computer has not been connected to ${label}.`,
-      nextStep: `Connect this computer to ${label}, then publish.`,
-    };
+    return { ready: false, verdict: "not-connected", ...copy.notConnected({ siteLabel: siteLabelFor({ baseUrl: input.candidateUrl }) }) };
   }
-
-  return {
-    ready: false,
-    verdict: "no-live-site",
-    // The never-deployed install. An ordinary first run, so: no fault, no code, no vocabulary.
-    summary: "There is no live site to publish to yet.",
-    missing: "This site has never been put online, so there is nowhere to publish to.",
-    nextStep: "Put this site online once, then come back and connect this computer to it.",
-  };
+  // The never-deployed install. An ordinary first run, so: no fault, no code, no vocabulary.
+  return { ready: false, verdict: "no-live-site", ...copy.noLiveSite };
 }

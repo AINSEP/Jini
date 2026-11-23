@@ -1,0 +1,8 @@
+89c89
+<   if (trimmed === "") return { error: "baseUrl is required" };
+---
+>   if (!(trimmed === "")) return { error: "baseUrl is required" };
+   × peer base URL > normalizes case, a trailing dot and repeated trailing slashes, keeping a path prefix 11ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+      Tests  1 failed | 47 passed (48)
+      Tests  48 passed (48)

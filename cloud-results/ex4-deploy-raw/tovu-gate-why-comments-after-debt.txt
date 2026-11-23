@@ -1,0 +1,4 @@
+apps/website/src/server/runtime/composition/modules/site-search.ts:64-67  [096121b6167d]  the custom-credential label for a provider, e.g. `tovu search — meilisearch`. @complexity o(label length).
+why-comments: 80 deleted comment blocks appear nowhere else (owner rule: refactors move "why" comments with the code, never delete them)
+  fix: put the comment back next to the code it explains, or move it with that code.
+  last resort: add { "id": "<id above>", "reason": "<why this comment is truly obsolete>" } to the debt file (`npm run check:why-comments`).

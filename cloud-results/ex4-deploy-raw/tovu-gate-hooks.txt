@@ -1,0 +1,12 @@
+### base
+hook-injection: 25 components, 41 direct custom-hook calls
+top hooks: useAdminLocale 3, useAdminThemeBoundary 3, useSaved 2, useWiredAdminLocale 2, useAdminExecutionCredentialHook 1, useAdminExecutionModeHook 1, useAgentPluginConfirmation 1, useAgentPluginDetailsView 1
+top folders: apps/admin 41
+hook-injection: ok
+exit=0
+### head
+hook-injection: 25 components, 41 direct custom-hook calls
+top hooks: useAdminLocale 3, useAdminThemeBoundary 3, useSaved 2, useWiredAdminLocale 2, useAdminExecutionCredentialHook 1, useAdminExecutionModeHook 1, useAgentPluginConfirmation 1, useAgentPluginDetailsView 1
+top folders: apps/admin 41
+hook-injection: ok
+exit=0

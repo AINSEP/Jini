@@ -32,6 +32,11 @@
       "./static-export/failure-summary": "universal",
       "./dns": "node",
       "./dns/node": "node",
+      "./source-control/site/commit-schema": "universal",
+      "./source-control/site/credential-form": "universal",
+      "./dns/site/mail-requirements": "universal",
+      "./deploy/site/types": "universal",
+      "./backup/site/share-export-failure": "universal",
       "./backup/upload": "node",
       "./backup/plan-store": "node",
       "./backup/push-jobs": "universal",
@@ -150,6 +155,31 @@
       "types": "./dist/dns/node/index.d.ts",
       "import": "./dist/dns/node/index.js",
       "default": "./dist/dns/node/index.js"
+    },
+    "./source-control/site/commit-schema": {
+      "types": "./dist/source-control/site/commit-schema.d.ts",
+      "import": "./dist/source-control/site/commit-schema.js",
+      "default": "./dist/source-control/site/commit-schema.js"
+    },
+    "./source-control/site/credential-form": {
+      "types": "./dist/source-control/site/credential-form.d.ts",
+      "import": "./dist/source-control/site/credential-form.js",
+      "default": "./dist/source-control/site/credential-form.js"
+    },
+    "./dns/site/mail-requirements": {
+      "types": "./dist/dns/site/mail-requirements.d.ts",
+      "import": "./dist/dns/site/mail-requirements.js",
+      "default": "./dist/dns/site/mail-requirements.js"
+    },
+    "./deploy/site/types": {
+      "types": "./dist/deploy/site/types.d.ts",
+      "import": "./dist/deploy/site/types.js",
+      "default": "./dist/deploy/site/types.js"
+    },
+    "./backup/site/share-export-failure": {
+      "types": "./dist/backup/site/share-export-failure.d.ts",
+      "import": "./dist/backup/site/share-export-failure.js",
+      "default": "./dist/backup/site/share-export-failure.js"
     },
     "./backup/upload": {
       "types": "./dist/backup/upload.node.d.ts",
