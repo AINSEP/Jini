@@ -64,8 +64,12 @@ export const menuUpdateTreeRoute = defineJsonRoute<MenuUpdateTreeInput, AdminMen
   path: "/api/admin/v1/workspaces/:workspaceId/menus/:menuId",
   parse: (raw) => ok({ value: parseMenuTreeBody({ body: (raw.body ?? {}) as Record<string, unknown>, menuId: menuIdParam(raw.params) }) }),
   handle: async ({ input, deps, authorize }) => {
+    // Two separate decisions, never merged: a host may answer each from a different source (Tovu
+    // answers `admin.menus.update` from RBAC only, the raw-HTML permission from a publishing grant
+    // when present), so the spec must ask twice. The HTML check keeps the hand-written route's
+    // `...(menuId ? { entityId } : {})`: an empty parsed id sends no `entityId` key at all there.
     await authorizeMenus({ authorize, permission: "admin.menus.update" }, { entityId: input.menuId });
-    await authorizeMenuHtml({ authorize, permission: deps.rawHtmlPermission, authoring: input.authoring }, { entityId: input.menuId });
+    await authorizeMenuHtml({ authorize, permission: deps.rawHtmlPermission, authoring: input.authoring }, input.menuId ? { entityId: input.menuId } : {});
     try {
       const { menu } = await updateMenuTree({
         deps: { repo: deps.menuRepo, clock: deps.clock, idGen: deps.idGen, outbox: deps.outbox, normalizeMenuHtml: deps.normalizeMenuHtml },
