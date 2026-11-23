@@ -16,6 +16,10 @@
       "./media-providers": "node",
       "./media-providers/catalog": "universal",
       "./web-screenshot/web-screenshot": "node",
+      "./web-screenshot/capture-files": "node",
+      "./web-screenshot/own-site-opener": "node",
+      "./web-screenshot/screenshot-image": "node",
+      "./web-screenshot/desktop-page-capture": "node",
       "./credentialed-http": "node",
       "./credentialed-http/sets": "node",
       "./webhooks": "node",
@@ -55,6 +59,26 @@
       "types": "./dist/web-screenshot/web-screenshot.d.ts",
       "import": "./dist/web-screenshot/web-screenshot.js",
       "default": "./dist/web-screenshot/web-screenshot.js"
+    },
+    "./web-screenshot/capture-files": {
+      "types": "./dist/web-screenshot/capture-files.d.ts",
+      "import": "./dist/web-screenshot/capture-files.js",
+      "default": "./dist/web-screenshot/capture-files.js"
+    },
+    "./web-screenshot/own-site-opener": {
+      "types": "./dist/web-screenshot/own-site-opener.d.ts",
+      "import": "./dist/web-screenshot/own-site-opener.js",
+      "default": "./dist/web-screenshot/own-site-opener.js"
+    },
+    "./web-screenshot/screenshot-image": {
+      "types": "./dist/web-screenshot/screenshot-image.d.ts",
+      "import": "./dist/web-screenshot/screenshot-image.js",
+      "default": "./dist/web-screenshot/screenshot-image.js"
+    },
+    "./web-screenshot/desktop-page-capture": {
+      "types": "./dist/web-screenshot/desktop-page-capture.d.ts",
+      "import": "./dist/web-screenshot/desktop-page-capture.js",
+      "default": "./dist/web-screenshot/desktop-page-capture.js"
     },
     "./credentialed-http": {
       "types": "./dist/credentialed-http/index.d.ts",
@@ -137,6 +161,18 @@
       ],
       "web-screenshot/web-screenshot": [
         "./dist/web-screenshot/web-screenshot.d.ts"
+      ],
+      "web-screenshot/capture-files": [
+        "./dist/web-screenshot/capture-files.d.ts"
+      ],
+      "web-screenshot/own-site-opener": [
+        "./dist/web-screenshot/own-site-opener.d.ts"
+      ],
+      "web-screenshot/screenshot-image": [
+        "./dist/web-screenshot/screenshot-image.d.ts"
+      ],
+      "web-screenshot/desktop-page-capture": [
+        "./dist/web-screenshot/desktop-page-capture.d.ts"
       ],
       "credentialed-http": [
         "./dist/credentialed-http/index.d.ts"

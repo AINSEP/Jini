@@ -8,6 +8,10 @@ the browser, the tile encoder, the own-site server, the file writer and the cloc
 Provenance: moved verbatim from the original host's `features/web-screenshot/web-screenshot.ts`
 (only change: `CAPTURE_LIMITS` is no longer annotated with the diagnostics capture-budget limits
 type, so this package takes no diagnostics dependency; the host checks it where it feeds the budget).
+`capture-files.ts`, `own-site-opener.ts` and `screenshot-image.ts` moved verbatim from the same
+host folder (`screenshot-image.ts` now types its codec with the core contract). `desktop-page-capture.ts`
+moved with injection only: the desktop render-error class check, the native channel and the
+Playwright adapter were defaults or imports there and are now required fields.
 
 ## Wiring
 
@@ -35,6 +39,26 @@ const result = await service.screenshot(
   { signal },
 );
 ```
+
+### Adapters beside the domain
+
+- `capture-files.ts` — `createCaptureFileWriter({ rootDir })` (a `SaveCaptureFiles` that never
+  overwrites and refuses paths escaping the folder) and `captureRootFor({ siteDir })`
+  (`<siteDir>/.captures`). Uses `node:fs`; the host binds it per booted site folder.
+- `own-site-opener.ts` — `createOwnSiteOpener({ themes, openLoopback })`: the host injects its
+  discovered theme roster (read per call) and its loopback site-server opener; an unknown or
+  invalid `themeId` is refused before anything boots.
+- `screenshot-image.ts` — `createScreenshotTileEncoder({ imageCodec })`: the host injects an
+  `ImageCodecPort` (`@jini-ai/core/contracts/site/cms-media`); no native codec is imported here.
+- `desktop-page-capture.ts` — `createDesktopPageCapture({ capture, isRenderServiceError })` maps a
+  native desktop URL-capture channel onto `PageCapturePort`; `createPageCaptureForHost({ playwright,
+  nativeCapture, isRenderServiceError })` routes own-site captures to the native channel and public
+  references, consent clicks and selector waits to the host's Playwright adapter. The host injects
+  its Playwright `PageCapturePort`, its resolved native channel (or `null`, which returns the
+  Playwright adapter unchanged) and a check for the desktop host's render error.
+
+The host binds all four in its tool-catalog composition root (the `web_screenshot_page`
+contributor), next to its own Playwright adapter and desktop channel resolver, which stay host-side.
 
 Must never import: a browser driver, an image codec, the file system, another `@jini-ai/*`
 package's implementation (core types and `ToolInputError` only), or host product names and paths.
