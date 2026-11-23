@@ -99,7 +99,7 @@ export interface ExternalMcpOAuthCallbackRouteDeps {
 /** The three query fields this callback reads, narrowed once at the edge. Anything else a provider
  *  appends is ignored rather than rejected — providers add their own bookkeeping parameters, and
  *  refusing them would break real handshakes. */
-function parseCallbackQuery(query: Readonly<Record<string, unknown>>): { state: string; code?: string; error?: string } {
+function parseCallbackQuery({ query }: { query: Readonly<Record<string, unknown>> }, _optional: Record<string, never> = {}): { state: string; code?: string; error?: string } {
   return {
     state: typeof query.state === "string" ? query.state : "",
     ...(typeof query.code === "string" && query.code.length > 0 ? { code: query.code } : {}),
@@ -157,7 +157,7 @@ export function externalMcpOAuthCallbackRoute(deps: ExternalMcpOAuthCallbackRout
       // In front of everything: the route is anonymous and each hit
       // can cost an outbound token exchange.
       if (!(await deps.callbackLimiter.check({ key: facts.clientAddress })).allowed) return page({ status: 429, reason: "rate_limited" });
-      const params = parseCallbackQuery(facts.query);
+      const params = parseCallbackQuery({ query: facts.query });
       // No state means this was not reached by a redirect the provider issued. Nothing to complete.
       if (params.state === "") return page({ status: 400, reason: "no_state" });
       const browserBinding = deps.readBrowserBinding({ cookieHeader: request.headers.get("cookie") ?? undefined });

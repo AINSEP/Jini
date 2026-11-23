@@ -83,7 +83,7 @@ export interface ApiConnectionOAuthCallbackRouteDeps<Connection extends { readon
 }
 
 /** Only string query values, as the provider sent them; Jini picks the OAuth names and declared fields. */
-function stringParams(query: Readonly<Record<string, unknown>>): Record<string, string> {
+function stringParams({ query }: { query: Readonly<Record<string, unknown>> }, _optional: Record<string, never> = {}): Record<string, string> {
   return Object.fromEntries(Object.entries(query).filter((entry): entry is [string, string] => typeof entry[1] === "string"));
 }
 
@@ -147,7 +147,7 @@ export function apiConnectionOAuthCallbackRoute<Connection extends { readonly de
       const facts = readRequestFacts({ locals });
       // First: the route is anonymous and each hit can cost an outbound token exchange.
       if (!(await deps.callbackLimiter.check({ key: facts.clientAddress })).allowed) return page({ status: 429, reason: "rate_limited" });
-      const params = stringParams(facts.query);
+      const params = stringParams({ query: facts.query });
       const state = params.state ?? "";
       // The browser that started the sign-in carries this (the host's binding cookie); any other
       // browser carries none, and Jini refuses the attempt.
