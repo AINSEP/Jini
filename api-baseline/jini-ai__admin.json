@@ -1756,7 +1756,8 @@
       "focusableInDomOrder": "function:cae1c6e58b",
       "highlightedOptionOrNull": "function:c4999d2453",
       "repositionOrClose": "function:20465a758a",
-      "resolveTabTarget": "function:ddf996a34a"
+      "resolveTabTarget": "function:ddf996a34a",
+      "useSelectDropdown": "function:0f12aabcae"
     }
   },
   "./shell/components/TemplateSource/template-source-port.hooks": {
