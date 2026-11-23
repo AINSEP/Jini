@@ -87,7 +87,6 @@
       "./tool-metadata/consent": "universal",
       "./tool-metadata/content-duplication": "universal",
       "./tool-metadata/content-types": "universal",
-      "./tool-metadata/custom-credentials": "universal",
       "./tool-metadata/database-transfer": "universal",
       "./tool-metadata/database": "universal",
       "./tool-metadata/email-templates": "universal",
@@ -542,11 +541,6 @@
       "types": "./dist/tool-metadata/content-types.d.ts",
       "import": "./dist/tool-metadata/content-types.js",
       "default": "./dist/tool-metadata/content-types.js"
-    },
-    "./tool-metadata/custom-credentials": {
-      "types": "./dist/tool-metadata/custom-credentials.d.ts",
-      "import": "./dist/tool-metadata/custom-credentials.js",
-      "default": "./dist/tool-metadata/custom-credentials.js"
     },
     "./tool-metadata/database-transfer": {
       "types": "./dist/tool-metadata/database-transfer.d.ts",
