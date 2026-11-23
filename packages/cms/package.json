@@ -197,6 +197,8 @@
       "./settings/site/site-timezone": "universal",
       "./seo/site/page-head-contributor": "node",
       "./redirects/site/phase-handler": "universal",
+      "./redirects/site/publish-content": "universal",
+      "./redirects/site/tool-registrations": "universal",
       "./admin-http/routes/seo/deps": "universal",
       "./admin-http/routes/seo/post-sitemap-regenerate": "universal",
       "./admin-http/routes/seo/get-entry": "node",
@@ -290,7 +292,8 @@
         "src/widgets/markers/media-reference.ts",
         "src/navigation/types.ts",
         "src/widgets/date-label.ts",
-        "src/admin-http/http/entity-not-live.ts"
+        "src/admin-http/http/entity-not-live.ts",
+        "src/publish/content/precheck-reasons.ts"
       ],
       "entries": {
         "./admin-http/http/redirects": "redirects",
@@ -1243,6 +1246,16 @@
       "types": "./dist/redirects/site/phase-handler.d.ts",
       "import": "./dist/redirects/site/phase-handler.js",
       "default": "./dist/redirects/site/phase-handler.js"
+    },
+    "./redirects/site/publish-content": {
+      "types": "./dist/redirects/site/publish-content.d.ts",
+      "import": "./dist/redirects/site/publish-content.js",
+      "default": "./dist/redirects/site/publish-content.js"
+    },
+    "./redirects/site/tool-registrations": {
+      "types": "./dist/redirects/site/tool-registrations.d.ts",
+      "import": "./dist/redirects/site/tool-registrations.js",
+      "default": "./dist/redirects/site/tool-registrations.js"
     },
     "./admin-http/routes/seo/deps": {
       "types": "./dist/admin-http/routes/seo/deps.d.ts",
