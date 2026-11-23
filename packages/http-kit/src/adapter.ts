@@ -108,6 +108,7 @@ function allowRouteBody({ req, res, spec }: {
   const error = payloadTooLargeError({ maxBytes });
   sendApiError({ res, status: statusForError({ error }), error });
   return false;
+}
 
 /**
  * The `authorize` a handler calls. The route chooses where authorization occurs: reads may
