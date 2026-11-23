@@ -1,6 +1,8 @@
 import { RouteRefusalError } from "@jini-ai/core/errors/route-refusal";
 
+import { deletePolicy, deleteRole, updatePolicy, updateRole, writePolicyPermission } from "../../../../server/admin-crud-service.js";
 import type { AuthServiceDeps } from "../../../../server/auth-service.js";
+import { createPolicy, createRole } from "../../../../server/grant-service.js";
 import { createTransactionalInMemoryIdentityRepos } from "../../../../server/repo.memory-transactions.js";
 import {
   InMemoryPolicyPermissionRepo, InMemoryPolicyRepo, InMemoryPrincipalPolicyRepo, InMemoryPrincipalRepo, InMemoryPrincipalRoleRepo,
@@ -18,6 +20,10 @@ import {
 
 export const WORKSPACE_ID = "ws-1";
 export const signal = new AbortController().signal;
+
+/** The real identity services each spec has injected (production binds the same ones from `./server`).
+ *  Every spec reads only its own field; the rest ride along unused, so the test deps stay one shape. */
+const ACCESS_SERVICES = { createRole, updateRole, deleteRole, createPolicy, updatePolicy, deletePolicy, writePolicyPermission };
 
 /** A reversible fake: the specs never hash, but `seedIdentity` stores the owner's credential. */
 const FAKE_HASHER = {
@@ -60,13 +66,13 @@ export async function makeAccessDeps() {
   const { ownerPrincipalId } = await seedIdentity({ deps: serviceDeps, input: { workspaceId: WORKSPACE_ID, ownerPassword: "seed-owner-pw", ownerUsername: "admin" } });
   await repos.principals.save({ id: "bare", workspaceId: WORKSPACE_ID, kind: "user", displayName: "bare", status: "active", createdAt: "2026-01-01T00:00:00.000Z" });
   let serviceCalls = 0;
-  const routeDeps = { workspaceId: WORKSPACE_ID, identityServiceDeps: () => { serviceCalls++; return serviceDeps; } };
+  const routeDeps = { ...ACCESS_SERVICES, workspaceId: WORKSPACE_ID, identityServiceDeps: () => { serviceCalls++; return serviceDeps; } };
   return { repos, serviceDeps, routeDeps, OWNER: { id: ownerPrincipalId }, BARE: { id: "bare" }, serviceCalls: () => serviceCalls };
 }
 
 /** Deps whose service-deps assembly throws `err`, so each route's error ladder is pinned without staging the state. */
 export function throwingDeps(err: unknown) {
-  return { workspaceId: WORKSPACE_ID, identityServiceDeps: (): AuthServiceDeps => { throw err; } };
+  return { ...ACCESS_SERVICES, workspaceId: WORKSPACE_ID, identityServiceDeps: (): AuthServiceDeps => { throw err; } };
 }
 
 /** One instance of every identity error a ladder may map, keyed by its wire code. */

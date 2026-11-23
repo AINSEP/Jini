@@ -17,6 +17,8 @@ export interface UserResetPasswordRouteDeps {
   /** The seeded (bootstrap) owner's principal id, resolved by the host at boot. */
   ownerPrincipalId: PromiseLike<string> | string;
   assertUserAccountAction: AssertUserAccountActionFn;
+  /** Matches the host's "user is in the Trash" error, which its Trash index may throw itself. */
+  isUserInTrashError: HostErrorPredicate;
   /** Matches the host's self-target error. */
   isSelfDeleteError: HostErrorPredicate;
 }
@@ -28,7 +30,7 @@ export interface UserResetPasswordRouteDeps {
  * exemption change. @complexity O(1).
  */
 function resetPasswordErrors({ deps }: { deps: UserResetPasswordRouteDeps }, _optional: Record<string, never> = {}): readonly UserErrorRung[] {
-  return [hostRung({ matches: deps.isSelfDeleteError, status: 409, code: "SELF_DELETE" }), USER_FORBIDDEN, USER_OWNER_REQUIRED, USER_VALIDATION, USER_NOT_FOUND];
+  return [hostRung({ matches: deps.isUserInTrashError, status: 409, code: "USER_IN_TRASH" }), hostRung({ matches: deps.isSelfDeleteError, status: 409, code: "SELF_DELETE" }), USER_FORBIDDEN, USER_OWNER_REQUIRED, USER_VALIDATION, USER_NOT_FOUND];
 }
 
 /**

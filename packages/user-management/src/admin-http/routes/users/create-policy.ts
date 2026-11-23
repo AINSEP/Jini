@@ -1,14 +1,17 @@
 import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
 
-import { createPolicy } from "../../../server/grant-service.js";
+import type { createPolicy } from "../../../server/grant-service.js";
 import { toAdminPolicyResponse, type AdminPolicyResponse } from "../../http/users.js";
 import {
   ACCESS_FORBIDDEN, ACCESS_VALIDATION, accessActorId, accessBody, optionalString, rejectAccessError,
   type AccessRoutePrincipal, type AccessServiceRouteDeps,
 } from "./access-shared.js";
 
-/** The deps this route reads: the workspace and the identity services' deps bag. */
-export interface PolicyCreateRouteDeps extends AccessServiceRouteDeps {}
+/** The deps this route reads: the workspace, the identity services' deps bag and the service it calls. */
+export interface PolicyCreateRouteDeps extends AccessServiceRouteDeps {
+  /** Injected: the service lives in the node `./server` entry; the host binds it. */
+  createPolicy: typeof createPolicy;
+}
 
 const POLICY_CREATE_ERRORS = [ACCESS_FORBIDDEN, ACCESS_VALIDATION] as const;
 
@@ -27,7 +30,7 @@ export const policyCreateRoute = defineJsonRoute<{ name: string; description: st
   handle: async ({ input, deps, context }) => {
     const callerPrincipalId = accessActorId({ context });
     try {
-      const { policy } = await createPolicy(
+      const { policy } = await deps.createPolicy(
         { deps: deps.identityServiceDeps(), input: { workspaceId: deps.workspaceId, callerPrincipalId, name: input.name } },
         { description: input.description },
       );

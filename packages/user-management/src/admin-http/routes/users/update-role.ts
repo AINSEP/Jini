@@ -1,14 +1,17 @@
 import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
 
-import { updateRole } from "../../../server/admin-crud-service.js";
+import type { updateRole } from "../../../server/admin-crud-service.js";
 import { toAdminRoleResponse, type AdminRoleResponse } from "../../http/users.js";
 import {
   ACCESS_FORBIDDEN, ACCESS_NOT_FOUND, ACCESS_VALIDATION, accessActorId, accessBody, accessPathParam, rejectAccessError,
   type AccessRoutePrincipal, type AccessServiceRouteDeps,
 } from "./access-shared.js";
 
-/** The deps this route reads: the workspace and the identity services' deps bag. */
-export interface RoleUpdateRouteDeps extends AccessServiceRouteDeps {}
+/** The deps this route reads: the workspace, the identity services' deps bag and the service it calls. */
+export interface RoleUpdateRouteDeps extends AccessServiceRouteDeps {
+  /** Injected: the service lives in the node `./server` entry; the host binds it. */
+  updateRole: typeof updateRole;
+}
 
 const ROLE_UPDATE_ERRORS = [ACCESS_FORBIDDEN, ACCESS_VALIDATION, ACCESS_NOT_FOUND] as const;
 
@@ -23,7 +26,7 @@ export const roleUpdateRoute = defineJsonRoute<{ roleId: string; name: string },
   handle: async ({ input, deps, context }) => {
     const callerPrincipalId = accessActorId({ context });
     try {
-      const { role } = await updateRole({ deps: deps.identityServiceDeps(), input: { workspaceId: deps.workspaceId, callerPrincipalId, ...input } });
+      const { role } = await deps.updateRole({ deps: deps.identityServiceDeps(), input: { workspaceId: deps.workspaceId, callerPrincipalId, ...input } });
       return ok({ value: { role: toAdminRoleResponse(role) } });
     } catch (err) {
       return rejectAccessError({ err, mappings: ROLE_UPDATE_ERRORS });

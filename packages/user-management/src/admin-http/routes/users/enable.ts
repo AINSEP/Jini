@@ -5,7 +5,7 @@ import type { assertCallerHasAnyPermission } from "../../../server/grant-service
 import type { AdminUserResponse } from "../../http/users.js";
 import {
   adminUserForPrincipal, principalIdParam, rejectUserError, rejectUserInTrash, USER_FORBIDDEN, USER_NOT_FOUND, USER_OWNER_REQUIRED, USER_VALIDATION,
-  userActorId, type IdentityServicesFn, type IsInTrashFn, type UserRoutePrincipal,
+  userActorId, hostRung, type HostErrorPredicate, type UserErrorRung, type IdentityServicesFn, type IsInTrashFn, type UserRoutePrincipal,
 } from "./shared.js";
 
 /** The deps this route reads. */
@@ -17,9 +17,14 @@ export interface UserEnableRouteDeps {
   assertCallerHasAnyPermission: typeof assertCallerHasAnyPermission;
   identityServices: IdentityServicesFn;
   isInTrash: IsInTrashFn;
+  /** Matches the host's "user is in the Trash" error, which its Trash index may throw itself. */
+  isUserInTrashError: HostErrorPredicate;
 }
 
-const USER_ENABLE_ERRORS = [USER_FORBIDDEN, USER_VALIDATION, USER_NOT_FOUND, USER_OWNER_REQUIRED] as const;
+/** This route's ladder, in the hand-written order; the in-Trash rung is the host's class. @complexity O(1). */
+function userEnableErrors({ deps }: { deps: UserEnableRouteDeps }, _optional: Record<string, never> = {}): readonly UserErrorRung[] {
+  return [hostRung({ matches: deps.isUserInTrashError, status: 409, code: "USER_IN_TRASH" }), USER_FORBIDDEN, USER_VALIDATION, USER_NOT_FOUND, USER_OWNER_REQUIRED];
+}
 
 /**
  * POST users/:principalId/enable — `ENABLE_PRINCIPAL` (SPEC-006 0.6.0, REQ-15) — the symmetric
@@ -46,7 +51,7 @@ export const userEnableRoute = defineJsonRoute<{ principalId: string }, { user: 
       const { principal } = await deps.enablePrincipal({ deps: services, input: { workspaceId, callerPrincipalId, principalId } });
       return ok({ value: { user: await adminUserForPrincipal({ repos: services.repos, workspaceId, principal }) } });
     } catch (err) {
-      return rejectUserError({ err, rungs: USER_ENABLE_ERRORS });
+      return rejectUserError({ err, rungs: userEnableErrors({ deps }) });
     }
   },
 });

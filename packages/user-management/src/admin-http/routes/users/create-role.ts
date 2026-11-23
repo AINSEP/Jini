@@ -1,14 +1,17 @@
 import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
 
-import { createRole } from "../../../server/grant-service.js";
+import type { createRole } from "../../../server/grant-service.js";
 import { toAdminRoleResponse, type AdminRoleResponse } from "../../http/users.js";
 import {
   ACCESS_FORBIDDEN, ACCESS_VALIDATION, accessActorId, accessBody, rejectAccessError,
   type AccessRoutePrincipal, type AccessServiceRouteDeps,
 } from "./access-shared.js";
 
-/** The deps this route reads: the workspace and the identity services' deps bag. */
-export interface RoleCreateRouteDeps extends AccessServiceRouteDeps {}
+/** The deps this route reads: the workspace, the identity services' deps bag and the service it calls. */
+export interface RoleCreateRouteDeps extends AccessServiceRouteDeps {
+  /** Injected: the service lives in the node `./server` entry; the host binds it. */
+  createRole: typeof createRole;
+}
 
 const ROLE_CREATE_ERRORS = [ACCESS_FORBIDDEN, ACCESS_VALIDATION] as const;
 
@@ -20,7 +23,7 @@ export const roleCreateRoute = defineJsonRoute<{ name: string }, { role: AdminRo
   handle: async ({ input, deps, context }) => {
     const callerPrincipalId = accessActorId({ context });
     try {
-      const { role } = await createRole({ deps: deps.identityServiceDeps(), input: { workspaceId: deps.workspaceId, callerPrincipalId, name: input.name } });
+      const { role } = await deps.createRole({ deps: deps.identityServiceDeps(), input: { workspaceId: deps.workspaceId, callerPrincipalId, name: input.name } });
       return ok({ value: { role: toAdminRoleResponse(role) } });
     } catch (err) {
       return rejectAccessError({ err, mappings: ROLE_CREATE_ERRORS });

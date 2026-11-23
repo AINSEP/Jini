@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { resetUserPassword } from "../../../../server/admin-crud-service.js";
 import { userResetPasswordRoute } from "../reset-password.js";
-import { addUser, HostSelfDeleteError, raw, refusalOf, seededIdentity, signal, trashIndex, WORKSPACE_ID } from "./helpers.js";
+import { addUser, HostSelfDeleteError, raw, refusalOf, seededIdentity, signal, trashIndex, WORKSPACE_ID, HostInTrashError } from "./helpers.js";
 
 async function resetDeps(guard: () => Promise<void> = async () => {}) {
   const { services, ownerId } = await seededIdentity();
@@ -9,7 +9,7 @@ async function resetDeps(guard: () => Promise<void> = async () => {}) {
   const trash = trashIndex();
   const guardCalls: unknown[][] = [];
   const deps = {
-    workspaceId: WORKSPACE_ID, resetUserPassword, identityServices: () => services, isInTrash: trash.isInTrash, ownerPrincipalId: Promise.resolve(ownerId),
+    workspaceId: WORKSPACE_ID, resetUserPassword, identityServices: () => services, isInTrash: trash.isInTrash, isUserInTrashError: ({ err }: { err: unknown }) => err instanceof HostInTrashError, ownerPrincipalId: Promise.resolve(ownerId),
     assertUserAccountAction: async (...args: unknown[]) => { guardCalls.push(args); await guard(); },
     isSelfDeleteError: ({ err }: { err: unknown }) => err instanceof HostSelfDeleteError,
   };
@@ -73,5 +73,13 @@ describe("userResetPasswordRoute", () => {
     const { deps, ownerId, alice } = await resetDeps(async () => { throw new Error("guard down"); });
     await expect(userResetPasswordRoute.handle({ input: { principalId: alice, password: NEW_PASSWORD }, deps, context: { id: ownerId } })).rejects.toThrow("guard down");
     await expect(userResetPasswordRoute.handle({ input: { principalId: alice, password: NEW_PASSWORD }, deps, context: undefined })).rejects.toThrow(/no authenticated principal/);
+  });
+
+  it("maps the host's own in-Trash error (thrown by its Trash index) to 409 USER_IN_TRASH with its message", async () => {
+    const { deps, ownerId, alice } = await resetDeps();
+    const throwing = { ...deps, isInTrash: async () => { throw new HostInTrashError("trashed"); } };
+    expect(await refusalOf(() => userResetPasswordRoute.handle({ input: { principalId: alice, password: "a-new-p4ssw0rd!" }, deps: throwing, context: { id: ownerId } }))).toEqual({
+      status: 409, body: { error: "trashed", code: "USER_IN_TRASH" },
+    });
   });
 });

@@ -2,7 +2,7 @@ import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
 import { rejectRoute } from "@jini-ai/core/errors/route-refusal";
 
 import type { PolicyPermissionRecord } from "../../../core/types.js";
-import { writePolicyPermission } from "../../../server/admin-crud-service.js";
+import type { writePolicyPermission } from "../../../server/admin-crud-service.js";
 import {
   ACCESS_FORBIDDEN, ACCESS_GRANT_EXCEEDS_ISSUER, ACCESS_NOT_FOUND, ACCESS_VALIDATION, accessActorId, accessBody, accessPathParam,
   accessPermissionUnknown, optionalString, rejectAccessError, type AccessRoutePrincipal, type AccessServiceRouteDeps,
@@ -13,6 +13,8 @@ import {
 export interface PolicyPermissionWriteRouteDeps extends AccessServiceRouteDeps {
   ungrantablePermissions: readonly string[];
   ungrantablePermissionRefusal: string;
+  /** Injected: the service lives in the node `./server` entry; the host binds it. */
+  writePolicyPermission: typeof writePolicyPermission;
 }
 
 /** The coerced payload, plus the permission exactly as sent — only for the PERMISSION_UNKNOWN echo. */
@@ -52,7 +54,7 @@ export const policyPermissionWriteRoute = defineJsonRoute<PolicyPermissionWriteI
     // `PermissionUnknownError` echoes the request's own permission, so this ladder is per request.
     const mappings = [ACCESS_FORBIDDEN, ACCESS_GRANT_EXCEEDS_ISSUER, accessPermissionUnknown(input.requestedPermission), ACCESS_VALIDATION, ACCESS_NOT_FOUND];
     try {
-      const { policyPermission } = await writePolicyPermission(
+      const { policyPermission } = await deps.writePolicyPermission(
         { deps: deps.identityServiceDeps(), input: { workspaceId: deps.workspaceId, callerPrincipalId, policyId: input.policyId, permission: input.permission } },
         // An absent scope field is omitted (exact optional types); the service reads it as unscoped either way.
         {

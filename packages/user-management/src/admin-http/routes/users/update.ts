@@ -7,7 +7,7 @@ import type { AuthServiceDeps } from "../../../server/auth-service.js";
 import type { AdminUserResponse } from "../../http/users.js";
 import {
   adminUserWithGrants, principalIdParam, rejectUserError, rejectUserInTrash, USER_CONFLICT_OWN_CODE, USER_FORBIDDEN, USER_NOT_FOUND,
-  USER_OWNER_REQUIRED, USER_VALIDATION, userActorId, type IdentityServicesFn, type IsInTrashFn, type UserRoutePrincipal,
+  USER_OWNER_REQUIRED, USER_VALIDATION, userActorId, hostRung, type HostErrorPredicate, type UserErrorRung, type IdentityServicesFn, type IsInTrashFn, type UserRoutePrincipal,
 } from "./shared.js";
 
 /** The deps this route reads. */
@@ -18,6 +18,8 @@ export interface UserUpdateRouteDeps {
   updateUser: typeof updateUser;
   identityServices: IdentityServicesFn;
   isInTrash: IsInTrashFn;
+  /** Matches the host's "user is in the Trash" error, which its Trash index may throw itself. */
+  isUserInTrashError: HostErrorPredicate;
 }
 
 /**
@@ -27,7 +29,10 @@ export interface UserUpdateRouteDeps {
  */
 export interface UserUpdateInput { principalId: string; email: string | undefined; username: string | undefined; usernameIsInvalid: boolean }
 
-const USER_UPDATE_ERRORS = [USER_CONFLICT_OWN_CODE, USER_VALIDATION, USER_FORBIDDEN, USER_NOT_FOUND, USER_OWNER_REQUIRED] as const;
+/** This route's ladder, in the hand-written order; the in-Trash rung is the host's class. @complexity O(1). */
+function userUpdateErrors({ deps }: { deps: UserUpdateRouteDeps }, _optional: Record<string, never> = {}): readonly UserErrorRung[] {
+  return [USER_CONFLICT_OWN_CODE, USER_VALIDATION, hostRung({ matches: deps.isUserInTrashError, status: 409, code: "USER_IN_TRASH" }), USER_FORBIDDEN, USER_NOT_FOUND, USER_OWNER_REQUIRED];
+}
 
 /**
  * Loads the principal record plus role/policy links and builds the admin response shape.
@@ -83,16 +88,17 @@ export const userUpdateRoute = defineJsonRoute<UserUpdateInput, { user: AdminUse
   },
   handle: async ({ input, deps, context }) => {
     const callerPrincipalId = userActorId({ context });
-    // OWNER DECISION 2026-09-24 (delete-user plan v2, decision 7) — refuse BEFORE the transition;
-    // see `rejectUserInTrash` for why.
-    if (await deps.isInTrash({ principalId: input.principalId })) rejectUserInTrash();
-    if (input.usernameIsInvalid) rejectRoute({ status: 400, error: "username must be a string", code: "VALIDATION_ERROR" });
-    const services = deps.identityServices();
     try {
+      // OWNER DECISION 2026-09-24 (delete-user plan v2, decision 7) — refuse BEFORE the transition;
+      // see `rejectUserInTrash` for why. Both refusals are inside the `try` (as the host had them) so
+      // a Trash-index failure still maps through the ladder; a refusal is not a rung and passes through.
+      if (await deps.isInTrash({ principalId: input.principalId })) rejectUserInTrash();
+      if (input.usernameIsInvalid) rejectRoute({ status: 400, error: "username must be a string", code: "VALIDATION_ERROR" });
+      const services = deps.identityServices();
       const { user } = await updateInTransaction({ deps, services, callerPrincipalId, input });
       return ok({ value: { user: await assembleUpdatedUserResponse({ services, workspaceId: deps.workspaceId, principalId: input.principalId, user }) } });
     } catch (err) {
-      return rejectUserError({ err, rungs: USER_UPDATE_ERRORS });
+      return rejectUserError({ err, rungs: userUpdateErrors({ deps }) });
     }
   },
 });

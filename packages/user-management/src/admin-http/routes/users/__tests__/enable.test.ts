@@ -3,14 +3,14 @@ import { enablePrincipal } from "../../../../server/admin-crud-service.js";
 import { assertCallerHasAnyPermission } from "../../../../server/grant-service.js";
 import { disablePrincipal } from "../../../../server/admin-crud-service.js";
 import { userEnableRoute } from "../enable.js";
-import { addUser, raw, refusalOf, seededIdentity, signal, trashIndex, WORKSPACE_ID } from "./helpers.js";
+import { addUser, raw, refusalOf, seededIdentity, signal, trashIndex, WORKSPACE_ID, HostInTrashError } from "./helpers.js";
 
 async function enableDeps() {
   const { services, ownerId } = await seededIdentity();
   const alice = await addUser({ services, ownerId, username: "alice" });
   await disablePrincipal({ deps: services, input: { workspaceId: WORKSPACE_ID, callerPrincipalId: ownerId, principalId: alice, seededOwnerPrincipalId: ownerId } });
   const trash = trashIndex();
-  return { deps: { workspaceId: WORKSPACE_ID, enablePrincipal, assertCallerHasAnyPermission, identityServices: () => services, isInTrash: trash.isInTrash }, services, ownerId, alice, trash };
+  return { deps: { workspaceId: WORKSPACE_ID, enablePrincipal, assertCallerHasAnyPermission, identityServices: () => services, isInTrash: trash.isInTrash, isUserInTrashError: ({ err }: { err: unknown }) => err instanceof HostInTrashError }, services, ownerId, alice, trash };
 }
 
 describe("userEnableRoute", () => {
@@ -52,5 +52,13 @@ describe("userEnableRoute", () => {
     const { deps, ownerId, alice } = await enableDeps();
     await expect(userEnableRoute.handle({ input: { principalId: alice }, deps: { ...deps, isInTrash: async () => { throw new Error("trash down"); } }, context: { id: ownerId } })).rejects.toThrow("trash down");
     await expect(userEnableRoute.handle({ input: { principalId: alice }, deps, context: undefined })).rejects.toThrow(/no authenticated principal/);
+  });
+
+  it("maps the host's own in-Trash error (thrown by its Trash index) to 409 USER_IN_TRASH with its message", async () => {
+    const { deps, ownerId, alice } = await enableDeps();
+    const throwing = { ...deps, isInTrash: async () => { throw new HostInTrashError("trashed"); } };
+    expect(await refusalOf(() => userEnableRoute.handle({ input: { principalId: alice }, deps: throwing, context: { id: ownerId } }))).toEqual({
+      status: 409, body: { error: "trashed", code: "USER_IN_TRASH" },
+    });
   });
 });

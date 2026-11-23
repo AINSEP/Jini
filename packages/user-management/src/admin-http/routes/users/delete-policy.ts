@@ -1,13 +1,16 @@
 import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
 
-import { deletePolicy } from "../../../server/admin-crud-service.js";
+import type { deletePolicy } from "../../../server/admin-crud-service.js";
 import {
   ACCESS_FORBIDDEN, ACCESS_NOT_FOUND, ACCESS_VALIDATION, accessActorId, accessConflictOn, accessPathParam, rejectAccessError,
   type AccessRoutePrincipal, type AccessServiceRouteDeps,
 } from "./access-shared.js";
 
-/** The deps this route reads: the workspace and the identity services' deps bag. */
-export interface PolicyDeleteRouteDeps extends AccessServiceRouteDeps {}
+/** The deps this route reads: the workspace, the identity services' deps bag and the service it calls. */
+export interface PolicyDeleteRouteDeps extends AccessServiceRouteDeps {
+  /** Injected: the service lives in the node `./server` entry; the host binds it. */
+  deletePolicy: typeof deletePolicy;
+}
 
 const POLICY_DELETE_ERRORS = [ACCESS_FORBIDDEN, accessConflictOn("policyId"), ACCESS_VALIDATION, ACCESS_NOT_FOUND] as const;
 
@@ -23,7 +26,7 @@ export const policyDeleteRoute = defineJsonRoute<{ policyId: string }, undefined
   handle: async ({ input, deps, context }) => {
     const callerPrincipalId = accessActorId({ context });
     try {
-      await deletePolicy({ deps: deps.identityServiceDeps(), input: { workspaceId: deps.workspaceId, callerPrincipalId, policyId: input.policyId } });
+      await deps.deletePolicy({ deps: deps.identityServiceDeps(), input: { workspaceId: deps.workspaceId, callerPrincipalId, policyId: input.policyId } });
       return ok({ value: undefined });
     } catch (err) {
       return rejectAccessError({ err, mappings: POLICY_DELETE_ERRORS });

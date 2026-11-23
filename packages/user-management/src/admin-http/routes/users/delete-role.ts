@@ -1,13 +1,16 @@
 import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
 
-import { deleteRole } from "../../../server/admin-crud-service.js";
+import type { deleteRole } from "../../../server/admin-crud-service.js";
 import {
   ACCESS_FORBIDDEN, ACCESS_NOT_FOUND, ACCESS_VALIDATION, accessActorId, accessConflictOn, accessPathParam, rejectAccessError,
   type AccessRoutePrincipal, type AccessServiceRouteDeps,
 } from "./access-shared.js";
 
-/** The deps this route reads: the workspace and the identity services' deps bag. */
-export interface RoleDeleteRouteDeps extends AccessServiceRouteDeps {}
+/** The deps this route reads: the workspace, the identity services' deps bag and the service it calls. */
+export interface RoleDeleteRouteDeps extends AccessServiceRouteDeps {
+  /** Injected: the service lives in the node `./server` entry; the host binds it. */
+  deleteRole: typeof deleteRole;
+}
 
 const ROLE_DELETE_ERRORS = [ACCESS_FORBIDDEN, accessConflictOn("roleId"), ACCESS_VALIDATION, ACCESS_NOT_FOUND] as const;
 
@@ -23,7 +26,7 @@ export const roleDeleteRoute = defineJsonRoute<{ roleId: string }, undefined, Ro
   handle: async ({ input, deps, context }) => {
     const callerPrincipalId = accessActorId({ context });
     try {
-      await deleteRole({ deps: deps.identityServiceDeps(), input: { workspaceId: deps.workspaceId, callerPrincipalId, roleId: input.roleId } });
+      await deps.deleteRole({ deps: deps.identityServiceDeps(), input: { workspaceId: deps.workspaceId, callerPrincipalId, roleId: input.roleId } });
       return ok({ value: undefined });
     } catch (err) {
       return rejectAccessError({ err, mappings: ROLE_DELETE_ERRORS });

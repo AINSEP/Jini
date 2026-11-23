@@ -70,3 +70,4 @@ export function trashIndex(ids: readonly string[] = []): { isInTrash: (r: { prin
 /** A host error class the specs only ever see through an injected predicate. */
 export class HostSelfDeleteError extends Error {}
 export class HostUnsupportedError extends Error {}
+export class HostInTrashError extends Error {}

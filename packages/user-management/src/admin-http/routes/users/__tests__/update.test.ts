@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { updateUser } from "../../../../server/admin-crud-service.js";
 import { userUpdateRoute } from "../update.js";
-import { addUser, raw, refusalOf, seededIdentity, signal, trashIndex, WORKSPACE_ID } from "./helpers.js";
+import { addUser, raw, refusalOf, seededIdentity, signal, trashIndex, WORKSPACE_ID, HostInTrashError } from "./helpers.js";
 
 async function updateDeps() {
   const { services, ownerId } = await seededIdentity();
   const alice = await addUser({ services, ownerId, username: "alice" });
   const trash = trashIndex();
-  return { deps: { workspaceId: WORKSPACE_ID, updateUser, identityServices: () => services, isInTrash: trash.isInTrash }, services, ownerId, alice, trash };
+  return { deps: { workspaceId: WORKSPACE_ID, updateUser, identityServices: () => services, isInTrash: trash.isInTrash, isUserInTrashError: ({ err }: { err: unknown }) => err instanceof HostInTrashError }, services, ownerId, alice, trash };
 }
 const input = (principalId: string, overrides: Partial<{ email: string | undefined; username: string | undefined; usernameIsInvalid: boolean }> = {}) =>
   ({ principalId, email: undefined, username: undefined, usernameIsInvalid: false, ...overrides });
@@ -66,5 +66,13 @@ describe("userUpdateRoute", () => {
     const { deps, alice } = await updateDeps();
     await expect(userUpdateRoute.handle({ input: input(alice), deps: { ...deps, isInTrash: async () => { throw new Error("trash down"); } }, context: { id: "x" } })).rejects.toThrow("trash down");
     await expect(userUpdateRoute.handle({ input: input(alice), deps, context: undefined })).rejects.toThrow(/no authenticated principal/);
+  });
+
+  it("maps the host's own in-Trash error (thrown by its Trash index) to 409 USER_IN_TRASH with its message", async () => {
+    const { deps, ownerId, alice } = await updateDeps();
+    const throwing = { ...deps, isInTrash: async () => { throw new HostInTrashError("trashed"); } };
+    expect(await refusalOf(() => userUpdateRoute.handle({ input: input(alice), deps: throwing, context: { id: ownerId } }))).toEqual({
+      status: 409, body: { error: "trashed", code: "USER_IN_TRASH" },
+    });
   });
 });

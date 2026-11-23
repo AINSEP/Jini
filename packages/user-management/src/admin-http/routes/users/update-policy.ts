@@ -1,14 +1,17 @@
 import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
 
-import { updatePolicy } from "../../../server/admin-crud-service.js";
+import type { updatePolicy } from "../../../server/admin-crud-service.js";
 import { toAdminPolicyResponse, type AdminPolicyResponse } from "../../http/users.js";
 import {
   ACCESS_FORBIDDEN, ACCESS_NOT_FOUND, ACCESS_VALIDATION, accessActorId, accessBody, accessPathParam, optionalString, rejectAccessError,
   type AccessRoutePrincipal, type AccessServiceRouteDeps,
 } from "./access-shared.js";
 
-/** The deps this route reads: the workspace and the identity services' deps bag. */
-export interface PolicyUpdateRouteDeps extends AccessServiceRouteDeps {}
+/** The deps this route reads: the workspace, the identity services' deps bag and the service it calls. */
+export interface PolicyUpdateRouteDeps extends AccessServiceRouteDeps {
+  /** Injected: the service lives in the node `./server` entry; the host binds it. */
+  updatePolicy: typeof updatePolicy;
+}
 
 /** The two writable PATCH fields — `undefined` means "leave unchanged" — plus the target id. */
 interface PolicyUpdateInput { policyId: string; name: string | undefined; description: string | undefined }
@@ -30,7 +33,7 @@ export const policyUpdateRoute = defineJsonRoute<PolicyUpdateInput, { policy: Ad
   handle: async ({ input, deps, context }) => {
     const callerPrincipalId = accessActorId({ context });
     try {
-      const { policy } = await updatePolicy(
+      const { policy } = await deps.updatePolicy(
         { deps: deps.identityServiceDeps(), input: { workspaceId: deps.workspaceId, callerPrincipalId, policyId: input.policyId } },
         { name: input.name, description: input.description },
       );
