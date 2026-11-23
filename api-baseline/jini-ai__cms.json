@@ -1510,7 +1510,9 @@
   "types": "./dist/publish/content/publish-readiness.d.ts",
   "symbols": {
    "PublishReadiness": "interface:3ace66c900",
-   "PublishReadinessInput": "interface:fd5e5faab8",
+   "PublishReadinessCopy": "interface:5acd0befc6",
+   "PublishReadinessInput": "interface:dcedc3030f",
+   "PublishReadinessSentences": "interface:1d83bcb40f",
    "PublishReadinessVerdict": "type:a00971cf4c",
    "describePublishReadiness": "function:2bdc9e420d",
    "siteLabelFor": "function:cfa3bbe22e"

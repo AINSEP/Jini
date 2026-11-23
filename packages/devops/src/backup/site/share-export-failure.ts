@@ -17,10 +17,3 @@ export class SiteShareExportFailure extends Error {
     this.time = required.time;
   }
 }
-
-/** Closed stage descriptions: the route never infers storage trouble from an arbitrary exception. */
-export const SITE_EXPORT_FAILURE_MESSAGES: Readonly<Record<SiteShareExportStep, string>> = {
-  prepare: "The export stopped while preparing the site files.",
-  archive: "The export stopped while building the ZIP.",
-  delivery: "The export stopped while saving or delivering the ZIP.",
-};
