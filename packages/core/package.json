@@ -96,6 +96,16 @@
       "./contracts/site/secrets-credential-sets": "universal",
       "./contracts/site/user-management-react": "universal",
       "./contracts/site/user-management-server": "universal",
+      "./contracts/site/agent-plugins-connect": "universal",
+      "./contracts/site/analytics": "universal",
+      "./contracts/site/core-consent-refusal": "universal",
+      "./contracts/site/core-public-page-security-headers": "universal",
+      "./contracts/site/core-theme-slots": "universal",
+      "./contracts/site/daemon-http": "universal",
+      "./contracts/site/host-node": "universal",
+      "./contracts/site/lifecycle-host-tools": "universal",
+      "./contracts/site/platform-site-dir": "universal",
+      "./contracts/site/search": "universal",
       "./errors/sentences": "universal",
       "./errors/bindings": "universal",
       "./errors/catalog": "universal",
@@ -605,6 +615,56 @@
       "types": "./dist/contracts/site/user-management-server.d.ts",
       "import": "./dist/contracts/site/user-management-server.js",
       "default": "./dist/contracts/site/user-management-server.js"
+    },
+    "./contracts/site/agent-plugins-connect": {
+      "types": "./dist/contracts/site/agent-plugins-connect.d.ts",
+      "import": "./dist/contracts/site/agent-plugins-connect.js",
+      "default": "./dist/contracts/site/agent-plugins-connect.js"
+    },
+    "./contracts/site/analytics": {
+      "types": "./dist/contracts/site/analytics.d.ts",
+      "import": "./dist/contracts/site/analytics.js",
+      "default": "./dist/contracts/site/analytics.js"
+    },
+    "./contracts/site/core-consent-refusal": {
+      "types": "./dist/contracts/site/core-consent-refusal.d.ts",
+      "import": "./dist/contracts/site/core-consent-refusal.js",
+      "default": "./dist/contracts/site/core-consent-refusal.js"
+    },
+    "./contracts/site/core-public-page-security-headers": {
+      "types": "./dist/contracts/site/core-public-page-security-headers.d.ts",
+      "import": "./dist/contracts/site/core-public-page-security-headers.js",
+      "default": "./dist/contracts/site/core-public-page-security-headers.js"
+    },
+    "./contracts/site/core-theme-slots": {
+      "types": "./dist/contracts/site/core-theme-slots.d.ts",
+      "import": "./dist/contracts/site/core-theme-slots.js",
+      "default": "./dist/contracts/site/core-theme-slots.js"
+    },
+    "./contracts/site/daemon-http": {
+      "types": "./dist/contracts/site/daemon-http.d.ts",
+      "import": "./dist/contracts/site/daemon-http.js",
+      "default": "./dist/contracts/site/daemon-http.js"
+    },
+    "./contracts/site/host-node": {
+      "types": "./dist/contracts/site/host-node.d.ts",
+      "import": "./dist/contracts/site/host-node.js",
+      "default": "./dist/contracts/site/host-node.js"
+    },
+    "./contracts/site/lifecycle-host-tools": {
+      "types": "./dist/contracts/site/lifecycle-host-tools.d.ts",
+      "import": "./dist/contracts/site/lifecycle-host-tools.js",
+      "default": "./dist/contracts/site/lifecycle-host-tools.js"
+    },
+    "./contracts/site/platform-site-dir": {
+      "types": "./dist/contracts/site/platform-site-dir.d.ts",
+      "import": "./dist/contracts/site/platform-site-dir.js",
+      "default": "./dist/contracts/site/platform-site-dir.js"
+    },
+    "./contracts/site/search": {
+      "types": "./dist/contracts/site/search.d.ts",
+      "import": "./dist/contracts/site/search.js",
+      "default": "./dist/contracts/site/search.js"
     },
     "./errors/sentences": {
       "types": "./dist/errors/sentences.d.ts",
