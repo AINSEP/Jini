@@ -27,6 +27,8 @@
       "./console-tee": "node",
       "./server-logs/read-server-logs": "universal",
       "./server-logs/agent-tools": "universal",
+      "./server-logs/tool-registrations": "universal",
+      "./observability/tool-registrations": "universal",
       "./tool-audit/repo.memory": "universal"
     },
     "runtime": "node",
@@ -113,6 +115,16 @@
       "types": "./dist/server-logs/agent-tools.d.ts",
       "import": "./dist/server-logs/agent-tools.js",
       "default": "./dist/server-logs/agent-tools.js"
+    },
+    "./server-logs/tool-registrations": {
+      "types": "./dist/server-logs/tool-registrations.d.ts",
+      "import": "./dist/server-logs/tool-registrations.js",
+      "default": "./dist/server-logs/tool-registrations.js"
+    },
+    "./observability/tool-registrations": {
+      "types": "./dist/observability/tool-registrations.d.ts",
+      "import": "./dist/observability/tool-registrations.js",
+      "default": "./dist/observability/tool-registrations.js"
     },
     "./tool-audit/repo.memory": {
       "types": "./dist/tool-audit/repo.memory.d.ts",

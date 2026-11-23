@@ -1,4 +1,5 @@
 /** Minimal Members learning card, maintained beside its owning code. Live registries supply current types. */
+/** The read pointer is a `{{read:member}}` placeholder: the host resolves it through its `HostReadVocabulary` (`resolveHostReadRefs`), since the engine may not name a host tool id. */
 import type { GuideTopic as CapabilityCard } from "@jini-ai/core/contracts/site/agentic-core";
 
 export const capabilityCard = {
@@ -12,7 +13,7 @@ export const capabilityCard = {
   "pointers": [
     {
       "label": "Inspect members",
-      "tool": "content_read.member",
+      "tool": "{{read:member}}",
       "permissions": [
         "member.manage"
       ]

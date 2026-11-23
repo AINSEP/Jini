@@ -50,6 +50,7 @@
       "./members/password-auth": "node",
       "./members/ports": "universal",
       "./members/repo.memory": "universal",
+      "./members/subscriber-directory": "universal",
       "./members/trash-member": "universal",
       "./members/types": "universal"
     },
@@ -61,7 +62,11 @@
     },
     "isolation": {
       "entries": {
-        "./member-login/oidc-login": "server"
+        "./member-login/oidc-login": "server",
+        "./members/member-challenge": "server",
+        "./members/member-credentials": "server",
+        "./members/member-sign-in": "server",
+        "./members/password-auth": "server"
       }
     }
   },
@@ -252,6 +257,11 @@
       "types": "./dist/members/repo.memory.d.ts",
       "import": "./dist/members/repo.memory.js",
       "default": "./dist/members/repo.memory.js"
+    },
+    "./members/subscriber-directory": {
+      "types": "./dist/members/subscriber-directory.d.ts",
+      "import": "./dist/members/subscriber-directory.js",
+      "default": "./dist/members/subscriber-directory.js"
     },
     "./members/trash-member": {
       "types": "./dist/members/trash-member.d.ts",

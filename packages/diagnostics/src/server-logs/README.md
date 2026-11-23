@@ -19,8 +19,12 @@ then `readServerLogs`, so a filter means the same thing in the UI and in chat.
   schema from.
 - **Provides (`./agent-tools`):** `serverLogsAgentToolCatalog`, the catalog entry for the read-only
   `system_read_server_logs` chat tool (permission `system.read`, `sideEffects: "none"`), whose input
-  schema bounds are the constants above. The host builds the registration (handler, permission
-  check, log source binding) around it.
+  schema bounds are the constants above.
+- **Provides (`./tool-registrations`):** `contributeServerLogsTools({ serverLogs })`, the
+  `system-server-logs` contributor (handler, `system.read` permission check via
+  `@jini-ai/core`'s `requireToolPermission`, metadata from `@jini-ai/core/tool-metadata/server-logs`).
+  The build reads `deps.serverLogs` when the deps carry one, else the `serverLogs` the host bound
+  on the contributor (typically its own process log capture).
 - **Host wiring example:**
 
   ```ts

@@ -45,6 +45,7 @@ test('publishes user management from its canonical folder and preserves runtime 
     './members/password-auth': 'node',
     './members/ports': 'universal',
     './members/repo.memory': 'universal',
+    './members/subscriber-directory': 'universal',
     './members/trash-member': 'universal',
     './members/types': 'universal',
     './newsletter/errors': 'universal',

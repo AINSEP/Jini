@@ -201,7 +201,7 @@ export class InMemoryNewsletterAudienceSnapshotRepo implements NewsletterAudienc
   async save(row: AudienceSnapshotRow): Promise<void> {
     // INV-06: immutable after creation — `save` is create-only; a duplicate id is a caller bug.
     const exists = this.rows.some((r) => r.workspaceId === row.workspaceId && r.id === row.id);
-    if (exists) throw new Error(`AudienceSnapshotRow ${row.id} already exists and is immutable (INV-06)`);
+    if (exists) throw new Error(`AudienceSnapshotRow ${row.id} already exists and is immutable`);
     this.rows.push(row);
   }
 }

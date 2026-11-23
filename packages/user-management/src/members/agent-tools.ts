@@ -15,7 +15,7 @@ import type { AgentToolDefinition as SharedAgentToolDefinition } from "@jini-ai/
  * Owner 2026-10-09 supersedes the profile/create exclusion below for this CRUD pass;
  * billing and authentication exclusions remain binding. Historical rationale is retained.
  * - `updateProfile`, `compSubscription`, `setSubscriptionStatus` (`write-service.ts`) have NO
- *   admin HTTP route at all today — `apps/website/src/server/runtime/composition/modules/members.ts` wires exactly 4 admin registrars
+ *   admin HTTP route at all today — the host's members composition module wires exactly 4 admin registrars
  *   (list/get/disable/request-magic-link) plus 2 public sign-in routes, nothing else. Wiring an
  *   agent tool for a write-service function the admin UI does not yet expose would give the
  *   assistant MORE capability than a human clicking through the admin screens has today — the
@@ -70,7 +70,7 @@ export type AgentToolDefinition = SharedAgentToolDefinition & { sideEffects: Age
 const MEMBER_ID_SCHEMA = {
   type: "string",
   minLength: 1,
-  description: "The member's id. Get it from content_read.member — omit memberId to list every member, or supply one to fetch that member.",
+  description: "The member's id. Get it from {{read:member}} — omit memberId to list every member, or supply one to fetch that member.",
 } as const;
 
 /** The input shape shared by `members_get_by_id`/`members_disable` — exactly `{memberId}`. */

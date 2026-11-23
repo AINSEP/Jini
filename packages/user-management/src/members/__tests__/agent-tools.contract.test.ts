@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 
+import { resolveHostReadRefs } from "@jini-ai/core";
 import { membersAgentToolCatalog } from "../agent-tools.js";
 
 /**
@@ -31,5 +32,8 @@ test("every Members agent tool keeps its exact permission, side effect and stric
 
 test("the member id field tells the model where ids come from", () => {
   const schema = membersAgentToolCatalog.find((tool) => tool.name === "members_get_by_id")!.inputSchema as { properties: { memberId: { description: string } } };
-  assert.match(schema.properties.memberId.description, /content_read\.member/);
+  // The engine may not name a host tool id: the text carries a `{{read:member}}` placeholder the host resolves.
+  assert.match(schema.properties.memberId.description, /\{\{read:member\}\}/);
+  const resolved = resolveHostReadRefs({ value: schema }, { hostReads: { readRef: ({ entity }) => `host_read.${entity}` } });
+  assert.equal(resolved.properties.memberId.description, "The member's id. Get it from host_read.member — omit memberId to list every member, or supply one to fetch that member.");
 });

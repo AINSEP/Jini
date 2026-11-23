@@ -19,6 +19,8 @@ design and are injected.
 | `pages/hooks/pages-port.hooks` | `PagesPort`, `PageListRow`, `PageListPatch`, `PagesEventsPort` — what the list needs from the host. |
 | `pages/pages-list-rules` | `pageRowMenuItems`, `buildPageRowMenuHandleMap`, `PageRowMenuHandlers` — list-only row-menu logic. |
 | `pages/pages-i18n` | `PAGES_DICT`, `t` — the Pages list screen dictionary (all locales), falling back to `ADMIN_COMMON_I18N`. |
+| `pages/hooks/use-interactive-flush.hooks` | `useInteractiveEditorFlush`, `INTERACTIVE_FLUSH_TIMEOUT_MS`, `InteractiveFlushCollaborators` — folds an open Interactive-tab edit into the working copy before a save, tab switch or template change, bounded by a timeout. |
+| `pages/hooks/use-editor-html-jump.hooks` | `useEditorHtmlJump`, `measureTextareaCaretTop`, `RequestEditHtml`, `FindEditorBlockOpening` — the canvas's "Edit HTML" jump to a block's exact opening tag in the HTML tab. |
 
 ## Wiring
 
@@ -66,6 +68,18 @@ const describeEmbedPlaceholder = useMemo(
   [t],
 );
 <HtmlEditor isProtectedElement={isProtectedEmbedElement} describeEmbedPlaceholder={describeEmbedPlaceholder} … />
+```
+
+`useInteractiveEditorFlush` takes `InteractiveFlushCollaborators` as required fields beside
+`setHtml`: `isEditorSourceError` (`@jini-ai/ui/html-editor`; the one flush failure that propagates),
+`normalizeEmbedMarkerQuoting` (`@jini-ai/cms/widgets/markers`) and a core `Logger` (`warn` receives
+the two "continuing without the open edit" messages with the error in its error bag).
+`useEditorHtmlJump` takes `findEditorBlockOpening` (`@jini-ai/ui/html-editor`) as a required field;
+its `onError` receives the caught flush error (or nothing for a missing occurrence).
+
+```ts
+useInteractiveEditorFlush({ setHtml, isEditorSourceError, normalizeEmbedMarkerQuoting, logger });
+useEditorHtmlJump({ html, contentRevision, flush, setView, setDraftHtml, scrollTop, findEditorBlockOpening }, { onError });
 ```
 
 Must never import: host application code (`@/…`, app paths), `@jini-ai/cms` or `@jini-ai/ui`

@@ -28,6 +28,8 @@ const entries = {
   "./local-text": ["local-text", "node"],
   "./console-tee": ["console-tee", "node"],
   "./server-logs/read-server-logs": ["server-logs/read-server-logs", "universal"],
+  "./server-logs/tool-registrations": ["server-logs/tool-registrations", "universal"],
+  "./observability/tool-registrations": ["observability/tool-registrations", "universal"],
 } as const;
 
 describe("published diagnostics surface", () => {

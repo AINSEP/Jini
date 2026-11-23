@@ -149,6 +149,8 @@
       "./tool-metadata/analytics": "universal",
       "./tool-metadata/change-sets": "universal",
       "./tool-metadata/consent": "universal",
+      "./tool-metadata/members": "universal",
+      "./tool-metadata/newsletter": "universal",
       "./tool-metadata/content-duplication": "universal",
       "./tool-metadata/content-types": "universal",
       "./tool-metadata/database-transfer": "universal",
@@ -900,6 +902,16 @@
       "types": "./dist/tool-metadata/consent.d.ts",
       "import": "./dist/tool-metadata/consent.js",
       "default": "./dist/tool-metadata/consent.js"
+    },
+    "./tool-metadata/members": {
+      "types": "./dist/tool-metadata/members.d.ts",
+      "import": "./dist/tool-metadata/members.js",
+      "default": "./dist/tool-metadata/members.js"
+    },
+    "./tool-metadata/newsletter": {
+      "types": "./dist/tool-metadata/newsletter.d.ts",
+      "import": "./dist/tool-metadata/newsletter.js",
+      "default": "./dist/tool-metadata/newsletter.js"
     },
     "./tool-metadata/content-duplication": {
       "types": "./dist/tool-metadata/content-duplication.d.ts",
