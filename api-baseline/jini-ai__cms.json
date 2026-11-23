@@ -40,7 +40,16 @@
    "toAdminFormDefinitionResponse": "function:f3a2285392",
    "toAdminFormSubmissionDto": "function:1ac00d53fb",
    "toAdminFormSubmissionListResponse": "function:c7d035c7d4",
-   "toAdminFormSubmissionResponse": "function:11c45c966e"
+   "toAdminFormSubmissionResponse": "function:11c45c966e",
+ "./admin-http/http/menus": {
+  "types": "./dist/admin-http/http/menus.d.ts",
+   "parseMenuHtmlAuthoring": "function:d8a534f540",
+   "toAdminAssignLocationResponse": "function:8aca946334",
+   "toAdminMenuBindingDto": "function:03e0892771",
+   "toAdminMenuDto": "function:fce26a4af3",
+   "toAdminMenuListResponse": "function:8e006c2f02",
+   "toAdminMenuResponse": "function:e11707c207",
+   "toAdminTrashMenuResponse": "function:84a8a19808"
   }
  },
  "./admin-http/http/redirects": {
@@ -107,6 +116,51 @@
    "DatabaseTimelineRouteDeps": "interface:f260fbf960",
    "DatabaseTimelineRow": "interface:7b2ffbe33b",
    "adminDatabaseTimelineRoute": "variable:5119d6e733"
+  }
+ },
+ "./admin-http/routes/menus/assign-location": {
+  "types": "./dist/admin-http/routes/menus/assign-location.d.ts",
+  "symbols": {
+   "MenuAssignLocationRouteDeps": "interface:8cb04c8366",
+   "menuAssignLocationRoute": "variable:40398f026d"
+  }
+ },
+ "./admin-http/routes/menus/create": {
+  "types": "./dist/admin-http/routes/menus/create.d.ts",
+  "symbols": {
+   "MenuCreateInput": "interface:fea37b24aa",
+   "MenuCreateRouteDeps": "interface:bc0e8668e4",
+   "menuCreateRoute": "variable:456c12f72a"
+  }
+ },
+ "./admin-http/routes/menus/delete": {
+  "types": "./dist/admin-http/routes/menus/delete.d.ts",
+  "symbols": {
+   "MenuDeleteRouteDeps": "interface:4e3c5be61a",
+   "MenuTrashFn": "type:c2688145af",
+   "menuDeleteRoute": "variable:c0b33225f4"
+  }
+ },
+ "./admin-http/routes/menus/get-by-id": {
+  "types": "./dist/admin-http/routes/menus/get-by-id.d.ts",
+  "symbols": {
+   "MenuGetRouteDeps": "interface:224c88ad7a",
+   "menuGetRoute": "variable:516b1d24ce"
+  }
+ },
+ "./admin-http/routes/menus/list": {
+  "types": "./dist/admin-http/routes/menus/list.d.ts",
+  "symbols": {
+   "MenuListRouteDeps": "interface:3606e0aecb",
+   "menuListRoute": "variable:d9dd4b9cf9"
+  }
+ },
+ "./admin-http/routes/menus/update-tree": {
+  "types": "./dist/admin-http/routes/menus/update-tree.d.ts",
+  "symbols": {
+   "MenuUpdateTreeInput": "interface:120740c76e",
+   "MenuUpdateTreeRouteDeps": "interface:fc8bebb41e",
+   "menuUpdateTreeRoute": "variable:9610552709"
   }
  },
  "./admin-http/routes/recovery/deep-link": {
