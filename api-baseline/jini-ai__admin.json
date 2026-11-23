@@ -2548,5 +2548,30 @@
     "symbols": {
       "createUserInterfaceSettingsPanelTranslator": "function:581b2dfb25"
     }
+  },
+  "./screens/settings/ExternalMcpToolsModal.hooks": {
+    "types": "./dist/screens/settings/ExternalMcpToolsModal.hooks.d.ts",
+    "symbols": {
+      "ExternalMcpToolsModalController": "interface:57b44fcc3d",
+      "useExternalMcpToolsModalEscape": "function:4b2a3fed13"
+    }
+  },
+  "./screens/settings/hooks/use-external-mcp-remove-confirm.hooks": {
+    "types": "./dist/screens/settings/hooks/use-external-mcp-remove-confirm.hooks.d.ts",
+    "symbols": {
+      "ExternalMcpRemoveConfirmController": "interface:97b7399135",
+      "ExternalMcpRemoveConfirmCopyBuilder": "type:1419e4d068",
+      "useExternalMcpRemoveConfirm": "function:c8d1654767"
+    }
+  },
+  "./screens/settings/hooks/use-settings-active-tab-scroll.hooks": {
+    "types": "./dist/screens/settings/hooks/use-settings-active-tab-scroll.hooks.d.ts",
+    "symbols": {
+      "useSettingsActiveTabScroll": "function:e8dddbc327"
+    }
+  },
+  "./screens/settings/user-interface-settings.css": {
+    "types": null,
+    "symbols": {}
   }
 }
