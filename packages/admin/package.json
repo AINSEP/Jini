@@ -153,7 +153,33 @@
       "./shell/components/ServerRestartingBanner/ServerRestartingBanner": "browser",
       "./shell/components/AdminFailureNotice/admin-failure-notice.css": "browser",
       "./shell/components/ServerRestartingBanner/server-restarting-banner.css": "browser",
-      "./shell/components/ServerRestartingBanner/hooks/use-server-connection-status.hooks": "browser"
+      "./shell/components/ServerRestartingBanner/hooks/use-server-connection-status.hooks": "browser",
+      "./screens/observability/Observability": "browser",
+      "./screens/observability/api/observability-api": "universal",
+      "./screens/observability/api/observability-api.types": "universal",
+      "./screens/observability/hooks/observability-status-dependencies.hooks": "universal",
+      "./screens/observability/hooks/recent-server-errors-dependencies.hooks": "universal",
+      "./screens/observability/hooks/observability-status-port.hooks": "universal",
+      "./screens/observability/hooks/recent-server-errors-port.hooks": "universal",
+      "./screens/observability/hooks/use-observability-status.hooks": "browser",
+      "./screens/observability/hooks/use-recent-server-errors.hooks": "browser",
+      "./screens/observability/hooks/use-queries-tab.hooks": "browser",
+      "./screens/observability/observability-i18n": "universal",
+      "./screens/observability/queries-panel": "browser",
+      "./screens/observability/tool-gaps-panel": "browser",
+      "./screens/observability/recent-errors-panel": "browser",
+      "./screens/observability/recent-errors-rules": "universal",
+      "./screens/observability/observability-visuals": "browser",
+      "./screens/observability/recent-errors.css": "browser",
+      "./screens/observability/observability.css": "browser",
+      "./screens/dashboard/Dashboard": "browser",
+      "./screens/dashboard/rules": "universal",
+      "./screens/dashboard/dashboard-i18n": "universal",
+      "./screens/dashboard/hooks/use-dashboard.hooks": "browser",
+      "./screens/dashboard/hooks/dashboard-port.hooks": "universal",
+      "./screens/dashboard/hooks/fake-dashboard-port": "universal",
+      "./screens/dashboard/dashboard-view.types": "universal",
+      "./screens/dashboard/dashboard.css": "browser"
     },
     "isolation": {
       "shared": [
@@ -931,7 +957,125 @@
       "types": "./dist/shell/components/ServerRestartingBanner/hooks/use-server-connection-status.hooks.d.ts",
       "import": "./dist/shell/components/ServerRestartingBanner/hooks/use-server-connection-status.hooks.js",
       "default": "./dist/shell/components/ServerRestartingBanner/hooks/use-server-connection-status.hooks.js"
-    }
+    },
+    "./screens/observability/Observability": {
+      "types": "./dist/screens/observability/Observability.d.ts",
+      "import": "./dist/screens/observability/Observability.js",
+      "default": "./dist/screens/observability/Observability.js"
+    },
+    "./screens/observability/api/observability-api": {
+      "types": "./dist/screens/observability/api/observability-api.d.ts",
+      "import": "./dist/screens/observability/api/observability-api.js",
+      "default": "./dist/screens/observability/api/observability-api.js"
+    },
+    "./screens/observability/api/observability-api.types": {
+      "types": "./dist/screens/observability/api/observability-api.types.d.ts",
+      "import": "./dist/screens/observability/api/observability-api.types.js",
+      "default": "./dist/screens/observability/api/observability-api.types.js"
+    },
+    "./screens/observability/hooks/observability-status-dependencies.hooks": {
+      "types": "./dist/screens/observability/hooks/observability-status-dependencies.hooks.d.ts",
+      "import": "./dist/screens/observability/hooks/observability-status-dependencies.hooks.js",
+      "default": "./dist/screens/observability/hooks/observability-status-dependencies.hooks.js"
+    },
+    "./screens/observability/hooks/recent-server-errors-dependencies.hooks": {
+      "types": "./dist/screens/observability/hooks/recent-server-errors-dependencies.hooks.d.ts",
+      "import": "./dist/screens/observability/hooks/recent-server-errors-dependencies.hooks.js",
+      "default": "./dist/screens/observability/hooks/recent-server-errors-dependencies.hooks.js"
+    },
+    "./screens/observability/hooks/observability-status-port.hooks": {
+      "types": "./dist/screens/observability/hooks/observability-status-port.hooks.d.ts",
+      "import": "./dist/screens/observability/hooks/observability-status-port.hooks.js",
+      "default": "./dist/screens/observability/hooks/observability-status-port.hooks.js"
+    },
+    "./screens/observability/hooks/recent-server-errors-port.hooks": {
+      "types": "./dist/screens/observability/hooks/recent-server-errors-port.hooks.d.ts",
+      "import": "./dist/screens/observability/hooks/recent-server-errors-port.hooks.js",
+      "default": "./dist/screens/observability/hooks/recent-server-errors-port.hooks.js"
+    },
+    "./screens/observability/hooks/use-observability-status.hooks": {
+      "types": "./dist/screens/observability/hooks/use-observability-status.hooks.d.ts",
+      "import": "./dist/screens/observability/hooks/use-observability-status.hooks.js",
+      "default": "./dist/screens/observability/hooks/use-observability-status.hooks.js"
+    },
+    "./screens/observability/hooks/use-recent-server-errors.hooks": {
+      "types": "./dist/screens/observability/hooks/use-recent-server-errors.hooks.d.ts",
+      "import": "./dist/screens/observability/hooks/use-recent-server-errors.hooks.js",
+      "default": "./dist/screens/observability/hooks/use-recent-server-errors.hooks.js"
+    },
+    "./screens/observability/hooks/use-queries-tab.hooks": {
+      "types": "./dist/screens/observability/hooks/use-queries-tab.hooks.d.ts",
+      "import": "./dist/screens/observability/hooks/use-queries-tab.hooks.js",
+      "default": "./dist/screens/observability/hooks/use-queries-tab.hooks.js"
+    },
+    "./screens/observability/observability-i18n": {
+      "types": "./dist/screens/observability/observability-i18n.d.ts",
+      "import": "./dist/screens/observability/observability-i18n.js",
+      "default": "./dist/screens/observability/observability-i18n.js"
+    },
+    "./screens/observability/queries-panel": {
+      "types": "./dist/screens/observability/queries-panel.d.ts",
+      "import": "./dist/screens/observability/queries-panel.js",
+      "default": "./dist/screens/observability/queries-panel.js"
+    },
+    "./screens/observability/tool-gaps-panel": {
+      "types": "./dist/screens/observability/tool-gaps-panel.d.ts",
+      "import": "./dist/screens/observability/tool-gaps-panel.js",
+      "default": "./dist/screens/observability/tool-gaps-panel.js"
+    },
+    "./screens/observability/recent-errors-panel": {
+      "types": "./dist/screens/observability/recent-errors-panel.d.ts",
+      "import": "./dist/screens/observability/recent-errors-panel.js",
+      "default": "./dist/screens/observability/recent-errors-panel.js"
+    },
+    "./screens/observability/recent-errors-rules": {
+      "types": "./dist/screens/observability/recent-errors-rules.d.ts",
+      "import": "./dist/screens/observability/recent-errors-rules.js",
+      "default": "./dist/screens/observability/recent-errors-rules.js"
+    },
+    "./screens/observability/observability-visuals": {
+      "types": "./dist/screens/observability/observability-visuals.d.ts",
+      "import": "./dist/screens/observability/observability-visuals.js",
+      "default": "./dist/screens/observability/observability-visuals.js"
+    },
+    "./screens/observability/recent-errors.css": "./src/screens/observability/recent-errors.css",
+    "./screens/observability/observability.css": "./src/screens/observability/observability.css",
+    "./screens/dashboard/Dashboard": {
+      "types": "./dist/screens/dashboard/Dashboard.d.ts",
+      "import": "./dist/screens/dashboard/Dashboard.js",
+      "default": "./dist/screens/dashboard/Dashboard.js"
+    },
+    "./screens/dashboard/rules": {
+      "types": "./dist/screens/dashboard/rules.d.ts",
+      "import": "./dist/screens/dashboard/rules.js",
+      "default": "./dist/screens/dashboard/rules.js"
+    },
+    "./screens/dashboard/dashboard-i18n": {
+      "types": "./dist/screens/dashboard/dashboard-i18n.d.ts",
+      "import": "./dist/screens/dashboard/dashboard-i18n.js",
+      "default": "./dist/screens/dashboard/dashboard-i18n.js"
+    },
+    "./screens/dashboard/hooks/use-dashboard.hooks": {
+      "types": "./dist/screens/dashboard/hooks/use-dashboard.hooks.d.ts",
+      "import": "./dist/screens/dashboard/hooks/use-dashboard.hooks.js",
+      "default": "./dist/screens/dashboard/hooks/use-dashboard.hooks.js"
+    },
+    "./screens/dashboard/hooks/dashboard-port.hooks": {
+      "types": "./dist/screens/dashboard/hooks/dashboard-port.hooks.d.ts",
+      "import": "./dist/screens/dashboard/hooks/dashboard-port.hooks.js",
+      "default": "./dist/screens/dashboard/hooks/dashboard-port.hooks.js"
+    },
+    "./screens/dashboard/hooks/fake-dashboard-port": {
+      "types": "./dist/screens/dashboard/hooks/fake-dashboard-port.d.ts",
+      "import": "./dist/screens/dashboard/hooks/fake-dashboard-port.js",
+      "default": "./dist/screens/dashboard/hooks/fake-dashboard-port.js"
+    },
+    "./screens/dashboard/dashboard-view.types": {
+      "types": "./dist/screens/dashboard/dashboard-view.types.d.ts",
+      "import": "./dist/screens/dashboard/dashboard-view.types.js",
+      "default": "./dist/screens/dashboard/dashboard-view.types.js"
+    },
+    "./screens/dashboard/dashboard.css": "./src/screens/dashboard/dashboard.css"
   },
   "files": [
     "src/themes",
@@ -1019,6 +1163,75 @@
       ],
       "shell/components/ServerRestartingBanner/hooks/use-server-connection-status.hooks": [
         "./dist/shell/components/ServerRestartingBanner/hooks/use-server-connection-status.hooks.d.ts"
+      ],
+      "screens/observability/Observability": [
+        "./dist/screens/observability/Observability.d.ts"
+      ],
+      "screens/observability/api/observability-api": [
+        "./dist/screens/observability/api/observability-api.d.ts"
+      ],
+      "screens/observability/api/observability-api.types": [
+        "./dist/screens/observability/api/observability-api.types.d.ts"
+      ],
+      "screens/observability/hooks/observability-status-dependencies.hooks": [
+        "./dist/screens/observability/hooks/observability-status-dependencies.hooks.d.ts"
+      ],
+      "screens/observability/hooks/recent-server-errors-dependencies.hooks": [
+        "./dist/screens/observability/hooks/recent-server-errors-dependencies.hooks.d.ts"
+      ],
+      "screens/observability/hooks/observability-status-port.hooks": [
+        "./dist/screens/observability/hooks/observability-status-port.hooks.d.ts"
+      ],
+      "screens/observability/hooks/recent-server-errors-port.hooks": [
+        "./dist/screens/observability/hooks/recent-server-errors-port.hooks.d.ts"
+      ],
+      "screens/observability/hooks/use-observability-status.hooks": [
+        "./dist/screens/observability/hooks/use-observability-status.hooks.d.ts"
+      ],
+      "screens/observability/hooks/use-recent-server-errors.hooks": [
+        "./dist/screens/observability/hooks/use-recent-server-errors.hooks.d.ts"
+      ],
+      "screens/observability/hooks/use-queries-tab.hooks": [
+        "./dist/screens/observability/hooks/use-queries-tab.hooks.d.ts"
+      ],
+      "screens/observability/observability-i18n": [
+        "./dist/screens/observability/observability-i18n.d.ts"
+      ],
+      "screens/observability/queries-panel": [
+        "./dist/screens/observability/queries-panel.d.ts"
+      ],
+      "screens/observability/tool-gaps-panel": [
+        "./dist/screens/observability/tool-gaps-panel.d.ts"
+      ],
+      "screens/observability/recent-errors-panel": [
+        "./dist/screens/observability/recent-errors-panel.d.ts"
+      ],
+      "screens/observability/recent-errors-rules": [
+        "./dist/screens/observability/recent-errors-rules.d.ts"
+      ],
+      "screens/observability/observability-visuals": [
+        "./dist/screens/observability/observability-visuals.d.ts"
+      ],
+      "screens/dashboard/Dashboard": [
+        "./dist/screens/dashboard/Dashboard.d.ts"
+      ],
+      "screens/dashboard/rules": [
+        "./dist/screens/dashboard/rules.d.ts"
+      ],
+      "screens/dashboard/dashboard-i18n": [
+        "./dist/screens/dashboard/dashboard-i18n.d.ts"
+      ],
+      "screens/dashboard/hooks/use-dashboard.hooks": [
+        "./dist/screens/dashboard/hooks/use-dashboard.hooks.d.ts"
+      ],
+      "screens/dashboard/hooks/dashboard-port.hooks": [
+        "./dist/screens/dashboard/hooks/dashboard-port.hooks.d.ts"
+      ],
+      "screens/dashboard/hooks/fake-dashboard-port": [
+        "./dist/screens/dashboard/hooks/fake-dashboard-port.d.ts"
+      ],
+      "screens/dashboard/dashboard-view.types": [
+        "./dist/screens/dashboard/dashboard-view.types.d.ts"
       ]
     }
   },

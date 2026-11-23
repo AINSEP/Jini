@@ -1,0 +1,334 @@
+/*
+ * Dashboard layout, stat cards, banners and activity panel, moved with the screen from the host admin
+ * stylesheet (classes renamed `dash-*` / `dashboard-page` -> `jini-dash-*` / `jini-dashboard-page`).
+ * Colours, spacing and the `--dash-stats-max` sizing variable are host theme tokens. The host imports
+ * this file once where it mounts the screen.
+ */
+
+.jini-dashboard-page {
+  container-type: inline-size;
+  --dash-stats-max: 40rem;
+}
+
+.jini-dash-top {
+  display: grid;
+  grid-template-columns: minmax(0, var(--dash-stats-max));
+  justify-content: start;
+  gap: var(--space-4);
+  align-items: stretch;
+  width: 100%;
+}
+
+@container (min-width: 1040px) {
+  .jini-dash-top {
+    grid-template-columns: minmax(0, var(--dash-stats-max)) minmax(0, 24rem);
+  }
+}
+
+.jini-dash-top > .jini-dash-panel {
+  width: 100%;
+  max-width: 24rem;
+}
+
+.jini-dash-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  overflow: hidden;
+  background: var(--border);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-sm);
+}
+
+@container (min-width: 600px) {
+  .jini-dash-stats {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.notice.jini-dash-password-banner {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  max-width: 680px;
+  min-height: 44px;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0.45rem 0.5rem 0.45rem 0.85rem;
+  border-color: var(--border);
+  box-shadow: var(--jini-panel-shadow-flat);
+  font-size: var(--text-sm);
+}
+
+.jini-dash-password-banner p {
+  flex: 1 1 16rem;
+  margin: 0;
+  color: var(--fg-2);
+}
+
+.jini-dash-password-banner-icon {
+  display: inline-flex;
+  color: var(--warning);
+}
+
+.jini-dash-password-banner-action {
+  font-weight: 600;
+  color: var(--fg);
+  white-space: nowrap;
+}
+
+.jini-dash-password-banner-action:hover {
+  color: var(--link);
+  text-decoration: underline;
+}
+
+.jini-dash-password-banner-dismiss {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.jini-dash-password-banner-dismiss:hover {
+  background: var(--surface-2);
+  color: var(--fg);
+}
+
+.jini-dash-password-banner-dismiss:focus-visible, .jini-dash-password-banner-action:focus-visible {
+  outline: 2px solid var(--link);
+  outline-offset: 2px;
+}
+
+.jini-dash-header-actions {
+  flex-wrap: nowrap;
+}
+
+.jini-dash-stat {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  background: var(--surface);
+  padding: var(--space-4) var(--space-5);
+  transition: background 0.14s;
+  color: inherit;
+  text-decoration: none;
+}
+
+.jini-dash-stat:hover {
+  background: var(--surface-2);
+  text-decoration: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .jini-dash-stat {
+    transition: none;
+  }
+}
+
+@container admin-content (max-width: 456px) {
+  .jini-dash-stat {
+    padding: var(--space-3) var(--space-4);
+  }
+}
+
+.jini-dash-stat-label {
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+
+.jini-dash-stat-value {
+  font-family: var(--font-display);
+  font-size: 2rem;
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+  color: var(--fg);
+  font-variant-numeric: tabular-nums;
+}
+
+.jini-dash-stat-meta {
+  font-size: var(--text-xs);
+  color: var(--muted);
+}
+
+.jini-dash-stat-value.is-error {
+  color: var(--faint);
+}
+
+.jini-dash-stat-meta.is-error {
+  color: var(--danger);
+}
+
+.jini-dash-panels {
+  display: grid;
+  grid-template-columns: minmax(0, var(--dash-stats-max));
+  justify-content: start;
+  gap: var(--space-4);
+  align-items: start;
+}
+
+@container admin-content (max-width: 800px) {
+  .jini-dash-panels {
+    grid-template-columns: minmax(0, var(--dash-stats-max));
+  }
+}
+
+.jini-dash-panel {
+  background: var(--jini-panel-bg);
+  border: var(--jini-border-width, 1px) solid var(--jini-panel-border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--jini-panel-shadow);
+  overflow: hidden;
+  background-image: var(--jini-panel-texture, none);
+  backdrop-filter: var(--jini-panel-backdrop, none);
+}
+
+.jini-dash-panel-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--border);
+}
+
+.jini-dash-panel-title {
+  font-size: var(--text-base);
+  font-weight: 600;
+  color: var(--fg);
+  margin: 0;
+}
+
+.jini-dash-panel-body {
+  padding: var(--space-4) var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.jini-dash-panel-body p {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--muted);
+}
+
+.jini-dash-panel-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  background: none;
+  border: 0;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+}
+
+.jini-dash-panel-toggle:hover {
+  opacity: 1;
+  color: var(--primary);
+}
+
+.jini-dash-panel-caret {
+  display: inline-flex;
+  color: var(--muted);
+  transition: transform 0.15s ease;
+}
+
+.jini-dash-panel-toggle[aria-expanded="true"] .jini-dash-panel-caret {
+  transform: rotate(90deg);
+}
+
+.jini-dash-panel.is-collapsed .jini-dash-panel-head {
+  border-bottom: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .jini-dash-panel-caret {
+    transition: none;
+  }
+}
+
+.jini-dash-activity {
+  display: flex;
+  flex-direction: column;
+}
+
+.jini-dash-activity-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-5);
+  border-bottom: 1px solid var(--border);
+}
+
+.jini-dash-activity-row:last-child {
+  border-bottom: none;
+}
+
+.jini-dash-activity-row:hover {
+  background: var(--surface-2);
+}
+
+.jini-dash-activity-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-sm);
+}
+
+.jini-dash-activity-time {
+  font-size: var(--text-xs);
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.jini-dash-kind {
+  font-size: var(--text-2xs);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  background: var(--surface-3);
+  padding: 0.1rem 0.4rem;
+  border-radius: var(--r-sm);
+}
+
+@media (max-width: 640px) {
+  .admin-content :is(.page-toolbar, .page-actions, .themes-header-side, .jini-dash-panel-head, .editor-slug) > a:not([class*="btn"]) {
+    display: inline-block;
+    padding-block: 13px;
+    margin-block: -13px;
+  }
+}
+
+@container admin-content (max-width: 620px) {
+  .jini-dash-activity-row {
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 4px var(--space-2);
+    position: relative;
+  }
+  .jini-dash-activity-title {
+    grid-column: 1 / -1;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  .jini-dash-activity-title::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+  }
+}
