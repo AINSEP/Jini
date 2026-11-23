@@ -6,7 +6,7 @@ import { ServerRestartingBanner } from "../ServerRestartingBanner.js";
 import { useServerConnectionBanner } from "../hooks/use-server-connection-status.hooks.js";
 import type { ServerConnectionBannerText, ServerConnectionStatus, ServerConnectionStatusPort } from "../hooks/use-server-connection-status.hooks.js";
 
-/** @file The restart banner follows the injected reconnect store: hidden online, shown while reconnecting. */
+/** @file The restart banner follows the reconnect store: hidden online, shown while reconnecting. */
 
 const TEXT: ServerConnectionBannerText = {
   online: null,

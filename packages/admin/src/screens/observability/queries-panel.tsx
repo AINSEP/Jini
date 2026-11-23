@@ -5,7 +5,8 @@ import { type Translate } from '@jini-ai/core/text';
 /** The live cache panel the host embeds (its query library's devtools panel, typically lazy). */
 export type QueryCachePanel = ComponentType<{ style?: CSSProperties; theme?: "light" | "dark" }>;
 
-/** Embeds the live cache panel; the host injects the vendor panel, so this screen stays vendor-free.
+/** Embeds the live cache panel; an injected component keeps UI tests vendor-free. The host
+ * injects the vendor panel, so this screen stays vendor-free.
  * SettingsDialogShell mounts only its selected panel, so a lazy `Panel` downloads nothing until an
  * authorized host opens Queries. */
 export function QueriesPanel({ readOnly, t, Panel }: {
