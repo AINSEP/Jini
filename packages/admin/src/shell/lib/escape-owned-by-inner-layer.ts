@@ -1,4 +1,3 @@
-import { orFallbackSync } from "@jini-ai/core/errors/idioms";
 
 /**
  * @file Whether an Escape keypress belongs to an open inner layer (modal, menu, popup) rather than
@@ -42,6 +41,7 @@ const OPEN_LAYER_SELECTOR_MODERN = `${OPEN_LAYER_SELECTOR}, dialog[open]:modal, 
  * @param input.key The pressed key (`KeyboardEvent.key`).
  * @param input.defaultPrevented `KeyboardEvent.defaultPrevented` — an inner handler that already
  *   consumed Escape (the composer's palette) says so this way.
+ * @param input.orFallbackSync The host's guarded call, injected so Jini binds no implementation.
  * @param input.root Where to look for an open layer — `document` in the app.
  * @returns `true` when the key is Escape and an inner layer already handled it or is open, so a
  *   container's own Escape handler should do nothing. Never throws: a browser without `:modal` /
@@ -52,10 +52,12 @@ export function isEscapeOwnedByInnerLayer(input: {
   key: string;
   defaultPrevented: boolean;
   root: InnerLayerQueryRoot;
-}): boolean {
+  /** The host's guarded call (core `orFallbackSync`): an unsupported `:modal` selector yields the fallback. */
+  orFallbackSync: (required: { work: () => boolean; fallback: undefined; step: string }) => boolean | undefined;
+}, _options: Record<string, never> = {}): boolean {
   if (input.key !== "Escape") return false;
   if (input.defaultPrevented) return true;
-  return orFallbackSync({ work: () => {
+  return input.orFallbackSync({ work: () => {
     return input.root.querySelector(OPEN_LAYER_SELECTOR_MODERN) !== null;
   }, fallback: undefined, step: "Check modern Escape ownership" }) ?? (input.root.querySelector(OPEN_LAYER_SELECTOR) !== null);
 }

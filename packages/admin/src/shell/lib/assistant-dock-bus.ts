@@ -1,3 +1,4 @@
+import { reportShellFailure } from "./shell-failure-log.js";
 /**
  * @file The seam between "some section wants the assistant dock open" and `App.tsx`, which actually
  * owns that boolean.
@@ -78,7 +79,7 @@ export function publishAssistantDockState({ open }: { open: boolean }, _optional
     try {
       listener();
     } catch (error) {
-      console.error("[admin] assistant dock listener failed", error);
+      reportShellFailure({ message: "[admin] assistant dock listener failed", error });
     }
   }
 }
@@ -111,7 +112,7 @@ export function requestAssistantDock({ open }: { open: boolean }, _optional: Rec
     try {
       listener(open);
     } catch (error) {
-      console.error("[admin] assistant dock request handler failed", error);
+      reportShellFailure({ message: "[admin] assistant dock request handler failed", error });
     }
   }
 }

@@ -1,6 +1,7 @@
 import { expect, test, vi } from "vitest";
 
 import { browserQueuedStartPorts, startQueuedDaemonRun, type QueuedStartPorts } from "../queued-daemon-start.js";
+import { orFallback } from "@jini-ai/core/errors/idioms";
 
 /**
  * @file `startQueuedDaemonRun` retries only a 409 `CHAT_RUN_BUSY` refusal, keeping the same body,
@@ -16,6 +17,7 @@ function scripted(responses: Response[]) {
   const ports: QueuedStartPorts = {
     post: async ({ body }) => { bodies.push(body); return responses.shift()!; },
     wait: async ({ signal }) => { waits.push(signal); },
+    readRefusal: ({ response }) => orFallback({ work: () => response.clone().json(), fallback: null, step: "Read queued run refusal" }),
   };
   return { ports, bodies, waits };
 }
@@ -62,7 +64,7 @@ test("an aborted signal stops before posting, including between busy retries", a
 
 test("browser ports POST the JSON body to /api/runs with same-origin credentials", async () => {
   const request = vi.fn(async () => new Response(null, { status: 201 }));
-  const ports = browserQueuedStartPorts({}, { request: request as unknown as typeof fetch });
+  const ports = browserQueuedStartPorts({ orFallback }, { request: request as unknown as typeof fetch });
   await ports.post({ body: { a: 1 } }, {});
   expect(request).toHaveBeenCalledWith("/api/runs", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: "{\"a\":1}" });
 });
@@ -70,7 +72,7 @@ test("browser ports POST the JSON body to /api/runs with same-origin credentials
 test("browser wait schedules one 1 s timer and resolves when it fires, dropping its abort listener", async () => {
   const scheduled: Array<{ work: () => void; delayMs: number }> = [];
   const cancel = vi.fn();
-  const ports = browserQueuedStartPorts({}, { schedule: (entry) => { scheduled.push(entry); return cancel; } });
+  const ports = browserQueuedStartPorts({ orFallback }, { schedule: (entry) => { scheduled.push(entry); return cancel; } });
   const controller = new AbortController();
   const remove = vi.spyOn(controller.signal, "removeEventListener");
   const pending = ports.wait({ signal: controller.signal }, {});
@@ -85,7 +87,7 @@ test("browser wait schedules one 1 s timer and resolves when it fires, dropping 
 test("browser wait: Stop during the wait cancels the timer and rejects; an already-stopped signal never schedules", async () => {
   const cancel = vi.fn();
   const schedule = vi.fn(() => cancel);
-  const ports = browserQueuedStartPorts({}, { schedule });
+  const ports = browserQueuedStartPorts({ orFallback }, { schedule });
   const controller = new AbortController();
   const pending = ports.wait({ signal: controller.signal }, {});
   controller.abort();
@@ -99,7 +101,7 @@ test("browser wait: Stop during the wait cancels the timer and rejects; an alrea
 
 test("browser wait without a signal still resolves on the timer", async () => {
   let work!: () => void;
-  const ports = browserQueuedStartPorts({}, { schedule: (entry) => { work = entry.work; return () => {}; } });
+  const ports = browserQueuedStartPorts({ orFallback }, { schedule: (entry) => { work = entry.work; return () => {}; } });
   const pending = ports.wait({}, {});
   work();
   await expect(pending).resolves.toBeUndefined();
@@ -108,7 +110,7 @@ test("browser wait without a signal still resolves on the timer", async () => {
 test("the default schedule uses a real 1 s timeout that can be cleared", async () => {
   vi.useFakeTimers();
   try {
-    const ports = browserQueuedStartPorts();
+    const ports = browserQueuedStartPorts({ orFallback });
     const controller = new AbortController();
     const settled = vi.fn();
     const pending = ports.wait({ signal: controller.signal }, {}).then(settled, settled);

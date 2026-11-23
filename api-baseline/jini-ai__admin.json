@@ -1465,7 +1465,7 @@
    "DEVICE_PREVIEW_WIDTHS": "variable:be95da8ffe",
    "DevicePreviewDevice": "type:a7feab8bf4",
    "defaultDevicePreviewDevice": "function:d2b028ddea",
-   "devicePreviewButtonHandleProps": "function:69914c5fd1",
+   "devicePreviewButtonHandleProps": "function:0f7e9ccdf6",
    "devicePreviewFrameStyles": "function:1b86647d47",
    "devicePreviewScale": "function:baf42476d7",
    "useDevicePreviewDevice": "function:38333b2d17",
@@ -1594,7 +1594,7 @@
  "./shell/lib/acceptance-cancellation": {
   "types": "./dist/shell/lib/acceptance-cancellation.d.ts",
   "symbols": {
-   "withAcceptanceCancellation": "function:681eed2ddc"
+   "withAcceptanceCancellation": "function:1165494caf"
   }
  },
  "./shell/lib/addons-routes": {
@@ -1630,8 +1630,9 @@
  "./shell/lib/admin-nav-i18n": {
   "types": "./dist/shell/lib/admin-nav-i18n.d.ts",
   "symbols": {
-   "translateAdminNavGroups": "function:3accf542a3",
-   "translateAdminNavLabel": "variable:c276a3de5b"
+   "ADMIN_NAV_DICT": "variable:f686abfef6",
+   "AdminNavLabelTranslator": "type:e164ac5019",
+   "translateAdminNavGroups": "function:975c074a75"
   }
  },
  "./shell/lib/agent-screen-context": {
@@ -1659,7 +1660,7 @@
  "./shell/lib/ascii-slug": {
   "types": "./dist/shell/lib/ascii-slug.d.ts",
   "symbols": {
-   "asciiSlug": "function:d975b55c31"
+   "asciiSlug": "function:05c701041e"
   }
  },
  "./shell/lib/assistant-dock-bus": {
@@ -1684,10 +1685,10 @@
  "./shell/lib/browser-stream": {
   "types": "./dist/shell/lib/browser-stream.d.ts",
   "symbols": {
-   "BrowserStreamPorts": "interface:24831c3221",
+   "BrowserStreamPorts": "interface:990029e3bb",
    "StreamChannel": "interface:44072a1291",
-   "browserStreamPorts": "function:1e47c440f9",
-   "startBrowserStream": "function:b5ab179b87"
+   "browserStreamPorts": "function:fef1700a45",
+   "startBrowserStream": "function:e0dd9b2801"
   }
  },
  "./shell/lib/content-refresh-bus": {
@@ -1723,7 +1724,7 @@
   "types": "./dist/shell/lib/escape-owned-by-inner-layer.d.ts",
   "symbols": {
    "InnerLayerQueryRoot": "interface:a8dd1065e7",
-   "isEscapeOwnedByInnerLayer": "function:68293bf819"
+   "isEscapeOwnedByInnerLayer": "function:4df26d01f5"
   }
  },
  "./shell/lib/external-entry-refresh": {
@@ -1782,8 +1783,9 @@
  "./shell/lib/queued-daemon-start": {
   "types": "./dist/shell/lib/queued-daemon-start.d.ts",
   "symbols": {
-   "QueuedStartPorts": "interface:880edfa687",
-   "browserQueuedStartPorts": "function:b1c4e7a102",
+   "QueuedStartOrFallback": "type:496b0a7b1c",
+   "QueuedStartPorts": "interface:684b8d9b95",
+   "browserQueuedStartPorts": "function:2041b56808",
    "startQueuedDaemonRun": "function:dce2d68764"
   }
  },
@@ -1823,6 +1825,14 @@
    "subscribeToSettingsRefresh": "function:3eb9719961"
   }
  },
+ "./shell/lib/shell-failure-log": {
+  "types": "./dist/shell/lib/shell-failure-log.d.ts",
+  "symbols": {
+   "ShellFailureLogger": "interface:69855bcbdb",
+   "bindShellFailureLogger": "function:a18578bde2",
+   "reportShellFailure": "function:a1cecf889c"
+  }
+ },
  "./shell/lib/slug-redirect-path": {
   "types": "./dist/shell/lib/slug-redirect-path.d.ts",
   "symbols": {
@@ -1843,7 +1853,7 @@
  "./shell/lib/tab-event-source": {
   "types": "./dist/shell/lib/tab-event-source.d.ts",
   "symbols": {
-   "openTabEventSource": "function:2025d70903"
+   "openTabEventSource": "function:2dc4ca9d65"
   }
  },
  "./shell/lib/translation-entry": {

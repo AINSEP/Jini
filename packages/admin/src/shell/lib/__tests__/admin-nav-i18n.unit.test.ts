@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { AdminNavGroup } from "../../../core/index.js";
-import { translateAdminNavGroups, translateAdminNavLabel } from "../admin-nav-i18n.js";
+import { createDictionaryTranslator } from "@jini-ai/core/text";
+import { ADMIN_COMMON_I18N } from "../../../core/i18n-common.js";
+import { ADMIN_NAV_DICT, translateAdminNavGroups } from "../admin-nav-i18n.js";
+
+/** The host binding, built the way a host composes it (dictionary translator + common fallback). */
+const translateAdminNavLabel = createDictionaryTranslator({ featureDictionary: ADMIN_NAV_DICT }, { commonDictionary: ADMIN_COMMON_I18N });
 
 // Author Checklist / F4.1/F4.3: exact translations from external language fixtures,
 // frozen non-default input, stable IDs/links retained, no subject mocks.
@@ -17,7 +22,7 @@ describe("admin navigation translation", () => {
       Object.freeze({ items: Object.freeze([]) }),
       Object.freeze({ label: "", items: Object.freeze([]) }),
     ]) satisfies readonly AdminNavGroup[];
-    const translated = translateAdminNavGroups({ locale: "de", groups });
+    const translated = translateAdminNavGroups({ locale: "de", groups, translate: translateAdminNavLabel });
     expect(translated).toEqual([
       { label: "Inhalt", items: [
         { id: "pages", label: "Seiten", href: "/pages", soon: false },
@@ -34,14 +39,21 @@ describe("admin navigation translation", () => {
     // F4.5/F6.5: returning [] hides navigation; returning groups aliases the
     // caller's cached input. Verify independence through a later input edit.
     const input = [{ label: "Content", items: [{ id: "pages", label: "Pages", href: "/pages" }] }];
-    const translated = translateAdminNavGroups({ locale: "xx", groups: input });
+    const translated = translateAdminNavGroups({ locale: "xx", groups: input, translate: translateAdminNavLabel });
     expect(translated).toEqual([{ label: "Content", items: [{ id: "pages", label: "Pages", href: "/pages" }] }]);
     input[0]!.label = "Renamed group";
     input[0]!.items[0]!.label = "Renamed page";
     expect(translated).toEqual([{ label: "Content", items: [{ id: "pages", label: "Pages", href: "/pages" }] }]);
-    expect(translateAdminNavGroups({ locale: "de", groups: [] })).toEqual([]);
+    expect(translateAdminNavGroups({ locale: "de", groups: [], translate: translateAdminNavLabel })).toEqual([]);
     expect(translateAdminNavLabel({ locale: "de", key: "Settings" })).toBe("Einstellungen");
     expect(translateAdminNavLabel({ locale: "xx", key: "Settings" })).toBe("Settings");
     expect(translateAdminNavLabel({ locale: "de", key: "Atlas extension" })).toBe("Atlas extension");
   });
+});
+
+it("keeps all 21 locales in their original order after the split", () => {
+  expect(Object.keys(ADMIN_NAV_DICT)).toEqual([
+    "es", "id", "de", "zh-CN", "zh-TW", "pt-BR", "ru", "fa", "ar", "ja", "ko",
+    "pl", "hu", "fr", "uk", "tr", "th", "it", "hi", "ur", "bn",
+  ]);
 });

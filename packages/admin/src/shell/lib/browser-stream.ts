@@ -1,6 +1,5 @@
 /** Browser connection ownership; transport callbacks retain their native retry policy. */
 import type { VisibilitySource } from "../../react/kit.js";
-import { orFallbackSync } from "@jini-ai/core/errors/idioms";
 import type { StreamActivity } from "./stream-activity.js";
 
 export interface StreamChannel {
@@ -19,11 +18,19 @@ export interface BrowserStreamPorts {
   schedule(required: { work: () => void; delayMs: number }): () => void;
   requestLock?: ((required: { key: string; signal: AbortSignal; hold: () => Promise<void> }) => Promise<unknown>) | undefined;
   openChannel?: ((required: { name: string }) => StreamChannel) | undefined;
+  /** The host's guarded call (core `orFallbackSync`): a refused channel (storage-denied host) yields
+   *  the fallback and is reported by the host, never thrown into the stream. */
+  orFallbackSync: (required: { work: () => StreamChannel | undefined; fallback: undefined; step: string }) => StreamChannel | undefined;
 }
 
-/** Resolve browser capabilities at the adapter boundary, never during module import. */
-export function browserStreamPorts(_required = {}, _optional = {}): BrowserStreamPorts {
+/** Resolve browser capabilities at the adapter boundary, never during module import. The host
+ *  supplies its guarded-call implementation; Jini constructs no default ports of its own. */
+export function browserStreamPorts(
+  { orFallbackSync }: { orFallbackSync: BrowserStreamPorts["orFallbackSync"] },
+  _optional = {},
+): BrowserStreamPorts {
   return {
+    orFallbackSync,
     visibility: document,
     page: window,
     now: () => Date.now(),
@@ -52,9 +59,9 @@ export function startBrowserStream<Frame>(
     connect: (required: { emit: (required: { frame: Frame }, optional?: Record<string, never>) => void }) => () => void;
     receive?: (required: { frame: Frame }) => void;
   },
-  { ports = browserStreamPorts(), scope = "origin", activity }: {
-    ports?: BrowserStreamPorts; scope?: "origin" | "tab"; activity?: StreamActivity;
-  } = {},
+  { ports, scope = "origin", activity }: {
+    ports: BrowserStreamPorts; scope?: "origin" | "tab"; activity?: StreamActivity;
+  },
 ): () => void {
   const state: BrowserStreamState = {
     disposed: false,
@@ -89,7 +96,9 @@ export function startBrowserStream<Frame>(
   ports.page.addEventListener("pageshow", onPageShow);
   const unsubscribeActivity = activity?.subscribe({ listener: reconcile });
   const stop = createBrowserStreamDisposer(state, { ports, onVisibility, onPageHide, onPageShow, unsubscribeActivity }, { halt, closeChannel });
-  try { reconcile(); } catch (error) { stop(); throw error; }
+  // A throwing first connect must not leave listeners or a lock behind; the error still propagates.
+  let started = false;
+  try { reconcile(); started = true; } finally { if (!started) stop(); }
   return stop;
 }
 
@@ -218,7 +227,7 @@ function openSharedChannel(
 ): StreamChannel | undefined {
   // Both capabilities are necessary: a lock without fan-out would silence follower tabs.
   if (scope !== "origin" || !ports.requestLock || !ports.openChannel) return undefined;
-  const channel = orFallbackSync({ work: () => ports.openChannel?.({ name: `browser-stream:${key}` }), fallback: undefined, step: "Open browser stream channel" });
+  const channel = ports.orFallbackSync({ work: () => ports.openChannel?.({ name: `browser-stream:${key}` }), fallback: undefined, step: "Open browser stream channel" });
   if (!channel) return undefined; // Storage-denied hosts use the visibility-managed fallback.
   channel.addEventListener("message", onMessage);
   return channel;

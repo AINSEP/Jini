@@ -118,6 +118,7 @@
       "./shell/lib/agent-screen-context": "browser",
       "./shell/lib/import-export-routes": "browser",
       "./shell/lib/settings-refresh-bus": "browser",
+      "./shell/lib/shell-failure-log": "browser",
       "./shell/hooks/admin-locale-port.hooks": "browser",
       "./shell/hooks/use-admin-document-locale.hooks": "browser",
       "./shell/hooks/use-cms-sidebar-label-tooltips.hooks": "browser",
@@ -196,6 +197,7 @@
         "./shell/lib/agent-screen-context": "browser",
         "./shell/lib/import-export-routes": "browser",
         "./shell/lib/settings-refresh-bus": "browser",
+        "./shell/lib/shell-failure-log": "browser",
         "./shell/hooks/admin-locale-port.hooks": "browser",
         "./shell/hooks/use-admin-document-locale.hooks": "browser",
         "./shell/hooks/use-cms-sidebar-label-tooltips.hooks": "browser",
@@ -745,6 +747,11 @@
       "types": "./dist/shell/lib/settings-refresh-bus.d.ts",
       "import": "./dist/shell/lib/settings-refresh-bus.js",
       "default": "./dist/shell/lib/settings-refresh-bus.js"
+    },
+    "./shell/lib/shell-failure-log": {
+      "types": "./dist/shell/lib/shell-failure-log.d.ts",
+      "import": "./dist/shell/lib/shell-failure-log.js",
+      "default": "./dist/shell/lib/shell-failure-log.js"
     },
     "./shell/hooks/admin-locale-port.hooks": {
       "types": "./dist/shell/hooks/admin-locale-port.hooks.d.ts",

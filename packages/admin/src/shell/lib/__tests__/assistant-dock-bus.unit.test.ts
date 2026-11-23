@@ -8,6 +8,7 @@ import {
   subscribeToAssistantDock,
   subscribeToAssistantDockRequests,
 } from "../assistant-dock-bus.js";
+import { spyShellFailures } from "./shell-failure-log.fakes.js";
 
 /**
  * @file `assistant-dock-bus.ts` — the state+request bus between `App.tsx` (the `chatOpen` owner) and
@@ -59,7 +60,7 @@ describe("getAssistantDockOpen / publishAssistantDockState", () => {
   });
 
   it("a throwing listener is caught and logged, and does not stop the remaining listeners from running", () => {
-    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const errorSpy = spyShellFailures();
     const throwing = vi.fn(() => {
       throw new Error("boom");
     });
@@ -70,7 +71,7 @@ describe("getAssistantDockOpen / publishAssistantDockState", () => {
     publishAssistantDockState({ open: true });
 
     expect(healthy).toHaveBeenCalledTimes(1);
-    expect(errorSpy).toHaveBeenCalledWith("[admin] assistant dock listener failed", expect.any(Error));
+    expect(errorSpy).toHaveBeenCalledWith({ message: "[admin] assistant dock listener failed" }, { error: expect.any(Error) });
   });
 });
 
@@ -100,7 +101,7 @@ describe("subscribeToAssistantDockRequests / requestAssistantDock", () => {
   });
 
   it("a throwing request handler is caught and logged, and does not stop other handlers from running", () => {
-    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const errorSpy = spyShellFailures();
     const throwing = vi.fn(() => {
       throw new Error("boom");
     });
@@ -111,7 +112,7 @@ describe("subscribeToAssistantDockRequests / requestAssistantDock", () => {
     requestAssistantDock({ open: true });
 
     expect(healthy).toHaveBeenCalledWith(true);
-    expect(errorSpy).toHaveBeenCalledWith("[admin] assistant dock request handler failed", expect.any(Error));
+    expect(errorSpy).toHaveBeenCalledWith({ message: "[admin] assistant dock request handler failed" }, { error: expect.any(Error) });
   });
 });
 

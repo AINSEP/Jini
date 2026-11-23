@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { browserStreamPorts, startBrowserStream, type BrowserStreamPorts } from "../browser-stream.js";
 import { createStreamActivity } from "../stream-activity.js";
 import { fakeBrowserOrigin, settleLocks } from "./browser-stream.fakes.js";
+import { orFallbackSync } from "@jini-ai/core/errors/idioms";
 
 describe("browser stream ownership", () => {
   it("two tabs use one connection, both receive exact frames, and closing the leader transfers ownership", async () => {
@@ -344,14 +345,14 @@ describe("browserStreamPorts", () => {
 
   it("binds the document, window and wall clock", () => {
     vi.useFakeTimers({ now: 1_234 });
-    const ports = browserStreamPorts();
+    const ports = browserStreamPorts({ orFallbackSync });
     expect({ visibility: ports.visibility, page: ports.page, now: ports.now() }).toEqual({ visibility: document, page: window, now: 1_234 });
   });
 
   it("schedules work on a cancellable timer", () => {
     vi.useFakeTimers();
     const ran: string[] = [];
-    const ports = browserStreamPorts();
+    const ports = browserStreamPorts({ orFallbackSync });
     ports.schedule({ work: () => { ran.push("kept"); }, delayMs: 10 });
     const cancel = ports.schedule({ work: () => { ran.push("cancelled"); }, delayMs: 10 });
     cancel();
@@ -364,7 +365,7 @@ describe("browserStreamPorts", () => {
     vi.stubGlobal("navigator", { locks: { request } });
     const signal = new AbortController().signal;
     const hold = vi.fn(async () => {});
-    await browserStreamPorts().requestLock!({ key: "browser-stream:feed", signal, hold });
+    await browserStreamPorts({ orFallbackSync }).requestLock!({ key: "browser-stream:feed", signal, hold });
     expect(request).toHaveBeenCalledWith("browser-stream:feed", { signal }, hold);
   });
 
@@ -372,14 +373,14 @@ describe("browserStreamPorts", () => {
     const names: string[] = [];
     class FakeBroadcastChannel { constructor(name: string) { names.push(name); } }
     vi.stubGlobal("BroadcastChannel", FakeBroadcastChannel);
-    expect(browserStreamPorts().openChannel!({ name: "browser-stream:feed" })).toBeInstanceOf(FakeBroadcastChannel);
+    expect(browserStreamPorts({ orFallbackSync }).openChannel!({ name: "browser-stream:feed" })).toBeInstanceOf(FakeBroadcastChannel);
     expect(names).toEqual(["browser-stream:feed"]);
   });
 
   it("omits locks and channels on hosts without them", () => {
     vi.stubGlobal("navigator", {});
     vi.stubGlobal("BroadcastChannel", undefined);
-    const ports = browserStreamPorts();
+    const ports = browserStreamPorts({ orFallbackSync });
     expect({ requestLock: ports.requestLock, openChannel: ports.openChannel }).toEqual({ requestLock: undefined, openChannel: undefined });
   });
 });

@@ -1,3 +1,4 @@
+import { reportShellFailure } from "./shell-failure-log.js";
 /**
  * @file The seam between "the assistant drew something via `assistant_render_ui`" and "the
  * Playground page wants it drawn ON THE PAGE instead of inline in the chat transcript" — the
@@ -75,7 +76,7 @@ export function setPlaygroundRenderTarget({ node }: { node: HTMLDivElement | nul
     try {
       listener();
     } catch (error) {
-      console.error("[admin] playground render-target listener failed", error);
+      reportShellFailure({ message: "[admin] playground render-target listener failed", error });
     }
   }
 }

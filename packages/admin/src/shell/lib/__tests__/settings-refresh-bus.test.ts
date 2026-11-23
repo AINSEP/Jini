@@ -1,6 +1,7 @@
 import { afterEach, expect, test, vi } from "vitest";
 
 import { publishSettingsRefresh, resetSettingsRefreshBus, subscribeToSettingsRefresh } from "../settings-refresh-bus.js";
+import { spyShellFailures } from "./shell-failure-log.fakes.js";
 
 /**
  * @file The bus between "settings changed elsewhere" and the mounted tabs.
@@ -47,7 +48,7 @@ test("unsubscribing stops delivery", () => {
 });
 
 test("one throwing subscriber does not suppress the others", () => {
-  const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+  const errors = spyShellFailures();
   const survivor = vi.fn();
 
   subscribeToSettingsRefresh(() => {

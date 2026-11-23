@@ -1,3 +1,4 @@
+import { reportShellFailure } from "./shell-failure-log.js";
 /**
  * @file The seam between "content changed somewhere else" and "the mounted content screens re-read
  * it", so an operator sees a taxonomy the assistant just created without reloading the page.
@@ -82,7 +83,7 @@ export function publishContentRefresh(
     try {
       listener(scope);
     } catch (error) {
-      console.error("[admin] content refresh listener failed", error);
+      reportShellFailure({ message: "[admin] content refresh listener failed", error });
     }
   }
 }

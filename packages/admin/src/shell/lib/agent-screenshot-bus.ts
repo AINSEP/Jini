@@ -1,3 +1,4 @@
+import { reportShellFailure } from "./shell-failure-log.js";
 /**
  * @file The consent/announcement signal for `admin.capture_screenshot`.
  *
@@ -62,7 +63,7 @@ export function publishScreenshotCaptured(): void {
     try {
       listener();
     } catch (error) {
-      console.error("[admin] screenshot-captured listener failed", error);
+      reportShellFailure({ message: "[admin] screenshot-captured listener failed", error });
     }
   }
 }

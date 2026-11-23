@@ -1,4 +1,5 @@
 import type { BrowserStreamPorts, StreamChannel } from "../browser-stream.js";
+import { orFallbackSync } from "@jini-ai/core/errors/idioms";
 
 /** Separate document/clock/channel ports for each simulated tab; one origin lock queue. */
 export function fakeBrowserOrigin() {
@@ -37,7 +38,8 @@ export function fakeBrowserOrigin() {
         tails.set(key, requested.catch(() => {}));
         return requested;
       },
-      openChannel: ({ name }) => {
+      orFallbackSync,
+    openChannel: ({ name }) => {
         const peers = channels.get(name) ?? new Set();
         const listeners = new Set<(event: MessageEvent<unknown>) => void>();
         const channel: StreamChannel = {

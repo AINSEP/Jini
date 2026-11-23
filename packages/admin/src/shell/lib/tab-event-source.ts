@@ -22,8 +22,8 @@ function forwardedTabEvent({ kind, message }: { kind: "message" | "error" | "ope
 export function openTabEventSource(
   { url }: { url: string },
   { open = (url: string): Source => new EventSource(url), ports, activity = adminStreamActivity }: {
-    open?: (url: string) => Source; ports?: BrowserStreamPorts; activity?: StreamActivity;
-  } = {},
+    open?: (url: string) => Source; ports: BrowserStreamPorts; activity?: StreamActivity;
+  },
 ): EventSource {
   const state = {
     source: undefined as Source | undefined,
@@ -50,7 +50,7 @@ export function openTabEventSource(
   }
   const managed = new ManagedSource();
   // Assigned before `managed` is returned, so no caller can reach `close()` while it is unset.
-  const stop = startBrowserStream({ key: url, connect: createTabSourceConnector({ open, url, state, managed }) }, { ...(ports ? { ports } : {}), scope: "tab", activity });
+  const stop = startBrowserStream({ key: url, connect: createTabSourceConnector({ open, url, state, managed }) }, { ports, scope: "tab", activity });
   return managed;
 }
 

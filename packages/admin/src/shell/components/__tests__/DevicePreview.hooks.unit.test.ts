@@ -12,6 +12,7 @@ import {
   useDevicePreviewDevice,
   usePreviewPaneWidth,
 } from "../DevicePreview/DevicePreview.hooks.js";
+import { agentHandle } from "@jini-ai/core/agent-handles";
 
 /**
  * @file `DevicePreview.hooks.ts` — the shared device-width preview's derived values and its pane
@@ -202,11 +203,11 @@ describe("devicePreviewFrameStyles", () => {
 
 describe("devicePreviewButtonHandleProps", () => {
   it("returns no props without a handle prefix", () => {
-    expect(devicePreviewButtonHandleProps({ handlePrefix: undefined, entry: { key: "mobile", label: "Mobile" } })).toEqual({});
+    expect(devicePreviewButtonHandleProps({ agentHandle, handlePrefix: undefined, entry: { key: "mobile", label: "Mobile" } })).toEqual({});
   });
 
   it("names the handle `${prefix}-${key}` when a prefix is given", () => {
-    const props = devicePreviewButtonHandleProps({ handlePrefix: "page-preview-width", entry: { key: "mobile", label: "Mobile" } });
+    const props = devicePreviewButtonHandleProps({ agentHandle, handlePrefix: "page-preview-width", entry: { key: "mobile", label: "Mobile" } });
     expect(props).toMatchObject({ "data-agent-element": "page-preview-width-mobile" });
   });
 });

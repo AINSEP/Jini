@@ -1,5 +1,4 @@
 import { useEffect, useState, type CSSProperties } from "react";
-import { agentHandle } from "@jini-ai/core/agent-handles";
 
 /**
  * @file The Desktop/Tablet/Mobile device-width preview shared by every admin editor that previews a
@@ -87,7 +86,12 @@ export function devicePreviewFrameStyles({
  * @complexity O(1).
  */
 export function devicePreviewButtonHandleProps(
-  { handlePrefix, entry }: { handlePrefix: string | undefined; entry: { key: DevicePreviewDevice; label: string } },
+  { handlePrefix, entry, agentHandle }: {
+    handlePrefix: string | undefined;
+    entry: { key: DevicePreviewDevice; label: string };
+    /** The host's handle builder (core `agentHandle`); its spread props go straight onto the button. */
+    agentHandle: (required: { handle: string }, meta: { role: "button"; label: string }) => Readonly<Record<string, string>>;
+  },
   _options: Record<string, never> = {},
 ) {
   if (!handlePrefix) return {};

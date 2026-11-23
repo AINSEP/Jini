@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { publishScreenshotCaptured, resetScreenshotCapturedBus, subscribeToScreenshotCaptured } from "../agent-screenshot-bus.js";
+import { spyShellFailures } from "./shell-failure-log.fakes.js";
 
 /**
  * @file `agent-screenshot-bus.ts` — the consent/announcement signal for `admin.capture_screenshot`
@@ -39,7 +40,7 @@ describe("subscribeToScreenshotCaptured / publishScreenshotCaptured", () => {
   });
 
   it("a throwing listener is caught and logged, and does not stop the remaining listeners from running", () => {
-    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const errorSpy = spyShellFailures();
     const throwing = vi.fn(() => {
       throw new Error("boom");
     });
@@ -50,7 +51,7 @@ describe("subscribeToScreenshotCaptured / publishScreenshotCaptured", () => {
     publishScreenshotCaptured();
 
     expect(healthy).toHaveBeenCalledTimes(1);
-    expect(errorSpy).toHaveBeenCalledWith("[admin] screenshot-captured listener failed", expect.any(Error));
+    expect(errorSpy).toHaveBeenCalledWith({ message: "[admin] screenshot-captured listener failed" }, { error: expect.any(Error) });
   });
 
   it("publishing more than once notifies the listener each time — every capture must be announced, not just the first", () => {

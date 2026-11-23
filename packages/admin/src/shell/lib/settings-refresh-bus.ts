@@ -1,4 +1,5 @@
 import { dropInFlightSettingsReads } from "./settings-effective-reads.js";
+import { reportShellFailure } from "./shell-failure-log.js";
 
 /**
  * @file The seam between "a setting changed somewhere else" and "the mounted settings tabs re-read
@@ -70,7 +71,7 @@ export function publishSettingsRefresh(namespaces?: readonly string[]): void {
     try {
       listener(scope);
     } catch (error) {
-      console.error("[admin] settings refresh listener failed", error);
+      reportShellFailure({ message: "[admin] settings refresh listener failed", error });
     }
   }
 }

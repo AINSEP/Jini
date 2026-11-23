@@ -6,6 +6,7 @@ import {
   resetContentRefreshBus,
   subscribeToContentRefresh,
 } from "../content-refresh-bus.js";
+import { spyShellFailures } from "./shell-failure-log.fakes.js";
 
 /**
  * @file The bus between "content changed elsewhere" and the mounted content screens.
@@ -53,7 +54,7 @@ test("unsubscribing stops delivery", () => {
 });
 
 test("one throwing subscriber does not suppress the others", () => {
-  const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+  const errors = spyShellFailures();
   const survivor = vi.fn();
 
   subscribeToContentRefresh({ listener: () => {

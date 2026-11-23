@@ -7,6 +7,7 @@ import {
   setPlaygroundRenderTarget,
   subscribeToPlaygroundRenderTarget,
 } from "../playground-render-target-bus.js";
+import { spyShellFailures } from "./shell-failure-log.fakes.js";
 
 /**
  * @file `playground-render-target-bus.ts` — the seam `RoutedA2uiSurfaceCard.tsx` (reader) and
@@ -73,7 +74,7 @@ describe("getPlaygroundRenderTarget / setPlaygroundRenderTarget", () => {
   });
 
   it("a listener that throws does not stop the remaining listeners from running", () => {
-    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const consoleErrorSpy = spyShellFailures();
     const throwingListener = vi.fn(() => {
       throw new Error("boom");
     });
