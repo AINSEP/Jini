@@ -178,6 +178,18 @@ create stay id-free. The host injects what is its policy, not the engine's: `raw
 `normalizeMenuHtml` from `@jini-ai/cms/navigation/node`) and `trashMenu` (the host's trash move).
 Malformed bodies are refused in `parse` with the host's code-less `{ error }` body.
 
+System mail (`src/admin-http/routes/system/mail-{status,dns,test-send,activity}.ts`, guards in
+`mail-shared.ts`): the host binds every collaborator as a required function-typed dep — the live
+mailer predicate and cached status, the DNS operations, the recipient rules and plan-then-run send,
+the platform activity/suppression operations with a `classifyMailActivityError` mapper — plus the
+permission names. The test send's local duplicate/rate guard answers 429 with the same `{ sent, result }` body.
+
+Sites (`src/admin-http/routes/sites/sites-home.ts`: `sitesConfigReadRoute`, `sitesHomeSetRoute` and the
+folder rules; `src/admin-http/routes/system/sites.ts`: `siteTokenSignInPluginsRoute`, `siteCreateRoute`,
+`siteActivateRoute`): the host injects the deployment gate, its sites workspace, a `SitesDirectoryProbe`
+(filesystem inspection) and the site-admin collaborators. Gates answer before authorization; folder and
+name refusals after it; feature refusals map by code to status.
+
 ## Scripts
 
 ```bash
