@@ -5,10 +5,10 @@
  * without Electron. `main.ts` keeps only the `app.on("web-contents-created", ...)` line that hands
  * each new contents to {@link installWebviewGuestPolicy}.
  */
-import { installGuestWindowOpenPolicy, isSameOrigin, type NavigableContents } from "./window-navigation-policy.js";
+import { installGuestWindowOpenPolicy, isSameOrigin, type ElectronNavigableContents } from "../electron/navigation-policy/index.js";
 
 /** The slice of a `WebContents` the guest policy touches. */
-type GuestContents = NavigableContents & {
+type GuestContents = ElectronNavigableContents & {
   getType(): string;
   getURL(): string;
 };
@@ -47,7 +47,7 @@ function installWebviewGuestPolicy(
     if (isSupervisedGuestUrl({ url })) openExternal({ url });
   };
 
-  installGuestWindowOpenPolicy(contents, { isSupervisedGuestUrl, openExternal });
+  installGuestWindowOpenPolicy({ contents, isSupervisedGuestUrl, openExternal });
 
   contents.on("will-navigate", (event, url) => {
     if (isSameOrigin({ candidate: url, reference: contents.getURL() })) return;

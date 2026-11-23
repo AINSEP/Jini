@@ -189,6 +189,32 @@ The default Node timer adapter is also exported as `createNodeUpdateTimers()`. D
 
 `UpdaterLike` and `NavigableContents` are unions with the existing object registration types, exported as `LegacyUpdaterLike` and `LegacyNavigableContents`. The legacy controller `now` callback and dependency-object timers/timing/messages also remain accepted during migration. Native `on` implementations have two parameters (or a rest tuple); the old object registration has one. Custom one-parameter native updater facades should use `createElectronUpdaterAdapter`. Popup-only contents receive a callable handler that also supports the old `{ handler }` destructuring ABI. Hosts can remove their registration wrappers when ready.
 
+## Wiring
+
+Window navigation, guest admission and remembered bounds have one implementation each, under
+`./electron/navigation-policy` and `./electron/usability`; there are no `./shell/*` wrappers for them.
+`./shell/guest-navigation` builds on the same navigation-policy API.
+
+- **Needs injected:** `openExternal`, the app origin or renderer file URL, an `isSupervisedGuestUrl` /
+  `isAllowedSource` predicate, the guest `preloadPath`, and for bounds a `BoundsStorePort`
+  (`read`/`write` keyed by path), the bounds file name and a `joinPath`.
+- **Provides:** popup/navigation/redirect boundaries, the sender check `isShellPageUrl`
+  (attach-mode origin as the second argument), guest preference hardening that throws the
+  missing-preload diagnostic, and bounds read/validate/write with the on-screen check.
+- **Never imports:** `electron`, `node:fs` or host paths; the host owns storage and file location.
+
+```ts
+import { installAppWindowNavigationPolicy, applyGuestWebPreferences } from '@jini-ai/desktop-host/electron/navigation-policy';
+import { readWindowBounds, resolveWindowBounds, windowBoundsFilePath } from '@jini-ai/desktop-host/electron/usability';
+
+installAppWindowNavigationPolicy({ contents: win.webContents, appOrigin, openExternal: ({ url }) => shell.openExternal(url) });
+contents.on('will-attach-webview', (_e, webPreferences) => applyGuestWebPreferences({ webPreferences, preloadPath }));
+const key = windowBoundsFilePath({ userDataDir, fileName: 'window-bounds.json', joinPath: ({ directory, filename }) => path.join(directory, filename) });
+const bounds = resolveWindowBounds({ stored: readWindowBounds({ store: jsonStore, key }), displays: screen.getAllDisplays(), fallback });
+```
+
+Architecture: [extraction-plan.md](../../ADS-memory/reports/jini-port/extraction-plan.md).
+
 File logging uses core `Logger`; `error` in the optional bag is normalized into the JSON metadata alongside `meta`, consistently across all three levels.
 
 ## Native speech runtime asset
