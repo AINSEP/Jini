@@ -29,7 +29,6 @@
    "AdminFormFieldDto": "type:80f7dea110",
    "AdminFormNotifyDto": "interface:312790332e",
    "AdminFormSubmissionDto": "interface:4ddcb29523",
-   "mapFormsWriteError": "function:f40c48295f",
    "toAdminFormDefinitionDto": "function:a5be3c1785",
    "toAdminFormDefinitionListResponse": "function:6407d025c3",
    "toAdminFormDefinitionResponse": "function:7166048d2c",
@@ -127,8 +126,15 @@
   }
  },
  "./comments/site/ip-hash-salt": {
-  "types": null,
-  "symbols": {}
+  "types": "./dist/comments/site/ip-hash-salt.d.ts",
+  "symbols": {
+   "COMMENTS_IP_SALT_ENV_VAR": "variable:03ed9d8b12",
+   "COMMENTS_IP_SALT_PURPOSE": "variable:0a9db62cb6",
+   "CommentsIpHashSaltSource": "type:45e26ea351",
+   "CommentsIpSaltKeyring": "interface:4d546b2457",
+   "DEV_COMMENTS_IP_SALT": "variable:6de0dc156b",
+   "resolveCommentsIpHashSalt": "function:d953bff03d"
+  }
  },
  "./comments/sql": {
   "types": "./dist/comments/sql/index.d.ts",
@@ -2798,12 +2804,6 @@
    "resolveTaxonomyEmbeds": "function:e9595f1af5",
    "resolveWidgetType": "function:4ec48da996",
    "wireCoreResolvers": "function:9a0231a4c7"
-  }
- },
- "./widgets/site/media-html-log": {
-  "types": "./dist/widgets/site/media-html-log.d.ts",
-  "symbols": {
-   "logMediaHtmlEvent": "function:d0f53e7e6b"
   }
  },
  "./widgets/sql": {
