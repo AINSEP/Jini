@@ -1,7 +1,8 @@
 import { useCallback, useRef, type RefObject } from "react";
 
-import { isEditorSourceError, type InteractiveHtmlEditorHandle } from "@jini-ai/ui/html-editor";
-import { normalizeEmbedMarkerQuoting } from "@jini-ai/cms/widgets/markers";
+import type { Logger } from "@jini-ai/core/primitives";
+
+import type { InteractiveHtmlEditorHandle } from "../../react/kit.js";
 
 /**
  * @file Interactive flush (2026-09-23 plan) — the admin half of `@jini-ai/ui/html-editor`'s
@@ -39,6 +40,20 @@ function settleFlush({ flush, timeoutMs }: { flush: Promise<string | undefined>;
 }
 
 /**
+ * The host's implementations this hook calls, injected because `@jini-ai/admin` has no runtime
+ * dependency on the editor or CMS packages that own them (`@jini-ai/ui/html-editor`'s
+ * `isEditorSourceError`, `@jini-ai/cms/widgets/markers`' `normalizeEmbedMarkerQuoting`), plus the
+ * host's `Logger` that receives the two "continuing without the open edit" warnings.
+ */
+export interface InteractiveFlushCollaborators {
+  /** True for the editor's source-integrity error, the one flush failure that must propagate. */
+  isEditorSourceError: (required: { error: unknown }, optional: object) => boolean;
+  /** Puts embed markers back in their readable single-quoted form. */
+  normalizeEmbedMarkerQuoting: (required: { html: string }) => string;
+  logger: Pick<Logger, "warn">;
+}
+
+/**
  * `setHtml` — the raw `useState` setter `usePageEditor` owns for the working copy. Injected rather
  * than reading it off a wider dependency object: this hook's whole job is one write into that one
  * piece of state, and threading just the setter keeps it independently testable without a fake
@@ -52,7 +67,9 @@ function settleFlush({ flush, timeoutMs }: { flush: Promise<string | undefined>;
  *   flush undo that, so the HTML tab and the saved page read as authored.
  * @complexity Time/space: O(1) setup.
  */
-export function useInteractiveEditorFlush({ setHtml }: { setHtml: (value: string) => void }, _options = {}
+export function useInteractiveEditorFlush(
+  { setHtml, isEditorSourceError, normalizeEmbedMarkerQuoting, logger }: { setHtml: (value: string) => void } & InteractiveFlushCollaborators,
+  _options = {}
 ): {
   interactiveEditorRef: RefObject<InteractiveHtmlEditorHandle | null>;
   flushInteractiveEdits: () => Promise<string | undefined>;
@@ -82,22 +99,22 @@ export function useInteractiveEditorFlush({ setHtml }: { setHtml: (value: string
     const outcome = await settleFlush({ flush: Promise.resolve().then(() => handle.flush()), timeoutMs: INTERACTIVE_FLUSH_TIMEOUT_MS });
     if (outcome.kind === "failed") {
       if (isEditorSourceError({ error: outcome.error }, {})) throw outcome.error;
-      console.warn("[useInteractiveEditorFlush] flush failed; saving the working copy without the open edit", outcome.error);
+      logger.warn({ message: "[useInteractiveEditorFlush] flush failed; saving the working copy without the open edit" }, { error: outcome.error });
       return undefined;
     }
     if (outcome.kind === "timed-out") {
-      console.warn(
-        `[useInteractiveEditorFlush] flush did not settle within ${INTERACTIVE_FLUSH_TIMEOUT_MS}ms; continuing without the open edit`
-      );
+      logger.warn({
+        message: `[useInteractiveEditorFlush] flush did not settle within ${INTERACTIVE_FLUSH_TIMEOUT_MS}ms; continuing without the open edit`,
+      });
       return undefined;
     }
     if (outcome.html === undefined) return undefined;
     const html = normalizeEmbedMarkerQuoting({ html: outcome.html });
     setHtml(html);
     return html;
-  }, [setHtml]);
+  }, [setHtml, isEditorSourceError, normalizeEmbedMarkerQuoting, logger]);
 
-  const setHtmlFromCanvas = useCallback((value: string) => setHtml(normalizeEmbedMarkerQuoting({ html: value })), [setHtml]);
+  const setHtmlFromCanvas = useCallback((value: string) => setHtml(normalizeEmbedMarkerQuoting({ html: value })), [setHtml, normalizeEmbedMarkerQuoting]);
 
   return { interactiveEditorRef, flushInteractiveEdits, setHtmlFromCanvas };
 }

@@ -1,10 +1,19 @@
+// @vitest-environment jsdom
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { isEditorSourceError } from "@jini-ai/ui/html-editor";
+import { normalizeEmbedMarkerQuoting } from "@jini-ai/cms/widgets/markers";
 import {
   INTERACTIVE_FLUSH_TIMEOUT_MS,
-  useInteractiveEditorFlush,
-} from "../hooks/use-interactive-flush.hooks";
+  useInteractiveEditorFlush as useHookUnderTest,
+} from "../hooks/use-interactive-flush.hooks.js";
+
+/** The host's real collaborators, bound once like the host's wiring does; `logger.warn` is the spy. */
+const logger = { warn: vi.fn() };
+function useInteractiveEditorFlush({ setHtml }: { setHtml: (value: string) => void }) {
+  return useHookUnderTest({ setHtml, isEditorSourceError, normalizeEmbedMarkerQuoting, logger });
+}
 
 /**
  * @file `useInteractiveEditorFlush` — the failure arms. Every Save, Publish, "Save anyway", tab switch
@@ -14,13 +23,12 @@ import {
  * by then the operator may be typing in the HTML tab's textarea, and a late write would clobber it.
  */
 describe("useInteractiveEditorFlush — a rejected or hanging flush never blocks its caller", () => {
-  let warn: ReturnType<typeof vi.spyOn>;
+  const warn = logger.warn;
   beforeEach(() => {
     vi.useFakeTimers();
-    warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    warn.mockClear();
   });
   afterEach(() => {
-    warn.mockRestore();
     vi.useRealTimers();
   });
 
@@ -55,8 +63,8 @@ describe("useInteractiveEditorFlush — a rejected or hanging flush never blocks
     await expect(result.current.flushInteractiveEdits()).resolves.toBeUndefined();
     expect(setHtml).not.toHaveBeenCalled();
     expect(warn).toHaveBeenCalledWith(
-      "[useInteractiveEditorFlush] flush failed; saving the working copy without the open edit",
-      expect.any(Error),
+      { message: "[useInteractiveEditorFlush] flush failed; saving the working copy without the open edit" },
+      { error: expect.any(Error) },
     );
   });
 
@@ -78,9 +86,9 @@ describe("useInteractiveEditorFlush — a rejected or hanging flush never blocks
     expect(settled).toBe(true);
     expect(flushed).toBeUndefined();
     expect(setHtml).not.toHaveBeenCalled();
-    expect(warn).toHaveBeenCalledWith(
-      `[useInteractiveEditorFlush] flush did not settle within ${INTERACTIVE_FLUSH_TIMEOUT_MS}ms; continuing without the open edit`,
-    );
+    expect(warn).toHaveBeenCalledWith({
+      message: `[useInteractiveEditorFlush] flush did not settle within ${INTERACTIVE_FLUSH_TIMEOUT_MS}ms; continuing without the open edit`,
+    });
   });
 
   it("a flush that settles after the timeout never writes into html late", async () => {

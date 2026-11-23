@@ -1,6 +1,8 @@
+// @vitest-environment jsdom
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { measureTextareaCaretTop, useEditorHtmlJump } from "../hooks/use-editor-html-jump.hooks";
+import { findEditorBlockOpening } from "@jini-ai/ui/html-editor";
+import { measureTextareaCaretTop, useEditorHtmlJump } from "../hooks/use-editor-html-jump.hooks.js";
 
 const textareas: HTMLTextAreaElement[] = [];
 afterEach(() => {
@@ -13,7 +15,7 @@ function harness(flush: () => Promise<string | undefined> = async () => source, 
   const setDraftHtml = vi.fn();
   const onError = vi.fn();
   const scrollTop = { current: 17 };
-  const hook = renderHook(({ revision }) => useEditorHtmlJump({ html: source, contentRevision: revision, flush, setView, setDraftHtml, scrollTop }, { onError, measureCaretTop }), { initialProps: { revision: 1 } });
+  const hook = renderHook(({ revision }) => useEditorHtmlJump({ html: source, contentRevision: revision, flush, setView, setDraftHtml, scrollTop, findEditorBlockOpening }, { onError, measureCaretTop }), { initialProps: { revision: 1 } });
   return { ...hook, setView, setDraftHtml, onError, scrollTop };
 }
 describe("locked block Edit HTML navigation", () => {
@@ -157,5 +159,14 @@ describe("locked block Edit HTML navigation", () => {
     await act(async () => { await failed.result.current.requestEditHtml({ occurrenceIndex: 0, tagName: "div" }, {}); });
     expect(failed.onError).toHaveBeenCalledTimes(1);
     expect(failed.setDraftHtml).not.toHaveBeenCalled();
+  });
+  it("hands the host the flush error it caught, and nothing for a missing occurrence", async () => {
+    const thrown = new Error("source metadata missing");
+    const failed = harness(async () => { throw thrown; });
+    await act(async () => { await failed.result.current.requestEditHtml({ occurrenceIndex: 0, tagName: "div" }, {}); });
+    expect(failed.onError).toHaveBeenCalledWith(thrown);
+    const missing = harness();
+    await act(async () => { await missing.result.current.requestEditHtml({ occurrenceIndex: 9, tagName: "div", id: "same" }, {}); });
+    expect(missing.onError).toHaveBeenCalledWith();
   });
 });

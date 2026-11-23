@@ -1,18 +1,30 @@
 import { useCallback, useRef, type MutableRefObject } from "react";
-import { findEditorBlockOpening, type EditorHtmlTarget, type RequestEditHtml } from "@jini-ai/ui/html-editor";
+import type { HtmlEditorProps, HtmlEditorTarget } from "../../react/kit.js";
+
+/** The editor's "Edit HTML" request for a block the canvas cannot edit visually. */
+export type RequestEditHtml = NonNullable<HtmlEditorProps["onRequestEditHtml"]>;
+/**
+ * The host's `@jini-ai/ui/html-editor` `findEditorBlockOpening`, injected because `@jini-ai/admin`
+ * has no runtime dependency on the editor package: the exact opening tag `target` stands for, or
+ * `undefined` when the source has no such occurrence.
+ */
+export type FindEditorBlockOpening = (
+  required: { html: string; target: HtmlEditorTarget }, optional: object,
+) => { start: number; end: number } | undefined;
 
 /** One-shot source navigation; content/flush ownership stays in the existing Page editor. */
 export function useEditorHtmlJump(
-  { html, contentRevision, flush, setView, setDraftHtml, scrollTop }: {
+  { html, contentRevision, flush, setView, setDraftHtml, scrollTop, findEditorBlockOpening }: {
     html: string;
     contentRevision: number;
     flush: () => Promise<string | undefined>;
     setView: (view: "html") => void;
     setDraftHtml: (html: string) => void;
     scrollTop: MutableRefObject<number>;
+    findEditorBlockOpening: FindEditorBlockOpening;
   },
   { onError, measureCaretTop = measureTextareaCaretTop }: {
-    onError: () => void;
+    onError: (error?: Error) => void;
     /** Pixel top of `index` inside the textarea's wrapped content, or `null` without layout. */
     measureCaretTop?: typeof measureTextareaCaretTop;
   },
@@ -26,7 +38,7 @@ export function useEditorHtmlJump(
   }
   current.current = { html, contentRevision };
 
-  const requestEditHtml = useCallback(async (target: EditorHtmlTarget, _options: object) => {
+  const requestEditHtml = useCallback(async (target: HtmlEditorTarget, _options: object) => {
     const revision = current.current.contentRevision;
     try {
       const source = await flush() ?? current.current.html;
@@ -39,8 +51,8 @@ export function useEditorHtmlJump(
       skipFormatting.current = true;
       setDraftHtml(source);
       setView("html");
-    } catch { onError(); }
-  }, [flush, setView, setDraftHtml, onError]);
+    } catch (error) { onError(error instanceof Error ? error : undefined); }
+  }, [flush, setView, setDraftHtml, onError, findEditorBlockOpening]);
 
   const htmlTextareaRef = useCallback((node: HTMLTextAreaElement | null) => {
     if (!node) return;
