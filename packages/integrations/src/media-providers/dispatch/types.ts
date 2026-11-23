@@ -24,7 +24,8 @@ import type { RequiredArgs, OptionalArgs } from '../../args.js';
  */
 import type { HttpClientPort } from '@jini-ai/core/primitives';
 import type { MediaOutboundOptions } from './outbound.js';
-import type { AudioKind, MediaModel, MediaProvider, MediaSurface } from '../types.js';
+import type { AudioKind, MediaSurface } from '../types.js';
+import type { MediaModel, MediaProvider } from '@jini-ai/core/contracts/site/media-providers-catalog';
 
 /** Per-provider credentials a host resolves however it wants (env vars, a secrets manager, a config file, ...). This engine never reads `process.env` itself — see `resolveProviderCredentialsFromEnv` in `credentials.ts` for an opt-in reference resolver a host may use to build this map. */
 export interface ProviderCredentials {

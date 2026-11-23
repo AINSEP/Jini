@@ -20,6 +20,8 @@ export { openPlaywrightRenderBrowser, PUBLIC_RENDER_LAUNCH_OPTIONS } from "./pla
 export type { PlaywrightLike, PlaywrightAdapterOptions } from "./playwright-runtime.js";
 export * from "./render-page.js";
 export { PageWorkTimeout } from "./page-work-budget.js";
+/** Deprecated re-export: import these from `@jini-ai/core/contracts/site/web-evidence-playwright`; removed at the next major. */
+export type { AbortReason, RequestDecision, RequestRouterReport, RoutedRequest } from "@jini-ai/core/contracts/site/web-evidence-playwright";
 export * from "./request-guard.js";
 export * from "./lazy-browser.js";
 import { PageWorkBudget, PageWorkTimeout } from "./page-work-budget.js";

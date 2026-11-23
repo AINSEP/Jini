@@ -1,7 +1,8 @@
 /** request-guard: pure decisions, then one router per test driven through typed route/transport fakes. */
 import { test, expect } from "vitest";
 import type { HttpClientPort, HttpRequest, HttpResponse } from "@jini-ai/core/primitives";
-import { createRequestRouter, decideRequest, isMainFrameNavigation, MAX_REDIRECT_HOPS, type FetchedResource, type OwnSiteFetch, type RequestRouterOptions, type RoutedRequest, type RouteLike } from "../request-guard.js";
+import { createRequestRouter, decideRequest, isMainFrameNavigation, MAX_REDIRECT_HOPS, type FetchedResource, type OwnSiteFetch, type RequestRouterOptions, type RouteLike } from "../request-guard.js";
+import type { RoutedRequest } from "@jini-ai/core/contracts/site/web-evidence-playwright";
 
 const NO_ORIGINS: readonly string[] = [];
 

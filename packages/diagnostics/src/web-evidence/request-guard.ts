@@ -1,4 +1,5 @@
 import type { HttpClientPort } from "@jini-ai/core/primitives";
+import type { AbortReason, RequestDecision, RequestRouterReport, RoutedMethod, RoutedRequest } from "@jini-ai/core/contracts/site/web-evidence-playwright";
 
 /**
  * @file Every network request the screenshot browser makes, decided and carried here — Chromium
@@ -35,18 +36,6 @@ import type { HttpClientPort } from "@jini-ai/core/primitives";
  * the own-site origin; first- and third-party response cookies stay in its in-memory context.
  */
 
-/** The slice of a Playwright `Request` the router reads — structural, so tests pass plain objects. */
-export interface RoutedRequest {
-  url(): string;
-  method(): string;
-  headers(): Record<string, string>;
-  /** Transport only: request bodies are never retained as evidence. */
-  postData?(): string | null;
-  resourceType(): string;
-  isNavigationRequest(): boolean;
-  frame(): { parentFrame(): unknown };
-}
-
 /** The slice of a Playwright `Route` the router drives. */
 export interface RouteLike {
   request(): RoutedRequest;
@@ -69,13 +58,9 @@ export type OwnSiteFetch = (
   optional: { signal: AbortSignal; maxBytes: number; fetch?: typeof globalThis.fetch },
 ) => Promise<FetchedResource>;
 
-export type AbortReason = "scheme" | "method" | "resource-type" | "budget" | "refused" | "failed";
-
 /** Redirect hops followed per request (and per page navigation), each one re-vetted. */
 export const MAX_REDIRECT_HOPS = 5;
 const REDIRECT_STATUSES: ReadonlySet<number> = new Set([301, 302, 303, 307, 308]);
-type RoutedMethod = "GET" | "HEAD" | "POST" | "PUT" | "PATCH";
-export type RequestDecision = { action: "fetch"; via: "guarded" | "own-site"; method: RoutedMethod } | { action: "abort"; reason: AbortReason };
 
 /** Streaming and media types that add nothing to a still picture and could hold a fetch open. */
 const SKIPPED_RESOURCE_TYPES: ReadonlySet<string> = new Set(["media", "eventsource", "websocket", "texttrack"]);
@@ -125,14 +110,6 @@ function filterHeaders(headers: Readonly<Record<string, string>>, dropped: Reado
     if (!lower.startsWith(":") && !dropped.has(lower)) kept[lower] = value;
   }
   return kept;
-}
-
-export interface RequestRouterReport {
-  fulfilled: number;
-  blocked: number;
-  /** The page's own (main-frame) navigation, or a redirect hop of it, was refused by the egress guard. */
-  navigationRefused: boolean;
-  bytes: number;
 }
 
 export interface RequestRouter {
