@@ -208,7 +208,12 @@
       "./admin-http/routes/widgets/embed-insert": "universal",
       "./admin-http/routes/widgets/embed-remove": "universal",
       "./admin-http/routes/widgets/embed-reorder": "universal",
-      "./admin-http/routes/widgets/region-mutate-placements": "universal"
+      "./admin-http/routes/widgets/region-mutate-placements": "universal",
+      "./admin-http/routes/taxonomy/assign-terms": "universal",
+      "./admin-http/routes/taxonomy/create-taxonomy": "universal",
+      "./admin-http/routes/taxonomy/create-term": "universal",
+      "./admin-http/routes/taxonomy/delete-term": "universal",
+      "./admin-http/routes/taxonomy/rename-term": "universal"
     },
     "isolation": {
       "domains": {
@@ -324,7 +329,12 @@
         "./admin-http/routes/widgets/embed-insert": "widgets",
         "./admin-http/routes/widgets/embed-remove": "widgets",
         "./admin-http/routes/widgets/embed-reorder": "widgets",
-        "./admin-http/routes/widgets/region-mutate-placements": "widgets"
+        "./admin-http/routes/widgets/region-mutate-placements": "widgets",
+        "./admin-http/routes/taxonomy/assign-terms": "taxonomy",
+        "./admin-http/routes/taxonomy/create-taxonomy": "taxonomy",
+        "./admin-http/routes/taxonomy/create-term": "taxonomy",
+        "./admin-http/routes/taxonomy/delete-term": "taxonomy",
+        "./admin-http/routes/taxonomy/rename-term": "taxonomy"
       },
       "forbidden": {
         "universal": [
@@ -1342,6 +1352,31 @@
       "types": "./dist/admin-http/routes/widgets/region-mutate-placements.d.ts",
       "import": "./dist/admin-http/routes/widgets/region-mutate-placements.js",
       "default": "./dist/admin-http/routes/widgets/region-mutate-placements.js"
+    },
+    "./admin-http/routes/taxonomy/assign-terms": {
+      "types": "./dist/admin-http/routes/taxonomy/assign-terms.d.ts",
+      "import": "./dist/admin-http/routes/taxonomy/assign-terms.js",
+      "default": "./dist/admin-http/routes/taxonomy/assign-terms.js"
+    },
+    "./admin-http/routes/taxonomy/create-taxonomy": {
+      "types": "./dist/admin-http/routes/taxonomy/create-taxonomy.d.ts",
+      "import": "./dist/admin-http/routes/taxonomy/create-taxonomy.js",
+      "default": "./dist/admin-http/routes/taxonomy/create-taxonomy.js"
+    },
+    "./admin-http/routes/taxonomy/create-term": {
+      "types": "./dist/admin-http/routes/taxonomy/create-term.d.ts",
+      "import": "./dist/admin-http/routes/taxonomy/create-term.js",
+      "default": "./dist/admin-http/routes/taxonomy/create-term.js"
+    },
+    "./admin-http/routes/taxonomy/delete-term": {
+      "types": "./dist/admin-http/routes/taxonomy/delete-term.d.ts",
+      "import": "./dist/admin-http/routes/taxonomy/delete-term.js",
+      "default": "./dist/admin-http/routes/taxonomy/delete-term.js"
+    },
+    "./admin-http/routes/taxonomy/rename-term": {
+      "types": "./dist/admin-http/routes/taxonomy/rename-term.d.ts",
+      "import": "./dist/admin-http/routes/taxonomy/rename-term.js",
+      "default": "./dist/admin-http/routes/taxonomy/rename-term.js"
     }
   },
   "files": [
