@@ -2,7 +2,6 @@ import type { ComponentType } from "react";
 import { agentHandle } from "@jini-ai/core/agent-handles";
 
 import { TabBar } from "../../react/kit.js";
-import { navigate } from "../../shell/lib/router.js";
 import { IMPORT_EXPORT_LINKS, type ImportExportLink } from "./import-export-links.js";
 import { resolveImportExportTabId, resolveImportExportTabs, type ImportExportHandleLabels, type ImportExportTabId } from "./import-export-tabs.js";
 import type { GitBackupController } from "./hooks/use-git-backup.hooks.js";
@@ -19,7 +18,7 @@ import { type Translate } from '@jini-ai/core/text';
  *
  * Host wiring: every hook, the two Sites tab components and the tabs' agent labels are required
  * props (the host's mount passes its locale-bound translators, its live Git backup controller, its
- * Sites availability rule and its Sites tabs). Classes are `jini-*`: the generic page/card/button
+ * Sites availability rule, its Sites tabs and its admin router's `navigate`). Classes are `jini-*`: the generic page/card/button
  * aliases plus `jini-import-export-*` (host aliases of its `import-export-*` rules).
  */
 
@@ -44,6 +43,8 @@ export interface ImportExportProps {
   SiteImportTab: ImportExportSiteImportTab;
   /** The Export and Import tabs' agent labels (host copy). */
   handleLabels: ImportExportHandleLabels;
+  /** The host admin router's `navigate` (an admin route path, e.g. `/import-export?tab=other`). */
+  navigate: (required: { routePath: string }, optional?: { replace?: boolean }) => void;
   /** The `?tab=` query value from `panels.tsx` (`null` when absent). See `resolveImportExportTabId`. */
   tabId?: string | null;
 }
@@ -98,7 +99,7 @@ function TransferTab({ tab, useTransferTranslate, useSitesAvailable, SiteExportT
 }
 
 /** `replace: true` so switching tabs does not grow the back stack, as Sites and Deployment do. */
-function goToImportExportTab(id: string) {
+function goToImportExportTab({ id, navigate }: { id: string; navigate: ImportExportProps["navigate"] }) {
   navigate({ routePath: `/import-export?tab=${id}` }, { replace: true });
 }
 
@@ -110,6 +111,7 @@ export function ImportExport({
   SiteExportTab,
   SiteImportTab,
   handleLabels,
+  navigate,
   tabId,
 }: ImportExportProps) {
   const t = useTranslate();
@@ -126,7 +128,7 @@ export function ImportExport({
       <TabBar
         tabs={resolveImportExportTabs({ t, handleLabels })}
         activeId={tab}
-        onChange={goToImportExportTab}
+        onChange={(id) => goToImportExportTab({ id, navigate })}
         ariaLabel={t("Import & Export")}
         containerHandle="import-export-tabs"
       />

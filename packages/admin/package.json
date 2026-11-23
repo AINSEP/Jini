@@ -190,7 +190,9 @@
       "./screens/import-export/hooks/git-backup-port.hooks": "universal",
       "./screens/webmcp/BrowserAgentSettingsPanel": "browser",
       "./screens/webmcp/admin-page-tools": "universal",
-      "./screens/webmcp/webmcp-i18n": "universal"
+      "./screens/webmcp/webmcp-i18n": "universal",
+      "./screens/skills/skill-drop": "browser",
+      "./screens/skills/use-skills-tabs.hooks": "browser"
     },
     "isolation": {
       "shared": [
@@ -1161,6 +1163,16 @@
       "types": "./dist/screens/webmcp/webmcp-i18n.d.ts",
       "import": "./dist/screens/webmcp/webmcp-i18n.js",
       "default": "./dist/screens/webmcp/webmcp-i18n.js"
+    },
+    "./screens/skills/skill-drop": {
+      "types": "./dist/screens/skills/skill-drop.d.ts",
+      "import": "./dist/screens/skills/skill-drop.js",
+      "default": "./dist/screens/skills/skill-drop.js"
+    },
+    "./screens/skills/use-skills-tabs.hooks": {
+      "types": "./dist/screens/skills/use-skills-tabs.hooks.d.ts",
+      "import": "./dist/screens/skills/use-skills-tabs.hooks.js",
+      "default": "./dist/screens/skills/use-skills-tabs.hooks.js"
     }
   },
   "files": [

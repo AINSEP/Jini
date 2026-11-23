@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { AdminKitProvider } from "../../../react/kit.js";
 import { fakeAdminKit } from "../../../react/testing-kit.js";
 import { ImportExport, type ImportExportProps, type ImportExportSiteExportTab, type ImportExportSiteImportTab } from "../ImportExport.js";
@@ -30,17 +30,20 @@ const handleLabels = { export: "Switch to Export (host label)", import: "Switch 
 const SiteExportTab: ImportExportSiteExportTab = ({ t: translate }) => <button type="button">{translate("Export this site")}</button>;
 const SiteImportTab: ImportExportSiteImportTab = ({ t: translate, canMakeSites }) => <p>{translate("Import")} {canMakeSites ? "can make sites" : "cannot make sites"}</p>;
 
+/** Every navigation the screen asks the host router for. */
+const navigate = vi.fn<ImportExportProps["navigate"]>();
+
 function renderPanel(tabId: string | null, overrides: Partial<ImportExportProps> = {}) {
   return render(
     <ImportExport
       tabId={tabId} useTranslate={identity} useGitBackup={() => noConnection} useTransferTranslate={() => (key) => `sites:${key}`}
-      useSitesAvailable={() => false} SiteExportTab={SiteExportTab} SiteImportTab={SiteImportTab} handleLabels={handleLabels} {...overrides}
+      useSitesAvailable={() => false} SiteExportTab={SiteExportTab} SiteImportTab={SiteImportTab} handleLabels={handleLabels} navigate={navigate} {...overrides}
     />,
     { wrapper: Kit },
   );
 }
 
-afterEach(cleanup);
+afterEach(() => { cleanup(); navigate.mockClear(); });
 
 describe("Import & Export tabs (owner, 2026-10-25, option A)", () => {
   it("opens Export by default with the host's Export tab on the Sites translator, and no Publish button", () => {
@@ -82,16 +85,16 @@ describe("Import & Export tabs (owner, 2026-10-25, option A)", () => {
     expect(screen.getByRole("tab", { name: /Export/ }).getAttribute("aria-selected")).toBe("true");
   });
 
-  it("shows every tab without a Soon tag, every tab navigates, and the host labels reach the tabs", () => {
+  it("shows every tab without a Soon tag, every tab navigates in place, and the host labels reach the tabs", () => {
     renderPanel("other");
     expect(document.querySelector(".jini-page.jini-import-export-page")).toBeTruthy();
     for (const [name, search] of [[/Export/, "?tab=export"], [/Import/, "?tab=import"], [/Other/, "?tab=other"]] as const) {
       const tab = screen.getByRole("tab", { name: name });
       expect(tab.hasAttribute("disabled")).toBe(false);
       fireEvent.click(tab);
-      expect(window.location.pathname.endsWith("/import-export")).toBe(true);
-      expect(window.location.search).toBe(search);
+      expect(navigate).toHaveBeenLastCalledWith({ routePath: `/import-export${search}` }, { replace: true });
     }
+    expect(navigate).toHaveBeenCalledTimes(3);
     const tabs = resolveImportExportTabs({ t: (key) => key, handleLabels });
     expect(tabs.map((tab) => [tab.id, tab.label, tab.tag, tab.handle, tab.handleLabel])).toEqual([
       ["export", "Export", undefined, "import-export-tab-export", "Switch to Export (host label)"],
