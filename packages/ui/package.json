@@ -50,7 +50,9 @@
       "./react-kit": "browser",
       "./react/testing": "browser",
       "./number-stepper": "browser",
-      "./app-shell": "browser"
+      "./app-shell": "browser",
+      "./find-bar": "browser",
+      "./resource-monitor": "browser"
     },
     "isolation": {
       "entries": {
@@ -262,6 +264,16 @@
       "types": "./dist/features/app-shell/index.d.ts",
       "import": "./dist/features/app-shell/index.js",
       "default": "./dist/features/app-shell/index.js"
+    },
+    "./find-bar": {
+      "types": "./dist/features/find-bar/index.d.ts",
+      "import": "./dist/features/find-bar/index.js",
+      "default": "./dist/features/find-bar/index.js"
+    },
+    "./resource-monitor": {
+      "types": "./dist/features/resource-monitor/index.d.ts",
+      "import": "./dist/features/resource-monitor/index.js",
+      "default": "./dist/features/resource-monitor/index.js"
     }
   },
   "files": [
