@@ -72,7 +72,7 @@ function retainTail(
  */
 export function createRedactedOutputSink(
   { sink, redact }: { sink: Pick<Writable, "write">; redact: (required: { text: string }) => string },
-  { maxLineLength = 65_536, maxLength = 2_000, onFailure = ignoreFailure, retain, tailKeepChars }: RedactedOutputSinkOptional = {},
+  { maxLineLength = 65_536, maxLength = 2_000, onFailure = ignoreFailure, retain, tailKeepChars = DEFAULT_TAIL_KEEP_CHARS }: RedactedOutputSinkOptional = {},
 ): Writable {
   const decoder = new StringDecoder("utf8");
   let pending = "";
