@@ -78,8 +78,9 @@ export function createFakeCollectionEntryEditorPort(
     async updateEntry({ target: { id, expectedVersion }, patch }, _optional = {}) {
       if (options.saveError) throw options.saveError;
       const index = entries.findIndex((e) => e.id === id);
-      if (index < 0) throw new Error(`fake entry not found: ${id}`);
-      const updated = { ...entries[index], ...patch, version: expectedVersion + 1 } as AdminEntry;
+      const current = entries[index];
+      if (index < 0 || !current) throw new Error(`fake entry not found: ${id}`);
+      const updated = { ...current, ...patch, version: expectedVersion + 1 } as AdminEntry;
       entries[index] = updated;
       return { entry: updated };
     },
@@ -98,9 +99,10 @@ export function createFakeCollectionEntryEditorPort(
     async entryLifecycle({ id, op, expectedVersion }, _optional = {}) {
       if (options.lifecycleError) throw options.lifecycleError;
       const index = entries.findIndex((e) => e.id === id);
-      if (index < 0) throw new Error(`fake entry not found: ${id}`);
+      const current = entries[index];
+      if (index < 0 || !current) throw new Error(`fake entry not found: ${id}`);
       const updated: AdminEntry = {
-        ...entries[index],
+        ...current,
         status: op === "publish" ? "published" : "unpublished",
         version: expectedVersion + 1,
       };

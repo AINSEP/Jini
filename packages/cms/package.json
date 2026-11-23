@@ -82,6 +82,13 @@
       "./html/site/source-edits": "node",
       "./posts/post-before-save": "universal",
       "./posts/slug": "universal",
+      "./posts/featured-image": "universal",
+      "./posts/post-tool-errors": "universal",
+      "./posts/search": "universal",
+      "./posts/post-write-fields": "universal",
+      "./posts/go-live-sweep": "universal",
+      "./posts/expected-version": "universal",
+      "./posts/post": "universal",
       "./navigation/types": "universal",
       "./navigation/dropdown": "universal",
       "./navigation/href": "universal",
@@ -178,9 +185,12 @@
       "./forms/site/mail-outbox-readiness": "universal",
       "./forms/site/rate-limit-profile": "universal",
       "./forms/site/analytics-provenance": "universal",
+      "./forms/site/form-file-storage": "node",
       "./forms/destinations/pull": "universal",
       "./forms/destinations/select": "universal",
       "./comments/site/comment-targets": "universal",
+      "./comments/site/types": "universal",
+      "./comments/site/data-module-install": "node",
       "./admin-http/http/forms": "node",
       "./comments/site/ip-hash-salt": "node",
       "./media/site-transform/image-ops": "node",
@@ -793,6 +803,41 @@
       "import": "./dist/posts/slug.js",
       "default": "./dist/posts/slug.js"
     },
+    "./posts/featured-image": {
+      "types": "./dist/posts/featured-image.d.ts",
+      "import": "./dist/posts/featured-image.js",
+      "default": "./dist/posts/featured-image.js"
+    },
+    "./posts/post-tool-errors": {
+      "types": "./dist/posts/post-tool-errors.d.ts",
+      "import": "./dist/posts/post-tool-errors.js",
+      "default": "./dist/posts/post-tool-errors.js"
+    },
+    "./posts/search": {
+      "types": "./dist/posts/search.d.ts",
+      "import": "./dist/posts/search.js",
+      "default": "./dist/posts/search.js"
+    },
+    "./posts/post-write-fields": {
+      "types": "./dist/posts/post-write-fields.d.ts",
+      "import": "./dist/posts/post-write-fields.js",
+      "default": "./dist/posts/post-write-fields.js"
+    },
+    "./posts/go-live-sweep": {
+      "types": "./dist/posts/go-live-sweep.d.ts",
+      "import": "./dist/posts/go-live-sweep.js",
+      "default": "./dist/posts/go-live-sweep.js"
+    },
+    "./posts/expected-version": {
+      "types": "./dist/posts/expected-version.d.ts",
+      "import": "./dist/posts/expected-version.js",
+      "default": "./dist/posts/expected-version.js"
+    },
+    "./posts/post": {
+      "types": "./dist/posts/post.d.ts",
+      "import": "./dist/posts/post.js",
+      "default": "./dist/posts/post.js"
+    },
     "./html/text-layout": {
       "types": "./dist/html/text-layout.d.ts",
       "import": "./dist/html/text-layout.js",
@@ -1263,6 +1308,11 @@
       "import": "./dist/forms/site/analytics-provenance.js",
       "default": "./dist/forms/site/analytics-provenance.js"
     },
+    "./forms/site/form-file-storage": {
+      "types": "./dist/forms/site/form-file-storage.d.ts",
+      "import": "./dist/forms/site/form-file-storage.js",
+      "default": "./dist/forms/site/form-file-storage.js"
+    },
     "./forms/destinations/pull": {
       "types": "./dist/forms/destinations/pull.d.ts",
       "import": "./dist/forms/destinations/pull.js",
@@ -1277,6 +1327,16 @@
       "types": "./dist/comments/site/comment-targets.d.ts",
       "import": "./dist/comments/site/comment-targets.js",
       "default": "./dist/comments/site/comment-targets.js"
+    },
+    "./comments/site/types": {
+      "types": "./dist/comments/site/types.d.ts",
+      "import": "./dist/comments/site/types.js",
+      "default": "./dist/comments/site/types.js"
+    },
+    "./comments/site/data-module-install": {
+      "types": "./dist/comments/site/data-module-install.d.ts",
+      "import": "./dist/comments/site/data-module-install.js",
+      "default": "./dist/comments/site/data-module-install.js"
     },
     "./admin-http/http/forms": {
       "types": "./dist/admin-http/http/forms.d.ts",

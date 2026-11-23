@@ -207,6 +207,7 @@
       "./screens/menus/page-link-rules": "universal",
       "./screens/menus/html-rules": "universal",
       "./screens/menus/hooks/menus-port.hooks": "universal",
+      "./screens/menus/hooks/menus-dependencies.hooks": "universal",
       "./screens/menus/MenuEditor.hooks": "browser",
       "./screens/menus/MenuPageLinkFields.hooks": "browser",
       "./screens/menus/MenuPageLinkFields": "browser",
@@ -1275,6 +1276,11 @@
       "import": "./dist/screens/menus/hooks/menus-port.hooks.js",
       "default": "./dist/screens/menus/hooks/menus-port.hooks.js"
     },
+    "./screens/menus/hooks/menus-dependencies.hooks": {
+      "types": "./dist/screens/menus/hooks/menus-dependencies.hooks.d.ts",
+      "import": "./dist/screens/menus/hooks/menus-dependencies.hooks.js",
+      "default": "./dist/screens/menus/hooks/menus-dependencies.hooks.js"
+    },
     "./screens/menus/MenuEditor.hooks": {
       "types": "./dist/screens/menus/MenuEditor.hooks.d.ts",
       "import": "./dist/screens/menus/MenuEditor.hooks.js",
@@ -1412,6 +1418,9 @@
       ],
       "screens/taxonomy/rules": [
         "./dist/screens/taxonomy/rules.d.ts"
+      ],
+      "screens/menus/hooks/menus-dependencies.hooks": [
+        "./dist/screens/menus/hooks/menus-dependencies.hooks.d.ts"
       ],
       "screens/collections/hooks/collection-entries-dependencies.hooks": [
         "./dist/screens/collections/hooks/collection-entries-dependencies.hooks.d.ts"

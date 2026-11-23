@@ -115,6 +115,7 @@
       "./contracts/site/assistant-mcp-services": "universal",
       "./contracts/site/chat-core": "universal",
       "./contracts/site/cms-core": "universal",
+      "./contracts/site/post-kind": "universal",
       "./contracts/site/core-commands": "universal",
       "./contracts/site/core-run-events": "universal",
       "./contracts/site/daemon-tool-recovery": "universal",
@@ -750,6 +751,11 @@
       "types": "./dist/contracts/site/cms-core.d.ts",
       "import": "./dist/contracts/site/cms-core.js",
       "default": "./dist/contracts/site/cms-core.js"
+    },
+    "./contracts/site/post-kind": {
+      "types": "./dist/contracts/site/post-kind.d.ts",
+      "import": "./dist/contracts/site/post-kind.js",
+      "default": "./dist/contracts/site/post-kind.js"
     },
     "./contracts/site/core-commands": {
       "types": "./dist/contracts/site/core-commands.d.ts",
