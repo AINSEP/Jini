@@ -34,7 +34,8 @@
       "./site/cookie-consent": "universal",
       "./site/validation": "universal",
       "./site/revisions": "universal",
-      "./site/privacy-page-template": "universal"
+      "./site/privacy-page-template": "universal",
+      "./site/settings": "universal"
     },
     "optionalPeers": {
       "react": "opt-in: react consent settings; import @jini-ai/cookie-consent/react — React consent settings could not load react. Install react to enable this feature, or check its installed version."
@@ -115,6 +116,11 @@
       "types": "./dist/site/privacy-page-template.d.ts",
       "import": "./dist/site/privacy-page-template.js",
       "default": "./dist/site/privacy-page-template.js"
+    },
+    "./site/settings": {
+      "types": "./dist/site/settings.d.ts",
+      "import": "./dist/site/settings.js",
+      "default": "./dist/site/settings.js"
     }
   },
   "files": [

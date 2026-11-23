@@ -2,8 +2,9 @@
 
 Host-facing analytics seams moved from a site host: the site ports and error classes
 (`ports.ts`), the agent tool catalog (`agent-tools.ts`), and the visitor/browser analytics
-contracts the public beacon route is typed against (`contracts.ts`). Types and data only —
-ingestion, normalization and the buffer stay in the package root (`../ingest.ts`, `../salt.ts`).
+contracts the public beacon route is typed against (`contracts.ts`), and the per-request vendor
+forwarding / plugin `beforeIngest` wiring (`forwarding.ts`). Ingestion, normalization and the
+buffer stay in the package root (`../ingest.ts`, `../salt.ts`).
 
 ## Wiring
 
@@ -12,7 +13,12 @@ ingestion, normalization and the buffer stay in the package root (`../ingest.ts`
   (returns a `ConsentAnalyticsProof` or `undefined`) and `visitorAnalyticsDeliveryAllowed`. All are
   optional; a missing proof or id generator denies capture. `BrowserAnalyticsSource` is the host's
   per-surface (`site` | `admin`) list of `BrowserAnalyticsContribution`s.
-- **Provides:** `./site/contracts` (types), `./site/ports`, `./site/agent-tools`.
+- **Forwarding needs injected (`./site/forwarding`):** a REQUIRED `warn: (message: string) => void`
+  on `cacheAnalyticsProviders`, `createAnalyticsForwarding` (`AnalyticsForwardingRequired<R>`) and
+  `createPluginAnalyticsHooks`. Messages are plain (no prefix, never key material); the host owns
+  the console and any `[analytics]` prefix. Also `config` (`AnalyticsConfigPort`), `loadProviders`
+  (`AnalyticsProviderSet`), `consentAllowsAnalytics`, `resolveCredential`, `httpClient`.
+- **Provides:** `./site/contracts` (types), `./site/ports`, `./site/agent-tools`, `./site/forwarding`.
 
 ```ts
 import type { VisitorAnalyticsDeps, BrowserAnalyticsSource } from "@jini-ai/analytics/site/contracts";
@@ -23,6 +29,12 @@ const visitor: VisitorAnalyticsDeps<Request> = {
   visitorAnalyticsProof: ({ request }) => consent.proofFor(request),
   visitorAnalyticsDeliveryAllowed: ({ proof }) => consent.stillValid(proof),
 };
+
+// Forwarding: the host passes its own reporter (here it keeps an `[analytics]` line prefix).
+const warn = (message: string) => hostLog.warn(`[analytics] ${message}`);
+const load = cacheAnalyticsProviders({ load: loadPluginProviders, clock, warn });
+const forwarders = createAnalyticsForwarding({ workspaceId, config, loadProviders: load, consentAllowsAnalytics, resolveCredential, httpClient, warn });
+const hooks = createPluginAnalyticsHooks({ loadProviders: load, warn });
 ```
 
 - **Must never import:** a host module, an HTTP framework type, a logger, or another `@jini-ai/*`
