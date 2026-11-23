@@ -23,6 +23,8 @@ export * from './daemon-command.js';
 export * from './version-command.js';
 export * from './local-daemon-discovery.js';
 export * from './tokens.js';
+export * from './cli-outcome.js';
+export * from './program-run.js';
 // NOTE: `main.ts` (the bootable `jini` binary, wired via `package.json`'s `"bin"` field) is
 // deliberately NOT re-exported here. This barrel is imported as a plain library dependency;
 // `main.ts` parses `process.argv` and may call `process.exit` as a side effect of being

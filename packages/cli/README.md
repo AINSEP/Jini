@@ -39,6 +39,12 @@ No peer dependencies. Depends on `@jini-ai/core` (for the `token()`-based transp
 - **Built-in commands** — `registerRunCommands` (`run start|list|get|cancel|watch`),
   `registerDaemonCommands` (`daemon status|stop`), `registerVersionCommand` (`version`) — each a
   thin transport over `@jini-ai/http`'s run/daemon-status routes.
+- **Outcome mapping and bin loop** — `createCliOutcomeMapper` turns any thrown value into
+  `{ exitCode, stderrLine?, printUsage? }`: host classifiers first, in the host's order (the
+  parser classifier from `createParserClassifier` is one of them — structural `{ code, message }`,
+  commander's code names), then `instanceof` coded rules, then `INTERNAL`. `runCliProgram({
+  createProgram, mapError, argv, stdout, stderr, exit })` is the whole bin: bare invocation prints
+  usage to stdout and exits 0. The host owns its exit-code table and error classes.
 - **Prompt/body input helpers** — `readPromptFromFlags`/`readBodyFromFlags` (`--prompt`/
   `--prompt-file`/stdin conventions) and `@jini-ai/core/text`'s `stripControlSequences`.
 
@@ -85,6 +91,15 @@ See the archived provenance ledger for per-file provenance and scope decisions. 
 ## Introspection and I/O ports
 
 The universal `./introspection` entry reads structural Commander trees and builds MCP schemas with caller-owned exclusions and tool-name prefixes. It is also exported from the Node library barrel. The binary stays separate. See [API.md](https://github.com/AINSEP/Jini/blob/main/packages/cli/API.md) for the object argument convention, including injected I/O ports.
+
+## Wiring
+
+- A host bin's entry file calls `runCliProgram({ createProgram, mapError, argv: process.argv.slice(2),
+  stdout: process.stdout, stderr: process.stderr, exit: (code) => process.exit(code) })` — every
+  process effect is bound by the host, never defaulted here.
+- `mapError` is `createCliOutcomeMapper({ binName, exitCodes, classifiers, codedErrors })`; the host
+  places `createParserClassifier({ binName, exitCodes, isParserError })` in `classifiers` at the
+  position its contract needs (e.g. after a classifier that must pre-empt parser errors).
 
 ## Design decisions
 
