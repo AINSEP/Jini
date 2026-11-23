@@ -1,7 +1,9 @@
 # identity — host-side permission-grant and boot-session helpers
 
 Subpath entries `@jini-ai/user-management/identity/<module>`, one per file: `boot-session-token`,
-`builtin-role-grants`, `permission-grants`, `role-manage-permission`, `user-manage-permission`.
+`builtin-role-grants`, `permission-grants`, `role-manage-permission`, `user-manage-permission`,
+`api-key-types`, `api-key-secret`, `api-key-service`, `repo.memory`, `owner-reset-env`,
+`user-purge-types`, `username-change-ports`.
 The why for the extraction and the package layout is in
 [`ADS-memory/reports/jini-port/extraction-plan.md`](../../../../ADS-memory/reports/jini-port/extraction-plan.md).
 
@@ -15,10 +17,23 @@ The why for the extraction and the package layout is in
 - `createBootSessionTokenStore()` takes nothing; the module-level `mintBootSessionToken` /
   `redeemBootSessionToken` wrap one process-scoped store.
 
+- `createApiKeySecret({ prefix })` takes the host's api-key scheme marker (product identity, e.g.
+  `acme_ak_`; lowercase letters, digits, `_`). Every issued key carries it, so the host binds one
+  value for its lifetime. `issueApiKey`/`authenticateApiKey` take the bound value as `keySecret`;
+  `createApiKeyService({ keySecret })` pre-binds both so call sites keep `{ deps, input }`.
+- `ApiKeyServiceDeps` = the Jini `AuthServiceDeps` plus `apiKeys: ApiKeyRepoPort` and
+  `secretHasher: ApiKeySecretHasherPort` (`ScryptApiKeySecretHasher` is the reference adapter).
+- `applyOwnerPasswordReset({ deps, workspaceId, password, username? }, { beforeReset? })` takes
+  `OwnerRecoveryDeps`; `beforeReset` is the host's pre-write backup hook.
+- `createUsernameChangePort({ outbox, idGen, isInTrash, seededOwnerPrincipalId })` takes the host's
+  outbox and Trash membership check.
+
 **Provides:** `createPermissionGrantRegistry` (migration pairs + built-in-role grants in one object),
 `createBuiltinRoleGrantRegistry`, `applyBuiltinRoleGrants` (additive, idempotent boot reconciliation),
 `registerRoleManagePermissionGrants`, `registerUserManagePermissionGrants`, `ROLE_MANAGE_PERMISSION`,
-and the single-use loopback boot token store.
+the single-use loopback boot token store, the `api_keys`
+record and ports with their in-memory adapter (`InMemoryApiKeyRepo`), the user-purge port
+(`UserPurgePort`, `InMemoryUserPurge`), and the api-key transitions.
 
 ```ts
 import { createPermissionGrantRegistry } from "@jini-ai/user-management/identity/permission-grants";
@@ -36,4 +51,6 @@ const ok = redeemBootSessionToken({ rawToken });             // route side, true
 **Must never import:** a host app module, an HTTP/server framework, UI packages, or another Jini
 package's implementation. Allowed edges are `../core/index.js` (records and ports), the single
 `../server/permission-migrations.js` module (for `createPermissionMigrationRegistry`), type-only
-`@jini-ai/core/primitives`, and `node:crypto` (boot token digest only).
+`@jini-ai/core/primitives` and `@jini-ai/core/contracts/events`, the `../server/*` service modules
+(`authorize`, `auth-service`, `grant-service`, `recovery-codes`), and `node:crypto` (boot token digest,
+api-key minting and scrypt hashing only).
