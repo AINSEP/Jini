@@ -49,6 +49,13 @@ host's rich-text editor stay in the host for now. See
   segmented-tab, footer and secondary-button chrome.
 - `ToolbarCharacterCount` takes `state: { characterCount }` and `t`; it emits
   `.jini-post-toolbar__count`.
+- `createPostsApi` (`api/posts-api`) takes the host's authenticated `request` (`PostsRequestFn`),
+  `workspaceId`, the API `base` path, `siteUrl` (absolute-URL escape for the template-preview
+  iframe) and `bodyFitsKeepalive` (the keepalive body-size check). The host binds it once and hands
+  the client to its list/editor ports.
+- `PostEditorTemplateModalGate` takes a required `TemplateSourceModal` component (the host's "View
+  Template" source modal, `PostEditorTemplateSourceModalProps<TTier>`); `TTier` is the host's theme
+  tier type, forwarded untouched.
 
 **What it provides.**
 - `PostAuthorFields` at `@jini-ai/admin/posts/PostAuthorFields`
@@ -66,6 +73,10 @@ host's rich-text editor stay in the host for now. See
   `@jini-ai/admin/posts/post-url-dialog.css`
 - `PostSettingsDialog`, `PostSettingsDialogProps` at `@jini-ai/admin/posts/PostSettingsDialog`
 - `ToolbarCharacterCount` at `@jini-ai/admin/posts/editor/toolbar/ToolbarCharacterCount`
+- `createPostsApi`, `PostsApi`, `PostsApiDeps`, `PostsRequestFn`, `PostAutosaveDraft` at
+  `@jini-ai/admin/posts/api/posts-api`
+- `PostEditorTemplateModalGate` and its props types at
+  `@jini-ai/admin/posts/editor/template/PostEditorTemplateModalGate`
 
 **Host wiring example.**
 
