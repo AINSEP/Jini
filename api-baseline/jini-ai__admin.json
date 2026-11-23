@@ -1570,6 +1570,14 @@
    "useDrawerActiveItemCentring": "function:44144958c0"
   }
  },
+ "./shell/hooks/use-external-entry-refresh.hooks": {
+  "types": "./dist/shell/hooks/use-external-entry-refresh.hooks.d.ts",
+  "symbols": {
+   "ExternalEntryRefreshController": "interface:6f285fed63",
+   "ExternalEntryRefreshInput": "interface:08611bbdbf",
+   "useExternalEntryRefresh": "function:e020e356e9"
+  }
+ },
  "./shell/hooks/use-list-table-cell-labels.hooks": {
   "types": "./dist/shell/hooks/use-list-table-cell-labels.hooks.d.ts",
   "symbols": {
@@ -1839,6 +1847,12 @@
    "createStreamActivity": "function:3d8e068621",
    "subscriptionEnded": "variable:43216c5280",
    "trackTransportActivity": "function:8afe35dc3a"
+  }
+ },
+ "./shell/lib/tab-event-source": {
+  "types": "./dist/shell/lib/tab-event-source.d.ts",
+  "symbols": {
+   "openTabEventSource": "function:2025d70903"
   }
  },
  "./shell/lib/translation-entry": {
