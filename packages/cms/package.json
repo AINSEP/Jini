@@ -375,7 +375,9 @@
       "./admin-http/routes/publish-content/transport-shared": "universal",
       "./admin-http/routes/publish-content/peers": "universal",
       "./admin-http/routes/publish-content/destination": "universal",
-      "./admin-http/routes/publish-content/bundle-create": "universal"
+      "./admin-http/routes/publish-content/bundle-create": "universal",
+      "./admin-http/routes/publish-content/capabilities": "universal",
+      "./admin-http/routes/publish-content/import": "universal"
     },
     "isolation": {
       "domains": {
@@ -560,7 +562,9 @@
         "./admin-http/routes/publish-content/transport-shared": "publish",
         "./admin-http/routes/publish-content/peers": "publish",
         "./admin-http/routes/publish-content/destination": "publish",
-        "./admin-http/routes/publish-content/bundle-create": "publish"
+        "./admin-http/routes/publish-content/bundle-create": "publish",
+        "./admin-http/routes/publish-content/capabilities": "publish",
+        "./admin-http/routes/publish-content/import": "publish"
       }
     },
     "optionalPeers": {
@@ -2391,6 +2395,16 @@
       "types": "./dist/admin-http/routes/publish-content/bundle-create.d.ts",
       "import": "./dist/admin-http/routes/publish-content/bundle-create.js",
       "default": "./dist/admin-http/routes/publish-content/bundle-create.js"
+    },
+    "./admin-http/routes/publish-content/capabilities": {
+      "types": "./dist/admin-http/routes/publish-content/capabilities.d.ts",
+      "import": "./dist/admin-http/routes/publish-content/capabilities.js",
+      "default": "./dist/admin-http/routes/publish-content/capabilities.js"
+    },
+    "./admin-http/routes/publish-content/import": {
+      "types": "./dist/admin-http/routes/publish-content/import.d.ts",
+      "import": "./dist/admin-http/routes/publish-content/import.js",
+      "default": "./dist/admin-http/routes/publish-content/import.js"
     }
   },
   "files": [
