@@ -17,10 +17,18 @@ host's rich-text editor stay in the host for now. See
     interpolated copy.
 - `ToolbarOverflowMenu` takes `overflow: ToolbarOverflowState` (`{ open, toggle }`). The host's
   measuring hook passes its whole controller.
-- Every visible label goes through the injected `t: Translate`.
+- `PostAuthorFields` takes `author`, `setAuthor`, `showAuthor` and `setShowAuthor`. The host's
+  editor hook owns that state, dirty tracking and persistence; the component holds none.
+- `PostPublishAtField` takes `publishAtInput`, `setPublishAtInput` and `scheduled`. The input is a
+  `datetime-local` string in the editor's local time, and the host decides what counts as scheduled.
+- Inputs are tagged through `agentHandle` from `@jini-ai/core/agent-handles` (`post-author`,
+  `post-show-author`, `post-publish-at`), so the host's agent surface can find them by handle.
+- Every visible label goes through the injected `t: Translate` (type from `@jini-ai/core/text`).
 
 **What it provides.**
-- `PostAuthorFields` and `PostPublishAtField`
+- `PostAuthorFields` at `@jini-ai/admin/posts/PostAuthorFields`
+- `PostPublishAtField` and `PostPublishAtFieldProps` at `@jini-ai/admin/posts/PostPublishingFields`
+  (the subpath keeps its old file name; there is no `PostPublishingFields` symbol)
 - `PostAutosaveRecoveryBanner`, `PostAutosaveStaleBanner` and `PostVersionConflictBanner`
 - `ToolbarOverflowMenu`
 
@@ -38,7 +46,22 @@ import { postVersionConflictMessage } from "./rules"; // host copy
   onSaveAnyway={overwrite} onLoadLatest={reload} onDismiss={dismiss} t={t} />
 ```
 
+Byline and publish-time fields:
+
+```tsx
+import { PostAuthorFields } from "@jini-ai/admin/posts/PostAuthorFields";
+import { PostPublishAtField } from "@jini-ai/admin/posts/PostPublishingFields";
+
+<PostAuthorFields author={editor.author} setAuthor={editor.setAuthor}
+  showAuthor={editor.showAuthor} setShowAuthor={editor.setShowAuthor} t={t} />
+<PostPublishAtField publishAtInput={editor.publishAtInput} setPublishAtInput={editor.setPublishAtInput}
+  scheduled={editor.isScheduled} t={t} />
+```
+
 **Classes.**
+- The field components emit `jini-post-publishing__fields`, `jini-post-publishing__field`,
+  `jini-field-label` and `jini-post-publishing__scheduled-badge`. No stylesheet in this package ships
+  them, so the host styles all four.
 - `notice`, `warning`, `error`, `btn-secondary`, `tb-btn` and `tb-more` remain host-shared
   classes.
 - The host's toolbar-fit hook queries `.tb-more`, so that class must not be renamed here.
