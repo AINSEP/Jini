@@ -140,12 +140,8 @@
       "./admin-http/sea-runtime": "universal",
       "./admin-http/admin-dev-proxy": "universal",
       "./admin-http/admin-static": "universal",
-      "./public-http/http/site/member-auth-script": "universal",
       "./public-http/http/site/render/media-playback-copy": "universal",
       "./public-http/http/site/render/value-readers": "universal",
-      "./public-http/middleware/canonical-site-host": "universal",
-      "./public-http/middleware/site-chat-static": "universal",
-      "./public-http/routes/site/chat-comparison-html": "universal",
       "./public-http/routes/site/pages/listing/listing-state": "universal"
     },
     "isolation": {
@@ -879,11 +875,6 @@
       "import": "./dist/admin-http/admin-static.js",
       "default": "./dist/admin-http/admin-static.js"
     },
-    "./public-http/http/site/member-auth-script": {
-      "types": "./dist/public-http/http/site/member-auth-script.d.ts",
-      "import": "./dist/public-http/http/site/member-auth-script.js",
-      "default": "./dist/public-http/http/site/member-auth-script.js"
-    },
     "./public-http/http/site/render/media-playback-copy": {
       "types": "./dist/public-http/http/site/render/media-playback-copy.d.ts",
       "import": "./dist/public-http/http/site/render/media-playback-copy.js",
@@ -893,21 +884,6 @@
       "types": "./dist/public-http/http/site/render/value-readers.d.ts",
       "import": "./dist/public-http/http/site/render/value-readers.js",
       "default": "./dist/public-http/http/site/render/value-readers.js"
-    },
-    "./public-http/middleware/canonical-site-host": {
-      "types": "./dist/public-http/middleware/canonical-site-host.d.ts",
-      "import": "./dist/public-http/middleware/canonical-site-host.js",
-      "default": "./dist/public-http/middleware/canonical-site-host.js"
-    },
-    "./public-http/middleware/site-chat-static": {
-      "types": "./dist/public-http/middleware/site-chat-static.d.ts",
-      "import": "./dist/public-http/middleware/site-chat-static.js",
-      "default": "./dist/public-http/middleware/site-chat-static.js"
-    },
-    "./public-http/routes/site/chat-comparison-html": {
-      "types": "./dist/public-http/routes/site/chat-comparison-html.d.ts",
-      "import": "./dist/public-http/routes/site/chat-comparison-html.js",
-      "default": "./dist/public-http/routes/site/chat-comparison-html.js"
     },
     "./public-http/routes/site/pages/listing/listing-state": {
       "types": "./dist/public-http/routes/site/pages/listing/listing-state.d.ts",

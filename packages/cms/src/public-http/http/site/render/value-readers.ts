@@ -11,7 +11,7 @@ import type { JsonObject, JsonValue } from "@jini-ai/core/primitives";
  * registry). No theme code executes — the theme is data.
  *
  * How it relates to the project:
- * - Used by `apps/website/src/server/inbound/public-http/routes/site/pages.ts`.
+ * - Used by the host's public site page routes.
  * - Theme look switches with the presentation feature's `activeThemeId`; the
  *   route resolves that id to a `DiscoveredTheme` and passes it here.
  *
