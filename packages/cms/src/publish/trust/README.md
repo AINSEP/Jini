@@ -21,3 +21,12 @@ const key = await derivePublishSigningKey({ keyring, workspaceId, sourceInstalla
 const signatureB64u = key.sign({ message });
 const ok = verifyPublishSignature({ publicKeyB64u: key.publicKeyB64u, message, signatureB64u });
 ```
+
+### Grant, provisioning and revocations
+
+`grant.ts`, `provisioning.ts`, `provisioning-status.ts`, `revocations.ts` (runtime `universal`) and `provisioning.node-io.ts` (runtime `node`: `node:fs`).
+
+- **The host owns, and passes in**: the env var NAME that overrides the committed grant file. The host reads its own env and hands `resolvePublishTrust({ envValue, fileContents })` the raw value: `undefined` when the variable is unset, `""` when it is set but empty. `""` is a revocation (state `revoked`, origin `env`) that overrides the file, so an operator with only provider access can switch publishing off; treating it as unset would fall back to the file and fail OPEN. `__tests__/provisioning.test.ts` pins this. `describePublishTrustState({ res, settingName })` and `describeConnection({ ..., settingName })` take the same name, only to print it in the env-revoked sentence.
+- **The host owns**: the committed-config root (an absolute directory; `PUBLISH_TRUST_CONFIG_PATH` is repo-relative and joined to it by the host), the revocation store binding, and the clock.
+- **Provides**: grant parsing and the capability/route predicates (`grant.ts`), the grant-document codec, merge rules, resolution and the file-provisioning port (`provisioning.ts`), plain-sentence status (`provisioning-status.ts`), the revocation document, store port and publish admission (`revocations.ts`), and `nodeProvisioningFileIo`, the atomic-rename file IO (`provisioning.node-io.ts`).
+- **Must never**: read `process.env` or name an env var.

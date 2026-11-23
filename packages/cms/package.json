@@ -23,7 +23,12 @@
       "./publish/content/publish-readiness": "universal",
       "./publish/content/report-contract": "universal",
       "./publish/content/peer-url": "universal",
+      "./publish/trust/grant": "universal",
       "./publish/trust/keys": "node",
+      "./publish/trust/provisioning": "universal",
+      "./publish/trust/provisioning-status": "universal",
+      "./publish/trust/provisioning.node-io": "node",
+      "./publish/trust/revocations": "universal",
       "./themes/template-applicability": "universal",
       "./themes/preview/roster": "node",
       "./themes/preview/refresh": "node",
@@ -55,6 +60,7 @@
       "./trash": "universal",
       "./trash/site/adapters/plugin": "universal",
       "./trash/site/adapters/theme": "universal",
+      "./trash/site/directory-rollback-log": "universal",
       "./trash/site/ports": "universal",
       "./trash/site/remove-without-blocker": "universal",
       "./trash/site/scheduler.node": "node",
@@ -353,10 +359,35 @@
       "import": "./dist/publish/content/peer-url.js",
       "default": "./dist/publish/content/peer-url.js"
     },
+    "./publish/trust/grant": {
+      "types": "./dist/publish/trust/grant.d.ts",
+      "import": "./dist/publish/trust/grant.js",
+      "default": "./dist/publish/trust/grant.js"
+    },
     "./publish/trust/keys": {
       "types": "./dist/publish/trust/keys.d.ts",
       "import": "./dist/publish/trust/keys.js",
       "default": "./dist/publish/trust/keys.js"
+    },
+    "./publish/trust/provisioning": {
+      "types": "./dist/publish/trust/provisioning.d.ts",
+      "import": "./dist/publish/trust/provisioning.js",
+      "default": "./dist/publish/trust/provisioning.js"
+    },
+    "./publish/trust/provisioning-status": {
+      "types": "./dist/publish/trust/provisioning-status.d.ts",
+      "import": "./dist/publish/trust/provisioning-status.js",
+      "default": "./dist/publish/trust/provisioning-status.js"
+    },
+    "./publish/trust/provisioning.node-io": {
+      "types": "./dist/publish/trust/provisioning.node-io.d.ts",
+      "import": "./dist/publish/trust/provisioning.node-io.js",
+      "default": "./dist/publish/trust/provisioning.node-io.js"
+    },
+    "./publish/trust/revocations": {
+      "types": "./dist/publish/trust/revocations.d.ts",
+      "import": "./dist/publish/trust/revocations.js",
+      "default": "./dist/publish/trust/revocations.js"
     },
     "./themes/template-applicability": {
       "types": "./dist/themes/template-applicability.d.ts",
@@ -532,6 +563,11 @@
       "types": "./dist/trash/site/adapters/theme.d.ts",
       "import": "./dist/trash/site/adapters/theme.js",
       "default": "./dist/trash/site/adapters/theme.js"
+    },
+    "./trash/site/directory-rollback-log": {
+      "types": "./dist/trash/site/directory-rollback-log.d.ts",
+      "import": "./dist/trash/site/directory-rollback-log.js",
+      "default": "./dist/trash/site/directory-rollback-log.js"
     },
     "./trash/site/ports": {
       "types": "./dist/trash/site/ports.d.ts",
