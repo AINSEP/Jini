@@ -1240,7 +1240,7 @@
  "./screens/fs-files/folder-drop-port": {
   "types": "./dist/screens/fs-files/folder-drop-port.d.ts",
   "symbols": {
-   "FolderDropPort": "type:db2c55e15b",
+   "FolderDropPort": "interface:69702660c3",
    "getFolderDropPort": "function:7e72c1a1de"
   }
  },

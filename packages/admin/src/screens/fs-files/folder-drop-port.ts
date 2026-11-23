@@ -1,5 +1,3 @@
-import type { FolderPathDropPort } from "@jini-ai/ui/core";
-
 /**
  * @file The renderer-side half of a desktop folder-drop bridge. The host's Electron preload injects the
  * bridge onto `window` under a host-chosen global name via `contextBridge` — it exists ONLY when the admin
@@ -17,10 +15,13 @@ import type { FolderPathDropPort } from "@jini-ai/ui/core";
  * Electron's synchronous `webUtils.getPathForFile`, passed straight through. It returns `''` for a
  * `File` it cannot resolve an OS path for (e.g. one synthesized from a `FileSystemEntry` rather than
  * handed directly off `dataTransfer.files` — see `@jini-ai/ui`'s `features/folder-path-drop/rules.ts`
- * header). An alias of that package's `FolderPathDropPort`, so the contract the drop rules call lives
- * in one place; only the global's name (`bridgeKey`) is the host's.
+ * header). Declared structurally here (not imported) because admin may depend only on core and protocol;
+ * it is the same shape as that package's `FolderPathDropPort`, so one bridge value satisfies both, and
+ * only the global's name (`bridgeKey`) is the host's.
  */
-export type FolderDropPort = FolderPathDropPort;
+export interface FolderDropPort {
+  getPathForFile(file: File): string;
+}
 
 /** A window read by bridge name: the global is the host's, so it is not declared on `Window` here. */
 type BridgeWindow = Readonly<Record<string, FolderDropPort | undefined>>;
