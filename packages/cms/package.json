@@ -158,7 +158,8 @@
       "./admin-http/routes/menus/create": "universal",
       "./admin-http/routes/menus/update-tree": "universal",
       "./admin-http/routes/menus/assign-location": "universal",
-      "./admin-http/routes/menus/delete": "universal"
+      "./admin-http/routes/menus/delete": "universal",
+      "./admin-http/http/plugin-hook-error": "universal"
     },
     "isolation": {
       "domains": {
@@ -1005,6 +1006,11 @@
       "types": "./dist/admin-http/routes/menus/delete.d.ts",
       "import": "./dist/admin-http/routes/menus/delete.js",
       "default": "./dist/admin-http/routes/menus/delete.js"
+    },
+    "./admin-http/http/plugin-hook-error": {
+      "types": "./dist/admin-http/http/plugin-hook-error.d.ts",
+      "import": "./dist/admin-http/http/plugin-hook-error.js",
+      "default": "./dist/admin-http/http/plugin-hook-error.js"
     }
   },
   "files": [
