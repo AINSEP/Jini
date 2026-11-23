@@ -22,6 +22,12 @@
    "requireToolPermission": "function:4a1a650143"
   }
  },
+ "./admin-http/http/entity-not-live": {
+  "types": "./dist/admin-http/http/entity-not-live.d.ts",
+  "symbols": {
+   "entityNotLiveResponse": "function:5d9c3b65c4"
+  }
+ },
  "./admin-http/http/forms": {
   "types": "./dist/admin-http/http/forms.d.ts",
   "symbols": {
@@ -37,10 +43,659 @@
    "toAdminFormSubmissionResponse": "function:aeb218b76a"
   }
  },
+ "./admin-http/http/menus": {
+  "types": "./dist/admin-http/http/menus.d.ts",
+  "symbols": {
+   "AdminAssignLocationEnvelope": "interface:4b47471dda",
+   "AdminMenuBindingDto": "interface:2ce323da88",
+   "AdminMenuDto": "interface:32da9d9d6b",
+   "AdminMenuEnvelope": "interface:61f7c52c7c",
+   "AdminMenuItemDto": "interface:eca44ead6a",
+   "AdminMenuListEnvelope": "interface:ca53c37617",
+   "AdminMenuTargetDto": "type:28bf52da3e",
+   "AdminTrashMenuEnvelope": "interface:7f1face6df",
+   "authorizeMenuHtml": "function:8293ee12a2",
+   "parseMenuHtmlAuthoring": "function:797963ecd2",
+   "toAdminAssignLocationResponse": "function:9340a7f89d",
+   "toAdminMenuBindingDto": "function:ad4e23bbe8",
+   "toAdminMenuDto": "function:e679ea5f82",
+   "toAdminMenuListResponse": "function:9bef592afc",
+   "toAdminMenuResponse": "function:7f4d4e6416",
+   "toAdminTrashMenuResponse": "function:13c4d1f328"
+  }
+ },
+ "./admin-http/http/redirects": {
+  "types": "./dist/admin-http/http/redirects.d.ts",
+  "symbols": {
+   "AdminRedirectDto": "interface:9e6c1d6a74",
+   "AdminRedirectHitStatsDto": "interface:abb076431d",
+   "AdminRedirectHitStatsResponse": "interface:db6dfe034b",
+   "AdminRedirectImportResponse": "interface:3593ac3206",
+   "AdminRedirectListResponse": "interface:c55e86a15f",
+   "AdminRedirectResponse": "interface:6ac6fba93c",
+   "toAdminRedirectDto": "function:a279a3c98a",
+   "toAdminRedirectHitStatsDto": "function:9c6d7cdded",
+   "toAdminRedirectHitStatsResponse": "function:e39a836873",
+   "toAdminRedirectImportResponse": "function:00ed99768f",
+   "toAdminRedirectListResponse": "function:a3c5ea6d71",
+   "toAdminRedirectResponse": "function:6b9d17f992"
+  }
+ },
+ "./admin-http/http/widgets": {
+  "types": "./dist/admin-http/http/widgets.d.ts",
+  "symbols": {
+   "WidgetErrorResponse": "interface:f281a27726",
+   "rejectWidgetError": "function:708584abf8",
+   "toAdminWidgetAreaResponse": "function:b80cf2dfd6",
+   "toAdminWidgetResponse": "function:ec9f677cd2",
+   "widgetDomainErrorToResponse": "function:10298c7a03"
+  }
+ },
  "./admin-http/limits": {
   "types": "./dist/admin-http/limits.d.ts",
   "symbols": {
    "CONTENT_ENTRY_MAX_BODY_BYTES": "variable:49ef7bebb2"
+  }
+ },
+ "./admin-http/routes/assistant/execution-request-fields": {
+  "types": "./dist/admin-http/routes/assistant/execution-request-fields.d.ts",
+  "symbols": {
+   "SUPPORTED_EXECUTION_PROTOCOLS": "variable:c89aa05472",
+   "SupportedExecutionProtocol": "type:7252b84293",
+   "readOptionalString": "function:5be207b4f4",
+   "validateSupportedProtocol": "function:8a9f6350a4"
+  }
+ },
+ "./admin-http/routes/comments/get-settings": {
+  "types": "./dist/admin-http/routes/comments/get-settings.d.ts",
+  "symbols": {
+   "CommentsGetSettingsRouteDeps": "interface:a5a10bd2a2",
+   "commentsGetSettingsRoute": "variable:fc23e48ba3"
+  }
+ },
+ "./admin-http/routes/comments/moderate": {
+  "types": "./dist/admin-http/routes/comments/moderate.d.ts",
+  "symbols": {
+   "CommentsModerateInput": "interface:426b114941",
+   "CommentsModerateRouteDeps": "interface:c2fa46a673",
+   "commentsModerationActionRoutes": "variable:38bcd9ed4d",
+   "commentsPurgeRoute": "variable:ebf3c0dd4f"
+  }
+ },
+ "./admin-http/routes/comments/moderation-queue": {
+  "types": "./dist/admin-http/routes/comments/moderation-queue.d.ts",
+  "symbols": {
+   "CommentsModerationQueueInput": "interface:2705657092",
+   "CommentsModerationQueueRouteDeps": "interface:5f6733724d",
+   "commentsModerationQueueRoute": "variable:77913962a0"
+  }
+ },
+ "./admin-http/routes/comments/put-settings": {
+  "types": "./dist/admin-http/routes/comments/put-settings.d.ts",
+  "symbols": {
+   "CommentsPutSettingsInput": "interface:bd435da9b2",
+   "CommentsPutSettingsRouteDeps": "interface:c31d80b385",
+   "commentsPutSettingsRoute": "variable:c97dbea62c"
+  }
+ },
+ "./admin-http/routes/comments/shared": {
+  "types": "./dist/admin-http/routes/comments/shared.d.ts",
+  "symbols": {
+   "CommentsRoutePrincipal": "interface:3e7f3f32f8",
+   "authorizeComments": "function:1924f0ab07",
+   "commentsActorId": "function:a2bb27bb99"
+  }
+ },
+ "./admin-http/routes/content-types/lifecycle": {
+  "types": "./dist/admin-http/routes/content-types/lifecycle.d.ts",
+  "symbols": {
+   "ContentTypeLifecycleInput": "interface:c1dac6a318",
+   "ContentTypeLifecycleOutput": "type:dcef9aed80",
+   "ContentTypeLifecycleRouteDeps": "interface:a39061ce1a",
+   "contentTypeLifecycleRoute": "variable:9221b7d883"
+  }
+ },
+ "./admin-http/routes/content-types/list": {
+  "types": "./dist/admin-http/routes/content-types/list.d.ts",
+  "symbols": {
+   "ContentTypeListRouteDeps": "interface:0a1749184d",
+   "contentTypeListRoute": "variable:e0f402f814"
+  }
+ },
+ "./admin-http/routes/content-types/register": {
+  "types": "./dist/admin-http/routes/content-types/register.d.ts",
+  "symbols": {
+   "ContentTypeRegisterOutput": "type:db5cb566db",
+   "ContentTypeRegisterRouteDeps": "interface:88402e2742",
+   "contentTypeRegisterRoute": "variable:a4ab4043ae"
+  }
+ },
+ "./admin-http/routes/content-types/update-fields": {
+  "types": "./dist/admin-http/routes/content-types/update-fields.d.ts",
+  "symbols": {
+   "ContentTypeUpdateFieldsInput": "interface:8487d2df81",
+   "ContentTypeUpdateFieldsOutput": "type:ae8f7d9eca",
+   "ContentTypeUpdateFieldsRouteDeps": "interface:9acb56d2cf",
+   "contentTypeUpdateFieldsRoute": "variable:7942693288"
+  }
+ },
+ "./admin-http/routes/database/restore-points": {
+  "types": "./dist/admin-http/routes/database/restore-points.d.ts",
+  "symbols": {
+   "DatabaseRestorePointsCreateRouteDeps": "interface:0f4ff745e9",
+   "DatabaseRestorePointsListRouteDeps": "interface:42bf828ef5",
+   "RestorePointCostClass": "type:79867ce196",
+   "RestorePointCreateInput": "interface:3dfd6bccdc",
+   "RestorePointCreatedSummary": "interface:539ed2e6f3",
+   "RestorePointErrorClass": "type:0afbe1b2d4",
+   "RestorePointListRow": "interface:da7651fec7",
+   "RestorePointSaveRow": "interface:d8fd1480c8",
+   "adminDatabaseRestorePointsCreateRoute": "variable:cf48198529",
+   "adminDatabaseRestorePointsListRoute": "variable:62895c8add"
+  }
+ },
+ "./admin-http/routes/database/schema-state": {
+  "types": "./dist/admin-http/routes/database/schema-state.d.ts",
+  "symbols": {
+   "DatabaseSchemaStateRouteDeps": "interface:eaefcd849c",
+   "DatabaseSchemaStateSummary": "interface:353d8012f7",
+   "adminDatabaseSchemaStateRoute": "variable:44ed88aa70"
+  }
+ },
+ "./admin-http/routes/database/timeline": {
+  "types": "./dist/admin-http/routes/database/timeline.d.ts",
+  "symbols": {
+   "DatabaseTimelineFilter": "interface:442f829ce2",
+   "DatabaseTimelineLedger": "interface:aabf2ceb4f",
+   "DatabaseTimelinePage": "interface:15c6e79b9f",
+   "DatabaseTimelineRouteDeps": "interface:eaeb6d2bbe",
+   "DatabaseTimelineRow": "interface:7b2ffbe33b",
+   "adminDatabaseTimelineRoute": "variable:5119d6e733"
+  }
+ },
+ "./admin-http/routes/entries/create": {
+  "types": "./dist/admin-http/routes/entries/create.d.ts",
+  "symbols": {
+   "EntryCreateOutput": "type:1077f7b4b5",
+   "EntryCreateRouteDeps": "interface:9c05a815f4",
+   "entryCreateRoute": "variable:04c38c4c94"
+  }
+ },
+ "./admin-http/routes/entries/lifecycle": {
+  "types": "./dist/admin-http/routes/entries/lifecycle.d.ts",
+  "symbols": {
+   "EntryLifecycleInput": "interface:815e922398",
+   "EntryLifecycleOutput": "type:73c1e47ba7",
+   "EntryLifecycleRouteDeps": "interface:0124069801",
+   "entryLifecycleRoute": "variable:afc26d9eff"
+  }
+ },
+ "./admin-http/routes/entries/list": {
+  "types": "./dist/admin-http/routes/entries/list.d.ts",
+  "symbols": {
+   "EntryListQuery": "interface:27268524e7",
+   "EntryListRouteDeps": "interface:03e7db3624",
+   "entryListRoute": "variable:ab87757149"
+  }
+ },
+ "./admin-http/routes/entries/update": {
+  "types": "./dist/admin-http/routes/entries/update.d.ts",
+  "symbols": {
+   "EntryUpdateInput": "interface:78f9b6ea8e",
+   "EntryUpdateOutput": "type:7e46f2cb07",
+   "EntryUpdateRouteDeps": "interface:27237146f5",
+   "entryUpdateRoute": "variable:a254382918"
+  }
+ },
+ "./admin-http/routes/forms/get-by-id": {
+  "types": "./dist/admin-http/routes/forms/get-by-id.d.ts",
+  "symbols": {
+   "FormsGetInput": "interface:165f159c80",
+   "FormsGetRouteDeps": "type:bf05a1efd1",
+   "formsGetRoute": "variable:89f6293199"
+  }
+ },
+ "./admin-http/routes/forms/get-submission": {
+  "types": "./dist/admin-http/routes/forms/get-submission.d.ts",
+  "symbols": {
+   "FormsDeliveryStatusSummaryPort": "interface:683c047c8a",
+   "FormsGetSubmissionRouteDeps": "interface:e33a161de3",
+   "FormsSubmissionInput": "interface:a36c6f03e5",
+   "formsGetSubmissionRoute": "variable:a2492e4e5b"
+  }
+ },
+ "./admin-http/routes/forms/list": {
+  "types": "./dist/admin-http/routes/forms/list.d.ts",
+  "symbols": {
+   "FormsListRouteDeps": "interface:ccc9966d4a",
+   "formsListRoute": "variable:a7572fede9"
+  }
+ },
+ "./admin-http/routes/forms/list-submissions": {
+  "types": "./dist/admin-http/routes/forms/list-submissions.d.ts",
+  "symbols": {
+   "FormsListSubmissionsInput": "interface:2d2011a66e",
+   "FormsListSubmissionsRouteDeps": "interface:7c9885a3b3",
+   "formsListSubmissionsRoute": "variable:02b02d4a94"
+  }
+ },
+ "./admin-http/routes/forms/providers": {
+  "types": "./dist/admin-http/routes/forms/providers.d.ts",
+  "symbols": {
+   "FormsProvidersRouteDeps": "interface:06f0552d3d",
+   "formsProvidersRoute": "variable:dda5a29300"
+  }
+ },
+ "./admin-http/routes/forms/resolve-definition": {
+  "types": "./dist/admin-http/routes/forms/resolve-definition.d.ts",
+  "symbols": {
+   "ResolveFormDefinitionDeps": "interface:36c236bb52",
+   "resolveFormDefinitionByIdOrSlug": "function:657fdea37a"
+  }
+ },
+ "./admin-http/routes/forms/update": {
+  "types": "./dist/admin-http/routes/forms/update.d.ts",
+  "symbols": {
+   "FormsSetDefinitionStatusFn": "type:1287c5dfc1",
+   "FormsUpdateDefinitionFn": "type:d657252205",
+   "FormsUpdateInput": "interface:928cc3216a",
+   "FormsUpdatePatch": "type:983643e758",
+   "FormsUpdateRouteDeps": "interface:b84987f0f8",
+   "FormsUpdateWriteTarget": "interface:9de982440f",
+   "formsUpdateRoute": "variable:0c65203baa"
+  }
+ },
+ "./admin-http/routes/forms/write-error": {
+  "types": "./dist/admin-http/routes/forms/write-error.d.ts",
+  "symbols": {
+   "FormsWriteErrorAnswer": "interface:95865ad6fe",
+   "formsWriteErrorAnswer": "function:dd3a51d67c",
+   "rejectFormsWriteError": "function:c3034db9c2"
+  }
+ },
+ "./admin-http/routes/menus/assign-location": {
+  "types": "./dist/admin-http/routes/menus/assign-location.d.ts",
+  "symbols": {
+   "MenuAssignLocationInput": "interface:f6326218fc",
+   "MenuAssignLocationRouteDeps": "interface:59a9a97f86",
+   "menuAssignLocationRoute": "variable:3afa39db25"
+  }
+ },
+ "./admin-http/routes/menus/create": {
+  "types": "./dist/admin-http/routes/menus/create.d.ts",
+  "symbols": {
+   "MenuCreateInput": "interface:fea37b24aa",
+   "MenuCreateRouteDeps": "interface:44c1f0b55f",
+   "menuCreateRoute": "variable:456c12f72a"
+  }
+ },
+ "./admin-http/routes/menus/delete": {
+  "types": "./dist/admin-http/routes/menus/delete.d.ts",
+  "symbols": {
+   "MenuDeleteInput": "interface:bc36ab8a1d",
+   "MenuDeleteRouteDeps": "interface:2c45f0621c",
+   "menuDeleteRoute": "variable:51e3b15a26"
+  }
+ },
+ "./admin-http/routes/menus/get-by-id": {
+  "types": "./dist/admin-http/routes/menus/get-by-id.d.ts",
+  "symbols": {
+   "MenuGetInput": "interface:e006d11e05",
+   "MenuGetRouteDeps": "interface:224c88ad7a",
+   "menuGetRoute": "variable:f4c49ba700"
+  }
+ },
+ "./admin-http/routes/menus/list": {
+  "types": "./dist/admin-http/routes/menus/list.d.ts",
+  "symbols": {
+   "MenuListRouteDeps": "interface:3606e0aecb",
+   "menuListRoute": "variable:d9dd4b9cf9"
+  }
+ },
+ "./admin-http/routes/menus/shared": {
+  "types": "./dist/admin-http/routes/menus/shared.d.ts",
+  "symbols": {
+   "MENU_NOT_LIVE_MAPPING": "variable:6709d297ea",
+   "MenuErrorMapping": "type:33983dc7e8",
+   "MenuErrorRefusal": "interface:07288ca652",
+   "MenuRoutePrincipal": "interface:8cc6a0f4a9",
+   "authorizeMenus": "function:f31ff58e06",
+   "mapMenuError": "function:cd3be1e8f2",
+   "menuActorId": "function:44662c4008",
+   "menuIdParam": "function:d5c5342936",
+   "rejectMenuError": "function:7918ac4487"
+  }
+ },
+ "./admin-http/routes/menus/update-tree": {
+  "types": "./dist/admin-http/routes/menus/update-tree.d.ts",
+  "symbols": {
+   "MenuUpdateTreeInput": "interface:120740c76e",
+   "MenuUpdateTreeRouteDeps": "interface:d89af457ae",
+   "menuUpdateTreeRoute": "variable:9610552709"
+  }
+ },
+ "./admin-http/routes/recovery/deep-link": {
+  "types": "./dist/admin-http/routes/recovery/deep-link.d.ts",
+  "symbols": {
+   "RecoveryDeepLinkInput": "type:7536badbb6",
+   "RecoveryDeepLinkPrincipal": "interface:2278d23bee",
+   "RecoveryDeepLinkRouteDeps": "interface:8d200681bc",
+   "recoveryDeepLinkRoute": "variable:d40897725c"
+  }
+ },
+ "./admin-http/routes/recovery/disclosure": {
+  "types": "./dist/admin-http/routes/recovery/disclosure.d.ts",
+  "symbols": {
+   "RecoveryDisclosureInput": "type:8d326c31cb",
+   "RecoveryDisclosurePrincipal": "interface:54499c08f7",
+   "RecoveryDisclosureRouteDeps": "interface:0a4bc72218",
+   "recoveryDisclosureRoute": "variable:f926dcb177"
+  }
+ },
+ "./admin-http/routes/recovery/restore-points": {
+  "types": "./dist/admin-http/routes/recovery/restore-points.d.ts",
+  "symbols": {
+   "RecoveryRestorePointsListPrincipal": "interface:a83a34a5c3",
+   "RecoveryRestorePointsListRouteDeps": "interface:4139ed36ff",
+   "recoveryRestorePointsListRoute": "variable:a6682e4c94"
+  }
+ },
+ "./admin-http/routes/redirects/get-by-id": {
+  "types": "./dist/admin-http/routes/redirects/get-by-id.d.ts",
+  "symbols": {
+   "RedirectGetRouteDeps": "interface:4448309714",
+   "redirectGetRoute": "variable:89caddd5c8"
+  }
+ },
+ "./admin-http/routes/redirects/hits": {
+  "types": "./dist/admin-http/routes/redirects/hits.d.ts",
+  "symbols": {
+   "RedirectHitsRouteDeps": "interface:9ec5895fb3",
+   "redirectHitsRoute": "variable:41ea75b9fc"
+  }
+ },
+ "./admin-http/routes/redirects/import": {
+  "types": "./dist/admin-http/routes/redirects/import.d.ts",
+  "symbols": {
+   "RedirectImportRouteDeps": "interface:bb04a37505",
+   "redirectImportRoute": "variable:398c8d675a"
+  }
+ },
+ "./admin-http/routes/redirects/list": {
+  "types": "./dist/admin-http/routes/redirects/list.d.ts",
+  "symbols": {
+   "RedirectListQuery": "type:b386be1af6",
+   "RedirectListRouteDeps": "interface:4f4723124f",
+   "redirectListRoute": "variable:a48d758869"
+  }
+ },
+ "./admin-http/routes/redirects/shared": {
+  "types": "./dist/admin-http/routes/redirects/shared.d.ts",
+  "symbols": {
+   "REDIRECT_WRITE_ERROR_MAPPINGS": "variable:cd9e19d35a",
+   "RedirectErrorMapping": "interface:cd0759ac0a",
+   "RedirectRoutePrincipal": "interface:7f2a5165f2",
+   "authorizeRedirectsManage": "function:211b18bb1d",
+   "matchRedirectError": "function:0c2d276967",
+   "redirectActorId": "function:4b308b8942",
+   "rejectRedirectError": "function:8f2115799e"
+  }
+ },
+ "./admin-http/routes/redirects/tombstone": {
+  "types": "./dist/admin-http/routes/redirects/tombstone.d.ts",
+  "symbols": {
+   "RedirectTombstoneRouteDeps": "interface:72e8d6029c",
+   "redirectTombstoneRoute": "variable:6bd2554b0e"
+  }
+ },
+ "./admin-http/routes/redirects/update": {
+  "types": "./dist/admin-http/routes/redirects/update.d.ts",
+  "symbols": {
+   "RedirectUpdateInput": "interface:d25891bd36",
+   "RedirectUpdateRouteDeps": "interface:3ea469c950",
+   "redirectUpdateRoute": "variable:0d3eb9b724"
+  }
+ },
+ "./admin-http/routes/settings/preview-feed-access": {
+  "types": "./dist/admin-http/routes/settings/preview-feed-access.d.ts",
+  "symbols": {
+   "authorizeChangeFeed": "function:3d00199129"
+  }
+ },
+ "./admin-http/routes/sites/local-sites": {
+  "types": "./dist/admin-http/routes/sites/local-sites.d.ts",
+  "symbols": {
+   "LocalSiteLifecycleInput": "interface:d3a56735f3",
+   "LocalSiteLifecyclePort": "interface:98f1b6e2ae",
+   "LocalSiteLifecycleRouteDeps": "interface:f06c0c17d5",
+   "LocalSitePrincipal": "interface:12c3c01d2e",
+   "LocalSiteTrashPort": "interface:90486bdc98",
+   "SiteSwitchGate": "type:c4550a8a3e",
+   "localSiteLifecycleRoutes": "variable:11c195b4d3",
+   "localSiteStartRoute": "variable:b1d81bde7a",
+   "localSiteStopRoute": "variable:11c98a5163",
+   "localSiteTrashDeleteRoute": "variable:461c646a59",
+   "localSiteTrashRestoreRoute": "variable:a9309d64fe",
+   "localSiteTrashRoute": "variable:ae17dc8946"
+  }
+ },
+ "./admin-http/routes/system/assistant-daemon": {
+  "types": "./dist/admin-http/routes/system/assistant-daemon.d.ts",
+  "symbols": {
+   "AdminAssistantDaemonDeps": "interface:ee04b0ce7c",
+   "AssistantDaemonPrincipal": "interface:a9c495f83b",
+   "RestartAssistantDaemonResult": "interface:abbc674caa",
+   "assistantDaemonRestartRoute": "variable:30b74b9f3e"
+  }
+ },
+ "./admin-http/routes/system/module-status": {
+  "types": "./dist/admin-http/routes/system/module-status.d.ts",
+  "symbols": {
+   "AdminModuleStatusRouteDeps": "interface:426edfe3aa",
+   "ModuleStatusPrincipal": "interface:4602c99ced",
+   "ModuleStatusSnapshot": "interface:8b51e5ccec",
+   "moduleStatusRoute": "variable:ebdbd5f9da"
+  }
+ },
+ "./admin-http/routes/taxonomy/assign-terms": {
+  "types": "./dist/admin-http/routes/taxonomy/assign-terms.d.ts",
+  "symbols": {
+   "TaxonomyAssignTermsRouteDeps": "interface:7a8f2c2e9a",
+   "TaxonomyAssignedTermsInput": "interface:a0d3ed4e8b",
+   "TaxonomyAssignmentInput": "interface:3c86e030a9",
+   "taxonomyAssignTermsRoute": "variable:10902a0cdc",
+   "taxonomyAssignedTermsRoute": "variable:9b8ac21b87",
+   "taxonomyUnassignTermsRoute": "variable:c59c7bee42"
+  }
+ },
+ "./admin-http/routes/taxonomy/create-taxonomy": {
+  "types": "./dist/admin-http/routes/taxonomy/create-taxonomy.d.ts",
+  "symbols": {
+   "TaxonomyCreateInput": "interface:c3d61145e3",
+   "TaxonomyCreateRouteDeps": "type:3294763976",
+   "taxonomyCreateRoute": "variable:56af070dec"
+  }
+ },
+ "./admin-http/routes/taxonomy/create-term": {
+  "types": "./dist/admin-http/routes/taxonomy/create-term.d.ts",
+  "symbols": {
+   "TaxonomyCreateTermInput": "interface:0e11d86fab",
+   "TaxonomyCreateTermRouteDeps": "type:672d644239",
+   "taxonomyCreateTermRoute": "variable:56cd51ae4d"
+  }
+ },
+ "./admin-http/routes/taxonomy/delete-taxonomy": {
+  "types": "./dist/admin-http/routes/taxonomy/delete-taxonomy.d.ts",
+  "symbols": {
+   "TaxonomyDeleteOutput": "interface:68fb2de0a9",
+   "TaxonomyDeleteRouteDeps": "interface:75bac64329",
+   "taxonomyDeleteRoute": "variable:8c730b4dec"
+  }
+ },
+ "./admin-http/routes/taxonomy/delete-term": {
+  "types": "./dist/admin-http/routes/taxonomy/delete-term.d.ts",
+  "symbols": {
+   "TaxonomyDeleteTermOutput": "interface:c26264d72d",
+   "TaxonomyDeleteTermRouteDeps": "interface:f38984afd9",
+   "taxonomyDeleteTermRoute": "variable:1e11e725a0"
+  }
+ },
+ "./admin-http/routes/taxonomy/list": {
+  "types": "./dist/admin-http/routes/taxonomy/list.d.ts",
+  "symbols": {
+   "TaxonomyListRouteDeps": "interface:724d3fbec1",
+   "taxonomyListRoute": "variable:9cfb99bc07"
+  }
+ },
+ "./admin-http/routes/taxonomy/rename-term": {
+  "types": "./dist/admin-http/routes/taxonomy/rename-term.d.ts",
+  "symbols": {
+   "TaxonomyRenameTermInput": "interface:8fb473a00c",
+   "TaxonomyRenameTermRouteDeps": "interface:e5c9a75bad",
+   "taxonomyRenameTermRoute": "variable:1f2c033e97"
+  }
+ },
+ "./admin-http/routes/widgets/agent-tools-create": {
+  "types": "./dist/admin-http/routes/widgets/agent-tools-create.d.ts",
+  "symbols": {
+   "WidgetCreateToolResponse": "interface:0d3811e479",
+   "WidgetCreateToolRouteDeps": "interface:beaa09524e",
+   "WidgetToolPlacementFailedError": "class:8d8bb0f9bd",
+   "rejectWidgetToolPlacementFailure": "function:caa0c39f65",
+   "widgetCreateToolRoute": "variable:660f28e458",
+   "widgetToolPlacementFailedBody": "function:b2000fdfe8"
+  }
+ },
+ "./admin-http/routes/widgets/agent-tools-diagnose": {
+  "types": "./dist/admin-http/routes/widgets/agent-tools-diagnose.d.ts",
+  "symbols": {
+   "WidgetDiagnoseToolResponse": "interface:be150e6dd7",
+   "WidgetDiagnoseToolRouteDeps": "interface:27b06940ea",
+   "widgetDiagnoseToolRoute": "variable:9944ccc9ed"
+  }
+ },
+ "./admin-http/routes/widgets/agent-tools-place": {
+  "types": "./dist/admin-http/routes/widgets/agent-tools-place.d.ts",
+  "symbols": {
+   "WidgetPlaceToolInput": "interface:fc8dffb897",
+   "WidgetPlaceToolResponse": "interface:06c30a8526",
+   "WidgetPlaceToolRouteDeps": "type:94d14abad8",
+   "widgetPlaceToolRoute": "variable:9a7c4b4e39"
+  }
+ },
+ "./admin-http/routes/widgets/agent-tools-remove": {
+  "types": "./dist/admin-http/routes/widgets/agent-tools-remove.d.ts",
+  "symbols": {
+   "WidgetRemoveToolInput": "interface:ef6ad66a70",
+   "WidgetRemoveToolResponse": "interface:f4f56844cf",
+   "WidgetRemoveToolRouteDeps": "type:a9b12291d1",
+   "widgetRemoveToolRoute": "variable:d321b62cd2"
+  }
+ },
+ "./admin-http/routes/widgets/create": {
+  "types": "./dist/admin-http/routes/widgets/create.d.ts",
+  "symbols": {
+   "WidgetCreateBody": "interface:c99d062310",
+   "WidgetCreateRouteDeps": "interface:270e1cb0fc",
+   "widgetCreateRoute": "variable:86848eb3c0"
+  }
+ },
+ "./admin-http/routes/widgets/embed-insert": {
+  "types": "./dist/admin-http/routes/widgets/embed-insert.d.ts",
+  "symbols": {
+   "WidgetEmbedInsertInput": "interface:09ac1f3bbf",
+   "WidgetEmbedInsertRouteDeps": "interface:694e58e43b",
+   "widgetEmbedInsertRoute": "variable:becfa7b277"
+  }
+ },
+ "./admin-http/routes/widgets/embed-remove": {
+  "types": "./dist/admin-http/routes/widgets/embed-remove.d.ts",
+  "symbols": {
+   "WidgetEmbedRemoveInput": "interface:6fc16c4135",
+   "WidgetEmbedRemoveRouteDeps": "interface:8bad5357ea",
+   "widgetEmbedRemoveRoute": "variable:c48bb082ff"
+  }
+ },
+ "./admin-http/routes/widgets/embed-reorder": {
+  "types": "./dist/admin-http/routes/widgets/embed-reorder.d.ts",
+  "symbols": {
+   "WidgetEmbedReorderInput": "interface:3a6a41edad",
+   "WidgetEmbedReorderRouteDeps": "interface:61155aebfd",
+   "widgetEmbedReorderRoute": "variable:bd1512045f"
+  }
+ },
+ "./admin-http/routes/widgets/get-by-id": {
+  "types": "./dist/admin-http/routes/widgets/get-by-id.d.ts",
+  "symbols": {
+   "WidgetGetResponse": "interface:5f7c8bc78b",
+   "WidgetGetRouteDeps": "interface:15edfe4292",
+   "widgetGetRoute": "variable:9a01f49f97"
+  }
+ },
+ "./admin-http/routes/widgets/list": {
+  "types": "./dist/admin-http/routes/widgets/list.d.ts",
+  "symbols": {
+   "WidgetListQuery": "interface:96b497ada8",
+   "WidgetListResponse": "interface:eb329638f8",
+   "WidgetListRouteDeps": "interface:8dffc36f16",
+   "widgetListRoute": "variable:9fa1385bdd"
+  }
+ },
+ "./admin-http/routes/widgets/region-bind": {
+  "types": "./dist/admin-http/routes/widgets/region-bind.d.ts",
+  "symbols": {
+   "WidgetRegionBindRouteDeps": "interface:050cea75aa",
+   "widgetRegionBindRoute": "variable:463415b9cf"
+  }
+ },
+ "./admin-http/routes/widgets/region-get": {
+  "types": "./dist/admin-http/routes/widgets/region-get.d.ts",
+  "symbols": {
+   "WidgetRegionGetResponse": "interface:6a4ad4518d",
+   "WidgetRegionGetRouteDeps": "interface:2dce1fdbe4",
+   "WidgetRegionPlacement": "type:a012cce77e",
+   "widgetRegionGetRoute": "variable:f04a83edb9"
+  }
+ },
+ "./admin-http/routes/widgets/region-mutate-placements": {
+  "types": "./dist/admin-http/routes/widgets/region-mutate-placements.d.ts",
+  "symbols": {
+   "WidgetRegionMutatePlacementsInput": "interface:6fcc61dd7f",
+   "WidgetRegionMutatePlacementsRouteDeps": "interface:2f62862791",
+   "parseWidgetRegionPlacements": "function:6b204b53e5",
+   "widgetRegionMutatePlacementsRoute": "variable:297e230f98"
+  }
+ },
+ "./admin-http/routes/widgets/regions-list": {
+  "types": "./dist/admin-http/routes/widgets/regions-list.d.ts",
+  "symbols": {
+   "WidgetRegionsListResponse": "interface:d69b6469e9",
+   "WidgetRegionsListRouteDeps": "interface:05e327fb7d",
+   "widgetRegionsListRoute": "variable:071e460728"
+  }
+ },
+ "./admin-http/routes/widgets/trash": {
+  "types": "./dist/admin-http/routes/widgets/trash.d.ts",
+  "symbols": {
+   "WidgetTrashResponse": "interface:d7ad62ab84",
+   "WidgetTrashRouteDeps": "interface:a319cee08c",
+   "widgetTrashRoute": "variable:08f30d4ce7"
+  }
+ },
+ "./admin-http/routes/widgets/update": {
+  "types": "./dist/admin-http/routes/widgets/update.d.ts",
+  "symbols": {
+   "WidgetUpdateInput": "interface:5879d97ea4",
+   "WidgetUpdateRouteDeps": "interface:47b9aaeec9",
+   "widgetUpdateRoute": "variable:7bb6392ed4"
+  }
+ },
+ "./admin-http/sea-runtime": {
+  "types": "./dist/admin-http/sea-runtime.d.ts",
+  "symbols": {
+   "SeaApi": "interface:76a2358091",
+   "isSeaRuntime": "function:75d8708582",
+   "seaApi": "function:9502c97fc3"
   }
  },
  "./comments": {
@@ -1489,6 +2144,14 @@
    "validateAndCloneTree": "function:ef6a58ffa5"
   }
  },
+ "./navigation/site/import-menu": {
+  "types": "./dist/navigation/site/import-menu.d.ts",
+  "symbols": {
+   "ImportMenuEntityDeps": "interface:3356f11366",
+   "ImportMenuEntityInput": "interface:085c9d48b9",
+   "importMenuEntity": "function:64225e395a"
+  }
+ },
  "./navigation/site/menu-html-permission": {
   "types": "./dist/navigation/site/menu-html-permission.d.ts",
   "symbols": {
@@ -1502,6 +2165,15 @@
    "MenuTrashFollowUpHooks": "interface:a9bd9bce0b",
    "MenuTrashLookup": "interface:1416508999",
    "buildMenuTrashFollowUpHooks": "function:4c8128254a"
+  }
+ },
+ "./navigation/site/repoint-menu-refs": {
+  "types": "./dist/navigation/site/repoint-menu-refs.d.ts",
+  "symbols": {
+   "MenuRepointReplacement": "interface:b6d262b01c",
+   "ReferenceHolder": "interface:8693c20fc7",
+   "menuHoldersReferencing": "function:5fa27ddc55",
+   "repointMenuItems": "function:8c59dc0103"
   }
  },
  "./navigation/site/trash-aware-memory-menu-repo": {
@@ -1648,11 +2320,32 @@
    "formValidationCopy": "function:b377a5c52e"
   }
  },
+ "./public-http/http/site/render/media-playback-copy": {
+  "types": "./dist/public-http/http/site/render/media-playback-copy.d.ts",
+  "symbols": {
+   "MEDIA_PLAYBACK_COPY": "variable:0459d13578"
+  }
+ },
+ "./public-http/http/site/render/value-readers": {
+  "types": "./dist/public-http/http/site/render/value-readers.d.ts",
+  "symbols": {
+   "arr": "function:015b3f9738",
+   "isObject": "function:654e395519",
+   "obj": "function:2960a14d59",
+   "str": "function:c90112bb62"
+  }
+ },
  "./public-http/http/site/render/widgets/placeholder": {
   "types": "./dist/public-http/http/site/render/widgets/placeholder.d.ts",
   "symbols": {
    "WIDGET_PLACEHOLDER_IR": "variable:1c470b1586",
    "renderWidgetPlaceholder": "function:427d5df34b"
+  }
+ },
+ "./public-http/routes/site/pages/listing/listing-state": {
+  "types": "./dist/public-http/routes/site/pages/listing/listing-state.d.ts",
+  "symbols": {
+   "listingState": "variable:fb99ccf95d"
   }
  },
  "./publish/transfer": {
@@ -1848,7 +2541,7 @@
    "toRevision": "function:eb494968b6",
    "toRevisionRow": "function:c8c9374903",
    "toRow": "function:30a0d768fa",
-   "updatableColumns": "function:c6a3ec5885"
+   "updatableColumns": "function:928903eb93"
   }
  },
  "./routing": {

@@ -1265,6 +1265,105 @@
    "useJsonFieldControl": "function:4ee78c579b"
   }
  },
+ "./screens/comments/api/comments-api.types": {
+  "types": "./dist/screens/comments/api/comments-api.types.d.ts",
+  "symbols": {
+   "AdminComment": "interface:b30aab7314",
+   "AdminCommentsQueuePage": "interface:92d750c057",
+   "CommentModerationAction": "type:586b5ae538",
+   "CommentStatus": "type:e89b6a6732",
+   "CommentsSettings": "interface:822d1ed6ee"
+  }
+ },
+ "./screens/forms/api/forms-api.types": {
+  "types": "./dist/screens/forms/api/forms-api.types.d.ts",
+  "symbols": {
+   "AdminFormDefinition": "interface:759005cbf6",
+   "AdminFormField": "interface:98e0431454",
+   "AdminFormNotify": "interface:855299e4e8",
+   "AdminFormSubmission": "interface:e7c083de72"
+  }
+ },
+ "./screens/forms/forms-field-settings-i18n": {
+  "types": "./dist/screens/forms/forms-field-settings-i18n.d.ts",
+  "symbols": {
+   "FIELD_SETTINGS_KEYS": "variable:f930945d9d",
+   "FIELD_SETTINGS_TRANSLATIONS": "variable:a83835a3a5",
+   "FORMS_FIELD_SETTINGS_I18N": "variable:0440f90147"
+  }
+ },
+ "./screens/forms/forms-leave-guard-i18n": {
+  "types": "./dist/screens/forms/forms-leave-guard-i18n.d.ts",
+  "symbols": {
+   "FORMS_LEAVE_GUARD_I18N": "variable:040640f01b",
+   "FORMS_LEAVE_GUARD_KEYS": "variable:4e7cfea865",
+   "FORMS_LEAVE_GUARD_TRANSLATIONS": "variable:b16081fb05"
+  }
+ },
+ "./screens/forms/index-aligned-translations": {
+  "types": "./dist/screens/forms/index-aligned-translations.d.ts",
+  "symbols": {
+   "indexAlignedTranslations": "function:d550dfff6b"
+  }
+ },
+ "./screens/menus/api/menus-api.types": {
+  "types": "./dist/screens/menus/api/menus-api.types.d.ts",
+  "symbols": {
+   "AdminMenu": "interface:33d7fb4950",
+   "AdminMenuAuthoring": "interface:3774607dab",
+   "AdminMenuItem": "interface:be57fe442f",
+   "AdminMenuItemAttrs": "interface:a3855db9e1",
+   "AdminMenuMode": "type:8d82460ec1",
+   "AdminMenuTarget": "interface:34523e5442"
+  }
+ },
+ "./screens/menus/hooks/menus-port.hooks": {
+  "types": "./dist/screens/menus/hooks/menus-port.hooks.d.ts",
+  "symbols": {
+   "MenusPort": "interface:6aa12d28d6"
+  }
+ },
+ "./screens/menus/html-rules": {
+  "types": "./dist/screens/menus/html-rules.d.ts",
+  "symbols": {
+   "menuAuthoringForSave": "function:1d12799be9",
+   "menuHtmlEmbed": "function:9ec9d350f5",
+   "menuHtmlStarter": "function:f4cda5cfe9"
+  }
+ },
+ "./screens/menus/MenuEditor.hooks": {
+  "types": "./dist/screens/menus/MenuEditor.hooks.d.ts",
+  "symbols": {
+   "useMenuItemRemove": "function:f1c8ce4b22"
+  }
+ },
+ "./screens/menus/MenuPageLinkFields": {
+  "types": "./dist/screens/menus/MenuPageLinkFields.d.ts",
+  "symbols": {
+   "MenuPageLinkFields": "function:5af81e9325"
+  }
+ },
+ "./screens/menus/MenuPageLinkFields.hooks": {
+  "types": "./dist/screens/menus/MenuPageLinkFields.hooks.d.ts",
+  "symbols": {
+   "useMenuPageLinkFields": "function:32571ce38e",
+   "useMenuTargetEditor": "function:203b92d940"
+  }
+ },
+ "./screens/menus/page-link-rules": {
+  "types": "./dist/screens/menus/page-link-rules.d.ts",
+  "symbols": {
+   "MenuPageChoice": "interface:c2ea0d8111",
+   "MenuTargetEditorKind": "type:2c2424e5dc",
+   "PageMenuTarget": "type:ad36d3c4c4",
+   "hasPageLinks": "function:6ccff332a9",
+   "menuTargetEditorKind": "function:e06da9d558",
+   "pageItemsForSave": "function:6c81a85bc0",
+   "pageLinkState": "function:b58386e732",
+   "pageTargetForChoice": "function:affd4191c4",
+   "targetForKind": "function:0821772b01"
+  }
+ },
  "./screens/taxonomy/api/taxonomy-api.types": {
   "types": "./dist/screens/taxonomy/api/taxonomy-api.types.d.ts",
   "symbols": {
@@ -1321,6 +1420,18 @@
   "types": "./dist/screens/taxonomy/TaxonomyRowMenu.hooks.d.ts",
   "symbols": {
    "useTaxonomyRowMenu": "function:3cbdb35cfb"
+  }
+ },
+ "./screens/widgets/api/widgets-api.types": {
+  "types": "./dist/screens/widgets/api/widgets-api.types.d.ts",
+  "symbols": {
+   "AdminWidget": "interface:928f8d6209",
+   "AdminWidgetArea": "interface:8c684a1baf",
+   "AdminWidgetPlacement": "interface:bd282bf3e0",
+   "AdminWidgetRegionBinding": "interface:e01a09e9fd",
+   "AdminWidgetType": "type:26da45bd9c",
+   "AdminWidgetWhereUsed": "interface:a7cbfb81a9",
+   "AdminWidgetWhereUsedReference": "interface:0ff5fd17a3"
   }
  },
  "./security": {
