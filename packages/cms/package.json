@@ -188,7 +188,12 @@
       "./media/site/hydrate-blob-store-from-seed": "node",
       "./media/site/original-bytes": "node",
       "./media/site/public-path": "node",
-      "./media/site/upload-content-type": "node"
+      "./media/site/upload-content-type": "node",
+      "./pages/authoring-html": "node",
+      "./pages/hidden-until-script": "universal",
+      "./admin-http/routes/system/observability-status": "universal",
+      "./admin-http/routes/system/tool-gaps": "universal",
+      "./admin-http/routes/system/server-logs": "universal"
     },
     "isolation": {
       "domains": {
@@ -1181,6 +1186,31 @@
       "types": "./dist/media/site/upload-content-type.d.ts",
       "import": "./dist/media/site/upload-content-type.js",
       "default": "./dist/media/site/upload-content-type.js"
+    },
+    "./pages/authoring-html": {
+      "types": "./dist/pages/authoring-html.d.ts",
+      "import": "./dist/pages/authoring-html.js",
+      "default": "./dist/pages/authoring-html.js"
+    },
+    "./pages/hidden-until-script": {
+      "types": "./dist/pages/hidden-until-script.d.ts",
+      "import": "./dist/pages/hidden-until-script.js",
+      "default": "./dist/pages/hidden-until-script.js"
+    },
+    "./admin-http/routes/system/observability-status": {
+      "types": "./dist/admin-http/routes/system/observability-status.d.ts",
+      "import": "./dist/admin-http/routes/system/observability-status.js",
+      "default": "./dist/admin-http/routes/system/observability-status.js"
+    },
+    "./admin-http/routes/system/tool-gaps": {
+      "types": "./dist/admin-http/routes/system/tool-gaps.d.ts",
+      "import": "./dist/admin-http/routes/system/tool-gaps.js",
+      "default": "./dist/admin-http/routes/system/tool-gaps.js"
+    },
+    "./admin-http/routes/system/server-logs": {
+      "types": "./dist/admin-http/routes/system/server-logs.d.ts",
+      "import": "./dist/admin-http/routes/system/server-logs.js",
+      "default": "./dist/admin-http/routes/system/server-logs.js"
     }
   },
   "files": [
