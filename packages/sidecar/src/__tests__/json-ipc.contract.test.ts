@@ -230,6 +230,25 @@ describe("trace vocabulary and details", () => {
     expect(traces.find((trace) => trace.event === "client.response_error"), "The client trace preserves the safe handler words").toEqual({ event: "client.response_error", ...base(socketPath), message: { type: "X" }, error: "The sidecar could not finish this request. Try again, and report the request ID if it keeps failing." });
   });
 
+  it("handler failure goes to the host's injected reporter with the code and traceId, not a console logger the server builds", async () => {
+    const socketPath = join(root, "reporter.sock");
+    const reporter = { error: vi.fn() };
+    const failure = new Error("db at /secret/path failed");
+    const server = await createJsonIpcServer({ handler: async () => { throw failure; }, socketPath }, { reporter });
+    let rejection: (Error & { requestId?: string }) | undefined;
+    try {
+      await requestJsonIpc({ socketPath, payload: { type: "X" } }).catch((error) => (rejection = error));
+    } finally {
+      await server.close();
+    }
+    expect(reporter.error).toHaveBeenCalledTimes(1);
+    expect(reporter.error).toHaveBeenCalledWith(
+      { message: `[@jini-ai/sidecar] json-ipc handler did not finish the request (code=HANDLER_ERROR, traceId=${rejection?.requestId})` },
+      { meta: { code: "HANDLER_ERROR", traceId: rejection?.requestId }, error: failure },
+    );
+    expect(vi.mocked(console.error)).not.toHaveBeenCalled();
+  });
+
   it("unparseable frame: fixed BAD_FRAME refusal; parse-failed trace", async () => {
     process.env.JINI_JSON_IPC_TRACE = "1";
     const socketPath = join(root, "parse.sock");
