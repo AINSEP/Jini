@@ -18,6 +18,7 @@ import { Icon } from './Icon.js';
 import type { AttachmentTraySlot } from '../slots.js';
 import { AttachmentPreviewModal } from './AttachmentPreviewModal.js';
 import { useAttachmentGallery } from './AttachmentGallery.hooks.js';
+import { useScrollNewestChipIntoView } from './AttachmentTray.hooks.js';
 import { isOpaqueAttachmentName } from './AttachmentGallery.rules.js';
 import { useSentAttachmentThumbnail, type ObjectUrlPort } from './SentAttachment.hooks.js';
 import { formatAttachmentSize } from './attachment-size.js';
@@ -34,16 +35,17 @@ export type AttachmentTrayProps = AttachmentTraySlot & {
 };
 
 /** Hooks AttachmentTray calls; defaults to the real ones, a test hands in fakes. */
-export const defaultAttachmentTrayHooks = { useT, useAttachmentGallery };
+export const defaultAttachmentTrayHooks = { useT, useAttachmentGallery, useScrollNewestChipIntoView };
 export type AttachmentTrayHooks = typeof defaultAttachmentTrayHooks;
 
 export function AttachmentTray({ agentHandle, attachments, onRemove, renderItem, objectUrls, uploading = false, hooks = defaultAttachmentTrayHooks }: AttachmentTrayProps & { hooks?: AttachmentTrayHooks | undefined }) {
   const base = agentHandle || undefined;
   const t = hooks.useT();
   const gallery = hooks.useAttachmentGallery({ attachments });
+  const trayRef = hooks.useScrollNewestChipIntoView({ count: attachments.length + (uploading ? 1 : 0) });
   if (attachments.length === 0 && !uploading) return null;
   return (
-    <div className="jini-attachment-tray" data-testid="composer-attachment-tray">
+    <div ref={trayRef} className="jini-attachment-tray" data-testid="composer-attachment-tray">
       {attachments.map((a) => (
         <div
           key={a.path}

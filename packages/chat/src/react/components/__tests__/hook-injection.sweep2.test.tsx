@@ -121,11 +121,13 @@ describe('AttachmentTray and the surfaces facade', () => {
   it('AttachmentTray labels its remove buttons with the injected translator and opens through the injected gallery', () => {
     const open = vi.fn();
     const useGallery = vi.fn(() => ({ open, close: vi.fn(), opened: undefined, navigation: undefined }));
+    const useScroll = vi.fn(() => ({ current: null }));
     const attachment = { name: 'doc.pdf', path: 'doc.pdf', kind: 'file' } as never;
     render(
-      <AttachmentTray attachments={[attachment]} onRemove={vi.fn()} renderItem={() => <i>chip</i>} hooks={{ useT: useQuotingT, useAttachmentGallery: useGallery as never }} />,
+      <AttachmentTray attachments={[attachment]} onRemove={vi.fn()} renderItem={() => <i>chip</i>} hooks={{ useT: useQuotingT, useAttachmentGallery: useGallery as never, useScrollNewestChipIntoView: useScroll }} />,
     );
     expect(useGallery).toHaveBeenCalledWith({ attachments: [attachment] });
+    expect(useScroll).toHaveBeenCalledWith({ count: 1 });
     expect(document.querySelector('[aria-label^="«Remove {name}"]')).not.toBeNull();
   });
 

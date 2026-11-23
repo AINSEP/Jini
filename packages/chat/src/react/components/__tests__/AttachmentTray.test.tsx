@@ -31,6 +31,41 @@ describe('AttachmentTray', () => {
     expect(screen.queryByTestId('attachment-uploading-chip')).toBeNull();
   });
 
+  // B014: the tray is height-capped and scrolls, so with 4+ chips a newly added one (often the Uploading chip) sat
+  // below the fold. Mutation `no-scroll-new-chip`: drop the effect's scrollIntoView call and the first test goes red.
+  it('scrolls the newest chip into view when the chip count grows, and not on mount, removal or swap', () => {
+    const scrollIntoView = vi.fn();
+    const original = Element.prototype.scrollIntoView;
+    Element.prototype.scrollIntoView = scrollIntoView;
+    try {
+      const four = ['a', 'b', 'c', 'd'].map(name => ({ path: `/${name}.txt`, name: `${name}.txt`, kind: 'file' as const }));
+      const { rerender } = render(<AttachmentTray attachments={four} onRemove={() => {}} />);
+      expect(scrollIntoView).not.toHaveBeenCalled();
+      rerender(<AttachmentTray attachments={four} onRemove={() => {}} uploading />);
+      expect(scrollIntoView).toHaveBeenCalledTimes(1);
+      expect(scrollIntoView.mock.contexts[0]).toBe(screen.getByTestId('attachment-uploading-chip'));
+      expect(scrollIntoView).toHaveBeenCalledWith({ block: 'nearest', inline: 'nearest' });
+      const five = [...four, { path: '/e.txt', name: 'e.txt', kind: 'file' as const }];
+      rerender(<AttachmentTray attachments={five} onRemove={() => {}} />);
+      expect(scrollIntoView).toHaveBeenCalledTimes(1);
+      rerender(<AttachmentTray attachments={four} onRemove={() => {}} />);
+      expect(scrollIntoView).toHaveBeenCalledTimes(1);
+      rerender(<AttachmentTray attachments={five} onRemove={() => {}} />);
+      expect(scrollIntoView).toHaveBeenCalledTimes(2);
+      expect(scrollIntoView.mock.contexts[1]).toBe(screen.getAllByTestId('attachment-chip').at(-1));
+    } finally { Element.prototype.scrollIntoView = original; }
+  });
+
+  it('adds a chip without throwing where the platform has no scrollIntoView', () => {
+    const original = Element.prototype.scrollIntoView;
+    // jsdom (and some embedded webviews) lack it; the effect must check before calling.
+    delete (Element.prototype as Partial<Element>).scrollIntoView;
+    try {
+      const { rerender } = render(<AttachmentTray attachments={[]} onRemove={() => {}} />);
+      expect(() => rerender(<AttachmentTray attachments={[]} onRemove={() => {}} uploading />)).not.toThrow();
+    } finally { Element.prototype.scrollIntoView = original; }
+  });
+
   it('renders nothing for an empty attachment list', () => {
     const { container } = render(<AttachmentTray attachments={[]} onRemove={() => {}} />);
     expect(container).toBeEmptyDOMElement();
