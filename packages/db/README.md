@@ -210,6 +210,29 @@ builds the same four definitions for catalog inspection; its display-only defaul
 `app_`. `databaseTransferAgentToolCatalog` remains the neutral default display catalog.
 
 
+## Wiring
+
+### Site wording profile (`@jini-ai/db/tools`)
+
+`SITE_DATABASE_MESSAGES` and `SITE_TRANSFER_MESSAGES` are a ready-made "this site" wording
+profile for a host that serves one site. They change prose only: tool ids, permissions, side
+effects and input schemas are identical to the neutral catalog. The profile carries no
+specification ids; a host that cites its own documents spreads the profile and overrides those
+fields. The host injects:
+
+- `messages: SITE_DATABASE_MESSAGES` (or its spread override) into
+  `getDatabaseAgentToolCatalog({}, { messages })`, `createDatabaseReadTools(ports, { messages })`
+  and any other `DbMessages` consumer when it wants the site wording;
+- `messages: SITE_TRANSFER_MESSAGES` plus its own persisted `TransferNaming` into
+  `getDatabaseTransferAgentToolCatalog({}, { naming, messages })`,
+  `createDatabaseTransferTools(ports, { messages })`, `countSourceRows` and `runCopy`;
+- its own `applicationName` into `createPsqlPostgresTarget({ connectionString }, { applicationName })`
+  (the default is `database-transfer`);
+- one `new DatabaseTransferPlanStore()` per process as `plans`, so a planId minted by the plan
+  tool is redeemable by the run tool.
+
+Product names, schema names, marker tables and table-exclusion policy stay host inputs.
+
 ## Design decisions
 
 - [Operational history is a bounded read surface](docs/decisions/DR-001-bounded-operational-timeline.md).
