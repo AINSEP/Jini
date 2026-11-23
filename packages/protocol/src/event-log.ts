@@ -3,8 +3,8 @@
  *
  * The port's *types* live here, in the dependency-free contract package, rather than beside its
  * reference implementation in `@jini-ai/daemon`. That is what lets a storage adapter
- * (`@jini-ai/sqlite-chat`'s `createSqliteEventLog`) implement the port without depending on the daemon
- * runtime at all — before this split, `@jini-ai/sqlite-chat` pulled `@jini-ai/daemon` (and therefore
+ * (`@jini-ai/daemon/store/event-log/sqlite`'s `createSqliteEventLog`) implement the port without depending on the daemon
+ * runtime at all — before this split, the SQLite adapter package pulled `@jini-ai/daemon` (and therefore
  * `@jini-ai/agent-runtime`, `@jini-ai/platform`, and native `node-pty`) purely to reach four
  * `import type` names. It also matches the split `@jini-ai/registry`'s barrel already documents:
  * protocol defines the port, a leaf package implements adapters against it.
@@ -90,7 +90,7 @@ export type EventLogReplayResult<Payload = unknown> =
 /**
  * A replayable, ordered, per-run event log. Kernel port — `@jini-ai/daemon`
  * ships `createInMemoryEventLog` as the reference implementation; a durable
- * adapter (`@jini-ai/sqlite-chat`, task 8) implements the same interface.
+ * adapter (`@jini-ai/daemon/store/event-log/sqlite`, task 8) implements the same interface.
  */
 export interface EventLog {
   /**

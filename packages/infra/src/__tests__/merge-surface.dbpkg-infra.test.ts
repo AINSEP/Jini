@@ -1,19 +1,16 @@
 import { readFileSync } from 'node:fs';
 import { expect, test } from 'vitest';
-import * as shimCore from '../db/driver/index.js';
 
-test('the database shim preserves the artifact wire format', () => {
-  expect(shimCore.restorePointFilename({ scopeId: 'a/b', watermarkAtCapture: 3, timestamp: 4 })).toBe('restore-point-a_b-wm3-4.db');
-});
-
-// This acceptance test deliberately remains pending until the owner merges the protected manifest.
-// A source barrel alone cannot make an npm subpath resolve; both runtime and declaration paths matter.
-test('the event entry is published without removing either database shim entry', () => {
+// RT-2 (owner retire order, 2026-11-22) deleted the `db/core` and `db/sqlite` compatibility shims; their
+// owner is `@jini-ai/db`. The outbox entry stays because a host composes it directly. Pin the manifest so a
+// shim entry, or the database peer it needed, cannot come back without this test being changed on purpose.
+test('the package publishes only the event outbox entry, and no database peer', () => {
   const manifest = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8'));
-  expect(manifest.exports['./db/core']).toBeDefined();
-  expect(manifest.exports['./db/sqlite']).toBeDefined();
+  expect(Object.keys(manifest.exports)).toEqual(['./events/outbox']);
   expect(manifest.exports['./events/outbox']).toEqual({
     types: './dist/events/outbox/index.d.ts', import: './dist/events/outbox/index.js', default: './dist/events/outbox/index.js',
   });
-  expect(manifest.typesVersions['*']['events/outbox']).toEqual(['./dist/events/outbox/index.d.ts']);
+  expect(manifest.typesVersions).toEqual({ '*': { 'events/outbox': ['./dist/events/outbox/index.d.ts'] } });
+  expect(manifest.peerDependencies?.['@jini-ai/db']).toBeUndefined();
+  expect(manifest.jini.optionalPeers?.['@jini-ai/db']).toBeUndefined();
 });

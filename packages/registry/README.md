@@ -5,7 +5,7 @@ Three interchangeable backends for a content registry — the thing that answers
 they share, and real cryptographic signature verification against a GitHub Actions OIDC trust root.
 The wire types (`RegistryEntry`, `RegistryManifest`, `RegistryBackend`, …) live in
 `@jini-ai/protocol`; this package only adds the concrete backend logic, mirroring how
-`@jini-ai/sqlite-chat` implements ports that `@jini-ai/protocol` defines.
+`@jini-ai/daemon/store/event-log/sqlite` implements ports that `@jini-ai/protocol` defines.
 
 ## Install
 

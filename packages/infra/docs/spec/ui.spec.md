@@ -6,6 +6,8 @@ spec_mode: reverse_spec
 
 # UI contract: @jini-ai/infra
 
+> **RT-2 (2026-11-22):** the `./db/core` and `./db/sqlite` shims this spec describes were removed; their owner is `@jini-ai/db` (`./core`, `./sqlite`). The package now exports only `./events/outbox` — see `README.md`. Text below about the shims is historical.
+
 This compatibility shim is headless. It only re-exports the frozen db/core and db/sqlite surfaces. It contributes no components, routes, forms, themes, visual assets or interaction state; host applications own presentation.
 
 Public data and wiring: [API](api.spec.md). Outcomes: [errors](errors.spec.md). Lifecycle: [state](state.spec.md). Runtime behavior: [behavior](behavior.spec.md). No UI/runtime checks were executed.

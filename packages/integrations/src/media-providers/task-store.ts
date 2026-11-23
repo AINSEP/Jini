@@ -11,7 +11,7 @@
  * (queued → running → done|failed|interrupted, boot-time reconciliation of
  * orphaned in-flight tasks, TTL-based terminal-task pruning) without a SQL
  * schema or an OD project reference. A durable adapter (a future
- * `@jini-ai/sqlite-chat` addition) implements the same interface — see
+ * SQLite store addition) implements the same interface — see
  * `archived provenance ledger`.
  */
 

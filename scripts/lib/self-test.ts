@@ -531,7 +531,7 @@ function writeDriverImportFixtures(root: string): void {
   // R12: driver isolation. Same out-of-packages/ fixture-root pattern as R9-R11 —
   // checkDriverIsolation takes packagesDir as an option for exactly this reason.
   //
-  // `infra-like` mirrors the real @jini-ai/infra shape: a neutral `src/db/core` that must load
+  // `infra-like` mirrors the shape @jini-ai/infra had before its db shims were retired (RT-2): a neutral `src/db/core` that must load
   // with no native module present, a `src/db/sqlite` driver that may load anything, and two
   // optional peer dependencies. The forbidden-package list is DERIVED from
   // peerDependenciesMeta rather than hardcoded, so this manifest is not decoration — it is the
@@ -595,9 +595,9 @@ function writeDriverImportFixtures(root: string): void {
 }
 
 function writeDriverExemptionFixtures(root: string): void {
-  // Known-good regression fixture, and NOT a hypothetical: the real
-  // packages/infra/src/db/core/ports.ts module doc names `better-sqlite3` and `db/sqlite` in
-  // prose to explain the isolation rule it is subject to. Without stripComments() upstream,
+  // Known-good regression fixture, and NOT a hypothetical: the former
+  // packages/infra/src/db/core/ports.ts module doc (retired in RT-2) named `better-sqlite3` and `db/sqlite` in
+  // prose to explain the isolation rule it was subject to. Without stripComments() upstream,
   // documenting the rule would violate it. Must NOT be flagged.
   write(
     root,

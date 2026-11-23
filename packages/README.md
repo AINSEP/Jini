@@ -78,7 +78,6 @@ consumer-adoption pass — see each package's own the archived provenance ledger
 
 | Package | Native dep | Shape | What it means for a consumer |
 |---|---|---|---|
-| `@jini-ai/sqlite` | None | Deprecated concern re-export shim; no driver hard dependency/autoload | Inject host handles/openers; use concern subpaths. |
 | `@jini-ai/server` (ex-`node-host`) | Host-injected `better-sqlite3` | Optional peer, no driver value import | Memory needs no SQLite; durable host supplies its opener. |
 | `@jini-ai/registry` | `better-sqlite3` | `peerDependencies` (optional) — `database-backend.ts` only needs the *type*, the caller owns/opens the real handle | Only pay the native-compile cost if you actually install `better-sqlite3` yourself to use `DatabaseRegistryBackend`; `StaticRegistryBackend` and friends need nothing. |
 | `@jini-ai/capability-providers` | `better-sqlite3` | `peerDependencies` (optional), and the code that needs it is behind the `./adapters/sqlite` subpath | Nothing on the root barrel references it, in code *or* in emitted `.d.ts`. Only pay the native-compile cost if you import `./adapters/sqlite` for `SqliteDbProvider`. |

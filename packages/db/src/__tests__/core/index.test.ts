@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest';
 
 import * as core from '../../core/index.js';
 
-describe('@jini-ai/infra/db/core barrel', () => {
+describe('@jini-ai/db/core barrel', () => {
   it('exports exactly the runtime surface it promises', () => {
     expect(Object.keys(core).sort()).toEqual(['PGLITE_SOCKET_FILE', 'PG_OID', 'PG_PARSERS', 'parseInt8', 'restorePointFilename', 'sanitizeForFilename']);
   });

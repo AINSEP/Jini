@@ -6,6 +6,8 @@ spec_mode: reverse_spec
 
 # Behavior Contract: @jini-ai/infra
 
+> **RT-2 (2026-11-22):** the `./db/core` and `./db/sqlite` shims this spec describes were removed; their owner is `@jini-ai/db` (`./core`, `./sqlite`). The package now exports only `./events/outbox` — see `README.md`. Text below about the shims is historical.
+
 ## Shim guarantees
 
 The two ESM entries re-export selected symbols from `@jini-ai/db` without wrappers, transformations, or added state. They preserve eight core declarations and seven SQLite declarations, including erased types. There is no root import, CommonJS branch, bundled driver, or outbox export.

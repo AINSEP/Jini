@@ -1,8 +1,7 @@
 {
   "name": "@jini-ai/infra",
   "version": "0.7.3-next.2",
-  "description": "Deprecated compatibility re-exports of @jini-ai/db/core and @jini-ai/db/sqlite. Import those directly.",
-  "deprecated": "Compatibility shim: use @jini-ai/db/core and @jini-ai/db/sqlite directly.",
+  "description": "Host-composed event outbox: fenced enqueue, drain and retry policy.",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
@@ -12,13 +11,7 @@
   "jini": {
     "domain": "server",
     "kind": "persistence-adapter",
-    "runtime": "node",
-    "neutralEntries": [
-      "src/db/core"
-    ],
-    "optionalPeers": {
-      "@jini-ai/db": "opt-in: database-backed adapters; import @jini-ai/infra/db/core — Database-backed adapters could not load @jini-ai/db. Install @jini-ai/db to enable this feature, or check its installed version and native binaries."
-    }
+    "runtime": "node"
   },
   "type": "module",
   "sideEffects": false,
@@ -27,30 +20,12 @@
       "types": "./dist/events/outbox/index.d.ts",
       "import": "./dist/events/outbox/index.js",
       "default": "./dist/events/outbox/index.js"
-    },
-    "./db/core": {
-      "import": {
-        "types": "./dist/db/driver/index.d.ts",
-        "default": "./dist/db/driver/index.js"
-      }
-    },
-    "./db/sqlite": {
-      "import": {
-        "types": "./dist/db/sqlite/index.d.ts",
-        "default": "./dist/db/sqlite/index.js"
-      }
     }
   },
   "typesVersions": {
     "*": {
       "events/outbox": [
         "./dist/events/outbox/index.d.ts"
-      ],
-      "db/core": [
-        "./dist/db/driver/index.d.ts"
-      ],
-      "db/sqlite": [
-        "./dist/db/sqlite/index.d.ts"
       ]
     }
   },
@@ -78,18 +53,9 @@
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^3.2.6",
-    "@jini-ai/db": "workspace:^",
     "@jini-ai/core": "workspace:*"
   },
   "dependencies": {
     "@jini-ai/core": "workspace:^"
-  },
-  "peerDependencies": {
-    "@jini-ai/db": "^0.7.3-next.2"
-  },
-  "peerDependenciesMeta": {
-    "@jini-ai/db": {
-      "optional": true
-    }
   }
 }

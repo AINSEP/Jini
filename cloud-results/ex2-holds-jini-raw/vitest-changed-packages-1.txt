@@ -1,0 +1,7 @@
+core:  Test Files 217 passed (217)  Tests 2974 passed (2974) 
+infra:  Test Files 13 passed (13)  Tests 147 passed (147) 
+db:  Test Files 114 passed (114)  Tests 950 passed (950) 
+artifacts:  Test Files 15 passed (15)  Tests 242 passed (242) 
+capability-providers:  Test Files 18 passed (18)  Tests 198 passed (198) 
+protocol:  Test Files 27 passed (27)  Tests 795 passed (795) 
+registry:  Test Files 22 passed (22)  Tests 392 passed (392) 

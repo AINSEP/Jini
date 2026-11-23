@@ -80,7 +80,7 @@ export function resolveArtifactManifest(
 /**
  * A store of named artifacts with validated manifests. Kernel port —
  * `@jini-ai/daemon` ships `createInMemoryArtifactStore` as the reference
- * implementation; a durable adapter (`@jini-ai/sqlite-chat`) can implement the same
+ * implementation; a durable adapter (a SQLite store beside `@jini-ai/chat/store/sqlite`) can implement the same
  * interface against real persistence.
  */
 export interface ArtifactStore {

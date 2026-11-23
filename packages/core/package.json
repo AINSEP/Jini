@@ -29,6 +29,7 @@
       "./contracts/server/testing": "universal",
       "./contracts/server/conformance": "universal",
       "./naming": "universal",
+      "./extension-capability-vocabulary": "universal",
       "./records": "universal",
       "./optimistic-concurrency": "universal",
       "./list-page": "universal",
@@ -214,6 +215,11 @@
       "types": "./dist/naming.d.ts",
       "import": "./dist/naming.js",
       "default": "./dist/naming.js"
+    },
+    "./extension-capability-vocabulary": {
+      "types": "./dist/extension-capability-vocabulary.d.ts",
+      "import": "./dist/extension-capability-vocabulary.js",
+      "default": "./dist/extension-capability-vocabulary.js"
     },
     "./records": {
       "types": "./dist/records.d.ts",

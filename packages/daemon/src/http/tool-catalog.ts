@@ -7,8 +7,8 @@
  * narrowing. `@jini-ai/mcp`'s `search_tools`/`describe_tool` tool defs proxy these two routes,
  * exactly mirroring how `run-tools.ts`'s tools proxy `runs.ts`.
  *
- * This module does not depend on `@jini-ai/sqlite-chat` or `better-sqlite3` — `ToolCatalogQuery` is a
- * plain injected interface, structurally compatible with `@jini-ai/sqlite-chat`'s
+ * This module does not depend on `@jini-ai/registry/tool-catalog/sqlite` or `better-sqlite3` — `ToolCatalogQuery` is a
+ * plain injected interface, structurally compatible with `@jini-ai/registry/tool-catalog/sqlite`'s
  * `searchToolCatalog`/`getToolCatalogEntry` so a caller wires those in with zero adapter code,
  * matching `db-ops.ts`'s established convention.
  *
@@ -58,7 +58,7 @@ export interface ToolCatalogDescribeOptions {
   readonly visibleToolIds?: ReadonlySet<string>;
 }
 
-/** Structurally identical to `@jini-ai/sqlite-chat`'s `searchToolCatalog`/`getToolCatalogEntry` — defined locally so this package incurs no `better-sqlite3` dependency. */
+/** Structurally identical to `@jini-ai/registry/tool-catalog/sqlite`'s `searchToolCatalog`/`getToolCatalogEntry` — defined locally so this package incurs no `better-sqlite3` dependency. */
 export interface ToolCatalogQuery {
   readonly search: ({ query }: { readonly query: string }, optionalArgs?: { readonly limit?: number | undefined }) => readonly ToolCatalogSearchHit[];
   readonly describe: ({ id }: { readonly id: string }, optional?: ToolCatalogDescribeOptions) => ToolCatalogEntry | null;

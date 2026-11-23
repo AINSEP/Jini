@@ -1,76 +1,63 @@
-/** Q2 (owner answer 2026-11-15): `sqlite` and `infra` are frozen compatibility forwarders until the next major.
- * The gate excuses exactly their five package edges; each exception must be load-bearing and nothing else may be excused. */
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+/** Q2 (owner answer 2026-11-15) froze the `sqlite` and `infra` compatibility forwarders and excused their five
+ * package edges. The owner's retire order (2026-11-22) deleted both forwarders (RT-1, RT-2), so the gate excuses
+ * nothing. An exception for a deleted forwarder must not come back to excuse a re-added one, and the shims' own
+ * edges must surface again if anyone restores them. */
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { checkPackageLayers } from '../check-package-layers.js';
-import { loadDebt, loadExceptions, type InjectionException } from '../lib/injection-debt.js';
+import { loadDebt, loadExceptions } from '../lib/injection-debt.js';
+import { collectInjectionFindings } from '../lib/injection-gate.js';
+import { sourcePackages } from '../lib/package-sources.js';
 import { REPO_ROOT } from '../lib/walk-imports.js';
 
-const Q2_EDGES = [
-  { owner: 'infra', target: 'db', specGlob: '@jini-ai/db' },
-  { owner: 'sqlite', target: 'chat', specGlob: '@jini-ai/chat' },
-  { owner: 'sqlite', target: 'daemon', specGlob: '@jini-ai/daemon' },
-  { owner: 'sqlite', target: 'db', specGlob: '@jini-ai/db' },
-  { owner: 'sqlite', target: 'registry', specGlob: '@jini-ai/registry' },
-];
-const COPIED = ['core', 'protocol', 'chat', 'daemon', 'db', 'registry', 'sqlite', 'infra'];
+const COPIED = ['core', 'protocol', 'db', 'infra'];
 const L5 = 'L5-injected-edge';
 let root: string;
-
-const edgeKey = (item: { owner: string; target: string; specGlob: string }): string => `${item.owner}>${item.target}:${item.specGlob}`;
-const l5Files = (): string[] => checkPackageLayers({ repoRoot: root }, { warn: () => undefined, debtBase: () => null })
-  .filter(violation => violation.rule === L5 && /^packages\/(sqlite|infra)\//.test(violation.file)).map(violation => violation.file).sort();
-const writeExceptions = (items: readonly InjectionException[]): void =>
-  writeFileSync(join(root, 'scripts', 'injection-exceptions.json'), JSON.stringify({ exceptions: items }));
 
 beforeEach(() => {
   root = mkdtempSync(join(tmpdir(), 'jini-q2-exceptions-'));
   mkdirSync(join(root, 'scripts'), { recursive: true });
+  writeFileSync(join(root, 'scripts', 'injection-exceptions.json'), JSON.stringify({ exceptions: [] }));
   for (const name of COPIED) {
     mkdirSync(join(root, 'packages', name), { recursive: true });
     cpSync(join(REPO_ROOT, 'packages', name, 'package.json'), join(root, 'packages', name, 'package.json'));
   }
-  for (const file of ['packages/sqlite/src/index.ts', 'packages/infra/src/db/driver/index.ts', 'packages/infra/src/db/sqlite/index.ts']) {
-    mkdirSync(dirname(join(root, file)), { recursive: true });
-    cpSync(join(REPO_ROOT, file), join(root, file));
-  }
 });
 afterEach(() => rmSync(root, { recursive: true, force: true }));
 
-describe('Q2 frozen forwarders in scripts/injection-exceptions.json', () => {
-  const real = loadExceptions({ root: REPO_ROOT });
-
-  it('lists exactly the five sqlite/infra package edges, each with the owner question, approval date and removal note', () => {
-    expect(real.map(edgeKey).sort()).toEqual(Q2_EDGES.map(edgeKey).sort());
-    for (const item of real) {
-      expect(item.ownerQuestion).toBe('Q2');
-      expect(item.approved).toBe('2026-11-15');
-      expect(item.note).toMatch(/next major/);
-    }
-  });
-
-  it('keeps no sqlite or infra allowance in the debt baseline (the exceptions cover them; a stale allowance fails the gate)', () => {
-    const leftover = loadDebt({ root: REPO_ROOT }).filter(entry => /^packages\/(sqlite|infra)\//.test(entry.file));
-    expect(leftover).toEqual([]);
-  });
-
-  it('excuses every sqlite and infra edge of the real manifests and sources when all five exceptions are present', () => {
-    writeExceptions(real);
-    expect(l5Files()).toEqual([]);
-  });
-
-  it.each(Q2_EDGES.map(edge => [edgeKey(edge), edge] as const))('%s is load-bearing: removing it surfaces the edge', (_name, edge) => {
-    writeExceptions(real.filter(item => edgeKey(item) !== edgeKey(edge)));
-    const found = l5Files();
-    expect(found.length).toBeGreaterThan(0);
-    expect(found.every(file => file.startsWith(`packages/${edge.owner}/`))).toBe(true);
-  });
-
-  it('keeps the rule that an exception is never added to silence the gate, and no longer says the forwarders are deleted', () => {
+describe('Q2 forwarders retired from scripts/injection-exceptions.json', () => {
+  it('lists no exception at all, and keeps the rule that one is never added to silence the gate', () => {
+    expect(loadExceptions({ root: REPO_ROOT })).toEqual([]);
     const text = readFileSync(join(REPO_ROOT, 'scripts', 'injection-exceptions.json'), 'utf8');
     expect(text).toContain('never add one to silence the gate');
-    expect(text).not.toMatch(/deleted in lane R13/);
+  });
+
+  it('keeps no sqlite or infra allowance in the debt baseline', () => {
+    expect(loadDebt({ root: REPO_ROOT }).filter(entry => /^packages\/(sqlite|infra)\//.test(entry.file))).toEqual([]);
+  });
+
+  it('leaves no workspace, shim source or surface baseline for either retired forwarder', () => {
+    expect(existsSync(join(REPO_ROOT, 'packages', 'sqlite'))).toBe(false);
+    expect(existsSync(join(REPO_ROOT, 'api-baseline', 'jini-ai__sqlite.json'))).toBe(false);
+    expect(existsSync(join(REPO_ROOT, 'packages', 'infra', 'src', 'db'))).toBe(false);
+  });
+
+  it('surfaces a re-added infra db shim as an L5 edge now that no exception excuses it', () => {
+    const shimFile = 'packages/infra/src/db/sqlite/index.ts';
+    const shim = join(root, ...shimFile.split('/'));
+    mkdirSync(dirname(shim), { recursive: true });
+    writeFileSync(shim, "export { openSqliteConnection } from '@jini-ai/db/sqlite';\n");
+    const manifest = JSON.parse(readFileSync(join(root, 'packages', 'infra', 'package.json'), 'utf8'));
+    manifest.peerDependencies = { '@jini-ai/db': '^0.7.0' };
+    writeFileSync(join(root, 'packages', 'infra', 'package.json'), JSON.stringify(manifest));
+    const found = checkPackageLayers({ repoRoot: root }, { warn: () => undefined, debtBase: () => null })
+      .filter(violation => violation.rule === L5 && violation.file.startsWith('packages/infra/'));
+    // The manifest peer is forbidden on its own, so a bare count would stay green if the scanner
+    // missed the shim's re-export. Pin the source edge itself: its file, its specifier, its kind.
+    expect(found).toContainEqual(expect.objectContaining({ rule: L5, file: shimFile, reason: expect.stringContaining('→ @jini-ai/db/sqlite') }));
+    const findings = collectInjectionFindings({ root, packages: sourcePackages({ packagesDir: join(root, 'packages') }) });
+    expect(findings).toContainEqual(expect.objectContaining({ rule: L5, file: shimFile, spec: '@jini-ai/db/sqlite', kind: 'export-from' }));
   });
 });

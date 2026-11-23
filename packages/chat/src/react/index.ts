@@ -307,7 +307,7 @@ export { TodoCard } from './components/TodoCard.js';
 export type { TodoCardProps } from './components/TodoCard.js';
 /**
  * The conversation switcher — new / select / delete / search / rename-on-double-click. Storage
- * agnostic: it takes data plus callbacks, so a host backs it with `@jini-ai/sqlite-chat`'s
+ * agnostic: it takes data plus callbacks, so a host backs it with `@jini-ai/chat/store/sqlite`'s
  * `ChatHistoryStore`, an HTTP endpoint, or a plain array. Drop it into `ChatPane`'s
  * `leadingAccessory` slot; it needs no changes to `ChatPane` itself.
  */
