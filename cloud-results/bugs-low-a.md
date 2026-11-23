@@ -1,4 +1,4 @@
-DONE db764b7384 116d86b69
+DONE f5c1f7a3ed 116d86b69
 
 # Bug lane A — OPEN LOW / LOW-MED + NOT-CHECKED rows of part A and part C (2026-11-23)
 
@@ -60,7 +60,7 @@ A305 | ALREADY-FIXED (zero bar intended; bar-chart.test.tsx asserts it, 118/118)
 A307 | ALREADY-FIXED / OBSOLETE (durable-json suites 47+15 green; no source-boundaries flag exists) | — | —
 A308 | ALREADY-FIXED (decided in code: platform/src/fs/file-lock.ts:11 "Proven live owners are never age-evicted"; both U6 tests agree) | — | —
 A310 | NEEDS-OWNER (analytics forwarding with consent off; recommend: forward nothing, document it) | — | —
-A312 | ALREADY-FIXED (no test path writes `sites/*/consent-receipts`; full root suite with `TOVU_BUNDLED_AGENT_PLUGINS_DIR` unset left `sites/` unchanged — file list diffed mid-run at ~59.5k log lines) | — | —
+A312 | FIXED for the two leaking files found + AFTER-COMBINE for the root cause. A full root `npm test` (corrected after the first report said ALREADY-FIXED) showed `database-migration-reconciliation-boot.integration.test.ts` writing ~770 agent-plugin files into the REAL `sites/tovu-dev` (`createSiteRouteDeps({}, { dbPath })` binds to the process's site, not dbPath's). Both files now inject their disposable site through `overrides.siteBinding`; the leftovers this run created were removed (diffed against the pre-run `find sites` list). Root fix: `site-deps/overrides.ts` `resolveSiteBindingOverride` should bind from `resolveSiteDirForDatabase({ dbPath })` (+ `boot-phases.ts`, `site-registry.ts` helper) — avoided files. Still leaking until then: create-sqlite-route-deps-for-workspace, tool-attempt-audit-sink-composition, create-sqlite-route-deps-overrides, dev-capability-origin-scheme (all under `W/server/__tests__/integration/`), `composition/__tests__/create-site-route-deps-boot-options.integration.test.ts`; ~27 files call createSiteRouteDeps without a binding. Consent receipts themselves were never written | T f5c1f7a3ed | database-migration-reconciliation-boot.integration.test.ts::"A312 regression: a booted composition is bound to its disposable site…" (mutation drop-injection red)
 A313 | ALREADY-FIXED (`development/test-support/composed-bundle-env.ts` sets a disposable plugins dir when unset) | — | —
 A314 | ALREADY-FIXED / debt (typecheck:tests 0; complexity 0; hardwiring is a pinned 67-row baseline) | — | —
 A315 | ALREADY-FIXED (plugin-activation-polling.ts durable-row polling + test) | — | —
