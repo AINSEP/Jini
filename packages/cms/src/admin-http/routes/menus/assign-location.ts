@@ -2,7 +2,8 @@ import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
 import { rejectRoute } from "@jini-ai/core/errors/route-refusal";
 
 import { assignLocation, type AssignLocationDeps } from "../../../navigation/index.js";
-import { toAdminAssignLocationResponse, type AdminAssignLocationEnvelope } from "../../http/menus.js";
+import type { AdminAssignLocationEnvelope } from "@jini-ai/core/contracts/site/cms-menus";
+import { toAdminAssignLocationResponse } from "../../http/menus.js";
 import {
   authorizeMenus, MENU_CONFLICT, MENU_NOT_FOUND, MENU_NOT_LIVE, MENU_VERSION_CONFLICT, menuIdParam, rejectMenuError,
   type MenuRoutePrincipal,
@@ -33,7 +34,7 @@ export const menuAssignLocationRoute = defineJsonRoute<{ menuId: string; locatio
   parse: (raw) => {
     const locationKey = String(((raw.body ?? {}) as Record<string, unknown>).locationKey ?? "").trim();
     if (!locationKey) rejectRoute({ status: 400, error: "locationKey is required" });
-    return ok({ value: { menuId: menuIdParam(raw.params), locationKey } });
+    return ok({ value: { menuId: menuIdParam({ params: raw.params }), locationKey } });
   },
   handle: async ({ input, deps, authorize }) => {
     await authorizeMenus({ authorize, permission: "admin.menus.assign" }, { entityId: input.menuId });

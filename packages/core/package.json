@@ -118,6 +118,7 @@
       "./contracts/site/headless-assistant-permanent-deletes-policy": "universal",
       "./contracts/site/integrations-credentialed-http": "universal",
       "./contracts/site/widgets-html": "universal",
+      "./contracts/site/cms-menus": "universal",
       "./contracts/site/integrations-api-connections": "universal",
       "./contracts/site/chat-core": "universal"
     },
@@ -696,6 +697,11 @@
       "types": "./dist/contracts/site/widgets-html.d.ts",
       "import": "./dist/contracts/site/widgets-html.js",
       "default": "./dist/contracts/site/widgets-html.js"
+    },
+    "./contracts/site/cms-menus": {
+      "types": "./dist/contracts/site/cms-menus.d.ts",
+      "import": "./dist/contracts/site/cms-menus.js",
+      "default": "./dist/contracts/site/cms-menus.js"
     },
     "./contracts/site/integrations-api-connections": {
       "types": "./dist/contracts/site/integrations-api-connections.d.ts",

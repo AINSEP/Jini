@@ -41,20 +41,12 @@
  "./admin-http/http/menus": {
   "types": "./dist/admin-http/http/menus.d.ts",
   "symbols": {
-   "AdminAssignLocationEnvelope": "interface:4b47471dda",
-   "AdminMenuBindingDto": "interface:2ce323da88",
-   "AdminMenuDto": "interface:32da9d9d6b",
-   "AdminMenuEnvelope": "interface:61f7c52c7c",
-   "AdminMenuItemDto": "interface:eca44ead6a",
-   "AdminMenuListEnvelope": "interface:ca53c37617",
-   "AdminMenuTargetDto": "type:28bf52da3e",
-   "AdminTrashMenuEnvelope": "interface:7f1face6df",
-   "parseMenuHtmlAuthoring": "function:797963ecd2",
+   "parseMenuHtmlAuthoring": "function:d8a534f540",
    "toAdminAssignLocationResponse": "function:8aca946334",
-   "toAdminMenuBindingDto": "function:ad4e23bbe8",
-   "toAdminMenuDto": "function:e679ea5f82",
+   "toAdminMenuBindingDto": "function:03e0892771",
+   "toAdminMenuDto": "function:fce26a4af3",
    "toAdminMenuListResponse": "function:8e006c2f02",
-   "toAdminMenuResponse": "function:7f4d4e6416",
+   "toAdminMenuResponse": "function:e11707c207",
    "toAdminTrashMenuResponse": "function:84a8a19808"
   }
  },

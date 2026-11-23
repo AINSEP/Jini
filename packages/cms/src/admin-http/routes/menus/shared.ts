@@ -84,6 +84,6 @@ export function menuActorId({ context }: { context: MenuRoutePrincipal | undefin
 }
 
 /** The `:menuId` path segment; Express always fills it, the `?? ""` mirrors the host's own guard. @complexity O(1). */
-export function menuIdParam(params: Record<string, string | undefined>): string {
+export function menuIdParam({ params }: { params: Record<string, string | undefined> }, _optional: Record<string, never> = {}): string {
   return String(params.menuId ?? "");
 }

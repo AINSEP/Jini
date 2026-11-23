@@ -1177,6 +1177,27 @@
    "FormSubmissionsInspection": "interface:cff10dc902"
   }
  },
+ "./contracts/site/cms-menus": {
+  "types": "./dist/contracts/site/cms-menus.d.ts",
+  "symbols": {
+   "AdminAssignLocationEnvelope": "interface:4b47471dda",
+   "AdminMenuAttrsDto": "interface:075fbb64b9",
+   "AdminMenuAuthoringDto": "interface:2df671e88f",
+   "AdminMenuBindingDto": "interface:2ce323da88",
+   "AdminMenuDto": "interface:4ac07c82de",
+   "AdminMenuEntryTargetDto": "interface:1776d48538",
+   "AdminMenuEnvelope": "interface:61f7c52c7c",
+   "AdminMenuItemDto": "interface:86ff130ace",
+   "AdminMenuListEnvelope": "interface:ca53c37617",
+   "AdminMenuMode": "type:d63952b621",
+   "AdminMenuRouteTargetDto": "interface:8f44f6b4c2",
+   "AdminMenuStatus": "type:e32996a7ee",
+   "AdminMenuTargetDto": "type:e190812bd9",
+   "AdminMenuTermTargetDto": "interface:92e299b2c5",
+   "AdminMenuUrlTargetDto": "interface:6895186605",
+   "AdminTrashMenuEnvelope": "interface:7f1face6df"
+  }
+ },
  "./contracts/site/cookie-consent": {
   "types": "./dist/contracts/site/cookie-consent.d.ts",
   "symbols": {
