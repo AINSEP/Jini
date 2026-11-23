@@ -172,7 +172,13 @@
       "./screens/menus/hooks/menus-port.hooks": "universal",
       "./screens/menus/MenuEditor.hooks": "browser",
       "./screens/menus/MenuPageLinkFields.hooks": "browser",
-      "./screens/menus/MenuPageLinkFields": "browser"
+      "./screens/menus/MenuPageLinkFields": "browser",
+      "./roles/api/roles-api.types": "browser",
+      "./roles/Roles.hooks": "browser",
+      "./screens/auth/api/auth-api.types": "browser",
+      "./screens/auth/hooks/login-port.hooks": "browser",
+      "./screens/auth/Login.hooks": "browser",
+      "./shell/lib/boot-token-fragment": "browser"
     },
     "isolation": {
       "shared": [
@@ -251,7 +257,13 @@
         "./shell/components/InstallTabCard/use-folder-upload.hooks": "browser",
         "./shell/components/Select/Select.hooks": "browser",
         "./shell/lib/tab-event-source": "browser",
-        "./shell/hooks/use-external-entry-refresh.hooks": "browser"
+        "./shell/hooks/use-external-entry-refresh.hooks": "browser",
+        "./roles/api/roles-api.types": "browser",
+        "./roles/Roles.hooks": "browser",
+        "./screens/auth/api/auth-api.types": "browser",
+        "./screens/auth/hooks/login-port.hooks": "browser",
+        "./screens/auth/Login.hooks": "browser",
+        "./shell/lib/boot-token-fragment": "browser"
       }
     },
     "optionalPeers": {
@@ -1053,6 +1065,36 @@
       "types": "./dist/screens/menus/MenuPageLinkFields.d.ts",
       "import": "./dist/screens/menus/MenuPageLinkFields.js",
       "default": "./dist/screens/menus/MenuPageLinkFields.js"
+    },
+    "./roles/api/roles-api.types": {
+      "types": "./dist/roles/api/roles-api.types.d.ts",
+      "import": "./dist/roles/api/roles-api.types.js",
+      "default": "./dist/roles/api/roles-api.types.js"
+    },
+    "./roles/Roles.hooks": {
+      "types": "./dist/roles/Roles.hooks.d.ts",
+      "import": "./dist/roles/Roles.hooks.js",
+      "default": "./dist/roles/Roles.hooks.js"
+    },
+    "./screens/auth/api/auth-api.types": {
+      "types": "./dist/screens/auth/api/auth-api.types.d.ts",
+      "import": "./dist/screens/auth/api/auth-api.types.js",
+      "default": "./dist/screens/auth/api/auth-api.types.js"
+    },
+    "./screens/auth/hooks/login-port.hooks": {
+      "types": "./dist/screens/auth/hooks/login-port.hooks.d.ts",
+      "import": "./dist/screens/auth/hooks/login-port.hooks.js",
+      "default": "./dist/screens/auth/hooks/login-port.hooks.js"
+    },
+    "./screens/auth/Login.hooks": {
+      "types": "./dist/screens/auth/Login.hooks.d.ts",
+      "import": "./dist/screens/auth/Login.hooks.js",
+      "default": "./dist/screens/auth/Login.hooks.js"
+    },
+    "./shell/lib/boot-token-fragment": {
+      "types": "./dist/shell/lib/boot-token-fragment.d.ts",
+      "import": "./dist/shell/lib/boot-token-fragment.js",
+      "default": "./dist/shell/lib/boot-token-fragment.js"
     }
   },
   "files": [
@@ -1110,6 +1152,12 @@
       ],
       "shell/*": [
         "./dist/shell/*.d.ts"
+      ],
+      "screens/*": [
+        "./dist/screens/*.d.ts"
+      ],
+      "roles/*": [
+        "./dist/roles/*.d.ts"
       ]
     }
   },

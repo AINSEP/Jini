@@ -2289,5 +2289,49 @@
    "useWidgetsPorts": "function:262f4fd604",
    "widgets": "function:2f5403fc99"
   }
+ },
+ "./roles/api/roles-api.types": {
+  "types": "./dist/roles/api/roles-api.types.d.ts",
+  "symbols": {
+   "AdminPolicy": "interface:c55623308e",
+   "AdminPolicyPermission": "interface:b6c565baf1",
+   "AdminRole": "interface:082b214d1e"
+  }
+ },
+ "./roles/Roles.hooks": {
+  "types": "./dist/roles/Roles.hooks.d.ts",
+  "symbols": {
+   "PoliciesIcon": "function:00a3f6a015",
+   "ROLES_TAB_IDS": "variable:4872049fb2",
+   "RolesIcon": "function:c19b04dced",
+   "RolesTabId": "type:bc088675e4",
+   "goToRolesTab": "function:3ac767b04d",
+   "resolveRolesTabId": "function:3302037b14",
+   "resolveRolesTabs": "function:d27e71826f"
+  }
+ },
+ "./screens/auth/api/auth-api.types": {
+  "types": "./dist/screens/auth/api/auth-api.types.d.ts",
+  "symbols": {
+   "AdminUser": "interface:0be19e739a"
+  }
+ },
+ "./screens/auth/hooks/login-port.hooks": {
+  "types": "./dist/screens/auth/hooks/login-port.hooks.d.ts",
+  "symbols": {
+   "LoginPort": "interface:f84dfe5bdc"
+  }
+ },
+ "./screens/auth/Login.hooks": {
+  "types": "./dist/screens/auth/Login.hooks.d.ts",
+  "symbols": {
+   "createLoginTranslator": "function:79398d647d"
+  }
+ },
+ "./shell/lib/boot-token-fragment": {
+  "types": "./dist/shell/lib/boot-token-fragment.d.ts",
+  "symbols": {
+   "takeBootToken": "function:c84d4a9a18"
+  }
  }
 }
