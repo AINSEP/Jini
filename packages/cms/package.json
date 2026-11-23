@@ -176,6 +176,8 @@
       "./forms/site/form-destination-manifest": "node",
       "./forms/site/import-remote-submissions": "universal",
       "./forms/site/mail-outbox-readiness": "universal",
+      "./forms/site/rate-limit-profile": "universal",
+      "./forms/site/analytics-provenance": "universal",
       "./forms/destinations/pull": "universal",
       "./forms/destinations/select": "universal",
       "./comments/site/comment-targets": "universal",
@@ -195,6 +197,9 @@
       "./media/site/purge-media": "node",
       "./media/site/analytics": "universal",
       "./media/site/contracts": "universal",
+      "./media/site/view-image-tool": "universal",
+      "./media/site-generation/agent-tools": "universal",
+      "./media/site/provider-credential-contracts": "universal",
       "./admin-http/routes/media/get-providers": "universal",
       "./admin-http/routes/media/delete": "universal",
       "./admin-http/routes/media/trash": "universal",
@@ -1248,6 +1253,16 @@
       "import": "./dist/forms/site/mail-outbox-readiness.js",
       "default": "./dist/forms/site/mail-outbox-readiness.js"
     },
+    "./forms/site/rate-limit-profile": {
+      "types": "./dist/forms/site/rate-limit-profile.d.ts",
+      "import": "./dist/forms/site/rate-limit-profile.js",
+      "default": "./dist/forms/site/rate-limit-profile.js"
+    },
+    "./forms/site/analytics-provenance": {
+      "types": "./dist/forms/site/analytics-provenance.d.ts",
+      "import": "./dist/forms/site/analytics-provenance.js",
+      "default": "./dist/forms/site/analytics-provenance.js"
+    },
     "./forms/destinations/pull": {
       "types": "./dist/forms/destinations/pull.d.ts",
       "import": "./dist/forms/destinations/pull.js",
@@ -1342,6 +1357,21 @@
       "types": "./dist/media/site/contracts.d.ts",
       "import": "./dist/media/site/contracts.js",
       "default": "./dist/media/site/contracts.js"
+    },
+    "./media/site/view-image-tool": {
+      "types": "./dist/media/site/view-image-tool.d.ts",
+      "import": "./dist/media/site/view-image-tool.js",
+      "default": "./dist/media/site/view-image-tool.js"
+    },
+    "./media/site-generation/agent-tools": {
+      "types": "./dist/media/site-generation/agent-tools.d.ts",
+      "import": "./dist/media/site-generation/agent-tools.js",
+      "default": "./dist/media/site-generation/agent-tools.js"
+    },
+    "./media/site/provider-credential-contracts": {
+      "types": "./dist/media/site/provider-credential-contracts.d.ts",
+      "import": "./dist/media/site/provider-credential-contracts.js",
+      "default": "./dist/media/site/provider-credential-contracts.js"
     },
     "./admin-http/routes/media/get-providers": {
       "types": "./dist/admin-http/routes/media/get-providers.d.ts",

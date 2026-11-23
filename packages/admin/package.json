@@ -161,6 +161,11 @@
       "./screens/collections/hooks/collection-entries-port.hooks": "universal",
       "./screens/collections/hooks/collection-entry-editor-port.hooks": "universal",
       "./screens/collections/hooks/collections-port.hooks": "universal",
+      "./screens/collections/hooks/collection-entries-dependencies.hooks": "universal",
+      "./screens/collections/hooks/collection-entry-editor-dependencies.hooks": "universal",
+      "./screens/collections/hooks/collections-dependencies.hooks": "universal",
+      "./screens/collections/hooks/edit-fields-dialog-dependencies.hooks": "universal",
+      "./screens/collections/hooks/new-content-type-dialog-dependencies.hooks": "universal",
       "./screens/collections/hooks/edit-fields-dialog-port.hooks": "universal",
       "./screens/collections/hooks/new-content-type-dialog-port.hooks": "universal",
       "./screens/taxonomy/api/taxonomy-api.types": "universal",
@@ -1040,6 +1045,31 @@
       "import": "./dist/screens/collections/hooks/collections-port.hooks.js",
       "default": "./dist/screens/collections/hooks/collections-port.hooks.js"
     },
+    "./screens/collections/hooks/collection-entries-dependencies.hooks": {
+      "types": "./dist/screens/collections/hooks/collection-entries-dependencies.hooks.d.ts",
+      "import": "./dist/screens/collections/hooks/collection-entries-dependencies.hooks.js",
+      "default": "./dist/screens/collections/hooks/collection-entries-dependencies.hooks.js"
+    },
+    "./screens/collections/hooks/collection-entry-editor-dependencies.hooks": {
+      "types": "./dist/screens/collections/hooks/collection-entry-editor-dependencies.hooks.d.ts",
+      "import": "./dist/screens/collections/hooks/collection-entry-editor-dependencies.hooks.js",
+      "default": "./dist/screens/collections/hooks/collection-entry-editor-dependencies.hooks.js"
+    },
+    "./screens/collections/hooks/collections-dependencies.hooks": {
+      "types": "./dist/screens/collections/hooks/collections-dependencies.hooks.d.ts",
+      "import": "./dist/screens/collections/hooks/collections-dependencies.hooks.js",
+      "default": "./dist/screens/collections/hooks/collections-dependencies.hooks.js"
+    },
+    "./screens/collections/hooks/edit-fields-dialog-dependencies.hooks": {
+      "types": "./dist/screens/collections/hooks/edit-fields-dialog-dependencies.hooks.d.ts",
+      "import": "./dist/screens/collections/hooks/edit-fields-dialog-dependencies.hooks.js",
+      "default": "./dist/screens/collections/hooks/edit-fields-dialog-dependencies.hooks.js"
+    },
+    "./screens/collections/hooks/new-content-type-dialog-dependencies.hooks": {
+      "types": "./dist/screens/collections/hooks/new-content-type-dialog-dependencies.hooks.d.ts",
+      "import": "./dist/screens/collections/hooks/new-content-type-dialog-dependencies.hooks.js",
+      "default": "./dist/screens/collections/hooks/new-content-type-dialog-dependencies.hooks.js"
+    },
     "./screens/collections/hooks/edit-fields-dialog-port.hooks": {
       "types": "./dist/screens/collections/hooks/edit-fields-dialog-port.hooks.d.ts",
       "import": "./dist/screens/collections/hooks/edit-fields-dialog-port.hooks.js",
@@ -1382,6 +1412,21 @@
       ],
       "screens/taxonomy/rules": [
         "./dist/screens/taxonomy/rules.d.ts"
+      ],
+      "screens/collections/hooks/collection-entries-dependencies.hooks": [
+        "./dist/screens/collections/hooks/collection-entries-dependencies.hooks.d.ts"
+      ],
+      "screens/collections/hooks/collection-entry-editor-dependencies.hooks": [
+        "./dist/screens/collections/hooks/collection-entry-editor-dependencies.hooks.d.ts"
+      ],
+      "screens/collections/hooks/collections-dependencies.hooks": [
+        "./dist/screens/collections/hooks/collections-dependencies.hooks.d.ts"
+      ],
+      "screens/collections/hooks/edit-fields-dialog-dependencies.hooks": [
+        "./dist/screens/collections/hooks/edit-fields-dialog-dependencies.hooks.d.ts"
+      ],
+      "screens/collections/hooks/new-content-type-dialog-dependencies.hooks": [
+        "./dist/screens/collections/hooks/new-content-type-dialog-dependencies.hooks.d.ts"
       ],
       "screens/taxonomy/taxonomy-host-kit": [
         "./dist/screens/taxonomy/taxonomy-host-kit.d.ts"

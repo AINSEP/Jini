@@ -10,6 +10,13 @@ Site-level media commands and helpers extracted from a host CMS. Each module is 
   attachment lookup (typed on `@jini-ai/core/contracts/site/daemon-http`'s `PendingAttachmentSummary`);
   the host composition module registers the returned tool.
 
+- `provider-credential-contracts` — types only: `MediaProviderCredentialRecord`, `MediaProviderCredentialRepoPort`
+  and the replace-plan types. `sealed` is `@jini-ai/core/contracts/vault`'s `SealedSecret`; the host supplies the
+  vault-backed repo and the sealer.
+- `view-image-tool` — `contributeMediaViewImageTools()` / `buildMediaViewImageRegistrations(deps)`. The host's
+  deps carry `mediaRepo`, `assetBlobRepo`, `blobStore`, `authorize`, `workspaceId` and an `imageCodec: ImageCodecPort`
+  (no codec means the tool refuses rather than loading a native vendor itself).
+
 ### `import-media-entity`
 
 `importMediaEntity` writes an imported media row under its SOURCE id (never a freshly minted
