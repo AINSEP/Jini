@@ -1,7 +1,8 @@
 # posts
 
 Leaf pieces of the admin post editor: byline and publish-time fields, the editor's notice banners
-and the toolbar's phone-overflow button. The editor screen, its hooks and anything typed against the
+the toolbar's phone-overflow button and its measuring hook, the delete-confirm dialog, the list
+port and the admin post types. The editor screen, its data hooks and anything typed against the
 host's rich-text editor stay in the host for now. See
 `ADS-memory/reports/jini-port/extraction-plan.md` for the reasons.
 
@@ -24,9 +25,22 @@ host's rich-text editor stay in the host for now. See
 - Inputs are tagged through `agentHandle` from `@jini-ai/core/agent-handles` (`post-author`,
   `post-show-author`, `post-publish-at`), so the host's agent surface can find them by handle.
 - Every visible label goes through the injected `t: Translate` (type from `@jini-ai/core/text`).
+- `PostDeleteConfirmDialog` takes `kindLabel`, `post` (`id`, `title`), `open`, `pending`,
+  `onConfirm`, `onCancel` and `t`; it renders the package's own `ConfirmDialog`.
+- `usePostEditorUi` takes the host editor's `save`, the dialog setters and `dirty`;
+  `useToolbarOverflow` and `usePostSettingsDialog` take nothing. The host binds them at its editor
+  call site and passes the results down as props. `useToolbarOverflow` measures the toggle through
+  its `data-toolbar-more` attribute, so it must be paired with `ToolbarOverflowMenu`.
+- `PostsListPort` (`hooks/posts-list-port.hooks`) is the interface the host's list hook is given;
+  the host binds its request client into it.
 
 **What it provides.**
 - `PostAuthorFields` at `@jini-ai/admin/posts/PostAuthorFields`
+- `AdminPost` and `AdminPostCreateInput` at `@jini-ai/admin/posts/api/posts-api.types`
+- `PostDeleteConfirmDialog` at `@jini-ai/admin/posts/editor/PostDeleteConfirmDialog`
+- `PostsListPort` at `@jini-ai/admin/posts/hooks/posts-list-port.hooks`
+- `usePostEditorUi`, `useToolbarOverflow`, `usePostSettingsDialog`, `usePostPreviewIframeEscape`
+  and `primaryControlsThatFit` at `@jini-ai/admin/posts/hooks/use-post-editor-ui.hooks`
 - `PostPublishAtField` and `PostPublishAtFieldProps` at `@jini-ai/admin/posts/PostPublishingFields`
   (the subpath keeps its old file name; there is no `PostPublishingFields` symbol)
 - `PostAutosaveRecoveryBanner`, `PostAutosaveStaleBanner` and `PostVersionConflictBanner`
