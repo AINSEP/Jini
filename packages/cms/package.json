@@ -147,7 +147,8 @@
       "./admin-http/sea-runtime": "node",
       "./public-http/http/site/render/media-playback-copy": "universal",
       "./public-http/http/site/render/value-readers": "universal",
-      "./public-http/routes/site/pages/listing/listing-state": "universal"
+      "./public-http/routes/site/pages/listing/listing-state": "universal",
+      "./redirects/site/phase-handler": "universal"
     },
     "isolation": {
       "domains": {
@@ -931,6 +932,11 @@
       "types": "./dist/public-http/routes/site/pages/listing/listing-state.d.ts",
       "import": "./dist/public-http/routes/site/pages/listing/listing-state.js",
       "default": "./dist/public-http/routes/site/pages/listing/listing-state.js"
+    },
+    "./redirects/site/phase-handler": {
+      "types": "./dist/redirects/site/phase-handler.d.ts",
+      "import": "./dist/redirects/site/phase-handler.js",
+      "default": "./dist/redirects/site/phase-handler.js"
     }
   },
   "files": [
