@@ -90,7 +90,7 @@ See the archived provenance ledger for per-file provenance and scope decisions. 
 
 ## Introspection and I/O ports
 
-The universal `./introspection` entry reads structural Commander trees and builds MCP schemas with caller-owned exclusions and tool-name prefixes. It is also exported from the Node library barrel. The binary stays separate. See [API.md](https://github.com/AINSEP/Jini/blob/main/packages/cli/API.md) for the object argument convention, including injected I/O ports.
+The universal `./introspection` entry reads structural Commander trees and builds MCP schemas with caller-owned exclusions and tool-name prefixes. It is also exported from the Node library barrel. The binary stays separate. `printIntrospection` is the `introspect` command body: the host passes its live manifest, its MCP tool prefix, an output port and its validation-error factory (`INTROSPECTION_FORMATS` = `commander`, `mcp`). See [API.md](https://github.com/AINSEP/Jini/blob/main/packages/cli/API.md) for the object argument convention, including injected I/O ports.
 
 ## Wiring
 
@@ -100,6 +100,9 @@ The universal `./introspection` entry reads structural Commander trees and build
 - `mapError` is `createCliOutcomeMapper({ binName, exitCodes, classifiers, codedErrors })`; the host
   places `createParserClassifier({ binName, exitCodes, isParserError })` in `classifiers` at the
   position its contract needs (e.g. after a classifier that must pre-empt parser errors).
+- The host's `introspect` action calls `printIntrospection({ manifest: introspectProgram(...),
+  format, toolNamePrefix, output, invalid })`; `output` and `invalid` are required ports because
+  `./introspection` is a universal entry.
 
 ## Design decisions
 

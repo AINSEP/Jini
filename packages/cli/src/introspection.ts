@@ -107,3 +107,41 @@ export function toMcpTools({ manifest, toolNamePrefix }: {
     return { name: `${toolNamePrefix}${command.name.replace(/\s+/g, "_")}`, description: command.description, inputSchema: { type: "object", properties, required } };
   });
 }
+
+/** Output formats the `introspect` command body accepts. */
+export const INTROSPECTION_FORMATS = ['commander', 'mcp'] as const;
+export type IntrospectionFormat = (typeof INTROSPECTION_FORMATS)[number];
+
+function isIntrospectionFormat(format: string): format is IntrospectionFormat {
+  return (INTROSPECTION_FORMATS as readonly string[]).includes(format);
+}
+
+/**
+ * The `introspect` command body: print the live manifest (`commander`) or its MCP projection (`mcp`).
+ * Formats output only and never maps errors to exit codes itself — an unknown format throws the
+ * host's own validation error (from `invalid`), which the host's outcome mapper classifies.
+ * This entry is universal, so both I/O ports are required: there is no `process.stdout` default.
+ * @param required.manifest - from {@link introspectProgram} over the host's live tree.
+ * @param required.format - raw `--format` value; defaults to `commander`.
+ * @param required.toolNamePrefix - the host's MCP tool-name prefix (including any separator).
+ * @param required.output - receives the whole JSON text plus a trailing newline, once.
+ * @param required.invalid - mints the error thrown for an unknown format.
+ * @throws whatever `invalid` returns, before anything is printed.
+ * @complexity O(c + f) for the MCP projection plus `JSON.stringify`.
+ */
+export function printIntrospection(
+  { manifest, format = 'commander', toolNamePrefix, output, invalid }: {
+    manifest: CliManifest;
+    format?: string;
+    toolNamePrefix: string;
+    output: (required: { message: string }) => void;
+    invalid: (required: { message: string }) => Error;
+  },
+  _optional: Record<string, never> = {},
+): void {
+  if (!isIntrospectionFormat(format)) {
+    throw invalid({ message: `--format must be one of: ${INTROSPECTION_FORMATS.join(', ')} (got "${format}")` });
+  }
+  const printed = format === 'mcp' ? toMcpTools({ manifest, toolNamePrefix }) : manifest;
+  output({ message: `${JSON.stringify(printed, null, 2)}\n` });
+}
