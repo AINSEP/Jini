@@ -1,4 +1,5 @@
 import { nowIso as readNowIso, type Clock as ClockPort } from "@jini-ai/core/primitives";
+import type { OperationLockHandle, AcquireOperationLockResult } from "@jini-ai/core/contracts/site/recovery-operation-lock";
 
 /**
  * @file Site-wide gated-operation
@@ -34,21 +35,7 @@ import { nowIso as readNowIso, type Clock as ClockPort } from "@jini-ai/core/pri
  * mechanism itself.
  */
 
-export interface OperationLockHandle {
-  siteId: string;
-  operationKind: string;
-  /** ISO-8601 UTC. */
-  acquiredAt: string;
-}
-
-export interface OperationLockError {
-  code: "OPERATION_IN_FLIGHT";
-  message: string;
-}
-
-export type AcquireOperationLockResult =
-  | { ok: true; value: OperationLockHandle }
-  | { ok: false; error: OperationLockError };
+export type { OperationLockHandle, OperationLockError, AcquireOperationLockResult } from "@jini-ai/core/contracts/site/recovery-operation-lock";
 
 /** One host-owned registry shared by migration, restore and display-only status readers. */
 export interface SharedOperationLockPort {

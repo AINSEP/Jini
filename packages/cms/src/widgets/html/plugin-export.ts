@@ -8,34 +8,9 @@ import {
   type EmbedMarker,
 } from '../markers/marker.js';
 import { validateServerWidgetFragment, type WidgetFragmentAllowances } from './server-fragment.js';
+import type { PluginExportTemplate, PluginExportsPort } from '@jini-ai/core/contracts/site/widgets-html';
 
-/** Host-prepared, admitted export. The host owns enablement, aliases, schema validation,
- * static-export policy, contained file reads, and public host-link readiness. No secrets belong here.
- * `props` must be the schema-validated marker props; `host` contains only declared public values.
- */
-export interface PluginExportTemplate {
-  readonly plugin: string;
-  readonly component: string;
-  readonly version: number;
-  readonly minVersion?: number;
-  readonly consent: ConsentCategory;
-  readonly template: string;
-  readonly props: Readonly<Record<string, unknown>>;
-  readonly host?: Readonly<Record<string, unknown>>;
-  /** Exact https origins a whole `{{props.x}}` URL slot may name; also what admits an iframe. */
-  readonly frameHosts?: readonly string[];
-  /** The site's consent is off, so a gated frame loads at once rather than waiting for a choice. */
-  readonly consentOff?: boolean;
-  /** The export ships scripts, so its template may hand them values through data attributes. */
-  readonly scriptData?: boolean;
-}
-
-/** CMS knows no plugin lifecycle. Unavailable, invalid, or unsupported exports return undefined.
- * Diagnostics are host-owned and must only be exposed to an authenticated editor audience.
- */
-export interface PluginExportsPort {
-  resolve(required: { config: Readonly<Record<string, unknown>>; workspaceId: string }, optional?: Record<string, never>): Promise<PluginExportTemplate | undefined>;
-}
+export type { PluginExportTemplate, PluginExportsPort } from '@jini-ai/core/contracts/site/widgets-html';
 
 /** Structured substitution result: canonical attribution travels with the validated HTML.
  * Pass the plugin-export IR's props to substituteHtmlEmbeds, rather than reducing it to a string.
