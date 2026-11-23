@@ -914,6 +914,9 @@
       ],
       "core/i18n-common": [
         "./dist/core/i18n-common.d.ts"
+      ],
+      "shell/*": [
+        "./dist/shell/*.d.ts"
       ]
     }
   },
