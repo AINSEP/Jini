@@ -1,7 +1,6 @@
 import type { SqliteSyncOpener } from '@jini-ai/core/contracts/storage';
 declare const open: SqliteSyncOpener;
-import type { BaseUrlGuardPort } from '@jini-ai/daemon/ports/agent-runtime';
-import type { ProviderToolTurnPort } from '@jini-ai/daemon/ports/provider-http';
+import type { BaseUrlGuardPort, ProviderToolTurnPort } from '@jini-ai/core/contracts/agents';
 declare const toolTurns: ProviderToolTurnPort;
 declare const baseUrlGuard: BaseUrlGuardPort;
 import type { KernelOsPorts } from './kernel-base.js';

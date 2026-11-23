@@ -81,8 +81,7 @@
  * over routing for the five providers that already have a dedicated, more
  * specifically-typed path.
  */
-import type { PinnedFetch, ProviderToolTurnPort, ProviderTurnEventRecord } from '../ports/provider-http.js';
-import { type DnsLookupFn } from '@jini-ai/core/contracts/agents';
+import type { DnsLookupFn, PinnedFetch, ProviderToolTurnPort, ProviderTurnEventRecord } from '@jini-ai/core/contracts/agents';
 import { createApiError, type ApiError } from '@jini-ai/protocol';
 import {
   createSseStream,

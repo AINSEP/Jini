@@ -21,8 +21,7 @@ import { createRequire } from 'node:module';
 
 import { definePack, type Principal, type ToolRegistration } from '@jini-ai/core';
 import { getAgentDef, type DetectedAgent, type OAuthCallbackListener } from '@jini-ai/agent-runtime';
-import type { BaseUrlGuardPort } from '@jini-ai/daemon/ports/agent-runtime';
-import type { ProviderToolTurnPort } from '@jini-ai/daemon/ports/provider-http';
+import type { BaseUrlGuardPort, ProviderToolTurnPort } from '@jini-ai/core/contracts/agents';
 import {
   createDefaultRunStartHandler,
   createRemoteToolEventRecorder,

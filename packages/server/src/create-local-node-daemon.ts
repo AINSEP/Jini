@@ -40,8 +40,7 @@ import type { DetectedAgent, OAuthCallbackListener } from '@jini-ai/agent-runtim
 import type { Bindings, Principal, ToolRegistration } from '@jini-ai/core';
 import type { AnyPack, MissingTokenIds } from '@jini-ai/core/composition';
 import type { ResolveRunInput, RunLifecycle } from '@jini-ai/daemon';
-import type { BaseUrlGuardPort } from '@jini-ai/daemon/ports/agent-runtime';
-import type { ProviderToolTurnPort } from '@jini-ai/daemon/ports/provider-http';
+import type { BaseUrlGuardPort, ProviderToolTurnPort } from '@jini-ai/core/contracts/agents';
 import { installRouteRegistrationGuard, mountPackHttp } from '@jini-ai/http-kit';
 import { createLocalSameOriginPolicy, type RouteHostContext } from '@jini-ai/core/contracts/server';
 import type { DaemonRouteHost, DelegatedToolExecuteRequest,  RunStartHandler,  WorkspaceRootResolver } from '@jini-ai/daemon/http';

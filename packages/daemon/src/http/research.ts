@@ -96,7 +96,7 @@
  */
 import { redactSecrets } from '@jini-ai/core';
 import { createTavilyResearchProvider } from './research-tavily.adapter.js';
-import type { BaseUrlGuardPort } from '../ports/agent-runtime.js';
+import type { BaseUrlGuardPort } from '@jini-ai/core/contracts/agents';
 import { createApiError } from '@jini-ai/protocol';
 import type { DaemonRouteHost } from './route-host.js';
 import { gatedJsonRoute, withHostReporter, type DaemonRoute } from './route-table.js';

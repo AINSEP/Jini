@@ -2,7 +2,7 @@
 import { redactSecrets } from '@jini-ai/core';
 import type { ResearchProvider, ResearchProviderCredentials, ResearchSearchRequest, ResearchSource } from './research.js';
 import { trimCharsEnd } from '@jini-ai/core/text';
-import type { BaseUrlGuardPort } from '../ports/agent-runtime.js';
+import type { BaseUrlGuardPort } from '@jini-ai/core/contracts/agents';
 const DEFAULT_TAVILY_BASE_URL = 'https://api.tavily.com';
 /** Tavily's own documented cap on `max_results` (see OD's `tavily.ts#TAVILY_MAX_RESULTS_LIMIT`). */
 const TAVILY_MAX_RESULTS_LIMIT = 20;
