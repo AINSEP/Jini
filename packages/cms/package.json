@@ -219,7 +219,8 @@
       "./admin-http/routes/widgets/agent-tools-remove": "universal",
       "./admin-http/routes/widgets/agent-tools-diagnose": "universal",
       "./navigation/site/import-menu": "universal",
-      "./navigation/site/repoint-menu-refs": "universal"
+      "./navigation/site/repoint-menu-refs": "universal",
+      "./admin-http/routes/forms/pull-submissions": "universal"
     },
     "isolation": {
       "domains": {
@@ -344,7 +345,8 @@
         "./admin-http/routes/widgets/agent-tools-place": "widgets",
         "./admin-http/routes/widgets/agent-tools-create": "widgets",
         "./admin-http/routes/widgets/agent-tools-remove": "widgets",
-        "./admin-http/routes/widgets/agent-tools-diagnose": "widgets"
+        "./admin-http/routes/widgets/agent-tools-diagnose": "widgets",
+        "./admin-http/routes/forms/pull-submissions": "forms"
       },
       "forbidden": {
         "universal": [
@@ -1418,6 +1420,11 @@
       "types": "./dist/navigation/site/repoint-menu-refs.d.ts",
       "import": "./dist/navigation/site/repoint-menu-refs.js",
       "default": "./dist/navigation/site/repoint-menu-refs.js"
+    },
+    "./admin-http/routes/forms/pull-submissions": {
+      "types": "./dist/admin-http/routes/forms/pull-submissions.d.ts",
+      "import": "./dist/admin-http/routes/forms/pull-submissions.js",
+      "default": "./dist/admin-http/routes/forms/pull-submissions.js"
     }
   },
   "files": [
