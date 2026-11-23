@@ -33,7 +33,7 @@ describe("commentsGetSettingsRoute", () => {
 
 describe("commentsPutSettingsRoute", () => {
   const deps = (setCommentsSettings: (input: { workspaceId: string; patch: Partial<CommentsSettings>; callerPrincipalId: string }) => Promise<CommentsSettings>) =>
-    ({ workspaceId: WORKSPACE_ID, commentsSettingsReady: Promise.resolve(), setCommentsSettings });
+    ({ workspaceId: WORKSPACE_ID, commentsSettingsReady: Promise.resolve(), setCommentsSettings, outwardErrorMessage: ({ error }: { error: Error }) => error.message });
 
   it("defaults a missing body to an empty patch", () => {
     expect([commentsPutSettingsRoute.method, commentsPutSettingsRoute.path]).toEqual(["put", "/api/admin/v1/workspaces/:workspaceId/comments/settings"]);
@@ -55,5 +55,11 @@ describe("commentsPutSettingsRoute", () => {
     expect(await refusalOf(() => run(new CommentsSettingsValidationError("maxDepth must be at most 10"))))
       .toEqual({ status: 400, body: { error: "maxDepth must be at most 10", code: "COMMENTS_SETTINGS_VALIDATION_ERROR" } });
     await expect(run(new Error("db down"))).rejects.toThrow("db down");
+  });
+
+  it("answers the validation 400 with the host's outward message", async () => {
+    const hosted = { ...deps(async () => { throw new CommentsSettingsValidationError("maxDepth must be at most 10"); }), outwardErrorMessage: ({ error }: { error: Error }) => `host: ${error.message}` };
+    expect(await refusalOf(() => commentsPutSettingsRoute.handle({ input: { patch: {} }, deps: hosted, context: PRINCIPAL, authorize: recordingAuthorize().authorize }, { signal })))
+      .toEqual({ status: 400, body: { error: "host: maxDepth must be at most 10", code: "COMMENTS_SETTINGS_VALIDATION_ERROR" } });
   });
 });

@@ -1,4 +1,5 @@
 import { optionalOneOf, optionalString, readToolLimit, ToolInputError } from "@jini-ai/core";
+import type { OutwardErrorMessage } from "../../http/outward-error-message.js";
 import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
 import { rejectRoute } from "@jini-ai/core/errors/route-refusal";
 
@@ -15,6 +16,8 @@ import { authorizeComments, type CommentsRoutePrincipal } from "./shared.js";
 /** The deps this route reads. */
 export interface CommentsModerationQueueRouteDeps {
   workspaceId: string;
+  /** Words a classified error for the caller (see {@link OutwardErrorMessage}). */
+  outwardErrorMessage: OutwardErrorMessage;
   commentRepo: Pick<CommentRepoPort, "listModerationQueue">;
 }
 
@@ -47,7 +50,7 @@ export const commentsModerationQueueRoute = defineJsonRoute<CommentsModerationQu
       return ok({ value: await deps.commentRepo.listModerationQueue({ workspaceId: deps.workspaceId, status, limit, cursor }) });
     } catch (err) {
       // A bad query value, or a cursor naming no comment (the repo's `invalid cursor`).
-      if (err instanceof ToolInputError) rejectRoute({ status: 400, error: err.message, code: "VALIDATION_ERROR" });
+      if (err instanceof ToolInputError) rejectRoute({ status: 400, error: deps.outwardErrorMessage({ error: err }), code: "VALIDATION_ERROR" });
       throw err;
     }
   },

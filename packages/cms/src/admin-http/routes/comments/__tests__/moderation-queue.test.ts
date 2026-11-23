@@ -5,7 +5,7 @@ import { PRINCIPAL, raw, recordingAuthorize, refusalOf, signal, WORKSPACE_ID } f
 
 function queueDeps() {
   const reads: unknown[] = [];
-  return { reads, deps: { workspaceId: WORKSPACE_ID, commentRepo: { listModerationQueue: async (input: { cursor?: string | null }) => {
+  return { reads, deps: { workspaceId: WORKSPACE_ID, outwardErrorMessage: ({ error }: { error: Error }) => error.message, commentRepo: { listModerationQueue: async (input: { cursor?: string | null }) => {
     reads.push(input);
     if (input.cursor === "unknown") throw new ToolInputError({ message: "invalid cursor" });
     return { items: [], nextCursor: null };
@@ -45,7 +45,15 @@ describe("commentsModerationQueueRoute", () => {
     const { deps, reads } = queueDeps();
     await expect(call({ status: "nope" }, deps, recordingAuthorize({ deny: "comments.read" }).authorize)).rejects.toThrow("denied comments.read");
     expect(reads).toEqual([]);
-    const broken = { workspaceId: WORKSPACE_ID, commentRepo: { listModerationQueue: async () => { throw new Error("db down"); } } };
+    const broken = { workspaceId: WORKSPACE_ID, outwardErrorMessage: ({ error }: { error: Error }) => error.message, commentRepo: { listModerationQueue: async () => { throw new Error("db down"); } } };
     await expect(call({}, broken)).rejects.toThrow("db down");
+  });
+});
+
+describe("commentsModerationQueueRoute outward copy", () => {
+  it("answers the 400 with the host's outward message for the classified error", async () => {
+    const { deps } = queueDeps();
+    const hosted = { ...deps, outwardErrorMessage: ({ error }: { error: Error }) => `host: ${error.message}` };
+    expect(await refusalOf(() => call({ cursor: "unknown" }, hosted))).toEqual({ status: 400, body: { error: "host: invalid cursor", code: "VALIDATION_ERROR" } });
   });
 });

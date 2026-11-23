@@ -13,6 +13,7 @@ function deps(overrides: Partial<FormsUpdateRouteDeps> = {}): FormsUpdateRouteDe
   return {
     ...writes,
     workspaceId: WORKSPACE_ID,
+    outwardErrorMessage: ({ error }) => error.message,
     formDefinitionRepo: { findById: async ({ id }) => (id === "form-1" ? fakeDefinition() : null) },
     updateFormDefinition: async ({ input }) => { writes.patches.push(input); return { definition: fakeDefinition({ name: input.patch.name ?? "Contact", version: 2 }) }; },
     setFormDefinitionStatus: async ({ input }) => { writes.statuses.push(input); return { definition: fakeDefinition({ status: input.status, version: 3 }) }; },
@@ -60,14 +61,23 @@ describe("formsUpdateRoute", () => {
   });
 });
 
+const plain = ({ error }: { error: Error }) => error.message;
+
 describe("formsWriteErrorAnswer", () => {
+  it("fills every recognized answer's copy from the host's outward message, keeping status, code and details", () => {
+    const hosted = ({ error }: { error: Error }) => `host: ${error.message}`;
+    expect(formsWriteErrorAnswer({ outwardErrorMessage: hosted, err: new FormSlugConflictError({ message: "taken", slug: "contact" }) })).toEqual({ status: 409, body: { error: "host: taken", code: "FORMS_SLUG_CONFLICT", details: { slug: "contact" } } });
+    const update = formsUpdateRoute.handle({ input: { formId: "nope", body: {} }, deps: { ...deps(), outwardErrorMessage: hosted }, context: PRINCIPAL, authorize: recordingAuthorize().authorize });
+    return expect(refusalOf(() => update)).resolves.toEqual({ status: 404, body: { error: "host: form definition 'nope' was not found", code: "FORMS_DEFINITION_NOT_FOUND" } });
+  });
+
   it("maps each recognized class to its status and body, and nothing else", () => {
-    expect(formsWriteErrorAnswer({ err: new FormSlugConflictError({ message: "taken", slug: "contact" }) })).toEqual({ status: 409, body: { error: "taken", code: "FORMS_SLUG_CONFLICT", details: { slug: "contact" } } });
-    expect(formsWriteErrorAnswer({ err: new FormSubmissionNotFoundError({ message: "gone" } as never) })).toMatchObject({ status: 404, body: { code: "FORMS_SUBMISSION_NOT_FOUND" } });
+    expect(formsWriteErrorAnswer({ outwardErrorMessage: plain, err: new FormSlugConflictError({ message: "taken", slug: "contact" }) })).toEqual({ status: 409, body: { error: "taken", code: "FORMS_SLUG_CONFLICT", details: { slug: "contact" } } });
+    expect(formsWriteErrorAnswer({ outwardErrorMessage: plain, err: new FormSubmissionNotFoundError({ message: "gone" } as never) })).toMatchObject({ status: 404, body: { code: "FORMS_SUBMISSION_NOT_FOUND" } });
     const forbidden = new ForbiddenError({ permission: "admin.forms.manage", reason: "no-role" } as never);
-    expect(formsWriteErrorAnswer({ err: forbidden })).toEqual({ status: 403, body: { error: forbidden.message, code: "FORBIDDEN", details: { permission: forbidden.permission, reason: forbidden.reason } } });
+    expect(formsWriteErrorAnswer({ outwardErrorMessage: plain, err: forbidden })).toEqual({ status: 403, body: { error: forbidden.message, code: "FORBIDDEN", details: { permission: forbidden.permission, reason: forbidden.reason } } });
     const conflict = new RecordVersionConflictError({ recordKind: "form_definition", recordId: "form-1", expectedVersion: 1, currentVersion: 2 } as never);
-    expect(formsWriteErrorAnswer({ err: conflict })).toMatchObject({ status: 409, body: { code: "VERSION_CONFLICT" } });
-    expect(formsWriteErrorAnswer({ err: new Error("private db path") })).toBeUndefined();
+    expect(formsWriteErrorAnswer({ outwardErrorMessage: plain, err: conflict })).toMatchObject({ status: 409, body: { code: "VERSION_CONFLICT" } });
+    expect(formsWriteErrorAnswer({ outwardErrorMessage: plain, err: new Error("private db path") })).toBeUndefined();
   });
 });

@@ -5,6 +5,8 @@ Admin route specs for comment moderation (ADR-031 §6/§9) and the workspace `co
 
 ## Wiring
 
+**Outward error copy.** `moderation-queue` and `put-settings` refuse a classified domain error with the status, code and details decided here, but take the `error` text from the REQUIRED `outwardErrorMessage` deps field (`../../http/outward-error-message.ts`). The host binds it at the mount; this engine code never forwards stored error text itself.
+
 Architecture and the inject-everything rule: [`extraction-plan.md`](../../../../../../ADS-memory/reports/jini-port/extraction-plan.md).
 The reference pattern these specs copy is `../redirects/`.
 

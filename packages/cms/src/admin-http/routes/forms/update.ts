@@ -1,4 +1,5 @@
 import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
+import type { OutwardErrorMessage } from "../../http/outward-error-message.js";
 
 import {
   FormDefinitionNotFoundError,
@@ -29,6 +30,8 @@ export type FormsSetDefinitionStatusFn = (required: { input: FormsUpdateWriteTar
 
 /** The deps this route reads. */
 export interface FormsUpdateRouteDeps {
+  /** Words a classified error for the caller (see {@link OutwardErrorMessage}). */
+  outwardErrorMessage: OutwardErrorMessage;
   workspaceId: string;
   formDefinitionRepo: Pick<FormDefinitionRepoPort, "findById">;
   updateFormDefinition: FormsUpdateDefinitionFn;
@@ -98,7 +101,7 @@ export const formsUpdateRoute = defineJsonRoute<FormsUpdateInput, { data: AdminF
       const definition = await resolveFormUpdateResult({ deps, target, body });
       return ok({ value: toAdminFormDefinitionResponse({ definition }) });
     } catch (err) {
-      return rejectFormsWriteError({ err });
+      return rejectFormsWriteError({ err, outwardErrorMessage: deps.outwardErrorMessage });
     }
   },
 });

@@ -8,6 +8,8 @@ host writes. Architecture and the injection rules: [extraction plan](../../../..
 
 ## Wiring
 
+**Outward error copy.** `update` (and `formsWriteErrorAnswer` / `rejectFormsWriteError`` refuse a classified domain error with the status, code and details decided here, but take the `error` text from the REQUIRED `outwardErrorMessage` deps field (`../../http/outward-error-message.ts`). The host binds it at the mount; this engine code never forwards stored error text itself.
+
 **Provides** (one subpath per file):
 
 | subpath | spec | deps type |

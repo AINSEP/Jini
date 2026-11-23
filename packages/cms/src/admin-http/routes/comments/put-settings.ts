@@ -1,4 +1,5 @@
 import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
+import type { OutwardErrorMessage } from "../../http/outward-error-message.js";
 import { rejectRoute } from "@jini-ai/core/errors/route-refusal";
 
 import { CommentsSettingsValidationError } from "../../../comments/errors.js";
@@ -9,6 +10,8 @@ import { authorizeComments, commentsActorId, type CommentsRoutePrincipal } from 
  *  store, its clock/ids and the per-key authorization), injected as one function already bound to
  *  those collaborators. */
 export interface CommentsPutSettingsRouteDeps {
+  /** Words a classified error for the caller (see {@link OutwardErrorMessage}). */
+  outwardErrorMessage: OutwardErrorMessage;
   workspaceId: string;
   /** Awaited before touching the settings ledger (mirrors `seoReady`'s identical convention). */
   commentsSettingsReady: Promise<unknown>;
@@ -36,7 +39,7 @@ export const commentsPutSettingsRoute = defineJsonRoute<CommentsPutSettingsInput
       return ok({ value: { data: settings } });
     } catch (err) {
       if (err instanceof CommentsSettingsValidationError) {
-        rejectRoute({ status: 400, error: err.message, code: "COMMENTS_SETTINGS_VALIDATION_ERROR" });
+        rejectRoute({ status: 400, error: deps.outwardErrorMessage({ error: err }), code: "COMMENTS_SETTINGS_VALIDATION_ERROR" });
       }
       throw err;
     }

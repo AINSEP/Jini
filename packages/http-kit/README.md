@@ -82,6 +82,9 @@ passes `entityId` and the port receives it as its second argument, while an id-f
 the port with the required arguments alone. Example: the CMS redirects specs, mounted by a host
 whose `authorize` port hands `entityId` to its RBAC check.
 
+A spec whose `successStatus` is a no-content status (204, 205, 304) answers with
+`res.status(status).end()` and no body; every other success status is written through `res.json`.
+
 See [API.md](https://github.com/AINSEP/Jini/blob/main/packages/http-kit/API.md) for required/optional object contracts. Node runtime, ESM only.
 Apache-2.0; see the repository NOTICE.
 
