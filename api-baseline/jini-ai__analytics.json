@@ -112,6 +112,17 @@
    "VisitorAnalyticsDeps": "interface:27c58dc770"
   }
  },
+ "./site/forwarding": {
+  "types": "./dist/site/forwarding.d.ts",
+  "symbols": {
+   "ANALYTICS_PROVIDERS_TTL_MS": "variable:a22a2ca7c2",
+   "AnalyticsForwardingRequired": "interface:345fb35679",
+   "AnalyticsProviderSet": "interface:4218c8f430",
+   "cacheAnalyticsProviders": "function:654025b7b5",
+   "createAnalyticsForwarding": "function:523cf25538",
+   "createPluginAnalyticsHooks": "function:dc75ea5b99"
+  }
+ },
  "./site/ports": {
   "types": "./dist/site/ports.d.ts",
   "symbols": {

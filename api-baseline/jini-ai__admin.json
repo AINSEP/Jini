@@ -1447,6 +1447,27 @@
    "useExternalMcpSharedChoice": "function:ad0feea7b5"
   }
  },
+ "./screens/settings/ExternalMcpToolsModal.hooks": {
+  "types": "./dist/screens/settings/ExternalMcpToolsModal.hooks.d.ts",
+  "symbols": {
+   "ExternalMcpToolsModalController": "interface:57b44fcc3d",
+   "useExternalMcpToolsModalEscape": "function:4b2a3fed13"
+  }
+ },
+ "./screens/settings/hooks/use-external-mcp-remove-confirm.hooks": {
+  "types": "./dist/screens/settings/hooks/use-external-mcp-remove-confirm.hooks.d.ts",
+  "symbols": {
+   "ExternalMcpRemoveConfirmController": "interface:97b7399135",
+   "ExternalMcpRemoveConfirmCopyBuilder": "type:1419e4d068",
+   "useExternalMcpRemoveConfirm": "function:c8d1654767"
+  }
+ },
+ "./screens/settings/hooks/use-settings-active-tab-scroll.hooks": {
+  "types": "./dist/screens/settings/hooks/use-settings-active-tab-scroll.hooks.d.ts",
+  "symbols": {
+   "useSettingsActiveTabScroll": "function:e8dddbc327"
+  }
+ },
  "./screens/settings/hooks/use-settings-locale-sync.hooks": {
   "types": "./dist/screens/settings/hooks/use-settings-locale-sync.hooks.d.ts",
   "symbols": {
@@ -1473,6 +1494,10 @@
    "memoryPanelDictionaries": "function:f8fa130a51",
    "t": "variable:44d298bf90"
   }
+ },
+ "./screens/settings/user-interface-settings.css": {
+  "types": null,
+  "symbols": {}
  },
  "./screens/settings/UserInterfaceSettingsPanel.hooks": {
   "types": "./dist/screens/settings/UserInterfaceSettingsPanel.hooks.d.ts",

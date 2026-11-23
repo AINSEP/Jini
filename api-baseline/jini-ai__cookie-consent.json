@@ -222,6 +222,19 @@
    "SiteConsentStore": "interface:84bae27c99"
   }
  },
+ "./site/settings": {
+  "types": "./dist/site/settings.d.ts",
+  "symbols": {
+   "SITE_CONSENT_OFF": "variable:99ea80a3b4",
+   "SiteConsentActivation": "type:ac6b1ea397",
+   "SiteConsentPrivacyRepair": "type:ac7347ef4e",
+   "createSiteConsentConfig": "function:3b1aa824c3",
+   "createSiteConsentReadiness": "function:00798d1f4d",
+   "ensureSiteConsentDefinitions": "function:a5ca395762",
+   "readSiteConsentAuthoringSettings": "function:41ea6bbe92",
+   "resolveSiteConsentActivation": "function:0bbc020df5"
+  }
+ },
  "./site/validation": {
   "types": "./dist/site/validation.d.ts",
   "symbols": {
