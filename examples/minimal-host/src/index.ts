@@ -21,7 +21,8 @@ import { type AgentLaunchResolution } from '@jini-ai/core/contracts/agents';
 import { fetchWithTimeout } from '@jini-ai/platform';
 import { FETCH_TIMEOUT_MS } from '@jini-ai/core/net';
 import { createLocalNodeDaemon } from '@jini-ai/server';
-import { nodeAtomicWriter, nodeFileLock } from '@jini-ai/node-adapters/fs';
+import { createAtomicWriterPort, createFileLockPort } from '@jini-ai/node-adapters/fs';
+import { backupOriginalOnce, withFileLock, writeFileAtomicAsync, writeJsonFileAtomicAsync } from '@jini-ai/platform/fs';
 import { createProcessControlPort, nodeCommandShell, nodeSpawnPort } from '@jini-ai/node-adapters/process';
 import { listProcessSnapshots, stopProcesses, waitForProcessExit } from '@jini-ai/platform/process';
 import type { AgentExecutorRuntimePorts } from '@jini-ai/daemon/ports/runtime';
@@ -29,6 +30,9 @@ import type { AgentRuntimePort } from '@jini-ai/daemon/ports/agent-runtime';
 
 /** Platform's process functions behind core's port; node-adapters takes them injected (it imports no other package's implementation). */
 const nodeProcessControl = createProcessControlPort({ functions: { listProcessSnapshots, stopProcesses, waitForProcessExit } });
+/** Platform's lock and atomic-writer functions under core's port names (node-adapters takes them injected too). */
+const nodeFileLock = createFileLockPort({ withFileLock });
+const nodeAtomicWriter = createAtomicWriterPort({ writeFileAtomicAsync, writeJsonFileAtomicAsync, backupOriginalOnce });
 
 /** The Node implementations of the OS-facing ports the agent executor needs, bound from the env this host owns. */
 function executorRuntimeFor({ hostEnv }: { hostEnv: NodeJS.ProcessEnv }, _optional: Record<string, never> = {}): AgentExecutorRuntimePorts {
@@ -68,6 +72,8 @@ async function main(): Promise<void> {
       // Provider tool turns and the base-URL guard are host-bound: the server preset ships no implementation.
       toolTurns: { anthropic: runAnthropicToolTurn, openai: runOpenAiToolTurn, azure: runAzureToolTurn, google: runGoogleToolTurn, ollama: runOllamaToolTurn },
       baseUrlGuard: { validate: validateBaseUrl },
+      // Process control, file lock and atomic writer are host-bound too: the preset imports no platform implementation.
+      osPorts: { processes: nodeProcessControl, fileLock: nodeFileLock, writer: nodeAtomicWriter },
       // The host supplies the SQLite driver; Jini never autoloads it.
       open: (file, options) => new Database(file, options),
       agentExecutor: runtimeExecutorOptions,

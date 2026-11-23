@@ -4,6 +4,8 @@ import type { BaseUrlGuardPort } from '@jini-ai/daemon/ports/agent-runtime';
 import type { ProviderToolTurnPort } from '@jini-ai/daemon/ports/provider-http';
 declare const toolTurns: ProviderToolTurnPort;
 declare const baseUrlGuard: BaseUrlGuardPort;
+import type { KernelOsPorts } from './kernel-base.js';
+declare const osPorts: KernelOsPorts;
 /**
  * Type-level proof that `createLocalNodeDaemon` preserves `createDaemon`'s compile-time
  * "missing binding" gate through its own `CreateLocalNodeDaemonConfig` wrapper — see that
@@ -34,6 +36,7 @@ void createLocalNodeDaemon({
   open,
   toolTurns,
   baseUrlGuard,
+  osPorts,
   dataDir: '/tmp/jini-node-host-typecheck',
   packs: [greetPack],
 });
@@ -45,6 +48,7 @@ void createLocalNodeDaemon({
   open,
   toolTurns,
   baseUrlGuard,
+  osPorts,
   dataDir: '/tmp/jini-node-host-typecheck',
   packs: [greetPack],
   bindings: (b) => b,
@@ -55,6 +59,7 @@ void createLocalNodeDaemon({
   open,
   toolTurns,
   baseUrlGuard,
+  osPorts,
   dataDir: '/tmp/jini-node-host-typecheck',
   packs: [greetPack],
   bindings: (b) => b.bind({ token: GreeterToken, impl: { greeting: 'hi' } }),
@@ -67,6 +72,7 @@ void createLocalNodeDaemon({
   open,
   toolTurns,
   baseUrlGuard,
+  osPorts,
   dataDir: '/tmp/jini-node-host-typecheck',
   packs: [noDepsPack],
 });

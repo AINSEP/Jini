@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import * as SqliteModule from '@jini-ai/daemon/store/event-log/sqlite';
 
 import { createJiniKernelBase } from '../kernel-base.js';
+import { nodeOsPorts } from './fixtures/node-os-ports.js';
 
 /**
  * Acquisition/cleanup tests for the kernel base itself. `compose-jini-kernel.test.ts` covers the
@@ -64,7 +65,7 @@ describe('createJiniKernelBase — one acquisition block, one cleanup path', () 
     const dataDir = makeTempDataDir();
     const { spy, closes } = spyOnEventLogs('journal.db');
     try {
-      await expect(createJiniKernelBase({ storage: { kind: 'sqlite', open: openSqlite, dataDir } })).rejects.toThrow(
+      await expect(createJiniKernelBase({ osPorts: nodeOsPorts, storage: { kind: 'sqlite', open: openSqlite, dataDir } })).rejects.toThrow(
         /unable to open database file/,
       );
 
@@ -82,7 +83,7 @@ describe('createJiniKernelBase — one acquisition block, one cleanup path', () 
     const dataDir = makeTempDataDir();
     const { spy, closes } = spyOnEventLogs('events.db');
     try {
-      await expect(createJiniKernelBase({ storage: { kind: 'sqlite', open: openSqlite, dataDir } })).rejects.toThrow(
+      await expect(createJiniKernelBase({ osPorts: nodeOsPorts, storage: { kind: 'sqlite', open: openSqlite, dataDir } })).rejects.toThrow(
         /unable to open database file/,
       );
       expect(closes.size).toBe(0);
@@ -95,7 +96,7 @@ describe('createJiniKernelBase — one acquisition block, one cleanup path', () 
     const dataDir = makeTempDataDir();
     const { spy, closes } = spyOnEventLogs(null);
     try {
-      const base = await createJiniKernelBase({ storage: { kind: 'sqlite', open: openSqlite, dataDir } });
+      const base = await createJiniKernelBase({ osPorts: nodeOsPorts, storage: { kind: 'sqlite', open: openSqlite, dataDir } });
       expect(base.sqlite).not.toBeNull();
       expect(base.sqlite!.connection.open).toBe(true);
 
@@ -113,7 +114,7 @@ describe('createJiniKernelBase — one acquisition block, one cleanup path', () 
   it('opens no sqlite handle at all under memory storage', async () => {
     const { spy } = spyOnEventLogs(null);
     try {
-      const base = await createJiniKernelBase({ storage: { kind: 'memory' } });
+      const base = await createJiniKernelBase({ osPorts: nodeOsPorts, storage: { kind: 'memory' } });
       expect(base.sqlite).toBeNull();
       expect(spy).not.toHaveBeenCalled();
       await base.close();
@@ -129,7 +130,7 @@ function openSqlite(file: string, settings: Database.Options = {}) { return new 
 it('a runtime disposal failure still closes every owned SQLite handle and retains the same close result', async () => {
   const dataDir = makeTempDataDir();
   const { spy, closes } = spyOnEventLogs(null);
-  const base = await createJiniKernelBase({ storage: { kind: 'sqlite', open: openSqlite, dataDir } });
+  const base = await createJiniKernelBase({ osPorts: nodeOsPorts, storage: { kind: 'sqlite', open: openSqlite, dataDir } });
   const failure = new Error('runtime disposal failed');
   const dispose = vi.spyOn(base.agentRuntime, 'dispose').mockRejectedValueOnce(failure);
   try {
@@ -150,7 +151,7 @@ it('a runtime disposal failure still closes every owned SQLite handle and retain
 describe('L039a runtime option pins', () => {
   it.each([undefined, false, true])('keeps explicit runtime policy values (%s)', async (codexDisablePlugins) => {
     const hostEnv = { PATH: '/pin/bin' };
-    const base = await createJiniKernelBase({ storage: { kind: 'memory' }, agentExecutor: {
+    const base = await createJiniKernelBase({ osPorts: nodeOsPorts, storage: { kind: 'memory' }, agentExecutor: {
       hostEnv, piGracefulShutdownMs: 0, ...(codexDisablePlugins === undefined ? {} : { codexDisablePlugins }),
     } });
     try {
@@ -160,8 +161,8 @@ describe('L039a runtime option pins', () => {
     } finally { await base.close(); }
   });
   it('shares a supplied runtime state and disposes it only once', async () => {
-    const first = await createJiniKernelBase({ storage: { kind: 'memory' } });
-    const base = await createJiniKernelBase({ storage: { kind: 'memory' }, agentExecutor: {
+    const first = await createJiniKernelBase({ osPorts: nodeOsPorts, storage: { kind: 'memory' } });
+    const base = await createJiniKernelBase({ osPorts: nodeOsPorts, storage: { kind: 'memory' }, agentExecutor: {
       runtimeState: first.agentRuntime.state,
     } });
     const dispose = vi.spyOn(base.agentRuntime, 'dispose');
@@ -180,7 +181,7 @@ it.each([false, true])('preserves a feature-connection boot error while closing 
   let opens = 0;
   let featureClose: ReturnType<typeof vi.fn> | undefined;
   try {
-    await expect(createJiniKernelBase({ storage: { kind: 'sqlite', dataDir,
+    await expect(createJiniKernelBase({ osPorts: nodeOsPorts, storage: { kind: 'sqlite', dataDir,
       open: (file, settings) => {
         const db = new Database(file, settings);
         opens += 1;
@@ -206,8 +207,8 @@ describe('createJiniKernelBase aiTrace option', () => {
   it('traces runs through the kernel lifecycle when a sink is configured, and leaves it unwrapped otherwise', async () => {
     const { createRecordingAiTraceSink } = await import('@jini-ai/core/contracts/ai-trace');
     const sink = createRecordingAiTraceSink();
-    const traced = await createJiniKernelBase({ storage: { kind: 'memory' }, aiTrace: { sink, capture: 'off' } });
-    const plain = await createJiniKernelBase({ storage: { kind: 'memory' } });
+    const traced = await createJiniKernelBase({ osPorts: nodeOsPorts, storage: { kind: 'memory' }, aiTrace: { sink, capture: 'off' } });
+    const plain = await createJiniKernelBase({ osPorts: nodeOsPorts, storage: { kind: 'memory' } });
     try {
       const { run } = await traced.lifecycle.start({ contextRef: 'chat-1' }, { agentId: 'codex' });
       await traced.lifecycle.emit({ runId: run.id, input: { event: 'agent', data: { type: 'usage', usage: { input_tokens: 3 } } as never } });

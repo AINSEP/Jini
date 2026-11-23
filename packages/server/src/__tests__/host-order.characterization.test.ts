@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import Database from 'better-sqlite3';
 import { createLocalNodeDaemon, type LocalNodeDaemon } from '../create-local-node-daemon.js';
 import { hostEgressPorts } from './fixtures/host-egress-ports.js';
+import { nodeOsPorts } from './fixtures/node-os-ports.js';
 
 /**
  * The order of the layers in front of the daemon's routes, per security profile, recorded from
@@ -32,7 +33,7 @@ async function startDaemon(security: Parameters<typeof createLocalNodeDaemon>[0]
   process.env[TOKEN_ENV] = TOKEN;
   const dataDir = mkdtempSync(join(tmpdir(), 'jini-host-order-'));
   tempDirs.push(dataDir);
-  const daemon = await createLocalNodeDaemon({ ...hostEgressPorts, open: openSqlite, dataDir, packs: [], ...(security ? { security } : {}) });
+  const daemon = await createLocalNodeDaemon({ ...hostEgressPorts, osPorts: nodeOsPorts, open: openSqlite, dataDir, packs: [], ...(security ? { security } : {}) });
   daemons.push(daemon);
   return daemon;
 }

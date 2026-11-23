@@ -89,6 +89,8 @@ The old entry type is gone: use `VaultArchiveEntry` from `@jini-ai/platform/secr
 ## Wiring
 
 `createJiniKernelBase` / `composeJiniKernel` take the agent-executor ports through
-`agentExecutor.runtime` (spawn, processes, fileLock, writer, commandShell). Omitted, the preset binds
-the Node defaults from `@jini-ai/node-adapters` (including `nodeProcessControl`); the kernel itself
-imports no `@jini-ai/platform/process` implementation.
+`agentExecutor.runtime` (spawn, processes, fileLock, writer, commandShell). Omitted, the preset builds it
+from the required `osPorts` (`KernelOsPorts`: processes, fileLock, writer — the host binds them with
+`@jini-ai/node-adapters`' builders over `@jini-ai/platform`'s functions) plus node-adapters' Node spawn
+and command shell. `createLocalNodeDaemon` takes the same `osPorts` and writes its discovery record
+with `osPorts.writer`; the server imports no `@jini-ai/platform/fs` or `/process` implementation.

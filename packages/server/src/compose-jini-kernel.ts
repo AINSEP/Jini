@@ -134,6 +134,8 @@ export interface ComposeJiniKernelConfig {
   readonly packs?: readonly AnyPack[];
   readonly bindings?: (b: Bindings<KernelBoundIds>) => Bindings<string>;
   readonly agentExecutor?: Parameters<typeof createJiniKernelBase>[0]['agentExecutor'];
+  /** Host-bound process control, file lock and atomic writer, handed to the kernel base unchanged. */
+  readonly osPorts: Parameters<typeof createJiniKernelBase>[0]['osPorts'];
   /** Explicit trust policy; omitted and unknown modes are rejected before opening resources. */
   readonly security: JiniKernelSecurity;
   /** @default true — set false when the caller's app already parses JSON bodies. */
@@ -393,6 +395,7 @@ export async function composeJiniKernel(config: ComposeJiniKernelConfig): Promis
 
   const base = await createJiniKernelBase({
     storage: config.storage,
+    osPorts: config.osPorts,
     agentExecutor: { ...config.agentExecutor, hostEnv: config.agentExecutor?.hostEnv ?? env },
   });
 

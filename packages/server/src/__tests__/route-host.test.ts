@@ -6,6 +6,7 @@ import type { DaemonRouteHost } from '@jini-ai/daemon/http';
 import { composeJiniKernel, type JiniKernel } from '../compose-jini-kernel.js';
 import { defineJiniFeature } from '../feature.js';
 import { PRESET_JSON_PARSER_LIMIT_BYTES, presetRouteHost } from '../route-host.js';
+import { nodeOsPorts } from './fixtures/node-os-ports.js';
 
 const kernels: JiniKernel[] = [];
 afterEach(async () => {
@@ -25,7 +26,7 @@ async function routeHostAFeatureReceives(config: { jsonBodyParserLimitBytes?: nu
     },
   });
   const adapter = createTestRouteHost();
-  kernels.push(await composeJiniKernel({ app: express(), adapter, resolvedPortRef: { current: 4000 }, storage: { kind: 'memory' }, security: { mode: 'host' },
+  kernels.push(await composeJiniKernel({ app: express(), adapter, resolvedPortRef: { current: 4000 }, osPorts: nodeOsPorts, storage: { kind: 'memory' }, security: { mode: 'host' },
     extraFeatures: [probe], features: { 'probe.route-host': true }, ...config }));
   return { adapter, received };
 }

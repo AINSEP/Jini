@@ -9,16 +9,15 @@ import { join } from 'node:path';
 import { createAgentRuntimeBindings, createNativeAgentRuntime } from '@jini-ai/agent-runtime';
 import type { AgentRuntimePort } from '@jini-ai/daemon/ports/agent-runtime';
 import { createLocalNodeDaemon } from '../create-local-node-daemon.js';
-import { nodeAtomicWriter, nodeFileLock } from '@jini-ai/node-adapters/fs';
-import { createProcessControlPort, createSpawnPort, nodeCommandShell, type SpawnFunction } from '@jini-ai/node-adapters/process';
-import { listProcessSnapshots, stopProcesses, waitForProcessExit } from '@jini-ai/platform/process';
+import { createSpawnPort, nodeCommandShell, type SpawnFunction } from '@jini-ai/node-adapters/process';
 import { hostEgressPorts } from './fixtures/host-egress-ports.js';
+import { nodeOsPorts } from './fixtures/node-os-ports.js';
 
 it('gives each kernel a separate state, shares it with its executor, and clears it on close', async () => {
   const def = getAgentDef({ id: 'codex' })!;
   const makeBase = () => {
     const captured: string[][] = [];
-    return { captured, boot: createJiniKernelBase({ storage: { kind: 'memory' }, agentExecutor: {
+    return { captured, boot: createJiniKernelBase({ osPorts: nodeOsPorts, storage: { kind: 'memory' }, agentExecutor: {
       hostEnv: { PATH: '/fake/bin' }, codexDisablePlugins: true,
       bindAgentRuntime: ({ runtime }) => {
         const bound = createAgentRuntimeBindings({ runtime }) satisfies AgentRuntimePort;
@@ -35,7 +34,7 @@ it('gives each kernel a separate state, shares it with its executor, and clears 
       },
       runtime: {
         spawn: createSpawnPort({ spawn: ((_command: string, argv: readonly string[]) => { captured.push([...argv]); throw new Error('fixture spawn stop'); }) as SpawnFunction }),
-        processes: createProcessControlPort({ functions: { listProcessSnapshots, stopProcesses, waitForProcessExit } }), fileLock: nodeFileLock, writer: nodeAtomicWriter, commandShell: nodeCommandShell({ env: {} }),
+        ...nodeOsPorts, commandShell: nodeCommandShell({ env: {} }),
       },
     } }) };
   };
@@ -64,7 +63,7 @@ it('forwards explicit executor options through the local preset and disposes its
   let lookups = 0;
   const runtime = createNativeAgentRuntime({ env });
   runtime.state.capabilities.set('owned', { feature: true });
-  const daemon = await createLocalNodeDaemon({ ...hostEgressPorts, dataDir: dir, packs: [], discoveryFile: false, env,
+  const daemon = await createLocalNodeDaemon({ ...hostEgressPorts, osPorts: nodeOsPorts, dataDir: dir, packs: [], discoveryFile: false, env,
     open: (file, settings = {}) => new Database(file, settings),
     agentExecutor: { runtimeState: runtime.state, bindAgentRuntime: ({ runtime: native }) => {
       const bound = createAgentRuntimeBindings({ runtime: native }) satisfies AgentRuntimePort;
