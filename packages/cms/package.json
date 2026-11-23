@@ -116,7 +116,29 @@
       "./themes/manifest-v2": "universal",
       "./themes/files/reviewed-write": "node",
       "./themes/files/atomic-write": "node",
-      "./admin-http/limits": "universal"
+      "./admin-http/limits": "universal",
+      "./admin-http/http/redirects": "universal",
+      "./admin-http/routes/content/deps": "universal",
+      "./admin-http/routes/database/restore-points": "universal",
+      "./admin-http/routes/database/schema-state": "universal",
+      "./admin-http/routes/database/timeline": "universal",
+      "./admin-http/routes/database-recovery/deps": "universal",
+      "./admin-http/routes/recovery/deep-link": "universal",
+      "./admin-http/routes/recovery/disclosure": "universal",
+      "./admin-http/routes/recovery/restore-points": "universal",
+      "./admin-http/routes/redirects/create": "universal",
+      "./admin-http/routes/redirects/get-by-id": "universal",
+      "./admin-http/routes/redirects/hits": "universal",
+      "./admin-http/routes/redirects/import": "universal",
+      "./admin-http/routes/redirects/list": "universal",
+      "./admin-http/routes/redirects/shared": "universal",
+      "./admin-http/routes/redirects/tombstone": "universal",
+      "./admin-http/routes/redirects/update": "universal",
+      "./admin-http/routes/sites/local-sites": "universal",
+      "./admin-http/routes/sites/site-previews": "universal",
+      "./admin-http/routes/system/assistant-daemon": "universal",
+      "./admin-http/routes/system/credential-copy": "universal",
+      "./admin-http/routes/system/module-status": "universal"
     },
     "isolation": {
       "domains": {
@@ -733,6 +755,116 @@
       "types": "./dist/admin-http/limits.d.ts",
       "import": "./dist/admin-http/limits.js",
       "default": "./dist/admin-http/limits.js"
+    },
+    "./admin-http/http/redirects": {
+      "types": "./dist/admin-http/http/redirects.d.ts",
+      "import": "./dist/admin-http/http/redirects.js",
+      "default": "./dist/admin-http/http/redirects.js"
+    },
+    "./admin-http/routes/content/deps": {
+      "types": "./dist/admin-http/routes/content/deps.d.ts",
+      "import": "./dist/admin-http/routes/content/deps.js",
+      "default": "./dist/admin-http/routes/content/deps.js"
+    },
+    "./admin-http/routes/database/restore-points": {
+      "types": "./dist/admin-http/routes/database/restore-points.d.ts",
+      "import": "./dist/admin-http/routes/database/restore-points.js",
+      "default": "./dist/admin-http/routes/database/restore-points.js"
+    },
+    "./admin-http/routes/database/schema-state": {
+      "types": "./dist/admin-http/routes/database/schema-state.d.ts",
+      "import": "./dist/admin-http/routes/database/schema-state.js",
+      "default": "./dist/admin-http/routes/database/schema-state.js"
+    },
+    "./admin-http/routes/database/timeline": {
+      "types": "./dist/admin-http/routes/database/timeline.d.ts",
+      "import": "./dist/admin-http/routes/database/timeline.js",
+      "default": "./dist/admin-http/routes/database/timeline.js"
+    },
+    "./admin-http/routes/database-recovery/deps": {
+      "types": "./dist/admin-http/routes/database-recovery/deps.d.ts",
+      "import": "./dist/admin-http/routes/database-recovery/deps.js",
+      "default": "./dist/admin-http/routes/database-recovery/deps.js"
+    },
+    "./admin-http/routes/recovery/deep-link": {
+      "types": "./dist/admin-http/routes/recovery/deep-link.d.ts",
+      "import": "./dist/admin-http/routes/recovery/deep-link.js",
+      "default": "./dist/admin-http/routes/recovery/deep-link.js"
+    },
+    "./admin-http/routes/recovery/disclosure": {
+      "types": "./dist/admin-http/routes/recovery/disclosure.d.ts",
+      "import": "./dist/admin-http/routes/recovery/disclosure.js",
+      "default": "./dist/admin-http/routes/recovery/disclosure.js"
+    },
+    "./admin-http/routes/recovery/restore-points": {
+      "types": "./dist/admin-http/routes/recovery/restore-points.d.ts",
+      "import": "./dist/admin-http/routes/recovery/restore-points.js",
+      "default": "./dist/admin-http/routes/recovery/restore-points.js"
+    },
+    "./admin-http/routes/redirects/create": {
+      "types": "./dist/admin-http/routes/redirects/create.d.ts",
+      "import": "./dist/admin-http/routes/redirects/create.js",
+      "default": "./dist/admin-http/routes/redirects/create.js"
+    },
+    "./admin-http/routes/redirects/get-by-id": {
+      "types": "./dist/admin-http/routes/redirects/get-by-id.d.ts",
+      "import": "./dist/admin-http/routes/redirects/get-by-id.js",
+      "default": "./dist/admin-http/routes/redirects/get-by-id.js"
+    },
+    "./admin-http/routes/redirects/hits": {
+      "types": "./dist/admin-http/routes/redirects/hits.d.ts",
+      "import": "./dist/admin-http/routes/redirects/hits.js",
+      "default": "./dist/admin-http/routes/redirects/hits.js"
+    },
+    "./admin-http/routes/redirects/import": {
+      "types": "./dist/admin-http/routes/redirects/import.d.ts",
+      "import": "./dist/admin-http/routes/redirects/import.js",
+      "default": "./dist/admin-http/routes/redirects/import.js"
+    },
+    "./admin-http/routes/redirects/list": {
+      "types": "./dist/admin-http/routes/redirects/list.d.ts",
+      "import": "./dist/admin-http/routes/redirects/list.js",
+      "default": "./dist/admin-http/routes/redirects/list.js"
+    },
+    "./admin-http/routes/redirects/shared": {
+      "types": "./dist/admin-http/routes/redirects/shared.d.ts",
+      "import": "./dist/admin-http/routes/redirects/shared.js",
+      "default": "./dist/admin-http/routes/redirects/shared.js"
+    },
+    "./admin-http/routes/redirects/tombstone": {
+      "types": "./dist/admin-http/routes/redirects/tombstone.d.ts",
+      "import": "./dist/admin-http/routes/redirects/tombstone.js",
+      "default": "./dist/admin-http/routes/redirects/tombstone.js"
+    },
+    "./admin-http/routes/redirects/update": {
+      "types": "./dist/admin-http/routes/redirects/update.d.ts",
+      "import": "./dist/admin-http/routes/redirects/update.js",
+      "default": "./dist/admin-http/routes/redirects/update.js"
+    },
+    "./admin-http/routes/sites/local-sites": {
+      "types": "./dist/admin-http/routes/sites/local-sites.d.ts",
+      "import": "./dist/admin-http/routes/sites/local-sites.js",
+      "default": "./dist/admin-http/routes/sites/local-sites.js"
+    },
+    "./admin-http/routes/sites/site-previews": {
+      "types": "./dist/admin-http/routes/sites/site-previews.d.ts",
+      "import": "./dist/admin-http/routes/sites/site-previews.js",
+      "default": "./dist/admin-http/routes/sites/site-previews.js"
+    },
+    "./admin-http/routes/system/assistant-daemon": {
+      "types": "./dist/admin-http/routes/system/assistant-daemon.d.ts",
+      "import": "./dist/admin-http/routes/system/assistant-daemon.js",
+      "default": "./dist/admin-http/routes/system/assistant-daemon.js"
+    },
+    "./admin-http/routes/system/credential-copy": {
+      "types": "./dist/admin-http/routes/system/credential-copy.d.ts",
+      "import": "./dist/admin-http/routes/system/credential-copy.js",
+      "default": "./dist/admin-http/routes/system/credential-copy.js"
+    },
+    "./admin-http/routes/system/module-status": {
+      "types": "./dist/admin-http/routes/system/module-status.d.ts",
+      "import": "./dist/admin-http/routes/system/module-status.js",
+      "default": "./dist/admin-http/routes/system/module-status.js"
     }
   },
   "files": [
