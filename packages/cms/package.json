@@ -131,16 +131,9 @@
       "./themes/files/atomic-write": "node",
       "./admin-http/limits": "universal",
       "./publish/content/agent-tools": "universal",
-      "./publish/content/baseline-repo": "universal",
-      "./publish/content/execute-import": "universal",
       "./publish/content/live-site-policy": "universal",
       "./publish/content/media-references": "universal",
-      "./publish/content/peer-url": "universal",
-      "./publish/content/precheck-reasons": "universal",
-      "./publish/content/publish-readiness": "universal",
-      "./publish/content/report-contract": "universal",
       "./publish/content/tool-metadata": "universal",
-      "./publish/content/content-hash": "node",
       "./admin-http/http/redirects": "universal",
       "./admin-http/routes/database/restore-points": "universal",
       "./admin-http/routes/database/schema-state": "universal",
@@ -188,7 +181,16 @@
       "./forms/destinations/select": "universal",
       "./comments/site/comment-targets": "universal",
       "./admin-http/http/forms": "node",
-      "./comments/site/ip-hash-salt": "node"
+      "./comments/site/ip-hash-salt": "node",
+      "./media/site-transform/image-ops": "node",
+      "./media/site/bootstrap": "node",
+      "./media/site/chat-preview": "node",
+      "./media/site/content-type-resolution": "node",
+      "./media/site/content-type-store": "node",
+      "./media/site/hydrate-blob-store-from-seed": "node",
+      "./media/site/original-bytes": "node",
+      "./media/site/public-path": "node",
+      "./media/site/upload-content-type": "node"
     },
     "isolation": {
       "domains": {
@@ -293,7 +295,8 @@
       "kysely": "opt-in: sql storage adapters; import @jini-ai/cms/forms/sql — SQL storage adapters could not load kysely. Install kysely to enable this feature, or check its installed version and native binaries.",
       "dompurify": "opt-in: svg sanitization; import @jini-ai/cms/media — SVG sanitization could not load dompurify. Install dompurify to enable this feature, or check its installed version and native binaries.",
       "jsdom": "opt-in: server-side html and svg processing; import @jini-ai/cms/media — Server-side HTML and SVG processing could not load jsdom. Install jsdom to enable this feature, or check its installed version and native binaries.",
-      "express": "opt-in: express route adapters; import @jini-ai/cms/forms/express — Express route adapters could not load express. Install express to enable this feature, or check its installed version."
+      "express": "opt-in: express route adapters; import @jini-ai/cms/forms/express — Express route adapters could not load express. Install express to enable this feature, or check its installed version.",
+      "@cfworker/json-schema": "opt-in: json schema validation; import @jini-ai/cms/media/site-transform/image-ops — JSON Schema validation could not load @cfworker/json-schema. Install @cfworker/json-schema to enable this feature, or check its installed version and native binaries."
     }
   },
   "type": "module",
@@ -891,16 +894,6 @@
       "import": "./dist/publish/content/agent-tools.js",
       "default": "./dist/publish/content/agent-tools.js"
     },
-    "./publish/content/baseline-repo": {
-      "types": "./dist/publish/content/baseline-repo.d.ts",
-      "import": "./dist/publish/content/baseline-repo.js",
-      "default": "./dist/publish/content/baseline-repo.js"
-    },
-    "./publish/content/execute-import": {
-      "types": "./dist/publish/content/execute-import.d.ts",
-      "import": "./dist/publish/content/execute-import.js",
-      "default": "./dist/publish/content/execute-import.js"
-    },
     "./publish/content/live-site-policy": {
       "types": "./dist/publish/content/live-site-policy.d.ts",
       "import": "./dist/publish/content/live-site-policy.js",
@@ -911,35 +904,10 @@
       "import": "./dist/publish/content/media-references.js",
       "default": "./dist/publish/content/media-references.js"
     },
-    "./publish/content/peer-url": {
-      "types": "./dist/publish/content/peer-url.d.ts",
-      "import": "./dist/publish/content/peer-url.js",
-      "default": "./dist/publish/content/peer-url.js"
-    },
-    "./publish/content/precheck-reasons": {
-      "types": "./dist/publish/content/precheck-reasons.d.ts",
-      "import": "./dist/publish/content/precheck-reasons.js",
-      "default": "./dist/publish/content/precheck-reasons.js"
-    },
-    "./publish/content/publish-readiness": {
-      "types": "./dist/publish/content/publish-readiness.d.ts",
-      "import": "./dist/publish/content/publish-readiness.js",
-      "default": "./dist/publish/content/publish-readiness.js"
-    },
-    "./publish/content/report-contract": {
-      "types": "./dist/publish/content/report-contract.d.ts",
-      "import": "./dist/publish/content/report-contract.js",
-      "default": "./dist/publish/content/report-contract.js"
-    },
     "./publish/content/tool-metadata": {
       "types": "./dist/publish/content/tool-metadata.d.ts",
       "import": "./dist/publish/content/tool-metadata.js",
       "default": "./dist/publish/content/tool-metadata.js"
-    },
-    "./publish/content/content-hash": {
-      "types": "./dist/publish/content/content-hash.d.ts",
-      "import": "./dist/publish/content/content-hash.js",
-      "default": "./dist/publish/content/content-hash.js"
     },
     "./admin-http/http/redirects": {
       "types": "./dist/admin-http/http/redirects.d.ts",
@@ -1180,6 +1148,51 @@
       "types": "./dist/comments/site/ip-hash-salt.d.ts",
       "import": "./dist/comments/site/ip-hash-salt.js",
       "default": "./dist/comments/site/ip-hash-salt.js"
+    },
+    "./media/site-transform/image-ops": {
+      "types": "./dist/media/site-transform/image-ops.d.ts",
+      "import": "./dist/media/site-transform/image-ops.js",
+      "default": "./dist/media/site-transform/image-ops.js"
+    },
+    "./media/site/bootstrap": {
+      "types": "./dist/media/site/bootstrap.d.ts",
+      "import": "./dist/media/site/bootstrap.js",
+      "default": "./dist/media/site/bootstrap.js"
+    },
+    "./media/site/chat-preview": {
+      "types": "./dist/media/site/chat-preview.d.ts",
+      "import": "./dist/media/site/chat-preview.js",
+      "default": "./dist/media/site/chat-preview.js"
+    },
+    "./media/site/content-type-resolution": {
+      "types": "./dist/media/site/content-type-resolution.d.ts",
+      "import": "./dist/media/site/content-type-resolution.js",
+      "default": "./dist/media/site/content-type-resolution.js"
+    },
+    "./media/site/content-type-store": {
+      "types": "./dist/media/site/content-type-store.d.ts",
+      "import": "./dist/media/site/content-type-store.js",
+      "default": "./dist/media/site/content-type-store.js"
+    },
+    "./media/site/hydrate-blob-store-from-seed": {
+      "types": "./dist/media/site/hydrate-blob-store-from-seed.d.ts",
+      "import": "./dist/media/site/hydrate-blob-store-from-seed.js",
+      "default": "./dist/media/site/hydrate-blob-store-from-seed.js"
+    },
+    "./media/site/original-bytes": {
+      "types": "./dist/media/site/original-bytes.d.ts",
+      "import": "./dist/media/site/original-bytes.js",
+      "default": "./dist/media/site/original-bytes.js"
+    },
+    "./media/site/public-path": {
+      "types": "./dist/media/site/public-path.d.ts",
+      "import": "./dist/media/site/public-path.js",
+      "default": "./dist/media/site/public-path.js"
+    },
+    "./media/site/upload-content-type": {
+      "types": "./dist/media/site/upload-content-type.d.ts",
+      "import": "./dist/media/site/upload-content-type.js",
+      "default": "./dist/media/site/upload-content-type.js"
     }
   },
   "files": [
@@ -1227,7 +1240,8 @@
     "parse5": "^7.3.0",
     "sharp": "^0.35.5",
     "typescript": "^5.6.0",
-    "unpdf": "^1.9.1"
+    "unpdf": "^1.9.1",
+    "@cfworker/json-schema": "^4.1.1"
   },
   "dependencies": {
     "@jini-ai/core": "workspace:^",
@@ -1241,7 +1255,8 @@
     "express": "^4.21.0 || ^5.0.0",
     "jsdom": "^25.0.1 || ^26.0.0 || ^27.0.0",
     "kysely": "^0.29.6",
-    "sharp": "^0.35.3"
+    "sharp": "^0.35.3",
+    "@cfworker/json-schema": "^4.1.1"
   },
   "peerDependenciesMeta": {
     "sharp": {
@@ -1257,6 +1272,9 @@
       "optional": true
     },
     "express": {
+      "optional": true
+    },
+    "@cfworker/json-schema": {
       "optional": true
     }
   }

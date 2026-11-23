@@ -229,5 +229,11 @@
     "file": "packages/integrations/src/webhooks/worker.ts",
     "rule": "raw-error",
     "value": 1
+  },
+  {
+    "file": "packages/cms/src/media/site/hydrate-blob-store-from-seed.ts",
+    "rule": "stored-error-text",
+    "value": 2,
+    "reason": "X-media-1 verbatim move from the host: the seed-hydration report carries each failed file's error text for the boot log; behaviour unchanged by the move (host debt travels with the code)."
   }
 ]

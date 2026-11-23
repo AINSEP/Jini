@@ -1157,6 +1157,85 @@
    "createUnpdfDocumentTextExtractor": "function:44ff8840d5"
   }
  },
+ "./media/site-transform/image-ops": {
+  "types": "./dist/media/site-transform/image-ops.d.ts",
+  "symbols": {
+   "IMAGE_CONTENT_TYPES": "variable:b1ef349782",
+   "IMAGE_FORMATS": "variable:825f8a53e3",
+   "IMAGE_LIMITS": "variable:5b0d2b461b",
+   "ImageFormat": "type:8eeadf83e8",
+   "ImageLimits": "type:af7ba0ee96",
+   "ImageOutput": "interface:d163f463dd",
+   "ImageTransformError": "class:d020f25c32",
+   "OUTPUT_SCHEMA": "variable:5bd8b8647e",
+   "RenderedImage": "interface:8f3705e88c",
+   "encodeIco": "function:aa666558ae",
+   "inspectImage": "function:626a544315",
+   "normalizeOutputs": "function:8b9c28aae0",
+   "renderOutputs": "function:8ac8f72d40"
+  }
+ },
+ "./media/site/bootstrap": {
+  "types": "./dist/media/site/bootstrap.d.ts",
+  "symbols": {
+   "CORE_PUBLIC_TRANSFORM_NAME": "variable:f3331ecccf",
+   "ensureCoreMediaTransform": "function:82afe28454"
+  }
+ },
+ "./media/site/chat-preview": {
+  "types": "./dist/media/site/chat-preview.d.ts",
+  "symbols": {
+   "MEDIA_CHAT_PREVIEW_MAX_EDGE_PX": "variable:c5204930a9",
+   "withChatPreview": "function:fa8d62fb2e"
+  }
+ },
+ "./media/site/content-type-resolution": {
+  "types": "./dist/media/site/content-type-resolution.d.ts",
+  "symbols": {
+   "ContentTypeDeps": "interface:d4b4c32311",
+   "readRecordedContentType": "function:c24676f70d",
+   "resolveContentTypes": "function:fe68f998fc"
+  }
+ },
+ "./media/site/content-type-store": {
+  "types": "./dist/media/site/content-type-store.d.ts",
+  "symbols": {
+   "InMemoryMediaContentTypeStore": "class:8d9c095ecf",
+   "MediaContentTypeStorePort": "interface:db4ff0e29c"
+  }
+ },
+ "./media/site/hydrate-blob-store-from-seed": {
+  "types": "./dist/media/site/hydrate-blob-store-from-seed.d.ts",
+  "symbols": {
+   "HydrateBlobStoreFromSeedFailure": "interface:d389363d70",
+   "HydrateBlobStoreFromSeedRequired": "interface:b215a16526",
+   "HydrateBlobStoreFromSeedResult": "interface:ce36d11478",
+   "HydrateBlobStoreFromSeedStatus": "type:78d08dc58c",
+   "hydrateBlobStoreFromSeed": "function:92ad6fbdab"
+  }
+ },
+ "./media/site/original-bytes": {
+  "types": "./dist/media/site/original-bytes.d.ts",
+  "symbols": {
+   "readStoredBytes": "function:48ecaa1385"
+  }
+ },
+ "./media/site/public-path": {
+  "types": "./dist/media/site/public-path.d.ts",
+  "symbols": {
+   "MediaPublicPathVariant": "type:41602346f0",
+   "MediaUrlKeySource": "interface:6109bd74ff",
+   "mediaPublicPath": "function:7f707e1466",
+   "mediaUrlKey": "function:38bb7a7b96"
+  }
+ },
+ "./media/site/upload-content-type": {
+  "types": "./dist/media/site/upload-content-type.d.ts",
+  "symbols": {
+   "assertAllowedSniffedContentType": "function:184f0197e7",
+   "resolveUploadContentType": "function:e2813dfcf5"
+  }
+ },
  "./media/slug": {
   "types": "./dist/media/slug.d.ts",
   "symbols": {

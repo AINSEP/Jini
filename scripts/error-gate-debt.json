@@ -2693,5 +2693,15 @@
     "file": "packages/vibecoding/src/react/use-vibecoding-session.ts",
     "rule": "catch-reads-error",
     "value": 1
+  },
+  {
+    "file": "packages/cms/src/media/site/chat-preview.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/cms/src/media/site/content-type-resolution.ts",
+    "rule": "catch-reads-error",
+    "value": 1
   }
 ]

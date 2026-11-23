@@ -44,7 +44,8 @@
       "./proxy-env": "node",
       "./shell": "node",
       "./child-environment": "node",
-      "./retention": "node"
+      "./retention": "node",
+      "./object-store/site/setting": "node"
     },
     "isolation": {
       "entries": {
@@ -236,6 +237,11 @@
       "types": "./dist/retention/index.d.ts",
       "import": "./dist/retention/index.js",
       "default": "./dist/retention/index.js"
+    },
+    "./object-store/site/setting": {
+      "types": "./dist/object-store/site/setting.d.ts",
+      "import": "./dist/object-store/site/setting.js",
+      "default": "./dist/object-store/site/setting.js"
     }
   },
   "files": [
