@@ -40,7 +40,8 @@
       "./shell/site-presence": "universal",
       "./electron/handoff": "desktop",
       "./electron/preload": "desktop",
-      "./electron/webview": "desktop"
+      "./electron/webview": "desktop",
+      "./electron/session-bootstrap": "desktop"
     },
     "isolation": {
       "entries": {
@@ -192,6 +193,11 @@
       "types": "./dist/electron/webview/index.d.ts",
       "import": "./dist/electron/webview/index.js",
       "default": "./dist/electron/webview/index.js"
+    },
+    "./electron/session-bootstrap": {
+      "types": "./dist/electron/session-bootstrap/index.d.ts",
+      "import": "./dist/electron/session-bootstrap/index.js",
+      "default": "./dist/electron/session-bootstrap/index.js"
     }
   },
   "files": [
