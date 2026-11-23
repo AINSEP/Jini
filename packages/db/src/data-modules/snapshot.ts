@@ -89,9 +89,12 @@ export async function snapshotDb(
  * it there removes zero recovery capability: the never-brick guarantee covers the window between
  * "snapshot taken" and "DDL committed", and that window has closed.
  *
- * **A failed migration keeps its snapshot**, deliberately — the catch path leaves the entry
- * non-terminal precisely so the next boot can restore from it, and §9 also wants it retained for
- * operator forensics.
+ * **A failed migration keeps its snapshot**, deliberately — but not for next-boot recovery. The
+ * catch path in `data-module.ts` writes the terminal `ROLLED_BACK` phase (the transaction's own
+ * rollback already undid the DDL, so there is nothing to restore), which means recovery never
+ * reads that entry again. The snapshot is kept only as the named recovery point §9 asks to retain
+ * for operator forensics. Only a CRASH mid-migration leaves an entry non-terminal, and that entry's
+ * snapshot is the one next-boot recovery restores from.
  *
  * `_plugin_migrations.snapshot_path` still records which snapshot guarded each committed DDL. That
  * row is history — it says what protected the change at the time, which stays true — so a path
