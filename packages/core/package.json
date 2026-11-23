@@ -69,6 +69,7 @@
       "./contracts/site/post-author": "universal",
       "./contracts/site/request-facts": "universal",
       "./contracts/site/site-key": "universal",
+      "./contracts/site/installed-skill": "universal",
       "./contracts/site/skill-install": "universal",
       "./contracts/site/soft-delete": "universal",
       "./contracts/site/strict-base64": "node",
@@ -522,6 +523,11 @@
       "types": "./dist/contracts/site/site-key.d.ts",
       "import": "./dist/contracts/site/site-key.js",
       "default": "./dist/contracts/site/site-key.js"
+    },
+    "./contracts/site/installed-skill": {
+      "types": "./dist/contracts/site/installed-skill.d.ts",
+      "import": "./dist/contracts/site/installed-skill.js",
+      "default": "./dist/contracts/site/installed-skill.js"
     },
     "./contracts/site/skill-install": {
       "types": "./dist/contracts/site/skill-install.d.ts",
