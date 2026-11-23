@@ -106,6 +106,144 @@
    "usersSafetyToken": "variable:4eb1aa182e"
   }
  },
+ "./admin-http/http/users": {
+  "types": "./dist/admin-http/http/users.d.ts",
+  "symbols": {
+   "AdminPolicyResponse": "interface:2afb2082dc",
+   "AdminRoleResponse": "interface:3550f336f8",
+   "AdminUserResponse": "interface:aa66fe1d57",
+   "toAdminPolicyResponse": "function:96db68529a",
+   "toAdminRoleResponse": "function:6d3d9fecba",
+   "toAdminUserResponse": "function:f463cef2c0"
+  }
+ },
+ "./admin-http/owner/mfa-deps": {
+  "types": "./dist/admin-http/owner/mfa-deps.d.ts",
+  "symbols": {
+   "ComposeOwnerMfaDepsArgs": "interface:34b3f53d7b",
+   "OwnerAuthServiceDepsFn": "type:a72e0e8798",
+   "OwnerMfaSource": "interface:18c4467321",
+   "composeOwnerMfaDeps": "function:5e6c397362"
+  }
+ },
+ "./admin-http/routes/users/assign-role": {
+  "types": "./dist/admin-http/routes/users/assign-role.d.ts",
+  "symbols": {
+   "UserAssignRoleRouteDeps": "interface:d976f2231a",
+   "userAssignRoleRoute": "variable:fcbed5d0b8"
+  }
+ },
+ "./admin-http/routes/users/attach-policy": {
+  "types": "./dist/admin-http/routes/users/attach-policy.d.ts",
+  "symbols": {
+   "UserAttachPolicyRouteDeps": "interface:f3701d0929",
+   "userAttachPolicyRoute": "variable:f5d72f5e63"
+  }
+ },
+ "./admin-http/routes/users/create": {
+  "types": "./dist/admin-http/routes/users/create.d.ts",
+  "symbols": {
+   "UserCreateInput": "interface:cda222bbc5",
+   "UserCreateRouteDeps": "interface:94ccab47f5",
+   "userCreateRoute": "variable:b40188b6d2"
+  }
+ },
+ "./admin-http/routes/users/create-policy": {
+  "types": "./dist/admin-http/routes/users/create-policy.d.ts",
+  "symbols": {
+   "PolicyCreateRouteDeps": "interface:67581392e7",
+   "policyCreateRoute": "variable:1b6abc520f"
+  }
+ },
+ "./admin-http/routes/users/create-role": {
+  "types": "./dist/admin-http/routes/users/create-role.d.ts",
+  "symbols": {
+   "RoleCreateRouteDeps": "interface:3b2aeed91b",
+   "roleCreateRoute": "variable:d166d815cf"
+  }
+ },
+ "./admin-http/routes/users/delete": {
+  "types": "./dist/admin-http/routes/users/delete.d.ts",
+  "symbols": {
+   "UserDeleteRouteDeps": "interface:61d2cd2a1b",
+   "UserTrashFn": "type:bcdbad1a3f",
+   "userDeleteRoute": "variable:5c34a9b350"
+  }
+ },
+ "./admin-http/routes/users/delete-policy": {
+  "types": "./dist/admin-http/routes/users/delete-policy.d.ts",
+  "symbols": {
+   "PolicyDeleteRouteDeps": "interface:1c73f976ab",
+   "policyDeleteRoute": "variable:6ce6bec70a"
+  }
+ },
+ "./admin-http/routes/users/delete-role": {
+  "types": "./dist/admin-http/routes/users/delete-role.d.ts",
+  "symbols": {
+   "RoleDeleteRouteDeps": "interface:91ff694b2c",
+   "roleDeleteRoute": "variable:0d10759b43"
+  }
+ },
+ "./admin-http/routes/users/disable": {
+  "types": "./dist/admin-http/routes/users/disable.d.ts",
+  "symbols": {
+   "UserDisableRouteDeps": "interface:d35c1248bc",
+   "userDisableRoute": "variable:e038b4b9ce"
+  }
+ },
+ "./admin-http/routes/users/enable": {
+  "types": "./dist/admin-http/routes/users/enable.d.ts",
+  "symbols": {
+   "UserEnableRouteDeps": "interface:4273e70e8f",
+   "userEnableRoute": "variable:8cccd92b7e"
+  }
+ },
+ "./admin-http/routes/users/list": {
+  "types": "./dist/admin-http/routes/users/list.d.ts",
+  "symbols": {
+   "AdminUserListEntry": "type:99cfb8c45e",
+   "UserAccountProtection": "interface:3098e481a2",
+   "UserAccountProtectionFn": "type:b61b055671",
+   "UserListRouteDeps": "interface:37e57bfa9d",
+   "userListRoute": "variable:9bc404cdfc"
+  }
+ },
+ "./admin-http/routes/users/reset-password": {
+  "types": "./dist/admin-http/routes/users/reset-password.d.ts",
+  "symbols": {
+   "UserResetPasswordRouteDeps": "interface:d92f6278d0",
+   "userResetPasswordRoute": "variable:acc7fd8f22"
+  }
+ },
+ "./admin-http/routes/users/update": {
+  "types": "./dist/admin-http/routes/users/update.d.ts",
+  "symbols": {
+   "UserUpdateInput": "interface:2bd217986b",
+   "UserUpdateRouteDeps": "interface:511d753717",
+   "userUpdateRoute": "variable:b857a8bcd5"
+  }
+ },
+ "./admin-http/routes/users/update-policy": {
+  "types": "./dist/admin-http/routes/users/update-policy.d.ts",
+  "symbols": {
+   "PolicyUpdateRouteDeps": "interface:89915ed5c0",
+   "policyUpdateRoute": "variable:d47b37ba3d"
+  }
+ },
+ "./admin-http/routes/users/update-role": {
+  "types": "./dist/admin-http/routes/users/update-role.d.ts",
+  "symbols": {
+   "RoleUpdateRouteDeps": "interface:c33d1f704c",
+   "roleUpdateRoute": "variable:c6a31141f4"
+  }
+ },
+ "./admin-http/routes/users/write-policy-permission": {
+  "types": "./dist/admin-http/routes/users/write-policy-permission.d.ts",
+  "symbols": {
+   "PolicyPermissionWriteRouteDeps": "interface:a446bc4aab",
+   "policyPermissionWriteRoute": "variable:92da8790da"
+  }
+ },
  "./admin/adapters/http": {
   "types": "./dist/admin/adapters/http.d.ts",
   "symbols": {

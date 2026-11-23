@@ -48,6 +48,18 @@
    "toAdminTrashMenuResponse": "function:84a8a19808"
   }
  },
+ "./admin-http/http/newsletter": {
+  "types": "./dist/admin-http/http/newsletter.d.ts",
+  "symbols": {
+   "NewsletterCampaign": "interface:fd6d5f1167",
+   "NewsletterEntityType": "type:26a576f28a",
+   "NewsletterErrorMapper": "type:f35629b833",
+   "NewsletterErrorResponse": "interface:18ec13bd17",
+   "NewsletterList": "interface:4f95d2f746",
+   "NewsletterSubscription": "interface:288e33cb32",
+   "toDataResponse": "function:abeca70a78"
+  }
+ },
  "./admin-http/http/redirects": {
   "types": "./dist/admin-http/http/redirects.d.ts",
   "symbols": {
@@ -157,6 +169,148 @@
    "MenuUpdateTreeInput": "interface:120740c76e",
    "MenuUpdateTreeRouteDeps": "interface:fc8bebb41e",
    "menuUpdateTreeRoute": "variable:9610552709"
+  }
+ },
+ "./admin-http/routes/newsletter/archive-list": {
+  "types": "./dist/admin-http/routes/newsletter/archive-list.d.ts",
+  "symbols": {
+   "NewsletterArchiveListRouteDeps": "interface:eedb7d5a16",
+   "newsletterArchiveListRoute": "variable:dffdc95653"
+  }
+ },
+ "./admin-http/routes/newsletter/cancel-campaign": {
+  "types": "./dist/admin-http/routes/newsletter/cancel-campaign.d.ts",
+  "symbols": {
+   "NewsletterCancelCampaignFn": "type:41175007be",
+   "NewsletterCancelCampaignRouteDeps": "interface:99fccb02af",
+   "newsletterCancelCampaignRoute": "variable:db5798e577"
+  }
+ },
+ "./admin-http/routes/newsletter/create-campaign": {
+  "types": "./dist/admin-http/routes/newsletter/create-campaign.d.ts",
+  "symbols": {
+   "NewsletterCreateCampaignRouteDeps": "interface:c63f796730",
+   "newsletterCreateCampaignRoute": "variable:1d2cebde80"
+  }
+ },
+ "./admin-http/routes/newsletter/create-list": {
+  "types": "./dist/admin-http/routes/newsletter/create-list.d.ts",
+  "symbols": {
+   "NewsletterCreateListRouteDeps": "interface:dc155cb07b",
+   "newsletterCreateListRoute": "variable:a796ab8ed3"
+  }
+ },
+ "./admin-http/routes/newsletter/create-subscription": {
+  "types": "./dist/admin-http/routes/newsletter/create-subscription.d.ts",
+  "symbols": {
+   "NewsletterCreateSubscriptionRouteDeps": "interface:3936817855",
+   "newsletterCreateSubscriptionRoute": "variable:40f5f38704"
+  }
+ },
+ "./admin-http/routes/newsletter/get-campaign": {
+  "types": "./dist/admin-http/routes/newsletter/get-campaign.d.ts",
+  "symbols": {
+   "NewsletterGetCampaignRouteDeps": "interface:cc808ff28a",
+   "newsletterGetCampaignRoute": "variable:1f67fec4cc"
+  }
+ },
+ "./admin-http/routes/newsletter/import-subscriptions": {
+  "types": "./dist/admin-http/routes/newsletter/import-subscriptions.d.ts",
+  "symbols": {
+   "NewsletterImportSubscriptionsRouteDeps": "interface:ce8ca5dcd0",
+   "newsletterImportSubscriptionsRoute": "variable:5361096e23"
+  }
+ },
+ "./admin-http/routes/newsletter/list-campaigns": {
+  "types": "./dist/admin-http/routes/newsletter/list-campaigns.d.ts",
+  "symbols": {
+   "NewsletterListCampaignsInput": "interface:50c0d6a956",
+   "NewsletterListCampaignsRouteDeps": "interface:ecbcb37cae",
+   "newsletterListCampaignsRoute": "variable:4da1cc01a1"
+  }
+ },
+ "./admin-http/routes/newsletter/list-lists": {
+  "types": "./dist/admin-http/routes/newsletter/list-lists.d.ts",
+  "symbols": {
+   "NewsletterListListsRouteDeps": "interface:8a44a34cd4",
+   "newsletterListListsRoute": "variable:bc1bbae10d"
+  }
+ },
+ "./admin-http/routes/newsletter/list-send-log": {
+  "types": "./dist/admin-http/routes/newsletter/list-send-log.d.ts",
+  "symbols": {
+   "NewsletterListSendLogRouteDeps": "interface:f788e95599",
+   "NewsletterSendLogRow": "interface:5f2a0fc6af",
+   "newsletterListSendLogRoute": "variable:844bea7691"
+  }
+ },
+ "./admin-http/routes/newsletter/list-subscriptions": {
+  "types": "./dist/admin-http/routes/newsletter/list-subscriptions.d.ts",
+  "symbols": {
+   "NewsletterListSubscriptionsInput": "interface:d34a47d375",
+   "NewsletterListSubscriptionsRouteDeps": "interface:2c545da148",
+   "newsletterListSubscriptionsRoute": "variable:3f819246a9"
+  }
+ },
+ "./admin-http/routes/newsletter/pause-campaign": {
+  "types": "./dist/admin-http/routes/newsletter/pause-campaign.d.ts",
+  "symbols": {
+   "NewsletterPauseCampaignRouteDeps": "interface:fcc6402372",
+   "newsletterPauseCampaignRoute": "variable:2749287805"
+  }
+ },
+ "./admin-http/routes/newsletter/remove-subscription": {
+  "types": "./dist/admin-http/routes/newsletter/remove-subscription.d.ts",
+  "symbols": {
+   "NewsletterRemoveSubscriptionRouteDeps": "interface:bf445c9be2",
+   "newsletterRemoveSubscriptionRoute": "variable:539aaa2cfb"
+  }
+ },
+ "./admin-http/routes/newsletter/resend-confirmation": {
+  "types": "./dist/admin-http/routes/newsletter/resend-confirmation.d.ts",
+  "symbols": {
+   "NewsletterResendConfirmationRouteDeps": "interface:975b6cf174",
+   "newsletterResendConfirmationRoute": "variable:eb5704f9b4"
+  }
+ },
+ "./admin-http/routes/newsletter/resume-campaign": {
+  "types": "./dist/admin-http/routes/newsletter/resume-campaign.d.ts",
+  "symbols": {
+   "NewsletterResumeCampaignRouteDeps": "interface:b220f793d7",
+   "newsletterResumeCampaignRoute": "variable:04ddcde045"
+  }
+ },
+ "./admin-http/routes/newsletter/schedule-campaign": {
+  "types": "./dist/admin-http/routes/newsletter/schedule-campaign.d.ts",
+  "symbols": {
+   "NewsletterScheduleCampaignFn": "type:c33480ef1b",
+   "NewsletterScheduleCampaignRouteDeps": "interface:af3a81e900",
+   "newsletterScheduleCampaignRoute": "variable:a9663d29e1"
+  }
+ },
+ "./admin-http/routes/newsletter/send-campaign": {
+  "types": "./dist/admin-http/routes/newsletter/send-campaign.d.ts",
+  "symbols": {
+   "NewsletterSendCampaignRouteDeps": "interface:53cab65014",
+   "NewsletterSendPipeline": "interface:dba9657678",
+   "newsletterSendCampaignRoute": "variable:965e0635aa"
+  }
+ },
+ "./admin-http/routes/newsletter/send-test-campaign": {
+  "types": "./dist/admin-http/routes/newsletter/send-test-campaign.d.ts",
+  "symbols": {
+   "NewsletterSendTestCampaignFn": "type:738f0de8e6",
+   "NewsletterSendTestCampaignRouteDeps": "interface:7378d75878",
+   "NewsletterTestSendResult": "interface:401c41baa9",
+   "NewsletterTestSendResultDto": "interface:afc543adcc",
+   "newsletterSendTestCampaignRoute": "variable:eab39761fe"
+  }
+ },
+ "./admin-http/routes/newsletter/update-campaign": {
+  "types": "./dist/admin-http/routes/newsletter/update-campaign.d.ts",
+  "symbols": {
+   "NewsletterUpdateCampaignRouteDeps": "interface:efcf4ee766",
+   "newsletterUpdateCampaignRoute": "variable:2d8762832f"
   }
  },
  "./admin-http/routes/recovery/deep-link": {
