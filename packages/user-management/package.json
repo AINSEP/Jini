@@ -16,6 +16,7 @@
       ".": "universal",
       "./session-bootstrap": "universal",
       "./server": "node",
+      "./member-login/oidc-login": "node",
       "./react": "browser",
       "./react/testing": "browser",
       "./react/kit": "browser",
@@ -50,6 +51,11 @@
       "types": "./dist/server/index.d.ts",
       "import": "./dist/server/index.js",
       "default": "./dist/server/index.js"
+    },
+    "./member-login/oidc-login": {
+      "types": "./dist/member-login/oidc-login.d.ts",
+      "import": "./dist/member-login/oidc-login.js",
+      "default": "./dist/member-login/oidc-login.js"
     },
     "./react": {
       "types": "./dist/react/index.d.ts",
