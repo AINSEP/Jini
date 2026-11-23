@@ -145,7 +145,13 @@
       "./shell/lib/tab-event-source": "browser",
       "./shell/hooks/use-external-entry-refresh.hooks": "browser",
       "./screens/redirects": "browser",
-      "./screens/redirects/redirects-i18n": "browser"
+      "./screens/redirects/redirects-i18n": "browser",
+      "./screens/analytics": "browser",
+      "./screens/analytics/analytics-i18n": "universal",
+      "./screens/analytics/api/analytics-api.types": "universal",
+      "./screens/analytics/hooks/analytics-port.hooks": "universal",
+      "./screens/analytics/hooks/analytics-dependencies.hooks": "universal",
+      "./screens/analytics/hooks/use-analytics.hooks": "browser"
     },
     "isolation": {
       "shared": [
@@ -891,6 +897,36 @@
       "types": "./dist/screens/redirects/redirects-i18n.d.ts",
       "import": "./dist/screens/redirects/redirects-i18n.js",
       "default": "./dist/screens/redirects/redirects-i18n.js"
+    },
+    "./screens/analytics": {
+      "types": "./dist/screens/analytics/index.d.ts",
+      "import": "./dist/screens/analytics/index.js",
+      "default": "./dist/screens/analytics/index.js"
+    },
+    "./screens/analytics/analytics-i18n": {
+      "types": "./dist/screens/analytics/analytics-i18n.d.ts",
+      "import": "./dist/screens/analytics/analytics-i18n.js",
+      "default": "./dist/screens/analytics/analytics-i18n.js"
+    },
+    "./screens/analytics/api/analytics-api.types": {
+      "types": "./dist/screens/analytics/api/analytics-api.types.d.ts",
+      "import": "./dist/screens/analytics/api/analytics-api.types.js",
+      "default": "./dist/screens/analytics/api/analytics-api.types.js"
+    },
+    "./screens/analytics/hooks/analytics-port.hooks": {
+      "types": "./dist/screens/analytics/hooks/analytics-port.hooks.d.ts",
+      "import": "./dist/screens/analytics/hooks/analytics-port.hooks.js",
+      "default": "./dist/screens/analytics/hooks/analytics-port.hooks.js"
+    },
+    "./screens/analytics/hooks/analytics-dependencies.hooks": {
+      "types": "./dist/screens/analytics/hooks/analytics-dependencies.hooks.d.ts",
+      "import": "./dist/screens/analytics/hooks/analytics-dependencies.hooks.js",
+      "default": "./dist/screens/analytics/hooks/analytics-dependencies.hooks.js"
+    },
+    "./screens/analytics/hooks/use-analytics.hooks": {
+      "types": "./dist/screens/analytics/hooks/use-analytics.hooks.d.ts",
+      "import": "./dist/screens/analytics/hooks/use-analytics.hooks.js",
+      "default": "./dist/screens/analytics/hooks/use-analytics.hooks.js"
     }
   },
   "files": [
@@ -960,6 +996,24 @@
       ],
       "screens/redirects/redirects-i18n": [
         "./dist/screens/redirects/redirects-i18n.d.ts"
+      ],
+      "screens/analytics": [
+        "./dist/screens/analytics/index.d.ts"
+      ],
+      "screens/analytics/analytics-i18n": [
+        "./dist/screens/analytics/analytics-i18n.d.ts"
+      ],
+      "screens/analytics/api/analytics-api.types": [
+        "./dist/screens/analytics/api/analytics-api.types.d.ts"
+      ],
+      "screens/analytics/hooks/analytics-port.hooks": [
+        "./dist/screens/analytics/hooks/analytics-port.hooks.d.ts"
+      ],
+      "screens/analytics/hooks/analytics-dependencies.hooks": [
+        "./dist/screens/analytics/hooks/analytics-dependencies.hooks.d.ts"
+      ],
+      "screens/analytics/hooks/use-analytics.hooks": [
+        "./dist/screens/analytics/hooks/use-analytics.hooks.d.ts"
       ]
     }
   },
