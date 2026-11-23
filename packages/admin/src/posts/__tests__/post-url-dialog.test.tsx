@@ -50,4 +50,12 @@ describe('PostUrlDialog', () => {
     fireEvent.click(screen.getByRole('button', { name: '~Cancel' }));
     expect(dialog.cancel).toHaveBeenCalled();
   });
+
+  it('emits only jini-* classes, with the outline Cancel on jini-post-btn-secondary', () => {
+    render(<PostUrlDialog dialog={view({ image: true, error: 'Bad URL' })} t={t} />);
+    expect(screen.getByRole('button', { name: '~Cancel' }).classList.contains('jini-post-btn-secondary')).toBe(true);
+    expect(document.querySelector('.jini-post-dialog.jini-post-url-dialog')).not.toBeNull();
+    const classes = [...document.querySelectorAll('[class]')].flatMap((element) => [...element.classList]);
+    expect(classes.filter((name) => !name.startsWith('jini-'))).toEqual([]);
+  });
 });

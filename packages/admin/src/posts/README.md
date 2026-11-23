@@ -41,8 +41,12 @@ host's rich-text editor stay in the host for now. See
   `@jini-ai/admin/posts/post-url-dialog.css` (the `.jini-post-url-dialog` width) where it renders it.
 - `PostSettingsDialog` takes a required `hooks.useTabBarKeyboard` (the host binds the one from
   `@jini-ai/ui/tab-strip`), the `usePostSettingsDialog` controller, the byline/publish-time fields and
-  `t`. It emits `.jini-post-settings-dialog`, `.jini-post-settings-tabs` and `.jini-post-settings-panel`
-  (plus the host's shared `settings-dialog`/`segmented`/`widget-picker-footer` chrome classes).
+  `t`. It emits `.jini-post-dialog`, `.jini-post-settings-dialog`, `.jini-post-settings-tabs` (active
+  tab = `aria-selected="true"`), `.jini-post-settings-panel` and the
+  `.jini-post-settings-dialog__footer` / `__actions` row.
+- Both post dialogs emit only `jini-*` classes. The host styles `.jini-post-dialog` (modal shell) and
+  `.jini-post-btn-secondary` (`PostUrlDialog`'s outline Cancel) as twins of its own dialog,
+  segmented-tab, footer and secondary-button chrome.
 - `ToolbarCharacterCount` takes `state: { characterCount }` and `t`; it emits
   `.jini-post-toolbar__count`.
 

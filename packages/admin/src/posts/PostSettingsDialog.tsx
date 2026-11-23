@@ -18,7 +18,10 @@ import { type Translate } from '@jini-ai/core/text';
  * `featuredMediaId` and now carries that toggle.
  *
  * Wiring: the host binds the tab strip's keyboard hook into the required `hooks.useTabBarKeyboard`
- * and loads its shared domain-dialog stylesheet wherever it renders this dialog.
+ * and loads its shared domain-dialog stylesheet wherever it renders this dialog. Only `jini-*`
+ * classes are emitted (`jini-post-dialog` shell, `jini-post-settings-tabs` strip whose active tab is
+ * the `aria-selected="true"` one, `jini-post-settings-dialog__footer`/`__actions` row); the host
+ * styles them, twinning its own dialog/segmented/footer chrome.
  */
 
 const TABS: ReadonlyArray<{ id: PostSettingsTab; label: string }> = [
@@ -45,16 +48,15 @@ export function PostSettingsDialog({ dialog, kindLabel, author, setAuthor, showA
       open
       title={t(kindLabel === "page" ? "Page settings" : "Post settings")}
       onClose={dialog.closeDialog}
-      className="settings-dialog jini-domain-dialog jini-post-settings-dialog"
+      className="jini-post-dialog jini-domain-dialog jini-post-settings-dialog"
     >
-      <div className="segmented jini-post-settings-tabs" role="tablist" aria-label={t(kindLabel === "page" ? "Page settings" : "Post settings")} onKeyDown={onKeyDown}>
+      <div className="jini-post-settings-tabs" role="tablist" aria-label={t(kindLabel === "page" ? "Page settings" : "Post settings")} onKeyDown={onKeyDown}>
         {TABS.map((tab) => (
           <button
             key={tab.id}
             type="button"
             role="tab"
             aria-selected={dialog.tab === tab.id}
-            className={dialog.tab === tab.id ? "is-active" : undefined}
             tabIndex={resolveTabBarTabIndex({ tabs: TABS, activeId: dialog.tab, tab })}
             onClick={() => dialog.setTab(tab.id)}
             {...agentHandle({ handle: `post-settings-tab-${tab.id}` }, { role: "button", label: `Show the ${tab.id} settings tab` })}
@@ -69,8 +71,8 @@ export function PostSettingsDialog({ dialog, kindLabel, author, setAuthor, showA
         ) : null}
         {dialog.tab === "publish" ? <PostPublishAtField {...publishing} t={t} agentHandle={agentHandle} /> : null}
       </div>
-      <div className="widget-picker-footer">
-        <span className="editor-actions">
+      <div className="jini-post-settings-dialog__footer">
+        <span className="jini-post-settings-dialog__actions">
           <button
             data-jini-autofocus=""
             type="button"

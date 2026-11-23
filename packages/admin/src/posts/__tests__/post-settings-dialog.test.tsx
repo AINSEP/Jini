@@ -31,6 +31,8 @@ describe('PostSettingsDialog', () => {
     expect(document.querySelector('.jini-post-settings-dialog')).not.toBeNull();
     expect(document.querySelector('.jini-post-settings-tabs')).not.toBeNull();
     expect(document.querySelector('.jini-post-settings-panel input')).not.toBeNull();
+    expect(document.querySelector('.jini-post-dialog.jini-post-settings-dialog')).not.toBeNull();
+    expect(document.querySelector('.jini-post-settings-dialog__footer > .jini-post-settings-dialog__actions button')?.textContent).toBe('~Done');
     expect(screen.getAllByRole('tab').map((tab) => [tab.textContent, tab.getAttribute('aria-selected')])).toEqual([
       ['~Author', 'true'], ['~Publish', 'false'],
     ]);
@@ -44,5 +46,12 @@ describe('PostSettingsDialog', () => {
     expect(onKeyDown).toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button', { name: '~Done' }));
     expect(props.dialog.closeDialog).toHaveBeenCalled();
+  });
+
+  it('emits only jini-* classes (the host twins its own chrome onto them)', () => {
+    renderDialog();
+    const classes = [...document.querySelectorAll('[class]')].flatMap((element) => [...element.classList]);
+    expect(classes.length).toBeGreaterThan(0);
+    expect(classes.filter((name) => !name.startsWith('jini-'))).toEqual([]);
   });
 });
