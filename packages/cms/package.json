@@ -170,7 +170,15 @@
       "./admin-http/routes/newsletter/pause-campaign": "universal",
       "./admin-http/routes/newsletter/resume-campaign": "universal",
       "./admin-http/routes/newsletter/cancel-campaign": "universal",
-      "./admin-http/routes/newsletter/list-send-log": "universal"
+      "./admin-http/routes/newsletter/list-send-log": "universal",
+      "./admin-http/routes/newsletter/list-lists": "universal",
+      "./admin-http/routes/newsletter/create-list": "universal",
+      "./admin-http/routes/newsletter/archive-list": "universal",
+      "./admin-http/routes/newsletter/list-subscriptions": "universal",
+      "./admin-http/routes/newsletter/create-subscription": "universal",
+      "./admin-http/routes/newsletter/import-subscriptions": "universal",
+      "./admin-http/routes/newsletter/remove-subscription": "universal",
+      "./admin-http/routes/newsletter/resend-confirmation": "universal"
     },
     "isolation": {
       "domains": {
@@ -284,7 +292,15 @@
         "./admin-http/routes/newsletter/pause-campaign": "newsletter",
         "./admin-http/routes/newsletter/resume-campaign": "newsletter",
         "./admin-http/routes/newsletter/cancel-campaign": "newsletter",
-        "./admin-http/routes/newsletter/list-send-log": "newsletter"
+        "./admin-http/routes/newsletter/list-send-log": "newsletter",
+        "./admin-http/routes/newsletter/list-lists": "newsletter",
+        "./admin-http/routes/newsletter/create-list": "newsletter",
+        "./admin-http/routes/newsletter/archive-list": "newsletter",
+        "./admin-http/routes/newsletter/list-subscriptions": "newsletter",
+        "./admin-http/routes/newsletter/create-subscription": "newsletter",
+        "./admin-http/routes/newsletter/import-subscriptions": "newsletter",
+        "./admin-http/routes/newsletter/remove-subscription": "newsletter",
+        "./admin-http/routes/newsletter/resend-confirmation": "newsletter"
       }
     },
     "optionalPeers": {
@@ -1089,6 +1105,46 @@
       "types": "./dist/admin-http/routes/newsletter/list-send-log.d.ts",
       "import": "./dist/admin-http/routes/newsletter/list-send-log.js",
       "default": "./dist/admin-http/routes/newsletter/list-send-log.js"
+    },
+    "./admin-http/routes/newsletter/list-lists": {
+      "types": "./dist/admin-http/routes/newsletter/list-lists.d.ts",
+      "import": "./dist/admin-http/routes/newsletter/list-lists.js",
+      "default": "./dist/admin-http/routes/newsletter/list-lists.js"
+    },
+    "./admin-http/routes/newsletter/create-list": {
+      "types": "./dist/admin-http/routes/newsletter/create-list.d.ts",
+      "import": "./dist/admin-http/routes/newsletter/create-list.js",
+      "default": "./dist/admin-http/routes/newsletter/create-list.js"
+    },
+    "./admin-http/routes/newsletter/archive-list": {
+      "types": "./dist/admin-http/routes/newsletter/archive-list.d.ts",
+      "import": "./dist/admin-http/routes/newsletter/archive-list.js",
+      "default": "./dist/admin-http/routes/newsletter/archive-list.js"
+    },
+    "./admin-http/routes/newsletter/list-subscriptions": {
+      "types": "./dist/admin-http/routes/newsletter/list-subscriptions.d.ts",
+      "import": "./dist/admin-http/routes/newsletter/list-subscriptions.js",
+      "default": "./dist/admin-http/routes/newsletter/list-subscriptions.js"
+    },
+    "./admin-http/routes/newsletter/create-subscription": {
+      "types": "./dist/admin-http/routes/newsletter/create-subscription.d.ts",
+      "import": "./dist/admin-http/routes/newsletter/create-subscription.js",
+      "default": "./dist/admin-http/routes/newsletter/create-subscription.js"
+    },
+    "./admin-http/routes/newsletter/import-subscriptions": {
+      "types": "./dist/admin-http/routes/newsletter/import-subscriptions.d.ts",
+      "import": "./dist/admin-http/routes/newsletter/import-subscriptions.js",
+      "default": "./dist/admin-http/routes/newsletter/import-subscriptions.js"
+    },
+    "./admin-http/routes/newsletter/remove-subscription": {
+      "types": "./dist/admin-http/routes/newsletter/remove-subscription.d.ts",
+      "import": "./dist/admin-http/routes/newsletter/remove-subscription.js",
+      "default": "./dist/admin-http/routes/newsletter/remove-subscription.js"
+    },
+    "./admin-http/routes/newsletter/resend-confirmation": {
+      "types": "./dist/admin-http/routes/newsletter/resend-confirmation.d.ts",
+      "import": "./dist/admin-http/routes/newsletter/resend-confirmation.js",
+      "default": "./dist/admin-http/routes/newsletter/resend-confirmation.js"
     }
   },
   "files": [

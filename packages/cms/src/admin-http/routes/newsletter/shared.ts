@@ -67,6 +67,11 @@ export function newsletterIdParam(params: Record<string, string | undefined>): s
   return String(params.id);
 }
 
+/** The `:listId` path segment, read like {@link newsletterIdParam}: `String(...)`, no `?? ""`. @complexity O(1). */
+export function newsletterListIdParam(params: Record<string, string | undefined>): string {
+  return String(params.listId);
+}
+
 /**
  * Refuses with the host mapper's exact status and body; anything the mapper does not own is
  * rethrown unchanged so the host's failure port answers it as an unexpected (redacted) failure.

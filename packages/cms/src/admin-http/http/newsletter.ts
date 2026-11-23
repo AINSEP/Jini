@@ -45,6 +45,20 @@ export interface NewsletterCampaign {
   listId: string;
 }
 
+/** The list fields the specs read (none beyond identity); the host's record carries more (name, slug,
+ *  status, timestamps) and the specs answer it whole, so every extra field still reaches the wire. */
+export interface NewsletterList {
+  id: string;
+}
+
+/** The subscription fields the specs read (the list it belongs to, the subscriber whose contact a
+ *  resend looks up); the specs answer the host's record whole, so extra fields still reach the wire. */
+export interface NewsletterSubscription {
+  id: string;
+  listId: string;
+  subscriberId: string;
+}
+
 /** `{ data: T }` envelope — api.spec.md §5's `CampaignResponse`/`NewsletterListResponse`/etc. shape. */
 export function toDataResponse<T>({ data }: { data: T }, _optional: Record<string, never> = {}): { data: T } {
   return { data };

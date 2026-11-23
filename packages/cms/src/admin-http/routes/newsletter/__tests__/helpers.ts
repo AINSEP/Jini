@@ -1,6 +1,6 @@
 import { RouteRefusalError } from "@jini-ai/core/errors/route-refusal";
 
-import type { NewsletterCampaign, NewsletterErrorMapper } from "../../../http/newsletter.js";
+import type { NewsletterCampaign, NewsletterErrorMapper, NewsletterList, NewsletterSubscription } from "../../../http/newsletter.js";
 
 /** @file Shared fakes for the newsletter route-spec tests: a campaign row, a recording authorizer, a fake host error mapper and the refusal reader. */
 
@@ -15,6 +15,19 @@ export function fakeCampaign(overrides: Partial<NewsletterCampaign> = {}): Newsl
     id: "camp-1", status: "draft", subject: "Autumn", preheader: null, fromName: "Acme", fromEmail: "news@acme.test",
     replyTo: "help@acme.test", listId: "list-1", bodyJson: { type: "doc" }, ...overrides,
   };
+}
+
+type FakeList = NewsletterList & { slug: string };
+type FakeSubscription = NewsletterSubscription & { status: string };
+
+/** One stored list, with the fields the specs read plus one the host keeps (which must reach the wire). */
+export function fakeList(overrides: Partial<FakeList> = {}): FakeList {
+  return { id: "list-1", slug: "weekly", ...overrides };
+}
+
+/** One stored subscription, with every field the specs read plus one the host keeps. */
+export function fakeSubscription(overrides: Partial<FakeSubscription> = {}): FakeSubscription {
+  return { id: "sub-1", listId: "list-1", subscriberId: "member-1", status: "pending", ...overrides };
 }
 
 /** Stands in for a host error class: the host's mapper (injected) knows it, the engine does not. */
@@ -70,8 +83,8 @@ export function baseDeps(events: string[] = []) {
   return { workspaceId: WORKSPACE_ID, newsletterReady, mapNewsletterError: mapTestError };
 }
 
-/** Every collaborator any campaign route reads, each answering through `call` (name + input), so one
- *  table can drive the shared admission and error rules across all eleven routes. */
+/** Every collaborator any newsletter route reads, each answering through `call` (name + input), so one
+ *  table can drive the shared admission and error rules across all nineteen routes. */
 export function allDeps(call: (name: string, input: unknown) => unknown, events: string[] = []) {
   const via = (name: string) => async (input: unknown = {}) => call(name, input);
   return {
@@ -87,5 +100,14 @@ export function allDeps(call: (name: string, input: unknown) => unknown, events:
     openSendPipeline: () => ({ authorizeSend: via("authorizeSend"), freezeAudience: via("freezeAudience"), claimBatch: via("claimBatch") }),
     reportDeliveryFailure: () => undefined,
     clock: { nowIso: () => NOW },
+    newsletterListRepo: { list: via("listLists") },
+    newsletterSubscriptionRepo: { findById: via("findSubscription"), list: via("listSubscriptions") },
+    newsletterSubscriberDirectory: { getContact: via("getContact") },
+    saveList: via("saveList"),
+    archiveList: via("archiveList"),
+    saveSubscription: via("saveSubscription"),
+    importSubscriptions: via("importSubscriptions"),
+    unsubscribeSubscription: via("unsubscribeSubscription"),
+    issueConfirmationToken: via("issueConfirmationToken"),
   };
 }
