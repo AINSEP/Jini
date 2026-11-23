@@ -80,6 +80,14 @@
    "CONTENT_ENTRY_MAX_BODY_BYTES": "variable:49ef7bebb2"
   }
  },
+ "./admin-http/routes/agent-plugins/connection-sign-in": {
+  "types": "./dist/admin-http/routes/agent-plugins/connection-sign-in.d.ts",
+  "symbols": {
+   "ApiConnectionSignInHandoff": "interface:27694e6027",
+   "ApiConnectionSignInRouteDeps": "interface:18cba62288",
+   "apiConnectionSignInRoute": "function:ec3013c3dc"
+  }
+ },
  "./admin-http/routes/agent-plugins/files": {
   "types": "./dist/admin-http/routes/agent-plugins/files.d.ts",
   "symbols": {
