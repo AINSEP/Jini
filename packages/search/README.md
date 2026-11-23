@@ -26,6 +26,17 @@ required args; the host binds both from `@jini-ai/core/settings`. `writeSearchPr
 the host settings write as `writeSetting`. See
 [`DR-005`](../../docs/decisions/DR-005-portable-package-boundaries.md).
 
+**CMS document sources and access port** (`@jini-ai/search/site/cms-document-source`,
+`@jini-ai/search/site/access`): `createCmsSearchDocumentSources` and `createCmsSearchAccessPort` borrow
+the host kernel (`StorageKernel<Kysely<DB>, DB>`, generic over the host schema) through a local
+structural slice of the `posts` table (`CmsSearchDatabase`, the columns the queries read; `kysely` is a
+type-only peer). The host rules are required fields on the same args object: `isLiveAt` (the public
+site's publish rule) and `resolveMemberAccess` (the raw `member_access_json` decoder) on both, plus
+`postPublicPath` and `toSearchText` (plain-text title and body of a whole host row) on the sources.
+`cmsSearchVisibility` and `isRowLive` take the same rule on their args. The host binds all four once
+and spreads them into both calls. See
+[`DR-005`](../../docs/decisions/DR-005-portable-package-boundaries.md).
+
 ## Plugin providers
 
 A plugin ships a manifest at its package root, under the filename the host chooses:
