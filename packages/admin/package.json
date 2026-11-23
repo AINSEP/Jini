@@ -91,7 +91,6 @@
       "./shell/lib/addons-routes": "browser",
       "./shell/lib/admin-boot-scope": "browser",
       "./shell/lib/admin-draft-identity": "browser",
-      "./shell/lib/admin-http/config": "browser",
       "./shell/lib/agent-screenshot-bus": "browser",
       "./shell/lib/ascii-slug": "browser",
       "./shell/lib/assistant-dock-bus": "browser",
@@ -170,7 +169,6 @@
         "./shell/lib/addons-routes": "browser",
         "./shell/lib/admin-boot-scope": "browser",
         "./shell/lib/admin-draft-identity": "browser",
-        "./shell/lib/admin-http/config": "browser",
         "./shell/lib/agent-screenshot-bus": "browser",
         "./shell/lib/ascii-slug": "browser",
         "./shell/lib/assistant-dock-bus": "browser",
@@ -612,11 +610,6 @@
       "types": "./dist/shell/lib/admin-draft-identity.d.ts",
       "import": "./dist/shell/lib/admin-draft-identity.js",
       "default": "./dist/shell/lib/admin-draft-identity.js"
-    },
-    "./shell/lib/admin-http/config": {
-      "types": "./dist/shell/lib/admin-http/config.d.ts",
-      "import": "./dist/shell/lib/admin-http/config.js",
-      "default": "./dist/shell/lib/admin-http/config.js"
     },
     "./shell/lib/agent-screenshot-bus": {
       "types": "./dist/shell/lib/agent-screenshot-bus.d.ts",

@@ -1603,9 +1603,9 @@
  "./shell/lib/addons-routes": {
   "types": "./dist/shell/lib/addons-routes.d.ts",
   "symbols": {
-   "ADDONS_PANEL_PATHS": "variable:1fb84b4ec1",
+   "AddonsRoutePolicy": "interface:252870b9b8",
    "AddonsRouteResolution": "interface:da88f7fe3a",
-   "resolveAddonsRoute": "function:b5f83674a9"
+   "resolveAddonsRoute": "function:8bc527742c"
   }
  },
  "./shell/lib/admin-boot-scope": {
@@ -1628,13 +1628,6 @@
    "adminFrontendTabId": "variable:1fcdc4e732",
    "publishAdminPageSurface": "function:f7948b8864",
    "subscribeToAdminPageSurfaces": "function:8c184f518a"
-  }
- },
- "./shell/lib/admin-http/config": {
-  "types": "./dist/shell/lib/admin-http/config.d.ts",
-  "symbols": {
-   "BASE": "variable:d7504fa19e",
-   "WORKSPACE_ID": "variable:ab262cfda2"
   }
  },
  "./shell/lib/admin-nav-i18n": {
@@ -1754,7 +1747,8 @@
  "./shell/lib/import-export-routes": {
   "types": "./dist/shell/lib/import-export-routes.d.ts",
   "symbols": {
-   "resolveImportExportRoute": "function:b20a15cb64"
+   "MovedTabsRoutePolicy": "interface:3232cd0a76",
+   "resolveImportExportRoute": "function:451dbce98a"
   }
  },
  "./shell/lib/merge-locale-overlays": {
