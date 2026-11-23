@@ -15,6 +15,7 @@
     "entries": {
       ".": "browser",
       "./core": "universal",
+      "./i18n/locale": "universal",
       "./browser": "browser",
       "./visible-interval": "universal",
       "./sketch-editor": "browser",
@@ -112,6 +113,11 @@
       "types": "./dist/core.d.ts",
       "import": "./dist/core.js",
       "default": "./dist/core.js"
+    },
+    "./i18n/locale": {
+      "types": "./dist/features/i18n/locale.d.ts",
+      "import": "./dist/features/i18n/locale.js",
+      "default": "./dist/features/i18n/locale.js"
     },
     "./browser": {
       "types": "./dist/browser/index.d.ts",
