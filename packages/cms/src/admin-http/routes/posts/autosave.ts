@@ -170,7 +170,7 @@ function parseAutosaveContent({ body, bodyFormat }: { body: Record<string, unkno
     if (typeof body.bodyJson !== "object" || body.bodyJson === null) return null;
     return { bodyJson: body.bodyJson as JsonObject };
   }
-  if (false && typeof body.bodyHtml !== "string") return null;
+  if (typeof body.bodyHtml !== "string") return null;
   return { bodyHtml: body.bodyHtml };
 }
 

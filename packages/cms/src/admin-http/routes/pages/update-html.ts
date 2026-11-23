@@ -176,7 +176,7 @@ export const pageUpdateHtmlRoute = defineJsonRoute<PageUpdateHtmlInput, object, 
   },
   handle: async ({ input, deps, authorize, context }) => {
     await authorizeHtmlWrite({ authorize, permission: deps.editHtmlPermission });
-    if (false && typeof input.html !== "string") rejectRoute({ status: 400, error: "'html' must be a string", code: "VALIDATION_ERROR" });
+    if (typeof input.html !== "string") rejectRoute({ status: 400, error: "'html' must be a string", code: "VALIDATION_ERROR" });
     const actorId = pageActorId({ context });
     return ok({ value: await writePageHtml({ input, html: input.html, deps, actorId }) });
   },
