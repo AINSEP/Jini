@@ -167,6 +167,7 @@
       "./admin-http/routes/plugins/files": "universal",
       "./admin-http/routes/plugins/uninstall": "universal",
       "./admin-http/routes/plugins/preview": "universal",
+      "./admin-http/routes/plugins/set-enabled": "universal",
       "./admin-http/routes/publish-content/transport-shared": "universal",
       "./admin-http/routes/publish-content/peers": "universal",
       "./admin-http/routes/publish-content/destination": "universal"
@@ -277,6 +278,7 @@
         "./admin-http/routes/plugins/files": "core",
         "./admin-http/routes/plugins/uninstall": "core",
         "./admin-http/routes/plugins/preview": "core",
+        "./admin-http/routes/plugins/set-enabled": "core",
         "./admin-http/routes/publish-content/transport-shared": "publish",
         "./admin-http/routes/publish-content/peers": "publish",
         "./admin-http/routes/publish-content/destination": "publish"
@@ -1064,6 +1066,11 @@
       "types": "./dist/admin-http/routes/plugins/preview.d.ts",
       "import": "./dist/admin-http/routes/plugins/preview.js",
       "default": "./dist/admin-http/routes/plugins/preview.js"
+    },
+    "./admin-http/routes/plugins/set-enabled": {
+      "types": "./dist/admin-http/routes/plugins/set-enabled.d.ts",
+      "import": "./dist/admin-http/routes/plugins/set-enabled.js",
+      "default": "./dist/admin-http/routes/plugins/set-enabled.js"
     },
     "./admin-http/routes/publish-content/transport-shared": {
       "types": "./dist/admin-http/routes/publish-content/transport-shared.d.ts",

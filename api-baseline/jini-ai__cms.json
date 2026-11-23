@@ -209,6 +209,16 @@
    "pluginPreviewStatusRoute": "variable:968d4a07a7"
   }
  },
+ "./admin-http/routes/plugins/set-enabled": {
+  "types": "./dist/admin-http/routes/plugins/set-enabled.d.ts",
+  "symbols": {
+   "PluginSetEnabledEnvelope": "interface:1696b51936",
+   "PluginSetEnabledErrors": "interface:aaf05c620c",
+   "PluginSetEnabledInput": "interface:4ec87bfcc8",
+   "PluginSetEnabledRouteDeps": "interface:d1ec410860",
+   "pluginSetEnabledRoute": "variable:a4bf6dad90"
+  }
+ },
  "./admin-http/routes/plugins/uninstall": {
   "types": "./dist/admin-http/routes/plugins/uninstall.d.ts",
   "symbols": {

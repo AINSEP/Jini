@@ -198,6 +198,10 @@ routes stay host-side until the host ports carry that context.
 Plugins (`src/admin-http/routes/plugins/*`): cms does not depend on `@jini-ai/plugins`; the host
 injects discovery, the activation lookup, `toAdminPluginResponse`, the uninstall move, the preview
 filter, the hook-failure envelope and the error classes each ladder maps.
+`set-enabled` runs the cms `executeCommand` gateway with a host-injected raw `authorizeCommand` (the
+gateway names the `plugin-activation` entity itself and its `ForbiddenError` maps to 403 `FORBIDDEN`
+with `details`); the host binds the plugin engine's `setPluginEnabled`, tool-access lowering, approval
+recording, tracker and serializer, and the eight `setEnabledErrors` classes.
 
 ## Scripts
 
