@@ -42,11 +42,11 @@ async function ownerSet(deps: ReturnType<typeof ledger>, value: string): Promise
   });
 }
 
-const read = (deps: ReturnType<typeof ledger>) => readMediaObjectStoreSetting({ settingsRepo: deps.settingsRepo, workspaceId: WORKSPACE_ID });
+const read = (deps: ReturnType<typeof ledger>) => readMediaObjectStoreSetting({ settingsRepo: deps.settingsRepo, workspaceId: WORKSPACE_ID, getEffective });
 
 test("ensureMediaObjectStoreSetting: registers core.storage/mediaObjectStore as a workspace-scoped string defaulting to ''", async () => {
   const deps = ledger();
-  await ensureMediaObjectStoreSetting({ deps, systemPrincipalId: SYSTEM_PRINCIPAL_ID });
+  await ensureMediaObjectStoreSetting({ deps, systemPrincipalId: SYSTEM_PRINCIPAL_ID, ensureSettingDefinitions });
 
   const definition = await resolveDefinitionRaw({ repo: deps.settingsRepo }, { namespace: "core.storage", key: "mediaObjectStore", workspaceId: null });
   assert.ok(definition, "the definition must be registered");
@@ -61,22 +61,22 @@ test("ensureMediaObjectStoreSetting: registers core.storage/mediaObjectStore as 
 
 test("readMediaObjectStoreSetting: returns the owner's saved provider id, trimmed", async () => {
   const deps = ledger();
-  await ensureMediaObjectStoreSetting({ deps, systemPrincipalId: SYSTEM_PRINCIPAL_ID });
+  await ensureMediaObjectStoreSetting({ deps, systemPrincipalId: SYSTEM_PRINCIPAL_ID, ensureSettingDefinitions });
   await ownerSet(deps, "  s3_compatible \n");
   assert.equal(await read(deps), "s3_compatible");
 });
 
 test("ensureMediaObjectStoreSetting: running again on the next boot keeps the owner's value", async () => {
   const deps = ledger();
-  await ensureMediaObjectStoreSetting({ deps, systemPrincipalId: SYSTEM_PRINCIPAL_ID });
+  await ensureMediaObjectStoreSetting({ deps, systemPrincipalId: SYSTEM_PRINCIPAL_ID, ensureSettingDefinitions });
   await ownerSet(deps, "s3_compatible");
-  await ensureMediaObjectStoreSetting({ deps, systemPrincipalId: SYSTEM_PRINCIPAL_ID });
+  await ensureMediaObjectStoreSetting({ deps, systemPrincipalId: SYSTEM_PRINCIPAL_ID, ensureSettingDefinitions });
   assert.equal(await read(deps), "s3_compatible");
 });
 
 test("readMediaObjectStoreSetting: a blank saved value reads as ''", async () => {
   const deps = ledger();
-  await ensureMediaObjectStoreSetting({ deps, systemPrincipalId: SYSTEM_PRINCIPAL_ID });
+  await ensureMediaObjectStoreSetting({ deps, systemPrincipalId: SYSTEM_PRINCIPAL_ID, ensureSettingDefinitions });
   await ownerSet(deps, "   ");
   assert.equal(await read(deps), "");
 });
@@ -93,4 +93,14 @@ test("readMediaObjectStoreSetting: a non-string effective value (a definition re
   const effective = await getEffective({ deps: { repo: deps.settingsRepo }, namespace: STORAGE_SETTINGS_NAMESPACE, key: MEDIA_OBJECT_STORE_KEY, scopeContext: { workspaceId: WORKSPACE_ID } });
   assert.equal(effective?.value, 42, "precondition: the ledger really holds a non-string value");
   assert.equal(await read(deps), "");
+});
+
+test("the settings reader and definition writer are the host-bound implementations, not module imports", async () => {
+  const written: unknown[] = [];
+  await ensureMediaObjectStoreSetting({ deps: ledger(), systemPrincipalId: SYSTEM_PRINCIPAL_ID, ensureSettingDefinitions: async (_deps, input) => { written.push(input); } });
+  assert.deepEqual(written, [{ namespace: "core.storage", systemPrincipalId: SYSTEM_PRINCIPAL_ID, definitions: [{ key: "mediaObjectStore", schema: { type: "string" }, defaultValue: "", scopes: SCOPE_BIT.workspace }] }]);
+  const reads: unknown[] = [];
+  const value = await readMediaObjectStoreSetting({ settingsRepo: new InMemorySettingsRepo(), workspaceId: WORKSPACE_ID, getEffective: async (input) => { reads.push([input.namespace, input.key, input.scopeContext]); return { value: "  s3  " } as Awaited<ReturnType<typeof getEffective>>; } });
+  assert.equal(value, "s3");
+  assert.deepEqual(reads, [["core.storage", "mediaObjectStore", { workspaceId: WORKSPACE_ID }]]);
 });
