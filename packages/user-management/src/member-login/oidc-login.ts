@@ -75,7 +75,7 @@ function bindingContext({ input, binding }: { input: LoginContext; binding: stri
  */
 export async function memberLoginCallbackUrl(required: {
   origin: OriginRegistryPort; workspaceId: string; providerId: string;
-}, _options = {}): Promise<string> {
+}, _options: Record<string, never> = {}): Promise<string> {
   const origin = await required.origin.canonicalOrigin({ workspaceId: required.workspaceId });
   const base = new URL(`${origin.scheme}://${origin.host}`);
   if (origin.port) base.port = String(origin.port);
@@ -124,7 +124,7 @@ function redirectState({ deps, input, version }: { deps: OidcLoginDeps; input: L
  * @throws A fixed LOGIN_UNAVAILABLE code; upstream diagnostics are intentionally discarded.
  * @complexity O(1), fresh provider/client/origin reads and one site-key seal, no attempt table.
  */
-export async function beginOidcLogin(required: { deps: OidcLoginDeps; input: LoginContext }, _options = {}) {
+export async function beginOidcLogin(required: { deps: OidcLoginDeps; input: LoginContext }, _options: Record<string, never> = {}) {
   try {
     const { deps, input } = required;
     const config = await configuration(deps, input);
@@ -154,7 +154,7 @@ function validEmail({ email }: { email: string }, _optional = {}): boolean {
   if (email.length > 320 || /\s/.test(email)) return false;
   const parts = email.split("@");
   if (parts.length !== 2 || !parts[0]) return false;
-  const domain = parts[1];
+  const domain = parts[1] ?? ""; // length === 2 above, so the default is never taken (strict index typing)
   const dot = domain.lastIndexOf(".");
   return dot > 0 && dot < domain.length - 1;
 }
@@ -179,7 +179,7 @@ function verifiedIdentity({ provider, claims, clock }: { provider: LoginProvider
  */
 export async function completeOidcLogin(required: {
   deps: OidcLoginDeps; input: LoginContext & { browserBinding: string; params: AuthorizationCallbackParams };
-}, _options = {}): Promise<CompletedOidcLogin> {
+}, _options: Record<string, never> = {}): Promise<CompletedOidcLogin> {
   try {
     const { deps, input } = required;
     const { ownerKey, nonce } = bindingContext({ input, binding: input.browserBinding });
@@ -221,7 +221,7 @@ function continuationCodec({ deps, input, version }: { deps: OidcLoginDeps; inpu
  */
 export async function sealLoginEmailContinuation(required: {
   deps: OidcLoginDeps; input: LoginContext & { browserBinding: string }; login: CompletedOidcLogin;
-}, _options = {}): Promise<string> {
+}, _options: Record<string, never> = {}): Promise<string> {
   try {
     const { deps, input, login } = required;
     const config = await configuration(deps, input);
@@ -244,7 +244,7 @@ export async function sealLoginEmailContinuation(required: {
  */
 export async function openLoginEmailContinuation(required: {
   deps: OidcLoginDeps; input: LoginContext & { browserBinding: string; continuation: string };
-}, _options = {}): Promise<CompletedOidcLogin> {
+}, _options: Record<string, never> = {}): Promise<CompletedOidcLogin> {
   try {
     const { deps, input } = required;
     if (input.continuation.length > 8192) throw new MemberLoginError({ code: "LOGIN_INVALID" });

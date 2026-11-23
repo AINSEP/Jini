@@ -30,6 +30,8 @@ test('publishes user management from its canonical folder and preserves runtime 
     './admin/adapters/http': 'universal',
     './admin/adapters/memory': 'universal',
     './admin/conformance': 'universal',
+    './member-login/oidc-login': 'node',
+    './members/auth-mail': 'universal',
   });
   expect(Object.keys(manifest.exports).sort()).toEqual(Object.keys(manifest.jini.entries).sort());
   for (const [entry, value] of Object.entries(manifest.exports)) {

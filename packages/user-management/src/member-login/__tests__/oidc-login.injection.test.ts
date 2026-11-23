@@ -19,7 +19,8 @@ const pending: PendingAuthorization = { state: "sealed-state", ownerKey: "owner"
 const tokens: OAuthTokenSet = { accessToken: "access", idToken: "id-token", refreshToken: null, tokenType: "Bearer", scopes: [], expiresAt: null };
 
 function fixture() {
-  const calls: Record<string, unknown[]> = { formatAad: [], codec: [], sealedState: [], begin: [], complete: [], validate: [], activeKey: [], seal: [] };
+  const calls = { formatAad: [] as unknown[], codec: [] as unknown[], sealedState: [] as unknown[], begin: [] as unknown[],
+    complete: [] as unknown[], validate: [] as unknown[], activeKey: [] as unknown[], seal: [] as unknown[] };
   const key: RootKeyHandle = { keyId: "active" };
   const codec: AuthorizationStateCodec = { seal: async () => "sealed", open: async () => "{}" };
   const stateless: SealedAuthorizationState = { seal: async () => pending, open: async () => pending };
@@ -60,16 +61,16 @@ describe("member OIDC login uses only injected implementations", () => {
     assert.equal(result.authorizationUrl, "https://issuer.example/auth?state=sealed-state");
     assert.equal(result.returnPath, "/account");
     assert.match(result.browserBinding, /^[A-Za-z0-9_-]{43}$/);
-    const [aad] = f.calls.formatAad as { kind: string; version: string; parts: string[] }[];
+    const [aad] = f.calls.formatAad as [{ kind: string; version: string; parts: string[] }];
     assert.equal(aad.kind, "member-login-state");
     assert.equal(aad.version, "v1");
-    assert.ok(aad.parts[0].startsWith('["ws","google:'));
+    assert.ok(aad.parts[0]?.startsWith('["ws","google:'));
     assert.deepEqual(f.calls.codec, [{ sealer: f.deps.sealer, keyring: f.deps.keyring, aad: "aad:member-login-state" }]);
-    const [sealed] = f.calls.sealedState as { clock: unknown; workspaceId: string; codec: unknown }[];
+    const [sealed] = f.calls.sealedState as [{ clock: unknown; workspaceId: string; codec: unknown }];
     assert.equal(sealed.clock, f.deps.clock);
     assert.equal(sealed.workspaceId, "ws");
     assert.equal(sealed.codec, f.codec);
-    const [begin] = f.calls.begin as { required: Record<string, unknown>; optional: Record<string, unknown> }[];
+    const [begin] = f.calls.begin as [{ required: Record<string, unknown>; optional: Record<string, unknown> }];
     assert.deepEqual(begin.required.options, { clientDisplayName: "Example members", softwareId: "example-member-login", redirectUris: [CALLBACK] });
     assert.equal(begin.required.stateless, f.stateless);
     assert.equal(begin.required.guard, f.guard);
@@ -83,11 +84,11 @@ describe("member OIDC login uses only injected implementations", () => {
       browserBinding: "a".repeat(43), params: { state: "sealed-state", code: "code" } } });
     assert.deepEqual(result, { identity: { providerId: "google", issuer: provider.issuer, subject: "subject", email: "person@example.com",
       emailAuthoritative: true }, returnPath: "/account", authenticatedAt: new Date(NOW).toISOString(), startedAt: pending.createdAt });
-    const [complete] = f.calls.complete as { required: Record<string, unknown>; optional: unknown }[];
+    const [complete] = f.calls.complete as [{ required: Record<string, unknown>; optional: unknown }];
     assert.equal(complete.required.stateless, f.stateless);
     assert.equal(complete.required.redirectUri, CALLBACK);
     assert.deepEqual(complete.optional, { timeoutMs: 15000 });
-    const [validate] = f.calls.validate as { required: Record<string, unknown>; optional: unknown }[];
+    const [validate] = f.calls.validate as [{ required: Record<string, unknown>; optional: unknown }];
     assert.equal(validate.required.tokens, tokens);
     assert.equal(validate.required.issuer, provider.issuer);
     assert.equal(validate.required.jwksUri, provider.jwksUri);
@@ -103,10 +104,10 @@ describe("member OIDC login uses only injected implementations", () => {
       browserBinding: "a".repeat(43) }, login });
     assert.equal(Buffer.from(sealed, "base64url").toString("utf8"), '{"sealed":true}');
     assert.deepEqual(f.calls.activeKey, [{}]);
-    const [seal] = f.calls.seal as { key: unknown; aad: string; plaintext: string }[];
+    const [seal] = f.calls.seal as [{ key: unknown; aad: string; plaintext: string }];
     assert.equal(seal.key, f.key);
     assert.equal(seal.aad, "aad:member-login-email-proof");
     assert.equal(JSON.parse(seal.plaintext).expiresAt, Date.parse(pending.createdAt) + 600000);
-    assert.equal((f.calls.formatAad as { kind: string }[])[0].kind, "member-login-email-proof");
+    assert.equal((f.calls.formatAad as [{ kind: string }])[0].kind, "member-login-email-proof");
   });
 });
