@@ -182,7 +182,8 @@
       "./admin-http/routes/skills/install": "universal",
       "./admin-http/routes/skills/set-enabled": "universal",
       "./admin-http/routes/skills/uninstall": "universal",
-      "./admin-http/routes/skills/guidance": "universal"
+      "./admin-http/routes/skills/guidance": "universal",
+      "./admin-http/routes/fs-files/custom-root": "universal"
     },
     "isolation": {
       "domains": {
@@ -1155,6 +1156,11 @@
       "types": "./dist/admin-http/routes/skills/guidance.d.ts",
       "import": "./dist/admin-http/routes/skills/guidance.js",
       "default": "./dist/admin-http/routes/skills/guidance.js"
+    },
+    "./admin-http/routes/fs-files/custom-root": {
+      "types": "./dist/admin-http/routes/fs-files/custom-root.d.ts",
+      "import": "./dist/admin-http/routes/fs-files/custom-root.js",
+      "default": "./dist/admin-http/routes/fs-files/custom-root.js"
     }
   },
   "files": [

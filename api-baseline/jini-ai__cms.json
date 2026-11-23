@@ -148,6 +148,24 @@
    "adminDatabaseTimelineRoute": "variable:5119d6e733"
   }
  },
+ "./admin-http/routes/fs-files/custom-root": {
+  "types": "./dist/admin-http/routes/fs-files/custom-root.d.ts",
+  "symbols": {
+   "FsCustomRootDeleteRouteDeps": "interface:1a40d09147",
+   "FsCustomRootGetEnvelope": "type:65b5e2f77e",
+   "FsCustomRootGetRouteDeps": "interface:d18b4b0d3d",
+   "FsCustomRootPrincipal": "interface:26dccd613d",
+   "FsCustomRootPutEnvelope": "interface:a40c4186f7",
+   "FsCustomRootPutRouteDeps": "interface:09c485ca1e",
+   "FsCustomRootReadFn": "type:636419ce45",
+   "FsCustomRootRefusalMatcher": "type:3ffa23c1be",
+   "FsCustomRootStatus": "interface:5b0184a390",
+   "FsCustomRootWriteFn": "type:29bb7b72b4",
+   "fsCustomRootDeleteRoute": "variable:14e206a782",
+   "fsCustomRootGetRoute": "variable:0acb7adaaa",
+   "fsCustomRootPutRoute": "variable:99d22a2d5d"
+  }
+ },
  "./admin-http/routes/integrations/create": {
   "types": "./dist/admin-http/routes/integrations/create.d.ts",
   "symbols": {
