@@ -97,7 +97,7 @@ function create({ credential, kit }) {
   async function send(message, opts) {
     let response;
     try {
-      response = await httpClient.send({
+      const request = {
         method: "POST",
         url: `${baseUrl}/emails`,
         headers: {
@@ -107,7 +107,10 @@ function create({ credential, kit }) {
         },
         body: JSON.stringify(toResendPayload(message)),
         timeoutMs: opts.timeoutMs ?? DEFAULT_TIMEOUT_MS,
-      });
+      };
+      // Both client shapes, as lib/domains.mjs does (B016): Jini's `send({ request })` reads
+      // `.request`, the host's positional `send(request)` reads the fields.
+      response = await httpClient.send({ request, ...request });
     } catch (err) {
       // Network failure, timeout or an egress-policy refusal: retryable, and never thrown across
       // the mail port.
