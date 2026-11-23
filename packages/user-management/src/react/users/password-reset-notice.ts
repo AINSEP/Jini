@@ -32,6 +32,6 @@ const PASSWORD_RESET_NOTICE_TEMPLATE: Record<string, string> = {
 /** The reset-password success toast — embeds the user's own (untranslated) `username`
  *  mid-sentence, so it can't be a flat `ES` entry the way `roles-i18n.ts`'s
  *  `roleDeleteBodyParts` etc. handle the same shape. */
-export function passwordResetNotice({ locale, username }: { locale: string; username: string }, _options = {}): string {
+export function passwordResetNotice({ locale, username }: { locale: string; username: string }, _optional: Record<string, never> = {}): string {
   return interpolate({ template: localeEntry({ table: PASSWORD_RESET_NOTICE_TEMPLATE, locale }), vars: { username } });
 }

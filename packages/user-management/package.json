@@ -29,7 +29,19 @@
       "./identity/builtin-role-grants": "universal",
       "./identity/permission-grants": "universal",
       "./identity/role-manage-permission": "universal",
-      "./identity/user-manage-permission": "universal"
+      "./identity/user-manage-permission": "universal",
+      "./identity/api-key-types": "universal",
+      "./identity/api-key-secret": "node",
+      "./identity/api-key-service": "node",
+      "./identity/owner-reset-env": "universal",
+      "./identity/repo.memory": "universal",
+      "./identity/user-purge-types": "universal",
+      "./identity/username-change-ports": "universal",
+      "./identity/delete-user-service": "universal",
+      "./react/auth/owner-mfa-api": "browser",
+      "./react/auth/owner-passkey-api": "browser",
+      "./react/auth/owner-recovery-api": "browser",
+      "./react/auth/local-owner-signin": "browser"
     },
     "isolation": {
       "entries": {
@@ -37,7 +49,15 @@
         "./identity/builtin-role-grants": "server",
         "./identity/permission-grants": "server",
         "./identity/role-manage-permission": "server",
-        "./identity/user-manage-permission": "server"
+        "./identity/user-manage-permission": "server",
+        "./identity/api-key-types": "server",
+        "./identity/api-key-secret": "server",
+        "./identity/api-key-service": "server",
+        "./identity/owner-reset-env": "server",
+        "./identity/repo.memory": "server",
+        "./identity/user-purge-types": "server",
+        "./identity/username-change-ports": "server",
+        "./identity/delete-user-service": "server"
       }
     },
     "optionalPeers": {
@@ -134,6 +154,66 @@
       "types": "./dist/identity/user-manage-permission.d.ts",
       "import": "./dist/identity/user-manage-permission.js",
       "default": "./dist/identity/user-manage-permission.js"
+    },
+    "./identity/api-key-types": {
+      "types": "./dist/identity/api-key-types.d.ts",
+      "import": "./dist/identity/api-key-types.js",
+      "default": "./dist/identity/api-key-types.js"
+    },
+    "./identity/api-key-secret": {
+      "types": "./dist/identity/api-key-secret.d.ts",
+      "import": "./dist/identity/api-key-secret.js",
+      "default": "./dist/identity/api-key-secret.js"
+    },
+    "./identity/api-key-service": {
+      "types": "./dist/identity/api-key-service.d.ts",
+      "import": "./dist/identity/api-key-service.js",
+      "default": "./dist/identity/api-key-service.js"
+    },
+    "./identity/owner-reset-env": {
+      "types": "./dist/identity/owner-reset-env.d.ts",
+      "import": "./dist/identity/owner-reset-env.js",
+      "default": "./dist/identity/owner-reset-env.js"
+    },
+    "./identity/repo.memory": {
+      "types": "./dist/identity/repo.memory.d.ts",
+      "import": "./dist/identity/repo.memory.js",
+      "default": "./dist/identity/repo.memory.js"
+    },
+    "./identity/user-purge-types": {
+      "types": "./dist/identity/user-purge-types.d.ts",
+      "import": "./dist/identity/user-purge-types.js",
+      "default": "./dist/identity/user-purge-types.js"
+    },
+    "./identity/username-change-ports": {
+      "types": "./dist/identity/username-change-ports.d.ts",
+      "import": "./dist/identity/username-change-ports.js",
+      "default": "./dist/identity/username-change-ports.js"
+    },
+    "./identity/delete-user-service": {
+      "types": "./dist/identity/delete-user-service.d.ts",
+      "import": "./dist/identity/delete-user-service.js",
+      "default": "./dist/identity/delete-user-service.js"
+    },
+    "./react/auth/owner-mfa-api": {
+      "types": "./dist/react/auth/owner-mfa-api.d.ts",
+      "import": "./dist/react/auth/owner-mfa-api.js",
+      "default": "./dist/react/auth/owner-mfa-api.js"
+    },
+    "./react/auth/owner-passkey-api": {
+      "types": "./dist/react/auth/owner-passkey-api.d.ts",
+      "import": "./dist/react/auth/owner-passkey-api.js",
+      "default": "./dist/react/auth/owner-passkey-api.js"
+    },
+    "./react/auth/owner-recovery-api": {
+      "types": "./dist/react/auth/owner-recovery-api.d.ts",
+      "import": "./dist/react/auth/owner-recovery-api.js",
+      "default": "./dist/react/auth/owner-recovery-api.js"
+    },
+    "./react/auth/local-owner-signin": {
+      "types": "./dist/react/auth/local-owner-signin.d.ts",
+      "import": "./dist/react/auth/local-owner-signin.js",
+      "default": "./dist/react/auth/local-owner-signin.js"
     }
   },
   "files": [

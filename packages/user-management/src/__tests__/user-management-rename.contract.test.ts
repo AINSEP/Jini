@@ -36,6 +36,18 @@ test('publishes user management from its canonical folder and preserves runtime 
     './identity/permission-grants': 'universal',
     './identity/role-manage-permission': 'universal',
     './identity/user-manage-permission': 'universal',
+    './identity/api-key-types': 'universal',
+    './identity/api-key-secret': 'node',
+    './identity/api-key-service': 'node',
+    './identity/owner-reset-env': 'universal',
+    './identity/repo.memory': 'universal',
+    './identity/user-purge-types': 'universal',
+    './identity/username-change-ports': 'universal',
+    './identity/delete-user-service': 'universal',
+    './react/auth/owner-mfa-api': 'browser',
+    './react/auth/owner-passkey-api': 'browser',
+    './react/auth/owner-recovery-api': 'browser',
+    './react/auth/local-owner-signin': 'browser',
   });
   expect(Object.keys(manifest.exports).sort()).toEqual(Object.keys(manifest.jini.entries).sort());
   for (const [entry, value] of Object.entries(manifest.exports)) {

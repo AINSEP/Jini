@@ -3,7 +3,7 @@
 Subpath entries `@jini-ai/user-management/identity/<module>`, one per file: `boot-session-token`,
 `builtin-role-grants`, `permission-grants`, `role-manage-permission`, `user-manage-permission`,
 `api-key-types`, `api-key-secret`, `api-key-service`, `repo.memory`, `owner-reset-env`,
-`user-purge-types`, `username-change-ports`.
+`user-purge-types`, `username-change-ports`, `delete-user-service`.
 The why for the extraction and the package layout is in
 [`ADS-memory/reports/jini-port/extraction-plan.md`](../../../../ADS-memory/reports/jini-port/extraction-plan.md).
 
@@ -27,6 +27,13 @@ The why for the extraction and the package layout is in
   `OwnerRecoveryDeps`; `beforeReset` is the host's pre-write backup hook.
 - `createUsernameChangePort({ outbox, idGen, isInTrash, seededOwnerPrincipalId })` takes the host's
   outbox and Trash membership check.
+- `createTrashUserService({})` owns the `trashUser` serialization queue (INV-08 owner floor): the
+  host creates ONE instance per process at composition and every caller shares it; the module keeps
+  no state. Each `trashUser({ deps, input })` takes `DeleteUserDeps` = `AuthServiceDeps` plus the
+  host's Trash-bound `removeUser` (structural `RemoveUserFn`; absent = `UserDeleteUnsupportedError`)
+  and its `isInTrash` membership check. The account-contract checks (`assertUserAccountAction`,
+  `userAccountProtection`, `assertActiveOwnerFloor`, `callerMayManageUserTrash`) and the
+  `SelfDeleteError`/`UserInTrashError`/`UsernameInTrashError` identities are stateless exports.
 
 **Provides:** `createPermissionGrantRegistry` (migration pairs + built-in-role grants in one object),
 `createBuiltinRoleGrantRegistry`, `applyBuiltinRoleGrants` (additive, idempotent boot reconciliation),
