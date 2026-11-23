@@ -4,7 +4,8 @@ The parts of the admin Settings screen that are product-neutral: the settings-sh
 and Memory dictionaries, the User Interface panel's translator binding, the `I18nProvider` locale
 bridge, the External MCP saved-connection chooser, the External MCP tools-modal and remove-confirm
 dialog behaviours, the phone tab-strip scroll hook, the User Interface row styles, the External MCP
-dictionary, and the External MCP row sign-in hook. The Settings
+dictionary, the External MCP row sign-in hook, the AI agent tab's dictionary, the settings-dialog
+translator assembly, and the External MCP remove-confirm dialog. The Settings
 screen itself (dialog, tabs, External MCP panel, product copy, settings rules) stays in the host,
 which imports these by subpath.
 
@@ -34,6 +35,20 @@ which imports these by subpath.
   `AdminApiError` for its message to show). `callbackMessageType` is required product copy: the exact
   `type` the host's public OAuth callback page posts to its opener; a message of any other type is
   ignored. `win` defaults to the real browser window, `fallbackError` to English copy.
+- `settings-execution-i18n.ts` — the AI agent tab's copy (stored-key asks, BYOK footer lines, Local
+  CLI scope). The server-scope key names the product, so it carries `{productName}` in the key and all
+  21 translations; the host fills it with `interpolate({ template, vars })` at each render site.
+  `aiAgentPanelDictionaries({ dictionaries, locales })` — `locales` is required: the host's admin locale
+  list (`{ code }[]`); each listed locale gets the "AI agent" overlay.
+- `createSettingsUiTranslators({ settingsLocale, dialogDictionaries, translateApp, translateCapability })`
+  (`SettingsUi.hooks.ts`) — all required: the UI library's settings-dialog dictionaries, the host's
+  app-wide `{ locale, key }` dictionary (last tier before the raw key) and its capability-notes
+  dictionary (behind `tCap`). `createSettingsTabChange({})` needs nothing; it navigates through the
+  shell router.
+- `ExternalMcpRemoveConfirmDialog` — required `ConfirmDialog: ComponentType<ExternalMcpRemoveConfirmFrameProps>`
+  (the host's confirmation markup; it receives `dialogRef`, ids, copy, button text, handles and agent
+  labels) and required `buildCopy` (the host's `{ title, body }` builder). `useExternalMcpRemoveConfirmHook`
+  defaults to this package's own hook. Needs `<AdminKitProvider>` above it (focus trap).
 - `external-mcp-i18n.ts` — the five keys that name the product carry a `{productName}` token in the
   key and in all 21 translations. The host fills it through the `vars` it already hands
   `interpolate()` at each render site (an admissions row's `messageVars`, a tool-row lock sentence);
@@ -46,6 +61,8 @@ back to `ADMIN_COMMON_I18N`; `createUserInterfaceSettingsPanelTranslator`; `useS
 (`ExternalMcpToolsModal.hooks.ts`), `useExternalMcpRemoveConfirm`, `useSettingsActiveTabScroll`;
 `external-mcp-i18n.ts` (`t`; 21 locales split across `.locales-a/-b/-c` for the size limit);
 `useExternalMcpOAuthConnect`;
+`settings-execution-i18n.ts` (`t`, `aiAgentPanelDictionaries`); `createSettingsUiTranslators`,
+`createSettingsTabChange`; `ExternalMcpRemoveConfirmDialog`;
 `user-interface-settings.css` (`jini-settings-interface-row/-text/-label/-hint`, styled from
 `--jini-admin-space-3/-4`, `--jini-admin-fg`, `--jini-admin-muted`, `--jini-admin-text-sm`, each falling back to the
 shared `--jini-*` token; a host with its own theme names maps them on the rows).

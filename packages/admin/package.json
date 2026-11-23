@@ -209,7 +209,10 @@
       "./screens/settings/hooks/use-external-mcp-remove-confirm.hooks": "browser",
       "./screens/settings/user-interface-settings.css": "browser",
       "./screens/settings/external-mcp-i18n": "universal",
-      "./screens/settings/hooks/use-external-mcp-oauth-connect.hooks": "browser"
+      "./screens/settings/hooks/use-external-mcp-oauth-connect.hooks": "browser",
+      "./screens/settings/settings-execution-i18n": "universal",
+      "./screens/settings/SettingsUi.hooks": "browser",
+      "./screens/settings/ExternalMcpRemoveConfirmDialog": "browser"
     },
     "isolation": {
       "shared": [
@@ -1273,7 +1276,22 @@
       "import": "./dist/screens/settings/hooks/use-external-mcp-remove-confirm.hooks.js",
       "default": "./dist/screens/settings/hooks/use-external-mcp-remove-confirm.hooks.js"
     },
-    "./screens/settings/user-interface-settings.css": "./src/screens/settings/user-interface-settings.css"
+    "./screens/settings/user-interface-settings.css": "./src/screens/settings/user-interface-settings.css",
+    "./screens/settings/settings-execution-i18n": {
+      "types": "./dist/screens/settings/settings-execution-i18n.d.ts",
+      "import": "./dist/screens/settings/settings-execution-i18n.js",
+      "default": "./dist/screens/settings/settings-execution-i18n.js"
+    },
+    "./screens/settings/SettingsUi.hooks": {
+      "types": "./dist/screens/settings/SettingsUi.hooks.d.ts",
+      "import": "./dist/screens/settings/SettingsUi.hooks.js",
+      "default": "./dist/screens/settings/SettingsUi.hooks.js"
+    },
+    "./screens/settings/ExternalMcpRemoveConfirmDialog": {
+      "types": "./dist/screens/settings/ExternalMcpRemoveConfirmDialog.d.ts",
+      "import": "./dist/screens/settings/ExternalMcpRemoveConfirmDialog.js",
+      "default": "./dist/screens/settings/ExternalMcpRemoveConfirmDialog.js"
+    }
   },
   "files": [
     "src/themes",
