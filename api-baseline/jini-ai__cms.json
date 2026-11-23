@@ -2677,6 +2677,16 @@
    "resolveSiteTimeZone": "function:0125f4b887"
   }
  },
+ "./settings/site/ui-locales-tool": {
+  "types": "./dist/settings/site/ui-locales-tool.d.ts",
+  "symbols": {
+   "UiLocaleOption": "interface:072faf6fd5",
+   "UiLocalesToolDeps": "interface:a0c2956c6f",
+   "buildUiLocalesRegistrations": "function:c1a866ff26",
+   "uiLocalesAgentToolCatalog": "variable:d235f4838d",
+   "uiLocalesDerivedRisk": "variable:01644e99a3"
+  }
+ },
  "./taxonomy": {
   "types": "./dist/taxonomy/index.d.ts",
   "symbols": {
