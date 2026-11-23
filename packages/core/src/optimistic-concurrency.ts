@@ -95,6 +95,19 @@ export function requireExpectedVersion(
 }
 
 /**
+ * The shape of {@link assertVersionedWrite} as an injectable collaborator. A storage adapter that
+ * finishes conditional saves (the webhook SQL and in-memory subscription repos) takes this port in
+ * its constructor object, so the host binds the implementation and the adapter imports only the type.
+ */
+export type AssertVersionedWritePort = (required: {
+  changedRows: number | bigint;
+  recordKind: string;
+  recordId: string;
+  expectedVersion: number;
+  readCurrentVersion: () => Promise<number | null>;
+}) => Promise<void>;
+
+/**
  * Finishes a conditional write (`UPDATE … WHERE version = :expectedVersion`). Changed rows ⇒ done;
  * none ⇒ re-read the live version (for the message) and throw.
  *

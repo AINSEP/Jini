@@ -3,7 +3,7 @@ import type {
   WebhookDeliveryRepoPort,
   WebhookSubscriptionRepoPort,
 } from "../ports.js";
-import type { AssertVersionedWritePort } from "../sql/index.js";
+import type { AssertVersionedWritePort } from "@jini-ai/core/optimistic-concurrency";
 import type {
   IntegrationId,
   WebhookDeliveryRecord,
