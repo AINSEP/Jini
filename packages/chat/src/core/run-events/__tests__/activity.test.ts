@@ -1,9 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-
-import type { AgentEvent } from '../../events.js';
 import { runContentFromEvents as content, runEventsForSave as save, translateRunAgentPayload as payload, translateRunFrame as frame } from '../entry.js';
 import { notices } from './fixture.js';
+import type { AgentEvent } from "@jini-ai/core/contracts/site/chat-core";
 const runContentFromEvents = (events: readonly AgentEvent[]) => content({ events });
 const runEventsForSave = (events: readonly AgentEvent[]) => save({ events });
 const translateRunAgentPayload = (input: Parameters<typeof payload>[0]['payload']) => payload({ payload: input });

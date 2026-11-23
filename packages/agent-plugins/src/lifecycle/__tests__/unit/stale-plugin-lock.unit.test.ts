@@ -4,10 +4,11 @@ import os from 'node:os';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { readBootIdentity } from '@jini-ai/platform/fs/file-lock';
-import { createAgentPluginLayout, createAgentPluginLifecycle, type AgentPluginArchiveReaderPort } from '../../index.js';
+import { createAgentPluginLayout, createAgentPluginLifecycle } from '../../index.js';
 import { nativeEffectsFixture } from '../fixtures/native-effects.js';
 import { ports } from '../test-support.js';
 import { forceRemove } from '../fixtures/force-remove.js';
+import type { AgentPluginArchiveReaderPort } from "@jini-ai/core/contracts/site/agent-plugins-lifecycle";
 
 /**
  * Demo practice run (2026-11-02): on every boot of one site an Agent Plugin timed out on a file lock

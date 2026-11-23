@@ -3,14 +3,12 @@ import * as fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
-import {
-  AgentPluginHostIncompatibleError, AgentPluginNotInstalledError, INVALID_AGENT_PLUGIN_HOST_RANGE,
-  createAgentPluginLayout, createAgentPluginLifecycle, type AgentPluginArchiveReaderPort,
-} from '../../index.js';
+import { AgentPluginHostIncompatibleError, AgentPluginNotInstalledError, INVALID_AGENT_PLUGIN_HOST_RANGE, createAgentPluginLayout, createAgentPluginLifecycle } from '../../index.js';
 import { createPersistentStateModule } from '../../persistent-state.js';
 import { createSetEnabledModule } from '../../set-enabled.js';
 import { ports } from '../test-support.js';
 import { forceRemove } from '../fixtures/force-remove.js';
+import type { AgentPluginArchiveReaderPort } from "@jini-ai/core/contracts/site/agent-plugins-lifecycle";
 
 /** Real temp filesystem; archive bytes come from an injected reader port instead of a zip. */
 const workspaceId = 'workspace-a';

@@ -1,6 +1,7 @@
-import type { AgentEvent } from '../../core/events.js';
+
 import type { ChatMessage } from '../../core/messages.js';
 import type { ChatTransport, RunHandlers, StartRunInput } from '../../core/transport.js';
+import type { AgentEvent } from "@jini-ai/core/contracts/site/chat-core";
 
 export interface DecodedSseFrame { readonly event: string | null; readonly data: string }
 /** Structurally satisfied by the existing agent-runtime decodeSseStream; host binds it. */

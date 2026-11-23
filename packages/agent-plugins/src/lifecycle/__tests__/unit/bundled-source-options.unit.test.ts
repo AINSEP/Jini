@@ -3,9 +3,9 @@ import path from 'node:path';
 import { describe, expect, test } from 'vitest';
 import { createAgentPluginLifecycle } from '../../index.js';
 import type { PackAgentPluginDirectoryOptional, PackedAgentPluginArchive } from '../../bundled-source-archive.js';
-import type { AgentPluginArchiveReaderPort } from '../../install.js';
 import type { FilesystemPort } from '../../ports.js';
 import { ports } from '../test-support.js';
+import type { AgentPluginArchiveReaderPort } from "@jini-ai/core/contracts/site/agent-plugins-lifecycle";
 
 type FakeNode = {
   kind: 'file' | 'directory' | 'symlink' | 'special'; content?: string; declaredSize?: number; readFailure?: boolean;

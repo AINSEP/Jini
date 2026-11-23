@@ -10,8 +10,8 @@ import { setAgentPluginActivation } from "../test-support.js";
 import { recordBundledAgentPluginDigests } from "../test-support.js";
 
 import { installAgentPlugin } from "../test-support.js";
-import { type AgentPluginArchiveEntry } from "../../install.js";
 import { importContainedModule, readTrustedPluginFile } from "../test-support.js";
+import type { AgentPluginArchiveEntry } from "@jini-ai/core/contracts/site/agent-plugins-lifecycle";
 const MAIL_ADAPTERS_FILENAME = "fixture-adapters.json";
 import { resolveAgentPluginLayout } from "../test-support.js";
 
@@ -131,7 +131,6 @@ test("without requireActive a switched-off plugin is trusted and onInactive is n
     assert.equal(calls, 0);
   });
 });
-
 
 test("unreadable activation refuses a bundled executable contribution before its module runs", async () => {
   await withWorkspace(async workspaceRoot => {

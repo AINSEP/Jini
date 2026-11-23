@@ -18,11 +18,11 @@
  * - `code: 'thinking'` — the model is reasoning (keeps the idle timer honest).
  */
 import { a2uiSurfaceIdOf, displayOnlySurfaceIdOf } from '@jini-ai/protocol/a2ui';
-import type { AgentEvent } from './events.js';
 import { isDelegatedWrapperToolName } from './tool-events.js';
 import { MID_RUN_USER_MESSAGE_EVENT_NAME } from './turn-usage.js';
 import { SURFACE_QUESTION_META_KEY } from './question-answer.js';
 import { recordedSurfaceAnswers } from './accepted-input.js';
+import type { AgentEvent } from "@jini-ai/core/contracts/site/chat-core";
 
 /** The latest thing a running turn is doing. */
 export type RunActivity =

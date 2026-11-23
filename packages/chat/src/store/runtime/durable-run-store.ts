@@ -2,7 +2,7 @@ import { sqliteReadVersion } from '../sql/read-version.js';
 import { acceptedInputEvent, acceptedInputUserEvent } from "../../core/accepted-input.js";
 import { redactUserMessage, redactUserText } from "../../core/user-text-redaction.js";
 import type { RunIdPolicy } from "../../core/durable-runs/ports.js";
-import { recoveredRunEvents, type AgentEvent, type ChatMessage } from "../../core/index.js";
+import { recoveredRunEvents, type ChatMessage } from "../../core/index.js";
 import type { ChatKernel, ChatDatabase } from "./kernel.js";
 import { chatKernelTables } from "../sql/boundary.js";
 import { sql, type Selectable, type Insertable, type Updateable } from "kysely";
@@ -16,6 +16,7 @@ import { runLockKey } from "../../core/durable-runs/run-lock.js";
 import { runContentFromEvents } from "../../core/run-events/entry.js";
 import { appendedEventsJson } from "./events-json.js";
 import { toMessage, validatedEventsJson } from "../sql/store.js";
+import type { AgentEvent } from "@jini-ai/core/contracts/site/chat-core";
 
 export const RUN_SLOT_BUSY = "Another answer in this chat is still running. This turn is queued in your browser.";
 export class RunSlotBusyError extends Error { constructor() { super(RUN_SLOT_BUSY); } }

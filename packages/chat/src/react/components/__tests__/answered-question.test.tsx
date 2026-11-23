@@ -3,13 +3,14 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { McpUiHostProps } from '../../surfaces.js';
 import { MCP_UI_MIME_TYPE } from '@jini-ai/protocol/mcp-ui';
-import type { AgentEvent, ChatMessage } from '../../../core/index.js';
+import type { ChatMessage } from '../../../core/index.js';
 import { acceptedInputUserEvent } from '../../../core/accepted-input.js';
 import { clearExtEventRenderers } from '../../ext-event-renderer-registry.js';
 import { fakeChatSurfaces, renderWithChatSurfaces as renderWithSurfaces } from '../../__tests__/fake-chat-surfaces.js';
 import { MessageList } from '../MessageList.js';
 import { MessageRow } from '../MessageRow.js';
 import { registerMcpUiSurfaceRenderer } from '../McpUiSurfaceCard.js';
+import type { AgentEvent } from "@jini-ai/core/contracts/site/chat-core";
 
 // The sandbox owns real form controls. Exercise its existing props boundary, with no DOM/HTML access.
 // The surfaces port supplies the MCP-UI host; this stub replaces the sandbox so tests drive its props boundary.

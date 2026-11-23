@@ -1,4 +1,4 @@
-import type { InstalledAgentPlugin, InstalledAgentPluginSkill, SetAgentPluginEnabledInput } from '@jini-ai/agent-plugins/lifecycle';
+import type { InstalledAgentPlugin, InstalledAgentPluginSkill, SetAgentPluginEnabledInput } from '@jini-ai/core/contracts/site/agent-plugins-lifecycle';
 import type { AgentPluginActivationInput, AgentPluginSummary } from '../models.js';
 
 /**

@@ -1,8 +1,8 @@
 import type { Clock, IdGenerator } from "@jini-ai/core/primitives";
 import type { AtomicFileWriterPort, BootIdentity, FileLockPort } from "@jini-ai/core/contracts/runtime";
 import type { AgentPluginServerMetadataReader } from './manifest.js';
-import type { AgentPluginLayoutPort } from './layout.js';
-import type { AgentPluginDeliveryMode, InstalledAgentPlugin } from './types.js';
+import type { AgentPluginDeliveryMode } from './types.js';
+import type { AgentPluginLayoutPort, InstalledAgentPlugin } from "@jini-ai/core/contracts/site/agent-plugins-lifecycle";
 
 /** Native Node filesystem ABI, narrowed to the operations used by lifecycle.
  * Inject instrumented fs/promises effects directly; native handles are never rewrapped. */

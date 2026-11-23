@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import type { AgentEvent, ChatMessage } from '../../../../core/index.js';
+import type { ChatMessage } from '../../../../core/index.js';
 import {
   appendQueuedTurn,
   defaultChatPaneSelection,
@@ -21,6 +21,7 @@ import {
 } from '../rules.js';
 import type { ChatPaneSendability, ChatPaneSendBlocker } from '../rules.js';
 import type { ByokRuntimeSummary, ChatPaneAgent, ChatPaneAgentSelection } from '../types.js';
+import type { AgentEvent } from "@jini-ai/core/contracts/site/chat-core";
 
 const agents: ChatPaneAgent[] = [
   {
@@ -570,7 +571,6 @@ describe('describeChatPaneSendBlocker', () => {
 
   });
 });
-
 
 describe('chatPaneSendBlockerNeedsNotice', () => {
   it('shows a notice for blockers with no banner of their own, never twice', () => {

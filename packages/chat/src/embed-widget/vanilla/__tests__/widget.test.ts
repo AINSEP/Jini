@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { mountVanillaChat, type MountVanillaChatArgs } from '../index.js';
 import type { ChatTransport, RunHandlers } from '../../../core/transport.js';
-import type { AgentEvent } from '../../../core/events.js';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
+import type { AgentEvent } from "@jini-ai/core/contracts/site/chat-core";
 
 it('mounts an accessible dialog, streams replies, traps focus, confirms reset and cleans up', async () => {
   const element = document.createElement('div');
@@ -205,7 +205,6 @@ it('renders a mobile-safe input with a computed 16px font', async () => {
   try { expect(getComputedStyle(f.element.querySelector('textarea')!).fontSize).toBe('16px'); }
   finally { f.mount.unmount({}); style.remove(); }
 });
-
 
 it('keeps an open dialog modal across focus moves and ends modal semantics when closed', () => {
   const f = focusFixture();

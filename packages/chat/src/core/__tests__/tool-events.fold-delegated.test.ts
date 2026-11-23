@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import type { AgentEvent } from '../events.js';
 import { dedupeToolUsesById, foldDelegatedWrapperCalls, isDelegatedWrapperToolName } from '../tool-events.js';
 import { DIRECT_MCP_EVENTS } from './fixtures/direct-mcp-events.js';
+import type { AgentEvent } from "@jini-ai/core/contracts/site/chat-core";
 
 /**
  * The event sequence stored for chat.db message e8c84205 (2026-10-05): the model called the

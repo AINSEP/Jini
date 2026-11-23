@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import type { AgentEvent } from '../../core/index.js';
 import { assistantContentFromEvents } from '../../core/index.js';
 import { interleaveMessageBlocks } from '../message-blocks.js';
+import type { AgentEvent } from "@jini-ai/core/contracts/site/chat-core";
 
 /**
  * @file `includeThinking` (2026-10-11): reasoning appears where it happened, only when asked for, and

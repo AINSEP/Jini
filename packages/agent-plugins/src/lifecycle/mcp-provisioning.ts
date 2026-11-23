@@ -1,5 +1,5 @@
 import type { AgentPluginMcpProvisioningPort } from './ports.js';
-import type { InstalledAgentPlugin } from './install.js';
+import type { InstalledAgentPlugin } from "@jini-ai/core/contracts/site/agent-plugins-lifecycle";
 
 /** A host performs MCP federation. Notify only after its durable provisioning step succeeds. */
 export async function provisionAgentPluginMcp(required: {

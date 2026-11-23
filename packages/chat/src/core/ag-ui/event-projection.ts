@@ -7,8 +7,8 @@
  * are injected, with official AG-UI types authoritative; auth, routes and encoder stay with the host.
  * The host emits RUN_STARTED and terminal RUN_FINISHED/RUN_ERROR outside this pure projection. */
 import { EventType, InterruptSchema, RunAgentInputSchema, type AGUIEvent, type Interrupt } from '@ag-ui/core';
-import type { AgentEvent } from '../events.js';
 import { readSseFrames, readTerminalReason, translateRunFrame, type RunFrameCarry, type RunFrameOutcome, type RunNotices } from '../run-events/entry.js';
+import type { AgentEvent } from "@jini-ai/core/contracts/site/chat-core";
 
 export interface EventIdGenerator {
   next(args: { prefix: string; ordinal: number }): string;
