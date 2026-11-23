@@ -105,6 +105,13 @@
    "analyticsAgentToolCatalog": "variable:5a6f63b088"
   }
  },
+ "./site/contracts": {
+  "types": "./dist/site/contracts.d.ts",
+  "symbols": {
+   "BrowserAnalyticsSource": "type:f091da8cc8",
+   "VisitorAnalyticsDeps": "interface:27c58dc770"
+  }
+ },
  "./site/ports": {
   "types": "./dist/site/ports.d.ts",
   "symbols": {

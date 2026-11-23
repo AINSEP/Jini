@@ -191,6 +191,50 @@
    "redirectUpdateRoute": "variable:0d3eb9b724"
   }
  },
+ "./admin-http/routes/seo/deps": {
+  "types": "./dist/admin-http/routes/seo/deps.d.ts",
+  "symbols": {
+   "SeoEntryReadRouteDeps": "interface:67d555880a",
+   "SeoEntryRouteInput": "interface:af1eb0a4f0",
+   "SeoRouteBaseDeps": "interface:d8cf345ffb",
+   "SeoRoutePrincipal": "interface:4507dc78cb",
+   "authorizeSeoManage": "function:5739e53541",
+   "parseSeoEntryId": "function:f21087f87f",
+   "rejectSeoEntryNotFound": "function:853b3f3931",
+   "seoCallerId": "function:be53d42d2f"
+  }
+ },
+ "./admin-http/routes/seo/get-entry": {
+  "types": "./dist/admin-http/routes/seo/get-entry.d.ts",
+  "symbols": {
+   "SeoGetEntryRouteDeps": "type:9a2a2cb41d",
+   "seoGetEntryRoute": "variable:180153c497"
+  }
+ },
+ "./admin-http/routes/seo/get-entry-analyze": {
+  "types": "./dist/admin-http/routes/seo/get-entry-analyze.d.ts",
+  "symbols": {
+   "SeoGetEntryAnalyzeRouteDeps": "type:408461bc0a",
+   "seoGetEntryAnalyzeRoute": "variable:23adfb6f04"
+  }
+ },
+ "./admin-http/routes/seo/post-sitemap-regenerate": {
+  "types": "./dist/admin-http/routes/seo/post-sitemap-regenerate.d.ts",
+  "symbols": {
+   "SeoPostSitemapRegenerateRouteDeps": "interface:49e924388b",
+   "seoPostSitemapRegenerateRoute": "variable:4015f68588"
+  }
+ },
+ "./admin-http/routes/seo/put-entry": {
+  "types": "./dist/admin-http/routes/seo/put-entry.d.ts",
+  "symbols": {
+   "SeoPutEntryInput": "interface:d5055d772c",
+   "SeoPutEntryRefusal": "type:4cb2b6f1f2",
+   "SeoPutEntryRouteDeps": "interface:1203ba1af7",
+   "seoPutEntryRefusal": "function:147f4ceb81",
+   "seoPutEntryRoute": "variable:593d1ace68"
+  }
+ },
  "./admin-http/routes/settings/preview-feed-access": {
   "types": "./dist/admin-http/routes/settings/preview-feed-access.d.ts",
   "symbols": {
@@ -2218,6 +2262,14 @@
    "toVercelRedirects": "function:f7528299c5"
   }
  },
+ "./redirects/site/phase-handler": {
+  "types": "./dist/redirects/site/phase-handler.d.ts",
+  "symbols": {
+   "RegisterRedirectsPhaseHandlersDeps": "type:20e41a8fb1",
+   "RegisterRedirectsResolvePhase": "type:ccac32b09f",
+   "registerRedirectsPhaseHandlers": "function:1580ce64c2"
+  }
+ },
  "./redirects/spa": {
   "types": "./dist/redirects/spa/index.d.ts",
   "symbols": {
@@ -2422,6 +2474,12 @@
   "types": "./dist/seo/dom/index.d.ts",
   "symbols": {
    "applyHeadElements": "function:6bf5c82dce"
+  }
+ },
+ "./seo/site/capability-card": {
+  "types": "./dist/seo/site/capability-card.d.ts",
+  "symbols": {
+   "capabilityCard": "variable:a91213f1f2"
   }
  },
  "./seo/site/page-head-contributor": {
