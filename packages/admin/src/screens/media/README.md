@@ -27,6 +27,14 @@ the hook itself never reads the kit.
   returning `{ isPhone, openDetails }`; `Item` is whatever the host's edit action takes, passed through
   untouched. `matchMedia` defaults to `window.matchMedia` (absent on the server → desktop card).
 
+- `grid-size` — `MEDIA_GRID_SIZES`, `MediaGridSize`, `parseMediaGridSize({ value })` (pure; unknown values
+  fall back to `medium`).
+- `hooks/use-media-grid-size.hooks` — `useMediaGridSize({ storageKey }, _optional = {})` returning
+  `[size, setSize]`. **Needs injected:** `storageKey`, the browser-storage key the choice is remembered
+  under. It is an owner default, so the host keeps the literal and passes it at its call site
+  (`useMediaGridSize({ storageKey: HOST_MEDIA_GRID_SIZE_STORAGE_KEY })`). Unavailable storage only means
+  the choice lasts for the visit.
+
 The card hooks need nothing injected; the host passes its own media item (its wire DTO is
 structurally assignable to the slices above, so no host type crosses into this package):
 

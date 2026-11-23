@@ -184,6 +184,9 @@
       "./screens/taxonomy/hooks/term-picker-dependencies.hooks": "universal",
       "./screens/taxonomy/rules": "universal",
       "./screens/taxonomy/taxonomy-host-kit": "universal",
+      "./screens/comments": "browser",
+      "./screens/forms": "browser",
+      "./screens/widgets": "browser",
       "./screens/taxonomy/hooks/taxonomy-dependencies.hooks": "universal",
       "./screens/taxonomy/hooks/use-term-list-reveal.hooks": "browser",
       "./screens/taxonomy/hooks/use-taxonomy-html-embed.hooks": "browser",
@@ -222,6 +225,8 @@
       "./posts/editor/toolbar/ToolbarCharacterCount": "browser",
       "./posts/post-url-dialog.css": "browser",
       "./screens/media/hooks/use-media-card-metadata.hooks": "browser",
+      "./screens/media/grid-size": "universal",
+      "./screens/media/hooks/use-media-grid-size.hooks": "browser",
       "./screens/media/hooks/use-media-card-details.hooks": "browser"
     },
     "isolation": {
@@ -1161,6 +1166,21 @@
       "import": "./dist/screens/taxonomy/taxonomy-host-kit.js",
       "default": "./dist/screens/taxonomy/taxonomy-host-kit.js"
     },
+    "./screens/comments": {
+      "types": "./dist/screens/comments/index.d.ts",
+      "import": "./dist/screens/comments/index.js",
+      "default": "./dist/screens/comments/index.js"
+    },
+    "./screens/forms": {
+      "types": "./dist/screens/forms/index.d.ts",
+      "import": "./dist/screens/forms/index.js",
+      "default": "./dist/screens/forms/index.js"
+    },
+    "./screens/widgets": {
+      "types": "./dist/screens/widgets/index.d.ts",
+      "import": "./dist/screens/widgets/index.js",
+      "default": "./dist/screens/widgets/index.js"
+    },
     "./screens/taxonomy/hooks/taxonomy-dependencies.hooks": {
       "types": "./dist/screens/taxonomy/hooks/taxonomy-dependencies.hooks.d.ts",
       "import": "./dist/screens/taxonomy/hooks/taxonomy-dependencies.hooks.js",
@@ -1347,6 +1367,16 @@
       "import": "./dist/screens/media/hooks/use-media-card-metadata.hooks.js",
       "default": "./dist/screens/media/hooks/use-media-card-metadata.hooks.js"
     },
+    "./screens/media/grid-size": {
+      "types": "./dist/screens/media/grid-size.d.ts",
+      "import": "./dist/screens/media/grid-size.js",
+      "default": "./dist/screens/media/grid-size.js"
+    },
+    "./screens/media/hooks/use-media-grid-size.hooks": {
+      "types": "./dist/screens/media/hooks/use-media-grid-size.hooks.d.ts",
+      "import": "./dist/screens/media/hooks/use-media-grid-size.hooks.js",
+      "default": "./dist/screens/media/hooks/use-media-grid-size.hooks.js"
+    },
     "./screens/media/hooks/use-media-card-details.hooks": {
       "types": "./dist/screens/media/hooks/use-media-card-details.hooks.d.ts",
       "import": "./dist/screens/media/hooks/use-media-card-details.hooks.js",
@@ -1440,6 +1470,15 @@
       "screens/taxonomy/taxonomy-host-kit": [
         "./dist/screens/taxonomy/taxonomy-host-kit.d.ts"
       ],
+      "screens/comments": [
+        "./dist/screens/comments/index.d.ts"
+      ],
+      "screens/forms": [
+        "./dist/screens/forms/index.d.ts"
+      ],
+      "screens/widgets": [
+        "./dist/screens/widgets/index.d.ts"
+      ],
       "screens/taxonomy/hooks/taxonomy-dependencies.hooks": [
         "./dist/screens/taxonomy/hooks/taxonomy-dependencies.hooks.d.ts"
       ],
@@ -1532,6 +1571,12 @@
       ],
       "screens/media/hooks/use-media-card-metadata.hooks": [
         "./dist/screens/media/hooks/use-media-card-metadata.hooks.d.ts"
+      ],
+      "screens/media/grid-size": [
+        "./dist/screens/media/grid-size.d.ts"
+      ],
+      "screens/media/hooks/use-media-grid-size.hooks": [
+        "./dist/screens/media/hooks/use-media-grid-size.hooks.d.ts"
       ],
       "screens/media/hooks/use-media-card-details.hooks": [
         "./dist/screens/media/hooks/use-media-card-details.hooks.d.ts"
