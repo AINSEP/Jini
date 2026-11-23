@@ -2793,11 +2793,11 @@
   "symbols": {
    "NumberSetting": "interface:a9f1de9cf8",
    "NumberSettingWrite": "type:0ced3e48e1",
-   "NumberStepper": "function:ad8f8b9678",
+   "NumberStepper": "function:51d8b3156d",
    "NumberStepperClassNames": "interface:dc121768d6",
    "NumberStepperController": "interface:c9945d7a0c",
    "NumberStepperLabels": "interface:633e58fbee",
-   "NumberStepperProps": "interface:7ef5af539f",
+   "NumberStepperProps": "interface:cacc28aed9",
    "StepperBounds": "interface:afc45b3a34",
    "acceptedSavedValue": "function:8f8141b04d",
    "clampToBounds": "function:988028cdc0",
