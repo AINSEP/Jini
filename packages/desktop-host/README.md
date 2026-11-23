@@ -119,7 +119,8 @@ before calling through. The ports are small: `SingleInstanceLockPort` is just `c
 | `./tauri` | The full Tauri assembly + per-port factories + fakes. `createTauriRenderService` throws `NotImplementedError`. | none — the Tauri API is injected, not imported |
 | `./shutdown` | Pending teardown tracking, quit/drain decisions and signal routing. | none |
 | `./electron/navigation-policy` | Window/renderer origin boundaries and guest admission. | none |
-| `./electron/updates` | Updater policy/controller and file-backed multi-instance presence. | none |
+| `./electron/updates` | Updater policy/controller, the manual "Check for updates" (`createUpdateCheckNow`) and file-backed multi-instance presence. | none |
+| `./electron/preferences` | JSON preference reads/writes through an injected durable-file port, bounded/choice values, save-before-apply native checkbox and radio items with in-place refresh, and a trusted preference IPC pair. | none |
 | `./node-toolchain` | Node/npm/npx shims and caller-named environment variables. | none |
 | `./electron/usability` | Find, zoom, spelling menus and remembered bounds through host ports. | none |
 | `./speech` | Transcription contracts, mono PCM/WAV encoding, validated IPC and preload bridge. | none |
@@ -211,6 +212,55 @@ installAppWindowNavigationPolicy({ contents: win.webContents, appOrigin, openExt
 contents.on('will-attach-webview', (_e, webPreferences) => applyGuestWebPreferences({ webPreferences, preloadPath }));
 const key = windowBoundsFilePath({ userDataDir, fileName: 'window-bounds.json', joinPath: ({ directory, filename }) => path.join(directory, filename) });
 const bounds = resolveWindowBounds({ stored: readWindowBounds({ store: jsonStore, key }), displays: screen.getAllDisplays(), fallback });
+```
+
+### Wiring: manual update check and desktop preferences
+
+- **Needs injected:** for `createUpdateCheckNow` (`./electron/updates`), the host's eligibility
+  (`isPackaged`, `skipReason`), the automatic-updates read, the controller's `readyVersion` and
+  `showReadyPrompt`, a lazy `loadUpdater`, `notify`/`log`, an `UpdateCheckCopy` (every notice's
+  words) and a redacting `describeErrorForLog`; `registerUpdateCheckIpc` takes the host's channel.
+  For `./electron/preferences`, a `PreferenceFilePort` (`read`/`withLock`/`writeAtomic`), the file
+  path, keys, bounds, choices, channels, error codes, menu labels and an `onProblem` warning hook.
+- **Provides:** one in-flight manual check (repeat clicks join it; look-only when automatic updates
+  are off), `isNetworkUpdateError`; key-level preference read/write that never overwrites unreadable
+  bytes, `persistedCheckbox`/`persistedRadioGroup` that restore the last saved state on a failed save,
+  `refreshRadioGroup`/`refreshCheckboxesByLabel`, and `registerPreferenceIpc` (sender check first).
+- **Never imports:** `electron`, `node:fs`, host copy, host paths or channel names; menu composition
+  (which items sit in which menu) stays with the host.
+
+```ts
+import { createUpdateCheckNow, registerUpdateCheckIpc } from '@jini-ai/desktop-host/electron/updates';
+import { persistedCheckbox, readPreferenceValue, writePreferenceValue } from '@jini-ai/desktop-host/electron/preferences';
+
+const file = { read: readJsonFile, withLock: withFileLock, writeAtomic: writeJsonFileAtomic };
+const auto = () => readPreferenceValue({ file, filePath, key: 'automaticUpdates', parse: ({ value }) => value !== false, fallback: true });
+const item = persistedCheckbox({ label: copy.automaticUpdates, checked: auto(), onError,
+  save: ({ checked }) => writePreferenceValue({ file, filePath, key: 'automaticUpdates', value: checked }) });
+const check = createUpdateCheckNow({ ...eligibility, automaticUpdates: auto, copy: hostUpdateCopy, describeErrorForLog, notify, log });
+registerUpdateCheckIpc({ ipcMain, channel: HOST_CHECK_FOR_UPDATES_CHANNEL, checkNow: check.checkNow });
+```
+
+### Wiring: preload channel subscriber and `<webview>` types
+
+- **Needs injected:** for `createPreloadSubscriber` (`./electron/preload`), a `PreloadIpcListenerPort`
+  (`on`/`removeListener`, args-object shaped) that passes `handler` through to Electron unchanged.
+- **Provides:** a `PreloadSubscribe` that forwards only the payload (never the raw IPC event and its
+  `sender`) and returns a cleanup removing exactly that listener. `./electron/webview` provides
+  DOM-free structural types (`WebviewDidFailLoadDetail`, `WebviewFoundInPageDetail`, `WebviewTagMethods`, ...).
+- **Stays with the host:** the channel allowlist (only fixed contract channels are ever subscribed),
+  `contextBridge` globals, and the `declare global` / JSX `webview` registration that combines these
+  types with `Event`/`HTMLElement`.
+- **Never imports:** `electron`, React, or DOM lib types.
+
+```ts
+import { createPreloadSubscriber } from '@jini-ai/desktop-host/electron/preload';
+
+const subscribe = createPreloadSubscriber({ ipcRenderer: {
+  on: ({ channel, handler }) => ipcRenderer.on(channel, handler),
+  removeListener: ({ channel, handler }) => ipcRenderer.removeListener(channel, handler),
+} });
+contextBridge.exposeInMainWorld('hostBridge', { onZoomCommand: ({ listener }) => subscribe({ channel: ZOOM_COMMAND_CHANNEL, listener }) });
 ```
 
 Architecture: [extraction-plan.md](../../ADS-memory/reports/jini-port/extraction-plan.md).
