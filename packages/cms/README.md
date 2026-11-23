@@ -247,3 +247,13 @@ pause and deliveries). `@jini-ai/cms` does not depend on `@jini-ai/integrations`
 create/pause/delete take a lifecycle function plus `isValidationError`/`isNotFoundError` matchers for the feature's error
 classes; list and deliveries take the subscription and delivery repos as narrow read views. The host owns actor
 attribution, the egress policy and the version-conflict throw (answered as the shared 409 body).
+
+`./public-http/routes/ops/health`: `healthRoute` (`GET /health`) and `healthzRoute` (`GET /healthz`), public liveness probes
+that take no deps, never authorize and always answer 200 `{ ok: true }`. A host mounts them with its public JSON ports ahead
+of any body parser or session middleware, so they answer while the rest of the app is still booting. Readiness (`/readyz`)
+stays host-owned.
+
+`./admin-http/routes/fs-files/custom-root`: `fsCustomRootGetRoute`/`PutRoute`/`DeleteRoute` for the admin filesystem custom
+root. The host injects `readCustomRoot`, `writeCustomRoot` (a path, or `null` to clear), `isInvalidRootError` (mapped to 400
+`INVALID_PATH`) and the `readPermission`/`managePermission` names; `PUT` authorizes before validating its body. Not yet
+mounted by Tovu (the mount waits on a route-table pin decision); the folder-picker routes stay host-side.

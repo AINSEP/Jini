@@ -183,7 +183,8 @@
       "./admin-http/routes/skills/set-enabled": "universal",
       "./admin-http/routes/skills/uninstall": "universal",
       "./admin-http/routes/skills/guidance": "universal",
-      "./admin-http/routes/fs-files/custom-root": "universal"
+      "./admin-http/routes/fs-files/custom-root": "universal",
+      "./public-http/routes/ops/health": "universal"
     },
     "isolation": {
       "domains": {
@@ -1161,6 +1162,11 @@
       "types": "./dist/admin-http/routes/fs-files/custom-root.d.ts",
       "import": "./dist/admin-http/routes/fs-files/custom-root.js",
       "default": "./dist/admin-http/routes/fs-files/custom-root.js"
+    },
+    "./public-http/routes/ops/health": {
+      "types": "./dist/public-http/routes/ops/health.d.ts",
+      "import": "./dist/public-http/routes/ops/health.js",
+      "default": "./dist/public-http/routes/ops/health.js"
     }
   },
   "files": [

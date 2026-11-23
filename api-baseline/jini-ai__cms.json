@@ -1991,6 +1991,17 @@
    "str": "function:c90112bb62"
   }
  },
+ "./public-http/routes/ops/health": {
+  "types": "./dist/public-http/routes/ops/health.d.ts",
+  "symbols": {
+   "HealthRouteDeps": "type:c97fccb374",
+   "HealthzRouteDeps": "type:bbd8f5980a",
+   "LivenessBody": "interface:e85db5d04e",
+   "LivenessInput": "type:4717424080",
+   "healthRoute": "variable:22d7ca437d",
+   "healthzRoute": "variable:82e28a0166"
+  }
+ },
  "./public-http/routes/site/pages/listing/listing-state": {
   "types": "./dist/public-http/routes/site/pages/listing/listing-state.d.ts",
   "symbols": {
