@@ -182,6 +182,14 @@
       "./recovery/recovery-i18n": "browser",
       "./recovery/hooks/use-recovery.hooks": "browser",
       "./recovery/hooks/use-restore-flow.hooks": "browser",
+      "./screens/database/rules": "browser",
+      "./screens/database/database-i18n": "browser",
+      "./screens/database/hooks/migrate-forward-section-port.hooks": "universal",
+      "./screens/database/hooks/schema-state-section-port.hooks": "universal",
+      "./screens/database/hooks/timeline-section-port.hooks": "universal",
+      "./screens/database/hooks/use-migrate-forward-section.hooks": "browser",
+      "./screens/database/hooks/use-schema-state-section.hooks": "browser",
+      "./screens/database/hooks/use-timeline-section.hooks": "browser",
       "./publish-content/screen/hooks/publish-availability.store": "browser"
     },
     "isolation": {
@@ -1108,6 +1116,46 @@
       "types": "./dist/recovery/hooks/use-restore-flow.hooks.d.ts",
       "import": "./dist/recovery/hooks/use-restore-flow.hooks.js",
       "default": "./dist/recovery/hooks/use-restore-flow.hooks.js"
+    },
+    "./screens/database/rules": {
+      "types": "./dist/screens/database/rules.d.ts",
+      "import": "./dist/screens/database/rules.js",
+      "default": "./dist/screens/database/rules.js"
+    },
+    "./screens/database/database-i18n": {
+      "types": "./dist/screens/database/database-i18n.d.ts",
+      "import": "./dist/screens/database/database-i18n.js",
+      "default": "./dist/screens/database/database-i18n.js"
+    },
+    "./screens/database/hooks/migrate-forward-section-port.hooks": {
+      "types": "./dist/screens/database/hooks/migrate-forward-section-port.hooks.d.ts",
+      "import": "./dist/screens/database/hooks/migrate-forward-section-port.hooks.js",
+      "default": "./dist/screens/database/hooks/migrate-forward-section-port.hooks.js"
+    },
+    "./screens/database/hooks/schema-state-section-port.hooks": {
+      "types": "./dist/screens/database/hooks/schema-state-section-port.hooks.d.ts",
+      "import": "./dist/screens/database/hooks/schema-state-section-port.hooks.js",
+      "default": "./dist/screens/database/hooks/schema-state-section-port.hooks.js"
+    },
+    "./screens/database/hooks/timeline-section-port.hooks": {
+      "types": "./dist/screens/database/hooks/timeline-section-port.hooks.d.ts",
+      "import": "./dist/screens/database/hooks/timeline-section-port.hooks.js",
+      "default": "./dist/screens/database/hooks/timeline-section-port.hooks.js"
+    },
+    "./screens/database/hooks/use-migrate-forward-section.hooks": {
+      "types": "./dist/screens/database/hooks/use-migrate-forward-section.hooks.d.ts",
+      "import": "./dist/screens/database/hooks/use-migrate-forward-section.hooks.js",
+      "default": "./dist/screens/database/hooks/use-migrate-forward-section.hooks.js"
+    },
+    "./screens/database/hooks/use-schema-state-section.hooks": {
+      "types": "./dist/screens/database/hooks/use-schema-state-section.hooks.d.ts",
+      "import": "./dist/screens/database/hooks/use-schema-state-section.hooks.js",
+      "default": "./dist/screens/database/hooks/use-schema-state-section.hooks.js"
+    },
+    "./screens/database/hooks/use-timeline-section.hooks": {
+      "types": "./dist/screens/database/hooks/use-timeline-section.hooks.d.ts",
+      "import": "./dist/screens/database/hooks/use-timeline-section.hooks.js",
+      "default": "./dist/screens/database/hooks/use-timeline-section.hooks.js"
     },
     "./publish-content/screen/hooks/publish-availability.store": {
       "types": "./dist/publish-content/screen/hooks/publish-availability.store.d.ts",

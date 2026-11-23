@@ -18,6 +18,9 @@ export type {
   AdminLedgerRow,
   AdminRestorePoint,
   AdminRestorePointSummary,
+  AdminSchemaDriftStatus,
+  AdminSchemaSnapshot,
+  AdminSchemaState,
   MigrateForwardResult,
   RestorePointCostClass,
 } from './database.js';
