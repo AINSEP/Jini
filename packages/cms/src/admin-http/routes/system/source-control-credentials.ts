@@ -61,9 +61,9 @@ export interface SourceControlDeleteRouteDeps extends SourceControlBaseDeps {
   deleteCredential: (args: { workspaceId: string; id: string }) => Promise<void>;
 }
 
-const parse = (raw: Parameters<typeof credentialRouteInput>[0]) => ok({ value: credentialRouteInput(raw) });
-const rowsFor = (deps: SourceControlBaseDeps) => credentialErrorRows({ classes: deps.storeErrors });
-const authorizeSourceControl = (authorize: Parameters<typeof authorizeCredentials>[0]["authorize"]) =>
+const parse = (raw: Parameters<typeof credentialRouteInput>[0]["raw"]) => ok({ value: credentialRouteInput({ raw }) });
+const rowsFor = ({ deps }: { deps: SourceControlBaseDeps }, _optional: Record<string, never> = {}) => credentialErrorRows({ classes: deps.storeErrors });
+const authorizeSourceControl = ({ authorize }: { authorize: Parameters<typeof authorizeCredentials>[0]["authorize"] }, _optional: Record<string, never> = {}) =>
   authorizeCredentials({ authorize, permission: PERMISSION, entityType: ENTITY_TYPE });
 
 /** The page's provider rows; `credential`/`i18n` only when declared. Plugin load refusals go to the
@@ -86,8 +86,8 @@ export const sourceControlProvidersRoute = defineJsonRoute<CredentialRouteInput,
   path: PROVIDERS_PATH,
   parse,
   handle: async ({ deps, authorize }) => {
-    await authorizeSourceControl(authorize);
-    const registry = await withCredentialStoreErrors({ run: () => deps.loadSourceControlProviders({ workspaceId: deps.workspaceId }), rows: rowsFor(deps) });
+    await authorizeSourceControl({ authorize });
+    const registry = await withCredentialStoreErrors({ run: () => deps.loadSourceControlProviders({ workspaceId: deps.workspaceId }), rows: rowsFor({ deps }) });
     return ok({ value: providerList({ registry }) });
   },
 });
@@ -97,8 +97,8 @@ export const sourceControlListRoute = defineJsonRoute<CredentialRouteInput, { cr
   path: BASE_PATH,
   parse,
   handle: async ({ deps, authorize }) => {
-    await authorizeSourceControl(authorize);
-    const credentials = await withCredentialStoreErrors({ run: () => deps.listCredentials({ workspaceId: deps.workspaceId }), rows: rowsFor(deps) });
+    await authorizeSourceControl({ authorize });
+    const credentials = await withCredentialStoreErrors({ run: () => deps.listCredentials({ workspaceId: deps.workspaceId }), rows: rowsFor({ deps }) });
     return ok({ value: { credentials } });
   },
 });
@@ -121,8 +121,8 @@ export const sourceControlCreateRoute = defineJsonRoute<CredentialRouteInput, { 
   path: BASE_PATH,
   parse,
   handle: async ({ input, deps, authorize }) => {
-    await authorizeSourceControl(authorize);
-    const credential = await withCredentialStoreErrors({ rows: rowsFor(deps), run: async () => {
+    await authorizeSourceControl({ authorize });
+    const credential = await withCredentialStoreErrors({ rows: rowsFor({ deps }), run: async () => {
       const created = await deps.createCredential(createInput({ deps, body: input.body }));
       if (created.scope === "project") await deps.useProjectKey({ keyId: created.id });
       return created;
@@ -136,9 +136,9 @@ export const sourceControlUpdateRoute = defineJsonRoute<CredentialRouteInput, { 
   path: `${BASE_PATH}/:id`,
   parse,
   handle: async ({ input, deps, authorize }) => {
-    await authorizeSourceControl(authorize);
+    await authorizeSourceControl({ authorize });
     const update = { workspaceId: deps.workspaceId, id: input.id, ...presentFields({ body: input.body, keys: ["label", "connection", "isDefault"] }) };
-    const credential = await withCredentialStoreErrors({ run: () => deps.updateCredential(update), rows: rowsFor(deps) });
+    const credential = await withCredentialStoreErrors({ run: () => deps.updateCredential(update), rows: rowsFor({ deps }) });
     return ok({ value: { credential } });
   },
 });
@@ -148,10 +148,10 @@ export const sourceControlDeleteRoute = defineJsonRoute<CredentialRouteInput, un
   path: `${BASE_PATH}/:id`,
   parse,
   handle: async ({ input, deps, authorize }) => {
-    await authorizeSourceControl(authorize);
+    await authorizeSourceControl({ authorize });
     // Idempotent: the store's delete is a no-op (not an error) for a missing row, so this answers
     // 204 always. A THROWN error (the repo itself unreachable) still needs an answer, not silence.
-    await withCredentialStoreErrors({ run: () => deps.deleteCredential({ workspaceId: deps.workspaceId, id: input.id }), rows: rowsFor(deps) });
+    await withCredentialStoreErrors({ run: () => deps.deleteCredential({ workspaceId: deps.workspaceId, id: input.id }), rows: rowsFor({ deps }) });
     return ok({ value: undefined });
   },
 }, { successStatus: 204 });

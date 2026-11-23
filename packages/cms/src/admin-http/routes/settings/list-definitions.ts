@@ -1,4 +1,5 @@
 import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
+import type { AdminSettingsListDto } from "@jini-ai/core/contracts/site/cms-settings";
 import type { SettingDefinitionRecord, SettingsService } from "@jini-ai/core/settings";
 
 import { runSettingsRoute, settingsRouteInput, type SettingsRouteBaseDeps, type SettingsRouteInput, type SettingsRoutePrincipal } from "./shared.js";
@@ -30,7 +31,7 @@ export type SettingsDefinitionSummary = Pick<SettingDefinitionRecord, "namespace
  * a nested-by-namespace structure, so ordering (not nesting) is what
  * "grouped by namespace" means here.
  */
-export const settingsListDefinitionsRoute = defineJsonRoute<SettingsRouteInput, { data: SettingsDefinitionSummary[] }, SettingsListDefinitionsRouteDeps, SettingsRoutePrincipal>({
+export const settingsListDefinitionsRoute = defineJsonRoute<SettingsRouteInput, AdminSettingsListDto<SettingsDefinitionSummary>, SettingsListDefinitionsRouteDeps, SettingsRoutePrincipal>({
   method: "get",
   path: "/api/admin/v1/workspaces/:workspaceId/settings/definitions",
   parse: (raw) => settingsRouteInput(raw),

@@ -20,11 +20,11 @@ export const publishCredentialDeleteRoute = defineJsonRoute<CredentialRouteInput
   path: `${PUBLISH_CREDENTIALS_BASE_PATH}/:id`,
   parse: parsePublishCredential,
   handle: async ({ input, deps, authorize }) => {
-    await authorizePublishCredentials(authorize);
+    await authorizePublishCredentials({ authorize });
     const target = { workspaceId: deps.workspaceId, id: input.id };
     // Idempotent: a missing row answers 204. A THROWN error (the repo itself unreachable) is a
     // different case and still needs an answer, not a silent no-op.
-    await withCredentialStoreErrors({ rows: publishCredentialRows(deps), run: async () => {
+    await withCredentialStoreErrors({ rows: publishCredentialRows({ deps }), run: async () => {
       const invalidate = await deps.prepareInvalidation();
       const before = await deps.describeCredential(target);
       await deps.deleteCredential(target);

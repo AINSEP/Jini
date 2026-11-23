@@ -52,7 +52,7 @@ interface ExportTriggerOptions { clean: boolean; basePath?: string }
 const EXPORT_PATH = '/api/admin/v1/workspaces/:workspaceId/system/export';
 
 /** The handler's own authorizer; a spec mounted without one is a wiring bug and fails closed. */
-function requireAuthorize(authorize: JsonRouteAuthorize | undefined, _optional: Record<string, never> = {}): JsonRouteAuthorize {
+function requireAuthorize({ authorize }: { authorize: JsonRouteAuthorize | undefined }, _optional: Record<string, never> = {}): JsonRouteAuthorize {
   if (!authorize) throw new Error('export-site route has no authorizer');
   return authorize;
 }
@@ -88,7 +88,7 @@ export const exportSiteTriggerRoute = defineJsonRoute<{ body: unknown }, ExportR
   path: EXPORT_PATH,
   parse: (raw) => ok({ value: { body: raw.body } }),
   handle: async ({ input, deps, context, authorize }) => {
-    await requireAuthorize(authorize)({ permission: 'system.export', entityType: 'site-export' });
+    await requireAuthorize({ authorize })({ permission: 'system.export', entityType: 'site-export' });
     // No `await` between this check and `startRun` below — this stretch runs synchronously on the
     // event loop, so two concurrent POSTs cannot both observe "idle" (the single-flight guarantee).
     // A host agent tool that triggers the same run follows the identical no-await-in-between shape
@@ -112,7 +112,7 @@ export const exportSiteStatusRoute = defineJsonRoute<Record<string, never>, Expo
   path: EXPORT_PATH,
   parse: () => ok({ value: {} }),
   handle: async ({ deps, authorize }) => {
-    await requireAuthorize(authorize)({ permission: 'system.read', entityType: 'site-export' });
+    await requireAuthorize({ authorize })({ permission: 'system.read', entityType: 'site-export' });
     return ok({ value: deps.getRunSnapshot() });
   },
 });

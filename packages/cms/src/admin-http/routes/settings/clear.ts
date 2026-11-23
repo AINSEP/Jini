@@ -1,4 +1,5 @@
 import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
+import type { AdminSettingClearedDto } from "@jini-ai/core/contracts/site/cms-settings";
 import { rejectRoute } from "@jini-ai/core/errors/route-refusal";
 import {
   DefinitionNotFoundError, DefinitionTombstonedError, ForbiddenError, PrincipalNotFoundError, ScopeNotAllowedError,
@@ -51,7 +52,7 @@ function parseClearRequestFields({ rawBody }: { rawBody: unknown }, _options: Re
  * clear, since the write service's `clear()` runs the identical
  * `assertTargetPrincipalInWorkspace` check as `set()`).
  */
-export const settingsClearRoute = defineJsonRoute<SettingsRouteInput, { key: string; scope: SettingScope; value: null; revisionSeq: number }, SettingsClearRouteDeps, SettingsRoutePrincipal>({
+export const settingsClearRoute = defineJsonRoute<SettingsRouteInput, AdminSettingClearedDto, SettingsClearRouteDeps, SettingsRoutePrincipal>({
   method: "delete",
   path: "/api/admin/v1/workspaces/:workspaceId/settings/value",
   parse: (raw) => settingsRouteInput(raw),

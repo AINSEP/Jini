@@ -1,4 +1,5 @@
 import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
+import type { AdminSettingsResetDto } from "@jini-ai/core/contracts/site/cms-settings";
 import { rejectRoute } from "@jini-ai/core/errors/route-refusal";
 import { ForbiddenError, resolveTargetWorkspaceId, type SettingScope, type SettingsService } from "@jini-ai/core/settings";
 
@@ -53,7 +54,7 @@ function parseResetRequestFields({ rawBody }: { rawBody: unknown }, _options: Re
  * `scope !== "global"` on this path).
  * @complexity O(keys registered in the namespace), including CMS ledger writes.
  */
-export const settingsResetRoute = defineJsonRoute<SettingsRouteInput, { namespace: string; clearedCount: number; revisionSeqs: number[] }, SettingsResetRouteDeps, SettingsRoutePrincipal>({
+export const settingsResetRoute = defineJsonRoute<SettingsRouteInput, AdminSettingsResetDto, SettingsResetRouteDeps, SettingsRoutePrincipal>({
   method: "post",
   path: "/api/admin/v1/workspaces/:workspaceId/settings/reset",
   parse: (raw) => settingsRouteInput(raw),

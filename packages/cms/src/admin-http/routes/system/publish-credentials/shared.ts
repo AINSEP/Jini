@@ -34,13 +34,13 @@ export type DescribePublishCredential = (args: { workspaceId: string; id: string
 /** What every publish-credential route reads: its workspace and the host's store error classes. */
 export interface PublishCredentialBaseDeps { workspaceId: string; storeErrors: CredentialStoreErrorClasses }
 
-export const publishCredentialRows = (deps: PublishCredentialBaseDeps) => credentialErrorRows({ classes: deps.storeErrors });
+export const publishCredentialRows = ({ deps }: { deps: PublishCredentialBaseDeps }, _optional: Record<string, never> = {}) => credentialErrorRows({ classes: deps.storeErrors });
 
 /** `system.publish` on `site-publish`, before any store or loader is reached. @complexity O(1). */
-export const authorizePublishCredentials = (authorize: JsonRouteAuthorize | undefined) =>
+export const authorizePublishCredentials = ({ authorize }: { authorize: JsonRouteAuthorize | undefined }, _optional: Record<string, never> = {}) =>
   authorizeCredentials({ authorize, permission: "system.publish", entityType: "site-publish" });
 
-export const parsePublishCredential = (raw: RouteInputContext) => ok({ value: credentialRouteInput(raw) });
+export const parsePublishCredential = (raw: RouteInputContext) => ok({ value: credentialRouteInput({ raw }) });
 
 /** Verify only when the request supplied a `connection`: a label/isDefault-only change verifies
  *  nothing new (the connection, and whatever a previous verification found, is unchanged), so a

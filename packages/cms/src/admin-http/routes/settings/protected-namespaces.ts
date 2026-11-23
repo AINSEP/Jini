@@ -27,7 +27,7 @@ function bodyItems({ body }: { body: unknown }, _options: Record<string, never> 
  * to a protected name.
  * @complexity O(n) over the protected namespaces.
  */
-function namesProtectedNamespace(item: BodyItem, namespaces: readonly string[]): boolean {
+function namesProtectedNamespace({ item, namespaces }: { item: BodyItem; namespaces: readonly string[] }, _optional: Record<string, never> = {}): boolean {
   return namespaces.includes(String(item.namespace)) || namespaces.includes(String(item.newNamespace));
 }
 
@@ -64,7 +64,7 @@ async function anyKeyResolvesProtected({ namespace, keys, scope }: { namespace: 
 async function itemTouchesProtected({ raw, scope, definitionBatch }: { raw: unknown; scope: ProtectedScope; definitionBatch: boolean }, _options: Record<string, never> = {}): Promise<boolean> {
   if (!raw || typeof raw !== "object") return false;
   const item = raw as BodyItem;
-  if (namesProtectedNamespace(item, scope.namespaces)) return true;
+  if (namesProtectedNamespace({ item, namespaces: scope.namespaces })) return true;
   if (typeof item.namespace !== "string") return false;
   const namespaced = item as BodyItem & { namespace: string };
   return anyKeyResolvesProtected({ namespace: namespaced.namespace, keys: await keysToResolve({ item: namespaced, scope, definitionBatch }), scope });

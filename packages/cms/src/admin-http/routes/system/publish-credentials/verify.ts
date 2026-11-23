@@ -19,10 +19,10 @@ export const publishCredentialVerifyRoute = defineJsonRoute<CredentialRouteInput
   path: `${PUBLISH_CREDENTIALS_BASE_PATH}/:id/verify`,
   parse: parsePublishCredential,
   handle: async ({ input, deps, authorize }) => {
-    await authorizePublishCredentials(authorize);
+    await authorizePublishCredentials({ authorize });
     // The lookup never decrypts; the ladder is for the verification's decrypt step, which (unlike the
     // provider probe itself) may throw — the same store-error mapping the save routes apply.
-    const verification = await withCredentialStoreErrors({ rows: publishCredentialRows(deps), run: async () => {
+    const verification = await withCredentialStoreErrors({ rows: publishCredentialRows({ deps }), run: async () => {
       const existing = await deps.describeCredential({ workspaceId: deps.workspaceId, id: input.id });
       if (!existing) throw new RouteRefusalError({ status: 404, body: { error: "NOT_FOUND", detail: `no publish credential '${input.id}' in this workspace` } });
       return deps.verifyAfterSave({ id: existing.id });

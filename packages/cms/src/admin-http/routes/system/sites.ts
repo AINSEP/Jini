@@ -12,6 +12,7 @@
  * the server on a click; the activation's own restart fields tell the UI what to say.
  */
 import { defineJsonRoute, ok, type JsonRouteAuthorize } from '@jini-ai/core/contracts/server';
+import type { SiteCreateResponse, SiteTokenSignInPluginsResponse } from '@jini-ai/core/contracts/site/cms-sites';
 import { RouteRefusalError } from '@jini-ai/core/errors/route-refusal';
 
 const BASE = '/api/admin/v1/workspaces/:workspaceId/system/sites';
@@ -44,7 +45,7 @@ export interface SitesAdminPrincipal { id: string }
 /** What the plugin-list route reads. */
 export interface SiteTokenSignInPluginsRouteDeps {
   workspaceId: string;
-  listTokenSignInPlugins: (required: { workspaceId: string }) => Promise<unknown> | unknown;
+  listTokenSignInPlugins: (required: { workspaceId: string }) => Promise<readonly unknown[]> | readonly unknown[];
 }
 
 /** The create request's fields; anything else in the body is ignored. */
@@ -64,7 +65,7 @@ export interface SiteActivateRouteDeps {
 }
 
 /** A refusal as its wire answer. @complexity O(fields). */
-function siteAdminRefusal(refusal: SiteAdminRefusal, _optional: Record<string, never> = {}): RouteRefusalError {
+function siteAdminRefusal({ refusal }: { refusal: SiteAdminRefusal }, _optional: Record<string, never> = {}): RouteRefusalError {
   const { ok: _ok, ...body } = refusal;
   return new RouteRefusalError({ status: SITE_ADMIN_REFUSAL_STATUS[refusal.code] ?? 500, body });
 }
@@ -79,14 +80,16 @@ async function authorizeSites({ authorize, permission }: { authorize: JsonRouteA
  *  this boot cannot fulfil regardless of who is asking. @complexity O(1). */
 function switcherBaseOrRefuse({ deps }: { deps: { siteSwitchBase: () => SiteSwitchBase } }, _optional: Record<string, never> = {}): string {
   const gate = deps.siteSwitchBase();
-  if (!gate.ok) throw siteAdminRefusal(gate);
+  if (!gate.ok) throw siteAdminRefusal({ refusal: gate });
   return gate.switcherBase;
 }
 
-const field = (body: unknown, key: string): unknown => (typeof body === 'object' && body !== null ? (body as Record<string, unknown>)[key] : undefined);
+/** One body field, or `undefined` when the body is not an object. @complexity O(1). */
+const field = ({ body, key }: { body: unknown; key: string }, _optional: Record<string, never> = {}): unknown =>
+  (typeof body === 'object' && body !== null ? (body as Record<string, unknown>)[key] : undefined);
 
 /** `GET .../system/sites/token-sign-in-plugins` — bundled plugins a new site's create form can connect now. */
-export const siteTokenSignInPluginsRoute = defineJsonRoute<Record<string, never>, { plugins: unknown }, SiteTokenSignInPluginsRouteDeps, SitesAdminPrincipal>({
+export const siteTokenSignInPluginsRoute = defineJsonRoute<Record<string, never>, SiteTokenSignInPluginsResponse, SiteTokenSignInPluginsRouteDeps, SitesAdminPrincipal>({
   method: 'get',
   path: `${BASE}/token-sign-in-plugins`,
   parse: () => ok({ value: {} }),
@@ -97,21 +100,21 @@ export const siteTokenSignInPluginsRoute = defineJsonRoute<Record<string, never>
 });
 
 /** `POST .../system/sites` — create a site under the switcher base. */
-export const siteCreateRoute = defineJsonRoute<SiteCreateInput, { site: unknown; agentPluginTokens: unknown }, SiteCreateRouteDeps, SitesAdminPrincipal>({
+export const siteCreateRoute = defineJsonRoute<SiteCreateInput, SiteCreateResponse, SiteCreateRouteDeps, SitesAdminPrincipal>({
   method: 'post',
   path: BASE,
   parse: (raw) => {
-    const name = field(raw.body, 'name');
-    return ok({ value: { name: typeof name === 'string' ? name : undefined, adminPassword: field(raw.body, 'adminPassword'), agentPluginTokens: field(raw.body, 'agentPluginTokens') } });
+    const name = field({ body: raw.body, key: 'name' });
+    return ok({ value: { name: typeof name === 'string' ? name : undefined, adminPassword: field({ body: raw.body, key: 'adminPassword' }), agentPluginTokens: field({ body: raw.body, key: 'agentPluginTokens' }) } });
   },
   handle: async ({ input, deps, authorize, context }) => {
     const switcherBase = switcherBaseOrRefuse({ deps });
     await authorizeSites({ authorize, permission: 'system.write' });
     if (!context) throw new Error('sites admin route has no authenticated principal');
     // The name is checked after authorization, as before: a caller without the permission learns nothing.
-    if (input.name === undefined) throw siteAdminRefusal({ ok: false, error: "'name' (string) is required", code: 'VALIDATION_ERROR' });
+    if (input.name === undefined) throw siteAdminRefusal({ refusal: { ok: false, error: "'name' (string) is required", code: 'VALIDATION_ERROR' } });
     const created = await deps.createSite({ switcherBase, name: input.name, actorId: context.id, adminPassword: input.adminPassword, agentPluginTokens: input.agentPluginTokens });
-    if (!created.ok) throw siteAdminRefusal(created);
+    if (!created.ok) throw siteAdminRefusal({ refusal: created });
     return ok({ value: { site: created.site, agentPluginTokens: created.agentPluginTokens } });
   },
 }, { successStatus: 201 });
@@ -120,12 +123,12 @@ export const siteCreateRoute = defineJsonRoute<SiteCreateInput, { site: unknown;
 export const siteActivateRoute = defineJsonRoute<{ name: string; restartNow: boolean }, unknown, SiteActivateRouteDeps, SitesAdminPrincipal>({
   method: 'post',
   path: `${BASE}/:name/activate`,
-  parse: (raw) => ok({ value: { name: String(raw.params.name ?? ''), restartNow: field(raw.body, 'restartNow') === true } }),
+  parse: (raw) => ok({ value: { name: String(raw.params.name ?? ''), restartNow: field({ body: raw.body, key: 'restartNow' }) === true } }),
   handle: async ({ input, deps, authorize }) => {
     const switcherBase = switcherBaseOrRefuse({ deps });
     await authorizeSites({ authorize, permission: 'system.write' });
     const activated = await deps.activateSite({ switcherBase, name: input.name, restartNow: input.restartNow });
-    if (!activated.ok) throw siteAdminRefusal(activated);
+    if (!activated.ok) throw siteAdminRefusal({ refusal: activated });
     return ok({ value: activated });
   },
 });

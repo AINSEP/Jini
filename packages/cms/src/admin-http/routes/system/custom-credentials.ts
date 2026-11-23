@@ -79,11 +79,11 @@ export interface CustomCredentialDeleteRouteDeps extends CustomCredentialBaseDep
   prepareInvalidation: PrepareCustomCredentialInvalidation;
 }
 
-const parse = (raw: RouteInputContext) => ok({ value: credentialRouteInput(raw) });
-const rowsFor = (deps: CustomCredentialBaseDeps) => credentialErrorRows({ classes: deps.storeErrors }, {
+const parse = (raw: RouteInputContext) => ok({ value: credentialRouteInput({ raw }) });
+const rowsFor = ({ deps }: { deps: CustomCredentialBaseDeps }, _optional: Record<string, never> = {}) => credentialErrorRows({ classes: deps.storeErrors }, {
   extra: [{ type: deps.storeErrors.concurrentModification, status: 409, error: "CONCURRENT_MODIFICATION" }],
 });
-const authorizeCustom = (authorize: JsonRouteAuthorize | undefined) => authorizeCredentials({ authorize, permission: PERMISSION, entityType: ENTITY_TYPE });
+const authorizeCustom = ({ authorize }: { authorize: JsonRouteAuthorize | undefined }, _optional: Record<string, never> = {}) => authorizeCredentials({ authorize, permission: PERMISSION, entityType: ENTITY_TYPE });
 
 /** With a project key store, the list exposes every site's shared keys: only the installation
  *  owner, signed in with a session (never a machine credential), may read it. @complexity O(1). */
@@ -112,10 +112,10 @@ export const customCredentialListRoute = defineJsonRoute<CredentialRouteInput, {
   path: BASE_PATH,
   parse,
   handle: async ({ deps, authorize, context }) => {
-    await authorizeCustom(authorize);
+    await authorizeCustom({ authorize });
     const keys = deps.projectKeys();
     if (keys) await assertSharedKeysViewer({ deps, principal: context });
-    const credentials = await withCredentialStoreErrors({ run: () => inventoryWithUsage({ deps, keys }), rows: rowsFor(deps) });
+    const credentials = await withCredentialStoreErrors({ run: () => inventoryWithUsage({ deps, keys }), rows: rowsFor({ deps }) });
     return ok({ value: { credentials, ...(keys ? { projectKeysAvailable: true as const } : {}) } });
   },
 });
@@ -132,9 +132,9 @@ export const customCredentialCreateRoute = defineJsonRoute<CredentialRouteInput,
   path: BASE_PATH,
   parse,
   handle: async ({ input, deps, authorize }) => {
-    await authorizeCustom(authorize);
+    await authorizeCustom({ authorize });
     const { body } = input;
-    const credential = await withCredentialStoreErrors({ rows: rowsFor(deps), run: async () => {
+    const credential = await withCredentialStoreErrors({ rows: rowsFor({ deps }), run: async () => {
       const invalidate = await deps.prepareInvalidation();
       const created = await deps.createCredential({
         workspaceId: deps.workspaceId, label: body.label, category: body.category, baseUrl: body.baseUrl, connection: body.connection,
@@ -163,9 +163,9 @@ export const customCredentialUpdateRoute = defineJsonRoute<CredentialRouteInput,
   path: `${BASE_PATH}/:id`,
   parse,
   handle: async ({ input, deps, authorize, context }) => {
-    await authorizeCustom(authorize);
+    await authorizeCustom({ authorize });
     const target = { workspaceId: deps.workspaceId, id: input.id };
-    const credential = await withCredentialStoreErrors({ rows: rowsFor(deps), run: async () => {
+    const credential = await withCredentialStoreErrors({ rows: rowsFor({ deps }), run: async () => {
       const invalidate = await deps.prepareInvalidation();
       const before = await deps.describeCredential(target);
       const allowSharedKeyReplacement = await isOwnerSession({ deps, principal: context });
@@ -183,10 +183,10 @@ export const customCredentialDeleteRoute = defineJsonRoute<CredentialRouteInput,
   path: `${BASE_PATH}/:id`,
   parse,
   handle: async ({ input, deps, authorize }) => {
-    await authorizeCustom(authorize);
+    await authorizeCustom({ authorize });
     const target = { workspaceId: deps.workspaceId, id: input.id };
     // Idempotent: the store's delete is a no-op (not an error) for a missing row, so this answers 204 always.
-    await withCredentialStoreErrors({ rows: rowsFor(deps), run: async () => {
+    await withCredentialStoreErrors({ rows: rowsFor({ deps }), run: async () => {
       const invalidate = await deps.prepareInvalidation();
       const before = await deps.describeCredential(target);
       await deps.deleteCredential(target);

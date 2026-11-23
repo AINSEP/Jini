@@ -1,4 +1,5 @@
 import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
+import type { AdminSettingsRegisterDefinitionsDto } from "@jini-ai/core/contracts/site/cms-settings";
 import { rejectRoute } from "@jini-ai/core/errors/route-refusal";
 import type { JsonValue } from "@jini-ai/core/primitives";
 import {
@@ -131,7 +132,7 @@ async function applyDefinitionItem(
  * reasonable bridge between the two shapes, disclosed here rather than
  * silently guessing.
  */
-export const settingsRegisterDefinitionsRoute = defineJsonRoute<SettingsRouteInput, { applied: Array<{ key: string; op: string; status: string }> }, SettingsRegisterDefinitionsRouteDeps, SettingsRoutePrincipal>({
+export const settingsRegisterDefinitionsRoute = defineJsonRoute<SettingsRouteInput, AdminSettingsRegisterDefinitionsDto, SettingsRegisterDefinitionsRouteDeps, SettingsRoutePrincipal>({
   method: "post",
   path: "/api/admin/v1/workspaces/:workspaceId/settings/definitions",
   parse: (raw) => settingsRouteInput(raw),

@@ -1,4 +1,5 @@
 import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
+import type { AdminSettingsListDto } from "@jini-ai/core/contracts/site/cms-settings";
 import { rejectRoute } from "@jini-ai/core/errors/route-refusal";
 import type { EffectiveSettingRow, SettingsService } from "@jini-ai/core/settings";
 
@@ -48,7 +49,7 @@ const NAMESPACE_REQUIRED_MESSAGE = "Say which group of settings to read: add ?na
  * only takes one exact `workspaceId` per call.
  * @complexity O(keys registered in the namespace).
  */
-export const settingsGetEffectiveRoute = defineJsonRoute<SettingsRouteInput, { data: EffectiveSettingRow[] }, SettingsGetEffectiveRouteDeps, SettingsRoutePrincipal>({
+export const settingsGetEffectiveRoute = defineJsonRoute<SettingsRouteInput, AdminSettingsListDto<EffectiveSettingRow>, SettingsGetEffectiveRouteDeps, SettingsRoutePrincipal>({
   method: "get",
   path: "/api/admin/v1/workspaces/:workspaceId/settings/effective",
   parse: (raw) => settingsRouteInput(raw),

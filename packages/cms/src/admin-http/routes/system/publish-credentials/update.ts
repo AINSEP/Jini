@@ -24,9 +24,9 @@ export const publishCredentialUpdateRoute = defineJsonRoute<CredentialRouteInput
   path: `${PUBLISH_CREDENTIALS_BASE_PATH}/:id`,
   parse: parsePublishCredential,
   handle: async ({ input, deps, authorize }) => {
-    await authorizePublishCredentials(authorize);
+    await authorizePublishCredentials({ authorize });
     const target = { workspaceId: deps.workspaceId, id: input.id };
-    const value = await withCredentialStoreErrors({ rows: publishCredentialRows(deps), run: async () => {
+    const value = await withCredentialStoreErrors({ rows: publishCredentialRows({ deps }), run: async () => {
       const invalidate = await deps.prepareInvalidation();
       const before = await deps.describeCredential(target);
       const credential = await deps.updateCredential({ ...target, ...presentFields({ body: input.body, keys: UPDATE_FIELDS }) });

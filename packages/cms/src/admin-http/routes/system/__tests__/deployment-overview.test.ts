@@ -1,8 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { RouteRefusalError } from '@jini-ai/core/errors/route-refusal';
-import {
-  deploymentOverviewRoute, type DeploymentOverviewRouteDeps, type DeploymentOverviewSnapshot,
-} from '../deployment-overview.js';
+import type { DeploymentOverviewSnapshot } from '@jini-ai/core/contracts/site/cms-system-deploy';
+import { deploymentOverviewRoute, type DeploymentOverviewRouteDeps } from '../deployment-overview.js';
 
 const SNAPSHOT: DeploymentOverviewSnapshot = {
   mode: 'local', productionReadinessGate: { applicable: false, passed: false }, defaultOwnerPasswordUnsafe: false,

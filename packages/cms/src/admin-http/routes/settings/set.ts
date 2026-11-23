@@ -1,4 +1,5 @@
 import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
+import type { AdminSettingValueDto } from "@jini-ai/core/contracts/site/cms-settings";
 import { rejectRoute } from "@jini-ai/core/errors/route-refusal";
 import type { JsonValue } from "@jini-ai/core/primitives";
 import {
@@ -62,7 +63,7 @@ function parseSetRequestFields({ rawBody }: { rawBody: unknown }, _optional = {}
  * `principalId` that isn't an active principal in the request's workspace)
  * maps to 404, NOT 500 — this was Red-Team RT-001's flagged gap.
  */
-export const settingsSetRoute = defineJsonRoute<SettingsRouteInput, { key: string; scope: SettingScope; value: unknown; revisionSeq: number }, SettingsSetRouteDeps, SettingsRoutePrincipal>({
+export const settingsSetRoute = defineJsonRoute<SettingsRouteInput, AdminSettingValueDto, SettingsSetRouteDeps, SettingsRoutePrincipal>({
   method: "put",
   path: "/api/admin/v1/workspaces/:workspaceId/settings/value",
   parse: (raw) => settingsRouteInput(raw),

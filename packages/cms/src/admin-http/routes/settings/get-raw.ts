@@ -19,7 +19,7 @@ export interface SettingsGetRawRouteDeps extends SettingsRouteBaseDeps {
 
 /** This route's two required query params, or `null` if either is missing.
  *  @complexity O(1). */
-function parseGetRawQuery(query: Record<string, unknown>): { namespace: string; key: string; principalId: string | undefined } | null {
+function parseGetRawQuery({ query }: { query: Record<string, unknown> }, _optional: Record<string, never> = {}): { namespace: string; key: string; principalId: string | undefined } | null {
   const namespace = String(query.namespace ?? "");
   const key = String(query.key ?? "");
   if (!namespace || !key) {
@@ -64,7 +64,7 @@ export const settingsGetRawRoute = defineJsonRoute<SettingsRouteInput, RawSettin
   parse: (raw) => settingsRouteInput(raw),
   handle: async ({ input, deps, context, authorize }) => ok({ value: await runSettingsRoute({ deps, context, authorize, run: async ({ principal, authorize: auth }) => {
     await auth({ permission: "settings.read.raw", entityType: "setting-value" });
-    const parsedQuery = parseGetRawQuery(input.query);
+    const parsedQuery = parseGetRawQuery({ query: input.query });
     if (!parsedQuery) {
       rejectRoute({ status: 400, error: "'namespace' and 'key' query params are required", code: "VALIDATION_ERROR" });
     }

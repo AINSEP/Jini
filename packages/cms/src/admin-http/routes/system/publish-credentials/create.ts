@@ -41,8 +41,8 @@ export const publishCredentialCreateRoute = defineJsonRoute<CredentialRouteInput
   path: PUBLISH_CREDENTIALS_BASE_PATH,
   parse: parsePublishCredential,
   handle: async ({ input, deps, authorize }) => {
-    await authorizePublishCredentials(authorize);
-    const value = await withCredentialStoreErrors({ rows: publishCredentialRows(deps), run: async () => {
+    await authorizePublishCredentials({ authorize });
+    const value = await withCredentialStoreErrors({ rows: publishCredentialRows({ deps }), run: async () => {
       const invalidate = await deps.prepareInvalidation();
       const credential = await deps.createCredential(createInput({ deps, body: input.body }));
       if (credential.scope === "project") await deps.useProjectKey({ keyId: credential.id });

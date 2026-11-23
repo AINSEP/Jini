@@ -22,8 +22,8 @@ export const publishCredentialListRoute = defineJsonRoute<CredentialRouteInput, 
   path: PUBLISH_CREDENTIALS_BASE_PATH,
   parse: parsePublishCredential,
   handle: async ({ deps, authorize }) => {
-    await authorizePublishCredentials(authorize);
-    const credentials = await withCredentialStoreErrors({ run: () => deps.listCredentials({ workspaceId: deps.workspaceId }), rows: publishCredentialRows(deps) });
+    await authorizePublishCredentials({ authorize });
+    const credentials = await withCredentialStoreErrors({ run: () => deps.listCredentials({ workspaceId: deps.workspaceId }), rows: publishCredentialRows({ deps }) });
     // Fired, never awaited, and only for the rows THIS call found: it can neither change nor delay
     // what the caller receives (the host's heal scheduler never throws or rejects, even if a heal does).
     void deps.triggerAccountLabelHeal(credentials);

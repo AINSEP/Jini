@@ -77,7 +77,7 @@ export interface CredentialRouteInput { readonly id: string; readonly body: Reco
 
 /** `req.params.id` and `req.body ?? {}`, exactly as the hand-written handlers read them.
  * @complexity O(1). */
-export function credentialRouteInput(raw: RouteInputContext, _optional: Record<string, never> = {}): CredentialRouteInput {
+export function credentialRouteInput({ raw }: { raw: RouteInputContext }, _optional: Record<string, never> = {}): CredentialRouteInput {
   return { id: raw.params.id as string, body: (raw.body ?? {}) as Record<string, unknown> };
 }
 

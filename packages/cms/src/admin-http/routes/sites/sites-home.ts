@@ -8,6 +8,7 @@
  * rules over its answers live here.
  */
 import { defineJsonRoute, ok, type JsonRouteAuthorize } from '@jini-ai/core/contracts/server';
+import type { SitesHomeSetResponse } from '@jini-ai/core/contracts/site/cms-sites';
 import { rejectRoute } from '@jini-ai/core/errors/route-refusal';
 
 const PREFIX = '/api/admin/v1/workspaces/:workspaceId/system/sites';
@@ -89,7 +90,7 @@ export const sitesConfigReadRoute = defineJsonRoute<Record<string, never>, unkno
 });
 
 /** `PUT .../system/sites/home` — choose the folder new sites are created in. */
-export const sitesHomeSetRoute = defineJsonRoute<{ path: unknown }, { home: unknown }, SitesHomeSetRouteDeps, SitesSettingsPrincipal>({
+export const sitesHomeSetRoute = defineJsonRoute<{ path: unknown }, SitesHomeSetResponse, SitesHomeSetRouteDeps, SitesSettingsPrincipal>({
   method: 'put',
   path: `${PREFIX}/home`,
   parse: (raw) => ok({ value: { path: (raw.body as { path?: unknown } | null | undefined)?.path } }),
