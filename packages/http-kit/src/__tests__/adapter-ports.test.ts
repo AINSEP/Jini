@@ -40,6 +40,23 @@ describe('JSON route host ports', () => {
     expect(f.res.json).toHaveBeenCalledWith({ caller: 'caller' });
   });
 
+  it('forwards a by-id route\'s entity id to the host authorizer, and leaves id-free calls id-free', async () => {
+    const seen: unknown[] = [];
+    const route = defineJsonRoute<void, object, object, { id: string }>({
+      method: 'post', path: '/rules/:id', parse: () => ok({ value: undefined }),
+      handle: async ({ authorize }) => {
+        await authorize!({ permission: 'rules.manage', entityType: 'rule' }, { entityId: 'rule-7' });
+        await authorize!({ permission: 'rules.manage', entityType: 'rule' });
+        return ok({ value: {} });
+      },
+    }, { ports: { authenticate: () => ({ id: 'caller' }), authorize: ({ permission }, optional = {}) => { seen.push({ permission, ...optional }); } } });
+    const f = fixture();
+    mountJsonRoute({ app: f.app, spec: route, deps: {} });
+    await f.run();
+    expect(seen).toEqual([{ permission: 'rules.manage', entityId: 'rule-7' }, { permission: 'rules.manage' }]);
+    expect(f.res.status).toHaveBeenCalledWith(200);
+  });
+
   for (const phase of ['workspace', 'authenticate', 'authorize', 'handle'] as const) {
     it(`lets the host map ${phase} failures without running later work`, async () => {
       const seen: string[] = [];

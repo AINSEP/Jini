@@ -196,6 +196,13 @@ The existing kernel APIs have also changed to object arguments. Update token/bin
 calls, pack contributions, handler emitters and explicit environment snapshots before
 using this unreleased version; see [CHANGELOG.md](./CHANGELOG.md) for BREAKING notes.
 
+## Wiring
+
+`@jini-ai/core/contracts/server` owns `defineJsonRoute` and `JsonRouteAuthorize`. A handler calls
+`authorize({ permission, entityType }, { entityId })`; the optional `JsonRouteAuthorizeScope`
+reaches the spec's `ports.authorize` as its second argument, and an id-free call reaches it with
+the required arguments alone. Hosts mount specs through `@jini-ai/http-kit`'s `mountJsonRoute`.
+
 ## Design decisions
 
 - [Confirmation checks have a fixed order and atomic redemption](docs/decisions/DR-001-gated-mutation-check-order.md).
