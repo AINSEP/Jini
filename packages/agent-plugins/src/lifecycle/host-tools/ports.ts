@@ -8,8 +8,8 @@
 import type { ToolMetadataById, ToolRegistration } from '@jini-ai/core';
 import type { Logger } from '@jini-ai/core/primitives';
 import type { createAgentPluginLifecycle } from '../index.js';
-import type { AgentPluginWorkspaceLayout } from '../layout.js';
 import type { PluginMemory } from '../../../core/persistent-state.js';
+import type { AgentPluginWorkspaceLayout } from "@jini-ai/core/contracts/site/agent-plugins-lifecycle";
 
 type AgentPluginLifecycle = ReturnType<typeof createAgentPluginLifecycle>;
 

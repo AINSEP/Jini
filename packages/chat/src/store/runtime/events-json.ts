@@ -1,5 +1,5 @@
 import { sql } from "kysely";
-import type { AgentEvent } from "../../core/index.js";
+import type { AgentEvent } from "@jini-ai/core/contracts/site/chat-core";
 
 /** Replace a compact array's suffix without transferring the stored prefix to JS.
  * SQL length/substr count characters on SQLite and PostgreSQL, including non-BMP text.

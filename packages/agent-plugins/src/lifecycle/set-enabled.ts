@@ -5,7 +5,8 @@ import { createActivationModule, type AgentPluginActivationVerdict } from "./act
 import { createResolveAgentPluginRefsModule } from "./resolve-agent-plugin-refs.js";
 import { createAgentPluginUpdateStore, settleAgentPluginUpdateJournal } from "./update-store.js";
 import type { AgentPluginLifecyclePorts } from "./ports.js";
-import type { InstalledAgentPlugin } from "./types.js";
+import type { InstalledAgentPlugin } from "@jini-ai/core/contracts/site/agent-plugins-lifecycle";
+import type { SetAgentPluginEnabledInput, SetAgentPluginEnabledResult } from "@jini-ai/core/contracts/site/agent-plugins-lifecycle";
 
 /**
  * The id named is not installed in this workspace. A distinct class rather than a bare `Error` so
@@ -17,23 +18,6 @@ export class AgentPluginNotInstalledError extends Error {
     super(`agent plugin '${pluginId}' is not installed in this workspace`);
     this.name = "AgentPluginNotInstalledError";
   }
-}
-
-export interface SetAgentPluginEnabledInput {
-  readonly workspaceId: string;
-  readonly pluginId: string;
-  readonly enabled: boolean;
-
-  /** Recorded as the activation record's updatedBy. The authenticated principal, never a constant. */
-  readonly actor: string;
-}
-
-export interface SetAgentPluginEnabledResult {
-  readonly pluginId: string;
-
-  /** As actually written and read back, not as requested. */
-  readonly enabled: boolean;
-  readonly warnings?: readonly string[];
 }
 
 function buildModule(ports: AgentPluginLifecyclePorts) {

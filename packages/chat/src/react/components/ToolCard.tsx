@@ -1,4 +1,5 @@
 import { createConsoleLogger, type Logger } from '@jini-ai/core/primitives';
+import type { AgentEvent, ToolResultMediaBlock } from "@jini-ai/core/contracts/site/chat-core";
 const RUNNING_TITLE_CLASS = ' shimmer-text';
 
 /**
@@ -23,7 +24,6 @@ const RUNNING_TITLE_CLASS = ' shimmer-text';
  * generic rendering for it.
  */
 import { createContext, useContext, useId, useMemo, useState, type ReactNode } from 'react';
-import type { AgentEvent, ToolResultMediaBlock } from '../../core/index.js';
 import { COLLAPSED_DETAIL_MAX_CHARS, describeCollapsedToolCall, describeToolCallDetail, humanizeToolName, isDelegatedWrapperToolName, isTodoWriteToolName, parseTodoWriteInput, redactUserText, toRenderProps } from '../../core/index.js';
 import { useT, useToolRendererRegistry } from '../hooks/context.js';
 import type { ToolRendererRegistry } from '../tool-renderer-registry.js';

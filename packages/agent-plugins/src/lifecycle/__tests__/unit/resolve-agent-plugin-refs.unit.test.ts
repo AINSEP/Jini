@@ -12,11 +12,10 @@ import { setAgentPluginActivation } from "../test-support.js";
 import { resolveAgentPluginLayout } from "../test-support.js";
 
 import { installAgentPlugin } from "../test-support.js";
-import { type AgentPluginArchiveEntry, type AgentPluginArchiveReaderPort } from "../../install.js";
 import { resolveAgentPluginDeliveryMode, resolveAgentPluginRefs } from "../test-support.js";
 import { ports } from "../test-support.js";
 import { createResolveAgentPluginRefsModule } from "../../resolve-agent-plugin-refs.js";
-
+import type { AgentPluginArchiveEntry, AgentPluginArchiveReaderPort } from "@jini-ai/core/contracts/site/agent-plugins-lifecycle";
 
 /**
  * @file `resolveAgentPluginRefs()` — the run-start resolution step `agent-daemon-server.ts`'s

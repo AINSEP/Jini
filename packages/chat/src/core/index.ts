@@ -4,6 +4,8 @@
  * C2/C3). Hosts can implement the transport port without importing a browser component graph.
  */
 export * from './events.js';
+/** Deprecated re-export: import these from `@jini-ai/core/contracts/site/chat-core`; removed at the next major. */
+export type { AgentEvent, ToolResultMediaBlock } from "@jini-ai/core/contracts/site/chat-core";
 export * from './messages.js';
 export * from './conversation-title.js';
 export * from './partial-json.js';

@@ -1,20 +1,6 @@
 import path from 'node:path';
 import { pluginStatePaths } from '../../core/persistent-state.js';
-
-export interface AgentPluginWorkspaceLayout {
-  readonly root: string;
-  readonly packages: string;
-  readonly staging: string;
-  pluginRootDir(required: { readonly pluginId: string }, optional?: Record<string, never>): string;
-  pluginPackagesDir(required: { readonly pluginId: string }, optional?: Record<string, never>): string;
-  pluginMemoryDir(required: { readonly pluginId: string; readonly kind: 'learned' | 'notes' }, optional?: Record<string, never>): string;
-  pluginDataDir(required: { readonly pluginId: string }): string;
-}
-export interface AgentPluginLayoutPort {
-  readonly root: string;
-  forWorkspace(required: { readonly workspaceId: string }): AgentPluginWorkspaceLayout;
-}
-export type AgentPluginLayout = AgentPluginLayoutPort;
+import type { AgentPluginLayoutPort } from "@jini-ai/core/contracts/site/agent-plugins-lifecycle";
 
 /** Explicit root only; site-root and environment resolution belong to the consumer. */
 export function createAgentPluginLayout(required: { readonly root: string }, _optional: Record<string, never> = {}): AgentPluginLayoutPort {

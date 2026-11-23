@@ -19,7 +19,7 @@ export function checkpointIntervalMs({ bytes }: { bytes: number }, _options = {}
  * @complexity O(events) time and O(unique tool identities) space.
  * @example checkpointProgress({ events: [{ kind: 'thinking', text: 'Working' }] });
  */
-export function checkpointProgress({ events }: { events: readonly import('./events.js').AgentEvent[] }, _options = {}): {
+export function checkpointProgress({ events }: { events: readonly import("@jini-ai/core/contracts/site/chat-core").AgentEvent[] }, _options = {}): {
   textCharacters: number; extensionEvents: number; tools: Set<string>;
 } {
   let textCharacters = 0;

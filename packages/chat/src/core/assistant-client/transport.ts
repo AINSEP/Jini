@@ -1,12 +1,12 @@
 import { readAgentPluginChatState, captureAgentPluginUsage, type AgentPluginUsage } from '../agent-plugin-chat-state.js';
 import { buildTranscript, latestUserPromptFromHistory } from "../transcript.js";
-import type { AgentEvent } from "../events.js";
 import type { ChatMessage } from "../messages.js";
 import type { ChatTransport, ReattachRunOptions, RunHandlers, StartRunInput } from "../transport.js";
 import * as runEvents from "../run-events/entry.js";
 import type { RunAgentPayload, RunNotices } from "../run-events/entry.js";
 import type { AgUiRunClient } from "./ag-ui-transport.js";
 import type { DurableRunBinding } from "./durable-run-subscription.js";
+import type { AgentEvent } from "@jini-ai/core/contracts/site/chat-core";
 
 /** Per-turn dispatch input; hosts may return their fuller saved settings without UI dependencies. */
 export interface AssistantExecutionConfig {

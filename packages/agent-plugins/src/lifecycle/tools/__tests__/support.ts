@@ -10,7 +10,6 @@ import path from 'node:path';
 import { createToolRegistry } from '@jini-ai/core';
 import { attachPluginContributionTools, buildPluginContributionToolRegistrations, createPluginContributionRegistry, pluginToolIdFor, type PluginToolContributionPorts } from '@jini-ai/plugins/host';
 import { createPluginContributionLoader } from '../../contribution-loader.js';
-import type { AgentPluginArchiveEntry } from '../../install.js';
 import {
   findTrustedPluginPackages, importContainedModule, installAgentPlugin, readTrustedPluginFile,
   recordBundledAgentPluginDigests, resolveAgentPluginLayout, setAgentPluginActivation,
@@ -19,6 +18,7 @@ import { forceRemove } from '../../__tests__/fixtures/force-remove.js';
 import { createIssuedTokenMemories, type AgentPluginToolCapabilities, type AgentPluginToolCapabilitiesPort } from '../capabilities.js';
 import { defineAgentPluginToolContribution } from '../definition.js';
 import { createAgentPluginToolProjection } from '../projection.js';
+import type { AgentPluginArchiveEntry } from "@jini-ai/core/contracts/site/agent-plugins-lifecycle";
 
 export const WORKSPACE_ID = 'workspace-tools';
 /** Host-chosen name: Jini never fixes a product filename. */

@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import { EventType } from "@ag-ui/core";
 import { closeAgUiRun, createAgUiTranslationState, translateAgentEventToAgUi, type AgUiEvent } from "../event-projection.js";
 import { createAgUiToAgentTranslationState, translateAgUiEventToAgentEvent } from "../event-reduction.js";
-import type { AgentEvent } from "../../events.js";
 import { assistantContentFromEvents } from '../../assistant-content.js';
+import type { AgentEvent } from "@jini-ai/core/contracts/site/chat-core";
 
 const NAMES = { usage: "jini.usage", status: "jini.status", extensionPrefix: "jini.ext." };
 const forward = () => createAgUiTranslationState({ ids: { next: ({ prefix, ordinal }) => `${prefix}-${ordinal}` }, customEventNames: NAMES });

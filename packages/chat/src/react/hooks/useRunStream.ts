@@ -20,8 +20,8 @@ import { createConsoleLogger, type Logger } from '@jini-ai/core/primitives';
  */
 import { mergeRunEvents } from '../../core/durable-projection.js';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { AgentEvent } from '../../core/index.js';
 import type { ChatTransport, RunHandlers, StartRunInput } from '../../core/index.js';
+import type { AgentEvent } from "@jini-ai/core/contracts/site/chat-core";
 
 export type RunStreamStatus = 'idle' | 'streaming' | 'done' | 'error' | 'canceled';
 
