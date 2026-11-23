@@ -4,12 +4,12 @@
  * file in the module that knows about Express `req`/`res` on the mounting side.
  */
 import type { Express, Request, Response } from 'express';
-import { ClientFacingError, payloadTooLargeError, statusForError, type JsonRouteAuthorize, type Result, type RouteHostInternalErrorContext, type RouteHostContext } from '@jini-ai/core/contracts/server';
+import { ClientFacingError, payloadTooLargeError, statusForError, type JsonRouteAuthorize, type Result, type RouteHostInternalErrorContext, type RouteHostContext, type ServerApiError } from '@jini-ai/core/contracts/server';
 import { reportRouteInternalError } from './internal-error.js';
 import { rawInput } from './request.js';
 import { sendApiError, sendJson } from './response.js';
 import { passesSameOriginGuard } from './origin.js';
-import type { JsonRouteSpec } from './types.js';
+import type { JsonRoutePorts, JsonRouteSpec } from './types.js';
 
 /**
  * Combines required route fields and optional settings into a fresh spec while pinning its generic
@@ -36,6 +36,8 @@ export function defineJsonRoute<Input, Output, Deps, Context = undefined>(requir
  */
 export function mountJsonRoute<Input, Output, Deps, Context = undefined>({ app, spec, deps, adapter }: { readonly app: Express; readonly spec: JsonRouteSpec<Input, Output, Deps, Context>; readonly deps: Deps; readonly adapter?: RouteHostContext }, _optional: Record<string, never> = {}
 ): void {
+  // Read once at mount: the per-request callback stays within the complexity budget.
+  const onReturnedError = spec.ports?.onReturnedError;
   app[spec.method](spec.path, async (req: Request, res: Response) => {
     // The client-disconnect signal a `handle` can opt into via optional arguments. Observed on `res`,
     // not `req` — `sse.ts` already established why for this exact "detect a disconnect before
@@ -63,17 +65,12 @@ export function mountJsonRoute<Input, Output, Deps, Context = undefined>({ app, 
       if (spec.ports?.authenticate) context = await spec.ports.authenticate({ raw, res, deps });
       const parsed = spec.parse(raw);
       if (!parsed.ok) {
-        sendApiError({ res, status: statusForError({ error: parsed.error }), error: parsed.error });
+        sendReturnedFailure({ res, onReturnedError, error: parsed.error, phase: 'parse' });
         return;
       }
-      // The route chooses where authorization occurs: reads may authorize before validation,
-      // while writes must reject an inconsistent tenant target before asking for a permission.
-      const authorize: JsonRouteAuthorize = async ({ permission, entityType }) => {
-        if (!spec.ports?.authorize) throw new Error('JSON route authorizer is required');
-        await spec.ports.authorize({ context, deps, permission, entityType });
-      };
+      const authorize = routeAuthorize({ ports: spec.ports, deps, context });
       const result = await spec.handle({ input: parsed.value, deps, context, authorize }, { signal: abortController.signal });
-      sendRouteResult({ res, result, spec, signal: abortController.signal });
+      sendRouteResult({ res, result, spec: { successStatus: spec.successStatus, onReturnedError }, signal: abortController.signal });
     } catch (e) {
       sendRouteException({ res, spec, adapter, error: e });
     } finally {
@@ -111,6 +108,24 @@ function allowRouteBody({ req, res, spec }: {
   const error = payloadTooLargeError({ maxBytes });
   sendApiError({ res, status: statusForError({ error }), error });
   return false;
+
+/**
+ * The `authorize` a handler calls. The route chooses where authorization occurs: reads may
+ * authorize before validation, while writes must reject an inconsistent tenant target before
+ * asking for a permission. A by-id route's scope (`entityId`) reaches the host port; an id-free
+ * call reaches it with the required arguments alone, exactly as before scopes existed.
+ * @complexity O(1) plus the injected host authorizer.
+ */
+function routeAuthorize<Deps, Context>({ ports, deps, context }: {
+  readonly ports: JsonRoutePorts<Deps, Context> | undefined;
+  readonly deps: Deps;
+  readonly context: Context | undefined;
+}, _optional: Record<string, never> = {}): JsonRouteAuthorize {
+  return async ({ permission, entityType }, scope) => {
+    if (!ports?.authorize) throw new Error('JSON route authorizer is required');
+    const required = { context, deps, permission, entityType };
+    await (scope ? ports.authorize(required, scope) : ports.authorize(required));
+  };
 }
 
 function allowRouteOrigin({ req, res, spec, adapter }: {
@@ -127,7 +142,7 @@ function allowRouteOrigin({ req, res, spec, adapter }: {
 function sendRouteResult<Output>({ res, result, spec, signal }: {
   readonly res: Response;
   readonly result: Result<Output>;
-  readonly spec: Pick<JsonRouteSpec<unknown, Output, unknown>, 'successStatus'>;
+  readonly spec: { readonly successStatus: number | undefined; readonly onReturnedError: JsonRoutePorts<unknown>['onReturnedError'] };
   readonly signal: AbortSignal;
 }, _optional: Record<string, never> = {}): void {
   // `signal` can only have been aborted by `onResponseClose` firing while the
@@ -137,10 +152,26 @@ function sendRouteResult<Output>({ res, result, spec, signal }: {
   // disconnect into the SEC-005 catch as a false internal error if the socket rejects the write.
   if (signal.aborted) return;
   if (!result.ok) {
-    sendApiError({ res, status: statusForError({ error: result.error }), error: result.error });
+    sendReturnedFailure({ res, onReturnedError: spec.onReturnedError, error: result.error, phase: 'handle' });
     return;
   }
   sendJson({ res, status: spec.successStatus ?? 200, body: result.value });
+}
+
+function sendReturnedFailure({ res, onReturnedError, error, phase }: {
+  readonly res: Response;
+  readonly onReturnedError: JsonRoutePorts<unknown>['onReturnedError'];
+  readonly error: ServerApiError;
+  readonly phase: 'parse' | 'handle';
+}, _optional: Record<string, never> = {}): void {
+  const status = statusForError({ error });
+  // Returned and thrown failures share one wire shape only when the host asks for it; the core
+  // envelope stays the default so hosts that never opted in keep their pinned bodies.
+  if (onReturnedError) {
+    onReturnedError({ res, error, status, phase });
+    return;
+  }
+  sendApiError({ res, status, error });
 }
 
 function sendRouteException<Deps, Context>({ res, spec, adapter, error: e }: {
