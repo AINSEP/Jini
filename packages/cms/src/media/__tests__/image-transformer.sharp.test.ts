@@ -243,3 +243,12 @@ test('a non-Error rejection from the codec still surfaces as ImageSourceCorruptE
   // Auto-orient without resizing; JPEG is flattened onto white and encoded without a quality override.
   assert.deepEqual(calls, [['load', undefined], ['rotate'], ['flatten', { background: '#ffffff' }], ['toFormat', 'jpeg', undefined]]);
 });
+
+// B060: a width larger than the source must not blow a small image up into a blurry, heavier one.
+test('a narrow source is never enlarged past its own size', async () => {
+  const source = await sharp({ create: { width: 20, height: 10, channels: 3, background: { r: 1, g: 2, b: 3 } } }).png().toBuffer();
+  const result = await new SharpImageTransformer().transform({ bytes: new Uint8Array(source), params: { width: 400, format: 'webp' } });
+  const decoded = await sharp(result.bytes).metadata();
+  assert.equal(decoded.width, 20);
+  assert.equal(decoded.height, 10);
+});

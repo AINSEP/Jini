@@ -254,3 +254,13 @@ test('domain errors keep the canonical code and carry Resend name and human-read
   const result = await resend.domainStatus(ctxWith(http), { domain: 'a.test' });
   assert.deepEqual(result, { status: 'rejected', error: { code: 'forbidden', message: 'restricted_api_key: This API key is restricted to sending emails. Use a full-access key to list domains.' } });
 });
+
+// B016: Jini's guarded HTTP client reads `send({ request })`; a flat `send({ method, url })` reached
+// it with no request at all, so no mail went out on a Jini client.
+test('send also works on a client that reads the request object (Jini shape)', async () => {
+  const calls = [];
+  const jiniClient = { send: async ({ request }) => { calls.push(request); return { status: 200, bodyText: '{"id":"em_2"}' }; } };
+  const sent = await resend.create({ credential: { token: 're_t' }, kit: { httpClient: jiniClient } }).send(MESSAGE, { idempotencyKey: 'k2' });
+  assert.deepEqual([sent.ok, sent.providerMessageId], [true, 'em_2']);
+  assert.deepEqual([calls[0]?.method, calls[0]?.url, calls[0]?.headers['Idempotency-Key']], ['POST', 'https://api.resend.com/emails', 'k2']);
+});

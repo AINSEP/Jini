@@ -57,3 +57,24 @@ test("webhook confirmed delete rejects a stale expectedVersion", async () => {
   assert.equal(current?.status, "active");
   assert.equal(current?.version, 2);
 });
+
+// B146: callers that omit expectedVersion still get compare-and-set on the version they read, so an
+// update cannot silently overwrite a pause/delete that landed between its read and its save.
+test("webhook update without expectedVersion rejects a pause committed between its read and save", async () => {
+  const repo = new InMemoryWebhookSubscriptionRepo();
+  const deps = { repo, clock: { nowMs: () => 0 }, idGenerator: { newId: () => "sub" }, isAllowedTarget: async () => true };
+  const { subscription } = await createSubscription({ deps, input: {
+    workspaceId: "ws", ownerPrincipalId: "owner", createdByPrincipalId: "owner",
+    label: "Original", targetUrl: "https://example.com/hook", topics: ["post.created"],
+  } });
+  const save = repo.save.bind(repo);
+  repo.save = async (record, optional) => {
+    await save({ ...subscription, status: "paused", version: 2 }, { expectedVersion: 1 });
+    return save(record, optional);
+  };
+  await assert.rejects(updateSubscription({ deps, input: { workspaceId: "ws", id: subscription.id, label: "Edited", targetUrl: subscription.targetUrl, topics: subscription.topics } }),
+    (error: unknown) => error instanceof RecordVersionConflictError && error.currentVersion === 2);
+  const current = await repo.findById({ workspaceId: "ws", id: subscription.id });
+  assert.equal(current?.status, "paused");
+  assert.equal(current?.label, "Original");
+});

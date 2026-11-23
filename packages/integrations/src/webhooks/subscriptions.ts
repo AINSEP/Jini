@@ -123,7 +123,9 @@ export async function updateSubscription(
     version: existing.version + 1,
   };
 
-  await deps.repo.save(subscription, optional.expectedVersion === undefined ? {} : { expectedVersion: optional.expectedVersion });
+  // Default to the version just read (like pause/delete): without it, an edit could silently overwrite
+  // a pause or delete that committed between requireSubscription() and this save (B146).
+  await deps.repo.save(subscription, { expectedVersion: optional.expectedVersion ?? existing.version });
   return { subscription };
 }
 

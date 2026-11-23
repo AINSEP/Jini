@@ -48,3 +48,15 @@ it("refuses another workspace's plan without consuming it", () => {
   expect(store.take({ principalId: "owner", workspaceId: "other", planId: plan.planId })).toEqual({ ok: false, code: "PLAN_NOT_FOUND" });
   expect(store.take({ ...owner, planId: plan.planId })).toMatchObject({ ok: true });
 });
+
+// B166: the cap is per principal, so one user planning copies cannot evict another user's plan.
+it("caps plans per principal: another user's saves never evict yours", () => {
+  const store = new DatabaseTransferPlanStore({}, { now: () => 0 });
+  const mine = store.save({ ...owner, content: content("mine") });
+  const other = { principalId: "other", workspaceId: "ws" };
+  store.save({ ...other, content: content("other-1") });
+  store.save({ ...other, content: content("other-2") });
+  const otherThird = store.save({ ...other, content: content("other-3") });
+  expect(store.take({ ...owner, planId: mine.planId })).toMatchObject({ ok: true, plan: { site: "mine" } });
+  expect(store.take({ ...other, planId: otherThird.planId })).toMatchObject({ ok: true, plan: { site: "other-3" } });
+});
