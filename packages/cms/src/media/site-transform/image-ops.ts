@@ -96,7 +96,7 @@ export async function inspectImage({ source, imageCodec }: { source: Buffer; ima
 }
 
 async function encode({ source, output: o, limits, imageCodec }: { source: Buffer; output: ImageOutput; limits: ImageLimits; imageCodec: ImageCodecPort }, _options = {}): Promise<RenderedImage> {
-  const { bytes, width, height } = await imageCodec.encode({ source, ...o, format: o.format as Exclude<ImageFormat, "ico">, autoOrient: true, ...(o.format === "jpeg" ? { flatten: { background: o.background ?? "#ffffff" } } : {}) }, limits);
+  const { bytes, width, height } = await imageCodec.encode({ source, ...o, format: o.format as Exclude<ImageFormat, "ico">, autoOrient: true, flatten: o.format === "jpeg" ? { background: o.background ?? "#ffffff" } : undefined }, limits);
   if (Math.max(width, height) > limits.maxDimension) refuse({ message: `${o.path}: output exceeds ${limits.maxDimension}px per side` });
   return { path: o.path, format: o.format, width, height, bytes: Buffer.from(bytes) };
 }

@@ -13,7 +13,7 @@ export interface ImageGeometry {
 }
 export interface ImageEncodeInput extends ImageGeometry {
   source: Uint8Array; format: "png" | "jpeg" | "webp" | "avif";
-  quality?: number; stripMetadata?: boolean; flatten?: { background: string };
+  quality?: number; stripMetadata?: boolean; flatten?: { background: string } | undefined;
 }
 export interface ImageTileInput { source: Uint8Array; maxWidth: number; tileHeight: number }
 export interface ImageCodecPort {

@@ -152,6 +152,12 @@ test("rendering delegates to the injected codec with the same limits and metadat
     ["encode", { source, ...outputs[0], autoOrient: true, flatten: { background: "#ffffff" } }, IMAGE_LIMITS],
   ]);
   calls.length = 0;
+  const pngOutputs = normalizeOutputs({ outputs: [{ path: "test.png", format: "png", resize: { width: 10 } }] });
+  await renderOutputs({ source, outputs: pngOutputs, imageCodec });
+  const pngEncode = calls[1] as [string, Record<string, unknown>, unknown];
+  assert.deepEqual(pngEncode, ["encode", { source, ...pngOutputs[0], autoOrient: true, flatten: undefined }, IMAGE_LIMITS]);
+  assert.ok(Object.hasOwn(pngEncode[1], "flatten"), "a non-JPEG encode still names flatten (explicitly undefined) for the injected codec");
+  calls.length = 0;
   await assert.rejects(() => renderOutputs({ source, outputs: normalizeOutputs({ outputs: [{ path: "wide.png", format: "png", resize: { width: 8192, height: 8192, fit: "outside" } }] }), imageCodec }), /8192/);
   assert.deepEqual(calls, [["inspect", { source }, IMAGE_LIMITS]], "oversized predicted geometry must never encode");
 });
