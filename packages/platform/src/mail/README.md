@@ -20,3 +20,6 @@ activity projection and attempt observer, feedback inbox, retention, and the sit
   its `durableOutboxReady` predicate at composition, the same values its live mailer gate receives.
 - `mail-status.ts` (`MailProviderControl`): implemented by the host's provider selection; consumed
   by its mail-status tools and routes.
+- `email-template-agent-tools.ts` (`createEmailTemplatesAgentToolCatalog({ copy })`): the host binds its
+  raw-HTML edit permission (`copy.editHtmlPermission`, named in the write tools' text and authorization)
+  once, next to its email-template tool registrations, and reads the bound catalog from there.

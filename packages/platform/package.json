@@ -28,6 +28,7 @@
       "./system": "universal",
       "./mail/email-template": "node",
       "./mail/email-template-operations": "node",
+      "./mail/email-template-agent-tools": "universal",
       "./mail/smtp": "node",
       "./mail/sql": "node",
       "./fs/guarded-reader": "node",
@@ -154,6 +155,11 @@
       "types": "./dist/mail/email-template-operations.d.ts",
       "import": "./dist/mail/email-template-operations.js",
       "default": "./dist/mail/email-template-operations.js"
+    },
+    "./mail/email-template-agent-tools": {
+      "types": "./dist/mail/email-template-agent-tools.d.ts",
+      "import": "./dist/mail/email-template-agent-tools.js",
+      "default": "./dist/mail/email-template-agent-tools.js"
     },
     "./mail/smtp": {
       "types": "./dist/mail/smtp.d.ts",
