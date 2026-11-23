@@ -55,7 +55,7 @@ describe("menuUpdateTreeRoute", () => {
     const deps = await makeWriteDeps();
     const { authorize, calls } = recordingAuthorize();
     const input = { menuId: "", items: undefined, expectedVersion: 1, title: undefined, slug: undefined, authoring: { mode: "html" as const, html: "<p>x</p>" } };
-    await menuUpdateTreeRoute.handle({ input, deps, context: PRINCIPAL, authorize }).catch(() => undefined);
+    await Promise.resolve(menuUpdateTreeRoute.handle({ input, deps, context: PRINCIPAL, authorize })).catch(() => undefined);
     expect(calls).toEqual([
       { permission: "admin.menus.update", entityType: "menu", entityId: "" },
       { permission: RAW_HTML_PERMISSION, entityType: "menu" },

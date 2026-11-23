@@ -2,7 +2,8 @@ import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
 import { rejectRoute } from "@jini-ai/core/errors/route-refusal";
 
 import { createMenu, type CreateMenuDeps, type MenuHtmlAuthoring, type MenuHtmlNormalizer, type NavItemNode } from "../../../navigation/index.js";
-import { parseMenuHtmlAuthoring, toAdminMenuResponse, type AdminMenuEnvelope } from "../../http/menus.js";
+import type { AdminMenuEnvelope } from "@jini-ai/core/contracts/site/cms-menus";
+import { parseMenuHtmlAuthoring, toAdminMenuResponse } from "../../http/menus.js";
 import { authorizeMenuHtml, authorizeMenus, MENU_CONFLICT, MENU_VALIDATION, rejectMenuError, type MenuRoutePrincipal } from "./shared.js";
 
 /** The deps this route reads: the create service's collaborators plus the host's raw-HTML policy. */
@@ -34,7 +35,7 @@ export const menuCreateRoute = defineJsonRoute<MenuCreateInput, AdminMenuEnvelop
   parse: (raw) => {
     const body = (raw.body ?? {}) as Record<string, unknown>;
     if (body.items !== undefined && !Array.isArray(body.items)) rejectRoute({ status: 400, error: "items must be an array" });
-    return ok({ value: { title: String(body.title ?? ""), slug: String(body.slug ?? ""), items: body.items as NavItemNode[] | undefined, authoring: parseMenuHtmlAuthoring(body) } });
+    return ok({ value: { title: String(body.title ?? ""), slug: String(body.slug ?? ""), items: body.items as NavItemNode[] | undefined, authoring: parseMenuHtmlAuthoring({ body }) } });
   },
   handle: async ({ input, deps, authorize }) => {
     await authorizeMenus({ authorize, permission: "admin.menus.create" });
@@ -44,7 +45,7 @@ export const menuCreateRoute = defineJsonRoute<MenuCreateInput, AdminMenuEnvelop
         deps: { repo: deps.menuRepo, clock: deps.clock, idGen: deps.idGen, outbox: deps.outbox, normalizeMenuHtml: deps.normalizeMenuHtml },
         input: { workspaceId: deps.workspaceId, title: input.title, slug: input.slug, items: input.items, ...input.authoring },
       });
-      return ok({ value: toAdminMenuResponse(menu) });
+      return ok({ value: toAdminMenuResponse({ menu }) });
     } catch (err) {
       return rejectMenuError({ err, mappings: MENU_CREATE_ERRORS });
     }

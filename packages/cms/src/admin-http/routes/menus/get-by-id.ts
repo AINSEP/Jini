@@ -2,7 +2,8 @@ import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
 import { rejectRoute } from "@jini-ai/core/errors/route-refusal";
 
 import type { MenuRepoPort } from "../../../navigation/index.js";
-import { toAdminMenuResponse, type AdminMenuEnvelope } from "../../http/menus.js";
+import type { AdminMenuEnvelope } from "@jini-ai/core/contracts/site/cms-menus";
+import { toAdminMenuResponse } from "../../http/menus.js";
 import { authorizeMenus, menuIdParam, type MenuRoutePrincipal } from "./shared.js";
 
 /** The deps this route reads: the workspace it serves and the two menu lookups. */
@@ -22,12 +23,12 @@ export interface MenuGetRouteDeps {
 export const menuGetRoute = defineJsonRoute<{ menuId: string }, AdminMenuEnvelope, MenuGetRouteDeps, MenuRoutePrincipal>({
   method: "get",
   path: "/api/admin/v1/workspaces/:workspaceId/menus/:menuId",
-  parse: (raw) => ok({ value: { menuId: menuIdParam(raw.params) } }),
+  parse: (raw) => ok({ value: { menuId: menuIdParam({ params: raw.params }) } }),
   handle: async ({ input, deps, authorize }) => {
     await authorizeMenus({ authorize, permission: "admin.menus.read" }, { entityId: input.menuId });
     const bySlug = await deps.menuRepo.findBySlug({ workspaceId: deps.workspaceId, slug: input.menuId.trim().toLowerCase() });
     const menu = bySlug ?? (await deps.menuRepo.findById({ workspaceId: deps.workspaceId, id: input.menuId }));
     if (!menu) rejectRoute({ status: 404, error: `menu '${input.menuId}' was not found` });
-    return ok({ value: toAdminMenuResponse(menu) });
+    return ok({ value: toAdminMenuResponse({ menu }) });
   },
 });

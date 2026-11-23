@@ -1,6 +1,7 @@
 import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
 
-import { toAdminTrashMenuResponse, type AdminTrashMenuEnvelope } from "../../http/menus.js";
+import type { AdminTrashMenuEnvelope } from "@jini-ai/core/contracts/site/cms-menus";
+import { toAdminTrashMenuResponse } from "../../http/menus.js";
 import { authorizeMenus, MENU_CONFLICT, MENU_NOT_FOUND, menuActorId, menuIdParam, rejectMenuError, type MenuRoutePrincipal } from "./shared.js";
 
 /**
@@ -30,7 +31,7 @@ const MENU_DELETE_ERRORS = [MENU_NOT_FOUND, MENU_CONFLICT] as const;
 export const menuDeleteRoute = defineJsonRoute<{ menuId: string }, AdminTrashMenuEnvelope, MenuDeleteRouteDeps, MenuRoutePrincipal>({
   method: "delete",
   path: "/api/admin/v1/workspaces/:workspaceId/menus/:menuId",
-  parse: (raw) => ok({ value: { menuId: menuIdParam(raw.params) } }),
+  parse: (raw) => ok({ value: { menuId: menuIdParam({ params: raw.params }) } }),
   handle: async ({ input, deps, context, authorize }) => {
     const principalId = menuActorId({ context });
     await authorizeMenus({ authorize, permission: "admin.menus.delete" }, { entityId: input.menuId });

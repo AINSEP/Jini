@@ -2,7 +2,8 @@ import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
 import { rejectRoute } from "@jini-ai/core/errors/route-refusal";
 
 import { updateMenuTree, type MenuHtmlAuthoring, type MenuHtmlNormalizer, type NavItemNode, type UpdateMenuTreeDeps } from "../../../navigation/index.js";
-import { parseMenuHtmlAuthoring, toAdminMenuResponse, type AdminMenuEnvelope } from "../../http/menus.js";
+import type { AdminMenuEnvelope } from "@jini-ai/core/contracts/site/cms-menus";
+import { parseMenuHtmlAuthoring, toAdminMenuResponse } from "../../http/menus.js";
 import {
   authorizeMenuHtml, authorizeMenus, MENU_CONFLICT, MENU_NOT_FOUND, MENU_NOT_LIVE, MENU_VALIDATION, MENU_VERSION_CONFLICT,
   menuIdParam, rejectMenuError, type MenuRoutePrincipal,
@@ -37,7 +38,7 @@ const MENU_UPDATE_ERRORS = [MENU_NOT_LIVE, MENU_VALIDATION, MENU_VERSION_CONFLIC
  * @complexity O(1).
  */
 function parseMenuTreeBody({ body, menuId }: { body: Record<string, unknown>; menuId: string }, _optional: Record<string, never> = {}): MenuUpdateTreeInput {
-  const authoring = parseMenuHtmlAuthoring(body);
+  const authoring = parseMenuHtmlAuthoring({ body });
   const htmlOnly = body.items === undefined && (authoring.mode !== undefined || authoring.html !== undefined);
   if (!htmlOnly && !Array.isArray(body.items)) rejectRoute({ status: 400, error: "items must be an array" });
   return {
@@ -62,10 +63,10 @@ function parseMenuTreeBody({ body, menuId }: { body: Record<string, unknown>; me
 export const menuUpdateTreeRoute = defineJsonRoute<MenuUpdateTreeInput, AdminMenuEnvelope, MenuUpdateTreeRouteDeps, MenuRoutePrincipal>({
   method: "put",
   path: "/api/admin/v1/workspaces/:workspaceId/menus/:menuId",
-  parse: (raw) => ok({ value: parseMenuTreeBody({ body: (raw.body ?? {}) as Record<string, unknown>, menuId: menuIdParam(raw.params) }) }),
+  parse: (raw) => ok({ value: parseMenuTreeBody({ body: (raw.body ?? {}) as Record<string, unknown>, menuId: menuIdParam({ params: raw.params }) }) }),
   handle: async ({ input, deps, authorize }) => {
-    // Two separate decisions, never merged: a host may answer each from a different source (Tovu
-    // answers `admin.menus.update` from RBAC only, the raw-HTML permission from a publishing grant
+    // Two separate decisions, never merged: a host may answer each from a different source (one
+    // host answers `admin.menus.update` from RBAC only, the raw-HTML permission from a publishing grant
     // when present), so the spec must ask twice. The HTML check keeps the hand-written route's
     // `...(menuId ? { entityId } : {})`: an empty parsed id sends no `entityId` key at all there.
     await authorizeMenus({ authorize, permission: "admin.menus.update" }, { entityId: input.menuId });
@@ -78,7 +79,7 @@ export const menuUpdateTreeRoute = defineJsonRoute<MenuUpdateTreeInput, AdminMen
           title: input.title, slug: input.slug, items: input.items, ...input.authoring,
         },
       });
-      return ok({ value: toAdminMenuResponse(menu) });
+      return ok({ value: toAdminMenuResponse({ menu }) });
     } catch (err) {
       return rejectMenuError({ err, mappings: MENU_UPDATE_ERRORS });
     }

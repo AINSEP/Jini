@@ -1,7 +1,8 @@
 import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
 
 import type { MenuRepoPort } from "../../../navigation/index.js";
-import { toAdminMenuListResponse, type AdminMenuListEnvelope } from "../../http/menus.js";
+import type { AdminMenuListEnvelope } from "@jini-ai/core/contracts/site/cms-menus";
+import { toAdminMenuListResponse } from "../../http/menus.js";
 import { authorizeMenus, type MenuRoutePrincipal } from "./shared.js";
 
 /** The deps this route reads. */
