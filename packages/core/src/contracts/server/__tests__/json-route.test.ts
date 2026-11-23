@@ -98,6 +98,19 @@ describe('jsonRoute', () => {
     await app.fetch(post({}));
     expect(optionals[1]).toEqual({ onInternalError });
   });
+  it('forwards a by-id route\'s entity id to ports.authorize, and leaves id-free calls id-free', async () => {
+    const seen: unknown[] = [];
+    const app = mount({
+      handle: async ({ input, authorize }) => {
+        await authorize!({ permission: 'rules.manage', entityType: 'rule' }, { entityId: 'rule-7' });
+        await authorize!({ permission: 'rules.manage', entityType: 'rule' });
+        return ok({ value: input });
+      },
+      ports: { authorize: ({ permission }, optional = {}) => { seen.push({ permission, ...optional }); } },
+    });
+    expect((await app.fetch(post({ n: 1 }))).status).toBe(200);
+    expect(seen).toEqual([{ permission: 'rules.manage', entityId: 'rule-7' }, { permission: 'rules.manage' }]);
+  });
   it('lets ports.onError own the answer', async () => {
     const app = mount({ handle: () => { throw new Error('x'); }, ports: { onError: () => new Response('mine', { status: 418 }) } });
     expect((await app.fetch(post({}))).status).toBe(418);
