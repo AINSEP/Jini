@@ -34,6 +34,9 @@ export interface RouteRequestFacts {
   readonly clientAddress: string;
   readonly userAgent?: string;
   readonly host?: string;
+  /** The protocol the host says the request was served over (Express `req.protocol` under its trust-proxy
+   *  policy) — with `host`, what a route needs to rebuild its own public origin (publish-trust identity). */
+  readonly protocol?: string;
 }
 
 /** Parses a `RouteInputContext` into a typed `Input`, or fails with an error. */
