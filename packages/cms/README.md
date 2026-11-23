@@ -202,6 +202,11 @@ posts autosave (`routes/posts/autosave`: read + clear), presentation (`routes/pr
 rescan-themes}`) and themes (`routes/themes/{list,duplicate}` and the `explore-*` specs) take the
 host's lookups, DTO mappers, not-found predicates and theme registry reads as functions. Write routes
 that read an `Idempotency-Key` header are not specs yet: a spec's input carries body, query and params only.
+Presentation PATCH (`routes/presentation/patch`) takes the host's active-theme write (`setActiveTheme`, bound
+to its repo, tracker, clock and write allowlist), its styling-required predicate, theme discovery, the read
+catalogue, the preview-refresh signal and the response DTO; one ladder over the whole request answers a validation
+or styling error as a flat 400 and a missing row as a flat 404, and rethrows the rest to the host's
+operation-only failure copy.
 
 System mail (`src/admin-http/routes/system/mail-{status,dns,test-send,activity}.ts`, guards in
 `mail-shared.ts`): the host binds every collaborator as a required function-typed dep — the live
@@ -317,6 +322,11 @@ filter, the hook-failure envelope and the error classes each ladder maps.
 gateway names the `plugin-activation` entity itself and its `ForbiddenError` maps to 403 `FORBIDDEN`
 with `details`); the host binds the plugin engine's `setPluginEnabled`, tool-access lowering, approval
 recording, tracker and serializer, and the eight `setEnabledErrors` classes.
+`provider-settings` (GET card / PUT save) takes the host's discovery, `declaredFields`, the provider
+config store, its save rule `saveProviderSettings` (pre-bound to live reapply), the project key store,
+`providerAppliesAt`, the legacy-credential check and the tracker — absent ones as explicit `undefined`
+(no store answers 503). `project-key-use` takes `ownerPrincipalId`, the host's `ownerOnlyMessage` and
+the project key store; its session-only rule is the host mount's gate, not the spec's.
 
 ## Scripts
 
@@ -404,6 +414,15 @@ mounted by Tovu (the mount waits on a route-table pin decision); the folder-pick
 served workspace and one injected status read (`readCommerceStatus`); the host binds that read to whichever payment runtime it
 composed (or none), so cms does not depend on the Commerce package. Authorizes `admin.integrations.manage` on `integration`;
 a reader failure is not caught and reaches the host's redacted error port.
+
+`./admin-http/routes/consent/routes`: the six admin cookie-consent routes (`GET`/`PUT` settings, `GET` readiness, `POST`
+dry-run, preview, publish) as server-neutral specs over one `ConsentRouteDeps`. The host injects its consent service
+(`consent`), its closed request contract (`readConsentRequest`, `consentRevisionToken` — the same readers its tool transport
+uses) and `isConsentConflict` (its revision-conflict class). Each route authorizes `settings.read` (writes:
+`settings.workspace.write`) on `site-consent` with no entity id, then reads the request, so a malformed body answers after
+the permission check. Every answer carries `Cache-Control: no-store` (`responseHeaders`, set before the workspace 404).
+Refusals keep the consent body order `{ code, error }`: `ToolInputError` 400 `CONSENT_VALIDATION_FAILED`, conflict 409
+`CONSENT_REVISION_CONFLICT`, a service permission denial the fixed 403 copy; anything else reaches the host's error port.
 
 `./admin-http/routes/site/profile`: the admin site-profile route with its `parseSections`/`parsePageLimit` query parsers. The
 host injects the profile builder plus the builder's own section vocabulary and page cap. The route authorizes nothing itself
