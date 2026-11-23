@@ -22,7 +22,7 @@ Provider errors may also throw DeployError with target-specific codes/status/det
 
 | Surface | Codes/statuses | Caller response |
 |---|---|---|
-| Source-control orchestration | `INVALID_CONFIG`, `NO_CREDENTIALS_CONFIGURED`, `EXPORT_FAILED`, `REPOSITORY_NOT_FOUND`, `NO_CHANGES`, `DIVERGED_BRANCH`, `NETWORK_UNREACHABLE`, `PROVIDER_ERROR` | Fix configuration/credential/export; reconcile divergence; treat no changes as a completed no-op; retry transport only after checking whether a write landed |
+| Source-control orchestration | `ABORTED` (the `signal` option fired before the push; nothing was pushed), `INVALID_CONFIG`, `NO_CREDENTIALS_CONFIGURED`, `EXPORT_FAILED`, `REPOSITORY_NOT_FOUND`, `NO_CHANGES`, `DIVERGED_BRANCH`, `NETWORK_UNREACHABLE`, `PROVIDER_ERROR` | Fix configuration/credential/export; reconcile divergence; treat no changes as a completed no-op; retry transport only after checking whether a write landed |
 | Provider commitSite | `repository-not-found`, `no-changes`, `diverged`, `network-unreachable`, `provider-error` | Same policy; orchestration maps to uppercase codes |
 | Provider file/backup operations | Shared `provider-error` or `network-unreachable` (latter includes logDetail); plan `branch-not-found`; commits `diverged`; inspect `repo-not-found`, `repo-not-private`, `no-push-permission`, `repo-empty`, `branch-not-found`, `folder-is-file` | Repair repository/access/branch/path or approved plan before mutation |
 | Registry parse/load/build | false/reason or message/refusals; inactive providers recorded in switchedOff | Display refusals; repair descriptor/trust/activation; never import a refused catalog entry |

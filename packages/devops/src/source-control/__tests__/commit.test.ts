@@ -335,3 +335,34 @@ test('G5: a missing credential uses the host sentence when it supplies one, and 
   assert.deepEqual(await commitSiteToSourceControl(f.args), { ok: false, code: 'NO_CREDENTIALS_CONFIGURED', message: "No source control credential is configured for 'example'." });
   assert.deepEqual(f.events, []);
 });
+
+// B122: a Stop/timeout during commit-and-push must not push. Mutation `no-signal-check-before-push`: drop the abort
+// check in front of `adapter.commitSite` and the first test goes red (the push port is called).
+test('an abort that lands after the export never reaches the push port and says so', async () => {
+  const f = fixture();
+  const controller = new AbortController();
+  const exportPort = f.args.files.export;
+  f.args.files = { export: async (...args) => { const report = await exportPort(...args); controller.abort(); return report; } };
+  const result = await commitSiteToSourceControl(f.args, { signal: controller.signal });
+  assert.equal(f.events.includes('commit'), false);
+  assert.deepEqual(result, { ok: false, code: 'ABORTED', message: 'The commit was stopped before anything was pushed to the repository. Nothing was changed there; start it again when you are ready.' });
+});
+
+test('an abort before the run starts reads no credential and runs no export', async () => {
+  const f = fixture();
+  const controller = new AbortController();
+  controller.abort();
+  const result = await commitSiteToSourceControl(f.args, { signal: controller.signal });
+  assert.deepEqual(f.events, []);
+  assert.equal(result.ok === false && result.code, 'ABORTED');
+});
+
+test('an abort that lands while the credential resolves stops before the export', async () => {
+  const f = fixture();
+  const controller = new AbortController();
+  const resolve = f.args.credentials.resolve;
+  f.args.credentials = { resolve: async (...args) => { const credential = await resolve(...args); controller.abort(); return credential; } };
+  const result = await commitSiteToSourceControl(f.args, { signal: controller.signal });
+  assert.deepEqual(f.events, ['credential']);
+  assert.equal(result.ok === false && result.code, 'ABORTED');
+});

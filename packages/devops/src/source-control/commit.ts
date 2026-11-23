@@ -159,21 +159,34 @@ async function commitExportedFiles(required: { args: CommitOrchestrationArgs; to
   } catch (error) { return { ok: false, code: 'PROVIDER_ERROR', message: redactToken({ text: args.describeError({ error, stage: 'commit' }), token }) }; }
 }
 
+/** Plain words for a stopped run: nothing has reached the repository, because the push is the last step and is guarded. */
+const ABORTED_MESSAGE = 'The commit was stopped before anything was pushed to the repository. Nothing was changed there; start it again when you are ready.';
+
+/** The refusal for a run whose signal has fired, else null. Checked between steps, not mid-request: the provider call is
+ *  one atomic commitSite, so the last safe point to honour Stop is immediately before it. */
+function abortedRefusal(optional: CommitOptions): CommitRefusal | null {
+  return optional.signal?.aborted ? { ok: false, code: 'ABORTED', message: ABORTED_MESSAGE } : null;
+}
+
 /**
  * Resolve one provider's credential, export into an isolated host-owned directory and commit once.
  *
  * Always runs a FRESH export immediately before committing and never reuses an earlier export directory:
  * correctness over one extra pass. The target is validated here even when the caller already validated it
  * before opening a confirmation dialog (defense in depth for a caller that skips that check).
- * This function reads as one guard per phase (credential, export, commit) rather than one long chain.
+ * This function reads as one guard per phase (credential, export, commit) rather than one long chain; `optional.signal`
+ * is checked in front of each phase, so a Stop/timeout never pushes.
  * @complexity One export pass (O(routes + assets) requests against the host's own app) plus one provider call.
  */
 export async function commitSiteToSourceControl(required: CommitOrchestrationArgs, optional: CommitOptions = {}): Promise<SourceControlCommitOutcome> {
   const configError = validateCommitTarget(required, optional) ?? folderError(required, { committing: true });
   if (configError) return { ok: false, code: 'INVALID_CONFIG', message: configError };
-  const resolved = await resolveProviderCredential(required);
+  const resolved = abortedRefusal(optional) ?? await resolveProviderCredential(required);
   if (!resolved.ok) return resolved;
-  const exported = await exportForCommit(required);
+  const exported = abortedRefusal(optional) ?? await exportForCommit(required);
   if (!exported.ok) return exported;
+  // The push guard: an abort that landed during the export must not still reach the git host.
+  const stopped = abortedRefusal(optional);
+  if (stopped) return stopped;
   return commitExportedFiles({ args: required, token: resolved.credential.token, files: exported.files }, optional);
 }

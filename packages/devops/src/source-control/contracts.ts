@@ -116,8 +116,10 @@ export interface CommitOrchestrationArgs extends CommitExportArgs {
    *  Absent: a generic sentence naming the provider. Must not contain credentials. */
   describeMissingCredential?(required: { providerId: string }): string;
 }
-export interface CommitOptions { branch?: string; validateTarget?: RepositoryTargetValidator }
-export type CommitFailureCode = 'INVALID_CONFIG' | 'NO_CREDENTIALS_CONFIGURED' | 'EXPORT_FAILED' | 'REPOSITORY_NOT_FOUND' | 'NO_CHANGES' | 'DIVERGED_BRANCH' | 'NETWORK_UNREACHABLE' | 'PROVIDER_ERROR';
+/** `signal`: the run's Stop/timeout. Checked before every effectful step (credential, export, push); once it has fired,
+ *  the commit returns `ABORTED` and the provider is never called, so a stopped run cannot still push. */
+export interface CommitOptions { branch?: string; validateTarget?: RepositoryTargetValidator; signal?: AbortSignal }
+export type CommitFailureCode = 'ABORTED' | 'INVALID_CONFIG' | 'NO_CREDENTIALS_CONFIGURED' | 'EXPORT_FAILED' | 'REPOSITORY_NOT_FOUND' | 'NO_CHANGES' | 'DIVERGED_BRANCH' | 'NETWORK_UNREACHABLE' | 'PROVIDER_ERROR';
 /** A success's `divergedPaths` is the provider's list passed through verbatim and always present (`[]` when it names none), so a
  *  caller can tell a person exactly what survived a shrinking publish because it could not be verified as still the host's own. */
 export type SourceControlCommitOutcome =
