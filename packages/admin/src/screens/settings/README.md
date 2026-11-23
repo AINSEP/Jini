@@ -3,7 +3,8 @@
 The parts of the admin Settings screen that are product-neutral: the settings-shell, User Interface
 and Memory dictionaries, the User Interface panel's translator binding, the `I18nProvider` locale
 bridge, the External MCP saved-connection chooser, the External MCP tools-modal and remove-confirm
-dialog behaviours, the phone tab-strip scroll hook, and the User Interface row styles. The Settings
+dialog behaviours, the phone tab-strip scroll hook, the User Interface row styles, the External MCP
+dictionary, and the External MCP row sign-in hook. The Settings
 screen itself (dialog, tabs, External MCP panel, product copy, settings rules) stays in the host,
 which imports these by subpath.
 
@@ -27,12 +28,24 @@ which imports these by subpath.
   `(max-width: 640px)` media query.
 - `useSettingsLocaleSync({ locale }, { activeLocale, setLocale })` — the UI library's locale pair;
   the host's wired hook calls its own `useI18n()` and passes it in.
+- `useExternalMcpOAuthConnect({ serverId, grant, onConnected, port, callbackMessageType }, { win, fallbackError })`
+  (`hooks/use-external-mcp-oauth-connect.hooks.ts`) — `port: ExternalMcpOAuthConnectPort` is required
+  (the host's `.../oauth/connect` and `.../oauth/device/poll` routes; a rejection must be an
+  `AdminApiError` for its message to show). `callbackMessageType` is required product copy: the exact
+  `type` the host's public OAuth callback page posts to its opener; a message of any other type is
+  ignored. `win` defaults to the real browser window, `fallbackError` to English copy.
+- `external-mcp-i18n.ts` — the five keys that name the product carry a `{productName}` token in the
+  key and in all 21 translations. The host fills it through the `vars` it already hands
+  `interpolate()` at each render site (an admissions row's `messageVars`, a tool-row lock sentence);
+  an unfilled token renders literally.
 
 **Provides:** `settings-i18n.ts`, `settings-interface-i18n.ts`, `settings-memory-i18n.ts`
 (`memoryPanelDictionaries`; 21 locales split across `.locales-a/-b` for the size limit), all falling
 back to `ADMIN_COMMON_I18N`; `createUserInterfaceSettingsPanelTranslator`; `useSettingsLocaleSync`;
 `ExternalMcpSharedChoice` + `useExternalMcpSharedChoice`; `useExternalMcpToolsModalEscape`
 (`ExternalMcpToolsModal.hooks.ts`), `useExternalMcpRemoveConfirm`, `useSettingsActiveTabScroll`;
+`external-mcp-i18n.ts` (`t`; 21 locales split across `.locales-a/-b/-c` for the size limit);
+`useExternalMcpOAuthConnect`;
 `user-interface-settings.css` (`jini-settings-interface-row/-text/-label/-hint`, styled from
 `--jini-admin-space-3/-4`, `--jini-admin-fg`, `--jini-admin-muted`, `--jini-admin-text-sm`, each falling back to the
 shared `--jini-*` token; a host with its own theme names maps them on the rows).
@@ -45,6 +58,10 @@ const port: ExternalMcpSharedChoicePort = {
   useLocalMcpConnection: ({ serverId }) => api.useLocalMcpConnection({ serverId }).catch(toAdminApiError),
 };
 const useHostSharedChoice: UseExternalMcpSharedChoice = (args) => useExternalMcpSharedChoice({ ...args, port });
+const signIn = useExternalMcpOAuthConnect({ serverId: id, grant, onConnected: reload,
+  port: { connectExternalMcpOAuth: (i, o) => api.connect(i, o).catch(toAdminApiError), pollExternalMcpOAuthDevice: (i) => api.poll(i).catch(toAdminApiError) },
+  callbackMessageType: HOST_OAUTH_CALLBACK_TYPE });
+const lock = interpolate({ template: t({ locale, key: "The server marks this tool as destructive. {productName} does not enable destructive external tools." }), vars: { productName: HOST_NAME } });
 const { copy, dialogRef } = useExternalMcpRemoveConfirm({ name, isOAuth, onCancel, t, buildCopy: buildHostRemoveCopy });
 <ExternalMcpSharedChoice serverId={id} busy={busy} signIn={signIn} onChanged={reload} t={t}
   useExternalMcpSharedChoiceHook={useHostSharedChoice} />

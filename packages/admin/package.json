@@ -207,7 +207,9 @@
       "./screens/settings/hooks/use-settings-active-tab-scroll.hooks": "browser",
       "./screens/settings/ExternalMcpToolsModal.hooks": "browser",
       "./screens/settings/hooks/use-external-mcp-remove-confirm.hooks": "browser",
-      "./screens/settings/user-interface-settings.css": "browser"
+      "./screens/settings/user-interface-settings.css": "browser",
+      "./screens/settings/external-mcp-i18n": "universal",
+      "./screens/settings/hooks/use-external-mcp-oauth-connect.hooks": "browser"
     },
     "isolation": {
       "shared": [
@@ -1211,6 +1213,16 @@
       "default": "./dist/screens/consent/settings.hooks.js"
     },
     "./screens/consent/consent-settings.css": "./src/screens/consent/consent-settings.css",
+    "./screens/settings/external-mcp-i18n": {
+      "types": "./dist/screens/settings/external-mcp-i18n.d.ts",
+      "import": "./dist/screens/settings/external-mcp-i18n.js",
+      "default": "./dist/screens/settings/external-mcp-i18n.js"
+    },
+    "./screens/settings/hooks/use-external-mcp-oauth-connect.hooks": {
+      "types": "./dist/screens/settings/hooks/use-external-mcp-oauth-connect.hooks.d.ts",
+      "import": "./dist/screens/settings/hooks/use-external-mcp-oauth-connect.hooks.js",
+      "default": "./dist/screens/settings/hooks/use-external-mcp-oauth-connect.hooks.js"
+    },
     "./screens/settings/settings-i18n": {
       "types": "./dist/screens/settings/settings-i18n.d.ts",
       "import": "./dist/screens/settings/settings-i18n.js",
