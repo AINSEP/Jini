@@ -6,15 +6,12 @@
 // gate is "anything under the scope" instead of a fixed surface list, and problems drop one rule instead
 // of the whole customization. Follow-up (P4): delete the cms copy once the consumer reads this package.
 import { ConsentCssSyntaxError, parseConsentCss, type ConsentCssDeclaration, type ConsentCssRule } from './css-parser.js';
+import type { ConsentAppearanceTokens } from '@jini-ai/core/contracts/site/cookie-consent';
+export type { ConsentAppearanceTokens } from '@jini-ai/core/contracts/site/cookie-consent';
 
 export const CONSENT_CSS_SCOPE = '#jini-consent';
 export const CONSENT_MAX_CSS_LENGTH = 16_384;
 
-/** Bounded appearance tokens; colors are opaque hex and must meet 4.5:1 contrast. */
-export interface ConsentAppearanceTokens {
-  backgroundColor?: string; textColor?: string; borderColor?: string; borderRadius?: string;
-  padding?: string; fontSize?: string; maxWidth?: string; fontFamily?: string;
-}
 export interface ConsentCssProblem {
   code: 'size' | 'syntax' | 'selector' | 'property' | 'value' | 'contrast';
   message: string;

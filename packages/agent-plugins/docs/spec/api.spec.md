@@ -118,7 +118,7 @@ String-valued path/id/query fields in this table are `string`; flags are `boolea
 
 `provisionAgentPluginMcp({ mcpProvisioning, workspaceId, installed })`, `syncAgentPluginMcpEnabled({ mcpProvisioning, workspaceId, pluginId, enabled })`, and `removeAgentPluginMcp({ mcpProvisioning, workspaceId, pluginId })` each return `Promise<void>` and accept `_optional: Record<string, never> = {}` as the second argument. They perform the named host operation, then roster notification. Install, enable, and uninstall do not invoke them automatically.
 
-`createNodeAgentPluginEffects({}, { filesystem?: FilesystemPort } = {})` returns `{ filesystem, fileLock, atomicWriter, clock, ids, process }` (`fileLock` and `atomicWriter` are the lifecycle's required file ports, bound to platform's functions); injected native filesystem effects retain their identity. The wrapper factory and wrapper FileHandle/NodeFilesystem types are removed. Generic locks/errors/holder types come directly from `@jini-ai/platform/fs/file-lock`; activation passes 15000ms timeout, 10000ms staleness and 10ms polling.
+`createNodeAgentPluginEffects({ withFileLock, writeJsonFileAtomicAsync, readBootIdentity }, { filesystem?: FilesystemPort } = {})` returns `{ filesystem, fileLock, atomicWriter, clock, ids, process }` (`fileLock` and `atomicWriter` are the lifecycle's required file ports, bound to the platform functions the host injects); injected native filesystem effects retain their identity. The wrapper factory and wrapper FileHandle/NodeFilesystem types are removed. Generic locks/errors/holder types come directly from `@jini-ai/platform/fs/file-lock`; activation passes 15000ms timeout, 10000ms staleness and 10ms polling.
 
 `createYauzlAgentPluginArchiveReader({ yauzl: YauzlPort }, _optional: Record<string, never> = {}): AgentPluginArchiveReaderPort` accepts an empty options object. The exported `YauzlPort`, `YauzlZipFile`, and `YauzlEntry` model the peer library's positional `fromBufferPromise(buffer, options)`, `eachEntry()`, `openReadStreamPromise(entry)`, and `close()` APIs. The consumer supplies the compatible library; imports do not load it automatically.
 
@@ -130,10 +130,12 @@ Constants exported by lifecycle: `ACTIVATIONS_FILENAME`, `ACTIVATIONS_LOCK_FILEN
 import { createAgentPluginLifecycle, createAgentPluginLayout,
   parseAgentPluginManifest, provisionAgentPluginMcp } from '@jini-ai/agent-plugins/lifecycle';
 import { createNodeAgentPluginEffects } from '@jini-ai/node-adapters/agent-plugins';
+import { writeJsonFileAtomicAsync } from '@jini-ai/platform/fs';
+import { readBootIdentity, withFileLock } from '@jini-ai/platform/fs/file-lock';
 
 // fetchPort, outboundGuard and mcpProvisioning are host adapters.
 const layout = createAgentPluginLayout({ root: '/var/lib/example/agent-plugins' });
-const plugins = createAgentPluginLifecycle({ ...createNodeAgentPluginEffects({}),
+const plugins = createAgentPluginLifecycle({ ...createNodeAgentPluginEffects({ withFileLock, writeJsonFileAtomicAsync, readBootIdentity }),
   layout, fetch: fetchPort, outboundGuard, mcpProvisioning,
   productName: 'Example', extensionNamespace: 'org.example.client',
   bundledArchiveMagic: 'EXAMPLE-PLUGIN-1\n', deliveryMode: 'pointer',

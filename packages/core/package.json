@@ -81,7 +81,45 @@
       "./contracts/env": "universal",
       "./env/parse-env": "universal",
       "./env/format-env-issue": "universal",
-      "./env/describe-env-for-diagnostics": "universal"
+      "./env/describe-env-for-diagnostics": "universal",
+      "./tool-metadata/analytics": "universal",
+      "./tool-metadata/change-sets": "universal",
+      "./tool-metadata/consent": "universal",
+      "./tool-metadata/content-duplication": "universal",
+      "./tool-metadata/content-types": "universal",
+      "./tool-metadata/database-transfer": "universal",
+      "./tool-metadata/database": "universal",
+      "./tool-metadata/email-templates": "universal",
+      "./tool-metadata/entries": "universal",
+      "./tool-metadata/external-mcp": "universal",
+      "./tool-metadata/files-copy": "universal",
+      "./tool-metadata/forms": "universal",
+      "./tool-metadata/identity": "universal",
+      "./tool-metadata/mail-status": "universal",
+      "./tool-metadata/media": "universal",
+      "./tool-metadata/media-import": "universal",
+      "./tool-metadata/navigation": "universal",
+      "./tool-metadata/observability": "universal",
+      "./tool-metadata/pages": "universal",
+      "./contracts/site/diagnostics-observability": "universal",
+      "./contracts/site/daemon": "universal",
+      "./contracts/site/plugins-host": "universal",
+      "./contracts/site/db-data-modules": "universal",
+      "./contracts/site/assistant-tool-contributions": "universal",
+      "./contracts/site/user-management-react": "universal",
+      "./contracts/site/cookie-consent": "universal",
+      "./contracts/site/cms-forms": "universal",
+      "./contracts/site/core-run-events": "universal",
+      "./contracts/site/core-commands": "universal",
+      "./contracts/site/assistant-mcp-services": "universal",
+      "./contracts/site/recovery-operation-lock": "universal",
+      "./contracts/site/http-kit-rate-limit": "universal",
+      "./contracts/site/daemon-tool-recovery": "universal",
+      "./contracts/site/headless-assistant-permanent-deletes-policy": "universal",
+      "./contracts/site/integrations-credentialed-http": "universal",
+      "./contracts/site/widgets-html": "universal",
+      "./contracts/site/integrations-api-connections": "universal",
+      "./contracts/site/chat-core": "universal"
     },
     "isolation": {
       "entries": {
@@ -478,6 +516,196 @@
       "types": "./dist/errors/route-refusal.d.ts",
       "import": "./dist/errors/route-refusal.js",
       "default": "./dist/errors/route-refusal.js"
+    },
+    "./tool-metadata/analytics": {
+      "types": "./dist/tool-metadata/analytics.d.ts",
+      "import": "./dist/tool-metadata/analytics.js",
+      "default": "./dist/tool-metadata/analytics.js"
+    },
+    "./tool-metadata/change-sets": {
+      "types": "./dist/tool-metadata/change-sets.d.ts",
+      "import": "./dist/tool-metadata/change-sets.js",
+      "default": "./dist/tool-metadata/change-sets.js"
+    },
+    "./tool-metadata/consent": {
+      "types": "./dist/tool-metadata/consent.d.ts",
+      "import": "./dist/tool-metadata/consent.js",
+      "default": "./dist/tool-metadata/consent.js"
+    },
+    "./tool-metadata/content-duplication": {
+      "types": "./dist/tool-metadata/content-duplication.d.ts",
+      "import": "./dist/tool-metadata/content-duplication.js",
+      "default": "./dist/tool-metadata/content-duplication.js"
+    },
+    "./tool-metadata/content-types": {
+      "types": "./dist/tool-metadata/content-types.d.ts",
+      "import": "./dist/tool-metadata/content-types.js",
+      "default": "./dist/tool-metadata/content-types.js"
+    },
+    "./tool-metadata/database-transfer": {
+      "types": "./dist/tool-metadata/database-transfer.d.ts",
+      "import": "./dist/tool-metadata/database-transfer.js",
+      "default": "./dist/tool-metadata/database-transfer.js"
+    },
+    "./tool-metadata/database": {
+      "types": "./dist/tool-metadata/database.d.ts",
+      "import": "./dist/tool-metadata/database.js",
+      "default": "./dist/tool-metadata/database.js"
+    },
+    "./tool-metadata/email-templates": {
+      "types": "./dist/tool-metadata/email-templates.d.ts",
+      "import": "./dist/tool-metadata/email-templates.js",
+      "default": "./dist/tool-metadata/email-templates.js"
+    },
+    "./tool-metadata/entries": {
+      "types": "./dist/tool-metadata/entries.d.ts",
+      "import": "./dist/tool-metadata/entries.js",
+      "default": "./dist/tool-metadata/entries.js"
+    },
+    "./tool-metadata/external-mcp": {
+      "types": "./dist/tool-metadata/external-mcp.d.ts",
+      "import": "./dist/tool-metadata/external-mcp.js",
+      "default": "./dist/tool-metadata/external-mcp.js"
+    },
+    "./tool-metadata/files-copy": {
+      "types": "./dist/tool-metadata/files-copy.d.ts",
+      "import": "./dist/tool-metadata/files-copy.js",
+      "default": "./dist/tool-metadata/files-copy.js"
+    },
+    "./tool-metadata/forms": {
+      "types": "./dist/tool-metadata/forms.d.ts",
+      "import": "./dist/tool-metadata/forms.js",
+      "default": "./dist/tool-metadata/forms.js"
+    },
+    "./tool-metadata/identity": {
+      "types": "./dist/tool-metadata/identity.d.ts",
+      "import": "./dist/tool-metadata/identity.js",
+      "default": "./dist/tool-metadata/identity.js"
+    },
+    "./tool-metadata/mail-status": {
+      "types": "./dist/tool-metadata/mail-status.d.ts",
+      "import": "./dist/tool-metadata/mail-status.js",
+      "default": "./dist/tool-metadata/mail-status.js"
+    },
+    "./tool-metadata/media": {
+      "types": "./dist/tool-metadata/media.d.ts",
+      "import": "./dist/tool-metadata/media.js",
+      "default": "./dist/tool-metadata/media.js"
+    },
+    "./tool-metadata/media-import": {
+      "types": "./dist/tool-metadata/media-import.d.ts",
+      "import": "./dist/tool-metadata/media-import.js",
+      "default": "./dist/tool-metadata/media-import.js"
+    },
+    "./tool-metadata/navigation": {
+      "types": "./dist/tool-metadata/navigation.d.ts",
+      "import": "./dist/tool-metadata/navigation.js",
+      "default": "./dist/tool-metadata/navigation.js"
+    },
+    "./tool-metadata/observability": {
+      "types": "./dist/tool-metadata/observability.d.ts",
+      "import": "./dist/tool-metadata/observability.js",
+      "default": "./dist/tool-metadata/observability.js"
+    },
+    "./tool-metadata/pages": {
+      "types": "./dist/tool-metadata/pages.d.ts",
+      "import": "./dist/tool-metadata/pages.js",
+      "default": "./dist/tool-metadata/pages.js"
+    },
+    "./contracts/site/diagnostics-observability": {
+      "types": "./dist/contracts/site/diagnostics-observability.d.ts",
+      "import": "./dist/contracts/site/diagnostics-observability.js",
+      "default": "./dist/contracts/site/diagnostics-observability.js"
+    },
+    "./contracts/site/daemon": {
+      "types": "./dist/contracts/site/daemon.d.ts",
+      "import": "./dist/contracts/site/daemon.js",
+      "default": "./dist/contracts/site/daemon.js"
+    },
+    "./contracts/site/plugins-host": {
+      "types": "./dist/contracts/site/plugins-host.d.ts",
+      "import": "./dist/contracts/site/plugins-host.js",
+      "default": "./dist/contracts/site/plugins-host.js"
+    },
+    "./contracts/site/db-data-modules": {
+      "types": "./dist/contracts/site/db-data-modules.d.ts",
+      "import": "./dist/contracts/site/db-data-modules.js",
+      "default": "./dist/contracts/site/db-data-modules.js"
+    },
+    "./contracts/site/assistant-tool-contributions": {
+      "types": "./dist/contracts/site/assistant-tool-contributions.d.ts",
+      "import": "./dist/contracts/site/assistant-tool-contributions.js",
+      "default": "./dist/contracts/site/assistant-tool-contributions.js"
+    },
+    "./contracts/site/user-management-react": {
+      "types": "./dist/contracts/site/user-management-react.d.ts",
+      "import": "./dist/contracts/site/user-management-react.js",
+      "default": "./dist/contracts/site/user-management-react.js"
+    },
+    "./contracts/site/cookie-consent": {
+      "types": "./dist/contracts/site/cookie-consent.d.ts",
+      "import": "./dist/contracts/site/cookie-consent.js",
+      "default": "./dist/contracts/site/cookie-consent.js"
+    },
+    "./contracts/site/cms-forms": {
+      "types": "./dist/contracts/site/cms-forms.d.ts",
+      "import": "./dist/contracts/site/cms-forms.js",
+      "default": "./dist/contracts/site/cms-forms.js"
+    },
+    "./contracts/site/core-run-events": {
+      "types": "./dist/contracts/site/core-run-events.d.ts",
+      "import": "./dist/contracts/site/core-run-events.js",
+      "default": "./dist/contracts/site/core-run-events.js"
+    },
+    "./contracts/site/core-commands": {
+      "types": "./dist/contracts/site/core-commands.d.ts",
+      "import": "./dist/contracts/site/core-commands.js",
+      "default": "./dist/contracts/site/core-commands.js"
+    },
+    "./contracts/site/assistant-mcp-services": {
+      "types": "./dist/contracts/site/assistant-mcp-services.d.ts",
+      "import": "./dist/contracts/site/assistant-mcp-services.js",
+      "default": "./dist/contracts/site/assistant-mcp-services.js"
+    },
+    "./contracts/site/recovery-operation-lock": {
+      "types": "./dist/contracts/site/recovery-operation-lock.d.ts",
+      "import": "./dist/contracts/site/recovery-operation-lock.js",
+      "default": "./dist/contracts/site/recovery-operation-lock.js"
+    },
+    "./contracts/site/http-kit-rate-limit": {
+      "types": "./dist/contracts/site/http-kit-rate-limit.d.ts",
+      "import": "./dist/contracts/site/http-kit-rate-limit.js",
+      "default": "./dist/contracts/site/http-kit-rate-limit.js"
+    },
+    "./contracts/site/daemon-tool-recovery": {
+      "types": "./dist/contracts/site/daemon-tool-recovery.d.ts",
+      "import": "./dist/contracts/site/daemon-tool-recovery.js",
+      "default": "./dist/contracts/site/daemon-tool-recovery.js"
+    },
+    "./contracts/site/headless-assistant-permanent-deletes-policy": {
+      "types": "./dist/contracts/site/headless-assistant-permanent-deletes-policy.d.ts",
+      "import": "./dist/contracts/site/headless-assistant-permanent-deletes-policy.js",
+      "default": "./dist/contracts/site/headless-assistant-permanent-deletes-policy.js"
+    },
+    "./contracts/site/integrations-credentialed-http": {
+      "types": "./dist/contracts/site/integrations-credentialed-http.d.ts",
+      "import": "./dist/contracts/site/integrations-credentialed-http.js",
+      "default": "./dist/contracts/site/integrations-credentialed-http.js"
+    },
+    "./contracts/site/widgets-html": {
+      "types": "./dist/contracts/site/widgets-html.d.ts",
+      "import": "./dist/contracts/site/widgets-html.js",
+      "default": "./dist/contracts/site/widgets-html.js"
+    },
+    "./contracts/site/integrations-api-connections": {
+      "types": "./dist/contracts/site/integrations-api-connections.d.ts",
+      "import": "./dist/contracts/site/integrations-api-connections.js",
+      "default": "./dist/contracts/site/integrations-api-connections.js"
+    },
+    "./contracts/site/chat-core": {
+      "types": "./dist/contracts/site/chat-core.d.ts",
+      "import": "./dist/contracts/site/chat-core.js",
+      "default": "./dist/contracts/site/chat-core.js"
     }
   },
   "files": [

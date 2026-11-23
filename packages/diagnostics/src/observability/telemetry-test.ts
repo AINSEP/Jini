@@ -1,5 +1,5 @@
 import { AsyncLocalStorage } from "node:async_hooks";
-import type { Tracker } from "./tracker-types.js";
+import type { Tracker } from "@jini-ai/core/contracts/site/diagnostics-observability";
 
 export type TelemetryTestSignal = "error" | "span" | "analytics" | "metric";
 export interface TelemetryTestResult {

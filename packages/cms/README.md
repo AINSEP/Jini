@@ -202,3 +202,10 @@ transaction runner, `IdGenerator`, entity policy, `Clock` and scheduler. Native 
 error logging belong to the host. Actor/prior-marker/list filters are passed in the optional second
 object. Purge callers own human confirmation and must authorize each resolved index row; unavailable
 domains remain `adapter-unavailable` after authorization even when their entity policy denies them.
+
+## Wiring
+
+`./publish/content`: `normalizePeerBaseUrl({ raw, hasForbiddenRawUrlCharacter })` takes the raw-URL
+character check from the host (Tovu passes `@jini-ai/core/contracts/server/verified-origin`'s), and
+`canPublishToLive({ resolveRuntimeMode, env? })` takes the host's runtime-mode resolver. Neither
+module imports another package's runtime implementation.

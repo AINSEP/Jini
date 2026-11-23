@@ -44,6 +44,7 @@ import { normalizeRoute, resolveClaimConflicts, type ClaimConflict, type ClaimMo
 import type { PluginDiscoveryRecord } from "./discovery-types.js";
 import { CORE_OWNER_ID } from "./plugin-format.js";
 import type { PluginContributions, PluginManifest } from "./manifest-types.js";
+import type { PluginConflict } from "@jini-ai/core/contracts/site/plugins-host";
 
 /** The owner id core's claims are filed under, and how messages name it. */
 export { CORE_OWNER_ID };
@@ -71,15 +72,7 @@ export function capabilityToolIdFor({ pluginId }: { pluginId: string }, _optiona
   return `plugin_capability_${pluginId.replace(/-/g, "_")}`;
 }
 
-/** One conflict, as the admin screen and the agent see it — the detector's conflict plus the
- *  holder's display name. */
-export interface PluginConflict {
-  readonly kind: string;
-  readonly key: string;
-  readonly heldBy: string;
-  readonly heldByName: string;
-  readonly heldKey: string;
-}
+export type { PluginConflict } from "@jini-ai/core/contracts/site/plugins-host";
 
 /** Every claim one manifest makes (see this file's header for the four sources). */
 export function pluginClaimsFromManifest(

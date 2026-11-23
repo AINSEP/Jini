@@ -10,5 +10,5 @@ export * from './delivery.js';
 export { observabilityProviderContract } from './provider-contract.js';
 export type { TelemetryTestResult, TelemetryTestSignal } from './telemetry-test.js';
 
-export type * from "./tracker-types.js";
+export type { TrackerOptions, TrackerProviders } from "./tracker-types.js";
 export { createNoopTracker } from "./tracker-noop.js";

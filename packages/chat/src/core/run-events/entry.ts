@@ -36,17 +36,21 @@ import type { AgentEvent, ToolResultMediaBlock } from "../events.js";
  */
 
 import type { ChatRunStatus } from "../messages.js";
+import type {
+  RunAgentPayload, RunProtocolEventWire, TerminalOutcome, RunFrameOutcome, RunFrameCarry,
+} from "@jini-ai/core/contracts/site/core-run-events";
+export type {
+  RunAgentPayload, RunProtocolEventWire, TerminalOutcome, RunFrameOutcome, RunFrameCarry,
+} from "@jini-ai/core/contracts/site/core-run-events";
 
-export interface RunAgentPayload {
-  readonly type: string;
-  readonly [key: string]: unknown;
-}
-
-export interface RunProtocolEventWire {
-  readonly runId: string;
-  readonly kind: "start" | "agent" | "stdout" | "stderr" | "error" | "end";
-  readonly payload: unknown;
-}
+/** Compile-time pin: core's `RunFrameOutcome.terminal` is spelled as a literal union because core
+ *  cannot import `ChatRunStatus` (derived from a runtime tuple). Either side drifting fails here. */
+type TerminalChatRunStatus = Extract<ChatRunStatus, "succeeded" | "failed" | "canceled">;
+type FrameTerminal = NonNullable<RunFrameOutcome["terminal"]>;
+type AssertTrue<T extends true> = T;
+type _TerminalStatusPin = AssertTrue<
+  [FrameTerminal] extends [TerminalChatRunStatus] ? ([TerminalChatRunStatus] extends [FrameTerminal] ? true : false) : false
+>;
 
 /** Retain executor-decoded display correlation through both live and saved chat reduction.
  * Only the delegated bridge marks canonical rows; malformed optional metadata is ignored. O(1). */
@@ -243,16 +247,6 @@ export interface RunNotices {
 /** A host notice for a run that used its tool-step budget. */
 export function terminalReasonNotice({ reason, notice }: { reason: string; notice: Extract<AgentEvent, { kind: "status" }> }, _options: Record<string, never> = {}): AgentEvent | null {
   return reason === "max_tool_turns" ? { ...notice } : null;
-}
-/** A daemon `end` frame's non-successful terminal classification, as the daemon itself recorded it
- *  in `@jini-ai/protocol`'s `RunEndPayload`. */
-
-
-export interface TerminalOutcome {
-  readonly status: "failed" | "canceled";
-  readonly code: string;
-  readonly signal: string;
-  readonly resumable: string;
 }
 /**
  * Reads that classification off a raw `end` frame, or `null` when the run succeeded, sent nothing,
@@ -485,19 +479,6 @@ export function runContentFromEvents({ events }: { events: readonly AgentEvent[]
 export function runEventsForSave({ events }: { events: readonly AgentEvent[] }, _options: Record<string, never> = {}): AgentEvent[] {
   return mergeAdjacentTextEvents({ events: dedupeToolUsesById({ events: [...events] }) });
 }
-/** What one daemon stream frame means for the turn: events to append, a failure, and whether it ended. */
-/** Set when the frame reports a failure. Once any frame has, the turn is `failed` (the browser's
-   *  `useRunStream` keeps an `'error'` status through a later `onDone`). */
-/** Set only on the `end` frame: the daemon's own terminal classification. */
-
-
-export interface RunFrameOutcome {
-  readonly events: AgentEvent[];
-
-  readonly error?: Error;
-
-  readonly terminal?: Extract<ChatRunStatus, "succeeded" | "failed" | "canceled">;
-}
 
 function parseWire(raw: string | undefined): RunProtocolEventWire | null {
   if (!raw) return null;
@@ -568,15 +549,6 @@ function heartbeatStatus(line: Record<string, unknown>): AgentEvent | null {
 
 
 const ECHO_LINE = /^\{"type":"(?:stream_event|assistant|user)"/;
-/**
- * Per-connection memory for {@link translateRunFrame}: which channels are mid-way through an echo
- * line. Only a line's first chunk carries the {@link ECHO_LINE} prefix, so without it the rest of a
- * split `user` echo stays as `raw` — tool-result prose that durable recovery then reads as executor
- * diagnostics. Pass one fresh `{}` per daemon connection (each connection replays from event 0).
- */
-export interface RunFrameCarry {
-  openEchoChannels?: Set<string>;
-}
 /**
  * One CLI stdout/stderr chunk → events. Every JSON line that is a heartbeat also yields a typed
  * `status` event; echo lines ({@link ECHO_LINE}) are dropped — with a `carry`, including the later

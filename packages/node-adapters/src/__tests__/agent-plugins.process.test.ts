@@ -5,17 +5,21 @@
  */
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import * as nativeFilesystem from 'node:fs/promises';
-import { readBootIdentity } from '@jini-ai/platform/fs/file-lock';
+import { writeJsonFileAtomicAsync } from '@jini-ai/platform/fs';
+import { readBootIdentity, withFileLock } from '@jini-ai/platform/fs/file-lock';
 import type { FilesystemPort } from '@jini-ai/agent-plugins/lifecycle';
 import { createNodeAgentPluginEffects } from '../agent-plugins.js';
+
+/** The platform functions a Node host injects. */
+const platform = { withFileLock, writeJsonFileAtomicAsync, readBootIdentity };
 
 afterEach(() => { vi.restoreAllMocks(); });
 
 describe('createNodeAgentPluginEffects', () => {
   test('uses an injected filesystem, else node:fs/promises', () => {
     const fake = { ...nativeFilesystem } as FilesystemPort;
-    expect(createNodeAgentPluginEffects({}, { filesystem: fake }).filesystem).toBe(fake);
-    expect(createNodeAgentPluginEffects({}).filesystem).toBe(nativeFilesystem);
+    expect(createNodeAgentPluginEffects(platform, { filesystem: fake }).filesystem).toBe(fake);
+    expect(createNodeAgentPluginEffects(platform).filesystem).toBe(nativeFilesystem);
   });
 
   // `clock.sleep` is pinned with a controlled timer in agent-plugins.sleep.test.ts (FU-B).
@@ -26,18 +30,18 @@ describe('createNodeAgentPluginEffects', () => {
     ['a thrown string', 'odd', true], ['a thrown null', null, true], ['an object without code', {}, true],
   ])('isAlive when kill throws %s -> %s', (_name, thrown, alive) => {
     vi.spyOn(process, 'kill').mockImplementation(() => { throw thrown; });
-    expect(createNodeAgentPluginEffects({}).process.isAlive({ pid: 12345 })).toBe(alive);
+    expect(createNodeAgentPluginEffects(platform).process.isAlive({ pid: 12345 })).toBe(alive);
   });
 
   test.each([[0], [-1], [1.5], [Number.NaN]])('isAlive(%s) is false without signalling', (pid) => {
     const kill = vi.spyOn(process, 'kill');
-    expect(createNodeAgentPluginEffects({}).process.isAlive({ pid })).toBe(false);
+    expect(createNodeAgentPluginEffects(platform).process.isAlive({ pid })).toBe(false);
     expect(kill).not.toHaveBeenCalled();
   });
 });
 
 describe('createNodeAgentPluginEffects process.isAlive', () => {
-  const { process: host } = createNodeAgentPluginEffects({});
+  const { process: host } = createNodeAgentPluginEffects(platform);
   test('a non-positive or non-integer pid is never alive', () => {
     for (const pid of [0, -1, 1.5, Number.NaN]) expect(host.isAlive({ pid })).toBe(false);
   });
@@ -51,5 +55,5 @@ describe('createNodeAgentPluginEffects process.isAlive', () => {
 });
 
 test('the node process port records the kernel boot its locks are taken in', () => {
-  expect(createNodeAgentPluginEffects({}).process.bootIdentity?.()).toEqual(readBootIdentity({}));
+  expect(createNodeAgentPluginEffects(platform).process.bootIdentity?.()).toEqual(readBootIdentity({}));
 });

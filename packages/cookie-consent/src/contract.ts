@@ -1,7 +1,8 @@
 /** @file @jini-ai/cookie-consent contract: the only module a banner, plugin or host feature needs to import.
  * Types and constants only. Every call that injects something takes (required, optional): the first
  * argument is an object of required fields/ports, the second an object of optional ones. */
-import type { ConsentAppearanceTokens } from './render/css.js';
+import type { BannerMode, Category, ConsentAction, ConsentState, Contribution, DeclaredScript, Flags, Optional, RawContribution, RegionMode, RegionResolver } from '@jini-ai/core/contracts/site/cookie-consent';
+export type { BannerMode, Category, Choices, ConsentAction, ConsentAnalyticsProof, ConsentConfig, ConsentState, Contribution, DeclaredScript, Flags, Optional, RawContribution, ReceiptStatus, RegionHint, RegionMode, RegionRequest, RegionResolver } from '@jini-ai/core/contracts/site/cookie-consent';
 
 export const CONTRACT = 1 as const;
 /** Separate from the CMS engine's HttpOnly jini_consent: browsers cannot overwrite that cookie. */
@@ -17,77 +18,20 @@ export const OPEN_EVENT = 'jini:consent-open';
 /** Id of the JSON <script> that carries the PageConfig. */
 export const CONFIG_ID = 'jini-consent-config';
 
-export const OPTIONAL = ['functional', 'analytics', 'marketing'] as const;
-export type Optional = typeof OPTIONAL[number];
-export const CATEGORIES = ['necessary', ...OPTIONAL] as const;
-export type Category = typeof CATEGORIES[number];
-export type Flags = Record<Optional, boolean>;
-export type Choices = Readonly<{ necessary: true } & Flags>;
-export const ACTIONS = ['accept', 'reject', 'save', 'do-not-sell', 'withdraw'] as const;
-export type ConsentAction = typeof ACTIONS[number];
-export type RegionMode = 'opt-in' | 'opt-out';
-/** A resolver's definite answer. Resolvers return null for "unknown: ask the next one". */
-export type RegionHint = 'us' | 'strict';
+export const OPTIONAL = ['functional', 'analytics', 'marketing'] as const satisfies readonly Optional[];
+export const CATEGORIES = ['necessary', ...OPTIONAL] as const satisfies readonly Category[];
+export const ACTIONS = ['accept', 'reject', 'save', 'do-not-sell', 'withdraw'] as const satisfies readonly ConsentAction[];
 /** jini = the built-in banner; headless = "My own" banner; off = anonymous analytics only, no UI. */
-export const BANNER_MODES = ['jini', 'headless', 'off'] as const;
-export type BannerMode = typeof BANNER_MODES[number];
+export const BANNER_MODES = ['jini', 'headless', 'off'] as const satisfies readonly BannerMode[];
 /** durable = a server stores receipts and grants wait for one; local = browser-only evidence (static
  * export, Electron, file:), labelled as such and never presented as a server receipt. */
 export type Evidence = { mode: 'durable'; endpoint: string; waitMs?: number } | { mode: 'local' };
-/** 'stored' = server receipt; 'pending' = sent, unconfirmed; 'local' = browser-only, labelled as such. */
-export type ReceiptStatus = 'none' | 'local' | 'pending' | 'stored';
 
 /** Cookie wire format (JSON, URI-encoded). `c` is what the visitor chose; GPC is applied on read.
  * v = format, p = policy version, t = choice time (ms), a = action, r = receipt id, q = receipt pending. */
 export interface StoredChoice { v: 1; p: string; c: Flags; t: number; a: ConsentAction; r?: string; q?: 1 }
 
-export interface ConsentState {
-  contract: 1;
-  policy: string;
-  status: 'pending' | 'set';
-  region: RegionMode;
-  /** Effective privacy opt-out: GPC or DNT. The historical field name is retained on receipts. */
-  gpc: boolean;
-  /** Analytics adapters/collectors must enforce this level, not just allowed.analytics. */
-  analyticsLevel: 'none' | 'anonymous' | 'full';
-  /** What the banner shows: the choice (or region default), GPC-clamped. */
-  choices: Choices;
-  /** Full category permissions; durable grants await their receipt. Never read `choices` as permission.
-   * Anonymous analytics keeps allowed.analytics false; adapters/collectors use analyticsLevel. */
-  allowed: Choices;
-  action: ConsentAction | null;
-  at: number | null;
-  receipt: ReceiptStatus;
-}
-
-/** Saved host policy. Existing revisions keep their field names when execution moves to declarations. */
-export interface ConsentConfig {
-  enabled: boolean;
-  /** @deprecated Retained for saved-setting compatibility; declared scripts do not evaluate this flag. */
-  allowUnsafeEval?: boolean;
-  regionMode: 'auto' | RegionMode;
-  policyVersion: string;
-  privacyPolicyUrl: string;
-  title: string;
-  message: string;
-  acceptLabel: string;
-  rejectLabel: string;
-  preferencesLabel: string;
-  placement?: 'bottom-bar' | 'bottom-left' | 'bottom-right' | 'top-bar';
-  reopen?: 'corner' | 'link';
-  secondaryLinkLabel?: string;
-  secondaryLinkUrl?: string;
-  appearance?: ConsentAppearanceTokens;
-  customCss?: string;
-  bannerMode?: BannerMode;
-}
-
-/** Internal delivery evidence; never an analytics property or visitor identity. */
-export interface ConsentAnalyticsProof { receiptId: string; policyVersion: string }
-
 // ---- Plugin slots: an OPEN set. A kind is a string; whoever consumes a kind defines it. ----
-export interface Contribution<K extends string = string> { readonly id: string; readonly kind: K }
-export type RawContribution = Contribution & Record<string, unknown>;
 export interface SlotKind<T extends Contribution = Contribution> {
   readonly kind: T['kind'];
   /** Trust boundary: the typed, normalized contribution, or a plain-language reason to refuse it. */
@@ -133,11 +77,7 @@ export interface LazyAdapter extends Contribution<typeof ADAPTER_KIND> {
 export type AdapterContribution = ConsentAdapter | LazyAdapter;
 
 // ---- Slot kind: server region resolver ----
-export const REGION_KIND = 'region-resolver';
-export interface RegionRequest { header(name: string): string | null; ip: string | null }
-export interface RegionResolver extends Contribution<typeof REGION_KIND> {
-  resolve(required: { request: RegionRequest }, optional?: { signal?: AbortSignal }): RegionHint | null | Promise<RegionHint | null>;
-}
+export const REGION_KIND = 'region-resolver' satisfies RegionResolver['kind'];
 /** Data-only form for a plugin manifest; the region slot turns it into a RegionResolver. */
 export interface HeaderRegion extends Contribution<typeof REGION_KIND> { header: string; usValues?: readonly string[] }
 
@@ -146,8 +86,6 @@ export interface ConsentBridge extends Contribution<typeof BRIDGE_KIND> {
   src?: string;
   mount?(required: { api: JiniConsentApi; doc: Document }, optional?: object): void | (() => void);
 }
-
-export interface DeclaredScript { src: string; consent?: readonly Category[] }
 
 // ---- Browser API ----
 export interface ClientConfig {

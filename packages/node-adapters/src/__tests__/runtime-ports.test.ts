@@ -3,7 +3,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { spawn as realSpawn, type ChildProcess, type SpawnOptions } from 'node:child_process';
-import { createProcessControlPort, createSpawnPort, nodeCommandShell, nodeProcessControl, type ProcessFunctions } from '../process.js';
+import { listProcessSnapshots, stopProcesses, waitForProcessExit } from '@jini-ai/platform/process';
+import { createProcessControlPort, createSpawnPort, nodeCommandShell, type ProcessFunctions } from '../process.js';
 import { nodeAtomicWriter, nodeFileLock } from '../fs.js';
 
 const stopped = { alreadyStopped: false, forcedPids: [], matchedPids: [3], remainingPids: [], stoppedPids: [3] };
@@ -87,6 +88,8 @@ describe('nodeCommandShell', () => {
 });
 
 describe('node runtime ports over the real platform functions', () => {
+  // The port a Node host builds: platform's functions injected into the adapter.
+  const nodeProcessControl = createProcessControlPort({ functions: { listProcessSnapshots, stopProcesses, waitForProcessExit } });
   const roots: string[] = [];
   afterEach(async () => { await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true }))); });
   const scratch = async (): Promise<string> => { const root = await mkdtemp(join(tmpdir(), 'runtime-ports-')); roots.push(root); return root; };

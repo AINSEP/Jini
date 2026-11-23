@@ -2,14 +2,9 @@
 
 import type { Clock } from '@jini-ai/core/primitives';
 import type { RateLimiter, RateLimitResult } from '@jini-ai/core/contracts/server';
+import type { ClientIpSource, RateLimitProfile } from '@jini-ai/core/contracts/site/http-kit-rate-limit';
 export type { Clock } from '@jini-ai/core/primitives';
-
-/** Host-selected window and request budget; no product profiles live here. */
-export interface RateLimitProfile {
-  readonly windowSeconds: number;
-  readonly max: number;
-  readonly burst: number;
-}
+export type { ClientIpSource, RateLimitProfile } from '@jini-ai/core/contracts/site/http-kit-rate-limit';
 
 export interface CounterWindow {
   readonly windowStartMs: number;
@@ -133,15 +128,6 @@ export function createRateLimiter(
     },
     size: () => pending.then(() => store.size({})),
   };
-}
-
-// A minimal structural request avoids importing a framework's full socket/request type and
-// lets policy be evaluated with plain objects, without coupling domains to a transport host.
-/** Structural request shape; transport/framework trust configuration stays outside. */
-export interface ClientIpSource {
-  readonly socket: { readonly remoteAddress?: string };
-  readonly headers: Record<string, string | string[] | undefined>;
-  readonly ip?: string;
 }
 
 /**

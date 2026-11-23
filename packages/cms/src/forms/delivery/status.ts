@@ -4,16 +4,8 @@
  */
 import type { OutboxRecord } from "@jini-ai/core/contracts/events";
 import { safeFormDeliveryErrorCode } from "./errors.js";
-import type { FormDeliveryErrorCode } from "./types.js";
-
-export type FormDeliveryState = "pending" | "retrying" | "completed" | "failed";
-export interface FormDeliveryJobStatus {
-  readonly status: FormDeliveryState;
-  readonly attempts: number;
-  /** Set only while a failed attempt waits for its next try. */
-  readonly nextRetryAt: string | null;
-  readonly errorCode: FormDeliveryErrorCode | null;
-}
+import type { FormDeliveryJobStatus, FormDeliveryState } from "@jini-ai/core/contracts/site/cms-forms";
+export type { FormDeliveryJobStatus, FormDeliveryState } from "@jini-ai/core/contracts/site/cms-forms";
 
 function stateOf(row: Pick<OutboxRecord, "status" | "attempts">): FormDeliveryState {
   if (row.status === "delivered") return "completed";

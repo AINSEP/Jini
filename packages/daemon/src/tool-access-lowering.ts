@@ -1,9 +1,5 @@
-/** Access removal stops the admitted answer; it cannot undo tools that already completed. */
-export interface ToolAccessChange {
-  readonly agentIds?: readonly string[];
-  readonly serverIds?: readonly string[];
-  readonly pluginIds?: readonly string[];
-}
+import type { ToolAccessChange } from "@jini-ai/core/contracts/site/daemon";
+export type { ToolAccessChange } from "@jini-ai/core/contracts/site/daemon";
 export interface ToolAccessRun {
   readonly runId: string;
   readonly agentId: string;

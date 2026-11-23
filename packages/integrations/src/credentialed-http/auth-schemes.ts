@@ -1,17 +1,9 @@
-export interface CredentialSchemeRule {
-  readonly id: string;
-  readonly prefix: string;
-  readonly scheme: string;
-}
+import type { CredentialSchemeRule } from "@jini-ai/core/contracts/site/integrations-credentialed-http";
+export type { CredentialSchemeRule, CredentialSchemeRegistry } from "@jini-ai/core/contracts/site/integrations-credentialed-http";
 
 export interface SelfDescribingTokenMatch {
   readonly scheme: string;
   readonly value: string;
-}
-
-export interface CredentialSchemeRegistry {
-  readonly rules: readonly CredentialSchemeRule[];
-  readonly refusals: readonly string[];
 }
 
 const RULE_ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;

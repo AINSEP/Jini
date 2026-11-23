@@ -10,10 +10,12 @@ const setTimeoutFake = vi.fn((_ms: number) => new Promise<void>((resolve) => { r
 vi.mock('node:timers/promises', () => ({ setTimeout: (ms: number) => setTimeoutFake(ms) }));
 
 const { createNodeAgentPluginEffects } = await import('../agent-plugins.js');
+/** Inert platform fakes: only the clock is under test, and the real platform would load the mocked timers module. */
+const platform = { withFileLock: vi.fn(), writeJsonFileAtomicAsync: vi.fn(), readBootIdentity: vi.fn(() => undefined) };
 
 test('sleep forwards exactly the requested delay and resolves only when the timer settles', async () => {
   let settled = false;
-  const sleeping = createNodeAgentPluginEffects({}).clock.sleep({ ms: 20 }).then((value) => { settled = true; return value; });
+  const sleeping = createNodeAgentPluginEffects(platform).clock.sleep({ ms: 20 }).then((value) => { settled = true; return value; });
   expect(setTimeoutFake).toHaveBeenCalledTimes(1);
   expect(setTimeoutFake).toHaveBeenCalledWith(20);
   await Promise.resolve();

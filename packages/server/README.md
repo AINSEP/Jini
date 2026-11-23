@@ -75,3 +75,10 @@ if (entries > 0) await readLegacyOwnerStore({ filePath, keyFilePath, open });
 **Migration (breaking):** `OwnerStoreBackupError`, `OwnerStoreRecoveryError`, `readLegacyOwnerBackup`, `ownerContext`,
 `OWNER_WORKSPACE_ID` and the `LegacyOwner*` snapshot types moved to `@jini-ai/platform/secrets/legacy-owner`.
 The old entry type is gone: use `VaultArchiveEntry` from `@jini-ai/platform/secrets/credential-sets`.
+
+## Wiring
+
+`createJiniKernelBase` / `composeJiniKernel` take the agent-executor ports through
+`agentExecutor.runtime` (spawn, processes, fileLock, writer, commandShell). Omitted, the preset binds
+the Node defaults from `@jini-ai/node-adapters` (including `nodeProcessControl`); the kernel itself
+imports no `@jini-ai/platform/process` implementation.

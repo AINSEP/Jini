@@ -3,12 +3,8 @@ import { SecretInput } from '../kit.js';
 import { useTotpSettings, useTotpSettingsForm } from './TotpSettings.hooks.js';
 
 import { type Translate } from '@jini-ai/core/text';
-export interface TotpSettingsPort {
-  status(): Promise<{ isOwner: boolean; available: boolean; enrolled: boolean }>;
-  enroll(input: { password: string; code?: string }): Promise<{ pendingToken: string; secret: string; uri: string }>;
-  confirm(input: { pendingToken: string; code: string }): Promise<void>;
-  remove(input: { password: string; code: string }): Promise<void>;
-}
+import type { TotpSettingsPort } from '@jini-ai/core/contracts/site/user-management-react';
+export type { TotpSettingsPort } from '@jini-ai/core/contracts/site/user-management-react';
 
 /** Owner settings hold setup secrets only until confirmation/cancellation or unmount.
  * @complexity O(1): one bounded status read on mount and one request per explicit action; no polling.

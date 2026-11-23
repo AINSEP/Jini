@@ -1,21 +1,19 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 
-import type { AssistantSurfaceDeps as CoreAssistantSurfaceDeps } from "@jini-ai/core/contracts/site/daemon-surface-exchanges";
-import type { SurfaceExchangeStore } from "@jini-ai/core";
-import type { AssistantSurfaceDeps } from "../surface-exchanges.js";
+import type { AssistantSurfaceDeps } from "@jini-ai/core/contracts/site/daemon-surface-exchanges";
+import type { createSurfaceExchangeStore } from "../surface-exchanges.js";
 
 /**
- * @file Additive-window guard: until the paired cutover removes the daemon declaration, the daemon
- * and core `AssistantSurfaceDeps` must stay assignable both ways, so a linked host can move its
- * imports to core one file at a time. `pnpm typecheck` compiles the two assignments below.
+ * @file Paired-cutover guard: `AssistantSurfaceDeps` now lives only in core, and the live store stays
+ * in daemon. The store daemon builds must keep satisfying core's contract, so a host can hand
+ * `createSurfaceExchangeStore(...)` straight to every surface-raising tool. `pnpm typecheck` compiles
+ * the assignment below.
  */
 
-const store = {} as SurfaceExchangeStore;
-const fromDaemon: AssistantSurfaceDeps = { surfaceExchanges: store };
-const toCore: CoreAssistantSurfaceDeps = fromDaemon;
-const backToDaemon: AssistantSurfaceDeps = toCore;
+const store = {} as ReturnType<typeof createSurfaceExchangeStore>;
+const deps: AssistantSurfaceDeps = { surfaceExchanges: store };
 
-test("daemon and core AssistantSurfaceDeps describe the same shared store", () => {
-  assert.equal(backToDaemon.surfaceExchanges, store);
+test("the daemon-built surface-exchange store satisfies core AssistantSurfaceDeps", () => {
+  assert.equal(deps.surfaceExchanges, store);
 });

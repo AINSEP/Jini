@@ -299,3 +299,9 @@ Registration returns a disposer that closes active feeds.
 The former core and CMS `./settings/express` entries have been removed.
 
 `@jini-ai/core/text` also exports `redactOAuthUrls({ text, pattern, replacement })`: replaces every match of a provider-owned pattern and leaves all other bytes intact (a non-global pattern replaces only its first match). The caller owns the pattern and the replacement.
+
+## Wiring
+
+`./tool-metadata/<domain>` ships product-neutral tool metadata maps; a host aggregates them with its
+own maps (for example Tovu keeps `custom-credentials`, whose search vocabulary names providers). A
+test in `src/tool-metadata/__tests__/provider-neutral.test.ts` refuses provider names here.

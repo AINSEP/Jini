@@ -14,10 +14,12 @@ There is no root entry. Import the binding family you need:
 | Entry | Exports | Binds |
 | --- | --- | --- |
 | `@jini-ai/node-adapters/fs` | `nodeFileLock`, `nodeAtomicWriter` | core's `FileLockPort` and `AtomicFileWriterPort` |
-| `@jini-ai/node-adapters/process` | `nodeProcessControl`, `createProcessControlPort` (and the `ProcessFunctions` type) | core's `ProcessControlPort` |
+| `@jini-ai/node-adapters/process` | `nodeProcessControl`, `createProcessControlPort` (and the `ProcessFunctions` type), `createSpawnPort`, `nodeSpawnPort`, `nodeCommandShell` | core's `ProcessControlPort`, the spawn port, the command planner's inputs |
+| `@jini-ai/node-adapters/agent-plugins` | `createNodeAgentPluginEffects` (and the `AgentPluginPlatformFunctions` type) | the agent-plugin lifecycle's native effects |
 
-`createProcessControlPort({ functions })` takes the three platform process functions as arguments so a
-test can pass recording fakes: two port members take their arguments in a different shape from the
+`createProcessControlPort({ functions })` takes the three platform process functions injected (the host
+passes `@jini-ai/platform/process`'s; this package imports no other package's implementation), and a
+test passes recording fakes: two port members take their arguments in a different shape from the
 function they wrap (`{ pids }` vs a positional array, `{ pid }` vs a positional pid).
 
 ## Rules this package obeys (enforced by `pnpm guard`)
@@ -29,3 +31,11 @@ function they wrap (`{ pids }` vs a positional array, `{ pid }` vs a positional 
   source file and test in its own commit.
 - The vendor binding `node-pty` stays in `@jini-ai/server`: moving it here would give every importer a
   native build.
+
+## Wiring
+
+- `@jini-ai/node-adapters/process`: a host building its own agent-executor runtime passes
+  `@jini-ai/platform/process`'s three functions to `createProcessControlPort({ functions })`.
+  `nodeProcessControl` stays pre-bound until the server preset's process cutover lands with XC-6c/d,
+  so `@jini-ai/server`'s kernel needs no direct platform import.
+- `@jini-ai/node-adapters/agent-plugins`: the host passes `{ withFileLock, writeJsonFileAtomicAsync, readBootIdentity }`.

@@ -24,18 +24,9 @@ import { sql } from "kysely";
 
 import { columnTypeSql } from "../kernel/index.js";
 import { type PluginKernel, type PluginStore, pluginKernel } from "./plugin-store.js";
+import type { PluginProvenance } from "@jini-ai/core/contracts/site/db-data-modules";
 
-/**
- * @agent-note Saved format. The first declare that applies DDL stores these fields in
- * `_plugin_identity`; they are never updated. Later declares compare all three with strict string
- * equality, so a renamed publisher or moved URL is refused as `consent-required` the next time
- * that plugin has DDL to apply, unless both sides carry the same `signature`.
- */
-export interface PluginProvenance {
-  sourceUrl: string;
-  publisher: string;
-  signature?: string;
-}
+export type { PluginProvenance } from "@jini-ai/core/contracts/site/db-data-modules";
 
 export interface PluginIdentityRecord {
   pluginId: string;

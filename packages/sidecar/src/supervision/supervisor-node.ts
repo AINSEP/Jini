@@ -36,7 +36,7 @@ export interface NodeDaemonProcessRequired {
   cwd: string;
   env: NodeJS.ProcessEnv;
   registry: SupervisorRegistry;
-  /** The host's process control (snapshots, tree stop, exit wait); Node hosts pass `nodeProcessControl` of `@jini-ai/node-adapters/process`. */
+  /** The host's process control (snapshots, tree stop, exit wait); Node hosts pass `createProcessControlPort` of `@jini-ai/node-adapters/process` over `@jini-ai/platform/process`'s functions. */
   process: ProcessControlPort;
   /** The two host inputs of core's pure command planner: the platform and the `ComSpec` a Windows `.cmd` shim falls back to
    * when the launch env has none. Node hosts pass `nodeCommandShell({ env: process.env })` of `@jini-ai/node-adapters/process`,
