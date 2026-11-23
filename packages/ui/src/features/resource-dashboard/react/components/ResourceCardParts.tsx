@@ -1,6 +1,6 @@
 import type { KeyboardEvent, RefObject } from 'react';
 import { StatusPill } from './StatusPill.js';
-import { menuFocusIndex } from '../../../../browser/useMenuKeyboard.js';
+import { useMenuKeyboard } from '../../../../browser/useMenuKeyboard.js';
 import type { ResourceBoardItem, ResourceMenuActionSpec, ResourceStatusToneMap } from '../../types.js';
 
 /** The card's own class list: `is-selected` and `select-mode` modifiers on top of the base class. */
@@ -13,30 +13,31 @@ export function isCardActivationKey(event: KeyboardEvent): boolean {
   return event.key === 'Enter' || event.key === ' ';
 }
 
-/** The open kebab menu's items: arrow keys move between them, Escape reaches the board's dismiss listener, and other clicks and keydowns never bubble to the card. */
+/** The open kebab menu's items: arrow keys move between them (`onMenuKeyDown`), Escape reaches the board's dismiss listener, and other clicks and keydowns never bubble to the card. */
 export function ResourceCardMenuItems({
   menuActions,
   busy,
   menuActionLabel,
   onAction,
+  menuRef,
+  onMenuKeyDown,
 }: {
   menuActions: ResourceMenuActionSpec[];
   busy: boolean;
   menuActionLabel: ((kind: string, fallback: string) => string) | undefined;
   onAction: (kind: string) => void;
+  menuRef: RefObject<HTMLDivElement | null>;
+  onMenuKeyDown: (event: KeyboardEvent<HTMLDivElement>) => void;
 }) {
   return (
     <div
+      ref={menuRef}
       className="jini-resource-board-card-menu"
       role="menu"
       onClick={(event) => event.stopPropagation()}
       onKeyDown={(event) => {
         if (event.key !== 'Escape') event.stopPropagation();
-        const entries = [...event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')];
-        const next = menuFocusIndex({ key: event.key, current: entries.findIndex((entry) => entry === event.target), count: entries.length });
-        if (next === null) return;
-        event.preventDefault();
-        entries[next]?.focus();
+        onMenuKeyDown(event);
       }}
     >
       {menuActions.map((action) => (
@@ -55,7 +56,8 @@ export function ResourceCardMenuItems({
   );
 }
 
-/** The kebab "more" button plus, while `menuOpen`, its menu — `menuContainerRef` is attached only while open (see `ResourceCardProps.menuContainerRef`). */
+/** The kebab "more" button plus, while `menuOpen`, its menu — `menuContainerRef` is attached only while open (see `ResourceCardProps.menuContainerRef`).
+ * Focus follows the WAI-ARIA menu-button pattern via `useMenuKeyboard`: the first item on open, the trigger again on Escape or after an item is chosen. */
 export function ResourceCardMenu({
   menuActions,
   menuOpen,
@@ -65,6 +67,7 @@ export function ResourceCardMenu({
   menuActionLabel,
   onToggleMenu,
   onAction,
+  useMenuKeyboardHook = useMenuKeyboard,
 }: {
   menuActions: ResourceMenuActionSpec[];
   menuOpen: boolean;
@@ -74,10 +77,14 @@ export function ResourceCardMenu({
   menuActionLabel: ((kind: string, fallback: string) => string) | undefined;
   onToggleMenu: () => void;
   onAction: (kind: string) => void;
+  /** Injectable for tests and hosts; the default is the shared menu-keyboard hook. */
+  useMenuKeyboardHook?: typeof useMenuKeyboard<HTMLDivElement, HTMLButtonElement>;
 }) {
+  const { menuRef, triggerRef, onMenuKeyDown } = useMenuKeyboardHook({ open: menuOpen });
   return (
     <div className="jini-resource-board-card-menu-anchor" ref={menuOpen ? menuContainerRef : undefined}>
       <button
+        ref={triggerRef}
         type="button"
         className="jini-resource-board-card-more"
         aria-label={moreLabel}
@@ -98,7 +105,7 @@ export function ResourceCardMenu({
       >
         {moreLabel}
       </button>
-      {menuOpen ? <ResourceCardMenuItems menuActions={menuActions} busy={busy} menuActionLabel={menuActionLabel} onAction={onAction} /> : null}
+      {menuOpen ? <ResourceCardMenuItems menuActions={menuActions} busy={busy} menuActionLabel={menuActionLabel} onAction={onAction} menuRef={menuRef} onMenuKeyDown={onMenuKeyDown} /> : null}
     </div>
   );
 }

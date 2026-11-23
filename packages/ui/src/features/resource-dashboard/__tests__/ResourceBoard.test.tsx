@@ -56,6 +56,20 @@ describe('ResourceBoard', () => {
     expect(onOpenItem).toHaveBeenCalledWith('a');
   });
 
+  it('moves focus into the kebab menu on open and back to its trigger on Escape', async () => {
+    const dependencies = createFakeResourceBoardDependencies({ items: seedItems() });
+    render(<ResourceBoard dependencies={dependencies} statusOptions={STATUS_OPTIONS} onOpenItem={() => {}} />);
+    await waitFor(() => expect(screen.getByText('Alpha')).toBeInTheDocument());
+    const trigger = screen.getAllByRole('button', { name: 'More' })[0]!;
+    await userEvent.click(trigger);
+    expect(screen.getByRole('menuitem', { name: 'Rename' })).toHaveFocus();
+    await userEvent.keyboard('{ArrowDown}');
+    expect(screen.getByRole('menuitem', { name: 'Delete' })).toHaveFocus();
+    await userEvent.keyboard('{Escape}');
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+  });
+
   it('deletes an item natively via the kebab menu (delete kind)', async () => {
     const dependencies = createFakeResourceBoardDependencies({ items: seedItems() });
     render(<ResourceBoard dependencies={dependencies} statusOptions={STATUS_OPTIONS} onOpenItem={() => {}} />);
