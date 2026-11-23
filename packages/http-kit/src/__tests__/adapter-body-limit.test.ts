@@ -19,7 +19,9 @@ afterEach(async () => {
 /** Mounts `spec` behind `express.json({ limit })` on a listening app; counts handler calls. */
 async function hostWith(maxBodyBytes: number | undefined, { parser = express.json({ limit: HOST_PARSER_LIMIT_BYTES }), contentType = 'application/json' }: { readonly parser?: express.RequestHandler; readonly contentType?: string } = {}): Promise<{ post: (body: string) => Promise<Response>; handled: () => number }> {
   let calls = 0;
-  const route = defineCoreJsonRoute<unknown, { echoed: boolean }, object>({
+  // Built with Core's `defineJsonRoute`, as the bug report describes. Core's `ports` are typed for
+  // a web `Request` host, so the Express mount takes the spec without them (none are set here).
+  const { ports: _corePorts, ...route } = defineCoreJsonRoute<unknown, { echoed: boolean }, object>({
     method: 'post', path: '/capped',
     parse: ({ body }) => ok({ value: body }),
     handle: () => { calls += 1; return ok({ value: { echoed: true } }); },
