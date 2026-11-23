@@ -39,7 +39,7 @@ export interface SharpInstance {
   resize(
     width?: number,
     height?: number,
-    options?: { fit?: string }
+    options?: { fit?: string; withoutEnlargement?: boolean }
   ): SharpInstance;
   toFormat(format: string, options?: { quality?: number }): SharpInstance;
   flatten(options: { background: string }): SharpInstance;
@@ -205,6 +205,8 @@ export class SharpImageTransformer implements ImageTransformerPort, ImageCodecPo
       if (input.params.width !== undefined || input.params.height !== undefined) {
         pipeline = pipeline.resize(input.params.width, input.params.height, {
           fit: input.params.fit ?? "cover",
+          // Never upscale (B060): enlarging a narrow source only adds blur and bytes.
+          withoutEnlargement: true,
         });
       }
 
