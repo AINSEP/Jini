@@ -90,7 +90,7 @@ test('one failing policy does not stop the next', async () => {
   const result = await runner.runOnce({ dryRun: false });
   assert.deepEqual(statuses(result), ['broken:failed', 'next:swept']);
   assert.deepEqual(recorder.events, ['next:sweep']);
-  assert.deepEqual(errors, [{ message: 'Storage cleanup "broken" failed while cleaning up (Error).', policyId: 'broken' }]);
+  assert.deepEqual(errors, [{ message: 'Storage cleanup "broken" failed while cleaning up.', policyId: 'broken' }]);
   assert.ok(result.status === 'completed' && result.policies[0]!.status === 'failed'
     && result.policies[0]!.message === errors[0]!.message);
 });
@@ -103,7 +103,7 @@ test('a failing measurement is reported in plain words and the pass still comple
   ]);
   const result = await runner.runOnce({ dryRun: true });
   assert.deepEqual(statuses(result), ['m:failed', 'n:measured']);
-  assert.equal(errors[0]!.message, 'Storage cleanup "m" failed while measuring (string).');
+  assert.equal(errors[0]!.message, 'Storage cleanup "m" failed while measuring.');
 });
 
 test('a throwing reportError cannot break the pass', async () => {
@@ -255,7 +255,7 @@ test('onReport receives every finished pass and its own failure is reported, not
   });
   const result = await runner.runOnce({ dryRun: true });
   assert.deepEqual(reports, [result]);
-  assert.deepEqual(errors, [{ message: 'Storage cleanup report could not be delivered (Error).', policyId: undefined }]);
+  assert.deepEqual(errors, [{ message: 'Storage cleanup report could not be delivered.', policyId: undefined }]);
 });
 
 test('kinds outside cache, derived and old-copy are refused at creation', () => {
@@ -371,4 +371,42 @@ test('stop resolves even when the pass in flight failed', async () => {
   const stopping = runner.stop();
   await assert.rejects(live, /no clock/);
   await stopping;
+});
+
+test('outcome text is fixed and safe; the reporter alone receives the raw error as cause', async () => {
+  const recorder: Recorder = { events: [] };
+  const { scheduler } = fakeScheduler();
+  const raw = Object.assign(new TypeError('EACCES /home/owner/secret-token.db'), { code: 'EACCES' });
+  const causes: unknown[] = [];
+  const runner = createRetentionRunner({
+    policies: [policy('p', recorder, { sweep: async () => { throw raw; } })],
+    clock: { now: () => 1 },
+    scheduler,
+    reportError: error => { causes.push(error.cause); },
+  });
+  const result = await runner.runOnce({ dryRun: false });
+  assert.ok(result.status === 'completed' && result.policies[0]!.status === 'failed');
+  assert.equal(result.policies[0]!.message, 'Storage cleanup "p" failed while cleaning up.');
+  assert.deepEqual(causes, [raw]);
+});
+
+test('a throwing reporter is isolated without writing to the console', async () => {
+  const recorder: Recorder = { events: [] };
+  const { scheduler } = fakeScheduler();
+  const written: unknown[] = [];
+  const methods = ['log', 'info', 'warn', 'error', 'debug'] as const;
+  const originals = methods.map(name => console[name]);
+  for (const name of methods) console[name] = (...args: unknown[]) => { written.push(args); };
+  try {
+    const runner = createRetentionRunner({
+      policies: [policy('bad', recorder, { measure: async () => { throw new Error('x'); } }), policy('ok', recorder)],
+      clock: { now: () => 1 },
+      scheduler,
+      reportError: () => { throw new Error('reporter is down'); },
+    }, { onReport: () => { throw new Error('report sink full'); } });
+    assert.deepEqual(statuses(await runner.runOnce({ dryRun: true })), ['bad:failed', 'ok:measured']);
+  } finally {
+    methods.forEach((name, index) => { console[name] = originals[index]!; });
+  }
+  assert.deepEqual(written, []);
 });
