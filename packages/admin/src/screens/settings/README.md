@@ -33,8 +33,9 @@ which imports these by subpath.
 back to `ADMIN_COMMON_I18N`; `createUserInterfaceSettingsPanelTranslator`; `useSettingsLocaleSync`;
 `ExternalMcpSharedChoice` + `useExternalMcpSharedChoice`; `useExternalMcpToolsModalEscape`
 (`ExternalMcpToolsModal.hooks.ts`), `useExternalMcpRemoveConfirm`, `useSettingsActiveTabScroll`;
-`user-interface-settings.css` (`jini-settings-interface-row/-text/-label/-hint`, styled from the host's
-`--space-*`, `--fg`, `--muted` tokens).
+`user-interface-settings.css` (`jini-settings-interface-row/-text/-label/-hint`, styled from
+`--jini-admin-space-3/-4`, `--jini-admin-fg`, `--jini-admin-muted`, `--jini-admin-text-sm`, each falling back to the
+shared `--jini-*` token; a host with its own theme names maps them on the rows).
 
 ```tsx
 const port: ExternalMcpSharedChoicePort = {

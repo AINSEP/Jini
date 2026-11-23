@@ -184,7 +184,12 @@
         "src/react/components/ConfirmDialog",
         "src/react/components/RowMenu",
         "src/react/types.ts",
-        "src/react/kit.tsx"
+        "src/react/kit.tsx",
+        "src/shell/lib/merge-locale-overlays.ts",
+        "src/shell/lib/viewer-time-zone.ts",
+        "src/shell/lib/router.ts",
+        "src/browser/shell-navigation.ts",
+        "src/browser/navigation.ts"
       ],
       "forbidden": {
         "universal": [

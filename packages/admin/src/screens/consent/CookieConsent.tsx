@@ -139,7 +139,7 @@ function ConsentPreviewPane({ page, preview, fit, translation, ui }: {
   const value = page.value;
   if (!value) throw new Error("cookie consent preview has no loaded settings");
   return (
-    <div className="jini-card jini-consent-preview-pane" ref={fit.ref} style={{ "--consent-preview-scale": fit.scale, "--consent-preview-desktop-width": `${ui.previewDesktopWidth}px` } as CSSProperties}>
+    <div className="jini-card jini-consent-preview-pane" ref={fit.ref} style={{ "--jini-admin-consent-preview-scale": fit.scale, "--jini-admin-consent-preview-desktop-width": `${ui.previewDesktopWidth}px` } as CSSProperties}>
       {preview.error && <p className="jini-notice jini-notice-error" role="alert">{preview.error}</p>}
       {/* "My own" and "None" render no Jini banner, so its skipped styles are noise there. */}
       <CssWarnings warnings={preview.warnings} enabled={Boolean(page.editor?.bannerModes) && (value.bannerMode ?? "jini") === "jini"} t={translation.t} />

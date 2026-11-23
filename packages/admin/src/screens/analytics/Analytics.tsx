@@ -1,5 +1,5 @@
 
-import { DataTable } from "../../react/index.js";
+import { DataTable } from "../../react/components/DataTable.js";
 import { adminHref } from "../../shell/lib/router.js";
 import type { AnalyticsController } from "./hooks/use-analytics.hooks.js";
 

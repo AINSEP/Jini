@@ -15,7 +15,7 @@ revision; the live site changes only on Publish.
 - `CookieConsentProps.ui: ConsentScreenUi`: the consent engine's `BannerFields`, `LookFields`,
   `RulesFields`, `PreviewFrame`, `previewDesktopWidth` and `previewScale`.
 - An `<AdminKitProvider>` above the page (kit `TabBar`, kit theme `defaultAdminTheme.light`).
-- The stylesheet `consent-settings.css` (`jini-consent-*` classes, admin tokens only), loaded by the host.
+- The stylesheet `consent-settings.css` (`jini-consent-*` classes, admin tokens only), loaded by the host It reads its paint as `--jini-admin-*` custom properties (`space-1..5`, `border`, `border-strong`, `fg`, `fg-2`, `muted`, `text-xs/sm/base`, `primary`, `focus-ring`, `danger`, `font-ui`, `font-mono`, `r-sm`, `r-md`, `surface`, `surface-2`, `accent-text`), each falling back to the shared `--jini-*` token; a host with its own theme names maps them on the elements the sheet styles.
 - Host CSS for the shared shapes the page renders — `jini-page-header|header-text|kicker|title|description|actions`,
   `jini-card|card-head|card-title|card-lead`, `jini-notice jini-notice-error|warning`, `jini-btn-primary|secondary`,
   `jini-status jini-status-ok|neutral`. The root is `.jini-consent-page`, deliberately NOT `.jini-page`, so a

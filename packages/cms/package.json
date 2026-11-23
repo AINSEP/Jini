@@ -238,7 +238,8 @@
         "src/navigation/href.ts",
         "src/media/cover-image.ts",
         "src/html/site/slug.ts",
-        "src/widgets/date-label.ts"
+        "src/widgets/date-label.ts",
+        "src/admin-http/http/entity-not-live.ts"
       ],
       "entries": {
         "./admin-http/http/redirects": "redirects",
@@ -249,6 +250,11 @@
         "./admin-http/routes/redirects/shared": "redirects",
         "./admin-http/routes/redirects/tombstone": "redirects",
         "./admin-http/routes/redirects/update": "redirects",
+        "./admin-http/routes/seo/deps": "seo",
+        "./admin-http/routes/seo/get-entry": "seo",
+        "./admin-http/routes/seo/get-entry-analyze": "seo",
+        "./admin-http/routes/seo/post-sitemap-regenerate": "seo",
+        "./admin-http/routes/seo/put-entry": "seo",
         "./public-http/routes/site/pages/listing/listing-state": "listing"
       }
     },
