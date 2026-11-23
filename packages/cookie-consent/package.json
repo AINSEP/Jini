@@ -35,7 +35,8 @@
       "./site/validation": "universal",
       "./site/revisions": "universal",
       "./site/privacy-page-template": "universal",
-      "./site/settings": "universal"
+      "./site/settings": "universal",
+      "./site/readiness": "node"
     },
     "optionalPeers": {
       "react": "opt-in: react consent settings; import @jini-ai/cookie-consent/react — React consent settings could not load react. Install react to enable this feature, or check its installed version."
@@ -121,6 +122,11 @@
       "types": "./dist/site/settings.d.ts",
       "import": "./dist/site/settings.js",
       "default": "./dist/site/settings.js"
+    },
+    "./site/readiness": {
+      "types": "./dist/site/readiness.d.ts",
+      "import": "./dist/site/readiness.js",
+      "default": "./dist/site/readiness.js"
     }
   },
   "files": [
@@ -141,7 +147,8 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@jini-ai/core": "workspace:^"
+    "@jini-ai/core": "workspace:^",
+    "parse5": "^7.3.0"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.6.3",
