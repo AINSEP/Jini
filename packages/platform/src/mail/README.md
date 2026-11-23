@@ -28,3 +28,7 @@ activity projection and attempt observer, feedback inbox, retention, and the sit
   `mailSenderIdentity` (its composed sender resolver, with its own refusal copy) and
   `mailTestFallbackSender` (its product-named placeholder From); both are bound in the host's site-mailer
   composition (`operations`). Without them the neutral resolver and a "Site"-named placeholder apply.
+- `feedback-setup.ts` (`readMailFeedbackSetup`, at `@jini-ai/platform/mail/feedback-setup`): the host's
+  route/tool deps bag carries `listCustomCredentials` (its credential-store lister, safe summaries only,
+  handed back its opaque `customCredentialSetRepo`) and `mailWebhookSecretLabels` (its product-prefixed
+  persisted signing-secret labels). Both are bound in the host's route-deps mail composition.

@@ -2095,6 +2095,11 @@
     "value": 1
   },
   {
+    "file": "packages/platform/src/mail/feedback-setup.ts",
+    "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
     "file": "packages/platform/src/mail/resolve-mailer.ts",
     "rule": "catch-reads-error",
     "value": 7

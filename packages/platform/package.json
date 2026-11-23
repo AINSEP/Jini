@@ -31,6 +31,7 @@
       "./mail/email-template-agent-tools": "universal",
       "./mail/smtp": "node",
       "./mail/test-send": "node",
+      "./mail/feedback-setup": "node",
       "./mail/sql": "node",
       "./fs/guarded-reader": "node",
       "./fs/durable-json": "node",
@@ -171,6 +172,11 @@
       "types": "./dist/mail/test-send.d.ts",
       "import": "./dist/mail/test-send.js",
       "default": "./dist/mail/test-send.js"
+    },
+    "./mail/feedback-setup": {
+      "types": "./dist/mail/feedback-setup.d.ts",
+      "import": "./dist/mail/feedback-setup.js",
+      "default": "./dist/mail/feedback-setup.js"
     },
     "./mail/sql": {
       "types": "./dist/mail/sql/index.d.ts",
