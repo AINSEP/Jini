@@ -346,6 +346,33 @@ Architecture: [extraction-plan.md](../../ADS-memory/reports/jini-port/extraction
 
 File logging uses core `Logger`; `error` in the optional bag is normalized into the JSON metadata alongside `meta`, consistently across all three levels.
 
+### Wiring: standalone app window and dock icon
+
+- **Needs injected:** for `createAppWindow` — the `url`, window `title`, `preloadPath` and an optional
+  `partition`, plus `AppWindowPorts` (`createBrowserWindow`, `installNavigationPolicy`) and an optional
+  self-test `trackWindow`; for `applyDockIcon` — `app.dock` (`DockIconPort`, `undefined` off macOS),
+  the icon path and a `reportFailure({ reason })` reporter.
+- **Provides:** `appWindowOptions` (sandboxed, isolated, preload-bearing options; per-site partition
+  only when given) and `createAppWindow` (create, track, pin the title, install the boundary on the
+  URL's parsed origin, then load — that order is tested), and best-effort `applyDockIcon`.
+- **Stays with the host:** the default title, icon asset, failure log copy and which navigation policy
+  to install (normally `installAppWindowNavigationPolicy` from `./electron/navigation-policy`).
+- **Never imports:** `electron`, other `@jini-ai/*` implementations, `console` or a logger.
+
+```ts
+import { createAppWindow, applyDockIcon } from '@jini-ai/desktop-host/electron/windows';
+import { installAppWindowNavigationPolicy } from '@jini-ai/desktop-host/electron/navigation-policy';
+
+const win = createAppWindow({ url, title: siteName ?? APP_TITLE, preloadPath: PRELOAD, ports: {
+  createBrowserWindow: (options) => new BrowserWindow(options),
+  installNavigationPolicy: ({ contents, appOrigin }) =>
+    installAppWindowNavigationPolicy({ contents, appOrigin, openExternal: ({ url }) => void shell.openExternal(url) }),
+} }, { partition, selftest, trackWindow: tracker?.add });
+applyDockIcon({ dock: app.dock, iconPath: ICON, reportFailure: ({ reason }) => log.warn(`dock icon: ${reason}`) });
+```
+
+Architecture: [extraction-plan.md](../../ADS-memory/reports/jini-port/extraction-plan.md).
+
 ## Native speech runtime asset
 
 `@jini-ai/desktop-host/speech/macos/speech-helper.swift` exports the Swift source used by the macOS speech adapter. The build copies it into `dist/speech/macos`; desktop hosts bundle or compile that source on macOS alongside the adapter. It is a required runtime asset, not a TypeScript entry.

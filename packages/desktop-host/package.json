@@ -41,7 +41,8 @@
       "./electron/handoff": "desktop",
       "./electron/preload": "desktop",
       "./electron/webview": "desktop",
-      "./electron/session-bootstrap": "desktop"
+      "./electron/session-bootstrap": "desktop",
+      "./electron/windows": "desktop"
     },
     "isolation": {
       "entries": {
@@ -198,6 +199,12 @@
       "types": "./dist/electron/session-bootstrap/index.d.ts",
       "import": "./dist/electron/session-bootstrap/index.js",
       "default": "./dist/electron/session-bootstrap/index.js"
+    }
+,
+    "./electron/windows": {
+      "types": "./dist/electron/windows/index.d.ts",
+      "import": "./dist/electron/windows/index.js",
+      "default": "./dist/electron/windows/index.js"
     }
   },
   "files": [
