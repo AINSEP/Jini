@@ -208,7 +208,12 @@
       "./seo/site/capability-card": "universal",
       "./seo/site/settings": "universal",
       "./seo/site/tool-registrations": "universal",
-      "./settings/site/ui-locales-tool": "universal"
+      "./settings/site/ui-locales-tool": "universal",
+      "./settings/site/site-title-write": "universal",
+      "./settings/site/form-delivery-write": "universal",
+      "./settings/site/mail-provider": "universal",
+      "./settings/site/tool-deps": "universal",
+      "./settings/site/chat-execution-write": "universal"
     },
     "isolation": {
       "domains": {
@@ -1309,6 +1314,31 @@
       "types": "./dist/settings/site/ui-locales-tool.d.ts",
       "import": "./dist/settings/site/ui-locales-tool.js",
       "default": "./dist/settings/site/ui-locales-tool.js"
+    },
+    "./settings/site/site-title-write": {
+      "types": "./dist/settings/site/site-title-write.d.ts",
+      "import": "./dist/settings/site/site-title-write.js",
+      "default": "./dist/settings/site/site-title-write.js"
+    },
+    "./settings/site/form-delivery-write": {
+      "types": "./dist/settings/site/form-delivery-write.d.ts",
+      "import": "./dist/settings/site/form-delivery-write.js",
+      "default": "./dist/settings/site/form-delivery-write.js"
+    },
+    "./settings/site/mail-provider": {
+      "types": "./dist/settings/site/mail-provider.d.ts",
+      "import": "./dist/settings/site/mail-provider.js",
+      "default": "./dist/settings/site/mail-provider.js"
+    },
+    "./settings/site/tool-deps": {
+      "types": "./dist/settings/site/tool-deps.d.ts",
+      "import": "./dist/settings/site/tool-deps.js",
+      "default": "./dist/settings/site/tool-deps.js"
+    },
+    "./settings/site/chat-execution-write": {
+      "types": "./dist/settings/site/chat-execution-write.d.ts",
+      "import": "./dist/settings/site/chat-execution-write.js",
+      "default": "./dist/settings/site/chat-execution-write.js"
     }
   },
   "files": [

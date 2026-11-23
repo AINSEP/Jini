@@ -1,7 +1,8 @@
 # settings/site
 
 Site-level settings helpers a host composes into its own settings feature: admin-interface keys,
-chart provider, form delivery bindings and destinations, mail sender, site time zone, site title, and the
+chart provider, form delivery bindings and destinations, mail sender and provider, site time zone, site title
+and its write chokepoint, chat execution selection writes, and the
 read-only admin-language discovery tool (`ui-locales-tool.ts`).
 
 ## Wiring
@@ -60,6 +61,34 @@ await ensureSiteTitleSettingDefinition({ ...settingsDeps, ensureSettingDefinitio
 await preserveLegacySiteTitles({ ...settingsDeps, preservationStore, set, resolveDefinitionRaw }, { systemPrincipalId, legacySiteTitle: HOST_LEGACY_TITLE });
 const title = await resolveSiteTitle({ settingsRepo, preservationStore, workspaceRepo, siteDisplayName, getEffective, legacySiteTitle: HOST_LEGACY_TITLE }, { workspaceId });
 ```
+
+**Needs injected** (`site-title-write.ts`, the settings write chokepoint, and the writers that go
+through it — `form-delivery-write.ts`, `mail-provider.ts`): the host's write policy as a required
+`writePolicies: SiteSettingsWritePolicies` field on the existing required args of `set`, `clear`,
+`resetNamespace`, `refuseDedicatedSettingClear`/`Reset`, `writeFormDeliveryBindings` and
+`writeMailProviderSetting`. `writePolicies.dedicatedWriters` lists the host's own dedicated
+writers (coordinates, permission override, refusal reason, optional `normalize` hook); the package
+always checks its comments-provider writer first. Bind the policy once where the host builds its
+`set`, and hand the resulting `SiteSettingsSetFn` to `SettingsToolDeps.set`.
+
+**Needs injected** (`chat-execution-write.ts`, `tool-deps.ts`): `prepareChatExecutionWrite` takes the
+agent runtime's `validateRuntimeSelection` (`ValidateRuntimeSelectionPort`) on its args object, and
+reads the host's live picker through `deps.assistantAgentInventory` (`ChatAgentInventoryPort`, a
+structural slice; `SettingsToolDeps<TInventory>` keeps the host's full inventory type).
+
+```ts
+import { set as setWithPolicies, type SiteSettingsSetFn, type SiteSettingsWritePolicies } from "@jini-ai/cms/settings/site/site-title-write";
+
+const writePolicies: SiteSettingsWritePolicies = { dedicatedWriters: [HOST_VISITOR_TOOLS_WRITER] };
+export const set: SiteSettingsSetFn = (required, optional = {}) => setWithPolicies({ ...required, writePolicies }, optional);
+await writeMailProviderSetting({ deps, writePolicies, workspaceId, callerPrincipalId, value });
+await prepareChatExecutionWrite({ deps, request, validateRuntimeSelection });
+```
+
+**Provides**: `set`/`clear`/`resetNamespace` (chokepoint), `dedicatedSettingsWriters`,
+`COMMENTS_PROVIDER_*`, `writeFormDeliveryBindings`/`guardedBindingsRepo`, the `core.mail.provider` /
+`testMode` registrar, readers and writer, `prepareChatExecutionWrite`/`CHAT_EXECUTION_KEYS`, and the
+`SettingsToolDeps` type.
 
 See [`DR-005`](../../../../../docs/decisions/DR-005-portable-package-boundaries.md) for the boundary rule.
 
