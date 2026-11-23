@@ -178,6 +178,13 @@ create stay id-free. The host injects what is its policy, not the engine's: `raw
 `normalizeMenuHtml` from `@jini-ai/cms/navigation/node`) and `trashMenu` (the host's trash move).
 Malformed bodies are refused in `parse` with the host's code-less `{ error }` body.
 
+SEO (`src/admin-http/routes/seo/*`): get-entry, get-entry-analyze and put-entry authorize
+`admin.seo.manage` on `seo-entry` with `{ entityId }`; get/put-settings (`seo-settings`) and
+sitemap regenerate (`seo-sitemap`) stay id-free. Every spec first awaits the injected `seoReady`.
+The host injects its settings ledger (`readSeoSettings`, `writeSeoSettings`), the sitemap service,
+`invalidateSitemapCache` and `entryAuthorize` (the authorizer `setEntrySeoOverrides` re-checks with).
+The entry specs import `seo/cover-image`, so their entries are `node`.
+
 ## Scripts
 
 ```bash

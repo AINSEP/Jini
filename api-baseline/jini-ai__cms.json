@@ -241,6 +241,52 @@
    "redirectUpdateRoute": "variable:0d3eb9b724"
   }
  },
+ "./admin-http/routes/seo/get-entry": {
+  "types": "./dist/admin-http/routes/seo/get-entry.d.ts",
+  "symbols": {
+   "SeoEntryMetaEnvelope": "interface:eff3032332",
+   "SeoGetEntryRouteDeps": "interface:cdd72275af",
+   "seoGetEntryRoute": "variable:a29f26120c"
+  }
+ },
+ "./admin-http/routes/seo/get-entry-analyze": {
+  "types": "./dist/admin-http/routes/seo/get-entry-analyze.d.ts",
+  "symbols": {
+   "SeoGetEntryAnalyzeRouteDeps": "interface:7196d3de21",
+   "seoGetEntryAnalyzeRoute": "variable:33f667e43a"
+  }
+ },
+ "./admin-http/routes/seo/get-settings": {
+  "types": "./dist/admin-http/routes/seo/get-settings.d.ts",
+  "symbols": {
+   "SeoGetSettingsRouteDeps": "interface:a4779b3ed9",
+   "SeoSettingsReadFn": "type:ef541f33ce",
+   "seoGetSettingsRoute": "variable:636c53b76c"
+  }
+ },
+ "./admin-http/routes/seo/post-sitemap-regenerate": {
+  "types": "./dist/admin-http/routes/seo/post-sitemap-regenerate.d.ts",
+  "symbols": {
+   "SeoPostSitemapRegenerateRouteDeps": "interface:844f659998",
+   "seoPostSitemapRegenerateRoute": "variable:4015f68588"
+  }
+ },
+ "./admin-http/routes/seo/put-entry": {
+  "types": "./dist/admin-http/routes/seo/put-entry.d.ts",
+  "symbols": {
+   "SeoPutEntryInput": "interface:a6920fc15d",
+   "SeoPutEntryRouteDeps": "interface:919c39c649",
+   "seoPutEntryRoute": "variable:6e9c3cb5be"
+  }
+ },
+ "./admin-http/routes/seo/put-settings": {
+  "types": "./dist/admin-http/routes/seo/put-settings.d.ts",
+  "symbols": {
+   "SeoPutSettingsRouteDeps": "interface:a24974fdb5",
+   "SeoSettingsWriteFn": "type:a491ff8803",
+   "seoPutSettingsRoute": "variable:6e77debd96"
+  }
+ },
  "./admin-http/routes/settings/preview-feed-access": {
   "types": "./dist/admin-http/routes/settings/preview-feed-access.d.ts",
   "symbols": {
