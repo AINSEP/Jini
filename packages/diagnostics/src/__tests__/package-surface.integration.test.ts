@@ -8,6 +8,7 @@ import * as observabilityNode from "../observability/node.js";
 import * as evidence from "../web-evidence/index.js";
 import * as browser from "../web-evidence/playwright-browser.js";
 import * as dns from "../domain-dns/index.js";
+import * as serverLogs from "../server-logs/read-server-logs.js";
 
 vi.mock("parse5", () => {
   throw new Error("The existing diagnostics entries must not load the page-body parser leaf.");
@@ -26,6 +27,7 @@ const entries = {
   "./domain-dns": ["domain-dns/index", "node"],
   "./local-text": ["local-text", "node"],
   "./console-tee": ["console-tee", "node"],
+  "./server-logs/read-server-logs": ["server-logs/read-server-logs", "universal"],
 } as const;
 
 describe("published diagnostics surface", () => {
@@ -55,6 +57,7 @@ describe("published diagnostics surface", () => {
       [evidence, ["collectPageEvidence", "collectPageStructure", "normalizeSitePath", "verifiedOriginToBaseUrl", "resolveSameOriginUrl", "isSameOriginUrl"]],
       [browser, ["openPlaywrightSiteEvidenceBrowser"]],
       [dns, ["readPublicDomain", "readPublicDnsName", "createDomainDnsChecks"]],
+      [serverLogs, ["parseServerLogFilters", "readServerLogs", "ServerLogFilterError"]],
     ] as const;
     for (const [surface, names] of surfaces) {
       for (const name of names) expect(typeof (surface as Record<string, unknown>)[name], name).toBe("function");

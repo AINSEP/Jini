@@ -24,7 +24,8 @@
       "./web-evidence/capture-clock": "universal",
       "./domain-dns": "node",
       "./local-text": "node",
-      "./console-tee": "node"
+      "./console-tee": "node",
+      "./server-logs/read-server-logs": "universal"
     },
     "runtime": "node",
     "optionalPeers": {
@@ -100,6 +101,11 @@
       "types": "./dist/console-tee.d.ts",
       "import": "./dist/console-tee.js",
       "default": "./dist/console-tee.js"
+    },
+    "./server-logs/read-server-logs": {
+      "types": "./dist/server-logs/read-server-logs.d.ts",
+      "import": "./dist/server-logs/read-server-logs.js",
+      "default": "./dist/server-logs/read-server-logs.js"
     }
   },
   "files": [
