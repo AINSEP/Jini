@@ -137,9 +137,7 @@
       "./admin-http/http/entity-not-live": "universal",
       "./admin-http/routes/assistant/execution-request-fields": "universal",
       "./admin-http/routes/settings/preview-feed-access": "universal",
-      "./admin-http/sea-runtime": "universal",
-      "./admin-http/admin-dev-proxy": "universal",
-      "./admin-http/admin-static": "universal",
+      "./admin-http/sea-runtime": "node",
       "./public-http/http/site/render/media-playback-copy": "universal",
       "./public-http/http/site/render/value-readers": "universal",
       "./public-http/routes/site/pages/listing/listing-state": "universal"
@@ -864,16 +862,6 @@
       "types": "./dist/admin-http/sea-runtime.d.ts",
       "import": "./dist/admin-http/sea-runtime.js",
       "default": "./dist/admin-http/sea-runtime.js"
-    },
-    "./admin-http/admin-dev-proxy": {
-      "types": "./dist/admin-http/admin-dev-proxy.d.ts",
-      "import": "./dist/admin-http/admin-dev-proxy.js",
-      "default": "./dist/admin-http/admin-dev-proxy.js"
-    },
-    "./admin-http/admin-static": {
-      "types": "./dist/admin-http/admin-static.d.ts",
-      "import": "./dist/admin-http/admin-static.js",
-      "default": "./dist/admin-http/admin-static.js"
     },
     "./public-http/http/site/render/media-playback-copy": {
       "types": "./dist/public-http/http/site/render/media-playback-copy.d.ts",
