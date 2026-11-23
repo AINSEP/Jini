@@ -36,6 +36,8 @@ export function defineJsonRoute<Input, Output, Deps, Context = undefined>(requir
  */
 export function mountJsonRoute<Input, Output, Deps, Context = undefined>({ app, spec, deps, adapter }: { readonly app: Express; readonly spec: JsonRouteSpec<Input, Output, Deps, Context>; readonly deps: Deps; readonly adapter?: RouteHostContext }, _optional: Record<string, never> = {}
 ): void {
+  // Read once at mount: the per-request callback stays within the complexity budget.
+  const onReturnedError = spec.ports?.onReturnedError;
   app[spec.method](spec.path, async (req: Request, res: Response) => {
     // The client-disconnect signal a `handle` can opt into via optional arguments. Observed on `res`,
     // not `req` — `sse.ts` already established why for this exact "detect a disconnect before
@@ -62,7 +64,7 @@ export function mountJsonRoute<Input, Output, Deps, Context = undefined>({ app, 
       if (spec.ports?.authenticate) context = await spec.ports.authenticate({ raw, res, deps });
       const parsed = spec.parse(raw);
       if (!parsed.ok) {
-        sendReturnedFailure({ res, onReturnedError: spec.ports?.onReturnedError, error: parsed.error, phase: 'parse' });
+        sendReturnedFailure({ res, onReturnedError, error: parsed.error, phase: 'parse' });
         return;
       }
       // The route chooses where authorization occurs: reads may authorize before validation,
@@ -72,7 +74,7 @@ export function mountJsonRoute<Input, Output, Deps, Context = undefined>({ app, 
         await spec.ports.authorize({ context, deps, permission, entityType });
       };
       const result = await spec.handle({ input: parsed.value, deps, context, authorize }, { signal: abortController.signal });
-      sendRouteResult({ res, result, spec: { successStatus: spec.successStatus, onReturnedError: spec.ports?.onReturnedError }, signal: abortController.signal });
+      sendRouteResult({ res, result, spec: { successStatus: spec.successStatus, onReturnedError }, signal: abortController.signal });
     } catch (e) {
       sendRouteException({ res, spec, adapter, error: e });
     } finally {
