@@ -195,7 +195,8 @@
       "./screens/import-export/hooks/git-backup-port.hooks": "universal",
       "./screens/import-export/hooks/use-git-backup.hooks": "browser",
       "./screens/import-export/hooks/use-import-export.hooks": "browser",
-      "./publish-content/screen/hooks/publish-availability.store": "browser"
+      "./publish-content/screen/hooks/publish-availability.store": "browser",
+      "./deployment/deployment-i18n": "browser"
     },
     "isolation": {
       "shared": [
@@ -1191,6 +1192,11 @@
       "types": "./dist/publish-content/screen/hooks/publish-availability.store.d.ts",
       "import": "./dist/publish-content/screen/hooks/publish-availability.store.js",
       "default": "./dist/publish-content/screen/hooks/publish-availability.store.js"
+    },
+    "./deployment/deployment-i18n": {
+      "types": "./dist/deployment/deployment-i18n.d.ts",
+      "import": "./dist/deployment/deployment-i18n.js",
+      "default": "./dist/deployment/deployment-i18n.js"
     }
   },
   "files": [
