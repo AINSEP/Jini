@@ -17,7 +17,7 @@ export type EntryLifecycleOutput = OkValue<Awaited<ReturnType<(typeof ENTRY_LIFE
  * REQ-28). Gated by `admin.collections.manage`.
  *
  * ADR-042 closed-union-dispatch: `op` is narrowed to `EntryLifecycleOp` before lookup —
- * mirrors the content-types lifecycle route's identical shape.
+ * mirrors `../content-types/lifecycle.ts`'s identical shape.
  */
 export const entryLifecycleRoute = defineJsonRoute<EntryLifecycleInput, EntryLifecycleOutput, EntryLifecycleRouteDeps, CollectionsRoutePrincipal>({
   method: "post",

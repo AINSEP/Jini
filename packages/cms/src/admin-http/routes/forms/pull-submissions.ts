@@ -35,7 +35,7 @@ function parseTargetId({ body }: { body: unknown }, _optional = {}): { ok: true;
   return typeof raw === "string" && raw.length > 0 && raw.length <= 64 ? { ok: true, targetId: raw } : { ok: false };
 }
 
-/** Keep pull failures correlated with the server log, apart from the route's outer fallback. */
+/** Keep pull failures correlated with the server log, inside the route's outer fallback. */
 async function pullReport(
   { pull, workspaceId, targetId }: { pull: FormSubmissionsPullPort; workspaceId: string; targetId?: string | undefined },
   _options = {},

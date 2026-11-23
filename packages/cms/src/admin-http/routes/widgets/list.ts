@@ -22,7 +22,7 @@ export interface WidgetListResponse { widgets: WidgetInstanceEntry[]; skippedCou
 /**
  * GET the widget instance library (SPEC-043 REQ-04), `widgets.read`-gated. Defaults to
  * `active`-only (`?includeInactive=true` to also list `trash`/`purged`), narrowable by
- * `?widgetType=`.
+ * `?widgetType=`. Mirrors `../menus/list.ts`'s registration shape.
  *
  * Response body carries optional `skippedCount` and `skippedIds` fields (dossier C5 follow-up,
  * 2026-08-03) — present only when `listWidgetInstances` dropped malformed records, so a client

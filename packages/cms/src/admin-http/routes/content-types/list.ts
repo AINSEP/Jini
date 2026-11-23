@@ -13,7 +13,7 @@ export interface ContentTypeListRouteDeps {
  * design-spec.md §1.9 — `GET /api/admin/v1/content-types` (Collections' content-type
  * registry list, ADR-022/ADR-043). Gated by `admin.collections.read` (ADR-043 §permissions).
  *
- * Same shape as the database timeline route: authenticated principal ->
+ * Follows `../database/timeline.ts`'s exact shape: authenticated principal ->
  * authorize -> 403 on denial -> call the domain read function -> the list.
  */
 export const contentTypeListRoute = defineJsonRoute<Record<string, never>, { items: ContentTypeRecord[] }, ContentTypeListRouteDeps, CollectionsRoutePrincipal>({
