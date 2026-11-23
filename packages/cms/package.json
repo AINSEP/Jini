@@ -218,7 +218,8 @@
       "./settings/site/visitor-tools-write": "universal",
       "./settings/site/visitor-tools-configure": "universal",
       "./settings/site/visitor-tools-service": "universal",
-      "./settings/site/visitor-tools-registrations": "universal"
+      "./settings/site/visitor-tools-registrations": "universal",
+      "./settings/site/publish-content": "universal"
     },
     "isolation": {
       "domains": {
@@ -1369,6 +1370,11 @@
       "types": "./dist/settings/site/visitor-tools-registrations.d.ts",
       "import": "./dist/settings/site/visitor-tools-registrations.js",
       "default": "./dist/settings/site/visitor-tools-registrations.js"
+    },
+    "./settings/site/publish-content": {
+      "types": "./dist/settings/site/publish-content.d.ts",
+      "import": "./dist/settings/site/publish-content.js",
+      "default": "./dist/settings/site/publish-content.js"
     }
   },
   "files": [
