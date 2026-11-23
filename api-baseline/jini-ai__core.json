@@ -1160,6 +1160,19 @@
    "ToolResultMediaBlock": "type:f9cd93b194"
   }
  },
+ "./contracts/site/cms-assistant": {
+  "types": "./dist/contracts/site/cms-assistant.d.ts",
+  "symbols": {
+   "AssistantAgentModelDto": "interface:0c56702d72",
+   "AssistantDetectAgentsResponseDto": "interface:cdc3dc36d7",
+   "AssistantDetectedAgentRowDto": "type:f40b121a9a",
+   "AssistantExecutionTabAgentDto": "interface:622e77e805",
+   "AssistantIdLabelDto": "interface:9c69c1aff1",
+   "AssistantListModelsResponseDto": "interface:629c980d63",
+   "AssistantProbeVerdictDto": "interface:4693d29bc2",
+   "AssistantSettingsEnvelopeDto": "interface:5b501a337a"
+  }
+ },
  "./contracts/site/cms-forms": {
   "types": "./dist/contracts/site/cms-forms.d.ts",
   "symbols": {
@@ -1175,6 +1188,18 @@
    "FormReceiverPlan": "interface:0527f3d6a1",
    "FormReceiverPort": "interface:d7c2ce6e73",
    "FormSubmissionsInspection": "interface:cff10dc902"
+  }
+ },
+ "./contracts/site/cms-media": {
+  "types": "./dist/contracts/site/cms-media.d.ts",
+  "symbols": {
+   "AdminMediaDto": "interface:528dd7f2cb",
+   "AdminMediaEnvelope": "interface:fd5dd0c345",
+   "AdminMediaKind": "type:e5f5c298f7",
+   "AdminMediaListEnvelope": "interface:f4673d2b6e",
+   "AdminMediaProviderMarkers": "type:fb1530d948",
+   "AdminMediaPurgeEnvelope": "interface:f341c9883e",
+   "AdminMediaStatus": "type:fc7dfac77d"
   }
  },
  "./contracts/site/cms-menus": {
@@ -1196,6 +1221,15 @@
    "AdminMenuTermTargetDto": "interface:92e299b2c5",
    "AdminMenuUrlTargetDto": "interface:6895186605",
    "AdminTrashMenuEnvelope": "interface:7f1face6df"
+  }
+ },
+ "./contracts/site/cms-seo": {
+  "types": "./dist/contracts/site/cms-seo.d.ts",
+  "symbols": {
+   "AdminSeoRobotsRuleDto": "interface:fa73fc6ee3",
+   "AdminSeoSettingsDto": "interface:f7be571c3e",
+   "AdminSeoSettingsEnvelope": "interface:3ef7297579",
+   "AdminSeoSitemapRegenerateEnvelope": "interface:d30fbdbda6"
   }
  },
  "./contracts/site/cookie-consent": {

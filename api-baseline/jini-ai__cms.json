@@ -31,11 +31,8 @@
  "./admin-http/http/media": {
   "types": "./dist/admin-http/http/media.d.ts",
   "symbols": {
-   "AdminMediaEnvelope": "interface:4a8daf7436",
-   "AdminMediaListEnvelope": "interface:638550892c",
-   "AdminMediaResponse": "interface:7263a28d9f",
    "toAdminMediaListResponse": "function:008acc8508",
-   "toAdminMediaResponse": "function:3ef0499078"
+   "toAdminMediaResponse": "function:b07416673a"
   }
  },
  "./admin-http/http/menus": {
@@ -95,9 +92,8 @@
    "AssistantDetectAgentsRouteDeps": "interface:ca275bb09e",
    "DetectAgentsFn": "type:84e3f037ba",
    "ExecutionDetectionSnapshot": "interface:e449e4b214",
-   "ExecutionTabAgent": "interface:bc55d08a64",
-   "assistantDetectAgentsRoute": "variable:0e3c3c7766",
-   "toExecutionTabAgent": "function:29dea98cbb"
+   "assistantDetectAgentsRoute": "variable:32f8c7ff16",
+   "toExecutionTabAgent": "function:8fac792a84"
   }
  },
  "./admin-http/routes/assistant/execution-request-fields": {
@@ -120,13 +116,12 @@
    "ProbeCredentialResolution": "type:b6334f1352",
    "ProbeRequestFields": "interface:0361a17894",
    "ResolveProbeCredentialFn": "type:1cdefd2c88",
-   "TestAgentOutcome": "type:b49acef635",
    "authorizeAssistantExecution": "function:d2db3ab599",
    "executionActorId": "function:8d996970c4",
    "probeCredentialRequest": "function:cb1821053d",
-   "readProbeRequestFields": "function:96c6c2b208",
+   "readProbeRequestFields": "function:976ff43992",
    "resolveProbeCredentialOrReject": "function:fccb33aad8",
-   "resolveTestAgentOutcome": "function:6c56c8cdf0",
+   "resolveTestAgentOutcome": "function:a0fcd73fa0",
    "supportedProtocolOrReject": "function:b5c812abf5"
   }
  },
@@ -142,9 +137,8 @@
   "types": "./dist/admin-http/routes/assistant/get-settings.d.ts",
   "symbols": {
    "AssistantGetSettingsRouteDeps": "interface:acb7468c14",
-   "AssistantSettingsEnvelope": "interface:4ea7d6498a",
    "AssistantSettingsReadFn": "type:a0b38397ef",
-   "assistantGetSettingsRoute": "variable:84b80b88c1"
+   "assistantGetSettingsRoute": "variable:209e553b42"
   }
  },
  "./admin-http/routes/assistant/get-site-credential": {
@@ -161,8 +155,7 @@
    "AssistantListModelsRouteDeps": "interface:92d0bbadbf",
    "ListModelsFn": "type:8cf82aeded",
    "ListModelsProbeResult": "interface:9815963d99",
-   "ListModelsResponse": "interface:56716ecf9d",
-   "assistantListModelsRoute": "variable:21b64543bb"
+   "assistantListModelsRoute": "variable:1bd2e3aa5b"
   }
  },
  "./admin-http/routes/assistant/put-execution-credential": {
@@ -200,7 +193,7 @@
    "AssistantErrorMapping": "interface:0975256e0d",
    "AssistantRoutePrincipal": "interface:cdafbadacd",
    "assistantActorId": "function:a172d99e40",
-   "assistantBody": "function:c0af182a22",
+   "assistantBody": "function:de53c5d971",
    "authorizeAssistant": "function:71e3ccdb4c",
    "rejectAssistantError": "function:001fcb42f3"
   }
@@ -210,7 +203,7 @@
   "symbols": {
    "AssistantTestAgentRouteDeps": "interface:4af75941e1",
    "TestAgentFn": "type:bbaa67d295",
-   "assistantTestAgentRoute": "variable:f3d2e0eabd"
+   "assistantTestAgentRoute": "variable:fd62093a75"
   }
  },
  "./admin-http/routes/assistant/test-connection": {
@@ -220,7 +213,7 @@
    "ConnectionProbeResult": "interface:e7a3c57b33",
    "TestConnectionFn": "type:8b8124f56e",
    "TestConnectionInput": "type:12ec44080e",
-   "assistantTestConnectionRoute": "variable:5be8eab436"
+   "assistantTestConnectionRoute": "variable:423f936a2f"
   }
  },
  "./admin-http/routes/assistant/visitor-tools": {
@@ -273,24 +266,23 @@
    "MediaDeleteRouteDeps": "interface:be0cb4a26c",
    "MediaForgetRemovedFn": "type:81dda998c0",
    "MediaPurgeFn": "type:73f0c3dac3",
-   "mediaDeleteRoute": "variable:8c932458e1"
+   "mediaDeleteRoute": "variable:f2d93d88cd"
   }
  },
  "./admin-http/routes/media/get-providers": {
   "types": "./dist/admin-http/routes/media/get-providers.d.ts",
   "symbols": {
    "MediaGetProvidersRouteDeps": "interface:d6eb9faa56",
-   "MediaProviderMarkers": "type:d54a6274ec",
-   "MediaProvidersGetFn": "type:8dfd96c6da",
-   "mediaGetProvidersRoute": "variable:5608b5e7ae"
+   "MediaProvidersGetFn": "type:16b02458ff",
+   "mediaGetProvidersRoute": "variable:5dd7e05f11"
   }
  },
  "./admin-http/routes/media/put-providers": {
   "types": "./dist/admin-http/routes/media/put-providers.d.ts",
   "symbols": {
-   "MediaProvidersSaveFn": "type:def6a69050",
+   "MediaProvidersSaveFn": "type:cfdd90db0c",
    "MediaPutProvidersRouteDeps": "interface:cc58c9018a",
-   "mediaPutProvidersRoute": "variable:a37691a955"
+   "mediaPutProvidersRoute": "variable:1dc74cff14"
   }
  },
  "./admin-http/routes/media/shared": {
@@ -304,9 +296,9 @@
    "MediaErrorMapping": "interface:ffef0196fd",
    "MediaRoutePrincipal": "interface:98ced43710",
    "authorizeMedia": "function:8eec41c48a",
-   "describeMediaAsset": "function:89b6498e9a",
+   "describeMediaAsset": "function:16202ac96e",
    "mediaActorId": "function:45258bdf92",
-   "mediaIdParam": "function:0abf698463",
+   "mediaIdParam": "function:b265d30368",
    "rejectMediaError": "function:da08a8e04a"
   }
  },
@@ -472,14 +464,14 @@
   "symbols": {
    "SeoGetSettingsRouteDeps": "interface:a4779b3ed9",
    "SeoSettingsReadFn": "type:ef541f33ce",
-   "seoGetSettingsRoute": "variable:636c53b76c"
+   "seoGetSettingsRoute": "variable:f8792189ff"
   }
  },
  "./admin-http/routes/seo/post-sitemap-regenerate": {
   "types": "./dist/admin-http/routes/seo/post-sitemap-regenerate.d.ts",
   "symbols": {
    "SeoPostSitemapRegenerateRouteDeps": "interface:844f659998",
-   "seoPostSitemapRegenerateRoute": "variable:4015f68588"
+   "seoPostSitemapRegenerateRoute": "variable:074875f602"
   }
  },
  "./admin-http/routes/seo/put-entry": {
@@ -495,7 +487,7 @@
   "symbols": {
    "SeoPutSettingsRouteDeps": "interface:a24974fdb5",
    "SeoSettingsWriteFn": "type:a491ff8803",
-   "seoPutSettingsRoute": "variable:6e77debd96"
+   "seoPutSettingsRoute": "variable:a6e37a579c"
   }
  },
  "./admin-http/routes/settings/preview-feed-access": {
