@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { ChatTransport, RunHandlers } from '../../../core/transport.js';
-import type { AgentEvent } from '../../../core/events.js';
 import { createVanillaChatController } from '../state.js';
+import type { AgentEvent } from "@jini-ai/core/contracts/site/chat-core";
 
 function controllerWith({ startRun, blockedPaths }: { startRun?: ChatTransport['startRun']; blockedPaths: Set<string> }) {
   let handlers: RunHandlers | null = null;

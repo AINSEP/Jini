@@ -3,9 +3,9 @@ import type { Clock } from '@jini-ai/core/primitives';
 
 import type { ChatMessage } from '../../core/messages.js';
 import { isTerminalRunStatus } from '../../core/messages.js';
-import type { AgentEvent } from '../../core/events.js';
 import { readSseFrames, runContentFromEvents, runEventsForSave, runInterruptedNotice, translateRunFrame, type RunNotices } from '../../core/run-events/entry.js';
 import type { RunDaemonClient, RunLedger, Scheduler, RunIdClassifier, RunSettlement } from './ports.js';
+import type { AgentEvent } from "@jini-ai/core/contracts/site/chat-core";
 export type { RunDaemonClient, RunLedger, Scheduler, RunIdClassifier, RunRef, RunProgress, RunSettlement } from './ports.js';
 
 /** All infrastructure and host messages are explicit; this factory opens no storage. */

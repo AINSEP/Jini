@@ -1,7 +1,7 @@
 import { acceptedInputsFromMessages, acceptedInputUserEvent, projectAcceptedInputEvents } from '../accepted-input.js';
-import type { AgentEvent } from '../events.js';
 import { describe, expect, it } from 'vitest';
 import { composerHistoryKeyAction, createComposerHistoryState, mergeComposerHistory, normalizeComposerHistory, transitionComposerHistory, type ComposerHistoryState } from '../composer-history.js';
+import type { AgentEvent } from "@jini-ai/core/contracts/site/chat-core";
 
 const entries = ['old\nmultiline', 'latest'];
 function move(state: ComposerHistoryState, action: 'previous' | 'next' | 'restore' | 'edit' | 'reset', text: string) {
@@ -121,7 +121,6 @@ describe('caret-line gating', () => {
   });
 });
 
-
 describe('accepted input projection for recall and bubbles', () => {
   it('replaces an optimistic typed answer with its saved result exactly once in either arrival order', () => {
     const optimistic = acceptedInputUserEvent({ input: { id: 'answer:ask', text: 'typed answer' }, toolUseId: 'ask' });
@@ -170,7 +169,6 @@ describe('accepted input projection for recall and bubbles', () => {
   });
 });
 
-
 it('reconciles several accepted steers whose wire receipts arrive together later', () => {
   const first = acceptedInputUserEvent({ input: { id: 'local-first', text: 'again' } });
   const second = acceptedInputUserEvent({ input: { id: 'local-second', text: 'again' }, afterInputId: 'local-first' });
@@ -179,7 +177,6 @@ it('reconciles several accepted steers whose wire receipts arrive together later
   expect(acceptedInputsFromMessages({ messages: [{ id: 'a', role: 'assistant', content: '', events: projected }] }).map(input => input.id)).toEqual(['local-first', 'local-second']);
   expect(projectAcceptedInputEvents({ events: [...projected, ...wire] })).toEqual(projected);
 });
-
 
 it('queued_bubble_clears_only_on_consumption_receipt', () => {
   const queued: AgentEvent = { kind: 'ext', name: 'user_message', data: { id: 'wire', text: 'next', deliveryState: 'queued' } };
@@ -207,7 +204,6 @@ it('keeps optimistic send order and queued state when legacy acceptance arrives 
   expect(finished[1]).toBe(reply);
   expect(projectAcceptedInputEvents({ events: [...finished, accepted, consumed] })).toEqual(finished);
 });
-
 
 it('updates every constituent of a merged queued bubble on its shared consumption receipt', () => {
   const optimistic = acceptedInputUserEvent({ input: { id: 'merged', text: 'one\n\ntwo' },

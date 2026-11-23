@@ -3,9 +3,10 @@ import { mkdtemp, readFile, readdir } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
-import { createAgentPluginLifecycle, createAgentPluginLayout, AgentPluginInstallError, type AgentPluginArchiveReaderPort } from '../../index.js';
+import { createAgentPluginLifecycle, createAgentPluginLayout, AgentPluginInstallError } from '../../index.js';
 import { ports } from '../test-support.js';
 import { forceRemove } from '../fixtures/force-remove.js';
+import type { AgentPluginArchiveReaderPort } from "@jini-ai/core/contracts/site/agent-plugins-lifecycle";
 
 // Generalized URL pipeline assertions use injected transport/archive ports and actual disk I/O.
 test('pinned URL install verifies the independent digest, TOFU is labelled, and bad pins never extract', async () => {

@@ -1,7 +1,7 @@
 import * as semver from 'semver';
-import type { InstalledAgentPlugin } from './types.js';
 import type { AgentPluginActivations, AgentPluginOrigin } from './activation.js';
 import { isValidAgentPluginHostRange } from './compatibility-metadata.js';
+import type { InstalledAgentPlugin } from "@jini-ai/core/contracts/site/agent-plugins-lifecycle";
 export { readAgentPluginCompatibilityMetadata, isValidAgentPluginHostRange, INVALID_AGENT_PLUGIN_HOST_RANGE } from './compatibility-metadata.js';
 
 /** Host extension contract, independent of product releases and the upstream manifest schema.

@@ -20,8 +20,8 @@ import { fileURLToPath } from "node:url";
 import { test } from "../legacy-test.js";
 import { forceRemove } from "../fixtures/force-remove.js";
 import { installAgentPlugin, resolveAgentPluginLayout } from "../test-support.js";
-import type { AgentPluginArchiveEntry } from "../../install.js";
 import { parseAgentPluginManifest, parseAgentPluginMcpConfig } from "../../manifest.js";
+import type { AgentPluginArchiveEntry } from "@jini-ai/core/contracts/site/agent-plugins-lifecycle";
 
 const FIXTURE = path.join(path.dirname(fileURLToPath(import.meta.url)), "../fixtures/open-marketing-higgsfield-media-1.1.0");
 const OM_PLUGIN_TEXT = readFileSync(path.join(FIXTURE, "plugin.json"), "utf8");

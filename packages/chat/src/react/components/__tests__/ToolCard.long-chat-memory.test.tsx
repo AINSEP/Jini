@@ -3,9 +3,10 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 import { executePageCapability, type FindElementsResult } from '@jini-ai/agentic/core';
 import { createDomPageDriver } from '@jini-ai/agentic/dom';
-import type { AgentEvent, ChatMessage } from '../../../core/index.js';
+import type { ChatMessage } from '../../../core/index.js';
 import { MessageList } from '../MessageList.js';
 import { ToolCard } from '../ToolCard.js';
+import type { AgentEvent } from "@jini-ai/core/contracts/site/chat-core";
 
 const longInput = 'i'.repeat(20_000) + ' input-tail';
 const longOutput = 'o'.repeat(20_000) + ' output-tail';

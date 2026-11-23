@@ -31,7 +31,7 @@ export interface CheckpointState {
   /** SQL characters in the complete last serialized event plus closing array bracket. */
   readonly tailLength: number;
   readonly content: string;
-  readonly events: readonly import("../events.js").AgentEvent[];
+  readonly events: readonly import("@jini-ai/core/contracts/site/chat-core").AgentEvent[];
   /** At most 256 UTF-16 units of the saved suffix; never the whole last tool result. */
   readonly tail: string;
 }

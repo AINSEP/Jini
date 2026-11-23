@@ -4,9 +4,10 @@ import * as filesystem from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { test } from 'vitest';
-import { createAgentPluginLifecycle, createAgentPluginLayout, type AgentPluginArchiveReaderPort } from '../../index.js';
+import { createAgentPluginLifecycle, createAgentPluginLayout } from '../../index.js';
 import { ports } from '../test-support.js';
 import { forceRemove } from '../fixtures/force-remove.js';
+import type { AgentPluginArchiveReaderPort } from "@jini-ai/core/contracts/site/agent-plugins-lifecycle";
 
 const workspaceId = 'workspace-a';
 const pluginId = 'reconciled-plugin';
