@@ -23,3 +23,8 @@ activity projection and attempt observer, feedback inbox, retention, and the sit
 - `email-template-agent-tools.ts` (`createEmailTemplatesAgentToolCatalog({ copy })`): the host binds its
   raw-HTML edit permission (`copy.editHtmlPermission`, named in the write tools' text and authorization)
   once, next to its email-template tool registrations, and reads the bound catalog from there.
+- `test-send.ts` (`planMailTestSend`/`runMailTestSend`/`createMailTestSendLimiter`, at
+  `@jini-ai/platform/mail/test-send`): the host passes its route/tool deps bag through. It injects
+  `mailSenderIdentity` (its composed sender resolver, with its own refusal copy) and
+  `mailTestFallbackSender` (its product-named placeholder From); both are bound in the host's site-mailer
+  composition (`operations`). Without them the neutral resolver and a "Site"-named placeholder apply.
