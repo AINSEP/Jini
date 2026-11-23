@@ -151,3 +151,5 @@ export type {
 } from './entities.js';
 
 export type { AdminShellContext, AdminShellNavigationPort, AdminShellSession, AdminShellSessionPort } from './shell.js';
+
+export type { AdminExportRunSnapshot, AdminExportRunStatus } from './import-export.js';

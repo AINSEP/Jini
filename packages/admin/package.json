@@ -190,6 +190,11 @@
       "./screens/database/hooks/use-migrate-forward-section.hooks": "browser",
       "./screens/database/hooks/use-schema-state-section.hooks": "browser",
       "./screens/database/hooks/use-timeline-section.hooks": "browser",
+      "./screens/import-export/import-export-i18n": "universal",
+      "./screens/import-export/git-backup-rules": "universal",
+      "./screens/import-export/hooks/git-backup-port.hooks": "universal",
+      "./screens/import-export/hooks/use-git-backup.hooks": "browser",
+      "./screens/import-export/hooks/use-import-export.hooks": "browser",
       "./publish-content/screen/hooks/publish-availability.store": "browser"
     },
     "isolation": {
@@ -1156,6 +1161,31 @@
       "types": "./dist/screens/database/hooks/use-timeline-section.hooks.d.ts",
       "import": "./dist/screens/database/hooks/use-timeline-section.hooks.js",
       "default": "./dist/screens/database/hooks/use-timeline-section.hooks.js"
+    },
+    "./screens/import-export/import-export-i18n": {
+      "types": "./dist/screens/import-export/import-export-i18n.d.ts",
+      "import": "./dist/screens/import-export/import-export-i18n.js",
+      "default": "./dist/screens/import-export/import-export-i18n.js"
+    },
+    "./screens/import-export/git-backup-rules": {
+      "types": "./dist/screens/import-export/git-backup-rules.d.ts",
+      "import": "./dist/screens/import-export/git-backup-rules.js",
+      "default": "./dist/screens/import-export/git-backup-rules.js"
+    },
+    "./screens/import-export/hooks/git-backup-port.hooks": {
+      "types": "./dist/screens/import-export/hooks/git-backup-port.hooks.d.ts",
+      "import": "./dist/screens/import-export/hooks/git-backup-port.hooks.js",
+      "default": "./dist/screens/import-export/hooks/git-backup-port.hooks.js"
+    },
+    "./screens/import-export/hooks/use-git-backup.hooks": {
+      "types": "./dist/screens/import-export/hooks/use-git-backup.hooks.d.ts",
+      "import": "./dist/screens/import-export/hooks/use-git-backup.hooks.js",
+      "default": "./dist/screens/import-export/hooks/use-git-backup.hooks.js"
+    },
+    "./screens/import-export/hooks/use-import-export.hooks": {
+      "types": "./dist/screens/import-export/hooks/use-import-export.hooks.d.ts",
+      "import": "./dist/screens/import-export/hooks/use-import-export.hooks.js",
+      "default": "./dist/screens/import-export/hooks/use-import-export.hooks.js"
     },
     "./publish-content/screen/hooks/publish-availability.store": {
       "types": "./dist/publish-content/screen/hooks/publish-availability.store.d.ts",
