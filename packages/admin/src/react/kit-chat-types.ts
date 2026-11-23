@@ -103,6 +103,13 @@ export interface ChatPaneComposerHandle {
   insertText: (text: string) => void;
   addFolders: (input: { folders: readonly string[] }, options?: {}) => void;
 }
+/** The composer's native working-directory access; a falsy value keeps the chat pane's text-input fallback. */
+export interface ChatPaneWorkingDirectoryAccess {
+  normalizeWorkingDirectory?: (directory: string) => Promise<string | null>;
+  pickWorkingDirectory: (currentDirectory?: string) => Promise<string | null>;
+  recentDirectories: () => Promise<readonly string[]>;
+  directoryExists: (directory: string) => Promise<boolean>;
+}
 export interface FabPositionInput {
   readonly dockOpen: boolean; readonly avoidBottomPx: number; readonly avoidRightPx?: number; readonly storageKey: string;
   readonly storage: Pick<Storage, 'getItem' | 'setItem'>; readonly viewport: Window; readonly pointerEvents: Document;

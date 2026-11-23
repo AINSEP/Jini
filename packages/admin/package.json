@@ -84,6 +84,7 @@
       "./shell/components/AssistantDock/hooks/use-composer-send-stop-guard.hooks": "browser",
       "./shell/components/AssistantDock/hooks/useOverflowDetection.hooks": "browser",
       "./shell/components/DevicePreview/DevicePreview.hooks": "browser",
+      "./shell/components/ChatFab/ChatFab.hooks": "browser",
       "./shell/components/InstallTabCard/use-zip-drop.hooks": "browser",
       "./shell/components/TemplateSource/template-source-port.hooks": "browser",
       "./shell/components/line-icon": "browser",
@@ -117,6 +118,8 @@
       "./shell/lib/stored-credential-endpoint": "browser",
       "./shell/lib/version-conflict": "browser",
       "./shell/lib/visitor-tools": "browser",
+      "./shell/lib/assistant-agents-snapshot": "browser",
+      "./shell/lib/browser-working-directory-access": "browser",
       "./shell/lib/viewer-time-zone": "browser",
       "./shell/lib/widget-embed-placement-content": "browser",
       "./shell/lib/admin-frontend-session": "browser",
@@ -202,6 +205,7 @@
         "./shell/components/AssistantDock/hooks/use-composer-send-stop-guard.hooks": "browser",
         "./shell/components/AssistantDock/hooks/useOverflowDetection.hooks": "browser",
         "./shell/components/DevicePreview/DevicePreview.hooks": "browser",
+        "./shell/components/ChatFab/ChatFab.hooks": "browser",
         "./shell/components/InstallTabCard/use-zip-drop.hooks": "browser",
         "./shell/components/TemplateSource/template-source-port.hooks": "browser",
         "./shell/components/line-icon": "browser",
@@ -234,6 +238,8 @@
         "./shell/lib/stored-credential-endpoint": "browser",
         "./shell/lib/version-conflict": "browser",
         "./shell/lib/visitor-tools": "browser",
+        "./shell/lib/assistant-agents-snapshot": "browser",
+        "./shell/lib/browser-working-directory-access": "browser",
         "./shell/lib/viewer-time-zone": "browser",
         "./shell/lib/widget-embed-placement-content": "browser",
         "./shell/lib/admin-frontend-session": "browser",
@@ -623,6 +629,11 @@
       "import": "./dist/shell/components/DevicePreview/DevicePreview.hooks.js",
       "default": "./dist/shell/components/DevicePreview/DevicePreview.hooks.js"
     },
+    "./shell/components/ChatFab/ChatFab.hooks": {
+      "types": "./dist/shell/components/ChatFab/ChatFab.hooks.d.ts",
+      "import": "./dist/shell/components/ChatFab/ChatFab.hooks.js",
+      "default": "./dist/shell/components/ChatFab/ChatFab.hooks.js"
+    },
     "./shell/components/InstallTabCard/use-zip-drop.hooks": {
       "types": "./dist/shell/components/InstallTabCard/use-zip-drop.hooks.d.ts",
       "import": "./dist/shell/components/InstallTabCard/use-zip-drop.hooks.js",
@@ -787,6 +798,16 @@
       "types": "./dist/shell/lib/visitor-tools.d.ts",
       "import": "./dist/shell/lib/visitor-tools.js",
       "default": "./dist/shell/lib/visitor-tools.js"
+    },
+    "./shell/lib/assistant-agents-snapshot": {
+      "types": "./dist/shell/lib/assistant-agents-snapshot.d.ts",
+      "import": "./dist/shell/lib/assistant-agents-snapshot.js",
+      "default": "./dist/shell/lib/assistant-agents-snapshot.js"
+    },
+    "./shell/lib/browser-working-directory-access": {
+      "types": "./dist/shell/lib/browser-working-directory-access.d.ts",
+      "import": "./dist/shell/lib/browser-working-directory-access.js",
+      "default": "./dist/shell/lib/browser-working-directory-access.js"
     },
     "./shell/lib/viewer-time-zone": {
       "types": "./dist/shell/lib/viewer-time-zone.d.ts",

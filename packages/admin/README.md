@@ -143,6 +143,12 @@ shared code-to-message table: the same `code` means genuinely different things i
 domains, and a shared table could only pick one. `describeApiError` is the base case only; panels
 layer their own per-code copy on top and fall through to it.
 
+`src/shell/hooks/admin-execution-credential-port.hooks.ts` declares the admin execution-credential
+port plus its unset view and in-memory fake; the host binds the live port to its own API.
+`src/shell/hooks/use-sites-sidebar-nav.hooks.ts` takes every host collaborator as a required field
+of its first argument: `port` (the Sites list read), `useSitesSnapshot` (the host's cached query
+hook) and `translateNavLabel` (the host-bound nav-label translator). It has no default for any.
+
 ## Wiring: Secrets (`security`)
 
 `@jini-ai/admin/security/react` exports one factory per admin scope. The host injects the module UI
@@ -266,3 +272,20 @@ factories the host binds once at its composition root:
 - `createVisitorToolsPort({ http, workspaceId })` and `createAssistantPermanentDeletesPort({ http, workspaceId })`
   take the host's bound `authenticatedAdminRequest` (`AdminRequestOps`) and its workspace id; the
   permanent-delete tool list, dangers copy and namespace stay with the host.
+
+## Wiring: host-owned storage keys (`shell/components/ChatFab`, `shell/lib`)
+
+Browser-storage keys hold operators' existing data, so they stay with the host and arrive as required
+inputs; Jini never names one.
+
+- `useFabPosition({ dockOpen, avoidBottomPx, avoidRightPx?, storageKey })`
+  (`shell/components/ChatFab/ChatFab.hooks`) binds the kit's `chat.useFabPosition` to
+  `localStorage`, `window`, `document` and the shared FAB geometry (`FAB_EDGE_MARGIN`, 56px, 5px
+  drag threshold). Needs `AdminKitProvider` above it; the host component passes its key.
+- `createAssistantAgentsSnapshot({ storageKey, createInventorySnapshot })`
+  (`shell/lib/assistant-agents-snapshot`) returns `{ readAgentsSnapshot, writeAgentsSnapshot }`.
+  The host passes `@jini-ai/chat/browser/agent-inventory`'s `createAgentInventorySnapshot` (this
+  package does not depend on the chat package) and binds the pair once at its composition root.
+- `createBrowserWorkingDirectoryAccess({ recentDirectoryNamesStorageKey })`
+  (`shell/lib/browser-working-directory-access`) returns the native `ChatPaneWorkingDirectoryAccess`
+  (kit type mirror) or `undefined` where the File System Access API is missing.
