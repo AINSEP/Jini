@@ -1,10 +1,10 @@
 import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
 
 import { createEntry, entriesDeps, entryWriteErrorStatus, type EntriesToolDeps } from "../../../entries/index.js";
-import { authorizeCollections, collectionsBody, collectionsPrincipal, rejectValidation, rejectWriteFailure, type CollectionsRouteBody, type CollectionsRoutePrincipal, type OkValue, type OutboxDrainDeps } from "../content-types/collections-route.js";
+import { authorizeCollections, collectionsBody, collectionsPrincipal, rejectValidation, rejectWriteFailure, type CollectionsOutwardErrorDeps, type CollectionsRouteBody, type CollectionsRoutePrincipal, type OkValue, type OutboxDrainDeps } from "../content-types/collections-route.js";
 
 /** The deps this route reads. */
-export interface EntryCreateRouteDeps extends EntriesToolDeps, OutboxDrainDeps {}
+export interface EntryCreateRouteDeps extends EntriesToolDeps, OutboxDrainDeps, CollectionsOutwardErrorDeps {}
 
 /** What a successful create answers (201). */
 export type EntryCreateOutput = OkValue<Awaited<ReturnType<typeof createEntry>>>;
@@ -43,7 +43,7 @@ export const entryCreateRoute = defineJsonRoute<CollectionsRouteBody, EntryCreat
       deps: entriesDeps(deps),
       input: { actorId: principal.id, workspaceId: deps.workspaceId, ...parsedBody },
     });
-    if (!result.ok) rejectWriteFailure({ error: result.error, statusOf: entryWriteErrorStatus });
+    if (!result.ok) rejectWriteFailure({ error: result.error, statusOf: entryWriteErrorStatus, outwardErrorMessage: deps.outwardErrorMessage });
 
     // 2026-09-03 outbox-drain audit fix — drains the outbox so `createEntry`'s `entry.created`
     // event reaches `bus.subscribe`d consumers before the response rather than on the background

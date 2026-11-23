@@ -4,11 +4,11 @@ import {
   CONTENT_TYPE_LIFECYCLE_OPS, contentTypeWriteErrorStatus, parseContentTypeLifecycleOp,
   type ContentTypeLifecycleOp, type IndexProvisionerPort, type TeardownIndexProvisionerPort,
 } from "../../../content-types/index.js";
-import { authorizeCollections, collectionsBody, collectionsPrincipal, rejectValidation, rejectWriteFailure, type CollectionsRouteBody, type CollectionsRoutePrincipal, type OkValue, type OutboxDrainDeps } from "./collections-route.js";
+import { authorizeCollections, collectionsBody, collectionsPrincipal, rejectValidation, rejectWriteFailure, type CollectionsOutwardErrorDeps, type CollectionsRouteBody, type CollectionsRoutePrincipal, type OkValue, type OutboxDrainDeps } from "./collections-route.js";
 import { contentTypeWriteDeps, type ContentTypeWriteRouteDeps } from "./shared.js";
 
 /** The deps this route reads. */
-export interface ContentTypeLifecycleRouteDeps extends ContentTypeWriteRouteDeps, OutboxDrainDeps {
+export interface ContentTypeLifecycleRouteDeps extends ContentTypeWriteRouteDeps, OutboxDrainDeps, CollectionsOutwardErrorDeps {
   /** Tombstone tears the content type's queryable-field indexes down. */
   contentTypeIndexProvisioner: IndexProvisionerPort & TeardownIndexProvisionerPort;
 }
@@ -53,7 +53,7 @@ export const contentTypeLifecycleRoute = defineJsonRoute<ContentTypeLifecycleInp
         expectedVersion: body.expectedVersion,
       },
     });
-    if (!result.ok) rejectWriteFailure({ error: result.error, statusOf: contentTypeWriteErrorStatus });
+    if (!result.ok) rejectWriteFailure({ error: result.error, statusOf: contentTypeWriteErrorStatus, outwardErrorMessage: deps.outwardErrorMessage });
 
     // 2026-09-03 outbox-drain audit fix — drains the outbox so a successful `deprecate`/
     // `tombstone` transition's `content_type.deprecated`/`content_type.tombstoned` event

@@ -4,6 +4,7 @@ import { MenuConflictError, MenuNotFoundError } from "../../../navigation/menu-s
 import { trashMenu, type TrashMenuDeps } from "../../../navigation/site/trash-menu.js";
 import { toAdminTrashMenuResponse, type AdminTrashMenuEnvelope } from "../../http/menus.js";
 import { authorizeMenus, mapMenuError, menuActorId, menuIdParam, rejectMenuError, type MenuErrorMapping, type MenuRoutePrincipal } from "./shared.js";
+import type { OutwardErrorMessage } from "../../http/outward-error-message.js";
 
 const MENU_DELETE_ERROR_MAPPINGS: readonly MenuErrorMapping[] = [
   mapMenuError({ errorClass: MenuNotFoundError, status: 404 }),
@@ -12,6 +13,8 @@ const MENU_DELETE_ERROR_MAPPINGS: readonly MenuErrorMapping[] = [
 
 /** The deps this route reads. */
 export interface MenuDeleteRouteDeps {
+  /** Words a classified error for the caller (see {@link OutwardErrorMessage}). */
+  outwardErrorMessage: OutwardErrorMessage;
   workspaceId: string;
   menuRepo: TrashMenuDeps["menuRepo"];
   removeMenu: TrashMenuDeps["remove"];
@@ -42,7 +45,7 @@ export const menuDeleteRoute = defineJsonRoute<MenuDeleteInput, AdminTrashMenuEn
       );
       return ok({ value: toAdminTrashMenuResponse(trashed) });
     } catch (err) {
-      return rejectMenuError({ err, mappings: MENU_DELETE_ERROR_MAPPINGS });
+      return rejectMenuError({ err, outwardErrorMessage: deps.outwardErrorMessage, mappings: MENU_DELETE_ERROR_MAPPINGS });
     }
   },
 });

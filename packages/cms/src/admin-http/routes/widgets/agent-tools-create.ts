@@ -3,6 +3,7 @@ import { RouteRefusalError } from "@jini-ai/core/errors/route-refusal";
 
 import { createWidgetInstance, type WidgetInstanceEntry, type WidgetWriteServiceDeps, type EmbedServiceDeps } from "../../../widgets/index.js";
 import { rejectWidgetError, toAdminWidgetResponse, widgetDomainErrorToResponse } from "../../http/widgets.js";
+import type { OutwardErrorMessage } from "../../http/outward-error-message.js";
 import { placeWidgetToolTarget, type WidgetToolActor, type WidgetToolPlacementDeps } from "./agent-tools-placement.js";
 import { parseCreateToolInput, rejectBadWidgetToolTarget, type CreateToolInput } from "./agent-tools-targets.js";
 import { widgetActorId, type WidgetRoutePrincipal } from "./shared.js";
@@ -50,8 +51,11 @@ export class WidgetToolPlacementFailedError extends Error {
  *
  * @complexity O(n) in the fixed widget error table length.
  */
-export function rejectWidgetToolPlacementFailure({ widget, err }: { widget: WidgetInstanceEntry; err: unknown }, _optional: Record<string, never> = {}): never {
-  const mapped = widgetDomainErrorToResponse({ err });
+export function rejectWidgetToolPlacementFailure(
+  { widget, err, outwardErrorMessage }: { widget: WidgetInstanceEntry; err: unknown; outwardErrorMessage: OutwardErrorMessage },
+  _optional: Record<string, never> = {},
+): never {
+  const mapped = widgetDomainErrorToResponse({ err, outwardErrorMessage });
   if (mapped) throw new RouteRefusalError({ status: mapped.status, body: widgetToolPlacementFailedBody({ widget, errorBody: mapped.body }) });
   throw new WidgetToolPlacementFailedError({ widget, cause: err });
 }
@@ -66,7 +70,7 @@ async function createToolInstance({ deps, actor, input }: { deps: WidgetCreateTo
     });
     return instance;
   } catch (err) {
-    return rejectWidgetError({ err });
+    return rejectWidgetError({ err, outwardErrorMessage: deps.outwardErrorMessage });
   }
 }
 
@@ -87,7 +91,7 @@ export const widgetCreateToolRoute = defineJsonRoute<CreateToolInput, WidgetCrea
       const result = await placeWidgetToolTarget({ deps, actor, target: input.target, widgetEntryId: instance.id });
       return ok({ value: { tool: "widgets.create", widget: toAdminWidgetResponse(instance).widget, result } });
     } catch (placeErr) {
-      return rejectWidgetToolPlacementFailure({ widget: instance, err: placeErr });
+      return rejectWidgetToolPlacementFailure({ widget: instance, err: placeErr, outwardErrorMessage: deps.outwardErrorMessage });
     }
   },
 }, { successStatus: 201 });

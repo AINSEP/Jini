@@ -2,6 +2,7 @@ import type { JsonRouteAuthorize, JsonRouteAuthorizeScope } from "@jini-ai/core/
 import { rejectRoute } from "@jini-ai/core/errors/route-refusal";
 
 import { entityNotLiveResponse } from "../../http/entity-not-live.js";
+import type { OutwardErrorMessage } from "../../http/outward-error-message.js";
 
 /**
  * @file Shared guards and error-response mapping for the `menus` admin route specs.
@@ -17,11 +18,12 @@ export interface MenuRoutePrincipal { id: string }
 /** The refusal a matched error becomes: its status and the flat `{ error, code? }` body. */
 export interface MenuErrorRefusal { status: number; error: string; code?: string }
 
-/** One entry in a menus route's `catch` table: the refusal a thrown error maps to, or `null`. */
-export type MenuErrorMapping = (required: { err: unknown }, optional?: Record<string, never>) => MenuErrorRefusal | null;
+/** One entry in a menus route's `catch` table: the refusal a thrown error maps to, or `null`. The
+ *  table is module-level, so the host's `outwardErrorMessage` arrives at handling time. */
+export type MenuErrorMapping = (required: { err: unknown; outwardErrorMessage: OutwardErrorMessage }, optional?: Record<string, never>) => MenuErrorRefusal | null;
 
 /**
- * Maps one error class to a status (and optional code) carrying the error's own message.
+ * Maps one error class to a status (and optional code) carrying the host's outward message for it.
  *
  * @complexity O(1).
  */
@@ -29,7 +31,7 @@ export function mapMenuError(
   { errorClass, status, code }: { errorClass: abstract new (...args: never[]) => Error; status: number; code?: string },
   _options: Record<string, never> = {},
 ): MenuErrorMapping {
-  return ({ err }) => (err instanceof errorClass ? { status, error: err.message, ...(code === undefined ? {} : { code }) } : null);
+  return ({ err, outwardErrorMessage }) => (err instanceof errorClass ? { status, error: outwardErrorMessage({ error: err }), ...(code === undefined ? {} : { code }) } : null);
 }
 
 /** A trashed menu: the 409 `entityNotLiveResponse` writes, with the error's own code. */
@@ -44,9 +46,12 @@ export const MENU_NOT_LIVE_MAPPING: MenuErrorMapping = ({ err }) => {
  *
  * @complexity O(n) in the mapping table length, a small fixed list per route.
  */
-export function rejectMenuError({ err, mappings }: { err: unknown; mappings: readonly MenuErrorMapping[] }, _options: Record<string, never> = {}): never {
+export function rejectMenuError(
+  { err, mappings, outwardErrorMessage }: { err: unknown; mappings: readonly MenuErrorMapping[]; outwardErrorMessage: OutwardErrorMessage },
+  _options: Record<string, never> = {},
+): never {
   for (const mapping of mappings) {
-    const refusal = mapping({ err });
+    const refusal = mapping({ err, outwardErrorMessage });
     if (refusal) rejectRoute(refusal);
   }
   throw err;

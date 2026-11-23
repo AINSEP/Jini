@@ -10,6 +10,7 @@ import {
   type WidgetRegionBindingRepoPort,
 } from "../../../widgets/index.js";
 import type { PlaceTarget } from "./agent-tools-targets.js";
+import type { OutwardErrorMessage } from "../../http/outward-error-message.js";
 
 /**
  * @file The `widgets.place` / `widgets.create` / `widgets.remove` / `widgets.diagnose` AI tool
@@ -33,6 +34,8 @@ import type { PlaceTarget } from "./agent-tools-targets.js";
 /** The deps a tool's remove path reads. `widgetsDeps` / `regionDeps` are built per call by the
  *  host (its entry locks, host ports and repositories), exactly as the hand-written routes built them. */
 export interface WidgetToolRemovalDeps {
+  /** Words a classified error for the caller (see {@link OutwardErrorMessage}). */
+  outwardErrorMessage: OutwardErrorMessage;
   workspaceId: string;
   widgetBindingRepo: Pick<WidgetRegionBindingRepoPort, "findByRegion">;
   entryRepo: Pick<RegionAreaServiceDeps["entryRepo"], "findById">;

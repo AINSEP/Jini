@@ -3,12 +3,12 @@ import { widgetCreateRoute } from "../create.js";
 import { widgetRegionBindRoute } from "../region-bind.js";
 import { widgetTrashRoute } from "../trash.js";
 import { widgetUpdateRoute } from "../update.js";
-import { forbidden, PRINCIPAL, rbac, recordingPort, refusalOf, signal, WORKSPACE_ID } from "./helpers.js";
+import { forbidden, PRINCIPAL, rbac, recordingPort, refusalOf, signal, WORKSPACE_ID, plainOutward } from "./helpers.js";
 
 const raw = (body: unknown, params: Record<string, string> = {}) => ({ body, query: {}, params: { workspaceId: WORKSPACE_ID, ...params } });
 const VALIDATION = (error: string) => ({ status: 400, body: { error, code: "VALIDATION_ERROR" } });
 /** Write deps whose RBAC check denies: the domain function's own first line refuses before any write. */
-const deniedDeps = () => ({ workspaceId: WORKSPACE_ID, widgetsDeps: () => ({ authorize: rbac(false).authorize }) as never });
+const deniedDeps = () => ({ workspaceId: WORKSPACE_ID, outwardErrorMessage: plainOutward, widgetsDeps: () => ({ authorize: rbac(false).authorize }) as never });
 
 describe("widgetCreateRoute", () => {
   it("answers 201 and refuses a body without string widgetType/title", async () => {
@@ -48,7 +48,7 @@ describe("widgetTrashRoute", () => {
 describe("widgetRegionBindRoute", () => {
   it("refuses a missing, blank or non-string regionKey before authorizing", async () => {
     const { authorize, calls } = recordingPort();
-    const deps = { workspaceId: WORKSPACE_ID, regionDeps: () => { throw new Error("must not build deps"); } };
+    const deps = { workspaceId: WORKSPACE_ID, outwardErrorMessage: plainOutward, regionDeps: () => { throw new Error("must not build deps"); } };
     for (const body of [{}, { regionKey: "   " }, { regionKey: 123 }]) {
       const input = widgetRegionBindRoute.parse(raw(body));
       if (!input.ok) throw new Error("parse never fails");
@@ -60,11 +60,19 @@ describe("widgetRegionBindRoute", () => {
 
   it("authorizes widgets.place and builds no deps when refused", async () => {
     let built = 0;
-    const deps = { workspaceId: WORKSPACE_ID, regionDeps: () => { built++; throw new Error("unreachable"); } };
+    const deps = { workspaceId: WORKSPACE_ID, outwardErrorMessage: plainOutward, regionDeps: () => { built++; throw new Error("unreachable"); } };
     const port = recordingPort({ deny: true });
     const refusal = await refusalOf(() => widgetRegionBindRoute.handle({ input: { body: { regionKey: "header" } }, deps, context: PRINCIPAL, authorize: port.authorize }, { signal }));
     expect(refusal.status).toBe(403);
     expect(port.calls).toEqual([{ permission: "widgets.place", entityType: "widget" }]);
     expect(built).toBe(0);
+  });
+});
+
+describe("widget route specs outward copy", () => {
+  it("answers a mounted refusal with the host's outward message for the classified error", async () => {
+    const hosted = { ...deniedDeps(), outwardErrorMessage: ({ error }: { error: Error }) => `host: ${error.message}` };
+    const refusal = await refusalOf(() => widgetTrashRoute.handle({ input: { id: "w-1" }, deps: hosted, context: PRINCIPAL, authorize: async () => {} }, { signal }));
+    expect(refusal).toEqual({ ...forbidden("widgets.delete"), body: { ...forbidden("widgets.delete").body, error: `host: ${forbidden("widgets.delete").body.error}` } });
   });
 });

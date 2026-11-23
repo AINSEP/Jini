@@ -58,7 +58,7 @@ export const taxonomyCreateTermRoute = defineJsonRoute<TaxonomyCreateTermInput, 
       });
       return ok({ value: { term } });
     } catch (err) {
-      return rejectTaxonomyError({ err, refusals: CREATE_TERM_REFUSALS });
+      return rejectTaxonomyError({ err, outwardErrorMessage: deps.outwardErrorMessage, refusals: CREATE_TERM_REFUSALS });
     }
   },
 }, { successStatus: 201 });

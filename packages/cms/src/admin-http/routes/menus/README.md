@@ -5,6 +5,8 @@ assign-location and delete (move to Trash). Response DTOs live in `../../http/me
 
 ## Wiring
 
+**Outward error copy.** `create`, `update-tree`, `assign-location` and `delete` refuse a classified menu error (their module-level `mapMenuError` tables) with the status and code decided here, but take the `error` text from the REQUIRED `outwardErrorMessage` deps field (`../../http/outward-error-message.ts`), applied at handling time by `rejectMenuError`. The host binds it at the mount. The trashed-menu 409 (`MENU_NOT_LIVE_MAPPING`) still answers through the shared `entityNotLiveResponse`.
+
 Architecture and the inject-everything rule: [`extraction-plan.md`](../../../../../../ADS-memory/reports/jini-port/extraction-plan.md).
 The reference pattern these specs copy is `../redirects/`.
 

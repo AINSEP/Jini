@@ -142,3 +142,11 @@ describe("menuDeleteRoute", () => {
     expect(Object.keys(conflict.body as object)).toEqual(["error"]);
   });
 });
+
+describe("menus route specs outward copy", () => {
+  it("answers a mapped error with the host's outward message, applied at handling time", async () => {
+    const deps = { ...makeMenuDeps(), outwardErrorMessage: ({ error }: { error: Error }) => `host: ${error.message}` };
+    expect(await refusalOf(() => menuCreateRoute.handle({ input: { title: "", slug: "x", items: undefined, authoring: {} }, deps, context: PRINCIPAL, authorize: allow() }, { signal })))
+      .toEqual({ status: 400, body: { error: "host: title is required" } });
+  });
+});

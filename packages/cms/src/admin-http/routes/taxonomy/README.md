@@ -5,6 +5,8 @@ lives here; only the gated merge-term ceremony is still host-mounted.
 
 ## Wiring
 
+**Outward error copy.** The write routes (`create-taxonomy`, `create-term`, `rename-term`, `assign-terms`) refuse a recognized error through `rejectTaxonomyError` with the status and code decided here, but take the `error` text from the REQUIRED `outwardErrorMessage` field on `TaxonomyWriteRouteDeps` (`../../http/outward-error-message.ts`). The host binds it at the mount.
+
 **Provides**
 
 | spec | route | answers |

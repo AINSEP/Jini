@@ -5,7 +5,7 @@ import { widgetCreateToolRoute, rejectWidgetToolPlacementFailure, WidgetToolPlac
 import { widgetDiagnoseToolRoute } from "../agent-tools-diagnose.js";
 import { widgetPlaceToolRoute } from "../agent-tools-place.js";
 import { widgetRemoveToolRoute } from "../agent-tools-remove.js";
-import { forbidden, PRINCIPAL, rbac, recordingPort, refusalOf, signal, widgetEntry, WORKSPACE_ID } from "./helpers.js";
+import { forbidden, PRINCIPAL, rbac, recordingPort, refusalOf, signal, widgetEntry, WORKSPACE_ID, plainOutward } from "./helpers.js";
 
 const BASE = "/api/admin/v1/workspaces/:workspaceId/widgets/tools";
 const raw = (body: unknown, params: Record<string, string> = {}) => ({ body, query: {}, params: { workspaceId: WORKSPACE_ID, ...params } });
@@ -26,6 +26,7 @@ function placementDeps({ bound = true, areaFound = true }: { bound?: boolean; ar
     ids,
     deps: {
       workspaceId: WORKSPACE_ID,
+      outwardErrorMessage: plainOutward,
       widgetBindingRepo: { findByRegion: async () => (bound ? binding : null) },
       entryRepo: { findById: async () => (areaFound ? areaEntry : null) } as never,
       idGen: { newId: () => { ids.push("p-new"); return "p-new"; } },
@@ -79,14 +80,14 @@ describe("widgetCreateToolRoute", () => {
   it("keeps the created widget in a placement failure: a domain error is refused merged, anything else is carried to the host", () => {
     const widget = { id: "w-new" } as never;
     let thrown: unknown;
-    try { rejectWidgetToolPlacementFailure({ widget, err: new WidgetAreaNotFoundError({ message: "region 'footer' is not bound" }) }); } catch (err) { thrown = err; }
+    try { rejectWidgetToolPlacementFailure({ widget, outwardErrorMessage: plainOutward, err: new WidgetAreaNotFoundError({ message: "region 'footer' is not bound" }) }); } catch (err) { thrown = err; }
     expect(thrown).toBeInstanceOf(RouteRefusalError);
     expect((thrown as RouteRefusalError).response).toEqual({ status: 404, body: {
       tool: "widgets.create", widget: { id: "w-new" }, placementFailed: true, error: "region 'footer' is not bound", code: "WIDGETS_AREA_NOT_FOUND",
     } });
 
     const boom = new Error("hook refused");
-    try { rejectWidgetToolPlacementFailure({ widget, err: boom }); } catch (err) { thrown = err; }
+    try { rejectWidgetToolPlacementFailure({ widget, outwardErrorMessage: plainOutward, err: boom }); } catch (err) { thrown = err; }
     expect(thrown).toBeInstanceOf(WidgetToolPlacementFailedError);
     expect([(thrown as WidgetToolPlacementFailedError).widget, (thrown as WidgetToolPlacementFailedError).cause]).toEqual([widget, boom]);
     expect(widgetToolPlacementFailedBody({ widget, errorBody: { error: "internal error" } })).toEqual({ tool: "widgets.create", widget: { id: "w-new" }, placementFailed: true, error: "internal error" });
@@ -118,6 +119,7 @@ describe("widgetDiagnoseToolRoute", () => {
   const refs = [{ workspaceId: WORKSPACE_ID, sourceEntryId: "area-9", sourceKind: "widget-area-placement", fieldPath: "doc.placements[4]", targetKind: "entry", targetId: "w-1" }];
   const diagnoseDeps = (entry: unknown, lookups: unknown[] = []) => ({
     workspaceId: WORKSPACE_ID,
+    outwardErrorMessage: plainOutward,
     entryRepo: { findById: async () => entry } as never,
     entryRefsRepo: { findByTarget: async (params: unknown) => { lookups.push(params); return refs as never; } },
   });

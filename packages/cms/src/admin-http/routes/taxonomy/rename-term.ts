@@ -48,7 +48,7 @@ export const taxonomyRenameTermRoute = defineJsonRoute<TaxonomyRenameTermInput, 
       });
       return ok({ value: { term } });
     } catch (err) {
-      return rejectTaxonomyError({ err, refusals: [FORBIDDEN_REFUSAL, { classes: [TermRecordNotFoundError], status: 404, code: "TERM_NOT_FOUND" }] });
+      return rejectTaxonomyError({ err, outwardErrorMessage: deps.outwardErrorMessage, refusals: [FORBIDDEN_REFUSAL, { classes: [TermRecordNotFoundError], status: 404, code: "TERM_NOT_FOUND" }] });
     }
   },
 });

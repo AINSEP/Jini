@@ -43,7 +43,7 @@ export const taxonomyCreateRoute = defineJsonRoute<TaxonomyCreateInput, { taxono
       });
       return ok({ value: { taxonomy } });
     } catch (err) {
-      return rejectTaxonomyError({ err, refusals: [FORBIDDEN_REFUSAL] });
+      return rejectTaxonomyError({ err, outwardErrorMessage: deps.outwardErrorMessage, refusals: [FORBIDDEN_REFUSAL] });
     }
   },
 }, { successStatus: 201 });

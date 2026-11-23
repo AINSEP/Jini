@@ -30,7 +30,7 @@ export const widgetPlaceToolRoute = defineJsonRoute<WidgetPlaceToolInput, Widget
       const result = await placeWidgetToolTarget({ deps, actor, target: input.target, widgetEntryId: input.widgetInstanceId });
       return ok({ value: { tool: "widgets.place", result } });
     } catch (err) {
-      return rejectWidgetError({ err });
+      return rejectWidgetError({ err, outwardErrorMessage: deps.outwardErrorMessage });
     }
   },
 });

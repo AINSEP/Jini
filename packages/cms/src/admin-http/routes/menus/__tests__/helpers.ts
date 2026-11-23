@@ -49,6 +49,7 @@ export function makeMenuDeps() {
   };
   return {
     workspaceId: WORKSPACE_ID,
+    outwardErrorMessage: ({ error }: { error: Error }) => error.message,
     menuRepo: new InMemoryMenuRepo({}),
     navLocationBindingRepo: new InMemoryNavLocationBindingRepo({}),
     clock: { nowMs: () => Date.parse("2026-07-10T00:00:00.000Z"), nowIso: () => "2026-07-10T00:00:00.000Z" },

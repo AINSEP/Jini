@@ -6,6 +6,9 @@ export const WORKSPACE_ID = "ws-1";
 export const PRINCIPAL = { id: "principal-1" };
 export const signal = new AbortController().signal;
 
+/** The outward error copy a host binds that passes the classified error's own message through. */
+export const plainOutward = ({ error }: { error: Error }): string => error.message;
+
 /** An `authorize` dep (the domain functions' RBAC check) that allows or denies with a fixed reason. */
 export function rbac(allowed: boolean): { authorize: (params: { principalId: string; permission: string; workspaceId: string }) => Promise<{ allowed: boolean; reason: string }>; calls: unknown[] } {
   const calls: unknown[] = [];

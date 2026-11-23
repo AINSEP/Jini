@@ -3,11 +3,14 @@ import { rejectRoute } from "@jini-ai/core/errors/route-refusal";
 
 import { reorderWidgetEmbeds, type EmbedServiceDeps } from "../../../widgets/index.js";
 import { rejectWidgetError } from "../../http/widgets.js";
+import type { OutwardErrorMessage } from "../../http/outward-error-message.js";
 import { widgetActorId, type WidgetRoutePrincipal } from "./shared.js";
 
 /** The deps this route reads. `widgetsDeps` is built per request by the host, exactly as the
  *  hand-written route built them. */
 export interface WidgetEmbedReorderRouteDeps {
+  /** Words a classified error for the caller (see {@link OutwardErrorMessage}). */
+  outwardErrorMessage: OutwardErrorMessage;
   workspaceId: string;
   widgetsDeps: () => EmbedServiceDeps;
 }
@@ -47,7 +50,7 @@ export const widgetEmbedReorderRoute = defineJsonRoute<WidgetEmbedReorderInput, 
       });
       return ok({ value: { entry } });
     } catch (err) {
-      return rejectWidgetError({ err });
+      return rejectWidgetError({ err, outwardErrorMessage: deps.outwardErrorMessage });
     }
   },
 });

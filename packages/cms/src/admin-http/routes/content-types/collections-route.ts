@@ -2,6 +2,7 @@ import type { JsonRouteAuthorize } from "@jini-ai/core/contracts/server";
 import { rejectRoute } from "@jini-ai/core/errors/route-refusal";
 
 import type { ActorPrincipalKind } from "../../../content-types/index.js";
+import type { OutwardErrorMessage } from "../../http/outward-error-message.js";
 
 /**
  * @file The request helpers both Collections admin route families share (content-types + entries,
@@ -23,6 +24,9 @@ export type OkValue<T> = T extends { ok: true; value: infer V } ? V : never;
 /** Drains the host outbox so a successful write's event reaches `bus.subscribe`d consumers before
  *  the response rather than on the background drainer's next pass. */
 export interface OutboxDrainDeps { drainOutbox: () => Promise<unknown> }
+
+/** The host port every write route words a classified write failure with (see {@link OutwardErrorMessage}). */
+export interface CollectionsOutwardErrorDeps { outwardErrorMessage: OutwardErrorMessage }
 
 /** The request body as an object (`{}` when absent), exactly as the hand-written routes read it.
  * @complexity O(1). */
@@ -54,14 +58,15 @@ export function rejectValidation({ error }: { error: string }, _optional: Record
   return rejectRoute({ status: 400, error, code: "VALIDATION_ERROR" });
 }
 
-/** A write failure the domain's status table maps answers `{ error: <message>, code }` at that
- *  status; an unmapped one (500) is rethrown so the host answers it as the redacted failure.
+/** A write failure the domain's status table maps answers `{ error, code }` at that status, the
+ *  `error` copy being the host's `outwardErrorMessage` for it; an unmapped one (500) is rethrown so
+ *  the host answers it as the redacted failure.
  * @complexity O(1) plus the status table's `instanceof` chain. */
 export function rejectWriteFailure(
-  { error, statusOf }: { error: Error; statusOf: (required: { error: Error }) => { status: number; code: string } },
+  { error, statusOf, outwardErrorMessage }: { error: Error; statusOf: (required: { error: Error }) => { status: number; code: string }; outwardErrorMessage: OutwardErrorMessage },
   _optional: Record<string, never> = {},
 ): never {
   const { status, code } = statusOf({ error });
   if (status === 500) throw error;
-  return rejectRoute({ status, error: error.message, code });
+  return rejectRoute({ status, error: outwardErrorMessage({ error }), code });
 }

@@ -13,6 +13,8 @@ Architecture and the reasoning behind injected route deps:
 
 ## Wiring
 
+**Outward error copy.** Every widgets spec (and `rejectWidgetError` / `widgetDomainErrorToResponse` / `rejectWidgetToolPlacementFailure` in `../../http/widgets.ts`) refuses a classified widgets domain error with the status, code and details decided here, but takes the `error` text from the REQUIRED `outwardErrorMessage` deps field (`../../http/outward-error-message.ts`). The host binds it at the mount; this engine code never forwards stored error text itself.
+
 **Provides** (one module each): `widgetListRoute`, `widgetGetRoute`, `widgetCreateRoute`,
 `widgetUpdateRoute`, `widgetTrashRoute`, `widgetRegionsListRoute`, `widgetRegionGetRoute`,
 `widgetRegionBindRoute`, `widgetRegionMutatePlacementsRoute` (plus its pure

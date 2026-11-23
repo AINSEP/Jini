@@ -12,10 +12,13 @@ import {
   type WidgetRegionBindingRepoPort,
 } from "../../../widgets/index.js";
 import { rejectWidgetError, toAdminWidgetAreaResponse } from "../../http/widgets.js";
+import type { OutwardErrorMessage } from "../../http/outward-error-message.js";
 import { authorizeWidgets, type WidgetRoutePrincipal } from "./shared.js";
 
 /** The deps this route reads. */
 export interface WidgetRegionGetRouteDeps {
+  /** Words a classified error for the caller (see {@link OutwardErrorMessage}). */
+  outwardErrorMessage: OutwardErrorMessage;
   workspaceId: string;
   entryRepo: Pick<WidgetReadServiceDeps["entryRepo"], "findById">;
   widgetBindingRepo: Pick<WidgetRegionBindingRepoPort, "findByRegion">;
@@ -61,7 +64,7 @@ export const widgetRegionGetRoute = defineJsonRoute<{ regionKey: string }, Widge
 
       return ok({ value: { ...toAdminWidgetAreaResponse(area), placements } });
     } catch (err) {
-      return rejectWidgetError({ err });
+      return rejectWidgetError({ err, outwardErrorMessage: deps.outwardErrorMessage });
     }
   },
 });

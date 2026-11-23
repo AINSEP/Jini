@@ -3,11 +3,14 @@ import { rejectRoute } from "@jini-ai/core/errors/route-refusal";
 
 import { bindWidgetArea, type RegionAreaServiceDeps, type WidgetAreaEntry } from "../../../widgets/index.js";
 import { rejectWidgetError, toAdminWidgetAreaResponse } from "../../http/widgets.js";
+import type { OutwardErrorMessage } from "../../http/outward-error-message.js";
 import { authorizeWidgets, type WidgetRoutePrincipal } from "./shared.js";
 
 /** The deps this route reads. `regionDeps` is built per request by the host (its entry locks,
  *  host ports and repositories), exactly as the hand-written route built them. */
 export interface WidgetRegionBindRouteDeps {
+  /** Words a classified error for the caller (see {@link OutwardErrorMessage}). */
+  outwardErrorMessage: OutwardErrorMessage;
   workspaceId: string;
   regionDeps: () => RegionAreaServiceDeps;
 }
@@ -35,7 +38,7 @@ export const widgetRegionBindRoute = defineJsonRoute<{ body: Record<string, unkn
       });
       return ok({ value: toAdminWidgetAreaResponse(areaEntry) });
     } catch (err) {
-      return rejectWidgetError({ err });
+      return rejectWidgetError({ err, outwardErrorMessage: deps.outwardErrorMessage });
     }
   },
 }, { successStatus: 201 });

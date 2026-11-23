@@ -156,3 +156,15 @@ describe("contentTypeLifecycleRoute", () => {
     await expect(contentTypeLifecycleRoute.handle({ input: { key: "recipe", body: {} }, deps, context: PRINCIPAL, authorize: denied })).rejects.toThrow("denied");
   });
 });
+
+describe("collections write routes outward copy", () => {
+  it("answers a mapped write failure with the host's outward message for it", async () => {
+    const { deps } = writeDeps();
+    const hosted = { ...deps, outwardErrorMessage: ({ error }: { error: Error }) => `host: ${error.message}` };
+    await registerRecipe(hosted);
+    const refusal = await refusalOf(() => registerRecipe(hosted));
+    expect(refusal.status).toBe(409);
+    expect((refusal.body as { code: string }).code).toBe("CONTENT_TYPE_ALREADY_EXISTS");
+    expect((refusal.body as { error: string }).error).toMatch(/^host: /);
+  });
+});

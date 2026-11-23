@@ -6,6 +6,7 @@ import { createMenu, MenuConflictError, MenuValidationError, type CreateMenuDeps
 import type { NavItemNode } from "../../../navigation/types.js";
 import { authorizeMenuHtml, parseMenuHtmlAuthoring, toAdminMenuResponse, type AdminMenuEnvelope } from "../../http/menus.js";
 import { authorizeMenus, mapMenuError, rejectMenuError, type MenuErrorMapping, type MenuRoutePrincipal } from "./shared.js";
+import type { OutwardErrorMessage } from "../../http/outward-error-message.js";
 
 const MENU_CREATE_ERROR_MAPPINGS: readonly MenuErrorMapping[] = [
   mapMenuError({ errorClass: MenuValidationError, status: 400 }),
@@ -16,6 +17,8 @@ const MENU_CREATE_ERROR_MAPPINGS: readonly MenuErrorMapping[] = [
  *  a host cannot silently store submitted menu HTML unbalanced; Node hosts pass
  *  `navigation/node`'s `normalizeMenuHtml`. */
 export interface MenuCreateRouteDeps {
+  /** Words a classified error for the caller (see {@link OutwardErrorMessage}). */
+  outwardErrorMessage: OutwardErrorMessage;
   workspaceId: string;
   menuRepo: CreateMenuDeps["repo"];
   clock: CreateMenuDeps["clock"];
@@ -70,7 +73,7 @@ export const menuCreateRoute = defineJsonRoute<MenuCreateInput, AdminMenuEnvelop
       });
       return ok({ value: toAdminMenuResponse(menu) });
     } catch (err) {
-      return rejectMenuError({ err, mappings: MENU_CREATE_ERROR_MAPPINGS });
+      return rejectMenuError({ err, outwardErrorMessage: deps.outwardErrorMessage, mappings: MENU_CREATE_ERROR_MAPPINGS });
     }
   },
 }, { successStatus: 201 });

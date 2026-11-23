@@ -2,12 +2,12 @@ import { describe, expect, it } from "vitest";
 import { widgetEmbedInsertRoute } from "../embed-insert.js";
 import { widgetEmbedRemoveRoute } from "../embed-remove.js";
 import { widgetEmbedReorderRoute } from "../embed-reorder.js";
-import { forbidden, PRINCIPAL, rbac, refusalOf, signal, WORKSPACE_ID } from "./helpers.js";
+import { forbidden, PRINCIPAL, rbac, refusalOf, signal, WORKSPACE_ID, plainOutward } from "./helpers.js";
 
 const raw = (body: unknown, params: Record<string, string> = {}) => ({ body, query: {}, params: { workspaceId: WORKSPACE_ID, hostEntryId: "host-1", ...params } });
 const VALIDATION = (error: string) => ({ status: 400, body: { error, code: "VALIDATION_ERROR" } });
 /** Embed deps whose RBAC check denies: the domain function's own first line refuses before any read. */
-const deniedDeps = () => ({ workspaceId: WORKSPACE_ID, widgetsDeps: () => ({ authorize: rbac(false).authorize }) as never });
+const deniedDeps = () => ({ workspaceId: WORKSPACE_ID, outwardErrorMessage: plainOutward, widgetsDeps: () => ({ authorize: rbac(false).authorize }) as never });
 
 describe("widgetEmbedInsertRoute", () => {
   it("keeps the path, answers 201, and refuses a missing or mistyped baseVersion/widgetEntryId", async () => {

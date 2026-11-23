@@ -23,6 +23,7 @@ function writeDeps(overrides: Record<string, unknown> = {}) {
   const calls: { authorize: unknown[]; inserted: unknown[] } = { authorize: [], inserted: [] };
   const deps = {
     workspaceId: "ws-7",
+    outwardErrorMessage: ({ error }: { error: Error }) => error.message,
     authorize: async (params: unknown) => { calls.authorize.push(params); return { allowed: true, reason: "matched" }; },
     clock: { nowMs: () => Date.parse("2026-10-21T00:00:00.000Z") },
     idGen: { newId: () => "id-new" },
@@ -173,5 +174,14 @@ describe("taxonomy assignment routes", () => {
     const refusal = await refusalOf(() => taxonomyAssignTermsRoute.handle({ input: { contentType: "post", contentId: "missing", termIds: [] }, deps, context: PRINCIPAL, authorize: unusedPortAuthorize }));
     expect(refusal.status).toBe(404);
     expect((refusal.body as { code: string }).code).toBe("CONTENT_NOT_FOUND");
+  });
+});
+
+describe("taxonomy write routes outward copy", () => {
+  it("answers a recognized error with the host's outward message, keeping status and code", async () => {
+    const deps = { ...writeDeps({ authorize: deny }).deps as object, outwardErrorMessage: ({ error }: { error: Error }) => `host: ${error.message}` };
+    expect(await refusalOf(() => taxonomyCreateRoute.handle({ input: { name: "T", hierarchical: true }, deps: deps as never, context: PRINCIPAL, authorize: unusedPortAuthorize }))).toEqual({
+      status: 403, body: { error: "host: principal 'principal-7' is not authorized for 'admin.taxonomy.manage' (no grant)", code: "FORBIDDEN" },
+    });
   });
 });

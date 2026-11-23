@@ -4,6 +4,8 @@ Server-neutral `defineJsonRoute` specs for the Collections content-type registry
 
 ## Wiring
 
+**Outward error copy.** The write routes (`register`, `update-fields`, `lifecycle`) refuse a mapped write failure through `rejectWriteFailure` (`collections-route.ts`) with the status and code from the domain's status table, but take the `error` text from the REQUIRED `outwardErrorMessage` deps field (`CollectionsOutwardErrorDeps`, `../../http/outward-error-message.ts`). The host binds it at the mount.
+
 **Provides** — `contentTypeListRoute` (`GET /api/admin/v1/content-types`), `contentTypeRegisterRoute`
 (`POST`, 201), `contentTypeUpdateFieldsRoute` (`PUT .../:key/fields`) and `contentTypeLifecycleRoute`
 (`POST .../:key/lifecycle`). `collections-route.ts` holds the request helpers the entries specs reuse (no content-types runtime import, so entries stay in their own isolation domain); `shared.ts` holds the content-type write deps.

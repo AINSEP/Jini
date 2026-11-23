@@ -6,6 +6,7 @@ import { toAdminAssignLocationResponse, type AdminAssignLocationEnvelope } from 
 import {
   authorizeMenus, mapMenuError, MENU_NOT_LIVE_MAPPING, menuIdParam, rejectMenuError, type MenuErrorMapping, type MenuRoutePrincipal,
 } from "./shared.js";
+import type { OutwardErrorMessage } from "../../http/outward-error-message.js";
 
 /** Maps assignment failures to the existing admin response envelope. @complexity O(1). */
 const MENU_ASSIGN_ERROR_MAPPINGS: readonly MenuErrorMapping[] = [
@@ -19,6 +20,8 @@ const MENU_ASSIGN_ERROR_MAPPINGS: readonly MenuErrorMapping[] = [
 
 /** The deps this route reads. */
 export interface MenuAssignLocationRouteDeps {
+  /** Words a classified error for the caller (see {@link OutwardErrorMessage}). */
+  outwardErrorMessage: OutwardErrorMessage;
   workspaceId: string;
   menuRepo: AssignLocationDeps["repo"];
   navLocationBindingRepo: AssignLocationDeps["bindingRepo"];
@@ -65,7 +68,7 @@ export const menuAssignLocationRoute = defineJsonRoute<MenuAssignLocationInput, 
       });
       return ok({ value: toAdminAssignLocationResponse({ menu, binding, displacedMenu }) });
     } catch (err) {
-      return rejectMenuError({ err, mappings: MENU_ASSIGN_ERROR_MAPPINGS });
+      return rejectMenuError({ err, outwardErrorMessage: deps.outwardErrorMessage, mappings: MENU_ASSIGN_ERROR_MAPPINGS });
     }
   },
 });

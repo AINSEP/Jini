@@ -4,6 +4,7 @@ import { rejectRoute } from "@jini-ai/core/errors/route-refusal";
 
 import { ForbiddenError } from "../../../core/index.js";
 import type { KernelOutboxAdapterDeps } from "../../../core/kernel-outbox.js";
+import type { OutwardErrorMessage } from "../../http/outward-error-message.js";
 import {
   createPostBackedContentLookup,
   toTaxonomyOutbox,
@@ -43,6 +44,8 @@ export function taxonomyPrincipal({ context }: { context: TaxonomyRoutePrincipal
  *  service (its `ForbiddenError` answers the flat 403), never through the host's authorize port. */
 export interface TaxonomyWriteRouteDeps extends KernelOutboxAdapterDeps {
   workspaceId: string;
+  /** Words a classified error for the caller (see {@link OutwardErrorMessage}). */
+  outwardErrorMessage: OutwardErrorMessage;
   authorize: AuthorizeFn;
   taxonomyRepo: TaxonomyRepoPort;
   termRepo: TermRepoPort;
@@ -89,12 +92,16 @@ export interface TaxonomyErrorRefusal { classes: readonly ErrorClass[]; status: 
 /** Every taxonomy write answers a denied `admin.taxonomy.manage` with this flat 403 (no details). */
 export const FORBIDDEN_REFUSAL: TaxonomyErrorRefusal = { classes: [ForbiddenError], status: 403, code: "FORBIDDEN" };
 
-/** Refuses a recognized error with `{ error: <message>, code }`; anything else is rethrown so the
- *  host's error port answers it as an unexpected failure.
+/** Refuses a recognized error with `{ error, code }`, the `error` copy being the host's
+ *  `outwardErrorMessage` for it; anything else is rethrown so the host's error port answers it as
+ *  an unexpected failure.
  * @complexity O(n) in the refusal table. */
-export function rejectTaxonomyError({ err, refusals }: { err: unknown; refusals: readonly TaxonomyErrorRefusal[] }, _optional: Record<string, never> = {}): never {
+export function rejectTaxonomyError(
+  { err, refusals, outwardErrorMessage }: { err: unknown; refusals: readonly TaxonomyErrorRefusal[]; outwardErrorMessage: OutwardErrorMessage },
+  _optional: Record<string, never> = {},
+): never {
   const match = err instanceof Error ? refusals.find((refusal) => refusal.classes.some((cls) => err instanceof cls)) : undefined;
   if (!match) throw err;
   const error = err as Error & { code?: unknown };
-  rejectRoute({ status: match.status, error: error.message, code: match.code ?? String(error.code) });
+  rejectRoute({ status: match.status, error: outwardErrorMessage({ error }), code: match.code ?? String(error.code) });
 }

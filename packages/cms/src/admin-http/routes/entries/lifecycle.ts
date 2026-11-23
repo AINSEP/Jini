@@ -1,10 +1,10 @@
 import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
 
 import { ENTRY_LIFECYCLE_OPS, entriesDeps, entryWriteErrorStatus, parseEntryLifecycleOp, type EntriesToolDeps, type EntryLifecycleOp } from "../../../entries/index.js";
-import { authorizeCollections, collectionsBody, collectionsPrincipal, rejectValidation, rejectWriteFailure, type CollectionsRouteBody, type CollectionsRoutePrincipal, type OkValue, type OutboxDrainDeps } from "../content-types/collections-route.js";
+import { authorizeCollections, collectionsBody, collectionsPrincipal, rejectValidation, rejectWriteFailure, type CollectionsOutwardErrorDeps, type CollectionsRouteBody, type CollectionsRoutePrincipal, type OkValue, type OutboxDrainDeps } from "../content-types/collections-route.js";
 
 /** The deps this route reads. */
-export interface EntryLifecycleRouteDeps extends EntriesToolDeps, OutboxDrainDeps {}
+export interface EntryLifecycleRouteDeps extends EntriesToolDeps, OutboxDrainDeps, CollectionsOutwardErrorDeps {}
 
 /** The entry id plus the untyped POST body. */
 export interface EntryLifecycleInput extends CollectionsRouteBody { id: string }
@@ -37,7 +37,7 @@ export const entryLifecycleRoute = defineJsonRoute<EntryLifecycleInput, EntryLif
       deps: entriesDeps(deps),
       input: { actorId: principal.id, workspaceId: deps.workspaceId, id: input.id, expectedVersion: body.expectedVersion },
     });
-    if (!result.ok) rejectWriteFailure({ error: result.error, statusOf: entryWriteErrorStatus });
+    if (!result.ok) rejectWriteFailure({ error: result.error, statusOf: entryWriteErrorStatus, outwardErrorMessage: deps.outwardErrorMessage });
 
     // 2026-09-03 outbox-drain audit fix — drains the outbox so `publishEntry`/`unpublishEntry`'s
     // `entry.published`/`entry.unpublished` event reaches `bus.subscribe`d consumers before the

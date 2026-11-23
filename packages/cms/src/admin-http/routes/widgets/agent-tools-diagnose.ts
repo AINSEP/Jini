@@ -10,10 +10,13 @@ import {
   type WhereUsedResponse,
 } from "../../../widgets/index.js";
 import { rejectWidgetError } from "../../http/widgets.js";
+import type { OutwardErrorMessage } from "../../http/outward-error-message.js";
 import { authorizeWidgets, type WidgetRoutePrincipal } from "./shared.js";
 
 /** The deps this route reads. */
 export interface WidgetDiagnoseToolRouteDeps {
+  /** Words a classified error for the caller (see {@link OutwardErrorMessage}). */
+  outwardErrorMessage: OutwardErrorMessage;
   workspaceId: string;
   entryRepo: Pick<RegionAreaServiceDeps["entryRepo"], "findById">;
   entryRefsRepo: Pick<EntryRefsRepoPort, "findByTarget">;
@@ -54,7 +57,7 @@ export const widgetDiagnoseToolRoute = defineJsonRoute<{ widgetInstanceId: strin
       const refs = await deps.entryRefsRepo.findByTarget({ workspaceId: deps.workspaceId, targetKind: "entry", targetId: input.widgetInstanceId });
       return ok({ value: { tool: "widgets.diagnose", exists, status, whereUsed: toWhereUsedResponse({ refs }, {}) } });
     } catch (err) {
-      return rejectWidgetError({ err });
+      return rejectWidgetError({ err, outwardErrorMessage: deps.outwardErrorMessage });
     }
   },
 });

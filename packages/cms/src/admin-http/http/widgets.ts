@@ -1,5 +1,7 @@
 import { RouteRefusalError } from "@jini-ai/core/errors/route-refusal";
 
+import type { OutwardErrorMessage } from "./outward-error-message.js";
+
 import {
   WidgetAreaConflictError,
   WidgetAreaNotFoundError,
@@ -55,11 +57,11 @@ export interface WidgetErrorResponse {
  * `FORBIDDEN` every OTHER admin route's inline 403 uses, which was a drift from every sibling in
  * this table, not a deliberate distinct code.
  */
-function widgetForbiddenToResponse(err: WidgetForbiddenError): WidgetErrorResponse {
+function widgetForbiddenToResponse(err: WidgetForbiddenError, message: string): WidgetErrorResponse {
   const match = /lacks permission '([^']+)' \(([^)]+)\)/.exec(err.message);
   return {
     status: 403,
-    body: { error: err.message, code: "WIDGETS_FORBIDDEN", details: { permission: match?.[1] ?? "", reason: match?.[2] ?? "" } },
+    body: { error: message, code: "WIDGETS_FORBIDDEN", details: { permission: match?.[1] ?? "", reason: match?.[2] ?? "" } },
   };
 }
 
@@ -69,49 +71,49 @@ function widgetForbiddenToResponse(err: WidgetForbiddenError): WidgetErrorRespon
  * are disjoint (none is a subclass of another here), so relative order among them is not significant.
  */
 const WIDGET_ERROR_MAPPERS: ReadonlyArray<
-  readonly [abstract new (...args: never[]) => Error, (err: never) => WidgetErrorResponse]
+  readonly [abstract new (...args: never[]) => Error, (err: never, message: string) => WidgetErrorResponse]
 > = [
   [
     WidgetConfigValidationError,
-    (err: WidgetConfigValidationError) => ({ status: 400, body: { error: err.message, code: "WIDGETS_CONFIG_VALIDATION_ERROR", details: { fieldErrors: err.fieldErrors } } }),
+    (err: WidgetConfigValidationError, message) => ({ status: 400, body: { error: message, code: "WIDGETS_CONFIG_VALIDATION_ERROR", details: { fieldErrors: err.fieldErrors } } }),
   ],
   [
     WidgetTypeUnregisteredError,
-    (err: WidgetTypeUnregisteredError) => ({ status: 400, body: { error: err.message, code: "WIDGETS_TYPE_UNREGISTERED", details: { widgetType: err.widgetType } } }),
+    (err: WidgetTypeUnregisteredError, message) => ({ status: 400, body: { error: message, code: "WIDGETS_TYPE_UNREGISTERED", details: { widgetType: err.widgetType } } }),
   ],
   [
     WidgetEmbedReorderCountMismatchError,
-    (err: WidgetEmbedReorderCountMismatchError) => ({
+    (err: WidgetEmbedReorderCountMismatchError, message) => ({
       status: 400,
-      body: { error: err.message, code: "WIDGETS_EMBED_REORDER_COUNT_MISMATCH", details: { expectedCount: err.expectedCount, actualCount: err.actualCount } },
+      body: { error: message, code: "WIDGETS_EMBED_REORDER_COUNT_MISMATCH", details: { expectedCount: err.expectedCount, actualCount: err.actualCount } },
     }),
   ],
   [
     WidgetEmbedGuardrailError,
-    (err: WidgetEmbedGuardrailError) => ({ status: 400, body: { error: err.message, code: "WIDGETS_EMBED_GUARDRAIL_VIOLATION", details: { reason: err.reason } } }),
+    (err: WidgetEmbedGuardrailError, message) => ({ status: 400, body: { error: message, code: "WIDGETS_EMBED_GUARDRAIL_VIOLATION", details: { reason: err.reason } } }),
   ],
   [
     WidgetVersionConflictError,
-    (err: WidgetVersionConflictError) => ({ status: 409, body: { error: err.message, code: "WIDGETS_VERSION_CONFLICT", details: { currentVersion: err.currentVersion } } }),
+    (err: WidgetVersionConflictError, message) => ({ status: 409, body: { error: message, code: "WIDGETS_VERSION_CONFLICT", details: { currentVersion: err.currentVersion } } }),
   ],
   [
     WidgetAreaConflictError,
-    (err: WidgetAreaConflictError) => ({ status: 409, body: { error: err.message, code: "WIDGETS_AREA_CONFLICT", details: { currentVersion: err.currentVersion } } }),
+    (err: WidgetAreaConflictError, message) => ({ status: 409, body: { error: message, code: "WIDGETS_AREA_CONFLICT", details: { currentVersion: err.currentVersion } } }),
   ],
   [
     WidgetReferencedError,
-    (err: WidgetReferencedError) => ({ status: 409, body: { error: err.message, code: "WIDGETS_REFERENCED", details: { referencingLocations: err.referencingLocations } } }),
+    (err: WidgetReferencedError, message) => ({ status: 409, body: { error: message, code: "WIDGETS_REFERENCED", details: { referencingLocations: err.referencingLocations } } }),
   ],
-  [WidgetInstanceNotFoundError, (err: WidgetInstanceNotFoundError) => ({ status: 404, body: { error: err.message, code: "WIDGETS_INSTANCE_NOT_FOUND" } })],
-  [WidgetAreaNotFoundError, (err: WidgetAreaNotFoundError) => ({ status: 404, body: { error: err.message, code: "WIDGETS_AREA_NOT_FOUND" } })],
-  [WidgetEmbedHostNotFoundError, (err: WidgetEmbedHostNotFoundError) => ({ status: 404, body: { error: err.message, code: "WIDGETS_EMBED_HOST_NOT_FOUND" } })],
+  [WidgetInstanceNotFoundError, (_err: WidgetInstanceNotFoundError, message) => ({ status: 404, body: { error: message, code: "WIDGETS_INSTANCE_NOT_FOUND" } })],
+  [WidgetAreaNotFoundError, (_err: WidgetAreaNotFoundError, message) => ({ status: 404, body: { error: message, code: "WIDGETS_AREA_NOT_FOUND" } })],
+  [WidgetEmbedHostNotFoundError, (_err: WidgetEmbedHostNotFoundError, message) => ({ status: 404, body: { error: message, code: "WIDGETS_EMBED_HOST_NOT_FOUND" } })],
   [
     WidgetEmbedPlacementNotFoundError,
-    (err: WidgetEmbedPlacementNotFoundError) => ({ status: 404, body: { error: err.message, code: "WIDGETS_EMBED_PLACEMENT_NOT_FOUND" } }),
+    (_err: WidgetEmbedPlacementNotFoundError, message) => ({ status: 404, body: { error: message, code: "WIDGETS_EMBED_PLACEMENT_NOT_FOUND" } }),
   ],
   [
     WidgetEmbedHostUnsupportedError,
-    (err: WidgetEmbedHostUnsupportedError) => ({ status: 400, body: { error: err.message, code: "WIDGETS_EMBED_HOST_UNSUPPORTED", details: { reason: err.reason } } }),
+    (err: WidgetEmbedHostUnsupportedError, message) => ({ status: 400, body: { error: message, code: "WIDGETS_EMBED_HOST_UNSUPPORTED", details: { reason: err.reason } } }),
   ],
   [WidgetForbiddenError, widgetForbiddenToResponse],
 ];
@@ -120,13 +122,17 @@ const WIDGET_ERROR_MAPPERS: ReadonlyArray<
  * Pure typed-error -> `{status, body}` mapping for the widgets domain's own errors, in the
  * `{error, code, ...}` envelope shape every admin route already establishes. Returns `undefined`
  * for anything else, so the caller applies its own fallback (a host maps injected collaborators'
- * errors and answers unexpected failures itself).
+ * errors and answers unexpected failures itself). The classification (status, code, details)
+ * stays here; the `error` copy is the host's `outwardErrorMessage` for the error.
  *
  * @complexity O(n) in the fixed mapper table length.
  */
-export function widgetDomainErrorToResponse({ err }: { err: unknown }, _optional: Record<string, never> = {}): WidgetErrorResponse | undefined {
+export function widgetDomainErrorToResponse(
+  { err, outwardErrorMessage }: { err: unknown; outwardErrorMessage: OutwardErrorMessage },
+  _optional: Record<string, never> = {},
+): WidgetErrorResponse | undefined {
   for (const [ErrorClass, mapper] of WIDGET_ERROR_MAPPERS) {
-    if (err instanceof ErrorClass) return mapper(err as never);
+    if (err instanceof ErrorClass) return mapper(err as never, outwardErrorMessage({ error: err }));
   }
   return undefined;
 }
@@ -137,8 +143,11 @@ export function widgetDomainErrorToResponse({ err }: { err: unknown }, _optional
  *
  * @complexity O(n) in the fixed mapper table length.
  */
-export function rejectWidgetError({ err }: { err: unknown }, _optional: Record<string, never> = {}): never {
-  const mapped = widgetDomainErrorToResponse({ err });
+export function rejectWidgetError(
+  { err, outwardErrorMessage }: { err: unknown; outwardErrorMessage: OutwardErrorMessage },
+  _optional: Record<string, never> = {},
+): never {
+  const mapped = widgetDomainErrorToResponse({ err, outwardErrorMessage });
   if (mapped) throw new RouteRefusalError(mapped);
   throw err;
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { parseWidgetRegionPlacements, widgetRegionMutatePlacementsRoute } from "../region-mutate-placements.js";
-import { forbidden, PRINCIPAL, rbac, refusalOf, signal, WORKSPACE_ID } from "./helpers.js";
+import { forbidden, PRINCIPAL, rbac, refusalOf, signal, WORKSPACE_ID, plainOutward } from "./helpers.js";
 
 const raw = (body: unknown) => ({ body, query: {}, params: { workspaceId: WORKSPACE_ID, regionKey: "footer" } });
 const VALIDATION = (error: string) => ({ status: 400, body: { error, code: "VALIDATION_ERROR" } });
@@ -34,7 +34,7 @@ describe("widgetRegionMutatePlacementsRoute", () => {
 
   it("refuses an unbound region with its own 404 body and builds no service deps", async () => {
     let built = 0;
-    const deps = { workspaceId: WORKSPACE_ID, widgetBindingRepo: { findByRegion: async () => null }, regionDeps: () => { built++; throw new Error("unreachable"); } };
+    const deps = { workspaceId: WORKSPACE_ID, outwardErrorMessage: plainOutward, widgetBindingRepo: { findByRegion: async () => null }, regionDeps: () => { built++; throw new Error("unreachable"); } };
     const refusal = await refusalOf(() => widgetRegionMutatePlacementsRoute.handle({ input: { regionKey: "nowhere", baseVersion: 1, placements: [] }, deps, context: PRINCIPAL, authorize: async () => {} }, { signal }));
     expect(refusal).toEqual({ status: 404, body: { error: "region 'nowhere' is not bound", code: "WIDGETS_AREA_NOT_FOUND" } });
     expect(built).toBe(0);
@@ -44,6 +44,7 @@ describe("widgetRegionMutatePlacementsRoute", () => {
     const lookups: unknown[] = [];
     const deps = {
       workspaceId: WORKSPACE_ID,
+      outwardErrorMessage: plainOutward,
       widgetBindingRepo: { findByRegion: async (params: { workspaceId: string; regionKey: string }) => { lookups.push(params); return binding; } },
       regionDeps: () => ({ authorize: rbac(false).authorize }) as never,
     };

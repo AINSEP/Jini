@@ -2,10 +2,13 @@ import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
 
 import { parseWidgetAreaPayload, type WidgetReadServiceDeps, type WidgetRegionBindingRepoPort, type WidgetRegionBindingRow } from "../../../widgets/index.js";
 import { rejectWidgetError } from "../../http/widgets.js";
+import type { OutwardErrorMessage } from "../../http/outward-error-message.js";
 import { authorizeWidgets, type WidgetRoutePrincipal } from "./shared.js";
 
 /** The deps this route reads. */
 export interface WidgetRegionsListRouteDeps {
+  /** Words a classified error for the caller (see {@link OutwardErrorMessage}). */
+  outwardErrorMessage: OutwardErrorMessage;
   workspaceId: string;
   entryRepo: Pick<WidgetReadServiceDeps["entryRepo"], "findById">;
   widgetBindingRepo: Pick<WidgetRegionBindingRepoPort, "listByWorkspace">;
@@ -38,7 +41,7 @@ export const widgetRegionsListRoute = defineJsonRoute<Record<string, never>, Wid
       );
       return ok({ value: { regions } });
     } catch (err) {
-      return rejectWidgetError({ err });
+      return rejectWidgetError({ err, outwardErrorMessage: deps.outwardErrorMessage });
     }
   },
 });

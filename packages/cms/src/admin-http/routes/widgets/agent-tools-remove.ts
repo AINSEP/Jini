@@ -30,7 +30,7 @@ export const widgetRemoveToolRoute = defineJsonRoute<WidgetRemoveToolInput, Widg
       const result = await removeWidgetToolPlacement({ deps, actor, target: input.target, placementId: input.placementId });
       return ok({ value: { tool: "widgets.remove", result } });
     } catch (err) {
-      return rejectWidgetError({ err });
+      return rejectWidgetError({ err, outwardErrorMessage: deps.outwardErrorMessage });
     }
   },
 });

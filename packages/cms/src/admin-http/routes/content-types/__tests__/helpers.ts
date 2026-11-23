@@ -34,6 +34,7 @@ export function makeDeps(overrides: { allowed?: boolean } = {}) {
   let drains = 0;
   const deps = {
     workspaceId: WORKSPACE_ID,
+    outwardErrorMessage: ({ error }: { error: Error }) => error.message,
     authorize: async () => ({ allowed: overrides.allowed ?? true, reason: overrides.allowed === false ? "no_grant" : "matched" }),
     clock: { nowMs: () => Date.parse("2026-07-13T00:00:00.000Z") + 1000 * tick, nowIso: () => new Date(Date.parse("2026-07-13T00:00:00.000Z") + 1000 * tick++).toISOString() },
     idGen: { newId: () => `id-${++tick}` },

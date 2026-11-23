@@ -90,7 +90,7 @@ function assignmentWriteRoute(
         await write({ deps: assignmentDeps({ deps }), principalId: principal.id, ...input });
         return ok({ value: undefined });
       } catch (err) {
-        return rejectTaxonomyError({ err, refusals: ASSIGNMENT_REFUSALS });
+        return rejectTaxonomyError({ err, outwardErrorMessage: deps.outwardErrorMessage, refusals: ASSIGNMENT_REFUSALS });
       }
     },
   }, { successStatus: 204 });
@@ -142,7 +142,7 @@ export const taxonomyAssignedTermsRoute = defineJsonRoute<TaxonomyAssignedTermsI
       const rows = await deps.entryTermRepo.listForContent(input);
       return ok({ value: { termIds: rows.map((row) => row.termId).sort() } });
     } catch (err) {
-      return rejectTaxonomyError({ err, refusals: ASSIGNMENT_REFUSALS });
+      return rejectTaxonomyError({ err, outwardErrorMessage: deps.outwardErrorMessage, refusals: ASSIGNMENT_REFUSALS });
     }
   },
 });

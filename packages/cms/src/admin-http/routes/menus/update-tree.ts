@@ -10,6 +10,7 @@ import { authorizeMenuHtml, parseMenuHtmlAuthoring, toAdminMenuResponse, type Ad
 import {
   authorizeMenus, mapMenuError, MENU_NOT_LIVE_MAPPING, menuIdParam, rejectMenuError, type MenuErrorMapping, type MenuRoutePrincipal,
 } from "./shared.js";
+import type { OutwardErrorMessage } from "../../http/outward-error-message.js";
 
 /** Maps `updateMenuTree`'s thrown error types onto the admin error envelope.
  *
@@ -34,6 +35,8 @@ const MENU_UPDATE_TREE_ERROR_MAPPINGS: readonly MenuErrorMapping[] = [
 /** The deps this route reads. `normalizeMenuHtml` is required for the same reason as on
  *  `create.ts`'s deps. */
 export interface MenuUpdateTreeRouteDeps {
+  /** Words a classified error for the caller (see {@link OutwardErrorMessage}). */
+  outwardErrorMessage: OutwardErrorMessage;
   workspaceId: string;
   menuRepo: UpdateMenuTreeDeps["repo"];
   clock: UpdateMenuTreeDeps["clock"];
@@ -107,7 +110,7 @@ export const menuUpdateTreeRoute = defineJsonRoute<MenuUpdateTreeInput, AdminMen
       });
       return ok({ value: toAdminMenuResponse(menu) });
     } catch (err) {
-      return rejectMenuError({ err, mappings: MENU_UPDATE_TREE_ERROR_MAPPINGS });
+      return rejectMenuError({ err, outwardErrorMessage: deps.outwardErrorMessage, mappings: MENU_UPDATE_TREE_ERROR_MAPPINGS });
     }
   },
 });

@@ -1,10 +1,10 @@
 import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
 
 import { entriesDeps, entryWriteErrorStatus, updateEntry, type EntriesToolDeps } from "../../../entries/index.js";
-import { authorizeCollections, collectionsBody, collectionsPrincipal, rejectValidation, rejectWriteFailure, type CollectionsRouteBody, type CollectionsRoutePrincipal, type OkValue, type OutboxDrainDeps } from "../content-types/collections-route.js";
+import { authorizeCollections, collectionsBody, collectionsPrincipal, rejectValidation, rejectWriteFailure, type CollectionsOutwardErrorDeps, type CollectionsRouteBody, type CollectionsRoutePrincipal, type OkValue, type OutboxDrainDeps } from "../content-types/collections-route.js";
 
 /** The deps this route reads. */
-export interface EntryUpdateRouteDeps extends EntriesToolDeps, OutboxDrainDeps {}
+export interface EntryUpdateRouteDeps extends EntriesToolDeps, OutboxDrainDeps, CollectionsOutwardErrorDeps {}
 
 /** The entry id plus the untyped PUT body. */
 export interface EntryUpdateInput extends CollectionsRouteBody { id: string }
@@ -49,7 +49,7 @@ export const entryUpdateRoute = defineJsonRoute<EntryUpdateInput, EntryUpdateOut
         expectedVersion: body.expectedVersion,
       },
     });
-    if (!result.ok) rejectWriteFailure({ error: result.error, statusOf: entryWriteErrorStatus });
+    if (!result.ok) rejectWriteFailure({ error: result.error, statusOf: entryWriteErrorStatus, outwardErrorMessage: deps.outwardErrorMessage });
 
     // 2026-09-03 outbox-drain audit fix — drains the outbox so `updateEntry`'s `entry.updated`
     // event reaches `bus.subscribe`d consumers before the response rather than on the background

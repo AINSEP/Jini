@@ -4,11 +4,11 @@ import {
   contentTypeWriteErrorStatus, parseContentTypeFieldDefs,
   type UpdateContentTypeFieldsRequired, type updateContentTypeFields,
 } from "../../../content-types/index.js";
-import { authorizeCollections, collectionsBody, collectionsPrincipal, rejectValidation, rejectWriteFailure, type CollectionsRouteBody, type CollectionsRoutePrincipal, type OkValue } from "./collections-route.js";
+import { authorizeCollections, collectionsBody, collectionsPrincipal, rejectValidation, rejectWriteFailure, type CollectionsOutwardErrorDeps, type CollectionsRouteBody, type CollectionsRoutePrincipal, type OkValue } from "./collections-route.js";
 import { contentTypeWriteDeps, type ContentTypeWriteRouteDeps } from "./shared.js";
 
 /** The deps this route reads. */
-export interface ContentTypeUpdateFieldsRouteDeps extends ContentTypeWriteRouteDeps {
+export interface ContentTypeUpdateFieldsRouteDeps extends ContentTypeWriteRouteDeps, CollectionsOutwardErrorDeps {
   /** The host's field-schema writer (the shared write service, or a host wrapper around it). */
   updateContentTypeFields: (required: UpdateContentTypeFieldsRequired) => ReturnType<typeof updateContentTypeFields>;
 }
@@ -39,7 +39,7 @@ export const contentTypeUpdateFieldsRoute = defineJsonRoute<ContentTypeUpdateFie
     // boundaries cannot drift. Domain rules (grammar, kind enum, queryable cap) stay in
     // `write-service.ts`'s CIC U-002-B1 chain — see `field-defs.ts`'s header.
     const fields = parseContentTypeFieldDefs({ value: body.fields });
-    if (!fields.ok) rejectWriteFailure({ error: fields.error, statusOf: contentTypeWriteErrorStatus });
+    if (!fields.ok) rejectWriteFailure({ error: fields.error, statusOf: contentTypeWriteErrorStatus, outwardErrorMessage: deps.outwardErrorMessage });
 
     const result = await deps.updateContentTypeFields({
       deps: contentTypeWriteDeps({ deps }),
@@ -52,7 +52,7 @@ export const contentTypeUpdateFieldsRoute = defineJsonRoute<ContentTypeUpdateFie
         expectedVersion: body.expectedVersion,
       },
     });
-    if (!result.ok) rejectWriteFailure({ error: result.error, statusOf: contentTypeWriteErrorStatus });
+    if (!result.ok) rejectWriteFailure({ error: result.error, statusOf: contentTypeWriteErrorStatus, outwardErrorMessage: deps.outwardErrorMessage });
     return ok({ value: result.value });
   },
 });

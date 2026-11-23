@@ -2,10 +2,13 @@ import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
 
 import { getWidgetInstance, toWhereUsedResponse, type EntryRefsRepoPort, type WhereUsedResponse, type WidgetInstanceEntry, type WidgetReadServiceDeps } from "../../../widgets/index.js";
 import { rejectWidgetError } from "../../http/widgets.js";
+import type { OutwardErrorMessage } from "../../http/outward-error-message.js";
 import { widgetActorId, type WidgetRoutePrincipal } from "./shared.js";
 
 /** The deps this route reads. */
 export interface WidgetGetRouteDeps {
+  /** Words a classified error for the caller (see {@link OutwardErrorMessage}). */
+  outwardErrorMessage: OutwardErrorMessage;
   workspaceId: string;
   entryRepo: WidgetReadServiceDeps["entryRepo"];
   authorize: WidgetReadServiceDeps["authorize"];
@@ -32,7 +35,7 @@ export const widgetGetRoute = defineJsonRoute<{ id: string }, WidgetGetResponse,
       const refs = await deps.entryRefsRepo.findByTarget({ workspaceId: deps.workspaceId, targetKind: "entry", targetId: instance.id });
       return ok({ value: { widget: instance, revisions, whereUsed: toWhereUsedResponse({ refs }, {}) } });
     } catch (err) {
-      return rejectWidgetError({ err });
+      return rejectWidgetError({ err, outwardErrorMessage: deps.outwardErrorMessage });
     }
   },
 });
