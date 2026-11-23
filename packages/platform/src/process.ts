@@ -15,10 +15,14 @@ import { setTimeout as sleep } from "node:timers/promises";
 import { windowsPowerShell } from "./windows-system-tools.js";
 
 import type { CommandInvocationRequest, ProcessSnapshot, StopProcessesResult } from "@jini-ai/core/contracts/runtime";
+import type { ProcessPrivateMemory, ProcessUsage } from "@jini-ai/core/contracts/site/platform-process";
 import { createCommandInvocation } from "./command.js";
 import { execFileBuffered } from "./shell.js";
 import { topReadings } from "./process-top-footprint.js";
 import { listPosixProcessSnapshots, listWindowsProcessSnapshots, parsePsUsage, parseCimUsage, processUsageCommand, processProbeOutput, parsePrivateWorkingSets, assertPrivateMemorySample } from "./process-probes.js";
+
+/** Deprecated re-export: import these from `@jini-ai/core/contracts/site/platform-process`; removed at the next major. */
+export type { ProcessPrivateMemory, ProcessUsage } from "@jini-ai/core/contracts/site/platform-process";
 
 export type ProcessStampShape = object;
 
@@ -40,16 +44,6 @@ export type SpawnProcessRequest = CommandInvocationRequest & {
   logFd?: number | null;
 };
 
-/** Display-only usage: RSS is bytes; CPU is cumulative seconds across all cores. */
-export type ProcessUsage = {
-  pid: number;
-  ppid: number;
-  rssBytes: number;
-  cpuSeconds: number;
-  /** Executable basename only; empty when the OS provides no name. */
-  name: string;
-};
-
 export type ProcessUsagePorts = {
   platform?: NodeJS.Platform;
   run?: typeof execFileBuffered;
@@ -57,12 +51,6 @@ export type ProcessUsagePorts = {
 
 export type ProcessUsageOptions = {
   timeoutMs?: number;
-};
-
-/** Private-memory samples are separate from RSS; unsupported hosts retain null readings. */
-export type ProcessPrivateMemory = {
-  metric: "physical-footprint" | "private-working-set" | "unavailable";
-  readings: Array<{ pid: number; bytes: number | null }>;
 };
 
 export type StampedProcessMatchCriteria<TStamp extends ProcessStampShape> = Partial<TStamp>;

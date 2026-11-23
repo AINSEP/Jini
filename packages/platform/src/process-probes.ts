@@ -3,7 +3,8 @@ import { captureLineTail } from "@jini-ai/core/text";
 import type { ProcessSnapshot } from "@jini-ai/core/contracts/runtime";
 import { windowsPowerShell } from "./windows-system-tools.js";
 import { execFileBuffered } from "./shell.js";
-import type { ProcessUsage, ProcessUsagePorts, ProcessUsageOptions } from "./process.js";
+import type { ProcessUsagePorts, ProcessUsageOptions } from "./process.js";
+import type { ProcessUsage } from "@jini-ai/core/contracts/site/platform-process";
 
 type WindowsProcessRecord = {
   CommandLine?: string | null;

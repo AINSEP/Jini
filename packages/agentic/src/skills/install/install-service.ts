@@ -1,5 +1,6 @@
 import path from "node:path";
-import { SkillInputError, validateSkillFiles, type SkillUploadFile } from "./validation.js";
+import { SkillInputError, validateSkillFiles } from "./validation.js";
+import type { SkillInstallInput, SkillUploadFile } from "@jini-ai/core/contracts/site/skills-install";
 import { readSkillArchive } from "./archive.js";
 import { fetchGitHubSkill, type GitHubSkillSource } from "./github.js";
 import { readSkillState } from "./state.js";
@@ -7,11 +8,6 @@ import type { SkillInstallDeps } from "./ports.js";
 import { hasSeparatorOrNul } from "./unsafe-chars.js";
 
 export interface ManagedSkill<Source extends object = GitHubSkillSource> { readonly toolId: string; readonly name: string; readonly description: string; readonly enabled: boolean; readonly source: "uploaded" | GitHubSkillSource | Source }
-export type SkillInstallInput = { readonly workspaceId: string } & (
-  { readonly url: string } |
-  { /** @deprecated Use url with an injected source provider. */ readonly githubUrl: string } |
-  { readonly files: readonly SkillUploadFile[] } | { readonly archiveBase64: string }
-);
 /** A fetched and fully validated skill package, not yet written. Holding the validated bytes (not
  * the source) means commitSkillInstall writes exactly what was validated, with no second fetch. */
 export interface PreparedSkillInstall<Source extends object = GitHubSkillSource> {

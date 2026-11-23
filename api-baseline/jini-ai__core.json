@@ -1,6 +1,5 @@
 {
  ".": {
-  "types": "./dist/index.d.ts",
   "symbols": {
    "ACTOR_CLASS_RULES_REQUIRING_CONFIRMATION_TRANSPORT": "variable:e1c69c0e4c",
    "AGENT_FAILURE_SECRET_SHAPE_RE": "variable:8f4391b873",
@@ -330,10 +329,10 @@
    "withSchemaOnRejection": "function:4157f5fc86",
    "withToolMetadata": "function:e15548ad4c",
    "withoutBatchGuidance": "function:29c49bf698"
-  }
+  },
+  "types": "./dist/index.d.ts"
  },
  "./admin-runtime": {
-  "types": "./dist/admin-runtime/index.d.ts",
   "symbols": {
    "AdminApiError": "class:a7ab399c2c",
    "AdminConfigError": "class:937619e96c",
@@ -348,10 +347,10 @@
    "isPanelAccessible": "function:13d35c94b8",
    "querySuffix": "function:afce399693",
    "withoutInaccessiblePanels": "function:61198e07ae"
-  }
+  },
+  "types": "./dist/admin-runtime/index.d.ts"
  },
  "./agent-handles": {
-  "types": "./dist/agent-handles/index.d.ts",
   "symbols": {
    "AGENT_ELEMENT_ATTRIBUTE": "variable:b6e9142d48",
    "AGENT_ELEMENT_ROLES": "variable:23b8a9477c",
@@ -375,18 +374,18 @@
    "isValidElementHandle": "function:4c4744759f",
    "resolveHandleSelector": "function:c724ab0670",
    "secretControlAttrs": "function:896fd0aa19"
-  }
+  },
+  "types": "./dist/agent-handles/index.d.ts"
  },
  "./approval-batch-chain": {
-  "types": "./dist/approval-batch-chain.d.ts",
   "symbols": {
    "ChainedBatchSteps": "interface:a837079253",
    "PrepareStep": "type:0d4df46b9a",
    "createChainedBatchHandler": "function:b7c81aade3"
-  }
+  },
+  "types": "./dist/approval-batch-chain.d.ts"
  },
  "./composition": {
-  "types": "./dist/composition.d.ts",
   "symbols": {
    "AnyPack": "type:6d1c29b2d4",
    "MissingTokenIds": "type:b201a37d49",
@@ -394,10 +393,10 @@
    "ToolAuthorizationDelegate": "interface:cfc4ac6945",
    "ToolInvocationAuthorization": "type:1716a8965b",
    "authorizeToolInvocation": "function:0e8ff4cadd"
-  }
+  },
+  "types": "./dist/composition.d.ts"
  },
  "./contracts/admin-module": {
-  "types": "./dist/contracts/admin-module.d.ts",
   "symbols": {
    "AdminDescription": "interface:b042db47e3",
    "AdminInstance": "interface:a1652fafee",
@@ -417,10 +416,10 @@
    "UseAdminController": "type:f9a9af40c9",
    "adminPort": "function:223d80e8d9",
    "defineAdminModule": "function:97211cec77"
-  }
+  },
+  "types": "./dist/contracts/admin-module.d.ts"
  },
  "./contracts/agents": {
-  "types": "./dist/contracts/agents/index.d.ts",
   "symbols": {
    "AcpModelProbe": "interface:9f374a8912",
    "AcpModelProbeRequest": "interface:f1578841c8",
@@ -473,10 +472,10 @@
    "RuntimeSelectionError": "class:a47f9d0728",
    "RuntimeStdoutPolicy": "type:5db926d6f7",
    "WorkspaceContextItem": "interface:95f545c991"
-  }
+  },
+  "types": "./dist/contracts/agents/index.d.ts"
  },
  "./contracts/ai-trace": {
-  "types": "./dist/contracts/ai-trace/index.d.ts",
   "symbols": {
    "AiCapturedText": "interface:bb34cc71ae",
    "AiContentCapture": "type:02a2fa5586",
@@ -505,18 +504,18 @@
    "createRecordingAiTraceSink": "function:421d77e2b0",
    "noopAiTraceSink": "variable:2dcccde323",
    "normalizeAiUsage": "function:dede2b2e8f"
-  }
+  },
+  "types": "./dist/contracts/ai-trace/index.d.ts"
  },
  "./contracts/blob": {
-  "types": "./dist/contracts/blob.d.ts",
   "symbols": {
    "BlobFileMeta": "interface:85d6421a59",
    "BlobStorage": "interface:0097788d2f",
    "StorageError": "class:f963ae5e0e"
-  }
+  },
+  "types": "./dist/contracts/blob.d.ts"
  },
  "./contracts/capabilities": {
-  "types": "./dist/contracts/capabilities.d.ts",
   "symbols": {
    "CapabilityDef": "interface:0e98676fc2",
    "CapabilityInputProperty": "interface:8a398b622c",
@@ -526,10 +525,10 @@
    "availableCapabilities": "function:6bd5ac720a",
    "findCapability": "function:4828f3e91e",
    "findCapabilityInputError": "function:b9f572b62a"
-  }
+  },
+  "types": "./dist/contracts/capabilities.d.ts"
  },
  "./contracts/cards": {
-  "types": "./dist/contracts/cards.d.ts",
   "symbols": {
    "BooleanField": "interface:a493c66957",
    "BridgeScriptSpec": "interface:703d488077",
@@ -569,10 +568,10 @@
    "SurfaceOutcomeSpec": "interface:78f3bc66a4",
    "SurfaceStatusText": "interface:11dc10848d",
    "SurfaceTokenName": "type:df261749c4"
-  }
+  },
+  "types": "./dist/contracts/cards.d.ts"
  },
  "./contracts/charts": {
-  "types": "./dist/contracts/charts.d.ts",
   "symbols": {
    "ChartInstance": "interface:aaa4e220ea",
    "ChartKind": "type:9d5a5a45d3",
@@ -584,20 +583,20 @@
    "ChartTheme": "interface:619b0d6546",
    "ChartThemeApplier": "type:be02af0934",
    "ChartValue": "type:b0d0bcadd7"
-  }
+  },
+  "types": "./dist/contracts/charts.d.ts"
  },
  "./contracts/content-types": {
-  "types": "./dist/contracts/content-types.d.ts",
   "symbols": {
    "ContentTypeFieldDef": "interface:076dcc82a6",
    "ContentTypeFieldKind": "type:4af0e30562",
    "ContentTypeRecord": "interface:1af07f54fa",
    "ContentTypeStatus": "type:1c59857e8b",
    "IndexableFieldKind": "type:02961ffd8c"
-  }
+  },
+  "types": "./dist/contracts/content-types.d.ts"
  },
  "./contracts/credentials": {
-  "types": "./dist/contracts/credentials.d.ts",
   "symbols": {
    "CredentialAuthFailureDiagnostic": "interface:0c52e3dfbe",
    "CredentialAuthSchemeRule": "interface:ef86ede9c1",
@@ -633,10 +632,10 @@
    "SourceControlWriteFile": "interface:5288710934",
    "SourceControlWritePort": "interface:3fa4330d34",
    "SourceControlWriterBuildResult": "type:3d0c838773"
-  }
+  },
+  "types": "./dist/contracts/credentials.d.ts"
  },
  "./contracts/env": {
-  "types": "./dist/contracts/env.d.ts",
   "symbols": {
    "EnvFamily": "interface:51b469fd97",
    "EnvIssue": "interface:09697ef6a4",
@@ -648,10 +647,10 @@
    "EnvVarSpec": "interface:63e8780a96",
    "HostEnvironment": "type:d35cb4053f",
    "ParsedEnv": "interface:80e63411b9"
-  }
+  },
+  "types": "./dist/contracts/env.d.ts"
  },
  "./contracts/events": {
-  "types": "./dist/contracts/events.d.ts",
   "symbols": {
    "AuthorizeFn": "type:a37e758d08",
    "ChangeSetItemRecord": "interface:dacb3cee90",
@@ -672,10 +671,10 @@
    "OutboxPort": "interface:053c1c807d",
    "OutboxRecord": "interface:6d13316eb7",
    "TransactionalRepoPort": "interface:5f66eb000a"
-  }
+  },
+  "types": "./dist/contracts/events.d.ts"
  },
  "./contracts/forms": {
-  "types": "./dist/contracts/forms.d.ts",
   "symbols": {
    "FORM_COLLECTION_CONTRACT": "variable:3b81dd9d49",
    "FormAnswer": "type:e594a16b8b",
@@ -687,31 +686,31 @@
    "FormProviderDescription": "interface:d41673353d",
    "FormProviderSelection": "interface:20f22b9827",
    "FormSubmissionEvidence": "interface:8b843e3b4a"
-  }
+  },
+  "types": "./dist/contracts/forms.d.ts"
  },
  "./contracts/headless/form-delivery-status": {
-  "types": "./dist/contracts/headless/form-delivery-status.d.ts",
   "symbols": {
    "FormDeliveryStatusPort": "interface:053b3b4a82",
    "FormDeliveryStatusRow": "type:4458661f59"
-  }
+  },
+  "types": "./dist/contracts/headless/form-delivery-status.d.ts"
  },
  "./contracts/headless/operator-locale": {
-  "types": "./dist/contracts/headless/operator-locale.d.ts",
   "symbols": {
    "GetEffectiveSetting": "type:85f5272731",
    "OperatorLocaleDeps": "interface:3d3ddd308c"
-  }
+  },
+  "types": "./dist/contracts/headless/operator-locale.d.ts"
  },
  "./contracts/headless/plugin-export-catalog": {
-  "types": "./dist/contracts/headless/plugin-export-catalog.d.ts",
   "symbols": {
    "PluginExportCatalogPort": "interface:e8f4eb6f05",
    "PluginExportCatalogRow": "interface:187883034a"
-  }
+  },
+  "types": "./dist/contracts/headless/plugin-export-catalog.d.ts"
  },
  "./contracts/headless/plugin-host": {
-  "types": "./dist/contracts/headless/plugin-host.d.ts",
   "symbols": {
    "AgentPluginHostCapability": "interface:708b27401d",
    "AgentPluginLayout": "interface:8f0fb2d781",
@@ -722,18 +721,18 @@
    "PluginLookupPort": "interface:31b4019446",
    "PluginProvider": "interface:8e73b5c511",
    "SetAgentPluginEnabledInput": "type:310aaca3ba"
-  }
+  },
+  "types": "./dist/contracts/headless/plugin-host.d.ts"
  },
  "./contracts/headless/site-cookie-consent": {
-  "types": "./dist/contracts/headless/site-cookie-consent.d.ts",
   "symbols": {
    "ConsentPluginContribution": "interface:145c138eeb",
    "ConsentPluginHttp": "interface:f2a23e6879",
    "SiteCookieConsentDeps": "interface:afaf303997"
-  }
+  },
+  "types": "./dist/contracts/headless/site-cookie-consent.d.ts"
  },
  "./contracts/hosted-mcp": {
-  "types": "./dist/contracts/hosted-mcp.d.ts",
   "symbols": {
    "ExternalMcpAccessSnapshot": "interface:f68d762ad0",
    "ExternalMcpAccessUpdate": "interface:c30cb2f03f",
@@ -764,10 +763,10 @@
    "SaveExternalMcpOAuthInput": "interface:7baa53c565",
    "SaveExternalMcpServerInput": "interface:7e864ea6b7",
    "SealedExternalMcpOAuth": "interface:f8b677027b"
-  }
+  },
+  "types": "./dist/contracts/hosted-mcp.d.ts"
  },
  "./contracts/mail": {
-  "types": "./dist/contracts/mail.d.ts",
   "symbols": {
    "ConsoleMailerAdapter": "type:e7b88940d6",
    "DeliveryReadinessPolicy": "interface:d1cf0da859",
@@ -843,10 +842,10 @@
    "SmtpMailPayload": "interface:56d357d4e9",
    "SmtpTransport": "interface:814ab41b5a",
    "validateEmailSourceTemplate": "function:e6bab8dd7d"
-  }
+  },
+  "types": "./dist/contracts/mail.d.ts"
  },
  "./contracts/oauth": {
-  "types": "./dist/contracts/oauth.d.ts",
   "symbols": {
    "AuthorizationCallbackParams": "interface:f2d3bfe527",
    "AuthorizationStateCodec": "interface:b454a79afd",
@@ -902,10 +901,10 @@
    "TokenRefresher": "interface:3630296115",
    "TokenRefresherDeps": "interface:f84f99abb8",
    "TokenRequestDeps": "interface:102e2d426c"
-  }
+  },
+  "types": "./dist/contracts/oauth.d.ts"
  },
  "./contracts/observability": {
-  "types": "./dist/contracts/observability.d.ts",
   "symbols": {
    "AgentRunStatus": "type:ecd64f6b8c",
    "AgentRunTracker": "interface:d6adb008e4",
@@ -943,10 +942,10 @@
    "TrackerScope": "interface:56e04a3266",
    "createNoopObservabilityPort": "function:5d6602af3c",
    "isNoopObservabilityPort": "function:95a1d95a0a"
-  }
+  },
+  "types": "./dist/contracts/observability.d.ts"
  },
  "./contracts/plugin-sdk": {
-  "types": "./dist/contracts/plugin-sdk.d.ts",
   "symbols": {
    "BeforeSaveFilter": "type:86ef4dfc69",
    "ContentEntryDraft": "interface:084574c152",
@@ -977,10 +976,10 @@
    "PluginWidgetContribution": "interface:4d65d5339a",
    "hasProviderAuthHeader": "function:4a53da66fb",
    "pluginProviderStartupGuidance": "function:ea8a25ca8d"
-  }
+  },
+  "types": "./dist/contracts/plugin-sdk.d.ts"
  },
  "./contracts/runtime": {
-  "types": "./dist/contracts/runtime.d.ts",
   "symbols": {
    "AtomicFileWriterPort": "interface:e39dcfedf3",
    "AtomicWritePortOptions": "interface:f4e2c981ba",
@@ -1026,10 +1025,10 @@
    "omitEnvironmentKeys": "function:6cd109c7af",
    "planCmdShimInvocation": "function:c979a89fb2",
    "planCommandInvocation": "function:332b35b2f9"
-  }
+  },
+  "types": "./dist/contracts/runtime.d.ts"
  },
  "./contracts/runtime/testing": {
-  "types": "./dist/contracts/runtime/testing.d.ts",
   "symbols": {
    "FakeAtomicWriter": "interface:8fda5ff5a7",
    "FakeFileLock": "interface:3e96903da7",
@@ -1045,10 +1044,10 @@
    "fakeGuardedHttp": "function:a0e4ce31f7",
    "fakeHttpFetch": "function:0af1ddf8b4",
    "fakeProcessControl": "function:fe6367af71"
-  }
+  },
+  "types": "./dist/contracts/runtime/testing.d.ts"
  },
  "./contracts/server": {
-  "types": "./dist/contracts/server.d.ts",
   "symbols": {
    "CSP_REPORT_ONLY_HEADER": "variable:5800295606",
    "ClientFacingError": "class:f85af5d9df",
@@ -1113,18 +1112,18 @@
    "withDeclaredHosts": "function:5c5f2958e5",
    "withRouteMiddleware": "function:0dfab2b00b",
    "withServerMiddleware": "function:a2d6ffd1ce"
-  }
+  },
+  "types": "./dist/contracts/server.d.ts"
  },
  "./contracts/server/conformance": {
-  "types": "./dist/contracts/server/conformance.d.ts",
   "symbols": {
    "ConformanceRunner": "interface:fcf38022fa",
    "ConformanceTarget": "interface:b511b1f326",
    "serverConformance": "function:8808ec27f5"
-  }
+  },
+  "types": "./dist/contracts/server/conformance.d.ts"
  },
  "./contracts/server/security-headers": {
-  "types": "./dist/contracts/server/security-headers.d.ts",
   "symbols": {
    "CSP_REPORT_ONLY_HEADER": "variable:5800295606",
    "DeclaredPageHosts": "interface:eb4058c072",
@@ -1132,10 +1131,10 @@
    "addDeclaredHostsToPolicy": "function:11453a7ebb",
    "isDeclaredOrigin": "function:b77c95555a",
    "withDeclaredHosts": "function:5c5f2958e5"
-  }
+  },
+  "types": "./dist/contracts/server/security-headers.d.ts"
  },
  "./contracts/server/testing": {
-  "types": "./dist/contracts/server/testing.d.ts",
   "symbols": {
    "InMemoryServer": "interface:149de69aa8",
    "RecordingOriginPolicy": "interface:ad68bd7a3b",
@@ -1146,10 +1145,10 @@
    "createTestRouteHost": "function:f44f7aad57",
    "denyAllOrigins": "variable:c189ea52e7",
    "fakeTimingSafeEqual": "function:29bf8074c4"
-  }
+  },
+  "types": "./dist/contracts/server/testing.d.ts"
  },
  "./contracts/server/verified-origin": {
-  "types": "./dist/contracts/server/verified-origin/index.d.ts",
   "symbols": {
    "ConfiguredOriginRequired": "interface:23a06c3bd3",
    "EgressTargetContext": "interface:ed2238b90e",
@@ -1180,10 +1179,28 @@
    "normalizeOriginCandidate": "function:f814bbe739",
    "planOriginBoot": "function:fc7d2dd368",
    "resolveConfiguredOrigin": "function:15a98e5b94"
-  }
+  },
+  "types": "./dist/contracts/server/verified-origin/index.d.ts"
+ },
+ "./contracts/site/admin-surfaces-connections": {
+  "symbols": {
+   "AdminSurfaceAccountAction": "interface:1c0b431587",
+   "AdminSurfaceCallbackFieldKey": "interface:f90d593787",
+   "AdminSurfaceCallbackInbox": "interface:c12e1b7505",
+   "AdminSurfaceConnectionAccount": "interface:ab0ec6074c",
+   "AdminSurfaceConnectionRecord": "interface:c6ad524971",
+   "AdminSurfaceConnectionsHost": "interface:991b5067be",
+   "AdminSurfaceDeclaredConnection": "interface:fbb2763b54",
+   "AdminSurfaceDisconnected": "interface:eef849831c",
+   "AdminSurfaceSignInStart": "interface:810e7369b8",
+   "AdminSurfaceSignInStarted": "interface:28084be007",
+   "AdminSurfaceStagedAccount": "interface:2cd5aa0a33",
+   "AdminSurfaceStatusView": "interface:2ceee54d6c",
+   "IssuedSignIn": "interface:b0539d2556"
+  },
+  "types": "./dist/contracts/site/admin-surfaces-connections.d.ts"
  },
  "./contracts/site/agent-plugins-admin-surfaces": {
-  "types": "./dist/contracts/site/agent-plugins-admin-surfaces.d.ts",
   "symbols": {
    "AdminSurfaceAction": "interface:18ce090fcd",
    "AdminSurfaceActionFailure": "interface:672242cb48",
@@ -1206,17 +1223,17 @@
    "AgentPluginStateSummary": "interface:a8bc289b8b",
    "AgentPluginStateValue": "type:5a94cd3e57",
    "AgentPluginToolEffect": "type:ea1a7bb42f"
-  }
+  },
+  "types": "./dist/contracts/site/agent-plugins-admin-surfaces.d.ts"
  },
  "./contracts/site/agent-plugins-connect": {
-  "types": "./dist/contracts/site/agent-plugins-connect.d.ts",
   "symbols": {
    "CredentialSaveAdapters": "interface:26dd368851",
    "LoadPluginCredentialCards": "type:613f643045"
-  }
+  },
+  "types": "./dist/contracts/site/agent-plugins-connect.d.ts"
  },
  "./contracts/site/agent-plugins-lifecycle": {
-  "types": "./dist/contracts/site/agent-plugins-lifecycle.d.ts",
   "symbols": {
    "AgentPluginArchiveEntry": "type:9bd792022d",
    "AgentPluginArchiveReaderPort": "interface:41abe6d61d",
@@ -1233,38 +1250,38 @@
    "UninstallAgentPluginOptional": "interface:a692eafcf7",
    "UninstallAgentPluginRequired": "interface:3e6e39f19d",
    "UninstallAgentPluginResult": "interface:7530bc09f7"
-  }
+  },
+  "types": "./dist/contracts/site/agent-plugins-lifecycle.d.ts"
  },
  "./contracts/site/agent-plugins-manifest": {
-  "types": "./dist/contracts/site/agent-plugins-manifest.d.ts",
   "symbols": {
    "AgentPluginExport": "interface:b89f1dcb29",
    "AgentPluginExportConsent": "type:a03e00f26b",
    "AgentPluginExportExternalHosts": "interface:27ba7bf21a",
    "AgentPluginExportStaticMode": "type:65b59d6555"
-  }
+  },
+  "types": "./dist/contracts/site/agent-plugins-manifest.d.ts"
  },
  "./contracts/site/agent-runtime": {
-  "types": "./dist/contracts/site/agent-runtime.d.ts",
   "symbols": {
    "AgentDiagnostic": "interface:bf81443848",
    "AgentDiagnosticReason": "type:80b5eab248",
    "AgentDiagnosticSeverity": "type:62ac2cb132",
    "AgentFixIntent": "type:41f8472d88",
    "DetectedAgent": "type:2418e7d41f"
-  }
+  },
+  "types": "./dist/contracts/site/agent-runtime.d.ts"
  },
  "./contracts/site/agentic": {
-  "types": "./dist/contracts/site/agentic.d.ts",
   "symbols": {
    "AgentEntityTarget": "interface:f735029a1b",
    "AgentNavigationScreen": "interface:15c2093c71",
    "PageEntityLookup": "type:a9bd2c5aab",
    "ResolvedPageEntity": "interface:71c31b596a"
-  }
+  },
+  "types": "./dist/contracts/site/agentic.d.ts"
  },
  "./contracts/site/agentic-core": {
-  "types": "./dist/contracts/site/agentic-core.d.ts",
   "symbols": {
    "GuidePointer": "interface:8b9680fe67",
    "GuideTopic": "interface:bc93dd25b9",
@@ -1272,10 +1289,10 @@
    "PagePublication": "interface:b95642f379",
    "PublishedPageAction": "type:4a5a0bdd96",
    "PublishedPageElement": "interface:0202fddd37"
-  }
+  },
+  "types": "./dist/contracts/site/agentic-core.d.ts"
  },
  "./contracts/site/analytics": {
-  "types": "./dist/contracts/site/analytics.d.ts",
   "symbols": {
    "DeviceClass": "type:a2597defc2",
    "HitKind": "type:d94ff48f18",
@@ -1283,53 +1300,78 @@
    "IngestContext": "interface:da6c927ad2",
    "NormalizedHit": "interface:46046f8481",
    "UtmParams": "interface:c2076737e6"
-  }
+  },
+  "types": "./dist/contracts/site/analytics.d.ts"
  },
  "./contracts/site/api-ai-assistant-api-types": {
-  "types": "./dist/contracts/site/api-ai-assistant-api-types.d.ts",
   "symbols": {
    "AdminExecutionCredential": "interface:5743fb0259",
    "AdminExecutionCredentialPatch": "interface:16c1d5e728",
    "SiteAssistantCredential": "interface:5b00787aed",
    "SiteAssistantCredentialPatch": "interface:33ba95fcc3"
-  }
+  },
+  "types": "./dist/contracts/site/api-ai-assistant-api-types.d.ts"
+ },
+ "./contracts/site/api-connections-hosted-mcp": {
+  "symbols": {
+   "DeviceAuthorizationStore": "interface:2c744e5c50",
+   "ExternalMcpOAuthDeps": "interface:119a2bc1e9",
+   "ExternalMcpOAuthService": "interface:4474d19158"
+  },
+  "types": "./dist/contracts/site/api-connections-hosted-mcp.d.ts"
  },
  "./contracts/site/assistant-host-ports": {
-  "types": "./dist/contracts/site/assistant-host-ports.d.ts",
   "symbols": {
    "ToolGapReadPort": "interface:08e9704ff7",
    "ToolGapsToolDeps": "interface:601f2cc453"
-  }
+  },
+  "types": "./dist/contracts/site/assistant-host-ports.d.ts"
  },
  "./contracts/site/assistant-mcp-services": {
-  "types": "./dist/contracts/site/assistant-mcp-services.d.ts",
   "symbols": {
    "ConversationToolApprovalKey": "interface:157de1fea1",
    "ConversationToolApprovalStore": "interface:40bf74d0e3"
-  }
+  },
+  "types": "./dist/contracts/site/assistant-mcp-services.d.ts"
  },
  "./contracts/site/assistant-tool-contributions": {
-  "types": "./dist/contracts/site/assistant-tool-contributions.d.ts",
   "symbols": {
    "DuplicateResourceHandler": "interface:5207cf7cfb",
    "DuplicateResourceHandlerContributor": "interface:6af81f3002"
-  }
+  },
+  "types": "./dist/contracts/site/assistant-tool-contributions.d.ts"
+ },
+ "./contracts/site/capability-providers-comments": {
+  "symbols": {
+   "CommentModerationPort": "interface:55829e3038",
+   "CommentStatus": "type:d2ceb0a3ce",
+   "CommentSubmissionPort": "interface:9e0824bd7a",
+   "CommentThreadRendererPort": "interface:5c6c47a049",
+   "CommentThreadScript": "interface:587d387c78",
+   "CommentsProviderAdapter": "type:0f967c5976",
+   "CommentsProviderBinding": "interface:5969766411",
+   "CommentsProviderDefinition": "interface:4f3ec9b68f",
+   "CommentsProviderRegistry": "interface:f838c71e70",
+   "CommentsSelection": "interface:b8a20e8b0a",
+   "CommentsSelectionStorePort": "interface:bf8df426f1",
+   "CommentsSettingField": "interface:a97f865de8"
+  },
+  "types": "./dist/contracts/site/capability-providers-comments.d.ts"
  },
  "./contracts/site/chat-core": {
-  "types": "./dist/contracts/site/chat-core.d.ts",
   "symbols": {
    "AgentEvent": "type:88d6e25b7c",
    "ToolResultMediaBlock": "type:f9cd93b194"
-  }
+  },
+  "types": "./dist/contracts/site/chat-core.d.ts"
  },
  "./contracts/site/cms-core": {
-  "types": "./dist/contracts/site/cms-core.d.ts",
   "symbols": {
    "PublicPostKind": "type:5021e95e78"
-  }
+  },
+  "types": "./dist/contracts/site/cms-core.d.ts"
  },
  "./contracts/site/cms-forms": {
-  "types": "./dist/contracts/site/cms-forms.d.ts",
   "symbols": {
    "FieldDescriptor": "type:1ace20be77",
    "FieldType": "type:31a4c82f13",
@@ -1349,10 +1391,10 @@
    "FormReceiverPort": "interface:d7c2ce6e73",
    "FormSubmissionsInspection": "interface:cff10dc902",
    "NotifyConfig": "interface:433497a69d"
-  }
+  },
+  "types": "./dist/contracts/site/cms-forms.d.ts"
  },
  "./contracts/site/cms-media": {
-  "types": "./dist/contracts/site/cms-media.d.ts",
   "symbols": {
    "EncodedImage": "interface:3a422c016a",
    "ImageCodecLimits": "interface:8163e55ba2",
@@ -1370,10 +1412,19 @@
    "TransformFit": "type:c06b6c0368",
    "TransformFormat": "type:e12c2fb303",
    "TransformParams": "interface:37f709014d"
-  }
+  },
+  "types": "./dist/contracts/site/cms-media.d.ts"
+ },
+ "./contracts/site/commerce": {
+  "symbols": {
+   "CommercePaymentConfirmation": "type:b99080fd1f",
+   "CommercePaymentProvider": "interface:6a70579c0a",
+   "CommercePaymentProviderCapabilities": "interface:2990ed9beb",
+   "CommercePaymentRuntimePort": "interface:f03206b6c3"
+  },
+  "types": "./dist/contracts/site/commerce.d.ts"
  },
  "./contracts/site/cookie-consent": {
-  "types": "./dist/contracts/site/cookie-consent.d.ts",
   "symbols": {
    "BannerMode": "type:a9c9858d7f",
    "Category": "type:6a062e75aa",
@@ -1393,81 +1444,87 @@
    "RegionMode": "type:15d9412241",
    "RegionRequest": "interface:759bb4cd90",
    "RegionResolver": "interface:a2ffc828c6"
-  }
+  },
+  "types": "./dist/contracts/site/cookie-consent.d.ts"
  },
  "./contracts/site/cookie-consent-react": {
-  "types": "./dist/contracts/site/cookie-consent-react.d.ts",
   "symbols": {
    "ConsentAppearanceView": "interface:726ea9ab6d",
    "ConsentFieldProblem": "interface:3030577d40",
    "ConsentSettingsView": "interface:ab7afbb3aa"
-  }
+  },
+  "types": "./dist/contracts/site/cookie-consent-react.d.ts"
  },
  "./contracts/site/core-commands": {
-  "types": "./dist/contracts/site/core-commands.d.ts",
   "symbols": {
    "EntityReverter": "interface:74e231bfd5",
    "RevertRegistry": "interface:91f5b4a576"
-  }
+  },
+  "types": "./dist/contracts/site/core-commands.d.ts"
  },
  "./contracts/site/core-consent-refusal": {
-  "types": "./dist/contracts/site/core-consent-refusal.d.ts",
   "symbols": {
    "ConsentProblem": "type:3c967892e8"
-  }
+  },
+  "types": "./dist/contracts/site/core-consent-refusal.d.ts"
+ },
+ "./contracts/site/core-custom-credential-categories": {
+  "symbols": {
+   "CustomCredentialCategoryId": "type:e2a87724c8"
+  },
+  "types": "./dist/contracts/site/core-custom-credential-categories.d.ts"
  },
  "./contracts/site/core-public-page-security-headers": {
-  "types": "./dist/contracts/site/core-public-page-security-headers.d.ts",
   "symbols": {
    "PublicThemeResources": "interface:4fac0d75c1"
-  }
+  },
+  "types": "./dist/contracts/site/core-public-page-security-headers.d.ts"
  },
  "./contracts/site/core-run-events": {
-  "types": "./dist/contracts/site/core-run-events.d.ts",
   "symbols": {
    "RunAgentPayload": "interface:3208b4b660",
    "RunFrameCarry": "interface:548c66b8ae",
    "RunFrameOutcome": "interface:3c86386272",
    "RunProtocolEventWire": "interface:b6952bee77",
    "TerminalOutcome": "interface:5f5a651e1c"
-  }
+  },
+  "types": "./dist/contracts/site/core-run-events.d.ts"
  },
  "./contracts/site/core-runtime-mode": {
-  "types": "./dist/contracts/site/core-runtime-mode.d.ts",
   "symbols": {
    "RuntimeMode": "type:ee7fa51b45"
-  }
+  },
+  "types": "./dist/contracts/site/core-runtime-mode.d.ts"
  },
  "./contracts/site/core-theme-slots": {
-  "types": "./dist/contracts/site/core-theme-slots.d.ts",
   "symbols": {
    "ThemeSlotDescriptor": "interface:db04614bc6"
-  }
+  },
+  "types": "./dist/contracts/site/core-theme-slots.d.ts"
  },
  "./contracts/site/daemon": {
-  "types": "./dist/contracts/site/daemon.d.ts",
   "symbols": {
    "FrontendSessionOwner": "interface:cce57cd050",
    "PrepareToolGuidance": "type:9337bb6e56",
    "ToolAccessChange": "interface:15c759db73"
-  }
+  },
+  "types": "./dist/contracts/site/daemon.d.ts"
  },
  "./contracts/site/daemon-http": {
-  "types": "./dist/contracts/site/daemon-http.d.ts",
   "symbols": {
    "FrontendHookInput": "interface:2c6900d3c4",
    "PendingAttachmentSummary": "interface:aaf1c980b4",
    "StoredAttachment": "interface:1316c8390f"
-  }
+  },
+  "types": "./dist/contracts/site/daemon-http.d.ts"
  },
  "./contracts/site/daemon-surface-exchanges": {
-  "types": "./dist/contracts/site/daemon-surface-exchanges.d.ts",
   "symbols": {
    "AssistantSurfaceDeps": "interface:7b0241e5a6"
-  }
+  },
+  "types": "./dist/contracts/site/daemon-surface-exchanges.d.ts"
  },
  "./contracts/site/daemon-tool-audit": {
-  "types": "./dist/contracts/site/daemon-tool-audit.d.ts",
   "symbols": {
    "ToolAttemptAuditSink": "interface:ef865c2a00",
    "ToolAttemptEvent": "interface:4658182ba6",
@@ -1475,16 +1532,16 @@
    "ToolExecutionPhase": "type:db3c4e41c7",
    "ToolExecutionStatus": "type:b049839dc1",
    "ToolGapEntry": "interface:b9f417fad5"
-  }
+  },
+  "types": "./dist/contracts/site/daemon-tool-audit.d.ts"
  },
  "./contracts/site/daemon-tool-recovery": {
-  "types": "./dist/contracts/site/daemon-tool-recovery.d.ts",
   "symbols": {
    "ToolFailureDiagnostic": "interface:674b7ea437"
-  }
+  },
+  "types": "./dist/contracts/site/daemon-tool-recovery.d.ts"
  },
  "./contracts/site/db-data-modules": {
-  "types": "./dist/contracts/site/db-data-modules.d.ts",
   "symbols": {
    "ColumnDecl": "interface:22f07ae2b3",
    "ColumnType": "type:09e860253a",
@@ -1493,25 +1550,31 @@
    "PluginProvenance": "interface:e4b8069a48",
    "PluginTier": "type:2023fb2d73",
    "TableDecl": "interface:4055da58f2"
-  }
+  },
+  "types": "./dist/contracts/site/db-data-modules.d.ts"
  },
  "./contracts/site/dev-supervisor-dev-restart": {
-  "types": "./dist/contracts/site/dev-supervisor-dev-restart.d.ts",
   "symbols": {
    "DevRestartDecision": "type:5d648f16c1",
    "DevRestartPort": "interface:4dafe7a09e"
-  }
+  },
+  "types": "./dist/contracts/site/dev-supervisor-dev-restart.d.ts"
  },
  "./contracts/site/devops-deploy": {
-  "types": "./dist/contracts/site/devops-deploy.d.ts",
   "symbols": {
    "ArtifactStorePort": "interface:bb2dc3636a",
    "ArtifactUpload": "interface:e688309feb",
    "DeployTargetCredential": "type:ab3baf1da1"
-  }
+  },
+  "types": "./dist/contracts/site/devops-deploy.d.ts"
+ },
+ "./contracts/site/diagnostics-domain-dns": {
+  "symbols": {
+   "TlsStatus": "interface:9f75f63f0b"
+  },
+  "types": "./dist/contracts/site/diagnostics-domain-dns.d.ts"
  },
  "./contracts/site/diagnostics-observability": {
-  "types": "./dist/contracts/site/diagnostics-observability.d.ts",
   "symbols": {
    "AgentSpanOptions": "interface:567ec35508",
    "CaptureEvent": "interface:b90b233e98",
@@ -1520,34 +1583,42 @@
    "Tracker": "interface:a8e95733db",
    "TrackerErrorContext": "interface:6f2dcbd670",
    "TrackerSpan": "interface:f1806808aa"
-  }
+  },
+  "types": "./dist/contracts/site/diagnostics-observability.d.ts"
  },
  "./contracts/site/events-outbox": {
-  "types": "./dist/contracts/site/events-outbox.d.ts",
   "symbols": {
    "EventEnvelope": "interface:7b448d6f34",
    "OutboxDrainer": "interface:4ef9cf9e14",
    "OutboxFailureCodes": "interface:3c1c65d02f",
    "OutboxRetryPolicy": "interface:b7fabb2f2f",
    "OutboxRetryPolicyResolver": "type:6dfe580331"
-  }
+  },
+  "types": "./dist/contracts/site/events-outbox.d.ts"
+ },
+ "./contracts/site/fs-durable-json": {
+  "symbols": {
+   "FileLockOptions": "interface:a81cab9de2",
+   "JsonFileRead": "type:7b92e585fe",
+   "QuarantineNotice": "interface:2667f47622"
+  },
+  "types": "./dist/contracts/site/fs-durable-json.d.ts"
  },
  "./contracts/site/gated-results": {
-  "types": "./dist/contracts/site/gated-results.d.ts",
   "symbols": {
    "GatedConfirmResult": "interface:8d209a8af6",
    "GatedPlanResult": "interface:d1492119c5"
-  }
+  },
+  "types": "./dist/contracts/site/gated-results.d.ts"
  },
  "./contracts/site/headless-assistant-permanent-deletes-policy": {
-  "types": "./dist/contracts/site/headless-assistant-permanent-deletes-policy.d.ts",
   "symbols": {
    "AssistantPermanentDeletesPolicy": "interface:44f07a810e",
    "ChatPermanentDeleteToolId": "type:2224a2aa8d"
-  }
+  },
+  "types": "./dist/contracts/site/headless-assistant-permanent-deletes-policy.d.ts"
  },
  "./contracts/site/host-node": {
-  "types": "./dist/contracts/site/host-node.d.ts",
   "symbols": {
    "BrowserProviderDeclaration": "interface:e7d748176c",
    "PluginContributions": "interface:1c2b988e40",
@@ -1564,61 +1635,76 @@
    "PluginPackageFiles": "interface:8559cb7134",
    "PluginTier": "type:2023fb2d73",
    "PluginValidationError": "interface:9c92e6f570"
-  }
+  },
+  "types": "./dist/contracts/site/host-node.d.ts"
  },
  "./contracts/site/http-kit-rate-limit": {
-  "types": "./dist/contracts/site/http-kit-rate-limit.d.ts",
   "symbols": {
    "ClientIpSource": "interface:2a90fadba4",
    "RateLimitProfile": "interface:371075b603"
-  }
+  },
+  "types": "./dist/contracts/site/http-kit-rate-limit.d.ts"
  },
  "./contracts/site/http-kit-settings": {
-  "types": "./dist/contracts/site/http-kit-settings.d.ts",
   "symbols": {
    "SettingsErrorMapping": "interface:828bcf14f3"
-  }
+  },
+  "types": "./dist/contracts/site/http-kit-settings.d.ts"
  },
  "./contracts/site/integrations-api-connections": {
-  "types": "./dist/contracts/site/integrations-api-connections.d.ts",
   "symbols": {
    "ApiConnectionConnectStatus": "type:a0e3af7cd3"
-  }
+  },
+  "types": "./dist/contracts/site/integrations-api-connections.d.ts"
  },
  "./contracts/site/integrations-credentialed-http": {
-  "types": "./dist/contracts/site/integrations-credentialed-http.d.ts",
   "symbols": {
    "CredentialSchemeRegistry": "interface:dc70d21210",
    "CredentialSchemeRule": "interface:3741ac92a0"
-  }
+  },
+  "types": "./dist/contracts/site/integrations-credentialed-http.d.ts"
  },
  "./contracts/site/lifecycle-boot-lifecycle": {
-  "types": "./dist/contracts/site/lifecycle-boot-lifecycle.d.ts",
   "symbols": {
    "BootCriticality": "type:fee02a0e61",
    "BootModuleResult": "interface:dd9ebe404f",
    "ModuleLifecycleStatus": "type:8f48507317"
-  }
+  },
+  "types": "./dist/contracts/site/lifecycle-boot-lifecycle.d.ts"
  },
  "./contracts/site/lifecycle-host-tools": {
-  "types": "./dist/contracts/site/lifecycle-host-tools.d.ts",
   "symbols": {
    "PluginMaturity": "type:beeae27ed9",
    "ProviderSettingFieldProjection": "interface:b0ee075e89",
    "ProviderStatusPorts": "interface:f3c6ec9db1",
    "ProviderStatusRow": "interface:35684ffbba"
-  }
+  },
+  "types": "./dist/contracts/site/lifecycle-host-tools.d.ts"
+ },
+ "./contracts/site/media-providers-catalog": {
+  "symbols": {
+   "MediaModel": "interface:9cca162139",
+   "MediaProvider": "interface:5f8cffc486"
+  },
+  "types": "./dist/contracts/site/media-providers-catalog.d.ts"
  },
  "./contracts/site/nav": {
-  "types": "./dist/contracts/site/nav.d.ts",
   "symbols": {
    "AdminNavEntry": "interface:298ea2ef9c",
    "AdminNavGroup": "interface:7da6b80859",
    "AdminNavItem": "interface:27c563540a"
-  }
+  },
+  "types": "./dist/contracts/site/nav.d.ts"
+ },
+ "./contracts/site/packaging-electron": {
+  "symbols": {
+   "AsarHeaderNode": "interface:11eea7b90d",
+   "AsarMismatch": "interface:f296a9828b",
+   "AsarVerification": "interface:bcfe772663"
+  },
+  "types": "./dist/contracts/site/packaging-electron.d.ts"
  },
  "./contracts/site/platform-mail": {
-  "types": "./dist/contracts/site/platform-mail.d.ts",
   "symbols": {
    "ConfiguredMailSender": "interface:3d8c28e47c",
    "MailActivityDeps": "interface:53fcc3b7bc",
@@ -1638,36 +1724,43 @@
    "MailSuppressionListFilter": "interface:f2e8a0bba7",
    "MailSuppressionReason": "type:8518d7b45c",
    "MailSuppressionRemoval": "interface:090f879f5e"
-  }
+  },
+  "types": "./dist/contracts/site/platform-mail.d.ts"
+ },
+ "./contracts/site/platform-process": {
+  "symbols": {
+   "ProcessPrivateMemory": "type:d8e82a4a5c",
+   "ProcessUsage": "type:9729fdec08"
+  },
+  "types": "./dist/contracts/site/platform-process.d.ts"
  },
  "./contracts/site/platform-server-logs": {
-  "types": "./dist/contracts/site/platform-server-logs.d.ts",
   "symbols": {
    "ServerLogEntry": "interface:203b972ed6",
    "ServerLogLevel": "type:4af234dd46",
    "ServerLogMetadata": "interface:c39525fcdd",
    "ServerLogSource": "type:f8dce32cd4"
-  }
+  },
+  "types": "./dist/contracts/site/platform-server-logs.d.ts"
  },
  "./contracts/site/platform-site-dir": {
-  "types": "./dist/contracts/site/platform-site-dir.d.ts",
   "symbols": {
    "CreateSiteResult": "interface:61336a029e",
    "InitSiteResult": "interface:fc96c170a6",
    "SiteBinding": "interface:beaa3fcf3f",
    "SiteCreationAllocation": "interface:b8d758d1dc"
-  }
+  },
+  "types": "./dist/contracts/site/platform-site-dir.d.ts"
  },
  "./contracts/site/plugin-directory": {
-  "types": "./dist/contracts/site/plugin-directory.d.ts",
   "symbols": {
    "PluginIdentityCandidate": "type:de4e5b5875",
    "PluginLookupPort": "interface:31b4019446",
    "PluginProvider": "interface:8e73b5c511"
-  }
+  },
+  "types": "./dist/contracts/site/plugin-directory.d.ts"
  },
  "./contracts/site/plugins-host": {
-  "types": "./dist/contracts/site/plugins-host.d.ts",
   "symbols": {
    "PluginActivationRecord": "interface:abd0489e33",
    "PluginActivationRepoPort": "interface:b30e6b87f3",
@@ -1677,54 +1770,54 @@
    "ProviderWriteResult": "interface:ccbd13b6cd",
    "RemoveEntity": "type:bb827771e4",
    "RemovePluginFn": "type:03d4d8514b"
-  }
+  },
+  "types": "./dist/contracts/site/plugins-host.d.ts"
  },
  "./contracts/site/post-author": {
-  "types": "./dist/contracts/site/post-author.d.ts",
   "symbols": {
    "postAuthorForDisplay": "function:a5941b766e"
-  }
+  },
+  "types": "./dist/contracts/site/post-author.d.ts"
  },
  "./contracts/site/protocol-mcp-ui": {
-  "types": "./dist/contracts/site/protocol-mcp-ui.d.ts",
   "symbols": {
    "UIResource": "interface:71ec6ee491",
    "UIResourceContent": "interface:9dc602e0f1",
    "UIResourceMimeType": "type:51b68853d0",
    "UIResourceUri": "type:c61b37b286"
-  }
+  },
+  "types": "./dist/contracts/site/protocol-mcp-ui.d.ts"
  },
  "./contracts/site/recovery-operation-lock": {
-  "types": "./dist/contracts/site/recovery-operation-lock.d.ts",
   "symbols": {
    "AcquireOperationLockResult": "type:3b481d5704",
    "OperationLockError": "interface:0e06c403a4",
    "OperationLockHandle": "interface:e8d1187946"
-  }
+  },
+  "types": "./dist/contracts/site/recovery-operation-lock.d.ts"
  },
  "./contracts/site/recovery-reconcile-interrupted-migration": {
-  "types": "./dist/contracts/site/recovery-reconcile-interrupted-migration.d.ts",
   "symbols": {
    "SiteServeStatus": "type:e73f0e750c",
    "SiteStatusPort": "interface:9c8b03eaab"
-  }
+  },
+  "types": "./dist/contracts/site/recovery-reconcile-interrupted-migration.d.ts"
  },
  "./contracts/site/request-facts": {
-  "types": "./dist/contracts/site/request-facts.d.ts",
   "symbols": {
    "JINI_REQUEST_FACTS": "variable:8cc10a8d5d",
    "RequestFacts": "interface:cd0e7ac26c",
    "readRequestFacts": "function:44761104bf"
-  }
+  },
+  "types": "./dist/contracts/site/request-facts.d.ts"
  },
  "./contracts/site/sandbox-node-worker": {
-  "types": "./dist/contracts/site/sandbox-node-worker.d.ts",
   "symbols": {
    "SandboxRenderResult": "type:6828203f4e"
-  }
+  },
+  "types": "./dist/contracts/site/sandbox-node-worker.d.ts"
  },
  "./contracts/site/search": {
-  "types": "./dist/contracts/site/search.d.ts",
   "symbols": {
    "SearchCapabilities": "interface:d053f3b5b9",
    "SearchDocument": "interface:c3eaeff22b",
@@ -1745,26 +1838,33 @@
    "SearchWriteOutcome": "interface:8060c7bdbc",
    "SearchWriteResult": "interface:821b35c0c2",
    "SearchWriteStatus": "type:a16efaaefa"
-  }
+  },
+  "types": "./dist/contracts/site/search.d.ts"
  },
  "./contracts/site/secrets-credential-sets": {
-  "types": "./dist/contracts/site/secrets-credential-sets.d.ts",
   "symbols": {
    "SecretsVaultService": "interface:c548aa6306",
    "VaultCopyInput": "interface:734381db36",
    "VaultPutInput": "interface:111d6be46a",
    "VaultRotateOptions": "interface:38bcf0b27a"
-  }
+  },
+  "types": "./dist/contracts/site/secrets-credential-sets.d.ts"
  },
  "./contracts/site/secrets-credential-token": {
-  "types": "./dist/contracts/site/secrets-credential-token.d.ts",
   "symbols": {
    "CredentialConnection": "type:ff34644037",
    "CredentialTokenHint": "interface:30dedc622b"
-  }
+  },
+  "types": "./dist/contracts/site/secrets-credential-token.d.ts"
+ },
+ "./contracts/site/seo-content-analysis": {
+  "symbols": {
+   "ContentBlock": "type:2311fec36a",
+   "HeadingLevel": "type:f127b16b2e"
+  },
+  "types": "./dist/contracts/site/seo-content-analysis.d.ts"
  },
  "./contracts/site/site-key": {
-  "types": "./dist/contracts/site/site-key.d.ts",
   "symbols": {
    "AdminGeneratedSiteKey": "interface:6bf68babed",
    "AdminImportedSiteKey": "interface:de7d55a82c",
@@ -1776,29 +1876,42 @@
    "AdminSiteKeyState": "type:4e0c0bc1f5",
    "AdminSiteKeyStatus": "interface:7c27f0a100",
    "AdminStartedFreshSiteKey": "interface:f9f2351943"
-  }
+  },
+  "types": "./dist/contracts/site/site-key.d.ts"
+ },
+ "./contracts/site/skills-install": {
+  "symbols": {
+   "SkillInstallInput": "type:348e65a008",
+   "SkillUploadFile": "interface:af02152a6c"
+  },
+  "types": "./dist/contracts/site/skills-install.d.ts"
  },
  "./contracts/site/soft-delete": {
-  "types": "./dist/contracts/site/soft-delete.d.ts",
   "symbols": {
    "isTrashed": "function:69ac508777"
-  }
+  },
+  "types": "./dist/contracts/site/soft-delete.d.ts"
  },
  "./contracts/site/strict-base64": {
-  "types": "./dist/contracts/site/strict-base64.d.ts",
   "symbols": {
    "decodeStrictBase64": "function:003d1a8bf3"
-  }
+  },
+  "types": "./dist/contracts/site/strict-base64.d.ts"
  },
  "./contracts/site/tool-metadata-approval-policy": {
-  "types": "./dist/contracts/site/tool-metadata-approval-policy.d.ts",
   "symbols": {
    "ToolApprovalClass": "type:04963137d2",
    "ToolApprovalPolicy": "interface:ac6a5711ce"
-  }
+  },
+  "types": "./dist/contracts/site/tool-metadata-approval-policy.d.ts"
+ },
+ "./contracts/site/ui-sections": {
+  "symbols": {
+   "PublishSection": "interface:2d46921b2e"
+  },
+  "types": "./dist/contracts/site/ui-sections.d.ts"
  },
  "./contracts/site/user-management": {
-  "types": "./dist/contracts/site/user-management.d.ts",
   "symbols": {
    "IdentityRepos": "interface:a602e0fcfd",
    "IdentityTransactionPort": "interface:8d443c0b58",
@@ -1823,10 +1936,10 @@
    "SessionRepoPort": "interface:0ac9ae46ad",
    "UserRecord": "interface:9d8ad07d74",
    "UserRepoPort": "interface:4aca30b04d"
-  }
+  },
+  "types": "./dist/contracts/site/user-management.d.ts"
  },
  "./contracts/site/user-management-react": {
-  "types": "./dist/contracts/site/user-management-react.d.ts",
   "symbols": {
    "AdminIdentityUser": "interface:2ce5eb8c93",
    "AdminMember": "interface:33728c5ad2",
@@ -1841,10 +1954,10 @@
    "RolesPort": "interface:754cb08fb8",
    "TotpSettingsPort": "interface:0527fe37d2",
    "UsersPort": "interface:c34e24a18f"
-  }
+  },
+  "types": "./dist/contracts/site/user-management-react.d.ts"
  },
  "./contracts/site/user-management-server": {
-  "types": "./dist/contracts/site/user-management-server.d.ts",
   "symbols": {
    "AuthServiceDeps": "interface:22e4b5b53d",
    "LoginProvider": "interface:2023d620ad",
@@ -1855,18 +1968,34 @@
    "MfaStore": "interface:508412231e",
    "SessionTokenPort": "interface:ad050e6777",
    "UsernameChangePort": "interface:e7132fdde4"
-  }
+  },
+  "types": "./dist/contracts/site/user-management-server.d.ts"
+ },
+ "./contracts/site/web-evidence-capture-budget": {
+  "symbols": {
+   "CaptureBudgetLimits": "interface:0f34c6ffdb"
+  },
+  "types": "./dist/contracts/site/web-evidence-capture-budget.d.ts"
+ },
+ "./contracts/site/web-evidence-playwright": {
+  "symbols": {
+   "AbortReason": "type:f6894099f4",
+   "RequestDecision": "type:c18557c50f",
+   "RequestRouterReport": "interface:cadd90c251",
+   "RoutedMethod": "type:17621604ab",
+   "RoutedRequest": "interface:00a38aa4ff"
+  },
+  "types": "./dist/contracts/site/web-evidence-playwright.d.ts"
  },
  "./contracts/site/widgets-html": {
-  "types": "./dist/contracts/site/widgets-html.d.ts",
   "symbols": {
    "PluginExportConsentCategory": "type:c618db7bd3",
    "PluginExportTemplate": "interface:7814b62913",
    "PluginExportsPort": "interface:e596909e85"
-  }
+  },
+  "types": "./dist/contracts/site/widgets-html.d.ts"
  },
  "./contracts/storage": {
-  "types": "./dist/contracts/storage.d.ts",
   "symbols": {
    "ColumnInfo": "interface:caa29495da",
    "DbRow": "type:c3149fade0",
@@ -1896,10 +2025,10 @@
    "rows": "function:26ee0bccea",
    "toBool": "function:7d31541683",
    "toBytes": "function:8f4c6a3a5f"
-  }
+  },
+  "types": "./dist/contracts/storage.d.ts"
  },
  "./contracts/vault": {
-  "types": "./dist/contracts/vault.d.ts",
   "symbols": {
    "CredentialMeta": "type:60a831ee65",
    "CredentialType": "type:f3c81e9ba1",
@@ -1934,47 +2063,47 @@
    "assertVaultReplacement": "function:ca5b429278",
    "isInVaultQueryScope": "function:405f5c37bf",
    "vaultGroupKey": "function:b7fdc813b1"
-  }
+  },
+  "types": "./dist/contracts/vault.d.ts"
  },
  "./contribution-registry": {
-  "types": "./dist/contribution-registry.d.ts",
   "symbols": {
    "ContributionRegistry": "interface:55996eb835",
    "DerivedToolContributor": "interface:813c6ae1c9",
    "ToolContributions": "interface:de4818d839",
    "ToolContributor": "interface:305da859d1",
    "createContributionRegistry": "function:d7ca6184f5"
-  }
+  },
+  "types": "./dist/contribution-registry.d.ts"
  },
  "./env/describe-env-for-diagnostics": {
-  "types": "./dist/env/describe-env-for-diagnostics.d.ts",
   "symbols": {
    "describeEnvForDiagnostics": "function:e65e67372d"
-  }
+  },
+  "types": "./dist/env/describe-env-for-diagnostics.d.ts"
  },
  "./env/format-env-issue": {
-  "types": "./dist/env/format-env-issue.d.ts",
   "symbols": {
    "formatEnvIssue": "function:4d4431058a"
-  }
+  },
+  "types": "./dist/env/format-env-issue.d.ts"
  },
  "./env/parse-env": {
-  "types": "./dist/env/parse-env.d.ts",
   "symbols": {
    "parseEnv": "function:4ffefe7251"
-  }
+  },
+  "types": "./dist/env/parse-env.d.ts"
  },
  "./errors/approved-cause": {
-  "types": "./dist/errors/approved-cause.d.ts",
   "symbols": {
    "ApproveCauseOptions": "interface:cc18fbdbeb",
    "ApprovedCause": "interface:1caa9117cd",
    "approveCause": "function:a4408c574c",
    "isApprovedCause": "function:7786751459"
-  }
+  },
+  "types": "./dist/errors/approved-cause.d.ts"
  },
  "./errors/bindings": {
-  "types": "./dist/errors/bindings.d.ts",
   "symbols": {
    "ClassErrorBinding": "interface:f6ebec51f5",
    "DiscriminantErrorBinding": "interface:fbd570736c",
@@ -1984,35 +2113,35 @@
    "ErrorScopeOptions": "interface:3ffdbcd8d7",
    "ErrorText": "type:7f2f1b67d3",
    "defineErrorScope": "function:c93896f551"
-  }
+  },
+  "types": "./dist/errors/bindings.d.ts"
  },
  "./errors/catalog": {
-  "types": "./dist/errors/catalog.d.ts",
   "symbols": {
    "ErrorCatalog": "interface:aec31ab2db",
    "ErrorCatalogOptions": "type:97c6f0a266",
    "ErrorMatch": "interface:7e7ebb38ad",
    "createErrorCatalog": "function:bfa9b3d8c0"
-  }
+  },
+  "types": "./dist/errors/catalog.d.ts"
  },
  "./errors/disclosure": {
-  "types": "./dist/errors/disclosure.d.ts",
   "symbols": {
    "DiscloseIncidentOptions": "interface:bb2c1dd468",
    "ErrorAudience": "type:8a16208a08",
    "INCIDENT_CAUSE_SENTENCE": "variable:1a590c8297",
    "discloseIncident": "function:3de38fed5d"
-  }
+  },
+  "types": "./dist/errors/disclosure.d.ts"
  },
  "./errors/error-id": {
-  "types": "./dist/errors/error-id.d.ts",
   "symbols": {
    "MintErrorIdOptions": "interface:f6360fe2ee",
    "mintToolErrorId": "function:64fcd02eef"
-  }
+  },
+  "types": "./dist/errors/error-id.d.ts"
  },
  "./errors/idioms": {
-  "types": "./dist/errors/idioms.d.ts",
   "symbols": {
    "FallbackOptions": "interface:ea5a04b91e",
    "IdiomOptions": "interface:546d405a34",
@@ -2022,10 +2151,10 @@
    "observed": "function:9a25a22385",
    "orFallback": "function:ece11b42f2",
    "orFallbackSync": "function:ecb9e55a6b"
-  }
+  },
+  "types": "./dist/errors/idioms.d.ts"
  },
  "./errors/reporter": {
-  "types": "./dist/errors/reporter.d.ts",
   "symbols": {
    "DescribeFailureOptions": "interface:ef4c9db83f",
    "DescribedFailure": "interface:7aedc11e91",
@@ -2036,17 +2165,17 @@
    "UNAVAILABLE_ERROR_ID": "variable:e377da43a0",
    "createErrorReporter": "function:62aa2f03cb",
    "runOperation": "function:98c41a1385"
-  }
+  },
+  "types": "./dist/errors/reporter.d.ts"
  },
  "./errors/route-refusal": {
-  "types": "./dist/errors/route-refusal.d.ts",
   "symbols": {
    "RouteRefusalError": "class:2b67969581",
    "rejectRoute": "function:ef82debcec"
-  }
+  },
+  "types": "./dist/errors/route-refusal.d.ts"
  },
  "./errors/sentences": {
-  "types": "./dist/errors/sentences.d.ts",
   "symbols": {
    "CORE_ERROR_SENTENCES": "variable:086f1cf02c",
    "ErrorSentence": "interface:9b676f000c",
@@ -2057,10 +2186,10 @@
    "defineErrorSentences": "function:f6a5e4dce9",
    "interpolateSentence": "function:d4948a5e35",
    "isErrorCodeToken": "function:036d4e543c"
-  }
+  },
+  "types": "./dist/errors/sentences.d.ts"
  },
  "./errors/testing": {
-  "types": "./dist/errors/testing.d.ts",
   "symbols": {
    "RecordingReporterOptions": "interface:92af02eb35",
    "createFixedClock": "function:de8ac795fe",
@@ -2068,17 +2197,17 @@
    "createRecordingObservability": "function:ae0d55e8f1",
    "createRecordingReporter": "function:af37d0cb14",
    "createSequenceIds": "function:73f349d19e"
-  }
+  },
+  "types": "./dist/errors/testing.d.ts"
  },
  "./extension-capability-vocabulary": {
-  "types": "./dist/extension-capability-vocabulary.d.ts",
   "symbols": {
    "SHARED_EXTENSION_CAPABILITIES": "variable:c76c424fe5",
    "SharedExtensionCapability": "type:e50ac5a9f9"
-  }
+  },
+  "types": "./dist/extension-capability-vocabulary.d.ts"
  },
  "./fetch": {
-  "types": "./dist/fetch/index.d.ts",
   "symbols": {
    "CacheEntry": "interface:ff160f280f",
    "CachedLoader": "interface:49dbd24e40",
@@ -2104,19 +2233,19 @@
    "missingCachedLoaderFetchError": "function:12f24e046e",
    "toQueryError": "function:1c1f2e3540",
    "withCachedLoaderFetch": "function:1c2e459525"
-  }
+  },
+  "types": "./dist/fetch/index.d.ts"
  },
  "./filesystem": {
-  "types": "./dist/filesystem.d.ts",
   "symbols": {
    "DenyRules": "interface:4a946cb3f9",
    "FsFilePathError": "class:8d3d8403db",
    "GuardedFileReader": "interface:2d3045840c",
    "GuardedReaderLimits": "interface:343255e9fe"
-  }
+  },
+  "types": "./dist/filesystem.d.ts"
  },
  "./gated-mutations": {
-  "types": "./dist/gated-mutations.d.ts",
   "symbols": {
    "AuthorizeFn": "type:0ffac58d7e",
    "ConfirmationTokenRecord": "interface:9f2ab293c5",
@@ -2142,10 +2271,10 @@
    "mintToken": "function:95718fedfa",
    "plan": "function:37d3f4f908",
    "redeemToken": "function:8caee5de31"
-  }
+  },
+  "types": "./dist/gated-mutations.d.ts"
  },
  "./list-page": {
-  "types": "./dist/list-page.d.ts",
   "symbols": {
    "DEFAULT_LIST_LIMIT": "variable:55f8929429",
    "DEFAULT_MAX_LIST_LIMIT": "variable:47a75ae443",
@@ -2158,10 +2287,10 @@
    "pageFromArray": "function:b1b6626603",
    "pageFromOverfetch": "function:3afffa4b5d",
    "parseListPageRequest": "function:64af6bc360"
-  }
+  },
+  "types": "./dist/list-page.d.ts"
  },
  "./model-facing-tool-errors": {
-  "types": "./dist/model-facing-tool-errors.d.ts",
   "symbols": {
    "CallerSafeErrorRule": "interface:3cdf207d23",
    "ErrorDescriber": "interface:7868b5c9a8",
@@ -2177,20 +2306,20 @@
    "reclassifyToolError": "function:70895b5355",
    "withModelFacingErrors": "function:e80ec37e0f",
    "withModelFacingRegistrationErrors": "function:ae65ad9de6"
-  }
+  },
+  "types": "./dist/model-facing-tool-errors.d.ts"
  },
  "./naming": {
-  "types": "./dist/naming.d.ts",
   "symbols": {
    "AvailableNameOptions": "interface:b5ff8012ab",
    "MAX_SUFFIX_ATTEMPTS": "variable:cc456de3aa",
    "NamingPolicy": "interface:63a173ee3a",
    "deriveAvailableName": "function:b31fcceb21",
    "deriveDuplicateName": "function:2a93611bd7"
-  }
+  },
+  "types": "./dist/naming.d.ts"
  },
  "./net": {
-  "types": "./dist/net/index.d.ts",
   "symbols": {
    "AddressClass": "type:62f14f2535",
    "FETCH_TIMEOUT_MS": "variable:94b59ddabc",
@@ -2202,10 +2331,10 @@
    "isLoopbackApiHost": "function:9484884f5a",
    "isLoopbackHostname": "function:06d88d7fd1",
    "isLoopbackPeerAddress": "function:fabf33bea5"
-  }
+  },
+  "types": "./dist/net/index.d.ts"
  },
  "./object-store": {
-  "types": "./dist/object-store.d.ts",
   "symbols": {
    "DEFAULT_OBJECT_STORE_PROVIDER_ID": "variable:91ba629422",
    "OBJECT_STORE_CONTRACT": "variable:a089084e2a",
@@ -2218,10 +2347,10 @@
    "createObjectStoreRegistry": "function:7d9a19ebc0",
    "deferObjectStore": "function:9a4cfd9470",
    "objectStoreProviderFault": "function:6e8d3a4546"
-  }
+  },
+  "types": "./dist/object-store.d.ts"
  },
  "./optimistic-concurrency": {
-  "types": "./dist/optimistic-concurrency.d.ts",
   "symbols": {
    "RecordVersionConflictError": "class:6bb098decb",
    "RecordVersionRequiredError": "class:d98ea97c3b",
@@ -2238,16 +2367,16 @@
    "versionConflictBody": "function:6e3ad66da8",
    "versionConflictRule": "function:7f3e7ac42a",
    "versionRequiredBody": "function:d19f61ec99"
-  }
+  },
+  "types": "./dist/optimistic-concurrency.d.ts"
  },
  "./optional-peer": {
-  "types": "./dist/optional-peer.d.ts",
   "symbols": {
    "loadOptionalPeer": "function:03da84b6f0"
-  }
+  },
+  "types": "./dist/optional-peer.d.ts"
  },
  "./plugin-directory": {
-  "types": "./plugin-directory.d.ts",
   "symbols": {
    "PluginIdentity": "interface:65ea0f87dd",
    "PluginIdentityCandidate": "type:de4e5b5875",
@@ -2259,10 +2388,10 @@
    "createPluginLookupFacade": "function:a2192063a0",
    "readPluginIdentity": "function:3499c27ea3",
    "validatePluginIdentity": "function:d6d072c26e"
-  }
+  },
+  "types": "./plugin-directory.d.ts"
  },
  "./primitives": {
-  "types": "./dist/primitives/index.d.ts",
   "symbols": {
    "Clock": "interface:7229e2675d",
    "DecodedSseEvent": "interface:fcb63dcbd5",
@@ -2301,10 +2430,10 @@
    "trimChars": "function:baca3b2e99",
    "trimCharsEnd": "function:6d464f88f0",
    "trimCharsStart": "function:f1a8952ee2"
-  }
+  },
+  "types": "./dist/primitives/index.d.ts"
  },
  "./provider-registry": {
-  "types": "./dist/provider-registry.d.ts",
   "symbols": {
    "DnsRecordType": "type:b0083e85f8",
    "DomainPurpose": "type:a7e899e32d",
@@ -2328,10 +2457,10 @@
    "providerOk": "function:b361206bf3",
    "providerRejected": "function:5a67a54b2a",
    "providerUnknown": "function:8b403cdd3a"
-  }
+  },
+  "types": "./dist/provider-registry.d.ts"
  },
  "./records": {
-  "types": "./dist/records.d.ts",
   "symbols": {
    "CanonicalJsonError": "class:7024bceb18",
    "DefinedFields": "type:127a4f7562",
@@ -2346,10 +2475,10 @@
    "parseSchemaV1Document": "function:92e07d4416",
    "upsertRecord": "function:a0eef3a423",
    "withoutUndefined": "function:8a94d86a58"
-  }
+  },
+  "types": "./dist/records.d.ts"
  },
  "./settings": {
-  "types": "./dist/settings/index.d.ts",
   "symbols": {
    "AGENT_PREFERENCE_REQUIRED_SCOPE_BIT": "variable:5ebc124b9a",
    "AGENT_PREFERENCE_WRITE_SCOPE": "variable:4a0700ef6a",
@@ -2467,10 +2596,10 @@
    "translateSettingsDialog": "function:287258fbdf",
    "validateDefinitionInput": "function:60d1d6a70a",
    "validateValueAgainstSchema": "function:3a9138d461"
-  }
+  },
+  "types": "./dist/settings/index.d.ts"
  },
  "./text": {
-  "types": "./dist/text/index.d.ts",
   "symbols": {
    "ArtifactTextSuppressor": "interface:8af124bfd7",
    "ArtifactTextSuppressorStats": "interface:d6cff246b3",
@@ -2509,137 +2638,192 @@
    "trimChars": "function:baca3b2e99",
    "trimCharsEnd": "function:6d464f88f0",
    "trimCharsStart": "function:f1a8952ee2"
-  }
+  },
+  "types": "./dist/text/index.d.ts"
  },
  "./tool-call-text": {
-  "types": "./dist/tool-call-text.d.ts",
   "symbols": {
    "toolCallText": "function:7fbc1152a2",
    "toolFamilySentence": "function:cfdc79d692",
    "unknownToolSentence": "function:e8b99859f4"
-  }
+  },
+  "types": "./dist/tool-call-text.d.ts"
  },
  "./tool-input-repairs": {
-  "types": "./dist/tool-input-repairs.d.ts",
   "symbols": {
    "MissingArgumentGuidance": "interface:96b44d8d24",
    "assertRepairKeywords": "function:db7f7d38e9",
    "clampDeclaredBounds": "function:80355df88f",
    "missingArgumentGuidance": "function:6e67772d50"
-  }
+  },
+  "types": "./dist/tool-input-repairs.d.ts"
  },
  "./tool-metadata/analytics": {
-  "types": "./dist/tool-metadata/analytics.d.ts",
   "symbols": {
    "toolMetadata": "variable:d028459461"
-  }
+  },
+  "types": "./dist/tool-metadata/analytics.d.ts"
  },
  "./tool-metadata/change-sets": {
-  "types": "./dist/tool-metadata/change-sets.d.ts",
   "symbols": {
    "toolMetadata": "variable:ba47d00346"
-  }
+  },
+  "types": "./dist/tool-metadata/change-sets.d.ts"
  },
  "./tool-metadata/consent": {
-  "types": "./dist/tool-metadata/consent.d.ts",
   "symbols": {
    "toolMetadata": "variable:e0855bf028"
-  }
+  },
+  "types": "./dist/tool-metadata/consent.d.ts"
  },
  "./tool-metadata/content-duplication": {
-  "types": "./dist/tool-metadata/content-duplication.d.ts",
   "symbols": {
    "toolMetadata": "variable:2173bd7905"
-  }
+  },
+  "types": "./dist/tool-metadata/content-duplication.d.ts"
  },
  "./tool-metadata/content-types": {
-  "types": "./dist/tool-metadata/content-types.d.ts",
   "symbols": {
    "toolMetadata": "variable:74576ceb2a"
-  }
+  },
+  "types": "./dist/tool-metadata/content-types.d.ts"
  },
  "./tool-metadata/database": {
-  "types": "./dist/tool-metadata/database.d.ts",
   "symbols": {
    "toolMetadata": "variable:de8ad37ff1"
-  }
+  },
+  "types": "./dist/tool-metadata/database.d.ts"
  },
  "./tool-metadata/database-transfer": {
-  "types": "./dist/tool-metadata/database-transfer.d.ts",
   "symbols": {
    "toolMetadata": "variable:8576784bc9"
-  }
+  },
+  "types": "./dist/tool-metadata/database-transfer.d.ts"
  },
  "./tool-metadata/email-templates": {
-  "types": "./dist/tool-metadata/email-templates.d.ts",
   "symbols": {
    "toolMetadata": "variable:a0bc39a7ca"
-  }
+  },
+  "types": "./dist/tool-metadata/email-templates.d.ts"
  },
  "./tool-metadata/entries": {
-  "types": "./dist/tool-metadata/entries.d.ts",
   "symbols": {
    "toolMetadata": "variable:34105611e6"
-  }
+  },
+  "types": "./dist/tool-metadata/entries.d.ts"
  },
  "./tool-metadata/external-mcp": {
-  "types": "./dist/tool-metadata/external-mcp.d.ts",
   "symbols": {
    "toolMetadata": "variable:60a4a312ce"
-  }
+  },
+  "types": "./dist/tool-metadata/external-mcp.d.ts"
  },
  "./tool-metadata/files-copy": {
-  "types": "./dist/tool-metadata/files-copy.d.ts",
   "symbols": {
    "toolMetadata": "variable:f3db99da88"
-  }
+  },
+  "types": "./dist/tool-metadata/files-copy.d.ts"
  },
  "./tool-metadata/forms": {
-  "types": "./dist/tool-metadata/forms.d.ts",
   "symbols": {
    "toolMetadata": "variable:a2cfdfe9ba"
-  }
+  },
+  "types": "./dist/tool-metadata/forms.d.ts"
  },
  "./tool-metadata/identity": {
-  "types": "./dist/tool-metadata/identity.d.ts",
   "symbols": {
    "toolMetadata": "variable:f3fb2aed32"
-  }
+  },
+  "types": "./dist/tool-metadata/identity.d.ts"
  },
  "./tool-metadata/mail-status": {
-  "types": "./dist/tool-metadata/mail-status.d.ts",
   "symbols": {
    "toolMetadata": "variable:bb7bd7b144"
-  }
+  },
+  "types": "./dist/tool-metadata/mail-status.d.ts"
  },
  "./tool-metadata/media": {
-  "types": "./dist/tool-metadata/media.d.ts",
   "symbols": {
    "toolMetadata": "variable:e7966c9270"
-  }
+  },
+  "types": "./dist/tool-metadata/media.d.ts"
  },
  "./tool-metadata/media-import": {
-  "types": "./dist/tool-metadata/media-import.d.ts",
   "symbols": {
    "toolMetadata": "variable:dcd6be76dc"
-  }
+  },
+  "types": "./dist/tool-metadata/media-import.d.ts"
  },
  "./tool-metadata/navigation": {
-  "types": "./dist/tool-metadata/navigation.d.ts",
   "symbols": {
    "toolMetadata": "variable:ee7f7caac3"
-  }
+  },
+  "types": "./dist/tool-metadata/navigation.d.ts"
  },
  "./tool-metadata/observability": {
-  "types": "./dist/tool-metadata/observability.d.ts",
   "symbols": {
    "toolMetadata": "variable:338db59846"
-  }
+  },
+  "types": "./dist/tool-metadata/observability.d.ts"
  },
  "./tool-metadata/pages": {
-  "types": "./dist/tool-metadata/pages.d.ts",
   "symbols": {
    "toolMetadata": "variable:6636a3b125"
-  }
+  },
+  "types": "./dist/tool-metadata/pages.d.ts"
+ },
+ "./tool-metadata/site/files-copy": {
+  "symbols": {
+   "toolMetadata": "variable:f3db99da88"
+  },
+  "types": "./dist/tool-metadata/site/files-copy.d.ts"
+ },
+ "./tool-metadata/site/forms": {
+  "symbols": {
+   "toolMetadata": "variable:a2cfdfe9ba"
+  },
+  "types": "./dist/tool-metadata/site/forms.d.ts"
+ },
+ "./tool-metadata/site/identity": {
+  "symbols": {
+   "toolMetadata": "variable:f3fb2aed32"
+  },
+  "types": "./dist/tool-metadata/site/identity.d.ts"
+ },
+ "./tool-metadata/site/mail-status": {
+  "symbols": {
+   "toolMetadata": "variable:bb7bd7b144"
+  },
+  "types": "./dist/tool-metadata/site/mail-status.d.ts"
+ },
+ "./tool-metadata/site/media": {
+  "symbols": {
+   "toolMetadata": "variable:e7966c9270"
+  },
+  "types": "./dist/tool-metadata/site/media.d.ts"
+ },
+ "./tool-metadata/site/media-import": {
+  "symbols": {
+   "toolMetadata": "variable:dcd6be76dc"
+  },
+  "types": "./dist/tool-metadata/site/media-import.d.ts"
+ },
+ "./tool-metadata/site/navigation": {
+  "symbols": {
+   "toolMetadata": "variable:ee7f7caac3"
+  },
+  "types": "./dist/tool-metadata/site/navigation.d.ts"
+ },
+ "./tool-metadata/site/observability": {
+  "symbols": {
+   "toolMetadata": "variable:338db59846"
+  },
+  "types": "./dist/tool-metadata/site/observability.d.ts"
+ },
+ "./tool-metadata/site/pages": {
+  "symbols": {
+   "toolMetadata": "variable:6636a3b125"
+  },
+  "types": "./dist/tool-metadata/site/pages.d.ts"
  }
 }

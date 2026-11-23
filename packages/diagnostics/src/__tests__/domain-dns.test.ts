@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { createDomainDnsChecks, type DnsQuery, type TlsStatus } from "../domain-dns/index.js";
+import { createDomainDnsChecks, type DnsQuery } from "../domain-dns/index.js";
+import type { TlsStatus } from "@jini-ai/core/contracts/site/diagnostics-domain-dns";
 class ForbiddenError extends Error {}
 
 function harness(options: { denied?: string; hosts?: string[]; answers?: Record<string, DnsQuery>; tlsStatus?: TlsStatus } = {}) {

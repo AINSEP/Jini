@@ -1,5 +1,9 @@
 import { isIP } from "node:net";
 import { domainToASCII } from "node:url";
+import type { TlsStatus } from "@jini-ai/core/contracts/site/diagnostics-domain-dns";
+
+/** Deprecated re-export: import these from `@jini-ai/core/contracts/site/diagnostics-domain-dns`; removed at the next major. */
+export type { TlsStatus } from "@jini-ai/core/contracts/site/diagnostics-domain-dns";
 
 /** Validation error independent of any tool framework. */
 export class DomainDnsInputError extends Error {
@@ -15,10 +19,6 @@ export interface DnsQuery {
 }
 export interface PublicDnsResolver {
   query(input: { domain: string; type: DnsRecordType }): Promise<DnsQuery>;
-}
-export interface TlsStatus {
-  status: "verified" | "invalid" | "unavailable";
-  httpStatus: number | null;
 }
 export type DomainDnsOperation = 'lookup-dns' | 'check-dns' | 'tls-status';
 export interface DomainDnsDependencies {

@@ -9,7 +9,8 @@ import { AUDIO_DURATIONS_SEC, VIDEO_LENGTHS_SEC, findMediaModel, findProvider, m
 
 /** The built-in catalogue, for hosts that pass no `catalog` (unchanged behaviour). */
 const STATIC_CATALOG: MediaModelCatalog = { findModel: findMediaModel, findProvider, modelsForSurface };
-import type { AudioKind, MediaModel, MediaProvider, MediaSurface } from '../types.js';
+import type { AudioKind, MediaSurface } from '../types.js';
+import type { MediaModel, MediaProvider } from '@jini-ai/core/contracts/site/media-providers-catalog';
 import { buildRenderContext } from './context.js';
 
 import { renderCustomOpenAIImage, customImageOverridesOpenAIModel } from './providers/custom-image.js';

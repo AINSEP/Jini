@@ -13,11 +13,9 @@ import { randomBytes } from "node:crypto";
 import { createConsoleLogger, type Clock, type Logger } from "@jini-ai/core/primitives";
 import { createNodeAtomicFilesystem, writeJsonFileAtomic } from "./atomic-write.js";
 import { withFileLockSync } from "./file-lock.js";
-// Missing is not unreadable: a damaged file holds unknown records, not a valid empty list. Retain
-// text for salvage when reading succeeded but parsing failed; I/O failure supplies no recoverable text.
-export type JsonFileRead = { state: "ok"; value: unknown } | { state: "missing" } | { state: "unreadable"; text?: string };
-export interface QuarantineNotice { label: string; consequence: string; }
-export interface FileLockOptions { waitMs?: number; }
+import type { FileLockOptions, JsonFileRead, QuarantineNotice } from "@jini-ai/core/contracts/site/fs-durable-json";
+/** Deprecated re-export: import these from `@jini-ai/core/contracts/site/fs-durable-json`; removed at the next major. */
+export type { FileLockOptions, JsonFileRead, QuarantineNotice } from "@jini-ai/core/contracts/site/fs-durable-json";
 export interface DurableJsonPorts {
   filesystem: Pick<typeof nodeFs, "readFileSync" | "mkdirSync" | "openSync" | "writeFileSync" | "fsyncSync" | "closeSync" | "renameSync" | "rmSync" | "writeSync" | "statSync" | "fstatSync" | "lstatSync" | "chmodSync">;
   clock: Clock;

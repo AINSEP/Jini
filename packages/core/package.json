@@ -127,6 +127,21 @@
       "./contracts/site/recovery-reconcile-interrupted-migration": "universal",
       "./contracts/site/sandbox-node-worker": "universal",
       "./contracts/site/diagnostics-observability": "universal",
+      "./contracts/site/capability-providers-comments": "universal",
+      "./contracts/site/seo-content-analysis": "universal",
+      "./contracts/site/ui-sections": "universal",
+      "./contracts/site/admin-surfaces-connections": "universal",
+      "./contracts/site/api-connections-hosted-mcp": "universal",
+      "./contracts/site/media-providers-catalog": "universal",
+      "./contracts/site/core-custom-credential-categories": "universal",
+      "./contracts/site/packaging-electron": "universal",
+      "./contracts/site/platform-process": "universal",
+      "./contracts/site/fs-durable-json": "universal",
+      "./contracts/site/diagnostics-domain-dns": "universal",
+      "./contracts/site/web-evidence-playwright": "universal",
+      "./contracts/site/web-evidence-capture-budget": "universal",
+      "./contracts/site/commerce": "universal",
+      "./contracts/site/skills-install": "universal",
       "./errors/sentences": "universal",
       "./errors/bindings": "universal",
       "./errors/catalog": "universal",
@@ -809,6 +824,81 @@
       "types": "./dist/contracts/site/diagnostics-observability.d.ts",
       "import": "./dist/contracts/site/diagnostics-observability.js",
       "default": "./dist/contracts/site/diagnostics-observability.js"
+    },
+    "./contracts/site/capability-providers-comments": {
+      "types": "./dist/contracts/site/capability-providers-comments.d.ts",
+      "import": "./dist/contracts/site/capability-providers-comments.js",
+      "default": "./dist/contracts/site/capability-providers-comments.js"
+    },
+    "./contracts/site/seo-content-analysis": {
+      "types": "./dist/contracts/site/seo-content-analysis.d.ts",
+      "import": "./dist/contracts/site/seo-content-analysis.js",
+      "default": "./dist/contracts/site/seo-content-analysis.js"
+    },
+    "./contracts/site/ui-sections": {
+      "types": "./dist/contracts/site/ui-sections.d.ts",
+      "import": "./dist/contracts/site/ui-sections.js",
+      "default": "./dist/contracts/site/ui-sections.js"
+    },
+    "./contracts/site/admin-surfaces-connections": {
+      "types": "./dist/contracts/site/admin-surfaces-connections.d.ts",
+      "import": "./dist/contracts/site/admin-surfaces-connections.js",
+      "default": "./dist/contracts/site/admin-surfaces-connections.js"
+    },
+    "./contracts/site/api-connections-hosted-mcp": {
+      "types": "./dist/contracts/site/api-connections-hosted-mcp.d.ts",
+      "import": "./dist/contracts/site/api-connections-hosted-mcp.js",
+      "default": "./dist/contracts/site/api-connections-hosted-mcp.js"
+    },
+    "./contracts/site/media-providers-catalog": {
+      "types": "./dist/contracts/site/media-providers-catalog.d.ts",
+      "import": "./dist/contracts/site/media-providers-catalog.js",
+      "default": "./dist/contracts/site/media-providers-catalog.js"
+    },
+    "./contracts/site/core-custom-credential-categories": {
+      "types": "./dist/contracts/site/core-custom-credential-categories.d.ts",
+      "import": "./dist/contracts/site/core-custom-credential-categories.js",
+      "default": "./dist/contracts/site/core-custom-credential-categories.js"
+    },
+    "./contracts/site/packaging-electron": {
+      "types": "./dist/contracts/site/packaging-electron.d.ts",
+      "import": "./dist/contracts/site/packaging-electron.js",
+      "default": "./dist/contracts/site/packaging-electron.js"
+    },
+    "./contracts/site/platform-process": {
+      "types": "./dist/contracts/site/platform-process.d.ts",
+      "import": "./dist/contracts/site/platform-process.js",
+      "default": "./dist/contracts/site/platform-process.js"
+    },
+    "./contracts/site/fs-durable-json": {
+      "types": "./dist/contracts/site/fs-durable-json.d.ts",
+      "import": "./dist/contracts/site/fs-durable-json.js",
+      "default": "./dist/contracts/site/fs-durable-json.js"
+    },
+    "./contracts/site/diagnostics-domain-dns": {
+      "types": "./dist/contracts/site/diagnostics-domain-dns.d.ts",
+      "import": "./dist/contracts/site/diagnostics-domain-dns.js",
+      "default": "./dist/contracts/site/diagnostics-domain-dns.js"
+    },
+    "./contracts/site/web-evidence-playwright": {
+      "types": "./dist/contracts/site/web-evidence-playwright.d.ts",
+      "import": "./dist/contracts/site/web-evidence-playwright.js",
+      "default": "./dist/contracts/site/web-evidence-playwright.js"
+    },
+    "./contracts/site/web-evidence-capture-budget": {
+      "types": "./dist/contracts/site/web-evidence-capture-budget.d.ts",
+      "import": "./dist/contracts/site/web-evidence-capture-budget.js",
+      "default": "./dist/contracts/site/web-evidence-capture-budget.js"
+    },
+    "./contracts/site/commerce": {
+      "types": "./dist/contracts/site/commerce.d.ts",
+      "import": "./dist/contracts/site/commerce.js",
+      "default": "./dist/contracts/site/commerce.js"
+    },
+    "./contracts/site/skills-install": {
+      "types": "./dist/contracts/site/skills-install.d.ts",
+      "import": "./dist/contracts/site/skills-install.js",
+      "default": "./dist/contracts/site/skills-install.js"
     },
     "./errors/sentences": {
       "types": "./dist/errors/sentences.d.ts",
