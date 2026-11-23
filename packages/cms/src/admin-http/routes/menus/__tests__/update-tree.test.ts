@@ -46,6 +46,23 @@ describe("menuUpdateTreeRoute", () => {
     expect((await deps.menuRepo.findById({ workspaceId: WORKSPACE_ID, id: "m1" }))?.version).toBe(1);
   });
 
+  // rv1123e K1-jini #1: the two checks stay two separate `authorize` calls (a host answers each
+  // with its own decision source), and the raw-HTML one keeps the hand-written route's
+  // `...(menuId ? { entityId } : {})` — an empty parsed id sends NO `entityId` key on that check,
+  // while `admin.menus.update` still names the (empty) id as it always did.
+  // Mutation `update-html-entityid-always` (always pass `entityId` to the HTML check) fails this.
+  it("omits entityId on the raw-HTML check only when the parsed menu id is empty", async () => {
+    const deps = await makeWriteDeps();
+    const { authorize, calls } = recordingAuthorize();
+    const input = { menuId: "", items: undefined, expectedVersion: 1, title: undefined, slug: undefined, authoring: { mode: "html" as const, html: "<p>x</p>" } };
+    await Promise.resolve(menuUpdateTreeRoute.handle({ input, deps, context: PRINCIPAL, authorize })).catch(() => undefined);
+    expect(calls).toEqual([
+      { permission: "admin.menus.update", entityType: "menu", entityId: "" },
+      { permission: RAW_HTML_PERMISSION, entityType: "menu" },
+    ]);
+    expect(Object.keys(calls[1]!)).not.toContain("entityId");
+  });
+
   it("uses the injected normalizer for submitted HTML", async () => {
     const deps = { ...(await makeWriteDeps()), normalizeMenuHtml: ({ html }: { html: string }) => `${html}<!--n-->` };
     const { authorize } = recordingAuthorize();

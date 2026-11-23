@@ -1,3 +1,8 @@
+import type {
+  AdminAssignLocationEnvelope, AdminMenuBindingDto, AdminMenuDto, AdminMenuEnvelope, AdminMenuItemDto, AdminMenuListEnvelope,
+  AdminTrashMenuEnvelope,
+} from "@jini-ai/core/contracts/site/cms-menus";
+
 import type { MenuHtmlAuthoring, NavItemNode, NavLocationBindingRow, NavMenuEntry, NavMenuMode } from "../../navigation/index.js";
 
 /**
@@ -11,79 +16,32 @@ import type { MenuHtmlAuthoring, NavItemNode, NavLocationBindingRow, NavMenuEntr
  * read these bodies byte for byte.
  *
  * Architectural role:
- * HTTP-facing serialization only. Navigation rules stay in `navigation/menu-service.ts`; the host's
+ * HTTP-facing serialization only. The wire DTO declarations live in neutral Core
+ * (`@jini-ai/core/contracts/site/cms-menus`) so an admin client reads the same shapes without
+ * depending on CMS; navigation rules stay in `navigation/menu-service.ts`; the host's
  * route-dependency bag and registrar type stay with the host that mounts these specs.
  */
 
-/** Wire-format link target — structurally identical to `navigation`'s `NavTarget`. */
-export type AdminMenuTargetDto = NavItemNode["target"];
-
-export interface AdminMenuItemDto {
-  id: string;
-  // `| undefined`: the serializer writes these keys even when empty (JSON drops them on the wire).
-  label?: string | undefined;
-  target: AdminMenuTargetDto;
-  attrs?: NavItemNode["attrs"] | undefined;
-  children?: AdminMenuItemDto[] | undefined;
-}
-
-export interface AdminMenuDto {
-  id: string;
-  workspaceId: string;
-  slug: string;
-  title: string;
-  status: string;
-  items: AdminMenuItemDto[];
-  /** HTML mode (2026-10-08): absent on a menu that never used it. */
-  mode?: NavMenuMode;
-  html?: string;
-  locations: string[];
-  updatedAt: string;
-  version: number;
-}
-
-export interface AdminMenuEnvelope { menu: AdminMenuDto }
-export interface AdminMenuListEnvelope { menus: AdminMenuDto[] }
-
-export interface AdminMenuBindingDto {
-  workspaceId: string;
-  locationKey: string;
-  menuId: string;
-  boundAt: string;
-}
-
-export interface AdminAssignLocationEnvelope {
-  menu: AdminMenuDto;
-  binding: AdminMenuBindingDto;
-  displacedMenu: AdminMenuDto | null;
-}
-
-export interface AdminTrashMenuEnvelope {
-  trashed: true;
-  id: string;
-  version: number | null;
-}
-
 /** One tree node; recursion depth is bounded by the service's tree-depth limit. @complexity O(n) in the subtree size. */
-function toAdminMenuItemDto(node: NavItemNode): AdminMenuItemDto {
+function toAdminMenuItemDto({ node }: { node: NavItemNode }, _optional: Record<string, never> = {}): AdminMenuItemDto {
   return {
     id: node.id,
     label: node.label,
     target: node.target,
     attrs: node.attrs,
-    children: node.children ? node.children.map(toAdminMenuItemDto) : undefined,
+    children: node.children ? node.children.map((child) => toAdminMenuItemDto({ node: child })) : undefined,
   };
 }
 
 /** @complexity O(n) in the menu's item count. */
-export function toAdminMenuDto(menu: NavMenuEntry): AdminMenuDto {
+export function toAdminMenuDto({ menu }: { menu: NavMenuEntry }, _optional: Record<string, never> = {}): AdminMenuDto {
   return {
     id: menu.id,
     workspaceId: menu.workspaceId,
     slug: menu.slug,
     title: menu.title,
     status: menu.status,
-    items: menu.doc.items.map(toAdminMenuItemDto),
+    items: menu.doc.items.map((node) => toAdminMenuItemDto({ node })),
     ...(menu.doc.mode !== undefined ? { mode: menu.doc.mode } : {}),
     ...(menu.doc.html !== undefined ? { html: menu.doc.html } : {}),
     locations: [...menu.locations],
@@ -92,15 +50,17 @@ export function toAdminMenuDto(menu: NavMenuEntry): AdminMenuDto {
   };
 }
 
-export function toAdminMenuResponse(menu: NavMenuEntry): AdminMenuEnvelope {
-  return { menu: toAdminMenuDto(menu) };
+/** @complexity O(n) in the menu's item count. */
+export function toAdminMenuResponse({ menu }: { menu: NavMenuEntry }, _optional: Record<string, never> = {}): AdminMenuEnvelope {
+  return { menu: toAdminMenuDto({ menu }) };
 }
 
 export function toAdminMenuListResponse({ menus }: { menus: NavMenuEntry[] }, _optional: Record<string, never> = {}): AdminMenuListEnvelope {
-  return { menus: menus.map(toAdminMenuDto) };
+  return { menus: menus.map((menu) => toAdminMenuDto({ menu })) };
 }
 
-export function toAdminMenuBindingDto(binding: NavLocationBindingRow): AdminMenuBindingDto {
+/** Only the four wire fields, whatever else the row carries. @complexity O(1). */
+export function toAdminMenuBindingDto({ binding }: { binding: NavLocationBindingRow }, _optional: Record<string, never> = {}): AdminMenuBindingDto {
   return { workspaceId: binding.workspaceId, locationKey: binding.locationKey, menuId: binding.menuId, boundAt: binding.boundAt };
 }
 
@@ -110,9 +70,9 @@ export function toAdminAssignLocationResponse(required: {
   displacedMenu: NavMenuEntry | null;
 }, _optional: Record<string, never> = {}): AdminAssignLocationEnvelope {
   return {
-    menu: toAdminMenuDto(required.menu),
-    binding: toAdminMenuBindingDto(required.binding),
-    displacedMenu: required.displacedMenu ? toAdminMenuDto(required.displacedMenu) : null,
+    menu: toAdminMenuDto({ menu: required.menu }),
+    binding: toAdminMenuBindingDto({ binding: required.binding }),
+    displacedMenu: required.displacedMenu ? toAdminMenuDto({ menu: required.displacedMenu }) : null,
   };
 }
 
@@ -121,7 +81,7 @@ export function toAdminTrashMenuResponse(required: { id: string; version: number
 }
 
 /** A create/update body's HTML-mode fields as sent; `createMenu`/`updateMenuTree` validate the values. @complexity O(1). */
-export function parseMenuHtmlAuthoring(body: Record<string, unknown>): MenuHtmlAuthoring {
+export function parseMenuHtmlAuthoring({ body }: { body: Record<string, unknown> }, _optional: Record<string, never> = {}): MenuHtmlAuthoring {
   return {
     ...(body.mode !== undefined ? { mode: body.mode as NavMenuMode } : {}),
     ...(body.html !== undefined ? { html: body.html as string } : {}),
