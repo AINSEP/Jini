@@ -59,6 +59,8 @@ export function credentialRefusal(
 }
 
 /** A body field that is present but not a string is a 400 with `code`; `undefined` means "leave alone".
+ * Only the validator map's OWN entries count: a field named like an inherited member (`toString`,
+ * `constructor`) is an ordinary field under the string-or-omitted rule, never a validator lookup.
  * Present-but-wrong-type is a REJECTION (a stray `{apiKey: 12345}`), never silently reinterpreted
  * as "the caller sent nothing", which would leave a bad request looking like a no-op success.
  * @throws {RouteRefusalError} for the first present non-string field.
@@ -69,7 +71,7 @@ export function rejectNonStringFields(
   _optional: Record<string, never> = {},
 ): void {
   for (const [field, value] of Object.entries(body)) {
-    const specific = exempt[field];
+    const specific = Object.hasOwn(exempt, field) ? exempt[field] : undefined;
     const accepted = specific ? specific.ok(value) : value === undefined || typeof value === "string";
     if (!accepted) throw new RouteRefusalError({ status: 400, body: { error: specific ? specific.message : `${field} must be a string`, code } });
   }

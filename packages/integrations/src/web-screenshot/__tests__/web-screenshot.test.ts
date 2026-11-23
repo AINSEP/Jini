@@ -46,16 +46,16 @@ function harness({ capture, encodeTiles = twoTiles }: { capture: (request: PageC
 }
 
 test("reads a url input with defaults and strips the fragment", () => {
-  expect(readWebScreenshotInput({ url: "https://example.com/about#team" })).toEqual({
+  expect(readWebScreenshotInput({ input: { url: "https://example.com/about#team" } })).toEqual({
     target: { kind: "url", url: "https://example.com/about" }, viewport: "desktop", fullPage: false, waitMs: 1200,
   });
-  expect(readWebScreenshotInput({ sitePath: "/blog", viewport: "mobile", fullPage: true, waitMs: 0, dismissCookieBanners: true, themeId: "my-theme" })).toEqual({
+  expect(readWebScreenshotInput({ input: { sitePath: "/blog", viewport: "mobile", fullPage: true, waitMs: 0, dismissCookieBanners: true, themeId: "my-theme" } })).toEqual({
     target: { kind: "site", path: "/blog" }, viewport: "mobile", fullPage: true, waitMs: 0, dismissCookieBanners: true, themeId: "my-theme",
   });
 });
 
 test("refuses ambiguous targets and invalid options with the tool's prefix", () => {
-  const refused = (input: Record<string, unknown>) => () => readWebScreenshotInput(input);
+  const refused = (input: Record<string, unknown>) => () => readWebScreenshotInput({ input });
   expect(refused({})).toThrow(ToolInputError);
   expect(refused({ url: "https://a.example", sitePath: "/" })).toThrow(/web_screenshot_page: pass exactly one of 'url'/);
   expect(refused({ url: "https://user:pw@example.com" })).toThrow(/embedded credentials/);
@@ -67,12 +67,12 @@ test("refuses ambiguous targets and invalid options with the tool's prefix", () 
 });
 
 test("names saved captures by UTC date, time, page slug, viewport, theme and tile", () => {
-  const input = readWebScreenshotInput({ sitePath: "/About Us?x=1", themeId: "Dark.Theme" });
+  const input = readWebScreenshotInput({ input: { sitePath: "/About Us?x=1", themeId: "Dark.Theme" } });
   expect(captureRelativePaths({ capturedAtMs: AT_MS, input, count: 2 })).toEqual([
     "2026-10-08/130405-067-site-about-us-desktop-theme-dark-theme-1.jpg",
     "2026-10-08/130405-067-site-about-us-desktop-theme-dark-theme-2.jpg",
   ]);
-  expect(captureRelativePaths({ capturedAtMs: AT_MS, input: readWebScreenshotInput({ url: "https://Example.com/a/b" }), count: 1 })).toEqual(["2026-10-08/130405-067-example-com-a-b-desktop.jpg"]);
+  expect(captureRelativePaths({ capturedAtMs: AT_MS, input: readWebScreenshotInput({ input: { url: "https://Example.com/a/b" } }), count: 1 })).toEqual(["2026-10-08/130405-067-example-com-a-b-desktop.jpg"]);
 });
 
 test("pins the host capture limits", () => {
@@ -81,7 +81,7 @@ test("pins the host capture limits", () => {
 
 test("a public url capture returns facts then one jpeg block per tile, marked untrusted", async () => {
   const { service, requests, events } = harness({ capture: async () => shot({ pageHeight: 9000, capturedHeight: 8000 }) });
-  const input = readWebScreenshotInput({ url: "https://example.com/about", fullPage: true });
+  const input = readWebScreenshotInput({ input: { url: "https://example.com/about", fullPage: true } });
   const result = await service.screenshot({ input });
   expect(requests).toEqual([{ url: "https://example.com/about", viewport: VIEWPORT_PRESETS.desktop, fullPage: true, maxPageHeightPx: MAX_FULL_PAGE_HEIGHT_PX, settleMs: 1200, allowedOrigins: [] }]);
   const [facts, ...images] = result.content;
@@ -101,7 +101,7 @@ test("an own-site capture lets only the loopback origin through, reports a site 
   let closed = 0;
   const { service, requests } = harness({ capture: async () => shot({ finalUrl: "http://127.0.0.1:4555/blog?p=2" }) });
   const result = await service.screenshot({
-    input: readWebScreenshotInput({ sitePath: "/blog" }),
+    input: readWebScreenshotInput({ input: { sitePath: "/blog" } }),
     openOwnSite: async () => ({ origin: "http://127.0.0.1:4555", close: async () => { closed += 1; } }),
   });
   expect(requests[0]?.allowedOrigins).toEqual(["http://127.0.0.1:4555"]);
@@ -112,7 +112,7 @@ test("an own-site capture lets only the loopback origin through, reports a site 
 });
 
 test("maps capture failures to caller-safe refusals", async () => {
-  const fail = (error: PageCaptureError) => harness({ capture: async () => { throw error; } }).service.screenshot({ input: readWebScreenshotInput({ url: "https://example.com" }) });
+  const fail = (error: PageCaptureError) => harness({ capture: async () => { throw error; } }).service.screenshot({ input: readWebScreenshotInput({ input: { url: "https://example.com" } }) });
   await expect(fail(new PageCaptureError({ kind: "refused", message: "x" }))).rejects.toThrow(/https:\/\/example.com is not a public internet address/);
   await expect(fail(new PageCaptureError({ kind: "timeout", message: "x", limitMs: 20_000, loaded: false }))).rejects.toThrow(/did not answer within 20 seconds/);
   await expect(fail(new PageCaptureError({ kind: "timeout", message: "x" }))).rejects.toThrow(/did not finish rendering in time/);
@@ -122,7 +122,7 @@ test("maps capture failures to caller-safe refusals", async () => {
 test("a disk failure while saving keeps the pictures and explains the save error", async () => {
   const { service } = harness({ capture: async () => shot() });
   const saveCaptureFiles = async () => { throw Object.assign(new Error("full"), { code: "ENOSPC" }); };
-  const result = await service.screenshot({ input: readWebScreenshotInput({ url: "https://example.com" }), saveCaptureFiles });
+  const result = await service.screenshot({ input: readWebScreenshotInput({ input: { url: "https://example.com" } }), saveCaptureFiles });
   expect(JSON.parse((result.content[0] as { text: string }).text)).toMatchObject({ savedFiles: [], saveError: expect.stringContaining("(ENOSPC)") });
   expect(result.content).toHaveLength(3);
 });
@@ -140,7 +140,7 @@ test("a queued call that outlives its deadline is refused as busy without starti
     scheduleQueueTimeout: ({ onTimeout }) => { timeouts.push(onTimeout); return () => {}; },
   };
   const service = createWebScreenshotService({ ports }, { maxQueueWaitMs: 1000 });
-  const input = readWebScreenshotInput({ url: "https://example.com" });
+  const input = readWebScreenshotInput({ input: { url: "https://example.com" } });
   const first = service.screenshot({ input });
   const second = service.screenshot({ input });
   await new Promise(resolve => setTimeout(resolve, 0));

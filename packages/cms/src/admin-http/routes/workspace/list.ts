@@ -1,6 +1,7 @@
 import { defineJsonRoute, ok } from '@jini-ai/core/contracts/server';
+import type { AdminWorkspaceResponse } from '@jini-ai/core/contracts/site/cms-workspace';
 
-import { toAdminWorkspaceResponse, type AdminWorkspaceResponse } from '../../http/workspace.js';
+import { toAdminWorkspaceResponse } from '../../http/workspace.js';
 import { authorizeWorkspaceManage, WORKSPACES_PATH, type WorkspaceAdminRouteDeps, type WorkspaceRoutePrincipal } from './deps.js';
 
 /**
@@ -18,7 +19,7 @@ export const workspaceListRoute = defineJsonRoute<Record<string, never>, { works
     const own = await deps.workspaceRepo.findById({ id: deps.workspaceId });
     // Defensive: the boot-wired workspaceId always resolves to a real row by construction (the
     // host's composition root seeds it before any request can be served) — not an expected runtime path.
-    const workspaces = own ? [toAdminWorkspaceResponse(own)] : [];
+    const workspaces = own ? [toAdminWorkspaceResponse({ workspace: own })] : [];
     return ok({ value: { workspaces } });
   },
 });

@@ -98,8 +98,20 @@
       "./screens/assistant-settings/use-ai-assistant-locale-sync.hooks": "browser",
       "./screens/assistant-settings/OwnerGrantStatus": "browser",
       "./screens/assistant-settings/AssistantToggleRow": "browser",
+      "./screens/assistant-settings/use-assistant-owner-grant.hooks": "browser",
+      "./screens/assistant-settings/use-visitor-tools.hooks": "browser",
+      "./screens/assistant-settings/VisitorToolsPanel": "browser",
+      "./screens/assistant-settings/visitor-credential-form-port": "universal",
+      "./screens/assistant-settings/visitor-credential-form.rules": "universal",
+      "./screens/assistant-settings/visitor-credential-form-actions": "universal",
+      "./screens/assistant-settings/use-visitor-credential-form.hooks": "browser",
+      "./screens/assistant-settings/use-visitor-assistant-panel.hooks": "browser",
+      "./screens/assistant-settings/VisitorAssistantPanel": "browser",
       "./screens/webmcp/webmcp-i18n": "universal",
       "./screens/fs-files/folder-drop-port": "browser",
+      "./screens/workspace/Workspace": "browser",
+      "./screens/workspace/rules": "browser",
+      "./screens/workspace/hooks/workspace-port.hooks": "universal",
       "./shell/lib/editor-failure-i18n": "browser",
       "./shell/lib/editor-template-options.rules": "browser",
       "./shell/lib/escape-owned-by-inner-layer": "browser",
@@ -213,8 +225,20 @@
         "./screens/assistant-settings/use-ai-assistant-locale-sync.hooks": "browser",
         "./screens/assistant-settings/OwnerGrantStatus": "browser",
         "./screens/assistant-settings/AssistantToggleRow": "browser",
+        "./screens/assistant-settings/use-assistant-owner-grant.hooks": "browser",
+        "./screens/assistant-settings/use-visitor-tools.hooks": "browser",
+        "./screens/assistant-settings/VisitorToolsPanel": "browser",
+        "./screens/assistant-settings/visitor-credential-form-port": "universal",
+        "./screens/assistant-settings/visitor-credential-form.rules": "universal",
+        "./screens/assistant-settings/visitor-credential-form-actions": "universal",
+        "./screens/assistant-settings/use-visitor-credential-form.hooks": "browser",
+        "./screens/assistant-settings/use-visitor-assistant-panel.hooks": "browser",
+        "./screens/assistant-settings/VisitorAssistantPanel": "browser",
         "./screens/webmcp/webmcp-i18n": "universal",
         "./screens/fs-files/folder-drop-port": "browser",
+        "./screens/workspace/Workspace": "browser",
+        "./screens/workspace/rules": "browser",
+        "./screens/workspace/hooks/workspace-port.hooks": "universal",
         "./shell/lib/editor-failure-i18n": "browser",
         "./shell/lib/editor-template-options.rules": "browser",
         "./shell/lib/escape-owned-by-inner-layer": "browser",
@@ -689,6 +713,51 @@
       "import": "./dist/screens/assistant-settings/AssistantToggleRow.js",
       "default": "./dist/screens/assistant-settings/AssistantToggleRow.js"
     },
+    "./screens/assistant-settings/use-assistant-owner-grant.hooks": {
+      "types": "./dist/screens/assistant-settings/use-assistant-owner-grant.hooks.d.ts",
+      "import": "./dist/screens/assistant-settings/use-assistant-owner-grant.hooks.js",
+      "default": "./dist/screens/assistant-settings/use-assistant-owner-grant.hooks.js"
+    },
+    "./screens/assistant-settings/use-visitor-tools.hooks": {
+      "types": "./dist/screens/assistant-settings/use-visitor-tools.hooks.d.ts",
+      "import": "./dist/screens/assistant-settings/use-visitor-tools.hooks.js",
+      "default": "./dist/screens/assistant-settings/use-visitor-tools.hooks.js"
+    },
+    "./screens/assistant-settings/VisitorToolsPanel": {
+      "types": "./dist/screens/assistant-settings/VisitorToolsPanel.d.ts",
+      "import": "./dist/screens/assistant-settings/VisitorToolsPanel.js",
+      "default": "./dist/screens/assistant-settings/VisitorToolsPanel.js"
+    },
+    "./screens/assistant-settings/visitor-credential-form-port": {
+      "types": "./dist/screens/assistant-settings/visitor-credential-form-port.d.ts",
+      "import": "./dist/screens/assistant-settings/visitor-credential-form-port.js",
+      "default": "./dist/screens/assistant-settings/visitor-credential-form-port.js"
+    },
+    "./screens/assistant-settings/visitor-credential-form.rules": {
+      "types": "./dist/screens/assistant-settings/visitor-credential-form.rules.d.ts",
+      "import": "./dist/screens/assistant-settings/visitor-credential-form.rules.js",
+      "default": "./dist/screens/assistant-settings/visitor-credential-form.rules.js"
+    },
+    "./screens/assistant-settings/visitor-credential-form-actions": {
+      "types": "./dist/screens/assistant-settings/visitor-credential-form-actions.d.ts",
+      "import": "./dist/screens/assistant-settings/visitor-credential-form-actions.js",
+      "default": "./dist/screens/assistant-settings/visitor-credential-form-actions.js"
+    },
+    "./screens/assistant-settings/use-visitor-credential-form.hooks": {
+      "types": "./dist/screens/assistant-settings/use-visitor-credential-form.hooks.d.ts",
+      "import": "./dist/screens/assistant-settings/use-visitor-credential-form.hooks.js",
+      "default": "./dist/screens/assistant-settings/use-visitor-credential-form.hooks.js"
+    },
+    "./screens/assistant-settings/use-visitor-assistant-panel.hooks": {
+      "types": "./dist/screens/assistant-settings/use-visitor-assistant-panel.hooks.d.ts",
+      "import": "./dist/screens/assistant-settings/use-visitor-assistant-panel.hooks.js",
+      "default": "./dist/screens/assistant-settings/use-visitor-assistant-panel.hooks.js"
+    },
+    "./screens/assistant-settings/VisitorAssistantPanel": {
+      "types": "./dist/screens/assistant-settings/VisitorAssistantPanel.d.ts",
+      "import": "./dist/screens/assistant-settings/VisitorAssistantPanel.js",
+      "default": "./dist/screens/assistant-settings/VisitorAssistantPanel.js"
+    },
     "./screens/webmcp/webmcp-i18n": {
       "types": "./dist/screens/webmcp/webmcp-i18n.d.ts",
       "import": "./dist/screens/webmcp/webmcp-i18n.js",
@@ -698,6 +767,21 @@
       "types": "./dist/screens/fs-files/folder-drop-port.d.ts",
       "import": "./dist/screens/fs-files/folder-drop-port.js",
       "default": "./dist/screens/fs-files/folder-drop-port.js"
+    },
+    "./screens/workspace/Workspace": {
+      "types": "./dist/screens/workspace/Workspace.d.ts",
+      "import": "./dist/screens/workspace/Workspace.js",
+      "default": "./dist/screens/workspace/Workspace.js"
+    },
+    "./screens/workspace/rules": {
+      "types": "./dist/screens/workspace/rules.d.ts",
+      "import": "./dist/screens/workspace/rules.js",
+      "default": "./dist/screens/workspace/rules.js"
+    },
+    "./screens/workspace/hooks/workspace-port.hooks": {
+      "types": "./dist/screens/workspace/hooks/workspace-port.hooks.d.ts",
+      "import": "./dist/screens/workspace/hooks/workspace-port.hooks.js",
+      "default": "./dist/screens/workspace/hooks/workspace-port.hooks.js"
     },
     "./shell/lib/editor-failure-i18n": {
       "types": "./dist/shell/lib/editor-failure-i18n.d.ts",

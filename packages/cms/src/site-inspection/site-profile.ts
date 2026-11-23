@@ -1,8 +1,9 @@
-// 2026-09-12 (optional themes) — the no-theme sentinel and the retired-theme-id alias list are the
-// host's theme identity, so they arrive on `SiteProfileDeps` (`noThemeId`, `themeIdCandidates`)
-// rather than being re-spelled here: a second literal spelling of "no theme" is exactly the drift
-// the structural-declaration discipline exists to prevent. Profile reads need theme identity, not
-// theme maintenance and media write services.
+// 2026-09-12 (optional themes) — the no-theme sentinel, injected (`SiteProfileDeps.noThemeId`, with
+// the retired-id aliases on `themeIdCandidates`) rather than re-spelled locally. This module
+// otherwise imports nothing from the host, which is deliberate for `RouteDeps` (see the host's deps
+// header on the structural-declaration discipline) but was never a rule about VALUES: a second
+// literal spelling of "no theme" here is exactly the drift that discipline exists to prevent.
+// Profile reads need theme identity, not theme maintenance and media write services.
 import {
   authorizeAndCollectSection,
   DEFAULT_SECTION_TIMEOUT_MS,
@@ -20,7 +21,8 @@ import {
  * site/profile` admin route. Neither adapter owns any aggregation logic of its own.
  *
  * Why a shared service and not "just a tool" (2026-08-26 swarm-consensus decision, see
- * the host's swarm-consensus report of that date): the host's admin app is a browser bundle and cannot invoke an agent tool. If the tool owned the
+ * the host's swarm-consensus report of that date): the host's admin app is a browser bundle and
+ * cannot invoke an agent tool. If the tool owned the
  * aggregation, the frontend would need a second implementation — and this codebase has ALREADY
  * produced exactly that divergence once, in settings (`settings_get_effective` is implemented
  * independently in `@jini-ai/core/settings`'s tool registrations and in the host's settings

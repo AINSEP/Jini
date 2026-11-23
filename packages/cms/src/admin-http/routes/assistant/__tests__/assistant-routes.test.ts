@@ -9,6 +9,7 @@ import { getSiteCredentialRoute } from "../get-site-credential.js";
 import { putExecutionCredentialRoute } from "../put-execution-credential.js";
 import { putAssistantSettingsRoute } from "../put-settings.js";
 import { putSiteCredentialRoute } from "../put-site-credential.js";
+import { rejectNonStringFields } from "../shared.js";
 import { testAgentRoute } from "../test-agent.js";
 
 const PREFIX = "/api/admin/v1/workspaces/:workspaceId/assistant";
@@ -162,12 +163,33 @@ describe("assistant admin route specs", () => {
         return [{ id: "cli", name: "CLI", available: true, authStatus: "ok", version: "1.0", models: [{ id: "m" }] }] as never;
       },
     };
-    expect(parsed(testAgentRoute.parse(raw({ agentId: " cli ", model: " m " })))).toEqual({ agentId: "cli", model: "m" });
-    expect(parsed(testAgentRoute.parse(raw(null)))).toEqual({ agentId: "", model: "" });
+    expect(await testAgentRoute.handle({ input: parsed(testAgentRoute.parse(raw({ agentId: " cli ", model: " m " }))), deps, context: PRINCIPAL, authorize }, { signal })).toEqual({ ok: true, value: { ok: true, message: "CLI 1.0 is installed and authenticated, and offers 'm'." } });
+    expect(await refusal(testAgentRoute.handle({ input: parsed(testAgentRoute.parse(raw(null))), deps, context: PRINCIPAL, authorize }, { signal }))).toEqual({ status: 400, body: { error: "'agentId' is required", code: "BAD_REQUEST" } });
     expect(await refusal(testAgentRoute.handle({ input: { agentId: "", model: "" }, deps, context: PRINCIPAL, authorize }, { signal }))).toEqual({ status: 400, body: { error: "'agentId' is required", code: "BAD_REQUEST" } });
     expect(await testAgentRoute.handle({ input: { agentId: "cli", model: "m" }, deps, context: PRINCIPAL, authorize }, { signal })).toEqual({ ok: true, value: { ok: true, message: "CLI 1.0 is installed and authenticated, and offers 'm'." } });
     expect(await testAgentRoute.handle({ input: { agentId: "gone", model: "" }, deps, context: PRINCIPAL, authorize }, { signal })).toEqual({ ok: true, value: { ok: false, message: "'gone' was not found on this server's PATH." } });
-    expect(calls).toEqual(Array(3).fill({ permission: PERMISSION, entityType: "assistant-execution" }));
-    expect(detections).toEqual([[{ agentIds: ["cli"] }, { force: true }], [{ agentIds: ["gone"] }, { force: true }]]);
+    expect(calls).toEqual(Array(5).fill({ permission: PERMISSION, entityType: "assistant-execution" }));
+    expect(detections).toEqual([[{ agentIds: ["cli"] }, { force: true }], [{ agentIds: ["cli"] }, { force: true }], [{ agentIds: ["gone"] }, { force: true }]]);
+  });
+  it("test-agent: a denied caller with an uncoercible field gets the 403, not a coercion failure", async () => {
+    const denied = recordingAuthorize({ deny: true });
+    const deps = { adminAssistantPermission: PERMISSION, detectAgents: async () => { throw new Error("detection must not run"); } };
+    for (const body of [{ agentId: { toString: 1 } }, { agentId: "cli", model: { toString: 1 } }]) {
+      const pending = (async () => testAgentRoute.handle({ input: parsed(testAgentRoute.parse(raw(body))), deps, context: PRINCIPAL, authorize: denied.authorize }, { signal }))();
+      expect(await refusal(pending)).toEqual({ status: 403, body: { error: "denied", code: "FORBIDDEN" } });
+    }
+    expect(denied.calls).toEqual(Array(2).fill({ permission: PERMISSION, entityType: "assistant-execution" }));
+  });
+
+  it("rejectNonStringFields reads only OWN validator entries: inherited names follow the string-or-omitted rule", () => {
+    const exempt = { apiKey: { ok: (value: unknown) => value === null, message: "apiKey must be null" } };
+    for (const field of ["toString", "constructor", "hasOwnProperty", "__proto__"]) {
+      const body = JSON.parse(`{"${field}": "text"}`) as Record<string, unknown>;
+      expect(() => rejectNonStringFields({ body, code: "C", exempt })).not.toThrow();
+    }
+    let thrown: unknown;
+    try { rejectNonStringFields({ body: { toString: 5 }, code: "C", exempt }); } catch (error) { thrown = error; }
+    expect(thrown instanceof RouteRefusalError ? thrown.response : thrown).toEqual({ status: 400, body: { error: "toString must be a string", code: "C" } });
+    expect(() => rejectNonStringFields({ body: { apiKey: null }, code: "C", exempt })).not.toThrow();
   });
 });

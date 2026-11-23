@@ -1,7 +1,8 @@
 import { defineJsonRoute, ok } from '@jini-ai/core/contracts/server';
+import type { AdminWorkspaceResponse } from '@jini-ai/core/contracts/site/cms-workspace';
 
 import { updateWorkspace, WorkspaceConflictError, WorkspaceNotFoundError, WorkspaceValidationError } from '../../../workspace/index.js';
-import { toAdminWorkspaceResponse, type AdminWorkspaceResponse } from '../../http/workspace.js';
+import { toAdminWorkspaceResponse } from '../../http/workspace.js';
 import { authorizeWorkspaceManage, workspaceRefusal, WORKSPACES_PATH, type WorkspaceAdminRouteDeps, type WorkspaceRoutePrincipal } from './deps.js';
 
 /** This route's two writable PATCH fields — `undefined` means "leave unchanged". */
@@ -29,18 +30,21 @@ export function workspaceUpdateFailure({ error }: { error: unknown }, _optional:
 /**
  * PATCH workspaces/:workspaceId — `UPDATE_WORKSPACE` (SPEC-044 REQ-04, AC-05). `:workspaceId` must
  * equal the caller's own workspace (INV-04, checked by the host's workspace port before
- * authorization, same as `get.ts`). Gated by `workspace.manage`. The parse is total so validation
- * (the domain's) still runs only after authorization, as the hand-written route did.
+ * authorization, same as `get.ts`). Gated by `workspace.manage`. The parse passes the raw body through
+ * and the field coercion runs in `handle` after the gate (coercing a hostile field can throw, and a
+ * denied caller must get its 403 first), so validation (the domain's) still runs only after
+ * authorization, as the hand-written route did.
  */
-export const workspaceUpdateRoute = defineJsonRoute<WorkspaceUpdateInput, { workspace: AdminWorkspaceResponse }, WorkspaceAdminRouteDeps, WorkspaceRoutePrincipal>({
+export const workspaceUpdateRoute = defineJsonRoute<unknown, { workspace: AdminWorkspaceResponse }, WorkspaceAdminRouteDeps, WorkspaceRoutePrincipal>({
   method: 'patch',
   path: `${WORKSPACES_PATH}/:workspaceId`,
-  parse: (raw) => ok({ value: parseWorkspaceUpdateBody({ rawBody: raw.body }) }),
+  parse: (raw) => ok({ value: raw.body }),
   handle: async ({ input, deps, authorize }) => {
     await authorizeWorkspaceManage({ authorize });
+    const fields = parseWorkspaceUpdateBody({ rawBody: input });
     try {
-      const { workspace } = await updateWorkspace({ deps: { repo: deps.workspaceRepo }, input: { id: deps.workspaceId, ...input } });
-      return ok({ value: { workspace: toAdminWorkspaceResponse(workspace) } });
+      const { workspace } = await updateWorkspace({ deps: { repo: deps.workspaceRepo }, input: { id: deps.workspaceId, ...fields } });
+      return ok({ value: { workspace: toAdminWorkspaceResponse({ workspace }) } });
     } catch (error) {
       throw workspaceUpdateFailure({ error });
     }

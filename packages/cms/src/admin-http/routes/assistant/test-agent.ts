@@ -14,6 +14,15 @@ export interface TestAgentRouteDeps extends AssistantPermissionDeps {
 /** This route's two body fields, trimmed, read off an untyped body in one place. */
 export interface TestAgentInput { agentId: string; model: string }
 
+/** The two body fields read off an untyped body, trimmed; an absent body or field is the empty
+ * string, so the route's own `agentId` check (not a crash) answers it.
+ * @complexity O(1).
+ */
+export function parseTestAgentBody({ rawBody }: { rawBody: unknown }, _optional: Record<string, never> = {}): TestAgentInput {
+  const body = (rawBody ?? {}) as Record<string, unknown>;
+  return { agentId: String(body.agentId ?? "").trim(), model: String(body.model ?? "").trim() };
+}
+
 /** Select the requested CLI, retaining the route's missing-PATH verdict before readiness checks.
  * @complexity O(agents).
  */
@@ -34,7 +43,8 @@ function detectedTestAgentOutcome(
 
 /**
  * POST a per-agent check: is the named local CLI installed, authenticated, and does it still offer
- * the operator's chosen model? Authorization runs before the `agentId` check (400 `BAD_REQUEST`).
+ * the operator's chosen model? Authorization runs before the body is coerced (coercing a hostile field
+ * can throw, and a denied caller must get its 403 first) and before the `agentId` check (400 `BAD_REQUEST`).
  * Answers `{ ok, message }` — a failed check is a 200 with `ok: false`, not an HTTP error.
  *
  * Implemented as a fresh `detectAgents()` run scoped to the requested id rather than a new probing
@@ -52,16 +62,13 @@ function detectedTestAgentOutcome(
  * needing authentication); that verdict is the answer, so it is a value. **5xx** — the probe
  * itself could not run, so there is no verdict to report.
  */
-export const testAgentRoute = defineJsonRoute<TestAgentInput, TestAgentOutcome, TestAgentRouteDeps, AssistantRoutePrincipal>({
+export const testAgentRoute = defineJsonRoute<unknown, TestAgentOutcome, TestAgentRouteDeps, AssistantRoutePrincipal>({
   method: "post",
   path: `${ASSISTANT_ROUTE_PREFIX}/execution/test-agent`,
-  parse: (raw) => {
-    const body = (raw.body ?? {}) as Record<string, unknown>;
-    return ok({ value: { agentId: String(body.agentId ?? "").trim(), model: String(body.model ?? "").trim() } });
-  },
+  parse: (raw) => ok({ value: raw.body }),
   handle: async ({ input, deps, authorize }) => {
     await authorizeAssistant({ authorize, permission: deps.adminAssistantPermission, entityType: "assistant-execution" });
-    const { agentId, model } = input;
+    const { agentId, model } = parseTestAgentBody({ rawBody: input });
     if (!agentId) throw new RouteRefusalError({ status: 400, body: { error: "'agentId' is required", code: "BAD_REQUEST" } });
     const agents = await deps.detectAgents({ agentIds: [agentId] }, { force: true });
     return ok({ value: detectedTestAgentOutcome({ agents, agentId, model }) });

@@ -35,19 +35,22 @@ export function workspaceCreateFailure({ error }: { error: unknown }, _optional:
 /**
  * POST workspaces — `CREATE_WORKSPACE` (SPEC-044 REQ-01). The hybrid synchronous command and
  * outbox-flush path: the host mounts it behind its authenticated admin session, and it is gated by
- * `workspace.manage`, so unauthenticated callers never create workspace rows. The parse is total so
- * validation (the domain's) still runs only after authorization; the flush runs after the create
+ * `workspace.manage`, so unauthenticated callers never create workspace rows. The parse passes the raw
+ * body through and the field coercion runs in `handle` after the gate (coercing a hostile field can
+ * throw, and a denied caller must get its 403 first), so validation (the domain's) still runs only
+ * after authorization; the flush runs after the create
  * commits and before the `201`, so a successful answer means the event was at least attempted.
  */
-export const workspaceCreateRoute = defineJsonRoute<{ name: string; slug: string }, { id: string }, WorkspaceCreateRouteDeps, WorkspaceRoutePrincipal>(
+export const workspaceCreateRoute = defineJsonRoute<unknown, { id: string }, WorkspaceCreateRouteDeps, WorkspaceRoutePrincipal>(
   {
     method: 'post',
     path: WORKSPACES_PATH,
-    parse: (raw) => ok({ value: parseWorkspaceCreateBody({ rawBody: raw.body }) }),
+    parse: (raw) => ok({ value: raw.body }),
     handle: async ({ input, deps, authorize }) => {
       await authorizeWorkspaceManage({ authorize });
+      const fields = parseWorkspaceCreateBody({ rawBody: input });
       try {
-        const { id } = await createWorkspace({ deps: { idGen: deps.idGen, clock: deps.clock, repo: deps.workspaceRepo, outbox: deps.outbox }, input });
+        const { id } = await createWorkspace({ deps: { idGen: deps.idGen, clock: deps.clock, repo: deps.workspaceRepo, outbox: deps.outbox }, input: fields });
         await deps.flushOutbox();
         return ok({ value: { id } });
       } catch (error) {

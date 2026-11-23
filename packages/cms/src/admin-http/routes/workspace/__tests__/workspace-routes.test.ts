@@ -137,6 +137,6 @@ describe('workspace admin route specs', () => {
 
 describe('toAdminWorkspaceResponse', () => {
   it('projects exactly the five wire fields, dropping anything else', () => {
-    expect(toAdminWorkspaceResponse({ ...own, internal: 'x' } as typeof own)).toEqual(own);
+    expect(toAdminWorkspaceResponse({ workspace: { ...own, internal: 'x' } as typeof own })).toEqual(own);
   });
 });

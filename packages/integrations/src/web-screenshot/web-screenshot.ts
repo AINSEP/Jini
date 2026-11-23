@@ -179,7 +179,7 @@ function readWaitMs({ waitMs }: { waitMs: unknown }, _options = {}): number {
  * @throws ToolInputError for a missing/ambiguous target or an invalid option.
  * @complexity O(url length).
  */
-export function readWebScreenshotInput(input: Readonly<Record<string, unknown>>): WebScreenshotInput {
+export function readWebScreenshotInput({ input }: { input: Readonly<Record<string, unknown>> }, _optional: Record<string, never> = {}): WebScreenshotInput {
   const { url, sitePath, viewport = "desktop", fullPage = false, waitMs = DEFAULT_WAIT_MS, themeId } = input;
   if ((url === undefined) === (sitePath === undefined)) throw refusal({ message: "pass exactly one of 'url' (a public page) or 'sitePath' (a page of THIS site, e.g. '/')." });
   const validatedViewport = readViewport({ viewport });
@@ -201,7 +201,7 @@ function fileSlug({ text }: { text: string }, _optional = {}): string {
  * folder lists in capture order; the page slug (host + path, or `site` + path) says what it shows.
  * @complexity O(count + url length).
  */
-export function captureRelativePaths({ capturedAtMs, input, count }: { capturedAtMs: number; input: WebScreenshotInput; count: number }): string[] {
+export function captureRelativePaths({ capturedAtMs, input, count }: { capturedAtMs: number; input: WebScreenshotInput; count: number }, _optional: Record<string, never> = {}): string[] {
   const iso = new Date(capturedAtMs).toISOString();
   const time = `${iso.slice(11, 19).replaceAll(":", "")}-${iso.slice(20, 23)}`;
   const page = input.target.kind === "url"

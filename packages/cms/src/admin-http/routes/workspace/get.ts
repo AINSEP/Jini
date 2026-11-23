@@ -1,6 +1,7 @@
 import { defineJsonRoute, ok } from '@jini-ai/core/contracts/server';
+import type { AdminWorkspaceResponse } from '@jini-ai/core/contracts/site/cms-workspace';
 
-import { toAdminWorkspaceResponse, type AdminWorkspaceResponse } from '../../http/workspace.js';
+import { toAdminWorkspaceResponse } from '../../http/workspace.js';
 import { authorizeWorkspaceManage, workspaceRefusal, WORKSPACES_PATH, type WorkspaceAdminRouteDeps, type WorkspaceRoutePrincipal } from './deps.js';
 
 /**
@@ -18,6 +19,6 @@ export const workspaceGetRoute = defineJsonRoute<Record<string, never>, { worksp
     await authorizeWorkspaceManage({ authorize });
     const workspace = await deps.workspaceRepo.findById({ id: deps.workspaceId });
     if (!workspace) throw workspaceRefusal({ status: 404, error: 'workspace was not found' });
-    return ok({ value: { workspace: toAdminWorkspaceResponse(workspace) } });
+    return ok({ value: { workspace: toAdminWorkspaceResponse({ workspace }) } });
   },
 });

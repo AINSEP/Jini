@@ -1,7 +1,11 @@
+import type { AdminWorkspaceResponse } from '@jini-ai/core/contracts/site/cms-workspace';
+
 import type { WorkspaceRecord } from '../../workspace/index.js';
 
 /**
- * @file Admin-facing workspace response DTO (mirrors the host's admin user DTO pattern).
+ * @file Admin-facing workspace response projection (mirrors the host's admin user DTO pattern). The
+ * wire DTO itself, `AdminWorkspaceResponse`, is owned by `@jini-ai/core/contracts/site/cms-workspace`
+ * so the admin client reads the same declaration.
  *
  * Purpose:
  * `WorkspaceRecord` has no sensitive fields (unlike a user record's password hash), so this mapper is a
@@ -11,16 +15,7 @@ import type { WorkspaceRecord } from '../../workspace/index.js';
  * touching every route.
  */
 
-/** Admin-facing shape of a workspace. */
-export interface AdminWorkspaceResponse {
-  id: string;
-  name: string;
-  slug: string;
-  createdAt: string;
-  version: number;
-}
-
 /** Serialize a `WorkspaceRecord` to `AdminWorkspaceResponse`. @complexity O(1). @overallScore 100 */
-export function toAdminWorkspaceResponse(workspace: WorkspaceRecord): AdminWorkspaceResponse {
+export function toAdminWorkspaceResponse({ workspace }: { workspace: WorkspaceRecord }, _optional: Record<string, never> = {}): AdminWorkspaceResponse {
   return { id: workspace.id, name: workspace.name, slug: workspace.slug, createdAt: workspace.createdAt, version: workspace.version };
 }
