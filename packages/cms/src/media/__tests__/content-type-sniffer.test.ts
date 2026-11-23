@@ -196,3 +196,29 @@ test("sniffContentType: untagged MPEG audio with a reserved sample-rate index is
   assert.equal(sniffContentType({ bytes: Buffer.from([0xff, 0xfb, 0x90, 0x00]) }), "audio/mpeg");
   assert.equal(sniffContentType({ bytes: Buffer.from([0xff, 0xfb, 0x9c, 0x00]) }), "application/octet-stream");
 });
+
+/**
+ * Owner request 2026-10-31 (".MOV gap"): QuickTime (`qt  `) and Apple M4V (`M4V `/`M4VH`/`M4VP`)
+ * major brands are labelled as their own video types instead of collapsing into the brand-blind
+ * ISO-BMFF `video/mp4` fallback. Ordinary MP4 brands, AVIF and M4A must keep their earlier labels.
+ */
+test("sniffContentType: QuickTime and M4V ftyp major brands are video/quicktime and video/x-m4v", () => {
+  assert.equal(sniffContentType({ bytes: ftypBytes("qt  ", ["qt  "]) }), "video/quicktime");
+  for (const brand of ["M4V ", "M4VH", "M4VP"]) {
+    assert.equal(sniffContentType({ bytes: ftypBytes(brand, [brand, "M4A ", "mp42", "isom"]) }), "video/x-m4v");
+  }
+  // Unchanged neighbours: ordinary MP4 brands (even when they list qt/M4V as compatible), AVIF, M4A.
+  assert.equal(sniffContentType({ bytes: ftypBytes("isom", ["isom", "qt  ", "M4V "]) }), "video/mp4");
+  assert.equal(sniffContentType({ bytes: ftypBytes("mp42", ["mp42"]) }), "video/mp4");
+  assert.equal(sniffContentType({ bytes: ftypBytes("qt  ", ["qt  ", "avif"]) }), "image/avif");
+  assert.equal(sniffContentType({ bytes: ftypBytes("M4A ", ["M4A "]) }), "audio/mp4");
+  // A near-miss brand (`qt` with other padding) is not QuickTime; it stays in the MP4 fallback.
+  assert.equal(sniffContentType({ bytes: ftypBytes("qtxx", []) }), "video/mp4");
+});
+
+test("sniffContentType: a classic QuickTime file with no leading ftyp atom is NOT claimed", () => {
+  // Deliberately unrecognized: see the sniffer's QUICKTIME_BRANDS doc for why bare `moov`/`mdat`/
+  // `wide`/`free` leading atoms are not sniffed.
+  const legacy = new Uint8Array(16); legacy.set([0, 0, 0, 8], 0); legacy.set(textBytes("widemdat"), 4);
+  assert.equal(sniffContentType({ bytes: legacy }), "application/octet-stream");
+});

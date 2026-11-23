@@ -227,6 +227,18 @@ it('allows only one extraction across separate adapter instances; releases after
   expect(await absent.extract({ bytes: mp4 }, {})).toMatchObject({ reason: 'unavailable' });
 });
 
+// .MOV gap (owner 2026-10-31): QuickTime/M4V originals reach ffprobe (whose -format_whitelist already
+// names `mov`), instead of being refused by the container guard.
+it('accepts QuickTime and M4V bytes past the container guard', async () => {
+  for (const brand of ['qt  ', 'M4V ']) {
+    const clip = new Uint8Array([0, 0, 0, 20, ...Buffer.from(`ftyp${brand}`), 0, 0, 0, 0, ...Buffer.from(brand)]);
+    const run = vi.fn(async (required: { args: readonly string[] }) => required.args[2] === '/host/ffprobe' ? Buffer.from(probe) : emitImages(required.args, [jpeg]));
+    const result = await createFfmpegVideoFrameExtractor({ findBinaries: binaries, runProcess: run }, {}).extract({ bytes: clip }, { frames: 1 });
+    expect(result).toMatchObject({ ok: true });
+    expect(run).toHaveBeenCalled();
+  }
+});
+
 it('refuses oversize and non-video input before any process runs', async () => {
   const run = vi.fn();
   const extractor = createFfmpegVideoFrameExtractor({ runProcess: run }, {});
