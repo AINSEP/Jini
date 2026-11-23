@@ -48,7 +48,8 @@
       "./charts/react": "browser",
       "./mcp-ui/credential-card": "universal",
       "./react-kit": "browser",
-      "./react/testing": "browser"
+      "./react/testing": "browser",
+      "./number-stepper": "browser"
     },
     "isolation": {
       "entries": {
@@ -249,6 +250,11 @@
       "types": "./dist/react/testing.d.ts",
       "import": "./dist/react/testing.js",
       "default": "./dist/react/testing.js"
+    },
+    "./number-stepper": {
+      "types": "./dist/features/number-stepper/index.d.ts",
+      "import": "./dist/features/number-stepper/index.js",
+      "default": "./dist/features/number-stepper/index.js"
     }
   },
   "files": [
