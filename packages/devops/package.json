@@ -36,6 +36,8 @@
       "./source-control/site/credential-form": "universal",
       "./dns/site/mail-requirements": "universal",
       "./deploy/site/types": "universal",
+      "./deploy/site/publish-credentials/types": "universal",
+      "./deploy/site/publish-credentials/account-label-heal-scheduler": "universal",
       "./backup/site/share-export-failure": "universal",
       "./backup/upload": "node",
       "./backup/plan-store": "node",
@@ -44,7 +46,8 @@
       "./static-export/site/public-origin-policy": "universal",
       "./checks/quality-gates": "universal",
       "./checks/complexity-debt": "universal",
-      "./checks/live-verify-checks": "universal"
+      "./checks/live-verify-checks": "universal",
+      "./packaging/electron/move-to-applications": "node"
     },
     "isolation": {
       "shared": [
@@ -179,6 +182,16 @@
       "import": "./dist/deploy/site/types.js",
       "default": "./dist/deploy/site/types.js"
     },
+    "./deploy/site/publish-credentials/types": {
+      "types": "./dist/deploy/site/publish-credentials/types.d.ts",
+      "import": "./dist/deploy/site/publish-credentials/types.js",
+      "default": "./dist/deploy/site/publish-credentials/types.js"
+    },
+    "./deploy/site/publish-credentials/account-label-heal-scheduler": {
+      "types": "./dist/deploy/site/publish-credentials/account-label-heal-scheduler.d.ts",
+      "import": "./dist/deploy/site/publish-credentials/account-label-heal-scheduler.js",
+      "default": "./dist/deploy/site/publish-credentials/account-label-heal-scheduler.js"
+    },
     "./backup/site/share-export-failure": {
       "types": "./dist/backup/site/share-export-failure.d.ts",
       "import": "./dist/backup/site/share-export-failure.js",
@@ -223,6 +236,11 @@
       "types": "./dist/checks/live-verify-checks.d.ts",
       "import": "./dist/checks/live-verify-checks.js",
       "default": "./dist/checks/live-verify-checks.js"
+    },
+    "./packaging/electron/move-to-applications": {
+      "types": "./dist/packaging/electron/move-to-applications.d.ts",
+      "import": "./dist/packaging/electron/move-to-applications.js",
+      "default": "./dist/packaging/electron/move-to-applications.js"
     }
   },
   "files": [

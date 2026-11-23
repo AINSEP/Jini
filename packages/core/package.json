@@ -167,7 +167,8 @@
       "./tool-metadata/pages": "universal",
       "./contracts/site/integrations-credentialed-http": "universal",
       "./contracts/site/widgets-html": "universal",
-      "./contracts/site/integrations-api-connections": "universal"
+      "./contracts/site/integrations-api-connections": "universal",
+      "./contracts/agents/inventory": "universal"
     },
     "isolation": {
       "entries": {
@@ -419,6 +420,11 @@
       "types": "./dist/contracts/agents/index.d.ts",
       "import": "./dist/contracts/agents/index.js",
       "default": "./dist/contracts/agents/index.js"
+    },
+    "./contracts/agents/inventory": {
+      "types": "./dist/contracts/agents/inventory.d.ts",
+      "import": "./dist/contracts/agents/inventory.js",
+      "default": "./dist/contracts/agents/inventory.js"
     },
     "./contracts/ai-trace": {
       "types": "./dist/contracts/ai-trace/index.d.ts",

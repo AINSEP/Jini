@@ -6,6 +6,34 @@ test('quiet, watcher, dirty and moving signals remain distinct; fresh checkout m
   const problems = treeQuietProblems({ watcherRunning: true, surface: 'shell', gitDirtyPaths: ['src/foo.js'], movingPaths: ['dist'] });
   assert.equal(problems.length, 3); assert.match(problems[0]!, /watch/); assert.match(problems[1]!, /src\/foo.js/); assert.match(problems[2]!, /dist/);
 });
+test('each signal alone is exactly one problem naming its paths; empty lists are quiet', () => {
+  assert.deepEqual(treeQuietProblems({ watcherRunning: false, surface: 'shell', gitDirtyPaths: [], movingPaths: [] }), []);
+  const watcher = treeQuietProblems({ watcherRunning: true, surface: 'shell' });
+  assert.deepEqual(watcher, ['a build watch process is rewriting shell; stop it before packaging.']);
+  assert.deepEqual(treeQuietProblems({ watcherRunning: false, surface: 'shell', gitDirtyPaths: ['src/a.ts', 'bin/b.ts'] }), ['shell has uncommitted changes: src/a.ts, bin/b.ts.']);
+});
+test('a path that changed during the observation window refuses packaging on its own, naming the surface and every moving path', () => {
+  const problems = treeQuietProblems({ watcherRunning: false, surface: 'shell', gitDirtyPaths: [], movingPaths: ['shell/dist', 'shell/bin'] });
+  assert.deepEqual(problems, ['shell is still being written to: shell/dist, shell/bin changed during this check.']);
+});
+test('host formatters replace each default message verbatim and receive the surface and the paths', () => {
+  const seen: unknown[] = [];
+  const formatters = {
+    watcherRunning: (args: { surface: string }) => { seen.push(['watch', args]); return `W:${args.surface}`; },
+    gitDirty: (args: { surface: string; paths: readonly string[] }) => { seen.push(['dirty', args]); return `D:${args.paths.join('|')}`; },
+    moving: (args: { surface: string; paths: readonly string[] }) => { seen.push(['moving', args]); return `M:${args.paths.join('|')}`; },
+  };
+  const problems = treeQuietProblems({ watcherRunning: true, surface: 'host/app', gitDirtyPaths: ['a'], movingPaths: ['b', 'c'] }, { formatters });
+  assert.deepEqual(problems, ['W:host/app', 'D:a', 'M:b|c']);
+  assert.deepEqual(seen, [['watch', { surface: 'host/app' }], ['dirty', { surface: 'host/app', paths: ['a'] }], ['moving', { surface: 'host/app', paths: ['b', 'c'] }]]);
+  // Formatters only word a problem; they are never consulted for a quiet signal.
+  seen.length = 0;
+  assert.deepEqual(treeQuietProblems({ watcherRunning: false, surface: 'host/app', movingPaths: [] }, { formatters }), []);
+  assert.deepEqual(seen, []);
+});
+test('a partial formatter set falls back to the default wording for the signals it omits', () => {
+  const problems = treeQuietProblems({ watcherRunning: true, surface: 'shell', movingPaths: ['dist'] }, { formatters: { moving: ({ paths }) => `moving ${paths.join(',')}` } });
+  assert.deepEqual(problems, ['a build watch process is rewriting shell; stop it before packaging.', 'moving dist']);});
 test('twelve-day-stale bundle is refused with the caller remedy; zero/newer/equal timestamps defer or pass', () => {
   const shell = { relative: 'shell/dist', marker: 'index.html', buildWith: 'build shell' };
   const sourceAt = 12 * 86_400_000;

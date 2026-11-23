@@ -23,6 +23,7 @@
       "./publish/content/publish-readiness": "universal",
       "./publish/content/report-contract": "universal",
       "./publish/content/peer-url": "universal",
+      "./publish/trust/keys": "node",
       "./themes/template-applicability": "universal",
       "./themes/preview/roster": "node",
       "./themes/preview/refresh": "node",
@@ -351,6 +352,11 @@
       "types": "./dist/publish/content/peer-url.d.ts",
       "import": "./dist/publish/content/peer-url.js",
       "default": "./dist/publish/content/peer-url.js"
+    },
+    "./publish/trust/keys": {
+      "types": "./dist/publish/trust/keys.d.ts",
+      "import": "./dist/publish/trust/keys.js",
+      "default": "./dist/publish/trust/keys.js"
     },
     "./themes/template-applicability": {
       "types": "./dist/themes/template-applicability.d.ts",

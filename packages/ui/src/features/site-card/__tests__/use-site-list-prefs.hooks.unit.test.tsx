@@ -57,4 +57,57 @@ describe("useSiteListPrefs", () => {
     await act(async () => { await Promise.resolve(); });
     expect(save).not.toHaveBeenCalled();
   });
+  it("with a synchronous seed, the first render already shows the stored choices and the read is never repeated", () => {
+    const load = vi.fn(async () => undefined);
+    const seed = vi.fn(() => ({ sort: "name", pinned: ["a"], hidden: ["b"] }));
+    const { result, rerender } = renderHook(() => useSiteListPrefs({ port: { load, save: vi.fn() } }, { seed }));
+    expect(result.current.ready).toBe(true);
+    expect(result.current.prefs).toEqual({ sort: "name", pinned: ["a"], hidden: ["b"] });
+    rerender();
+    expect(seed).toHaveBeenCalledTimes(1);
+    expect(load).not.toHaveBeenCalled();
+  });
+
+  it("a seed with nothing stored gives the defaults themselves", () => {
+    const { result } = renderHook(() => useSiteListPrefs({ port: { load: vi.fn(), save: vi.fn() } }, { seed: () => null }));
+    expect(result.current.prefs).toBe(DEFAULT_SITE_LIST_PREFS);
+  });
+
+  it("denied storage on the first render gives the defaults, not a crash, and a change still applies for this session", async () => {
+    const save = vi.fn<SiteListPrefsPort["save"]>();
+    const seed = () => { throw new Error("storage denied"); };
+    const { result } = renderHook(() => useSiteListPrefs({ port: { load: vi.fn(), save } }, { seed }));
+    expect(result.current.prefs).toBe(DEFAULT_SITE_LIST_PREFS);
+    expect(result.current.ready).toBe(true);
+    expect(result.current.loadError).toContain("storage denied");
+    act(() => result.current.onPrefsChange({ ...DEFAULT_SITE_LIST_PREFS, sort: "name" }));
+    expect(result.current.prefs.sort).toBe("name");
+    await act(async () => { await Promise.resolve(); });
+    expect(save).not.toHaveBeenCalled();
+  });
+
+  it("with no save in flight a change reaches the store in the same turn, so a synchronous store is written at once", () => {
+    const writes: string[] = [];
+    const save: SiteListPrefsPort["save"] = async ({ next }) => { writes.push(next.sort); };
+    const { result } = renderHook(() => useSiteListPrefs({ port: { load: vi.fn(), save } }, { seed: () => null }));
+    act(() => result.current.onPrefsChange({ ...DEFAULT_SITE_LIST_PREFS, sort: "name" }));
+    expect(writes).toEqual(["name"]);
+  });
+
+  it("a store that throws instead of rejecting is still reported as a failed save", async () => {
+    const save: SiteListPrefsPort["save"] = () => { throw new Error("quota"); };
+    const { result } = renderHook(() => useSiteListPrefs({ port: { load: vi.fn(), save } }, { seed: () => null }));
+    act(() => result.current.onPrefsChange({ ...DEFAULT_SITE_LIST_PREFS, sort: "name" }));
+    await waitFor(() => expect(result.current.saveError).toContain("quota"));
+    expect(result.current.prefs.sort).toBe("name");
+  });
+  it("a store that saves synchronously gets back-to-back changes at once, in order, with no promise to wait on", () => {
+    const writes: string[] = [];
+    const save: SiteListPrefsPort["save"] = ({ next }) => { writes.push(next.sort); };
+    const { result } = renderHook(() => useSiteListPrefs({ port: { load: vi.fn(), save } }, { seed: () => null }));
+    act(() => result.current.onPrefsChange({ ...DEFAULT_SITE_LIST_PREFS, sort: "name" }));
+    act(() => result.current.onPrefsChange({ ...DEFAULT_SITE_LIST_PREFS, sort: "oldest" }));
+    expect(writes).toEqual(["name", "oldest"]);
+    expect(result.current.saveError).toBeNull();
+  });
 });

@@ -22,6 +22,7 @@
       "./shutdown": "node",
       "./electron/navigation-policy": "desktop",
       "./electron/updates": "desktop",
+      "./electron/preferences": "desktop",
       "./node-toolchain": "node",
       "./electron/usability": "desktop",
       "./speech": "desktop",
@@ -37,7 +38,11 @@
       "./electron/selftest": "desktop",
       "./shell/guest-navigation": "desktop",
       "./shell/site-presence": "universal",
-      "./electron/handoff": "desktop"
+      "./electron/handoff": "desktop",
+      "./electron/preload": "desktop",
+      "./electron/webview": "desktop",
+      "./electron/session-bootstrap": "desktop",
+      "./electron/windows": "desktop"
     },
     "isolation": {
       "entries": {
@@ -103,6 +108,11 @@
       "types": "./dist/electron/updates/index.d.ts",
       "import": "./dist/electron/updates/index.js",
       "default": "./dist/electron/updates/index.js"
+    },
+    "./electron/preferences": {
+      "types": "./dist/electron/preferences/index.d.ts",
+      "import": "./dist/electron/preferences/index.js",
+      "default": "./dist/electron/preferences/index.js"
     },
     "./node-toolchain": {
       "types": "./dist/node-toolchain/index.d.ts",
@@ -174,6 +184,27 @@
       "types": "./dist/electron/handoff/index.d.ts",
       "import": "./dist/electron/handoff/index.js",
       "default": "./dist/electron/handoff/index.js"
+    },
+    "./electron/preload": {
+      "types": "./dist/electron/preload/index.d.ts",
+      "import": "./dist/electron/preload/index.js",
+      "default": "./dist/electron/preload/index.js"
+    },
+    "./electron/webview": {
+      "types": "./dist/electron/webview/index.d.ts",
+      "import": "./dist/electron/webview/index.js",
+      "default": "./dist/electron/webview/index.js"
+    },
+    "./electron/session-bootstrap": {
+      "types": "./dist/electron/session-bootstrap/index.d.ts",
+      "import": "./dist/electron/session-bootstrap/index.js",
+      "default": "./dist/electron/session-bootstrap/index.js"
+    }
+,
+    "./electron/windows": {
+      "types": "./dist/electron/windows/index.d.ts",
+      "import": "./dist/electron/windows/index.js",
+      "default": "./dist/electron/windows/index.js"
     }
   },
   "files": [

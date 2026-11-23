@@ -54,8 +54,10 @@
    "ConsoleTeeLevel": "type:047168479b",
    "InstallConsoleTeeOptional": "interface:0bee70a09a",
    "InstallConsoleTeeRequired": "interface:1f2351122d",
+   "RedactedOutputSinkOptional": "interface:9b26c0d4fe",
+   "RetainedOutputTail": "interface:a0f85963ff",
    "TeeableConsole": "type:33225186b9",
-   "createRedactedOutputSink": "function:64586d9004",
+   "createRedactedOutputSink": "function:b5c16c735b",
    "installConsoleTee": "function:0d88f47933"
   }
  },

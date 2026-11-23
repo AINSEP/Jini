@@ -2097,6 +2097,17 @@
    "sha256Hex": "function:b40abbe6f5"
   }
  },
+ "./publish/trust/keys": {
+  "types": "./dist/publish/trust/keys.d.ts",
+  "symbols": {
+   "PUBLISH_PRINCIPAL_ID_PREFIX": "variable:e575b17c65",
+   "PublishSigningKey": "interface:904138a5d5",
+   "deriveInstallationId": "function:b3c592792e",
+   "derivePublishSigningKey": "function:d5f1a05573",
+   "publishPrincipalIdFor": "function:6ad45627d3",
+   "verifyPublishSignature": "function:734760cf87"
+  }
+ },
  "./redirects": {
   "types": "./dist/redirects/index.d.ts",
   "symbols": {

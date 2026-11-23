@@ -48,7 +48,9 @@
       "./charts/react": "browser",
       "./mcp-ui/credential-card": "universal",
       "./react-kit": "browser",
-      "./react/testing": "browser"
+      "./react/testing": "browser",
+      "./number-stepper": "browser",
+      "./app-shell": "browser"
     },
     "isolation": {
       "entries": {
@@ -65,6 +67,7 @@
         "src/theme/stylesheet.ts",
         "src/theme/validation.ts",
         "src/theme/types.ts",
+        "src/theme/color-scheme.ts",
         "src/browser"
       ]
     },
@@ -249,6 +252,16 @@
       "types": "./dist/react/testing.d.ts",
       "import": "./dist/react/testing.js",
       "default": "./dist/react/testing.js"
+    },
+    "./number-stepper": {
+      "types": "./dist/features/number-stepper/index.d.ts",
+      "import": "./dist/features/number-stepper/index.js",
+      "default": "./dist/features/number-stepper/index.js"
+    },
+    "./app-shell": {
+      "types": "./dist/features/app-shell/index.d.ts",
+      "import": "./dist/features/app-shell/index.js",
+      "default": "./dist/features/app-shell/index.js"
     }
   },
   "files": [
