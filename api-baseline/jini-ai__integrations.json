@@ -576,6 +576,15 @@
    "verifySignature": "function:fe9b057aa1"
   }
  },
+ "./webhooks/site/repo.memory": {
+  "types": "./dist/webhooks/site/repo.memory.d.ts",
+  "symbols": {
+   "InMemoryDeliveryEnvelopeStore": "class:76ba65ccf3",
+   "InMemoryWebhookDeliveryRepo": "class:f7c5f631a4",
+   "InMemoryWebhookSubscriptionRepo": "class:bbd1f4dc11",
+   "InMemoryWebhookSubscriptionRequired": "interface:517533954b"
+  }
+ },
  "./webhooks/site/signing": {
   "types": "./dist/webhooks/site/signing.d.ts",
   "symbols": {

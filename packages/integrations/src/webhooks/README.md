@@ -60,3 +60,21 @@ repo does not import an optimistic-concurrency implementation; the host passes o
 (normally `@jini-ai/core/optimistic-concurrency`'s `assertVersionedWrite`) through
 `WebhookSubscriptionSqlRequired`, and the conditional `UPDATE … WHERE version = :expectedVersion`
 stays in the adapter.
+
+`./webhooks/site/repo.memory` holds the zero-infrastructure halves of the same ports
+(`InMemoryWebhookSubscriptionRepo`, `InMemoryWebhookDeliveryRepo`) plus `InMemoryDeliveryEnvelopeStore`
+(the `DeliveryEnvelopeStorePort` side-channel). Like the SQL adapter, the memory subscription repo
+needs the versioned-write collaborator injected (`InMemoryWebhookSubscriptionRequired`); it never
+imports one. Hosts use it for memory-mode composition and tests:
+
+```ts
+import { assertVersionedWrite } from "@jini-ai/core/optimistic-concurrency";
+import { InMemoryDeliveryEnvelopeStore, InMemoryWebhookDeliveryRepo, InMemoryWebhookSubscriptionRepo } from "@jini-ai/integrations/webhooks/site/repo.memory";
+
+const webhookSubscriptionRepo = new InMemoryWebhookSubscriptionRepo({ assertVersionedWrite });
+const webhookDeliveryRepo = new InMemoryWebhookDeliveryRepo();
+const envelopeStore = new InMemoryDeliveryEnvelopeStore();
+```
+
+Nothing under `site/` imports a host module or an optimistic-concurrency implementation; port types
+come from `../ports.ts`/`../types.ts` and `AssertVersionedWritePort` from `../sql`.
