@@ -122,6 +122,14 @@
    "serve": "function:2fc519efdc"
   }
  },
+ "./external/built-in-connections": {
+  "types": "./dist/external/built-in-connections.d.ts",
+  "symbols": {
+   "describeExternalMcpOwnership": "function:5674cf9751",
+   "isBuiltInExternalMcpServer": "function:d19a355312",
+   "readBuiltInExternalMcpServerIds": "function:a09648e6db"
+  }
+ },
  "./federation": {
   "types": "./dist/federation/index.d.ts",
   "symbols": {

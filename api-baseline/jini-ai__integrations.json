@@ -490,6 +490,12 @@
    "parseSavedRequestDefinition": "function:261e0c152f"
   }
  },
+ "./vendor-credentials/abort-guarded-repo": {
+  "types": "./dist/vendor-credentials/abort-guarded-repo.d.ts",
+  "symbols": {
+   "abortGuardedCredentialRepo": "function:38c11efb44"
+  }
+ },
  "./webhooks": {
   "types": "./dist/webhooks/index.d.ts",
   "symbols": {
@@ -568,6 +574,60 @@
    "startWebhookDeliveryWorker": "function:3b26ecb4c3",
    "updateSubscription": "function:aa2758ec64",
    "verifySignature": "function:fe9b057aa1"
+  }
+ },
+ "./webhooks/site/signing": {
+  "types": "./dist/webhooks/site/signing.d.ts",
+  "symbols": {
+   "DEFAULT_SIGNATURE_TOLERANCE_SECONDS": "variable:ae6b1c33c2",
+   "SIGNATURE_VOCABULARY": "variable:d61d2b4f51",
+   "SignPayloadInput": "interface:94c142d44c",
+   "VerifySignatureInput": "type:752c77d2a9",
+   "WebhookSigner": "interface:d4f0744078",
+   "createFixedSecretSigner": "function:3c5e50cdc2",
+   "signPayload": "function:b20d9861fb",
+   "verifySignature": "function:fe9b057aa1"
+  }
+ },
+ "./webhooks/site/signing.keyring": {
+  "types": "./dist/webhooks/site/signing.keyring.d.ts",
+  "symbols": {
+   "createKeyringBackedSigner": "function:73db4e9f57"
+  }
+ },
+ "./webhooks/site/subscriptions": {
+  "types": "./dist/webhooks/site/subscriptions.d.ts",
+  "symbols": {
+   "CreateSubscriptionInput": "interface:9dd9dd89b2",
+   "CreateSubscriptionRequired": "interface:9ba6bf0053",
+   "DeleteSubscriptionInput": "interface:8cefaa3915",
+   "DeleteSubscriptionRequired": "interface:7afc96cf90",
+   "PauseSubscriptionInput": "interface:72fa1d37cf",
+   "PauseSubscriptionOptional": "interface:dc336d9187",
+   "PauseSubscriptionRequired": "interface:0a6824fcde",
+   "UpdateSubscriptionInput": "interface:4fa00f801c",
+   "UpdateSubscriptionRequired": "interface:ccf684f78b",
+   "WebhookSubscriptionDeps": "interface:7a45abb310",
+   "WebhookSubscriptionNotFoundError": "class:5095994779",
+   "WebhookSubscriptionOptional": "interface:6b57958690",
+   "WebhookSubscriptionValidationError": "class:ea7e9e9ca6",
+   "createSubscription": "function:e33832d86a",
+   "deleteSubscription": "function:df3179b12d",
+   "pauseSubscription": "function:09b2891c62",
+   "updateSubscription": "function:cfe6310042"
+  }
+ },
+ "./webhooks/sql": {
+  "types": "./dist/webhooks/sql/index.d.ts",
+  "symbols": {
+   "AssertVersionedWritePort": "type:d2484ce25d",
+   "SqlWebhookDeliveryRepo": "class:d69f918e27",
+   "SqlWebhookSubscriptionRepo": "class:e1857202a7",
+   "WebhookDeliveriesTable": "interface:056ae2671e",
+   "WebhookSqlRequired": "interface:663384b3cb",
+   "WebhookSubscriptionSqlRequired": "interface:96580e91b2",
+   "WebhookSubscriptionsTable": "interface:d64aafc4e6",
+   "WebhookTables": "interface:71173da156"
   }
  },
  "./webhooks/tools": {

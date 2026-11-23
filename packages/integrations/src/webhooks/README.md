@@ -50,3 +50,13 @@ bytes inside `request`; webhooks use core `Clock.nowMs()` and `IdGenerator.newId
 Repository `markFailed({ workspaceId, id, error, responseStatus, nextStatus, nextAttemptAt },
 { deadAtIso })` keeps the optional terminal timestamp and stored records unchanged.
 Webhook validation/not-found/veto errors take `{ message }` plus optional `{ options }`.
+
+## Wiring
+
+`./webhooks/sql` adapters are bound by the host's storage composition with host-owned table names:
+`new SqlWebhookDeliveryRepo({ kernel, tables }, {})` and
+`new SqlWebhookSubscriptionRepo({ kernel, tables, assertVersionedWrite }, {})`. The subscription
+repo does not import an optimistic-concurrency implementation; the host passes one
+(normally `@jini-ai/core/optimistic-concurrency`'s `assertVersionedWrite`) through
+`WebhookSubscriptionSqlRequired`, and the conditional `UPDATE … WHERE version = :expectedVersion`
+stays in the adapter.
