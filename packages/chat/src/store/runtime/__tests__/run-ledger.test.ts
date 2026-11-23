@@ -4,11 +4,12 @@ import { sql } from 'kysely';
 import { openPgliteKernel } from '@jini-ai/db/kernel/pglite';
 import type { ChatDatabase } from '../kernel.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { AgentEvent, ChatMessage } from '../../../core/index.js';
+import type { ChatMessage } from '../../../core/index.js';
 import type { ChatRunLedger, CheckpointState, InterruptedChatTurn, RunProgress } from '../../../core/durable-runs/ledger-contracts.js';
 import { createChatHistoryStore } from '../chat-history-store.js';
 import { createChatRunLedger } from '../run-ledger.js';
 import { RUN_DDL, runtimeFixture, type RuntimeFixture } from './runtime-fixture.js';
+import type { AgentEvent } from "@jini-ai/core/contracts/site/chat-core";
 
 /**
  * @file `createChatRunLedger` over a real in-memory SQLite kernel: checkpoint/settle/reconcile
@@ -279,7 +280,6 @@ describe('watch-owned checkpoint deltas', () => {
   });
 });
 
-
 describe('checkpoint deltas on PostgreSQL (PGlite)', () => {
   it('uses SQL character lengths for text replacement, appends, and concurrent-barrier fallback', async () => {
     const { PGlite } = createRequire(new URL('../../../../../db/package.json', import.meta.url))('@electric-sql/pglite');
@@ -308,7 +308,6 @@ describe('checkpoint deltas on PostgreSQL (PGlite)', () => {
     } finally { await kernel.close(); }
   });
 });
-
 
 describe('hasActiveRuns', () => {
   it.each(['queued', 'running'] as const)('blocks %s assistant rows across owners without reading payloads or writing', async status => {
@@ -339,7 +338,6 @@ describe('hasActiveRuns', () => {
     expect(await ledger.hasActiveRuns()).toBe(false);
   });
 });
-
 
 describe('bounded delta receipts and commit ordering', () => {
   it('keeps only a bounded suffix and SQL character lengths for a multi-MB tool tail', async () => {
@@ -372,7 +370,6 @@ describe('bounded delta receipts and commit ordering', () => {
     expect(plan.map(row => row.detail).join(' ')).toContain('COVERING INDEX idx_ai_chat_messages_active');
   });
 });
-
 
 it('a same-length rewrite before a long identical suffix cannot pass the bounded delta guard', async () => {
   const ledger = await setup();

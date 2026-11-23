@@ -1,6 +1,7 @@
-import type { AgentEvent, ToolUseEvent } from './events.js';
+import type { ToolUseEvent } from './events.js';
 import { canonicalJson } from '@jini-ai/core/records';
 import { toolPresentation } from './tool-presentation.js';
+import type { AgentEvent } from "@jini-ai/core/contracts/site/chat-core";
 
 /**
  * Drop repeated `tool_use` events that share an `id`. A retried/duplicated

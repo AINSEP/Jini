@@ -1,7 +1,7 @@
 import { expect, it } from 'vitest';
 import { sqliteFixture } from '../store/__tests__/fixtures.js';
 import { runContentFromEvents, runEventsForSave } from '../core/run-events/entry.js';
-import type { AgentEvent } from '../core/events.js';
+import type { AgentEvent } from "@jini-ai/core/contracts/site/chat-core";
 
 // The event extraction must still persist through the final DB-lane projection. Testing against
 // the real adapter protects both event order and the deliberately narrow set of durable fields.

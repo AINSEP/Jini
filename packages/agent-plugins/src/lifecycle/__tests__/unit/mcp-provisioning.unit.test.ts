@@ -1,5 +1,6 @@
 import { test, expect } from 'vitest';
-import { provisionAgentPluginMcp, syncAgentPluginMcpEnabled, removeAgentPluginMcp, type AgentPluginMcpProvisioningPort, type InstalledAgentPlugin } from '../../index.js';
+import { provisionAgentPluginMcp, syncAgentPluginMcpEnabled, removeAgentPluginMcp, type AgentPluginMcpProvisioningPort } from '../../index.js';
+import type { InstalledAgentPlugin } from "@jini-ai/core/contracts/site/agent-plugins-lifecycle";
 
 const installed: InstalledAgentPlugin = { pluginId: 'fixture', archiveDigest: 'a'.repeat(64), packageRoot: '/explicit/plugins/fixture', files: [], skills: [] };
 test('provisioning delegates the unchanged install and notifies after durable changes', async () => {

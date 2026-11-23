@@ -1,6 +1,7 @@
-import type { AgentEvent } from "../index.js";
+
 import type { AcceptedRunRequest, DurableRun } from "./ports.js";
 import type { AgentPluginUsage } from "../agent-plugin-chat-state.js";
+import type { AgentEvent } from "@jini-ai/core/contracts/site/chat-core";
 
 export const CONTINUATION_DIVIDER = "\n\n---\n\nContinued\n\n";
 export const UNKNOWN_MUTATION_ERROR = "This operation may already be done. Its earlier outcome is unknown; verify the current state before repeating it.";

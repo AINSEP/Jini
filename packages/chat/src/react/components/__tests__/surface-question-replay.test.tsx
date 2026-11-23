@@ -5,10 +5,11 @@ import { afterEach, expect, it, vi } from 'vitest';
 import { buildFormSurface, buildOutcomeSurface, type McpUiHostProps } from '@jini-ai/ui/mcp-ui';
 import { acceptedInputUserEvent } from '../../../core/accepted-input.js';
 import { SURFACE_QUESTION_META_KEY } from '../../../core/question-answer.js';
-import type { AgentEvent, ChatMessage } from '../../../core/index.js';
+import type { ChatMessage } from '../../../core/index.js';
 import { clearExtEventRenderers } from '../../ext-event-renderer-registry.js';
 import { McpUiSurfaceCard, registerMcpUiSurfaceRenderer } from '../McpUiSurfaceCard.js';
 import { MessageRow } from '../MessageRow.js';
+import type { AgentEvent } from "@jini-ai/core/contracts/site/chat-core";
 
 // The surfaces port supplies the MCP-UI host; this stub replaces the sandbox so tests drive its props boundary.
 const StubHost = ({ onToolCall, title, html }: McpUiHostProps) => <section aria-label={title} data-surface-html={html}>

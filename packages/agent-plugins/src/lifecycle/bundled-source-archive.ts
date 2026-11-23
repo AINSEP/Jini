@@ -45,8 +45,8 @@ import { createHash } from "node:crypto";
 import { constants } from "node:fs";
 import path from "node:path";
 import { createPackagePathsModule } from "./package-paths.js";
-import type { AgentPluginArchiveEntry, AgentPluginArchiveReaderPort } from "./install.js";
 import type { AgentPluginLifecyclePorts } from "./ports.js";
+import type { AgentPluginArchiveEntry, AgentPluginArchiveReaderPort } from "@jini-ai/core/contracts/site/agent-plugins-lifecycle";
 
 export interface PackedAgentPluginArchive {
   /** Bundled archive bytes, or a 32-byte canonical token requiring the paired archiveReader. */

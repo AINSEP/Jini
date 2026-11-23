@@ -1,10 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { AgentEvent, ChatMessage } from '../../../core/index.js';
+import type { ChatMessage } from '../../../core/index.js';
 import type { InterruptedChatTurn } from '../../../core/durable-runs/ledger-contracts.js';
 import type { ChatOwnerScope, ChatStore } from '../../ports.js';
 import { createChatHistoryStore } from '../chat-history-store.js';
 import { createChatRunLedger, runLockKey } from '../run-ledger.js';
 import { runtimeFixture, type RuntimeFixture } from './runtime-fixture.js';
+import type { AgentEvent } from "@jini-ai/core/contracts/site/chat-core";
 
 const alice: ChatOwnerScope = { scopeId: 'ws', ownerKind: 'user', ownerId: 'alice' };
 const guest: ChatOwnerScope = { scopeId: 'ws', ownerKind: 'guest', ownerId: 'guest-hash' };

@@ -1,11 +1,11 @@
 import { persistableMessages } from '../messages.js';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { AgentEvent } from '../../events.js';
 import type { ChatMessage } from '../../messages.js';
 import type { RunHandlers, StartRunInput } from '../../transport.js';
 import { notices } from '../../run-events/__tests__/fixture.js';
 import type { AgUiRunClient } from '../ag-ui-transport.js';
 import { createAssistantTransportClient, type AssistantExecutionConfig, type AssistantTransportOptions, type AssistantTransportPorts } from '../transport.js';
+import type { AgentEvent } from "@jini-ai/core/contracts/site/chat-core";
 
 const pluginState = vi.hoisted(() => ({
   capture: vi.fn<(required: { event: { kind: string; name?: string; data?: unknown } }) => void>(),
@@ -693,7 +693,6 @@ describe('stopRun', () => {
     await expect(h.transport().stopRun('run-1')).rejects.toThrow(/^cancelling agent run failed \(500\)$/);
   });
 });
-
 
 it('leaves a refused pending composer input out of both browser persistence paths', async () => {
   const pending: ChatMessage = { id: 'pending-input', role: 'user', content: 'keep this draft', inputPending: true };

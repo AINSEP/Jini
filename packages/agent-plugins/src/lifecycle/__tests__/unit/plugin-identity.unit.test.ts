@@ -4,11 +4,12 @@ import { mkdtemp, mkdir, writeFile, readFile, readdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { legacyAgentPluginMetadataWarning, parseAgentPluginManifest } from '../../manifest.js';
-import { createInstallModule, type AgentPluginArchiveReaderPort, type InstallAgentPluginOptional } from '../../install.js';
+import { createInstallModule, type InstallAgentPluginOptional } from '../../install.js';
 import { createAgentPluginLayout } from '../../layout.js';
 import { createSearchModule } from '../../search.js';
 import { ports } from '../test-support.js';
 import { forceRemove } from '../fixtures/force-remove.js';
+import type { AgentPluginArchiveReaderPort } from "@jini-ai/core/contracts/site/agent-plugins-lifecycle";
 
 const roots: string[] = [];
 afterEach(async () => { for (const root of roots.splice(0)) await forceRemove(root); });

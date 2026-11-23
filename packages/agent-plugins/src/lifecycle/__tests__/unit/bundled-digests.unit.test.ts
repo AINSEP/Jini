@@ -12,12 +12,12 @@ import { setAgentPluginActivation } from "../test-support.js";
 import { normalizeBundledDigests, preferBundledAgentPluginDigests, readBundledAgentPluginDigests, recordBundledAgentPluginDigests } from "../test-support.js";
 import { BUNDLED_DIGESTS_FILENAME } from "../../bundled-digests.js";
 import { installAgentPlugin } from "../test-support.js";
-import { type AgentPluginArchiveEntry, type AgentPluginArchiveReaderPort } from "../../install.js";
 import { resolveAgentPluginLayout } from "../test-support.js";
 
 import { resolveAgentPluginRefs } from "../test-support.js";
 
 import { loadFixturePluginSources as loadInstalledAgentPluginToolSources } from "../test-support.js";
+import type { AgentPluginArchiveEntry, AgentPluginArchiveReaderPort } from "@jini-ai/core/contracts/site/agent-plugins-lifecycle";
 
 /**
  * @file `bundled-digests.ts` — the ledger that lets a bundled plugin's UPGRADE resolve to the digest

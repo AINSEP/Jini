@@ -10,10 +10,10 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { EventSchemas, RunAgentInputSchema } from '@ag-ui/core';
 import { describe, expect, it } from 'vitest';
-import type { AgentEvent } from '../../events.js';
 import { closeAgUiRun, createAgUiTranslationState, translateAgentEventToAgUi, type AgUiEvent } from '../event-projection.js';
 import { createAgUiToAgentTranslationState, translateAgUiEventToAgentEvent } from '../event-reduction.js';
 import { A2UI_MESSAGE, IDS, NAMES } from './wire-fixture.js';
+import type { AgentEvent } from "@jini-ai/core/contracts/site/chat-core";
 
 const GOLDEN = fileURLToPath(new URL('./goldens/ag-ui-round-trip.golden.json', import.meta.url));
 

@@ -1,5 +1,6 @@
-import type { AgentEvent } from "../events.js";
+
 import type { ChatRunStatus } from "../messages.js";
+import type { AgentEvent } from "@jini-ai/core/contracts/site/chat-core";
 
 /** Exactly which run owns the row; the host binds authorization and storage scope. */
 export interface RunRef {

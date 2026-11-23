@@ -5,7 +5,7 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { readPluginIdentity, type PluginIdentity } from '@jini-ai/core/plugin-directory';
 import { readAgentPluginPortableExtension } from '../../core/identity-namespace.js';
-import type { InstalledAgentPlugin } from '../types.js';
+import type { InstalledAgentPlugin } from "@jini-ai/core/contracts/site/agent-plugins-lifecycle";
 
 /** Host metadata; absence keeps the plugin's normal presentation and behavior. */
 export type PluginMaturity = 'untested' | 'soon';

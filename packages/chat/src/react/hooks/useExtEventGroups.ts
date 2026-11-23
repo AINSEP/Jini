@@ -11,8 +11,8 @@
  * chrome for them).
  */
 import { useMemo } from 'react';
-import type { AgentEvent } from '../../core/index.js';
 import type { ExtEventCall } from '../ext-event-renderer-registry.js';
+import type { AgentEvent } from "@jini-ai/core/contracts/site/chat-core";
 
 export interface ExtEventGroup {
   name: string;

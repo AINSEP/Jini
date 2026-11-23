@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import type { AgentEvent } from '../events.js';
 import { acceptedInputEvent, acceptedInputUserEvent, projectAcceptedInputEvents } from '../accepted-input.js';
 import { questionAnswerFromResult, questionAnswerText } from '../question-answer.js';
+import type { AgentEvent } from "@jini-ai/core/contracts/site/chat-core";
 
 const input = {
   title: 'Which theme should this local site show?',
