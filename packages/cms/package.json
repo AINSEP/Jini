@@ -213,7 +213,12 @@
       "./settings/site/form-delivery-write": "universal",
       "./settings/site/mail-provider": "universal",
       "./settings/site/tool-deps": "universal",
-      "./settings/site/chat-execution-write": "universal"
+      "./settings/site/chat-execution-write": "universal",
+      "./settings/site/visitor-tools-contract": "universal",
+      "./settings/site/visitor-tools-write": "universal",
+      "./settings/site/visitor-tools-configure": "universal",
+      "./settings/site/visitor-tools-service": "universal",
+      "./settings/site/visitor-tools-registrations": "universal"
     },
     "isolation": {
       "domains": {
@@ -1339,6 +1344,31 @@
       "types": "./dist/settings/site/chat-execution-write.d.ts",
       "import": "./dist/settings/site/chat-execution-write.js",
       "default": "./dist/settings/site/chat-execution-write.js"
+    },
+    "./settings/site/visitor-tools-contract": {
+      "types": "./dist/settings/site/visitor-tools-contract.d.ts",
+      "import": "./dist/settings/site/visitor-tools-contract.js",
+      "default": "./dist/settings/site/visitor-tools-contract.js"
+    },
+    "./settings/site/visitor-tools-write": {
+      "types": "./dist/settings/site/visitor-tools-write.d.ts",
+      "import": "./dist/settings/site/visitor-tools-write.js",
+      "default": "./dist/settings/site/visitor-tools-write.js"
+    },
+    "./settings/site/visitor-tools-configure": {
+      "types": "./dist/settings/site/visitor-tools-configure.d.ts",
+      "import": "./dist/settings/site/visitor-tools-configure.js",
+      "default": "./dist/settings/site/visitor-tools-configure.js"
+    },
+    "./settings/site/visitor-tools-service": {
+      "types": "./dist/settings/site/visitor-tools-service.d.ts",
+      "import": "./dist/settings/site/visitor-tools-service.js",
+      "default": "./dist/settings/site/visitor-tools-service.js"
+    },
+    "./settings/site/visitor-tools-registrations": {
+      "types": "./dist/settings/site/visitor-tools-registrations.d.ts",
+      "import": "./dist/settings/site/visitor-tools-registrations.js",
+      "default": "./dist/settings/site/visitor-tools-registrations.js"
     }
   },
   "files": [

@@ -1,4 +1,3 @@
-import { createConsoleLogger } from "@jini-ai/core/primitives";
 import { nowIso as clockNowIso } from "@jini-ai/core/primitives";
 import type { JsonValue, UUID } from "@jini-ai/core/primitives";
 // The ledger's functions arrive through the deps (`EnsureSettingDefinitionsPort`, `GetEffectivePort`,
@@ -14,8 +13,6 @@ import {
   type set,
   type SettingsRepoPort,
 } from "@jini-ai/core/settings";
-
-const consoleLogger = createConsoleLogger({ prefix: "" });
 
 /**
  * @file SPEC-050 (`core.site.title`): the public site title as a per-workspace setting, the one
@@ -123,12 +120,48 @@ export class InMemorySiteTitlePreservationStore implements SiteTitlePreservation
   }
 }
 
+/** Fixed text for a pin write that threw. Never interpolates the error. */
+export const SITE_TITLE_PIN_FAILED_MESSAGE = "preserveLegacySiteTitles: workspace stays pending, pin failed";
+/** Fixed text for a pin skipped because `core.site.title` is not registered yet. */
+export const SITE_TITLE_PIN_UNREGISTERED_MESSAGE = "preserveLegacySiteTitles: workspace stays pending, pin failed: core.site/title is not registered";
+/** Fixed text for a render read that threw and fell back to the legacy title. Never interpolates the error. */
+export const SITE_TITLE_RENDER_FALLBACK_MESSAGE = "resolveSiteTitle: falling back to the legacy title";
+
+/**
+ * What a site-title failure reports: fixed text plus safe structured fields. The error's own message
+ * is never carried, since a repository error can echo a connection string or a stored value.
+ */
+export interface SiteTitleFailureEvent {
+  readonly message: typeof SITE_TITLE_PIN_FAILED_MESSAGE | typeof SITE_TITLE_PIN_UNREGISTERED_MESSAGE | typeof SITE_TITLE_RENDER_FALLBACK_MESSAGE;
+  readonly workspaceId: UUID;
+  /** The thrown value's class name when it is a plain identifier, else `"Unknown"`. Absent when nothing was thrown. */
+  readonly errorClass?: string;
+}
+
+/** Host-bound sink for {@link SiteTitleFailureEvent} (its logger, metrics, or both). Should not throw. */
+export type SiteTitleFailureReporter = (event: SiteTitleFailureEvent) => void;
+
+/** Host-bound sink for one {@link preserveLegacySiteTitles} run's counts. Should not throw. */
+export type SiteTitlePreservationSummaryReporter = (result: PreserveLegacySiteTitlesResult) => void;
+
+const IDENTIFIER = /^[A-Za-z_$][\w$]{0,63}$/;
+
+/** A thrown value's class name, only when it is a plain identifier (never the error's message). */
+function errorClassOf({ err }: { err: unknown }, _optional: Record<string, never> = {}): string {
+  const name: unknown = err instanceof Error ? err.constructor.name : undefined;
+  return typeof name === "string" && IDENTIFIER.test(name) ? name : "Unknown";
+}
+
 export interface PreserveLegacySiteTitlesDeps extends EnsureSettingDefinitionsDeps {
   preservationStore: SiteTitlePreservationStorePort;
   /** The settings ledger's chokepoint write (`@jini-ai/core/settings` `set`), bound by the host. */
   set: typeof set;
   /** The settings ledger's definition lookup (`@jini-ai/core/settings` `resolveDefinitionRaw`), bound by the host. */
   resolveDefinitionRaw: typeof resolveDefinitionRaw;
+  /** Told about each workspace whose pin failed (it stays pending for the next boot). */
+  reportSiteTitleFailure: SiteTitleFailureReporter;
+  /** Told the pinned/skipped/failed counts once per run that had pending workspaces. */
+  reportPreservationSummary: SiteTitlePreservationSummaryReporter;
 }
 
 export interface PreserveLegacySiteTitlesInput {
@@ -157,7 +190,7 @@ type PinOutcome = "pinned" | "skipped" | "failed";
  *   explicit owner action always wins (INV-02).
  * - Resolves the marker only AFTER the write. A crash between the two leaves a value row, which the
  *   next run skips, never a second pin.
- * - Logs a failed workspace and leaves it pending for the next boot. It never aborts the others or boot.
+ * - Reports a failed workspace (fixed text, no error message) and leaves it pending for the next boot. It never aborts the others or boot.
  *
  * Safe on every boot: with nothing pending it costs one marker read.
  *
@@ -178,13 +211,13 @@ export async function preserveLegacySiteTitles(
   for (const workspaceId of pendingWorkspaceIds) {
     const outcome: PinOutcome = definition
       ? await pinOneWorkspace(deps, { settingId: definition.settingId, workspaceId, systemPrincipalId: input.systemPrincipalId, legacySiteTitle: input.legacySiteTitle })
-      : logPinFailure({ workspaceId, reason: "core.site/title is not registered" });
+      : reportPinFailure(deps, { workspaceId, message: SITE_TITLE_PIN_UNREGISTERED_MESSAGE });
     if (outcome === "pinned") result.pinnedWorkspaceIds.push(workspaceId);
     else if (outcome === "skipped") result.skippedWorkspaceIds.push(workspaceId);
     else result.failedWorkspaceIds.push(workspaceId);
   }
 
-  consoleLogger.info({ message: `preserveLegacySiteTitles: pinned=${result.pinnedWorkspaceIds.length} skipped=${result.skippedWorkspaceIds.length} failed=${result.failedWorkspaceIds.length}` });
+  deps.reportPreservationSummary(result);
   return result;
 }
 
@@ -213,12 +246,12 @@ async function pinOneWorkspace(
     await deps.preservationStore.markPreserved({ workspaceId, preservedAt: clockNowIso({ clock: deps.clock }) });
     return existing ? "skipped" : "pinned";
   } catch (err) {
-    return logPinFailure({ workspaceId, reason: (err as Error).message });
+    return reportPinFailure(deps, { workspaceId, message: SITE_TITLE_PIN_FAILED_MESSAGE, errorClass: errorClassOf({ err }) });
   }
 }
 
-function logPinFailure({ workspaceId, reason }: { workspaceId: UUID; reason: string }, _optional = {}): "failed" {
-  consoleLogger.error({ message: `preserveLegacySiteTitles: workspace '${workspaceId}' stays pending, pin failed: ${reason}` });
+function reportPinFailure(deps: Pick<PreserveLegacySiteTitlesDeps, "reportSiteTitleFailure">, event: SiteTitleFailureEvent): "failed" {
+  deps.reportSiteTitleFailure(event);
   return "failed";
 }
 
@@ -247,6 +280,8 @@ export interface ResolveSiteTitleDeps extends GetEffectivePort {
   siteDisplayName: SiteDisplayNameSource;
   /** The host's legacy title: the render fallback while a pin is pending, unregistered, or unreadable. */
   legacySiteTitle: string;
+  /** Told when a read threw and the legacy title was rendered instead (fixed text, no error message). */
+  reportSiteTitleFailure: SiteTitleFailureReporter;
 }
 
 /**
@@ -258,7 +293,7 @@ export interface ResolveSiteTitleDeps extends GetEffectivePort {
  * 3. the site display name, else `workspaces.name` (REQ-05);
  * 4. `deps.legacySiteTitle`.
  *
- * Never throws. Any failed read renders `deps.legacySiteTitle` rather than guess the tier, because
+ * Never throws. Any failed read is reported (fixed text, no error message) and renders `deps.legacySiteTitle` rather than guess the tier, because
  * a pinned site that loses its settings read must not flip (REQ-09, INV-01).
  *
  * @complexity O(1) repo reads per call, at most one of them a workspace lookup, plus one bounded
@@ -280,7 +315,7 @@ export async function resolveSiteTitle(deps: ResolveSiteTitleDeps, input: { work
     if (pending) return deps.legacySiteTitle;
     return (await resolveSiteDisplayName(deps, input.workspaceId)) ?? deps.legacySiteTitle;
   } catch (err) {
-    consoleLogger.error({ message: `resolveSiteTitle: falling back to the legacy title for workspace '${input.workspaceId}': ${(err as Error).message}` });
+    deps.reportSiteTitleFailure({ message: SITE_TITLE_RENDER_FALLBACK_MESSAGE, workspaceId: input.workspaceId, errorClass: errorClassOf({ err }) });
     return deps.legacySiteTitle;
   }
 }

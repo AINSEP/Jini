@@ -10,6 +10,8 @@ import {
   resolveSiteTitle,
   SITE_TITLE_KEY,
   SITE_TITLE_NAMESPACE,
+  type PreserveLegacySiteTitlesResult,
+  type SiteTitleFailureEvent,
 } from "../site-title.js";
 
 /**
@@ -28,8 +30,14 @@ const principals = { findActiveById: async ({ id }: { id: string }) => ({ id }) 
 function ledger(pending: string[] = []) {
   const settingsRepo = new InMemorySettingsRepo();
   const calls: string[] = [];
+  const failures: SiteTitleFailureEvent[] = [];
+  const summaries: PreserveLegacySiteTitlesResult[] = [];
   return {
     calls,
+    failures,
+    summaries,
+    reportSiteTitleFailure: (event: SiteTitleFailureEvent) => { failures.push(event); },
+    reportPreservationSummary: (result: PreserveLegacySiteTitlesResult) => { summaries.push(result); },
     settingsRepo,
     clock,
     ids,
@@ -50,6 +58,7 @@ function resolveDeps(l: ReturnType<typeof ledger>, siteName?: string) {
     siteDisplayName: { read: () => siteName },
     getEffective: l.getEffective,
     legacySiteTitle: LEGACY,
+    reportSiteTitleFailure: l.reportSiteTitleFailure,
   };
 }
 
@@ -86,4 +95,27 @@ test("render falls back to the host's legacy title while pending, unregistered, 
   };
   assert.equal(await resolveSiteTitle(resolveDeps(l, "Site Name"), { workspaceId: "ws-new" }), LEGACY, "failed read");
   assert.ok(l.calls.includes("getEffective"));
+});
+
+test("failures reach the injected reporter as fixed text plus workspace id and error class, never the error's message", async () => {
+  const secret = "postgres://admin:hunter2-SECRET@db.internal/site";
+  const unregistered = ledger(["ws-a"]);
+  await preserveLegacySiteTitles(unregistered, { systemPrincipalId: SYSTEM, legacySiteTitle: LEGACY });
+  const l = ledger(["ws-b"]);
+  await ensureSiteTitleSettingDefinition(l, { systemPrincipalId: SYSTEM, legacySiteTitle: LEGACY });
+  l.settingsRepo.saveWorkspaceValue = async () => { throw new TypeError(`write failed for ${secret}`); };
+  const result = await preserveLegacySiteTitles(l, { systemPrincipalId: SYSTEM, legacySiteTitle: LEGACY });
+  l.preservationStore.isPending = async () => { throw new Error(`read failed for ${secret}`); };
+  assert.equal(await resolveSiteTitle(resolveDeps(l), { workspaceId: "ws-new" }), LEGACY);
+
+  assert.deepEqual(unregistered.failures, [
+    { message: "preserveLegacySiteTitles: workspace stays pending, pin failed: core.site/title is not registered", workspaceId: "ws-a" },
+  ]);
+  assert.deepEqual(l.failures, [
+    { message: "preserveLegacySiteTitles: workspace stays pending, pin failed", workspaceId: "ws-b", errorClass: "TypeError" },
+    { message: "resolveSiteTitle: falling back to the legacy title", workspaceId: "ws-new", errorClass: "Error" },
+  ]);
+  assert.deepEqual(l.summaries, [result]);
+  assert.deepEqual(result, { pinnedWorkspaceIds: [], skippedWorkspaceIds: [], failedWorkspaceIds: ["ws-b"] });
+  assert.equal(JSON.stringify([unregistered.failures, l.failures]).includes("hunter2"), false);
 });
