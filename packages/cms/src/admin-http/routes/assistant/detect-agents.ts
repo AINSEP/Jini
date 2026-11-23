@@ -102,7 +102,10 @@ function projectReasoningInModelId(agent: RuntimeDetectedAgent): { reasoningInMo
  * above. No `@jini-ai/ui` picker reads it yet (`AgentModelOption` there has no `reasoning` field) —
  * this only gets the data to the browser; the picker-side narrowing is a separate, tracked change.
  */
-export function toExecutionTabAgent(agent: RuntimeDetectedAgent): Omit<AdminExecutionDetectedAgent, "discoveryPending"> {
+export function toExecutionTabAgent(
+  { agent }: { agent: RuntimeDetectedAgent },
+  _optional: Record<string, never> = {},
+): Omit<AdminExecutionDetectedAgent, "discoveryPending"> {
   return {
     id: agent.id,
     label: agent.name,
@@ -153,6 +156,6 @@ export const detectAgentsRoute = defineJsonRoute<unknown, DetectAgentsResponse, 
     await authorizeAssistant({ authorize, permission: deps.adminAssistantPermission, entityType: "assistant-execution" });
     const agents = await deps.readDetectedAgents({ force: (input as { force?: unknown } | null | undefined)?.force === true });
     const discoveryPending = deps.isDiscoveryPending({});
-    return ok({ value: { data: agents.map((agent) => ({ ...toExecutionTabAgent(agent), discoveryPending })) } });
+    return ok({ value: { data: agents.map((agent) => ({ ...toExecutionTabAgent({ agent }), discoveryPending })) } });
   },
 });
