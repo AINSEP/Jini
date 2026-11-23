@@ -160,9 +160,24 @@
       "./admin-http/routes/menus/assign-location": "universal",
       "./admin-http/routes/menus/delete": "universal",
       "./admin-http/http/plugin-hook-error": "universal",
+      "./admin-http/routes/posts/autosave": "universal",
       "./admin-http/routes/pages/list": "universal",
       "./admin-http/routes/pages/get-by-id": "universal",
-      "./admin-http/routes/posts/autosave": "universal"
+      "./admin-http/routes/change-sets/get": "universal",
+      "./admin-http/routes/change-sets/list": "universal",
+      "./admin-http/routes/change-sets/revert": "universal",
+      "./admin-http/routes/change-sets/shared": "universal",
+      "./admin-http/routes/presentation/get": "universal",
+      "./admin-http/routes/themes/list": "universal",
+      "./admin-http/routes/presentation/rescan-themes": "universal",
+      "./admin-http/routes/themes/duplicate": "universal",
+      "./admin-http/routes/email-templates/list": "universal",
+      "./admin-http/routes/email-templates/create": "universal",
+      "./admin-http/routes/email-templates/preview": "universal",
+      "./admin-http/routes/email-templates/get": "universal",
+      "./admin-http/routes/email-templates/edit-html": "universal",
+      "./admin-http/routes/email-templates/rename": "universal",
+      "./admin-http/routes/email-templates/render": "universal"
     },
     "isolation": {
       "domains": {
@@ -265,6 +280,12 @@
         "./admin-http/routes/menus/update-tree": "navigation",
         "./admin-http/routes/menus/assign-location": "navigation",
         "./admin-http/routes/menus/delete": "navigation",
+        "./admin-http/routes/change-sets/get": "core",
+        "./admin-http/routes/change-sets/list": "core",
+        "./admin-http/routes/change-sets/revert": "core",
+        "./admin-http/routes/change-sets/shared": "core",
+        "./admin-http/routes/presentation/get": "presentation",
+        "./admin-http/routes/themes/list": "presentation",
         "./admin-http/routes/pages/get-by-id": "widgets"
       }
     },
@@ -1016,6 +1037,11 @@
       "import": "./dist/admin-http/http/plugin-hook-error.js",
       "default": "./dist/admin-http/http/plugin-hook-error.js"
     },
+    "./admin-http/routes/posts/autosave": {
+      "types": "./dist/admin-http/routes/posts/autosave.d.ts",
+      "import": "./dist/admin-http/routes/posts/autosave.js",
+      "default": "./dist/admin-http/routes/posts/autosave.js"
+    },
     "./admin-http/routes/pages/list": {
       "types": "./dist/admin-http/routes/pages/list.d.ts",
       "import": "./dist/admin-http/routes/pages/list.js",
@@ -1026,10 +1052,80 @@
       "import": "./dist/admin-http/routes/pages/get-by-id.js",
       "default": "./dist/admin-http/routes/pages/get-by-id.js"
     },
-    "./admin-http/routes/posts/autosave": {
-      "types": "./dist/admin-http/routes/posts/autosave.d.ts",
-      "import": "./dist/admin-http/routes/posts/autosave.js",
-      "default": "./dist/admin-http/routes/posts/autosave.js"
+    "./admin-http/routes/change-sets/get": {
+      "types": "./dist/admin-http/routes/change-sets/get.d.ts",
+      "import": "./dist/admin-http/routes/change-sets/get.js",
+      "default": "./dist/admin-http/routes/change-sets/get.js"
+    },
+    "./admin-http/routes/change-sets/list": {
+      "types": "./dist/admin-http/routes/change-sets/list.d.ts",
+      "import": "./dist/admin-http/routes/change-sets/list.js",
+      "default": "./dist/admin-http/routes/change-sets/list.js"
+    },
+    "./admin-http/routes/change-sets/revert": {
+      "types": "./dist/admin-http/routes/change-sets/revert.d.ts",
+      "import": "./dist/admin-http/routes/change-sets/revert.js",
+      "default": "./dist/admin-http/routes/change-sets/revert.js"
+    },
+    "./admin-http/routes/change-sets/shared": {
+      "types": "./dist/admin-http/routes/change-sets/shared.d.ts",
+      "import": "./dist/admin-http/routes/change-sets/shared.js",
+      "default": "./dist/admin-http/routes/change-sets/shared.js"
+    },
+    "./admin-http/routes/presentation/get": {
+      "types": "./dist/admin-http/routes/presentation/get.d.ts",
+      "import": "./dist/admin-http/routes/presentation/get.js",
+      "default": "./dist/admin-http/routes/presentation/get.js"
+    },
+    "./admin-http/routes/themes/list": {
+      "types": "./dist/admin-http/routes/themes/list.d.ts",
+      "import": "./dist/admin-http/routes/themes/list.js",
+      "default": "./dist/admin-http/routes/themes/list.js"
+    },
+    "./admin-http/routes/presentation/rescan-themes": {
+      "types": "./dist/admin-http/routes/presentation/rescan-themes.d.ts",
+      "import": "./dist/admin-http/routes/presentation/rescan-themes.js",
+      "default": "./dist/admin-http/routes/presentation/rescan-themes.js"
+    },
+    "./admin-http/routes/themes/duplicate": {
+      "types": "./dist/admin-http/routes/themes/duplicate.d.ts",
+      "import": "./dist/admin-http/routes/themes/duplicate.js",
+      "default": "./dist/admin-http/routes/themes/duplicate.js"
+    },
+    "./admin-http/routes/email-templates/list": {
+      "types": "./dist/admin-http/routes/email-templates/list.d.ts",
+      "import": "./dist/admin-http/routes/email-templates/list.js",
+      "default": "./dist/admin-http/routes/email-templates/list.js"
+    },
+    "./admin-http/routes/email-templates/create": {
+      "types": "./dist/admin-http/routes/email-templates/create.d.ts",
+      "import": "./dist/admin-http/routes/email-templates/create.js",
+      "default": "./dist/admin-http/routes/email-templates/create.js"
+    },
+    "./admin-http/routes/email-templates/preview": {
+      "types": "./dist/admin-http/routes/email-templates/preview.d.ts",
+      "import": "./dist/admin-http/routes/email-templates/preview.js",
+      "default": "./dist/admin-http/routes/email-templates/preview.js"
+    },
+    "./admin-http/routes/email-templates/get": {
+      "types": "./dist/admin-http/routes/email-templates/get.d.ts",
+      "import": "./dist/admin-http/routes/email-templates/get.js",
+      "default": "./dist/admin-http/routes/email-templates/get.js"
+    },
+    "./admin-http/routes/email-templates/edit-html": {
+      "types": "./dist/admin-http/routes/email-templates/edit-html.d.ts",
+      "import": "./dist/admin-http/routes/email-templates/edit-html.js",
+      "default": "./dist/admin-http/routes/email-templates/edit-html.js"
+    },
+    "./admin-http/routes/email-templates/rename": {
+      "types": "./dist/admin-http/routes/email-templates/rename.d.ts",
+      "import": "./dist/admin-http/routes/email-templates/rename.js",
+      "default": "./dist/admin-http/routes/email-templates/rename.js"
+    },
+    "./admin-http/routes/email-templates/render": {
+      "types": "./dist/admin-http/routes/email-templates/render.d.ts",
+      "import": "./dist/admin-http/routes/email-templates/render.js",
+      "default": "./dist/admin-http/routes/email-templates/render.js"
     }
   },
   "files": [
