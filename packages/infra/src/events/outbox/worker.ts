@@ -292,7 +292,8 @@ async function deliver<Event extends EventEnvelope>(required: {
  * Residual risk: a handler still live beyond the horizon may overlap another claimer. Optional
  * adapter claim tokens accompany every outcome and fence stale late writes. An unfenced adapter
  * retains the historical late-write race; even fenced delivery is at least once and effects need
- * host idempotency. No storage schema or connection is created by this orchestration.
+ * host idempotency: wrap such subscribers with `withProcessedEventGuard` over a host-durable
+ * `ProcessedEventStore`. No storage schema or connection is created by this orchestration.
  *
  * The complete envelope and its identity pass through unchanged; only name is read by the worker.
  * The host retains payload and workspace metadata. There are no global timers, console calls,

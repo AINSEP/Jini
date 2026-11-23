@@ -216,6 +216,15 @@ describe('schema-bearing invocation', () => {
     expect(seen).toEqual([{ limit: 5 }]);
     expect(result).toMatchObject({ decision: 'allow', input: { limit: 5 }, normalizationNotes: ['limit: string→integer'] });
   });
+
+  it('publishes a declared outputSchema on the listed descriptor and the authorized call', async () => {
+    const registry = createToolRegistry({});
+    const outputSchema = { type: 'object', required: ['count'], properties: { count: { type: 'number' } } };
+    registry.register({ descriptor: { id: 'count', outputSchema }, handler: async () => ({ count: 1 }), policy: { authorize: () => 'allow' } });
+    expect(registry.list({}).find(descriptor => descriptor.id === 'count')?.outputSchema).toBe(outputSchema);
+    const result = await authorizeToolInvocation({ registry, toolId: 'count', principal, run, input: {} });
+    expect(result?.descriptor.outputSchema).toBe(outputSchema);
+  });
 });
 
 describe('toolDiscoveryMetadata', () => {

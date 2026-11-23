@@ -58,6 +58,15 @@ export interface ToolDescriptor {
    * Optional and additive, so no existing registration changes shape.
    */
   readonly inputSchema?: unknown;
+  /**
+   * JSON-Schema-shaped description of what this tool's handler returns — the output twin of
+   * {@link ToolDescriptor.inputSchema}, carried as `unknown` for the same reason (no validator
+   * dependency in every registry consumer). `@jini-ai/daemon`'s `ToolExecutor` checks a handler's
+   * resolved value against it and, per the host's `outputValidation` choice, either fails the call
+   * (`'enforce'`) or passes the value through and warns (`'log'`). A discovery surface may also
+   * publish it (MCP's `outputSchema`). Optional and additive: a tool without one is never checked.
+   */
+  readonly outputSchema?: unknown;
   /** When true, `ToolExecutor` asks the transport's `ExecutionDelegate.onConfirm` before running, in addition to authorization. */
   readonly requiresConfirmation?: boolean;
   /** Milliseconds before `ToolExecutor` aborts an in-flight call and reports `'timed-out'`. Omit for no timeout. */
