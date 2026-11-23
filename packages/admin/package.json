@@ -172,7 +172,22 @@
       "./screens/menus/hooks/menus-port.hooks": "universal",
       "./screens/menus/MenuEditor.hooks": "browser",
       "./screens/menus/MenuPageLinkFields.hooks": "browser",
-      "./screens/menus/MenuPageLinkFields": "browser"
+      "./screens/menus/MenuPageLinkFields": "browser",
+      "./screens/skills/skills-i18n": "universal",
+      "./screens/skills/SkillInstallConfirmation.hooks": "universal",
+      "./screens/skills/Skills.hooks": "browser",
+      "./screens/skills/skill-upload": "universal",
+      "./screens/skills/api/skills-api.types": "universal",
+      "./screens/fs-files/hooks/use-native-folder-picker.hooks": "browser",
+      "./screens/content-analysis/ContentAnalysisCard": "browser",
+      "./screens/content-analysis/rules": "universal",
+      "./screens/content-analysis/hooks/use-content-analysis.hooks": "browser",
+      "./screens/content-analysis/hooks/content-analysis-port.hooks": "universal",
+      "./screens/content-analysis/hooks/content-analysis-dependencies.hooks": "universal",
+      "./screens/import-export/ImportExport": "browser",
+      "./screens/import-export/import-export-i18n": "universal",
+      "./screens/import-export/hooks/use-git-backup.hooks": "browser",
+      "./screens/import-export/hooks/git-backup-port.hooks": "universal"
     },
     "isolation": {
       "shared": [
@@ -1053,6 +1068,81 @@
       "types": "./dist/screens/menus/MenuPageLinkFields.d.ts",
       "import": "./dist/screens/menus/MenuPageLinkFields.js",
       "default": "./dist/screens/menus/MenuPageLinkFields.js"
+    },
+    "./screens/skills/skills-i18n": {
+      "types": "./dist/screens/skills/skills-i18n.d.ts",
+      "import": "./dist/screens/skills/skills-i18n.js",
+      "default": "./dist/screens/skills/skills-i18n.js"
+    },
+    "./screens/skills/SkillInstallConfirmation.hooks": {
+      "types": "./dist/screens/skills/SkillInstallConfirmation.hooks.d.ts",
+      "import": "./dist/screens/skills/SkillInstallConfirmation.hooks.js",
+      "default": "./dist/screens/skills/SkillInstallConfirmation.hooks.js"
+    },
+    "./screens/skills/Skills.hooks": {
+      "types": "./dist/screens/skills/Skills.hooks.d.ts",
+      "import": "./dist/screens/skills/Skills.hooks.js",
+      "default": "./dist/screens/skills/Skills.hooks.js"
+    },
+    "./screens/skills/skill-upload": {
+      "types": "./dist/screens/skills/skill-upload.d.ts",
+      "import": "./dist/screens/skills/skill-upload.js",
+      "default": "./dist/screens/skills/skill-upload.js"
+    },
+    "./screens/skills/api/skills-api.types": {
+      "types": "./dist/screens/skills/api/skills-api.types.d.ts",
+      "import": "./dist/screens/skills/api/skills-api.types.js",
+      "default": "./dist/screens/skills/api/skills-api.types.js"
+    },
+    "./screens/fs-files/hooks/use-native-folder-picker.hooks": {
+      "types": "./dist/screens/fs-files/hooks/use-native-folder-picker.hooks.d.ts",
+      "import": "./dist/screens/fs-files/hooks/use-native-folder-picker.hooks.js",
+      "default": "./dist/screens/fs-files/hooks/use-native-folder-picker.hooks.js"
+    },
+    "./screens/content-analysis/ContentAnalysisCard": {
+      "types": "./dist/screens/content-analysis/ContentAnalysisCard.d.ts",
+      "import": "./dist/screens/content-analysis/ContentAnalysisCard.js",
+      "default": "./dist/screens/content-analysis/ContentAnalysisCard.js"
+    },
+    "./screens/content-analysis/rules": {
+      "types": "./dist/screens/content-analysis/rules.d.ts",
+      "import": "./dist/screens/content-analysis/rules.js",
+      "default": "./dist/screens/content-analysis/rules.js"
+    },
+    "./screens/content-analysis/hooks/use-content-analysis.hooks": {
+      "types": "./dist/screens/content-analysis/hooks/use-content-analysis.hooks.d.ts",
+      "import": "./dist/screens/content-analysis/hooks/use-content-analysis.hooks.js",
+      "default": "./dist/screens/content-analysis/hooks/use-content-analysis.hooks.js"
+    },
+    "./screens/content-analysis/hooks/content-analysis-port.hooks": {
+      "types": "./dist/screens/content-analysis/hooks/content-analysis-port.hooks.d.ts",
+      "import": "./dist/screens/content-analysis/hooks/content-analysis-port.hooks.js",
+      "default": "./dist/screens/content-analysis/hooks/content-analysis-port.hooks.js"
+    },
+    "./screens/content-analysis/hooks/content-analysis-dependencies.hooks": {
+      "types": "./dist/screens/content-analysis/hooks/content-analysis-dependencies.hooks.d.ts",
+      "import": "./dist/screens/content-analysis/hooks/content-analysis-dependencies.hooks.js",
+      "default": "./dist/screens/content-analysis/hooks/content-analysis-dependencies.hooks.js"
+    },
+    "./screens/import-export/ImportExport": {
+      "types": "./dist/screens/import-export/ImportExport.d.ts",
+      "import": "./dist/screens/import-export/ImportExport.js",
+      "default": "./dist/screens/import-export/ImportExport.js"
+    },
+    "./screens/import-export/import-export-i18n": {
+      "types": "./dist/screens/import-export/import-export-i18n.d.ts",
+      "import": "./dist/screens/import-export/import-export-i18n.js",
+      "default": "./dist/screens/import-export/import-export-i18n.js"
+    },
+    "./screens/import-export/hooks/use-git-backup.hooks": {
+      "types": "./dist/screens/import-export/hooks/use-git-backup.hooks.d.ts",
+      "import": "./dist/screens/import-export/hooks/use-git-backup.hooks.js",
+      "default": "./dist/screens/import-export/hooks/use-git-backup.hooks.js"
+    },
+    "./screens/import-export/hooks/git-backup-port.hooks": {
+      "types": "./dist/screens/import-export/hooks/git-backup-port.hooks.d.ts",
+      "import": "./dist/screens/import-export/hooks/git-backup-port.hooks.js",
+      "default": "./dist/screens/import-export/hooks/git-backup-port.hooks.js"
     }
   },
   "files": [
