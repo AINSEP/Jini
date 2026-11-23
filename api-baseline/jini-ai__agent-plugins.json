@@ -933,6 +933,24 @@
   "types": null,
   "symbols": {}
  },
+ "./site/admin-surfaces/capabilities": {
+  "types": "./dist/site/admin-surfaces/capabilities.d.ts",
+  "symbols": {
+   "createAdminSurfaceCapabilities": "function:b4f9e3a93b"
+  }
+ },
+ "./site/admin-surfaces/forms": {
+  "types": "./dist/site/admin-surfaces/forms.d.ts",
+  "symbols": {
+   "createSurfaceForms": "function:3b2ed81311"
+  }
+ },
+ "./site/memory-i18n": {
+  "types": "./dist/site/memory-i18n.d.ts",
+  "symbols": {
+   "memoryText": "function:e8660ed856"
+  }
+ },
  "./slide-design": {
   "types": null,
   "symbols": {}

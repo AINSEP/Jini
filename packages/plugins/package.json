@@ -18,7 +18,9 @@
       "./host/node": "node",
       "./host/worker": "node",
       "./host/sql": "node",
-      "./host/tools": "node"
+      "./host/tools": "node",
+      "./runtime/install-consent": "universal",
+      "./runtime/plugin-tool-ids": "universal"
     },
     "isolation": {
       "forbidden": {
@@ -64,6 +66,16 @@
       "types": "./dist/host/tools/index.d.ts",
       "import": "./dist/host/tools/index.js",
       "default": "./dist/host/tools/index.js"
+    },
+    "./runtime/install-consent": {
+      "types": "./dist/runtime/install-consent.d.ts",
+      "import": "./dist/runtime/install-consent.js",
+      "default": "./dist/runtime/install-consent.js"
+    },
+    "./runtime/plugin-tool-ids": {
+      "types": "./dist/runtime/plugin-tool-ids.d.ts",
+      "import": "./dist/runtime/plugin-tool-ids.js",
+      "default": "./dist/runtime/plugin-tool-ids.js"
     }
   },
   "files": [

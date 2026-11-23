@@ -103,7 +103,10 @@
       "./connect/executable": "universal",
       "./connect/plugin-host": "universal",
       "./admin-surfaces/connections": "universal",
-      "./admin-surfaces/node": "node"
+      "./admin-surfaces/node": "node",
+      "./site/admin-surfaces/capabilities": "universal",
+      "./site/admin-surfaces/forms": "universal",
+      "./site/memory-i18n": "universal"
     },
     "isolation": {
       "entries": {
@@ -111,7 +114,9 @@
         "./persistent-state": "core",
         "./connect": "lifecycle",
         "./connect/executable": "lifecycle",
-        "./connect/plugin-host": "lifecycle"
+        "./connect/plugin-host": "lifecycle",
+        "./site/admin-surfaces/capabilities": "admin-surfaces",
+        "./site/admin-surfaces/forms": "admin-surfaces"
       },
       "shared": [
         "core/persistent-state.js",
@@ -287,6 +292,21 @@
       "types": "./dist/admin-surfaces/node.d.ts",
       "import": "./dist/admin-surfaces/node.js",
       "default": "./dist/admin-surfaces/node.js"
+    },
+    "./site/admin-surfaces/capabilities": {
+      "types": "./dist/site/admin-surfaces/capabilities.d.ts",
+      "import": "./dist/site/admin-surfaces/capabilities.js",
+      "default": "./dist/site/admin-surfaces/capabilities.js"
+    },
+    "./site/admin-surfaces/forms": {
+      "types": "./dist/site/admin-surfaces/forms.d.ts",
+      "import": "./dist/site/admin-surfaces/forms.js",
+      "default": "./dist/site/admin-surfaces/forms.js"
+    },
+    "./site/memory-i18n": {
+      "types": "./dist/site/memory-i18n.d.ts",
+      "import": "./dist/site/memory-i18n.js",
+      "default": "./dist/site/memory-i18n.js"
     }
   },
   "files": [

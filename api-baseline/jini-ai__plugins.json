@@ -387,5 +387,20 @@
    "startTier2Worker": "function:6845ec97b2",
    "tier2ImportPolicyData": "function:48c7e56406"
   }
+ },
+ "./runtime/install-consent": {
+  "types": "./dist/runtime/install-consent.d.ts",
+  "symbols": {
+   "PLUGIN_INSTALL_STAYS_OFF": "variable:d84ebe8e64",
+   "pluginInstallConsent": "function:561691726a",
+   "pluginInstallRiskSentence": "function:974d26528c"
+  }
+ },
+ "./runtime/plugin-tool-ids": {
+  "types": "./dist/runtime/plugin-tool-ids.d.ts",
+  "symbols": {
+   "pluginManagementToolIds": "variable:9f0fddba5c",
+   "pluginSourceToolIds": "variable:f341d76ab6"
+  }
  }
 }
