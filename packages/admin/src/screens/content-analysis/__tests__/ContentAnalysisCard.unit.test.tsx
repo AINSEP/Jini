@@ -70,7 +70,16 @@ describe("ContentAnalysisCard", () => {
     // Status reads as text, not colour alone; the icon is decorative.
     expect(within(checkItems[2]!).getByText("Fail")).toBeInTheDocument();
     expect(within(checkItems[2]!).getByText("1 of 3 images are missing alt text.")).toBeInTheDocument();
-    expect(checkItems[2]!.querySelector(".status-error [aria-hidden='true']")?.textContent).toBe("✕");
+    expect(checkItems[2]!.querySelector(".jini-status-error [aria-hidden='true']")?.textContent).toBe("✕");
+  });
+
+  it("emits only jini-* class names, so the host stylesheet owns the look", () => {
+    const { container } = renderCard({ error: "Analysis failed." });
+    const { container: empty } = renderCard({ view: buildContentAnalysisView({ state: { kind: "report", source: "stored", report: { ...REPORT, toc: [] } }, t: identity }) });
+    const classes = [container, empty].flatMap((root) =>
+      [...root.querySelectorAll("[class]")].flatMap((el) => [...el.classList]));
+    expect(classes).toEqual(expect.arrayContaining(["jini-card", "jini-btn-secondary", "jini-save-error", "jini-stat-value", "jini-field-hint", "jini-status-error"]));
+    expect(classes.filter((name) => !name.startsWith("jini-"))).toEqual([]);
   });
 
   it("says so when the analysis has no headings", () => {

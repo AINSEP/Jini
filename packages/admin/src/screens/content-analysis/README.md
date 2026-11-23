@@ -16,9 +16,11 @@ reads the plugin's preview status, shows the analysis stored on the post's last 
 
 **Provides:** `ContentAnalysisCard`, `ContentAnalysisCardView` (markup for one controller state),
 `useContentAnalysis(target, { port, locale })`, `createFakeContentAnalysisPort` (tests), the pure
-`rules.ts` and the 21-locale dictionary (`content-analysis-i18n.ts`). Feature classes are
-`jini-content-analysis*`; the shared `card`, `status`, `dash-stat-*`, `field-*` classes come from the
-host theme.
+`rules.ts` and the 21-locale dictionary (`content-analysis-i18n.ts`). Every class is
+`jini-*`: feature classes are `jini-content-analysis*`, and the shared shapes are `jini-card`,
+`jini-card-title`, `jini-card-lead`, `jini-editor-actions`, `jini-btn-secondary`, `jini-save-error`,
+`jini-stat-label|value|meta`, `jini-field-label`, `jini-field-hint`, `jini-status jini-status-*`.
+Jini ships no CSS for them; the host stylesheet paints them.
 
 ```tsx
 const contentAnalysisPort: ContentAnalysisPort = {

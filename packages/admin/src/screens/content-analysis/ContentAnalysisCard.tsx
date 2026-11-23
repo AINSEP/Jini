@@ -40,18 +40,18 @@ export function ContentAnalysisCardView({ controller }: { controller: ContentAna
   if (hidden) return null;
 
   return (
-    <section className="card jini-content-analysis" aria-labelledby="content-analysis-title">
-      <h3 id="content-analysis-title" className="card-title">
+    <section className="jini-card jini-content-analysis" aria-labelledby="content-analysis-title">
+      <h3 id="content-analysis-title" className="jini-card-title">
         {t("Content analysis")}
       </h3>
-      <p className="card-lead" aria-live="polite">
+      <p className="jini-card-lead" aria-live="polite">
         {view.lead}
       </p>
       {renderContentAnalysisReport({ view, t })}
-      <span className="editor-actions jini-content-analysis-actions">
+      <span className="jini-editor-actions jini-content-analysis-actions">
         <button
           type="button"
-          className="btn-secondary"
+          className="jini-btn-secondary"
           onClick={() => void analyze()}
           disabled={analyzing}
           {...agentHandle({ handle: "content-analysis-analyze" }, {
@@ -62,7 +62,7 @@ export function ContentAnalysisCardView({ controller }: { controller: ContentAna
           {analyzing ? t("Analyzing…") : t("Analyze now")}
         </button>
         {error ? (
-          <span className="save-error" role="alert">
+          <span className="jini-save-error" role="alert">
             {error}
           </span>
         ) : null}
@@ -80,13 +80,13 @@ function renderContentAnalysisReport(
       <ul className="jini-content-analysis-stats">
         {view.report.stats.map((stat) => (
           <li key={stat.key} className="jini-content-analysis-stat">
-            <span className="dash-stat-label">{stat.label}</span>
-            <span className="dash-stat-value">{stat.value}</span>
-            <span className="dash-stat-meta">{stat.meta}</span>
+            <span className="jini-stat-label">{stat.label}</span>
+            <span className="jini-stat-value">{stat.value}</span>
+            <span className="jini-stat-meta">{stat.meta}</span>
           </li>
         ))}
       </ul>
-      <h4 id="content-analysis-toc" className="field-label">
+      <h4 id="content-analysis-toc" className="jini-field-label">
         {t("Table of contents")}
       </h4>
       {view.report.toc.length > 0 ? (
@@ -99,16 +99,16 @@ function renderContentAnalysisReport(
           ))}
         </ul>
       ) : (
-        <p className="field-hint">{t("No headings yet.")}</p>
+        <p className="jini-field-hint">{t("No headings yet.")}</p>
       )}
-      <h4 id="content-analysis-checks" className="field-label">
+      <h4 id="content-analysis-checks" className="jini-field-label">
         {t("Checks")}
       </h4>
       <ul className="jini-content-analysis-list" aria-labelledby="content-analysis-checks">
         {view.report.checks.map((check) => (
           <li key={check.key} className="jini-content-analysis-check">
             {/* Status is the pill's TEXT; the icon is decorative and the tone only reinforces it. */}
-            <span className={`status ${check.tone}`}>
+            <span className={`jini-status ${check.tone}`}>
               <span aria-hidden="true">{check.icon}</span> {check.statusLabel}
             </span>
             <strong>{check.title}</strong>

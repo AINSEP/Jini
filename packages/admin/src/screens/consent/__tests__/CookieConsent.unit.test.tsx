@@ -49,4 +49,22 @@ describe('CookieConsent', () => {
     await screen.findByText('BannerFields');
     expect((seen.BannerFields as { bannerModes: unknown }).bannerModes).toEqual(['jini', 'off']);
   });
+
+  it('renders only jini-* class names on every tab, so the host stylesheet owns the look', async () => {
+    const classesOf = (root: Element) => [...root.querySelectorAll('[class]')].flatMap((el) => [...el.classList]);
+    const english = () => consentTranslation({ locale: 'en' });
+    const overview = renderWithAdminKit(<CookieConsent tabId="overview" port={fakeConsentPort({ get: () => Promise.resolve(consentSnapshot()) })} useTranslate={english} errors={consentErrors} ui={recordingUi().ui} />);
+    await screen.findByText('Nothing blocks the banner.');
+    const classes = classesOf(overview.container);
+    overview.unmount();
+    const look = renderWithAdminKit(<CookieConsent tabId="look" port={fakeConsentPort({ get: () => Promise.resolve(consentSnapshot()) })} useTranslate={english} errors={consentErrors} ui={recordingUi().ui} delays={{ previewMs: 0 }} />);
+    await screen.findByText('LookFields');
+    classes.push(...classesOf(look.container));
+    look.unmount();
+    const failed = renderWithAdminKit(<CookieConsent tabId="banner" port={fakeConsentPort({ get: () => Promise.reject(new Error('x')) })} useTranslate={english} errors={{ ...consentErrors, describe: () => 'Load failed.' }} ui={recordingUi().ui} />);
+    await screen.findByText('Load failed.');
+    classes.push(...classesOf(failed.container));
+    expect(classes).toEqual(expect.arrayContaining(['jini-consent-page', 'jini-page-title', 'jini-card', 'jini-card-head', 'jini-status-neutral', 'jini-page-actions', 'jini-btn-primary', 'jini-notice-error']));
+    expect(classes.filter((name) => !name.startsWith('jini-'))).toEqual([]);
+  });
 });
