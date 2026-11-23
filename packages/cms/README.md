@@ -178,6 +178,19 @@ create stay id-free. The host injects what is its policy, not the engine's: `raw
 `normalizeMenuHtml` from `@jini-ai/cms/navigation/node`) and `trashMenu` (the host's trash move).
 Malformed bodies are refused in `parse` with the host's code-less `{ error }` body.
 
+Public OAuth callbacks (`src/public-http/routes/{api-connections,external-mcp}/oauth-callback.ts`) are
+HTML, not JSON, so they are core `ServerRoute` factories (`apiConnectionOAuthCallbackRoute(deps)`,
+`externalMcpOAuthCallbackRoute(deps)`), not `defineJsonRoute` specs. They read the host's request facts
+(`readRequestFacts`: client address for the limiter key, serving protocol, parsed query) from `locals`,
+so mount them through an adapter that puts the facts there. The host injects the page renderer with
+its copy (`renderPage`, typed `OAuthCallbackPageRenderer` from `src/public-http/routes/oauth/callback-page.ts`,
+which also owns the closed `OAuthCallbackFailureReason` vocabulary), the `postMessage` type, the
+binding-cookie reader/clearer, the error-class predicates (`isApiConnectionError`, `isOAuthError`,
+`isUnknownServerError`), its API-connection runtime / external-MCP OAuth service, the roster fan-out,
+its public-origin policy and its logger. The external-MCP callback path and URL builder
+(`externalMcpOAuthCallbackUrl({ origin, serverId })`) live in `oauth-callback-url.ts`, shared with the
+host's connect route.
+
 ## Scripts
 
 ```bash
