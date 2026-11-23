@@ -24,7 +24,7 @@ export type VerifySignatureInput = Omit<JiniVerifySignatureInput, "vocabulary" |
 /** Supply the t/v1 protocol and wall-clock default for existing host callers.
  * @complexity O(raw body bytes), delegated to Jini HMAC-SHA256.
  */
-export function signPayload(input: SignPayloadInput): string {
+export function signPayload(input: SignPayloadInput, _optional: Record<string, never> = {}): string {
   return signWebhookPayload({ ...input, vocabulary: SIGNATURE_VOCABULARY,
     timestampSeconds: input.timestampSeconds ?? Math.floor(Date.now() / 1000),
   });
@@ -33,7 +33,7 @@ export function signPayload(input: SignPayloadInput): string {
 /** Keep the receiver's host vocabulary and current replay-window clock.
  * @complexity O(raw body bytes + signature entries).
  */
-export function verifySignature(input: VerifySignatureInput): boolean {
+export function verifySignature(input: VerifySignatureInput, _optional: Record<string, never> = {}): boolean {
   return verifyWebhookSignature({ ...input, vocabulary: SIGNATURE_VOCABULARY, nowSeconds: Math.floor(Date.now() / 1000) });
 }
 

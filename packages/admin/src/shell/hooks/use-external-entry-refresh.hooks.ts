@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { decideExternalEntryRefresh, type ExternalEntryRevision } from "../lib/external-entry-refresh.js";
 
-import { useSettlementGeneration } from "../../react/kit.js";
+import type { SettlementGeneration } from "../../react/kit.js";
 
 /**
  * @file The stateful half of "did this row change out from under an open editor" (see
@@ -12,7 +12,8 @@ import { useSettlementGeneration } from "../../react/kit.js";
  * NOT subscribe to the bus itself, so the `content-refresh-coverage.unit.test.ts` tripwire on each
  * editor file actually guards the wiring, rather than a shared internal subscription hiding it.
  *
- * Own `useSettlementGeneration` instance, deliberately separate from the editor's own save
+ * Own `useSettlementGeneration` instance (the host supplies the hook as a required input, so this
+ * module imports no default implementation), deliberately separate from the editor's own save
  * settlement: a background re-read settling while a save is in flight must not make that save think
  * it was superseded (sharing one generation counter would leave `saving` stuck `true` after a
  * background check bumped the shared generation out from under it).
@@ -41,6 +42,9 @@ export interface ExternalEntryRefreshInput<Row extends ExternalEntryRevision> {
   supersedeStandingDraftBasis: (version: number) => void;
   /** Load latest only, when the re-read fails. The editor sets its own (translated) error. */
   onLoadLatestFailed: () => void;
+  /** The host's settlement-generation hook. Called once per render for this hook's OWN counter —
+   *  never the editor's save counter (see the file header for why they must stay separate). */
+  useSettlementGeneration: () => SettlementGeneration;
 }
 
 export interface ExternalEntryRefreshController {
@@ -59,7 +63,8 @@ export interface ExternalEntryRefreshController {
 }
 
 export function useExternalEntryRefresh<Row extends ExternalEntryRevision>(
-  input: ExternalEntryRefreshInput<Row>
+  input: ExternalEntryRefreshInput<Row>,
+  _optional: Record<string, never> = {},
 ): ExternalEntryRefreshController {
   const { latestRef, generations, dismissedForBasisRef, notifiedVersion, setNotifiedVersion, loadInFlightRef, checkDeferredRef, notifiedRowId } = useExternalRefreshState<Row>({ input });
   const { checkForExternalChange } = useExternalRefreshCheck<Row>({ latestRef, loadInFlightRef, checkDeferredRef, generations, dismissedForBasisRef, setNotifiedVersion, notifiedRowId });
@@ -197,7 +202,7 @@ function useExternalRefreshState<Row extends ExternalEntryRevision>(
     latestRef.current = input;
   });
 
-  const generations = useSettlementGeneration();
+  const generations = input.useSettlementGeneration();
   const saving = input.isSaving();
   useEffect(() => {
     loadInFlightRef.current = false;

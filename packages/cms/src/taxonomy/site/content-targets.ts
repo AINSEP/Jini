@@ -27,7 +27,7 @@ const NO_TERMS_TYPES: ReadonlySet<string> = new Set(["widget", "widget_area"]);
  * recorded per collection to check against.
  * @complexity one indexed read per call.
  */
-export function createLiveCollectionTermPolicy(deps: { contentTypeRepo: CollectionOwnerLookupPort; workspaceId: string }): ContentTypeTaxonomyPolicyPort {
+export function createLiveCollectionTermPolicy(deps: { contentTypeRepo: CollectionOwnerLookupPort; workspaceId: string }, _optional = {}): ContentTypeTaxonomyPolicyPort {
   return createJiniLiveCollectionTermPolicy({ ...deps, excludedTypes: NO_TERMS_TYPES });
 }
 
@@ -41,7 +41,7 @@ export function createContentTargetPorts(deps: {
   entryRepo: EntryRecordLookupPort;
   contentTypeRepo: CollectionOwnerLookupPort;
   workspaceId: string;
-}): { contentLookup: ContentLookupPort; contentTypeTaxonomyPolicy: ContentTypeTaxonomyPolicyPort } {
+}, _optional = {}): { contentLookup: ContentLookupPort; contentTypeTaxonomyPolicy: ContentTypeTaxonomyPolicyPort } {
   return createJiniContentTargetPorts({ ...deps, excludedTypes: NO_TERMS_TYPES });
 }
 

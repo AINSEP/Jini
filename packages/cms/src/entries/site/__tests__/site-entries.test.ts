@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 
 import { COLLECTION_LIST_FAQ_PAGE, COLLECTION_LIST_LAYOUTS, isCollectionListLayout } from "../contracts.js";
 import { entryPublicHref, humanizeFieldName, parseCollectionListConfig, DEFAULT_COLLECTION_LIST_LIMIT, MAX_COLLECTION_LIST_LIMIT } from "../public-list.js";
-import { toolMetadata } from "../tool-metadata.js";
+import { toolMetadata } from "@jini-ai/core/tool-metadata/entries";
 import { contributeEntriesTools } from "../tool-registrations.js";
 import { extractHtmlEntryRefs } from "../../../widgets/entry-refs-extractor.js";
 import type { UUID } from "@jini-ai/core/primitives";
@@ -11,8 +11,8 @@ import type { UUID } from "@jini-ai/core/primitives";
 describe("site entries surface", () => {
   it("accepts only the declared collection-list layouts", () => {
     expect(COLLECTION_LIST_LAYOUTS).toEqual(["cards", "list", "accordion", "carousel"]);
-    expect(isCollectionListLayout("accordion")).toBe(true);
-    expect(isCollectionListLayout("grid")).toBe(false);
+    expect(isCollectionListLayout({ value: "accordion" })).toBe(true);
+    expect(isCollectionListLayout({ value: "grid" })).toBe(false);
     expect(COLLECTION_LIST_FAQ_PAGE).toBe("faq-page");
   });
 

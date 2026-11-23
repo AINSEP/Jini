@@ -16,9 +16,13 @@ import {
   highlightedOptionOrNull,
   repositionOrClose,
   resolveTabTarget,
-  useSelectDropdown,
 } from "../Select.hooks.js";
-import { usePanelPosition, type WidgetSelectOption as SelectOption } from "../../../../react/kit.js";
+import { usePanelPosition, useSelectDropdown as useKitSelectDropdown, type WidgetSelectOption as SelectOption } from "../../../../react/kit.js";
+
+/** Drives the kit's two-object hook from the flat fixture below (`disabled` is the optional object). */
+function useSelectDropdown({ disabled, ...required }: { value: string; onChange: (value: string) => void; options: SelectOption[]; disabled?: boolean | undefined }) {
+  return useKitSelectDropdown(required, { disabled });
+}
 
 /** Renders under the fake admin kit, with the real UI-library pieces these assertions are about swapped in. */
 const wrapperKit = fakeAdminKit({ hooks: { usePanelPosition: uiUsePanelPosition, useSelectDropdown: uiUseSelectDropdown } });

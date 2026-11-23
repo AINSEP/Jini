@@ -133,7 +133,8 @@ function clampConfigNumber(
  * default rather than failing the whole marker.
  * @complexity O(1) */
 function parseLayout({ raw }: { raw: unknown }, _options = {}): CollectionListLayout {
-  return isCollectionListLayout(raw) ? raw : DEFAULT_COLLECTION_LIST_LAYOUT;
+  const candidate = { value: raw };
+  return isCollectionListLayout(candidate) ? candidate.value : DEFAULT_COLLECTION_LIST_LAYOUT;
 }
 
 /** Validates and converts the raw `where` config (an authored `{field: value}` map, the natural
@@ -362,6 +363,7 @@ export const widgetCollectionListPort: CollectionListPort = {
   parseCollectionListConfig: (config, contentType, options) => parseCollectionListConfig({ config, contentType }, options),
   entryPublicHref: (type, slug) => entryPublicHref({ _typeKey: type, _slug: slug }),
   humanizeFieldName: name => humanizeFieldName({ name }),
-  isCollectionListLayout,
+  // The resolver port keeps its positional guard; the trust in `value is …` is the named guard's.
+  isCollectionListLayout: (value: unknown): value is CollectionListLayout => isCollectionListLayout({ value }),
   systemContentTypes: SYSTEM_CONTENT_TYPES,
 };

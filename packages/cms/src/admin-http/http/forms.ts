@@ -49,7 +49,7 @@ export interface AdminFormSubmissionDto {
   submittedAt: string;
 }
 
-export function toAdminFormDefinitionDto(definition: FormDefinitionRecord): AdminFormDefinitionDto {
+export function toAdminFormDefinitionDto({ definition }: { definition: FormDefinitionRecord }, _optional = {}): AdminFormDefinitionDto {
   return {
     id: definition.id,
     workspaceId: definition.workspaceId,
@@ -67,15 +67,15 @@ export function toAdminFormDefinitionDto(definition: FormDefinitionRecord): Admi
   };
 }
 
-export function toAdminFormDefinitionResponse(definition: FormDefinitionRecord): { data: AdminFormDefinitionDto } {
-  return { data: toAdminFormDefinitionDto(definition) };
+export function toAdminFormDefinitionResponse({ definition }: { definition: FormDefinitionRecord }, _optional = {}): { data: AdminFormDefinitionDto } {
+  return { data: toAdminFormDefinitionDto({ definition }) };
 }
 
 export function toAdminFormDefinitionListResponse({ definitions }: { definitions: FormDefinitionRecord[] }, _optional = {}): { data: AdminFormDefinitionDto[] } {
-  return { data: definitions.map(toAdminFormDefinitionDto) };
+  return { data: definitions.map((definition) => toAdminFormDefinitionDto({ definition })) };
 }
 
-export function toAdminFormSubmissionDto(submission: FormSubmissionRecord): AdminFormSubmissionDto {
+export function toAdminFormSubmissionDto({ submission }: { submission: FormSubmissionRecord }, _optional = {}): AdminFormSubmissionDto {
   return {
     id: submission.id,
     formDefinitionId: submission.formDefinitionId,
@@ -89,13 +89,13 @@ export function toAdminFormSubmissionDto(submission: FormSubmissionRecord): Admi
   };
 }
 
-export function toAdminFormSubmissionResponse(submission: FormSubmissionRecord): { data: AdminFormSubmissionDto } {
-  return { data: { ...toAdminFormSubmissionDto(submission), ...(submission.evidence ? { evidence: structuredClone(submission.evidence) } : {}) } };
+export function toAdminFormSubmissionResponse({ submission }: { submission: FormSubmissionRecord }, _optional = {}): { data: AdminFormSubmissionDto } {
+  return { data: { ...toAdminFormSubmissionDto({ submission }), ...(submission.evidence ? { evidence: structuredClone(submission.evidence) } : {}) } };
 }
 
-export function toAdminFormSubmissionListResponse(page: {
+export function toAdminFormSubmissionListResponse({ items, nextCursor }: {
   items: FormSubmissionRecord[];
   nextCursor: string | null;
-}): { data: AdminFormSubmissionDto[]; nextCursor: string | null } {
-  return { data: page.items.map(toAdminFormSubmissionDto), nextCursor: page.nextCursor };
+}, _optional = {}): { data: AdminFormSubmissionDto[]; nextCursor: string | null } {
+  return { data: items.map((submission) => toAdminFormSubmissionDto({ submission })), nextCursor };
 }

@@ -6,9 +6,12 @@
 export const COLLECTION_LIST_LAYOUTS = ["cards", "list", "accordion", "carousel"] as const;
 export type CollectionListLayout = (typeof COLLECTION_LIST_LAYOUTS)[number];
 
-/** Whether `value` names a {@link COLLECTION_LIST_LAYOUTS} member. @complexity O(1) */
-export function isCollectionListLayout(value: unknown): value is CollectionListLayout {
-  return (COLLECTION_LIST_LAYOUTS as readonly unknown[]).includes(value);
+/** Whether `required.value` names a {@link COLLECTION_LIST_LAYOUTS} member. The predicate narrows
+ *  the passed object (a destructured parameter cannot carry a type predicate), so a caller that
+ *  needs the narrowed layout holds the object in a variable and reads `.value` from it.
+ *  @complexity O(1) */
+export function isCollectionListLayout(required: { value: unknown }, _optional = {}): required is { value: CollectionListLayout } {
+  return (COLLECTION_LIST_LAYOUTS as readonly unknown[]).includes(required.value);
 }
 
 /** The only structured-data block a collection list can opt into: schema.org `FAQPage`. */

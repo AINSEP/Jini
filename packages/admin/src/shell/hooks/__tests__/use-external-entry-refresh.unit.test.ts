@@ -4,7 +4,7 @@ import { createElement, type ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { useExternalEntryRefresh } from "../use-external-entry-refresh.hooks.js";
-import { AdminKitProvider } from "../../../react/kit.js";
+import { AdminKitProvider, useSettlementGeneration } from "../../../react/kit.js";
 import { fakeAdminKit } from "../../../react/testing-kit.js";
 
 /**
@@ -71,6 +71,7 @@ function setup(overrides?: {
         discardStandingDraft,
         supersedeStandingDraftBasis,
         onLoadLatestFailed,
+        useSettlementGeneration,
       }),
     { initialProps: { loaded }, wrapper }
   );
@@ -283,6 +284,7 @@ describe("useExternalEntryRefresh — checkForExternalChange", () => {
         discardStandingDraft: vi.fn().mockResolvedValue(undefined),
         supersedeStandingDraftBasis: vi.fn(),
         onLoadLatestFailed: vi.fn(),
+        useSettlementGeneration,
       }),
     { wrapper }
     );
@@ -405,6 +407,7 @@ describe("useExternalEntryRefresh — loadExternalChange", () => {
         discardStandingDraft,
         supersedeStandingDraftBasis: vi.fn(),
         onLoadLatestFailed: vi.fn(),
+        useSettlementGeneration,
       }),
     { wrapper }
     );

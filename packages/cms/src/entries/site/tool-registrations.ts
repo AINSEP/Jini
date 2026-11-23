@@ -1,4 +1,4 @@
-import { toolMetadata } from './tool-metadata.js';
+import { toolMetadata } from '@jini-ai/core/tool-metadata/entries';
 import { withToolMetadata } from '@jini-ai/core';
 /**
  * @file Entries' agent-tool registrations, built by `@jini-ai/cms/entries`.

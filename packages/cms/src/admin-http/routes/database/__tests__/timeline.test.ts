@@ -6,8 +6,17 @@ import { adminDatabaseTimelineRoute, type DatabaseTimelineRouteDeps } from '../t
 
 const page = { items: [{ id: 'l-1', kind: 'migration', createdAt: '2026-01-01T00:00:00.000Z', restorePointId: null, outcome: 'ok' }], nextCursor: null };
 
-function deps(getTimeline: DatabaseTimelineRouteDeps['getTimeline'] = async () => page): DatabaseTimelineRouteDeps {
-  return { databaseLedgerRepo: { query: async () => page }, getTimeline };
+class TimelineValidationError extends Error {
+  constructor(message: string) { super(message); this.name = 'TimelineValidationError'; }
+}
+
+// The host binding (Tovu's database-recovery module): the ledger's `ToolInputError` or the read
+// model's `TimelineValidationError` (matched by name) is a validation error.
+const hostValidationPredicate: DatabaseTimelineRouteDeps['isTimelineValidationError'] = ({ err }) =>
+  err instanceof ToolInputError || (err instanceof Error && err.name === 'TimelineValidationError');
+
+function deps(getTimeline: DatabaseTimelineRouteDeps['getTimeline'] = async () => page, isTimelineValidationError = hostValidationPredicate): DatabaseTimelineRouteDeps {
+  return { databaseLedgerRepo: { query: async () => page }, getTimeline, isTimelineValidationError };
 }
 
 const parse = (query: Record<string, unknown>) => {
@@ -22,10 +31,6 @@ async function refusalOf(promise: Promise<unknown>): Promise<RouteRefusalError['
     throw error;
   }
   throw new Error('expected a refusal');
-}
-
-class TimelineValidationError extends Error {
-  constructor(message: string) { super(message); this.name = 'TimelineValidationError'; }
 }
 
 describe('adminDatabaseTimelineRoute', () => {
@@ -56,6 +61,16 @@ describe('adminDatabaseTimelineRoute', () => {
   it('refuses 400 VALIDATION_ERROR for an undecodable cursor (ToolInputError)', async () => {
     const response = await refusalOf(Promise.resolve(adminDatabaseTimelineRoute.handle({ input: parse({ cursor: '!!' }), deps: deps(async () => { throw new ToolInputError({ message: 'bad cursor' }); }), context: { id: 'p-1' }, authorize: async () => undefined })));
     expect(response).toEqual({ status: 400, body: { error: 'bad cursor', code: 'VALIDATION_ERROR' } });
+  });
+
+  it('classifies through the injected predicate only, passing it the thrown error', async () => {
+    const thrown = new ToolInputError({ message: 'bad cursor' });
+    const predicate = vi.fn(() => false);
+    await expect(adminDatabaseTimelineRoute.handle({ input: parse({}), deps: deps(async () => { throw thrown; }, predicate), context: { id: 'p-1' }, authorize: async () => undefined })).rejects.toBe(thrown);
+    expect(predicate).toHaveBeenCalledWith({ err: thrown });
+    const custom = new Error('host says invalid');
+    const response = await refusalOf(Promise.resolve(adminDatabaseTimelineRoute.handle({ input: parse({}), deps: deps(async () => { throw custom; }, ({ err }) => err === custom), context: { id: 'p-1' }, authorize: async () => undefined })));
+    expect(response).toEqual({ status: 400, body: { error: 'host says invalid', code: 'VALIDATION_ERROR' } });
   });
 
   it('lets any other failure throw for the host failure port', async () => {

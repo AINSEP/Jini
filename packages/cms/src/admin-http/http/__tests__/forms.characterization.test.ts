@@ -24,7 +24,7 @@ test("form definition responses clone field objects and notification recipients"
     notify: { enabled: true, recipients: ["ops@example.org", "audit@example.org"] }, status: "active" as const,
     createdAt: "2026-09-01T00:00:00Z", updatedAt: "2026-09-02T00:00:00Z", version: 4,
   } as unknown as HtmlFormDefinitionRecord;
-  const single = toAdminFormDefinitionResponse(definition);
+  const single = toAdminFormDefinitionResponse({ definition });
   assert.deepEqual(single, { data: {
     id: "form-7", workspaceId: "ws-9", name: "Contact", slug: "contact",
     fields: [{ id: "email", label: "Email address", type: "email", required: true, maxLength: 123, className: "wide", attributes: { placeholder: "Your email" } }],
@@ -61,7 +61,7 @@ for (const mode of ["html", "builder"] as const) {
       notify: { enabled: false, recipients: [] }, status: "active",
       createdAt: "2026-10-01T02:03:04Z", updatedAt: "2026-10-02T03:04:05Z", version: 1,
     };
-    assert.deepEqual(toAdminFormDefinitionResponse(definition), { data: expected });
+    assert.deepEqual(toAdminFormDefinitionResponse({ definition }), { data: expected });
     assert.deepEqual(toAdminFormDefinitionListResponse({ definitions: [definition] }), { data: [expected] });
   });
 }
@@ -71,7 +71,7 @@ test("a submission DTO keeps an expired (null) IP as an empty string and copies 
   const submission = {
     id: "s1", formDefinitionId: "f1", workspaceId: "w1", data, sourceIp: null, submittedAt: "2026-01-01T00:00:00.000Z",
   } as unknown as FormSubmissionRecord;
-  const dto = toAdminFormSubmissionDto(submission);
+  const dto = toAdminFormSubmissionDto({ submission });
   assert.deepEqual(dto, { id: "s1", formDefinitionId: "f1", workspaceId: "w1", data, sourceIp: "", submittedAt: "2026-01-01T00:00:00.000Z" });
   assert.notEqual(dto.data, data);
   assert.deepEqual(toAdminFormSubmissionListResponse({ items: [submission], nextCursor: "c2" }), { data: [dto], nextCursor: "c2" });

@@ -1,4 +1,4 @@
-import { agentHandle } from "@jini-ai/core/agent-handles";
+import type { agentHandle as coreAgentHandle } from "@jini-ai/core/agent-handles";
 
 import { type Translate } from '@jini-ai/core/text';
 /**
@@ -15,10 +15,12 @@ export interface PostPublishAtFieldProps {
   setPublishAtInput: (value: string) => void;
   scheduled: boolean;
   t: Translate;
+  /** Builds the agent-handle DOM props for the control; injected by the host. */
+  agentHandle: typeof coreAgentHandle;
 }
 
 /** "Publish at" — the post settings modal's Publish tab. */
-export function PostPublishAtField({ publishAtInput, setPublishAtInput, scheduled, t }: PostPublishAtFieldProps) {
+export function PostPublishAtField({ publishAtInput, setPublishAtInput, scheduled, t, agentHandle }: PostPublishAtFieldProps) {
   return (
     <label className="jini-post-publishing__field">
       <span className="jini-field-label">{t("Publish at")}</span>

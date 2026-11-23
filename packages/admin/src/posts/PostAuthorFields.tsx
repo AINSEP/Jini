@@ -1,13 +1,16 @@
-import { agentHandle } from "@jini-ai/core/agent-handles";
+import type { agentHandle as coreAgentHandle } from "@jini-ai/core/agent-handles";
 
 import { type Translate } from '@jini-ai/core/text';
-/** Byline controls; the editor hook owns state, dirty tracking and persistence. */
-export function PostAuthorFields({ author, setAuthor, showAuthor, setShowAuthor, t }: {
+/** Byline controls; the editor hook owns state, dirty tracking and persistence. The host injects
+ *  `agentHandle`, so this component carries no runtime dependency on a handle implementation. */
+export function PostAuthorFields({ author, setAuthor, showAuthor, setShowAuthor, t, agentHandle }: {
   author: string;
   setAuthor: (value: string) => void;
   showAuthor: boolean;
   setShowAuthor: (value: boolean) => void;
   t: Translate;
+  /** Builds the agent-handle DOM props for each control. */
+  agentHandle: typeof coreAgentHandle;
 }) {
   return (
     <div className="jini-post-publishing__fields">

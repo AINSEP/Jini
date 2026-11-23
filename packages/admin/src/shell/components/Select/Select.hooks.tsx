@@ -1,14 +1,9 @@
-import { useSelectDropdown as usePackageDropdown } from "../../../react/kit.js";
 import type { PanelPosition, WidgetSelectOption as SelectOption } from "../../../react/kit.js";
 
 
 // Live state/effects and their rationale: Jini/packages/ui/src/features/admin-widgets/components/Select/Select.hooks.tsx.
-
-
-/** Keep the host's single options object, including disabled, at the injectable React hook seam. */
-export function useSelectDropdown({ value, onChange, options, disabled }: Parameters<typeof usePackageDropdown>[0] & Parameters<typeof usePackageDropdown>[1]) {
-  return usePackageDropdown({ value, onChange, options }, { disabled });
-}
+// No dropdown hook lives here: hosts inject the two-object `useSelectDropdown({ value, onChange,
+// options }, { disabled })` straight into the Select, with no single-object pass-through between.
 
 // Retain existing public helpers until Jini exports them from its public admin-widgets barrel.
 // Their host contracts are used by direct DOM tests; no live state/effect is copied.

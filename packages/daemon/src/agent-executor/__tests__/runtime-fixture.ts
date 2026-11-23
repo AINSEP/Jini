@@ -3,8 +3,7 @@ import type { RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 import type { AgentRuntimePort } from '../../ports/agent-runtime.js';
 import type { ProcessSnapshot, RuntimePlatform, StopProcessesResult } from '@jini-ai/core/contracts/runtime';
 import { nodeAtomicWriter, nodeFileLock } from '@jini-ai/node-adapters/fs';
-import { createProcessControlPort, createSpawnPort, nodeCommandShell, nodeSpawnPort, type SpawnFunction } from '@jini-ai/node-adapters/process';
-import { listProcessSnapshots, stopProcesses, waitForProcessExit } from '@jini-ai/platform/process';
+import { createSpawnPort, nodeCommandShell, nodeProcessControl, nodeSpawnPort, type SpawnFunction } from '@jini-ai/node-adapters/process';
 import type { AgentExecutorRuntimePorts } from '../../ports/runtime.js';
 import { fakeRuntimePorts, type EffectLog } from '../../ports/__tests__/fakes/runtime.js';
 
@@ -47,7 +46,7 @@ export function nodeRuntime(script: { readonly onSpawn?: (required: { readonly c
   const { onSpawn } = script;
   return {
     spawn: onSpawn ? (required, options) => { onSpawn(required); return nodeSpawnPort(required, options); } : nodeSpawnPort,
-    processes: createProcessControlPort({ functions: { listProcessSnapshots, stopProcesses, waitForProcessExit } }), fileLock: nodeFileLock, writer: nodeAtomicWriter, commandShell: nodeCommandShell({ env: process.env }),
+    processes: nodeProcessControl, fileLock: nodeFileLock, writer: nodeAtomicWriter, commandShell: nodeCommandShell({ env: process.env }),
   };
 }
 

@@ -1,4 +1,3 @@
-import { ToolInputError } from '@jini-ai/core';
 import { defineJsonRoute, ok } from '@jini-ai/core/contracts/server';
 import { rejectRoute } from '@jini-ai/core/errors/route-refusal';
 
@@ -38,6 +37,10 @@ export interface DatabaseTimelineLedger {
 export interface DatabaseTimelineRouteDeps {
   databaseLedgerRepo: DatabaseTimelineLedger;
   getTimeline(required: { ledger: DatabaseTimelineLedger; filter: DatabaseTimelineFilter }): Promise<DatabaseTimelinePage>;
+  /** Whether `err` (thrown by `getTimeline`) is a caller mistake — a 400 `VALIDATION_ERROR` —
+   *  rather than a server failure. Host-bound because the error classes (the read model's limit
+   *  check, the ledger's cursor decoder) belong to the host's implementations, not this route. */
+  isTimelineValidationError(required: { err: unknown }): boolean;
 }
 
 /** A query field, read as a string if present, or `undefined`.
@@ -59,13 +62,12 @@ function parseTimelineFilter(query: Record<string, unknown>): DatabaseTimelineFi
   };
 }
 
-/** Maps `getTimeline`'s thrown errors onto the admin error envelope — a `TimelineValidationError`
- *  (matched by `name` since it isn't an exported class here) or the ledger's `ToolInputError` (an
- *  undecodable cursor) is a 400, everything else rethrows to the host failure port (a 500).
+/** Maps `getTimeline`'s thrown errors onto the admin error envelope — whatever the host's
+ *  `isTimelineValidationError` classifies as a validation error is a 400, everything else rethrows
+ *  to the host failure port (a 500).
  *  @complexity O(1). */
-function rethrowTimelineError({ err }: { err: unknown }, _optional = {}): never {
-  const isValidationError = err instanceof ToolInputError || (err instanceof Error && err.name === 'TimelineValidationError');
-  if (!isValidationError) throw err;
+function rethrowTimelineError({ err, isTimelineValidationError }: { err: unknown; isTimelineValidationError: DatabaseTimelineRouteDeps['isTimelineValidationError'] }, _optional = {}): never {
+  if (!isTimelineValidationError({ err })) throw err;
   const message = err instanceof Error ? err.message : 'Invalid timeline query.';
   return rejectRoute({ status: 400, error: message, code: 'VALIDATION_ERROR' });
 }
@@ -88,7 +90,7 @@ export const adminDatabaseTimelineRoute = defineJsonRoute<DatabaseTimelineFilter
     try {
       return ok({ value: await deps.getTimeline({ ledger: deps.databaseLedgerRepo, filter: input }) });
     } catch (err) {
-      return rethrowTimelineError({ err });
+      return rethrowTimelineError({ err, isTimelineValidationError: deps.isTimelineValidationError });
     }
   },
 });

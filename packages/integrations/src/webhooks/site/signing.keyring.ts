@@ -26,6 +26,6 @@ import { SIGNATURE_VOCABULARY } from "./signing.js";
  * @complexity O(rawBody length) per call — one HKDF derivation plus one HMAC pass.
  * @overallScore 100
  */
-export function createKeyringBackedSigner(keyring: KeyringPort): WebhookSigner {
+export function createKeyringBackedSigner({ keyring }: { keyring: KeyringPort }, _optional: Record<string, never> = {}): WebhookSigner {
   return createWebhookSigner({ keyring, vocabulary: SIGNATURE_VOCABULARY });
 }
