@@ -151,6 +151,15 @@
       "./screens/collections/hooks/collections-port.hooks": "universal",
       "./screens/collections/hooks/edit-fields-dialog-port.hooks": "universal",
       "./screens/collections/hooks/new-content-type-dialog-port.hooks": "universal",
+      "./screens/plugins/add-plugin-tab-soon": "universal",
+      "./screens/plugins/agent-plugins-visuals": "browser",
+      "./screens/plugins/hooks/agent-plugin-surfaces-port.hooks": "universal",
+      "./screens/plugins/hooks/use-linked-lock-tip.hooks": "browser",
+      "./screens/plugins/plugins-memory-i18n": "universal",
+      "./screens/skills/skill-failure": "universal",
+      "./screens/skills/skill-upload": "universal",
+      "./screens/skills/skills-i18n": "universal",
+      "./screens/skills/skills-visuals": "browser",
       "./screens/taxonomy/api/taxonomy-api.types": "universal",
       "./screens/taxonomy/html-rules": "universal",
       "./screens/taxonomy/TaxonomyRowMenu.hooks": "browser",
@@ -943,6 +952,51 @@
       "types": "./dist/screens/collections/hooks/new-content-type-dialog-port.hooks.d.ts",
       "import": "./dist/screens/collections/hooks/new-content-type-dialog-port.hooks.js",
       "default": "./dist/screens/collections/hooks/new-content-type-dialog-port.hooks.js"
+    },
+    "./screens/plugins/add-plugin-tab-soon": {
+      "types": "./dist/screens/plugins/add-plugin-tab-soon.d.ts",
+      "import": "./dist/screens/plugins/add-plugin-tab-soon.js",
+      "default": "./dist/screens/plugins/add-plugin-tab-soon.js"
+    },
+    "./screens/plugins/agent-plugins-visuals": {
+      "types": "./dist/screens/plugins/agent-plugins-visuals.d.ts",
+      "import": "./dist/screens/plugins/agent-plugins-visuals.js",
+      "default": "./dist/screens/plugins/agent-plugins-visuals.js"
+    },
+    "./screens/plugins/hooks/agent-plugin-surfaces-port.hooks": {
+      "types": "./dist/screens/plugins/hooks/agent-plugin-surfaces-port.hooks.d.ts",
+      "import": "./dist/screens/plugins/hooks/agent-plugin-surfaces-port.hooks.js",
+      "default": "./dist/screens/plugins/hooks/agent-plugin-surfaces-port.hooks.js"
+    },
+    "./screens/plugins/hooks/use-linked-lock-tip.hooks": {
+      "types": "./dist/screens/plugins/hooks/use-linked-lock-tip.hooks.d.ts",
+      "import": "./dist/screens/plugins/hooks/use-linked-lock-tip.hooks.js",
+      "default": "./dist/screens/plugins/hooks/use-linked-lock-tip.hooks.js"
+    },
+    "./screens/plugins/plugins-memory-i18n": {
+      "types": "./dist/screens/plugins/plugins-memory-i18n.d.ts",
+      "import": "./dist/screens/plugins/plugins-memory-i18n.js",
+      "default": "./dist/screens/plugins/plugins-memory-i18n.js"
+    },
+    "./screens/skills/skill-failure": {
+      "types": "./dist/screens/skills/skill-failure.d.ts",
+      "import": "./dist/screens/skills/skill-failure.js",
+      "default": "./dist/screens/skills/skill-failure.js"
+    },
+    "./screens/skills/skill-upload": {
+      "types": "./dist/screens/skills/skill-upload.d.ts",
+      "import": "./dist/screens/skills/skill-upload.js",
+      "default": "./dist/screens/skills/skill-upload.js"
+    },
+    "./screens/skills/skills-i18n": {
+      "types": "./dist/screens/skills/skills-i18n.d.ts",
+      "import": "./dist/screens/skills/skills-i18n.js",
+      "default": "./dist/screens/skills/skills-i18n.js"
+    },
+    "./screens/skills/skills-visuals": {
+      "types": "./dist/screens/skills/skills-visuals.d.ts",
+      "import": "./dist/screens/skills/skills-visuals.js",
+      "default": "./dist/screens/skills/skills-visuals.js"
     },
     "./screens/taxonomy/api/taxonomy-api.types": {
       "types": "./dist/screens/taxonomy/api/taxonomy-api.types.d.ts",
