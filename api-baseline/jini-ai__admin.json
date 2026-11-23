@@ -931,6 +931,7 @@
  "./react/kit": {
   "types": "./dist/react/kit.d.ts",
   "symbols": {
+   "A2uiSurfaceCardProps": "interface:df4737a7aa",
    "AdminKit": "interface:f08b81f703",
    "AdminKitChat": "interface:69b99c1413",
    "AdminKitComponents": "interface:17a43cd7c3",
@@ -959,6 +960,8 @@
    "ChatPaneAgentOption": "interface:5324c09c51",
    "ChatPaneAgentSelection": "interface:8d0047ff5e",
    "ChatPaneComposerHandle": "interface:9698ff390b",
+   "ChatPaneRuntimeAccess": "interface:acad090f4b",
+   "ChatPaneWorkingDirectoryAccess": "interface:2cdd846269",
    "ChatRole": "type:cefe121aaa",
    "ChatRunStatus": "type:886e7830e0",
    "ChatTransport": "interface:8e581d934f",
@@ -976,7 +979,7 @@
    "DirtyGuard": "interface:11e9de78a9",
    "DirtyGuardHostPort": "type:6334cef7e9",
    "ErrorNotice": "variable:a13e49da83",
-   "ErrorNoticeProps": "interface:28c08d6233",
+   "ErrorNoticeProps": "interface:83adcbf416",
    "ExtEventCall": "interface:dd17254b9e",
    "ExtEventRenderProps": "interface:29f023f5b1",
    "FabPositionInput": "interface:bc994aa8bc",
@@ -1046,8 +1049,9 @@
    "SelectOption": "interface:e209100cd7",
    "SelectProps": "interface:dd7a04ddef",
    "SerialWrites": "interface:002606a524",
+   "SettingsDialogChromeLabels": "interface:52481e1740",
    "SettingsDialogShell": "variable:ba0c9954e3",
-   "SettingsDialogShellProps": "interface:0c2295e4e4",
+   "SettingsDialogShellProps": "interface:cd2117641d",
    "SettingsDialogTab": "interface:830ed225d4",
    "SettlementGeneration": "interface:c1ddd0846c",
    "Spinner": "variable:c02100ec7c",
@@ -1652,6 +1656,43 @@
    "useSeoPorts": "function:79deaf1080"
   }
  },
+ "./shell/components/AdminByokKeyPanel.hooks": {
+  "types": "./dist/shell/components/AdminByokKeyPanel.hooks.d.ts",
+  "symbols": {
+   "createAdminByokKeyPanelTranslator": "function:83b9db0713"
+  }
+ },
+ "./shell/components/AdminFailureNotice/AdminFailureNotice": {
+  "types": "./dist/shell/components/AdminFailureNotice/AdminFailureNotice.d.ts",
+  "symbols": {
+   "AdminFailureNotice": "function:ccf1e02de5",
+   "AdminFailureNoticeChannel": "type:de328019e0",
+   "AdminFailureNoticeProps": "type:dace3a9193"
+  }
+ },
+ "./shell/components/AssistantDock/agent-failure": {
+  "types": "./dist/shell/components/AssistantDock/agent-failure.d.ts",
+  "symbols": {
+   "AGENT_FAILURE_EVENT": "variable:91c1e6a530",
+   "AgentFailure": "interface:605075d6c6",
+   "AgentFailureHint": "interface:a7137fabeb",
+   "FailureAgent": "interface:bada1476cb",
+   "GENERIC_AGENT_FAILURE": "variable:eecb04b853",
+   "extractAgentFailure": "function:953958728d",
+   "matchAgentFailureHint": "function:195c3fde64",
+   "projectAgentFailureMessage": "function:35e8331702",
+   "redactAgentFailure": "function:26a95f83aa",
+   "suggestedFailureAgent": "function:3b36b58f6b",
+   "withAgentFailureSurface": "function:6b685a5d4b"
+  }
+ },
+ "./shell/components/AssistantDock/agent-failure-hints": {
+  "types": "./dist/shell/components/AssistantDock/agent-failure-hints.d.ts",
+  "symbols": {
+   "GEMINI_INELIGIBLE_HINT": "variable:53fe0418f5",
+   "localFailureHints": "function:151bd0fa51"
+  }
+ },
  "./shell/components/AssistantDock/agent-failure-scanners": {
   "types": "./dist/shell/components/AssistantDock/agent-failure-scanners.d.ts",
   "symbols": {
@@ -1660,6 +1701,23 @@
    "stripControlCharacters": "function:d6d84404cf",
    "stripCsiSequences": "function:bede02de6f",
    "stripOscSequences": "function:d0273cacf3"
+  }
+ },
+ "./shell/components/AssistantDock/AgentFailureCard": {
+  "types": "./dist/shell/components/AssistantDock/AgentFailureCard.d.ts",
+  "symbols": {
+   "AgentFailureCard": "function:b9d3fe8bb3",
+   "AgentFailureRedactionOptions": "type:68772cfe81"
+  }
+ },
+ "./shell/components/AssistantDock/AgentFailureCard.hooks": {
+  "types": "./dist/shell/components/AssistantDock/AgentFailureCard.hooks.d.ts",
+  "symbols": {
+   "FailureSurfaceActions": "interface:41a27d0799",
+   "FailureSurfaceContext": "variable:5e55e630d9",
+   "hasAgentFailureNotice": "function:6625444752",
+   "useAgentFailureCard": "function:68d79f63ec",
+   "useAgentFailureSurface": "function:3cfdcdb3c5"
   }
  },
  "./shell/components/AssistantDock/hooks/use-assistant-empty-state.hooks": {
@@ -1675,6 +1733,15 @@
    "useComposerSendStopGuard": "function:d938702add"
   }
  },
+ "./shell/components/AssistantDock/hooks/use-routed-a2ui-surface-card.hooks": {
+  "types": "./dist/shell/components/AssistantDock/hooks/use-routed-a2ui-surface-card.hooks.d.ts",
+  "symbols": {
+   "getServerRenderTargetSnapshot": "function:50009a9ef6",
+   "latestSurfaceIdIn": "function:7bc70a54b2",
+   "surfaceIdOf": "function:ff130e271e",
+   "useRoutedA2uiSurfaceCard": "function:980046f321"
+  }
+ },
  "./shell/components/AssistantDock/hooks/useOverflowDetection.hooks": {
   "types": "./dist/shell/components/AssistantDock/hooks/useOverflowDetection.hooks.d.ts",
   "symbols": {
@@ -1688,6 +1755,13 @@
    "isSelectionNormalizationEcho": "function:c414699b1b"
   }
  },
+ "./shell/components/AssistantDock/MessageOverflowModal": {
+  "types": "./dist/shell/components/AssistantDock/MessageOverflowModal.d.ts",
+  "symbols": {
+   "MessageOverflowModal": "function:28f0e70aa5",
+   "MessageOverflowModalProps": "interface:99cf81fdbd"
+  }
+ },
  "./shell/components/AssistantDock/MessageOverflowModal.hooks": {
   "types": "./dist/shell/components/AssistantDock/MessageOverflowModal.hooks.d.ts",
   "symbols": {
@@ -1695,11 +1769,33 @@
    "useMessageOverflowModal": "function:b78d1c1e05"
   }
  },
+ "./shell/components/AssistantDock/SelectedAgentPluginTray": {
+  "types": "./dist/shell/components/AssistantDock/SelectedAgentPluginTray.d.ts",
+  "symbols": {
+   "SelectedAgentPluginChip": "interface:def1ef88e3",
+   "SelectedAgentPluginTray": "function:bcbee97751",
+   "SelectedAgentPluginTrayProps": "interface:1cadff54a7"
+  }
+ },
+ "./shell/components/AssistantDock/SlowRunNoticeCard": {
+  "types": "./dist/shell/components/AssistantDock/SlowRunNoticeCard.d.ts",
+  "symbols": {
+   "SlowRunNoticeCard": "function:19703348cd"
+  }
+ },
  "./shell/components/AssistantDock/SlowRunNoticeCard.hooks": {
   "types": "./dist/shell/components/AssistantDock/SlowRunNoticeCard.hooks.d.ts",
   "symbols": {
-   "isSlowRunNoticeVisible": "function:f61f05d372",
+   "isSlowRunNoticeVisible": "function:4ba58cef32",
    "resolveSlowRunDetail": "function:6bc7144fb9"
+  }
+ },
+ "./shell/components/ChatFab/ChatFab.hooks": {
+  "types": "./dist/shell/components/ChatFab/ChatFab.hooks.d.ts",
+  "symbols": {
+   "FAB_EDGE_MARGIN": "variable:1c0a64a6ef",
+   "FabPositionResult": "interface:d46148b318",
+   "useFabPosition": "function:86e0145cb9"
   }
  },
  "./shell/components/CodeView/preview-modal-icons": {
@@ -1747,6 +1843,14 @@
    "LINE_ICON": "variable:55e15ff8af"
   }
  },
+ "./shell/components/MailStatusBanner/MailStatusBanner": {
+  "types": "./dist/shell/components/MailStatusBanner/MailStatusBanner.d.ts",
+  "symbols": {
+   "MailStatusBanner": "function:f2950af6f4",
+   "MailStatusBannerProps": "interface:189fc6a669",
+   "UseMailStatusBannerHook": "type:9692d48f54"
+  }
+ },
  "./shell/components/Select/Select.hooks": {
   "types": "./dist/shell/components/Select/Select.hooks.d.ts",
   "symbols": {
@@ -1760,10 +1864,46 @@
    "resolveTabTarget": "function:ddf996a34a"
   }
  },
+ "./shell/components/shared-components-i18n": {
+  "types": "./dist/shell/components/shared-components-i18n.d.ts",
+  "symbols": {
+   "SHARED_COMPONENTS_DICT": "variable:28f99a86c1",
+   "t": "variable:44d298bf90"
+  }
+ },
+ "./shell/components/SitesSidebarNav": {
+  "types": "./dist/shell/components/SitesSidebarNav.d.ts",
+  "symbols": {
+   "SitesSidebarNav": "function:8b965db19f",
+   "SitesSidebarNavList": "type:4bd058c31a",
+   "SitesSidebarNavProps": "interface:50d96cd466",
+   "UseSitesSidebarNavHook": "type:7adbe13634"
+  }
+ },
  "./shell/components/TemplateSource/template-source-port.hooks": {
   "types": "./dist/shell/components/TemplateSource/template-source-port.hooks.d.ts",
   "symbols": {
    "TemplateSourcePort": "interface:28fe714ede"
+  }
+ },
+ "./shell/components/WidgetConfigFields/WidgetConfigFields.hooks": {
+  "types": "./dist/shell/components/WidgetConfigFields/WidgetConfigFields.hooks.d.ts",
+  "symbols": {
+   "COLLECTION_DISPLAYABLE_FIELD_KINDS": "variable:abbd649b9b",
+   "SocialLink": "interface:a0d62df875",
+   "humanizeFieldName": "function:e902d72868",
+   "useFetchedOptions": "function:d923b62dc1",
+   "useRecentEntriesConfig": "function:b8479e926b",
+   "useSocialLinksConfig": "function:83f854a572"
+  }
+ },
+ "./shell/hooks/admin-execution-credential-port.hooks": {
+  "types": "./dist/shell/hooks/admin-execution-credential-port.hooks.d.ts",
+  "symbols": {
+   "AdminExecutionCredentialPort": "interface:c5406c5db7",
+   "FakeAdminExecutionCredentialPortOptions": "interface:7e6c2fa3aa",
+   "UNSET_ADMIN_EXECUTION_CREDENTIAL": "variable:3b645a830b",
+   "createFakeAdminExecutionCredentialPort": "function:725a4fee51"
   }
  },
  "./shell/hooks/admin-locale-port.hooks": {
@@ -1849,6 +1989,17 @@
    "useSidebarEmptyClickToggle": "function:dd9bef2bbb"
   }
  },
+ "./shell/hooks/use-sites-sidebar-nav.hooks": {
+  "types": "./dist/shell/hooks/use-sites-sidebar-nav.hooks.d.ts",
+  "symbols": {
+   "SitesSidebarNavArgs": "interface:7f299f8337",
+   "SitesSidebarNavOptions": "interface:9d7d915e2e",
+   "SitesSidebarNavView": "interface:8bd8fd48a6",
+   "TranslateNavLabel": "type:716448aa8b",
+   "UseSitesSnapshotHook": "type:03b698a88f",
+   "useSitesSidebarNav": "function:07aec72763"
+  }
+ },
  "./shell/lib/acceptance-cancellation": {
   "types": "./dist/shell/lib/acceptance-cancellation.d.ts",
   "symbols": {
@@ -1877,6 +2028,17 @@
    "setAdminDraftIdentity": "function:ed145249fa"
   }
  },
+ "./shell/lib/admin-failure-reporter": {
+  "types": "./dist/shell/lib/admin-failure-reporter.d.ts",
+  "symbols": {
+   "AdminDecodedError": "interface:281ed5e78d",
+   "AdminFailureChannelPort": "interface:3d4cc5f9fb",
+   "AdminFailureReporter": "interface:b4e5bde3c4",
+   "CreateAdminFailureReporterInput": "interface:990b4e3afe",
+   "createAdminFailureReporter": "function:0ec6b6e873",
+   "isClipboardRefusal": "function:070563f6f3"
+  }
+ },
  "./shell/lib/admin-frontend-session": {
   "types": "./dist/shell/lib/admin-frontend-session.d.ts",
   "symbols": {
@@ -1891,7 +2053,7 @@
    "AdminHttp": "interface:60416f5d4c",
    "CreateAdminHttpArgs": "interface:e5ca6abe99",
    "CreateAdminHttpPorts": "interface:ce2bc1a308",
-   "buildFetchInit": "function:50e6cf5246",
+   "buildFetchInit": "function:46a4fa5557",
    "createAdminHttp": "function:3feca4d9a2"
   }
  },
@@ -1931,6 +2093,15 @@
    "asciiSlug": "function:05c701041e"
   }
  },
+ "./shell/lib/assistant-agents-snapshot": {
+  "types": "./dist/shell/lib/assistant-agents-snapshot.d.ts",
+  "symbols": {
+   "AgentInventoryStore": "interface:e835403dd5",
+   "AssistantAgentsSnapshot": "interface:18172d9c47",
+   "CreateAgentInventoryStore": "type:a428e1f627",
+   "createAssistantAgentsSnapshot": "function:6ac16f2c28"
+  }
+ },
  "./shell/lib/assistant-dock-bus": {
   "types": "./dist/shell/lib/assistant-dock-bus.d.ts",
   "symbols": {
@@ -1942,12 +2113,30 @@
    "subscribeToAssistantDockRequests": "function:4d1fd5c4d8"
   }
  },
+ "./shell/lib/assistant-permanent-deletes": {
+  "types": "./dist/shell/lib/assistant-permanent-deletes.d.ts",
+  "symbols": {
+   "AssistantPermanentDeletesPort": "interface:f50853b2db",
+   "AssistantPermanentDeletesSettings": "interface:c392033f9d",
+   "createAssistantPermanentDeletesPort": "function:1057d663ab"
+  }
+ },
  "./shell/lib/assistant-prompt-bus": {
   "types": "./dist/shell/lib/assistant-prompt-bus.d.ts",
   "symbols": {
    "requestAssistantPrompt": "function:e43fb22e13",
    "resetAssistantPromptBus": "function:0f043d9373",
    "useAssistantPromptRequests": "function:036fa8e213"
+  }
+ },
+ "./shell/lib/assistant-subagents": {
+  "types": "./dist/shell/lib/assistant-subagents.d.ts",
+  "symbols": {
+   "AssistantCliAgentPermissions": "interface:8e3053f456",
+   "AssistantSubagentsPort": "interface:8de877d2c1",
+   "AssistantSubagentsSettings": "interface:c5d640874f",
+   "SUBAGENT_DANGERS": "variable:4f1dd02d83",
+   "createAssistantSubagentsPort": "function:af7d9f5327"
   }
  },
  "./shell/lib/browser-stream": {
@@ -1957,6 +2146,13 @@
    "StreamChannel": "interface:44072a1291",
    "browserStreamPorts": "function:fef1700a45",
    "startBrowserStream": "function:e0dd9b2801"
+  }
+ },
+ "./shell/lib/browser-working-directory-access": {
+  "types": "./dist/shell/lib/browser-working-directory-access.d.ts",
+  "symbols": {
+   "createBrowserWorkingDirectoryAccess": "function:2b36dd6b1f",
+   "isDirectoryPickerSupported": "function:ef75d4506c"
   }
  },
  "./shell/lib/content-refresh-bus": {
@@ -1974,6 +2170,14 @@
   "symbols": {
    "guideToPendingCredentialCard": "function:a158609336",
    "onAdminSecretRedacted": "function:d2dc521fc5"
+  }
+ },
+ "./shell/lib/credential-submit-error": {
+  "types": "./dist/shell/lib/credential-submit-error.d.ts",
+  "symbols": {
+   "ClassifyCredentialSubmitError": "type:edfeac3682",
+   "CredentialSubmitFailure": "type:ad7c56ca62",
+   "createCredentialSubmitErrorClassifier": "function:6100602631"
   }
  },
  "./shell/lib/editor-failure-i18n": {
@@ -2017,11 +2221,47 @@
    "resolveImportExportRoute": "function:451dbce98a"
   }
  },
+ "./shell/lib/local-owner-signin": {
+  "types": "./dist/shell/lib/local-owner-signin.d.ts",
+  "symbols": {
+   "InitialSessionPorts": "interface:a2f3ac91f0",
+   "LocalOwnerSessionPort": "interface:dcaae59b00",
+   "ReadInitialAdminSession": "type:584f6a635d",
+   "ReadInitialSession": "type:b2a5bcd862",
+   "createReadInitialAdminSession": "function:581cb498af",
+   "isLocalOwnerSignInHost": "function:31c45964ca"
+  }
+ },
  "./shell/lib/merge-locale-overlays": {
   "types": "./dist/shell/lib/merge-locale-overlays.d.ts",
   "symbols": {
    "LocaleDictionary": "type:43708ba212",
    "mergeLocaleOverlays": "function:bd917f950d"
+  }
+ },
+ "./shell/lib/owner-mfa-api": {
+  "types": "./dist/shell/lib/owner-mfa-api.d.ts",
+  "symbols": {
+   "AdminRequestOnceOps": "type:23fa04002b",
+   "createOwnerMfaPort": "function:656d39d32a"
+  }
+ },
+ "./shell/lib/owner-passkey-api": {
+  "types": "./dist/shell/lib/owner-passkey-api.d.ts",
+  "symbols": {
+   "OwnerPasskeyPorts": "interface:347d78b028",
+   "createOwnerPasskeyPorts": "function:ca870092d8"
+  }
+ },
+ "./shell/lib/owner-recovery-api": {
+  "types": "./dist/shell/lib/owner-recovery-api.d.ts",
+  "symbols": {
+   "OwnerRecoveryFailureInput": "interface:02d8803842",
+   "OwnerRecoveryPort": "interface:a8661bee27",
+   "OwnerRecoveryRedactionOptions": "type:3ff6390444",
+   "OwnerRecoveryStatus": "interface:f90f5df566",
+   "createOwnerRecoveryFailure": "function:88a88911fc",
+   "createOwnerRecoveryPort": "function:db0c88bc8f"
   }
  },
  "./shell/lib/page-lifecycle": {
@@ -2107,6 +2347,19 @@
    "slugRedirectPath": "function:8771a9b456"
   }
  },
+ "./shell/lib/stored-credential-endpoint": {
+  "types": "./dist/shell/lib/stored-credential-endpoint.d.ts",
+  "symbols": {
+   "ProbeErrorDescribers": "interface:3641f23cf3",
+   "STORED_KEY_NO_ENDPOINT_COPY": "variable:dafa1da230",
+   "STORED_KEY_OTHER_PROVIDER_COPY": "variable:5b92d99083",
+   "StoredCredentialEndpoint": "interface:cdd81b1370",
+   "createProbeErrorDescribers": "function:50d7673351",
+   "hasUsableKey": "function:7d36cd70c0",
+   "storedKeyBlocksProbe": "function:e5f0786c87",
+   "storedKeyIsForOtherEndpoint": "function:d46e663285"
+  }
+ },
  "./shell/lib/stream-activity": {
   "types": "./dist/shell/lib/stream-activity.d.ts",
   "symbols": {
@@ -2142,10 +2395,36 @@
    "uniqueId": "function:b4dd03e11d"
   }
  },
+ "./shell/lib/version-conflict": {
+  "types": "./dist/shell/lib/version-conflict.d.ts",
+  "symbols": {
+   "RequestErrorGuard": "type:f62e5167c8",
+   "SaveConflict": "interface:94c6f7f685",
+   "VERSION_CONFLICT_CODE": "variable:24fa5ccc04",
+   "VERSION_CONFLICT_MESSAGE": "variable:004278168d",
+   "VersionConflict": "interface:a582ce7d51",
+   "createVersionConflict": "function:bca7d1c04e"
+  }
+ },
  "./shell/lib/viewer-time-zone": {
   "types": "./dist/shell/lib/viewer-time-zone.d.ts",
   "symbols": {
    "VIEWER_TIME_ZONE": "variable:899e7d99ff"
+  }
+ },
+ "./shell/lib/visitor-tools": {
+  "types": "./dist/shell/lib/visitor-tools.d.ts",
+  "symbols": {
+   "AdminRequestOps": "type:d993659e1e",
+   "VISITOR_TOOLS_CONFLICT_CODE": "variable:b716396090",
+   "VISITOR_TOOLS_NAMESPACE": "variable:c155e5d355",
+   "VisitorToolConfigureInput": "interface:90aff98a42",
+   "VisitorToolLimits": "interface:d6b2d3da30",
+   "VisitorToolMode": "type:519ffe87b1",
+   "VisitorToolView": "interface:92ea1b9dca",
+   "VisitorToolsPort": "interface:360caca02e",
+   "VisitorToolsView": "interface:b7e98becff",
+   "createVisitorToolsPort": "function:35dadc6a97"
   }
  },
  "./shell/lib/widget-embed-placement-content": {

@@ -155,6 +155,27 @@ export function createAdminFailureReporter<Channel extends AdminFailureChannelPo
     return !(read && status === 503 && code !== undefined && notRunningCodes.has(code));
   }
 
+  /** The incident reference a failure reply carries: the decoded details' error id, else the body's,
+   * else the request id. Split out of `publishAdminFailure` (complexity ratchet); same precedence.
+   * @complexity O(1). */
+  function failureReference(
+    { details, body, requestId }: { details: Record<string, unknown>; body: unknown; requestId?: unknown },
+    _optional = {},
+  ): string | undefined {
+    return optionalString(details.errorId ?? record({ value: body }).errorId ?? requestId);
+  }
+
+  /** The vocabulary wording for a failed request; a page entry names its route as `/pages/`.
+   * Split out of `publishAdminFailure` (complexity ratchet); same mapping.
+   * @complexity O(path length). */
+  function requestWording(
+    { method, path, entry }: { method?: string | undefined; path: string; entry?: "page" | undefined },
+    _optional = {},
+  ): ReturnType<typeof describeRequestFailure> {
+    const route = entry === "page" ? path.replace(/\/posts\//, "/pages/") : path;
+    return describeRequestFailure({ ...(method !== undefined ? { method } : {}), route, vocabulary });
+  }
+
   /** The host's disclosure adapter: safe shared wording for legacy failures, approved details after sign-in.
    * Inputs are the final failed response and its captured session generation; no new I/O or retries.
    * @param options.basePath The API prefix the request was sent under, so an unlisted route is named in full.
@@ -167,12 +188,11 @@ export function createAdminFailureReporter<Channel extends AdminFailureChannelPo
   ): void {
     const decoded = decodeError({ body });
     const details = record({ value: decoded.details });
-    const reference = details.errorId ?? record({ value: body }).errorId ?? decoded.requestId;
-    const errorId = optionalString(reference);
+    const errorId = failureReference({ details, body, requestId: decoded.requestId });
     // Approved server explanations only for signed-in, non-auth requests.
     const authenticated = getAdminDraftIdentity() !== null && !path.startsWith("/auth/");
     const approved = authenticated ? approvedFailure({ value: details.failure, redaction, ...(entry ? { entry } : {}) }) : undefined;
-    const wording = describeRequestFailure({ ...(method !== undefined ? { method } : {}), route: entry === "page" ? path.replace(/\/posts\//, "/pages/") : path, vocabulary });
+    const wording = requestWording({ method, path, entry });
     const { step, cause } = failureEvidence({ body, path: `${basePath}${path}`, method, status, step: wording.step, errorId, authenticated, vocabulary });
     const failure = approved ?? formatUserFacingError({ ...wording, step, cause }, { ...versions(), ...(errorId !== undefined ? { errorId } : {}) });
     channel.publish({ failure, generation });
