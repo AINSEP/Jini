@@ -14,6 +14,7 @@ import { AesGcmSecretSealer } from "./secret-sealer.aesgcm.js";
 import { createVaultMetaParsers, isCopyableKind } from "./credential-sets/vault.meta.js";
 import { SecretsVaultService, type VaultServiceDeps } from "./credential-sets/vault.service.js";
 import type { VaultArchiveEntry } from "./credential-sets/vault-archive.js";
+import type { LegacyOwnerStoreSnapshot } from "@jini-ai/core/contracts/site/legacy-owner-store";
 
 /** @file Decoder for a legacy owner store's passphrase backup and the vault policy that reads its
  * `owner.db` rows (keyring, authorization, recovery error). Shared keys are now project references,
@@ -23,10 +24,8 @@ import type { VaultArchiveEntry } from "./credential-sets/vault-archive.js";
 
 export const OWNER_WORKSPACE_ID = "owner";
 
-/** A site the legacy store copied an entry to (consumerId = the site's canonical folder). */
-export interface LegacyOwnerDestination { entryId: string; consumerId: string }
-/** grants: active copies. revocations: revoked copies whose site cleanup never finished. */
-export interface LegacyOwnerSnapshot { entries: VaultArchiveEntry[]; grants: LegacyOwnerDestination[]; revocations: LegacyOwnerDestination[] }
+/** The decoded backup: the shared legacy-store snapshot over this package's archive entries. */
+export type LegacyOwnerSnapshot = LegacyOwnerStoreSnapshot<VaultArchiveEntry>;
 
 /** Safe recovery guidance never includes underlying key material or vault payloads. */
 export class OwnerStoreRecoveryError extends Error {

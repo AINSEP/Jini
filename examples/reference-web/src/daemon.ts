@@ -12,12 +12,12 @@ import { nodeAtomicWriter, nodeFileLock } from '@jini-ai/node-adapters/fs';
 import { createProcessControlPort, nodeCommandShell, nodeSpawnPort } from '@jini-ai/node-adapters/process';
 import { listProcessSnapshots, stopProcesses, waitForProcessExit } from '@jini-ai/platform/process';
 import type { AgentExecutorRuntimePorts } from '@jini-ai/daemon/ports/runtime';
-import { createAgentRuntimeBindings, createNativeAgentRuntime } from '@jini-ai/agent-runtime';
+import { createAgentRuntimeBindings, createNativeAgentRuntime, runAnthropicToolTurn, runAzureToolTurn, runGoogleToolTurn, runOllamaToolTurn, runOpenAiToolTurn, validateBaseUrl } from '@jini-ai/agent-runtime';
 import type { AgentRuntimePort } from '@jini-ai/daemon/ports/agent-runtime';
 import type { ToolRegistration } from '@jini-ai/core';
 import { attachmentCleanupRoutes, attachmentUploadRoutes, createDiskAttachmentStore, createFrontendControl, mediaRoutes, memoryRoutes } from '@jini-ai/daemon/http';
 import { createBuiltinVendorAdapterRegistry, createMediaDispatchEngine, createSqliteMediaTaskStore } from '@jini-ai/integrations/media-providers';
-import { createNodeMediaHttpClient } from '@jini-ai/integrations/media-providers/node';
+import { createNodeMediaHttpClient, nodeMediaGuardedFetch } from '@jini-ai/integrations/media-providers/node';
 import { createExtractionLog, createNoteStore, createVerifyLog } from '@jini-ai/memory';
 import { createLocalNodeDaemon, installGracefulShutdown, mountRoutes, nodeSessionTimer } from '@jini-ai/server';
 import { CHAT_CAPABILITIES } from '@jini-ai/chat/core';
@@ -409,6 +409,9 @@ async function main(): Promise<void> {
   try {
     daemon = await createLocalNodeDaemon({
       agentExecutor: runtimeExecutorOptions,
+      // Provider tool turns and the base-URL guard are host-bound: the server preset ships no implementation.
+      toolTurns: { anthropic: runAnthropicToolTurn, openai: runOpenAiToolTurn, azure: runAzureToolTurn, google: runGoogleToolTurn, ollama: runOllamaToolTurn },
+      baseUrlGuard: { validate: validateBaseUrl },
       dataDir,
       // The host supplies the SQLite driver; Jini never autoloads it.
       open: (file, options) => new Database(file, options),
@@ -481,6 +484,7 @@ async function main(): Promise<void> {
               engine: createMediaDispatchEngine({
                 registry: createBuiltinVendorAdapterRegistry(),
                 httpClient: createNodeMediaHttpClient({}),
+                guardedFetch: nodeMediaGuardedFetch,
               }, { credentials: {} }),
               // The daemon's route port takes object args; the integrations store is positional.
               taskStore: {

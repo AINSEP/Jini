@@ -110,10 +110,10 @@ export interface MediaDispatchEngineRequired {
   readonly httpClient: HttpClientPort;
   /**
    * Projects `httpClient` responses into fetch `Response`s for vendor adapters. Composition binds
-   * `nodeMediaGuardedFetch` from `@jini-ai/integrations/media-providers/node`. Optional only for
-   * hosts that predate the port: the engine then binds that same node adapter itself.
+   * `nodeMediaGuardedFetch` from `@jini-ai/integrations/media-providers/node`; the engine binds no
+   * default and refuses construction without it.
    */
-  readonly guardedFetch?: MediaGuardedFetch;
+  readonly guardedFetch: MediaGuardedFetch;
 }
 
 export interface MediaDispatchEngineOptions extends Omit<MediaOutboundOptions, 'httpClient' | 'guardedFetch'> {

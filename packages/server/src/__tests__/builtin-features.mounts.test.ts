@@ -2,7 +2,7 @@ import Database from 'better-sqlite3';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import express from 'express';
 import { getRouteRegistrationInventory, installRouteRegistrationGuard } from '@jini-ai/http-kit';
 import { type RouteHostContext } from '@jini-ai/core/contracts/server';
@@ -17,7 +17,13 @@ import { ANONYMOUS_DELEGATED_PRINCIPAL, LOCAL_DAEMON_PRINCIPAL, projectDetectedA
 const cleanups: Array<() => Promise<void> | void> = [];
 afterEach(async () => { while (cleanups.length) await cleanups.pop()!(); });
 
-async function routesFor(features: Record<string, true>, storage: 'memory' | 'sqlite' = 'memory'): Promise<string[]> {
+/** Host-bound ports the egress features require; the preset ships no implementation of its own. */
+const egressPorts = {
+  modelProxy: { toolTurns: { anthropic: vi.fn(), openai: vi.fn(), azure: vi.fn(), google: vi.fn(), ollama: vi.fn() } },
+  research: { baseUrlGuard: { validate: vi.fn(() => null) } },
+};
+
+async function routesFor(features: Record<string, true>, storage: 'memory' | 'sqlite' = 'memory', featureOptions: object = egressPorts): Promise<string[]> {
   const app = express();
   installRouteRegistrationGuard({ app });
   const adapter: RouteHostContext = createTestRouteHost();
@@ -26,7 +32,7 @@ async function routesFor(features: Record<string, true>, storage: 'memory' | 'sq
   if (storage === 'sqlite') { dataDir = mkdtempSync(join(tmpdir(), 'jini-mounts-')); cleanups.push(() => rmSync(dataDir!, { recursive: true, force: true })); }
   const kernel: JiniKernel = await composeJiniKernel({ app, adapter, resolvedPortRef, security: { mode: 'host' }, profile: 'agent-core-v1',
     storage: storage === 'memory' ? { kind: 'memory' } : { kind: 'sqlite', open: (file: string) => new Database(file) as never, dataDir: dataDir! },
-    capabilities: { 'net:egress': true }, features } as never);
+    capabilities: { 'net:egress': true }, features, featureOptions } as never);
   cleanups.push(() => kernel.close());
   expect(kernel.activation.active.map(r => r.id)).toEqual(expect.arrayContaining(Object.keys(features)));
   return getRouteRegistrationInventory({ app }).map(r => `${r.method.toUpperCase()} ${r.path}`);
@@ -40,6 +46,14 @@ describe('egress feature mounts', () => {
   it('research registers its search route', async () => {
     expect(await routesFor({ research: true })).toContain('POST /api/research/search');
   });
+  it('model proxy registers its routes with the host-bound tool turns', async () => {
+    expect((await routesFor({ modelProxy: true })).some((route) => route.includes('/api/proxy'))).toBe(true);
+  });
+  // REGRESSION: the preset must not fall back to its own provider/guard implementations.
+  it.each([['modelProxy', 'featureOptions.modelProxy'], ['research', 'featureOptions.research']])(
+    '%s refuses to activate without its host-bound port', async (feature, optionPath) => {
+      await expect(routesFor({ [feature]: true }, 'memory', {})).rejects.toThrow(`"${optionPath}" was not supplied`);
+    });
   it('xai registers its OAuth routes', async () => {
     expect(await routesFor({ xai: true }, 'sqlite')).toEqual(expect.arrayContaining(['POST /api/xai/oauth/start', 'POST /api/xai/oauth/complete']));
   });

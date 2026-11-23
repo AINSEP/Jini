@@ -1,5 +1,9 @@
 import type { SqliteSyncOpener } from '@jini-ai/core/contracts/storage';
 declare const open: SqliteSyncOpener;
+import type { BaseUrlGuardPort } from '@jini-ai/daemon/ports/agent-runtime';
+import type { ProviderToolTurnPort } from '@jini-ai/daemon/ports/provider-http';
+declare const toolTurns: ProviderToolTurnPort;
+declare const baseUrlGuard: BaseUrlGuardPort;
 /**
  * Type-level proof that `createLocalNodeDaemon` preserves `createDaemon`'s compile-time
  * "missing binding" gate through its own `CreateLocalNodeDaemonConfig` wrapper — see that
@@ -28,6 +32,8 @@ const greetPack = definePack({
 // customizer was supplied, so only the two kernel tokens are considered bound).
 void createLocalNodeDaemon({
   open,
+  toolTurns,
+  baseUrlGuard,
   dataDir: '/tmp/jini-node-host-typecheck',
   packs: [greetPack],
 });
@@ -37,6 +43,8 @@ void createLocalNodeDaemon({
 // customizer, not just a fully-omitted one.
 void createLocalNodeDaemon({
   open,
+  toolTurns,
+  baseUrlGuard,
   dataDir: '/tmp/jini-node-host-typecheck',
   packs: [greetPack],
   bindings: (b) => b,
@@ -45,6 +53,8 @@ void createLocalNodeDaemon({
 // Typechecks once the required token is bound via the `bindings` customizer callback.
 void createLocalNodeDaemon({
   open,
+  toolTurns,
+  baseUrlGuard,
   dataDir: '/tmp/jini-node-host-typecheck',
   packs: [greetPack],
   bindings: (b) => b.bind({ token: GreeterToken, impl: { greeting: 'hi' } }),
@@ -55,6 +65,8 @@ void createLocalNodeDaemon({
 const noDepsPack = definePack({ name: 'noDeps', deps: [], services: () => ({}) });
 void createLocalNodeDaemon({
   open,
+  toolTurns,
+  baseUrlGuard,
   dataDir: '/tmp/jini-node-host-typecheck',
   packs: [noDepsPack],
 });

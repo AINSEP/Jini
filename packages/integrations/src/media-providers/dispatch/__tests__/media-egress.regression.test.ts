@@ -182,7 +182,7 @@ describe('DNS, development and timeout policy', () => {
       allowedSchemes: ['https'], denyPrivateAddresses: true, devHostAllowlist: [], maxRedirects: 0,
       connectTimeoutMs: 600_000, maxResponseBytes: 1024, maxDecompressedBytes: 1024,
     } }).send);
-    const engine = createMediaDispatchEngine({ registry: createBuiltinVendorAdapterRegistry(), httpClient: { send } }, { credentials: { openai: { apiKey: 'test' } } });
+    const engine = createMediaDispatchEngine({ registry: createBuiltinVendorAdapterRegistry(), httpClient: { send }, guardedFetch: nodeMediaGuardedFetch }, { credentials: { openai: { apiKey: 'test' } } });
     const result = await engine.generate({ surface: 'image', model: 'dall-e-3' });
     expect(result.bytes).toEqual(Buffer.from([0xff, 0x00, 0x80, 0x42]));
     expect(send.mock.calls.map(([{ request }]) => request.totalDeadlineMs)).toEqual([600_000, 120_000]);

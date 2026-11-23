@@ -13,6 +13,7 @@ import { createTestRouteHost } from '@jini-ai/core/contracts/server/testing';
 import { composeJiniKernel, type JiniKernel } from '../compose-jini-kernel.js';
 import { createBuiltInFeatures } from '../builtin-features.js';
 import { defineJiniFeature } from '../feature.js';
+import { egressFeatureOptions } from './fixtures/host-egress-ports.js';
 
 /**
  * Integration suite for the one composition path. Nothing is mocked: every test builds a real
@@ -33,7 +34,7 @@ async function compose(config: Omit<Parameters<typeof composeJiniKernel>[0], 'ap
   const app = config.app ?? express();
   installRouteRegistrationGuard({ app });
   const adapter: RouteHostContext = createTestRouteHost();
-  const kernel = await composeJiniKernel({ resolvedPortRef: { current: 4000 }, ...config, app, adapter });
+  const kernel = await composeJiniKernel({ resolvedPortRef: { current: 4000 }, ...config, featureOptions: { ...egressFeatureOptions, ...config.featureOptions }, app, adapter });
   kernels.push(kernel);
   return { app, kernel };
 }
@@ -145,7 +146,7 @@ describe('shared kernel resources', () => {
       adapter: createTestRouteHost(), resolvedPortRef: { current: 4000 },
       storage: { kind: 'sqlite', open: openSqlite, dataDir },
       profile: 'local-daemon-v1',
-      featureOptions: { daemonStatus: { requestShutdown: () => undefined } },
+      featureOptions: { ...egressFeatureOptions, daemonStatus: { requestShutdown: () => undefined } },
     });
 
     const connection = kernel.base.sqlite!.connection;
@@ -286,7 +287,7 @@ describe('mounting order', () => {
       adapter: createTestRouteHost(), resolvedPortRef: { current: 4000 },
       storage: { kind: 'sqlite', open: openSqlite, dataDir: makeTempDataDir() },
       profile: 'local-daemon-v1',
-      featureOptions: { daemonStatus: { requestShutdown: () => undefined } },
+      featureOptions: { ...egressFeatureOptions, daemonStatus: { requestShutdown: () => undefined } },
       onAfterApiRoutes: (mountedApp, _daemon, base) => {
         // `base` is passed explicitly precisely because the returned kernel does not exist yet.
         order.push(base.sqlite === null ? 'no-sqlite' : 'has-sqlite');
@@ -635,7 +636,7 @@ describe('teardown', () => {
         adapter: createTestRouteHost(), resolvedPortRef: { current: 4000 },
         storage: { kind: 'sqlite', open: openSqlite, dataDir },
         profile: 'local-daemon-v1',
-      featureOptions: { daemonStatus: { requestShutdown: () => undefined } },
+      featureOptions: { ...egressFeatureOptions, daemonStatus: { requestShutdown: () => undefined } },
         extraFeatures: [exploding],
       }),
     ).rejects.toThrow('route mounting blew up');

@@ -20,7 +20,9 @@ import { statSync } from 'node:fs';
 import { createRequire } from 'node:module';
 
 import { definePack, type Principal, type ToolRegistration } from '@jini-ai/core';
-import { getAgentDef, runAnthropicToolTurn, runAzureToolTurn, runGoogleToolTurn, runOllamaToolTurn, runOpenAiToolTurn, validateBaseUrl, type DetectedAgent, type OAuthCallbackListener } from '@jini-ai/agent-runtime';
+import { getAgentDef, type DetectedAgent, type OAuthCallbackListener } from '@jini-ai/agent-runtime';
+import type { BaseUrlGuardPort } from '@jini-ai/daemon/ports/agent-runtime';
+import type { ProviderToolTurnPort } from '@jini-ai/daemon/ports/provider-http';
 import {
   createDefaultRunStartHandler,
   createRemoteToolEventRecorder,
@@ -91,6 +93,10 @@ export interface BuiltInFeatureOptions {
   };
   readonly remoteRunEvents?: { readonly tokenConfig?: RemoteToolBridgeTokenConfig };
   readonly xai?: { readonly listenerRef?: { current: OAuthCallbackListener | null } };
+  /** Required to activate `modelProxy`: provider tool-turn implementations are host-bound, never preset defaults. */
+  readonly modelProxy?: { readonly toolTurns: ProviderToolTurnPort };
+  /** Required to activate `research`: the host binds the base-URL guard the search provider checks against. */
+  readonly research?: { readonly baseUrlGuard: BaseUrlGuardPort };
   /**
    * Only `requestShutdown` is required, and deliberately so: everything else here
    * (`getVersion`/`host`/`getPort`/`dataDir`/`isShuttingDown`) is already known to the composition
@@ -360,15 +366,18 @@ export function createBuiltInFeatures(options: BuiltInFeatureOptions = {}): read
   const modelProxyFeature = defineJiniFeature({
     id: 'modelProxy',
     provides: ['net:egress'],
-    compose: (context) => ({
-      pack: definePack({
-        name: 'jini.modelProxy',
-        deps: [],
-        services: () => ({ context }),
-      }, {
-        http: ({ app, services }) => mountRoutes({ app, routes: modelProxyRoutes({ deps: { toolTurns: { anthropic: runAnthropicToolTurn, openai: runOpenAiToolTurn, azure: runAzureToolTurn, google: runGoogleToolTurn, ollama: runOllamaToolTurn } }, host: services.context.routeHost }) }),
-      }),
-    }),
+    compose: (context) => {
+      const deps = requireOptions(options.modelProxy, 'modelProxy', 'featureOptions.modelProxy');
+      return {
+        pack: definePack({
+          name: 'jini.modelProxy',
+          deps: [],
+          services: () => ({ context }),
+        }, {
+          http: ({ app, services }) => mountRoutes({ app, routes: modelProxyRoutes({ deps, host: services.context.routeHost }) }),
+        }),
+      };
+    },
   });
 
   const activeContextFeature = defineJiniFeature({
@@ -523,15 +532,18 @@ export function createBuiltInFeatures(options: BuiltInFeatureOptions = {}): read
   const researchFeature = defineJiniFeature({
     id: 'research',
     provides: ['net:egress'],
-    compose: (context) => ({
-      pack: definePack({
-        name: 'jini.research',
-        deps: [],
-        services: () => ({ context }),
-      }, {
-        http: ({ app, services }) => mountRoutes({ app, routes: researchRoutes({ deps: { baseUrlGuard: { validate: validateBaseUrl } }, host: services.context.routeHost }) }),
-      }),
-    }),
+    compose: (context) => {
+      const deps = requireOptions(options.research, 'research', 'featureOptions.research');
+      return {
+        pack: definePack({
+          name: 'jini.research',
+          deps: [],
+          services: () => ({ context }),
+        }, {
+          http: ({ app, services }) => mountRoutes({ app, routes: researchRoutes({ deps, host: services.context.routeHost }) }),
+        }),
+      };
+    },
   });
 
   const xaiFeature = defineJiniFeature({

@@ -97,6 +97,7 @@
       "./contracts/site/nav": "universal",
       "./contracts/site/platform-mail": "universal",
       "./contracts/site/protocol-mcp-ui": "universal",
+      "./contracts/site/legacy-owner-store": "universal",
       "./contracts/site/secrets-credential-sets": "universal",
       "./contracts/site/user-management-react": "universal",
       "./contracts/site/user-management-server": "universal",
@@ -674,6 +675,11 @@
       "types": "./dist/contracts/site/protocol-mcp-ui.d.ts",
       "import": "./dist/contracts/site/protocol-mcp-ui.js",
       "default": "./dist/contracts/site/protocol-mcp-ui.js"
+    },
+    "./contracts/site/legacy-owner-store": {
+      "types": "./dist/contracts/site/legacy-owner-store.d.ts",
+      "import": "./dist/contracts/site/legacy-owner-store.js",
+      "default": "./dist/contracts/site/legacy-owner-store.js"
     },
     "./contracts/site/secrets-credential-sets": {
       "types": "./dist/contracts/site/secrets-credential-sets.d.ts",

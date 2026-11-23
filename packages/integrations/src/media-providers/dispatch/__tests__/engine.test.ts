@@ -406,7 +406,7 @@ describe('createMediaDispatchEngine — characterization', () => {
                 return { status: 200, headers: { 'content-type': 'application/json' }, bodyText: Buffer.from(bodyBytes).toString('utf8'), bodyBytes };
             },
         };
-        const engine = createMediaDispatchEngine({ registry: createBuiltinVendorAdapterRegistry(), httpClient }, { credentials: { openai: { apiKey: 'k' } } });
+        const engine = createMediaDispatchEngine({ registry: createBuiltinVendorAdapterRegistry(), httpClient, guardedFetch: nodeMediaGuardedFetch }, { credentials: { openai: { apiKey: 'k' } } });
         const result = await engine.generate(...partitionArgs({ value: { surface: 'image', model: 'gpt-image-2' } satisfies MediaGenerationRequest, requiredKeys: ['surface', 'model'] }));
         expect(result.bytes.toString('utf8')).toBe('via-client');
         expect(sent).toHaveLength(1);
@@ -419,7 +419,7 @@ describe('createMediaDispatchEngine — characterization', () => {
     });
     it('allows a private-network vendor URL when allowPrivateNetwork is set', async () => {
         vi.stubGlobal('fetch', vi.fn(async () => b64Image()));
-        const engine = createMediaDispatchEngine({ registry: createBuiltinVendorAdapterRegistry(), httpClient: createNodeMediaHttpClient({}, { allowPrivateNetwork: true }) }, { credentials: { openai: { apiKey: 'k', baseUrl: 'http://127.0.0.1:9/v1' } } });
+        const engine = createMediaDispatchEngine({ registry: createBuiltinVendorAdapterRegistry(), httpClient: createNodeMediaHttpClient({}, { allowPrivateNetwork: true }), guardedFetch: nodeMediaGuardedFetch }, { credentials: { openai: { apiKey: 'k', baseUrl: 'http://127.0.0.1:9/v1' } } });
         const result = await engine.generate(...partitionArgs({ value: { surface: 'image', model: 'gpt-image-2' } satisfies MediaGenerationRequest, requiredKeys: ['surface', 'model'] }));
         expect(result.bytes.toString('utf8')).toBe('img');
     });
@@ -460,8 +460,8 @@ describe('host-owned media registries', () => {
     const second = createVendorAdapterRegistry();
     first.register({ providerId: 'openai', routeKey: 'image', adapter: adapter('first') });
     second.register({ providerId: 'openai', routeKey: 'image', adapter: adapter('second') });
-    const a = createMediaDispatchEngine({ registry: first, httpClient });
-    const b = createMediaDispatchEngine({ registry: second, httpClient });
+    const a = createMediaDispatchEngine({ registry: first, httpClient, guardedFetch: nodeMediaGuardedFetch });
+    const b = createMediaDispatchEngine({ registry: second, httpClient, guardedFetch: nodeMediaGuardedFetch });
     expect((await a.generate({ surface: 'image', model: 'dall-e-3' })).bytes.toString()).toBe('first');
     expect((await b.generate({ surface: 'image', model: 'dall-e-3' })).bytes.toString()).toBe('second');
     expect(() => first.register({ providerId: 'openai', routeKey: 'image', adapter: adapter('duplicate') }))
@@ -475,21 +475,21 @@ describe('host-owned media registries', () => {
       buildRequest: ({ ctx }) => { seen.push(ctx.allowPrivateNetwork); return { url: 'https://vendor.example/generate', init: {}, meta: undefined }; },
       parseResponse: async () => ({ bytes: Buffer.from('ok'), providerNote: 'ok' }),
     } });
-    await createMediaDispatchEngine({ registry, httpClient }, { allowPrivateNetwork: false }).generate({ surface: 'image', model: 'dall-e-3' });
-    await createMediaDispatchEngine({ registry, httpClient }, { allowPrivateNetwork: true }).generate({ surface: 'image', model: 'dall-e-3' });
-    await createMediaDispatchEngine({ registry, httpClient }).generate({ surface: 'image', model: 'dall-e-3' });
+    await createMediaDispatchEngine({ registry, httpClient, guardedFetch: nodeMediaGuardedFetch }, { allowPrivateNetwork: false }).generate({ surface: 'image', model: 'dall-e-3' });
+    await createMediaDispatchEngine({ registry, httpClient, guardedFetch: nodeMediaGuardedFetch }, { allowPrivateNetwork: true }).generate({ surface: 'image', model: 'dall-e-3' });
+    await createMediaDispatchEngine({ registry, httpClient, guardedFetch: nodeMediaGuardedFetch }).generate({ surface: 'image', model: 'dall-e-3' });
     expect(seen).toEqual([false, true, undefined]);
   });
 
   it('keeps an empty host registry empty even for a builtin route', async () => {
-    const engine = createMediaDispatchEngine({ registry: createVendorAdapterRegistry(), httpClient });
+    const engine = createMediaDispatchEngine({ registry: createVendorAdapterRegistry(), httpClient, guardedFetch: nodeMediaGuardedFetch });
     await expect(engine.generate({ surface: 'image', model: 'dall-e-3' }))
       .rejects.toThrow('no renderer configured for provider "openai" / surface "image"');
   });
 
   it('sees host registrations made after engine construction', async () => {
     const registry = createVendorAdapterRegistry();
-    const engine = createMediaDispatchEngine({ registry, httpClient });
+    const engine = createMediaDispatchEngine({ registry, httpClient, guardedFetch: nodeMediaGuardedFetch });
     await expect(engine.generate({ surface: 'image', model: 'dall-e-3' })).rejects.toThrow('no renderer configured');
     registry.register({ providerId: 'openai', routeKey: 'image', adapter: adapter('registered later') });
     expect((await engine.generate({ surface: 'image', model: 'dall-e-3' })).bytes.toString()).toBe('registered later');
@@ -525,12 +525,13 @@ describe('createMediaDispatchEngine — injected guarded fetch', () => {
     expect(httpClient.send).not.toHaveBeenCalled();
   });
 
-  it('keeps hosts that pass only httpClient working through the node composer binding', async () => {
+  // REGRESSION: the engine must not fall back to the node composer; a host that omits the port fails fast.
+  it('requires an injected guarded fetch at construction', () => {
     const registry = createVendorAdapterRegistry();
     registry.register({ providerId: 'openai', routeKey: 'image', adapter });
-    const httpClient = clientFixture();
-    const engine = createMediaDispatchEngine({ registry, httpClient });
-    expect((await engine.generate({ surface: 'image', model: 'dall-e-3' })).bytes.toString()).toBe('from client');
-    expect(httpClient.send).toHaveBeenCalledTimes(1);
+    expect(() => {
+      // @ts-expect-error guardedFetch is a required engine dependency.
+      createMediaDispatchEngine({ registry, httpClient: clientFixture() });
+    }).toThrow(new TypeError('Media outbound requires an injected guarded fetch'));
   });
 });

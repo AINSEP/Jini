@@ -1,5 +1,6 @@
 import type { SqliteOpener } from "@jini-ai/core/contracts/storage";
 import type { VaultKind, VaultRepoPort } from "@jini-ai/core/contracts/vault";
+import type { LegacyOwnerStoreDestination, LegacyOwnerStoreSnapshot } from "@jini-ai/core/contracts/site/legacy-owner-store";
 
 /** @file File wiring for a legacy owner store (owner.db + owner.key). Shared keys are now project
  * references, so nothing opens this store for writing, runs its migrations, or creates its key any
@@ -14,9 +15,6 @@ export interface LegacyOwnerCounts { entries: number; grants: number }
 export interface LegacyOwnerStoreFile { filePath: string; open: SqliteOpener }
 /** One sealed row of the legacy owner workspace, as the owner-store SQL reads list it. */
 export interface LegacyOwnerStoreRow { id: string; kind: VaultKind; ownerKey: string; binding: string | null }
-/** A site the legacy store copied an entry to (consumerId = the site's canonical folder). */
-export interface LegacyOwnerStoreDestination { entryId: string; consumerId: string }
-export interface LegacyOwnerStoreSnapshot<Entry> { entries: Entry[]; grants: LegacyOwnerStoreDestination[]; revocations: LegacyOwnerStoreDestination[] }
 
 /** The implementations the host passes in. Generic so this package needs only core types.
  * @example const ports = { openKernel: (file, options) => openSqliteFileKernel<LegacyOwnerDatabase>(file, options),
@@ -34,7 +32,7 @@ export interface LegacyOwnerStorePorts<Kernel extends { close(): Promise<void> }
   createVaultRepo: (args: { kernel: Kernel }) => VaultRepoPort;
   /** The legacy decoder (`@jini-ai/platform/secrets/legacy-owner`): its workspace id, read-only keyring vault and entry read. */
   ownerWorkspaceId: string;
-  openLegacyOwnerVault: (args: { repo: VaultRepoPort; keyFilePath: string }, options: Options) => Vault;
+  openLegacyOwnerVault: (args: { repo: VaultRepoPort; keyFilePath: string }, options: Partial<Options>) => Vault;
   readLegacyOwnerEntry: (args: { vault: Vault; row: LegacyOwnerStoreRow }) => Promise<Entry>;
 }
 type CountPorts<Kernel extends { close(): Promise<void> }> = Pick<LegacyOwnerStorePorts<Kernel, unknown, unknown, never>, "openKernel" | "countOwnerStoreRows">;
@@ -62,7 +60,7 @@ export async function countLegacyOwnerStore<Kernel extends { close(): Promise<vo
  */
 export async function readLegacyOwnerStore<Kernel extends { close(): Promise<void> }, Vault, Entry, Options>(
   required: LegacyOwnerStoreFile & { keyFilePath: string; ports: LegacyOwnerStorePorts<Kernel, Vault, Entry, Options> },
-  options: Options = {} as Options): Promise<LegacyOwnerStoreSnapshot<Entry>> {
+  options: Partial<Options> = {}): Promise<LegacyOwnerStoreSnapshot<Entry>> {
   const { ports, keyFilePath, ...file } = required;
   const kernel = ports.openKernel(file, { readOnly: true });
   try {

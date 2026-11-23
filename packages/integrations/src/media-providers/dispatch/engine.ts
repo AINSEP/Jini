@@ -1,6 +1,5 @@
-import { requireMediaHttpClient } from './outbound.js';
+import { requireMediaGuardedFetch, requireMediaHttpClient } from './outbound.js';
 import type { MediaGuardedFetch } from './outbound.js';
-import { nodeMediaGuardedFetch } from './node.js';
 import { normalizeMediaProviderMap } from '../providers.js';
 import type { RequiredArgs, OptionalArgs } from '../../args.js';
 /** Media dispatch validates catalogue inputs, resolves live credentials and returns generated
@@ -133,9 +132,8 @@ function resolveRenderer({ registry, providerId, routeKey }: { registry: VendorA
  */
 export function createMediaDispatchEngine({ registry, httpClient, guardedFetch }: MediaDispatchEngineRequired, options: MediaDispatchEngineOptions = {}): MediaDispatchEngine {
   requireMediaHttpClient({ httpClient });
-  // Compatibility seam: hosts that predate the injected guarded fetch pass only `httpClient`, so the
-  // engine binds the node composer's adapter. Hosts should pass `guardedFetch` explicitly.
-  const boundGuardedFetch = guardedFetch ?? nodeMediaGuardedFetch;
+  // The host composes the transport: the engine never binds the node composer itself.
+  const boundGuardedFetch = requireMediaGuardedFetch({ guardedFetch });
   const allowStubFallback = options.allowStubFallback === true;
   const catalog = options.catalog ?? STATIC_CATALOG;
 

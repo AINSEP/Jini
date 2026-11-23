@@ -21,8 +21,8 @@ No media path constructs a client implicitly: missing clients fail before networ
 `fetchMediaOutbound({ url, timeoutMs, httpClient, guardedFetch }, { init? })` requires both injected ports.
 `guardedFetch` (`MediaGuardedFetch`) projects the client's bounded response into a fetch `Response`;
 `RenderContext`, `OperationRuntimeDeps` and `assertAndFetchExternalAsset` carry it beside `httpClient`
-and refuse I/O without it. The engine still accepts `{ registry, httpClient }` alone and then binds
-`nodeMediaGuardedFetch` itself; that fallback exists only for hosts that predate the port.
+and refuse I/O without it. The engine requires `{ registry, httpClient, guardedFetch }` and binds no
+default: hosts pass `nodeMediaGuardedFetch` (or their own adapter) explicitly.
 The explicit Node adapter selects native DNS/clock/pinned-transport ports. Its policy permits HTTP(S),
 denies private, loopback, link-local and reserved peers, rejects URL credentials, and caps decoded
 bytes at 96 MiB. Every DNS answer must be allowed, and the transport dials the checked IP while

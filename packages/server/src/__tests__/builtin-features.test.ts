@@ -13,6 +13,7 @@ import { createTestRouteHost } from '@jini-ai/core/contracts/server/testing';
 import { composeJiniKernel, type JiniKernel } from '../compose-jini-kernel.js';
 import { projectDetectedAgent, createBuiltInFeatures } from '../builtin-features.js';
 import { createJiniKernelBase } from '../kernel-base.js';
+import { egressFeatureOptions } from './fixtures/host-egress-ports.js';
 
 /**
  * Per-feature behavior that only shows up once a feature is actually serving: the readiness probe's
@@ -46,7 +47,7 @@ async function boot(
   installRouteRegistrationGuard({ app });
   const resolvedPortRef = { current: 0 };
   const adapter: RouteHostContext = { originPolicy: createLocalSameOriginPolicy({ port: () => resolvedPortRef.current, env: config.env ?? {}, config: { allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST' } }) };
-  const kernel = await composeJiniKernel({ ...config, app, adapter, resolvedPortRef });
+  const kernel = await composeJiniKernel({ ...config, featureOptions: { ...egressFeatureOptions, ...config.featureOptions }, app, adapter, resolvedPortRef });
   const server = await new Promise<Server>((resolve, reject) => {
     const s = app.listen(0, '127.0.0.1');
     s.once('listening', () => resolve(s));
@@ -314,6 +315,7 @@ describe('the families the standalone daemon never wired', () => {
         adapter: createTestRouteHost(), resolvedPortRef: { current: 0 },
         storage: { kind: 'sqlite', open: openSqlite, dataDir: makeTempDataDir() },
         profile: 'local-daemon-v1',
+        featureOptions: egressFeatureOptions,
       }),
     ).rejects.toThrow(/"featureOptions\.daemonStatus\.requestShutdown" was not supplied/);
   });

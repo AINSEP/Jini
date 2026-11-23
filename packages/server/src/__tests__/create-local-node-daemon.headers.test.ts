@@ -3,6 +3,7 @@ import { Socket } from 'node:net';
 import { afterEach, expect, it, vi } from 'vitest';
 import { composeJiniKernel } from '../compose-jini-kernel.js';
 import { createLocalNodeDaemon } from '../create-local-node-daemon.js';
+import { hostEgressPorts } from './fixtures/host-egress-ports.js';
 
 vi.mock('../compose-jini-kernel.js', () => ({ composeJiniKernel: vi.fn() }));
 
@@ -12,7 +13,7 @@ it('serves a response without advertising the framework, before opening any list
   const stopBeforeStorage = new Error('stop before storage or listener setup');
   vi.mocked(composeJiniKernel).mockRejectedValueOnce(stopBeforeStorage);
   await expect(createLocalNodeDaemon({
-    dataDir: '/unused-header-test', packs: [], env: {}, discoveryFile: false,
+    ...hostEgressPorts, dataDir: '/unused-header-test', packs: [], env: {}, discoveryFile: false,
     open: () => { throw new Error('storage must not be opened'); },
   })).rejects.toBe(stopBeforeStorage);
   const app = vi.mocked(composeJiniKernel).mock.calls[0]![0].app;
@@ -37,7 +38,7 @@ it('C64: each daemon captures its bind host without mutating the caller environm
   const originalEnv = { ...env };
   const stopBeforeStorage = new Error('stop before storage or listener setup');
   const config = {
-    dataDir: '/unused-env-test', packs: [], env, discoveryFile: false as const,
+    ...hostEgressPorts, dataDir: '/unused-env-test', packs: [], env, discoveryFile: false as const,
     open: () => { throw new Error('storage must not be opened'); },
   };
   vi.mocked(composeJiniKernel).mockRejectedValueOnce(stopBeforeStorage);

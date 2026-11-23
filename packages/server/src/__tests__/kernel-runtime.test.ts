@@ -12,6 +12,7 @@ import { createLocalNodeDaemon } from '../create-local-node-daemon.js';
 import { nodeAtomicWriter, nodeFileLock } from '@jini-ai/node-adapters/fs';
 import { createProcessControlPort, createSpawnPort, nodeCommandShell, type SpawnFunction } from '@jini-ai/node-adapters/process';
 import { listProcessSnapshots, stopProcesses, waitForProcessExit } from '@jini-ai/platform/process';
+import { hostEgressPorts } from './fixtures/host-egress-ports.js';
 
 it('gives each kernel a separate state, shares it with its executor, and clears it on close', async () => {
   const def = getAgentDef({ id: 'codex' })!;
@@ -63,7 +64,7 @@ it('forwards explicit executor options through the local preset and disposes its
   let lookups = 0;
   const runtime = createNativeAgentRuntime({ env });
   runtime.state.capabilities.set('owned', { feature: true });
-  const daemon = await createLocalNodeDaemon({ dataDir: dir, packs: [], discoveryFile: false, env,
+  const daemon = await createLocalNodeDaemon({ ...hostEgressPorts, dataDir: dir, packs: [], discoveryFile: false, env,
     open: (file, settings = {}) => new Database(file, settings),
     agentExecutor: { runtimeState: runtime.state, bindAgentRuntime: ({ runtime: native }) => {
       const bound = createAgentRuntimeBindings({ runtime: native }) satisfies AgentRuntimePort;

@@ -23,6 +23,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createLocalNodeDaemon } from '../../create-local-node-daemon.js';
 import { installGracefulShutdown } from '../../host-bootstrap.js';
+import { hostEgressPorts } from './host-egress-ports.js';
 
 const mode = process.argv[2];
 if (mode !== '--with-guard' && mode !== '--without-guard') {
@@ -31,7 +32,7 @@ if (mode !== '--with-guard' && mode !== '--without-guard') {
 
 async function main(): Promise<void> {
   const dataDir = mkdtempSync(join(tmpdir(), 'jini-graceful-shutdown-child-'));
-  const daemon = await createLocalNodeDaemon({ dataDir, discoveryFile: false, packs: [], open: (file, settings) => new Database(file, settings) });
+  const daemon = await createLocalNodeDaemon({ ...hostEgressPorts, dataDir, discoveryFile: false, packs: [], open: (file, settings) => new Database(file, settings) });
 
   if (mode === '--with-guard') {
     installGracefulShutdown({ stop: daemon.stop }, {

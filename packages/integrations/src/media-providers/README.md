@@ -187,8 +187,8 @@ const engine = createMediaDispatchEngine(
 ```
 
 `dispatch/node.ts` is the composer: it is the only non-test file here that imports
-`@jini-ai/platform`, and it binds the platform's guarded fetch as `nodeMediaGuardedFetch`. Until every
-host passes `guardedFetch`, the engine binds that same adapter itself when only `httpClient` is given.
+`@jini-ai/platform`, and it binds the platform's guarded fetch as `nodeMediaGuardedFetch`. The engine
+never imports it: every host passes `guardedFetch` explicitly and construction fails without it.
 
 **Must never import:** `@jini-ai/platform` (or any other package's implementation) outside
 `dispatch/node.ts`, a raw `fetch`, or host code.
