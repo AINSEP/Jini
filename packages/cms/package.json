@@ -180,7 +180,10 @@
       "./admin-http/routes/system/publish-credentials/create": "universal",
       "./admin-http/routes/system/publish-credentials/update": "universal",
       "./admin-http/routes/system/publish-credentials/verify": "universal",
-      "./admin-http/routes/system/publish-credentials/delete": "universal"
+      "./admin-http/routes/system/publish-credentials/delete": "universal",
+      "./admin-http/routes/system/publish-credentials/shared": "universal",
+      "./admin-http/routes/system/deployment-overview": "universal",
+      "./admin-http/routes/system/export-site": "universal"
     },
     "isolation": {
       "domains": {
@@ -1137,6 +1140,21 @@
       "types": "./dist/admin-http/routes/system/publish-credentials/delete.d.ts",
       "import": "./dist/admin-http/routes/system/publish-credentials/delete.js",
       "default": "./dist/admin-http/routes/system/publish-credentials/delete.js"
+    },
+    "./admin-http/routes/system/publish-credentials/shared": {
+      "types": "./dist/admin-http/routes/system/publish-credentials/shared.d.ts",
+      "import": "./dist/admin-http/routes/system/publish-credentials/shared.js",
+      "default": "./dist/admin-http/routes/system/publish-credentials/shared.js"
+    },
+    "./admin-http/routes/system/deployment-overview": {
+      "types": "./dist/admin-http/routes/system/deployment-overview.d.ts",
+      "import": "./dist/admin-http/routes/system/deployment-overview.js",
+      "default": "./dist/admin-http/routes/system/deployment-overview.js"
+    },
+    "./admin-http/routes/system/export-site": {
+      "types": "./dist/admin-http/routes/system/export-site.d.ts",
+      "import": "./dist/admin-http/routes/system/export-site.js",
+      "default": "./dist/admin-http/routes/system/export-site.js"
     }
   },
   "files": [
