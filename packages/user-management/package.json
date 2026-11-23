@@ -23,7 +23,21 @@
       "./admin/react": "browser",
       "./admin/adapters/http": "universal",
       "./admin/adapters/memory": "universal",
-      "./admin/conformance": "universal"
+      "./admin/conformance": "universal",
+      "./identity/boot-session-token": "universal",
+      "./identity/builtin-role-grants": "universal",
+      "./identity/permission-grants": "universal",
+      "./identity/role-manage-permission": "universal",
+      "./identity/user-manage-permission": "universal"
+    },
+    "isolation": {
+      "entries": {
+        "./identity/boot-session-token": "server",
+        "./identity/builtin-role-grants": "server",
+        "./identity/permission-grants": "server",
+        "./identity/role-manage-permission": "server",
+        "./identity/user-manage-permission": "server"
+      }
     },
     "optionalPeers": {
       "argon2": "opt-in: argon2 password hashing; import @jini-ai/user-management/server — Argon2 password hashing could not load argon2. Install argon2 to enable this feature, or check its installed version and native binaries.",
@@ -89,6 +103,31 @@
       "types": "./dist/admin/conformance/index.d.ts",
       "import": "./dist/admin/conformance/index.js",
       "default": "./dist/admin/conformance/index.js"
+    },
+    "./identity/boot-session-token": {
+      "types": "./dist/identity/boot-session-token.d.ts",
+      "import": "./dist/identity/boot-session-token.js",
+      "default": "./dist/identity/boot-session-token.js"
+    },
+    "./identity/builtin-role-grants": {
+      "types": "./dist/identity/builtin-role-grants.d.ts",
+      "import": "./dist/identity/builtin-role-grants.js",
+      "default": "./dist/identity/builtin-role-grants.js"
+    },
+    "./identity/permission-grants": {
+      "types": "./dist/identity/permission-grants.d.ts",
+      "import": "./dist/identity/permission-grants.js",
+      "default": "./dist/identity/permission-grants.js"
+    },
+    "./identity/role-manage-permission": {
+      "types": "./dist/identity/role-manage-permission.d.ts",
+      "import": "./dist/identity/role-manage-permission.js",
+      "default": "./dist/identity/role-manage-permission.js"
+    },
+    "./identity/user-manage-permission": {
+      "types": "./dist/identity/user-manage-permission.d.ts",
+      "import": "./dist/identity/user-manage-permission.js",
+      "default": "./dist/identity/user-manage-permission.js"
     }
   },
   "files": [
