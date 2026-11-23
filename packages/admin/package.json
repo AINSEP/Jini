@@ -113,6 +113,10 @@
       "./shell/lib/translation-entry": "browser",
       "./shell/lib/unchanged-save-warning": "browser",
       "./shell/lib/unique-id": "browser",
+      "./shell/lib/assistant-permanent-deletes": "browser",
+      "./shell/lib/stored-credential-endpoint": "browser",
+      "./shell/lib/version-conflict": "browser",
+      "./shell/lib/visitor-tools": "browser",
       "./shell/lib/viewer-time-zone": "browser",
       "./shell/lib/widget-embed-placement-content": "browser",
       "./shell/lib/admin-frontend-session": "browser",
@@ -224,6 +228,10 @@
         "./shell/lib/translation-entry": "browser",
         "./shell/lib/unchanged-save-warning": "browser",
         "./shell/lib/unique-id": "browser",
+        "./shell/lib/assistant-permanent-deletes": "browser",
+        "./shell/lib/stored-credential-endpoint": "browser",
+        "./shell/lib/version-conflict": "browser",
+        "./shell/lib/visitor-tools": "browser",
         "./shell/lib/viewer-time-zone": "browser",
         "./shell/lib/widget-embed-placement-content": "browser",
         "./shell/lib/admin-frontend-session": "browser",
@@ -755,6 +763,26 @@
       "types": "./dist/shell/lib/unique-id.d.ts",
       "import": "./dist/shell/lib/unique-id.js",
       "default": "./dist/shell/lib/unique-id.js"
+    },
+    "./shell/lib/assistant-permanent-deletes": {
+      "types": "./dist/shell/lib/assistant-permanent-deletes.d.ts",
+      "import": "./dist/shell/lib/assistant-permanent-deletes.js",
+      "default": "./dist/shell/lib/assistant-permanent-deletes.js"
+    },
+    "./shell/lib/stored-credential-endpoint": {
+      "types": "./dist/shell/lib/stored-credential-endpoint.d.ts",
+      "import": "./dist/shell/lib/stored-credential-endpoint.js",
+      "default": "./dist/shell/lib/stored-credential-endpoint.js"
+    },
+    "./shell/lib/version-conflict": {
+      "types": "./dist/shell/lib/version-conflict.d.ts",
+      "import": "./dist/shell/lib/version-conflict.js",
+      "default": "./dist/shell/lib/version-conflict.js"
+    },
+    "./shell/lib/visitor-tools": {
+      "types": "./dist/shell/lib/visitor-tools.d.ts",
+      "import": "./dist/shell/lib/visitor-tools.js",
+      "default": "./dist/shell/lib/visitor-tools.js"
     },
     "./shell/lib/viewer-time-zone": {
       "types": "./dist/shell/lib/viewer-time-zone.d.ts",

@@ -252,3 +252,17 @@ root remain framework free. Domain React entries call these shared helpers
 directly, and the existing `react/bind-react` and `react/use-controller` entries
 retain their exports through compatibility re-exports. Domain integration
 packages are optional peers; install the peers used by the selected entries.
+
+## Wiring: shell request-bound helpers (`shell/lib`)
+
+`shell/lib/version-conflict`, `shell/lib/stored-credential-endpoint`, `shell/lib/visitor-tools` and
+`shell/lib/assistant-permanent-deletes` never import a host's session client or error class. The
+pure rules, copy keys and types are plain exports; the parts that touch the host's HTTP boundary are
+factories the host binds once at its composition root:
+
+- `createVersionConflict({ isRequestError })` and `createProbeErrorDescribers({ isRequestError })`
+  take the same `isRequestError` guard the host already passes to `createAdminHttp` (typed
+  `RequestErrorGuard<E>`), so `instanceof HostApiError` stays in the host.
+- `createVisitorToolsPort({ http, workspaceId })` and `createAssistantPermanentDeletesPort({ http, workspaceId })`
+  take the host's bound `authenticatedAdminRequest` (`AdminRequestOps`) and its workspace id; the
+  permanent-delete tool list, dangers copy and namespace stay with the host.
