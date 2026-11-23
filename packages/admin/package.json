@@ -172,7 +172,13 @@
       "./screens/menus/hooks/menus-port.hooks": "universal",
       "./screens/menus/MenuEditor.hooks": "browser",
       "./screens/menus/MenuPageLinkFields.hooks": "browser",
-      "./screens/menus/MenuPageLinkFields": "browser"
+      "./screens/menus/MenuPageLinkFields": "browser",
+      "./deployment/Deployment.hooks": "browser",
+      "./source-control/host/SourceControl.hooks": "browser",
+      "./recovery/hooks/recovery-port.hooks": "universal",
+      "./recovery/hooks/restore-flow-port.hooks": "universal",
+      "./recovery/hooks/use-recovery-navigation.hooks": "browser",
+      "./publish-content/screen/hooks/publish-availability.store": "browser"
     },
     "isolation": {
       "shared": [
@@ -1053,6 +1059,36 @@
       "types": "./dist/screens/menus/MenuPageLinkFields.d.ts",
       "import": "./dist/screens/menus/MenuPageLinkFields.js",
       "default": "./dist/screens/menus/MenuPageLinkFields.js"
+    },
+    "./deployment/Deployment.hooks": {
+      "types": "./dist/deployment/Deployment.hooks.d.ts",
+      "import": "./dist/deployment/Deployment.hooks.js",
+      "default": "./dist/deployment/Deployment.hooks.js"
+    },
+    "./source-control/host/SourceControl.hooks": {
+      "types": "./dist/source-control/host/SourceControl.hooks.d.ts",
+      "import": "./dist/source-control/host/SourceControl.hooks.js",
+      "default": "./dist/source-control/host/SourceControl.hooks.js"
+    },
+    "./recovery/hooks/recovery-port.hooks": {
+      "types": "./dist/recovery/hooks/recovery-port.hooks.d.ts",
+      "import": "./dist/recovery/hooks/recovery-port.hooks.js",
+      "default": "./dist/recovery/hooks/recovery-port.hooks.js"
+    },
+    "./recovery/hooks/restore-flow-port.hooks": {
+      "types": "./dist/recovery/hooks/restore-flow-port.hooks.d.ts",
+      "import": "./dist/recovery/hooks/restore-flow-port.hooks.js",
+      "default": "./dist/recovery/hooks/restore-flow-port.hooks.js"
+    },
+    "./recovery/hooks/use-recovery-navigation.hooks": {
+      "types": "./dist/recovery/hooks/use-recovery-navigation.hooks.d.ts",
+      "import": "./dist/recovery/hooks/use-recovery-navigation.hooks.js",
+      "default": "./dist/recovery/hooks/use-recovery-navigation.hooks.js"
+    },
+    "./publish-content/screen/hooks/publish-availability.store": {
+      "types": "./dist/publish-content/screen/hooks/publish-availability.store.d.ts",
+      "import": "./dist/publish-content/screen/hooks/publish-availability.store.js",
+      "default": "./dist/publish-content/screen/hooks/publish-availability.store.js"
     }
   },
   "files": [
