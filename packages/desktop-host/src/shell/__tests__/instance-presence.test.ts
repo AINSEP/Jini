@@ -65,7 +65,7 @@ test("this process is alive; a pid far past the range is not", () => {
 });
 
 test("a process owned by another user (EPERM) still counts as alive", () => {
-  const kill = vi.spyOn(process, "kill").mockImplementation((pid: number, signal: number | string) => {
+  const kill = vi.spyOn(process, "kill").mockImplementation((pid: number, signal?: number | string) => {
     assert.equal(pid, 12345);
     assert.equal(signal, 0);
     throw Object.assign(new Error("permission denied"), { code: "EPERM" });
