@@ -173,7 +173,15 @@
       "./admin-http/routes/widgets/trash": "universal",
       "./admin-http/routes/widgets/regions-list": "universal",
       "./admin-http/routes/widgets/region-get": "universal",
-      "./admin-http/routes/widgets/region-bind": "universal"
+      "./admin-http/routes/widgets/region-bind": "universal",
+      "./admin-http/routes/forms/list": "universal",
+      "./admin-http/routes/forms/providers": "universal",
+      "./admin-http/routes/forms/get-by-id": "universal",
+      "./admin-http/routes/forms/update": "universal",
+      "./admin-http/routes/forms/list-submissions": "universal",
+      "./admin-http/routes/forms/get-submission": "universal",
+      "./admin-http/routes/forms/resolve-definition": "universal",
+      "./admin-http/routes/forms/write-error": "universal"
     },
     "isolation": {
       "domains": {
@@ -254,7 +262,15 @@
         "./admin-http/routes/widgets/trash": "widgets",
         "./admin-http/routes/widgets/regions-list": "widgets",
         "./admin-http/routes/widgets/region-get": "widgets",
-        "./admin-http/routes/widgets/region-bind": "widgets"
+        "./admin-http/routes/widgets/region-bind": "widgets",
+        "./admin-http/routes/forms/list": "forms",
+        "./admin-http/routes/forms/providers": "forms",
+        "./admin-http/routes/forms/get-by-id": "forms",
+        "./admin-http/routes/forms/update": "forms",
+        "./admin-http/routes/forms/list-submissions": "forms",
+        "./admin-http/routes/forms/get-submission": "forms",
+        "./admin-http/routes/forms/resolve-definition": "forms",
+        "./admin-http/routes/forms/write-error": "forms"
       },
       "forbidden": {
         "universal": [
@@ -1097,6 +1113,46 @@
       "types": "./dist/admin-http/routes/widgets/region-bind.d.ts",
       "import": "./dist/admin-http/routes/widgets/region-bind.js",
       "default": "./dist/admin-http/routes/widgets/region-bind.js"
+    },
+    "./admin-http/routes/forms/list": {
+      "types": "./dist/admin-http/routes/forms/list.d.ts",
+      "import": "./dist/admin-http/routes/forms/list.js",
+      "default": "./dist/admin-http/routes/forms/list.js"
+    },
+    "./admin-http/routes/forms/providers": {
+      "types": "./dist/admin-http/routes/forms/providers.d.ts",
+      "import": "./dist/admin-http/routes/forms/providers.js",
+      "default": "./dist/admin-http/routes/forms/providers.js"
+    },
+    "./admin-http/routes/forms/get-by-id": {
+      "types": "./dist/admin-http/routes/forms/get-by-id.d.ts",
+      "import": "./dist/admin-http/routes/forms/get-by-id.js",
+      "default": "./dist/admin-http/routes/forms/get-by-id.js"
+    },
+    "./admin-http/routes/forms/update": {
+      "types": "./dist/admin-http/routes/forms/update.d.ts",
+      "import": "./dist/admin-http/routes/forms/update.js",
+      "default": "./dist/admin-http/routes/forms/update.js"
+    },
+    "./admin-http/routes/forms/list-submissions": {
+      "types": "./dist/admin-http/routes/forms/list-submissions.d.ts",
+      "import": "./dist/admin-http/routes/forms/list-submissions.js",
+      "default": "./dist/admin-http/routes/forms/list-submissions.js"
+    },
+    "./admin-http/routes/forms/get-submission": {
+      "types": "./dist/admin-http/routes/forms/get-submission.d.ts",
+      "import": "./dist/admin-http/routes/forms/get-submission.js",
+      "default": "./dist/admin-http/routes/forms/get-submission.js"
+    },
+    "./admin-http/routes/forms/resolve-definition": {
+      "types": "./dist/admin-http/routes/forms/resolve-definition.d.ts",
+      "import": "./dist/admin-http/routes/forms/resolve-definition.js",
+      "default": "./dist/admin-http/routes/forms/resolve-definition.js"
+    },
+    "./admin-http/routes/forms/write-error": {
+      "types": "./dist/admin-http/routes/forms/write-error.d.ts",
+      "import": "./dist/admin-http/routes/forms/write-error.js",
+      "default": "./dist/admin-http/routes/forms/write-error.js"
     }
   },
   "files": [
