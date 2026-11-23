@@ -1,12 +1,16 @@
 # Members
 
-Member-facing mail rendering for `@jini-ai/user-management`. For why this package exists and how its entries are laid out, see the [package README](../../README.md).
+The member principal for `@jini-ai/user-management`: member/tier/subscription/session/challenge records and their repository ports, in-memory repos, the fail-closed content-access resolver, the consent chokepoint, admin writes, sign-in and password flows, the Trash bridge, the agent tool catalog, a capability card, and member-facing mail rendering. Every module is its own leaf subpath (`@jini-ai/user-management/members/<module>`); there is no barrel. For why this package exists and how its entries are laid out, see the [package README](../../README.md).
 
 ## Wiring
 
 - **Injected:** `renderEmailForSend`, a field of the `required` argument of `renderMemberAuthMail`. It takes `{ html, values }` and returns `{ subject, html, text }` (any extra fields the host's renderer returns are ignored).
 - **Provides:** `renderMemberAuthMail` from `@jini-ai/user-management/members/auth-mail`. It chooses the built-in sign-in or password-reset template and returns `{ subject, html, text }`. It persists nothing, and a renderer error propagates unchanged.
 - **Never imports:** `@jini-ai/platform` or any host code. The host passes the renderer in.
+- **Injected (members write service):** `MembersWriteServiceDeps` from `members/ports` (assemble it with `buildMembersWriteServiceDeps`). The host passes the repositories, `clock`, `ids`, a positional mailer (`@jini-ai/core/contracts/mail` `PositionalMailer`), `principals`, and optionally `mailStatus`, `origin`, `senderIdentity`, `passwordHasher` and `credentialLifecycle` (core `StorageKernel`'s `transaction`/`lockKey`; password writes refuse without it).
+- **Injected (Trash bridge):** `trashMember` takes `remove`, core's structural `RemoveEntity` from `@jini-ai/core/contracts/site/plugins-host`. Without it the call refuses.
+- **Host-owned, not here:** the SQL repositories (the host's Kysely schema), the mail-delivery challenge request (the host's mail transport), the newsletter subscriber directory, and the assistant tool registrations.
+- **Runtime:** `access-resolver`, `member-credentials`, `member-challenge`, `member-sign-in` and `password-auth` are `node` entries (node:crypto, Argon2, session tokens). The others are universal.
 
 ```ts
 import { renderMemberAuthMail } from "@jini-ai/user-management/members/auth-mail";
