@@ -35,7 +35,8 @@ export interface DeploymentOverviewSnapshot {
   /** In production a failing readiness gate exits before listening, so reaching this route proves it passed;
    *  `applicable: false` in local mode is the honest "this check does not run here" state, not a hidden pass. */
   productionReadinessGate: { applicable: boolean; passed: boolean };
-  /** Whether the owner's STORED hash still verifies against the default password (see {@link isOwnerOnDefaultPassword}). */
+  /** Whether the owner's STORED hash still verifies against the default password (see {@link isOwnerOnDefaultPassword}).
+   *  Computed unconditionally (not gated on production mode) since it is a real, useful warning in local mode too. */
   defaultOwnerPasswordUnsafe: boolean;
   /** A negative signal only: "not known-failed" can also mean "never spawned", never "confirmed alive". */
   daemonKnownFailed: boolean;

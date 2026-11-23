@@ -26,9 +26,11 @@ export const SET_ERROR_MAPPINGS: readonly SettingsErrorRung[] = [
   { matches: (e) => e instanceof ForbiddenError, status: 403, code: "FORBIDDEN" },
 ];
 
-/** The write's fields, or `null` when one is missing. `valueJson` only has to be present: a falsy
- * value (`false`, `0`, `""`, `null`) is a legitimate setting value.
- * @complexity O(1). */
+/** This route's required fields, off an untyped body: `namespace`, `key`, a `SETTING_SCOPES` member,
+ *  and a `valueJson` property (its presence, not its truthiness — `null`/`0`/`""` are legal values,
+ *  which is why this checks `"valueJson" in body` rather than `body.valueJson !== undefined`).
+ *  `null` means the body failed that check.
+ *  @complexity O(1). */
 function parseSetRequestFields({ rawBody }: { rawBody: unknown }, _optional = {}): {
   namespace: string; key: string; scope: SettingScope; valueJson: JsonValue; bodyWorkspaceId: unknown; principalId: string | undefined;
 } | null {
@@ -43,8 +45,22 @@ function parseSetRequestFields({ rawBody }: { rawBody: unknown }, _optional = {}
 }
 
 /**
- * PUT one setting value. Validates fields and the body workspace BEFORE authorizing (the permission
- * depends on scope and target principal); the service keeps its own inner authorization.
+ * PUT set a setting's value at a scope (SPEC-007 api.spec.md `SETTINGS_SET`,
+ * tasks.md T040, AC-24/RT-001). Validates fields and the body workspace BEFORE authorizing (the
+ * permission depends on scope and target principal); the service keeps its own inner authorization.
+ *
+ * Path deviation: see `register-definitions.ts`'s header.
+ *
+ * `deriveRequiredPermission` (the self-vs-other rule, behavior.spec.md §1.3)
+ * computes the permission before this route's own explicit `authorize()`
+ * pre-check — the write service's `set()` re-checks the identical permission
+ * internally (chokepoint discipline), so this is belt-and-suspenders: the
+ * pre-check gives a fast, structured 403 body matching the other
+ * routes; the inner check is the real, non-bypassable gate.
+ *
+ * `PrincipalNotFoundError` (REQ-13/INV-09 — a `scope=user` write targeting a
+ * `principalId` that isn't an active principal in the request's workspace)
+ * maps to 404, NOT 500 — this was Red-Team RT-001's flagged gap.
  */
 export const settingsSetRoute = defineJsonRoute<SettingsRouteInput, { key: string; scope: SettingScope; value: unknown; revisionSeq: number }, SettingsSetRouteDeps, SettingsRoutePrincipal>({
   method: "put",
@@ -56,10 +72,33 @@ export const settingsSetRoute = defineJsonRoute<SettingsRouteInput, { key: strin
       rejectRoute({ status: 400, error: "namespace, key, scope (global|workspace|user), and valueJson are required", code: "VALIDATION_ERROR" });
     }
     const { namespace, key, scope, valueJson, bodyWorkspaceId, principalId } = parsed;
+    // The write target is the ambient workspace, never the body's. See
+    // `resolveTargetWorkspaceId` (`@jini-ai/core/settings`) for why a body-named
+    // workspace is REJECTED rather than honored: accepting it authorized
+    // against this workspace while writing another tenant's row.
+    //
+    // This also keeps the 2026-07-31 fix it replaces: `scope: "user"` and
+    // `scope: "workspace"` writes with no `workspaceId` in the body used to
+    // reach the write service's `set()` as `undefined`, which
+    // `saveUserValue`/`saveWorkspaceValue` (the settings repo) require and
+    // throw on -- a masked 500 for every settings-dialog tab adapter in
+    // the host's admin app, none of which send it.
+    // Defaulting to `deps.workspaceId` for non-global scopes is what every
+    // other settings route already does (`get-effective.ts`,
+    // `list-definitions.ts`), because the `:workspaceId` path param is
+    // 404-checked against `deps.workspaceId` above (ADR-007).
     const targetWorkspace = resolveTargetWorkspaceId({ workspaceId: deps.workspaceId, input: { bodyWorkspaceId, scope } });
     if (!targetWorkspace.ok) rejectRoute({ status: 400, error: targetWorkspace.error, code: "VALIDATION_ERROR" });
     const permission = deriveRequiredPermission({ scope, targetPrincipalId: principalId, callerPrincipalId: principal.id });
     await auth({ permission, entityType: "setting-value" });
+    // The ambient workspace this whole route operates within (single-
+    // workspace v1) — always `deps.workspaceId`, never a fallback to the
+    // caller's own principal id (that fallback is what the write service
+    // used internally pre-Phase-5; it breaks `authorize()`'s real
+    // `findById({workspaceId, id})` lookup for `scope=global` requests,
+    // which never carry a `workspaceId`). Passed through as
+    // `authWorkspaceId` below so the inner chokepoint check uses the same
+    // value as this pre-check.
     const result = await deps.settingsService().set({
       namespace, key, scope, value: valueJson, workspaceId: targetWorkspace.workspaceId, principalId,
       callerPrincipalId: principal.id, authWorkspaceId: deps.workspaceId,

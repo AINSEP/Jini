@@ -101,6 +101,10 @@ export interface SettingsRouteEntry { principal: SettingsRoutePrincipal; authori
  * is the host's fixed 500, before the fence), then the write fence, then the body; mapped domain
  * errors become refusals and everything else is rethrown. A mount without an authorizer is a
  * wiring bug, so it fails closed.
+ *
+ * Field parsing remains in each handler: reads authorize first, while writes validate both fields
+ * and body workspace first. Domain services retain their non-bypassable inner authorization.
+ * Unknown failures keep the host's fixed 500 envelope rather than disclosing exception messages.
  * @complexity O(1) plus readiness, the fence (writes only) and the route body.
  */
 export async function runSettingsRoute<Output>(

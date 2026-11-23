@@ -91,6 +91,9 @@ export const exportSiteTriggerRoute = defineJsonRoute<{ body: unknown }, ExportR
     await requireAuthorize(authorize)({ permission: 'system.export', entityType: 'site-export' });
     // No `await` between this check and `startRun` below — this stretch runs synchronously on the
     // event loop, so two concurrent POSTs cannot both observe "idle" (the single-flight guarantee).
+    // A host agent tool that triggers the same run follows the identical no-await-in-between shape
+    // against the same snapshot/start pair, sharing this exact single-flight guarantee whenever it
+    // runs in this same process (not when it runs in a separate OS process).
     const current = deps.getRunSnapshot();
     if (current.status === 'running') throw new RouteRefusalError({ status: 409, body: { error: 'an export is already running', run: current } });
     const options = readTriggerOptions({ body: input.body });

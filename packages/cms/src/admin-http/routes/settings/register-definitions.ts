@@ -29,18 +29,23 @@ export const REGISTER_DEFINITIONS_ERROR_MAPPINGS: readonly SettingsErrorRung[] =
   { matches: (e) => e instanceof ForbiddenError, status: 403, code: "FORBIDDEN" },
 ];
 
-/** `String(value ?? fallback)`: a missing field reads as the fallback, anything else as its string form.
- * @complexity O(1). */
+/** Coerces a possibly-absent field to a string, matching this route's `?? ""`/`?? "register"`
+ *  fallback shape everywhere it reads a field off an untrusted batch item.
+ *  @complexity O(1). */
 function readString({ value }: { value: unknown }, { fallback = "" }: { fallback?: string } = {}): string {
   return String(value ?? fallback);
 }
 
-/** The batch's items, or `null` when `definitions` is not an array (including a missing body). @complexity O(1). */
+/** Body's `definitions` array, or `null` if it's missing or not an array.
+ *  @complexity O(1). */
 function parseDefinitionItems({ body }: { body: unknown }, _options: Record<string, never> = {}): unknown[] | null {
   const definitions = (body as { definitions?: unknown } | null)?.definitions;
   return Array.isArray(definitions) ? definitions : null;
 }
 
+/** One batch item's outcome: queued for the batched `register` call, or already applied via its
+ *  non-register op's write-service call. `unknownOp` carries the rejected op string so the caller
+ *  can 400 without this function rejecting the request itself. */
 type DefinitionItemOutcome =
   | { readonly applied: { key: string; op: string; status: string } }
   | { readonly unknownOp: string };
@@ -63,7 +68,12 @@ function toOpItem(
  * One batch item: a `register` is queued (registered together after the loop); any other known op
  * runs now; an unknown op is reported to the caller. A site-owned definition lives in the
  * authorized workspace's partition; every other owner kind is platform-wide (`workspaceId: null`).
- * @complexity O(1) plus the op's own ledger work.
+ *
+ * Normalizes one request item and either queues it for the batched `registerDefinitions` call in
+ * the route below (`register` is not dispatched immediately) or runs its non-register op now via
+ * the Phase-2 dispatch table (`NON_REGISTER_DEFINITION_OPS`).
+ *
+ * @complexity O(1) plus, for non-register ops, one write-service call.
  */
 async function applyDefinitionItem(
   { raw, opCtx, toRegister }: { raw: unknown; opCtx: DefinitionOpContext; toRegister: DefinitionInput[] }, _options: Record<string, never> = {}
@@ -73,6 +83,8 @@ async function applyDefinitionItem(
   const namespace = readString({ value: item.namespace });
   const key = readString({ value: item.key });
   const op = readString({ value: item.op }, { fallback: "register" });
+  // Platform defs (core/theme) are workspace_id=null; site-owned defs carry this workspace's
+  // id (REQ-02 namespace fence, `settings.ts`'s `NAMESPACE_FENCE`).
   const workspaceId = ownerKind === "site" ? opCtx.authWorkspaceId : null;
   const defaultValue = (item.defaultJson ?? null) as JsonValue | null;
   if (op === "register") {
@@ -90,9 +102,34 @@ async function applyDefinitionItem(
 }
 
 /**
- * POST a batch of definition ops (register / rename / retype / tombstone …). Authorizes first,
- * then validates the batch shape; items apply in order and an unknown op stops the batch with a
- * 400 (earlier non-register ops have already applied, as before). Registers go last, together.
+ * POST register/rename/retype/deprecate/tombstone setting definitions
+ * (SPEC-007 api.spec.md `SETTINGS_REGISTER_DEFINITIONS`, tasks.md T038).
+ * Authorizes first, then validates the batch shape; items apply in order and an unknown op stops
+ * the batch with a 400 (earlier non-register ops have already applied, as before). Registers go
+ * last, together.
+ *
+ * Path deviation: api.spec.md §1 lists the literal path
+ * `/api/v1/admin/settings/definitions` (no workspace segment). Every other
+ * admin route spec in the CMS mounts under
+ * `/api/admin/v1/workspaces/:workspaceId/...` and validates `:workspaceId`
+ * against `deps.workspaceId` — this route follows that established convention
+ * instead, since v1 is single-workspace and every sibling admin route already
+ * does the same 404-on-mismatched-workspace check.
+ *
+ * Each item's `op` (default `"register"`) routes to the matching Phase-2
+ * write-service function. All five share the `settings.definitions.manage`
+ * gate — each function re-checks it internally (chokepoint discipline), but
+ * this route also pre-checks it once up front for a fast, structured 403
+ * (the explicit-authorize-then-call pattern) rather than parsing a thrown
+ * `ForbiddenError`'s message.
+ *
+ * Deviation: `coercionJson` (api.spec.md's field name for `retype`) is
+ * declared as an opaque `object` there, but `retypeDefinition` needs a string
+ * `coercionTag` naming an already-registered coercer (the settings service's
+ * `registerCoercer` registry). This route accepts either a bare string or an
+ * object with a `tag` field, falling back to `"identity"` — smallest
+ * reasonable bridge between the two shapes, disclosed here rather than
+ * silently guessing.
  */
 export const settingsRegisterDefinitionsRoute = defineJsonRoute<SettingsRouteInput, { applied: Array<{ key: string; op: string; status: string }> }, SettingsRegisterDefinitionsRouteDeps, SettingsRoutePrincipal>({
   method: "post",
