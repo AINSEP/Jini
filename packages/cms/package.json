@@ -273,7 +273,39 @@
       "./admin-http/routes/pages/update-html": "universal",
       "./admin-http/routes/themes/explore-file-reset": "universal",
       "./admin-http/routes/themes/explore-file-copy": "universal",
-      "./admin-http/routes/themes/explore-file-rename": "universal"
+      "./admin-http/routes/themes/explore-file-rename": "universal",
+      "./admin-http/routes/system/mail-status": "universal",
+      "./admin-http/routes/system/source-control-credentials": "universal",
+      "./admin-http/routes/system/mail-dns": "universal",
+      "./admin-http/routes/sites/sites-home": "universal",
+      "./admin-http/routes/system/sites": "universal",
+      "./admin-http/routes/system/mail-test-send": "universal",
+      "./admin-http/routes/system/custom-credentials": "universal",
+      "./admin-http/routes/settings/shared": "universal",
+      "./admin-http/routes/settings/protected-namespaces": "universal",
+      "./admin-http/routes/settings/get-raw": "universal",
+      "./admin-http/routes/settings/get-effective": "universal",
+      "./admin-http/routes/settings/list-definitions": "universal",
+      "./admin-http/routes/settings/set": "universal",
+      "./admin-http/routes/settings/clear": "universal",
+      "./admin-http/routes/settings/reset": "universal",
+      "./admin-http/routes/settings/register-definitions": "universal",
+      "./admin-http/routes/system/mail-activity": "universal",
+      "./admin-http/routes/system/publish-credentials/list": "universal",
+      "./admin-http/routes/system/publish-credentials/create": "universal",
+      "./admin-http/routes/system/publish-credentials/update": "universal",
+      "./admin-http/routes/system/publish-credentials/verify": "universal",
+      "./admin-http/routes/system/publish-credentials/delete": "universal",
+      "./admin-http/routes/system/publish-credentials/shared": "universal",
+      "./admin-http/routes/system/deployment-overview": "universal",
+      "./admin-http/routes/system/export-site": "universal",
+      "./admin-http/routes/system/mail-providers": "universal",
+      "./admin-http/routes/system/publish-site/status": "universal",
+      "./admin-http/routes/system/publish-site/targets": "universal",
+      "./admin-http/routes/system/publish-site/preview": "universal",
+      "./admin-http/routes/system/assistant-owner-grant": "universal",
+      "./admin-http/routes/system/assistant-permanent-deletes": "universal",
+      "./admin-http/routes/system/assistant-subagents": "universal"
     },
     "isolation": {
       "domains": {
@@ -1731,6 +1763,166 @@
       "types": "./dist/admin-http/routes/themes/explore-file-rename.d.ts",
       "import": "./dist/admin-http/routes/themes/explore-file-rename.js",
       "default": "./dist/admin-http/routes/themes/explore-file-rename.js"
+    },
+    "./admin-http/routes/system/mail-status": {
+      "types": "./dist/admin-http/routes/system/mail-status.d.ts",
+      "import": "./dist/admin-http/routes/system/mail-status.js",
+      "default": "./dist/admin-http/routes/system/mail-status.js"
+    },
+    "./admin-http/routes/system/source-control-credentials": {
+      "types": "./dist/admin-http/routes/system/source-control-credentials.d.ts",
+      "import": "./dist/admin-http/routes/system/source-control-credentials.js",
+      "default": "./dist/admin-http/routes/system/source-control-credentials.js"
+    },
+    "./admin-http/routes/system/mail-dns": {
+      "types": "./dist/admin-http/routes/system/mail-dns.d.ts",
+      "import": "./dist/admin-http/routes/system/mail-dns.js",
+      "default": "./dist/admin-http/routes/system/mail-dns.js"
+    },
+    "./admin-http/routes/sites/sites-home": {
+      "types": "./dist/admin-http/routes/sites/sites-home.d.ts",
+      "import": "./dist/admin-http/routes/sites/sites-home.js",
+      "default": "./dist/admin-http/routes/sites/sites-home.js"
+    },
+    "./admin-http/routes/system/sites": {
+      "types": "./dist/admin-http/routes/system/sites.d.ts",
+      "import": "./dist/admin-http/routes/system/sites.js",
+      "default": "./dist/admin-http/routes/system/sites.js"
+    },
+    "./admin-http/routes/system/mail-test-send": {
+      "types": "./dist/admin-http/routes/system/mail-test-send.d.ts",
+      "import": "./dist/admin-http/routes/system/mail-test-send.js",
+      "default": "./dist/admin-http/routes/system/mail-test-send.js"
+    },
+    "./admin-http/routes/system/custom-credentials": {
+      "types": "./dist/admin-http/routes/system/custom-credentials.d.ts",
+      "import": "./dist/admin-http/routes/system/custom-credentials.js",
+      "default": "./dist/admin-http/routes/system/custom-credentials.js"
+    },
+    "./admin-http/routes/settings/shared": {
+      "types": "./dist/admin-http/routes/settings/shared.d.ts",
+      "import": "./dist/admin-http/routes/settings/shared.js",
+      "default": "./dist/admin-http/routes/settings/shared.js"
+    },
+    "./admin-http/routes/settings/protected-namespaces": {
+      "types": "./dist/admin-http/routes/settings/protected-namespaces.d.ts",
+      "import": "./dist/admin-http/routes/settings/protected-namespaces.js",
+      "default": "./dist/admin-http/routes/settings/protected-namespaces.js"
+    },
+    "./admin-http/routes/settings/get-raw": {
+      "types": "./dist/admin-http/routes/settings/get-raw.d.ts",
+      "import": "./dist/admin-http/routes/settings/get-raw.js",
+      "default": "./dist/admin-http/routes/settings/get-raw.js"
+    },
+    "./admin-http/routes/settings/get-effective": {
+      "types": "./dist/admin-http/routes/settings/get-effective.d.ts",
+      "import": "./dist/admin-http/routes/settings/get-effective.js",
+      "default": "./dist/admin-http/routes/settings/get-effective.js"
+    },
+    "./admin-http/routes/settings/list-definitions": {
+      "types": "./dist/admin-http/routes/settings/list-definitions.d.ts",
+      "import": "./dist/admin-http/routes/settings/list-definitions.js",
+      "default": "./dist/admin-http/routes/settings/list-definitions.js"
+    },
+    "./admin-http/routes/settings/set": {
+      "types": "./dist/admin-http/routes/settings/set.d.ts",
+      "import": "./dist/admin-http/routes/settings/set.js",
+      "default": "./dist/admin-http/routes/settings/set.js"
+    },
+    "./admin-http/routes/settings/clear": {
+      "types": "./dist/admin-http/routes/settings/clear.d.ts",
+      "import": "./dist/admin-http/routes/settings/clear.js",
+      "default": "./dist/admin-http/routes/settings/clear.js"
+    },
+    "./admin-http/routes/settings/reset": {
+      "types": "./dist/admin-http/routes/settings/reset.d.ts",
+      "import": "./dist/admin-http/routes/settings/reset.js",
+      "default": "./dist/admin-http/routes/settings/reset.js"
+    },
+    "./admin-http/routes/settings/register-definitions": {
+      "types": "./dist/admin-http/routes/settings/register-definitions.d.ts",
+      "import": "./dist/admin-http/routes/settings/register-definitions.js",
+      "default": "./dist/admin-http/routes/settings/register-definitions.js"
+    },
+    "./admin-http/routes/system/mail-activity": {
+      "types": "./dist/admin-http/routes/system/mail-activity.d.ts",
+      "import": "./dist/admin-http/routes/system/mail-activity.js",
+      "default": "./dist/admin-http/routes/system/mail-activity.js"
+    },
+    "./admin-http/routes/system/publish-credentials/list": {
+      "types": "./dist/admin-http/routes/system/publish-credentials/list.d.ts",
+      "import": "./dist/admin-http/routes/system/publish-credentials/list.js",
+      "default": "./dist/admin-http/routes/system/publish-credentials/list.js"
+    },
+    "./admin-http/routes/system/publish-credentials/create": {
+      "types": "./dist/admin-http/routes/system/publish-credentials/create.d.ts",
+      "import": "./dist/admin-http/routes/system/publish-credentials/create.js",
+      "default": "./dist/admin-http/routes/system/publish-credentials/create.js"
+    },
+    "./admin-http/routes/system/publish-credentials/update": {
+      "types": "./dist/admin-http/routes/system/publish-credentials/update.d.ts",
+      "import": "./dist/admin-http/routes/system/publish-credentials/update.js",
+      "default": "./dist/admin-http/routes/system/publish-credentials/update.js"
+    },
+    "./admin-http/routes/system/publish-credentials/verify": {
+      "types": "./dist/admin-http/routes/system/publish-credentials/verify.d.ts",
+      "import": "./dist/admin-http/routes/system/publish-credentials/verify.js",
+      "default": "./dist/admin-http/routes/system/publish-credentials/verify.js"
+    },
+    "./admin-http/routes/system/publish-credentials/delete": {
+      "types": "./dist/admin-http/routes/system/publish-credentials/delete.d.ts",
+      "import": "./dist/admin-http/routes/system/publish-credentials/delete.js",
+      "default": "./dist/admin-http/routes/system/publish-credentials/delete.js"
+    },
+    "./admin-http/routes/system/publish-credentials/shared": {
+      "types": "./dist/admin-http/routes/system/publish-credentials/shared.d.ts",
+      "import": "./dist/admin-http/routes/system/publish-credentials/shared.js",
+      "default": "./dist/admin-http/routes/system/publish-credentials/shared.js"
+    },
+    "./admin-http/routes/system/deployment-overview": {
+      "types": "./dist/admin-http/routes/system/deployment-overview.d.ts",
+      "import": "./dist/admin-http/routes/system/deployment-overview.js",
+      "default": "./dist/admin-http/routes/system/deployment-overview.js"
+    },
+    "./admin-http/routes/system/export-site": {
+      "types": "./dist/admin-http/routes/system/export-site.d.ts",
+      "import": "./dist/admin-http/routes/system/export-site.js",
+      "default": "./dist/admin-http/routes/system/export-site.js"
+    },
+    "./admin-http/routes/system/mail-providers": {
+      "types": "./dist/admin-http/routes/system/mail-providers.d.ts",
+      "import": "./dist/admin-http/routes/system/mail-providers.js",
+      "default": "./dist/admin-http/routes/system/mail-providers.js"
+    },
+    "./admin-http/routes/system/publish-site/status": {
+      "types": "./dist/admin-http/routes/system/publish-site/status.d.ts",
+      "import": "./dist/admin-http/routes/system/publish-site/status.js",
+      "default": "./dist/admin-http/routes/system/publish-site/status.js"
+    },
+    "./admin-http/routes/system/publish-site/targets": {
+      "types": "./dist/admin-http/routes/system/publish-site/targets.d.ts",
+      "import": "./dist/admin-http/routes/system/publish-site/targets.js",
+      "default": "./dist/admin-http/routes/system/publish-site/targets.js"
+    },
+    "./admin-http/routes/system/publish-site/preview": {
+      "types": "./dist/admin-http/routes/system/publish-site/preview.d.ts",
+      "import": "./dist/admin-http/routes/system/publish-site/preview.js",
+      "default": "./dist/admin-http/routes/system/publish-site/preview.js"
+    },
+    "./admin-http/routes/system/assistant-owner-grant": {
+      "types": "./dist/admin-http/routes/system/assistant-owner-grant.d.ts",
+      "import": "./dist/admin-http/routes/system/assistant-owner-grant.js",
+      "default": "./dist/admin-http/routes/system/assistant-owner-grant.js"
+    },
+    "./admin-http/routes/system/assistant-permanent-deletes": {
+      "types": "./dist/admin-http/routes/system/assistant-permanent-deletes.d.ts",
+      "import": "./dist/admin-http/routes/system/assistant-permanent-deletes.js",
+      "default": "./dist/admin-http/routes/system/assistant-permanent-deletes.js"
+    },
+    "./admin-http/routes/system/assistant-subagents": {
+      "types": "./dist/admin-http/routes/system/assistant-subagents.d.ts",
+      "import": "./dist/admin-http/routes/system/assistant-subagents.js",
+      "default": "./dist/admin-http/routes/system/assistant-subagents.js"
     }
   },
   "files": [
