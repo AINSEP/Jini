@@ -1,4 +1,5 @@
-import type { GatedConfirmResult, GatedPlanResult, MergeTermPlanDetails } from "../api/taxonomy-api.types.js";
+import type { GatedConfirmResult, GatedPlanResult } from "@jini-ai/core/contracts/site/gated-results";
+import type { MergeTermPlanDetails } from "../api/taxonomy-api.types.js";
 
 /**
  * @file What `useMergeTermSection` needs from the outside world, as an interface rather than a

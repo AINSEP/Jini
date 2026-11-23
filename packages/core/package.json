@@ -63,6 +63,7 @@
       "./contracts/charts": "universal",
       "./contracts/plugin-sdk": "universal",
       "./contracts/site/daemon-surface-exchanges": "universal",
+      "./contracts/site/gated-results": "universal",
       "./contracts/site/post-author": "universal",
       "./contracts/site/request-facts": "universal",
       "./contracts/site/soft-delete": "universal",
@@ -403,6 +404,11 @@
       "types": "./dist/contracts/site/daemon-surface-exchanges.d.ts",
       "import": "./dist/contracts/site/daemon-surface-exchanges.js",
       "default": "./dist/contracts/site/daemon-surface-exchanges.js"
+    },
+    "./contracts/site/gated-results": {
+      "types": "./dist/contracts/site/gated-results.d.ts",
+      "import": "./dist/contracts/site/gated-results.js",
+      "default": "./dist/contracts/site/gated-results.js"
     },
     "./contracts/site/post-author": {
       "types": "./dist/contracts/site/post-author.d.ts",

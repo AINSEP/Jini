@@ -25,23 +25,7 @@ export interface AdminTaxonomyWithTerms {
   terms: AdminTerm[];
 }
 
-/**
- * Session 5-6 backend gap closure — the 3 gated-mutation ceremonies (`core/gated-mutations`'s
- * gateway, wired into the real composition for the first time): taxonomy merge-term, database
- * migrate-forward, recovery restore. Each mirrors `gateway.ts`'s own `plan`/`confirm`/`execute`
- * 3-endpoint shape; `GatedPlanResult`/`GatedConfirmResult` are the shared envelope, `TDetails`
- * varies per ceremony.
- */
-export interface GatedPlanResult<TDetails = unknown> {
-  planId: string;
-  planHash: string;
-  details: TDetails;
-}
-
-export interface GatedConfirmResult {
-  confirmationToken: string;
-}
-
+/** The merge-term ceremony's `TDetails` for `@jini-ai/core/contracts/site/gated-results`' `GatedPlanResult`. */
 export interface MergeTermPlanDetails {
   fromTermId: string;
   intoTermId: string;
