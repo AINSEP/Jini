@@ -1162,7 +1162,7 @@
    "RootKeyPreview": "interface:e158d49a2d",
    "RootKeyResult": "interface:6db62e7f4e",
    "RootKeyState": "type:75840949ee",
-   "RootKeyStatus": "interface:ed7f755a33",
+   "RootKeyStatus": "interface:89585e8ffc",
    "START_FRESH_CONFIRMATION": "variable:bd12c30403",
    "SecurityApiPort": "interface:e7ae4d0227",
    "SecurityTransportPort": "interface:03f6485de8",
@@ -1191,7 +1191,7 @@
   "types": "./dist/security/adapters/http.d.ts",
   "symbols": {
    "createHttpOtherCredentials": "function:bcd1087600",
-   "createHttpRootKey": "function:e32f9988f0",
+   "createHttpRootKey": "function:e54763a775",
    "createHttpSecurityApi": "function:f0a0806fbc"
   }
  },

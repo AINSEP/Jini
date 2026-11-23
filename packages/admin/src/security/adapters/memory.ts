@@ -55,7 +55,8 @@ export function createMemoryOtherCredentials({ rows = [] }: { rows?: readonly Ot
 }
 export function createMemoryRootKey({ status = { active: false, source: 'none', state: 'missing', keyFilePath: '/memory/key', runtimeMode: 'local' }, preview = { removes: 0, affectedWebhooks: [], detail: 'Remove saved credentials and create a new root key.', runtimeMode: 'local' } }: { status?: RootKeyStatus; preview?: RootKeyPreview }, _optional = {}): RootKeyPort {
   let current = Object.freeze({ ...status });
-  function activate(outcome: string): RootKeyResult { current = Object.freeze({ ...current, active: true, state: 'active', source: 'file', fingerprint: 'memory-fingerprint' }); return { outcome, fingerprint: 'memory-fingerprint', keyFilePath: current.keyFilePath, runtimeMode: current.runtimeMode }; }
+  /** An active file-backed key has no env source or refusal: rebuild the status so a prior `envVarName`/`invalid`/`reason` is not carried over. */
+  function activate(outcome: string): RootKeyResult { current = Object.freeze({ active: true, state: 'active', source: 'file', fingerprint: 'memory-fingerprint', keyFilePath: current.keyFilePath, runtimeMode: current.runtimeMode }); return { outcome, fingerprint: 'memory-fingerprint', keyFilePath: current.keyFilePath, runtimeMode: current.runtimeMode }; }
   return {
     async status(_r, o = {}) { o.signal?.throwIfAborted(); return current; },
     async generate(_r, o = {}) { o.signal?.throwIfAborted(); if (current.active) return { ...activate('already-active') };
