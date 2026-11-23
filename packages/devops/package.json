@@ -35,6 +35,11 @@
       "./source-control/site/commit-schema": "universal",
       "./source-control/site/credential-form": "universal",
       "./dns/site/mail-requirements": "universal",
+      "./dns/site/binding.repo": "universal",
+      "./dns/site/dns-changes": "universal",
+      "./dns/site/mail-dns-status": "universal",
+      "./dns/site/mail-dns-tools": "universal",
+      "./dns/site/tool-deps": "universal",
       "./deploy/site/types": "universal",
       "./deploy/site/publish-credentials/types": "universal",
       "./deploy/site/publish-credentials/account-label-heal-scheduler": "universal",
@@ -184,6 +189,31 @@
       "types": "./dist/dns/site/mail-requirements.d.ts",
       "import": "./dist/dns/site/mail-requirements.js",
       "default": "./dist/dns/site/mail-requirements.js"
+    },
+    "./dns/site/binding.repo": {
+      "types": "./dist/dns/site/binding.repo.d.ts",
+      "import": "./dist/dns/site/binding.repo.js",
+      "default": "./dist/dns/site/binding.repo.js"
+    },
+    "./dns/site/dns-changes": {
+      "types": "./dist/dns/site/dns-changes.d.ts",
+      "import": "./dist/dns/site/dns-changes.js",
+      "default": "./dist/dns/site/dns-changes.js"
+    },
+    "./dns/site/mail-dns-status": {
+      "types": "./dist/dns/site/mail-dns-status.d.ts",
+      "import": "./dist/dns/site/mail-dns-status.js",
+      "default": "./dist/dns/site/mail-dns-status.js"
+    },
+    "./dns/site/mail-dns-tools": {
+      "types": "./dist/dns/site/mail-dns-tools.d.ts",
+      "import": "./dist/dns/site/mail-dns-tools.js",
+      "default": "./dist/dns/site/mail-dns-tools.js"
+    },
+    "./dns/site/tool-deps": {
+      "types": "./dist/dns/site/tool-deps.d.ts",
+      "import": "./dist/dns/site/tool-deps.js",
+      "default": "./dist/dns/site/tool-deps.js"
     },
     "./deploy/site/types": {
       "types": "./dist/deploy/site/types.d.ts",
