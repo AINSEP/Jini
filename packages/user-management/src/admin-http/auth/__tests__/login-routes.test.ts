@@ -20,7 +20,8 @@ async function runLogin(body: unknown, { deps = loginDeps().deps, ...authOver }:
 async function refusal(promise: unknown) { try { await promise; } catch (error) { if (error instanceof RouteRefusalError) return error.response; throw error; } throw new Error('expected a refusal'); }
 
 describe('every owner-auth parser is total (thrown-only refusals)', () => {
-  it.each([undefined, null, 'text', 7, { username: 'a' }])('login, mfa and logout parse %j as ok', body => {
+  // `{"toString":1}` is valid JSON whose String() conversion throws; parsing must still be total.
+  it.each([undefined, null, 'text', 7, { username: 'a' }, JSON.parse('{"username":{"toString":1},"password":{"toString":1}}')])('login, mfa and logout parse %j as ok', body => {
     for (const route of [passwordLoginRoute, mfaLoginRoute, logoutRoute]) expect(route.parse(raw(body)).ok).toBe(true);
   });
 });
@@ -28,13 +29,25 @@ describe('POST /auth/login (U-AUTH-1)', () => {
   it('B1 awaits identityReady before the limiter', async () => {
     const order: string[] = []; const { deps } = loginDeps({ identityReady: Promise.resolve().then(() => { order.push('ready'); }) });
     const { auth } = fakeAuthRequest(); auth.rateLimit.check = vi.fn(async () => { order.push('rate'); return { allowed: true, retryAfterSeconds: 0 }; });
-    await passwordLoginRoute.handle({ input: { username: 'u', password: 'p' }, deps, context: auth });
+    await passwordLoginRoute.handle({ input: { body: { username: 'u', password: 'p' } }, deps, context: auth });
     expect(order).toEqual(['ready', 'rate']);
   });
   it('B2 refuses with 429, the exact body and Retry-After equal to retryAfterSeconds', async () => {
     const { result, events, deps } = await runLogin({ username: 'u', password: 'p' }, { allowed: false, retryAfterSeconds: 17 }).then(r => ({ ...r, deps: undefined }));
     expect(await refusal(result)).toEqual({ status: 429, body: { error: 'too many login attempts', code: 'RATE_LIMIT_EXCEEDED', details: { retryAfterSeconds: 17 } } });
     expect(events).toEqual(['rate', 'retry-after:17']); expect(deps).toBeUndefined();
+  });
+  it('B2 a denied request whose fields fail string coercion still gets the exact 429 and Retry-After', async () => {
+    const { deps } = loginDeps();
+    const { result, events } = await runLogin(JSON.parse('{"username":{"toString":1},"password":{"toString":1}}'), { deps, allowed: false, retryAfterSeconds: 23 });
+    expect(await refusal(result)).toEqual({ status: 429, body: { error: 'too many login attempts', code: 'RATE_LIMIT_EXCEEDED', details: { retryAfterSeconds: 23 } } });
+    expect(events).toEqual(['rate', 'retry-after:23']); expect(deps.login).not.toHaveBeenCalled();
+  });
+  it('an allowed request whose fields fail coercion fails after the limiter, inside the handler, without signing in', async () => {
+    const { deps } = loginDeps();
+    const { result, events } = await runLogin(JSON.parse('{"username":{"toString":1},"password":"p"}'), { deps });
+    await expect(result).rejects.toBeInstanceOf(TypeError);
+    expect(events).toEqual(['rate']); expect(deps.login).not.toHaveBeenCalled();
   });
   it('B3 coerces username 123 and password null to "123" and ""', async () => {
     const { deps } = loginDeps(); await (await runLogin({ username: 123, password: null }, { deps })).result;

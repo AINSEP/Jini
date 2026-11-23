@@ -120,7 +120,7 @@
    "MfaLoginInput": "interface:915fe9ba94",
    "MfaLoginRouteDeps": "interface:500765857d",
    "OwnerAuthFailure": "class:f7e5a61001",
-   "PasswordLoginInput": "interface:61a36ac3a3",
+   "PasswordLoginInput": "interface:bbafc7e5d7",
    "PasswordLoginOutcome": "type:9c88a4cdbe",
    "PasswordLoginRouteDeps": "interface:2f0b91b0ff",
    "PasswordStatusRouteDeps": "interface:1ba68a1804",
