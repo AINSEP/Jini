@@ -95,9 +95,7 @@
       "./screens/taxonomy/hooks/new-taxonomy-form-port.hooks": "universal",
       "./screens/taxonomy/hooks/new-term-form-port.hooks": "universal",
       "./screens/taxonomy/hooks/taxonomy-port.hooks": "universal",
-      "./screens/taxonomy/hooks/term-picker-port.hooks": "universal",
-      "./screens/collections/collections-i18n": "universal",
-      "./screens/taxonomy/taxonomy-i18n": "universal"
+      "./screens/taxonomy/hooks/term-picker-port.hooks": "universal"
     },
     "isolation": {
       "shared": [
@@ -529,16 +527,6 @@
       "types": "./dist/screens/taxonomy/hooks/term-picker-port.hooks.d.ts",
       "import": "./dist/screens/taxonomy/hooks/term-picker-port.hooks.js",
       "default": "./dist/screens/taxonomy/hooks/term-picker-port.hooks.js"
-    },
-    "./screens/collections/collections-i18n": {
-      "types": "./dist/screens/collections/collections-i18n.d.ts",
-      "import": "./dist/screens/collections/collections-i18n.js",
-      "default": "./dist/screens/collections/collections-i18n.js"
-    },
-    "./screens/taxonomy/taxonomy-i18n": {
-      "types": "./dist/screens/taxonomy/taxonomy-i18n.d.ts",
-      "import": "./dist/screens/taxonomy/taxonomy-i18n.js",
-      "default": "./dist/screens/taxonomy/taxonomy-i18n.js"
     }
   },
   "files": [

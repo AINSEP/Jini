@@ -18,8 +18,6 @@
     { "repo": "jini", "file": "packages/provider-plugins/src/analytics-posthog/browser.ts", "function": "postHogBrowserContribution", "reason": "Inline browser script in one template string." },
     { "repo": "jini", "file": "packages/agentic/src/core/annotated-actions-script.ts", "function": "createAnnotatedActionsScript", "reason": "Inline browser script in one template string." },
     { "repo": "jini", "file": "packages/analytics/src/product/browser.ts", "function": "renderBrowserAnalytics", "reason": "Inline browser script in one template string." },
-    { "repo": "jini", "file": "packages/db/src/tools/database-catalog.ts", "function": "getDatabaseAgentToolCatalog", "reason": "Registration list: agent tool catalog entries." },
-    { "repo": "jini", "file": "packages/admin/src/screens/collections/collections-i18n.ts", "reason": "Locale dictionary: one entry per string, and the size grows with each language (the host's accepted locale-dictionary exception, moved with the file)." },
-    { "repo": "jini", "file": "packages/admin/src/screens/taxonomy/taxonomy-i18n.ts", "reason": "Locale dictionary: one entry per string, and the size grows with each language (the host's accepted locale-dictionary exception, moved with the file)." }
+    { "repo": "jini", "file": "packages/db/src/tools/database-catalog.ts", "function": "getDatabaseAgentToolCatalog", "reason": "Registration list: agent tool catalog entries." }
   ]
 }
