@@ -243,6 +243,7 @@
       "./admin-http/routes/skills/guidance": "universal",
       "./admin-http/routes/fs-files/custom-root": "universal",
       "./public-http/routes/ops/health": "universal",
+      "./public-http/routes/publish-trust/handshake": "universal",
       "./admin-http/routes/commerce/status": "universal",
       "./admin-http/routes/consent/routes": "universal",
       "./admin-http/routes/site/profile": "universal",
@@ -1722,6 +1723,11 @@
       "types": "./dist/public-http/routes/ops/health.d.ts",
       "import": "./dist/public-http/routes/ops/health.js",
       "default": "./dist/public-http/routes/ops/health.js"
+    },
+    "./public-http/routes/publish-trust/handshake": {
+      "types": "./dist/public-http/routes/publish-trust/handshake.d.ts",
+      "import": "./dist/public-http/routes/publish-trust/handshake.js",
+      "default": "./dist/public-http/routes/publish-trust/handshake.js"
     },
     "./admin-http/routes/commerce/status": {
       "types": "./dist/admin-http/routes/commerce/status.d.ts",
