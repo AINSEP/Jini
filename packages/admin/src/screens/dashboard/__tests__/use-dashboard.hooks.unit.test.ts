@@ -22,8 +22,11 @@ const HOST: Pick<DashboardDependencies, "describeError" | "passwordBannerDismiss
 /**
  * @file `useDashboard`'s injected-port seam (2026-08-14, closes the port-conversion gap
  * `use-dashboard.hooks.ts`'s own file header describes) — proves the five independent reads run
- * against `createFakeDashboardPort` with zero `fetch` involved, complementing the host's end-to-end
- * (stubbed-`fetch`, real `useWiredDashboard`) screen test.
+ * against `createFakeDashboardPort` with zero `fetch` involved, complementing
+ * `Dashboard.unit.test.tsx`'s existing end-to-end (stubbed-`fetch`, real `useWiredDashboard`)
+ * coverage the same way `use-form-editor.unit.test.tsx` complements `FormEditor.unit.test.tsx`.
+ * Now: `Dashboard.unit.test.tsx` is the host's end-to-end screen test; the form-editor pair named
+ * above is the host's too.
  */
 
 function postFixture(overrides: Partial<DashboardActivityRow> = {}): DashboardActivityRow {

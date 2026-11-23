@@ -5,13 +5,16 @@ import type { DashboardActivityRow } from "../dashboard-view.types.js";
 
 /**
  * @file Direct coverage for the stat-card meta formatters extracted out of `Dashboard`'s own body
- * (complexity-ceiling pass), plus `mergeRecent`/`activityRowHref` directly: the host's end-to-end
- * screen test covers them transitively, and this package must pin them on its own.
+ * (complexity-ceiling pass) — `mergeRecent`/`activityRowHref` already have their own header
+ * comments and stay covered transitively through `Dashboard.unit.test.tsx`'s rendering tests, so
+ * this file only adds the three new pure functions.
  *
- * Identity translator — asserts against
+ * Identity translator, same convention `pages/__tests__/rules.unit.test.ts` uses — asserts against
  * the English key template (with `{count}` substituted) rather than a real locale's copy. A
  * browser sweep (2026-09-22) found these three functions returning hardcoded English regardless of
- * locale; they now take a `Translate`.
+ * locale; they now take a `Translate` the same way `pages/rules.ts`'s column-sort labels do.
+ * Now: this package also pins `mergeRecent`/`activityRowHref` directly, since the host's end-to-end
+ * screen test covers them only transitively; the `pages` rules named above are the host's.
  */
 const identityT = (key: string): string => key;
 

@@ -93,9 +93,11 @@ function ObservabilityDiagnostics({ controller }: { controller: ObservabilitySta
 /**
  * Overview tab: explains OpenTelemetry in plain language for an operator who does not already
  * know what it is, then reports this install's REAL current state — read from
- * the host's observability config via `GET .../system/observability-status`
- * (the host-bound `useObservabilityStatus`), never a mock. See that hook's own header for the one GET
- * this makes on mount.
+ * `platform/observability/config.ts` via `GET .../system/observability-status`
+ * (`useWiredObservabilityStatus`), never a mock. See that hook's own header for the one GET this
+ * makes on mount.
+ * Now: the config and `useWiredObservabilityStatus` are the host's; this screen calls the
+ * host-bound `useObservabilityStatus`.
  */
 function OverviewPanel({ controller, productName }: { controller: ObservabilityStatusController; productName: string }) {
   const { status, error, t } = controller;
@@ -250,7 +252,7 @@ function queriesTabs({ queriesTab, t, QueryCachePanel, QueriesPanelComponent }: 
  * Operations > Observability. A `SettingsDialogShell`-shaped page with three tabs: Overview (real,
  * API-backed OpenTelemetry status), Recent errors (captured server error lines, gap A-04) and
  * Providers (an honest not-yet-built placeholder) — see
- * the host's "Observability admin page" todo entry (owner, 2026-09-09) for the scope this
+ * `development/todos.md`'s "Observability admin page" entry (owner, 2026-09-09) for the scope this
  * first pass deliberately stops at. The owner-only Queries tab (2026-10-09) adds live
  * in-process cache tooling only for a TanStack host, loaded when that tab opens.
  *
@@ -259,7 +261,7 @@ function queriesTabs({ queriesTab, t, QueryCachePanel, QueriesPanelComponent }: 
  * vs. `13-secrets-header-spacing-reference.png`): renders its own `.page-header` — the exact
  * kicker/title/description markup `Security.tsx` (Secrets) and `AiAssistant.tsx` already use —
  * ABOVE the shell, and opts the shell itself into `settings-ui-section--page-flow` (see that
- * modifier's own comment in the host stylesheet). That modifier does two things this page needs together:
+ * modifier's own comment in `styles.css`). That modifier does two things this page needs together:
  * it hides the shell's OWN kicker/title/subtitle strip (`.jini-tabbed-dialog-head`), which used to
  * sit 24px right and ~24px down from where Secrets' title sits — exactly the dialog chrome's own
  * `padding: 24px 24px 12px` — and it flattens the dialog's modal-styled border/shadow/background,
@@ -268,10 +270,11 @@ function queriesTabs({ queriesTab, t, QueryCachePanel, QueriesPanelComponent }: 
  * inside the card's own rounded top-left corner, clipped against the curve, rather than flush
  * against the page the way Secrets' borderless header is. `AiAssistant.tsx` proves the combination
  * in production already — this is a second consumer of an existing pattern, not a new one.
- * Those page/header/section classes are the host's: it binds them through `layoutClassNames`.
  *
  * The page header reuses the active tab's translated subtitle. Its hook adapts Jini's tab state
  * to `?tab=` navigation; the controlled shell renders only that tab's panel.
+ * Now: the todo list and `styles.css` are the host's; those page/header/section classes are bound
+ * through `layoutClassNames`.
  */
 export function Observability(props: ObservabilityProps) {
   // Host hooks are required props, called through `props` (never imported or defaulted).

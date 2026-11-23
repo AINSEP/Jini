@@ -4,15 +4,18 @@ import { ADMIN_COMMON_I18N as COMMON_I18N } from "../../../core/i18n-common.js";
 import { createDashboardTranslator, DASHBOARD_DICT, t } from "../dashboard-i18n.js";
 
 /**
- * @file `DASHBOARD_DICT` cross-locale coverage: `dashboard-i18n.ts` exported a bare
- * `DICT[locale]?.[key] ?? key` translator with no common-dictionary fallback before this fix.
- * `COMMON_I18N` below is the admin's product-neutral `ADMIN_COMMON_I18N`.
+ * @file `DASHBOARD_DICT` cross-locale coverage — same idiom as
+ * `taxonomy/__tests__/taxonomy-i18n.unit.test.ts` (read that file's header): `dashboard-i18n.ts`
+ * exported a bare `DICT[locale]?.[key] ?? key` translator with no `COMMON_I18N` fallback before
+ * this fix.
  *
  * Scope note (per the S-I18N fallback dispatch): this is ONLY the fallback-mechanism switch.
  * `rules.ts`'s `postsStatMeta`/`pagesStatMeta`/`commentsStatMeta` stat-card meta lines stay English
  * on purpose — see this dictionary's own header — and are untouched by this fix.
  *
  * Added 2026-09-21 alongside the S-I18N fallback fix extension to the rest of the admin app.
+ * Now: `COMMON_I18N` below is the admin's product-neutral `ADMIN_COMMON_I18N`; the taxonomy test
+ * named above stays in the host app.
  */
 describe("DASHBOARD_DICT: cross-locale key parity", () => {
   const locales = Object.keys(DASHBOARD_DICT);

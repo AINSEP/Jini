@@ -57,8 +57,9 @@ describe("PAGES_DICT: cross-locale key parity", () => {
 /**
  * Regression for basic words (Cancel, Delete permanently, …) rendering English in every locale
  * (S-I18N fallback fix). `PAGES_DICT.de` carries neither "Cancel" nor "Delete permanently" — both
- * are `ADMIN_COMMON_I18N` keys in all 21 locales, so `t` must fall through to `ADMIN_COMMON_I18N` instead of
+ * are `COMMON_I18N` keys in all 21 locales, so `t` must fall through to `COMMON_I18N` instead of
  * returning the raw English key.
+ * Now: the common dictionary is the admin's `ADMIN_COMMON_I18N`.
  */
 describe("PAGES_DICT: t() falls back to ADMIN_COMMON_I18N", () => {
   it("translates 'Cancel' in German even though PAGES_DICT.de never carries it", () => {

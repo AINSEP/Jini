@@ -19,10 +19,11 @@ export type AdminFailureNoticeProps = Omit<ErrorNoticeProps, "failure" | "role">
 };
 
 /** The existing shared ErrorNotice beside the restart banner, retained until the operator dismisses it.
- * Clipboard ports for selectable details when browser copying is unavailable travel through the host's
- * kit `ErrorNotice` binding. Styles: `admin-failure-notice.css` beside this file, imported by the host.
+ * Optional clipboard ports preserve selectable details when browser copying is unavailable.
  * @complexity O(one bounded copy block) per incident render, no requests or polling.
  * @overallScore 99 — layout uses the existing host notice styling; Chrome visual review remains external.
+ * Now: the clipboard ports travel through the host's kit `ErrorNotice` binding. Styles:
+ * `admin-failure-notice.css` beside this file, imported by the host.
  */
 export function AdminFailureNotice({ channel, dismissLabel, ...notice }: AdminFailureNoticeProps) {
   const failure = useSyncExternalStore(channel.subscribe, channel.getSnapshot, channel.getSnapshot);

@@ -4,14 +4,15 @@ import { buildPageRowMenuHandleMap, pageRowMenuItems } from "../pages-list-rules
 import type { PageListRow } from "../hooks/pages-port.hooks.js";
 
 /**
- * @file Pure logic for `pages-list-rules.ts` — the Pages list screen's own row-menu builders.
+ * @file Pure logic for `features/pages/rules.ts`.
  *
- * `pageRowMenuItems` mirrors the Posts list's `postRowMenuItems` exactly (this module's own doc
- * comment says so) — the branch worth pinning is the same one: the middle item's key and
+ * `pageRowMenuItems` mirrors `features/posts/rules.ts`'s `postRowMenuItems` exactly (this feature's
+ * own doc comment says so) — the branch worth pinning is the same one: the middle item's key and
  * label flip with the row's own status (Unpublish for published, Publish for draft), replacing the
  * pre-2026-09-22 "Disable" item that was omitted entirely for a draft page rather than rendered
- * disabled. Moved verbatim from the host's pages `rules.unit.test.ts`; fixtures are the structural
- * `PageListRow` the list reads.
+ * disabled.
+ * Now: the module is `pages-list-rules.ts`, moved from the host's pages `rules.unit.test.ts`;
+ * fixtures are the structural `PageListRow` the list reads.
  */
 
 const PUBLISHED_PAGE: PageListRow = {

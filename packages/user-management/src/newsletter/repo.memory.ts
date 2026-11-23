@@ -40,7 +40,7 @@ export class InMemoryNewsletterCampaignRepo implements NewsletterCampaignRepoPor
   /** Mirror the SQL existence probe without copying campaign records or applying pagination.
    * @complexity O(campaigns) comparisons, O(1) space; no I/O.
    */
-  async hasSending({ workspaceId }: { workspaceId: string }, _options = {}): Promise<boolean> {
+  async hasSending({ workspaceId }: { workspaceId: string }, _optional: Record<string, never> = {}): Promise<boolean> {
     return this.campaigns.some(campaign => campaign.workspaceId === workspaceId && campaign.status === 'sending');
   }
 
@@ -79,7 +79,7 @@ export class InMemoryNewsletterCampaignRepo implements NewsletterCampaignRepoPor
       .sort((a, b) => a.seq - b.seq);
   }
 
-  async transaction<T>({ fn }: { fn: () => Promise<T> }, _options = {}): Promise<T> {
+  async transaction<T>({ fn }: { fn: () => Promise<T> }, _optional: Record<string, never> = {}): Promise<T> {
     // In-process, single-threaded: mutations are already atomic — no-op, mirrors
     // `InMemorySettingsRepo.transaction`. A forced mid-transaction failure test (AC-08) therefore
     // proves the SQLite adapter's real transaction, not this one — see `repo.contract.test.ts`.
@@ -268,7 +268,7 @@ export class InMemoryNewsletterSendRepo implements NewsletterSendRepoPort {
     upsertRecord({ records: this.rows, record: row, identity: { workspaceId: row.workspaceId, id: row.id } });
   }
 
-  async saveBatch(rows: readonly SendRow[]): Promise<void> {
+  async saveBatch({ rows }: { rows: readonly SendRow[] }, _optional: Record<string, never> = {}): Promise<void> {
     for (const row of rows) await this.save(row);
   }
 

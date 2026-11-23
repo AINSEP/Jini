@@ -1,10 +1,12 @@
 import type { ServerLogEntry, ServerLogFilters, ServerLogLevel, ServerLogsResult } from "@jini-ai/core/contracts/site/platform-server-logs";
 
 /**
- * @file `readServerLogs` — the ONE read behind both a host's admin server-logs route
- * (`GET …/system/server-logs`) and its `system_read_server_logs` chat tool. Both call
- * `parseServerLogFilters` then `readServerLogs`, so a filter means the same thing in the UI and in
- * chat. Where the lines live is the host's: it injects a {@link ServerLogSourcePort}.
+ * @file `readServerLogs` — the ONE read behind both the admin route
+ * (`GET /api/admin/v1/workspaces/:ws/system/server-logs`) and the `system_read_server_logs` chat
+ * tool (gap A-04). Both call `parseServerLogFilters` then `readServerLogs`, so a filter means the
+ * same thing in the UI and in chat.
+ * Now: the route and the chat tool are a host's, and so is where the lines live: it injects a
+ * {@link ServerLogSourcePort}.
  */
 
 export const SERVER_LOG_LEVELS = ["debug", "info", "warn", "error"] as const satisfies readonly ServerLogLevel[];

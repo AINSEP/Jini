@@ -13,10 +13,12 @@ import { useAdminBootScope } from "../../../shell/lib/admin-boot-scope.js";
 
 import { type Translate } from '@jini-ai/core/text';
 /** Best-effort read — `localStorage` throws outright in some privacy modes (same caveat
- *  a draft-backup store documents at length). A read that fails just shows the
+ *  `standing-draft-local-backup.ts`'s header documents at length). A read that fails just shows the
  *  banner again, which is harmless: it is advisory and its truth is recomputed from the server on
  *  every load (see `rules.ts`'s `shouldShowDefaultPasswordBanner`).
- *  @complexity Time/space: O(1). */
+ *  @complexity Time/space: O(1).
+ * Now: `standing-draft-local-backup.ts` is the host's draft-backup store.
+ */
 function readDefaultPasswordBannerDismissedBy({ storageKey }: { storageKey: string }, _optional = {}): string | null {
   return orFallbackSync({ work: () => {
     return localStorage.getItem(storageKey);
@@ -42,7 +44,7 @@ function writeDefaultPasswordBannerDismissedBy({ storageKey, principalId }: { st
  * fine (audit finding, `ADS-memory/reports/audits/20260801-admin-adversarial-ux-audit.md`, exec
  * summary #5 — the original had no `.catch()` at all, so any rejection left the cards showing "…"
  * forever with no indication anything was wrong). A failed stat renders an em-dash plus the reason
- * in its own card, at the same size the healthy card occupies; see `.jini-dash-stat-*.is-error`.
+ * in its own card, at the same size the healthy card occupies; see `.dash-stat-*.is-error`.
  *
  * @tradeoffs Five GETs on the landing screen instead of the previous two. Accepted because each is
  * a list this admin already serves elsewhere, they run concurrently, and none blocks render — the
@@ -56,27 +58,30 @@ function writeDefaultPasswordBannerDismissedBy({ storageKey, principalId }: { st
  * single page the count silently becomes "items on the first page" and would need a real count
  * endpoint. Flagged rather than pre-solved.
  *
- * `deps.port` is injected (see `dashboard-port.hooks.ts`) rather than reaching for an API client
- * directly, so a test can describe each of the five reads against `createFakeDashboardPort`
- * instead of stubbing global `fetch`. The host's own `useWiredDashboard` is the
- * zero-argument-dependencies pair it hands `Dashboard.tsx` as `useDashboardHook`.
+ * `deps.port` is injected (see `dashboard-port.hooks.ts`) rather than reaching for `lib/api`'s
+ * `api` directly, so a test can describe each of the five reads against `createFakeDashboardPort`
+ * instead of stubbing global `fetch`. `useWiredDashboard` below is the zero-argument-dependencies
+ * pair `Dashboard.tsx` actually mounts.
  *
  * `deps.t`/`deps.locale` (2026-08-11, standing i18n rule — a component with a hook gets a BOUND
  * `t` from that hook, not its own `useAdminLocale()`/dictionary import) are ALSO now injected
  * dependencies rather than values this hook resolved for itself: `Dashboard.tsx` needs a bound
  * translator, and `deps.locale` is what THIS hook's own error strings resolve against via the
  * `translate(locale, key)` two-arg import (aliased to avoid colliding with the injected one-arg
- * `t`). The host's `useWiredDashboard` resolves both from its own admin-locale hook.
- *
- * `deps.describeError` and `deps.passwordBannerDismissedKey` are the host's too: the first is its
- * API client's error-to-copy base case (which errors may show their own words is the client's
- * contract, not this screen's), the second a storage key namespaced under the host's own prefix.
+ * `t`) — same split `media-dependencies.hooks.ts` documents for its identical `translate`
+ * alias/`t` pass-through pair. `useWiredDashboard` resolves both from the real `useWiredAdminLocale()`.
  *
  * 2026-08-14: this closes the port-conversion gap an earlier pass in this file's history left
  * disclosed ("NOT converted to the full port pattern... scoped as i18n-only... left as a disclosed
  * gap, not silently expanded") — the dispatch that added `deps.t` deliberately deferred the
  * 5-endpoint port because it was a materially larger diff than that pass's own scope; this pass's
  * scope is exactly "convert the admin DI seams still missing one," so the deferred half lands now.
+ * Now: the stat classes are `.jini-dash-stat-*.is-error`, and the port replaces an API-client
+ * import. The host's own `useWiredDashboard` is the pair it hands `Dashboard.tsx` as
+ * `useDashboardHook`, resolving `t`/`locale` from its own admin-locale hook. `deps.describeError`
+ * and `deps.passwordBannerDismissedKey` are the host's too: the first is its API client's
+ * error-to-copy base case (which errors may show their own words is the client's contract, not this
+ * screen's), the second a storage key namespaced under the host's own prefix.
  */
 
 export interface StatState {
@@ -141,8 +146,11 @@ export interface DashboardDependencies {
 type DescribeError = DashboardDependencies["describeError"];
 
 /** Runs one stat read and, on rejection, rethrows it as this hook's own message: the rejection's
- *  own text when the host's `describeError` vouches for it, else `key` translated against `locale`.
- *  @complexity Time/space: O(1) beyond the read itself. */
+ *  own text when it has one, else `key` translated against `locale` (`describeApiError`).
+ *  @complexity Time/space: O(1) beyond the read itself.
+ * Now: the rejection's own text is used only when the host's `describeError` (its
+ * `describeApiError`) vouches for it.
+ */
 async function readOrDescribe<T>({ read, locale, key, describeError }: { read: () => Promise<T>; locale: string; key: string; describeError: DescribeError }): Promise<T> {
   try { return await read(); }
   catch (error) { throw new Error(describeError({ e: error, fallback: translate({ locale, key }) })); }
@@ -266,9 +274,10 @@ function useSiteKeyBanner({ port, t }: { port: DashboardPort; t: Translate }): P
 }
 
 /**
- * @param deps `port`/`locale`/`t`/`describeError`/`passwordBannerDismissedKey` — see {@link DashboardDependencies}.
+ * @param deps `port`/`locale`/`t` — see {@link DashboardDependencies}.
  * @returns The dashboard screen's full controller — see {@link DashboardController}.
  * @complexity Time/space: O(1) per call — five independent, concurrent round trips on mount.
+ * Now: the dependencies also carry `describeError`/`passwordBannerDismissedKey`.
  */
 export function useDashboard({ port, locale, t, describeError, passwordBannerDismissedKey }: DashboardDependencies): DashboardController {
   const stats = deriveStats(useStatQueries({ port, locale, describeError }));

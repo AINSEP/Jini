@@ -47,8 +47,12 @@ export interface DashboardLinks {
 }
 
 export interface DashboardProps {
-  /** The screen's controller — the host's `useWiredDashboard` (its port, locale and copy bound into
-   *  `useDashboard`), or a test double. */
+  /**
+   * Dependency injection seam for tests — see `features/posts/Posts.tsx`'s `usePostsHook` for the
+   * house convention this follows.
+   * Now: required, not defaulted: the host passes its `useWiredDashboard` (its port, locale and
+   * copy bound into `useDashboard`), or a test passes a double.
+   */
   useDashboardHook: () => DashboardController;
   /** `false` where there is nowhere to publish to (the live site itself). */
   usePublishToLiveAvailableHook: () => boolean;
@@ -128,8 +132,10 @@ function RecentActivityBody(props: {
 /** The "Recently updated" card as an accordion (owner 2026-10-13: the dashboard was "a bit too
  *  busy"). Collapsed by default; the caret sits left of the title and points right when closed,
  *  down when open. Open state and its localStorage persistence live in
- *  the host's `useRecentActivityDisclosureHook`. The body stays mounted and is only `hidden`, so the
- *  button's `aria-controls` always names an element that exists. */
+ *  `use-recent-activity-disclosure.hooks.ts`. The body stays mounted and is only `hidden`, so the
+ *  button's `aria-controls` always names an element that exists.
+ * Now: that hook is the host's, injected as `useRecentActivityDisclosureHook`.
+ */
 function RecentActivityPanel(props: {
   recent: DashboardActivityRow[] | null;
   postsError: string | null;
@@ -348,8 +354,10 @@ function renderDashboardHeader(
       </div>
       <div className="page-actions jini-dash-header-actions">
         {/* Orange/`.btn-primary`, left of "View site" on one row (owner 2026-10-06; it used to sit
-            stacked under it) — a deliberate, meaningful action, not a nav link. The dialog it opens
-            is the host's (`onPublishAll`). */}
+            stacked under it) — a deliberate, meaningful action, not a nav link. See
+            `PublishContentDialog.tsx` for why the dialog it opens exists and why its own Confirm
+            is a stub.
+            Now: the dialog it opens is the host's (`onPublishAll`). */}
         {canPublish ? (
           <button
             type="button"

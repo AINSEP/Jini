@@ -2,18 +2,25 @@ import type { DashboardActivityRow, DashboardSiteKeyState } from "../dashboard-v
 
 /**
  * @file What `use-dashboard.hooks.ts` needs from the outside world, as an interface rather than a
- * direct API-client import.
+ * direct `lib/api` import.
  *
- * Follows the `useX(dependencies)` / `useWiredX()` pair (`redirects/SOURCE-RATIONALE.md` is the
- * reference implementation): this file declares, the HOST binds its real API clients into a
- * `DashboardPort` and its own `useWiredDashboard`, and nothing in this screen imports a client.
+ * Follows the `useX(dependencies)` / `useWiredX()` pair documented in
+ * `development/docs/architecture/wired-hooks-convention.md` (canonical spec) and
+ * `Jini redirects/SOURCE-RATIONALE.md` (canonical reference implementation): this file declares,
+ * `dashboard-dependencies.hooks.ts` binds the real `api` client, and nothing else under
+ * `features/dashboard` imports `lib/api`.
  *
  * `listMedia`/`listCommentsQueue`/`getPresentation` are narrowed to only the field this hook
  * actually reads off each response (an active-status flag, an items count, one theme id) — same
- * narrowing precedent the themes screen's port uses for its own `getPresentation()` slice.
- * `listPosts`/`listPages` deliver {@link DashboardActivityRow}: both the stat cards AND the merged
+ * narrowing precedent `theme-pages-port.hooks.ts` uses for its own `getPresentation()` slice.
+ * `listPosts`/`listPages` keep the full `AdminPost` shape: both the stat cards AND the merged
  * "Recently updated" activity list (`rules.ts`'s `mergeRecent`/`activityRowHref`) read several
- * fields off the same rows. A host's full post type satisfies it structurally.
+ * fields off the same rows, the same "genuinely used in full" case `media-port.hooks.ts` names for
+ * keeping `AdminMedia` unnarrowed.
+ * Now: the HOST binds its real API clients into a `DashboardPort` and its own `useWiredDashboard`,
+ * and nothing in this screen imports a client (`redirects/SOURCE-RATIONALE.md` is the reference
+ * implementation). `listPosts`/`listPages` deliver {@link DashboardActivityRow}; a host's full post
+ * type satisfies it structurally.
  */
 export interface DashboardPort {
   listPosts(): Promise<{ posts: Array<{ post: DashboardActivityRow }> }>;

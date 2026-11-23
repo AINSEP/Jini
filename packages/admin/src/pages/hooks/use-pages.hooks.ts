@@ -8,27 +8,34 @@ import { type Translate } from '@jini-ai/core/text';
 /**
  * @file Everything the Pages LIST does, so `Pages.tsx` is only markup.
  *
- * Extracted verbatim — same state, same order, same effect, same error strings. Mirrors the Posts
- * list hook exactly, since `Pages.tsx` is the Posts list's twin, backed by the pages-filtered
- * endpoints (`GET/POST .../pages`). A page is a `post` row with `kind: "page"`, so it's edited
- * through the same kind-blind post routes.
+ * Extracted verbatim — same state, same order, same effect, same error strings. Mirrors
+ * `features/posts/hooks/use-posts.hooks.ts` exactly, since `Pages.tsx` is `Posts.tsx`'s twin,
+ * backed by the pages-filtered endpoints (`GET/POST .../pages`). A page is a `post` row with
+ * `kind: "page"` (see `features/post/post.ts`), so it's edited through the same `PostEditor`
+ * reached via `/admin/posts/{id}`.
  *
  * The doc comments below moved WITH the functions they describe. `removePage`'s is a decision
- * record — why the delete copy says what it says — that the Posts list hook's `removePost` points
- * at as its source; a comment separated from its code stops being read.
+ * record — why the delete copy says what it says — that `posts/hooks/use-posts.hooks.ts`'s
+ * `removePost` points at as its source; a comment separated from its code stops being read.
  *
- * `port`/`navigate`/`events`/`pageAdminPath` are injected — see `pages-port.hooks.ts` — rather
- * than reaching an HTTP client, a router, the content-refresh bus or the host's shared page rules
- * directly, so a test can describe load/create/publish-toggle/delete outcomes against a fake port
- * instead of stubbing global `fetch`. The zero-argument `useWiredPages()` half that binds the real
- * client, router, bus and locale stays in the host. `t`/`locale` are injected (2026-08-11,
- * standing i18n rule — a component with a hook gets a BOUND `t` from that hook, not its own locale
- * hook/dictionary import, same shape the post editor hook established); the bound `t` translates
- * both the view's copy and this hook's fallback errors, while specific server Error messages keep
- * their detail. `locale` itself is also exposed, not just `t`: `Pages.tsx` passes the raw string
- * on to `pageRowMenuItems` (`../pages-list-rules.ts`), which keeps its own independent
+ * Naming follows `hooks/use-settings-slice.hooks.ts` and `hooks/use-dirty-guard.hooks.ts`:
+ * `use-<thing>.hooks.ts`. Feature-local because nothing outside `features/pages` needs it.
+ *
+ * `port`/`navigate` are injected — see `pages-port.hooks.ts` — rather than reaching `lib/api`/
+ * `lib/router` directly, so a test can describe load/create/publish-toggle/delete outcomes against
+ * `createFakePagesPort` instead of stubbing global `fetch`. `useWiredPages` below is the
+ * zero-argument pair `Pages.tsx` actually mounts. `t`/`locale` are injected (2026-08-11, standing
+ * i18n rule — a component with a hook gets a BOUND `t` from that hook, not its own
+ * `useAdminLocale()`/dictionary import, same shape `use-post-editor.hooks.ts` established); the
+ * bound `t` translates both the view's copy and this hook's fallback errors, while specific server
+ * Error messages keep their detail. `locale` itself is also exposed, not just `t`: `Pages.tsx`
+ * passes the raw string on to `pageRowMenuItems` (`../rules.ts`), which keeps its own independent
  * `PAGES_DICT[locale]?.[key] ?? key` closure unchanged — same "row-menu builder is a different,
- * out-of-scope thing" precedent the post editor hook's own header cites for `postRowMenuItems`.
+ * out-of-scope thing" precedent `use-post-editor.hooks.ts`'s own header cites for `postRowMenuItems`.
+ * Now: `port`/`navigate`/`events`/`pageAdminPath` are injected, so an HTTP client, a router, the
+ * content-refresh bus and the host's shared page rules stay out of this package; the zero-argument
+ * `useWiredPages()` that binds them stays in the host, and the row-menu rules are
+ * `../pages-list-rules.ts`.
  */
 
 export interface PagesController<Row extends PageListRow = PageListRow> {
@@ -46,8 +53,10 @@ export interface PagesController<Row extends PageListRow = PageListRow> {
   removePage: () => Promise<void>;
   /** Bound translator — `Pages.tsx`'s only source of UI copy; see this file's own header. */
   t: Translate;
-  /** The raw resolved locale — exposed only because `pageRowMenuItems` (`../pages-list-rules.ts`)
-   *  genuinely needs it, not `t`. */
+  /** The raw resolved locale — exposed only because `pageRowMenuItems` (`../rules.ts`) genuinely
+   *  needs it, not `t`.
+   * Now: `../rules.ts` is `../pages-list-rules.ts`.
+   */
   locale: string;
   /** Each page's row-menu agent handle, keyed by page id — looked up by ID, never by render
    *  position. See {@link usePageRowMenuHandleMap}'s own doc for why. */
@@ -62,7 +71,8 @@ export interface PagesController<Row extends PageListRow = PageListRow> {
  * position, specifically so a control keeps the same handle even after the table reorders — which
  * is exactly what re-sorting does. Memoized on `pages` alone so re-sorting or any other unrelated
  * re-render (`sort`, `locale`) does not rebuild this map and hand `RowMenu` a new handle-string
- * identity every time. Mirrors the Posts list's `usePostRowMenuHandleMap` verbatim.
+ * identity every time. Mirrors `use-posts.hooks.ts`'s `usePostRowMenuHandleMap` verbatim.
+ * Now: `use-posts.hooks.ts` is the host's Posts list hook.
  */
 export function usePageRowMenuHandleMap({ pages }: { pages: readonly PageListRow[] | null }, _options = {}): Map<string, string> {
   return useMemo(() => buildPageRowMenuHandleMap({ pages }), [pages]);
@@ -134,8 +144,9 @@ function createPageActions<Row extends PageListRow>(
       const { post } = await write.mutate({ input: () => port.createPage({ title: "Untitled" }) }) as Awaited<ReturnType<typeof port.createPage>>;
       // The Pages editor, not the Posts one. "New Page" and "ask the assistant to build me a page"
       // are two doors to the same destination — neither of them is a Tiptap screen.
-      // `pageAdminPath` (host rule) — same slug-vs-id-vs-root-slug rule `Pages.tsx`'s own row
+      // `pageAdminPath` (`rules.ts`) — same slug-vs-id-vs-root-slug rule `Pages.tsx`'s own row
       // navigation already uses for an existing page (readable-slugs S6a).
+      // Now: `pageAdminPath` is a host rule, injected.
       navigate(pageAdminPath(post));
     } catch (e) {
       setError(e instanceof Error ? e.message : t("failed to create page"));
@@ -154,7 +165,7 @@ function createPageActions<Row extends PageListRow>(
    * full editor.
    *
    * Sends the row's own `title`/`slug`/`bodyJson` alongside the flipped `status` and
-   * `expectedVersion` — `PUT /posts/:id`'s server-side update validation
+   * `expectedVersion` — `PUT /posts/:id`'s `validateUpdatePostInput` (`features/post/post.ts`)
    * treats a missing `title`/`slug` as `""` and rejects the request with "title is required" before
    * ever reaching the version check, and requires `bodyJson` to be a JSON object for any row whose
    * `bodyFormat` isn't `"html"` — which is exactly what the OLD `{ status, expectedVersion }`-only
@@ -165,9 +176,11 @@ function createPageActions<Row extends PageListRow>(
    * of these fields would actually be written back, so this can never silently overwrite a
    * concurrent edit to title/slug/body.
    *
-   * `expectedVersion: page.version` (2026-09-18, multi-author hardening, Task 14a) — mirrors the
-   * Posts list hook's identical `togglePostPublish` fix exactly; see its doc for the full
-   * rationale. */
+   * `expectedVersion: page.version` (2026-09-18, multi-author hardening, Task 14a) — mirrors
+   * `use-posts.hooks.ts`'s identical `togglePostPublish` fix exactly; see its doc for the full
+   * rationale.
+   * Now: the update validation and `use-posts.hooks.ts` are the host's.
+   */
   async function togglePagePublish(page: Row) {
     const nextStatus: PageListRow["status"] = page.status === "published" ? "draft" : "published";
     setRowSavingId(page.id);
@@ -182,7 +195,7 @@ function createPageActions<Row extends PageListRow>(
       setError(e instanceof Error ? e.message : t(nextStatus === "published" ? "failed to publish page" : "failed to unpublish page"));
     } finally {
       // Only clear THIS row's lock — `rowSavingId` is shared with `removePage`'s delete-in-flight
-      // lock (2026-09-20, S4b hardening; mirrors the Posts list hook's identical fix). An
+      // lock (2026-09-20, S4b hardening; mirrors `use-posts.hooks.ts`'s identical fix). An
       // unconditional `setRowSavingId(null)` here would wipe a DIFFERENT row's delete lock if that
       // row's confirm landed while this toggle was still in flight, making the dialog read as
       // settled (dismissable, re-confirmable) while the delete is still on the wire.
@@ -190,11 +203,11 @@ function createPageActions<Row extends PageListRow>(
     }
   }
 
-  /** Soft delete: `deletePage` does hit a soft-delete route that is genuinely revertible
-   * server-side (see the host API client's own doc on deletePage) — but the confirm copy below
-   * states only the observable consequence and does NOT claim recoverability. There is no restore
-   * path an operator can reach from this product today (no change-set-revert UI, no client method
-   * for it; whole-database snapshot recovery is a different, much heavier restore, not a per-row
+  /** Soft delete: `api.deletePage` does hit a soft-delete route that is genuinely revertible
+   * server-side (see api.ts's own doc on deletePage) — but the confirm copy below states only the
+   * observable consequence and does NOT claim recoverability. There is no restore path an
+   * operator can reach from this product today (no change-set-revert UI, no api.ts method for it;
+   * `Recovery.tsx` is a different, much heavier whole-database snapshot restore, not a per-row
    * undo). Promising an undo the operator cannot actually perform would be worse than promising
    * nothing. Equally, do not swap it for "permanently delete" / "cannot be undone" — that
    * overcorrects into the opposite lie, since the row genuinely is recoverable server-side, just
@@ -203,13 +216,16 @@ function createPageActions<Row extends PageListRow>(
    *
    * Confirmation now gates via a `ConfirmDialog` modal, reached through `RowMenu`'s "Delete" item,
    * rather than `ConfirmButton`'s in-place two-click control or `window.confirm` — a further
-   * upgrade over MSG-03's `ConfirmButton` pass on this same screen's twin (the Posts list): that
-   * component was itself chosen at the time because the host stylesheet was locked to a concurrently-
+   * upgrade over MSG-03's `ConfirmButton` pass on this same screen's twin (`Posts.tsx`): that
+   * component was itself chosen at the time because `styles.css` was locked to a concurrently-
    * editing agent and a modal needed new markup/CSS this pass could not add (see
    * `ConfirmButton.tsx`'s own file header). Neither constraint holds for this dispatch, and a
    * modal disclosure ("Move "X" to trash? It will disappear from the site and from this list.")
    * reads as a deliberate decision point rather than a label change on a button already sitting in
-   * a menu the operator just opened. */
+   * a menu the operator just opened.
+   * Now: `api.ts`, `Recovery.tsx` and `styles.css` are the host's; this hook calls the injected
+   * port's `deletePage`.
+   */
   async function removePage() {
     if (!pendingDelete) return;
     const page = pendingDelete;

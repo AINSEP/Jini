@@ -8,10 +8,12 @@ import type { ObservabilityStatusPort } from "./observability-status-port.hooks.
 import { type Translate } from '@jini-ai/core/text';
 /**
  * @file State for the Observability screen's Overview tab, so `Observability.tsx` is only markup —
- * same split as the agent-plugins screen's own hook.
+ * same split as `features/plugins/hooks/use-agent-plugins.hooks.ts` (`AgentPlugins.tsx`'s hook).
  *
- * `t`/`locale` arrive with the dependencies, not read directly by `Observability.tsx` — the same
- * standing i18n rule (2026-08-11). The host binds the port, locale, translator and error describer.
+ * `t`/`locale` are resolved here, not read directly by `Observability.tsx` — same standing i18n
+ * rule that hook's own header documents (2026-08-11).
+ * Now: `t`/`locale` arrive with the dependencies; the host binds the port, locale, translator and
+ * error describer.
  */
 
 export interface ObservabilityStatusDependencies {

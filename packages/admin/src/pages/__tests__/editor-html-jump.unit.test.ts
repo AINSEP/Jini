@@ -15,7 +15,7 @@ function harness(flush: () => Promise<string | undefined> = async () => source, 
   const setDraftHtml = vi.fn();
   const onError = vi.fn();
   const scrollTop = { current: 17 };
-  const hook = renderHook(({ revision }) => useEditorHtmlJump({ html: source, contentRevision: revision, flush, setView, setDraftHtml, scrollTop, findEditorBlockOpening }, { onError, measureCaretTop }), { initialProps: { revision: 1 } });
+  const hook = renderHook(({ revision }) => useEditorHtmlJump({ html: source, contentRevision: revision, flush, setView, setDraftHtml, scrollTop, findEditorBlockOpening }, { onError, ...(measureCaretTop ? { measureCaretTop } : {}) }), { initialProps: { revision: 1 } });
   return { ...hook, setView, setDraftHtml, onError, scrollTop };
 }
 describe("locked block Edit HTML navigation", () => {

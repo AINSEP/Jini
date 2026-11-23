@@ -2,7 +2,9 @@ import type { ServerLogsResult } from "@jini-ai/core/contracts/site/platform-ser
 import type { ObservabilityApi } from "../api/observability-api.js";
 import type { RecentServerErrorsPort } from "./recent-server-errors-port.hooks.js";
 
-/** @file The only place the Recent errors hook reaches the API client and the clipboard, plus its in-memory test fake. */
+/** @file The only place the Recent errors hook reaches `lib/api` and the clipboard, plus its in-memory test fake.
+ * Now: `lib/api` is the host-bound API client.
+ */
 
 /**
  * The live port: server logs through the host-bound {@link ObservabilityApi} (read at call time),

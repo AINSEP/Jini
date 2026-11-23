@@ -25,6 +25,7 @@ test('publishes user management from its canonical folder and preserves runtime 
     './react': 'browser',
     './react/testing': 'browser',
     './react/kit': 'browser',
+    './react/members/members-i18n': 'browser',
     './admin': 'universal',
     './admin/react': 'browser',
     './admin/adapters/http': 'universal',
@@ -46,6 +47,17 @@ test('publishes user management from its canonical folder and preserves runtime 
     './members/repo.memory': 'universal',
     './members/trash-member': 'universal',
     './members/types': 'universal',
+    './newsletter/errors': 'universal',
+    './newsletter/types': 'universal',
+    './newsletter/ports': 'universal',
+    './newsletter/campaign': 'universal',
+    './newsletter/hooks': 'universal',
+    './newsletter/lists': 'universal',
+    './newsletter/campaign-write-service': 'universal',
+    './newsletter/launch-gate': 'universal',
+    './newsletter/repo.memory': 'universal',
+    './newsletter/unsubscribe': 'node',
+    './newsletter/send-pipeline': 'node',
   });
   expect(Object.keys(manifest.exports).sort()).toEqual(Object.keys(manifest.jini.entries).sort());
   for (const [entry, value] of Object.entries(manifest.exports)) {

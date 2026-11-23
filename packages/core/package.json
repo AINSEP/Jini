@@ -165,6 +165,7 @@
       "./tool-metadata/navigation": "universal",
       "./tool-metadata/observability": "universal",
       "./tool-metadata/pages": "universal",
+      "./tool-metadata/server-logs": "universal",
       "./contracts/site/integrations-credentialed-http": "universal",
       "./contracts/site/widgets-html": "universal",
       "./contracts/site/integrations-api-connections": "universal"
@@ -979,6 +980,11 @@
       "types": "./dist/tool-metadata/pages.d.ts",
       "import": "./dist/tool-metadata/pages.js",
       "default": "./dist/tool-metadata/pages.js"
+    },
+    "./tool-metadata/server-logs": {
+      "types": "./dist/tool-metadata/server-logs.d.ts",
+      "import": "./dist/tool-metadata/server-logs.js",
+      "default": "./dist/tool-metadata/server-logs.js"
     },
     "./contracts/site/integrations-credentialed-http": {
       "types": "./dist/contracts/site/integrations-credentialed-http.d.ts",

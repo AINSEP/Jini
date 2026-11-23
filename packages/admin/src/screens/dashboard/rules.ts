@@ -5,9 +5,11 @@ import { type Translate } from '@jini-ai/core/text';
  * @file Pure logic for the `dashboard` feature — everything that computes a value rather than
  * rendering one.
  *
- * The admin's `rules.ts` convention: `mergeRecent` was already a standalone module-level function in
- * `Dashboard.tsx`; it moved here unchanged so it is importable and directly testable without
- * rendering the screen. Rows are {@link DashboardActivityRow}, the narrow view the port delivers.
+ * Follows the same convention `features/posts/rules.ts` establishes for this app. The one function
+ * here (`mergeRecent`) was already a standalone module-level function in `Dashboard.tsx`; it moves
+ * here unchanged so it is importable and directly testable without rendering the screen.
+ * Now: `features/posts/rules.ts` is the host's; rows are {@link DashboardActivityRow}, the narrow
+ * view the port delivers.
  */
 
 /** Merges one list into whatever the other fetch has already delivered and re-sorts, so the panel
@@ -31,24 +33,27 @@ export function mergeRecent({ prev, incoming }: { prev: DashboardActivityRow[] |
  * The panel merges BOTH `listPosts` and `listPages` (see `use-dashboard.hooks.ts`) and labels each
  * row with its own `kind`, but every row used to href `/admin/posts/:id` — so clicking a row
  * plainly labelled "page" opened the post editor with a page id, which `api.getPost` refuses
- * (the host's detail route is kind-guarded and 404s on a page id).
+ * (`api.ts:858`: the detail route is kind-guarded and 404s on a page id).
  *
- * Pages land on the Pages LIST rather than a page editor because the host's panel registry gives
- * the `pages` panel no detail view — only `posts` has a `post-editor`. Sending a page row to a route that does
+ * Pages land on the Pages LIST rather than a page editor because `panels.tsx` gives the `pages`
+ * panel no detail view — only `posts` has a `post-editor`. Sending a page row to a route that does
  * not exist would trade a wrong-editor 404 for a routing dead end. When the pages-vibecoding
  * workstream lands a page editor, this is the one place that changes.
  *
  * Readable-slugs S6a (2026-09-23): a post row now hrefs its slug, not its id, matching every other
- * post link in the admin (`/posts/:slug`).
- *
- * The Dashboard itself never calls this: it renders `links.activityRow(row)`, which the host binds
- * (usually to this function) so the routes stay the host's to choose.
+ * post link in the admin (`/posts/:slug`, `use-posts.hooks.ts`'s `createPost`).
+ * Now: the detail route and the panel registry are the host's. The Dashboard itself never calls
+ * this: it renders `links.activityRow(row)`, which the host binds (usually to this function) so the
+ * routes stay the host's to choose.
  */
 export function activityRowHref(row: Pick<DashboardActivityRow, "id" | "kind" | "slug">): string {
   return row.kind === "page" ? "/admin/pages" : `/admin/posts/${row.slug}`;
 }
 
-/** The active theme's name on the shell's content-refresh bus (`shell/lib/content-refresh-bus.ts`). A finished assistant run announces every resource, theme activations included. */
+/** The active theme's name on `lib/content-refresh-bus.ts` (see `taxonomy/rules.ts`'s
+ *  `TAXONOMY_RESOURCE`). A finished assistant run announces every resource, theme activations included.
+ * Now: the bus is the shell's `shell/lib/content-refresh-bus.ts`.
+ */
 export const ACTIVE_THEME_RESOURCE = "themes";
 
 /** The Appearance card's theme label — the active theme's `theme.json` display name, or its id when
@@ -98,7 +103,7 @@ export function shouldShowDefaultPasswordBanner({ usesDefault, dismissed }: { us
 
 /**
  * Site-key plan (2026-09-24) §A.6. Whether the dashboard should show the site-key warning banner.
- * Only 3 of the 5 {@link DashboardSiteKeyState} values are urgent enough to interrupt the landing
+ * Only 3 of the 5 {@link AdminSiteKeyState} values are urgent enough to interrupt the landing
  * screen: `"missing-with-data"` (saved credentials exist but nothing can open them),
  * `"mismatch"` (the active key doesn't match what the data was sealed under), and `"invalid"` (a
  * source was found but fails hex validation). Plain `"missing"` is the ordinary state of a brand
@@ -109,6 +114,7 @@ export function shouldShowDefaultPasswordBanner({ usesDefault, dismissed }: { us
  * must never be read as "something is wrong with your site key" any more than as "it's fine".
  *
  * @complexity O(1).
+ * Now: the state type here is {@link DashboardSiteKeyState}.
  */
 export function shouldShowSiteKeyBanner({ state }: { state: DashboardSiteKeyState | undefined }, _options = {}): boolean {
   return state === "missing-with-data" || state === "mismatch" || state === "invalid";

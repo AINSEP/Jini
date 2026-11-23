@@ -214,6 +214,8 @@
       "./pages/Pages": "browser",
       "./pages/hooks/use-pages.hooks": "browser",
       "./pages/hooks/pages-port.hooks": "universal",
+      "./pages/hooks/use-interactive-flush.hooks": "browser",
+      "./pages/hooks/use-editor-html-jump.hooks": "browser",
       "./pages/pages-list-rules": "universal"
     },
     "isolation": {
@@ -300,6 +302,8 @@
         "./pages/hooks/pages-port.hooks": "browser",
         "./pages/hooks/pages-tab-url.hooks": "browser",
         "./pages/hooks/use-pages.hooks": "browser",
+        "./pages/hooks/use-interactive-flush.hooks": "browser",
+        "./pages/hooks/use-editor-html-jump.hooks": "browser",
         "./pages/lib/embed-placeholder": "browser",
         "./pages/lib/page-preview-youtube": "browser",
         "./pages/lib/prettify-html": "browser",
@@ -1310,6 +1314,16 @@
       "import": "./dist/pages/hooks/use-pages.hooks.js",
       "default": "./dist/pages/hooks/use-pages.hooks.js"
     },
+    "./pages/hooks/use-interactive-flush.hooks": {
+      "types": "./dist/pages/hooks/use-interactive-flush.hooks.d.ts",
+      "import": "./dist/pages/hooks/use-interactive-flush.hooks.js",
+      "default": "./dist/pages/hooks/use-interactive-flush.hooks.js"
+    },
+    "./pages/hooks/use-editor-html-jump.hooks": {
+      "types": "./dist/pages/hooks/use-editor-html-jump.hooks.d.ts",
+      "import": "./dist/pages/hooks/use-editor-html-jump.hooks.js",
+      "default": "./dist/pages/hooks/use-editor-html-jump.hooks.js"
+    },
     "./pages/hooks/pages-port.hooks": {
       "types": "./dist/pages/hooks/pages-port.hooks.d.ts",
       "import": "./dist/pages/hooks/pages-port.hooks.js",
@@ -1482,6 +1496,12 @@
       ],
       "pages/hooks/use-pages.hooks": [
         "./dist/pages/hooks/use-pages.hooks.d.ts"
+      ],
+      "pages/hooks/use-interactive-flush.hooks": [
+        "./dist/pages/hooks/use-interactive-flush.hooks.d.ts"
+      ],
+      "pages/hooks/use-editor-html-jump.hooks": [
+        "./dist/pages/hooks/use-editor-html-jump.hooks.d.ts"
       ],
       "pages/hooks/pages-port.hooks": [
         "./dist/pages/hooks/pages-port.hooks.d.ts"

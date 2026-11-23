@@ -104,7 +104,7 @@ export async function saveCampaign(required: {
       listId: UUID;
     };
   };
-}, _options = {}): Promise<{ campaign: CampaignRecord; revisionSeq: number }> {
+}, _optional: Record<string, never> = {}): Promise<{ campaign: CampaignRecord; revisionSeq: number }> {
   const { deps, input } = required;
   validateFields(input.fields);
   await requireEditableListId({ deps, workspaceId: input.workspaceId, listId: input.fields.listId });
@@ -223,7 +223,7 @@ export async function cancelCampaign(required: {
  * @param required.value - Caller-supplied schedule timestamp, shared by routes, tools and the write service.
  * @returns False for malformed dates, missing timezone or impossible calendar dates.
  * @complexity O(n) in timestamp length, O(1) auxiliary space. */
-export function isValidScheduleTimestamp({ value }: { value: string }, _options = {}): boolean {
+export function isValidScheduleTimestamp({ value }: { value: string }, _optional: Record<string, never> = {}): boolean {
   if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(value)) return false;
   if (!Number.isFinite(Date.parse(value))) return false;
   const datePart = value.slice(0, 10);

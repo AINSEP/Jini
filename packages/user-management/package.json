@@ -20,7 +20,7 @@
       "./react": "browser",
       "./react/testing": "browser",
       "./react/kit": "browser",
-      "./react/members/members-i18n": "universal",
+      "./react/members/members-i18n": "browser",
       "./admin": "universal",
       "./admin/react": "browser",
       "./admin/adapters/http": "universal",
@@ -37,6 +37,7 @@
       "./newsletter/launch-gate": "universal",
       "./newsletter/repo.memory": "universal",
       "./newsletter/unsubscribe": "node",
+      "./newsletter/send-pipeline": "node",
       "./members/access-resolver": "node",
       "./members/agent-tools": "universal",
       "./members/capability-card": "universal",
@@ -186,6 +187,11 @@
       "types": "./dist/newsletter/unsubscribe.d.ts",
       "import": "./dist/newsletter/unsubscribe.js",
       "default": "./dist/newsletter/unsubscribe.js"
+    },
+    "./newsletter/send-pipeline": {
+      "types": "./dist/newsletter/send-pipeline.d.ts",
+      "import": "./dist/newsletter/send-pipeline.js",
+      "default": "./dist/newsletter/send-pipeline.js"
     },
     "./members/access-resolver": {
       "types": "./dist/members/access-resolver.d.ts",

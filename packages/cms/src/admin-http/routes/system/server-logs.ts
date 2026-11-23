@@ -5,10 +5,9 @@ import type { ServerLogFilters, ServerLogsResult } from '@jini-ai/core/contracts
 /**
  * @file `GET /api/admin/v1/workspaces/:workspaceId/system/server-logs` — recent captured server log
  * lines (gap A-04). Query: `level`, `sinceIso`, `contains`, `limit`, the same filters and the same
- * log read as the host's `system_read_server_logs` chat tool. Same workspace-404 -> authorize
- * -> 403 shape as `observability-status.ts`; the 404 and 403 are the host ports'.
- *
- * The filter parser, the log reader and the filter-error classifier are the host's server-log
+ * `readServerLogs` call as the `system_read_server_logs` chat tool. Same workspace-404 -> authorize
+ * -> 403 shape as `observability-status.ts`.
+ * Now: the filter parser, the log reader and the filter-error classifier are the host's server-log
  * feature, injected: this route owns only the order (authorize before validating, so an
  * unauthorized caller never learns which filter was wrong) and the 400 envelope.
  */
@@ -30,7 +29,7 @@ export interface ServerLogsPrincipal { id: string }
 export interface ServerLogsInput { query: Record<string, unknown> }
 
 function queryRecord(query: Record<string, unknown>): Record<string, unknown> {
-  // A host parses `?level=a&level=b` into an array; keep the first so validation sees one value.
+  // Express parses `?level=a&level=b` into an array; keep the first so validation sees one value.
   return Object.fromEntries(Object.entries(query).map(([key, value]) => [key, Array.isArray(value) ? value[0] : value]));
 }
 

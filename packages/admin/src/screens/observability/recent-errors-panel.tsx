@@ -32,13 +32,14 @@ export type RecentServerErrorsHook = () => RecentServerErrorsController;
 /**
  * Recent errors tab (gap A-04, slice L2): the newest server error lines, the same data the
  * `system_read_server_logs` chat tool returns. Markup only — state lives in
- * `use-recent-server-errors.hooks.ts` (list) and the host's injected row hook (one row). The
+ * `use-recent-server-errors.hooks.ts` (list) and `use-recent-error-item.hooks.ts` (one row). The
  * hook is called HERE, not in `Observability.tsx`, so the read only happens when this tab is opened.
  *
  * Owner pass 2026-10-08 ("This looks awful… maybe an accordion to show the full error, and a copy
  * button"): each distinct error is a collapsed one-line row (time, source, summary, ×N when
  * repeated) that opens to the full message with shortened paths; Copy puts a paste-ready block on
  * the clipboard.
+ * Now: the row hook is the host's, injected as `useRecentErrorItemHook`.
  */
 export function RecentErrorsPanel(props: { useRecentServerErrorsHook: RecentServerErrorsHook; useRecentErrorItemHook: RecentErrorItemHook }) {
   // Host hooks are required props, called through `props` (never imported or defaulted).

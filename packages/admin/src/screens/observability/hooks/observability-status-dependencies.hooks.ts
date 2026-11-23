@@ -3,9 +3,11 @@ import type { ObservabilityApi } from "../api/observability-api.js";
 import type { ObservabilityStatusPort } from "./observability-status-port.hooks.js";
 
 /**
- * @file The only place the Overview tab's hook reaches the API client — see
- * `observability-status-port.hooks.ts` for why the split exists. Same port split the agent-plugins
- * screen uses for its sibling hook.
+ * @file The only place under `features/observability`'s hook that reaches `lib/api` — see
+ * `observability-status-port.hooks.ts` for why the split exists. Mirrors
+ * `features/plugins/hooks/agent-plugins-dependencies.hooks.ts`'s identical split for its sibling
+ * screen.
+ * Now: the client is the host-bound {@link ObservabilityApi}.
  */
 
 /**

@@ -51,7 +51,7 @@ export interface HookRegistry {
  * @complexity O(k), k = registered hook count (small, fixed per process).
  * @overallScore 100
  */
-export function createHookRegistry(): HookRegistry {
+export function createHookRegistry(_optional: Record<string, never> = {}): HookRegistry {
   const recipientFilters: RecipientFilterHook[] = [];
   const beforeSendHooks: BeforeSendHook[] = [];
 

@@ -39,9 +39,11 @@ export interface FakeDashboardPortOptions {
 }
 
 /**
- * An in-memory {@link DashboardPort} for tests — "every port gets a fake". Each of the five methods resolves or rejects independently, so a
+ * An in-memory {@link DashboardPort} for tests — "every port gets a fake" (see
+ * `media-dependencies.hooks.ts`). Each of the five methods resolves or rejects independently, so a
  * test can describe "posts loaded but comments failed" directly instead of hand-building five
  * `Response` objects and stubbing global `fetch`.
+ * Now: `media-dependencies.hooks.ts` is the host app's; this fake has its own file in this package.
  */
 export function createFakeDashboardPort(options: FakeDashboardPortOptions = {}): DashboardPort {
   return {

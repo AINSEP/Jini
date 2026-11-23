@@ -4,18 +4,20 @@ import { isNoopObservabilityPort, type ObservabilityPort } from '@jini-ai/core/c
 import { rejectRoute } from '@jini-ai/core/errors/route-refusal';
 
 /**
- * @file Observability admin page, Overview tab —
- * `GET /api/admin/v1/workspaces/:workspaceId/system/observability-status` and
- * `POST /api/admin/v1/workspaces/:workspaceId/system/observability/test-error`.
+ * @file Observability admin page, Overview tab (`development/todos.md` 2026-09-09 owner ask) —
+ * `GET /api/admin/v1/workspaces/:workspaceId/system/observability-status`.
  *
- * Reports whether a configured observability provider plugin backs the host's observability port
+ * Reports whether a configured observability provider plugin backs `RouteDeps.observability`
  * (since provider wave 2; before it, whether an operator had set `OTEL_EXPORTER_OTLP_ENDPOINT`/
  * `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`) or the process is running the default no-op — never the
  * endpoint value itself, which could carry a collector's hostname or an embedded credential (the same
- * discipline `RequestTrackingOutcome.routePattern` already applies to inbound paths). The selection
- * itself is the host composition root's; this route only wires that decision through the same
- * workspace-id-404 -> authorize -> 403 shape every sibling route in this directory uses
- * (`module-status.ts`); the 404 and the `system.read` 403 are the host ports'.
+ * discipline `RequestTrackingOutcome.routePattern` already applies to inbound paths, per `ports.ts`).
+ * The selection itself is `server/runtime/composition/provider-plugins.ts`'s; this route only wires
+ * that decision through the same workspace-id-404 -> authorize -> 403 shape every sibling route in
+ * this directory uses (`module-status.ts`, `deployment-overview.ts`).
+ * Now: the route also serves `POST .../system/observability/test-error`; the observability port,
+ * the provider selection (the host composition root) and the 404 / `system.read` 403 are the host
+ * ports'.
  */
 
 /** The fields of the authenticated principal these routes read. */

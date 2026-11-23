@@ -18,30 +18,33 @@ import { VIEWER_TIME_ZONE } from "../shell/lib/viewer-time-zone.js";
 /**
  * @file The Pages list screen — markup only.
  *
- * State and API calls live in `hooks/use-pages.hooks.ts` (My Pages) and the host's Theme Pages
- * hook; the row-menu logic lives in `pages-list-rules.ts`. What stays here is what actually
- * renders: column definitions, the empty state, and the confirm copy. The "My Pages" side mirrors
- * the Posts list exactly, since this screen is the Posts list's twin, backed by the pages-filtered
- * endpoints (`GET/POST .../pages`). A page is a `post` row with `kind: "page"`, so it's edited
- * through the same kind-blind post routes.
+ * State and API calls live in `hooks/use-pages.hooks.ts` (My Pages) and `hooks/use-theme-
+ * pages.hooks.ts` (Theme Pages); the row-menu logic lives in `rules.ts`. What stays here is what
+ * actually renders: column definitions, the empty state, and the confirm copy. The "My Pages" side
+ * mirrors `features/posts/Posts.tsx` exactly, since this screen is `Posts.tsx`'s twin, backed by
+ * the pages-filtered endpoints (`GET/POST .../pages`). A page is a `post` row with `kind: "page"`
+ * (see `features/post/post.ts`), so it's edited through the same `PostEditor` reached via
+ * `/admin/posts/{id}`.
  *
  * "Theme Pages" (2026-08-10) is a second, deliberately separate tab: the ACTIVE theme's own bundled
- * `pages/*.html` (`static` tier only), not database rows. Kept visually and structurally apart from
- * "My Pages" on purpose — the `templateChoice`/`overridesThemePage` work elsewhere exists
- * specifically so theme content and an operator's own authored content read as two different
- * things that survive a theme switch independently, and merging them into one list here would blur
- * exactly that distinction. A theme page has no post row behind it (no id, no draft/published
- * status to speak of as a database row) — its row offers a publish switch and a "see more"
- * disclosure, not a `RowMenu`, and its link goes to the theme studio, not the live site. Themes
- * stay with the host, so the whole tab body — its data hook AND its component — is injected
- * (`useThemePagesHook` + `ThemePagesTab`); this screen reads only `pageCount` from it, for the tab
- * badge.
+ * `pages/*.html` (`static` tier only — see `getPresentation()`'s `activeThemeStaticPageIds`), not
+ * database rows. Kept visually and structurally apart from "My Pages" on purpose — the
+ * `templateChoice`/`overridesThemePage` work elsewhere this session exists specifically so theme
+ * content and an operator's own authored content read as two different things that survive a theme
+ * switch independently, and merging them into one list here would blur exactly that distinction.
+ * A theme page has no `PostRecord` behind it (no id, no draft/published status to speak of as a
+ * database row) — its row offers a publish switch and a "see more" disclosure, not a `RowMenu`. The
+ * row's own link goes to the THEME STUDIO (`/admin/themes/explore?theme=&page=`), not the live
+ * site. The whole tab body — that link, the publish switch, the disclosure — now lives in its own
+ * file, `ThemePagesTab.tsx` (2026-08-30, deep-link/publish-toggle pass), split out once it grew
+ * past a bare read-only row link; see that file's own header.
  *
- * The active tab itself is addressable: `?tab=themes` opens directly on Theme Pages
- * (`hooks/pages-tab-url.hooks.ts`), the same deep-link contract the theme studio's Explore screen
- * has for `?theme=`/`?page=`/`?file=`.
- *
- * Wiring: see `README.md` (`## Wiring`) in this folder.
+ * The active tab itself is now addressable: `?tab=themes` opens directly on Theme Pages
+ * (`hooks/pages-tab-url.hooks.ts`), the same deep-link contract Theme Studio's Explore screen
+ * already has for `?theme=`/`?page=`/`?file=`.
+ * Now: the Theme Pages hook and tab are the host's, injected as `useThemePagesHook` +
+ * `ThemePagesTab`; this screen reads only `pageCount` from it, for the tab badge. The row-menu
+ * logic is `pages-list-rules.ts`. Wiring: see `README.md` (`## Wiring`) in this folder.
  */
 
 /** The only field of the host's Theme Pages controller this screen reads itself (the tab count);
@@ -89,11 +92,11 @@ export interface PagesProps<Row extends PageListRow, Theme extends PagesThemeTab
 /**
  * The loading/error guard shown before the table has anything to render — pulled out of `Pages`
  * (2026-08-06, complexity pass, fourth pass) so its two early-return checks collapse into one
- * `if` at the call site. `error && !pages` (not just `error`), matching the Media and Comments
- * screens: once the list has loaded, a later failure (create, delete) surfaces as an inline banner
- * above the table instead of blanking out the whole screen behind it. Mirrors the Posts list's
- * identical `postsListNotice`, matching this pair's existing "twin screens" convention (this
- * file's own header).
+ * `if` at the call site. `error && !pages` (not just `error`), matching Media.tsx and `@jini-ai/admin/comments/react`:
+ * once the list has loaded, a later failure (create, delete) surfaces as an inline banner above
+ * the table instead of blanking out the whole screen behind it. Mirrors `Posts.tsx`'s identical
+ * `postsListNotice`, matching this pair's existing "twin screens" convention (this file's own
+ * header).
  */
 export function pagesListNotice({ pages, error, t }: { pages: readonly PageListRow[] | null; error: string | null; t: Translate }, _options = {}): ReactNode {
   if (error && !pages) return <div className="notice error">{error}</div>;
@@ -122,24 +125,24 @@ export function Pages<Row extends PageListRow, Theme extends PagesThemeTabContro
   // behind it — stays LOCAL rather than moving into `use-pages.hooks.ts`, unlike every other piece
   // of state on this screen. The line to draw: async/API/data state always moves into the hook;
   // view-only chrome (active tab, expanded/collapsed, dialog open, sort direction) stays here
-  // UNLESS a test needs to observe it — see the Posts list's identical `sort` state, the canonical
+  // UNLESS a test needs to observe it — see `Posts.tsx`'s identical `sort` state, the canonical
   // example this mirrors. Initialized from `?tab=` (`resolvePagesTabFromUrl`) rather than a fixed
   // `"mine"`, so a deep link opens directly on the right tab; read once, matching `useState`'s own
   // lazy-initializer contract — this must NOT re-resolve on every render, or a later in-page
   // `writePagesTabToUrl` call would immediately fight with it.
   const [activeTab, setActiveTab] = useState<PagesTabId>(() => resolvePagesTabFromUrl({}));
-  // Same "My Pages" sort state as the Posts list's `sort` (2026-09-02, multi-column sort pass;
-  // migrated onto `DataTable`'s own shared sort mechanism the same day) — one active column at a
-  // time, local chrome state per the same owner ruling above, passed straight through as
-  // `sort`/`onSortChange`.
+  // Same "My Pages" sort state as `Posts.tsx`'s `sort` (2026-09-02, multi-column sort pass; migrated
+  // onto `DataTable`'s own shared sort mechanism the same day) — one active column at a time, local
+  // chrome state per the same owner ruling above, passed straight through as `sort`/`onSortChange`.
   const [sort, setSort] = useState<DataTableSortState>(sorting.defaultSort);
 
   const selectTab = createPagesTabSelect({ setActiveTab });
 
   // `pagesListNotice` answers non-null exactly when `pages` is null, so gating on `!pages` returns
-  // that notice AND keeps TS's narrowing, so `rows={pages}` below type-checks as `Row[]`
+  // that notice AND keeps TS's narrowing, so `rows={pages}` below type-checks as `AdminPost[]`
   // without an `as`/`!` assertion. (The earlier `if (notice) return notice; if (!pages) return null;`
   // pair restored that narrowing with a second `!pages` check that was unreachable in practice.)
+  // Now: the rows type is the generic `Row[]`.
   if (!pages) return pagesListNotice({ pages, error, t });
 
   return (
@@ -281,16 +284,18 @@ function pagesLinkColumns<Row extends PageListRow, Theme extends PagesThemeTabCo
     {
       key: "title",
       header: t("Title"),
-      // Sortable headers (2026-09-02, ported from the Posts list's identical block; migrated
+      // Sortable headers (2026-09-02, ported from `Posts.tsx`'s identical block; migrated
       // onto `DataTable`'s own shared sort mechanism the same day) — `DataTable` now
       // renders the button, caret, and `aria-sort` itself from this descriptor; only the
-      // domain-specific comparator and label wording live in the host's list-sort rules.
+      // domain-specific comparator and label wording live in `lib/admin-post-list-sort.ts`.
+      // Now: the comparator and label wording are the host's list-sort rules.
       sort: { compare: sorting.compareByTitle, label: (direction: DataTableSortDirection | null) => sorting.columnSortLabel({ t, columnName: t("Title"), direction }) },
-      // The admin editor route (the host's `/:slug` pattern) is one path segment, so a
+      // The admin editor route (`panels.tsx`'s `/:slug` pattern) is one path segment, so a
       // Page holding the root slug `"/"` (`pagePublicPath`'s own doc) can't be expressed in
-      // slug form at all — `pageAdminPath` (host rule) picks slug-vs-id per page so this
+      // slug form at all — `pageAdminPath` (`rules.ts`) picks slug-vs-id per page so this
       // link reads as a slug for every ordinary page and falls back to the id only for that
-      // one. `adminHref` (`shell/lib/router.ts`) turns the bare route path into a real `<a href>`.
+      // one. `adminHref` (`lib/router.ts`) turns the bare route path into a real `<a href>`.
+      // Now: `pageAdminPath` is a host rule and `adminHref` is `shell/lib/router.ts`.
       cell: (page: Row) => (
         <a
           href={adminHref({ routePath: pageAdminPath(page) })}

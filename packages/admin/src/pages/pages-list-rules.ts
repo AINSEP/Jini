@@ -22,7 +22,7 @@ import type { PageListRow } from "./hooks/pages-port.hooks.js";
 
 /** The callbacks a row menu needs. Passed in rather than imported so this module stays free of
  *  state and navigation, and so a test can assert exactly which one a given row wires up — same
- *  shape as the Posts list's `PostRowMenuHandlers`. */
+ *  shape as `posts/rules.ts`'s `PostRowMenuHandlers`. */
 export interface PageRowMenuHandlers<Row extends PageListRow = PageListRow> {
   onEdit: (required: { page: Row }) => void;
   onTogglePublish: (page: Row) => void;
@@ -34,7 +34,7 @@ export interface PageRowMenuHandlers<Row extends PageListRow = PageListRow> {
  *
  * The branch is the reason this is exported: **the middle item's label and key flip with the row's
  * own status** — "Unpublish" for a published page, "Publish" for a draft — same deliberate rename
- * the Posts list's `postRowMenuItems` got (owner request, 2026-09-22), replacing the old rule
+ * `posts/rules.ts`'s `postRowMenuItems` got (owner request, 2026-09-22), replacing the old rule
  * that omitted the item entirely for a draft rather than rendering it disabled. See that function's
  * own doc for the full "why" — a status-only payload sent by the old "Disable" item, always
  * missing `title`/`slug`, was rejected by `PUT /posts/:id` with "title is required" (owner
@@ -65,7 +65,7 @@ export function pageRowMenuItems<Row extends PageListRow>({ page, handlers, loca
 
 /**
  * Row-menu agent handle for every page, keyed by page id. `Pages.tsx` looks a row's handle up BY
- * ID rather than by render position — mirrors the Posts list's `buildPostRowMenuHandleMap`
+ * ID rather than by render position — mirrors `posts/rules.ts`'s `buildPostRowMenuHandleMap`
  * verbatim, for the reason that function's own doc gives and that this screen learned the hard way
  * (2026-09-07 audit claim #2): `DataTable` sorts `rows` internally and passes each `cell` callback
  * the index into that SORTED order, while the handle array is built from the unsorted `pages` prop,
