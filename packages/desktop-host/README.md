@@ -193,7 +193,8 @@ The default Node timer adapter is also exported as `createNodeUpdateTimers()`. D
 ## Wiring
 
 Window navigation, guest admission and remembered bounds have one implementation each, under
-`./electron/navigation-policy` and `./electron/usability`; there are no `./shell/*` wrappers for them.
+`./electron/navigation-policy` and `./electron/usability`; there are no `./shell/*` wrappers for them,
+except `./shell/find-menu`, which only adapts Electron's positional window shape to `./electron/usability`'s Find menu.
 `./shell/guest-navigation` builds on the same navigation-policy API.
 
 - **Needs injected:** `openExternal`, the app origin or renderer file URL, an `isSupervisedGuestUrl` /
@@ -318,6 +319,37 @@ app.on('before-quit', () => discovery.abortAll());
 ```
 
 Architecture: [extraction-plan.md](../../ADS-memory/reports/jini-port/extraction-plan.md).
+
+### Wiring: native shell bindings (Find menu, node toolchain, speech)
+
+These `./shell/*` entries hold no policy of their own; each binds an existing entry to Electron's
+positional shapes or to Node's real `fs`/`execFile`, and every product value is injected.
+
+- **`./shell/find-menu`** (`nativeFindMenu`, `sendNativeFindToggle`) over `./electron/usability`'s
+  `findMenu`. **Needs injected:** the deployed toggle `channel` and the `{ menu, item }` labels.
+- **`./shell/node-toolchain`** (`bindNodeToolchain`) over `./node-toolchain`. **Needs injected:** the
+  shim banner `generatedComment` and the two env names (`toolchainEnvName`, `npmRootEnvName`) that the
+  host's stdio launch resolver reads. Returns `{ writeNodeToolchain, buildNodeToolchainEnv,
+  buildNodeToolchainShims }`, the shape `prepareNodeToolchainEnvBestEffort` takes. Writes under
+  `<userDataDir>/node-toolchain/{bin,npm-cache,npm-prefix}`.
+- **`./shell/speech/speech-ipc`** (`registerNativeSpeechIpc`, `buildDefaultTranscriptionPort`) and
+  **`./shell/speech/mac-on-device-transcriber`** (`createNativeMacTranscriptionPort`) over `./speech`
+  and `./speech/macos`. **Needs injected:** a `NativeSpeechHost` — the IPC `channelNamespace` (must
+  match the host's preload bridge), all IPC/transcription/helper error wording, and
+  `mac: { binaryPath, messages, tempFilePrefix }`. The host computes `binaryPath` itself so its helper
+  cache never moves with this package's install location.
+- **Stays with the host:** every channel name, env name, banner, label, message and path.
+- **Never imports:** `electron` (structural ports only).
+
+```ts
+import { nativeFindMenu } from '@jini-ai/desktop-host/shell/find-menu';
+import { bindNodeToolchain } from '@jini-ai/desktop-host/shell/node-toolchain';
+import { registerNativeSpeechIpc } from '@jini-ai/desktop-host/shell/speech/speech-ipc';
+
+const find = nativeFindMenu({ channel: FIND_TOGGLE_CHANNEL, labels: { menu: 'Find', item: 'Find in Page…' } });
+const { writeNodeToolchain, buildNodeToolchainEnv } = bindNodeToolchain({ generatedComment, toolchainEnvName, npmRootEnvName });
+registerNativeSpeechIpc({ ipcMain, isTrustedSender, host: speechHost });
+```
 
 ### Wiring: Electron session bootstrap
 

@@ -42,7 +42,11 @@
       "./electron/preload": "desktop",
       "./electron/webview": "desktop",
       "./electron/session-bootstrap": "desktop",
-      "./electron/windows": "desktop"
+      "./electron/windows": "desktop",
+      "./shell/find-menu": "desktop",
+      "./shell/node-toolchain": "node",
+      "./shell/speech/mac-on-device-transcriber": "node",
+      "./shell/speech/speech-ipc": "node"
     },
     "isolation": {
       "entries": {
@@ -50,7 +54,11 @@
         "./shell/instance-presence": "electron",
         "./shell/auto-update-controller": "electron",
         "./shell/spellcheck-menu": "electron",
-        "./shell/guest-navigation": "electron"
+        "./shell/guest-navigation": "electron",
+        "./shell/find-menu": "electron",
+        "./shell/node-toolchain": "node-toolchain",
+        "./shell/speech/speech-ipc": "speech",
+        "./shell/speech/mac-on-device-transcriber": "speech"
       }
     }
   },
@@ -199,12 +207,31 @@
       "types": "./dist/electron/session-bootstrap/index.d.ts",
       "import": "./dist/electron/session-bootstrap/index.js",
       "default": "./dist/electron/session-bootstrap/index.js"
-    }
-,
+    },
     "./electron/windows": {
       "types": "./dist/electron/windows/index.d.ts",
       "import": "./dist/electron/windows/index.js",
       "default": "./dist/electron/windows/index.js"
+    },
+    "./shell/find-menu": {
+      "types": "./dist/shell/find-menu.d.ts",
+      "import": "./dist/shell/find-menu.js",
+      "default": "./dist/shell/find-menu.js"
+    },
+    "./shell/node-toolchain": {
+      "types": "./dist/shell/node-toolchain.d.ts",
+      "import": "./dist/shell/node-toolchain.js",
+      "default": "./dist/shell/node-toolchain.js"
+    },
+    "./shell/speech/mac-on-device-transcriber": {
+      "types": "./dist/shell/speech/mac-on-device-transcriber.d.ts",
+      "import": "./dist/shell/speech/mac-on-device-transcriber.js",
+      "default": "./dist/shell/speech/mac-on-device-transcriber.js"
+    },
+    "./shell/speech/speech-ipc": {
+      "types": "./dist/shell/speech/speech-ipc.d.ts",
+      "import": "./dist/shell/speech/speech-ipc.js",
+      "default": "./dist/shell/speech/speech-ipc.js"
     }
   },
   "files": [
