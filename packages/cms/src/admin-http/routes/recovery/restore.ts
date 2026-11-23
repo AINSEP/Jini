@@ -72,7 +72,7 @@ const STATUS_BY_RECOVERY_ERROR_CODE: Readonly<Record<string, number>> = {
  * incident envelope as any thrown failure — the cause never reaches the body.
  * @complexity O(1).
  */
-function settle<T>({ result }: { result: RecoveryCeremonyResult<T> }, _optional: Record<string, never> = {}): { ok: true; value: T } {
+function settle<T>({ result }: { result: RecoveryCeremonyResult<T> }, _optional: Record<string, never> = {}) {
   if (result.ok) return ok({ value: result.value });
   const { code, message } = result.error;
   const status = STATUS_BY_RECOVERY_ERROR_CODE[code];
