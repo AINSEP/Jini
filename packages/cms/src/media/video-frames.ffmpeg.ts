@@ -8,7 +8,9 @@ import { sniffContentType } from './content-type-sniffer.js';
 import { getVideoFrameEdge, parseVideoProbe, planVideoFrames, planVideoContactSheets, VIDEO_EXTRACTION_TIMEOUT_MS, VIDEO_MAX_SHEET_BYTES, VIDEO_MAX_FRAME_BYTES, VIDEO_MAX_INPUT_BYTES, VIDEO_MAX_OUTPUT_BYTES, type VideoFrameExtractor, type VideoFrameResult } from './video-frames.js';
 
 export interface VideoBinaries { readonly nice: string; readonly ffmpeg: string; readonly ffprobe: string }
-export type VideoBinaryFinder = (required: Record<string, never>, optional: { env?: NodeJS.ProcessEnv; platform?: NodeJS.Platform }) => Promise<VideoBinaries | undefined>;
+/** `env` is the host's environment (PATH, FFMPEG_PATH, FFPROBE_PATH), REQUIRED and injected: a library must never resolve
+ * host configuration itself, so only the composition root reads its own process environment and passes it here. */
+export type VideoBinaryFinder = (required: { env: NodeJS.ProcessEnv }, optional: { platform?: NodeJS.Platform }) => Promise<VideoBinaries | undefined>;
 export type VideoProcessRunner = (required: { command: string; args: readonly string[] }, optional: { timeoutMs: number; maxOutputBytes: number; signal?: AbortSignal }) => Promise<Uint8Array>;
 class VideoProcessError extends Error {
   constructor(readonly reason: 'unavailable' | 'timeout' | 'canceled' | 'invalid', message: string) { super(message); }
@@ -28,7 +30,7 @@ async function executable(required: { name: string }, { configured, env }: { con
 
 /** Discovery never executes a version/probe command. Configured paths are host configuration,
  * never tool arguments, and all subprocesses (including ffprobe) still go through nice. */
-export const findVideoBinaries: VideoBinaryFinder = async (_required, { env = process.env, platform = process.platform } = {}) => {
+export const findVideoBinaries: VideoBinaryFinder = async ({ env }, { platform = process.platform } = {}) => {
   if (platform === 'win32') return undefined; // Never silently omit the low-priority guarantee.
   const nice = await executable({ name: 'nice' }, { env });
   const ffmpeg = await executable({ name: 'ffmpeg' }, { configured: env['FFMPEG_PATH'], env });
@@ -291,11 +293,11 @@ interface ExtractorDeps {
   readonly findBinaries: VideoBinaryFinder;
   readonly runProcess: VideoProcessRunner;
   readonly nowMs: () => number;
-  readonly env: NodeJS.ProcessEnv | undefined;
+  readonly env: NodeJS.ProcessEnv;
   readonly platform: NodeJS.Platform | undefined;
 }
 const discoverBinaries = ({ findBinaries, env, platform }: Pick<ExtractorDeps, 'findBinaries' | 'env' | 'platform'>) =>
-  findBinaries({}, { ...(env ? { env } : {}), ...(platform ? { platform } : {}) });
+  findBinaries({ env }, platform ? { platform } : {});
 /** The locked part of one extraction: discovery, private input, probe, frames and optional sheets.
  * Records the temporary directory in `workspace` as soon as it exists so the caller always removes it. */
 async function extractLocked(
@@ -332,7 +334,7 @@ async function removeWorkspace({ directory }: { directory?: string }): Promise<V
 }
 
 export function createFfmpegVideoFrameExtractor(
-  { findBinaries = findVideoBinaries, runProcess = runLowPriorityVideoProcess, nowMs = () => performance.now(), lock = defaultExtractionLock, env, platform }: { lock?: VideoExtractionLock; env?: NodeJS.ProcessEnv; platform?: NodeJS.Platform; findBinaries?: VideoBinaryFinder; runProcess?: VideoProcessRunner; nowMs?: (required: Record<string, never>, optional: Record<string, never>) => number },
+  { findBinaries = findVideoBinaries, runProcess = runLowPriorityVideoProcess, nowMs = () => performance.now(), lock = defaultExtractionLock, env, platform }: { lock?: VideoExtractionLock; env: NodeJS.ProcessEnv; platform?: NodeJS.Platform; findBinaries?: VideoBinaryFinder; runProcess?: VideoProcessRunner; nowMs?: (required: Record<string, never>, optional: Record<string, never>) => number },
   _optional: Record<string, never> = {},
 ): VideoFrameExtractor {
   const deps: ExtractorDeps = { findBinaries, runProcess, nowMs: () => nowMs({}, {}), env, platform };

@@ -12,8 +12,8 @@ it('discovers only from the supplied environment and platform', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'hwb-video-'));
   try {
     for (const name of ['nice', 'ffmpeg', 'ffprobe']) { await writeFile(join(dir, name), ''); await chmod(join(dir, name), 0o700); }
-    expect(await findVideoBinaries({}, { env: { PATH: dir }, platform: 'linux' })).toEqual({ nice: join(dir, 'nice'), ffmpeg: join(dir, 'ffmpeg'), ffprobe: join(dir, 'ffprobe') });
-    expect(await findVideoBinaries({}, { env: { PATH: dir }, platform: 'win32' })).toBeUndefined();
+    expect(await findVideoBinaries({ env: { PATH: dir } }, { platform: 'linux' })).toEqual({ nice: join(dir, 'nice'), ffmpeg: join(dir, 'ffmpeg'), ffprobe: join(dir, 'ffprobe') });
+    expect(await findVideoBinaries({ env: { PATH: dir } }, { platform: 'win32' })).toBeUndefined();
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
 
@@ -24,18 +24,18 @@ it('honors injected lock ownership and releases it on unavailable or rejected di
   let started!: () => void;
   const ready = new Promise<void>(resolve => { started = resolve; });
   const findBinaries = () => new Promise<undefined>(resolve => { finish = () => resolve(undefined); started(); });
-  const first = createFfmpegVideoFrameExtractor({ lock, findBinaries });
+  const first = createFfmpegVideoFrameExtractor({ env: {}, lock, findBinaries });
   const pending = first.extract({ bytes }, {});
   await ready;
   try {
-    const same = createFfmpegVideoFrameExtractor({ lock, findBinaries: async () => undefined });
+    const same = createFfmpegVideoFrameExtractor({ env: {}, lock, findBinaries: async () => undefined });
     expect(await same.extract({ bytes }, {})).toEqual({ ok: false, reason: 'busy', message: 'Video preview is busy. Try again after the current extraction finishes.' });
-    const other = createFfmpegVideoFrameExtractor({ lock: createVideoExtractionLock({}), findBinaries: async () => undefined });
+    const other = createFfmpegVideoFrameExtractor({ env: {}, lock: createVideoExtractionLock({}), findBinaries: async () => undefined });
     expect((await other.extract({ bytes }, {})).ok).toBe(false);
     const result = await other.extract({ bytes }, {});
     expect(result).toMatchObject({ reason: 'unavailable' });
   } finally { finish(); await pending; }
-  const failed = createFfmpegVideoFrameExtractor({ lock, findBinaries: async () => { throw new Error('probe failed'); } });
+  const failed = createFfmpegVideoFrameExtractor({ env: {}, lock, findBinaries: async () => { throw new Error('probe failed'); } });
   expect(await failed.extract({ bytes }, {})).toMatchObject({ reason: 'invalid' });
   const release = lock.tryAcquire({}, {});
   expect(typeof release).toBe('function');
