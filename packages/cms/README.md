@@ -163,6 +163,14 @@ The nested forms package is maintained by its separate owner and is excluded fro
 When porting tests, `git mv` them rather than re-authoring: re-authoring costs a full pass and
 still loses coverage.
 
+## Wiring
+
+The admin route specs under `src/admin-http/routes/` (redirects, recovery, …) are server-neutral
+`defineJsonRoute` specs, each with its own small deps type (e.g. `RecoveryDeepLinkRouteDeps`). A host
+mounts one with `mountJsonRoute({ app, spec, deps })` from `@jini-ai/http-kit`, passing explicit deps
+and its `authorize` port. Redirect by-id routes (get, hits, update, tombstone) authorize with
+`{ entityId }`; list and import stay id-free. Tests inject typed fakes through those same deps.
+
 ## Scripts
 
 ```bash
