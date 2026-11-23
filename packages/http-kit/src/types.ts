@@ -34,6 +34,11 @@ export interface JsonRouteSpec<Input, Output, Deps, Context = undefined> {
   method: HttpMethod;
   path: string;
   requireSameOrigin?: boolean;
+  /**
+   * Body ceiling for every method but GET/HEAD, same field as core's `JsonRouteSpec`. It can only
+   * tighten the host's JSON parser limit, never widen it: that parser reads the wire first.
+   */
+  maxBodyBytes?: number;
   parse: InputParser<Input>;
   handle: Handler<Input, Output, Deps, Context>;
   successStatus?: number;

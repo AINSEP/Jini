@@ -8,9 +8,15 @@ import { err, ok, type Result } from './result.js';
 /** Express's `express.json()` default ceiling, kept so moving a route off Express changes no limit. */
 export const DEFAULT_JSON_BODY_MAX_BYTES = 100 * 1024;
 
-function tooLarge(maxBytes: number): ServerApiError {
+/**
+ * The 413 refusal for a body over `maxBytes`, in plain words. Exported so a host that enforces a
+ * route's ceiling on a body its own framework already parsed answers with the same wording.
+ */
+export function payloadTooLargeError({ maxBytes }: { readonly maxBytes: number }, _optional: Record<string, never> = {}): ServerApiError {
   return ({ code: 'PAYLOAD_TOO_LARGE', message: `The request body is larger than the ${maxBytes} bytes this address accepts. Send less data.` });
 }
+
+const tooLarge = (maxBytes: number): ServerApiError => payloadTooLargeError({ maxBytes });
 
 /**
  * Reads the whole body as bytes, refusing (413, `PAYLOAD_TOO_LARGE`) as soon as it passes

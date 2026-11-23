@@ -4,7 +4,7 @@
  * file in the module that knows about Express `req`/`res` on the mounting side.
  */
 import type { Express, Request, Response } from 'express';
-import { ClientFacingError, statusForError, type JsonRouteAuthorize, type Result, type RouteHostInternalErrorContext, type RouteHostContext, type ServerApiError } from '@jini-ai/core/contracts/server';
+import { ClientFacingError, payloadTooLargeError, statusForError, type JsonRouteAuthorize, type Result, type RouteHostInternalErrorContext, type RouteHostContext, type ServerApiError } from '@jini-ai/core/contracts/server';
 import { reportRouteInternalError } from './internal-error.js';
 import { rawInput } from './request.js';
 import { sendApiError, sendJson } from './response.js';
@@ -16,11 +16,11 @@ import type { JsonRoutePorts, JsonRouteSpec } from './types.js';
  * parameters at the definition site so callers do not have to repeat them. Optional settings take
  * precedence. The returned spec is consumed by `mountJsonRoute` (live)
  * and by tests (direct invocation of `route.parse` / `route.handle`).
- * @param optionalArgs - Origin/success policy and optional injected host ports.
+ * @param optionalArgs - Origin/success policy, body ceiling and optional injected host ports.
  * @returns A fresh route spec; never mutates either argument.
  * @complexity O(1) time/space for the fixed spec fields.
  */
-export function defineJsonRoute<Input, Output, Deps, Context = undefined>(requiredArgs: Omit<JsonRouteSpec<Input, Output, Deps, Context>, 'requireSameOrigin' | 'successStatus' | 'ports'>, optionalArgs: Pick<JsonRouteSpec<Input, Output, Deps, Context>, 'requireSameOrigin' | 'successStatus' | 'ports'> = {}
+export function defineJsonRoute<Input, Output, Deps, Context = undefined>(requiredArgs: Omit<JsonRouteSpec<Input, Output, Deps, Context>, 'requireSameOrigin' | 'successStatus' | 'ports' | 'maxBodyBytes'>, optionalArgs: Pick<JsonRouteSpec<Input, Output, Deps, Context>, 'requireSameOrigin' | 'successStatus' | 'ports' | 'maxBodyBytes'> = {}
 ): JsonRouteSpec<Input, Output, Deps, Context> {
   return { ...requiredArgs, ...optionalArgs };
 }
@@ -58,6 +58,7 @@ export function mountJsonRoute<Input, Output, Deps, Context = undefined>({ app, 
     res.on?.('close', onResponseClose);
     try {
       const raw = rawInput({ req });
+      if (!allowRouteBody({ req, res, spec })) return;
       if (spec.ports?.workspace) await spec.ports.workspace({ raw, deps });
       if (!allowRouteOrigin({ req, res, spec, adapter })) return;
       let context: Context | undefined;
@@ -95,6 +96,37 @@ function routeAuthorize<Deps, Context>({ ports, deps, context }: {
     const required = { context, deps, permission, entityType };
     await (scope ? ports.authorize(required, scope) : ports.authorize(required));
   };
+}
+
+/** UTF-8 size of a body the host's parser already read: the bytes themselves, or its JSON re-serialization. */
+function parsedBodyBytes(body: unknown): number {
+  if (body === undefined || body === null) return 0;
+  if (body instanceof Uint8Array) return body.byteLength;
+  return new TextEncoder().encode(typeof body === 'string' ? body : JSON.stringify(body)).byteLength;
+}
+
+/**
+ * Enforces the spec's `maxBodyBytes`, answering 413 with core's plain-words refusal when exceeded.
+ * Why here and not in the parser: the host's `express.json()` already read the body with its own,
+ * usually larger, limit, and a second parser skips a parsed body — so without this check the
+ * route's declared ceiling was silently lost. The body is measured re-serialized, the same bytes
+ * core's `jsonRoute` limits when mounted behind `node-bridge`, so both mount paths agree. A spec
+ * cap above the host parser's limit is effectively clamped to it: the parser refuses first.
+ * GET/HEAD are exempt, as in core.
+ * @returns `false` when the refusal was written and the route must stop.
+ * @complexity O(n) in the body size for the re-serialization; only when a cap is declared.
+ */
+function allowRouteBody({ req, res, spec }: {
+  readonly req: Request;
+  readonly res: Response;
+  readonly spec: Pick<JsonRouteSpec<unknown, unknown, unknown>, 'maxBodyBytes'>;
+}, _optional: Record<string, never> = {}): boolean {
+  const maxBytes = spec.maxBodyBytes;
+  if (maxBytes === undefined || req.method === 'GET' || req.method === 'HEAD') return true;
+  if (parsedBodyBytes(req.body) <= maxBytes) return true;
+  const error = payloadTooLargeError({ maxBytes });
+  sendApiError({ res, status: statusForError({ error }), error });
+  return false;
 }
 
 function allowRouteOrigin({ req, res, spec, adapter }: {

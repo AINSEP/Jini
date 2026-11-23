@@ -39,6 +39,23 @@ describe('gatedJsonRoute', () => {
     const response = await fetch(new Request('http://local/api/open', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{"n":123456789}' }));
     expect(response.status).toBe(413);
   });
+
+  // The host limit is an outer bound, not a replacement: a route that declares a tighter ceiling keeps it.
+  it("keeps a spec's maxBodyBytes that is tighter than the host's limit", async () => {
+    const { server, fetch } = createInMemoryServer();
+    server.route(gatedJsonRoute({ spec: { ...open, maxBodyBytes: 8 }, deps: { base: 0 }, host: fakeDaemonRouteHost({}, { jsonBodyMaxBytes: 1_000_000 }) }));
+    const post = (body: string) => fetch(new Request('http://local/api/open', { method: 'POST', headers: { 'content-type': 'application/json' }, body }));
+    const over = await post('{"n":123456789}');
+    expect([over.status, await over.json()]).toEqual([413, { error: { code: 'PAYLOAD_TOO_LARGE', message: 'The request body is larger than the 8 bytes this address accepts. Send less data.' } }]);
+    expect((await post('{"n":1}')).status).toBe(200);
+  });
+
+  it("uses the host's limit when the spec declares none", async () => {
+    const { server, fetch } = createInMemoryServer();
+    server.route(gatedJsonRoute({ spec: open, deps: { base: 0 }, host: fakeDaemonRouteHost({}, { jsonBodyMaxBytes: 8 }) }));
+    const response = await fetch(new Request('http://local/api/open', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{"n":123456789}' }));
+    expect(response.status).toBe(413);
+  });
 });
 
 describe('withHostReporter', () => {
