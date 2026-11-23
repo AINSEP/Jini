@@ -76,7 +76,12 @@ export interface MenuProps extends Base { readonly label: string; readonly items
 export interface NoticeProps extends Base { readonly children: ReactNode; readonly tone?: Tone }
 export interface SpinnerProps extends Base { readonly label?: string }
 export interface BadgeProps extends Base { readonly children: ReactNode; readonly tone?: Tone }
-export interface InfoTipProps { label: string; agentHandle?: string | false | undefined }
+export interface InfoTipProps {
+  label: string; agentHandle?: string | false | undefined;
+  /** The trigger's accessible name when it differs from the tip text; `descriptionId` ties the tip to a described control. */
+  triggerLabel?: string | undefined; descriptionId?: string | undefined;
+  placement?: 'top' | 'bottom' | 'inline' | undefined; icon?: ReactNode | undefined;
+}
 type LightboxPart = 'dialog' | 'close' | 'previous' | 'next';
 export interface LightboxProps {
   open: boolean; title: string; onClose: () => void; children?: ReactNode;

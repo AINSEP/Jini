@@ -1,7 +1,7 @@
 import { render, renderHook, screen } from '@testing-library/react';
 import { createRef, type ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import { AdminKitProvider, Button, Icon, TabBar, type AdminKitChat, type KitIconName, useAdminKitChatPosters, useAdminKitValues, useAdminThemeKit, useChatT, useDirtyGuard, useFetchQuery, useMediaProviderRules, useT } from '../kit.js';
+import { AdminKitProvider, Button, Icon, InfoTip, TabBar, type AdminKitChat, type KitIconName, useAdminKitChatPosters, useAdminKitValues, useAdminThemeKit, useChatT, useDirtyGuard, useFetchQuery, useMediaProviderRules, useT } from '../kit.js';
 import {
   CodeWithLines, CodeWrapToggle, I18nProvider, PreviewModalShell, RemixIcon, SettingsDialogShell, Toast,
   useAdminKitChatValues, useCodeWrap, useFabPosition, useInfoTip, usePanelPosition, useSelectDropdown, useSerialWrites, useTabBarKeyboard,
@@ -280,4 +280,14 @@ describe('admin kit: B5 additions (A-K2-0a remainder + A-K2-0.J)', () => {
     expect(read.chat.resolveChatPaneSelection({ agents, requested: { agentId: 'claude' } })).toEqual({ agentId: 'claude', model: 'm' });
     expect(resolveChatPaneSelection).toHaveBeenCalledWith({ agents, requested: { agentId: 'claude' } });
   });
+});
+
+it('passes the InfoTip placement, icon, trigger label and description id through to the injected InfoTip', () => {
+  const seen: unknown[] = [];
+  const kit = fakeAdminKit({ components: { InfoTip: (props) => { seen.push(props); return <span role="note">{props.label}</span>; } } });
+  const icon = <svg data-testid="tip-icon" />;
+  renderWithAdminKit(<InfoTip label="Runs locally" placement="bottom" icon={icon} triggerLabel="About runs" descriptionId="run-desc" />, { kit });
+  expect(screen.getByRole('note').textContent).toBe('Runs locally');
+  expect(seen).toHaveLength(1);
+  expect(seen[0]).toMatchObject({ label: 'Runs locally', placement: 'bottom', icon, triggerLabel: 'About runs', descriptionId: 'run-desc' });
 });
