@@ -179,7 +179,11 @@
       "./screens/dashboard/hooks/dashboard-port.hooks": "universal",
       "./screens/dashboard/hooks/fake-dashboard-port": "universal",
       "./screens/dashboard/dashboard-view.types": "universal",
-      "./screens/dashboard/dashboard.css": "browser"
+      "./screens/dashboard/dashboard.css": "browser",
+      "./pages/Pages": "browser",
+      "./pages/hooks/use-pages.hooks": "browser",
+      "./pages/hooks/pages-port.hooks": "universal",
+      "./pages/pages-list-rules": "universal"
     },
     "isolation": {
       "shared": [
@@ -197,6 +201,17 @@
         ]
       },
       "entries": {
+        "./pages/Pages": "browser",
+        "./pages/Pages.hooks": "browser",
+        "./pages/api/pages-api.types": "browser",
+        "./pages/hooks/pages-port.hooks": "browser",
+        "./pages/hooks/pages-tab-url.hooks": "browser",
+        "./pages/hooks/use-pages.hooks": "browser",
+        "./pages/lib/embed-placeholder": "browser",
+        "./pages/lib/page-preview-youtube": "browser",
+        "./pages/lib/prettify-html": "browser",
+        "./pages/pages-i18n": "browser",
+        "./pages/pages-list-rules": "browser",
         "./screens/dashboard/Dashboard": "browser",
         "./screens/dashboard/dashboard-i18n": "browser",
         "./screens/dashboard/dashboard-view.types": "browser",
@@ -1098,7 +1113,27 @@
       "import": "./dist/screens/dashboard/dashboard-view.types.js",
       "default": "./dist/screens/dashboard/dashboard-view.types.js"
     },
-    "./screens/dashboard/dashboard.css": "./src/screens/dashboard/dashboard.css"
+    "./screens/dashboard/dashboard.css": "./src/screens/dashboard/dashboard.css",
+    "./pages/Pages": {
+      "types": "./dist/pages/Pages.d.ts",
+      "import": "./dist/pages/Pages.js",
+      "default": "./dist/pages/Pages.js"
+    },
+    "./pages/hooks/use-pages.hooks": {
+      "types": "./dist/pages/hooks/use-pages.hooks.d.ts",
+      "import": "./dist/pages/hooks/use-pages.hooks.js",
+      "default": "./dist/pages/hooks/use-pages.hooks.js"
+    },
+    "./pages/hooks/pages-port.hooks": {
+      "types": "./dist/pages/hooks/pages-port.hooks.d.ts",
+      "import": "./dist/pages/hooks/pages-port.hooks.js",
+      "default": "./dist/pages/hooks/pages-port.hooks.js"
+    },
+    "./pages/pages-list-rules": {
+      "types": "./dist/pages/pages-list-rules.d.ts",
+      "import": "./dist/pages/pages-list-rules.js",
+      "default": "./dist/pages/pages-list-rules.js"
+    }
   },
   "files": [
     "src/themes",
@@ -1255,6 +1290,18 @@
       ],
       "screens/dashboard/dashboard-view.types": [
         "./dist/screens/dashboard/dashboard-view.types.d.ts"
+      ],
+      "pages/Pages": [
+        "./dist/pages/Pages.d.ts"
+      ],
+      "pages/hooks/use-pages.hooks": [
+        "./dist/pages/hooks/use-pages.hooks.d.ts"
+      ],
+      "pages/hooks/pages-port.hooks": [
+        "./dist/pages/hooks/pages-port.hooks.d.ts"
+      ],
+      "pages/pages-list-rules": [
+        "./dist/pages/pages-list-rules.d.ts"
       ]
     }
   },
