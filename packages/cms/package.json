@@ -118,12 +118,15 @@
       "./themes/files/atomic-write": "node",
       "./admin-http/limits": "universal",
       "./admin-http/http/redirects": "universal",
+      "./admin-http/routes/database/migrate-forward": "universal",
       "./admin-http/routes/database/restore-points": "universal",
       "./admin-http/routes/database/schema-state": "universal",
       "./admin-http/routes/database/timeline": "universal",
       "./admin-http/routes/recovery/deep-link": "universal",
       "./admin-http/routes/recovery/disclosure": "universal",
+      "./admin-http/routes/recovery/restore": "universal",
       "./admin-http/routes/recovery/restore-points": "universal",
+      "./admin-http/routes/recovery/status": "universal",
       "./admin-http/routes/redirects/get-by-id": "universal",
       "./admin-http/routes/redirects/hits": "universal",
       "./admin-http/routes/redirects/import": "universal",
@@ -153,6 +156,7 @@
       "./publish/content/tool-metadata": "universal",
       "./publish/content/content-hash": "node",
       "./admin-http/http/menus": "universal",
+      "./admin-http/http/publish-content": "universal",
       "./admin-http/routes/menus/get-by-id": "universal",
       "./admin-http/routes/menus/list": "universal",
       "./admin-http/routes/menus/create": "universal",
@@ -255,6 +259,7 @@
         "./admin-http/routes/redirects/update": "redirects",
         "./public-http/routes/site/pages/listing/listing-state": "listing",
         "./admin-http/http/menus": "navigation",
+        "./admin-http/http/publish-content": "publish",
         "./admin-http/routes/menus/get-by-id": "navigation",
         "./admin-http/routes/menus/list": "navigation",
         "./admin-http/routes/menus/create": "navigation",
@@ -801,6 +806,11 @@
       "import": "./dist/admin-http/http/redirects.js",
       "default": "./dist/admin-http/http/redirects.js"
     },
+    "./admin-http/routes/database/migrate-forward": {
+      "types": "./dist/admin-http/routes/database/migrate-forward.d.ts",
+      "import": "./dist/admin-http/routes/database/migrate-forward.js",
+      "default": "./dist/admin-http/routes/database/migrate-forward.js"
+    },
     "./admin-http/routes/database/restore-points": {
       "types": "./dist/admin-http/routes/database/restore-points.d.ts",
       "import": "./dist/admin-http/routes/database/restore-points.js",
@@ -826,10 +836,20 @@
       "import": "./dist/admin-http/routes/recovery/disclosure.js",
       "default": "./dist/admin-http/routes/recovery/disclosure.js"
     },
+    "./admin-http/routes/recovery/restore": {
+      "types": "./dist/admin-http/routes/recovery/restore.d.ts",
+      "import": "./dist/admin-http/routes/recovery/restore.js",
+      "default": "./dist/admin-http/routes/recovery/restore.js"
+    },
     "./admin-http/routes/recovery/restore-points": {
       "types": "./dist/admin-http/routes/recovery/restore-points.d.ts",
       "import": "./dist/admin-http/routes/recovery/restore-points.js",
       "default": "./dist/admin-http/routes/recovery/restore-points.js"
+    },
+    "./admin-http/routes/recovery/status": {
+      "types": "./dist/admin-http/routes/recovery/status.d.ts",
+      "import": "./dist/admin-http/routes/recovery/status.js",
+      "default": "./dist/admin-http/routes/recovery/status.js"
     },
     "./admin-http/routes/redirects/get-by-id": {
       "types": "./dist/admin-http/routes/redirects/get-by-id.d.ts",
@@ -975,6 +995,11 @@
       "types": "./dist/admin-http/http/menus.d.ts",
       "import": "./dist/admin-http/http/menus.js",
       "default": "./dist/admin-http/http/menus.js"
+    },
+    "./admin-http/http/publish-content": {
+      "types": "./dist/admin-http/http/publish-content.d.ts",
+      "import": "./dist/admin-http/http/publish-content.js",
+      "default": "./dist/admin-http/http/publish-content.js"
     },
     "./admin-http/routes/menus/get-by-id": {
       "types": "./dist/admin-http/routes/menus/get-by-id.d.ts",
