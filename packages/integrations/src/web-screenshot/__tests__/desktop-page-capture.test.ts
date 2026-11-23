@@ -1,7 +1,8 @@
 /** Owner dispatch: native screenshots use the existing feature port; no real Electron/browser. */
 import { expect, test } from 'vitest';
 import { createDesktopPageCapture, createPageCaptureForHost, type NativeUrlCapture, type NativeRenderError } from '../desktop-page-capture.js';
-import { PageCaptureError, VIEWPORT_PRESETS, type PageCaptureRequest, type PageCapturePort } from '../web-screenshot.js';
+import type { PageCaptureRequest, PageCapturePort } from '@jini-ai/core/contracts/site/web-screenshot';
+import { PageCaptureError, VIEWPORT_PRESETS } from '../web-screenshot.js';
 
 /** Stands in for the desktop host's render error; the host injects its own `instanceof` check. */
 class FakeRenderError extends Error {

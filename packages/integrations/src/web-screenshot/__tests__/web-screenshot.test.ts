@@ -1,5 +1,6 @@
 import { ToolInputError } from "@jini-ai/core";
 import { expect, test } from "vitest";
+import type { PageCapture, PageCaptureRequest } from "@jini-ai/core/contracts/site/web-screenshot";
 import {
   CAPTURE_LIMITS,
   captureRelativePaths,
@@ -10,8 +11,6 @@ import {
   UNTRUSTED_NOTICE,
   VIEWPORT_PRESETS,
   type EncodeTiles,
-  type PageCapture,
-  type PageCaptureRequest,
   type WebScreenshotEvent,
   type WebScreenshotPorts,
 } from "../web-screenshot.js";

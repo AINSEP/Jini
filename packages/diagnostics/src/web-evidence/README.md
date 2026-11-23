@@ -36,6 +36,17 @@ Architecture: [DR-005 portable package boundaries](../../../../docs/decisions/DR
   `publishContentPeerRepo` and `publishHistoryStore` are structural read slices
   (`LivePeerRepo`, `LivePublishHistory`); `originRegistry` is core's verified-origin port.
 
+- `httpClient`, `limits`, `createCaptureError`, `isCaptureTimeout` and `importPlaywrightChromium`
+  (`PlaywrightPageCaptureDeps`, `createPlaywrightPageCapture` in `playwright-page-capture.ts`, the
+  `web_screenshot_page` browser adapter). `httpClient` is the structural `CaptureHttpClient` slice
+  (`send(HttpRequest)`) of the host's guarded client with its web-screenshot egress policy; `limits` is
+  the host's capture limits; `createCaptureError` builds the screenshot service's caller-safe
+  `PageCaptureError` and `isCaptureTimeout` recognizes one of kind `timeout` (so a hung browser this
+  adapter owns is dropped); `importPlaywrightChromium` is the host's lazy Playwright loader, only used
+  when no `browserPool`/`loadLauncher` is passed. The request/result shapes are core's
+  `@jini-ai/core/contracts/site/web-screenshot`, so this folder imports nothing from integrations.
+  Bound in the host's tool-catalog composition, from `@jini-ai/integrations/web-screenshot/web-screenshot`.
+
 **Bound by**: the host's site-inspection tool registrations (the `fetch_published_page` tool
 binds `reservedSegments` and `trackFetch` onto its route deps) and its consent composition root
 (the privacy-page render), plus its tool catalog for `openLoopbackSiteServer`. The `fetch_live_url` tool

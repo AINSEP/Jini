@@ -88,6 +88,7 @@
       "./contracts/site/cms-forms": "universal",
       "./contracts/site/cms-media": "universal",
       "./contracts/site/cms-workspace": "universal",
+      "./contracts/site/admin-sites": "universal",
       "./contracts/site/cookie-consent-react": "universal",
       "./contracts/site/cookie-consent": "universal",
       "./contracts/site/core-runtime-mode": "universal",
@@ -128,6 +129,7 @@
       "./contracts/site/recovery-reconcile-interrupted-migration": "universal",
       "./contracts/site/sandbox-node-worker": "universal",
       "./contracts/site/diagnostics-observability": "universal",
+      "./contracts/site/web-screenshot": "universal",
       "./errors/sentences": "universal",
       "./errors/bindings": "universal",
       "./errors/catalog": "universal",
@@ -617,6 +619,11 @@
       "import": "./dist/contracts/site/cms-workspace.js",
       "default": "./dist/contracts/site/cms-workspace.js"
     },
+    "./contracts/site/admin-sites": {
+      "types": "./dist/contracts/site/admin-sites.d.ts",
+      "import": "./dist/contracts/site/admin-sites.js",
+      "default": "./dist/contracts/site/admin-sites.js"
+    },
     "./contracts/site/cookie-consent-react": {
       "types": "./dist/contracts/site/cookie-consent-react.d.ts",
       "import": "./dist/contracts/site/cookie-consent-react.js",
@@ -816,6 +823,11 @@
       "types": "./dist/contracts/site/diagnostics-observability.d.ts",
       "import": "./dist/contracts/site/diagnostics-observability.js",
       "default": "./dist/contracts/site/diagnostics-observability.js"
+    },
+    "./contracts/site/web-screenshot": {
+      "types": "./dist/contracts/site/web-screenshot.d.ts",
+      "import": "./dist/contracts/site/web-screenshot.js",
+      "default": "./dist/contracts/site/web-screenshot.js"
     },
     "./errors/sentences": {
       "types": "./dist/errors/sentences.d.ts",

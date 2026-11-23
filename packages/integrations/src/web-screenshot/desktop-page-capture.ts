@@ -1,7 +1,8 @@
 /** Map Jini's native render capability onto the existing screenshot port. The site/theme opener,
  * serialization, JPEG tiles and saved files remain owned by the screenshot feature.
  */
-import { PageCaptureError, type PageCapture, type PageCapturePort, type PageCaptureRequest } from './web-screenshot.js';
+import type { PageCapture, PageCapturePort, PageCaptureRequest } from '@jini-ai/core/contracts/site/web-screenshot';
+import { PageCaptureError } from './web-screenshot.js';
 
 /** The slice of the desktop host's URL capture port this adapter drives (`UrlCapturePort` satisfies it). */
 export interface NativeUrlCapture {

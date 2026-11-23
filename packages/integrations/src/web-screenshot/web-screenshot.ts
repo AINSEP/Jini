@@ -1,4 +1,5 @@
 import { ToolInputError } from "@jini-ai/core";
+import type { PageCapture, PageCaptureFailure, PageCaptureFailureFields, PageCapturePort, PageCaptureRequest } from "@jini-ai/core/contracts/site/web-screenshot";
 
 /**
  * @file `web_screenshot_page`'s domain logic: input rules, viewport presets, the one-at-a-time
@@ -34,7 +35,7 @@ export const MAX_URL_LENGTH = 2048;
 /** The host's limits for one capture, launch to screenshot (owner decision OD-5: the time grows with the request
  *  up to 45 s). `reserveMs` is held back at the end so a page that loaded but never settled is still shot as it is.
  *  Shape matches the diagnostics capture budget's limits type; it is left inferred (not annotated) so this package
- *  takes no dependency on diagnostics. The host's capture adapter passes it to the budget, where the type is checked. */
+ *  takes no dependency on diagnostics. The host passes it to the diagnostics capture adapter's `limits`, where the type is checked. */
 export const CAPTURE_LIMITS = { baseMs: 20_000, fullPageMs: 10_000, capMs: 45_000, reserveMs: 4_000 };
 /** Total time a caller may wait for the single browser, including all earlier captures. */
 export const MAX_QUEUE_WAIT_MS = 60_000;
@@ -52,36 +53,6 @@ export interface WebScreenshotInput {
   themeId?: string;
 }
 
-export interface PageCaptureRequest {
-  url: string;
-  viewport: ViewportPreset;
-  fullPage: boolean;
-  maxPageHeightPx: number;
-  settleMs: number;
-  /** Optional shared render selector/seconds override; otherwise settleMs applies. */
-  waitFor?: string | number;
-  dismissCookieBanners?: boolean;
-  /** Exact origins fetched through the own-site loopback path instead of the public egress guard. */
-  allowedOrigins: readonly string[];
-}
-
-export interface PageCapture {
-  png: Buffer;
-  finalUrl: string;
-  /** The main document's HTTP status; `null` when the browser reported none. */
-  status: number | null;
-  title: string;
-  /** Document height in CSS px (the viewport height when not full-page). */
-  pageHeight: number;
-  /** Height actually captured, in CSS px. */
-  capturedHeight: number;
-  blockedRequests: number;
-  /** Set when the picture is a best-effort frame (e.g. the page was still animating at the deadline). */
-  note?: string;
-}
-
-export type PageCaptureFailure = "refused" | "unavailable" | "timeout" | "failed";
-
 /** A capture that produced no picture, with a caller-safe reason. */
 export class PageCaptureError extends Error {
   readonly kind: PageCaptureFailure;
@@ -89,19 +60,13 @@ export class PageCaptureError extends Error {
   readonly limitMs: number | undefined;
   /** A `timeout` only: whether the page had loaded when the limit ended the capture. */
   readonly loaded: boolean | undefined;
-  constructor({ kind, message, limitMs, loaded }: { kind: PageCaptureFailure; message: string; limitMs?: number; loaded?: boolean }) {
+  constructor({ kind, message, limitMs, loaded }: PageCaptureFailureFields) {
     super(message);
     this.name = "PageCaptureError";
     this.kind = kind;
     this.limitMs = limitMs;
     this.loaded = loaded;
   }
-}
-
-export interface PageCapturePort {
-  /** @throws PageCaptureError for every failure a caller should hear about. */
-  capture(required: PageCaptureRequest, optional?: { signal?: AbortSignal }): Promise<PageCapture>;
-  close(required?: {}, optional?: {}): Promise<void>;
 }
 
 export interface EncodedTile { top: number; width: number; height: number; bytes: Buffer }

@@ -25,6 +25,7 @@
       "./web-evidence/testing": "universal",
       "./web-evidence/capture-budget": "universal",
       "./web-evidence/capture-clock": "universal",
+      "./web-evidence/playwright-page-capture": "node",
       "./domain-dns": "node",
       "./local-text": "node",
       "./console-tee": "node"
@@ -103,6 +104,11 @@
       "types": "./dist/web-evidence/capture-clock.d.ts",
       "import": "./dist/web-evidence/capture-clock.js",
       "default": "./dist/web-evidence/capture-clock.js"
+    },
+    "./web-evidence/playwright-page-capture": {
+      "types": "./dist/web-evidence/playwright-page-capture.d.ts",
+      "import": "./dist/web-evidence/playwright-page-capture.js",
+      "default": "./dist/web-evidence/playwright-page-capture.js"
     },
     "./domain-dns": {
       "types": "./dist/domain-dns/index.d.ts",
