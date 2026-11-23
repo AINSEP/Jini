@@ -20,10 +20,11 @@ export type AdminMenuTargetDto = NavItemNode["target"];
 
 export interface AdminMenuItemDto {
   id: string;
-  label?: string;
+  // `| undefined`: the serializer writes these keys even when empty (JSON drops them on the wire).
+  label?: string | undefined;
   target: AdminMenuTargetDto;
-  attrs?: NavItemNode["attrs"];
-  children?: AdminMenuItemDto[];
+  attrs?: NavItemNode["attrs"] | undefined;
+  children?: AdminMenuItemDto[] | undefined;
 }
 
 export interface AdminMenuDto {

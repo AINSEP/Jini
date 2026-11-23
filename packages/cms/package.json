@@ -151,7 +151,14 @@
       "./publish/content/publish-readiness": "universal",
       "./publish/content/report-contract": "universal",
       "./publish/content/tool-metadata": "universal",
-      "./publish/content/content-hash": "node"
+      "./publish/content/content-hash": "node",
+      "./admin-http/http/menus": "universal",
+      "./admin-http/routes/menus/get-by-id": "universal",
+      "./admin-http/routes/menus/list": "universal",
+      "./admin-http/routes/menus/create": "universal",
+      "./admin-http/routes/menus/update-tree": "universal",
+      "./admin-http/routes/menus/assign-location": "universal",
+      "./admin-http/routes/menus/delete": "universal"
     },
     "isolation": {
       "domains": {
@@ -246,7 +253,14 @@
         "./admin-http/routes/redirects/shared": "redirects",
         "./admin-http/routes/redirects/tombstone": "redirects",
         "./admin-http/routes/redirects/update": "redirects",
-        "./public-http/routes/site/pages/listing/listing-state": "listing"
+        "./public-http/routes/site/pages/listing/listing-state": "listing",
+        "./admin-http/http/menus": "navigation",
+        "./admin-http/routes/menus/get-by-id": "navigation",
+        "./admin-http/routes/menus/list": "navigation",
+        "./admin-http/routes/menus/create": "navigation",
+        "./admin-http/routes/menus/update-tree": "navigation",
+        "./admin-http/routes/menus/assign-location": "navigation",
+        "./admin-http/routes/menus/delete": "navigation"
       }
     },
     "optionalPeers": {
@@ -956,6 +970,41 @@
       "types": "./dist/publish/content/content-hash.d.ts",
       "import": "./dist/publish/content/content-hash.js",
       "default": "./dist/publish/content/content-hash.js"
+    },
+    "./admin-http/http/menus": {
+      "types": "./dist/admin-http/http/menus.d.ts",
+      "import": "./dist/admin-http/http/menus.js",
+      "default": "./dist/admin-http/http/menus.js"
+    },
+    "./admin-http/routes/menus/get-by-id": {
+      "types": "./dist/admin-http/routes/menus/get-by-id.d.ts",
+      "import": "./dist/admin-http/routes/menus/get-by-id.js",
+      "default": "./dist/admin-http/routes/menus/get-by-id.js"
+    },
+    "./admin-http/routes/menus/list": {
+      "types": "./dist/admin-http/routes/menus/list.d.ts",
+      "import": "./dist/admin-http/routes/menus/list.js",
+      "default": "./dist/admin-http/routes/menus/list.js"
+    },
+    "./admin-http/routes/menus/create": {
+      "types": "./dist/admin-http/routes/menus/create.d.ts",
+      "import": "./dist/admin-http/routes/menus/create.js",
+      "default": "./dist/admin-http/routes/menus/create.js"
+    },
+    "./admin-http/routes/menus/update-tree": {
+      "types": "./dist/admin-http/routes/menus/update-tree.d.ts",
+      "import": "./dist/admin-http/routes/menus/update-tree.js",
+      "default": "./dist/admin-http/routes/menus/update-tree.js"
+    },
+    "./admin-http/routes/menus/assign-location": {
+      "types": "./dist/admin-http/routes/menus/assign-location.d.ts",
+      "import": "./dist/admin-http/routes/menus/assign-location.js",
+      "default": "./dist/admin-http/routes/menus/assign-location.js"
+    },
+    "./admin-http/routes/menus/delete": {
+      "types": "./dist/admin-http/routes/menus/delete.d.ts",
+      "import": "./dist/admin-http/routes/menus/delete.js",
+      "default": "./dist/admin-http/routes/menus/delete.js"
     }
   },
   "files": [

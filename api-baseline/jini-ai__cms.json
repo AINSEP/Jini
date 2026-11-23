@@ -28,6 +28,26 @@
    "entityNotLiveResponse": "function:5d9c3b65c4"
   }
  },
+ "./admin-http/http/menus": {
+  "types": "./dist/admin-http/http/menus.d.ts",
+  "symbols": {
+   "AdminAssignLocationEnvelope": "interface:4b47471dda",
+   "AdminMenuBindingDto": "interface:2ce323da88",
+   "AdminMenuDto": "interface:32da9d9d6b",
+   "AdminMenuEnvelope": "interface:61f7c52c7c",
+   "AdminMenuItemDto": "interface:eca44ead6a",
+   "AdminMenuListEnvelope": "interface:ca53c37617",
+   "AdminMenuTargetDto": "type:28bf52da3e",
+   "AdminTrashMenuEnvelope": "interface:7f1face6df",
+   "parseMenuHtmlAuthoring": "function:797963ecd2",
+   "toAdminAssignLocationResponse": "function:8aca946334",
+   "toAdminMenuBindingDto": "function:ad4e23bbe8",
+   "toAdminMenuDto": "function:e679ea5f82",
+   "toAdminMenuListResponse": "function:8e006c2f02",
+   "toAdminMenuResponse": "function:7f4d4e6416",
+   "toAdminTrashMenuResponse": "function:84a8a19808"
+  }
+ },
  "./admin-http/http/redirects": {
   "types": "./dist/admin-http/http/redirects.d.ts",
   "symbols": {
@@ -92,6 +112,51 @@
    "DatabaseTimelineRouteDeps": "interface:eaeb6d2bbe",
    "DatabaseTimelineRow": "interface:7b2ffbe33b",
    "adminDatabaseTimelineRoute": "variable:5119d6e733"
+  }
+ },
+ "./admin-http/routes/menus/assign-location": {
+  "types": "./dist/admin-http/routes/menus/assign-location.d.ts",
+  "symbols": {
+   "MenuAssignLocationRouteDeps": "interface:8cb04c8366",
+   "menuAssignLocationRoute": "variable:40398f026d"
+  }
+ },
+ "./admin-http/routes/menus/create": {
+  "types": "./dist/admin-http/routes/menus/create.d.ts",
+  "symbols": {
+   "MenuCreateInput": "interface:fea37b24aa",
+   "MenuCreateRouteDeps": "interface:bc0e8668e4",
+   "menuCreateRoute": "variable:456c12f72a"
+  }
+ },
+ "./admin-http/routes/menus/delete": {
+  "types": "./dist/admin-http/routes/menus/delete.d.ts",
+  "symbols": {
+   "MenuDeleteRouteDeps": "interface:4e3c5be61a",
+   "MenuTrashFn": "type:c2688145af",
+   "menuDeleteRoute": "variable:c0b33225f4"
+  }
+ },
+ "./admin-http/routes/menus/get-by-id": {
+  "types": "./dist/admin-http/routes/menus/get-by-id.d.ts",
+  "symbols": {
+   "MenuGetRouteDeps": "interface:224c88ad7a",
+   "menuGetRoute": "variable:516b1d24ce"
+  }
+ },
+ "./admin-http/routes/menus/list": {
+  "types": "./dist/admin-http/routes/menus/list.d.ts",
+  "symbols": {
+   "MenuListRouteDeps": "interface:3606e0aecb",
+   "menuListRoute": "variable:d9dd4b9cf9"
+  }
+ },
+ "./admin-http/routes/menus/update-tree": {
+  "types": "./dist/admin-http/routes/menus/update-tree.d.ts",
+  "symbols": {
+   "MenuUpdateTreeInput": "interface:120740c76e",
+   "MenuUpdateTreeRouteDeps": "interface:fc8bebb41e",
+   "menuUpdateTreeRoute": "variable:9610552709"
   }
  },
  "./admin-http/routes/recovery/deep-link": {
@@ -1678,6 +1743,112 @@
    "listingState": "variable:fb99ccf95d"
   }
  },
+ "./publish/content/agent-tools": {
+  "types": "./dist/publish/content/agent-tools.d.ts",
+  "symbols": {
+   "AgentToolDefinition": "type:874696551d",
+   "AgentToolSideEffect": "type:1baebbfbe6",
+   "PUBLISH_BACKSTOP_GAPS_TOOL_ID": "variable:3d1916176f",
+   "PUBLISH_CONTENT_CONNECT_TOOL_ID": "variable:c2ae4bc61e",
+   "PUBLISH_CONTENT_EXECUTE_PULL_TOOL_ID": "variable:94f86c9ce1",
+   "PUBLISH_CONTENT_PLAN_PULL_TOOL_ID": "variable:1820e8ad84",
+   "PUBLISH_CONTENT_PUBLISH_TOOL_ID": "variable:55c0efe0fc",
+   "PUBLISH_CONTENT_STATUS_TOOL_ID": "variable:6c2aac5805",
+   "publishContentAgentToolCatalog": "variable:88fa91e2ce"
+  }
+ },
+ "./publish/content/baseline-repo": {
+  "types": "./dist/publish/content/baseline-repo.d.ts",
+  "symbols": {
+   "InMemoryPublishContentBaselineRepo": "class:6bf255744a",
+   "PublishContentBaselineRecord": "interface:94f0982f20",
+   "PublishContentBaselineRepoPort": "interface:713be7dea1"
+  }
+ },
+ "./publish/content/content-hash": {
+  "types": "./dist/publish/content/content-hash.d.ts",
+  "symbols": {
+   "CONTENT_HASH_VERSION": "variable:f5f26052c4",
+   "canonicalize": "function:95fa59d041",
+   "contentHash": "function:95236fcf18"
+  }
+ },
+ "./publish/content/execute-import": {
+  "types": "./dist/publish/content/execute-import.d.ts",
+  "symbols": {
+   "RestorePointUnavailableError": "class:5cb98f6ead",
+   "executePublishContentImport": "function:a58877de3f"
+  }
+ },
+ "./publish/content/live-site-policy": {
+  "types": "./dist/publish/content/live-site-policy.d.ts",
+  "symbols": {
+   "CanPublishToLiveOptions": "interface:d988312f1d",
+   "PUBLISH_FROM_LIVE_SITE_CODE": "variable:25e5cec83a",
+   "PUBLISH_FROM_LIVE_SITE_ERROR": "variable:0eb9876131",
+   "RuntimeModeEnvOptions": "interface:55d865c3c9",
+   "canPublishToLive": "function:eb56b3ca95"
+  }
+ },
+ "./publish/content/media-references": {
+  "types": "./dist/publish/content/media-references.d.ts",
+  "symbols": {
+   "collectMediaConfigKeys": "function:c42bf01cf8",
+   "collectMediaUrlKeys": "function:9fe2ca9574",
+   "collectPlacedWidgetMediaKeys": "function:a14ded0319",
+   "collectReferencedMediaKeys": "function:4c57c9a693"
+  }
+ },
+ "./publish/content/peer-url": {
+  "types": "./dist/publish/content/peer-url.d.ts",
+  "symbols": {
+   "PeerBaseUrlAccepted": "interface:bdf32e1f7b",
+   "PeerBaseUrlRefusal": "interface:56dd5b2e9e",
+   "RawUrlCharacterCheck": "type:c43780d29d",
+   "normalizePeerBaseUrl": "function:cf806e7770",
+   "peerHostname": "function:fe80f539a9",
+   "peerUrl": "function:d63b2c6554"
+  }
+ },
+ "./publish/content/precheck-reasons": {
+  "types": "./dist/publish/content/precheck-reasons.d.ts",
+  "symbols": {
+   "addressHeldByOther": "function:ee1b6b2f4b",
+   "addressHeldInTrash": "function:4f48df44c5",
+   "changedSincePlan": "function:f4ea74b1e8",
+   "malformedKey": "function:d7fdbfcb27",
+   "missingDependency": "function:e8ac350a8c",
+   "notWired": "function:07df0df0ef",
+   "tombstonedAtDestination": "function:d82eafd6d8",
+   "trashedAtDestination": "function:f41067234c"
+  }
+ },
+ "./publish/content/publish-readiness": {
+  "types": "./dist/publish/content/publish-readiness.d.ts",
+  "symbols": {
+   "PublishReadiness": "interface:3ace66c900",
+   "PublishReadinessInput": "interface:fd5e5faab8",
+   "PublishReadinessVerdict": "type:a00971cf4c",
+   "describePublishReadiness": "function:2bdc9e420d",
+   "siteLabelFor": "function:cfa3bbe22e"
+  }
+ },
+ "./publish/content/report-contract": {
+  "types": "./dist/publish/content/report-contract.d.ts",
+  "symbols": {
+   "PublishContentOutcomeKindDto": "type:df597e89f9",
+   "PublishContentOutcomeRowDto": "interface:37e38c8737",
+   "PublishContentReferenceHolderDto": "interface:04ba48ff3e",
+   "PublishContentReportDto": "interface:d0622a2aa7",
+   "PublishContentRetireTargetDto": "interface:985b69c222"
+  }
+ },
+ "./publish/content/tool-metadata": {
+  "types": "./dist/publish/content/tool-metadata.d.ts",
+  "symbols": {
+   "toolMetadata": "variable:14f4b5ce33"
+  }
+ },
  "./publish/transfer": {
   "types": "./dist/publish/transfer/index.d.ts",
   "symbols": {
@@ -2949,112 +3120,6 @@
    "WorkspaceTables": "interface:946ece707f",
    "WorkspacesTable": "interface:7ee61024eb",
    "workspaceRepoFor": "function:601af3e42b"
-  }
- },
- "./publish/content/agent-tools": {
-  "types": "./dist/publish/content/agent-tools.d.ts",
-  "symbols": {
-   "AgentToolDefinition": "type:874696551d",
-   "AgentToolSideEffect": "type:1baebbfbe6",
-   "PUBLISH_BACKSTOP_GAPS_TOOL_ID": "variable:3d1916176f",
-   "PUBLISH_CONTENT_CONNECT_TOOL_ID": "variable:c2ae4bc61e",
-   "PUBLISH_CONTENT_EXECUTE_PULL_TOOL_ID": "variable:94f86c9ce1",
-   "PUBLISH_CONTENT_PLAN_PULL_TOOL_ID": "variable:1820e8ad84",
-   "PUBLISH_CONTENT_PUBLISH_TOOL_ID": "variable:55c0efe0fc",
-   "PUBLISH_CONTENT_STATUS_TOOL_ID": "variable:6c2aac5805",
-   "publishContentAgentToolCatalog": "variable:88fa91e2ce"
-  }
- },
- "./publish/content/baseline-repo": {
-  "types": "./dist/publish/content/baseline-repo.d.ts",
-  "symbols": {
-   "InMemoryPublishContentBaselineRepo": "class:6bf255744a",
-   "PublishContentBaselineRecord": "interface:94f0982f20",
-   "PublishContentBaselineRepoPort": "interface:713be7dea1"
-  }
- },
- "./publish/content/content-hash": {
-  "types": "./dist/publish/content/content-hash.d.ts",
-  "symbols": {
-   "CONTENT_HASH_VERSION": "variable:f5f26052c4",
-   "canonicalize": "function:95fa59d041",
-   "contentHash": "function:95236fcf18"
-  }
- },
- "./publish/content/execute-import": {
-  "types": "./dist/publish/content/execute-import.d.ts",
-  "symbols": {
-   "RestorePointUnavailableError": "class:5cb98f6ead",
-   "executePublishContentImport": "function:a58877de3f"
-  }
- },
- "./publish/content/live-site-policy": {
-  "types": "./dist/publish/content/live-site-policy.d.ts",
-  "symbols": {
-   "CanPublishToLiveOptions": "interface:d988312f1d",
-   "PUBLISH_FROM_LIVE_SITE_CODE": "variable:25e5cec83a",
-   "PUBLISH_FROM_LIVE_SITE_ERROR": "variable:0eb9876131",
-   "RuntimeModeEnvOptions": "interface:55d865c3c9",
-   "canPublishToLive": "function:eb56b3ca95"
-  }
- },
- "./publish/content/media-references": {
-  "types": "./dist/publish/content/media-references.d.ts",
-  "symbols": {
-   "collectMediaConfigKeys": "function:c42bf01cf8",
-   "collectMediaUrlKeys": "function:9fe2ca9574",
-   "collectPlacedWidgetMediaKeys": "function:a14ded0319",
-   "collectReferencedMediaKeys": "function:4c57c9a693"
-  }
- },
- "./publish/content/peer-url": {
-  "types": "./dist/publish/content/peer-url.d.ts",
-  "symbols": {
-   "PeerBaseUrlAccepted": "interface:bdf32e1f7b",
-   "PeerBaseUrlRefusal": "interface:56dd5b2e9e",
-   "RawUrlCharacterCheck": "type:c43780d29d",
-   "normalizePeerBaseUrl": "function:cf806e7770",
-   "peerHostname": "function:fe80f539a9",
-   "peerUrl": "function:d63b2c6554"
-  }
- },
- "./publish/content/precheck-reasons": {
-  "types": "./dist/publish/content/precheck-reasons.d.ts",
-  "symbols": {
-   "addressHeldByOther": "function:ee1b6b2f4b",
-   "addressHeldInTrash": "function:4f48df44c5",
-   "changedSincePlan": "function:f4ea74b1e8",
-   "malformedKey": "function:d7fdbfcb27",
-   "missingDependency": "function:e8ac350a8c",
-   "notWired": "function:07df0df0ef",
-   "tombstonedAtDestination": "function:d82eafd6d8",
-   "trashedAtDestination": "function:f41067234c"
-  }
- },
- "./publish/content/publish-readiness": {
-  "types": "./dist/publish/content/publish-readiness.d.ts",
-  "symbols": {
-   "PublishReadiness": "interface:3ace66c900",
-   "PublishReadinessInput": "interface:fd5e5faab8",
-   "PublishReadinessVerdict": "type:a00971cf4c",
-   "describePublishReadiness": "function:2bdc9e420d",
-   "siteLabelFor": "function:cfa3bbe22e"
-  }
- },
- "./publish/content/report-contract": {
-  "types": "./dist/publish/content/report-contract.d.ts",
-  "symbols": {
-   "PublishContentOutcomeKindDto": "type:df597e89f9",
-   "PublishContentOutcomeRowDto": "interface:37e38c8737",
-   "PublishContentReferenceHolderDto": "interface:04ba48ff3e",
-   "PublishContentReportDto": "interface:d0622a2aa7",
-   "PublishContentRetireTargetDto": "interface:985b69c222"
-  }
- },
- "./publish/content/tool-metadata": {
-  "types": "./dist/publish/content/tool-metadata.d.ts",
-  "symbols": {
-   "toolMetadata": "variable:14f4b5ce33"
   }
  }
 }
