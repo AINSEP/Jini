@@ -28,6 +28,17 @@
    "entityNotLiveResponse": "function:5d9c3b65c4"
   }
  },
+ "./admin-http/http/members": {
+  "types": "./dist/admin-http/http/members.d.ts",
+  "symbols": {
+   "AdminMemberEnvelope": "interface:cefcf04fc7",
+   "AdminMemberListResponse": "interface:cabc415bc0",
+   "AdminMemberResponse": "interface:444b83d17a",
+   "AdminMemberSource": "interface:b2b9b3d9b5",
+   "AdminMemberStatus": "type:0e7f5c6327",
+   "toAdminMemberResponse": "function:fa7d295163"
+  }
+ },
  "./admin-http/http/menus": {
   "types": "./dist/admin-http/http/menus.d.ts",
   "symbols": {
@@ -112,6 +123,51 @@
    "DatabaseTimelineRouteDeps": "interface:eaeb6d2bbe",
    "DatabaseTimelineRow": "interface:7b2ffbe33b",
    "adminDatabaseTimelineRoute": "variable:5119d6e733"
+  }
+ },
+ "./admin-http/routes/members/delete": {
+  "types": "./dist/admin-http/routes/members/delete.d.ts",
+  "symbols": {
+   "MemberDeleteRouteDeps": "interface:dc262cd825",
+   "MemberTrashFn": "type:7502337e22",
+   "memberDeleteRoute": "variable:de7f156431"
+  }
+ },
+ "./admin-http/routes/members/disable": {
+  "types": "./dist/admin-http/routes/members/disable.d.ts",
+  "symbols": {
+   "MemberDisableFn": "type:efc3fe363c",
+   "MemberDisableRouteDeps": "interface:d3aa0208ca",
+   "memberDisableRoute": "variable:90347e6e13"
+  }
+ },
+ "./admin-http/routes/members/get-by-id": {
+  "types": "./dist/admin-http/routes/members/get-by-id.d.ts",
+  "symbols": {
+   "MemberGetRouteDeps": "interface:708c9e7cb8",
+   "memberGetRoute": "variable:90f75ebdc3"
+  }
+ },
+ "./admin-http/routes/members/list": {
+  "types": "./dist/admin-http/routes/members/list.d.ts",
+  "symbols": {
+   "MemberListInput": "interface:fec648f53b",
+   "MemberListRouteDeps": "interface:31aaa79364",
+   "memberListRoute": "variable:6324c5570b"
+  }
+ },
+ "./admin-http/routes/members/shared": {
+  "types": "./dist/admin-http/routes/members/shared.d.ts",
+  "symbols": {
+   "MemberErrorClassifier": "type:7cba33f974",
+   "MemberErrorKind": "type:fa9a58468c",
+   "MemberErrorStatuses": "type:eb8af1bc30",
+   "MemberReadPort": "interface:0fccab54bf",
+   "MemberRoutePrincipal": "interface:d79a7baad0",
+   "authorizeMemberManage": "function:931762c414",
+   "memberActorId": "function:1241cdf8ad",
+   "memberIdParam": "function:88390cd1ca",
+   "rejectMemberError": "function:4a0c293d5a"
   }
  },
  "./admin-http/routes/menus/assign-location": {

@@ -216,3 +216,12 @@ domains remain `adapter-unavailable` after authorization even when their entity 
 character check from the host (Tovu passes `@jini-ai/core/contracts/server/verified-origin`'s), and
 `canPublishToLive({ resolveRuntimeMode, env? })` takes the host's runtime-mode resolver. Neither
 module imports another package's runtime implementation.
+
+`./admin-http/routes/members/{list,get-by-id,disable,delete}`: server-neutral `defineJsonRoute` specs for the admin members
+routes, with the DTO helper at `./admin-http/http/members` and the shared guards at `./admin-http/routes/members/shared`.
+The members library is not in this package, so the host injects its collaborators: `disableMember` (disable), `trashMember`
+(delete) and `classifyMemberError`, a `(err) => "not-found" | "validation" | "conflict" | undefined` classifier for the
+library's error classes. Each route owns its status table over those kinds (delete 404/409/400, disable 404/400, get-by-id
+404; list maps `ToolInputError` to 400 `VALIDATION_ERROR`); an unclassified error is rethrown for the host's 500.
+`memberRepo` is Pick'd to `list`/`findById` and read structurally (`AdminMemberSource`). Authorization is `member.manage`
+on the `member` entity (by-id routes pass `{ entityId }`).
