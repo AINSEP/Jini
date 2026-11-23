@@ -28,6 +28,9 @@
       "./themes/preview/refresh": "node",
       "./themes/preview/watcher": "node",
       "./trash/adapters/directory": "node",
+      "./fs-files/custom-root-permission": "universal",
+      "./fs-files/custom-root-store": "node",
+      "./fs-files/native-folder-picker": "node",
       "./themes/files/read-content": "node",
       "./themes/files/moves": "node",
       "./themes/files/trash": "node",
@@ -101,6 +104,7 @@
       "./redirects/sql": "node",
       "./workspace/sql": "node",
       "./workspace/site/repo.sqlite": "node",
+      "./workspace/site/tool-registrations": "universal",
       "./taxonomy/sql": "node",
       "./navigation/sql": "node",
       "./presentation/sql": "node",
@@ -153,6 +157,11 @@
       "./admin-http/routes/assistant/shared": "universal",
       "./admin-http/routes/assistant/resolve-test-agent-outcome": "universal",
       "./admin-http/routes/assistant/test-agent": "universal",
+      "./admin-http/routes/assistant/list-models": "universal",
+      "./admin-http/routes/assistant/test-connection": "universal",
+      "./admin-http/routes/assistant/detect-agents": "universal",
+      "./admin-http/routes/assistant/visitor-tools": "universal",
+      "./admin-http/routes/assistant/stored-credential-probe": "universal",
       "./admin-http/routes/assistant/put-site-credential": "universal",
       "./admin-http/routes/assistant/put-settings": "universal",
       "./admin-http/routes/assistant/put-execution-credential": "universal",
@@ -407,6 +416,21 @@
       "types": "./dist/trash/adapters/directory.node.d.ts",
       "import": "./dist/trash/adapters/directory.node.js",
       "default": "./dist/trash/adapters/directory.node.js"
+    },
+    "./fs-files/custom-root-permission": {
+      "types": "./dist/fs-files/custom-root-permission.d.ts",
+      "import": "./dist/fs-files/custom-root-permission.js",
+      "default": "./dist/fs-files/custom-root-permission.js"
+    },
+    "./fs-files/custom-root-store": {
+      "types": "./dist/fs-files/custom-root-store.d.ts",
+      "import": "./dist/fs-files/custom-root-store.js",
+      "default": "./dist/fs-files/custom-root-store.js"
+    },
+    "./fs-files/native-folder-picker": {
+      "types": "./dist/fs-files/native-folder-picker.d.ts",
+      "import": "./dist/fs-files/native-folder-picker.js",
+      "default": "./dist/fs-files/native-folder-picker.js"
     },
     "./themes/files/read-content": {
       "types": "./dist/themes/files/read-content.node.d.ts",
@@ -793,6 +817,11 @@
       "import": "./dist/workspace/site/repo.sqlite.js",
       "default": "./dist/workspace/site/repo.sqlite.js"
     },
+    "./workspace/site/tool-registrations": {
+      "types": "./dist/workspace/site/tool-registrations.d.ts",
+      "import": "./dist/workspace/site/tool-registrations.js",
+      "default": "./dist/workspace/site/tool-registrations.js"
+    },
     "./taxonomy/sql": {
       "types": "./dist/taxonomy/sql/index.d.ts",
       "import": "./dist/taxonomy/sql/index.js",
@@ -1032,6 +1061,31 @@
       "types": "./dist/admin-http/routes/assistant/test-agent.d.ts",
       "import": "./dist/admin-http/routes/assistant/test-agent.js",
       "default": "./dist/admin-http/routes/assistant/test-agent.js"
+    },
+    "./admin-http/routes/assistant/list-models": {
+      "types": "./dist/admin-http/routes/assistant/list-models.d.ts",
+      "import": "./dist/admin-http/routes/assistant/list-models.js",
+      "default": "./dist/admin-http/routes/assistant/list-models.js"
+    },
+    "./admin-http/routes/assistant/test-connection": {
+      "types": "./dist/admin-http/routes/assistant/test-connection.d.ts",
+      "import": "./dist/admin-http/routes/assistant/test-connection.js",
+      "default": "./dist/admin-http/routes/assistant/test-connection.js"
+    },
+    "./admin-http/routes/assistant/detect-agents": {
+      "types": "./dist/admin-http/routes/assistant/detect-agents.d.ts",
+      "import": "./dist/admin-http/routes/assistant/detect-agents.js",
+      "default": "./dist/admin-http/routes/assistant/detect-agents.js"
+    },
+    "./admin-http/routes/assistant/visitor-tools": {
+      "types": "./dist/admin-http/routes/assistant/visitor-tools.d.ts",
+      "import": "./dist/admin-http/routes/assistant/visitor-tools.js",
+      "default": "./dist/admin-http/routes/assistant/visitor-tools.js"
+    },
+    "./admin-http/routes/assistant/stored-credential-probe": {
+      "types": "./dist/admin-http/routes/assistant/stored-credential-probe.d.ts",
+      "import": "./dist/admin-http/routes/assistant/stored-credential-probe.js",
+      "default": "./dist/admin-http/routes/assistant/stored-credential-probe.js"
     },
     "./admin-http/routes/assistant/put-site-credential": {
       "types": "./dist/admin-http/routes/assistant/put-site-credential.d.ts",

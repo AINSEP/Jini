@@ -90,6 +90,8 @@ export interface AdminExecutionDetectedAgent {
   path?: string;
   models?: Array<{ id: string; label: string; reasoning?: Array<{ id: string; label: string }> }>;
   modelsSource?: "live" | "fallback";
+  reasoningOptions?: Array<{ id: string; label: string }>;
+  reasoningInModelId?: { levels: Array<{ id: string; label: string }> };
   authStatus?: "ok" | "missing" | "unknown";
   authMessage?: string;
 }
@@ -145,3 +147,10 @@ export interface VisitorToolsPort {
   list(required: Record<string, never>, optional?: Record<string, never>): Promise<VisitorToolsView>;
   configure(required: VisitorToolConfigureInput, optional?: Record<string, never>): Promise<VisitorToolsView>;
 }
+
+/** The BYOK model-discovery probe's answer: only the discovered model ids, plus a message when the
+ * provider (or the host's empty-key copy) gave one. */
+export interface AdminExecutionListModelsResponse { ok: boolean; models: string[]; message?: string }
+
+/** The BYOK connection probe's answer: a failed probe is a 200 with `ok: false`, never an HTTP error. */
+export interface AdminExecutionTestConnectionResponse { ok: boolean; message: string }
