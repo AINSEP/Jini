@@ -21,7 +21,7 @@ export interface PostPublishAtFieldProps {
 export function PostPublishAtField({ publishAtInput, setPublishAtInput, scheduled, t }: PostPublishAtFieldProps) {
   return (
     <label className="jini-post-publishing__field">
-      <span className="field-label">{t("Publish at")}</span>
+      <span className="jini-field-label">{t("Publish at")}</span>
       <input
         type="datetime-local"
         value={publishAtInput}
