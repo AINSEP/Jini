@@ -164,6 +164,11 @@
       "./screens/collections/hooks/collection-entries-dependencies.hooks": "universal",
       "./screens/collections/hooks/collection-entry-editor-dependencies.hooks": "universal",
       "./screens/collections/hooks/collections-dependencies.hooks": "universal",
+      "./screens/collections/hooks/use-collections.hooks": "universal",
+      "./screens/collections/hooks/use-collection-entries.hooks": "universal",
+      "./screens/collections/hooks/use-edit-fields-dialog.hooks": "universal",
+      "./screens/collections/hooks/use-new-content-type-dialog.hooks": "universal",
+      "./screens/collections/hooks/use-lifecycle-confirm-dialog.hooks": "universal",
       "./screens/collections/hooks/edit-fields-dialog-dependencies.hooks": "universal",
       "./screens/collections/hooks/new-content-type-dialog-dependencies.hooks": "universal",
       "./screens/collections/hooks/edit-fields-dialog-port.hooks": "universal",
@@ -1073,6 +1078,31 @@
       "import": "./dist/screens/collections/hooks/collections-dependencies.hooks.js",
       "default": "./dist/screens/collections/hooks/collections-dependencies.hooks.js"
     },
+    "./screens/collections/hooks/use-collections.hooks": {
+      "types": "./dist/screens/collections/hooks/use-collections.hooks.d.ts",
+      "import": "./dist/screens/collections/hooks/use-collections.hooks.js",
+      "default": "./dist/screens/collections/hooks/use-collections.hooks.js"
+    },
+    "./screens/collections/hooks/use-collection-entries.hooks": {
+      "types": "./dist/screens/collections/hooks/use-collection-entries.hooks.d.ts",
+      "import": "./dist/screens/collections/hooks/use-collection-entries.hooks.js",
+      "default": "./dist/screens/collections/hooks/use-collection-entries.hooks.js"
+    },
+    "./screens/collections/hooks/use-edit-fields-dialog.hooks": {
+      "types": "./dist/screens/collections/hooks/use-edit-fields-dialog.hooks.d.ts",
+      "import": "./dist/screens/collections/hooks/use-edit-fields-dialog.hooks.js",
+      "default": "./dist/screens/collections/hooks/use-edit-fields-dialog.hooks.js"
+    },
+    "./screens/collections/hooks/use-new-content-type-dialog.hooks": {
+      "types": "./dist/screens/collections/hooks/use-new-content-type-dialog.hooks.d.ts",
+      "import": "./dist/screens/collections/hooks/use-new-content-type-dialog.hooks.js",
+      "default": "./dist/screens/collections/hooks/use-new-content-type-dialog.hooks.js"
+    },
+    "./screens/collections/hooks/use-lifecycle-confirm-dialog.hooks": {
+      "types": "./dist/screens/collections/hooks/use-lifecycle-confirm-dialog.hooks.d.ts",
+      "import": "./dist/screens/collections/hooks/use-lifecycle-confirm-dialog.hooks.js",
+      "default": "./dist/screens/collections/hooks/use-lifecycle-confirm-dialog.hooks.js"
+    },
     "./screens/collections/hooks/edit-fields-dialog-dependencies.hooks": {
       "types": "./dist/screens/collections/hooks/edit-fields-dialog-dependencies.hooks.d.ts",
       "import": "./dist/screens/collections/hooks/edit-fields-dialog-dependencies.hooks.js",
@@ -1517,6 +1547,21 @@
       ],
       "screens/collections/hooks/collections-dependencies.hooks": [
         "./dist/screens/collections/hooks/collections-dependencies.hooks.d.ts"
+      ],
+      "screens/collections/hooks/use-collections.hooks": [
+        "./dist/screens/collections/hooks/use-collections.hooks.d.ts"
+      ],
+      "screens/collections/hooks/use-collection-entries.hooks": [
+        "./dist/screens/collections/hooks/use-collection-entries.hooks.d.ts"
+      ],
+      "screens/collections/hooks/use-edit-fields-dialog.hooks": [
+        "./dist/screens/collections/hooks/use-edit-fields-dialog.hooks.d.ts"
+      ],
+      "screens/collections/hooks/use-new-content-type-dialog.hooks": [
+        "./dist/screens/collections/hooks/use-new-content-type-dialog.hooks.d.ts"
+      ],
+      "screens/collections/hooks/use-lifecycle-confirm-dialog.hooks": [
+        "./dist/screens/collections/hooks/use-lifecycle-confirm-dialog.hooks.d.ts"
       ],
       "screens/collections/hooks/edit-fields-dialog-dependencies.hooks": [
         "./dist/screens/collections/hooks/edit-fields-dialog-dependencies.hooks.d.ts"

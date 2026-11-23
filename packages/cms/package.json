@@ -90,6 +90,7 @@
       "./posts/post": "universal",
       "./posts/post-read": "universal",
       "./posts/post-write-effects": "universal",
+      "./posts/featured-image": "universal",
       "./navigation/types": "universal",
       "./navigation/dropdown": "universal",
       "./navigation/href": "universal",
@@ -847,6 +848,11 @@
       "types": "./dist/posts/post-write-effects.d.ts",
       "import": "./dist/posts/post-write-effects.js",
       "default": "./dist/posts/post-write-effects.js"
+    },
+    "./posts/featured-image": {
+      "types": "./dist/posts/featured-image.d.ts",
+      "import": "./dist/posts/featured-image.js",
+      "default": "./dist/posts/featured-image.js"
     },
     "./html/text-layout": {
       "types": "./dist/html/text-layout.d.ts",
