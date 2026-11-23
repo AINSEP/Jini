@@ -1,4 +1,4 @@
-PARTIAL 739018abf da51ac5f: K5-entries-1 (repo.sqlite, publish-content, unreadable-owner-entries-repair), K5-content-types-1, X-content-types-1 (write-service, tool-registrations), K5-taxonomy-1 (agent-tools, repo.sqlite, gated-hooks, publish-content, publish-term-ids, term-sync, tool-registrations), A-K2-collections-1/2 (all but the i18n dictionary), A-K2-taxonomy-1/2 (all but the i18n dictionary), RT-K1-adm-content-types-1/2, RT-K1-adm-entries-1, RT-K1-adm-taxonomy-1/2/3 — each blocked by a prerequisite not landed in these bases (table below)
+PARTIAL f217bed94 da51ac5f: K5-entries-1 (repo.sqlite, publish-content, unreadable-owner-entries-repair), K5-content-types-1, X-content-types-1 (write-service, tool-registrations), K5-taxonomy-1 (agent-tools, repo.sqlite, gated-hooks, publish-content, publish-term-ids, term-sync, tool-registrations), A-K2-collections-1/2 (all but the i18n dictionary), A-K2-taxonomy-1/2 (all but the i18n dictionary), RT-K1-adm-content-types-1/2, RT-K1-adm-entries-1, RT-K1-adm-taxonomy-1/2/3 — each blocked by a prerequisite not landed in these bases (table below)
 
 # ex5 — Collections, Taxonomy lane (2026-11-22, unattended, Opus high, speed mode)
 
@@ -9,7 +9,7 @@ PARTIAL 739018abf da51ac5f: K5-entries-1 (repo.sqlite, publish-content, unreadab
   - Tovu `origin/integ/merge-13-2026-11-22` `0d7f78fa4` (tip `f7185f153`, docs only after it)
 - **Branches (plain `git push`, never force):**
   - Jini `codex/ex5-collections-jini`: last content commit `da51ac5f`. This report's copy is committed after it.
-  - Tovu `codex/ex5-collections-tovu`: last content commit `739018abf`. This report and raw outputs are committed after it.
+  - Tovu `codex/ex5-collections-tovu`: last content commit `f217bed94` (the admin copy-check fix, see Addendum). This report and raw outputs are committed with or after it.
 - **Raw outputs:** `cloud-results/ex5-collections-raw/` (gates base/final, node-test lists, files-left, mutation).
 
 ## Setup (once, as combine-13 Setup)
@@ -113,3 +113,12 @@ PARTIAL 739018abf da51ac5f: K5-entries-1 (repo.sqlite, publish-content, unreadab
    - `development/scripts/check-architecture.baseline.json:79` still names the deleted `features/entries/public-list.ts → features/content-types/index.ts` edge. The gate exit is unchanged, and the file is the baseline, so it was not edited.
    - Docs and old reports still cite old paths. Not edited.
 6. Jini `check:cross-package` pins `--base 35c4961af`, which this clone cannot reach. The gate was run against the real base instead.
+
+## Addendum: Tovu admin vitest (full) and one fix
+- **Full suite at `7d2aadfb5`:** 904 files, 14,873 pass / 7 fail. combine-13 recorded 909 files, 14,917 / 6. Files and tests are fewer because 5 test files moved to Jini.
+- **4 of the 5 red files are BASE-RED**, the same files with the same counts as combine-13: `JiniMediaPicker.hooks` (3), `admin-literal-copy`, `credential-input-autocomplete`, `dictionary-lookup-sinks`.
+- **The 5th, `lib/__tests__/untranslated-copy.unit.test.ts`, was NEW RED and is fixed:**
+  - **Why it failed:** it globs only the host's own `*-i18n` modules. With the two dictionaries moved to Jini, they dropped out of the no-English check, and its `fr :: Parent` allowance looked unused.
+  - **The fix:** the test now also imports `@jini-ai/admin/screens/{collections,taxonomy}/*-i18n` into its module set. The moved copy stays under the same check. No assertion or allowance changed.
+  - **After:** 68/68. Admin tsc still shows only the 4 base-red errors.
+- **Net: no new red in admin.**
