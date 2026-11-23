@@ -4,7 +4,8 @@ Site-level consent policy pieces a host builds its consent settings, admin previ
 checks from: the settings shape and defaults (`config`), the saved-config → banner converter
 (`cookie-consent`), strict config validation (`validation`), the revision-store contract
 (`revisions`), the initial privacy-page copy (`privacy-page-template`), and the settings-ledger
-binding plus boot readiness (`settings`).
+binding plus boot readiness (`settings`), and admin declaration diagnostics over a sampled page
+(`readiness`, Node-only: it parses HTML with `parse5` and measures bytes with `Buffer`).
 
 ## Wiring
 
@@ -20,7 +21,9 @@ binding plus boot readiness (`settings`).
   `parseConsentConfig`/`consentConfigProblems` (problems typed by
   `@jini-ai/core/contracts/site/core-consent-refusal`), `SiteConsentStore`/`SiteConsentConflict`,
   `privacyPageTemplate`, `ensureSiteConsentDefinitions`/`createSiteConsentReadiness`/
-  `createSiteConsentConfig`/`resolveSiteConsentActivation`/`readSiteConsentAuthoringSettings`.
+  `createSiteConsentConfig`/`resolveSiteConsentActivation`/`readSiteConsentAuthoringSettings`,
+  `consentDeclarationReadiness` with `ConsentWarning`/`ConsentDeclarationEvidence` (`./site/readiness`;
+  the host renders the page sample and passes `{ html, scripts, runtimeSlot, problems }`).
 - **Must never import:** host DB kernels or drivers, host logging/redaction formatters, product
   copy or env, or any server framework. Same-package code is imported relatively.
 
@@ -29,12 +32,14 @@ import { parseConsentConfig, consentConfigProblems } from '@jini-ai/cookie-conse
 import { withSiteConsentDefaultCss } from '@jini-ai/cookie-consent/site/config';
 import { toSiteCookieConsent } from '@jini-ai/cookie-consent/site/cookie-consent';
 import type { SiteConsentStore } from '@jini-ai/cookie-consent/site/revisions';
+import { consentDeclarationReadiness } from '@jini-ai/cookie-consent/site/readiness'; // Node runtime
 
 const store: SiteConsentStore = createHostConsentStore({ kernel, workspaceId }); // host-owned SQL adapter
 const published = await store.readPublished({});
 const config = withSiteConsentDefaultCss({ config: parseConsentConfig({ value: published?.config }) });
 const problems = consentConfigProblems({ config, trustedRegion: false });
 const { banner, options } = toSiteCookieConsent({ config, policy: `${config.policyVersion}:${published?.id}` });
+const audit = consentDeclarationReadiness({ html: renderedSample, scripts: declaredScripts, runtimeSlot: true });
 
 const ready = createSiteConsentReadiness({ ...settingsDeps, after: bootSettingsReady, systemPrincipalId }, {
   ensurePrivacyDefaults: () => ensureHostPrivacyPage(),
