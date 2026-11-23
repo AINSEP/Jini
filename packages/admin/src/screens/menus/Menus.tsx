@@ -22,8 +22,9 @@ export interface MenusProps {
   menuHref: (required: { slug: string }) => string;
 }
 
-export function Menus({ useMenusHook, publishAction, newMenuHref, menuHref }: MenusProps, _optional: Record<string, never> = {}) {
-  const { menus, error, pendingTrash, trashing, requestTrash, confirmTrash, cancelTrash, t } = useMenusHook();
+export function Menus(props: MenusProps, _optional: Record<string, never> = {}) {
+  const { publishAction, newMenuHref, menuHref } = props;
+  const { menus, error, pendingTrash, trashing, requestTrash, confirmTrash, cancelTrash, t } = props.useMenusHook();
 
   if (error && !menus) return <div className="jini-notice jini-notice-error">{error}</div>;
   if (!menus) return <div className="jini-notice">{t("Loading menus…")}</div>;

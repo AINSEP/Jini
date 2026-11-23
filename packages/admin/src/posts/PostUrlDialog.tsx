@@ -1,4 +1,4 @@
-import { Button, Dialog, TextField } from "@jini-ai/ui-kit/react";
+import { Button, Dialog, TextField } from "../react/kit.js";
 import type { FormEvent } from "react";
 
 import { type Translate } from '@jini-ai/core/text';

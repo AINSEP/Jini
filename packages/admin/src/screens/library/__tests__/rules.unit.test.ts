@@ -13,7 +13,7 @@ import {
   libraryFileProblem,
   sortDocuments,
   validDocumentStem,
-} from "../rules";
+} from "../rules.js";
 
 /**
  * @file Pure Library rules: picker acceptance, size formatting, row labels, preview routing and the

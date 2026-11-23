@@ -88,6 +88,8 @@
       "./posts/go-live-sweep": "universal",
       "./posts/expected-version": "universal",
       "./posts/post": "universal",
+      "./posts/post-read": "universal",
+      "./posts/post-write-effects": "universal",
       "./navigation/types": "universal",
       "./navigation/dropdown": "universal",
       "./navigation/href": "universal",
@@ -835,6 +837,16 @@
       "types": "./dist/posts/post.d.ts",
       "import": "./dist/posts/post.js",
       "default": "./dist/posts/post.js"
+    },
+    "./posts/post-read": {
+      "types": "./dist/posts/post-read.d.ts",
+      "import": "./dist/posts/post-read.js",
+      "default": "./dist/posts/post-read.js"
+    },
+    "./posts/post-write-effects": {
+      "types": "./dist/posts/post-write-effects.d.ts",
+      "import": "./dist/posts/post-write-effects.js",
+      "default": "./dist/posts/post-write-effects.js"
     },
     "./html/text-layout": {
       "types": "./dist/html/text-layout.d.ts",

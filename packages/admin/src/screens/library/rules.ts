@@ -1,4 +1,4 @@
-import type { QueryKey } from "@jini-ai/ui/fetch-query";
+import type { QueryKey } from "@jini-ai/core/fetch";
 import type { AdminMedia } from "@jini-ai/core/contracts/site/cms-admin-media";
 
 /**

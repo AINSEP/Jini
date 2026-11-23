@@ -1,5 +1,5 @@
 import { useCallback as useQueryFetchCallback } from "react";
-import { useFetchQuery, useFetchMutation, useInvalidate } from "@jini-ai/ui/fetch-query";
+import { useFetchQuery, useFetchMutation, useInvalidate } from "../../../react/kit.js";
 import { useCallback, useState } from "react";
 import type { AdminMenu } from "../api/menus-api.types.js";
 import type { MenusHostKit } from "../menus-host-kit.js";

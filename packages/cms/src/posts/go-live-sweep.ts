@@ -23,9 +23,9 @@ export const POST_GO_LIVE_LOOKBACK_MS = 10 * 60_000;
 
 type IntervalHandle = { unref?: () => void };
 
-function warn({ error }: { error: unknown }, _optional = {}): void {
-  console.error("[post-go-live-sweep] sweep failed; retrying after the idle interval", error);
-}
+/** Receives a failed pass's error. Required: the host owns where a sweep failure is reported (its
+ *  console reporter, a logger, a fault channel); engine code never writes to the console itself. */
+export type GoLiveSweepErrorReporter = (required: { error: unknown }, optional?: Record<string, never>) => void;
 
 /**
  * Starts the go-live sweep: a full catch-up pass now (posts that went live while the process was
@@ -39,8 +39,8 @@ function warn({ error }: { error: unknown }, _optional = {}): void {
  *
  * @param required.deps.repo, required.deps.outbox, required.deps.clock what a pass reads/writes.
  * @param required.workspaceId the served workspace.
+ * @param required.onError receives a failed pass's error (the host's reporter); its own throw is swallowed.
  * @param optional.intervalMs idle wait (default {@link POST_GO_LIVE_SWEEP_INTERVAL_MS}).
- * @param optional.onError receives a failed pass's error (default `console.error`); its own throw is swallowed.
  * @param optional.timers injectable `setInterval`/`clearInterval` (tests).
  * @param optional.tracker traces each go-live sweep pass.
  * @returns `{ stop }`.
@@ -48,18 +48,17 @@ function warn({ error }: { error: unknown }, _optional = {}): void {
  * @complexity O(candidates) per pass.
  */
 export function startPostGoLiveSweep(
-  required: { deps: { repo: GoLiveCandidatesPort; outbox: OutboxPort; clock: ClockPort }; workspaceId: string },
+  required: { deps: { repo: GoLiveCandidatesPort; outbox: OutboxPort; clock: ClockPort }; workspaceId: string; onError: GoLiveSweepErrorReporter },
   optional: {
     intervalMs?: number;
     tracker?: Tracker;
-    onError?: (required: { error: unknown }, optional?: Record<string, never>) => void;
     timers?: { setInterval: (required: { fn: () => void; ms: number }, optional?: Record<string, never>) => IntervalHandle; clearInterval: (required: { handle: IntervalHandle }, optional?: Record<string, never>) => void };
   } = {}
 ): { stop(): Promise<void> } {
-  const { intervalMs = POST_GO_LIVE_SWEEP_INTERVAL_MS, onError = warn } = optional;
+  const { intervalMs = POST_GO_LIVE_SWEEP_INTERVAL_MS } = optional;
   const timers: NonNullable<typeof optional.timers> = optional.timers ?? { setInterval: ({ fn, ms }, _optional = {}) => setInterval(fn, ms), clearInterval: ({ handle }, _optional = {}) => clearInterval(handle as ReturnType<typeof setInterval>) };
   if (!Number.isSafeInteger(intervalMs) || intervalMs <= 0) throw new RangeError("post go-live sweep interval must be positive");
-  const { deps, workspaceId } = required;
+  const { deps, workspaceId, onError } = required;
   let afterIso: string | undefined;
   let active: Promise<void> | undefined;
   let stopped = false;

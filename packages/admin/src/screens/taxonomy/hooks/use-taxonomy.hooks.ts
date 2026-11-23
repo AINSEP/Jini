@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { AdminTaxonomy, AdminTaxonomyWithTerms, AdminTerm } from "../api/taxonomy-api.types.js";
-import { useFetchMutation, useFetchQuery, useInvalidate } from "@jini-ai/ui/fetch-query";
+import { useFetchMutation, useFetchQuery, useInvalidate } from "../../../react/kit.js";
 import { contentRefreshApplies, subscribeToContentRefresh } from "../../../shell/lib/content-refresh-bus.js";
 import {
   describeDeleteBlocked,

@@ -1,6 +1,5 @@
 import { agentHandle } from "@jini-ai/core/agent-handles";
-import { Dialog } from "@jini-ai/ui-kit/react";
-import { resolveTabBarTabIndex, type useTabBarKeyboard } from "@jini-ai/ui/tab-strip";
+import { Dialog, type AdminKitHooks, type AdminKitValues } from "../react/kit.js";
 
 import type { PostSettingsDialogController, PostSettingsTab } from "./hooks/use-post-editor-ui.hooks.js";
 import { PostAuthorFields } from "./PostAuthorFields.js";
@@ -18,6 +17,8 @@ import { type Translate } from '@jini-ai/core/text';
  * `featuredMediaId` and now carries that toggle.
  *
  * Wiring: the host binds the tab strip's keyboard hook into the required `hooks.useTabBarKeyboard`
+ * and its roving-tabindex rule into the required `resolveTabBarTabIndex`, renders it under the admin
+ * kit provider (the `Dialog` slot),
  * and loads its shared domain-dialog stylesheet wherever it renders this dialog. Only `jini-*`
  * classes are emitted (`jini-post-dialog` shell, `jini-post-settings-tabs` strip whose active tab is
  * the `aria-selected="true"` one, `jini-post-settings-dialog__footer`/`__actions` row); the host
@@ -30,7 +31,8 @@ const TABS: ReadonlyArray<{ id: PostSettingsTab; label: string }> = [
 ];
 
 export interface PostSettingsDialogProps extends Omit<PostPublishAtFieldProps, "t" | "agentHandle"> {
-  hooks: { useTabBarKeyboard: typeof useTabBarKeyboard };
+  hooks: { useTabBarKeyboard: AdminKitHooks["useTabBarKeyboard"] };
+  resolveTabBarTabIndex: AdminKitValues["resolveTabBarTabIndex"];
   dialog: PostSettingsDialogController;
   kindLabel: "post" | "page";
   author: string;
@@ -40,7 +42,7 @@ export interface PostSettingsDialogProps extends Omit<PostPublishAtFieldProps, "
   t: Translate;
 }
 
-export function PostSettingsDialog({ dialog, kindLabel, author, setAuthor, showAuthor, setShowAuthor, t, hooks, ...publishing }: PostSettingsDialogProps) {
+export function PostSettingsDialog({ dialog, kindLabel, author, setAuthor, showAuthor, setShowAuthor, t, hooks, resolveTabBarTabIndex, ...publishing }: PostSettingsDialogProps) {
   const { onKeyDown } = hooks.useTabBarKeyboard({ tabs: TABS, activeId: dialog.tab, onChange: (id) => dialog.setTab(id as PostSettingsTab) });
   if (!dialog.open) return null;
   return (

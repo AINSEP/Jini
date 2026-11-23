@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useFetchMutation } from "@jini-ai/ui/fetch-query";
+import { useFetchMutation } from "../../../react/kit.js";
 import { KEYS } from "../rules.js";
 import type { NewTaxonomyFormPort } from "./new-taxonomy-form-port.hooks.js";
 import type { TaxonomyHostKit } from "../taxonomy-host-kit.js";

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '../../__tests__/fetch-query-support.js';
 import { describe, expect, it, vi } from 'vitest';
 import { PostSettingsDialog, type PostSettingsDialogProps } from '../PostSettingsDialog.js';
 
@@ -10,6 +10,7 @@ function renderDialog(overrides: Partial<PostSettingsDialogProps> = {}) {
   const onKeyDown = vi.fn();
   const props: PostSettingsDialogProps = {
     hooks: { useTabBarKeyboard: vi.fn(() => ({ onKeyDown })) },
+    resolveTabBarTabIndex: ({ activeId, tab }) => (tab.id === activeId ? 0 : -1),
     dialog: { open: true, tab: 'author', setTab: vi.fn(), openDialog: vi.fn(), closeDialog: vi.fn() },
     kindLabel: 'post', author: 'Ada', setAuthor: vi.fn(), showAuthor: true, setShowAuthor: vi.fn(),
     publishAtInput: '', setPublishAtInput: vi.fn(), scheduled: false, t,

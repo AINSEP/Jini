@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { AdminTaxonomyWithTerms } from "../api/taxonomy-api.types.js";
-import { useFetchMutation, useFetchQuery } from "@jini-ai/ui/fetch-query";
-import { hasPermission } from "@jini-ai/ui/panel-kit";
+import { useFetchMutation, useFetchQuery } from "../../../react/kit.js";
+import { hasPermission } from "@jini-ai/core/admin-runtime";
 import { KEYS, TAXONOMY_MANAGE_PERMISSION, findTermByName, splitTermNames, termPickerSubject } from "../rules.js";
 
 import type { TermPickerPort } from "./term-picker-port.hooks.js";

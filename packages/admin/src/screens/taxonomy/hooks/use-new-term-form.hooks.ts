@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { AdminTaxonomyWithTerms } from "../api/taxonomy-api.types.js";
-import { useFetchMutation } from "@jini-ai/ui/fetch-query";
+import { useFetchMutation } from "../../../react/kit.js";
 import { KEYS } from "../rules.js";
 import type { NewTermFormPort } from "./new-term-form-port.hooks.js";
 import type { TaxonomyHostKit } from "../taxonomy-host-kit.js";

@@ -32,7 +32,7 @@ import { toolMetadata } from '@jini-ai/core/tool-metadata/media';
  * excluded by `listPendingForOwner`'s own contract (see that method's doc), not by a check
  * duplicated here. Cross-site reach is structurally impossible for the same reason
  * `promote-chat-attachment.ts` gives: one `AttachmentStore` per site daemon, keyed by
- * `TOVU_WORKSPACE`.
+ * the host's workspace setting.
  *
  * Discovery is further restricted to the refs in this run's accepted message. The host resolves
  * that binding from the daemon's contextRef, never from tool arguments. An absent binding means

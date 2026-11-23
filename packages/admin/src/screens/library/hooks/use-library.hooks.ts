@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { hasPermission } from "@jini-ai/ui/panel-kit";
-import { useFetchMutation, useFetchQuery, useInvalidate } from "@jini-ai/ui/fetch-query";
-import { renderMarkdownToSafeHtml } from "@jini-ai/ui/renderers";
+import { hasPermission } from "@jini-ai/core/admin-runtime";
+import { useFetchMutation, useFetchQuery, useInvalidate } from "../../../react/kit.js";
 import type { AdminMedia } from "@jini-ai/core/contracts/site/cms-admin-media";
 import { useContentRefreshSubscription } from "@jini-ai/admin/shell/hooks/use-content-refresh-subscription.hooks";
 import {
@@ -11,8 +10,8 @@ import {
   sortDocuments,
   validDocumentStem,
   type LibraryPreviewKind,
-} from "../rules";
-import type { LibraryPort } from "./library-port.hooks";
+} from "../rules.js";
+import type { LibraryPort } from "./library-port.hooks.js";
 
 /**
  * @file State and API calls for the Library screen (`Library.tsx` is markup only). Uploads run one
@@ -97,11 +96,11 @@ export interface LibraryDependencies {
   describeApiError: (required: { e: unknown; fallback: string }) => string;
   /** Host file reader: a browser `File` as base64 (no data: URL prefix). */
   readFileAsBase64: (required: { file: File }) => Promise<string>;
+  /** Host Markdown renderer: safe HTML with raw HTML off, shown only inside a scriptless sandboxed frame. */
+  renderMarkdownToSafeHtml: (markdown: string) => string;
 }
 
 const NO_USERS: ReadonlyMap<string, string> = new Map();
-
-let uploadKeySeq = 0;
 
 function fileProblemMessage({ problem, t }: { problem: ReturnType<typeof libraryFileProblem>; t: (key: string) => string }, _optional = {}): string | null {
   switch (problem) {
@@ -123,6 +122,8 @@ function useLibraryUploads({ port, t, describeApiError, readFileAsBase64 }: { po
   const [uploads, setUploads] = useState<LibraryUploadRow[]>([]);
   const queue = useRef<{ key: string; file: File }[]>([]);
   const running = useRef(false);
+  // Instance-owned upload key counter: keys only need to be unique among this screen's rows.
+  const uploadKeySeq = useRef(0);
 
   const patch = useCallback((key: string, next: Partial<LibraryUploadRow>) => {
     setUploads((rows) => rows.map((row) => (row.key === key ? { ...row, ...next } : row)));
@@ -150,8 +151,8 @@ function useLibraryUploads({ port, t, describeApiError, readFileAsBase64 }: { po
 
   const addFiles = useCallback((files: File[]) => {
     const rows: LibraryUploadRow[] = files.map((file) => {
-      uploadKeySeq += 1;
-      const key = `upload-${uploadKeySeq}`;
+      uploadKeySeq.current += 1;
+      const key = `upload-${uploadKeySeq.current}`;
       const error = fileProblemMessage({ problem: libraryFileProblem(file), t: t });
       if (!error) queue.current.push({ key, file });
       return { key, name: file.name, size: file.size, status: error ? "failed" : "waiting", error };
@@ -167,7 +168,7 @@ function useLibraryUploads({ port, t, describeApiError, readFileAsBase64 }: { po
   return { uploads, addFiles, clearUploads, uploadedCount: uploads.filter((row) => row.status === "done").length };
 }
 
-function useLibraryPreview({ port, t, describeApiError }: { port: LibraryPort; t: (key: string) => string; describeApiError: LibraryDependencies["describeApiError"] }, _optional = {}) {
+function useLibraryPreview({ port, t, describeApiError, renderMarkdownToSafeHtml }: { port: LibraryPort; t: (key: string) => string; describeApiError: LibraryDependencies["describeApiError"]; renderMarkdownToSafeHtml: LibraryDependencies["renderMarkdownToSafeHtml"] }, _optional = {}) {
   const [preview, setPreview] = useState<LibraryPreviewState | null>(null);
   const request = useRef(0);
 
@@ -207,7 +208,7 @@ function useLibraryPreview({ port, t, describeApiError }: { port: LibraryPort; t
         ? { html: renderMarkdownToSafeHtml(text), truncated }
         : { text, truncated }))
       .catch(fail);
-  }, [port, t, describeApiError]);
+  }, [port, t, describeApiError, renderMarkdownToSafeHtml]);
 
   return { preview, openPreview, closePreview };
 }
@@ -313,10 +314,10 @@ function useLibraryRowActions({ port, t, describeApiError, preview, closePreview
   return { rename, trash, trashingId, rowError, notice, dismissNotice: () => setNotice(null) };
 }
 
-export function useLibrary({ port, locale, t, describeApiError, readFileAsBase64 }: LibraryDependencies): LibraryController {
+export function useLibrary({ port, locale, t, describeApiError, readFileAsBase64, renderMarkdownToSafeHtml }: LibraryDependencies): LibraryController {
   const { list, permissions, userNames } = useLibraryData({ port });
   const { uploads, addFiles, clearUploads, uploadedCount } = useLibraryUploads({ port: port, t: t, describeApiError, readFileAsBase64 });
-  const { preview, openPreview, closePreview } = useLibraryPreview({ port: port, t: t, describeApiError });
+  const { preview, openPreview, closePreview } = useLibraryPreview({ port: port, t: t, describeApiError, renderMarkdownToSafeHtml });
   const rowActions = useLibraryRowActions({ port, t, describeApiError, preview, closePreview });
 
   return {

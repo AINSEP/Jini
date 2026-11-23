@@ -17,6 +17,7 @@ import { ToolInputError } from "@jini-ai/core";
 import { parseExpectedVersion as parseCoreExpectedVersion } from "@jini-ai/core/optimistic-concurrency";
 
 import { PostValidationError, type PostVersionConflictError } from "./post.js";
+import type { OutwardErrorMessage } from "../admin-http/http/outward-error-message.js";
 
 /** The exact text a malformed basis is rejected with, on every arm. */
 export const EXPECTED_VERSION_REJECTION = "'expectedVersion' must be a non-negative integer when present";
@@ -74,17 +75,21 @@ export function parseExpectedVersion(
  *
  * Both versions travel as structured fields, not only inside the prose, so a client can say "yours
  * was N, theirs is M" without parsing the message — the reason `PostVersionConflictError` carries
- * them as fields at all.
+ * them as fields at all. The `error` copy comes from the host's `outwardErrorMessage` port, so the
+ * stored error text never leaves through engine code.
  *
  * @complexity O(1).
  */
-export function versionConflictEnvelope(err: PostVersionConflictError, _optional: Record<string, never> = {}): {
+export function versionConflictEnvelope(
+  { err, outwardErrorMessage }: { err: PostVersionConflictError; outwardErrorMessage: OutwardErrorMessage },
+  _optional: Record<string, never> = {}
+): {
   error: string;
   code: typeof VERSION_CONFLICT_CODE;
   details: { expectedVersion: number; currentVersion: number };
 } {
   return {
-    error: err.message,
+    error: outwardErrorMessage({ error: err }),
     code: VERSION_CONFLICT_CODE,
     details: { expectedVersion: err.expectedVersion, currentVersion: err.currentVersion },
   };
