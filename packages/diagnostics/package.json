@@ -19,6 +19,8 @@
       "./web-evidence": "universal",
       "./web-evidence/playwright": "node",
       "./web-evidence/page-body": "node",
+      "./web-evidence/site-path-policy": "universal",
+      "./web-evidence/published-page": "node",
       "./web-evidence/testing": "universal",
       "./web-evidence/capture-budget": "universal",
       "./web-evidence/capture-clock": "universal",
@@ -70,6 +72,16 @@
       "types": "./dist/web-evidence/page-body.d.ts",
       "import": "./dist/web-evidence/page-body.js",
       "default": "./dist/web-evidence/page-body.js"
+    },
+    "./web-evidence/site-path-policy": {
+      "types": "./dist/web-evidence/site-path-policy.d.ts",
+      "import": "./dist/web-evidence/site-path-policy.js",
+      "default": "./dist/web-evidence/site-path-policy.js"
+    },
+    "./web-evidence/published-page": {
+      "types": "./dist/web-evidence/published-page.d.ts",
+      "import": "./dist/web-evidence/published-page.js",
+      "default": "./dist/web-evidence/published-page.js"
     },
     "./web-evidence/testing": {
       "types": "./dist/web-evidence/testing/fake-clock.d.ts",
@@ -126,6 +138,8 @@
   },
   "devDependencies": {
     "@jini-ai/analytics": "workspace:^",
+    "@types/express": "^4.17.21",
+    "express": "^4.21.0",
     "@jini-ai/core": "workspace:^",
     "@vitest/coverage-v8": "^3.2.6",
     "jszip": "^3.10.1",
