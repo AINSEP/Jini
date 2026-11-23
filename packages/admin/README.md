@@ -116,6 +116,7 @@ const secrets = security(
     rootKeyScopeNotice: hostScopeCopy,          // optional; root-key tab `params.scopeNotice`
     rootKeyTab: { generate: 'hidden', defaultEnvVarName: 'HOST_KEY_ENV', previewRequired: false },
     tabIcons: { 'access-tokens': <Glyph />, 'root-key': <Glyph /> },
+    describeError: ({ error }) => ({ code: hostCode(error), detail: hostPublicDetail(error) }), // optional
   },
 );
 // Ports: `securityApi` (required), `otherCredentials`, `rootKey` (optional), via createAdmin.
@@ -124,6 +125,9 @@ const secrets = security(
 // once above the tabs while the page is visible, and is not remounted by a tab change.
 ```
 
+- `describeError` returns a failure's server code and public detail. Root-key generate refusals are
+  classified from it (`locked` / `refused` / `already-exists` / `generic`); the page shows only that
+  detail or fixed copy, never a raw `Error.message`, so the describer is where the host redacts.
 - `rootKeyTab` merges into the `root-key` tab's params. Omitted fields keep the stock behaviour:
   generate shown, a preview before start fresh, no env-var name fallback.
 - The page renders the kit `TabBar` with the agent handles `security-tab-access-tokens`,

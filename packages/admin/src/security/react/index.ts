@@ -2,8 +2,9 @@ import { createElement, type ComponentType, type ReactNode } from 'react';
 import type { AdminInstance, AdminModuleUi, ModulePageProps, TabViewProps } from '@jini-ai/core/contracts/admin-module';
 import { securityModule } from '../security.module.js';
 import { englishSecurity, type SecurityTranslator } from '../messages.en.js';
-import { SecurityPortsContext, SecurityTranslationContext, SecurityOwnerControlsContext } from './hooks/SecurityPorts.hooks.js';
+import { SecurityPortsContext, SecurityTranslationContext, SecurityOwnerControlsContext, SecurityErrorDescriberContext } from './hooks/SecurityPorts.hooks.js';
 import type { SecurityTabIcons } from './hooks/SecurityPage.hooks.js';
+import type { DescribeRootKeyError } from '../rules.js';
 export { useSecurityPorts, useSecurityTranslation, useSecurityOwnerControls } from './hooks/SecurityPorts.hooks.js';
 export type { SecurityTranslator } from '../messages.en.js';
 export type { SecurityTabIcons } from './hooks/SecurityPage.hooks.js';
@@ -19,6 +20,9 @@ export interface SecurityModuleOptions {
   readonly rootKeyScopeNotice?: string;
   readonly rootKeyTab?: SecurityRootKeyTabOptions;
   readonly tabIcons?: SecurityTabIcons;
+  /** Reads a failure's server code and public detail (for example from the host's API error). The
+   * module never shows a raw `Error.message`; without a describer, refusals show fixed copy. */
+  readonly describeError?: DescribeRootKeyError;
 }
 /** The host injects the renderer helpers; this module states the contract and imports no implementation. */
 type ModuleUi<Page, Tab> = AdminModuleUi<Page, Tab, ComponentType<{ admin: AdminInstance; children: ReactNode }>>;
@@ -36,7 +40,7 @@ function withRootKeyParams({ params }: { params: Readonly<Record<string, unknown
  */
 export function security<Page, Tab>(
   { ui }: { ui: ModuleUi<Page, Tab> },
-  { t = englishSecurity, rootKeyScopeNotice, rootKeyTab, tabIcons }: SecurityModuleOptions = {},
+  { t = englishSecurity, rootKeyScopeNotice, rootKeyTab, tabIcons, describeError }: SecurityModuleOptions = {},
 ) {
   // Scope membership uses object identity, so bind and return this same per-admin module.
   const module = withRootKeyParams({ params: rootKeyParams({ ...(rootKeyScopeNotice ? { rootKeyScopeNotice } : {}), ...(rootKeyTab ? { rootKeyTab } : {}) }) });
@@ -56,7 +60,8 @@ export function security<Page, Tab>(
    */
   function Provider({ admin, children, t: currentTranslation = t, ownerControls = null }: { admin: AdminInstance; children: ReactNode } & { t?: SecurityTranslator; ownerControls?: ReactNode }) {
     return createElement(SecurityTranslationContext.Provider, { value: currentTranslation },
-      createElement(SecurityOwnerControlsContext.Provider, { value: ownerControls }, createElement(ScopeProvider, { admin, children })));
+      createElement(SecurityOwnerControlsContext.Provider, { value: ownerControls },
+        createElement(SecurityErrorDescriberContext.Provider, { value: describeError }, createElement(ScopeProvider, { admin, children }))));
   }
   return Object.assign(module, { react: { ...react, Provider } });
 }

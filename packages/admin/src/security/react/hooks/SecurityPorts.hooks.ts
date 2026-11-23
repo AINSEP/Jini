@@ -2,6 +2,7 @@ import { createContext, useContext, type ReactNode } from 'react';
 import type { SecurityApiPort, OtherCredentialsPort, RootKeyPort } from '../../ports.js';
 import { AdminConfigError } from '@jini-ai/core/admin-runtime';
 import { englishSecurity, type SecurityTranslator } from '../../messages.en.js';
+import type { DescribeRootKeyError } from '../../rules.js';
 export interface SecurityPorts { readonly securityApi: SecurityApiPort; readonly otherCredentials?: OtherCredentialsPort; readonly rootKey?: RootKeyPort }
 const refuse = async (): Promise<never> => { throw new Error('Unavailable'); };
 /** Stand-ins for optional ports the host did not supply. Hooks always run, so a tab still builds
@@ -21,4 +22,9 @@ export function useSecurityTranslation(_required: Record<string, never> = {}, _o
 export const SecurityOwnerControlsContext = createContext<ReactNode>(null);
 export function useSecurityOwnerControls(_required: Record<string, never> = {}, _optional: Record<string, never> = {}): ReactNode {
   return useContext(SecurityOwnerControlsContext);
+}
+/** The host's error describer (server code and public detail). Unset, refusals show fixed copy. */
+export const SecurityErrorDescriberContext = createContext<DescribeRootKeyError | undefined>(undefined);
+export function useSecurityErrorDescriber(_required: Record<string, never> = {}, _optional: Record<string, never> = {}): DescribeRootKeyError | undefined {
+  return useContext(SecurityErrorDescriberContext);
 }

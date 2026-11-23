@@ -9,6 +9,7 @@ vi.mock('../hooks/RootKeyTab.hooks.js', () => ({ useRootKeyTab: () => state.vm }
 const noop = () => {};
 function view(over: Partial<RootKeyView> = {}): RootKeyView {
   return { denied: false, loading: false, saving: false, status: undefined, error: undefined, result: undefined, scopeNotice: 'Scope notice', token: '', confirm: '', confirming: false, preview: undefined, locked: false, canGenerate: false, canConfirm: false,
+    productionNote: undefined, badge: undefined, sourceNote: undefined, fingerprintLabel: 'Fingerprint', fingerprintHint: 'Hint',
     onToken: noop, onConfirmText: noop, generate: noop, unlock: noop, previewFresh: noop, cancelFresh: noop, confirmFresh: async () => {}, ...over };
 }
 function show(over: Partial<RootKeyView> = {}) { state.vm = view(over); return render(<KitProvider><RootKeyTab params={{}} permissions={[]} /></KitProvider>); }
@@ -18,7 +19,12 @@ describe('RootKeyTab', () => {
   it('renders only the scope notice when idle', () => { const { container } = show(); expect(container.textContent).toBe('Scope notice'); expect(screen.getByRole('region', { name: 'Root key' })).toBeTruthy(); });
   it('shows a spinner while loading', () => { const { container } = show({ loading: true }); expect(container.innerHTML).toContain('Loading root key status…'); });
   it('shows an error and a result', () => { show({ error: 'Failed reason', result: 'Done result' }); expect(screen.getByText('Failed reason')).toBeTruthy(); expect(screen.getByText('Done result')).toBeTruthy(); });
-  it('shows the status line', () => { show({ status: { active: true, source: 'file', state: 'active', keyFilePath: '/k', runtimeMode: 'local', fingerprint: 'fp' } }); expect(screen.getByText('active · fp · file')).toBeTruthy(); });
+  // SEC-5 replaced the raw `state · fingerprint · source` line with a badge, a hinted fingerprint and a source note (P12, P13).
+  it('shows the status badge, hinted fingerprint and source note', () => {
+    show({ status: { active: true, source: 'file', state: 'active', keyFilePath: '/k', runtimeMode: 'local', fingerprint: 'fp' }, badge: { label: 'Active: key file', tone: 'success' }, sourceNote: { text: 'Stored at', path: '/k' } });
+    expect(screen.getByText('Active: key file')).toBeTruthy(); expect(screen.getByText('fp').closest('[title]')).toHaveAttribute('title', 'Hint'); expect(screen.getByText('/k').tagName).toBe('CODE');
+    expect(document.body.textContent).not.toContain('active · fp · file');
+  });
   it('offers generation only when allowed', () => { show({ canGenerate: true }); expect(screen.getByRole('button', { name: 'Create root key' })).toBeTruthy(); });
   it('offers unlock and start fresh for a locked key with a private password field', () => {
     show({ locked: true }); expect(screen.getByLabelText('Old root key').getAttribute('type')).toBe('password');

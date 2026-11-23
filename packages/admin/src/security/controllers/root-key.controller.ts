@@ -1,16 +1,21 @@
 import { createControllerStore } from '@jini-ai/core/admin-runtime';
 import type { RootKeyPort } from '../ports.js';
 import type { RootKeyStatus, RootKeyPreview, RootKeyResult } from '../models.js';
-import { ROOT_KEY_PERMISSION, START_FRESH_CONFIRMATION, isRootKeyLocked } from '../rules.js';
+import { ROOT_KEY_PERMISSION, START_FRESH_CONFIRMATION, isRootKeyLocked, classifyRootKeyGenerateFailure, rootKeyGenerateFailureText, type DescribeRootKeyError, type RootKeyErrorDescription, type RootKeyGenerateFailure } from '../rules.js';
 const receiverLabel = (w: NonNullable<RootKeyResult['affectedWebhooks']>[number]) => `${w.label} (${w.targetUrl})`;
 /** Receivers named in a result need their new signing secret; the message tells the operator which ones. */
 function resultMessage({ result, response }: { result: string; response: RootKeyResult }, _optional = {}) {
   const hooks = response.affectedWebhooks;
   return hooks?.length ? `${result} Update receivers: ${hooks.map(receiverLabel).join(', ')}` : result;
 }
-export function createRootKeyController({ api, permissions = [] }: { api: RootKeyPort; permissions?: readonly string[] }, _optional = {}) {
+/** A throwing describer must not turn a refusal into an unhandled error, so it reads as no detail. */
+function described({ error, describeError }: { error: unknown; describeError?: DescribeRootKeyError | undefined }, _optional = {}): RootKeyErrorDescription {
+  try { return describeError?.({ error }) ?? {}; } catch { return {}; }
+}
+const RECOVERY_REFUSED = 'Recovery refused. Check the host key configuration.';
+export function createRootKeyController({ api, permissions = [] }: { api: RootKeyPort; permissions?: readonly string[] }, { describeError }: { describeError?: DescribeRootKeyError } = {}) {
   const granted = permissions.includes(ROOT_KEY_PERMISSION);
-  const store = createControllerStore({ initial: { status: null as RootKeyStatus | null, preview: null as RootKeyPreview | null, token: '', confirm: '', loading: false, saving: false, error: null as string | null, result: null as string | null, confirming: false } }); let generation = 0;
+  const store = createControllerStore({ initial: { status: null as RootKeyStatus | null, preview: null as RootKeyPreview | null, token: '', confirm: '', loading: false, saving: false, error: null as string | null, result: null as string | null, confirming: false, generateFailure: null as RootKeyGenerateFailure | null } }); let generation = 0;
   const allowed = () => granted && !store.signal.aborted;
   const canPreview = () => { const state = store.getSnapshot(); return allowed() && isRootKeyLocked({ status: state.status }) && !state.saving && !state.loading; };
   async function load(_required: Record<string, never>, _optional = {}) {
@@ -21,11 +26,11 @@ export function createRootKeyController({ api, permissions = [] }: { api: RootKe
     catch { if (ticket === generation) store.set({ patch: { error: 'Root key status unavailable' } }); }
     finally { if (ticket === generation) store.set({ patch: { loading: false } }); }
   }
-  async function execute(run: () => Promise<RootKeyResult>, result: string) {
+  async function execute(run: () => Promise<RootKeyResult>, result: string, failed: (error: unknown) => { error: string; generateFailure?: RootKeyGenerateFailure } = () => ({ error: RECOVERY_REFUSED })) {
     if (!allowed() || store.getSnapshot().saving) return false;
     store.set({ patch: { saving: true, error: null } }); let ok = false;
-    try { const response = await run(); store.set({ patch: { token: '', confirm: '', preview: null, confirming: false, result: resultMessage({ result, response }) } }); await load({}); ok = !store.signal.aborted; }
-    catch { store.set({ patch: { error: 'Recovery refused. Check the host key configuration.' } }); }
+    try { const response = await run(); store.set({ patch: { token: '', confirm: '', preview: null, confirming: false, generateFailure: null, result: resultMessage({ result, response }) } }); await load({}); ok = !store.signal.aborted; }
+    catch (error) { store.set({ patch: failed(error) }); }
     finally { store.set({ patch: { saving: false } }); }
     return ok;
   }
@@ -36,8 +41,11 @@ export function createRootKeyController({ api, permissions = [] }: { api: RootKe
     generate(_required: Record<string, never>, _optional = {}) {
       const status = store.getSnapshot().status;
       // No rotate/replace: replacing an active key would orphan every secret sealed under it.
-      if (!status || status.active || status.state !== 'missing') return Promise.resolve(false);
-      return execute(() => api.generate({}, { signal: store.signal }), 'Root key ready');
+      if (!status || status.active || status.state !== 'missing' || status.source !== 'none') return Promise.resolve(false);
+      return execute(() => api.generate({}, { signal: store.signal }), 'Root key ready', (error) => {
+        const generateFailure = classifyRootKeyGenerateFailure({ description: described({ error, describeError }) });
+        return { generateFailure, error: rootKeyGenerateFailureText({ failure: generateFailure }) };
+      });
     },
     importToken(_required: Record<string, never>, _optional = {}) { const token = store.getSnapshot().token.trim(); return token && isRootKeyLocked({ status: store.getSnapshot().status }) ? execute(() => api.importToken({ token }, { signal: store.signal }), 'Unlocked. Saved credentials work again.') : Promise.resolve(false); },
     async preview(_required: Record<string, never>, _optional = {}) {
