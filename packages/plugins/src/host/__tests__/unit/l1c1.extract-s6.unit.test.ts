@@ -72,7 +72,7 @@ test("archive: oversized upload is refused before the reader runs; foreign reade
     error instanceof PluginInstallError && error.message === "ZIP could not be read safely.");
 });
 
-const request: Tier2Request = { kind: "probe", plugin: { pluginId: "t2", entryPath: "/plugins/t2/dist/plugin.js", capabilities: [], hooks: [] } };
+const request: Tier2Request = { kind: "probe", plugin: { pluginId: "t2", entryPath: "/plugins/t2/dist/plugin.js", packageRoot: "/plugins/t2", capabilities: [], hooks: [] } };
 const binding = { pluginSdkBinding, createInvocationCoreDeps };
 
 test("worker start: resolver registers before the real import; the reply is posted once", async () => {
@@ -82,8 +82,8 @@ test("worker start: resolver registers before the real import; the reply is post
     workerData: request, parentPort: { postMessage: (m) => posted.push(m) }, binding,
     registerSdkResolver: () => order.push("register"),
     realImport: async (p) => { order.push(`import ${p}`); return { default: definePlugin({ setup: () => undefined }) }; },
-  });
-  assert.deepEqual(order, ["register", "import /plugins/t2/dist/plugin.js"]);
+  }, { importPolicy: { sdkSpecifiers: ["@example/sdk"] }, registerImportPolicy: () => order.push("policy") });
+  assert.deepEqual(order, ["policy", "register", "import /plugins/t2/dist/plugin.js"]);
   assert.equal(posted.length, 1);
   assert.equal((posted[0] as { ok: boolean }).ok, true);
 });

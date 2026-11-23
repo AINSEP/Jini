@@ -75,7 +75,8 @@ export async function runTier2Call(required: RunTier2CallRequired, _optional: Ru
 
   let moduleValue: unknown;
   try {
-    const packageRoot = path.dirname(path.dirname(entryPath.startsWith("file:") ? fileURLToPath(entryPath) : entryPath));
+    // The registered root when the host sent one; older hosts get the historical `<package>/server/<entry>` guess.
+    const packageRoot = request.plugin.packageRoot ?? path.dirname(path.dirname(entryPath.startsWith("file:") ? fileURLToPath(entryPath) : entryPath));
     const imported = await importModule({ plugin: { pluginId, packageRoot }, modulePath: entryPath });
     if (typeof imported === "string") return failed("import", imported);
     moduleValue = { default: imported.exported };
