@@ -329,6 +329,7 @@
    "DirtyGuard": "interface:11e9de78a9",
    "DirtyGuardHostPort": "type:f3b2e0fbd9",
    "DismissSubscriptionPort": "interface:6b6c69e3d3",
+   "DismissibleDropdown": "interface:bebb25a01e",
    "DocumentFocus": "type:50f27a8844",
    "DraftEntry": "interface:2311e60580",
    "EMPTY_DRAFT": "variable:0cc5efa9ea",
@@ -786,6 +787,7 @@
    "SelectionBand": "function:31ee6f1391",
    "SelectionBandProps": "interface:e1c8a1991a",
    "SerialWrites": "interface:dd1044f5e1",
+   "SettingsControlHandlers": "interface:3610d2217f",
    "SettingsDialogChromeLabels": "interface:d9829793f6",
    "SettingsDialogDict": "type:fdfff3a407",
    "SettingsDialogShell": "function:93d180326a",
@@ -1549,6 +1551,7 @@
    "selectedAgentModel": "function:a8a404aed3",
    "selectedAgentReasoning": "function:3a2d0c0c2a",
    "serializeHistoryPayload": "function:3435efa0e1",
+   "settingsControlHandlers": "function:5eca24c70a",
    "settingsShortcut": "function:33baf4f522",
    "shouldIgnoreClipboardFilePaste": "function:dc8886cd50",
    "shouldShowCustomModelInput": "function:829a3ece88",
@@ -1652,6 +1655,7 @@
    "useDirtyGuard": "function:65be3200ab",
    "useDismissOnOutsideOrEscape": "function:e0de6d9342",
    "useDismissablePanel": "function:e5a71f6e30",
+   "useDismissibleDropdown": "function:4e93707bb0",
    "useEdgeAutoScroll": "function:384d2e9a73",
    "useExecutionCredential": "function:0e95639d1a",
    "useExecutionTab": "function:b8c7401cfa",
@@ -1848,13 +1852,17 @@
   "types": "./dist/browser/index.d.ts",
   "symbols": {
    "DismissSubscriptionPort": "interface:6b6c69e3d3",
+   "DismissibleDropdown": "interface:bebb25a01e",
    "DocumentFocus": "type:50f27a8844",
+   "SettingsControlHandlers": "interface:3610d2217f",
    "UseDismissOnOutsideOrEscapeOptions": "interface:1e42cae2c8",
    "UseFileDropTargetResult": "interface:e198d2d1cc",
    "UseGlobalKeydownOptions": "interface:f6c5ec2ba6",
    "menuFocusIndex": "function:ca78dffb69",
    "resolveGlobalKeydownTarget": "function:cf94c78ebd",
+   "settingsControlHandlers": "function:5eca24c70a",
    "useDismissOnOutsideOrEscape": "function:e0de6d9342",
+   "useDismissibleDropdown": "function:4e93707bb0",
    "useFileDropTarget": "function:67178253e7",
    "useGlobalKeydown": "function:b0300472be",
    "useMenuKeyboard": "function:9b27b27f95"
@@ -2730,6 +2738,25 @@
    "toolApprovalPresentation": "function:d5b4e13278"
   }
  },
+ "./number-stepper": {
+  "types": "./dist/features/number-stepper/index.d.ts",
+  "symbols": {
+   "NumberSetting": "interface:a9f1de9cf8",
+   "NumberSettingWrite": "type:0ced3e48e1",
+   "NumberStepper": "function:ad8f8b9678",
+   "NumberStepperClassNames": "interface:dc121768d6",
+   "NumberStepperController": "interface:c9945d7a0c",
+   "NumberStepperLabels": "interface:633e58fbee",
+   "NumberStepperProps": "interface:7ef5af539f",
+   "StepperBounds": "interface:afc45b3a34",
+   "acceptedSavedValue": "function:8f8141b04d",
+   "clampToBounds": "function:988028cdc0",
+   "numberFromTypedDigit": "function:f98face13c",
+   "stepperKeyTarget": "function:f01589b856",
+   "useNumberStepper": "function:f2a8c7635b",
+   "useOptimisticNumberSetting": "function:f72c92971f"
+  }
+ },
  "./panel-kit": {
   "types": "./dist/features/panel-kit/index.d.ts",
   "symbols": {
@@ -3023,16 +3050,17 @@
    "SiteListItem": "interface:64093115f5",
    "SiteListPrefs": "interface:289c79e908",
    "SiteListPrefsController": "interface:0124b4e252",
-   "SiteListPrefsPort": "interface:43e099b74c",
+   "SiteListPrefsPort": "interface:eb8633f354",
    "SiteListSort": "type:747d94080e",
    "SiteListToolbar": "function:4ca42d5a6b",
    "SiteListToolbarCopy": "interface:1176bf2546",
+   "UseSiteListPrefsOptions": "interface:82c0dda53f",
    "cardOpenProps": "function:9f381955f3",
    "closeMenuThen": "function:9aaecafa55",
    "duplicateDisplayNames": "function:eb249bdaf3",
    "isCardOpenKey": "function:4365623bd3",
    "parseSiteListPrefs": "function:ff022d3a39",
-   "useSiteListPrefs": "function:e10863c362",
+   "useSiteListPrefs": "function:6ca6ea5c7f",
    "useSiteListView": "function:c30cb0856b"
   }
  },

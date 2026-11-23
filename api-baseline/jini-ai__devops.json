@@ -382,6 +382,15 @@
    "PublishRunResultProps": "interface:fa67bd1211"
   }
  },
+ "./deploy/site/publish-credentials/types": {
+  "types": "./dist/deploy/site/publish-credentials/types.d.ts",
+  "symbols": {
+   "PublishConnectionInput": "type:183b1f6757",
+   "PublishCredentialScope": "type:84f657504c",
+   "PublishCredentialSummary": "interface:758efbc0b1",
+   "PublishProviderId": "type:19a51e291b"
+  }
+ },
  "./deploy/site/types": {
   "types": "./dist/deploy/site/types.d.ts",
   "symbols": {
@@ -554,6 +563,7 @@
    "StripTally": "interface:99ee0e5b60",
    "Target": "interface:3ee1b41e6f",
    "TreeFingerprint": "interface:896dc37deb",
+   "TreeQuietFormatters": "interface:b451c62a98",
    "UpdateFileEntry": "interface:d07df067d2",
    "UpdateManifest": "interface:a08c169a9a",
    "WorkspacePackagePackerPort": "interface:3b26246b2e",
@@ -599,7 +609,7 @@
    "stripNonRuntimeFiles": "function:c212c60d55",
    "strippableReason": "function:b0ce66d4ae",
    "toArchiveEntryPath": "function:c4b8b2e24e",
-   "treeQuietProblems": "function:ea7d0552ba",
+   "treeQuietProblems": "function:77ba1b9feb",
    "undeclaredDistImports": "function:02491b62e7",
    "verifyAsarAgainstSource": "function:b4edf5fb02",
    "walkPayloadFiles": "function:8205803cd6",
