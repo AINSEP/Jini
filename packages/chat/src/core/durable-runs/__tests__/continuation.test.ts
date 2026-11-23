@@ -1,8 +1,8 @@
 import { describe, expect, it, test } from "vitest";
-import type { AgentEvent } from "../../index.js";
 import { canonicalToolInput, continuationRequest, hasUnknownToolCall } from "../continuation.js";
 import type { DurableRun } from "../ports.js";
 import type { AgentPluginChatState } from "../../agent-plugin-chat-state.js";
+import type { AgentEvent } from "@jini-ai/core/contracts/site/chat-core";
 
 const input = { type: "menu", id: "main" };
 

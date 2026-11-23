@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest';
-import type { AgentEvent } from '../events.js';
 import { foldDelegatedWrapperCalls } from '../tool-events.js';
+import type { AgentEvent } from "@jini-ai/core/contracts/site/chat-core";
 
 it('folds buffered CLI receipts once per matching bridge result while preserving failed retries and native calls', () => {
   const events: AgentEvent[] = [

@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import type { AgentEvent } from "../../../core/index.js";
 import type { DurableRun, DurableRunStore, RecoveryPorts, RecoveryTrigger, RunProbe } from "../../../core/durable-runs/ports.js";
 import { unusedStoreMethods } from "./store-fake.js";
 import { AWAITING_ANSWER_NOTICE, createDurableRecovery, EXHAUSTED_NOTICE, RUN_STALENESS_MS } from "../recover.js";
+import type { AgentEvent } from "@jini-ai/core/contracts/site/chat-core";
 
 const TIME = 1_790_000_000_000;
 const STOPPED = "Stopped. Saved work is above.";
@@ -487,7 +487,6 @@ describe("durable recovery boundaries: stale budget", () => {
   });
 });
 
-
 describe("uncertain recovery does not terminate live work", () => {
   it("uncertain_then_live_never_cancels_or_settles", async () => {
     const canceled: string[] = [];
@@ -551,7 +550,6 @@ describe("uncertain recovery does not terminate live work", () => {
     expect(h.clocks).toEqual([{ runId: "old", now: TIME + 20_000, active: false }]);
   });
 });
-
 
 it.each(['succeeded', 'failed', 'canceled'] as const)('honors a %s settlement saved while the uncertain probe awaited', async runStatus => {
   const h = harness({ probe: 'uncertain', reload: run => ({ ...run, message: { ...run.message, runStatus } }) });

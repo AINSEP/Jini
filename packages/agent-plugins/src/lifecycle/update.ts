@@ -10,7 +10,7 @@ import { planAgentPluginUpdate, type AgentPluginUpdatePlan } from './update-plan
 import { AgentPluginHostIncompatibleError, describeAgentPluginCompatibility, agentPluginDependentWarnings } from './compatibility.js';
 import { AgentPluginUpdateError, createAgentPluginUpdateStore, isMissing, settleAgentPluginUpdateJournal, type AgentPluginUpdateJournal } from './update-store.js';
 import type { AgentPluginLifecyclePorts } from './ports.js';
-import type { InstalledAgentPlugin } from './types.js';
+import type { InstalledAgentPlugin } from "@jini-ai/core/contracts/site/agent-plugins-lifecycle";
 
 export interface UpdateAgentPluginRequired extends InstallAgentPluginRequired {
   readonly pluginId: string;

@@ -292,3 +292,9 @@ Registration returns a disposer that closes active feeds.
 The former core and CMS `./settings/express` entries have been removed.
 
 `@jini-ai/core/text` also exports `redactOAuthUrls({ text, pattern, replacement })`: replaces every match of a provider-owned pattern and leaves all other bytes intact (a non-global pattern replaces only its first match). The caller owns the pattern and the replacement.
+
+## Wiring
+
+`./contracts/site/agent-plugins-lifecycle`, `./agent-plugins-manifest`, `./chat-core` and
+`./diagnostics-observability` own their declarations; `@jini-ai/agent-plugins`, `@jini-ai/chat` and
+`@jini-ai/diagnostics` import them from here rather than keeping copies.

@@ -10,5 +10,7 @@ export * from './delivery.js';
 export { observabilityProviderContract } from './provider-contract.js';
 export type { TelemetryTestResult, TelemetryTestSignal } from './telemetry-test.js';
 
-export type * from "./tracker-types.js";
+export type { TrackerOptions, TrackerProviders } from "./tracker-types.js";
+/** Deprecated re-export: import these from `@jini-ai/core/contracts/site/diagnostics-observability`; removed at the next major. */
+export type { AgentSpanOptions, OperationSpanOptions, RequestSpanOptions, Tracker, TrackerErrorContext, TrackerSpan } from "@jini-ai/core/contracts/site/diagnostics-observability";
 export { createNoopTracker } from "./tracker-noop.js";

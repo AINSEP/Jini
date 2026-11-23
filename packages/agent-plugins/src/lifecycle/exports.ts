@@ -4,40 +4,8 @@ import {
   checkAdminSurfaceActionSchema, exceedsAdminSurfacePayloadLimit, validateAdminSurfaceActionValue,
   type AdminSurfaceActionSchema,
 } from '../contracts/admin-surface-action-schema.js';
-
-/** Matches the CMS consent vocabulary without introducing a dependency on CMS. */
-export type AgentPluginExportConsent = 'necessary' | 'functional' | 'analytics' | 'marketing';
-export type AgentPluginExportStaticMode = 'full' | 'link-only' | 'fallback-only';
-/** Exact https origins an export may reach; the host adds them to the page's content-security policy. */
-export interface AgentPluginExportExternalHosts {
-  readonly script?: readonly string[];
-  readonly frame?: readonly string[];
-  readonly connect?: readonly string[];
-}
-export interface AgentPluginExport {
-  readonly template: string;
-  readonly props: Extract<AdminSurfaceActionSchema, { type: 'object' }>;
-  readonly consent: AgentPluginExportConsent;
-  readonly staticExport: AgentPluginExportStaticMode;
-  readonly version: number;
-  /** Omitted means version 1; hosts accept minVersion <= marker version <= version. */
-  readonly minVersion?: number;
-  readonly aliases?: readonly string[];
-  /** Slot name -> capability declared by this same plugin's provides list. */
-  readonly hostLinks?: Readonly<Record<string, string>>;
-  readonly styles?: string;
-  readonly assets?: Readonly<Record<string, string>>;
-  /** Contained .js paths or https URLs on externalHosts.script, loaded in order behind `consent`. */
-  readonly scripts?: readonly string[];
-  readonly externalHosts?: AgentPluginExportExternalHosts;
-  /** String props that must be an https page on one of externalHosts.frame. */
-  readonly urlProps?: readonly string[];
-}
-export interface AgentPluginExportMetadata {
-  readonly exports?: Readonly<Record<string, AgentPluginExport>>;
-  /** Explicit publisher-qualified old identities; admission and ambiguity are host decisions. */
-  readonly renamedFrom?: readonly string[];
-}
+import type { AgentPluginExportExternalHosts, AgentPluginExport } from "@jini-ai/core/contracts/site/agent-plugins-manifest";
+import type { AgentPluginExportMetadata } from "@jini-ai/core/contracts/site/agent-plugins-lifecycle";
 export type ParseAgentPluginExportsResult =
   | { readonly ok: true; readonly metadata: AgentPluginExportMetadata; readonly warnings: readonly string[] }
   | { readonly ok: false; readonly errors: readonly string[] };

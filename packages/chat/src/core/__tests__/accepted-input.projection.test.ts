@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { acceptedInputEvent, acceptedInputsFromMessages, acceptedInputUserEvent, projectAcceptedInputEvents, projectAcceptedInputMessages } from '../accepted-input.js';
 import type { ChatMessage } from '../messages.js';
-import type { AgentEvent } from '../index.js';
+import type { AgentEvent } from "@jini-ai/core/contracts/site/chat-core";
 
 const accepted = (id: string, text: string) => acceptedInputUserEvent({ input: { id, text } }, { receipt: 'accepted' });
 const unrelated = { kind: 'status' as const, label: 'queued' };
@@ -69,7 +69,6 @@ it('keeps distinct equal-text sends and deduplicates aliases and partial fallbac
   expect(acceptedInputsFromMessages({ messages }).map(input => input.id)).toEqual(['wire', 'second', 'ordinary']);
   expect(messages[1]!.events).toHaveLength(2);
 });
-
 
 it('recalls confirmed queue receipts while their carrier awaits run acceptance, excluding pending drafts', () => {
   const pending: ChatMessage = { id: 'carrier', role: 'user', content: 'batched carrier', inputPending: true,

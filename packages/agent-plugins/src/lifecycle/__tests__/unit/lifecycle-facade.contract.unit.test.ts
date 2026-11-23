@@ -3,12 +3,10 @@ import { createHash } from 'node:crypto';
 import * as fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import {
-  AgentPluginNotInstalledError, PackagePathViolation, createAgentPluginLayout, createAgentPluginLifecycle,
-  type AgentPluginArchiveReaderPort, type InstalledAgentPlugin,
-} from '../../index.js';
+import { AgentPluginNotInstalledError, PackagePathViolation, createAgentPluginLayout, createAgentPluginLifecycle } from '../../index.js';
 import { ports } from '../test-support.js';
 import { forceRemove } from '../fixtures/force-remove.js';
+import type { AgentPluginArchiveReaderPort, InstalledAgentPlugin } from "@jini-ai/core/contracts/site/agent-plugins-lifecycle";
 
 /**
  * @file Contract tests for `createAgentPluginLifecycle`'s object-API facade: each adapter maps its
