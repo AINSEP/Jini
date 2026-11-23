@@ -40,6 +40,8 @@ import { checkProtocolPurity } from './check-protocol-purity.js';
 import { checkRuntimeCycles } from './check-runtime-cycles.js';
 import { checkSourceNeutrality } from './lib/source-neutrality.js';
 import { checkPackageLayers } from './check-package-layers.js';
+import { injectionViolations } from './lib/injection-gate.js';
+import { sourcePackages } from './lib/package-sources.js';
 import { checkPluginPackages } from './check-plugin-packages.js';
 import { REPO_ROOT } from './lib/walk-imports.js';
 import { checkSubpathIsolation } from './check-subpath-isolation.js';
@@ -134,6 +136,18 @@ function assertWorkingGuards(selfTestFailures: { expectation: string }[]): void 
 
 }
 
+/** The injection ratchet's own outcome: printed, and true when it blocks. */
+function injectionBlocks(): boolean {
+  const violations = injectionViolations({ root: REPO_ROOT, packages: sourcePackages({ packagesDir: path.join(REPO_ROOT, 'packages') }) });
+  if (violations.length === 0) {
+    console.log('[guard:drift] injection ratchet ok (scripts/injection-debt.json against the trusted base).');
+    return false;
+  }
+  console.error(`[guard:drift] ${violations.length} injection ratchet violation(s) (scripts/injection-debt.json; never exempted by guard-baseline.json):`);
+  for (const violation of violations) console.error(`  - [${violation.rule}] ${violation.file}: ${violation.reason}`);
+  return true;
+}
+
 async function main(): Promise<void> {
   const selfTestFailures = await runGuardSelfTest();
   for (const expectation of runPublishHygieneSelfTest()) selfTestFailures.push({ expectation, detail: 'publish hygiene fixture' });
@@ -143,7 +157,9 @@ async function main(): Promise<void> {
   const results = [
     await checkEngineBoundaries(),
     checkSourceNeutrality(),
-    checkPackageLayers(),
+    // The injection ratchet (L5–L7, L5-resolved, XP4-runtime) is not diffed against guard-baseline.json:
+    // it has its own trusted-base debt file and fails directly below (Gate C1, step 5).
+    checkPackageLayers({ repoRoot: REPO_ROOT }, { injection: false }),
     checkPluginPackages({ repoRoot: REPO_ROOT }),
     checkSubpathIsolation(),
     await checkProtocolPurity(),
@@ -169,7 +185,9 @@ async function main(): Promise<void> {
     for (const violation of removed) console.log(`  - [${violation.rule}] ${violation.file}: ${violation.reason}`);
   }
 
+  const injectionFailed = injectionBlocks();
   if (added.length === 0) {
+    if (injectionFailed) process.exit(1);
     console.log(
       `[guard:drift] ok — 0 new guard violations (${current.length} total, ${baselineFile.violations.length} in baseline).`,
     );

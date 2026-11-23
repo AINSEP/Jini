@@ -84,7 +84,13 @@ jobs:
           # The injection debt (scripts/injection-debt.json) may only shrink against this base.
           INJECTION_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before }}
           INJECTION_FIRST_PUSH_COMMIT: ${{ github.event.commits[0].id }}
-        run: pnpm guard:drift
+        # Gate C1: the injection fixtures run first so a check that silently stopped detecting fails here,
+        # then guard:drift runs the legacy diff and the injection ratchet, which fails on its own outcome.
+        run: |
+          pnpm exec vitest run scripts/__tests__/check-package-layers.injection.test.ts \
+            scripts/__tests__/check-no-cross-package.test.ts \
+            scripts/__tests__/injection-exceptions.q2.test.ts
+          pnpm guard:drift
         continue-on-error: true
 
       - name: typecheck

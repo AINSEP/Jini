@@ -175,7 +175,11 @@ function injectionSelfTest(required: { root: string }): string[] {
     mkdirSync(dirname(path), { recursive: true });
     writeFileSync(path, typeof content === 'string' ? content : JSON.stringify(content));
   };
-  for (const name of ['core', 'protocol', 'platform']) write(`packages/${name}/package.json`, { name: `@jini-ai/${name}` });
+  for (const name of ['protocol', 'platform']) write(`packages/${name}/package.json`, { name: `@jini-ai/${name}` });
+  // Gate C1: a Core value passes only through a public entry and an approved runtime pair.
+  write('packages/core/package.json', { name: '@jini-ai/core', exports: { './records': { import: './dist/records.js' } } });
+  write('packages/core/src/records.ts', 'export const a = 1;\nexport const unapproved = 2;\n');
+  write('packages/daemon/src/unapproved.ts', "import { unapproved } from '@jini-ai/core/records'; export { unapproved };");
   write('packages/daemon/package.json', { name: '@jini-ai/daemon', dependencies: { '@jini-ai/core': '*', '@jini-ai/protocol': '*' }, imports: { '#platform': '@jini-ai/platform' } });
   write('packages/ui/package.json', { name: '@jini-ai/ui' });
   write('packages/daemon/src/ok.ts', "import { a } from '@jini-ai/core/records'; import type { B } from '@jini-ai/protocol'; export { a };");
@@ -186,13 +190,14 @@ function injectionSelfTest(required: { root: string }): string[] {
   write('packages/core/src/injected.ts', 'export const create = ({ fetch }: { fetch: (url: string) => unknown }) => ({ run: (url: string) => fetch(url) });');
   write('packages/ui/src/a.css', '.a { color: var(--unlisted-token); }');
   // The ratchet: a stale allowance fails, and so does any allowance the trusted base did not have.
-  write('scripts/injection-debt.json', { entries: [{ rule: 'L5-injected-edge', file: 'packages/daemon/src/gone.ts', spec: '@jini-ai/platform', kind: 'import', count: 1, lane: 'T' }] });
-  const found = checkPackageLayers({ repoRoot: required.root }, { warn: () => undefined, debtBase: () => [] });
+  write('scripts/injection-debt.json', { metadata: { approvedRuntime: ['@jini-ai/core/records#a'], initialized: [], seedSha: 'self-test' }, entries: [{ rule: 'L5-injected-edge', file: 'packages/daemon/src/gone.ts', spec: '@jini-ai/platform', kind: 'import', count: 1, lane: 'T' }] });
+  const found = checkPackageLayers({ repoRoot: required.root }, { warn: () => undefined, debtBase: () => [], baseRead: () => undefined });
   const has = (file: string, rule: string): boolean => found.some(v => v.file.endsWith(file) && v.rule === rule);
   expect(has('scripts/injection-debt.json', 'injection-debt-stale'), 'a stale debt allowance must fail');
   expect(has('scripts/injection-debt.json', 'injection-debt-growth'), 'debt growth against the base must fail');
   expect(!found.some(v => v.file.endsWith('daemon/src/ok.ts')), 'core and protocol imports must pass the base rule');
   expect(has('daemon/src/bad.ts', 'L5-injected-edge'), 'a non-base package import must fail L5');
+  expect(has('daemon/src/unapproved.ts', 'L5-resolved'), 'an unapproved Core runtime value must fail L5-resolved');
   expect(has('daemon/src/template.ts', 'L5-injected-edge'), 'a template-literal dynamic import must fail L5');
   expect(has('daemon/src/alias.ts', 'L5-injected-edge'), 'a #imports alias of another package must fail L5');
   expect(has('core/src/impure.ts', 'L6-base-purity'), 'a process read in core must fail L6');
