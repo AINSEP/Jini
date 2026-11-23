@@ -197,6 +197,14 @@ store as functions and its error classes as `storeErrors`; the spec owns the sta
 project-key attach, `prepareInvalidation`, the after-save probe, the account-label heal trigger and, for
 custom keys, `credentialKindOf(principal)`, `ownerPrincipalId()` and the Shared Keys copy.
 
+Settings (`src/admin-http/routes/settings/{get-raw,get-effective,list-definitions,set,clear,reset,register-definitions}.ts`,
+`shared.ts`, `protected-namespaces.ts`): each body runs through `runSettingsRoute` in the order readiness
+(`settingsReady`), principal, protected-namespace write fence, body; each route's domain-error ladder is a
+`SettingsErrorRung` table and unmapped errors are rethrown to the host 500. The host injects a
+`settingsService` factory, `writeServiceDeps`, `resolveReadTarget` + `crossPrincipalReadPermission` and a
+`writeFence` (protected/code-owned namespaces with their copy); `touchesProtectedNamespaces` resolves names,
+renames, aliases and resets.
+
 ## Scripts
 
 ```bash
