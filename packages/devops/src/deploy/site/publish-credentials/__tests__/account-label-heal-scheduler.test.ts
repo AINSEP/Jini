@@ -59,11 +59,11 @@ const ignoreHealError = (): void => {};
 describe("idsNeedingAccountLabelHeal", () => {
   it("selects only null-labeled rows on a healable provider", () => {
     const rows: PublishCredentialSummary[] = [
-      summary({ id: "1", providerId: "github-pages", accountLabel: null }),
-      summary({ id: "2", providerId: "github-pages", accountLabel: "octocat" }), // already healed
-      summary({ id: "3", providerId: "netlify", accountLabel: null }), // never yields a label
+      summary({ id: "1", providerId: "labelled-host", accountLabel: null }),
+      summary({ id: "2", providerId: "labelled-host", accountLabel: "some-account" }), // already healed
+      summary({ id: "3", providerId: "unlabelled-host", accountLabel: null }), // never yields a label
     ];
-    const canYield = (providerId: string) => providerId === "github-pages";
+    const canYield = (providerId: string) => providerId === "labelled-host";
 
     expect(idsNeedingAccountLabelHeal({ credentials: rows, canYieldAccountLabel: canYield })).toStrictEqual(["1"]);
   });

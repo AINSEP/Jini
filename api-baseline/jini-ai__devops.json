@@ -382,6 +382,15 @@
    "PublishRunResultProps": "interface:fa67bd1211"
   }
  },
+ "./deploy/site/publish-credentials/account-label-heal-scheduler": {
+  "types": "./dist/deploy/site/publish-credentials/account-label-heal-scheduler.d.ts",
+  "symbols": {
+   "AccountLabelHealScheduler": "interface:73da82cba0",
+   "AccountLabelHealSchedulerDeps": "interface:d7c68c64c0",
+   "createAccountLabelHealScheduler": "function:5538dfac79",
+   "idsNeedingAccountLabelHeal": "function:1dee8bf473"
+  }
+ },
  "./deploy/site/publish-credentials/types": {
   "types": "./dist/deploy/site/publish-credentials/types.d.ts",
   "symbols": {
