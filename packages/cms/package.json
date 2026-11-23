@@ -171,7 +171,22 @@
       "./admin-http/routes/media/trash": "universal",
       "./admin-http/routes/media/get-providers": "universal",
       "./admin-http/routes/media/put-providers": "universal",
-      "./admin-http/routes/media/update": "node"
+      "./admin-http/routes/media/update": "node",
+      "./admin-http/routes/assistant/execution-shared": "universal",
+      "./admin-http/routes/assistant/detect-agents": "universal",
+      "./admin-http/routes/assistant/list-models": "universal",
+      "./admin-http/routes/assistant/test-agent": "universal",
+      "./admin-http/routes/assistant/test-connection": "universal",
+      "./admin-http/routes/assistant/shared": "universal",
+      "./admin-http/routes/assistant/get-settings": "universal",
+      "./admin-http/routes/assistant/put-settings": "universal",
+      "./admin-http/routes/assistant/visitor-tools": "universal",
+      "./admin-http/routes/assistant/get-site-credential": "universal",
+      "./admin-http/routes/assistant/put-site-credential": "universal",
+      "./admin-http/routes/assistant/delete-site-credential": "universal",
+      "./admin-http/routes/assistant/get-execution-credential": "universal",
+      "./admin-http/routes/assistant/put-execution-credential": "universal",
+      "./admin-http/routes/assistant/delete-execution-credential": "universal"
     },
     "isolation": {
       "domains": {
@@ -286,7 +301,22 @@
         "./admin-http/routes/media/trash": "media",
         "./admin-http/routes/media/get-providers": "media",
         "./admin-http/routes/media/put-providers": "media",
-        "./admin-http/routes/media/update": "media"
+        "./admin-http/routes/media/update": "media",
+        "./admin-http/routes/assistant/execution-shared": "admin-http",
+        "./admin-http/routes/assistant/detect-agents": "admin-http",
+        "./admin-http/routes/assistant/list-models": "admin-http",
+        "./admin-http/routes/assistant/test-agent": "admin-http",
+        "./admin-http/routes/assistant/test-connection": "admin-http",
+        "./admin-http/routes/assistant/shared": "settings",
+        "./admin-http/routes/assistant/get-settings": "settings",
+        "./admin-http/routes/assistant/put-settings": "settings",
+        "./admin-http/routes/assistant/visitor-tools": "settings",
+        "./admin-http/routes/assistant/get-site-credential": "settings",
+        "./admin-http/routes/assistant/put-site-credential": "settings",
+        "./admin-http/routes/assistant/delete-site-credential": "settings",
+        "./admin-http/routes/assistant/get-execution-credential": "settings",
+        "./admin-http/routes/assistant/put-execution-credential": "settings",
+        "./admin-http/routes/assistant/delete-execution-credential": "settings"
       }
     },
     "optionalPeers": {
@@ -1096,6 +1126,81 @@
       "types": "./dist/admin-http/routes/media/update.d.ts",
       "import": "./dist/admin-http/routes/media/update.js",
       "default": "./dist/admin-http/routes/media/update.js"
+    },
+    "./admin-http/routes/assistant/execution-shared": {
+      "types": "./dist/admin-http/routes/assistant/execution-shared.d.ts",
+      "import": "./dist/admin-http/routes/assistant/execution-shared.js",
+      "default": "./dist/admin-http/routes/assistant/execution-shared.js"
+    },
+    "./admin-http/routes/assistant/detect-agents": {
+      "types": "./dist/admin-http/routes/assistant/detect-agents.d.ts",
+      "import": "./dist/admin-http/routes/assistant/detect-agents.js",
+      "default": "./dist/admin-http/routes/assistant/detect-agents.js"
+    },
+    "./admin-http/routes/assistant/list-models": {
+      "types": "./dist/admin-http/routes/assistant/list-models.d.ts",
+      "import": "./dist/admin-http/routes/assistant/list-models.js",
+      "default": "./dist/admin-http/routes/assistant/list-models.js"
+    },
+    "./admin-http/routes/assistant/test-agent": {
+      "types": "./dist/admin-http/routes/assistant/test-agent.d.ts",
+      "import": "./dist/admin-http/routes/assistant/test-agent.js",
+      "default": "./dist/admin-http/routes/assistant/test-agent.js"
+    },
+    "./admin-http/routes/assistant/test-connection": {
+      "types": "./dist/admin-http/routes/assistant/test-connection.d.ts",
+      "import": "./dist/admin-http/routes/assistant/test-connection.js",
+      "default": "./dist/admin-http/routes/assistant/test-connection.js"
+    },
+    "./admin-http/routes/assistant/shared": {
+      "types": "./dist/admin-http/routes/assistant/shared.d.ts",
+      "import": "./dist/admin-http/routes/assistant/shared.js",
+      "default": "./dist/admin-http/routes/assistant/shared.js"
+    },
+    "./admin-http/routes/assistant/get-settings": {
+      "types": "./dist/admin-http/routes/assistant/get-settings.d.ts",
+      "import": "./dist/admin-http/routes/assistant/get-settings.js",
+      "default": "./dist/admin-http/routes/assistant/get-settings.js"
+    },
+    "./admin-http/routes/assistant/put-settings": {
+      "types": "./dist/admin-http/routes/assistant/put-settings.d.ts",
+      "import": "./dist/admin-http/routes/assistant/put-settings.js",
+      "default": "./dist/admin-http/routes/assistant/put-settings.js"
+    },
+    "./admin-http/routes/assistant/visitor-tools": {
+      "types": "./dist/admin-http/routes/assistant/visitor-tools.d.ts",
+      "import": "./dist/admin-http/routes/assistant/visitor-tools.js",
+      "default": "./dist/admin-http/routes/assistant/visitor-tools.js"
+    },
+    "./admin-http/routes/assistant/get-site-credential": {
+      "types": "./dist/admin-http/routes/assistant/get-site-credential.d.ts",
+      "import": "./dist/admin-http/routes/assistant/get-site-credential.js",
+      "default": "./dist/admin-http/routes/assistant/get-site-credential.js"
+    },
+    "./admin-http/routes/assistant/put-site-credential": {
+      "types": "./dist/admin-http/routes/assistant/put-site-credential.d.ts",
+      "import": "./dist/admin-http/routes/assistant/put-site-credential.js",
+      "default": "./dist/admin-http/routes/assistant/put-site-credential.js"
+    },
+    "./admin-http/routes/assistant/delete-site-credential": {
+      "types": "./dist/admin-http/routes/assistant/delete-site-credential.d.ts",
+      "import": "./dist/admin-http/routes/assistant/delete-site-credential.js",
+      "default": "./dist/admin-http/routes/assistant/delete-site-credential.js"
+    },
+    "./admin-http/routes/assistant/get-execution-credential": {
+      "types": "./dist/admin-http/routes/assistant/get-execution-credential.d.ts",
+      "import": "./dist/admin-http/routes/assistant/get-execution-credential.js",
+      "default": "./dist/admin-http/routes/assistant/get-execution-credential.js"
+    },
+    "./admin-http/routes/assistant/put-execution-credential": {
+      "types": "./dist/admin-http/routes/assistant/put-execution-credential.d.ts",
+      "import": "./dist/admin-http/routes/assistant/put-execution-credential.js",
+      "default": "./dist/admin-http/routes/assistant/put-execution-credential.js"
+    },
+    "./admin-http/routes/assistant/delete-execution-credential": {
+      "types": "./dist/admin-http/routes/assistant/delete-execution-credential.d.ts",
+      "import": "./dist/admin-http/routes/assistant/delete-execution-credential.js",
+      "default": "./dist/admin-http/routes/assistant/delete-execution-credential.js"
     }
   },
   "files": [

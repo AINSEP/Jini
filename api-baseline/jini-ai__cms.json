@@ -81,6 +81,33 @@
    "CONTENT_ENTRY_MAX_BODY_BYTES": "variable:49ef7bebb2"
   }
  },
+ "./admin-http/routes/assistant/delete-execution-credential": {
+  "types": "./dist/admin-http/routes/assistant/delete-execution-credential.d.ts",
+  "symbols": {
+   "AssistantDeleteExecutionCredentialRouteDeps": "interface:4dc592e9f5",
+   "ExecutionCredentialClearFn": "type:6f0e7681a7",
+   "assistantDeleteExecutionCredentialRoute": "variable:91c8d49c8b"
+  }
+ },
+ "./admin-http/routes/assistant/delete-site-credential": {
+  "types": "./dist/admin-http/routes/assistant/delete-site-credential.d.ts",
+  "symbols": {
+   "AssistantDeleteSiteCredentialRouteDeps": "interface:de27bd696a",
+   "SiteCredentialClearFn": "type:3ba2f3bc48",
+   "assistantDeleteSiteCredentialRoute": "variable:96a71f2fbf"
+  }
+ },
+ "./admin-http/routes/assistant/detect-agents": {
+  "types": "./dist/admin-http/routes/assistant/detect-agents.d.ts",
+  "symbols": {
+   "AssistantDetectAgentsRouteDeps": "interface:ca275bb09e",
+   "DetectAgentsFn": "type:84e3f037ba",
+   "ExecutionDetectionSnapshot": "interface:e449e4b214",
+   "ExecutionTabAgent": "interface:bc55d08a64",
+   "assistantDetectAgentsRoute": "variable:0e3c3c7766",
+   "toExecutionTabAgent": "function:29dea98cbb"
+  }
+ },
  "./admin-http/routes/assistant/execution-request-fields": {
   "types": "./dist/admin-http/routes/assistant/execution-request-fields.d.ts",
   "symbols": {
@@ -88,6 +115,130 @@
    "SupportedExecutionProtocol": "type:7252b84293",
    "readOptionalString": "function:5be207b4f4",
    "validateSupportedProtocol": "function:8a9f6350a4"
+  }
+ },
+ "./admin-http/routes/assistant/execution-shared": {
+  "types": "./dist/admin-http/routes/assistant/execution-shared.d.ts",
+  "symbols": {
+   "ASSISTANT_EXECUTION_ENTITY_TYPE": "variable:fd258e9bae",
+   "AssistantExecutionRoutePrincipal": "interface:03fda06d3f",
+   "ExecutionDetectedAgent": "type:83ba4b2796",
+   "ProbeCredentialRejection": "interface:9a3189c052",
+   "ProbeCredentialRequest": "interface:1c4f9452d5",
+   "ProbeCredentialResolution": "type:b6334f1352",
+   "ProbeRequestFields": "interface:0361a17894",
+   "ResolveProbeCredentialFn": "type:1cdefd2c88",
+   "TestAgentOutcome": "type:b49acef635",
+   "authorizeAssistantExecution": "function:d2db3ab599",
+   "executionActorId": "function:8d996970c4",
+   "probeCredentialRequest": "function:cb1821053d",
+   "readProbeRequestFields": "function:96c6c2b208",
+   "resolveProbeCredentialOrReject": "function:fccb33aad8",
+   "resolveTestAgentOutcome": "function:6c56c8cdf0",
+   "supportedProtocolOrReject": "function:b5c812abf5"
+  }
+ },
+ "./admin-http/routes/assistant/get-execution-credential": {
+  "types": "./dist/admin-http/routes/assistant/get-execution-credential.d.ts",
+  "symbols": {
+   "AssistantGetExecutionCredentialRouteDeps": "interface:767ae3330c",
+   "ExecutionCredentialReadFn": "type:67f59376ee",
+   "assistantGetExecutionCredentialRoute": "variable:d9ed67c60b"
+  }
+ },
+ "./admin-http/routes/assistant/get-settings": {
+  "types": "./dist/admin-http/routes/assistant/get-settings.d.ts",
+  "symbols": {
+   "AssistantGetSettingsRouteDeps": "interface:acb7468c14",
+   "AssistantSettingsEnvelope": "interface:4ea7d6498a",
+   "AssistantSettingsReadFn": "type:a0b38397ef",
+   "assistantGetSettingsRoute": "variable:84b80b88c1"
+  }
+ },
+ "./admin-http/routes/assistant/get-site-credential": {
+  "types": "./dist/admin-http/routes/assistant/get-site-credential.d.ts",
+  "symbols": {
+   "AssistantGetSiteCredentialRouteDeps": "interface:b7fde834ba",
+   "SiteCredentialReadFn": "type:615030ca0b",
+   "assistantGetSiteCredentialRoute": "variable:161c0e811c"
+  }
+ },
+ "./admin-http/routes/assistant/list-models": {
+  "types": "./dist/admin-http/routes/assistant/list-models.d.ts",
+  "symbols": {
+   "AssistantListModelsRouteDeps": "interface:92d0bbadbf",
+   "ListModelsFn": "type:8cf82aeded",
+   "ListModelsProbeResult": "interface:9815963d99",
+   "ListModelsResponse": "interface:56716ecf9d",
+   "assistantListModelsRoute": "variable:21b64543bb"
+  }
+ },
+ "./admin-http/routes/assistant/put-execution-credential": {
+  "types": "./dist/admin-http/routes/assistant/put-execution-credential.d.ts",
+  "symbols": {
+   "AssistantPutExecutionCredentialRouteDeps": "interface:a245616d18",
+   "EXECUTION_CREDENTIAL_VALIDATION_CODE": "variable:a404f5c061",
+   "ExecutionCredentialWriteFn": "type:7b8a262491",
+   "ExecutionCredentialWriteInput": "interface:a50d79404c",
+   "assistantPutExecutionCredentialRoute": "variable:80072d2571"
+  }
+ },
+ "./admin-http/routes/assistant/put-settings": {
+  "types": "./dist/admin-http/routes/assistant/put-settings.d.ts",
+  "symbols": {
+   "AssistantPutSettingsRouteDeps": "interface:602b4cf7ed",
+   "AssistantSettingsWriteFn": "type:4012daf458",
+   "assistantPutSettingsRoute": "variable:ed3299a504"
+  }
+ },
+ "./admin-http/routes/assistant/put-site-credential": {
+  "types": "./dist/admin-http/routes/assistant/put-site-credential.d.ts",
+  "symbols": {
+   "AssistantPutSiteCredentialRouteDeps": "interface:a1cde327d0",
+   "SITE_CREDENTIAL_VALIDATION_CODE": "variable:0b15f34230",
+   "SiteCredentialWriteFn": "type:bbaa90dec3",
+   "SiteCredentialWriteInput": "interface:6ba9967a4d",
+   "assistantPutSiteCredentialRoute": "variable:037a461ad0"
+  }
+ },
+ "./admin-http/routes/assistant/shared": {
+  "types": "./dist/admin-http/routes/assistant/shared.d.ts",
+  "symbols": {
+   "ASSISTANT_SETTINGS_ENTITY_TYPE": "variable:7e4196de78",
+   "AssistantErrorMapping": "interface:0975256e0d",
+   "AssistantRoutePrincipal": "interface:cdafbadacd",
+   "assistantActorId": "function:a172d99e40",
+   "assistantBody": "function:c0af182a22",
+   "authorizeAssistant": "function:71e3ccdb4c",
+   "rejectAssistantError": "function:001fcb42f3"
+  }
+ },
+ "./admin-http/routes/assistant/test-agent": {
+  "types": "./dist/admin-http/routes/assistant/test-agent.d.ts",
+  "symbols": {
+   "AssistantTestAgentRouteDeps": "interface:4af75941e1",
+   "TestAgentFn": "type:bbaa67d295",
+   "assistantTestAgentRoute": "variable:f3d2e0eabd"
+  }
+ },
+ "./admin-http/routes/assistant/test-connection": {
+  "types": "./dist/admin-http/routes/assistant/test-connection.d.ts",
+  "symbols": {
+   "AssistantTestConnectionRouteDeps": "interface:debe61c2db",
+   "ConnectionProbeResult": "interface:e7a3c57b33",
+   "TestConnectionFn": "type:8b8124f56e",
+   "TestConnectionInput": "type:12ec44080e",
+   "assistantTestConnectionRoute": "variable:5be8eab436"
+  }
+ },
+ "./admin-http/routes/assistant/visitor-tools": {
+  "types": "./dist/admin-http/routes/assistant/visitor-tools.d.ts",
+  "symbols": {
+   "ADMIN_VISITOR_TOOLS_PATH": "variable:2f2f4afbd9",
+   "VisitorToolsManagementRoutePort": "interface:4d6b7f9ee2",
+   "VisitorToolsRouteSpecDeps": "interface:9ec3432920",
+   "assistantVisitorToolsConfigureRoute": "variable:dd15e6bc2d",
+   "assistantVisitorToolsListRoute": "variable:6b61ae277c"
   }
  },
  "./admin-http/routes/database/restore-points": {
