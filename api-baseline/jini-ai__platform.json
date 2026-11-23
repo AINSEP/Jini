@@ -678,11 +678,14 @@
    "RetentionSweepResult": "interface:4f09e258d9",
    "StorageTally": "interface:84d73b99b3",
    "StorageTarget": "interface:623a8fe5cd",
-   "StorageTreeFs": "interface:d5db02469f",
+   "StorageTreeDirectory": "interface:eb471ed60b",
+   "StorageTreeFs": "interface:9bf099a22a",
+   "StorageTreeIdentity": "interface:89e6cf31a4",
    "StorageTreeMeasurement": "interface:9a7f32b887",
-   "StorageTreeStats": "interface:95a4f2bdc4",
+   "StorageTreeStats": "interface:7df0d80cb9",
    "createRetentionRunner": "function:f091027fb8",
-   "measureStorageTree": "function:308207e10a"
+   "measureStorageTree": "function:308207e10a",
+   "nodeStorageTreeFs": "variable:88fd038cce"
   }
  },
  "./secrets": {
