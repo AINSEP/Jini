@@ -386,7 +386,9 @@ async function dispatchJsonIpcHandler({ socket, socketPath, handler, traceId, st
     // server-side only, unconditionally (not gated behind JINI_JSON_IPC_TRACE).
     reporter.error(
       { message: `[@jini-ai/sidecar] json-ipc handler did not finish the request (code=HANDLER_ERROR, traceId=${traceId})` },
-      { meta: { code: "HANDLER_ERROR", traceId }, error },
+      // code and traceId ride in the message, not `meta`: the console reporter prints meta before the
+      // error, and SEC-004 pins the error class as the line's second argument.
+      { error },
     );
     traceJsonIpc("server.handler_failed", {
       durationMs: jsonIpcTraceDurationMs(startedAt),

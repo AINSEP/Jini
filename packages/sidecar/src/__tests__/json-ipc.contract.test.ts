@@ -244,7 +244,7 @@ describe("trace vocabulary and details", () => {
     expect(reporter.error).toHaveBeenCalledTimes(1);
     expect(reporter.error).toHaveBeenCalledWith(
       { message: `[@jini-ai/sidecar] json-ipc handler did not finish the request (code=HANDLER_ERROR, traceId=${rejection?.requestId})` },
-      { meta: { code: "HANDLER_ERROR", traceId: rejection?.requestId }, error: failure },
+      { error: failure },
     );
     expect(vi.mocked(console.error)).not.toHaveBeenCalled();
   });
