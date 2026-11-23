@@ -347,6 +347,14 @@
    "recoveryRestorePointsListRoute": "variable:a6682e4c94"
   }
  },
+ "./admin-http/routes/redirects/create": {
+  "types": "./dist/admin-http/routes/redirects/create.d.ts",
+  "symbols": {
+   "RedirectCreateInput": "interface:842965d2fd",
+   "RedirectCreateRouteDeps": "interface:77004d5390",
+   "redirectCreateRoute": "variable:ae1de39254"
+  }
+ },
  "./admin-http/routes/redirects/get-by-id": {
   "types": "./dist/admin-http/routes/redirects/get-by-id.d.ts",
   "symbols": {

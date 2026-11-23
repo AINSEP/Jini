@@ -267,3 +267,7 @@ a reader failure is not caught and reaches the host's redacted error port.
 host injects the profile builder plus the builder's own section vocabulary and page cap. The route authorizes nothing itself
 (every section is authorized inside the builder as the authenticated principal); a malformed query is a flat 400
 `VALIDATION_ERROR`, checked after the principal as before; a builder failure reaches the host's redacted error port.
+
+`./admin-http/routes/redirects/create` completes the redirects family as specs: POST `/redirects`, 201, body refusals flat
+400 `VALIDATION_ERROR` before authorization, write-chokepoint errors via the shared `REDIRECT_WRITE_ERROR_MAPPINGS`; it reads
+`workspaceId` and `redirectsWriteDeps` only.

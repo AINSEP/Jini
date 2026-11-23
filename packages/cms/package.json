@@ -186,7 +186,8 @@
       "./admin-http/routes/fs-files/custom-root": "universal",
       "./public-http/routes/ops/health": "universal",
       "./admin-http/routes/commerce/status": "universal",
-      "./admin-http/routes/site/profile": "universal"
+      "./admin-http/routes/site/profile": "universal",
+      "./admin-http/routes/redirects/create": "universal"
     },
     "isolation": {
       "domains": {
@@ -294,7 +295,8 @@
         "./admin-http/routes/trash/purge": "trash",
         "./admin-http/routes/trash/restore": "trash",
         "./admin-http/routes/trash/shared": "trash",
-        "./admin-http/http/trash": "trash"
+        "./admin-http/http/trash": "trash",
+        "./admin-http/routes/redirects/create": "redirects"
       }
     },
     "optionalPeers": {
@@ -1179,6 +1181,11 @@
       "types": "./dist/admin-http/routes/site/profile.d.ts",
       "import": "./dist/admin-http/routes/site/profile.js",
       "default": "./dist/admin-http/routes/site/profile.js"
+    },
+    "./admin-http/routes/redirects/create": {
+      "types": "./dist/admin-http/routes/redirects/create.d.ts",
+      "import": "./dist/admin-http/routes/redirects/create.js",
+      "default": "./dist/admin-http/routes/redirects/create.js"
     }
   },
   "files": [
