@@ -230,9 +230,7 @@
         "./shell/components/Select/Select.hooks": "browser",
         "./shell/lib/tab-event-source": "browser",
         "./shell/hooks/use-external-entry-refresh.hooks": "browser",
-        "./screens/media/hooks/use-edit-media-modal.hooks": "browser",
-        "./screens/media/hooks/use-media-card-metadata.hooks": "browser",
-        "./screens/media/hooks/use-media-card-details.hooks": "browser"
+        "./screens/media/hooks/use-media-card-metadata.hooks": "media"
       }
     },
     "optionalPeers": {
