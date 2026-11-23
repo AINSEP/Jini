@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { redirectTombstoneRoute } from "../tombstone.js";
-import { fakeRule, makeWriteDeps, MANAGE, PRINCIPAL, recordingAuthorize, refusalOf, signal, WORKSPACE_ID } from "./helpers.js";
+import { fakeRule, makeWriteDeps, manageRule, PRINCIPAL, recordingAuthorize, refusalOf, signal, WORKSPACE_ID } from "./helpers.js";
 
 const raw = (params: Record<string, string>) => ({ body: {}, query: {}, params });
 
@@ -21,7 +21,7 @@ describe("redirectTombstoneRoute", () => {
   it("authorizes and answers the removed rule (200, not 204)", async () => {
     const { authorize, calls } = recordingAuthorize();
     const result = await redirectTombstoneRoute.handle({ input: { id: "red-1" }, deps: { workspaceId: WORKSPACE_ID, redirectsWriteDeps: await seeded() }, context: PRINCIPAL, authorize }, { signal });
-    expect(calls).toEqual([MANAGE]);
+    expect(calls).toEqual([manageRule("red-1")]);
     if (!result.ok) throw new Error("expected success");
     expect(result.value.data.id).toBe("red-1");
     expect(result.value.data.status).toBe("disabled");

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { EntityNotLiveError } from "../../../../core/entity-liveness.js";
 import { redirectUpdateRoute } from "../update.js";
-import { fakeRule, makeWriteDeps, MANAGE, PRINCIPAL, recordingAuthorize, refusalOf, signal, WORKSPACE_ID } from "./helpers.js";
+import { fakeRule, makeWriteDeps, manageRule, PRINCIPAL, recordingAuthorize, refusalOf, signal, WORKSPACE_ID } from "./helpers.js";
 
 const raw = (params: Record<string, string>, body?: unknown) => ({ body, query: {}, params });
 
@@ -27,7 +27,7 @@ describe("redirectUpdateRoute", () => {
     const { authorize, calls } = recordingAuthorize();
     const deps = { workspaceId: WORKSPACE_ID, redirectsWriteDeps: await seeded() };
     const result = await redirectUpdateRoute.handle({ input: { id: "red-1", body: { toTarget: "/next", override: "yes", priority: "9" } }, deps, context: PRINCIPAL, authorize }, { signal });
-    expect(calls).toEqual([MANAGE]);
+    expect(calls).toEqual([manageRule("red-1")]);
     if (!result.ok) throw new Error("expected success");
     expect(result.value.data).toMatchObject({ id: "red-1", toTarget: "/next", override: false, priority: 0, version: 2 });
   });

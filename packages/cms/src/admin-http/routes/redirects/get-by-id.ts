@@ -17,7 +17,7 @@ export const redirectGetRoute = defineJsonRoute<{ id: string }, AdminRedirectRes
   path: "/api/admin/v1/workspaces/:workspaceId/redirects/:id",
   parse: (raw) => ok({ value: { id: String(raw.params.id ?? "") } }),
   handle: async ({ input, deps, authorize }) => {
-    await authorizeRedirectsManage({ authorize });
+    await authorizeRedirectsManage({ authorize }, { entityId: input.id });
     const rule = await deps.redirectRepo.findById({ workspaceId: deps.workspaceId, id: input.id });
     if (!rule) rejectRoute({ status: 404, error: `redirect '${input.id}' was not found`, code: "REDIRECT_NOT_FOUND" });
     return ok({ value: toAdminRedirectResponse(rule) });

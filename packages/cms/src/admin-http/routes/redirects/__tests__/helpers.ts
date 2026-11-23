@@ -25,10 +25,13 @@ export function fakeRuleDto(overrides: Partial<RedirectRecord> = {}): Record<str
   return { sourceEntryId: null, fromPathAtCapture: null, toPathAtCapture: null, createdByPluginId: null, ...fakeRule(overrides) };
 }
 
-/** A recording `authorize`, so each test pins the permission and entity type the route asks for. */
-export function recordingAuthorize(): { authorize: (r: { permission: string; entityType: string }) => Promise<void>; calls: Array<{ permission: string; entityType: string }> } {
-  const calls: Array<{ permission: string; entityType: string }> = [];
-  return { calls, authorize: async ({ permission, entityType }) => { calls.push({ permission, entityType }); } };
+/** One recorded authorization: the permission, the entity type and, for by-id routes, the entity id. */
+export type RecordedAuthorize = { permission: string; entityType: string; entityId?: string };
+
+/** A recording `authorize`, so each test pins the permission, entity type and entity id the route asks for. */
+export function recordingAuthorize(): { authorize: (r: { permission: string; entityType: string }, o?: { entityId?: string }) => Promise<void>; calls: RecordedAuthorize[] } {
+  const calls: RecordedAuthorize[] = [];
+  return { calls, authorize: async ({ permission, entityType }, optional = {}) => { calls.push({ permission, entityType, ...optional }); } };
 }
 
 /** Run `fn` and return the refusal it throws (status + flat body); fails if it does not refuse. */
@@ -43,6 +46,8 @@ export async function refusalOf(fn: () => unknown): Promise<{ status: number; bo
 }
 
 export const MANAGE = { permission: "admin.redirects.manage", entityType: "redirect" };
+/** {@link MANAGE} scoped to one rule: the by-id routes forward the requested id to the authorizer. */
+export const manageRule = (entityId: string): RecordedAuthorize => ({ ...MANAGE, entityId });
 export const PRINCIPAL = { id: "principal-1" };
 export const signal = new AbortController().signal;
 

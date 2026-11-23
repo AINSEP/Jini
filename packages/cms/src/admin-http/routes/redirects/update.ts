@@ -53,7 +53,7 @@ export const redirectUpdateRoute = defineJsonRoute<RedirectUpdateInput, AdminRed
   parse: (raw) => ok({ value: { id: String(raw.params.id ?? ""), body: (raw.body ?? {}) as Record<string, unknown> } }),
   handle: async ({ input, deps, context, authorize }) => {
     const actorId = redirectActorId({ context });
-    await authorizeRedirectsManage({ authorize });
+    await authorizeRedirectsManage({ authorize }, { entityId: input.id });
     try {
       const { record } = await updateRedirect({ deps: deps.redirectsWriteDeps, input: updateInputFrom({ workspaceId: deps.workspaceId, input, actorId }) });
       return ok({ value: toAdminRedirectResponse(record) });

@@ -3,7 +3,7 @@
  * The framework-free vocabulary (`Result`, `Handler`, `InputParser`, …) lives in
  * `@jini-ai/core/contracts/server`.
  */
-import type { Handler, HttpMethod, InputParser, RouteInputContext, ServerApiError } from '@jini-ai/core/contracts/server';
+import type { Handler, HttpMethod, InputParser, JsonRouteAuthorizeScope, RouteInputContext, ServerApiError } from '@jini-ai/core/contracts/server';
 import type { Response } from 'express';
 
 /** Host-owned workspace, authentication/authorization and exception policy.
@@ -14,7 +14,7 @@ import type { Response } from 'express';
 export interface JsonRoutePorts<Deps, Context = undefined> {
   readonly workspace?: (requiredArgs: { readonly raw: RouteInputContext; readonly deps: Deps }) => void | Promise<void>;
   readonly authenticate?: (requiredArgs: { readonly raw: RouteInputContext; readonly res: Response; readonly deps: Deps }) => Context | Promise<Context>;
-  readonly authorize?: (requiredArgs: { readonly context: Context | undefined; readonly deps: Deps; readonly permission: string; readonly entityType: string }) => void | Promise<void>;
+  readonly authorize?: (requiredArgs: { readonly context: Context | undefined; readonly deps: Deps; readonly permission: string; readonly entityType: string }, optionalArgs?: JsonRouteAuthorizeScope) => void | Promise<void>;
   readonly onError?: (requiredArgs: { readonly res: Response; readonly error: unknown }) => void;
   /**
    * Opt-in writer for a RETURNED parse or handler failure. Without it a returned `err` keeps the

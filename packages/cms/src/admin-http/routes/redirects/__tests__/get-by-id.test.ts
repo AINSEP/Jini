@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { redirectGetRoute } from "../get-by-id.js";
-import { fakeRule, fakeRuleDto, MANAGE, PRINCIPAL, recordingAuthorize, refusalOf, signal, WORKSPACE_ID } from "./helpers.js";
+import { fakeRule, fakeRuleDto, manageRule, PRINCIPAL, recordingAuthorize, refusalOf, signal, WORKSPACE_ID } from "./helpers.js";
 
 const raw = (params: Record<string, string>) => ({ body: {}, query: {}, params });
 
@@ -16,7 +16,7 @@ describe("redirectGetRoute", () => {
     const { authorize, calls } = recordingAuthorize();
     const deps = { workspaceId: WORKSPACE_ID, redirectRepo: { findById: async ({ id, workspaceId }: { id: string; workspaceId: string }) => (id === "red-1" && workspaceId === WORKSPACE_ID ? fakeRule() : null) } };
     const result = await redirectGetRoute.handle({ input: { id: "red-1" }, deps, context: PRINCIPAL, authorize }, { signal });
-    expect(calls).toEqual([MANAGE]);
+    expect(calls).toEqual([manageRule("red-1")]);
     expect(result).toEqual({ ok: true, value: { data: fakeRuleDto() } });
   });
 

@@ -67,12 +67,7 @@ export function mountJsonRoute<Input, Output, Deps, Context = undefined>({ app, 
         sendReturnedFailure({ res, onReturnedError, error: parsed.error, phase: 'parse' });
         return;
       }
-      // The route chooses where authorization occurs: reads may authorize before validation,
-      // while writes must reject an inconsistent tenant target before asking for a permission.
-      const authorize: JsonRouteAuthorize = async ({ permission, entityType }) => {
-        if (!spec.ports?.authorize) throw new Error('JSON route authorizer is required');
-        await spec.ports.authorize({ context, deps, permission, entityType });
-      };
+      const authorize = routeAuthorize({ ports: spec.ports, deps, context });
       const result = await spec.handle({ input: parsed.value, deps, context, authorize }, { signal: abortController.signal });
       sendRouteResult({ res, result, spec: { successStatus: spec.successStatus, onReturnedError }, signal: abortController.signal });
     } catch (e) {
@@ -81,6 +76,25 @@ export function mountJsonRoute<Input, Output, Deps, Context = undefined>({ app, 
       res.off?.('close', onResponseClose);
     }
   });
+}
+
+/**
+ * The `authorize` a handler calls. The route chooses where authorization occurs: reads may
+ * authorize before validation, while writes must reject an inconsistent tenant target before
+ * asking for a permission. A by-id route's scope (`entityId`) reaches the host port; an id-free
+ * call reaches it with the required arguments alone, exactly as before scopes existed.
+ * @complexity O(1) plus the injected host authorizer.
+ */
+function routeAuthorize<Deps, Context>({ ports, deps, context }: {
+  readonly ports: JsonRoutePorts<Deps, Context> | undefined;
+  readonly deps: Deps;
+  readonly context: Context | undefined;
+}, _optional: Record<string, never> = {}): JsonRouteAuthorize {
+  return async ({ permission, entityType }, scope) => {
+    if (!ports?.authorize) throw new Error('JSON route authorizer is required');
+    const required = { context, deps, permission, entityType };
+    await (scope ? ports.authorize(required, scope) : ports.authorize(required));
+  };
 }
 
 function allowRouteOrigin({ req, res, spec, adapter }: {

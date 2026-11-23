@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { redirectHitsRoute } from "../hits.js";
-import { fakeRule, MANAGE, PRINCIPAL, recordingAuthorize, refusalOf, signal, WORKSPACE_ID } from "./helpers.js";
+import { fakeRule, manageRule, PRINCIPAL, recordingAuthorize, refusalOf, signal, WORKSPACE_ID } from "./helpers.js";
 
 const raw = (params: Record<string, string>) => ({ body: {}, query: {}, params });
 const repo = { findById: async ({ id }: { id: string; workspaceId: string }) => (id === "red-1" ? fakeRule() : null) };
@@ -18,7 +18,7 @@ describe("redirectHitsRoute", () => {
     const asked: unknown[] = [];
     const redirectHitSink = { getStats: async (input: { workspaceId: string; redirectId: string }) => { asked.push(input); return { redirectId: "red-1", workspaceId: WORKSPACE_ID, hitCount: 42, lastHitAt: "2026-01-02T00:00:00Z" }; } };
     const result = await redirectHitsRoute.handle({ input: { id: "red-1" }, deps: { workspaceId: WORKSPACE_ID, redirectRepo: repo, redirectHitSink }, context: PRINCIPAL, authorize }, { signal });
-    expect(calls).toEqual([MANAGE]);
+    expect(calls).toEqual([manageRule("red-1")]);
     expect(asked).toEqual([{ workspaceId: WORKSPACE_ID, redirectId: "red-1" }]);
     expect(result).toEqual({ ok: true, value: { data: { redirectId: "red-1", workspaceId: WORKSPACE_ID, hitCount: 42, lastHitAt: "2026-01-02T00:00:00Z" } } });
   });

@@ -24,7 +24,7 @@ export const redirectHitsRoute = defineJsonRoute<{ id: string }, AdminRedirectHi
   parse: (raw) => ok({ value: { id: String(raw.params.id ?? "") } }),
   handle: async ({ input, deps, authorize }) => {
     const { id } = input;
-    await authorizeRedirectsManage({ authorize });
+    await authorizeRedirectsManage({ authorize }, { entityId: id });
     const rule = await deps.redirectRepo.findById({ workspaceId: deps.workspaceId, id });
     if (!rule) rejectRoute({ status: 404, error: `redirect '${id}' was not found`, code: "REDIRECT_NOT_FOUND" });
 

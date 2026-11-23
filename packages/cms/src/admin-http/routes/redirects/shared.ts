@@ -1,4 +1,4 @@
-import type { JsonRouteAuthorize } from "@jini-ai/core/contracts/server";
+import type { JsonRouteAuthorize, JsonRouteAuthorizeScope } from "@jini-ai/core/contracts/server";
 import { rejectRoute } from "@jini-ai/core/errors/route-refusal";
 
 import { EntityNotLiveError } from "../../../core/entity-liveness.js";
@@ -66,12 +66,15 @@ export const REDIRECT_WRITE_ERROR_MAPPINGS: readonly RedirectErrorMapping[] = [
 /**
  * Every redirects admin route is gated by `admin.redirects.manage` on the `redirect` entity type.
  * The host injects `authorize`; a mount without one is a wiring bug, not a caller error.
+ * By-id routes (get, hits, update, tombstone) pass the requested `entityId` so the host's
+ * authorizer decides for that rule; list and import act on no single rule and stay id-free.
  *
  * @complexity O(1) plus the injected authorizer.
  */
-export async function authorizeRedirectsManage({ authorize }: { authorize: JsonRouteAuthorize | undefined }, _options: Record<string, never> = {}): Promise<void> {
+export async function authorizeRedirectsManage({ authorize }: { authorize: JsonRouteAuthorize | undefined }, optional: JsonRouteAuthorizeScope = {}): Promise<void> {
   if (!authorize) throw new Error("redirects admin route has no authorizer");
-  await authorize({ permission: "admin.redirects.manage", entityType: "redirect" });
+  const required = { permission: "admin.redirects.manage", entityType: "redirect" };
+  await (optional.entityId === undefined ? authorize(required) : authorize(required, { entityId: optional.entityId }));
 }
 
 /**

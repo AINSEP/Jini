@@ -23,7 +23,7 @@ export const redirectTombstoneRoute = defineJsonRoute<{ id: string }, AdminRedir
   parse: (raw) => ok({ value: { id: String(raw.params.id ?? "") } }),
   handle: async ({ input, deps, context, authorize }) => {
     const actorId = redirectActorId({ context });
-    await authorizeRedirectsManage({ authorize });
+    await authorizeRedirectsManage({ authorize }, { entityId: input.id });
     try {
       const { record } = await tombstoneRedirect({
         deps: deps.redirectsWriteDeps,
