@@ -194,7 +194,17 @@
       "./admin-http/routes/comments/moderation-queue": "universal",
       "./admin-http/routes/comments/moderate": "universal",
       "./admin-http/routes/comments/get-settings": "universal",
-      "./admin-http/routes/comments/put-settings": "universal"
+      "./admin-http/routes/comments/put-settings": "universal",
+      "./admin-http/routes/content-types/list": "universal",
+      "./admin-http/routes/content-types/register": "universal",
+      "./admin-http/routes/content-types/update-fields": "universal",
+      "./admin-http/routes/content-types/lifecycle": "universal",
+      "./admin-http/routes/entries/list": "universal",
+      "./admin-http/routes/entries/create": "universal",
+      "./admin-http/routes/entries/update": "universal",
+      "./admin-http/routes/entries/lifecycle": "universal",
+      "./admin-http/routes/taxonomy/list": "universal",
+      "./admin-http/routes/taxonomy/delete-taxonomy": "universal"
     },
     "isolation": {
       "domains": {
@@ -296,7 +306,17 @@
         "./admin-http/routes/comments/moderation-queue": "comments",
         "./admin-http/routes/comments/moderate": "comments",
         "./admin-http/routes/comments/get-settings": "comments",
-        "./admin-http/routes/comments/put-settings": "comments"
+        "./admin-http/routes/comments/put-settings": "comments",
+        "./admin-http/routes/content-types/list": "content-types",
+        "./admin-http/routes/content-types/register": "content-types",
+        "./admin-http/routes/content-types/update-fields": "content-types",
+        "./admin-http/routes/content-types/lifecycle": "content-types",
+        "./admin-http/routes/entries/list": "entries",
+        "./admin-http/routes/entries/create": "entries",
+        "./admin-http/routes/entries/update": "entries",
+        "./admin-http/routes/entries/lifecycle": "entries",
+        "./admin-http/routes/taxonomy/list": "taxonomy",
+        "./admin-http/routes/taxonomy/delete-taxonomy": "taxonomy"
       },
       "forbidden": {
         "universal": [
@@ -1244,6 +1264,56 @@
       "types": "./dist/admin-http/routes/comments/put-settings.d.ts",
       "import": "./dist/admin-http/routes/comments/put-settings.js",
       "default": "./dist/admin-http/routes/comments/put-settings.js"
+    },
+    "./admin-http/routes/content-types/list": {
+      "types": "./dist/admin-http/routes/content-types/list.d.ts",
+      "import": "./dist/admin-http/routes/content-types/list.js",
+      "default": "./dist/admin-http/routes/content-types/list.js"
+    },
+    "./admin-http/routes/content-types/register": {
+      "types": "./dist/admin-http/routes/content-types/register.d.ts",
+      "import": "./dist/admin-http/routes/content-types/register.js",
+      "default": "./dist/admin-http/routes/content-types/register.js"
+    },
+    "./admin-http/routes/content-types/update-fields": {
+      "types": "./dist/admin-http/routes/content-types/update-fields.d.ts",
+      "import": "./dist/admin-http/routes/content-types/update-fields.js",
+      "default": "./dist/admin-http/routes/content-types/update-fields.js"
+    },
+    "./admin-http/routes/content-types/lifecycle": {
+      "types": "./dist/admin-http/routes/content-types/lifecycle.d.ts",
+      "import": "./dist/admin-http/routes/content-types/lifecycle.js",
+      "default": "./dist/admin-http/routes/content-types/lifecycle.js"
+    },
+    "./admin-http/routes/entries/list": {
+      "types": "./dist/admin-http/routes/entries/list.d.ts",
+      "import": "./dist/admin-http/routes/entries/list.js",
+      "default": "./dist/admin-http/routes/entries/list.js"
+    },
+    "./admin-http/routes/entries/create": {
+      "types": "./dist/admin-http/routes/entries/create.d.ts",
+      "import": "./dist/admin-http/routes/entries/create.js",
+      "default": "./dist/admin-http/routes/entries/create.js"
+    },
+    "./admin-http/routes/entries/update": {
+      "types": "./dist/admin-http/routes/entries/update.d.ts",
+      "import": "./dist/admin-http/routes/entries/update.js",
+      "default": "./dist/admin-http/routes/entries/update.js"
+    },
+    "./admin-http/routes/entries/lifecycle": {
+      "types": "./dist/admin-http/routes/entries/lifecycle.d.ts",
+      "import": "./dist/admin-http/routes/entries/lifecycle.js",
+      "default": "./dist/admin-http/routes/entries/lifecycle.js"
+    },
+    "./admin-http/routes/taxonomy/list": {
+      "types": "./dist/admin-http/routes/taxonomy/list.d.ts",
+      "import": "./dist/admin-http/routes/taxonomy/list.js",
+      "default": "./dist/admin-http/routes/taxonomy/list.js"
+    },
+    "./admin-http/routes/taxonomy/delete-taxonomy": {
+      "types": "./dist/admin-http/routes/taxonomy/delete-taxonomy.d.ts",
+      "import": "./dist/admin-http/routes/taxonomy/delete-taxonomy.js",
+      "default": "./dist/admin-http/routes/taxonomy/delete-taxonomy.js"
     }
   },
   "files": [
