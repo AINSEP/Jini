@@ -114,6 +114,14 @@
    "validateSupportedProtocol": "function:8a9f6350a4"
   }
  },
+ "./admin-http/routes/commerce/status": {
+  "types": "./dist/admin-http/routes/commerce/status.d.ts",
+  "symbols": {
+   "CommerceStatusReadFn": "type:7ee3d19d3a",
+   "CommerceStatusRouteDeps": "interface:6461d5d8c7",
+   "commerceStatusRoute": "variable:79b089b9ae"
+  }
+ },
  "./admin-http/routes/database/restore-points": {
   "types": "./dist/admin-http/routes/database/restore-points.d.ts",
   "symbols": {

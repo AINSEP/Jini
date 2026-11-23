@@ -257,3 +257,8 @@ stays host-owned.
 root. The host injects `readCustomRoot`, `writeCustomRoot` (a path, or `null` to clear), `isInvalidRootError` (mapped to 400
 `INVALID_PATH`) and the `readPermission`/`managePermission` names; `PUT` authorizes before validating its body. Not yet
 mounted by Tovu (the mount waits on a route-table pin decision); the folder-picker routes stay host-side.
+
+`./admin-http/routes/commerce/status`: the admin Commerce operational-status route as a server-neutral spec. It reads the
+served workspace and one injected status read (`readCommerceStatus`); the host binds that read to whichever payment runtime it
+composed (or none), so cms does not depend on the Commerce package. Authorizes `admin.integrations.manage` on `integration`;
+a reader failure is not caught and reaches the host's redacted error port.
