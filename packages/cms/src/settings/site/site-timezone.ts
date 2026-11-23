@@ -1,5 +1,5 @@
 import type { UUID } from "@jini-ai/core/primitives";
-import { ensureSettingDefinitions, getEffective, SCOPE_BIT, type EnsureSettingDefinitionsDeps, type SettingsRepoPort } from "@jini-ai/core/settings";
+import { SCOPE_BIT, type EnsureSettingDefinitionsDeps, type EnsureSettingDefinitionsPort, type GetEffectivePort, type SettingsRepoPort } from "@jini-ai/core/settings";
 import { DEFAULT_SITE_TIME_ZONE, normalizeTimeZone, type SiteTimeZonePort } from "../../widgets/date-label.js";
 
 /**
@@ -26,10 +26,10 @@ export const SITE_TIMEZONE_KEY = "timezone";
  * @complexity O(1), one definition.
  */
 export async function ensureSiteTimeZoneSettingDefinition(
-  deps: EnsureSettingDefinitionsDeps,
+  deps: EnsureSettingDefinitionsDeps & EnsureSettingDefinitionsPort,
   input: { systemPrincipalId: UUID }
 ): Promise<void> {
-  await ensureSettingDefinitions(deps, {
+  await deps.ensureSettingDefinitions(deps, {
     namespace: SITE_TIMEZONE_NAMESPACE,
     definitions: [{ key: SITE_TIMEZONE_KEY, schema: { type: "string" }, defaultValue: DEFAULT_SITE_TIME_ZONE, scopes: SCOPE_BIT.workspace }],
     systemPrincipalId: input.systemPrincipalId,
@@ -58,7 +58,7 @@ export interface SiteTimeZoneFallbackEvent {
 /** Host-bound sink for {@link SiteTimeZoneFallbackEvent} (its logger, metrics, or both). Should not throw. */
 export type SiteTimeZoneFallbackReporter = (event: SiteTimeZoneFallbackEvent) => void;
 
-export interface ResolveSiteTimeZoneDeps {
+export interface ResolveSiteTimeZoneDeps extends GetEffectivePort {
   settingsRepo: SettingsRepoPort;
   /** Told when a settings read failed and the creation zone was used instead. */
   reportFallback: SiteTimeZoneFallbackReporter;
@@ -102,7 +102,7 @@ function ownerTimeZone({ resolved }: { resolved: { sourceLayer: string; value: u
  */
 export async function resolveSiteTimeZone(deps: ResolveSiteTimeZoneDeps, input: { workspaceId: UUID }): Promise<string> {
   try {
-    const resolved = await getEffective(
+    const resolved = await deps.getEffective(
       { deps: { repo: deps.settingsRepo }, namespace: SITE_TIMEZONE_NAMESPACE, key: SITE_TIMEZONE_KEY, scopeContext: { workspaceId: input.workspaceId } },
     );
     return ownerTimeZone({ resolved }) ?? creationOrDefault(deps);

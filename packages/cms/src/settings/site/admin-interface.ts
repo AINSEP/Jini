@@ -1,5 +1,5 @@
 import type { UUID } from "@jini-ai/core/primitives";
-import { ensureSettingDefinitions, type EnsureSettingDefinitionsDeps, SCOPE_BIT } from "@jini-ai/core/settings";
+import { type EnsureSettingDefinitionsDeps, type EnsureSettingDefinitionsPort, SCOPE_BIT } from "@jini-ai/core/settings";
 
 /**
  * @file `core.interface`: the admin's per-operator UI preferences, shown on Settings → User Interface.
@@ -66,10 +66,10 @@ export interface EnsureAdminInterfaceSettingDefinitionsInput {
  * @complexity O(1), eleven definitions.
  */
 export async function ensureAdminInterfaceSettingDefinitions(
-  deps: EnsureSettingDefinitionsDeps,
+  deps: EnsureSettingDefinitionsDeps & EnsureSettingDefinitionsPort,
   input: EnsureAdminInterfaceSettingDefinitionsInput
 ): Promise<void> {
-  await ensureSettingDefinitions(deps, {
+  await deps.ensureSettingDefinitions(deps, {
     namespace: ADMIN_INTERFACE_NAMESPACE,
     definitions: [
       { key: HIDE_CHAT_FAB_WHILE_OPEN_KEY, schema: { type: "boolean" }, defaultValue: true, scopes: PER_OPERATOR_SCOPES },
@@ -86,7 +86,7 @@ export async function ensureAdminInterfaceSettingDefinitions(
     ],
     systemPrincipalId: input.systemPrincipalId,
   });
-  await ensureSettingDefinitions(deps, {
+  await deps.ensureSettingDefinitions(deps, {
     namespace: "core.appearance",
     definitions: [
       // Theme ids are extensible, so this cannot be a fixed set of scalar fields. Keep this

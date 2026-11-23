@@ -25,5 +25,24 @@ export const contributeUiLocalesTools = (): ToolContributor<Omit<UiLocalesToolDe
 });
 ```
 
+**Needs injected** (settings helpers — `admin-interface.ts`, `chart-provider.ts`, `form-delivery.ts`,
+`form-destination.ts`, `mail-sender.ts`, `site-timezone.ts`): the settings ledger's implementations,
+bound by the host from `@jini-ai/core/settings`. Every `ensure*` registrar takes
+`deps.ensureSettingDefinitions` (`EnsureSettingDefinitionsPort`) on its existing
+`EnsureSettingDefinitionsDeps`; every reader (`readFormsAutoPull`, `readFormDeliveryBindings`,
+`readFormDestinationSetting`, `readMailSenderSetting`, and `resolveSiteTimeZone` /
+`createSiteTimeZonePort` through `ResolveSiteTimeZoneDeps`) takes `getEffective` (`GetEffectivePort`)
+on its existing required args. Neither function is imported here, so a test can hand in a spy.
+
+```ts
+import { ensureSettingDefinitions, getEffective } from "@jini-ai/core/settings";
+
+const settingsDeps = { settingsRepo, clock, ids, principals, ensureSettingDefinitions };
+await ensureMailSenderSettings({ deps: settingsDeps, systemPrincipalId });
+const sender = await readMailSenderSetting({ settingsRepo, workspaceId, getEffective });
+```
+
+See [`DR-005`](../../../../../docs/decisions/DR-005-portable-package-boundaries.md) for the boundary rule.
+
 **Must never import**: a host's locale list, tool-metadata contracts, settings storage or any host
 module; other `@jini-ai/*` packages only through their public entries (`@jini-ai/core`).

@@ -1,5 +1,5 @@
 import type { JsonValue } from "@jini-ai/core/primitives";
-import { ensureSettingDefinitions, getEffective, SCOPE_BIT, type EnsureSettingDefinitionsDeps, type SettingsRepoPort } from "@jini-ai/core/settings";
+import { SCOPE_BIT, type EnsureSettingDefinitionsDeps, type EnsureSettingDefinitionsPort, type GetEffectivePort, type SettingsRepoPort } from "@jini-ai/core/settings";
 
 /**
  * @file The site's outbound mail sender, on the existing settings ledger: `core.mail.senderEmail`
@@ -20,10 +20,10 @@ export const MAIL_SENDER_NAME_KEY = "senderName";
  * @complexity O(1), two definitions.
  */
 export function ensureMailSenderSettings(
-  required: { deps: EnsureSettingDefinitionsDeps; systemPrincipalId: string },
+  required: { deps: EnsureSettingDefinitionsDeps & EnsureSettingDefinitionsPort; systemPrincipalId: string },
   _optional: Record<string, never> = {}
 ): Promise<void> {
-  return ensureSettingDefinitions(required.deps, { namespace: MAIL_SENDER_NAMESPACE, systemPrincipalId: required.systemPrincipalId, definitions: [
+  return required.deps.ensureSettingDefinitions(required.deps, { namespace: MAIL_SENDER_NAMESPACE, systemPrincipalId: required.systemPrincipalId, definitions: [
     { key: MAIL_SENDER_EMAIL_KEY, schema: { type: "string" }, defaultValue: "", scopes: SCOPE_BIT.workspace },
     { key: MAIL_SENDER_NAME_KEY, schema: { type: "string" }, defaultValue: "", scopes: SCOPE_BIT.workspace },
   ] });
@@ -35,10 +35,10 @@ export function ensureMailSenderSettings(
  * @complexity Two effective setting reads.
  */
 export async function readMailSenderSetting(
-  required: { settingsRepo: SettingsRepoPort; workspaceId: string },
+  required: { settingsRepo: SettingsRepoPort; workspaceId: string } & GetEffectivePort,
   _optional: Record<string, never> = {}
 ): Promise<{ email?: string; name?: string }> {
-  const read = ({ key }: { key: string }, _optional = {}) => getEffective({ deps: { repo: required.settingsRepo }, namespace: MAIL_SENDER_NAMESPACE, key, scopeContext: { workspaceId: required.workspaceId } });
+  const read = ({ key }: { key: string }, _optional = {}) => required.getEffective({ deps: { repo: required.settingsRepo }, namespace: MAIL_SENDER_NAMESPACE, key, scopeContext: { workspaceId: required.workspaceId } });
   const [email, name] = await Promise.all([read({ key: MAIL_SENDER_EMAIL_KEY }), read({ key: MAIL_SENDER_NAME_KEY })]);
   return { ...nonBlank({ field: "email", value: email?.value }), ...nonBlank({ field: "name", value: name?.value }) };
 }

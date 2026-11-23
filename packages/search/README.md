@@ -17,6 +17,15 @@ results through the composition tokens.
 | `@jini-ai/search/contribution` | node | `defineSearchProviderContribution({ filename, define })` for plugin-contributed providers: search owns the manifest parser, the restricted-content refusal and the manifest-id check; the host passes `define` (`spec => defineProviderContribution(spec, recovery)` from `@jini-ai/agent-plugins/lifecycle`), and offers the loaded result to that package's `contributeProviders`. |
 | `@jini-ai/search/testkit` | universal | `runSearchProviderConformance`, the in-memory reference provider, and fakes (`createFakeHttpClient`, `createUnavailableHttpClient`, `createInMemorySearchState`, `createStaticAccessPort`, `createPredicateAccessPort`). Test-only. |
 
+## Wiring
+
+**Site settings** (`@jini-ai/search/site/settings`): `ensureSearchProviderSetting` takes the settings
+ledger's registrar as `deps.ensureSettingDefinitions` (`EnsureSettingDefinitionsPort`) and
+`readSearchProviderSetting` takes its reader as `getEffective` (`GetEffectivePort`) on the existing
+required args; the host binds both from `@jini-ai/core/settings`. `writeSearchProviderSetting` takes
+the host settings write as `writeSetting`. See
+[`DR-005`](../../docs/decisions/DR-005-portable-package-boundaries.md).
+
 ## Plugin providers
 
 A plugin ships a manifest at its package root, under the filename the host chooses:

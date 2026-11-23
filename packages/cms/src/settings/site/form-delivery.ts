@@ -1,5 +1,5 @@
 import type { FormDeliveryBinding } from "../../forms/index.js";
-import { ensureSettingDefinitions, getEffective, SCOPE_BIT, ValueValidationFailedError, type EnsureSettingDefinitionsDeps, type SetValueRequired, type SettingsRepoPort } from "@jini-ai/core/settings";
+import { SCOPE_BIT, ValueValidationFailedError, type EnsureSettingDefinitionsDeps, type EnsureSettingDefinitionsPort, type GetEffectivePort, type SetValueRequired, type SettingsRepoPort } from "@jini-ai/core/settings";
 
 /**
  * @file The two site settings behind durable form delivery, on the existing settings ledger:
@@ -44,10 +44,10 @@ const FIX_HINT = "Save the secret as a connection and point to it with connectio
  * @complexity O(1), two definitions.
  */
 export function ensureFormDeliverySettings(
-  required: { deps: EnsureSettingDefinitionsDeps; systemPrincipalId: string },
+  required: { deps: EnsureSettingDefinitionsDeps & EnsureSettingDefinitionsPort; systemPrincipalId: string },
   _optional: Record<string, never> = {},
 ): Promise<void> {
-  return ensureSettingDefinitions(required.deps, { namespace: NAMESPACE, systemPrincipalId: required.systemPrincipalId, definitions: [
+  return required.deps.ensureSettingDefinitions(required.deps, { namespace: NAMESPACE, systemPrincipalId: required.systemPrincipalId, definitions: [
     { key: BINDINGS_KEY, schema: { type: "json" }, defaultValue: [], scopes: SCOPE_BIT.workspace },
     { key: AUTO_PULL_KEY, schema: { type: "boolean" }, defaultValue: true, scopes: SCOPE_BIT.workspace },
   ] });
@@ -59,10 +59,10 @@ export function ensureFormDeliverySettings(
  * @complexity One effective setting read.
  */
 export async function readFormsAutoPull(
-  required: { settingsRepo: SettingsRepoPort; workspaceId: string },
+  required: { settingsRepo: SettingsRepoPort; workspaceId: string } & GetEffectivePort,
   _optional: Record<string, never> = {},
 ): Promise<boolean> {
-  const found = await getEffective({ deps: { repo: required.settingsRepo }, namespace: NAMESPACE, key: AUTO_PULL_KEY, scopeContext: { workspaceId: required.workspaceId } });
+  const found = await required.getEffective({ deps: { repo: required.settingsRepo }, namespace: NAMESPACE, key: AUTO_PULL_KEY, scopeContext: { workspaceId: required.workspaceId } });
   return found?.value !== false;
 }
 
@@ -73,10 +73,10 @@ export async function readFormsAutoPull(
  * @complexity One effective read plus {@link parseFormDeliveryBindings}.
  */
 export async function readFormDeliveryBindings(
-  required: { settingsRepo: SettingsRepoPort; workspaceId: string },
+  required: { settingsRepo: SettingsRepoPort; workspaceId: string } & GetEffectivePort,
   _optional: Record<string, never> = {},
 ): Promise<FormDeliveryBinding[]> {
-  const found = await getEffective({ deps: { repo: required.settingsRepo }, namespace: NAMESPACE, key: BINDINGS_KEY, scopeContext: { workspaceId: required.workspaceId } });
+  const found = await required.getEffective({ deps: { repo: required.settingsRepo }, namespace: NAMESPACE, key: BINDINGS_KEY, scopeContext: { workspaceId: required.workspaceId } });
   return parseFormDeliveryBindings({ value: found?.value ?? [] });
 }
 

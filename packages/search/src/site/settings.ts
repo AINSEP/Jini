@@ -10,8 +10,8 @@
  */
 import type { JsonValue } from "@jini-ai/core/primitives";
 import {
-  ensureSettingDefinitions, getEffective, SCOPE_BIT, ValueValidationFailedError,
-  type EnsureSettingDefinitionsDeps, type SetValueRequired, type SettingsRepoPort,
+  SCOPE_BIT, ValueValidationFailedError,
+  type EnsureSettingDefinitionsDeps, type EnsureSettingDefinitionsPort, type GetEffectivePort, type SetValueRequired, type SettingsRepoPort,
 } from "@jini-ai/core/settings";
 import { BUILTIN_SEARCH_PROVIDER_ID } from "../index.js";
 
@@ -34,10 +34,10 @@ const rejection = ({ value }: { value: unknown }, _optional = {}) =>
  * @complexity O(1), one definition.
  */
 export function ensureSearchProviderSetting(
-  required: { deps: EnsureSettingDefinitionsDeps; systemPrincipalId: string },
+  required: { deps: EnsureSettingDefinitionsDeps & EnsureSettingDefinitionsPort; systemPrincipalId: string },
   _optional: Record<string, never> = {},
 ): Promise<void> {
-  return ensureSettingDefinitions(required.deps, {
+  return required.deps.ensureSettingDefinitions(required.deps, {
     namespace: SEARCH_SETTINGS_NAMESPACE, systemPrincipalId: required.systemPrincipalId,
     definitions: [{ key: SEARCH_PROVIDER_KEY, schema: { type: "string" }, defaultValue: BUILTIN_SEARCH_PROVIDER_ID, scopes: SCOPE_BIT.workspace }],
   });
@@ -50,11 +50,11 @@ export function ensureSearchProviderSetting(
  * @complexity O(1) to build; each read is one effective-setting read.
  */
 export function readSearchProviderSetting(
-  required: { settingsRepo: SettingsRepoPort },
+  required: { settingsRepo: SettingsRepoPort } & GetEffectivePort,
   _optional: Record<string, never> = {},
 ): (input: { workspaceId: string }) => Promise<string> {
   return async ({ workspaceId }) => {
-    const found = await getEffective({ deps: { repo: required.settingsRepo }, namespace: SEARCH_SETTINGS_NAMESPACE, key: SEARCH_PROVIDER_KEY, scopeContext: { workspaceId } });
+    const found = await required.getEffective({ deps: { repo: required.settingsRepo }, namespace: SEARCH_SETTINGS_NAMESPACE, key: SEARCH_PROVIDER_KEY, scopeContext: { workspaceId } });
     const value = found?.value ?? BUILTIN_SEARCH_PROVIDER_ID;
     if (!isSearchProviderId(value)) throw rejection({ value });
     return value;

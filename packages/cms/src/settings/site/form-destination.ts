@@ -1,5 +1,5 @@
 /** Site form receiver preference data; the settings ledger owns registration and effective resolution. */
-import { ensureSettingDefinitions, getEffective, SCOPE_BIT, type EnsureSettingDefinitionsDeps, type SettingsRepoPort } from "@jini-ai/core/settings";
+import { SCOPE_BIT, type EnsureSettingDefinitionsDeps, type EnsureSettingDefinitionsPort, type GetEffectivePort, type SettingsRepoPort } from "@jini-ai/core/settings";
 
 /** Which receiver takes a static publish's form submissions: `auto` (the co-hosted destination for
  *  the hosting target, the behavior before destinations were their own category), `none`, or a
@@ -13,10 +13,10 @@ const KEY = "receiver";
  * @example ensureFormDestinationSetting({ deps, systemPrincipalId });
  */
 export function ensureFormDestinationSetting(
-  { deps, systemPrincipalId }: { deps: EnsureSettingDefinitionsDeps; systemPrincipalId: string },
+  { deps, systemPrincipalId }: { deps: EnsureSettingDefinitionsDeps & EnsureSettingDefinitionsPort; systemPrincipalId: string },
   _options: Record<string, never> = {},
 ): Promise<void> {
-  return ensureSettingDefinitions(deps, {
+  return deps.ensureSettingDefinitions(deps, {
     namespace: NAMESPACE, systemPrincipalId,
     definitions: [{ key: KEY, schema: { type: "string" }, defaultValue: "auto", scopes: SCOPE_BIT.workspace }],
   });
@@ -27,7 +27,7 @@ export function ensureFormDestinationSetting(
  * @complexity One effective setting read.
  */
 export async function readFormDestinationSetting(
-  { settingsRepo, workspaceId }: { settingsRepo: SettingsRepoPort; workspaceId: string },
+  { settingsRepo, workspaceId, getEffective }: { settingsRepo: SettingsRepoPort; workspaceId: string } & GetEffectivePort,
   _options: Record<string, never> = {},
 ): Promise<string | undefined> {
   const setting = await getEffective({ deps: { repo: settingsRepo }, namespace: NAMESPACE, key: KEY, scopeContext: { workspaceId } });
