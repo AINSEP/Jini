@@ -8,7 +8,8 @@ import type { MemberRecord } from "../types.js";
 const WORKSPACE_ID = "ws-1";
 const OTHER_WORKSPACE_ID = "ws-2";
 
-function makeMember(overrides: Partial<MemberRecord> = {}): MemberRecord {
+/** Overrides may set an optional field to `undefined` explicitly (an unverified member). */
+function makeMember(overrides: { [K in keyof MemberRecord]?: MemberRecord[K] | undefined } = {}): MemberRecord {
   return {
     id: "member-1",
     workspaceId: WORKSPACE_ID,
@@ -19,7 +20,7 @@ function makeMember(overrides: Partial<MemberRecord> = {}): MemberRecord {
     updatedAt: "2026-01-01T00:00:00.000Z",
     version: 1,
     ...overrides,
-  };
+  } as MemberRecord;
 }
 
 test("getContact: returns null for an unknown subscriber id", async () => {
@@ -124,7 +125,7 @@ test("getContacts: unknown ids are silently omitted from the result, not errored
   });
 
   assert.equal(contacts.length, 1);
-  assert.equal(contacts[0].subscriberId, known.id);
+  assert.equal(contacts[0]?.subscriberId, known.id);
 });
 
 test("getContacts: an empty subscriberIds array returns an empty array", async () => {

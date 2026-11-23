@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
 import { Members } from "../Members.js";
+import { useMembers } from "../hooks/use-members.hooks.js";
 import { createFakeMembersPort } from "../../testing.js";
 import type { AdminMember } from "../../models.js";
 
@@ -25,7 +26,7 @@ describe("Members detail panel", () => {
     const port = createFakeMembersPort({}, { members: [MEMBER] });
     const pending = deferred<{ member: AdminMember }>();
     port.getMember = () => pending.promise;
-    render(<Members port={port} translate={translate} />);
+    render(<Members useMembersHook={useMembers} port={port} translate={translate} />);
 
     const toggle = await screen.findByRole("button", { name: "alice@example.com" });
     await user.click(toggle);
@@ -45,7 +46,7 @@ describe("Members detail panel", () => {
     const user = userEvent.setup();
     const verified = { ...MEMBER, emailVerifiedAt: "2026-08-03T00:00:00.000Z" };
     const port = createFakeMembersPort({}, { members: [verified] });
-    render(<Members port={port} translate={translate} />);
+    render(<Members useMembersHook={useMembers} port={port} translate={translate} />);
 
     await user.click(await screen.findByRole("button", { name: "alice@example.com" }));
     expect(await screen.findByText("2026-08-03T00:00:00.000Z")).toBeInTheDocument();
@@ -56,7 +57,7 @@ describe("Members detail panel", () => {
     const user = userEvent.setup();
     const port = createFakeMembersPort({}, { members: [MEMBER] });
     port.getMember = () => Promise.reject(new Error("detail exploded"));
-    render(<Members port={port} translate={translate} />);
+    render(<Members useMembersHook={useMembers} port={port} translate={translate} />);
 
     await user.click(await screen.findByRole("button", { name: "alice@example.com" }));
     const notice = await screen.findByText("detail exploded");
@@ -67,7 +68,7 @@ describe("Members detail panel", () => {
   it("collapses the expanded row on a second click", async () => {
     const user = userEvent.setup();
     const port = createFakeMembersPort({}, { members: [MEMBER] });
-    render(<Members port={port} translate={translate} />);
+    render(<Members useMembersHook={useMembers} port={port} translate={translate} />);
 
     const toggle = await screen.findByRole("button", { name: "alice@example.com" });
     await user.click(toggle);
@@ -82,7 +83,7 @@ describe("Members load and row failures", () => {
   it("replaces the table with an error banner when the roster cannot be loaded", async () => {
     const port = createFakeMembersPort({}, { members: [MEMBER] });
     port.listMembers = () => Promise.reject(new Error("roster down"));
-    const { container } = render(<Members port={port} translate={translate} />);
+    const { container } = render(<Members useMembersHook={useMembers} port={port} translate={translate} />);
 
     await waitFor(() => expect(container.querySelector(".notice.error")).not.toBeNull());
     expect(container.querySelector(".notice.error")?.textContent).toBe("roster down");
@@ -93,7 +94,7 @@ describe("Members load and row failures", () => {
     const user = userEvent.setup();
     const port = createFakeMembersPort({}, { members: [MEMBER] });
     port.requestMemberMagicLink = () => Promise.reject(new Error("mailer down"));
-    render(<Members port={port} translate={translate} />);
+    render(<Members useMembersHook={useMembers} port={port} translate={translate} />);
 
     await user.click(await screen.findByRole("button", { name: 'Actions for member "alice@example.com"' }));
     await user.click(within(screen.getByRole("menu")).getByRole("menuitem", { name: "Resend sign-in link" }));
@@ -104,7 +105,7 @@ describe("Members load and row failures", () => {
 
   it("loads through a host-supplied query scope", async () => {
     const port = createFakeMembersPort({}, { members: [MEMBER] });
-    render(<Members port={port} translate={translate} queryScope="tenant-a" />);
+    render(<Members useMembersHook={useMembers} port={port} translate={translate} queryScope="tenant-a" />);
     expect(await screen.findByText("alice@example.com")).toBeInTheDocument();
   });
 });

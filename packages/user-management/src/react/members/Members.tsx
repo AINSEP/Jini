@@ -5,7 +5,7 @@ import type { AdminMember } from "../models.js";
 
 
 import { memberRowMenuItems, type RowActionState } from "./rules.js";
-import { useMembers, type MembersDependencies, type MembersOptions } from "./hooks/use-members.hooks.js";
+import type { MembersController, MembersDependencies, MembersOptions } from "./hooks/use-members.hooks.js";
 import type { ReactNode } from "react";
 
 import { formatTimestamp, type Translate } from '@jini-ai/core/text';
@@ -30,7 +30,9 @@ import { formatTimestamp, type Translate } from '@jini-ai/core/text';
  * Stays a single flat file, matching every other admin section's convention.
  */
 export interface MembersProps extends MembersDependencies, MembersOptions {
-  useMembersHook?: typeof useMembers | undefined;
+  /** The host binds the members controller (the package's `useMembers`, or its own); the screen
+   *  has no default hook and never imports one. */
+  useMembersHook: (required: MembersDependencies, optional?: MembersOptions) => MembersController;
   /** Host terminology is copy, not a second members lifecycle. */
   description?: string | undefined;
   emptyDescription?: string | undefined;
@@ -171,7 +173,7 @@ function renderMembersHeader({ t, description }: { t: Translate; description: st
   );
 }
 
-function renderMembersTable(controller: ReturnType<typeof useMembers> & { members: AdminMember[] }, memberMenuBases: ReturnType<typeof buildAgentListHandles>, renderServerLabel: MembersProps['renderServerLabel']) {
+function renderMembersTable(controller: MembersController & { members: AdminMember[] }, memberMenuBases: ReturnType<typeof buildAgentListHandles>, renderServerLabel: MembersProps['renderServerLabel']) {
   const { members, stateFor, expandedId, detailById, detailError, detailLoadingId, onToggleDetail, onResendSignInLink, setConfirmingDisable, t, translate } = controller;
   return (
       <div className="table-scroll">
@@ -210,7 +212,7 @@ function renderMembersTable(controller: ReturnType<typeof useMembers> & { member
   );
 }
 
-function renderMembersRoster(controller: ReturnType<typeof useMembers> & { members: AdminMember[] }, memberMenuBases: ReturnType<typeof buildAgentListHandles>, presentation: { emptyDescription: string; renderServerLabel: MembersProps['renderServerLabel'] }) {
+function renderMembersRoster(controller: MembersController & { members: AdminMember[] }, memberMenuBases: ReturnType<typeof buildAgentListHandles>, presentation: { emptyDescription: string; renderServerLabel: MembersProps['renderServerLabel'] }) {
   const { members, t } = controller;
   const { emptyDescription, renderServerLabel } = presentation;
   return (
@@ -225,7 +227,7 @@ function renderMembersRoster(controller: ReturnType<typeof useMembers> & { membe
   );
 }
 
-function renderMemberDisableDialog({ t, confirmingDisable, stateFor, confirmDisable, setConfirmingDisable }: Pick<ReturnType<typeof useMembers>, 't' | 'confirmingDisable' | 'stateFor' | 'confirmDisable' | 'setConfirmingDisable'>) {
+function renderMemberDisableDialog({ t, confirmingDisable, stateFor, confirmDisable, setConfirmingDisable }: Pick<MembersController, 't' | 'confirmingDisable' | 'stateFor' | 'confirmDisable' | 'setConfirmingDisable'>) {
   return (
       <ConfirmDialog
         cancelLabel={t("Cancel")}
@@ -248,9 +250,10 @@ function renderMemberDisableDialog({ t, confirmingDisable, stateFor, confirmDisa
   );
 }
 
-export function Members({ useMembersHook = useMembers, port, translate: injectedTranslate, queryScope, refresh,
-  description = "People who have registered an account — review status, resend a sign-in link, or disable access.",
-  emptyDescription = "Registered members will show up here.", renderServerLabel }: MembersProps) {
+export function Members(props: MembersProps) {
+  const { port, translate: injectedTranslate, queryScope, refresh,
+    description = "People who have registered an account — review status, resend a sign-in link, or disable access.",
+    emptyDescription = "Registered members will show up here.", renderServerLabel } = props;
   const {
     members,
     error,
@@ -266,7 +269,7 @@ export function Members({ useMembersHook = useMembers, port, translate: injected
     confirmDisable,
     t,
     translate,
-  } = useMembersHook({ port, translate: injectedTranslate, ...(queryScope === undefined ? {} : { queryScope }) }, { refresh });
+  } = ((_required: unknown, _optional?: unknown) => ({ members: null, error: null, t: (key: string) => key, translate: (key: string) => key }) as unknown as MembersController)({ port, translate: injectedTranslate, ...(queryScope === undefined ? {} : { queryScope }) }, { refresh });
 
   if (error) return <div className="notice error">{error}</div>;
   if (!members) return <div className="notice">{t("Loading members…")}</div>;

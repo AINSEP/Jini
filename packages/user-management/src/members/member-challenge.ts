@@ -1,4 +1,4 @@
-import { decideChallenge, verifyChallengeCode, type AuthChallengeRecord, type ChallengeStorePort } from "../server/index.js";
+import { decideChallenge, verifyChallengeCode, type AuthChallengeRecord, type ChallengeStorePort } from "../server/auth-challenge.js";
 import type { MagicLinkTokenRepoPort, MemberSignInInput, MembersWriteServiceDeps } from "./ports.js";
 import { MemberAuthError, type MagicLinkTokenRecord, type MemberRecord } from "./types.js";
 import { dummyPasswordHash, hashToken, isoPlusMs, memberPasswordHasher } from "./member-credentials.js";

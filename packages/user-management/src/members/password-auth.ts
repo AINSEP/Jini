@@ -1,6 +1,6 @@
 /** Member password workflows (OPUS-REVIEW shard C); transport limits/CSRF belong to shard D. */
 import { nowIso as clockNowIso } from "@jini-ai/core/primitives";
-import { validatePasswordPolicy } from "../server/index.js";
+import { validatePasswordPolicy } from "../server/password-policy.js";
 import type { MemberSignInResult, MembersWriteServiceDeps } from "./ports.js";
 import { MemberAuthError, MemberReauthenticationRequiredError, MemberValidationError, type MemberRecord, type MemberSessionRecord } from "./types.js";
 import { resolveMemberSession } from "./access-resolver.js";

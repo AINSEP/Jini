@@ -62,12 +62,14 @@
     },
     "isolation": {
       "entries": {
-        "./member-login/oidc-login": "server",
-        "./members/member-challenge": "server",
-        "./members/member-credentials": "server",
-        "./members/member-sign-in": "server",
-        "./members/password-auth": "server"
-      }
+        "./member-login/oidc-login": "server"
+      },
+      "shared": [
+        "src/server/auth-challenge.ts",
+        "src/server/hasher.ts",
+        "src/server/password-policy.ts",
+        "src/server/session-tokens.ts"
+      ]
     }
   },
   "type": "module",

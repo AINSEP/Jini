@@ -216,7 +216,9 @@
       "./pages/hooks/pages-port.hooks": "universal",
       "./pages/hooks/use-interactive-flush.hooks": "browser",
       "./pages/hooks/use-editor-html-jump.hooks": "browser",
-      "./pages/pages-list-rules": "universal"
+      "./pages/pages-list-rules": "universal",
+      "./pages/page-editor-rules": "universal",
+      "./pages/page-editor-i18n": "universal"
     },
     "isolation": {
       "shared": [
@@ -309,6 +311,8 @@
         "./pages/lib/prettify-html": "browser",
         "./pages/pages-i18n": "browser",
         "./pages/pages-list-rules": "browser",
+        "./pages/page-editor-rules": "browser",
+        "./pages/page-editor-i18n": "browser",
         "./screens/dashboard/Dashboard": "browser",
         "./screens/dashboard/dashboard-i18n": "browser",
         "./screens/dashboard/dashboard-view.types": "browser",
@@ -1333,6 +1337,16 @@
       "types": "./dist/pages/pages-list-rules.d.ts",
       "import": "./dist/pages/pages-list-rules.js",
       "default": "./dist/pages/pages-list-rules.js"
+    },
+    "./pages/page-editor-rules": {
+      "types": "./dist/pages/page-editor-rules.d.ts",
+      "import": "./dist/pages/page-editor-rules.js",
+      "default": "./dist/pages/page-editor-rules.js"
+    },
+    "./pages/page-editor-i18n": {
+      "types": "./dist/pages/page-editor-i18n.d.ts",
+      "import": "./dist/pages/page-editor-i18n.js",
+      "default": "./dist/pages/page-editor-i18n.js"
     }
   },
   "files": [
@@ -1508,6 +1522,12 @@
       ],
       "pages/pages-list-rules": [
         "./dist/pages/pages-list-rules.d.ts"
+      ],
+      "pages/page-editor-rules": [
+        "./dist/pages/page-editor-rules.d.ts"
+      ],
+      "pages/page-editor-i18n": [
+        "./dist/pages/page-editor-i18n.d.ts"
       ]
     }
   },

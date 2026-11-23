@@ -1,4 +1,5 @@
-import { Argon2PasswordHasher, loadArgon2Binding, NodeSessionTokens } from "../server/index.js";
+import { Argon2PasswordHasher, loadArgon2Binding } from "../server/hasher.js";
+import { NodeSessionTokens } from "../server/session-tokens.js";
 import type { PasswordHasherPort } from "../core/index.js";
 import type { MemberSignInResult, MembersWriteServiceDeps } from "./ports.js";
 import type { MemberRecord, MemberSessionRecord } from "./types.js";
