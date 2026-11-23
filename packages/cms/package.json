@@ -158,7 +158,19 @@
       "./admin-http/routes/menus/create": "universal",
       "./admin-http/routes/menus/update-tree": "universal",
       "./admin-http/routes/menus/assign-location": "universal",
-      "./admin-http/routes/menus/delete": "universal"
+      "./admin-http/routes/menus/delete": "universal",
+      "./admin-http/http/newsletter": "universal",
+      "./admin-http/routes/newsletter/get-campaign": "universal",
+      "./admin-http/routes/newsletter/list-campaigns": "universal",
+      "./admin-http/routes/newsletter/create-campaign": "universal",
+      "./admin-http/routes/newsletter/update-campaign": "universal",
+      "./admin-http/routes/newsletter/schedule-campaign": "universal",
+      "./admin-http/routes/newsletter/send-campaign": "universal",
+      "./admin-http/routes/newsletter/send-test-campaign": "universal",
+      "./admin-http/routes/newsletter/pause-campaign": "universal",
+      "./admin-http/routes/newsletter/resume-campaign": "universal",
+      "./admin-http/routes/newsletter/cancel-campaign": "universal",
+      "./admin-http/routes/newsletter/list-send-log": "universal"
     },
     "isolation": {
       "domains": {
@@ -260,7 +272,19 @@
         "./admin-http/routes/menus/create": "navigation",
         "./admin-http/routes/menus/update-tree": "navigation",
         "./admin-http/routes/menus/assign-location": "navigation",
-        "./admin-http/routes/menus/delete": "navigation"
+        "./admin-http/routes/menus/delete": "navigation",
+        "./admin-http/http/newsletter": "newsletter",
+        "./admin-http/routes/newsletter/get-campaign": "newsletter",
+        "./admin-http/routes/newsletter/list-campaigns": "newsletter",
+        "./admin-http/routes/newsletter/create-campaign": "newsletter",
+        "./admin-http/routes/newsletter/update-campaign": "newsletter",
+        "./admin-http/routes/newsletter/schedule-campaign": "newsletter",
+        "./admin-http/routes/newsletter/send-campaign": "newsletter",
+        "./admin-http/routes/newsletter/send-test-campaign": "newsletter",
+        "./admin-http/routes/newsletter/pause-campaign": "newsletter",
+        "./admin-http/routes/newsletter/resume-campaign": "newsletter",
+        "./admin-http/routes/newsletter/cancel-campaign": "newsletter",
+        "./admin-http/routes/newsletter/list-send-log": "newsletter"
       }
     },
     "optionalPeers": {
@@ -1005,6 +1029,66 @@
       "types": "./dist/admin-http/routes/menus/delete.d.ts",
       "import": "./dist/admin-http/routes/menus/delete.js",
       "default": "./dist/admin-http/routes/menus/delete.js"
+    },
+    "./admin-http/http/newsletter": {
+      "types": "./dist/admin-http/http/newsletter.d.ts",
+      "import": "./dist/admin-http/http/newsletter.js",
+      "default": "./dist/admin-http/http/newsletter.js"
+    },
+    "./admin-http/routes/newsletter/get-campaign": {
+      "types": "./dist/admin-http/routes/newsletter/get-campaign.d.ts",
+      "import": "./dist/admin-http/routes/newsletter/get-campaign.js",
+      "default": "./dist/admin-http/routes/newsletter/get-campaign.js"
+    },
+    "./admin-http/routes/newsletter/list-campaigns": {
+      "types": "./dist/admin-http/routes/newsletter/list-campaigns.d.ts",
+      "import": "./dist/admin-http/routes/newsletter/list-campaigns.js",
+      "default": "./dist/admin-http/routes/newsletter/list-campaigns.js"
+    },
+    "./admin-http/routes/newsletter/create-campaign": {
+      "types": "./dist/admin-http/routes/newsletter/create-campaign.d.ts",
+      "import": "./dist/admin-http/routes/newsletter/create-campaign.js",
+      "default": "./dist/admin-http/routes/newsletter/create-campaign.js"
+    },
+    "./admin-http/routes/newsletter/update-campaign": {
+      "types": "./dist/admin-http/routes/newsletter/update-campaign.d.ts",
+      "import": "./dist/admin-http/routes/newsletter/update-campaign.js",
+      "default": "./dist/admin-http/routes/newsletter/update-campaign.js"
+    },
+    "./admin-http/routes/newsletter/schedule-campaign": {
+      "types": "./dist/admin-http/routes/newsletter/schedule-campaign.d.ts",
+      "import": "./dist/admin-http/routes/newsletter/schedule-campaign.js",
+      "default": "./dist/admin-http/routes/newsletter/schedule-campaign.js"
+    },
+    "./admin-http/routes/newsletter/send-campaign": {
+      "types": "./dist/admin-http/routes/newsletter/send-campaign.d.ts",
+      "import": "./dist/admin-http/routes/newsletter/send-campaign.js",
+      "default": "./dist/admin-http/routes/newsletter/send-campaign.js"
+    },
+    "./admin-http/routes/newsletter/send-test-campaign": {
+      "types": "./dist/admin-http/routes/newsletter/send-test-campaign.d.ts",
+      "import": "./dist/admin-http/routes/newsletter/send-test-campaign.js",
+      "default": "./dist/admin-http/routes/newsletter/send-test-campaign.js"
+    },
+    "./admin-http/routes/newsletter/pause-campaign": {
+      "types": "./dist/admin-http/routes/newsletter/pause-campaign.d.ts",
+      "import": "./dist/admin-http/routes/newsletter/pause-campaign.js",
+      "default": "./dist/admin-http/routes/newsletter/pause-campaign.js"
+    },
+    "./admin-http/routes/newsletter/resume-campaign": {
+      "types": "./dist/admin-http/routes/newsletter/resume-campaign.d.ts",
+      "import": "./dist/admin-http/routes/newsletter/resume-campaign.js",
+      "default": "./dist/admin-http/routes/newsletter/resume-campaign.js"
+    },
+    "./admin-http/routes/newsletter/cancel-campaign": {
+      "types": "./dist/admin-http/routes/newsletter/cancel-campaign.d.ts",
+      "import": "./dist/admin-http/routes/newsletter/cancel-campaign.js",
+      "default": "./dist/admin-http/routes/newsletter/cancel-campaign.js"
+    },
+    "./admin-http/routes/newsletter/list-send-log": {
+      "types": "./dist/admin-http/routes/newsletter/list-send-log.d.ts",
+      "import": "./dist/admin-http/routes/newsletter/list-send-log.js",
+      "default": "./dist/admin-http/routes/newsletter/list-send-log.js"
     }
   },
   "files": [
