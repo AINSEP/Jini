@@ -159,7 +159,9 @@
       "./admin-http/routes/menus/update-tree": "universal",
       "./admin-http/routes/menus/assign-location": "universal",
       "./admin-http/routes/menus/delete": "universal",
-      "./admin-http/http/plugin-hook-error": "universal"
+      "./admin-http/http/plugin-hook-error": "universal",
+      "./admin-http/routes/pages/list": "universal",
+      "./admin-http/routes/pages/get-by-id": "universal"
     },
     "isolation": {
       "domains": {
@@ -261,7 +263,8 @@
         "./admin-http/routes/menus/create": "navigation",
         "./admin-http/routes/menus/update-tree": "navigation",
         "./admin-http/routes/menus/assign-location": "navigation",
-        "./admin-http/routes/menus/delete": "navigation"
+        "./admin-http/routes/menus/delete": "navigation",
+        "./admin-http/routes/pages/get-by-id": "widgets"
       }
     },
     "optionalPeers": {
@@ -1011,6 +1014,16 @@
       "types": "./dist/admin-http/http/plugin-hook-error.d.ts",
       "import": "./dist/admin-http/http/plugin-hook-error.js",
       "default": "./dist/admin-http/http/plugin-hook-error.js"
+    },
+    "./admin-http/routes/pages/list": {
+      "types": "./dist/admin-http/routes/pages/list.d.ts",
+      "import": "./dist/admin-http/routes/pages/list.js",
+      "default": "./dist/admin-http/routes/pages/list.js"
+    },
+    "./admin-http/routes/pages/get-by-id": {
+      "types": "./dist/admin-http/routes/pages/get-by-id.d.ts",
+      "import": "./dist/admin-http/routes/pages/get-by-id.js",
+      "default": "./dist/admin-http/routes/pages/get-by-id.js"
     }
   },
   "files": [
