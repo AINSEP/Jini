@@ -95,6 +95,11 @@
       "./shell/lib/ascii-slug": "browser",
       "./shell/lib/assistant-dock-bus": "browser",
       "./shell/lib/content-refresh-bus": "browser",
+      "./screens/assistant-settings/use-ai-assistant-locale-sync.hooks": "browser",
+      "./screens/assistant-settings/OwnerGrantStatus": "browser",
+      "./screens/assistant-settings/AssistantToggleRow": "browser",
+      "./screens/webmcp/webmcp-i18n": "universal",
+      "./screens/fs-files/folder-drop-port": "browser",
       "./shell/lib/editor-failure-i18n": "browser",
       "./shell/lib/editor-template-options.rules": "browser",
       "./shell/lib/escape-owned-by-inner-layer": "browser",
@@ -205,6 +210,11 @@
         "./shell/lib/ascii-slug": "browser",
         "./shell/lib/assistant-dock-bus": "browser",
         "./shell/lib/content-refresh-bus": "browser",
+        "./screens/assistant-settings/use-ai-assistant-locale-sync.hooks": "browser",
+        "./screens/assistant-settings/OwnerGrantStatus": "browser",
+        "./screens/assistant-settings/AssistantToggleRow": "browser",
+        "./screens/webmcp/webmcp-i18n": "universal",
+        "./screens/fs-files/folder-drop-port": "browser",
         "./shell/lib/editor-failure-i18n": "browser",
         "./shell/lib/editor-template-options.rules": "browser",
         "./shell/lib/escape-owned-by-inner-layer": "browser",
@@ -663,6 +673,31 @@
       "types": "./dist/shell/lib/content-refresh-bus.d.ts",
       "import": "./dist/shell/lib/content-refresh-bus.js",
       "default": "./dist/shell/lib/content-refresh-bus.js"
+    },
+    "./screens/assistant-settings/use-ai-assistant-locale-sync.hooks": {
+      "types": "./dist/screens/assistant-settings/use-ai-assistant-locale-sync.hooks.d.ts",
+      "import": "./dist/screens/assistant-settings/use-ai-assistant-locale-sync.hooks.js",
+      "default": "./dist/screens/assistant-settings/use-ai-assistant-locale-sync.hooks.js"
+    },
+    "./screens/assistant-settings/OwnerGrantStatus": {
+      "types": "./dist/screens/assistant-settings/OwnerGrantStatus.d.ts",
+      "import": "./dist/screens/assistant-settings/OwnerGrantStatus.js",
+      "default": "./dist/screens/assistant-settings/OwnerGrantStatus.js"
+    },
+    "./screens/assistant-settings/AssistantToggleRow": {
+      "types": "./dist/screens/assistant-settings/AssistantToggleRow.d.ts",
+      "import": "./dist/screens/assistant-settings/AssistantToggleRow.js",
+      "default": "./dist/screens/assistant-settings/AssistantToggleRow.js"
+    },
+    "./screens/webmcp/webmcp-i18n": {
+      "types": "./dist/screens/webmcp/webmcp-i18n.d.ts",
+      "import": "./dist/screens/webmcp/webmcp-i18n.js",
+      "default": "./dist/screens/webmcp/webmcp-i18n.js"
+    },
+    "./screens/fs-files/folder-drop-port": {
+      "types": "./dist/screens/fs-files/folder-drop-port.d.ts",
+      "import": "./dist/screens/fs-files/folder-drop-port.js",
+      "default": "./dist/screens/fs-files/folder-drop-port.js"
     },
     "./shell/lib/editor-failure-i18n": {
       "types": "./dist/shell/lib/editor-failure-i18n.d.ts",

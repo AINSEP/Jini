@@ -15,6 +15,7 @@
     "entries": {
       "./media-providers": "node",
       "./media-providers/catalog": "universal",
+      "./web-screenshot/web-screenshot": "node",
       "./credentialed-http": "node",
       "./credentialed-http/sets": "node",
       "./webhooks": "node",
@@ -49,6 +50,11 @@
       "types": "./dist/media-providers/catalog.d.ts",
       "import": "./dist/media-providers/catalog.js",
       "default": "./dist/media-providers/catalog.js"
+    },
+    "./web-screenshot/web-screenshot": {
+      "types": "./dist/web-screenshot/web-screenshot.d.ts",
+      "import": "./dist/web-screenshot/web-screenshot.js",
+      "default": "./dist/web-screenshot/web-screenshot.js"
     },
     "./credentialed-http": {
       "types": "./dist/credentialed-http/index.d.ts",
@@ -128,6 +134,9 @@
       ],
       "media-providers/catalog": [
         "./dist/media-providers/catalog.d.ts"
+      ],
+      "web-screenshot/web-screenshot": [
+        "./dist/web-screenshot/web-screenshot.d.ts"
       ],
       "credentialed-http": [
         "./dist/credentialed-http/index.d.ts"

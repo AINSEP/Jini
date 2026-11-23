@@ -149,6 +149,27 @@
       "./admin-http/routes/redirects/tombstone": "universal",
       "./admin-http/routes/redirects/update": "universal",
       "./admin-http/routes/sites/local-sites": "universal",
+      "./admin-http/routes/assistant/shared": "universal",
+      "./admin-http/routes/assistant/resolve-test-agent-outcome": "universal",
+      "./admin-http/routes/assistant/test-agent": "universal",
+      "./admin-http/routes/assistant/put-site-credential": "universal",
+      "./admin-http/routes/assistant/put-settings": "universal",
+      "./admin-http/routes/assistant/put-execution-credential": "universal",
+      "./admin-http/routes/assistant/get-site-credential": "universal",
+      "./admin-http/routes/assistant/get-settings": "universal",
+      "./admin-http/routes/assistant/get-execution-credential": "universal",
+      "./admin-http/routes/assistant/delete-site-credential": "universal",
+      "./admin-http/routes/assistant/delete-execution-credential": "universal",
+      "./admin-http/routes/workspace/delete": "universal",
+      "./admin-http/routes/workspace/update": "universal",
+      "./admin-http/routes/workspace/list": "universal",
+      "./admin-http/routes/workspace/get": "universal",
+      "./admin-http/routes/workspace/create": "universal",
+      "./admin-http/routes/workspace/deps": "universal",
+      "./admin-http/http/workspace": "universal",
+      "./site-inspection/site-profile": "universal",
+      "./site-inspection/site-capabilities": "universal",
+      "./site-inspection/section-collector": "universal",
       "./admin-http/routes/system/assistant-daemon": "universal",
       "./admin-http/routes/system/module-status": "universal",
       "./admin-http/http/entity-not-live": "universal",
@@ -284,6 +305,13 @@
         "./admin-http/routes/redirects/shared": "redirects",
         "./admin-http/routes/redirects/tombstone": "redirects",
         "./admin-http/routes/redirects/update": "redirects",
+        "./admin-http/http/workspace": "workspace",
+        "./admin-http/routes/workspace/create": "workspace",
+        "./admin-http/routes/workspace/delete": "workspace",
+        "./admin-http/routes/workspace/deps": "workspace",
+        "./admin-http/routes/workspace/get": "workspace",
+        "./admin-http/routes/workspace/list": "workspace",
+        "./admin-http/routes/workspace/update": "workspace",
         "./public-http/routes/site/pages/listing/listing-state": "listing",
         "./admin-http/http/forms": "forms"
       }
@@ -981,6 +1009,111 @@
       "types": "./dist/admin-http/routes/sites/local-sites.d.ts",
       "import": "./dist/admin-http/routes/sites/local-sites.js",
       "default": "./dist/admin-http/routes/sites/local-sites.js"
+    },
+    "./admin-http/routes/assistant/shared": {
+      "types": "./dist/admin-http/routes/assistant/shared.d.ts",
+      "import": "./dist/admin-http/routes/assistant/shared.js",
+      "default": "./dist/admin-http/routes/assistant/shared.js"
+    },
+    "./admin-http/routes/assistant/resolve-test-agent-outcome": {
+      "types": "./dist/admin-http/routes/assistant/resolve-test-agent-outcome.d.ts",
+      "import": "./dist/admin-http/routes/assistant/resolve-test-agent-outcome.js",
+      "default": "./dist/admin-http/routes/assistant/resolve-test-agent-outcome.js"
+    },
+    "./admin-http/routes/assistant/test-agent": {
+      "types": "./dist/admin-http/routes/assistant/test-agent.d.ts",
+      "import": "./dist/admin-http/routes/assistant/test-agent.js",
+      "default": "./dist/admin-http/routes/assistant/test-agent.js"
+    },
+    "./admin-http/routes/assistant/put-site-credential": {
+      "types": "./dist/admin-http/routes/assistant/put-site-credential.d.ts",
+      "import": "./dist/admin-http/routes/assistant/put-site-credential.js",
+      "default": "./dist/admin-http/routes/assistant/put-site-credential.js"
+    },
+    "./admin-http/routes/assistant/put-settings": {
+      "types": "./dist/admin-http/routes/assistant/put-settings.d.ts",
+      "import": "./dist/admin-http/routes/assistant/put-settings.js",
+      "default": "./dist/admin-http/routes/assistant/put-settings.js"
+    },
+    "./admin-http/routes/assistant/put-execution-credential": {
+      "types": "./dist/admin-http/routes/assistant/put-execution-credential.d.ts",
+      "import": "./dist/admin-http/routes/assistant/put-execution-credential.js",
+      "default": "./dist/admin-http/routes/assistant/put-execution-credential.js"
+    },
+    "./admin-http/routes/assistant/get-site-credential": {
+      "types": "./dist/admin-http/routes/assistant/get-site-credential.d.ts",
+      "import": "./dist/admin-http/routes/assistant/get-site-credential.js",
+      "default": "./dist/admin-http/routes/assistant/get-site-credential.js"
+    },
+    "./admin-http/routes/assistant/get-settings": {
+      "types": "./dist/admin-http/routes/assistant/get-settings.d.ts",
+      "import": "./dist/admin-http/routes/assistant/get-settings.js",
+      "default": "./dist/admin-http/routes/assistant/get-settings.js"
+    },
+    "./admin-http/routes/assistant/get-execution-credential": {
+      "types": "./dist/admin-http/routes/assistant/get-execution-credential.d.ts",
+      "import": "./dist/admin-http/routes/assistant/get-execution-credential.js",
+      "default": "./dist/admin-http/routes/assistant/get-execution-credential.js"
+    },
+    "./admin-http/routes/assistant/delete-site-credential": {
+      "types": "./dist/admin-http/routes/assistant/delete-site-credential.d.ts",
+      "import": "./dist/admin-http/routes/assistant/delete-site-credential.js",
+      "default": "./dist/admin-http/routes/assistant/delete-site-credential.js"
+    },
+    "./admin-http/routes/assistant/delete-execution-credential": {
+      "types": "./dist/admin-http/routes/assistant/delete-execution-credential.d.ts",
+      "import": "./dist/admin-http/routes/assistant/delete-execution-credential.js",
+      "default": "./dist/admin-http/routes/assistant/delete-execution-credential.js"
+    },
+    "./admin-http/routes/workspace/delete": {
+      "types": "./dist/admin-http/routes/workspace/delete.d.ts",
+      "import": "./dist/admin-http/routes/workspace/delete.js",
+      "default": "./dist/admin-http/routes/workspace/delete.js"
+    },
+    "./admin-http/routes/workspace/update": {
+      "types": "./dist/admin-http/routes/workspace/update.d.ts",
+      "import": "./dist/admin-http/routes/workspace/update.js",
+      "default": "./dist/admin-http/routes/workspace/update.js"
+    },
+    "./admin-http/routes/workspace/list": {
+      "types": "./dist/admin-http/routes/workspace/list.d.ts",
+      "import": "./dist/admin-http/routes/workspace/list.js",
+      "default": "./dist/admin-http/routes/workspace/list.js"
+    },
+    "./admin-http/routes/workspace/get": {
+      "types": "./dist/admin-http/routes/workspace/get.d.ts",
+      "import": "./dist/admin-http/routes/workspace/get.js",
+      "default": "./dist/admin-http/routes/workspace/get.js"
+    },
+    "./admin-http/routes/workspace/create": {
+      "types": "./dist/admin-http/routes/workspace/create.d.ts",
+      "import": "./dist/admin-http/routes/workspace/create.js",
+      "default": "./dist/admin-http/routes/workspace/create.js"
+    },
+    "./admin-http/routes/workspace/deps": {
+      "types": "./dist/admin-http/routes/workspace/deps.d.ts",
+      "import": "./dist/admin-http/routes/workspace/deps.js",
+      "default": "./dist/admin-http/routes/workspace/deps.js"
+    },
+    "./admin-http/http/workspace": {
+      "types": "./dist/admin-http/http/workspace.d.ts",
+      "import": "./dist/admin-http/http/workspace.js",
+      "default": "./dist/admin-http/http/workspace.js"
+    },
+    "./site-inspection/site-profile": {
+      "types": "./dist/site-inspection/site-profile.d.ts",
+      "import": "./dist/site-inspection/site-profile.js",
+      "default": "./dist/site-inspection/site-profile.js"
+    },
+    "./site-inspection/site-capabilities": {
+      "types": "./dist/site-inspection/site-capabilities.d.ts",
+      "import": "./dist/site-inspection/site-capabilities.js",
+      "default": "./dist/site-inspection/site-capabilities.js"
+    },
+    "./site-inspection/section-collector": {
+      "types": "./dist/site-inspection/section-collector.d.ts",
+      "import": "./dist/site-inspection/section-collector.js",
+      "default": "./dist/site-inspection/section-collector.js"
     },
     "./admin-http/routes/system/assistant-daemon": {
       "types": "./dist/admin-http/routes/system/assistant-daemon.d.ts",
