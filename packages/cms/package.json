@@ -133,7 +133,21 @@
       "./admin-http/routes/redirects/update": "universal",
       "./admin-http/routes/sites/local-sites": "universal",
       "./admin-http/routes/system/assistant-daemon": "universal",
-      "./admin-http/routes/system/module-status": "universal"
+      "./admin-http/routes/system/module-status": "universal",
+      "./admin-http/http/entity-not-live": "universal",
+      "./admin-http/routes/assistant/execution-request-fields": "universal",
+      "./admin-http/routes/settings/preview-feed-access": "universal",
+      "./admin-http/sea-runtime": "universal",
+      "./admin-http/admin-dev-proxy": "universal",
+      "./admin-http/admin-static": "universal",
+      "./public-http/http/site/member-auth-script": "universal",
+      "./public-http/http/site/render/media-playback-copy": "universal",
+      "./public-http/http/site/render/value-readers": "universal",
+      "./public-http/middleware/canonical-site-host": "universal",
+      "./public-http/middleware/site-chat-static": "universal",
+      "./public-http/routes/site/chat-comparison-html": "universal",
+      "./public-http/routes/site/pages/listing/listing-state": "universal",
+      "./public-http/http/site/site-chat-markup": "universal"
     },
     "isolation": {
       "domains": {
@@ -835,6 +849,76 @@
       "types": "./dist/admin-http/routes/system/module-status.d.ts",
       "import": "./dist/admin-http/routes/system/module-status.js",
       "default": "./dist/admin-http/routes/system/module-status.js"
+    },
+    "./admin-http/http/entity-not-live": {
+      "types": "./dist/admin-http/http/entity-not-live.d.ts",
+      "import": "./dist/admin-http/http/entity-not-live.js",
+      "default": "./dist/admin-http/http/entity-not-live.js"
+    },
+    "./admin-http/routes/assistant/execution-request-fields": {
+      "types": "./dist/admin-http/routes/assistant/execution-request-fields.d.ts",
+      "import": "./dist/admin-http/routes/assistant/execution-request-fields.js",
+      "default": "./dist/admin-http/routes/assistant/execution-request-fields.js"
+    },
+    "./admin-http/routes/settings/preview-feed-access": {
+      "types": "./dist/admin-http/routes/settings/preview-feed-access.d.ts",
+      "import": "./dist/admin-http/routes/settings/preview-feed-access.js",
+      "default": "./dist/admin-http/routes/settings/preview-feed-access.js"
+    },
+    "./admin-http/sea-runtime": {
+      "types": "./dist/admin-http/sea-runtime.d.ts",
+      "import": "./dist/admin-http/sea-runtime.js",
+      "default": "./dist/admin-http/sea-runtime.js"
+    },
+    "./admin-http/admin-dev-proxy": {
+      "types": "./dist/admin-http/admin-dev-proxy.d.ts",
+      "import": "./dist/admin-http/admin-dev-proxy.js",
+      "default": "./dist/admin-http/admin-dev-proxy.js"
+    },
+    "./admin-http/admin-static": {
+      "types": "./dist/admin-http/admin-static.d.ts",
+      "import": "./dist/admin-http/admin-static.js",
+      "default": "./dist/admin-http/admin-static.js"
+    },
+    "./public-http/http/site/member-auth-script": {
+      "types": "./dist/public-http/http/site/member-auth-script.d.ts",
+      "import": "./dist/public-http/http/site/member-auth-script.js",
+      "default": "./dist/public-http/http/site/member-auth-script.js"
+    },
+    "./public-http/http/site/render/media-playback-copy": {
+      "types": "./dist/public-http/http/site/render/media-playback-copy.d.ts",
+      "import": "./dist/public-http/http/site/render/media-playback-copy.js",
+      "default": "./dist/public-http/http/site/render/media-playback-copy.js"
+    },
+    "./public-http/http/site/render/value-readers": {
+      "types": "./dist/public-http/http/site/render/value-readers.d.ts",
+      "import": "./dist/public-http/http/site/render/value-readers.js",
+      "default": "./dist/public-http/http/site/render/value-readers.js"
+    },
+    "./public-http/middleware/canonical-site-host": {
+      "types": "./dist/public-http/middleware/canonical-site-host.d.ts",
+      "import": "./dist/public-http/middleware/canonical-site-host.js",
+      "default": "./dist/public-http/middleware/canonical-site-host.js"
+    },
+    "./public-http/middleware/site-chat-static": {
+      "types": "./dist/public-http/middleware/site-chat-static.d.ts",
+      "import": "./dist/public-http/middleware/site-chat-static.js",
+      "default": "./dist/public-http/middleware/site-chat-static.js"
+    },
+    "./public-http/routes/site/chat-comparison-html": {
+      "types": "./dist/public-http/routes/site/chat-comparison-html.d.ts",
+      "import": "./dist/public-http/routes/site/chat-comparison-html.js",
+      "default": "./dist/public-http/routes/site/chat-comparison-html.js"
+    },
+    "./public-http/routes/site/pages/listing/listing-state": {
+      "types": "./dist/public-http/routes/site/pages/listing/listing-state.d.ts",
+      "import": "./dist/public-http/routes/site/pages/listing/listing-state.js",
+      "default": "./dist/public-http/routes/site/pages/listing/listing-state.js"
+    },
+    "./public-http/http/site/site-chat-markup": {
+      "types": "./dist/public-http/http/site/site-chat-markup.d.ts",
+      "import": "./dist/public-http/http/site/site-chat-markup.js",
+      "default": "./dist/public-http/http/site/site-chat-markup.js"
     }
   },
   "files": [
