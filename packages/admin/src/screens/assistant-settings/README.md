@@ -45,6 +45,15 @@ Architecture: [DR-005 portable package boundaries](../../../../../docs/decisions
   local structural copies in `visitor-credential-form-port.ts`; `ProviderPreset` is core's catalog
   shape. The two Save presses share the admin kit's `useSerialWrites` lane, so the hook needs
   `<AdminKitProvider>` above it.
+- `AdminAssistantSwitch` (all REQUIRED): `t`, `InfoTip` and `useAdminAssistantSwitchHook`
+  (normally `useAdminAssistantSwitch` from this folder, which reads this package's assistant-dock bus).
+- `AssistantDaemonRestart` (all REQUIRED): `t`, `description` (the host's explainer copy — it names the
+  product's own automatic retry), `useAssistantDaemonRestartHook` (the host's bound `useProcessRestart`
+  from `@jini-ai/admin/react`) and `useRestartAllowedHook` (the host's Local CLI execution-policy
+  verdict; `false` renders nothing).
+- `useAiAssistant(deps)`: `deps.port` (`AiAssistantPort` — get/set the public assistant settings) and
+  `deps.describeError` (the host's error-to-copy rule). Uses the kit's query hooks, so it needs
+  `<AdminKitProvider>` above it.
 
 **Provides**
 - `AssistantToggleRow` — checkbox or `role="switch"` row; classes `jini-assistant-toggle`,
@@ -70,10 +79,20 @@ Architecture: [DR-005 portable package boundaries](../../../../../docs/decisions
 - `VisitorToolsPanel` — per-tool Auto | Ask first | Off plus Save-only limits; classes
   `jini-visitor-tools*`, `jini-visitor-tool*`, `jini-visitor-tools-message--{warning,conflict,error}`
   (host styles them; buttons reuse the host's `btn-primary`/`btn-secondary`).
+- `AdminAssistantSwitch` — the dock open/close row; class `jini-assistant-switch` (host styles it).
+- `use-admin-assistant-switch.hooks` — `useAdminAssistantSwitch` (live `useSyncExternalStore` read of
+  the dock bus; `setOpen` is a request, never a write).
+- `AssistantDaemonRestart` — Restart / Check status buttons, result and status lines; classes
+  `jini-assistant-daemon-restart(-actions)`, `jini-assistant-muted`, `jini-assistant-save-line`,
+  `jini-save-error` (host styles them; buttons reuse `btn-secondary`). Also
+  `assistantDaemonStatusMessage`, `assistantRestartResultMessage`.
+- `use-ai-assistant.hooks` — `useAiAssistant`, `AiAssistantPort`, `AiAssistantDependencies`,
+  `AiAssistantController` (non-optimistic: the screen re-renders from the server's response).
 
 **Host binding files**: the admin's ai-assistant feature binds these in its
 `assistant-owner-grant-dependencies`, `visitor-tools-dependencies` and
-`assistant-daemon-restart-dependencies` hook modules.
+`assistant-daemon-restart-dependencies` hook modules; the screen file itself binds the dock switch,
+the restart gate (its `useHostAssistantRestartAllowed`) and the wired settings hook (`useWiredAiAssistant`).
 
 **Host wiring example**
 
