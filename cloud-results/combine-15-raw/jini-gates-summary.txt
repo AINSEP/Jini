@@ -1,0 +1,13 @@
+typecheck exit=0 secs=270
+tsc-scripts exit=0 secs=4
+guard exit=0 secs=107
+api-check exit=0 secs=28
+size exit=1 secs=50
+complexity exit=1 secs=61
+hooks exit=1 secs=1
+why-base exit=1 secs=16
+log-safety exit=1 secs=49
+error-gate exit=0 secs=44
+cross-package exit=1 secs=32
+guard-plugins exit=0 secs=2
+DONE
