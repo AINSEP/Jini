@@ -191,6 +191,16 @@ its public-origin policy and its logger. The external-MCP callback path and URL 
 (`externalMcpOAuthCallbackUrl({ origin, serverId })`) live in `oauth-callback-url.ts`, shared with the
 host's connect route.
 
+External MCP admin (`src/admin-http/routes/external-mcp/*`): list, put, delete, admissions, tool-approvals and
+OAuth disconnect authorize `admin.integrations.manage` on `integration` with no `entityId` (the hand-written
+guard's rule). The host injects its server store, roster fan-out, built-in ownership rules and its error
+classes as predicates; the PUT body parser (`put-body.ts`) runs after authorization, as before.
+
+Agent plugins admin (`src/admin-http/routes/agent-plugins/{list,files,set-enabled}`, DTO helper in
+`src/admin-http/http/agent-plugins.ts`): set-enabled authorizes with `{ entityId }` on `agent-plugin`; the id-free
+checks pass `entityType: ""`. The host injects its plugin catalog, activation service, MCP provisioning,
+package-file reader, error-class predicates and its activation-conflict copy.
+
 ## Scripts
 
 ```bash
