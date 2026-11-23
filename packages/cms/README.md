@@ -171,6 +171,13 @@ mounts one with `mountJsonRoute({ app, spec, deps })` from `@jini-ai/http-kit`, 
 and its `authorize` port. Redirect by-id routes (get, hits, update, tombstone) authorize with
 `{ entityId }`; list and import stay id-free. Tests inject typed fakes through those same deps.
 
+Menus (`src/admin-http/routes/menus/*`, DTOs in `src/admin-http/http/menus.ts`): get-by-id,
+update-tree, assign-location and delete authorize `admin.menus.*` with `{ entityId }`; list and
+create stay id-free. The host injects what is its policy, not the engine's: `rawHtmlPermission`
+(the extra permission a write carrying HTML needs), `normalizeMenuHtml` (a Node host binds
+`normalizeMenuHtml` from `@jini-ai/cms/navigation/node`) and `trashMenu` (the host's trash move).
+Malformed bodies are refused in `parse` with the host's code-less `{ error }` body.
+
 ## Scripts
 
 ```bash
