@@ -172,7 +172,8 @@
       "./admin-http/routes/external-mcp/delete": "universal",
       "./admin-http/routes/external-mcp/put": "universal",
       "./admin-http/routes/external-mcp/tool-approvals": "universal",
-      "./admin-http/routes/external-mcp/oauth-disconnect": "universal"
+      "./admin-http/routes/external-mcp/oauth-disconnect": "universal",
+      "./admin-http/routes/agent-plugins/connection-sign-in": "universal"
     },
     "isolation": {
       "domains": {
@@ -1089,6 +1090,11 @@
       "types": "./dist/admin-http/routes/external-mcp/oauth-disconnect.d.ts",
       "import": "./dist/admin-http/routes/external-mcp/oauth-disconnect.js",
       "default": "./dist/admin-http/routes/external-mcp/oauth-disconnect.js"
+    },
+    "./admin-http/routes/agent-plugins/connection-sign-in": {
+      "types": "./dist/admin-http/routes/agent-plugins/connection-sign-in.d.ts",
+      "import": "./dist/admin-http/routes/agent-plugins/connection-sign-in.js",
+      "default": "./dist/admin-http/routes/agent-plugins/connection-sign-in.js"
     }
   },
   "files": [

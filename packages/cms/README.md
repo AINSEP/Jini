@@ -199,7 +199,9 @@ classes as predicates; the PUT body parser (`put-body.ts`) runs after authorizat
 Agent plugins admin (`src/admin-http/routes/agent-plugins/{list,files,set-enabled}`, DTO helper in
 `src/admin-http/http/agent-plugins.ts`): set-enabled authorizes with `{ entityId }` on `agent-plugin`; the id-free
 checks pass `entityType: ""`. The host injects its plugin catalog, activation service, MCP provisioning,
-package-file reader, error-class predicates and its activation-conflict copy.
+package-file reader, error-class predicates and its activation-conflict copy. The hosted sign-in hop
+(`connection-sign-in.ts`, a 302 + binding cookie) is a `ServerRoute` factory: the host injects its path, its
+session-credential readers, the handoff store, the cookie rule and its failure page.
 
 ## Scripts
 
