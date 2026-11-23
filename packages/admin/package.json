@@ -152,6 +152,13 @@
       "./shell/components/AssistantDock/local-cli-selection-echo": "browser",
       "./shell/components/AssistantDock/MessageOverflowModal.hooks": "browser",
       "./shell/components/AssistantDock/SlowRunNoticeCard.hooks": "browser",
+      "./shell/components/AdminByokKeyPanel.hooks": "browser",
+      "./shell/components/shared-components-i18n": "browser",
+      "./shell/components/AssistantDock/MessageOverflowModal": "browser",
+      "./shell/components/AssistantDock/SelectedAgentPluginTray": "browser",
+      "./shell/components/AssistantDock/SlowRunNoticeCard": "browser",
+      "./shell/components/AssistantDock/agent-failure": "browser",
+      "./shell/components/AssistantDock/hooks/use-routed-a2ui-surface-card.hooks": "browser",
       "./shell/components/CodeView/preview-modal-icons": "browser",
       "./shell/components/InstallTabCard/use-folder-upload.hooks": "browser",
       "./shell/components/Select/Select.hooks": "browser",
@@ -277,6 +284,13 @@
         "./shell/components/AssistantDock/local-cli-selection-echo": "browser",
         "./shell/components/AssistantDock/MessageOverflowModal.hooks": "browser",
         "./shell/components/AssistantDock/SlowRunNoticeCard.hooks": "browser",
+        "./shell/components/AdminByokKeyPanel.hooks": "browser",
+        "./shell/components/shared-components-i18n": "browser",
+        "./shell/components/AssistantDock/MessageOverflowModal": "browser",
+        "./shell/components/AssistantDock/SelectedAgentPluginTray": "browser",
+        "./shell/components/AssistantDock/SlowRunNoticeCard": "browser",
+        "./shell/components/AssistantDock/agent-failure": "browser",
+        "./shell/components/AssistantDock/hooks/use-routed-a2ui-surface-card.hooks": "browser",
         "./shell/components/CodeView/preview-modal-icons": "browser",
         "./shell/components/InstallTabCard/use-folder-upload.hooks": "browser",
         "./shell/components/Select/Select.hooks": "browser",
@@ -980,6 +994,41 @@
       "types": "./dist/shell/components/AssistantDock/SlowRunNoticeCard.hooks.d.ts",
       "import": "./dist/shell/components/AssistantDock/SlowRunNoticeCard.hooks.js",
       "default": "./dist/shell/components/AssistantDock/SlowRunNoticeCard.hooks.js"
+    },
+    "./shell/components/AdminByokKeyPanel.hooks": {
+      "types": "./dist/shell/components/AdminByokKeyPanel.hooks.d.ts",
+      "import": "./dist/shell/components/AdminByokKeyPanel.hooks.js",
+      "default": "./dist/shell/components/AdminByokKeyPanel.hooks.js"
+    },
+    "./shell/components/shared-components-i18n": {
+      "types": "./dist/shell/components/shared-components-i18n.d.ts",
+      "import": "./dist/shell/components/shared-components-i18n.js",
+      "default": "./dist/shell/components/shared-components-i18n.js"
+    },
+    "./shell/components/AssistantDock/MessageOverflowModal": {
+      "types": "./dist/shell/components/AssistantDock/MessageOverflowModal.d.ts",
+      "import": "./dist/shell/components/AssistantDock/MessageOverflowModal.js",
+      "default": "./dist/shell/components/AssistantDock/MessageOverflowModal.js"
+    },
+    "./shell/components/AssistantDock/SelectedAgentPluginTray": {
+      "types": "./dist/shell/components/AssistantDock/SelectedAgentPluginTray.d.ts",
+      "import": "./dist/shell/components/AssistantDock/SelectedAgentPluginTray.js",
+      "default": "./dist/shell/components/AssistantDock/SelectedAgentPluginTray.js"
+    },
+    "./shell/components/AssistantDock/SlowRunNoticeCard": {
+      "types": "./dist/shell/components/AssistantDock/SlowRunNoticeCard.d.ts",
+      "import": "./dist/shell/components/AssistantDock/SlowRunNoticeCard.js",
+      "default": "./dist/shell/components/AssistantDock/SlowRunNoticeCard.js"
+    },
+    "./shell/components/AssistantDock/agent-failure": {
+      "types": "./dist/shell/components/AssistantDock/agent-failure.d.ts",
+      "import": "./dist/shell/components/AssistantDock/agent-failure.js",
+      "default": "./dist/shell/components/AssistantDock/agent-failure.js"
+    },
+    "./shell/components/AssistantDock/hooks/use-routed-a2ui-surface-card.hooks": {
+      "types": "./dist/shell/components/AssistantDock/hooks/use-routed-a2ui-surface-card.hooks.d.ts",
+      "import": "./dist/shell/components/AssistantDock/hooks/use-routed-a2ui-surface-card.hooks.js",
+      "default": "./dist/shell/components/AssistantDock/hooks/use-routed-a2ui-surface-card.hooks.js"
     },
     "./shell/components/CodeView/preview-modal-icons": {
       "types": "./dist/shell/components/CodeView/preview-modal-icons.d.ts",

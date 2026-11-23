@@ -298,3 +298,18 @@ inputs; Jini never names one.
 - `createBrowserWorkingDirectoryAccess({ recentDirectoryNamesStorageKey })`
   (`shell/lib/browser-working-directory-access`) returns the native `ChatPaneWorkingDirectoryAccess`
   (kit type mirror) or `undefined` where the File System Access API is missing.
+
+## Wiring: shell dock components and shared copy (`shell/components`)
+
+- `shell/components/shared-components-i18n` holds the shared components' dictionary, falling back to
+  `ADMIN_COMMON_I18N` (`core/i18n-common`); a host's own branded common entries stay in the host.
+  `shell/components/AdminByokKeyPanel.hooks` binds it per locale.
+- `shell/components/AssistantDock/agent-failure` wraps a `ChatTransport` (kit type mirror) so a run's
+  failure surfaces as an `agent_failure` ext event with redacted details.
+- `MessageOverflowModal`, `SelectedAgentPluginTray` and `SlowRunNoticeCard` take the host's chat
+  translator hook as a required `useTHook` prop; `MessageOverflowModal` also takes its required
+  `useModal` (the host passes `useMessageOverflowModal`). `SelectedAgentPluginTray` renders the kit
+  `Icon`, so it needs `<AdminKitProvider>`. The modal renders `jini-message-overflow-modal{,-close,-body}`
+  classes; the host styles them.
+- `shell/components/AssistantDock/hooks/use-routed-a2ui-surface-card.hooks` reads only `events` and
+  `onAgentAction` from the a2ui card props (`A2uiSurfaceCardProps`, a structural kit mirror).

@@ -78,6 +78,11 @@ export interface ExtEventRenderProps {
   runId: string | undefined; call?: ExtEventCall; answered?: boolean; onAnswered?: () => void; onAnswerText?: (answerText: string) => void;
   answerText?: string; answerRecorded?: boolean;
 }
+/** The a2ui card props a host-side wrapper reads: the ext-event props plus the agent-action relay
+ *  (a structural subset of the chat library's card props; the card's clock and registry stay host-side). */
+export interface A2uiSurfaceCardProps extends ExtEventRenderProps {
+  onAgentAction?: (runId: string | undefined, message: unknown) => void | Promise<KitA2uiActionDeliveryOutcome>;
+}
 export interface ChatPaneAgentOption {
   id: string; label: string; identityKind?: 'concrete' | 'alias' | 'routing-mode'; resolvedId?: string; reasoning?: readonly ChatPaneAgentOption[];
 }
