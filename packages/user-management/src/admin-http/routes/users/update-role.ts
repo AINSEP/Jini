@@ -22,7 +22,7 @@ const ROLE_UPDATE_ERRORS = [ACCESS_FORBIDDEN, ACCESS_VALIDATION, ACCESS_NOT_FOUN
 export const roleUpdateRoute = defineJsonRoute<{ roleId: string; name: string }, { role: AdminRoleResponse }, RoleUpdateRouteDeps, AccessRoutePrincipal>({
   method: "patch",
   path: "/api/admin/v1/workspaces/:workspaceId/roles/:roleId",
-  parse: (raw) => ok({ value: { roleId: accessPathParam(raw.params, "roleId"), name: String(accessBody(raw.body).name ?? "") } }),
+  parse: (raw) => ok({ value: { roleId: accessPathParam({ params: raw.params, name: "roleId" }), name: String(accessBody({ body: raw.body }).name ?? "") } }),
   handle: async ({ input, deps, context }) => {
     const callerPrincipalId = accessActorId({ context });
     try {

@@ -19,7 +19,7 @@ const ROLE_CREATE_ERRORS = [ACCESS_FORBIDDEN, ACCESS_VALIDATION] as const;
 export const roleCreateRoute = defineJsonRoute<{ name: string }, { role: AdminRoleResponse }, RoleCreateRouteDeps, AccessRoutePrincipal>({
   method: "post",
   path: "/api/admin/v1/workspaces/:workspaceId/roles",
-  parse: (raw) => ok({ value: { name: String(accessBody(raw.body).name ?? "") } }),
+  parse: (raw) => ok({ value: { name: String(accessBody({ body: raw.body }).name ?? "") } }),
   handle: async ({ input, deps, context }) => {
     const callerPrincipalId = accessActorId({ context });
     try {

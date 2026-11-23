@@ -12,7 +12,7 @@ export interface RoleDeleteRouteDeps extends AccessServiceRouteDeps {
   deleteRole: typeof deleteRole;
 }
 
-const ROLE_DELETE_ERRORS = [ACCESS_FORBIDDEN, accessConflictOn("roleId"), ACCESS_VALIDATION, ACCESS_NOT_FOUND] as const;
+const ROLE_DELETE_ERRORS = [ACCESS_FORBIDDEN, accessConflictOn({ field: "roleId" }), ACCESS_VALIDATION, ACCESS_NOT_FOUND] as const;
 
 /**
  * DELETE roles/:roleId — `DELETE_ROLE` (SPEC-006 0.6.0, REQ-19/INV-09). Gated by `role.manage`; a
@@ -22,7 +22,7 @@ const ROLE_DELETE_ERRORS = [ACCESS_FORBIDDEN, accessConflictOn("roleId"), ACCESS
 export const roleDeleteRoute = defineJsonRoute<{ roleId: string }, undefined, RoleDeleteRouteDeps, AccessRoutePrincipal>({
   method: "delete",
   path: "/api/admin/v1/workspaces/:workspaceId/roles/:roleId",
-  parse: (raw) => ok({ value: { roleId: accessPathParam(raw.params, "roleId") } }),
+  parse: (raw) => ok({ value: { roleId: accessPathParam({ params: raw.params, name: "roleId" }) } }),
   handle: async ({ input, deps, context }) => {
     const callerPrincipalId = accessActorId({ context });
     try {

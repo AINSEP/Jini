@@ -12,7 +12,7 @@ export interface PolicyDeleteRouteDeps extends AccessServiceRouteDeps {
   deletePolicy: typeof deletePolicy;
 }
 
-const POLICY_DELETE_ERRORS = [ACCESS_FORBIDDEN, accessConflictOn("policyId"), ACCESS_VALIDATION, ACCESS_NOT_FOUND] as const;
+const POLICY_DELETE_ERRORS = [ACCESS_FORBIDDEN, accessConflictOn({ field: "policyId" }), ACCESS_VALIDATION, ACCESS_NOT_FOUND] as const;
 
 /**
  * DELETE policies/:policyId — `DELETE_POLICY` (SPEC-006 0.6.0, REQ-19/INV-09). Gated by
@@ -22,7 +22,7 @@ const POLICY_DELETE_ERRORS = [ACCESS_FORBIDDEN, accessConflictOn("policyId"), AC
 export const policyDeleteRoute = defineJsonRoute<{ policyId: string }, undefined, PolicyDeleteRouteDeps, AccessRoutePrincipal>({
   method: "delete",
   path: "/api/admin/v1/workspaces/:workspaceId/policies/:policyId",
-  parse: (raw) => ok({ value: { policyId: accessPathParam(raw.params, "policyId") } }),
+  parse: (raw) => ok({ value: { policyId: accessPathParam({ params: raw.params, name: "policyId" }) } }),
   handle: async ({ input, deps, context }) => {
     const callerPrincipalId = accessActorId({ context });
     try {

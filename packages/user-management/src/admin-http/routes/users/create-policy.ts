@@ -24,8 +24,8 @@ export const policyCreateRoute = defineJsonRoute<{ name: string; description: st
   path: "/api/admin/v1/workspaces/:workspaceId/policies",
   // This route's `name`/`description` POST fields, read off an untyped body in one place.
   parse: (raw) => {
-    const body = accessBody(raw.body);
-    return ok({ value: { name: String(body.name ?? ""), description: optionalString(body.description) } });
+    const body = accessBody({ body: raw.body });
+    return ok({ value: { name: String(body.name ?? ""), description: optionalString({ value: body.description }) } });
   },
   handle: async ({ input, deps, context }) => {
     const callerPrincipalId = accessActorId({ context });

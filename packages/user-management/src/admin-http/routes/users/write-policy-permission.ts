@@ -38,10 +38,10 @@ export const policyPermissionWriteRoute = defineJsonRoute<PolicyPermissionWriteI
   path: "/api/admin/v1/workspaces/:workspaceId/policies/:policyId/permissions",
   // Coerce the HTTP payload while leaving grant validation to the identity service.
   parse: (raw) => {
-    const body = accessBody(raw.body);
+    const body = accessBody({ body: raw.body });
     return ok({ value: {
-      policyId: accessPathParam(raw.params, "policyId"), permission: String(body.permission ?? ""), requestedPermission: body.permission,
-      resourceType: optionalString(body.resourceType), constraintJson: optionalString(body.constraintJson),
+      policyId: accessPathParam({ params: raw.params, name: "policyId" }), permission: String(body.permission ?? ""), requestedPermission: body.permission,
+      resourceType: optionalString({ value: body.resourceType }), constraintJson: optionalString({ value: body.constraintJson }),
     } });
   },
   handle: async ({ input, deps, context }) => {
@@ -52,7 +52,7 @@ export const policyPermissionWriteRoute = defineJsonRoute<PolicyPermissionWriteI
       rejectRoute({ status: 403, error: deps.ungrantablePermissionRefusal, code: "FORBIDDEN" });
     }
     // `PermissionUnknownError` echoes the request's own permission, so this ladder is per request.
-    const mappings = [ACCESS_FORBIDDEN, ACCESS_GRANT_EXCEEDS_ISSUER, accessPermissionUnknown(input.requestedPermission), ACCESS_VALIDATION, ACCESS_NOT_FOUND];
+    const mappings = [ACCESS_FORBIDDEN, ACCESS_GRANT_EXCEEDS_ISSUER, accessPermissionUnknown({ requested: input.requestedPermission }), ACCESS_VALIDATION, ACCESS_NOT_FOUND];
     try {
       const { policyPermission } = await deps.writePolicyPermission(
         { deps: deps.identityServiceDeps(), input: { workspaceId: deps.workspaceId, callerPrincipalId, policyId: input.policyId, permission: input.permission } },

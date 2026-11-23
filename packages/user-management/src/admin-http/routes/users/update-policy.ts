@@ -27,8 +27,8 @@ export const policyUpdateRoute = defineJsonRoute<PolicyUpdateInput, { policy: Ad
   method: "patch",
   path: "/api/admin/v1/workspaces/:workspaceId/policies/:policyId",
   parse: (raw) => {
-    const body = accessBody(raw.body);
-    return ok({ value: { policyId: accessPathParam(raw.params, "policyId"), name: optionalString(body.name), description: optionalString(body.description) } });
+    const body = accessBody({ body: raw.body });
+    return ok({ value: { policyId: accessPathParam({ params: raw.params, name: "policyId" }), name: optionalString({ value: body.name }), description: optionalString({ value: body.description }) } });
   },
   handle: async ({ input, deps, context }) => {
     const callerPrincipalId = accessActorId({ context });

@@ -59,13 +59,13 @@ export const ACCESS_GRANT_EXCEEDS_ISSUER = rung({ errorClass: GrantExceedsIssuer
 export const ACCESS_OWNER_REQUIRED = rung({ errorClass: OwnerRequiredError, status: 409, body: (err) => ({ error: err.message, code: "OWNER_REQUIRED" }) });
 
 /** A still-referenced delete target (INV-09): 409 naming the id field the client sent. @complexity O(1). */
-export function accessConflictOn(field: string): AccessErrorMapping {
+export function accessConflictOn({ field }: { field: string }, _optional: Record<string, never> = {}): AccessErrorMapping {
   return rung({ errorClass: IdentityConflictError, status: 409, body: (err) => ({ error: err.message, code: "RESOURCE_CONFLICT", details: { field } }) });
 }
 
 /** An unregistered permission: 400 echoing the permission exactly as the client sent it (raw, not
  *  coerced — an absent one drops out of the JSON, as `req.body?.permission` did). @complexity O(1). */
-export function accessPermissionUnknown(requested: unknown): AccessErrorMapping {
+export function accessPermissionUnknown({ requested }: { requested: unknown }, _optional: Record<string, never> = {}): AccessErrorMapping {
   return rung({ errorClass: PermissionUnknownError, status: 400, body: (err) => ({ error: err.message, code: "PERMISSION_UNKNOWN", details: { permission: requested } }) });
 }
 
@@ -89,16 +89,16 @@ export function accessActorId({ context }: { context: AccessRoutePrincipal | und
 
 /** One path segment; Express always fills it, the `?? ""` keeps the hand-written guard (an absent id
  *  becomes an honest not-found from the service, never a wildcard). @complexity O(1). */
-export function accessPathParam(params: Record<string, string | undefined>, name: string): string {
+export function accessPathParam({ params, name }: { params: Record<string, string | undefined>; name: string }, _optional: Record<string, never> = {}): string {
   return String(params[name] ?? "");
 }
 
 /** The untyped JSON body as a record (`req.body ?? {}`). @complexity O(1). */
-export function accessBody(body: unknown): Record<string, unknown> {
+export function accessBody({ body }: { body: unknown }, _optional: Record<string, never> = {}): Record<string, unknown> {
   return (body ?? {}) as Record<string, unknown>;
 }
 
 /** An optional string field: `undefined` means "absent / leave unchanged", anything else is coerced. @complexity O(1). */
-export function optionalString(value: unknown): string | undefined {
+export function optionalString({ value }: { value: unknown }, _optional: Record<string, never> = {}): string | undefined {
   return value !== undefined ? String(value) : undefined;
 }
