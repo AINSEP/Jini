@@ -1,4 +1,4 @@
-PARTIAL: codex/ex2-holds-tovu-jini FIX 1-3 in progress
+DONE
 
 # fix-rv-e-jini — review rv-e FIX run (Jini)
 
@@ -36,6 +36,31 @@ Frozen install 0 · `pnpm -r build` 0 · dependents of platform+db build 0 · `p
 ### Tovu follow-up (not pushed — `codex/st-ready-tovu` is APPROVED and out of scope)
 `apps/website/src/features/storage/__tests__/measure.test.ts:92` fakes the old `{ lstat, readdir }` port and will not compile against FIX 4. Migration:
 `{ lstat: nodeStorageTreeFs.lstat, openDirectory: async t => { if (t === locked) throw EACCES; return nodeStorageTreeFs.openDirectory(t); } }` (import `nodeStorageTreeFs` from `@jini-ai/platform/retention`). `measure.ts` itself only forwards `fs`, unchanged.
+
+## `codex/ex2-holds-tovu-jini` — all three FIX items applied
+
+| # | item | commit |
+|---|---|---|
+| 1 | `importPolicy` moved from `StartTier2WorkerRequired` to `StartTier2WorkerOptional`: the pre-policy call shape compiles and runs unchanged (resolver, then import, no policy). Regression test for the old shape sits beside the policy-order test. | `6fe48656` (with FIX 2: same files and tests) |
+| 2 | Policy package = host-registered root. `Tier2ImportPolicyRequired.packageRoot` (required); `tier2ImportPolicyData` realpaths it and refuses an entry outside it (or equal to it). `Tier2PluginRef.packageRoot?` added; `createTier2ImportSeam` fills it from the loader's `plugin.packageRoot`, mapped onto a site snapshot by the entry's relative path (`undefined` when the snapshot does not mirror it). A policy-carrying worker with no `packageRoot` fails closed at the import stage. `runTier2Call` uses the registered root when sent (legacy guess otherwise, seam info only). Extra trust stays keyed to the exact entry. Installed (`<pkg>/server/index.mjs`) and built-in (`<sourceDir>/index.mjs`) layouts pinned. | `6fe48656` |
+| 3 | `api-baseline/jini-ai__plugins.json` regenerated (7 added policy exports; `StartTier2WorkerOptional`, `Tier2PluginRef` changed); `.changeset/c043-tier2-import-policy.md` (Plugins patch). | `13d8cba5` |
+
+### Tests
+- `import-policy.unit.test.ts`: +4 (built-in sourceDir layout + sibling stays SDK-only, entry outside/equal root refused, old call shape, policy without root fails closed); existing calls moved to the optional arg, packageRoot pinned in the order test; the malformed-URL test now runs the real policy computation (only Node `register()` stubbed), since the registered root no longer forces the URL parse in `runTier2Call`.
+- `tier2-import-seam.unit.test.ts`: +2 (snapshot mapping + built-in root, non-mirroring snapshot carries no root); the probe-shape assertion now includes `packageRoot`. Support wrapper takes an optional `packageRoot`.
+- `l1c1.extract-s6.unit.test.ts`: policy moved to the optional arg; request carries `packageRoot`.
+- Targeted files 80 → 87 tests.
+
+### Named mutations (red, then restored green)
+- FIX 1 always register a default policy → old-call-shape + fail-closed tests red.
+- FIX 2 grandparent `packageUrl` → built-in layout test red; drop containment check → outside-root test red; guess root instead of failing closed → fail-closed test red; seam always forwards the registered root → both seam tests red.
+
+### Verify (ex2-holds-tovu-jini tip `13d8cba5`)
+Frozen install 0 · plugins + dependents build 0 · `pnpm typecheck` 0 · `pnpm guard` 0 · `pnpm api:check` 0 · plugins 1030 passed (77 files).
+
+### Tovu follow-up (not pushed — run scope was Jini-side only)
+- `codex/ex2-holds-tovu` `apps/website/src/server/runtime/plugin-tier2/worker.ts:62`: move `importPolicy: TIER2_IMPORT_POLICY` from the first argument to the second — `startTier2Worker({ ...required, binding, registerSdkResolver, realImport }, { ...optional, importPolicy: TIER2_IMPORT_POLICY })` — keeping the policy explicit. Without this the call is a TS excess-property error against the fixed Jini. No other Tovu change is needed for the root: the Jini seam now sends the loader's registered root, so the content analyzer's `sourceDir` becomes its package (Tovu's registration must pass the analyzer's `sourceDir` as `pluginRoot`, which the review says it declares).
+- Not linked-verified: Tovu pins `@jini-ai/plugins ^0.7.2` from the registry, and this run changed no Tovu file, so the Tovu link/typecheck/vitest step was not run.
 
 ## ex3-review-c0b-holds-jini items
 Already on their branches before this run (checked `git log`): site-key `hex` keyof assertion `56c60415` (`codex/ex3-c0b-jini`); RT-1 type owners + db.ts comment, RT-2 injection assertion + ports.ts comment, core changeset patch `554b7fde`; consumer inventory `11d47b47` (`codex/ex2-holds-jini`). Nothing re-applied.
