@@ -1537,7 +1537,7 @@
  "./shell/hooks/use-cms-sidebar-label-tooltips.hooks": {
   "types": "./dist/shell/hooks/use-cms-sidebar-label-tooltips.hooks.d.ts",
   "symbols": {
-   "useCmsSidebarLabelTooltips": "function:1566d4f54f"
+   "useCmsSidebarLabelTooltips": "function:8a9e7d679f"
   }
  },
  "./shell/hooks/use-content-refresh-subscription.hooks": {
@@ -1578,8 +1578,8 @@
  "./shell/hooks/use-list-table-cell-labels.hooks": {
   "types": "./dist/shell/hooks/use-list-table-cell-labels.hooks.d.ts",
   "symbols": {
-   "labelListTableCells": "function:2c3de21694",
-   "useListTableCellLabels": "function:75f7946302"
+   "labelListTableCells": "function:6289d78724",
+   "useListTableCellLabels": "function:5573657215"
   }
  },
  "./shell/hooks/use-sidebar-empty-click-toggle.hooks": {
@@ -1704,8 +1704,8 @@
  "./shell/lib/credential-card-guidance": {
   "types": "./dist/shell/lib/credential-card-guidance.d.ts",
   "symbols": {
-   "guideToPendingCredentialCard": "function:9bc6d4e05d",
-   "onAdminSecretRedacted": "function:d2a4c10319"
+   "guideToPendingCredentialCard": "function:a158609336",
+   "onAdminSecretRedacted": "function:d2dc521fc5"
   }
  },
  "./shell/lib/editor-failure-i18n": {

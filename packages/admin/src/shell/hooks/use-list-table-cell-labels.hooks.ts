@@ -47,8 +47,8 @@ function labelRow(row: HTMLTableRowElement, labels: readonly string[]): void {
  *
  * @complexity O(cells) under `root`.
  */
-export function labelListTableCells(root: ParentNode): void {
-  for (const table of Array.from(root.querySelectorAll<HTMLTableElement>("table.list-table"))) {
+export function labelListTableCells({ root, tableSelector }: { root: ParentNode; tableSelector: string }, _options: Record<string, never> = {}): void {
+  for (const table of Array.from(root.querySelectorAll<HTMLTableElement>(tableSelector))) {
     const labels = headerLabels(table);
     if (labels.length === 0) continue;
     for (const body of Array.from(table.tBodies)) {
@@ -65,12 +65,15 @@ export function labelListTableCells(root: ParentNode): void {
  * `requestAnimationFrame` on top, because rAF never fires in a background tab and the labels
  * would silently stop updating there.
  */
-export function useListTableCellLabels({ root }: { root: HTMLElement | null }, _options = {}): void {
+export function useListTableCellLabels(
+  { root, tableSelector }: { root: HTMLElement | null; /** The host's list-table selector (its markup). */ tableSelector: string },
+  _options = {},
+): void {
   useEffect(() => {
     if (!root) return undefined;
-    labelListTableCells(root);
-    const observer = new MutationObserver(() => labelListTableCells(root));
+    labelListTableCells({ root, tableSelector });
+    const observer = new MutationObserver(() => labelListTableCells({ root, tableSelector }));
     observer.observe(root, { childList: true, subtree: true, characterData: true });
     return () => observer.disconnect();
-  }, [root]);
+  }, [root, tableSelector]);
 }
