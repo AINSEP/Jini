@@ -32,6 +32,11 @@
       "@jini-ai/ui-kit": "opt-in: ui kit integrations; import @jini-ai/user-management/react — UI kit integrations could not load @jini-ai/ui-kit. Install @jini-ai/ui-kit to enable this feature, or check its installed version and native binaries.",
       "react": "opt-in: react user-management ui; import @jini-ai/user-management/react — React user-management UI could not load react. Install react to enable this feature, or check its installed version.",
       "react-dom": "opt-in: react user-management ui; import @jini-ai/user-management/react — React user-management UI could not load react-dom. Install react-dom to enable this feature, or check its installed version."
+    },
+    "isolation": {
+      "entries": {
+        "./member-login/oidc-login": "server"
+      }
     }
   },
   "type": "module",
