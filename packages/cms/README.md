@@ -262,3 +262,8 @@ mounted by Tovu (the mount waits on a route-table pin decision); the folder-pick
 served workspace and one injected status read (`readCommerceStatus`); the host binds that read to whichever payment runtime it
 composed (or none), so cms does not depend on the Commerce package. Authorizes `admin.integrations.manage` on `integration`;
 a reader failure is not caught and reaches the host's redacted error port.
+
+`./admin-http/routes/site/profile`: the admin site-profile route with its `parseSections`/`parsePageLimit` query parsers. The
+host injects the profile builder plus the builder's own section vocabulary and page cap. The route authorizes nothing itself
+(every section is authorized inside the builder as the authenticated principal); a malformed query is a flat 400
+`VALIDATION_ERROR`, checked after the principal as before; a builder failure reaches the host's redacted error port.

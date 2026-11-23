@@ -409,6 +409,19 @@
    "authorizeChangeFeed": "function:3d00199129"
   }
  },
+ "./admin-http/routes/site/profile": {
+  "types": "./dist/admin-http/routes/site/profile.d.ts",
+  "symbols": {
+   "SiteProfileBuildFn": "type:dc5ca48086",
+   "SiteProfileOptions": "interface:5a3a521b3a",
+   "SiteProfileQueryInput": "interface:5db3ca6a79",
+   "SiteProfileRouteDeps": "interface:28406c5cc2",
+   "SiteProfileRoutePrincipal": "interface:01adafb525",
+   "parsePageLimit": "function:a7f2111407",
+   "parseSections": "function:7d648e270a",
+   "siteProfileRoute": "variable:4b1b01039e"
+  }
+ },
  "./admin-http/routes/sites/local-sites": {
   "types": "./dist/admin-http/routes/sites/local-sites.d.ts",
   "symbols": {

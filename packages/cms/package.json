@@ -185,7 +185,8 @@
       "./admin-http/routes/skills/guidance": "universal",
       "./admin-http/routes/fs-files/custom-root": "universal",
       "./public-http/routes/ops/health": "universal",
-      "./admin-http/routes/commerce/status": "universal"
+      "./admin-http/routes/commerce/status": "universal",
+      "./admin-http/routes/site/profile": "universal"
     },
     "isolation": {
       "domains": {
@@ -1173,6 +1174,11 @@
       "types": "./dist/admin-http/routes/commerce/status.d.ts",
       "import": "./dist/admin-http/routes/commerce/status.js",
       "default": "./dist/admin-http/routes/commerce/status.js"
+    },
+    "./admin-http/routes/site/profile": {
+      "types": "./dist/admin-http/routes/site/profile.d.ts",
+      "import": "./dist/admin-http/routes/site/profile.js",
+      "default": "./dist/admin-http/routes/site/profile.js"
     }
   },
   "files": [
