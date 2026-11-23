@@ -366,19 +366,26 @@
   "symbols": {
    "CreateTier2ImportSeamOptional": "interface:851bca2024",
    "CreateTier2ImportSeamRequired": "interface:6d680c7c0a",
+   "RegisterTier2ImportPolicyOptional": "interface:db0da02d42",
    "RunTier2CallOptional": "type:826b4f1e21",
    "RunTier2CallRequired": "interface:b483102fd8",
-   "StartTier2WorkerOptional": "interface:7791f10c21",
+   "StartTier2WorkerOptional": "interface:1dc05375b2",
    "StartTier2WorkerRequired": "interface:aaf35dde5d",
    "Tier2CallRunner": "type:b23fe84245",
    "Tier2FailureStage": "type:87cd50bfd4",
-   "Tier2PluginRef": "interface:db2050cce4",
+   "Tier2ImportPolicy": "interface:96d2c9c581",
+   "Tier2ImportPolicyData": "interface:51211c67c3",
+   "Tier2ImportPolicyRequired": "interface:b9e6f77eac",
+   "Tier2PluginRef": "interface:1c4a152e3a",
    "Tier2Reply": "type:a3732eafc2",
    "Tier2Request": "type:8a4d1b3c6f",
+   "Tier2TrustedImports": "interface:90a1bef4f3",
    "createTier2ImportSeam": "function:3609396d3f",
    "decodeTier2Reply": "function:0567063b96",
+   "registerTier2ImportPolicy": "function:cf9334efa3",
    "runTier2Call": "function:a7c0abffa3",
-   "startTier2Worker": "function:6845ec97b2"
+   "startTier2Worker": "function:6845ec97b2",
+   "tier2ImportPolicyData": "function:48c7e56406"
   }
  }
 }
