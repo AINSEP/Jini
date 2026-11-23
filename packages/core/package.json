@@ -168,7 +168,12 @@
       "./contracts/site/integrations-credentialed-http": "universal",
       "./contracts/site/widgets-html": "universal",
       "./contracts/site/integrations-api-connections": "universal",
-      "./contracts/agents/inventory": "universal"
+      "./contracts/agents/inventory": "universal",
+      "./tool-metadata/deploy-ops": "universal",
+      "./tool-metadata/deployments": "universal",
+      "./tool-metadata/domain-dns": "universal",
+      "./tool-metadata/site-backup": "universal",
+      "./tool-metadata/source-control": "universal"
     },
     "isolation": {
       "entries": {
@@ -890,6 +895,31 @@
       "types": "./dist/contracts/headless/site-cookie-consent.d.ts",
       "import": "./dist/contracts/headless/site-cookie-consent.js",
       "default": "./dist/contracts/headless/site-cookie-consent.js"
+    },
+    "./tool-metadata/deploy-ops": {
+      "types": "./dist/tool-metadata/deploy-ops.d.ts",
+      "import": "./dist/tool-metadata/deploy-ops.js",
+      "default": "./dist/tool-metadata/deploy-ops.js"
+    },
+    "./tool-metadata/deployments": {
+      "types": "./dist/tool-metadata/deployments.d.ts",
+      "import": "./dist/tool-metadata/deployments.js",
+      "default": "./dist/tool-metadata/deployments.js"
+    },
+    "./tool-metadata/domain-dns": {
+      "types": "./dist/tool-metadata/domain-dns.d.ts",
+      "import": "./dist/tool-metadata/domain-dns.js",
+      "default": "./dist/tool-metadata/domain-dns.js"
+    },
+    "./tool-metadata/site-backup": {
+      "types": "./dist/tool-metadata/site-backup.d.ts",
+      "import": "./dist/tool-metadata/site-backup.js",
+      "default": "./dist/tool-metadata/site-backup.js"
+    },
+    "./tool-metadata/source-control": {
+      "types": "./dist/tool-metadata/source-control.d.ts",
+      "import": "./dist/tool-metadata/source-control.js",
+      "default": "./dist/tool-metadata/source-control.js"
     },
     "./tool-metadata/analytics": {
       "types": "./dist/tool-metadata/analytics.d.ts",

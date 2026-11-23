@@ -47,7 +47,14 @@
       "./checks/quality-gates": "universal",
       "./checks/complexity-debt": "universal",
       "./checks/live-verify-checks": "universal",
-      "./packaging/electron/move-to-applications": "node"
+      "./packaging/electron/move-to-applications": "node",
+      "./deploy/site/agent-tools": "universal",
+      "./deploy/site/deploy-targets/types": "universal",
+      "./deploy/site/dockerfile": "node",
+      "./deploy/site/publish-credentials/execution-mode": "universal",
+      "./deploy/site/static-publish/domain-publish-rows": "universal",
+      "./deploy/site/static-publish/types": "universal",
+      "./source-control/site/saved-key-bindings": "universal"
     },
     "isolation": {
       "shared": [
@@ -241,6 +248,41 @@
       "types": "./dist/packaging/electron/move-to-applications.d.ts",
       "import": "./dist/packaging/electron/move-to-applications.js",
       "default": "./dist/packaging/electron/move-to-applications.js"
+    },
+    "./deploy/site/agent-tools": {
+      "types": "./dist/deploy/site/agent-tools.d.ts",
+      "import": "./dist/deploy/site/agent-tools.js",
+      "default": "./dist/deploy/site/agent-tools.js"
+    },
+    "./deploy/site/deploy-targets/types": {
+      "types": "./dist/deploy/site/deploy-targets/types.d.ts",
+      "import": "./dist/deploy/site/deploy-targets/types.js",
+      "default": "./dist/deploy/site/deploy-targets/types.js"
+    },
+    "./deploy/site/dockerfile": {
+      "types": "./dist/deploy/site/dockerfile.d.ts",
+      "import": "./dist/deploy/site/dockerfile.js",
+      "default": "./dist/deploy/site/dockerfile.js"
+    },
+    "./deploy/site/publish-credentials/execution-mode": {
+      "types": "./dist/deploy/site/publish-credentials/execution-mode.d.ts",
+      "import": "./dist/deploy/site/publish-credentials/execution-mode.js",
+      "default": "./dist/deploy/site/publish-credentials/execution-mode.js"
+    },
+    "./deploy/site/static-publish/domain-publish-rows": {
+      "types": "./dist/deploy/site/static-publish/domain-publish-rows.d.ts",
+      "import": "./dist/deploy/site/static-publish/domain-publish-rows.js",
+      "default": "./dist/deploy/site/static-publish/domain-publish-rows.js"
+    },
+    "./deploy/site/static-publish/types": {
+      "types": "./dist/deploy/site/static-publish/types.d.ts",
+      "import": "./dist/deploy/site/static-publish/types.js",
+      "default": "./dist/deploy/site/static-publish/types.js"
+    },
+    "./source-control/site/saved-key-bindings": {
+      "types": "./dist/source-control/site/saved-key-bindings.d.ts",
+      "import": "./dist/source-control/site/saved-key-bindings.js",
+      "default": "./dist/source-control/site/saved-key-bindings.js"
     }
   },
   "files": [

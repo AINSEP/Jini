@@ -37,3 +37,18 @@ const scheduler = createAccountLabelHealScheduler({
 // In the human-gated list handler, after the response is sent:
 scheduler.triggerFor(idsNeedingAccountLabelHeal({ credentials, canYieldAccountLabel }));
 ```
+
+`agent-tools.ts` (`@jini-ai/devops/deploy/site/agent-tools`, universal). Provides `deploymentsAgentToolCatalog`, the model-facing catalog (names, prose, input schemas) for the deployment tools. **Needs injected**: nothing; the host pairs it with its own handlers and tool metadata.
+
+`deploy-targets/types.ts` (`@jini-ai/devops/deploy/site/deploy-targets/types`, universal, types only). The host contract a deploy-target module (shipped in an agent plugin) is written against: registry, loaded-target, credential-spec and inspection shapes over `@jini-ai/devops/deploy`. **Must never import**: a vendor host implementation.
+
+`dockerfile.ts` (`@jini-ai/devops/deploy/site/dockerfile`, node). Read/write of the repo-root `Dockerfile` with an etag-checked write (`writeDockerfileSourceWithIfMatch`). **Needs injected**: nothing, but it resolves the file against `process.cwd()`, so the host must run with its cwd at its repo root (see the file header).
+
+`publish-credentials/execution-mode.ts` (`@jini-ai/devops/deploy/site/publish-credentials/execution-mode`, universal). `executionModeFromEnv({ env, envVarName })`. **Needs injected**: the environment object and the host-owned variable name; anything other than the literal `"hosted-api-only"` resolves to `"self-hosted-cli"`.
+
+```ts
+import { executionModeFromEnv } from "@jini-ai/devops/deploy/site/publish-credentials/execution-mode";
+const publishExecutionMode = executionModeFromEnv({ env: process.env, envVarName: "MY_HOST_EXECUTION_MODE" });
+```
+
+`static-publish/types.ts` and `static-publish/domain-publish-rows.ts` (`@jini-ai/devops/deploy/site/static-publish/{types,domain-publish-rows}`, universal). The static-publish config/outcome/credential-source types and the pure `domainPublishRows` projection of a target inspection's domain plan. **Needs injected**: nothing.
