@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { postAutosaveDeleteRoute, postAutosaveGetRoute, type PostAutosaveReadAndClearRouteDeps } from "../autosave.js";
-import { PRINCIPAL, raw, recordingAuthorize, signal, WORKSPACE_ID } from "./write-helpers.js";
+import {
+  postAutosaveDeleteRoute, postAutosaveGetRoute, postAutosavePutRoute, type PostAutosavePutRouteDeps, type PostAutosaveReadAndClearRouteDeps,
+} from "../autosave.js";
+import { PRINCIPAL, raw, recordingAuthorize, refusalOf, signal, WORKSPACE_ID } from "./write-helpers.js";
 
 class FakePostNotFound extends Error {}
 
@@ -89,5 +91,112 @@ describe("postAutosaveGetRoute / postAutosaveDeleteRoute", () => {
       await expect(route.handle({ input: { postId: "my-slug" }, deps: counted, context: PRINCIPAL })).rejects.toThrow(/no authorizer/);
     }
     expect([lookups, reads, clears]).toEqual([0, [], []]);
+  });
+});
+
+class FakePostValidation extends Error {}
+
+const NOW = "2026-11-23T10:00:00.000Z";
+const HTML_BODY = { bodyFormat: "html", title: "Unsaved title", slug: "draft", bodyHtml: "<p>Draft</p>", baseVersion: 3 };
+const DOC_BODY = { bodyFormat: "doc", title: "Unsaved title", slug: "draft", bodyJson: { type: "doc" }, baseVersion: 3 };
+
+/** PUT deps over `makeDeps`'s lookup: the host's author normalizer (trims, refuses > 5 chars with its
+ *  validation error), the clock, and a recording `writeAutosave` that answers `applied`. */
+function makePutDeps(optional: { lookupError?: Error; applied?: boolean; normalizeError?: Error } = {}) {
+  const writes: unknown[] = [];
+  const normalized: unknown[] = [];
+  const { deps: lookup } = makeDeps(optional.lookupError ? { lookupError: optional.lookupError } : {});
+  const deps: PostAutosavePutRouteDeps = {
+    workspaceId: WORKSPACE_ID,
+    findPostId: lookup.findPostId,
+    isPostNotFound: lookup.isPostNotFound,
+    normalizeAuthor: ({ author }) => {
+      normalized.push(author);
+      if (optional.normalizeError) throw optional.normalizeError;
+      if (typeof author === "string" && author.trim().length > 5) throw new FakePostValidation("author must be at most 5 characters");
+      return typeof author === "string" ? author.trim() || null : null;
+    },
+    isPostValidation: ({ err }) => err instanceof FakePostValidation,
+    nowIso: () => NOW,
+    writeAutosave: async (input) => { writes.push(input); return { applied: optional.applied ?? true }; },
+  };
+  return { deps, writes, normalized };
+}
+
+const put = (deps: PostAutosavePutRouteDeps, body: unknown, optional: { postId?: string; authorize?: ReturnType<typeof recordingAuthorize>["authorize"] } = {}) =>
+  postAutosavePutRoute.handle({ input: { postId: optional.postId ?? "my-slug", body }, deps, context: PRINCIPAL, authorize: optional.authorize ?? recordingAuthorize().authorize }, { signal });
+
+const INVALID = { status: 400, body: { error: "invalid autosave body", code: "VALIDATION_ERROR" } };
+
+describe("postAutosavePutRoute", () => {
+  it("keeps PUT on the shared path, the default 200 and no spec-level body cap (the host binds its own 413 copy)", () => {
+    expect(postAutosavePutRoute.method).toBe("put");
+    expect(postAutosavePutRoute.path).toBe(PATH);
+    expect(postAutosavePutRoute.successStatus).toBeUndefined();
+    expect(postAutosavePutRoute.maxBodyBytes).toBeUndefined();
+  });
+
+  it("parses :postId (empty-segment fallback) and passes the body through unjudged — validation waits for authorization", () => {
+    expect(postAutosavePutRoute.parse(raw({ workspaceId: WORKSPACE_ID, postId: "my-slug" }, { bodyFormat: 7 }))).toEqual({ ok: true, value: { postId: "my-slug", body: { bodyFormat: 7 } } });
+    expect(postAutosavePutRoute.parse({ body: undefined, query: {}, params: {} })).toEqual({ ok: true, value: { postId: "", body: undefined } });
+  });
+
+  it("authorizes content.write on posts naming no entity, resolves the slug and parks the stamped snapshot", async () => {
+    const { deps, writes } = makePutDeps({ applied: false });
+    const { authorize, calls } = recordingAuthorize();
+    const result = await put(deps, HTML_BODY, { authorize });
+    expect(calls).toEqual([{ permission: "content.write", entityType: "post" }]);
+    expect(writes).toEqual([{ workspaceId: WORKSPACE_ID, id: "p1", snapshot: { ...HTML_BODY, savedAt: NOW, savedByPrincipalId: PRINCIPAL.id } }]);
+    expect(result).toEqual({ ok: true, value: { applied: false } });
+  });
+
+  it("a doc body parks bodyJson; a byline is normalized by the host and absent keys stay absent", async () => {
+    const { deps, writes, normalized } = makePutDeps();
+    await put(deps, { ...DOC_BODY, author: "  Ann ", showAuthor: false });
+    await put(deps, { ...DOC_BODY, author: null });
+    await put(deps, DOC_BODY);
+    const snapshots = writes.map((write) => (write as { snapshot: object }).snapshot);
+    expect(snapshots).toEqual([
+      { ...DOC_BODY, author: "Ann", showAuthor: false, savedAt: NOW, savedByPrincipalId: PRINCIPAL.id },
+      { ...DOC_BODY, author: null, savedAt: NOW, savedByPrincipalId: PRINCIPAL.id },
+      { ...DOC_BODY, savedAt: NOW, savedByPrincipalId: PRINCIPAL.id },
+    ]);
+    expect(normalized).toEqual(["  Ann ", null]);
+  });
+
+  it("refuses every shape the body-format CHECK would reject with the flat 400, writing nothing", async () => {
+    const bad: unknown[] = [
+      undefined, { ...HTML_BODY, bodyFormat: "markdown" }, { ...HTML_BODY, title: 1 }, { ...HTML_BODY, slug: null },
+      { ...HTML_BODY, baseVersion: "3" }, { ...HTML_BODY, baseVersion: Number.NaN }, { ...HTML_BODY, baseVersion: Number.POSITIVE_INFINITY },
+      { ...HTML_BODY, bodyHtml: undefined }, { ...DOC_BODY, bodyJson: null }, { ...DOC_BODY, bodyJson: "doc" },
+      { ...HTML_BODY, author: 7 }, { ...HTML_BODY, showAuthor: "true" },
+    ];
+    const { deps, writes } = makePutDeps();
+    for (const body of bad) expect(await refusalOf(() => put(deps, body))).toEqual(INVALID);
+    expect(writes).toEqual([]);
+  });
+
+  it("the host's author validation error is a 400 carrying its message; any other normalizer failure is rethrown", async () => {
+    const { deps, writes } = makePutDeps();
+    expect(await refusalOf(() => put(deps, { ...HTML_BODY, author: "x".repeat(6) }))).toEqual({ status: 400, body: { error: "author must be at most 5 characters", code: "VALIDATION_ERROR" } });
+    await expect(put(makePutDeps({ normalizeError: new Error("boom") }).deps, { ...HTML_BODY, author: "Ann" })).rejects.toThrow("boom");
+    expect(writes).toEqual([]);
+  });
+
+  it("a missing post parks against the raw segment (the store's no-op), never a 404; other lookup failures are rethrown", async () => {
+    const { deps, writes } = makePutDeps();
+    await put(deps, HTML_BODY, { postId: "ghost" });
+    expect((writes[0] as { id: string }).id).toBe("ghost");
+    const failing = makePutDeps({ lookupError: new Error("db down") });
+    await expect(put(failing.deps, HTML_BODY)).rejects.toThrow("db down");
+    expect(failing.writes).toEqual([]);
+  });
+
+  it("an authorization refusal stops before validation and any write; no authorizer or principal fails closed", async () => {
+    const { deps, writes, normalized } = makePutDeps();
+    await expect(put(deps, { ...HTML_BODY, author: "Ann" }, { authorize: recordingAuthorize(["content.write"]).authorize })).rejects.toThrow("denied content.write");
+    await expect(postAutosavePutRoute.handle({ input: { postId: "my-slug", body: HTML_BODY }, deps, context: PRINCIPAL })).rejects.toThrow(/no authorizer/);
+    await expect(postAutosavePutRoute.handle({ input: { postId: "my-slug", body: HTML_BODY }, deps, context: undefined, authorize: recordingAuthorize().authorize })).rejects.toThrow(/no authenticated principal/);
+    expect([writes, normalized]).toEqual([[], []]);
   });
 });

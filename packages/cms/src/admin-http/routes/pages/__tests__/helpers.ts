@@ -25,5 +25,5 @@ export async function refusalOf(fn: () => unknown): Promise<{ status: number; bo
   throw new Error("expected a route refusal");
 }
 
-/** A route-input context with only route params set, as the host's adapter builds it. */
-export const raw = (params: Record<string, string>) => ({ body: {}, query: {}, params });
+/** A route-input context as the host's adapter builds it: route params, and the JSON body when a test sends one. */
+export const raw = (params: Record<string, string>, body: unknown = {}) => ({ body, query: {}, params });
