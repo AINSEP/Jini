@@ -37,6 +37,10 @@
       "./newsletter/campaign-write-service": "universal",
       "./newsletter/launch-gate": "universal",
       "./newsletter/repo.memory": "universal",
+      "./newsletter/repo": "universal",
+      "./newsletter/repo.rows": "universal",
+      "./newsletter/repo-subscribers": "universal",
+      "./newsletter/repo-sends": "universal",
       "./newsletter/unsubscribe": "node",
       "./newsletter/send-pipeline": "node",
       "./newsletter/data-module-manifest": "universal",
@@ -52,6 +56,7 @@
       "./members/member-validation": "universal",
       "./members/password-auth": "node",
       "./members/ports": "universal",
+      "./members/repo": "universal",
       "./members/repo.memory": "universal",
       "./members/subscriber-directory": "universal",
       "./members/trash-member": "universal",
@@ -62,7 +67,8 @@
       "argon2": "opt-in: argon2 password hashing; import @jini-ai/user-management/server — Argon2 password hashing could not load argon2. Install argon2 to enable this feature, or check its installed version and native binaries.",
       "@jini-ai/ui-kit": "opt-in: ui kit integrations; import @jini-ai/user-management/react — UI kit integrations could not load @jini-ai/ui-kit. Install @jini-ai/ui-kit to enable this feature, or check its installed version and native binaries.",
       "react": "opt-in: react user-management ui; import @jini-ai/user-management/react — React user-management UI could not load react. Install react to enable this feature, or check its installed version.",
-      "react-dom": "opt-in: react user-management ui; import @jini-ai/user-management/react — React user-management UI could not load react-dom. Install react-dom to enable this feature, or check its installed version."
+      "react-dom": "opt-in: react user-management ui; import @jini-ai/user-management/react — React user-management UI could not load react-dom. Install react-dom to enable this feature, or check its installed version.",
+      "kysely": "opt-in: sql storage adapters; import @jini-ai/user-management/members/repo — SQL storage adapters could not load kysely. Install kysely to enable this feature, or check its installed version and native binaries."
     },
     "isolation": {
       "entries": {
@@ -202,6 +208,26 @@
       "import": "./dist/newsletter/repo.memory.js",
       "default": "./dist/newsletter/repo.memory.js"
     },
+    "./newsletter/repo": {
+      "types": "./dist/newsletter/repo.d.ts",
+      "import": "./dist/newsletter/repo.js",
+      "default": "./dist/newsletter/repo.js"
+    },
+    "./newsletter/repo.rows": {
+      "types": "./dist/newsletter/repo.rows.d.ts",
+      "import": "./dist/newsletter/repo.rows.js",
+      "default": "./dist/newsletter/repo.rows.js"
+    },
+    "./newsletter/repo-subscribers": {
+      "types": "./dist/newsletter/repo-subscribers.d.ts",
+      "import": "./dist/newsletter/repo-subscribers.js",
+      "default": "./dist/newsletter/repo-subscribers.js"
+    },
+    "./newsletter/repo-sends": {
+      "types": "./dist/newsletter/repo-sends.d.ts",
+      "import": "./dist/newsletter/repo-sends.js",
+      "default": "./dist/newsletter/repo-sends.js"
+    },
     "./newsletter/unsubscribe": {
       "types": "./dist/newsletter/unsubscribe.d.ts",
       "import": "./dist/newsletter/unsubscribe.js",
@@ -277,6 +303,11 @@
       "import": "./dist/members/ports.js",
       "default": "./dist/members/ports.js"
     },
+    "./members/repo": {
+      "types": "./dist/members/repo.d.ts",
+      "import": "./dist/members/repo.js",
+      "default": "./dist/members/repo.js"
+    },
     "./members/repo.memory": {
       "types": "./dist/members/repo.memory.d.ts",
       "import": "./dist/members/repo.memory.js",
@@ -330,6 +361,7 @@
   "peerDependencies": {
     "@jini-ai/ui-kit": "^0.7.3-next.2",
     "argon2": "^0.44.0",
+    "kysely": "^0.29.6",
     "react": "^18.3.0 || ^19.0.0",
     "react-dom": "^18.3.0 || ^19.0.0"
   },
@@ -347,6 +379,7 @@
     "@types/react-dom": "^19.2.0",
     "argon2": "^0.44.0",
     "jsdom": "^25.0.1",
+    "kysely": "^0.29.6",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "typescript": "^5.6.0",
@@ -363,6 +396,9 @@
       "optional": true
     },
     "react-dom": {
+      "optional": true
+    },
+    "kysely": {
       "optional": true
     }
   }

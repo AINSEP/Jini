@@ -16,6 +16,10 @@ Every module is a leaf subpath. There is no `newsletter` barrel, so import each 
 | `newsletter/launch-gate` | universal | `evaluateLaunchGate` |
 | `newsletter/unsubscribe` | node | `buildUnsubscribeLink`, `processUnsubscribe` (signed tokens, `node:crypto`) |
 | `newsletter/repo.memory` | universal | In-memory adapters for all six repository ports |
+| `newsletter/repo` | universal | `SqlNewsletterCampaignRepo`: the campaign pair's Kysely query body for every dialect |
+| `newsletter/repo-subscribers` | universal | `SqlNewsletterListRepo`, `SqlNewsletterSubscriptionRepo`, `SqlNewsletterConfirmationTokenRepo`, `DEFAULT_LIST_LIMIT` |
+| `newsletter/repo-sends` | universal | `SqlNewsletterAudienceSnapshotRepo`, `SqlNewsletterSendRepo` |
+| `newsletter/repo.rows` | universal | Row types and mappers, `NewsletterSqlTables`, `NewsletterSqlRequired`, `CampaignBodyReporter` |
 | `newsletter/data-module-manifest` | universal | `NEWSLETTER_TABLE_NAMES`, `createNewsletterDataModule` (the 5-table `p_newsletter__*` declaration), `installNewsletterDataModule` |
 
 ## Wiring
@@ -25,7 +29,7 @@ Everything host-specific reaches these modules through the deps objects their fu
 - **`CampaignWriteServiceDeps`** and **`ListsDeps`**: `campaignRepo` and `listRepo` (any adapter implementing the ports), plus `clock.nowIso()` and `ids.newId()`.
 - **`LaunchGateDeps`**: `isSendingEnabled(workspaceId)`, `consentCapability` (the members feature's consent capability, or `null` when the host has not bound one), `originRegistry` (`OriginRegistryPort` from `@jini-ai/core/contracts/server/verified-origin`), and `mailer` (`PositionalMailer` from `@jini-ai/core/contracts/mail`).
 - **`UnsubscribeDeps`**: `subscriptionRepo`, `keyring` (`KeyringPort` from `@jini-ai/core/contracts/vault`; only `derive` is called), `originRegistry`, `consentCapability`, and `clock`.
-- **Repository adapters:** `newsletter/repo.memory` supplies the in-memory set. The SQL adapters stay in the host, because they are typed against the host's database schema and kernel.
+- **Repository adapters:** `newsletter/repo.memory` supplies the in-memory set. The SQL adapters (`newsletter/repo`, `repo-subscribers`, `repo-sends`) take `{ kernel, tables }`: a schema-free `StorageKernel<Kysely<unknown>, unknown>` from `@jini-ai/core/contracts/storage` and the host's table names (`NewsletterSqlTables`; no defaults here, though `NEWSLETTER_TABLE_NAMES` covers the five dataModule tables). `SqlNewsletterCampaignRepo` also requires `onUnreadableBody`, the host's reporter for an unreadable stored revision; it receives the campaign id and revision sequence only, never document text. `kysely` is an optional peer that only these subpaths need.
 - **Data module:** `createNewsletterDataModule({ publisher })` takes the host's stored provenance publisher. It is compared with the stored identity row on every boot, so the host must pass the same value every release. `installNewsletterDataModule` also takes `declareDataModule`, which the host binds from `@jini-ai/db/data-modules`, so this package does not depend on the DDL engine.
 - **Product copy and identifiers:** none are needed by these modules, apart from the data-module publisher above.
 

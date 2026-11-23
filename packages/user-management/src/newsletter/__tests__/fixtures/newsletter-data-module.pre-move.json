@@ -3,7 +3,7 @@
   "pluginTier": "tier-2",
   "provenance": {
     "sourceUrl": "builtin://newsletter",
-    "publisher": "tovu-core"
+    "publisher": "host-publisher"
   },
   "tables": [
     {

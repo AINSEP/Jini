@@ -1626,6 +1626,9 @@ importers:
       jsdom:
         specifier: ^25.0.1
         version: 25.0.1
+      kysely:
+        specifier: ^0.29.6
+        version: 0.29.6
       react:
         specifier: ^19.2.0
         version: 19.2.7

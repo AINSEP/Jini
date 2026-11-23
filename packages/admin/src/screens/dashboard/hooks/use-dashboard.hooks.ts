@@ -198,7 +198,8 @@ function useActiveThemeRefresh(): void {
 /** One stat card's state: `count({ data })` once the read settles, `null` while pending or failed.
  *  @complexity Time/space: whatever `count` costs. */
 function statState<T>({ query, count }: { query: QueryResult<T>; count: (required: { data: T }, optional?: Record<string, never>) => number }): StatState {
-  return { value: query.data === undefined ? null : count({ data: query.data }), error: query.error?.message ?? null };
+  const error = query.error?.message ?? null;
+  return { value: query.data === undefined ? null : count({ data: query.data }), error };
 }
 
 /** How many `rows` carry `status`, or `null` while the rows are still pending.

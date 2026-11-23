@@ -13,14 +13,16 @@ import {
   NEWSLETTER_TABLE_NAMES,
 } from "../data-module-manifest.js";
 
-/** The host's pre-move `NEWSLETTER_DATA_MODULE` constant, serialized before the edit. */
+/** The host's pre-move `NEWSLETTER_DATA_MODULE` constant, serialized before the edit (publisher neutralised). */
 const PRE_MOVE = JSON.parse(
   readFileSync(new URL("./fixtures/newsletter-data-module.pre-move.json", import.meta.url), "utf8")
 ) as DataModuleDecl;
+const TEST_PUBLISHER = "neutral-test-publisher";
 
 describe("createNewsletterDataModule", () => {
-  it("with the host's stored publisher deep-equals the pre-move constant", () => {
-    expect(createNewsletterDataModule({ publisher: PRE_MOVE.provenance.publisher })).toStrictEqual(PRE_MOVE);
+  it("with a given publisher deep-equals the pre-move constant carrying that publisher", () => {
+    const expected = { ...PRE_MOVE, provenance: { ...PRE_MOVE.provenance, publisher: TEST_PUBLISHER } };
+    expect(createNewsletterDataModule({ publisher: TEST_PUBLISHER })).toStrictEqual(expected);
   });
 
   it("stores the given publisher and keeps the fixed builtin source URL", () => {
