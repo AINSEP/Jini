@@ -63,6 +63,20 @@
    "uploadPlannedContent": "function:83038ecac9"
   }
  },
+ "./checks/complexity-debt": {
+  "types": "./dist/checks/complexity-debt.d.ts",
+  "symbols": {
+   "BaselineDiff": "interface:7f98a108bc",
+   "ComplexityRunVerdict": "interface:27ac27d9ca",
+   "ComplexityViolation": "interface:79a6f3a9e1",
+   "EslintFileResult": "interface:78c9211d91",
+   "EslintMessage": "interface:d591d7b7cb",
+   "diffAgainstBaseline": "function:45e9435e88",
+   "evaluateRun": "function:92423b1ad7",
+   "rejectUnusableEslintRun": "function:c75f824797",
+   "violationKey": "function:c3ae513a44"
+  }
+ },
  "./checks/coverage": {
   "types": "./dist/checks/coverage/index.d.ts",
   "symbols": {
@@ -129,6 +143,13 @@
    "createEnvAccessInspector": "function:f9be6ef611"
   }
  },
+ "./checks/live-verify-checks": {
+  "types": "./dist/checks/live-verify-checks.d.ts",
+  "symbols": {
+   "CheckLog": "interface:5dc8ff7fb1",
+   "createCheckLog": "function:dd0ef74f80"
+  }
+ },
  "./checks/memory-soak": {
   "types": "./dist/checks/memory-soak.d.ts",
   "symbols": {
@@ -178,6 +199,21 @@
    "diagnosePublishedTypes": "function:7961500c1d",
    "parseDiagnosticBlocks": "function:c44414f02f",
    "registryDependencies": "function:ec5254ad05"
+  }
+ },
+ "./checks/quality-gates": {
+  "types": "./dist/checks/quality-gates.d.ts",
+  "symbols": {
+   "DEFAULT_MAX_DISABLED_DAYS": "variable:f9564932f4",
+   "GateEntry": "interface:830f0f9360",
+   "GateExitCode": "type:d607d695c1",
+   "GateManifest": "interface:1b1b79d094",
+   "asGateEntryArray": "function:8e390d655e",
+   "daysBetween": "function:1ff72ca685",
+   "detectGateDrift": "function:ff32da2fc6",
+   "formatSummary": "function:3691b71df3",
+   "isFailure": "function:d7285533f2",
+   "validateManifest": "function:445b7a9d21"
   }
  },
  "./deploy": {
