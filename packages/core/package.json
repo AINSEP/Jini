@@ -122,6 +122,7 @@
       "./contracts/site/recovery-operation-lock": "universal",
       "./contracts/site/recovery-reconcile-interrupted-migration": "universal",
       "./contracts/site/sandbox-node-worker": "universal",
+      "./contracts/site/diagnostics-observability": "universal",
       "./errors/sentences": "universal",
       "./errors/bindings": "universal",
       "./errors/catalog": "universal",
@@ -766,6 +767,11 @@
       "types": "./dist/contracts/site/sandbox-node-worker.d.ts",
       "import": "./dist/contracts/site/sandbox-node-worker.js",
       "default": "./dist/contracts/site/sandbox-node-worker.js"
+    },
+    "./contracts/site/diagnostics-observability": {
+      "types": "./dist/contracts/site/diagnostics-observability.d.ts",
+      "import": "./dist/contracts/site/diagnostics-observability.js",
+      "default": "./dist/contracts/site/diagnostics-observability.js"
     },
     "./errors/sentences": {
       "types": "./dist/errors/sentences.d.ts",
