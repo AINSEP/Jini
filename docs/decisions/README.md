@@ -10,6 +10,7 @@ These records state an invariant, why it exists, its consequences and the defect
 - [Human UI resources stay outside model-visible tool results](DR-004-human-surfaces-model-results.md).
 
 - [Portable contracts and host composition](DR-005-portable-package-boundaries.md).
+- [Packages receive implementations from the host](DR-006-host-injected-package-dependencies.md).
 
 ## Existing detailed records
 
