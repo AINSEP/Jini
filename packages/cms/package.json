@@ -183,7 +183,10 @@
       "./admin-http/routes/themes/explore-file-delete": "universal",
       "./admin-http/routes/themes/explore-file-get": "universal",
       "./admin-http/routes/themes/explore-detail": "universal",
-      "./admin-http/routes/themes/explore-file-put": "universal"
+      "./admin-http/routes/themes/explore-file-put": "universal",
+      "./admin-http/routes/themes/explore-file-reset": "universal",
+      "./admin-http/routes/themes/explore-file-copy": "universal",
+      "./admin-http/routes/themes/explore-file-rename": "universal"
     },
     "isolation": {
       "domains": {
@@ -1161,6 +1164,21 @@
       "types": "./dist/admin-http/routes/themes/explore-file-put.d.ts",
       "import": "./dist/admin-http/routes/themes/explore-file-put.js",
       "default": "./dist/admin-http/routes/themes/explore-file-put.js"
+    },
+    "./admin-http/routes/themes/explore-file-reset": {
+      "types": "./dist/admin-http/routes/themes/explore-file-reset.d.ts",
+      "import": "./dist/admin-http/routes/themes/explore-file-reset.js",
+      "default": "./dist/admin-http/routes/themes/explore-file-reset.js"
+    },
+    "./admin-http/routes/themes/explore-file-copy": {
+      "types": "./dist/admin-http/routes/themes/explore-file-copy.d.ts",
+      "import": "./dist/admin-http/routes/themes/explore-file-copy.js",
+      "default": "./dist/admin-http/routes/themes/explore-file-copy.js"
+    },
+    "./admin-http/routes/themes/explore-file-rename": {
+      "types": "./dist/admin-http/routes/themes/explore-file-rename.d.ts",
+      "import": "./dist/admin-http/routes/themes/explore-file-rename.js",
+      "default": "./dist/admin-http/routes/themes/explore-file-rename.js"
     }
   },
   "files": [
