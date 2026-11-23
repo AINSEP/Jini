@@ -328,6 +328,7 @@
       "./admin-http/routes/media/trash": "universal",
       "./admin-http/routes/media/get-providers": "universal",
       "./admin-http/routes/media/where-used": "universal",
+      "./admin-http/routes/media/import-url": "universal",
       "./admin-http/routes/media/put-providers": "universal",
       "./admin-http/routes/media/update": "node",
       "./admin-http/routes/assistant/execution-shared": "universal",
@@ -530,6 +531,8 @@
         "./admin-http/routes/media/trash": "media",
         "./admin-http/routes/media/get-providers": "media",
         "./admin-http/routes/media/put-providers": "media",
+        "./admin-http/routes/media/import-url": "media",
+        "./admin-http/routes/media/where-used": "media",
         "./admin-http/routes/media/update": "media",
         "./admin-http/routes/assistant/execution-shared": "admin-http",
         "./admin-http/routes/assistant/detect-agents": "admin-http",
@@ -2148,6 +2151,11 @@
       "types": "./dist/admin-http/routes/media/where-used.d.ts",
       "import": "./dist/admin-http/routes/media/where-used.js",
       "default": "./dist/admin-http/routes/media/where-used.js"
+    },
+    "./admin-http/routes/media/import-url": {
+      "types": "./dist/admin-http/routes/media/import-url.d.ts",
+      "import": "./dist/admin-http/routes/media/import-url.js",
+      "default": "./dist/admin-http/routes/media/import-url.js"
     },
     "./admin-http/routes/media/put-providers": {
       "types": "./dist/admin-http/routes/media/put-providers.d.ts",
