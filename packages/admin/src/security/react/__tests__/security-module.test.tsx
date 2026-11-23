@@ -61,10 +61,10 @@ describe('security() module shape (SEC-1)', () => {
     expect(screen.getByTestId('icon-tokens')).toBeDefined(); expect(screen.getByTestId('icon-root')).toBeDefined();
   });
   it('hands rootKeyTab options to the root-key tab params', async () => {
-    const feature = makeFeature({ rootKeyScopeNotice: 'scope', rootKeyTab: { generate: 'hidden', defaultEnvVarName: 'X', previewRequired: false } });
+    const feature = makeFeature({ rootKeyScopeNotice: 'scope', rootKeyTab: { generate: 'hidden', defaultEnvVarName: 'X' } });
     const admin = createAdmin({ modules: [feature], ports: { securityApi: createMemorySecurityApi({}), rootKey: createMemoryRootKey({}) } }, { permissions: ['security.read', ROOT] });
     const rootTab = admin.describe().pages[0]!.tabs.find(tab => tab.id.endsWith('.root-key'))!;
-    expect(rootTab.params).toEqual({ scopeNotice: 'scope', generate: 'hidden', defaultEnvVarName: 'X', previewRequired: false });
+    expect(rootTab.params).toEqual({ scopeNotice: 'scope', generate: 'hidden', defaultEnvVarName: 'X' });
   });
   it('relabels on a translator swap without disposing the active tab', async () => {
     let mounts = 0;

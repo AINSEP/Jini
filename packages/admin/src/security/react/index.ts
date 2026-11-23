@@ -15,8 +15,6 @@ export interface SecurityRootKeyTabOptions {
   readonly generate?: 'shown' | 'hidden';
   /** The env var name a status badge falls back to when the server reply names none. */
   readonly defaultEnvVarName?: string;
-  /** `false` lets a failed start-fresh preview still open the confirm step. */
-  readonly previewRequired?: boolean;
 }
 export interface SecurityOptions {
   t?: SecurityTranslator;

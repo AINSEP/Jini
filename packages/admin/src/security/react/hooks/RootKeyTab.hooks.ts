@@ -22,7 +22,9 @@ function canGenerateKey({ status, generate }: { status: RootKeySnapshot['status'
 }
 function rootKeyFlags({ snapshot: s, generate }: { snapshot: RootKeySnapshot | null; generate: 'shown' | 'hidden' }, _optional = {}) {
   const status = s?.status;
-  return { locked: isRootKeyLocked({ status: status ?? null }) || s?.generateError?.kind === 'locked',
+  // Status-only, matching the controller's gate: a locked generate refusal after a clean status must not
+  // offer recovery controls the controller would ignore. SEC-7 moves view and controller to one predicate.
+  return { locked: isRootKeyLocked({ status: status ?? null }),
     canGenerate: canGenerateKey({ status, generate }), canConfirm: !!s?.preview && s.confirm === START_FRESH_CONFIRMATION };
 }
 /** What a refused create says: host-approved copy for a known code, else fixed copy. Never reader text. */
@@ -36,7 +38,7 @@ interface RootKeyPresentation { badge: { label: string; tone: 'warning' | 'succe
 function rootKeyPresentation({ snapshot: s, t, options }: { snapshot: RootKeySnapshot | null; t: SecurityTranslator; options: ReturnType<typeof rootKeyOptions> }, _optional = {}): RootKeyPresentation {
   const status = s?.status; if (!status) return { badge: undefined, note: undefined };
   const badge = rootKeyBadge({ status }, { defaultEnvVarName: options.defaultEnvVarName });
-  const note = s.generateError?.kind === 'locked' || isRootKeyLocked({ status }) ? { text: t('Your credentials need their original root key — use the recovery actions below.') } : (({ text, vars, ...rest }) => ({ ...rest, text: t(text, vars) }))(rootKeySourceNote({ status }, options));
+  const note = isRootKeyLocked({ status }) ? { text: t('Your credentials need their original root key — use the recovery actions below.') } : (({ text, vars, ...rest }) => ({ ...rest, text: t(text, vars) }))(rootKeySourceNote({ status }, options));
   return { badge: { label: t(badge.label, badge.vars), tone: badge.tone }, note: { ...note, after: 'after' in note && note.after ? t(note.after) : undefined } };
 }
 function scopeLines({ params, snapshot: s, t }: { params: TabViewProps['params']; snapshot: RootKeySnapshot | null; t: SecurityTranslator }, _optional = {}) {

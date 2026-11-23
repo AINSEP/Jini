@@ -1224,9 +1224,9 @@
   "symbols": {
    "DescribeRootKeyError": "type:39955f6db6",
    "SecurityOptions": "interface:67362f8b97",
-   "SecurityRootKeyTabOptions": "interface:20f25ecf87",
+   "SecurityRootKeyTabOptions": "interface:65203b2a40",
    "SecurityTranslator": "type:36a7df8662",
-   "security": "function:31cb68d3ad",
+   "security": "function:d3f0d9d4cd",
    "useSecurityPorts": "function:a0ed09c781"
   }
  },

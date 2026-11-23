@@ -7,6 +7,7 @@ import { SecurityPortsContext, noOtherCredentials, unavailableRootKey, useSecuri
 import type { SecurityPorts } from '../hooks/SecurityPorts.hooks.js';
 import { createMemoryOtherCredentials, createMemoryRootKey, createMemorySecurityApi } from '../../adapters/memory.js';
 import type { CredentialProvider, CredentialSummary, OtherCredentialSummary, RootKeyStatus } from '../../models.js';
+import { ROOT_KEY_PERMISSION } from '../../rules.js';
 
 const providers: CredentialProvider[] = [
   { kind: 'source-control', id: 'git', label: 'Git host', vendorLabel: 'Git vendor', category: 'source-control', tokenField: 'token', fields: [] },
@@ -220,6 +221,18 @@ describe('useRootKeyTab', () => {
     await act(async () => view.result.current.generate());
     await waitFor(() => expect(view.result.current.result).toBe('Root key ready'));
     expect(view.result.current).toMatchObject({ canGenerate: false, status: { active: true } });
+  });
+
+  it('a locked refusal after a clean status keeps the status-only affordance: no recovery controls that would do nothing', async () => {
+    const rootKey = createMemoryRootKey({}); rootKey.generate = () => Promise.reject(new Error('refused'));
+    const chrome = { t: ((key: string) => key) as never, tabIcons: {}, describeRootKeyError: () => ({ code: 'KEY_DEPENDENT_DATA' }) };
+    const view = renderHook(() => useRootKeyTab({ params: {}, permissions: ['security.read', ROOT_KEY_PERMISSION] }, { useSecurityChromeHook: () => chrome }),
+      { wrapper: wrap({ securityApi: createMemorySecurityApi({}), rootKey }) });
+    await waitFor(() => expect(view.result.current.canGenerate).toBe(true));
+    await act(async () => view.result.current.generate());
+    await waitFor(() => expect(view.result.current.generateError).toBe('The root key could not be created.'));
+    expect(view.result.current.locked).toBe(false);
+    expect(view.result.current.note?.text).not.toBe('Your credentials need their original root key — use the recovery actions below.');
   });
 
   it('uses the default scope notice and unlocks a locked key with a token', async () => {
