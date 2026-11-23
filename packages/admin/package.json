@@ -174,7 +174,9 @@
       "./screens/menus/MenuPageLinkFields.hooks": "browser",
       "./screens/menus/MenuPageLinkFields": "browser",
       "./screens/seo": "browser",
-      "./screens/seo/seo-i18n": "universal"
+      "./screens/seo/seo-i18n": "universal",
+      "./screens/redirects": "browser",
+      "./screens/redirects/redirects-i18n": "browser"
     },
     "isolation": {
       "shared": [
@@ -1065,6 +1067,16 @@
       "types": "./dist/screens/seo/seo-i18n.d.ts",
       "import": "./dist/screens/seo/seo-i18n.js",
       "default": "./dist/screens/seo/seo-i18n.js"
+    },
+    "./screens/redirects": {
+      "types": "./dist/screens/redirects/index.d.ts",
+      "import": "./dist/screens/redirects/index.js",
+      "default": "./dist/screens/redirects/index.js"
+    },
+    "./screens/redirects/redirects-i18n": {
+      "types": "./dist/screens/redirects/redirects-i18n.d.ts",
+      "import": "./dist/screens/redirects/redirects-i18n.js",
+      "default": "./dist/screens/redirects/redirects-i18n.js"
     }
   },
   "files": [
@@ -1128,6 +1140,12 @@
       ],
       "screens/seo/seo-i18n": [
         "./dist/screens/seo/seo-i18n.d.ts"
+      ],
+      "screens/redirects": [
+        "./dist/screens/redirects/index.d.ts"
+      ],
+      "screens/redirects/redirects-i18n": [
+        "./dist/screens/redirects/redirects-i18n.d.ts"
       ]
     }
   },

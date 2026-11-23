@@ -7,12 +7,10 @@
  * it is exported from this line.
  */
 import { createElement, type ComponentType, type ReactNode } from 'react';
+import type { ModulePanelHook } from '../module-panel.js';
 
-/** The host's module-panel hook: mounts a Jini module page inside the host's admin module scope. */
-export type SeoModulePanelHook = (
-  props: { moduleId: string; pageId: string; route: { view: string | null; params: Readonly<Record<string, string>>; query: URLSearchParams } },
-  optional?: { loadingContent?: ReactNode },
-) => { content: ReactNode };
+/** The host's module-panel hook (shared shape: `../module-panel.ts`). */
+export type SeoModulePanelHook = ModulePanelHook;
 
 /** Mount the existing SEO route through its Jini settings page, preserving the tabId prop. */
 export function Seo(
