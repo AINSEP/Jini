@@ -28,6 +28,22 @@
    "entityNotLiveResponse": "function:5d9c3b65c4"
   }
  },
+ "./admin-http/http/integrations": {
+  "types": "./dist/admin-http/http/integrations.d.ts",
+  "symbols": {
+   "AdminWebhookDeliveryResponse": "interface:f41236e289",
+   "AdminWebhookDeliverySummary": "interface:f1a75739b9",
+   "AdminWebhookSubscriptionEnvelope": "interface:87d2ccf822",
+   "AdminWebhookSubscriptionResponse": "interface:fd2c4e5ba6",
+   "WebhookDeliveryRow": "interface:dc295d475d",
+   "WebhookDeliveryRowStatus": "type:239e9f0373",
+   "WebhookSubscriptionRow": "interface:7054d825c4",
+   "WebhookSubscriptionRowStatus": "type:e11bd195e3",
+   "toAdminDeliveryResponse": "function:0a25d6ffd9",
+   "toAdminDeliverySummary": "function:b004fe4451",
+   "toAdminSubscriptionResponse": "function:e187e8496c"
+  }
+ },
  "./admin-http/http/members": {
   "types": "./dist/admin-http/http/members.d.ts",
   "symbols": {
@@ -130,6 +146,63 @@
    "DatabaseTimelineRouteDeps": "interface:eaeb6d2bbe",
    "DatabaseTimelineRow": "interface:7b2ffbe33b",
    "adminDatabaseTimelineRoute": "variable:5119d6e733"
+  }
+ },
+ "./admin-http/routes/integrations/create": {
+  "types": "./dist/admin-http/routes/integrations/create.d.ts",
+  "symbols": {
+   "IntegrationsCreateInput": "interface:4d3c15b445",
+   "IntegrationsCreateRouteDeps": "interface:78c88ccbf4",
+   "WebhookSubscriptionCreateFn": "type:e53ebfc13c",
+   "integrationsCreateRoute": "variable:ca7c665207"
+  }
+ },
+ "./admin-http/routes/integrations/delete": {
+  "types": "./dist/admin-http/routes/integrations/delete.d.ts",
+  "symbols": {
+   "IntegrationsDeleteRouteDeps": "interface:0360f5bea7",
+   "WebhookSubscriptionDeleteFn": "type:4358dd1f10",
+   "integrationsDeleteRoute": "variable:46c0d60991"
+  }
+ },
+ "./admin-http/routes/integrations/deliveries": {
+  "types": "./dist/admin-http/routes/integrations/deliveries.d.ts",
+  "symbols": {
+   "AdminWebhookDeliveriesEnvelope": "interface:95dd69aaef",
+   "IntegrationsDeliveriesInput": "interface:a3ea686905",
+   "IntegrationsDeliveriesRouteDeps": "interface:29c69fc41b",
+   "integrationsDeliveriesRoute": "variable:ae7ec58170"
+  }
+ },
+ "./admin-http/routes/integrations/list": {
+  "types": "./dist/admin-http/routes/integrations/list.d.ts",
+  "symbols": {
+   "AdminWebhookSubscriptionListEnvelope": "interface:7d8a7c8b9e",
+   "IntegrationsListRouteDeps": "interface:db7aff6ff9",
+   "integrationsListRoute": "variable:464fbd5a1c"
+  }
+ },
+ "./admin-http/routes/integrations/pause": {
+  "types": "./dist/admin-http/routes/integrations/pause.d.ts",
+  "symbols": {
+   "IntegrationsPauseInput": "interface:9cda7245df",
+   "IntegrationsPauseRouteDeps": "interface:2689192f82",
+   "WebhookSubscriptionPauseFn": "type:41e9bf4b75",
+   "integrationsPauseRoute": "variable:4dc9e60c54"
+  }
+ },
+ "./admin-http/routes/integrations/shared": {
+  "types": "./dist/admin-http/routes/integrations/shared.d.ts",
+  "symbols": {
+   "WEBHOOK_VERSION_CONFLICT": "variable:d725657e41",
+   "WebhookDeliveryReadPort": "interface:cf30014c21",
+   "WebhookErrorMapping": "interface:1d8c06bbfd",
+   "WebhookFailureMatcher": "type:8a2f8b9ad7",
+   "WebhookSubscriptionReadPort": "interface:7872601057",
+   "authorizeIntegrations": "function:590519f922",
+   "rejectWebhookError": "function:e4de519990",
+   "subscriptionIdParam": "function:24ba9c7cc8",
+   "webhookMessageMapping": "function:199b7cc4db"
   }
  },
  "./admin-http/routes/members/delete": {

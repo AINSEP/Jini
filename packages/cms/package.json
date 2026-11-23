@@ -159,6 +159,13 @@
       "./admin-http/routes/menus/update-tree": "universal",
       "./admin-http/routes/menus/assign-location": "universal",
       "./admin-http/routes/menus/delete": "universal",
+      "./admin-http/routes/integrations/create": "universal",
+      "./admin-http/routes/integrations/delete": "universal",
+      "./admin-http/routes/integrations/deliveries": "universal",
+      "./admin-http/routes/integrations/list": "universal",
+      "./admin-http/routes/integrations/pause": "universal",
+      "./admin-http/routes/integrations/shared": "universal",
+      "./admin-http/http/integrations": "universal",
       "./admin-http/routes/members/shared": "universal",
       "./admin-http/routes/members/list": "universal",
       "./admin-http/routes/members/get-by-id": "universal",
@@ -1028,6 +1035,41 @@
       "types": "./dist/admin-http/routes/menus/delete.d.ts",
       "import": "./dist/admin-http/routes/menus/delete.js",
       "default": "./dist/admin-http/routes/menus/delete.js"
+    },
+    "./admin-http/routes/integrations/create": {
+      "types": "./dist/admin-http/routes/integrations/create.d.ts",
+      "import": "./dist/admin-http/routes/integrations/create.js",
+      "default": "./dist/admin-http/routes/integrations/create.js"
+    },
+    "./admin-http/routes/integrations/delete": {
+      "types": "./dist/admin-http/routes/integrations/delete.d.ts",
+      "import": "./dist/admin-http/routes/integrations/delete.js",
+      "default": "./dist/admin-http/routes/integrations/delete.js"
+    },
+    "./admin-http/routes/integrations/deliveries": {
+      "types": "./dist/admin-http/routes/integrations/deliveries.d.ts",
+      "import": "./dist/admin-http/routes/integrations/deliveries.js",
+      "default": "./dist/admin-http/routes/integrations/deliveries.js"
+    },
+    "./admin-http/routes/integrations/list": {
+      "types": "./dist/admin-http/routes/integrations/list.d.ts",
+      "import": "./dist/admin-http/routes/integrations/list.js",
+      "default": "./dist/admin-http/routes/integrations/list.js"
+    },
+    "./admin-http/routes/integrations/pause": {
+      "types": "./dist/admin-http/routes/integrations/pause.d.ts",
+      "import": "./dist/admin-http/routes/integrations/pause.js",
+      "default": "./dist/admin-http/routes/integrations/pause.js"
+    },
+    "./admin-http/routes/integrations/shared": {
+      "types": "./dist/admin-http/routes/integrations/shared.d.ts",
+      "import": "./dist/admin-http/routes/integrations/shared.js",
+      "default": "./dist/admin-http/routes/integrations/shared.js"
+    },
+    "./admin-http/http/integrations": {
+      "types": "./dist/admin-http/http/integrations.d.ts",
+      "import": "./dist/admin-http/http/integrations.js",
+      "default": "./dist/admin-http/http/integrations.js"
     },
     "./admin-http/routes/members/shared": {
       "types": "./dist/admin-http/routes/members/shared.d.ts",
