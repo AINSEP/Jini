@@ -269,7 +269,7 @@ export function Members(props: MembersProps) {
     confirmDisable,
     t,
     translate,
-  } = ((_required: unknown, _optional?: unknown) => ({ members: null, error: null, t: (key: string) => key, translate: (key: string) => key }) as unknown as MembersController)({ port, translate: injectedTranslate, ...(queryScope === undefined ? {} : { queryScope }) }, { refresh });
+  } = props.useMembersHook({ port, translate: injectedTranslate, ...(queryScope === undefined ? {} : { queryScope }) }, { refresh });
 
   if (error) return <div className="notice error">{error}</div>;
   if (!members) return <div className="notice">{t("Loading members…")}</div>;
