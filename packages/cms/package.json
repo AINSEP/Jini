@@ -190,6 +190,10 @@
       "./media/site/public-path": "node",
       "./media/site/upload-content-type": "node",
       "./media/site/import-media-entity": "node",
+      "./media/site/where-used": "node",
+      "./media/site/purge-media": "node",
+      "./media/site/analytics": "universal",
+      "./media/site/contracts": "universal",
       "./admin-http/routes/media/get-providers": "universal",
       "./admin-http/routes/media/delete": "universal",
       "./admin-http/routes/media/trash": "universal",
@@ -1312,6 +1316,26 @@
       "types": "./dist/media/site/import-media-entity.d.ts",
       "import": "./dist/media/site/import-media-entity.js",
       "default": "./dist/media/site/import-media-entity.js"
+    },
+    "./media/site/where-used": {
+      "types": "./dist/media/site/where-used.d.ts",
+      "import": "./dist/media/site/where-used.js",
+      "default": "./dist/media/site/where-used.js"
+    },
+    "./media/site/purge-media": {
+      "types": "./dist/media/site/purge-media.d.ts",
+      "import": "./dist/media/site/purge-media.js",
+      "default": "./dist/media/site/purge-media.js"
+    },
+    "./media/site/analytics": {
+      "types": "./dist/media/site/analytics.d.ts",
+      "import": "./dist/media/site/analytics.js",
+      "default": "./dist/media/site/analytics.js"
+    },
+    "./media/site/contracts": {
+      "types": "./dist/media/site/contracts.d.ts",
+      "import": "./dist/media/site/contracts.js",
+      "default": "./dist/media/site/contracts.js"
     },
     "./admin-http/routes/media/get-providers": {
       "types": "./dist/admin-http/routes/media/get-providers.d.ts",

@@ -73,3 +73,34 @@ These modules must never import host code (routes, composition roots, product to
 an HTTP framework, or a host logger; host collaborators arrive through the deps object. Product
 names stay out too. Only `hydrate-blob-store-from-seed` touches the filesystem, and only through
 `node:fs` / `node:path`.
+
+### `where-used` / `purge-media`
+
+`findMediaWhereUsed({ deps, input }, { includeTrashed? })` reports every place a media asset is
+referenced, by canonical id, current slug and retired slugs: indexed `entry_refs` rows plus a fresh
+scan of the host's current post bodies (ordinary post saves do not maintain `entry_refs`).
+`purgeMedia({ deps, input })` wraps the shared `purgeMedia` from `@jini-ai/cms/media` with that
+lookup as its `referenceCheck`, so a still-referenced asset is refused immediately before deletion.
+
+The host injects, on `deps`:
+
+- `entryRefsRepo: Pick<EntryRefsRepoPort, "findByTarget">` — the reference index.
+- `postRepo: { list({ workspaceId }) }` — its post store, returning `id`, `deletedAt`, `bodyJson`,
+  `bodyHtml`, `seoExtJson`, `bodyFormat` per post.
+- `mediaRepo` (`listRetiredSlugs` for where-used; the full shared purge deps for purge-media), plus
+  the shared purge's `blobRepo`/`renditionRepo`/`blobStore`/`clock`.
+
+```ts
+import { purgeMedia } from "@jini-ai/cms/media/site/purge-media";
+
+await purgeMedia({ deps: { ...sharedPurgeDeps, entryRefsRepo, postRepo }, input: { workspaceId, id } });
+```
+
+### `analytics` / `contracts`
+
+`captureMediaUploaded({ tracker?, actorId, byteLength, kind, source })` sends one bucketed
+`media_uploaded` event (no filenames, hashes or bytes) through the host's injected `Tracker`; a
+missing or throwing tracker never fails the upload. `contracts` holds the type-only seams the host
+composition binds: `RemoveMediaFn` (the host's removal owner, structurally typed so this package
+imports nothing from a trash feature) and `MediaPublicUrlDeps` (optional `tracker`,
+`mediaContentTypeStore` narrowed to `getMany`/`set`, and `transformDefinitionRepo`).
