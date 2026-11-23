@@ -186,7 +186,7 @@ HTML, not JSON, so they are core `ServerRoute` factories (`apiConnectionOAuthCal
 `externalMcpOAuthCallbackRoute(deps)`), not `defineJsonRoute` specs. They read the host's request facts
 (`readRequestFacts`: client address for the limiter key, serving protocol, parsed query) from `locals`,
 so mount them through an adapter that puts the facts there. The host injects the page renderer with
-its copy (`renderPage`, typed `OAuthCallbackPageRenderer` from `src/public-http/routes/oauth/callback-page.ts`,
+its copy (`renderPage`, typed `OAuthCallbackPageRenderer` from `@jini-ai/core/contracts/site/oauth-callback-page`,
 which also owns the closed `OAuthCallbackFailureReason` vocabulary), the `postMessage` type, the
 binding-cookie reader/clearer, the error-class predicates (`isApiConnectionError`, `isOAuthError`,
 `isUnknownServerError`), its API-connection runtime / external-MCP OAuth service, the roster fan-out,

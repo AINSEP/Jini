@@ -2,7 +2,7 @@ import type { ServerRoute } from "@jini-ai/core/contracts/server";
 import { readRequestFacts, type RequestFacts } from "@jini-ai/core/contracts/site/request-facts";
 
 import type { OAuthCallbackLimiter } from "../api-connections/oauth-callback.js";
-import { oauthCallbackPageResponse, type OAuthCallbackFailureReason, type OAuthCallbackPageRenderer } from "../oauth/callback-page.js";
+import { oauthCallbackPageResponse, type OAuthCallbackFailureReason, type OAuthCallbackPageRenderer } from "@jini-ai/core/contracts/site/oauth-callback-page";
 import { EXTERNAL_MCP_OAUTH_CALLBACK_PATH, externalMcpOAuthCallbackUrl } from "./oauth-callback-url.js";
 
 /**
@@ -26,7 +26,7 @@ import { EXTERNAL_MCP_OAUTH_CALLBACK_PATH, externalMcpOAuthCallbackUrl } from ".
  * `state`, `code` and `error` arrive from a third party. They are narrowed to strings here and
  * validated (length, authentication, expiry and binding) in `Jini packages/oauth/src/authorization-code.ts` before any of
  * them reaches a token endpoint. Nothing from the request reaches the response body — see
- * `routes/oauth/callback-page.ts`.
+ * `@jini-ai/core/contracts/site/oauth-callback-page`.
  *
  * ## The full failure is logged, never rendered
  *

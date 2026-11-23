@@ -42,7 +42,7 @@ export function agentPluginActorId({ context }: { context: AgentPluginRoutePrinc
 }
 
 /** The `:pluginId` path segment; Express always fills it, the `?? ""` mirrors the host's own read. @complexity O(1). */
-export function pluginIdParam(params: Record<string, string | undefined>): string {
+export function pluginIdParam({ params }: { params: Record<string, string | undefined> }, _optional: Record<string, never> = {}): string {
   return String(params.pluginId ?? "");
 }
 

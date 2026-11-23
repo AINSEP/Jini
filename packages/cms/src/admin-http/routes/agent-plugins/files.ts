@@ -1,5 +1,6 @@
 import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
 import { rejectRoute } from "@jini-ai/core/errors/route-refusal";
+import type { AdminAgentPluginFilesEnvelope } from "@jini-ai/core/contracts/site/cms-agent-plugins";
 
 import { authorizeAgentPlugins, pluginIdParam, type AgentPluginRoutePrincipal } from "./shared.js";
 
@@ -25,9 +26,6 @@ export interface AgentPluginFilesRouteDeps {
   packageFileLimits: unknown;
 }
 
-/** The files response. */
-export interface AgentPluginFilesEnvelope { pluginId: string; files: readonly unknown[]; truncated: boolean; limits: unknown }
-
 /**
  * `AGENT_PLUGIN_FILES` — `GET /api/admin/v1/workspaces/:workspaceId/agent-plugins/:pluginId/files`
  * (2026-09-13). The Agent Plugins screen's read-only package-files viewer: every file in ONE
@@ -44,10 +42,10 @@ export interface AgentPluginFilesEnvelope { pluginId: string; files: readonly un
  *
  * Activation is deliberately not consulted: reading a switched-off plugin's files executes nothing.
  */
-export const agentPluginFilesRoute = defineJsonRoute<{ pluginId: string }, AgentPluginFilesEnvelope, AgentPluginFilesRouteDeps, AgentPluginRoutePrincipal>({
+export const agentPluginFilesRoute = defineJsonRoute<{ pluginId: string }, AdminAgentPluginFilesEnvelope, AgentPluginFilesRouteDeps, AgentPluginRoutePrincipal>({
   method: "get",
   path: "/api/admin/v1/workspaces/:workspaceId/agent-plugins/:pluginId/files",
-  parse: (raw) => ok({ value: { pluginId: pluginIdParam(raw.params) } }),
+  parse: (raw) => ok({ value: { pluginId: pluginIdParam({ params: raw.params }) } }),
   handle: async ({ input, deps, authorize }) => {
     await authorizeAgentPlugins({ authorize, permission: "admin.plugins.read" });
     const { pluginId } = input;

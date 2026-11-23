@@ -1,7 +1,7 @@
 import type { ServerRoute } from "@jini-ai/core/contracts/server";
 
-import type { OAuthCallbackPageRenderer } from "../../../public-http/routes/oauth/callback-page.js";
-import { oauthCallbackPageResponse } from "../../../public-http/routes/oauth/callback-page.js";
+import type { OAuthCallbackPageRenderer } from "@jini-ai/core/contracts/site/oauth-callback-page";
+import { oauthCallbackPageResponse } from "@jini-ai/core/contracts/site/oauth-callback-page";
 
 /**
  * @file Hosted sign-in start for a plugin-declared API connection. Mounted beneath the host's admin

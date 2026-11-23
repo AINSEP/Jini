@@ -1,7 +1,7 @@
 import type { ServerRoute } from "@jini-ai/core/contracts/server";
 import { readRequestFacts, type RequestFacts } from "@jini-ai/core/contracts/site/request-facts";
 
-import { oauthCallbackPageResponse, type OAuthCallbackFailureReason, type OAuthCallbackPageRenderer } from "../oauth/callback-page.js";
+import { oauthCallbackPageResponse, type OAuthCallbackFailureReason, type OAuthCallbackPageRenderer } from "@jini-ai/core/contracts/site/oauth-callback-page";
 
 /**
  * @file The PUBLIC OAuth callback for plugin-declared API connections (hosted runtime). Separate from

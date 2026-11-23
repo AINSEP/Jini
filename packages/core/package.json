@@ -120,7 +120,9 @@
       "./contracts/site/widgets-html": "universal",
       "./contracts/site/cms-menus": "universal",
       "./contracts/site/integrations-api-connections": "universal",
-      "./contracts/site/chat-core": "universal"
+      "./contracts/site/chat-core": "universal",
+      "./contracts/site/cms-agent-plugins": "universal",
+      "./contracts/site/oauth-callback-page": "universal"
     },
     "isolation": {
       "entries": {
@@ -712,6 +714,16 @@
       "types": "./dist/contracts/site/chat-core.d.ts",
       "import": "./dist/contracts/site/chat-core.js",
       "default": "./dist/contracts/site/chat-core.js"
+    },
+    "./contracts/site/cms-agent-plugins": {
+      "types": "./dist/contracts/site/cms-agent-plugins.d.ts",
+      "import": "./dist/contracts/site/cms-agent-plugins.js",
+      "default": "./dist/contracts/site/cms-agent-plugins.js"
+    },
+    "./contracts/site/oauth-callback-page": {
+      "types": "./dist/contracts/site/oauth-callback-page.d.ts",
+      "import": "./dist/contracts/site/oauth-callback-page.js",
+      "default": "./dist/contracts/site/oauth-callback-page.js"
     }
   },
   "files": [

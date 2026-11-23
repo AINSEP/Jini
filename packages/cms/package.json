@@ -159,7 +159,6 @@
       "./admin-http/routes/menus/update-tree": "universal",
       "./admin-http/routes/menus/assign-location": "universal",
       "./admin-http/routes/menus/delete": "universal",
-      "./public-http/routes/oauth/callback-page": "universal",
       "./public-http/routes/api-connections/oauth-callback": "universal",
       "./public-http/routes/external-mcp/oauth-callback": "universal",
       "./public-http/routes/external-mcp/oauth-callback-url": "universal",
@@ -1020,11 +1019,6 @@
       "types": "./dist/admin-http/routes/menus/delete.d.ts",
       "import": "./dist/admin-http/routes/menus/delete.js",
       "default": "./dist/admin-http/routes/menus/delete.js"
-    },
-    "./public-http/routes/oauth/callback-page": {
-      "types": "./dist/public-http/routes/oauth/callback-page.d.ts",
-      "import": "./dist/public-http/routes/oauth/callback-page.js",
-      "default": "./dist/public-http/routes/oauth/callback-page.js"
     },
     "./public-http/routes/api-connections/oauth-callback": {
       "types": "./dist/public-http/routes/api-connections/oauth-callback.d.ts",

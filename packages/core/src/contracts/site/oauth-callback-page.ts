@@ -1,6 +1,8 @@
 /**
- * @file The shared shape of an OAuth popup landing page, for every public callback route that ends a
- * provider sign-in (API connections, external MCP). The markup, XSS and origin protections live in
+ * @file The shared shape of an OAuth popup landing page, for every route that ends or refuses a
+ * provider sign-in (CMS's public API-connection and external-MCP callbacks, its admin sign-in hop).
+ * A wire contract, so it sits in neutral Core where both the admin and the public route domains
+ * may read it. The markup, XSS and origin protections live in
  * `@jini-ai/oauth/callback-page`; the copy is the host's, so the host injects the renderer
  * ({@link OAuthCallbackPageRenderer}) with its own wording bound in.
  *

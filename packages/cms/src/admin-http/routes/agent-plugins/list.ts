@@ -1,4 +1,5 @@
 import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
+import type { AdminAgentPluginDto, AdminAgentPluginsListEnvelope } from "@jini-ai/core/contracts/site/cms-agent-plugins";
 
 import { agentPluginLifecycleFields, type AgentPluginRowCandidate } from "../../http/agent-plugins.js";
 import { authorizeAgentPlugins, type AgentPluginCandidatesLoader, type AgentPluginRoutePrincipal } from "./shared.js";
@@ -12,9 +13,6 @@ export interface AgentPluginsListRouteDeps {
   loadCandidates: AgentPluginCandidatesLoader;
   loadConnectionStatuses: AgentPluginConnectionStatusesLoader;
 }
-
-/** The list response: one row per installed Agent Plugin. */
-export interface AgentPluginsListEnvelope { agentPlugins: Record<string, unknown>[] }
 
 /**
  * `AGENT_PLUGINS_LIST` — `GET /api/admin/v1/workspaces/:workspaceId/agent-plugins` (2026-09-09).
@@ -47,7 +45,7 @@ export interface AgentPluginsListEnvelope { agentPlugins: Record<string, unknown
  *
  * (Both loaders are injected: the host binds its read model and its connection-status read.)
  */
-export const agentPluginsListRoute = defineJsonRoute<Record<string, never>, AgentPluginsListEnvelope, AgentPluginsListRouteDeps, AgentPluginRoutePrincipal>({
+export const agentPluginsListRoute = defineJsonRoute<Record<string, never>, AdminAgentPluginsListEnvelope, AgentPluginsListRouteDeps, AgentPluginRoutePrincipal>({
   method: "get",
   path: "/api/admin/v1/workspaces/:workspaceId/agent-plugins",
   parse: () => ok({ value: {} }),
@@ -60,7 +58,7 @@ export const agentPluginsListRoute = defineJsonRoute<Record<string, never>, Agen
 });
 
 /** One list row; the connection status key is present only for a plugin the host reported. @complexity O(1). */
-function agentPluginListRow({ candidate, connectionStatuses }: { candidate: AgentPluginRowCandidate; connectionStatuses: ReadonlyMap<string, unknown> }, _optional: Record<string, never> = {}): Record<string, unknown> {
+function agentPluginListRow({ candidate, connectionStatuses }: { candidate: AgentPluginRowCandidate; connectionStatuses: ReadonlyMap<string, unknown> }, _optional: Record<string, never> = {}): AdminAgentPluginDto {
   return {
     pluginId: candidate.pluginId,
     displayName: candidate.displayName ?? null,

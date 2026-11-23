@@ -1,5 +1,6 @@
 import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
 import { rejectRoute } from "@jini-ai/core/errors/route-refusal";
+import type { AdminAgentPluginSetEnabledEnvelope } from "@jini-ai/core/contracts/site/cms-agent-plugins";
 
 import { agentPluginLifecycleFields, type AgentPluginRowCandidate } from "../../http/agent-plugins.js";
 import {
@@ -27,9 +28,6 @@ export interface AgentPluginSetEnabledRouteDeps {
 
 /** The PATCH input: the path id and the validated switch. */
 export interface AgentPluginSetEnabledInput { pluginId: string; enabled: boolean }
-
-/** The response: the updated row plus the lifecycle owner's warnings. */
-export interface AgentPluginSetEnabledEnvelope { warnings: readonly string[]; agentPlugin: Record<string, unknown> }
 
 /**
  * `AGENT_PLUGIN_SET_ENABLED` — `PATCH /api/admin/v1/workspaces/:workspaceId/agent-plugins/:pluginId`
@@ -127,7 +125,7 @@ export interface AgentPluginSetEnabledEnvelope { warnings: readonly string[]; ag
  * operator enables and authorizes it (`external-mcp/put.ts`'s own doc states the same restart rule
  * for an operator-typed row) — federation config is read once at boot.
  */
-export const agentPluginSetEnabledRoute = defineJsonRoute<AgentPluginSetEnabledInput, AgentPluginSetEnabledEnvelope, AgentPluginSetEnabledRouteDeps, AgentPluginRoutePrincipal>({
+export const agentPluginSetEnabledRoute = defineJsonRoute<AgentPluginSetEnabledInput, AdminAgentPluginSetEnabledEnvelope, AgentPluginSetEnabledRouteDeps, AgentPluginRoutePrincipal>({
   method: "patch",
   path: "/api/admin/v1/workspaces/:workspaceId/agent-plugins/:pluginId",
   // `enabled` must be a real boolean, not a coerced one — see "`enabled` is validated, not coerced"
@@ -135,7 +133,7 @@ export const agentPluginSetEnabledRoute = defineJsonRoute<AgentPluginSetEnabledI
   parse: (raw) => {
     const enabled = (raw.body as { enabled?: unknown } | undefined)?.enabled;
     if (typeof enabled !== "boolean") rejectRoute({ status: 400, error: "'enabled' must be a boolean", code: "VALIDATION_ERROR" });
-    return ok({ value: { pluginId: pluginIdParam(raw.params), enabled } });
+    return ok({ value: { pluginId: pluginIdParam({ params: raw.params }), enabled } });
   },
   handle: async ({ input, deps, context, authorize }) => {
     const { pluginId, enabled } = input;
@@ -170,7 +168,7 @@ export const agentPluginSetEnabledRoute = defineJsonRoute<AgentPluginSetEnabledI
 function updatedRow(
   { candidate, enabled }: { candidate: AgentPluginRowCandidate; enabled: boolean },
   { warnings = [] }: { warnings?: readonly string[] | undefined } = {},
-): AgentPluginSetEnabledEnvelope {
+): AdminAgentPluginSetEnabledEnvelope {
   return {
     warnings,
     agentPlugin: {

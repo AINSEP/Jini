@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { OAUTH_CALLBACK_FAILURE_REASONS, oauthCallbackPageResponse, type OAuthCallbackPageRenderer } from "../callback-page.js";
+import { OAUTH_CALLBACK_FAILURE_REASONS, oauthCallbackPageResponse, type OAuthCallbackPageRenderer } from "../oauth-callback-page.js";
 
 /** @file The shared callback-page response: fixed headers, the injected renderer's markup, nothing from the request. */
 
