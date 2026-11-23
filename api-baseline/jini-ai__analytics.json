@@ -123,6 +123,15 @@
    "createPluginAnalyticsHooks": "function:dc75ea5b99"
   }
  },
+ "./site/jini-adapters": {
+  "types": "./dist/site/jini-adapters.d.ts",
+  "symbols": {
+   "AnalyticsIngestRouteDeps": "interface:dec181e711",
+   "analyticsPrivacyPolicy": "variable:e0bdd6193c",
+   "createAnalyticsIngestBinding": "function:baf1116608",
+   "createLocalAnalyticsSink": "function:29fc5a0650"
+  }
+ },
  "./site/ports": {
   "types": "./dist/site/ports.d.ts",
   "symbols": {
@@ -145,6 +154,12 @@
    "RollupInput": "interface:18706572e4",
    "RollupRequired": "interface:25ddaa6e39",
    "RollupResult": "interface:2a16ec3070"
+  }
+ },
+ "./site/salt": {
+  "types": "./dist/site/salt.d.ts",
+  "symbols": {
+   "deriveDailySalt": "function:0fb1c4fcfe"
   }
  }
 }

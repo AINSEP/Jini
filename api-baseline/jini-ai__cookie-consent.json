@@ -213,6 +213,14 @@
    "privacyPageTemplate": "function:f86fd82cb3"
   }
  },
+ "./site/readiness": {
+  "types": "./dist/site/readiness.d.ts",
+  "symbols": {
+   "ConsentDeclarationEvidence": "interface:f8e8f84595",
+   "ConsentWarning": "interface:eafd17454e",
+   "consentDeclarationReadiness": "function:bf08d93db2"
+  }
+ },
  "./site/revisions": {
   "types": "./dist/site/revisions.d.ts",
   "symbols": {
