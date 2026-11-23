@@ -148,7 +148,12 @@
       "./pages/lib/page-preview-youtube": "universal",
       "./pages/lib/prettify-html": "universal",
       "./pages/lib/embed-placeholder": "browser",
-      "./pages/pages-i18n": "universal"
+      "./pages/pages-i18n": "universal",
+      "./shell/components/AdminFailureNotice/AdminFailureNotice": "browser",
+      "./shell/components/ServerRestartingBanner/ServerRestartingBanner": "browser",
+      "./shell/components/AdminFailureNotice/admin-failure-notice.css": "browser",
+      "./shell/components/ServerRestartingBanner/server-restarting-banner.css": "browser",
+      "./shell/components/ServerRestartingBanner/hooks/use-server-connection-status.hooks": "browser"
     },
     "isolation": {
       "shared": [
@@ -909,10 +914,28 @@
       "types": "./dist/pages/pages-i18n.d.ts",
       "import": "./dist/pages/pages-i18n.js",
       "default": "./dist/pages/pages-i18n.js"
+    },
+    "./shell/components/AdminFailureNotice/AdminFailureNotice": {
+      "types": "./dist/shell/components/AdminFailureNotice/AdminFailureNotice.d.ts",
+      "import": "./dist/shell/components/AdminFailureNotice/AdminFailureNotice.js",
+      "default": "./dist/shell/components/AdminFailureNotice/AdminFailureNotice.js"
+    },
+    "./shell/components/ServerRestartingBanner/ServerRestartingBanner": {
+      "types": "./dist/shell/components/ServerRestartingBanner/ServerRestartingBanner.d.ts",
+      "import": "./dist/shell/components/ServerRestartingBanner/ServerRestartingBanner.js",
+      "default": "./dist/shell/components/ServerRestartingBanner/ServerRestartingBanner.js"
+    },
+    "./shell/components/AdminFailureNotice/admin-failure-notice.css": "./src/shell/components/AdminFailureNotice/admin-failure-notice.css",
+    "./shell/components/ServerRestartingBanner/server-restarting-banner.css": "./src/shell/components/ServerRestartingBanner/server-restarting-banner.css",
+    "./shell/components/ServerRestartingBanner/hooks/use-server-connection-status.hooks": {
+      "types": "./dist/shell/components/ServerRestartingBanner/hooks/use-server-connection-status.hooks.d.ts",
+      "import": "./dist/shell/components/ServerRestartingBanner/hooks/use-server-connection-status.hooks.js",
+      "default": "./dist/shell/components/ServerRestartingBanner/hooks/use-server-connection-status.hooks.js"
     }
   },
   "files": [
     "src/themes",
+    "src/**/*.css",
     "dist",
     "README.md",
     "CHANGELOG.md",
@@ -987,6 +1010,15 @@
       ],
       "pages/pages-i18n": [
         "./dist/pages/pages-i18n.d.ts"
+      ],
+      "shell/components/AdminFailureNotice/AdminFailureNotice": [
+        "./dist/shell/components/AdminFailureNotice/AdminFailureNotice.d.ts"
+      ],
+      "shell/components/ServerRestartingBanner/ServerRestartingBanner": [
+        "./dist/shell/components/ServerRestartingBanner/ServerRestartingBanner.d.ts"
+      ],
+      "shell/components/ServerRestartingBanner/hooks/use-server-connection-status.hooks": [
+        "./dist/shell/components/ServerRestartingBanner/hooks/use-server-connection-status.hooks.d.ts"
       ]
     }
   },
