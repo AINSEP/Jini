@@ -30,13 +30,19 @@ function targetOf(entry: Conditions): string | undefined {
 
 /** `<public spec>` -> source path (repo-relative) for every concrete `exports` key. Patterns and
  * `./package.json` name no module. A manifest with no `exports` exposes only its root. */
+/** The `exports` field as a key -> conditions map; a bare target or no field exposes only the root. */
+function exportMap(manifest: Manifest): Record<string, Conditions> {
+  const field = manifest.exports as Conditions | undefined;
+  const isMap = typeof field === 'object' && field !== null && !Array.isArray(field) && Object.keys(field).some(key => key.startsWith('.'));
+  return isMap ? field as Record<string, Conditions> : { '.': field ?? null };
+}
+
+/** `<public spec>` -> source path (repo-relative) for every concrete `exports` key. Patterns and
+ * `./package.json` name no module. A manifest with no `exports` exposes only its root. */
 export function publicEntries(required: { manifest: Manifest; directory: string }, _optional: Record<string, never> = {}): Map<string, string | undefined> {
   const { manifest, directory } = required;
-  const exportsField = manifest.exports as Conditions | undefined;
-  const map = typeof exportsField === 'object' && exportsField !== null && !Array.isArray(exportsField) && Object.keys(exportsField).some(key => key.startsWith('.'))
-    ? exportsField as Record<string, Conditions> : { '.': exportsField ?? null };
   const entries = new Map<string, string | undefined>();
-  for (const [key, value] of Object.entries(map)) {
+  for (const [key, value] of Object.entries(exportMap(manifest))) {
     if (key.includes('*') || key === './package.json') continue;
     const target = targetOf(value);
     const spec = key === '.' ? manifest.name : `${manifest.name}/${key.slice(2)}`;
@@ -79,18 +85,22 @@ function exportsOfSpecifier(required: { from: string; specifier: string; walk: W
   return moduleExports({ path: posix.join(posix.dirname(required.from), required.specifier), walk: required.walk });
 }
 
+/** Value names an `import { … } from './x'` binds locally, when they resolve to a runtime export there. */
+function importedValues(required: { node: ts.Statement; scan: ModuleScan; walk: Walk }): string[] {
+  const { node } = required;
+  const clause = ts.isImportDeclaration(node) ? node.importClause : undefined;
+  if (!clause || clause.isTypeOnly || !clause.namedBindings || !ts.isNamedImports(clause.namedBindings)) return [];
+  const specifier = (node as ts.ImportDeclaration).moduleSpecifier as ts.StringLiteral;
+  const target = exportsOfSpecifier({ from: required.scan.path, specifier: specifier.text, walk: required.walk });
+  return clause.namedBindings.elements.filter(element => !element.isTypeOnly && target.has((element.propertyName ?? element.name).text))
+    .map(element => element.name.text);
+}
+
 /** Local value bindings: declarations plus value imports that resolve to a runtime export. */
 function localValues(required: { scan: ModuleScan; walk: Walk }): Set<string> {
   const values = new Set<string>();
   for (const node of required.scan.ast.statements) {
-    declaredValues(node).forEach(name => values.add(name));
-    const clause = ts.isImportDeclaration(node) ? node.importClause : undefined;
-    if (!clause || clause.isTypeOnly || !clause.namedBindings || !ts.isNamedImports(clause.namedBindings)) continue;
-    const specifier = (node as ts.ImportDeclaration).moduleSpecifier as ts.StringLiteral;
-    const target = exportsOfSpecifier({ from: required.scan.path, specifier: specifier.text, walk: required.walk });
-    for (const element of clause.namedBindings.elements) {
-      if (!element.isTypeOnly && target.has((element.propertyName ?? element.name).text)) values.add(element.name.text);
-    }
+    [...declaredValues(node), ...importedValues({ node, ...required })].forEach(name => values.add(name));
   }
   return values;
 }

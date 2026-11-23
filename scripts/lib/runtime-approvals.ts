@@ -41,6 +41,20 @@ export function baseDirectories(required: { root: string; packages: readonly Sou
     .map(pkg => relative(required.root, pkg.directory).split(sep).join('/'));
 }
 
+/** Approvals added for exports that already shipped at the base, and approvals dropped while still shipped. */
+function changeViolations(required: { approved: readonly string[]; baseApproved: readonly string[]; shipped: ReadonlySet<string>; basePairs: () => readonly string[] }): DebtViolation[] {
+  const { approved, baseApproved, shipped } = required;
+  const before = new Set(baseApproved);
+  const added = approved.filter(pair => !before.has(pair) && shipped.has(pair));
+  const basePairs = added.length > 0 ? new Set(required.basePairs()) : new Set<string>();
+  const violations: DebtViolation[] = [];
+  const manual = added.filter(pair => basePairs.has(pair));
+  if (manual.length > 0) violations.push({ rule: 'injection-approval-growth', file: DEBT_FILE, reason: `approvals added for exports that already shipped at the base: ${listed(manual)}` });
+  const narrowed = baseApproved.filter(pair => !approved.includes(pair) && shipped.has(pair));
+  if (narrowed.length > 0) violations.push({ rule: 'injection-approval-narrowed', file: DEBT_FILE, reason: `approvals dropped while the export is still public: ${listed(narrowed)}` });
+  return violations;
+}
+
 /**
  * Approval-list violations of the head debt file against the head and base export sets.
  * @param required.head The head debt file. @param required.base The trusted base debt file (null: first adoption).
@@ -53,13 +67,6 @@ export function approvalViolations(required: { head: DebtFile; base: DebtFile | 
   const phantom = approved.filter(pair => !shipped.has(pair));
   if (phantom.length > 0) violations.push({ rule: 'injection-debt-invalid', file: DEBT_FILE, reason: `approvals name no public runtime export at the head: ${listed(phantom)}` });
   const baseApproved = required.base?.metadata?.approvedRuntime;
-  if (!baseApproved) return violations;
-  const before = new Set(baseApproved);
-  const added = approved.filter(pair => !before.has(pair) && shipped.has(pair));
-  const basePairs = added.length > 0 ? new Set(required.basePairs()) : new Set<string>();
-  const manual = added.filter(pair => basePairs.has(pair));
-  if (manual.length > 0) violations.push({ rule: 'injection-approval-growth', file: DEBT_FILE, reason: `approvals added for exports that already shipped at the base: ${listed(manual)}` });
-  const narrowed = baseApproved.filter(pair => !approved.includes(pair) && shipped.has(pair));
-  if (narrowed.length > 0) violations.push({ rule: 'injection-approval-narrowed', file: DEBT_FILE, reason: `approvals dropped while the export is still public: ${listed(narrowed)}` });
+  if (baseApproved) violations.push(...changeViolations({ approved, baseApproved, shipped, basePairs: required.basePairs }));
   return violations;
 }
