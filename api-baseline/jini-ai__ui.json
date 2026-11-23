@@ -3015,6 +3015,11 @@
    "DEFAULT_SITE_LIST_PREFS": "variable:3d11712410",
    "SiteCard": "function:eb03570a43",
    "SiteCardPin": "function:94a7af3504",
+   "SiteCardPreviewArgs": "interface:c60b29f8c9",
+   "SiteCardPreviewSite": "interface:e3b15964a3",
+   "SiteCardPreviewSnapshot": "interface:d8750841d7",
+   "SiteCardPreviewUrl": "type:92171879c5",
+   "SiteCardPreviewView": "interface:7a4e232cb8",
    "SiteCardProps": "interface:0adb5c2add",
    "SiteCardStatus": "function:e98ad83d42",
    "SiteCardTone": "type:c06d490c5b",
@@ -3032,6 +3037,8 @@
    "duplicateDisplayNames": "function:eb249bdaf3",
    "isCardOpenKey": "function:4365623bd3",
    "parseSiteListPrefs": "function:ff022d3a39",
+   "resolveSiteCardPreview": "function:149b6f5d7d",
+   "useSiteCardPreview": "function:b190952c7c",
    "useSiteListPrefs": "function:e10863c362",
    "useSiteListView": "function:c30cb0856b"
   }

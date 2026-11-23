@@ -1222,6 +1222,13 @@
    "getFolderDropPort": "function:7e72c1a1de"
   }
  },
+ "./screens/webmcp/webmcp-i18n": {
+  "types": "./dist/screens/webmcp/webmcp-i18n.d.ts",
+  "symbols": {
+   "WEBMCP_DICT": "variable:c174a5429d",
+   "WEBMCP_KEYS": "variable:2b289380b2"
+  }
+ },
  "./security": {
   "types": "./dist/security/index.d.ts",
   "symbols": {

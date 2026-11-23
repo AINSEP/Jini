@@ -95,6 +95,7 @@
       "./shell/lib/ascii-slug": "browser",
       "./shell/lib/assistant-dock-bus": "browser",
       "./shell/lib/content-refresh-bus": "browser",
+      "./screens/webmcp/webmcp-i18n": "universal",
       "./screens/fs-files/folder-drop-port": "browser",
       "./shell/lib/editor-failure-i18n": "browser",
       "./shell/lib/editor-template-options.rules": "browser",
@@ -175,6 +176,7 @@
         "./shell/lib/ascii-slug": "browser",
         "./shell/lib/assistant-dock-bus": "browser",
         "./shell/lib/content-refresh-bus": "browser",
+        "./screens/webmcp/webmcp-i18n": "universal",
         "./screens/fs-files/folder-drop-port": "browser",
         "./shell/lib/editor-failure-i18n": "browser",
         "./shell/lib/editor-template-options.rules": "browser",
@@ -634,6 +636,11 @@
       "types": "./dist/shell/lib/content-refresh-bus.d.ts",
       "import": "./dist/shell/lib/content-refresh-bus.js",
       "default": "./dist/shell/lib/content-refresh-bus.js"
+    },
+    "./screens/webmcp/webmcp-i18n": {
+      "types": "./dist/screens/webmcp/webmcp-i18n.d.ts",
+      "import": "./dist/screens/webmcp/webmcp-i18n.js",
+      "default": "./dist/screens/webmcp/webmcp-i18n.js"
     },
     "./screens/fs-files/folder-drop-port": {
       "types": "./dist/screens/fs-files/folder-drop-port.d.ts",
