@@ -121,7 +121,7 @@ describe.each(["read", "readBytes"] as const)("descriptor %s", method => {
 
   it("closes on read failure", async () => {
     const f = fixture({ failure: new Error("read failed") });
-    await expect(Promise.resolve().then(() => invoke(f.make(), method))).rejects.toThrow(/read failed/);
+    await expect(Promise.resolve().then(() => invoke(f.make(), method))).rejects.toThrow(method === "readBytes" ? "could not be read: an unexpected filesystem error occurred" : /read failed/);
     expect(f.close.mock.calls).toEqual([[71]]);
   });
 

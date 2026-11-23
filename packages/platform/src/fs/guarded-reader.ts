@@ -574,8 +574,25 @@ function assertDescriptorStat({ stat, relativePath, maxBytes }: {
     if (exactMode !== undefined && (stat.mode & 0o7777) !== exactMode)
         throw new FsFilePathError({ message: `file '${relativePath}' does not have exact mode ${exactMode.toString(8)}` });
 }
+/** Plain reasons by errno code. Native messages are never used: they embed the absolute host path,
+ * and refusal text is model-visible (B046). */
+const FS_REFUSAL_REASONS: ReadonlyMap<string, string> = new Map([
+    ["ENOENT", "it does not exist"],
+    ["ENOTDIR", "a parent path is not a directory"],
+    ["EISDIR", "it is a directory"],
+    ["EACCES", "permission was denied"],
+    ["EPERM", "permission was denied"],
+    ["ELOOP", "it has too many symbolic links"],
+    ["EIO", "the disk reported an input/output error"],
+    ["EMFILE", "too many files are open"],
+    ["ENFILE", "too many files are open"],
+]);
 function errorText(error: unknown): string {
-    return error instanceof Error ? error.message : String(error);
+    const code = typeof error === "object" && error !== null ? (error as { code?: unknown }).code : undefined;
+    // Only an errno-shaped code is echoed; anything else could carry arbitrary text.
+    if (typeof code !== "string" || !/^E[A-Z0-9]+$/.test(code))
+        return "an unexpected filesystem error occurred";
+    return `${FS_REFUSAL_REASONS.get(code) ?? "an unexpected filesystem error occurred"} (${code})`;
 }
 async function collectBoundedChunks(stream: AsyncIterable<unknown>, { relativePath, maxBytes }: { relativePath: string; maxBytes: number }): Promise<Uint8Array> {
     const chunks: Buffer[] = [];

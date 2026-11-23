@@ -99,7 +99,7 @@ test("a NUL byte beyond the sniff window does not mark text as binary", () => {
 test("a non-Error stat failure is reported as a typed refusal", () => {
   const dir = root({ "a.txt": "a" });
   const statSync = (() => { throw "EIO string"; }) as GuardedReaderFilesystem["statSync"];
-  expect(refusal(() => reader(dir, { filesystem: { statSync } }).read({ relativePath: "a.txt" })).message).toBe("path 'a.txt' could not be read: EIO string");
+  expect(refusal(() => reader(dir, { filesystem: { statSync } }).read({ relativePath: "a.txt" })).message).toBe("path 'a.txt' could not be read: an unexpected filesystem error occurred");
 });
 
 // --- listing ---------------------------------------------------------------
@@ -144,7 +144,7 @@ test("listing the root as a file reports '.' as the refused path", () => {
 test("a stat failure on the listing root reports '.' as the unreadable path", () => {
   const dir = root();
   const statSync = (() => { throw new Error("ELOOP: too many symbolic links"); }) as GuardedReaderFilesystem["statSync"];
-  expect(refusal(() => reader(dir, { filesystem: { statSync } }).list({})).message).toBe("path '.' could not be read: ELOOP: too many symbolic links");
+  expect(refusal(() => reader(dir, { filesystem: { statSync } }).list({})).message).toBe("path '.' could not be read: an unexpected filesystem error occurred");
 });
 test("an explicit empty relativePath lists the root", () => {
   const dir = root({ "a.txt": "a" });
@@ -177,7 +177,7 @@ test("readBytes reports a non-Error stream failure as a typed refusal", async ()
     opened = stream;
     return stream;
   }) as GuardedReaderFilesystem["createReadStream"];
-  expect((await asyncRefusal(() => reader(dir, { filesystem: { createReadStream } }).readBytes({ relativePath: "a.bin", maxBytes: 8 }))).message).toBe("path 'a.bin' could not be read: stream gone");
+  expect((await asyncRefusal(() => reader(dir, { filesystem: { createReadStream } }).readBytes({ relativePath: "a.bin", maxBytes: 8 }))).message).toBe("path 'a.bin' could not be read: an unexpected filesystem error occurred");
   expect(opened?.destroyed).toBe(true);
   await settled(opened);
 });
@@ -186,7 +186,7 @@ test("readBytes concatenates every chunk of a multi-chunk stream", async () => {
   const createReadStream = ((target: string) => nodeFs.createReadStream(target, { highWaterMark: 2 })) as GuardedReaderFilesystem["createReadStream"];
   expect(Buffer.from(await reader(dir, { filesystem: { createReadStream } }).readBytes({ relativePath: "a.bin", maxBytes: 6 })).toString()).toBe("abcdef");
 });
-test("readBytes reports an Error stream failure by its message", async () => {
+test("readBytes reports a codeless Error stream failure without echoing its message", async () => {
   const dir = root({ "a.bin": "abc" });
   let opened: nodeFs.ReadStream | undefined;
   const createReadStream = ((target: string) => {
@@ -195,7 +195,7 @@ test("readBytes reports an Error stream failure by its message", async () => {
     opened = stream;
     return stream;
   }) as GuardedReaderFilesystem["createReadStream"];
-  expect((await asyncRefusal(() => reader(dir, { filesystem: { createReadStream } }).readBytes({ relativePath: "a.bin", maxBytes: 8 }))).message).toBe("path 'a.bin' could not be read: EIO: i/o error, read");
+  expect((await asyncRefusal(() => reader(dir, { filesystem: { createReadStream } }).readBytes({ relativePath: "a.bin", maxBytes: 8 }))).message).toBe("path 'a.bin' could not be read: an unexpected filesystem error occurred");
   await settled(opened);
 });
 test("resolving the root itself passes the effective-target deny check", () => {

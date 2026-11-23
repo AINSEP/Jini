@@ -154,8 +154,8 @@ test("a symlink to an allowed file inside the root preserves its binary bytes", 
 test("a circular symlink preserves the text reader's typed stat refusal", async (t) => {
     const { rootPath } = fixture(t);
     fs.symlinkSync("loop.png", path.join(rootPath, "loop.png"));
-    const target = path.join(fs.realpathSync(rootPath), "loop.png");
-    const message = `path 'loop.png' could not be read: ELOOP: too many symbolic links encountered, stat '${target}'`;
+    // B046: the plain reason, never the native message (which names the absolute host path).
+    const message = "path 'loop.png' could not be read: it has too many symbolic links (ELOOP)";
     assert.throws(() => readFsFile({ rootPath, relativePath: "loop.png" }), refused(message!));
     const streamSpy = vi.spyOn(fs, "createReadStream");
     await assert.rejects(() => read({ rootPath, relativePath: "loop.png", maxBytes: 32 }), refused(message!));
@@ -173,8 +173,7 @@ test("a stream read failure becomes a typed refusal and closes the stream", asyn
         stream = original(...args);
         return stream;
     });
-    const resolvedTarget = path.join(fs.realpathSync(rootPath), "vanished.png");
-    await assert.rejects(() => read({ rootPath, relativePath: "vanished.png", maxBytes: 32 }), refused(`path 'vanished.png' could not be read: ENOENT: no such file or directory, open '${resolvedTarget}'`));
+    await assert.rejects(() => read({ rootPath, relativePath: "vanished.png", maxBytes: 32 }), refused("path 'vanished.png' could not be read: it does not exist (ENOENT)"));
     assert.ok(stream);
     assert.equal(stream.destroyed, true);
 });
