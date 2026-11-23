@@ -139,6 +139,13 @@ function readWaitMs({ waitMs }: { waitMs: unknown }, _options = {}): number {
   return waitMs;
 }
 
+/** The optional cookie-banner flag: absent stays absent; anything but a boolean is refused. */
+function readDismissCookieBanners({ raw }: { raw: unknown }, _optional = {}): { dismissCookieBanners?: boolean } {
+  if (raw === undefined) return {};
+  if (typeof raw !== "boolean") throw refusal({ message: "dismissCookieBanners must be a boolean." });
+  return { dismissCookieBanners: raw };
+}
+
 /**
  * Validates the raw tool input. Exact messages so a model can correct itself in one turn.
  * @throws ToolInputError for a missing/ambiguous target or an invalid option.
@@ -150,9 +157,9 @@ export function readWebScreenshotInput({ input }: { input: Readonly<Record<strin
   const validatedViewport = readViewport({ viewport });
   if (typeof fullPage !== "boolean") throw refusal({ message: "fullPage must be a boolean." });
   const validatedWaitMs = readWaitMs({ waitMs });
-  if (input.dismissCookieBanners !== undefined && typeof input.dismissCookieBanners !== "boolean") throw refusal({ message: "dismissCookieBanners must be a boolean." });
+  const cookieBanners = readDismissCookieBanners({ raw: input.dismissCookieBanners });
   const target = url !== undefined ? { kind: "url" as const, url: readUrl({ raw: url }) } : { kind: "site" as const, path: readSitePath({ raw: sitePath }) };
-  return { target, viewport: validatedViewport, fullPage, waitMs: validatedWaitMs, ...(input.dismissCookieBanners === undefined ? {} : { dismissCookieBanners: input.dismissCookieBanners }), ...readThemeId({ raw: themeId, target }) };
+  return { target, viewport: validatedViewport, fullPage, waitMs: validatedWaitMs, ...cookieBanners, ...readThemeId({ raw: themeId, target }) };
 }
 
 /** Lowercase ASCII words joined by `-`, capped so a long URL still makes a short file name. */
