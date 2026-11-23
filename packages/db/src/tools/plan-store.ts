@@ -37,7 +37,7 @@ export interface DatabaseTransferPlan extends DatabaseTransferPlanContent {
 export type TakeDatabaseTransferPlanResult = { ok: true; plan: DatabaseTransferPlan } | { ok: false; code: "PLAN_NOT_FOUND" | "PLAN_EXPIRED" };
 
 const DEFAULT_PLAN_TTL_MS = 10 * 60 * 1000;
-/** Each plan holds a whole database snapshot, so only a couple are kept. */
+/** Each plan holds a whole database snapshot, so only a couple are kept per principal. */
 const DEFAULT_MAX_PLANS = 2;
 
 export class DatabaseTransferPlanStore {
@@ -48,17 +48,20 @@ export class DatabaseTransferPlanStore {
     this.now = optional.now ?? Date.now;
   }
 
-  /** @complexity O(plans held), at most {@link DEFAULT_MAX_PLANS}. */
+  /** @complexity O(plans held): at most {@link DEFAULT_MAX_PLANS} per principal, expired ones pruned first. */
   save(input: { principalId: string; workspaceId: string; content: DatabaseTransferPlanContent }, _optional = {}): DatabaseTransferPlan {
     const nowMs = this.now();
     for (const [id, plan] of this.plans) {
       if (plan.expiresAtMs <= nowMs) this.plans.delete(id);
     }
-    // Evict oldest-first (a Map iterates in insertion order) until there is room for this plan. The
-    // former `oldest === undefined` guard is gone: iterating the keys themselves cannot yield a missing one.
-    for (const id of this.plans.keys()) {
-      if (this.plans.size < DEFAULT_MAX_PLANS) break;
+    // Evict this principal's own oldest plans first (a Map iterates in insertion order) until there is
+    // room. The cap is per principal (B166): a global cap let one user's new plan evict another's.
+    let held = [...this.plans.values()].filter(plan => plan.principalId === input.principalId).length;
+    for (const [id, plan] of this.plans) {
+      if (held < DEFAULT_MAX_PLANS) break;
+      if (plan.principalId !== input.principalId) continue;
       this.plans.delete(id);
+      held -= 1;
     }
     const plan: DatabaseTransferPlan = { ...input.content, planId: randomUUID(), principalId: input.principalId, workspaceId: input.workspaceId, expiresAtMs: nowMs + DEFAULT_PLAN_TTL_MS };
     this.plans.set(plan.planId, plan);
