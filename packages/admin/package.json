@@ -111,6 +111,12 @@
       "./screens/assistant-settings/AdminAssistantSwitch": "browser",
       "./screens/assistant-settings/use-admin-assistant-switch.hooks": "browser",
       "./screens/assistant-settings/use-ai-assistant.hooks": "browser",
+      "./screens/assistant-settings/AdminSubagents": "browser",
+      "./screens/assistant-settings/admin-subagents.types": "browser",
+      "./screens/assistant-settings/AdminPermanentDeletes": "browser",
+      "./screens/assistant-settings/use-admin-permanent-deletes.hooks": "browser",
+      "./screens/assistant-settings/VisitorAssistantTabs": "browser",
+      "./screens/assistant-settings/use-visitor-assistant-tabs.hooks": "browser",
       "./screens/webmcp/webmcp-i18n": "universal",
       "./screens/webmcp/browser-agent-settings.hooks": "browser",
       "./screens/webmcp/BrowserAgentSettingsPanel": "browser",
@@ -123,6 +129,9 @@
       "./screens/sites/SiteCardView": "browser",
       "./screens/sites/SiteTrashTab": "browser",
       "./screens/sites/sites-screen-ports": "universal",
+      "./screens/sites/sites-list-rules": "universal",
+      "./screens/sites/use-site-confirm.hooks": "browser",
+      "./screens/sites/LocalSiteConfirmDialog": "browser",
       "./screens/workspace/hooks/use-workspace.hooks": "browser",
       "./shell/lib/editor-failure-i18n": "browser",
       "./shell/lib/editor-template-options.rules": "browser",
@@ -250,6 +259,12 @@
         "./screens/assistant-settings/AdminAssistantSwitch": "browser",
         "./screens/assistant-settings/use-admin-assistant-switch.hooks": "browser",
         "./screens/assistant-settings/use-ai-assistant.hooks": "browser",
+        "./screens/assistant-settings/AdminSubagents": "browser",
+        "./screens/assistant-settings/admin-subagents.types": "browser",
+        "./screens/assistant-settings/AdminPermanentDeletes": "browser",
+        "./screens/assistant-settings/use-admin-permanent-deletes.hooks": "browser",
+        "./screens/assistant-settings/VisitorAssistantTabs": "browser",
+        "./screens/assistant-settings/use-visitor-assistant-tabs.hooks": "browser",
         "./screens/webmcp/webmcp-i18n": "universal",
         "./screens/webmcp/browser-agent-settings.hooks": "browser",
         "./screens/webmcp/BrowserAgentSettingsPanel": "browser",
@@ -262,6 +277,9 @@
         "./screens/sites/SiteCardView": "browser",
         "./screens/sites/SiteTrashTab": "browser",
         "./screens/sites/sites-screen-ports": "universal",
+        "./screens/sites/sites-list-rules": "universal",
+        "./screens/sites/use-site-confirm.hooks": "browser",
+        "./screens/sites/LocalSiteConfirmDialog": "browser",
         "./screens/workspace/hooks/use-workspace.hooks": "browser",
         "./shell/lib/editor-failure-i18n": "browser",
         "./shell/lib/editor-template-options.rules": "browser",
@@ -802,6 +820,36 @@
       "import": "./dist/screens/assistant-settings/use-ai-assistant.hooks.js",
       "default": "./dist/screens/assistant-settings/use-ai-assistant.hooks.js"
     },
+    "./screens/assistant-settings/AdminSubagents": {
+      "types": "./dist/screens/assistant-settings/AdminSubagents.d.ts",
+      "import": "./dist/screens/assistant-settings/AdminSubagents.js",
+      "default": "./dist/screens/assistant-settings/AdminSubagents.js"
+    },
+    "./screens/assistant-settings/admin-subagents.types": {
+      "types": "./dist/screens/assistant-settings/admin-subagents.types.d.ts",
+      "import": "./dist/screens/assistant-settings/admin-subagents.types.js",
+      "default": "./dist/screens/assistant-settings/admin-subagents.types.js"
+    },
+    "./screens/assistant-settings/AdminPermanentDeletes": {
+      "types": "./dist/screens/assistant-settings/AdminPermanentDeletes.d.ts",
+      "import": "./dist/screens/assistant-settings/AdminPermanentDeletes.js",
+      "default": "./dist/screens/assistant-settings/AdminPermanentDeletes.js"
+    },
+    "./screens/assistant-settings/use-admin-permanent-deletes.hooks": {
+      "types": "./dist/screens/assistant-settings/use-admin-permanent-deletes.hooks.d.ts",
+      "import": "./dist/screens/assistant-settings/use-admin-permanent-deletes.hooks.js",
+      "default": "./dist/screens/assistant-settings/use-admin-permanent-deletes.hooks.js"
+    },
+    "./screens/assistant-settings/VisitorAssistantTabs": {
+      "types": "./dist/screens/assistant-settings/VisitorAssistantTabs.d.ts",
+      "import": "./dist/screens/assistant-settings/VisitorAssistantTabs.js",
+      "default": "./dist/screens/assistant-settings/VisitorAssistantTabs.js"
+    },
+    "./screens/assistant-settings/use-visitor-assistant-tabs.hooks": {
+      "types": "./dist/screens/assistant-settings/use-visitor-assistant-tabs.hooks.d.ts",
+      "import": "./dist/screens/assistant-settings/use-visitor-assistant-tabs.hooks.js",
+      "default": "./dist/screens/assistant-settings/use-visitor-assistant-tabs.hooks.js"
+    },
     "./screens/webmcp/webmcp-i18n": {
       "types": "./dist/screens/webmcp/webmcp-i18n.d.ts",
       "import": "./dist/screens/webmcp/webmcp-i18n.js",
@@ -851,6 +899,21 @@
       "types": "./dist/screens/sites/sites-screen-ports.d.ts",
       "import": "./dist/screens/sites/sites-screen-ports.js",
       "default": "./dist/screens/sites/sites-screen-ports.js"
+    },
+    "./screens/sites/sites-list-rules": {
+      "types": "./dist/screens/sites/sites-list-rules.d.ts",
+      "import": "./dist/screens/sites/sites-list-rules.js",
+      "default": "./dist/screens/sites/sites-list-rules.js"
+    },
+    "./screens/sites/use-site-confirm.hooks": {
+      "types": "./dist/screens/sites/use-site-confirm.hooks.d.ts",
+      "import": "./dist/screens/sites/use-site-confirm.hooks.js",
+      "default": "./dist/screens/sites/use-site-confirm.hooks.js"
+    },
+    "./screens/sites/LocalSiteConfirmDialog": {
+      "types": "./dist/screens/sites/LocalSiteConfirmDialog.d.ts",
+      "import": "./dist/screens/sites/LocalSiteConfirmDialog.js",
+      "default": "./dist/screens/sites/LocalSiteConfirmDialog.js"
     },
     "./screens/workspace/rules": {
       "types": "./dist/screens/workspace/rules.d.ts",
