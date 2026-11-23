@@ -241,6 +241,35 @@ const check = createUpdateCheckNow({ ...eligibility, automaticUpdates: auto, cop
 registerUpdateCheckIpc({ ipcMain, channel: HOST_CHECK_FOR_UPDATES_CHANNEL, checkNow: check.checkNow });
 ```
 
+### Wiring: desktop updater lifecycle and native update boxes
+
+- **Needs injected:** for `createDesktopUpdater` (`./electron/updates`), `DesktopUpdaterPorts`:
+  the automatic-updates read/save, the host's `skipReason`, a lazy `loadNativeUpdater`, `quitIdle`,
+  a `createController` factory (normally `./shell/auto-update-controller` bound to the host's
+  controller inputs, read at start), the "Update ready" prompt and a `DesktopUpdaterReporter`
+  (`skipped`/`startFailed`; the host owns the log wording). For the native boxes, a
+  `NativeDialogPort` (Electron's `dialog`), a `WindowListPort` (`BrowserWindow`), an
+  `UpdateReadyPromptCopy`, an `OthersOpenCopy` and the notice's acknowledge label.
+- **Provides:** one start in flight (repeat starts and a manual check join it), OFF that persists
+  first and then disables native downloads/installs, `finalQuitHeldForUpdate` (held exactly when the
+  controller installs; never when the preference is off), `loadUpdaterForCheck` for
+  `createUpdateCheckNow`, and boxes parented to the focused window (Restart is button 0).
+- **Never imports:** `electron`, a console, product copy, env names or the shell controller itself.
+  Architecture: [extraction-plan](../../ADS-memory/reports/jini-port/extraction-plan.md).
+
+```ts
+import { createDesktopUpdater, promptUpdateReady } from '@jini-ai/desktop-host/electron/updates';
+import { createAutoUpdateController } from '@jini-ai/desktop-host/shell/auto-update-controller';
+
+const updater = createDesktopUpdater({ ports: { automaticUpdates, saveAutomaticUpdates, skipReason, quitIdle,
+  loadNativeUpdater: async () => autoUpdater,
+  createController: ({ updater, promptUpdateReady }) => createAutoUpdateController({ ...controllerInputs(), updater, promptUpdateReady }),
+  promptUpdateReady: ({ version }) => promptUpdateReady({ dialog, windows: BrowserWindow, automaticUpdates, version, copy: readyCopy }),
+  reporter: { skipped: ({ reason }) => log(`updates off: ${reason}`), startFailed: ({ error }) => logError(error) } } });
+updater.startInBackground();
+app.on('before-quit', event => { if (updater.finalQuitHeldForUpdate()) event.preventDefault(); });
+```
+
 ### Wiring: preload channel subscriber and `<webview>` types
 
 - **Needs injected:** for `createPreloadSubscriber` (`./electron/preload`), a `PreloadIpcListenerPort`
