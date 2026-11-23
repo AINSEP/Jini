@@ -109,6 +109,58 @@
    "adminDatabaseTimelineRoute": "variable:5119d6e733"
   }
  },
+ "./admin-http/routes/media/delete": {
+  "types": "./dist/admin-http/routes/media/delete.d.ts",
+  "symbols": {
+   "MediaDeleteRouteDeps": "interface:655fcd058f",
+   "mediaDeleteRoute": "variable:8c932458e1"
+  }
+ },
+ "./admin-http/routes/media/get-providers": {
+  "types": "./dist/admin-http/routes/media/get-providers.d.ts",
+  "symbols": {
+   "MediaGetProvidersRouteDeps": "interface:f8db502d2f",
+   "MediaProviderMarkerMap": "type:abcb06986f",
+   "mediaGetProvidersRoute": "variable:5d55d42703"
+  }
+ },
+ "./admin-http/routes/media/import-url": {
+  "types": "./dist/admin-http/routes/media/import-url.d.ts",
+  "symbols": {
+   "MediaImportUpload": "interface:f4ba44fcdf",
+   "MediaImportUrlRouteDeps": "interface:1e40b3fbe5",
+   "mediaImportUrlRoute": "variable:b2cb43c8fc"
+  }
+ },
+ "./admin-http/routes/media/trash": {
+  "types": "./dist/admin-http/routes/media/trash.d.ts",
+  "symbols": {
+   "MediaTrashRemove": "type:0505625385",
+   "MediaTrashRouteDeps": "interface:47127fc293",
+   "mediaTrashRoute": "variable:7dd7dd6318"
+  }
+ },
+ "./admin-http/routes/media/where-used": {
+  "types": "./dist/admin-http/routes/media/where-used.d.ts",
+  "symbols": {
+   "MediaWhereUsedRouteDeps": "interface:dea3d426a8",
+   "mediaWhereUsedRoute": "variable:7a255bb68e"
+  }
+ },
+ "./admin-http/routes/posts/get-by-id": {
+  "types": "./dist/admin-http/routes/posts/get-by-id.d.ts",
+  "symbols": {
+   "PostGetRouteDeps": "interface:9eb5d57425",
+   "postGetRoute": "variable:a922bfedc2"
+  }
+ },
+ "./admin-http/routes/posts/list": {
+  "types": "./dist/admin-http/routes/posts/list.d.ts",
+  "symbols": {
+   "PostListRouteDeps": "interface:5e3da2f773",
+   "postListRoute": "variable:33d6f7c134"
+  }
+ },
  "./admin-http/routes/recovery/deep-link": {
   "types": "./dist/admin-http/routes/recovery/deep-link.d.ts",
   "symbols": {
@@ -1475,6 +1527,17 @@
    "HydrateBlobStoreFromSeedResult": "interface:ce36d11478",
    "HydrateBlobStoreFromSeedStatus": "type:78d08dc58c",
    "hydrateBlobStoreFromSeed": "function:92ad6fbdab"
+  }
+ },
+ "./media/site/import-media-entity": {
+  "types": "./dist/media/site/import-media-entity.d.ts",
+  "symbols": {
+   "ImportMediaEntityBlockedCode": "type:168c1e4fed",
+   "ImportMediaEntityDeps": "interface:046d322a89",
+   "ImportMediaEntityInput": "interface:b9f3da48c8",
+   "ImportMediaEntityResult": "type:25d384a11d",
+   "importMediaEntity": "function:c10428777c",
+   "restoreImportedMedia": "function:4efa406c53"
   }
  },
  "./media/site/original-bytes": {

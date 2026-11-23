@@ -188,7 +188,15 @@
       "./media/site/hydrate-blob-store-from-seed": "node",
       "./media/site/original-bytes": "node",
       "./media/site/public-path": "node",
-      "./media/site/upload-content-type": "node"
+      "./media/site/upload-content-type": "node",
+      "./media/site/import-media-entity": "node",
+      "./admin-http/routes/media/get-providers": "universal",
+      "./admin-http/routes/media/delete": "universal",
+      "./admin-http/routes/media/trash": "universal",
+      "./admin-http/routes/posts/list": "universal",
+      "./admin-http/routes/posts/get-by-id": "universal",
+      "./admin-http/routes/media/where-used": "universal",
+      "./admin-http/routes/media/import-url": "universal"
     },
     "isolation": {
       "domains": {
@@ -285,7 +293,12 @@
         "./admin-http/routes/redirects/tombstone": "redirects",
         "./admin-http/routes/redirects/update": "redirects",
         "./public-http/routes/site/pages/listing/listing-state": "listing",
-        "./admin-http/http/forms": "forms"
+        "./admin-http/http/forms": "forms",
+        "./admin-http/routes/media/get-providers": "media",
+        "./admin-http/routes/media/delete": "media",
+        "./admin-http/routes/media/trash": "media",
+        "./admin-http/routes/media/where-used": "media",
+        "./admin-http/routes/media/import-url": "media"
       }
     },
     "optionalPeers": {
@@ -1181,6 +1194,46 @@
       "types": "./dist/media/site/upload-content-type.d.ts",
       "import": "./dist/media/site/upload-content-type.js",
       "default": "./dist/media/site/upload-content-type.js"
+    },
+    "./media/site/import-media-entity": {
+      "types": "./dist/media/site/import-media-entity.d.ts",
+      "import": "./dist/media/site/import-media-entity.js",
+      "default": "./dist/media/site/import-media-entity.js"
+    },
+    "./admin-http/routes/media/get-providers": {
+      "types": "./dist/admin-http/routes/media/get-providers.d.ts",
+      "import": "./dist/admin-http/routes/media/get-providers.js",
+      "default": "./dist/admin-http/routes/media/get-providers.js"
+    },
+    "./admin-http/routes/media/delete": {
+      "types": "./dist/admin-http/routes/media/delete.d.ts",
+      "import": "./dist/admin-http/routes/media/delete.js",
+      "default": "./dist/admin-http/routes/media/delete.js"
+    },
+    "./admin-http/routes/media/trash": {
+      "types": "./dist/admin-http/routes/media/trash.d.ts",
+      "import": "./dist/admin-http/routes/media/trash.js",
+      "default": "./dist/admin-http/routes/media/trash.js"
+    },
+    "./admin-http/routes/posts/list": {
+      "types": "./dist/admin-http/routes/posts/list.d.ts",
+      "import": "./dist/admin-http/routes/posts/list.js",
+      "default": "./dist/admin-http/routes/posts/list.js"
+    },
+    "./admin-http/routes/posts/get-by-id": {
+      "types": "./dist/admin-http/routes/posts/get-by-id.d.ts",
+      "import": "./dist/admin-http/routes/posts/get-by-id.js",
+      "default": "./dist/admin-http/routes/posts/get-by-id.js"
+    },
+    "./admin-http/routes/media/where-used": {
+      "types": "./dist/admin-http/routes/media/where-used.d.ts",
+      "import": "./dist/admin-http/routes/media/where-used.js",
+      "default": "./dist/admin-http/routes/media/where-used.js"
+    },
+    "./admin-http/routes/media/import-url": {
+      "types": "./dist/admin-http/routes/media/import-url.d.ts",
+      "import": "./dist/admin-http/routes/media/import-url.js",
+      "default": "./dist/admin-http/routes/media/import-url.js"
     }
   },
   "files": [
