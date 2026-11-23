@@ -20,7 +20,7 @@ export interface MenusTrashClient {
  *  reader (`listPages` — the host owns its pages client and public-path rule). The host builds it once
  *  at its composition root as a module-level singleton. */
 export function createMenusPort(
-  { api, trash, listPages }: { api: MenusApi; trash: MenusTrashClient; listPages: MenusPort["listPages"] },
+  { api, trash, listPages }: { api: MenusApi; trash: MenusTrashClient; listPages: NonNullable<MenusPort["listPages"]> },
   _optional: Record<string, never> = {}
 ): MenusPort {
   return {
