@@ -7,6 +7,9 @@ composes. Why the move happens piecewise: `ADS-memory/reports/jini-port/extracti
 
 ## Wiring
 
+- `hooks/media-port.hooks` declares `MediaPort` (types only); the host binds the real API client
+  in its own dependencies module and passes the port into every media hook.
+
 **Needs injected:** `openLightboxDialog` / `closeLightboxDialog` for the edit dialog's native
 `<dialog>` lifecycle, passed as required args to `useEditMediaModal`. The host binds them at its
 call site from its `AdminKitValues` (e.g. `useAdminKitValues()` under its `<AdminKitProvider>`);
@@ -50,6 +53,6 @@ function EditMediaModal({ item, onCancel }) {
 ```
 
 **Must never import:** `@jini-ai/ui` / `@jini-ai/ui-kit` at runtime (UI pieces arrive through the
-kit), host modules (`@/…`, `#src/…`), or the host's media wire DTO (`AdminMedia` from the host's
-`media-api.types`), which stays with the host until a neutral type exists — a hook here declares
-the structural slice it reads (or a type parameter for a pass-through) instead.
+kit), host modules (`@/…`, `#src/…`), or a host copy of the media wire DTO — `AdminMedia` now lives in
+`@jini-ai/core/contracts/site/cms-admin-media` and is imported from there; older hooks here still
+declare the structural slice they read (or a type parameter for a pass-through).

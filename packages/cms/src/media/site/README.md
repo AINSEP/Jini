@@ -6,6 +6,10 @@ Site-level media commands and helpers extracted from a host CMS. Each module is 
 
 ## Wiring
 
+- `list-pending-chat-attachments` — `buildListPendingChatAttachmentsTool({ ... })` takes the host's
+  attachment lookup (typed on `@jini-ai/core/contracts/site/daemon-http`'s `PendingAttachmentSummary`);
+  the host composition module registers the returned tool.
+
 ### `import-media-entity`
 
 `importMediaEntity` writes an imported media row under its SOURCE id (never a freshly minted

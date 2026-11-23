@@ -87,6 +87,7 @@
       "./contracts/site/api-ai-assistant-api-types": "universal",
       "./contracts/site/cms-forms": "universal",
       "./contracts/site/cms-media": "universal",
+      "./contracts/site/cms-admin-media": "universal",
       "./contracts/site/cookie-consent-react": "universal",
       "./contracts/site/cookie-consent": "universal",
       "./contracts/site/core-runtime-mode": "universal",
@@ -609,6 +610,11 @@
       "types": "./dist/contracts/site/cms-media.d.ts",
       "import": "./dist/contracts/site/cms-media.js",
       "default": "./dist/contracts/site/cms-media.js"
+    },
+    "./contracts/site/cms-admin-media": {
+      "types": "./dist/contracts/site/cms-admin-media.d.ts",
+      "import": "./dist/contracts/site/cms-admin-media.js",
+      "default": "./dist/contracts/site/cms-admin-media.js"
     },
     "./contracts/site/cookie-consent-react": {
       "types": "./dist/contracts/site/cookie-consent-react.d.ts",

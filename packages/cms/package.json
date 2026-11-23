@@ -13,6 +13,7 @@
     "kind": "content-model",
     "runtime": "universal",
     "entries": {
+      "./media/site/list-pending-chat-attachments": "universal",
       "./themes/token-aliases": "universal",
       "./publish/transfer": "universal",
       "./publish/transfer/blob-staging": "node",
@@ -432,6 +433,11 @@
   "main": "./dist/core/index.js",
   "types": "./dist/core/index.d.ts",
   "exports": {
+    "./media/site/list-pending-chat-attachments": {
+      "types": "./dist/media/site/list-pending-chat-attachments.d.ts",
+      "import": "./dist/media/site/list-pending-chat-attachments.js",
+      "default": "./dist/media/site/list-pending-chat-attachments.js"
+    },
     "./themes/token-aliases": {
       "types": "./dist/themes/token-aliases.d.ts",
       "import": "./dist/themes/token-aliases.js",
