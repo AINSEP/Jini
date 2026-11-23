@@ -75,6 +75,27 @@
       "./contracts/site/secrets-credential-token": "universal",
       "./contracts/site/user-management": "universal",
       "./contracts/site/agentic-core": "universal",
+      "./contracts/site/agent-plugins-admin-surfaces": "universal",
+      "./contracts/site/agent-plugins-lifecycle": "universal",
+      "./contracts/site/agent-plugins-manifest": "universal",
+      "./contracts/site/agent-runtime": "universal",
+      "./contracts/site/agentic": "universal",
+      "./contracts/site/api-ai-assistant-api-types": "universal",
+      "./contracts/site/cms-forms": "universal",
+      "./contracts/site/cms-media": "universal",
+      "./contracts/site/cookie-consent-react": "universal",
+      "./contracts/site/cookie-consent": "universal",
+      "./contracts/site/core-runtime-mode": "universal",
+      "./contracts/site/daemon-tool-audit": "universal",
+      "./contracts/site/devops-deploy": "universal",
+      "./contracts/site/events-outbox": "universal",
+      "./contracts/site/http-kit-settings": "universal",
+      "./contracts/site/nav": "universal",
+      "./contracts/site/platform-mail": "universal",
+      "./contracts/site/protocol-mcp-ui": "universal",
+      "./contracts/site/secrets-credential-sets": "universal",
+      "./contracts/site/user-management-react": "universal",
+      "./contracts/site/user-management-server": "universal",
       "./errors/sentences": "universal",
       "./errors/bindings": "universal",
       "./errors/catalog": "universal",
@@ -479,6 +500,111 @@
       "types": "./dist/contracts/site/agentic-core.d.ts",
       "import": "./dist/contracts/site/agentic-core.js",
       "default": "./dist/contracts/site/agentic-core.js"
+    },
+    "./contracts/site/agent-plugins-admin-surfaces": {
+      "types": "./dist/contracts/site/agent-plugins-admin-surfaces.d.ts",
+      "import": "./dist/contracts/site/agent-plugins-admin-surfaces.js",
+      "default": "./dist/contracts/site/agent-plugins-admin-surfaces.js"
+    },
+    "./contracts/site/agent-plugins-lifecycle": {
+      "types": "./dist/contracts/site/agent-plugins-lifecycle.d.ts",
+      "import": "./dist/contracts/site/agent-plugins-lifecycle.js",
+      "default": "./dist/contracts/site/agent-plugins-lifecycle.js"
+    },
+    "./contracts/site/agent-plugins-manifest": {
+      "types": "./dist/contracts/site/agent-plugins-manifest.d.ts",
+      "import": "./dist/contracts/site/agent-plugins-manifest.js",
+      "default": "./dist/contracts/site/agent-plugins-manifest.js"
+    },
+    "./contracts/site/agent-runtime": {
+      "types": "./dist/contracts/site/agent-runtime.d.ts",
+      "import": "./dist/contracts/site/agent-runtime.js",
+      "default": "./dist/contracts/site/agent-runtime.js"
+    },
+    "./contracts/site/agentic": {
+      "types": "./dist/contracts/site/agentic.d.ts",
+      "import": "./dist/contracts/site/agentic.js",
+      "default": "./dist/contracts/site/agentic.js"
+    },
+    "./contracts/site/api-ai-assistant-api-types": {
+      "types": "./dist/contracts/site/api-ai-assistant-api-types.d.ts",
+      "import": "./dist/contracts/site/api-ai-assistant-api-types.js",
+      "default": "./dist/contracts/site/api-ai-assistant-api-types.js"
+    },
+    "./contracts/site/cms-forms": {
+      "types": "./dist/contracts/site/cms-forms.d.ts",
+      "import": "./dist/contracts/site/cms-forms.js",
+      "default": "./dist/contracts/site/cms-forms.js"
+    },
+    "./contracts/site/cms-media": {
+      "types": "./dist/contracts/site/cms-media.d.ts",
+      "import": "./dist/contracts/site/cms-media.js",
+      "default": "./dist/contracts/site/cms-media.js"
+    },
+    "./contracts/site/cookie-consent-react": {
+      "types": "./dist/contracts/site/cookie-consent-react.d.ts",
+      "import": "./dist/contracts/site/cookie-consent-react.js",
+      "default": "./dist/contracts/site/cookie-consent-react.js"
+    },
+    "./contracts/site/cookie-consent": {
+      "types": "./dist/contracts/site/cookie-consent.d.ts",
+      "import": "./dist/contracts/site/cookie-consent.js",
+      "default": "./dist/contracts/site/cookie-consent.js"
+    },
+    "./contracts/site/core-runtime-mode": {
+      "types": "./dist/contracts/site/core-runtime-mode.d.ts",
+      "import": "./dist/contracts/site/core-runtime-mode.js",
+      "default": "./dist/contracts/site/core-runtime-mode.js"
+    },
+    "./contracts/site/daemon-tool-audit": {
+      "types": "./dist/contracts/site/daemon-tool-audit.d.ts",
+      "import": "./dist/contracts/site/daemon-tool-audit.js",
+      "default": "./dist/contracts/site/daemon-tool-audit.js"
+    },
+    "./contracts/site/devops-deploy": {
+      "types": "./dist/contracts/site/devops-deploy.d.ts",
+      "import": "./dist/contracts/site/devops-deploy.js",
+      "default": "./dist/contracts/site/devops-deploy.js"
+    },
+    "./contracts/site/events-outbox": {
+      "types": "./dist/contracts/site/events-outbox.d.ts",
+      "import": "./dist/contracts/site/events-outbox.js",
+      "default": "./dist/contracts/site/events-outbox.js"
+    },
+    "./contracts/site/http-kit-settings": {
+      "types": "./dist/contracts/site/http-kit-settings.d.ts",
+      "import": "./dist/contracts/site/http-kit-settings.js",
+      "default": "./dist/contracts/site/http-kit-settings.js"
+    },
+    "./contracts/site/nav": {
+      "types": "./dist/contracts/site/nav.d.ts",
+      "import": "./dist/contracts/site/nav.js",
+      "default": "./dist/contracts/site/nav.js"
+    },
+    "./contracts/site/platform-mail": {
+      "types": "./dist/contracts/site/platform-mail.d.ts",
+      "import": "./dist/contracts/site/platform-mail.js",
+      "default": "./dist/contracts/site/platform-mail.js"
+    },
+    "./contracts/site/protocol-mcp-ui": {
+      "types": "./dist/contracts/site/protocol-mcp-ui.d.ts",
+      "import": "./dist/contracts/site/protocol-mcp-ui.js",
+      "default": "./dist/contracts/site/protocol-mcp-ui.js"
+    },
+    "./contracts/site/secrets-credential-sets": {
+      "types": "./dist/contracts/site/secrets-credential-sets.d.ts",
+      "import": "./dist/contracts/site/secrets-credential-sets.js",
+      "default": "./dist/contracts/site/secrets-credential-sets.js"
+    },
+    "./contracts/site/user-management-react": {
+      "types": "./dist/contracts/site/user-management-react.d.ts",
+      "import": "./dist/contracts/site/user-management-react.js",
+      "default": "./dist/contracts/site/user-management-react.js"
+    },
+    "./contracts/site/user-management-server": {
+      "types": "./dist/contracts/site/user-management-server.d.ts",
+      "import": "./dist/contracts/site/user-management-server.js",
+      "default": "./dist/contracts/site/user-management-server.js"
     },
     "./errors/sentences": {
       "types": "./dist/errors/sentences.d.ts",
