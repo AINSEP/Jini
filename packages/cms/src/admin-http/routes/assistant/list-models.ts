@@ -1,4 +1,5 @@
 import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
+import type { AssistantListModelsResponseDto } from "@jini-ai/core/contracts/site/cms-assistant";
 import { rejectRoute } from "@jini-ai/core/errors/route-refusal";
 
 import type { SupportedExecutionProtocol } from "./execution-request-fields.js";
@@ -30,9 +31,6 @@ export interface AssistantListModelsRouteDeps {
   listModels: ListModelsFn;
 }
 
-/** The response body: discovered model ids, plus the probe's message when it gave one. */
-export interface ListModelsResponse { ok: boolean; models: string[]; message?: string }
-
 /**
  * Calls the injected probe and shapes its result into this route's response body — isolated so the
  * two `?? []`/spread-if-present shapes don't add to the handler's own branching. An empty-key auth
@@ -45,7 +43,7 @@ async function fetchListModelsResponse(
     protocol: SupportedExecutionProtocol; credential: { apiKey: string; baseUrl: string }; apiVersion: string | undefined; deps: AssistantListModelsRouteDeps;
   },
   _optional = {},
-): Promise<ListModelsResponse> {
+): Promise<AssistantListModelsResponseDto> {
   const result = await deps.listModels({ protocol, baseUrl: credential.baseUrl, apiKey: credential.apiKey }, apiVersion ? { apiVersion } : {});
   const missingKey = result.kind === "auth_failed" && !credential.apiKey.trim();
   const message = missingKey ? deps.noServerKeyMessage : result.detail;
@@ -69,10 +67,10 @@ async function fetchListModelsResponse(
  * operator with an empty field silently probe the other screen's credential. `principalId` comes from
  * the session, never the body: it is what scopes the admin branch to the caller's own row.
  */
-export const assistantListModelsRoute = defineJsonRoute<ProbeRequestFields, ListModelsResponse, AssistantListModelsRouteDeps, AssistantExecutionRoutePrincipal>({
+export const assistantListModelsRoute = defineJsonRoute<ProbeRequestFields, AssistantListModelsResponseDto, AssistantListModelsRouteDeps, AssistantExecutionRoutePrincipal>({
   method: "post",
   path: "/api/admin/v1/workspaces/:workspaceId/assistant/execution/models",
-  parse: (raw) => ok({ value: readProbeRequestFields(raw.body) }),
+  parse: (raw) => ok({ value: readProbeRequestFields({ rawBody: raw.body }) }),
   handle: async ({ input, deps, context, authorize }) => {
     await authorizeAssistantExecution({ authorize, permission: deps.manageAssistantPermission });
     const principalId = executionActorId({ context });

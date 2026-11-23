@@ -119,8 +119,11 @@
       "./contracts/site/integrations-credentialed-http": "universal",
       "./contracts/site/widgets-html": "universal",
       "./contracts/site/cms-menus": "universal",
+      "./contracts/site/cms-seo": "universal",
+      "./contracts/site/cms-media": "universal",
       "./contracts/site/integrations-api-connections": "universal",
-      "./contracts/site/chat-core": "universal"
+      "./contracts/site/chat-core": "universal",
+      "./contracts/site/cms-assistant": "universal"
     },
     "isolation": {
       "entries": {
@@ -703,6 +706,16 @@
       "import": "./dist/contracts/site/cms-menus.js",
       "default": "./dist/contracts/site/cms-menus.js"
     },
+    "./contracts/site/cms-seo": {
+      "types": "./dist/contracts/site/cms-seo.d.ts",
+      "import": "./dist/contracts/site/cms-seo.js",
+      "default": "./dist/contracts/site/cms-seo.js"
+    },
+    "./contracts/site/cms-media": {
+      "types": "./dist/contracts/site/cms-media.d.ts",
+      "import": "./dist/contracts/site/cms-media.js",
+      "default": "./dist/contracts/site/cms-media.js"
+    },
     "./contracts/site/integrations-api-connections": {
       "types": "./dist/contracts/site/integrations-api-connections.d.ts",
       "import": "./dist/contracts/site/integrations-api-connections.js",
@@ -712,6 +725,11 @@
       "types": "./dist/contracts/site/chat-core.d.ts",
       "import": "./dist/contracts/site/chat-core.js",
       "default": "./dist/contracts/site/chat-core.js"
+    },
+    "./contracts/site/cms-assistant": {
+      "types": "./dist/contracts/site/cms-assistant.d.ts",
+      "import": "./dist/contracts/site/cms-assistant.js",
+      "default": "./dist/contracts/site/cms-assistant.js"
     }
   },
   "files": [

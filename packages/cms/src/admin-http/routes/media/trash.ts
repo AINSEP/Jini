@@ -1,9 +1,9 @@
 import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
+import type { AdminMediaEnvelope } from "@jini-ai/core/contracts/site/cms-media";
 import type { IsoClock } from "@jini-ai/core/primitives";
 import { rejectRoute } from "@jini-ai/core/errors/route-refusal";
 
 import type { MediaRepoPort } from "../../../media/ports.js";
-import type { AdminMediaEnvelope } from "../../http/media.js";
 import { authorizeMedia, describeMediaAsset, mediaActorId, mediaIdParam, type MediaAssetLookups, type MediaRoutePrincipal } from "./shared.js";
 
 /**
@@ -51,7 +51,7 @@ function rejectRemoveFailure({ mediaId, reason }: { mediaId: string; reason: str
 export const mediaTrashRoute = defineJsonRoute<{ mediaId: string }, AdminMediaEnvelope, MediaTrashRouteDeps, MediaRoutePrincipal>({
   method: "post",
   path: "/api/admin/v1/workspaces/:workspaceId/media/:mediaId/trash",
-  parse: (raw) => ok({ value: { mediaId: mediaIdParam(raw.params) } }),
+  parse: (raw) => ok({ value: { mediaId: mediaIdParam({ params: raw.params }) } }),
   handle: async ({ input, deps, context, authorize }) => {
     const principalId = mediaActorId({ context });
     const { mediaId } = input;

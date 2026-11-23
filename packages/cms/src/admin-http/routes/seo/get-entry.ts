@@ -26,7 +26,7 @@ const SEO_GET_ENTRY_ERRORS = [SEO_ENTRY_NOT_FOUND] as const;
 export const seoGetEntryRoute = defineJsonRoute<{ entryId: string }, SeoEntryMetaEnvelope, SeoGetEntryRouteDeps, SeoRoutePrincipal>({
   method: "get",
   path: "/api/admin/v1/workspaces/:workspaceId/seo/entries/:entryId",
-  parse: (raw) => ok({ value: { entryId: seoEntryIdParam(raw.params) } }),
+  parse: (raw) => ok({ value: { entryId: seoEntryIdParam({ params: raw.params }) } }),
   handle: async ({ input, deps, authorize }) => {
     await authorizeSeo({ authorize, ready: deps.seoReady, entityType: "seo-entry" }, { entityId: input.entryId });
     try {

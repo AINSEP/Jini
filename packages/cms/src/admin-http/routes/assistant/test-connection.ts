@@ -1,4 +1,5 @@
 import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
+import type { AssistantProbeVerdictDto } from "@jini-ai/core/contracts/site/cms-assistant";
 import { rejectRoute } from "@jini-ai/core/errors/route-refusal";
 
 import type { SupportedExecutionProtocol } from "./execution-request-fields.js";
@@ -34,7 +35,7 @@ function isMissingConnectionTarget({ baseUrl, model }: { baseUrl: string; model:
 }
 
 /** The verdict message: the probe's detail when it gave one, else a default per outcome. @complexity O(1). */
-function renderMessage(result: ConnectionProbeResult): string {
+function renderMessage({ result }: { result: ConnectionProbeResult }, _optional: Record<string, never> = {}): string {
   if (result.ok) return result.detail?.trim() ? result.detail : "Connection succeeded";
   return result.detail?.trim() ? result.detail : `Connection failed (${result.kind})`;
 }
@@ -50,12 +51,12 @@ function renderMessage(result: ConnectionProbeResult): string {
  * only to the endpoint the server already recorded for it. `principalId` comes from the session,
  * never the body — it is what scopes the admin branch to the caller's own row.
  */
-export const assistantTestConnectionRoute = defineJsonRoute<TestConnectionInput, { ok: boolean; message: string }, AssistantTestConnectionRouteDeps, AssistantExecutionRoutePrincipal>({
+export const assistantTestConnectionRoute = defineJsonRoute<TestConnectionInput, AssistantProbeVerdictDto, AssistantTestConnectionRouteDeps, AssistantExecutionRoutePrincipal>({
   method: "post",
   path: "/api/admin/v1/workspaces/:workspaceId/assistant/execution/test-connection",
   parse: (raw) => {
     const model = (raw.body ?? {}) as { model?: unknown };
-    return ok({ value: { ...readProbeRequestFields(raw.body), model: typeof model.model === "string" ? model.model : "" } });
+    return ok({ value: { ...readProbeRequestFields({ rawBody: raw.body }), model: typeof model.model === "string" ? model.model : "" } });
   },
   handle: async ({ input, deps, context, authorize }) => {
     await authorizeAssistantExecution({ authorize, permission: deps.manageAssistantPermission });
@@ -69,6 +70,6 @@ export const assistantTestConnectionRoute = defineJsonRoute<TestConnectionInput,
       { protocol, baseUrl: credential.baseUrl, apiKey: credential.apiKey, model: input.model },
       input.apiVersion ? { apiVersion: input.apiVersion } : {},
     );
-    return ok({ value: { ok: result.ok, message: renderMessage(result) } });
+    return ok({ value: { ok: result.ok, message: renderMessage({ result }) } });
   },
 });

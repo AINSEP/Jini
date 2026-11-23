@@ -44,7 +44,7 @@ export const seoPutEntryRoute = defineJsonRoute<SeoPutEntryInput, SeoEntryMetaEn
   path: "/api/admin/v1/workspaces/:workspaceId/seo/entries/:entryId",
   parse: (raw) => {
     const { expectedVersion: rawExpectedVersion, ...patch } = (raw.body ?? {}) as Record<string, unknown>;
-    return ok({ value: { entryId: seoEntryIdParam(raw.params), rawExpectedVersion, patch: patch as SeoExtFieldsPatch } });
+    return ok({ value: { entryId: seoEntryIdParam({ params: raw.params }), rawExpectedVersion, patch: patch as SeoExtFieldsPatch } });
   },
   handle: async ({ input, deps, context, authorize }) => {
     await authorizeSeo({ authorize, ready: deps.seoReady, entityType: "seo-entry" }, { entityId: input.entryId });

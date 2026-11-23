@@ -1,4 +1,5 @@
 import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
+import type { AdminSeoSettingsEnvelope } from "@jini-ai/core/contracts/site/cms-seo";
 
 import type { SeoSettings } from "../../../seo/types.js";
 import { authorizeSeo, rejectSeoError, SEO_SETTINGS_VALIDATION, seoActorId, type SeoRoutePrincipal } from "./shared.js";
@@ -20,7 +21,7 @@ export interface SeoPutSettingsRouteDeps {
 const SEO_PUT_SETTINGS_ERRORS = [SEO_SETTINGS_VALIDATION] as const;
 
 /** PUT a partial workspace-level `seo.*` settings patch (SPEC-008 `SEO_PUT_SETTINGS`). The body is validated by the writer, after authorization. */
-export const seoPutSettingsRoute = defineJsonRoute<{ patch: unknown }, { data: SeoSettings }, SeoPutSettingsRouteDeps, SeoRoutePrincipal>({
+export const seoPutSettingsRoute = defineJsonRoute<{ patch: unknown }, AdminSeoSettingsEnvelope, SeoPutSettingsRouteDeps, SeoRoutePrincipal>({
   method: "put",
   path: "/api/admin/v1/workspaces/:workspaceId/seo/settings",
   parse: (raw) => ok({ value: { patch: raw.body ?? {} } }),

@@ -1,4 +1,5 @@
 import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
+import type { AdminSeoSettingsEnvelope } from "@jini-ai/core/contracts/site/cms-seo";
 
 import type { SeoSettings } from "../../../seo/types.js";
 import { authorizeSeo, type SeoRoutePrincipal } from "./shared.js";
@@ -14,7 +15,7 @@ export interface SeoGetSettingsRouteDeps {
 }
 
 /** GET the workspace-level `seo.*` settings (SPEC-008 `SEO_GET_SETTINGS`); gated on `seo-settings`. */
-export const seoGetSettingsRoute = defineJsonRoute<Record<string, never>, { data: SeoSettings }, SeoGetSettingsRouteDeps, SeoRoutePrincipal>({
+export const seoGetSettingsRoute = defineJsonRoute<Record<string, never>, AdminSeoSettingsEnvelope, SeoGetSettingsRouteDeps, SeoRoutePrincipal>({
   method: "get",
   path: "/api/admin/v1/workspaces/:workspaceId/seo/settings",
   parse: () => ok({ value: {} }),

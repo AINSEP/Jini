@@ -1,10 +1,10 @@
 import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
+import type { AdminMediaProviderMarkers } from "@jini-ai/core/contracts/site/cms-media";
 
-import type { MediaProviderMarkers } from "./get-providers.js";
 import { authorizeMedia, rejectMediaError, type MediaErrorMapping, type MediaRoutePrincipal } from "./shared.js";
 
 /** Replaces the workspace's whole credential set and answers the same markers-only map GET returns. Injected: the secret store is the host's. */
-export type MediaProvidersSaveFn = (required: { workspaceId: string; providers: Record<string, unknown> }) => Promise<MediaProviderMarkers>;
+export type MediaProvidersSaveFn = (required: { workspaceId: string; providers: Record<string, unknown> }) => Promise<AdminMediaProviderMarkers>;
 
 /** The deps this route reads. */
 export interface MediaPutProvidersRouteDeps {
@@ -34,7 +34,7 @@ export interface MediaPutProvidersRouteDeps {
  * id, wrong field type, oversized field), 503 `SECRET_STORE_UNCONFIGURED` (missing
  * site key, detected before any write lands), 500 everything else.
  */
-export const mediaPutProvidersRoute = defineJsonRoute<{ providers: Record<string, unknown> }, MediaProviderMarkers, MediaPutProvidersRouteDeps, MediaRoutePrincipal>({
+export const mediaPutProvidersRoute = defineJsonRoute<{ providers: Record<string, unknown> }, AdminMediaProviderMarkers, MediaPutProvidersRouteDeps, MediaRoutePrincipal>({
   method: "put",
   path: "/api/admin/v1/workspaces/:workspaceId/media/providers",
   parse: (raw) => ok({ value: { providers: (raw.body ?? {}) as Record<string, unknown> } }),

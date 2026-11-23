@@ -1,4 +1,5 @@
 import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
+import type { AssistantSettingsEnvelopeDto } from "@jini-ai/core/contracts/site/cms-assistant";
 
 import { authorizeAssistant, type AssistantRoutePrincipal } from "./shared.js";
 
@@ -17,9 +18,6 @@ export interface AssistantGetSettingsRouteDeps {
   adminAssistantEnabled: boolean;
 }
 
-/** The response: the settings view plus the sibling admin-assistant flag. */
-export interface AssistantSettingsEnvelope { data: unknown; adminAssistantEnabled: boolean }
-
 /**
  * GET the workspace's `site.assistant.*` settings — today, the public assistant's master on/off
  * switch, in the `{ data }` envelope the admin client's `request()` helper expects.
@@ -30,12 +28,13 @@ export interface AssistantSettingsEnvelope { data: unknown; adminAssistantEnable
  * gated assistant modules 404 with the flag off, so they cannot tell the client anything, but this
  * route always can. The admin SPA reads it to decide whether to mount its chat dock at all.
  */
-export const assistantGetSettingsRoute = defineJsonRoute<Record<string, never>, AssistantSettingsEnvelope, AssistantGetSettingsRouteDeps, AssistantRoutePrincipal>({
+export const assistantGetSettingsRoute = defineJsonRoute<Record<string, never>, AssistantSettingsEnvelopeDto, AssistantGetSettingsRouteDeps, AssistantRoutePrincipal>({
   method: "get",
   path: "/api/admin/v1/workspaces/:workspaceId/assistant/settings",
   parse: () => ok({ value: {} }),
   handle: async ({ deps, authorize }) => {
-    // Awaited before the session is read, so a request during boot waits for the seeded definitions.
+    // Awaited before the permission check (the host's authenticate port has already read the session),
+    // so a request during boot waits for the seeded definitions.
     await deps.assistantSettingsReady;
     await authorizeAssistant({ authorize, permission: deps.managePermission });
     const settings = await deps.readAssistantSettings({ workspaceId: deps.workspaceId });

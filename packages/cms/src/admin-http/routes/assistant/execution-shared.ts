@@ -1,5 +1,6 @@
 import type { JsonRouteAuthorize } from "@jini-ai/core/contracts/server";
 import type { RuntimeAgentDef, RuntimeModelOption } from "@jini-ai/core/contracts/agents";
+import type { AssistantProbeVerdictDto } from "@jini-ai/core/contracts/site/cms-assistant";
 import { rejectRoute } from "@jini-ai/core/errors/route-refusal";
 
 import { readOptionalString, validateSupportedProtocol, type SupportedExecutionProtocol } from "./execution-request-fields.js";
@@ -98,7 +99,7 @@ export interface ProbeRequestFields {
  * runs after authorization in `handle`, as it did before.
  * @complexity O(1).
  */
-export function readProbeRequestFields(rawBody: unknown, _optional: Record<string, never> = {}): ProbeRequestFields {
+export function readProbeRequestFields({ rawBody }: { rawBody: unknown }, _optional: Record<string, never> = {}): ProbeRequestFields {
   const body = (rawBody ?? {}) as Record<string, unknown>;
   return {
     protocol: readOptionalString({ value: body.protocol, fallback: "" }),
@@ -143,10 +144,8 @@ export async function resolveProbeCredentialOrReject(
   return { apiKey: credential.apiKey, baseUrl: credential.baseUrl };
 }
 
-export type TestAgentOutcome = { ok: boolean; message: string };
-
 /** Formats "<name> <version>" (version omitted when unknown), trimmed. @complexity O(1). */
-function describeAgent(agent: ExecutionDetectedAgent): string {
+function describeAgent({ agent }: { agent: ExecutionDetectedAgent }, _optional: Record<string, never> = {}): string {
   return `${agent.name} ${agent.version ?? ""}`.trim();
 }
 
@@ -169,7 +168,7 @@ function modelNoLongerOffered({ agent, model }: { agent: ExecutionDetectedAgent;
  * Only called once `agent` is already known non-null and `agent.available` — the route's own
  * "not found on this server's PATH" branch is unaffected.
  */
-export function resolveTestAgentOutcome({ agent, model }: { agent: ExecutionDetectedAgent; model: string }, _optional = {}): TestAgentOutcome {
+export function resolveTestAgentOutcome({ agent, model }: { agent: ExecutionDetectedAgent; model: string }, _optional = {}): AssistantProbeVerdictDto {
   if (agent.authStatus === "missing") {
     return {
       ok: false,
@@ -183,7 +182,7 @@ export function resolveTestAgentOutcome({ agent, model }: { agent: ExecutionDete
     // was not verified.
     return {
       ok: true,
-      message: describeAgent(agent) + " responded, but its sign-in status could not be verified.",
+      message: describeAgent({ agent }) + " responded, but its sign-in status could not be verified.",
     };
   }
 
@@ -203,6 +202,6 @@ export function resolveTestAgentOutcome({ agent, model }: { agent: ExecutionDete
 
   return {
     ok: true,
-    message: describeAgent(agent) + (model ? ` is installed and authenticated, and offers '${model}'.` : " is installed and authenticated."),
+    message: describeAgent({ agent }) + (model ? ` is installed and authenticated, and offers '${model}'.` : " is installed and authenticated."),
   };
 }

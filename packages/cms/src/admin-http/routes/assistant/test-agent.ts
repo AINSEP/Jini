@@ -1,9 +1,10 @@
 import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
+import type { AssistantProbeVerdictDto } from "@jini-ai/core/contracts/site/cms-assistant";
 import { rejectRoute } from "@jini-ai/core/errors/route-refusal";
 
 import {
   authorizeAssistantExecution, resolveTestAgentOutcome,
-  type AssistantExecutionRoutePrincipal, type ExecutionDetectedAgent, type TestAgentOutcome,
+  type AssistantExecutionRoutePrincipal, type ExecutionDetectedAgent,
 } from "./execution-shared.js";
 
 /** The host's per-agent probe: a fresh, uncached detection scoped to the one requested id. */
@@ -32,7 +33,7 @@ function parseTestAgentBody({ rawBody }: { rawBody: unknown }, _optional = {}): 
 function detectedTestAgentOutcome(
   { agents, agentId, model }: { agents: readonly ExecutionDetectedAgent[]; agentId: string; model: string },
   _options: Record<string, never> = {},
-): TestAgentOutcome {
+): AssistantProbeVerdictDto {
   const agent = agents.find((candidate) => candidate.id === agentId);
   if (!agent || !agent.available) {
     return { ok: false, message: `'${agentId}' was not found on this server's PATH.` };
@@ -54,7 +55,7 @@ function detectedTestAgentOutcome(
  * authentication); that verdict is the answer, so it is a value. **5xx** — the probe itself could
  * not run (rethrown for the host's 500); there is no verdict to report.
  */
-export const assistantTestAgentRoute = defineJsonRoute<{ agentId: string; model: string }, TestAgentOutcome, AssistantTestAgentRouteDeps, AssistantExecutionRoutePrincipal>({
+export const assistantTestAgentRoute = defineJsonRoute<{ agentId: string; model: string }, AssistantProbeVerdictDto, AssistantTestAgentRouteDeps, AssistantExecutionRoutePrincipal>({
   method: "post",
   path: "/api/admin/v1/workspaces/:workspaceId/assistant/execution/test-agent",
   parse: (raw) => ok({ value: parseTestAgentBody({ rawBody: raw.body }) }),

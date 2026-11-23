@@ -1,8 +1,8 @@
 import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
+import type { AdminMediaEnvelope } from "@jini-ai/core/contracts/site/cms-media";
 
 import { updateMediaMetadata, type UpdateMediaMetadataRequired } from "../../../media/media-service.js";
 import { parseOptionalSlugField, parseOptionalStringField, parseOptionalTitleField } from "../../../media/metadata-fields.js";
-import type { AdminMediaEnvelope } from "../../http/media.js";
 import {
   authorizeMedia, describeMediaAsset, MEDIA_CONFLICT, MEDIA_NOT_FOUND, MEDIA_NOT_LIVE, MEDIA_VALIDATION, mediaIdParam, rejectMediaError,
   type MediaAssetLookups, type MediaRoutePrincipal,
@@ -76,7 +76,7 @@ const MEDIA_UPDATE_ERRORS = [MEDIA_NOT_LIVE, MEDIA_NOT_FOUND, MEDIA_VALIDATION, 
 export const mediaUpdateRoute = defineJsonRoute<{ mediaId: string; body: unknown }, AdminMediaEnvelope, MediaUpdateRouteDeps, MediaRoutePrincipal>({
   method: "patch",
   path: "/api/admin/v1/workspaces/:workspaceId/media/:mediaId",
-  parse: (raw) => ok({ value: { mediaId: mediaIdParam(raw.params), body: raw.body } }),
+  parse: (raw) => ok({ value: { mediaId: mediaIdParam({ params: raw.params }), body: raw.body } }),
   handle: async ({ input, deps, authorize }) => {
     await authorizeMedia({ authorize, permission: "media.update" }, { entityId: input.mediaId });
     try {

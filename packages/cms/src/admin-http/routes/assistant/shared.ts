@@ -66,6 +66,6 @@ export function assistantActorId({ context }: { context: AssistantRoutePrincipal
 }
 
 /** A PUT body as the routes read it: a missing (or null) body is an empty patch. @complexity O(1). */
-export function assistantBody(body: unknown): Record<string, unknown> {
+export function assistantBody({ body }: { body: unknown }, _optional: Record<string, never> = {}): Record<string, unknown> {
   return (body ?? {}) as Record<string, unknown>;
 }

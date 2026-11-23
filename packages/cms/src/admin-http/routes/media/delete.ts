@@ -1,5 +1,6 @@
 import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
 import { RouteRefusalError } from "@jini-ai/core/errors/route-refusal";
+import type { AdminMediaPurgeEnvelope } from "@jini-ai/core/contracts/site/cms-media";
 
 import { MediaStillReferencedError } from "../../../media/types.js";
 import { authorizeMedia, MEDIA_NOT_FOUND, mediaIdParam, rejectMediaError, type MediaRoutePrincipal } from "./shared.js";
@@ -38,10 +39,10 @@ function rejectPurgeError({ err }: { err: unknown }, _optional: Record<string, n
  * narrower permission than the ordinary trash's `media.delete`, since this is an irreversible purge
  * (mirrors `admin.menus.delete` vs `admin.menus.delete.force`'s split).
  */
-export const mediaDeleteRoute = defineJsonRoute<{ mediaId: string }, { purged: true }, MediaDeleteRouteDeps, MediaRoutePrincipal>({
+export const mediaDeleteRoute = defineJsonRoute<{ mediaId: string }, AdminMediaPurgeEnvelope, MediaDeleteRouteDeps, MediaRoutePrincipal>({
   method: "delete",
   path: "/api/admin/v1/workspaces/:workspaceId/media/:mediaId",
-  parse: (raw) => ok({ value: { mediaId: mediaIdParam(raw.params) } }),
+  parse: (raw) => ok({ value: { mediaId: mediaIdParam({ params: raw.params }) } }),
   handle: async ({ input, deps, authorize }) => {
     await authorizeMedia({ authorize, permission: "media.delete.force" }, { entityId: input.mediaId });
     try {

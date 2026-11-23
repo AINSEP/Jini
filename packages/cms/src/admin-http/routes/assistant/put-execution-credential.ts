@@ -82,7 +82,7 @@ function toWriteInput({ deps, principalId, body }: { deps: { workspaceId: string
 export const assistantPutExecutionCredentialRoute = defineJsonRoute<{ body: Record<string, unknown> }, { data: unknown }, AssistantPutExecutionCredentialRouteDeps, AssistantRoutePrincipal>({
   method: "put",
   path: "/api/admin/v1/workspaces/:workspaceId/assistant/execution-credential",
-  parse: (raw) => ok({ value: { body: assistantBody(raw.body) } }),
+  parse: (raw) => ok({ value: { body: assistantBody({ body: raw.body }) } }),
   handle: async ({ input, deps, context }) => {
     // The session is read before the body, as before: a missing principal is the redacted 500, not a 400.
     const principalId = assistantActorId({ context });

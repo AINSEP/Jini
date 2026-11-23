@@ -1,12 +1,10 @@
 import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
+import type { AdminMediaProviderMarkers } from "@jini-ai/core/contracts/site/cms-media";
 
 import { authorizeMedia, type MediaRoutePrincipal } from "./shared.js";
 
-/** One vendor's stored credential, as markers only (that a key exists, its last characters) — never key material. */
-export type MediaProviderMarkers = Record<string, unknown>;
-
 /** Reads the workspace's media-generation vendor credentials as markers. Injected: the secret store is the host's. */
-export type MediaProvidersGetFn = (required: { workspaceId: string }) => Promise<MediaProviderMarkers>;
+export type MediaProvidersGetFn = (required: { workspaceId: string }) => Promise<AdminMediaProviderMarkers>;
 
 /** The deps this route reads. */
 export interface MediaGetProvidersRouteDeps {
@@ -26,7 +24,7 @@ export interface MediaGetProvidersRouteDeps {
  * resolves the `MediaProviderMap` directly and `{}` is a meaningful answer ("reached, manages
  * nothing") that must stay distinguishable from the unreachable case the client models as `null`.
  */
-export const mediaGetProvidersRoute = defineJsonRoute<Record<string, never>, MediaProviderMarkers, MediaGetProvidersRouteDeps, MediaRoutePrincipal>({
+export const mediaGetProvidersRoute = defineJsonRoute<Record<string, never>, AdminMediaProviderMarkers, MediaGetProvidersRouteDeps, MediaRoutePrincipal>({
   method: "get",
   path: "/api/admin/v1/workspaces/:workspaceId/media/providers",
   parse: () => ok({ value: {} }),

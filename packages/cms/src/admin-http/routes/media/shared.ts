@@ -1,9 +1,10 @@
 import type { JsonRouteAuthorize, JsonRouteAuthorizeScope } from "@jini-ai/core/contracts/server";
 import { rejectRoute } from "@jini-ai/core/errors/route-refusal";
+import type { AdminMediaDto } from "@jini-ai/core/contracts/site/cms-media";
 
 import { EntityNotLiveError } from "../../../core/entity-liveness.js";
 import { MediaConflictError, MediaNotFoundError, MediaValidationError, type MediaRecord } from "../../../media/types.js";
-import { toAdminMediaResponse, type AdminMediaResponse } from "../../http/media.js";
+import { toAdminMediaResponse } from "../../http/media.js";
 
 /**
  * @file Shared guards, error mapping and the single-asset response for the `media` admin route specs.
@@ -72,7 +73,7 @@ export function mediaActorId({ context }: { context: MediaRoutePrincipal | undef
 }
 
 /** The `:mediaId` path segment; Express always fills it, the `?? ""` mirrors the host's own guard. @complexity O(1). */
-export function mediaIdParam(params: Record<string, string | undefined>): string {
+export function mediaIdParam({ params }: { params: Record<string, string | undefined> }, _optional: Record<string, never> = {}): string {
   return String(params.mediaId ?? "");
 }
 
@@ -92,7 +93,7 @@ export interface MediaAssetLookups {
 export async function describeMediaAsset(
   { deps, media }: { deps: MediaAssetLookups; media: MediaRecord },
   _optional: Record<string, never> = {},
-): Promise<AdminMediaResponse> {
+): Promise<AdminMediaDto> {
   const [contentType, publicUrl, byteSize] = await Promise.all([
     deps.readContentType({ sha256: media.source.sha256 }),
     deps.resolvePublicUrl({ media }),

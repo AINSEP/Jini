@@ -92,6 +92,6 @@ export function seoActorId({ context }: { context: SeoRoutePrincipal | undefined
 }
 
 /** The `:entryId` path segment; Express always fills it, the `?? ""` mirrors the host's own guard. @complexity O(1). */
-export function seoEntryIdParam(params: Record<string, string | undefined>): string {
+export function seoEntryIdParam({ params }: { params: Record<string, string | undefined> }, _optional: Record<string, never> = {}): string {
   return String(params.entryId ?? "");
 }

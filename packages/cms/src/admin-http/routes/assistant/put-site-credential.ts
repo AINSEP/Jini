@@ -31,7 +31,7 @@ export interface AssistantPutSiteCredentialRouteDeps {
  *
  * @complexity O(fields in body), a small fixed set.
  */
-function rejectNonStringFields(body: Record<string, unknown>): void {
+function rejectNonStringFields({ body }: { body: Record<string, unknown> }, _optional: Record<string, never> = {}): void {
   for (const [field, value] of Object.entries(body)) {
     if (value !== undefined && typeof value !== "string") {
       rejectRoute({ status: 400, error: `${field} must be a string`, code: SITE_CREDENTIAL_VALIDATION_CODE });
@@ -51,7 +51,7 @@ function rejectNonStringFields(body: Record<string, unknown>): void {
 export const assistantPutSiteCredentialRoute = defineJsonRoute<{ body: Record<string, unknown> }, { data: unknown }, AssistantPutSiteCredentialRouteDeps, AssistantRoutePrincipal>({
   method: "put",
   path: "/api/admin/v1/workspaces/:workspaceId/assistant/site-credential",
-  parse: (raw) => ok({ value: { body: assistantBody(raw.body) } }),
+  parse: (raw) => ok({ value: { body: assistantBody({ body: raw.body }) } }),
   handle: async ({ input, deps, authorize }) => {
     await authorizeAssistant({ authorize, permission: deps.managePermission });
     const { body } = input;
@@ -60,7 +60,7 @@ export const assistantPutSiteCredentialRoute = defineJsonRoute<{ body: Record<st
     // non-string field (a stray `{apiKey: 12345}`) must not be silently reinterpreted as
     // "the caller sent nothing", which would leave a bad request looking like a no-op success.
     // Checked after authorization, as before, so only an authorized caller learns the body's fault.
-    rejectNonStringFields(body);
+    rejectNonStringFields({ body });
     try {
       const view = await deps.writeSiteCredential({
         workspaceId: deps.workspaceId, apiKey: body.apiKey as string | undefined, provider: body.provider as string | undefined,

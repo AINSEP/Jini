@@ -1,4 +1,5 @@
 import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
+import type { AdminSeoSitemapRegenerateEnvelope } from "@jini-ai/core/contracts/site/cms-seo";
 
 import type { createSitemapService } from "../../../seo/sitemap.js";
 
@@ -14,7 +15,7 @@ export interface SeoPostSitemapRegenerateRouteDeps {
 }
 
 /** POST force-rebuild the cached sitemap (SPEC-008 `SEO_POST_SITEMAP_REGENERATE`); answers 202. */
-export const seoPostSitemapRegenerateRoute = defineJsonRoute<Record<string, never>, { data: { accepted: true } }, SeoPostSitemapRegenerateRouteDeps, SeoRoutePrincipal>({
+export const seoPostSitemapRegenerateRoute = defineJsonRoute<Record<string, never>, AdminSeoSitemapRegenerateEnvelope, SeoPostSitemapRegenerateRouteDeps, SeoRoutePrincipal>({
   method: "post",
   path: "/api/admin/v1/workspaces/:workspaceId/seo/sitemap/regenerate",
   parse: () => ok({ value: {} }),

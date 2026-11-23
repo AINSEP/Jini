@@ -58,11 +58,11 @@ describe("assistantDetectAgentsRoute", () => {
 
 describe("toExecutionTabAgent", () => {
   it("carries models with their own reasoning, reasoning vocabularies, provenance and auth guidance", () => {
-    expect(toExecutionTabAgent(agent({
+    expect(toExecutionTabAgent({ agent: agent({
       models: [{ id: "m1", label: "M1", reasoning: [{ id: "low", label: "Low" }] }, { id: "m2", label: "M2" }],
       modelsSource: "live", reasoningOptions: [{ id: "high", label: "High" }],
       reasoningInModelId: { levels: [{ id: "max", label: "Max" }] }, authStatus: "missing", authMessage: "run `a login`",
-    }))).toEqual({
+    }) })).toEqual({
       id: "cli-a", label: "CLI A", installed: true,
       models: [{ id: "m1", label: "M1", reasoning: [{ id: "low", label: "Low" }] }, { id: "m2", label: "M2" }],
       modelsSource: "live", reasoningOptions: [{ id: "high", label: "High" }],
@@ -71,7 +71,7 @@ describe("toExecutionTabAgent", () => {
   });
 
   it("omits every empty collection and absent scalar rather than defaulting it", () => {
-    expect(toExecutionTabAgent(agent({ models: [], reasoningOptions: [], reasoningInModelId: { levels: [] }, version: null })))
+    expect(toExecutionTabAgent({ agent: agent({ models: [], reasoningOptions: [], reasoningInModelId: { levels: [] }, version: null }) }))
       .toEqual({ id: "cli-a", label: "CLI A", installed: true });
   });
 });

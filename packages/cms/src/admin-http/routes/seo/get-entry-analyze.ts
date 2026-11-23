@@ -18,7 +18,7 @@ const SEO_ANALYZE_ERRORS = [SEO_ENTRY_NOT_FOUND] as const;
 export const seoGetEntryAnalyzeRoute = defineJsonRoute<{ entryId: string }, { data: SeoAnalysis }, SeoGetEntryAnalyzeRouteDeps, SeoRoutePrincipal>({
   method: "get",
   path: "/api/admin/v1/workspaces/:workspaceId/seo/entries/:entryId/analyze",
-  parse: (raw) => ok({ value: { entryId: seoEntryIdParam(raw.params) } }),
+  parse: (raw) => ok({ value: { entryId: seoEntryIdParam({ params: raw.params }) } }),
   handle: async ({ input, deps, authorize }) => {
     await authorizeSeo({ authorize, ready: deps.seoReady, entityType: "seo-entry" }, { entityId: input.entryId });
     try {

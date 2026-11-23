@@ -1,26 +1,12 @@
 import { defineJsonRoute, ok } from "@jini-ai/core/contracts/server";
 import type { RuntimeModelOption } from "@jini-ai/core/contracts/agents";
+import type {
+  AssistantDetectAgentsResponseDto, AssistantExecutionTabAgentDto, AssistantIdLabelDto,
+} from "@jini-ai/core/contracts/site/cms-assistant";
 
 import {
   authorizeAssistantExecution, type AssistantExecutionRoutePrincipal, type ExecutionDetectedAgent,
 } from "./execution-shared.js";
-
-type IdLabel = { id: string; label: string };
-
-/** One detected agent as the execution tab's agent picker reads it. */
-export interface ExecutionTabAgent {
-  id: string;
-  label: string;
-  installed: boolean;
-  version?: string;
-  path?: string;
-  models?: Array<{ id: string; label: string; reasoning?: IdLabel[] }>;
-  modelsSource?: "live" | "fallback";
-  reasoningOptions?: IdLabel[];
-  reasoningInModelId?: { levels: IdLabel[] };
-  authStatus?: "ok" | "missing" | "unknown";
-  authMessage?: string;
-}
 
 /** The detection snapshot the host answers: the current inventory plus whether a background scan is still running. */
 export interface ExecutionDetectionSnapshot {
@@ -49,7 +35,7 @@ export interface AssistantDetectAgentsRouteDeps {
  * kind of narrowing this projection has already dropped data to twice before (see
  * `toExecutionTabAgent`'s doc on `reasoningOptions`/`reasoningInModelId`).
  */
-function projectModelReasoning(model: RuntimeModelOption): { reasoning?: IdLabel[] } {
+function projectModelReasoning({ model }: { model: RuntimeModelOption }, _optional: Record<string, never> = {}): { reasoning?: AssistantIdLabelDto[] } {
   return model.reasoning?.length
     ? { reasoning: model.reasoning.map((option) => ({ id: option.id, label: option.label })) }
     : {};
@@ -58,21 +44,21 @@ function projectModelReasoning(model: RuntimeModelOption): { reasoning?: IdLabel
 /** Narrows `agent.models` to the `{id,label,reasoning?}` shape the UI needs, or `{}` when the
  *  runtime found none. Per-model `reasoning` is carried alongside `id`/`label` via
  *  `projectModelReasoning` rather than defaulted — see that function's doc for why. */
-function projectModels(agent: ExecutionDetectedAgent): Pick<ExecutionTabAgent, "models"> {
+function projectModels({ agent }: { agent: ExecutionDetectedAgent }, _optional: Record<string, never> = {}): Pick<AssistantExecutionTabAgentDto, "models"> {
   return agent.models?.length
-    ? { models: agent.models.map((model) => ({ id: model.id, label: model.label, ...projectModelReasoning(model) })) }
+    ? { models: agent.models.map((model) => ({ id: model.id, label: model.label, ...projectModelReasoning({ model }) })) }
     : {};
 }
 
 /** Narrows `agent.reasoningOptions` to the `{id,label}` shape the UI needs, or `{}` when the runtime declared none. */
-function projectReasoningOptions(agent: ExecutionDetectedAgent): Pick<ExecutionTabAgent, "reasoningOptions"> {
+function projectReasoningOptions({ agent }: { agent: ExecutionDetectedAgent }, _optional: Record<string, never> = {}): Pick<AssistantExecutionTabAgentDto, "reasoningOptions"> {
   return agent.reasoningOptions?.length
     ? { reasoningOptions: agent.reasoningOptions.map((option) => ({ id: option.id, label: option.label })) }
     : {};
 }
 
 /** Narrows `agent.reasoningInModelId` to the `{id,label}` shape the UI needs, or `{}` when the runtime rides no effort suffix. */
-function projectReasoningInModelId(agent: ExecutionDetectedAgent): Pick<ExecutionTabAgent, "reasoningInModelId"> {
+function projectReasoningInModelId({ agent }: { agent: ExecutionDetectedAgent }, _optional: Record<string, never> = {}): Pick<AssistantExecutionTabAgentDto, "reasoningInModelId"> {
   return agent.reasoningInModelId?.levels.length
     ? { reasoningInModelId: { levels: agent.reasoningInModelId.levels.map((level) => ({ id: level.id, label: level.label })) } }
     : {};
@@ -114,17 +100,17 @@ function projectReasoningInModelId(agent: ExecutionDetectedAgent): Pick<Executio
  * `reasoningOptions` carries. Fixed by `projectModelReasoning` above. No `@jini-ai/ui` picker reads
  * it yet — this only gets the data to the browser; the picker-side narrowing is a separate change.
  */
-export function toExecutionTabAgent(agent: ExecutionDetectedAgent): ExecutionTabAgent {
+export function toExecutionTabAgent({ agent }: { agent: ExecutionDetectedAgent }, _optional: Record<string, never> = {}): AssistantExecutionTabAgentDto {
   return {
     id: agent.id,
     label: agent.name,
     installed: agent.available,
     ...(agent.version ? { version: agent.version } : {}),
     ...(agent.path ? { path: agent.path } : {}),
-    ...projectModels(agent),
+    ...projectModels({ agent }),
     ...(agent.modelsSource ? { modelsSource: agent.modelsSource } : {}),
-    ...projectReasoningOptions(agent),
-    ...projectReasoningInModelId(agent),
+    ...projectReasoningOptions({ agent }),
+    ...projectReasoningInModelId({ agent }),
     ...(agent.authStatus ? { authStatus: agent.authStatus } : {}),
     // Auth guidance is operator-facing text from the adapter ("run `x login`"),
     // not provider output, so it carries no credential material.
@@ -138,7 +124,7 @@ export function toExecutionTabAgent(agent: ExecutionDetectedAgent): ExecutionTab
  * immediately while the host refreshes it. Every agent carries the snapshot's `discoveryPending`.
  */
 export const assistantDetectAgentsRoute = defineJsonRoute<
-  { force: boolean }, { data: Array<ExecutionTabAgent & { discoveryPending: boolean }> }, AssistantDetectAgentsRouteDeps, AssistantExecutionRoutePrincipal
+  { force: boolean }, AssistantDetectAgentsResponseDto, AssistantDetectAgentsRouteDeps, AssistantExecutionRoutePrincipal
 >({
   method: "post",
   path: "/api/admin/v1/workspaces/:workspaceId/assistant/execution/detect-agents",
@@ -146,6 +132,6 @@ export const assistantDetectAgentsRoute = defineJsonRoute<
   handle: async ({ input, deps, authorize }) => {
     await authorizeAssistantExecution({ authorize, permission: deps.manageAssistantPermission });
     const { agents, discoveryPending } = await deps.detectAgents({ force: input.force });
-    return ok({ value: { data: agents.map((agent) => ({ ...toExecutionTabAgent(agent), discoveryPending })) } });
+    return ok({ value: { data: agents.map((agent) => ({ ...toExecutionTabAgent({ agent }), discoveryPending })) } });
   },
 });

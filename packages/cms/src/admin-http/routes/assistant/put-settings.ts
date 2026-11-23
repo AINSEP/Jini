@@ -29,7 +29,7 @@ export interface AssistantPutSettingsRouteDeps {
 export const assistantPutSettingsRoute = defineJsonRoute<{ patch: unknown }, { data: unknown }, AssistantPutSettingsRouteDeps, AssistantRoutePrincipal>({
   method: "put",
   path: "/api/admin/v1/workspaces/:workspaceId/assistant/settings",
-  parse: (raw) => ok({ value: { patch: assistantBody(raw.body) } }),
+  parse: (raw) => ok({ value: { patch: assistantBody({ body: raw.body }) } }),
   handle: async ({ input, deps, context, authorize }) => {
     await deps.assistantSettingsReady;
     await authorizeAssistant({ authorize, permission: deps.managePermission });
