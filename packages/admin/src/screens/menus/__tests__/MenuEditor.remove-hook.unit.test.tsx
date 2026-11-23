@@ -9,7 +9,7 @@ afterEach(() => vi.restoreAllMocks());
 
 it.each([false, true])("uses the unnamed-item fallback and singular count when confirmation is %s", (confirmed) => {
   // F2.5/F4.3: dropping the label fallback or forwarding a root path must fail.
-  // The callback delivery is this hook's contract; recursive removal is covered in MenuEditor.unit.test.tsx.
+  // The callback delivery is this hook's contract; the recursive descendant count is pinned below.
   const item: AdminMenuItem = {
     id: "unnamed", label: "", target: { kind: "url", href: "/draft" },
     children: [{ id: "nested", label: "Nested", target: { kind: "url", href: "/nested" } }],
@@ -47,4 +47,19 @@ it("uses the latest item, path and callback after a row changes", () => {
   expect(confirm.mock.calls).toEqual([['Remove "Parent"? This will also remove 1 nested item.']]);
   expect(oldRemove.mock.calls).toEqual([]);
   expect(currentRemove.mock.calls).toEqual([[[1, 3]]]);
+});
+
+it("names every nested descendant, not just direct children, in the confirmation", () => {
+  // A non-recursive count would say "2 nested items" here and undersell what Remove takes with it.
+  const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+  const item: AdminMenuItem = {
+    id: "top", label: "Top", target: { kind: "url", href: "/top" },
+    children: [
+      { id: "a", label: "A", target: { kind: "url", href: "/a" }, children: [{ id: "a1", label: "A1", target: { kind: "url", href: "/a1" } }] },
+      { id: "b", label: "B", target: { kind: "url", href: "/b" } },
+    ],
+  };
+  const { result } = renderHook(() => useMenuItemRemove({ item, path: [0], onRemove: vi.fn() }));
+  act(() => result.current.handleRemoveClick());
+  expect(confirm.mock.calls).toEqual([['Remove "Top"? This will also remove 3 nested items.']]);
 });
