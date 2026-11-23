@@ -172,7 +172,9 @@
       "./screens/menus/hooks/menus-port.hooks": "universal",
       "./screens/menus/MenuEditor.hooks": "browser",
       "./screens/menus/MenuPageLinkFields.hooks": "browser",
-      "./screens/menus/MenuPageLinkFields": "browser"
+      "./screens/menus/MenuPageLinkFields": "browser",
+      "./screens/seo": "browser",
+      "./screens/seo/seo-i18n": "universal"
     },
     "isolation": {
       "shared": [
@@ -1053,6 +1055,16 @@
       "types": "./dist/screens/menus/MenuPageLinkFields.d.ts",
       "import": "./dist/screens/menus/MenuPageLinkFields.js",
       "default": "./dist/screens/menus/MenuPageLinkFields.js"
+    },
+    "./screens/seo": {
+      "types": "./dist/screens/seo/index.d.ts",
+      "import": "./dist/screens/seo/index.js",
+      "default": "./dist/screens/seo/index.js"
+    },
+    "./screens/seo/seo-i18n": {
+      "types": "./dist/screens/seo/seo-i18n.d.ts",
+      "import": "./dist/screens/seo/seo-i18n.js",
+      "default": "./dist/screens/seo/seo-i18n.js"
     }
   },
   "files": [
@@ -1110,6 +1122,12 @@
       ],
       "shell/*": [
         "./dist/shell/*.d.ts"
+      ],
+      "screens/seo": [
+        "./dist/screens/seo/index.d.ts"
+      ],
+      "screens/seo/seo-i18n": [
+        "./dist/screens/seo/seo-i18n.d.ts"
       ]
     }
   },
