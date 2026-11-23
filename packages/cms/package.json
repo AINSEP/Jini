@@ -65,6 +65,7 @@
       "./trash/site/remove-without-blocker": "universal",
       "./trash/site/scheduler.node": "node",
       "./trash/site/widget-removal": "universal",
+      "./trash/permanent/agent-tools": "universal",
       "./media/node": "node",
       "./forms/html-render": "universal",
       "./forms/validation-messages": "universal",
@@ -588,6 +589,11 @@
       "types": "./dist/trash/site/widget-removal.d.ts",
       "import": "./dist/trash/site/widget-removal.js",
       "default": "./dist/trash/site/widget-removal.js"
+    },
+    "./trash/permanent/agent-tools": {
+      "types": "./dist/trash/permanent/agent-tools.d.ts",
+      "import": "./dist/trash/permanent/agent-tools.js",
+      "default": "./dist/trash/permanent/agent-tools.js"
     },
     "./media/node": {
       "types": "./dist/media/node.d.ts",
