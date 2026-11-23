@@ -176,6 +176,8 @@ export interface SettingsDialogShellProps {
   readonly onActiveTabIdChange?: (tabId: string) => void; readonly onClose?: () => void; readonly presentation?: 'modal' | 'inline';
   readonly welcome?: boolean; readonly defaultSidebarCollapsed?: boolean; readonly fullscreenEnabled?: boolean; readonly defaultFullscreen?: boolean;
   readonly chromeExtra?: ReactNode; readonly dialogAriaLabelledBy?: string; readonly className?: string;
+  /** Chrome copy the screen translates itself (the Skills page's kicker and sidebar name). */
+  readonly labels?: { readonly kicker?: string; readonly sidebarAriaLabel?: string } | undefined;
 }
 export interface CodeWithLinesProps { readonly text: string; readonly wrap?: boolean }
 export interface CodeWrapToggleProps { readonly wrap: boolean; readonly onToggle: () => void; readonly t: Translate; readonly agentHandleId: string; readonly className?: string }

@@ -2,7 +2,8 @@
 
 Leaves of the host admin's Skills screen that carry no host transport: the page and
 install-confirmation copy, the row chevron, the upload encoder and the failure formatter. The
-screen, its rows/dialogs and its data hooks still live in the host.
+screen itself (`Skills.tsx`), its row and remove/install dialogs, its translator and its dialog-focus
+hooks live here too; the data hooks over the host's skills transport stay in the host.
 
 ## Wiring
 
@@ -13,3 +14,24 @@ screen, its rows/dialogs and its data hooks still live in the host.
   the same type the host's install transport sends.
 - `skills-i18n.ts` (+ `skills-page-dictionary.ts`) — falls back to `ADMIN_COMMON_I18N`; nothing injected.
 - `skills-visuals.tsx` — draws through the injected kit `Icon`; class `jini-agent-plugin-chevron-glyph`.
+- `Skills.tsx` — every collaborator is a required prop: `hooks` (`SkillsScreenHooks`: the host's
+  `useSkills` controller, `useLocale`, `useAdminThemeBoundary`, `useSkillsTranslator` (this
+  package's `Skills.hooks.ts`), `useSkillFilesModal`, and `useSkillInstallConfirmation`),
+  `components` (`SkillsScreenComponents`: the host's `PlainTextBlocks`, `PackageFilesModal` and the
+  install-tab `InstallTabCard`/`InstallTabOption`/`InstallTabFieldRow`) and `failureHost`
+  (`SkillFailureHost`). Hooks are called as `hooks.useX(...)`, never imported. The reference host binds
+  them in `apps/admin/src/features/skills/SkillsPage.tsx` (lazy-loaded from `panel-pages.ts`), which
+  also loads `@jini-ai/ui/settings-dialog.css` and the host's `skills.css`.
+- `SkillInstallConfirmation.tsx` — takes `hooks.useSkillInstallConfirmation` (this package's
+  `use-skill-confirmation.hooks.ts`) and `failureHost` as required props; the reference host spreads
+  `SKILL_INSTALL_CONFIRMATION_HOST` (`features/skills/skill-install-confirmation-host.ts`) from the
+  Skills page and the chat dock (`components/AssistantDock/DockChatPane.tsx`).
+- `SkillRow.tsx` — takes the host's `PlainTextBlocks` as a required prop. `SkillRemoveConfirmDialog.tsx`
+  reads a `SkillsScreenController`; nothing injected.
+- `skills-screen.types.ts` — view shapes (`SkillRowView`, `SkillsScreenController`, `SkillInstallView`)
+  over `InstalledSkill` from `@jini-ai/core/contracts/site/installed-skill`, the type the host's
+  transport returns.
+- Classes: this screen's own classes are `jini-skills-*` (styled by the host's `skills.css`); the shared
+  row, button, notice, card and dialog classes (`agent-plugin-*`, `btn-*`, `notice`, `card`,
+  `settings-dialog*`, `editor-actions`, `page`, `settings-ui-section`) are the host design system's and
+  are kept as-is.
