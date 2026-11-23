@@ -48,6 +48,17 @@
    "toAdminTrashMenuResponse": "function:84a8a19808"
   }
  },
+ "./admin-http/http/plugin-hook-error": {
+  "types": "./dist/admin-http/http/plugin-hook-error.d.ts",
+  "symbols": {
+   "PluginHookErrorDeps": "interface:f856f61e40",
+   "PluginHookErrorEnvelope": "interface:a30e9ca095",
+   "PluginHookErrorResponse": "interface:149dd73b44",
+   "PluginHookFailedBody": "interface:90d39f3ea8",
+   "PluginHookFailure": "interface:d75cf8505c",
+   "createPluginHookErrorEnvelope": "function:3e49122acc"
+  }
+ },
  "./admin-http/http/redirects": {
   "types": "./dist/admin-http/http/redirects.d.ts",
   "symbols": {
@@ -78,6 +89,27 @@
    "SupportedExecutionProtocol": "type:7252b84293",
    "readOptionalString": "function:5be207b4f4",
    "validateSupportedProtocol": "function:8a9f6350a4"
+  }
+ },
+ "./admin-http/routes/change-sets/get": {
+  "types": "./dist/admin-http/routes/change-sets/get.d.ts",
+  "symbols": {
+   "ChangeSetGetRouteDeps": "interface:8dd2ba7418",
+   "changeSetGetRoute": "variable:5781a384a7"
+  }
+ },
+ "./admin-http/routes/change-sets/list": {
+  "types": "./dist/admin-http/routes/change-sets/list.d.ts",
+  "symbols": {
+   "ChangeSetListRouteDeps": "interface:36367c3511",
+   "changeSetListRoute": "variable:1062a08a90"
+  }
+ },
+ "./admin-http/routes/change-sets/revert": {
+  "types": "./dist/admin-http/routes/change-sets/revert.d.ts",
+  "symbols": {
+   "ChangeSetRevertRouteDeps": "interface:80874f70e3",
+   "changeSetRevertRoute": "variable:ddab0edc79"
   }
  },
  "./admin-http/routes/database/restore-points": {
@@ -112,6 +144,55 @@
    "DatabaseTimelineRouteDeps": "interface:eaeb6d2bbe",
    "DatabaseTimelineRow": "interface:7b2ffbe33b",
    "adminDatabaseTimelineRoute": "variable:5119d6e733"
+  }
+ },
+ "./admin-http/routes/email-templates/create": {
+  "types": "./dist/admin-http/routes/email-templates/create.d.ts",
+  "symbols": {
+   "EmailTemplateCreateRouteDeps": "interface:63205d9c51",
+   "emailTemplateCreateRoute": "variable:f3453e5d85"
+  }
+ },
+ "./admin-http/routes/email-templates/edit-html": {
+  "types": "./dist/admin-http/routes/email-templates/edit-html.d.ts",
+  "symbols": {
+   "EmailTemplateEditHtmlRouteDeps": "interface:174462f26d",
+   "emailTemplateEditHtmlRoute": "variable:045bf890af"
+  }
+ },
+ "./admin-http/routes/email-templates/get": {
+  "types": "./dist/admin-http/routes/email-templates/get.d.ts",
+  "symbols": {
+   "EmailTemplateGetRouteDeps": "interface:450a5f7fba",
+   "emailTemplateGetRoute": "variable:e3a5b1764a"
+  }
+ },
+ "./admin-http/routes/email-templates/list": {
+  "types": "./dist/admin-http/routes/email-templates/list.d.ts",
+  "symbols": {
+   "EmailTemplateListRouteDeps": "interface:8283015b1c",
+   "emailTemplateListRoute": "variable:995dc359bc"
+  }
+ },
+ "./admin-http/routes/email-templates/preview": {
+  "types": "./dist/admin-http/routes/email-templates/preview.d.ts",
+  "symbols": {
+   "EmailTemplatePreviewRouteDeps": "interface:4be2d10795",
+   "emailTemplatePreviewRoute": "variable:e32798201c"
+  }
+ },
+ "./admin-http/routes/email-templates/rename": {
+  "types": "./dist/admin-http/routes/email-templates/rename.d.ts",
+  "symbols": {
+   "EmailTemplateRenameRouteDeps": "interface:b0237b68c8",
+   "emailTemplateRenameRoute": "variable:784c1db0b8"
+  }
+ },
+ "./admin-http/routes/email-templates/render": {
+  "types": "./dist/admin-http/routes/email-templates/render.d.ts",
+  "symbols": {
+   "EmailTemplateRenderRouteDeps": "interface:7daf1702df",
+   "emailTemplateRenderRoute": "variable:c0e394db4b"
   }
  },
  "./admin-http/routes/menus/assign-location": {
@@ -157,6 +238,69 @@
    "MenuUpdateTreeInput": "interface:120740c76e",
    "MenuUpdateTreeRouteDeps": "interface:fc8bebb41e",
    "menuUpdateTreeRoute": "variable:9610552709"
+  }
+ },
+ "./admin-http/routes/pages/get-by-id": {
+  "types": "./dist/admin-http/routes/pages/get-by-id.d.ts",
+  "symbols": {
+   "PageEmbedCatalogRow": "interface:08e651b946",
+   "PageEmbedSummary": "interface:75ad2e5847",
+   "PageGetRouteDeps": "interface:71a767355c",
+   "PagePluginCatalogPort": "interface:7e41694ee0",
+   "pageGetRoute": "variable:0e64344a16"
+  }
+ },
+ "./admin-http/routes/pages/list": {
+  "types": "./dist/admin-http/routes/pages/list.d.ts",
+  "symbols": {
+   "PageListRouteDeps": "interface:96c4343934",
+   "pageListRoute": "variable:fa3cbba5cb"
+  }
+ },
+ "./admin-http/routes/pages/update-html": {
+  "types": "./dist/admin-http/routes/pages/update-html.d.ts",
+  "symbols": {
+   "PageHtmlErrorPredicate": "type:d41d423ee6",
+   "PageHtmlStore": "interface:39192b3347",
+   "PageHtmlValidatorPort": "interface:1e55f2b330",
+   "PageUpdateHtmlInput": "interface:f1b5123682",
+   "PageUpdateHtmlRouteDeps": "interface:f92d143024",
+   "pageUpdateHtmlRoute": "variable:9292221c2f"
+  }
+ },
+ "./admin-http/routes/posts/autosave": {
+  "types": "./dist/admin-http/routes/posts/autosave.d.ts",
+  "symbols": {
+   "PostAutosaveBody": "interface:91de5ed28e",
+   "PostAutosaveBodyFormat": "type:7f77000ff6",
+   "PostAutosaveDeleteRouteDeps": "type:b1a3279a63",
+   "PostAutosaveGetRouteDeps": "type:b8281e3e96",
+   "PostAutosavePutRouteDeps": "interface:09676d6902",
+   "PostAutosaveReadAndClearRouteDeps": "interface:9aa98467a2",
+   "PostAutosaveRoutePrincipal": "interface:7258e8d22f",
+   "PostAutosaveSnapshot": "interface:73d02327a6",
+   "PostIdLookupFn": "type:2295ed1ed9",
+   "postAutosaveDeleteRoute": "variable:94d02580de",
+   "postAutosaveGetRoute": "variable:fb1f6cda1d",
+   "postAutosavePutRoute": "variable:82ec8c87f2"
+  }
+ },
+ "./admin-http/routes/presentation/get": {
+  "types": "./dist/admin-http/routes/presentation/get.d.ts",
+  "symbols": {
+   "PresentationGetRouteDeps": "interface:a9cabc3c49",
+   "PresentationResponseFields": "interface:2d0ace5830",
+   "PresentationThemeCard": "interface:2f1e55725a",
+   "presentationGetRoute": "variable:ff4db09fa0"
+  }
+ },
+ "./admin-http/routes/presentation/rescan-themes": {
+  "types": "./dist/admin-http/routes/presentation/rescan-themes.d.ts",
+  "symbols": {
+   "ThemeRescanChange": "interface:bde60bb957",
+   "ThemeRescanEnvelope": "interface:78f7ab7ed8",
+   "ThemeRescanRouteDeps": "interface:0a431a48cf",
+   "themeRescanRoute": "variable:b10f90c498"
   }
  },
  "./admin-http/routes/recovery/deep-link": {
@@ -280,6 +424,122 @@
    "ModuleStatusPrincipal": "interface:4602c99ced",
    "ModuleStatusSnapshot": "interface:8b51e5ccec",
    "moduleStatusRoute": "variable:ebdbd5f9da"
+  }
+ },
+ "./admin-http/routes/themes/duplicate": {
+  "types": "./dist/admin-http/routes/themes/duplicate.d.ts",
+  "symbols": {
+   "THEME_DUPLICATE_ERROR_STATUS": "variable:4e57d22571",
+   "ThemeDuplicateEnvelope": "interface:6d95b42756",
+   "ThemeDuplicateFn": "type:0e3ef59c42",
+   "ThemeDuplicateInput": "interface:4b0aed2533",
+   "ThemeDuplicateRefusalCode": "type:42920a2b25",
+   "ThemeDuplicateRouteDeps": "interface:240355155a",
+   "themeDuplicateRoute": "variable:987565d269"
+  }
+ },
+ "./admin-http/routes/themes/explore-detail": {
+  "types": "./dist/admin-http/routes/themes/explore-detail.d.ts",
+  "symbols": {
+   "ExploreThemeDetailSource": "interface:6b9a63e325",
+   "ThemeDetailRouteDeps": "interface:c9f27ee3a8",
+   "ThemeExploreDetail": "interface:01093587f8",
+   "ThemeExploreFileEntry": "interface:7d5959245b",
+   "themeDetailRoute": "variable:a768802156"
+  }
+ },
+ "./admin-http/routes/themes/explore-file-copy": {
+  "types": "./dist/admin-http/routes/themes/explore-file-copy.d.ts",
+  "symbols": {
+   "ThemeFileCopyRouteDeps": "interface:6f7493cd10",
+   "ThemeFileDescribeDeps": "interface:a84ee424e9",
+   "themeFileCopyRoute": "variable:2b474f08d4"
+  }
+ },
+ "./admin-http/routes/themes/explore-file-delete": {
+  "types": "./dist/admin-http/routes/themes/explore-file-delete.d.ts",
+  "symbols": {
+   "ThemeFileDeleteRouteDeps": "interface:0684a739ce",
+   "ThemeFileIdentityLockDeps": "interface:97975ed6f1",
+   "ThemeFileIdentityLockRefusal": "interface:bec5d448b7",
+   "themeFileDeleteRoute": "variable:234c579cae"
+  }
+ },
+ "./admin-http/routes/themes/explore-file-get": {
+  "types": "./dist/admin-http/routes/themes/explore-file-get.d.ts",
+  "symbols": {
+   "ThemeFileGetResponse": "type:2178a851a3",
+   "ThemeFileGetRouteDeps": "interface:a60306a2e1",
+   "themeFileGetRoute": "variable:b1d4b0a4b4"
+  }
+ },
+ "./admin-http/routes/themes/explore-file-put": {
+  "types": "./dist/admin-http/routes/themes/explore-file-put.d.ts",
+  "symbols": {
+   "ThemeFilePutInput": "interface:91475dd10a",
+   "ThemeFilePutRouteDeps": "interface:4361dbb150",
+   "ThemeFileWriteDeps": "interface:a22cf2a1e4",
+   "themeFilePutRoute": "variable:a3c63d2862"
+  }
+ },
+ "./admin-http/routes/themes/explore-file-rename": {
+  "types": "./dist/admin-http/routes/themes/explore-file-rename.d.ts",
+  "symbols": {
+   "ThemeFileRenameRouteDeps": "interface:aea892e785",
+   "themeFileRenameRoute": "variable:05452e87f7",
+   "validateRenameTargetName": "function:063bc690a9"
+  }
+ },
+ "./admin-http/routes/themes/explore-file-reset": {
+  "types": "./dist/admin-http/routes/themes/explore-file-reset.d.ts",
+  "symbols": {
+   "ThemeFileResetResponse": "type:2f745de78d",
+   "ThemeFileResetRouteDeps": "interface:36c8f75896",
+   "themeFileResetRoute": "variable:7bf054e5d0"
+  }
+ },
+ "./admin-http/routes/themes/explore-page-publish": {
+  "types": "./dist/admin-http/routes/themes/explore-page-publish.d.ts",
+  "symbols": {
+   "ThemePagePublishInput": "interface:ffc208a4b0",
+   "ThemePagePublishResult": "interface:aee66cdedc",
+   "ThemePagePublishRouteDeps": "interface:b50ad45468",
+   "themePagePublishRoute": "variable:7a4b8ab5a5"
+  }
+ },
+ "./admin-http/routes/themes/explore-save-original": {
+  "types": "./dist/admin-http/routes/themes/explore-save-original.d.ts",
+  "symbols": {
+   "ThemeSaveOriginalOutcome": "type:176c9c8e9f",
+   "ThemeSaveOriginalRouteDeps": "interface:e0690ec6b3",
+   "themeSaveOriginalRoute": "variable:7a4edb06af"
+  }
+ },
+ "./admin-http/routes/themes/explore-shared": {
+  "types": "./dist/admin-http/routes/themes/explore-shared.d.ts",
+  "symbols": {
+   "ExploreTheme": "interface:dd8ab57861",
+   "ExploreThemeLookupDeps": "interface:d0801ba849",
+   "ExploreWriteScope": "interface:44fe23de6b",
+   "ThemeExplorePrincipal": "interface:ff85992c59",
+   "ThemeFileErrorDeps": "interface:caef42addd",
+   "authorizeThemeExplore": "function:8e5c5a9a37",
+   "bodyRecord": "function:1827db6e27",
+   "bodyStringField": "function:92d95dd68e",
+   "findExploreTheme": "function:bf83aaf9c6",
+   "rejectMissingThemeFile": "function:c1bcf8ec47",
+   "rejectThemeFileError": "function:9029c11245",
+   "themeIdParam": "function:465a098ae4",
+   "themePathInput": "function:6016858161"
+  }
+ },
+ "./admin-http/routes/themes/list": {
+  "types": "./dist/admin-http/routes/themes/list.d.ts",
+  "symbols": {
+   "ThemeListItem": "interface:074d8ca1ed",
+   "ThemeListSource": "interface:9630ce473f",
+   "ThemesListRouteDeps": "interface:b3535bcd6f",
+   "themesListRoute": "variable:9868eb8680"
   }
  },
  "./admin-http/sea-runtime": {
