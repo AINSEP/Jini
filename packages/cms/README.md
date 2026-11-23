@@ -178,6 +178,27 @@ create stay id-free. The host injects what is its policy, not the engine's: `raw
 `normalizeMenuHtml` from `@jini-ai/cms/navigation/node`) and `trashMenu` (the host's trash move).
 Malformed bodies are refused in `parse` with the host's code-less `{ error }` body.
 
+Recovery and database ceremonies (`src/admin-http/routes/recovery/{status,restore}`,
+`src/admin-http/routes/database/migrate-forward`): status takes the cost-class probe, site status,
+the operation-lock peek and `resolveDegradedBanner` as deps. The restore and migrate-forward
+plan/confirm/execute specs own the body checks, the AUD-001 order (execute pre-authorizes through
+the injected instance-scoped check before reading the body or taking the lock) and the
+error → status tables; the host injects each gateway/orchestrator step, the database package's
+refusal classes, and `missingPrincipalMessage` (its own missing-session diagnosis). Bodies are
+validated in `handle`, after the principal, because the hand-written routes did so.
+
+Publish-content (`src/admin-http/routes/publish-content/{peers,destination}`, guards in
+`transport-shared`, report DTOs in `src/admin-http/http/publish-content.ts`): the host injects the
+peer store, connected-peer lookup, deploy-config candidate, publishable types, connect/disconnect
+handshake and its typed error classes; the specs own the status/code tables and the
+credential-free views. Routes that read the request's credential kind or publish-trust grant
+(import, backstop, bundle-create, export, capabilities, peer-transport) and the byte/stream
+routes stay host-side until the host ports carry that context.
+
+Plugins (`src/admin-http/routes/plugins/*`): cms does not depend on `@jini-ai/plugins`; the host
+injects discovery, the activation lookup, `toAdminPluginResponse`, the uninstall move, the preview
+filter, the hook-failure envelope and the error classes each ladder maps.
+
 ## Scripts
 
 ```bash
