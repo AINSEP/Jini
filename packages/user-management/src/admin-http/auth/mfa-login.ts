@@ -1,5 +1,5 @@
 import { defineJsonRoute, ok } from '@jini-ai/core/contracts/server';
-import { IdentityValidationError } from '../../core/types.js';
+import { MFA_PROOF_REFUSED_MESSAGE, MfaProofRefusedError } from '../../core/types.js';
 import { bodyRecord, refuse, requireAuthRequest, type AuthPrincipal, type AuthRequest, type AuthSessionOptions } from './auth-request.js';
 
 export interface MfaLoginRouteDeps {
@@ -40,7 +40,9 @@ export const mfaLoginRoute = defineJsonRoute<MfaLoginInput, unknown, MfaLoginRou
     // Every answer, refusals and failures included, is uncacheable: set before anything can throw.
     auth.noStore();
     try { return ok({ value: await mfaLogin({ input, deps, auth }) }); } catch (error) {
-      if (error instanceof IdentityValidationError) refuse({ status: 400, body: { error: error.message, code: 'MFA_REFUSED' } });
+      // Only the classified proof refusal is public, with its fixed text; any other failure (an injected
+      // collaborator's validation error can echo the proof) goes to the host's redacted envelope.
+      if (error instanceof MfaProofRefusedError) refuse({ status: 400, body: { error: MFA_PROOF_REFUSED_MESSAGE, code: 'MFA_REFUSED' } });
       throw error;
     }
   },

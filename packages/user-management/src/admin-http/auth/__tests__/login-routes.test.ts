@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { RouteRefusalError } from '@jini-ai/core/errors/route-refusal';
 import type { RouteInputContext } from '@jini-ai/core/contracts/server';
-import { AuthInvalidCredentialsError, IdentityValidationError } from '../../../core/types.js';
+import { AuthInvalidCredentialsError, IdentityValidationError, MFA_PROOF_REFUSED_MESSAGE, MfaProofRefusedError } from '../../../core/types.js';
 import { passwordLoginRoute, mfaLoginRoute, logoutRoute, type PasswordLoginRouteDeps, type MfaLoginRouteDeps } from '../index.js';
 import { fakeAuthRequest } from './fake-auth-request.js';
 
@@ -90,7 +90,7 @@ async function runMfa(body: unknown, deps = mfaDeps(), over: Parameters<typeof f
 describe('POST /auth/mfa/login (U-AUTH-1)', () => {
   it('B9 sets no-store first on the 429, the 400, a failure and success', async () => {
     const r429 = await runMfa({}, mfaDeps(), { allowed: false }); await refusal(r429.result); expect(r429.events[0]).toBe('no-store');
-    const r400 = await runMfa({}, mfaDeps({ completeOwnerLogin: vi.fn(async () => { throw new IdentityValidationError({ message: 'Code expired.' }); }) })); await refusal(r400.result); expect(r400.events[0]).toBe('no-store');
+    const r400 = await runMfa({}, mfaDeps({ completeOwnerLogin: vi.fn(async () => { throw new MfaProofRefusedError(); }) })); await refusal(r400.result); expect(r400.events[0]).toBe('no-store');
     const r500 = await runMfa({}, mfaDeps({ completeOwnerLogin: vi.fn(async () => { throw new Error('down'); }) })); await expect(r500.result).rejects.toThrow('down'); expect(r500.events[0]).toBe('no-store');
     const r200 = await runMfa({}); await r200.result; expect(r200.events[0]).toBe('no-store');
   });
@@ -103,9 +103,16 @@ describe('POST /auth/mfa/login (U-AUTH-1)', () => {
     expect(await refusal(result)).toEqual({ status: 429, body: { error: 'Too many authenticator attempts. Wait a minute and try again.', code: 'RATE_LIMIT_EXCEEDED' } });
     expect(events).toContain('retry-after:9');
   });
-  it('B12 answers an IdentityValidationError with 400 MFA_REFUSED and its message', async () => {
-    const { result } = await runMfa({}, mfaDeps({ completeOwnerLogin: vi.fn(async () => { throw new IdentityValidationError({ message: 'Code expired.' }); }) }));
-    expect(await refusal(result)).toEqual({ status: 400, body: { error: 'Code expired.', code: 'MFA_REFUSED' } });
+  it('B12 answers the classified proof refusal with the exact 400 MFA_REFUSED bytes', async () => {
+    const { result } = await runMfa({}, mfaDeps({ completeOwnerLogin: vi.fn(async () => { throw new MfaProofRefusedError(); }) }));
+    expect(await refusal(result)).toEqual({ status: 400, body: { error: 'The authenticator code was not accepted or has expired. Enter a fresh code, or sign in again to start a new attempt.', code: 'MFA_REFUSED' } });
+    expect(MFA_PROOF_REFUSED_MESSAGE).toBe('The authenticator code was not accepted or has expired. Enter a fresh code, or sign in again to start a new attempt.');
+  });
+  it('B12 hands any other validation error (one echoing the proof) to the host, never into the body, with no-store already set', async () => {
+    const echo = new IdentityValidationError({ message: 'pending token pt-SECRET-proof code 123456 rejected' });
+    const { result, events } = await runMfa({ pendingToken: 'pt-SECRET-proof', code: '123456' }, mfaDeps({ completeOwnerLogin: vi.fn(async () => { throw echo; }) }));
+    await expect(result).rejects.toBe(echo);
+    expect(events[0]).toBe('no-store');
   });
   it('revokes, sets the cookie, looks up the user, signals, and answers the username', async () => {
     const { result, events } = await runMfa({ pendingToken: 'pt', code: '123456' });

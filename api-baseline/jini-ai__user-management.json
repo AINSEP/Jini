@@ -11,6 +11,8 @@
    "IdentityTransactionPort": "interface:8d443c0b58",
    "IdentityTransactionRequiredError": "class:f3be1dd18e",
    "IdentityValidationError": "class:7ae88e469a",
+   "MFA_PROOF_REFUSED_MESSAGE": "variable:3a4f56f790",
+   "MfaProofRefusedError": "class:d53acdd3d8",
    "OwnerRequiredError": "class:625c1c0933",
    "PasskeyOptions": "type:174f45e889",
    "PasswordHasherPort": "interface:f502fa8476",

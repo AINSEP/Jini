@@ -158,6 +158,19 @@ export class IdentityValidationError extends Error {
     super(message, optional);
   }
 }
+/** The fixed public text of a refused MFA login proof (wrong, replayed or expired code). */
+export const MFA_PROOF_REFUSED_MESSAGE = 'The authenticator code was not accepted or has expired. Enter a fresh code, or sign in again to start a new attempt.';
+
+/**
+ * A refused MFA proof: the one MFA failure whose text a login route may put in a response body.
+ * Its message is always {@link MFA_PROOF_REFUSED_MESSAGE}, so no proof, token or collaborator text can
+ * reach the caller through it. Extends {@link IdentityValidationError} so existing 400 mappings hold.
+ */
+export class MfaProofRefusedError extends IdentityValidationError {
+  constructor(_required: Record<string, never> = {}, optional: ErrorOptions = {}) {
+    super({ message: MFA_PROOF_REFUSED_MESSAGE }, optional);
+  }
+}
 /** Raised when a referenced principal/user/role/policy is not found. */
 export class IdentityNotFoundError extends Error {
   constructor({ message }: { message: string }, optional: ErrorOptions = {}) {
