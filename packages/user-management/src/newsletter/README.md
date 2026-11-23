@@ -16,6 +16,7 @@ Every module is a leaf subpath. There is no `newsletter` barrel, so import each 
 | `newsletter/launch-gate` | universal | `evaluateLaunchGate` |
 | `newsletter/unsubscribe` | node | `buildUnsubscribeLink`, `processUnsubscribe` (signed tokens, `node:crypto`) |
 | `newsletter/repo.memory` | universal | In-memory adapters for all six repository ports |
+| `newsletter/data-module-manifest` | universal | `NEWSLETTER_TABLE_NAMES`, `createNewsletterDataModule` (the 5-table `p_newsletter__*` declaration), `installNewsletterDataModule` |
 
 ## Wiring
 
@@ -25,7 +26,8 @@ Everything host-specific reaches these modules through the deps objects their fu
 - **`LaunchGateDeps`**: `isSendingEnabled(workspaceId)`, `consentCapability` (the members feature's consent capability, or `null` when the host has not bound one), `originRegistry` (`OriginRegistryPort` from `@jini-ai/core/contracts/server/verified-origin`), and `mailer` (`PositionalMailer` from `@jini-ai/core/contracts/mail`).
 - **`UnsubscribeDeps`**: `subscriptionRepo`, `keyring` (`KeyringPort` from `@jini-ai/core/contracts/vault`; only `derive` is called), `originRegistry`, `consentCapability`, and `clock`.
 - **Repository adapters:** `newsletter/repo.memory` supplies the in-memory set. The SQL adapters stay in the host, because they are typed against the host's database schema and kernel.
-- **Product copy and identifiers:** none are needed by these modules.
+- **Data module:** `createNewsletterDataModule({ publisher })` takes the host's stored provenance publisher. It is compared with the stored identity row on every boot, so the host must pass the same value every release. `installNewsletterDataModule` also takes `declareDataModule`, which the host binds from `@jini-ai/db/data-modules`, so this package does not depend on the DDL engine.
+- **Product copy and identifiers:** none are needed by these modules, apart from the data-module publisher above.
 
 ```ts
 import { saveList } from "@jini-ai/user-management/newsletter/lists";

@@ -1,5 +1,5 @@
 import { toolMetadata } from "@jini-ai/core/tool-metadata/server-logs";
-import { adaptLegacyAuthorize, buildDomainRegistrations, indexCatalogById, requireInputRecord, requireToolPermission, ToolInputError, ToolPermissionDeniedError as ForbiddenError, type AgentToolSideEffect, type DerivedRiskByToolId, type ToolContributor, type ToolRegistration } from "@jini-ai/core";
+import { adaptLegacyAuthorize, buildDomainRegistrations, indexCatalogById, requireInputRecord, requireToolPermission, ToolInputError, ToolPermissionDeniedError as ForbiddenError, type AgentToolSideEffect, type ToolContributor, type ToolRegistration } from "@jini-ai/core";
 import { forbiddenRule, withModelFacingErrors } from "@jini-ai/core/model-facing-tool-errors";
 import type { AuthorizeFn } from "@jini-ai/core/contracts/events";
 import { serverLogsAgentToolCatalog } from "./agent-tools.js";
@@ -17,7 +17,7 @@ export interface ServerLogsContributorArgs {
   serverLogs: ServerLogSourcePort;
 }
 
-export const serverLogsDerivedRisk: DerivedRiskByToolId = new Map<string, AgentToolSideEffect>([
+export const serverLogsDerivedRisk: ReadonlyMap<string, AgentToolSideEffect> = new Map<string, AgentToolSideEffect>([
   // -> readServerLogs over an in-memory buffer only; writes nothing.
   ["system_read_server_logs", "none"],
 ]);

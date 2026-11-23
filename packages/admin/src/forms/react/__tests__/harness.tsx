@@ -68,6 +68,8 @@ const formsKit: AdminKit = {
     useInfoTip: () => { throw new Error('Forms tests do not supply useInfoTip'); },
     usePanelPosition: () => { throw new Error('Forms tests do not supply usePanelPosition'); },
     useSelectDropdown: () => { throw new Error('Forms tests do not supply useSelectDropdown'); },
+    useTabbedDialog: () => { throw new Error('Forms tests do not supply useTabbedDialog'); },
+    useCopyToClipboard: () => { throw new Error('Forms tests do not supply useCopyToClipboard'); },
   },
   query: { useFetchQuery, useFetchMutation, useCachedLoader, useInvalidate, useFetchQueryScope },
   get mediaProviders(): never { throw new Error('Forms tests do not supply mediaProviders'); },

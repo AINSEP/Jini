@@ -43,7 +43,7 @@ const pageEditorMarkupTranslations: Record<string, Record<string, string>> = {
 // all (replaced by "No template — HTML only", a `pageEditorMarkupTranslations` key below, since Pages
 // and Posts diverge in meaning for `""` now). Posts still show it unchanged, via `posts-i18n.ts`'s own
 // key — untouched, this set only routes Page-editor copy.
-const postEditorKeys = new Set([
+const postEditorKeys: readonly string[] = [
   "Cookie banner hidden in preview. Embedded videos may not play here; open the page to check.",
   "Back", "Pages", "Content", "Edit page", "Draft", "Published", "Publish", "Restore", "Discard",
   "Save anyway", "Keep editing", "Template", "View Template", "No templates for this theme",
@@ -53,7 +53,7 @@ const postEditorKeys = new Set([
   "No changes found · nothing new saved (version {version})",
   // Same recovered-draft banner as the Post editor: one sentence, translated once in `lib/editor-failure-i18n.ts`.
   "Could not discard the recovered draft. It is still saved and the banner is still here, so you can try Discard again or Restore it.",
-] as const);
+];
 
 const pageEditorControlTranslations: Record<string, Record<string, string>> = {
   es: { Move: "Mover", Desktop: "Escritorio", Tablet: "Tableta", Mobile: "Móvil", Interactive: "Interactivo", Preview: "Vista previa" }, de: { Move: "Verschiebe", Desktop: "Desktop", Tablet: "Tablet", Mobile: "Mobil", Interactive: "Interaktiv", Preview: "Vorschau" }, it: { Move: "Sposta", Desktop: "Desktop", Tablet: "Tablet", Mobile: "Cellulare", Interactive: "Interattivo", Preview: "Anteprima" }, "zh-CN": { Move: "将", Desktop: "桌面", Tablet: "平板电脑", Mobile: "手机", Interactive: "交互式", Preview: "预览" }, "zh-TW": { Move: "將", Desktop: "桌面", Tablet: "平板電腦", Mobile: "手機", Interactive: "互動式", Preview: "預覽" }, ar: { Move: "انقل", Desktop: "سطح المكتب", Tablet: "جهاز لوحي", Mobile: "الهاتف", Interactive: "تفاعلي", Preview: "معاينة" }, fa: { Move: "انتقال", Desktop: "رومیزی", Tablet: "تبلت", Mobile: "موبایل", Interactive: "تعاملی", Preview: "پیش‌نمایش" }, ru: { Move: "Переместить", Desktop: "Компьютер", Tablet: "Планшет", Mobile: "Телефон", Interactive: "Интерактивный", Preview: "Предпросмотр" }, ja: { Move: "移動", Desktop: "デスクトップ", Tablet: "タブレット", Mobile: "モバイル", Interactive: "インタラクティブ", Preview: "プレビュー" }, id: { Move: "Pindahkan", Desktop: "Desktop", Tablet: "Tablet", Mobile: "Seluler", Interactive: "Interaktif", Preview: "Pratinjau" }, "pt-BR": { Move: "Mover", Desktop: "Computador", Tablet: "Tablet", Mobile: "Celular", Interactive: "Interativo", Preview: "Visualização" }, ko: { Move: "이동", Desktop: "데스크톱", Tablet: "태블릿", Mobile: "모바일", Interactive: "대화형", Preview: "미리 보기" }, pl: { Move: "Przenieś", Desktop: "Komputer", Tablet: "Tablet", Mobile: "Telefon", Interactive: "Interaktywny", Preview: "Podgląd" }, hu: { Move: "Áthelyezés", Desktop: "Asztali gép", Tablet: "Táblagép", Mobile: "Mobil", Interactive: "Interaktív", Preview: "Előnézet" }, fr: { Move: "Déplacer", Desktop: "Ordinateur", Tablet: "Tablette", Mobile: "Mobile", Interactive: "Interactif", Preview: "Aperçu" }, uk: { Move: "Перемістити", Desktop: "Комп’ютер", Tablet: "Планшет", Mobile: "Телефон", Interactive: "Інтерактивний", Preview: "Попередній перегляд" }, tr: { Move: "Taşı", Desktop: "Masaüstü", Tablet: "Tablet", Mobile: "Mobil", Interactive: "Etkileşimli", Preview: "Önizleme" }, th: { Move: "ย้าย", Desktop: "เดสก์ท็อป", Tablet: "แท็บเล็ต", Mobile: "มือถือ", Interactive: "โต้ตอบได้", Preview: "ตัวอย่าง" }, hi: { Move: "स्थानांतरित करें", Desktop: "डेस्कटॉप", Tablet: "टैबलेट", Mobile: "मोबाइल", Interactive: "इंटरैक्टिव", Preview: "पूर्वावलोकन" }, ur: { Move: "منتقل کریں", Desktop: "ڈیسک ٹاپ", Tablet: "ٹیبلیٹ", Mobile: "موبائل", Interactive: "تعاملی", Preview: "پیش نظارہ" }, bn: { Move: "সরান", Desktop: "ডেস্কটপ", Tablet: "ট্যাবলেট", Mobile: "মোবাইল", Interactive: "ইন্টার‌অ্যাকটিভ", Preview: "প্রিভিউ" },
@@ -403,9 +403,7 @@ export const SCRIPT_BLOCK_DICT: Record<string, Record<string, string>> = {
   "bn": {"Animation · Kuinetic": "অ্যানিমেশন · Kuinetic", "Canvas": "ক্যানভাস", "Autoplay video": "স্বয়ংক্রিয় ভিডিও", "Scripted section": "স্ক্রিপ্ট অংশ", "Locked · Edit in HTML · Preview plays it": "লক · HTML-এ সম্পাদনা · প্রিভিউতে চালান", "Edit HTML": "HTML সম্পাদনা", "Can't edit this source visually. Use HTML.": "দৃশ্যমান সম্পাদনা সম্ভব নয়। HTML ব্যবহার করুন।"},
   "th": {"Animation · Kuinetic": "แอนิเมชัน · Kuinetic", "Canvas": "แคนวาส", "Autoplay video": "วิดีโออัตโนมัติ", "Scripted section": "ส่วนสคริปต์", "Locked · Edit in HTML · Preview plays it": "ล็อก · แก้ไขใน HTML · เล่นในตัวอย่าง", "Edit HTML": "แก้ไข HTML", "Can't edit this source visually. Use HTML.": "แก้ไขด้วยภาพไม่ได้ ใช้ HTML"},
 };
-const scriptBlockKeys = new Set(Object.keys(SCRIPT_BLOCK_DICT.es ?? {}));
-const markupKeys = new Set(Object.keys(pageEditorMarkupTranslations.es ?? {}));
-const EDITOR_CONTROL_KEYS = ["Move", "Desktop", "Tablet", "Mobile", "Interactive", "Preview"];
+const EDITOR_CONTROL_KEYS: readonly string[] = ["Move", "Desktop", "Tablet", "Mobile", "Interactive", "Preview"];
 
 /** The Page editor's locale-aware translator, as its call sites use it. */
 export type PageEditorTranslator = (required: { locale: string; key: string }, _options?: Record<string, never>) => string;
@@ -429,9 +427,12 @@ export function createPageEditorTranslator(
   const markupT = createDictionaryTranslator({ featureDictionary: pageEditorMarkupTranslations }, { commonDictionary });
   const controlT = createDictionaryTranslator({ featureDictionary: pageEditorControlTranslations }, { commonDictionary });
   const postT: PageEditorTranslator = sharedEditorTranslator ?? hookT;
+  const sharedKeys = new Set(postEditorKeys);
+  const scriptBlockKeys = new Set(Object.keys(SCRIPT_BLOCK_DICT.es ?? {}));
+  const markupKeys = new Set(Object.keys(pageEditorMarkupTranslations.es ?? {}));
   return ({ locale, key }, _options = {}) => {
     if (scriptBlockKeys.has(key)) return scriptBlockT({ locale, key });
-    if (postEditorKeys.has(key as never)) return postT({ locale: locale, key: key });
+    if (sharedKeys.has(key)) return postT({ locale: locale, key: key });
     if (EDITOR_CONTROL_KEYS.includes(key)) return controlT({ locale: locale, key: key });
     if (markupKeys.has(key)) return markupT({ locale: locale, key: key });
     return hookT({ locale: locale, key: key });

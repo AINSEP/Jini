@@ -3,7 +3,7 @@
  * `SubscriberDirectoryPort` read seam (ADR-030 §4 entitlement axis; ADR-034 OPEN-1).
  *
  * Purpose:
- * Newsletter's `apps/website/src/features/newsletter/ports.ts` declares `SubscriberDirectoryPort` as the
+ * Newsletter's `newsletter/ports.ts` declares `SubscriberDirectoryPort` as the
  * read-only seam it needs into Members to resolve a subscriber's address/deliverability
  * at audience-materialization time. This file is the one real implementation Members
  * owns for that seam — `subscriberId` IS `memberId` (ADR-030: "Publish
@@ -17,14 +17,14 @@
  * scope for this seam. What IS implemented is D1c's other half, the GLOBAL rule:
  * "Global `emailDeliverable`/suppression = active ∧ verified ∧ no global suppression."
  * `MemberRecord`/`MemberSubscriptionRecord` carry no suppression/unsubscribed-globally
- * field today (confirmed: no "suppress" hit in `apps/website/src/features/members/types.ts` or `ports.ts`),
+ * field today (confirmed: no "suppress" hit in `members/types.ts` or `ports.ts`),
  * so the "no global suppression" clause is currently vacuously true — disclosed here
  * rather than inventing a new `MemberRecord` field, which would be a schema change
  * needing its own decision. `emailDeliverable` below reduces to `active ∧ verified`
  * until a suppression concept is added to `MemberRecord` (or a dedicated ledger).
  *
  * Architectural role:
- * Single-evaluator typed dependency per `apps/website/src/features/newsletter/ports.ts`'s header comment —
+ * Single-evaluator typed dependency per `newsletter/ports.ts`'s header comment —
  * NOT a second `SubscriberDirectoryPort` adapter (no ADR-006 rule-of-two obligation).
  * Depends only on `MemberRepoPort` (read-only); never touches `MemberSubscriptionRepoPort`
  * because global deliverability does not depend on tier/subscription state, only on the

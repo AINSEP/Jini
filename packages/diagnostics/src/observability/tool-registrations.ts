@@ -1,4 +1,4 @@
-import { adaptLegacyAuthorize, buildDomainRegistrations, indexCatalogById, requireInputRecord, requireToolPermission, ToolInputError, ToolPermissionDeniedError as ForbiddenError, type DerivedRiskByToolId, type AgentToolDefinition, type ToolContributor, type ToolRegistration } from "@jini-ai/core";
+import { adaptLegacyAuthorize, buildDomainRegistrations, indexCatalogById, requireInputRecord, requireToolPermission, ToolInputError, ToolPermissionDeniedError as ForbiddenError, type AgentToolSideEffect, type AgentToolDefinition, type ToolContributor, type ToolRegistration } from "@jini-ai/core";
 import { forbiddenRule, withModelFacingErrors } from "@jini-ai/core/model-facing-tool-errors";
 import type { TelemetryTestResult } from "./telemetry-test.js";
 import type { AuthorizeFn } from "@jini-ai/core/contracts/events";
@@ -21,7 +21,7 @@ export function createObservabilityAgentToolCatalog({ testErrorMessage }: Observ
     inputSchema: { type: "object", properties: {}, additionalProperties: false },
   }];
 }
-export const observabilityDerivedRisk: DerivedRiskByToolId = new Map([["observability_send_test_error", "mutates-durable-state"]]);
+export const observabilityDerivedRisk: ReadonlyMap<string, AgentToolSideEffect> = new Map<string, AgentToolSideEffect>([["observability_send_test_error", "mutates-durable-state"]]);
 
 /** Thin admin adapter over the same diagnostic action as the HTTP surface.
  * @returns One registration. @throws ToolInputError for unavailable service or extra input.

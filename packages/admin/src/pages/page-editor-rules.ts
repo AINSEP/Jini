@@ -80,7 +80,7 @@ export interface VersionedSavablePage extends SavablePage {
 
 /** Whether `bodyJson` holds an actual authored Tiptap document, as opposed to the empty
  *  `DEFAULT_BODY_JSON` (`{ type: "doc", content: [] }`) every `createPost` row is born with
- *  (`apps/website/src/features/post/post.ts`). Deliberately conservative: ANY non-empty `content`
+ *  (the host's post store). Deliberately conservative: ANY non-empty `content`
  *  array counts as real content, including a single empty paragraph, because the only thing this
  *  answer gates is whether we are willing to DESTROY that document — and the cost of being wrong in
  *  the cautious direction is a refusal the operator is told about, while the cost of being wrong in
@@ -128,7 +128,7 @@ export function pickerValueToChoice({ value }: { value: string }, _options = {})
  *
  * **The two guards are what keep the F01 data-loss fix intact** (see `use-page-editor.unit.test.ts`'s
  * own file header): `updatePageHtml`'s first call on a doc-format row converts it and DROPS
- * `body_json` (`apps/website/src/server/inbound/admin-http/routes/pages/update-html.ts`). `html !== ""` means an ordinary Save or Publish
+ * `body_json` (the host's page-HTML write route). `html !== ""` means an ordinary Save or Publish
  * that never touched the body still takes the metadata-only path — the editor loads `html` as `""`
  * for a doc-format Page, so an empty working copy is "nothing was authored", never "the operator
  * cleared it". {@link hasAuthoredDocument} means a legacy Page with a real Tiptap body is never
@@ -173,7 +173,7 @@ export function buildPageSavePlan(
       templateChoice: form.templateChoice,
       // The basis `save` guards the WHOLE save on. `updatePost` is the only one of the two write
       // routes that offers compare-and-set against a client-supplied version: `PUT /pages/:id/html`
-      // reads the row and writes it back inside one request (`apps/website/src/server/inbound/admin-http/routes/pages/update-html.ts`),
+      // reads the row and writes it back inside one request (the host's page-HTML write route),
       // so the version it conditions on is one it captured microseconds earlier and can never be
       // the version THIS editor loaded. That is why `save` now writes metadata first and only
       // reaches the body once this guard has passed — see `save`'s own doc.

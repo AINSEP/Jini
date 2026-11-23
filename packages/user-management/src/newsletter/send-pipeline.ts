@@ -7,8 +7,8 @@
  * `dispatchRow` never constructs, stores, or imports a concrete `MailerPort` adapter (INV-08) — it
  * only ever receives one as a call-time dependency. `claimBatch` delegates to the EXISTING generic
  * `processOutbox` primitive unmodified (W-003) — Newsletter does not fork the claim loop; the actual
- * per-row fan-out happens in `handleSendBatchClaimed`, the bus-subscriber handler `apps/website/src/server/runtime/composition/app.ts`
- * wires onto `newsletter.send.batch.claimed` (T040), mirroring the existing
+ * per-row fan-out happens in `handleSendBatchClaimed`, the bus-subscriber handler the host's
+ * composition root wires onto `newsletter.send.batch.claimed` (T040), mirroring the existing
  * `bus.subscribe("workspace.created", ...)` demonstration.
  */
 import type { DomainEvent, EventBusPort, OutboxPort } from "@jini-ai/core/contracts/events";
@@ -587,7 +587,7 @@ async function continueLater(required: { deps: SendPipelineDeps; job: SendBatchJ
 }
 
 /**
- * The bus-subscriber handler `apps/website/src/server/runtime/composition/app.ts` wires onto `newsletter.send.batch.claimed` (T040).
+ * The bus-subscriber handler the host's composition root wires onto `newsletter.send.batch.claimed` (T040).
  * Per-row fixed order: `recipient.filter` -> `beforeSend` -> `send()` -> `recordResult`; one row's
  * failure never aborts sibling rows in the same batch.
  *

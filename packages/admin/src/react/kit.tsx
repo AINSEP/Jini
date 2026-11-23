@@ -260,6 +260,11 @@ export interface SelectDropdownController {
   selectOption: (option: WidgetSelectOption) => void; handleTriggerKeyDown: (event: ReactKeyboardEvent<HTMLButtonElement>) => void;
   handlePanelKeyDown: (event: ReactKeyboardEvent<HTMLDivElement>) => void; optionId: (index: number) => string;
 }
+/** The tabbed-dialog controller fields admin reads; the UI library's controller carries more. */
+export interface TabbedDialogView { activeTabId: string | null; setActiveTabId: (tabId: string) => void }
+export interface KitClipboardPort { copyText(text: string): Promise<boolean> }
+/** A copy action plus its short-lived "copied" flag. */
+export interface CopyToClipboardController { copied: boolean; copy: (text: string) => Promise<boolean> }
 export interface AdminKitHooks {
   useAgentHandle(required: AgentControlProps, optional?: Record<string, never>): string | undefined;
   useFocusTrap(required: { containerRef: RefObject<HTMLElement | null> }, optional?: { active?: boolean | undefined }): void;
@@ -279,6 +284,9 @@ export interface AdminKitHooks {
   }, optional?: Record<string, never>): PanelPositionController;
   useSelectDropdown(required: { value: string; onChange: (value: string) => void; options: WidgetSelectOption[] },
     optional?: { disabled?: boolean | undefined }): SelectDropdownController;
+  useTabbedDialog(required: { tabs: readonly SettingsDialogTab[]; initialActiveTabId?: string | undefined }, optional?: Record<string, never>): TabbedDialogView;
+  /** `copied` turns true after a successful copy and back to false after `resetMs`. */
+  useCopyToClipboard(clipboard: KitClipboardPort, resetMs?: number): CopyToClipboardController;
 }
 /** A translator with optional interpolation variables, as the UI library's `useT` returns. */
 export type KitTranslator = (key: string, vars?: Readonly<Record<string, string | number>>) => string;
@@ -369,6 +377,9 @@ export interface AdminKitValues {
     keyPrefix: string; getStorage: (required: Record<string, never>, optional?: Record<string, never>) => Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
   }, optional?: Record<string, never>) => StandingDraftLocalBackup;
   readonly createFailureChannel: (required: Record<string, never>, optional?: { onPublish?: (input: { failure: UserFacingError }) => void }) => FailureChannel;
+  /** The requested tab when it is present, else the first tab, else null. */
+  readonly resolveInitialActiveTabId: <T extends SettingsDialogTab>(required: { tabs: readonly T[] }, optional?: { initialTabId?: string | null | undefined }) => string | null;
+  readonly findActiveTab: <T extends SettingsDialogTab>(required: { tabs: readonly T[]; activeTabId: string | null }, optional?: Record<string, never>) => T | undefined;
 }
 
 /* ---------- chat (the host's chat library: its translator and the run posters; shapes restated) ---------- */
@@ -479,6 +490,8 @@ export function useCodeWrap(_required: Record<string, never> = {}, _optional: Re
 export const useInfoTip: AdminKitHooks['useInfoTip'] = (r, o) => useAdminKit().hooks.useInfoTip(r, o);
 export const usePanelPosition: AdminKitHooks['usePanelPosition'] = (r, o) => useAdminKit().hooks.usePanelPosition(r, o);
 export const useSelectDropdown: AdminKitHooks['useSelectDropdown'] = (r, o) => useAdminKit().hooks.useSelectDropdown(r, o);
+export const useTabbedDialog: AdminKitHooks['useTabbedDialog'] = (r, o) => useAdminKit().hooks.useTabbedDialog(r, o);
+export const useCopyToClipboard: AdminKitHooks['useCopyToClipboard'] = (clipboard, resetMs) => useAdminKit().hooks.useCopyToClipboard(clipboard, resetMs);
 
 /** The host's CHAT translator (the chat library's locale context), distinct from the UI `useT` above. */
 export function useChatT(_required: Record<string, never> = {}, _optional: Record<string, never> = {}): KitChatTranslator {
