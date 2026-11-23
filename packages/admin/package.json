@@ -178,6 +178,10 @@
       "./recovery/hooks/recovery-port.hooks": "universal",
       "./recovery/hooks/restore-flow-port.hooks": "universal",
       "./recovery/hooks/use-recovery-navigation.hooks": "browser",
+      "./recovery/rules": "browser",
+      "./recovery/recovery-i18n": "browser",
+      "./recovery/hooks/use-recovery.hooks": "browser",
+      "./recovery/hooks/use-restore-flow.hooks": "browser",
       "./publish-content/screen/hooks/publish-availability.store": "browser"
     },
     "isolation": {
@@ -1084,6 +1088,26 @@
       "types": "./dist/recovery/hooks/use-recovery-navigation.hooks.d.ts",
       "import": "./dist/recovery/hooks/use-recovery-navigation.hooks.js",
       "default": "./dist/recovery/hooks/use-recovery-navigation.hooks.js"
+    },
+    "./recovery/rules": {
+      "types": "./dist/recovery/rules.d.ts",
+      "import": "./dist/recovery/rules.js",
+      "default": "./dist/recovery/rules.js"
+    },
+    "./recovery/recovery-i18n": {
+      "types": "./dist/recovery/recovery-i18n.d.ts",
+      "import": "./dist/recovery/recovery-i18n.js",
+      "default": "./dist/recovery/recovery-i18n.js"
+    },
+    "./recovery/hooks/use-recovery.hooks": {
+      "types": "./dist/recovery/hooks/use-recovery.hooks.d.ts",
+      "import": "./dist/recovery/hooks/use-recovery.hooks.js",
+      "default": "./dist/recovery/hooks/use-recovery.hooks.js"
+    },
+    "./recovery/hooks/use-restore-flow.hooks": {
+      "types": "./dist/recovery/hooks/use-restore-flow.hooks.d.ts",
+      "import": "./dist/recovery/hooks/use-restore-flow.hooks.js",
+      "default": "./dist/recovery/hooks/use-restore-flow.hooks.js"
     },
     "./publish-content/screen/hooks/publish-availability.store": {
       "types": "./dist/publish-content/screen/hooks/publish-availability.store.d.ts",
