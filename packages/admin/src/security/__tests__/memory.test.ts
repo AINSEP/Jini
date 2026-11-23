@@ -99,6 +99,7 @@ describe('memory other credentials', () => {
 });
 describe('memory root key', () => {
   const status = (over: Partial<RootKeyStatus>): RootKeyStatus => ({ active: false, source: 'none', state: 'missing', keyFilePath: '/k', runtimeMode: 'production', ...over });
+  it('keeps envVarName and reason on a supplied status (P10)', async () => { const s = status({ source: 'env', state: 'invalid', invalid: true, envVarName: 'SITE_KEY_VAR', reason: 'too-short' }); expect(await createMemoryRootKey({ status: s }).status({})).toEqual(s); });
   it('starts missing by default', async () => { expect(await createMemoryRootKey({}).status({})).toEqual({ active: false, source: 'none', state: 'missing', keyFilePath: '/memory/key', runtimeMode: 'local' }); });
   it('creates a key when missing and becomes active', async () => {
     const api = createMemoryRootKey({ status: status({}) });

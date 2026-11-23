@@ -80,3 +80,43 @@ export function buildCredentialPatch({ draft, providers }: { draft: CredentialDr
   return { label: draft.label.trim(), ...(connection ? { connection } : {}), ...(custom ? customPatchFields({ draft }) : {}) };
 }
 export function isRootKeyLocked({ status }: { status: RootKeyStatus | null }, _optional = {}) { return status?.state === 'missing-with-data' || status?.state === 'mismatch'; }
+/** Server refusal codes for a root-key write, grouped by what the operator can do next. */
+export type RootKeyRefusalKind = 'locked' | 'refused' | 'already-exists' | 'generic';
+const REFUSAL_KINDS = { KEY_DEPENDENT_DATA: 'locked', KEY_MISMATCH: 'locked', KEY_INVALID: 'refused', SITE_META_UNREADABLE: 'refused', ALREADY_EXISTS: 'already-exists' } as const satisfies Readonly<Record<string, RootKeyRefusalKind>>;
+/** A refusal code this module knows; the host maps it to approved public copy. */
+export type RootKeyRefusalCode = keyof typeof REFUSAL_KINDS;
+/** A classified refusal: a known code, or `generic` with no code. Never carries reader text. */
+export interface RootKeyRefusal { readonly kind: RootKeyRefusalKind; readonly code?: RootKeyRefusalCode }
+const isKnownCode = (code: string | undefined): code is RootKeyRefusalCode => code !== undefined && Object.hasOwn(REFUSAL_KINDS, code);
+/**
+ * Keeps only a known code. The reader's `detail` is ignored: it is untrusted and may echo the key, so
+ * public copy is resolved from the code at the host boundary, with fixed fallback copy otherwise.
+ */
+export function classifyRootKeyRefusal({ code }: { code?: string | undefined; detail?: string | undefined }, _optional = {}): RootKeyRefusal {
+  return isKnownCode(code) ? { kind: REFUSAL_KINDS[code], code } : { kind: 'generic' };
+}
+export interface RootKeyBadge { readonly label: string; readonly vars?: Readonly<Record<string, string>>; readonly tone: 'warning' | 'success' | 'info' }
+/** Badge copy keeps environment provenance in the rules so rendering has no source policy. */
+export function rootKeyBadge({ status }: { status: RootKeyStatus }, { defaultEnvVarName }: { defaultEnvVarName?: string | undefined } = {}): RootKeyBadge {
+  const tone = status.invalid ? 'warning' : status.active ? 'success' : 'info';
+  if (!status.active) return { label: 'None', tone };
+  if (status.source !== 'env') return { label: 'Active — key file', tone };
+  const name = status.envVarName ?? defaultEnvVarName;
+  return name === undefined ? { label: 'Active — environment variable', tone } : { label: 'Active: environment variable {name}', vars: { name }, tone };
+}
+/** An env key is fixed by its exact variable name; a file key only by hand on the server. */
+function invalidKeyNote({ status }: { status: RootKeyStatus }, { defaultEnvVarName }: { defaultEnvVarName?: string | undefined } = {}): RootKeyNote {
+  const name = status.envVarName ?? defaultEnvVarName;
+  if (status.source !== 'env') return { text: 'The key file at', path: status.keyFilePath, after: "isn't in a usable format. It will need to be replaced by hand on the server — this tab can't do that yet." };
+  return name === undefined ? { text: 'A key is set up for this install, but it is not in a usable format. Fix the value stored in its environment variable to resolve this.' } : { text: 'A key is set up for this install, but it is not in a usable format. Fix the value stored in the {name} environment variable to resolve this.', vars: { name } };
+}
+export interface RootKeyNote { readonly text: string; readonly vars?: Readonly<Record<string, string>>; readonly path?: string; readonly after?: string }
+/** One plain sentence per source. A file path is shown as its own code element, never interpolated
+ * into translated prose; an env var name is named because fixing it requires that exact name. */
+export function rootKeySourceNote({ status }: { status: RootKeyStatus }, { defaultEnvVarName, generate = 'shown' }: { defaultEnvVarName?: string | undefined; generate?: 'shown' | 'hidden' | undefined } = {}): RootKeyNote {
+  if (status.invalid) return invalidKeyNote({ status }, { defaultEnvVarName });
+  if (status.source === 'env') return { text: "This key was set up directly on the server rather than as a file, and it's already active — there's nothing to do here. Changing it means updating it on the server and restarting." };
+  if (status.source === 'file') return { text: 'Stored in a file on this server, at', path: status.keyFilePath };
+  // A host that hides Generate mints the key itself at boot, so the empty state says so.
+  return { text: generate === 'hidden' ? 'A key is created automatically when this site starts.' : 'No key yet. Create one to protect saved credentials.' };
+}

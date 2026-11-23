@@ -22,6 +22,7 @@ test('publishes user management from its canonical folder and preserves runtime 
     '.': 'universal',
     './session-bootstrap': 'universal',
     './server': 'node',
+    './admin-http/auth': 'node',
     './react': 'browser',
     './react/testing': 'browser',
     './react/kit': 'browser',

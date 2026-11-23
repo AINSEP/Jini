@@ -40,6 +40,10 @@ export interface RootKeyStatus {
   readonly active: boolean; readonly source: 'env' | 'file' | 'none'; readonly state: RootKeyState;
   readonly fingerprint?: string; readonly invalid?: boolean; readonly keyFilePath: string;
   readonly runtimeMode: 'production' | 'local';
+  /** The env var the server reads the key from; a name, never a value. Hosts show it in the badge. */
+  readonly envVarName?: string;
+  /** Why an `invalid` key was refused, so the page can say what to fix without echoing the key. */
+  readonly reason?: 'empty' | 'not-hex' | 'odd-length' | 'too-short';
 }
 export interface RootKeyPreview {
   readonly removes: number; readonly affectedWebhooks: readonly { readonly label: string; readonly targetUrl: string }[];

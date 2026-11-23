@@ -80,14 +80,19 @@ export function createHttpOtherCredentials({ transport, workspacePath }: { trans
 }
 /** Explicit projection: receivers carry signing secrets the UI must never hold. */
 function webhookTargets({ webhooks }: { webhooks: RootKeyPreview['affectedWebhooks'] }, _optional = {}) { return webhooks.map(w => ({ label: w.label, targetUrl: w.targetUrl })); }
-export function createHttpRootKey({ transport, workspacePath }: { transport: SecurityTransportPort; workspacePath: string }, _optional = {}): RootKeyPort {
-  const path = `${trimBase({ workspacePath })}/system/site-token`;
+/** Explicit projection: a status read never carries key material (`hex`, `token`, a pasted value), even if a server adds it. */
+function rootKeyStatus({ status: r }: { status: RootKeyStatus }, _optional = {}): RootKeyStatus {
+  return { active: r.active, source: r.source, state: r.state, keyFilePath: r.keyFilePath, runtimeMode: r.runtimeMode, ...(r.fingerprint ? { fingerprint: r.fingerprint } : {}), ...(r.invalid !== undefined ? { invalid: r.invalid } : {}), ...(r.envVarName ? { envVarName: r.envVarName } : {}), ...(r.reason ? { reason: r.reason } : {}) };
+}
+/** `path` and `importField` let a host keep an existing server wire (e.g. `/system/site-key` with `{ siteKey }`) byte for byte; the defaults are the stock Jini wire. */
+export function createHttpRootKey({ transport, workspacePath }: { transport: SecurityTransportPort; workspacePath: string }, { path: routePath = '/system/site-token', importField = 'token' }: { path?: string; importField?: string } = {}): RootKeyPort {
+  const path = `${trimBase({ workspacePath })}${routePath}`;
   async function request<T>(suffix: string, method: 'GET' | 'POST', options: RequestOptions, body?: unknown) { options.signal?.throwIfAborted(); return transport.request<T>({ path: `${path}${suffix}`, method, ...(body !== undefined ? { body } : {}) }, options); }
   function result(r: RootKeyResult): RootKeyResult { return { outcome: r.outcome, fingerprint: r.fingerprint, keyFilePath: r.keyFilePath, runtimeMode: r.runtimeMode, ...(r.resealed !== undefined ? { resealed: r.resealed } : {}), ...(r.discarded !== undefined ? { discarded: r.discarded } : {}), ...(r.kept !== undefined ? { kept: r.kept } : {}), ...(r.restorePointId ? { restorePointId: r.restorePointId } : {}), ...(r.affectedWebhooks ? { affectedWebhooks: webhookTargets({ webhooks: r.affectedWebhooks }) } : {}) }; }
   return {
-    async status(_r, o = {}) { const r = await request<RootKeyStatus>('', 'GET', o); return { active: r.active, source: r.source, state: r.state, keyFilePath: r.keyFilePath, runtimeMode: r.runtimeMode, ...(r.fingerprint ? { fingerprint: r.fingerprint } : {}), ...(r.invalid !== undefined ? { invalid: r.invalid } : {}) }; },
+    async status(_r, o = {}) { return rootKeyStatus({ status: await request<RootKeyStatus>('', 'GET', o) }); },
     async generate(_r, o = {}) { return result(await request('/generate', 'POST', o)); },
-    async importToken({ token }, o = {}) { return result(await request('/import', 'POST', o, { token })); },
+    async importToken({ token }, o = {}) { return result(await request('/import', 'POST', o, { [importField]: token })); },
     async previewStartFresh(_r, o = {}) { const r = await request<RootKeyPreview>('/start-fresh', 'GET', o); return { removes: r.removes, detail: r.detail, runtimeMode: r.runtimeMode, affectedWebhooks: webhookTargets({ webhooks: r.affectedWebhooks }) }; },
     async startFresh({ confirm }, o = {}) { return result(await request('/start-fresh', 'POST', o, { confirm })); },
   };
